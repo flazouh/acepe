@@ -2,6 +2,7 @@ use crate::acp::client_session::SessionModes;
 use crate::acp::lifecycle::SessionSupervisor;
 use crate::acp::lifecycle::{FailureReason, LifecycleCheckpoint, LifecycleState, LifecycleStatus};
 use crate::acp::projections::{ProjectionRegistry, SessionSnapshot};
+use crate::acp::session::ingress::event::ProviderEvent;
 use crate::acp::session_state_engine::anchor_ledger::AnchorLedger;
 use crate::acp::session_state_engine::buffer_emission_tracker::BufferEmissionTracker;
 use crate::acp::session_state_engine::envelope_router::{
@@ -9,7 +10,7 @@ use crate::acp::session_state_engine::envelope_router::{
     tool_call_id_for_operation_patch, BuildPlan, EnvelopeBuilderKind,
 };
 use crate::acp::session_state_engine::frontier::SessionFrontierDecision;
-use crate::acp::session_state_engine::graph::select_active_streaming_tail;
+use crate::acp::session_state_engine::graph::{select_active_streaming_tail, SessionStateGraph};
 use crate::acp::session_state_engine::live_envelope_builder::{
     build_assistant_text_delta_from_components, build_live_session_state_capabilities_envelope,
     build_live_session_state_delta_envelope, build_live_session_state_lifecycle_envelope,
@@ -33,7 +34,8 @@ use crate::acp::types::CanonicalAgentId;
 use crate::db::repository::{SessionMetadataRepository, SessionTranscriptRowLedgerRepository};
 use sea_orm::DbConn;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::collections::{HashMap, HashSet};
+use std::sync::{Arc, Mutex};
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct SessionGraphRuntimeSnapshot {
@@ -55,9 +57,16 @@ impl Default for SessionGraphRuntimeSnapshot {
 #[derive(Debug, Clone)]
 pub struct SessionGraphRuntimeRegistry {
     supervisor: Arc<SessionSupervisor>,
+    graphs: Arc<Mutex<HashMap<String, HeldSessionGraph>>>,
     anchors: AnchorLedger,
     rows: TranscriptRowsLedger,
     emissions: BufferEmissionTracker,
+}
+
+#[derive(Debug, Clone)]
+struct HeldSessionGraph {
+    graph: SessionStateGraph,
+    applied_fold_keys: Option<HashSet<String>>,
 }
 
 /// Why the builder could not materialize a visible transcript window for a command.
@@ -98,6 +107,7 @@ impl SessionGraphRuntimeRegistry {
         let rows = TranscriptRowsLedger::new();
         Self {
             supervisor,
+            graphs: Arc::new(Mutex::new(HashMap::new())),
             anchors: AnchorLedger::new(),
             emissions: BufferEmissionTracker::new(rows.clone()),
             rows,
@@ -184,9 +194,51 @@ impl SessionGraphRuntimeRegistry {
 
     pub fn remove_session(&self, session_id: &str) {
         self.supervisor.remove_session(session_id);
+        self.graphs
+            .lock()
+            .expect("session graphs mutex poisoned")
+            .remove(session_id);
         self.anchors.remove_session(session_id);
         self.rows.remove_session(session_id);
         self.emissions.remove_session(session_id);
+    }
+
+    pub fn seed_graph(&self, session_id: String, graph: SessionStateGraph) {
+        self.graphs
+            .lock()
+            .expect("session graphs mutex poisoned")
+            .insert(
+                session_id,
+                HeldSessionGraph {
+                    graph,
+                    applied_fold_keys: Some(HashSet::new()),
+                },
+            );
+    }
+
+    #[must_use]
+    pub fn graph_for_session(&self, session_id: &str) -> Option<SessionStateGraph> {
+        self.graphs
+            .lock()
+            .expect("session graphs mutex poisoned")
+            .get(session_id)
+            .map(|held| held.graph.clone())
+    }
+
+    pub fn apply_provider_event(
+        &self,
+        session_id: &str,
+        event: &ProviderEvent,
+    ) -> Option<SessionStateGraph> {
+        let mut graphs = self.graphs.lock().expect("session graphs mutex poisoned");
+        let held = graphs.get_mut(session_id)?;
+        let (next, _delta) = crate::acp::session::engine::fold::fold_step_with_dedup(
+            &held.graph,
+            event,
+            &mut held.applied_fold_keys,
+        );
+        held.graph = next;
+        Some(held.graph.clone())
     }
 
     pub fn restore_session_checkpoint(&self, session_id: String, checkpoint: LifecycleCheckpoint) {
@@ -1272,6 +1324,8 @@ mod tests {
         session_state_envelope_byte_budget_status, CapabilityPreviewState,
         LiveSessionStateEnvelopeRequest, SessionGraphRuntimeRegistry, SessionStateField,
     };
+    use crate::acp::session::engine::fold::{fold_full, FoldContext};
+    use crate::acp::session::ingress::event::{ProviderEvent, ProviderEventKind};
     use crate::acp::session_state_engine::live_envelope_builder::{
         build_assistant_text_delta_from_components, build_live_session_state_capabilities_envelope,
         build_live_session_state_delta_envelope, build_live_session_state_telemetry_envelope,
@@ -1294,6 +1348,58 @@ mod tests {
             after < before,
             "remove_session must reset the anchor via ledger delegation (before={before}, after={after})"
         );
+    }
+
+    #[test]
+    fn registry_holds_history_and_applies_each_provider_event_once() {
+        let registry = SessionGraphRuntimeRegistry::new();
+        let session_id = "sess-held-graph";
+        let history_event = ProviderEvent {
+            source: CanonicalAgentId::Cursor,
+            provider_seq: 1,
+            provider_row_id: "history-user".to_string(),
+            timestamp_ms: None,
+            kind: ProviderEventKind::UserText {
+                text: "history".to_string(),
+                attempt_id: None,
+            },
+        };
+        let live_event = ProviderEvent {
+            source: CanonicalAgentId::Cursor,
+            provider_seq: 2,
+            provider_row_id: "live-assistant".to_string(),
+            timestamp_ms: None,
+            kind: ProviderEventKind::AssistantText {
+                text: "live".to_string(),
+            },
+        };
+        let history_graph = fold_full(
+            &[history_event],
+            &FoldContext::new(session_id, CanonicalAgentId::Cursor, "/workspace"),
+        );
+
+        registry.seed_graph(session_id.to_string(), history_graph);
+        let graph_once = registry
+            .apply_provider_event(session_id, &live_event)
+            .expect("seeded graph should accept a live event");
+        let graph_twice = registry
+            .apply_provider_event(session_id, &live_event)
+            .expect("duplicate live event should return the held graph");
+
+        assert_eq!(graph_once.transcript_snapshot.entries.len(), 2);
+        assert_eq!(graph_twice.transcript_snapshot.entries.len(), 2);
+        assert_eq!(
+            registry
+                .graph_for_session(session_id)
+                .expect("held graph should be readable")
+                .transcript_snapshot
+                .entries
+                .len(),
+            2
+        );
+
+        registry.remove_session(session_id);
+        assert!(registry.graph_for_session(session_id).is_none());
     }
 
     use crate::acp::client_session::{default_modes, default_session_model_state};
