@@ -35,7 +35,7 @@ mod preconnection_capabilities;
 mod preconnection_commands;
 mod registry_commands;
 mod session_commands;
-pub(crate) use session_commands::emit_lifecycle_event;
+pub(crate) use session_commands::emit_lifecycle_event_if_current;
 mod transcript_row_page_commands;
 pub(crate) mod transcript_viewport_commands;
 

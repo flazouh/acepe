@@ -17,7 +17,7 @@ fn fallback_title(session_id: &str) -> String {
     format!("Session {}", &session_id[..8.min(session_id.len())])
 }
 
-pub async fn claude_materialized_from_jsonl_path(
+pub(crate) async fn claude_materialized_from_jsonl_path(
     session_id: &str,
     project_path: &str,
     jsonl_path: PathBuf,
@@ -40,7 +40,9 @@ pub async fn claude_materialized_from_jsonl_path(
     ))
 }
 
-pub fn cursor_materialized_from_full_session(session: &FullSession) -> MaterializedThreadSnapshot {
+pub(crate) fn cursor_materialized_from_full_session(
+    session: &FullSession,
+) -> MaterializedThreadSnapshot {
     materialized_thread_snapshot_from_full_session(
         session,
         CanonicalAgentId::Cursor,
@@ -49,7 +51,7 @@ pub fn cursor_materialized_from_full_session(session: &FullSession) -> Materiali
     )
 }
 
-pub async fn materialized_from_history(
+pub(crate) async fn materialized_from_history(
     agent_id: &CanonicalAgentId,
     session_id: &str,
     project_path: &str,

@@ -21,7 +21,7 @@ use crate::acp::transcript_projection::TranscriptProjectionRegistry;
 use crate::acp::transcript_projection::TranscriptSnapshot;
 use crate::acp::types::CanonicalAgentId;
 use crate::acp::ui_event_dispatcher::{AcpUiEventDispatcher, DispatchPolicy};
-use crate::db::repository::SessionMetadataRepository;
+use crate::db::repository::{SessionJournalEventRepository, SessionMetadataRepository};
 use async_trait::async_trait;
 use sea_orm::{Database, DbConn};
 use sea_orm_migration::MigratorTrait;
@@ -1548,19 +1548,6 @@ async fn resume_promotes_discovered_session_to_acepe_managed() {
     let transcript_projection_registry = Arc::new(TranscriptProjectionRegistry::new());
     let supervisor = Arc::new(crate::acp::lifecycle::SessionSupervisor::new());
     let session_policy = Arc::new(crate::acp::session_policy::SessionPolicyRegistry::new());
-    assert!(
-        supervisor.seed_checkpoint(
-            session_id.to_string(),
-            crate::acp::lifecycle::LifecycleCheckpoint::new(
-                1,
-                crate::acp::lifecycle::LifecycleState::detached(
-                    crate::acp::lifecycle::DetachedReason::RestoredRequiresAttach,
-                ),
-                SessionGraphCapabilities::empty(),
-            ),
-        ),
-        "seed detached checkpoint",
-    );
     let runtime_registry = Arc::new(SessionGraphRuntimeRegistry::with_supervisor(Arc::clone(
         &supervisor,
     )));
@@ -1618,6 +1605,14 @@ async fn resume_promotes_discovered_session_to_acepe_managed() {
     .await;
 
     assert!(result.is_ok(), "resume invoke should succeed: {:?}", result);
+    let checkpoint = supervisor
+        .snapshot_for_session(session_id)
+        .expect("no-token historical resume must establish lifecycle ownership");
+    assert!(matches!(
+        checkpoint.lifecycle.status,
+        crate::acp::lifecycle::LifecycleStatus::Activating
+            | crate::acp::lifecycle::LifecycleStatus::Ready
+    ));
 
     let after = SessionMetadataRepository::get_by_id(&db, session_id)
         .await
@@ -1772,6 +1767,209 @@ async fn resume_promotion_is_idempotent_for_already_managed_session() {
     );
 }
 
+async fn assert_no_token_resume_joins_live_session(
+    lifecycle: crate::acp::lifecycle::LifecycleState,
+) {
+    let db = setup_test_db().await;
+    let temp = tempdir().expect("temp dir");
+    let session_id = format!("resume-live-{:?}", lifecycle.status);
+    let project_path = temp.path().to_string_lossy().into_owned();
+
+    persist_session_metadata_for_cwd(&db, &session_id, &CanonicalAgentId::ClaudeCode, temp.path())
+        .await
+        .expect("persist session metadata");
+
+    let event_hub = Arc::new(crate::acp::event_hub::AcpEventHubState::new());
+    let projection_registry = Arc::new(ProjectionRegistry::new());
+    let transcript_projection_registry = Arc::new(TranscriptProjectionRegistry::new());
+    let supervisor = Arc::new(crate::acp::lifecycle::SessionSupervisor::new());
+    let session_policy = Arc::new(crate::acp::session_policy::SessionPolicyRegistry::new());
+    assert!(supervisor.seed_checkpoint(
+        session_id.clone(),
+        crate::acp::lifecycle::LifecycleCheckpoint::new(
+            7,
+            lifecycle,
+            SessionGraphCapabilities::empty(),
+        ),
+    ));
+    let runtime_registry = Arc::new(SessionGraphRuntimeRegistry::with_supervisor(Arc::clone(
+        &supervisor,
+    )));
+    let session_registry = SessionRegistry::new();
+    session_registry.store(
+        session_id.clone(),
+        Box::new(MockAgentClient::new(MockClientState::new(false))),
+        CanonicalAgentId::ClaudeCode,
+    );
+    let app = mock_builder()
+        .manage(db.clone())
+        .manage(session_registry)
+        .manage(event_hub)
+        .manage(projection_registry)
+        .manage(runtime_registry)
+        .manage(transcript_projection_registry)
+        .manage(session_policy)
+        .manage(supervisor)
+        .build(mock_context(noop_assets()))
+        .expect("build mock app");
+
+    let worker_called = Arc::new(AtomicBool::new(false));
+    let worker_called_for_resume = Arc::clone(&worker_called);
+    let journal_frontier_before = SessionJournalEventRepository::max_event_seq(&db, &session_id)
+        .await
+        .expect("load journal frontier before repeated resume");
+    let result = super::session_commands::resume_session_with_app_handle_and_worker(
+        &app.handle().clone(),
+        session_id.clone(),
+        project_path,
+        None,
+        None,
+        2,
+        None,
+        move |_app, _session_id, _cwd, _agent_id, _launch_mode, _descriptor, _claim| async move {
+            worker_called_for_resume.store(true, Ordering::SeqCst);
+            Ok(ResumeSessionResponse {
+                models: default_session_model_state(),
+                modes: default_modes(),
+                available_commands: vec![],
+                config_options: vec![],
+            })
+        },
+    )
+    .await;
+
+    assert!(
+        result.is_ok(),
+        "joining a live resume should succeed: {result:?}"
+    );
+    tokio::task::yield_now().await;
+    assert!(
+        !worker_called.load(Ordering::SeqCst),
+        "an already-live no-token session must not start duplicate resume work",
+    );
+    let journal_frontier_after = SessionJournalEventRepository::max_event_seq(&db, &session_id)
+        .await
+        .expect("load journal frontier after repeated resume");
+    assert_eq!(
+        journal_frontier_after, journal_frontier_before,
+        "joining an already-live session must not append a lifecycle barrier",
+    );
+}
+
+#[tokio::test]
+async fn no_token_resume_joins_activating_or_ready_session_without_duplicate_work() {
+    assert_no_token_resume_joins_live_session(crate::acp::lifecycle::LifecycleState::activating())
+        .await;
+    assert_no_token_resume_joins_live_session(crate::acp::lifecycle::LifecycleState::ready()).await;
+}
+
+#[tokio::test]
+async fn concurrent_no_token_resumes_start_only_one_activation_attempt() {
+    let db = setup_test_db().await;
+    let temp = tempdir().expect("temp dir");
+    let session_id = "concurrent-no-token-resume";
+    let project_path = temp.path().to_string_lossy().into_owned();
+    persist_session_metadata_for_cwd(&db, session_id, &CanonicalAgentId::ClaudeCode, temp.path())
+        .await
+        .expect("persist session metadata");
+
+    let event_hub = Arc::new(crate::acp::event_hub::AcpEventHubState::new());
+    let projection_registry = Arc::new(ProjectionRegistry::new());
+    let transcript_projection_registry = Arc::new(TranscriptProjectionRegistry::new());
+    let supervisor = Arc::new(crate::acp::lifecycle::SessionSupervisor::new());
+    assert!(supervisor.seed_checkpoint(
+        session_id.to_string(),
+        crate::acp::lifecycle::LifecycleCheckpoint::new(
+            7,
+            crate::acp::lifecycle::LifecycleState::detached(
+                crate::acp::lifecycle::DetachedReason::RestoredRequiresAttach,
+            ),
+            SessionGraphCapabilities::empty(),
+        ),
+    ));
+    let session_policy = Arc::new(crate::acp::session_policy::SessionPolicyRegistry::new());
+    let runtime_registry = Arc::new(SessionGraphRuntimeRegistry::with_supervisor(Arc::clone(
+        &supervisor,
+    )));
+    let session_registry = SessionRegistry::new();
+    session_registry.store(
+        session_id.to_string(),
+        Box::new(MockAgentClient::new(MockClientState::new(false))),
+        CanonicalAgentId::ClaudeCode,
+    );
+    let app = mock_builder()
+        .manage(db.clone())
+        .manage(session_registry)
+        .manage(event_hub)
+        .manage(projection_registry)
+        .manage(runtime_registry)
+        .manage(transcript_projection_registry)
+        .manage(session_policy)
+        .manage(Arc::clone(&supervisor))
+        .build(mock_context(noop_assets()))
+        .expect("build mock app");
+
+    let worker_calls = Arc::new(AtomicUsize::new(0));
+    let first_worker_calls = Arc::clone(&worker_calls);
+    let second_worker_calls = Arc::clone(&worker_calls);
+    let app_handle = app.handle().clone();
+    let first = super::session_commands::resume_session_with_app_handle_and_worker(
+        &app_handle,
+        session_id.to_string(),
+        project_path.clone(),
+        None,
+        None,
+        1,
+        None,
+        move |_app, _session_id, _cwd, _agent_id, _launch_mode, _descriptor, _claim| async move {
+            first_worker_calls.fetch_add(1, Ordering::SeqCst);
+            std::future::pending().await
+        },
+    );
+    let second = super::session_commands::resume_session_with_app_handle_and_worker(
+        &app_handle,
+        session_id.to_string(),
+        project_path,
+        None,
+        None,
+        2,
+        None,
+        move |_app, _session_id, _cwd, _agent_id, _launch_mode, _descriptor, _claim| async move {
+            second_worker_calls.fetch_add(1, Ordering::SeqCst);
+            std::future::pending().await
+        },
+    );
+
+    let (first_result, second_result) = tokio::join!(first, second);
+    assert!(first_result.is_ok());
+    assert!(second_result.is_ok());
+    for _ in 0..20 {
+        if worker_calls.load(Ordering::SeqCst) > 0 {
+            break;
+        }
+        tokio::task::yield_now().await;
+    }
+    assert_eq!(
+        worker_calls.load(Ordering::SeqCst),
+        1,
+        "concurrent invokes must share one provider resume attempt",
+    );
+    assert_eq!(
+        SessionJournalEventRepository::max_event_seq(&db, session_id)
+            .await
+            .expect("load activation frontier"),
+        Some(1),
+        "one activation attempt must append exactly one lifecycle barrier",
+    );
+    assert_eq!(
+        supervisor
+            .snapshot_for_session(session_id)
+            .expect("activation checkpoint")
+            .lifecycle,
+        crate::acp::lifecycle::LifecycleState::activating(),
+    );
+}
+
 #[tokio::test]
 async fn resume_session_emits_connecting_session_state_before_completion_events() {
     let db = setup_test_db().await;
@@ -1893,7 +2091,7 @@ async fn resume_session_emits_connecting_session_state_before_completion_events(
 }
 
 #[tokio::test]
-async fn resume_session_claims_open_token_before_returning() {
+async fn resume_session_prepares_open_token_before_returning_and_commits_after_attach() {
     let db = setup_test_db().await;
     let temp = tempdir().expect("temp dir");
     let session_id = "resume-open-token-session";
@@ -1917,7 +2115,9 @@ async fn resume_session_claims_open_token_before_returning() {
         .expect("reserve live pending session");
 
     let token = uuid::Uuid::new_v4();
-    event_hub.arm_reservation(token, session_id.to_string(), 0, 0);
+    event_hub
+        .arm_reservation(token, session_id.to_string(), 0, 0)
+        .expect("reservation should arm");
 
     let session_registry = SessionRegistry::new();
     session_registry.store(
@@ -1937,6 +2137,7 @@ async fn resume_session_claims_open_token_before_returning() {
         .manage(Arc::clone(&supervisor))
         .build(mock_context(noop_assets()))
         .expect("build mock app");
+    let (attach_finished, attach_finished_rx) = tokio::sync::oneshot::channel();
 
     let result = super::session_commands::resume_session_with_app_handle_and_worker(
         &app.handle().clone(),
@@ -1952,8 +2153,13 @@ async fn resume_session_claims_open_token_before_returning() {
          _agent_id_enum,
          _launch_mode_id,
          _resume_descriptor,
-         _open_token| async move {
+         prepared_open_token| async move {
             tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            prepared_open_token
+                .expect("open-token resume should own a prepared claim")
+                .commit()
+                .expect("successful attach should commit the open token");
+            let _ = attach_finished.send(());
             Ok(ResumeSessionResponse {
                 models: default_session_model_state(),
                 modes: default_modes(),
@@ -1969,8 +2175,187 @@ async fn resume_session_claims_open_token_before_returning() {
         "resume invoke should accept valid open token"
     );
     assert!(
+        event_hub.has_reservation_for_session(token, session_id),
+        "prepared open token must remain buffered while async attach is still running"
+    );
+    assert!(
+        event_hub
+            .prepare_reservation_claim_for_session(token, session_id)
+            .is_none(),
+        "prepared open token must reject a competing reconnect"
+    );
+    attach_finished_rx.await.expect("attach should finish");
+    assert!(
         !event_hub.has_reservation(token),
-        "open token must be claimed before resume returns so a second reconnect cannot race"
+        "successful attach must retire the token only after it finishes"
+    );
+}
+
+#[tokio::test]
+async fn resume_session_worker_failure_releases_open_token_for_retry() {
+    let db = setup_test_db().await;
+    let temp = tempdir().expect("temp dir");
+    let session_id = "resume-open-token-worker-failure";
+
+    persist_session_metadata_for_cwd(&db, session_id, &CanonicalAgentId::ClaudeCode, temp.path())
+        .await
+        .expect("persist session metadata");
+
+    let event_hub = Arc::new(crate::acp::event_hub::AcpEventHubState::new());
+    let projection_registry = Arc::new(ProjectionRegistry::new());
+    let transcript_projection_registry = Arc::new(TranscriptProjectionRegistry::new());
+    let supervisor = Arc::new(crate::acp::lifecycle::SessionSupervisor::new());
+    let session_policy = Arc::new(crate::acp::session_policy::SessionPolicyRegistry::new());
+    let runtime_registry = Arc::new(SessionGraphRuntimeRegistry::with_supervisor(Arc::clone(
+        &supervisor,
+    )));
+    projection_registry.register_session(session_id.to_string(), CanonicalAgentId::ClaudeCode);
+    supervisor
+        .reserve(&db, projection_registry.as_ref(), session_id)
+        .await
+        .expect("reserve live pending session");
+
+    let token = uuid::Uuid::new_v4();
+    event_hub
+        .arm_reservation(token, session_id.to_string(), 0, 0)
+        .expect("reservation should arm");
+
+    let session_registry = SessionRegistry::new();
+    session_registry.store(
+        session_id.to_string(),
+        Box::new(MockAgentClient::new(MockClientState::new(false))),
+        CanonicalAgentId::ClaudeCode,
+    );
+
+    let app = mock_builder()
+        .manage(db)
+        .manage(session_registry)
+        .manage(Arc::clone(&event_hub))
+        .manage(projection_registry)
+        .manage(runtime_registry)
+        .manage(transcript_projection_registry)
+        .manage(session_policy)
+        .manage(supervisor)
+        .build(mock_context(noop_assets()))
+        .expect("build mock app");
+    let (worker_finished, worker_finished_rx) = tokio::sync::oneshot::channel();
+
+    let result = super::session_commands::resume_session_with_app_handle_and_worker(
+        &app.handle().clone(),
+        session_id.to_string(),
+        temp.path().to_string_lossy().into_owned(),
+        None,
+        None,
+        1,
+        Some(token.to_string()),
+        move |app,
+              worker_session_id,
+              _cwd,
+              _agent_id_enum,
+              _launch_mode_id,
+              _resume_descriptor,
+              prepared_open_token| async move {
+            let _prepared_open_token =
+                prepared_open_token.expect("worker should retain the prepared token");
+            app.state::<Arc<crate::acp::event_hub::AcpEventHubState>>()
+                .publish(
+                    "session_update",
+                    Some(worker_session_id),
+                    serde_json::json!({ "kind": "buffered-during-attach" }),
+                    "high",
+                    false,
+                );
+            let _ = worker_finished.send(());
+            Err(SerializableAcpError::InvalidState {
+                message: "transport attach failed".to_string(),
+            })
+        },
+    )
+    .await;
+
+    assert!(result.is_ok(), "resume invoke should start the worker");
+    worker_finished_rx.await.expect("worker should finish");
+    let retry = tokio::time::timeout(std::time::Duration::from_millis(200), async {
+        loop {
+            if let Some(retry) = event_hub.prepare_reservation_claim_for_session(token, session_id)
+            {
+                break retry;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("failed async attach must release the prepared claim for retry");
+    let claim = event_hub
+        .commit_prepared_reservation_claim(retry)
+        .expect("retry should commit the released claim");
+    assert!(
+        claim.buffered_events.iter().any(|event| {
+            event
+                .payload
+                .get("kind")
+                .and_then(serde_json::Value::as_str)
+                == Some("buffered-during-attach")
+        }),
+        "failed attach must preserve events buffered during the attach attempt"
+    );
+}
+
+#[tokio::test]
+async fn resume_session_releases_prepared_open_token_when_activation_fails() {
+    let db = setup_test_db().await;
+    let temp = tempdir().expect("temp dir");
+    let session_id = "resume-open-token-activation-failure";
+    persist_session_metadata_for_cwd(&db, session_id, &CanonicalAgentId::ClaudeCode, temp.path())
+        .await
+        .expect("persist session metadata");
+
+    let event_hub = Arc::new(crate::acp::event_hub::AcpEventHubState::new());
+    let projection_registry = Arc::new(ProjectionRegistry::new());
+    let transcript_projection_registry = Arc::new(TranscriptProjectionRegistry::new());
+    let supervisor = Arc::new(crate::acp::lifecycle::SessionSupervisor::new());
+    let runtime_registry = Arc::new(SessionGraphRuntimeRegistry::with_supervisor(Arc::clone(
+        &supervisor,
+    )));
+    let session_policy = Arc::new(crate::acp::session_policy::SessionPolicyRegistry::new());
+    let token = uuid::Uuid::new_v4();
+    event_hub
+        .arm_reservation(token, session_id.to_string(), 0, 0)
+        .expect("reservation should arm");
+
+    let app = mock_builder()
+        .manage(db)
+        .manage(SessionRegistry::new())
+        .manage(Arc::clone(&event_hub))
+        .manage(projection_registry)
+        .manage(runtime_registry)
+        .manage(transcript_projection_registry)
+        .manage(session_policy)
+        .manage(supervisor)
+        .build(mock_context(noop_assets()))
+        .expect("build mock app");
+
+    let result = super::session_commands::resume_session_with_app_handle_and_worker(
+        &app.handle().clone(),
+        session_id.to_string(),
+        temp.path().to_string_lossy().into_owned(),
+        None,
+        None,
+        1,
+        Some(token.to_string()),
+        |_app, _session_id, _cwd, _agent_id, _launch_mode, _descriptor, _claim| async move {
+            panic!("worker must not start after activation setup fails")
+        },
+    )
+    .await;
+
+    assert!(
+        result.is_err(),
+        "missing lifecycle authority must fail setup"
+    );
+    assert!(
+        event_hub.has_reservation_for_session(token, session_id),
+        "failed setup must release the prepared claim so retry keeps buffered events"
     );
 }
 

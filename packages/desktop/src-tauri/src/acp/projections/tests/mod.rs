@@ -1,5 +1,4 @@
 use super::*;
-use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::session_update::{
     ContentChunk, EditEntry, QuestionItem, ToolArguments, ToolCallData, ToolCallUpdateData,
     ToolKind,
@@ -1025,7 +1024,7 @@ fn restore_session_projection_rehydrates_indexes() {
 }
 
 #[test]
-fn project_thread_snapshot_imports_operations_and_answered_questions() {
+fn project_stored_entries_imports_operations_and_answered_questions() {
     let mut answers = HashMap::new();
     answers.insert("Approve deploy?".to_string(), json!("yes"));
 
@@ -1039,104 +1038,99 @@ fn project_thread_snapshot_imports_operations_and_answered_questions() {
         multi_select: false,
     }];
 
-    let thread_snapshot = SessionThreadSnapshot {
-        entries: vec![
-            StoredEntry::User {
-                id: "user-1".to_string(),
-                message: StoredUserMessage {
-                    id: Some("user-1".to_string()),
-                    content: StoredContentBlock {
+    let entries = vec![
+        StoredEntry::User {
+            id: "user-1".to_string(),
+            message: StoredUserMessage {
+                id: Some("user-1".to_string()),
+                content: StoredContentBlock {
+                    block_type: "text".to_string(),
+                    text: Some("ship it".to_string()),
+                },
+                chunks: vec![],
+                sent_at: Some("2026-04-08T00:00:00Z".to_string()),
+            },
+            timestamp: Some("2026-04-08T00:00:00Z".to_string()),
+        },
+        StoredEntry::Assistant {
+            id: "assistant-1".to_string(),
+            message: StoredAssistantMessage {
+                chunks: vec![StoredAssistantChunk {
+                    chunk_type: "message".to_string(),
+                    block: StoredContentBlock {
                         block_type: "text".to_string(),
-                        text: Some("ship it".to_string()),
+                        text: Some("Need approval".to_string()),
                     },
-                    chunks: vec![],
-                    sent_at: Some("2026-04-08T00:00:00Z".to_string()),
-                },
-                timestamp: Some("2026-04-08T00:00:00Z".to_string()),
+                }],
+                model: Some("claude-sonnet".to_string()),
+                display_model: Some("Claude Sonnet".to_string()),
+                received_at: Some("2026-04-08T00:00:01Z".to_string()),
             },
-            StoredEntry::Assistant {
-                id: "assistant-1".to_string(),
-                message: StoredAssistantMessage {
-                    chunks: vec![StoredAssistantChunk {
-                        chunk_type: "message".to_string(),
-                        block: StoredContentBlock {
-                            block_type: "text".to_string(),
-                            text: Some("Need approval".to_string()),
-                        },
-                    }],
-                    model: Some("claude-sonnet".to_string()),
-                    display_model: Some("Claude Sonnet".to_string()),
-                    received_at: Some("2026-04-08T00:00:01Z".to_string()),
+            timestamp: Some("2026-04-08T00:00:01Z".to_string()),
+        },
+        StoredEntry::ToolCall {
+            id: "tool-question-entry".to_string(),
+            message: ToolCallData {
+                id: "tool-question".to_string(),
+                name: "ask_user".to_string(),
+                arguments: ToolArguments::Other {
+                    raw: json!({}),
+                    intent: None,
                 },
-                timestamp: Some("2026-04-08T00:00:01Z".to_string()),
+                diagnostic_input: None,
+                status: ToolCallStatus::Completed,
+                result: None,
+                kind: Some(ToolKind::Question),
+                title: None,
+                locations: None,
+                skill_meta: None,
+                normalized_questions: Some(question_items.clone()),
+                normalized_todos: None,
+                normalized_todo_update: None,
+                parent_tool_use_id: None,
+                task_children: None,
+                question_answer: Some(QuestionAnswer {
+                    questions: question_items,
+                    answers,
+                }),
+                awaiting_plan_approval: false,
+                plan_approval_request_id: None,
             },
-            StoredEntry::ToolCall {
-                id: "tool-question-entry".to_string(),
-                message: ToolCallData {
-                    id: "tool-question".to_string(),
-                    name: "ask_user".to_string(),
-                    arguments: ToolArguments::Other {
-                        raw: json!({}),
-                        intent: None,
-                    },
-                    diagnostic_input: None,
-                    status: ToolCallStatus::Completed,
-                    result: None,
-                    kind: Some(ToolKind::Question),
-                    title: None,
-                    locations: None,
-                    skill_meta: None,
-                    normalized_questions: Some(question_items.clone()),
-                    normalized_todos: None,
-                    normalized_todo_update: None,
-                    parent_tool_use_id: None,
-                    task_children: None,
-                    question_answer: Some(QuestionAnswer {
-                        questions: question_items,
-                        answers,
-                    }),
-                    awaiting_plan_approval: false,
-                    plan_approval_request_id: None,
+            timestamp: Some("2026-04-08T00:00:02Z".to_string()),
+        },
+        StoredEntry::ToolCall {
+            id: "tool-plan-entry".to_string(),
+            message: ToolCallData {
+                id: "tool-plan".to_string(),
+                name: "create_plan".to_string(),
+                arguments: ToolArguments::Other {
+                    raw: json!({}),
+                    intent: None,
                 },
-                timestamp: Some("2026-04-08T00:00:02Z".to_string()),
+                diagnostic_input: None,
+                status: ToolCallStatus::Pending,
+                result: None,
+                kind: Some(ToolKind::CreatePlan),
+                title: None,
+                locations: None,
+                skill_meta: None,
+                normalized_questions: None,
+                normalized_todos: None,
+                normalized_todo_update: None,
+                parent_tool_use_id: None,
+                task_children: None,
+                question_answer: None,
+                awaiting_plan_approval: true,
+                plan_approval_request_id: Some(42),
             },
-            StoredEntry::ToolCall {
-                id: "tool-plan-entry".to_string(),
-                message: ToolCallData {
-                    id: "tool-plan".to_string(),
-                    name: "create_plan".to_string(),
-                    arguments: ToolArguments::Other {
-                        raw: json!({}),
-                        intent: None,
-                    },
-                    diagnostic_input: None,
-                    status: ToolCallStatus::Pending,
-                    result: None,
-                    kind: Some(ToolKind::CreatePlan),
-                    title: None,
-                    locations: None,
-                    skill_meta: None,
-                    normalized_questions: None,
-                    normalized_todos: None,
-                    normalized_todo_update: None,
-                    parent_tool_use_id: None,
-                    task_children: None,
-                    question_answer: None,
-                    awaiting_plan_approval: true,
-                    plan_approval_request_id: Some(42),
-                },
-                timestamp: Some("2026-04-08T00:00:03Z".to_string()),
-            },
-        ],
-        title: "Imported".to_string(),
-        created_at: "2026-04-08T00:00:00Z".to_string(),
-        current_mode_id: None,
-    };
+            timestamp: Some("2026-04-08T00:00:03Z".to_string()),
+        },
+    ];
 
-    let projection = ProjectionRegistry::project_thread_snapshot(
+    let projection = ProjectionRegistry::project_stored_entries(
         "session-1",
         Some(CanonicalAgentId::ClaudeCode),
-        &thread_snapshot,
+        &entries,
     );
 
     let session = projection
@@ -1180,7 +1174,7 @@ fn project_thread_snapshot_imports_operations_and_answered_questions() {
 }
 
 #[test]
-fn project_thread_snapshot_skips_unanswered_question_tools() {
+fn project_stored_entries_skips_unanswered_question_tools() {
     let question_items = vec![crate::acp::session_update::QuestionItem {
         question: "Pick an archive target?".to_string(),
         header: "Archive".to_string(),
@@ -1191,68 +1185,63 @@ fn project_thread_snapshot_skips_unanswered_question_tools() {
         multi_select: false,
     }];
 
-    let thread_snapshot = SessionThreadSnapshot {
-        entries: vec![
-            StoredEntry::User {
-                id: "user-1".to_string(),
-                message: StoredUserMessage {
-                    id: Some("user-1".to_string()),
-                    content: StoredContentBlock {
-                        block_type: "text".to_string(),
-                        text: Some("add confirm".to_string()),
-                    },
-                    chunks: vec![],
-                    sent_at: Some("2026-04-08T00:00:00Z".to_string()),
+    let entries = vec![
+        StoredEntry::User {
+            id: "user-1".to_string(),
+            message: StoredUserMessage {
+                id: Some("user-1".to_string()),
+                content: StoredContentBlock {
+                    block_type: "text".to_string(),
+                    text: Some("add confirm".to_string()),
                 },
-                timestamp: Some("2026-04-08T00:00:00Z".to_string()),
+                chunks: vec![],
+                sent_at: Some("2026-04-08T00:00:00Z".to_string()),
             },
-            StoredEntry::ToolCall {
-                id: "tool-question-entry".to_string(),
-                message: ToolCallData {
-                    id: "tool-question".to_string(),
-                    name: "AskUserQuestion".to_string(),
-                    arguments: ToolArguments::Other {
-                        raw: json!({
-                            "questions": [{
-                                "question": "Pick an archive target?",
-                                "header": "Archive",
-                                "options": [{
-                                    "label": "Sidebar",
-                                    "description": "Archive from the sidebar"
-                                }],
-                                "multiSelect": false
-                            }]
-                        }),
-                        intent: None,
-                    },
-                    diagnostic_input: None,
-                    status: ToolCallStatus::Pending,
-                    result: None,
-                    kind: Some(ToolKind::Question),
-                    title: Some("Question".to_string()),
-                    locations: None,
-                    skill_meta: None,
-                    normalized_questions: Some(question_items),
-                    normalized_todos: None,
-                    normalized_todo_update: None,
-                    parent_tool_use_id: None,
-                    task_children: None,
-                    question_answer: None,
-                    awaiting_plan_approval: false,
-                    plan_approval_request_id: None,
+            timestamp: Some("2026-04-08T00:00:00Z".to_string()),
+        },
+        StoredEntry::ToolCall {
+            id: "tool-question-entry".to_string(),
+            message: ToolCallData {
+                id: "tool-question".to_string(),
+                name: "AskUserQuestion".to_string(),
+                arguments: ToolArguments::Other {
+                    raw: json!({
+                        "questions": [{
+                            "question": "Pick an archive target?",
+                            "header": "Archive",
+                            "options": [{
+                                "label": "Sidebar",
+                                "description": "Archive from the sidebar"
+                            }],
+                            "multiSelect": false
+                        }]
+                    }),
+                    intent: None,
                 },
-                timestamp: Some("2026-04-08T00:00:01Z".to_string()),
+                diagnostic_input: None,
+                status: ToolCallStatus::Pending,
+                result: None,
+                kind: Some(ToolKind::Question),
+                title: Some("Question".to_string()),
+                locations: None,
+                skill_meta: None,
+                normalized_questions: Some(question_items),
+                normalized_todos: None,
+                normalized_todo_update: None,
+                parent_tool_use_id: None,
+                task_children: None,
+                question_answer: None,
+                awaiting_plan_approval: false,
+                plan_approval_request_id: None,
             },
-        ],
-        title: "Imported".to_string(),
-        created_at: "2026-04-08T00:00:00Z".to_string(),
-        current_mode_id: None,
-    };
+            timestamp: Some("2026-04-08T00:00:01Z".to_string()),
+        },
+    ];
 
-    let projection = ProjectionRegistry::project_thread_snapshot(
+    let projection = ProjectionRegistry::project_stored_entries(
         "session-1",
         Some(CanonicalAgentId::ClaudeCode),
-        &thread_snapshot,
+        &entries,
     );
 
     assert!(
@@ -1271,8 +1260,51 @@ fn project_thread_snapshot_skips_unanswered_question_tools() {
 
 #[test]
 fn project_converted_session_does_not_restore_stored_error_as_live_failure() {
-    let thread_snapshot = SessionThreadSnapshot {
-        entries: vec![StoredEntry::Error {
+    let entries = vec![StoredEntry::Error {
+        id: "error-1".to_string(),
+        message: crate::session_jsonl::types::StoredErrorMessage {
+            content: "Usage limit reached".to_string(),
+            code: Some("429".to_string()),
+            details: None,
+            kind: crate::acp::session_update::TurnErrorKind::Recoverable,
+            source: Some(crate::acp::session_update::TurnErrorSource::Process),
+        },
+        timestamp: Some("2026-04-15T00:00:00Z".to_string()),
+    }];
+
+    let projection = ProjectionRegistry::project_stored_entries(
+        "session-1",
+        Some(CanonicalAgentId::Codex),
+        &entries,
+    );
+
+    let session = projection
+        .session
+        .expect("expected imported session snapshot");
+    assert_eq!(session.turn_state, SessionTurnState::Completed);
+    assert!(session.active_turn_failure.is_none());
+    let events =
+        crate::acp::session::ingress::stored_entry_events::stored_entries_to_provider_events(
+            &entries,
+            CanonicalAgentId::Codex,
+        );
+    let transcript = crate::acp::session::fold_export::fold_graph_from_history_events(
+        "session-1",
+        &CanonicalAgentId::Codex,
+        "",
+        &events,
+    )
+    .transcript_snapshot;
+    assert!(
+        transcript.entries.is_empty(),
+        "stored errors must not materialize as transcript rows"
+    );
+}
+
+#[test]
+fn project_converted_session_clears_historical_error_when_later_entries_continue() {
+    let entries = vec![
+        StoredEntry::Error {
             id: "error-1".to_string(),
             message: crate::session_jsonl::types::StoredErrorMessage {
                 content: "Usage limit reached".to_string(),
@@ -1282,87 +1314,42 @@ fn project_converted_session_does_not_restore_stored_error_as_live_failure() {
                 source: Some(crate::acp::session_update::TurnErrorSource::Process),
             },
             timestamp: Some("2026-04-15T00:00:00Z".to_string()),
-        }],
-        title: "Imported error".to_string(),
-        created_at: "2026-04-15T00:00:00Z".to_string(),
-        current_mode_id: None,
-    };
-
-    let projection = ProjectionRegistry::project_thread_snapshot(
-        "session-1",
-        Some(CanonicalAgentId::Codex),
-        &thread_snapshot,
-    );
-
-    let session = projection
-        .session
-        .expect("expected imported session snapshot");
-    assert_eq!(session.turn_state, SessionTurnState::Completed);
-    assert!(session.active_turn_failure.is_none());
-    let transcript = crate::acp::transcript_projection::TranscriptSnapshot::from_stored_entries(
-        session.last_event_seq,
-        &thread_snapshot.entries,
-    );
-    assert!(
-        transcript.entries.is_empty(),
-        "stored errors must not materialize as transcript rows"
-    );
-}
-
-#[test]
-fn project_converted_session_clears_historical_error_when_later_entries_continue() {
-    let thread_snapshot = SessionThreadSnapshot {
-        entries: vec![
-            StoredEntry::Error {
-                id: "error-1".to_string(),
-                message: crate::session_jsonl::types::StoredErrorMessage {
-                    content: "Usage limit reached".to_string(),
-                    code: Some("429".to_string()),
-                    details: None,
-                    kind: crate::acp::session_update::TurnErrorKind::Recoverable,
-                    source: Some(crate::acp::session_update::TurnErrorSource::Process),
+        },
+        StoredEntry::User {
+            id: "user-1".to_string(),
+            message: StoredUserMessage {
+                id: Some("user-1".to_string()),
+                content: StoredContentBlock {
+                    block_type: "text".to_string(),
+                    text: Some("try again".to_string()),
                 },
-                timestamp: Some("2026-04-15T00:00:00Z".to_string()),
+                chunks: vec![],
+                sent_at: Some("2026-04-15T00:00:01Z".to_string()),
             },
-            StoredEntry::User {
-                id: "user-1".to_string(),
-                message: StoredUserMessage {
-                    id: Some("user-1".to_string()),
-                    content: StoredContentBlock {
+            timestamp: Some("2026-04-15T00:00:01Z".to_string()),
+        },
+        StoredEntry::Assistant {
+            id: "assistant-1".to_string(),
+            message: StoredAssistantMessage {
+                chunks: vec![StoredAssistantChunk {
+                    chunk_type: "message".to_string(),
+                    block: StoredContentBlock {
                         block_type: "text".to_string(),
-                        text: Some("try again".to_string()),
+                        text: Some("Recovered".to_string()),
                     },
-                    chunks: vec![],
-                    sent_at: Some("2026-04-15T00:00:01Z".to_string()),
-                },
-                timestamp: Some("2026-04-15T00:00:01Z".to_string()),
+                }],
+                model: Some("gpt-5.4".to_string()),
+                display_model: Some("GPT-5.4".to_string()),
+                received_at: Some("2026-04-15T00:00:02Z".to_string()),
             },
-            StoredEntry::Assistant {
-                id: "assistant-1".to_string(),
-                message: StoredAssistantMessage {
-                    chunks: vec![StoredAssistantChunk {
-                        chunk_type: "message".to_string(),
-                        block: StoredContentBlock {
-                            block_type: "text".to_string(),
-                            text: Some("Recovered".to_string()),
-                        },
-                    }],
-                    model: Some("gpt-5.4".to_string()),
-                    display_model: Some("GPT-5.4".to_string()),
-                    received_at: Some("2026-04-15T00:00:02Z".to_string()),
-                },
-                timestamp: Some("2026-04-15T00:00:02Z".to_string()),
-            },
-        ],
-        title: "Recovered session".to_string(),
-        created_at: "2026-04-15T00:00:00Z".to_string(),
-        current_mode_id: None,
-    };
+            timestamp: Some("2026-04-15T00:00:02Z".to_string()),
+        },
+    ];
 
-    let projection = ProjectionRegistry::project_thread_snapshot(
+    let projection = ProjectionRegistry::project_stored_entries(
         "session-1",
         Some(CanonicalAgentId::Codex),
-        &thread_snapshot,
+        &entries,
     );
 
     let session = projection
@@ -1374,70 +1361,65 @@ fn project_converted_session_clears_historical_error_when_later_entries_continue
 }
 
 #[test]
-fn project_thread_snapshot_cancels_active_tool_when_transcript_continues() {
-    let thread_snapshot = SessionThreadSnapshot {
-        entries: vec![
-            StoredEntry::User {
-                id: "user-1".to_string(),
-                message: StoredUserMessage {
-                    id: Some("user-1".to_string()),
-                    content: StoredContentBlock {
+fn project_stored_entries_cancels_active_tool_when_transcript_continues() {
+    let entries = vec![
+        StoredEntry::User {
+            id: "user-1".to_string(),
+            message: StoredUserMessage {
+                id: Some("user-1".to_string()),
+                content: StoredContentBlock {
+                    block_type: "text".to_string(),
+                    text: Some("run the scaffold".to_string()),
+                },
+                chunks: vec![],
+                sent_at: Some("2026-04-15T00:00:00Z".to_string()),
+            },
+            timestamp: Some("2026-04-15T00:00:00Z".to_string()),
+        },
+        StoredEntry::ToolCall {
+            id: "tool-stale-entry".to_string(),
+            message: create_execute_tool_call(
+                "tool-stale",
+                "bun create @tanstack/start",
+                ToolCallStatus::InProgress,
+            ),
+            timestamp: Some("2026-04-15T00:00:01Z".to_string()),
+        },
+        StoredEntry::User {
+            id: "user-2".to_string(),
+            message: StoredUserMessage {
+                id: Some("user-2".to_string()),
+                content: StoredContentBlock {
+                    block_type: "text".to_string(),
+                    text: Some("i ran it myself, proceed".to_string()),
+                },
+                chunks: vec![],
+                sent_at: Some("2026-04-15T00:00:02Z".to_string()),
+            },
+            timestamp: Some("2026-04-15T00:00:02Z".to_string()),
+        },
+        StoredEntry::Assistant {
+            id: "assistant-1".to_string(),
+            message: StoredAssistantMessage {
+                chunks: vec![StoredAssistantChunk {
+                    chunk_type: "message".to_string(),
+                    block: StoredContentBlock {
                         block_type: "text".to_string(),
-                        text: Some("run the scaffold".to_string()),
+                        text: Some("Proceeding.".to_string()),
                     },
-                    chunks: vec![],
-                    sent_at: Some("2026-04-15T00:00:00Z".to_string()),
-                },
-                timestamp: Some("2026-04-15T00:00:00Z".to_string()),
+                }],
+                model: Some("gpt-5.4".to_string()),
+                display_model: Some("GPT-5.4".to_string()),
+                received_at: Some("2026-04-15T00:00:03Z".to_string()),
             },
-            StoredEntry::ToolCall {
-                id: "tool-stale-entry".to_string(),
-                message: create_execute_tool_call(
-                    "tool-stale",
-                    "bun create @tanstack/start",
-                    ToolCallStatus::InProgress,
-                ),
-                timestamp: Some("2026-04-15T00:00:01Z".to_string()),
-            },
-            StoredEntry::User {
-                id: "user-2".to_string(),
-                message: StoredUserMessage {
-                    id: Some("user-2".to_string()),
-                    content: StoredContentBlock {
-                        block_type: "text".to_string(),
-                        text: Some("i ran it myself, proceed".to_string()),
-                    },
-                    chunks: vec![],
-                    sent_at: Some("2026-04-15T00:00:02Z".to_string()),
-                },
-                timestamp: Some("2026-04-15T00:00:02Z".to_string()),
-            },
-            StoredEntry::Assistant {
-                id: "assistant-1".to_string(),
-                message: StoredAssistantMessage {
-                    chunks: vec![StoredAssistantChunk {
-                        chunk_type: "message".to_string(),
-                        block: StoredContentBlock {
-                            block_type: "text".to_string(),
-                            text: Some("Proceeding.".to_string()),
-                        },
-                    }],
-                    model: Some("gpt-5.4".to_string()),
-                    display_model: Some("GPT-5.4".to_string()),
-                    received_at: Some("2026-04-15T00:00:03Z".to_string()),
-                },
-                timestamp: Some("2026-04-15T00:00:03Z".to_string()),
-            },
-        ],
-        title: "Recovered session".to_string(),
-        created_at: "2026-04-15T00:00:00Z".to_string(),
-        current_mode_id: None,
-    };
+            timestamp: Some("2026-04-15T00:00:03Z".to_string()),
+        },
+    ];
 
-    let projection = ProjectionRegistry::project_thread_snapshot(
+    let projection = ProjectionRegistry::project_stored_entries(
         "session-1",
         Some(CanonicalAgentId::Copilot),
-        &thread_snapshot,
+        &entries,
     );
 
     let session = projection
@@ -1455,59 +1437,54 @@ fn project_thread_snapshot_cancels_active_tool_when_transcript_continues() {
 }
 
 #[test]
-fn project_thread_snapshot_does_not_reopen_pending_interaction_after_user_boundary() {
-    let thread_snapshot = SessionThreadSnapshot {
-        entries: vec![
-            StoredEntry::ToolCall {
-                id: "plan-tool-entry".to_string(),
-                message: ToolCallData {
-                    id: "plan-tool".to_string(),
-                    name: "create_plan".to_string(),
-                    arguments: ToolArguments::Other {
-                        raw: json!({}),
-                        intent: None,
-                    },
-                    diagnostic_input: None,
-                    status: ToolCallStatus::Pending,
-                    result: None,
-                    kind: Some(ToolKind::CreatePlan),
-                    title: None,
-                    locations: None,
-                    skill_meta: None,
-                    normalized_questions: None,
-                    normalized_todos: None,
-                    normalized_todo_update: None,
-                    parent_tool_use_id: None,
-                    task_children: None,
-                    question_answer: None,
-                    awaiting_plan_approval: true,
-                    plan_approval_request_id: Some(42),
+fn project_stored_entries_does_not_reopen_pending_interaction_after_user_boundary() {
+    let entries = vec![
+        StoredEntry::ToolCall {
+            id: "plan-tool-entry".to_string(),
+            message: ToolCallData {
+                id: "plan-tool".to_string(),
+                name: "create_plan".to_string(),
+                arguments: ToolArguments::Other {
+                    raw: json!({}),
+                    intent: None,
                 },
-                timestamp: Some("2026-04-15T00:00:01Z".to_string()),
+                diagnostic_input: None,
+                status: ToolCallStatus::Pending,
+                result: None,
+                kind: Some(ToolKind::CreatePlan),
+                title: None,
+                locations: None,
+                skill_meta: None,
+                normalized_questions: None,
+                normalized_todos: None,
+                normalized_todo_update: None,
+                parent_tool_use_id: None,
+                task_children: None,
+                question_answer: None,
+                awaiting_plan_approval: true,
+                plan_approval_request_id: Some(42),
             },
-            StoredEntry::User {
-                id: "user-1".to_string(),
-                message: StoredUserMessage {
-                    id: Some("user-1".to_string()),
-                    content: StoredContentBlock {
-                        block_type: "text".to_string(),
-                        text: Some("continue without that approval".to_string()),
-                    },
-                    chunks: vec![],
-                    sent_at: Some("2026-04-15T00:00:02Z".to_string()),
+            timestamp: Some("2026-04-15T00:00:01Z".to_string()),
+        },
+        StoredEntry::User {
+            id: "user-1".to_string(),
+            message: StoredUserMessage {
+                id: Some("user-1".to_string()),
+                content: StoredContentBlock {
+                    block_type: "text".to_string(),
+                    text: Some("continue without that approval".to_string()),
                 },
-                timestamp: Some("2026-04-15T00:00:02Z".to_string()),
+                chunks: vec![],
+                sent_at: Some("2026-04-15T00:00:02Z".to_string()),
             },
-        ],
-        title: "Recovered session".to_string(),
-        created_at: "2026-04-15T00:00:00Z".to_string(),
-        current_mode_id: None,
-    };
+            timestamp: Some("2026-04-15T00:00:02Z".to_string()),
+        },
+    ];
 
-    let projection = ProjectionRegistry::project_thread_snapshot(
+    let projection = ProjectionRegistry::project_stored_entries(
         "session-1",
         Some(CanonicalAgentId::Copilot),
-        &thread_snapshot,
+        &entries,
     );
 
     let session = projection
@@ -1531,27 +1508,22 @@ fn project_thread_snapshot_does_not_reopen_pending_interaction_after_user_bounda
 
 #[test]
 fn project_converted_session_ignores_stored_error_without_source_metadata() {
-    let thread_snapshot = SessionThreadSnapshot {
-        entries: vec![StoredEntry::Error {
-            id: "error-1".to_string(),
-            message: crate::session_jsonl::types::StoredErrorMessage {
-                content: "Usage limit reached".to_string(),
-                code: Some("429".to_string()),
-                details: None,
-                kind: crate::acp::session_update::TurnErrorKind::Recoverable,
-                source: None,
-            },
-            timestamp: Some("2026-04-15T00:00:00Z".to_string()),
-        }],
-        title: "Imported error".to_string(),
-        created_at: "2026-04-15T00:00:00Z".to_string(),
-        current_mode_id: None,
-    };
+    let entries = vec![StoredEntry::Error {
+        id: "error-1".to_string(),
+        message: crate::session_jsonl::types::StoredErrorMessage {
+            content: "Usage limit reached".to_string(),
+            code: Some("429".to_string()),
+            details: None,
+            kind: crate::acp::session_update::TurnErrorKind::Recoverable,
+            source: None,
+        },
+        timestamp: Some("2026-04-15T00:00:00Z".to_string()),
+    }];
 
-    let projection = ProjectionRegistry::project_thread_snapshot(
+    let projection = ProjectionRegistry::project_stored_entries(
         "session-1",
         Some(CanonicalAgentId::Codex),
-        &thread_snapshot,
+        &entries,
     );
 
     let session = projection
@@ -2553,23 +2525,18 @@ fn operation_ingress_normalizes_nested_task_relationship_ids() {
 }
 
 #[test]
-fn thread_snapshot_ingress_normalizes_control_character_tool_ids() {
+fn stored_entry_ingress_normalizes_control_character_tool_ids() {
     let raw_id = "restored\ncursor";
-    let thread_snapshot = SessionThreadSnapshot {
-        entries: vec![StoredEntry::ToolCall {
-            id: raw_id.to_string(),
-            message: create_execute_tool_call(raw_id, "cargo test", ToolCallStatus::Completed),
-            timestamp: Some("2026-04-30T00:00:00Z".to_string()),
-        }],
-        title: "Restored Cursor".to_string(),
-        created_at: "2026-04-30T00:00:00Z".to_string(),
-        current_mode_id: None,
-    };
+    let entries = vec![StoredEntry::ToolCall {
+        id: raw_id.to_string(),
+        message: create_execute_tool_call(raw_id, "cargo test", ToolCallStatus::Completed),
+        timestamp: Some("2026-04-30T00:00:00Z".to_string()),
+    }];
 
-    let projection = ProjectionRegistry::project_thread_snapshot(
+    let projection = ProjectionRegistry::project_stored_entries(
         "session-1",
         Some(CanonicalAgentId::Cursor),
-        &thread_snapshot,
+        &entries,
     );
 
     assert_eq!(projection.operations.len(), 1);

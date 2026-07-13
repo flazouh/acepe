@@ -17,5 +17,5 @@ pub use state::{
     Activating, Archived, Detached, DetachedReason, Failed, FailureReason, LifecycleState,
     LifecycleStatus, Ready, Reconnecting, Reserved,
 };
-pub use supervisor::{SessionSupervisor, SessionSupervisorError};
+pub use supervisor::{BeginActivationOutcome, SessionSupervisor, SessionSupervisorError};
 pub use transition::{LifecycleTransition, LifecycleTransitionError};

@@ -79,7 +79,7 @@ pub fn stored_entries_to_provider_events(
                 }
             }
             StoredEntry::ToolCall {
-                id,
+                id: _,
                 message,
                 timestamp,
             } => {
@@ -87,7 +87,7 @@ pub fn stored_entries_to_provider_events(
                 events.push(ProviderEvent {
                     source: source.clone(),
                     provider_seq,
-                    provider_row_id: id.clone(),
+                    provider_row_id: message.id.clone(),
                     timestamp_ms: parse_timestamp_to_millis(timestamp.as_deref()),
                     kind: ProviderEventKind::ToolCall(message.clone()),
                 });

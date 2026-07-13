@@ -4,12 +4,11 @@ mod disk;
 pub mod opencode_history;
 
 use async_trait::async_trait;
-use std::path::PathBuf;
 
 use crate::acp::session::ingress::event::ProviderEvent;
-use crate::acp::session::ingress::source::{HistoryError, HistoryInput, HistorySource};
-use crate::acp::session_descriptor::SessionReplayContext;
-use crate::acp::types::CanonicalAgentId;
+use crate::acp::session::ingress::source::{
+    HistoryError, HistoryInput, HistoryReplayInput, HistorySource,
+};
 pub use opencode_history::convert::opencode_messages_to_provider_events;
 
 use disk::load_opencode_messages_from_disk;
@@ -33,6 +32,17 @@ impl HistorySource for OpenCodeHistorySource {
 
         Ok(opencode_messages_to_provider_events(&messages))
     }
+
+    async fn read_replay(
+        &self,
+        input: HistoryReplayInput,
+    ) -> Result<Vec<ProviderEvent>, HistoryError> {
+        self.read(HistoryInput {
+            session_id: input.session_id,
+            workspace_root: input.source_path,
+        })
+        .await
+    }
 }
 
 /// Resolve optional session metadata path from history input.
@@ -55,24 +65,12 @@ fn resolve_source_path(input: &HistoryInput) -> Result<Option<String>, HistoryEr
     Ok(None)
 }
 
-/// Load OpenCode history events for production replay.
-pub async fn load_replay_events(
-    replay_context: &SessionReplayContext,
-) -> Result<Vec<ProviderEvent>, HistoryError> {
-    let source = OpenCodeHistorySource;
-    source
-        .read(HistoryInput {
-            session_id: replay_context.history_session_id.clone(),
-            workspace_root: replay_context.source_path.as_ref().map(PathBuf::from),
-        })
-        .await
-}
-
 #[cfg(test)]
 mod tests {
     use super::opencode_history::types::{OpenCodeMessage, OpenCodeMessagePart};
     use super::*;
     use crate::acp::session::ingress::event::ProviderEventKind;
+    use crate::acp::types::CanonicalAgentId;
 
     #[test]
     fn opencode_history_source_converts_messages_to_provider_events() {

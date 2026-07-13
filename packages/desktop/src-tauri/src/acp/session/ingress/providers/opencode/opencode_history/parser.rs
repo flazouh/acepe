@@ -520,14 +520,6 @@ pub async fn load_opencode_messages_from_disk(
     Ok(Some(messages))
 }
 
-/// Read the session title from the session metadata file on disk.
-async fn read_session_title(source_path: Option<&str>) -> Option<String> {
-    let sp = source_path?;
-    let content = tokio::fs::read_to_string(sp).await.ok()?;
-    let session: OpenCodeSession = serde_json::from_str(&content).ok()?;
-    session.title
-}
-
 /// Read all part files for a message from `storage/part/{message_id}/`.
 async fn read_message_parts(
     storage_dir: &std::path::Path,
@@ -636,8 +628,8 @@ pub fn convert_api_part(part: OpenCodeApiPart) -> OpenCodeMessagePart {
 #[cfg(test)]
 mod tests {
     use super::{
-        convert_api_part, read_message_parts, read_session_title, scan_project_sessions,
-        validate_path_segment, OpenCodeSession,
+        convert_api_part, read_message_parts, scan_project_sessions, validate_path_segment,
+        OpenCodeSession,
     };
     use crate::opencode_history::types::OpenCodeApiPart;
     use crate::opencode_history::{OpenCodeMessagePart, OpenCodeProject, OpenCodeTime};
@@ -939,46 +931,6 @@ mod tests {
         }
     }
 
-    // --- read_session_title tests ---
-
-    #[tokio::test]
-    async fn read_session_title_returns_title_from_session_file() {
-        let temp_dir = tempdir().expect("temp dir");
-        let session_file = temp_dir.path().join("session.json");
-
-        let session = OpenCodeSession {
-            id: "ses-1".into(),
-            version: "1".into(),
-            project_id: "proj-1".into(),
-            directory: "/project".into(),
-            parent_id: None,
-            title: Some("My Session Title".into()),
-            time: OpenCodeTime {
-                created: 100,
-                updated: 200,
-            },
-        };
-
-        tokio::fs::write(&session_file, serde_json::to_string(&session).unwrap())
-            .await
-            .unwrap();
-
-        let title = read_session_title(Some(session_file.to_str().unwrap())).await;
-        assert_eq!(title, Some("My Session Title".to_string()));
-    }
-
-    #[tokio::test]
-    async fn read_session_title_returns_none_for_missing_file() {
-        let title = read_session_title(Some("/nonexistent/path.json")).await;
-        assert_eq!(title, None);
-    }
-
-    #[tokio::test]
-    async fn read_session_title_returns_none_when_no_path() {
-        let title = read_session_title(None).await;
-        assert_eq!(title, None);
-    }
-
     /// Integration test: parse a real DiskMessage JSON from local storage.
     /// Verifies that DiskMessage can handle real-world OpenCode message files
     /// which may have extra fields (summary, agent, tools, etc.).
@@ -1057,31 +1009,5 @@ mod tests {
             }
             Err(e) => panic!("load_opencode_messages_from_disk returned error: {}", e),
         }
-    }
-
-    #[tokio::test]
-    async fn read_session_title_returns_none_for_session_without_title() {
-        let temp_dir = tempdir().expect("temp dir");
-        let session_file = temp_dir.path().join("session.json");
-
-        let session = OpenCodeSession {
-            id: "ses-1".into(),
-            version: "1".into(),
-            project_id: "proj-1".into(),
-            directory: "/project".into(),
-            parent_id: None,
-            title: None,
-            time: OpenCodeTime {
-                created: 100,
-                updated: 200,
-            },
-        };
-
-        tokio::fs::write(&session_file, serde_json::to_string(&session).unwrap())
-            .await
-            .unwrap();
-
-        let title = read_session_title(Some(session_file.to_str().unwrap())).await;
-        assert_eq!(title, None);
     }
 }

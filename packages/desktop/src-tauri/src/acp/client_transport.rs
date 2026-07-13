@@ -332,12 +332,32 @@ pub(crate) async fn persist_interaction_transition(
     response: InteractionResponse,
     source: &str,
 ) {
-    let Some(interaction_patch) = projection_registry.resolve_interaction(
+    let interaction_patch = if let Some(dispatcher) = dispatcher {
+        let mut interaction = if let Some(interaction) =
+            dispatcher.canonical_interaction(session_id, interaction_id)
+        {
+            interaction
+        } else {
+            tracing::debug!(
+                session_id = %session_id,
+                interaction_id = %interaction_id,
+                source = %source,
+                "Canonical interaction missing during transition persistence"
+            );
+            return;
+        };
+        interaction.state = state.clone();
+        interaction.responded_at_event_seq = dispatcher.next_canonical_event_seq(session_id);
+        interaction.response = Some(response.clone());
+        interaction
+    } else if let Some(interaction) = projection_registry.resolve_interaction(
         session_id,
         interaction_id,
         state.clone(),
         response.clone(),
-    ) else {
+    ) {
+        interaction
+    } else {
         tracing::debug!(
             session_id = %session_id,
             interaction_id = %interaction_id,
@@ -347,6 +367,7 @@ pub(crate) async fn persist_interaction_transition(
         return;
     };
 
+    let mut event_seq = interaction_patch.responded_at_event_seq.unwrap_or_default();
     if let Some(db) = db {
         let persist_result = if interaction_patch.kind == InteractionKind::Question
             && interaction_patch.state == InteractionState::Answered
@@ -368,19 +389,25 @@ pub(crate) async fn persist_interaction_transition(
             .await
         };
 
-        if let Err(error) = persist_result {
-            tracing::error!(
-                error = %error,
-                session_id = %session_id,
-                interaction_id = %interaction_id,
-                source = %source,
-                "Failed to persist interaction transition into session journal"
-            );
+        match persist_result {
+            Ok(record) => event_seq = record.event_seq,
+            Err(error) => {
+                tracing::error!(
+                    error = %error,
+                    session_id = %session_id,
+                    interaction_id = %interaction_id,
+                    source = %source,
+                    "Failed to persist interaction transition into session journal"
+                );
+                return;
+            }
         }
     }
 
     if let Some(dispatcher) = dispatcher {
-        dispatcher.enqueue_interaction_transition_state(session_id, interaction_patch);
+        let mut interaction_patch = interaction_patch;
+        interaction_patch.responded_at_event_seq = Some(event_seq);
+        dispatcher.enqueue_interaction_transition_state(session_id, interaction_patch, event_seq);
         let payload = match domain_event_kind {
             SessionDomainEventKind::InteractionResolved => {
                 Some(SessionDomainEventPayload::InteractionResolved {
@@ -415,8 +442,12 @@ pub(crate) async fn apply_interaction_response_for_request(
     adapted_result: &Value,
     source: &str,
 ) {
-    let Some(interaction) = projection_registry.interaction_for_request_id(session_id, request_id)
-    else {
+    let interaction = if let Some(dispatcher) = dispatcher {
+        dispatcher.canonical_interaction_for_request_id(session_id, request_id)
+    } else {
+        projection_registry.interaction_for_request_id(session_id, request_id)
+    };
+    let Some(interaction) = interaction else {
         return;
     };
 
@@ -454,11 +485,12 @@ mod tests {
     use crate::acp::projections::OperationState;
     use crate::acp::session_state_engine::{SessionStateEnvelope, SessionStatePayload};
     use crate::acp::session_update::{
-        InteractionReplyHandler, PermissionData, ToolArguments, ToolCallData, ToolKind,
-        ToolReference,
+        InteractionReplyHandler, PermissionData, QuestionData, ToolArguments, ToolCallData,
+        ToolKind, ToolReference,
     };
     use crate::acp::types::CanonicalAgentId;
     use crate::acp::ui_event_dispatcher::AcpUiEventPayload;
+    use sea_orm::Database;
 
     fn pending_tool_call_update(session_id: &str, tool_call_id: &str) -> SessionUpdate {
         SessionUpdate::ToolCall {
@@ -515,6 +547,41 @@ mod tests {
         }
     }
 
+    fn seed_canonical_permission_graph(
+        dispatcher: &AcpUiEventDispatcher,
+        session_id: &str,
+        tool_call_id: &str,
+        permission_id: &str,
+        request_id: u64,
+    ) {
+        let updates = [
+            pending_tool_call_update(session_id, tool_call_id),
+            permission_request_update(session_id, permission_id, request_id, tool_call_id),
+        ];
+        let events = updates
+            .iter()
+            .enumerate()
+            .filter_map(|(index, update)| {
+                crate::acp::session::ingress::live_session_update::session_update_to_provider_event(
+                    CanonicalAgentId::ClaudeCode,
+                    i64::try_from(index).unwrap_or_default().saturating_add(1),
+                    update,
+                    crate::acp::projections::RouteDecision::default(),
+                )
+            })
+            .collect::<Vec<_>>();
+        let context = crate::acp::session::engine::fold::FoldContext::new(
+            session_id,
+            CanonicalAgentId::ClaudeCode,
+            "/workspace",
+        );
+        let mut graph = crate::acp::session::engine::fold::fold_full(&[], &context);
+        for event in events {
+            graph = crate::acp::session::engine::fold::fold_step(&graph, &event).0;
+        }
+        dispatcher.seed_graph_for_test(session_id.to_string(), graph);
+    }
+
     #[test]
     fn computer_permission_transition_is_local_and_typed() {
         let approved = interaction_transition_from_result(
@@ -549,6 +616,69 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn dispatcher_does_not_fall_back_to_projection_only_computer_permission() {
+        use crate::computer_use::permissions::{
+            build_computer_permission_interaction_id, ComputerPermissionKind,
+        };
+
+        let session_id = "session-projection-only-computer-permission";
+        let tool_call_id = "tool-computer-projection-only";
+        let projection_registry = StdArc::new(ProjectionRegistry::new());
+        projection_registry.register_session(session_id.to_string(), CanonicalAgentId::ClaudeCode);
+        projection_registry.apply_session_update(
+            session_id,
+            &pending_tool_call_update(session_id, tool_call_id),
+        );
+        projection_registry.apply_session_update(
+            session_id,
+            &SessionUpdate::ToolCallUpdate {
+                update: ToolCallUpdateData {
+                    tool_call_id: tool_call_id.to_string(),
+                    result: Some(json!({
+                        "error": {
+                            "code": "computer_permission_required",
+                            "message": "Accessibility permission is required",
+                            "permission_kind": "accessibility"
+                        }
+                    })),
+                    ..Default::default()
+                },
+                session_id: Some(session_id.to_string()),
+            },
+        );
+        let interaction_id = build_computer_permission_interaction_id(
+            session_id,
+            tool_call_id,
+            ComputerPermissionKind::Accessibility,
+        );
+        let (dispatcher, captured_events) =
+            AcpUiEventDispatcher::test_sink_with_projection_registry(StdArc::clone(
+                &projection_registry,
+            ));
+
+        persist_interaction_transition(
+            &projection_registry,
+            None,
+            Some(&dispatcher),
+            session_id,
+            &interaction_id,
+            InteractionState::Approved,
+            SessionDomainEventKind::InteractionResolved,
+            InteractionResponse::ComputerPermission { accepted: true },
+            "test",
+        )
+        .await;
+
+        assert!(
+            captured_events
+                .lock()
+                .expect("captured events lock")
+                .is_empty(),
+            "projection-only interaction must not produce canonical delivery"
+        );
+    }
+
+    #[tokio::test]
     async fn interaction_transition_emits_session_state_delta_for_resumed_operation() {
         let session_id = "session-interaction-delta";
         let tool_call_id = "tool-read-1";
@@ -571,6 +701,7 @@ mod tests {
             AcpUiEventDispatcher::test_sink_with_projection_registry(StdArc::clone(
                 &projection_registry,
             ));
+        seed_canonical_permission_graph(&dispatcher, session_id, tool_call_id, permission_id, 11);
 
         persist_interaction_transition(
             &projection_registry,
@@ -611,6 +742,11 @@ mod tests {
             delta.interaction_patches[0].state,
             InteractionState::Approved
         );
+        let held_graph = dispatcher
+            .graph_for_test(session_id)
+            .expect("interaction reply must update the held graph");
+        assert_eq!(held_graph.revision.graph_revision, 3);
+        assert_eq!(held_graph.interactions[0].state, InteractionState::Approved);
     }
 
     #[tokio::test]
@@ -632,6 +768,7 @@ mod tests {
             AcpUiEventDispatcher::test_sink_with_projection_registry(StdArc::clone(
                 &projection_registry,
             ));
+        seed_canonical_permission_graph(&dispatcher, session_id, tool_call_id, permission_id, 12);
 
         persist_interaction_transition(
             &projection_registry,
@@ -671,6 +808,144 @@ mod tests {
         assert_eq!(
             delta.interaction_patches[0].state,
             InteractionState::Rejected
+        );
+    }
+
+    #[tokio::test]
+    async fn failed_journal_append_does_not_apply_a_live_interaction_reply() {
+        let session_id = "session-interaction-persist-failure";
+        let tool_call_id = "tool-read-persist-failure";
+        let permission_id = "permission-read-persist-failure";
+        let projection_registry = StdArc::new(ProjectionRegistry::new());
+        projection_registry.register_session(session_id.to_string(), CanonicalAgentId::ClaudeCode);
+        let (dispatcher, captured_events) =
+            AcpUiEventDispatcher::test_sink_with_projection_registry(StdArc::clone(
+                &projection_registry,
+            ));
+        seed_canonical_permission_graph(&dispatcher, session_id, tool_call_id, permission_id, 13);
+        let before_graph = dispatcher
+            .graph_for_test(session_id)
+            .expect("seeded graph should be held before the reply");
+        let db = Database::connect("sqlite::memory:")
+            .await
+            .expect("connect database without journal migration");
+
+        persist_interaction_transition(
+            &projection_registry,
+            Some(&db),
+            Some(&dispatcher),
+            session_id,
+            permission_id,
+            InteractionState::Approved,
+            SessionDomainEventKind::InteractionResolved,
+            InteractionResponse::Permission {
+                accepted: true,
+                option_id: None,
+                reply: None,
+            },
+            "test",
+        )
+        .await;
+
+        let graph = dispatcher
+            .graph_for_test(session_id)
+            .expect("seeded graph should remain held");
+        assert_eq!(graph.revision.graph_revision, 2);
+        assert_eq!(graph.revision.last_event_seq, 2);
+        assert_eq!(
+            graph.interactions[0].state,
+            before_graph.interactions[0].state
+        );
+        assert_eq!(
+            graph.operations[0].operation_state,
+            before_graph.operations[0].operation_state
+        );
+        assert!(captured_events
+            .lock()
+            .expect("captured events lock")
+            .is_empty());
+    }
+
+    #[tokio::test]
+    async fn question_reply_updates_the_held_graph_and_emits_canonical_delivery() {
+        let session_id = "session-question-reply";
+        let request_id = 22;
+        let question = QuestionData {
+            id: "question-22".to_string(),
+            session_id: session_id.to_string(),
+            json_rpc_request_id: Some(request_id),
+            reply_handler: Some(InteractionReplyHandler::json_rpc(request_id)),
+            questions: Vec::new(),
+            tool: None,
+        };
+        let update = SessionUpdate::QuestionRequest {
+            question: question.clone(),
+            session_id: Some(session_id.to_string()),
+        };
+        let projection_registry = StdArc::new(ProjectionRegistry::new());
+        projection_registry.register_session(session_id.to_string(), CanonicalAgentId::ClaudeCode);
+        projection_registry.apply_session_update(session_id, &update);
+        let (dispatcher, captured_events) =
+            AcpUiEventDispatcher::test_sink_with_projection_registry(StdArc::clone(
+                &projection_registry,
+            ));
+        let event =
+            crate::acp::session::ingress::live_session_update::session_update_to_provider_event(
+                CanonicalAgentId::ClaudeCode,
+                1,
+                &update,
+                crate::acp::projections::RouteDecision::default(),
+            )
+            .expect("question update should normalize");
+        let context = crate::acp::session::engine::fold::FoldContext::new(
+            session_id,
+            CanonicalAgentId::ClaudeCode,
+            "/workspace",
+        );
+        let empty = crate::acp::session::engine::fold::fold_full(&[], &context);
+        let graph = crate::acp::session::engine::fold::fold_step(&empty, &event).0;
+        dispatcher.seed_graph_for_test(session_id.to_string(), graph);
+
+        apply_interaction_response_for_request(
+            &projection_registry,
+            None,
+            Some(&dispatcher),
+            session_id,
+            request_id,
+            &json!({
+                "outcome": { "outcome": "selected" },
+                "_meta": { "answers": { "language": "Rust" } }
+            }),
+            "test",
+        )
+        .await;
+
+        let graph = dispatcher
+            .graph_for_test(session_id)
+            .expect("question reply must update the held graph");
+        assert_eq!(graph.revision.graph_revision, 2);
+        assert_eq!(graph.revision.last_event_seq, 2);
+        assert_eq!(graph.interactions[0].state, InteractionState::Answered);
+        assert!(matches!(
+            &graph.interactions[0].response,
+            Some(InteractionResponse::Question { answers })
+                if answers == &json!({ "language": "Rust" })
+        ));
+
+        let captured = captured_events.lock().expect("captured events lock");
+        assert_eq!(captured.len(), 2);
+        let AcpUiEventPayload::Json(payload) = &captured[0].payload else {
+            panic!("expected serialized session-state envelope");
+        };
+        let envelope: SessionStateEnvelope =
+            serde_json::from_value(payload.clone()).expect("session state envelope");
+        let SessionStatePayload::Delta { delta } = envelope.payload else {
+            panic!("expected delta payload");
+        };
+        assert_eq!(delta.interaction_patches.len(), 1);
+        assert_eq!(
+            delta.interaction_patches[0].state,
+            InteractionState::Answered
         );
     }
 }

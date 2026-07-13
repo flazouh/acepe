@@ -1,7 +1,7 @@
 //! Copilot history ingress — events.jsonl → ordered `ProviderEvent` stream.
 //!
 //! Production replay routes `events.jsonl` → `ProviderEventReplayAccumulator` →
-//! ordered `ProviderEvent` stream (no `StoredEntry` or `SessionThreadSnapshot` on ingress).
+//! ordered `ProviderEvent` stream without legacy snapshot wrappers.
 //! The accumulator merges duplicate tool-call rows, applies todo timing, and drops
 //! `AgentThoughtChunk` updates before fold replay.
 
@@ -11,11 +11,11 @@ mod disk;
 pub use disk::load_provider_events_from_disk;
 
 use async_trait::async_trait;
-use std::path::PathBuf;
 
 use crate::acp::session::ingress::event::ProviderEvent;
-use crate::acp::session::ingress::source::{HistoryError, HistoryInput, HistorySource};
-use crate::acp::session_descriptor::SessionReplayContext;
+use crate::acp::session::ingress::source::{
+    HistoryError, HistoryInput, HistoryReplayInput, HistorySource,
+};
 
 /// Reads Copilot `events.jsonl` history into provider-agnostic ingress events.
 pub struct CopilotHistorySource;
@@ -24,16 +24,21 @@ pub struct CopilotHistorySource;
 impl HistorySource for CopilotHistorySource {
     async fn read(&self, input: HistoryInput) -> Result<Vec<ProviderEvent>, HistoryError> {
         let source_path = resolve_source_path(&input)?;
-        let title = fallback_title(&input.session_id);
-        load_provider_events_from_disk(&input.session_id, source_path.as_deref(), &title)
+        load_provider_events_from_disk(&input.session_id, source_path.as_deref())
             .await
             .map_err(HistoryError::InvalidFormat)
     }
-}
 
-fn fallback_title(session_id: &str) -> String {
-    let short_id = &session_id[..8.min(session_id.len())];
-    format!("Session {short_id}")
+    async fn read_replay(
+        &self,
+        input: HistoryReplayInput,
+    ) -> Result<Vec<ProviderEvent>, HistoryError> {
+        self.read(HistoryInput {
+            session_id: input.session_id,
+            workspace_root: input.source_path,
+        })
+        .await
+    }
 }
 
 /// Resolve transcript path override from history input.
@@ -59,19 +64,6 @@ fn resolve_source_path(input: &HistoryInput) -> Result<Option<String>, HistoryEr
     }
 
     Ok(None)
-}
-
-/// Load Copilot history events for production replay.
-pub async fn load_replay_events(
-    replay_context: &SessionReplayContext,
-) -> Result<Vec<ProviderEvent>, HistoryError> {
-    let source = CopilotHistorySource;
-    source
-        .read(HistoryInput {
-            session_id: replay_context.history_session_id.clone(),
-            workspace_root: replay_context.source_path.as_ref().map(PathBuf::from),
-        })
-        .await
 }
 
 #[cfg(test)]

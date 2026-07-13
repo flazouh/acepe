@@ -29,9 +29,8 @@ pub use snapshot::{
     session_open_result_for_new_session, session_open_result_from_completed_local_journal,
     session_open_result_from_current_row_ledger,
     session_open_result_from_current_row_ledger_with_initial_page_policy,
-    session_open_result_from_current_row_ledger_with_status,
-    session_open_result_from_provider_owned_snapshot, session_open_result_from_thread_snapshot,
-    CurrentRowLedgerInitialPagePolicy, CurrentRowLedgerOpenLookup, CurrentRowLedgerOpenMiss,
+    session_open_result_from_current_row_ledger_with_status, CurrentRowLedgerInitialPagePolicy,
+    CurrentRowLedgerOpenLookup, CurrentRowLedgerOpenMiss,
 };
 pub use types::{
     NewSessionOpenResultInput, SessionOpenError, SessionOpenErrorReason, SessionOpenFound,

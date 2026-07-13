@@ -5,15 +5,13 @@ use std::path::PathBuf;
 use crate::acp::provider::ProviderHistoryLoadError;
 use crate::acp::session::fold_export::{
     fold_graph_from_history_events, materialized_thread_snapshot_from_folded_graph,
-    provider_owned_snapshot_from_folded_graph, MaterializedThreadSnapshot,
+    MaterializedThreadSnapshot,
 };
 use crate::acp::session::ingress::event::ProviderEvent;
 use crate::acp::session::ingress::plugin::history_source_for;
-use crate::acp::session::ingress::providers::{claude_code, codex, copilot, opencode};
-use crate::acp::session::ingress::source::{HistoryError, HistoryInput};
+use crate::acp::session::ingress::source::{HistoryError, HistoryInput, HistoryReplayInput};
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_state_engine::graph::SessionStateGraph;
-use crate::acp::session_thread_snapshot::ProviderOwnedSessionSnapshot;
 use crate::acp::types::CanonicalAgentId;
 use tauri::AppHandle;
 
@@ -100,7 +98,7 @@ pub async fn load_fold_graph_from_history_workspace(
 }
 
 /// Load fold materialization via HistorySource → fold (no backward-compat entry round-trip).
-pub async fn load_materialized_from_history(
+pub(crate) async fn load_materialized_from_history(
     agent_id: &CanonicalAgentId,
     history_session_id: &str,
     project_path: &str,
@@ -118,51 +116,29 @@ pub async fn load_materialized_from_history(
     }))
 }
 
-/// Load provider-owned snapshot via HistorySource → fold → backward-compat snapshot mapper.
-pub async fn load_provider_owned_snapshot_from_history(
-    agent_id: &CanonicalAgentId,
-    history_session_id: &str,
-    project_path: &str,
-    source_path: Option<&str>,
-    title: String,
-) -> Result<Option<ProviderOwnedSessionSnapshot>, HistoryError> {
-    let graph =
-        load_fold_graph_from_history(agent_id, history_session_id, project_path, source_path)
-            .await?;
-    Ok(graph.map(|graph| provider_owned_snapshot_from_folded_graph(graph, title)))
-}
-
 /// Load provider history as ordered ingress events for fold-based session open.
 pub async fn load_history_events_for_replay(
     _app: AppHandle,
     replay_context: &SessionReplayContext,
 ) -> Result<Vec<ProviderEvent>, ProviderHistoryLoadError> {
-    match replay_context.agent_id {
-        CanonicalAgentId::Cursor => load_history_events(
-            &replay_context.agent_id,
-            &replay_context.history_session_id,
-            Some(PathBuf::from(&replay_context.project_path)),
-            replay_context.source_path.as_deref(),
-        )
-        .await
-        .map_err(history_error_to_provider_error),
-        CanonicalAgentId::ClaudeCode => claude_code::load_replay_events(replay_context)
-            .await
-            .map_err(history_error_to_provider_error),
-        CanonicalAgentId::OpenCode => opencode::load_replay_events(replay_context)
-            .await
-            .map_err(history_error_to_provider_error),
-        CanonicalAgentId::Copilot => copilot::load_replay_events(replay_context)
-            .await
-            .map_err(history_error_to_provider_error),
-        CanonicalAgentId::Codex => codex::load_replay_events(replay_context)
-            .await
-            .map_err(history_error_to_provider_error),
-        _ => Err(ProviderHistoryLoadError::provider_unavailable(format!(
+    let source = history_source_for(&replay_context.agent_id).ok_or_else(|| {
+        ProviderHistoryLoadError::provider_unavailable(format!(
             "History event load is not supported for agent {}",
             replay_context.agent_id
-        ))),
-    }
+        ))
+    })?;
+    let input = HistoryReplayInput {
+        session_id: replay_context.history_session_id.clone(),
+        project_path: PathBuf::from(&replay_context.project_path),
+        effective_cwd: (!replay_context.effective_cwd.is_empty())
+            .then(|| PathBuf::from(&replay_context.effective_cwd)),
+        source_path: replay_context.source_path.as_ref().map(PathBuf::from),
+    };
+
+    source
+        .read_replay(input)
+        .await
+        .map_err(history_error_to_provider_error)
 }
 
 #[cfg(test)]
@@ -264,6 +240,53 @@ mod tests {
         assert_eq!(
             error,
             HistoryError::NotFound("No history source registered for agent forge".to_string())
+        );
+    }
+
+    #[tokio::test]
+    async fn registered_cursor_source_reads_provider_neutral_replay_input() {
+        let fixture_dir =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/cursor_sessions");
+        let source = history_source_for(&CanonicalAgentId::Cursor)
+            .expect("cursor history source must be registered");
+
+        let events = source
+            .read_replay(HistoryReplayInput {
+                session_id: "c2a34686-f99a-4632-90e2-e036b96124c2".to_string(),
+                project_path: fixture_dir,
+                effective_cwd: None,
+                source_path: None,
+            })
+            .await
+            .expect("registered cursor source should resolve replay input");
+
+        assert!(
+            !events.is_empty(),
+            "cursor replay must emit provider events"
+        );
+    }
+
+    #[tokio::test]
+    async fn registered_claude_source_prefers_explicit_replay_source_path() {
+        let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(
+            "src/acp/session/ingress/tool_identity/tests/fixtures/historical-tool-call-session.jsonl",
+        );
+        let source = history_source_for(&CanonicalAgentId::ClaudeCode)
+            .expect("claude history source must be registered");
+
+        let events = source
+            .read_replay(HistoryReplayInput {
+                session_id: "sess-hist-001".to_string(),
+                project_path: PathBuf::from("/nonexistent/project"),
+                effective_cwd: Some(PathBuf::from("/nonexistent/worktree")),
+                source_path: Some(fixture_path),
+            })
+            .await
+            .expect("explicit Claude source path should bypass project discovery");
+
+        assert!(
+            !events.is_empty(),
+            "Claude replay must emit provider events"
         );
     }
 

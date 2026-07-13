@@ -6,9 +6,8 @@ pub(crate) use parser::{
 use crate::acp::session::ingress::event::{ProviderEvent, ProviderEventKind};
 #[cfg(test)]
 use crate::acp::session_descriptor::SessionReplayContext;
-use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::session_update::tool_merge::{
-    calculate_todo_timing, calculate_todo_timing_on_provider_events, merge_tool_call_update,
+    calculate_todo_timing_on_provider_events, merge_tool_call_update,
 };
 use crate::acp::session_update::{
     SessionUpdate, ToolArguments, ToolCallData, TurnErrorData, TurnErrorKind,
@@ -16,11 +15,6 @@ use crate::acp::session_update::{
 use crate::acp::types::CanonicalAgentId;
 use crate::acp::types::ContentBlock;
 use crate::cc_sdk::AssistantMessageError;
-use crate::session_jsonl::types::{
-    StoredAssistantChunk, StoredAssistantMessage, StoredContentBlock, StoredEntry,
-    StoredErrorMessage, StoredUserMessage,
-};
-use chrono::{TimeZone, Utc};
 use std::collections::{HashMap, HashSet};
 #[cfg(test)]
 use std::path::Path;
@@ -99,55 +93,34 @@ fn replay_updates_into_provider_events(
     accumulator.finish_events()
 }
 
-fn replay_updates_into_entries(
-    updates: &[(u64, SessionUpdate)],
-) -> (Vec<StoredEntry>, Option<String>) {
-    let mut accumulator = ReplayAccumulator::new();
-
-    for (emitted_at_ms, update) in updates {
-        if matches!(update, SessionUpdate::AgentThoughtChunk { .. }) {
-            continue;
-        }
-        accumulator.push(*emitted_at_ms, update);
-    }
-
-    accumulator.finish_entries()
-}
-
 /// Map replayed Copilot session updates directly to ingress provider events.
 ///
-/// Preserves `ReplayAccumulator` merge/dedup/todo timing; skips `SessionThreadSnapshot`.
+/// Preserves replay merge/dedup/todo timing and skips thought chunks before canonical fold.
 pub fn convert_replay_updates_to_provider_events(
     updates: &[(u64, SessionUpdate)],
 ) -> Vec<ProviderEvent> {
     replay_updates_into_provider_events(updates, CanonicalAgentId::Copilot)
 }
 
-pub(crate) fn convert_replay_updates_to_session(
-    session_id: &str,
-    title: &str,
+#[cfg(test)]
+struct CopilotHistoryEventBatch {
+    entries: Vec<ProviderEvent>,
+}
+
+#[cfg(test)]
+fn convert_replay_updates_to_history_events(
+    _session_id: &str,
+    _title: &str,
     updates: &[(u64, SessionUpdate)],
-) -> SessionThreadSnapshot {
-    let (entries, first_event_timestamp) = replay_updates_into_entries(updates);
-
-    let resolved_title = if title.trim().is_empty() {
-        fallback_title(session_id)
-    } else {
-        title.to_string()
-    };
-
-    SessionThreadSnapshot {
-        title: resolved_title,
-        created_at: first_event_timestamp.unwrap_or_else(|| Utc::now().to_rfc3339()),
-        entries,
-        current_mode_id: None,
+) -> CopilotHistoryEventBatch {
+    CopilotHistoryEventBatch {
+        entries: convert_replay_updates_to_provider_events(updates),
     }
 }
 
 pub async fn load_provider_events_from_disk(
     session_id: &str,
     source_path: Option<&str>,
-    title: &str,
 ) -> Result<Vec<ProviderEvent>, String> {
     let session_state_root = parser::resolve_copilot_session_state_root()?;
     let transcript_path = match source_path {
@@ -157,43 +130,16 @@ pub async fn load_provider_events_from_disk(
         _ => events_jsonl_path_for_session(&session_state_root, session_id),
     };
 
-    parser::parse_copilot_provider_events_at_root(&session_state_root, &transcript_path, title)
-        .await
+    parser::parse_copilot_provider_events_at_root(&session_state_root, &transcript_path).await
 }
-fn fallback_title(session_id: &str) -> String {
-    let short_id = &session_id[..8.min(session_id.len())];
-    format!("Session {short_id}")
-}
-
-fn timestamp_ms_to_rfc3339(timestamp_ms: u64) -> String {
-    Utc.timestamp_millis_opt(timestamp_ms as i64)
-        .single()
-        .unwrap_or_else(Utc::now)
-        .to_rfc3339()
-}
-
-fn stored_block_from_content(block: &ContentBlock) -> StoredContentBlock {
+fn text_from_content_block(block: &ContentBlock) -> Option<String> {
     match block {
-        ContentBlock::Text { text } => StoredContentBlock {
-            block_type: "text".to_string(),
-            text: Some(text.clone()),
-        },
-        ContentBlock::Resource { resource } => StoredContentBlock {
-            block_type: "resource".to_string(),
-            text: resource.text.clone(),
-        },
-        ContentBlock::ResourceLink { title, name, .. } => StoredContentBlock {
-            block_type: "resource_link".to_string(),
-            text: title.clone().or_else(|| Some(name.clone())),
-        },
-        ContentBlock::Image { .. } => StoredContentBlock {
-            block_type: "image".to_string(),
-            text: None,
-        },
-        ContentBlock::Audio { .. } => StoredContentBlock {
-            block_type: "audio".to_string(),
-            text: None,
-        },
+        ContentBlock::Text { text } => Some(text.clone()),
+        ContentBlock::Resource { resource } => resource.text.clone(),
+        ContentBlock::ResourceLink { title, name, .. } => {
+            title.clone().or_else(|| Some(name.clone()))
+        }
+        ContentBlock::Image { .. } | ContentBlock::Audio { .. } => None,
     }
 }
 
@@ -202,47 +148,6 @@ fn turn_error_message(error: &TurnErrorData) -> &str {
         TurnErrorData::Legacy(message) => message.as_str(),
         TurnErrorData::Structured(info) => info.message.as_str(),
     }
-}
-
-fn stored_error_message_from_turn_error(error: &TurnErrorData) -> StoredErrorMessage {
-    match error {
-        TurnErrorData::Legacy(message) => StoredErrorMessage {
-            content: message.clone(),
-            code: None,
-            details: None,
-            kind: TurnErrorKind::Recoverable,
-            source: None,
-        },
-        TurnErrorData::Structured(info) => StoredErrorMessage {
-            content: info.message.clone(),
-            code: info.code.clone(),
-            details: info.details.clone(),
-            kind: info.kind,
-            source: info.source,
-        },
-    }
-}
-
-fn assistant_message_matches_turn_error(
-    message: &StoredAssistantMessage,
-    error_message: &str,
-) -> bool {
-    if message.chunks.len() != 1 {
-        return false;
-    }
-
-    let Some(chunk) = message.chunks.first() else {
-        return false;
-    };
-    if chunk.chunk_type != "message" {
-        return false;
-    }
-
-    let Some(text) = chunk.block.text.as_deref() else {
-        return false;
-    };
-
-    text.trim() == error_message.trim()
 }
 
 fn merge_replay_tool_arguments(current: ToolArguments, incoming: ToolArguments) -> ToolArguments {
@@ -440,8 +345,9 @@ impl ProviderEventReplayAccumulator {
         chunk: &crate::acp::session_update::ContentChunk,
         timestamp_ms: Option<i64>,
     ) {
-        let block = stored_block_from_content(&chunk.content);
-        let Some(text) = block.text.as_ref().filter(|text| !text.trim().is_empty()) else {
+        let Some(text) =
+            text_from_content_block(&chunk.content).filter(|text| !text.trim().is_empty())
+        else {
             return;
         };
 
@@ -454,7 +360,7 @@ impl ProviderEventReplayAccumulator {
             provider_row_id: id,
             timestamp_ms,
             kind: ProviderEventKind::UserText {
-                text: text.clone(),
+                text,
                 attempt_id: None,
             },
         });
@@ -467,8 +373,9 @@ impl ProviderEventReplayAccumulator {
         is_thought: bool,
         timestamp_ms: Option<i64>,
     ) {
-        let block = stored_block_from_content(&chunk.content);
-        let Some(text) = block.text.as_ref().filter(|text| !text.trim().is_empty()) else {
+        let Some(text) =
+            text_from_content_block(&chunk.content).filter(|text| !text.trim().is_empty())
+        else {
             return;
         };
 
@@ -489,7 +396,7 @@ impl ProviderEventReplayAccumulator {
                 redacted: None,
             }
         } else {
-            ProviderEventKind::AssistantText { text: text.clone() }
+            ProviderEventKind::AssistantText { text }
         };
 
         self.events.push(ProviderEvent {
@@ -549,195 +456,11 @@ impl ProviderEventReplayAccumulator {
     }
 }
 
-struct ReplayAccumulator {
-    entries: Vec<StoredEntry>,
-    assistant_indices: HashMap<String, usize>,
-    tool_call_indices: HashMap<String, usize>,
-    next_user_index: usize,
-    next_assistant_index: usize,
-    next_error_index: usize,
-    last_assistant_key: Option<String>,
-    first_event_timestamp: Option<String>,
-}
-
-impl ReplayAccumulator {
-    fn new() -> Self {
-        Self {
-            entries: Vec::new(),
-            assistant_indices: HashMap::new(),
-            tool_call_indices: HashMap::new(),
-            next_user_index: 1,
-            next_assistant_index: 1,
-            next_error_index: 1,
-            last_assistant_key: None,
-            first_event_timestamp: None,
-        }
-    }
-
-    fn push(&mut self, emitted_at_ms: u64, update: &SessionUpdate) {
-        if self.first_event_timestamp.is_none() {
-            self.first_event_timestamp = Some(timestamp_ms_to_rfc3339(emitted_at_ms));
-        }
-
-        let timestamp = Some(timestamp_ms_to_rfc3339(emitted_at_ms));
-
-        match update {
-            SessionUpdate::UserMessageChunk { chunk, .. } => {
-                self.last_assistant_key = None;
-                self.push_user_chunk(chunk, timestamp);
-            }
-            SessionUpdate::AgentMessageChunk {
-                chunk, message_id, ..
-            } => {
-                self.push_assistant_chunk(chunk, message_id.as_deref(), false, timestamp);
-            }
-            SessionUpdate::AgentThoughtChunk {
-                chunk, message_id, ..
-            } => {
-                self.push_assistant_chunk(chunk, message_id.as_deref(), true, timestamp);
-            }
-            SessionUpdate::ToolCall { tool_call, .. } => {
-                self.last_assistant_key = None;
-                if let Some(index) = self.tool_call_indices.get(&tool_call.id).copied() {
-                    if let Some(StoredEntry::ToolCall { message, .. }) = self.entries.get_mut(index)
-                    {
-                        *message = merge_replay_tool_call(message.clone(), tool_call.clone());
-                    }
-                } else {
-                    let entry_index = self.entries.len();
-                    self.tool_call_indices
-                        .insert(tool_call.id.clone(), entry_index);
-                    self.entries.push(StoredEntry::ToolCall {
-                        id: tool_call.id.clone(),
-                        message: tool_call.clone(),
-                        timestamp,
-                    });
-                }
-            }
-            SessionUpdate::ToolCallUpdate { update, .. } => {
-                if let Some(index) = self.tool_call_indices.get(&update.tool_call_id).copied() {
-                    if let Some(StoredEntry::ToolCall { message, .. }) = self.entries.get_mut(index)
-                    {
-                        merge_tool_call_update(message, update);
-                    }
-                }
-            }
-            SessionUpdate::TurnError { error, .. } => {
-                self.last_assistant_key = None;
-                self.remove_trailing_assistant_error_echo(error);
-                self.push_turn_error(error, timestamp);
-            }
-            _ => {}
-        }
-    }
-
-    fn finish_entries(mut self) -> (Vec<StoredEntry>, Option<String>) {
-        calculate_todo_timing(&mut self.entries);
-        (self.entries, self.first_event_timestamp)
-    }
-
-    fn push_user_chunk(
-        &mut self,
-        chunk: &crate::acp::session_update::ContentChunk,
-        timestamp: Option<String>,
-    ) {
-        let block = stored_block_from_content(&chunk.content);
-
-        let id = format!("user-{}", self.next_user_index);
-        self.next_user_index += 1;
-        self.entries.push(StoredEntry::User {
-            id: id.clone(),
-            message: StoredUserMessage {
-                id: Some(id),
-                content: block.clone(),
-                chunks: vec![block],
-                sent_at: timestamp.clone(),
-            },
-            timestamp,
-        });
-    }
-
-    fn push_assistant_chunk(
-        &mut self,
-        chunk: &crate::acp::session_update::ContentChunk,
-        message_id: Option<&str>,
-        is_thought: bool,
-        timestamp: Option<String>,
-    ) {
-        let key = message_id
-            .map(ToString::to_string)
-            .or_else(|| self.last_assistant_key.clone())
-            .unwrap_or_else(|| {
-                let id = format!("assistant-{}", self.next_assistant_index);
-                self.next_assistant_index += 1;
-                id
-            });
-
-        self.last_assistant_key = Some(key.clone());
-
-        let chunk_entry = StoredAssistantChunk {
-            chunk_type: if is_thought {
-                "thought".to_string()
-            } else {
-                "message".to_string()
-            },
-            block: stored_block_from_content(&chunk.content),
-        };
-
-        if let Some(index) = self.assistant_indices.get(&key).copied() {
-            if let Some(StoredEntry::Assistant { message, .. }) = self.entries.get_mut(index) {
-                message.chunks.push(chunk_entry);
-            }
-            return;
-        }
-
-        let entry_index = self.entries.len();
-        self.assistant_indices.insert(key.clone(), entry_index);
-        self.entries.push(StoredEntry::Assistant {
-            id: key,
-            message: StoredAssistantMessage {
-                chunks: vec![chunk_entry],
-                model: None,
-                display_model: None,
-                received_at: timestamp.clone(),
-            },
-            timestamp,
-        });
-    }
-
-    fn remove_trailing_assistant_error_echo(&mut self, error: &TurnErrorData) {
-        let should_remove = match self.entries.last() {
-            Some(StoredEntry::Assistant { message, .. }) => {
-                assistant_message_matches_turn_error(message, turn_error_message(error))
-            }
-            _ => false,
-        };
-
-        if !should_remove {
-            return;
-        }
-
-        let removed = self.entries.pop();
-        if let Some(StoredEntry::Assistant { id, .. }) = removed {
-            self.assistant_indices.remove(&id);
-        }
-    }
-
-    fn push_turn_error(&mut self, error: &TurnErrorData, timestamp: Option<String>) {
-        let id = format!("error-{}", self.next_error_index);
-        self.next_error_index += 1;
-        self.entries.push(StoredEntry::Error {
-            id,
-            message: stored_error_message_from_turn_error(error),
-            timestamp,
-        });
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{convert_replay_updates_to_session, resolve_transcript_path};
+    use super::{convert_replay_updates_to_history_events, resolve_transcript_path};
     use crate::acp::parsers::AgentType;
+    use crate::acp::session::ingress::event::{ProviderEvent, ProviderEventKind};
     use crate::acp::session_descriptor::{SessionDescriptorCompatibility, SessionReplayContext};
     use crate::acp::session_update::{
         ContentChunk, ToolArguments, ToolCallData, ToolCallStatus, ToolCallUpdateData, ToolKind,
@@ -745,7 +468,6 @@ mod tests {
     };
     use crate::acp::types::CanonicalAgentId;
     use crate::acp::types::ContentBlock;
-    use crate::session_jsonl::types::StoredEntry;
     use std::path::Path;
 
     fn replay_context(source_path: Option<&str>) -> SessionReplayContext {
@@ -788,9 +510,9 @@ mod tests {
     }
 
     #[test]
-    fn converts_replay_updates_into_thread_entries() {
+    fn converts_replay_updates_into_canonical_provider_events() {
         let session_id = "copilot-session-1";
-        let converted = convert_replay_updates_to_session(
+        let converted = convert_replay_updates_to_history_events(
             session_id,
             "Copilot Session",
             &[
@@ -867,29 +589,33 @@ mod tests {
             ],
         );
 
-        assert_eq!(converted.title, "Copilot Session");
         assert_eq!(converted.entries.len(), 3);
 
         match &converted.entries[0] {
-            StoredEntry::User { message, .. } => {
-                assert_eq!(message.content.text.as_deref(), Some("Summarize the repo"));
+            ProviderEvent {
+                kind: ProviderEventKind::UserText { text, .. },
+                ..
+            } => {
+                assert_eq!(text, "Summarize the repo");
             }
             other => panic!("expected user entry, got {:?}", other),
         }
 
         match &converted.entries[1] {
-            StoredEntry::Assistant { message, .. } => {
-                assert_eq!(message.chunks.len(), 1);
-                assert_eq!(
-                    message.chunks[0].block.text.as_deref(),
-                    Some("Scanning the workspace")
-                );
+            ProviderEvent {
+                kind: ProviderEventKind::AssistantText { text },
+                ..
+            } => {
+                assert_eq!(text, "Scanning the workspace");
             }
             other => panic!("expected assistant entry, got {:?}", other),
         }
 
         match &converted.entries[2] {
-            StoredEntry::ToolCall { message, .. } => {
+            ProviderEvent {
+                kind: ProviderEventKind::ToolCall(message),
+                ..
+            } => {
                 assert_eq!(message.status, ToolCallStatus::Completed);
                 assert_eq!(message.result, Some(serde_json::json!({ "ok": true })));
             }
@@ -924,7 +650,7 @@ mod tests {
             plan_approval_request_id: None,
         };
 
-        let converted = convert_replay_updates_to_session(
+        let converted = convert_replay_updates_to_history_events(
             session_id,
             "Copilot Session",
             &[
@@ -1016,7 +742,10 @@ mod tests {
         assert_eq!(converted.entries.len(), 1);
 
         match &converted.entries[0] {
-            StoredEntry::ToolCall { message, .. } => {
+            ProviderEvent {
+                kind: ProviderEventKind::ToolCall(message),
+                ..
+            } => {
                 assert_eq!(message.id, "task-1");
                 assert_eq!(message.status, ToolCallStatus::Completed);
                 assert_eq!(message.result, Some(serde_json::json!("Done")));
@@ -1034,7 +763,7 @@ mod tests {
     #[test]
     fn replay_conversion_filters_copilot_thought_chunks_from_restored_history() {
         let session_id = "copilot-session-thought";
-        let converted = convert_replay_updates_to_session(
+        let converted = convert_replay_updates_to_history_events(
             session_id,
             "Copilot Session",
             &[
@@ -1074,13 +803,11 @@ mod tests {
 
         assert_eq!(converted.entries.len(), 1);
         match &converted.entries[0] {
-            StoredEntry::Assistant { message, .. } => {
-                assert_eq!(message.chunks.len(), 1);
-                assert_eq!(message.chunks[0].chunk_type, "message");
-                assert_eq!(
-                    message.chunks[0].block.text.as_deref(),
-                    Some("I found the replay path.")
-                );
+            ProviderEvent {
+                kind: ProviderEventKind::AssistantText { text },
+                ..
+            } => {
+                assert_eq!(text, "I found the replay path.");
             }
             other => panic!("expected assistant entry, got {:?}", other),
         }
@@ -1089,7 +816,7 @@ mod tests {
     #[test]
     fn replay_conversion_keeps_distinct_user_messages_separate_without_assistant_content() {
         let session_id = "copilot-session-consecutive-users";
-        let converted = convert_replay_updates_to_session(
+        let converted = convert_replay_updates_to_history_events(
             session_id,
             "Copilot Session",
             &[
@@ -1125,13 +852,17 @@ mod tests {
         assert_eq!(converted.entries.len(), 2);
         match (&converted.entries[0], &converted.entries[1]) {
             (
-                StoredEntry::User { message: first, .. },
-                StoredEntry::User {
-                    message: second, ..
+                ProviderEvent {
+                    kind: ProviderEventKind::UserText { text: first, .. },
+                    ..
+                },
+                ProviderEvent {
+                    kind: ProviderEventKind::UserText { text: second, .. },
+                    ..
                 },
             ) => {
-                assert_eq!(first.content.text.as_deref(), Some("continue"));
-                assert_eq!(second.content.text.as_deref(), Some("continue"));
+                assert_eq!(first, "continue");
+                assert_eq!(second, "continue");
             }
             other => panic!("expected two user entries, got {:?}", other),
         }
@@ -1141,7 +872,7 @@ mod tests {
     fn replaces_synthetic_error_echo_with_error_entry() {
         let session_id = "copilot-session-error";
         let error_message = "You've hit your limit. Please wait before trying again.";
-        let converted = convert_replay_updates_to_session(
+        let converted = convert_replay_updates_to_history_events(
             session_id,
             "Copilot Session",
             &[
@@ -1194,10 +925,12 @@ mod tests {
         assert_eq!(converted.entries.len(), 2);
 
         match &converted.entries[1] {
-            StoredEntry::Error { message, .. } => {
-                assert_eq!(message.content, error_message);
-                assert_eq!(message.code.as_deref(), Some("429"));
-                assert_eq!(message.kind, TurnErrorKind::Recoverable);
+            ProviderEvent {
+                kind: ProviderEventKind::AssistantError { text, error },
+                ..
+            } => {
+                assert_eq!(text, error_message);
+                assert_eq!(*error, crate::cc_sdk::AssistantMessageError::RateLimit);
             }
             other => panic!("expected error entry, got {:?}", other),
         }

@@ -7,12 +7,9 @@ use crate::acp::pre_reservation_event_buffer::{
     PreReservationEventBuffer, PreReservationIngressDecision,
 };
 use crate::acp::projections::{InteractionSnapshot, ProjectionRegistry};
-use crate::acp::session_state_engine::graph::select_active_streaming_tail;
 use crate::acp::session_state_engine::{
-    build_delta_envelope, select_session_graph_activity, session_state_envelope_byte_budget_status,
-    turn_terminal_change_fields, DeltaEnvelopeParts, DeltaSessionProjectionFields,
-    LiveSessionStateEnvelopeRequest, SessionGraphRevision, SessionGraphRuntimeRegistry,
-    SessionStateEnvelope, SessionStateField,
+    session_state_envelope_byte_budget_status, LiveSessionStateEnvelopeRequest,
+    SessionGraphRevision, SessionGraphRuntimeRegistry, SessionStateEnvelope,
 };
 use crate::acp::session_update::SessionUpdate;
 use crate::acp::session_update_parser::session_update_to_domain_event;

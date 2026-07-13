@@ -9,7 +9,6 @@ use crate::acp::session_state_engine::selectors::{
     SessionGraphActivity, SessionGraphCapabilities, SessionGraphLifecycle,
 };
 use crate::acp::session_state_engine::SessionStatePayload;
-use crate::acp::session_thread_snapshot::{ProviderOwnedSessionSnapshot, SessionThreadSnapshot};
 use crate::acp::session_update::{
     AvailableCommand, ToolArguments, ToolCallData, ToolCallStatus, ToolKind, TurnErrorKind,
     TurnErrorSource,
@@ -51,6 +50,30 @@ async fn setup_db() -> DbConn {
 
 fn make_hub() -> Arc<AcpEventHubState> {
     Arc::new(AcpEventHubState::new())
+}
+
+async fn session_open_result_from_thread_fixture_events(
+    db: &DbConn,
+    hub: &Arc<AcpEventHubState>,
+    runtime_registry: Option<&SessionGraphRuntimeRegistry>,
+    replay_context: &SessionReplayContext,
+    requested_session_id: &str,
+    entries: &[StoredEntry],
+) -> SessionOpenResult {
+    let events =
+        crate::acp::session::ingress::stored_entry_events::stored_entries_to_provider_events(
+            entries,
+            replay_context.agent_id.clone(),
+        );
+    session_open_result_from_history_events(
+        db,
+        hub,
+        runtime_registry,
+        replay_context,
+        requested_session_id,
+        &events,
+    )
+    .await
 }
 
 fn new_session_open_input(
@@ -1143,13 +1166,8 @@ fn make_pending_plan_approval_entry(id: &str) -> StoredEntry {
     }
 }
 
-fn make_provider_thread_snapshot(entry_id: &str, title: &str) -> SessionThreadSnapshot {
-    SessionThreadSnapshot {
-        entries: vec![make_tool_call_entry(entry_id)],
-        title: title.to_string(),
-        created_at: "2026-04-23T00:00:00Z".to_string(),
-        current_mode_id: None,
-    }
+fn make_provider_thread_entries(entry_id: &str) -> Vec<StoredEntry> {
+    vec![make_tool_call_entry(entry_id)]
 }
 
 fn make_text_block(text: &str) -> StoredContentBlock {
@@ -1188,20 +1206,15 @@ fn make_assistant_entry(id: &str, text: &str) -> StoredEntry {
     }
 }
 
-fn make_provider_pipeline_snapshot(agent_id: &CanonicalAgentId) -> SessionThreadSnapshot {
+fn make_provider_pipeline_entries(agent_id: &CanonicalAgentId) -> Vec<StoredEntry> {
     let agent_name = agent_id.as_str();
-    SessionThreadSnapshot {
-        entries: vec![
-            make_user_entry(
-                &format!("{agent_name}-user-1"),
-                &format!("restore {agent_name} session"),
-            ),
-            make_tool_call_entry(&format!("{agent_name}-tool-read")),
-        ],
-        title: format!("Restore {agent_name} session"),
-        created_at: "2026-04-23T00:00:00Z".to_string(),
-        current_mode_id: None,
-    }
+    vec![
+        make_user_entry(
+            &format!("{agent_name}-user-1"),
+            &format!("restore {agent_name} session"),
+        ),
+        make_tool_call_entry(&format!("{agent_name}-tool-read")),
+    ]
 }
 
 fn make_error_entry(id: &str, text: &str) -> StoredEntry {
@@ -1488,25 +1501,36 @@ async fn new_session_open_restores_canonical_turn_failure_from_local_journal() {
 }
 
 #[tokio::test]
-async fn provider_thread_snapshot_open_does_not_require_local_snapshot_tables() {
+async fn provider_history_event_open_does_not_require_local_snapshot_tables() {
     let db = setup_db().await;
     let hub = make_hub();
     let session_id = "provider-translated-open";
     seed_session_metadata(&db, session_id, "copilot").await;
     append_frontier_barrier(&db, session_id).await;
 
-    let provider_snapshot = make_provider_thread_snapshot("provider-read", "Provider title");
+    let provider_entries = make_provider_thread_entries("provider-read");
     let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Copilot);
-    let expected_transcript =
-        TranscriptSnapshot::from_stored_entries(1, &provider_snapshot.entries);
+    let expected_events =
+        crate::acp::session::ingress::stored_entry_events::stored_entries_to_provider_events(
+            &provider_entries,
+            CanonicalAgentId::Copilot,
+        );
+    let expected_graph = crate::acp::session::fold_export::fold_graph_from_history_events(
+        session_id,
+        &CanonicalAgentId::Copilot,
+        "/workspace",
+        &expected_events,
+    );
+    let mut expected_transcript = expected_graph.transcript_snapshot;
+    expected_transcript.revision = 1;
 
-    let result = session_open_result_from_thread_snapshot(
+    let result = session_open_result_from_thread_fixture_events(
         &db,
         &hub,
         None,
         &replay_context,
         session_id,
-        &provider_snapshot,
+        &provider_entries,
     )
     .await;
 
@@ -1538,7 +1562,7 @@ async fn provider_thread_snapshot_open_does_not_require_local_snapshot_tables() 
 }
 
 #[tokio::test]
-async fn provider_thread_snapshot_open_prefers_completed_local_journal_transcript() {
+async fn provider_history_event_open_prefers_completed_local_journal_transcript() {
     let db = setup_db().await;
     let hub = make_hub();
     let session_id = "provider-stale-local-journal-open";
@@ -1606,24 +1630,19 @@ async fn provider_thread_snapshot_open_prefers_completed_local_journal_transcrip
             .expect("append journal update");
     }
 
-    let stale_provider_snapshot = SessionThreadSnapshot {
-        entries: vec![
-            make_user_entry("provider-user-1", "hi"),
-            make_assistant_entry("provider-assistant-1", "Hello there."),
-        ],
-        title: "Stale provider title".to_string(),
-        created_at: "2026-04-23T00:00:00Z".to_string(),
-        current_mode_id: None,
-    };
+    let stale_provider_entries = vec![
+        make_user_entry("provider-user-1", "hi"),
+        make_assistant_entry("provider-assistant-1", "Hello there."),
+    ];
     let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Copilot);
 
-    let result = session_open_result_from_thread_snapshot(
+    let result = session_open_result_from_thread_fixture_events(
         &db,
         &hub,
         None,
         &replay_context,
         session_id,
-        &stale_provider_snapshot,
+        &stale_provider_entries,
     )
     .await;
 
@@ -1648,7 +1667,7 @@ async fn provider_thread_snapshot_open_prefers_completed_local_journal_transcrip
 }
 
 #[tokio::test]
-async fn provider_thread_snapshot_open_preserves_failure_before_frontier_barriers() {
+async fn provider_history_event_open_preserves_failure_before_frontier_barriers() {
     let db = setup_db().await;
     let hub = make_hub();
     let session_id = "provider-failure-before-barriers-open";
@@ -1691,21 +1710,16 @@ async fn provider_thread_snapshot_open_preserves_failure_before_frontier_barrier
     append_frontier_barrier(&db, session_id).await;
     append_frontier_barrier(&db, session_id).await;
 
-    let provider_snapshot = SessionThreadSnapshot {
-        entries: vec![make_user_entry("provider-user-1", "trigger failure")],
-        title: "Failed provider turn".to_string(),
-        created_at: "2026-07-11T00:00:00Z".to_string(),
-        current_mode_id: None,
-    };
+    let provider_entries = vec![make_user_entry("provider-user-1", "trigger failure")];
     let replay_context = replay_context_for_session(session_id, CanonicalAgentId::OpenCode);
 
-    let result = session_open_result_from_thread_snapshot(
+    let result = session_open_result_from_thread_fixture_events(
         &db,
         &hub,
         None,
         &replay_context,
         session_id,
-        &provider_snapshot,
+        &provider_entries,
     )
     .await;
 
@@ -1720,7 +1734,7 @@ async fn provider_thread_snapshot_open_preserves_failure_before_frontier_barrier
 }
 
 #[tokio::test]
-async fn provider_thread_snapshot_open_keeps_provider_tool_rows_with_local_journal_transcript() {
+async fn provider_history_event_open_keeps_provider_tool_rows_with_local_journal_transcript() {
     let db = setup_db().await;
     let hub = make_hub();
     let session_id = "provider-local-journal-with-skill-tool-open";
@@ -1773,59 +1787,54 @@ async fn provider_thread_snapshot_open_keeps_provider_tool_rows_with_local_journ
         .expect("append newer local projection update");
     }
 
-    let provider_snapshot = SessionThreadSnapshot {
-        entries: vec![
-            make_user_entry("provider-user-1", "Can you diagnose this?"),
-            make_assistant_entry(
-                "provider-assistant-1",
-                "The user is invoking the diagnose skill.",
-            ),
-            StoredEntry::ToolCall {
+    let provider_entries = vec![
+        make_user_entry("provider-user-1", "Can you diagnose this?"),
+        make_assistant_entry(
+            "provider-assistant-1",
+            "The user is invoking the diagnose skill.",
+        ),
+        StoredEntry::ToolCall {
+            id: "toolu_skill".to_string(),
+            message: ToolCallData {
                 id: "toolu_skill".to_string(),
-                message: ToolCallData {
-                    id: "toolu_skill".to_string(),
-                    name: "skill".to_string(),
-                    arguments: ToolArguments::Think {
-                        description: None,
-                        prompt: None,
-                        subagent_type: None,
-                        skill: Some("diagnose".to_string()),
-                        skill_args: None,
-                        raw: Some(json!({ "skill": "diagnose" })),
-                    },
-                    diagnostic_input: None,
-                    status: ToolCallStatus::Completed,
-                    result: Some(json!({ "content": "Skill loaded" })),
-                    kind: Some(ToolKind::Skill),
-                    title: Some("diagnose".to_string()),
-                    locations: None,
-                    skill_meta: None,
-                    normalized_questions: None,
-                    normalized_todos: None,
-                    normalized_todo_update: None,
-                    parent_tool_use_id: None,
-                    task_children: None,
-                    question_answer: None,
-                    awaiting_plan_approval: false,
-                    plan_approval_request_id: None,
+                name: "skill".to_string(),
+                arguments: ToolArguments::Think {
+                    description: None,
+                    prompt: None,
+                    subagent_type: None,
+                    skill: Some("diagnose".to_string()),
+                    skill_args: None,
+                    raw: Some(json!({ "skill": "diagnose" })),
                 },
-                timestamp: None,
+                diagnostic_input: None,
+                status: ToolCallStatus::Completed,
+                result: Some(json!({ "content": "Skill loaded" })),
+                kind: Some(ToolKind::Skill),
+                title: Some("diagnose".to_string()),
+                locations: None,
+                skill_meta: None,
+                normalized_questions: None,
+                normalized_todos: None,
+                normalized_todo_update: None,
+                parent_tool_use_id: None,
+                task_children: None,
+                question_answer: None,
+                awaiting_plan_approval: false,
+                plan_approval_request_id: None,
             },
-            make_assistant_entry("provider-assistant-2", "I will diagnose it."),
-        ],
-        title: "Provider title".to_string(),
-        created_at: "2026-04-23T00:00:00Z".to_string(),
-        current_mode_id: None,
-    };
+            timestamp: None,
+        },
+        make_assistant_entry("provider-assistant-2", "I will diagnose it."),
+    ];
     let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Copilot);
 
-    let result = session_open_result_from_thread_snapshot(
+    let result = session_open_result_from_thread_fixture_events(
         &db,
         &hub,
         None,
         &replay_context,
         session_id,
-        &provider_snapshot,
+        &provider_entries,
     )
     .await;
 
@@ -1869,7 +1878,7 @@ async fn provider_thread_snapshot_open_keeps_provider_tool_rows_with_local_journ
 }
 
 #[tokio::test]
-async fn provider_thread_snapshot_open_includes_new_user_message_after_last_complete_turn() {
+async fn provider_history_event_open_includes_new_user_message_after_last_complete_turn() {
     let db = setup_db().await;
     let hub = make_hub();
     let session_id = "provider-stale-local-journal-incomplete-open";
@@ -1920,24 +1929,19 @@ async fn provider_thread_snapshot_open_includes_new_user_message_after_last_comp
             .expect("append journal update");
     }
 
-    let stale_provider_snapshot = SessionThreadSnapshot {
-        entries: vec![
-            make_user_entry("provider-user-1", "first question"),
-            make_assistant_entry("provider-assistant-1", "First answer."),
-        ],
-        title: "Stale provider title".to_string(),
-        created_at: "2026-04-23T00:00:00Z".to_string(),
-        current_mode_id: None,
-    };
+    let stale_provider_entries = vec![
+        make_user_entry("provider-user-1", "first question"),
+        make_assistant_entry("provider-assistant-1", "First answer."),
+    ];
     let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Copilot);
 
-    let result = session_open_result_from_thread_snapshot(
+    let result = session_open_result_from_thread_fixture_events(
         &db,
         &hub,
         None,
         &replay_context,
         session_id,
-        &stale_provider_snapshot,
+        &stale_provider_entries,
     )
     .await;
 
@@ -1962,22 +1966,22 @@ async fn provider_thread_snapshot_open_includes_new_user_message_after_last_comp
 }
 
 #[tokio::test]
-async fn provider_thread_snapshot_open_returns_claimable_reconnect_token() {
+async fn provider_history_event_open_returns_claimable_reconnect_token() {
     let db = setup_db().await;
     let hub = make_hub();
     let session_id = "provider-snapshot-only-open";
     seed_session_metadata(&db, session_id, "copilot").await;
 
-    let provider_snapshot = make_provider_thread_snapshot("provider-read", "Provider title");
+    let provider_entries = make_provider_thread_entries("provider-read");
     let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Copilot);
 
-    let result = session_open_result_from_thread_snapshot(
+    let result = session_open_result_from_thread_fixture_events(
         &db,
         &hub,
         None,
         &replay_context,
         session_id,
-        &provider_snapshot,
+        &provider_entries,
     )
     .await;
 
@@ -1992,7 +1996,7 @@ async fn provider_thread_snapshot_open_returns_claimable_reconnect_token() {
 }
 
 #[tokio::test]
-async fn provider_owned_open_pipeline_restores_each_builtin_agent_to_canonical_state() {
+async fn provider_history_event_open_pipeline_restores_each_builtin_agent_to_canonical_state() {
     for agent_id in provider_owned_agents_with_history_replay() {
         let db = setup_db().await;
         let hub = make_hub();
@@ -2001,18 +2005,16 @@ async fn provider_owned_open_pipeline_restores_each_builtin_agent_to_canonical_s
         seed_session_metadata(&db, &session_id, agent_id.as_str()).await;
         append_frontier_barrier(&db, &session_id).await;
 
-        let provider_snapshot = ProviderOwnedSessionSnapshot::from_thread_snapshot(
-            make_provider_pipeline_snapshot(&agent_id),
-        );
+        let provider_entries = make_provider_pipeline_entries(&agent_id);
         let replay_context = replay_context_for_session(&session_id, agent_id.clone());
 
-        let result = session_open_result_from_provider_owned_snapshot(
+        let result = session_open_result_from_thread_fixture_events(
             &db,
             &hub,
             Some(&runtime_registry),
             &replay_context,
             &session_id,
-            &provider_snapshot,
+            &provider_entries,
         )
         .await;
 
@@ -2023,7 +2025,7 @@ async fn provider_owned_open_pipeline_restores_each_builtin_agent_to_canonical_s
         assert_eq!(found.canonical_session_id, session_id);
         assert_eq!(found.last_event_seq, 1);
         assert!(found.graph_revision >= found.last_event_seq);
-        assert_eq!(found.transcript_snapshot.revision, 1);
+        assert_eq!(found.transcript_snapshot.revision, 2);
         assert_eq!(found.transcript_snapshot.entries.len(), 2);
         assert_eq!(
             found.transcript_snapshot.entries[0].role,
@@ -2057,34 +2059,35 @@ async fn provider_owned_open_pipeline_restores_each_builtin_agent_to_canonical_s
             agent_id.as_str()
         );
 
-        let runtime_snapshot = runtime_registry.snapshot_for_session(&session_id);
-        assert_eq!(runtime_snapshot.graph_revision, found.graph_revision);
+        let runtime_graph = runtime_registry
+            .graph_for_session(&session_id)
+            .expect("provider history open must seed the canonical runtime graph");
+        assert_eq!(runtime_graph.revision.graph_revision, found.graph_revision);
         assert_eq!(
-            runtime_snapshot.lifecycle.status,
+            runtime_graph.lifecycle.status,
             crate::acp::lifecycle::LifecycleStatus::Reconnecting
         );
     }
 }
 
 #[tokio::test]
-async fn provider_thread_snapshot_open_normalizes_tool_transcript_ids_to_match_operations() {
+async fn provider_history_event_open_normalizes_tool_transcript_ids_to_match_operations() {
     let db = setup_db().await;
     let hub = make_hub();
     let session_id = "provider-normalized-tool-open";
     seed_session_metadata(&db, session_id, "cursor").await;
     append_frontier_barrier(&db, session_id).await;
 
-    let provider_snapshot =
-        make_provider_thread_snapshot("provider-tool\ncursor-call", "Provider title");
+    let provider_entries = make_provider_thread_entries("provider-tool\ncursor-call");
     let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Cursor);
 
-    let result = session_open_result_from_thread_snapshot(
+    let result = session_open_result_from_thread_fixture_events(
         &db,
         &hub,
         None,
         &replay_context,
         session_id,
-        &provider_snapshot,
+        &provider_entries,
     )
     .await;
 
@@ -2120,31 +2123,26 @@ async fn provider_thread_snapshot_open_normalizes_tool_transcript_ids_to_match_o
 }
 
 #[tokio::test]
-async fn provider_thread_snapshot_open_titles_placeholder_metadata_from_first_user_message() {
+async fn provider_history_event_open_titles_placeholder_metadata_from_first_user_message() {
     let db = setup_db().await;
     let hub = make_hub();
     let session_id = "b859c458-ca4f-4c31-a3aa-6c606a1c065f";
     seed_session_metadata(&db, session_id, "claude-code").await;
     append_frontier_barrier(&db, session_id).await;
 
-    let snapshot = SessionThreadSnapshot {
-        entries: vec![make_user_entry(
-            "user-1",
-            "please enable anti alias in acepe.",
-        )],
-        title: "Session b859c458".to_string(),
-        created_at: "2026-04-23T00:00:00Z".to_string(),
-        current_mode_id: None,
-    };
+    let entries = vec![make_user_entry(
+        "user-1",
+        "please enable anti alias in acepe.",
+    )];
     let replay_context = replay_context_for_session(session_id, CanonicalAgentId::ClaudeCode);
 
-    let result = session_open_result_from_thread_snapshot(
+    let result = session_open_result_from_thread_fixture_events(
         &db,
         &hub,
         None,
         &replay_context,
         session_id,
-        &snapshot,
+        &entries,
     )
     .await;
 
@@ -2155,7 +2153,7 @@ async fn provider_thread_snapshot_open_titles_placeholder_metadata_from_first_us
 }
 
 #[tokio::test]
-async fn provider_thread_snapshot_open_keeps_renamed_title_over_first_user_message() {
+async fn provider_history_event_open_keeps_renamed_title_over_first_user_message() {
     let db = setup_db().await;
     let hub = make_hub();
     let session_id = "renamed-session-title";
@@ -2165,24 +2163,19 @@ async fn provider_thread_snapshot_open_keeps_renamed_title_over_first_user_messa
         .expect("set title override");
     append_frontier_barrier(&db, session_id).await;
 
-    let snapshot = SessionThreadSnapshot {
-        entries: vec![make_user_entry(
-            "user-1",
-            "please enable anti alias in acepe.",
-        )],
-        title: "please enable anti alias in acepe.".to_string(),
-        created_at: "2026-04-23T00:00:00Z".to_string(),
-        current_mode_id: None,
-    };
+    let entries = vec![make_user_entry(
+        "user-1",
+        "please enable anti alias in acepe.",
+    )];
     let replay_context = replay_context_for_session(session_id, CanonicalAgentId::ClaudeCode);
 
-    let result = session_open_result_from_thread_snapshot(
+    let result = session_open_result_from_thread_fixture_events(
         &db,
         &hub,
         None,
         &replay_context,
         session_id,
-        &snapshot,
+        &entries,
     )
     .await;
 
@@ -2193,7 +2186,7 @@ async fn provider_thread_snapshot_open_keeps_renamed_title_over_first_user_messa
 }
 
 #[tokio::test]
-async fn provider_thread_snapshot_open_restores_runtime_lifecycle_for_attach() {
+async fn provider_history_event_open_restores_runtime_lifecycle_for_attach() {
     let db = setup_db().await;
     let hub = make_hub();
     let runtime_registry = SessionGraphRuntimeRegistry::new();
@@ -2201,16 +2194,16 @@ async fn provider_thread_snapshot_open_restores_runtime_lifecycle_for_attach() {
     seed_session_metadata(&db, session_id, "copilot").await;
     append_frontier_barrier(&db, session_id).await;
 
-    let provider_snapshot = make_provider_thread_snapshot("provider-read", "Provider title");
+    let provider_entries = make_provider_thread_entries("provider-read");
     let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Copilot);
 
-    let result = session_open_result_from_thread_snapshot(
+    let result = session_open_result_from_thread_fixture_events(
         &db,
         &hub,
         Some(&runtime_registry),
         &replay_context,
         session_id,
-        &provider_snapshot,
+        &provider_entries,
     )
     .await;
 
@@ -2228,31 +2221,26 @@ async fn provider_thread_snapshot_open_restores_runtime_lifecycle_for_attach() {
 }
 
 #[tokio::test]
-async fn provider_thread_snapshot_open_merges_replayed_operation_evidence() {
+async fn provider_history_event_open_merges_replayed_operation_evidence() {
     let db = setup_db().await;
     let hub = make_hub();
     let session_id = "provider-duplicate-operation-open";
     seed_session_metadata(&db, session_id, "copilot").await;
     append_frontier_barrier(&db, session_id).await;
 
-    let provider_snapshot = SessionThreadSnapshot {
-        entries: vec![
-            make_tool_call_entry("provider-read"),
-            make_sparse_tool_call_entry("provider-read"),
-        ],
-        title: "Provider title".to_string(),
-        created_at: "2026-04-23T00:00:00Z".to_string(),
-        current_mode_id: None,
-    };
+    let provider_entries = vec![
+        make_tool_call_entry("provider-read"),
+        make_sparse_tool_call_entry("provider-read"),
+    ];
     let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Copilot);
 
-    let result = session_open_result_from_thread_snapshot(
+    let result = session_open_result_from_thread_fixture_events(
         &db,
         &hub,
         None,
         &replay_context,
         session_id,
-        &provider_snapshot,
+        &provider_entries,
     )
     .await;
 
@@ -2268,7 +2256,7 @@ async fn provider_thread_snapshot_open_merges_replayed_operation_evidence() {
 }
 
 #[tokio::test]
-async fn provider_thread_snapshot_open_downgrades_stale_active_operations_when_journal_is_ahead() {
+async fn provider_history_event_open_downgrades_stale_active_operations_when_journal_is_ahead() {
     let db = setup_db().await;
     let hub = make_hub();
     let session_id = "provider-stale-active-operation-open";
@@ -2276,21 +2264,16 @@ async fn provider_thread_snapshot_open_downgrades_stale_active_operations_when_j
     append_frontier_barrier(&db, session_id).await;
     append_frontier_barrier(&db, session_id).await;
 
-    let provider_snapshot = SessionThreadSnapshot {
-        entries: vec![make_running_tool_call_entry("provider-read")],
-        title: "Provider title".to_string(),
-        created_at: "2026-04-23T00:00:00Z".to_string(),
-        current_mode_id: None,
-    };
+    let provider_entries = vec![make_running_tool_call_entry("provider-read")];
     let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Copilot);
 
-    let result = session_open_result_from_thread_snapshot(
+    let result = session_open_result_from_thread_fixture_events(
         &db,
         &hub,
         None,
         &replay_context,
         session_id,
-        &provider_snapshot,
+        &provider_entries,
     )
     .await;
 
@@ -2315,27 +2298,22 @@ async fn provider_thread_snapshot_open_downgrades_stale_active_operations_when_j
 }
 
 #[tokio::test]
-async fn provider_thread_snapshot_open_closes_historical_active_operation_without_journal_gap() {
+async fn provider_history_event_open_closes_historical_active_operation_without_journal_gap() {
     let db = setup_db().await;
     let hub = make_hub();
     let session_id = "provider-historical-active-operation-open";
     seed_session_metadata(&db, session_id, "copilot").await;
 
-    let provider_snapshot = SessionThreadSnapshot {
-        entries: vec![make_running_tool_call_entry("provider-read")],
-        title: "Provider title".to_string(),
-        created_at: "2026-04-23T00:00:00Z".to_string(),
-        current_mode_id: None,
-    };
+    let provider_entries = vec![make_running_tool_call_entry("provider-read")];
     let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Copilot);
 
-    let result = session_open_result_from_thread_snapshot(
+    let result = session_open_result_from_thread_fixture_events(
         &db,
         &hub,
         None,
         &replay_context,
         session_id,
-        &provider_snapshot,
+        &provider_entries,
     )
     .await;
 
@@ -2354,30 +2332,25 @@ async fn provider_thread_snapshot_open_closes_historical_active_operation_withou
 }
 
 #[tokio::test]
-async fn provider_thread_snapshot_open_does_not_reopen_tool_interrupted_by_later_user_message() {
+async fn provider_history_event_open_does_not_reopen_tool_interrupted_by_later_user_message() {
     let db = setup_db().await;
     let hub = make_hub();
     let session_id = "provider-user-boundary-tool-open";
     seed_session_metadata(&db, session_id, "copilot").await;
 
-    let provider_snapshot = SessionThreadSnapshot {
-        entries: vec![
-            make_running_tool_call_entry("provider-write"),
-            make_user_entry("user-resumed", "i ran the command myself, proceed"),
-        ],
-        title: "Provider title".to_string(),
-        created_at: "2026-04-23T00:00:00Z".to_string(),
-        current_mode_id: None,
-    };
+    let provider_entries = vec![
+        make_running_tool_call_entry("provider-write"),
+        make_user_entry("user-resumed", "i ran the command myself, proceed"),
+    ];
     let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Copilot);
 
-    let result = session_open_result_from_thread_snapshot(
+    let result = session_open_result_from_thread_fixture_events(
         &db,
         &hub,
         None,
         &replay_context,
         session_id,
-        &provider_snapshot,
+        &provider_entries,
     )
     .await;
 
@@ -2397,27 +2370,22 @@ async fn provider_thread_snapshot_open_does_not_reopen_tool_interrupted_by_later
 }
 
 #[tokio::test]
-async fn provider_thread_snapshot_open_marks_historical_pending_interactions_unresolved() {
+async fn provider_history_event_open_marks_historical_pending_interactions_unresolved() {
     let db = setup_db().await;
     let hub = make_hub();
     let session_id = "provider-historical-pending-interaction-open";
     seed_session_metadata(&db, session_id, "copilot").await;
 
-    let provider_snapshot = SessionThreadSnapshot {
-        entries: vec![make_pending_plan_approval_entry("provider-plan")],
-        title: "Provider title".to_string(),
-        created_at: "2026-04-23T00:00:00Z".to_string(),
-        current_mode_id: None,
-    };
+    let provider_entries = vec![make_pending_plan_approval_entry("provider-plan")];
     let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Copilot);
 
-    let result = session_open_result_from_thread_snapshot(
+    let result = session_open_result_from_thread_fixture_events(
         &db,
         &hub,
         None,
         &replay_context,
         session_id,
-        &provider_snapshot,
+        &provider_entries,
     )
     .await;
 
@@ -2437,7 +2405,7 @@ async fn provider_thread_snapshot_open_marks_historical_pending_interactions_unr
 }
 
 #[tokio::test]
-async fn provider_thread_snapshot_open_does_not_reactivate_stale_historical_error() {
+async fn provider_history_event_open_does_not_reactivate_stale_historical_error() {
     let db = setup_db().await;
     let hub = make_hub();
     let session_id = "provider-stale-error-open";
@@ -2446,27 +2414,22 @@ async fn provider_thread_snapshot_open_does_not_reactivate_stale_historical_erro
     append_frontier_barrier(&db, session_id).await;
     append_frontier_barrier(&db, session_id).await;
 
-    let provider_snapshot = SessionThreadSnapshot {
-        entries: vec![
+    let provider_entries = vec![
             make_user_entry("user-1", "hi"),
             make_error_entry(
                 "error-1",
                 "Failed to authenticate. API Error: 401 {\"error\":{\"message\":\"User not found.\",\"code\":401}}",
             ),
-        ],
-        title: "hi".to_string(),
-        created_at: "2026-04-23T00:00:00Z".to_string(),
-        current_mode_id: None,
-    };
+    ];
     let replay_context = replay_context_for_session(session_id, CanonicalAgentId::ClaudeCode);
 
-    let result = session_open_result_from_thread_snapshot(
+    let result = session_open_result_from_thread_fixture_events(
         &db,
         &hub,
         None,
         &replay_context,
         session_id,
-        &provider_snapshot,
+        &provider_entries,
     )
     .await;
 
@@ -2481,23 +2444,23 @@ async fn provider_thread_snapshot_open_does_not_reactivate_stale_historical_erro
 }
 
 #[tokio::test]
-async fn provider_thread_snapshot_open_marks_alias_request_without_rewriting_canonical_id() {
+async fn provider_history_event_open_marks_alias_request_without_rewriting_canonical_id() {
     let db = setup_db().await;
     let hub = make_hub();
     let canonical_session_id = "canonical-provider-session";
     let requested_session_id = "provider-session-alias";
     seed_session_metadata(&db, canonical_session_id, "copilot").await;
-    let provider_snapshot = make_provider_thread_snapshot("provider-read", "Provider title");
+    let provider_entries = make_provider_thread_entries("provider-read");
     let replay_context =
         replay_context_for_session(canonical_session_id, CanonicalAgentId::Copilot);
 
-    let result = session_open_result_from_thread_snapshot(
+    let result = session_open_result_from_thread_fixture_events(
         &db,
         &hub,
         None,
         &replay_context,
         requested_session_id,
-        &provider_snapshot,
+        &provider_entries,
     )
     .await;
 
@@ -3043,7 +3006,7 @@ fn large_entry_count_open_result_compacts_transcript_body_before_full_byte_count
 }
 
 #[tokio::test]
-async fn provider_owned_alias_open_keys_viewport_authority_to_canonical_id_only() {
+async fn provider_history_event_alias_open_keys_viewport_authority_to_canonical_id_only() {
     let db = setup_db().await;
     let hub = make_hub();
     let runtime_registry = SessionGraphRuntimeRegistry::new();
@@ -3055,19 +3018,17 @@ async fn provider_owned_alias_open_keys_viewport_authority_to_canonical_id_only(
     seed_session_metadata(&db, canonical_session_id, "copilot").await;
     append_frontier_barrier(&db, canonical_session_id).await;
 
-    let provider_snapshot = ProviderOwnedSessionSnapshot::from_thread_snapshot(
-        make_provider_pipeline_snapshot(&CanonicalAgentId::Copilot),
-    );
+    let provider_entries = make_provider_pipeline_entries(&CanonicalAgentId::Copilot);
     let replay_context =
         replay_context_for_session(canonical_session_id, CanonicalAgentId::Copilot);
 
-    let result = session_open_result_from_provider_owned_snapshot(
+    let result = session_open_result_from_thread_fixture_events(
         &db,
         &hub,
         Some(&runtime_registry),
         &replay_context,
         requested_session_id,
-        &provider_snapshot,
+        &provider_entries,
     )
     .await;
 
@@ -3180,6 +3141,66 @@ async fn found_result_open_token_has_active_reservation_in_hub() {
     assert!(
         hub.has_reservation(token),
         "reservation must be active after open"
+    );
+}
+
+#[tokio::test]
+async fn session_open_builders_do_not_return_an_unarmed_token_for_a_competing_open() {
+    let db = setup_db().await;
+    let hub = make_hub();
+    let session_id = "prepared-reservation-session";
+    let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Copilot);
+    let owner_token = Uuid::new_v4();
+    hub.arm_reservation(owner_token, session_id.to_string(), 0, 0)
+        .expect("first reservation should arm");
+    let prepared_owner = hub
+        .prepare_reservation_claim_for_session(owner_token, session_id)
+        .expect("first open should own the prepared reservation");
+
+    let ledger_error =
+        session_open_result_from_current_row_ledger(&db, &hub, &replay_context, session_id, 128)
+            .await
+            .expect_err("ledger open must propagate the reservation conflict");
+    assert!(ledger_error.contains("prepared open-token reservation"));
+
+    let local_journal_error = session_open_result_from_completed_local_journal(
+        &db,
+        &hub,
+        &replay_context,
+        session_id,
+        SessionGraphLifecycle::reconnecting(),
+        SessionGraphCapabilities::empty(),
+    )
+    .await
+    .expect_err("local journal open must propagate the reservation conflict");
+    assert!(local_journal_error.contains("prepared open-token reservation"));
+
+    let history_result =
+        session_open_result_from_history_events(&db, &hub, None, &replay_context, session_id, &[])
+            .await;
+    let SessionOpenResult::Error(history_error) = history_result else {
+        panic!("history open must not return an unarmed token: {history_result:?}");
+    };
+    assert!(history_error
+        .message
+        .contains("prepared open-token reservation"));
+
+    let new_session_result = session_open_result_for_new_session(
+        &db,
+        &hub,
+        new_session_open_input(session_id, SessionGraphCapabilities::empty()),
+    )
+    .await;
+
+    let SessionOpenResult::Error(error) = new_session_result else {
+        panic!("new-session open must not return an unarmed token: {new_session_result:?}");
+    };
+    assert_eq!(error.requested_session_id, session_id);
+    assert!(error.retryable);
+    assert!(
+        hub.commit_prepared_reservation_claim(prepared_owner)
+            .is_some(),
+        "the prepared owner must not be displaced by a competing open"
     );
 }
 
@@ -3455,6 +3476,21 @@ async fn fold_open_cursor_junk_matches_golden() {
     );
     assert_eq!(held.turn_state, found.turn_state);
     assert_eq!(held.lifecycle.status, found.lifecycle.status);
+
+    let history_frontier = events
+        .last()
+        .expect("non-empty history must have a frontier event");
+    let transition = runtime_registry
+        .apply_provider_event_transition(SESSION_ID, history_frontier)
+        .expect("fold-based open must keep the held graph attached");
+    assert!(
+        !transition.applied,
+        "reconnect redelivery of the history frontier must be deduplicated"
+    );
+    assert_eq!(
+        transition.after.transcript_snapshot.entries, held.transcript_snapshot.entries,
+        "frontier redelivery must not duplicate transcript history"
+    );
 
     let folded = extract_persisted_region(
         &crate::acp::session_state_engine::graph::SessionStateGraph {

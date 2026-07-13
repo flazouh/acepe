@@ -2,17 +2,13 @@ use std::sync::Arc;
 
 use crate::acp::provider::{HistoryReplayFamily, ProviderHistoryLoadError};
 use crate::acp::registry::AgentRegistry;
+use crate::acp::session::ingress::event::ProviderEvent;
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_open_snapshot::SessionOpenError;
-use crate::acp::session_thread_snapshot::ProviderOwnedSessionSnapshot;
 use crate::acp::types::CanonicalAgentId;
 use crate::db::repository::SessionMetadataRepository;
 use sea_orm::DbConn;
 use tauri::{AppHandle, Manager};
-
-use super::metadata::{
-    apply_provider_derived_current_mode_metadata, apply_provider_session_title_metadata,
-};
 
 pub fn session_open_error_from_provider_load(
     requested_session_id: &str,
@@ -48,15 +44,15 @@ pub fn history_replay_family(agent: &CanonicalAgentId) -> HistoryReplayFamily {
     .family
 }
 
-async fn load_unified_session_content_with_context(
+pub(crate) async fn load_provider_history_events_with_context(
     app: AppHandle,
     context: crate::history::session_context::SessionContext,
-) -> Result<Option<ProviderOwnedSessionSnapshot>, ProviderHistoryLoadError> {
+) -> Result<Option<Vec<ProviderEvent>>, ProviderHistoryLoadError> {
     tracing::info!(
         session_id = %context.local_session_id,
         agent_id = %context.agent_id,
         compatibility = ?context.compatibility,
-        "Loading unified session"
+        "Loading provider history events"
     );
 
     let replay_context = context.replay_context();
@@ -72,12 +68,12 @@ async fn load_unified_session_content_with_context(
         HistoryReplayFamily::ProviderOwned => match provider {
             Some(provider) => {
                 provider
-                    .load_provider_owned_session(&app, &context, &replay_context)
+                    .load_provider_history_events(&app, &context, &replay_context)
                     .await?
             }
             None => {
                 return Err(ProviderHistoryLoadError::provider_unavailable(format!(
-                    "Provider {} is unavailable for provider-owned session load",
+                    "Provider {} is unavailable for provider history load",
                     context.agent_id
                 )));
             }
@@ -85,17 +81,13 @@ async fn load_unified_session_content_with_context(
         HistoryReplayFamily::SharedCanonical => None,
     };
 
-    Ok(result
-        .map(apply_provider_derived_current_mode_metadata)
-        .map(|session| {
-            apply_provider_session_title_metadata(session, context.session_metadata.as_ref())
-        }))
+    Ok(result)
 }
 
-pub async fn load_provider_owned_session_snapshot(
+pub async fn load_provider_history_events_from_provider(
     app: AppHandle,
     replay_context: &SessionReplayContext,
-) -> Result<Option<ProviderOwnedSessionSnapshot>, ProviderHistoryLoadError> {
+) -> Result<Option<Vec<ProviderEvent>>, ProviderHistoryLoadError> {
     let Some(db) = app.try_state::<DbConn>().map(|s| s.inner().clone()) else {
         return Err(ProviderHistoryLoadError::provider_unavailable(
             "Database unavailable for provider-owned session load",
@@ -111,24 +103,38 @@ pub async fn load_provider_owned_session_snapshot(
                 ))
             })?;
 
-    let context = crate::history::session_context::SessionContext {
+    let context = session_context_from_replay(replay_context, session_metadata);
+    load_provider_history_events_with_context(app, context).await
+}
+
+fn session_context_from_replay(
+    replay_context: &SessionReplayContext,
+    session_metadata: Option<crate::db::repository::SessionMetadataRow>,
+) -> crate::history::session_context::SessionContext {
+    crate::history::session_context::SessionContext {
         local_session_id: replay_context.local_session_id.clone(),
         history_session_id: replay_context.history_session_id.clone(),
         project_path: replay_context.project_path.clone(),
         worktree_path: replay_context.worktree_path.clone(),
-        effective_project_path: replay_context.effective_cwd.clone(),
+        effective_project_path: if replay_context.effective_cwd.trim().is_empty() {
+            replay_context.project_path.clone()
+        } else {
+            replay_context.effective_cwd.clone()
+        },
         source_path: replay_context.source_path.clone(),
         agent_id: replay_context.agent_id.clone(),
         compatibility: replay_context.compatibility.clone(),
         session_metadata,
-    };
-    load_unified_session_content_with_context(app, context).await
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{history_replay_family, session_open_error_from_provider_load};
+    use super::{
+        history_replay_family, session_context_from_replay, session_open_error_from_provider_load,
+    };
     use crate::acp::provider::{HistoryReplayFamily, ProviderHistoryLoadError};
+    use crate::acp::session_descriptor::{SessionDescriptorCompatibility, SessionReplayContext};
     use crate::acp::session_open_snapshot::SessionOpenErrorReason;
     use crate::acp::types::CanonicalAgentId;
 
@@ -214,5 +220,31 @@ mod tests {
 
         assert!(matches!(error.reason, SessionOpenErrorReason::Internal));
         assert!(error.retryable);
+    }
+
+    #[test]
+    fn provider_history_context_preserves_source_path_and_effective_cwd_fallback() {
+        let mut replay_context = SessionReplayContext {
+            local_session_id: "local-1".to_string(),
+            history_session_id: "provider-1".to_string(),
+            agent_id: CanonicalAgentId::ClaudeCode,
+            parser_agent_type: crate::acp::parsers::AgentType::ClaudeCode,
+            project_path: "/project".to_string(),
+            worktree_path: Some("/worktree".to_string()),
+            effective_cwd: String::new(),
+            source_path: Some("/history/session.jsonl".to_string()),
+            compatibility: SessionDescriptorCompatibility::Canonical,
+        };
+
+        let fallback = session_context_from_replay(&replay_context, None);
+        assert_eq!(fallback.effective_project_path, "/project");
+        assert_eq!(
+            fallback.source_path.as_deref(),
+            Some("/history/session.jsonl")
+        );
+
+        replay_context.effective_cwd = "/worktree".to_string();
+        let effective = session_context_from_replay(&replay_context, None);
+        assert_eq!(effective.effective_project_path, "/worktree");
     }
 }

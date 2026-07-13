@@ -1,9 +1,13 @@
 //! Live `SessionUpdate` → ingress `ProviderEvent` mapping (shared by live and replay paths).
 
-use crate::acp::projections::RouteDecision;
+use crate::acp::projections::helpers::extract_tool_update_text;
+use crate::acp::projections::{ComputerPermissionData, RouteDecision};
 use crate::acp::session::ingress::event::{ProviderEvent, ProviderEventKind, TurnOutcome};
-use crate::acp::session_update::{ContentChunk, SessionUpdate};
+use crate::acp::session_update::{ContentChunk, SessionUpdate, ToolReference};
 use crate::acp::types::{CanonicalAgentId, ContentBlock};
+use crate::computer_use::permissions::build_computer_permission_interaction_id;
+use crate::computer_use::types::ComputerError;
+use serde_json::Value;
 
 /// Map one live session update into zero or one provider event.
 ///
@@ -75,8 +79,8 @@ pub fn session_update_to_provider_event(
             }
         }
         SessionUpdate::ToolCall { tool_call, .. } => ProviderEventKind::ToolCall(tool_call.clone()),
-        SessionUpdate::ToolCallUpdate { update, .. } => {
-            ProviderEventKind::ToolCallUpdate(update.clone())
+        SessionUpdate::ToolCallUpdate { update, session_id } => {
+            tool_call_update_event_kind(update, session_id.as_deref())
         }
         SessionUpdate::CompactionEvent { event, .. } => {
             ProviderEventKind::Compaction(event.clone())
@@ -88,6 +92,36 @@ pub fn session_update_to_provider_event(
         SessionUpdate::CurrentModeUpdate { update, .. } => {
             ProviderEventKind::ModeUpdate(update.clone())
         }
+        SessionUpdate::ConfigOptionUpdate { update, .. } => {
+            ProviderEventKind::ConfigOptionsUpdate(update.clone())
+        }
+        SessionUpdate::ConnectionComplete {
+            models,
+            modes,
+            available_commands,
+            config_options,
+            autonomous_enabled,
+            ..
+        } => ProviderEventKind::SessionReady {
+            models: models.clone(),
+            modes: modes.clone(),
+            available_commands: available_commands.clone(),
+            config_options: config_options.clone(),
+            autonomous_enabled: *autonomous_enabled,
+        },
+        SessionUpdate::ConnectionFailed {
+            error,
+            failure_reason,
+            ..
+        } => ProviderEventKind::SessionFailed {
+            error: error.clone(),
+            failure_reason: *failure_reason,
+        },
+        SessionUpdate::SessionDetached {
+            detached_reason, ..
+        } => ProviderEventKind::SessionDetached {
+            detached_reason: *detached_reason,
+        },
         SessionUpdate::PermissionRequest { permission, .. } => {
             ProviderEventKind::Permission(permission.clone())
         }
@@ -98,18 +132,13 @@ pub fn session_update_to_provider_event(
         SessionUpdate::TurnComplete { .. } => ProviderEventKind::TurnEnd {
             outcome: TurnOutcome::Completed,
         },
-        SessionUpdate::TurnError { .. } => ProviderEventKind::TurnEnd {
-            outcome: TurnOutcome::Failed,
+        SessionUpdate::TurnError { error, turn_id, .. } => ProviderEventKind::TurnFailure {
+            error: error.clone(),
+            turn_id: turn_id.clone(),
         },
         SessionUpdate::TurnCancelled { .. } => ProviderEventKind::TurnEnd {
             outcome: TurnOutcome::Cancelled,
         },
-        // These update the connection/capability control plane. The canonical
-        // provider fact vocabulary intentionally has no exact equivalent.
-        SessionUpdate::ConfigOptionUpdate { .. }
-        | SessionUpdate::ConnectionComplete { .. }
-        | SessionUpdate::ConnectionFailed { .. }
-        | SessionUpdate::SessionDetached { .. } => return None,
     };
 
     Some(ProviderEvent {
@@ -149,7 +178,7 @@ fn history_fallback_event(
     update: &SessionUpdate,
 ) -> Option<ProviderEvent> {
     let provider_seq = index as u64 + 1;
-    let provider_row_id = provider_row_id_for_history_update(index, update);
+    let provider_row_id = provider_row_id_for_live_update(provider_seq as i64, update);
 
     let kind = match update {
         SessionUpdate::UserMessageChunk {
@@ -162,8 +191,8 @@ fn history_fallback_event(
             }
         }
         SessionUpdate::ToolCall { tool_call, .. } => ProviderEventKind::ToolCall(tool_call.clone()),
-        SessionUpdate::ToolCallUpdate { update, .. } => {
-            ProviderEventKind::ToolCallUpdate(update.clone())
+        SessionUpdate::ToolCallUpdate { update, session_id } => {
+            tool_call_update_event_kind(update, session_id.as_deref())
         }
         _ => return None,
     };
@@ -177,57 +206,114 @@ fn history_fallback_event(
     })
 }
 
-/// Re-stamp a pre-normalized live ingress event with the journaled event sequence.
-#[must_use]
-pub fn restamp_live_provider_event(
-    mut event: ProviderEvent,
-    event_seq: i64,
-    update: &SessionUpdate,
-) -> ProviderEvent {
-    event.provider_seq = u64::try_from(event_seq.max(0)).unwrap_or(0);
-    event.provider_row_id = provider_row_id_for_live_update(event_seq, update);
-    event
+fn tool_call_update_event_kind(
+    update: &crate::acp::session_update::ToolCallUpdateData,
+    session_id: Option<&str>,
+) -> ProviderEventKind {
+    let Some(permission) = session_id
+        .and_then(|session_id| computer_permission_from_tool_call_update(session_id, update))
+    else {
+        return ProviderEventKind::ToolCallUpdate(update.clone());
+    };
+    ProviderEventKind::ComputerPermissionRequest {
+        update: update.clone(),
+        permission,
+    }
+}
+
+fn computer_permission_from_tool_call_update(
+    session_id: &str,
+    update: &crate::acp::session_update::ToolCallUpdateData,
+) -> Option<ComputerPermissionData> {
+    let error = update
+        .result
+        .as_ref()
+        .and_then(computer_error_from_value)
+        .or_else(|| {
+            update
+                .raw_output
+                .as_ref()
+                .and_then(computer_error_from_value)
+        })
+        .or_else(|| {
+            extract_tool_update_text(update).and_then(|text| {
+                serde_json::from_str::<Value>(&text)
+                    .ok()
+                    .and_then(|value| computer_error_from_value(&value))
+            })
+        })?;
+    if error.code != "computer_permission_required" {
+        return None;
+    }
+    let permission_kind = error.permission_kind?;
+    Some(ComputerPermissionData {
+        id: build_computer_permission_interaction_id(
+            session_id,
+            &update.tool_call_id,
+            permission_kind,
+        ),
+        session_id: session_id.to_string(),
+        permission_kind,
+        reason: error.message,
+        app: error.app.map(String::from),
+        window: error.window.map(String::from),
+        tool: Some(ToolReference {
+            message_id: None,
+            call_id: update.tool_call_id.clone(),
+        }),
+    })
+}
+
+fn computer_error_from_value(value: &Value) -> Option<ComputerError> {
+    let error = value
+        .get("error")
+        .or_else(|| value.get("err"))
+        .unwrap_or(value);
+    serde_json::from_value::<ComputerError>(error.clone()).ok()
 }
 
 fn provider_row_id_for_live_update(event_seq: i64, update: &SessionUpdate) -> String {
+    stable_provider_fact_id(update).unwrap_or_else(|| format!("journal:{event_seq}"))
+}
+
+/// Return an identity only when the provider gives one for this exact fact.
+///
+/// Message/part ids and tool-call ids on updates identify an aggregation target,
+/// not an individual streaming delta. Reusing them would suppress legitimate
+/// chunks or status transitions, so those updates intentionally fall back to the
+/// journal sequence and are not deduplicated against provider history.
+fn stable_provider_fact_id(update: &SessionUpdate) -> Option<String> {
     match update {
-        SessionUpdate::ToolCall { tool_call, .. } => format!("{}:{event_seq}", tool_call.id),
-        SessionUpdate::ToolCallUpdate { update, .. } => {
-            format!("{}:update:{event_seq}", update.tool_call_id)
+        SessionUpdate::ToolCall { tool_call, .. } => non_empty_provider_id(&tool_call.id),
+        SessionUpdate::PermissionRequest { permission, .. } => {
+            non_empty_provider_id(&permission.id)
         }
-        SessionUpdate::UserMessageChunk { .. } => format!("user:{event_seq}"),
-        SessionUpdate::AgentMessageChunk {
-            message_id,
-            part_id,
-            ..
-        } => format!(
-            "assistant:{}:{}:{event_seq}",
-            message_id.as_deref().unwrap_or("msg"),
-            part_id.as_deref().unwrap_or("part")
-        ),
-        SessionUpdate::AgentThoughtChunk {
-            message_id,
-            part_id,
-            ..
-        } => format!(
-            "thought:{}:{}:{event_seq}",
-            message_id.as_deref().unwrap_or("msg"),
-            part_id.as_deref().unwrap_or("part")
-        ),
-        SessionUpdate::CompactionEvent { event, .. } => {
-            format!("compaction:{}:{event_seq}", event.event_id)
+        SessionUpdate::QuestionRequest { question, .. } => non_empty_provider_id(&question.id),
+        SessionUpdate::CompactionEvent { event, .. } => non_empty_provider_id(&event.event_id),
+        SessionUpdate::UsageTelemetryUpdate { data } => {
+            data.event_id.as_deref().and_then(non_empty_provider_id)
         }
-        _ => format!("row:{event_seq}"),
+        SessionUpdate::TurnComplete { turn_id, .. }
+        | SessionUpdate::TurnError { turn_id, .. }
+        | SessionUpdate::TurnCancelled { turn_id, .. } => {
+            turn_id.as_deref().and_then(non_empty_provider_id)
+        }
+        SessionUpdate::UserMessageChunk { .. }
+        | SessionUpdate::AgentMessageChunk { .. }
+        | SessionUpdate::AgentThoughtChunk { .. }
+        | SessionUpdate::ToolCallUpdate { .. }
+        | SessionUpdate::Plan { .. }
+        | SessionUpdate::AvailableCommandsUpdate { .. }
+        | SessionUpdate::CurrentModeUpdate { .. }
+        | SessionUpdate::ConfigOptionUpdate { .. }
+        | SessionUpdate::ConnectionComplete { .. }
+        | SessionUpdate::ConnectionFailed { .. }
+        | SessionUpdate::SessionDetached { .. } => None,
     }
 }
 
-fn provider_row_id_for_history_update(index: usize, update: &SessionUpdate) -> String {
-    match update {
-        SessionUpdate::ToolCall { tool_call, .. } => tool_call.id.clone(),
-        SessionUpdate::ToolCallUpdate { update, .. } => format!("{}:update", update.tool_call_id),
-        SessionUpdate::UserMessageChunk { .. } => format!("user-{index}"),
-        _ => format!("row-{index}"),
-    }
+fn non_empty_provider_id(value: &str) -> Option<String> {
+    (!value.trim().is_empty()).then(|| value.to_string())
 }
 
 fn user_text_from_chunk(chunk: &ContentChunk) -> Option<String> {
@@ -251,8 +337,35 @@ mod tests {
     use crate::acp::lifecycle::{DetachedReason, FailureReason};
     use crate::acp::session_update::{
         AvailableCommandsData, ConfigOptionUpdateData, CurrentModeData, PermissionData, PlanData,
-        QuestionData, ToolCallStatus, TurnErrorData, UsageTelemetryData, UsageTelemetryTokens,
+        QuestionData, ToolArguments, ToolCallData, ToolCallStatus, ToolKind, TurnErrorData,
+        UsageTelemetryData, UsageTelemetryTokens,
     };
+
+    fn read_tool_call(id: &str) -> ToolCallData {
+        ToolCallData {
+            id: id.to_string(),
+            name: "Read".to_string(),
+            arguments: ToolArguments::Read {
+                file_path: Some("/tmp/file".to_string()),
+                source_context: None,
+            },
+            diagnostic_input: None,
+            status: ToolCallStatus::InProgress,
+            result: None,
+            kind: Some(ToolKind::Read),
+            title: Some("Read file".to_string()),
+            locations: None,
+            skill_meta: None,
+            normalized_questions: None,
+            normalized_todos: None,
+            normalized_todo_update: None,
+            parent_tool_use_id: None,
+            task_children: None,
+            question_answer: None,
+            awaiting_plan_approval: false,
+            plan_approval_request_id: None,
+        }
+    }
 
     fn mapped_kind(update: &SessionUpdate) -> &'static str {
         session_update_to_provider_event(
@@ -333,7 +446,7 @@ mod tests {
     }
 
     #[test]
-    fn maps_all_terminal_update_families_to_turn_end() {
+    fn maps_terminal_update_families_without_losing_failure_details() {
         let complete = SessionUpdate::TurnComplete {
             session_id: Some("sess-1".to_string()),
             turn_id: Some("turn-1".to_string()),
@@ -370,9 +483,10 @@ mod tests {
             )
             .expect("error maps")
             .kind,
-            ProviderEventKind::TurnEnd {
-                outcome: crate::acp::session::ingress::event::TurnOutcome::Failed
-            }
+            ProviderEventKind::TurnFailure {
+                error: TurnErrorData::Legacy(ref message),
+                turn_id: Some(ref turn_id),
+            } if message == "boom" && turn_id == "turn-1"
         ));
         assert!(matches!(
             session_update_to_provider_event(
@@ -390,44 +504,50 @@ mod tests {
     }
 
     #[test]
-    fn leaves_updates_without_an_exact_provider_fact_unmapped() {
+    fn maps_lifecycle_and_control_plane_updates_to_provider_neutral_facts() {
         let updates = [
-            SessionUpdate::ConfigOptionUpdate {
-                update: ConfigOptionUpdateData {
-                    config_options: Vec::new(),
+            (
+                SessionUpdate::ConfigOptionUpdate {
+                    update: ConfigOptionUpdateData {
+                        config_options: Vec::new(),
+                    },
+                    session_id: Some("sess-1".to_string()),
                 },
-                session_id: Some("sess-1".to_string()),
-            },
-            SessionUpdate::ConnectionComplete {
-                session_id: "sess-1".to_string(),
-                attempt_id: 1,
-                models: default_session_model_state(),
-                modes: default_modes(),
-                available_commands: None,
-                config_options: None,
-                autonomous_enabled: None,
-            },
-            SessionUpdate::ConnectionFailed {
-                session_id: "sess-1".to_string(),
-                attempt_id: 1,
-                error: "offline".to_string(),
-                failure_reason: FailureReason::ResumeFailed,
-            },
-            SessionUpdate::SessionDetached {
-                session_id: "sess-1".to_string(),
-                attempt_id: 1,
-                detached_reason: DetachedReason::ReconnectExhausted,
-            },
+                "config_options_update",
+            ),
+            (
+                SessionUpdate::ConnectionComplete {
+                    session_id: "sess-1".to_string(),
+                    attempt_id: 1,
+                    models: default_session_model_state(),
+                    modes: default_modes(),
+                    available_commands: None,
+                    config_options: None,
+                    autonomous_enabled: None,
+                },
+                "session_ready",
+            ),
+            (
+                SessionUpdate::ConnectionFailed {
+                    session_id: "sess-1".to_string(),
+                    attempt_id: 1,
+                    error: "offline".to_string(),
+                    failure_reason: FailureReason::ResumeFailed,
+                },
+                "session_failed",
+            ),
+            (
+                SessionUpdate::SessionDetached {
+                    session_id: "sess-1".to_string(),
+                    attempt_id: 1,
+                    detached_reason: DetachedReason::ReconnectExhausted,
+                },
+                "session_detached",
+            ),
         ];
 
-        for update in updates {
-            assert!(session_update_to_provider_event(
-                CanonicalAgentId::ClaudeCode,
-                1,
-                &update,
-                RouteDecision::default(),
-            )
-            .is_none());
+        for (update, expected_kind) in updates {
+            assert_eq!(mapped_kind(&update), expected_kind);
         }
     }
 
@@ -495,7 +615,7 @@ mod tests {
     }
 
     #[test]
-    fn maps_tool_call_update_with_live_row_id() {
+    fn tool_call_update_uses_journal_identity_because_target_id_is_not_event_identity() {
         use crate::acp::session_update::ToolCallUpdateData;
 
         let update = SessionUpdate::ToolCallUpdate {
@@ -526,6 +646,233 @@ mod tests {
         )
         .expect("tool call update maps");
 
-        assert_eq!(event.provider_row_id, "call-1:update:7");
+        assert_eq!(event.provider_row_id, "journal:7");
+    }
+
+    #[test]
+    fn streaming_chunks_with_same_message_and_part_keep_distinct_journal_identities() {
+        use crate::acp::session::engine::fold::{fold_full, FoldContext};
+        use crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeRegistry;
+
+        let update = SessionUpdate::AgentMessageChunk {
+            session_id: Some("sess-1".to_string()),
+            chunk: ContentChunk {
+                content: ContentBlock::Text {
+                    text: "delta".to_string(),
+                },
+                aggregation_hint: None,
+            },
+            message_id: Some("message-1".to_string()),
+            part_id: Some("part-1".to_string()),
+            parent_tool_use_id: None,
+            produced_at_monotonic_ms: None,
+        };
+
+        let first = session_update_to_provider_event(
+            CanonicalAgentId::ClaudeCode,
+            7,
+            &update,
+            RouteDecision::default(),
+        )
+        .expect("first chunk maps");
+        let second = session_update_to_provider_event(
+            CanonicalAgentId::ClaudeCode,
+            8,
+            &update,
+            RouteDecision::default(),
+        )
+        .expect("second chunk maps");
+
+        assert_eq!(first.provider_row_id, "journal:7");
+        assert_eq!(second.provider_row_id, "journal:8");
+        assert_ne!(first.provider_row_id, second.provider_row_id);
+        assert_eq!(first.fold_dedup_key(), None);
+        assert_eq!(second.fold_dedup_key(), None);
+
+        let registry = SessionGraphRuntimeRegistry::new();
+        registry.seed_graph(
+            "sess-1".to_string(),
+            fold_full(
+                &[],
+                &FoldContext::new("sess-1", CanonicalAgentId::ClaudeCode, "/tmp/project"),
+            ),
+        );
+        assert!(
+            registry
+                .apply_provider_event_transition("sess-1", &first)
+                .expect("first chunk transition")
+                .applied
+        );
+        let second_transition = registry
+            .apply_provider_event_transition("sess-1", &second)
+            .expect("second chunk transition");
+        assert!(
+            second_transition.applied,
+            "message and part ids identify the stream target, not a unique chunk"
+        );
+        assert_eq!(
+            second_transition.after.transcript_snapshot.entries[0]
+                .segments
+                .len(),
+            2
+        );
+    }
+
+    #[test]
+    fn history_and_live_tool_identity_deduplicates_reconnect_redelivery() {
+        use crate::acp::session::engine::fold::{fold_history_with_dedup_frontier, FoldContext};
+        use crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeRegistry;
+
+        let update = SessionUpdate::ToolCall {
+            tool_call: read_tool_call("toolu-stable-1"),
+            session_id: Some("sess-1".to_string()),
+        };
+        let history_events = session_updates_to_provider_events(
+            CanonicalAgentId::ClaudeCode,
+            std::slice::from_ref(&update),
+        );
+        let live_event = session_update_to_provider_event(
+            CanonicalAgentId::ClaudeCode,
+            99,
+            &update,
+            RouteDecision::default(),
+        )
+        .expect("live tool call must map");
+
+        assert_eq!(
+            history_events[0].provider_row_id,
+            live_event.provider_row_id
+        );
+        assert_eq!(
+            history_events[0].fold_dedup_key(),
+            live_event.fold_dedup_key()
+        );
+
+        let folded = fold_history_with_dedup_frontier(
+            &history_events,
+            &FoldContext::new("sess-1", CanonicalAgentId::ClaudeCode, "/tmp/project"),
+        );
+        let registry = SessionGraphRuntimeRegistry::new();
+        assert!(registry.seed_folded_history("sess-1".to_string(), folded));
+        let transition = registry
+            .apply_provider_event_transition("sess-1", &live_event)
+            .expect("history graph must be attached");
+
+        assert!(
+            !transition.applied,
+            "reconnect redelivery of the provider-stable tool fact must deduplicate"
+        );
+    }
+
+    #[test]
+    fn computer_permission_request_and_reply_live_in_the_held_graph() {
+        use crate::acp::projections::{InteractionKind, InteractionResponse, InteractionState};
+        use crate::acp::session::engine::fold::{fold_full, FoldContext};
+        use crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeRegistry;
+        use crate::computer_use::permissions::{
+            build_computer_permission_interaction_id, ComputerPermissionKind,
+        };
+
+        let session_id = "sess-computer-permission";
+        let tool_call_id = "tool-computer-1";
+        let tool_call = SessionUpdate::ToolCall {
+            tool_call: read_tool_call(tool_call_id),
+            session_id: Some(session_id.to_string()),
+        };
+        let tool_update = SessionUpdate::ToolCallUpdate {
+            update: crate::acp::session_update::ToolCallUpdateData {
+                tool_call_id: tool_call_id.to_string(),
+                result: Some(serde_json::json!({
+                    "error": {
+                        "code": "computer_permission_required",
+                        "message": "Accessibility permission is required",
+                        "permission_kind": "accessibility"
+                    }
+                })),
+                ..Default::default()
+            },
+            session_id: Some(session_id.to_string()),
+        };
+        let registry = SessionGraphRuntimeRegistry::new();
+        registry.seed_graph(
+            session_id.to_string(),
+            fold_full(
+                &[],
+                &FoldContext::new(session_id, CanonicalAgentId::ClaudeCode, "/workspace"),
+            ),
+        );
+
+        for (event_seq, update) in [(1, &tool_call), (2, &tool_update)] {
+            let event = session_update_to_provider_event(
+                CanonicalAgentId::ClaudeCode,
+                event_seq,
+                update,
+                RouteDecision::default(),
+            )
+            .expect("computer tool update should map to canonical ingress");
+            assert!(
+                registry
+                    .apply_provider_event_transition(session_id, &event)
+                    .expect("seeded graph should accept the event")
+                    .applied
+            );
+        }
+
+        let interaction_id = build_computer_permission_interaction_id(
+            session_id,
+            tool_call_id,
+            ComputerPermissionKind::Accessibility,
+        );
+        let graph = registry
+            .graph_for_session(session_id)
+            .expect("held graph should exist");
+        let interaction = graph
+            .interactions
+            .iter()
+            .find(|interaction| interaction.id == interaction_id)
+            .expect("computer permission must be canonical before reply lookup");
+        assert_eq!(interaction.kind, InteractionKind::ComputerPermission);
+        assert_eq!(interaction.state, InteractionState::Pending);
+        assert_eq!(
+            graph.operations[0].operation_state,
+            crate::acp::projections::OperationState::Blocked
+        );
+
+        registry
+            .apply_interaction_reply_transition(
+                session_id,
+                &interaction_id,
+                InteractionState::Approved,
+                InteractionResponse::ComputerPermission { accepted: true },
+                3,
+            )
+            .expect("canonical computer permission should accept a reply");
+        let next_event = ProviderEvent {
+            source: CanonicalAgentId::ClaudeCode,
+            provider_seq: 4,
+            provider_row_id: "journal:4".to_string(),
+            timestamp_ms: None,
+            kind: ProviderEventKind::AssistantText {
+                text: "continuing".to_string(),
+            },
+        };
+        let after = registry
+            .apply_provider_event_transition(session_id, &next_event)
+            .expect("held graph should accept the next provider event")
+            .after;
+        let interaction = after
+            .interactions
+            .iter()
+            .find(|interaction| interaction.id == interaction_id)
+            .expect("replied interaction should survive the next provider event");
+        assert_eq!(interaction.state, InteractionState::Approved);
+        assert!(matches!(
+            interaction.response,
+            Some(InteractionResponse::ComputerPermission { accepted: true })
+        ));
+        assert_eq!(
+            after.operations[0].operation_state,
+            crate::acp::projections::OperationState::Running
+        );
     }
 }

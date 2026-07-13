@@ -16,11 +16,8 @@ use crate::acp::provider::{
     AgentProvider, ProjectDiscoveryCompleteness, ProjectPathListing, SpawnConfig,
 };
 use crate::acp::runtime_resolver::SpawnEnvStrategy;
-use crate::acp::session_descriptor::SessionReplayContext;
-use crate::acp::session_thread_snapshot::ProviderOwnedSessionSnapshot;
 use crate::acp::session_update::AvailableCommand;
 use crate::acp::task_reconciler::TaskReconciliationPolicy;
-use crate::history::session_context::SessionContext;
 use crate::session_jsonl::display_names::format_model_display_name;
 use serde_json::Value;
 use std::collections::BTreeSet;
@@ -199,83 +196,6 @@ impl AgentProvider for ClaudeCodeProvider {
 
     fn task_reconciliation_policy(&self) -> TaskReconciliationPolicy {
         TaskReconciliationPolicy::ExplicitParentIds
-    }
-
-    fn load_provider_owned_session<'a>(
-        &'a self,
-        _app: &'a AppHandle,
-        context: &'a SessionContext,
-        _replay_context: &'a SessionReplayContext,
-    ) -> Pin<
-        Box<
-            dyn Future<
-                    Output = Result<
-                        Option<ProviderOwnedSessionSnapshot>,
-                        crate::acp::provider::ProviderHistoryLoadError,
-                    >,
-                > + Send
-                + 'a,
-        >,
-    > {
-        Box::pin(async move {
-            use crate::acp::session::delivery::{
-                history_error_to_provider_error, load_fold_graph_from_history,
-            };
-            use crate::acp::session::fold_export::{
-                default_session_title, provider_owned_snapshot_from_folded_graph,
-            };
-            use crate::acp::types::CanonicalAgentId;
-
-            let session_id = &context.local_session_id;
-            let title = default_session_title(&context.history_session_id);
-            let history_session_id = context.history_session_id.clone();
-            let source_path = context.source_path.clone();
-
-            let try_load = |project_path: String| {
-                let title = title.clone();
-                let history_session_id = history_session_id.clone();
-                let source_path = source_path.clone();
-                async move {
-                    load_fold_graph_from_history(
-                        &CanonicalAgentId::ClaudeCode,
-                        &history_session_id,
-                        &project_path,
-                        source_path.as_deref(),
-                    )
-                    .await
-                    .map(|graph| {
-                        graph.map(|graph| {
-                            provider_owned_snapshot_from_folded_graph(graph, title.clone())
-                        })
-                    })
-                }
-            };
-
-            match try_load(context.effective_project_path.clone()).await {
-                Ok(snapshot) => Ok(snapshot),
-                Err(_error) if context.effective_project_path != context.project_path => {
-                    match try_load(context.project_path.clone()).await {
-                        Ok(snapshot) => Ok(snapshot),
-                        Err(fallback_error) => {
-                            tracing::warn!(
-                                session_id = %session_id,
-                                error = %fallback_error,
-                                "Claude session parse failed (both worktree and project paths)"
-                            );
-                            Err(history_error_to_provider_error(fallback_error))
-                        }
-                    }
-                }
-                Err(error) => {
-                    tracing::warn!(
-                        session_id = %session_id,
-                        error = %error,
-                        "Claude session parse failed"
-                    );
-                    Err(history_error_to_provider_error(error))
-                }
-            }
-        })
     }
 
     fn list_project_paths<'a>(

@@ -55,7 +55,7 @@ async fn test_legacy_snapshot_tables_are_removed_after_migrations() {
 
 #[tokio::test]
 async fn test_cursor_sqlite_parser_directly() {
-    use acepe_lib::history::cursor_sqlite_parser;
+    use acepe_lib::acp::session::ingress::providers::cursor::cursor_sqlite_parser;
     use std::path::PathBuf;
 
     let db_path = match std::env::var("ACEPE_CURSOR_STORE_DB_PATH") {

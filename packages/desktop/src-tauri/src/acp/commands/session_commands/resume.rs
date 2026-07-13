@@ -71,7 +71,7 @@ where
             CanonicalAgentId,
             Option<String>,
             crate::acp::session_descriptor::SessionDescriptor,
-            Option<OpenTokenClaim>,
+            Option<PreparedOpenTokenReservation>,
         ) -> Fut
         + Send
         + 'static,
@@ -112,26 +112,51 @@ where
 
         let runtime_registry = app.try_state::<Arc<SessionGraphRuntimeRegistry>>();
         let projection_registry = app.try_state::<Arc<ProjectionRegistry>>();
-        let open_token_claim =
-            claim_open_token_reservation(app, &session_id, open_token.as_deref())?;
+        let prepared_open_token =
+            prepare_open_token_reservation(app, &session_id, open_token.as_deref())?;
         if let (Some(runtime_registry), Some(projection_registry)) =
             (runtime_registry.as_ref(), projection_registry.as_ref())
         {
             let supervisor = app.state::<Arc<SessionSupervisor>>();
-            supervisor
-                .inner()
-                .transition_lifecycle_state(
-                    db.inner(),
-                    projection_registry.inner(),
-                    &session_id,
-                    crate::acp::lifecycle::LifecycleState::activating(),
-                )
-                .await
-                .map_err(|error| SerializableAcpError::InvalidState {
-                    message: format!(
-                        "Failed to persist activating checkpoint for session {session_id}: {error}"
-                    ),
-                })?;
+            if prepared_open_token.is_none() {
+                match supervisor
+                    .inner()
+                    .begin_activation(db.inner(), projection_registry.inner(), &session_id)
+                    .await
+                {
+                    Ok(crate::acp::lifecycle::BeginActivationOutcome::Started(_)) => {}
+                    Ok(crate::acp::lifecycle::BeginActivationOutcome::Joined(checkpoint)) => {
+                        tracing::info!(
+                            session_id = %session_id,
+                            lifecycle_status = ?checkpoint.lifecycle.status,
+                            "No-token resume joined existing live session"
+                        );
+                        return Ok(());
+                    }
+                    Err(error) => {
+                        return Err(SerializableAcpError::InvalidState {
+                            message: format!(
+                                "Failed to begin session activation for {session_id}: {error}"
+                            ),
+                        });
+                    }
+                }
+            } else {
+                supervisor
+                    .inner()
+                    .transition_lifecycle_state(
+                        db.inner(),
+                        projection_registry.inner(),
+                        &session_id,
+                        crate::acp::lifecycle::LifecycleState::activating(),
+                    )
+                    .await
+                    .map_err(|error| SerializableAcpError::InvalidState {
+                        message: format!(
+                            "Failed to persist activating checkpoint for session {session_id}: {error}"
+                        ),
+                    })?;
+            }
 
             let transcript_projection_registry = app.state::<Arc<TranscriptProjectionRegistry>>();
             let revision = load_live_session_graph_revision(
@@ -159,7 +184,6 @@ where
                 );
             }
         }
-
         // Clone values needed for the async task
         let app_clone = app.clone();
         let resume_descriptor = resume_target.descriptor.clone();
@@ -175,6 +199,10 @@ where
         let session_id_panic = session_id.clone();
         let app_panic = app.clone();
         let handle = tokio::spawn(async move {
+            // The prepared open-token guard moves into `work`. It stays
+            // exclusive while transport attach is pending. Dropping the work
+            // future on error, timeout, or panic releases the same token for a
+            // retry without discarding events buffered during this attempt.
             let result = timeout(
                 RESUME_SESSION_TIMEOUT,
                 work(
@@ -184,7 +212,7 @@ where
                     agent_id_enum,
                     launch_mode_id,
                     resume_descriptor,
-                    open_token_claim,
+                    prepared_open_token,
                 ),
             )
             .await;
@@ -322,8 +350,8 @@ pub(super) async fn async_resume_session_work(
     cwd: PathBuf,
     agent_id_enum: CanonicalAgentId,
     launch_mode_id: Option<String>,
-    resume_descriptor: &crate::acp::session_descriptor::SessionDescriptor,
-    open_token_claim: Option<OpenTokenClaim>,
+    _resume_descriptor: &crate::acp::session_descriptor::SessionDescriptor,
+    prepared_open_token: Option<PreparedOpenTokenReservation>,
 ) -> Result<ResumeSessionResponse, SerializableAcpError> {
     let registry = app.state::<Arc<AgentRegistry>>();
     let opencode_manager = app.state::<Arc<OpenCodeManagerRegistry>>();
@@ -363,54 +391,18 @@ pub(super) async fn async_resume_session_work(
 
     // An open token means get_session_open_result already restored the snapshot and
     // reserved the event frontier. Resume should only attach live transport here.
-    if open_token_claim.is_none() {
-        let replay_context: crate::acp::session_descriptor::SessionReplayContext =
-            resume_descriptor.clone().into();
-        let restored_thread_snapshot =
-            crate::acp::session_restore::load_provider_owned_session_snapshot(
-                app.clone(),
-                &replay_context,
-            )
-            .await
-            .map_err(SerializableAcpError::from)?;
-        let materialized_restored_snapshot =
-            if let Some(snapshot) = restored_thread_snapshot.as_ref() {
-                let last_event_seq =
-                    SessionJournalEventRepository::max_event_seq(db.inner(), session_id)
-                        .await
-                        .map_err(|error| SerializableAcpError::InvalidState {
-                            message: format!(
-                    "Failed to determine journal cutoff for resumed session {session_id}: {error}"
-                ),
-                        })?
-                        .unwrap_or(0);
-                Some(materialized_thread_snapshot_from_provider_fold_first(
-                    session_id,
-                    &replay_context,
-                    snapshot,
-                    last_event_seq,
-                ))
-            } else {
-                None
-            };
-        let transcript_snapshot = if let Some(materialized) =
-            materialized_restored_snapshot.as_ref()
-        {
-            materialized.transcript_snapshot.clone()
-        } else {
-            load_transcript_snapshot_for_resume_with_app(Some(app), db.inner(), session_id).await?
-        };
+    if prepared_open_token.is_none() {
+        let transcript_snapshot =
+            load_transcript_snapshot_for_resume_with_app(Some(app), db.inner(), session_id).await?;
         transcript_projection_registry
             .restore_session_snapshot(session_id.to_string(), transcript_snapshot);
-
-        if let Some(materialized) = materialized_restored_snapshot {
-            let projection = materialized.projection;
-            projection_registry.restore_session_projection(projection);
-        }
     }
     projection_registry.register_session(session_id.to_string(), agent_id_enum.clone());
 
-    if let Some(claim) = open_token_claim {
+    // Retire the token only after live transport is attached. Until this
+    // point, the prepared guard keeps buffering and remains retry-safe.
+    if let Some(prepared) = prepared_open_token {
+        let claim = prepared.commit()?;
         let hub = app.state::<Arc<AcpEventHubState>>();
         replay_buffered_session_state_events(
             hub.inner(),

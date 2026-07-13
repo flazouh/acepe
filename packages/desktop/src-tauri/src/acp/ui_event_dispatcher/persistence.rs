@@ -1,9 +1,10 @@
 use super::*;
-use crate::acp::session::ingress::plugin::live_source_for;
+use crate::acp::session::ingress::live_session_update::session_update_to_provider_event;
 use crate::acp::session_state_engine::transcript_rows_ledger::TranscriptRowsLedgerWriteHint;
+use crate::acp::session_state_engine::transition_delivery_builder::build_transition_derived_delivery;
 use crate::acp::transcript_projection::{TranscriptDelta, TranscriptDeltaOperation};
 
-fn update_has_canonical_ingress(update: &SessionUpdate) -> bool {
+pub(super) fn update_has_canonical_ingress(update: &SessionUpdate) -> bool {
     matches!(
         update,
         SessionUpdate::UserMessageChunk { .. }
@@ -14,6 +15,7 @@ fn update_has_canonical_ingress(update: &SessionUpdate) -> bool {
             | SessionUpdate::Plan { .. }
             | SessionUpdate::AvailableCommandsUpdate { .. }
             | SessionUpdate::CurrentModeUpdate { .. }
+            | SessionUpdate::ConfigOptionUpdate { .. }
             | SessionUpdate::PermissionRequest { .. }
             | SessionUpdate::QuestionRequest { .. }
             | SessionUpdate::TurnComplete { .. }
@@ -21,6 +23,9 @@ fn update_has_canonical_ingress(update: &SessionUpdate) -> bool {
             | SessionUpdate::TurnCancelled { .. }
             | SessionUpdate::UsageTelemetryUpdate { .. }
             | SessionUpdate::CompactionEvent { .. }
+            | SessionUpdate::ConnectionComplete { .. }
+            | SessionUpdate::ConnectionFailed { .. }
+            | SessionUpdate::SessionDetached { .. }
     )
 }
 
@@ -28,31 +33,55 @@ fn canonical_ingress_event(
     session_id: &str,
     event_seq: i64,
     update: &SessionUpdate,
-    terminal_decision: crate::acp::projections::RouteDecision,
     runtime_graph_registry: &SessionGraphRuntimeRegistry,
 ) -> Option<crate::acp::session::ingress::event::ProviderEvent> {
     let graph = runtime_graph_registry.graph_for_session(session_id)?;
-    let source = live_source_for(&graph.agent_id)?;
-    source.normalize_update(event_seq, update, terminal_decision)
+    let terminal = matches!(
+        graph.turn_state,
+        crate::acp::projections::SessionTurnState::Completed
+            | crate::acp::projections::SessionTurnState::Failed
+            | crate::acp::projections::SessionTurnState::Cancelled
+    );
+    let terminal_decision = crate::acp::projections::RouteDecision {
+        suppress: terminal
+            && matches!(
+                update,
+                SessionUpdate::AgentMessageChunk { .. }
+                    | SessionUpdate::AgentThoughtChunk { .. }
+                    | SessionUpdate::ToolCall { .. }
+                    | SessionUpdate::ToolCallUpdate { .. }
+            ),
+        ignore_late: terminal
+            && matches!(
+                update,
+                SessionUpdate::TurnComplete { .. } | SessionUpdate::TurnError { .. }
+            ),
+        resets: matches!(update, SessionUpdate::UserMessageChunk { .. }),
+    };
+    session_update_to_provider_event(graph.agent_id, event_seq, update, terminal_decision)
 }
 
-fn apply_transcript_delivery(
+enum CanonicalDispatch {
+    NotCanonical,
+    Handled(DispatchPersistenceEffects),
+}
+
+async fn persist_canonical_delivery(
+    db: &DbConn,
     session_id: &str,
     event_seq: i64,
     update: &SessionUpdate,
-    terminal_decision: crate::acp::projections::RouteDecision,
+    projection_registry: &ProjectionRegistry,
     runtime_graph_registry: &SessionGraphRuntimeRegistry,
     transcript_projection_registry: &TranscriptProjectionRegistry,
-) -> Option<TranscriptDelta> {
-    let ingress_event = canonical_ingress_event(
-        session_id,
-        event_seq,
-        update,
-        terminal_decision,
-        runtime_graph_registry,
-    );
+) -> CanonicalDispatch {
+    if !update_has_canonical_ingress(update) {
+        return CanonicalDispatch::NotCanonical;
+    }
+    let ingress_event =
+        canonical_ingress_event(session_id, event_seq, update, runtime_graph_registry);
     let Some(ingress_event) = ingress_event.as_ref() else {
-        return None;
+        return CanonicalDispatch::Handled(DispatchPersistenceEffects::default());
     };
     let Some(transition) =
         runtime_graph_registry.apply_provider_event_transition(session_id, ingress_event)
@@ -62,13 +91,79 @@ fn apply_transcript_delivery(
             provider_row_id = %ingress_event.provider_row_id,
             "Canonical provider event arrived before the held session graph was seeded"
         );
-        return None;
+        return CanonicalDispatch::Handled(DispatchPersistenceEffects::default());
     };
-    transcript_projection_registry.mirror_provider_event_transition(
+    let replaces_lifecycle = matches!(
+        &ingress_event.kind,
+        crate::acp::session::ingress::event::ProviderEventKind::SessionReady { .. }
+            | crate::acp::session::ingress::event::ProviderEventKind::SessionFailed { .. }
+            | crate::acp::session::ingress::event::ProviderEventKind::SessionDetached { .. }
+    ) || matches!(
+        &ingress_event.kind,
+        crate::acp::session::ingress::event::ProviderEventKind::TurnFailure { .. }
+    ) && matches!(
+        transition.before.lifecycle.status,
+        crate::acp::lifecycle::LifecycleStatus::Reserved
+            | crate::acp::lifecycle::LifecycleStatus::Activating
+    );
+    let replaces_capabilities = matches!(
+        &ingress_event.kind,
+        crate::acp::session::ingress::event::ProviderEventKind::SessionReady { .. }
+            | crate::acp::session::ingress::event::ProviderEventKind::ModeUpdate(_)
+            | crate::acp::session::ingress::event::ProviderEventKind::CapabilitiesUpdate(_)
+            | crate::acp::session::ingress::event::ProviderEventKind::ConfigOptionsUpdate(_)
+    );
+    let checkpoint_after =
+        crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeSnapshot {
+            graph_revision: event_seq,
+            lifecycle: transition.after.lifecycle.clone(),
+            capabilities: transition.after.capabilities.clone(),
+        };
+    if let Err(error) = runtime_graph_registry
+        .supervisor()
+        .record_canonical_graph_transition(
+            db,
+            projection_registry,
+            session_id,
+            event_seq,
+            checkpoint_after,
+            replaces_lifecycle,
+            replaces_capabilities,
+        )
+        .await
+    {
+        tracing::error!(
+            error = %error,
+            session_id,
+            provider_row_id = %ingress_event.provider_row_id,
+            "Failed to mirror canonical graph transition into lifecycle checkpoint"
+        );
+        return CanonicalDispatch::Handled(DispatchPersistenceEffects::default());
+    }
+    let delivery =
+        build_transition_derived_delivery(session_id, ingress_event, &transition, Some(update));
+    let transcript_delta = delivery.transcript_delta.as_ref();
+    let _ = transcript_projection_registry.mirror_provider_event_transition(
         event_seq,
         ingress_event,
         &transition,
+    );
+    projection_registry.mirror_session_graph(&transition.after);
+    persist_transcript_row_ledger_if_needed(
+        db,
+        session_id,
+        update,
+        transition.after.revision,
+        projection_registry,
+        runtime_graph_registry,
+        transcript_projection_registry,
+        transcript_delta,
     )
+    .await;
+    CanonicalDispatch::Handled(DispatchPersistenceEffects {
+        session_state_envelope: delivery.primary,
+        additional_session_state_envelopes: delivery.additional,
+    })
 }
 
 #[derive(Debug, Default)]
@@ -152,6 +247,19 @@ pub(super) async fn persist_dispatch_event(
         .await
     {
         Ok(Some(record)) => {
+            if let CanonicalDispatch::Handled(effects) = persist_canonical_delivery(
+                db,
+                session_id,
+                record.event_seq,
+                update.as_ref(),
+                projection_registry,
+                runtime_graph_registry,
+                transcript_projection_registry,
+            )
+            .await
+            {
+                return effects;
+            }
             let checkpoint = match runtime_graph_registry
                 .supervisor()
                 .record_session_update(
@@ -179,16 +287,7 @@ pub(super) async fn persist_dispatch_event(
                 record.event_seq,
                 update.as_ref(),
             );
-            let terminal_decision =
-                projection_registry.route_terminal_turn(session_id, update.as_ref());
-            let transcript_delta = apply_transcript_delivery(
-                session_id,
-                record.event_seq,
-                update.as_ref(),
-                terminal_decision,
-                runtime_graph_registry,
-                transcript_projection_registry,
-            );
+            let transcript_delta: Option<TranscriptDelta> = None;
             let transcript_revision = transcript_projection_registry
                 .snapshot_for_session(session_id)
                 .map(|snapshot| snapshot.revision)
@@ -238,10 +337,31 @@ pub(super) async fn persist_dispatch_event(
             }
         }
         Ok(None) => {
+            if update_has_canonical_ingress(update.as_ref()) {
+                tracing::error!(
+                    session_id,
+                    event_name = event.event_name,
+                    "Canonical session update was not represented in the durable journal"
+                );
+                return DispatchPersistenceEffects::default();
+            }
             let synthetic_event_seq = previous_runtime_snapshot
                 .graph_revision
                 .max(previous_transcript_revision)
                 .saturating_add(1);
+            if let CanonicalDispatch::Handled(effects) = persist_canonical_delivery(
+                db,
+                session_id,
+                synthetic_event_seq,
+                update.as_ref(),
+                projection_registry,
+                runtime_graph_registry,
+                transcript_projection_registry,
+            )
+            .await
+            {
+                return effects;
+            }
             let graph_revision = runtime_graph_registry.apply_session_update_with_graph_seed(
                 session_id,
                 synthetic_event_seq.saturating_sub(1),
@@ -252,24 +372,7 @@ pub(super) async fn persist_dispatch_event(
                 synthetic_event_seq,
                 update.as_ref(),
             );
-            let terminal_decision =
-                projection_registry.route_terminal_turn(session_id, update.as_ref());
-            // Transcript revision lives in its own monotonic counter and must
-            // advance by exactly +1 per transcript-bearing event. Deriving the
-            // seq from `synthetic_event_seq` (which tracks graph_revision)
-            // inflates transcript_revision past real transcript progress and
-            // breaks the consumer-side `transcript_revision <= last_event_seq`
-            // invariant — see
-            // `synthetic_event_seq_path_must_not_inflate_transcript_revision_past_real_progress`.
-            let transcript_event_seq = previous_transcript_revision.saturating_add(1);
-            let transcript_delta = apply_transcript_delivery(
-                session_id,
-                transcript_event_seq,
-                update.as_ref(),
-                terminal_decision,
-                runtime_graph_registry,
-                transcript_projection_registry,
-            );
+            let transcript_delta: Option<TranscriptDelta> = None;
             let transcript_revision = transcript_projection_registry
                 .snapshot_for_session(session_id)
                 .map(|snapshot| snapshot.revision)
@@ -431,4 +534,48 @@ fn should_persist_transcript_row_ledger(
         .is_some()
         || crate::acp::session_state_engine::envelope_router::interaction_id_for_patch(update)
             .is_some()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::update_has_canonical_ingress;
+    use crate::acp::client_session::{default_modes, default_session_model_state};
+    use crate::acp::lifecycle::{DetachedReason, FailureReason};
+    use crate::acp::session_update::{ConfigOptionUpdateData, SessionUpdate};
+
+    #[test]
+    fn lifecycle_and_config_updates_use_canonical_ingress() {
+        let updates = [
+            SessionUpdate::ConfigOptionUpdate {
+                update: ConfigOptionUpdateData {
+                    config_options: Vec::new(),
+                },
+                session_id: Some("session-1".to_string()),
+            },
+            SessionUpdate::ConnectionComplete {
+                session_id: "session-1".to_string(),
+                attempt_id: 1,
+                models: default_session_model_state(),
+                modes: default_modes(),
+                available_commands: None,
+                config_options: None,
+                autonomous_enabled: None,
+            },
+            SessionUpdate::ConnectionFailed {
+                session_id: "session-1".to_string(),
+                attempt_id: 1,
+                error: "offline".to_string(),
+                failure_reason: FailureReason::ResumeFailed,
+            },
+            SessionUpdate::SessionDetached {
+                session_id: "session-1".to_string(),
+                attempt_id: 1,
+                detached_reason: DetachedReason::ReconnectExhausted,
+            },
+        ];
+
+        for update in updates {
+            assert!(update_has_canonical_ingress(&update));
+        }
+    }
 }

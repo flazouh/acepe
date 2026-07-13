@@ -10,9 +10,7 @@ pub mod types;
 #[cfg(test)]
 mod test_integration;
 
-pub use convert::{
-    opencode_messages_to_provider_events, provider_owned_snapshot_from_opencode_messages,
-};
+pub use convert::opencode_messages_to_provider_events;
 // Re-export commonly used types
 pub use types::{
     OpenCodeMessage, OpenCodeMessagePart, OpenCodeProject, OpenCodeSession, OpenCodeTime,

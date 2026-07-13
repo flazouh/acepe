@@ -15,7 +15,6 @@ use crate::acp::session::fold_export::materialized_thread_snapshot_from_full_ses
 use crate::acp::session_update::{ToolArguments, ToolCallStatus, ToolKind};
 use crate::acp::transcript_projection::display_id::tool_call_id_from_authority_entry_id;
 use crate::acp::transcript_projection::snapshot::TranscriptSnapshot;
-use crate::acp::transcript_projection::TranscriptEntryRole;
 use crate::acp::types::CanonicalAgentId;
 use crate::session_jsonl::types::{
     ContentBlock, FullSession, OrderedMessage, SessionStats, StoredEntry,
@@ -193,38 +192,50 @@ mod snapshot_rehydration_edge {
     use super::*;
     use crate::acp::session_update::ToolCallData;
 
+    fn fold_cursor_transcript(entries: &[StoredEntry]) -> TranscriptSnapshot {
+        let events =
+            crate::acp::session::ingress::stored_entry_events::stored_entries_to_provider_events(
+                entries,
+                CanonicalAgentId::Cursor,
+            );
+        crate::acp::session::fold_export::fold_graph_from_history_events(
+            "cursor-snapshot-test",
+            &CanonicalAgentId::Cursor,
+            "",
+            &events,
+        )
+        .transcript_snapshot
+    }
+
     #[test]
     fn snapshot_rehydration_preserves_already_normalized_tool_call_ids() {
-        let snapshot = TranscriptSnapshot::from_stored_entries(
-            1,
-            &[StoredEntry::ToolCall {
+        let snapshot = fold_cursor_transcript(&[StoredEntry::ToolCall {
+            id: CANONICAL_COMPOSITE_ID.to_string(),
+            message: ToolCallData {
                 id: CANONICAL_COMPOSITE_ID.to_string(),
-                message: ToolCallData {
-                    id: CANONICAL_COMPOSITE_ID.to_string(),
-                    name: "Glob".to_string(),
-                    arguments: ToolArguments::Glob {
-                        pattern: Some("**/*".to_string()),
-                        path: Some("/tmp/project".to_string()),
-                    },
-                    diagnostic_input: None,
-                    status: ToolCallStatus::Completed,
-                    result: None,
-                    kind: Some(ToolKind::Glob),
-                    title: Some("Find".to_string()),
-                    locations: None,
-                    skill_meta: None,
-                    normalized_questions: None,
-                    normalized_todos: None,
-                    normalized_todo_update: None,
-                    parent_tool_use_id: None,
-                    task_children: None,
-                    question_answer: None,
-                    awaiting_plan_approval: false,
-                    plan_approval_request_id: None,
+                name: "Glob".to_string(),
+                arguments: ToolArguments::Glob {
+                    pattern: Some("**/*".to_string()),
+                    path: Some("/tmp/project".to_string()),
                 },
-                timestamp: None,
-            }],
-        );
+                diagnostic_input: None,
+                status: ToolCallStatus::Completed,
+                result: None,
+                kind: Some(ToolKind::Glob),
+                title: Some("Find".to_string()),
+                locations: None,
+                skill_meta: None,
+                normalized_questions: None,
+                normalized_todos: None,
+                normalized_todo_update: None,
+                parent_tool_use_id: None,
+                task_children: None,
+                question_answer: None,
+                awaiting_plan_approval: false,
+                plan_approval_request_id: None,
+            },
+            timestamp: None,
+        }]);
 
         let entry_id = snapshot.entries[0].entry_id.clone();
         let round_tripped = tool_call_id_from_authority_entry_id(&entry_id)
@@ -242,36 +253,33 @@ mod snapshot_rehydration_edge {
     #[test]
     fn snapshot_rehydration_normalizes_raw_stored_tool_call_ids_once() {
         let raw_id = "tool%provider\ncursor";
-        let snapshot = TranscriptSnapshot::from_stored_entries(
-            2,
-            &[StoredEntry::ToolCall {
+        let snapshot = fold_cursor_transcript(&[StoredEntry::ToolCall {
+            id: raw_id.to_string(),
+            message: ToolCallData {
                 id: raw_id.to_string(),
-                message: ToolCallData {
-                    id: raw_id.to_string(),
-                    name: "Read".to_string(),
-                    arguments: ToolArguments::Read {
-                        file_path: Some("/tmp/file".to_string()),
-                        source_context: None,
-                    },
-                    diagnostic_input: None,
-                    status: ToolCallStatus::Completed,
-                    result: None,
-                    kind: Some(ToolKind::Read),
-                    title: Some("Read file".to_string()),
-                    locations: None,
-                    skill_meta: None,
-                    normalized_questions: None,
-                    normalized_todos: None,
-                    normalized_todo_update: None,
-                    parent_tool_use_id: None,
-                    task_children: None,
-                    question_answer: None,
-                    awaiting_plan_approval: false,
-                    plan_approval_request_id: None,
+                name: "Read".to_string(),
+                arguments: ToolArguments::Read {
+                    file_path: Some("/tmp/file".to_string()),
+                    source_context: None,
                 },
-                timestamp: None,
-            }],
-        );
+                diagnostic_input: None,
+                status: ToolCallStatus::Completed,
+                result: None,
+                kind: Some(ToolKind::Read),
+                title: Some("Read file".to_string()),
+                locations: None,
+                skill_meta: None,
+                normalized_questions: None,
+                normalized_todos: None,
+                normalized_todo_update: None,
+                parent_tool_use_id: None,
+                task_children: None,
+                question_answer: None,
+                awaiting_plan_approval: false,
+                plan_approval_request_id: None,
+            },
+            timestamp: None,
+        }]);
 
         let round_tripped = tool_call_id_from_authority_entry_id(&snapshot.entries[0].entry_id)
             .expect("tool suffix");

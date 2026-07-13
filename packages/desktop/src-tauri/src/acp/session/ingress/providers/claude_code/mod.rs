@@ -8,8 +8,9 @@ use async_trait::async_trait;
 use std::path::PathBuf;
 
 use crate::acp::session::ingress::event::ProviderEvent;
-use crate::acp::session::ingress::source::{HistoryError, HistoryInput, HistorySource};
-use crate::acp::session_descriptor::SessionReplayContext;
+use crate::acp::session::ingress::source::{
+    HistoryError, HistoryInput, HistoryReplayInput, HistorySource,
+};
 use crate::acp::types::CanonicalAgentId;
 
 use discovery::find_session_file;
@@ -31,6 +32,59 @@ impl HistorySource for ClaudeHistorySource {
         })
         .await
         .map_err(|error| HistoryError::Io(format!("Claude history parser task failed: {error}")))?
+    }
+
+    async fn read_replay(
+        &self,
+        input: HistoryReplayInput,
+    ) -> Result<Vec<ProviderEvent>, HistoryError> {
+        if let Some(source_path) = input.source_path.clone() {
+            return self
+                .read(HistoryInput {
+                    session_id: input.session_id,
+                    workspace_root: Some(source_path),
+                })
+                .await;
+        }
+
+        let mut project_paths = Vec::new();
+        if let Some(effective_cwd) = input.effective_cwd {
+            project_paths.push(effective_cwd);
+        }
+        if !project_paths.contains(&input.project_path) {
+            project_paths.push(input.project_path);
+        }
+
+        let mut last_error: Option<HistoryError> = None;
+        for project_path in project_paths {
+            let project_path = project_path.to_string_lossy();
+            match find_session_file(&input.session_id, &project_path).await {
+                Ok(jsonl_path) => {
+                    return self
+                        .read(HistoryInput {
+                            session_id: input.session_id,
+                            workspace_root: Some(jsonl_path),
+                        })
+                        .await;
+                }
+                Err(error) => {
+                    last_error = Some(if error.to_string().contains("not found") {
+                        HistoryError::NotFound(format!("Claude provider history missing: {error}"))
+                    } else {
+                        HistoryError::InvalidFormat(format!(
+                            "Claude provider history parse failed: {error}"
+                        ))
+                    });
+                }
+            }
+        }
+
+        Err(last_error.unwrap_or_else(|| {
+            HistoryError::NotFound(format!(
+                "Claude provider history missing for session {}",
+                input.session_id
+            ))
+        }))
     }
 }
 
@@ -72,50 +126,6 @@ fn resolve_jsonl_path(input: &HistoryInput) -> Result<PathBuf, HistoryError> {
         "Claude history path does not exist: {}",
         root.display()
     )))
-}
-
-/// Load Claude history events for production replay (project-path discovery).
-pub async fn load_replay_events(
-    replay_context: &SessionReplayContext,
-) -> Result<Vec<ProviderEvent>, HistoryError> {
-    let session_id = replay_context.history_session_id.clone();
-    let mut project_paths = Vec::new();
-    if !replay_context.effective_cwd.is_empty() {
-        project_paths.push(replay_context.effective_cwd.clone());
-    }
-    if replay_context.project_path != replay_context.effective_cwd {
-        project_paths.push(replay_context.project_path.clone());
-    }
-
-    let mut last_error: Option<HistoryError> = None;
-    for project_path in project_paths {
-        match find_session_file(&session_id, &project_path).await {
-            Ok(jsonl_path) => {
-                let source = ClaudeHistorySource;
-                return source
-                    .read(HistoryInput {
-                        session_id: session_id.clone(),
-                        workspace_root: Some(jsonl_path),
-                    })
-                    .await;
-            }
-            Err(error) => {
-                last_error = Some(if error.to_string().contains("not found") {
-                    HistoryError::NotFound(format!("Claude provider history missing: {error}"))
-                } else {
-                    HistoryError::InvalidFormat(format!(
-                        "Claude provider history parse failed: {error}"
-                    ))
-                });
-            }
-        }
-    }
-
-    Err(last_error.unwrap_or_else(|| {
-        HistoryError::NotFound(format!(
-            "Claude provider history missing for session {session_id}"
-        ))
-    }))
 }
 
 #[cfg(test)]

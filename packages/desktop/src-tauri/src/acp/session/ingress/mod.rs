@@ -10,6 +10,4 @@ pub mod stored_entry_events;
 pub mod tool_identity;
 pub mod tool_table;
 
-pub use canonical_events::{
-    full_session_to_provider_events, materialize_canonical_transcript_events,
-};
+pub use canonical_events::full_session_to_provider_events;

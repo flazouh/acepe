@@ -1,7 +1,9 @@
 use std::collections::HashSet;
 
-use crate::acp::projections::{OperationSnapshot, OperationSourceLink, ProjectionRegistry};
+use crate::acp::projections::{OperationSnapshot, OperationSourceLink};
+use crate::acp::session::engine::fold::{fold_full, FoldContext};
 use crate::acp::session::fold_export::MaterializedThreadSnapshot;
+use crate::acp::session::ingress::stored_entry_events::stored_entries_to_provider_events;
 use crate::acp::transcript_projection::{
     TranscriptEntryRole, TranscriptSegment, TranscriptSnapshot,
 };
@@ -11,7 +13,7 @@ use crate::session_jsonl::types::StoredEntry;
 use super::fold_audit::materialized_from_history;
 use super::types::{RestoredToolLinkAudit, UnresolvedToolRowAudit};
 
-pub fn audit_restored_tool_links_from_materialized(
+pub(crate) fn audit_restored_tool_links_from_materialized(
     session_id: &str,
     agent_id: &CanonicalAgentId,
     materialized: &MaterializedThreadSnapshot,
@@ -41,11 +43,11 @@ pub fn audit_restored_tool_links_from_stored_entries(
     agent_id: &CanonicalAgentId,
     entries: &[StoredEntry],
 ) -> RestoredToolLinkAudit {
-    let projection =
-        ProjectionRegistry::project_stored_entries(session_id, Some(agent_id.clone()), entries);
-    let transcript_snapshot = TranscriptSnapshot::from_stored_entries(0, entries);
+    let events = stored_entries_to_provider_events(entries, agent_id.clone());
+    let graph = fold_full(&events, &FoldContext::new(session_id, agent_id.clone(), ""));
+    let transcript_snapshot = &graph.transcript_snapshot;
     let unresolved_rows =
-        unresolved_tool_rows_for_operations(&transcript_snapshot, &projection.operations);
+        unresolved_tool_rows_for_operations(transcript_snapshot, &graph.operations);
     let transcript_tool_count = transcript_snapshot
         .entries
         .iter()
@@ -57,7 +59,7 @@ pub fn audit_restored_tool_links_from_stored_entries(
         agent_id: agent_id.to_string_with_prefix(),
         entry_count: entries.len(),
         transcript_tool_count,
-        operation_count: projection.operations.len(),
+        operation_count: graph.operations.len(),
         unresolved_count: unresolved_rows.len(),
         unresolved_rows,
     }

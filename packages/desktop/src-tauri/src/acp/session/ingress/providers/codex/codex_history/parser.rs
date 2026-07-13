@@ -7,7 +7,6 @@ use std::io::BufRead;
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
-use chrono::Utc;
 use ignore::WalkBuilder;
 use serde_json::Value;
 
@@ -42,8 +41,6 @@ pub async fn load_provider_events(
 
 struct RolloutParseResult {
     events: Vec<ProviderEvent>,
-    created_at: String,
-    title: String,
 }
 
 struct CodexRolloutEventAccumulator {
@@ -56,7 +53,6 @@ struct CodexRolloutEventAccumulator {
     session_id: String,
     last_user_text: Option<String>,
     last_assistant_text: Option<String>,
-    first_user_message: Option<String>,
 }
 
 impl CodexRolloutEventAccumulator {
@@ -72,7 +68,6 @@ impl CodexRolloutEventAccumulator {
             session_id: session_id.to_string(),
             last_user_text: None,
             last_assistant_text: None,
-            first_user_message: None,
         }
     }
 
@@ -99,9 +94,6 @@ impl CodexRolloutEventAccumulator {
             return;
         }
 
-        if self.first_user_message.is_none() {
-            self.first_user_message = Some(message.clone());
-        }
         self.last_user_text = Some(message.clone());
         self.last_assistant_text = None;
 
@@ -251,8 +243,6 @@ async fn parse_rollout_file(
 
     let file_content = tokio::fs::read_to_string(&path).await?;
     let mut accumulator = CodexRolloutEventAccumulator::new(session_id);
-    let mut created_at: Option<String> = None;
-
     for line in file_content.lines() {
         if line.trim().is_empty() {
             continue;
@@ -273,13 +263,6 @@ async fn parse_rollout_file(
         let payload = record.get("payload").unwrap_or(&Value::Null);
 
         match record_type {
-            "session_meta" if created_at.is_none() => {
-                created_at = payload
-                    .get("timestamp")
-                    .and_then(Value::as_str)
-                    .map(str::to_string)
-                    .or(timestamp.clone());
-            }
             "session_meta" => {}
             "event_msg" => {
                 let event_type = payload
@@ -385,17 +368,8 @@ async fn parse_rollout_file(
         }
     }
 
-    let created_at = created_at.unwrap_or_else(|| Utc::now().to_rfc3339());
-    let title = accumulator
-        .first_user_message
-        .as_deref()
-        .and_then(|t| crate::history::title_utils::derive_session_title(t, 100))
-        .unwrap_or_else(|| "New Thread".to_string());
-
     Ok(Some(RolloutParseResult {
         events: accumulator.finish_events(),
-        title,
-        created_at,
     }))
 }
 

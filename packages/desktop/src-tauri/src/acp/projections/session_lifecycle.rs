@@ -6,6 +6,7 @@ use super::*;
 impl ProjectionRegistry {
     pub fn new() -> Self {
         Self {
+            projection_state_lock: Arc::new(RwLock::new(())),
             snapshots: Arc::new(DashMap::new()),
             operations_by_id: Arc::new(DashMap::new()),
             operation_id_by_tool_key: Arc::new(DashMap::new()),
@@ -89,15 +90,6 @@ impl ProjectionRegistry {
         registry.session_projection(session_id)
     }
 
-    #[must_use]
-    pub fn project_thread_snapshot(
-        session_id: &str,
-        agent_id: Option<CanonicalAgentId>,
-        thread_snapshot: &SessionThreadSnapshot,
-    ) -> SessionProjectionSnapshot {
-        Self::project_stored_entries(session_id, agent_id, &thread_snapshot.entries)
-    }
-
     pub fn remove_session(&self, session_id: &str) {
         self.snapshots.remove(session_id);
         self.last_cancelled_operation_ids.remove(session_id);
@@ -130,6 +122,14 @@ impl ProjectionRegistry {
 
     #[must_use]
     pub fn snapshot_for_session(&self, session_id: &str) -> Option<SessionSnapshot> {
+        let _read_guard = self.projection_read_guard();
+        self.snapshot_for_session_unlocked(session_id)
+    }
+
+    pub(super) fn snapshot_for_session_unlocked(
+        &self,
+        session_id: &str,
+    ) -> Option<SessionSnapshot> {
         self.snapshots.get(session_id).map(|entry| entry.clone())
     }
 
@@ -160,6 +160,7 @@ impl ProjectionRegistry {
     /// Pre-apply terminal-turn decision for live transcript dispatch (decide-then-advance).
     #[must_use]
     pub fn route_terminal_turn(&self, session_id: &str, update: &SessionUpdate) -> RouteDecision {
+        let _read_guard = self.projection_read_guard();
         let guard = self
             .snapshots
             .get(session_id)

@@ -1,5 +1,6 @@
 use super::state_lookup::unresolved_tool_entry_ids;
 use super::{
+    fold_provider_history_for_command, install_provider_history_for_command,
     load_live_session_graph_revision, load_transcript_snapshot_for_resume,
     load_transcript_snapshot_for_state_lookup, persist_session_metadata_for_cwd,
     projection_has_graph_state, resolve_fork_session_target, resolve_requested_agent_id,
@@ -18,7 +19,6 @@ use crate::acp::session_state_engine::selectors::{
     SessionGraphCapabilities, SessionGraphLifecycle,
 };
 use crate::acp::session_state_engine::SessionGraphRuntimeRegistry;
-use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::session_update::{
     ContentChunk, PermissionData, SessionUpdate, ToolArguments, ToolCallData, ToolCallStatus,
     ToolKind,
@@ -32,6 +32,92 @@ use sea_orm::{Database, DbConn};
 use sea_orm_migration::MigratorTrait;
 use serde_json::json;
 use tempfile::tempdir;
+
+fn command_replay_context(session_id: &str) -> SessionReplayContext {
+    SessionReplayContext {
+        local_session_id: session_id.to_string(),
+        history_session_id: session_id.to_string(),
+        agent_id: CanonicalAgentId::ClaudeCode,
+        parser_agent_type: crate::acp::parsers::AgentType::ClaudeCode,
+        project_path: "/project".to_string(),
+        worktree_path: None,
+        effective_cwd: "/project".to_string(),
+        source_path: None,
+        compatibility: SessionDescriptorCompatibility::Canonical,
+    }
+}
+
+fn provider_user_event(
+    provider_seq: u64,
+    text: &str,
+) -> crate::acp::session::ingress::event::ProviderEvent {
+    crate::acp::session::ingress::event::ProviderEvent {
+        source: CanonicalAgentId::ClaudeCode,
+        provider_seq,
+        provider_row_id: format!("row-{provider_seq}"),
+        timestamp_ms: None,
+        kind: crate::acp::session::ingress::event::ProviderEventKind::UserText {
+            text: text.to_string(),
+            attempt_id: None,
+        },
+    }
+}
+
+#[test]
+fn provider_event_state_fallback_preserves_frontier_and_canonical_transcript() {
+    let replay_context = command_replay_context("provider-state-fallback");
+    let folded = fold_provider_history_for_command(
+        &replay_context,
+        &[provider_user_event(1, "provider history")],
+        7,
+    );
+
+    assert_eq!(folded.graph.transcript_snapshot.revision, 7);
+    assert_eq!(folded.graph.revision.transcript_revision, 7);
+    assert_eq!(folded.graph.transcript_snapshot.entries.len(), 1);
+    assert_eq!(
+        folded.graph.transcript_snapshot.entries[0].segments[0].primary_text(),
+        "provider history"
+    );
+}
+
+#[test]
+fn no_open_token_resume_installs_provider_history_graph_and_dedup_frontier() {
+    let session_id = "provider-resume-without-open-token";
+    let replay_context = command_replay_context(session_id);
+    let event = provider_user_event(1, "resume history");
+    let folded =
+        fold_provider_history_for_command(&replay_context, std::slice::from_ref(&event), 4);
+    let runtime = SessionGraphRuntimeRegistry::new();
+    let projection = ProjectionRegistry::new();
+    let transcript = TranscriptProjectionRegistry::new();
+
+    let installed = install_provider_history_for_command(
+        session_id,
+        folded,
+        &runtime,
+        &projection,
+        &transcript,
+    );
+
+    assert_eq!(installed.transcript_snapshot.revision, 4);
+    assert!(runtime.graph_for_session(session_id).is_some());
+    assert!(projection.snapshot_for_session(session_id).is_some());
+    assert_eq!(
+        transcript
+            .snapshot_for_session(session_id)
+            .expect("provider transcript should be hydrated")
+            .revision,
+        4
+    );
+    let duplicate = runtime
+        .apply_provider_event_transition(session_id, &event)
+        .expect("held graph should accept reconnect delivery");
+    assert!(
+        !duplicate.applied,
+        "history frontier must suppress reconnect replay"
+    );
+}
 
 async fn setup_test_db() -> DbConn {
     let db = Database::connect("sqlite::memory:")
@@ -64,39 +150,49 @@ fn seed_lifecycle(registry: &SessionGraphRuntimeRegistry, session_id: &str, grap
     );
 }
 
-fn tool_snapshot_with_entry_id(entry_id: &str) -> SessionThreadSnapshot {
-    SessionThreadSnapshot {
-        title: "Tool session".to_string(),
-        created_at: "2026-05-13T00:00:00Z".to_string(),
-        current_mode_id: None,
-        entries: vec![StoredEntry::ToolCall {
+fn tool_entries_with_entry_id(entry_id: &str) -> Vec<StoredEntry> {
+    vec![StoredEntry::ToolCall {
+        id: entry_id.to_string(),
+        message: ToolCallData {
             id: entry_id.to_string(),
-            message: ToolCallData {
-                id: entry_id.to_string(),
-                name: "Read".to_string(),
-                title: Some("Read file".to_string()),
-                status: ToolCallStatus::Completed,
-                result: Some(json!({ "content": "ok" })),
-                kind: Some(ToolKind::Read),
-                arguments: ToolArguments::Read {
-                    file_path: Some("/tmp/file.rs".to_string()),
-                    source_context: None,
-                },
-                diagnostic_input: None,
-                skill_meta: None,
-                locations: None,
-                normalized_questions: None,
-                normalized_todos: None,
-                normalized_todo_update: None,
-                parent_tool_use_id: None,
-                task_children: None,
-                question_answer: None,
-                awaiting_plan_approval: false,
-                plan_approval_request_id: None,
+            name: "Read".to_string(),
+            title: Some("Read file".to_string()),
+            status: ToolCallStatus::Completed,
+            result: Some(json!({ "content": "ok" })),
+            kind: Some(ToolKind::Read),
+            arguments: ToolArguments::Read {
+                file_path: Some("/tmp/file.rs".to_string()),
+                source_context: None,
             },
-            timestamp: Some("2026-05-13T00:00:01Z".to_string()),
-        }],
-    }
+            diagnostic_input: None,
+            skill_meta: None,
+            locations: None,
+            normalized_questions: None,
+            normalized_todos: None,
+            normalized_todo_update: None,
+            parent_tool_use_id: None,
+            task_children: None,
+            question_answer: None,
+            awaiting_plan_approval: false,
+            plan_approval_request_id: None,
+        },
+        timestamp: Some("2026-05-13T00:00:01Z".to_string()),
+    }]
+}
+
+fn fold_transcript(entries: &[StoredEntry], agent_id: CanonicalAgentId) -> TranscriptSnapshot {
+    let events =
+        crate::acp::session::ingress::stored_entry_events::stored_entries_to_provider_events(
+            entries,
+            agent_id.clone(),
+        );
+    crate::acp::session::fold_export::fold_graph_from_history_events(
+        "session-1",
+        &agent_id,
+        "",
+        &events,
+    )
+    .transcript_snapshot
 }
 
 #[test]
@@ -132,8 +228,8 @@ fn projection_graph_state_detects_canonical_session_projection() {
 
 #[test]
 fn unresolved_tool_entry_ids_detects_transcript_tool_without_operation_link() {
-    let snapshot = tool_snapshot_with_entry_id("tool-1");
-    let transcript = TranscriptSnapshot::from_stored_entries(1, &snapshot.entries);
+    let entries = tool_entries_with_entry_id("tool-1");
+    let transcript = fold_transcript(&entries, CanonicalAgentId::Copilot);
 
     assert_eq!(
         unresolved_tool_entry_ids(&transcript, &[]),
@@ -143,12 +239,12 @@ fn unresolved_tool_entry_ids_detects_transcript_tool_without_operation_link() {
 
 #[test]
 fn unresolved_tool_entry_ids_accepts_matching_provider_projection_link() {
-    let snapshot = tool_snapshot_with_entry_id("tool-1");
-    let transcript = TranscriptSnapshot::from_stored_entries(1, &snapshot.entries);
-    let projection = ProjectionRegistry::project_thread_snapshot(
+    let entries = tool_entries_with_entry_id("tool-1");
+    let transcript = fold_transcript(&entries, CanonicalAgentId::Copilot);
+    let projection = ProjectionRegistry::project_stored_entries(
         "session-1",
         Some(CanonicalAgentId::Copilot),
-        &snapshot,
+        &entries,
     );
 
     assert!(unresolved_tool_entry_ids(&transcript, &projection.operations).is_empty());

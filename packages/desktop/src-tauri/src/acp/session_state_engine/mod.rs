@@ -15,6 +15,7 @@ pub mod session_state_field;
 pub mod snapshot_builder;
 pub mod timing;
 pub mod transcript_rows_ledger;
+pub(crate) mod transition_delivery_builder;
 pub mod viewport_buffer_producer;
 
 pub use bridge::{

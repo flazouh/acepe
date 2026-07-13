@@ -21,6 +21,18 @@ pub struct HistoryInput {
     pub workspace_root: Option<PathBuf>,
 }
 
+/// Provider-neutral facts needed to locate history for a restored session.
+///
+/// Each registered history source owns how these facts map to its physical
+/// storage layout. Delivery code must not switch on provider identity.
+#[derive(Debug, Clone)]
+pub struct HistoryReplayInput {
+    pub session_id: String,
+    pub project_path: PathBuf,
+    pub effective_cwd: Option<PathBuf>,
+    pub source_path: Option<PathBuf>,
+}
+
 /// Errors from history ingress reads.
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
@@ -63,4 +75,17 @@ pub trait LiveSource: Sync {
 #[async_trait]
 pub trait HistorySource: Sync {
     async fn read(&self, input: HistoryInput) -> Result<Vec<ProviderEvent>, HistoryError>;
+
+    /// Locate and read history for a restored session.
+    async fn read_replay(
+        &self,
+        input: HistoryReplayInput,
+    ) -> Result<Vec<ProviderEvent>, HistoryError> {
+        let workspace_root = input.source_path.or(Some(input.project_path));
+        self.read(HistoryInput {
+            session_id: input.session_id,
+            workspace_root,
+        })
+        .await
+    }
 }

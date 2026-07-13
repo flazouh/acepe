@@ -478,9 +478,10 @@ mod session_metadata_tests {
             .await
             .unwrap();
         let journal = decode_serialized_events(&replay_context, serialized).unwrap();
-        assert_eq!(journal.len(), 2);
+        assert_eq!(journal.len(), 3);
         assert_eq!(journal[0].event_seq, 1);
         assert_eq!(journal[1].event_seq, 2);
+        assert_eq!(journal[2].event_seq, 3);
 
         let replayed = rebuild_session_projection(&replay_context, &journal);
 
@@ -491,7 +492,7 @@ mod session_metadata_tests {
             session.agent_id,
             Some(crate::acp::types::CanonicalAgentId::ClaudeCode)
         );
-        assert_eq!(session.last_event_seq, 2);
+        assert_eq!(session.last_event_seq, 3);
         assert_eq!(replayed.interactions.len(), 2);
         assert!(replayed
             .interactions
@@ -512,7 +513,7 @@ mod session_metadata_tests {
     }
 
     #[tokio::test]
-    async fn test_session_journal_skips_tool_call_payload_persistence() {
+    async fn test_session_journal_persists_tool_call_payload() {
         let db = setup_test_db().await;
         SessionMetadataRepository::upsert(
             &db,
@@ -562,18 +563,16 @@ mod session_metadata_tests {
         .await
         .expect("tool call append should succeed");
 
-        assert!(
-            appended.is_none(),
-            "tool call payloads should no longer be journaled"
-        );
+        assert!(appended.is_some(), "canonical tool calls must be journaled");
         let serialized = SessionJournalEventRepository::list_serialized(&db, "session-tool-call")
             .await
-            .expect("journal rows should load without replay parsing");
-        assert!(serialized.is_empty());
+            .expect("journal rows should load");
+        assert_eq!(serialized.len(), 1);
+        assert_eq!(serialized[0].event_kind, "projection_update");
     }
 
     #[tokio::test]
-    async fn test_session_journal_skips_question_request_persistence() {
+    async fn test_session_journal_persists_question_without_replaying_pending_projection() {
         let db = setup_test_db().await;
         SessionMetadataRepository::upsert(
             &db,
@@ -610,15 +609,22 @@ mod session_metadata_tests {
         .await
         .expect("question request append should succeed");
 
-        assert!(
-            appended.is_none(),
-            "agent questions should enter the canonical graph, not the raw session-update journal"
-        );
+        assert!(appended.is_some(), "canonical questions must be journaled");
         let serialized_before_answer =
             SessionJournalEventRepository::list_serialized(&db, "session-question")
                 .await
                 .expect("journal rows should load");
-        assert!(serialized_before_answer.is_empty());
+        assert_eq!(serialized_before_answer.len(), 1);
+        assert_eq!(serialized_before_answer[0].event_kind, "projection_update");
+
+        let replay_context = replay_context_for_session(&db, "session-question").await;
+        let journal = decode_serialized_events(&replay_context, serialized_before_answer)
+            .expect("question journal should decode");
+        let replayed = rebuild_session_projection(&replay_context, &journal);
+        assert!(
+            replayed.interactions.is_empty(),
+            "question projection replay stays skipped until its interaction snapshot"
+        );
 
         let projection_registry = ProjectionRegistry::new();
         projection_registry.apply_session_update("session-question", &question_update);
@@ -644,9 +650,9 @@ mod session_metadata_tests {
             SessionJournalEventRepository::list_serialized(&db, "session-question")
                 .await
                 .expect("journal rows should load");
-        assert_eq!(serialized_after_answer.len(), 1);
+        assert_eq!(serialized_after_answer.len(), 2);
         assert_eq!(
-            serialized_after_answer[0].event_kind,
+            serialized_after_answer[1].event_kind,
             "interaction_snapshot"
         );
     }

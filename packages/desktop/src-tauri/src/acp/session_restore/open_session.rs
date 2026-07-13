@@ -82,7 +82,7 @@ pub async fn get_session_open_result_domain(
                     runtime_registry.as_deref(),
                 );
                 let restore_started_at = Instant::now();
-                restore_session_open_authority(&app, &result);
+                restore_session_open_authority(&app, &result).await;
                 let restore_ms = elapsed_ms(restore_started_at);
                 let total_ms = elapsed_ms(total_started_at);
                 let result = attach_open_result_timing(
@@ -153,7 +153,7 @@ pub async fn get_session_open_result_domain(
                         runtime_registry.as_deref(),
                     );
                     let restore_started_at = Instant::now();
-                    restore_session_open_authority(&app, &result);
+                    restore_session_open_authority(&app, &result).await;
                     let restore_ms = elapsed_ms(restore_started_at);
                     let total_ms = elapsed_ms(total_started_at);
                     return Ok(attach_open_result_timing(

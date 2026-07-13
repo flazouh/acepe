@@ -1,7 +1,9 @@
 use crate::acp::client_session::SessionModes;
 use crate::acp::lifecycle::SessionSupervisor;
-use crate::acp::lifecycle::{FailureReason, LifecycleCheckpoint, LifecycleState, LifecycleStatus};
-use crate::acp::projections::{ProjectionRegistry, SessionSnapshot};
+use crate::acp::lifecycle::{FailureReason, LifecycleCheckpoint, LifecycleState};
+use crate::acp::projections::{
+    InteractionResponse, InteractionState, ProjectionRegistry, SessionSnapshot,
+};
 use crate::acp::session::ingress::event::ProviderEvent;
 use crate::acp::session_state_engine::anchor_ledger::AnchorLedger;
 use crate::acp::session_state_engine::buffer_emission_tracker::BufferEmissionTracker;
@@ -175,32 +177,16 @@ impl SessionGraphRuntimeRegistry {
         }
     }
 
-    pub fn restore_open_session_state(
+    pub async fn restore_open_session_state(
         &self,
         session_id: String,
-        graph_revision: i64,
+        frontier: i64,
         lifecycle: SessionGraphLifecycle,
         capabilities: SessionGraphCapabilities,
     ) -> bool {
-        let mut snapshot = SessionGraphRuntimeSnapshot {
-            graph_revision,
-            lifecycle,
-            capabilities,
-        };
-
-        if let Some(current_checkpoint) = self.supervisor.snapshot_for_session(&session_id) {
-            let current = SessionGraphRuntimeSnapshot::from_checkpoint(&current_checkpoint);
-            if !should_replace_runtime_checkpoint_from_open(current.lifecycle.status) {
-                return false;
-            }
-            snapshot.graph_revision = snapshot.graph_revision.max(current.graph_revision);
-            return self
-                .supervisor
-                .replace_checkpoint(session_id, snapshot.into_checkpoint());
-        }
-
         self.supervisor
-            .seed_checkpoint(session_id, snapshot.into_checkpoint())
+            .restore_open_checkpoint(session_id, frontier, lifecycle, capabilities)
+            .await
     }
 
     pub fn remove_session(&self, session_id: &str) {
@@ -227,6 +213,101 @@ impl SessionGraphRuntimeRegistry {
             );
     }
 
+    /// Installs the initial held graph only when this session has no graph yet.
+    ///
+    /// The entry check and insertion happen under the same graph lock. This
+    /// prevents a reconnect restore from replacing a graph that a concurrent
+    /// live path seeded and advanced between a separate read and write.
+    pub fn seed_graph_if_absent(&self, session_id: String, graph: SessionStateGraph) -> bool {
+        use std::collections::hash_map::Entry;
+
+        let mut graphs = self.graphs.lock().expect("session graphs mutex poisoned");
+        match graphs.entry(session_id) {
+            Entry::Occupied(_) => false,
+            Entry::Vacant(entry) => {
+                entry.insert(HeldSessionGraph {
+                    graph,
+                    applied_fold_keys: Some(HashSet::new()),
+                });
+                true
+            }
+        }
+    }
+
+    /// Installs an open graph, or atomically merges only restored control-plane
+    /// authority into an already-live graph. Transcript, operations,
+    /// interactions, and the dedup frontier always remain owned by the winner.
+    pub(crate) fn restore_open_graph(
+        &self,
+        session_id: String,
+        candidate: SessionStateGraph,
+        replace_control_plane: bool,
+    ) -> SessionStateGraph {
+        use std::collections::hash_map::Entry;
+
+        let mut graphs = self.graphs.lock().expect("session graphs mutex poisoned");
+        match graphs.entry(session_id) {
+            Entry::Vacant(entry) => {
+                let graph = candidate;
+                entry.insert(HeldSessionGraph {
+                    graph: graph.clone(),
+                    applied_fold_keys: Some(HashSet::new()),
+                });
+                graph
+            }
+            Entry::Occupied(mut entry) => {
+                let held = entry.get_mut();
+                let candidate_is_current =
+                    candidate.revision.last_event_seq >= held.graph.revision.last_event_seq;
+                if replace_control_plane && candidate_is_current {
+                    held.graph.lifecycle = candidate.lifecycle;
+                    held.graph.capabilities = candidate.capabilities;
+                    held.graph.revision.graph_revision = held
+                        .graph
+                        .revision
+                        .graph_revision
+                        .max(candidate.revision.graph_revision);
+                    held.graph.revision.last_event_seq = held
+                        .graph
+                        .revision
+                        .last_event_seq
+                        .max(candidate.revision.last_event_seq);
+                    held.graph.activity = select_session_graph_activity(
+                        &held.graph.lifecycle,
+                        &held.graph.turn_state,
+                        &held.graph.operations,
+                        &held.graph.interactions,
+                        held.graph.active_turn_failure.as_ref(),
+                    );
+                }
+                held.graph.clone()
+            }
+        }
+    }
+
+    /// Installs a graph folded from provider history together with the exact
+    /// dedup frontier produced by that fold. Live ingress can then reject a
+    /// provider row already present in history without replaying the fold.
+    pub(crate) fn seed_folded_history(
+        &self,
+        session_id: String,
+        folded: crate::acp::session::engine::fold::FoldedHistory,
+    ) -> bool {
+        use std::collections::hash_map::Entry;
+
+        let mut graphs = self.graphs.lock().expect("session graphs mutex poisoned");
+        match graphs.entry(session_id) {
+            Entry::Occupied(_) => false,
+            Entry::Vacant(entry) => {
+                entry.insert(HeldSessionGraph {
+                    graph: folded.graph,
+                    applied_fold_keys: Some(folded.applied_fold_keys),
+                });
+                true
+            }
+        }
+    }
+
     #[must_use]
     pub fn graph_for_session(&self, session_id: &str) -> Option<SessionStateGraph> {
         self.graphs
@@ -238,9 +319,9 @@ impl SessionGraphRuntimeRegistry {
 
     /// Applies one provider event to the held graph, holding the graph mutex
     /// exactly once and folding exactly once, returning an atomic
-    /// before/after transition. `applied` is derived from the dedup-key set
-    /// size before/after the fold: a duplicate event leaves the set (and the
-    /// graph) unchanged, so `before == after` and `applied` is `false`.
+    /// before/after transition. `applied` is derived from the canonical graph
+    /// revision: every accepted provider occurrence advances it exactly once,
+    /// while a duplicate leaves both the graph and revision unchanged.
     ///
     /// Callers that need to mirror this transition (e.g. the transcript
     /// projection) must use `transition.before`/`transition.after` directly
@@ -253,29 +334,46 @@ impl SessionGraphRuntimeRegistry {
         let mut graphs = self.graphs.lock().expect("session graphs mutex poisoned");
         let held = graphs.get_mut(session_id)?;
         let before = held.graph.clone();
-        let dedup_enabled = held.applied_fold_keys.is_some();
-        let dedup_len_before = held
-            .applied_fold_keys
-            .as_ref()
-            .map(HashSet::len)
-            .unwrap_or(0);
         let (next, _delta) = crate::acp::session::engine::fold::fold_step_with_dedup(
             &held.graph,
             event,
             &mut held.applied_fold_keys,
         );
-        let dedup_len_after = held
-            .applied_fold_keys
-            .as_ref()
-            .map(HashSet::len)
-            .unwrap_or(0);
-        let applied = !dedup_enabled || dedup_len_after > dedup_len_before;
+        let applied = next.revision.graph_revision > before.revision.graph_revision;
         held.graph = next;
         let after = held.graph.clone();
         Some(ProviderEventTransition {
             before,
             after,
             applied,
+        })
+    }
+
+    /// Applies a user reply to the held interaction graph under the same lock
+    /// used by provider folds, so the next provider event observes the reply.
+    pub(crate) fn apply_interaction_reply_transition(
+        &self,
+        session_id: &str,
+        interaction_id: &str,
+        state: InteractionState,
+        response: InteractionResponse,
+        event_seq: i64,
+    ) -> Option<ProviderEventTransition> {
+        let mut graphs = self.graphs.lock().expect("session graphs mutex poisoned");
+        let held = graphs.get_mut(session_id)?;
+        let before = held.graph.clone();
+        let after = crate::acp::session::engine::fold::fold_interaction_reply(
+            &before,
+            interaction_id,
+            state,
+            response,
+            event_seq,
+        )?;
+        held.graph = after.clone();
+        Some(ProviderEventTransition {
+            before,
+            after,
+            applied: true,
         })
     }
 
@@ -1224,10 +1322,6 @@ fn transcript_snapshot_for_session_with_body(
     })
 }
 
-fn should_replace_runtime_checkpoint_from_open(status: LifecycleStatus) -> bool {
-    matches!(status, LifecycleStatus::Detached)
-}
-
 impl SessionGraphRuntimeSnapshot {
     pub(crate) fn apply_update_with_graph_seed(
         &mut self,
@@ -1379,6 +1473,7 @@ mod tests {
         build_assistant_text_delta_from_components, build_live_session_state_capabilities_envelope,
         build_live_session_state_delta_envelope, build_live_session_state_telemetry_envelope,
     };
+    use crate::acp::transcript_projection::TranscriptEntryRole;
 
     #[test]
     fn remove_session_clears_anchors_via_registry_delegation() {
@@ -1449,6 +1544,111 @@ mod tests {
 
         registry.remove_session(session_id);
         assert!(registry.graph_for_session(session_id).is_none());
+    }
+
+    #[test]
+    fn seed_graph_if_absent_preserves_existing_graph_and_its_dedup_state() {
+        let registry = SessionGraphRuntimeRegistry::new();
+        let session_id = "sess-atomic-seed";
+        let history_event = ProviderEvent {
+            source: CanonicalAgentId::Cursor,
+            provider_seq: 1,
+            provider_row_id: "history-user".to_string(),
+            timestamp_ms: None,
+            kind: ProviderEventKind::UserText {
+                text: "history".to_string(),
+                attempt_id: None,
+            },
+        };
+        let live_event = ProviderEvent {
+            source: CanonicalAgentId::Cursor,
+            provider_seq: 2,
+            provider_row_id: "live-assistant".to_string(),
+            timestamp_ms: None,
+            kind: ProviderEventKind::AssistantText {
+                text: "live".to_string(),
+            },
+        };
+        let existing_graph = fold_full(
+            &[history_event],
+            &FoldContext::new(session_id, CanonicalAgentId::Cursor, "/workspace"),
+        );
+        registry.seed_graph(session_id.to_string(), existing_graph);
+        registry
+            .apply_provider_event(session_id, &live_event)
+            .expect("existing graph should accept the live event");
+
+        let replacement_graph = fold_full(
+            &[],
+            &FoldContext::new(session_id, CanonicalAgentId::Cursor, "/replacement"),
+        );
+        assert!(
+            !registry.seed_graph_if_absent(session_id.to_string(), replacement_graph),
+            "an existing held graph must win the atomic entry check"
+        );
+
+        let duplicate = registry
+            .apply_provider_event_transition(session_id, &live_event)
+            .expect("existing graph should remain installed");
+        assert!(
+            !duplicate.applied,
+            "the existing graph's dedup state must survive a rejected seed"
+        );
+        assert_eq!(duplicate.after.transcript_snapshot.entries.len(), 2);
+
+        let fresh_session_id = "sess-atomic-seed-fresh";
+        let fresh_graph = fold_full(
+            &[],
+            &FoldContext::new(fresh_session_id, CanonicalAgentId::Cursor, "/workspace"),
+        );
+        assert!(registry.seed_graph_if_absent(fresh_session_id.to_string(), fresh_graph));
+        assert!(registry.graph_for_session(fresh_session_id).is_some());
+    }
+
+    #[test]
+    fn seed_folded_history_never_replaces_a_live_graph() {
+        let registry = SessionGraphRuntimeRegistry::new();
+        let session_id = "sess-history-race";
+        let context = FoldContext::new(session_id, CanonicalAgentId::Cursor, "/workspace");
+        let live_event = ProviderEvent {
+            source: CanonicalAgentId::Cursor,
+            provider_seq: 2,
+            provider_row_id: "live-assistant".to_string(),
+            timestamp_ms: None,
+            kind: ProviderEventKind::AssistantText {
+                text: "live".to_string(),
+            },
+        };
+        registry.seed_graph(session_id.to_string(), fold_full(&[], &context));
+        registry
+            .apply_provider_event(session_id, &live_event)
+            .expect("live graph should advance");
+
+        let history_event = ProviderEvent {
+            source: CanonicalAgentId::Cursor,
+            provider_seq: 1,
+            provider_row_id: "history-user".to_string(),
+            timestamp_ms: None,
+            kind: ProviderEventKind::UserText {
+                text: "history".to_string(),
+                attempt_id: None,
+            },
+        };
+        let folded = crate::acp::session::engine::fold::fold_history_with_dedup_frontier(
+            &[history_event],
+            &context,
+        );
+        assert!(!registry.seed_folded_history(session_id.to_string(), folded));
+
+        let duplicate = registry
+            .apply_provider_event_transition(session_id, &live_event)
+            .expect("live graph should remain held");
+        assert!(!duplicate.applied);
+        assert_eq!(duplicate.after.transcript_snapshot.entries.len(), 1);
+        assert_eq!(
+            duplicate.after.transcript_snapshot.entries[0].role,
+            TranscriptEntryRole::Assistant
+        );
     }
 
     #[test]
@@ -1525,6 +1725,127 @@ mod tests {
                 .len(),
             2,
             "held graph must not double-apply the duplicate event"
+        );
+    }
+
+    #[test]
+    fn apply_provider_event_transition_reports_journal_occurrences_as_applied() {
+        let registry = SessionGraphRuntimeRegistry::new();
+        let session_id = "sess-journal-occurrences";
+        let context = FoldContext::new(session_id, CanonicalAgentId::Cursor, "/workspace");
+        registry.seed_graph(session_id.to_string(), fold_full(&[], &context));
+
+        for (provider_seq, provider_row_id, text) in [
+            (7, "journal:7", "first chunk"),
+            (8, "journal:8", "second chunk"),
+        ] {
+            let event = ProviderEvent {
+                source: CanonicalAgentId::Cursor,
+                provider_seq,
+                provider_row_id: provider_row_id.to_string(),
+                timestamp_ms: None,
+                kind: ProviderEventKind::AssistantText {
+                    text: text.to_string(),
+                },
+            };
+            let transition = registry
+                .apply_provider_event_transition(session_id, &event)
+                .expect("seeded graph should accept a journal occurrence");
+
+            assert!(
+                transition.applied,
+                "a journal occurrence has no stable provider identity to deduplicate and must be delivered"
+            );
+        }
+
+        let graph = registry
+            .graph_for_session(session_id)
+            .expect("held graph should be readable");
+        assert_eq!(graph.transcript_snapshot.entries.len(), 1);
+        assert_eq!(graph.transcript_snapshot.entries[0].segments.len(), 2);
+        assert_eq!(graph.revision.graph_revision, 2);
+        assert_eq!(graph.revision.last_event_seq, 8);
+    }
+
+    #[test]
+    fn canonical_interaction_reply_survives_the_next_provider_event() {
+        let registry = SessionGraphRuntimeRegistry::new();
+        let session_id = "sess-interaction-reply";
+        let context = FoldContext::new(session_id, CanonicalAgentId::Cursor, "/workspace");
+        let permission = PermissionData {
+            id: "permission-1".to_string(),
+            session_id: session_id.to_string(),
+            json_rpc_request_id: Some(7),
+            reply_handler: Some(InteractionReplyHandler::json_rpc(7)),
+            permission: "Read".to_string(),
+            patterns: Vec::new(),
+            metadata: serde_json::json!({}),
+            always: Vec::new(),
+            auto_accepted: false,
+            tool: None,
+        };
+        let permission_event = ProviderEvent {
+            source: CanonicalAgentId::Cursor,
+            provider_seq: 4,
+            provider_row_id: "permission-1".to_string(),
+            timestamp_ms: None,
+            kind: ProviderEventKind::Permission(permission),
+        };
+        registry.seed_graph(
+            session_id.to_string(),
+            fold_full(&[permission_event], &context),
+        );
+
+        let transition = registry
+            .apply_interaction_reply_transition(
+                session_id,
+                "permission-1",
+                crate::acp::projections::InteractionState::Approved,
+                crate::acp::projections::InteractionResponse::Permission {
+                    accepted: true,
+                    option_id: Some("allow-once".to_string()),
+                    reply: None,
+                },
+                5,
+            )
+            .expect("held interaction should accept the reply");
+
+        assert_eq!(transition.before.revision.graph_revision, 1);
+        assert_eq!(transition.after.revision.graph_revision, 2);
+        assert_eq!(transition.after.revision.last_event_seq, 5);
+        assert_eq!(
+            transition.after.interactions[0].state,
+            crate::acp::projections::InteractionState::Approved
+        );
+        assert_eq!(
+            transition.after.interactions[0].responded_at_event_seq,
+            Some(5)
+        );
+
+        let next_event = ProviderEvent {
+            source: CanonicalAgentId::Cursor,
+            provider_seq: 6,
+            provider_row_id: "assistant-after-reply".to_string(),
+            timestamp_ms: None,
+            kind: ProviderEventKind::AssistantText {
+                text: "continuing".to_string(),
+            },
+        };
+        let after_provider_event = registry
+            .apply_provider_event_transition(session_id, &next_event)
+            .expect("held graph should accept the next provider event")
+            .after;
+
+        assert_eq!(after_provider_event.revision.graph_revision, 3);
+        assert_eq!(after_provider_event.revision.last_event_seq, 6);
+        assert_eq!(
+            after_provider_event.interactions[0].state,
+            crate::acp::projections::InteractionState::Approved,
+            "the next provider fold must start from the replied canonical graph"
+        );
+        assert_eq!(
+            after_provider_event.interactions[0].responded_at_event_seq,
+            Some(5)
         );
     }
 
@@ -1747,6 +2068,41 @@ mod tests {
         }
     }
 
+    fn apply_canonical_transcript_update_for_test(
+        registry: &TranscriptProjectionRegistry,
+        event_seq: i64,
+        update: &SessionUpdate,
+    ) -> Option<TranscriptDelta> {
+        let session_id = update.session_id()?;
+        let event =
+            crate::acp::session::ingress::live_session_update::session_update_to_provider_event(
+                CanonicalAgentId::Cursor,
+                event_seq,
+                update,
+                crate::acp::projections::RouteDecision::default(),
+            )?;
+        let context = crate::acp::session::engine::fold::FoldContext::new(
+            session_id,
+            CanonicalAgentId::Cursor,
+            "",
+        );
+        let mut before = crate::acp::session::engine::fold::fold_full(&[], &context);
+        if let Some(snapshot) = registry.snapshot_for_session(session_id) {
+            before.transcript_snapshot = snapshot;
+            before.revision.transcript_revision = before.transcript_snapshot.revision;
+        }
+        let after = crate::acp::session::engine::fold::fold_step(&before, &event).0;
+        registry.mirror_provider_event_transition(
+            event_seq,
+            &event,
+            &super::ProviderEventTransition {
+                before,
+                after,
+                applied: true,
+            },
+        )
+    }
+
     async fn build_delta_for_history_depth(
         db: &DbConn,
         history_count: usize,
@@ -1797,12 +2153,18 @@ mod tests {
         for index in 0..history_count {
             let history_update = create_completed_history_tool_call(index);
             projection_registry.apply_session_update("session-1", &history_update);
-            let _ = transcript_projection_registry
-                .apply_session_update_idle(index as i64 + 1, &history_update);
+            let _ = apply_canonical_transcript_update_for_test(
+                &transcript_projection_registry,
+                index as i64 + 1,
+                &history_update,
+            );
         }
         projection_registry.apply_session_update("session-1", &update_under_test);
-        let _ = transcript_projection_registry
-            .apply_session_update_idle(history_count as i64 + 1, &update_under_test);
+        let _ = apply_canonical_transcript_update_for_test(
+            &transcript_projection_registry,
+            history_count as i64 + 1,
+            &update_under_test,
+        );
         runtime_registry.apply_session_update("session-1", &update_under_test);
 
         runtime_registry
@@ -1841,12 +2203,18 @@ mod tests {
         for index in 0..history_count {
             let history_update = create_completed_history_tool_call(index);
             projection_registry.apply_session_update("session-1", &history_update);
-            let _ = transcript_projection_registry
-                .apply_session_update_idle(index as i64 + 1, &history_update);
+            let _ = apply_canonical_transcript_update_for_test(
+                &transcript_projection_registry,
+                index as i64 + 1,
+                &history_update,
+            );
         }
         projection_registry.apply_session_update("session-1", &update_under_test);
-        let transcript_delta = transcript_projection_registry
-            .apply_session_update_idle(history_count as i64 + 1, &update_under_test);
+        let transcript_delta = apply_canonical_transcript_update_for_test(
+            &transcript_projection_registry,
+            history_count as i64 + 1,
+            &update_under_test,
+        );
         runtime_registry.apply_session_update("session-1", &update_under_test);
 
         runtime_registry
@@ -1879,9 +2247,12 @@ mod tests {
         update: &SessionUpdate,
     ) -> SessionStateEnvelope {
         let session_id = update.session_id().expect("session id on assistant chunk");
-        let transcript_delta = transcript_projection_registry
-            .apply_session_update_idle(event_seq, update)
-            .expect("transcript delta");
+        let transcript_delta = apply_canonical_transcript_update_for_test(
+            transcript_projection_registry,
+            event_seq,
+            update,
+        )
+        .expect("transcript delta");
         let snapshot = transcript_projection_registry
             .snapshot_for_session(session_id)
             .expect("transcript snapshot");
@@ -1976,9 +2347,9 @@ mod tests {
         let oversized_text = "x".repeat(8_000);
         let update =
             create_agent_message_chunk_update("session-1", Some("assistant-1"), &oversized_text, 5);
-        let transcript_delta = transcript_projection_registry
-            .apply_session_update_idle(1, &update)
-            .expect("transcript delta");
+        let transcript_delta =
+            apply_canonical_transcript_update_for_test(&transcript_projection_registry, 1, &update)
+                .expect("transcript delta");
         let snapshot = transcript_projection_registry
             .snapshot_for_session("session-1")
             .expect("transcript snapshot");

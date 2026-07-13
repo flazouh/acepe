@@ -38,7 +38,7 @@ impl ToolTable {
 
     /// Classify raw tool arguments through the tool_identity ingress path.
     #[must_use]
-    pub fn classify_raw_tool_call(
+    pub(crate) fn classify_raw_tool_call(
         &self,
         tool_call_id: &str,
         raw_arguments: &serde_json::Value,

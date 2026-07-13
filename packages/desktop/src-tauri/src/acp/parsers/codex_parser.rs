@@ -9,7 +9,7 @@ use crate::acp::parsers::types::{
     parse_todo_write, AgentParser, AgentType, ParseError, ParsedQuestion, ParsedTodo,
     ParsedUsageTelemetry, ParsedUsageTokens, UpdateType,
 };
-use crate::acp::parsers::CodexAdapter;
+use crate::acp::session::ingress::tool_identity::providers::codex::CodexAdapter;
 use crate::acp::session::ingress::tool_identity::{
     canonical_name_for_kind, infer_kind_from_payload_for_agent, web_search_context_signals,
 };

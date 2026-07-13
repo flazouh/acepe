@@ -9,11 +9,9 @@ mod disk;
 pub use disk::load_provider_events;
 
 use async_trait::async_trait;
-use std::path::PathBuf;
 
 use crate::acp::session::ingress::event::ProviderEvent;
 use crate::acp::session::ingress::source::{HistoryError, HistoryInput, HistorySource};
-use crate::acp::session_descriptor::SessionReplayContext;
 
 /// Reads Codex rollout JSONL history into provider-agnostic ingress events.
 pub struct CodexHistorySource;
@@ -45,19 +43,6 @@ fn resolve_paths(input: &HistoryInput) -> Result<(String, Option<String>), Histo
         "Codex history path does not exist: {}",
         root.display()
     )))
-}
-
-/// Load Codex history events for production replay.
-pub async fn load_replay_events(
-    replay_context: &SessionReplayContext,
-) -> Result<Vec<ProviderEvent>, HistoryError> {
-    let source = CodexHistorySource;
-    source
-        .read(HistoryInput {
-            session_id: replay_context.history_session_id.clone(),
-            workspace_root: Some(PathBuf::from(&replay_context.project_path)),
-        })
-        .await
 }
 
 #[cfg(test)]

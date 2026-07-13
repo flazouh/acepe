@@ -463,7 +463,7 @@ fn per_session_fifo_order_is_preserved() {
 }
 
 #[tokio::test]
-async fn persist_dispatch_event_builds_snapshot_envelope_from_journal_event_seq() {
+async fn persist_dispatch_event_builds_transition_delta_from_journal_event_seq() {
     let db = setup_test_db().await;
     SessionMetadataRepository::ensure_exists(
         &db,
@@ -489,9 +489,6 @@ async fn persist_dispatch_event_builds_snapshot_envelope_from_journal_event_seq(
     });
 
     let projection_registry = ProjectionRegistry::new();
-    if let AcpUiEventPayload::SessionUpdate(update) = &event.payload {
-        projection_registry.apply_session_update("session-1", update.as_ref());
-    }
     let transcript_projection_registry = TranscriptProjectionRegistry::new();
     let runtime_graph_registry = SessionGraphRuntimeRegistry::new();
     seed_lifecycle(&runtime_graph_registry, "session-1");
@@ -511,12 +508,12 @@ async fn persist_dispatch_event_builds_snapshot_envelope_from_journal_event_seq(
     assert_eq!(envelope.graph_revision, 1);
     assert_eq!(envelope.last_event_seq, 1);
     match envelope.payload {
-        crate::acp::session_state_engine::SessionStatePayload::Snapshot { graph } => {
-            assert_eq!(graph.revision, SessionGraphRevision::new(1, 1, 1));
-            assert_eq!(graph.transcript_snapshot.revision, 1);
-            assert_eq!(graph.transcript_snapshot.entries.len(), 1);
+        crate::acp::session_state_engine::SessionStatePayload::Delta { delta } => {
+            assert_eq!(delta.from_revision, SessionGraphRevision::new(0, 0, 0));
+            assert_eq!(delta.to_revision, SessionGraphRevision::new(1, 1, 1));
+            assert_eq!(delta.transcript_operations.len(), 1);
         }
-        other => panic!("expected snapshot payload, got {:?}", other),
+        other => panic!("expected transition delta payload, got {:?}", other),
     }
 }
 
@@ -665,6 +662,51 @@ async fn persist_dispatch_event_normalizes_plain_live_update_against_held_graph(
 }
 
 #[tokio::test]
+async fn persist_dispatch_event_does_not_drop_custom_agent_live_updates() {
+    let db = setup_test_db().await;
+    let session_id = "session-custom-live-ingress";
+    SessionMetadataRepository::ensure_exists(&db, session_id, "/test/project", "my-agent", None)
+        .await
+        .expect("session metadata");
+    let event = AcpUiEvent::session_update(chunk_update(session_id, "custom boundary"));
+    let projection_registry = ProjectionRegistry::new();
+    let transcript_projection_registry = TranscriptProjectionRegistry::new();
+    let runtime_graph_registry = SessionGraphRuntimeRegistry::new();
+    seed_lifecycle(&runtime_graph_registry, session_id);
+    runtime_graph_registry.seed_graph(
+        session_id.to_string(),
+        fold_full(
+            &[],
+            &FoldContext::new(
+                session_id,
+                CanonicalAgentId::Custom("my-agent".to_string()),
+                "/test/project",
+            ),
+        ),
+    );
+
+    let effects = persist_dispatch_event(
+        Some(&db),
+        &event,
+        &projection_registry,
+        &runtime_graph_registry,
+        &transcript_projection_registry,
+    )
+    .await;
+
+    let held = runtime_graph_registry
+        .graph_for_session(session_id)
+        .expect("custom held graph remains attached");
+    assert_eq!(held.transcript_snapshot.entries.len(), 1);
+    assert!(matches!(
+        &held.transcript_snapshot.entries[0].segments[0],
+        crate::acp::transcript_projection::TranscriptSegment::Text { text, .. }
+            if text == "custom boundary"
+    ));
+    assert!(effects.session_state_envelope.is_some());
+}
+
+#[tokio::test]
 async fn persist_dispatch_event_writes_current_transcript_row_ledger() {
     let db = setup_test_db().await;
     SessionMetadataRepository::ensure_exists(
@@ -810,6 +852,15 @@ async fn persist_dispatch_event_splits_connection_complete_into_capabilities_and
         lifecycle.status,
         crate::acp::lifecycle::LifecycleStatus::Ready
     );
+    let checkpoint = runtime_graph_registry
+        .current_snapshot_for_session("session-1")
+        .expect("canonical lifecycle delivery must mirror the compatibility checkpoint");
+    assert_eq!(
+        checkpoint.lifecycle.status,
+        crate::acp::lifecycle::LifecycleStatus::Ready
+    );
+    assert_eq!(checkpoint.capabilities.autonomous_enabled, Some(true));
+    assert_eq!(checkpoint.graph_revision, 1);
 }
 
 #[tokio::test]
@@ -867,7 +918,7 @@ async fn persist_dispatch_event_builds_delta_envelope_for_interaction_updates() 
         .expect("session state envelope");
     match envelope.payload {
         crate::acp::session_state_engine::SessionStatePayload::Delta { delta } => {
-            assert_eq!(delta.to_revision.graph_revision, 2);
+            assert_eq!(delta.to_revision.graph_revision, 1);
             assert_eq!(
                     delta.to_revision.transcript_revision, 0,
                     "PermissionRequest is non-transcript-bearing and must not advance transcript_revision"
@@ -884,7 +935,7 @@ async fn persist_dispatch_event_builds_delta_envelope_for_interaction_updates() 
 }
 
 #[tokio::test]
-async fn question_request_updates_live_interactions_without_raw_journal_row() {
+async fn question_request_updates_live_interactions_with_durable_journal_row() {
     let db = setup_test_db().await;
     SessionMetadataRepository::ensure_exists(
         &db,
@@ -940,10 +991,8 @@ async fn question_request_updates_live_interactions_without_raw_journal_row() {
     let journal_rows = SessionJournalEventRepository::list_serialized(&db, "session-1")
         .await
         .expect("journal rows");
-    assert!(
-        journal_rows.is_empty(),
-        "pending question requests should not be written to the raw journal"
-    );
+    assert_eq!(journal_rows.len(), 1);
+    assert_eq!(journal_rows[0].event_kind, "projection_update");
 
     let envelope = effects
         .session_state_envelope
@@ -961,17 +1010,9 @@ async fn question_request_updates_live_interactions_without_raw_journal_row() {
 }
 
 #[tokio::test]
-async fn synthetic_event_seq_path_must_not_inflate_transcript_revision_past_real_progress() {
-    // REGRESSION GUARD: streaming bug where each AgentMessageChunk goes
-    // through the Ok(None) journal path. Previously, `synthetic_event_seq`
-    // was derived from `max(graph_revision, prev_transcript_revision) + 1`,
-    // so non-transcript updates (CurrentMode, Plan, telemetry, ...) that
-    // bumped graph_revision caused the very next chunk to jump
-    // transcript_revision to graph_revision + 1. After enough such updates,
-    // transcript_revision marches arbitrarily far ahead of real transcript
-    // content, breaking the consumer-side `transcript_revision <=
-    // last_event_seq` invariant and starving the live UI of progressive
-    // chunk deltas during streaming.
+async fn durable_event_seq_path_must_not_inflate_transcript_revision_past_real_progress() {
+    // REGRESSION GUARD: non-transcript journal events must not lift the
+    // independent transcript revision before the next streaming chunk.
     //
     // Invariant we enforce: transcript_revision must equal the count of
     // transcript-bearing events that have actually been applied — it must
@@ -993,9 +1034,7 @@ async fn synthetic_event_seq_path_must_not_inflate_transcript_revision_past_real
     let runtime_graph_registry = SessionGraphRuntimeRegistry::new();
     seed_lifecycle(&runtime_graph_registry, "session-1");
 
-    // Five non-transcript updates (Ok(None) path: CurrentMode is not
-    // journaled by `ProjectionJournalUpdate::from_session_update`). These
-    // would each previously bump synthetic_event_seq via graph_revision.
+    // Five durable, non-transcript updates advance only the graph/event frontier.
     for index in 0..5 {
         let event =
             AcpUiEvent::session_update(current_mode_update("session-1", &format!("mode-{index}")));
@@ -1048,7 +1087,7 @@ async fn synthetic_event_seq_path_must_not_inflate_transcript_revision_past_real
 }
 
 #[tokio::test]
-async fn non_journaled_tool_call_source_link_matches_transcript_entry() {
+async fn journaled_tool_call_source_link_matches_transcript_entry() {
     let db = setup_test_db().await;
     SessionMetadataRepository::ensure_exists(
         &db,
@@ -1101,12 +1140,12 @@ async fn non_journaled_tool_call_source_link_matches_transcript_entry() {
         .expect("operation snapshot");
 
     assert_eq!(
-            operation.source_link,
-            OperationSourceLink::TranscriptLinked {
-                entry_id: tool_entry.entry_id.clone(),
-            },
-            "non-journaled ToolCall updates must link operations to the same transcript entry they emit"
-        );
+        operation.source_link,
+        OperationSourceLink::TranscriptLinked {
+            entry_id: tool_entry.entry_id.clone(),
+        },
+        "journaled ToolCall updates must link operations to the same transcript entry they emit"
+    );
 }
 
 #[tokio::test]
@@ -1299,8 +1338,10 @@ async fn same_session_write_lock_serializes_concurrent_chunk_persistence() {
         crate::acp::transcript_projection::TranscriptEntryRole::Assistant
     );
 
-    let runtime_snapshot = runtime_graph_registry.snapshot_for_session("session-1");
-    assert_eq!(runtime_snapshot.graph_revision, 2);
+    let graph = runtime_graph_registry
+        .graph_for_session("session-1")
+        .expect("held graph");
+    assert_eq!(graph.revision.graph_revision, 2);
 }
 
 #[tokio::test]
@@ -1835,7 +1876,7 @@ fn dispatcher_enqueues_turn_complete_domain_event_after_session_update() {
 }
 
 #[test]
-fn dispatcher_updates_projection_snapshot_for_session_updates() {
+fn dispatcher_does_not_prewrite_projection_snapshot_for_canonical_updates() {
     let projection_registry = Arc::new(ProjectionRegistry::new());
     projection_registry.register_session("session-1".to_string(), CanonicalAgentId::ClaudeCode);
     let (dispatcher, _captured_events) =
@@ -1865,9 +1906,9 @@ fn dispatcher_updates_projection_snapshot_for_session_updates() {
         .snapshot_for_session("session-1")
         .expect("expected session snapshot");
     assert_eq!(snapshot.agent_id, Some(CanonicalAgentId::ClaudeCode));
-    assert_eq!(snapshot.message_count, 1);
-    assert_eq!(snapshot.turn_state, SessionTurnState::Completed);
-    assert_eq!(snapshot.last_event_seq, 2);
+    assert_eq!(snapshot.message_count, 0);
+    assert_eq!(snapshot.turn_state, SessionTurnState::Idle);
+    assert_eq!(snapshot.last_event_seq, 0);
 }
 
 #[test]
@@ -2045,7 +2086,7 @@ fn e2e_tool_call_emits_raw_update_bridge_and_canonical_operation_domain_event() 
 /// level, but the projection snapshot is updated consistently because
 /// apply_canonical_event is idempotent for the same operation_id.
 #[test]
-fn e2e_duplicate_tool_call_enqueue_updates_projection_idempotently() {
+fn e2e_duplicate_tool_call_enqueue_defers_projection_to_canonical_persistence() {
     let projection_registry = Arc::new(ProjectionRegistry::new());
     projection_registry.register_session("session-idem".to_string(), CanonicalAgentId::ClaudeCode);
     let (dispatcher, captured_events) =
@@ -2086,16 +2127,12 @@ fn e2e_duplicate_tool_call_enqueue_updates_projection_idempotently() {
     let captured = captured_events.lock().expect("lock");
     assert_eq!(captured.len(), 4);
 
-    // Projection level: the snapshot reflects a consistent final state
-    // (apply_canonical_event is the idempotency gate, not the dispatcher)
+    // The enqueue boundary is ordering-only. Canonical persistence owns the
+    // graph fold and mirrors projections after journal sequence allocation.
     let snapshot = projection_registry
         .snapshot_for_session("session-idem")
         .expect("snapshot must exist");
-    // Snapshot is valid after duplicate delivery — no panic, no corrupted state
-    assert!(
-        snapshot.last_event_seq >= 1,
-        "projection must have advanced"
-    );
+    assert_eq!(snapshot.last_event_seq, 0);
 }
 
 #[test]

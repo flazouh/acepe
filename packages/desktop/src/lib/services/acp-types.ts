@@ -489,7 +489,15 @@ export type SessionOpenErrorReason = "parseFailure" | "providerUnavailable" | "p
  */
 export type SessionOpenError = { requestedSessionId: string; message: string; reason: SessionOpenErrorReason; retryable: boolean }
 
-export type SessionOpenPath = "hot_ledger" | "legacy_rebuild" | "compat_snapshot"
+export type SessionOpenPath = "hot_ledger" | "legacy_rebuild" |
+/**
+ * Fold-first history open (`HistorySource` → `fold_full`); no compat snapshot round-trip.
+ */
+"fold_history" |
+/**
+ * Local-journal or legacy snapshot hydration (not fold-first history open).
+ */
+"compat_snapshot"
 
 export type SessionOpenTranscriptRowPage = { projectionVersion: string; startRowIndex: number; totalRowCount: number; rowPayloadBytes: number; transcriptRevision: number; graphRevision: number; lastEventSeq: number; rows: TranscriptViewportRow[] }
 

@@ -1,9 +1,11 @@
 //! Interaction fold — plan approval and question facts from tool calls.
 
-use crate::acp::projections::helpers::build_plan_approval_interaction_id;
+use crate::acp::projections::helpers::{
+    build_plan_approval_interaction_id, is_terminal_operation_state,
+};
 use crate::acp::projections::{
-    build_canonical_operation_id, InteractionKind, InteractionPayload, InteractionSnapshot,
-    InteractionState, PlanApprovalSource,
+    build_canonical_operation_id, ComputerPermissionData, InteractionKind, InteractionPayload,
+    InteractionSnapshot, InteractionState, OperationState, PlanApprovalSource,
 };
 use crate::acp::session_state_engine::graph::SessionStateGraph;
 use crate::acp::session_update::{
@@ -108,6 +110,49 @@ pub fn register_question_interaction(
                 &graph.canonical_session_id,
                 &tool_call.id,
             )),
+        },
+    );
+}
+
+pub fn register_computer_permission_interaction(
+    graph: &mut SessionStateGraph,
+    permission: &ComputerPermissionData,
+) {
+    if graph.interactions.iter().any(|interaction| {
+        interaction.id == permission.id && interaction.state != InteractionState::Pending
+    }) {
+        return;
+    }
+
+    let canonical_operation_id = permission
+        .tool
+        .as_ref()
+        .map(|tool| build_canonical_operation_id(&permission.session_id, &tool.call_id));
+    if let Some(operation_id) = canonical_operation_id.as_deref() {
+        if let Some(operation) = graph
+            .operations
+            .iter_mut()
+            .find(|operation| operation.id == operation_id)
+        {
+            if !is_terminal_operation_state(&operation.operation_state) {
+                operation.operation_state = OperationState::Blocked;
+            }
+        }
+    }
+    upsert_interaction(
+        graph,
+        InteractionSnapshot {
+            id: permission.id.clone(),
+            session_id: permission.session_id.clone(),
+            kind: InteractionKind::ComputerPermission,
+            state: InteractionState::Pending,
+            json_rpc_request_id: None,
+            reply_handler: None,
+            tool_reference: permission.tool.clone(),
+            responded_at_event_seq: None,
+            response: None,
+            payload: InteractionPayload::ComputerPermission(permission.clone()),
+            canonical_operation_id,
         },
     );
 }

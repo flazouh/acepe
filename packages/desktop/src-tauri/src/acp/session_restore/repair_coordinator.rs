@@ -7,23 +7,20 @@ use tauri::{AppHandle, Manager};
 use tokio::sync::watch;
 use uuid::Uuid;
 
-use crate::acp::session::engine::fold::{fold_full, FoldContext};
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_open_snapshot::SessionOpenError;
 use crate::acp::session_state_engine::selectors::{
     SessionGraphCapabilities, SessionGraphLifecycle,
 };
 use crate::acp::transcript_viewport::ledger_rebuild::{
+    fold_provider_events_to_session_graph,
     rebuild_and_replace_current_transcript_row_ledger_from_journal,
-    rebuild_and_replace_current_transcript_row_ledger_from_provider_snapshot,
     rebuild_and_replace_current_transcript_row_ledger_from_session_graph,
 };
 use sea_orm::DbConn;
 
 use super::fold_provider_load::load_provider_history_events;
-use super::provider_load::{
-    load_provider_owned_session_snapshot, session_open_error_from_provider_load,
-};
+use super::provider_load::session_open_error_from_provider_load;
 
 const DEFAULT_MAX_CONCURRENT_REPAIRS: usize = 2;
 const COMPLETED_TICKET_TTL: Duration = Duration::from_secs(30);
@@ -315,12 +312,7 @@ async fn rebuild_canonical_transcript_ledger(
 
     match load_provider_history_events(app.clone(), &request.replay_context).await {
         Ok(Some(events)) if !events.is_empty() => {
-            let ctx = FoldContext::new(
-                request.replay_context.local_session_id.clone(),
-                request.replay_context.agent_id.clone(),
-                request.replay_context.project_path.clone(),
-            );
-            let graph = fold_full(&events, &ctx);
+            let graph = fold_provider_events_to_session_graph(&request.replay_context, &events);
             match rebuild_and_replace_current_transcript_row_ledger_from_session_graph(
                 db.inner(),
                 &request.replay_context,
@@ -336,38 +328,15 @@ async fn rebuild_canonical_transcript_ledger(
                     tracing::warn!(
                         session_id = %session_id,
                         error = %error,
-                        "Fold-based transcript repair failed; falling back to provider snapshot"
+                        "Provider event graph repair failed; falling back to canonical journal"
                     );
                 }
             }
         }
         Ok(_) => {}
         Err(error) => {
-            tracing::warn!(
-                session_id = %session_id,
-                error = ?error,
-                "Provider history events unavailable for fold repair; falling back to provider snapshot"
-            );
+            return Err(session_open_error_from_provider_load(session_id, error));
         }
-    }
-
-    match load_provider_owned_session_snapshot(app.clone(), &request.replay_context).await {
-        Ok(Some(snapshot)) => {
-            let rebuilt = rebuild_and_replace_current_transcript_row_ledger_from_provider_snapshot(
-                db.inner(),
-                &request.replay_context,
-                &lifecycle,
-                &capabilities,
-                &snapshot,
-            )
-            .await
-            .map_err(|error| SessionOpenError::internal(session_id, error.to_string()))?;
-            if rebuilt.is_some() {
-                return Ok(());
-            }
-        }
-        Ok(None) => {}
-        Err(error) => return Err(session_open_error_from_provider_load(session_id, error)),
     }
     let rebuilt = rebuild_and_replace_current_transcript_row_ledger_from_journal(
         db.inner(),

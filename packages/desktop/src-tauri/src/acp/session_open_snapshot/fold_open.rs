@@ -2,7 +2,9 @@
 
 use crate::acp::event_hub::AcpEventHubState;
 use crate::acp::projections::{is_terminal_operation_state, InteractionState, SessionTurnState};
-use crate::acp::session::engine::fold::{fold_full, FoldContext};
+use crate::acp::session::engine::fold::{
+    fold_history_with_dedup_frontier, FoldContext, FoldedHistory,
+};
 use crate::acp::session::ingress::event::ProviderEvent;
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_state_engine::graph::select_active_streaming_tail;
@@ -73,12 +75,17 @@ pub async fn session_open_result_from_history_events(
 
     let open_token = Uuid::new_v4();
     let epoch_ms = chrono::Utc::now().timestamp_millis().max(0) as u64;
-    hub.arm_reservation(
+    if let Err(error) = hub.arm_reservation(
         open_token,
         canonical_session_id.clone(),
         last_event_seq,
         epoch_ms,
-    );
+    ) {
+        return SessionOpenResult::Error(SessionOpenError::internal(
+            requested_session_id,
+            error.to_string(),
+        ));
+    }
 
     let metadata_started_at = Instant::now();
     let session_metadata =
@@ -109,7 +116,8 @@ pub async fn session_open_result_from_history_events(
         replay_context.agent_id.clone(),
         replay_context.project_path.clone(),
     );
-    let graph = fold_full(events, &ctx);
+    let folded_history = fold_history_with_dedup_frontier(events, &ctx);
+    let graph = &folded_history.graph;
     let fold_ms = elapsed_ms(fold_started_at);
 
     let local_journal_started_at = Instant::now();
@@ -154,7 +162,7 @@ pub async fn session_open_result_from_history_events(
     let interactions = graph.interactions.clone();
     let projected_graph_revision = session_snap
         .map(|session| session.last_event_seq)
-        .unwrap_or(last_event_seq);
+        .unwrap_or(graph.revision.graph_revision);
     let projection_frontier = if use_local_projection {
         projection_event_seq
     } else {
@@ -162,7 +170,9 @@ pub async fn session_open_result_from_history_events(
     };
     let projection_is_behind_journal = projected_graph_revision < projection_frontier;
     let graph_revision = projected_graph_revision.max(last_event_seq);
-    let raw_turn_state = graph.turn_state.clone();
+    let raw_turn_state = session_snap
+        .map(|session| session.turn_state.clone())
+        .unwrap_or_else(|| graph.turn_state.clone());
     let had_historical_active_state = raw_turn_state == SessionTurnState::Running
         || operations
             .iter()
@@ -193,12 +203,16 @@ pub async fn session_open_result_from_history_events(
     let active_turn_failure = if projection_is_behind_journal {
         None
     } else {
-        graph.active_turn_failure.clone()
+        session_snap
+            .and_then(|session| session.active_turn_failure.clone())
+            .or_else(|| graph.active_turn_failure.clone())
     };
     let last_terminal_turn_id = if projection_is_behind_journal {
         None
     } else {
-        graph.last_terminal_turn_id.clone()
+        session_snap
+            .and_then(|session| session.last_terminal_turn_id.clone())
+            .or_else(|| graph.last_terminal_turn_id.clone())
     };
     let first_user_title = derive_title_from_transcript_snapshot(&transcript_snapshot);
     operations = sanitize_operations_for_historical_open(operations, projection_is_behind_journal);
@@ -223,43 +237,48 @@ pub async fn session_open_result_from_history_events(
     let active_streaming_tail =
         select_active_streaming_tail(&turn_state, &activity, &transcript_snapshot);
     if let Some(runtime_registry) = runtime_registry {
-        let restored = runtime_registry.restore_open_session_state(
-            canonical_session_id.clone(),
-            graph_revision,
-            lifecycle.clone(),
-            capabilities.clone(),
-        );
-        if restored
-            || runtime_registry
-                .graph_for_session(canonical_session_id)
-                .is_none()
-        {
-            let mut held_graph = graph.clone();
-            held_graph.requested_session_id = requested_session_id.to_string();
-            held_graph.canonical_session_id = canonical_session_id.clone();
-            held_graph.is_alias = is_alias;
-            held_graph.agent_id = replay_context.agent_id.clone();
-            held_graph.project_path = replay_context.project_path.clone();
-            held_graph.worktree_path = replay_context.worktree_path.clone();
-            held_graph.source_path = replay_context.source_path.clone();
-            held_graph.sequence_id = session_metadata.sequence_id;
-            held_graph.revision = SessionGraphRevision::new(
-                graph_revision,
-                transcript_snapshot.revision,
+        let restored = runtime_registry
+            .restore_open_session_state(
+                canonical_session_id.clone(),
                 last_event_seq,
+                lifecycle.clone(),
+                capabilities.clone(),
+            )
+            .await;
+        let mut held_graph = graph.clone();
+        held_graph.requested_session_id = requested_session_id.to_string();
+        held_graph.canonical_session_id = canonical_session_id.clone();
+        held_graph.is_alias = is_alias;
+        held_graph.agent_id = replay_context.agent_id.clone();
+        held_graph.project_path = replay_context.project_path.clone();
+        held_graph.worktree_path = replay_context.worktree_path.clone();
+        held_graph.source_path = replay_context.source_path.clone();
+        held_graph.sequence_id = session_metadata.sequence_id;
+        held_graph.revision =
+            SessionGraphRevision::new(graph_revision, transcript_snapshot.revision, last_event_seq);
+        held_graph.transcript_snapshot = transcript_snapshot.clone();
+        held_graph.operations = operations.clone();
+        held_graph.interactions = interactions.clone();
+        held_graph.turn_state = turn_state.clone();
+        held_graph.message_count = message_count;
+        held_graph.active_streaming_tail = active_streaming_tail.clone();
+        held_graph.active_turn_failure = active_turn_failure.clone();
+        held_graph.last_terminal_turn_id = last_terminal_turn_id.clone();
+        held_graph.lifecycle = lifecycle.clone();
+        held_graph.activity = activity.clone();
+        held_graph.capabilities = capabilities.clone();
+        if !runtime_registry.seed_folded_history(
+            canonical_session_id.clone(),
+            FoldedHistory {
+                graph: held_graph.clone(),
+                applied_fold_keys: folded_history.applied_fold_keys.clone(),
+            },
+        ) {
+            let _ = runtime_registry.restore_open_graph(
+                canonical_session_id.clone(),
+                held_graph,
+                restored,
             );
-            held_graph.transcript_snapshot = transcript_snapshot.clone();
-            held_graph.operations = operations.clone();
-            held_graph.interactions = interactions.clone();
-            held_graph.turn_state = turn_state.clone();
-            held_graph.message_count = message_count;
-            held_graph.active_streaming_tail = active_streaming_tail.clone();
-            held_graph.active_turn_failure = active_turn_failure.clone();
-            held_graph.last_terminal_turn_id = last_terminal_turn_id.clone();
-            held_graph.lifecycle = lifecycle.clone();
-            held_graph.activity = activity.clone();
-            held_graph.capabilities = capabilities.clone();
-            runtime_registry.seed_graph(canonical_session_id.clone(), held_graph);
         }
     }
     let projection_ms = elapsed_ms(projection_started_at);

@@ -17,11 +17,11 @@ pub mod cursor;
 pub mod open_code;
 pub mod shared_chat;
 
-pub use claude_code::ClaudeCodeAdapter;
-pub use codex::CodexAdapter;
-pub use copilot::CopilotAdapter;
-pub use cursor::CursorAdapter;
-pub use open_code::OpenCodeAdapter;
+use claude_code::ClaudeCodeAdapter;
+use codex::CodexAdapter;
+use copilot::CopilotAdapter;
+use cursor::CursorAdapter;
+use open_code::OpenCodeAdapter;
 
 /// Zero-allocation check: name matches any of the candidates (ASCII case-insensitive).
 pub(crate) fn any_eq(name: &str, candidates: &[&str]) -> bool {

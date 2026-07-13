@@ -1,7 +1,5 @@
-pub(crate) mod canonical_event;
 pub mod delta;
 pub mod display_id;
-pub mod relink;
 pub mod runtime;
 pub mod snapshot;
 
@@ -9,7 +7,6 @@ pub mod snapshot;
 #[path = "tests/mod.rs"]
 mod characterization_tests;
 
-pub(crate) use canonical_event::{CanonicalTranscriptEvent, CanonicalTranscriptEventKind};
 pub use delta::{TranscriptDelta, TranscriptDeltaOperation};
 pub use display_id::{
     assistant_boundary_entry_count_from_transcript_entries, derive_entry_id,
@@ -19,8 +16,6 @@ pub use display_id::{
 };
 pub use runtime::TranscriptProjectionRegistry;
 pub use snapshot::{TranscriptEntry, TranscriptEntryRole, TranscriptSegment, TranscriptSnapshot};
-
-pub(crate) use relink::relink_operations_to_transcript;
 
 /// Live tool row identity — must match [`derive_tool_entry_id`] for the same turn + tool call.
 #[must_use]

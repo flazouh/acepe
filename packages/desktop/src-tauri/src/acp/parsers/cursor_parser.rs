@@ -10,7 +10,7 @@ use crate::acp::parsers::types::{
     parse_standard_usage_telemetry, parse_todo_write, AgentParser, AgentType, ParseError,
     ParsedQuestion, ParsedTodo, ParsedUsageTelemetry, UpdateType,
 };
-use crate::acp::parsers::CursorAdapter;
+use crate::acp::session::ingress::tool_identity::providers::cursor::CursorAdapter;
 use crate::acp::session::ingress::tool_identity::{
     display_name_for_tool, infer_kind_from_payload_for_agent,
 };

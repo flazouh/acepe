@@ -9,13 +9,10 @@ use crate::acp::provider::{
     AgentProvider, ProjectDiscoveryCompleteness, ProjectPathListing, SpawnConfig,
 };
 use crate::acp::runtime_resolver::SpawnEnvStrategy;
-use crate::acp::session_descriptor::SessionReplayContext;
-use crate::acp::session_thread_snapshot::ProviderOwnedSessionSnapshot;
 use crate::acp::session_update::AvailableCommand;
 use crate::acp::session_update::SessionUpdate;
 use crate::acp::types::ContentBlock;
 use crate::acp::{agent_installer, types::CanonicalAgentId};
-use crate::history::session_context::SessionContext;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
@@ -136,57 +133,6 @@ impl AgentProvider for CodexProvider {
         // Managed cache only. A `codex` on PATH is not the Acepe-provisioned
         // binary — trusting it mis-launches and suppresses auto-install-on-connect.
         agent_installer::is_installed(&CanonicalAgentId::Codex)
-    }
-
-    fn load_provider_owned_session<'a>(
-        &'a self,
-        _app: &'a AppHandle,
-        context: &'a SessionContext,
-        _replay_context: &'a SessionReplayContext,
-    ) -> Pin<
-        Box<
-            dyn Future<
-                    Output = Result<
-                        Option<ProviderOwnedSessionSnapshot>,
-                        crate::acp::provider::ProviderHistoryLoadError,
-                    >,
-                > + Send
-                + 'a,
-        >,
-    > {
-        Box::pin(async move {
-            use crate::acp::session::delivery::{
-                history_error_to_provider_error, load_fold_graph_from_history,
-            };
-            use crate::acp::session::fold_export::{
-                default_session_title, provider_owned_snapshot_from_folded_graph,
-            };
-            use crate::acp::types::CanonicalAgentId;
-
-            let session_id = &context.local_session_id;
-            let lookup_session_id = &context.history_session_id;
-            let title = default_session_title(lookup_session_id);
-
-            match load_fold_graph_from_history(
-                &CanonicalAgentId::Codex,
-                lookup_session_id,
-                &context.effective_project_path,
-                context.source_path.as_deref(),
-            )
-            .await
-            .map(|graph| graph.map(|graph| provider_owned_snapshot_from_folded_graph(graph, title)))
-            {
-                Ok(snapshot) => Ok(snapshot),
-                Err(error) => {
-                    tracing::warn!(
-                        session_id = %session_id,
-                        error = %error,
-                        "Codex session parse failed"
-                    );
-                    Err(history_error_to_provider_error(error))
-                }
-            }
-        })
     }
 
     fn list_project_paths<'a>(

@@ -13,7 +13,7 @@ pub mod types;
 pub use fold_provider_load::load_provider_history_events;
 pub use metadata::canonicalize_persisted_worktree_path;
 pub use open_session::get_session_open_result_domain;
-pub use provider_load::load_provider_owned_session_snapshot;
+pub use provider_load::load_provider_history_events_from_provider;
 pub use repair_coordinator::{
     TranscriptRepairCoordinator, TranscriptRepairPriority, TranscriptRepairRequest,
 };

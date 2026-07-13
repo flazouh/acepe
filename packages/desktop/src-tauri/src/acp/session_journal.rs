@@ -1,4 +1,6 @@
 use crate::acp::agent_context::with_agent;
+use crate::acp::client_session::{SessionModelState, SessionModes};
+use crate::acp::lifecycle::{DetachedReason, FailureReason};
 use crate::acp::parsers::provider_capabilities::provider_capabilities;
 use crate::acp::projections::projection_apply_router::route_projection_apply;
 use crate::acp::projections::{
@@ -8,11 +10,11 @@ use crate::acp::projections::{
 use crate::acp::provider::HistoryReplayFamily;
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_update::{
-    ContentChunk, PermissionData, QuestionData, SessionUpdate, TurnErrorData,
+    AvailableCommand, AvailableCommandsData, ConfigOptionData, ConfigOptionUpdateData,
+    ContentChunk, CurrentModeData, PermissionData, PlanData, QuestionData, SessionCompactionEvent,
+    SessionUpdate, ToolCallData, ToolCallUpdateData, TurnErrorData, UsageTelemetryData,
 };
-use crate::acp::transcript_projection::{
-    TranscriptDeltaOperation, TranscriptProjectionRegistry, TranscriptSegment, TranscriptSnapshot,
-};
+use crate::acp::transcript_projection::{TranscriptSegment, TranscriptSnapshot};
 use crate::acp::types::ContentBlock;
 use crate::db::repository::SerializedSessionJournalEventRow;
 use chrono::Utc;
@@ -47,6 +49,30 @@ pub enum ProjectionJournalUpdate {
         parent_tool_use_id: Option<String>,
         session_id: Option<String>,
     },
+    ToolCall {
+        tool_call: ToolCallData,
+        session_id: Option<String>,
+    },
+    ToolCallUpdate {
+        update: ToolCallUpdateData,
+        session_id: Option<String>,
+    },
+    Plan {
+        plan: PlanData,
+        session_id: Option<String>,
+    },
+    AvailableCommandsUpdate {
+        update: AvailableCommandsData,
+        session_id: Option<String>,
+    },
+    CurrentModeUpdate {
+        update: CurrentModeData,
+        session_id: Option<String>,
+    },
+    ConfigOptionUpdate {
+        update: ConfigOptionUpdateData,
+        session_id: Option<String>,
+    },
     PermissionRequest {
         permission: PermissionData,
         session_id: Option<String>,
@@ -63,6 +89,37 @@ pub enum ProjectionJournalUpdate {
         error: TurnErrorData,
         session_id: Option<String>,
         turn_id: Option<String>,
+    },
+    TurnCancelled {
+        session_id: Option<String>,
+        turn_id: Option<String>,
+    },
+    UsageTelemetryUpdate {
+        data: UsageTelemetryData,
+    },
+    CompactionEvent {
+        event: SessionCompactionEvent,
+        session_id: Option<String>,
+    },
+    ConnectionComplete {
+        session_id: String,
+        attempt_id: u64,
+        models: SessionModelState,
+        modes: SessionModes,
+        available_commands: Option<Vec<AvailableCommand>>,
+        config_options: Option<Vec<ConfigOptionData>>,
+        autonomous_enabled: Option<bool>,
+    },
+    ConnectionFailed {
+        session_id: String,
+        attempt_id: u64,
+        error: String,
+        failure_reason: FailureReason,
+    },
+    SessionDetached {
+        session_id: String,
+        attempt_id: u64,
+        detached_reason: DetachedReason,
     },
 }
 
@@ -107,6 +164,39 @@ impl ProjectionJournalUpdate {
                 parent_tool_use_id: parent_tool_use_id.clone(),
                 session_id: session_id.clone(),
             }),
+            SessionUpdate::ToolCall {
+                tool_call,
+                session_id,
+            } => Some(Self::ToolCall {
+                tool_call: tool_call.clone(),
+                session_id: session_id.clone(),
+            }),
+            SessionUpdate::ToolCallUpdate { update, session_id } => Some(Self::ToolCallUpdate {
+                update: update.clone(),
+                session_id: session_id.clone(),
+            }),
+            SessionUpdate::Plan { plan, session_id } => Some(Self::Plan {
+                plan: plan.clone(),
+                session_id: session_id.clone(),
+            }),
+            SessionUpdate::AvailableCommandsUpdate { update, session_id } => {
+                Some(Self::AvailableCommandsUpdate {
+                    update: update.clone(),
+                    session_id: session_id.clone(),
+                })
+            }
+            SessionUpdate::CurrentModeUpdate { update, session_id } => {
+                Some(Self::CurrentModeUpdate {
+                    update: update.clone(),
+                    session_id: session_id.clone(),
+                })
+            }
+            SessionUpdate::ConfigOptionUpdate { update, session_id } => {
+                Some(Self::ConfigOptionUpdate {
+                    update: update.clone(),
+                    session_id: session_id.clone(),
+                })
+            }
             SessionUpdate::PermissionRequest {
                 permission,
                 session_id,
@@ -114,7 +204,13 @@ impl ProjectionJournalUpdate {
                 permission: permission.clone(),
                 session_id: session_id.clone(),
             }),
-            SessionUpdate::QuestionRequest { .. } => None,
+            SessionUpdate::QuestionRequest {
+                question,
+                session_id,
+            } => Some(Self::QuestionRequest {
+                question: question.clone(),
+                session_id: session_id.clone(),
+            }),
             SessionUpdate::TurnComplete {
                 session_id,
                 turn_id,
@@ -131,7 +227,57 @@ impl ProjectionJournalUpdate {
                 session_id: session_id.clone(),
                 turn_id: turn_id.clone(),
             }),
-            _ => None,
+            SessionUpdate::TurnCancelled {
+                session_id,
+                turn_id,
+            } => Some(Self::TurnCancelled {
+                session_id: session_id.clone(),
+                turn_id: turn_id.clone(),
+            }),
+            SessionUpdate::UsageTelemetryUpdate { data } => {
+                Some(Self::UsageTelemetryUpdate { data: data.clone() })
+            }
+            SessionUpdate::CompactionEvent { event, session_id } => Some(Self::CompactionEvent {
+                event: event.clone(),
+                session_id: session_id.clone(),
+            }),
+            SessionUpdate::ConnectionComplete {
+                session_id,
+                attempt_id,
+                models,
+                modes,
+                available_commands,
+                config_options,
+                autonomous_enabled,
+            } => Some(Self::ConnectionComplete {
+                session_id: session_id.clone(),
+                attempt_id: *attempt_id,
+                models: models.clone(),
+                modes: modes.clone(),
+                available_commands: available_commands.clone(),
+                config_options: config_options.clone(),
+                autonomous_enabled: *autonomous_enabled,
+            }),
+            SessionUpdate::ConnectionFailed {
+                session_id,
+                attempt_id,
+                error,
+                failure_reason,
+            } => Some(Self::ConnectionFailed {
+                session_id: session_id.clone(),
+                attempt_id: *attempt_id,
+                error: error.clone(),
+                failure_reason: *failure_reason,
+            }),
+            SessionUpdate::SessionDetached {
+                session_id,
+                attempt_id,
+                detached_reason,
+            } => Some(Self::SessionDetached {
+                session_id: session_id.clone(),
+                attempt_id: *attempt_id,
+                detached_reason: *detached_reason,
+            }),
         }
     }
 
@@ -175,6 +321,26 @@ impl ProjectionJournalUpdate {
                 parent_tool_use_id,
                 session_id,
             },
+            Self::ToolCall {
+                tool_call,
+                session_id,
+            } => SessionUpdate::ToolCall {
+                tool_call,
+                session_id,
+            },
+            Self::ToolCallUpdate { update, session_id } => {
+                SessionUpdate::ToolCallUpdate { update, session_id }
+            }
+            Self::Plan { plan, session_id } => SessionUpdate::Plan { plan, session_id },
+            Self::AvailableCommandsUpdate { update, session_id } => {
+                SessionUpdate::AvailableCommandsUpdate { update, session_id }
+            }
+            Self::CurrentModeUpdate { update, session_id } => {
+                SessionUpdate::CurrentModeUpdate { update, session_id }
+            }
+            Self::ConfigOptionUpdate { update, session_id } => {
+                SessionUpdate::ConfigOptionUpdate { update, session_id }
+            }
             Self::PermissionRequest {
                 permission,
                 session_id,
@@ -204,6 +370,54 @@ impl ProjectionJournalUpdate {
                 error,
                 session_id,
                 turn_id,
+            },
+            Self::TurnCancelled {
+                session_id,
+                turn_id,
+            } => SessionUpdate::TurnCancelled {
+                session_id,
+                turn_id,
+            },
+            Self::UsageTelemetryUpdate { data } => SessionUpdate::UsageTelemetryUpdate { data },
+            Self::CompactionEvent { event, session_id } => {
+                SessionUpdate::CompactionEvent { event, session_id }
+            }
+            Self::ConnectionComplete {
+                session_id,
+                attempt_id,
+                models,
+                modes,
+                available_commands,
+                config_options,
+                autonomous_enabled,
+            } => SessionUpdate::ConnectionComplete {
+                session_id,
+                attempt_id,
+                models,
+                modes,
+                available_commands,
+                config_options,
+                autonomous_enabled,
+            },
+            Self::ConnectionFailed {
+                session_id,
+                attempt_id,
+                error,
+                failure_reason,
+            } => SessionUpdate::ConnectionFailed {
+                session_id,
+                attempt_id,
+                error,
+                failure_reason,
+            },
+            Self::SessionDetached {
+                session_id,
+                attempt_id,
+                detached_reason,
+            } => SessionUpdate::SessionDetached {
+                session_id,
+                attempt_id,
+                detached_reason,
             },
         }
     }
@@ -515,9 +729,13 @@ fn rebuild_local_transcript_snapshot_until(
     events: &[SessionJournalEvent],
     max_event_seq: Option<i64>,
 ) -> Option<TranscriptSnapshot> {
-    let registry = TranscriptProjectionRegistry::new();
+    let context = crate::acp::session::engine::fold::FoldContext::new(
+        &replay_context.local_session_id,
+        replay_context.agent_id.clone(),
+        &replay_context.project_path,
+    );
+    let mut graph = crate::acp::session::engine::fold::fold_full(&[], &context);
     let mut terminal_guard = TerminalTurnGuard::default();
-    let mut applied_transcript_text = false;
     let mut ordered_events = events.iter().collect::<Vec<_>>();
     ordered_events.sort_by_key(|event| event.event_seq);
 
@@ -532,11 +750,20 @@ fn rebuild_local_transcript_snapshot_until(
         };
         let session_update = update.as_ref().clone().into_session_update();
         let decision = terminal_guard.route(&session_update);
-        if let Some(delta) =
-            registry.apply_session_update(event.event_seq, &session_update, decision)
+        if let Some(provider_event) =
+            crate::acp::session::ingress::live_session_update::session_update_to_provider_event(
+                replay_context.agent_id.clone(),
+                event.event_seq,
+                &session_update,
+                decision,
+            )
         {
-            if delta.operations.iter().any(operation_contains_text_segment) {
-                applied_transcript_text = true;
+            let previous_transcript = graph.transcript_snapshot.clone();
+            graph = crate::acp::session::engine::fold::fold_step(&graph, &provider_event).0;
+            if graph.transcript_snapshot != previous_transcript {
+                graph.transcript_snapshot.revision =
+                    graph.transcript_snapshot.revision.max(event.event_seq);
+                graph.revision.transcript_revision = graph.transcript_snapshot.revision;
             }
         }
         if matches!(
@@ -547,28 +774,16 @@ fn rebuild_local_transcript_snapshot_until(
         }
     }
 
-    if !applied_transcript_text {
+    if !graph
+        .transcript_snapshot
+        .entries
+        .iter()
+        .any(|entry| entry.segments.iter().any(TranscriptSegment::is_nonempty))
+    {
         return None;
     }
 
-    registry.snapshot_for_session(&replay_context.local_session_id)
-}
-
-fn operation_contains_text_segment(operation: &TranscriptDeltaOperation) -> bool {
-    match operation {
-        TranscriptDeltaOperation::AppendEntry { entry } => {
-            entry.segments.iter().any(segment_contains_text)
-        }
-        TranscriptDeltaOperation::AppendSegment { segment, .. } => segment_contains_text(segment),
-        TranscriptDeltaOperation::ReplaceSnapshot { snapshot } => snapshot
-            .entries
-            .iter()
-            .any(|entry| entry.segments.iter().any(segment_contains_text)),
-    }
-}
-
-fn segment_contains_text(segment: &TranscriptSegment) -> bool {
-    segment.is_nonempty()
+    Some(graph.transcript_snapshot)
 }
 
 fn decode_serialized_event(
@@ -618,13 +833,19 @@ mod tests {
     use crate::acp::projections::SessionTurnState;
     use crate::acp::session_descriptor::SessionReplayContext;
     use crate::acp::session_update::{
-        ContentChunk, PermissionData, QuestionData, QuestionItem, QuestionOption, SessionUpdate,
-        TurnErrorData,
+        AvailableCommandsData, ConfigOptionUpdateData, ContentChunk, CurrentModeData,
+        PermissionData, PlanData, QuestionData, QuestionItem, QuestionOption,
+        SessionCompactionEvent, SessionCompactionStatus, SessionCompactionTrigger, SessionUpdate,
+        ToolArguments, ToolCallData, ToolCallStatus, ToolCallUpdateData, TurnErrorData,
+        UsageTelemetryData, UsageTelemetryTokens,
     };
     use crate::acp::transcript_projection::{TranscriptEntryRole, TranscriptSegment};
     use crate::acp::types::CanonicalAgentId;
     use crate::acp::types::ContentBlock;
     use crate::db::repository::SerializedSessionJournalEventRow;
+    use crate::db::repository::{SessionJournalEventRepository, SessionMetadataRepository};
+    use sea_orm::Database;
+    use sea_orm_migration::MigratorTrait;
 
     fn replay_context() -> SessionReplayContext {
         SessionReplayContext {
@@ -682,6 +903,336 @@ mod tests {
                 tool: None,
             },
             session_id: Some("local-session".to_string()),
+        }
+    }
+
+    fn canonical_journal_updates() -> Vec<(&'static str, SessionUpdate)> {
+        let session_id = Some("local-session".to_string());
+        let chunk = ContentChunk {
+            content: ContentBlock::Text {
+                text: "hello".to_string(),
+            },
+            aggregation_hint: None,
+        };
+        let tool_call = ToolCallData {
+            id: "tool-1".to_string(),
+            name: "Read".to_string(),
+            arguments: ToolArguments::Read {
+                file_path: Some("/repo/README.md".to_string()),
+                source_context: None,
+            },
+            diagnostic_input: None,
+            status: ToolCallStatus::Pending,
+            result: None,
+            kind: None,
+            title: None,
+            locations: None,
+            skill_meta: None,
+            normalized_questions: None,
+            normalized_todos: None,
+            normalized_todo_update: None,
+            parent_tool_use_id: None,
+            task_children: None,
+            question_answer: None,
+            awaiting_plan_approval: false,
+            plan_approval_request_id: None,
+        };
+
+        vec![
+            (
+                "user_message_chunk",
+                SessionUpdate::UserMessageChunk {
+                    chunk: chunk.clone(),
+                    session_id: session_id.clone(),
+                    attempt_id: Some("attempt-1".to_string()),
+                },
+            ),
+            (
+                "agent_message_chunk",
+                SessionUpdate::AgentMessageChunk {
+                    chunk: chunk.clone(),
+                    part_id: Some("part-1".to_string()),
+                    message_id: Some("message-1".to_string()),
+                    parent_tool_use_id: None,
+                    session_id: session_id.clone(),
+                    produced_at_monotonic_ms: Some(1),
+                },
+            ),
+            (
+                "agent_thought_chunk",
+                SessionUpdate::AgentThoughtChunk {
+                    chunk,
+                    part_id: Some("thought-1".to_string()),
+                    message_id: Some("message-1".to_string()),
+                    parent_tool_use_id: None,
+                    session_id: session_id.clone(),
+                },
+            ),
+            (
+                "tool_call",
+                SessionUpdate::ToolCall {
+                    tool_call,
+                    session_id: session_id.clone(),
+                },
+            ),
+            (
+                "tool_call_update",
+                SessionUpdate::ToolCallUpdate {
+                    update: ToolCallUpdateData {
+                        tool_call_id: "tool-1".to_string(),
+                        status: Some(ToolCallStatus::Completed),
+                        ..Default::default()
+                    },
+                    session_id: session_id.clone(),
+                },
+            ),
+            (
+                "plan",
+                SessionUpdate::Plan {
+                    plan: PlanData::from_steps(Vec::new()),
+                    session_id: session_id.clone(),
+                },
+            ),
+            (
+                "available_commands_update",
+                SessionUpdate::AvailableCommandsUpdate {
+                    update: AvailableCommandsData {
+                        available_commands: Vec::new(),
+                    },
+                    session_id: session_id.clone(),
+                },
+            ),
+            (
+                "current_mode_update",
+                SessionUpdate::CurrentModeUpdate {
+                    update: CurrentModeData {
+                        current_mode_id: "agent".to_string(),
+                    },
+                    session_id: session_id.clone(),
+                },
+            ),
+            (
+                "config_option_update",
+                SessionUpdate::ConfigOptionUpdate {
+                    update: ConfigOptionUpdateData {
+                        config_options: Vec::new(),
+                    },
+                    session_id: session_id.clone(),
+                },
+            ),
+            ("permission_request", permission_update(1)),
+            ("question_request", question_update(1)),
+            (
+                "turn_complete",
+                SessionUpdate::TurnComplete {
+                    session_id: session_id.clone(),
+                    turn_id: Some("turn-1".to_string()),
+                },
+            ),
+            (
+                "turn_error",
+                SessionUpdate::TurnError {
+                    error: TurnErrorData::Legacy("failed".to_string()),
+                    session_id: session_id.clone(),
+                    turn_id: Some("turn-1".to_string()),
+                },
+            ),
+            (
+                "turn_cancelled",
+                SessionUpdate::TurnCancelled {
+                    session_id: session_id.clone(),
+                    turn_id: Some("turn-1".to_string()),
+                },
+            ),
+            (
+                "usage_telemetry_update",
+                SessionUpdate::UsageTelemetryUpdate {
+                    data: UsageTelemetryData {
+                        session_id: "local-session".to_string(),
+                        event_id: Some("usage-1".to_string()),
+                        scope: "turn".to_string(),
+                        cost_usd: Some(0.25),
+                        tokens: UsageTelemetryTokens::default(),
+                        source_model_id: Some("model-1".to_string()),
+                        timestamp_ms: Some(10),
+                        context_window_size: Some(200_000),
+                        context_window_source: None,
+                        parent_tool_use_id: None,
+                    },
+                },
+            ),
+            (
+                "compaction_event",
+                SessionUpdate::CompactionEvent {
+                    event: SessionCompactionEvent {
+                        event_id: "compaction-1".to_string(),
+                        session_id: "local-session".to_string(),
+                        status: SessionCompactionStatus::Completed,
+                        trigger: SessionCompactionTrigger::Auto,
+                        pre_compaction_tokens: Some(100),
+                        post_compaction_tokens: Some(50),
+                        dropped_tokens: Some(50),
+                        context_window_size: Some(200_000),
+                        duration_ms: Some(5),
+                        precomputed: Some(false),
+                        preserved_message_count: Some(2),
+                        cumulative_dropped_tokens: Some(50),
+                        timestamp_ms: Some(10),
+                        summary: Some("summary".to_string()),
+                        provider_metadata: serde_json::Value::Null,
+                    },
+                    session_id: session_id.clone(),
+                },
+            ),
+            (
+                "connection_complete",
+                SessionUpdate::ConnectionComplete {
+                    session_id: "local-session".to_string(),
+                    attempt_id: 7,
+                    models: crate::acp::client_session::default_session_model_state(),
+                    modes: crate::acp::client_session::default_modes(),
+                    available_commands: Some(Vec::new()),
+                    config_options: Some(Vec::new()),
+                    autonomous_enabled: Some(true),
+                },
+            ),
+            (
+                "connection_failed",
+                SessionUpdate::ConnectionFailed {
+                    session_id: "local-session".to_string(),
+                    attempt_id: 8,
+                    error: "offline".to_string(),
+                    failure_reason: crate::acp::lifecycle::FailureReason::ResumeFailed,
+                },
+            ),
+            (
+                "session_detached",
+                SessionUpdate::SessionDetached {
+                    session_id: "local-session".to_string(),
+                    attempt_id: 9,
+                    detached_reason: crate::acp::lifecycle::DetachedReason::ReconnectExhausted,
+                },
+            ),
+        ]
+    }
+
+    #[test]
+    fn every_canonical_session_update_maps_to_a_durable_journal_update() {
+        for (name, update) in canonical_journal_updates() {
+            let journal_update = ProjectionJournalUpdate::from_session_update(&update)
+                .unwrap_or_else(|| panic!("canonical {name} update must be journaled"));
+            let payload = SessionJournalEventPayload::ProjectionUpdate {
+                update: Box::new(journal_update.clone()),
+            };
+            serde_json::to_string(&payload)
+                .unwrap_or_else(|error| panic!("canonical {name} payload must serialize: {error}"));
+            assert_eq!(
+                journal_update.into_session_update().session_id(),
+                Some("local-session"),
+                "canonical {name} journal roundtrip must retain its session"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn every_canonical_session_update_appends_in_one_durable_sequence() {
+        let db = Database::connect("sqlite::memory:")
+            .await
+            .expect("connect journal database");
+        crate::db::migrations::Migrator::up(&db, None)
+            .await
+            .expect("migrate journal database");
+        SessionMetadataRepository::ensure_exists(&db, "local-session", "/repo", "copilot", None)
+            .await
+            .expect("seed journal session");
+        let updates = canonical_journal_updates();
+
+        for (index, (name, update)) in updates.iter().enumerate() {
+            let record =
+                SessionJournalEventRepository::append_session_update(&db, "local-session", update)
+                    .await
+                    .unwrap_or_else(|error| panic!("canonical {name} append failed: {error}"))
+                    .unwrap_or_else(|| panic!("canonical {name} append returned no row"));
+            assert_eq!(record.event_seq, index as i64 + 1);
+        }
+
+        let rows = SessionJournalEventRepository::list_serialized(&db, "local-session")
+            .await
+            .expect("list canonical journal rows");
+        assert_eq!(rows.len(), updates.len());
+    }
+
+    #[test]
+    fn lifecycle_and_capability_journal_updates_roundtrip_their_payloads() {
+        let mut updates = canonical_journal_updates().into_iter();
+        let connection_complete = updates
+            .find(|(name, _)| *name == "connection_complete")
+            .map(|(_, update)| update)
+            .expect("connection complete fixture");
+        let connection_failed = updates
+            .find(|(name, _)| *name == "connection_failed")
+            .map(|(_, update)| update)
+            .expect("connection failed fixture");
+        let session_detached = updates
+            .find(|(name, _)| *name == "session_detached")
+            .map(|(_, update)| update)
+            .expect("session detached fixture");
+
+        let roundtrip = |update: SessionUpdate| {
+            let journal = ProjectionJournalUpdate::from_session_update(&update)
+                .expect("canonical lifecycle update should map");
+            let serialized = serde_json::to_string(&journal).expect("serialize journal update");
+            serde_json::from_str::<ProjectionJournalUpdate>(&serialized)
+                .expect("deserialize journal update")
+                .into_session_update()
+        };
+
+        match roundtrip(connection_complete) {
+            SessionUpdate::ConnectionComplete {
+                attempt_id,
+                modes,
+                available_commands,
+                config_options,
+                autonomous_enabled,
+                ..
+            } => {
+                assert_eq!(attempt_id, 7);
+                assert_eq!(modes.current_mode_id, "agent");
+                assert_eq!(available_commands.map(|commands| commands.len()), Some(0));
+                assert_eq!(config_options.map(|options| options.len()), Some(0));
+                assert_eq!(autonomous_enabled, Some(true));
+            }
+            other => panic!("expected connection complete, got {other:?}"),
+        }
+        match roundtrip(connection_failed) {
+            SessionUpdate::ConnectionFailed {
+                attempt_id,
+                error,
+                failure_reason,
+                ..
+            } => {
+                assert_eq!(attempt_id, 8);
+                assert_eq!(error, "offline");
+                assert_eq!(
+                    failure_reason,
+                    crate::acp::lifecycle::FailureReason::ResumeFailed
+                );
+            }
+            other => panic!("expected connection failure, got {other:?}"),
+        }
+        match roundtrip(session_detached) {
+            SessionUpdate::SessionDetached {
+                attempt_id,
+                detached_reason,
+                ..
+            } => {
+                assert_eq!(attempt_id, 9);
+                assert_eq!(
+                    detached_reason,
+                    crate::acp::lifecycle::DetachedReason::ReconnectExhausted
+                );
+            }
+            other => panic!("expected session detached, got {other:?}"),
         }
     }
 

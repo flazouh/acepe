@@ -15,6 +15,10 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use uuid::Uuid;
 
 use super::types::CursorChatEntry;
+use crate::acp::parsers::AgentType;
+use crate::acp::session::ingress::canonical_events::full_session_to_provider_events;
+use crate::acp::session::ingress::event::{ProviderEvent, ProviderEventKind};
+use crate::acp::session_update::TurnErrorData;
 use crate::acp::types::CanonicalAgentId;
 use crate::history::constants::{MAX_PROJECTS_TO_SCAN, MAX_SESSIONS_PER_PROJECT};
 use crate::session_jsonl::types::{
@@ -71,11 +75,18 @@ pub struct CursorTranscriptMessage {
 
 #[derive(Debug, Clone, Deserialize)]
 struct CursorJsonlTranscriptEntry {
+    #[serde(default)]
     role: String,
     #[serde(default)]
     message: Option<CursorJsonlMessage>,
     #[serde(default)]
     content: Option<serde_json::Value>,
+    #[serde(rename = "type", default)]
+    row_type: String,
+    #[serde(default)]
+    status: String,
+    #[serde(default)]
+    error: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -804,7 +815,9 @@ pub async fn load_session_from_source(
 
 /// Extract workspace path from a transcript file path.
 /// ~/.cursor/projects/{slug}/agent-transcripts/{id}.json -> slug_to_path(slug)
-fn extract_workspace_from_transcript_path(path: &std::path::Path) -> String {
+pub(in crate::acp::session::ingress::providers::cursor) fn extract_workspace_from_transcript_path(
+    path: &std::path::Path,
+) -> String {
     // Path structures:
     // .../projects/{slug}/agent-transcripts/{id}.json
     // .../projects/{slug}/agent-transcripts/{id}.jsonl
@@ -913,36 +926,103 @@ fn parse_jsonl_transcript_content(content: &str) -> Result<Vec<CursorTranscriptM
         .filter(|line| !line.is_empty())
     {
         let entry: CursorJsonlTranscriptEntry = serde_json::from_str(line)?;
-        if entry.role != "user" && entry.role != "assistant" {
+        if let Some(message) = transcript_message_from_jsonl_entry(entry) {
+            messages.push(message);
+        }
+    }
+
+    Ok(messages)
+}
+
+fn transcript_message_from_jsonl_entry(
+    entry: CursorJsonlTranscriptEntry,
+) -> Option<CursorTranscriptMessage> {
+    if entry.role != "user" && entry.role != "assistant" {
+        return None;
+    }
+
+    let raw_text = entry
+        .message
+        .as_ref()
+        .and_then(|message| message.content.as_ref())
+        .or(entry.content.as_ref())
+        .map(extract_text_from_json_value)
+        .unwrap_or_default();
+
+    if entry.role == "user" {
+        let (user_text, attachments) = txt_transcript::extract_user_content(&raw_text);
+        return Some(CursorTranscriptMessage {
+            role: entry.role,
+            text: (!user_text.trim().is_empty()).then_some(user_text),
+            attachments,
+        });
+    }
+
+    Some(CursorTranscriptMessage {
+        role: entry.role,
+        text: (!raw_text.trim().is_empty()).then_some(raw_text),
+        attachments: None,
+    })
+}
+
+pub(in crate::acp::session::ingress::providers::cursor) async fn parse_jsonl_provider_events(
+    file_path: &PathBuf,
+    session_id: &str,
+    project_path: &str,
+) -> Result<Vec<ProviderEvent>> {
+    let content = tokio::fs::read_to_string(file_path).await?;
+    let mut events = Vec::new();
+    let mut stats = SessionStats::default();
+    let mut message_index = 0usize;
+
+    for (line_index, line) in content.lines().enumerate() {
+        let line = line.trim();
+        if line.is_empty() {
             continue;
         }
-
-        let raw_text = entry
-            .message
-            .as_ref()
-            .and_then(|message| message.content.as_ref())
-            .or(entry.content.as_ref())
-            .map(extract_text_from_json_value)
-            .unwrap_or_default();
-
-        if entry.role == "user" {
-            let (user_text, attachments) = txt_transcript::extract_user_content(&raw_text);
-            messages.push(CursorTranscriptMessage {
-                role: entry.role,
-                text: (!user_text.trim().is_empty()).then_some(user_text),
-                attachments,
+        let entry: CursorJsonlTranscriptEntry = serde_json::from_str(line)?;
+        if entry.row_type == "turn_ended" && entry.status == "error" {
+            events.push(ProviderEvent {
+                source: CanonicalAgentId::Cursor,
+                provider_seq: 0,
+                provider_row_id: format!("cursor-jsonl-line:{line_index}"),
+                timestamp_ms: None,
+                kind: ProviderEventKind::TurnFailure {
+                    error: TurnErrorData::Legacy(
+                        entry
+                            .error
+                            .unwrap_or_else(|| "Cursor turn ended with an error".to_string()),
+                    ),
+                    turn_id: None,
+                },
             });
             continue;
         }
 
-        messages.push(CursorTranscriptMessage {
-            role: entry.role,
-            text: (!raw_text.trim().is_empty()).then_some(raw_text),
-            attachments: None,
-        });
+        let Some(message) = transcript_message_from_jsonl_entry(entry) else {
+            continue;
+        };
+        let ordered_message = parse_transcript_message(&message, message_index, &mut stats);
+        message_index += 1;
+        let row_session = FullSession {
+            session_id: session_id.to_string(),
+            project_path: project_path.to_string(),
+            title: String::new(),
+            created_at: chrono::Utc::now().to_rfc3339(),
+            messages: vec![ordered_message],
+            stats: stats.clone(),
+        };
+        events.extend(full_session_to_provider_events(
+            &row_session,
+            CanonicalAgentId::Cursor,
+            AgentType::Cursor,
+        ));
     }
 
-    Ok(messages)
+    for (provider_seq, event) in events.iter_mut().enumerate() {
+        event.provider_seq = provider_seq as u64;
+    }
+    Ok(events)
 }
 
 fn extract_text_from_json_value(value: &serde_json::Value) -> String {

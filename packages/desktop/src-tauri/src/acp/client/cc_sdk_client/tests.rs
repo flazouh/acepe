@@ -379,6 +379,40 @@ fn make_test_client() -> ClaudeCcSdkClient {
     ))
 }
 
+fn link_canonical_interaction_test_runtime(client: &mut ClaudeCcSdkClient) {
+    let projection_registry = Arc::new(ProjectionRegistry::new());
+    let (dispatcher, _captured_events) =
+        AcpUiEventDispatcher::test_sink_with_projection_registry(Arc::clone(&projection_registry));
+    client.dispatcher = dispatcher;
+    client.projection_registry = projection_registry;
+}
+
+fn seed_canonical_interaction_request(
+    client: &ClaudeCcSdkClient,
+    session_id: &str,
+    update: &SessionUpdate,
+) {
+    let event =
+        crate::acp::session::ingress::live_session_update::session_update_to_provider_event(
+            crate::acp::types::CanonicalAgentId::ClaudeCode,
+            1,
+            update,
+            crate::acp::projections::RouteDecision::default(),
+        )
+        .expect("interaction request should normalize into canonical ingress");
+    let context = crate::acp::session::engine::fold::FoldContext::new(
+        session_id,
+        crate::acp::types::CanonicalAgentId::ClaudeCode,
+        "/workspace",
+    );
+    let empty = crate::acp::session::engine::fold::fold_full(&[], &context);
+    let graph = crate::acp::session::engine::fold::fold_step(&empty, &event).0;
+    client.projection_registry.mirror_session_graph(&graph);
+    client
+        .dispatcher
+        .seed_graph_for_test(session_id.to_string(), graph);
+}
+
 #[tokio::test]
 async fn new_session_hydrates_available_commands_from_provider() {
     let mut client = make_test_client_with_provider(Arc::new(SlashCommandProvider));
@@ -1408,6 +1442,7 @@ async fn respond_persists_permission_approval_into_projection_and_journal() {
 
     let path = "/Users/alex/Documents/acepe/packages/desktop/src/lib/components/ui/tooltip/tooltip-content.svelte";
     let mut client = make_test_client();
+    link_canonical_interaction_test_runtime(&mut client);
     client.db = Some(db.clone());
     client.session_id = Some("session-1".to_string());
     let projection_registry = client.projection_registry.clone();
@@ -1426,7 +1461,7 @@ async fn respond_persists_permission_approval_into_projection_and_journal() {
         },
         session_id: Some("session-1".to_string()),
     };
-    projection_registry.apply_session_update("session-1", &permission_update);
+    seed_canonical_interaction_request(&client, "session-1", &permission_update);
     SessionJournalEventRepository::append_session_update(&db, "session-1", &permission_update)
         .await
         .expect("append permission request update");
@@ -1470,13 +1505,33 @@ async fn respond_persists_permission_approval_into_projection_and_journal() {
         interaction.response,
         Some(InteractionResponse::Permission { accepted: true, .. })
     ));
+    assert_eq!(
+        client
+            .dispatcher
+            .canonical_interaction_for_request_id("session-1", 7)
+            .expect("held canonical interaction should remain addressable")
+            .state,
+        InteractionState::Approved
+    );
 
     let stored_events = SessionJournalEventRepository::list_serialized(&db, "session-1")
         .await
         .expect("list persisted interaction events");
-    assert!(stored_events
-        .iter()
-        .any(|event| event.event_kind == "interaction_transition"));
+    let persisted_row = stored_events
+        .last()
+        .expect("terminal interaction transition should be last");
+    let persisted: crate::acp::session_journal::SessionJournalEventPayload =
+        serde_json::from_str(&persisted_row.event_json)
+            .expect("decode persisted interaction transition");
+    assert_eq!(persisted_row.event_seq, 2);
+    assert!(matches!(
+        persisted,
+        crate::acp::session_journal::SessionJournalEventPayload::InteractionTransition {
+            interaction_id,
+            state: InteractionState::Approved,
+            response: InteractionResponse::Permission { accepted: true, .. },
+        } if interaction_id == "permission-1"
+    ));
 }
 
 #[tokio::test]
@@ -1581,6 +1636,7 @@ async fn reject_interaction_for_request_persists_rejected_permission() {
 
     let path = "/Users/alex/Documents/acepe/packages/desktop/src/lib/components/ui/tooltip/tooltip-content.svelte";
     let mut client = make_test_client();
+    link_canonical_interaction_test_runtime(&mut client);
     client.db = Some(db.clone());
     client.session_id = Some("session-1".to_string());
 
@@ -1599,9 +1655,7 @@ async fn reject_interaction_for_request_persists_rejected_permission() {
         },
         session_id: Some("session-1".to_string()),
     };
-    client
-        .projection_registry
-        .apply_session_update("session-1", &permission_update);
+    seed_canonical_interaction_request(&client, "session-1", &permission_update);
     SessionJournalEventRepository::append_session_update(&db, "session-1", &permission_update)
         .await
         .expect("append permission request update");
@@ -1615,13 +1669,33 @@ async fn reject_interaction_for_request_persists_rejected_permission() {
         .interaction_for_request_id("session-1", 7)
         .expect("interaction should remain addressable");
     assert_eq!(interaction.state, InteractionState::Rejected);
+    assert_eq!(
+        client
+            .dispatcher
+            .canonical_interaction_for_request_id("session-1", 7)
+            .expect("held canonical interaction should remain addressable")
+            .state,
+        InteractionState::Rejected
+    );
 
     let stored_events = SessionJournalEventRepository::list_serialized(&db, "session-1")
         .await
         .expect("list persisted interaction events");
-    assert!(stored_events
-        .iter()
-        .any(|event| event.event_kind == "interaction_transition"));
+    let persisted_row = stored_events
+        .last()
+        .expect("terminal interaction transition should be last");
+    let persisted: crate::acp::session_journal::SessionJournalEventPayload =
+        serde_json::from_str(&persisted_row.event_json)
+            .expect("decode persisted interaction transition");
+    assert_eq!(persisted_row.event_seq, 2);
+    assert!(matches!(
+        persisted,
+        crate::acp::session_journal::SessionJournalEventPayload::InteractionTransition {
+            interaction_id,
+            state: InteractionState::Rejected,
+            response: InteractionResponse::Permission { accepted: false, .. },
+        } if interaction_id == "permission-1"
+    ));
 }
 
 #[tokio::test]
@@ -1649,6 +1723,7 @@ async fn resolve_stream_only_question_interaction_persists_answered_state() {
     }];
 
     let mut client = make_test_client();
+    link_canonical_interaction_test_runtime(&mut client);
     client.db = Some(db.clone());
     client.session_id = Some("session-stream".to_string());
 
@@ -1668,9 +1743,7 @@ async fn resolve_stream_only_question_interaction_persists_answered_state() {
         },
         session_id: Some("session-stream".to_string()),
     };
-    client
-        .projection_registry
-        .apply_session_update("session-stream", &question_update);
+    seed_canonical_interaction_request(&client, "session-stream", &question_update);
     SessionJournalEventRepository::append_session_update(&db, "session-stream", &question_update)
         .await
         .expect("append question request update");
@@ -1689,16 +1762,37 @@ async fn resolve_stream_only_question_interaction_persists_answered_state() {
         .interaction("toolu_stream_only")
         .expect("interaction should exist");
     assert_eq!(interaction.state, InteractionState::Answered);
+    assert_eq!(
+        client
+            .dispatcher
+            .canonical_interaction("session-stream", "toolu_stream_only")
+            .expect("held canonical question should remain addressable")
+            .state,
+        InteractionState::Answered
+    );
 
     let stored_events = SessionJournalEventRepository::list_serialized(&db, "session-stream")
         .await
         .expect("list persisted interaction events");
-    assert!(stored_events
-        .iter()
-        .any(|event| event.event_kind == "interaction_snapshot"));
-    assert!(stored_events
-        .iter()
-        .all(|event| event.event_kind != "projection_update"));
+    let persisted_row = stored_events
+        .last()
+        .expect("terminal interaction snapshot should be last");
+    let persisted: crate::acp::session_journal::SessionJournalEventPayload =
+        serde_json::from_str(&persisted_row.event_json)
+            .expect("decode persisted interaction snapshot");
+    assert_eq!(persisted_row.event_seq, 2);
+    assert!(matches!(
+        persisted,
+        crate::acp::session_journal::SessionJournalEventPayload::InteractionSnapshot {
+            interaction,
+        } if interaction.id == "toolu_stream_only"
+            && interaction.state == InteractionState::Answered
+            && matches!(
+                &interaction.response,
+                Some(InteractionResponse::Question { answers })
+                    if *answers == serde_json::json!({ "Pick one": "Option A" })
+            )
+    ));
 }
 
 #[tokio::test]

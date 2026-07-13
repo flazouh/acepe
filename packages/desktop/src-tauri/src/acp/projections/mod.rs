@@ -5,7 +5,6 @@
 //! already-projected [`ToolCallData`] / updates — it does not re-classify tools.
 
 use crate::acp::parsers::acp_fields::normalize_tool_call_id;
-use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::session_update::{
     InteractionReplyHandler, PermissionData, QuestionData, SessionUpdate, ToolArguments,
     ToolCallData, ToolCallStatus, ToolCallUpdateData, ToolKind, ToolReference, ToolSourceContext,
@@ -20,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use specta::Type;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 const CLAUDE_RESUMED_MISSING_TOOL_RESULT_MESSAGE: &str =
     "Result unavailable: the agent resumed after this tool call but did not provide stdout/stderr to Acepe.";
@@ -43,6 +42,7 @@ pub use terminal_turn_guard::{RouteDecision, TerminalTurnGuard};
 
 #[derive(Debug, Clone, Default)]
 pub struct ProjectionRegistry {
+    projection_state_lock: Arc<RwLock<()>>,
     snapshots: Arc<DashMap<String, SessionSnapshot>>,
     operations_by_id: Arc<DashMap<String, OperationSnapshot>>,
     operation_id_by_tool_key: Arc<DashMap<String, String>>,
@@ -53,11 +53,26 @@ pub struct ProjectionRegistry {
     session_interaction_ids: Arc<DashMap<String, Vec<String>>>,
 }
 
+impl ProjectionRegistry {
+    pub(super) fn projection_read_guard(&self) -> RwLockReadGuard<'_, ()> {
+        self.projection_state_lock
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    pub(super) fn projection_write_guard(&self) -> RwLockWriteGuard<'_, ()> {
+        self.projection_state_lock
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+}
+
 pub mod bridge;
 pub mod helpers;
 pub mod interactions;
 pub mod operations;
 pub mod projection_apply_router;
+mod session_graph_mirror;
 pub mod session_lifecycle;
 pub(crate) use helpers::*;
 pub use projection_apply_router::{

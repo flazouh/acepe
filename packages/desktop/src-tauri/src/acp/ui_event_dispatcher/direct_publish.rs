@@ -81,10 +81,12 @@ pub(crate) async fn publish_direct_session_update<R: tauri::Runtime>(
         }
     }
 
-    if let Some(session_id) = update.session_id() {
-        projection_registry
-            .inner()
-            .apply_session_update(session_id, &update);
+    if !super::persistence::update_has_canonical_ingress(&update) {
+        if let Some(session_id) = update.session_id() {
+            projection_registry
+                .inner()
+                .apply_session_update(session_id, &update);
+        }
     }
 
     let hub = hub_state.inner().clone();
