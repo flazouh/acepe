@@ -7,7 +7,7 @@ pub use acp::session::ingress::providers::codex::codex_history;
 mod commands;
 pub mod computer_use;
 pub use acp::session::ingress::providers::copilot::copilot_history;
-pub mod cursor_history;
+pub use acp::session::ingress::providers::cursor::cursor_history;
 pub mod db;
 pub mod file_index;
 pub mod git;

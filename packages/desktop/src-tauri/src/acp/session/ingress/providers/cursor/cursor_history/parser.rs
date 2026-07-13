@@ -772,7 +772,7 @@ pub async fn load_session_from_source(
         Some("db") => {
             // SQLite store.db - use cursor_sqlite_parser
             let workspace = extract_workspace_from_db_path(path);
-            let result = crate::history::cursor_sqlite_parser::parse_cursor_store_db(
+            let result = crate::acp::session::ingress::providers::cursor::cursor_sqlite_parser::parse_cursor_store_db(
                 path,
                 session_id,
                 workspace.as_deref(),

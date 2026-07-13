@@ -262,6 +262,8 @@ fn provider_history_modules_are_under_ingress_providers() {
         manifest_dir.join("src/copilot_history"),
         manifest_dir.join("src/codex_history"),
         manifest_dir.join("src/opencode_history"),
+        manifest_dir.join("src/cursor_history"),
+        manifest_dir.join("src/history/cursor_sqlite_parser.rs"),
     ];
 
     for path in legacy_roots {
@@ -280,6 +282,10 @@ fn provider_history_modules_are_under_ingress_providers() {
     assert!(
         lib_rs.contains("pub use acp::session::ingress::providers::opencode::opencode_history"),
         "lib.rs must re-export opencode_history from ingress/providers"
+    );
+    assert!(
+        lib_rs.contains("pub use acp::session::ingress::providers::cursor::cursor_history"),
+        "lib.rs must re-export cursor_history from ingress/providers"
     );
 }
 
@@ -392,6 +398,9 @@ fn fold_spine_has_no_materialize_provider_owned_imports() {
 /// - `opencode_history/{parser,commands}.rs` — session list/index + HTTP fetch commands
 ///   (disk ingress is `load_opencode_messages_from_disk` + fold; now nested under
 ///   `session/ingress/providers/opencode/`)
+/// - `cursor_history/{parser,commands}.rs` — session list/index + workspace discovery
+///   (disk ingress is `parse_cursor_store_db` + fold; now nested under
+///   `session/ingress/providers/cursor/`)
 /// - `providers/*/provider.rs` — provider history load return type at fold export boundary
 /// - `history/commands/scanning.rs` — session index title derivation via compat snapshot
 ///   → `TranscriptSnapshot` (no direct `StoredEntry` pattern match in production code)

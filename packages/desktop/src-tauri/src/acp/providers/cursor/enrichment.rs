@@ -554,7 +554,7 @@ async fn load_session_tool_use_cache(session_id: &str) -> Option<SessionToolUseC
 
     let metadata = tokio::fs::metadata(&store_db_path).await.ok()?;
     let modified_at = metadata.modified().ok()?;
-    let session = crate::history::cursor_sqlite_parser::parse_cursor_store_db(
+    let session = crate::acp::session::ingress::providers::cursor::cursor_sqlite_parser::parse_cursor_store_db(
         &store_db_path,
         session_id,
         None,

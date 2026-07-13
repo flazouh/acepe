@@ -702,8 +702,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_load_specific_session_963480f0() {
+        use crate::acp::session::ingress::providers::cursor::cursor_sqlite_parser::parse_cursor_store_db;
         use crate::cursor_history::parser::{find_transcript_by_id, scan_all_chats_with_projects};
-        use crate::history::cursor_sqlite_parser::parse_cursor_store_db;
         use std::path::Path;
 
         if !is_cursor_installed() {
@@ -877,8 +877,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_load_specific_session_3f54d0ba_reconstructs_complete_sequence() {
+        use crate::acp::session::ingress::providers::cursor::cursor_sqlite_parser::parse_cursor_store_db;
         use crate::cursor_history::parser::scan_all_chats_with_projects;
-        use crate::history::cursor_sqlite_parser::parse_cursor_store_db;
         use std::path::Path;
 
         if !is_cursor_installed() {

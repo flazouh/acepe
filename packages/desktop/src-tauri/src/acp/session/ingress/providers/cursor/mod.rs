@@ -1,5 +1,7 @@
 //! Cursor history ingress — store.db bytes → ordered `ProviderEvent` stream.
 
+pub mod cursor_history;
+pub mod cursor_sqlite_parser;
 mod discovery;
 mod sqlite;
 

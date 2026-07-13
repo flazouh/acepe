@@ -1,3 +1,3 @@
-//! Cursor `store.db` parsing — Phase 3 home for `history/cursor_sqlite_parser`.
+//! Cursor `store.db` parsing — nested under the Cursor provider ingress subtree.
 
-pub use crate::history::cursor_sqlite_parser::parse_cursor_store_db;
+pub use super::cursor_sqlite_parser::parse_cursor_store_db;

@@ -1,3 +1,3 @@
-//! Cursor on-disk history discovery — Phase 3 home for `cursor_history::parser` path helpers.
+//! Cursor on-disk history discovery — nested under the Cursor provider ingress subtree.
 
-pub use crate::cursor_history::parser::get_sqlite_store_db_path_for_session;
+pub use super::cursor_history::parser::get_sqlite_store_db_path_for_session;

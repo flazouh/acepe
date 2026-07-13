@@ -96,7 +96,7 @@ pub async fn find_sqlite_session_by_id(session_id: &str) -> Result<Option<FullSe
         );
 
         let workspace = read_acp_session_cwd(&acp_sessions_dir, session_id).await;
-        let session = crate::history::cursor_sqlite_parser::parse_cursor_store_db(
+        let session = crate::acp::session::ingress::providers::cursor::cursor_sqlite_parser::parse_cursor_store_db(
             &store_db_path,
             session_id,
             workspace.as_deref(),
@@ -118,7 +118,7 @@ pub async fn find_sqlite_session_by_id(session_id: &str) -> Result<Option<FullSe
     );
 
     // Workspace path recovery from hash isn't available here.
-    let session = crate::history::cursor_sqlite_parser::parse_cursor_store_db(
+    let session = crate::acp::session::ingress::providers::cursor::cursor_sqlite_parser::parse_cursor_store_db(
         &store_db_path,
         session_id,
         None,
@@ -376,7 +376,7 @@ async fn parse_workspace_composers(
 // ============================================
 // SQLITE FORMAT PARSER (NEW CURSOR FORMAT)
 // ============================================
-// Uses shared CursorStoreMeta from history::cursor_sqlite_parser.
+// Uses shared CursorStoreMeta from cursor_sqlite_parser (sibling module under this provider subtree).
 
 /// Get the Cursor chats directory (~/.cursor/chats).
 fn get_cursor_chats_dir() -> Result<PathBuf> {
@@ -626,11 +626,11 @@ async fn parse_sqlite_chat(
         };
 
         let metadata_bytes = hex::decode(&metadata_hex)?;
-        let metadata: crate::history::cursor_sqlite_parser::CursorStoreMeta =
+        let metadata: crate::acp::session::ingress::providers::cursor::cursor_sqlite_parser::CursorStoreMeta =
             serde_json::from_slice(&metadata_bytes)?;
 
         // S8: shared resolution (same as full-load path)
-        let title = crate::history::cursor_sqlite_parser::resolve_cursor_session_title(
+        let title = crate::acp::session::ingress::providers::cursor::cursor_sqlite_parser::resolve_cursor_session_title(
             &conn,
             &metadata.name,
         );
@@ -657,7 +657,7 @@ pub(super) fn diagnose_title_sync(conn: &Connection) -> Result<String, anyhow::E
     use std::fmt::Write;
 
     let mut out = String::new();
-    use crate::history::cursor_sqlite_parser as cursor_parser;
+    use crate::acp::session::ingress::providers::cursor::cursor_sqlite_parser as cursor_parser;
 
     // Meta (shared struct)
     let metadata_hex: String = conn
