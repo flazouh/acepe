@@ -32,13 +32,14 @@ fn add_stage(stages: &mut Vec<TimingStage>, name: &str, start: Instant) {
     });
 }
 
-fn fold_first_materialized(
+async fn fold_first_materialized(
     agent_id: &CanonicalAgentId,
     session_id: &str,
     project_path: &str,
     source_path: Option<&str>,
 ) -> Result<Option<MaterializedThreadSnapshot>, String> {
     super::fold_audit::materialized_from_history(agent_id, session_id, project_path, source_path)
+        .await
 }
 
 fn materialized_entry_count(materialized: &MaterializedThreadSnapshot) -> usize {
@@ -83,6 +84,7 @@ pub async fn audit_session_load_timing_cli(
                 &project_path,
                 std::path::PathBuf::from(session_path),
             )
+            .await
             .map_err(|error| format!("Failed to fold Claude session history: {error}"))?;
             add_stage(&mut stages, "read_history_and_fold", t1);
 
@@ -96,6 +98,7 @@ pub async fn audit_session_load_timing_cli(
                 &project_path,
                 source_path.as_deref(),
             )
+            .await
             .map_err(|e| format!("Failed to fold Copilot session history: {}", e))?;
             add_stage(&mut stages, "load_session", t0);
             snapshot
@@ -156,6 +159,7 @@ pub async fn audit_session_load_timing_cli(
                 &project_path,
                 source_path.as_deref(),
             )
+            .await
             .map_err(|e| format!("Failed to fold Codex session history: {}", e))?;
             add_stage(&mut stages, "load_session", t0);
             snapshot
@@ -218,6 +222,7 @@ pub async fn audit_session_load_timing_with_app(
                 &project_path,
                 std::path::PathBuf::from(session_path),
             )
+            .await
             .map_err(|error| format!("Failed to fold Claude session history: {error}"))?;
             add_stage(&mut stages, "read_history_and_fold", t1);
 
@@ -231,6 +236,7 @@ pub async fn audit_session_load_timing_with_app(
                 &project_path,
                 source_path.as_deref(),
             )
+            .await
             .map_err(|e| format!("Failed to fold Copilot session history: {}", e))?;
             add_stage(&mut stages, "load_session", t0);
             (snapshot, "copilot".to_string())
@@ -293,6 +299,7 @@ pub async fn audit_session_load_timing_with_app(
                 &project_path,
                 source_path.as_deref(),
             )
+            .await
             .map_err(|e| format!("Failed to fold OpenCode session history: {}", e))?;
             add_stage(&mut stages, "load_from_disk", t0);
 
@@ -320,6 +327,7 @@ pub async fn audit_session_load_timing_with_app(
                 &project_path,
                 source_path.as_deref(),
             )
+            .await
             .map_err(|e| format!("Failed to fold Codex session history: {}", e))?;
             add_stage(&mut stages, "load_session", t0);
             (snapshot, "codex".to_string())

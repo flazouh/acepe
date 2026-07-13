@@ -335,23 +335,29 @@ impl AgentProvider for CursorProvider {
             let session_id = &context.local_session_id;
             let lookup_session_id = &context.history_session_id;
             let title = default_session_title(lookup_session_id);
+            let lookup_session_id = lookup_session_id.clone();
 
-            let try_load = |project_path: &str, source_path: Option<&str>| {
-                load_fold_graph_from_history(
-                    &CanonicalAgentId::Cursor,
-                    lookup_session_id,
-                    project_path,
-                    source_path,
-                )
-                .map(|graph| {
-                    graph.map(|graph| {
-                        provider_owned_snapshot_from_folded_graph(graph, title.clone())
+            let try_load = |project_path: String, source_path: Option<String>| {
+                let title = title.clone();
+                let lookup_session_id = lookup_session_id.clone();
+                async move {
+                    load_fold_graph_from_history(
+                        &CanonicalAgentId::Cursor,
+                        &lookup_session_id,
+                        &project_path,
+                        source_path.as_deref(),
+                    )
+                    .await
+                    .map(|graph| {
+                        graph.map(|graph| {
+                            provider_owned_snapshot_from_folded_graph(graph, title.clone())
+                        })
                     })
-                })
+                }
             };
 
             if let Some(source_path) = context.source_path.as_deref() {
-                match try_load(&context.project_path, Some(source_path)) {
+                match try_load(context.project_path.clone(), Some(source_path.to_string())).await {
                     Ok(Some(snapshot)) => return Ok(Some(snapshot)),
                     Ok(None) => {}
                     Err(error) => {
@@ -365,7 +371,7 @@ impl AgentProvider for CursorProvider {
                 }
             }
 
-            match try_load(&context.project_path, None) {
+            match try_load(context.project_path.clone(), None).await {
                 Ok(snapshot) => Ok(snapshot),
                 Err(HistoryError::NotFound(_)) => Ok(None),
                 Err(error) => {

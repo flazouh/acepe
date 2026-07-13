@@ -268,7 +268,9 @@ impl AgentProvider for CopilotProvider {
                 &context.effective_project_path,
                 context.source_path.as_ref().map(PathBuf::from),
                 None,
-            ) {
+            )
+            .await
+            {
                 Ok(None) => Ok(None),
                 Ok(Some(graph)) => Ok(Some(provider_owned_snapshot_from_folded_graph(
                     graph,

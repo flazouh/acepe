@@ -44,7 +44,7 @@ fn history_input_from_context(
 }
 
 /// Load ordered provider events via the plugin registry (sync test + fold seam).
-pub fn load_history_events(
+pub async fn load_history_events(
     agent_id: &CanonicalAgentId,
     session_id: &str,
     workspace_root: Option<PathBuf>,
@@ -55,11 +55,11 @@ pub fn load_history_events(
     })?;
 
     let input = history_input_from_context(session_id, workspace_root, source_path);
-    source.read(input)
+    source.read(input).await
 }
 
 /// Load and fold provider history into a session graph (no compat snapshot wrapping).
-pub fn load_fold_graph_from_history(
+pub async fn load_fold_graph_from_history(
     agent_id: &CanonicalAgentId,
     history_session_id: &str,
     project_path: &str,
@@ -72,19 +72,21 @@ pub fn load_fold_graph_from_history(
         Some(PathBuf::from(project_path)),
         source_path,
     )
+    .await
 }
 
 /// Like [`load_fold_graph_from_history`] but allows a distinct history workspace root.
 ///
 /// Copilot history discovery uses `None` workspace when no explicit `source_path` is set.
-pub fn load_fold_graph_from_history_workspace(
+pub async fn load_fold_graph_from_history_workspace(
     agent_id: &CanonicalAgentId,
     history_session_id: &str,
     fold_project_path: &str,
     history_workspace: Option<PathBuf>,
     source_path: Option<&str>,
 ) -> Result<Option<SessionStateGraph>, HistoryError> {
-    let events = load_history_events(agent_id, history_session_id, history_workspace, source_path)?;
+    let events =
+        load_history_events(agent_id, history_session_id, history_workspace, source_path).await?;
     if events.is_empty() {
         return Ok(None);
     }
@@ -98,14 +100,15 @@ pub fn load_fold_graph_from_history_workspace(
 }
 
 /// Load fold materialization via HistorySource → fold (no backward-compat entry round-trip).
-pub fn load_materialized_from_history(
+pub async fn load_materialized_from_history(
     agent_id: &CanonicalAgentId,
     history_session_id: &str,
     project_path: &str,
     source_path: Option<&str>,
 ) -> Result<Option<MaterializedThreadSnapshot>, HistoryError> {
     let graph =
-        load_fold_graph_from_history(agent_id, history_session_id, project_path, source_path)?;
+        load_fold_graph_from_history(agent_id, history_session_id, project_path, source_path)
+            .await?;
     Ok(graph.map(|graph| {
         materialized_thread_snapshot_from_folded_graph(
             history_session_id,
@@ -116,7 +119,7 @@ pub fn load_materialized_from_history(
 }
 
 /// Load provider-owned snapshot via HistorySource → fold → backward-compat snapshot mapper.
-pub fn load_provider_owned_snapshot_from_history(
+pub async fn load_provider_owned_snapshot_from_history(
     agent_id: &CanonicalAgentId,
     history_session_id: &str,
     project_path: &str,
@@ -124,7 +127,8 @@ pub fn load_provider_owned_snapshot_from_history(
     title: String,
 ) -> Result<Option<ProviderOwnedSessionSnapshot>, HistoryError> {
     let graph =
-        load_fold_graph_from_history(agent_id, history_session_id, project_path, source_path)?;
+        load_fold_graph_from_history(agent_id, history_session_id, project_path, source_path)
+            .await?;
     Ok(graph.map(|graph| provider_owned_snapshot_from_folded_graph(graph, title)))
 }
 
@@ -140,6 +144,7 @@ pub async fn load_history_events_for_replay(
             Some(PathBuf::from(&replay_context.project_path)),
             replay_context.source_path.as_deref(),
         )
+        .await
         .map_err(history_error_to_provider_error),
         CanonicalAgentId::ClaudeCode => claude_code::load_replay_events(replay_context)
             .await
@@ -165,8 +170,8 @@ mod tests {
     use super::*;
     use crate::acp::session::ingress::plugin::registered_agents;
 
-    #[test]
-    fn load_fold_graph_from_history_resolves_cursor_fixture() {
+    #[tokio::test]
+    async fn load_fold_graph_from_history_resolves_cursor_fixture() {
         let fixture_dir =
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/cursor_sessions");
         let fixture_db = fixture_dir.join("c2a34686-junk-session.db");
@@ -177,6 +182,7 @@ mod tests {
             "/Users/alex/Documents/sandbox",
             Some(fixture_db.to_str().expect("fixture db path is valid utf-8")),
         )
+        .await
         .expect("cursor fold graph should load");
 
         let graph = graph.expect("cursor fold graph must be present");
@@ -190,8 +196,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn load_fold_graph_from_history_resolves_claude_fixture() {
+    #[tokio::test]
+    async fn load_fold_graph_from_history_resolves_claude_fixture() {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("src/acp/session/ingress/tool_identity/tests/fixtures/historical-tool-call-session.jsonl");
 
@@ -201,6 +207,7 @@ mod tests {
             "/project",
             Some(fixture_path.to_str().expect("fixture path is valid utf-8")),
         )
+        .await
         .expect("claude fold graph should load");
 
         let graph = graph.expect("claude fold graph must be present");
@@ -214,8 +221,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn load_history_events_resolves_cursor_junk_fixture() {
+    #[tokio::test]
+    async fn load_history_events_resolves_cursor_junk_fixture() {
         let fixture_dir =
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/cursor_sessions");
 
@@ -225,13 +232,14 @@ mod tests {
             Some(fixture_dir),
             None,
         )
+        .await
         .expect("cursor junk fixture should load");
 
         assert!(!events.is_empty(), "cursor history load must emit events");
     }
 
-    #[test]
-    fn load_history_events_prefers_source_path_over_workspace_root() {
+    #[tokio::test]
+    async fn load_history_events_prefers_source_path_over_workspace_root() {
         let fixture_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("src/acp/session/ingress/tool_identity/tests/fixtures/historical-tool-call-session.jsonl");
 
@@ -241,14 +249,16 @@ mod tests {
             Some(PathBuf::from("/nonexistent/workspace")),
             Some(fixture_path.to_str().expect("fixture path is valid utf-8")),
         )
+        .await
         .expect("claude fixture should load via source_path override");
 
         assert!(!events.is_empty(), "claude history load must emit events");
     }
 
-    #[test]
-    fn load_history_events_errors_for_unregistered_agent() {
+    #[tokio::test]
+    async fn load_history_events_errors_for_unregistered_agent() {
         let error = load_history_events(&CanonicalAgentId::Forge, "session-id", None, None)
+            .await
             .expect_err("forge is not registered");
 
         assert_eq!(

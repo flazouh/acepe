@@ -4,6 +4,7 @@ mod discovery;
 mod jsonl;
 pub mod session_jsonl;
 
+use async_trait::async_trait;
 use std::path::PathBuf;
 
 use crate::acp::session::ingress::event::ProviderEvent;
@@ -17,14 +18,19 @@ use jsonl::{parse_jsonl_file, session_updates_to_provider_events};
 /// Reads Claude Code NDJSON history into provider-agnostic ingress events.
 pub struct ClaudeHistorySource;
 
+#[async_trait]
 impl HistorySource for ClaudeHistorySource {
-    fn read(&self, input: HistoryInput) -> Result<Vec<ProviderEvent>, HistoryError> {
-        let jsonl_path = resolve_jsonl_path(&input)?;
-        let updates = parse_jsonl_file(&jsonl_path)?;
-        Ok(session_updates_to_provider_events(
-            CanonicalAgentId::ClaudeCode,
-            &updates,
-        ))
+    async fn read(&self, input: HistoryInput) -> Result<Vec<ProviderEvent>, HistoryError> {
+        tokio::task::spawn_blocking(move || {
+            let jsonl_path = resolve_jsonl_path(&input)?;
+            let updates = parse_jsonl_file(&jsonl_path)?;
+            Ok(session_updates_to_provider_events(
+                CanonicalAgentId::ClaudeCode,
+                &updates,
+            ))
+        })
+        .await
+        .map_err(|error| HistoryError::Io(format!("Claude history parser task failed: {error}")))?
     }
 }
 
@@ -86,10 +92,12 @@ pub async fn load_replay_events(
         match find_session_file(&session_id, &project_path).await {
             Ok(jsonl_path) => {
                 let source = ClaudeHistorySource;
-                return source.read(HistoryInput {
-                    session_id: session_id.clone(),
-                    workspace_root: Some(jsonl_path),
-                });
+                return source
+                    .read(HistoryInput {
+                        session_id: session_id.clone(),
+                        workspace_root: Some(jsonl_path),
+                    })
+                    .await;
             }
             Err(error) => {
                 last_error = Some(if error.to_string().contains("not found") {
@@ -126,8 +134,8 @@ mod tests {
         historical_tool_call_fixture_dir().join("historical-tool-call-session.jsonl")
     }
 
-    #[test]
-    fn claude_history_source_reads_tool_call_fixture() {
+    #[tokio::test]
+    async fn claude_history_source_reads_tool_call_fixture() {
         const SESSION_ID: &str = "sess-hist-001";
         let fixture_dir = historical_tool_call_fixture_dir();
         assert!(
@@ -142,6 +150,7 @@ mod tests {
                 session_id: SESSION_ID.to_string(),
                 workspace_root: Some(fixture_dir),
             })
+            .await
             .expect("read claude tool-call fixture");
 
         assert_eq!(events.len(), 4);
@@ -161,8 +170,8 @@ mod tests {
         }));
     }
 
-    #[test]
-    fn claude_history_source_reads_direct_jsonl_path() {
+    #[tokio::test]
+    async fn claude_history_source_reads_direct_jsonl_path() {
         const SESSION_ID: &str = "sess-hist-001";
         let fixture_path = historical_tool_call_fixture_path();
 
@@ -172,9 +181,27 @@ mod tests {
                 session_id: SESSION_ID.to_string(),
                 workspace_root: Some(fixture_path),
             })
+            .await
             .expect("read claude tool-call fixture via direct path");
 
         assert_eq!(events.len(), 4);
         assert_eq!(events[0].source, CanonicalAgentId::ClaudeCode);
+    }
+
+    #[tokio::test]
+    async fn claude_history_source_preserves_invalid_format_from_blocking_worker() {
+        let temp_dir = tempfile::tempdir().expect("temp history directory");
+        let history_path = temp_dir.path().join("invalid.jsonl");
+        std::fs::write(&history_path, "not-json\n").expect("write invalid history fixture");
+
+        let error = ClaudeHistorySource
+            .read(HistoryInput {
+                session_id: "invalid".to_string(),
+                workspace_root: Some(history_path),
+            })
+            .await
+            .expect_err("invalid history must preserve its format error");
+
+        assert!(matches!(error, HistoryError::InvalidFormat(_)));
     }
 }

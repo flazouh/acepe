@@ -130,12 +130,15 @@ async fn load_materialized_for_audit_cli(
         CanonicalAgentId::Custom(_) => {
             Err("Custom agents do not support restored tool link audit".to_string())
         }
-        _ => materialized_from_history(
-            canonical_agent,
-            session_id,
-            project_path,
-            source_path.as_deref(),
-        ),
+        _ => {
+            materialized_from_history(
+                canonical_agent,
+                session_id,
+                project_path,
+                source_path.as_deref(),
+            )
+            .await
+        }
     }
 }
 

@@ -17,7 +17,7 @@ fn fallback_title(session_id: &str) -> String {
     format!("Session {}", &session_id[..8.min(session_id.len())])
 }
 
-pub fn claude_materialized_from_jsonl_path(
+pub async fn claude_materialized_from_jsonl_path(
     session_id: &str,
     project_path: &str,
     jsonl_path: PathBuf,
@@ -27,6 +27,7 @@ pub fn claude_materialized_from_jsonl_path(
             session_id: session_id.to_string(),
             workspace_root: Some(jsonl_path),
         })
+        .await
         .map_err(history_error_message)?;
 
     Ok(materialized_thread_snapshot_from_history_events(
@@ -48,7 +49,7 @@ pub fn cursor_materialized_from_full_session(session: &FullSession) -> Materiali
     )
 }
 
-pub fn materialized_from_history(
+pub async fn materialized_from_history(
     agent_id: &CanonicalAgentId,
     session_id: &str,
     project_path: &str,
@@ -60,6 +61,7 @@ pub fn materialized_from_history(
         Some(PathBuf::from(project_path)),
         source_path,
     )
+    .await
     .map_err(history_error_message)?;
 
     if events.is_empty() {

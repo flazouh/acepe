@@ -3,6 +3,7 @@
 use std::fmt;
 use std::path::PathBuf;
 
+use async_trait::async_trait;
 use serde_json::Value;
 
 use crate::acp::parsers::ParseError;
@@ -59,6 +60,7 @@ pub trait LiveSource: Sync {
 }
 
 /// Reads provider history from disk into ordered provider events.
+#[async_trait]
 pub trait HistorySource: Sync {
-    fn read(&self, input: HistoryInput) -> Result<Vec<ProviderEvent>, HistoryError>;
+    async fn read(&self, input: HistoryInput) -> Result<Vec<ProviderEvent>, HistoryError>;
 }

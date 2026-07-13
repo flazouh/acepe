@@ -228,25 +228,33 @@ impl AgentProvider for ClaudeCodeProvider {
 
             let session_id = &context.local_session_id;
             let title = default_session_title(&context.history_session_id);
+            let history_session_id = context.history_session_id.clone();
+            let source_path = context.source_path.clone();
 
-            let try_load = |project_path: &str| {
-                load_fold_graph_from_history(
-                    &CanonicalAgentId::ClaudeCode,
-                    &context.history_session_id,
-                    project_path,
-                    context.source_path.as_deref(),
-                )
-                .map(|graph| {
-                    graph.map(|graph| {
-                        provider_owned_snapshot_from_folded_graph(graph, title.clone())
+            let try_load = |project_path: String| {
+                let title = title.clone();
+                let history_session_id = history_session_id.clone();
+                let source_path = source_path.clone();
+                async move {
+                    load_fold_graph_from_history(
+                        &CanonicalAgentId::ClaudeCode,
+                        &history_session_id,
+                        &project_path,
+                        source_path.as_deref(),
+                    )
+                    .await
+                    .map(|graph| {
+                        graph.map(|graph| {
+                            provider_owned_snapshot_from_folded_graph(graph, title.clone())
+                        })
                     })
-                })
+                }
             };
 
-            match try_load(&context.effective_project_path) {
+            match try_load(context.effective_project_path.clone()).await {
                 Ok(snapshot) => Ok(snapshot),
                 Err(_error) if context.effective_project_path != context.project_path => {
-                    match try_load(&context.project_path) {
+                    match try_load(context.project_path.clone()).await {
                         Ok(snapshot) => Ok(snapshot),
                         Err(fallback_error) => {
                             tracing::warn!(

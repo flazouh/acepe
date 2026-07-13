@@ -284,23 +284,34 @@ impl AgentProvider for OpenCodeProvider {
             let session_id = &context.local_session_id;
             let lookup_session_id = &context.history_session_id;
             let title = default_session_title(lookup_session_id);
+            let lookup_session_id = lookup_session_id.clone();
 
-            let try_load = |project_path: &str, source_path: Option<&str>| {
-                load_fold_graph_from_history(
-                    &CanonicalAgentId::OpenCode,
-                    lookup_session_id,
-                    project_path,
-                    source_path,
-                )
-                .map(|graph| {
-                    graph.map(|graph| {
-                        provider_owned_snapshot_from_folded_graph(graph, title.clone())
+            let try_load = |project_path: String, source_path: Option<String>| {
+                let title = title.clone();
+                let lookup_session_id = lookup_session_id.clone();
+                async move {
+                    load_fold_graph_from_history(
+                        &CanonicalAgentId::OpenCode,
+                        &lookup_session_id,
+                        &project_path,
+                        source_path.as_deref(),
+                    )
+                    .await
+                    .map(|graph| {
+                        graph.map(|graph| {
+                            provider_owned_snapshot_from_folded_graph(graph, title.clone())
+                        })
                     })
-                })
+                }
             };
 
             if let Some(source_path) = context.source_path.as_deref() {
-                match try_load(&context.effective_project_path, Some(source_path)) {
+                match try_load(
+                    context.effective_project_path.clone(),
+                    Some(source_path.to_string()),
+                )
+                .await
+                {
                     Ok(Some(snapshot)) => {
                         tracing::info!(
                             session_id = %session_id,
@@ -320,7 +331,7 @@ impl AgentProvider for OpenCodeProvider {
                 }
             }
 
-            let disk_result = try_load(&context.effective_project_path, None);
+            let disk_result = try_load(context.effective_project_path.clone(), None).await;
 
             if let Ok(Some(snapshot)) = disk_result {
                 tracing::info!(
@@ -345,7 +356,7 @@ impl AgentProvider for OpenCodeProvider {
 
             match crate::opencode_history::commands::fetch_provider_owned_opencode_session(
                 app,
-                lookup_session_id,
+                &lookup_session_id,
                 &context.effective_project_path,
             )
             .await

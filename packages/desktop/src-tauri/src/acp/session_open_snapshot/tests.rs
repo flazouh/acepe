@@ -3364,8 +3364,8 @@ async fn error_outcome_round_trips_over_serde() {
     assert!(!e.retryable);
 }
 
-#[test]
-fn fold_open_cursor_junk_matches_golden() {
+#[tokio::test]
+async fn fold_open_cursor_junk_matches_golden() {
     use crate::acp::session::engine::persisted_region::{
         extract_persisted_region, persisted_regions_equal, PersistedSessionGraph,
     };
@@ -3384,6 +3384,7 @@ fn fold_open_cursor_junk_matches_golden() {
             session_id: SESSION_ID.to_string(),
             workspace_root: Some(fixture_dir),
         })
+        .await
         .expect("read cursor junk fixture");
 
     assert!(
@@ -3391,20 +3392,20 @@ fn fold_open_cursor_junk_matches_golden() {
         "HistorySource must emit events from junk fixture"
     );
 
-    let rt = tokio::runtime::Runtime::new().expect("runtime");
-    let db = rt.block_on(setup_db());
+    let db = setup_db().await;
     let hub = make_hub();
-    rt.block_on(seed_session_metadata(&db, SESSION_ID, "cursor"));
+    seed_session_metadata(&db, SESSION_ID, "cursor").await;
     let replay_context = replay_context_for_session(SESSION_ID, CanonicalAgentId::Cursor);
 
-    let result = rt.block_on(session_open_result_from_history_events(
+    let result = session_open_result_from_history_events(
         &db,
         &hub,
         None,
         &replay_context,
         SESSION_ID,
         &events,
-    ));
+    )
+    .await;
 
     let SessionOpenResult::Found(found) = result else {
         panic!("expected fold-based history open to succeed");

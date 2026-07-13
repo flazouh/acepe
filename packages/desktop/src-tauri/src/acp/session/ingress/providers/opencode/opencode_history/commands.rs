@@ -74,11 +74,12 @@ fn resolve_project_root_for_history(project_path: &str) -> Result<std::path::Pat
         .map_err(|error| error.message_for(std::path::Path::new(project_path.trim())))
 }
 
-fn try_load_opencode_materialized_from_disk(
+async fn try_load_opencode_materialized_from_disk(
     session_id: &str,
     directory: &str,
 ) -> Result<Option<MaterializedThreadSnapshot>, String> {
     load_materialized_from_history(&CanonicalAgentId::OpenCode, session_id, directory, None)
+        .await
         .map_err(|error| error.to_string())
 }
 
@@ -88,7 +89,8 @@ pub(crate) async fn fetch_materialized_opencode_session(
     session_id: &str,
     directory: &str,
 ) -> Result<MaterializedThreadSnapshot, String> {
-    if let Ok(Some(materialized)) = try_load_opencode_materialized_from_disk(session_id, directory)
+    if let Ok(Some(materialized)) =
+        try_load_opencode_materialized_from_disk(session_id, directory).await
     {
         return Ok(materialized);
     }
@@ -122,7 +124,8 @@ pub(crate) async fn fetch_provider_owned_opencode_session(
     session_id: &str,
     directory: &str,
 ) -> Result<ProviderOwnedSessionSnapshot, String> {
-    if let Ok(Some(materialized)) = try_load_opencode_materialized_from_disk(session_id, directory)
+    if let Ok(Some(materialized)) =
+        try_load_opencode_materialized_from_disk(session_id, directory).await
     {
         return Ok(
             crate::acp::session::fold_export::provider_owned_snapshot_from_materialized(

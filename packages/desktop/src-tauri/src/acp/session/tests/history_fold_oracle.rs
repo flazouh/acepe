@@ -14,8 +14,8 @@ use crate::acp::session_open_snapshot::SessionOpenPath;
 use crate::acp::types::CanonicalAgentId;
 use std::path::PathBuf;
 
-#[test]
-fn cursor_history_source_fold_matches_phase0_golden() {
+#[tokio::test]
+async fn cursor_history_source_fold_matches_phase0_golden() {
     const SESSION_ID: &str = "c2a34686-f99a-4632-90e2-e036b96124c2";
 
     let fixture_dir =
@@ -26,6 +26,7 @@ fn cursor_history_source_fold_matches_phase0_golden() {
             session_id: SESSION_ID.to_string(),
             workspace_root: Some(fixture_dir),
         })
+        .await
         .expect("read cursor junk fixture");
 
     assert!(
@@ -48,8 +49,8 @@ fn cursor_history_source_fold_matches_phase0_golden() {
     );
 }
 
-#[test]
-fn cursor_history_source_open_from_fold_matches_phase0_golden() {
+#[tokio::test]
+async fn cursor_history_source_open_from_fold_matches_phase0_golden() {
     const SESSION_ID: &str = "c2a34686-f99a-4632-90e2-e036b96124c2";
 
     let fixture_dir =
@@ -60,6 +61,7 @@ fn cursor_history_source_open_from_fold_matches_phase0_golden() {
             session_id: SESSION_ID.to_string(),
             workspace_root: Some(fixture_dir),
         })
+        .await
         .expect("read cursor junk fixture");
 
     let ctx = FoldContext::new(
@@ -87,8 +89,8 @@ fn cursor_history_source_open_from_fold_matches_phase0_golden() {
     );
 }
 
-#[test]
-fn claude_history_source_fold_matches_phase0_golden() {
+#[tokio::test]
+async fn claude_history_source_fold_matches_phase0_golden() {
     const SESSION_ID: &str = "sess-hist-001";
 
     let fixture_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -99,6 +101,7 @@ fn claude_history_source_fold_matches_phase0_golden() {
             session_id: SESSION_ID.to_string(),
             workspace_root: Some(fixture_dir),
         })
+        .await
         .expect("read claude tool-call fixture");
 
     assert!(

@@ -10,6 +10,7 @@ mod disk;
 
 pub use disk::load_provider_events_from_disk;
 
+use async_trait::async_trait;
 use std::path::PathBuf;
 
 use crate::acp::session::ingress::event::ProviderEvent;
@@ -19,26 +20,14 @@ use crate::acp::session_descriptor::SessionReplayContext;
 /// Reads Copilot `events.jsonl` history into provider-agnostic ingress events.
 pub struct CopilotHistorySource;
 
+#[async_trait]
 impl HistorySource for CopilotHistorySource {
-    fn read(&self, input: HistoryInput) -> Result<Vec<ProviderEvent>, HistoryError> {
+    async fn read(&self, input: HistoryInput) -> Result<Vec<ProviderEvent>, HistoryError> {
         let source_path = resolve_source_path(&input)?;
         let title = fallback_title(&input.session_id);
-        block_on_async(load_provider_events_from_disk(
-            &input.session_id,
-            source_path.as_deref(),
-            &title,
-        ))
-        .map_err(HistoryError::InvalidFormat)
-    }
-}
-
-fn block_on_async<F: std::future::Future>(future: F) -> F::Output {
-    if let Ok(handle) = tokio::runtime::Handle::try_current() {
-        handle.block_on(future)
-    } else {
-        tokio::runtime::Runtime::new()
-            .expect("tokio runtime for Copilot history ingress")
-            .block_on(future)
+        load_provider_events_from_disk(&input.session_id, source_path.as_deref(), &title)
+            .await
+            .map_err(HistoryError::InvalidFormat)
     }
 }
 
@@ -77,20 +66,38 @@ pub async fn load_replay_events(
     replay_context: &SessionReplayContext,
 ) -> Result<Vec<ProviderEvent>, HistoryError> {
     let source = CopilotHistorySource;
-    source.read(HistoryInput {
-        session_id: replay_context.history_session_id.clone(),
-        workspace_root: replay_context.source_path.as_ref().map(PathBuf::from),
-    })
+    source
+        .read(HistoryInput {
+            session_id: replay_context.history_session_id.clone(),
+            workspace_root: replay_context.source_path.as_ref().map(PathBuf::from),
+        })
+        .await
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::acp::session::ingress::event::ProviderEventKind;
     use crate::acp::session_update::{
         ContentChunk, ToolArguments, ToolCallData, ToolCallStatus, ToolCallUpdateData, ToolKind,
     };
     use crate::acp::types::ContentBlock;
     use crate::copilot_history::convert_replay_updates_to_provider_events;
+
+    #[tokio::test]
+    async fn copilot_history_source_reads_inside_active_tokio_runtime() {
+        let temp_file = tempfile::NamedTempFile::new().expect("temp events file");
+
+        let error = CopilotHistorySource
+            .read(HistoryInput {
+                session_id: "missing-session".to_string(),
+                workspace_root: Some(temp_file.path().to_path_buf()),
+            })
+            .await
+            .expect_err("a transcript outside Copilot storage must be rejected");
+
+        assert!(matches!(error, HistoryError::InvalidFormat(_)));
+    }
 
     #[test]
     fn copilot_history_source_maps_replay_entries_to_provider_events() {

@@ -48,7 +48,7 @@ fn oracle_is_ignored_elsewhere(oracle_name: &str) -> bool {
     prefix.contains("#[ignore")
 }
 
-fn run_cursor_history_source_fold_oracle() -> Result<(), String> {
+async fn run_cursor_history_source_fold_oracle() -> Result<(), String> {
     const SESSION_ID: &str = "c2a34686-f99a-4632-90e2-e036b96124c2";
 
     let fixture_dir =
@@ -59,6 +59,7 @@ fn run_cursor_history_source_fold_oracle() -> Result<(), String> {
             session_id: SESSION_ID.to_string(),
             workspace_root: Some(fixture_dir),
         })
+        .await
         .map_err(|error| format!("read cursor junk fixture: {error}"))?;
 
     if events.is_empty() {
@@ -158,8 +159,8 @@ fn session_materialization_module_is_deleted() {
     );
 }
 
-#[test]
-fn all_phase0_golden_oracles_are_green() {
+#[tokio::test]
+async fn all_phase0_golden_oracles_are_green() {
     let oracles = [ORACLE_CURSOR_HISTORY, ORACLE_HISTORICAL_TOOL_CALL];
 
     let mut ignored = Vec::new();
@@ -171,7 +172,7 @@ fn all_phase0_golden_oracles_are_green() {
         }
 
         let result = match oracle {
-            ORACLE_CURSOR_HISTORY => run_cursor_history_source_fold_oracle(),
+            ORACLE_CURSOR_HISTORY => run_cursor_history_source_fold_oracle().await,
             ORACLE_HISTORICAL_TOOL_CALL => run_fold_full_historical_tool_call_oracle(),
             other => panic!("unhandled oracle: {other}"),
         };

@@ -173,6 +173,7 @@ impl AgentProvider for CodexProvider {
                 &context.effective_project_path,
                 context.source_path.as_deref(),
             )
+            .await
             .map(|graph| graph.map(|graph| provider_owned_snapshot_from_folded_graph(graph, title)))
             {
                 Ok(snapshot) => Ok(snapshot),

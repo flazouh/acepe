@@ -3,6 +3,7 @@
 mod disk;
 pub mod opencode_history;
 
+use async_trait::async_trait;
 use std::path::PathBuf;
 
 use crate::acp::session::ingress::event::ProviderEvent;
@@ -16,32 +17,21 @@ use disk::load_opencode_messages_from_disk;
 /// Reads OpenCode local storage history into provider-agnostic ingress events.
 pub struct OpenCodeHistorySource;
 
+#[async_trait]
 impl HistorySource for OpenCodeHistorySource {
-    fn read(&self, input: HistoryInput) -> Result<Vec<ProviderEvent>, HistoryError> {
+    async fn read(&self, input: HistoryInput) -> Result<Vec<ProviderEvent>, HistoryError> {
         let source_path = resolve_source_path(&input)?;
-        let messages = block_on_async(load_opencode_messages_from_disk(
-            &input.session_id,
-            source_path.as_deref(),
-        ))
-        .map_err(|error| HistoryError::Io(error.to_string()))?
-        .ok_or_else(|| {
-            HistoryError::NotFound(format!(
-                "OpenCode provider history missing for session {}",
-                input.session_id
-            ))
-        })?;
+        let messages = load_opencode_messages_from_disk(&input.session_id, source_path.as_deref())
+            .await
+            .map_err(|error| HistoryError::Io(error.to_string()))?
+            .ok_or_else(|| {
+                HistoryError::NotFound(format!(
+                    "OpenCode provider history missing for session {}",
+                    input.session_id
+                ))
+            })?;
 
         Ok(opencode_messages_to_provider_events(&messages))
-    }
-}
-
-fn block_on_async<F: std::future::Future>(future: F) -> F::Output {
-    if let Ok(handle) = tokio::runtime::Handle::try_current() {
-        handle.block_on(future)
-    } else {
-        tokio::runtime::Runtime::new()
-            .expect("tokio runtime for OpenCode history ingress")
-            .block_on(future)
     }
 }
 
@@ -70,10 +60,12 @@ pub async fn load_replay_events(
     replay_context: &SessionReplayContext,
 ) -> Result<Vec<ProviderEvent>, HistoryError> {
     let source = OpenCodeHistorySource;
-    source.read(HistoryInput {
-        session_id: replay_context.history_session_id.clone(),
-        workspace_root: replay_context.source_path.as_ref().map(PathBuf::from),
-    })
+    source
+        .read(HistoryInput {
+            session_id: replay_context.history_session_id.clone(),
+            workspace_root: replay_context.source_path.as_ref().map(PathBuf::from),
+        })
+        .await
 }
 
 #[cfg(test)]
@@ -119,14 +111,15 @@ mod tests {
         ));
     }
 
-    #[test]
-    fn opencode_history_source_reports_missing_disk_history() {
+    #[tokio::test]
+    async fn opencode_history_source_reports_missing_disk_history() {
         let source = OpenCodeHistorySource;
         let error = source
             .read(HistoryInput {
                 session_id: "ses_nonexistent_fixture".to_string(),
                 workspace_root: None,
             })
+            .await
             .expect_err("missing opencode history should error");
 
         assert!(matches!(error, HistoryError::NotFound(_)));

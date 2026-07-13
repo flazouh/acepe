@@ -233,8 +233,8 @@ fn every_registered_plugin_has_history_and_live_source() {
     }
 }
 
-#[test]
-fn every_registered_plugin_reads_its_fixture_without_error() {
+#[tokio::test]
+async fn every_registered_plugin_reads_its_fixture_without_error() {
     use crate::acp::session::ingress::plugin::history_source_for;
 
     for agent in registered_agents() {
@@ -247,6 +247,7 @@ fn every_registered_plugin_reads_its_fixture_without_error() {
                     session_id: session_id.to_string(),
                     workspace_root: Some(fixture_dir),
                 })
+                .await
                 .unwrap_or_else(|error| panic!("plugin {agent:?} failed to read fixture: {error}"))
         } else {
             let synthetic = synthetic_events_for(&agent);
