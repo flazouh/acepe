@@ -1,6 +1,7 @@
 //! OpenCode history ingress — local storage messages → ordered `ProviderEvent` stream.
 
 mod disk;
+pub mod opencode_history;
 
 use std::path::PathBuf;
 
@@ -8,7 +9,7 @@ use crate::acp::session::ingress::event::ProviderEvent;
 use crate::acp::session::ingress::source::{HistoryError, HistoryInput, HistorySource};
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::types::CanonicalAgentId;
-pub use crate::opencode_history::convert::opencode_messages_to_provider_events;
+pub use opencode_history::convert::opencode_messages_to_provider_events;
 
 use disk::load_opencode_messages_from_disk;
 
@@ -77,9 +78,9 @@ pub async fn load_replay_events(
 
 #[cfg(test)]
 mod tests {
+    use super::opencode_history::types::{OpenCodeMessage, OpenCodeMessagePart};
     use super::*;
     use crate::acp::session::ingress::event::ProviderEventKind;
-    use crate::opencode_history::types::{OpenCodeMessage, OpenCodeMessagePart};
 
     #[test]
     fn opencode_history_source_converts_messages_to_provider_events() {

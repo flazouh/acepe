@@ -16,7 +16,7 @@ pub mod history;
 mod macos_fps;
 #[cfg(target_os = "macos")]
 mod macos_resource_limits;
-pub mod opencode_history;
+pub use acp::session::ingress::providers::opencode::opencode_history;
 pub mod path_safety;
 pub mod project_access;
 pub mod provider_account_usage;

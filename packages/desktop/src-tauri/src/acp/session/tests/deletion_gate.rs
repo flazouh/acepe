@@ -261,6 +261,7 @@ fn provider_history_modules_are_under_ingress_providers() {
         manifest_dir.join("src/session_jsonl"),
         manifest_dir.join("src/copilot_history"),
         manifest_dir.join("src/codex_history"),
+        manifest_dir.join("src/opencode_history"),
     ];
 
     for path in legacy_roots {
@@ -275,6 +276,10 @@ fn provider_history_modules_are_under_ingress_providers() {
     assert!(
         lib_rs.contains("pub use acp::session::ingress::providers::claude_code::session_jsonl"),
         "lib.rs must re-export session_jsonl from ingress/providers"
+    );
+    assert!(
+        lib_rs.contains("pub use acp::session::ingress::providers::opencode::opencode_history"),
+        "lib.rs must re-export opencode_history from ingress/providers"
     );
 }
 
@@ -385,7 +390,8 @@ fn fold_spine_has_no_materialize_provider_owned_imports() {
 /// - `session_restore/timing_audit.rs` — audit harness (OpenCode disk path uses fold-first)
 /// - `transcript_viewport/ledger_rebuild.rs` — ledger rebuild from compat snapshot
 /// - `opencode_history/{parser,commands}.rs` — session list/index + HTTP fetch commands
-///   (disk ingress is `load_opencode_messages_from_disk` + fold)
+///   (disk ingress is `load_opencode_messages_from_disk` + fold; now nested under
+///   `session/ingress/providers/opencode/`)
 /// - `providers/*/provider.rs` — provider history load return type at fold export boundary
 /// - `history/commands/scanning.rs` — session index title derivation via compat snapshot
 ///   → `TranscriptSnapshot` (no direct `StoredEntry` pattern match in production code)
@@ -408,7 +414,6 @@ fn migration_phase4_compat_paths_are_narrow() {
         "/acp/projections/",
         "/acp/commands/",
         "/history/",
-        "/opencode_history/",
     ];
 
     let mut violations = Vec::new();
@@ -694,15 +699,15 @@ fn compat_thread_snapshot_disk_loaders_are_deleted() {
             "pub async fn load_thread_snapshot",
         ),
         (
-            "src/opencode_history/parser.rs",
+            "src/acp/session/ingress/providers/opencode/opencode_history/parser.rs",
             "pub async fn load_session_from_disk",
         ),
         (
-            "src/opencode_history/parser.rs",
+            "src/acp/session/ingress/providers/opencode/opencode_history/parser.rs",
             "pub async fn load_thread_snapshot_from_disk",
         ),
         (
-            "src/opencode_history/parser.rs",
+            "src/acp/session/ingress/providers/opencode/opencode_history/parser.rs",
             "pub async fn load_provider_owned_snapshot_from_disk",
         ),
     ];
@@ -776,7 +781,8 @@ fn session_restore_avoids_compat_disk_loaders() {
 
 #[test]
 fn opencode_commands_try_fold_first_disk_load() {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/opencode_history/commands.rs");
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("src/acp/session/ingress/providers/opencode/opencode_history/commands.rs");
     let source = fs::read_to_string(&path).expect("read opencode commands.rs");
 
     assert!(
