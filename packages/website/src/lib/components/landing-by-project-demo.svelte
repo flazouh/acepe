@@ -782,7 +782,7 @@ const favoriteModels = $derived(modelGroups.flatMap((g) => g.items.filter((i) =>
 					<div class="flex-1 min-w-0 min-h-0 overflow-hidden">
 					<AgentPanelScene
 						scene={activePanel.scene}
-						iconBasePath="/svgs/icons"
+						iconBasePath="hugeicons"
 						widthStyle="min-width: 0; width: 100%; max-width: 100%;"
 					>
 						{#snippet headerControls()}

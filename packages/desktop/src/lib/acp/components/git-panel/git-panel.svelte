@@ -946,7 +946,7 @@ async function handleOpenPr(prNumber: number) {
 				<div class="flex items-center gap-2 border-b border-border/20 px-2.5 py-1.5">
 					<FilePathBadge
 						filePath={selectedChangesDiff.path}
-						iconBasePath="/svgs/icons"
+						iconBasePath="hugeicons"
 						linesAdded={selectedChangesDiff.additions}
 						linesRemoved={selectedChangesDiff.deletions}
 						interactive={false}
@@ -1239,7 +1239,7 @@ async function handleOpenPr(prNumber: number) {
 							</h3>
 							{#if selectedPrDiff.pr.description}
 								<div class="text-[11px] text-muted-foreground leading-relaxed [&_.markdown-content]:p-0 [&_.markdown-loading]:p-0 [&_p]:p-0">
-									<MarkdownDisplay content={selectedPrDiff.pr.description} iconBasePath="/svgs/icons" />
+									<MarkdownDisplay content={selectedPrDiff.pr.description} iconBasePath="hugeicons" />
 								</div>
 							{/if}
 						</div>

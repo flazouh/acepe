@@ -42,7 +42,7 @@
 		status?: AgentToolStatus;
 		/** Optional elapsed label shown in the header (e.g. "for 2.34s") */
 		durationTiming?: ToolDurationTiming;
-		/** Base path for file type SVG icons (e.g. "/svgs/icons") */
+		/** Base path for file type SVG icons (e.g. "hugeicons") */
 		iconBasePath?: string;
 		/** Whether clicking the file should be interactive */
 		interactive?: boolean;

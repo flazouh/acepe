@@ -14,7 +14,7 @@ import {
 } from "@acepe/ui";
 import { SvelteMap } from "svelte/reactivity";
 
-const ICON_BASE_PATH = "/svgs/icons";
+const ICON_BASE_PATH = "hugeicons";
 
 // Mock checkpoint data
 const checkpoints: CheckpointData[] = [

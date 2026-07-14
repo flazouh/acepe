@@ -1,5 +1,5 @@
 /**
- * Re-exports from @acepe/ui with desktop base path (/svgs/icons).
+ * Re-exports from @acepe/ui with desktop base path (hugeicons).
  * Desktop static assets are served from this path.
  */
 import {
@@ -13,7 +13,7 @@ import {
 	getSpecialFolderIconSrc as getSpecialFolderIconSrcFromUi,
 } from "@acepe/ui/file-icon";
 
-const ICON_BASE_PATH = "/svgs/icons";
+const ICON_BASE_PATH = "hugeicons";
 
 export { extensionToIcon, filenameToIcon, getFileIconName, getFilenameIconName };
 

@@ -198,7 +198,7 @@ function handleKeydown(event: KeyboardEvent): void {
 					status={taskCard.isStreaming ? "running" : "done"}
 					children={taskCard.toolCalls}
 					compact={true}
-					iconBasePath="/svgs/icons"
+					iconBasePath="hugeicons"
 				/>
 			{:else if card.latestTool}
 				{@const latestTool = card.latestTool}

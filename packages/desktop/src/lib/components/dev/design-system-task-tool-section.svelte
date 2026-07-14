@@ -31,7 +31,7 @@
 				description={featuredTaskToolSpecimen.taskDescription}
 				status={featuredTaskToolSpecimen.status}
 				children={featuredTaskToolSpecimen.children}
-				iconBasePath="/svgs/icons"
+				iconBasePath="hugeicons"
 				durationTiming={{
 					startedAtMs: Date.now() - 4200,
 					completedAtMs: null,
@@ -82,7 +82,7 @@
 							compact={specimen.compact ?? false}
 							prompt={specimen.prompt ?? null}
 							resultText={specimen.resultText ?? null}
-							iconBasePath="/svgs/icons"
+							iconBasePath="hugeicons"
 							durationTiming={{
 								startedAtMs: Date.now() - 6800,
 								completedAtMs: specimen.status === "done" ? Date.now() - 1200 : null,

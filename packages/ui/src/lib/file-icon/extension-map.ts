@@ -415,7 +415,7 @@ export function getFilenameIconName(filename: string): string | undefined {
  */
 export function getFileIconSrc(
 	filenameOrExtension: string,
-	basePath: string = "/svgs/icons"
+	basePath: string = "hugeicons"
 ): string {
 	void basePath;
 	const filenameIcon = getFilenameIconName(filenameOrExtension);
@@ -437,7 +437,7 @@ export function getFileIconSrc(
 }
 
 /** Get the fallback Hugeicons source. */
-export function getFallbackIconSrc(basePath: string = "/svgs/icons"): string {
+export function getFallbackIconSrc(basePath: string = "hugeicons"): string {
 	void basePath;
 	return hugeiconsIconDataUri(FALLBACK_ICON);
 }
@@ -445,7 +445,7 @@ export function getFallbackIconSrc(basePath: string = "/svgs/icons"): string {
 /** Get the Hugeicons folder source. */
 export function getFolderIconSrc(
 	isOpen: boolean = false,
-	basePath: string = "/svgs/icons"
+	basePath: string = "hugeicons"
 ): string {
 	void basePath;
 	return hugeiconsIconDataUri(isOpen ? "folder-open" : FOLDER_ICON);
@@ -458,7 +458,7 @@ export function getFolderIconSrc(
 export function getSpecialFolderIconSrc(
 	folderName: string,
 	isOpen: boolean = false,
-	basePath: string = "/svgs/icons"
+	basePath: string = "hugeicons"
 ): string {
 	void folderName;
 	return getFolderIconSrc(isOpen, basePath);

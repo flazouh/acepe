@@ -148,7 +148,7 @@ function findRawFileDiff(path: string) {
 				data={viewerData}
 				{selectedFile}
 				{viewMode}
-				iconBasePath="/svgs/icons"
+				iconBasePath="hugeicons"
 				onSelectFile={(path) => {
 					selectedFile = path;
 				}}

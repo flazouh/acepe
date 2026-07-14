@@ -12,7 +12,7 @@
 		status?: AgentToolStatus;
 		durationTiming?: ToolDurationTiming;
 		padded?: boolean;
-		/** Base path for file type SVG icons (e.g. "/svgs/icons") */
+		/** Base path for file type SVG icons (e.g. "hugeicons") */
 		iconBasePath?: string;
 		/** Tool kind (e.g. "edit", "think") for styling or analytics; optional. */
 		kind?: string;

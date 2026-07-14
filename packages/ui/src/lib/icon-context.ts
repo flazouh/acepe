@@ -12,8 +12,8 @@ export function setIconConfig(config: IconConfig): void {
 
 export function getIconBasePath(): string {
 	try {
-		return getContext<IconConfig | undefined>(ICON_CONTEXT_KEY)?.basePath ?? "/svgs/icons";
+		return getContext<IconConfig | undefined>(ICON_CONTEXT_KEY)?.basePath ?? "hugeicons";
 	} catch {
-		return "/svgs/icons";
+		return "hugeicons";
 	}
 }

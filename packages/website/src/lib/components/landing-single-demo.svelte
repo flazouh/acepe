@@ -260,7 +260,7 @@ const favoriteModels = $derived(
 					<div class="flex-1 min-w-0 min-h-0 overflow-hidden">
 						<AgentPanelScene
 							{scene}
-							iconBasePath="/svgs/icons"
+							iconBasePath="hugeicons"
 							widthStyle="min-width: 0; width: 100%; max-width: 100%;"
 						>
 							{#snippet headerControls()}

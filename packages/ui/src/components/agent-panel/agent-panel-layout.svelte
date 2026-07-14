@@ -28,7 +28,7 @@
 		agentIconSrc?: string;
 		sessionStatus?: AgentSessionStatus;
 		onClose?: () => void;
-		/** Base path for file type SVG icons (e.g. "/svgs/icons") */
+		/** Base path for file type SVG icons (e.g. "hugeicons") */
 		iconBasePath?: string;
 		/** Real agent input chrome (desktop: compose `agent-input-ui` here). Omit for message-only layouts. */
 		inputArea?: Snippet;

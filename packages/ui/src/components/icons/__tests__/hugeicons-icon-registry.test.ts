@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+	hugeiconsIconDataUri,
 	isHugeiconsIconName,
 	resolveHugeiconsIcon,
 } from "../hugeicons-icon-registry.js";
@@ -15,5 +16,10 @@ describe("hugeicons icon registry", () => {
 
 	it("uses a visible Hugeicons fallback for unknown names", () => {
 		expect(resolveHugeiconsIcon("missing-icon").length).toBeGreaterThan(0);
+	});
+
+	it("serializes registered icons as self-contained SVG data", () => {
+		expect(hugeiconsIconDataUri("folder")).toMatch(/^data:image\/svg\+xml,/);
+		expect(decodeURIComponent(hugeiconsIconDataUri("folder"))).toContain("<svg");
 	});
 });

@@ -136,7 +136,7 @@ const editToolTheme = $derived({
 	unsafeCSS: pierreDiffsUnsafeCSS,
 });
 
-setIconConfig({ basePath: "/svgs/icons" });
+setIconConfig({ basePath: "hugeicons" });
 setContext(SESSION_CONTEXT_KEY_EXPORT, {
 	get sessionId() {
 		return sessionId ?? undefined;

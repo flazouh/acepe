@@ -26,7 +26,7 @@ function handleIconError(e: Event) {
 	const img = e.target as HTMLImageElement;
 	if (img) {
 		img.onerror = null;
-		img.src = getFallbackIconSrc("/svgs/icons");
+		img.src = getFallbackIconSrc("hugeicons");
 	}
 }
 
@@ -62,7 +62,7 @@ const STATUS_COLOR: Record<string, string> = {
 					<HugeiconsIcon name="chevron-right" class="size-3" />
 				</span>
 				<img
-					src={getFileIconSrc(file.path, "/svgs/icons")}
+					src={getFileIconSrc(file.path, "hugeicons")}
 					alt=""
 					class="h-3.5 w-3.5 shrink-0 object-contain"
 					aria-hidden="true"

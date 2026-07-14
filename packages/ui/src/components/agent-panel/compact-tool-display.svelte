@@ -18,7 +18,7 @@
 		iconBasePath?: string;
 	}
 
-	let { tool, class: className = "", iconBasePath = "/svgs/icons" }: Props = $props();
+	let { tool, class: className = "", iconBasePath = "hugeicons" }: Props = $props();
 
 	const fileName = $derived(tool.filePath ? (tool.filePath.split("/").pop() || tool.filePath) : null);
 	const isSkill = $derived(tool.kind === "skill");

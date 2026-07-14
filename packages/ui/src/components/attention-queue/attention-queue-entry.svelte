@@ -236,7 +236,7 @@ const showTaskWidget = $derived(visibleTaskWidgetSummary !== null);
 							status={isStreaming ? "running" : "done"}
 							children={taskWidgetToolCalls}
 							compact={true}
-							iconBasePath="/svgs/icons"
+							iconBasePath="hugeicons"
 						/>
 					</div>
 
