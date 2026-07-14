@@ -50,8 +50,8 @@ const UPSTREAM_PROVIDER_ICONS: Partial<Record<Exclude<UpstreamProviderBrand, "cu
 		dark: "/svgs/icons/copilot.svg",
 	},
 	openAi: {
-		light: "/svgs/agents/codex/codex-icon.svg",
-		dark: "/svgs/agents/codex/codex-icon.svg",
+		light: "/svgs/agents/codex/openai-icon.svg",
+		dark: "/svgs/agents/codex/openai-icon.svg",
 	},
 };
 
