@@ -5,7 +5,7 @@ import {
 	TableCell,
 	TableRow,
 	LoadingIcon,
-	RoundedIcon,
+	HugeiconsIcon,
 } from "@acepe/ui";
 import { cn } from "$lib/utils.js";
 
@@ -59,7 +59,7 @@ function handleProjectRowKeydown(event: KeyboardEvent, project: ProjectWithSessi
 	</div>
 {:else if projects.length === 0}
 	<div class="flex min-h-[10rem] w-full flex-col items-center justify-center gap-2 px-6 text-center">
-		<RoundedIcon name="folder" class="size-8 text-muted-foreground/50" />
+		<HugeiconsIcon name="folder" class="size-8 text-muted-foreground/50" />
 		<p class="text-xs text-muted-foreground">
 			{"No projects with sessions found"}
 		</p>

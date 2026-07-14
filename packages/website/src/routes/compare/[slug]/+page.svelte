@@ -1,5 +1,5 @@
 <script lang="ts">
-import { RoundedIcon } from "@acepe/ui";
+import { HugeiconsIcon } from "@acepe/ui";
 import Header from "$lib/components/header.svelte";
 import Seo from "$lib/components/seo/seo.svelte";
 import { attentionQueueBlogPost, checkpointsBlogPost } from "$lib/blog/posts.js";
@@ -150,7 +150,7 @@ const compareJsonLd = $derived([
 											class="inline-flex items-center gap-2 text-sm font-medium text-foreground transition-colors hover:text-muted-foreground"
 										>
 											<span class="break-all">{source.url}</span>
-											<RoundedIcon name="arrow-right" class="h-3.5 w-3.5 shrink-0" />
+											<HugeiconsIcon name="arrow-right" class="h-3.5 w-3.5 shrink-0" />
 										</a>
 										<p class="mt-2 text-sm leading-relaxed text-muted-foreground">
 											{source.note}
@@ -200,9 +200,9 @@ const compareJsonLd = $derived([
 							<div class="flex items-center justify-center px-4 py-3 text-sm">
 								{#if typeof row.acepe === "boolean"}
 									{#if row.acepe}
-										<RoundedIcon name="check" class="h-4 w-4 text-emerald-500" />
+										<HugeiconsIcon name="check" class="h-4 w-4 text-emerald-500" />
 									{:else}
-										<RoundedIcon name="minus" class="h-4 w-4 text-muted-foreground/40" />
+										<HugeiconsIcon name="minus" class="h-4 w-4 text-muted-foreground/40" />
 									{/if}
 								{:else}
 									<span class="text-center text-muted-foreground">{row.acepe}</span>
@@ -211,9 +211,9 @@ const compareJsonLd = $derived([
 							<div class="flex items-center justify-center px-4 py-3 text-sm">
 								{#if typeof row.competitor === "boolean"}
 									{#if row.competitor}
-										<RoundedIcon name="check" class="h-4 w-4 text-emerald-500" />
+										<HugeiconsIcon name="check" class="h-4 w-4 text-emerald-500" />
 									{:else}
-										<RoundedIcon name="minus" class="h-4 w-4 text-muted-foreground/40" />
+										<HugeiconsIcon name="minus" class="h-4 w-4 text-muted-foreground/40" />
 									{/if}
 								{:else}
 									<span class="text-center text-muted-foreground">{row.competitor}</span>
@@ -267,7 +267,7 @@ const compareJsonLd = $derived([
 										{post.description}
 									</p>
 								</div>
-								<RoundedIcon name="arrow-right" class="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-1" />
+								<HugeiconsIcon name="arrow-right" class="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-1" />
 							</div>
 						</a>
 					{/each}

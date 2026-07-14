@@ -4,7 +4,7 @@
 	 * Shows status icon, filename, DiffPill, and hover action buttons.
 	 */
 	import PlusIcon from "../icons/plus-icon.svelte";
-	import { FileStatusIcon, RoundedIcon, type FileStatusIconKind } from "../icons/index.js";
+	import { FileStatusIcon, HugeiconsIcon, type FileStatusIconKind } from "../icons/index.js";
 
 	import { DiffPill } from "../diff-pill/index.js";
 	import { getFileIconSrc, getFallbackIconSrc } from "../../lib/file-icon/index.js";
@@ -133,7 +133,7 @@
 					data-testid={`git-status-file-${statusIconKind}-rounded-icon`}
 				/>
 			{:else}
-				<RoundedIcon
+				<HugeiconsIcon
 					name="file-text"
 					class="size-3.5"
 					data-testid="git-status-file-rounded-icon"
@@ -170,7 +170,7 @@
 					title="Discard changes"
 					onclick={() => onDiscard?.(path)}
 				>
-					<RoundedIcon name="undo" class="size-3" />
+					<HugeiconsIcon name="undo" class="size-3" />
 				</button>
 			{/if}
 		{:else}
@@ -181,7 +181,7 @@
 					title="Unstage file"
 					onclick={() => onUnstage?.(path)}
 				>
-					<RoundedIcon name="minus" class="size-3" />
+					<HugeiconsIcon name="minus" class="size-3" />
 				</button>
 			{/if}
 		{/if}

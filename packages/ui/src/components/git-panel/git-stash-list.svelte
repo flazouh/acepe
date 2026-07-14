@@ -3,7 +3,7 @@
 	 * GitStashList — List of stash entries with pop/drop actions.
 	 */
 	import { cn } from "../../lib/utils.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import type { GitStashEntry } from "./types.js";
 
 	interface Props {
@@ -26,7 +26,7 @@
 			<div
 				class="group flex items-center gap-2 px-2 py-1.5 hover:bg-muted/40 transition-colors"
 			>
-				<RoundedIcon
+				<HugeiconsIcon
 					name="archive"
 					class="size-3.5 shrink-0 text-muted-foreground"
 					data-testid="git-stash-archive-icon"
@@ -53,7 +53,7 @@
 							title="Pop stash"
 							onclick={() => onPop?.(entry.index)}
 						>
-							<RoundedIcon name="undo" class="size-3" />
+							<HugeiconsIcon name="undo" class="size-3" />
 						</button>
 					{/if}
 					{#if onDrop}
@@ -63,7 +63,7 @@
 							title="Drop stash"
 							onclick={() => onDrop?.(entry.index)}
 						>
-							<RoundedIcon name="trash" class="size-3" />
+							<HugeiconsIcon name="trash" class="size-3" />
 						</button>
 					{/if}
 				</div>

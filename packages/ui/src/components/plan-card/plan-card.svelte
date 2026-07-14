@@ -15,7 +15,7 @@
     HeaderTitleCell,
   } from "../panel-header/index.js";
   import { Button } from "../button/index.js";
-  import { PlanIcon, BuildIcon, LoadingIcon, RoundedIcon } from "../icons/index.js";
+  import { PlanIcon, BuildIcon, LoadingIcon, HugeiconsIcon } from "../icons/index.js";
 
   interface Props {
     content: string;
@@ -75,7 +75,7 @@
           title="Open full plan"
           aria-label="Open full plan"
         >
-          <RoundedIcon name="expand" class="size-3.5 shrink-0" />
+          <HugeiconsIcon name="expand" class="size-3.5 shrink-0" />
         </button>
       </HeaderActionCell>
     {/if}
@@ -104,7 +104,7 @@
           onclick={onCancel}
           disabled={actionsDisabled || isBuilding}
         >
-          <RoundedIcon name="x-circle" class="size-3 shrink-0" />
+          <HugeiconsIcon name="x-circle" class="size-3 shrink-0" />
           Cancel
         </Button>
       {/if}

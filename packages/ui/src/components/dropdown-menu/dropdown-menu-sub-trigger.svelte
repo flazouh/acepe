@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { DropdownMenu as DropdownMenuPrimitive } from "bits-ui";
 	import { cn } from "../../lib/utils";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import { dropdownMenuItemRadiusClass } from "./dropdown-menu-item.classes.js";
 	import { dropdownMenuItemTypographyClass } from "./dropdown-menu-typography.js";
 	import { getDropdownMenuHighlightContext } from "./dropdown-menu-highlight-context";
@@ -59,5 +59,5 @@
 	)}
 >
 	{@render children?.()}
-	<RoundedIcon name="chevron-right" class="size-3 shrink-0 ms-auto text-muted-foreground" />
+	<HugeiconsIcon name="chevron-right" class="size-3 shrink-0 ms-auto text-muted-foreground" />
 </DropdownMenuPrimitive.SubTrigger>

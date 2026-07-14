@@ -5,7 +5,7 @@
 	 *
 	 * This is a "dumb" component - all data and actions are passed via props.
 	 */
-	import { LoadingIcon, RoundedIcon } from '../icons/index.js';
+	import { LoadingIcon, HugeiconsIcon } from '../icons/index.js';
 	import type { Snippet } from 'svelte';
 	import { Button } from '../button/index.js';
 	import CheckpointCard from './checkpoint-card.svelte';
@@ -89,7 +89,7 @@
 				class="h-7 gap-1.5 text-muted-foreground hover:text-foreground"
 				onclick={onBack}
 			>
-				<RoundedIcon name="arrow-left" class="h-3.5 w-3.5" />
+				<HugeiconsIcon name="arrow-left" class="h-3.5 w-3.5" />
 				<span class="text-xs">{backLabel}</span>
 			</Button>
 		</div>

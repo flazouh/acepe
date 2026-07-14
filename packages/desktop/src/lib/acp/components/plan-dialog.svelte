@@ -1,6 +1,6 @@
 <script lang="ts">
 import { PlanIcon } from "@acepe/ui/icons";
-import { Button, RoundedIcon } from "@acepe/ui";
+import { Button, HugeiconsIcon } from "@acepe/ui";
 import { toastSuccess } from "$lib/components/ui/sonner/toast-bridge.js";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import type { SessionPlanResponse } from "../../services/claude-history.js";
@@ -59,7 +59,7 @@ function downloadAsMarkdown() {
 			onclick={downloadAsMarkdown}
 		>
 			{#snippet children()}
-				<RoundedIcon name="download" />
+				<HugeiconsIcon name="download" />
 			{/snippet}
 		</Button>
 	{/snippet}

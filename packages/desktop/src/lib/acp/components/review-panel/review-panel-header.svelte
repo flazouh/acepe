@@ -1,5 +1,5 @@
 <script lang="ts">
-import { FilePathBadge, RoundedIcon } from "@acepe/ui";
+import { FilePathBadge, HugeiconsIcon } from "@acepe/ui";
 import { Button } from "$lib/components/ui/button/index.js";
 import type { ModifiedFilesState } from "../../types/modified-files-state.js";
 
@@ -22,7 +22,7 @@ const hasNextFile = $derived(selectedFileIndex < modifiedFilesState.files.length
 	<div class="flex items-center gap-2 px-2 py-1.5 bg-muted/20">
 		<!-- Back button -->
 		<Button variant="ghost" size="sm" onclick={onClose} class="shrink-0">
-			<RoundedIcon name="chevron-left" class="size-3 shrink-0" />
+			<HugeiconsIcon name="chevron-left" class="size-3 shrink-0" />
 			{"Back"}
 		</Button>
 
@@ -44,7 +44,7 @@ const hasNextFile = $derived(selectedFileIndex < modifiedFilesState.files.length
 		{#if hasNextFile}
 			<Button variant="outline" size="sm" onclick={onNextFile} class="shrink-0">
 				{"Next"}
-				<RoundedIcon name="chevron-right" class="size-3 shrink-0" />
+				<HugeiconsIcon name="chevron-right" class="size-3 shrink-0" />
 			</Button>
 		{/if}
 	</div>

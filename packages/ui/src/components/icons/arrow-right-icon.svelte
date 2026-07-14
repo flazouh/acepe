@@ -1,5 +1,5 @@
 <script lang="ts">
-	import RoundedIcon from "./rounded-icon.svelte";
+	import HugeiconsIcon from "./hugeicons-icon.svelte";
 
 	interface Props {
 		size?: "sm" | "md" | "lg";
@@ -18,4 +18,4 @@
 	const iconClass = $derived(`rotate-180 ${className ?? ""}`);
 </script>
 
-<RoundedIcon name="arrow-left" class={iconClass} style={iconStyle} />
+<HugeiconsIcon name="arrow-left" class={iconClass} style={iconStyle} />

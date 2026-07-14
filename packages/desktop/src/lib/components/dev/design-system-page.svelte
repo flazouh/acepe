@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Button, RoundedIcon, type RoundedIconName } from "@acepe/ui";
+	import { Button, HugeiconsIcon, type HugeiconsIconName } from "@acepe/ui";
 
 	import { Badge } from "$lib/components/ui/badge/index.js";
 	import SettingsPageHeader from "$lib/components/settings-page/settings-page-header.svelte";
@@ -74,7 +74,7 @@
 
 	const activeSectionMeta = $derived(sectionMetaById[activeSection]);
 
-	function roundedSectionIcon(sectionId: DesignSystemSection): RoundedIconName | null {
+	function roundedSectionIcon(sectionId: DesignSystemSection): HugeiconsIconName | null {
 		if (sectionId === "control-tokens") return "sliders";
 		if (sectionId === "claude-spark") return "sparkle";
 		if (sectionId === "compaction-activity") return "archive";
@@ -124,7 +124,7 @@
 					)}
 					>
 					{#if RoundedSectionIcon}
-						<RoundedIcon name={RoundedSectionIcon} class="size-3.5 shrink-0" />
+						<HugeiconsIcon name={RoundedSectionIcon} class="size-3.5 shrink-0" />
 					{/if}
 					<span class="truncate">{section.label}</span>
 				</button>
@@ -135,7 +135,7 @@
 	<div class="flex min-h-0 min-w-0 flex-1 flex-col">
 		<div class="flex shrink-0 items-center justify-between gap-3 border-b border-border/40 px-4 py-2">
 			<Button variant="ghost" size="sm" onclick={onClose} aria-label="Back to app" class="-ml-2 gap-1.5">
-				<RoundedIcon name="chevron-left" class="size-3" />
+				<HugeiconsIcon name="chevron-left" class="size-3" />
 				Back to app
 			</Button>
 			<Badge variant="outline" class="font-mono text-[10px] uppercase tracking-wider">

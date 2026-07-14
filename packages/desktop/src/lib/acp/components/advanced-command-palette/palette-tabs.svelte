@@ -1,7 +1,8 @@
 <script lang="ts">
-import { RoundedIcon } from "@acepe/ui";
+import { HugeiconsIcon } from "@acepe/ui";
 
 import type { PaletteMode } from "../../types/palette-mode.js";
+import { resolvePaletteTabIcon } from "./palette-tabs-icon-model.js";
 
 interface Props {
 	/** Current active mode */
@@ -14,17 +15,12 @@ interface Props {
 
 let { mode, modes, onModeChange }: Props = $props();
 
-const MODE_ICONS = {
-	commands: "terminal",
-	sessions: "chat",
-	files: "files",
-} as const;
 </script>
 
 <div class="flex items-center gap-0.5 px-2 pt-2 pb-1.5">
 	{#each modes as { mode: m, label }, index (m)}
 		{@const isActive = m === mode}
-		{@const ModeIcon = MODE_ICONS[m]}
+		{@const icon = resolvePaletteTabIcon(m)}
 		<button
 			type="button"
 			class="group px-2 py-1 text-[11px] font-medium rounded-md transition-all duration-150 {isActive
@@ -33,7 +29,7 @@ const MODE_ICONS = {
 			onclick={() => onModeChange(m)}
 		>
 			<span class="flex items-center gap-1.5">
-				<RoundedIcon name={ModeIcon} class="size-3.5 transition-colors" />
+				<HugeiconsIcon name={icon.name} class="size-3.5 transition-colors" />
 				<span>{label}</span>
 				<span class="text-[9px] opacity-40 font-normal ml-0.5">⌘{index + 1}</span>
 			</span>

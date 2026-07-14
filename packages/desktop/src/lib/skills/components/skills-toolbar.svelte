@@ -1,5 +1,5 @@
 <script lang="ts">
-import { RoundedIcon, Selector, PlusIcon, SaveIcon } from "@acepe/ui";
+import { HugeiconsIcon, Selector, PlusIcon, SaveIcon } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { Button } from "$lib/components/ui/button/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
@@ -73,13 +73,17 @@ function handleDelete() {
 
 			<Selector align="end" triggerSize="icon" showChevron={false} variant="ghost">
 				{#snippet renderButton()}
-					<RoundedIcon name="more" />
+					<HugeiconsIcon name="more" />
 				{/snippet}
 
 				{#if otherAgents.length > 0}
 					<DropdownMenu.Sub>
 						<DropdownMenu.SubTrigger>
-							<RoundedIcon name="copy" class="h-4 w-4 mr-2" />
+							<HugeiconsIcon
+								name="copy"
+								class="h-4 w-4 mr-2"
+								data-testid="skills-toolbar-copy-hugeicons-icon"
+							/>
 							Copy to
 						</DropdownMenu.SubTrigger>
 						<DropdownMenu.SubContent>
@@ -93,7 +97,7 @@ function handleDelete() {
 					<DropdownMenu.Separator />
 				{/if}
 				<DropdownMenu.Item onclick={handleDelete} class="text-destructive">
-					<RoundedIcon name="trash" class="h-4 w-4 mr-2" />
+					<HugeiconsIcon name="trash" class="h-4 w-4 mr-2" />
 					Delete
 				</DropdownMenu.Item>
 			</Selector>

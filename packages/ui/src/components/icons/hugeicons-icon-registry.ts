@@ -211,6 +211,32 @@ const iconByName: Readonly<Record<string, IconSvgElement>> = {
 	"folder-git": FolderGitIcon,
 };
 
+export type HugeiconsIconLibraryEntry = {
+	readonly name: HugeiconsIconName;
+	readonly label: string;
+};
+
+export const hugeiconsIconNames = Object.freeze(Object.keys(iconByName));
+
+export function formatHugeiconsIconName(name: HugeiconsIconName): string {
+	return name
+		.split("-")
+		.map((part) => {
+			if (part.length === 0) {
+				return part;
+			}
+
+			return `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`;
+		})
+		.join(" ");
+}
+
+export const hugeiconsIconLibrary: readonly HugeiconsIconLibraryEntry[] =
+	hugeiconsIconNames.map((name) => ({
+		name,
+		label: formatHugeiconsIconName(name),
+	}));
+
 export function resolveHugeiconsIcon(name: HugeiconsIconName): IconSvgElement {
 	return iconByName[name] ?? HelpCircleIcon;
 }

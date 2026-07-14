@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Button } from "../button/index.js";
 	import type { ButtonSize } from "../button/variants.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 
 	interface Props {
 		onClose?: (() => void) | undefined;
@@ -28,6 +28,6 @@
 	class={className}
 >
 	{#snippet children()}
-		<RoundedIcon name="close" />
+		<HugeiconsIcon name="close" />
 	{/snippet}
 </Button>

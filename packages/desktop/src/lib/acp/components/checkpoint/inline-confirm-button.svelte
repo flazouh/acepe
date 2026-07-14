@@ -1,5 +1,5 @@
 <script lang="ts">
-import { RoundedIcon } from "@acepe/ui";
+import { HugeiconsIcon } from "@acepe/ui";
 import type { Component } from "svelte";
 import { Button } from "$lib/components/ui/button/index.js";
 import { cn } from "$lib/utils.js";
@@ -79,7 +79,7 @@ $effect(() => {
 			onclick={handleCancel}
 			class="flex items-center gap-1 px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
 		>
-			<RoundedIcon name="close" class="h-3.5 w-3.5" />
+			<HugeiconsIcon name="close" class="h-3.5 w-3.5" />
 		</button>
 		<div class="w-px h-5 bg-border"></div>
 		<button
@@ -87,7 +87,7 @@ $effect(() => {
 			onclick={handleConfirm}
 			class="flex items-center gap-1 px-2 py-1 text-xs text-primary hover:bg-primary/10 transition-colors"
 		>
-			<RoundedIcon name="check-circle" class="h-3.5 w-3.5" />
+			<HugeiconsIcon name="check-circle" class="h-3.5 w-3.5" />
 		</button>
 	</div>
 {:else}

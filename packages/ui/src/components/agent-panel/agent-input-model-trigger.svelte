@@ -5,7 +5,7 @@
   Presentational model trigger label. Composed by AgentInputStandardModelSelector via Selector.
 -->
 <script lang="ts">
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 
 	interface Props {
 		label: string;
@@ -35,5 +35,5 @@
 		<img src={agentIconSrc} alt="" class="h-3 w-3 shrink-0" role="presentation" />
 	{/if}
 	<span class="truncate max-w-[180px]">{label}</span>
-	<RoundedIcon name="chevron-down" class="size-3 text-muted-foreground shrink-0" />
+	<HugeiconsIcon name="chevron-down" class="size-3 text-muted-foreground shrink-0" />
 </button>

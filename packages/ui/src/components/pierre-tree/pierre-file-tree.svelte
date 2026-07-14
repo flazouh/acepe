@@ -2,7 +2,7 @@
 import type { FileTreeDensity, FileTreeInitialExpansion } from "@pierre/trees";
 
 import * as DropdownMenu from "../dropdown-menu/index.js";
-import { RoundedIcon } from "../icons/index.js";
+import { HugeiconsIcon } from "../icons/index.js";
 import { Selector } from "../selector/index.js";
 import { selectorPanelItemClass } from "../selector/selector-panel.classes.js";
 import { createPierreFileTreeAttachment } from "./pierre-file-tree-attachment.svelte.js";
@@ -114,7 +114,7 @@ const attachPierreFileTree = createPierreFileTreeAttachment(() => ({
 				contentClass="w-44 max-w-[11rem] !max-h-none"
 			>
 				{#snippet renderButton()}
-					<RoundedIcon name="settings" />
+					<HugeiconsIcon name="settings" />
 				{/snippet}
 
 				<DropdownMenu.Group>
@@ -133,7 +133,7 @@ const attachPierreFileTree = createPierreFileTreeAttachment(() => ({
 						>
 							<span class="min-w-0 flex-1 truncate">{option.label}</span>
 							{#if effectiveDensity === option.value}
-								<RoundedIcon name="check" class="size-3 shrink-0 text-foreground" />
+								<HugeiconsIcon name="check" class="size-3 shrink-0 text-foreground" />
 							{/if}
 						</DropdownMenu.Item>
 					{/each}
@@ -152,10 +152,10 @@ const attachPierreFileTree = createPierreFileTreeAttachment(() => ({
 							settingsOpen = false;
 						}}
 					>
-						<RoundedIcon name="collapse" class="size-3 shrink-0 text-muted-foreground" />
+						<HugeiconsIcon name="collapse" class="size-3 shrink-0 text-muted-foreground" />
 						<span class="min-w-0 flex-1 truncate">Collapse all</span>
 						{#if effectiveInitialExpansion === "closed"}
-							<RoundedIcon name="check" class="size-3 shrink-0 text-foreground" />
+							<HugeiconsIcon name="check" class="size-3 shrink-0 text-foreground" />
 						{/if}
 					</DropdownMenu.Item>
 					<DropdownMenu.Item
@@ -169,10 +169,10 @@ const attachPierreFileTree = createPierreFileTreeAttachment(() => ({
 							settingsOpen = false;
 						}}
 					>
-						<RoundedIcon name="expand" class="size-3 shrink-0 text-muted-foreground" />
+						<HugeiconsIcon name="expand" class="size-3 shrink-0 text-muted-foreground" />
 						<span class="min-w-0 flex-1 truncate">Expand all</span>
 						{#if effectiveInitialExpansion === "open"}
-							<RoundedIcon name="check" class="size-3 shrink-0 text-foreground" />
+							<HugeiconsIcon name="check" class="size-3 shrink-0 text-foreground" />
 						{/if}
 					</DropdownMenu.Item>
 				</DropdownMenu.Group>

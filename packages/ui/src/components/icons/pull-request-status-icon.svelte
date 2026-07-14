@@ -1,31 +1,31 @@
 <script lang="ts" module>
 	export {
-		mapGitHubPrStateToLinearStatusIcon,
-		mapUppercasePrStateToLinearStatusIcon,
-		pullRequestLinearStatusIcons,
+		mapGitHubPrStateToStatusIcon,
+		mapUppercasePrStateToStatusIcon,
+		pullRequestStatusIcons,
 		type PullRequestGitHubState,
-		type PullRequestLinearStatusIconName,
-		type PullRequestLinearStatusKind,
+		type PullRequestStatusIconName,
+		type PullRequestStatusKind,
 	} from "./pull-request-status-icon.js";
 </script>
 
 <script lang="ts">
-	import LinearInventoryIcon from "./linear-inventory-icon.svelte";
+	import HugeiconsIcon from "./hugeicons-icon.svelte";
 	import {
-		mapGitHubPrStateToLinearStatusIcon,
-		mapUppercasePrStateToLinearStatusIcon,
-		pullRequestLinearStatusIcons,
+		mapGitHubPrStateToStatusIcon,
+		mapUppercasePrStateToStatusIcon,
+		pullRequestStatusIcons,
 		type PullRequestGitHubState,
-		type PullRequestLinearStatusIconName,
-		type PullRequestLinearStatusKind,
+		type PullRequestStatusIconName,
+		type PullRequestStatusKind,
 	} from "./pull-request-status-icon.js";
 
 	type PullRequestStatusState = PullRequestGitHubState | "OPEN" | "CLOSED" | "MERGED";
 
 	interface Props {
 		state?: PullRequestStatusState;
-		kind?: PullRequestLinearStatusKind;
-		name?: PullRequestLinearStatusIconName;
+	kind?: PullRequestStatusKind;
+	name?: PullRequestStatusIconName;
 		class?: string;
 		style?: string;
 		role?: string;
@@ -49,19 +49,19 @@
 			return name;
 		}
 		if (kind) {
-			return pullRequestLinearStatusIcons[kind];
+			return pullRequestStatusIcons[kind];
 		}
 		if (state === "OPEN" || state === "CLOSED" || state === "MERGED") {
-			return mapUppercasePrStateToLinearStatusIcon(state);
+			return mapUppercasePrStateToStatusIcon(state);
 		}
 		if (state === "open" || state === "closed" || state === "merged") {
-			return mapGitHubPrStateToLinearStatusIcon(state);
+			return mapGitHubPrStateToStatusIcon(state);
 		}
-		return pullRequestLinearStatusIcons.open;
+		return pullRequestStatusIcons.open;
 	});
 </script>
 
-<LinearInventoryIcon
+<HugeiconsIcon
 	name={iconName}
 	class={className}
 	{style}

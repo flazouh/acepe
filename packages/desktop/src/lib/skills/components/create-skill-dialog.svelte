@@ -7,7 +7,7 @@ import { Input } from "$lib/components/ui/input/index.js";
 import { Label } from "$lib/components/ui/label/index.js";
 import { Switch } from "$lib/components/ui/switch/index.js";
 import { Textarea } from "$lib/components/ui/textarea/index.js";
-import { RoundedIcon } from "@acepe/ui/icons";
+import { HugeiconsIcon } from "@acepe/ui/icons";
 
 import { getLibraryStore } from "../store/library-store.svelte.js";
 
@@ -117,7 +117,7 @@ function handleClose() {
 	{onOpenChange}
 >
 	{#snippet titleLeading()}
-		<RoundedIcon name="sparkle" class="size-3.5 shrink-0 text-primary" />
+		<HugeiconsIcon name="sparkle" class="size-3.5 shrink-0 text-primary" />
 	{/snippet}
 
 	<div class="grid gap-4 px-3 py-3">

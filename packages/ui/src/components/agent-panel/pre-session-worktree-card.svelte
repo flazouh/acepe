@@ -2,7 +2,7 @@
 	import type { Snippet } from "svelte";
 	import { Button } from "../button/index.js";
 	import * as DropdownMenu from "../dropdown-menu/index.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import { Selector } from "../selector/index.js";
 	import { Tooltip, TooltipContent, TooltipTrigger } from "../tooltip/index.js";
 	import { watchPreSessionWorktreeHeaderWidth } from "./pre-session-worktree-card-effects.js";
@@ -105,14 +105,14 @@
 
 {#snippet modeIcon(mode: WorktreeLaunchMode, className = "", size = triggerIconSize)}
 	{#if mode === "worktree"}
-		<RoundedIcon
+		<HugeiconsIcon
 			name="worktree"
 			class="shrink-0 {className}"
 			style="width: {size}px; height: {size}px;"
 			data-testid="pre-session-worktree-mode-icon"
 		/>
 	{:else}
-		<RoundedIcon
+		<HugeiconsIcon
 			name="laptop"
 			class="shrink-0 {className}"
 			style="width: {size}px; height: {size}px;"
@@ -161,7 +161,7 @@
 						11
 					)}
 					<span class="min-w-0 flex-1 truncate text-foreground">{option.label}</span>
-					<RoundedIcon
+					<HugeiconsIcon
 						name="check"
 						class={selected ? "size-2.5 shrink-0 text-foreground" : "size-2.5 shrink-0 text-transparent"}
 					/>
@@ -185,7 +185,7 @@
 			class:w-fit={!showExpanded}
 			class:w-full={showExpanded}
 		>
-			<RoundedIcon name="warning" class="size-[13px] shrink-0 text-destructive" />
+			<HugeiconsIcon name="warning" class="size-[13px] shrink-0 text-destructive" />
 			<span class="shrink-0 text-[0.6875rem] font-medium text-foreground">Worktree failed</span>
 			<span class="min-w-0 truncate text-[0.6875rem] text-muted-foreground">{failureMessage}</span>
 			<div class="ml-auto flex shrink-0 items-center gap-1.5" onclick={(e: MouseEvent) => e.stopPropagation()} role="none">
@@ -198,7 +198,7 @@
 								onclick={toggleExpanded}
 								aria-expanded={isExpanded}
 							>
-								<RoundedIcon name="chevron-right" class="size-3 shrink-0 transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}" />
+								<HugeiconsIcon name="chevron-right" class="size-3 shrink-0 transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}" />
 							</button>
 						</TooltipTrigger>
 						<TooltipContent>{setupScriptsLabel ?? "Setup scripts"}</TooltipContent>
@@ -206,7 +206,7 @@
 				{/if}
 				{#if onRetry}
 					<Button variant="secondary" size="xs" onclick={onRetry}>
-						<RoundedIcon
+						<HugeiconsIcon
 							name="arrow-counter-clockwise"
 							class="size-3 shrink-0"
 							data-testid="pre-session-worktree-retry-icon"
@@ -257,7 +257,7 @@
 							onclick={toggleExpanded}
 							aria-expanded={isExpanded}
 						>
-							<RoundedIcon name="chevron-right" class="size-3 shrink-0 transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}" />
+							<HugeiconsIcon name="chevron-right" class="size-3 shrink-0 transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}" />
 						</button>
 					</TooltipTrigger>
 					<TooltipContent>{setupScriptsLabel ?? "Setup scripts"}</TooltipContent>

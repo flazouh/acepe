@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
 
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import { ProjectLetterBadge } from "../project-letter-badge/index.js";
 	import {
 		CloseAction,
@@ -67,7 +67,7 @@
 		<HeaderTitleCell>
 			{#snippet children()}
 				<div class="flex items-center gap-1.5 min-w-0">
-					<RoundedIcon name="terminal" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+					<HugeiconsIcon name="terminal" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
 					<span class="text-[11px] font-medium truncate">Terminal</span>
 					{#if shellName}
 						<span class="text-[11px] text-muted-foreground truncate">({shellName})</span>

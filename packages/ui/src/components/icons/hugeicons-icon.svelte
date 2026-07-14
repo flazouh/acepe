@@ -7,6 +7,7 @@
 
 	interface Props {
 		name: HugeiconsIconName;
+		size?: number;
 		class?: string;
 		style?: string;
 		role?: string;
@@ -16,6 +17,7 @@
 
 	let {
 		name,
+		size = 24,
 		class: className = "shrink-0",
 		style,
 		role,
@@ -30,7 +32,7 @@
 
 <HugeiconsRenderer
 	icon={icon}
-	size={24}
+	{size}
 	strokeWidth={1.75}
 	class={className}
 	{style}

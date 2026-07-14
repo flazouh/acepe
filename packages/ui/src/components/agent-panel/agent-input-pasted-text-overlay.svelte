@@ -6,7 +6,7 @@
 -->
 <script lang="ts">
 	import { onMount, untrack } from "svelte";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 
 	interface Props {
 		mode: "preview" | "edit";
@@ -118,7 +118,7 @@
 			onclick={onClose}
 			aria-label={closeLabel}
 		>
-			<RoundedIcon name="close" class="size-2.5" />
+			<HugeiconsIcon name="close" class="size-2.5" />
 		</button>
 	</div>
 
@@ -139,7 +139,7 @@
 				class="flex items-center gap-0.5 px-1.5 py-px rounded-lg border border-border/50 bg-background/40 text-[10px] font-medium text-foreground/80 hover:text-foreground hover:bg-accent/60 transition-colors"
 				onclick={onClose}
 			>
-				<RoundedIcon name="close" class="size-[9px] shrink-0" />
+				<HugeiconsIcon name="close" class="size-[9px] shrink-0" />
 				{cancelLabel}
 			</button>
 			<button
@@ -147,7 +147,7 @@
 				class="flex items-center gap-0.5 px-1.5 py-px rounded-lg border border-border/50 bg-background/40 text-[10px] font-medium text-foreground/80 hover:text-foreground hover:bg-accent/60 transition-colors"
 				onclick={handleSave}
 			>
-				<RoundedIcon name="check" class="size-[9px] shrink-0" />
+				<HugeiconsIcon name="check" class="size-[9px] shrink-0" />
 				{saveLabel}
 			</button>
 		</div>

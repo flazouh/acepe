@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 
 	import { EmbeddedPanelHeader, HeaderActionCell, HeaderTitleCell } from "../panel-header/index.js";
 
@@ -17,18 +17,18 @@
 <div class="flex flex-col overflow-hidden rounded-lg border border-border/50 bg-accent/20">
 	<EmbeddedPanelHeader class="bg-accent/30">
 		<HeaderTitleCell compactPadding>
-			<RoundedIcon name="code" class="mr-1 size-3 shrink-0" data-testid="kanban-plan-approval-code-icon" />
+			<HugeiconsIcon name="code" class="mr-1 size-3 shrink-0" data-testid="kanban-plan-approval-code-icon" />
 			<span class="truncate text-[10px] font-mono leading-none text-muted-foreground select-none">{prompt}</span>
 		</HeaderTitleCell>
 		<HeaderActionCell withDivider={false}>
 			<button type="button" class="plan-action-btn" onclick={onReject}>
-				<RoundedIcon name="x-circle" class="size-3 shrink-0 text-red-500" />
+				<HugeiconsIcon name="x-circle" class="size-3 shrink-0 text-red-500" />
 				{rejectLabel}
 			</button>
 		</HeaderActionCell>
 		<HeaderActionCell>
 			<button type="button" class="plan-action-btn" onclick={onApprove}>
-				<RoundedIcon name="check-circle" class="size-3 shrink-0" />
+				<HugeiconsIcon name="check-circle" class="size-3 shrink-0" />
 				{approveLabel}
 			</button>
 		</HeaderActionCell>

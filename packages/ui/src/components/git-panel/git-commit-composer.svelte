@@ -4,7 +4,7 @@
 	 */
 	import type { Snippet } from "svelte";
 	import { cn } from "../../lib/utils.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import { InputContainer } from "../input-container/index.js";
 
 	interface Props {
@@ -61,7 +61,7 @@
 					disabled={!canCommit || submitDisabled}
 					onclick={handleSubmit}
 				>
-					<RoundedIcon name="arrow-up" class="mx-auto h-3.5 w-3.5" />
+					<HugeiconsIcon name="arrow-up" class="mx-auto h-3.5 w-3.5" />
 				</button>
 			</div>
 			<div class="relative flex-1 min-w-0 pr-12">
@@ -93,9 +93,9 @@
 					onclick={onGenerate}
 				>
 					{#if generating}
-						<RoundedIcon name="spinner" class="h-3.5 w-3.5 animate-spin" />
+						<HugeiconsIcon name="spinner" class="h-3.5 w-3.5 animate-spin" />
 					{:else}
-						<RoundedIcon name="sparkle" class="h-3.5 w-3.5" />
+						<HugeiconsIcon name="sparkle" class="h-3.5 w-3.5" />
 					{/if}
 				</button>
 			{/if}

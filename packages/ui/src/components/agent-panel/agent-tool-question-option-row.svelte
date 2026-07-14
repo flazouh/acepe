@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import type { AgentQuestionOption } from "./types.js";
 	import { getQuestionOptionClasses } from "./agent-tool-question-state.js";
 
@@ -38,7 +38,7 @@
 	<div class="flex items-start gap-2 w-full">
 		{#if multiSelect}
 			{#if selected}
-				<RoundedIcon name="check" class="size-3.5 text-foreground shrink-0 mt-0.5" />
+				<HugeiconsIcon name="check" class="size-3.5 text-foreground shrink-0 mt-0.5" />
 			{:else}
 				<span
 					class="mt-0.5 size-3.5 shrink-0 rounded-sm border border-muted-foreground/70"
@@ -46,7 +46,7 @@
 				></span>
 			{/if}
 		{:else if selected}
-			<RoundedIcon name="check" class="size-3.5 text-foreground shrink-0 mt-0.5" />
+			<HugeiconsIcon name="check" class="size-3.5 text-foreground shrink-0 mt-0.5" />
 		{/if}
 		<div class="flex flex-col min-w-0">
 			<span class="text-sm">{option.label}</span>

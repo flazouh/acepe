@@ -1,7 +1,7 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
 import { Button } from "../button/index.js";
-import { RoundedIcon, type RoundedIconName } from "../icons/index.js";
+import { HugeiconsIcon, type HugeiconsIconName } from "../icons/index.js";
 import AppSearchButton from "./app-search-button.svelte";
 
 interface Props {
@@ -62,7 +62,7 @@ let {
 	sidebarOpen = true,
 }: Props = $props();
 
-const sidebarIconName = $derived<RoundedIconName>(
+const sidebarIconName = $derived<HugeiconsIconName>(
 	sidebarOpen ? "sidebar-open" : "sidebar-closed",
 );
 </script>
@@ -94,7 +94,7 @@ const sidebarIconName = $derived<RoundedIconName>(
 					onclick={onToggleSidebar}
 				>
 					{#snippet children()}
-						<RoundedIcon
+						<HugeiconsIcon
 							name={sidebarIconName}
 							data-testid="app-top-bar-sidebar-icon"
 						/>
@@ -107,7 +107,7 @@ const sidebarIconName = $derived<RoundedIconName>(
 				{:else}
 					<Button {...chromeIconButton} title="Add project" aria-label="Add Project">
 						{#snippet children()}
-							<RoundedIcon name="plus" />
+							<HugeiconsIcon name="plus" />
 						{/snippet}
 					</Button>
 				{/if}
@@ -135,7 +135,7 @@ const sidebarIconName = $derived<RoundedIconName>(
 		{#if showSettings}
 			<Button {...chromeIconButton} title="Settings" aria-label="Settings" onclick={onSettings}>
 				{#snippet children()}
-					<RoundedIcon name="settings" />
+					<HugeiconsIcon name="settings" />
 				{/snippet}
 			</Button>
 		{/if}

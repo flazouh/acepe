@@ -3,7 +3,7 @@
 
 	import { DropdownMenu as DropdownMenuPrimitive } from "bits-ui";
 	import { type WithoutChildrenOrChild, cn } from "../../lib/utils";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import { dropdownMenuItemRadiusClass } from "./dropdown-menu-item.classes.js";
 	import { dropdownMenuItemTypographyClass } from "./dropdown-menu-typography.js";
 	import { getDropdownMenuHighlightContext } from "./dropdown-menu-highlight-context";
@@ -64,9 +64,9 @@
 	{#snippet children({ checked, indeterminate })}
 		<span class="pointer-events-none absolute start-2 flex size-3.5 items-center justify-center">
 			{#if indeterminate}
-				<RoundedIcon name="minus" class="size-4" />
+				<HugeiconsIcon name="minus" class="size-4" />
 			{:else}
-				<RoundedIcon name="check" class={cn("size-4", !checked && "text-transparent")} />
+				<HugeiconsIcon name="check" class={cn("size-4", !checked && "text-transparent")} />
 			{/if}
 		</span>
 		{@render childrenProp?.()}

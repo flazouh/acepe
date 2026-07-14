@@ -4,7 +4,7 @@
 		HeaderActionCell,
 		HeaderTitleCell,
 	} from "../panel-header/index.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import AgentToolDurationLabel from "./agent-tool-duration-label.svelte";
 	import type { ToolDurationTiming } from "./tool-duration.js";
 
@@ -23,11 +23,11 @@
 <EmbeddedPanelHeader class="bg-accent/40">
 	<HeaderTitleCell compactPadding>
 		{#if state === "cancelled"}
-			<RoundedIcon name="x-circle" class="size-3.5 shrink-0 mr-1 text-muted-foreground" />
+			<HugeiconsIcon name="x-circle" class="size-3.5 shrink-0 mr-1 text-muted-foreground" />
 		{:else if state === "answered"}
-			<RoundedIcon name="question-circle" class="h-3.5 w-3.5 shrink-0 mr-1 text-success" />
+			<HugeiconsIcon name="question-circle" class="h-3.5 w-3.5 shrink-0 mr-1 text-success" />
 		{:else}
-			<RoundedIcon name="question-circle" class="h-3.5 w-3.5 shrink-0 mr-1 text-primary" />
+			<HugeiconsIcon name="question-circle" class="h-3.5 w-3.5 shrink-0 mr-1 text-primary" />
 		{/if}
 		<span class="question-title">{title}</span>
 		{#if badge}

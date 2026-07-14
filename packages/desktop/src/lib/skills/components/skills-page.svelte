@@ -1,6 +1,6 @@
 <script lang="ts">
 import { okAsync } from "neverthrow";
-import { RoundedIcon } from "@acepe/ui";
+import { HugeiconsIcon } from "@acepe/ui";
 import { onMount } from "svelte";
 import AgentIcon from "$lib/acp/components/agent-icon.svelte";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
@@ -126,7 +126,7 @@ function getSyncStatusForSkill(
 				<div class="p-2 text-[12px] text-muted-foreground">Loading skills...</div>
 			{:else if store.skills.length === 0}
 				<div class="flex h-full flex-col items-center justify-center gap-3 p-4 text-center">
-					<RoundedIcon name="file-text" class="h-8 w-8 text-muted-foreground opacity-50" />
+					<HugeiconsIcon name="file-text" class="h-8 w-8 text-muted-foreground opacity-50" />
 					<p class="text-[12px] text-muted-foreground">No skills yet</p>
 					<Button variant="outline" size="sm" onclick={openCreateDialog}>Create First Skill</Button>
 				</div>
@@ -166,7 +166,7 @@ function getSyncStatusForSkill(
 		<div class="flex h-7 shrink-0 items-center gap-2 border-b border-border/40 px-2">
 			<div class="flex min-w-0 flex-1 items-center gap-1.5">
 				{#if isViewingPluginSkill && store.selectedPluginSkill}
-					<RoundedIcon name="skills" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+					<HugeiconsIcon name="skills" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
 					<span class="truncate text-[11px] font-medium text-foreground">
 						{store.selectedPluginSkill.name}
 					</span>
@@ -185,12 +185,16 @@ function getSyncStatusForSkill(
 			<div class="flex shrink-0 items-center gap-1">
 				{#if isViewingPluginSkill && store.selectedPluginSkill}
 					<Button variant="outline" size="sm" onclick={handleCopyToLibrary}>
-						<RoundedIcon name="copy" class="h-3.5 w-3.5" />
+						<HugeiconsIcon
+							name="copy"
+							class="h-3.5 w-3.5"
+							data-testid="skills-page-copy-hugeicons-icon"
+						/>
 						Copy to Library
 					</Button>
 				{:else if store.selectedSkill}
 					<Button variant="outline" size="sm" onclick={openDeleteDialog} title="Delete Skill">
-						<RoundedIcon name="trash" class="h-3.5 w-3.5" />
+						<HugeiconsIcon name="trash" class="h-3.5 w-3.5" />
 					</Button>
 					<SyncDropdownButton />
 				{/if}
@@ -220,7 +224,7 @@ function getSyncStatusForSkill(
 			<div
 				class="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground min-h-0 bg-background"
 			>
-				<RoundedIcon name="file-text" class="h-12 w-12 opacity-50" />
+				<HugeiconsIcon name="file-text" class="h-12 w-12 opacity-50" />
 				<p class="text-[12px]">Select a skill to view or edit</p>
 			</div>
 		{/if}

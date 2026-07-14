@@ -19,7 +19,7 @@ afterEach(() => {
 	cleanup();
 });
 
-describe("CommandChip rounded icons", () => {
+describe("CommandChip Hugeicons", () => {
 	it("renders model commands with rounded sliders and arrow icons", () => {
 		const { container, getByText } = render(CommandChip, {
 			props: {

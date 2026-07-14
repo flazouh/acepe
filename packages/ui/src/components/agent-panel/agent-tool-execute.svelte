@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import { scrollToEnd } from "./agent-tool-execute-effects.js";
 	import {
@@ -101,9 +101,9 @@
 			/>
 
 			{#if isSuccess}
-				<RoundedIcon name="check-circle" class="size-[11px] text-success" />
+				<HugeiconsIcon name="check-circle" class="size-[11px] text-success" />
 			{:else if isError}
-				<RoundedIcon name="x-circle" class="size-[11px] text-destructive" />
+				<HugeiconsIcon name="x-circle" class="size-[11px] text-destructive" />
 			{/if}
 
 			{#if !isPending && hasOutput}
@@ -115,7 +115,7 @@
 					class="flex items-center justify-center rounded-lg border-none bg-transparent p-0.5 text-muted-foreground transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2 active:scale-95"
 					aria-label={isExpanded ? ariaCollapseOutput : ariaExpandOutput}
 				>
-					<RoundedIcon name="chevron-down" class="size-3 shrink-0 transition-transform duration-150 {isExpanded ? 'rotate-180' : ''}"
+					<HugeiconsIcon name="chevron-down" class="size-3 shrink-0 transition-transform duration-150 {isExpanded ? 'rotate-180' : ''}"
 					/>
 				</button>
 			{/if}

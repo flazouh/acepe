@@ -1,5 +1,5 @@
 <script lang="ts">
-import { Button, DiscordIcon, RoundedIcon, XLogoIcon } from "@acepe/ui";
+import { Button, DiscordIcon, HugeiconsIcon, XLogoIcon } from "@acepe/ui";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { onMount } from "svelte";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
@@ -70,7 +70,7 @@ const releaseUrl = $derived(
 			onclick={() => openUrl("https://github.com/flazouh/acepe")}
 		>
 			{#snippet children()}
-				<RoundedIcon name="github" />
+				<HugeiconsIcon name="github" />
 			{/snippet}
 		</Button>
 		<Button

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { RoundedIcon } from "@acepe/ui";
+import { HugeiconsIcon } from "@acepe/ui";
 import Header from "$lib/components/header.svelte";
 import Seo from "$lib/components/seo/seo.svelte";
 import type { BlogPostMetadata } from "./types.js";
@@ -96,7 +96,7 @@ const jsonLd = $derived([
 				href="/blog"
 				class="inline-flex items-center gap-2 font-mono text-xs text-muted-foreground transition-colors hover:text-foreground"
 			>
-				<RoundedIcon name="arrow-left" class="h-3.5 w-3.5" />
+				<HugeiconsIcon name="arrow-left" class="h-3.5 w-3.5" />
 				<span>{"Back to Blog"}</span>
 			</a>
 		</div>
@@ -150,7 +150,7 @@ const jsonLd = $derived([
 										{link.description}
 									</p>
 								</div>
-								<RoundedIcon name="arrow-left" class="h-4 w-4 shrink-0 rotate-180 text-muted-foreground transition-transform group-hover:translate-x-1" />
+								<HugeiconsIcon name="arrow-left" class="h-4 w-4 shrink-0 rotate-180 text-muted-foreground transition-transform group-hover:translate-x-1" />
 							</div>
 						</a>
 					{/each}

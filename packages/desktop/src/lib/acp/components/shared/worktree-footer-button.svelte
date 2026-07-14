@@ -1,6 +1,6 @@
 <script lang="ts">
 import { Tooltip } from "bits-ui";
-import { RoundedIcon } from "@acepe/ui";
+import { HugeiconsIcon } from "@acepe/ui";
 import { revealInFinder } from "$lib/utils/tauri-client/opener.js";
 import { toast } from "svelte-sonner";
 
@@ -41,9 +41,9 @@ function handleClick(): void {
 						aria-label="Reveal worktree in Finder"
 					>
 						{#if mode === "worktree"}
-							<RoundedIcon name="worktree" class="size-3 shrink-0 text-success" />
+							<HugeiconsIcon name="worktree" class="size-3 shrink-0 text-success" />
 						{:else}
-							<RoundedIcon name="folder" class="size-3 shrink-0 text-muted-foreground" />
+							<HugeiconsIcon name="folder" class="size-3 shrink-0 text-muted-foreground" />
 						{/if}
 						<span class="truncate max-w-[140px] text-[0.6875rem] font-medium text-foreground">
 							{label}

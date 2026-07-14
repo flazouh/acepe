@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 
 	interface Props {
 		/** Current mode id used to pick the icon (e.g. "code", "plan", "build"). */
@@ -114,11 +114,11 @@
 				aria-label={modeToggleLabel}
 				onclick={handleModeToggle}
 			>
-				<RoundedIcon name="sliders" class="size-3.5" />
+				<HugeiconsIcon name="sliders" class="size-3.5" />
 			</button>
 		{:else}
 			<span class="flex shrink-0 items-center justify-center">
-				<RoundedIcon name="sliders" class="size-3.5 text-muted-foreground" />
+				<HugeiconsIcon name="sliders" class="size-3.5 text-muted-foreground" />
 			</span>
 		{/if}
 

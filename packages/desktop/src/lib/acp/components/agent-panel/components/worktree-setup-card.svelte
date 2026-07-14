@@ -1,6 +1,6 @@
 <script lang="ts">
 import { AgentPanelWorktreeSetupCard as SharedAgentPanelWorktreeSetupCard } from "@acepe/ui/agent-panel";
-import { RoundedIcon } from "@acepe/ui";
+import { HugeiconsIcon } from "@acepe/ui";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import type { WorktreeSetupState } from "../logic/worktree-setup-events.js";
 
@@ -49,7 +49,7 @@ const detailsText = $derived(
 >
 	{#snippet leading()}
 		{#if setupState.status === "failed"}
-		<RoundedIcon name="warning" class="size-[13px] shrink-0 text-destructive" />
+		<HugeiconsIcon name="warning" class="size-[13px] shrink-0 text-destructive" />
 		{:else}
 			<Spinner size={13} />
 		{/if}

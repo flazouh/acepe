@@ -1,5 +1,5 @@
 <script lang="ts">
-import { RoundedIcon, Selector } from "@acepe/ui";
+import { HugeiconsIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { toast } from "svelte-sonner";
 import { PreconnectionCapabilitiesState } from "$lib/acp/components/agent-input/logic/preconnection-capabilities-state.svelte.js";
@@ -128,7 +128,7 @@ function setAgentChecked(agentId: string, checked: boolean): void {
 
 			<DropdownMenu.Item onclick={() => void agentPreferencesStore.setDefaultAgentId(null)}>
 				<div class="flex items-center gap-2">
-					<RoundedIcon
+					<HugeiconsIcon
 						name="check"
 						class={defaultAgentId === null ? "size-3 text-foreground" : "size-3 text-transparent"}
 					/>
@@ -139,7 +139,7 @@ function setAgentChecked(agentId: string, checked: boolean): void {
 			{#each selectableAgents as agent (agent.id)}
 				<DropdownMenu.Item onclick={() => void agentPreferencesStore.setDefaultAgentId(agent.id)}>
 					<div class="flex items-center gap-2">
-						<RoundedIcon
+						<HugeiconsIcon
 							name="check"
 							class={agent.id === defaultAgentId ? "size-3 text-foreground" : "size-3 text-transparent"}
 						/>

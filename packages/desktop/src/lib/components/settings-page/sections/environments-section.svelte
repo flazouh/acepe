@@ -6,7 +6,7 @@ import SettingsSection from "../settings-section.svelte";
 <div class="w-full">
 	<SettingsSection>
 		<SettingsComingSoon
-			roundedIcon="folder"
+			iconName="folder"
 			headline="Environment management"
 			description="Env-file copy allowlist for worktree creation and per-agent environment variable overrides will live here."
 		/>

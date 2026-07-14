@@ -5,10 +5,10 @@ import {
 	BrandLockup,
 	LayoutModeIcon,
 	PillButton,
-	RoundedIcon,
+	HugeiconsIcon,
 	StorageIcon,
 } from "@acepe/ui";
-import type { RoundedIconName } from "@acepe/ui/icons";
+import type { HugeiconsIconName } from "@acepe/ui/icons";
 import { CheckpointTimeline } from "@acepe/ui/checkpoint";
 import { PlanCard } from "@acepe/ui/plan-card";
 import { AgentSelectionGrid } from "@acepe/ui/agent-panel";
@@ -30,7 +30,7 @@ const theme = "dark" as const;
 
 type LayoutIconMode = "columns" | "grid" | "kanban" | "single";
 type FeatureIcon =
-	| { kind: "rounded"; name: RoundedIconName }
+	| { kind: "hugeicons"; name: HugeiconsIconName }
 	| { kind: "layout"; mode: LayoutIconMode }
 	| { kind: "storage" };
 
@@ -153,7 +153,7 @@ const mockSessions: AppSessionItemType[] = [
 const features: Feature[] = [
 	{
 		id: "multi-agent",
-		icon: { kind: "rounded", name: "team" },
+		icon: { kind: "hugeicons", name: "team" },
 		label: "Multi-Agent Support",
 		tag: "core",
 		description:
@@ -166,7 +166,7 @@ const features: Feature[] = [
 	},
 	{
 		id: "parallel",
-		icon: { kind: "rounded", name: "expand" },
+		icon: { kind: "hugeicons", name: "expand" },
 		label: "Parallel Sessions & Focus",
 		tag: "workflow",
 		description:
@@ -179,7 +179,7 @@ const features: Feature[] = [
 	},
 	{
 		id: "queue",
-		icon: { kind: "rounded", name: "bell" },
+		icon: { kind: "hugeicons", name: "bell" },
 		label: "Attention Queue",
 		tag: "triage",
 		description:
@@ -205,7 +205,7 @@ const features: Feature[] = [
 	},
 	{
 		id: "review",
-		icon: { kind: "rounded", name: "check" },
+		icon: { kind: "hugeicons", name: "check" },
 		label: "Review Workspace",
 		tag: "verify",
 		description:
@@ -218,7 +218,7 @@ const features: Feature[] = [
 	},
 	{
 		id: "plan-mode",
-		icon: { kind: "rounded", name: "lightning" },
+		icon: { kind: "hugeicons", name: "lightning" },
 		label: "Plan Mode",
 		tag: "planning",
 		description:
@@ -231,7 +231,7 @@ const features: Feature[] = [
 	},
 	{
 		id: "checkpoints",
-		icon: { kind: "rounded", name: "arrow-counter-clockwise" },
+		icon: { kind: "hugeicons", name: "arrow-counter-clockwise" },
 		label: "Checkpoints",
 		tag: "safety",
 		description:
@@ -244,7 +244,7 @@ const features: Feature[] = [
 	},
 	{
 		id: "git",
-		icon: { kind: "rounded", name: "branch" },
+		icon: { kind: "hugeicons", name: "branch" },
 		label: "Git Panel",
 		tag: "git",
 		description:
@@ -257,7 +257,7 @@ const features: Feature[] = [
 	},
 	{
 		id: "pr",
-		icon: { kind: "rounded", name: "pull-request" },
+		icon: { kind: "hugeicons", name: "pull-request" },
 		label: "PR Workflow",
 		tag: "ship",
 		description:
@@ -270,7 +270,7 @@ const features: Feature[] = [
 	},
 	{
 		id: "sessions",
-		icon: { kind: "rounded", name: "history" },
+		icon: { kind: "hugeicons", name: "history" },
 		label: "Session Management",
 		tag: "history",
 		description:
@@ -283,7 +283,7 @@ const features: Feature[] = [
 	},
 	{
 		id: "keyboard",
-		icon: { kind: "rounded", name: "keyboard" },
+		icon: { kind: "hugeicons", name: "keyboard" },
 		label: "Keyboard-First",
 		tag: "input",
 		description:
@@ -296,7 +296,7 @@ const features: Feature[] = [
 	},
 	{
 		id: "browser",
-		icon: { kind: "rounded", name: "browser" },
+		icon: { kind: "hugeicons", name: "browser" },
 		label: "Embedded Browser",
 		tag: "verify",
 		description:
@@ -309,7 +309,7 @@ const features: Feature[] = [
 	},
 	{
 		id: "terminal",
-		icon: { kind: "rounded", name: "terminal" },
+		icon: { kind: "hugeicons", name: "terminal" },
 		label: "Terminal Drawer",
 		tag: "tools",
 		description:
@@ -322,7 +322,7 @@ const features: Feature[] = [
 	},
 	{
 		id: "permissions",
-		icon: { kind: "rounded", name: "permissions" },
+		icon: { kind: "hugeicons", name: "permissions" },
 		label: "Permissions & Autonomy",
 		tag: "control",
 		description:
@@ -335,7 +335,7 @@ const features: Feature[] = [
 	},
 	{
 		id: "skills",
-		icon: { kind: "rounded", name: "skills" },
+		icon: { kind: "hugeicons", name: "skills" },
 		label: "Skills & MCP",
 		tag: "extend",
 		description:
@@ -348,7 +348,7 @@ const features: Feature[] = [
 	},
 	{
 		id: "voice",
-		icon: { kind: "rounded", name: "microphone" },
+		icon: { kind: "hugeicons", name: "microphone" },
 		label: "Voice Input",
 		tag: "input",
 		description:
@@ -592,7 +592,7 @@ class:md:[direction:rtl]={i % 2 === 1}
 <div class="overflow-hidden rounded-lg border border-border/50 bg-card shadow-2xl backdrop-blur" style="width: 303px;">
 <div class="border-b border-border/50 px-3 py-2">
 <div class="flex h-7 items-center gap-2 rounded-md border border-border/40 bg-background px-2.5 font-mono text-[11px] text-muted-foreground/70">
-<RoundedIcon name="search" class="size-[11px]" />
+<HugeiconsIcon name="search" class="size-[11px]" />
 <span>search sessions…</span>
 </div>
 </div>
@@ -606,7 +606,7 @@ class:md:[direction:rtl]={i % 2 === 1}
 <div class="overflow-hidden rounded-lg border border-border/50 bg-card shadow-2xl backdrop-blur">
 <div class="border-b border-border/50 px-3 py-2.5">
 <div class="flex items-center gap-2 font-mono text-[11px] text-muted-foreground">
-<RoundedIcon name="keyboard" class="size-[11px] text-primary" />
+<HugeiconsIcon name="keyboard" class="size-[11px] text-primary" />
 <span class="text-foreground">switch agent</span>
 </div>
 </div>
@@ -667,7 +667,7 @@ class:md:[direction:rtl]={i % 2 === 1}
 {:else if feature.id === "pr"}
 <div class="overflow-hidden rounded-lg border border-border/50 bg-card shadow-2xl">
 <div class="border-b border-border/50 bg-success/10 px-3 py-2 flex items-center gap-2">
-<RoundedIcon name="pull-request" class="size-3.5 text-success" />
+<HugeiconsIcon name="pull-request" class="size-3.5 text-success" />
 <span class="font-mono text-[11px] font-medium text-success">Merged · #342</span>
 </div>
 <div class="p-3 space-y-2">
@@ -728,7 +728,7 @@ class:md:[direction:rtl]={i % 2 === 1}
 {:else if feature.id === "terminal"}
 <div class="overflow-hidden rounded-lg border border-border/50 bg-[#0a0a0a] shadow-2xl" style="width: 253px;">
 <div class="flex items-center gap-2 border-b border-border/50 bg-muted/20 px-3 py-1.5">
-<RoundedIcon name="terminal" class="size-[11px] text-muted-foreground" />
+<HugeiconsIcon name="terminal" class="size-[11px] text-muted-foreground" />
 <span class="font-mono text-[10px] text-muted-foreground">Terminal 1 · zsh</span>
 </div>
 <div class="p-3 font-mono text-[10px] leading-relaxed">
@@ -743,7 +743,7 @@ class:md:[direction:rtl]={i % 2 === 1}
 {:else if feature.id === "voice"}
 <div class="voice-card relative flex w-full flex-col items-center gap-4 overflow-hidden rounded-lg border border-border/50 bg-card p-6 shadow-2xl">
 <div class="relative flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_0_24px_rgba(247,126,44,0.45)]">
-<RoundedIcon name="microphone" class="size-[26px]" />
+<HugeiconsIcon name="microphone" class="size-[26px]" />
 </div>
 <div class="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
 <span class="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-destructive"></span>
@@ -762,7 +762,7 @@ class:md:[direction:rtl]={i % 2 === 1}
 {:else if feature.id === "permissions"}
 <div class="overflow-hidden rounded-lg border border-border/50 bg-card shadow-2xl" style="width: 192px;">
 <div class="border-b border-border/50 px-3 py-2 flex items-center gap-2">
-<RoundedIcon name="permissions" class="size-3 text-success" />
+<HugeiconsIcon name="permissions" class="size-3 text-success" />
 <span class="font-mono text-[11px] font-medium">Session permissions</span>
 </div>
 <div class="p-2 space-y-1">
@@ -783,7 +783,7 @@ class:md:[direction:rtl]={i % 2 === 1}
 {:else if feature.id === "skills"}
 <div class="w-full overflow-hidden rounded-lg border border-border/50 bg-card shadow-2xl">
 <div class="flex items-center gap-2 border-b border-border/50 px-3.5 py-2.5">
-<RoundedIcon name="skills" class="size-[13px] text-primary" />
+<HugeiconsIcon name="skills" class="size-[13px] text-primary" />
 <span class="font-mono text-[11px] font-medium tracking-wide">Skills & MCP</span>
 <span class="ml-auto font-mono text-[10px] text-muted-foreground">5 active</span>
 </div>
@@ -820,7 +820,7 @@ class:md:[direction:rtl]={i % 2 === 1}
 {:else if feature.icon.kind === "layout"}
 <LayoutModeIcon mode={feature.icon.mode} class="size-3.5 text-primary/80" />
 {:else}
-<RoundedIcon name={feature.icon.name} class="size-3.5 text-primary/80" />
+<HugeiconsIcon name={feature.icon.name} class="size-3.5 text-primary/80" />
 {/if}
 <span>{feature.tag}</span>
 </div>
@@ -935,7 +935,7 @@ class:md:[direction:rtl]={i % 2 === 1}
 								rel="noopener noreferrer"
 								class="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
 							>
-								<RoundedIcon name="github" class="size-3.5" />
+								<HugeiconsIcon name="github" class="size-3.5" />
 								GitHub
 							</a>
 						</li>

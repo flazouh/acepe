@@ -4,7 +4,7 @@
 	import { Colors } from "../../lib/colors.js";
 	import { DiffPill } from "../diff-pill/index.js";
 	import { GitHubBadge } from "../github-badge/index.js";
-	import { LoadingIcon, PullRequestStatusIcon, RoundedIcon } from "../icons/index.js";
+	import { LoadingIcon, PullRequestStatusIcon, HugeiconsIcon } from "../icons/index.js";
 	import { MarkdownDisplay } from "../markdown/index.js";
 	import { PrChecksList } from "../pr-checks/index.js";
 	import AgentPanelPrStatusCard from "./pr-status-card.svelte";
@@ -98,7 +98,7 @@
 			{#if model.mode === "streaming" && model.isStreaming}
 				<LoadingIcon class="shrink-0 animate-spin" size={12} />
 			{/if}
-			<RoundedIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground/80 transition-transform {isExpanded ? '' : 'rotate-180'}"
+			<HugeiconsIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground/80 transition-transform {isExpanded ? '' : 'rotate-180'}"
 			/>
 		{/if}
 	{/snippet}

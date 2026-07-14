@@ -17,23 +17,20 @@ describe("LoadingIcon", () => {
 	it("applies caller-provided dimensions to the rendered spinner", () => {
 		const { container } = render(LoadingIcon, {
 			size: 14,
-			variant: "dotm-hex-2",
 		});
 
-		const spinner = container.querySelector(".acepe-dotm-root");
-		const spinnerStyle = spinner?.getAttribute("style");
+		const spinner = container.querySelector("svg");
 		const spinnerClass = spinner?.getAttribute("class");
 
 		expect(spinner).not.toBeNull();
-		expect(spinnerStyle).toContain("width: 14px");
-		expect(spinnerStyle).toContain("height: 14px");
+		expect(spinner?.getAttribute("width")).toBe("14");
+		expect(spinner?.getAttribute("height")).toBe("14");
 		expect(spinnerClass).not.toContain("size-4");
 	});
 
-	it("renders arc-spin without the dot matrix root class", () => {
+	it("renders the Hugeicons SVG spinner", () => {
 		const { container } = render(LoadingIcon, {
 			size: 16,
-			variant: "arc-spin",
 		});
 
 		expect(container.querySelector(".acepe-dotm-root")).toBeNull();

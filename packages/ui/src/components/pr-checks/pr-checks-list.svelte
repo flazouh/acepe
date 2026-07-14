@@ -8,7 +8,7 @@
 		formatPrChecksSummaryAriaLabel,
 	} from "./pr-checks-summary-format.js";
 	import { Button } from "../button/index.js";
-	import { LoadingIcon, RoundedIcon, WrenchIcon } from "../icons/index.js";
+	import { HugeiconsIcon, LoadingIcon, WrenchIcon } from "../icons/index.js";
 
 	interface Props {
 		checks?: readonly PrChecksItem[];
@@ -104,11 +104,11 @@
 								{#if bucket === "in_progress"}
 									<LoadingIcon class="animate-spin text-muted-foreground" size={10} />
 								{:else if bucket === "failure"}
-									<RoundedIcon name="x-circle" class="size-2.5 text-destructive" />
+									<HugeiconsIcon name="x-circle" class="size-2.5 text-destructive" />
 								{:else if bucket === "neutral"}
-									<RoundedIcon name="minus" class="size-2.5 text-amber-400" data-testid="pr-check-neutral-icon" />
+									<HugeiconsIcon name="minus" class="size-2.5 text-amber-400" data-testid="pr-check-neutral-icon" />
 								{:else}
-									<RoundedIcon name="check-circle" class="size-2.5 text-emerald-500" />
+									<HugeiconsIcon name="check-circle" class="size-2.5 text-emerald-500" />
 								{/if}
 							</span>
 							{#if onViewDetails}
@@ -164,7 +164,10 @@
 											onOpenCheck?.(check, event);
 										}}
 									>
-										<RoundedIcon name="github" />
+										<HugeiconsIcon
+											name="open-in-new-window"
+											data-testid="pr-checks-list-open-external-hugeicons-icon"
+										/>
 									</Button>
 								{/if}
 							</span>
@@ -199,19 +202,19 @@
 										: 'text-emerald-500'}"
 						>
 							{#if segment.kind === "failure"}
-								<RoundedIcon name="x-circle" class="size-[11px]" />
+								<HugeiconsIcon name="x-circle" class="size-[11px]" />
 							{:else if segment.kind === "in_progress"}
 								<LoadingIcon class="animate-spin" size={11} />
 							{:else if segment.kind === "neutral"}
-								<RoundedIcon name="minus" class="size-[11px]" data-testid="pr-check-neutral-icon" />
+								<HugeiconsIcon name="minus" class="size-[11px]" data-testid="pr-check-neutral-icon" />
 							{:else}
-								<RoundedIcon name="check-circle" class="size-[11px]" />
+								<HugeiconsIcon name="check-circle" class="size-[11px]" />
 							{/if}
 							{segment.label}
 						</span>
 					{/each}
 				</div>
-				<RoundedIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground/50 transition-transform {showDetails ? 'rotate-180' : ''}"
+				<HugeiconsIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground/50 transition-transform {showDetails ? 'rotate-180' : ''}"
 				/>
 			</button>
 		{/if}

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { RoundedIcon } from "@acepe/ui";
+import { HugeiconsIcon } from "@acepe/ui";
 import AgentPanelReviewContent from "$lib/acp/components/agent-panel/components/agent-panel-review-content.svelte";
 import { getSessionStore } from "$lib/acp/store/session-store.svelte.js";
 import { Button } from "$lib/components/ui/button/index.js";
@@ -39,7 +39,7 @@ function handleFileIndexChange(index: number): void {
 	>
 		<h1 class="text-lg font-medium">{"Review Changes"}</h1>
 		<Button variant="ghost" size="icon" onclick={onClose} aria-label={"Close"}>
-			<RoundedIcon name="close" class="h-5 w-5" />
+			<HugeiconsIcon name="close" class="h-5 w-5" />
 		</Button>
 	</div>
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { LoadingIcon, RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon, LoadingIcon } from "../icons/index.js";
 	import { ProviderMark, type ProviderBrand } from "../provider-mark/index.js";
 	import { Selector, SelectorItem } from "../selector/index.js";
 	import { cn } from "../../lib/utils.js";
@@ -126,7 +126,7 @@
 			triggerAriaLabel={reasoningEffortTooltipLabel}
 		>
 			{#snippet renderButton()}
-				<RoundedIcon
+				<HugeiconsIcon
 					name="brain"
 					style={reasoningIconStyle}
 					data-testid="reasoning-model-brain-icon"
@@ -144,7 +144,7 @@
 							onSelect={() => onSelect(variant.id)}
 						>
 							{#snippet leading()}
-								<RoundedIcon
+								<HugeiconsIcon
 									name="brain"
 									class="size-3.5 shrink-0"
 									style={`color: ${getReasoningVariantIconColor({

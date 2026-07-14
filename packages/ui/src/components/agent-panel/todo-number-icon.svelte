@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 
 	import type { AgentTodoStatus } from "./types.js";
 
@@ -15,11 +15,11 @@
 </script>
 
 {#if status === "completed"}
-	<RoundedIcon name="check-circle-filled" class="text-success {className}" style="width: {size}px; height: {size}px;" />
+	<HugeiconsIcon name="check-circle-filled" class="text-success {className}" style="width: {size}px; height: {size}px;" />
 {:else if status === "cancelled"}
-	<RoundedIcon name="x-circle" class="text-muted-foreground {className}" style="width: {size}px; height: {size}px;" />
+	<HugeiconsIcon name="x-circle" class="text-muted-foreground {className}" style="width: {size}px; height: {size}px;" />
 {:else if status === "in_progress" && isLive}
-	<RoundedIcon name="spinner" class="animate-spin text-foreground {className}" style="width: {size}px; height: {size}px;" />
+	<HugeiconsIcon name="spinner" class="animate-spin text-foreground {className}" style="width: {size}px; height: {size}px;" />
 {:else}
-	<RoundedIcon name="circle-dashed" class="text-muted-foreground {className}" style="width: {size}px; height: {size}px;" />
+	<HugeiconsIcon name="circle-dashed" class="text-muted-foreground {className}" style="width: {size}px; height: {size}px;" />
 {/if}

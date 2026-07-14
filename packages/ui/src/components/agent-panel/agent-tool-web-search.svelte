@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import {
 		getDisplayedWebSearchLinks,
@@ -114,7 +114,7 @@
 					class="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent p-0 transition-colors hover:bg-muted"
 					aria-label={isCollapsed ? ariaExpandResults : ariaCollapseResults}
 				>
-					<RoundedIcon name="chevron-right" class="size-3 shrink-0 text-muted-foreground transition-transform duration-150 {isCollapsed ? '' : 'rotate-90'}"
+					<HugeiconsIcon name="chevron-right" class="size-3 shrink-0 text-muted-foreground transition-transform duration-150 {isCollapsed ? '' : 'rotate-90'}"
 					/>
 				</button>
 			{/if}
@@ -142,9 +142,10 @@
 							<span class="text-sm text-muted-foreground truncate">
 								{link.title}
 							</span>
-							<RoundedIcon
-								name="external-link"
+							<HugeiconsIcon
+								name="open-in-new-window"
 								class="size-[9px] shrink-0 text-muted-foreground/30 opacity-0 transition-opacity group-hover:opacity-100"
+								data-testid="web-search-collapsed-open-external-hugeicons-icon"
 							/>
 						</a>
 					{/each}
@@ -194,9 +195,10 @@
 										<span class="truncate text-sm text-muted-foreground/70">
 											{link.domain}
 										</span>
-										<RoundedIcon
-											name="external-link"
+										<HugeiconsIcon
+											name="open-in-new-window"
 											class="size-2.5 shrink-0 text-muted-foreground/30 opacity-0 transition-opacity group-hover:opacity-100"
+											data-testid="web-search-expanded-open-external-hugeicons-icon"
 										/>
 									</div>
 									<span class="text-sm text-foreground line-clamp-2 leading-snug">
@@ -214,10 +216,10 @@
 									class="flex items-center gap-1.5 rounded px-2 py-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground border-none bg-transparent cursor-pointer"
 								>
 									{#if !showAll}
-										<RoundedIcon name="chevron-down" class="size-3" />
+										<HugeiconsIcon name="chevron-down" class="size-3" />
 										<span>{showMoreExpandedLabel(hiddenLinkCount)}</span>
 									{:else}
-										<RoundedIcon name="chevron-up" class="size-3 shrink-0" />
+										<HugeiconsIcon name="chevron-up" class="size-3 shrink-0" />
 										<span>{showLessExpandedLabel}</span>
 									{/if}
 								</button>

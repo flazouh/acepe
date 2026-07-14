@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Tooltip } from "bits-ui";
 
-	import { LoadingIcon, RoundedIcon } from "../icons/index.js";
+	import { LoadingIcon, HugeiconsIcon } from "../icons/index.js";
 	import { Colors } from "../../lib/colors.js";
 
 	import { resolveAgentPanelStatusIconPresentation } from "./agent-panel-status-icon-state.js";
@@ -78,7 +78,7 @@
 								? 'text-muted-foreground'
 								: 'text-success'}"
 						>
-							<RoundedIcon
+							<HugeiconsIcon
 								name="check-circle-filled"
 								style={`width: ${size}px; height: ${size}px;`}
 							/>
@@ -115,7 +115,7 @@
 							aria-label={errorLabel}
 							onclick={() => onRetry?.()}
 						>
-							<RoundedIcon
+							<HugeiconsIcon
 								name="alert"
 								style={`width: ${size}px; height: ${size}px;`}
 							/>

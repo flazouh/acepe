@@ -1,7 +1,6 @@
 import { fireEvent, render } from "@testing-library/svelte";
 import { describe, expect, it, vi } from "vitest";
 
-import { linearIconData } from "../../../../../ui/src/components/icons/linear-icon-catalog.generated.js";
 
 import { SETTINGS_SECTIONS } from "./settings-section-registry.js";
 import SettingsSidebar from "./settings-sidebar.svelte";
@@ -67,7 +66,7 @@ describe("SettingsSidebar", () => {
 		expect(onSectionChange).toHaveBeenCalledWith("git");
 	});
 
-	it("renders the approved interface settings row icons", () => {
+	it("renders Hugeicons settings row icons", () => {
 		const view = render(SettingsSidebar, {
 			activeSection: "general",
 			onSectionChange: vi.fn(),
@@ -76,11 +75,11 @@ describe("SettingsSidebar", () => {
 		const generalIcon = view.getByTestId("settings-section-general-icon");
 		const skillsIcon = view.getByTestId("settings-section-skills-icon");
 
-		expect(generalIcon.getAttribute("viewBox")).toBe(
-			linearIconData["feature-svg6bdd3b6f165e"].viewBox
-		);
-		expect(generalIcon.innerHTML).toBe(linearIconData["feature-svg6bdd3b6f165e"].inner);
-		expect(skillsIcon.getAttribute("viewBox")).toBe(linearIconData.skills.viewBox);
-		expect(skillsIcon.innerHTML).toBe(linearIconData.skills.inner);
+		expect(generalIcon.tagName.toLowerCase()).toBe("svg");
+		expect(generalIcon.getAttribute("viewBox")).toBe("0 0 24 24");
+		expect(generalIcon.innerHTML).not.toBe("");
+		expect(skillsIcon.tagName.toLowerCase()).toBe("svg");
+		expect(skillsIcon.getAttribute("viewBox")).toBe("0 0 24 24");
+		expect(skillsIcon.innerHTML).not.toBe("");
 	});
 });

@@ -10,10 +10,6 @@ export type UserSettingKey =
  */
 "user_theme" |
 /**
- * Dot-matrix loading indicator variant used across the app
- */
-"loading_indicator_variant" |
-/**
  * Color id (Tailwind palette) for the loading indicator
  */
 "loading_indicator_color" |
@@ -169,4 +165,3 @@ export type UserSettingKey =
  * Code/diff font size in px (stored as integer string, e.g. "13")
  */
 "code_font_size"
-

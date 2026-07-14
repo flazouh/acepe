@@ -1,6 +1,6 @@
 <script lang="ts">
 import type { PrDetails } from "$lib/utils/tauri-client/git.js";
-import { RoundedIcon, type PrChecksItem } from "@acepe/ui";
+import { HugeiconsIcon, type PrChecksItem } from "@acepe/ui";
 import type { IssueReportDraft } from "$lib/errors/issue-report.js";
 import { resolveIssueActionLabel } from "$lib/errors/issue-report.js";
 import type { SessionLinkedPr } from "../../../application/dto/session-linked-pr";
@@ -156,7 +156,7 @@ let {
 			<div class="{centeredFullscreenContent ? 'flex justify-center' : ''} px-5 mb-2">
 				<div class="flex justify-center {centeredFullscreenContent ? 'w-full max-w-4xl' : ''}">
 					<div class="pointer-events-auto inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-accent">
-						<RoundedIcon name="worktree" class="size-3 shrink-0 text-destructive" />
+						<HugeiconsIcon name="worktree" class="size-3 shrink-0 text-destructive" />
 						<span class="text-[0.6875rem] text-muted-foreground">
 							{"The worktree associated with this session has been deleted."}
 						</span>

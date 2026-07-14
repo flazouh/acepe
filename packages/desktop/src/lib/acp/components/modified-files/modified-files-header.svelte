@@ -5,7 +5,7 @@ import {
 	AgentPanelModifiedFilesTrailingControls as SharedAgentPanelModifiedFilesTrailingControls,
 	DiffPill,
 	PullRequestStatusIcon,
-	RoundedIcon,
+	HugeiconsIcon,
 	Selector,
 	type AgentPanelModifiedFilesTrailingModel,
 } from "@acepe/ui";
@@ -369,7 +369,7 @@ function handlePromptResetClick(): void {
 										<Spinner class="shrink-0" size={12} />
 										{createPrLabel ? createPrLabel : "Open PR"}
 									{:else}
-										<RoundedIcon
+										<HugeiconsIcon
 											name="pull-request"
 											class="size-[11px] shrink-0 text-muted-foreground transition-colors group-hover/open-pr:text-success"
 										/>
@@ -392,7 +392,7 @@ function handlePromptResetClick(): void {
 								disabled={createPrLoading}
 							>
 								{#snippet renderButton()}
-									<RoundedIcon name="more" class="size-[11px] shrink-0" />
+									<HugeiconsIcon name="more" class="size-[11px] shrink-0" />
 								{/snippet}
 
 								<DropdownMenu.Sub>
@@ -522,7 +522,7 @@ function handlePromptResetClick(): void {
 								disabled={merging}
 							>
 								{#snippet renderButton()}
-									<RoundedIcon name="chevron-down" class="size-3 shrink-0" />
+									<HugeiconsIcon name="chevron-down" class="size-3 shrink-0" />
 								{/snippet}
 
 								<DropdownMenu.RadioGroup

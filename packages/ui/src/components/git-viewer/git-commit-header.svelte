@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { DiffPill } from "../diff-pill/index.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import { cn } from "../../lib/utils.js";
 	import type { GitCommitData } from "./types.js";
 
@@ -43,7 +43,7 @@
 	<!-- Primary row: icon + SHA + message + diff pill + actions -->
 	<div class="flex items-center gap-2 px-3 py-2">
 		<span class="shrink-0 text-success">
-			<RoundedIcon
+			<HugeiconsIcon
 				name="git"
 				class="size-4"
 				data-testid="git-commit-header-rounded-icon"
@@ -58,9 +58,13 @@
 		>
 			{commit.shortSha}
 			{#if copied}
-				<RoundedIcon name="check" class="size-2.5" />
+				<HugeiconsIcon name="check" class="size-2.5" />
 			{:else}
-				<RoundedIcon name="copy" class="size-2.5" />
+				<HugeiconsIcon
+					name="copy"
+					class="size-2.5"
+					data-testid="git-commit-header-copy-sha-hugeicons-icon"
+				/>
 			{/if}
 		</button>
 
@@ -79,7 +83,11 @@
 				onclick={onViewOnGitHub}
 				title="View on GitHub"
 			>
-				<RoundedIcon name="external-link" class="size-3" />
+				<HugeiconsIcon
+					name="open-in-new-window"
+					class="size-3"
+					data-testid="git-commit-header-open-external-hugeicons-icon"
+				/>
 			</button>
 		{/if}
 
@@ -89,7 +97,7 @@
 			onclick={() => { expanded = !expanded; }}
 			title={expanded ? "Collapse details" : "Expand details"}
 		>
-			<RoundedIcon name="chevron-down" class="size-3 shrink-0 transition-transform duration-150 {expanded ? 'rotate-180' : ''}"
+			<HugeiconsIcon name="chevron-down" class="size-3 shrink-0 transition-transform duration-150 {expanded ? 'rotate-180' : ''}"
 			/>
 		</button>
 	</div>

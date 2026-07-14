@@ -1,5 +1,5 @@
 <script lang="ts">
-import { RoundedIcon } from "@acepe/ui";
+import { HugeiconsIcon } from "@acepe/ui";
 
 interface Props {
 	fileCurrent: number;
@@ -41,7 +41,7 @@ const navBtnClass =
 			onclick={onToggleReviewed}
 		>
 			{#if isReviewed}
-				<RoundedIcon name="check-circle" class="h-3 w-3 shrink-0 text-success" />
+				<HugeiconsIcon name="check-circle" class="h-3 w-3 shrink-0 text-success" />
 				{"Reviewed"}
 			{:else}
 				<span class="block h-3 w-3 shrink-0 rounded-full border border-current opacity-50"></span>
@@ -61,7 +61,7 @@ const navBtnClass =
 				aria-label={"Previous file"}
 				onclick={onPrevFile}
 			>
-				<RoundedIcon name="chevron-left" class="size-3 shrink-0" />
+				<HugeiconsIcon name="chevron-left" class="size-3 shrink-0" />
 			</button>
 			<span
 				class="h-6 inline-flex items-center justify-center px-1 text-[10px] tabular-nums text-muted-foreground min-w-[1.5rem]"
@@ -77,7 +77,7 @@ const navBtnClass =
 				aria-label={"Next file"}
 				onclick={onNextFile}
 			>
-				<RoundedIcon name="chevron-right" class="size-3 shrink-0" />
+				<HugeiconsIcon name="chevron-right" class="size-3 shrink-0" />
 			</button>
 		</div>
 	{/if}

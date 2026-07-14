@@ -6,7 +6,7 @@
 -->
 <script lang="ts">
 	import { Button } from "../button/index.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import {
 		dropdownMenuItemTypographyClass,
@@ -157,7 +157,7 @@
 										onUninstallModel(row.model.id);
 									}}
 								>
-									<RoundedIcon name="trash" />
+									<HugeiconsIcon name="trash" />
 								</Button>
 							</div>
 						{:else}
@@ -181,7 +181,7 @@
 										onDownloadModel(row.model.id);
 									}}
 								>
-									<RoundedIcon name="download" />
+									<HugeiconsIcon name="download" />
 								</Button>
 							</div>
 						{/if}

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import {
 		getSlashCommandDisplayName,
 		getSlashCommandIconColor,
@@ -50,11 +50,11 @@
 		style="--slash-command-icon-color: {iconColor};"
 	>
 		{#if tokenType === "skill"}
-			<RoundedIcon name="skills" class="h-2.5 w-2.5" data-testid="slash-command-skill-icon" />
+			<HugeiconsIcon name="skills" class="h-2.5 w-2.5" data-testid="slash-command-skill-icon" />
 		{:else if tokenType === "mcp"}
-			<RoundedIcon name="mcp" class="h-2.5 w-2.5" />
+			<HugeiconsIcon name="mcp" class="h-2.5 w-2.5" />
 		{:else}
-			<RoundedIcon name="terminal" class="h-2.5 w-2.5" />
+			<HugeiconsIcon name="terminal" class="h-2.5 w-2.5" />
 		{/if}
 	</div>
 	<div class="min-w-0 flex-1">
@@ -90,7 +90,7 @@
 				onPreview?.();
 			}}
 		>
-			<RoundedIcon name="notebook" class="h-3 w-3" />
+			<HugeiconsIcon name="notebook" class="h-3 w-3" />
 		</button>
 	{/if}
 </div>

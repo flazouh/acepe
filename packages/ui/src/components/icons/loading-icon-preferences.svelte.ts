@@ -1,53 +1,8 @@
 import { createSubscriber } from "svelte/reactivity";
-import {
-	DOTMATRIX_REGISTRY_MANIFEST,
-	type DotmatrixRegistryId,
-} from "./dotmatrix/dotmatrix-registry.js";
-
-export type DotMatrixLoaderId = DotmatrixRegistryId | "arc-spin";
-
-export type DotMatrixLoaderOption = {
-	readonly id: DotMatrixLoaderId;
-	readonly label: string;
-};
 
 /**
- * Maps pre-registry Acepe loading indicator ids to canonical dotmatrix ids.
- */
-export const LEGACY_LOADER_ID_MAP: Readonly<Record<string, DotMatrixLoaderId>> = {
-	"prism-bloom": "dotm-hex-2",
-	"honey-gate": "dotm-hex-3",
-	"vertex-relay": "dotm-hex-4",
-	"spiral-lattice": "dotm-hex-5",
-	"chevron-march": "dotm-hex-6",
-	"hourglass-flip": "dotm-hex-7",
-	"glyph-flip": "dotm-hex-8",
-	"petal-shimmer": "dotm-hex-9",
-	"liquid-vortex": "dotm-hex-10",
-};
-
-function buildDotMatrixLoaderOptions(): readonly DotMatrixLoaderOption[] {
-	const options: DotMatrixLoaderOption[] = [];
-	for (const entry of DOTMATRIX_REGISTRY_MANIFEST) {
-		options.push({
-			id: entry.id,
-			label: entry.label,
-		});
-	}
-	options.push({
-		id: "arc-spin",
-		label: "Arc Spin",
-	});
-	return options;
-}
-
-export const DOT_MATRIX_LOADER_OPTIONS = buildDotMatrixLoaderOptions();
-
-export const DEFAULT_DOT_MATRIX_LOADER_ID: DotMatrixLoaderId = "arc-spin";
-
-/**
- * Curated Tailwind 500-shade palette for the loading indicator color picker.
- * Values are the Tailwind v3 default 500 hex codes.
+ * Shared color choices for the Hugeicons spinner used by loading states.
+ * The spinner shape is fixed so every loading indicator uses the same icon set.
  */
 export const LOADING_ICON_COLOR_OPTIONS = [
 	{ id: "amber", label: "Amber", hex: "#bf8700" },
@@ -84,10 +39,7 @@ export function isLoadingIconColorId(
 export function normalizeLoadingIconColorId(
 	value: string | null | undefined,
 ): LoadingIconColorId {
-	if (isLoadingIconColorId(value)) {
-		return value;
-	}
-	return DEFAULT_LOADING_ICON_COLOR_ID;
+	return isLoadingIconColorId(value) ? value : DEFAULT_LOADING_ICON_COLOR_ID;
 }
 
 export function loadingIconColorHex(id: LoadingIconColorId): string {
@@ -95,14 +47,11 @@ export function loadingIconColorHex(id: LoadingIconColorId): string {
 	return match?.hex ?? "#bf8700";
 }
 
-let globalLoadingIconVariant: DotMatrixLoaderId = DEFAULT_DOT_MATRIX_LOADER_ID;
 let globalLoadingIconColor: LoadingIconColorId = DEFAULT_LOADING_ICON_COLOR_ID;
 const loadingIconPreferenceSubscribers = new Set<() => void>();
 const subscribeLoadingIconPreference = createSubscriber((update) => {
 	loadingIconPreferenceSubscribers.add(update);
-	return () => {
-		loadingIconPreferenceSubscribers.delete(update);
-	};
+	return () => loadingIconPreferenceSubscribers.delete(update);
 });
 
 function notifyLoadingIconPreferenceSubscribers(): void {
@@ -111,43 +60,7 @@ function notifyLoadingIconPreferenceSubscribers(): void {
 	}
 }
 
-export function isDotMatrixLoaderId(
-	value: string | null | undefined,
-): value is DotMatrixLoaderId {
-	if (value === "arc-spin") {
-		return true;
-	}
-	return DOTMATRIX_REGISTRY_MANIFEST.some((entry) => entry.id === value);
-}
-
-export function normalizeDotMatrixLoaderId(
-	value: string | null | undefined,
-): DotMatrixLoaderId {
-	if (value === null || value === undefined) {
-		return DEFAULT_DOT_MATRIX_LOADER_ID;
-	}
-	const legacyMatch = LEGACY_LOADER_ID_MAP[value];
-	if (legacyMatch !== undefined) {
-		return legacyMatch;
-	}
-	if (isDotMatrixLoaderId(value)) {
-		return value;
-	}
-	return DEFAULT_DOT_MATRIX_LOADER_ID;
-}
-
 export const loadingIconPreference = {
-	get variant(): DotMatrixLoaderId {
-		subscribeLoadingIconPreference();
-		return globalLoadingIconVariant;
-	},
-	setVariant(value: DotMatrixLoaderId): void {
-		if (globalLoadingIconVariant === value) {
-			return;
-		}
-		globalLoadingIconVariant = value;
-		notifyLoadingIconPreferenceSubscribers();
-	},
 	get colorId(): LoadingIconColorId {
 		subscribeLoadingIconPreference();
 		return globalLoadingIconColor;

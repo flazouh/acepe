@@ -1,26 +1,26 @@
 <script lang="ts">
-import { DiffPill, RoundedIcon, StorageIcon } from "@acepe/ui";
+import { DiffPill, HugeiconsIcon, StorageIcon } from "@acepe/ui";
 import Header from "$lib/components/header.svelte";
 import Seo from "$lib/components/seo/seo.svelte";
 import type { BlogPostMetadata } from "$lib/blog/types.js";
 import { getAllBlogPosts } from "$lib/blog/posts.js";
-import type { RoundedIconName } from "@acepe/ui/icons";
+import type { HugeiconsIconName } from "@acepe/ui/icons";
 
 let { data } = $props();
 
 type BlogIcon =
-	| { kind: "rounded"; name: RoundedIconName }
+	| { kind: "hugeicons"; name: HugeiconsIconName }
 	| { kind: "storage" };
 
 type Post = BlogPostMetadata & { icon: BlogIcon };
 
-const fallbackPostIcon: BlogIcon = { kind: "rounded", name: "bell" };
+const fallbackPostIcon: BlogIcon = { kind: "hugeicons", name: "bell" };
 
 const postIcons = new Map<string, BlogIcon>([
-	["git-viewer", { kind: "rounded", name: "eye" }],
-	["git-panel", { kind: "rounded", name: "branch" }],
-	["checkpoints", { kind: "rounded", name: "arrow-counter-clockwise" }],
-	["attention-queue", { kind: "rounded", name: "bell" }],
+	["git-viewer", { kind: "hugeicons", name: "eye" }],
+	["git-panel", { kind: "hugeicons", name: "branch" }],
+	["checkpoints", { kind: "hugeicons", name: "arrow-counter-clockwise" }],
+	["attention-queue", { kind: "hugeicons", name: "bell" }],
 ]);
 
 const posts: Post[] = getAllBlogPosts().map((post) => ({
@@ -110,7 +110,7 @@ const blogJsonLd = {
 								{#if post.icon.kind === "storage"}
 									<StorageIcon class="size-3.5 text-muted-foreground/60" />
 								{:else}
-									<RoundedIcon name={post.icon.name} class="size-3.5 text-muted-foreground/60" />
+									<HugeiconsIcon name={post.icon.name} class="size-3.5 text-muted-foreground/60" />
 								{/if}
 								<span class="font-mono text-xs font-semibold text-foreground"
 									>{post.category}</span
@@ -150,7 +150,7 @@ const blogJsonLd = {
 								class="mt-4 flex h-9 items-center justify-center gap-2 rounded-lg border border-border bg-muted/30 text-sm font-medium text-foreground transition-colors hover:bg-muted/60"
 							>
 								{"Read more"}
-								<RoundedIcon name="arrow-right" class="h-3.5 w-3.5" />
+								<HugeiconsIcon name="arrow-right" class="h-3.5 w-3.5" />
 							</a>
 						</div>
 					</article>

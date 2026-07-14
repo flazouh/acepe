@@ -164,6 +164,11 @@ describe("NativeMarkdown", () => {
 			expect(container.querySelector("[data-acepe-code-copy-button]")).not.toBeNull();
 		});
 
+		const icon = container.querySelector("[data-testid='native-markdown-code-copy-hugeicons-icon']");
+		expect(icon?.tagName.toLowerCase()).toBe("svg");
+		expect(icon?.getAttribute("viewBox")).toBe("0 0 24 24");
+		expect(icon?.innerHTML).not.toBe("");
+
 		container
 			.querySelector("[data-acepe-code-copy-button]")
 			?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));

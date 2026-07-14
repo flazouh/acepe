@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Button } from "../button/index.js";
-	import { DiscordIcon, RoundedIcon, XLogoIcon } from "../icons/index.js";
+	import { DiscordIcon, HugeiconsIcon, XLogoIcon } from "../icons/index.js";
 
 	interface Props {
 		githubUrl: string;
@@ -31,7 +31,7 @@
 				onclick={() => onLinkClick(githubUrl)}
 			>
 				{#snippet children()}
-					<RoundedIcon name="github" />
+					<HugeiconsIcon name="github" />
 				{/snippet}
 			</Button>
 			<Button
@@ -57,7 +57,7 @@
 		{:else}
 			<Button {...chromeIconButton} href={githubUrl} title="GitHub" aria-label="GitHub">
 				{#snippet children()}
-					<RoundedIcon name="github" />
+					<HugeiconsIcon name="github" />
 				{/snippet}
 			</Button>
 			<Button {...chromeIconButton} href={xUrl} title="X" aria-label="X">

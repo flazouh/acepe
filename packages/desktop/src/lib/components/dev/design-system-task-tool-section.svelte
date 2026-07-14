@@ -1,9 +1,12 @@
 <script lang="ts">
-	import { AgentToolTask } from "@acepe/ui";
+	import { AgentToolTask, AgentToolWebSearch } from "@acepe/ui";
+	import { AgentCopyButton } from "@acepe/ui/agent-panel";
+	import { NativeMarkdown } from "@acepe/ui/native-markdown";
 
 	import { Badge } from "$lib/components/ui/badge/index.js";
 	import SettingRow from "$lib/components/settings-page/setting-row.svelte";
 	import SettingsSection from "$lib/components/settings-page/settings-section.svelte";
+	import CopyButton from "$lib/acp/components/messages/copy-button.svelte";
 
 	import {
 		featuredTaskToolSpecimen,
@@ -35,6 +38,25 @@
 					status: featuredTaskToolSpecimen.status,
 				}}
 			/>
+		</div>
+	</SettingsSection>
+
+	<SettingsSection
+		title="Generic copy icons"
+		description="Generic copy controls use the shared Hugeicons Copy icon."
+	>
+		<div class="grid gap-3 lg:grid-cols-2">
+			<div class="rounded-lg border border-border/40 bg-card p-3">
+				<p class="mb-2 text-sm text-muted-foreground">Message copy button</p>
+				<AgentCopyButton text="Copyable design-system sample" />
+			</div>
+			<div class="rounded-lg border border-border/40 bg-card p-3">
+				<p class="mb-2 text-sm text-muted-foreground">Desktop ACP copy button</p>
+				<CopyButton text="Copyable desktop ACP sample" title="Copy ACP sample" />
+			</div>
+			<div class="rounded-lg border border-border/40 bg-card p-3 lg:col-span-2">
+				<NativeMarkdown markdown={"```ts\nconst hugeiconsCopy = true;\n```"} />
+			</div>
 		</div>
 	</SettingsSection>
 
@@ -72,4 +94,30 @@
 			{/each}
 		</div>
 	</SettingsSection>
+
+	<SettingsSection
+		title="Web search result links"
+		description="Full web search result cards use the open-in-new-window icon for outbound links."
+	>
+		<div class="rounded-lg border border-border/40 bg-card p-3">
+			<AgentToolWebSearch
+				query="shared icon external navigation"
+				status="done"
+				summary="Search results used to verify external link affordances."
+				links={[
+					{
+						title: "Acepe changelog",
+						url: "https://acepe.dev/changelog",
+						domain: "acepe.dev",
+					},
+					{
+						title: "Acepe repository",
+						url: "https://github.com/flazouh/acepe",
+						domain: "github.com",
+					},
+				]}
+			/>
+		</div>
+	</SettingsSection>
+
 </div>

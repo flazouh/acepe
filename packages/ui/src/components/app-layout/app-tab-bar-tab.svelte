@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Tooltip } from 'bits-ui';
 
-	import { RoundedIcon, LoadingIcon } from '../icons/index.js';
+	import { HugeiconsIcon, LoadingIcon } from '../icons/index.js';
 	import { ProjectLetterBadge } from '../project-letter-badge/index.js';
 	import type { AppTab } from './types.js';
 
@@ -102,11 +102,11 @@
 						<!-- 3. Status indicator -->
 						{#if tab.status === 'error'}
 							<span class="shrink-0 w-4 h-4 flex items-center justify-center">
-								<RoundedIcon name="warning" class="size-3 text-destructive" />
+								<HugeiconsIcon name="warning" class="size-3 text-destructive" />
 							</span>
 						{:else if tab.status === 'question'}
 							<span class="shrink-0 w-4 h-4 flex items-center justify-center">
-								<RoundedIcon name="hand" class="size-3 text-primary" data-testid="app-tab-question-icon" />
+								<HugeiconsIcon name="hand" class="size-3 text-primary" data-testid="app-tab-question-icon" />
 							</span>
 						{:else if tab.status === 'done'}
 							<span class="h-2 w-2 rounded-full shrink-0 bg-success"></span>
@@ -132,7 +132,7 @@
 								class="shrink-0 h-5 w-5 p-0 rounded-sm hover:bg-muted flex items-center justify-center"
 								onclick={handleClose}
 							>
-								<RoundedIcon name="close" class="size-3" />
+								<HugeiconsIcon name="close" class="size-3" />
 								<span class="sr-only">Close tab</span>
 							</button>
 						{/if}

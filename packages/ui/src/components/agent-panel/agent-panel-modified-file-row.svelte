@@ -3,7 +3,7 @@
 
 	import { DiffPill } from "../diff-pill/index.js";
 	import { FilePathBadge } from "../file-path-badge/index.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 
 	interface Props {
 		file: AgentPanelModifiedFileItem;
@@ -41,7 +41,7 @@
 		<!-- Status icon left of the file chip -->
 		<span class="shrink-0 {reviewIndicator.iconClassName}" aria-label={reviewIndicator.label}>
 			{#if reviewIndicator.icon === "reviewed"}
-				<RoundedIcon name="check-circle" class="h-3 w-3" />
+				<HugeiconsIcon name="check-circle" class="h-3 w-3" />
 			{:else}
 				<!-- unreviewed: neutral dot placeholder so column width stays consistent -->
 				<span class="block h-3 w-3 rounded-full border border-current opacity-30"></span>
@@ -69,7 +69,7 @@
 			title="Discard changes"
 			onclick={() => file.onRevert?.()}
 		>
-			<RoundedIcon name="undo" class="size-3" />
+			<HugeiconsIcon name="undo" class="size-3" />
 		</button>
 	{/if}
 </div>

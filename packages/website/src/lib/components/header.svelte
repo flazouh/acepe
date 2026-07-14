@@ -1,5 +1,5 @@
 <script lang="ts">
-import { BrandLockup, DiscordIcon, MenuIcon, RoundedIcon, XLogoIcon } from "@acepe/ui";
+import { BrandLockup, DiscordIcon, MenuIcon, HugeiconsIcon, XLogoIcon } from "@acepe/ui";
 import { page } from "$app/stores";
 import { Drawer, DrawerContent, DrawerOverlay, DrawerPortal, DrawerTrigger } from "@acepe/ui";
 
@@ -65,9 +65,9 @@ const mobileNavLinkClass =
 				aria-label="GitHub"
 				title="GitHub"
 			>
-				<RoundedIcon name="github" class="h-4 w-4 shrink-0" />
+				<HugeiconsIcon name="github" class="h-4 w-4 shrink-0" />
 				{#if githubStars}
-					<RoundedIcon name="star" class="h-3 w-3 shrink-0 text-amber-400" />
+					<HugeiconsIcon name="star" class="h-3 w-3 shrink-0 text-amber-400" />
 					<span class="font-mono text-xs text-muted-foreground">{formatStars(githubStars)}</span>
 				{/if}
 			</a>
@@ -100,7 +100,7 @@ const mobileNavLinkClass =
 					<span
 						class="theme-invert-btn-icon ml-2 flex h-6 w-6 items-center justify-center rounded-full transition-all duration-200"
 					>
-						<RoundedIcon name="download" class="theme-invert-btn-icon-svg h-3.5 w-3.5 transition-all duration-200" />
+						<HugeiconsIcon name="download" class="theme-invert-btn-icon-svg h-3.5 w-3.5 transition-all duration-200" />
 					</span>
 				</a>
 			{/if}
@@ -145,9 +145,9 @@ const mobileNavLinkClass =
 								aria-label="GitHub"
 								title="GitHub"
 							>
-								<RoundedIcon name="github" class="h-4 w-4 shrink-0" />
+								<HugeiconsIcon name="github" class="h-4 w-4 shrink-0" />
 								{#if githubStars}
-									<RoundedIcon name="star" class="h-3 w-3 shrink-0 text-amber-400" />
+									<HugeiconsIcon name="star" class="h-3 w-3 shrink-0 text-amber-400" />
 									<span class="font-mono text-xs text-muted-foreground">{formatStars(githubStars)}</span>
 								{/if}
 							</a>
@@ -195,7 +195,7 @@ const mobileNavLinkClass =
 									<span
 										class="theme-invert-btn-icon flex h-6 w-6 items-center justify-center rounded-full"
 									>
-										<RoundedIcon name="download" class="theme-invert-btn-icon-svg h-3.5 w-3.5" />
+										<HugeiconsIcon name="download" class="theme-invert-btn-icon-svg h-3.5 w-3.5" />
 									</span>
 								</a>
 							{/if}

@@ -1,5 +1,5 @@
 import type { Component, ComponentType } from "svelte";
-import type { RoundedIconName } from "@acepe/ui/icons";
+import type { HugeiconsIconName } from "@acepe/ui/icons";
 
 /**
  * Definition for a command in the command palette.
@@ -14,8 +14,8 @@ export interface PaletteCommandDef {
 	/** Icon component */
 	// biome-ignore lint/suspicious/noExplicitAny: Svelte Component generic requires any
 	readonly icon?: ComponentType | Component<any>;
-	/** Rounded icon name from the extracted app icon set. */
-	readonly roundedIcon?: RoundedIconName;
+	/** Hugeicons name used for this command. */
+	readonly iconName?: HugeiconsIconName;
 	/** Handler function to execute */
 	readonly handler: () => void | Promise<void>;
 	/** Keyboard shortcut display string */

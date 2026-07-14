@@ -6,7 +6,7 @@
 
 	import { cn } from "../../lib/utils.js";
 	import { Button, type ButtonVariant, buttonVariants } from "../button/index.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import {
 		getSelectorTriggerButtonPropsForContext,
 		getSelectorTriggerClass,
@@ -224,14 +224,14 @@
 			title={tooltipTitle ?? tooltipLabel ?? undefined}
 		>
 			{#if triggerIcon === "dots"}
-				<RoundedIcon name="more" />
+				<HugeiconsIcon name="more" />
 			{:else if triggerIcon === "gear"}
-				<RoundedIcon name="settings" />
+				<HugeiconsIcon name="settings" />
 			{:else}
 				{@render renderButton()}
 			{/if}
 			{#if showChevron}
-				<RoundedIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground transition-transform duration-200 {open ? 'rotate-180' : ''}" />
+				<HugeiconsIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground transition-transform duration-200 {open ? 'rotate-180' : ''}" />
 			{/if}
 		</button>
 	{:else}
@@ -248,14 +248,14 @@
 				data-header-control={triggerSize === "attach" || triggerSize === "chromeIcon" ? true : undefined}
 			>
 				{#if triggerIcon === "dots"}
-					<RoundedIcon name="more" />
+					<HugeiconsIcon name="more" />
 				{:else if triggerIcon === "gear"}
-					<RoundedIcon name="settings" />
+					<HugeiconsIcon name="settings" />
 				{:else}
 					{@render renderButton()}
 				{/if}
 				{#if showChevron}
-					<RoundedIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground transition-transform duration-200 {open ? 'rotate-180' : ''}" />
+					<HugeiconsIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground transition-transform duration-200 {open ? 'rotate-180' : ''}" />
 				{/if}
 			</Button>
 		</div>

@@ -8,7 +8,7 @@ import {
 	HeaderCell,
 	HeaderTitleCell,
 	ProjectLetterBadge,
-	RoundedIcon,
+	HugeiconsIcon,
 } from "@acepe/ui";
 import { PlusIcon } from "@acepe/ui";
 import type { TerminalTab } from "$lib/acp/store/types.js";
@@ -182,7 +182,7 @@ function handleFullscreenToggle() {
 									toggleTabMenu(tab.id);
 								}}
 							>
-								<RoundedIcon name="more" class="h-3 w-3" />
+								<HugeiconsIcon name="more" class="h-3 w-3" />
 							</button>
 							{#if openMenuTabId === tab.id}
 								<div class="absolute right-1 top-6 z-20 min-w-[160px] rounded-lg border border-border bg-background p-1 shadow-md">
@@ -221,7 +221,7 @@ function handleFullscreenToggle() {
 	{:else}
 		<HeaderTitleCell>
 			<div class="flex items-center gap-1.5 min-w-0">
-				<RoundedIcon name="terminal" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+				<HugeiconsIcon name="terminal" class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
 				<span class="text-[11px] font-medium truncate">{TERMINAL_TITLE}</span>
 				{#if shellName}
 					<span class="text-[11px] text-muted-foreground truncate">({shellName})</span>

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
 
-	import { LoadingIcon, RoundedIcon } from "../icons/index.js";
+	import { LoadingIcon, HugeiconsIcon } from "../icons/index.js";
 
 	interface Props {
 		visible: boolean;
@@ -61,7 +61,7 @@
 				{#if leading}
 					{@render leading()}
 				{:else if tone === "error"}
-					<RoundedIcon name="warning" class="size-[13px] shrink-0 text-destructive" />
+					<HugeiconsIcon name="warning" class="size-[13px] shrink-0 text-destructive" />
 				{:else}
 					<LoadingIcon class="shrink-0 text-muted-foreground" size={13} aria-label="Loading" />
 				{/if}
@@ -79,7 +79,7 @@
 						{progressLabel}
 					</span>
 				{/if}
-				<RoundedIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground transition-transform duration-200 {isExpanded ? 'rotate-180' : ''}"
+				<HugeiconsIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground transition-transform duration-200 {isExpanded ? 'rotate-180' : ''}"
 				/>
 			</div>
 		</div>

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { RoundedIcon, Selector } from "@acepe/ui";
+import { HugeiconsIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import AgentIcon from "$lib/acp/components/agent-icon.svelte";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
@@ -67,13 +67,13 @@ const syncStatus = $derived.by(() => {
 			<Spinner class="mr-1" size={14} />
 			Syncing
 		{:else if syncStatus === "synced"}
-			<RoundedIcon name="check-circle" class="mr-1 h-3.5 w-3.5 text-success" />
+			<HugeiconsIcon name="check-circle" class="mr-1 h-3.5 w-3.5 text-success" />
 			Synced
 		{:else if syncStatus === "pending"}
-			<RoundedIcon name="warning" class="mr-1 h-3.5 w-3.5 text-yellow-500" />
+			<HugeiconsIcon name="warning" class="mr-1 h-3.5 w-3.5 text-yellow-500" />
 			Sync {pendingCount}
 		{:else}
-			<RoundedIcon name="refresh" class="mr-1 h-3.5 w-3.5 text-muted-foreground" />
+			<HugeiconsIcon name="refresh" class="mr-1 h-3.5 w-3.5 text-muted-foreground" />
 			Sync {enabledCount}
 		{/if}
 	</button>
@@ -88,7 +88,7 @@ const syncStatus = $derived.by(() => {
 		class="border border-border/50 bg-accent/5"
 	>
 		{#snippet renderButton()}
-			<RoundedIcon name="chevron-down" class="shrink-0" />
+			<HugeiconsIcon name="chevron-down" class="shrink-0" />
 		{/snippet}
 
 		<DropdownMenu.Label>Sync to agents</DropdownMenu.Label>
@@ -106,7 +106,7 @@ const syncStatus = $derived.by(() => {
 					<AgentIcon agentId={agent.id} size={16} class="h-4 w-4" />
 					<span>{agent.name}</span>
 					{#if agent.enabled && (agent.status === "pending" || agent.status === "never")}
-						<RoundedIcon name="warning" class="h-3 w-3 text-yellow-500" />
+						<HugeiconsIcon name="warning" class="h-3 w-3 text-yellow-500" />
 					{/if}
 				</div>
 				<div class="flex items-center gap-2">
@@ -117,7 +117,7 @@ const syncStatus = $derived.by(() => {
 							onclick={(e) => handleOpenFolder(e, agent.id)}
 							title="Open in folder"
 						>
-							<RoundedIcon name="folder" class="h-3.5 w-3.5" />
+							<HugeiconsIcon name="folder" class="h-3.5 w-3.5" />
 						</button>
 					{/if}
 					<Switch checked={agent.enabled} class="cursor-pointer" />

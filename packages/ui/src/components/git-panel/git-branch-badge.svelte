@@ -3,7 +3,7 @@
 	 * GitBranchBadge — current branch as a clean, borderless picker control.
 	 */
 	import { cn } from "../../lib/utils.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 
 	interface Props {
 		branch: string;
@@ -23,9 +23,9 @@
 	)}
 	{onclick}
 >
-	<RoundedIcon name="branch" class="size-[13px] shrink-0 text-muted-foreground" />
+	<HugeiconsIcon name="branch" class="size-[13px] shrink-0 text-muted-foreground" />
 	<span class="max-w-[200px] truncate font-mono">{branch}</span>
 	{#if onclick}
-		<RoundedIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground/50" />
+		<HugeiconsIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground/50" />
 	{/if}
 </button>

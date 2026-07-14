@@ -1,5 +1,5 @@
 <script lang="ts">
-import { BrandLockup, RoundedIcon } from "@acepe/ui";
+import { BrandLockup, HugeiconsIcon } from "@acepe/ui";
 import Header from "$lib/components/header.svelte";
 import Seo from "$lib/components/seo/seo.svelte";
 import AppleIcon from "$lib/components/landing-v2/apple-icon.svelte";
@@ -62,10 +62,10 @@ const downloadJsonLd = {
 				class="theme-invert-btn mb-8 flex h-10 w-full max-w-sm items-center justify-center gap-2 rounded-lg text-sm font-medium transition-colors"
 			>
 				{#if downloading}
-					<RoundedIcon name="spinner" class="h-4 w-4 animate-spin" />
+					<HugeiconsIcon name="spinner" class="h-4 w-4 animate-spin" />
 					Downloading...
 				{:else}
-					<RoundedIcon name="download" class="h-4 w-4" />
+					<HugeiconsIcon name="download" class="h-4 w-4" />
 					{"Download for macOS"}
 				{/if}
 			</a>
@@ -151,7 +151,7 @@ const downloadJsonLd = {
 								rel="noopener noreferrer"
 								class="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
 							>
-								<RoundedIcon name="github" class="size-3.5" />
+								<HugeiconsIcon name="github" class="size-3.5" />
 								GitHub
 							</a>
 						</li>

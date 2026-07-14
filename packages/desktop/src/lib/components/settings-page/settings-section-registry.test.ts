@@ -17,7 +17,7 @@ describe("settings section registry", () => {
 			label: "General",
 			interfaceIcon: "settings-general",
 		});
-		expect(general.roundedIcon).toBeUndefined();
+		expect(general.iconName).toBeUndefined();
 	});
 
 	it("routes the Skills settings row to the targeted Interface icon", async () => {
@@ -29,6 +29,6 @@ describe("settings section registry", () => {
 			label: "Skills",
 			interfaceIcon: "settings-skills",
 		});
-		expect(skills.roundedIcon).toBeUndefined();
+		expect(skills.iconName).toBeUndefined();
 	});
 });

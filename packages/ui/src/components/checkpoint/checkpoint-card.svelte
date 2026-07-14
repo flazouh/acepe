@@ -5,7 +5,7 @@
 	 *
 	 * This is a "dumb" component - all data and actions are passed via props.
 	 */
-	import { LoadingIcon, RoundedIcon } from '../icons/index.js';
+	import { LoadingIcon, HugeiconsIcon } from '../icons/index.js';
 	import { slide } from 'svelte/transition';
 	import type { Snippet } from 'svelte';
 	import { PillButton } from '../pill-button/index.js';
@@ -147,7 +147,7 @@
 					{/if}
 				</div>
 			{/if}
-			<RoundedIcon name="chevron-right" class="size-3 text-muted-foreground shrink-0 transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}"
+			<HugeiconsIcon name="chevron-right" class="size-3 text-muted-foreground shrink-0 transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}"
 			/>
 		</div>
 	</button>

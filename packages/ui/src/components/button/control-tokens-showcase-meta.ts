@@ -10,7 +10,7 @@ import {
 export const controlTokensShowcaseMeta = {
 	title: "Button variants",
 	description:
-		"shadcn/ui tokens. Default size is default (h-8, 32px — matches ui.shadcn.com). Icon controls use the normal scale: icon-sm (20x20), icon (24x24), icon-md (28x28), icon-lg (32x32). Child SVG/img sizing is owned by the Button size token — RoundedIcon defaults to shrink-0 only.",
+		"shadcn/ui tokens. Default size is default (h-8, 32px — matches ui.shadcn.com). Icon controls use the normal scale: icon-sm (20x20), icon (24x24), icon-md (28x28), icon-lg (32x32). Child SVG/img sizing is owned by the Button size token — HugeiconsIcon defaults to shrink-0 only.",
 };
 
 export interface ButtonVariantShowcaseEntry {

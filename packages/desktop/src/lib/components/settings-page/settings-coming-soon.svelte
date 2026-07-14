@@ -1,10 +1,10 @@
 <script lang="ts">
-import { RoundedIcon, type RoundedIconName } from "@acepe/ui/icons";
+import { HugeiconsIcon, type HugeiconsIconName } from "@acepe/ui/icons";
 import { cn } from "$lib/utils.js";
 
 interface Props {
-	/** Rounded icon name from @acepe/ui/icons. Defaults to the shared sparkle glyph. */
-	roundedIcon?: RoundedIconName;
+	/** Hugeicons name from @acepe/ui/icons. Defaults to the shared sparkle icon. */
+	iconName?: HugeiconsIconName;
 	/** Short headline — e.g., "MCP servers coming soon". */
 	headline: string;
 	/** One-sentence description of what will live here. */
@@ -12,7 +12,7 @@ interface Props {
 	class?: string;
 }
 
-let { roundedIcon = "sparkle", headline, description, class: className }: Props = $props();
+let { iconName = "sparkle", headline, description, class: className }: Props = $props();
 </script>
 
 <div
@@ -21,7 +21,7 @@ let { roundedIcon = "sparkle", headline, description, class: className }: Props 
 		className
 	)}
 >
-	<RoundedIcon name={roundedIcon} class="size-4 text-muted-foreground/50" />
+	<HugeiconsIcon name={iconName} class="size-4 text-muted-foreground/50" />
 	<div class="flex max-w-[320px] flex-col gap-0.5">
 		<p class="text-xs font-medium text-foreground/80">{headline}</p>
 		<p class="text-[11px] leading-snug text-muted-foreground/60">{description}</p>

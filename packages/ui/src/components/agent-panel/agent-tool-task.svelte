@@ -4,7 +4,7 @@
 	import AgentPanelSceneEntry from "../agent-panel-scene/agent-panel-scene-entry.svelte";
 	import { SegmentedProgressBar } from "../segmented-progress-bar/index.js";
 	import { Button } from "../button/index.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import type { AgentToolStatus, AnyAgentEntry } from "./types.js";
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import AgentCompactToolDisplay from "./compact-tool-display.svelte";
@@ -141,13 +141,13 @@
 				}}
 			>
 				{#snippet children()}
-					<RoundedIcon name="expand" />
+					<HugeiconsIcon name="expand" />
 				{/snippet}
 			</Button>
 		{/if}
 
 		{#if shouldShowDoneIcon}
-			<RoundedIcon
+			<HugeiconsIcon
 				name="check-circle-filled"
 				class="size-3 shrink-0 text-success"
 				data-testid="agent-tool-task-success-icon"

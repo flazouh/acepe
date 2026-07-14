@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Button } from "../button/index.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 
 	import type { AgentPanelModifiedFilesTrailingModel } from "./types.js";
 
@@ -37,7 +37,7 @@
 			disabled={reviewDisabled}
 			onclick={() => model.onReview?.()}
 		>
-			<RoundedIcon name="code" class="size-[11px] shrink-0" data-testid="modified-files-review-code-icon" />
+			<HugeiconsIcon name="code" class="size-[11px] shrink-0" data-testid="modified-files-review-code-icon" />
 			{model.reviewLabel}
 		</Button>
 	</div>
@@ -54,7 +54,7 @@
 		}}
 	>
 		{model.reviewedCount}/{model.totalCount}
-		<RoundedIcon name="chevron-down" class="size-3 shrink-0 transition-transform {isExpanded ? 'rotate-180' : ''}"
+		<HugeiconsIcon name="chevron-down" class="size-3 shrink-0 transition-transform {isExpanded ? 'rotate-180' : ''}"
 		/>
 	</Button>
 {/if}

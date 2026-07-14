@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Button } from "../button/index.js";
-	import { LoadingIcon, RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon, LoadingIcon } from "../icons/index.js";
 
 	interface Props {
 		title: string;
@@ -33,7 +33,7 @@
 	aria-busy={isSigningIn}
 >
 	<div class="flex w-full min-w-0 items-start gap-2 px-3 py-2">
-		<RoundedIcon name="lock" class="mt-0.5 size-3.5 shrink-0 text-muted-foreground" data-testid="agent-sign-in-icon" />
+		<HugeiconsIcon name="lock" class="mt-0.5 size-3.5 shrink-0 text-muted-foreground" data-testid="agent-sign-in-icon" />
 		<div class="flex min-w-0 flex-1 flex-col gap-1">
 			<span class="text-[0.6875rem] font-medium text-foreground">{title}</span>
 			<span class="text-[0.6875rem] leading-relaxed text-muted-foreground">{message}</span>

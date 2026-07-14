@@ -1,5 +1,5 @@
 <script lang="ts">
-import { RoundedIcon } from "@acepe/ui";
+import { HugeiconsIcon } from "@acepe/ui";
 import Header from "$lib/components/header.svelte";
 import Seo from "$lib/components/seo/seo.svelte";
 import { getAllComparisonSlugs, getComparison } from "$lib/compare/data.js";
@@ -76,7 +76,7 @@ const compareItemListJsonLd = $derived({
 								{comparison.heroDescription}
 							</p>
 						</div>
-						<RoundedIcon name="arrow-right" class="ml-4 h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-1" />
+						<HugeiconsIcon name="arrow-right" class="ml-4 h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-1" />
 					</a>
 				{/each}
 			</div>

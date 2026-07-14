@@ -1,6 +1,6 @@
 <script lang="ts">
 import { Button } from "@acepe/ui/button";
-import { RoundedIcon } from "@acepe/ui";
+import { HugeiconsIcon } from "@acepe/ui";
 
 interface Props {
 	isAdded: boolean;
@@ -22,7 +22,7 @@ let { isAdded, onImport, onUndo }: Props = $props();
 			onUndo();
 		}}
 	>
-		<RoundedIcon
+		<HugeiconsIcon
 			name="trash"
 			class="size-3.5"
 			data-testid="remove-project-icon"
@@ -39,7 +39,7 @@ let { isAdded, onImport, onUndo }: Props = $props();
 			onImport();
 		}}
 	>
-		<RoundedIcon
+		<HugeiconsIcon
 			name="add"
 			class="size-3.5"
 			data-testid="import-project-icon"

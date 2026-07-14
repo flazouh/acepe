@@ -1,5 +1,5 @@
 <script lang="ts">
-import { RoundedIcon } from "@acepe/ui";
+import { HugeiconsIcon } from "@acepe/ui";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import { toast } from "svelte-sonner";
 import { Button } from "$lib/components/ui/button/index.js";
@@ -139,7 +139,7 @@ function isExpanded(checkpointId: string): boolean {
 				class="h-7 gap-1.5 text-muted-foreground hover:text-foreground"
 				onclick={onClose}
 			>
-				<RoundedIcon name="arrow-left" class="h-3.5 w-3.5" />
+				<HugeiconsIcon name="arrow-left" class="h-3.5 w-3.5" />
 				<span class="text-xs">{"Back"}</span>
 			</Button>
 		</div>

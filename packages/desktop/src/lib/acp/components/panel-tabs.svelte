@@ -1,5 +1,5 @@
 <script lang="ts">
-import { ProjectLetterBadge, RoundedIcon, computeProjectBadgeLabels } from "@acepe/ui";
+import { HugeiconsIcon, ProjectLetterBadge, computeProjectBadgeLabels } from "@acepe/ui";
 import { normalizeTitleForDisplay } from "$lib/acp/store/session-title-policy.js";
 import { Button } from "$lib/components/ui/button/index.js";
 import * as Tooltip from "@acepe/ui/tooltip";
@@ -100,7 +100,7 @@ function getProjectInfo(panel: PanelTabInfo): {
 								onClosePanel(panel.id);
 							}}
 						>
-							<RoundedIcon name="close" class="h-3 w-3" />
+							<HugeiconsIcon name="close" class="h-3 w-3" />
 							<span class="sr-only">{"Close"}</span>
 						</button>
 					</Button>

@@ -3,7 +3,7 @@ import { Dialog as DialogPrimitive } from "bits-ui";
 import type { ComponentProps, Snippet } from "svelte";
 
 import { cn, type WithoutChildrenOrChild } from "../../lib/utils.js";
-import { RoundedIcon } from "../icons/index.js";
+import { HugeiconsIcon } from "../icons/index.js";
 
 import DialogPortal from "./dialog-portal.svelte";
 
@@ -46,7 +46,7 @@ let {
 			<DialogPrimitive.Close
 				class="ring-offset-background focus:ring-ring absolute end-2.5 top-2.5 rounded-xs opacity-50 transition-opacity hover:opacity-100 focus:ring-1 focus:ring-offset-1 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5"
 			>
-				<RoundedIcon name="close" class="size-3.5" />
+				<HugeiconsIcon name="close" class="size-3.5" />
 				<span class="sr-only">Close</span>
 			</DialogPrimitive.Close>
 		{/if}

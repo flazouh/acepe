@@ -1,5 +1,5 @@
 <script lang="ts">
-import { RoundedIcon } from "@acepe/ui";
+import { HugeiconsIcon } from "@acepe/ui";
 
 interface AnimatedChevronProps {
 	/**
@@ -29,5 +29,5 @@ let {
 }: AnimatedChevronProps = $props();
 </script>
 
-<RoundedIcon name="chevron-down" class="size-3 shrink-0 {className} transition-transform {durationClass} {isOpen ? 'rotate-180' : ''}"
+<HugeiconsIcon name="chevron-down" class="size-3 shrink-0 {className} transition-transform {durationClass} {isOpen ? 'rotate-180' : ''}"
 />

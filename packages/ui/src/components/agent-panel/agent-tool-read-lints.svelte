@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import ToolHeaderLeading from "./tool-header-leading.svelte";
@@ -108,7 +108,7 @@
 						aria-label={isExpanded ? ariaCollapse : ariaExpand}
 						aria-expanded={isExpanded}
 					>
-						<RoundedIcon name="chevron-right" class="size-3 shrink-0 text-muted-foreground transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}"
+						<HugeiconsIcon name="chevron-right" class="size-3 shrink-0 text-muted-foreground transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}"
 						/>
 					</button>
 				{/if}

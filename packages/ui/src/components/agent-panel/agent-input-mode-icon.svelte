@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { RobotIcon, RoundedIcon } from "../icons/index.js";
+	import { RobotIcon, HugeiconsIcon } from "../icons/index.js";
 	import { getModeIconColor, type ModeIconKind } from "./agent-input-mode-selector-state.js";
 
 	interface Props {
@@ -17,17 +17,17 @@
 {#if iconKind === "agent"}
 	<RobotIcon class={className} weight={iconWeight} style={iconStyle} />
 {:else if iconKind === "plan"}
-	<RoundedIcon name="tasks" class={className} style={iconStyle} />
+	<HugeiconsIcon name="tasks" class={className} style={iconStyle} />
 {:else if iconKind === "autonomous"}
-	<RoundedIcon name="shield-check" class={className} style={iconStyle} />
+	<HugeiconsIcon name="shield-check" class={className} style={iconStyle} />
 {:else if iconKind === "bypass"}
-	<RoundedIcon name="shield-check" class={className} style={iconStyle} />
+	<HugeiconsIcon name="shield-check" class={className} style={iconStyle} />
 {:else if iconKind === "ask"}
-	<RoundedIcon name="chat" class={className} style={iconStyle} />
+	<HugeiconsIcon name="chat" class={className} style={iconStyle} />
 {:else if iconKind === "edit"}
-	<RoundedIcon name="edit" class={className} style={iconStyle} />
+	<HugeiconsIcon name="edit" class={className} style={iconStyle} />
 {:else if iconKind === "review"}
-	<RoundedIcon name="review" class={className} style={iconStyle} />
+	<HugeiconsIcon name="review" class={className} style={iconStyle} />
 {:else}
-	<RoundedIcon name="question" class={className} style={iconStyle} />
+	<HugeiconsIcon name="question" class={className} style={iconStyle} />
 {/if}

@@ -1,9 +1,6 @@
 <script lang="ts">
-	import DotmatrixLoader from "./dotmatrix/dotmatrix-loader.svelte";
-	import {
-		loadingIconPreference,
-		type DotMatrixLoaderId,
-	} from "./loading-icon-preferences.svelte.js";
+	import HugeiconsIcon from "./hugeicons-icon.svelte";
+	import { loadingIconPreference } from "./loading-icon-preferences.svelte.js";
 
 	interface Props {
 		class?: string;
@@ -12,7 +9,7 @@
 		style?: string;
 		size?: number;
 		dotSize?: number;
-		variant?: DotMatrixLoaderId;
+		variant?: string;
 		color?: string;
 	}
 
@@ -20,24 +17,24 @@
 		class: className = "",
 		role,
 		"aria-label": ariaLabel,
-		style = "",
+		style,
 		size = 24,
-		dotSize = undefined,
-		variant = undefined,
-		color = undefined,
+		dotSize: _dotSize,
+		variant: _variant,
+		color,
 	}: Props = $props();
 
-	const effectiveVariant = $derived(variant ?? loadingIconPreference.variant);
 	const effectiveColor = $derived(color ?? loadingIconPreference.colorHex);
+	const resolvedStyle = $derived(
+		`${style ?? ""}${style?.trim().endsWith(";") ? "" : ";"}color: ${effectiveColor};`,
+	);
 </script>
 
-<DotmatrixLoader
-	class={className}
-	{style}
+<HugeiconsIcon
+	name="spinner"
 	{size}
-	{dotSize}
-	variant={effectiveVariant}
-	color={effectiveColor}
+	class={className}
+	style={resolvedStyle}
 	{role}
 	aria-label={ariaLabel}
 />

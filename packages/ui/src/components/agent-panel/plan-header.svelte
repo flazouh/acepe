@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { PlanIcon, RoundedIcon } from "../icons/index.js";
+	import { PlanIcon, HugeiconsIcon } from "../icons/index.js";
 	import { Button } from "../button/index.js";
 	import {
 		EmbeddedPanelHeader,
@@ -38,7 +38,7 @@
 			onclick={onToggleSidebar}
 		>
 			{#snippet children()}
-				<RoundedIcon name={isExpanded ? "collapse" : "expand"} />
+				<HugeiconsIcon name={isExpanded ? "collapse" : "expand"} />
 			{/snippet}
 		</Button>
 	</HeaderActionCell>

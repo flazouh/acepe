@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { DiffPill } from "../diff-pill/index.js";
-	import { PullRequestStatusIcon } from "../icons/index.js";
+	import { HugeiconsIcon, PullRequestStatusIcon } from "../icons/index.js";
 	import { cn } from "../../lib/utils.js";
 	import type { GitPrData } from "./types.js";
 
@@ -69,7 +69,11 @@
 				onclick={onViewOnGitHub}
 				title="View on GitHub"
 			>
-				<RoundedIcon name="external-link" class="size-3" />
+				<HugeiconsIcon
+					name="open-in-new-window"
+					class="size-3"
+					data-testid="git-pr-header-open-external-hugeicons-icon"
+				/>
 			</button>
 		{/if}
 
@@ -79,7 +83,7 @@
 			onclick={() => { expanded = !expanded; }}
 			title={expanded ? "Collapse details" : "Expand details"}
 		>
-			<RoundedIcon name="chevron-down" class="size-3 shrink-0 transition-transform duration-150 {expanded ? 'rotate-180' : ''}"
+			<HugeiconsIcon name="chevron-down" class="size-3 shrink-0 transition-transform duration-150 {expanded ? 'rotate-180' : ''}"
 			/>
 		</button>
 	</div>

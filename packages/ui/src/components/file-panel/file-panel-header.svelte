@@ -3,7 +3,7 @@
 
 	import { ProjectLetterBadge } from "../project-letter-badge/index.js";
 	import { DiffPill } from "../diff-pill/index.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import {
 		CloseAction,
 		EmbeddedPanelHeader,
@@ -126,13 +126,13 @@
 						data-header-control
 					>
 						{#if item.id === "rendered"}
-							<RoundedIcon name="eye" class="h-4 w-4" />
+							<HugeiconsIcon name="eye" class="h-4 w-4" />
 						{:else if item.id === "structured"}
-							<RoundedIcon name="tasks" class="h-4 w-4" data-testid="file-panel-structured-display-icon" />
+							<HugeiconsIcon name="tasks" class="h-4 w-4" data-testid="file-panel-structured-display-icon" />
 						{:else if item.id === "table"}
-							<RoundedIcon name="apps" class="h-4 w-4" data-testid="file-panel-table-display-icon" />
+							<HugeiconsIcon name="apps" class="h-4 w-4" data-testid="file-panel-table-display-icon" />
 						{:else}
-							<RoundedIcon name="code" class="h-4 w-4" />
+							<HugeiconsIcon name="code" class="h-4 w-4" />
 						{/if}
 						<span>{item.label}</span>
 					</button>
@@ -155,9 +155,9 @@
 						data-header-control
 					>
 						{#if item.id === "write"}
-							<RoundedIcon name="pencil" class="h-4 w-4" />
+							<HugeiconsIcon name="pencil" class="h-4 w-4" />
 						{:else}
-							<RoundedIcon name="notebook" class="h-4 w-4" />
+							<HugeiconsIcon name="notebook" class="h-4 w-4" />
 						{/if}
 						<span>{item.label}</span>
 					</button>

@@ -12,7 +12,7 @@
 	import { buttonVariants } from "../button/variants.js";
 	import * as Tooltip from "../tooltip/index.js";
 	import { cn } from "../../lib/utils.js";
-	import { InterfaceIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 
 	interface Props {
 		worktreeLabel?: string;
@@ -88,7 +88,7 @@
 					>
 						<span aria-hidden="true" class={worktreeCheckboxClass}>
 							{#if worktreeOn}
-								<InterfaceIcon name="check" class="size-2.5" />
+								<HugeiconsIcon name="check" class="size-2.5" />
 							{/if}
 						</span>
 						<span>{worktreeLabel}</span>

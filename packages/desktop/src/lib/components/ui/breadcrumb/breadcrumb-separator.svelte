@@ -1,5 +1,5 @@
 <script lang="ts">
-import { RoundedIcon } from "@acepe/ui";
+import { HugeiconsIcon } from "@acepe/ui";
 import type { HTMLLiAttributes } from "svelte/elements";
 import { cn, type WithElementRef } from "$lib/utils.js";
 
@@ -22,6 +22,6 @@ let {
 	{#if children}
 		{@render children?.()}
 	{:else}
-		<RoundedIcon name="chevron-right" class="size-3" />
+		<HugeiconsIcon name="chevron-right" class="size-3" />
 	{/if}
 </li>

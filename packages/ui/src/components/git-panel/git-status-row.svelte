@@ -8,7 +8,7 @@
 -->
 <script lang="ts">
 	import PlusIcon from "../icons/plus-icon.svelte";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 
 	import { Button } from "../button/index.js";
 	import { cn } from "../../lib/utils.js";
@@ -112,7 +112,7 @@
 			aria-label="Discard {file.path}"
 			onclick={() => onDiscard(file.path)}
 		>
-			{#snippet children()}<RoundedIcon name="undo" />{/snippet}
+			{#snippet children()}<HugeiconsIcon name="undo" />{/snippet}
 		</Button>
 		<Button
 			variant="ghost"
@@ -122,7 +122,7 @@
 			onclick={() => onPrimary(file.path)}
 		>
 			{#snippet children()}
-				{#if kind === "staged"}<RoundedIcon name="minus" />{:else}<PlusIcon />{/if}
+				{#if kind === "staged"}<HugeiconsIcon name="minus" />{:else}<PlusIcon />{/if}
 			{/snippet}
 		</Button>
 	</span>

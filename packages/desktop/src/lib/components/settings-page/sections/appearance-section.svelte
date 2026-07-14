@@ -1,5 +1,5 @@
 <script lang="ts">
-import { RoundedIcon, Selector } from "@acepe/ui";
+import { HugeiconsIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { LoadingIcon } from "@acepe/ui";
 import { ThemeToggle } from "$lib/components/theme/index.js";
@@ -8,21 +8,11 @@ import { loadingIndicatorSettingsStore } from "$lib/stores/loading-indicator-set
 import SettingRow from "../setting-row.svelte";
 import SettingsSection from "../settings-section.svelte";
 
-const selectedVariantOption = $derived(
-	loadingIndicatorSettingsStore.options.find(
-		(option) => option.id === loadingIndicatorSettingsStore.selectedVariant
-	)
-);
-
 const selectedColorOption = $derived(
 	loadingIndicatorSettingsStore.colorOptions.find(
 		(option) => option.id === loadingIndicatorSettingsStore.selectedColor
 	)
 );
-
-function handleVariantChange(value: string): void {
-	void loadingIndicatorSettingsStore.setVariant(value);
-}
 
 function handleColorChange(value: string): void {
 	void loadingIndicatorSettingsStore.setColor(value);
@@ -48,7 +38,7 @@ const codeBounds = fontSizeSettingsStore.codeBounds;
 			onclick={() => onChange(value - step)}
 			class="inline-flex size-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
 		>
-			<RoundedIcon name="minus" class="size-3" />
+			<HugeiconsIcon name="minus" class="size-3" />
 		</button>
 		<span class="w-9 text-center text-[13px] font-medium tabular-nums text-foreground">{value}</span>
 		<button
@@ -58,7 +48,7 @@ const codeBounds = fontSizeSettingsStore.codeBounds;
 			onclick={() => onChange(value + step)}
 			class="inline-flex size-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
 		>
-			<RoundedIcon name="plus" class="size-3" />
+			<HugeiconsIcon name="plus" class="size-3" />
 		</button>
 	</div>
 {/snippet}
@@ -73,39 +63,9 @@ const codeBounds = fontSizeSettingsStore.codeBounds;
 		</SettingRow>
 		<SettingRow
 			label={"Loading indicator"}
-			description="Choose the dot animation used across Acepe."
+			description="Use the Hugeicons spinner consistently across Acepe."
 		>
-			<Selector
-				align="start"
-				variant="outline"
-				triggerSize="pill"
-				class="w-[240px]"
-				contentClass="max-h-[min(24rem,70vh)] overflow-y-auto"
-			>
-				{#snippet renderButton()}
-					<span class="flex items-center gap-1.5 min-w-0 flex-1">
-						<LoadingIcon
-							size={16}
-							variant={loadingIndicatorSettingsStore.selectedVariant}
-						/>
-						<span class="truncate">{selectedVariantOption?.label ?? ""}</span>
-					</span>
-				{/snippet}
-
-				<DropdownMenu.RadioGroup
-					value={loadingIndicatorSettingsStore.selectedVariant}
-					onValueChange={handleVariantChange}
-				>
-					{#each loadingIndicatorSettingsStore.options as option (option.id)}
-						<DropdownMenu.RadioItem value={option.id}>
-							<span class="flex items-center gap-2">
-								<LoadingIcon size={16} variant={option.id} />
-								<span>{option.label}</span>
-							</span>
-						</DropdownMenu.RadioItem>
-					{/each}
-				</DropdownMenu.RadioGroup>
-			</Selector>
+			<LoadingIcon size={16} class="animate-spin" aria-label="Hugeicons spinner" />
 		</SettingRow>
 		<SettingRow
 			label={"Loading indicator color"}

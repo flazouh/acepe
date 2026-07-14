@@ -5,7 +5,7 @@
 <script lang="ts">
 	import { Button } from "../button/index.js";
 	import { ButtonGroup } from "../button-group/index.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import { cn } from "../../lib/utils.js";
 	import AgentPanelContentColumnFrame from "./agent-panel-content-column-frame.svelte";
 
@@ -67,7 +67,7 @@
 						aria-label={scrollToTopAriaLabel}
 						onclick={handleScrollToTop}
 					>
-						<RoundedIcon name="arrow-up" />
+						<HugeiconsIcon name="arrow-up" />
 					</Button>
 				{/if}
 				{#if showScrollToBottom}
@@ -79,7 +79,7 @@
 						class="relative"
 						onclick={handleScrollToBottom}
 					>
-						<RoundedIcon name="arrow-up" class="rotate-180" />
+						<HugeiconsIcon name="arrow-up" class="rotate-180" />
 						{#if hasUnreadBelow}
 							<span
 								class="absolute right-0 top-0 size-1.5 rounded-full bg-primary"

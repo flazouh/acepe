@@ -6,146 +6,37 @@ export { default as FileStatusIcon } from "./file-status-icon.svelte";
 export type { FileStatusIconKind } from "./file-status-icon-types.js";
 export { default as LayoutModeIcon } from "./layout-mode-icon.svelte";
 export { default as GoogleLogoIcon } from "./google-logo-icon.svelte";
-export { default as InterfaceIcon } from "./interface-icon.svelte";
 export { default as HugeiconsIcon } from "./hugeicons-icon.svelte";
 export {
 	isHugeiconsIconName,
 	resolveHugeiconsIcon,
+	formatHugeiconsIconName,
+	hugeiconsIconLibrary,
+	hugeiconsIconNames,
+	type HugeiconsIconLibraryEntry,
 	type HugeiconsIconName,
 } from "./hugeicons-icon-registry.js";
-export { default as LinearInterfaceIcon } from "./interface-icon.svelte";
-export { default as LinearInventoryIcon } from "./linear-inventory-icon.svelte";
 export { default as PullRequestStatusIcon } from "./pull-request-status-icon.svelte";
 export {
-	mapGitHubPrStateToLinearStatusIcon,
-	mapUppercasePrStateToLinearStatusIcon,
-	pullRequestLinearStatusIcons,
+	mapGitHubPrStateToStatusIcon,
+	mapUppercasePrStateToStatusIcon,
+	pullRequestStatusIcons,
 	type PullRequestGitHubState,
-	type PullRequestLinearStatusIconName,
-	type PullRequestLinearStatusKind,
+	type PullRequestStatusIconName,
+	type PullRequestStatusKind,
 } from "./pull-request-status-icon.js";
-export { default as RoundedIcon } from "./rounded-icon.svelte";
-export {
-	linearIconCatalogHash,
-	linearIconCoverage,
-	linearIconData,
-	linearIconLibrary,
-	linearIconNames,
-	type LinearIconCatalogData,
-	type LinearIconLibraryEntry,
-	type LinearIconName,
-} from "./linear-icon-catalog.js";
-export {
-	confirmedInterfaceIconMappings,
-	getConfirmedInterfaceRoundedIconEvidence,
-	isConfirmedInterfaceRoundedIcon,
-	mapRoundedIconToInterface,
-	type ConfirmedInterfaceRoundedIconName,
-} from "./rounded-to-interface-map.js";
-export {
-	confirmedInterfaceIconMappings as confirmedLinearInterfaceMappings,
-	getConfirmedInterfaceRoundedIconEvidence as getConfirmedLinearRoundedIconEvidence,
-	isConfirmedInterfaceRoundedIcon as isConfirmedLinearRoundedIcon,
-	mapRoundedIconToInterface as mapRoundedIconToLinear,
-	type ConfirmedInterfaceRoundedIconName as ConfirmedLinearRoundedIconName,
-} from "./rounded-to-interface-map.js";
-export {
-	getInterfaceIconEvidence,
-	interfaceIconMappings,
-	resolveInterfaceIconGlyph,
-	type InterfaceIconGlyph,
-	type InterfaceIconName,
-	getInterfaceIconEvidence as getLinearInterfaceIconEvidence,
-	interfaceIconMappings as linearInterfaceIconMappings,
-	resolveInterfaceIconGlyph as resolveLinearInterfaceIconGlyph,
-	type InterfaceIconGlyph as LinearInterfaceIconGlyph,
-	type InterfaceIconName as LinearInterfaceIconName,
-} from "./interface-icon.js";
-export {
-	getInterfaceWrapperMigrationDecision,
-	interfaceWrapperMigrationManifest,
-	type InterfaceWrapperNoEquivalentDecision,
-	type InterfaceWrapperNoEquivalentName,
-} from "./interface-wrapper-migration-manifest.js";
-export {
-	getRoundedIconMigrationDecision,
-	roundedIconMigrationManifest,
-	type RoundedIconMigrationDecision,
-} from "./rounded-icon-migration-manifest.js";
-export type {
-	ConfirmedInterfaceIconMapping,
-	ConfirmedInterfaceIconMapping as ConfirmedLinearInterfaceMapping,
-} from "./confirmed-interface-icon-mapping.js";
-export { resolveRoundedIconGlyph } from "./resolve-rounded-icon-glyph.js";
-export {
-	isRoundedIconAliasName,
-	getRoundedIconFallbackData,
-	isRoundedIconFallbackSourceName,
-	resolveRoundedIconName,
-	roundedIconAliasNames,
-	roundedIconAliases,
-	roundedIconData,
-	roundedIconFallbackSourceNames,
-	roundedIconNames,
-	roundedIconSourceNames,
-	type RoundedIconAliasName,
-	type RoundedIconCanonicalName,
-	type RoundedIconData,
-	type RoundedIconFallbackSourceName,
-	type RoundedIconName,
-	type RoundedIconSourceName,
-} from "./rounded-icon-data.generated.js";
-export {
-	formatRoundedIconName,
-	recommendedRoundedIconNames,
-	roundedIconLibrary,
-	type RoundedIconLibraryEntry,
-} from "./rounded-icon-library.js";
 export { default as LoadingIcon } from "./loading-icon.svelte";
 export { default as MenuIcon } from "./menu-icon.svelte";
 export { default as PaletteIcon } from "./palette-icon.svelte";
-export { default as DotmTriangle17Spinner } from "./dotm-triangle-17-spinner.svelte";
-export { default as DotmTriangle20Spinner } from "./dotm-triangle-20-spinner.svelte";
-export { default as DotmSquare18Spinner } from "./dotm-square-18-spinner.svelte";
-export { default as DotmHexSpinner } from "./dotm-hex-spinner.svelte";
-export { default as DotmatrixTriangleLoader } from "./dotmatrix-triangle-loader.svelte";
 export {
-	DEFAULT_DOT_MATRIX_LOADER_ID,
 	DEFAULT_LOADING_ICON_COLOR_ID,
-	DOT_MATRIX_LOADER_OPTIONS,
-	LEGACY_LOADER_ID_MAP,
 	LOADING_ICON_COLOR_OPTIONS,
-	isDotMatrixLoaderId,
 	isLoadingIconColorId,
 	loadingIconColorHex,
 	loadingIconPreference,
-	normalizeDotMatrixLoaderId,
 	normalizeLoadingIconColorId,
-	type DotMatrixLoaderId,
-	type DotMatrixLoaderOption,
 	type LoadingIconColorId,
 } from "./loading-icon-preferences.svelte.js";
-export {
-	resolveDotmatrixLoaderRoute,
-	type DotmatrixLoaderRoute,
-	type DotmHexLoaderVariant,
-	type DotmTriangleLoaderVariant,
-} from "./dotmatrix/dotmatrix-loader-routing.js";
-export {
-	DOTMATRIX_REGISTRY_MANIFEST,
-	type DotmatrixRegistryId,
-} from "./dotmatrix/dotmatrix-registry.js";
-export { default as DotmatrixRegistryLoader } from "./dotmatrix/dotmatrix-registry-loader.svelte";
-export {
-	DOTMATRIX_LOADER_CONFIGS,
-	DOTMATRIX_LOADER_IDS,
-	getDotmatrixLoaderConfig,
-	type DotmatrixLoaderId,
-} from "./dotmatrix/loaders/index.js";
-export type {
-	DotmatrixLoaderConfig,
-	DotmatrixLoaderRuntime,
-} from "./dotmatrix/loader-types.js";
 export { default as PlanIcon } from "./plan-icon.svelte";
 export { default as PlusIcon } from "./plus-icon.svelte";
 export { default as RecycleIcon } from "./recycle-icon.svelte";

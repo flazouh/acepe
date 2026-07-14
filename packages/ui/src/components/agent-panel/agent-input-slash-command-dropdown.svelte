@@ -2,7 +2,7 @@
 	import * as Dialog from "../dialog/index.js";
 	import { NativeMarkdown } from "../native-markdown/index.js";
 	import AgentInputSlashPaletteRow from "./agent-input-slash-palette-row.svelte";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import { getSlashCommandIconColor } from "./agent-input-slash-command-row-state.js";
 	import {
 		getSlashCommandWorkspaceMarkdown,
@@ -304,11 +304,11 @@
 			<Dialog.Title class="flex items-center gap-2 text-sm">
 				<span class="flex h-5 w-5 items-center justify-center rounded-md" style="color: {iconColor};">
 					{#if workspaceTokenType === "skill"}
-						<RoundedIcon name="skills" class="h-3 w-3" data-testid="slash-command-skill-icon" />
+						<HugeiconsIcon name="skills" class="h-3 w-3" data-testid="slash-command-skill-icon" />
 					{:else if workspaceTokenType === "mcp"}
-						<RoundedIcon name="mcp" class="h-3 w-3" />
+						<HugeiconsIcon name="mcp" class="h-3 w-3" />
 					{:else}
-						<RoundedIcon name="terminal" class="h-3 w-3" />
+						<HugeiconsIcon name="terminal" class="h-3 w-3" />
 					{/if}
 				</span>
 				{workspaceItem ? workspaceItem.label : "Details"}

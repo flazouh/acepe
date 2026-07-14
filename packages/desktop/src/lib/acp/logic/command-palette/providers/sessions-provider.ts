@@ -53,7 +53,7 @@ function sessionToPaletteItem(
 		id: session.id,
 		label: normalizeTitleForDisplay(session.title ?? "") || "Untitled conversation",
 		description: projectName,
-		roundedIcon: "chat",
+		iconName: "chat",
 		metadata,
 	};
 }
@@ -128,7 +128,7 @@ export class SessionsProvider implements PaletteProvider {
 				label: paletteItem.label,
 				description: paletteItem.description,
 				icon: paletteItem.icon,
-				roundedIcon: paletteItem.roundedIcon,
+				iconName: paletteItem.iconName,
 				metadata: paletteItem.metadata,
 				score,
 			};
@@ -192,7 +192,7 @@ export class SessionsProvider implements PaletteProvider {
 			id: stored.id,
 			label: stored.label,
 			description: stored.description,
-			roundedIcon: "chat",
+			iconName: "chat",
 			metadata: {},
 		};
 	}

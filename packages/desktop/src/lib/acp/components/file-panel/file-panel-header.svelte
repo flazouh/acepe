@@ -1,6 +1,6 @@
 <script lang="ts">
 import { FilePanelHeader as FilePanelHeaderLayout } from "@acepe/ui/file-panel";
-import { Button, RoundedIcon } from "@acepe/ui";
+import { Button, HugeiconsIcon } from "@acepe/ui";
 import { CloseAction } from "@acepe/ui/panel-header";
 import { toast } from "svelte-sonner";
 import { FileIcon } from "$lib/components/ui/file-icon/index.js";
@@ -140,7 +140,7 @@ function handleEditorModeChange(modeId: string) {
 			aria-label="Open in Finder"
 		>
 			{#snippet children()}
-				<RoundedIcon name="folder" />
+				<HugeiconsIcon name="folder" />
 				<span class="sr-only">{"Open in Finder"}</span>
 			{/snippet}
 		</Button>

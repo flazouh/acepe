@@ -9,7 +9,7 @@
 	import { Colors } from "../../lib/colors.js";
 	import { cn } from "../../lib/utils.js";
 	import { Button } from "../button/index.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import { Tooltip, TooltipContent, TooltipTrigger } from "../tooltip/index.js";
 
 	interface Props {
@@ -70,7 +70,7 @@
 				onclick={handleClick}
 			>
 				{#snippet children()}
-					<RoundedIcon name="shield-check" class={cn("size-3", iconClass)} />
+					<HugeiconsIcon name="shield-check" class={cn("size-3", iconClass)} />
 				{/snippet}
 			</Button>
 		{/snippet}

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { PlanIcon, RoundedIcon } from "@acepe/ui";
+import { PlanIcon, HugeiconsIcon } from "@acepe/ui";
 
 import type { StructuredData } from "./format/types.js";
 import { buildStructuredNodeDisplayState } from "./file-panel-structured-node-state.js";
@@ -41,16 +41,16 @@ const nodeState = $derived.by(() => {
 			>
 				<span class="inline-flex w-4 shrink-0 items-center justify-center text-muted-foreground/80" aria-hidden="true">
 					{#if isExpanded}
-						<RoundedIcon name="chevron-down" class="size-3 shrink-0" />
+						<HugeiconsIcon name="chevron-down" class="size-3 shrink-0" />
 					{:else}
-						<RoundedIcon name="chevron-right" class="size-3 shrink-0" />
+						<HugeiconsIcon name="chevron-right" class="size-3 shrink-0" />
 					{/if}
 				</span>
 				<span class="structured-type-icon" aria-hidden="true">
 					{#if nodeState.isArray}
 						<PlanIcon size="md" />
 					{:else}
-						<RoundedIcon name="folder" class="h-3.5 w-3.5 text-violet-500" />
+						<HugeiconsIcon name="folder" class="h-3.5 w-3.5 text-violet-500" />
 					{/if}
 				</span>
 				<span class="structured-key">{nodeState.keyPrefix}</span>
@@ -70,7 +70,7 @@ const nodeState = $derived.by(() => {
 					{#if nodeState.isArray}
 						<PlanIcon size="md" />
 					{:else}
-						<RoundedIcon name="folder" class="h-3.5 w-3.5 text-violet-500" />
+						<HugeiconsIcon name="folder" class="h-3.5 w-3.5 text-violet-500" />
 					{/if}
 				</span>
 				<span class="structured-key">{nodeState.keyPrefix}</span>
@@ -80,9 +80,9 @@ const nodeState = $derived.by(() => {
 			<div class="structured-card-header">
 				<span class="inline-flex w-4 shrink-0 items-center justify-center text-muted-foreground/80" aria-hidden="true">
 					{#if typeof nodeState.displayValue === "boolean" && nodeState.displayValue}
-						<RoundedIcon name="check-circle" class="h-3.5 w-3.5 text-emerald-500" />
+						<HugeiconsIcon name="check-circle" class="h-3.5 w-3.5 text-emerald-500" />
 					{:else}
-						<RoundedIcon name="circle-dashed" class="h-3.5 w-3.5 text-muted-foreground" />
+						<HugeiconsIcon name="circle-dashed" class="h-3.5 w-3.5 text-muted-foreground" />
 					{/if}
 				</span>
 				<span class="structured-key">{nodeState.keyPrefix}</span>

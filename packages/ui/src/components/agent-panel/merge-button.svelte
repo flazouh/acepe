@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { PullRequestStatusIcon } from "../icons/index.js";
+	import { HugeiconsIcon, PullRequestStatusIcon } from "../icons/index.js";
 
 	interface MergeOption {
 		id: string;
@@ -59,7 +59,7 @@
 				aria-label="Merge options"
 				onclick={(e) => { e.stopPropagation(); dropdownOpen = !dropdownOpen; }}
 			>
-				<RoundedIcon name="chevron-down" class="size-2.5 text-muted-foreground" />
+				<HugeiconsIcon name="chevron-down" class="size-2.5 text-muted-foreground" />
 			</button>
 			{#if dropdownOpen}
 				<div class="absolute top-full left-0 mt-1 z-50 min-w-[150px] rounded-lg border border-border bg-popover p-1 shadow-md">

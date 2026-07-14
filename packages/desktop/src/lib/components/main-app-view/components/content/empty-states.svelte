@@ -8,7 +8,7 @@ import ProjectSelector from "$lib/acp/components/project-selector.svelte";
 import ProjectTable from "$lib/acp/components/add-repository/project-table.svelte";
 import { getWorktreeProjectDefaultStore } from "$lib/acp/components/worktree/worktree-project-default-store.svelte.js";
 import { Button } from "$lib/components/ui/button/index.js";
-import { RoundedIcon } from "@acepe/ui";
+import { HugeiconsIcon } from "@acepe/ui";
 import { getErrorCauseDetails } from "$lib/acp/errors/error-cause-details.js";
 import type { ProjectWithSessions } from "$lib/acp/components/add-repository/open-project-dialog-props.js";
 import {
@@ -733,7 +733,7 @@ function handleEmptyStateSessionCreated(sessionId: string) {
 							aria-label="Browse in Finder"
 							onclick={handleBrowseProject}
 						>
-							<RoundedIcon name="folder" class="size-4" />
+							<HugeiconsIcon name="folder" class="size-4" />
 						</Button>
 					</div>
 					<div class="flex max-h-[min(21rem,42vh)] min-h-0 flex-col overflow-y-auto pr-1">

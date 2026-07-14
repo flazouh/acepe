@@ -152,7 +152,6 @@ export {
 	AgentToolTodo,
 	AgentToolWebSearch,
 	AgentUserMessage,
-	ThinkingDotMatrix,
 	ToolTally,
 	TodoNumberIcon,
 } from "./components/agent-panel/index.js";
@@ -350,15 +349,11 @@ export {
 	DiscordIcon,
 	GoogleLogoIcon,
 	HugeiconsIcon,
+	formatHugeiconsIconName,
+	hugeiconsIconLibrary,
+	hugeiconsIconNames,
 	LayoutModeIcon,
-	InterfaceIcon,
-	LinearInterfaceIcon,
-	LinearInventoryIcon,
 	PullRequestStatusIcon,
-	RoundedIcon,
-	DotmSquare18Spinner,
-	DotmTriangle17Spinner,
-	DotmTriangle20Spinner,
 	LoadingIcon,
 	MenuIcon,
 	PaletteIcon,
@@ -374,37 +369,15 @@ export {
 } from "./components/icons/index.js";
 export type {
 	HugeiconsIconName,
-	RoundedIconName,
+	HugeiconsIconLibraryEntry,
 } from "./components/icons/index.js";
 export {
-	getInterfaceIconEvidence,
-	interfaceIconMappings,
-	resolveInterfaceIconGlyph,
-	type InterfaceIconGlyph,
-	type InterfaceIconName,
-	getInterfaceIconEvidence as getLinearInterfaceIconEvidence,
-	interfaceIconMappings as linearInterfaceIconMappings,
-	resolveInterfaceIconGlyph as resolveLinearInterfaceIconGlyph,
-	type InterfaceIconGlyph as LinearInterfaceIconGlyph,
-	type InterfaceIconName as LinearInterfaceIconName,
-} from "./components/icons/interface-icon.js";
-export {
-	linearIconCatalogHash,
-	linearIconCoverage,
-	linearIconData,
-	linearIconLibrary,
-	linearIconNames,
-	type LinearIconCatalogData,
-	type LinearIconLibraryEntry,
-	type LinearIconName,
-} from "./components/icons/linear-icon-catalog.js";
-export {
-	mapGitHubPrStateToLinearStatusIcon,
-	mapUppercasePrStateToLinearStatusIcon,
-	pullRequestLinearStatusIcons,
+	mapGitHubPrStateToStatusIcon,
+	mapUppercasePrStateToStatusIcon,
+	pullRequestStatusIcons,
 	type PullRequestGitHubState,
-	type PullRequestLinearStatusIconName,
-	type PullRequestLinearStatusKind,
+	type PullRequestStatusIconName,
+	type PullRequestStatusKind,
 } from "./components/icons/pull-request-status-icon.js";
 export {
 	ProviderMark,

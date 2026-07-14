@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	interface Props {
 		filled?: boolean;
 		class?: string;
@@ -13,7 +13,7 @@
 	}: Props = $props();
 </script>
 
-<RoundedIcon
+<HugeiconsIcon
 	name={filled ? "heart-filled" : "heart"}
 	class="size-3.5 {className}"
 	data-testid={dataTestId ?? (filled ? "default-agent-heart-filled-icon" : "default-agent-heart-outline-icon")}

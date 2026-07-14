@@ -1,5 +1,5 @@
 <script lang="ts">
-import { LoadingIcon, RoundedIcon, type RoundedIconName } from "../icons/index.js";
+import { LoadingIcon, HugeiconsIcon, type HugeiconsIconName } from "../icons/index.js";
 import type { AgentToolKind, AgentToolStatus } from "./types.js";
 
 interface Props {
@@ -17,7 +17,7 @@ let {
 }: Props = $props();
 const isPending = $derived(status === "pending" || status === "running");
 
-const roundedIconByKind: Record<AgentToolKind, RoundedIconName> = {
+const iconNameByKind: Record<AgentToolKind, HugeiconsIconName> = {
 	read: "tool-read",
 	read_lints: "tool-task",
 	review: "tool-edit",
@@ -41,14 +41,14 @@ const roundedIconByKind: Record<AgentToolKind, RoundedIconName> = {
 	other: "question",
 };
 
-const roundedIcon = $derived(roundedIconByKind[kind]);
+const iconName = $derived(iconNameByKind[kind]);
 </script>
 
 {#if isPending}
 	<LoadingIcon class={className} {size} aria-label="Loading" />
-{:else if roundedIcon}
-	<RoundedIcon
-		name={roundedIcon}
+{:else if iconName}
+	<HugeiconsIcon
+		name={iconName}
 		class="text-muted-foreground {className}"
 		style="width: {size}px; height: {size}px"
 		data-testid={`tool-kind-icon-${kind}`}

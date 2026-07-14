@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Button } from "../button/index.js";
-	import { LinearInterfaceIcon, RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 
 	interface Props {
 		onBack?: (() => void) | undefined;
@@ -38,7 +38,7 @@
 			title={backLabel}
 			aria-label={backLabel}
 		>
-			{#snippet children()}<RoundedIcon name="chevron-left" />{/snippet}
+			{#snippet children()}<HugeiconsIcon name="chevron-left" />{/snippet}
 		</Button>
 		<Button
 			variant="ghost"
@@ -48,7 +48,7 @@
 			title={forwardLabel}
 			aria-label={forwardLabel}
 		>
-			{#snippet children()}<RoundedIcon name="chevron-right" />{/snippet}
+			{#snippet children()}<HugeiconsIcon name="chevron-right" />{/snippet}
 		</Button>
 		<Button
 			variant="ghost"
@@ -58,7 +58,7 @@
 			title={reloadLabel}
 			aria-label={reloadLabel}
 		>
-			{#snippet children()}<RoundedIcon name="refresh" />{/snippet}
+			{#snippet children()}<HugeiconsIcon name="refresh" />{/snippet}
 		</Button>
 	{/if}
 	{#if showExternal}
@@ -70,6 +70,11 @@
 			title={openExternalLabel}
 			aria-label={openExternalLabel}
 		>
-			{#snippet children()}<LinearInterfaceIcon name="open-in-new-window" />{/snippet}
+			{#snippet children()}
+				<HugeiconsIcon
+					name="open-in-new-window"
+					data-testid="browser-nav-open-external-hugeicons-icon"
+				/>
+			{/snippet}
 		</Button>
 	{/if}

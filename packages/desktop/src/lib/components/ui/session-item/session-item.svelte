@@ -2,11 +2,10 @@
 import type { ActivityEntryQuestion } from "@acepe/ui";
 import {
 	ActivityEntry,
-	LinearInterfaceIcon,
+	HugeiconsIcon,
 	LoadingIcon,
 	PrChecksSummary,
 	ProjectLetterBadge,
-	RoundedIcon,
 	Selector,
 } from "@acepe/ui";
 import {
@@ -679,9 +678,9 @@ function handleNextQuestion() {
 					aria-label={isExpanded ? "Collapse" : "Expand"}
 				>
 					{#if isExpanded}
-						<RoundedIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground" />
+						<HugeiconsIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground" />
 					{:else}
-						<RoundedIcon name="chevron-right" class="size-3 shrink-0 text-muted-foreground" />
+						<HugeiconsIcon name="chevron-right" class="size-3 shrink-0 text-muted-foreground" />
 					{/if}
 				</button>
 			{/if}
@@ -704,7 +703,7 @@ function handleNextQuestion() {
 							title="Ready for review"
 							data-testid="session-item-finished-indicator"
 						>
-							<RoundedIcon name="check-circle-filled" class="size-3 shrink-0" />
+							<HugeiconsIcon name="check-circle-filled" class="size-3 shrink-0" />
 						</span>
 					{/if}
 					<AgentIcon
@@ -729,7 +728,7 @@ function handleNextQuestion() {
 							aria-label={worktreeDeleted ? "Worktree deleted" : "Worktree session"}
 							class="inline-flex shrink-0 m-0.5 {worktreeDeleted ? 'text-destructive' : 'text-success'}"
 						>
-							<RoundedIcon name="worktree" class="size-3" />
+							<HugeiconsIcon name="worktree" class="size-3" />
 						</span>
 					{/if}
 					{#if session.prNumber != null}
@@ -770,7 +769,7 @@ function handleNextQuestion() {
 										aria-label="Confirm archive session"
 										title="Confirm archive"
 									>
-										<RoundedIcon name="check" class="h-3.5 w-3.5" />
+										<HugeiconsIcon name="check" class="h-3.5 w-3.5" />
 									</button>
 									<button
 										type="button"
@@ -779,7 +778,7 @@ function handleNextQuestion() {
 										aria-label="Cancel archive session"
 										title="Cancel"
 									>
-										<RoundedIcon name="close" class="h-3.5 w-3.5" />
+										<HugeiconsIcon name="close" class="h-3.5 w-3.5" />
 									</button>
 								</div>
 							{:else}
@@ -790,7 +789,7 @@ function handleNextQuestion() {
 									aria-label="Archive session"
 									title="Archive"
 								>
-									<RoundedIcon name="archive" class="h-3.5 w-3.5" />
+									<HugeiconsIcon name="archive" class="h-3.5 w-3.5" />
 								</button>
 							{/if}
 						{/if}
@@ -806,7 +805,7 @@ function handleNextQuestion() {
 								triggerAriaLabel="Session actions"
 							>
 								{#snippet renderButton()}
-									<RoundedIcon name="more" />
+									<HugeiconsIcon name="more" />
 								{/snippet}
 
 								{#if onRename}
@@ -815,7 +814,7 @@ function handleNextQuestion() {
 										class="cursor-pointer"
 										data-testid="session-action-rename"
 									>
-										<RoundedIcon name="edit" class="size-3.5 shrink-0" />
+										<HugeiconsIcon name="edit" class="size-3.5 shrink-0" />
 										<span class="min-w-0 flex-1 truncate">{"Rename..."}</span>
 									</DropdownMenu.Item>
 									<DropdownMenu.Separator />
@@ -825,7 +824,7 @@ function handleNextQuestion() {
 										class="cursor-pointer"
 										data-testid="session-action-copy"
 									>
-										<RoundedIcon name="copy" class="size-3.5 shrink-0" />
+										<HugeiconsIcon name="copy" class="size-3.5 shrink-0" />
 										<span class="min-w-0 flex-1 truncate">{"Copy"}</span>
 									</DropdownMenu.SubTrigger>
 									<DropdownMenu.SubContent class="min-w-[210px]">
@@ -834,7 +833,7 @@ function handleNextQuestion() {
 											class="cursor-pointer"
 											data-testid="session-action-copy-title"
 										>
-											<RoundedIcon name="file-text" class="size-3.5 shrink-0" />
+											<HugeiconsIcon name="file-text" class="size-3.5 shrink-0" />
 											<span class="min-w-0 flex-1 truncate">{"Title"}</span>
 										</DropdownMenu.Item>
 										<DropdownMenu.Item
@@ -842,7 +841,7 @@ function handleNextQuestion() {
 											class="cursor-pointer"
 											data-testid="session-action-copy-id"
 										>
-											<LinearInterfaceIcon name="copy-id" class="size-3.5 shrink-0" />
+											<HugeiconsIcon name="copy-id" class="size-3.5 shrink-0" />
 											<span class="min-w-0 flex-1 truncate">{"Session ID"}</span>
 										</DropdownMenu.Item>
 										{#if hasCopyTranscriptActions}
@@ -853,7 +852,7 @@ function handleNextQuestion() {
 													class="cursor-pointer"
 													data-testid="session-action-copy-markdown"
 												>
-													<RoundedIcon name="file-text" class="size-3.5 shrink-0" />
+													<HugeiconsIcon name="file-text" class="size-3.5 shrink-0" />
 													<span class="min-w-0 flex-1 truncate">{"Transcript as Markdown"}</span>
 												</DropdownMenu.Item>
 											{/if}
@@ -863,7 +862,7 @@ function handleNextQuestion() {
 													class="cursor-pointer"
 													data-testid="session-action-copy-json"
 												>
-													<RoundedIcon name="code" class="size-3.5 shrink-0" />
+													<HugeiconsIcon name="code" class="size-3.5 shrink-0" />
 													<span class="min-w-0 flex-1 truncate">{"Transcript as JSON"}</span>
 												</DropdownMenu.Item>
 											{/if}
@@ -876,7 +875,7 @@ function handleNextQuestion() {
 										class="cursor-pointer"
 										data-testid="session-action-open-in-acepe"
 									>
-										<RoundedIcon name="app-window" class="size-3.5 shrink-0" />
+										<HugeiconsIcon name="app-window" class="size-3.5 shrink-0" />
 										<span class="min-w-0 flex-1 truncate">{"View Transcript File"}</span>
 									</DropdownMenu.Item>
 								{/if}
@@ -885,7 +884,7 @@ function handleNextQuestion() {
 										class="cursor-pointer"
 										data-testid="session-action-reveal"
 									>
-										<RoundedIcon name="folder" class="size-3.5 shrink-0" />
+										<HugeiconsIcon name="folder" class="size-3.5 shrink-0" />
 										<span class="min-w-0 flex-1 truncate">{"Reveal in Finder"}</span>
 									</DropdownMenu.SubTrigger>
 									<DropdownMenu.SubContent class="min-w-[190px]">
@@ -894,7 +893,7 @@ function handleNextQuestion() {
 											class="cursor-pointer"
 											data-testid="session-action-reveal-transcript"
 										>
-											<RoundedIcon name="document" class="size-3.5 shrink-0" />
+											<HugeiconsIcon name="document" class="size-3.5 shrink-0" />
 											<span class="min-w-0 flex-1 truncate">{"Raw Transcript File"}</span>
 										</DropdownMenu.Item>
 										{#if canRevealWorktreeFolder}
@@ -903,7 +902,7 @@ function handleNextQuestion() {
 												class="cursor-pointer"
 												data-testid="session-action-reveal-worktree"
 											>
-												<RoundedIcon name="worktree" class="size-3.5 shrink-0" />
+												<HugeiconsIcon name="worktree" class="size-3.5 shrink-0" />
 												<span class="min-w-0 flex-1 truncate">{"Worktree Folder"}</span>
 											</DropdownMenu.Item>
 										{/if}
@@ -916,7 +915,7 @@ function handleNextQuestion() {
 										class="cursor-pointer"
 										data-testid="session-action-open-pr"
 									>
-										<RoundedIcon name="pull-request" class="size-3.5 shrink-0" />
+										<HugeiconsIcon name="pull-request" class="size-3.5 shrink-0" />
 										<span class="min-w-0 flex-1 truncate">
 											{`Open Pull Request #${session.prNumber}`}
 										</span>
@@ -929,7 +928,7 @@ function handleNextQuestion() {
 											class="cursor-pointer"
 											data-testid="session-action-developer"
 										>
-											<RoundedIcon name="terminal" class="size-3.5 shrink-0" />
+											<HugeiconsIcon name="terminal" class="size-3.5 shrink-0" />
 											<span class="min-w-0 flex-1 truncate">{"Developer"}</span>
 										</DropdownMenu.SubTrigger>
 										<DropdownMenu.SubContent class="min-w-[180px]">
@@ -938,7 +937,7 @@ function handleNextQuestion() {
 												class="cursor-pointer"
 												data-testid="session-action-open-streaming-log"
 											>
-												<RoundedIcon name="terminal" class="size-3.5 shrink-0" />
+												<HugeiconsIcon name="terminal" class="size-3.5 shrink-0" />
 												<span class="min-w-0 flex-1 truncate">{"Open Streaming Log"}</span>
 											</DropdownMenu.Item>
 										</DropdownMenu.SubContent>

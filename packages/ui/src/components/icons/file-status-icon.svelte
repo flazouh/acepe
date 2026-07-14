@@ -1,6 +1,7 @@
 <script lang="ts">
-	import { cn } from "../../lib/utils.js";
-	import RoundedIcon from "./rounded-icon.svelte";
+import { cn } from "../../lib/utils.js";
+import HugeiconsIcon from "./hugeicons-icon.svelte";
+	import { getFileStatusIconModel } from "./file-status-icon-model.js";
 	import type { FileStatusIconKind } from "./file-status-icon-types.js";
 
 	interface Props {
@@ -10,9 +11,7 @@
 	}
 
 	let { status, class: className, "data-testid": testId }: Props = $props();
-	const iconName = $derived(
-		status === "added" || status === "untracked" ? "add" : status === "deleted" ? "trash" : "edit",
-	);
+	const icon = $derived(getFileStatusIconModel(status));
 </script>
 
 <span
@@ -21,5 +20,5 @@
 	data-testid={testId}
 	aria-hidden="true"
 >
-	<RoundedIcon name={iconName} class="size-3.5" />
+	<HugeiconsIcon name={icon.name} class="size-3.5" />
 </span>

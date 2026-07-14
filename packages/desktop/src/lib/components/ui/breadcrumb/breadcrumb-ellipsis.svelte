@@ -1,5 +1,5 @@
 <script lang="ts">
-import { RoundedIcon } from "@acepe/ui";
+import { HugeiconsIcon } from "@acepe/ui";
 import type { HTMLAttributes } from "svelte/elements";
 import { cn, type WithElementRef, type WithoutChildren } from "$lib/utils.js";
 
@@ -18,6 +18,6 @@ let {
 	class={cn("flex size-9 items-center justify-center", className)}
 	{...restProps}
 >
-	<RoundedIcon name="more" class="size-4" />
+	<HugeiconsIcon name="more" class="size-4" />
 	<span class="sr-only">More</span>
 </span>

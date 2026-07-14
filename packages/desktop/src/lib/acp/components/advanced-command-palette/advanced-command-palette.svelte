@@ -1,5 +1,5 @@
 <script lang="ts">
-import { RoundedIcon } from "@acepe/ui";
+import { HugeiconsIcon } from "@acepe/ui";
 import * as Kbd from "$lib/components/ui/kbd/index.js";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import { TIMING } from "../../constants/timing.js";
@@ -104,7 +104,7 @@ const paletteState = $derived(commandPalette.state);
 >
 	<div class="flex flex-col">
 		<div class="flex items-center gap-2 border-b border-border/30 px-3 py-2">
-			<RoundedIcon name="search" class="size-3.5 shrink-0 text-muted-foreground/50" />
+			<HugeiconsIcon name="search" class="size-3.5 shrink-0 text-muted-foreground/50" />
 			<input
 				bind:this={inputRef}
 				type="text"

@@ -6,10 +6,10 @@ describe("BRANCH_PREFIXES", () => {
 	test("uses exact rounded aliases for matching branch prefixes", () => {
 		const prefixesByLabel = new Map(BRANCH_PREFIXES.map((prefix) => [prefix.label, prefix]));
 
-		expect(DEFAULT_BRANCH_PREFIX.roundedIcon).toBe("branch");
-		expect(prefixesByLabel.get("None")?.roundedIcon).toBe("branch");
-		expect(prefixesByLabel.get("fix")?.roundedIcon).toBe("bug");
-		expect(prefixesByLabel.get("feat")?.roundedIcon).toBe("sparkle");
-		expect(prefixesByLabel.get("test")?.roundedIcon).toBe("flask");
+		expect(DEFAULT_BRANCH_PREFIX.iconName).toBe("branch");
+		expect(prefixesByLabel.get("None")?.iconName).toBe("branch");
+		expect(prefixesByLabel.get("fix")?.iconName).toBe("bug");
+		expect(prefixesByLabel.get("feat")?.iconName).toBe("sparkle");
+		expect(prefixesByLabel.get("test")?.iconName).toBe("flask");
 	});
 });
