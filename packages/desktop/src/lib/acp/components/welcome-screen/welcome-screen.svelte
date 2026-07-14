@@ -448,11 +448,14 @@ async function finishOnboarding(): Promise<void> {
 									<div class="mb-2 flex items-center justify-between gap-1.5">
 										<div class="flex min-w-0 items-center gap-1.5">
 											{#if agent.id === "claude-code"}
-												<HugeiconsIcon name="robot" class="size-3.5 shrink-0 text-muted-foreground" />
+												<span
+													class="size-3.5 shrink-0 bg-[#D97757]"
+													style="-webkit-mask: url('/svgs/icons/claude.svg') center / contain no-repeat; mask: url('/svgs/icons/claude.svg') center / contain no-repeat;"
+												></span>
 											{:else if agent.id === "codex"}
-												<HugeiconsIcon name="code" class="size-3.5 shrink-0 text-muted-foreground" />
+												<img src="/svgs/agents/codex/codex-icon.svg" alt="" class="size-3.5 shrink-0 object-contain" />
 											{:else}
-												<HugeiconsIcon name="code" class="size-3.5 shrink-0 text-muted-foreground" />
+												<img src="/svgs/icons/cursor.svg" alt="" class="size-3.5 shrink-0" />
 											{/if}
 											<div class="truncate text-[10px] font-medium text-muted-foreground">{agent.label}</div>
 										</div>

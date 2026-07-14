@@ -36,7 +36,13 @@
 	aria-hidden="true"
 	data-usage-agent-icon
 >
-	{#if providerBrand !== null}
+	{#if providerBrand === "codex"}
+		<img
+			src="/svgs/agents/codex/codex-icon.svg"
+			alt=""
+			class="block size-full object-contain"
+		/>
+	{:else if providerBrand !== null}
 		<ProviderMark
 			brand={providerBrand}
 			label={providerName}

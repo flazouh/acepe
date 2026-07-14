@@ -114,7 +114,7 @@ describe("UsageLimitWidget", () => {
 					"[data-usage-widget-trigger] [data-usage-agent-icon] img",
 				)
 				?.getAttribute("src"),
-		).toMatch(/^data:image\/svg\+xml,/);
+	).toBe("/svgs/agents/codex/codex-icon.svg");
 		expect(
 			container.querySelector(
 				"[data-usage-widget-trigger] [data-usage-meter-label]",

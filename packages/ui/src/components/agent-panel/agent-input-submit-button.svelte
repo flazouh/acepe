@@ -112,7 +112,7 @@ function handleEnterBehaviorChange(value: string): void {
 				aria-label={enterBehaviorMenuLabel}
 				class={agentInputSubmitMenuSegmentClass}
 			>
-				<HugeiconsIcon name="more" class="h-4 w-4 rotate-90" />
+				<HugeiconsIcon name="more" class="h-4 w-4" />
 			</DropdownMenu.Trigger>
 			<DropdownMenu.Content side="top" align="end" sideOffset={8} class="w-64 p-1">
 				<DropdownMenu.RadioGroup value={enterBehavior} onValueChange={handleEnterBehaviorChange}>
