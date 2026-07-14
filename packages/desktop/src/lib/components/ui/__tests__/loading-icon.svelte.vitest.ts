@@ -36,4 +36,10 @@ describe("LoadingIcon", () => {
 		expect(container.querySelector(".acepe-dotm-root")).toBeNull();
 		expect(container.querySelector("svg")).not.toBeNull();
 	});
+
+	it("marks the symmetric Loading03Icon for visible segment animation", () => {
+		const { container } = render(LoadingIcon);
+
+		expect(container.querySelector("svg")?.classList.contains("loading-icon-segments")).toBe(true);
+	});
 });
