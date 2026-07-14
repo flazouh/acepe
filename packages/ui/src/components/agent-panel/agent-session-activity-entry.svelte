@@ -7,6 +7,7 @@
 -->
 <script lang="ts">
 	import RoundedIcon from "../icons/rounded-icon.svelte";
+	import InterfaceIcon from "../icons/interface-icon.svelte";
 	import TextShimmer from "../text-shimmer/text-shimmer.svelte";
 	import {
 		formatCompactTokens,
@@ -76,7 +77,7 @@
 				{#if status === "failed"}
 					<RoundedIcon name="warning" class="size-3.5 shrink-0 text-destructive" />
 				{:else if status === "usage_reset"}
-					<RoundedIcon name="refresh" class="size-3.5 shrink-0 text-muted-foreground/70" />
+					<InterfaceIcon name="refresh" class="size-3.5 shrink-0 text-muted-foreground/70" />
 				{:else if gauge !== null}
 					<span
 						class="flex shrink-0 items-end gap-[3px]"

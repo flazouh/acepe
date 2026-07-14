@@ -5,7 +5,7 @@
 -->
 <script lang="ts">
 	import { Selector } from "../selector/index.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { InterfaceIcon, RoundedIcon } from "../icons/index.js";
 	import type { SelectorTriggerSize } from "../selector/selector-trigger-classes.js";
 	import { getSelectorTriggerButtonVariant } from "../selector/selector-trigger-classes.js";
 	import { Button } from "../button/index.js";
@@ -92,7 +92,7 @@
 		>
 			{#snippet leading()}
 				{#if viewState.iconKind === "reasoning"}
-					<RoundedIcon
+					<InterfaceIcon
 						name="brain"
 						class="size-3.5 shrink-0"
 						style={`color: ${getReasoningEffortOptionIconColor({

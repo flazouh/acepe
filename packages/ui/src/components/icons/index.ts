@@ -7,6 +7,12 @@ export type { FileStatusIconKind } from "./file-status-icon-types.js";
 export { default as LayoutModeIcon } from "./layout-mode-icon.svelte";
 export { default as GoogleLogoIcon } from "./google-logo-icon.svelte";
 export { default as InterfaceIcon } from "./interface-icon.svelte";
+export { default as HugeiconsIcon } from "./hugeicons-icon.svelte";
+export {
+	isHugeiconsIconName,
+	resolveHugeiconsIcon,
+	type HugeiconsIconName,
+} from "./hugeicons-icon-registry.js";
 export { default as LinearInterfaceIcon } from "./interface-icon.svelte";
 export { default as LinearInventoryIcon } from "./linear-inventory-icon.svelte";
 export { default as PullRequestStatusIcon } from "./pull-request-status-icon.svelte";
@@ -37,12 +43,12 @@ export {
 	type ConfirmedInterfaceRoundedIconName,
 } from "./rounded-to-interface-map.js";
 export {
-	confirmedLinearInterfaceMappings,
-	getConfirmedLinearRoundedIconEvidence,
-	isConfirmedLinearRoundedIcon,
-	mapRoundedIconToLinear,
-	type ConfirmedLinearRoundedIconName,
-} from "./rounded-to-linear-map.js";
+	confirmedInterfaceIconMappings as confirmedLinearInterfaceMappings,
+	getConfirmedInterfaceRoundedIconEvidence as getConfirmedLinearRoundedIconEvidence,
+	isConfirmedInterfaceRoundedIcon as isConfirmedLinearRoundedIcon,
+	mapRoundedIconToInterface as mapRoundedIconToLinear,
+	type ConfirmedInterfaceRoundedIconName as ConfirmedLinearRoundedIconName,
+} from "./rounded-to-interface-map.js";
 export {
 	getInterfaceIconEvidence,
 	interfaceIconMappings,
@@ -66,8 +72,10 @@ export {
 	roundedIconMigrationManifest,
 	type RoundedIconMigrationDecision,
 } from "./rounded-icon-migration-manifest.js";
-export type { ConfirmedInterfaceIconMapping } from "./confirmed-interface-icon-mapping.js";
-export type { ConfirmedLinearInterfaceMapping } from "./confirmed-linear-interface-mapping.js";
+export type {
+	ConfirmedInterfaceIconMapping,
+	ConfirmedInterfaceIconMapping as ConfirmedLinearInterfaceMapping,
+} from "./confirmed-interface-icon-mapping.js";
 export { resolveRoundedIconGlyph } from "./resolve-rounded-icon-glyph.js";
 export {
 	isRoundedIconAliasName,

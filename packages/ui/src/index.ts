@@ -349,6 +349,7 @@ export {
 	DatabaseIcon,
 	DiscordIcon,
 	GoogleLogoIcon,
+	HugeiconsIcon,
 	LayoutModeIcon,
 	InterfaceIcon,
 	LinearInterfaceIcon,
@@ -370,6 +371,10 @@ export {
 	StorageIcon,
 	WrenchIcon,
 	XLogoIcon,
+} from "./components/icons/index.js";
+export type {
+	HugeiconsIconName,
+	RoundedIconName,
 } from "./components/icons/index.js";
 export {
 	getInterfaceIconEvidence,

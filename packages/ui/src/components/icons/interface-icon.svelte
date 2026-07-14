@@ -1,15 +1,11 @@
-<script lang="ts" module>
-	import {
-		resolveInterfaceIconGlyph,
-		type InterfaceIconName,
-	} from "./interface-icon.js";
-
-	export type { InterfaceIconName };
-</script>
-
 <script lang="ts">
+	import HugeiconsIcon from "./hugeicons-icon.svelte";
+	import type { HugeiconsIconName } from "./hugeicons-icon-registry.js";
+
+	export type InterfaceIconName = HugeiconsIconName;
+
 	interface Props {
-		name: InterfaceIconName;
+		name: HugeiconsIconName;
 		class?: string;
 		style?: string;
 		role?: string;
@@ -25,21 +21,13 @@
 		"aria-label": ariaLabel,
 		"data-testid": dataTestid,
 	}: Props = $props();
-
-	const icon = $derived(resolveInterfaceIconGlyph(name));
-	const resolvedRole = $derived(ariaLabel ? (role ?? "img") : role);
-	const ariaHidden = $derived(ariaLabel ? undefined : "true");
 </script>
 
-<svg
+<HugeiconsIcon
+	{name}
 	class={className}
 	{style}
-	role={resolvedRole}
+	{role}
 	aria-label={ariaLabel}
 	data-testid={dataTestid}
-	aria-hidden={ariaHidden}
-	viewBox={icon.viewBox}
-	xmlns="http://www.w3.org/2000/svg"
->
-	{@html icon.inner}
-</svg>
+/>
