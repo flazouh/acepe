@@ -1,5 +1,6 @@
 <script lang="ts">
-import { getFallbackIconSrc, getFileIconSrc } from "./extension-map.js";
+import { hugeiconsIconDataUri } from "@acepe/ui/icons";
+import { getFallbackIconSrc, getFileIconName, getFileIconSrc } from "./extension-map.js";
 
 interface Props {
 	/** File extension (without dot) or icon name directly */
@@ -16,11 +17,7 @@ let { extension, name, isOpen = false, class: className = "" }: Props = $props()
 
 const iconSrc = $derived.by(() => {
 	if (name) {
-		// Handle folder open state
-		if (name.startsWith("folder") && isOpen && !name.includes("-open")) {
-			return `/svgs/icons/${name}-open.svg`;
-		}
-		return `/svgs/icons/${name}.svg`;
+		return hugeiconsIconDataUri(name.startsWith("folder") && isOpen ? "folder-open" : getFileIconName(name));
 	}
 	if (extension) {
 		return getFileIconSrc(extension);

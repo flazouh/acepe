@@ -350,6 +350,7 @@ export {
 	GoogleLogoIcon,
 	HugeiconsIcon,
 	formatHugeiconsIconName,
+	hugeiconsIconDataUri,
 	hugeiconsIconLibrary,
 	hugeiconsIconNames,
 	LayoutModeIcon,

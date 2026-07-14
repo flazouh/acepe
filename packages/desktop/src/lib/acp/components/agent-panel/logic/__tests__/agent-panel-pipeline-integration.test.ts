@@ -227,7 +227,7 @@ describe("agent-panel rendered-row pipeline — planning placeholder", () => {
 			bufferRows: [userRow("user-1", "why is the sky blue")],
 			planningPlaceholderPresentation: {
 				label: "Connecting to Codex Agent",
-				agentIconSrc: "/svgs/agents/codex/codex-icon.svg",
+				agentIconSrc: "data:image/svg+xml,hugeicons",
 				showWorkingSpark: false,
 			},
 		});
@@ -240,7 +240,7 @@ describe("agent-panel rendered-row pipeline — planning placeholder", () => {
 			return;
 		}
 		expect(planningEntry.label).toBe("Connecting to Codex Agent");
-		expect(planningEntry.agentIconSrc).toBe("/svgs/agents/codex/codex-icon.svg");
+		expect(planningEntry.agentIconSrc).toBe("data:image/svg+xml,hugeicons");
 		expect(planningEntry.showWorkingSpark).toBe(false);
 	});
 

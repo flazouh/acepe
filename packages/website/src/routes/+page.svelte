@@ -4,6 +4,7 @@ import AppleIcon from "$lib/components/landing-v2/apple-icon.svelte";
 import CommandChip from "$lib/components/landing-v2/command-chip.svelte";
 import WarpHeader from "$lib/components/landing-v2/warp-header.svelte";
 import AgentIconsRow from "$lib/components/agent-icons-row.svelte";
+import { getProviderBrandIconSrc } from "$lib/provider-brand-icons.js";
 import { BrandGradientBackground } from "@acepe/ui";
 
 const BREW = "brew install --cask acepe";
@@ -16,31 +17,31 @@ const agents = [
 		id: "claude-code",
 		name: "Claude Code",
 		tagline: "Anthropic's agent, first-class.",
-		icon: "/svgs/agents/claude/claude-icon-dark.svg",
+		icon: getProviderBrandIconSrc("claude-code", "dark"),
 	},
 	{
 		id: "codex",
 		name: "Codex",
 		tagline: "OpenAI's coding agent.",
-		icon: "/svgs/agents/codex/codex-icon-dark.svg",
+		icon: getProviderBrandIconSrc("codex", "dark"),
 	},
 	{
 		id: "cursor",
 		name: "Cursor Agent",
 		tagline: "Cursor's background agent.",
-		icon: "/svgs/agents/cursor/cursor-icon-dark.svg",
+		icon: getProviderBrandIconSrc("cursor", "dark"),
 	},
 	{
 		id: "opencode",
 		name: "OpenCode",
 		tagline: "The open-source ACP client.",
-		icon: "/svgs/agents/opencode/opencode-logo-dark.svg",
+		icon: getProviderBrandIconSrc("opencode", "dark"),
 	},
 	{
 		id: "custom",
 		name: "Any ACP agent",
 		tagline: "Bring your own — if it speaks ACP, it runs here.",
-		icon: "/svgs/agents/custom/custom-icon.svg",
+		icon: getProviderBrandIconSrc("custom", "dark"),
 	},
 ];
 

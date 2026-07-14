@@ -130,10 +130,13 @@ const iconByName: Readonly<Record<string, IconSvgElement>> = {
 	eye: EyeIcon,
 	"eye-off": EyeOffIcon,
 	"file-text": File01Icon,
+	file: File01Icon,
 	files: Files01Icon,
 	folder: Folder01Icon,
+	"folder-open": FolderOpenIcon,
 	folders: FolderOpenIcon,
 	format: TextIcon,
+	text: TextIcon,
 	git: GitBranchIcon,
 	"git-diff": FileDiffIcon,
 	"git-diff-unified": FileDiffIcon,
@@ -163,6 +166,7 @@ const iconByName: Readonly<Record<string, IconSvgElement>> = {
 	send: MailSend01Icon,
 	settings: Settings01Icon,
 	"shield-check": SecurityCheckIcon,
+	"security-check": SecurityCheckIcon,
 	"shield-warning": SecurityWarningIcon,
 	sidebar: SidebarLeftIcon,
 	"sidebar-open": SidebarLeftIcon,
@@ -243,4 +247,38 @@ export function resolveHugeiconsIcon(name: HugeiconsIconName): IconSvgElement {
 
 export function isHugeiconsIconName(name: string): boolean {
 	return Object.hasOwn(iconByName, name);
+}
+
+type IconAttributeValue = string | number;
+
+function escapeSvgAttribute(value: string): string {
+	return value
+		.replaceAll("&", "&amp;")
+		.replaceAll('"', "&quot;")
+		.replaceAll("<", "&lt;")
+		.replaceAll(">", "&gt;");
+}
+
+/**
+ * Returns a self-contained Hugeicons SVG data URI for places that need an
+ * image source (for example, a DOM node created outside Svelte). The source
+ * is still generated from the same Hugeicons registry as `<HugeiconsIcon>`.
+ */
+export function hugeiconsIconDataUri(
+	name: HugeiconsIconName,
+	color: string = "#71717a",
+): string {
+	const elements = resolveHugeiconsIcon(name).map(([tagName, attributes]) => {
+		const serializedAttributes = Object.entries(attributes as Record<string, IconAttributeValue>)
+			.map(([attributeName, value]) => {
+				const resolvedValue = value === "currentColor" ? color : String(value);
+				return `${attributeName}="${escapeSvgAttribute(resolvedValue)}"`;
+			})
+			.join(" ");
+
+		return `<${tagName} ${serializedAttributes}></${tagName}>`;
+	});
+	const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="${escapeSvgAttribute(color)}">${elements.join("")}</svg>`;
+
+	return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }

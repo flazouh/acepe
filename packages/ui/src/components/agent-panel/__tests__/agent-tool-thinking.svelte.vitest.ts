@@ -56,11 +56,11 @@ describe("AgentToolThinking", () => {
 				durationMs: null,
 				startedAtMs: null,
 				label: "Connecting to Codex Agent",
-				agentIconSrc: "/svgs/agents/codex/codex-icon.svg",
+				agentIconSrc: "data:image/svg+xml,hugeicons",
 			},
 		});
 
 		expect(view.getByText("Connecting to Codex Agent")).toBeTruthy();
-		expect(view.container.querySelector('img[src="/svgs/agents/codex/codex-icon.svg"]')).toBeTruthy();
+		expect(view.container.querySelector('img[src="data:image/svg+xml,hugeicons"]')).toBeTruthy();
 	});
 });

@@ -10,6 +10,7 @@ export { default as HugeiconsIcon } from "./hugeicons-icon.svelte";
 export {
 	isHugeiconsIconName,
 	resolveHugeiconsIcon,
+	hugeiconsIconDataUri,
 	formatHugeiconsIconName,
 	hugeiconsIconLibrary,
 	hugeiconsIconNames,
