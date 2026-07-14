@@ -7,11 +7,13 @@ import {
 
 describe("provider brand icons", () => {
 	it("keeps the Codex agent mark separate from the OpenAI upstream mark", () => {
-		const codexAgentIcon = getProviderBrandIconSrc("codex", "dark");
+		const codexAgentLightIcon = getProviderBrandIconSrc("codex", "light");
+		const codexAgentDarkIcon = getProviderBrandIconSrc("codex", "dark");
 		const openAiUpstreamIcon = getUpstreamProviderBrandIconSrc("openAi", "dark");
 
-		expect(codexAgentIcon).toBe("/svgs/agents/codex/codex-icon.svg");
+		expect(codexAgentLightIcon).toBe("/svgs/agents/codex/codex-icon-light.svg");
+		expect(codexAgentDarkIcon).toBe("/svgs/agents/codex/codex-icon-dark.svg");
 		expect(openAiUpstreamIcon).toBe("/svgs/agents/codex/openai-icon.svg");
-		expect(codexAgentIcon).not.toBe(openAiUpstreamIcon);
+		expect(codexAgentDarkIcon).not.toBe(openAiUpstreamIcon);
 	});
 });

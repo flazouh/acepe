@@ -38,9 +38,14 @@
 >
 	{#if providerBrand === "codex"}
 		<img
-			src="/svgs/agents/codex/codex-icon.svg"
+			src="/svgs/agents/codex/codex-icon-light.svg"
 			alt=""
-			class="block size-full object-contain"
+			class="block size-full object-contain dark:hidden"
+		/>
+		<img
+			src="/svgs/agents/codex/codex-icon-dark.svg"
+			alt=""
+			class="hidden size-full object-contain dark:block"
 		/>
 	{:else if providerBrand !== null}
 		<ProviderMark

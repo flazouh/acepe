@@ -14,7 +14,7 @@ describe("thread-list-constants", () => {
 		});
 
 		expect(providerBrand).toBe("codex");
-		expect(getProviderBrandIcon(providerBrand, "dark")).toBe("/svgs/agents/codex/codex-icon.svg");
+		expect(getProviderBrandIcon(providerBrand, "dark")).toBe("/svgs/agents/codex/codex-icon-dark.svg");
 	});
 
 	it("falls back to the built-in Codex provider brand when metadata is custom", () => {
