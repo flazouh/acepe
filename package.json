@@ -20,7 +20,7 @@
 		"hooks:pre-commit": "lefthook run pre-commit",
 		"hooks:pre-push": "lefthook run pre-push",
 		"install:source": "bash scripts/install-from-source.sh",
-		"prepare": "lefthook install",
+		"prepare": "sh -c 'if [ -d .git ]; then lefthook install; fi'",
 		"test:install-source": "bash scripts/__tests__/install-from-source.test.sh",
 		"test": "bun run test:install-source && bun scripts/forbid-structural-tests.ts packages && bun run --cwd packages/ui test && bun run --cwd packages/desktop test && bun run --cwd packages/website test"
 	},
