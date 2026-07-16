@@ -75,8 +75,12 @@ export {
 // Agent panel components
 export {
 	AgentInputArtefactBadge,
+	AgentInputActiveModeChip,
+	AgentInputAttachMenu,
 	AgentInputAutonomousToggle,
 	AgentInputBranchSelector,
+	AgentInputComposerRow,
+	AgentInputComposerTrailingControls,
 	AgentInputConfigOptionSelector,
 	AgentInputDivider,
 	AgentInputEditor,
