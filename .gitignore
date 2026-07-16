@@ -140,6 +140,8 @@ packages/website/.mcp.json
 !packages/desktop/static/svgs/icons/*.svg
 !packages/website/static/svgs/icons/
 !packages/website/static/svgs/icons/*.svg
+!packages/website/static/brand/
+!packages/website/static/brand/**
 *.svgz
 *.tif
 *.tiff
