@@ -15,7 +15,7 @@
 		<meta name="apple-mobile-web-app-capable" content="yes" />
 		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 		<meta name="format-detection" content="telephone=no" />
-		<meta name="color-scheme" content="dark" />
+		<meta name="color-scheme" content="light dark" />
 
 		<!-- Fonts -->
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -27,14 +27,27 @@
 		<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
 		<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
 		<link rel="manifest" href="/site.webmanifest" />
-		<meta name="theme-color" content="#F77E2C" />
+		<meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)" />
+		<meta name="theme-color" content="#f7f7f7" media="(prefers-color-scheme: light)" />
 		<script>
-			// Dark theme only — light theme disabled across the site.
-			document.documentElement.dataset.theme = 'dark';
-			document.documentElement.style.colorScheme = 'dark';
-			try {
-				window.localStorage.setItem('acepe-theme', 'dark');
-			} catch {}
+			(function () {
+				var KEY = 'acepe-theme';
+				var stored = null;
+				try {
+					stored = window.localStorage.getItem(KEY);
+				} catch {}
+				var preference =
+					stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system';
+				var prefersDark = true;
+				try {
+					prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+				} catch {}
+				var effective =
+					preference === 'system' ? (prefersDark ? 'dark' : 'light') : preference;
+				document.documentElement.dataset.theme = effective;
+				document.documentElement.dataset.themePreference = preference;
+				document.documentElement.style.colorScheme = effective;
+			})();
 		</script>
 
 		%sveltekit.head%

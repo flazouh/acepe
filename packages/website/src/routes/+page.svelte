@@ -5,45 +5,48 @@ import CommandChip from "$lib/components/landing-v2/command-chip.svelte";
 import WarpHeader from "$lib/components/landing-v2/warp-header.svelte";
 import AgentIconsRow from "$lib/components/agent-icons-row.svelte";
 import { getProviderBrandIconSrc } from "$lib/provider-brand-icons.js";
+import { websiteThemeStore } from "$lib/theme/theme.js";
 import { BrandGradientBackground } from "@acepe/ui";
 
 const BREW = "brew install --cask acepe";
 
-// Sober tonal tiles: quiet lifted surfaces on the near-black page, no borders and
+const theme = $derived($websiteThemeStore);
+
+// Sober tonal tiles: quiet lifted surfaces on the page, no borders and
 // no decorative gradients. Every agent gets equal visual weight — hierarchy comes
 // from the icon chip, spacing, and type, not from cell size.
-const agents = [
+const agents = $derived([
 	{
 		id: "claude-code",
 		name: "Claude Code",
 		tagline: "Anthropic's agent, first-class.",
-		icon: getProviderBrandIconSrc("claude-code", "dark"),
+		icon: getProviderBrandIconSrc("claude-code", theme),
 	},
 	{
 		id: "codex",
 		name: "Codex",
 		tagline: "OpenAI's coding agent.",
-		icon: getProviderBrandIconSrc("codex", "dark"),
+		icon: getProviderBrandIconSrc("codex", theme),
 	},
 	{
 		id: "cursor",
 		name: "Cursor Agent",
 		tagline: "Cursor's background agent.",
-		icon: getProviderBrandIconSrc("cursor", "dark"),
+		icon: getProviderBrandIconSrc("cursor", theme),
 	},
 	{
 		id: "opencode",
 		name: "OpenCode",
 		tagline: "The open-source ACP client.",
-		icon: getProviderBrandIconSrc("opencode", "dark"),
+		icon: getProviderBrandIconSrc("opencode", theme),
 	},
 	{
 		id: "custom",
 		name: "Any ACP agent",
 		tagline: "Bring your own — if it speaks ACP, it runs here.",
-		icon: getProviderBrandIconSrc("custom", "dark"),
+		icon: getProviderBrandIconSrc("custom", theme),
 	},
-];
+]);
 
 const capabilities = [
 	{
@@ -73,10 +76,10 @@ const homepageKeywords = [
 	"agent client protocol",
 ];
 
-const creamButton =
-	"inline-flex h-9 items-center gap-2 rounded-[2px] bg-[#f8f5ee] px-4 text-[14px] font-medium text-[#121212] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f8f5ee]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#121212]";
+const solidButton =
+	"inline-flex h-9 items-center gap-2 rounded-[2px] bg-foreground px-4 text-[14px] font-medium text-background transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 const ghostButton =
-	"inline-flex h-9 items-center gap-2 rounded-[2px] bg-[#f8f5ee]/[0.06] px-4 text-[14px] font-medium text-[#f8f5ee]/85 transition-colors hover:bg-[#f8f5ee]/[0.12] hover:text-[#f8f5ee] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f8f5ee]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-[#121212]";
+	"inline-flex h-9 items-center gap-2 rounded-[2px] bg-foreground/[0.06] px-4 text-[14px] font-medium text-foreground/85 transition-colors hover:bg-foreground/[0.12] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 </script>
 
 <Seo
@@ -86,11 +89,11 @@ const ghostButton =
 	canonical="/"
 />
 
-<div class="warp-theme min-h-screen bg-[#121212] text-foreground antialiased">
+<div class="min-h-screen bg-background text-foreground antialiased">
 	<WarpHeader />
 
 	<main>
-		<!-- Hero — left-aligned, warp cadence -->
+		<!-- Hero — left-aligned cadence -->
 		<section class="mx-auto max-w-[1280px] px-6 pt-20 pb-12 md:pt-28">
 			<h1
 				class="max-w-[16ch] font-display text-[40px] leading-[1.04] font-normal tracking-[-0.025em] text-foreground md:text-[64px]"
@@ -102,7 +105,7 @@ const ghostButton =
 			</p>
 
 			<div class="mt-8 flex flex-wrap items-center gap-3">
-				<a href="/download" class={creamButton}>
+				<a href="/download" class={solidButton}>
 					{"Download"}
 					<AppleIcon class="h-4 w-4" />
 				</a>
@@ -111,21 +114,21 @@ const ghostButton =
 			</div>
 		</section>
 
-		<!-- Product surface — greyscale app mock floating on Cosmic Orange -->
+		<!-- Product surface -->
 		<section class="mx-auto max-w-[1280px] px-6 pb-24 md:pb-32">
-			<div class="relative aspect-[16/9] overflow-hidden rounded-[4px] bg-[#0F0F10]" data-slot="iris-gradient-home-product">
+			<div class="relative aspect-[16/9] overflow-hidden rounded-[4px] bg-card" data-slot="iris-gradient-home-product">
 				<BrandGradientBackground />
 				<div class="absolute inset-0 flex items-center justify-center p-6 sm:p-10 md:p-14">
 					<img
 						src="/images/landing/acepe-working-view.webp"
 						alt="Acepe running multiple coding agents side by side"
-						class="w-full max-w-[1000px] rounded-md shadow-[0_30px_90px_-24px_rgba(0,0,0,0.65)] [filter:grayscale(1)_contrast(1.03)]"
+						class="w-full max-w-[1000px] rounded-md shadow-xl [filter:grayscale(1)_contrast(1.03)]"
 					/>
 				</div>
 			</div>
 		</section>
 
-		<!-- Bento — our take on warp's partner grid -->
+		<!-- Agent grid -->
 		<section class="py-24 md:py-32">
 			<div class="mx-auto max-w-[1280px] px-6">
 				<h2 class="font-display text-[30px] leading-[1.08] font-normal tracking-[-0.025em] md:text-[45px]">
@@ -138,10 +141,10 @@ const ghostButton =
 				<div class="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
 					{#each agents as agent (agent.id)}
 						<div
-							class="group flex flex-col gap-4 rounded-[6px] bg-[#161616] p-5 transition-colors duration-300 hover:bg-[#1b1b1b]"
+							class="group flex flex-col gap-4 rounded-[6px] bg-card p-5 transition-colors duration-300 hover:bg-muted"
 						>
 							<div
-								class="flex h-11 w-11 items-center justify-center rounded-[10px] bg-[#f8f5ee]/[0.05]"
+								class="flex h-11 w-11 items-center justify-center rounded-[10px] bg-foreground/[0.05]"
 							>
 								<img
 									src={agent.icon}
@@ -171,7 +174,7 @@ const ghostButton =
 				<div class="mt-14 grid gap-x-10 gap-y-12 md:grid-cols-3">
 					{#each capabilities as cap (cap.eyebrow)}
 						<div>
-							<div class="font-mono text-[11px] uppercase tracking-[0.16em] text-[#FF8001]">
+							<div class="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
 								{cap.eyebrow}
 							</div>
 							<h3 class="mt-4 font-display text-[20px] font-normal tracking-[-0.01em] text-foreground">
@@ -187,10 +190,7 @@ const ghostButton =
 		<!-- Get Acepe today — download / brew -->
 		<section class="py-24 md:py-32">
 			<div class="mx-auto max-w-[1280px] px-6">
-				<div class="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground/60">
-					{"01 — Download"}
-				</div>
-				<h2 class="mt-4 font-display text-[32px] leading-[1.05] font-normal tracking-[-0.025em] md:text-[52px]">
+				<h2 class="font-display text-[32px] leading-[1.05] font-normal tracking-[-0.025em] md:text-[52px]">
 					{"Get Acepe today"}
 				</h2>
 				<p class="mt-5 max-w-[52ch] text-[15px] leading-[1.6] text-muted-foreground md:text-[16px]">
@@ -205,7 +205,7 @@ const ghostButton =
 						</div>
 						<p class="mt-2 text-[13px] text-muted-foreground">{"Apple silicon & Intel"}</p>
 						<div class="mt-6 flex flex-col gap-3">
-							<a href="/download" class={creamButton + " justify-center"}>{"Download for macOS"}</a>
+							<a href="/download" class={solidButton + " justify-center"}>{"Download for macOS"}</a>
 							<CommandChip command={BREW} class="justify-between" />
 						</div>
 					</div>
@@ -213,7 +213,7 @@ const ghostButton =
 						<div class="font-display text-[18px] text-foreground/70">{"Linux"}</div>
 						<p class="mt-2 text-[13px] text-muted-foreground">{"On the roadmap"}</p>
 						<div class="mt-6">
-							<span class="inline-flex h-9 items-center rounded-[2px] bg-[#f8f5ee]/[0.04] px-4 text-[13px] text-muted-foreground/70">
+							<span class="inline-flex h-9 items-center rounded-[2px] bg-foreground/[0.04] px-4 text-[13px] text-muted-foreground/70">
 								{"Coming soon"}
 							</span>
 						</div>
@@ -222,7 +222,7 @@ const ghostButton =
 						<div class="font-display text-[18px] text-foreground/70">{"Windows"}</div>
 						<p class="mt-2 text-[13px] text-muted-foreground">{"On the roadmap"}</p>
 						<div class="mt-6">
-							<span class="inline-flex h-9 items-center rounded-[2px] bg-[#f8f5ee]/[0.04] px-4 text-[13px] text-muted-foreground/70">
+							<span class="inline-flex h-9 items-center rounded-[2px] bg-foreground/[0.04] px-4 text-[13px] text-muted-foreground/70">
 								{"Coming soon"}
 							</span>
 						</div>
