@@ -25,6 +25,8 @@ bun run build      # Build
 cargo clippy       # Rust lint (in src-tauri/)
 ```
 
+**Git hooks (Lefthook):** `bun install` runs `lefthook install`. Pre-commit = Biome on staged files + cheap forbids. Pre-push = path-aware CI mirror (`scripts/git-hooks/pre-push-affected.ts`). Override locally with `lefthook-local.yml` (gitignored).
+
 **Artifact paths:**
 
 | Type | Location |

@@ -123,19 +123,6 @@
 	--sidebar-ring: #0169cc;
 }
 
-/* Warp-faithful palette, scoped to the /v2 landing so the rest of the site
-   keeps its own look. Mirrors warp.dev: #121212 ground, warm off-white ink,
-   dim warm-gray secondary text, near-square corners. */
-:root .warp-theme {
-	--background: #121212;
-	--foreground: #f8f5ee;
-	--muted-foreground: #f8f5ee99;
-	--card: #1a1a1a;
-	--border: #f8f5ee1f;
-	/* Cosmic Orange — the hero demo backdrop */
-	--cosmic-orange: #ff8001;
-}
-
 @theme inline {
 	--radius-sm: calc(var(--radius) - 4px);
 	--radius-md: calc(var(--radius) - 2px);

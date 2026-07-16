@@ -1,0 +1,49 @@
+# Lefthook — Acepe git hooks
+# https://github.com/evilmartians/lefthook
+# Biome recipe: https://biomejs.dev/recipes/git-hooks/
+#
+# Industry split:
+# - pre-commit: fast, staged-file lint/format (+ cheap repo guards)
+# - pre-push: path-aware checks mirroring CI (Frontend / Backend / structural)
+#
+# Local overrides (not committed): lefthook-local.yml
+# Skip tags example: exclude_tags: [backend]
+
+assert_lefthook_installed: true
+colors: true
+min_version: 1.5.0
+
+pre-commit:
+  parallel: true
+  jobs:
+    - name: biome-desktop
+      root: packages/desktop/
+      glob: "*.{js,ts,tsx,svelte,json,jsonc,css}"
+      run: bunx @biomejs/biome check --write --no-errors-on-unmatched --files-ignore-unknown=true {staged_files}
+      stage_fixed: true
+
+    - name: biome-website
+      root: packages/website/
+      glob: "*.{js,ts,tsx,svelte,json,jsonc,css}"
+      run: bunx @biomejs/biome check --write --no-errors-on-unmatched --files-ignore-unknown=true {staged_files}
+      stage_fixed: true
+
+    - name: structural-tests
+      glob: "*.{test,spec,vitest}.ts"
+      run: bun scripts/forbid-structural-tests.ts {staged_files}
+
+    - name: ui-package-boundary
+      glob: "packages/ui/**/*.{ts,svelte}"
+      run: bun scripts/forbid-ui-package-imports.ts packages/ui/src
+
+    - name: dropdown-menu-root
+      glob: "packages/ui/**/*.{ts,svelte}"
+      run: bun scripts/forbid-dropdown-menu-root.ts packages/ui/src
+
+pre-push:
+  parallel: false
+  jobs:
+    - name: affected-ci-mirror
+      # {push_files} is empty on some force-push / new-branch edge cases;
+      # the script falls back to upstream...HEAD when no args are passed.
+      run: bun scripts/git-hooks/pre-push-affected.ts {push_files}
