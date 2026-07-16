@@ -44,7 +44,7 @@ tags:
 
 ## Context
 
-Acepe’s agent-agnostic overhaul had already pushed most provider-specific logic to adapter edges, but the `/ce:review` pass exposed a last cluster of leaks. Shared runtime code was still reconstructing provider meaning from UI-facing projection data and presentation labels during reconnect, resume override handling, grouped-model resolution, selector rendering, provider-owned replay loading, and preconnection slash discovery.
+Acepe’s agent-agnostic overhaul had already pushed most provider-specific logic to adapter edges, but the code review pass exposed a last cluster of leaks. Shared runtime code was still reconstructing provider meaning from UI-facing projection data and presentation labels during reconnect, resume override handling, grouped-model resolution, selector rendering, provider-owned replay loading, and preconnection slash discovery.
 
 That meant the architecture looked provider-neutral in the happy path while still depending on display metadata and local heuristics under the hood.
 

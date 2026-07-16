@@ -64,4 +64,4 @@ The current agent thread auto-follow behavior is not predictable enough when a u
 - [Affects R10][Technical] Whether the existing scroll-to-bottom affordance remains sufficient once detach/follow becomes more explicit.
 
 ## Next Steps
--> /ce:plan for structured implementation planning
+-> Create a structured implementation plan in docs/plans/

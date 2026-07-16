@@ -1,7 +1,5 @@
 # Agent Env Settings Loading Fix Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
-
 **Goal:** Make GUI-launched Acepe sessions inherit shell-defined environment variables required by `~/.claude/settings.json` and `~/.codex/settings.toml`, so providers like Azure work without manually exporting keys into the app process.
 
 **Architecture:** Add a shared Rust helper that builds subprocess env maps for agent launches. The helper should start from the current process env, fill missing keys from a cached login-shell environment snapshot, and then re-apply Acepe-controlled `PATH`. Use that helper for Claude, Codex, Cursor, OpenCode, and OpenCode's direct server launch so all agent subprocesses behave consistently. Verify with unit tests that inject shell env data instead of depending on the real machine shell state.

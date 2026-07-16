@@ -54,4 +54,4 @@ Related: issue #101 (partially addressed by PR #102 which filters inactive agent
 
 ## Next Steps
 
--> `/ce:plan` for structured implementation planning
+-> Create a structured implementation plan in docs/plans/

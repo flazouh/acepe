@@ -59,4 +59,4 @@ Acepe's current assistant message streaming does not feel as smooth or premium a
 
 ## Next Steps
 
--> /ce:plan for structured implementation planning
+-> Create a structured implementation plan in docs/plans/

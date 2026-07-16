@@ -1,7 +1,5 @@
 # Deterministic Session State Management
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
-
 **Goal:** Eliminate the dual-state bug by making XState machine the single source of truth for session state.
 
 **Architecture:** Remove `connectionState` from hotState. Derive all UI state from the XState machine. Use discriminated unions for type-safe state transitions. Reduce layers from 6 to 3.

@@ -175,7 +175,7 @@ explicitly preserved (see Scope Boundaries).
 - [Affects R10][Technical] Where should the hide/show control live (top bar, sidebar edge, command)
   and what keybinding, if any? Confirm against existing top-bar/keybinding patterns.
 - [Affects R1][Technical] Should nesting use an indent guide line and what density/row-height matches
-  the existing session-row component (`app-session-item.svelte`)? Resolve during `/ce:plan` with the
+  the existing session-row component (`app-session-item.svelte`)? Resolve during planning with the
   QA-driven design pass.
 - [Affects R11][Technical] Confirm project drag-reorder still works cleanly with the collapsible tree
   (drag target = header row), reusing `session-list-project-order.ts`. (Session drag is decided
@@ -185,4 +185,4 @@ explicitly preserved (see Scope Boundaries).
   hide-external-CLI toggle) has a smoke check in the rebuild's verification so none regress.
 
 ## Next Steps
--> /ce:plan for structured implementation planning
+-> Create a structured implementation plan in docs/plans/

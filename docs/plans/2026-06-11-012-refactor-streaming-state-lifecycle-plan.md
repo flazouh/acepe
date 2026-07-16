@@ -65,7 +65,7 @@ Adjacent but distinct: `task_reconciler.rs` (1,537 lines) buffers per-session pa
 ### Institutional Learnings
 - `docs/solutions/logic-errors/pre-reservation-provider-update-lifecycle-race-2026-04-30.md` — lifecycle-existence rules; the registry must not become a place where provider events create session-shaped truth.
 - `docs/solutions/architectural/provider-owned-semantic-tool-pipeline-2026-04-18.md` — the accumulator's documented responsibility: "accumulation, classification via `semantic_transition`" — this plan keeps that boundary.
-- No documented DashMap/lock-lifecycle lessons exist in `docs/solutions/` — capture one via `/ce:compound` on completion.
+- No documented DashMap/lock-lifecycle lessons exist in `docs/solutions/` — capture one via docs/solutions capture on completion.
 
 ---
 
@@ -146,7 +146,7 @@ Adjacent but distinct: `task_reconciler.rs` (1,537 lines) buffers per-session pa
 **Files:**
 - Modify: `packages/desktop/src-tauri/src/acp/session_update/tests.rs`
 - Modify: `packages/desktop/src-tauri/src/acp/session_update/tool_calls.rs` (test block)
-- Create: `docs/solutions/` compound doc (via `/ce:compound`)
+- Create: `docs/solutions/` compound doc (via docs/solutions capture)
 
 **Approach:** Streaming tests build fresh registry instances (or fresh process-scoped instance per test via constructor). Delete all `cleanup_session_streaming` brackets. Write the compound doc on per-session state lifecycle ownership (globals → instance, finalize-owns-ordering).
 **Test scenarios:**

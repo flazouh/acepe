@@ -81,4 +81,4 @@ still lock (R7). See `session-pr-link-attribution.ts` (`resolveAutomaticSessionP
 and `pr-link-state-store.svelte.ts` (`applyAutomaticPrLinkFromToolOperations`).
 
 ## Next Steps
--> /ce:plan for structured implementation planning
+-> Create a structured implementation plan in docs/plans/

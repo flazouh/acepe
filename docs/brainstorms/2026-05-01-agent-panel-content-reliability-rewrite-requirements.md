@@ -108,4 +108,4 @@ Sequencing is deliberately split: planning must first identify which viewport re
 
 ## Next Steps
 
--> /ce:plan for structured implementation planning
+-> Create a structured implementation plan in docs/plans/

@@ -31,7 +31,7 @@ can never again synthesize an empty transcript and publish it as canonical truth
 > session — `replaceSessionOpenSnapshot` (unconditional), `reduceReplaceGraph` (revision-gated), and the
 > `refreshCanonicalSessionState` poll (revision-gated) — and whether the corrected resume publish actually wins
 > the FE gate depends on revision arithmetic the plan has not empirically pinned. **See `## Open Verification
-> Blocker` — this must be resolved before `/ce:work`.**
+> Blocker` — this must be resolved before implementation.**
 
 **This is a GOD-gate canonical-producer fix. No UI repair.** Whether the FE revision-gate is *also* canonically
 wrong (treating an equal-revision snapshot whose transcript content differs as "stale") is an open question raised
@@ -39,7 +39,7 @@ by review — see the Open Verification Blocker; do not assume "the frontend is 
 
 ---
 
-## Open Verification Blocker (resolve before `/ce:work`)
+## Open Verification Blocker (resolve before implementation)
 
 Document review (2026-06-14, four personas) accepted the *producer defect* but found the **end-to-end causal
 model is not empirically grounded** at the seam where the Rust producer meets the FE revision-gate. Two reviewers
@@ -531,7 +531,7 @@ tests + check all green.
 - **R-6 (raised by review): the producer fix may not change the rendered outcome.** If B-1/B-2/B-3 resolve such that
   the FE revision-gate (not the producer) is the proximate cause of the *sticky* empty, the producer fix is correct
   but insufficient to fix the user-visible symptom, and the deferred FE-recovery item becomes co-primary.
-  *Mitigation:* resolve the Open Verification Blocker before `/ce:work`; if confirmed, re-scope to include the FE
+  *Mitigation:* resolve the Open Verification Blocker before implementation; if confirmed, re-scope to include the FE
   gate as a canonical correction (its own GOD-gated unit), not a deferral.
 
 ---

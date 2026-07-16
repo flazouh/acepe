@@ -111,4 +111,4 @@ Users benefit from predictable category naming (matching the reference they intu
 
 ## Next Steps
 
--> `/ce:plan` for structured implementation planning
+-> Create a structured implementation plan in docs/plans/

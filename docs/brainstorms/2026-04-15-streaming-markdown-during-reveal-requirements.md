@@ -66,4 +66,4 @@ We want the streamed response to feel readable and structurally correct while it
 
 ## Next Steps
 
--> /ce:plan for structured implementation planning
+-> Create a structured implementation plan in docs/plans/

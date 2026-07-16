@@ -396,7 +396,7 @@ getSelectorTriggerButtonPropsForContext({ triggerSize, embeddedInGroup })
 ## Documentation / Operational Notes
 
 - Update design-system showcase with chip matrix after U6.
-- If meaningful, add `docs/solutions/best-practices/agent-chip-button-token-matrix-2026-06-29.md` via `/ce:compound` after execution — not part of this plan's deliverables.
+- If meaningful, add `docs/solutions/best-practices/agent-chip-button-token-matrix-2026-06-29.md` via docs/solutions capture after execution — not part of this plan's deliverables.
 
 ---
 

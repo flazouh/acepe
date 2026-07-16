@@ -84,4 +84,4 @@ In this document, **main checkout** means the repository's primary/root checkout
 
 ## Next Steps
 
--> /ce:plan for structured implementation planning
+-> Create a structured implementation plan in docs/plans/

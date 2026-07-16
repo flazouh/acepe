@@ -114,4 +114,4 @@ For this POC to answer that question honestly, it must reproduce the real Acepe 
 - [Affects R31-R34][Technical] What reusable repo-grade harness should collect the locked responsiveness and resource metrics in a repeatable way inside this repo?
 
 ## Next Steps
--> /ce:plan for structured implementation planning
+-> Create a structured implementation plan in docs/plans/

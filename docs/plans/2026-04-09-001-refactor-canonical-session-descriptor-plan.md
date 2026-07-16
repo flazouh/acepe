@@ -64,7 +64,7 @@ This plan extends, rather than replaces, the strongest local architecture work a
 - `docs/plans/2026-04-08-003-refactor-close-remaining-agent-agnostic-seams-plan.md`
 - `docs/solutions/logic-errors/kanban-live-session-panel-sync-2026-04-02.md`
 - `docs/solutions/logic-errors/operation-interaction-association-2026-04-07.md`
-- `docs/superpowers/plans/2026-03-25-claude-provider-session-id.md`
+- historical generated-file guidance (removed)
 
 ## Context & Research
 
@@ -316,7 +316,7 @@ flowchart TB
 **Patterns to follow:**
 - `packages/desktop/src-tauri/src/acp/session_registry.rs`
 - `packages/desktop/src-tauri/src/acp/client/cc_sdk_client.rs`
-- `docs/superpowers/plans/2026-03-25-claude-provider-session-id.md`
+- historical generated-file guidance (removed)
 
 **Test scenarios:**
 - Happy path — a live Claude session binds a discovered provider session ID without changing the local Acepe session ID used by the registry.
@@ -506,7 +506,7 @@ flowchart TB
 
 ## Documentation / Operational Notes
 
-- This plan should be followed by before `/ce:work`.
+- This plan should be followed by before implementation.
 - Execution should preserve the current TDD / characterization-first posture for bug-bearing seams, especially resume selection and replay-context regressions.
 - If implementation reveals that `session_metadata` cannot safely host descriptor facts for this slice, update the plan or create a follow-on persistence-focused plan rather than silently widening scope mid-execution.
 - Compatibility or legacy sessions that are intentionally non-resumable after descriptor validation must remain visible/readable and surface an explicit recovery message rather than appearing lost.
@@ -517,7 +517,7 @@ flowchart TB
 - Related plan: `docs/plans/2026-04-07-005-refactor-canonical-agent-runtime-journal-plan.md`
 - Related plan: `docs/plans/2026-04-08-002-refactor-provider-lifecycle-reply-routing-plan.md`
 - Related plan: `docs/plans/2026-04-08-003-refactor-close-remaining-agent-agnostic-seams-plan.md`
-- Related rationale: `docs/superpowers/plans/2026-03-25-claude-provider-session-id.md`
+- Related rationale: historical generated-file guidance (removed)
 - Related learning: `docs/solutions/logic-errors/kanban-live-session-panel-sync-2026-04-02.md`
 - Related learning: `docs/solutions/logic-errors/operation-interaction-association-2026-04-07.md`
 - Related code: `packages/desktop/src-tauri/src/acp/commands/session_commands.rs`

@@ -389,7 +389,7 @@ flowchart TB
 - The reviewed requirements document for this work is `docs/brainstorms/2026-04-09-provider-owned-agent-skill-loading-requirements.md`.
 - This refactor should be executed with TDD/characterization-first posture because it changes a live cross-layer ownership boundary while preserving existing user-visible slash behavior.
 - This plan intentionally keeps richer user-facing failure affordances and any broader unification of Skills Manager/plugin/library/preconnection discovery out of scope; those are follow-up product questions once provider ownership is correct.
-- After implementation, `/ce:review` should specifically inspect for lingering shared provider-id switches in both Rust and TS preconnection paths.
+- After implementation, code review should specifically inspect for lingering shared provider-id switches in both Rust and TS preconnection paths.
 
 ## Sources & References
 

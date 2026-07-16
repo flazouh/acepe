@@ -124,4 +124,4 @@ Architectural invariants are not gated by Phase 0 materiality: hot tool deltas m
 
 ## Next Steps
 
--> /ce:plan for structured implementation planning
+-> Create a structured implementation plan in docs/plans/

@@ -79,4 +79,4 @@ Some users want the agent to work on its own without repeated permission interru
 - [Affects R2][Technical] What exact red and muted treatments satisfy accessibility and contrast requirements without adding heavier warning chrome.
 
 ## Next Steps
--> /ce:plan for structured implementation planning
+-> Create a structured implementation plan in docs/plans/

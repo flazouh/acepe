@@ -85,4 +85,4 @@ This reset should realign the work around the real objective: **the shared layer
 
 ## Next Steps
 
--> /ce:plan for structured implementation planning
+-> Create a structured implementation plan in docs/plans/

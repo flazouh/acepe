@@ -67,4 +67,4 @@ We want a fix that makes long finished sessions feel smooth again without destab
 - [Affects R7][Needs research] What regression coverage is needed to prove live follow behavior remains intact while the finished-session path changes?
 
 ## Next Steps
--> /ce:plan for structured implementation planning
+-> Create a structured implementation plan in docs/plans/
