@@ -76,4 +76,4 @@ When users add a project, the sidebar shows a generic letter badge even though m
 
 ## Next Steps
 
--> `/ce:plan` for structured implementation planning
+-> Create a structured implementation plan in docs/plans/

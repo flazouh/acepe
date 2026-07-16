@@ -56,7 +56,7 @@ That split already caused a real runtime bug: project commands were added to the
 
 ### Institutional Learnings
 
-- `docs/superpowers/plans/2026-03-25-claude-provider-session-id.md` already captures the important generation rule: generated frontend contract files should be updated by the actual export workflow rather than hand-editing generated artifacts.
+- historical generated-file guidance (removed) already captures the important generation rule: generated frontend contract files should be updated by the actual export workflow rather than hand-editing generated artifacts.
 
 ### External References
 
@@ -321,7 +321,7 @@ The important shift is that `lib.rs` and the generated TypeScript bindings stop 
 - Update developer-facing generation notes so future command additions follow the registry/edit-once workflow.
 
 **Patterns to follow:**
-- Existing generated-file guidance in `docs/superpowers/plans/2026-03-25-claude-provider-session-id.md`
+- Existing generated-file guidance in historical generated-file guidance (removed)
 
 **Test scenarios:**
 - Integration: a registry-backed project command exists in exported TS metadata and in the handler registration path after regeneration.
@@ -364,5 +364,5 @@ The important shift is that `lib.rs` and the generated TypeScript bindings stop 
 - Related code: `packages/desktop/src-tauri/src/lib.rs`
 - Related code: `packages/desktop/src/lib/utils/tauri-commands.ts`
 - Related code: `packages/desktop/src/lib/utils/tauri-client/commands.ts`
-- Related doc: `docs/superpowers/plans/2026-03-25-claude-provider-session-id.md`
+- Related doc: historical generated-file guidance (removed)
 - Related PRs/issues: `flazouh/acepe#106`

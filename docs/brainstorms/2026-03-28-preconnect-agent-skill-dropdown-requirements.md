@@ -57,4 +57,4 @@ Today the `/` dropdown in the agent input is populated from live session capabil
 - [Affects R9][Needs research] What level of logging or diagnostics is needed for parse failures so invalid skill files are debuggable without disrupting normal input behavior.
 
 ## Next Steps
--> /ce:plan for structured implementation planning
+-> Create a structured implementation plan in docs/plans/

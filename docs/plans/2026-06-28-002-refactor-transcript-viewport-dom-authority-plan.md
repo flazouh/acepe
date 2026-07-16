@@ -346,7 +346,7 @@ StickToBottom controller (DOM-only):
 
 **Approach:** Delete only after the Unit 0 parity fixtures (current good behaviors ∪ R1–R12) pass on the new path.
 
-**Execution note:** Final dev-app QA against R1–R12 (recorded). Then `ce:review` + `ce:compound`.
+**Execution note:** Final dev-app QA against R1–R12 (recorded). Then `code review` + `docs/solutions`.
 
 **Test scenarios:**
 - Parity (Unit 0 fixtures): every recorded current behavior reproduced on the new path.

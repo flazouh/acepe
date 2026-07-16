@@ -203,7 +203,7 @@ callers     │      tool identity authority (reconciler/)       │
 - Modify: `CONTEXT.md`
 - Modify: `docs/solutions/architectural/provider-owned-semantic-tool-pipeline-2026-04-18.md`
 
-**Approach:** Grep clearance scans (no classification calls outside the authority); add "tool identity authority" to `CONTEXT.md`; refresh the 2026-04-18 pipeline doc's boundary table to the new shape (or run `/ce:compound-refresh` on it).
+**Approach:** Grep clearance scans (no classification calls outside the authority); add "tool identity authority" to `CONTEXT.md`; refresh the 2026-04-18 pipeline doc's boundary table to the new shape (or run docs/solutions refresh on it).
 **Test scenarios:**
 - Test expectation: none — documentation and clearance unit.
 

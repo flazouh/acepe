@@ -86,7 +86,6 @@ This alternate plan keeps the same core direction as the existing roadmap — ba
 
 ### External References
 
-- `https://raw.githubusercontent.com/obra/superpowers/main/skills/writing-plans/SKILL.md` — used as inspiration for higher context density, stronger file responsibility mapping, and more implementer-complete unit definitions. This plan still follows Acepe's local planning rules, so it intentionally omits embedded code snippets and shell-command choreography.
 
 ## Key Technical Decisions
 
@@ -453,4 +452,3 @@ The important distinction is:
 - Related docs: `docs/concepts/reconnect-and-resume.md`
 - Related docs: `docs/solutions/architectural/revisioned-session-graph-authority-2026-04-20.md`
 - Related docs: `docs/solutions/best-practices/provider-owned-policy-and-identity-not-ui-projections-2026-04-09.md`
-- External planning reference: `https://raw.githubusercontent.com/obra/superpowers/main/skills/writing-plans/SKILL.md`

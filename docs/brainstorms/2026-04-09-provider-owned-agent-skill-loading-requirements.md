@@ -78,4 +78,4 @@ This refactor should make each agent provider responsible for declaring or loadi
 - [Affects R13][Technical] Whether startup caching should remain app-owned or whether pre-connection slash entry loading should become fully on-demand per provider.
 
 ## Next Steps
--> /ce:plan for structured implementation planning
+-> Create a structured implementation plan in docs/plans/

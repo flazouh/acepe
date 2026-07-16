@@ -427,7 +427,7 @@ flowchart TB
 - Parity review for this refactor should compare desktop and website against named states from `packages/ui/src/components/agent-panel/parity-fixtures.ts`.
 - The implementation PR should carry the parity artifact for signoff: paired desktop/website captures for each named state at the normalized panel frame, plus the short parity checklist used during review.
 - Execution must pass the existing validation gates for each touched package surface: shared UI package tests/export checks, desktop type/test coverage for the panel seam, and website check/test/build coverage for the migrated demo path.
-- If execution produces a clear migration pattern or seam decision worth preserving, follow up with `ce:compound` in `docs/solutions/`.
+- If execution produces a clear migration pattern or seam decision worth preserving, follow up with `docs/solutions` in `docs/solutions/`.
 
 ## Sources & References
 

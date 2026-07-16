@@ -98,4 +98,4 @@ The left composer dropdown should stop teaching users that all agents work throu
 
 ## Next Steps
 
--> /ce:plan for structured implementation planning
+-> Create a structured implementation plan in docs/plans/

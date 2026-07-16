@@ -76,4 +76,4 @@ This is a reusable pattern: any feature with non-obvious options benefits from o
 
 ## Next Steps
 
--> `/ce:plan` for structured implementation planning
+-> Create a structured implementation plan in docs/plans/

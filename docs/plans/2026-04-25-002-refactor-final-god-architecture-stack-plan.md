@@ -14,7 +14,7 @@ errata: "2026-06-11: UI package boundary guard is scripts/forbid-ui-package-impo
 
 Finish Acepe's GOD architecture as a final endpoint, not another convergence slice. The work replaces remaining alternate authorities with one backend-owned canonical session graph, then proves the old paths are deleted or diagnostics-only: `ToolCallManager` no longer owns operation truth, `SessionHotState` no longer owns lifecycle truth, raw session updates no longer own product semantics, and local journal/snapshot replay no longer owns restore truth.
 
-This is a stack plan. It is intentionally split into dependency-ordered implementation units that can be delegated to separate agents during `/ce:work`, but the stack is not complete until the final integration gate verifies the merged state against the origin requirements.
+This is a stack plan. It is intentionally split into dependency-ordered implementation units that can be delegated to separate agents during implementation, but the stack is not complete until the final integration gate verifies the merged state against the origin requirements.
 
 ## Problem Frame
 

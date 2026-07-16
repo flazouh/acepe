@@ -61,4 +61,4 @@ Acepe has product differentiation and early user signal, but the monetization pa
 - [Affects R10][Needs research] Which parts of the current pricing page should be kept, softened, or replaced after monetization discovery?
 
 ## Next Steps
--> Resume /ce:brainstorm or use pricing-strategy work to pressure-test the team-first monetization thesis before changing pricing or licensing posture
+-> Use pricing-strategy work to pressure-test the team-first monetization thesis before changing pricing or licensing posture

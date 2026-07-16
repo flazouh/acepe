@@ -68,4 +68,4 @@ The redesign makes review a primary workspace mode: clicking the review button r
 
 ## Next Steps
 
--> /ce:plan for structured implementation planning
+-> Create a structured implementation plan in docs/plans/

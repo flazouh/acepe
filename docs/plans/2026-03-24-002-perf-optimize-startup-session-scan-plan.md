@@ -8,8 +8,6 @@ deepened: 2026-03-24
 
 # Startup Session Scan Optimization Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use `superpowers:executing-plans` to implement this plan task-by-task.
-
 **Goal:** Reduce Claude session JSONL fallback scan latency without changing scan results, callback semantics, or indexer behavior, and prove the improvement with deterministic and live benchmarks.
 
 **Architecture:** Keep one canonical metadata parser and separate parsing logic from I/O strategy. Optimize the cold fallback path in small, measurable steps: first instrument and remove redundant cache work, then switch the scan path to a shared blocking parser core, and only introduce broader concurrency or tag-stripping changes if profiling still shows they are necessary.

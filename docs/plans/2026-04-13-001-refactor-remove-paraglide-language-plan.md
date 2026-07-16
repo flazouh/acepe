@@ -281,7 +281,7 @@ The requested direction is to remove Paraglide from the whole repo and remove la
 - Delete: `packages/desktop/src/paraglide/`
 - Delete: `packages/website/src/lib/paraglide/`
 - Modify: `.agent-guides/i18n.md`
-- Modify: `docs/superpowers/specs/2026-03-27-paraglide-generation-contract-design.md`
+- Modify: historical generated-file guidance (removed)
 - Modify: `packages/desktop/scripts/i18n/README.md`
 
 **Approach:**
@@ -351,4 +351,4 @@ Remove remaining Paraglide tooling, generated artifacts, and contributor guidanc
 - Related code: `packages/website/src/lib/components/seo/canonical.svelte`
 - Related code: `packages/website/src/routes/sitemap.xml/+server.ts`
 - Related doc: `.agent-guides/i18n.md`
-- Related doc: `docs/superpowers/specs/2026-03-27-paraglide-generation-contract-design.md`
+- Related doc: historical generated-file guidance (removed)

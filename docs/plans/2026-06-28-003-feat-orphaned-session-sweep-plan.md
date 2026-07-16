@@ -262,4 +262,4 @@ DELETE rows WHERE
 
 ## Next Step
 
-**Mandatory `` gate** before `/ce:work`. Then TDD per unit (U1 → U2 → U3 → U4).
+**Mandatory `` gate** before implementation. Then TDD per unit (U1 → U2 → U3 → U4).

@@ -64,4 +64,4 @@ When multiple sessions exist for the same project, there's no quick way to refer
 
 ## Next Steps
 
-→ `/ce:plan` for structured implementation planning
+→ Create a structured implementation plan in docs/plans/

@@ -197,7 +197,7 @@ SessionGraphRuntimeRegistry (spine: delegation + envelope orchestration)
 **Requirements:** R2
 **Dependencies:** U5
 **Files:**
-- Create: `docs/solutions/architectural/` compound doc (via `/ce:compound`)
+- Create: `docs/solutions/architectural/` compound doc (via docs/solutions capture)
 - Modify: `CONTEXT.md` (name the ledger/tracker concepts if they prove durable)
 
 **Approach:** Document the ordering rationale, the tracker-owns-both-locks pattern, and the sub-module decomposition shape for Rust. Propose ADR if the pattern should bind future Rust splits.

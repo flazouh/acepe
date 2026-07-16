@@ -90,4 +90,4 @@ Acepe needs an investor-facing pitch that does more than describe the product. I
 - [Affects R24][Needs research] Which team-level monetization wedge is strongest today: shared coordination, remote execution, approvals/review, governance, or another operating-layer benefit?
 
 ## Next Steps
--> /ce:plan for structured implementation planning
+-> Create a structured implementation plan in docs/plans/

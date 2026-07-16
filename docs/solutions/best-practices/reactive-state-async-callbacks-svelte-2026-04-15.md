@@ -26,7 +26,7 @@ tags:
 
 ## Context
 
-A review-panel redesign (PR #120) introduced a two-pane ReviewWorkspace that replaced the old side-pane review. The ce:review process surfaced 4 findings — a P1 race condition and three P2 state/architecture issues — all rooted in the same family of reactive-UI pitfalls. These patterns recur whenever Svelte 5 reactive values cross async boundaries, when restore flows compete with recomputation, when navigation relies on display labels instead of source-of-truth state, or when UI components absorb controller-layer policy.
+A review-panel redesign (PR #120) introduced a two-pane ReviewWorkspace that replaced the old side-pane review. The code review process surfaced 4 findings — a P1 race condition and three P2 state/architecture issues — all rooted in the same family of reactive-UI pitfalls. These patterns recur whenever Svelte 5 reactive values cross async boundaries, when restore flows compete with recomputation, when navigation relies on display labels instead of source-of-truth state, or when UI components absorb controller-layer policy.
 
 ## Guidance
 

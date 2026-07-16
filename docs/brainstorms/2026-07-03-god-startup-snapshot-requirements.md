@@ -95,4 +95,4 @@ Target:  Rust composes snapshot → injected before app JS runs → stores hydra
 - [Affects R14][Technical] Where startup marks live (Rust tracing vs. `performance.mark`) and how QA asserts them.
 
 ## Next Steps
--> `/ce:plan` for structured implementation planning (Deep plan posture per repo rules; `god-architecture-check` gate applies to the implementation).
+-> Create a structured implementation plan in docs/plans/ (Deep plan posture per repo rules; `god-architecture-check` gate applies to the implementation).

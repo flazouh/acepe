@@ -162,4 +162,4 @@ Zed's GPUI list model provides an important reference point. Zed does not delega
 
 ## Next Steps
 
--> /ce:plan for structured implementation planning
+-> Create a structured implementation plan in docs/plans/

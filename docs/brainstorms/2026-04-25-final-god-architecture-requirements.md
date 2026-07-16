@@ -183,4 +183,4 @@ The plan stack may reuse these documents' implementation research, but the final
 
 ## Next Steps
 
--> `/ce:plan` for structured implementation planning after document review.
+-> Create a structured implementation plan in docs/plans/

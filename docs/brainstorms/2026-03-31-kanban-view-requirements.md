@@ -123,4 +123,4 @@ The desired model is that kanban, single, project, and multi are all different p
 
 ## Next Steps
 
-→ /ce:plan for structured implementation planning
+→ Create a structured implementation plan in docs/plans/

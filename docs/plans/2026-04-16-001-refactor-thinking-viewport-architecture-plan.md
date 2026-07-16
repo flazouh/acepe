@@ -39,7 +39,7 @@ This plan extracts a **testable viewport policy** and a **narrow DOM contract** 
 
 ### In scope / out of scope
 
-- **In scope:** Desktop `assistant-message` thinking region; new small module(s) under `packages/desktop/src/lib/acp/components/messages/` (or `messages/logic/`); focused unit tests; optional `docs/solutions/` entry after `ce:work`.
+- **In scope:** Desktop `assistant-message` thinking region; new small module(s) under `packages/desktop/src/lib/acp/components/messages/` (or `messages/logic/`); focused unit tests; optional `docs/solutions/` entry after `implementation`.
 - **Out of scope:** Replacing `MarkdownText` / markdown pipeline; per-line DOM splitting for sub-line snap; virtualized thread / `VirtualizedEntryList` reveal targets (see origin learning doc above); changing `AgentToolThinking` API unless a thin prop pass-through is required for layout ids.
 - **Additive DOM markers:** Unit 3 may add `data-*` (or similar) on existing markdown output — **not** a pipeline swap; wholesale renderer or plugin changes remain out of scope.
 
@@ -263,7 +263,7 @@ Before adding attributes, skim: plugin output for `markdown-text`, multiple `.ma
 **Dependencies:** Units 1–2 (and 3 if done)
 
 **Files:**
-- Create: `docs/solutions/ui/thinking-inline-viewport-policy-2026-04-16.md` (path/category per repo conventions) — **during `ce:compound` or as part of work if user requests doc**
+- Create: `docs/solutions/ui/thinking-inline-viewport-policy-2026-04-16.md` (path/category per repo conventions) — **during `docs/solutions` or as part of work if user requests doc**
 
 **Approach:**
 - YAML frontmatter `module`, `tags`, `problem_type` per `CLAUDE.md`.
@@ -297,7 +297,7 @@ Before adding attributes, skim: plugin output for `markdown-text`, multiple `.ma
 
 - **Engineering:** Implements units + automated tests; runs R1 checklist before merge.
 - **Release note:** Optional — internal refactor unless user-visible jitter/regression is observed.
-- **`docs/solutions`:** Optional per Unit 5 / `ce:compound`; not a merge blocker unless team policy says otherwise.
+- **`docs/solutions`:** Optional per Unit 5 / `docs/solutions`; not a merge blocker unless team policy says otherwise.
 
 ## Risks & Dependencies
 

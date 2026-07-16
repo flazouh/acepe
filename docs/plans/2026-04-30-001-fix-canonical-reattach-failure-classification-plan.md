@@ -789,7 +789,7 @@ record the institutional learning.
   (remove `localPersistedSessionProbeStatus` from the residual hot-state
   allowlist; bump `last_updated`)
 - Create: a new entry under `docs/solutions/` once the work lands (handled
-  by `/ce:compound`, not pre-written here)
+  by docs/solutions capture, not pre-written here)
 
 **Test scenarios:**
 - Test expectation: none — documentation update.

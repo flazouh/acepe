@@ -123,4 +123,4 @@ For this brainstorm, "instant" means:
 
 ## Next Steps
 
--> /ce:plan for structured implementation planning
+-> Create a structured implementation plan in docs/plans/
