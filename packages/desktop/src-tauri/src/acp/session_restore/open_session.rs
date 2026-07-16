@@ -82,7 +82,7 @@ pub async fn get_session_open_result_domain(
                     runtime_registry.as_deref(),
                 );
                 let restore_started_at = Instant::now();
-                restore_session_open_authority(&app, &result).await;
+                restore_session_open_authority(&app, &result);
                 let restore_ms = elapsed_ms(restore_started_at);
                 let total_ms = elapsed_ms(total_started_at);
                 let result = attach_open_result_timing(
@@ -153,7 +153,7 @@ pub async fn get_session_open_result_domain(
                         runtime_registry.as_deref(),
                     );
                     let restore_started_at = Instant::now();
-                    restore_session_open_authority(&app, &result).await;
+                    restore_session_open_authority(&app, &result);
                     let restore_ms = elapsed_ms(restore_started_at);
                     let total_ms = elapsed_ms(total_started_at);
                     return Ok(attach_open_result_timing(
@@ -218,7 +218,7 @@ pub async fn get_session_open_result_domain(
 mod tests {
     use crate::acp::session_descriptor::{SessionDescriptorCompatibility, SessionReplayContext};
     use crate::acp::types::CanonicalAgentId;
-    use crate::db::repository::{SessionJournalEventRepository, SessionMetadataRepository};
+    use crate::db::repository::{SessionEventSequenceRepository, SessionMetadataRepository};
     use sea_orm::{Database, DbConn};
     use sea_orm_migration::MigratorTrait;
 
@@ -256,10 +256,12 @@ mod tests {
             compatibility: SessionDescriptorCompatibility::Canonical,
         };
 
-        let revision =
-            SessionJournalEventRepository::max_event_seq(&db, &replay_context.local_session_id)
-                .await
-                .expect("read revision");
+        let revision = SessionEventSequenceRepository::last_assigned_event_seq(
+            &db,
+            &replay_context.local_session_id,
+        )
+        .await
+        .expect("read revision");
 
         assert_eq!(revision, None);
     }

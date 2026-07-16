@@ -1,5 +1,5 @@
 <script lang="ts">
-import { Button, Input, PlusIcon, RoundedIcon, SaveIcon } from "@acepe/ui";
+import { Button, Input, HugeiconsIcon } from "@acepe/ui";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 
 interface EnvRow {
@@ -164,7 +164,7 @@ function handleSave(): void {
 	data-header-control
 	onclick={() => handleOpenChange(true)}
 >
-	<RoundedIcon name="sliders" class="size-3.5 shrink-0" />
+	<HugeiconsIcon name="sliders" class="size-3.5 shrink-0" />
 	Environment
 	{#if Object.keys(value).length > 0}
 		<span class="rounded-full bg-muted px-1.5 py-0.5 text-[11px] text-foreground/70">
@@ -190,7 +190,7 @@ function handleSave(): void {
 
 		<div class="flex justify-end">
 			<Button variant="outline" size="sm" onclick={addRow}>
-				<PlusIcon />
+				<HugeiconsIcon name="plus" size={14} />
 				Add variable
 			</Button>
 		</div>
@@ -219,17 +219,17 @@ function handleSave(): void {
 							onclick={() => toggleReveal(row.id)}
 						>
 							{#if row.revealed}
-								<RoundedIcon name="eye-off" class="h-3.5 w-3.5" data-testid="env-eye-off-icon" />
+								<HugeiconsIcon name="eye-off" class="h-3.5 w-3.5" data-testid="env-eye-off-icon" />
 							{:else}
-								<RoundedIcon name="eye" class="h-3.5 w-3.5" />
+								<HugeiconsIcon name="eye" class="h-3.5 w-3.5" />
 							{/if}
 						</Button>
 					</div>
 					<Button type="button" variant="outline" size="icon" onclick={addRow}>
-						<PlusIcon />
+						<HugeiconsIcon name="plus" size={14} />
 					</Button>
 					<Button type="button" variant="outline" size="icon" onclick={() => removeRow(row.id)}>
-						<RoundedIcon name="trash" class="h-3.5 w-3.5" />
+						<HugeiconsIcon name="trash" class="h-3.5 w-3.5" />
 					</Button>
 				</div>
 			{/each}
@@ -246,7 +246,7 @@ function handleSave(): void {
 
 	{#snippet footer()}
 		<Button variant="default" size="sm" onclick={handleSave}>
-			<SaveIcon class="size-3" data-testid="env-overrides-save-icon" />
+			<HugeiconsIcon name="save" size={12} class="size-3" data-testid="env-overrides-save-icon" />
 			Save
 		</Button>
 	{/snippet}

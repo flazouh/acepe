@@ -12,6 +12,7 @@ import { mapToolStatus } from "./tool-status.js";
 import { normalizeToolKind, resolveToolTitle } from "./tool-title.js";
 import { getToolFilePath, getToolSubtitle } from "./tool-subtitle.js";
 import {
+	getBrowserScriptHighlighter,
 	getReadSourceExcerpt,
 	getReadSourceHighlighter,
 	getReadSourceRangeLabel,
@@ -27,7 +28,10 @@ import { mapPlanPayload } from "./payloads/plan-payload.js";
 import { mapQuestion } from "./payloads/question-payload.js";
 import { mapTodos } from "./payloads/todos-payload.js";
 import { mapEditDiffEntriesForToolCall } from "./payloads/edit-diff-payload.js";
-import { mapExecuteCommandHtmls } from "./payloads/execute-command.js";
+import {
+	getExecuteCommandHighlighter,
+	getExecuteOutputHighlighter,
+} from "./payloads/execute-command.js";
 
 export interface MapToolCallEntryOptions {
 	readonly displayEntryId?: string;
@@ -73,7 +77,9 @@ function mapToolCallEntry(
 	const diagnosticDetails =
 		options.includeDiagnosticDetails === false ? null : serializeOtherToolDetails(toolCall);
 	const command = toolCall.arguments.kind === "execute" ? toolCall.arguments.command : null;
-	const commandHtmls = mapExecuteCommandHtmls(command);
+	const scriptText = kind === "browser" ? (browserPayload.scriptText ?? null) : undefined;
+	const stdout = executeResult?.stdout ? stripAnsiCodes(executeResult.stdout) : null;
+	const stderr = executeResult?.stderr ? stripAnsiCodes(executeResult.stderr) : null;
 
 	const entry: AgentToolEntry = {
 		id: options.displayEntryId ?? toolCall.id,
@@ -92,6 +98,9 @@ function mapToolCallEntry(
 								: toolCall.result
 						)
 					: diagnosticDetails,
+		scriptText,
+		highlightScript: kind === "browser" ? getBrowserScriptHighlighter() : null,
+		scriptHtml: null,
 		filePath: getToolFilePath(toolCall),
 		sourceExcerpt: getReadSourceExcerpt(toolCall),
 		sourceExcerptHtml: null,
@@ -101,9 +110,13 @@ function mapToolCallEntry(
 		startedAtMs: toolCall.startedAtMs ?? null,
 		completedAtMs: toolCall.completedAtMs ?? null,
 		command,
-		commandHtmls,
-		stdout: executeResult?.stdout ? stripAnsiCodes(executeResult.stdout) : null,
-		stderr: executeResult?.stderr ? stripAnsiCodes(executeResult.stderr) : null,
+		commandHtmls: undefined,
+		highlightCommand: command ? getExecuteCommandHighlighter() : null,
+		highlightOutput: kind === "execute" ? getExecuteOutputHighlighter() : null,
+		stdout,
+		stderr,
+		stdoutHtml: null,
+		stderrHtml: null,
 		exitCode: executeResult?.exitCode,
 		query:
 			toolCall.arguments.kind === "search" || toolCall.arguments.kind === "webSearch"

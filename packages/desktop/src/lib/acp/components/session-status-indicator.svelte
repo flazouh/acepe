@@ -1,5 +1,5 @@
 <script lang="ts">
-import { RoundedIcon } from "@acepe/ui";
+import { HugeiconsIcon } from "@acepe/ui";
 import * as Tooltip from "@acepe/ui/tooltip";
 import type { SessionStatus } from "../state/index.js";
 import { resolveSessionStatusIndicatorPresentation } from "./session-status-indicator-presentation.js";
@@ -30,7 +30,7 @@ const presentation = $derived(resolveSessionStatusIndicatorPresentation(status, 
 			<Tooltip.Root>
 				<Tooltip.Trigger>
 					<div class="animate-in zoom-in-50 duration-300 text-success">
-						<RoundedIcon
+						<HugeiconsIcon
 							name="check-circle-filled"
 							style={`width: ${size}px; height: ${size}px;`}
 						/>
@@ -61,7 +61,7 @@ const presentation = $derived(resolveSessionStatusIndicatorPresentation(status, 
 						style="color: {Colors.red};"
 						onclick={() => onRetry?.()}
 					>
-						<RoundedIcon
+						<HugeiconsIcon
 							name="alert"
 							style={`width: ${size}px; height: ${size}px;`}
 						/>

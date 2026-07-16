@@ -5,4 +5,5 @@ pub(crate) mod golden;
 mod history_fold_oracle;
 mod live_source_parity;
 mod plugin_conformance;
+mod subagent_projection;
 mod tool_call_golden;

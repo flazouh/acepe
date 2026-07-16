@@ -12,7 +12,7 @@
 
 	import { ChipShell } from '../chip/index.js';
 	import { DiffPill } from '../diff-pill/index.js';
-	import { PullRequestStatusIcon, RoundedIcon } from '../icons/index.js';
+	import { PullRequestStatusIcon, HugeiconsIcon } from '../icons/index.js';
 	import { Colors } from '../../lib/colors.js';
 	import { getGitHubLabel, type GitHubReference } from '../../lib/markdown/github-badge.js';
 
@@ -65,7 +65,7 @@
 		aria-hidden="true"
 	>
 		{#if ref.type === 'commit'}
-			<RoundedIcon
+			<HugeiconsIcon
 				name="git"
 				class="size-3.5"
 				data-testid="github-badge-commit-rounded-icon"

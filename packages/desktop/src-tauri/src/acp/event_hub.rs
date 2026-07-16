@@ -35,11 +35,10 @@ pub struct AcpEventBridgeInfo {
 /// reservation is armed, so they can be flushed to the client at connect
 /// time (Unit 3).
 ///
-/// Tokens are single-use: the first successful committed claim removes the
-/// entry and returns the buffered events. Preparing a claim leaves the entry
-/// installed so events continue buffering during fallible attach setup.
-/// Reservations expire after [`RESERVATION_TTL`] of inactivity to prevent
-/// abandoned opens from leaking buffered deltas indefinitely.
+/// Tokens are single-use: the first successful `claim_reservation` removes
+/// the entry and returns the buffered events.  Reservations expire after
+/// [`RESERVATION_TTL`] of inactivity to prevent abandoned opens from leaking
+/// buffered deltas indefinitely.
 pub struct OpenTokenReservation {
     /// Canonical (Acepe-local) session ID this reservation belongs to.
     pub canonical_session_id: String,
@@ -53,51 +52,12 @@ pub struct OpenTokenReservation {
     pub created_at: Instant,
     /// Monotonic instant of the last buffer write (for TTL activity tracking).
     pub last_activity: Instant,
-    /// Exclusive claimant that may commit or release this reservation.
-    prepared_claim_id: Option<Uuid>,
 }
 
 pub struct OpenTokenClaim {
     pub last_event_seq: i64,
     pub buffered_events: Vec<AcpEventEnvelope>,
 }
-
-/// Opaque permit for the only claimant currently preparing a reservation.
-///
-/// Commit consumes the permit and retires the reservation. Release consumes
-/// it and makes the same token available for another attach attempt.
-pub struct PreparedOpenTokenClaim {
-    token: Uuid,
-    canonical_session_id: String,
-    claim_id: Uuid,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum OpenTokenReservationArmError {
-    PreparedClaimInProgress { canonical_session_id: String },
-    ReservationStoreUnavailable { canonical_session_id: String },
-}
-
-impl std::fmt::Display for OpenTokenReservationArmError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::PreparedClaimInProgress {
-                canonical_session_id,
-            } => write!(
-                formatter,
-                "another attach already owns a prepared open-token reservation for session {canonical_session_id}"
-            ),
-            Self::ReservationStoreUnavailable {
-                canonical_session_id,
-            } => write!(
-                formatter,
-                "open-token reservation store is unavailable for session {canonical_session_id}"
-            ),
-        }
-    }
-}
-
-impl std::error::Error for OpenTokenReservationArmError {}
 
 pub struct AcpEventHubState {
     sender: broadcast::Sender<AcpEventEnvelope>,
@@ -190,15 +150,13 @@ impl AcpEventHubState {
     /// `canonical_session_id` is appended to the reservation's delta buffer.
     /// Must be called **before** snapshot assembly returns so no delta can
     /// fall through the gap between snapshot read and client connect.
-    /// Returns an explicit error when a prepared claimant already owns the
-    /// session or the reservation store cannot be updated.
     pub fn arm_reservation(
         &self,
         token: Uuid,
         canonical_session_id: String,
         last_event_seq: i64,
         epoch_ms: u64,
-    ) -> Result<(), OpenTokenReservationArmError> {
+    ) {
         let now = Instant::now();
         let reservation = OpenTokenReservation {
             canonical_session_id: canonical_session_id.clone(),
@@ -207,32 +165,14 @@ impl AcpEventHubState {
             delta_buffer: VecDeque::new(),
             created_at: now,
             last_activity: now,
-            prepared_claim_id: None,
         };
-        let mut map = self.reservations.write().map_err(|_| {
-            OpenTokenReservationArmError::ReservationStoreUnavailable {
-                canonical_session_id: canonical_session_id.clone(),
-            }
-        })?;
-        if map.values().any(|existing_reservation| {
-            existing_reservation.canonical_session_id == canonical_session_id.as_str()
-                && existing_reservation.prepared_claim_id.is_some()
-        }) {
-            tracing::debug!(
-                %token,
-                %canonical_session_id,
-                "open-token reservation arm rejected while session claim is prepared"
-            );
-            return Err(OpenTokenReservationArmError::PreparedClaimInProgress {
-                canonical_session_id,
+        if let Ok(mut map) = self.reservations.write() {
+            map.retain(|existing_token, existing_reservation| {
+                existing_token == &token
+                    || existing_reservation.canonical_session_id != canonical_session_id.as_str()
             });
+            map.insert(token, reservation);
         }
-        map.retain(|existing_token, existing_reservation| {
-            existing_token == &token
-                || existing_reservation.canonical_session_id != canonical_session_id.as_str()
-        });
-        map.insert(token, reservation);
-        Ok(())
     }
 
     /// Supersede (invalidate) an armed reservation without claiming it.
@@ -276,12 +216,6 @@ impl AcpEventHubState {
     #[must_use]
     pub fn claim_reservation(&self, token: Uuid) -> Option<Vec<AcpEventEnvelope>> {
         if let Ok(mut map) = self.reservations.write() {
-            if map
-                .get(&token)
-                .is_some_and(|reservation| reservation.prepared_claim_id.is_some())
-            {
-                return None;
-            }
             map.remove(&token)
                 .map(|r| r.delta_buffer.into_iter().collect())
         } else {
@@ -298,10 +232,7 @@ impl AcpEventHubState {
         if let Ok(mut map) = self.reservations.write() {
             let matches_session = map
                 .get(&token)
-                .map(|reservation| {
-                    reservation.canonical_session_id == canonical_session_id
-                        && reservation.prepared_claim_id.is_none()
-                })
+                .map(|reservation| reservation.canonical_session_id == canonical_session_id)
                 .unwrap_or(false);
             if !matches_session {
                 return None;
@@ -313,79 +244,6 @@ impl AcpEventHubState {
         } else {
             None
         }
-    }
-
-    /// Exclusively prepare a matching reservation without removing it.
-    ///
-    /// Events published after this call keep accumulating until the prepared
-    /// claim is committed. A second claimant cannot prepare the same token.
-    #[must_use]
-    pub fn prepare_reservation_claim_for_session(
-        &self,
-        token: Uuid,
-        canonical_session_id: &str,
-    ) -> Option<PreparedOpenTokenClaim> {
-        let claim_id = Uuid::new_v4();
-        let mut map = self.reservations.write().ok()?;
-        let reservation = map.get_mut(&token)?;
-        if reservation.canonical_session_id != canonical_session_id
-            || reservation.prepared_claim_id.is_some()
-        {
-            return None;
-        }
-        reservation.prepared_claim_id = Some(claim_id);
-        reservation.last_activity = Instant::now();
-        Some(PreparedOpenTokenClaim {
-            token,
-            canonical_session_id: canonical_session_id.to_string(),
-            claim_id,
-        })
-    }
-
-    /// Commit a prepared claim, retiring the token and returning every event
-    /// buffered through the commit point.
-    #[must_use]
-    pub fn commit_prepared_reservation_claim(
-        &self,
-        prepared: PreparedOpenTokenClaim,
-    ) -> Option<OpenTokenClaim> {
-        let mut map = self.reservations.write().ok()?;
-        let matches_claim = map
-            .get(&prepared.token)
-            .map(|reservation| {
-                reservation.canonical_session_id == prepared.canonical_session_id
-                    && reservation.prepared_claim_id == Some(prepared.claim_id)
-            })
-            .unwrap_or(false);
-        if !matches_claim {
-            return None;
-        }
-        map.remove(&prepared.token)
-            .map(|reservation| OpenTokenClaim {
-                last_event_seq: reservation.last_event_seq,
-                buffered_events: reservation.delta_buffer.into_iter().collect(),
-            })
-    }
-
-    /// Release a prepared claim without removing its reservation or buffer.
-    /// Returns `false` if the reservation expired, was superseded, or no longer
-    /// belongs to this claimant.
-    #[must_use]
-    pub fn release_prepared_reservation_claim(&self, prepared: PreparedOpenTokenClaim) -> bool {
-        let Ok(mut map) = self.reservations.write() else {
-            return false;
-        };
-        let Some(reservation) = map.get_mut(&prepared.token) else {
-            return false;
-        };
-        if reservation.canonical_session_id != prepared.canonical_session_id
-            || reservation.prepared_claim_id != Some(prepared.claim_id)
-        {
-            return false;
-        }
-        reservation.prepared_claim_id = None;
-        reservation.last_activity = Instant::now();
-        true
     }
 
     #[must_use]
@@ -409,9 +267,7 @@ impl AcpEventHubState {
             .unwrap_or(false)
     }
 
-    /// Remove unprepared reservations whose last activity is older than
-    /// `max_age`. A prepared claimant owns the reservation until it commits or
-    /// releases, so slow fallible setup cannot lose buffered events to GC.
+    /// Remove all reservations whose `created_at` is older than `max_age`.
     ///
     /// Call this periodically (or with `max_age = Duration::ZERO` in tests) to
     /// reclaim memory from abandoned open tokens.
@@ -420,9 +276,7 @@ impl AcpEventHubState {
             return;
         };
         if let Ok(mut map) = self.reservations.write() {
-            map.retain(|_, reservation| {
-                reservation.prepared_claim_id.is_some() || reservation.last_activity > deadline
-            });
+            map.retain(|_, r| r.last_activity > deadline);
         }
     }
 
@@ -449,8 +303,7 @@ mod tests {
     fn gc_reservations_uses_last_activity() {
         let hub = AcpEventHubState::new();
         let token = Uuid::new_v4();
-        hub.arm_reservation(token, "session-1".to_string(), 0, 0)
-            .expect("reservation should arm");
+        hub.arm_reservation(token, "session-1".to_string(), 0, 0);
 
         {
             let mut reservations = hub.reservations.write().expect("reservation lock");
@@ -471,8 +324,7 @@ mod tests {
     fn gc_reservations_returns_without_eviction_on_instant_overflow() {
         let hub = AcpEventHubState::new();
         let token = Uuid::new_v4();
-        hub.arm_reservation(token, "session-1".to_string(), 0, 0)
-            .expect("reservation should arm");
+        hub.arm_reservation(token, "session-1".to_string(), 0, 0);
 
         hub.gc_reservations_older_than(Duration::MAX);
 
@@ -488,10 +340,8 @@ mod tests {
         let first = Uuid::new_v4();
         let second = Uuid::new_v4();
 
-        hub.arm_reservation(first, "session-1".to_string(), 0, 0)
-            .expect("first reservation should arm");
-        hub.arm_reservation(second, "session-1".to_string(), 0, 0)
-            .expect("second reservation should arm");
+        hub.arm_reservation(first, "session-1".to_string(), 0, 0);
+        hub.arm_reservation(second, "session-1".to_string(), 0, 0);
 
         assert!(
             !hub.has_reservation(first),
@@ -504,48 +354,10 @@ mod tests {
     }
 
     #[test]
-    fn arm_reservation_rejects_new_token_while_same_session_claim_is_prepared() {
-        let hub = AcpEventHubState::new();
-        let prepared_token = Uuid::new_v4();
-        let competing_token = Uuid::new_v4();
-
-        hub.arm_reservation(prepared_token, "session-1".to_string(), 4, 0)
-            .expect("first reservation should arm");
-        let prepared = hub
-            .prepare_reservation_claim_for_session(prepared_token, "session-1")
-            .expect("first token should prepare");
-
-        let arm_error = hub
-            .arm_reservation(competing_token, "session-1".to_string(), 9, 0)
-            .expect_err("competing reservation must be rejected explicitly");
-
-        assert_eq!(
-            arm_error,
-            OpenTokenReservationArmError::PreparedClaimInProgress {
-                canonical_session_id: "session-1".to_string(),
-            }
-        );
-
-        assert!(
-            hub.has_reservation(prepared_token),
-            "prepared token must retain ownership"
-        );
-        assert!(
-            !hub.has_reservation(competing_token),
-            "competing token must not arm while the session has a prepared claim"
-        );
-        assert!(
-            hub.commit_prepared_reservation_claim(prepared).is_some(),
-            "prepared owner must still be able to commit"
-        );
-    }
-
-    #[test]
     fn claim_reservation_for_session_returns_buffered_events_and_retires_token() {
         let hub = AcpEventHubState::new();
         let token = Uuid::new_v4();
-        hub.arm_reservation(token, "session-1".to_string(), 4, 0)
-            .expect("reservation should arm");
+        hub.arm_reservation(token, "session-1".to_string(), 4, 0);
         hub.publish(
             "session_update",
             Some("session-1".to_string()),
@@ -575,99 +387,10 @@ mod tests {
     }
 
     #[test]
-    fn prepared_claim_keeps_buffering_events_until_commit() {
-        let hub = AcpEventHubState::new();
-        let token = Uuid::new_v4();
-        hub.arm_reservation(token, "session-1".to_string(), 4, 0)
-            .expect("reservation should arm");
-
-        let prepared = hub
-            .prepare_reservation_claim_for_session(token, "session-1")
-            .expect("matching reservation should prepare");
-        hub.publish(
-            "session_update",
-            Some("session-1".to_string()),
-            serde_json::json!({ "eventSeq": 5 }),
-            "high",
-            false,
-        );
-
-        let claimed = hub
-            .commit_prepared_reservation_claim(prepared)
-            .expect("prepared reservation should commit");
-
-        assert_eq!(claimed.last_event_seq, 4);
-        assert_eq!(claimed.buffered_events.len(), 1);
-        assert_eq!(claimed.buffered_events[0].event_name, "session_update");
-        assert!(!hub.has_reservation(token));
-    }
-
-    #[test]
-    fn competing_prepare_cannot_claim_the_same_reservation() {
-        let hub = AcpEventHubState::new();
-        let token = Uuid::new_v4();
-        hub.arm_reservation(token, "session-1".to_string(), 0, 0)
-            .expect("reservation should arm");
-
-        let prepared = hub
-            .prepare_reservation_claim_for_session(token, "session-1")
-            .expect("first claimant should prepare");
-
-        assert!(
-            hub.prepare_reservation_claim_for_session(token, "session-1")
-                .is_none(),
-            "a prepared reservation must reject a competing claimant"
-        );
-        assert!(hub.has_reservation(token));
-        assert!(hub.commit_prepared_reservation_claim(prepared).is_some());
-    }
-
-    #[test]
-    fn releasing_prepared_claim_permits_retry() {
-        let hub = AcpEventHubState::new();
-        let token = Uuid::new_v4();
-        hub.arm_reservation(token, "session-1".to_string(), 0, 0)
-            .expect("reservation should arm");
-
-        let prepared = hub
-            .prepare_reservation_claim_for_session(token, "session-1")
-            .expect("first claimant should prepare");
-        assert!(hub.release_prepared_reservation_claim(prepared));
-
-        let retry = hub
-            .prepare_reservation_claim_for_session(token, "session-1")
-            .expect("released reservation should be claimable again");
-        assert!(hub.commit_prepared_reservation_claim(retry).is_some());
-    }
-
-    #[test]
-    fn prepared_claim_survives_reservation_gc_during_fallible_setup() {
-        let hub = AcpEventHubState::new();
-        let token = Uuid::new_v4();
-        hub.arm_reservation(token, "session-1".to_string(), 0, 0)
-            .expect("reservation should arm");
-
-        let prepared = hub
-            .prepare_reservation_claim_for_session(token, "session-1")
-            .expect("matching reservation should prepare");
-        {
-            let mut reservations = hub.reservations.write().expect("reservation lock");
-            let reservation = reservations.get_mut(&token).expect("reservation exists");
-            reservation.last_activity = Instant::now() - Duration::from_secs(60);
-        }
-
-        hub.gc_reservations_older_than(Duration::from_secs(30));
-
-        assert!(hub.has_reservation(token));
-        assert!(hub.commit_prepared_reservation_claim(prepared).is_some());
-    }
-
-    #[test]
     fn raise_reservation_frontier_updates_claim_cutoff_without_losing_buffered_events() {
         let hub = AcpEventHubState::new();
         let token = Uuid::new_v4();
-        hub.arm_reservation(token, "session-1".to_string(), 0, 0)
-            .expect("reservation should arm");
+        hub.arm_reservation(token, "session-1".to_string(), 0, 0);
         hub.publish(
             "session_update",
             Some("session-1".to_string()),

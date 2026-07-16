@@ -19,7 +19,7 @@ afterEach(() => {
 	cleanup();
 });
 
-describe("FullscreenAction rounded icons", () => {
+describe("FullscreenAction Hugeicons", () => {
 	it("renders the enter fullscreen action with the rounded expand icon", () => {
 		const { container, getByLabelText } = render(FullscreenAction, {
 			props: {

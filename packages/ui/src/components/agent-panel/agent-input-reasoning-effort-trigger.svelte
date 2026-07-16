@@ -5,7 +5,7 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
 
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import { Selector } from "../selector/index.js";
 	import {
 		REASONING_EFFORT_SELECTOR_SIDE_OFFSET,
@@ -63,7 +63,7 @@
 	{tooltipSide}
 >
 	{#snippet renderButton()}
-		<RoundedIcon
+		<HugeiconsIcon
 			name="brain"
 			style={iconStyle}
 			data-testid="reasoning-effort-brain-icon"

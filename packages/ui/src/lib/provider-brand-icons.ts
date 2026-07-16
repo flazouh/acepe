@@ -1,4 +1,5 @@
 import type { ProviderBrand } from "./provider-brand.js";
+import type { UpstreamProviderBrand } from "./upstream-provider-brand.js";
 
 type ThemeIconPair = {
 	readonly light: string;
@@ -34,18 +35,44 @@ const PROVIDER_BRAND_ICONS: Record<IconProviderBrand, ThemeIconPair> = {
 		dark: "/svgs/agents/cursor/cursor-icon-dark.svg",
 	},
 	codex: {
-		light: "/svgs/agents/codex/openai-icon-light.svg",
-		dark: "/svgs/agents/codex/openai-icon-dark.svg",
+		light: "/svgs/agents/codex/codex-icon-light.svg",
+		dark: "/svgs/agents/codex/codex-icon-dark.svg",
 	},
-} as const;
+};
+
+const UPSTREAM_PROVIDER_ICONS: Partial<Record<Exclude<UpstreamProviderBrand, "custom">, ThemeIconPair>> = {
+	anthropic: {
+		light: ANTHROPIC_ICON_LIGHT_SRC,
+		dark: ANTHROPIC_ICON_DARK_SRC,
+	},
+	githubCopilot: {
+		light: "/svgs/icons/copilot_light.svg",
+		dark: "/svgs/icons/copilot.svg",
+	},
+	openAi: {
+		light: "/svgs/agents/codex/openai-icon.svg",
+		dark: "/svgs/agents/codex/openai-icon.svg",
+	},
+};
 
 export function getProviderBrandIconSrc(
 	providerBrand: ProviderBrand | null | undefined,
-	theme: "light" | "dark"
+	theme: "light" | "dark",
 ): string | null {
 	if (!providerBrand || providerBrand === "custom") {
 		return null;
 	}
 
 	return PROVIDER_BRAND_ICONS[providerBrand][theme];
+}
+
+export function getUpstreamProviderBrandIconSrc(
+	providerBrand: UpstreamProviderBrand | null | undefined,
+	theme: "light" | "dark",
+): string | null {
+	if (!providerBrand || providerBrand === "custom") {
+		return null;
+	}
+
+	return UPSTREAM_PROVIDER_ICONS[providerBrand]?.[theme] ?? null;
 }

@@ -3,7 +3,10 @@ import type { ProviderBrand } from "@acepe/ui";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
 import { getAgentStore } from "$lib/acp/store/index.js";
 
-import { getProviderBrandIcon } from "../constants/thread-list-constants.js";
+import {
+	getProviderBrandIcon,
+	resolveAgentIconProviderBrand,
+} from "../constants/thread-list-constants.js";
 
 interface Props {
 	agentId: string;
@@ -25,8 +28,12 @@ const themeState = useTheme();
 const agentStore = getAgentStore();
 
 const canonicalProviderMetadata = $derived(agentStore?.getProviderMetadata(agentId) ?? null);
-const effectiveProviderBrand = $derived(
-	providerBrand ?? canonicalProviderMetadata?.providerBrand ?? null
+const effectiveProviderBrand = $derived.by(() =>
+	resolveAgentIconProviderBrand({
+		agentId,
+		explicitProviderBrand: providerBrand,
+		storeProviderBrand: canonicalProviderMetadata?.providerBrand ?? null,
+	})
 );
 const effectiveProviderLabel = $derived(
 	providerLabel ?? canonicalProviderMetadata?.displayName ?? agentId

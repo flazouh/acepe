@@ -155,7 +155,7 @@ describe("AgentPanelHost", () => {
 			{
 				id: "claude-code",
 				name: "Claude Code",
-				icon: "/svgs/agents/claude/claude-icon-dark.svg",
+				icon: "data:image/svg+xml,hugeicons",
 			},
 		];
 

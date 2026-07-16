@@ -140,7 +140,7 @@ describe("NativeMarkdown", () => {
 		expect(container.querySelector("[data-acepe-code-language='go']")?.textContent).toContain("Go");
 		expect(
 			container.querySelector("[data-acepe-code-language='go'] img")?.getAttribute("src")
-		).toContain("/svgs/icons/go.svg");
+		).toMatch(/^data:image\/svg\+xml,/);
 
 		await waitFor(() => {
 			expect(container.querySelector("[data-acepe-code-highlighted='true']")).not.toBeNull();
@@ -163,6 +163,11 @@ describe("NativeMarkdown", () => {
 		await waitFor(() => {
 			expect(container.querySelector("[data-acepe-code-copy-button]")).not.toBeNull();
 		});
+
+		const icon = container.querySelector("[data-testid='native-markdown-code-copy-hugeicons-icon']");
+		expect(icon?.tagName.toLowerCase()).toBe("svg");
+		expect(icon?.getAttribute("viewBox")).toBe("0 0 24 24");
+		expect(icon?.innerHTML).not.toBe("");
 
 		container
 			.querySelector("[data-acepe-code-copy-button]")
@@ -401,7 +406,7 @@ describe("NativeMarkdown", () => {
 
 		const chip = container.querySelector(".file-path-badge");
 		expect(chip?.className).toContain("rounded-sm");
-		expect(chip?.querySelector("img")?.getAttribute("src")).toContain("typescript.svg");
+		expect(chip?.querySelector("img")?.getAttribute("src")).toMatch(/^data:image\/svg\+xml,/);
 		chip?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 
 		expect(onFilePathClick).toHaveBeenCalledWith("packages/ui/src/index.ts");

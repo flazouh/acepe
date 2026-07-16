@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Tooltip } from "bits-ui";
 
-	import { LoadingIcon, RoundedIcon } from "../icons/index.js";
+	import { LoadingIcon, HugeiconsIcon } from "../icons/index.js";
 	import { Colors } from "../../lib/colors.js";
 
 	import { resolveAgentPanelStatusIconPresentation } from "./agent-panel-status-icon-state.js";
@@ -20,11 +20,13 @@
 		warmingLabel?: string;
 		/** Tooltip text for retrying state */
 		retryingLabel?: string;
-		/** Tooltip text for connected state */
+		/**
+		 * Retained for API compatibility. Connected states no longer render a header icon.
+		 */
 		connectedLabel?: string;
 		/** Tooltip text for error state */
 		errorLabel?: string;
-		/** Agent ID shown in connected tooltip */
+		/** Agent ID retained for API compatibility; unused after connected icon removal. */
 		agentId?: string | null;
 		/** Callback when error icon is clicked (retry) */
 		onRetry?: () => void;
@@ -37,9 +39,9 @@
 		size = 14,
 		warmingLabel = "Preparing",
 		retryingLabel = "Retrying",
-		connectedLabel = "Connected",
+		connectedLabel: _connectedLabel = "Connected",
 		errorLabel = "Error",
-		agentId = null,
+		agentId: _agentId = null,
 		onRetry,
 	}: Props = $props();
 
@@ -70,44 +72,9 @@
 						</Tooltip.Content>
 					</Tooltip.Portal>
 				</Tooltip.Root>
-			{:else if presentation === "connected"}
+			{:else if presentation === "error"}
 				<Tooltip.Root>
 					<Tooltip.Trigger>
-						<div
-							class="animate-in zoom-in-50 duration-300 {status === 'idle'
-								? 'text-muted-foreground'
-								: 'text-success'}"
-						>
-							<RoundedIcon
-								name="check-circle-filled"
-								style={`width: ${size}px; height: ${size}px;`}
-							/>
-						</div>
-					</Tooltip.Trigger>
-					<Tooltip.Portal>
-						<Tooltip.Content
-							class="z-[var(--overlay-z)] rounded-md bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md"
-							sideOffset={4}
-						>
-							<div class="space-y-1.5">
-								<div class="font-medium">{connectedLabel}</div>
-								{#if agentId}
-									<table class="text-sm">
-										<tbody>
-											<tr>
-												<td class="pr-3 text-muted-foreground">Agent ID:</td>
-												<td class="font-mono">{agentId}</td>
-											</tr>
-										</tbody>
-									</table>
-								{/if}
-							</div>
-						</Tooltip.Content>
-					</Tooltip.Portal>
-				</Tooltip.Root>
-				{:else if presentation === "error"}
-					<Tooltip.Root>
-						<Tooltip.Trigger>
 						<button
 							type="button"
 							class="inline-flex size-5 items-center justify-center rounded transition-colors animate-in fade-in duration-150 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
@@ -115,7 +82,7 @@
 							aria-label={errorLabel}
 							onclick={() => onRetry?.()}
 						>
-							<RoundedIcon
+							<HugeiconsIcon
 								name="alert"
 								style={`width: ${size}px; height: ${size}px;`}
 							/>

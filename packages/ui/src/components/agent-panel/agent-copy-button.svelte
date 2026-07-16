@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Button } from "../button/index.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 
 	interface Props {
 		text: string;
@@ -60,9 +60,12 @@
 	>
 		{#snippet children()}
 			{#if copied}
-				<RoundedIcon name="check" />
+				<HugeiconsIcon name="check" />
 			{:else}
-				<RoundedIcon name="copy" />
+				<HugeiconsIcon
+					name="copy"
+					data-testid="agent-copy-button-linear-copy-icon"
+				/>
 			{/if}
 		{/snippet}
 	</Button>
@@ -74,9 +77,14 @@
 		onclick={handleCopy}
 	>
 		{#if copied}
-			<RoundedIcon name="check" class="shrink-0" style={iconStyle} />
+			<HugeiconsIcon name="check" class="shrink-0" style={iconStyle} />
 		{:else}
-			<RoundedIcon name="copy" class="shrink-0" style={iconStyle} />
+			<HugeiconsIcon
+				name="copy"
+				class="shrink-0"
+				style={iconStyle}
+				data-testid="agent-copy-button-linear-copy-icon"
+			/>
 		{/if}
 	</button>
 {/if}

@@ -47,7 +47,7 @@
 
 	import { Button } from "../button/index.js";
 	import { ButtonGroup } from "../button-group/index.js";
-	import { RoundedIcon, type RoundedIconName } from "../icons/index.js";
+	import { HugeiconsIcon, type HugeiconsIconName } from "../icons/index.js";
 	import SegmentedToggleGroup from "../panel-header/segmented-toggle-group.svelte";
 	import { cn } from "../../lib/utils.js";
 	import GitStatusRow from "./git-status-row.svelte";
@@ -154,19 +154,19 @@
 		readonly {
 			id: GitSection;
 			label: string;
-			roundedIcon: RoundedIconName;
+			iconName: HugeiconsIconName;
 			count?: number;
 		}[]
 	>([
 		{
 			id: "changes",
 			label: "Changes",
-			roundedIcon: "tasks",
+			iconName: "tasks",
 			count: stagedFiles.length + unstagedFiles.length,
 		},
-		{ id: "commits", label: "Commits", roundedIcon: "git", count: commitsCount },
-		{ id: "prs", label: "Pull Requests", roundedIcon: "pull-request", count: prCount },
-		{ id: "worktrees", label: "Worktrees", roundedIcon: "worktree", count: worktreeCount },
+		{ id: "commits", label: "Commits", iconName: "git", count: commitsCount },
+		{ id: "prs", label: "Pull Requests", iconName: "pull-request", count: prCount },
+		{ id: "worktrees", label: "Worktrees", iconName: "worktree", count: worktreeCount },
 	]);
 
 	const views: readonly { id: ChangesView; label: string }[] = [
@@ -196,8 +196,8 @@
 			{#snippet itemContent(item)}
 				{@const section = sections.find((candidate) => candidate.id === item.id)}
 				{#if section}
-					<RoundedIcon
-						name={section.roundedIcon}
+					<HugeiconsIcon
+						name={section.iconName}
 						class="size-3.5 shrink-0"
 						data-testid={`git-workspace-${section.id}-icon`}
 					/>
@@ -222,14 +222,14 @@
 					title="Switch branch"
 					class="flex min-w-0 items-center gap-1.5 !bg-transparent px-2 py-1 text-sm leading-none text-foreground transition-colors hover:bg-accent/60 disabled:pointer-events-none"
 				>
-					<RoundedIcon
+					<HugeiconsIcon
 						name="branch"
 						class="size-3.5 shrink-0 text-muted-foreground"
 						data-testid="git-workspace-branch-icon"
 					/>
 					<span class="truncate font-normal">{branch}</span>
 					{#if onBranchClick}
-						<RoundedIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground/70" />
+						<HugeiconsIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground/70" />
 					{/if}
 				</button>
 
@@ -240,12 +240,12 @@
 					>
 						{#if remoteStatus.ahead > 0}
 							<span class="flex items-center gap-0.5">
-								<RoundedIcon name="arrow-up" class="size-3" />{remoteStatus.ahead}
+								<HugeiconsIcon name="arrow-up" class="size-3" />{remoteStatus.ahead}
 							</span>
 						{/if}
 						{#if remoteStatus.behind > 0}
 							<span class="flex items-center gap-0.5">
-								<RoundedIcon name="arrow-up" class="size-3 rotate-180" />{remoteStatus.behind}
+								<HugeiconsIcon name="arrow-up" class="size-3 rotate-180" />{remoteStatus.behind}
 							</span>
 						{/if}
 					</div>
@@ -433,7 +433,7 @@
 										aria-label="Generate commit message"
 									>
 										{#snippet children()}
-											<RoundedIcon name="sparkle" />
+											<HugeiconsIcon name="sparkle" />
 										{/snippet}
 									</Button>
 								{/if}

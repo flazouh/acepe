@@ -6,10 +6,10 @@ use std::time::Instant;
 use super::{StreamingStateRegistry, MAX_ACCUMULATED_SIZE, THROTTLE_MS};
 use crate::acp::parsers::AgentType;
 use crate::acp::partial_json::parse_partial_json;
-use crate::acp::session::ingress::tool_identity::{
+use crate::acp::session_update::{QuestionItem, TodoItem, ToolArguments, ToolKind};
+use crate::acp::tool_identity::{
     canonical_name_for_kind, semantic_transition, RawClassificationInput,
 };
-use crate::acp::session_update::{QuestionItem, TodoItem, ToolArguments, ToolKind};
 
 /// Per-tool-call streaming state.
 pub(crate) struct ToolCallStreamState {

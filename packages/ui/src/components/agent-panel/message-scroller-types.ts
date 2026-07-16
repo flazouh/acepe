@@ -90,7 +90,6 @@ export const DEFAULT_ROW_ESTIMATE_PX = {
 	assistantThought: 120,
 	tool: 96,
 	sessionActivity: 76,
-	awaitingPlaceholder: 48,
 } as const;
 
 export type MessageScrollerRowKind = keyof typeof DEFAULT_ROW_ESTIMATE_PX;

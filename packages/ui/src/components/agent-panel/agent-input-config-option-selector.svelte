@@ -5,7 +5,7 @@
 -->
 <script lang="ts">
 	import { Selector } from "../selector/index.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import type { SelectorTriggerSize } from "../selector/selector-trigger-classes.js";
 	import { getSelectorTriggerButtonVariant } from "../selector/selector-trigger-classes.js";
 	import { Button } from "../button/index.js";
@@ -72,13 +72,13 @@
 
 {#snippet configOptionIcon()}
 	{#if viewState.iconKind === "fast"}
-		<RoundedIcon
+		<HugeiconsIcon
 			name="lightning"
 			class={viewState.iconClass}
 			style={viewState.iconStyle}
 		/>
 	{:else}
-		<RoundedIcon name="shield-check" style="color: {viewState.iconColor}" />
+		<HugeiconsIcon name="shield-check" style="color: {viewState.iconColor}" />
 	{/if}
 {/snippet}
 
@@ -92,7 +92,7 @@
 		>
 			{#snippet leading()}
 				{#if viewState.iconKind === "reasoning"}
-					<RoundedIcon
+					<HugeiconsIcon
 						name="brain"
 						class="size-3.5 shrink-0"
 						style={`color: ${getReasoningEffortOptionIconColor({
@@ -134,7 +134,7 @@
 					aria-pressed={viewState.isBooleanEnabled}
 					onclick={handleBooleanToggle}
 				>
-					<RoundedIcon
+					<HugeiconsIcon
 						name="lightning"
 						class={viewState.iconClass}
 						style={viewState.iconStyle}

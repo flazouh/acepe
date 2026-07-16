@@ -6,13 +6,13 @@ describe("resolvePlanningPlaceholderPresentation", () => {
 	it("uses the selected agent name and icon for the local connecting row", () => {
 		const result = resolvePlanningPlaceholderPresentation({
 			agentName: "Codex Agent",
-			agentIconSrc: "/svgs/agents/codex/codex-icon.svg",
+			agentIconSrc: "data:image/svg+xml,hugeicons",
 			showWorkingSpark: false,
 		});
 
 		expect(result).toEqual({
 			label: "Connecting to Codex Agent",
-			agentIconSrc: "/svgs/agents/codex/codex-icon.svg",
+			agentIconSrc: "data:image/svg+xml,hugeicons",
 			showWorkingSpark: false,
 		});
 	});
@@ -20,13 +20,13 @@ describe("resolvePlanningPlaceholderPresentation", () => {
 	it("keeps Claude's working spark while still using connecting copy", () => {
 		const result = resolvePlanningPlaceholderPresentation({
 			agentName: "Claude Code",
-			agentIconSrc: "/svgs/agents/claude/claude-icon.svg",
+			agentIconSrc: "data:image/svg+xml,hugeicons",
 			showWorkingSpark: true,
 		});
 
 		expect(result).toEqual({
 			label: "Connecting to Claude Code",
-			agentIconSrc: "/svgs/agents/claude/claude-icon.svg",
+			agentIconSrc: "data:image/svg+xml,hugeicons",
 			showWorkingSpark: true,
 		});
 	});

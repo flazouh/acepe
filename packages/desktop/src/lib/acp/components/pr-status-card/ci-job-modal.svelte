@@ -1,5 +1,5 @@
 <script lang="ts">
-import { LoadingIcon, RoundedIcon, WrenchIcon } from "@acepe/ui";
+import { HugeiconsIcon, LoadingIcon, WrenchIcon } from "@acepe/ui";
 import type { PrChecksItem } from "@acepe/ui";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
@@ -78,7 +78,11 @@ function openOnGitHub(): void {
 			class="gap-1.5 text-muted-foreground"
 			onclick={openOnGitHub}
 		>
-			<RoundedIcon name="github" class="size-3" />
+			<HugeiconsIcon
+				name="open-in-new-window"
+				class="size-3"
+				data-testid="ci-job-modal-open-external-hugeicons-icon"
+			/>
 			View on GitHub
 		</Button>
 	{/snippet}
@@ -107,11 +111,11 @@ function openOnGitHub(): void {
 							{#if bucket === "in_progress"}
 								<LoadingIcon class="animate-spin" size={10} />
 							{:else if bucket === "failure"}
-								<RoundedIcon name="x-circle" class="size-2.5 text-destructive" />
+								<HugeiconsIcon name="x-circle" class="size-2.5 text-destructive" />
 							{:else if bucket === "neutral"}
-								<RoundedIcon name="minus" class="size-2.5 text-amber-400" data-testid="ci-job-neutral-step-icon" />
+								<HugeiconsIcon name="minus" class="size-2.5 text-amber-400" data-testid="ci-job-neutral-step-icon" />
 							{:else}
-								<RoundedIcon name="check-circle" class="size-2.5 text-emerald-500" />
+								<HugeiconsIcon name="check-circle" class="size-2.5 text-emerald-500" />
 							{/if}
 						</span>
 						<span class="truncate">{step.name}</span>

@@ -5,7 +5,7 @@ use super::types::{
 #[cfg(test)]
 use crate::acp::agent_context::current_agent;
 use crate::acp::parsers::{get_parser, AgentParser, AgentType};
-use crate::acp::session::ingress::tool_identity::{
+use crate::acp::tool_identity::{
     classify_raw_tool_call, resolve_raw_tool_identity, ToolClassificationHints,
 };
 use serde_json::json;

@@ -1,13 +1,31 @@
+use crate::acp::lifecycle::LifecycleStatus;
 use crate::acp::projections::{
     is_terminal_operation_state, InteractionSnapshot, InteractionState, OperationDegradationCode,
     OperationDegradationReason, OperationSnapshot, OperationSourceLink, OperationState,
 };
+use crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeSnapshot;
 use crate::acp::session_update::ToolCallStatus;
 use crate::acp::transcript_projection::{TranscriptEntryRole, TranscriptSnapshot};
+use crate::acp::transcript_viewport::projection::canonical_transcript_viewport_row_version;
+use crate::acp::transcript_viewport::TranscriptViewportRow;
 use crate::acp::types::CanonicalAgentId;
 
 fn operation_can_be_restored_as_historical(operation: &OperationSnapshot) -> bool {
     is_terminal_operation_state(&operation.operation_state)
+}
+
+fn operation_state_for_historical_open(operation_state: &OperationState) -> OperationState {
+    if is_terminal_operation_state(operation_state) {
+        return operation_state.clone();
+    }
+
+    OperationState::Cancelled
+}
+
+pub(crate) fn hot_ledger_rows_require_historical_normalization(
+    runtime_snapshot: Option<&SessionGraphRuntimeSnapshot>,
+) -> bool {
+    !runtime_snapshot.is_some_and(|snapshot| snapshot.lifecycle.status == LifecycleStatus::Ready)
 }
 
 fn operation_has_active_provider_status(operation: &OperationSnapshot) -> bool {
@@ -40,11 +58,7 @@ fn downgrade_stale_active_operation(mut operation: OperationSnapshot) -> Operati
 }
 
 fn cancel_historical_active_operation(mut operation: OperationSnapshot) -> OperationSnapshot {
-    if operation_can_be_restored_as_historical(&operation) {
-        return operation;
-    }
-
-    operation.operation_state = OperationState::Cancelled;
+    operation.operation_state = operation_state_for_historical_open(&operation.operation_state);
     operation
 }
 
@@ -95,6 +109,37 @@ pub(crate) fn sanitize_interactions_for_historical_open(
             interaction
         })
         .collect()
+}
+
+pub(crate) fn sanitize_transcript_rows_for_historical_open(rows: &mut [TranscriptViewportRow]) {
+    for row in rows {
+        let mut row_changed = row.active_streaming_tail.take().is_some();
+
+        for operation_link in &mut row.operation_links {
+            let operation_state = operation_state_for_historical_open(&operation_link.state);
+            if operation_link.state != operation_state {
+                operation_link.state = operation_state.clone();
+                row_changed = true;
+            }
+
+            if let Some(display_facts) = operation_link.display_facts.as_mut() {
+                if display_facts.state != operation_state {
+                    display_facts.state = operation_state.clone();
+                    row_changed = true;
+                }
+            }
+            if let Some(operation) = operation_link.operation.as_mut() {
+                if operation.operation_state != operation_state {
+                    operation.operation_state = operation_state.clone();
+                    row_changed = true;
+                }
+            }
+        }
+
+        if row_changed {
+            row.version = canonical_transcript_viewport_row_version(row);
+        }
+    }
 }
 
 pub(super) fn warn_unresolved_tool_rows_in_open_graph(

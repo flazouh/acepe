@@ -1,5 +1,5 @@
 <script lang="ts">
-import { ArrowRightIcon, PillButton, BrandLockup, RoundedIcon } from "@acepe/ui";
+import { ArrowRightIcon, PillButton, BrandLockup, HugeiconsIcon } from "@acepe/ui";
 import Header from "$lib/components/header.svelte";
 import Seo from "$lib/components/seo/seo.svelte";
 import ZeusShaderStage from "$lib/components/zeus-shader-stage.svelte";
@@ -219,7 +219,7 @@ const meta = [
 						rel="noopener noreferrer"
 						class="inline-flex h-12 items-center gap-2 px-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
 					>
-						<RoundedIcon name="github" class="size-4" />
+						<HugeiconsIcon name="github" class="size-4" />
 						<span class="border-b border-border/60 pb-0.5">Star on GitHub</span>
 					</a>
 				</div>
@@ -277,7 +277,7 @@ const meta = [
 								rel="noopener noreferrer"
 								class="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
 							>
-								<RoundedIcon name="github" class="size-3.5" />
+								<HugeiconsIcon name="github" class="size-3.5" />
 								GitHub
 							</a>
 						</li>

@@ -1,6 +1,6 @@
 <script lang="ts">
 import { AppSidebarLayout } from "@acepe/ui/app-layout";
-import { Button, RoundedIcon } from "@acepe/ui";
+import { Button, HugeiconsIcon } from "@acepe/ui";
 import { toast } from "svelte-sonner";
 import { copyTextToClipboard } from "$lib/acp/components/agent-panel/logic/clipboard-manager.js";
 import { SessionList } from "$lib/acp/components/index.js";
@@ -535,7 +535,7 @@ const visibleSessions = $derived.by(() => {
 				onclick={() => onImportProject?.()}
 			>
 				{#snippet children()}
-					<RoundedIcon name="add" />
+					<HugeiconsIcon name="add" />
 				{/snippet}
 			</Button>
 			<div class="ml-auto flex items-center gap-0.5">
@@ -548,7 +548,7 @@ const visibleSessions = $derived.by(() => {
 					onclick={handleNewThread}
 				>
 					{#snippet children()}
-						<RoundedIcon name="new-chat" />
+						<HugeiconsIcon name="new-chat" />
 					{/snippet}
 				</Button>
 				<Button
@@ -562,7 +562,7 @@ const visibleSessions = $derived.by(() => {
 					}}
 				>
 					{#snippet children()}
-						<RoundedIcon name="search" />
+						<HugeiconsIcon name="search" />
 					{/snippet}
 				</Button>
 				<Button
@@ -574,7 +574,7 @@ const visibleSessions = $derived.by(() => {
 					onclick={handleOpenSourceControl}
 				>
 					{#snippet children()}
-						<RoundedIcon name="git" />
+						<HugeiconsIcon name="git" />
 					{/snippet}
 				</Button>
 				<Button
@@ -586,7 +586,7 @@ const visibleSessions = $derived.by(() => {
 					onclick={handleOpenFileSystem}
 				>
 					{#snippet children()}
-						<RoundedIcon name="files" />
+						<HugeiconsIcon name="files" />
 					{/snippet}
 				</Button>
 			</div>

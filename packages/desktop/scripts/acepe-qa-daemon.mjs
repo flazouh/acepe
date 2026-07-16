@@ -5,6 +5,7 @@ import { existsSync, readdirSync, rmSync, statSync, writeFileSync } from "node:f
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { ensureDriverSession } from "./acepe-qa/driver-session.ts";
 
 const socketPath = process.argv[2];
 const readyPath = process.argv[3];
@@ -65,14 +66,8 @@ function contextResultJson(result) {
 }
 
 async function ensureSession(appIdentifier) {
-	const port = Number.parseInt(String(appIdentifier), 10);
 	const startResult = await withTimeout(
-		sessionManager.manageDriverSession(
-			"start",
-			undefined,
-			Number.isFinite(port) ? port : undefined,
-			undefined
-		),
+		ensureDriverSession(sessionManager, String(appIdentifier)),
 		12000,
 		"Tauri MCP driver session"
 	);

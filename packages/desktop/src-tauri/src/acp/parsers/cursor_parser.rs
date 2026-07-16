@@ -10,14 +10,12 @@ use crate::acp::parsers::types::{
     parse_standard_usage_telemetry, parse_todo_write, AgentParser, AgentType, ParseError,
     ParsedQuestion, ParsedTodo, ParsedUsageTelemetry, UpdateType,
 };
-use crate::acp::session::ingress::tool_identity::providers::cursor::CursorAdapter;
-use crate::acp::session::ingress::tool_identity::{
-    display_name_for_tool, infer_kind_from_payload_for_agent,
-};
+use crate::acp::parsers::CursorAdapter;
 use crate::acp::session_update::{
     build_tool_call_from_raw, build_tool_call_update_from_raw, tool_call_status_from_str, PlanData,
     RawToolCallInput, RawToolCallUpdateInput, ToolArguments, ToolCallStatus, ToolKind,
 };
+use crate::acp::tool_identity::{display_name_for_tool, infer_kind_from_payload_for_agent};
 
 pub struct CursorParser;
 

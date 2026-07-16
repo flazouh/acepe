@@ -14,9 +14,9 @@ import {
 	HeaderActionCell,
 	HeaderCell,
 	HeaderTitleCell,
+	HugeiconsIcon,
 	MarkdownDisplay,
 	ProjectLetterBadge,
-	RoundedIcon,
 	getMicButtonVisualState,
 } from "@acepe/ui";
 import { GitWorkspace } from "@acepe/ui/git-panel";
@@ -841,7 +841,7 @@ async function handleOpenPr(prNumber: number) {
 					<span
 						class="inline-flex min-w-0 items-center gap-1 rounded-full border border-border/700 px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
 					>
-						<RoundedIcon name="worktree" class="size-2.5 shrink-0 text-success" />
+						<HugeiconsIcon name="worktree" class="size-2.5 shrink-0 text-success" />
 						<span class="truncate font-mono">{currentWorktree.name}</span>
 						{#if currentWorktree.origin === "external"}
 							<span class="text-[9px] uppercase tracking-wide text-muted-foreground/60">ext</span>
@@ -960,7 +960,7 @@ async function handleOpenPr(prNumber: number) {
 						title="Close preview"
 						onclick={closeSelectedChangesPreview}
 					>
-						<RoundedIcon name="close" class="size-3.5" />
+						<HugeiconsIcon name="close" class="size-3.5" />
 					</button>
 				</div>
 				<div class="min-h-0 flex-1 overflow-y-auto">

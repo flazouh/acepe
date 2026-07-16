@@ -1,5 +1,5 @@
 <script lang="ts">
-import { RoundedIcon } from "@acepe/ui";
+import { HugeiconsIcon } from "@acepe/ui";
 
 let { isDragHovering, label }: { isDragHovering: boolean; label: string } = $props();
 </script>
@@ -15,7 +15,7 @@ let { isDragHovering, label }: { isDragHovering: boolean; label: string } = $pro
 					? 'bg-foreground/10'
 					: 'bg-muted'}"
 			>
-				<RoundedIcon
+				<HugeiconsIcon
 					name="image"
 					class="h-5 w-5 transition-colors duration-150 {isDragHovering
 						? 'text-foreground'

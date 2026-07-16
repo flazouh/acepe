@@ -16,6 +16,11 @@ import type {
 import { formatOtherToolName } from "../../../registry/index.js";
 import { buildUserRowSceneModel } from "../../../logic/user-row-scene-model.js";
 import { transcriptSegmentPrimaryText } from "../../../session-state/transcript-text.js";
+import {
+	getExecuteCommandHighlighter,
+	getExecuteOutputHighlighter,
+} from "../scene/tool/payloads/execute-command.js";
+import { getBrowserScriptHighlighter } from "../scene/tool/tool-read-source.js";
 
 export function segmentText(segments: readonly TranscriptSegment[]): string {
 	let text = "";
@@ -532,11 +537,17 @@ function resolveViewportOperationDisplayFactsEntry(
 			kind === "other" || kind === "unclassified" || kind === "browser" || kind === "sql"
 				? (errorSummary ?? resultSummary)
 				: null,
+		highlightScript: kind === "browser" ? getBrowserScriptHighlighter() : null,
 		filePath: targetPath ?? undefined,
 		status,
 		command,
+		commandHtmls: undefined,
+		highlightCommand: command ? getExecuteCommandHighlighter() : null,
+		highlightOutput: kind === "execute" ? getExecuteOutputHighlighter() : null,
 		stdout: kind === "execute" && status === "done" ? resultSummary : null,
 		stderr: kind === "execute" && status === "error" ? (errorSummary ?? resultSummary) : null,
+		stdoutHtml: null,
+		stderrHtml: null,
 		query,
 		url: fetchUrl,
 		resultText: errorSummary ?? resultSummary,
@@ -566,15 +577,6 @@ export function resolveTranscriptViewportSceneEntry(
 	const displayFactsEntry = resolveViewportOperationDisplayFactsEntry(row);
 	if (displayFactsEntry !== null) {
 		return displayFactsEntry;
-	}
-
-	if (row.kind === "awaitingPlaceholder") {
-		return {
-			id: row.sourceEntryId,
-			type: "thinking",
-			durationMs: null,
-			startedAtMs: row.durationStartedAtMs ?? null,
-		};
 	}
 
 	if (row.content.kind === "compaction") {

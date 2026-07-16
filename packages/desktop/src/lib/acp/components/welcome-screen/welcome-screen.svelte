@@ -1,5 +1,5 @@
 <script lang="ts">
-import { BrandSurface, RoundedIcon } from "@acepe/ui";
+import { BrandSurface, HugeiconsIcon } from "@acepe/ui";
 import { ResultAsync } from "neverthrow";
 import { onDestroy, onMount } from "svelte";
 import { toast } from "svelte-sonner";
@@ -453,7 +453,16 @@ async function finishOnboarding(): Promise<void> {
 													style="-webkit-mask: url('/svgs/icons/claude.svg') center / contain no-repeat; mask: url('/svgs/icons/claude.svg') center / contain no-repeat;"
 												></span>
 											{:else if agent.id === "codex"}
-												<img src="/svgs/agents/codex/codex-icon.svg" alt="" class="size-3.5 shrink-0 object-contain" />
+												<img
+													src="/svgs/agents/codex/codex-icon-light.svg"
+													alt=""
+													class="size-3.5 shrink-0 object-contain dark:hidden"
+												/>
+												<img
+													src="/svgs/agents/codex/codex-icon-dark.svg"
+													alt=""
+													class="hidden size-3.5 shrink-0 object-contain dark:block"
+												/>
 											{:else}
 												<img src="/svgs/icons/cursor.svg" alt="" class="size-3.5 shrink-0" />
 											{/if}
@@ -519,7 +528,7 @@ async function finishOnboarding(): Promise<void> {
 													{agent.composer}
 												</span>
 												<span class="ml-auto inline-flex size-3.5 shrink-0 items-center justify-center rounded-[4px] bg-foreground/10 text-muted-foreground">
-													<RoundedIcon
+													<HugeiconsIcon
 														name="paper-plane"
 														class="size-2.5"
 														data-testid="welcome-paper-plane-icon"
@@ -544,7 +553,7 @@ async function finishOnboarding(): Promise<void> {
 				>
 					<span>{"Get started"}</span>
 					<span class="onboarding-button-arrow inline-flex size-4">
-						<RoundedIcon name="arrow-right" class="size-full" data-testid="welcome-arrow-right-icon" />
+						<HugeiconsIcon name="arrow-right" class="size-full" data-testid="welcome-arrow-right-icon" />
 					</span>
 				</Button>
 			</div>
@@ -599,7 +608,7 @@ async function finishOnboarding(): Promise<void> {
 							</span>
 							{#if isSelected}
 								<span class="agent-choice-indicator text-foreground">
-									<RoundedIcon
+									<HugeiconsIcon
 										name="check-circle-filled"
 										class="size-full"
 										data-testid="welcome-agent-check-icon"
@@ -607,7 +616,7 @@ async function finishOnboarding(): Promise<void> {
 								</span>
 							{:else}
 								<span class="agent-choice-indicator text-muted-foreground/45">
-									<RoundedIcon
+									<HugeiconsIcon
 										name="unselected"
 										class="size-full"
 										data-testid="welcome-agent-unselected-icon"
@@ -634,7 +643,7 @@ async function finishOnboarding(): Promise<void> {
 					>
 						<span>{"Continue"}</span>
 						<span class="onboarding-button-arrow inline-flex size-4">
-							<RoundedIcon name="arrow-right" class="size-full" data-testid="welcome-arrow-right-icon" />
+							<HugeiconsIcon name="arrow-right" class="size-full" data-testid="welcome-arrow-right-icon" />
 						</span>
 					</Button>
 				</div>
@@ -715,7 +724,7 @@ async function finishOnboarding(): Promise<void> {
 						>
 							<span>{"Start building"}</span>
 							<span class="onboarding-button-arrow inline-flex size-4">
-								<RoundedIcon name="arrow-right" class="size-full" data-testid="welcome-arrow-right-icon" />
+								<HugeiconsIcon name="arrow-right" class="size-full" data-testid="welcome-arrow-right-icon" />
 							</span>
 						</Button>
 					</div>

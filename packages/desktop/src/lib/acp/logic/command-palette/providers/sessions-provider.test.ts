@@ -41,7 +41,7 @@ describe("SessionsProvider", () => {
 
 		const [item] = provider.search("");
 
-		expect(item?.roundedIcon).toBe("chat");
+		expect(item?.iconName).toBe("chat");
 		expect(item?.icon).toBeUndefined();
 		expect(item?.metadata.projectBadgeLabel).toBe("Ac");
 	});

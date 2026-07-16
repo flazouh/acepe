@@ -1,5 +1,5 @@
 <script lang="ts">
-import { RoundedIcon, Selector } from "@acepe/ui";
+import { HugeiconsIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import type { SessionSummary } from "$lib/acp/application/dto/session-summary.js";
 import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
@@ -116,7 +116,7 @@ function formatDate(date: Date): string {
 	<!-- Filters -->
 	<div class="flex shrink-0 items-center gap-2 border-b border-border/30 pb-2">
 		<div class="relative min-w-0 flex-1">
-			<RoundedIcon
+			<HugeiconsIcon
 				name="search"
 				class="absolute left-0 top-1/2 size-3 -translate-y-1/2 text-muted-foreground/50"
 			/>
@@ -189,9 +189,9 @@ function formatDate(date: Date): string {
 					{col.label}
 					{#if state.sortColumn === col.id}
 						{#if state.sortDirection === "asc"}
-							<RoundedIcon name="arrow-up" class="size-2.5" />
+							<HugeiconsIcon name="arrow-up" class="size-2.5" />
 						{:else}
-							<RoundedIcon name="arrow-up" class="size-2.5 rotate-180" />
+							<HugeiconsIcon name="arrow-up" class="size-2.5 rotate-180" />
 						{/if}
 					{:else}
 						<span
@@ -199,8 +199,8 @@ function formatDate(date: Date): string {
 							data-testid="session-table-unsorted-sort-icon"
 							aria-hidden="true"
 						>
-							<RoundedIcon name="chevron-up" class="size-2" />
-							<RoundedIcon name="chevron-down" class="-mt-1 size-2" />
+							<HugeiconsIcon name="chevron-up" class="size-2" />
+							<HugeiconsIcon name="chevron-down" class="-mt-1 size-2" />
 						</span>
 					{/if}
 				</button>
@@ -276,7 +276,7 @@ function formatDate(date: Date): string {
 					title="First page"
 					onclick={() => state.goToFirstPage()}
 				>
-					<RoundedIcon name="chevron-left" class="size-3 shrink-0" />
+					<HugeiconsIcon name="chevron-left" class="size-3 shrink-0" />
 				</button>
 				<button
 					type="button"
@@ -284,7 +284,7 @@ function formatDate(date: Date): string {
 					disabled={!canGoPrevious}
 					onclick={() => state.goToPreviousPage()}
 				>
-					<RoundedIcon name="chevron-left" class="size-3 shrink-0" />
+					<HugeiconsIcon name="chevron-left" class="size-3 shrink-0" />
 				</button>
 				<span class="px-1 text-muted-foreground tabular-nums">
 					{state.currentPage + 1}/{totalPages}
@@ -295,7 +295,7 @@ function formatDate(date: Date): string {
 					disabled={!canGoNext}
 					onclick={() => state.goToNextPage(totalPages)}
 				>
-					<RoundedIcon name="chevron-right" class="size-3 shrink-0" />
+					<HugeiconsIcon name="chevron-right" class="size-3 shrink-0" />
 				</button>
 				<button
 					type="button"
@@ -305,7 +305,7 @@ function formatDate(date: Date): string {
 					title="Last page"
 					onclick={() => state.goToLastPage(totalPages)}
 				>
-					<RoundedIcon name="chevron-right" class="size-3 shrink-0" />
+					<HugeiconsIcon name="chevron-right" class="size-3 shrink-0" />
 				</button>
 			</div>
 		{/if}

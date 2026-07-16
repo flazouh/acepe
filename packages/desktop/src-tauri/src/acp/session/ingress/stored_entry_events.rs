@@ -64,9 +64,13 @@ pub fn stored_entries_to_provider_events(
                         ProviderEventKind::AssistantThought {
                             text: text.clone(),
                             redacted: None,
+                            parent_tool_use_id: None,
                         }
                     } else {
-                        ProviderEventKind::AssistantText { text: text.clone() }
+                        ProviderEventKind::AssistantText {
+                            text: text.clone(),
+                            parent_tool_use_id: None,
+                        }
                     };
 
                     events.push(ProviderEvent {
@@ -79,7 +83,7 @@ pub fn stored_entries_to_provider_events(
                 }
             }
             StoredEntry::ToolCall {
-                id: _,
+                id,
                 message,
                 timestamp,
             } => {
@@ -87,7 +91,7 @@ pub fn stored_entries_to_provider_events(
                 events.push(ProviderEvent {
                     source: source.clone(),
                     provider_seq,
-                    provider_row_id: message.id.clone(),
+                    provider_row_id: id.clone(),
                     timestamp_ms: parse_timestamp_to_millis(timestamp.as_deref()),
                     kind: ProviderEventKind::ToolCall(message.clone()),
                 });
@@ -144,7 +148,7 @@ pub fn provider_events_to_stored_entries(events: &[ProviderEvent]) -> Vec<Stored
                     timestamp,
                 });
             }
-            ProviderEventKind::AssistantText { text } => {
+            ProviderEventKind::AssistantText { text, .. } => {
                 if text.trim().is_empty() {
                     continue;
                 }

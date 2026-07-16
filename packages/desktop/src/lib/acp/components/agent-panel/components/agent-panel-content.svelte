@@ -27,7 +27,7 @@ let {
 	optimisticUserEntry = null,
 	rowsProjectionOverride = null,
 	pendingUserRevealRequestKey = null,
-	showLocalPlanningIndicator = false,
+	localPlaceholderMode = "none",
 	sessionProjectPath,
 	allProjects = [],
 	scrollContainer = $bindable(null),
@@ -437,7 +437,7 @@ export function scrollToTop() {
 				{sessionId}
 				{skipRowsBootstrap}
 				{pendingUserRevealRequestKey}
-				{showLocalPlanningIndicator}
+				{localPlaceholderMode}
 				{planningPlaceholderPresentation}
 				{turnState}
 				projectPath={sessionProjectPath ?? undefined}

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { AgentInputBranchSelector, RoundedIcon } from "@acepe/ui";
+import { AgentInputBranchSelector, HugeiconsIcon } from "@acepe/ui";
 import { Colors } from "@acepe/ui/colors";
 import { toast } from "svelte-sonner";
 import { Button } from "$lib/components/ui/button/index.js";
@@ -153,7 +153,7 @@ function openCreateBranchDialog(): void {
 		disabled={!projectPath || !onInitGitRepo || initGitLoading}
 		onclick={() => onInitGitRepo?.()}
 	>
-		<RoundedIcon name="branch" />
+		<HugeiconsIcon name="branch" />
 		<span>
 			{initGitLoading ? "Initializing..." : "Initialize Git"}
 		</span>

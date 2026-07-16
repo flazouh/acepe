@@ -138,6 +138,7 @@ mod tests {
         TranscriptViewportRow {
             row_id: format!("transcript:row-{index}"),
             source_entry_id: format!("row-{index}"),
+            scope: crate::acp::transcript_projection::TranscriptScope::Root,
             kind: TranscriptViewportRowKind::AssistantText,
             version: format!("v-{index}"),
             anchor_eligible: true,

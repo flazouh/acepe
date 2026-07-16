@@ -3,7 +3,7 @@ import * as Popover from "@acepe/ui/popover";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import {
 	Button,
-	RoundedIcon,
+	HugeiconsIcon,
 	SessionPrLinkPickerPanel,
 	type SessionPrLinkPickerProject,
 	type SessionPrLinkPickerPullRequest,
@@ -264,7 +264,7 @@ async function handleTransferPrLink(otherSessionId: string, prNumber: number): P
 			<PrStateIcon state={linkedPr.state} size={11} />
 			#{linkedPr.prNumber}
 		{:else}
-			<RoundedIcon name="link" class="size-[11px] shrink-0" />
+			<HugeiconsIcon name="link" class="size-[11px] shrink-0" />
 		{/if}
 	</Button>
 {/snippet}
@@ -304,7 +304,7 @@ async function handleTransferPrLink(otherSessionId: string, prNumber: number): P
 									<PrStateIcon state={linkedPr.state} size={11} />
 									#{linkedPr.prNumber}
 								{:else}
-									<RoundedIcon name="link" class="size-[11px] shrink-0" />
+									<HugeiconsIcon name="link" class="size-[11px] shrink-0" />
 								{/if}
 							</Button>
 						{/snippet}

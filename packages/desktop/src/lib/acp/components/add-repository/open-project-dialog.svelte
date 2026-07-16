@@ -1,5 +1,5 @@
 <script lang="ts">
-import { Button, PillButton, RoundedIcon } from "@acepe/ui";
+import { Button, PillButton, HugeiconsIcon } from "@acepe/ui";
 import { toast } from "svelte-sonner";
 import { ProjectClient } from "$lib/acp/logic/project-client.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
@@ -281,7 +281,7 @@ function handleOpenChange(newOpen: boolean) {
 			<label
 				class="flex h-5 w-52 shrink-0 items-center gap-1.5 rounded-md border border-border bg-muted px-2"
 			>
-				<RoundedIcon name="search" class="size-[11px] shrink-0 text-muted-foreground/60" />
+				<HugeiconsIcon name="search" class="size-[11px] shrink-0 text-muted-foreground/60" />
 				<!-- svelte-ignore a11y_autofocus -->
 				<input
 					type="search"
@@ -308,7 +308,7 @@ function handleOpenChange(newOpen: boolean) {
 			}}
 		>
 			{#snippet children()}
-				<RoundedIcon name="download" />
+				<HugeiconsIcon name="download" />
 			{/snippet}
 		</Button>
 		<Button
@@ -323,7 +323,7 @@ function handleOpenChange(newOpen: boolean) {
 			}}
 		>
 			{#snippet children()}
-				<RoundedIcon name="branch" />
+				<HugeiconsIcon name="branch" />
 			{/snippet}
 		</Button>
 		<Button
@@ -335,7 +335,7 @@ function handleOpenChange(newOpen: boolean) {
 			onclick={() => onBrowseFolder()}
 		>
 			{#snippet children()}
-				<RoundedIcon name="folder" />
+				<HugeiconsIcon name="folder" />
 			{/snippet}
 		</Button>
 	{/snippet}
@@ -373,7 +373,7 @@ function handleOpenChange(newOpen: boolean) {
 				<!-- URL field -->
 				<div class="space-y-1.5">
 					<label class="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
-						<RoundedIcon name="link" class="size-3" />
+						<HugeiconsIcon name="link" class="size-3" />
 						{"Repository URL"}
 					</label>
 					<input
@@ -388,7 +388,7 @@ function handleOpenChange(newOpen: boolean) {
 				<!-- Destination field -->
 				<div class="space-y-1.5">
 					<label class="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
-						<RoundedIcon name="folder" class="size-3" />
+						<HugeiconsIcon name="folder" class="size-3" />
 						{"Destination"}
 					</label>
 					<div class="flex items-center gap-2">
@@ -414,7 +414,7 @@ function handleOpenChange(newOpen: boolean) {
 				<!-- Branch field -->
 				<div class="space-y-1.5">
 					<label class="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
-						<RoundedIcon name="branch" class="size-3" />
+						<HugeiconsIcon name="branch" class="size-3" />
 						{"Branch"}
 					</label>
 					<input
@@ -438,7 +438,7 @@ function handleOpenChange(newOpen: boolean) {
 							<Spinner size={12} />
 							{"Cloning..."}
 						{:else}
-							<RoundedIcon name="download" class="size-3.5" />
+							<HugeiconsIcon name="download" class="size-3.5" />
 							{"Clone"}
 						{/if}
 					</PillButton>

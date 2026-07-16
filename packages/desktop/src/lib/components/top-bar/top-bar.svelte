@@ -2,8 +2,8 @@
 import {
 	Button,
 	LayoutModeIcon,
+	HugeiconsIcon,
 	PaletteIcon,
-	RoundedIcon,
 	SegmentedToggleGroup,
 	Selector,
 	UsageLimitWidget,
@@ -228,7 +228,7 @@ onMount(() => {
 				triggerAriaLabel="Layout Settings"
 			>
 				{#snippet renderButton()}
-					<RoundedIcon name="filter" />
+					<HugeiconsIcon name="filter" />
 				{/snippet}
 
 				<DropdownMenu.Group>
@@ -240,7 +240,7 @@ onMount(() => {
 								class="cursor-pointer"
 							>
 								<div class="flex w-full items-start gap-2">
-									<RoundedIcon
+									<HugeiconsIcon
 										name="check"
 										class={selected
 											? "mt-0.5 size-3 shrink-0 text-foreground"
@@ -281,7 +281,7 @@ onMount(() => {
 									class="cursor-pointer"
 								>
 									<div class="flex w-full items-start gap-2">
-										<RoundedIcon
+										<HugeiconsIcon
 											name="check"
 											class={selected
 												? "mt-0.5 size-3 shrink-0 text-foreground"
@@ -342,7 +342,7 @@ onMount(() => {
 						onclick={() => openUrl("https://github.com/flazouh/acepe/issues")}
 					>
 						{#snippet children()}
-							<RoundedIcon name="bug" style="color: #FF5D5A" />
+							<HugeiconsIcon name="bug" style="color: #FF5D5A" />
 						{/snippet}
 					</Button>
 				{/snippet}
@@ -371,7 +371,7 @@ onMount(() => {
 								class="cursor-pointer rounded-none px-2 py-1 text-[11px]"
 								onclick={onDevSimulateUpdate}
 							>
-								<RoundedIcon name="download" class="size-4" />
+								<HugeiconsIcon name="download" class="size-4" />
 								<span>Simulate Update</span>
 							</DropdownMenu.Item>
 						{/if}

@@ -1,6 +1,6 @@
 import type { Component } from "svelte";
 import { PaletteIcon, RobotIcon } from "@acepe/ui";
-import type { InterfaceIconName, RoundedIconName } from "@acepe/ui/icons";
+import type { HugeiconsIconName } from "@acepe/ui/icons";
 
 import type { SettingsSectionId } from "./settings-types.js";
 
@@ -16,8 +16,8 @@ export interface SettingsSectionDefinition {
 	readonly label: string;
 	readonly description: string;
 	readonly icon?: Component;
-	readonly interfaceIcon?: InterfaceIconName;
-	readonly roundedIcon?: RoundedIconName;
+	readonly interfaceIcon?: HugeiconsIconName;
+	readonly iconName?: HugeiconsIconName;
 	readonly groupId: SettingsNavGroupId;
 	readonly fullWidth?: boolean;
 }
@@ -48,7 +48,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
 		id: "keybindings",
 		label: "Keybindings",
 		description: "Customize keyboard shortcuts across the app.",
-		roundedIcon: "keyboard",
+		iconName: "keyboard",
 		groupId: "general",
 		fullWidth: true,
 	},
@@ -64,7 +64,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
 		id: "chat",
 		label: "Chat",
 		description: "Composer and transcript behavior.",
-		roundedIcon: "chat",
+		iconName: "chat",
 		groupId: "agents",
 	},
 	{
@@ -79,14 +79,14 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
 		id: "mcp",
 		label: "MCP servers",
 		description: "Model Context Protocol servers extend agents with external tools.",
-		roundedIcon: "mcp",
+		iconName: "mcp",
 		groupId: "agents",
 	},
 	{
 		id: "project",
 		label: "Projects",
 		description: "Manage project-scoped settings.",
-		roundedIcon: "folder",
+		iconName: "folder",
 		groupId: "workspace",
 		fullWidth: true,
 	},
@@ -94,21 +94,21 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
 		id: "environments",
 		label: "Environments",
 		description: "Environment files and per-agent overrides.",
-		roundedIcon: "folder",
+		iconName: "folder",
 		groupId: "workspace",
 	},
 	{
 		id: "git",
 		label: "Git",
 		description: "Git-related preferences and review behavior.",
-		roundedIcon: "branch",
+		iconName: "branch",
 		groupId: "workspace",
 	},
 	{
 		id: "archived",
 		label: "Archived sessions",
 		description: "Sessions hidden from the sidebar. Unarchive to restore them.",
-		roundedIcon: "archive",
+		iconName: "archive",
 		groupId: "data",
 		fullWidth: true,
 	},
@@ -116,7 +116,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
 		id: "usage",
 		label: "Usage",
 		description: "Token and session usage insights.",
-		roundedIcon: "chart-line",
+		iconName: "chart-line",
 		groupId: "data",
 	},
 ];

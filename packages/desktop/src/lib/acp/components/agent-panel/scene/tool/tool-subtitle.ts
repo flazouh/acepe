@@ -1,5 +1,13 @@
 import type { ToolCall } from "../../../../types/tool-call.js";
 
+function truncateBrowserSubtitle(text: string, maxLength: number): string {
+	if (text.length <= maxLength) {
+		return text;
+	}
+
+	return `${text.slice(0, Math.max(0, maxLength - 3))}...`;
+}
+
 export function getWriteBashSubtitle(toolCall: ToolCall): string | undefined {
 	if (toolCall.arguments.kind !== "shellInput") {
 		return undefined;
@@ -27,6 +35,22 @@ export function getToolSubtitle(toolCall: ToolCall): string | undefined {
 	const writeBashSubtitle = getWriteBashSubtitle(toolCall);
 	if (writeBashSubtitle) {
 		return writeBashSubtitle;
+	}
+
+	if (toolCall.arguments.kind === "browser") {
+		const action = toolCall.arguments.action?.trim();
+		const selector = toolCall.arguments.selector?.trim();
+		if (action && selector) {
+			return `${action} -> ${truncateBrowserSubtitle(selector, 30)}`;
+		}
+		if (action) {
+			return action;
+		}
+		if (selector) {
+			return truncateBrowserSubtitle(selector, 40);
+		}
+		// Script stays on scriptText / the Script section — not the title row.
+		return undefined;
 	}
 
 	if (toolCall.arguments.kind === "execute") {

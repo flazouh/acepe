@@ -11,7 +11,7 @@ import {
 	HeaderTitleCell,
 	PermissionFeedItem,
 	ProjectLetterBadge,
-	RoundedIcon,
+	HugeiconsIcon,
 } from "@acepe/ui";
 import { PlanCard } from "@acepe/ui/plan-card";
 import type { QueueItem } from "$lib/acp/store/queue/types.js";
@@ -565,7 +565,7 @@ function handleNextQuestion() {
 		<div class="border-t border-border/50" onclick={(e) => e.stopPropagation()}>
 			<EmbeddedPanelHeader>
 				<HeaderTitleCell compactPadding>
-					<RoundedIcon name="code" class="mr-1 size-3 shrink-0" data-testid="queue-computer-permission-code-icon" />
+					<HugeiconsIcon name="code" class="mr-1 size-3 shrink-0" data-testid="queue-computer-permission-code-icon" />
 					<span
 						class="text-[10px] font-mono text-muted-foreground select-none truncate leading-none"
 					>
@@ -579,7 +579,7 @@ function handleNextQuestion() {
 						aria-label="Reject computer permission"
 						onclick={handleComputerPermissionReject}
 					>
-						<RoundedIcon name="x-circle" class="size-3 shrink-0" style="color: {redColor}" />
+						<HugeiconsIcon name="x-circle" class="size-3 shrink-0" style="color: {redColor}" />
 						Reject
 					</button>
 				</HeaderActionCell>
@@ -590,7 +590,7 @@ function handleNextQuestion() {
 						aria-label="Allow computer permission once"
 						onclick={handleComputerPermissionAllowOnce}
 					>
-						<RoundedIcon name="check-circle" class="size-3 shrink-0" />
+						<HugeiconsIcon name="check-circle" class="size-3 shrink-0" />
 						{canAlwaysAllowComputerPermission ? "Once" : "Allow"}
 					</button>
 				</HeaderActionCell>
@@ -602,7 +602,7 @@ function handleNextQuestion() {
 							aria-label="Always allow this app and window"
 							onclick={handleComputerPermissionAllowAlways}
 						>
-							<RoundedIcon name="check-circle" class="size-3 shrink-0" />
+							<HugeiconsIcon name="check-circle" class="size-3 shrink-0" />
 							Always
 						</button>
 					</HeaderActionCell>
@@ -630,7 +630,7 @@ function handleNextQuestion() {
 		<div class="border-t border-border/50" onclick={(e) => e.stopPropagation()}>
 			<EmbeddedPanelHeader>
 				<HeaderTitleCell compactPadding>
-					<RoundedIcon name="code" class="mr-1 size-3 shrink-0" data-testid="queue-plan-approval-code-icon" />
+					<HugeiconsIcon name="code" class="mr-1 size-3 shrink-0" data-testid="queue-plan-approval-code-icon" />
 					<span
 						class="text-[10px] font-mono text-muted-foreground select-none truncate leading-none"
 					>
@@ -639,13 +639,13 @@ function handleNextQuestion() {
 				</HeaderTitleCell>
 				<HeaderActionCell withDivider={false}>
 					<button type="button" class="plan-queue-action" onclick={handlePlanReject}>
-						<RoundedIcon name="x-circle" class="size-3 shrink-0" style="color: {redColor}" />
+						<HugeiconsIcon name="x-circle" class="size-3 shrink-0" style="color: {redColor}" />
 						Cancel
 					</button>
 				</HeaderActionCell>
 				<HeaderActionCell>
 					<button type="button" class="plan-queue-action" onclick={handlePlanApprove}>
-						<RoundedIcon name="check-circle" class="size-3 shrink-0" />
+						<HugeiconsIcon name="check-circle" class="size-3 shrink-0" />
 						{"Approve"}
 					</button>
 				</HeaderActionCell>

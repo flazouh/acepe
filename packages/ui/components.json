@@ -4,9 +4,6 @@
     "css": "src/app.css",
     "baseColor": "slate"
   },
-  "registries": {
-    "@dotmatrix": "https://dotmatrix.zzzzshawn.cloud/r/{name}.json"
-  },
   "aliases": {
     "components": "$lib/components",
     "utils": "$lib/utils",

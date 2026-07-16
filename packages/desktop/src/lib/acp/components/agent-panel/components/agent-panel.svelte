@@ -9,11 +9,17 @@ import {
 	type AgentUserFileSelectEvent,
 	type AgentToolFileSelectEvent,
 } from "@acepe/ui/agent-panel";
-import { DiffPill, InterfaceIcon, RoundedIcon, setThinkingPreferences, type PrChecksItem } from "@acepe/ui";
+import {
+	DiffPill,
+	HugeiconsIcon,
+	reducedMotion,
+	setThinkingPreferences,
+	type PrChecksItem,
+} from "@acepe/ui";
 import { Button } from "@acepe/ui/button";
 import * as ButtonGroup from "@acepe/ui/button-group";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { onDestroy, onMount, tick } from "svelte";
+import { onDestroy, tick } from "svelte";
 import { toast } from "svelte-sonner";
 import type { TurnState } from "../../../store/types.js";
 import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
@@ -162,7 +168,7 @@ recordPanelOpenPerformanceMark(panelId, "agent-panel:props");
 
 const logger = createLogger({ id: "agent-panel-render-trace", name: "AgentPanelRenderTrace" });
 let lastPanelTraceSignature = $state<string | null>(null);
-let prefersReducedMotion = $state(false);
+const prefersReducedMotion = $derived(reducedMotion.current);
 const DEFERRED_COMPOSER_FALLBACK_MS = 250;
 
 function isAgentPanelRenderTraceEnabled(): boolean {
@@ -304,22 +310,6 @@ setThinkingPreferences({
 			!chatPreferencesStore.thinkingBlockCollapsedByDefault
 		);
 	},
-});
-
-onMount(() => {
-	const mediaQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)") ?? null;
-	if (mediaQuery === null) {
-		prefersReducedMotion = false;
-		return;
-	}
-	const updateReducedMotion = (event: MediaQueryList | MediaQueryListEvent): void => {
-		prefersReducedMotion = event.matches;
-	};
-	updateReducedMotion(mediaQuery);
-	mediaQuery.addEventListener("change", updateReducedMotion);
-	return () => {
-		mediaQuery.removeEventListener("change", updateReducedMotion);
-	};
 });
 
 // ============================================================
@@ -1842,7 +1832,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 						sceneEntries={tokenRevealSceneEntries}
 						optimisticUserEntry={sessionController.optimisticUserEntryForViewport}
 						{pendingUserRevealRequestKey}
-						showLocalPlanningIndicator={sessionController.showPlanningIndicator}
+						localPlaceholderMode={sessionController.localPlaceholderMode}
 						sessionProjectPath={effectiveProjectPath ?? sessionController.sessionProjectPath}
 						{allProjects}
 						onProjectSelected={handleProjectSelected}
@@ -1963,6 +1953,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 								<AgentSelector
 									{availableAgents}
 									currentAgentId={effectivePanelAgentId}
+									projectPath={worktreeToggleProjectPath}
 									{onAgentChange}
 									showLabel
 								/>
@@ -2082,7 +2073,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 										onclick={() => checkpointTimeline.toggle()}
 									>
 										{#snippet children()}
-											<InterfaceIcon name="clock" />
+											<HugeiconsIcon name="clock" />
 										{/snippet}
 									</Button>
 								{/if}
@@ -2189,7 +2180,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 					disabled={prCard.createRunning || !effectivePathForGit}
 					onclick={() => void handleCreatePr()}
 				>
-					<RoundedIcon name="pull-request" class="size-[11px] shrink-0" />
+					<HugeiconsIcon name="pull-request" class="size-[11px] shrink-0" />
 					{prCard.createLabel ?? "Open PR"}
 					<DiffPill
 						insertions={reviewDialog.diffStats.insertions}
@@ -2199,7 +2190,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 				</Button>
 			{:else}
 				<Button variant="secondary" size="xs" class="shrink-0" disabled>
-					<RoundedIcon name="pull-request" class="size-[11px] shrink-0 text-success" />
+					<HugeiconsIcon name="pull-request" class="size-[11px] shrink-0 text-success" />
 					#{createdPr}
 					<DiffPill
 						insertions={reviewDialog.diffStats.insertions}
@@ -2229,7 +2220,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 								title="Diff settings"
 								data-testid="review-dialog-diff-settings-trigger"
 							>
-								<RoundedIcon name="settings" class="size-[13px] shrink-0" />
+								<HugeiconsIcon name="settings" class="size-[13px] shrink-0" />
 								Diff
 							</Button>
 						{/snippet}
@@ -2251,7 +2242,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 									onSelect={keepReviewDiffSettingsMenuOpen}
 									data-testid="review-dialog-diff-style-unified"
 								>
-									<RoundedIcon name="git-diff-unified" class="size-3" />
+									<HugeiconsIcon name="git-diff-unified" class="size-3" />
 									Unified
 								</DropdownMenu.RadioItem>
 								<DropdownMenu.RadioItem
@@ -2259,7 +2250,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 									onSelect={keepReviewDiffSettingsMenuOpen}
 									data-testid="review-dialog-diff-style-split"
 								>
-									<RoundedIcon name="git-diff" class="size-3" />
+									<HugeiconsIcon name="git-diff" class="size-3" />
 									Split
 								</DropdownMenu.RadioItem>
 							</DropdownMenu.RadioGroup>
@@ -2278,7 +2269,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 									onSelect={keepReviewDiffSettingsMenuOpen}
 									data-testid="review-dialog-diff-indicators-bars"
 								>
-									<RoundedIcon name="diff-bars" class="size-3" />
+									<HugeiconsIcon name="diff-bars" class="size-3" />
 									Bars
 								</DropdownMenu.RadioItem>
 								<DropdownMenu.RadioItem
@@ -2286,7 +2277,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 									onSelect={keepReviewDiffSettingsMenuOpen}
 									data-testid="review-dialog-diff-indicators-classic"
 								>
-									<RoundedIcon name="diff-classic" class="size-3" />
+									<HugeiconsIcon name="diff-classic" class="size-3" />
 									Classic
 								</DropdownMenu.RadioItem>
 								<DropdownMenu.RadioItem
@@ -2294,7 +2285,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 									onSelect={keepReviewDiffSettingsMenuOpen}
 									data-testid="review-dialog-diff-indicators-none"
 								>
-									<RoundedIcon name="minus" class="size-3" />
+									<HugeiconsIcon name="minus" class="size-3" />
 									None
 								</DropdownMenu.RadioItem>
 							</DropdownMenu.RadioGroup>
@@ -2313,7 +2304,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 									onSelect={keepReviewDiffSettingsMenuOpen}
 									data-testid="review-dialog-line-change-none"
 								>
-									<RoundedIcon name="minus" class="size-3" />
+									<HugeiconsIcon name="minus" class="size-3" />
 									None
 								</DropdownMenu.RadioItem>
 								<DropdownMenu.RadioItem
@@ -2321,7 +2312,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 									onSelect={keepReviewDiffSettingsMenuOpen}
 									data-testid="review-dialog-line-change-word"
 								>
-									<RoundedIcon name="format" class="size-3" />
+									<HugeiconsIcon name="format" class="size-3" />
 									Word
 								</DropdownMenu.RadioItem>
 								<DropdownMenu.RadioItem
@@ -2329,7 +2320,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 									onSelect={keepReviewDiffSettingsMenuOpen}
 									data-testid="review-dialog-line-change-character"
 								>
-									<RoundedIcon name="code" class="size-3" />
+									<HugeiconsIcon name="code" class="size-3" />
 									Character
 								</DropdownMenu.RadioItem>
 							</DropdownMenu.RadioGroup>
@@ -2346,7 +2337,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 								onSelect={keepReviewDiffSettingsMenuOpen}
 								data-testid="review-dialog-toggle-backgrounds"
 							>
-								<RoundedIcon name="diff-backgrounds" class="size-3" />
+								<HugeiconsIcon name="diff-backgrounds" class="size-3" />
 								Backgrounds
 							</DropdownMenu.CheckboxItem>
 							<DropdownMenu.CheckboxItem
@@ -2355,7 +2346,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 								onSelect={keepReviewDiffSettingsMenuOpen}
 								data-testid="review-dialog-toggle-wrapping"
 							>
-								<RoundedIcon name="diff-wrapping" class="size-3" />
+								<HugeiconsIcon name="diff-wrapping" class="size-3" />
 								Wrapping
 							</DropdownMenu.CheckboxItem>
 							<DropdownMenu.CheckboxItem
@@ -2365,7 +2356,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 								onSelect={keepReviewDiffSettingsMenuOpen}
 								data-testid="review-dialog-toggle-line-numbers"
 							>
-								<RoundedIcon name="diff-line-numbers" class="size-3" />
+								<HugeiconsIcon name="diff-line-numbers" class="size-3" />
 								Line Numbers
 							</DropdownMenu.CheckboxItem>
 						</DropdownMenu.Group>
@@ -2382,7 +2373,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 							aria-label="Previous file"
 							title="Previous file"
 						>
-							<InterfaceIcon name="chevron-left" class="size-3" />
+							<HugeiconsIcon name="chevron-left" class="size-3" />
 						</Button>
 						<Button
 							variant="secondary"
@@ -2401,7 +2392,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 							aria-label="Next file"
 							title="Next file"
 						>
-							<InterfaceIcon name="chevron-right" class="size-3" />
+							<HugeiconsIcon name="chevron-right" class="size-3" />
 						</Button>
 					</ButtonGroup.Root>
 				{/if}
@@ -2415,7 +2406,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 						title={controls.isReviewed ? "Mark file as not reviewed" : "Mark file reviewed"}
 					>
 						{#if controls.isReviewed}
-							<RoundedIcon name="check-circle" class="shrink-0 text-success" style="width: 11px; height: 11px;" />
+							<HugeiconsIcon name="check-circle" class="shrink-0 text-success" style="width: 11px; height: 11px;" />
 							Reviewed
 						{:else}
 							<span class="block size-[11px] shrink-0 rounded-full border border-current opacity-50"></span>
@@ -2432,7 +2423,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 						}}
 						title="Revert file"
 					>
-						<RoundedIcon name="undo" class="shrink-0" style="width: 11px; height: 11px; color: {Colors.red};" />
+						<HugeiconsIcon name="undo" class="shrink-0" style="width: 11px; height: 11px; color: {Colors.red};" />
 						Revert
 					</Button>
 				{/if}

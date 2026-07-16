@@ -18,7 +18,7 @@
 	let {
 		entry,
 		durationTiming,
-		iconBasePath = "",
+		iconBasePath = "/svgs/icons",
 		editToolTheme,
 	}: Props = $props();
 

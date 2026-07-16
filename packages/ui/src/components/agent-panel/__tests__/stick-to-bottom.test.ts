@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test";
 import {
 	DEFAULT_AT_BOTTOM_THRESHOLD_PX,
 	anchorCorrectionPx,
-	computeSendAnchorSpacerPx,
 	initialStickState,
 	isAtBottom,
 	jumpToLatest,
@@ -120,36 +119,17 @@ describe("onContentChange", () => {
 	});
 });
 
-describe("onSend (anchor near top, keep following)", () => {
-	test("pins to the spacer-backed bottom and keeps follow engaged", () => {
-		const { state, action } = onSend({ released: true, hasUnreadBelow: true }, "row-42", 64);
+describe("onSend", () => {
+	test("keeps an attached viewport following and clears unread", () => {
+		const { state, action } = onSend({ released: false, hasUnreadBelow: true });
 		expect(state).toEqual({ released: false, hasUnreadBelow: false });
 		expect(action).toEqual({ kind: "toBottom" });
 	});
-});
 
-describe("computeSendAnchorSpacerPx", () => {
-	test("adds enough bottom spacer to make max-scroll place the sent row near the top", () => {
-		const spacerPx = computeSendAnchorSpacerPx({
-			viewportHeightPx: 1000,
-			contentHeightWithoutSpacerPx: 2100,
-			rowTopPx: 1600,
-			peekPx: 72,
-		});
-
-		expect(spacerPx).toBe(428);
-		expect(2100 + spacerPx - 1000).toBe(1600 - 72);
-	});
-
-	test("clamps to zero when enough content already exists below the sent row", () => {
-		expect(
-			computeSendAnchorSpacerPx({
-				viewportHeightPx: 1000,
-				contentHeightWithoutSpacerPx: 2600,
-				rowTopPx: 1200,
-				peekPx: 72,
-			})
-		).toBe(0);
+	test("re-engages a released viewport at the live edge", () => {
+		const { state, action } = onSend({ released: true, hasUnreadBelow: true });
+		expect(state).toEqual({ released: false, hasUnreadBelow: false });
+		expect(action).toEqual({ kind: "toBottom" });
 	});
 });
 

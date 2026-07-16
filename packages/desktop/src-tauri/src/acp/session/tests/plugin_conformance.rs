@@ -2,6 +2,8 @@
 
 use std::path::PathBuf;
 
+use crate::acp::parsers::AgentType;
+use crate::acp::session::ingress::canonical_events::canonical_transcript_events_to_provider_events;
 use crate::acp::session::ingress::event::ProviderEventKind;
 use crate::acp::session::ingress::plugin::registered_agents;
 use crate::acp::session::ingress::source::{HistoryInput, HistorySource, LiveSource};
@@ -17,8 +19,7 @@ fn disk_fixture_for(agent: &CanonicalAgentId) -> Option<(&'static str, PathBuf)>
         )),
         CanonicalAgentId::ClaudeCode => Some((
             "sess-hist-001",
-            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .join("src/acp/session/ingress/tool_identity/tests/fixtures"),
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/acp/reconciler/tests/fixtures"),
         )),
         _ => None,
     }
@@ -231,8 +232,8 @@ fn every_registered_plugin_has_history_and_live_source() {
     }
 }
 
-#[tokio::test]
-async fn every_registered_plugin_reads_its_fixture_without_error() {
+#[test]
+fn every_registered_plugin_reads_its_fixture_without_error() {
     use crate::acp::session::ingress::plugin::history_source_for;
 
     for agent in registered_agents() {
@@ -245,7 +246,6 @@ async fn every_registered_plugin_reads_its_fixture_without_error() {
                     session_id: session_id.to_string(),
                     workspace_root: Some(fixture_dir),
                 })
-                .await
                 .unwrap_or_else(|error| panic!("plugin {agent:?} failed to read fixture: {error}"))
         } else {
             let synthetic = synthetic_events_for(&agent);

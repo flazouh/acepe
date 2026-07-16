@@ -17,7 +17,7 @@ import {
 	ProjectLetterBadge,
 	TextShimmer,
 	SegmentedProgress,
-	RoundedIcon,
+	HugeiconsIcon,
 } from "@acepe/ui";
 import { AgentPanelStatusIcon } from "@acepe/ui/agent-panel";
 import {
@@ -28,7 +28,6 @@ import {
 } from "@acepe/ui/app-layout";
 import { CloseAction, FullscreenAction, OverflowMenuTriggerAction } from "@acepe/ui/panel-header";
 import { ProjectCard } from "@acepe/ui/project-card";
-import { PlusIcon } from "@acepe/ui";
 import type { AgentPanelSceneModel } from "@acepe/ui";
 
 import LandingDemoFrame from "./landing-demo-frame.svelte";
@@ -645,29 +644,29 @@ const favoriteModels = $derived(modelGroups.flatMap((g) => g.items.filter((i) =>
 												<div class="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
 													<Button variant="ghost" size="icon" aria-label="Open terminal">
 														{#snippet children()}
-															<RoundedIcon name="terminal" />
+															<HugeiconsIcon name="terminal" />
 														{/snippet}
 													</Button>
 													<Button variant="ghost" size="icon" aria-label="Open browser">
 														{#snippet children()}
-															<RoundedIcon name="browser" />
+															<HugeiconsIcon name="browser" />
 														{/snippet}
 													</Button>
 												</div>
 												<Button variant="ghost" size="icon" aria-label="Collapse project" class="shrink-0">
 													{#snippet children()}
-														<RoundedIcon name="chevron-down" class="shrink-0" />
+														<HugeiconsIcon name="chevron-down" class="shrink-0" />
 													{/snippet}
 												</Button>
 												<div class="flex items-center gap-0.5">
 													<Button variant="ghost" size="icon" aria-label="Project menu" class="min-w-0 shrink-0">
 														{#snippet children()}
-															<RoundedIcon name="more" />
+															<HugeiconsIcon name="more" />
 														{/snippet}
 													</Button>
 													<Button variant="ghost" size="icon" aria-label="New session">
 														{#snippet children()}
-															<PlusIcon />
+															<HugeiconsIcon name="plus" size={16} />
 														{/snippet}
 													</Button>
 												</div>

@@ -11,15 +11,17 @@
 //! [`crate::acp::ui_event_dispatcher::run_dispatch_loop`]).
 //!
 //! Both paths converge on
-//! [`crate::acp::ui_event_dispatcher::persist_dispatch_event`], which computes
-//! an `event_seq` for the update, records a runtime checkpoint, applies the
-//! update to the transcript projection at that seq, and builds the live
-//! session-state envelope.
+//! [`crate::acp::ui_event_dispatcher::persist_dispatch_event`], which assigns
+//! the durable delivery `event_seq`, records a runtime checkpoint, applies the
+//! update to projections, and builds the live session-state envelope. Graph
+//! and transcript revisions remain separate counters; neither is an alias for
+//! delivery `event_seq`.
 //!
-//! For journaled updates, the seq comes from
-//! `SessionJournalEventRepository::append_session_update`. For non-journaled
-//! transcript updates like `UserMessageChunk` and `AgentMessageChunk`, the seq
-//! is synthesized from the current runtime/transcript frontier.
+//! Every update receives its seq from
+//! `SessionEventWriter::commit_session_update`, including updates
+//! that do not store a raw journal payload. The database-owned sequence is the
+//! ordering authority for delivery; journal rows reference it when a raw
+//! payload is stored.
 //!
 //! Without serialization, two same-session tasks can observe the same previous
 //! frontier and then interleave their seq assignment and transcript apply. The

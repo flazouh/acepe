@@ -6,7 +6,7 @@ import { getPanelStore, getSessionStore } from "$lib/acp/store/index.js";
 import { resolveCurrentWorktree } from "$lib/acp/store/git-modal-state.js";
 import type { WorktreeInfo } from "$lib/acp/types/worktree-info.js";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
-import { RoundedIcon, Selector } from "@acepe/ui";
+import { HugeiconsIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 
 interface Props {
@@ -79,7 +79,7 @@ function switchWorktree(directory: string): void {
 						contentClass="p-0.5"
 					>
 						{#snippet renderButton()}
-							<RoundedIcon name="worktree" class="size-[13px] shrink-0 text-success" />
+							<HugeiconsIcon name="worktree" class="size-[13px] shrink-0 text-success" />
 							<span class="max-w-[10rem] truncate text-foreground">
 								{currentWorktree ? currentWorktree.name : projectName}
 							</span>
@@ -97,7 +97,7 @@ function switchWorktree(directory: string): void {
 								class="cursor-pointer gap-1.5 rounded-sm !px-1.5 !py-1 text-xs"
 							>
 								<div class="flex w-full min-w-[10rem] items-center gap-1.5">
-									<RoundedIcon
+									<HugeiconsIcon
 										name="worktree"
 										class={isCurrent ? "size-3 shrink-0 text-success" : "size-3 shrink-0 text-muted-foreground"}
 									/>
@@ -107,7 +107,7 @@ function switchWorktree(directory: string): void {
 											ext
 										</span>
 									{/if}
-									<RoundedIcon
+									<HugeiconsIcon
 										name="check"
 										class={isCurrent
 											? "size-[11px] shrink-0 text-foreground"

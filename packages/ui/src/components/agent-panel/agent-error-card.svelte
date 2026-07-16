@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Button } from "../button/index.js";
-	import { LoadingIcon, RoundedIcon } from "../icons/index.js";
+	import { LoadingIcon, HugeiconsIcon } from "../icons/index.js";
 
 	interface Props {
 		title: string;
@@ -44,7 +44,7 @@
 	data-qa="agent-error-card"
 >
 	<div class="flex min-w-0 items-start gap-2.5 px-3 py-2.5">
-		<RoundedIcon name="warning" class="mt-0.5 size-[15px] shrink-0 text-destructive" />
+		<HugeiconsIcon name="warning" class="mt-0.5 size-[15px] shrink-0 text-destructive" />
 		<div class="min-w-0 flex-1">
 			<p
 				class="break-words text-sm font-medium leading-snug text-foreground"

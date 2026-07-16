@@ -151,8 +151,8 @@ pub(crate) fn read_claude_cli_version(path: &Path) -> Result<SemVer> {
     read_claude_cli_version_with_timeout(path, CLI_VERSION_TIMEOUT)
 }
 
-fn ensure_supported_managed_claude_cli(path: &Path) -> Result<()> {
-    let current_version = read_claude_cli_version(path)?;
+fn ensure_supported_managed_claude_cli(path: &Path, version_timeout: Duration) -> Result<()> {
+    let current_version = read_claude_cli_version_with_timeout(path, version_timeout)?;
     let minimum_version = minimum_supported_cli_version();
 
     if current_version < minimum_version {
@@ -1294,13 +1294,19 @@ impl Drop for SubprocessTransport {
 ///
 /// Uses Acepe's managed Claude CLI cache only.
 pub fn find_claude_cli() -> Result<PathBuf> {
+    find_claude_cli_with_version_timeout(CLI_VERSION_TIMEOUT)
+}
+
+pub(crate) fn find_claude_cli_with_version_timeout(
+    version_timeout: Duration,
+) -> Result<PathBuf> {
     let cached_path = agent_installer::get_cached_binary(&CanonicalAgentId::ClaudeCode)
         .ok_or_else(|| SdkError::CliNotFound {
             searched_paths:
                 "Acepe did not find its managed Claude CLI in the cc-sdk cache. Install or repair Claude from Acepe's built-in install flow.".to_string(),
         })?;
 
-    ensure_supported_managed_claude_cli(&cached_path)?;
+    ensure_supported_managed_claude_cli(&cached_path, version_timeout)?;
     debug!(
         "Using Acepe-managed Claude CLI at: {}",
         cached_path.display()

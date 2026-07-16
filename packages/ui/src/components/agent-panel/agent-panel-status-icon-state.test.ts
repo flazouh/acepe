@@ -43,13 +43,30 @@ describe("resolveAgentPanelStatusIconPresentation", () => {
 		).toBe("error");
 	});
 
-	it("keeps the connected affordance visible", () => {
+	it("hides the connected affordance in the header", () => {
 		expect(
 			resolveAgentPanelStatusIconPresentation({
 				status: "connected",
 				isConnecting: false,
 				isRetrying: false,
 			})
-		).toBe("connected");
+		).toBe("none");
+	});
+
+	it("hides idle and done affordances in the header", () => {
+		expect(
+			resolveAgentPanelStatusIconPresentation({
+				status: "idle",
+				isConnecting: false,
+				isRetrying: false,
+			})
+		).toBe("none");
+		expect(
+			resolveAgentPanelStatusIconPresentation({
+				status: "done",
+				isConnecting: false,
+				isRetrying: false,
+			})
+		).toBe("none");
 	});
 });

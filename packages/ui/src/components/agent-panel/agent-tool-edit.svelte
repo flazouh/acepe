@@ -2,7 +2,7 @@
 import type { WorkerPoolManager } from "@pierre/diffs/worker";
 
 import { FilePathBadge } from "../file-path-badge/index.js";
-import { RoundedIcon } from "../icons/index.js";
+import { HugeiconsIcon } from "../icons/index.js";
 import ToolHeaderLeading from "./tool-header-leading.svelte";
 import AgentToolDurationLabel from "./agent-tool-duration-label.svelte";
 import type { ToolDurationTiming } from "./tool-duration.js";
@@ -90,7 +90,7 @@ let {
 	applied = status === "done",
 	awaitingApproval = false,
 	durationTiming,
-	iconBasePath = "",
+	iconBasePath = "/svgs/icons",
 	interactive = false,
 	onSelect,
 	theme = "dark",
@@ -215,7 +215,7 @@ function expand() {
 						aria-label={isExpanded ? ariaCollapseDiff : ariaExpandDiff}
 						aria-expanded={isExpanded}
 					>
-						<RoundedIcon name="chevron-right" class="size-3 shrink-0 text-muted-foreground transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}"
+						<HugeiconsIcon name="chevron-right" class="size-3 shrink-0 text-muted-foreground transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}"
 						/>
 					</button>
 				{/if}

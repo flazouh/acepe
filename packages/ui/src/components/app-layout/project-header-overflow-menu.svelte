@@ -2,7 +2,7 @@
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import * as Popover from "../popover/index.js";
 	import { Button } from "../button/index.js";
-	import { RoundedIcon, type RoundedIconName } from "../icons/index.js";
+	import { HugeiconsIcon, type HugeiconsIconName } from "../icons/index.js";
 	import { Selector, SelectorItem } from "../selector/index.js";
 	import { Switch } from "../switch/index.js";
 	import { dropdownMenuItemRadiusClass } from "../dropdown-menu/dropdown-menu-item.classes.js";
@@ -17,7 +17,7 @@
 		readonly kind: "action";
 		readonly id: string;
 		readonly label: string;
-		readonly icon: RoundedIconName;
+		readonly icon: HugeiconsIconName;
 		readonly iconClass?: string;
 		readonly disabled?: boolean;
 		readonly destructive?: boolean;
@@ -28,7 +28,7 @@
 		readonly kind: "toggle";
 		readonly id: string;
 		readonly label: string;
-		readonly icon: RoundedIconName;
+		readonly icon: HugeiconsIconName;
 		readonly checked: boolean;
 		readonly onToggle: (checked: boolean) => void;
 	};
@@ -37,7 +37,7 @@
 		readonly kind: "color-submenu";
 		readonly id: string;
 		readonly label: string;
-		readonly icon: RoundedIconName;
+		readonly icon: HugeiconsIconName;
 	};
 
 	type ProjectMenuEntry = ProjectMenuActionEntry | ProjectMenuToggleEntry | ProjectMenuColorEntry;
@@ -50,7 +50,7 @@
 	type ProjectMenuSection = {
 		readonly id: string;
 		readonly label: string;
-		readonly icon: RoundedIconName;
+		readonly icon: HugeiconsIconName;
 		readonly contentWidthClass: ProjectMenuContentWidth;
 		readonly groups: readonly ProjectMenuGroup[];
 	};
@@ -147,7 +147,7 @@
 	function createMenuSection(
 		id: string,
 		label: string,
-		icon: RoundedIconName,
+		icon: HugeiconsIconName,
 		contentWidthClass: ProjectMenuContentWidth,
 		groups: readonly ProjectMenuGroup[]
 	): ProjectMenuSection | null {
@@ -313,8 +313,12 @@
 	}
 </script>
 
-{#snippet menuItemContent(icon: RoundedIconName, label: string, iconClass = "shrink-0", labelClass = "")}
-	<RoundedIcon name={icon} class={iconClass} />
+{#snippet menuItemContent(icon: HugeiconsIconName, label: string, iconClass = "shrink-0", labelClass = "")}
+	{#if icon === "trash"}
+		<HugeiconsIcon name="trash" class={iconClass} />
+	{:else}
+		<HugeiconsIcon name={icon} class={iconClass} />
+	{/if}
 	<span class="min-w-0 flex-1 truncate {labelClass}">{label}</span>
 {/snippet}
 
@@ -338,7 +342,7 @@
 			onclick={(event) => handleToggleRowClick(event, entry)}
 			onkeydown={(event) => event.stopPropagation()}
 		>
-			<RoundedIcon name={entry.icon} class="shrink-0 text-muted-foreground" />
+			<HugeiconsIcon name={entry.icon} class="shrink-0 text-muted-foreground" />
 			<span class="min-w-0 flex-1 truncate">{entry.label}</span>
 			<Switch
 				checked={entry.checked}
@@ -382,7 +386,7 @@
 	contentClass="min-w-[152px]"
 >
 	{#snippet renderButton()}
-		<RoundedIcon name="more" />
+		<HugeiconsIcon name="more" />
 	{/snippet}
 
 	{#each menuSections as section, sectionIndex (section.id)}

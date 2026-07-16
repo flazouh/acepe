@@ -29,16 +29,19 @@ const CLAUDE_CODE_PROVIDER_METADATA: ProviderMetadataProjection = {
 	implicitSessionCreationMode: "allowed",
 };
 
-function makeResolvedCapabilities(): ResolvedCapabilities {
+function makeResolvedCapabilities(
+	modelId = "claude-sonnet-4-6",
+	modelName = "Claude Sonnet 4.6"
+): ResolvedCapabilities {
 	return {
 		status: "resolved",
-		availableModels: [{ modelId: "claude-sonnet-4-6", name: "Claude Sonnet 4.6" }],
-		currentModelId: "claude-sonnet-4-6",
+		availableModels: [{ modelId, name: modelName }],
+		currentModelId: modelId,
 		modelsDisplay: {
 			groups: [
 				{
 					label: "",
-					models: [{ modelId: "claude-sonnet-4-6", displayName: "Claude Sonnet 4.6" }],
+					models: [{ modelId, displayName: modelName }],
 				},
 			],
 			presentation: undefined,
@@ -113,5 +116,39 @@ describe("PreconnectionCapabilitiesState", () => {
 		expect(secondResult.isOk()).toBe(true);
 		expect(first.loadingCacheKey).toBeNull();
 		expect(second.loadingCacheKey).toBeNull();
+	});
+
+	it("force refreshes capabilities that were cached before an agent install", async () => {
+		const beforeInstall = makeResolvedCapabilities("fable", "Fable");
+		const afterInstall = makeResolvedCapabilities("claude-opus-4-8", "Claude Opus 4.8");
+		fetchFn.mockReturnValueOnce(okAsync(beforeInstall));
+		fetchFn.mockReturnValueOnce(okAsync(afterInstall));
+
+		const state = new PreconnectionCapabilitiesState(fetchFn);
+		await state.ensureLoaded({
+			agentId: "claude-code",
+			hasConnectedSession: false,
+			projectPath: null,
+			preconnectionCapabilityMode: "startupGlobal",
+		});
+		const refreshResult = await state.ensureLoaded(
+			{
+				agentId: "claude-code",
+				hasConnectedSession: false,
+				projectPath: null,
+				preconnectionCapabilityMode: "startupGlobal",
+			},
+			{ force: true }
+		);
+
+		expect(refreshResult.isOk()).toBe(true);
+		expect(fetchFn).toHaveBeenCalledTimes(2);
+		expect(
+			state.getCapabilities({
+				agentId: "claude-code",
+				projectPath: null,
+				preconnectionCapabilityMode: "startupGlobal",
+			})
+		).toEqual(afterInstall);
 	});
 });

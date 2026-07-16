@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { FilePathBadge } from "../file-path-badge/index.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import type { AgentPanelFileReviewStatus } from "./types.js";
 
 	interface ReviewTab {
@@ -48,7 +48,7 @@
 		>
 			<span class="flex items-center gap-1.5 min-w-0" title={getStatusTooltip(tab.status)}>
 				{#if tab.status === "reviewed"}
-					<RoundedIcon name="check-circle" class="h-3.5 w-3.5 shrink-0 text-success" />
+					<HugeiconsIcon name="check-circle" class="h-3.5 w-3.5 shrink-0 text-success" />
 				{:else}
 					<span class="block h-3.5 w-3.5 shrink-0 rounded-full border border-current opacity-30 text-muted-foreground"></span>
 				{/if}

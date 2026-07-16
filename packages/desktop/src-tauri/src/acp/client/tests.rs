@@ -10,7 +10,9 @@ use crate::acp::provider::SpawnConfig;
 use crate::acp::session_update::PlanSource;
 use crate::acp::session_update::{PermissionData, SessionUpdate};
 use crate::db::migrations::Migrator;
-use crate::db::repository::{SessionJournalEventRepository, SessionMetadataRepository};
+use crate::db::repository::{
+    SessionEventWriter, SessionJournalEventRepository, SessionMetadataRepository,
+};
 use sea_orm::{Database, DbConn};
 use sea_orm_migration::MigratorTrait;
 use std::collections::HashMap;
@@ -1230,7 +1232,7 @@ async fn active_client_interaction_projection_persists_selected_permission_reply
     client
         .projection_registry
         .apply_session_update("session-1", &permission_update);
-    SessionJournalEventRepository::append_session_update(&db, "session-1", &permission_update)
+    SessionEventWriter::commit_session_update(&db, "session-1", &permission_update)
         .await
         .expect("append permission request update");
 

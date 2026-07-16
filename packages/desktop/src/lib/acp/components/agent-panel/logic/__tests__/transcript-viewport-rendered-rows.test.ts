@@ -89,6 +89,31 @@ function createViewportUserRow(entryId: string, text: string): TranscriptViewpor
 	};
 }
 
+function createHistoricalAssistantThoughtRow(entryId: string): TranscriptViewportRow {
+	return {
+		rowId: entryId,
+		sourceEntryId: entryId,
+		kind: "assistantThought",
+		version: `${entryId}:v1`,
+		anchorEligible: true,
+		activeStreamingTail: null,
+		operationLinks: [],
+		interactionLinks: [],
+		content: {
+			kind: "transcript",
+			role: "assistant",
+			segments: [
+				{
+					kind: "thought",
+					segmentId: `${entryId}:segment:0`,
+					text: "Historical reasoning",
+				},
+			],
+		},
+		durationStartedAtMs: null,
+	};
+}
+
 function createViewportToolRow(entryId: string): TranscriptViewportRow {
 	return {
 		rowId: entryId,
@@ -233,25 +258,6 @@ function createCompactGraph(operation: OperationSnapshot): AgentPanelCanonicalSo
 	return createCompactGraphWithOperations([operation]);
 }
 
-function createAwaitingPlanningRow(): TranscriptViewportRow {
-	return {
-		rowId: "awaiting:planning",
-		sourceEntryId: "awaiting:planning",
-		kind: "awaitingPlaceholder",
-		version: "00000000000000000000000000000000",
-		anchorEligible: true,
-		activeStreamingTail: null,
-		operationLinks: [],
-		interactionLinks: [],
-		content: {
-			kind: "transcript",
-			role: "assistant",
-			segments: [],
-		},
-		durationStartedAtMs: null,
-	};
-}
-
 function createSyntheticReviewEntry(): AgentPanelSceneEntryModel {
 	return {
 		id: "local:review",
@@ -284,7 +290,7 @@ describe("buildRenderedTranscriptViewportRows", () => {
 			bufferRows: [createViewportUserRow("user-1", "Canonical message")],
 			bufferStartIndex: 3,
 			optimisticUserEntry: createOptimisticUserEntry("optimistic-user", "First message"),
-			showLocalPlanningIndicator: true,
+			localPlaceholderMode: "connection",
 		});
 
 		expect(rows.map((row) => row.row.rowId)).toEqual([
@@ -299,7 +305,7 @@ describe("buildRenderedTranscriptViewportRows", () => {
 		if (first === undefined) {
 			return;
 		}
-		expect(first.key).toBe(renderKey(first.row));
+		expect(first.key).toBe(`${first.row.rowId}:${first.row.version}`);
 		expect(first.rowId).toBe("user-1");
 		expect(first.estimatePx).toBeGreaterThan(0);
 		expect(first.isActiveTail).toBe(false);
@@ -311,7 +317,7 @@ describe("buildRenderedTranscriptViewportRows", () => {
 			bufferRows: [],
 			bufferStartIndex: 0,
 			optimisticUserEntry: null,
-			showLocalPlanningIndicator: true,
+			localPlaceholderMode: "connection",
 		});
 		const resolver = createRenderedTranscriptViewportRowResolver({
 			optimisticUserEntry: null,
@@ -337,12 +343,117 @@ describe("buildRenderedTranscriptViewportRows", () => {
 		});
 	});
 
+	it("keeps connection feedback after historical completed reasoning in eager and lazy rows", () => {
+		const bufferRows = [
+			createHistoricalAssistantThoughtRow("assistant-thought-1"),
+			createViewportUserRow("user-1", "Reconnect this session"),
+		];
+		const presentation = {
+			label: "Connecting to Codex Agent",
+			agentIconSrc: "/icons/codex.svg",
+			showWorkingSpark: false,
+		};
+		const eagerRows = buildRenderedTranscriptViewportRows({
+			bufferRows,
+			bufferStartIndex: 0,
+			optimisticUserEntry: null,
+			localPlaceholderMode: "connection",
+			planningPlaceholderPresentation: presentation,
+		});
+		const lazySource = createRenderableTranscriptViewportRowSource({
+			bufferRows,
+			bufferStartIndex: 0,
+			optimisticUserEntry: null,
+			localPlaceholderMode: "connection",
+		});
+		const lazyResolver = createRenderedTranscriptViewportRowResolver({
+			optimisticUserEntry: null,
+			planningPlaceholderPresentation: presentation,
+		});
+		const lazyPlaceholder = lazySource.getRenderable(2);
+
+		expect(eagerRows.at(-1)?.entry).toMatchObject({
+			type: "thinking",
+			label: "Connecting to Codex Agent",
+		});
+		expect(lazySource.length).toBe(3);
+		expect(lazyPlaceholder).toBeDefined();
+		if (lazyPlaceholder === undefined) {
+			return;
+		}
+		expect(lazyResolver(lazyPlaceholder).entry).toMatchObject({
+			type: "thinking",
+			label: "Connecting to Codex Agent",
+		});
+	});
+
+	it("keeps completed-tool planning eligibility identical in eager and lazy row sources", () => {
+		const entryId = "acepe::entry::assistant-boundary:9902::tool::call_waiting";
+		const operationId = "op:session-compact:call_waiting";
+		const toolCallId = "call_waiting";
+		const operation = createViewportOperation({ entryId, operationId, toolCallId });
+		const bufferRows = [
+			createLinkedViewportToolRow({ entryId, operationId, toolCallId, operation }),
+		];
+		const eagerRows = buildRenderableTranscriptViewportRows({
+			bufferRows,
+			bufferStartIndex: 0,
+			optimisticUserEntry: null,
+			localPlaceholderMode: "planning_after_tool",
+		});
+		const lazySource = createRenderableTranscriptViewportRowSource({
+			bufferRows,
+			bufferStartIndex: 0,
+			optimisticUserEntry: null,
+			localPlaceholderMode: "planning_after_tool",
+		});
+
+		expect(eagerRows.map((row) => row.rowId)).toEqual([
+			`transcript:${entryId}`,
+			"awaiting:planning",
+		]);
+		expect(lazySource.length).toBe(2);
+		expect(lazySource.getRowId(0)).toBe(`transcript:${entryId}`);
+		expect(lazySource.getRowId(1)).toBe("awaiting:planning");
+		expect(lazySource.getRenderable(1)?.row).toMatchObject({
+			kind: "localPlaceholder",
+			mode: "planning_after_tool",
+		});
+	});
+
+	it("uses the UI planning fallback label after a tool while preserving agent visuals", () => {
+		const entryId = "acepe::entry::assistant-boundary:9903::tool::call_label";
+		const operationId = "op:session-compact:call_label";
+		const toolCallId = "call_label";
+		const operation = createViewportOperation({ entryId, operationId, toolCallId });
+		const rows = buildRenderedTranscriptViewportRows({
+			bufferRows: [
+				createLinkedViewportToolRow({ entryId, operationId, toolCallId, operation }),
+			],
+			bufferStartIndex: 0,
+			optimisticUserEntry: null,
+			localPlaceholderMode: "planning_after_tool",
+			planningPlaceholderPresentation: {
+				label: "Connecting to Codex Agent",
+				agentIconSrc: "/icons/codex.svg",
+				showWorkingSpark: true,
+			},
+		});
+
+		expect(rows.at(-1)?.entry).toMatchObject({
+			type: "thinking",
+			label: null,
+			agentIconSrc: "/icons/codex.svg",
+			showWorkingSpark: true,
+		});
+	});
+
 	it("does not inspect scene entries when resolving persisted viewport rows", () => {
 		const rows = buildRenderedTranscriptViewportRows({
 			bufferRows: [createViewportUserRow("user-1", "Canonical message")],
 			bufferStartIndex: 0,
 			optimisticUserEntry: null,
-			showLocalPlanningIndicator: false,
+			localPlaceholderMode: "none",
 		});
 
 		expect(rows).toHaveLength(1);
@@ -358,7 +469,7 @@ describe("buildRenderedTranscriptViewportRows", () => {
 			bufferRows: [],
 			bufferStartIndex: 0,
 			optimisticUserEntry: createOptimisticUserEntry("optimistic-user", "First message"),
-			showLocalPlanningIndicator: true,
+			localPlaceholderMode: "connection",
 		});
 
 		expect(rows.map((row) => row.entry.type)).toEqual(["user", "thinking"]);
@@ -369,7 +480,7 @@ describe("buildRenderedTranscriptViewportRows", () => {
 			text: "First message",
 			isOptimistic: true,
 		});
-		expect(rows[1]?.row.kind).toBe("awaitingPlaceholder");
+		expect(rows[1]?.row.kind).toBe("localPlaceholder");
 		expect(rows[1]?.row.rowId).toBe("awaiting:planning");
 		expect(rows[1]?.row.sourceEntryId).toBe("awaiting:planning");
 		expect(rows[1]?.row.version).toBe("00000000000000000000000000000000");
@@ -380,7 +491,7 @@ describe("buildRenderedTranscriptViewportRows", () => {
 			bufferRows: [createViewportUserRow("user-1", "Canonical message")],
 			bufferStartIndex: 3,
 			optimisticUserEntry: createOptimisticUserEntry("user-1", "Canonical message"),
-			showLocalPlanningIndicator: false,
+			localPlaceholderMode: "none",
 		});
 
 		expect(rows).toHaveLength(1);
@@ -393,7 +504,7 @@ describe("buildRenderedTranscriptViewportRows", () => {
 			bufferRows: [createViewportUserRow("user-1", "Canonical message")],
 			bufferStartIndex: 3,
 			optimisticUserEntry: null,
-			showLocalPlanningIndicator: false,
+			localPlaceholderMode: "none",
 			syntheticReviewEntry: createSyntheticReviewEntry(),
 		});
 
@@ -402,7 +513,11 @@ describe("buildRenderedTranscriptViewportRows", () => {
 		expect(rows[1]?.localOnly).toBe(true);
 		expect(rows[1]?.row.rowId).toBe("local:review");
 		expect(rows[1]?.row.kind).toBe("tool");
-		expect(rows[1]?.row.operationLinks).toEqual([]);
+		const reviewRow = rows[1]?.row;
+		if (reviewRow === undefined || reviewRow.kind === "localPlaceholder") {
+			throw new Error("expected a local review transcript row");
+		}
+		expect(reviewRow.operationLinks).toEqual([]);
 		expect(rows[1]?.entry).toMatchObject({
 			id: "local:review",
 			type: "tool_call",
@@ -417,7 +532,7 @@ describe("buildRenderedTranscriptViewportRows", () => {
 			bufferRows: [createViewportUserRow("user-1", "Canonical message")],
 			bufferStartIndex: 3,
 			optimisticUserEntry: null,
-			showLocalPlanningIndicator: false,
+			localPlaceholderMode: "none",
 			syntheticReviewEntry: null,
 		});
 
@@ -430,36 +545,13 @@ describe("buildRenderedTranscriptViewportRows", () => {
 			bufferRows: [createViewportToolRow("local:review")],
 			bufferStartIndex: 3,
 			optimisticUserEntry: null,
-			showLocalPlanningIndicator: false,
+			localPlaceholderMode: "none",
 			syntheticReviewEntry: createSyntheticReviewEntry(),
 		});
 
 		expect(rows).toHaveLength(1);
 		expect(rows[0]?.row.rowId).toBe("local:review");
 		expect(rows[0]?.localOnly).toBe(false);
-	});
-
-	it("keeps the local planning row key-compatible with the canonical awaiting placeholder", () => {
-		const localRows = buildRenderedTranscriptViewportRows({
-			bufferRows: [],
-			bufferStartIndex: 0,
-			optimisticUserEntry: null,
-			showLocalPlanningIndicator: true,
-		});
-		const canonical = createAwaitingPlanningRow();
-
-		expect(renderKey(localRows[0]?.row ?? canonical)).toBe(renderKey(canonical));
-	});
-
-	it("does not append local planning when the canonical awaiting placeholder is present", () => {
-		const rows = buildRenderedTranscriptViewportRows({
-			bufferRows: [createViewportUserRow("user-1", "Canonical message"), createAwaitingPlanningRow()],
-			bufferStartIndex: 0,
-			optimisticUserEntry: null,
-			showLocalPlanningIndicator: true,
-		});
-
-		expect(rows.map((row) => row.row.rowId)).toEqual(["user-1", "awaiting:planning"]);
 	});
 
 	it("keeps large row sources lazy until the visible window is requested", () => {
@@ -474,7 +566,7 @@ describe("buildRenderedTranscriptViewportRows", () => {
 			bufferRows: counted.rows,
 			bufferStartIndex: 0,
 			optimisticUserEntry: null,
-			showLocalPlanningIndicator: false,
+			localPlaceholderMode: "none",
 			syntheticReviewEntry: null,
 		});
 
@@ -511,7 +603,7 @@ describe("buildRenderedTranscriptViewportRows", () => {
 			bufferRows: [createLinkedViewportToolRow({ entryId, operationId, toolCallId })],
 			bufferStartIndex: 0,
 			optimisticUserEntry: null,
-			showLocalPlanningIndicator: false,
+			localPlaceholderMode: "none",
 		});
 
 		expect(rows[0]?.entry).toMatchObject({
@@ -532,7 +624,7 @@ describe("buildRenderedTranscriptViewportRows", () => {
 			],
 			bufferStartIndex: 0,
 			optimisticUserEntry: null,
-			showLocalPlanningIndicator: false,
+			localPlaceholderMode: "none",
 		});
 
 		expect(rows[0]?.entry).toMatchObject({

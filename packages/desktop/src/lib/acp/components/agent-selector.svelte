@@ -1,19 +1,27 @@
 <script lang="ts">
 import { AgentInputAgentSelector } from "@acepe/ui";
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
-import { getAgentPreferencesStore } from "../store/index.js";
+import { getAgentPreferencesStore, getAgentStore } from "../store/index.js";
+import type { AgentAvailabilityKind } from "../store/types.js";
 import { capitalizeName } from "../utils/index.js";
 import AgentIcon from "./agent-icon.svelte";
 import type { ProviderMetadataProjection } from "$lib/services/acp-types.js";
+import { PreconnectionCapabilitiesState } from "./agent-input/logic/preconnection-capabilities-state.svelte.js";
+import {
+	installAgentForSelection,
+	resolvePostInstallCapabilityMode,
+} from "./agent-input/logic/installable-agent-selection.js";
 
 interface AgentSelectorProps {
 	availableAgents: readonly {
 		readonly id: string;
 		readonly name: string;
 		readonly provider_metadata?: ProviderMetadataProjection;
+		readonly availability_kind?: AgentAvailabilityKind;
 	}[];
 	currentAgentId: string | null;
 	onAgentChange: (agentId: string) => void;
+	projectPath?: string | null;
 	isLoading?: boolean;
 	ontoggle?: (isOpen: boolean) => void;
 	class?: string;
@@ -27,6 +35,7 @@ let {
 	availableAgents,
 	currentAgentId,
 	onAgentChange,
+	projectPath = null,
 	isLoading = false,
 	ontoggle,
 	class: className = "",
@@ -39,16 +48,78 @@ let {
 let selectorRef: { toggle: () => void } | undefined = $state();
 
 const agentPreferencesStore = getAgentPreferencesStore();
+const agentStore = getAgentStore();
+const preconnectionCapabilitiesState = new PreconnectionCapabilitiesState();
 const defaultAgentId = $derived(agentPreferencesStore.defaultAgentId);
 
 const agentItems = $derived(
-	availableAgents.map((agent) => ({
-		id: agent.id,
-		name: agent.name,
-		providerBrand: agent.provider_metadata?.providerBrand ?? null,
-		providerLabel: agent.provider_metadata?.displayName ?? agent.name,
-	}))
+	availableAgents.map((agent) => {
+		const installState = agentStore.installing[agent.id];
+		const readiness = agentStore.getAgentInstallationReadiness(agent.id);
+		const setupPending = readiness?.status === "pending";
+		const providerMetadata = agentStore.getProviderMetadata(agent.id) ?? agent.provider_metadata;
+		return {
+			id: agent.id,
+			name: agent.name,
+			providerBrand: providerMetadata?.providerBrand ?? null,
+			providerLabel: providerMetadata?.displayName ?? agent.name,
+			installed: readiness
+				? false
+				: agent.availability_kind
+					? agent.availability_kind.installed
+					: true,
+			installing: setupPending || (readiness === null && installState !== undefined),
+			// Rust emits install progress on a 0–1 scale; the shared row expects 0–100.
+			installProgress: setupPending && installState
+				? Math.round(installState.progress * 100)
+				: setupPending
+					? 100
+					: null,
+			installError:
+				readiness?.status === "failed"
+					? `Agent setup failed: ${readiness.message}. Click to retry.`
+					: null,
+		};
+	})
 );
+
+function handleAgentInstall(agentId: string): void {
+	const agent = availableAgents.find((candidate) => candidate.id === agentId);
+	const readiness = agentStore.getAgentInstallationReadiness(agentId);
+	if (!agent || readiness?.status === "pending") {
+		return;
+	}
+
+	const canonicalAgent = agentStore.getAgent(agentId);
+	const installRequired =
+		(canonicalAgent?.availability_kind.installed ?? agent.availability_kind?.installed) !== true;
+	agentStore.beginAgentInstallationReadiness(agentId);
+	void installAgentForSelection(
+		{
+			agentId,
+			installRequired,
+			projectPath,
+			preconnectionCapabilityMode: resolvePostInstallCapabilityMode({
+				projectedProviderMetadata: agent.provider_metadata,
+				canonicalProviderMetadata: canonicalAgent?.providerMetadata,
+				requiresPostInstallCatalog: true,
+			}),
+		},
+		{
+			installAgent: (targetAgentId) => agentStore.installAgent(targetAgentId),
+			refreshPreconnectionCapabilities: (input, options) =>
+				preconnectionCapabilitiesState.ensureLoaded(input, options),
+			selectAgent: onAgentChange,
+		}
+	).match(
+		() => {
+			agentStore.completeAgentInstallationReadiness(agentId);
+		},
+		(error) => {
+			agentStore.failAgentInstallationReadiness(agentId, error.message);
+		}
+	);
+}
 
 export function toggle() {
 	selectorRef?.toggle();
@@ -61,6 +132,9 @@ export function toggle() {
 	{currentAgentId}
 	defaultAgentId={defaultAgentId}
 	{onAgentChange}
+	onAgentInstall={(agentId) => {
+		void handleAgentInstall(agentId);
+	}}
 	onDefaultAgentToggle={(agentId) => {
 		void agentPreferencesStore.setDefaultAgentId(agentId);
 	}}

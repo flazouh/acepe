@@ -6,7 +6,7 @@
 	import { Colors } from "../../lib/colors.js";
 	import { capitalizeLeadingCharacter } from "../../lib/utils.js";
 	import { Button } from "../button/index.js";
-	import { RobotIcon, RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon, RobotIcon } from "../icons/index.js";
 	import {
 	EmbeddedPanelHeader,
 	HeaderActionCell,
@@ -122,7 +122,7 @@ function handleKeydown(event: KeyboardEvent): void {
 							aria-label={card.worktreeDeleted ? "Worktree deleted" : "Worktree session"}
 							title={card.worktreeDeleted ? "Worktree deleted" : "Worktree session"}
 						>
-							<RoundedIcon
+							<HugeiconsIcon
 								name="worktree"
 								class={card.worktreeDeleted ? "size-3 text-destructive" : "size-3 text-success"}
 							/>
@@ -169,7 +169,7 @@ function handleKeydown(event: KeyboardEvent): void {
 							class="!h-full border-l border-border/40"
 						>
 							{#snippet children()}
-								<RoundedIcon name="close" />
+								<HugeiconsIcon name="close" />
 							{/snippet}
 						</Button>
 					</div>

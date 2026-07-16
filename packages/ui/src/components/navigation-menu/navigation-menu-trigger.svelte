@@ -9,7 +9,7 @@
 
 <script lang="ts">
 	import { NavigationMenu as NavigationMenuPrimitive } from "bits-ui";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 
 	let {
 		ref = $bindable(null),
@@ -27,5 +27,5 @@
 >
 	{@render children?.()}
 
-	<RoundedIcon name="chevron-down" class="size-3 shrink-0 relative top-[1px] ms-1 transition duration-300 group-data-[state=open]:rotate-180" />
+	<HugeiconsIcon name="chevron-down" class="size-3 shrink-0 relative top-[1px] ms-1 transition duration-300 group-data-[state=open]:rotate-180" />
 </NavigationMenuPrimitive.Trigger>

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { RoundedIcon } from "@acepe/ui";
+import { HugeiconsIcon } from "@acepe/ui";
 import { mode } from "mode-watcher";
 import { Toaster as Sonner, toast, type ToasterProps as SonnerProps } from "svelte-sonner";
 import Spinner from "$lib/components/ui/spinner/spinner.svelte";
@@ -37,7 +37,7 @@ registerToastBridge({
 		<Spinner size={16} />
 	{/snippet}
 	{#snippet closeIcon()}
-		<RoundedIcon name="close" class="size-3" />
+		<HugeiconsIcon name="close" class="size-3" />
 	{/snippet}
 </Sonner>
 

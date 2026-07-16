@@ -1,5 +1,5 @@
 <script lang="ts">
-	import RoundedIcon from "./rounded-icon.svelte";
+	import HugeiconsIcon from "./hugeicons-icon.svelte";
 
 	interface Props {
 		size?: "xs" | "sm" | "md" | "lg";
@@ -16,4 +16,4 @@
 	};
 </script>
 
-<RoundedIcon name="undo" class={`${sizeClasses[size]} ${className ?? ""}`} />
+<HugeiconsIcon name="undo" class={`${sizeClasses[size]} ${className ?? ""}`} />

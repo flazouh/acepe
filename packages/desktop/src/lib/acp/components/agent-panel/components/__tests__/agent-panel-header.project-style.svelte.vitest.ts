@@ -422,6 +422,106 @@ describe("AgentPanelHeader project-header style", () => {
 		expect(await screen.findByRole("menuitem", { name: "Open Pull Request #42" })).not.toBeNull();
 	});
 
+	it("renders the Hugeicons copy-id icon for the session id menu action", async () => {
+		render(AgentPanelHeader, {
+			pendingProjectSelection: false,
+			isConnecting: false,
+			sessionId: "session-1",
+			sessionTitle: "Thread",
+			sessionAgentId: null,
+			currentAgentId: null,
+			availableAgents: [],
+			agentIconSrc: "",
+			agentName: null,
+			isFullscreen: false,
+			sessionStatus: "empty",
+			projectPath: "/repo",
+			projectName: "repo",
+			projectColor: "#FF5D5A",
+			hideProjectBadge: true,
+			onClose: vi.fn(),
+			onToggleFullscreen: vi.fn(),
+			onCopyContent: undefined,
+			onOpenInFinder: undefined,
+			onExportRawStreaming: undefined,
+			displayTitle: "Thread",
+			entriesCount: 0,
+			insertions: 0,
+			deletions: 0,
+			createdAt: null,
+			updatedAt: null,
+			onOpenRawFile: undefined,
+			onOpenInAcepe: undefined,
+			onExportMarkdown: undefined,
+			onExportJson: undefined,
+			onAgentChange: undefined,
+			onScrollToTop: undefined,
+		});
+
+		await fireEvent.click(screen.getByLabelText("More actions"));
+		await fireEvent.keyDown(screen.getByRole("menuitem", { name: "Copy" }), {
+			key: "ArrowRight",
+			code: "ArrowRight",
+		});
+
+		const sessionIdItem = await screen.findByRole("menuitem", { name: "Session ID" });
+		const renderedIcon = sessionIdItem.querySelector("svg");
+
+		expect(renderedIcon?.tagName.toLowerCase()).toBe("svg");
+		expect(renderedIcon?.getAttribute("viewBox")).toBe("0 0 24 24");
+		expect(renderedIcon?.innerHTML).not.toBe("");
+	});
+
+	it("renders the Hugeicons Copy icon for the thread content menu action", async () => {
+		render(AgentPanelHeader, {
+			pendingProjectSelection: false,
+			isConnecting: false,
+			sessionId: null,
+			sessionTitle: "Thread",
+			sessionAgentId: null,
+			currentAgentId: null,
+			availableAgents: [],
+			agentIconSrc: "",
+			agentName: null,
+			isFullscreen: false,
+			sessionStatus: "empty",
+			projectPath: "/repo",
+			projectName: "repo",
+			projectColor: "#FF5D5A",
+			hideProjectBadge: true,
+			onClose: vi.fn(),
+			onToggleFullscreen: vi.fn(),
+			onCopyContent: vi.fn(),
+			onOpenInFinder: undefined,
+			onExportRawStreaming: undefined,
+			displayTitle: null,
+			entriesCount: 0,
+			insertions: 0,
+			deletions: 0,
+			createdAt: null,
+			updatedAt: null,
+			onOpenRawFile: undefined,
+			onOpenInAcepe: undefined,
+			onExportMarkdown: undefined,
+			onExportJson: undefined,
+			onAgentChange: undefined,
+			onScrollToTop: undefined,
+		});
+
+		await fireEvent.click(screen.getByLabelText("More actions"));
+		await fireEvent.keyDown(screen.getByRole("menuitem", { name: "Copy" }), {
+			key: "ArrowRight",
+			code: "ArrowRight",
+		});
+
+		const threadContentItem = await screen.findByRole("menuitem", { name: "Thread content" });
+		const renderedIcon = threadContentItem.querySelector("svg");
+
+		expect(renderedIcon?.tagName.toLowerCase()).toBe("svg");
+		expect(renderedIcon?.getAttribute("viewBox")).toBe("0 0 24 24");
+		expect(renderedIcon?.innerHTML).not.toBe("");
+	});
+
 	it("groups dev-only log actions under diagnostics", async () => {
 		const onCopyStreamingLogPath = vi.fn();
 		const onExportRawStreaming = vi.fn();
@@ -471,7 +571,14 @@ describe("AgentPanelHeader project-header style", () => {
 			key: "ArrowRight",
 			code: "ArrowRight",
 		});
-		await fireEvent.click(await screen.findByRole("menuitem", { name: "Copy Streaming Log Path" }));
+		const copyLogPathItem = await screen.findByRole("menuitem", { name: "Copy Streaming Log Path" });
+		const renderedIcon = copyLogPathItem.querySelector("svg");
+
+		expect(renderedIcon?.tagName.toLowerCase()).toBe("svg");
+		expect(renderedIcon?.getAttribute("viewBox")).toBe("0 0 24 24");
+		expect(renderedIcon?.innerHTML).not.toBe("");
+
+		await fireEvent.click(copyLogPathItem);
 
 		expect(onCopyStreamingLogPath).toHaveBeenCalledTimes(1);
 		expect(onExportRawStreaming).not.toHaveBeenCalled();

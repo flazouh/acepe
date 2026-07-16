@@ -129,12 +129,11 @@ function getBrowserSubtitle(toolCall: ToolCall): string {
 
 	const action = toolCall.arguments.action;
 	const selector = toolCall.arguments.selector;
-	const script = toolCall.arguments.script;
 
 	if (action && selector) return `${action} -> ${truncateText(selector, 30)}`;
 	if (action) return action;
 	if (selector) return truncateText(selector, 40);
-	if (script) return truncateText(script.replace(/\s+/g, " "), 40);
+	// Scripts render in the browser tool body, not as a subtitle.
 	return "";
 }
 

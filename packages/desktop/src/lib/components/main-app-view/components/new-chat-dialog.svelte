@@ -16,7 +16,6 @@
 	import AgentSelector from "$lib/acp/components/agent-selector.svelte";
 	import ProjectSelector from "$lib/acp/components/project-selector.svelte";
 	import BranchPicker from "$lib/acp/components/branch-picker/branch-picker.svelte";
-	import type { AgentInfo } from "$lib/acp/logic/agent-manager.js";
 	import type { Project, ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 	import type { PreparedWorktreeLaunch } from "$lib/acp/types/worktree-info.js";
 	import { CanonicalModeId } from "$lib/acp/types/canonical-mode-id.js";
@@ -28,6 +27,7 @@
 		canSendWithoutSession,
 		resolveEmptyStateAgentId,
 	} from "./content/logic/empty-state-send-state.js";
+	import { buildNewChatAgentSelectorModel } from "./new-chat-agent-selector-model.js";
 	import {
 		buildKanbanNewSessionProjectChangeState,
 		buildKanbanNewSessionResetState,
@@ -36,7 +36,7 @@
 	} from "./content/kanban-new-session-dialog-state.js";
 	import { KANBAN_SESSION_PANEL_WIDTH } from "./content/kanban-session-panel-width.js";
 	import { completeKanbanNewSessionHandoff } from "./content/logic/kanban-new-session-handoff.js";
-	import { ensureSpawnableAgentSelected, getSpawnableSessionAgents } from "../logic/spawnable-agents.js";
+	import { ensureSpawnableAgentSelected } from "../logic/spawnable-agents.js";
 
 	interface Props {
 		projectManager: ProjectManager;
@@ -66,16 +66,20 @@
 
 	const isProjectWorktreeEnabled = (path: string) => worktreeProjectDefaultStore.isEnabled(path);
 	const projects = $derived(projectManager.projects);
-	const availableAgents = $derived.by((): AgentInfo[] => {
-		return getSpawnableSessionAgents(agentStore.agents, agentPreferencesStore.selectedAgentIds).map(
-			(agent) => ({
-				id: agent.id,
-				name: agent.name,
-				icon: agent.icon,
-				availability_kind: agent.availability_kind,
-			})
-		);
+	const selectedProject = $derived.by((): Project | null => {
+		if (!selectedProjectPath) {
+			return null;
+		}
+		return projectManager.getProject(selectedProjectPath) ?? null;
 	});
+	const agentSelectorModel = $derived.by(() =>
+		buildNewChatAgentSelectorModel({
+			agents: agentStore.agents,
+			selectedAgentIds: agentPreferencesStore.selectedAgentIds,
+			selectedProjectPath: selectedProject?.path ?? null,
+		})
+	);
+	const availableAgents = $derived(agentSelectorModel.availableAgents);
 	const availableAgentIds = $derived(availableAgents.map((agent) => agent.id));
 	const effectiveAgentId = $derived(
 		resolveEmptyStateAgentId({
@@ -84,12 +88,6 @@
 			availableAgentIds,
 		})
 	);
-	const selectedProject = $derived.by((): Project | null => {
-		if (!selectedProjectPath) {
-			return null;
-		}
-		return projectManager.getProject(selectedProjectPath) ?? null;
-	});
 	const canShowNewSessionInput = $derived(projects.length > 0 && availableAgents.length > 0);
 	const effectiveWorktreePending = $derived(worktreePending && activeWorktreePath === null);
 	const canSendFromNewSession = $derived(
@@ -264,6 +262,7 @@
 	<AgentSelector
 		{availableAgents}
 		currentAgentId={effectiveAgentId}
+		projectPath={agentSelectorModel.projectPath}
 		onAgentChange={handleNewSessionAgentChange}
 		showLabel
 	/>

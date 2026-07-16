@@ -231,7 +231,7 @@ fn normalize_claude_model_id(raw: &str, available_model_ids: &[String]) -> Optio
     }
 
     let lower = trimmed.to_ascii_lowercase();
-    if matches!(lower.as_str(), "sonnet" | "opus" | "haiku") {
+    if matches!(lower.as_str(), "fable" | "sonnet" | "opus" | "haiku") {
         return newest_model_for_family(lower.as_str(), available_model_ids).or(Some(lower));
     }
 
@@ -261,7 +261,7 @@ fn parse_claude_model_family(model_id: &str) -> Option<String> {
     model_id
         .to_ascii_lowercase()
         .split(&['-', '_'][..])
-        .find(|part| matches!(*part, "sonnet" | "opus" | "haiku"))
+        .find(|part| matches!(*part, "fable" | "sonnet" | "opus" | "haiku"))
         .map(ToOwned::to_owned)
 }
 
@@ -275,7 +275,7 @@ fn claude_model_sort_key(model_id: &str) -> ClaudeModelSortKey {
     let parts: Vec<&str> = model_id.split(&['-', '_'][..]).collect();
     let Some(family_idx) = parts
         .iter()
-        .position(|part| matches!(*part, "sonnet" | "opus" | "haiku"))
+        .position(|part| matches!(*part, "fable" | "sonnet" | "opus" | "haiku"))
     else {
         return ClaudeModelSortKey {
             version: Vec::new(),

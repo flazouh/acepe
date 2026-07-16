@@ -142,6 +142,7 @@ mod tests {
 
     fn text_entry(entry_id: &str, role: TranscriptEntryRole, text: &str) -> TranscriptEntry {
         TranscriptEntry {
+            scope: crate::acp::transcript_projection::TranscriptScope::Root,
             entry_id: entry_id.to_string(),
             role,
             segments: vec![TranscriptSegment::Text {

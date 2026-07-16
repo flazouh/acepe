@@ -99,6 +99,12 @@ describe("desktop agent panel scene adapter", () => {
 			kind: "execute",
 			status: "done",
 			command: "bun test src/lib/auth",
+			stdout: "ok",
+			commandHtmls: undefined,
+			highlightCommand: expect.any(Function),
+			highlightOutput: expect.any(Function),
+			stdoutHtml: null,
+			stderrHtml: null,
 		});
 		expect(conversation.entries[2]).toEqual({
 			id: "assistant-1",
@@ -201,6 +207,11 @@ describe("desktop agent panel scene adapter", () => {
 			highlightSource: expect.any(Function),
 			sourceRangeLabel: "Line 443",
 		});
+		const readEntry = conversation.entries[0] as {
+			highlightSource: (code: string, filePath: string | null | undefined) => string | null;
+		};
+		// Callback is stable; View invokes it inside $derived so ready-race upgrades work.
+		expect(typeof readEntry.highlightSource).toBe("function");
 	});
 
 	it("maps edit tool arguments into editDiffs for shared AgentToolEdit", () => {

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import PlusIcon from "../icons/plus-icon.svelte";
+	import HugeiconsIcon from "../icons/hugeicons-icon.svelte";
 	import {
 		computeProjectBadgeLabels,
 		ProjectLetterBadge,
@@ -78,7 +78,11 @@
 							<span class="transition-opacity duration-150 group-hover/session-count:opacity-0 group-focus-visible/session-count:opacity-0">
 								{project.sessionCount}
 							</span>
-							<PlusIcon class="absolute opacity-0 transition-opacity duration-150 group-hover/session-count:opacity-100 group-focus-visible/session-count:opacity-100" />
+							<HugeiconsIcon
+								name="plus"
+								size={10}
+								class="absolute opacity-0 transition-opacity duration-150 group-hover/session-count:opacity-100 group-focus-visible/session-count:opacity-100"
+							/>
 						</button>
 					{:else if project.sessionCount != null}
 						<span

@@ -35,8 +35,12 @@ mod preconnection_capabilities;
 mod preconnection_commands;
 mod registry_commands;
 mod session_commands;
-pub(crate) use session_commands::emit_lifecycle_event_if_current;
+pub(crate) use session_commands::emit_lifecycle_event;
 mod transcript_row_page_commands;
+#[cfg(test)]
+pub(crate) use transcript_row_page_commands::{
+    read_transcript_row_page_from_ledger, TranscriptRowPageResult,
+};
 pub(crate) mod transcript_viewport_commands;
 
 #[cfg(test)]

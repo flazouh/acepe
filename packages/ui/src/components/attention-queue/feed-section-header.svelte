@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import type { Snippet } from "svelte";
 	import type { SectionedFeedSectionId } from "./types.js";
 
@@ -18,21 +18,21 @@ let { sectionId, label, count, color, needsReviewIcon = "eye", actions }: Props 
 <div class="flex h-7 items-center justify-between px-2">
 	<span class="inline-flex items-center gap-1.5 text-[10px] font-semibold tracking-wide text-muted-foreground/70">
 		{#if sectionId === "answer_needed"}
-			<RoundedIcon name="keyboard" class="size-3 shrink-0" style="color: {color}" />
+			<HugeiconsIcon name="keyboard" class="size-3 shrink-0" style="color: {color}" />
 		{:else if sectionId === "working"}
-			<RoundedIcon name="realtime" class="size-3 shrink-0" style="color: {color}" data-testid="feed-section-working-icon" />
+			<HugeiconsIcon name="realtime" class="size-3 shrink-0" style="color: {color}" data-testid="feed-section-working-icon" />
 		{:else if sectionId === "planning"}
-			<RoundedIcon name="realtime" class="size-3 shrink-0 opacity-75" style="color: {color}" data-testid="feed-section-planning-icon" />
+			<HugeiconsIcon name="realtime" class="size-3 shrink-0 opacity-75" style="color: {color}" data-testid="feed-section-planning-icon" />
 		{:else if sectionId === "needs_review"}
 			{#if needsReviewIcon === "file-code"}
-				<RoundedIcon name="code" class="size-3 shrink-0" style="color: {color}" data-testid="feed-section-code-icon" />
+				<HugeiconsIcon name="code" class="size-3 shrink-0" style="color: {color}" data-testid="feed-section-code-icon" />
 			{:else}
-				<RoundedIcon name="eye" class="size-3 shrink-0" style="color: {color}" data-testid="feed-section-eye-icon" />
+				<HugeiconsIcon name="eye" class="size-3 shrink-0" style="color: {color}" data-testid="feed-section-eye-icon" />
 			{/if}
 		{:else if sectionId === "idle"}
-			<RoundedIcon name="check-circle" class="size-3 shrink-0" style="color: {color}" />
+			<HugeiconsIcon name="check-circle" class="size-3 shrink-0" style="color: {color}" />
 		{:else if sectionId === "error"}
-			<RoundedIcon name="warning" class="size-3 shrink-0" style="color: {color}" />
+			<HugeiconsIcon name="warning" class="size-3 shrink-0" style="color: {color}" />
 		{/if}
 		{label}
 	</span>

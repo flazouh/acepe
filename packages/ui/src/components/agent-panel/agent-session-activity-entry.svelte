@@ -6,7 +6,7 @@
   at miniature scale; preparing shimmers indeterminately (never a percentage).
 -->
 <script lang="ts">
-	import RoundedIcon from "../icons/rounded-icon.svelte";
+	import HugeiconsIcon from "../icons/hugeicons-icon.svelte";
 	import TextShimmer from "../text-shimmer/text-shimmer.svelte";
 	import {
 		formatCompactTokens,
@@ -74,9 +74,9 @@
 				<TextShimmer class="truncate text-xs">{title}</TextShimmer>
 			{:else}
 				{#if status === "failed"}
-					<RoundedIcon name="warning" class="size-3.5 shrink-0 text-destructive" />
+					<HugeiconsIcon name="warning" class="size-3.5 shrink-0 text-destructive" />
 				{:else if status === "usage_reset"}
-					<RoundedIcon name="refresh" class="size-3.5 shrink-0 text-muted-foreground/70" />
+					<HugeiconsIcon name="refresh" class="size-3.5 shrink-0 text-muted-foreground/70" />
 				{:else if gauge !== null}
 					<span
 						class="flex shrink-0 items-end gap-[3px]"

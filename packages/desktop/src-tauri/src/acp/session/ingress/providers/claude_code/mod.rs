@@ -4,13 +4,11 @@ mod discovery;
 mod jsonl;
 pub mod session_jsonl;
 
-use async_trait::async_trait;
 use std::path::PathBuf;
 
 use crate::acp::session::ingress::event::ProviderEvent;
-use crate::acp::session::ingress::source::{
-    HistoryError, HistoryInput, HistoryReplayInput, HistorySource,
-};
+use crate::acp::session::ingress::source::{HistoryError, HistoryInput, HistorySource};
+use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::types::CanonicalAgentId;
 
 use discovery::find_session_file;
@@ -19,72 +17,14 @@ use jsonl::{parse_jsonl_file, session_updates_to_provider_events};
 /// Reads Claude Code NDJSON history into provider-agnostic ingress events.
 pub struct ClaudeHistorySource;
 
-#[async_trait]
 impl HistorySource for ClaudeHistorySource {
-    async fn read(&self, input: HistoryInput) -> Result<Vec<ProviderEvent>, HistoryError> {
-        tokio::task::spawn_blocking(move || {
-            let jsonl_path = resolve_jsonl_path(&input)?;
-            let updates = parse_jsonl_file(&jsonl_path)?;
-            Ok(session_updates_to_provider_events(
-                CanonicalAgentId::ClaudeCode,
-                &updates,
-            ))
-        })
-        .await
-        .map_err(|error| HistoryError::Io(format!("Claude history parser task failed: {error}")))?
-    }
-
-    async fn read_replay(
-        &self,
-        input: HistoryReplayInput,
-    ) -> Result<Vec<ProviderEvent>, HistoryError> {
-        if let Some(source_path) = input.source_path.clone() {
-            return self
-                .read(HistoryInput {
-                    session_id: input.session_id,
-                    workspace_root: Some(source_path),
-                })
-                .await;
-        }
-
-        let mut project_paths = Vec::new();
-        if let Some(effective_cwd) = input.effective_cwd {
-            project_paths.push(effective_cwd);
-        }
-        if !project_paths.contains(&input.project_path) {
-            project_paths.push(input.project_path);
-        }
-
-        let mut last_error: Option<HistoryError> = None;
-        for project_path in project_paths {
-            let project_path = project_path.to_string_lossy();
-            match find_session_file(&input.session_id, &project_path).await {
-                Ok(jsonl_path) => {
-                    return self
-                        .read(HistoryInput {
-                            session_id: input.session_id,
-                            workspace_root: Some(jsonl_path),
-                        })
-                        .await;
-                }
-                Err(error) => {
-                    last_error = Some(if error.to_string().contains("not found") {
-                        HistoryError::NotFound(format!("Claude provider history missing: {error}"))
-                    } else {
-                        HistoryError::InvalidFormat(format!(
-                            "Claude provider history parse failed: {error}"
-                        ))
-                    });
-                }
-            }
-        }
-
-        Err(last_error.unwrap_or_else(|| {
-            HistoryError::NotFound(format!(
-                "Claude provider history missing for session {}",
-                input.session_id
-            ))
-        }))
+    fn read(&self, input: HistoryInput) -> Result<Vec<ProviderEvent>, HistoryError> {
+        let jsonl_path = resolve_jsonl_path(&input)?;
+        let updates = parse_jsonl_file(&jsonl_path)?;
+        Ok(session_updates_to_provider_events(
+            CanonicalAgentId::ClaudeCode,
+            &updates,
+        ))
     }
 }
 
@@ -128,6 +68,48 @@ fn resolve_jsonl_path(input: &HistoryInput) -> Result<PathBuf, HistoryError> {
     )))
 }
 
+/// Load Claude history events for production replay (project-path discovery).
+pub async fn load_replay_events(
+    replay_context: &SessionReplayContext,
+) -> Result<Vec<ProviderEvent>, HistoryError> {
+    let session_id = replay_context.history_session_id.clone();
+    let mut project_paths = Vec::new();
+    if !replay_context.effective_cwd.is_empty() {
+        project_paths.push(replay_context.effective_cwd.clone());
+    }
+    if replay_context.project_path != replay_context.effective_cwd {
+        project_paths.push(replay_context.project_path.clone());
+    }
+
+    let mut last_error: Option<HistoryError> = None;
+    for project_path in project_paths {
+        match find_session_file(&session_id, &project_path).await {
+            Ok(jsonl_path) => {
+                let source = ClaudeHistorySource;
+                return source.read(HistoryInput {
+                    session_id: session_id.clone(),
+                    workspace_root: Some(jsonl_path),
+                });
+            }
+            Err(error) => {
+                last_error = Some(if error.to_string().contains("not found") {
+                    HistoryError::NotFound(format!("Claude provider history missing: {error}"))
+                } else {
+                    HistoryError::InvalidFormat(format!(
+                        "Claude provider history parse failed: {error}"
+                    ))
+                });
+            }
+        }
+    }
+
+    Err(last_error.unwrap_or_else(|| {
+        HistoryError::NotFound(format!(
+            "Claude provider history missing for session {session_id}"
+        ))
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -136,16 +118,15 @@ mod tests {
     use std::path::PathBuf;
 
     fn historical_tool_call_fixture_dir() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("src/acp/session/ingress/tool_identity/tests/fixtures")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/acp/reconciler/tests/fixtures")
     }
 
     fn historical_tool_call_fixture_path() -> PathBuf {
         historical_tool_call_fixture_dir().join("historical-tool-call-session.jsonl")
     }
 
-    #[tokio::test]
-    async fn claude_history_source_reads_tool_call_fixture() {
+    #[test]
+    fn claude_history_source_reads_tool_call_fixture() {
         const SESSION_ID: &str = "sess-hist-001";
         let fixture_dir = historical_tool_call_fixture_dir();
         assert!(
@@ -160,7 +141,6 @@ mod tests {
                 session_id: SESSION_ID.to_string(),
                 workspace_root: Some(fixture_dir),
             })
-            .await
             .expect("read claude tool-call fixture");
 
         assert_eq!(events.len(), 4);
@@ -180,8 +160,8 @@ mod tests {
         }));
     }
 
-    #[tokio::test]
-    async fn claude_history_source_reads_direct_jsonl_path() {
+    #[test]
+    fn claude_history_source_reads_direct_jsonl_path() {
         const SESSION_ID: &str = "sess-hist-001";
         let fixture_path = historical_tool_call_fixture_path();
 
@@ -191,27 +171,9 @@ mod tests {
                 session_id: SESSION_ID.to_string(),
                 workspace_root: Some(fixture_path),
             })
-            .await
             .expect("read claude tool-call fixture via direct path");
 
         assert_eq!(events.len(), 4);
         assert_eq!(events[0].source, CanonicalAgentId::ClaudeCode);
-    }
-
-    #[tokio::test]
-    async fn claude_history_source_preserves_invalid_format_from_blocking_worker() {
-        let temp_dir = tempfile::tempdir().expect("temp history directory");
-        let history_path = temp_dir.path().join("invalid.jsonl");
-        std::fs::write(&history_path, "not-json\n").expect("write invalid history fixture");
-
-        let error = ClaudeHistorySource
-            .read(HistoryInput {
-                session_id: "invalid".to_string(),
-                workspace_root: Some(history_path),
-            })
-            .await
-            .expect_err("invalid history must preserve its format error");
-
-        assert!(matches!(error, HistoryError::InvalidFormat(_)));
     }
 }

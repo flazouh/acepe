@@ -1,7 +1,7 @@
 // Integration test for the agent-panel rendered-row pipeline — the real path the
 // live transcript viewport uses:
 //
-//   canonical activity  -> deriveCanonicalAgentPanelSessionState (showPlanningIndicator)
+//   canonical activity  -> deriveCanonicalAgentPanelSessionState (local placeholder mode)
 //   canonical scene     -> sceneEntries (assistant/user)
 //   Rust viewport rows  -> buildRenderedTranscriptViewportRows
 //                          (resolveTranscriptViewportSceneEntry + planning timing
@@ -21,8 +21,10 @@ import type {
 	SessionTurnState,
 	TranscriptViewportRow,
 } from "../../../../../services/acp-types.js";
+import { resolvePlanningPlaceholderPresentation } from "../planning-placeholder-presentation.js";
 import { deriveCanonicalAgentPanelSessionState } from "../session-status-mapper.js";
 import { buildRenderedTranscriptViewportRows } from "../transcript-viewport-rendered-rows.js";
+import { hasTrailingCompletedTool } from "../transcript-viewport-row-facts.js";
 
 const READY_LIFECYCLE: SessionGraphLifecycle = {
 	status: "ready",
@@ -38,6 +40,23 @@ const READY_LIFECYCLE: SessionGraphLifecycle = {
 		recommendedAction: "send",
 		recoveryPhase: "none",
 		compactStatus: "ready",
+	},
+};
+
+const ACTIVATING_LIFECYCLE: SessionGraphLifecycle = {
+	status: "activating",
+	detachedReason: null,
+	failureReason: null,
+	errorMessage: null,
+	actionability: {
+		canSend: false,
+		canResume: false,
+		canRetry: false,
+		canArchive: true,
+		canConfigure: true,
+		recommendedAction: "wait",
+		recoveryPhase: "none",
+		compactStatus: "activating",
 	},
 };
 
@@ -129,42 +148,38 @@ function streamingAssistantEntry(input: {
 function renderTurn(input: {
 	activityKind: SessionGraphActivity["kind"];
 	turnState: SessionTurnState;
+	lifecycle?: SessionGraphLifecycle;
 	sceneEntries: readonly AgentPanelSceneEntryModel[];
 	bufferRows: readonly TranscriptViewportRow[];
-	planningPlaceholderPresentation?: {
-		readonly label: string;
-		readonly agentIconSrc: string | null;
-		readonly showWorkingSpark: boolean;
-	} | null;
+	hasLocalPendingSendIntent?: boolean;
 }) {
-	// Canonical fact: the model is producing output when any row has an active
-	// streaming tail (message text OR reasoning).
-	const hasActiveStreamingTail = input.bufferRows.some(
-		(row) => row.activeStreamingTail !== null
-	);
+	const source = {
+		kind: "canonical",
+		lifecycle: input.lifecycle === undefined ? READY_LIFECYCLE : input.lifecycle,
+		activity: activity(input.activityKind),
+		turnState: input.turnState,
+	} as const;
 	const sessionState = deriveCanonicalAgentPanelSessionState({
-		source: {
-			kind: "canonical",
-			lifecycle: READY_LIFECYCLE,
-			activity: activity(input.activityKind),
-			turnState: input.turnState,
-		},
+		source,
 		hasEntries: input.sceneEntries.length > 0,
-		hasActiveStreamingTail,
+		hasLocalPendingSendIntent: input.hasLocalPendingSendIntent,
+		hasTrailingCompletedTool: hasTrailingCompletedTool(input.bufferRows),
 	});
 
 	const rendered = buildRenderedTranscriptViewportRows({
 		bufferRows: input.bufferRows,
 		bufferStartIndex: 0,
 		optimisticUserEntry: null,
-		showLocalPlanningIndicator: sessionState.showPlanningIndicator,
-		planningPlaceholderPresentation: input.planningPlaceholderPresentation ?? null,
+		localPlaceholderMode: sessionState.localPlaceholderMode,
+		planningPlaceholderPresentation: resolvePlanningPlaceholderPresentation({
+			agentName: "Codex Agent",
+			agentIconSrc: "data:image/svg+xml,hugeicons",
+			showWorkingSpark: false,
+		}),
 	});
 
-	const planningRows = rendered.filter(
-		(r) => r.entry.type === "thinking" || r.row.kind === "awaitingPlaceholder"
-	);
-	return { showPlanningIndicator: sessionState.showPlanningIndicator, rendered, planningRows };
+	const planningRows = rendered.filter((r) => r.entry.type === "thinking");
+	return { localPlaceholderMode: sessionState.localPlaceholderMode, rendered, planningRows };
 }
 
 describe("agent-panel rendered-row pipeline — planning placeholder", () => {
@@ -217,31 +232,41 @@ describe("agent-panel rendered-row pipeline — planning placeholder", () => {
 		expect(result.planningRows).toHaveLength(0);
 	});
 
-	it("shows a branded connecting row while awaiting the model with no output yet", () => {
-		// Only a user row, model awaiting, nothing streamed: the local placeholder
-		// tells the user which agent is still connecting.
+	it("does not inject a waiting row for a local send intent on an already-ready session", () => {
+		// Before canonical turn activity arrives, the sent user row is enough feedback.
+		// A ready lifecycle must not look like connection or planning work.
 		const result = renderTurn({
-			activityKind: "awaiting_model",
-			turnState: "Running",
+			activityKind: "idle",
+			turnState: "Completed",
 			sceneEntries: [userEntry("user-1", "why is the sky blue")],
 			bufferRows: [userRow("user-1", "why is the sky blue")],
-			planningPlaceholderPresentation: {
-				label: "Connecting to Codex Agent",
-				agentIconSrc: "/svgs/agents/codex/codex-icon.svg",
-				showWorkingSpark: false,
-			},
+			hasLocalPendingSendIntent: true,
 		});
 
-		expect(result.showPlanningIndicator).toBe(true);
-		expect(result.planningRows.length).toBeGreaterThan(0);
+		expect(result.localPlaceholderMode).toBe("none");
+		expect(result.planningRows).toHaveLength(0);
+	});
+
+	it("shows connecting feedback while a pending session is activating", () => {
+		const result = renderTurn({
+			activityKind: "idle",
+			turnState: "Idle",
+			lifecycle: ACTIVATING_LIFECYCLE,
+			sceneEntries: [userEntry("user-1", "start this session")],
+			bufferRows: [userRow("user-1", "start this session")],
+			hasLocalPendingSendIntent: true,
+		});
+
+		expect(result.localPlaceholderMode).toBe("connection");
+		expect(result.planningRows).toHaveLength(1);
+		expect(result.planningRows[0]?.localOnly).toBe(true);
+		expect(result.planningRows[0]?.row.kind).toBe("localPlaceholder");
 		const planningEntry = result.planningRows[0]?.entry;
 		expect(planningEntry?.type).toBe("thinking");
 		if (planningEntry?.type !== "thinking") {
 			return;
 		}
 		expect(planningEntry.label).toBe("Connecting to Codex Agent");
-		expect(planningEntry.agentIconSrc).toBe("/svgs/agents/codex/codex-icon.svg");
-		expect(planningEntry.showWorkingSpark).toBe(false);
 	});
 
 	it("does NOT show 'Planning next moves' after the canonical turn fails", () => {
@@ -252,7 +277,7 @@ describe("agent-panel rendered-row pipeline — planning placeholder", () => {
 			bufferRows: [userRow("user-1", "run this failing command")],
 		});
 
-		expect(result.showPlanningIndicator).toBe(false);
+		expect(result.localPlaceholderMode).toBe("none");
 		expect(result.planningRows).toHaveLength(0);
 	});
 });

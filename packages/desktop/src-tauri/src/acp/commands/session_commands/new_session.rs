@@ -311,7 +311,7 @@ pub async fn acp_new_session(
             };
             promoted.sequence_id
         };
-        let session_open = if !provider_uses_deferred_creation {
+        if !provider_uses_deferred_creation {
             ensure_session_anchor_snapshots(db.inner(), &result.session_id, &agent_id_enum)
                 .await
                 .map_err(|error| {
@@ -330,11 +330,14 @@ pub async fn acp_new_session(
                         true,
                     )
                 })?;
-            tracing::info!(
-                session_id = %result.session_id,
-                "New session created with dedicated client"
-            );
-            projection_registry.register_session(result.session_id.clone(), agent_id_enum.clone());
+        }
+
+        tracing::info!(
+            session_id = %result.session_id,
+            "New session created with dedicated client"
+        );
+        projection_registry.register_session(result.session_id.clone(), agent_id_enum.clone());
+        if !provider_uses_deferred_creation {
             let initial_capabilities = capabilities_from_new_session_response(&app, &result);
             client.begin_pre_reservation_drain(&result.session_id);
             app.state::<Arc<crate::acp::lifecycle::SessionSupervisor>>()
@@ -368,20 +371,8 @@ pub async fn acp_new_session(
                         true,
                     )
                 })?;
-
-            // Build and seed the empty canonical graph before buffered provider
-            // events are released into the live dispatcher.
-            let session_open = build_new_session_open_result(&app, &result, &agent_id_enum).await?;
             client.drain_pre_reservation_events(&result.session_id);
-            Some(session_open)
-        } else {
-            tracing::info!(
-                session_id = %result.session_id,
-                "New deferred session created with dedicated client"
-            );
-            projection_registry.register_session(result.session_id.clone(), agent_id_enum.clone());
-            None
-        };
+        }
 
         // Store the client keyed by session_id only after session metadata and
         // supervisor state are durably attached.
@@ -410,6 +401,12 @@ pub async fn acp_new_session(
                 },
             )
             .map_err(SerializableAcpError::from)?;
+
+        let session_open = if provider_uses_deferred_creation {
+            None
+        } else {
+            Some(build_new_session_open_result(&app, &result, &agent_id_enum).await?)
+        };
 
         Ok(NewSessionResponse {
             creation_attempt_id: Some(creation_attempt_id),

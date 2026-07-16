@@ -5,9 +5,13 @@ const MAX_PRE_RESERVATION_DRAIN_BATCHES: usize = 8;
 #[derive(Clone)]
 pub struct AcpUiEventDispatcher {
     pub(super) tx: Option<mpsc::UnboundedSender<AcpUiEvent>>,
-    pub(super) domain_event_seq: Arc<AtomicI64>,
+    /// Process-local ordering for the separate `SessionDomainEvent` dispatch
+    /// stream. This is not the durable delivery `event_seq` assigned by the
+    /// database-backed `SessionEventWriter`.
+    pub(super) dispatch_domain_event_seq: Arc<AtomicI64>,
     pub(super) projection_registry: Arc<ProjectionRegistry>,
     pub(super) runtime_graph_registry: Arc<SessionGraphRuntimeRegistry>,
+    pub(super) transcript_projection_registry: Arc<TranscriptProjectionRegistry>,
     pub(super) pre_reservation_event_buffer: Arc<PreReservationEventBuffer>,
     // Held so the registry's lifetime is tied to the dispatcher; cloned into
     // `run_dispatch_loop` and read out of Tauri state by
@@ -27,9 +31,10 @@ impl AcpUiEventDispatcher {
         let Some(handle) = app_handle else {
             return Self {
                 tx: None,
-                domain_event_seq: Arc::new(AtomicI64::new(0)),
+                dispatch_domain_event_seq: Arc::new(AtomicI64::new(0)),
                 projection_registry: Arc::new(ProjectionRegistry::new()),
                 runtime_graph_registry: Arc::new(SessionGraphRuntimeRegistry::new()),
+                transcript_projection_registry: Arc::new(TranscriptProjectionRegistry::new()),
                 pre_reservation_event_buffer: Arc::new(PreReservationEventBuffer::new()),
                 journal_write_lock_registry: Arc::new(JournalWriteLockRegistry::new()),
                 #[cfg(test)]
@@ -62,9 +67,10 @@ impl AcpUiEventDispatcher {
             tracing::warn!("ACP event hub state unavailable; UI event dispatcher disabled");
             return Self {
                 tx: None,
-                domain_event_seq: Arc::new(AtomicI64::new(0)),
+                dispatch_domain_event_seq: Arc::new(AtomicI64::new(0)),
                 projection_registry,
                 runtime_graph_registry,
+                transcript_projection_registry,
                 pre_reservation_event_buffer,
                 journal_write_lock_registry,
                 #[cfg(test)]
@@ -92,9 +98,10 @@ impl AcpUiEventDispatcher {
 
         Self {
             tx: Some(tx),
-            domain_event_seq: Arc::new(AtomicI64::new(0)),
+            dispatch_domain_event_seq: Arc::new(AtomicI64::new(0)),
             projection_registry,
             runtime_graph_registry,
+            transcript_projection_registry,
             pre_reservation_event_buffer,
             journal_write_lock_registry,
             #[cfg(test)]
@@ -144,9 +151,10 @@ impl AcpUiEventDispatcher {
         (
             Self {
                 tx: None,
-                domain_event_seq: Arc::new(AtomicI64::new(0)),
+                dispatch_domain_event_seq: Arc::new(AtomicI64::new(0)),
                 projection_registry,
                 runtime_graph_registry: Arc::new(SessionGraphRuntimeRegistry::new()),
+                transcript_projection_registry: Arc::new(TranscriptProjectionRegistry::new()),
                 pre_reservation_event_buffer: Arc::new(PreReservationEventBuffer::new()),
                 journal_write_lock_registry: Arc::new(JournalWriteLockRegistry::new()),
                 bypass_pre_reservation_gate,
@@ -154,53 +162,6 @@ impl AcpUiEventDispatcher {
             },
             sink,
         )
-    }
-
-    #[cfg(test)]
-    pub(crate) fn seed_graph_for_test(
-        &self,
-        session_id: String,
-        graph: crate::acp::session_state_engine::graph::SessionStateGraph,
-    ) {
-        self.runtime_graph_registry.seed_graph(session_id, graph);
-    }
-
-    #[cfg(test)]
-    pub(crate) fn graph_for_test(
-        &self,
-        session_id: &str,
-    ) -> Option<crate::acp::session_state_engine::graph::SessionStateGraph> {
-        self.runtime_graph_registry.graph_for_session(session_id)
-    }
-
-    pub(crate) fn canonical_interaction(
-        &self,
-        session_id: &str,
-        interaction_id: &str,
-    ) -> Option<InteractionSnapshot> {
-        self.runtime_graph_registry
-            .graph_for_session(session_id)?
-            .interactions
-            .into_iter()
-            .find(|interaction| interaction.id == interaction_id)
-    }
-
-    pub(crate) fn canonical_interaction_for_request_id(
-        &self,
-        session_id: &str,
-        request_id: u64,
-    ) -> Option<InteractionSnapshot> {
-        self.runtime_graph_registry
-            .graph_for_session(session_id)?
-            .interactions
-            .into_iter()
-            .find(|interaction| interaction.json_rpc_request_id == Some(request_id))
-    }
-
-    pub(crate) fn next_canonical_event_seq(&self, session_id: &str) -> Option<i64> {
-        self.runtime_graph_registry
-            .graph_for_session(session_id)
-            .map(|graph| graph.revision.last_event_seq.saturating_add(1))
     }
 
     pub fn enqueue(&self, event: AcpUiEvent) {
@@ -218,33 +179,11 @@ impl AcpUiEventDispatcher {
     }
 
     fn enqueue_lifecycle_known(&self, event: AcpUiEvent) {
-        // Build the canonical domain event first so we have the seq for idempotency.
+        // Derive the separate domain-event dispatch stream without mutating
+        // canonical projections. Durable event allocation and projection
+        // application happen together in the persistence path.
         let derived_domain_event = session_domain_event_from_update(&event.payload)
             .map(|e| self.create_session_domain_event(&e.session_id, e.kind, e.payload));
-
-        if let AcpUiEventPayload::SessionUpdate(update) = &event.payload {
-            if !super::persistence::update_has_canonical_ingress(update.as_ref()) {
-                if let Some(session_id) = update.session_id() {
-                    if let Some(canonical) = &derived_domain_event {
-                        if let AcpUiEventPayload::SessionDomainEvent(domain_event) =
-                            &canonical.payload
-                        {
-                            // Route through the canonical entrypoint for idempotency and ordering.
-                            self.projection_registry.apply_canonical_event(
-                                session_id,
-                                domain_event,
-                                update.as_ref(),
-                            );
-                        }
-                    } else {
-                        // Fallback: updates with no canonical mapping (Plan, ConfigOptionUpdate, …)
-                        // still need to advance projection state.
-                        self.projection_registry
-                            .apply_session_update(session_id, update.as_ref());
-                    }
-                }
-            }
-        }
 
         #[cfg(test)]
         if let Some(sink) = &self.test_sink {
@@ -375,45 +314,91 @@ impl AcpUiEventDispatcher {
         &self,
         session_id: &str,
         interaction_patch: InteractionSnapshot,
-        event_seq: i64,
     ) {
-        let Some(response) = interaction_patch.response.clone() else {
-            tracing::warn!(
-                session_id,
-                interaction_id = %interaction_patch.id,
-                "Skipping canonical interaction transition without a response"
-            );
-            return;
-        };
-        let Some(transition) = self
-            .runtime_graph_registry
-            .apply_interaction_reply_transition(
-                session_id,
-                &interaction_patch.id,
-                interaction_patch.state.clone(),
-                response,
-                event_seq,
-            )
+        let Some(session_snapshot) = self.projection_registry.snapshot_for_session(session_id)
         else {
             tracing::warn!(
                 session_id,
                 interaction_id = %interaction_patch.id,
-                "Skipping interaction reply because the held canonical interaction is missing"
+                "Skipping interaction transition state envelope because the session projection is missing"
             );
             return;
         };
-        self.projection_registry
-            .mirror_session_graph(&transition.after);
-        let delivery = crate::acp::session_state_engine::transition_delivery_builder::build_interaction_reply_delivery(
-            session_id,
-            &transition,
+        let previous_runtime_snapshot =
+            self.runtime_graph_registry.snapshot_for_session(session_id);
+        let transcript_snapshot = self
+            .transcript_projection_registry
+            .snapshot_for_session(session_id);
+        let previous_transcript_revision = transcript_snapshot
+            .as_ref()
+            .map(|snapshot| snapshot.revision)
+            .unwrap_or(0);
+        let previous_graph_revision = if previous_runtime_snapshot.graph_revision > 0 {
+            previous_runtime_snapshot.graph_revision
+        } else {
+            session_snapshot.last_event_seq.saturating_sub(1)
+        };
+        let graph_revision = self
+            .runtime_graph_registry
+            .advance_graph_revision_with_seed(session_id, session_snapshot.last_event_seq);
+        let revision = SessionGraphRevision::new(
+            graph_revision,
+            previous_transcript_revision,
+            session_snapshot.last_event_seq,
         );
-        if let Some(envelope) = delivery.primary {
-            self.enqueue_session_state_envelope(envelope);
+        let projection_snapshot = self.projection_registry.session_projection(session_id);
+        let runtime_snapshot = self.runtime_graph_registry.snapshot_for_session(session_id);
+        let activity = select_session_graph_activity(
+            &runtime_snapshot.lifecycle,
+            &session_snapshot.turn_state,
+            &projection_snapshot.operations,
+            &projection_snapshot.interactions,
+            session_snapshot.active_turn_failure.as_ref(),
+        );
+        let active_streaming_tail = transcript_snapshot.as_ref().and_then(|snapshot| {
+            select_active_streaming_tail(&session_snapshot.turn_state, &activity, snapshot)
+        });
+        let operation_patches = match interaction_patch.canonical_operation_id.as_deref() {
+            Some(operation_id) => match self.projection_registry.operation(operation_id) {
+                Some(operation) => vec![operation],
+                None => {
+                    tracing::warn!(
+                        session_id,
+                        interaction_id = %interaction_patch.id,
+                        operation_id,
+                        "Interaction transition state envelope has no linked operation patch"
+                    );
+                    Vec::new()
+                }
+            },
+            None => Vec::new(),
+        };
+        let mut changed_fields = turn_terminal_change_fields();
+        changed_fields.insert(0, SessionStateField::Interactions);
+        if !operation_patches.is_empty() {
+            changed_fields.insert(0, SessionStateField::Operations);
         }
-        for envelope in delivery.additional {
-            self.enqueue_session_state_envelope(envelope);
-        }
+        let envelope = build_delta_envelope(DeltaEnvelopeParts {
+            session_id,
+            from_revision: SessionGraphRevision::new(
+                previous_graph_revision,
+                previous_transcript_revision,
+                session_snapshot.last_event_seq.saturating_sub(1),
+            ),
+            to_revision: revision,
+            projection: DeltaSessionProjectionFields {
+                activity,
+                turn_state: session_snapshot.turn_state,
+                active_turn_failure: session_snapshot.active_turn_failure,
+                last_terminal_turn_id: session_snapshot.last_terminal_turn_id,
+                active_streaming_tail,
+            },
+            transcript_operations: Vec::new(),
+            operation_patches,
+            interaction_patches: vec![interaction_patch],
+            changed_fields,
+        });
+        self.enqueue_session_state_envelope(envelope);
     }
 
     fn enqueue_session_state_envelope(&self, envelope: SessionStateEnvelope) {
@@ -428,16 +413,12 @@ impl AcpUiEventDispatcher {
         kind: SessionDomainEventKind,
         payload: Option<SessionDomainEventPayload>,
     ) -> AcpUiEvent {
-        self.domain_event_seq.fetch_max(
-            self.projection_registry
-                .snapshot_for_session(session_id)
-                .map(|snapshot| snapshot.last_event_seq)
-                .unwrap_or(0),
-            Ordering::Relaxed,
-        );
         let event = SessionDomainEvent {
             event_id: format!("session-domain-event-{}", Uuid::new_v4()),
-            seq: self.domain_event_seq.fetch_add(1, Ordering::Relaxed) + 1,
+            seq: self
+                .dispatch_domain_event_seq
+                .fetch_add(1, Ordering::Relaxed)
+                + 1,
             session_id: session_id.to_string(),
             provider_session_id: None,
             occurred_at_ms: chrono::Utc::now().timestamp_millis().max(0),

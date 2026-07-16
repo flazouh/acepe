@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import AgentInputSlashCommandRow from "./agent-input-slash-command-row.svelte";
 	import type { AttachMenuCommandItem, AttachMenuMcpConnectionStatus } from "./agent-input-attach-menu-state.js";
 
@@ -56,9 +56,9 @@
 		onclick={() => onToggle?.()}
 	>
 		{#if expanded}
-			<RoundedIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground" />
+			<HugeiconsIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground" />
 		{:else}
-			<RoundedIcon name="chevron-right" class="size-3 shrink-0 text-muted-foreground" />
+			<HugeiconsIcon name="chevron-right" class="size-3 shrink-0 text-muted-foreground" />
 		{/if}
 		<span class="min-w-0 flex-1 truncate text-[11px] font-medium text-foreground">{name}</span>
 		<span class="rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">

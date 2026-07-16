@@ -35,9 +35,6 @@ use crate::acp::pending_prompt_registry::{
 };
 use crate::acp::projections::{InteractionResponse, InteractionState, ProjectionRegistry};
 use crate::acp::provider::{normalize_session_updates_for_runtime, AgentProvider};
-use crate::acp::session::ingress::tool_identity::{
-    classify_raw_tool_call, ToolClassificationHints,
-};
 use crate::acp::session_policy::SessionPolicyRegistry;
 use crate::acp::session_registry::{bind_provider_session_id_persisted, SessionRegistry};
 use crate::acp::session_state_engine::SessionGraphCapabilities;
@@ -48,6 +45,7 @@ use crate::acp::session_update::{
 };
 use crate::acp::streaming_log::{log_debug_event, log_emitted_event, log_streaming_event};
 use crate::acp::task_reconciler::TaskReconciler;
+use crate::acp::tool_identity::{classify_raw_tool_call, ToolClassificationHints};
 use crate::acp::types::{ContentBlock, PromptRequest};
 use crate::acp::ui_event_dispatcher::{AcpUiEvent, AcpUiEventDispatcher, DispatchPolicy};
 use crate::cc_sdk;
@@ -84,7 +82,6 @@ use streaming_bridge::{
     claude_history_tool_result_update, claude_missing_tool_result_backfill_request,
     collect_cc_sdk_updates_for_dispatch, persist_provider_session_id_alias,
     provider_session_id_from_message, reserve_promoted_claude_session,
-    seed_promoted_claude_session_graph,
 };
 use streaming_bridge::{run_streaming_bridge, StreamingBridgeContext};
 use tracking::{

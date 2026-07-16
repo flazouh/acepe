@@ -1,5 +1,5 @@
 <script lang="ts">
-import { Button, RoundedIcon } from "@acepe/ui";
+import { Button, HugeiconsIcon } from "@acepe/ui";
 import type { Snippet } from "svelte";
 
 import { AppTopBar } from "@acepe/ui/app-layout";
@@ -38,12 +38,12 @@ let { children, interactive = false, bare = false }: Props = $props();
 					{#snippet extraRightActions()}
 						<Button variant="ghost" size="icon" title="Layout" aria-label="Layout Settings">
 							{#snippet children()}
-								<RoundedIcon name="sliders" />
+								<HugeiconsIcon name="sliders" />
 							{/snippet}
 						</Button>
 						<Button variant="ghost" size="icon" title="Feedback" aria-label="Feedback">
 							{#snippet children()}
-								<RoundedIcon name="bug" style="color: #FF5D5A" />
+								<HugeiconsIcon name="bug" style="color: #FF5D5A" />
 							{/snippet}
 						</Button>
 					{/snippet}

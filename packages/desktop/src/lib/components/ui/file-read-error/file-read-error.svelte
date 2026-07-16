@@ -1,5 +1,5 @@
 <script lang="ts">
-import { RoundedIcon } from "@acepe/ui";
+import { HugeiconsIcon } from "@acepe/ui";
 import { Card } from "$lib/components/ui/card/index.js";
 interface Props {
 	/** Error message from the file read operation (e.g. "No such file or directory") */
@@ -20,7 +20,7 @@ let { message, path = null, centered = false }: Props = $props();
 	role="alert"
 >
 	<div class="flex items-center gap-2">
-		<RoundedIcon name="x-circle" class="size-3.5 shrink-0 text-destructive" />
+		<HugeiconsIcon name="x-circle" class="size-3.5 shrink-0 text-destructive" />
 		<span class="text-[13px] font-medium text-destructive">{"Couldn't read file"}</span>
 	</div>
 	<p class="text-[12px] text-muted-foreground leading-snug {centered ? 'text-center' : ''}">

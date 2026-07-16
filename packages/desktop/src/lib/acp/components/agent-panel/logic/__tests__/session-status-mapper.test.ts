@@ -168,13 +168,14 @@ describe("deriveCanonicalAgentPanelSessionState", () => {
 				turnState: "Completed",
 			},
 			hasEntries: true,
+			hasTrailingCompletedTool: false,
 		});
 
 		expect(state).toEqual({
 			sessionStatus: "done",
 			isConnected: true,
 			isStreaming: false,
-			showPlanningIndicator: false,
+			localPlaceholderMode: "none",
 			canSubmit: true,
 			showStop: false,
 		});
@@ -187,13 +188,14 @@ describe("deriveCanonicalAgentPanelSessionState", () => {
 			},
 			hasEntries: true,
 			hasOptimisticPendingEntry: true,
+			hasTrailingCompletedTool: false,
 		});
 
 		expect(state).toEqual({
 			sessionStatus: "warming",
 			isConnected: false,
 			isStreaming: false,
-			showPlanningIndicator: true,
+			localPlaceholderMode: "connection",
 			canSubmit: false,
 			showStop: false,
 		});
@@ -206,13 +208,14 @@ describe("deriveCanonicalAgentPanelSessionState", () => {
 				sessionId: "session-1",
 			},
 			hasEntries: true,
+			hasTrailingCompletedTool: false,
 		});
 
 		expect(state).toEqual({
 			sessionStatus: "error",
 			isConnected: false,
 			isStreaming: false,
-			showPlanningIndicator: false,
+			localPlaceholderMode: "none",
 			canSubmit: false,
 			showStop: false,
 		});
@@ -226,19 +229,20 @@ describe("deriveCanonicalAgentPanelSessionState", () => {
 			},
 			hasEntries: true,
 			hasLocalPendingSendIntent: true,
+			hasTrailingCompletedTool: false,
 		});
 
 		expect(state).toEqual({
 			sessionStatus: "warming",
 			isConnected: false,
 			isStreaming: false,
-			showPlanningIndicator: true,
+			localPlaceholderMode: "connection",
 			canSubmit: false,
 			showStop: false,
 		});
 	});
 
-	it("uses awaiting-model canonical state for planning and stop affordances", () => {
+	it("exposes post-tool planning intent while the canonical turn awaits the model", () => {
 		const state = deriveCanonicalAgentPanelSessionState({
 			source: {
 				kind: "canonical",
@@ -253,13 +257,14 @@ describe("deriveCanonicalAgentPanelSessionState", () => {
 				turnState: "Running",
 			},
 			hasEntries: true,
+			hasTrailingCompletedTool: true,
 		});
 
 		expect(state).toEqual({
 			sessionStatus: "running",
 			isConnected: true,
 			isStreaming: true,
-			showPlanningIndicator: true,
+			localPlaceholderMode: "planning_after_tool",
 			canSubmit: false,
 			showStop: true,
 		});
@@ -280,19 +285,20 @@ describe("deriveCanonicalAgentPanelSessionState", () => {
 				turnState: "Cancelled",
 			},
 			hasEntries: true,
+			hasTrailingCompletedTool: false,
 		});
 
 		expect(state).toEqual({
 			sessionStatus: "connected",
 			isConnected: true,
 			isStreaming: false,
-			showPlanningIndicator: false,
+			localPlaceholderMode: "none",
 			canSubmit: true,
 			showStop: false,
 		});
 	});
 
-	it("uses local pending send intent for immediate in-session planning feedback", () => {
+	it("does not add synthetic feedback for a local send intent on a ready session", () => {
 		const state = deriveCanonicalAgentPanelSessionState({
 			source: {
 				kind: "canonical",
@@ -302,19 +308,57 @@ describe("deriveCanonicalAgentPanelSessionState", () => {
 			},
 			hasEntries: true,
 			hasLocalPendingSendIntent: true,
+			hasTrailingCompletedTool: false,
 		});
 
 		expect(state).toEqual({
 			sessionStatus: "connected",
 			isConnected: true,
 			isStreaming: false,
-			showPlanningIndicator: true,
+			localPlaceholderMode: "none",
 			canSubmit: false,
 			showStop: false,
 		});
 	});
 
-	it("keeps stale canonical awaiting-model state running until canonical changes", () => {
+	it("shows connecting feedback while a pending session is activating", () => {
+		const state = deriveCanonicalAgentPanelSessionState({
+			source: {
+				kind: "canonical",
+				lifecycle: lifecycle("activating", false, false, false),
+				activity: null,
+				turnState: null,
+			},
+			hasLocalPendingSendIntent: true,
+			hasTrailingCompletedTool: false,
+		});
+
+		expect(state).toEqual({
+			sessionStatus: "warming",
+			isConnected: false,
+			isStreaming: false,
+			localPlaceholderMode: "connection",
+			canSubmit: false,
+			showStop: false,
+		});
+	});
+
+	it("keeps branded connection feedback while a pending session reconnects", () => {
+		const state = deriveCanonicalAgentPanelSessionState({
+			source: {
+				kind: "canonical",
+				lifecycle: lifecycle("reconnecting", false, false, false),
+				activity: null,
+				turnState: null,
+			},
+			hasLocalPendingSendIntent: true,
+			hasTrailingCompletedTool: false,
+		});
+
+		expect(state.localPlaceholderMode).toBe("connection");
+	});
+
+	it("does not claim post-tool planning without a completed trailing tool", () => {
 		const state = deriveCanonicalAgentPanelSessionState({
 			source: {
 				kind: "canonical",
@@ -329,13 +373,14 @@ describe("deriveCanonicalAgentPanelSessionState", () => {
 				turnState: "Running",
 			},
 			hasEntries: true,
+			hasTrailingCompletedTool: false,
 		});
 
 		expect(state).toEqual({
 			sessionStatus: "running",
 			isConnected: true,
 			isStreaming: true,
-			showPlanningIndicator: true,
+			localPlaceholderMode: "none",
 			canSubmit: false,
 			showStop: true,
 		});
@@ -358,13 +403,14 @@ describe("deriveCanonicalAgentPanelSessionState", () => {
 			hasEntries: true,
 			hasLocalPendingSendIntent: true,
 			hasOptimisticPendingEntry: true,
+			hasTrailingCompletedTool: false,
 		});
 
 		expect(state).toEqual({
 			sessionStatus: "error",
 			isConnected: false,
 			isStreaming: false,
-			showPlanningIndicator: false,
+			localPlaceholderMode: "none",
 			canSubmit: false,
 			showStop: false,
 		});
@@ -385,13 +431,14 @@ describe("deriveCanonicalAgentPanelSessionState", () => {
 				turnState: "Failed",
 			},
 			hasEntries: true,
+			hasTrailingCompletedTool: false,
 		});
 
 		expect(state).toEqual({
 			sessionStatus: "error",
 			isConnected: true,
 			isStreaming: false,
-			showPlanningIndicator: false,
+			localPlaceholderMode: "none",
 			canSubmit: true,
 			showStop: false,
 		});

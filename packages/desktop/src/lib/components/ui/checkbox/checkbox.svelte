@@ -1,5 +1,5 @@
 <script lang="ts">
-import { RoundedIcon } from "@acepe/ui";
+import { HugeiconsIcon } from "@acepe/ui";
 import { Checkbox as CheckboxPrimitive } from "bits-ui";
 import { cn, type WithoutChildrenOrChild } from "$lib/utils.js";
 
@@ -26,9 +26,9 @@ let {
 	{#snippet children({ checked, indeterminate })}
 		<div data-slot="checkbox-indicator" class="text-current transition-none">
 			{#if checked}
-				<RoundedIcon name="check" class="size-3.5" />
+				<HugeiconsIcon name="check" class="size-3.5" />
 			{:else if indeterminate}
-				<RoundedIcon name="minus" class="size-3.5" />
+				<HugeiconsIcon name="minus" class="size-3.5" />
 			{/if}
 		</div>
 	{/snippet}

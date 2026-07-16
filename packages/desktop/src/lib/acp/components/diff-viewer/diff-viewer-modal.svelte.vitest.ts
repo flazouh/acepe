@@ -19,13 +19,13 @@ vi.mock("svelte", async () => {
 vi.mock("@acepe/ui", async () => {
 	const GitViewer = (await import("./test-git-viewer.svelte")).default;
 	const LoadingIcon = (await import("./test-loading-icon.svelte")).default;
-	const RoundedIcon = (await import("./test-rounded-icon.svelte")).default;
+	const HugeiconsIcon = (await import("./test-hugeicons-icon.svelte")).default;
 
 	return {
 		GitViewer,
 		getDialogHeaderIconCloseClass: () => "dialog-close-stub",
 		LoadingIcon,
-		RoundedIcon,
+		HugeiconsIcon,
 	};
 });
 

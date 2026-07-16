@@ -16,7 +16,7 @@
 	import GitStashList from "./git-stash-list.svelte";
 	import GitLogList from "./git-log-list.svelte";
 	import { SegmentedToggleGroup } from "../panel-header/index.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 
 	type ViewTab = "status" | "history" | "stash";
 
@@ -112,11 +112,11 @@
 	const views: {
 		value: ViewTab;
 		label: string;
-		roundedIcon: "git-diff" | "history" | "archive";
+		iconName: "git-diff" | "history" | "archive";
 	}[] = [
-		{ value: "status", label: "Status", roundedIcon: "git-diff" },
-		{ value: "history", label: "History", roundedIcon: "history" },
-		{ value: "stash", label: "Stash", roundedIcon: "archive" },
+		{ value: "status", label: "Status", iconName: "git-diff" },
+		{ value: "history", label: "History", iconName: "history" },
+		{ value: "stash", label: "Stash", iconName: "archive" },
 	];
 </script>
 
@@ -137,7 +137,7 @@
 			{#snippet itemContent(item)}
 				{@const view = views.find((candidate) => candidate.value === item.id)}
 				{#if view}
-					<RoundedIcon name={view.roundedIcon} class="size-3" data-testid={`git-panel-${view.value}-rounded-icon`} />
+					<HugeiconsIcon name={view.iconName} class="size-3" data-testid={`git-panel-${view.value}-hugeicons-icon`} />
 				{/if}
 				{item.label}
 				{#if item.id === "stash" && stashEntries.length > 0}

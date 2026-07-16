@@ -228,37 +228,30 @@
 
 .markdown-content [data-sd-animate] {
 	display: inline-block;
-	max-width: var(--token-reveal-slot-max-width, 80ch);
 	overflow: hidden;
 	vertical-align: baseline;
 	white-space: nowrap;
 	line-height: 1;
-	will-change: opacity, filter, transform;
 }
 
 .markdown-content[data-token-reveal-mode="smooth"] [data-sd-animate] {
 	animation-delay: calc(var(--token-reveal-baseline-ms, 0ms) + var(--sd-delay, 0ms));
 	animation-duration: var(--token-reveal-fade-ms, var(--sd-duration, 150ms));
+	will-change: opacity, filter, transform;
 }
 
 @keyframes sd-acepeTokenReveal {
 	from {
 		opacity: 0;
 		filter: blur(1px);
-		max-width: 0;
 		transform: translateY(0.16em);
-	}
-	1% {
-		max-width: var(--token-reveal-slot-max-width, 80ch);
 	}
 	60% {
 		filter: blur(0);
-		max-width: var(--token-reveal-slot-max-width, 80ch);
 	}
 	to {
 		opacity: 1;
 		filter: blur(0);
-		max-width: var(--token-reveal-slot-max-width, 80ch);
 		transform: translateY(0);
 	}
 }

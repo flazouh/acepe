@@ -1,6 +1,6 @@
 <script lang="ts">
 import { page } from "$app/stores";
-import { BrandLockup, RoundedIcon } from "@acepe/ui";
+import { BrandLockup, HugeiconsIcon } from "@acepe/ui";
 
 interface Props {
 	announcement?: string;
@@ -39,7 +39,7 @@ const navLinkClass =
 				class="absolute right-3 flex h-6 w-6 items-center justify-center text-[#f8f5ee]/40 transition-colors hover:text-[#f8f5ee]"
 				aria-label="Dismiss announcement"
 			>
-				<RoundedIcon name="close" class="h-3.5 w-3.5" />
+				<HugeiconsIcon name="close" class="h-3.5 w-3.5" />
 			</button>
 		</div>
 	{/if}
@@ -67,9 +67,9 @@ const navLinkClass =
 					class="hidden items-center gap-1.5 text-[14px] text-[#f8f5ee]/70 transition-colors hover:text-[#f8f5ee] sm:flex"
 					aria-label="GitHub"
 				>
-					<RoundedIcon name="github" class="h-4 w-4" />
+					<HugeiconsIcon name="github" class="h-4 w-4" />
 					{#if githubStars}
-						<RoundedIcon name="star" class="h-3 w-3 text-amber-400" />
+						<HugeiconsIcon name="star" class="h-3 w-3 text-amber-400" />
 						<span class="font-mono text-[13px]">{formatStars(githubStars)}</span>
 					{/if}
 				</a>

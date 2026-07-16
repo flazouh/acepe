@@ -39,6 +39,17 @@ export type AgentPanelStressFixture = {
 	readonly summary: AgentPanelStressSummary;
 };
 
+export type AgentPanelSendAttachFixtureSequence = {
+	readonly initial: AgentPanelStressFixture;
+	readonly pendingUser: AgentPanelStressFixture;
+	readonly firstStream: AgentPanelStressFixture;
+	readonly updatedStream: AgentPanelStressFixture;
+	readonly longMarkdownRowId: string;
+	readonly longMarkdownEntryId: string;
+	readonly pendingUserRowId: string;
+	readonly streamingRowId: string;
+};
+
 type BuiltStressRow = {
 	readonly row: TranscriptViewportRow;
 	readonly entry: AgentPanelSceneEntryModel;
@@ -47,6 +58,13 @@ type BuiltStressRow = {
 const DEFAULT_SESSION_ID = "stress-agent-panel-session";
 const DEFAULT_SEED = 1;
 const BASE_TIMESTAMP_MS = Date.parse("2026-01-01T00:00:00.000Z");
+const SEND_ATTACH_SESSION_ID = "stress-agent-panel-send-attach-session";
+const SEND_ATTACH_PENDING_USER_ROW_ID = "stress:send-attach:row:pending-user";
+const SEND_ATTACH_PENDING_USER_ENTRY_ID = "stress:send-attach:entry:pending-user";
+const SEND_ATTACH_STREAMING_ROW_ID = "stress:send-attach:row:streaming-assistant";
+const SEND_ATTACH_STREAMING_ENTRY_ID = "stress:send-attach:entry:streaming-assistant";
+const PLANNING_BETWEEN_TOOLS_SESSION_ID = "stress-agent-panel-planning-between-tools-session";
+const PLANNING_BETWEEN_TOOLS_SEED = 71;
 
 function createEmptyKindCounts(): AgentPanelStressKindCounts {
 	return {
@@ -55,7 +73,6 @@ function createEmptyKindCounts(): AgentPanelStressKindCounts {
 		assistantThought: 0,
 		tool: 0,
 		sessionActivity: 0,
-		awaitingPlaceholder: 0,
 	};
 }
 
@@ -492,6 +509,248 @@ function createRowsProjection(
 		order,
 		byId,
 		rows,
+	};
+}
+
+function sendAttachLongMarkdown(): string {
+	const lines = [
+		"## WebKit send attach geometry fixture",
+		"This deterministic NativeMarkdown row stays mounted while the send and first stream stages run.",
+	];
+	for (let index = 0; index < 49; index += 1) {
+		lines.push(
+			`- Geometry line ${index.toString().padStart(2, "0")} keeps the production markdown renderer tall enough to expose a native WebKit scroll clamp without provider traffic.`
+		);
+	}
+	lines.push("send-attach-long-markdown-end");
+	return lines.join("\n");
+}
+
+function kindCountsForRows(rows: readonly TranscriptViewportRow[]): AgentPanelStressKindCounts {
+	const kindCounts = createEmptyKindCounts();
+	for (const row of rows) {
+		kindCounts[row.kind] += 1;
+	}
+	return kindCounts;
+}
+
+function fixtureWithRows(
+	fixture: AgentPanelStressFixture,
+	rows: readonly TranscriptViewportRow[],
+	sceneEntries: readonly AgentPanelSceneEntryModel[]
+): AgentPanelStressFixture {
+	let activeTailRowId: string | null = null;
+	for (const row of rows) {
+		if (row.activeStreamingTail !== null) {
+			activeTailRowId = row.rowId;
+		}
+	}
+	return {
+		sessionId: fixture.sessionId,
+		preset: fixture.preset,
+		seed: fixture.seed,
+		sceneEntries,
+		rowsProjection: createRowsProjection(
+			fixture.sessionId,
+			fixture.rowsProjection.emissionSeq + 1,
+			rows
+		),
+		summary: {
+			totalRows: rows.length,
+			preset: fixture.preset,
+			seed: fixture.seed,
+			kindCounts: kindCountsForRows(rows),
+			activeTailRowId,
+		},
+	};
+}
+
+function replaceFixtureRow(
+	fixture: AgentPanelStressFixture,
+	replacementRow: TranscriptViewportRow,
+	replacementEntry: AgentPanelSceneEntryModel
+): AgentPanelStressFixture {
+	const rows = fixture.rowsProjection.rows.slice();
+	const sceneEntries = fixture.sceneEntries.slice();
+	const rowIndex = rows.findIndex((row) => row.rowId === replacementRow.rowId);
+	const entryIndex = sceneEntries.findIndex((entry) => entry.id === replacementEntry.id);
+	if (rowIndex >= 0) {
+		rows[rowIndex] = replacementRow;
+	}
+	if (entryIndex >= 0) {
+		sceneEntries[entryIndex] = replacementEntry;
+	}
+	return fixtureWithRows(fixture, rows, sceneEntries);
+}
+
+function appendFixtureRow(
+	fixture: AgentPanelStressFixture,
+	row: TranscriptViewportRow,
+	entry: AgentPanelSceneEntryModel
+): AgentPanelStressFixture {
+	const rows = fixture.rowsProjection.rows.slice();
+	const sceneEntries = fixture.sceneEntries.slice();
+	rows.push(row);
+	sceneEntries.push(entry);
+	return fixtureWithRows(fixture, rows, sceneEntries);
+}
+
+function sendAttachTranscriptRow(input: {
+	readonly rowId: string;
+	readonly sourceEntryId: string;
+	readonly kind: "user" | "assistantText";
+	readonly version: string;
+	readonly text: string;
+	readonly activeStreamingTail: "message" | null;
+}): TranscriptViewportRow {
+	return {
+		rowId: input.rowId,
+		sourceEntryId: input.sourceEntryId,
+		kind: input.kind,
+		version: input.version,
+		anchorEligible: true,
+		activeStreamingTail: input.activeStreamingTail,
+		operationLinks: [],
+		interactionLinks: [],
+		content: {
+			kind: "transcript",
+			role: input.kind === "user" ? "user" : "assistant",
+			segments: [createTextSegment(input.rowId, input.text)],
+		},
+		durationStartedAtMs:
+			input.activeStreamingTail === null ? null : BASE_TIMESTAMP_MS + 500_000,
+	};
+}
+
+export function createAgentPanelSendAttachFixtureSequence(options: {
+	readonly rowCount: number;
+}): AgentPanelSendAttachFixtureSequence {
+	const requestedCount = normalizeRowCount(options.rowCount);
+	const rowCount = Math.min(197, Math.max(8, requestedCount));
+	const base = createAgentPanelStressFixture({
+		rowCount,
+		preset: "text-heavy",
+		seed: 61,
+		sessionId: SEND_ATTACH_SESSION_ID,
+		includeStreamingTail: false,
+	});
+	let longRowIndex = base.rowsProjection.rows.length - 1;
+	while (
+		longRowIndex > 0 &&
+		base.rowsProjection.rows[longRowIndex]?.kind !== "assistantText"
+	) {
+		longRowIndex -= 1;
+	}
+	const originalLongRow = base.rowsProjection.rows[longRowIndex];
+	if (originalLongRow === undefined) {
+		throw new Error("Send attach fixture requires an assistant row");
+	}
+	const longText = sendAttachLongMarkdown();
+	const longRow = sendAttachTranscriptRow({
+		rowId: originalLongRow.rowId,
+		sourceEntryId: originalLongRow.sourceEntryId,
+		kind: "assistantText",
+		version: `${originalLongRow.rowId}:v1`,
+		text: longText,
+		activeStreamingTail: null,
+	});
+	const longEntry = createAssistantEntry(
+		originalLongRow.sourceEntryId,
+		longText,
+		timestampForIndex(longRowIndex),
+		false
+	);
+	const initial = replaceFixtureRow(base, longRow, longEntry);
+	const pendingUserText = "Provider-free pending user row";
+	const pendingUserRow = sendAttachTranscriptRow({
+		rowId: SEND_ATTACH_PENDING_USER_ROW_ID,
+		sourceEntryId: SEND_ATTACH_PENDING_USER_ENTRY_ID,
+		kind: "user",
+		version: `${SEND_ATTACH_PENDING_USER_ROW_ID}:v1`,
+		text: pendingUserText,
+		activeStreamingTail: null,
+	});
+	const pendingUser = appendFixtureRow(
+		initial,
+		pendingUserRow,
+		createUserEntry(
+			SEND_ATTACH_PENDING_USER_ENTRY_ID,
+			pendingUserText,
+			BASE_TIMESTAMP_MS + 501_000
+		)
+	);
+	const firstStreamText = "send-attach-stream-version-one";
+	const firstStreamRow = sendAttachTranscriptRow({
+		rowId: SEND_ATTACH_STREAMING_ROW_ID,
+		sourceEntryId: SEND_ATTACH_STREAMING_ENTRY_ID,
+		kind: "assistantText",
+		version: `${SEND_ATTACH_STREAMING_ROW_ID}:v1`,
+		text: firstStreamText,
+		activeStreamingTail: "message",
+	});
+	const firstStream = appendFixtureRow(
+		pendingUser,
+		firstStreamRow,
+		createAssistantEntry(
+			SEND_ATTACH_STREAMING_ENTRY_ID,
+			firstStreamText,
+			BASE_TIMESTAMP_MS + 502_000,
+			true
+		)
+	);
+	const updatedStreamText =
+		"send-attach-stream-version-two confirms stable row content updated";
+	const updatedStreamRow = sendAttachTranscriptRow({
+		rowId: SEND_ATTACH_STREAMING_ROW_ID,
+		sourceEntryId: SEND_ATTACH_STREAMING_ENTRY_ID,
+		kind: "assistantText",
+		version: `${SEND_ATTACH_STREAMING_ROW_ID}:v2`,
+		text: updatedStreamText,
+		activeStreamingTail: "message",
+	});
+	const updatedStream = replaceFixtureRow(
+		firstStream,
+		updatedStreamRow,
+		createAssistantEntry(
+			SEND_ATTACH_STREAMING_ENTRY_ID,
+			updatedStreamText,
+			BASE_TIMESTAMP_MS + 502_000,
+			true
+		)
+	);
+	return {
+		initial,
+		pendingUser,
+		firstStream,
+		updatedStream,
+		longMarkdownRowId: longRow.rowId,
+		longMarkdownEntryId: longRow.sourceEntryId,
+		pendingUserRowId: SEND_ATTACH_PENDING_USER_ROW_ID,
+		streamingRowId: SEND_ATTACH_STREAMING_ROW_ID,
+	};
+}
+
+export function createAgentPanelPlanningBetweenToolsFixtureSequence(): {
+	readonly completedToolTail: AgentPanelStressFixture;
+	readonly activeAssistantTail: AgentPanelStressFixture;
+} {
+	const completedToolTail = createAgentPanelStressFixture({
+		rowCount: 2,
+		preset: "tool-heavy",
+		seed: PLANNING_BETWEEN_TOOLS_SEED,
+		sessionId: PLANNING_BETWEEN_TOOLS_SESSION_ID,
+		includeStreamingTail: false,
+	});
+	const activeAssistantTail = createAgentPanelStressFixture({
+		rowCount: 3,
+		preset: "tool-heavy",
+		seed: PLANNING_BETWEEN_TOOLS_SEED,
+		sessionId: PLANNING_BETWEEN_TOOLS_SESSION_ID,
+		includeStreamingTail: true,
+	});
+	return {
+		completedToolTail,
+		activeAssistantTail,
 	};
 }
 

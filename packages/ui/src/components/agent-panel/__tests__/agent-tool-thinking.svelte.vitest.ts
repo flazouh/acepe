@@ -24,7 +24,6 @@ describe("AgentToolThinking", () => {
 	it("renders expanded thinking with a quiet line and label-sized copy", () => {
 		const view = render(AgentToolThinkingExpandedFixture);
 
-		expect(view.container.querySelector(".acepe-thinking-dotmatrix")).toBeNull();
 		expect(view.getByTestId("thinking-block-line")).toBeTruthy();
 		expect(view.getByTestId("thinking-block-content").className).toContain("text-xs");
 		expect(view.getByTestId("thinking-copy").textContent).toBe("Checking the next move.");
@@ -47,7 +46,6 @@ describe("AgentToolThinking", () => {
 			},
 		});
 
-		expect(view.container.querySelector(".acepe-dotm-root")).toBeNull();
 		expect(view.container.querySelector("[data-testid='thinking-header-line']")).toBeNull();
 		expect(view.getByText("Planning next moves...")).toBeTruthy();
 	});
@@ -58,11 +56,11 @@ describe("AgentToolThinking", () => {
 				durationMs: null,
 				startedAtMs: null,
 				label: "Connecting to Codex Agent",
-				agentIconSrc: "/svgs/agents/codex/codex-icon.svg",
+				agentIconSrc: "data:image/svg+xml,hugeicons",
 			},
 		});
 
 		expect(view.getByText("Connecting to Codex Agent")).toBeTruthy();
-		expect(view.container.querySelector('img[src="/svgs/agents/codex/codex-icon.svg"]')).toBeTruthy();
+		expect(view.container.querySelector('img[src="data:image/svg+xml,hugeicons"]')).toBeTruthy();
 	});
 });

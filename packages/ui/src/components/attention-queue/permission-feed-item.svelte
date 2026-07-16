@@ -3,7 +3,7 @@
 
 	import { DiffPill } from "../diff-pill/index.js";
 	import { FilePathBadge } from "../file-path-badge/index.js";
-	import RoundedIcon from "../icons/rounded-icon.svelte";
+	import HugeiconsIcon from "../icons/hugeicons-icon.svelte";
 
 	import FeedItem from "./attention-queue-item.svelte";
 
@@ -63,7 +63,7 @@
 		{#if icon}
 			{@render icon()}
 		{:else}
-			<RoundedIcon name="shield-warning" class="size-3 shrink-0 text-primary" />
+			<HugeiconsIcon name="shield-warning" class="size-3 shrink-0 text-primary" />
 		{/if}
 		<span class="shrink-0">{permissionLabel}</span>
 		{#if filePath}

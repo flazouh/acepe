@@ -8,7 +8,9 @@ pub use ledger::{
     SessionTranscriptRowLedgerRead, SessionTranscriptRowLedgerStatus,
 };
 pub(crate) use projection::project_transcript_viewport_entry_rows;
-pub use projection::project_transcript_viewport_rows;
+pub use projection::{
+    project_transcript_viewport_rows, project_transcript_viewport_rows_for_scope,
+};
 pub use row::{
     TranscriptViewportInteractionLink, TranscriptViewportOperationDisplayFacts,
     TranscriptViewportOperationLink, TranscriptViewportRow, TranscriptViewportRowContent,

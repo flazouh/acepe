@@ -6,7 +6,8 @@ use crate::acp::session_update::{
 };
 use crate::db::migrations::Migrator;
 use crate::db::repository::{
-    CreationAttemptStatus, SessionJournalEventRepository, SessionMetadataRepository,
+    CreationAttemptStatus, SessionEventWriter, SessionJournalEventRepository,
+    SessionMetadataRepository,
 };
 use cc_sdk::{CanUseTool, HookCallback};
 use sea_orm::Database;
@@ -377,40 +378,6 @@ fn make_test_client() -> ClaudeCcSdkClient {
     make_test_client_with_provider(Arc::new(
         crate::acp::providers::claude_code::ClaudeCodeProvider,
     ))
-}
-
-fn link_canonical_interaction_test_runtime(client: &mut ClaudeCcSdkClient) {
-    let projection_registry = Arc::new(ProjectionRegistry::new());
-    let (dispatcher, _captured_events) =
-        AcpUiEventDispatcher::test_sink_with_projection_registry(Arc::clone(&projection_registry));
-    client.dispatcher = dispatcher;
-    client.projection_registry = projection_registry;
-}
-
-fn seed_canonical_interaction_request(
-    client: &ClaudeCcSdkClient,
-    session_id: &str,
-    update: &SessionUpdate,
-) {
-    let event =
-        crate::acp::session::ingress::live_session_update::session_update_to_provider_event(
-            crate::acp::types::CanonicalAgentId::ClaudeCode,
-            1,
-            update,
-            crate::acp::projections::RouteDecision::default(),
-        )
-        .expect("interaction request should normalize into canonical ingress");
-    let context = crate::acp::session::engine::fold::FoldContext::new(
-        session_id,
-        crate::acp::types::CanonicalAgentId::ClaudeCode,
-        "/workspace",
-    );
-    let empty = crate::acp::session::engine::fold::fold_full(&[], &context);
-    let graph = crate::acp::session::engine::fold::fold_step(&empty, &event).0;
-    client.projection_registry.mirror_session_graph(&graph);
-    client
-        .dispatcher
-        .seed_graph_for_test(session_id.to_string(), graph);
 }
 
 #[tokio::test]
@@ -844,7 +811,7 @@ async fn restore_session_permission_approvals_does_not_rehydrate_from_journal() 
         },
         session_id: Some("session-1".to_string()),
     };
-    SessionJournalEventRepository::append_session_update(&db, "session-1", &permission_update)
+    SessionEventWriter::commit_session_update(&db, "session-1", &permission_update)
         .await
         .expect("persist permission request");
     SessionJournalEventRepository::append_interaction_transition(
@@ -1442,7 +1409,6 @@ async fn respond_persists_permission_approval_into_projection_and_journal() {
 
     let path = "/Users/alex/Documents/acepe/packages/desktop/src/lib/components/ui/tooltip/tooltip-content.svelte";
     let mut client = make_test_client();
-    link_canonical_interaction_test_runtime(&mut client);
     client.db = Some(db.clone());
     client.session_id = Some("session-1".to_string());
     let projection_registry = client.projection_registry.clone();
@@ -1461,8 +1427,8 @@ async fn respond_persists_permission_approval_into_projection_and_journal() {
         },
         session_id: Some("session-1".to_string()),
     };
-    seed_canonical_interaction_request(&client, "session-1", &permission_update);
-    SessionJournalEventRepository::append_session_update(&db, "session-1", &permission_update)
+    projection_registry.apply_session_update("session-1", &permission_update);
+    SessionEventWriter::commit_session_update(&db, "session-1", &permission_update)
         .await
         .expect("append permission request update");
 
@@ -1505,14 +1471,6 @@ async fn respond_persists_permission_approval_into_projection_and_journal() {
         interaction.response,
         Some(InteractionResponse::Permission { accepted: true, .. })
     ));
-    assert_eq!(
-        client
-            .dispatcher
-            .canonical_interaction_for_request_id("session-1", 7)
-            .expect("held canonical interaction should remain addressable")
-            .state,
-        InteractionState::Approved
-    );
 
     let stored_events = SessionJournalEventRepository::list_serialized(&db, "session-1")
         .await
@@ -1568,13 +1526,9 @@ async fn restore_session_permission_approvals_does_not_replay_journal_as_product
         },
         session_id: Some("session-restore".to_string()),
     };
-    SessionJournalEventRepository::append_session_update(
-        &db,
-        "session-restore",
-        &permission_update,
-    )
-    .await
-    .expect("append permission request update");
+    SessionEventWriter::commit_session_update(&db, "session-restore", &permission_update)
+        .await
+        .expect("append permission request update");
     SessionJournalEventRepository::append_interaction_transition(
         &db,
         "session-restore",
@@ -1636,7 +1590,6 @@ async fn reject_interaction_for_request_persists_rejected_permission() {
 
     let path = "/Users/alex/Documents/acepe/packages/desktop/src/lib/components/ui/tooltip/tooltip-content.svelte";
     let mut client = make_test_client();
-    link_canonical_interaction_test_runtime(&mut client);
     client.db = Some(db.clone());
     client.session_id = Some("session-1".to_string());
 
@@ -1655,8 +1608,10 @@ async fn reject_interaction_for_request_persists_rejected_permission() {
         },
         session_id: Some("session-1".to_string()),
     };
-    seed_canonical_interaction_request(&client, "session-1", &permission_update);
-    SessionJournalEventRepository::append_session_update(&db, "session-1", &permission_update)
+    client
+        .projection_registry
+        .apply_session_update("session-1", &permission_update);
+    SessionEventWriter::commit_session_update(&db, "session-1", &permission_update)
         .await
         .expect("append permission request update");
 
@@ -1669,14 +1624,6 @@ async fn reject_interaction_for_request_persists_rejected_permission() {
         .interaction_for_request_id("session-1", 7)
         .expect("interaction should remain addressable");
     assert_eq!(interaction.state, InteractionState::Rejected);
-    assert_eq!(
-        client
-            .dispatcher
-            .canonical_interaction_for_request_id("session-1", 7)
-            .expect("held canonical interaction should remain addressable")
-            .state,
-        InteractionState::Rejected
-    );
 
     let stored_events = SessionJournalEventRepository::list_serialized(&db, "session-1")
         .await
@@ -1723,7 +1670,6 @@ async fn resolve_stream_only_question_interaction_persists_answered_state() {
     }];
 
     let mut client = make_test_client();
-    link_canonical_interaction_test_runtime(&mut client);
     client.db = Some(db.clone());
     client.session_id = Some("session-stream".to_string());
 
@@ -1743,8 +1689,10 @@ async fn resolve_stream_only_question_interaction_persists_answered_state() {
         },
         session_id: Some("session-stream".to_string()),
     };
-    seed_canonical_interaction_request(&client, "session-stream", &question_update);
-    SessionJournalEventRepository::append_session_update(&db, "session-stream", &question_update)
+    client
+        .projection_registry
+        .apply_session_update("session-stream", &question_update);
+    SessionEventWriter::commit_session_update(&db, "session-stream", &question_update)
         .await
         .expect("append question request update");
 
@@ -1762,14 +1710,6 @@ async fn resolve_stream_only_question_interaction_persists_answered_state() {
         .interaction("toolu_stream_only")
         .expect("interaction should exist");
     assert_eq!(interaction.state, InteractionState::Answered);
-    assert_eq!(
-        client
-            .dispatcher
-            .canonical_interaction("session-stream", "toolu_stream_only")
-            .expect("held canonical question should remain addressable")
-            .state,
-        InteractionState::Answered
-    );
 
     let stored_events = SessionJournalEventRepository::list_serialized(&db, "session-stream")
         .await
@@ -4258,62 +4198,6 @@ async fn promote_verified_pending_creation_attempt_reuses_reserved_lifecycle_che
             .lifecycle
             .status,
         LifecycleStatus::Reserved
-    );
-}
-
-#[tokio::test]
-async fn deferred_claude_promotion_seeds_complete_graph_before_buffered_dispatch() {
-    let db = setup_test_db().await;
-    let session_id = "deferred-graph";
-    let attempt = SessionMetadataRepository::create_creation_attempt(
-        &db,
-        "/project",
-        "claude-code",
-        None,
-        None,
-        None,
-    )
-    .await
-    .expect("attempt");
-    SessionMetadataRepository::promote_creation_attempt(&db, &attempt.id, session_id)
-        .await
-        .expect("promote metadata");
-
-    let projection_registry = ProjectionRegistry::new();
-    let runtime_registry =
-        crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeRegistry::new();
-    let mut capabilities = SessionGraphCapabilities::empty();
-    capabilities.autonomous_enabled = Some(true);
-    reserve_promoted_claude_session(
-        runtime_registry.supervisor(),
-        &db,
-        &projection_registry,
-        session_id,
-        capabilities.clone(),
-    )
-    .await
-    .expect("reserve promoted session");
-
-    let hub = Arc::new(crate::acp::event_hub::AcpEventHubState::new());
-    seed_promoted_claude_session_graph(&db, &hub, &runtime_registry, session_id)
-        .await
-        .expect("seed deferred graph");
-
-    let graph = runtime_registry
-        .graph_for_session(session_id)
-        .expect("deferred promotion must install graph authority");
-    assert_eq!(graph.canonical_session_id, session_id);
-    assert_eq!(
-        graph.agent_id,
-        crate::acp::types::CanonicalAgentId::ClaudeCode
-    );
-    assert_eq!(graph.project_path, "/project");
-    assert_eq!(graph.message_count, 0);
-    assert!(graph.transcript_snapshot.entries.is_empty());
-    assert_eq!(graph.lifecycle.status, LifecycleStatus::Reserved);
-    assert_eq!(
-        graph.capabilities.autonomous_enabled,
-        capabilities.autonomous_enabled
     );
 }
 

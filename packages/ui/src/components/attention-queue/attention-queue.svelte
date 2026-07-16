@@ -3,7 +3,7 @@ import type { Snippet } from "svelte";
 import type { SectionedFeedGroup, SectionedFeedItemData } from "./types.js";
 
 import FeedSectionHeader from "./feed-section-header.svelte";
-import { RoundedIcon } from "../icons/index.js";
+import { HugeiconsIcon } from "../icons/index.js";
 import { sectionColor } from "./section-color.js";
 
 interface Props {
@@ -53,7 +53,7 @@ function toggleExpanded() {
 			title="Attention Queue"
 		>
 			<div class="relative flex items-center justify-center">
-				<RoundedIcon name="bell" class="size-[15px] shrink-0 text-primary" data-testid="attention-queue-collapsed-bell-icon" />
+				<HugeiconsIcon name="bell" class="size-[15px] shrink-0 text-primary" data-testid="attention-queue-collapsed-bell-icon" />
 				<span class="absolute -right-2 -top-2 min-w-[16px] rounded-full border border-background bg-primary px-1 text-center text-[9px] font-semibold leading-4 text-primary-foreground">
 					{totalCount}
 				</span>
@@ -66,7 +66,7 @@ function toggleExpanded() {
 				class="flex w-full cursor-pointer items-center gap-1.5 rounded-lg border-none bg-transparent px-2 py-1.5 text-left transition-colors hover:bg-accent/50"
 				onclick={toggleExpanded}
 			>
-				<RoundedIcon name="bell" class="size-3 shrink-0 text-primary" data-testid="attention-queue-bell-icon" />
+				<HugeiconsIcon name="bell" class="size-3 shrink-0 text-primary" data-testid="attention-queue-bell-icon" />
 				<span class="text-[11px] font-medium text-muted-foreground">
 					Attention Queue
 				</span>
@@ -75,9 +75,9 @@ function toggleExpanded() {
 				</span>
 				<div class="ml-auto">
 					{#if expandedInternal}
-						<RoundedIcon name="chevron-down" class="size-3 text-muted-foreground shrink-0" />
+						<HugeiconsIcon name="chevron-down" class="size-3 text-muted-foreground shrink-0" />
 					{:else}
-						<RoundedIcon name="chevron-right" class="size-3 text-muted-foreground shrink-0" />
+						<HugeiconsIcon name="chevron-right" class="size-3 text-muted-foreground shrink-0" />
 					{/if}
 				</div>
 			</button>

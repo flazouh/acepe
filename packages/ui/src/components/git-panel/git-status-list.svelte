@@ -3,8 +3,7 @@
 	 * GitStatusList — Staged and unstaged file sections with collapsible headers.
 	 * Uses GitFileTree for tree-organized file display within each section.
 	 */
-	import PlusIcon from "../icons/plus-icon.svelte";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 
 	import { cn } from "../../lib/utils.js";
 	import type { GitStatusFile } from "./types.js";
@@ -117,7 +116,7 @@
 					class="flex h-3.5 w-3.5 shrink-0 items-center justify-center transition-transform duration-150"
 					class:rotate-90={stagedExpanded}
 				>
-					<RoundedIcon name="chevron-right" class="size-3" />
+					<HugeiconsIcon name="chevron-right" class="size-3" />
 				</span>
 				Staged Changes
 				<span class="font-normal text-muted-foreground">({stagedFiles.length})</span>
@@ -149,7 +148,7 @@
 						class="flex h-3.5 w-3.5 shrink-0 items-center justify-center transition-transform duration-150"
 						class:rotate-90={unstagedExpanded}
 					>
-						<RoundedIcon name="chevron-right" class="size-3" />
+						<HugeiconsIcon name="chevron-right" class="size-3" />
 					</span>
 					Changes
 					<span class="font-normal text-muted-foreground">({unstagedFiles.length})</span>
@@ -162,7 +161,7 @@
 						title="Stage all changes"
 						onclick={onStageAll}
 					>
-						<PlusIcon />
+						<HugeiconsIcon name="plus" size={12} class="size-3" />
 					</button>
 				{/if}
 			</div>

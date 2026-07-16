@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import ToolLabel from "./tool-label.svelte";
 	import type { AgentToolStatus } from "./types.js";
 	import { getThinkingPreferences } from "../../lib/thinking-preferences-context.js";
@@ -109,7 +109,7 @@
 								onclick={(e) => { e.stopPropagation(); preferenceState.onToggleDefaultExpand?.(); }}
 								aria-label={preferenceState.defaultExpandLabel}
 							>
-								<RoundedIcon name="brain" class="size-[11px]" data-testid="thinking-default-expand-brain-icon" />
+								<HugeiconsIcon name="brain" class="size-[11px]" data-testid="thinking-default-expand-brain-icon" />
 							</button>
 						{/snippet}
 					</TooltipTrigger>
@@ -128,7 +128,7 @@
 					tabindex="-1"
 					aria-hidden="true"
 				>
-					<RoundedIcon name="chevron-right" class="size-3 shrink-0 text-muted-foreground transition-transform duration-150 {collapsed ? '' : 'rotate-90'}"
+					<HugeiconsIcon name="chevron-right" class="size-3 shrink-0 text-muted-foreground transition-transform duration-150 {collapsed ? '' : 'rotate-90'}"
 					/>
 				</button>
 			{/if}

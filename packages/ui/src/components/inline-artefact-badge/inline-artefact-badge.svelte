@@ -3,7 +3,7 @@
 	import type { InlineArtefactTokenType } from "../../lib/inline-artefact/index.js";
 	import { COLOR_NAMES, Colors } from "../../lib/colors.js";
 	import { getFileIconSrc, getFallbackIconSrc } from "../../lib/file-icon/index.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import {
 		buildInlineArtefactIconClassName,
 		buildInlineArtefactLabelClassName,
@@ -51,14 +51,20 @@
 </script>
 
 {#snippet icon()}
-	{#if isSlashItem}
-		<RoundedIcon
-			name={tokenType === "command" ? "terminal" : "skills"}
+	{#if tokenType === "command"}
+		<HugeiconsIcon
+			name="terminal"
+			class="h-3.5 w-3.5 shrink-0 {iconClassName}"
+			style={slashIconColor ? `color: ${slashIconColor};` : undefined}
+		/>
+	{:else if tokenType === "skill"}
+		<HugeiconsIcon
+			name="skills"
 			class="h-3.5 w-3.5 shrink-0 {iconClassName}"
 			style={slashIconColor ? `color: ${slashIconColor};` : undefined}
 		/>
 	{:else if tokenType === "text" || tokenType === "text_ref"}
-		<RoundedIcon name="file-text" class="h-3.5 w-3.5 shrink-0 {iconClassName}" />
+		<HugeiconsIcon name="file-text" class="h-3.5 w-3.5 shrink-0 {iconClassName}" />
 	{:else}
 		<img
 			src={getFileIconSrc(iconSource)}

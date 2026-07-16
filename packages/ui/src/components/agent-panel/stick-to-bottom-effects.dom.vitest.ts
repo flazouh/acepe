@@ -222,46 +222,70 @@ describe("createStickToBottomController", () => {
 	it("does not mistake a programmatic scroll for a user scroll-away", () => {
 		const resolveRowTop = () => 1000;
 		const c = controllerFor({ resolveRowTop });
-		// onSend currently has no spacer configured in this test, so it falls back
-		// to the bottom and the resulting scroll event must NOT release follow.
-		c.onSend("row-x", 64);
+		c.onSend();
 		expect(el.scrollTop).toBe(1000);
 		el.dispatchEvent(new Event("scroll"));
 		expect(c.getState().released).toBe(false);
 		c.destroy();
 	});
 
-	it("onSend writes a bottom spacer so max-scroll equals the requested sent-row anchor", () => {
+	it("lets touch scrolling release immediately after the send pin", () => {
+		const timeMs = 0;
+		const c = controllerFor({ now: () => timeMs });
+		c.onSend();
+		expect(el.scrollTop).toBe(1000);
+
+		el.dispatchEvent(new Event("touchstart"));
+		el.scrollTop = 700;
+		el.dispatchEvent(new Event("scroll"));
+
+		expect(c.getState()).toEqual({ released: true, hasUnreadBelow: false });
+		expect(el.scrollTop).toBe(700);
+		c.destroy();
+	});
+
+	it("lets a scrollbar drag release immediately after the send pin", () => {
+		const timeMs = 0;
+		Object.defineProperty(el, "clientWidth", {
+			value: 980,
+			configurable: true,
+		});
+		const c = controllerFor({ now: () => timeMs });
+		c.onSend();
+		expect(el.scrollTop).toBe(1000);
+
+		const pointerDown = new Event("pointerdown");
+		Object.defineProperty(pointerDown, "offsetX", {
+			value: 990,
+			configurable: true,
+		});
+		el.dispatchEvent(pointerDown);
+		el.scrollTop = 700;
+		el.dispatchEvent(new Event("scroll"));
+
+		expect(c.getState()).toEqual({ released: true, hasUnreadBelow: false });
+		expect(el.scrollTop).toBe(700);
+		c.destroy();
+	});
+
+	it("onSend follows the ordinary bottom without adding temporary scroll geometry", () => {
 		let baseScrollHeight = 2100;
-		let spacerPx = 0;
 		Object.defineProperty(el, "scrollHeight", {
-			get: () => baseScrollHeight + spacerPx,
+			get: () => baseScrollHeight,
 			configurable: true,
 		});
 		Object.defineProperty(el, "clientHeight", {
 			value: 1000,
 			configurable: true,
 		});
-		const c = controllerFor({
-			resolveRowTop: (rowId) => (rowId === "sent-row" ? 1600 : null),
-			getBottomSpacerPx: () => spacerPx,
-			setBottomSpacerPx: (nextPx) => {
-				spacerPx = nextPx;
-			},
-		});
+		const c = controllerFor();
 
-		c.onSend("sent-row", 72);
+		c.onSend();
 
-		expect(spacerPx).toBe(428);
-		expect(el.scrollTop).toBe(1528);
+		expect(el.scrollTop).toBe(1100);
 
 		baseScrollHeight = 2300;
 		c.notifyContentChanged();
-		expect(spacerPx).toBe(228);
-		expect(el.scrollTop).toBe(1528);
-
-		c.setSendAnchorActive(false);
-		expect(spacerPx).toBe(0);
 		expect(el.scrollTop).toBe(1300);
 		c.destroy();
 	});

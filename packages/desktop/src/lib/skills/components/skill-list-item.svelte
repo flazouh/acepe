@@ -1,5 +1,5 @@
 <script lang="ts">
-import { RoundedIcon } from "@acepe/ui";
+import { HugeiconsIcon } from "@acepe/ui";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import * as Tooltip from "@acepe/ui/tooltip";
 
@@ -89,11 +89,11 @@ const syncStatusInfo = $derived.by(() => {
 					{#if syncStatus === "syncing"}
 						<Spinner class="shrink-0 {syncStatusInfo.classes}" size={12} />
 					{:else if syncStatus === "synced"}
-						<RoundedIcon name="check-circle" class="h-3 w-3 {syncStatusInfo.classes}" />
+						<HugeiconsIcon name="check-circle" class="h-3 w-3 {syncStatusInfo.classes}" />
 					{:else if syncStatus === "pending"}
-						<RoundedIcon name="warning" class="h-3 w-3 {syncStatusInfo.classes}" />
+						<HugeiconsIcon name="warning" class="h-3 w-3 {syncStatusInfo.classes}" />
 					{:else}
-						<RoundedIcon name="refresh" class="h-3 w-3 {syncStatusInfo.classes}" />
+						<HugeiconsIcon name="refresh" class="h-3 w-3 {syncStatusInfo.classes}" />
 					{/if}
 				</Tooltip.Trigger>
 				<Tooltip.Content side="right" class="text-xs">

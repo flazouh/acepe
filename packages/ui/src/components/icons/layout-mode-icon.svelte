@@ -1,5 +1,5 @@
 <script lang="ts">
-	import RoundedIcon from "./rounded-icon.svelte";
+	import HugeiconsIcon from "./hugeicons-icon.svelte";
 	type LayoutModeIconMode = "columns" | "grid" | "kanban" | "single";
 
 	interface Props {
@@ -27,5 +27,5 @@
 	data-testid={dataTestid}
 	aria-hidden="true"
 >
-	<RoundedIcon name={iconName} class="size-full" />
+	<HugeiconsIcon name={iconName} class="size-full" />
 </span>

@@ -12,11 +12,11 @@ use crate::acp::parsers::provider_capabilities::{provider_capabilities, Provider
 #[cfg(test)]
 use crate::acp::parsers::{ClaudeCodeParser, CodexParser, CursorParser, OpenCodeParser};
 use crate::acp::providers::cursor::parse_sql_todo_updates;
-use crate::acp::session::ingress::tool_identity::canonical_name_for_kind;
 use crate::acp::session_update::{
     PlanConfidence, PlanData, PlanSource, ToolArguments, ToolCallData, ToolCallUpdateData,
     ToolKind, UsageTelemetryData, UsageTelemetryTokens,
 };
+use crate::acp::tool_identity::canonical_name_for_kind;
 
 /// Identifies which agent we're parsing for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

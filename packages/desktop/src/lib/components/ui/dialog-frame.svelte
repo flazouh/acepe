@@ -2,7 +2,7 @@
 import * as Dialog from "@acepe/ui/dialog";
 import {
 	getDialogHeaderIconCloseClass,
-	RoundedIcon,
+	HugeiconsIcon,
 	type HeaderIconCloseSize,
 } from "@acepe/ui";
 import type { Snippet } from "svelte";
@@ -128,7 +128,7 @@ function handleOpenChange(nextOpen: boolean): void {
 		class={getDialogHeaderIconCloseClass(headerIconSize)}
 		data-header-control
 	>
-		<RoundedIcon name="close" />
+		<HugeiconsIcon name="close" />
 	</Dialog.Close>
 {/snippet}
 

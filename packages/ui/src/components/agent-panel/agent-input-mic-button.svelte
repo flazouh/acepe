@@ -10,7 +10,7 @@
   - recording: red filled circle with stop square, pulsing glow
 -->
 <script lang="ts">
-	import { LoadingIcon, RoundedIcon } from "../icons/index.js";
+	import { LoadingIcon, HugeiconsIcon } from "../icons/index.js";
 	import { SegmentedProgressBar } from "../segmented-progress-bar/index.js";
 	import { buttonVariants } from "../button/variants.js";
 	import { cn } from "../../lib/utils.js";
@@ -97,7 +97,7 @@
 		</div>
 	{:else}
 		<div class="mic-icon-wrap">
-			<RoundedIcon name="microphone" class="mic-glyph" data-testid="agent-input-mic-icon" />
+			<HugeiconsIcon name="microphone" class="mic-glyph" data-testid="agent-input-mic-icon" />
 		</div>
 	{/if}
 </button>

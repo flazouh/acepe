@@ -438,6 +438,7 @@ mod tests {
             transcript_snapshot: TranscriptSnapshot {
                 revision: 3,
                 entries: vec![TranscriptEntry {
+                    scope: crate::acp::transcript_projection::TranscriptScope::Root,
                     entry_id: "assistant-1".to_string(),
                     role: TranscriptEntryRole::Assistant,
                     segments: vec![TranscriptSegment::Text {
@@ -507,6 +508,7 @@ mod tests {
             transcript_snapshot: TranscriptSnapshot {
                 revision: 3,
                 entries: vec![TranscriptEntry {
+                    scope: crate::acp::transcript_projection::TranscriptScope::Root,
                     entry_id: "assistant-1".to_string(),
                     role: TranscriptEntryRole::Assistant,
                     segments: vec![TranscriptSegment::Text {

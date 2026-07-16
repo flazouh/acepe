@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Button } from "../button/index.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 
 	interface Props {
 		title?: string;
@@ -21,6 +21,6 @@
 	{onclick}
 >
 	{#snippet children()}
-		<RoundedIcon name="more" />
+		<HugeiconsIcon name="more" />
 	{/snippet}
 </Button>

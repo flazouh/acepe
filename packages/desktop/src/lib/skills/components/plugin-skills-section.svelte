@@ -1,5 +1,5 @@
 <script lang="ts">
-import { RoundedIcon } from "@acepe/ui";
+import { HugeiconsIcon } from "@acepe/ui";
 import { SvelteSet } from "svelte/reactivity";
 import * as Collapsible from "$lib/components/ui/collapsible/index.js";
 
@@ -43,7 +43,7 @@ const totalSkillCount = $derived(plugins.reduce((sum, plugin) => sum + plugin.sk
 	<div class="mb-2 border-b border-border/30 pb-2">
 		<!-- Section header -->
 		<div class="flex items-center gap-1.5 px-2 py-1 text-[11px] text-muted-foreground">
-			<RoundedIcon name="skills" class="h-3.5 w-3.5 text-muted-foreground" />
+			<HugeiconsIcon name="skills" class="h-3.5 w-3.5 text-muted-foreground" />
 			<span class="font-medium">Plugin Skills</span>
 			<span class="text-[11px]">({totalSkillCount})</span>
 		</div>
@@ -59,7 +59,7 @@ const totalSkillCount = $derived(plugins.reduce((sum, plugin) => sum + plugin.sk
 					<Collapsible.Trigger
 						class="flex w-full cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-left hover:bg-accent/40"
 					>
-						<RoundedIcon name="chevron-right" class="size-3 text-muted-foreground transition-transform shrink-0 {expanded ? 'rotate-90' : ''}"
+						<HugeiconsIcon name="chevron-right" class="size-3 text-muted-foreground transition-transform shrink-0 {expanded ? 'rotate-90' : ''}"
 						/>
 						<span class="flex-1 truncate text-[12px] text-foreground">{plugin.name}</span>
 						<span class="shrink-0 text-[11px] text-muted-foreground">{plugin.skillCount}</span>

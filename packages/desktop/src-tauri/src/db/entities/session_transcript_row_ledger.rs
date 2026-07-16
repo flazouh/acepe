@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub session_id: String,
-    pub row_count: i64,
     pub transcript_revision: i64,
     pub graph_revision: i64,
     pub last_event_seq: i64,

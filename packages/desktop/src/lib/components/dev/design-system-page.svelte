@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Button, RoundedIcon, type RoundedIconName } from "@acepe/ui";
+	import { Button, HugeiconsIcon, type HugeiconsIconName } from "@acepe/ui";
 
 	import { Badge } from "$lib/components/ui/badge/index.js";
 	import SettingsPageHeader from "$lib/components/settings-page/settings-page-header.svelte";
@@ -21,6 +21,8 @@
 	import { prCardSectionMeta } from "./design-system-pr-card-specimens.js";
 	import DesignSystemReviewWorkspaceSection from "./design-system-review-workspace-section.svelte";
 	import { reviewWorkspaceSectionMeta } from "./design-system-review-workspace-specimens.js";
+	import DesignSystemSkillsSection from "./design-system-skills-section.svelte";
+	import { skillsSectionMeta } from "./design-system-skills-specimens.js";
 	import DesignSystemTaskToolSection from "./design-system-task-tool-section.svelte";
 	import { taskToolSectionMeta } from "./design-system-task-tool-specimens.js";
 	import DesignSystemUpdateCardSection from "./design-system-update-card-section.svelte";
@@ -41,6 +43,7 @@
 		| "new-thread-options"
 		| "pr-card"
 		| "review-workspace"
+		| "skills"
 		| "task-tool"
 		| "update-card";
 
@@ -53,6 +56,7 @@
 		{ id: "new-thread-options", label: newThreadOptionsSectionMeta.title },
 		{ id: "pr-card", label: prCardSectionMeta.title },
 		{ id: "review-workspace", label: reviewWorkspaceSectionMeta.title },
+		{ id: "skills", label: skillsSectionMeta.title },
 		{ id: "task-tool", label: taskToolSectionMeta.title },
 		{ id: "update-card", label: updateCardSectionMeta.title },
 	];
@@ -66,6 +70,7 @@
 		"new-thread-options": newThreadOptionsSectionMeta,
 		"pr-card": prCardSectionMeta,
 		"review-workspace": reviewWorkspaceSectionMeta,
+		skills: skillsSectionMeta,
 		"task-tool": taskToolSectionMeta,
 		"update-card": updateCardSectionMeta,
 	} as const;
@@ -74,7 +79,7 @@
 
 	const activeSectionMeta = $derived(sectionMetaById[activeSection]);
 
-	function roundedSectionIcon(sectionId: DesignSystemSection): RoundedIconName | null {
+	function roundedSectionIcon(sectionId: DesignSystemSection): HugeiconsIconName | null {
 		if (sectionId === "control-tokens") return "sliders";
 		if (sectionId === "claude-spark") return "sparkle";
 		if (sectionId === "compaction-activity") return "archive";
@@ -83,6 +88,7 @@
 		if (sectionId === "new-thread-options") return "new-chat";
 		if (sectionId === "pr-card") return "pull-request";
 		if (sectionId === "review-workspace") return "review";
+		if (sectionId === "skills") return "skills";
 		if (sectionId === "task-tool") return "tasks";
 		if (sectionId === "update-card") return "download";
 		return null;
@@ -124,7 +130,7 @@
 					)}
 					>
 					{#if RoundedSectionIcon}
-						<RoundedIcon name={RoundedSectionIcon} class="size-3.5 shrink-0" />
+						<HugeiconsIcon name={RoundedSectionIcon} class="size-3.5 shrink-0" />
 					{/if}
 					<span class="truncate">{section.label}</span>
 				</button>
@@ -135,7 +141,7 @@
 	<div class="flex min-h-0 min-w-0 flex-1 flex-col">
 		<div class="flex shrink-0 items-center justify-between gap-3 border-b border-border/40 px-4 py-2">
 			<Button variant="ghost" size="sm" onclick={onClose} aria-label="Back to app" class="-ml-2 gap-1.5">
-				<RoundedIcon name="chevron-left" class="size-3" />
+				<HugeiconsIcon name="chevron-left" class="size-3" />
 				Back to app
 			</Button>
 			<Badge variant="outline" class="font-mono text-[10px] uppercase tracking-wider">
@@ -166,6 +172,8 @@
 					<DesignSystemPrCardSection />
 				{:else if activeSection === "review-workspace"}
 					<DesignSystemReviewWorkspaceSection />
+				{:else if activeSection === "skills"}
+					<DesignSystemSkillsSection />
 				{:else if activeSection === "task-tool"}
 					<DesignSystemTaskToolSection />
 				{:else if activeSection === "update-card"}

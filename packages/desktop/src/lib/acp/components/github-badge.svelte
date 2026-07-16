@@ -1,5 +1,5 @@
 <script lang="ts">
-import { GitHubBadge, RoundedIcon } from "@acepe/ui";
+import { GitHubBadge, HugeiconsIcon } from "@acepe/ui";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
 import type { GitHubReference } from "../constants/github-badge-html.js";
@@ -184,7 +184,11 @@ function getTextToCopy(): string {
 				}}
 				onmouseenter={(e) => e.stopPropagation()}
 			>
-				<RoundedIcon name="github" class="size-3" />
+				<HugeiconsIcon
+					name="open-in-new-window"
+					class="size-3"
+					data-testid="github-badge-open-external-hugeicons-icon"
+				/>
 			</span>
 		{/if}
 		<!-- svelte-ignore a11y_click_events_have_key_events -->

@@ -1,6 +1,7 @@
 use super::CopilotListedSession;
 use crate::acp::commands::session_metadata_context_from_cwd;
 use crate::acp::parsers::{CopilotParser, ParseError};
+use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
 use crate::acp::session_update::{
     build_tool_call_from_raw, build_tool_call_update_from_raw, ContentChunk, RawToolCallInput,
     RawToolCallUpdateInput, SessionUpdate, ToolCallStatus, ToolKind,
@@ -165,6 +166,7 @@ pub(crate) fn events_jsonl_path_for_session(
 pub(crate) async fn parse_copilot_provider_events_at_root(
     session_state_root: &Path,
     events_jsonl_path: &Path,
+    _title: &str,
 ) -> Result<Vec<crate::acp::session::ingress::event::ProviderEvent>, String> {
     let (_fallback_session_id, updates) =
         parse_replay_updates_at_root(session_state_root, events_jsonl_path).await?;
@@ -172,6 +174,23 @@ pub(crate) async fn parse_copilot_provider_events_at_root(
         return Err("Copilot transcript did not contain replayable events".to_string());
     }
     Ok(super::convert_replay_updates_to_provider_events(&updates))
+}
+
+pub(crate) async fn parse_copilot_session_at_root(
+    session_state_root: &Path,
+    events_jsonl_path: &Path,
+    title: &str,
+) -> Result<SessionThreadSnapshot, String> {
+    let (fallback_session_id, updates) =
+        parse_replay_updates_at_root(session_state_root, events_jsonl_path).await?;
+    if updates.is_empty() {
+        return Err("Copilot transcript did not contain replayable events".to_string());
+    }
+    Ok(super::convert_replay_updates_to_session(
+        &fallback_session_id,
+        title,
+        &updates,
+    ))
 }
 
 async fn parse_replay_updates_at_root(
@@ -861,10 +880,10 @@ fn fallback_title(session_id: &str) -> String {
 mod tests {
     use super::{
         convert_events_to_updates, events_jsonl_path_for_session, missing_transcript_marker,
-        parse_copilot_provider_events_at_root, parse_events_from_reader,
-        scan_copilot_sessions_at_root, CopilotEventData,
+        parse_copilot_session_at_root, parse_events_from_reader, scan_copilot_sessions_at_root,
+        CopilotEventData,
     };
-    use crate::acp::session::ingress::event::{ProviderEvent, ProviderEventKind};
+    use crate::session_jsonl::types::StoredEntry;
     use std::io::Cursor;
     use tempfile::tempdir;
 
@@ -906,19 +925,14 @@ mod tests {
 
         let events = parse_events_from_reader(Cursor::new(jsonl)).expect("events should parse");
         let updates = convert_events_to_updates("session-1", events);
-        let converted = super::super::convert_replay_updates_to_history_events(
-            "session-1",
-            "Copilot",
-            &updates,
-        );
+        let converted =
+            super::super::convert_replay_updates_to_session("session-1", "Copilot", &updates);
 
         assert_eq!(converted.entries.len(), 1);
         match &converted.entries[0] {
-            ProviderEvent {
-                kind: ProviderEventKind::AssistantText { text },
-                ..
-            } => {
-                assert_eq!(text, "world");
+            StoredEntry::Assistant { message, .. } => {
+                assert_eq!(message.chunks.len(), 1);
+                assert_eq!(message.chunks[0].block.text.as_deref(), Some("world"));
             }
             other => panic!("expected assistant message entry, got {other:?}"),
         }
@@ -932,19 +946,15 @@ mod tests {
 
         let events = parse_events_from_reader(Cursor::new(jsonl)).expect("events should parse");
         let updates = convert_events_to_updates("session-1", events);
-        let converted = super::super::convert_replay_updates_to_history_events(
-            "session-1",
-            "Copilot",
-            &updates,
-        );
+        let converted =
+            super::super::convert_replay_updates_to_session("session-1", "Copilot", &updates);
 
         assert_eq!(converted.entries.len(), 1);
         match &converted.entries[0] {
-            ProviderEvent {
-                kind: ProviderEventKind::AssistantText { text },
-                ..
-            } => {
-                assert_eq!(text, "world");
+            StoredEntry::Assistant { message, .. } => {
+                assert_eq!(message.chunks.len(), 1);
+                assert_eq!(message.chunks[0].chunk_type, "message");
+                assert_eq!(message.chunks[0].block.text.as_deref(), Some("world"));
             }
             other => panic!("expected assistant entry, got {other:?}"),
         }
@@ -959,19 +969,18 @@ mod tests {
 
         let events = parse_events_from_reader(Cursor::new(jsonl)).expect("events should parse");
         let updates = convert_events_to_updates("session-1", events);
-        let converted = super::super::convert_replay_updates_to_history_events(
-            "session-1",
-            "Copilot",
-            &updates,
-        );
+        let converted =
+            super::super::convert_replay_updates_to_session("session-1", "Copilot", &updates);
 
         assert_eq!(converted.entries.len(), 1);
         match &converted.entries[0] {
-            ProviderEvent {
-                kind: ProviderEventKind::AssistantText { text },
-                ..
-            } => {
-                assert_eq!(text, "I found the replay path.");
+            StoredEntry::Assistant { message, .. } => {
+                assert_eq!(message.chunks.len(), 1);
+                assert_eq!(message.chunks[0].chunk_type, "message");
+                assert_eq!(
+                    message.chunks[0].block.text.as_deref(),
+                    Some("I found the replay path.")
+                );
             }
             other => panic!("expected assistant entry, got {other:?}"),
         }
@@ -988,19 +997,18 @@ mod tests {
 
         let events = parse_events_from_reader(Cursor::new(jsonl)).expect("events should parse");
         let updates = convert_events_to_updates("session-1", events);
-        let converted = super::super::convert_replay_updates_to_history_events(
-            "session-1",
-            "Copilot",
-            &updates,
-        );
+        let converted =
+            super::super::convert_replay_updates_to_session("session-1", "Copilot", &updates);
 
         assert_eq!(converted.entries.len(), 2);
         match &converted.entries[1] {
-            ProviderEvent {
-                kind: ProviderEventKind::AssistantText { text },
-                ..
-            } => {
-                assert_eq!(text, "Error: You've hit your rate limit.");
+            StoredEntry::Assistant { message, .. } => {
+                assert_eq!(message.chunks.len(), 1);
+                assert_eq!(message.chunks[0].chunk_type, "message");
+                assert_eq!(
+                    message.chunks[0].block.text.as_deref(),
+                    Some("Error: You've hit your rate limit.")
+                );
             }
             other => panic!("expected assistant error entry, got {other:?}"),
         }
@@ -1017,18 +1025,12 @@ mod tests {
 
         let events = parse_events_from_reader(Cursor::new(jsonl)).expect("events should parse");
         let updates = convert_events_to_updates("session-1", events);
-        let converted = super::super::convert_replay_updates_to_history_events(
-            "session-1",
-            "Copilot",
-            &updates,
-        );
+        let converted =
+            super::super::convert_replay_updates_to_session("session-1", "Copilot", &updates);
 
         assert_eq!(converted.entries.len(), 3);
         match &converted.entries[2] {
-            ProviderEvent {
-                kind: ProviderEventKind::ToolCall(message),
-                ..
-            } => {
+            StoredEntry::ToolCall { message, .. } => {
                 assert_eq!(message.id, "tool-1");
                 assert_eq!(
                     message.status,
@@ -1051,18 +1053,12 @@ mod tests {
 
         let events = parse_events_from_reader(Cursor::new(jsonl)).expect("events should parse");
         let updates = convert_events_to_updates("session-1", events);
-        let converted = super::super::convert_replay_updates_to_history_events(
-            "session-1",
-            "Copilot",
-            &updates,
-        );
+        let converted =
+            super::super::convert_replay_updates_to_session("session-1", "Copilot", &updates);
 
         assert_eq!(converted.entries.len(), 1);
         match &converted.entries[0] {
-            ProviderEvent {
-                kind: ProviderEventKind::ToolCall(message),
-                ..
-            } => {
+            StoredEntry::ToolCall { message, .. } => {
                 assert_eq!(message.id, "tool-write");
                 assert_eq!(message.name, "write_bash");
                 assert_eq!(message.title.as_deref(), Some("Write shell input"));
@@ -1084,18 +1080,12 @@ mod tests {
 
         let events = parse_events_from_reader(Cursor::new(jsonl)).expect("events should parse");
         let updates = convert_events_to_updates("session-1", events);
-        let converted = super::super::convert_replay_updates_to_history_events(
-            "session-1",
-            "Copilot",
-            &updates,
-        );
+        let converted =
+            super::super::convert_replay_updates_to_session("session-1", "Copilot", &updates);
 
         assert_eq!(converted.entries.len(), 1);
         match &converted.entries[0] {
-            ProviderEvent {
-                kind: ProviderEventKind::ToolCall(message),
-                ..
-            } => {
+            StoredEntry::ToolCall { message, .. } => {
                 assert_eq!(message.id, "tool-find");
                 assert_eq!(message.name, "Find");
                 assert_eq!(
@@ -1121,38 +1111,32 @@ mod tests {
 
         let events = parse_events_from_reader(Cursor::new(jsonl)).expect("events should parse");
         let updates = convert_events_to_updates("session-1", events);
-        let converted = super::super::convert_replay_updates_to_history_events(
-            "session-1",
-            "Copilot",
-            &updates,
-        );
+        let converted =
+            super::super::convert_replay_updates_to_session("session-1", "Copilot", &updates);
 
         assert_eq!(converted.entries.len(), 3);
         match &converted.entries[0] {
-            ProviderEvent {
-                kind: ProviderEventKind::UserText { text, .. },
-                ..
-            } => {
-                assert_eq!(text, "Can you diagnose this?");
+            StoredEntry::User { message, .. } => {
+                assert_eq!(
+                    message.content.text.as_deref(),
+                    Some("Can you diagnose this?")
+                );
             }
             other => panic!("expected original user message, got {other:?}"),
         }
         match &converted.entries[1] {
-            ProviderEvent {
-                kind: ProviderEventKind::ToolCall(message),
-                ..
-            } => {
+            StoredEntry::ToolCall { message, .. } => {
                 assert_eq!(message.id, "tool-skill");
                 assert_eq!(message.name, "skill");
             }
             other => panic!("expected skill tool call entry, got {other:?}"),
         }
         match &converted.entries[2] {
-            ProviderEvent {
-                kind: ProviderEventKind::AssistantText { text },
-                ..
-            } => {
-                assert_eq!(text, "I will diagnose it.");
+            StoredEntry::Assistant { message, .. } => {
+                assert_eq!(
+                    message.chunks[0].block.text.as_deref(),
+                    Some("I will diagnose it.")
+                );
             }
             other => panic!("expected assistant response, got {other:?}"),
         }
@@ -1166,18 +1150,12 @@ mod tests {
 
         let events = parse_events_from_reader(Cursor::new(jsonl)).expect("events should parse");
         let updates = convert_events_to_updates("session-1", events);
-        let converted = super::super::convert_replay_updates_to_history_events(
-            "session-1",
-            "Copilot",
-            &updates,
-        );
+        let converted =
+            super::super::convert_replay_updates_to_session("session-1", "Copilot", &updates);
 
         assert_eq!(converted.entries.len(), 1);
         match &converted.entries[0] {
-            ProviderEvent {
-                kind: ProviderEventKind::ToolCall(message),
-                ..
-            } => {
+            StoredEntry::ToolCall { message, .. } => {
                 assert_eq!(
                     message.kind,
                     Some(crate::acp::session_update::ToolKind::Read)
@@ -1201,18 +1179,12 @@ mod tests {
 
         let events = parse_events_from_reader(Cursor::new(jsonl)).expect("events should parse");
         let updates = convert_events_to_updates("session-1", events);
-        let converted = super::super::convert_replay_updates_to_history_events(
-            "session-1",
-            "Copilot",
-            &updates,
-        );
+        let converted =
+            super::super::convert_replay_updates_to_session("session-1", "Copilot", &updates);
 
         assert_eq!(converted.entries.len(), 1);
         match &converted.entries[0] {
-            ProviderEvent {
-                kind: ProviderEventKind::ToolCall(message),
-                ..
-            } => {
+            StoredEntry::ToolCall { message, .. } => {
                 assert_eq!(
                     message.kind,
                     Some(crate::acp::session_update::ToolKind::Glob)
@@ -1238,18 +1210,12 @@ mod tests {
 
         let events = parse_events_from_reader(Cursor::new(jsonl)).expect("events should parse");
         let updates = convert_events_to_updates("session-1", events);
-        let converted = super::super::convert_replay_updates_to_history_events(
-            "session-1",
-            "Copilot",
-            &updates,
-        );
+        let converted =
+            super::super::convert_replay_updates_to_session("session-1", "Copilot", &updates);
 
         assert_eq!(converted.entries.len(), 1);
         match &converted.entries[0] {
-            ProviderEvent {
-                kind: ProviderEventKind::ToolCall(message),
-                ..
-            } => {
+            StoredEntry::ToolCall { message, .. } => {
                 assert_eq!(
                     message.kind,
                     Some(crate::acp::session_update::ToolKind::Todo)
@@ -1266,7 +1232,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn parse_copilot_history_rejects_path_outside_root() {
+    async fn parse_copilot_session_rejects_path_outside_root() {
         let root = tempdir().expect("tempdir");
         let outside = tempdir().expect("outside tempdir");
         let outside_path = outside.path().join("events.jsonl");
@@ -1276,14 +1242,14 @@ mod tests {
         )
         .expect("write transcript");
 
-        let error = parse_copilot_provider_events_at_root(root.path(), &outside_path)
+        let error = parse_copilot_session_at_root(root.path(), &outside_path, "Copilot")
             .await
             .expect_err("path outside root should fail");
         assert!(error.contains("outside the session-state root"));
     }
 
     #[tokio::test]
-    async fn parse_copilot_history_reads_valid_transcript() {
+    async fn parse_copilot_session_reads_valid_transcript() {
         let root = tempdir().expect("tempdir");
         let session_dir = root.path().join("session-1");
         std::fs::create_dir_all(&session_dir).expect("create session dir");
@@ -1297,10 +1263,10 @@ mod tests {
         )
         .expect("write transcript");
 
-        let session = parse_copilot_provider_events_at_root(root.path(), &transcript_path)
+        let session = parse_copilot_session_at_root(root.path(), &transcript_path, "Copilot")
             .await
             .expect("session should parse");
-        assert_eq!(session.len(), 2);
+        assert_eq!(session.entries.len(), 2);
     }
 
     #[tokio::test]

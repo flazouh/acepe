@@ -1,6 +1,5 @@
 use crate::acp::projections::SessionSnapshot;
-use crate::acp::session::engine::fold::{fold_full, FoldContext};
-use crate::acp::session::ingress::event::ProviderEvent;
+use crate::acp::session::fold_export::fold_graph_from_provider_snapshot;
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_journal::{
     decode_serialized_events, rebuild_local_transcript_snapshot, rebuild_session_projection,
@@ -18,14 +17,17 @@ use crate::acp::session_state_engine::selectors::{
     SessionGraphLifecycle,
 };
 use crate::acp::session_state_engine::SessionGraphRevision;
+use crate::acp::session_thread_snapshot::ProviderOwnedSessionSnapshot;
 use crate::acp::transcript_projection::TranscriptSnapshot;
 use crate::acp::transcript_viewport::ledger::{
-    serialize_viewport_rows_for_ledger, SerializedTranscriptRowLedgerRow,
+    serialize_transcript_scopes_for_ledger, serialize_viewport_rows_for_ledger,
+    SerializedTranscriptRowLedgerRow, SerializedTranscriptRowLedgerScope,
     SessionTranscriptRowLedgerOpenHeader, TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
 };
 use crate::acp::transcript_viewport::projection::project_transcript_viewport_rows;
 use crate::db::repository::{
-    SessionJournalEventRepository, SessionMetadataRepository, SessionTranscriptRowLedgerRepository,
+    SessionEventSequenceRepository, SessionJournalEventRepository, SessionMetadataRepository,
+    SessionTranscriptRowLedgerRepository,
 };
 use anyhow::{anyhow, Result};
 use sea_orm::DbConn;
@@ -35,6 +37,7 @@ pub(crate) struct RebuiltTranscriptRowLedger {
     pub revision: SessionGraphRevision,
     pub projection_version: &'static str,
     pub rows: Vec<SerializedTranscriptRowLedgerRow>,
+    pub scopes: Vec<SerializedTranscriptRowLedgerScope>,
     session: SessionSnapshot,
     first_user_title: Option<String>,
 }
@@ -44,6 +47,7 @@ pub(crate) struct RebuiltProviderTranscriptRowLedger {
     pub revision: SessionGraphRevision,
     pub projection_version: &'static str,
     pub rows: Vec<SerializedTranscriptRowLedgerRow>,
+    pub scopes: Vec<SerializedTranscriptRowLedgerScope>,
     session: SessionSnapshot,
     first_user_title: Option<String>,
     activity: SessionGraphActivity,
@@ -81,7 +85,7 @@ pub(crate) async fn rebuild_and_replace_current_transcript_row_ledger_from_journ
     )?)?;
     let revision = rebuilt.revision;
 
-    SessionTranscriptRowLedgerRepository::replace_current(
+    SessionTranscriptRowLedgerRepository::replace_current_scopes(
         db,
         &replay_context.local_session_id,
         rebuilt.projection_version,
@@ -89,7 +93,7 @@ pub(crate) async fn rebuild_and_replace_current_transcript_row_ledger_from_journ
         revision.graph_revision,
         revision.last_event_seq,
         Some(open_header_json),
-        rebuilt.rows,
+        rebuilt.scopes,
     )
     .await?;
 
@@ -130,7 +134,6 @@ pub(crate) fn rebuild_transcript_row_ledger_from_journal(
         &projection.operations,
         &projection.interactions,
         None,
-        false,
         None,
     );
     let rows = serialize_viewport_rows_for_ledger(
@@ -140,14 +143,117 @@ pub(crate) fn rebuild_transcript_row_ledger_from_journal(
         TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
         &viewport_rows,
     )?;
+    let scopes = serialize_transcript_scopes_for_ledger(
+        &replay_context.local_session_id,
+        revision.transcript_revision,
+        revision.graph_revision,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        &transcript_snapshot,
+        &projection.operations,
+        &projection.interactions,
+        None,
+        None,
+    )?;
 
     Ok(Some(RebuiltTranscriptRowLedger {
         revision,
         projection_version: TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
         rows,
+        scopes,
         session,
         first_user_title,
     }))
+}
+
+pub(crate) async fn rebuild_and_replace_current_transcript_row_ledger_from_provider_snapshot(
+    db: &DbConn,
+    replay_context: &SessionReplayContext,
+    lifecycle: &SessionGraphLifecycle,
+    capabilities: &SessionGraphCapabilities,
+    snapshot: &ProviderOwnedSessionSnapshot,
+) -> Result<Option<SessionGraphRevision>> {
+    let last_event_seq = SessionEventSequenceRepository::last_assigned_event_seq(
+        db,
+        &replay_context.local_session_id,
+    )
+    .await?
+    .unwrap_or(0);
+    let projection_event_seq = SessionJournalEventRepository::max_row_affecting_event_seq(
+        db,
+        &replay_context.local_session_id,
+    )
+    .await?
+    .unwrap_or(0);
+    let mut rebuilt = rebuild_transcript_row_ledger_from_provider_snapshot(
+        replay_context,
+        lifecycle,
+        snapshot,
+        last_event_seq,
+    )?;
+    let serialized_events =
+        SessionJournalEventRepository::list_serialized(db, &replay_context.local_session_id)
+            .await?;
+    let journal_events =
+        crate::acp::session_journal::decode_serialized_events(replay_context, serialized_events)?;
+    let repaired_events =
+        crate::acp::session_journal::repair_legacy_parent_tool_use_ids_from_streaming_log(
+            replay_context,
+            &journal_events,
+        );
+    let local_projection =
+        crate::acp::session_journal::rebuild_session_projection(replay_context, &repaired_events);
+    if let Some(local_session) = local_projection.session.filter(|session| {
+        session.last_event_seq >= projection_event_seq && session.active_turn_failure.is_some()
+    }) {
+        rebuilt.session = local_session;
+        rebuilt.revision = SessionGraphRevision::new(
+            rebuilt.session.last_event_seq,
+            rebuilt.revision.transcript_revision,
+            last_event_seq,
+        );
+        let operations =
+            sanitize_operations_for_historical_open(local_projection.operations, false);
+        let interactions = sanitize_interactions_for_historical_open(local_projection.interactions);
+        rebuilt.activity = select_session_graph_activity(
+            lifecycle,
+            &rebuilt.session.turn_state,
+            &operations,
+            &interactions,
+            rebuilt.session.active_turn_failure.as_ref(),
+        );
+        rebuilt.active_streaming_tail = None;
+    }
+    let session_metadata =
+        SessionMetadataRepository::get_by_id(db, &replay_context.local_session_id)
+            .await?
+            .ok_or_else(|| {
+                anyhow!(
+                    "session metadata missing for {}",
+                    replay_context.local_session_id
+                )
+            })?;
+    let open_header_json = serde_json::to_string(&open_header_for_rebuilt_provider_ledger(
+        replay_context,
+        &session_metadata,
+        lifecycle,
+        capabilities,
+        &rebuilt,
+    )?)?;
+    let revision = rebuilt.revision;
+
+    SessionTranscriptRowLedgerRepository::replace_current_scopes(
+        db,
+        &replay_context.local_session_id,
+        rebuilt.projection_version,
+        revision.transcript_revision,
+        revision.graph_revision,
+        revision.last_event_seq,
+        Some(open_header_json),
+        rebuilt.scopes,
+    )
+    .await?;
+
+    Ok(Some(revision))
 }
 
 pub(crate) async fn rebuild_and_replace_current_transcript_row_ledger_from_session_graph(
@@ -157,10 +263,12 @@ pub(crate) async fn rebuild_and_replace_current_transcript_row_ledger_from_sessi
     capabilities: &SessionGraphCapabilities,
     graph: &SessionStateGraph,
 ) -> Result<Option<SessionGraphRevision>> {
-    let last_event_seq =
-        SessionJournalEventRepository::max_event_seq(db, &replay_context.local_session_id)
-            .await?
-            .unwrap_or(0);
+    let last_event_seq = SessionEventSequenceRepository::last_assigned_event_seq(
+        db,
+        &replay_context.local_session_id,
+    )
+    .await?
+    .unwrap_or(0);
     let projection_event_seq = SessionJournalEventRepository::max_row_affecting_event_seq(
         db,
         &replay_context.local_session_id,
@@ -224,7 +332,7 @@ pub(crate) async fn rebuild_and_replace_current_transcript_row_ledger_from_sessi
     )?)?;
     let revision = rebuilt.revision;
 
-    SessionTranscriptRowLedgerRepository::replace_current(
+    SessionTranscriptRowLedgerRepository::replace_current_scopes(
         db,
         &replay_context.local_session_id,
         rebuilt.projection_version,
@@ -232,7 +340,7 @@ pub(crate) async fn rebuild_and_replace_current_transcript_row_ledger_from_sessi
         revision.graph_revision,
         revision.last_event_seq,
         Some(open_header_json),
-        rebuilt.rows,
+        rebuilt.scopes,
     )
     .await?;
 
@@ -280,7 +388,6 @@ pub(crate) fn rebuild_transcript_row_ledger_from_session_graph(
         &operations,
         &interactions,
         None,
-        false,
         None,
     );
     let rows = serialize_viewport_rows_for_ledger(
@@ -290,11 +397,23 @@ pub(crate) fn rebuild_transcript_row_ledger_from_session_graph(
         TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
         &viewport_rows,
     )?;
+    let scopes = serialize_transcript_scopes_for_ledger(
+        &replay_context.local_session_id,
+        revision.transcript_revision,
+        revision.graph_revision,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        &transcript_snapshot,
+        &operations,
+        &interactions,
+        None,
+        None,
+    )?;
 
     Ok(RebuiltProviderTranscriptRowLedger {
         revision,
         projection_version: TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
         rows,
+        scopes,
         session,
         first_user_title,
         activity,
@@ -302,22 +421,20 @@ pub(crate) fn rebuild_transcript_row_ledger_from_session_graph(
     })
 }
 
-/// Fold provider-history events into the canonical graph used by open and ledger repair.
-pub(crate) fn fold_provider_events_to_session_graph(
+/// Rebuild ledger from a provider-owned compat snapshot (fold-first: snapshot → graph → rows).
+pub(crate) fn rebuild_transcript_row_ledger_from_provider_snapshot(
     replay_context: &SessionReplayContext,
-    events: &[ProviderEvent],
-) -> SessionStateGraph {
-    let fold_project_path = if replay_context.effective_cwd.trim().is_empty() {
-        replay_context.project_path.clone()
-    } else {
-        replay_context.effective_cwd.clone()
-    };
-    let context = FoldContext::new(
-        replay_context.local_session_id.clone(),
-        replay_context.agent_id.clone(),
-        fold_project_path,
-    );
-    fold_full(events, &context)
+    lifecycle: &SessionGraphLifecycle,
+    snapshot: &ProviderOwnedSessionSnapshot,
+    last_event_seq: i64,
+) -> Result<RebuiltProviderTranscriptRowLedger> {
+    let graph = fold_graph_from_provider_snapshot(replay_context, snapshot);
+    rebuild_transcript_row_ledger_from_session_graph(
+        replay_context,
+        lifecycle,
+        &graph,
+        last_event_seq,
+    )
 }
 
 fn open_header_for_rebuilt_ledger(
@@ -433,8 +550,8 @@ fn empty_transcript_snapshot(revision: i64) -> TranscriptSnapshot {
 #[cfg(test)]
 mod tests {
     use super::{
-        fold_provider_events_to_session_graph, rebuild_transcript_row_ledger_from_journal,
-        rebuild_transcript_row_ledger_from_session_graph,
+        rebuild_transcript_row_ledger_from_journal,
+        rebuild_transcript_row_ledger_from_provider_snapshot,
     };
     use crate::acp::parsers::AgentType;
     use crate::acp::session_descriptor::{SessionDescriptorCompatibility, SessionReplayContext};
@@ -443,6 +560,9 @@ mod tests {
         SessionJournalEvent, SessionJournalEventPayload,
     };
     use crate::acp::session_state_engine::selectors::SessionGraphLifecycle;
+    use crate::acp::session_thread_snapshot::{
+        ProviderOwnedSessionSnapshot, SessionThreadSnapshot,
+    };
     use crate::acp::session_update::{
         ContentChunk, SessionUpdate, ToolArguments, ToolCallData, ToolCallStatus, ToolKind,
     };
@@ -453,6 +573,7 @@ mod tests {
     use crate::acp::transcript_viewport::projection::project_transcript_viewport_rows;
     use crate::acp::transcript_viewport::row::TranscriptViewportRow;
     use crate::acp::types::{CanonicalAgentId, ContentBlock};
+    use crate::session_jsonl::types::StoredEntry;
     use serde_json::json;
 
     #[test]
@@ -498,7 +619,6 @@ mod tests {
             &projection.operations,
             &projection.interactions,
             None,
-            false,
             None,
         );
         let expected_rows = serialize_viewport_rows_for_ledger(
@@ -665,57 +785,68 @@ mod tests {
     }
 
     #[test]
-    fn provider_events_fold_into_graph_before_ledger_repair() {
-        use crate::acp::session::ingress::event::{ProviderEvent, ProviderEventKind};
-
+    fn transcript_row_ledger_rebuild_from_provider_snapshot_keeps_tool_display_facts() {
         let replay_context = replay_context();
-        let events = vec![ProviderEvent {
-            source: CanonicalAgentId::ClaudeCode,
-            provider_seq: 1,
-            provider_row_id: "tool-entry-1".to_string(),
-            timestamp_ms: None,
-            kind: ProviderEventKind::ToolCall(ToolCallData {
-                id: "toolu_01read".to_string(),
-                name: "Read".to_string(),
-                arguments: ToolArguments::Read {
-                    file_path: Some("/repo/README.md".to_string()),
-                    source_context: None,
-                },
-                diagnostic_input: None,
-                status: ToolCallStatus::Completed,
-                result: Some(json!({ "content": "README contents" })),
-                kind: Some(ToolKind::Read),
-                title: Some("Read README.md".to_string()),
-                locations: None,
-                skill_meta: None,
-                normalized_questions: None,
-                normalized_todos: None,
-                normalized_todo_update: None,
-                parent_tool_use_id: None,
-                task_children: None,
-                question_answer: None,
-                awaiting_plan_approval: false,
-                plan_approval_request_id: None,
-            }),
-        }];
+        let provider_snapshot =
+            ProviderOwnedSessionSnapshot::from_thread_snapshot(SessionThreadSnapshot {
+                entries: vec![StoredEntry::ToolCall {
+                    id: "tool-entry-1".to_string(),
+                    message: ToolCallData {
+                        id: "toolu_01read".to_string(),
+                        name: "Read".to_string(),
+                        arguments: ToolArguments::Read {
+                            file_path: Some("/repo/README.md".to_string()),
+                            source_context: None,
+                        },
+                        diagnostic_input: None,
+                        status: ToolCallStatus::Completed,
+                        result: Some(json!({ "content": "README contents" })),
+                        kind: Some(ToolKind::Read),
+                        title: Some("Read README.md".to_string()),
+                        locations: None,
+                        skill_meta: None,
+                        normalized_questions: None,
+                        normalized_todos: None,
+                        normalized_todo_update: None,
+                        parent_tool_use_id: None,
+                        task_children: None,
+                        question_answer: None,
+                        awaiting_plan_approval: false,
+                        plan_approval_request_id: None,
+                    },
+                    timestamp: None,
+                }],
+                title: "Provider session".to_string(),
+                created_at: "2026-07-06T00:00:00Z".to_string(),
+                current_mode_id: None,
+            });
 
-        let graph = fold_provider_events_to_session_graph(&replay_context, &events);
-        let rebuilt = rebuild_transcript_row_ledger_from_session_graph(
+        let rebuilt = rebuild_transcript_row_ledger_from_provider_snapshot(
             &replay_context,
             &SessionGraphLifecycle::detached(
                 crate::acp::lifecycle::DetachedReason::RestoredRequiresAttach,
             ),
-            &graph,
+            &provider_snapshot,
             0,
         )
-        .expect("provider events should repair through the canonical graph");
+        .expect("provider snapshot should rebuild a ledger");
 
+        assert_eq!(
+            rebuilt.projection_version,
+            TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION
+        );
+        assert_eq!(rebuilt.revision.last_event_seq, 0);
+        assert!(!rebuilt.rows.is_empty());
         let row = rebuilt
             .rows
             .iter()
             .find_map(|row| serde_json::from_str::<TranscriptViewportRow>(&row.row_json).ok())
-            .expect("provider event ledger should contain a viewport row");
-        let facts = row.operation_links[0]
+            .expect("provider ledger should contain a viewport row");
+        let link = row
+            .operation_links
+            .first()
+            .expect("tool row should link to an operation");
+        let facts = link
             .display_facts
             .as_ref()
             .expect("tool operation link should include display facts");

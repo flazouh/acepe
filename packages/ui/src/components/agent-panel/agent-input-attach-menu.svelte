@@ -4,8 +4,7 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
 
-	import PlusIcon from "../icons/plus-icon.svelte";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import {
@@ -208,7 +207,7 @@
 	contentClass={selectorPanelContentClass}
 >
 	{#snippet renderButton()}
-		<PlusIcon />
+		<HugeiconsIcon name="plus" size={14} class="size-3.5 shrink-0" />
 	{/snippet}
 
 	<SelectorPanel
@@ -225,7 +224,7 @@
 			>
 				<AgentInputModeIcon iconKind={mode.iconKind} class="size-3.5 shrink-0" monochrome />
 				<span class="min-w-0 flex-1 truncate text-xs">{mode.label}</span>
-				<RoundedIcon
+				<HugeiconsIcon
 					name="check-circle"
 					class={mode.selected
 						? "size-3.5 shrink-0 text-foreground"
@@ -238,7 +237,7 @@
 	{#if showContextActions && searchQuery.length === 0}
 		<DropdownMenu.Separator />
 		<DropdownMenu.Item onSelect={handleAddFileContext} class={selectorPanelItemClass}>
-			<RoundedIcon
+			<HugeiconsIcon
 				name="file-text"
 				class="size-3.5 shrink-0"
 				data-testid="attach-menu-add-file-context-icon"
@@ -246,7 +245,7 @@
 			<span class="text-xs">{addFileContextLabel}</span>
 		</DropdownMenu.Item>
 		<DropdownMenu.Item onSelect={handleAttachImage} class={selectorPanelItemClass}>
-			<RoundedIcon name="image" class="size-3.5 shrink-0" />
+			<HugeiconsIcon name="image" class="size-3.5 shrink-0" />
 			<span class="text-xs">{attachImageLabel}</span>
 		</DropdownMenu.Item>
 	{/if}

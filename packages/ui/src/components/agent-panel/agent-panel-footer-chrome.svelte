@@ -2,7 +2,7 @@
 	import type { Snippet } from "svelte";
 
 	import { Button } from "../button/index.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 
 	interface Props {
 		children?: Snippet;
@@ -65,7 +65,7 @@
 				onclick={onSettings}
 			>
 				{#snippet children()}
-					<RoundedIcon name="settings" />
+					<HugeiconsIcon name="settings" />
 				{/snippet}
 			</Button>
 		</div>
@@ -84,7 +84,7 @@
 					onclick={onToggleBrowser}
 				>
 					{#snippet children()}
-						<RoundedIcon name="browser" />
+						<HugeiconsIcon name="browser" />
 					{/snippet}
 				</Button>
 			{/if}
@@ -100,7 +100,7 @@
 					onclick={onToggleTerminal}
 				>
 					{#snippet children()}
-						<RoundedIcon name="terminal" />
+						<HugeiconsIcon name="terminal" />
 					{/snippet}
 				</Button>
 			{/if}

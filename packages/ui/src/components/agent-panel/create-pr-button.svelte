@@ -4,7 +4,7 @@
 	import { Button } from "../button/index.js";
 	import * as ButtonGroup from "../button-group/index.js";
 	import { DiffPill } from "../diff-pill/index.js";
-	import { PullRequestStatusIcon, RoundedIcon } from "../icons/index.js";
+	import { PullRequestStatusIcon, HugeiconsIcon } from "../icons/index.js";
 
 	interface Props {
 		label?: string;

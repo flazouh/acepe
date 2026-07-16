@@ -2,7 +2,7 @@
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import ToolLabel from "./tool-label.svelte";
 	import TextShimmer from "../text-shimmer/text-shimmer.svelte";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import ToolKindIcon from "./tool-kind-icon.svelte";
 	import {
 		getSkillDisplayArgs,
@@ -110,7 +110,7 @@
 					{#if viewState.isPending}
 						<ToolLabel {status}>{runningStatusLabel}</ToolLabel>
 					{:else if viewState.isSuccess}
-						<RoundedIcon name="check-circle" class="size-[11px] text-success" aria-label="Successful" />
+						<HugeiconsIcon name="check-circle" class="size-[11px] text-success" aria-label="Successful" />
 					{/if}
 				</div>
 
@@ -123,7 +123,7 @@
 						aria-label={isExpanded ? ariaCollapseLabel : ariaExpandLabel}
 						aria-expanded={isExpanded}
 					>
-						<RoundedIcon name="chevron-right" class="size-3 shrink-0 text-muted-foreground transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}"
+						<HugeiconsIcon name="chevron-right" class="size-3 shrink-0 text-muted-foreground transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}"
 						/>
 					</button>
 				{/if}

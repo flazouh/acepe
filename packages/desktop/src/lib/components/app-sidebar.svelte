@@ -39,7 +39,7 @@ const data = {
 	import type { ComponentProps } from "svelte";
 
 	import * as Collapsible from "$lib/components/ui/collapsible/index.js";
-	import { RoundedIcon } from "@acepe/ui";
+	import { HugeiconsIcon } from "@acepe/ui";
 	import * as Sidebar from "$lib/components/ui/sidebar/index.js";
 
 	let { ref = $bindable(null), ...restProps }: ComponentProps<typeof Sidebar.Root> = $props();
@@ -54,7 +54,7 @@ const data = {
 					{#each data.changes as item, index (index)}
 						<Sidebar.MenuItem>
 							<Sidebar.MenuButton>
-								<RoundedIcon name="file-text" class="size-4 shrink-0" />
+								<HugeiconsIcon name="file-text" class="size-4 shrink-0" />
 								{item.file}
 							</Sidebar.MenuButton>
 							<Sidebar.MenuBadge>{item.state}</Sidebar.MenuBadge>
@@ -84,7 +84,7 @@ const data = {
 			isActive={name === "button.svelte"}
 			class="data-[active=true]:bg-transparent"
 		>
-			<RoundedIcon name="file-text" class="size-4 shrink-0" />
+			<HugeiconsIcon name="file-text" class="size-4 shrink-0" />
 			{name}
 		</Sidebar.MenuButton>
 	{:else}
@@ -96,8 +96,8 @@ const data = {
 				<Collapsible.Trigger>
 					{#snippet child({ props })}
 						<Sidebar.MenuButton {...props}>
-							<RoundedIcon name="chevron-right" class="size-3 shrink-0 transition-transform" />
-							<RoundedIcon name="folder" class="size-4 shrink-0" />
+							<HugeiconsIcon name="chevron-right" class="size-3 shrink-0 transition-transform" />
+							<HugeiconsIcon name="folder" class="size-4 shrink-0" />
 							{name}
 						</Sidebar.MenuButton>
 					{/snippet}

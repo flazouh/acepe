@@ -1,5 +1,5 @@
 <script lang="ts">
-import { RoundedIcon, Selector } from "@acepe/ui";
+import { HugeiconsIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 interface Props {
 	sessionId: string;
@@ -21,19 +21,19 @@ const hasActions = $derived(Boolean(onView || onOpenInFinder || onArchive || onU
 {#if hasActions}
 	<Selector align="end" triggerSize="square" showChevron={false} variant="ghost" triggerAriaLabel="Actions">
 		{#snippet renderButton()}
-			<RoundedIcon name="more" class="h-4 w-4" />
+			<HugeiconsIcon name="more" class="h-4 w-4" />
 			<span class="sr-only">Actions</span>
 		{/snippet}
 
 		{#if onView}
 			<DropdownMenu.Item onclick={() => onView(sessionId)}>
-				<RoundedIcon name="eye" class="h-4 w-4 mr-2" />
+				<HugeiconsIcon name="eye" class="h-4 w-4 mr-2" />
 				{"Open"}
 			</DropdownMenu.Item>
 		{/if}
 		{#if onOpenInFinder}
 			<DropdownMenu.Item onclick={() => onOpenInFinder(sessionId, projectPath)}>
-				<RoundedIcon name="folder" class="h-4 w-4 mr-2" />
+				<HugeiconsIcon name="folder" class="h-4 w-4 mr-2" />
 				{"Open Thread in Finder"}
 			</DropdownMenu.Item>
 		{/if}

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { RoundedIcon } from "@acepe/ui";
+import { HugeiconsIcon } from "@acepe/ui";
 import { onDestroy, onMount } from "svelte";
 import * as Tooltip from "@acepe/ui/tooltip";
 import { getSelectorRegistry } from "../logic/selector-registry.svelte.js";
@@ -60,7 +60,7 @@ function isSelected(modeId: string): boolean {
 	<div role="group" class="flex h-7 w-fit items-stretch">
 		{#if availableModes.length === 0}
 			<div class="flex items-center justify-center w-7">
-				<RoundedIcon name="sliders" class="size-3.5" />
+				<HugeiconsIcon name="sliders" class="size-3.5" />
 			</div>
 		{:else}
 			{#each [...availableModes].reverse() as mode, i (mode.id)}
@@ -82,7 +82,7 @@ function isSelected(modeId: string): boolean {
 								title={mode.name}
 								aria-label={mode.name}
 							>
-								<RoundedIcon name="sliders" class="size-3.5 transition-colors duration-150" />
+								<HugeiconsIcon name="sliders" class="size-3.5 transition-colors duration-150" />
 							</button>
 						{/snippet}
 					</Tooltip.Trigger>

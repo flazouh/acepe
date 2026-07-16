@@ -152,7 +152,6 @@ export {
 	AgentToolTodo,
 	AgentToolWebSearch,
 	AgentUserMessage,
-	ThinkingDotMatrix,
 	ToolTally,
 	TodoNumberIcon,
 } from "./components/agent-panel/index.js";
@@ -349,57 +348,34 @@ export {
 	DatabaseIcon,
 	DiscordIcon,
 	GoogleLogoIcon,
+	HugeiconsIcon,
+	formatHugeiconsIconName,
+	hugeiconsIconDataUri,
+	hugeiconsIconLibrary,
+	hugeiconsIconNames,
 	LayoutModeIcon,
-	InterfaceIcon,
-	LinearInterfaceIcon,
-	LinearInventoryIcon,
 	PullRequestStatusIcon,
-	RoundedIcon,
-	DotmSquare18Spinner,
-	DotmTriangle17Spinner,
-	DotmTriangle20Spinner,
 	LoadingIcon,
-	MenuIcon,
 	PaletteIcon,
 	PlanIcon,
-	PlusIcon,
 	RecycleIcon,
 	RevertIcon,
 	RobotIcon,
-	SaveIcon,
 	StorageIcon,
 	WrenchIcon,
 	XLogoIcon,
 } from "./components/icons/index.js";
+export type {
+	HugeiconsIconName,
+	HugeiconsIconLibraryEntry,
+} from "./components/icons/index.js";
 export {
-	getInterfaceIconEvidence,
-	interfaceIconMappings,
-	resolveInterfaceIconGlyph,
-	type InterfaceIconGlyph,
-	type InterfaceIconName,
-	getInterfaceIconEvidence as getLinearInterfaceIconEvidence,
-	interfaceIconMappings as linearInterfaceIconMappings,
-	resolveInterfaceIconGlyph as resolveLinearInterfaceIconGlyph,
-	type InterfaceIconGlyph as LinearInterfaceIconGlyph,
-	type InterfaceIconName as LinearInterfaceIconName,
-} from "./components/icons/interface-icon.js";
-export {
-	linearIconCatalogHash,
-	linearIconCoverage,
-	linearIconData,
-	linearIconLibrary,
-	linearIconNames,
-	type LinearIconCatalogData,
-	type LinearIconLibraryEntry,
-	type LinearIconName,
-} from "./components/icons/linear-icon-catalog.js";
-export {
-	mapGitHubPrStateToLinearStatusIcon,
-	mapUppercasePrStateToLinearStatusIcon,
-	pullRequestLinearStatusIcons,
+	mapGitHubPrStateToStatusIcon,
+	mapUppercasePrStateToStatusIcon,
+	pullRequestStatusIcons,
 	type PullRequestGitHubState,
-	type PullRequestLinearStatusIconName,
-	type PullRequestLinearStatusKind,
+	type PullRequestStatusIconName,
+	type PullRequestStatusKind,
 } from "./components/icons/pull-request-status-icon.js";
 export {
 	ProviderMark,
@@ -582,6 +558,8 @@ export {
 } from "./lib/file-icon/index.js";
 // Icon context
 export { getIconBasePath, setIconConfig } from "./lib/icon-context.js";
+// Shared reduced-motion signal (single matchMedia + change listener)
+export { reducedMotion } from "./lib/hooks/reduced-motion.svelte.js";
 // Thinking preferences context
 export {
 	getThinkingPreferences,

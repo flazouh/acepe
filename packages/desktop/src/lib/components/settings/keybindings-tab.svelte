@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-	RoundedIcon,
+	HugeiconsIcon,
 	Table,
 	TableBody,
 	TableCell,
@@ -89,13 +89,13 @@ async function handleResetAllToDefaults() {
 			onclick={handleResetAllToDefaults}
 			disabled={isLoading}
 		>
-			<RoundedIcon name="refresh" class="size-3" />
+			<HugeiconsIcon name="refresh" class="size-3" />
 			{"Reset All"}
 		</button>
 	</div>
 
 	<div class="relative shrink-0 border-b border-border/30 pb-2">
-		<RoundedIcon name="search" class="absolute left-0 top-1/2 size-3 -translate-y-1/2 text-muted-foreground/50" />
+		<HugeiconsIcon name="search" class="absolute left-0 top-1/2 size-3 -translate-y-1/2 text-muted-foreground/50" />
 		<input
 			type="text"
 			placeholder={"Search keybindings..."}
@@ -165,7 +165,7 @@ async function handleResetAllToDefaults() {
 												disabled={isLoading}
 												title={"Edit keybinding"}
 											>
-												<RoundedIcon name="pencil" class="size-2.5" />
+												<HugeiconsIcon name="pencil" class="size-2.5" />
 											</button>
 											{#if isCustom}
 												<button
@@ -177,7 +177,7 @@ async function handleResetAllToDefaults() {
 													disabled={isLoading}
 													title={"Reset to default"}
 												>
-													<RoundedIcon name="close" class="size-2.5" />
+													<HugeiconsIcon name="close" class="size-2.5" />
 												</button>
 											{/if}
 										</div>

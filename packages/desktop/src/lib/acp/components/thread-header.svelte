@@ -1,5 +1,5 @@
 <script lang="ts">
-import { RoundedIcon } from "@acepe/ui";
+import { HugeiconsIcon } from "@acepe/ui";
 import { Badge } from "$lib/components/ui/badge/index.js";
 import { Button } from "$lib/components/ui/button/index.js";
 import type { ThreadState } from "../types/thread-state.js";
@@ -46,12 +46,12 @@ const statusColor = (status: ThreadStatus) => {
 		<div class="flex items-center gap-2">
 			{#if onCancel && (thread.status === "streaming" || thread.status === "sending")}
 				<Button variant="outline" size="icon" onclick={onCancel}>
-					<RoundedIcon name="close" class="h-4 w-4" />
+					<HugeiconsIcon name="close" class="h-4 w-4" />
 				</Button>
 			{/if}
 			{#if onDelete}
 				<Button variant="outline" size="icon" onclick={onDelete}>
-					<RoundedIcon name="trash" class="h-4 w-4" />
+					<HugeiconsIcon name="trash" class="h-4 w-4" />
 				</Button>
 			{/if}
 		</div>

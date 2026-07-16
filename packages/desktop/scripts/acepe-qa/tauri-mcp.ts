@@ -48,7 +48,7 @@ const tauriScreenshotWrapperSchema = z.object({
 
 const daemonResponseSchema = z.object({
 	ok: z.boolean(),
-	code: z.number().optional(),
+	code: z.union([z.number(), z.string()]).optional(),
 	stdout: z.string().optional(),
 	stderr: z.string().optional(),
 	text: z.string().optional(),
@@ -217,13 +217,13 @@ function commandFromDaemon(args: readonly string[]): ResultAsync<CommandExecutio
 		return ensureDaemon()
 			.andThen(() => daemonRequest({ kind: "driver-session-start", appIdentifier }))
 			.map((response) => ({
-				code: response.code ?? 0,
+				code: typeof response.code === "number" ? response.code : response.ok ? 0 : 1,
 				stdout: response.stdout ?? "",
 				stderr: response.stderr ?? "",
 			}));
 	}
 
-	if (args[0] === "webview-execute-js") {
+	if (args[0] === "webview-execute-js" || args[0] === "webview-execute-js-sync") {
 		const appIdentifier = valueAfter(args, "--app-identifier") ?? "9223";
 		const script = valueAfter(args, "--script") ?? "";
 		const callTimeoutMs = Number.parseInt(valueAfter(args, "--call-timeout") ?? "", 10);
@@ -231,12 +231,13 @@ function commandFromDaemon(args: readonly string[]): ResultAsync<CommandExecutio
 			Number.isFinite(callTimeoutMs) && callTimeoutMs > 0
 				? callTimeoutMs + 5_000
 				: DAEMON_REQUEST_TIMEOUT_MS;
+		const request =
+			args[0] === "webview-execute-js-sync"
+				? { kind: "webview-execute-js-sync", appIdentifier, script }
+				: { kind: "webview-execute-js", appIdentifier, script, callTimeoutMs };
 		return ensureDaemon()
 			.andThen(() =>
-				daemonRequest(
-					{ kind: "webview-execute-js", appIdentifier, script, callTimeoutMs },
-					{ timeoutMs: requestTimeoutMs }
-				)
+				daemonRequest(request, { timeoutMs: requestTimeoutMs })
 			)
 			.andThen((response) => {
 				if (!response.ok) {
@@ -297,11 +298,16 @@ export function runTauriMcp(
 	args: readonly string[],
 	runner: CommandRunner = runCommand
 ): ResultAsync<CommandExecution, TauriMcpFailure> {
-	if (args[0] === "driver-session" && args[1] === "start") {
-		return runTauriMcpCli(args, runner);
-	}
 	if (runner !== runCommand) {
 		return runTauriMcpCli(args, runner);
+	}
+	if (
+		(args[0] === "driver-session" && args[1] === "start") ||
+		args[0] === "webview-execute-js" ||
+		args[0] === "webview-execute-js-sync" ||
+		args[0] === "webview-screenshot"
+	) {
+		return commandFromDaemon(args);
 	}
 	return commandFromDaemon(args).orElse(() => runTauriMcpCli(args, runner));
 }
@@ -374,21 +380,22 @@ export function jsonObjectPrefix(text: string): string | null {
 	return null;
 }
 
-export function executeWebviewJson<T>(
+function executeWebviewJsonCommand<T>(
 	input: {
 		readonly appIdentifier: string;
 		readonly script: string;
 		readonly schema: z.ZodType<T>;
 		readonly callTimeoutMs?: number;
 	},
-	runner: CommandRunner = runCommand
+	runner: CommandRunner,
+	commandName: "webview-execute-js" | "webview-execute-js-sync"
 ): ResultAsync<T, TauriMcpFailure> {
 	const callTimeoutMs = input.callTimeoutMs ?? 15_000;
 
 	const execute = (): ResultAsync<T, TauriMcpFailure> =>
 		runTauriMcp(
 			[
-				"webview-execute-js",
+				commandName,
 				"--app-identifier",
 				input.appIdentifier,
 				"--json",
@@ -444,6 +451,30 @@ export function executeWebviewJson<T>(
 			return execute();
 		});
 	});
+}
+
+export function executeWebviewJson<T>(
+	input: {
+		readonly appIdentifier: string;
+		readonly script: string;
+		readonly schema: z.ZodType<T>;
+		readonly callTimeoutMs?: number;
+	},
+	runner: CommandRunner = runCommand
+): ResultAsync<T, TauriMcpFailure> {
+	return executeWebviewJsonCommand(input, runner, "webview-execute-js");
+}
+
+export function executeWebviewJsonSync<T>(
+	input: {
+		readonly appIdentifier: string;
+		readonly script: string;
+		readonly schema: z.ZodType<T>;
+		readonly callTimeoutMs?: number;
+	},
+	runner: CommandRunner = runCommand
+): ResultAsync<T, TauriMcpFailure> {
+	return executeWebviewJsonCommand(input, runner, "webview-execute-js-sync");
 }
 
 function isNoActiveDriverSessionFailure(failure: TauriMcpFailure): boolean {

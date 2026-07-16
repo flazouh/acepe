@@ -131,7 +131,7 @@
 </script>
 
 <script lang="ts">
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import { onDestroy } from "svelte";
 
 	import { getFallbackIconSrc, getFileIconSrc } from "../../lib/file-icon/index.js";
@@ -248,9 +248,13 @@
 				type="button"
 			>
 				{#if copied}
-					<RoundedIcon name="check" class="size-3.5" />
+					<HugeiconsIcon name="check" class="size-3.5" />
 				{:else}
-					<RoundedIcon name="copy" class="size-3.5" />
+					<HugeiconsIcon
+						name="copy"
+						class="size-3.5"
+						data-testid="native-markdown-code-copy-hugeicons-icon"
+					/>
 				{/if}
 			</button>
 		</div>

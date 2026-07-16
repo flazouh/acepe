@@ -1,5 +1,5 @@
 <script lang="ts">
-import { BrandLockup, RoundedIcon, TextShimmer } from "@acepe/ui";
+import { BrandLockup, HugeiconsIcon, TextShimmer } from "@acepe/ui";
 import Header from "$lib/components/header.svelte";
 import Seo from "$lib/components/seo/seo.svelte";
 import { pricingFaqItems } from "./faq.js";
@@ -88,7 +88,7 @@ const pricingFaqJsonLd = {
 							href="/download"
 							class="theme-invert-btn mt-6 mb-6 flex h-9 items-center justify-center gap-2 rounded-lg text-sm font-medium transition-colors"
 						>
-							<RoundedIcon name="terminal" class="h-3.5 w-3.5" />
+							<HugeiconsIcon name="terminal" class="h-3.5 w-3.5" />
 							Get started
 						</a>
 
@@ -102,7 +102,7 @@ const pricingFaqJsonLd = {
 								<div
 									class="flex items-center gap-2.5 border-t border-border/30 py-2 font-mono text-xs text-muted-foreground"
 								>
-									<RoundedIcon name="check" class="h-3 w-3 shrink-0 text-foreground/50" />
+									<HugeiconsIcon name="check" class="h-3 w-3 shrink-0 text-foreground/50" />
 									{feature}
 								</div>
 							{/each}
@@ -157,7 +157,7 @@ const pricingFaqJsonLd = {
 									class="flex items-start gap-2.5 border-t py-2 font-mono text-xs"
 									style="border-color: color-mix(in srgb, var(--primary) 10%, var(--border));"
 								>
-									<RoundedIcon name="check" class="mt-0.5 h-3 w-3 shrink-0 text-primary" />
+									<HugeiconsIcon name="check" class="mt-0.5 h-3 w-3 shrink-0 text-primary" />
 									<span>
 										<span class="text-foreground">{feature.name}</span>
 										<span class="text-muted-foreground/60"> — {feature.desc}</span>
@@ -198,7 +198,7 @@ const pricingFaqJsonLd = {
 							class="mt-6 mb-6 flex h-9 items-center justify-center gap-2 rounded-lg border border-border bg-muted/30 text-sm font-medium text-foreground transition-colors hover:bg-muted/60"
 						>
 							Contact us
-							<RoundedIcon name="arrow-right" class="h-3.5 w-3.5" />
+							<HugeiconsIcon name="arrow-right" class="h-3.5 w-3.5" />
 						</a>
 
 						<div class="flex flex-col gap-0">
@@ -211,7 +211,7 @@ const pricingFaqJsonLd = {
 								<div
 									class="flex items-center gap-2.5 border-t border-border/30 py-2 font-mono text-xs text-muted-foreground"
 								>
-									<RoundedIcon name="check" class="h-3 w-3 shrink-0 text-foreground/50" />
+									<HugeiconsIcon name="check" class="h-3 w-3 shrink-0 text-foreground/50" />
 									{feature}
 								</div>
 							{/each}
@@ -248,7 +248,7 @@ const pricingFaqJsonLd = {
 									class="mt-3 inline-flex items-center gap-1.5 text-[13px] font-medium text-foreground transition-colors hover:text-primary"
 								>
 									{item.comparisonLink.label}
-									<RoundedIcon name="arrow-right" class="h-3.5 w-3.5" />
+									<HugeiconsIcon name="arrow-right" class="h-3.5 w-3.5" />
 								</a>
 							{/if}
 						</div>
@@ -316,7 +316,7 @@ const pricingFaqJsonLd = {
 								rel="noopener noreferrer"
 								class="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
 							>
-								<RoundedIcon name="github" class="size-3.5" />
+								<HugeiconsIcon name="github" class="size-3.5" />
 								GitHub
 							</a>
 						</li>

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { buildRenderedTranscriptViewportRows } from "../components/agent-panel/logic/transcript-viewport-rendered-rows.js";
 import {
 	AGENT_PANEL_STRESS_ROW_COUNT_PRESETS,
+	createAgentPanelPlanningBetweenToolsFixtureSequence,
+	createAgentPanelSendAttachFixtureSequence,
 	createAgentPanelStressFixture,
 	type AgentPanelStressPreset,
 } from "./agent-panel-stress-fixture.js";
@@ -21,6 +23,64 @@ function uniqueCount(values: readonly string[]): number {
 }
 
 describe("createAgentPanelStressFixture", () => {
+	it("builds the provider-free planning-between-tools transition", () => {
+		const sequence = createAgentPanelPlanningBetweenToolsFixtureSequence();
+
+		expect(sequence.completedToolTail.rowsProjection.rows.map((row) => row.kind)).toEqual([
+			"user",
+			"tool",
+		]);
+		expect(sequence.completedToolTail.rowsProjection.rows.at(-1)?.operationLinks).toMatchObject([
+			{ state: "completed" },
+		]);
+		expect(sequence.activeAssistantTail.rowsProjection.rows.map((row) => row.kind)).toEqual([
+			"user",
+			"tool",
+			"assistantText",
+		]);
+		expect(sequence.activeAssistantTail.rowsProjection.rows.at(-1)?.activeStreamingTail).toBe(
+			"message"
+		);
+		expect(sequence.activeAssistantTail.rowsProjection.rows.slice(0, 2)).toEqual(
+			sequence.completedToolTail.rowsProjection.rows
+		);
+	});
+
+	it("builds the provider-free send attach sequence with one stable streaming row", () => {
+		const sequence = createAgentPanelSendAttachFixtureSequence({ rowCount: 120 });
+
+		expect(sequence.initial.rowsProjection.rows).toHaveLength(120);
+		expect(sequence.initial.rowsProjection.rows.length).toBeLessThan(200);
+		expect(sequence.pendingUser.rowsProjection.rows).toHaveLength(121);
+		expect(sequence.firstStream.rowsProjection.rows).toHaveLength(122);
+		expect(sequence.updatedStream.rowsProjection.rows).toHaveLength(122);
+
+		const longEntry = sequence.initial.sceneEntries.find(
+			(entry) => entry.id === sequence.longMarkdownEntryId
+		);
+		expect(longEntry?.type).toBe("assistant");
+		if (longEntry?.type !== "assistant") {
+			throw new Error("Send attach fixture did not create its long assistant row");
+		}
+		expect(longEntry.markdown).toContain("send-attach-long-markdown-end");
+
+		const pendingRow = sequence.pendingUser.rowsProjection.rows.at(-1);
+		expect(pendingRow?.rowId).toBe(sequence.pendingUserRowId);
+		expect(pendingRow?.kind).toBe("user");
+
+		const firstStreamRow = sequence.firstStream.rowsProjection.byId.get(
+			sequence.streamingRowId
+		);
+		const updatedStreamRow = sequence.updatedStream.rowsProjection.byId.get(
+			sequence.streamingRowId
+		);
+		expect(firstStreamRow?.version).toBe(`${sequence.streamingRowId}:v1`);
+		expect(updatedStreamRow?.version).toBe(`${sequence.streamingRowId}:v2`);
+		expect(firstStreamRow?.rowId).toBe(updatedStreamRow?.rowId);
+		expect(firstStreamRow?.content).not.toEqual(updatedStreamRow?.content);
+		expect(updatedStreamRow?.activeStreamingTail).toBe("message");
+	});
+
 	it("generates stable matching scene entries and viewport rows", () => {
 		const first = createAgentPanelStressFixture({
 			rowCount: 1_000,
@@ -111,7 +171,7 @@ describe("createAgentPanelStressFixture", () => {
 			bufferRows: fixture.rowsProjection.rows,
 			bufferStartIndex: 0,
 			optimisticUserEntry: null,
-			showLocalPlanningIndicator: false,
+			localPlaceholderMode: "none",
 			planningPlaceholderPresentation: null,
 			syntheticReviewEntry: null,
 		});

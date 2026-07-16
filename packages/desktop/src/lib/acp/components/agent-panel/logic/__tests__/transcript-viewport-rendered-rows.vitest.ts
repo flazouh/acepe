@@ -46,7 +46,7 @@ describe("buildRenderableTranscriptViewportRows", () => {
 			bufferRows: [createViewportToolRow("tool-tail")],
 			bufferStartIndex: 100,
 			optimisticUserEntry: createOptimisticUserEntry("pending-user", "Pending message"),
-			showLocalPlanningIndicator: false,
+			localPlaceholderMode: "none",
 		});
 
 		expect(rows.map((row) => row.row.rowId)).toEqual([

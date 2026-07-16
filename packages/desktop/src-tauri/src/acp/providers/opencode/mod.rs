@@ -2,7 +2,7 @@
 //!
 //! ## Ingress edge map (R3)
 //!
-//! Classification table: `acp/session/ingress/tool_identity/providers/open_code.rs` (plan 009 home; referenced, not moved).
+//! Classification table: `acp/reconciler/providers/open_code.rs` (plan 009 home; referenced, not moved).
 //!
 //! Fewer live ingress edges than Cursor — HTTP REST + SSE transport, no ACP JSON-RPC enrichment index.
 //!

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 
 interface Props {
 		appVersion?: string | null;
@@ -59,7 +59,7 @@ interface Props {
 					class="text-[10px] text-muted-foreground/50 hover:text-muted-foreground flex items-center gap-1 transition-colors"
 					title={whatsNewLabel}
 				>
-					<RoundedIcon name="sparkle" class="size-3" />
+					<HugeiconsIcon name="sparkle" class="size-3" />
 					{whatsNewLabel}
 				</button>
 			{/if}

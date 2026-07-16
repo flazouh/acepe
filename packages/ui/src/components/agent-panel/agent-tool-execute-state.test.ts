@@ -10,6 +10,8 @@ import {
 	isExecuteError,
 	isExecutePending,
 	isExecuteSuccess,
+	resolveExecuteCommandHtmls,
+	resolveExecuteOutputHtml,
 	shouldUseCommandHtmls,
 	shouldUseOutputHtml,
 } from "./agent-tool-execute-state.js";
@@ -102,5 +104,78 @@ describe("agent tool execute state", () => {
 		).toBe("src/components/agent-panel/agent-tool-compact-display-state.test.ts");
 		expect(extractExecuteCommandFilePath("cargo check -p acepe-desktop")).toBeNull();
 		expect(extractExecuteCommandFilePath("cd packages/ui && bun run check")).toBeNull();
+	});
+
+	test("resolves command html via highlight callback once ready (survives ready-race)", () => {
+		let ready = false;
+		const highlightCommand = (code: string): string | null => {
+			if (!ready) return null;
+			return `<span style="color: var(--shiki-light)">${code}</span>`;
+		};
+
+		expect(
+			resolveExecuteCommandHtmls({
+				command: "echo hi && pwd",
+				highlightCommand,
+			})
+		).toBeUndefined();
+
+		ready = true;
+		expect(
+			resolveExecuteCommandHtmls({
+				command: "echo hi && pwd",
+				highlightCommand,
+			})
+		).toEqual([
+			'<span style="color: var(--shiki-light)">echo hi</span>',
+			'<span style="color: var(--shiki-light)">pwd</span>',
+		]);
+	});
+
+	test("keeps precomputed commandHtmls over the highlight callback", () => {
+		expect(
+			resolveExecuteCommandHtmls({
+				command: "echo hi",
+				commandHtmls: ["<span>baked</span>"],
+				highlightCommand: () => "<span>live</span>",
+			})
+		).toEqual(["<span>baked</span>"]);
+	});
+
+	test("resolves stdout/stderr html via highlightOutput when ready", () => {
+		let ready = false;
+		const highlight = (code: string): string | null => {
+			if (!ready) return null;
+			return `<span class="line">${code}</span>`;
+		};
+
+		expect(resolveExecuteOutputHtml({ text: "ok", highlight })).toBeNull();
+		ready = true;
+		expect(resolveExecuteOutputHtml({ text: "ok", highlight })).toBe(
+			'<span class="line">ok</span>'
+		);
+		expect(
+			resolveExecuteOutputHtml({
+				text: "ok",
+				precomputed: "<span>pre</span>",
+				highlight,
+			})
+		).toBe("<span>pre</span>");
+	});
+
+	test("skips highlighting when the callback returns null for capped content", () => {
+		const highlightCommand = (): string | null => null;
+		expect(
+			resolveExecuteCommandHtmls({
+				command: "echo hi",
+				highlightCommand,
+			})
+		).toBeUndefined();
+		expect(
+			resolveExecuteOutputHtml({
+				text: "x".repeat(30_000),
+				highlight: () => null,
+			})
+		).toBeNull();
 	});
 });

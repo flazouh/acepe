@@ -10,7 +10,7 @@
 	import type { Snippet } from "svelte";
 
 	import { Button } from "../button/index.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 
 	export type AgentInputSubmitIntent = "send" | "steer" | "stop";
 
@@ -123,7 +123,7 @@
 				disabled={submitDisabled}
 				class="h-7 w-7 cursor-pointer shrink-0 rounded-full bg-foreground text-background hover:bg-foreground/85"
 			>
-				<RoundedIcon name="stop" class="h-3.5 w-3.5" />
+				<HugeiconsIcon name="stop" class="h-3.5 w-3.5" />
 				<span class="sr-only">{submitAriaLabel}</span>
 			</Button>
 		{:else}
@@ -134,7 +134,7 @@
 				disabled={submitDisabled}
 				class="h-7 w-7 cursor-pointer shrink-0 rounded-full bg-foreground text-background hover:bg-foreground/85"
 			>
-				<RoundedIcon name="arrow-up" class="h-3.5 w-3.5" />
+				<HugeiconsIcon name="arrow-up" class="h-3.5 w-3.5" />
 				<span class="sr-only">{submitAriaLabel}</span>
 			</Button>
 		{/if}

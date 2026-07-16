@@ -4,7 +4,7 @@
 -->
 <script lang="ts">
 	import { ChipShell } from "../chip/index.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import AgentInputModeIcon from "./agent-input-mode-icon.svelte";
 	import type { ModeIconKind } from "./agent-input-mode-selector-state.js";
 
@@ -67,7 +67,7 @@
 			aria-label={`Clear ${label} mode`}
 			onclick={handleDismiss}
 		>
-			<RoundedIcon name="close" class="h-3 w-3" />
+			<HugeiconsIcon name="close" class="h-3 w-3" />
 		</button>
 	{/if}
 </ChipShell>

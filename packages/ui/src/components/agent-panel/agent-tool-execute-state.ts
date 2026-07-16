@@ -81,6 +81,60 @@ export function shouldUseOutputHtml(outputHtml?: string | null): boolean {
 	return typeof outputHtml === "string";
 }
 
+/**
+ * Resolve command HTML reactively: prefer precomputed `commandHtmls`, else invoke
+ * `highlightCommand` per segment. Returns undefined when highlighting is unavailable
+ * so the View can fall back to the lightweight tokenizer.
+ *
+ * Call from `$derived` so a highlighter that reads a reactive `ready` flag upgrades
+ * after the Shiki singleton finishes loading (avoids baking undefined into memoized scene).
+ */
+export function resolveExecuteCommandHtmls(input: {
+	command: string | null;
+	commandHtmls?: readonly string[];
+	highlightCommand?: ((code: string) => string | null) | null;
+}): readonly string[] | undefined {
+	if (shouldUseCommandHtmls(input.commandHtmls)) {
+		return input.commandHtmls;
+	}
+
+	if (!input.command || !input.highlightCommand) {
+		return undefined;
+	}
+
+	const segments = getExecuteCommandSegments(input.command);
+	const highlighted: string[] = [];
+	for (const segment of segments) {
+		const html = input.highlightCommand(segment);
+		if (html === null) {
+			return undefined;
+		}
+		highlighted.push(html);
+	}
+
+	return highlighted.length > 0 ? highlighted : undefined;
+}
+
+/**
+ * Resolve stdout/stderr HTML: prefer a precomputed string, else invoke `highlight`.
+ * Returns null when highlighting is unavailable (plain text fallback).
+ */
+export function resolveExecuteOutputHtml(input: {
+	text?: string | null;
+	precomputed?: string | null;
+	highlight?: ((code: string) => string | null) | null;
+}): string | null {
+	if (typeof input.precomputed === "string") {
+		return input.precomputed;
+	}
+
+	if (!input.text || !input.highlight) {
+		return null;
+	}
+
+	return input.highlight(input.text);
+}
+
 const COMPACT_COMMAND_FILE_EXTENSIONS = [
 	".ts",
 	".tsx",

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { Button, RoundedIcon } from "@acepe/ui";
+import { Button, HugeiconsIcon } from "@acepe/ui";
 import { PlanSidebarLayout } from "@acepe/ui/plan-sidebar";
 import { toast } from "svelte-sonner";
 import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
@@ -59,7 +59,7 @@ function handleDownloadMarkdown() {
 				onclick={handleDownloadMarkdown}
 			>
 				{#snippet children()}
-				<RoundedIcon name="download" />
+				<HugeiconsIcon name="download" />
 				{/snippet}
 			</Button>
 			<Button
@@ -71,7 +71,7 @@ function handleDownloadMarkdown() {
 				onclick={onOpenFullscreen}
 			>
 				{#snippet children()}
-					<RoundedIcon name="expand" />
+					<HugeiconsIcon name="expand" />
 				{/snippet}
 			</Button>
 		{/snippet}

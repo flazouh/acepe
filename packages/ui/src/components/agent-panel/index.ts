@@ -24,7 +24,7 @@ export { default as AgentSessionActivityEntryView } from "./agent-session-activi
 export { default as AgentInputActiveModeChip } from "./agent-input-active-mode-chip.svelte";
 export { default as AgentInputAgentSelector } from "./agent-input-agent-selector.svelte";
 export type { AgentInputAgentSelectorItem } from "./agent-input-agent-selector-types.js";
-export { default as DefaultAgentHeartIcon } from "./default-agent-heart-icon.svelte";
+export { default as DefaultAgentPinIcon } from "./default-agent-pin-icon.svelte";
 export { default as AgentInputArtefactBadge } from "./agent-input-artefact-badge.svelte";
 export { default as AgentInputAttachMenu } from "./agent-input-attach-menu.svelte";
 export type {
@@ -161,7 +161,6 @@ export { default as AgentToolDurationLabel } from "./agent-tool-duration-label.s
 export { isRawExecuteToolName, normalizedRawToolName } from "./agent-tool-raw-name-state.js";
 export { default as PlanningPlaceholderRow } from "./planning-placeholder-row.svelte";
 export type { ToolDurationTiming } from "./tool-duration.js";
-export { default as ThinkingDotMatrix } from "./thinking-dot-matrix.svelte";
 export { default as AgentToolTodo } from "./agent-tool-todo.svelte";
 export { default as AgentToolWebSearch } from "./agent-tool-web-search.svelte";
 export { default as ToolKindIcon } from "./tool-kind-icon.svelte";
@@ -172,6 +171,7 @@ export { CommandChip } from "../command-chip/index.js";
 export type { CommandChipModel } from "../command-chip/index.js";
 export { default as AgentPanelBrowserPanel } from "./browser-panel.svelte";
 export { default as AgentCompactToolDisplay } from "./compact-tool-display.svelte";
+export { default as AgentCopyButton } from "./agent-copy-button.svelte";
 export { default as AgentPanelCreatePrButton } from "./create-pr-button.svelte";
 export { default as AgentPanelMergeButton } from "./merge-button.svelte";
 export { default as AgentPanelModifiedFilesHeader } from "./modified-files-header.svelte";

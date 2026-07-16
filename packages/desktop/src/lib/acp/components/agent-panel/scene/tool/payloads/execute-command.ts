@@ -73,12 +73,17 @@ export function splitExecuteCommandSegments(command: string): string[] {
 	return segments;
 }
 
-export function mapExecuteCommandHtmls(command: string | null | undefined): readonly string[] | undefined {
-	if (!command) return undefined;
-	const segments = splitExecuteCommandSegments(command);
-	if (!bashHighlighter.ready) return undefined;
-	const highlightedSegments = segments
-		.map((segment) => bashHighlighter.highlight(segment))
-		.filter((html): html is string => html !== null);
-	return highlightedSegments.length > 0 ? highlightedSegments : undefined;
+/**
+ * Stable Shiki-backed command highlighter for execute tool cards.
+ * Pass into the View as `highlightCommand` so `$derived` upgrades when ready flips.
+ */
+export function getExecuteCommandHighlighter(): (code: string) => string | null {
+	return bashHighlighter.highlight;
+}
+
+/**
+ * Stable Shiki-backed output highlighter (log grammar) for stdout/stderr.
+ */
+export function getExecuteOutputHighlighter(): (code: string) => string | null {
+	return bashHighlighter.highlightOutput;
 }

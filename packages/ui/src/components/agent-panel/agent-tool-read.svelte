@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { untrack } from "svelte";
 	import { FilePathBadge } from "../file-path-badge/index.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import {
 		readPersistedReadExpanded,
 		writePersistedReadExpanded,
@@ -70,7 +70,7 @@
 		deletions = 0,
 		status = "done",
 		durationTiming,
-		iconBasePath = "",
+		iconBasePath = "/svgs/icons",
 		interactive = false,
 		onSelect,
 		ariaCollapseSource = "Collapse read content",
@@ -143,7 +143,7 @@
 				aria-label={isExpanded ? ariaCollapseSource : ariaExpandSource}
 				aria-expanded={isExpanded}
 			>
-				<RoundedIcon name="chevron-down" class="size-3 shrink-0 transition-transform duration-150 {isExpanded ? '' : '-rotate-90'}"
+				<HugeiconsIcon name="chevron-down" class="size-3 shrink-0 transition-transform duration-150 {isExpanded ? '' : '-rotate-90'}"
 				/>
 			</button>
 		{/if}

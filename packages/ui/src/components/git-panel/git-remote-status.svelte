@@ -3,7 +3,7 @@
 	 * GitRemoteStatus — Ahead/behind indicator pill.
 	 */
 	import { cn } from "../../lib/utils.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import type { GitRemoteStatus } from "./types.js";
 
 	interface Props {
@@ -25,13 +25,13 @@
 	>
 		{#if status.ahead > 0}
 			<span class="inline-flex items-center gap-0.5">
-				<RoundedIcon name="arrow-up" class="size-2.5" />
+				<HugeiconsIcon name="arrow-up" class="size-2.5" />
 				{status.ahead}
 			</span>
 		{/if}
 		{#if status.behind > 0}
 			<span class="inline-flex items-center gap-0.5">
-				<RoundedIcon name="arrow-up" class="size-2.5 rotate-180" />
+				<HugeiconsIcon name="arrow-up" class="size-2.5 rotate-180" />
 				{status.behind}
 			</span>
 		{/if}

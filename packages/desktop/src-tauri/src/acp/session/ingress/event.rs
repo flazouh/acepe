@@ -1,12 +1,8 @@
 //! Canonical ingress fact vocabulary — provider-agnostic events fed to `engine::fold`.
 
-use crate::acp::client_session::{SessionModelState, SessionModes};
-use crate::acp::lifecycle::{DetachedReason, FailureReason};
-use crate::acp::projections::ComputerPermissionData;
 use crate::acp::session_update::{
-    AvailableCommand, AvailableCommandsData, ConfigOptionData, ConfigOptionUpdateData,
-    CurrentModeData, PermissionData, PlanData, QuestionData, SessionCompactionEvent, ToolCallData,
-    ToolCallUpdateData, TurnErrorData, UsageTelemetryData,
+    AvailableCommandsData, CurrentModeData, PermissionData, PlanData, QuestionData,
+    SessionCompactionEvent, ToolCallData, ToolCallUpdateData, UsageTelemetryData,
 };
 use crate::acp::types::CanonicalAgentId;
 use crate::cc_sdk::AssistantMessageError;
@@ -34,10 +30,12 @@ pub enum ProviderEventKind {
     },
     AssistantText {
         text: String,
+        parent_tool_use_id: Option<String>,
     },
     AssistantThought {
         text: String,
         redacted: Option<String>,
+        parent_tool_use_id: Option<String>,
     },
     AssistantError {
         text: String,
@@ -45,40 +43,17 @@ pub enum ProviderEventKind {
     },
     ToolCall(ToolCallData),
     ToolCallUpdate(ToolCallUpdateData),
-    ComputerPermissionRequest {
-        update: ToolCallUpdateData,
-        permission: ComputerPermissionData,
-    },
     Permission(PermissionData),
     Question(QuestionData),
     Plan(PlanData),
     Usage(UsageTelemetryData),
     ModeUpdate(CurrentModeData),
     CapabilitiesUpdate(AvailableCommandsData),
-    ConfigOptionsUpdate(ConfigOptionUpdateData),
-    SessionReady {
-        models: SessionModelState,
-        modes: SessionModes,
-        available_commands: Option<Vec<AvailableCommand>>,
-        config_options: Option<Vec<ConfigOptionData>>,
-        autonomous_enabled: Option<bool>,
-    },
-    SessionFailed {
-        error: String,
-        failure_reason: FailureReason,
-    },
-    SessionDetached {
-        detached_reason: DetachedReason,
-    },
     TurnBegin {
         request_id: Option<String>,
     },
     TurnEnd {
         outcome: TurnOutcome,
-    },
-    TurnFailure {
-        error: TurnErrorData,
-        turn_id: Option<String>,
     },
     Compaction(SessionCompactionEvent),
 }
@@ -101,20 +76,14 @@ impl ProviderEventKind {
             ProviderEventKind::AssistantError { .. } => "assistant_error",
             ProviderEventKind::ToolCall(_) => "tool_call",
             ProviderEventKind::ToolCallUpdate(_) => "tool_call_update",
-            ProviderEventKind::ComputerPermissionRequest { .. } => "computer_permission_request",
             ProviderEventKind::Permission(_) => "permission",
             ProviderEventKind::Question(_) => "question",
             ProviderEventKind::Plan(_) => "plan",
             ProviderEventKind::Usage(_) => "usage",
             ProviderEventKind::ModeUpdate(_) => "mode_update",
             ProviderEventKind::CapabilitiesUpdate(_) => "capabilities_update",
-            ProviderEventKind::ConfigOptionsUpdate(_) => "config_options_update",
-            ProviderEventKind::SessionReady { .. } => "session_ready",
-            ProviderEventKind::SessionFailed { .. } => "session_failed",
-            ProviderEventKind::SessionDetached { .. } => "session_detached",
             ProviderEventKind::TurnBegin { .. } => "turn_begin",
             ProviderEventKind::TurnEnd { .. } => "turn_end",
-            ProviderEventKind::TurnFailure { .. } => "turn_failure",
             ProviderEventKind::Compaction(_) => "compaction",
         }
     }
@@ -123,23 +92,6 @@ impl ProviderEventKind {
 impl ProviderEvent {
     pub(crate) fn kind_discriminant(&self) -> &'static str {
         self.kind.discriminant_label()
-    }
-
-    /// Stable idempotency key for history/live reconciliation.
-    ///
-    /// `journal:<seq>` identifies only one local delivery occurrence. It is
-    /// deliberately excluded because matching it to provider-history ordering
-    /// could suppress an unrelated chunk that happens to share the same number.
-    pub(crate) fn fold_dedup_key(&self) -> Option<String> {
-        if self.provider_row_id.starts_with("journal:") {
-            return None;
-        }
-        Some(format!(
-            "{}:{}:{}",
-            self.source,
-            self.provider_row_id,
-            self.kind_discriminant()
-        ))
     }
 }
 
@@ -168,20 +120,5 @@ mod tests {
             ProviderEventKind::UserText { text, .. } => assert_eq!(text, "hello"),
             _ => panic!("expected UserText"),
         }
-    }
-
-    #[test]
-    fn journal_occurrence_has_no_fold_dedup_key() {
-        let event = ProviderEvent {
-            source: CanonicalAgentId::ClaudeCode,
-            provider_seq: 7,
-            provider_row_id: "journal:7".to_string(),
-            timestamp_ms: None,
-            kind: ProviderEventKind::AssistantText {
-                text: "delta".to_string(),
-            },
-        };
-
-        assert_eq!(event.fold_dedup_key(), None);
     }
 }

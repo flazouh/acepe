@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Button } from "../button/index.js";
-	import { DiscordIcon, RoundedIcon, XLogoIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 
 	interface Props {
 		githubUrl: string;
@@ -31,7 +31,7 @@
 				onclick={() => onLinkClick(githubUrl)}
 			>
 				{#snippet children()}
-					<RoundedIcon name="github" />
+					<HugeiconsIcon name="github-filled" size={16} filled />
 				{/snippet}
 			</Button>
 			<Button
@@ -41,7 +41,7 @@
 				onclick={() => onLinkClick(xUrl)}
 			>
 				{#snippet children()}
-					<XLogoIcon />
+					<HugeiconsIcon name="twitter-filled" size={16} filled />
 				{/snippet}
 			</Button>
 			<Button
@@ -51,23 +51,23 @@
 				onclick={() => onLinkClick(discordUrl)}
 			>
 				{#snippet children()}
-					<DiscordIcon weight="fill" />
+					<HugeiconsIcon name="discord-filled" size={16} filled />
 				{/snippet}
 			</Button>
 		{:else}
 			<Button {...chromeIconButton} href={githubUrl} title="GitHub" aria-label="GitHub">
 				{#snippet children()}
-					<RoundedIcon name="github" />
+					<HugeiconsIcon name="github-filled" size={16} filled />
 				{/snippet}
 			</Button>
 			<Button {...chromeIconButton} href={xUrl} title="X" aria-label="X">
 				{#snippet children()}
-					<XLogoIcon />
+					<HugeiconsIcon name="twitter-filled" size={16} filled />
 				{/snippet}
 			</Button>
 			<Button {...chromeIconButton} href={discordUrl} title="Discord" aria-label="Discord">
 				{#snippet children()}
-					<DiscordIcon weight="fill" />
+					<HugeiconsIcon name="discord-filled" size={16} filled />
 				{/snippet}
 			</Button>
 		{/if}

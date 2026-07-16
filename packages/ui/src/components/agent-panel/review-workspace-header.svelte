@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { type Snippet } from "svelte";
 	import { Button } from "../button/index.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 
 	interface Props {
 		label: string;
@@ -67,7 +67,7 @@
 				onclick={() => onClose?.()}
 				data-testid="review-workspace-close"
 			>
-				<RoundedIcon name="chevron-left" class="size-3 shrink-0" />
+				<HugeiconsIcon name="chevron-left" class="size-3 shrink-0" />
 				{closeButtonLabel}
 			</Button>
 		</div>
@@ -98,7 +98,7 @@
 					title="Previous file"
 					data-testid="review-workspace-previous-file"
 				>
-					<RoundedIcon name="chevron-left" class="size-3" />
+					<HugeiconsIcon name="chevron-left" class="size-3" />
 				</Button>
 
 				<Button
@@ -109,7 +109,7 @@
 					data-testid="review-workspace-next-file"
 				>
 					{primaryButtonLabel}
-					<RoundedIcon name="arrow-left" class="size-3 rotate-180" />
+					<HugeiconsIcon name="arrow-left" class="size-3 rotate-180" />
 				</Button>
 			{/if}
 		</div>

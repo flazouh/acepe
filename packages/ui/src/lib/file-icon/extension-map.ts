@@ -316,6 +316,11 @@ export const filenameToIcon: Record<string, string> = {
 const FALLBACK_ICON = "file";
 const FOLDER_ICON = "folder";
 
+/** Strip trailing `:line` / `:line:column` so `foo.ts:12` still resolves as TypeScript. */
+function stripLocationSuffix(path: string): string {
+	return path.replace(/(:\d+){1,2}$/, "");
+}
+
 /**
  * Get icon name for a file extension.
  */
@@ -328,7 +333,9 @@ export function getFileIconName(extension: string): string {
  * Get icon name for a specific filename.
  */
 export function getFilenameIconName(filename: string): string | undefined {
-	const lower = filename.toLowerCase();
+	const withoutLocation = stripLocationSuffix(filename);
+	const basename = withoutLocation.split(/[\\/]/).pop() ?? withoutLocation;
+	const lower = basename.toLowerCase();
 	return filenameToIcon[lower];
 }
 
@@ -341,14 +348,15 @@ export function getFileIconSrc(
 	filenameOrExtension: string,
 	basePath: string = "/svgs/icons"
 ): string {
-	const filenameIcon = getFilenameIconName(filenameOrExtension);
+	const pathForLookup = stripLocationSuffix(filenameOrExtension);
+	const filenameIcon = getFilenameIconName(pathForLookup);
 	if (filenameIcon) {
 		return `${basePath}/${filenameIcon}.svg`;
 	}
 
-	let ext = filenameOrExtension;
-	if (filenameOrExtension.includes(".")) {
-		const parts = filenameOrExtension.split(".");
+	let ext = pathForLookup;
+	if (pathForLookup.includes(".")) {
+		const parts = pathForLookup.split(".");
 		ext = parts[parts.length - 1];
 		if (parts.length >= 2 && parts[parts.length - 2] === "d" && ext === "ts") {
 			ext = "d.ts";

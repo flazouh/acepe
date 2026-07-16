@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { Button } from "../button/index.js";
-	import { LoadingIcon, RoundedIcon, type RoundedIconName } from "../icons/index.js";
+	import { LoadingIcon, HugeiconsIcon, type HugeiconsIconName } from "../icons/index.js";
 
 	interface Props {
 		title: string;
 		message?: string | null;
 		actionLabel: string;
-		actionIconName?: RoundedIconName | null;
+		actionIconName?: HugeiconsIconName | null;
 		workingLabel?: string;
 		isWorking?: boolean;
 		dismissLabel?: string;
@@ -31,7 +31,7 @@
 
 <div class="w-full rounded-lg border border-border bg-input/30" data-testid="agent-panel-recovery-card">
 	<div class="flex w-full min-w-0 gap-2 px-3 py-2 {hasMessage ? 'items-start' : 'items-center'}">
-		<RoundedIcon
+		<HugeiconsIcon
 			name="archive"
 			class="{hasMessage ? 'mt-0.5' : ''} size-[14px] shrink-0 text-muted-foreground"
 		/>
@@ -64,7 +64,7 @@
 					{workingLabel}
 				{:else}
 					{#if actionIconName}
-						<RoundedIcon name={actionIconName} class="size-3 shrink-0" />
+						<HugeiconsIcon name={actionIconName} class="size-3 shrink-0" />
 					{/if}
 					{actionLabel}
 				{/if}

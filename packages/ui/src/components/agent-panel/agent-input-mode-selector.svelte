@@ -5,7 +5,7 @@
 -->
 <script lang="ts">
 	import * as DropdownMenu from "../dropdown-menu/index.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import { Selector } from "../selector/index.js";
 	import {
 		getModeDropdownOptions,
@@ -75,7 +75,7 @@
 						<span class="text-[11px] leading-[1.25] text-muted-foreground">{option.description}</span>
 					{/if}
 				</div>
-				<RoundedIcon
+				<HugeiconsIcon
 					name="check-circle"
 					class={selected
 						? "mt-0.5 size-3.5 shrink-0 self-start text-foreground"

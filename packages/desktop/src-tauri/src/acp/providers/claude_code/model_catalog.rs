@@ -20,7 +20,19 @@ const SNAPSHOT_TEMP_FILE_NAME: &str = "claude-code-model-catalog.json.tmp";
 const CATALOG_FRESH_WINDOW_MS: u64 = 4 * 60 * 60 * 1000;
 const CATALOG_MAX_STALE_WINDOW_MS: u64 = 48 * 60 * 60 * 1000;
 const CATALOG_SCAN_TIMEOUT: Duration = Duration::from_secs(15);
+const CATALOG_CLI_INSPECTION_TIMEOUT: Duration = Duration::from_secs(30);
+const CATALOG_FINGERPRINT_TIMEOUT: Duration = Duration::from_secs(6);
 const MIN_AUTHORITATIVE_MATCHES: usize = 3;
+const MIN_AUTHORITATIVE_FAMILIES: usize = 3;
+
+static RE_NATIVE_CATALOG_ID: OnceLock<Regex> = OnceLock::new();
+
+fn native_catalog_id_regex() -> &'static Regex {
+    RE_NATIVE_CATALOG_ID.get_or_init(|| {
+        Regex::new(r"^claude-([a-z][a-z0-9]*)-(\d+)(?:-(\d+))?$")
+            .expect("native Claude catalog ID regex must compile")
+    })
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -366,7 +378,7 @@ async fn classify_snapshot(
     snapshot: ClaudeCatalogSnapshot,
     source: ClaudeCatalogSource,
 ) -> ClaudeCatalogReadResult {
-    match snapshot_freshness(&snapshot) {
+    match snapshot_freshness(&snapshot).await {
         Ok(ClaudeCatalogFreshness::Fresh) => {
             let refresh_reason = if matches!(
                 snapshot.catalog_kind,
@@ -407,11 +419,18 @@ async fn classify_snapshot(
     }
 }
 
-fn snapshot_freshness(
+async fn snapshot_freshness(
     snapshot: &ClaudeCatalogSnapshot,
 ) -> Result<ClaudeCatalogFreshness, ClaudeCatalogRefreshReason> {
+    snapshot_freshness_with_fingerprint(snapshot, current_binary_fingerprint_async().await)
+}
+
+fn snapshot_freshness_with_fingerprint(
+    snapshot: &ClaudeCatalogSnapshot,
+    fingerprint: Option<(String, u64, u64)>,
+) -> Result<ClaudeCatalogFreshness, ClaudeCatalogRefreshReason> {
     // Binary fingerprint is the primary cache key for Claude.
-    match current_binary_fingerprint() {
+    match fingerprint {
         Some((path, size, mtime_ms)) => {
             if snapshot.binary_path != path
                 || snapshot.binary_size != size
@@ -455,6 +474,32 @@ pub(crate) fn current_binary_fingerprint() -> Option<(String, u64, u64)> {
         .map(|d| d.as_millis() as u64)
         .unwrap_or(0);
     Some((canonical.to_string_lossy().to_string(), size, mtime_ms))
+}
+
+async fn current_binary_fingerprint_async() -> Option<(String, u64, u64)> {
+    run_blocking_catalog_task(
+        CATALOG_FINGERPRINT_TIMEOUT,
+        "Claude binary fingerprint inspection",
+        || Ok::<_, String>(current_binary_fingerprint()),
+    )
+    .await
+    .ok()
+    .flatten()
+}
+
+fn resolve_catalog_claude_cli_with<Resolve>(
+    resolve: Resolve,
+) -> crate::cc_sdk::Result<PathBuf>
+where
+    Resolve: FnOnce(Duration) -> crate::cc_sdk::Result<PathBuf>,
+{
+    resolve(CATALOG_CLI_INSPECTION_TIMEOUT)
+}
+
+fn resolve_catalog_claude_cli() -> crate::cc_sdk::Result<PathBuf> {
+    resolve_catalog_claude_cli_with(
+        crate::cc_sdk::transport::subprocess::find_claude_cli_with_version_timeout,
+    )
 }
 
 fn current_claude_runtime_version() -> String {
@@ -548,7 +593,7 @@ async fn persist_history_salvage_snapshot(snapshot_path: &Path) -> Result<(), St
 
     let runtime_version = current_claude_runtime_version();
     let (binary_path, binary_size, binary_mtime_ms) =
-        current_binary_fingerprint().unwrap_or_default();
+        current_binary_fingerprint_async().await.unwrap_or_default();
     let snapshot = ClaudeCatalogSnapshot {
         fetched_at_ms: now_ms(),
         runtime_version,
@@ -569,7 +614,7 @@ async fn persist_placeholder_snapshot(snapshot_path: &Path) -> Result<(), String
     let models = placeholder_models();
     let runtime_version = current_claude_runtime_version();
     let (binary_path, binary_size, binary_mtime_ms) =
-        current_binary_fingerprint().unwrap_or_default();
+        current_binary_fingerprint_async().await.unwrap_or_default();
     let snapshot = ClaudeCatalogSnapshot {
         fetched_at_ms: now_ms(),
         runtime_version,
@@ -610,8 +655,15 @@ fn placeholder_models() -> Vec<AvailableModel> {
 }
 
 async fn fetch_authoritative_catalog() -> Result<AuthoritativeCatalogPayload, String> {
-    let binary_path_raw = crate::cc_sdk::transport::subprocess::find_claude_cli()
-        .map_err(|error| format!("Claude CLI not found for catalog scan: {error}"))?;
+    let binary_path_raw = run_blocking_catalog_task(
+        CATALOG_CLI_INSPECTION_TIMEOUT + Duration::from_secs(1),
+        "Claude CLI inspection",
+        || {
+            resolve_catalog_claude_cli()
+                .map_err(|error| format!("Claude CLI not found for catalog scan: {error}"))
+        },
+    )
+    .await?;
 
     let canonical = binary_path_raw
         .canonicalize()
@@ -628,20 +680,13 @@ async fn fetch_authoritative_catalog() -> Result<AuthoritativeCatalogPayload, St
         .unwrap_or(0);
     let binary_path_str = canonical.to_string_lossy().to_string();
 
-    let canonical_for_read = canonical.clone();
-    let models = tokio::time::timeout(CATALOG_SCAN_TIMEOUT, async move {
-        let bytes = tokio::fs::read(&canonical_for_read)
-            .await
-            .map_err(|error| format!("Failed reading Claude binary: {error}"))?;
+    let bytes = tokio::fs::read(&canonical)
+    .await
+    .map_err(|error| format!("Failed reading Claude binary: {error}"))?;
+    let models = run_blocking_catalog_task(CATALOG_SCAN_TIMEOUT, "Claude catalog scan", move || {
         extract_from_binary_bytes(&bytes)
     })
-    .await
-    .map_err(|_| {
-        format!(
-            "Claude catalog scan timed out after {:?}",
-            CATALOG_SCAN_TIMEOUT
-        )
-    })??;
+    .await?;
 
     Ok(AuthoritativeCatalogPayload {
         models,
@@ -651,9 +696,30 @@ async fn fetch_authoritative_catalog() -> Result<AuthoritativeCatalogPayload, St
     })
 }
 
+async fn run_blocking_catalog_task<T, Work>(
+    timeout: Duration,
+    label: &'static str,
+    work: Work,
+) -> Result<T, String>
+where
+    T: Send + 'static,
+    Work: FnOnce() -> Result<T, String> + Send + 'static,
+{
+    let task = tokio::task::spawn_blocking(work);
+    tokio::time::timeout(timeout, task)
+        .await
+        .map_err(|_| format!("{label} timed out after {timeout:?}"))?
+        .map_err(|error| format!("{label} task failed: {error}"))?
+}
+
 /// Extract `AvailableModel` entries from raw Claude binary bytes.
 /// Exposed for testing so fixture files can be fed in without touching the filesystem.
 pub(crate) fn extract_from_binary_bytes(bytes: &[u8]) -> Result<Vec<AvailableModel>, String> {
+    if let Some(mut models) = extract_native_catalog_table(bytes) {
+        sort_catalog_models(&mut models);
+        return Ok(models);
+    }
+
     let content = String::from_utf8_lossy(bytes);
     let re = first_party_regex();
 
@@ -718,12 +784,157 @@ pub(crate) fn extract_from_binary_bytes(bytes: &[u8]) -> Result<Vec<AvailableMod
     }
 
     // Sort newest-first using the same ordering as the rest of Claude model UI.
+    sort_catalog_models(&mut models);
+
+    Ok(models)
+}
+
+fn sort_catalog_models(models: &mut [AvailableModel]) {
     models.sort_by(|left, right| {
         compare_claude_model_ids(&right.model_id, &left.model_id)
             .then_with(|| left.name.cmp(&right.name))
     });
+}
 
-    Ok(models)
+#[derive(Clone, Copy)]
+struct NativeStringRecord<'a> {
+    value: &'a str,
+    offset: usize,
+    next_offset: usize,
+}
+
+fn extract_native_catalog_table(bytes: &[u8]) -> Option<Vec<AvailableModel>> {
+    let records = native_string_records(bytes);
+    let mut best_models = Vec::new();
+    let mut index = 0;
+
+    while index + 1 < records.len() {
+        let Some((mut run_models, next_index)) = native_catalog_run(&records, index) else {
+            index += 1;
+            continue;
+        };
+
+        let family_count = run_models
+            .iter()
+            .filter_map(|model| claude_model_family(&model.model_id))
+            .collect::<HashSet<_>>()
+            .len();
+        if run_models.len() >= MIN_AUTHORITATIVE_MATCHES
+            && family_count >= MIN_AUTHORITATIVE_FAMILIES
+            && run_models.len() > best_models.len()
+        {
+            best_models.clear();
+            best_models.append(&mut run_models);
+        }
+        index = next_index;
+    }
+
+    (!best_models.is_empty()).then_some(best_models)
+}
+
+fn native_catalog_run(
+    records: &[NativeStringRecord<'_>],
+    start: usize,
+) -> Option<(Vec<AvailableModel>, usize)> {
+    let mut models = Vec::new();
+    let mut index = start;
+    let mut saw_pair = false;
+
+    while index + 1 < records.len() {
+        let model_record = records[index];
+        let display_record = records[index + 1];
+        if model_record.next_offset != display_record.offset {
+            break;
+        }
+        let Some(expected_display) = native_catalog_display_name(model_record.value) else {
+            break;
+        };
+        if display_record.value != expected_display {
+            break;
+        }
+
+        saw_pair = true;
+        if is_valid_claude_model_shape(model_record.value) {
+            models.push(AvailableModel {
+                provider: None,
+                model_id: model_record.value.to_string(),
+                name: derive_display_name(model_record.value),
+                description: None,
+            });
+        }
+        index += 2;
+        if index < records.len() && display_record.next_offset != records[index].offset {
+            break;
+        }
+    }
+
+    saw_pair.then_some((models, index))
+}
+
+fn native_catalog_display_name(model_id: &str) -> Option<String> {
+    let captures = native_catalog_id_regex().captures(model_id)?;
+    let family = captures.get(1)?.as_str();
+    let mut family_chars = family.chars();
+    let first = family_chars.next()?.to_ascii_uppercase();
+    let family_display = format!("{first}{}", family_chars.as_str());
+    let major = captures.get(2)?.as_str();
+    let version = captures
+        .get(3)
+        .map(|minor| format!("{major}.{}", minor.as_str()))
+        .unwrap_or_else(|| major.to_string());
+    Some(format!("Claude {family_display} {version}"))
+}
+
+fn native_string_records(bytes: &[u8]) -> Vec<NativeStringRecord<'_>> {
+    const HEADER_LEN: usize = 16;
+    const HEADER_PREFIX: [u8; 12] = [0x10, 0, 0, 0, 0, 0, 0, 0, 0x09, 0, 0, 0];
+
+    let mut records = Vec::new();
+    let mut offset = 0;
+    while offset + HEADER_LEN <= bytes.len() {
+        if bytes[offset..offset + HEADER_PREFIX.len()] != HEADER_PREFIX {
+            offset += 1;
+            continue;
+        }
+
+        let length = u32::from_le_bytes([
+            bytes[offset + 12],
+            bytes[offset + 13],
+            bytes[offset + 14],
+            bytes[offset + 15],
+        ]) as usize;
+        let value_start = offset + HEADER_LEN;
+        let Some(value_end) = value_start.checked_add(length) else {
+            offset += 1;
+            continue;
+        };
+        if length == 0 || value_end > bytes.len() {
+            offset += 1;
+            continue;
+        }
+        let Ok(value) = std::str::from_utf8(&bytes[value_start..value_end]) else {
+            offset += 1;
+            continue;
+        };
+        if !value.bytes().all(|byte| byte.is_ascii_graphic() || byte == b' ') {
+            offset += 1;
+            continue;
+        }
+
+        let padded_length = length.saturating_add(15) / 16 * 16;
+        let next_offset = value_start.saturating_add(padded_length);
+        if next_offset > bytes.len() {
+            offset += 1;
+            continue;
+        }
+        records.push(NativeStringRecord {
+            value,
+            offset,
+            next_offset,
+        });
+        offset = next_offset;
+    }
+    records
 }
 
 fn forward_context_window(content: &str, start: usize, max_len: usize) -> &str {
@@ -750,12 +961,13 @@ fn is_valid_claude_model_shape(id: &str) -> bool {
 ///   `claude-3-7-sonnet-20250219`     → `Sonnet 3.7`
 ///   `claude-haiku-4-5-20251001`      → `Haiku 4.5`
 ///   `claude-opus-4-20250514`         → `Opus 4`
-/// Returns the Claude model family ("opus" | "sonnet" | "haiku") for a canonical id,
+/// Returns the Claude model family ("fable" | "opus" | "sonnet" | "haiku") for a canonical id,
 /// or None if the id doesn't belong to one of the known families.
 pub(crate) fn claude_model_family(canonical_id: &str) -> Option<&'static str> {
     let without_prefix = canonical_id.strip_prefix("claude-").unwrap_or(canonical_id);
     for token in without_prefix.split('-') {
         match token.to_ascii_lowercase().as_str() {
+            "fable" => return Some("fable"),
             "opus" => return Some("opus"),
             "sonnet" => return Some("sonnet"),
             "haiku" => return Some("haiku"),
@@ -766,12 +978,12 @@ pub(crate) fn claude_model_family(canonical_id: &str) -> Option<&'static str> {
 }
 
 /// Filter the full authoritative catalog down to Claude Code's curated picker view:
-/// the newest model per family (opus / sonnet / haiku). Older-generation models
+/// the newest model per family (fable / opus / sonnet / haiku). Older-generation models
 /// remain accessible via `--model <id>` and are re-injected for selected models
 /// by `apply_claude_session_defaults`.
 ///
 /// Ordering within each family uses `compare_claude_model_ids` (newest-first).
-/// Output is sorted opus -> sonnet -> haiku to match Claude Code's own picker layout.
+/// Output is sorted fable -> opus -> sonnet -> haiku.
 pub(crate) fn filter_to_picker_defaults(models: &[AvailableModel]) -> Vec<AvailableModel> {
     let mut best_per_family: HashMap<&'static str, &AvailableModel> = HashMap::new();
     for model in models {
@@ -793,7 +1005,7 @@ pub(crate) fn filter_to_picker_defaults(models: &[AvailableModel]) -> Vec<Availa
         }
     }
 
-    ["opus", "sonnet", "haiku"]
+    ["fable", "opus", "sonnet", "haiku"]
         .iter()
         .filter_map(|family| best_per_family.get(*family).map(|m| (*m).clone()))
         .collect()
@@ -814,13 +1026,19 @@ pub(crate) fn derive_display_name(canonical_id: &str) -> String {
     // Find the family token index.
     let family_idx = parts
         .iter()
-        .position(|p| matches!(p.to_ascii_lowercase().as_str(), "opus" | "sonnet" | "haiku"));
+        .position(|p| {
+            matches!(
+                p.to_ascii_lowercase().as_str(),
+                "fable" | "opus" | "sonnet" | "haiku"
+            )
+        });
 
     let Some(family_idx) = family_idx else {
         return canonical_id.to_string();
     };
 
     let family = match parts[family_idx].to_ascii_lowercase().as_str() {
+        "fable" => "Fable",
         "opus" => "Opus",
         "sonnet" => "Sonnet",
         "haiku" => "Haiku",
@@ -849,11 +1067,47 @@ fn now_ms() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::cell::Cell;
     use std::sync::atomic::{AtomicU32, Ordering};
     use std::sync::Arc;
     use tempfile::tempdir;
 
     // ── scan ≡ spawn invariant (regression lock for plan U5) ─────────────────
+
+    #[test]
+    fn catalog_cli_resolution_uses_cold_first_run_timeout() {
+        let selected_timeout = Cell::new(Duration::ZERO);
+
+        let resolved = resolve_catalog_claude_cli_with(|timeout| {
+            selected_timeout.set(timeout);
+            Ok(PathBuf::from("/managed/claude"))
+        })
+        .expect("catalog resolver should return the managed path");
+
+        assert_eq!(resolved, PathBuf::from("/managed/claude"));
+        assert_eq!(selected_timeout.get(), Duration::from_secs(30));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn blocking_catalog_work_is_bounded_without_blocking_the_async_runtime() {
+        let started = std::time::Instant::now();
+
+        let result = run_blocking_catalog_task(
+            Duration::from_millis(20),
+            "test catalog scan",
+            || {
+                std::thread::sleep(Duration::from_millis(200));
+                Ok::<(), String>(())
+            },
+        )
+        .await;
+
+        assert!(result.is_err(), "blocking work must obey the outer timeout");
+        assert!(
+            started.elapsed() < Duration::from_millis(150),
+            "blocking work must not starve the async runtime"
+        );
+    }
 
     /// The catalog scan's binary fingerprint and the subprocess spawn path must
     /// always derive from the same resolver (`find_claude_cli`). They must be
@@ -925,6 +1179,68 @@ mod tests {
             "/src/acp/providers/fixtures/claude_catalog"
         );
         std::fs::read(format!("{dir}/{filename}")).expect("fixture file must exist")
+    }
+
+    fn append_native_string_record(bytes: &mut Vec<u8>, value: &str) {
+        bytes.extend_from_slice(&[0x10, 0, 0, 0, 0, 0, 0, 0, 0x09, 0, 0, 0]);
+        bytes.extend_from_slice(&(value.len() as u32).to_le_bytes());
+        bytes.extend_from_slice(value.as_bytes());
+        let padding = (16 - (value.len() % 16)) % 16;
+        bytes.extend(std::iter::repeat_n(0, padding));
+    }
+
+    fn append_native_catalog_pair(bytes: &mut Vec<u8>, model_id: &str, display_name: &str) {
+        append_native_string_record(bytes, model_id);
+        append_native_string_record(bytes, display_name);
+    }
+
+    #[test]
+    fn native_string_table_recovers_current_models_for_fresh_install() {
+        let mut bytes = b"native-noise".to_vec();
+        append_native_string_record(&mut bytes, "claude-opus-99");
+        append_native_string_record(&mut bytes, "claude-sonnet-99");
+        append_native_catalog_pair(&mut bytes, "claude-fable-5", "Claude Fable 5");
+        append_native_catalog_pair(&mut bytes, "claude-mythos-5", "Claude Mythos 5");
+        append_native_catalog_pair(&mut bytes, "claude-opus-4-8", "Claude Opus 4.8");
+        append_native_catalog_pair(&mut bytes, "claude-sonnet-5", "Claude Sonnet 5");
+        append_native_catalog_pair(&mut bytes, "claude-haiku-4-5", "Claude Haiku 4.5");
+        append_native_catalog_pair(&mut bytes, "claude-sonnet-4-6", "Claude Sonnet 4.6");
+        append_native_string_record(&mut bytes, "claude-haiku-99");
+
+        let models = extract_from_binary_bytes(&bytes)
+            .expect("the installed native Claude artifact should provide its model catalog");
+        let picker_models = filter_to_picker_defaults(&models);
+        let picker_ids: Vec<&str> = picker_models
+            .iter()
+            .map(|model| model.model_id.as_str())
+            .collect();
+
+        assert_eq!(
+            picker_ids,
+            vec![
+                "claude-fable-5",
+                "claude-opus-4-8",
+                "claude-sonnet-5",
+                "claude-haiku-4-5",
+            ]
+        );
+    }
+
+    #[test]
+    fn native_string_table_rejects_unpaired_model_shaped_strings() {
+        let mut bytes = b"native-noise".to_vec();
+        for model_id in [
+            "claude-fable-99",
+            "claude-opus-99",
+            "claude-sonnet-99",
+            "claude-haiku-99",
+        ] {
+            append_native_string_record(&mut bytes, model_id);
+        }
+
+        let result = extract_from_binary_bytes(&bytes);
+
+        assert!(result.is_err(), "stray binary literals are not catalog evidence");
     }
 
     // ── claude_model_family + filter_to_picker_defaults ──────────────────────
@@ -1168,7 +1484,7 @@ mod tests {
         // snapshot has a different binary_path than what current_binary_fingerprint() would return
         // (and since Claude CLI likely isn't installed in CI, current_binary_fingerprint() → None
         // which maps to Missing; that's also not Fresh, which is the key assertion).
-        let result = snapshot_freshness(&snapshot);
+        let result = snapshot_freshness_with_fingerprint(&snapshot, None);
         assert!(
             result.is_err(),
             "mismatched fingerprint or unavailable binary should not be fresh"

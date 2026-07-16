@@ -13,15 +13,20 @@ use crate::acp::provider::{
     AgentProvider, ProjectDiscoveryCompleteness, ProjectPathListing, SpawnConfig,
 };
 use crate::acp::runtime_resolver::SpawnEnvStrategy;
+use crate::acp::session_descriptor::SessionReplayContext;
+use crate::acp::session_thread_snapshot::ProviderOwnedSessionSnapshot;
 use crate::acp::session_update::AvailableCommand;
 use crate::acp::task_reconciler::TaskReconciliationPolicy;
 use crate::acp::{agent_installer, types::CanonicalAgentId};
+use crate::db::repository::SessionMetadataRepository;
+use crate::history::session_context::SessionContext;
+use sea_orm::DbConn;
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 
 /// GitHub Copilot CLI ACP provider.
 pub struct CopilotProvider;
@@ -216,6 +221,69 @@ impl AgentProvider for CopilotProvider {
         modes: &mut SessionModes,
     ) -> AcpResult<()> {
         apply_copilot_session_defaults(cwd, models, modes)
+    }
+
+    fn load_provider_owned_session<'a>(
+        &'a self,
+        _app: &'a AppHandle,
+        context: &'a SessionContext,
+        _replay_context: &'a SessionReplayContext,
+    ) -> Pin<
+        Box<
+            dyn Future<
+                    Output = Result<
+                        Option<ProviderOwnedSessionSnapshot>,
+                        crate::acp::provider::ProviderHistoryLoadError,
+                    >,
+                > + Send
+                + 'a,
+        >,
+    > {
+        Box::pin(async move {
+            use crate::acp::session::delivery::{
+                history_error_to_provider_error, load_fold_graph_from_history_workspace,
+            };
+            use crate::acp::session::fold_export::provider_owned_snapshot_from_folded_graph;
+
+            let session_id = &context.local_session_id;
+            let lookup_session_id = &context.history_session_id;
+            let session_title = match _app
+                .try_state::<DbConn>()
+                .map(|state| state.inner().clone())
+            {
+                Some(db) => SessionMetadataRepository::get_by_id(&db, session_id)
+                    .await
+                    .ok()
+                    .flatten()
+                    .map(|row| row.display)
+                    .unwrap_or_else(|| {
+                        format!("Session {}", &session_id[..8.min(session_id.len())])
+                    }),
+                None => format!("Session {}", &session_id[..8.min(session_id.len())]),
+            };
+
+            match load_fold_graph_from_history_workspace(
+                &CanonicalAgentId::Copilot,
+                lookup_session_id,
+                &context.effective_project_path,
+                context.source_path.as_ref().map(PathBuf::from),
+                None,
+            ) {
+                Ok(None) => Ok(None),
+                Ok(Some(graph)) => Ok(Some(provider_owned_snapshot_from_folded_graph(
+                    graph,
+                    session_title,
+                ))),
+                Err(error) => {
+                    tracing::warn!(
+                        session_id = %session_id,
+                        error = %error,
+                        "Copilot session replay load failed"
+                    );
+                    Err(history_error_to_provider_error(error))
+                }
+            }
+        })
     }
 
     fn list_project_paths<'a>(

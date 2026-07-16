@@ -5,7 +5,7 @@ import { CommandsProvider } from "./commands-provider.js";
 function noop(): void {}
 
 describe("CommandsProvider", () => {
-	it("uses exact rounded icons for command palette actions when available", () => {
+	it("uses exact Hugeicons icons for command palette actions when available", () => {
 		const provider = new CommandsProvider({
 			onCreateThread: noop,
 			onOpenSettings: noop,
@@ -18,11 +18,11 @@ describe("CommandsProvider", () => {
 
 		const itemsById = new Map(provider.search("").map((item) => [item.id, item]));
 
-		expect(itemsById.get("thread.create")?.roundedIcon).toBe("new-chat");
-		expect(itemsById.get("settings.open")?.roundedIcon).toBe("settings");
-		expect(itemsById.get("sidebar.toggle")?.roundedIcon).toBe("sidebar");
-		expect(itemsById.get("thread.close")?.roundedIcon).toBe("close");
-		expect(itemsById.get("sync.refresh")?.roundedIcon).toBe("refresh");
-		expect(itemsById.get("debug.toggle")?.roundedIcon).toBe("terminal");
+		expect(itemsById.get("thread.create")?.iconName).toBe("new-chat");
+		expect(itemsById.get("settings.open")?.iconName).toBe("settings");
+		expect(itemsById.get("sidebar.toggle")?.iconName).toBe("sidebar");
+		expect(itemsById.get("thread.close")?.iconName).toBe("close");
+		expect(itemsById.get("sync.refresh")?.iconName).toBe("refresh");
+		expect(itemsById.get("debug.toggle")?.iconName).toBe("terminal");
 	});
 });

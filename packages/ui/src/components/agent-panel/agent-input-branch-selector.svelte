@@ -8,8 +8,7 @@
 	import { ButtonGroup } from "../button-group/index.js";
 	import { Button } from "../button/index.js";
 	import { DiffPill } from "../diff-pill/index.js";
-	import { RoundedIcon } from "../icons/index.js";
-	import PlusIcon from "../icons/plus-icon.svelte";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import { Selector } from "../selector/index.js";
 	import type { SelectorTriggerSize } from "../selector/selector-trigger-classes.js";
 	import { getSelectorTriggerButtonVariant } from "../selector/selector-trigger-classes.js";
@@ -94,7 +93,7 @@
 </script>
 
 {#snippet branchSelectorTrigger()}
-	<RoundedIcon
+	<HugeiconsIcon
 		name="branch"
 		class={cn(isSetupChip ? "text-foreground" : "size-3 shrink-0")}
 		style={isSetupChip ? undefined : `color: ${branchIconColor}`}
@@ -127,7 +126,7 @@
 					onSelect={() => onBranchSelect(branch)}
 				>
 					{#snippet leading()}
-						<RoundedIcon
+						<HugeiconsIcon
 							name="branch"
 							class="size-3.5 shrink-0"
 							style="color: {branchIconColor}"
@@ -176,7 +175,7 @@
 			disabled={createDisabled}
 			onclick={() => onCreateClick?.()}
 		>
-			<PlusIcon />
+			<HugeiconsIcon name="plus" size={14} />
 		</Button>
 	</ButtonGroup>
 {:else}

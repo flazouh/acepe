@@ -3,7 +3,7 @@ use crate::acp::projections::{
 };
 use crate::acp::session_state_engine::graph::{
     select_active_streaming_tail, select_active_streaming_tail_for_known_last_entry,
-    select_awaiting_placeholder, ActiveStreamingTail,
+    ActiveStreamingTail,
 };
 use crate::acp::session_state_engine::protocol::{ViewportBufferDiagnostic, ViewportBufferPush};
 use crate::acp::session_state_engine::runtime_registry::{
@@ -22,7 +22,8 @@ use crate::acp::transcript_projection::{
     TranscriptEntry, TranscriptEntryRole, TranscriptProjectionRegistry,
 };
 use crate::acp::transcript_viewport::ledger::{
-    serialize_viewport_rows_for_ledger_from_index, SerializedTranscriptRowLedgerRow,
+    serialize_transcript_scopes_for_ledger, serialize_viewport_rows_for_ledger_from_index,
+    SerializedTranscriptRowLedgerRow, SerializedTranscriptRowLedgerScope,
     TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
 };
 use crate::acp::transcript_viewport::{
@@ -56,12 +57,14 @@ pub(crate) struct PersistedTranscriptRowsMaterialization {
     pub total_row_count: i64,
     pub start_row_index: i64,
     pub replace_all: bool,
+    pub force_full_replace: bool,
     pub session: SessionSnapshot,
     pub activity: SessionGraphActivity,
     pub active_streaming_tail: Option<ActiveStreamingTail>,
     pub lifecycle: SessionGraphLifecycle,
     pub capabilities: SessionGraphCapabilities,
     pub rows: Vec<SerializedTranscriptRowLedgerRow>,
+    pub scopes: Vec<SerializedTranscriptRowLedgerScope>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -167,6 +170,21 @@ impl TranscriptRowsLedger {
             Err(VisibleTranscriptWindowMiss::BudgetExceeded) => return Ok(None),
         };
         let rows = enrich_rows_with_operations(materialized.rows, &materialized.operations);
+        let transcript_snapshot = transcript_projection_registry
+            .snapshot_for_session(session_id)
+            .ok_or_else(|| anyhow::anyhow!("transcript snapshot missing for {session_id}"))?;
+        let projection_snapshot = projection_registry.session_projection(session_id);
+        let scopes = serialize_transcript_scopes_for_ledger(
+            session_id,
+            materialized.effective_revision.transcript_revision,
+            materialized.effective_revision.graph_revision,
+            TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+            &transcript_snapshot,
+            &materialized.operations,
+            &projection_snapshot.interactions,
+            materialized.active_streaming_tail.as_ref(),
+            materialized.activity.kind_started_at_ms,
+        )?;
         let start_row_index = first_changed_row_index(&rows, write_hint);
         let suffix_rows = &rows[start_row_index..];
         let serialized = serialize_viewport_rows_for_ledger_from_index(
@@ -185,12 +203,14 @@ impl TranscriptRowsLedger {
             total_row_count: rows.len() as i64,
             start_row_index: start_row_index as i64,
             replace_all,
+            force_full_replace: write_hint.force_full_replace,
             session: materialized.session,
             activity: materialized.activity,
             active_streaming_tail: materialized.active_streaming_tail,
             lifecycle: materialized.lifecycle,
             capabilities: materialized.capabilities,
             rows: serialized,
+            scopes,
         }))
     }
 
@@ -319,12 +339,14 @@ impl TranscriptRowsLedger {
             total_row_count: suffix_slice.total_entry_count as i64,
             start_row_index,
             replace_all: false,
+            force_full_replace: false,
             session: session_snapshot,
             activity,
             active_streaming_tail,
             lifecycle: runtime_snapshot.lifecycle.clone(),
             capabilities: runtime_snapshot.capabilities.clone(),
             rows: serialized,
+            scopes: Vec::new(),
         }))
     }
 
@@ -369,11 +391,6 @@ impl TranscriptRowsLedger {
             &activity,
             &transcript_snapshot,
         );
-        let awaiting_placeholder = select_awaiting_placeholder(
-            &session_snapshot.turn_state,
-            &activity,
-            &transcript_snapshot,
-        );
         let (viewport_transcript_snapshot, tail_limited) =
             tail_limited_transcript_snapshot(transcript_snapshot, tail_limit);
         let rows = project_transcript_viewport_rows(
@@ -381,7 +398,6 @@ impl TranscriptRowsLedger {
             &operations,
             &interactions,
             active_streaming_tail.as_ref(),
-            awaiting_placeholder,
             activity.kind_started_at_ms,
         );
 
@@ -825,14 +841,15 @@ mod tests {
     use crate::acp::projections::{
         InteractionKind, InteractionPayload, InteractionSnapshot, InteractionState,
         OperationSnapshot, OperationSourceLink, OperationState, PlanApprovalSource,
-        ProjectionRegistry, SessionProjectionSnapshot, SessionSnapshot,
+        ProjectionRegistry, SessionProjectionSnapshot, SessionSnapshot, SessionTurnState,
     };
     use crate::acp::session_state_engine::protocol::{
         ViewportBufferDiagnostic, ViewportBufferPush,
     };
     use crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeSnapshot;
     use crate::acp::session_state_engine::selectors::{
-        SessionGraphActivity, SessionGraphActivityKind,
+        SessionGraphActivity, SessionGraphActivityKind, SessionGraphCapabilities,
+        SessionGraphLifecycle,
     };
     use crate::acp::session_state_engine::{
         session_state_envelope_byte_budget_status, SessionGraphRevision, SessionStateEnvelope,
@@ -865,6 +882,58 @@ mod tests {
         let second = ledger.resolve_rows_activity("session-1", selected, 9_000);
         assert_eq!(first.kind_started_at_ms, Some(1_000));
         assert_eq!(second.kind_started_at_ms, Some(1_000));
+    }
+
+    #[test]
+    fn running_awaiting_model_materializes_only_canonical_transcript_rows() {
+        let ledger = super::TranscriptRowsLedger::new();
+        let session_id = "session-running-awaiting-model";
+        let projection_registry = ProjectionRegistry::new();
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+        let mut session =
+            SessionSnapshot::new(session_id.to_string(), Some(CanonicalAgentId::OpenCode));
+        session.turn_state = SessionTurnState::Running;
+        session.message_count = 1;
+        session.transcript_entry_count = 1;
+        projection_registry.restore_session_projection(SessionProjectionSnapshot {
+            session: Some(session),
+            operations: Vec::new(),
+            interactions: Vec::new(),
+            runtime: None,
+        });
+        transcript_projection_registry.restore_session_snapshot(
+            session_id.to_string(),
+            TranscriptSnapshot {
+                revision: 7,
+                entries: vec![transcript_entry(
+                    "entry-1",
+                    TranscriptEntryRole::User,
+                    "prompt",
+                )],
+            },
+        );
+
+        let materialized = ledger
+            .materialize_rows(
+                SessionGraphRuntimeSnapshot {
+                    graph_revision: 11,
+                    lifecycle: SessionGraphLifecycle::ready(),
+                    capabilities: SessionGraphCapabilities::empty(),
+                },
+                session_id,
+                SessionGraphRevision::new(11, 7, 11),
+                &projection_registry,
+                &transcript_projection_registry,
+            )
+            .expect("canonical rows should materialize");
+
+        assert_eq!(
+            materialized.activity.kind,
+            SessionGraphActivityKind::AwaitingModel
+        );
+        assert_eq!(materialized.rows.len(), 1);
+        assert_eq!(materialized.rows[0].row_id, "transcript:entry-1");
+        assert_eq!(materialized.rows[0].kind, TranscriptViewportRowKind::User);
     }
 
     #[test]
@@ -1007,6 +1076,7 @@ mod tests {
             TranscriptSnapshot {
                 revision: 7,
                 entries: vec![TranscriptEntry {
+                    scope: crate::acp::transcript_projection::TranscriptScope::Root,
                     entry_id: "entry-1".to_string(),
                     role: TranscriptEntryRole::Tool,
                     segments: vec![TranscriptSegment::Text {
@@ -1755,6 +1825,7 @@ mod tests {
 
     fn transcript_entry(entry_id: &str, role: TranscriptEntryRole, text: &str) -> TranscriptEntry {
         TranscriptEntry {
+            scope: crate::acp::transcript_projection::TranscriptScope::Root,
             entry_id: entry_id.to_string(),
             role,
             segments: vec![TranscriptSegment::Text {
@@ -1770,6 +1841,7 @@ mod tests {
         TranscriptViewportRow {
             row_id: format!("row-{index}"),
             source_entry_id: format!("entry-{index}"),
+            scope: crate::acp::transcript_projection::TranscriptScope::Root,
             kind: TranscriptViewportRowKind::AssistantText,
             version: format!("v-{index}"),
             anchor_eligible: true,

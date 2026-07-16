@@ -35,94 +35,6 @@ cargo clippy       # Rust lint (in src-tauri/)
 
 `docs/solutions/` stores documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (`module`, `tags`, `problem_type`). Relevant when implementing or debugging in documented areas.
 
-## Agent Workflow
-
-Acepe uses the Matt Pocock skills workflow with strict planning, TDD, review, and QA gates for non-trivial work. This is the single source of truth for agents working in this repo; keep `CLAUDE.md` and `AGENTS.md` aligned.
-
-### Flow Diagram
-
-```text
-Task arrives
-  |
-  v
-Trivial, obvious, safe?
-  | yes -> direct execution + focused verification
-  no
-  |
-  v
-Problem, scope, or success criteria unclear?
-  | yes -> grill-me / grill-with-docs -> docs/brainstorms/
-  no
-  |
-  v
-Need durable spec or tracked work?
-  | yes -> to-prd / to-issues / triage
-  no or done
-  |
-  v
-Risky or non-trivial?
-  | yes -> plan in docs/plans/ -> implement
-  no or done
-  |
-  v
-Bug, behavior change, or non-trivial refactor?
-  | yes -> TDD: failing or characterization test first
-  no or done
-  |
-  v
-implement
-  |
-  v
-code-review for non-trivial work
-  |
-  v
-Record durable learning in docs/solutions/ when useful
-```
-
-### Entry-Point Decision Table
-
-| Situation | Start at |
-|-----------|----------|
-| Scope, success criteria, or problem framing unclear | `grill-me` or `grill-with-docs` |
-| Requirements exist, no plan yet | Plan in `docs/plans/`, then `implement` |
-| Reviewed plan exists, matches request | `implement` |
-| Bug fix or behavior change | TDD failing test, then `implement` |
-| Non-trivial refactor | Plan in `docs/plans/`, then `implement` |
-| Trivial, obvious, no durable plan needed | Direct execution |
-
-### Phase Intent
-
-| Phase | Purpose |
-|-------|---------|
-| `grill-me` / `grill-with-docs` | Define what to build when the request is unclear. |
-| `to-prd` / `to-issues` / `triage` | Turn product thinking into durable specs or tracked work. |
-| Plan in `docs/plans/` | Define how to build it with files, tests, constraints, and verification. |
-| TDD | First executable proof. Failing or characterization test that implementation turns green. |
-| `implement` | Execute the clear request or reviewed plan. Code and verify; do not invent behavior. |
-| `code-review` | Stress-test non-trivial code changes before shipping. |
-| `docs/solutions/` | Store meaningful bugs, fixes, and non-obvious implementation learnings. |
-
-### Hard Rules
-
-1. **No skipping the plan gate when a plan is needed.** Plan -> `implement`. Never implement a non-trivial change without a decision-complete plan in `docs/plans/`.
-2. **A plan is done when it is decision-complete.** Files, tests, constraints, rollout, and verification must be specified before implementation starts.
-3. **Implementation is done after verification and review.** Non-trivial work requires `code-review`, resolved findings, and real verification.
-4. **Tests before implementation.** For bugs, behavior changes, and non-trivial refactors: write the failing or characterization test first via TDD, then implement.
-5. **Unresolved scope decisions go back to requirements.** If the plan has product ambiguity, loop to `grill-me` or `grill-with-docs`. Do not bury ambiguity in code.
-6. **Implementation plan requests must create or reuse a real plan first.** Session `plan.md` may mirror or summarize the plan, but it must not replace `docs/plans/` when a durable plan is needed.
-7. **Acepe plans use Deep plan posture.** For Acepe software work, make plans decision-complete by default: files, tests, constraints, rollout, and verification.
-8. **Do not normalize partial implementation as an acceptable endpoint.** Continue until the planned slice is actually wired end-to-end and verified. Do not frame "still in progress" as a valid completion state when the requested implementation has not yet been delivered.
-9. **Prefer skill entry points** over direct subagent invocation. Skills own orchestration, agent selection, and review posture.
-10. **If a skill is unavailable**, follow the same phase manually. Never skip a phase because the skill isn't loaded.
-
-### TDD Protocol
-
-- Red-green-refactor: prove the bug/behavior with one failing test → smallest fix to turn green → clean up while green.
-- Choose the narrowest valuable test seam. Behavior-focused over implementation-detail.
-- NEVER write structural contract tests that `readFileSync` source code and assert on string contents. These break on every refactor and test structure, not behavior. If you need to verify wiring, write a test that exercises the behavior instead.
-- For legacy or unclear behavior, write a characterization test first. Do not “improve” behavior without capturing what exists.
-- Keep tests single-purpose. One failure = one diagnosis.
-
 ## Coding Conventions
 
 ### TypeScript
@@ -136,13 +48,17 @@ Record durable learning in docs/solutions/ when useful
 
 - ALWAYS invoke Svelte skills before modifying/creating Svelte code: `svelte-runes`, `svelte-components`, `sveltekit-structure`, `sveltekit-data-flow`.
 - NEVER use `$effect`. Use `$derived` for computed values, event handlers for actions. If unavoidable, guard writes with comparison.
-- ALL new UI components must be dumb/presentational in `packages/ui`. No Tauri, store, runtime, or app-specific logic — they must be reusable from `@acepe/ui`.
-- Invoke **`extract-to-ui-package`** before extracting or moving UI into `@acepe/ui` (MVC: View in `packages/ui`, Model/Controller in desktop). Enforcement: `scripts/forbid-ui-package-imports.ts` + `packages/ui/src/__tests__/ui-package-boundary.test.ts`.
+- ALL new UI components must be dumb/presentational in `packages/ui`. No Tauri, store, runtime, or app-specific logic — they must be reusable from `@acepe/ui`. See "UI Package MVC" below for the extraction workflow and enforcement.
 
 ### Architecture
 
-- Suggest architecture overhauls when you find recurring smells, leaky provider logic, or brittle abstractions.
-- Do not preserve a bad pattern just because it is widespread. Prefer durable, tested abstractions grounded in real product needs.
+Acepe optimizes for two readers: the engineer and the agent. Code must be **AI-navigable** (find the right unit fast, understand it in one read) and **testable by construction**. Architecture work means **deepening the model, not patching symptoms**.
+
+- **Ground every change in the domain language.** `CONTEXT.md` is the glossary; name files, types, tests, and proposals with its vocabulary. A concept missing from the glossary is a signal — either you're inventing language the project doesn't use (reconsider), or there's a real gap (add it). Don't drift to synonyms.
+- **Record decisions, read them first.** Read `docs/adr/` before working in an area. When you make a significant or hard-to-reverse architectural choice (a new abstraction, an error-handling standard, a data-flow change), write an ADR.
+- **Deepen, don't patch.** On recurring smells, leaky provider logic, or brittle abstractions, move truth upstream into canonical, named concepts. Do not preserve a bad pattern because it is widespread. Prefer durable, tested abstractions grounded in real product needs.
+- **Right-size by cohesion, not line count.** One responsibility per file: extract types, pure functions, and services into focused units, composed from a thin, readable spine (the service/controller that names and orders them). Consolidate tightly-coupled fragments; separate weakly-related ones. ~200–300 LOC is a smell trigger to ask "is this still one cohesive thing?", never an automatic splitter — fragmentation without a spine is as harmful as a monolith.
+- **Suggest overhauls proactively.** When you find structural decay, propose the deepening — don't route around it.
 - Do not frame work as a migration, coexistence plan, or cutover strategy. Assume speed-of-light execution: design and plan for the clean replacement architecture directly, with old paths removed rather than accommodated in parallel.
 - Historical session open MUST reconnect after snapshot hydration. Never fix replay or unresolved-tool bugs by making historical sessions read-only. Correct boundary: provider history/disk parsing owns already-restored transcript content; reconnect attaches live transport and may deliver only post-frontier events through the open-token reservation. If replay is wrong, fix token/frontier/reconciliation in the backend.
 
@@ -153,6 +69,27 @@ Record durable learning in docs/solutions/ when useful
 - Raw provider data is input, not product truth. Provider quirks belong in Rust adapters/history parsers; TypeScript and `packages/ui` must consume canonical facts, not repair provider-specific weirdness.
 - For transcript bugs, never fix order in the UI. Canonical transcript order, identity, and tool-call mapping must be corrected before display projection.
 - Treat raw provider ids, such as Claude `message.id`, as metadata unless the canonical model explicitly promotes them. Use canonical event order and Acepe-owned display ids for UI identity.
+
+#### UI Package MVC
+
+Shared UI follows a View–Model–Controller split across packages. **Invoke `extract-to-ui-package`** before moving UI into `@acepe/ui`.
+
+| Layer | Package | Role |
+|-------|---------|------|
+| **View** | `@acepe/ui` (`packages/ui/`) | Presentational components. Props, callbacks, snippets. Optional view helpers (`*-state.ts`, `*-effects.ts`). No Tauri, stores, or app-specific policy. |
+| **Model** | `packages/desktop` pure TS | Maps domain types to view props (`*-state.ts`, `*-logic.ts`, scene mappers). |
+| **Controller** | `packages/desktop` wrapper `.svelte` | Reads stores/Tauri, builds Model output, renders View, handles callbacks. |
+
+**Enforcement:** `scripts/forbid-ui-package-imports.ts` + `packages/ui/src/__tests__/ui-package-boundary.test.ts` (import guard + render smoke).
+
+**Agent panel** is the richest example; same MVC applies to sidebar, git panel, kanban, checkpoint, etc. See `.github/skills/extract-to-ui-package/references/pattern-catalog.md`.
+
+**Key rules:**
+- New shared UI goes in `@acepe/ui` with prop-based data. Pass user-visible copy via props (English from host or literals in shared UI).
+- Composer leaf controls, selector rows, and dropdown shells live in `@acepe/ui`; desktop keeps Controller adapters in `agent-input-ui.svelte` and related wrappers.
+- `packages/website` renders `@acepe/ui` with mock data — proves View works independently.
+- Domain controllers may access stores but must compose `@acepe/ui` sub-components for rendering.
+- Desktop wrappers that only add store access should accept optional props with store fallback.
 
 ### Debugging
 
@@ -201,23 +138,6 @@ Canonical triage label vocabulary: `needs-triage`, `needs-info`, `ready-for-agen
 
 Single-context layout: read `CONTEXT.md` for Acepe domain language and `docs/adr/` for decisions before working in an area. Both can be extended by `grill-with-docs`. See `docs/agents/domain.md`.
 
-### Skill routing
-
-- Use `grill-me` / `grill-with-docs` when the request, domain language, or success criteria need sharpening.
-- Use `to-prd`, `to-issues`, and `triage` for GitHub issue-backed work.
-- Use `tdd` for the failing-test-first loop required by this repo.
-- Use `implement` only when the request is clear and any needed plan/review gate has passed, or when the task is truly trivial.
-- Use `code-review`, `codebase-design`, and `improve-codebase-architecture` for review and design pressure-testing.
-
-<!-- BEGIN fable-codex-orchestration -->
 ## Local Model Routing
 
-Follow the global Codex collaboration rules in `/Users/alex/.codex/AGENTS.md` and `/Users/alex/AGENTS.md`.
-
-- Fable 5 / Claude Code leads: plan, delegate, synthesize.
-- Opus `deep-reasoner` handles hard reasoning.
-- Sonnet `fast-worker` handles mechanical work.
-- Codex acts as a peer senior engineer and fast implementer, especially for well-scoped execution, computer use, UI/UX verification, and fresh-perspective checks.
-
-Local project rules in this file still win. Keep existing TDD, QA, and verification requirements.
-<!-- END fable-codex-orchestration -->
+Follow the global delegation policy in `/Users/alex/AGENTS.md` (or the nearest global instructions file). Local project rules in this file still win; do not weaken this repo's TDD, QA, or verification requirements.

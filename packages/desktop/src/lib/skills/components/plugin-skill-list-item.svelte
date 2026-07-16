@@ -1,5 +1,5 @@
 <script lang="ts">
-import { RoundedIcon } from "@acepe/ui";
+import { HugeiconsIcon } from "@acepe/ui";
 import * as Tooltip from "@acepe/ui/tooltip";
 
 import type { PluginSkill } from "../types/index.js";
@@ -33,7 +33,7 @@ const truncatedDesc = $derived(truncateDescription(skill.description));
 		<p class="text-sm line-clamp-2 leading-tight flex-1">{skill.name}</p>
 		<Tooltip.Root>
 			<Tooltip.Trigger class="shrink-0">
-				<RoundedIcon name="skills" class="h-3 w-3 text-purple-500" />
+				<HugeiconsIcon name="skills" class="h-3 w-3 text-purple-500" />
 			</Tooltip.Trigger>
 			<Tooltip.Content side="right" class="text-xs">Plugin skill (read-only)</Tooltip.Content>
 		</Tooltip.Root>

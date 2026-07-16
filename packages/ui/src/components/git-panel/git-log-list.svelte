@@ -7,7 +7,7 @@
 	import type { Snippet } from "svelte";
 
 	import { DiffPill } from "../diff-pill/index.js";
-	import { LoadingIcon, RoundedIcon } from "../icons/index.js";
+	import { LoadingIcon, HugeiconsIcon } from "../icons/index.js";
 	import { getFileIconSrc, getFallbackIconSrc } from "../../lib/file-icon/index.js";
 	import { cn } from "../../lib/utils.js";
 	import type { GitLogEntry, GitLogEntryFile } from "./types.js";
@@ -118,14 +118,14 @@
 				)}
 				onclick={() => toggleExpand(entry.sha)}
 			>
-				<RoundedIcon name="chevron-right"
+				<HugeiconsIcon name="chevron-right"
 					class={cn(
 						"size-3 shrink-0 text-muted-foreground transition-transform duration-150",
 						isExpanded && "rotate-90",
 					)}
 				/>
 
-				<RoundedIcon
+				<HugeiconsIcon
 					name="git"
 					class="size-3.5 shrink-0 text-success"
 					data-testid="git-log-commit-rounded-icon"
@@ -184,7 +184,7 @@
 							>
 								<!-- Expand caret (only if diff snippet available) -->
 								{#if fileDiffContent && file.patch}
-									<RoundedIcon name="chevron-right"
+									<HugeiconsIcon name="chevron-right"
 										class={cn(
 											"size-3 shrink-0 text-muted-foreground/50 transition-transform duration-150",
 											isFileExpanded && "rotate-90",

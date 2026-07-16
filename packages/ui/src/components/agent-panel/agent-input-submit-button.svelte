@@ -9,7 +9,7 @@ import {
 } from "./agent-input-submit-button-variants.js";
 import { ButtonGroup } from "../button-group/index.js";
 import * as DropdownMenu from "../dropdown-menu/index.js";
-import { RoundedIcon } from "../icons/index.js";
+import { HugeiconsIcon } from "../icons/index.js";
 import { cn } from "../../lib/utils.js";
 
 interface Props {
@@ -82,9 +82,9 @@ function handleEnterBehaviorChange(value: string): void {
 
 {#snippet submitIcon()}
 	{#if showStop}
-		<RoundedIcon name="stop" class="h-4 w-4 shrink-0" />
+		<HugeiconsIcon name="stop" class="h-4 w-4 shrink-0" />
 	{:else}
-		<RoundedIcon name="arrow-up" class="h-4 w-4 shrink-0" />
+		<HugeiconsIcon name="arrow-up" class="h-4 w-4 shrink-0" />
 	{/if}
 	<span class="sr-only">{ariaLabel}</span>
 {/snippet}
@@ -112,7 +112,7 @@ function handleEnterBehaviorChange(value: string): void {
 				aria-label={enterBehaviorMenuLabel}
 				class={agentInputSubmitMenuSegmentClass}
 			>
-				<RoundedIcon name="more" class="h-4 w-4 rotate-90" />
+				<HugeiconsIcon name="more" class="h-4 w-4" />
 			</DropdownMenu.Trigger>
 			<DropdownMenu.Content side="top" align="end" sideOffset={8} class="w-64 p-1">
 				<DropdownMenu.RadioGroup value={enterBehavior} onValueChange={handleEnterBehaviorChange}>
@@ -127,7 +127,7 @@ function handleEnterBehaviorChange(value: string): void {
 									<span class="truncate text-xs font-medium">{option.label}</span>
 									<span class="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
 										{#if checked}
-											<RoundedIcon name="check" class="h-3.5 w-3.5" />
+											<HugeiconsIcon name="check" class="h-3.5 w-3.5" />
 										{/if}
 									</span>
 								</div>

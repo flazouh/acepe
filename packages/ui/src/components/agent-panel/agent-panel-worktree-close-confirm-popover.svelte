@@ -3,7 +3,7 @@
   All copy is supplied by the host app.
 -->
 <script lang="ts">
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import * as Popover from "../popover/index.js";
 
 	let {
@@ -58,7 +58,7 @@
 				onclick={onConfirmRemoveAndClose}
 				disabled={confirmDisabled}
 			>
-				<RoundedIcon name="trash" class="size-3" />
+				<HugeiconsIcon name="trash" class="size-3" />
 				{confirmLabel}
 			</button>
 		</div>

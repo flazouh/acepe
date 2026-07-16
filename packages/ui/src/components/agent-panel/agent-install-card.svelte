@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
 
-	import { LoadingIcon, RoundedIcon } from "../icons/index.js";
+	import { LoadingIcon, HugeiconsIcon } from "../icons/index.js";
 
 	const SEGMENT_COUNT = 20;
 	const segmentIndexes = Array.from({ length: SEGMENT_COUNT }, (_, index) => index);
@@ -89,7 +89,7 @@
 					{/each}
 				</div>
 			{/if}
-			<RoundedIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground transition-transform duration-200 {isExpanded ? 'rotate-180' : ''}"
+			<HugeiconsIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground transition-transform duration-200 {isExpanded ? 'rotate-180' : ''}"
 			/>
 		</div>
 	</div>

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { RoundedIcon, Selector } from "@acepe/ui";
+import { HugeiconsIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 
 import { useTheme } from "./context.svelte.js";
@@ -19,9 +19,9 @@ const themeState = useTheme();
 >
 	{#snippet renderButton()}
 		{#if themeState.effectiveTheme === "light"}
-			<RoundedIcon name="sun" />
+			<HugeiconsIcon name="sun" />
 		{:else}
-			<RoundedIcon name="moon" />
+			<HugeiconsIcon name="moon" />
 		{/if}
 	{/snippet}
 

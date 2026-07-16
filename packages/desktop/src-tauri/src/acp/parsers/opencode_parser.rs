@@ -8,7 +8,7 @@ use crate::acp::parsers::types::{
     ParseError, ParsedQuestion, ParsedQuestionOption, ParsedTodo, ParsedTodoStatus,
     ParsedUsageTelemetry, UpdateType,
 };
-use crate::acp::session::ingress::tool_identity::providers::open_code::OpenCodeAdapter;
+use crate::acp::parsers::OpenCodeAdapter;
 use crate::acp::session_update::{
     build_tool_call_from_raw, build_tool_call_update_from_raw, RawToolCallInput,
     RawToolCallUpdateInput, ToolArguments, ToolCallStatus, ToolKind,

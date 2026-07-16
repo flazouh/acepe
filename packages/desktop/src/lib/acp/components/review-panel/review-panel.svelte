@@ -6,7 +6,7 @@ import {
 	HeaderActionCell,
 	HeaderTitleCell,
 	ReviewWorkspaceFileList,
-	RoundedIcon,
+	HugeiconsIcon,
 } from "@acepe/ui";
 import { SvelteSet } from "svelte/reactivity";
 import { toast } from "svelte-sonner";
@@ -155,7 +155,7 @@ function handlePointerUp() {
 				aria-label="Back"
 			>
 				{#snippet children()}
-					<RoundedIcon name="chevron-left" class="shrink-0" />
+					<HugeiconsIcon name="chevron-left" class="shrink-0" />
 				{/snippet}
 			</Button>
 		</HeaderActionCell>

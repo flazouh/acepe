@@ -11,7 +11,7 @@
  *   - onInsert: called with the selected file path when the user presses Enter
  */
 import { onMount } from "svelte";
-import { RoundedIcon } from "@acepe/ui";
+import { HugeiconsIcon } from "@acepe/ui";
 import type { FileExplorerProjectInfo } from "$lib/components/main-app-view/logic/file-explorer-context.js";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import { tauriClient } from "$lib/utils/tauri-client.js";
@@ -214,7 +214,7 @@ function handleSelect(row: FileExplorerRow) {
 	>
 		<!-- Search input row -->
 		<div class="flex items-center gap-1 px-2.5 py-1.5 border-b shrink-0">
-			<RoundedIcon name="search" class="h-3 w-3 text-muted-foreground shrink-0" />
+			<HugeiconsIcon name="search" class="h-3 w-3 text-muted-foreground shrink-0" />
 			<input
 				bind:this={inputRef}
 				type="text"

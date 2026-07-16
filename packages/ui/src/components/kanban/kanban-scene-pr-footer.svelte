@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { DiffPill } from "../diff-pill/index.js";
-	import { PullRequestStatusIcon } from "../icons/index.js";
+	import { HugeiconsIcon, PullRequestStatusIcon } from "../icons/index.js";
 	import { PrChecksList, PrChecksSummary, type PrChecksItem } from "../pr-checks/index.js";
 
 	let {
@@ -102,7 +102,11 @@
 			onOpenExternal();
 		}}
 	>
-		<RoundedIcon name="external-link" class="size-3" />
+		<HugeiconsIcon
+			name="open-in-new-window"
+			class="size-3"
+			data-testid="kanban-pr-footer-open-external-hugeicons-icon"
+		/>
 	</button>
 </div>
 

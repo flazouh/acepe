@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 
 	interface Props {
 		hasSelections?: boolean;
@@ -22,7 +22,7 @@
 	<div class="question-footer-left"></div>
 	<div class="question-footer-right">
 		<button type="button" class="question-footer-btn" onclick={onCancel}>
-			<RoundedIcon name="x-circle" class="size-3 shrink-0" />
+			<HugeiconsIcon name="x-circle" class="size-3 shrink-0" />
 			{cancelLabel}
 		</button>
 		<button
@@ -31,7 +31,7 @@
 			disabled={!hasSelections}
 			onclick={onSubmit}
 		>
-			<RoundedIcon name="check" class="size-3 shrink-0" />
+			<HugeiconsIcon name="check" class="size-3 shrink-0" />
 			{submitLabel}
 		</button>
 	</div>

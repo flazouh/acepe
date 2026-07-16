@@ -20,9 +20,8 @@ const SESSION_ID: &str = "sess-hist-001";
 const PROJECT_PATH: &str = "/project";
 
 fn historical_tool_call_fixture_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(
-        "src/acp/session/ingress/tool_identity/tests/fixtures/historical-tool-call-session.jsonl",
-    )
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("src/acp/reconciler/tests/fixtures/historical-tool-call-session.jsonl")
 }
 
 fn should_update_goldens() -> bool {

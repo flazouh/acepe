@@ -4,10 +4,8 @@ use specta::Type;
 use super::{QuestionItem, TodoItem, TodoUpdate};
 use crate::acp::agent_context::current_agent;
 use crate::acp::parsers::AgentType;
-use crate::acp::session::ingress::tool_identity::{
-    classify_serialized_tool_call, ToolClassificationHints,
-};
 use crate::acp::session_update::normalize::derive_normalized_questions_and_todos;
+use crate::acp::tool_identity::{classify_serialized_tool_call, ToolClassificationHints};
 
 /// Tool kind for routing to appropriate UI components.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]

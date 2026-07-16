@@ -3,6 +3,7 @@ import { createRawSnippet, tick, type Snippet } from "svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import MessageScroller from "./message-scroller.svelte";
+import MessageScrollerContentHarness from "./__tests__/fixtures/message-scroller-content-harness.svelte";
 import type { MessageScrollerItem } from "./message-scroller-types.js";
 import type { MessageScrollerRangeState } from "./message-scroller-types.js";
 import type { AgentPanelPerformanceRecorder } from "./agent-panel-performance-profile.js";
@@ -243,10 +244,6 @@ function rowElement(container: HTMLElement, rowId: string): HTMLElement {
 	return row;
 }
 
-function cssEstimatePx(row: HTMLElement): string {
-	return row.style.getPropertyValue("--cv-estimate-px");
-}
-
 function rowShellTransform(container: HTMLElement, rowId: string): string {
 	const row = rowElement(container, rowId);
 	const shell = row.parentElement as HTMLElement | null;
@@ -366,6 +363,225 @@ describe("MessageScroller", () => {
 		expect(firstController).toBeDefined();
 	});
 
+	it("reuses a flow row shell when only its render version changes", async () => {
+		let controller: StickToBottomController | undefined;
+		const view = render(MessageScrollerContentHarness, {
+			props: {
+				items: [item({ key: "assistant:v1", rowId: "assistant", estimatePx: 150 })],
+				onReady: (readyController) => {
+					controller = readyController;
+				},
+			},
+		});
+		const viewport = viewportOf(view.container);
+		stubMetrics(viewport, 2_000, 800);
+		if (controller === undefined) {
+			throw new Error("MessageScroller did not provide a controller");
+		}
+		controller.onSend();
+		const originalShell = rowElement(view.container, "assistant").parentElement;
+		expect(
+			view.container.querySelector('[data-testid="versioned-row-content"]')?.textContent,
+		).toBe("content assistant:v1");
+
+		await view.rerender({
+			items: [
+				item({
+					key: "assistant:v2",
+					rowId: "assistant",
+					estimatePx: 180,
+					isActiveTail: true,
+					anchorEligible: false,
+				}),
+			],
+			onReady: (readyController) => {
+				controller = readyController;
+			},
+		});
+
+		const updatedRow = rowElement(view.container, "assistant");
+		expect(updatedRow.parentElement).toBe(originalShell);
+		expect(updatedRow.getAttribute("data-cv-estimate-px")).toBe("180");
+		expect(updatedRow.classList.contains("is-active-tail")).toBe(true);
+		expect(updatedRow.hasAttribute("data-anchor")).toBe(false);
+		expect(
+			view.container.querySelector('[data-testid="versioned-row-content"]')?.textContent,
+		).toBe("content assistant:v2");
+		expect(viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight).toBe(0);
+		expect(controller.getState().released).toBe(false);
+	});
+
+	it("replaces a flow row shell when row identity changes", async () => {
+		const view = renderScroller([item({ key: "assistant:v1", rowId: "assistant" })]);
+		const originalShell = rowElement(view.container, "assistant").parentElement;
+
+		await view.rerender({
+			items: [item({ key: "replacement:v1", rowId: "replacement" })],
+			renderItem: dot,
+			ariaLabel: "Conversation transcript",
+		});
+
+		expect(rowElement(view.container, "replacement").parentElement).not.toBe(originalShell);
+		expect(view.container.querySelector('[data-row-id="assistant"]')).toBeNull();
+	});
+
+	it("reacquires bottom on send before the pending user row and stays attached into streaming", async () => {
+		FakeResizeObserver.reset();
+		vi.stubGlobal("ResizeObserver", FakeResizeObserver);
+		vi.stubGlobal("requestAnimationFrame", queuedAnimationFrame);
+		vi.stubGlobal("cancelAnimationFrame", cancelQueuedAnimationFrame);
+		const followStates: Array<{
+			released: boolean;
+			hasUnreadBelow: boolean;
+		}> = [];
+		let controller: StickToBottomController | undefined;
+		const existingRows = manyItems(300);
+		const pendingUserRow = item({ key: "pending-user:v1", rowId: "pending-user" });
+		const streamedAssistantRow = item({
+			key: "streaming-assistant:v1",
+			rowId: "streaming-assistant",
+			isActiveTail: true,
+		});
+		const view = renderScroller(existingRows, {
+			renderItem: fullRow,
+			onReady: (readyController) => {
+				controller = readyController;
+			},
+			onFollowStateChange: (state) => {
+				followStates.push(state);
+			},
+		});
+		const viewport = viewportOf(view.container);
+		let scrollHeightPx = 30_000;
+		Object.defineProperty(viewport, "scrollTop", {
+			value: 29_200,
+			writable: true,
+			configurable: true,
+		});
+		Object.defineProperty(viewport, "scrollHeight", {
+			get: () => scrollHeightPx,
+			configurable: true,
+		});
+		Object.defineProperty(viewport, "clientHeight", {
+			value: 800,
+			configurable: true,
+		});
+		viewport.dispatchEvent(new WheelEvent("wheel", { deltaY: -200 }));
+		viewport.scrollTop = 28_000;
+		viewport.dispatchEvent(new Event("scroll"));
+
+		if (controller === undefined) {
+			throw new Error("MessageScroller did not provide a controller");
+		}
+		const readyController = controller;
+		expect(readyController.getState().released).toBe(true);
+		readyController.onSend();
+		expect(readyController.getState().released).toBe(false);
+		expect(viewport.scrollTop).toBe(29_200);
+		expect(scrollHeightPx - viewport.scrollTop - viewport.clientHeight).toBe(0);
+		viewport.dispatchEvent(new Event("scroll"));
+		await flushQueuedFrame();
+
+		const pendingRows = existingRows.concat(pendingUserRow);
+		const followStateCountBeforeStream = followStates.length;
+		await view.rerender({
+			items: pendingRows,
+			renderItem: fullRow,
+			ariaLabel: "Conversation transcript",
+		});
+		scrollHeightPx = 30_100;
+		const content = view.container.querySelector<HTMLElement>(
+			".message-scroller__content",
+		);
+		if (content === null) {
+			throw new Error("MessageScroller content was not rendered");
+		}
+		FakeResizeObserver.emitHeightFor(content, scrollHeightPx);
+		await flushQueuedFrame();
+
+		expect(readyController.getState().released).toBe(false);
+		expect(scrollHeightPx - viewport.scrollTop - viewport.clientHeight).toBe(0);
+		expect(view.container.querySelector('[data-row-id="pending-user"]')).not.toBeNull();
+		expect(view.container.querySelector(".message-scroller__send-anchor-spacer")).toBeNull();
+		expect(
+			view.container.querySelector(
+				'[data-row-id="awaiting:planning"], [data-row-id="local:planning"]',
+			),
+		).toBeNull();
+
+		await view.rerender({
+			items: pendingRows.concat(streamedAssistantRow),
+			renderItem: fullRow,
+			ariaLabel: "Conversation transcript",
+		});
+		scrollHeightPx = 30_200;
+		queueMicrotask(() => readyController.notifyContentChanged());
+		await Promise.resolve();
+		await flushQueuedFrame();
+
+		expect(readyController.getState().released).toBe(false);
+		expect(scrollHeightPx - viewport.scrollTop - viewport.clientHeight).toBe(0);
+		expect(followStates.length).toBe(followStateCountBeforeStream);
+	});
+
+	it("lets an explicit user scroll after send release and cancel pending-row follow-through", async () => {
+		FakeResizeObserver.reset();
+		vi.stubGlobal("ResizeObserver", FakeResizeObserver);
+		let controller: StickToBottomController | undefined;
+		const existingRows = manyItems(300);
+		const pendingUserRow = item({ key: "pending-user:v1", rowId: "pending-user" });
+		const view = renderScroller(existingRows, {
+			onReady: (readyController) => {
+				controller = readyController;
+			},
+		});
+		const viewport = viewportOf(view.container);
+		let scrollHeightPx = 30_000;
+		Object.defineProperty(viewport, "scrollTop", {
+			value: 29_200,
+			writable: true,
+			configurable: true,
+		});
+		Object.defineProperty(viewport, "scrollHeight", {
+			get: () => scrollHeightPx,
+			configurable: true,
+		});
+		Object.defineProperty(viewport, "clientHeight", {
+			value: 800,
+			configurable: true,
+		});
+		if (controller === undefined) {
+			throw new Error("MessageScroller did not provide a controller");
+		}
+		controller.onSend();
+		expect(controller.getState().released).toBe(false);
+		expect(viewport.scrollTop).toBe(29_200);
+
+		viewport.dispatchEvent(new WheelEvent("wheel", { deltaY: -200 }));
+		viewport.scrollTop = 28_000;
+		viewport.dispatchEvent(new Event("scroll"));
+		expect(controller.getState().released).toBe(true);
+		expect(viewport.scrollTop).toBe(28_000);
+
+		await view.rerender({
+			items: existingRows.concat(pendingUserRow),
+			renderItem: dot,
+			ariaLabel: "Conversation transcript",
+		});
+		scrollHeightPx = 30_100;
+		const content = view.container.querySelector<HTMLElement>(
+			".message-scroller__content",
+		);
+		if (content === null) {
+			throw new Error("MessageScroller content was not rendered");
+		}
+		FakeResizeObserver.emitHeightFor(content, scrollHeightPx);
+		await tick();
+
+		expect(controller.getState().released).toBe(true);
+		expect(viewport.scrollTop).toBe(28_000);
+	});
+
 	it("reports edge state and lets the host scroll to top", async () => {
 		const edges: Array<{ atTop: boolean; atBottom: boolean }> = [];
 		let controller: StickToBottomController | undefined;
@@ -453,6 +669,129 @@ describe("MessageScroller", () => {
 		expect(content?.style.height).toBe("120000px");
 	});
 
+	it("does not replay a released source anchor after send reacquires the bottom", async () => {
+		vi.stubGlobal("requestAnimationFrame", queuedAnimationFrame);
+		vi.stubGlobal("cancelAnimationFrame", cancelQueuedAnimationFrame);
+		let controller: StickToBottomController | undefined;
+		const existingRows = manyItems(300);
+		const pendingUserRow = item({ key: "pending-user:v1", rowId: "pending-user" });
+		const view = renderScroller(existingRows, {
+			onReady: (readyController) => {
+				controller = readyController;
+			},
+		});
+		const viewport = viewportOf(view.container);
+		let scrollHeightPx = 30_000;
+		Object.defineProperty(viewport, "scrollTop", {
+			value: 27_000,
+			writable: true,
+			configurable: true,
+		});
+		Object.defineProperty(viewport, "scrollHeight", {
+			get: () => scrollHeightPx,
+			configurable: true,
+		});
+		Object.defineProperty(viewport, "clientHeight", {
+			value: 800,
+			configurable: true,
+		});
+		viewport.dispatchEvent(new WheelEvent("wheel", { deltaY: -200 }));
+		viewport.dispatchEvent(new Event("scroll"));
+		await flushQueuedFrame();
+
+		if (controller === undefined) {
+			throw new Error("MessageScroller did not provide a controller");
+		}
+		const readyController = controller;
+		expect(readyController.getState().released).toBe(true);
+		vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+			function (this: HTMLElement): DOMRect {
+				if (this.classList.contains("message-scroller__viewport")) {
+					return domRect({ top: 0, bottom: 800 });
+				}
+				if (this.getAttribute("data-row-id") === "row-271") {
+					return domRect({ top: 100, bottom: 200 });
+				}
+				return domRect({ top: 900, bottom: 1_000 });
+			},
+		);
+
+		scrollHeightPx = 30_100;
+		await view.rerender({
+			items: existingRows.concat(pendingUserRow),
+			renderItem: dot,
+			ariaLabel: "Conversation transcript",
+		});
+		readyController.onSend();
+		expect(readyController.getState().released).toBe(false);
+		expect(viewport.scrollTop).toBe(29_300);
+
+		await flushQueuedFrame();
+
+		expect(readyController.getState().released).toBe(false);
+		expect(scrollHeightPx - viewport.scrollTop - viewport.clientHeight).toBe(0);
+	});
+
+	it("preserves a released reading anchor across an ordinary append without send", async () => {
+		vi.stubGlobal("requestAnimationFrame", queuedAnimationFrame);
+		vi.stubGlobal("cancelAnimationFrame", cancelQueuedAnimationFrame);
+		let controller: StickToBottomController | undefined;
+		const existingRows = manyItems(300);
+		const appendedRow = item({ key: "appended:v1", rowId: "appended" });
+		const view = renderScroller(existingRows, {
+			onReady: (readyController) => {
+				controller = readyController;
+			},
+		});
+		const viewport = viewportOf(view.container);
+		let scrollHeightPx = 30_000;
+		Object.defineProperty(viewport, "scrollTop", {
+			value: 27_000,
+			writable: true,
+			configurable: true,
+		});
+		Object.defineProperty(viewport, "scrollHeight", {
+			get: () => scrollHeightPx,
+			configurable: true,
+		});
+		Object.defineProperty(viewport, "clientHeight", {
+			value: 800,
+			configurable: true,
+		});
+		viewport.dispatchEvent(new WheelEvent("wheel", { deltaY: -200 }));
+		viewport.dispatchEvent(new Event("scroll"));
+		await flushQueuedFrame();
+
+		if (controller === undefined) {
+			throw new Error("MessageScroller did not provide a controller");
+		}
+		const readyController = controller;
+		expect(readyController.getState().released).toBe(true);
+		vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+			function (this: HTMLElement): DOMRect {
+				if (this.classList.contains("message-scroller__viewport")) {
+					return domRect({ top: 0, bottom: 800 });
+				}
+				if (this.getAttribute("data-row-id") === "row-271") {
+					return domRect({ top: 100, bottom: 200 });
+				}
+				return domRect({ top: 900, bottom: 1_000 });
+			},
+		);
+
+		scrollHeightPx = 30_100;
+		await view.rerender({
+			items: existingRows.concat(appendedRow),
+			renderItem: dot,
+			ariaLabel: "Conversation transcript",
+		});
+		viewport.scrollTop = 28_000;
+		await flushQueuedFrame();
+
+		expect(readyController.getState().released).toBe(true);
+		expect(viewport.scrollTop).toBe(27_000);
+	});
+
 	it("keeps the same anchor row in place when older rows are prepended", async () => {
 		const initialItems = manyItems(1_000);
 		const olderItems: MessageScrollerItem[] = [];
@@ -471,6 +810,7 @@ describe("MessageScroller", () => {
 		const viewport = viewportOf(view.container);
 		stubMetrics(viewport, 120_000, 800);
 		viewport.scrollTop = 49_900;
+		viewport.dispatchEvent(new WheelEvent("wheel", { deltaY: -200 }));
 		viewport.dispatchEvent(new Event("scroll"));
 		await tick();
 
@@ -618,12 +958,11 @@ describe("MessageScroller", () => {
 		const { container } = renderScroller(manyItems(1_000));
 		const row = rowElement(container, "row-0");
 
-		expect(cssEstimatePx(row)).toBe("100px");
+		expect(row.getAttribute("data-cv-estimate-px")).toBe("100");
 		expect(row.getAttribute("data-cv-estimate-source")).toBe("static");
 		FakeResizeObserver.emitHeightFor(row, 144);
 		await flushQueuedFrame();
 
-		expect(cssEstimatePx(row)).toBe("144px");
 		expect(row.getAttribute("data-cv-estimate-px")).toBe("144");
 		expect(row.getAttribute("data-cv-estimate-source")).toBe("measured");
 		expect(row.getAttribute("data-measured-height-px")).toBe("144");
@@ -642,7 +981,7 @@ describe("MessageScroller", () => {
 		FakeResizeObserver.emitHeightFor(row, 144);
 		await flushQueuedFrame();
 
-		expect(cssEstimatePx(rowElement(container, "row-0"))).toBe("144px");
+		expect(rowElement(container, "row-0").getAttribute("data-cv-estimate-px")).toBe("144");
 		expect(rowShellTransform(container, "row-1")).toBe("translateY(144px)");
 	});
 
@@ -663,14 +1002,14 @@ describe("MessageScroller", () => {
 		FakeResizeObserver.emitHeightFor(row, 144);
 		await flushQueuedFrame();
 
-		expect(cssEstimatePx(rowElement(container, "row-0"))).toBe("100px");
+		expect(rowElement(container, "row-0").getAttribute("data-cv-estimate-px")).toBe("100");
 
 		await new Promise((resolve) => setTimeout(resolve, 180));
 		await tick();
 		FakeResizeObserver.emitHeightFor(rowElement(container, "row-0"), 144);
 		await flushQueuedFrame();
 
-		expect(cssEstimatePx(rowElement(container, "row-0"))).toBe("144px");
+		expect(rowElement(container, "row-0").getAttribute("data-cv-estimate-px")).toBe("144");
 	});
 
 	it("keeps visible real rows mounted during fast scroll jumps", async () => {
@@ -706,7 +1045,9 @@ describe("MessageScroller", () => {
 		const row = rowElement(view.container, "row-0");
 		FakeResizeObserver.emitHeightFor(row, 144);
 		await flushQueuedFrame();
-		expect(cssEstimatePx(rowElement(view.container, "row-0"))).toBe("144px");
+		expect(rowElement(view.container, "row-0").getAttribute("data-cv-estimate-px")).toBe(
+			"144",
+		);
 
 		const nextItems = initialItems.map((currentItem, index) =>
 			index === 0
@@ -719,7 +1060,9 @@ describe("MessageScroller", () => {
 			ariaLabel: "Conversation transcript",
 		});
 
-		expect(cssEstimatePx(rowElement(view.container, "row-0"))).toBe("100px");
+		expect(rowElement(view.container, "row-0").getAttribute("data-cv-estimate-px")).toBe(
+			"100",
+		);
 	});
 
 	it("keeps real rows rendered while a virtualized viewport is actively scrolling", async () => {

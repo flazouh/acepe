@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { buildChipShellClassName } from "../chip/index.js";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import {
 		parseGitHubChipRef,
 		type GitHubChipRef,
@@ -69,7 +69,7 @@
 			: 'text-muted-foreground'}"
 		aria-hidden="true"
 	>
-		<RoundedIcon name="pull-request" class="size-3.5" />
+		<HugeiconsIcon name="pull-request" class="size-3.5" />
 	</span>
 	<span class="min-w-0 truncate font-mono text-[0.6875rem] leading-none">
 		{label}
@@ -77,7 +77,7 @@
 {/snippet}
 
 {#snippet unlinkIcon()}
-	<RoundedIcon name="x-circle" class="size-3" data-testid="github-chip-unlink-rounded-icon" />
+	<HugeiconsIcon name="x-circle" class="size-3" data-testid="github-chip-unlink-rounded-icon" />
 {/snippet}
 
 {#if showToggle}
@@ -104,7 +104,7 @@
 			{#if isLinked}
 				{@render unlinkIcon()}
 			{:else}
-				<RoundedIcon name="link" class="size-3" />
+				<HugeiconsIcon name="link" class="size-3" />
 			{/if}
 		</button>
 	</span>

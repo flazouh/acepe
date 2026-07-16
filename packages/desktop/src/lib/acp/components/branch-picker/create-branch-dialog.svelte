@@ -1,5 +1,5 @@
 <script lang="ts">
-import { Button, RoundedIcon, Selector } from "@acepe/ui";
+import { Button, HugeiconsIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import {
@@ -85,9 +85,9 @@ $effect(() => {
 </script>
 
 {#snippet prefixIcon(prefix: BranchPrefix, dataTestid?: string)}
-	{#if prefix.roundedIcon}
-		<RoundedIcon
-			name={prefix.roundedIcon}
+	{#if prefix.iconName}
+		<HugeiconsIcon
+			name={prefix.iconName}
 			class="h-3.5 w-3.5 shrink-0"
 			style="color: {prefix.color}"
 			data-testid={dataTestid}
@@ -109,7 +109,7 @@ $effect(() => {
 	onOpenChange={handleOpenChange}
 >
 	{#snippet titleLeading()}
-		<RoundedIcon name="branch" class="size-3.5 shrink-0 text-primary" />
+		<HugeiconsIcon name="branch" class="size-3.5 shrink-0 text-primary" />
 	{/snippet}
 
 	<div class="grid gap-2.5 px-3 py-3">
@@ -146,7 +146,7 @@ $effect(() => {
 							{@render prefixIcon(prefix, `branch-prefix-${prefix.label}-icon`)}
 							<span class="flex-1">{prefix.label}</span>
 							{#if selectedPrefix === prefix}
-								<RoundedIcon name="check" class="size-4 shrink-0 text-foreground" />
+								<HugeiconsIcon name="check" class="size-4 shrink-0 text-foreground" />
 							{/if}
 						</DropdownMenu.Item>
 					{/each}

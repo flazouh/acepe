@@ -15,6 +15,8 @@ vi.mock("svelte", async () => {
 
 vi.mock("@acepe/ui", async () => ({
 	GitHubBadge: (await import("./__tests__/fixtures/github-badge-stub.svelte")).default,
+	HugeiconsIcon: (await import("./pr-status-card/test-hugeicons-icon-stub.svelte"))
+		.default,
 }));
 
 vi.mock("@tauri-apps/plugin-opener", () => ({
@@ -113,5 +115,15 @@ describe("GitHubBadge", () => {
 		await waitFor(() => {
 			expect(fetchPrDiffMock).toHaveBeenCalledWith("flazouh", "acepe", 42);
 		});
+	});
+
+	it("renders the external GitHub action with the open-in-new-window icon", () => {
+		const view = render(GitHubBadgeComponent, {
+			ref: { type: "commit", sha: "abcdef1", owner: "flazouh", repo: "acepe" },
+			projectPath: "/repo",
+		});
+
+		const icon = view.getByTestId("github-badge-open-external-hugeicons-icon");
+		expect(icon.getAttribute("data-hugeicons-icon-name")).toBe("open-in-new-window");
 	});
 });

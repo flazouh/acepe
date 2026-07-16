@@ -21,10 +21,8 @@ use crate::acp::parsers::provider_capabilities::{
 use crate::acp::parsers::AgentType;
 use crate::acp::provider_extensions::{InboundResponseAdapter, ProviderExtensionEvent};
 use crate::acp::runtime_resolver::SpawnEnvStrategy;
-use crate::acp::session::ingress::event::ProviderEvent;
-use crate::acp::session::ingress::plugin::history_source_for;
-use crate::acp::session::ingress::source::{HistoryError, HistoryReplayInput};
 use crate::acp::session_descriptor::SessionReplayContext;
+use crate::acp::session_thread_snapshot::ProviderOwnedSessionSnapshot;
 use crate::acp::session_update::{
     AvailableCommand, ConfigOptionData, PlanConfidence, PlanSource, SessionUpdate,
 };
@@ -128,38 +126,6 @@ impl ProviderHistoryLoadError {
             | Self::Internal { message } => message,
         }
     }
-}
-
-fn provider_history_load_error(error: HistoryError) -> ProviderHistoryLoadError {
-    match error {
-        HistoryError::NotFound(message) => {
-            ProviderHistoryLoadError::provider_history_missing(message)
-        }
-        HistoryError::InvalidFormat(message) => {
-            ProviderHistoryLoadError::provider_unparseable(message)
-        }
-        HistoryError::Io(message) => ProviderHistoryLoadError::provider_unavailable(message),
-    }
-}
-
-pub(crate) async fn load_registered_provider_history_events(
-    replay_context: &SessionReplayContext,
-) -> Result<Option<Vec<ProviderEvent>>, ProviderHistoryLoadError> {
-    let Some(source) = history_source_for(&replay_context.agent_id) else {
-        return Ok(None);
-    };
-    let input = HistoryReplayInput {
-        session_id: replay_context.history_session_id.clone(),
-        project_path: PathBuf::from(&replay_context.project_path),
-        effective_cwd: (!replay_context.effective_cwd.is_empty())
-            .then(|| PathBuf::from(&replay_context.effective_cwd)),
-        source_path: replay_context.source_path.as_ref().map(PathBuf::from),
-    };
-    source
-        .read_replay(input)
-        .await
-        .map(|events| (!events.is_empty()).then_some(events))
-        .map_err(provider_history_load_error)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -526,24 +492,21 @@ pub trait AgentProvider: Send + Sync {
             .unwrap_or_default()
     }
 
-    /// Load ordered provider history events at the provider ingress boundary.
-    ///
-    /// Built-ins registered with a [`HistorySource`](crate::acp::session::ingress::source::HistorySource)
-    /// use that source by default. Providers without a registered history source remain unsupported
-    /// and return `Ok(None)`.
-    fn load_provider_history_events<'a>(
+    /// Provider-owned history loading for replay families that cannot use the shared canonical path.
+    fn load_provider_owned_session<'a>(
         &'a self,
         _app: &'a AppHandle,
         _context: &'a SessionContext,
-        replay_context: &'a SessionReplayContext,
+        _replay_context: &'a SessionReplayContext,
     ) -> Pin<
         Box<
-            dyn Future<Output = Result<Option<Vec<ProviderEvent>>, ProviderHistoryLoadError>>
-                + Send
+            dyn Future<
+                    Output = Result<Option<ProviderOwnedSessionSnapshot>, ProviderHistoryLoadError>,
+                > + Send
                 + 'a,
         >,
     > {
-        Box::pin(async move { load_registered_provider_history_events(replay_context).await })
+        Box::pin(async { Ok(None) })
     }
 
     /// Provider-owned project discovery for history-backed project listing.
@@ -862,7 +825,6 @@ fn is_path_like(cmd: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::acp::session_descriptor::SessionDescriptorCompatibility;
     use tempfile::tempdir;
 
     #[cfg(unix)]
@@ -904,53 +866,5 @@ mod tests {
         let result = find_command_in_path_with_env("fakecmd", &path_dirs);
 
         assert!(result.is_some());
-    }
-
-    #[tokio::test]
-    async fn registered_builtin_history_boundary_returns_provider_events() {
-        let fixture_dir =
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/cursor_sessions");
-        let replay_context = SessionReplayContext {
-            local_session_id: "local-session".to_string(),
-            history_session_id: "c2a34686-f99a-4632-90e2-e036b96124c2".to_string(),
-            agent_id: CanonicalAgentId::Cursor,
-            parser_agent_type: AgentType::Cursor,
-            project_path: fixture_dir.display().to_string(),
-            worktree_path: None,
-            effective_cwd: fixture_dir.display().to_string(),
-            source_path: None,
-            compatibility: SessionDescriptorCompatibility::Canonical,
-        };
-
-        let events = load_registered_provider_history_events(&replay_context)
-            .await
-            .expect("registered Cursor history should load")
-            .expect("Cursor has a registered history source");
-
-        assert!(!events.is_empty());
-        assert!(events
-            .iter()
-            .all(|event| event.source == CanonicalAgentId::Cursor));
-    }
-
-    #[tokio::test]
-    async fn unregistered_agent_history_boundary_remains_unsupported() {
-        let replay_context = SessionReplayContext {
-            local_session_id: "forge-session".to_string(),
-            history_session_id: "forge-session".to_string(),
-            agent_id: CanonicalAgentId::Forge,
-            parser_agent_type: AgentType::from_canonical(&CanonicalAgentId::Forge),
-            project_path: "/tmp/project".to_string(),
-            worktree_path: None,
-            effective_cwd: "/tmp/project".to_string(),
-            source_path: None,
-            compatibility: SessionDescriptorCompatibility::Canonical,
-        };
-
-        let events = load_registered_provider_history_events(&replay_context)
-            .await
-            .expect("unsupported history lookup should not fail");
-
-        assert!(events.is_none());
     }
 }

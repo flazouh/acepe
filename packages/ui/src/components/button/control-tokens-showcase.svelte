@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Button from "./button.svelte";
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import {
 		buttonSizeShowcaseColumnMinWidth,
 		buttonSizeShowcaseOrder,
@@ -63,7 +63,7 @@
 										<Button variant={entry.variant} {size}>
 											{#snippet children()}
 												{#if display.kind === "icon"}
-													<RoundedIcon name="settings" />
+													<HugeiconsIcon name="settings" />
 												{:else}
 													<span class="truncate">{display.label}</span>
 												{/if}

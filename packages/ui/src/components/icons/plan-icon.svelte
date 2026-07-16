@@ -1,5 +1,5 @@
 <script lang="ts">
-	import RoundedIcon from "./rounded-icon.svelte";
+	import HugeiconsIcon from "./hugeicons-icon.svelte";
 
 	interface Props {
 		size?: "sm" | "md" | "lg";
@@ -22,7 +22,7 @@
 	style={style}
 	data-testid={dataTestid}
 >
-	<RoundedIcon name="plan" class="block size-full max-h-full max-w-full text-current" />
+	<HugeiconsIcon name="plan" class="block size-full max-h-full max-w-full text-current" />
 </span>
 
 <style>

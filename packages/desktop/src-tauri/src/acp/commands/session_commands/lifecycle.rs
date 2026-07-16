@@ -7,26 +7,6 @@ pub(crate) async fn emit_lifecycle_event<R: tauri::Runtime>(
     update: crate::acp::session_update::SessionUpdate,
     session_id: &str,
 ) {
-    emit_lifecycle_event_inner(app, hub, update, session_id, None).await;
-}
-
-pub(crate) async fn emit_lifecycle_event_if_current<R: tauri::Runtime>(
-    app: &AppHandle<R>,
-    hub: &Option<Arc<AcpEventHubState>>,
-    update: crate::acp::session_update::SessionUpdate,
-    session_id: &str,
-    expected: &crate::acp::lifecycle::LifecycleCheckpoint,
-) {
-    emit_lifecycle_event_inner(app, hub, update, session_id, Some(expected)).await;
-}
-
-async fn emit_lifecycle_event_inner<R: tauri::Runtime>(
-    app: &AppHandle<R>,
-    hub: &Option<Arc<AcpEventHubState>>,
-    update: crate::acp::session_update::SessionUpdate,
-    session_id: &str,
-    expected: Option<&crate::acp::lifecycle::LifecycleCheckpoint>,
-) {
     let Some(hub) = hub else {
         tracing::warn!(session_id = %session_id, "Event hub unavailable, lifecycle event dropped");
         return;
@@ -53,42 +33,23 @@ async fn emit_lifecycle_event_inner<R: tauri::Runtime>(
             return;
         }
     };
-    let supervisor = app.state::<Arc<crate::acp::lifecycle::SessionSupervisor>>();
-    let transition = match expected {
-        Some(expected) => {
-            supervisor
-                .inner()
-                .transition_lifecycle_if_current(
-                    app.state::<DbConn>().inner(),
-                    projection_registry.inner(),
-                    session_id,
-                    expected,
-                    &update,
-                )
-                .await
-        }
-        None => supervisor
-            .inner()
-            .transition_lifecycle(
-                app.state::<DbConn>().inner(),
-                projection_registry.inner(),
-                session_id,
-                &update,
-            )
-            .await
-            .map(Some),
-    };
-    match transition {
-        Ok(Some(_)) => {}
-        Ok(None) => return,
-        Err(error) => {
-            tracing::error!(
-                session_id = %session_id,
-                error = %error,
-                "Failed to persist supervisor-owned lifecycle transition"
-            );
-            return;
-        }
+    if let Err(error) = app
+        .state::<Arc<crate::acp::lifecycle::SessionSupervisor>>()
+        .inner()
+        .transition_lifecycle(
+            app.state::<DbConn>().inner(),
+            projection_registry.inner(),
+            session_id,
+            &update,
+        )
+        .await
+    {
+        tracing::error!(
+            session_id = %session_id,
+            error = %error,
+            "Failed to persist supervisor-owned lifecycle transition"
+        );
+        return;
     }
     let revision = match load_live_session_graph_revision(
         app.state::<DbConn>().inner(),
@@ -239,7 +200,7 @@ pub(super) async fn load_live_session_graph_revision(
     runtime_registry: Option<&SessionGraphRuntimeRegistry>,
     session_id: &str,
 ) -> Result<SessionGraphRevision, SerializableAcpError> {
-    let last_event_seq = SessionJournalEventRepository::max_event_seq(db, session_id)
+    let last_event_seq = SessionEventSequenceRepository::last_assigned_event_seq(db, session_id)
         .await
         .map_err(|error| SerializableAcpError::InvalidState {
             message: format!(
@@ -342,7 +303,7 @@ pub(super) async fn load_transcript_snapshot_for_resume_with_app(
     db: &DbConn,
     session_id: &str,
 ) -> Result<TranscriptSnapshot, SerializableAcpError> {
-    let journal_max = SessionJournalEventRepository::max_event_seq(db, session_id)
+    let journal_max = SessionEventSequenceRepository::last_assigned_event_seq(db, session_id)
         .await
         .map_err(|error| SerializableAcpError::InvalidState {
             message: format!(
@@ -411,28 +372,34 @@ pub(super) async fn load_transcript_snapshot_for_resume_with_app(
             .as_ref()
             .is_some_and(|event| event.event_kind == "materialization_barrier")
         {
-            return Ok(TranscriptSnapshot::empty(1));
+            return Ok(TranscriptSnapshot::from_stored_entries(1, &[]));
         }
     }
     if let Some(app) = app {
         if let Some(replay_context) = replay_context.as_ref() {
-            if let Some(folded) =
-                load_provider_history_for_command(app, replay_context, journal_max.unwrap_or(0))
-                    .await?
+            if let Some(provider_snapshot) =
+                crate::acp::session_restore::load_provider_owned_session_snapshot(
+                    app.clone(),
+                    replay_context,
+                )
+                .await
+                .map_err(SerializableAcpError::from)?
             {
-                let graph = install_provider_history_for_command(
+                let materialized = materialized_thread_snapshot_from_provider_fold_first(
                     session_id,
-                    folded,
-                    app.state::<Arc<SessionGraphRuntimeRegistry>>().inner(),
-                    app.state::<Arc<ProjectionRegistry>>().inner(),
-                    app.state::<Arc<TranscriptProjectionRegistry>>().inner(),
+                    replay_context,
+                    &provider_snapshot,
+                    journal_max.unwrap_or(0),
                 );
-                return Ok(graph.transcript_snapshot);
+                return Ok(materialized.transcript_snapshot);
             }
         }
     }
     if metadata.is_some() {
-        return Ok(TranscriptSnapshot::empty(journal_max.unwrap_or(0)));
+        return Ok(TranscriptSnapshot::from_stored_entries(
+            journal_max.unwrap_or(0),
+            &[],
+        ));
     }
 
     Err(SerializableAcpError::InvalidState {

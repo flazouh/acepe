@@ -11,6 +11,14 @@ type ThemeIconPair = {
 
 type IconProviderBrand = Exclude<ProviderBrand, "custom">;
 
+const BUILT_IN_PROVIDER_BRANDS = [
+	"claude-code",
+	"copilot",
+	"cursor",
+	"opencode",
+	"codex",
+] as const satisfies readonly ProviderBrand[];
+
 const ANTHROPIC_ICON_LIGHT_SRC =
 	"data:image/svg+xml,%3Csvg%20fill%3D%22%23000000%22%20role%3D%22img%22%20viewBox%3D%220%200%2024%2024%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Ctitle%3EAnthropic%3C%2Ftitle%3E%3Cpath%20d%3D%22M17.3041%203.541h-3.6718l6.696%2016.918H24Zm-10.6082%200L0%2020.459h3.7442l1.3693-3.5527h7.0052l1.3693%203.5528h3.7442L10.5363%203.5409Zm-.3712%2010.2232%202.2914-5.9456%202.2914%205.9456Z%22%2F%3E%3C%2Fsvg%3E";
 const ANTHROPIC_ICON_DARK_SRC =
@@ -38,8 +46,8 @@ const PROVIDER_BRAND_ICONS: Record<IconProviderBrand, ThemeIconPair> = {
 		dark: "/svgs/agents/cursor/cursor-icon-dark.svg",
 	},
 	codex: {
-		light: "/svgs/agents/codex/codex-icon.svg",
-		dark: "/svgs/agents/codex/codex-icon.svg",
+		light: "/svgs/agents/codex/codex-icon-light.svg",
+		dark: "/svgs/agents/codex/codex-icon-dark.svg",
 	},
 } as const;
 
@@ -56,6 +64,33 @@ export function getProviderBrandIcon(
 	}
 
 	return PROVIDER_BRAND_ICONS[providerBrand][theme];
+}
+
+export function getBuiltInProviderBrandForAgentId(
+	agentId: string | null | undefined
+): ProviderBrand | null {
+	if (agentId === null || agentId === undefined) {
+		return null;
+	}
+
+	const matchingBrand = BUILT_IN_PROVIDER_BRANDS.find((brand) => brand === agentId);
+	return matchingBrand ?? null;
+}
+
+export function resolveAgentIconProviderBrand(input: {
+	readonly agentId: string | null | undefined;
+	readonly explicitProviderBrand: ProviderBrand | null | undefined;
+	readonly storeProviderBrand: ProviderBrand | null | undefined;
+}): ProviderBrand | null {
+	if (input.explicitProviderBrand && input.explicitProviderBrand !== "custom") {
+		return input.explicitProviderBrand;
+	}
+
+	if (input.storeProviderBrand && input.storeProviderBrand !== "custom") {
+		return input.storeProviderBrand;
+	}
+
+	return getBuiltInProviderBrandForAgentId(input.agentId);
 }
 
 /**

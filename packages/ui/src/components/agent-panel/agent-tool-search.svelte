@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import ToolHeaderLeading from "./tool-header-leading.svelte";
 	import AgentToolDurationLabel from "./agent-tool-duration-label.svelte";
 	import type { ToolDurationTiming } from "./tool-duration.js";
@@ -53,7 +53,7 @@
 		searchMatches = [],
 		status = "done",
 		durationTiming,
-		iconBasePath = "",
+		iconBasePath = "/svgs/icons",
 		variant = "grep",
 		findingLabel = "Finding",
 		foundLabel = "Found",
@@ -128,7 +128,7 @@
 			<div class="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden text-sm text-muted-foreground">
 				<ToolHeaderLeading kind="search" {status}>{headerLabel}</ToolHeaderLeading>
 				{#if resultText}
-					<RoundedIcon
+					<HugeiconsIcon
 						name="arrow-left"
 						class="size-2.5 shrink-0 rotate-180 text-muted-foreground"
 					/>
@@ -141,7 +141,7 @@
 					class="font-sans text-xs"
 				/>
 				{#if hasExpandableContent}
-					<RoundedIcon name="chevron-right" class="size-3 shrink-0 text-muted-foreground transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}"
+					<HugeiconsIcon name="chevron-right" class="size-3 shrink-0 text-muted-foreground transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}"
 					/>
 				{/if}
 			</div>
@@ -208,10 +208,10 @@
 						class="flex items-center gap-1.5 rounded px-2 py-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground border-none bg-transparent cursor-pointer"
 					>
 						{#if !showAll}
-								<RoundedIcon name="chevron-down" class="size-3" />
+								<HugeiconsIcon name="chevron-down" class="size-3" />
 								<span>{showMoreLabel(hiddenResultCount)}</span>
 							{:else}
-								<RoundedIcon name="chevron-up" class="size-3 shrink-0" />
+								<HugeiconsIcon name="chevron-up" class="size-3 shrink-0" />
 								<span>{showLessLabel}</span>
 						{/if}
 					</button>

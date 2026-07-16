@@ -1,7 +1,7 @@
 <script lang="ts">
 import { cn } from "../../lib/utils.js";
 import { Button } from "../button/index.js";
-import { RoundedIcon, type RoundedIconName } from "../icons/index.js";
+import { HugeiconsIcon, type HugeiconsIconName } from "../icons/index.js";
 import TextShimmer from "../text-shimmer/text-shimmer.svelte";
 import {
 	DEFAULT_SIDEBAR_UPDATE_CARD_VARIANT,
@@ -59,7 +59,7 @@ const iconClass = $derived(
 	),
 );
 
-const leadingIconName = $derived<RoundedIconName>(kind === "error" ? "warning" : "download");
+const leadingIconName = $derived<HugeiconsIconName>(kind === "error" ? "warning" : "download");
 
 const installTitle = $derived(
 	version ? `Download and install ${version}` : "Download and install",
@@ -74,7 +74,7 @@ const installTitle = $derived(
 >
 	<div class="flex min-w-0 items-center gap-1.5" data-testid="sidebar-update-card-surface">
 		<span class={iconClass} aria-hidden="true">
-			<RoundedIcon name={leadingIconName} class="size-3" />
+			<HugeiconsIcon name={leadingIconName} class="size-3" />
 		</span>
 
 		<div class="min-w-0 flex-1">
@@ -99,7 +99,7 @@ const installTitle = $derived(
 			>
 				{copy.ctaLabel}
 				{#if kind === "error"}
-					<RoundedIcon name="refresh" class="size-3" />
+					<HugeiconsIcon name="refresh" class="size-3" />
 				{/if}
 			</Button>
 		{/if}

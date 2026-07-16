@@ -313,6 +313,43 @@ pub fn can_auto_install(agent_id: &CanonicalAgentId) -> bool {
     )
 }
 
+async fn await_claude_catalog_readiness<Refresh, RefreshFuture, Rollback>(
+    refresh: Refresh,
+    rollback: Rollback,
+) -> AcpResult<()>
+where
+    Refresh: FnOnce() -> RefreshFuture,
+    RefreshFuture: std::future::Future<Output = Result<(), String>>,
+    Rollback: FnOnce() -> Result<(), String>,
+{
+    let Err(catalog_error) = refresh().await else {
+        return Ok(());
+    };
+
+    let message = match rollback() {
+        Ok(()) => format!(
+            "Claude CLI installed, but its authoritative model catalog is not ready; the managed binary was rolled back: {catalog_error}"
+        ),
+        Err(rollback_error) => format!(
+            "Claude CLI installed, but its authoritative model catalog is not ready: {catalog_error}. Failed rolling back the managed binary: {rollback_error}"
+        ),
+    };
+    Err(AcpError::InvalidState(message))
+}
+
+fn rollback_managed_claude_binary(binary_path: &Path) -> Result<(), String> {
+    if !binary_path.exists() {
+        return Ok(());
+    }
+
+    std::fs::remove_file(binary_path).map_err(|error| {
+        format!(
+            "Failed removing managed Claude binary at {}: {error}",
+            binary_path.display()
+        )
+    })
+}
+
 /// Install an agent by downloading from the appropriate source (registry or GitHub Releases).
 pub async fn install_agent(agent_id: CanonicalAgentId, app: AppHandle) -> AcpResult<PathBuf> {
     let id_str = agent_id_str(&agent_id);
@@ -329,7 +366,7 @@ pub async fn install_agent(agent_id: CanonicalAgentId, app: AppHandle) -> AcpRes
         guard.insert(agent_id.clone());
     }
 
-    let result = install_agent_inner(&agent_id, &app).await;
+    let mut result = install_agent_inner(&agent_id, &app).await;
 
     if result.is_ok() && matches!(agent_id, CanonicalAgentId::Copilot) {
         if let Err(error) =
@@ -347,6 +384,10 @@ pub async fn install_agent(agent_id: CanonicalAgentId, app: AppHandle) -> AcpRes
     }
 
     if result.is_ok() && matches!(agent_id, CanonicalAgentId::ClaudeCode) {
+        let installed_binary = result
+            .as_ref()
+            .expect("successful Claude install result must contain its binary path")
+            .clone();
         if let Err(error) =
             crate::acp::providers::claude_code_model_catalog::invalidate_catalog_snapshot_for_app(
                 &app,
@@ -356,7 +397,26 @@ pub async fn install_agent(agent_id: CanonicalAgentId, app: AppHandle) -> AcpRes
             tracing::warn!(error = %error, "Failed invalidating Claude catalog snapshot after install");
         }
 
-        crate::acp::providers::claude_code_model_catalog::warm_catalog_in_background(app.clone());
+        let catalog_readiness = await_claude_catalog_readiness(
+            || async {
+                crate::acp::providers::claude_code_model_catalog::refresh_catalog_for_app(&app)
+                    .await
+                    .map(|_| ())
+            },
+            || rollback_managed_claude_binary(&installed_binary),
+        )
+        .await;
+
+        match catalog_readiness {
+            Ok(()) => emit_progress(
+                &app,
+                &id_str,
+                "complete",
+                Some(1.0),
+                "Acepe-managed Claude ready",
+            ),
+            Err(error) => result = Err(error),
+        }
     }
 
     // Always release the guard
@@ -688,9 +748,9 @@ async fn install_claude_cli(app: &AppHandle, agent_id: &str) -> AcpResult<PathBu
     emit_progress(
         app,
         agent_id,
-        "complete",
-        Some(1.0),
-        "Acepe-managed Claude ready",
+        "cataloging",
+        Some(0.97),
+        "Discovering Claude models...",
     );
     Ok(path)
 }
@@ -1324,6 +1384,57 @@ fn validate_archive_path(entry_path: &Path) -> AcpResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio::sync::oneshot;
+
+    #[tokio::test]
+    async fn claude_install_readiness_waits_for_authoritative_catalog_refresh() {
+        let (catalog_ready_tx, catalog_ready_rx) = oneshot::channel::<()>();
+        let readiness = tokio::spawn(await_claude_catalog_readiness(
+            move || async move {
+                catalog_ready_rx
+                    .await
+                    .map_err(|error| format!("catalog readiness signal failed: {error}"))?;
+                Ok(())
+            },
+            || Ok(()),
+        ));
+
+        tokio::task::yield_now().await;
+        assert!(
+            !readiness.is_finished(),
+            "install readiness must remain pending while the authoritative catalog refresh is pending"
+        );
+
+        catalog_ready_tx
+            .send(())
+            .expect("catalog readiness signal should have a receiver");
+        let result = readiness.await.expect("readiness task should complete");
+
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn claude_catalog_failure_rolls_back_the_managed_binary() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let binary_path = temp.path().join("claude");
+        std::fs::write(&binary_path, b"managed cli").expect("write managed cli");
+        let rollback_path = binary_path.clone();
+
+        let result = await_claude_catalog_readiness(
+            || async { Err("catalog evidence missing".to_string()) },
+            move || {
+                std::fs::remove_file(&rollback_path)
+                    .map_err(|error| format!("failed removing managed CLI: {error}"))
+            },
+        )
+        .await;
+
+        assert!(result.is_err());
+        assert!(
+            !binary_path.exists(),
+            "failed catalog readiness must not leave Claude installed"
+        );
+    }
 
     #[test]
     fn codex_uses_official_cache_key() {

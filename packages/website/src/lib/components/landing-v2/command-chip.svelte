@@ -1,5 +1,5 @@
 <script lang="ts">
-import { RoundedIcon } from "@acepe/ui";
+import { HugeiconsIcon } from "@acepe/ui";
 
 interface Props {
 	/** The shell command shown after the `$` prompt, e.g. `brew install --cask acepe`. */
@@ -34,9 +34,9 @@ function copy(): void {
 	<span class="whitespace-nowrap">{command}</span>
 	<span class="flex h-5 w-5 shrink-0 items-center justify-center text-[#f8f5ee]/40 transition-colors group-hover:text-[#f8f5ee]/80">
 		{#if copied}
-			<RoundedIcon name="check" class="h-3.5 w-3.5 text-[#7fd88f]" />
+			<HugeiconsIcon name="check" class="h-3.5 w-3.5 text-[#7fd88f]" />
 		{:else}
-			<RoundedIcon name="copy" class="h-3.5 w-3.5" />
+			<HugeiconsIcon name="copy" class="h-3.5 w-3.5" />
 		{/if}
 	</span>
 </button>

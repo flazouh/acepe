@@ -8,7 +8,7 @@ import {
 	AgentInputMicButton,
 	AgentInputModeIcon,
 	AgentInputAgentSelector,
-	DefaultAgentHeartIcon,
+	DefaultAgentPinIcon,
 	AgentPanelPreSessionWorktreeCard,
 	AgentPanelSignInCard,
 	AgentPanelPermissionBarIcon,
@@ -57,10 +57,10 @@ import {
 	BuildIcon,
 	DatabaseIcon,
 	DiscordIcon,
+	HugeiconsIcon,
 	PaletteIcon,
 	PlanIcon,
 	RecycleIcon,
-	RoundedIcon,
 	RobotIcon,
 	StorageIcon,
 	WrenchIcon,
@@ -290,7 +290,7 @@ const neutralPrChecks: PrChecksItem[] = [
 const stashFixtureEntries: GitStashEntry[] = [
 	{
 		index: 0,
-		message: "WIP rounded icons",
+		message: "WIP Hugeicons icons",
 		date: "2026-07-01",
 	},
 ];
@@ -378,7 +378,7 @@ const commandPaletteItems: CommandPaletteItem[] = [
 		id: "thread.create",
 		label: "Create new thread",
 		description: "Start a new conversation",
-		roundedIcon: "new-chat",
+		iconName: "new-chat",
 		metadata: {
 			keybinding: "Cmd+T",
 		},
@@ -387,7 +387,7 @@ const commandPaletteItems: CommandPaletteItem[] = [
 		id: "settings.open",
 		label: "Open settings",
 		description: "Configure application preferences",
-		roundedIcon: "settings",
+		iconName: "settings",
 		metadata: {
 			keybinding: "Cmd+,",
 		},
@@ -396,7 +396,7 @@ const commandPaletteItems: CommandPaletteItem[] = [
 		id: "sidebar.toggle",
 		label: "Toggle sidebar",
 		description: "Show or hide the sidebar",
-		roundedIcon: "sidebar",
+		iconName: "sidebar",
 		metadata: {
 			keybinding: "Cmd+B",
 		},
@@ -405,7 +405,7 @@ const commandPaletteItems: CommandPaletteItem[] = [
 		id: "thread.close",
 		label: "Close current thread",
 		description: "Close the active conversation",
-		roundedIcon: "close",
+		iconName: "close",
 		metadata: {
 			keybinding: "Cmd+W",
 		},
@@ -414,21 +414,21 @@ const commandPaletteItems: CommandPaletteItem[] = [
 		id: "sync.refresh",
 		label: "Refresh sync",
 		description: "Resynchronize data",
-		roundedIcon: "refresh",
+		iconName: "refresh",
 		metadata: {},
 	},
 	{
 		id: "debug.toggle",
 		label: "Toggle debug panel",
 		description: "Show developer debug information",
-		roundedIcon: "terminal",
+		iconName: "terminal",
 		metadata: {},
 	},
 	{
 		id: "session.chat",
 		label: "Session result",
 		description: "Fallback conversation icon",
-		roundedIcon: "chat",
+		iconName: "chat",
 		metadata: {},
 	},
 ];
@@ -458,7 +458,7 @@ const commandPaletteItems: CommandPaletteItem[] = [
 			aria-label="Chrome icon fixture"
 			data-testid="button-icon-muted"
 		>
-			<RoundedIcon name="more" />
+			<HugeiconsIcon name="more" />
 		</Button>
 		<Button
 			variant="ghost"
@@ -466,7 +466,7 @@ const commandPaletteItems: CommandPaletteItem[] = [
 			aria-label="Compact icon fixture"
 			data-testid="button-icon-muted"
 		>
-			<RoundedIcon name="close" />
+			<HugeiconsIcon name="close" />
 		</Button>
 	</div>
 	<div class="flex w-[220px] items-center gap-2 border border-border/40 bg-foreground/80 p-2" data-testid="brand-theme-toggle-fixture">
@@ -667,7 +667,7 @@ const commandPaletteItems: CommandPaletteItem[] = [
 				section="staged"
 			/>
 		</div>
-		<div class="h-[120px] w-[420px] border border-border/40 p-2" data-testid="git-log-rounded-icon-fixture">
+		<div class="h-[120px] w-[420px] border border-border/40 p-2" data-testid="git-log-hugeicons-icon-fixture">
 			<GitLogList entries={gitLogFixtureEntries} />
 		</div>
 		<div class="w-[340px] border border-border/40 p-2" data-testid="git-stash-archive-fixture">
@@ -721,7 +721,7 @@ const commandPaletteItems: CommandPaletteItem[] = [
 			</span>
 		{/each}
 	</div>
-	<div class="w-[260px] border border-border/40 p-2" data-testid="agent-selector-heart-fixture">
+	<div class="w-[260px] border border-border/40 p-2" data-testid="agent-selector-default-fixture">
 		<AgentInputAgentSelector
 			availableAgents={agentSelectorAgents}
 			currentAgentId="claude"
@@ -731,19 +731,19 @@ const commandPaletteItems: CommandPaletteItem[] = [
 			showLabel={true}
 		>
 			{#snippet renderAgentIcon({ class: iconClass })}
-				<RoundedIcon name="chat" class={iconClass} />
+				<HugeiconsIcon name="chat" class={iconClass} />
 			{/snippet}
 		</AgentInputAgentSelector>
 	</div>
 	<div
 		class="flex w-[120px] items-center gap-3 border border-border/40 p-2 text-muted-foreground"
-		data-testid="default-agent-heart-icon-fixture"
+		data-testid="default-agent-pin-icon-fixture"
 	>
-		<span class="text-red-500">
-			<DefaultAgentHeartIcon filled={true} />
+		<span>
+			<DefaultAgentPinIcon active={true} />
 		</span>
 		<span>
-			<DefaultAgentHeartIcon />
+			<DefaultAgentPinIcon />
 		</span>
 	</div>
 	<div class="w-[420px] border border-border/40 p-2" data-testid="command-palette-icon-fixture">
@@ -785,12 +785,12 @@ const commandPaletteItems: CommandPaletteItem[] = [
 				class="inline-flex items-center gap-1.5 rounded-md bg-muted/30 px-2 py-1 text-[11px]"
 				data-testid={`branch-prefix-option-${prefix.label}`}
 			>
-				{#if prefix.roundedIcon}
-					<RoundedIcon
-						name={prefix.roundedIcon}
+				{#if prefix.iconName}
+					<HugeiconsIcon
+						name={prefix.iconName}
 						class="size-3.5 shrink-0"
 						style="color: {prefix.color}"
-						data-testid={`branch-prefix-option-${prefix.label}-rounded-icon`}
+						data-testid={`branch-prefix-option-${prefix.label}-hugeicons-icon`}
 					/>
 				{:else if prefix.icon}
 					<prefix.icon class="size-3.5 shrink-0" weight="fill" style="color: {prefix.color}" />
@@ -809,7 +809,7 @@ const commandPaletteItems: CommandPaletteItem[] = [
 	<div class="flex items-center gap-2 border border-border/40 p-2" data-testid="tool-kind-review-code-fixture">
 		<ToolKindIcon kind="review" size={12} />
 	</div>
-	<div class="flex items-center gap-3 border border-border/40 p-2" data-testid="rounded-tool-kind-icons-fixture">
+	<div class="flex items-center gap-3 border border-border/40 p-2" data-testid="hugeicons-tool-kind-icons-fixture">
 		<span class="inline-flex size-6 items-center justify-center" data-testid="tool-kind-read-rounded">
 			<ToolKindIcon kind="read" size={12} />
 		</span>
@@ -841,7 +841,7 @@ const commandPaletteItems: CommandPaletteItem[] = [
 			<ToolKindIcon kind="sql" size={12} />
 		</span>
 	</div>
-	<div class="flex items-center gap-3 border border-border/40 p-2" data-testid="rounded-tool-kind-fallback-icons-fixture">
+	<div class="flex items-center gap-3 border border-border/40 p-2" data-testid="hugeicons-tool-kind-fallback-icons-fixture">
 		<span class="inline-flex size-6 items-center justify-center" data-testid="tool-kind-think-rounded">
 			<ToolKindIcon kind="think" size={12} />
 		</span>
@@ -861,7 +861,7 @@ const commandPaletteItems: CommandPaletteItem[] = [
 	<div class="w-[280px] border border-border/40 p-2" data-testid="pr-check-neutral-css-icon-fixture">
 		<PrChecksList checks={neutralPrChecks} initiallyExpanded={true} />
 	</div>
-	<div class="flex items-center gap-3 border border-border/40 p-2" data-testid="agent-input-mode-rounded-icons-fixture">
+	<div class="flex items-center gap-3 border border-border/40 p-2" data-testid="agent-input-mode-hugeicons-icons-fixture">
 		<span class="inline-flex size-6 items-center justify-center" data-testid="mode-plan-rounded">
 			<AgentInputModeIcon iconKind="plan" class="size-3.5 shrink-0" />
 		</span>
@@ -881,7 +881,7 @@ const commandPaletteItems: CommandPaletteItem[] = [
 			<AgentInputModeIcon iconKind="review" class="size-3.5 shrink-0" />
 		</span>
 	</div>
-	<div class="flex items-center gap-3 border border-border/40 p-2" data-testid="brain-mic-rounded-icons-fixture">
+	<div class="flex items-center gap-3 border border-border/40 p-2" data-testid="brain-mic-hugeicons-icons-fixture">
 		<AgentInputMicButton title="Record" ariaLabel="Record" />
 		<div class="w-[180px]">
 			<AgentToolThinking
@@ -892,10 +892,10 @@ const commandPaletteItems: CommandPaletteItem[] = [
 			/>
 		</div>
 	</div>
-	<div class="flex items-center gap-3 border border-border/40 p-2" data-testid="rounded-file-text-icon-fixture">
-		<RoundedIcon name="file-text" class="size-4 text-muted-foreground" data-testid="file-text-rounded-icon" />
+	<div class="flex items-center gap-3 border border-border/40 p-2" data-testid="hugeicons-file-text-icon-fixture">
+		<HugeiconsIcon name="file-text" class="size-4 text-muted-foreground" data-testid="file-text-hugeicons-icon" />
 	</div>
-	<div class="flex items-center gap-3 border border-border/40 p-2" data-testid="todo-rounded-state-icons-fixture">
+	<div class="flex items-center gap-3 border border-border/40 p-2" data-testid="todo-hugeicons-state-icons-fixture">
 		<span class="inline-flex size-5 items-center justify-center" data-testid="todo-pending-icon">
 			<TodoNumberIcon status="pending" size={14} />
 		</span>
@@ -964,15 +964,15 @@ const commandPaletteItems: CommandPaletteItem[] = [
 					title="Split diff"
 					data-testid="review-header-diff-style-split"
 				>
-					<RoundedIcon name="git-diff" />
+					<HugeiconsIcon name="git-diff" />
 				</Button>
 			{/snippet}
 		</ReviewWorkspaceHeader>
 	</div>
 	<div class="w-[520px]" data-testid="agent-tool-search-fixture">
 		<AgentToolSearch
-			query="RoundedIcon"
-			files={["packages/ui/src/components/icons/rounded-icon.svelte"]}
+			query="HugeiconsIcon"
+			files={["packages/ui/src/components/icons/hugeicons-icon.svelte"]}
 			resultCount={3}
 		/>
 	</div>

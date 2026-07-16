@@ -1,19 +1,64 @@
 //! Apply live transcript-bearing updates through `fold_step`.
 
+use std::collections::HashSet;
+
+use crate::acp::projections::RouteDecision;
+use crate::acp::session::engine::fold::FoldContext;
 use crate::acp::session::ingress::event::{ProviderEvent, ProviderEventKind};
+use crate::acp::session::ingress::plugin::live_source_for;
+use crate::acp::session_state_engine::graph::SessionStateGraph;
+use crate::acp::session_update::SessionUpdate;
 use crate::acp::transcript_projection::delta::TranscriptDeltaOperation;
 use crate::acp::transcript_projection::snapshot::{
     TranscriptEntry, TranscriptEntryRole, TranscriptSnapshot,
 };
 use crate::acp::transcript_projection::tool_call_id_from_authority_entry_id;
+use crate::acp::types::CanonicalAgentId;
 
-/// Derives transcript delta operations for one provider event from the
-/// before/after transcript snapshots straddling its fold. Event-aware so
-/// tool identity is resolved via the event's own tool-call id rather than
-/// diffed positionally, which is what preserves tool identity rules (a
-/// positional diff can misidentify a tool row when unrelated entries shift).
-#[must_use]
-pub(crate) fn transcript_delta_operations_for_event(
+pub(crate) fn fold_backed_session_update(
+    graph: &mut SessionStateGraph,
+    applied_keys: &mut HashSet<String>,
+    source: &CanonicalAgentId,
+    event_seq: i64,
+    update: &SessionUpdate,
+    decision: RouteDecision,
+    ingress_fold_event: Option<&ProviderEvent>,
+) -> Option<Vec<TranscriptDeltaOperation>> {
+    let event = if let Some(event) = ingress_fold_event {
+        event.clone()
+    } else {
+        let live = live_source_for(source)?;
+        live.normalize_update(event_seq, update, decision)?
+    };
+    fold_backed_provider_event(graph, applied_keys, &event)
+}
+
+pub(crate) fn fold_backed_provider_event(
+    graph: &mut SessionStateGraph,
+    applied_keys: &mut HashSet<String>,
+    event: &ProviderEvent,
+) -> Option<Vec<TranscriptDeltaOperation>> {
+    let dedup_key = dedup_key_for_event(event);
+    if applied_keys.contains(&dedup_key) {
+        return None;
+    }
+
+    let before = graph.transcript_snapshot.clone();
+    let (next, _delta) =
+        crate::acp::session::engine::fold::fold_step_with_dedup(graph, event, &mut None);
+    *graph = next;
+
+    let after = graph.transcript_snapshot.clone();
+    let operations = transcript_delta_operations_for_event(event, &before, &after);
+    if operations.is_empty() {
+        return None;
+    }
+
+    applied_keys.insert(dedup_key);
+    Some(operations)
+}
+
+fn transcript_delta_operations_for_event(
     event: &ProviderEvent,
     before: &TranscriptSnapshot,
     after: &TranscriptSnapshot,
@@ -36,6 +81,25 @@ pub(crate) fn transcript_delta_operations_for_event(
         ProviderEventKind::ToolCallUpdate(_) => Vec::new(),
         _ => diff_transcript_snapshots(before, after),
     }
+}
+
+#[must_use]
+pub(crate) fn graph_from_transcript_snapshot(
+    session_id: &str,
+    source: CanonicalAgentId,
+    snapshot: TranscriptSnapshot,
+) -> SessionStateGraph {
+    let mut graph = crate::acp::session::engine::fold::fold_full(
+        &[],
+        &FoldContext::new(session_id, source, ""),
+    );
+    graph.transcript_snapshot = snapshot;
+    graph.revision.transcript_revision = graph.transcript_snapshot.revision;
+    graph
+}
+
+fn dedup_key_for_event(event: &ProviderEvent) -> String {
+    format!("{}:{}", event.provider_row_id, event.kind_discriminant())
 }
 
 #[must_use]
@@ -100,6 +164,7 @@ fn append_new_segments(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::acp::session::engine::fold::{fold_full, FoldContext};
     use crate::acp::transcript_projection::TranscriptSegment;
 
     #[test]
@@ -107,6 +172,7 @@ mod tests {
         let before = TranscriptSnapshot {
             revision: 1,
             entries: vec![TranscriptEntry {
+                scope: crate::acp::transcript_projection::TranscriptScope::Root,
                 entry_id: "assistant-1".to_string(),
                 role: TranscriptEntryRole::Assistant,
                 segments: vec![TranscriptSegment::Text {
@@ -120,6 +186,7 @@ mod tests {
         let after = TranscriptSnapshot {
             revision: 2,
             entries: vec![TranscriptEntry {
+                scope: crate::acp::transcript_projection::TranscriptScope::Root,
                 entry_id: "assistant-1".to_string(),
                 role: TranscriptEntryRole::Assistant,
                 segments: vec![
@@ -143,5 +210,45 @@ mod tests {
             ops[0],
             TranscriptDeltaOperation::AppendSegment { .. }
         ));
+    }
+
+    #[test]
+    fn fold_backed_update_is_idempotent_on_duplicate_row_id() {
+        let ctx = FoldContext::new("sess-live", CanonicalAgentId::ClaudeCode, "/tmp");
+        let mut graph = fold_full(&[], &ctx);
+        let mut applied = HashSet::new();
+        let update = SessionUpdate::UserMessageChunk {
+            session_id: Some("sess-live".to_string()),
+            chunk: crate::acp::session_update::ContentChunk {
+                content: crate::acp::types::ContentBlock::Text {
+                    text: "hello".to_string(),
+                },
+                aggregation_hint: None,
+            },
+            attempt_id: None,
+        };
+
+        let first = fold_backed_session_update(
+            &mut graph,
+            &mut applied,
+            &CanonicalAgentId::ClaudeCode,
+            1,
+            &update,
+            RouteDecision::default(),
+            None,
+        );
+        assert!(first.is_some());
+
+        let second = fold_backed_session_update(
+            &mut graph,
+            &mut applied,
+            &CanonicalAgentId::ClaudeCode,
+            1,
+            &update,
+            RouteDecision::default(),
+            None,
+        );
+        assert!(second.is_none());
+        assert_eq!(graph.transcript_snapshot.entries.len(), 1);
     }
 }

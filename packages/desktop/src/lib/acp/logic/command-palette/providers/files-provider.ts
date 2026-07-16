@@ -182,7 +182,7 @@ export class FilesProvider implements PaletteProvider {
 			id: project ? `${project.path}:${file.path}` : file.path,
 			label: filename,
 			description: file.path,
-			roundedIcon: "file-text",
+			iconName: "file-text",
 			metadata,
 			score,
 		};
@@ -248,7 +248,7 @@ export class FilesProvider implements PaletteProvider {
 			id: stored.id,
 			label: stored.label,
 			description: stored.description,
-			roundedIcon: "file-text",
+			iconName: "file-text",
 			metadata: {
 				projectPath: project?.path,
 				projectName: project?.name,

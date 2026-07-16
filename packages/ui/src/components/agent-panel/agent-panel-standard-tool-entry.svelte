@@ -26,7 +26,7 @@
 		entry,
 		renderKind,
 		durationTiming,
-		iconBasePath = "",
+		iconBasePath = "/svgs/icons",
 	}: Props = $props();
 </script>
 
@@ -34,8 +34,12 @@
 	<AgentToolExecute
 		command={entry.command ?? null}
 		commandHtmls={entry.commandHtmls}
+		highlightCommand={entry.highlightCommand ?? null}
+		highlightOutput={entry.highlightOutput ?? null}
 		stdout={entry.stdout}
 		stderr={entry.stderr}
+		stdoutHtml={entry.stdoutHtml}
+		stderrHtml={entry.stderrHtml}
 		exitCode={entry.exitCode}
 		status={entry.status}
 		{durationTiming}
@@ -83,6 +87,9 @@
 		title={entry.title}
 		subtitle={entry.subtitle ?? null}
 		detailsText={entry.detailsText ?? null}
+		scriptText={entry.scriptText ?? null}
+		scriptHtml={entry.scriptHtml ?? null}
+		highlightScript={entry.highlightScript ?? null}
 		status={entry.status}
 		{durationTiming}
 	/>

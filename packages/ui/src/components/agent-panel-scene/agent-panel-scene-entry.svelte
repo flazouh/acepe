@@ -30,7 +30,7 @@
 		editToolTheme?: EditToolTheme;
 	}
 
-	let { entry, iconBasePath = "", editToolTheme }: Props = $props();
+	let { entry, iconBasePath = "/svgs/icons", editToolTheme }: Props = $props();
 
 	function isToolCall(
 		value: AgentPanelConversationEntryModel
@@ -217,6 +217,7 @@
 		filePath={entry.filePath}
 		sourceExcerpt={entry.sourceExcerpt ?? null}
 		sourceExcerptHtml={entry.sourceExcerptHtml ?? null}
+		highlightSource={entry.highlightSource ?? null}
 		sourceRangeLabel={entry.sourceRangeLabel ?? null}
 		status={entry.status}
 		{iconBasePath}
@@ -239,8 +240,13 @@
 {:else if isToolCall(entry) && entry.kind === "execute"}
 	<AgentToolExecute
 		command={entry.command ?? null}
+		commandHtmls={entry.commandHtmls}
+		highlightCommand={entry.highlightCommand ?? null}
+		highlightOutput={entry.highlightOutput ?? null}
 		stdout={entry.stdout}
 		stderr={entry.stderr}
+		stdoutHtml={entry.stdoutHtml}
+		stderrHtml={entry.stderrHtml}
 		exitCode={entry.exitCode}
 		status={entry.status}
 	/>

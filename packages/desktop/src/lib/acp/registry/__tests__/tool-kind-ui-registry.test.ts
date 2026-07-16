@@ -142,7 +142,7 @@ describe("getToolKindSubtitle", () => {
 		expect(subtitle).toBe("Custom Tool");
 	});
 
-	it("truncates browser execute-js scripts for the subtitle preview", () => {
+	it("does not use execute-js scripts as the browser subtitle", () => {
 		const toolCall: ToolCallData = {
 			id: "test-browser-1",
 			name: "mcp__tauri__webview_execute_js",
@@ -160,10 +160,7 @@ describe("getToolKindSubtitle", () => {
 			awaitingPlanApproval: false,
 		};
 
-		const subtitle = getToolKindSubtitle("browser", toolCall);
-		expect(subtitle).toContain("(() => {");
-		expect(subtitle.length).toBeLessThanOrEqual(43);
-		expect(subtitle).toContain("...");
+		expect(getToolKindSubtitle("browser", toolCall)).toBe("");
 	});
 
 	it("does not derive browser subtitles from raw arguments", () => {

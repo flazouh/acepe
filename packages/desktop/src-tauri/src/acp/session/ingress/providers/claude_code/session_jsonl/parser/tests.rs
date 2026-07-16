@@ -1,7 +1,7 @@
 use super::*;
 use crate::acp::types::CanonicalAgentId;
 use crate::cc_sdk::AssistantMessageError;
-use crate::session_jsonl::types::{ContentBlock, HistoryEntry, SessionMessage};
+use crate::session_jsonl::types::{ContentBlock, HistoryEntry, SessionMessage, StoredEntry};
 use anyhow::Result;
 use std::fs;
 use std::path::{Path, PathBuf};

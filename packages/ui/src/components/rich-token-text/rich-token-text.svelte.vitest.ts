@@ -34,7 +34,7 @@ describe("RichTokenText", () => {
 		const chip = container.querySelector(".file-path-badge") as HTMLElement | null;
 		const icon = chip?.querySelector(".file-icon") as HTMLImageElement | null;
 		expect(chip?.getAttribute("data-file-path")).toBe("src/app.ts");
-		expect(icon?.getAttribute("src")).toContain("typescript.svg");
+		expect(icon?.getAttribute("src")).toBe("/svgs/icons/typescript.svg");
 
 		chip?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 

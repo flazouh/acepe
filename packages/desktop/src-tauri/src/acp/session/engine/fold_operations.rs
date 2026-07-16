@@ -20,8 +20,8 @@ use crate::acp::session::ingress::event::ProviderEvent;
 use crate::acp::session_state_engine::graph::SessionStateGraph;
 use crate::acp::session_update::{ToolCallData, ToolCallUpdateData};
 use crate::acp::transcript_projection::{
-    assistant_boundary_entry_count_from_transcript_entries, live_tool_entry_id_for_tool_call,
-    tool_call_id_from_authority_entry_id, TranscriptEntry, TranscriptEntryRole, TranscriptSegment,
+    tool_call_id_from_authority_entry_id, TranscriptEntry, TranscriptEntryRole, TranscriptScope,
+    TranscriptSegment,
 };
 
 /// Apply a tool-call create fact: transcript tool row + linked operation snapshot.
@@ -29,6 +29,8 @@ pub fn apply_tool_call(
     graph: &mut SessionStateGraph,
     event: &ProviderEvent,
     tool_call: &ToolCallData,
+    scope: &TranscriptScope,
+    turn_key: &str,
 ) {
     let tool_call = normalize_tool_call_for_operation_ingress(tool_call);
     if should_skip_unanswered_question_tool_operation(&tool_call) {
@@ -36,9 +38,9 @@ pub fn apply_tool_call(
     }
 
     let session_id = graph.canonical_session_id.clone();
-    let entry_id = resolve_tool_transcript_entry_id(graph, &tool_call.id);
+    let entry_id = resolve_tool_transcript_entry_id(graph, &tool_call.id, turn_key);
 
-    append_tool_transcript_entry(graph, event, &entry_id, &tool_call);
+    append_tool_transcript_entry(graph, event, &entry_id, scope, &tool_call);
 
     let source_link = OperationSourceLink::transcript_linked(entry_id.clone());
     let operation = build_operation_from_tool_call(
@@ -139,7 +141,11 @@ pub fn apply_tool_call_update(graph: &mut SessionStateGraph, update: &ToolCallUp
     graph.revision.graph_revision += 1;
 }
 
-fn resolve_tool_transcript_entry_id(graph: &SessionStateGraph, tool_call_id: &str) -> String {
+fn resolve_tool_transcript_entry_id(
+    graph: &SessionStateGraph,
+    tool_call_id: &str,
+    turn_key: &str,
+) -> String {
     for entry in &graph.transcript_snapshot.entries {
         if entry.role != TranscriptEntryRole::Tool {
             continue;
@@ -153,15 +159,14 @@ fn resolve_tool_transcript_entry_id(graph: &SessionStateGraph, tool_call_id: &st
         }
     }
 
-    let assistant_boundary =
-        assistant_boundary_entry_count_from_transcript_entries(&graph.transcript_snapshot.entries);
-    live_tool_entry_id_for_tool_call(assistant_boundary, tool_call_id)
+    crate::acp::transcript_projection::derive_tool_entry_id(turn_key, tool_call_id)
 }
 
 fn append_tool_transcript_entry(
     graph: &mut SessionStateGraph,
     event: &ProviderEvent,
     entry_id: &str,
+    scope: &TranscriptScope,
     tool_call: &ToolCallData,
 ) {
     let display_text = tool_call
@@ -178,6 +183,7 @@ fn append_tool_transcript_entry(
     {
         graph.transcript_snapshot.entries[index] = TranscriptEntry {
             entry_id: entry_id.to_string(),
+            scope: scope.clone(),
             role: TranscriptEntryRole::Tool,
             segments: vec![TranscriptSegment::Text {
                 segment_id: format!("{entry_id}:tool"),
@@ -189,6 +195,7 @@ fn append_tool_transcript_entry(
     } else {
         graph.transcript_snapshot.entries.push(TranscriptEntry {
             entry_id: entry_id.to_string(),
+            scope: scope.clone(),
             role: TranscriptEntryRole::Tool,
             segments: vec![TranscriptSegment::Text {
                 segment_id: format!("{entry_id}:tool"),
@@ -215,7 +222,7 @@ fn build_operation_from_tool_call(
                 session_id,
                 tool_call,
                 None,
-                tool_call.parent_tool_use_id.clone(),
+                None,
                 OperationDegradationReason {
                     code: OperationDegradationCode::InvalidProvenanceKey,
                     detail: Some("Operation provenance key failed validation".to_string()),
@@ -231,7 +238,7 @@ fn build_operation_from_tool_call(
             session_id,
             tool_call,
             None,
-            tool_call.parent_tool_use_id.clone(),
+            None,
             OperationDegradationReason {
                 code: OperationDegradationCode::MissingEvidence,
                 detail: Some(format!(
@@ -259,7 +266,7 @@ fn build_operation_from_tool_call(
         computer_payload: None,
         command: extract_operation_command(Some(&arguments), None, tool_call.title.as_deref()),
         normalized_todos: tool_call.normalized_todos.clone(),
-        parent_tool_call_id: tool_call.parent_tool_use_id.clone(),
+        parent_tool_call_id: None,
         parent_operation_id: None,
         child_tool_call_ids: Vec::new(),
         child_operation_ids: Vec::new(),
@@ -334,9 +341,8 @@ mod tests {
     use serde_json::Value;
 
     fn fixture_provider_events() -> Vec<ProviderEvent> {
-        const FIXTURE: &str = include_str!(
-            "../ingress/tool_identity/tests/fixtures/historical-tool-call-session.jsonl"
-        );
+        const FIXTURE: &str =
+            include_str!("../../reconciler/tests/fixtures/historical-tool-call-session.jsonl");
 
         FIXTURE
             .lines()

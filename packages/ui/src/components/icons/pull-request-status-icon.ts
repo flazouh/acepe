@@ -1,67 +1,55 @@
-import type { LinearIconName } from "./linear-icon-catalog.js";
+import type { HugeiconsIconName } from "./hugeicons-icon-registry.js";
 
 export type PullRequestGitHubState = "open" | "closed" | "merged";
 
-export type PullRequestLinearStatusIconName =
-	| "pull-request-status"
-	| "pull-request-status-variant2"
-	| "pull-request-status-variant3"
-	| "pull-request-status-variant4"
-	| "pull-request-status-variant5"
-	| "pull-request-status-variant6"
-	| "pull-request-status-variant7"
-	| "pull-request-status-variant8";
+export type PullRequestStatusIconName =
+	| "git-pull-request"
+	| "check-circle"
+	| "x-circle"
+	| "refresh"
+	| "warning";
 
-export const pullRequestLinearStatusIcons = {
-	draft: "pull-request-status",
-	open: "pull-request-status-variant4",
-	merged: "pull-request-status-variant2",
-	closed: "pull-request-status-variant5",
-	mergeQueued: "pull-request-status-variant8",
-	changesRequested: "pull-request-status-variant3",
-	inReview: "pull-request-status-variant6",
-	blocked: "pull-request-status-variant7",
-} as const satisfies Record<string, PullRequestLinearStatusIconName>;
+export const pullRequestStatusIcons = {
+	draft: "git-pull-request",
+	open: "git-pull-request",
+	merged: "check-circle",
+	closed: "x-circle",
+	mergeQueued: "refresh",
+	changesRequested: "warning",
+	inReview: "git-pull-request",
+	blocked: "warning",
+} as const satisfies Record<string, PullRequestStatusIconName>;
 
-export type PullRequestLinearStatusKind = keyof typeof pullRequestLinearStatusIcons;
+export type PullRequestStatusKind = keyof typeof pullRequestStatusIcons;
 
-export function mapGitHubPrStateToLinearStatusIcon(
+export function mapGitHubPrStateToStatusIcon(
 	state: PullRequestGitHubState,
-): PullRequestLinearStatusIconName {
+): PullRequestStatusIconName {
 	switch (state) {
 		case "merged":
-			return pullRequestLinearStatusIcons.merged;
+			return pullRequestStatusIcons.merged;
 		case "closed":
-			return pullRequestLinearStatusIcons.closed;
+			return pullRequestStatusIcons.closed;
 		case "open":
-			return pullRequestLinearStatusIcons.open;
+			return pullRequestStatusIcons.open;
 	}
 }
 
-export function mapUppercasePrStateToLinearStatusIcon(
+export function mapUppercasePrStateToStatusIcon(
 	state: "OPEN" | "CLOSED" | "MERGED",
-): PullRequestLinearStatusIconName {
+): PullRequestStatusIconName {
 	switch (state) {
 		case "MERGED":
-			return pullRequestLinearStatusIcons.merged;
+			return pullRequestStatusIcons.merged;
 		case "CLOSED":
-			return pullRequestLinearStatusIcons.closed;
+			return pullRequestStatusIcons.closed;
 		case "OPEN":
-			return pullRequestLinearStatusIcons.open;
+			return pullRequestStatusIcons.open;
 	}
 }
 
-export function isPullRequestLinearStatusIconName(
-	name: LinearIconName,
-): name is PullRequestLinearStatusIconName {
-	return (
-		name === pullRequestLinearStatusIcons.draft ||
-		name === pullRequestLinearStatusIcons.open ||
-		name === pullRequestLinearStatusIcons.merged ||
-		name === pullRequestLinearStatusIcons.closed ||
-		name === pullRequestLinearStatusIcons.mergeQueued ||
-		name === pullRequestLinearStatusIcons.changesRequested ||
-		name === pullRequestLinearStatusIcons.inReview ||
-		name === pullRequestLinearStatusIcons.blocked
-	);
+export function isPullRequestStatusIconName(
+	name: HugeiconsIconName,
+): name is PullRequestStatusIconName {
+	return Object.values(pullRequestStatusIcons).includes(name as PullRequestStatusIconName);
 }

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { RoundedIcon } from "@acepe/ui";
+import { HugeiconsIcon } from "@acepe/ui";
 import { ResultAsync } from "neverthrow";
 import { toastError, toastSuccess } from "$lib/components/ui/sonner/toast-bridge.js";
 import {
@@ -118,9 +118,14 @@ async function handleClick(event?: MouseEvent) {
 >
 	{#if !hideIcon}
 		{#if buttonState.copied}
-			<RoundedIcon name="check" class="shrink-0" style={iconStyle} />
+			<HugeiconsIcon name="check" class="shrink-0" style={iconStyle} />
 		{:else}
-			<RoundedIcon name="copy" class="shrink-0" style={iconStyle} />
+			<HugeiconsIcon
+				name="copy"
+				class="shrink-0"
+				style={iconStyle}
+				data-testid="acp-copy-button-hugeicons-copy-icon"
+			/>
 		{/if}
 	{/if}
 	{#if buttonState.showLabel && label}

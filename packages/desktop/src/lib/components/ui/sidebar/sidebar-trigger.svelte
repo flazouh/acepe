@@ -1,6 +1,6 @@
 <script lang="ts">
 import type { ComponentProps } from "svelte";
-import { RoundedIcon } from "@acepe/ui";
+import { HugeiconsIcon } from "@acepe/ui";
 import { Button } from "$lib/components/ui/button/index.js";
 
 import { useSidebar } from "./context.svelte.js";
@@ -30,6 +30,6 @@ const sidebar = useSidebar();
 	}}
 	{...restProps}
 >
-	<RoundedIcon name="sidebar" />
+	<HugeiconsIcon name="sidebar" />
 	<span class="sr-only">Toggle Sidebar</span>
 </Button>

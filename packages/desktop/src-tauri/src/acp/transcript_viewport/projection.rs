@@ -1,7 +1,7 @@
 use crate::acp::projections::{InteractionSnapshot, OperationSnapshot, OperationSourceLink};
 use crate::acp::session_state_engine::graph::ActiveStreamingTail;
 use crate::acp::transcript_projection::{
-    TranscriptEntry, TranscriptEntryRole, TranscriptSegment, TranscriptSnapshot,
+    TranscriptEntry, TranscriptEntryRole, TranscriptScope, TranscriptSegment, TranscriptSnapshot,
 };
 use crate::acp::transcript_viewport::row::{
     TranscriptViewportInteractionLink, TranscriptViewportOperationDisplayFacts,
@@ -11,45 +11,41 @@ use crate::acp::transcript_viewport::row::{
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 
-const AWAITING_PLACEHOLDER_ID: &str = "awaiting:planning";
-const AWAITING_PLACEHOLDER_VERSION: &str = "00000000000000000000000000000000";
-
 #[must_use]
 pub fn project_transcript_viewport_rows(
     transcript_snapshot: &TranscriptSnapshot,
     operations: &[OperationSnapshot],
     interactions: &[InteractionSnapshot],
     active_streaming_tail: Option<&ActiveStreamingTail>,
-    awaiting_placeholder: bool,
     awaiting_duration_started_at_ms: Option<u64>,
 ) -> Vec<TranscriptViewportRow> {
-    let mut rows = project_transcript_viewport_entry_rows(
+    project_transcript_viewport_rows_for_scope(
+        transcript_snapshot,
+        operations,
+        interactions,
+        active_streaming_tail,
+        awaiting_duration_started_at_ms,
+        &TranscriptScope::Root,
+    )
+}
+
+#[must_use]
+pub fn project_transcript_viewport_rows_for_scope(
+    transcript_snapshot: &TranscriptSnapshot,
+    operations: &[OperationSnapshot],
+    interactions: &[InteractionSnapshot],
+    active_streaming_tail: Option<&ActiveStreamingTail>,
+    awaiting_duration_started_at_ms: Option<u64>,
+    scope: &TranscriptScope,
+) -> Vec<TranscriptViewportRow> {
+    project_transcript_viewport_entry_rows_for_scope(
         &transcript_snapshot.entries,
         operations,
         interactions,
         active_streaming_tail,
         awaiting_duration_started_at_ms,
-    );
-
-    if awaiting_placeholder {
-        rows.push(TranscriptViewportRow {
-            row_id: AWAITING_PLACEHOLDER_ID.to_string(),
-            source_entry_id: AWAITING_PLACEHOLDER_ID.to_string(),
-            kind: TranscriptViewportRowKind::AwaitingPlaceholder,
-            version: AWAITING_PLACEHOLDER_VERSION.to_string(),
-            anchor_eligible: true,
-            active_streaming_tail: None,
-            operation_links: Vec::new(),
-            interaction_links: Vec::new(),
-            content: TranscriptViewportRowContent::Transcript {
-                role: TranscriptEntryRole::Assistant,
-                segments: Vec::new(),
-            },
-            duration_started_at_ms: awaiting_duration_started_at_ms,
-        });
-    }
-
-    rows
+        scope,
+    )
 }
 
 #[must_use]
@@ -60,11 +56,30 @@ pub(crate) fn project_transcript_viewport_entry_rows(
     active_streaming_tail: Option<&ActiveStreamingTail>,
     awaiting_duration_started_at_ms: Option<u64>,
 ) -> Vec<TranscriptViewportRow> {
-    let operation_links_by_entry = operation_links_by_entry_id(operations);
+    project_transcript_viewport_entry_rows_for_scope(
+        entries,
+        operations,
+        interactions,
+        active_streaming_tail,
+        awaiting_duration_started_at_ms,
+        &TranscriptScope::Root,
+    )
+}
+
+fn project_transcript_viewport_entry_rows_for_scope(
+    entries: &[TranscriptEntry],
+    operations: &[OperationSnapshot],
+    interactions: &[InteractionSnapshot],
+    active_streaming_tail: Option<&ActiveStreamingTail>,
+    awaiting_duration_started_at_ms: Option<u64>,
+    scope: &TranscriptScope,
+) -> Vec<TranscriptViewportRow> {
+    let operation_links_by_entry = operation_links_by_entry_id(entries, operations);
     let interaction_links_by_operation = interaction_links_by_operation_id(interactions);
 
     entries
         .iter()
+        .filter(|entry| &entry.scope == scope)
         .filter_map(|entry| {
             project_entry(
                 entry,
@@ -107,6 +122,7 @@ fn project_entry(
     let content = row_content(entry);
     let version = row_version(
         entry_id,
+        &entry.scope,
         &kind,
         active_streaming_tail,
         operation_links.as_slice(),
@@ -121,8 +137,9 @@ fn project_entry(
     };
 
     Some(TranscriptViewportRow {
-        row_id: format!("transcript:{entry_id}"),
+        row_id: format!("transcript:{}:{entry_id}", entry.scope.ledger_key()),
         source_entry_id: entry_id.to_string(),
+        scope: entry.scope.clone(),
         kind,
         version,
         anchor_eligible: true,
@@ -181,14 +198,23 @@ fn row_content(entry: &TranscriptEntry) -> TranscriptViewportRowContent {
 }
 
 fn operation_links_by_entry_id(
+    entries: &[TranscriptEntry],
     operations: &[OperationSnapshot],
 ) -> BTreeMap<String, Vec<TranscriptViewportOperationLink>> {
+    let scoped_children = scoped_child_operations_by_parent(entries, operations);
     let mut links_by_entry = BTreeMap::new();
 
     for operation in operations {
         let OperationSourceLink::TranscriptLinked { entry_id } = &operation.source_link else {
             continue;
         };
+        let mut display_facts =
+            TranscriptViewportOperationDisplayFacts::from_operation(operation, Vec::new());
+        if let (Some(display_facts), Some(children)) =
+            (display_facts.as_mut(), scoped_children.get(&operation.id))
+        {
+            display_facts.attach_scoped_children(children);
+        }
         links_by_entry
             .entry(entry_id.clone())
             .or_insert_with(Vec::new)
@@ -197,10 +223,7 @@ fn operation_links_by_entry_id(
                 tool_call_id: operation.tool_call_id.clone(),
                 name: operation.name.clone(),
                 state: operation.operation_state.clone(),
-                display_facts: TranscriptViewportOperationDisplayFacts::from_operation(
-                    operation,
-                    Vec::new(),
-                ),
+                display_facts,
                 operation: None,
             });
     }
@@ -210,6 +233,38 @@ fn operation_links_by_entry_id(
     }
 
     links_by_entry
+}
+
+fn scoped_child_operations_by_parent(
+    entries: &[TranscriptEntry],
+    operations: &[OperationSnapshot],
+) -> BTreeMap<String, Vec<OperationSnapshot>> {
+    let mut operations_by_entry = BTreeMap::<String, Vec<&OperationSnapshot>>::new();
+    for operation in operations {
+        let OperationSourceLink::TranscriptLinked { entry_id } = &operation.source_link else {
+            continue;
+        };
+        operations_by_entry
+            .entry(entry_id.clone())
+            .or_default()
+            .push(operation);
+    }
+
+    let mut scoped_children = BTreeMap::<String, Vec<OperationSnapshot>>::new();
+    for entry in entries {
+        let TranscriptScope::Operation(parent_operation_id) = &entry.scope else {
+            continue;
+        };
+        let Some(operations) = operations_by_entry.get(&entry.entry_id) else {
+            continue;
+        };
+        scoped_children
+            .entry(parent_operation_id.clone())
+            .or_default()
+            .extend(operations.iter().map(|operation| (*operation).clone()));
+    }
+
+    scoped_children
 }
 
 fn interaction_links_by_operation_id(
@@ -277,6 +332,7 @@ fn attach_interaction_ids_to_operation_display_facts(
 
 fn row_version(
     entry_id: &str,
+    scope: &TranscriptScope,
     kind: &TranscriptViewportRowKind,
     active_streaming_tail: Option<
         crate::acp::session_state_engine::graph::ActiveStreamingTailContentKind,
@@ -287,6 +343,7 @@ fn row_version(
 ) -> String {
     let mut hasher = Sha256::new();
     hasher.update(entry_id.as_bytes());
+    hasher.update(scope.ledger_key().as_bytes());
     hasher.update(format!("{kind:?}").as_bytes());
     hasher.update(format!("{active_streaming_tail:?}").as_bytes());
 
@@ -329,6 +386,8 @@ fn row_version(
             for child_tool_call_id in &display_facts.child_tool_call_ids {
                 hasher.update(child_tool_call_id.as_bytes());
             }
+            hasher.update(format!("{:?}", display_facts.child_transcript_scope).as_bytes());
+            hasher.update(format!("{:?}", display_facts.latest_child_action).as_bytes());
         }
     }
 
@@ -388,6 +447,18 @@ fn row_version(
     }
 
     hex::encode(&hasher.finalize()[..16])
+}
+
+pub(crate) fn canonical_transcript_viewport_row_version(row: &TranscriptViewportRow) -> String {
+    row_version(
+        &row.source_entry_id,
+        &row.scope,
+        &row.kind,
+        row.active_streaming_tail,
+        &row.operation_links,
+        &row.interaction_links,
+        &row.content,
+    )
 }
 
 fn hash_segment(hasher: &mut Sha256, segment: &TranscriptSegment) {
@@ -461,6 +532,7 @@ mod tests {
 
     fn text_entry(entry_id: &str, role: TranscriptEntryRole, text: &str) -> TranscriptEntry {
         TranscriptEntry {
+            scope: crate::acp::transcript_projection::TranscriptScope::Root,
             entry_id: entry_id.to_string(),
             role,
             segments: vec![TranscriptSegment::Text {
@@ -474,6 +546,7 @@ mod tests {
 
     fn thought_entry(entry_id: &str, text: &str) -> TranscriptEntry {
         TranscriptEntry {
+            scope: crate::acp::transcript_projection::TranscriptScope::Root,
             entry_id: entry_id.to_string(),
             role: TranscriptEntryRole::Assistant,
             segments: vec![TranscriptSegment::Thought {
@@ -573,7 +646,6 @@ mod tests {
                 row_id: "assistant-1".to_string(),
                 content_kind: ActiveStreamingTailContentKind::Message,
             }),
-            false,
             None,
         );
 
@@ -583,19 +655,19 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![
                 (
-                    &"transcript:user-1".to_string(),
+                    &"transcript:root:user-1".to_string(),
                     &TranscriptViewportRowKind::User
                 ),
                 (
-                    &"transcript:assistant-1".to_string(),
+                    &"transcript:root:assistant-1".to_string(),
                     &TranscriptViewportRowKind::AssistantText
                 ),
                 (
-                    &"transcript:thought-1".to_string(),
+                    &"transcript:root:thought-1".to_string(),
                     &TranscriptViewportRowKind::AssistantThought
                 ),
                 (
-                    &"transcript:tool-1".to_string(),
+                    &"transcript:root:tool-1".to_string(),
                     &TranscriptViewportRowKind::Tool
                 ),
             ]
@@ -629,6 +701,7 @@ mod tests {
         };
         let rows = project_transcript_viewport_rows(
             &snapshot(vec![TranscriptEntry {
+                scope: crate::acp::transcript_projection::TranscriptScope::Root,
                 entry_id: "compact-entry-1".to_string(),
                 role: TranscriptEntryRole::SessionActivity,
                 segments: vec![TranscriptSegment::Compaction {
@@ -641,7 +714,6 @@ mod tests {
             &[],
             &[],
             None,
-            false,
             None,
         );
 
@@ -671,7 +743,6 @@ mod tests {
             ],
             &[],
             None,
-            false,
             None,
         );
 
@@ -695,7 +766,6 @@ mod tests {
             &[linked_operation("tool-1", OperationState::Running)],
             &[],
             None,
-            false,
             None,
         );
         let completed_rows = project_transcript_viewport_rows(
@@ -703,7 +773,6 @@ mod tests {
             &[linked_operation("tool-1", OperationState::Completed)],
             &[],
             None,
-            false,
             None,
         );
 
@@ -722,7 +791,6 @@ mod tests {
             &[],
             &[],
             None,
-            false,
             None,
         );
 
@@ -740,7 +808,6 @@ mod tests {
             &[],
             &[],
             None,
-            false,
             None,
         );
 
@@ -771,14 +838,13 @@ mod tests {
             &[],
             &[],
             None,
-            false,
             None,
         );
 
         assert_eq!(rows.len(), 3, "no row is dropped");
         assert!(rows
             .iter()
-            .all(|row| row.row_id == "transcript:toolu_bdrk_dup"));
+            .all(|row| row.row_id == "transcript:root:toolu_bdrk_dup"));
         for row in &rows {
             assert_eq!(row.source_entry_id, "toolu_bdrk_dup");
         }
@@ -797,7 +863,6 @@ mod tests {
                 row_id: "assistant-1".to_string(),
                 content_kind: ActiveStreamingTailContentKind::Message,
             }),
-            false,
             Some(1_700_000_000_000),
         );
 
@@ -820,7 +885,6 @@ mod tests {
             &[],
             &[],
             None,
-            false,
             Some(1_700_000_000_000),
         );
 
@@ -828,7 +892,7 @@ mod tests {
     }
 
     #[test]
-    fn awaiting_placeholder_appended_last_when_flag_true() {
+    fn canonical_projection_does_not_add_a_synthetic_waiting_row() {
         let rows = project_transcript_viewport_rows(
             &snapshot(vec![text_entry(
                 "user-1",
@@ -838,135 +902,11 @@ mod tests {
             &[],
             &[],
             None,
-            true,
             Some(1_700_000_000_000),
-        );
-
-        assert_eq!(rows.len(), 2);
-        let last = rows.last().unwrap();
-        assert_eq!(last.kind, TranscriptViewportRowKind::AwaitingPlaceholder);
-        assert_eq!(last.row_id, "awaiting:planning");
-        assert_eq!(last.source_entry_id, "awaiting:planning");
-        assert_eq!(last.duration_started_at_ms, Some(1_700_000_000_000));
-    }
-
-    #[test]
-    fn awaiting_placeholder_not_emitted_when_flag_false() {
-        let rows = project_transcript_viewport_rows(
-            &snapshot(vec![text_entry(
-                "user-1",
-                TranscriptEntryRole::User,
-                "prompt",
-            )]),
-            &[],
-            &[],
-            None,
-            false,
-            None,
         );
 
         assert_eq!(rows.len(), 1);
-        assert_ne!(rows[0].kind, TranscriptViewportRowKind::AwaitingPlaceholder);
-    }
-
-    #[test]
-    fn awaiting_placeholder_version_is_constant_across_projections() {
-        let snapshot = snapshot(vec![text_entry(
-            "user-1",
-            TranscriptEntryRole::User,
-            "prompt",
-        )]);
-        let rows1 = project_transcript_viewport_rows(
-            &snapshot,
-            &[],
-            &[],
-            None,
-            true,
-            Some(1_700_000_000_000),
-        );
-        let rows2 = project_transcript_viewport_rows(
-            &snapshot,
-            &[],
-            &[],
-            None,
-            true,
-            Some(1_700_000_000_000),
-        );
-
-        let version1 = &rows1.last().unwrap().version;
-        let version2 = &rows2.last().unwrap().version;
-        assert_eq!(version1, version2, "awaiting row version is stable");
-    }
-
-    #[test]
-    fn awaiting_placeholder_has_no_links_and_no_streaming_tail() {
-        let rows = project_transcript_viewport_rows(
-            &snapshot(vec![text_entry(
-                "user-1",
-                TranscriptEntryRole::User,
-                "prompt",
-            )]),
-            &[],
-            &[],
-            None,
-            true,
-            Some(1_700_000_000_000),
-        );
-
-        let placeholder = rows.last().unwrap();
-        assert!(placeholder.operation_links.is_empty());
-        assert!(placeholder.interaction_links.is_empty());
-        assert!(placeholder.active_streaming_tail.is_none());
-        assert!(placeholder.anchor_eligible);
-    }
-
-    #[test]
-    fn awaiting_placeholder_content_is_empty_transcript() {
-        let rows = project_transcript_viewport_rows(
-            &snapshot(vec![]),
-            &[],
-            &[],
-            None,
-            true,
-            Some(1_700_000_000_000),
-        );
-
-        let placeholder = &rows[0];
-        let TranscriptViewportRowContent::Transcript { role, segments } = &placeholder.content
-        else {
-            panic!("expected transcript row content");
-        };
-        assert_eq!(role, &TranscriptEntryRole::Assistant);
-        assert!(segments.is_empty());
-    }
-
-    #[test]
-    fn awaiting_placeholder_id_survives_dedup_check() {
-        let mut entries: Vec<TranscriptEntry> = (0..100)
-            .map(|i| text_entry(&format!("entry-{}", i), TranscriptEntryRole::Tool, "x"))
-            .collect();
-        entries.push(text_entry("user-1", TranscriptEntryRole::User, "prompt"));
-        let rows = project_transcript_viewport_rows(
-            &snapshot(entries),
-            &[],
-            &[],
-            None,
-            true,
-            Some(1_700_000_000_000),
-        );
-
-        assert_eq!(rows.len(), 102);
-        let row_ids: Vec<&str> = rows.iter().map(|r| r.row_id.as_str()).collect();
-        let unique: std::collections::BTreeSet<&str> = row_ids.iter().copied().collect();
-        assert_eq!(
-            unique.len(),
-            102,
-            "all row_ids are unique including awaiting:planning"
-        );
-        assert!(
-            rows.iter()
-                .any(|r| r.kind == TranscriptViewportRowKind::AwaitingPlaceholder),
-            "awaiting placeholder row is present"
-        );
+        assert_eq!(rows[0].kind, TranscriptViewportRowKind::User);
+        assert_eq!(rows[0].row_id, "transcript:root:user-1");
     }
 }

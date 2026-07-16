@@ -5,8 +5,7 @@
 	 *
 	 * This is a "dumb" component - all data and actions are passed via props.
 	 */
-	import { LoadingIcon, RoundedIcon } from '../icons/index.js';
-	import { slide } from 'svelte/transition';
+	import { LoadingIcon, HugeiconsIcon } from '../icons/index.js';
 	import type { Snippet } from 'svelte';
 	import { PillButton } from '../pill-button/index.js';
 	import { RevertIcon } from '../icons/index.js';
@@ -84,7 +83,10 @@
 	}
 </script>
 
-<div class="rounded-lg border border-border/50 bg-muted/50 overflow-hidden">
+<div
+	class="checkpoint-card-root rounded-lg border border-border/50 bg-muted/50 overflow-hidden"
+	class:expanded={isExpanded}
+>
 	<button
 		type="button"
 		class="group w-full flex h-6 items-center justify-between pl-1 pr-2 text-xs
@@ -147,33 +149,52 @@
 					{/if}
 				</div>
 			{/if}
-			<RoundedIcon name="chevron-right" class="size-3 text-muted-foreground shrink-0 transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}"
+			<HugeiconsIcon name="chevron-right" class="size-3 text-muted-foreground shrink-0 transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}"
 			/>
 		</div>
 	</button>
 
-	{#if isExpanded}
-		<div transition:slide={{ duration: 150 }} class="border-t border-border/30">
-			{#if isLoadingFiles}
-				<div class="flex items-center justify-center py-2 text-muted-foreground text-[10px]">
-					<LoadingIcon class="mr-1.5" size={12} />
-					{loadingFilesMessage}
-				</div>
-			{:else}
-				<CheckpointFileList
-					{files}
-					{fileStates}
-					showRevertButtons={showRevertButton}
-					{alwaysShowRevert}
-					revertLabel={fileRevertLabel}
-					allowDiffExpand={allowFileDiffExpand}
-					{fileDisplay}
-					{fileIcon}
-					{diffContent}
-					{onToggleFileDiff}
-					{onRevertFile}
-				/>
-			{/if}
+	<div class="checkpoint-card-expand" aria-hidden={!isExpanded}>
+		<div class="checkpoint-card-expand-inner">
+			<div class="border-t border-border/30">
+				{#if isLoadingFiles}
+					<div class="flex items-center justify-center py-2 text-muted-foreground text-[10px]">
+						<LoadingIcon class="mr-1.5" size={12} />
+						{loadingFilesMessage}
+					</div>
+				{:else}
+					<CheckpointFileList
+						{files}
+						{fileStates}
+						showRevertButtons={showRevertButton}
+						{alwaysShowRevert}
+						revertLabel={fileRevertLabel}
+						allowDiffExpand={allowFileDiffExpand}
+						{fileDisplay}
+						{fileIcon}
+						{diffContent}
+						{onToggleFileDiff}
+						{onRevertFile}
+					/>
+				{/if}
+			</div>
 		</div>
-	{/if}
+	</div>
 </div>
+
+<style>
+	.checkpoint-card-expand {
+		display: grid;
+		grid-template-rows: 0fr;
+		transition: grid-template-rows var(--duration-fast) var(--ease-smooth-out);
+	}
+
+	.checkpoint-card-root.expanded .checkpoint-card-expand {
+		grid-template-rows: 1fr;
+	}
+
+	.checkpoint-card-expand-inner {
+		min-height: 0;
+		overflow: hidden;
+	}
+</style>

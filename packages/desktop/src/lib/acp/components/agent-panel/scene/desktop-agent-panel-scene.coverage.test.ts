@@ -52,6 +52,50 @@ describe("desktop agent panel scene adapter — characterization gaps", () => {
 		});
 	});
 
+	it("maps browser execute-js script arguments onto scriptText separately from details", () => {
+		const script =
+			"(() => {\n  const eds = Array.from(document.querySelectorAll('[data-ref]'));\n  return eds;\n})()";
+		const entries: SessionEntry[] = [
+			{
+				id: "browser-script-1",
+				type: "tool_call",
+				message: {
+					id: "browser-script-1",
+					name: "mcp__tauri__webview_execute_js",
+					arguments: {
+						kind: "browser",
+						raw: { script },
+						script,
+					},
+					status: "in_progress",
+					result: null,
+					kind: "browser",
+					title: "Browser",
+					locations: null,
+					skillMeta: null,
+					normalizedResult: null,
+					normalizedQuestions: null,
+					normalizedTodos: null,
+					parentToolUseId: null,
+					taskChildren: null,
+					questionAnswer: null,
+					awaitingPlanApproval: false,
+					planApprovalRequestId: null,
+				},
+			},
+		];
+
+		const conversation = mapSessionEntriesToConversationModel(entries, "streaming");
+
+		expect(conversation.entries[0]).toMatchObject({
+			id: "browser-script-1",
+			type: "tool_call",
+			kind: "browser",
+			scriptText: script,
+			detailsText: null,
+		});
+	});
+
 	it("populates todos on the scene entry from normalized todos", () => {
 		const entries: SessionEntry[] = [
 			{

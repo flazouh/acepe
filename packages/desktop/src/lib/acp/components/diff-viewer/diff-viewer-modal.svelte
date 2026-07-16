@@ -2,7 +2,7 @@
 import {
 	GitViewer,
 	LoadingIcon,
-	RoundedIcon,
+	HugeiconsIcon,
 } from "@acepe/ui";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import { fetchCommitDiff, fetchPrDiff } from "../../services/github-service.js";
@@ -118,7 +118,7 @@ function findRawFileDiff(path: string) {
 			</div>
 		{:else if error}
 			<div class="flex flex-1 flex-col items-center justify-center gap-3 px-8 text-center">
-				<RoundedIcon name="warning" class="h-6 w-6 text-destructive" />
+				<HugeiconsIcon name="warning" class="h-6 w-6 text-destructive" />
 				<div class="flex flex-col gap-1">
 					<h3 class="text-sm font-semibold text-foreground">Error loading diff</h3>
 					<p class="text-xs text-muted-foreground">{error.message}</p>
@@ -139,7 +139,7 @@ function findRawFileDiff(path: string) {
 					class="flex items-center gap-1.5 h-5 px-2.5 text-[11px] font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors rounded-sm"
 					onclick={loadDiff}
 				>
-					<RoundedIcon name="refresh" class="h-3 w-3" />
+					<HugeiconsIcon name="refresh" class="h-3 w-3" />
 					Retry
 				</button>
 			</div>

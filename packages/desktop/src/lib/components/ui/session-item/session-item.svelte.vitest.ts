@@ -201,6 +201,25 @@ describe("SessionItem", () => {
 		});
 	});
 
+	it("renders the Hugeicons Copy ID glyph for the session id menu action", async () => {
+		const view = render(SessionItem, {
+			thread: createSession(),
+			selected: true,
+			onSelect: () => undefined,
+		});
+
+		await fireEvent.click(view.getByLabelText("Session actions"));
+		const copyMenuTrigger = await view.findByTestId("session-action-copy");
+		await fireEvent.keyDown(copyMenuTrigger, { key: "ArrowRight", code: "ArrowRight" });
+
+		const copyIdItem = await view.findByTestId("session-action-copy-id");
+		const renderedIcon = copyIdItem.querySelector("svg");
+
+		expect(renderedIcon?.tagName.toLowerCase()).toBe("svg");
+		expect(renderedIcon?.getAttribute("viewBox")).toBe("0 0 24 24");
+		expect(renderedIcon?.innerHTML).not.toBe("");
+	});
+
 	it("shows a working indicator instead of a planning status row", () => {
 		presentationFixture.current.previewActivityKind = "thinking";
 		presentationFixture.current.sessionWorkProjection.compactActivityKind = "thinking";

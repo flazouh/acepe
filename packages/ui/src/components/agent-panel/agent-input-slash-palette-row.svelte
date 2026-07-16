@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { RoundedIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import { ProviderMark } from "../provider-mark/index.js";
 	import AgentInputModeIcon from "./agent-input-mode-icon.svelte";
 	import { getSlashCommandIconColor } from "./agent-input-slash-command-row-state.js";
@@ -51,11 +51,11 @@
 				class="size-3.5"
 			/>
 		{:else if item.tokenType === "skill"}
-			<RoundedIcon name="skills" class="h-3 w-3" data-testid="slash-command-skill-icon" />
+			<HugeiconsIcon name="skills" class="h-3 w-3" data-testid="slash-command-skill-icon" />
 		{:else if item.tokenType === "mcp"}
-			<RoundedIcon name="mcp" class="h-3 w-3" />
+			<HugeiconsIcon name="mcp" class="h-3 w-3" />
 		{:else}
-			<RoundedIcon name="terminal" class="h-3 w-3" />
+			<HugeiconsIcon name="terminal" class="h-3 w-3" />
 		{/if}
 	</div>
 	<div class="min-w-0 flex-1">

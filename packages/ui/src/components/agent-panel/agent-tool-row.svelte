@@ -25,7 +25,7 @@
 		status = "done",
 		durationTiming,
 		padded = false,
-		iconBasePath = "",
+		iconBasePath = "/svgs/icons",
 	}: Props = $props();
 
 	const fileName = $derived(filePath ? (filePath.split("/").pop() || filePath) : null);

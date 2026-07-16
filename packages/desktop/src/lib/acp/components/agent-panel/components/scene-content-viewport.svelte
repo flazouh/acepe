@@ -22,6 +22,7 @@ import { SESSION_CONTEXT_KEY_EXPORT } from "../../../hooks/use-session-context.j
 import type { TranscriptRowsState } from "../../../store/transcript-rows-store.js";
 import type { TurnState } from "../../../store/types.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
+import type { LocalPlaceholderMode } from "../logic/local-placeholder-mode.js";
 import { getChatPreferencesStore } from "../../../store/chat-preferences-store.svelte.js";
 import {
 	getPermissionStore,
@@ -64,7 +65,7 @@ type SceneContentViewportProps = {
 	sessionId: string | null;
 	skipRowsBootstrap?: boolean;
 	pendingUserRevealRequestKey?: string | null;
-	showLocalPlanningIndicator?: boolean;
+	localPlaceholderMode?: LocalPlaceholderMode;
 	planningPlaceholderPresentation?: {
 		readonly label: string;
 		readonly agentIconSrc: string | null;
@@ -103,7 +104,7 @@ let {
 	sessionId,
 	skipRowsBootstrap = false,
 	pendingUserRevealRequestKey = null,
-	showLocalPlanningIndicator = false,
+	localPlaceholderMode = "none",
 	planningPlaceholderPresentation = null,
 	showWorkingSpark = false,
 	isFullscreen = false,
@@ -181,7 +182,7 @@ const renderableRowSource = $derived.by(() => {
 				bufferRows,
 				bufferStartIndex: rowsProjection?.loadedStartRowIndex ?? 0,
 				optimisticUserEntry,
-				showLocalPlanningIndicator,
+				localPlaceholderMode,
 				syntheticReviewEntry,
 			})
 	);
@@ -243,12 +244,7 @@ function latestVisibleUserRowId(): string | null {
 }
 
 function revealLatestUserAsSendIntent(): void {
-	const rowId = latestVisibleUserRowId();
-	if (rowId === null) {
-		scrollerController?.jumpToLatest();
-		return;
-	}
-	scrollerController?.onSend(rowId, SEND_REVEAL_PEEK_PX);
+	scrollerController?.onSend();
 }
 
 function openAtLatestUserTurn(): void {
@@ -452,10 +448,6 @@ $effect(() => {
 	}
 	consumedPendingUserRevealRequestKey = pendingUserRevealRequestKey;
 	revealLatestUserAsSendIntent();
-});
-
-$effect(() => {
-	scrollerController?.setSendAnchorActive(turnState === "streaming" || showLocalPlanningIndicator);
 });
 
 $effect(() => {
