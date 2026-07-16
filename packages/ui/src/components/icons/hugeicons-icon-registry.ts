@@ -5,7 +5,7 @@ import {
 	Add01Icon,
 	Alert01Icon,
 	AppWindowIcon,
-	Archive01Icon,
+	Archive03Icon,
 	ArrowExpand01Icon,
 	ArrowLeft01Icon,
 	ArrowRight01Icon,
@@ -15,6 +15,7 @@ import {
 	BrowserIcon,
 	Cancel01Icon,
 	CancelCircleIcon,
+	ChartLineData01Icon,
 	ChatIcon,
 	CheckIcon,
 	CheckmarkCircle01Icon,
@@ -23,6 +24,7 @@ import {
 	ChevronRightIcon,
 	ChevronUpIcon,
 	CircleDashedIcon,
+	CircleIcon,
 	ClockIcon,
 	CodeIcon,
 	ComputerTerminal01Icon,
@@ -39,6 +41,7 @@ import {
 	Files01Icon,
 	FilterIcon,
 	FlashIcon,
+	FlaskConicalIcon,
 	FloppyDiskIcon,
 	Folder01Icon,
 	GitBranchIcon,
@@ -49,6 +52,7 @@ import {
 	GridViewIcon,
 	HandIcon,
 	HelpCircleIcon,
+	HistoryIcon,
 	Image01Icon,
 	KeyboardIcon,
 	LaptopIcon,
@@ -64,7 +68,9 @@ import {
 	MoreVerticalIcon,
 	Notebook01Icon,
 	PaintBoardIcon,
+	PanelLeftCloseIcon,
 	PencilEdit01Icon,
+	Pin02Icon,
 	Recycle01Icon,
 	Refresh01Icon,
 	Robot01Icon,
@@ -82,6 +88,8 @@ import {
 	TextIcon,
 	TwitterIcon,
 	UndoIcon,
+	UserCircleIcon,
+	UserGroupIcon,
 	Wrench01Icon,
 	Loading03Icon,
 	FolderOpenIcon,
@@ -89,23 +97,28 @@ import {
 	FolderGitIcon,
 	CircleQuestionMarkIcon,
 } from "@hugeicons/core-free-icons";
+import {
+	discordFilledIcon,
+	githubFilledIcon,
+	twitterFilledIcon,
+} from "./brand-filled-icons.js";
 
-export type HugeiconsIconName = string;
-
-const iconByName: Readonly<Record<string, IconSvgElement>> = {
+const iconByName = {
 	add: Add01Icon,
 	alert: Alert01Icon,
 	"app-window": AppWindowIcon,
 	apps: GridViewIcon,
-	archive: Archive01Icon,
+	archive: Archive03Icon,
 	"arrow-left": ArrowLeft01Icon,
 	"arrow-right": ArrowRight01Icon,
 	"arrow-up": ArrowUp01Icon,
 	"arrow-counter-clockwise": UndoIcon,
+	avatar: UserCircleIcon,
 	bell: BellIcon,
 	branch: GitBranchIcon,
 	browser: BrowserIcon,
 	"browser-url": GlobeIcon,
+	"chart-line": ChartLineData01Icon,
 	"check-circle": CheckmarkCircle01Icon,
 	"check-circle-filled": CheckmarkCircle01Icon,
 	check: CheckIcon,
@@ -132,6 +145,7 @@ const iconByName: Readonly<Record<string, IconSvgElement>> = {
 	"file-text": File01Icon,
 	file: File01Icon,
 	files: Files01Icon,
+	flask: FlaskConicalIcon,
 	folder: Folder01Icon,
 	"folder-open": FolderOpenIcon,
 	folders: FolderOpenIcon,
@@ -140,7 +154,10 @@ const iconByName: Readonly<Record<string, IconSvgElement>> = {
 	git: GitBranchIcon,
 	"git-diff": FileDiffIcon,
 	"git-diff-unified": FileDiffIcon,
+	"git-pull-request": GitPullRequestIcon,
+	globe: GlobeIcon,
 	hand: HandIcon,
+	history: HistoryIcon,
 	keyboard: KeyboardIcon,
 	laptop: LaptopIcon,
 	link: Link01Icon,
@@ -151,7 +168,10 @@ const iconByName: Readonly<Record<string, IconSvgElement>> = {
 	menu: Menu01Icon,
 	"new-chat": ChatIcon,
 	notebook: Notebook01Icon,
+	"paper-plane": MailSend01Icon,
 	pencil: PencilEdit01Icon,
+	permissions: SecurityCheckIcon,
+	pin: Pin02Icon,
 	plan: Task01Icon,
 	"pull-request": GitPullRequestIcon,
 	"pull-request-closed": GitPullRequestIcon,
@@ -169,6 +189,7 @@ const iconByName: Readonly<Record<string, IconSvgElement>> = {
 	"security-check": SecurityCheckIcon,
 	"shield-warning": SecurityWarningIcon,
 	sidebar: SidebarLeftIcon,
+	"sidebar-closed": PanelLeftCloseIcon,
 	"sidebar-open": SidebarLeftIcon,
 	sliders: SlidersHorizontalIcon,
 	sparkle: SparklesIcon,
@@ -178,9 +199,21 @@ const iconByName: Readonly<Record<string, IconSvgElement>> = {
 	storage: FolderOpenIcon,
 	sun: Sun01Icon,
 	tasks: Task01Icon,
+	team: UserGroupIcon,
 	terminal: ComputerTerminal01Icon,
+	"tool-browser": BrowserIcon,
+	"tool-edit": PencilEdit01Icon,
+	"tool-plan": Task01Icon,
+	"tool-read": File01Icon,
+	"tool-search": Search01Icon,
+	"tool-skill": SparklesIcon,
+	"tool-sql": Database01Icon,
+	"tool-task": Task01Icon,
+	"tool-think": AiBrain01Icon,
+	"tool-web": GlobeIcon,
 	trash: Delete01Icon,
 	undo: UndoIcon,
+	unselected: CircleIcon,
 	warning: SecurityWarningIcon,
 	worktree: GitBranchIcon,
 	"x-circle": CancelCircleIcon,
@@ -190,9 +223,11 @@ const iconByName: Readonly<Record<string, IconSvgElement>> = {
 	chat: ChatIcon,
 	clock: ClockIcon,
 	discord: DiscordIcon,
+	"discord-filled": discordFilledIcon,
 	edit: PencilEdit01Icon,
 	filter: FilterIcon,
 	github: GithubIcon,
+	"github-filled": githubFilledIcon,
 	image: Image01Icon,
 	lock: LockIcon,
 	moon: Moon01Icon,
@@ -208,19 +243,24 @@ const iconByName: Readonly<Record<string, IconSvgElement>> = {
 	dock: DockIcon,
 	google: GoogleIcon,
 	twitter: TwitterIcon,
+	"twitter-filled": twitterFilledIcon,
 	"open-in-new-window": ArrowExpand01Icon,
 	wrench: Wrench01Icon,
 	"stop-circle": StopIcon,
 	"folder-add": FolderAddIcon,
 	"folder-git": FolderGitIcon,
-};
+} as const satisfies Record<string, IconSvgElement>;
+
+export type HugeiconsIconName = keyof typeof iconByName;
 
 export type HugeiconsIconLibraryEntry = {
 	readonly name: HugeiconsIconName;
 	readonly label: string;
 };
 
-export const hugeiconsIconNames = Object.freeze(Object.keys(iconByName));
+export const hugeiconsIconNames = Object.freeze(
+	Object.keys(iconByName),
+) as readonly HugeiconsIconName[];
 
 export function formatHugeiconsIconName(name: HugeiconsIconName): string {
 	return name
@@ -241,11 +281,15 @@ export const hugeiconsIconLibrary: readonly HugeiconsIconLibraryEntry[] =
 		label: formatHugeiconsIconName(name),
 	}));
 
-export function resolveHugeiconsIcon(name: HugeiconsIconName): IconSvgElement {
-	return iconByName[name] ?? HelpCircleIcon;
+export function resolveHugeiconsIcon(name: string): IconSvgElement {
+	if (Object.hasOwn(iconByName, name)) {
+		return iconByName[name as HugeiconsIconName];
+	}
+
+	return HelpCircleIcon;
 }
 
-export function isHugeiconsIconName(name: string): boolean {
+export function isHugeiconsIconName(name: string): name is HugeiconsIconName {
 	return Object.hasOwn(iconByName, name);
 }
 

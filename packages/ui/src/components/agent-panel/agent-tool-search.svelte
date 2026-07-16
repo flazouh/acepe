@@ -53,7 +53,7 @@
 		searchMatches = [],
 		status = "done",
 		durationTiming,
-		iconBasePath = "",
+		iconBasePath = "/svgs/icons",
 		variant = "grep",
 		findingLabel = "Finding",
 		foundLabel = "Found",

@@ -28,7 +28,7 @@
 		agentIconSrc?: string;
 		sessionStatus?: AgentSessionStatus;
 		onClose?: () => void;
-		/** Base path for file type SVG icons (e.g. "hugeicons") */
+		/** Base path for file type SVG icons (e.g. "/svgs/icons") */
 		iconBasePath?: string;
 		/** Real agent input chrome (desktop: compose `agent-input-ui` here). Omit for message-only layouts. */
 		inputArea?: Snippet;
@@ -42,7 +42,7 @@
 		agentIconSrc,
 		sessionStatus = "empty",
 		onClose,
-		iconBasePath = "",
+		iconBasePath = "/svgs/icons",
 		inputArea,
 	}: Props = $props();
 
@@ -118,8 +118,12 @@
 						<AgentToolExecute
 							command={entry.command ?? null}
 							commandHtmls={entry.commandHtmls}
+							highlightCommand={entry.highlightCommand ?? null}
+							highlightOutput={entry.highlightOutput ?? null}
 							stdout={entry.stdout}
 							stderr={entry.stderr}
+							stdoutHtml={entry.stdoutHtml}
+							stderrHtml={entry.stderrHtml}
 							exitCode={entry.exitCode}
 							status={entry.status}
 						/>
@@ -158,6 +162,9 @@
 							title={entry.title}
 							subtitle={entry.subtitle ?? null}
 							detailsText={entry.detailsText ?? null}
+							scriptText={entry.scriptText ?? null}
+							scriptHtml={entry.scriptHtml ?? null}
+							highlightScript={entry.highlightScript ?? null}
 							status={entry.status}
 						/>
 					{:else if entry.kind === "skill"}

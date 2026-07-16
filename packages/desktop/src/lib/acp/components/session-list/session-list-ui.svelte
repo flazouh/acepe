@@ -4,7 +4,7 @@ import {
 	ProjectHeader,
 	ProjectHeaderOverflowMenu,
 } from "@acepe/ui/app-layout";
-import { PlusIcon } from "@acepe/ui";
+import { HugeiconsIcon } from "@acepe/ui";
 import { tick } from "svelte";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import type { SessionDisplayItem } from "$lib/acp/types/thread-display-item.js";
@@ -447,7 +447,7 @@ async function handleProjectContextMove(projectPath: string, offset: -1 | 1): Pr
 				aria-label={getProjectCreateButtonAriaLabel(group.projectName)}
 			>
 				{#snippet children()}
-					<PlusIcon />
+					<HugeiconsIcon name="plus" size={14} />
 				{/snippet}
 			</Button>
 		{/if}

@@ -903,7 +903,7 @@ let { bare = false }: Props = $props();
 				<div class="min-w-0 min-h-0 w-0 basis-0 flex-1 overflow-hidden">
 					<AgentPanelScene
 						scene={buildScene(panel, theme)}
-						iconBasePath="hugeicons"
+						iconBasePath="/svgs/icons"
 						widthStyle="min-width: 0; width: 100%; max-width: 100%;"
 					>
 						{#snippet headerControls()}

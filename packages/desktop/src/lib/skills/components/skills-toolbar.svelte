@@ -1,5 +1,5 @@
 <script lang="ts">
-import { HugeiconsIcon, Selector, PlusIcon, SaveIcon } from "@acepe/ui";
+import { HugeiconsIcon } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { Button } from "$lib/components/ui/button/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
@@ -51,7 +51,7 @@ function handleDelete() {
 	<div class="flex items-center gap-1">
 		{#if onCreateSkill}
 			<Button variant="ghost" size="sm" onclick={onCreateSkill}>
-				<PlusIcon class="mr-1" />
+				<HugeiconsIcon name="plus" size={14} class="mr-1" />
 				New
 			</Button>
 		{/if}
@@ -66,7 +66,7 @@ function handleDelete() {
 				{#if store.isSaving}
 					<Spinner class="mr-1" size={16} />
 				{:else}
-					<SaveIcon class="h-4 w-4 mr-1" />
+					<HugeiconsIcon name="save" size={16} class="h-4 w-4 mr-1" />
 				{/if}
 				Save
 			</Button>

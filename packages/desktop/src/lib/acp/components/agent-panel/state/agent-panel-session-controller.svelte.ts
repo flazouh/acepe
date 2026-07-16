@@ -39,6 +39,7 @@ import {
 	resolveOptimisticUserEntryForGraph,
 	resolveVisibleEntryCount,
 } from "../logic";
+import { hasTrailingCompletedTool as transcriptHasTrailingCompletedTool } from "../logic/transcript-viewport-row-facts.js";
 import { contentBlocksToText } from "../scene/assistant-content.js";
 import { mapSessionEntryToConversationEntry } from "../scene/conversation-model.js";
 
@@ -87,7 +88,8 @@ export class AgentPanelSessionController {
 			pendingSendIntentAttemptId: this.sessionPendingSendIntent?.attemptId ?? null,
 			hasMessages: this.hasMessages,
 			visibleEntryCount: this.knownVisibleEntryCount,
-			showPlanningIndicator: this.showPlanningIndicator,
+			hasTrailingCompletedTool: this.hasTrailingCompletedTool,
+			localPlaceholderMode: this.localPlaceholderMode,
 			actionabilityCanSend:
 				source.kind === "canonical" ? source.lifecycle.actionability.canSend : null,
 			sessionCanSubmit: this.sessionCanSubmit,
@@ -310,9 +312,15 @@ export class AgentPanelSessionController {
 		resolveCanonicalAgentPanelTurnState(this.canonicalPanelSessionSource)
 	);
 
-	readonly hasActiveStreamingTail = $derived.by(() => {
+	readonly hasTrailingCompletedTool = $derived.by(() => {
 		const id = this.#deps.getSessionId();
-		return id !== null && this.#deps.sessionStore.read.getActiveStreamingTailRowId(id) !== null;
+		if (id === null || id === undefined) {
+			return false;
+		}
+		const rowsProjection = this.#deps.sessionStore.viewport.getRowsProjection(id);
+		return rowsProjection?.sessionId === id
+			? transcriptHasTrailingCompletedTool(rowsProjection.rows)
+			: false;
 	});
 
 	readonly canonicalPanelSessionState = $derived.by(() =>
@@ -321,7 +329,7 @@ export class AgentPanelSessionController {
 			hasEntries: this.hasMessages,
 			hasOptimisticPendingEntry: this.preSessionPendingUserEntry !== null,
 			hasLocalPendingSendIntent: this.sessionPendingSendIntent !== null,
-			hasActiveStreamingTail: this.hasActiveStreamingTail,
+			hasTrailingCompletedTool: this.hasTrailingCompletedTool,
 		})
 	);
 
@@ -331,8 +339,8 @@ export class AgentPanelSessionController {
 	readonly isAwaitingModelResponse = $derived.by(
 		() => this.canonicalSessionActivity?.kind === "awaiting_model"
 	);
-	readonly showPlanningIndicator = $derived.by(
-		() => this.canonicalPanelSessionState.showPlanningIndicator
+	readonly localPlaceholderMode = $derived.by(
+		() => this.canonicalPanelSessionState.localPlaceholderMode
 	);
 	readonly sessionCanSubmit = $derived.by(() => this.canonicalPanelSessionState.canSubmit);
 	readonly sessionShowStop = $derived.by(() => this.canonicalPanelSessionState.showStop);

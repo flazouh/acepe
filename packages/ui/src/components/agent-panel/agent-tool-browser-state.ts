@@ -60,3 +60,63 @@ export function buildBrowserToolDetailsPreview(input: {
 
 	return `${compact.slice(0, characterLimit)}...`;
 }
+
+/** Split a browser script into display lines for the execute-style body. */
+export function getBrowserScriptLines(scriptText: string | null | undefined): readonly string[] {
+	const normalized = normalizeBrowserToolScript(scriptText);
+	if (!normalized) {
+		return [];
+	}
+
+	return normalized.split("\n");
+}
+
+/** Prefer explicit scriptText; fall back to a misplaced subtitle that is clearly code. */
+export function resolveBrowserScriptBody(input: {
+	readonly scriptText?: string | null;
+	readonly subtitle?: string | null;
+}): string {
+	const fromScript = normalizeBrowserToolScript(input.scriptText);
+	if (fromScript.length > 0) {
+		return fromScript;
+	}
+
+	const fromSubtitle = normalizeBrowserToolScript(input.subtitle);
+	if (fromSubtitle.length === 0) {
+		return "";
+	}
+
+	const looksLikeCode =
+		fromSubtitle.includes("=>") ||
+		fromSubtitle.includes("function") ||
+		fromSubtitle.includes("document.") ||
+		fromSubtitle.startsWith("(") ||
+		fromSubtitle.startsWith("async ");
+
+	return looksLikeCode ? fromSubtitle : "";
+}
+
+/**
+ * Resolve highlighted browser script HTML. Prefer precomputed `scriptHtml`, else
+ * invoke `highlightScript`. Call from `$derived` so a ready-gated highlighter upgrades
+ * after Shiki loads. Returns null when unavailable (plain line fallback).
+ */
+export function resolveBrowserScriptHtml(input: {
+	readonly scriptText: string;
+	readonly scriptHtml?: string | null;
+	readonly highlightScript?: ((code: string) => string | null) | null;
+}): string | null {
+	if (typeof input.scriptHtml === "string" && input.scriptHtml.length > 0) {
+		return input.scriptHtml;
+	}
+
+	if (!input.scriptText || !input.highlightScript) {
+		return null;
+	}
+
+	return input.highlightScript(input.scriptText);
+}
+
+export function shouldUseBrowserScriptHtml(scriptHtml?: string | null): boolean {
+	return typeof scriptHtml === "string" && scriptHtml.length > 0;
+}

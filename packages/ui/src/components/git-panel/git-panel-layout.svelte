@@ -68,7 +68,7 @@
 		/** Currently selected file path (for highlighting) */
 		selectedFile?: string;
 
-		/** Base path for file-type SVG icons (e.g. "hugeicons"). Falls back to local file icons if omitted. */
+		/** Base path for file-type SVG icons (e.g. "/svgs/icons"). Falls back to local file icons if omitted. */
 		iconBasePath?: string;
 		class?: string;
 	}

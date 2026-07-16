@@ -3,7 +3,6 @@
 	 * GitStatusList — Staged and unstaged file sections with collapsible headers.
 	 * Uses GitFileTree for tree-organized file display within each section.
 	 */
-	import PlusIcon from "../icons/plus-icon.svelte";
 	import { HugeiconsIcon } from "../icons/index.js";
 
 	import { cn } from "../../lib/utils.js";
@@ -162,7 +161,7 @@
 						title="Stage all changes"
 						onclick={onStageAll}
 					>
-						<PlusIcon />
+						<HugeiconsIcon name="plus" size={12} class="size-3" />
 					</button>
 				{/if}
 			</div>

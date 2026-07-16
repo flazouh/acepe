@@ -12,13 +12,15 @@
 		isExecuteError,
 		isExecutePending,
 		isExecuteSuccess,
+		resolveExecuteCommandHtmls,
+		resolveExecuteOutputHtml,
 		shouldUseCommandHtmls,
 		shouldUseOutputHtml,
 	} from "./agent-tool-execute-state.js";
 	import ToolHeaderLeading from "./tool-header-leading.svelte";
 	import AgentToolDurationLabel from "./agent-tool-duration-label.svelte";
 	import type { ToolDurationTiming } from "./tool-duration.js";
-	import type { AgentToolStatus } from "./types.js";
+	import type { AgentCodeHighlighter, AgentToolStatus } from "./types.js";
 
 	interface Props {
 		command: string | null;
@@ -29,6 +31,10 @@
 		durationTiming?: ToolDurationTiming;
 		/** Pre-highlighted HTML per command segment (e.g. from Shiki). Overrides built-in tokenizer. */
 		commandHtmls?: readonly string[];
+		/** Lazily highlights each command segment; re-run via $derived when highlighter ready flips. */
+		highlightCommand?: AgentCodeHighlighter | null;
+		/** Lazily highlights stdout/stderr with log grammar. */
+		highlightOutput?: AgentCodeHighlighter | null;
 		/** Pre-highlighted HTML for stdout (e.g. Shiki log). When a string, replaces plain stdout. */
 		stdoutHtml?: string | null;
 		/** Pre-highlighted HTML for stderr (e.g. Shiki log). When a string, replaces plain stderr. */
@@ -51,6 +57,8 @@
 		status = "done",
 		durationTiming,
 		commandHtmls,
+		highlightCommand = null,
+		highlightOutput = null,
 		stdoutHtml,
 		stderrHtml,
 		runningLabel = "Executing…",
@@ -64,14 +72,40 @@
 	const isPending = $derived(isExecutePending(status));
 	const isSuccess = $derived(isExecuteSuccess(exitCode));
 	const isError = $derived(isExecuteError(exitCode));
+	const resolvedCommandHtmls = $derived(
+		resolveExecuteCommandHtmls({
+			command,
+			commandHtmls,
+			highlightCommand,
+		})
+	);
+	const resolvedStdoutHtml = $derived(
+		resolveExecuteOutputHtml({
+			text: stdout,
+			precomputed: stdoutHtml,
+			highlight: highlightOutput,
+		})
+	);
+	const resolvedStderrHtml = $derived(
+		resolveExecuteOutputHtml({
+			text: stderr,
+			precomputed: stderrHtml,
+			highlight: highlightOutput,
+		})
+	);
 	const hasOutput = $derived(
-		hasExecuteOutput({ stdout, stderr, stdoutHtml, stderrHtml })
+		hasExecuteOutput({
+			stdout,
+			stderr,
+			stdoutHtml: resolvedStdoutHtml,
+			stderrHtml: resolvedStderrHtml,
+		})
 	);
 	const segments = $derived(getExecuteCommandSegments(command));
 	const fallbackHtmls = $derived(getFallbackCommandHtmls(segments));
-	const useShiki = $derived(shouldUseCommandHtmls(commandHtmls));
+	const useShiki = $derived(shouldUseCommandHtmls(resolvedCommandHtmls));
 	const displayHtmls = $derived(
-		getExecuteDisplayHtmls({ commandHtmls, fallbackHtmls })
+		getExecuteDisplayHtmls({ commandHtmls: resolvedCommandHtmls, fallbackHtmls })
 	);
 	const headerText = $derived(
 		getExecuteHeaderText({
@@ -81,8 +115,8 @@
 		})
 	);
 	const stderrColor = $derived(getExecuteStderrColor(exitCode));
-	const useStdoutShiki = $derived(shouldUseOutputHtml(stdoutHtml));
-	const useStderrShiki = $derived(shouldUseOutputHtml(stderrHtml));
+	const useStdoutShiki = $derived(shouldUseOutputHtml(resolvedStdoutHtml));
+	const useStderrShiki = $derived(shouldUseOutputHtml(resolvedStderrHtml));
 </script>
 
 <AgentToolCard dataTestid="agent-tool-execute-card">
@@ -144,19 +178,19 @@
 				{isExpanded ? 'execute-output-expanded' : 'execute-output-collapsed'}
 				{!isExpanded ? 'cursor-pointer' : ''}"
 		>
-			{#if stdout || stdoutHtml}
+			{#if stdout || resolvedStdoutHtml}
 				{#if useStdoutShiki}
-					<div class="execute-output-shiki">{@html stdoutHtml}</div>
+					<div class="execute-output-shiki">{@html resolvedStdoutHtml}</div>
 				{:else}
 					<pre class="execute-output">{stdout}</pre>
 				{/if}
 			{/if}
-			{#if stderr || stderrHtml}
+			{#if stderr || resolvedStderrHtml}
 				{#if useStderrShiki}
 					<div
 						class="execute-output-shiki execute-output-stderr {stderrColor}"
 					>
-						{@html stderrHtml}
+						{@html resolvedStderrHtml}
 					</div>
 				{:else}
 					<pre class="execute-output {stderrColor}">{stderr}</pre>

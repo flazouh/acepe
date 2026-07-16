@@ -1,18 +1,17 @@
 /**
  * Planning-indicator debug instrumentation (pull-based, dev-only).
  *
- * The agent panel's "Planning next moves…" placeholder is gated by
- * `showPlanningIndicator`, which is true when ANY of three conditions hold (see
- * session-status-mapper.ts:`deriveCanonicalAgentPanelSessionState`):
+ * The agent panel's synthetic waiting row is selected by `localPlaceholderMode`
+ * (see session-status-mapper.ts:`deriveCanonicalAgentPanelSessionState`).
+ * Connection setup uses branded copy, while a ready running turn may expose a
+ * planning candidate that the viewport renders only after a completed tool:
  *
- *   1. hasOptimisticPendingEntry   — a local optimistic user entry is pending
- *   2. hasLocalPendingSendIntent   — the transient pending-send-intent is set
- *   3. activity.kind === "awaiting_model" — canonical activity stuck awaiting model
+ *   1. no canonical session yet with an optimistic pending entry
+ *   2. missing canonical graph with a local pending send intent
+ *   3. reserved/activating/reconnecting lifecycle with a local pending entry
  *
- * When a turn hangs on "Planning" (e.g. an empty/quota-exhausted Cursor turn),
- * we need to know WHICH of the three is stuck so the fix lands at the right
- * layer (canonical Rust vs transient TS). This module lets the controller
- * register a snapshot thunk that reads its live derived values on demand.
+ * This module lets the controller register a snapshot thunk that reads its live
+ * derived values on demand.
  *
  * Nothing is recorded eagerly: the thunk only runs when
  * `window.__acepePlanningSnapshot()` is invoked from the dev WebView (QA CLI).
@@ -20,6 +19,8 @@
  * controller instance, so re-registration overwrites and the footprint is
  * bounded by the number of live panel controllers.
  */
+
+import type { LocalPlaceholderMode } from "../logic/local-placeholder-mode.js";
 
 export interface PlanningDebugSnapshot {
 	readonly sessionId: string | null;
@@ -32,7 +33,8 @@ export interface PlanningDebugSnapshot {
 	readonly pendingSendIntentAttemptId: string | null;
 	readonly hasMessages: boolean;
 	readonly visibleEntryCount: number;
-	readonly showPlanningIndicator: boolean;
+	readonly hasTrailingCompletedTool: boolean;
+	readonly localPlaceholderMode: LocalPlaceholderMode;
 	readonly actionabilityCanSend: boolean | null;
 	readonly sessionCanSubmit: boolean;
 	readonly disableSendForFailedFirstSend: boolean;

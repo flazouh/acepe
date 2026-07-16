@@ -42,4 +42,45 @@ describe("AgentToolExecute", () => {
 			"execute-output-collapsed"
 		);
 	});
+
+	it("renders Shiki command and output html from highlight callbacks", () => {
+		const view = render(AgentToolExecute, {
+			props: {
+				command: "echo hi",
+				stdout: "ok",
+				stderr: "warn",
+				status: "done",
+				exitCode: 0,
+				highlightCommand: (code: string) =>
+					`<span style="color: var(--shiki-light)">${code}</span>`,
+				highlightOutput: (code: string) =>
+					`<span class="line" style="color: var(--shiki-dark)">${code}</span>`,
+			},
+		});
+
+		const commandBlock = view.container.querySelector(".execute-block.shiki");
+		expect(commandBlock?.innerHTML).toContain("--shiki-light");
+		expect(commandBlock?.textContent).toContain("echo hi");
+
+		const stdoutShiki = view.container.querySelector(".execute-output-shiki");
+		expect(stdoutShiki?.innerHTML).toContain("--shiki-dark");
+		expect(stdoutShiki?.textContent).toBe("ok");
+	});
+
+	it("keeps plain fallback when highlight callbacks return null (cap / not ready)", () => {
+		const view = render(AgentToolExecute, {
+			props: {
+				command: "echo hi",
+				stdout: "plain-out",
+				status: "done",
+				exitCode: 0,
+				highlightCommand: () => null,
+				highlightOutput: () => null,
+			},
+		});
+
+		expect(view.container.querySelector(".execute-block.shiki")).toBeNull();
+		expect(view.container.querySelector(".execute-output-shiki")).toBeNull();
+		expect(view.container.querySelector(".execute-output")?.textContent).toBe("plain-out");
+	});
 });

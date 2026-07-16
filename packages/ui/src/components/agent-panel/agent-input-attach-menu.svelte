@@ -4,7 +4,6 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
 
-	import PlusIcon from "../icons/plus-icon.svelte";
 	import { HugeiconsIcon } from "../icons/index.js";
 
 	import * as DropdownMenu from "../dropdown-menu/index.js";
@@ -208,7 +207,7 @@
 	contentClass={selectorPanelContentClass}
 >
 	{#snippet renderButton()}
-		<PlusIcon />
+		<HugeiconsIcon name="plus" size={14} class="size-3.5 shrink-0" />
 	{/snippet}
 
 	<SelectorPanel

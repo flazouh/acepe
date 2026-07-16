@@ -9,7 +9,6 @@
 	import { Button } from "../button/index.js";
 	import { DiffPill } from "../diff-pill/index.js";
 	import { HugeiconsIcon } from "../icons/index.js";
-	import PlusIcon from "../icons/plus-icon.svelte";
 	import { Selector } from "../selector/index.js";
 	import type { SelectorTriggerSize } from "../selector/selector-trigger-classes.js";
 	import { getSelectorTriggerButtonVariant } from "../selector/selector-trigger-classes.js";
@@ -176,7 +175,7 @@
 			disabled={createDisabled}
 			onclick={() => onCreateClick?.()}
 		>
-			<PlusIcon />
+			<HugeiconsIcon name="plus" size={14} />
 		</Button>
 	</ButtonGroup>
 {:else}

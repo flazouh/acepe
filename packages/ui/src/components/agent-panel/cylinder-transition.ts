@@ -1,5 +1,6 @@
 import { cubicIn, cubicOut } from "svelte/easing";
 import type { TransitionConfig } from "svelte/transition";
+import { reducedMotion } from "../../lib/hooks/reduced-motion.svelte.js";
 
 /**
  * Apple-style "cylinder" / drum swap transitions.
@@ -26,20 +27,12 @@ const DEFAULT_DURATION = 340;
 const DEFAULT_ROTATION = 72;
 const DEFAULT_TRAVEL = 38;
 
-function prefersReducedMotion(): boolean {
-	return (
-		typeof window !== "undefined" &&
-		typeof window.matchMedia === "function" &&
-		window.matchMedia("(prefers-reduced-motion: reduce)").matches
-	);
-}
-
 /** New line rolls up from below the drum into resting position. */
 export function cylinderIn(
 	_node: Element,
 	params: CylinderTransitionParams = {}
 ): TransitionConfig {
-	const reduced = prefersReducedMotion();
+	const reduced = reducedMotion.current;
 	const rotation = params.rotation ?? DEFAULT_ROTATION;
 	const travel = params.travel ?? DEFAULT_TRAVEL;
 	return {
@@ -58,7 +51,7 @@ export function cylinderOut(
 	_node: Element,
 	params: CylinderTransitionParams = {}
 ): TransitionConfig {
-	const reduced = prefersReducedMotion();
+	const reduced = reducedMotion.current;
 	const rotation = params.rotation ?? DEFAULT_ROTATION;
 	const travel = params.travel ?? DEFAULT_TRAVEL;
 	return {

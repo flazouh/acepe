@@ -86,7 +86,7 @@ export function resolveToolTitle(
 		return semanticTitle;
 	}
 
-	if (kind === "exit_plan_mode" || kind === "create_plan") {
+	if (kind === "exit_plan_mode" || kind === "create_plan" || kind === "browser") {
 		return semanticTitle;
 	}
 

@@ -6,7 +6,6 @@
 	 * This is a "dumb" component - all data and actions are passed via props.
 	 */
 	import { LoadingIcon, HugeiconsIcon } from '../icons/index.js';
-	import { slide } from 'svelte/transition';
 	import { PillButton } from '../pill-button/index.js';
 	import { RevertIcon } from '../icons/index.js';
 	import TextShimmer from '../text-shimmer/text-shimmer.svelte';
@@ -75,7 +74,7 @@
 	}
 </script>
 
-<div>
+<div class="checkpoint-file-row-root" class:expanded={isDiffExpanded}>
 	<!-- File row matching desktop exactly: gap-1.5, py-0.5, px-1.5, rounded, hover:bg-muted/30 -->
 	<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 	<div
@@ -137,27 +136,43 @@
 	</div>
 
 	<!-- Expanded diff content -->
-	{#if isDiffExpanded}
-		<div
-			class="mt-1 overflow-hidden rounded-lg border border-border/30 bg-card"
-			transition:slide={{ duration: 150 }}
-		>
-			{#if isLoadingDiff}
-				<div class="flex items-center justify-center gap-1.5 py-3 text-[10px] text-muted-foreground">
-					<LoadingIcon size={12} />
-					<span>Loading...</span>
-				</div>
-			{:else if diff}
-				{#if diffContent}
-					{@render diffContent({ diff })}
+	<div class="checkpoint-file-row-expand" aria-hidden={!isDiffExpanded}>
+		<div class="checkpoint-file-row-expand-inner">
+			<div class="mt-1 overflow-hidden rounded-lg border border-border/30 bg-card">
+				{#if isLoadingDiff}
+					<div class="flex items-center justify-center gap-1.5 py-3 text-[10px] text-muted-foreground">
+						<LoadingIcon size={12} />
+						<span>Loading...</span>
+					</div>
+				{:else if diff}
+					{#if diffContent}
+						{@render diffContent({ diff })}
+					{:else}
+						<pre class="m-0 p-2 font-mono text-[10px] leading-relaxed text-foreground/90 overflow-x-auto whitespace-pre">{diff.content}</pre>
+					{/if}
 				{:else}
-					<pre class="m-0 p-2 font-mono text-[10px] leading-relaxed text-foreground/90 overflow-x-auto whitespace-pre">{diff.content}</pre>
+					<div class="p-2 text-[10px] text-muted-foreground text-center italic">
+						No content available
+					</div>
 				{/if}
-			{:else}
-				<div class="p-2 text-[10px] text-muted-foreground text-center italic">
-					No content available
-				</div>
-			{/if}
+			</div>
 		</div>
-	{/if}
+	</div>
 </div>
+
+<style>
+	.checkpoint-file-row-expand {
+		display: grid;
+		grid-template-rows: 0fr;
+		transition: grid-template-rows var(--duration-fast) var(--ease-smooth-out);
+	}
+
+	.checkpoint-file-row-root.expanded .checkpoint-file-row-expand {
+		grid-template-rows: 1fr;
+	}
+
+	.checkpoint-file-row-expand-inner {
+		min-height: 0;
+		overflow: hidden;
+	}
+</style>

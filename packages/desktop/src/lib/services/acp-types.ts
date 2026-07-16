@@ -591,7 +591,7 @@ export type ActiveStreamingTailContentKind = "thought" | "message"
 
 export type ActiveStreamingTail = { rowId: string; contentKind: ActiveStreamingTailContentKind }
 
-export type TranscriptViewportRowKind = "user" | "assistantText" | "assistantThought" | "tool" | "sessionActivity" | "awaitingPlaceholder"
+export type TranscriptViewportRowKind = "user" | "assistantText" | "assistantThought" | "tool" | "sessionActivity"
 
 export type TranscriptViewportOperationDisplayFacts = { operationId: string; toolCallId: string; name: string; title: string; state: OperationState; kind: ToolKind | null; skillName?: string | null; skillArgs?: string | null; taskDescription?: string | null; taskPrompt?: string | null; subagentType?: string | null; normalizedTodos?: TodoItem[] | null; commandSummary?: string | null; targetPathSummary?: string | null; resultSummary?: string | null; errorSummary?: string | null; interactionIds: string[]; parentToolCallId?: string | null; childToolCallIds: string[] }
 

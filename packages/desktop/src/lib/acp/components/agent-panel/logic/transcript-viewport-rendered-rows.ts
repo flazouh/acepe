@@ -1,25 +1,32 @@
 import {
-	rowEstimatePx,
-	type AgentPanelSceneEntryModel,
-	type MessageScrollerItem,
-	type MessageScrollerItemSource,
+  rowEstimatePx,
+  type AgentPanelSceneEntryModel,
+  type MessageScrollerItem,
+  type MessageScrollerItemSource,
 } from "@acepe/ui/agent-panel";
 import type { TranscriptViewportRow } from "../../../../services/acp-types.js";
 import { renderKey } from "../../../store/transcript-rows-store.js";
+import type { LocalPlaceholderRow } from "./local-placeholder-row.js";
+import type {
+	LocalPlaceholderMode,
+	VisibleLocalPlaceholderMode,
+} from "./local-placeholder-mode.js";
+import type { RenderableTranscriptRow } from "./renderable-transcript-row.js";
+import { hasTrailingCompletedTool } from "./transcript-viewport-row-facts.js";
 import {
-	resolveTranscriptViewportSceneEntry,
-	resolveTranscriptViewportSceneEntryCandidate,
+  resolveTranscriptViewportSceneEntry,
+  resolveTranscriptViewportSceneEntryCandidate,
 } from "./transcript-viewport-row-mapper.js";
 
 export type RenderedTranscriptViewportRow = {
-	readonly row: TranscriptViewportRow;
+	readonly row: RenderableTranscriptRow;
 	readonly index: number;
 	readonly entry: AgentPanelSceneEntryModel;
 	readonly localOnly: boolean;
 };
 
 export type RenderableTranscriptViewportRow = MessageScrollerItem & {
-	readonly row: TranscriptViewportRow;
+	readonly row: RenderableTranscriptRow;
 	readonly index: number;
 	readonly localOnly: boolean;
 };
@@ -35,7 +42,7 @@ type RenderableTranscriptViewportRowMetadata = {
 	readonly estimatePx: number;
 	readonly isActiveTail: boolean;
 	readonly anchorEligible: boolean;
-	readonly kind: TranscriptViewportRow["kind"];
+	readonly kind: RenderableTranscriptRow["kind"];
 };
 
 export interface PlanningPlaceholderPresentation {
@@ -47,13 +54,14 @@ export interface PlanningPlaceholderPresentation {
 const LOCAL_OPTIMISTIC_ROW_PREFIX = "local:optimistic:";
 const PLANNING_ROW_ID = "awaiting:planning";
 const PLANNING_ROW_VERSION = "00000000000000000000000000000000";
+const LOCAL_PLANNING_ROW_ESTIMATE_PX = 48;
 const LOCAL_REVIEW_ROW_ID = "local:review";
 
 export function buildRenderableTranscriptViewportRows(input: {
 	readonly bufferRows: readonly TranscriptViewportRow[];
 	readonly bufferStartIndex: number;
 	readonly optimisticUserEntry?: AgentPanelSceneEntryModel | null;
-	readonly showLocalPlanningIndicator: boolean;
+	readonly localPlaceholderMode: LocalPlaceholderMode;
 	readonly syntheticReviewEntry?: AgentPanelSceneEntryModel | null;
 }): readonly RenderableTranscriptViewportRow[] {
 	const renderableRows: RenderableTranscriptViewportRow[] = [];
@@ -88,10 +96,18 @@ export function buildRenderableTranscriptViewportRows(input: {
 		});
 	}
 
-	if (input.showLocalPlanningIndicator && !hasPlanningRow(renderableRows)) {
+	const localPlaceholderMode = input.localPlaceholderMode;
+	if (
+		localPlaceholderMode !== "none" &&
+		shouldAppendLocalPlaceholder({
+			mode: localPlaceholderMode,
+			bufferRows: input.bufferRows,
+			localRows: renderableRows,
+		})
+	) {
 		renderableRows.push(
 			createRenderableTranscriptViewportRow({
-				row: createLocalPlanningRow(),
+				row: createLocalPlanningRow(localPlaceholderMode),
 				index: input.bufferStartIndex + renderableRows.length,
 				localOnly: true,
 			})
@@ -119,7 +135,7 @@ export function createRenderableTranscriptViewportRowSource(input: {
 	readonly bufferRows: readonly TranscriptViewportRow[];
 	readonly bufferStartIndex: number;
 	readonly optimisticUserEntry?: AgentPanelSceneEntryModel | null;
-	readonly showLocalPlanningIndicator: boolean;
+	readonly localPlaceholderMode: LocalPlaceholderMode;
 	readonly syntheticReviewEntry?: AgentPanelSceneEntryModel | null;
 }): RenderableTranscriptViewportRowSource {
 	const localRows = buildLocalRenderableTranscriptViewportRows(input);
@@ -210,12 +226,15 @@ export function createRenderableTranscriptViewportRowSource(input: {
 			}
 			return getBaseMetadata(index)?.rowId ?? null;
 		},
-		getEstimatePx(index: number): number {
-			if (index >= baseLength) {
-				const row = getLocalRow(index)?.row;
-				return rowEstimatePx(row?.kind ?? "assistantText");
-			}
-			return getBaseMetadata(index)?.estimatePx ?? rowEstimatePx("assistantText");
+    getEstimatePx(index: number): number {
+      if (index >= baseLength) {
+        const localRow = getLocalRow(index);
+        if (localRow === undefined) {
+          return rowEstimatePx("assistantText");
+        }
+        return localRow.estimatePx;
+      }
+      return getBaseMetadata(index)?.estimatePx ?? rowEstimatePx("assistantText");
 		},
 		isActiveTail(index: number): boolean {
 			if (index >= baseLength) {
@@ -266,7 +285,7 @@ function buildLocalRenderableTranscriptViewportRows(input: {
 	readonly bufferRows: readonly TranscriptViewportRow[];
 	readonly bufferStartIndex: number;
 	readonly optimisticUserEntry?: AgentPanelSceneEntryModel | null;
-	readonly showLocalPlanningIndicator: boolean;
+	readonly localPlaceholderMode: LocalPlaceholderMode;
 	readonly syntheticReviewEntry?: AgentPanelSceneEntryModel | null;
 }): readonly RenderableTranscriptViewportRow[] {
 	const localRows: RenderableTranscriptViewportRow[] = [];
@@ -287,10 +306,18 @@ function buildLocalRenderableTranscriptViewportRows(input: {
 		});
 	}
 
-	if (input.showLocalPlanningIndicator && !hasPlanningRowInRows(input.bufferRows, localRows)) {
+	const localPlaceholderMode = input.localPlaceholderMode;
+	if (
+		localPlaceholderMode !== "none" &&
+		shouldAppendLocalPlaceholder({
+			mode: localPlaceholderMode,
+			bufferRows: input.bufferRows,
+			localRows,
+		})
+	) {
 		localRows.push(
 			createRenderableTranscriptViewportRow({
-				row: createLocalPlanningRow(),
+				row: createLocalPlanningRow(localPlaceholderMode),
 				index: input.bufferStartIndex + input.bufferRows.length + localRows.length,
 				localOnly: true,
 			})
@@ -339,7 +366,7 @@ export function buildRenderedTranscriptViewportRows(input: {
 	readonly bufferRows: readonly TranscriptViewportRow[];
 	readonly bufferStartIndex: number;
 	readonly optimisticUserEntry?: AgentPanelSceneEntryModel | null;
-	readonly showLocalPlanningIndicator: boolean;
+	readonly localPlaceholderMode: LocalPlaceholderMode;
 	readonly planningPlaceholderPresentation?: PlanningPlaceholderPresentation | null;
 	readonly syntheticReviewEntry?: AgentPanelSceneEntryModel | null;
 }): readonly RenderedTranscriptViewportRow[] {
@@ -347,7 +374,7 @@ export function buildRenderedTranscriptViewportRows(input: {
 		bufferRows: input.bufferRows,
 		bufferStartIndex: input.bufferStartIndex,
 		optimisticUserEntry: input.optimisticUserEntry,
-		showLocalPlanningIndicator: input.showLocalPlanningIndicator,
+		localPlaceholderMode: input.localPlaceholderMode,
 		syntheticReviewEntry: input.syntheticReviewEntry,
 	});
 	const resolveRenderedRow = createRenderedTranscriptViewportRowResolver({
@@ -363,14 +390,20 @@ export function buildRenderedTranscriptViewportRows(input: {
 }
 
 function createRenderableTranscriptViewportRow(input: {
-	readonly row: TranscriptViewportRow;
+	readonly row: RenderableTranscriptRow;
 	readonly index: number;
 	readonly localOnly: boolean;
 }): RenderableTranscriptViewportRow {
 	return {
-		key: renderKey(input.row),
+		key:
+			input.row.kind === "localPlaceholder"
+				? `${input.row.rowId}:${input.row.mode}:${input.row.version}`
+				: renderKey(input.row),
 		rowId: input.row.rowId,
-		estimatePx: rowEstimatePx(input.row.kind),
+		estimatePx:
+			input.localOnly && input.row.rowId === PLANNING_ROW_ID
+				? LOCAL_PLANNING_ROW_ESTIMATE_PX
+				: rowEstimatePx(input.row.kind),
 		isActiveTail: input.row.activeStreamingTail !== null,
 		anchorEligible: input.row.anchorEligible,
 		row: input.row,
@@ -386,8 +419,8 @@ function resolveRenderableTranscriptViewportEntry(input: {
 	readonly syntheticReviewEntry: AgentPanelSceneEntryModel | null;
 }): AgentPanelSceneEntryModel {
 	const row = input.renderable.row;
-	if (input.renderable.localOnly && row.rowId === PLANNING_ROW_ID) {
-		return createLocalPlanningEntry(input.planningPlaceholderPresentation);
+	if (row.kind === "localPlaceholder") {
+		return createLocalPlanningEntry(row.mode, input.planningPlaceholderPresentation);
 	}
 	if (input.syntheticReviewEntry !== null && row.sourceEntryId === input.syntheticReviewEntry.id) {
 		return input.syntheticReviewEntry;
@@ -426,16 +459,32 @@ function buildRepresentedSceneEntryIdsForBuffer(
 	return representedSceneEntryIds;
 }
 
-function hasPlanningRowInRows(
-	bufferRows: readonly TranscriptViewportRow[],
-	localRows: readonly RenderableTranscriptViewportRow[]
-): boolean {
-	for (const row of bufferRows) {
-		if (row.kind === "assistantThought" || row.kind === "awaitingPlaceholder") {
+function shouldAppendLocalPlaceholder(input: {
+	readonly mode: LocalPlaceholderMode;
+	readonly bufferRows: readonly TranscriptViewportRow[];
+	readonly localRows: readonly RenderableTranscriptViewportRow[];
+}): boolean {
+	if (input.mode === "none") {
+		return false;
+	}
+	if (input.mode === "planning_after_tool") {
+		return !hasLocalOptimisticUserRow(input.localRows) && hasTrailingCompletedTool(input.bufferRows);
+	}
+	for (const row of input.bufferRows) {
+		if (row.activeStreamingTail !== null) {
+			return false;
+		}
+	}
+	return !hasLocalPlaceholderRow(input.localRows);
+}
+
+function hasLocalOptimisticUserRow(rows: readonly RenderableTranscriptViewportRow[]): boolean {
+	for (const row of rows) {
+		if (row.localOnly && row.row.kind === "user") {
 			return true;
 		}
 	}
-	return hasPlanningRow(localRows);
+	return false;
 }
 
 function appendLocalOptimisticRow(input: {
@@ -458,6 +507,7 @@ function appendLocalOptimisticRow(input: {
 }
 
 function createLocalPlanningEntry(
+	mode: VisibleLocalPlaceholderMode,
 	presentation: PlanningPlaceholderPresentation | null
 ): AgentPanelSceneEntryModel {
 	return {
@@ -465,7 +515,7 @@ function createLocalPlanningEntry(
 		type: "thinking",
 		durationMs: null,
 		startedAtMs: null,
-		label: presentation?.label ?? null,
+		label: mode === "connection" ? (presentation?.label ?? null) : null,
 		agentIconSrc: presentation?.agentIconSrc ?? null,
 		showWorkingSpark: presentation?.showWorkingSpark ?? false,
 	};
@@ -477,9 +527,9 @@ function isLocalOptimisticUserEntry(
 	return entry.type === "user" && entry.isOptimistic === true;
 }
 
-function hasPlanningRow(rows: readonly RenderableTranscriptViewportRow[]): boolean {
+function hasLocalPlaceholderRow(rows: readonly RenderableTranscriptViewportRow[]): boolean {
 	for (const row of rows) {
-		if (row.row.kind === "assistantThought" || row.row.kind === "awaitingPlaceholder") {
+		if (row.row.kind === "localPlaceholder") {
 			return true;
 		}
 	}
@@ -508,22 +558,17 @@ function createLocalOptimisticUserRow(
 	};
 }
 
-function createLocalPlanningRow(): TranscriptViewportRow {
+function createLocalPlanningRow(
+	mode: VisibleLocalPlaceholderMode
+): LocalPlaceholderRow {
 	return {
 		rowId: PLANNING_ROW_ID,
 		sourceEntryId: PLANNING_ROW_ID,
-		kind: "awaitingPlaceholder",
+		kind: "localPlaceholder",
+		mode,
 		version: PLANNING_ROW_VERSION,
 		anchorEligible: true,
 		activeStreamingTail: null,
-		operationLinks: [],
-		interactionLinks: [],
-		content: {
-			kind: "transcript",
-			role: "assistant",
-			segments: [],
-		},
-		durationStartedAtMs: null,
 	};
 }
 

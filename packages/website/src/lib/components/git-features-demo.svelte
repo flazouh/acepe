@@ -11,7 +11,7 @@ import {
 	type GitRemoteStatus,
 } from "@acepe/ui";
 
-const ICON_BASE_PATH = "hugeicons";
+const ICON_BASE_PATH = "/svgs/icons";
 
 const allFiles: GitStatusFile[] = [
 	{

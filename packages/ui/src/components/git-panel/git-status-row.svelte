@@ -7,7 +7,6 @@
 	Purely presentational: props + callbacks only. No stores, Tauri, or app policy.
 -->
 <script lang="ts">
-	import PlusIcon from "../icons/plus-icon.svelte";
 	import { HugeiconsIcon } from "../icons/index.js";
 
 	import { Button } from "../button/index.js";
@@ -122,7 +121,7 @@
 			onclick={() => onPrimary(file.path)}
 		>
 			{#snippet children()}
-				{#if kind === "staged"}<HugeiconsIcon name="minus" />{:else}<PlusIcon />{/if}
+				{#if kind === "staged"}<HugeiconsIcon name="minus" size={12} class="size-3" />{:else}<HugeiconsIcon name="plus" size={12} class="size-3" />{/if}
 			{/snippet}
 		</Button>
 	</span>

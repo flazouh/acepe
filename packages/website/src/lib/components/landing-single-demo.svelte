@@ -26,7 +26,6 @@ import {
 	type AppProjectGroup,
 	type AppTab,
 } from "@acepe/ui/app-layout";
-import { PlusIcon } from "@acepe/ui";
 import { ProjectLetterBadge } from "@acepe/ui";
 import { CloseAction, FullscreenAction, OverflowMenuTriggerAction } from "@acepe/ui/panel-header";
 
@@ -226,7 +225,7 @@ const favoriteModels = $derived(
 													</Button>
 													<Button variant="ghost" size="icon" aria-label="New session">
 														{#snippet children()}
-															<PlusIcon />
+															<HugeiconsIcon name="plus" size={16} />
 														{/snippet}
 													</Button>
 												</div>
@@ -260,7 +259,7 @@ const favoriteModels = $derived(
 					<div class="flex-1 min-w-0 min-h-0 overflow-hidden">
 						<AgentPanelScene
 							{scene}
-							iconBasePath="hugeicons"
+							iconBasePath="/svgs/icons"
 							widthStyle="min-width: 0; width: 100%; max-width: 100%;"
 						>
 							{#snippet headerControls()}

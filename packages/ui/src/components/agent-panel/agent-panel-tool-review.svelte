@@ -15,7 +15,7 @@
 		onReview?: (event: AgentPanelReviewActionEvent) => void;
 	}
 
-	let { entry, iconBasePath = "", onReview }: Props = $props();
+	let { entry, iconBasePath = "/svgs/icons", onReview }: Props = $props();
 
 	const files = $derived(entry.reviewFiles ?? []);
 	const fileCountLabel = $derived(files.length === 1 ? "1 file" : `${files.length} files`);

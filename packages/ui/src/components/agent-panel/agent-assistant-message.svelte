@@ -88,7 +88,7 @@ let {
 	timestampMs,
 	streamingAnimationMode = "smooth",
 	initiallyCollapsed,
-	iconBasePath = "",
+	iconBasePath = "/svgs/icons",
 	planningStartedAtMs = null,
 	showWorkingSpark = false,
 	renderBlock,

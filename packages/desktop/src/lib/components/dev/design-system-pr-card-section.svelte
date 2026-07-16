@@ -1,7 +1,18 @@
 <script lang="ts">
-	import { AgentPanelPrCard, PrChecksList, PrChecksSummary } from "@acepe/ui";
+	import {
+		AgentPanelPrCard,
+		BrowserNavActions,
+		GitCommitHeader,
+		GitPrHeader,
+		KanbanScenePrFooter,
+		PrChecksList,
+		PrChecksSummary,
+		type GitCommitData,
+		type GitPrData,
+	} from "@acepe/ui";
 
 	import CiJobModal from "$lib/acp/components/pr-status-card/ci-job-modal.svelte";
+	import GitHubBadge from "$lib/acp/components/github-badge.svelte";
 	import { Badge } from "$lib/components/ui/badge/index.js";
 	import SettingRow from "$lib/components/settings-page/setting-row.svelte";
 	import SettingsSection from "$lib/components/settings-page/settings-section.svelte";
@@ -33,6 +44,25 @@
 	function prCardSpecimenDescription(specimen: PrCardSpecimen): string {
 		return specimen.caption;
 	}
+
+	const externalPrHeaderSpecimen: GitPrData = {
+		number: 42,
+		title: "Land Linear external navigation icons",
+		author: "alex",
+		state: "open",
+		files: [],
+		githubUrl: "https://github.com/flazouh/acepe/pull/42",
+	};
+
+	const externalCommitHeaderSpecimen: GitCommitData = {
+		sha: "3773ee3670000000000000000000000000000000",
+		shortSha: "3773ee3",
+		message: "Land Linear external navigation icons",
+		author: "alex",
+		date: "2026-07-12",
+		files: [],
+		githubUrl: "https://github.com/flazouh/acepe/commit/3773ee367",
+	};
 </script>
 
 <div class="w-full">
@@ -67,6 +97,63 @@
 				initiallyExpanded={featuredPrCardSpecimen.initiallyExpanded ?? false}
 				initiallyExpandedChecks={featuredPrCardSpecimen.initiallyExpandedChecks ?? false}
 			/>
+		</div>
+	</SettingsSection>
+
+	<SettingsSection
+		title="External navigation icons"
+		description="GitHub and PR external-open controls use the open-in-new-window icon."
+	>
+		<div class="grid gap-3 lg:grid-cols-2">
+			<div class="rounded-lg border border-border/50 bg-input/30 p-2">
+				<GitPrHeader
+					pr={externalPrHeaderSpecimen}
+					onViewOnGitHub={() => {}}
+				/>
+			</div>
+			<div class="rounded-lg border border-border/50 bg-input/30 p-2">
+				<GitCommitHeader
+					commit={externalCommitHeaderSpecimen}
+					onViewOnGitHub={() => {}}
+				/>
+			</div>
+			<div class="rounded-lg border border-border/50 bg-input/30 p-2 lg:col-span-2">
+				<KanbanScenePrFooter
+					prNumber={42}
+					prState="OPEN"
+					title="Land Linear external navigation icons"
+					url="https://github.com/flazouh/acepe/pull/42"
+					additions={12}
+					deletions={3}
+					isLoading={false}
+					hasResolvedDetails={true}
+					checks={[]}
+					isChecksLoading={false}
+					hasResolvedChecks={true}
+					onOpen={() => {}}
+					onOpenExternal={() => {}}
+				/>
+			</div>
+			<div class="rounded-lg border border-border/50 bg-input/30 p-2 lg:col-span-2">
+				<div class="flex items-center gap-2">
+					<span class="text-sm text-muted-foreground">GitHub badge action</span>
+					<GitHubBadge
+						ref={{ type: "commit", owner: "flazouh", repo: "acepe", sha: "3773ee3" }}
+						projectPath="/tmp/acepe-design-system"
+					/>
+				</div>
+			</div>
+			<div class="rounded-lg border border-border/50 bg-input/30 p-2 lg:col-span-2">
+				<div class="flex items-center gap-2">
+					<span class="text-sm text-muted-foreground">Browser header action</span>
+					<BrowserNavActions
+						showNavigation={false}
+						showExternal={true}
+						openExternalLabel="Open in browser"
+						onOpenExternal={() => {}}
+					/>
+				</div>
+			</div>
 		</div>
 	</SettingsSection>
 
@@ -156,6 +243,7 @@
 			<div>
 				<button
 					type="button"
+					data-testid="open-ci-job-modal-specimen"
 					class="rounded-md border border-border bg-input/40 px-3 py-1.5 text-sm font-medium transition-colors hover:bg-accent"
 					onclick={() => {
 						ciModalOpen = true;

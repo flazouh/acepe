@@ -55,7 +55,7 @@ const durationTiming = $derived({
 	{children}
 	status={agentStatus}
 	showDoneIcon={toolStatus.isSuccess}
-	iconBasePath="hugeicons"
+	iconBasePath="/svgs/icons"
 	{durationTiming}
 	runningFallback={m.tool_task_running_fallback()}
 	doneFallback={m.tool_task_fallback()}

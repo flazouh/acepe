@@ -1,5 +1,5 @@
 <script lang="ts">
-import { PlusIcon } from "@acepe/ui";
+import { HugeiconsIcon } from "@acepe/ui";
 import SkillsPage from "$lib/skills/components/skills-page.svelte";
 
 let skillsPageRef: ReturnType<typeof SkillsPage> | undefined = $state();
@@ -12,7 +12,7 @@ let skillsPageRef: ReturnType<typeof SkillsPage> | undefined = $state();
 			class="flex items-center gap-1 text-[12px] font-medium text-muted-foreground transition-colors hover:text-foreground"
 			onclick={() => skillsPageRef?.openCreateDialog()}
 		>
-			<PlusIcon />
+			<HugeiconsIcon name="plus" size={14} />
 			New Skill
 		</button>
 	</div>

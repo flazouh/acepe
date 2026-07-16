@@ -75,7 +75,7 @@ let {
 	>
 		<AgentPanelConversationEntry
 			entry={rendered.entry}
-			iconBasePath="hugeicons"
+			iconBasePath="/svgs/icons"
 			{editToolTheme}
 			{projectPath}
 			{streamingAnimationMode}

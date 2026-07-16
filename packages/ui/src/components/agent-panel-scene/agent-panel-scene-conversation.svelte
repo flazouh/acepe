@@ -9,7 +9,7 @@
 		editToolTheme?: EditToolTheme;
 	}
 
-	let { conversation, iconBasePath = "", editToolTheme }: Props = $props();
+	let { conversation, iconBasePath = "/svgs/icons", editToolTheme }: Props = $props();
 
 </script>
 

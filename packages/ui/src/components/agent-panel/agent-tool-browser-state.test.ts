@@ -4,9 +4,13 @@ import {
 	buildBrowserToolDetailsPreview,
 	buildBrowserToolScriptPreview,
 	countBrowserToolLines,
+	getBrowserScriptLines,
 	hasBrowserToolDetails,
 	isBrowserToolScriptCollapsible,
 	normalizeBrowserToolScript,
+	resolveBrowserScriptBody,
+	resolveBrowserScriptHtml,
+	shouldUseBrowserScriptHtml,
 } from "./agent-tool-browser-state.js";
 
 describe("agent tool browser state", () => {
@@ -65,5 +69,68 @@ describe("agent tool browser state", () => {
 			})
 		).toBe("abcdefghij...");
 		expect(buildBrowserToolDetailsPreview({ detailsText: "   " })).toBeNull();
+	});
+
+	it("splits scripts into body lines and recovers code from a misplaced subtitle", () => {
+		expect(getBrowserScriptLines("a\nb\n")).toEqual(["a", "b"]);
+		expect(getBrowserScriptLines("  ")).toEqual([]);
+		expect(
+			resolveBrowserScriptBody({
+				scriptText: null,
+				subtitle: "(() => document.body)",
+			})
+		).toBe("(() => document.body)");
+		expect(
+			resolveBrowserScriptBody({
+				scriptText: "explicit()",
+				subtitle: "(() => document.body)",
+			})
+		).toBe("explicit()");
+		expect(
+			resolveBrowserScriptBody({
+				scriptText: null,
+				subtitle: "click button",
+			})
+		).toBe("");
+	});
+
+	it("resolves script html via highlight callback once ready", () => {
+		let ready = false;
+		const highlightScript = (code: string): string | null => {
+			if (!ready) return null;
+			return `<span style="color: var(--shiki-light)">${code}</span>`;
+		};
+
+		expect(
+			resolveBrowserScriptHtml({
+				scriptText: "(() => 1)",
+				highlightScript,
+			})
+		).toBeNull();
+
+		ready = true;
+		const html = resolveBrowserScriptHtml({
+			scriptText: "(() => 1)",
+			highlightScript,
+		});
+		expect(html).toContain("--shiki-light");
+		expect(shouldUseBrowserScriptHtml(html)).toBe(true);
+		expect(shouldUseBrowserScriptHtml(null)).toBe(false);
+	});
+
+	it("prefers precomputed scriptHtml and skips capped highlight results", () => {
+		expect(
+			resolveBrowserScriptHtml({
+				scriptText: "(() => 1)",
+				scriptHtml: "<span>baked</span>",
+				highlightScript: () => "<span>live</span>",
+			})
+		).toBe("<span>baked</span>");
+		expect(
+			resolveBrowserScriptHtml({
+				scriptText: "huge",
+				highlightScript: () => null,
+			})
+		).toBeNull();
 	});
 });

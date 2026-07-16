@@ -11,7 +11,6 @@
 
 import {
 	anchorCorrectionPx,
-	computeSendAnchorSpacerPx,
 	type ScrollAction,
 	type ScrollMetrics,
 	type StickState,
@@ -98,11 +97,8 @@ export type StickToBottomParams = {
 	readonly readScrollMetrics?: () => ScrollMetrics;
 	/** Topmost tracked row while released — drives anchor-preserving correction. */
 	readonly resolveAnchor?: ResolveAnchor;
-	/** Row content-top resolver for the on-send anchor-near-top action. */
+	/** Row content-top resolver for opening history at a saved row. */
 	readonly resolveRowTop?: ResolveRowTop;
-	/** Optional trailing spacer used to make a send anchor become max-scroll. */
-	readonly getBottomSpacerPx?: () => number;
-	readonly setBottomSpacerPx?: (heightPx: number) => void;
 	/** Notified whenever follow/unread state changes (e.g. to drive the unread pill). */
 	readonly onStateChange?: (state: StickState) => void;
 	/** Notified whenever top/bottom edge state may have changed. */
@@ -118,6 +114,8 @@ export type StickToBottomParams = {
 	readonly observeContentResize?: boolean;
 	/** Optional gate for resize callbacks, useful when scrolling changes mounted content. */
 	readonly shouldNotifyContentResize?: () => boolean;
+	/** Invalidates component-owned reading anchors before send reacquires the live edge. */
+	readonly onBeforeSend?: () => void;
 	/** Coalesce scroll bookkeeping to one frame for virtualized, large-list scrolling. */
 	readonly coalesceScrollHandling?: boolean;
 	/** Optional live coalescing lookup for controllers that outlive source changes. */
@@ -143,7 +141,6 @@ const PROGRAMMATIC_SUPPRESS_MS = 120;
  */
 const INTENT_DECAY_MS = 150;
 const UPWARD_INTENT_DECAY_MS = 700;
-const SPACER_WRITE_THRESHOLD_PX = 0.5;
 const COALESCED_SCROLL_TIMEOUT_MS = 50;
 
 const PAGING_KEYS = new Set([
@@ -161,10 +158,8 @@ export type StickToBottomController = {
 	getState(): StickState;
 	/** Re-pin to the live edge and clear unread (the "jump to latest" affordance). */
 	jumpToLatest(): void;
-	/** On send: anchor the sent row near the top but keep following the reply. */
-	onSend(rowId: string, peekPx: number): void;
-	/** Turn lifecycle signal for collapsing the send spacer at terminal state. */
-	setSendAnchorActive(active: boolean): void;
+	/** On send: reacquire the live edge and follow the submitted turn. */
+	onSend(): void;
 	/** Opening history: anchor a row near the top and preserve that reading position. */
 	openAt(rowId: string, peekPx: number): void;
 	/** Move to the first row and release follow, matching the header scroll action. */
@@ -199,10 +194,9 @@ export function createStickToBottomController(
 	let interactingUntil = 0;
 	let upwardInteractingUntil = 0;
 	let lastScrollTop = scrollEl.scrollTop;
-	let prevContentHeightWithoutSendSpacer = contentHeightWithoutSendSpacer();
+	let previousContentHeight = readCurrentScrollMetrics().scrollHeight;
 	let anchorBaselineTopPx: number | null = null;
-	let sendAnchor: { readonly rowId: string; readonly peekPx: number } | null =
-		null;
+	let pendingAttachedSendFollow = false;
 	let lastEmittedEdgeState: EdgeState | null = null;
 	let pendingScrollFrame: number | null = null;
 	let pendingScrollTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -223,10 +217,14 @@ export function createStickToBottomController(
 	}
 
 	function armIntent(): void {
+		pendingAttachedSendFollow = false;
+		suppressReleaseUntil = 0;
 		interactingUntil = now() + INTENT_DECAY_MS;
 	}
 
 	function armUpwardIntent(): void {
+		pendingAttachedSendFollow = false;
+		suppressReleaseUntil = 0;
 		const t = now();
 		interactingUntil = t + INTENT_DECAY_MS;
 		upwardInteractingUntil = t + UPWARD_INTENT_DECAY_MS;
@@ -263,48 +261,6 @@ export function createStickToBottomController(
 		emitEdgeState(metrics);
 	}
 
-	function readBottomSpacerPx(): number {
-		return params.getBottomSpacerPx?.() ?? 0;
-	}
-
-	function contentHeightWithoutSendSpacer(metrics?: ScrollMetrics): number {
-		return Math.max(
-			0,
-			(metrics ?? readCurrentScrollMetrics()).scrollHeight - readBottomSpacerPx(),
-		);
-	}
-
-	function setBottomSpacerPx(heightPx: number): void {
-		const nextHeightPx = Math.max(0, heightPx);
-		if (
-			Math.abs(readBottomSpacerPx() - nextHeightPx) <= SPACER_WRITE_THRESHOLD_PX
-		) {
-			return;
-		}
-		params.setBottomSpacerPx?.(nextHeightPx);
-	}
-
-	function refreshSendSpacer(): void {
-		const metrics = readCurrentScrollMetrics();
-		if (sendAnchor === null) {
-			setBottomSpacerPx(0);
-			return;
-		}
-		const rowTopPx = params.resolveRowTop?.(sendAnchor.rowId) ?? null;
-		if (rowTopPx === null) {
-			setBottomSpacerPx(0);
-			return;
-		}
-		setBottomSpacerPx(
-			computeSendAnchorSpacerPx({
-				viewportHeightPx: metrics.clientHeight,
-				contentHeightWithoutSpacerPx: contentHeightWithoutSendSpacer(metrics),
-				rowTopPx,
-				peekPx: sendAnchor.peekPx,
-			}),
-		);
-	}
-
 	function captureAnchorBaseline(): void {
 		anchorBaselineTopPx = state.released
 			? (params.resolveAnchor?.()?.topPx ?? null)
@@ -327,12 +283,14 @@ export function createStickToBottomController(
 		if (moved) {
 			markProgrammatic();
 		}
-		prevContentHeightWithoutSendSpacer = contentHeightWithoutSendSpacer(metrics);
+		previousContentHeight = metrics.scrollHeight;
 		lastScrollTop = scrollEl.scrollTop;
 		recordPhase(`stick-to-bottom.apply.${action.kind}`, startedAtMs);
 	}
 
 	function releaseForUserIntent(): void {
+		pendingAttachedSendFollow = false;
+		suppressReleaseUntil = 0;
 		const metrics = readCurrentScrollMetrics();
 		emit({ released: true, hasUnreadBelow: state.hasUnreadBelow }, metrics);
 		captureAnchorBaseline();
@@ -368,6 +326,7 @@ export function createStickToBottomController(
 		const userInteracting = t < interactingUntil;
 		const ourOwnScroll = t < suppressReleaseUntil;
 		if (userInteracting && !ourOwnScroll) {
+			pendingAttachedSendFollow = false;
 			if (movedUp) {
 				// Keep the window alive through inertial/momentum travel.
 				interactingUntil = t + INTENT_DECAY_MS;
@@ -428,10 +387,10 @@ export function createStickToBottomController(
 
 	function notifyContentChanged(): void {
 		const startedAtMs = now();
-		refreshSendSpacer();
 		const metrics = readCurrentScrollMetrics();
 		const hasUpwardIntent = now() < upwardInteractingUntil;
 		if (!state.released && hasUpwardIntent) {
+			pendingAttachedSendFollow = false;
 			emit({ released: true, hasUnreadBelow: state.hasUnreadBelow }, metrics);
 			captureAnchorBaseline();
 		} else if (
@@ -439,11 +398,17 @@ export function createStickToBottomController(
 			!isAtBottom(metrics, threshold) &&
 			now() < interactingUntil
 		) {
+			pendingAttachedSendFollow = false;
 			emit({ released: true, hasUnreadBelow: state.hasUnreadBelow }, metrics);
 			captureAnchorBaseline();
 		}
-		const totalGrowthPx =
-			contentHeightWithoutSendSpacer(metrics) - prevContentHeightWithoutSendSpacer;
+		const totalGrowthPx = metrics.scrollHeight - previousContentHeight;
+		if (
+			pendingAttachedSendFollow &&
+			(state.released || Math.abs(totalGrowthPx) > 0.5)
+		) {
+			pendingAttachedSendFollow = false;
+		}
 		const anchorNowTop = state.released
 			? (params.resolveAnchor?.()?.topPx ?? null)
 			: null;
@@ -461,7 +426,7 @@ export function createStickToBottomController(
 		if (anchorNowTop !== null) {
 			anchorBaselineTopPx = anchorNowTop;
 		}
-		prevContentHeightWithoutSendSpacer = contentHeightWithoutSendSpacer(metrics);
+		previousContentHeight = metrics.scrollHeight;
 		recordPhase("stick-to-bottom.notify-content-changed", startedAtMs);
 	}
 
@@ -471,27 +436,15 @@ export function createStickToBottomController(
 		emit(result.state);
 	}
 
-	function onSend(rowId: string, peekPx: number): void {
-		sendAnchor = { rowId, peekPx };
-		refreshSendSpacer();
-		const result = onSendState(state, rowId, peekPx);
+	function onSend(): void {
+		params.onBeforeSend?.();
+		interactingUntil = 0;
+		upwardInteractingUntil = 0;
+		pendingAttachedSendFollow = true;
+		const result = onSendState(state);
 		apply(result.action);
 		emit(result.state);
 		anchorBaselineTopPx = null;
-	}
-
-	function setSendAnchorActive(active: boolean): void {
-		if (active || sendAnchor === null) {
-			return;
-		}
-		sendAnchor = null;
-		setBottomSpacerPx(0);
-		if (!state.released) {
-			apply({ kind: "toBottom" });
-			emit(state);
-			return;
-		}
-		prevContentHeightWithoutSendSpacer = contentHeightWithoutSendSpacer();
 	}
 
 	function openAt(rowId: string, peekPx: number): void {
@@ -512,7 +465,7 @@ export function createStickToBottomController(
 		if (scrollEl.scrollTop !== before) {
 			markProgrammatic();
 		}
-		prevContentHeightWithoutSendSpacer = contentHeightWithoutSendSpacer();
+		previousContentHeight = readCurrentScrollMetrics().scrollHeight;
 		lastScrollTop = scrollEl.scrollTop;
 		emit({ released: true, hasUnreadBelow: false });
 		captureAnchorBaseline();
@@ -566,9 +519,22 @@ export function createStickToBottomController(
 	const observer =
 		hasResizeObserver && shouldObserveContentResize
 			? new ResizeObserver(() => {
-					if (params.shouldNotifyContentResize?.() ?? true) {
-						notifyContentChanged();
+					const metrics = readCurrentScrollMetrics();
+					const pendingSendHeightChanged =
+						pendingAttachedSendFollow &&
+						!state.released &&
+						Math.abs(metrics.scrollHeight - previousContentHeight) > 0.5;
+					if (!pendingSendHeightChanged) {
+						const shouldNotifyContentResize = params.shouldNotifyContentResize;
+						if (
+							shouldNotifyContentResize !== undefined &&
+							!shouldNotifyContentResize()
+						) {
+							return;
+						}
 					}
+					pendingAttachedSendFollow = false;
+					notifyContentChanged();
 				})
 			: null;
 	observer?.observe(content);
@@ -578,7 +544,6 @@ export function createStickToBottomController(
 		getState: () => state,
 		jumpToLatest,
 		onSend,
-		setSendAnchorActive,
 		openAt,
 		scrollToTop,
 		notifyContentChanged,

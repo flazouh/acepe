@@ -356,14 +356,11 @@ export {
 	LayoutModeIcon,
 	PullRequestStatusIcon,
 	LoadingIcon,
-	MenuIcon,
 	PaletteIcon,
 	PlanIcon,
-	PlusIcon,
 	RecycleIcon,
 	RevertIcon,
 	RobotIcon,
-	SaveIcon,
 	StorageIcon,
 	WrenchIcon,
 	XLogoIcon,
@@ -561,6 +558,8 @@ export {
 } from "./lib/file-icon/index.js";
 // Icon context
 export { getIconBasePath, setIconConfig } from "./lib/icon-context.js";
+// Shared reduced-motion signal (single matchMedia + change listener)
+export { reducedMotion } from "./lib/hooks/reduced-motion.svelte.js";
 // Thinking preferences context
 export {
 	getThinkingPreferences,

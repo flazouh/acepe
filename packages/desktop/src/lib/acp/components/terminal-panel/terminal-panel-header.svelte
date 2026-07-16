@@ -10,7 +10,6 @@ import {
 	ProjectLetterBadge,
 	HugeiconsIcon,
 } from "@acepe/ui";
-import { PlusIcon } from "@acepe/ui";
 import type { TerminalTab } from "$lib/acp/store/types.js";
 import {
 	canShowCloseTerminalTabAction,
@@ -241,7 +240,7 @@ function handleFullscreenToggle() {
 				onclick={onNewTab}
 			>
 				{#snippet children()}
-					<PlusIcon />
+					<HugeiconsIcon name="plus" size={14} />
 				{/snippet}
 			</Button>
 		{/if}

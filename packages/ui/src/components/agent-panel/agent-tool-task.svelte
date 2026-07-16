@@ -54,7 +54,7 @@
 		showDoneIcon = false,
 		compact = false,
 		durationTiming,
-		iconBasePath = "",
+		iconBasePath = "/svgs/icons",
 		editToolTheme,
 		runningFallback = "Running task…",
 		doneFallback = "Task",

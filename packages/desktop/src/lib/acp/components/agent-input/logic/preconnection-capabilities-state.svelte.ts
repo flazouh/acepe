@@ -18,6 +18,10 @@ interface GetCapabilitiesInput {
 	preconnectionCapabilityMode: ProviderMetadataProjection["preconnectionCapabilityMode"];
 }
 
+interface EnsureLoadedOptions {
+	readonly force?: boolean;
+}
+
 interface StartupGlobalCapabilitiesAgent {
 	readonly id: string;
 	readonly providerMetadata?: ProviderMetadataProjection;
@@ -101,13 +105,30 @@ export class PreconnectionCapabilitiesState {
 			: tauriClient.acp.listPreconnectionCapabilities;
 	}
 
-	ensureLoaded(input: EnsureLoadedInput): ResultAsync<void, AppError> {
+	ensureLoaded(
+		input: EnsureLoadedInput,
+		options: EnsureLoadedOptions = {}
+	): ResultAsync<void, AppError> {
 		const cacheKey = buildCacheKey(
 			input.agentId,
 			input.projectPath,
 			input.preconnectionCapabilityMode
 		);
 		const existingRequest = cacheKey ? inFlightByKey.get(cacheKey) : undefined;
+		if (existingRequest && cacheKey && options.force) {
+			return existingRequest
+				.map(() => undefined)
+				.orElse(() => okAsync(undefined))
+				.andThen(() => {
+					capabilitiesByKey.delete(cacheKey);
+					inFlightByKey.delete(cacheKey);
+					loadingByKey.delete(cacheKey);
+					if (this.loadingCacheKey === cacheKey) {
+						this.loadingCacheKey = null;
+					}
+					return this.ensureLoaded(input, { force: true });
+				});
+		}
 		if (existingRequest && cacheKey) {
 			this.loadingCacheKey = cacheKey;
 			return existingRequest
@@ -122,6 +143,10 @@ export class PreconnectionCapabilitiesState {
 					}
 					return error;
 				});
+		}
+
+		if (cacheKey && options.force) {
+			capabilitiesByKey.delete(cacheKey);
 		}
 
 		const alreadyLoaded = cacheKey ? capabilitiesByKey.has(cacheKey) : false;

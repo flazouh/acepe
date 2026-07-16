@@ -32,29 +32,47 @@
 	const fallbackColor = TAG_COLORS.length > 0 ? TAG_COLORS[0] : "#FF5D5A";
 	const resolvedColor = $derived(projectColor ? projectColor : fallbackColor);
 	const resolvedIconSrc = $derived(projectIconSrc);
+	const badgeSizePx = 16;
 </script>
 
-<div class="shrink-0 flex items-center {SIDEBAR_PROJECT_HEADER_PADDING_X_CLASS} transition-colors hover:bg-accent/30 {className}">
-	<div class="inline-flex items-center justify-center h-7 shrink-0">
-		<ProjectLetterBadge
-			name={displayName}
-			label={projectBadgeLabel}
-			color={resolvedColor}
-			iconSrc={resolvedIconSrc}
-			size={16}
-		/>
+<div
+	class="group shrink-0 flex items-center {SIDEBAR_PROJECT_HEADER_PADDING_X_CLASS} transition-colors hover:bg-accent/30 {className}"
+	data-testid="project-header"
+>
+	<!-- Fixed badge-sized surface: icon and expand chevron share the same 16×16 slot. -->
+	<div
+		class="relative inline-flex size-4 shrink-0 items-center justify-center"
+		data-testid="project-header-leading"
+		aria-hidden="true"
+	>
+		<span
+			class="absolute inset-0 flex items-center justify-center transition-opacity duration-150 group-hover:opacity-0 group-focus-within:opacity-0"
+			data-testid="project-header-badge"
+		>
+			<ProjectLetterBadge
+				name={displayName}
+				label={projectBadgeLabel}
+				color={resolvedColor}
+				iconSrc={resolvedIconSrc}
+				size={badgeSizePx}
+			/>
+		</span>
+		<span
+			class="absolute inset-0 flex items-center justify-center text-muted-foreground opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+			data-testid="project-header-chevron"
+		>
+			<HugeiconsIcon
+				name="chevron-right"
+				size={badgeSizePx}
+				class="size-4 shrink-0 transition-transform duration-150 {expanded ? 'rotate-90' : ''}"
+			/>
+		</span>
 	</div>
 	<div
 		class="flex items-center flex-1 min-w-0 h-7 pl-1.5 cursor-pointer transition-colors"
 	>
 		<span class="truncate font-normal text-foreground transition-colors">
 			{displayName}
-		</span>
-		<span
-			class="ml-1 inline-flex shrink-0 items-center text-muted-foreground/60 opacity-0 transition-opacity duration-150 group-hover:opacity-100"
-		>
-			<HugeiconsIcon name="chevron-right" class="size-3 shrink-0 transition-transform duration-150 {expanded ? 'rotate-90' : ''}"
-			/>
 		</span>
 	</div>
 	{#if actions}

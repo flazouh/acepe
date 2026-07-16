@@ -298,25 +298,6 @@ describe("transcript-viewport-row-mapper", () => {
 		});
 	});
 
-	it("maps awaiting placeholder rows to thinking entries", () => {
-		const row = {
-			rowId: "awaiting-1",
-			sourceEntryId: "awaiting-1",
-			kind: "awaitingPlaceholder",
-			version: 1,
-			content: { kind: "placeholder" },
-			operationLinks: [],
-			activeStreamingTail: null,
-			durationStartedAtMs: 1_700_000_000_000,
-		} as unknown as TranscriptViewportRow;
-		expect(resolveTranscriptViewportSceneEntry(row)).toEqual({
-			id: "awaiting-1",
-			type: "thinking",
-			durationMs: null,
-			startedAtMs: 1_700_000_000_000,
-		});
-	});
-
 	it("maps streaming assistant rows to planning duration anchors", () => {
 		const row = {
 			rowId: "assistant-1",
@@ -437,6 +418,8 @@ describe("transcript-viewport-row-mapper", () => {
 			stdout: "ok",
 			presentationState: "resolved",
 			degradedReason: null,
+			highlightCommand: expect.any(Function),
+			highlightOutput: expect.any(Function),
 		});
 		expect(entry.title).not.toBe("Tool");
 		expect(entry.command).not.toBe("exec_command");

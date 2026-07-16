@@ -1,5 +1,5 @@
 <script lang="ts">
-import { BrandLockup, DiscordIcon, MenuIcon, HugeiconsIcon, XLogoIcon } from "@acepe/ui";
+import { BrandLockup, DiscordIcon, HugeiconsIcon, XLogoIcon } from "@acepe/ui";
 import { page } from "$app/stores";
 import { Drawer, DrawerContent, DrawerOverlay, DrawerPortal, DrawerTrigger } from "@acepe/ui";
 
@@ -121,7 +121,7 @@ const mobileNavLinkClass =
 					class="inline-flex h-11 min-h-11 w-11 min-w-11 items-center justify-center rounded-full bg-card/70 text-foreground transition-colors hover:bg-card"
 					aria-label={"Open menu"}
 				>
-					<MenuIcon class="h-5 w-5" />
+					<HugeiconsIcon name="menu" size={20} class="h-5 w-5" />
 				</DrawerTrigger>
 				<DrawerPortal>
 					<DrawerOverlay />

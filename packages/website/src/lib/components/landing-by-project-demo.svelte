@@ -28,7 +28,6 @@ import {
 } from "@acepe/ui/app-layout";
 import { CloseAction, FullscreenAction, OverflowMenuTriggerAction } from "@acepe/ui/panel-header";
 import { ProjectCard } from "@acepe/ui/project-card";
-import { PlusIcon } from "@acepe/ui";
 import type { AgentPanelSceneModel } from "@acepe/ui";
 
 import LandingDemoFrame from "./landing-demo-frame.svelte";
@@ -667,7 +666,7 @@ const favoriteModels = $derived(modelGroups.flatMap((g) => g.items.filter((i) =>
 													</Button>
 													<Button variant="ghost" size="icon" aria-label="New session">
 														{#snippet children()}
-															<PlusIcon />
+															<HugeiconsIcon name="plus" size={16} />
 														{/snippet}
 													</Button>
 												</div>
@@ -782,7 +781,7 @@ const favoriteModels = $derived(modelGroups.flatMap((g) => g.items.filter((i) =>
 					<div class="flex-1 min-w-0 min-h-0 overflow-hidden">
 					<AgentPanelScene
 						scene={activePanel.scene}
-						iconBasePath="hugeicons"
+						iconBasePath="/svgs/icons"
 						widthStyle="min-width: 0; width: 100%; max-width: 100%;"
 					>
 						{#snippet headerControls()}

@@ -79,10 +79,8 @@ let {
 }: Props = $props();
 
 let contentEl: HTMLElement | undefined = $state();
-let bottomSpacerEl: HTMLElement | undefined = $state();
 let controller: StickToBottomController | undefined;
 let viewportResizeObserver: ResizeObserver | null = null;
-let bottomSpacerPx = $state(0);
 let scrollTopPx = $state(0);
 let scrollDirection: "backward" | "forward" | "none" = $state("none");
 let viewportHeightPx = $state(DEFAULT_VIEWPORT_HEIGHT_PX);
@@ -93,10 +91,12 @@ let viewportScrollActive = $state(false);
 let viewportScrollSettleTimer: ReturnType<typeof setTimeout> | null = null;
 let lastVisibleRangeSignature: string | null = null;
 let lastSourceAnchorSignature: string | null = null;
+let sourceAnchorEpoch = 0;
 let pendingSourceChangeAnchor = $state<{
 	readonly rowId: string;
 	readonly viewportOffsetPx: number;
 	readonly signature: string;
+	readonly epoch: number;
 } | null>(null);
 const measuredHeightsByIndex = new Map<number, MessageScrollerMeasuredHeight>();
 const pendingMeasuredHeightsByIndex = new Map<
@@ -203,7 +203,7 @@ const virtualWindow = $derived.by(() => {
 });
 const virtualizedContentHeightPx = $derived(
 	isVirtualized
-		? safeVirtualLeadingSpacePx + virtualWindow.totalPx + bottomSpacerPx
+		? safeVirtualLeadingSpacePx + virtualWindow.totalPx
 		: null,
 );
 
@@ -242,7 +242,7 @@ function sourceAnchorSignature(): string {
 }
 
 function shouldPreserveSourceChangeAnchor(viewport: HTMLElement): boolean {
-	if (!isVirtualized) {
+	if (!isVirtualized || controller?.getState().released !== true) {
 		return false;
 	}
 	const distanceFromBottom =
@@ -289,12 +289,15 @@ function applyPendingSourceChangeAnchor(input: {
 	readonly rowId: string;
 	readonly viewportOffsetPx: number;
 	readonly signature: string;
+	readonly epoch: number;
 	readonly clearWhenDone: boolean;
 }): void {
 	if (
 		pendingSourceChangeAnchor === null ||
 		pendingSourceChangeAnchor.signature !== input.signature ||
-		input.signature !== sourceAnchorSignature()
+		input.signature !== sourceAnchorSignature() ||
+		input.epoch !== sourceAnchorEpoch ||
+		controller?.getState().released !== true
 	) {
 		return;
 	}
@@ -316,6 +319,11 @@ function applyPendingSourceChangeAnchor(input: {
 	if (input.clearWhenDone) {
 		pendingSourceChangeAnchor = null;
 	}
+}
+
+function invalidatePendingSourceChangeAnchor(): void {
+	sourceAnchorEpoch += 1;
+	pendingSourceChangeAnchor = null;
 }
 
 function readViewportGeometry(
@@ -381,6 +389,7 @@ $effect.pre(() => {
 					rowId: anchor.rowId,
 					viewportOffsetPx: anchor.viewportOffsetPx,
 					signature,
+					epoch: sourceAnchorEpoch,
 				};
 	lastSourceAnchorSignature = signature;
 });
@@ -395,6 +404,7 @@ $effect(() => {
 			rowId: anchor.rowId,
 			viewportOffsetPx: anchor.viewportOffsetPx,
 			signature: anchor.signature,
+			epoch: anchor.epoch,
 			clearWhenDone: false,
 		});
 	});
@@ -402,9 +412,10 @@ $effect(() => {
 		requestAnimationFrame(() => {
 			applyPendingSourceChangeAnchor({
 				rowId: anchor.rowId,
-				viewportOffsetPx: anchor.viewportOffsetPx,
-				signature: anchor.signature,
-				clearWhenDone: true,
+					viewportOffsetPx: anchor.viewportOffsetPx,
+					signature: anchor.signature,
+					epoch: anchor.epoch,
+					clearWhenDone: true,
 			});
 		});
 		return;
@@ -414,6 +425,7 @@ $effect(() => {
 			rowId: anchor.rowId,
 			viewportOffsetPx: anchor.viewportOffsetPx,
 			signature: anchor.signature,
+			epoch: anchor.epoch,
 			clearWhenDone: true,
 		});
 	}, 0);
@@ -621,19 +633,6 @@ function resolveAnchor(): { rowId: string; topPx: number } | null {
 	);
 }
 
-function setBottomSpacerPx(heightPx: number): void {
-	measureAgentPanelPerformance(
-		profileRecorder,
-		{ phase: "message-scroller.set-bottom-spacer", itemCount },
-		() => {
-			bottomSpacerPx = heightPx;
-			if (bottomSpacerEl) {
-				bottomSpacerEl.style.height = `${heightPx}px`;
-			}
-		},
-	);
-}
-
 function attachController(node: HTMLElement): { destroy(): void } {
 	const firstChild = node.firstElementChild;
 	const contentNode =
@@ -655,11 +654,10 @@ function attachController(node: HTMLElement): { destroy(): void } {
 		}),
 		resolveAnchor,
 		resolveRowTop,
-		getBottomSpacerPx: () => bottomSpacerPx,
-		setBottomSpacerPx,
 		getProfileRecorder: () => profileRecorder,
 		shouldCoalesceScrollHandling: () => isVirtualized,
 		shouldNotifyContentResize: () => itemCount <= VIRTUALIZATION_ROW_THRESHOLD,
+		onBeforeSend: invalidatePendingSourceChangeAnchor,
 		onStateChange: (state) => {
 			onFollowStateChange?.(state);
 		},
@@ -708,8 +706,8 @@ function attachController(node: HTMLElement): { destroy(): void } {
 			style:height={virtualizedContentHeightPx === null ? undefined : `${virtualizedContentHeightPx}px`}
 			bind:this={contentEl}
 		>
-			<!-- Keyed by canonical row key so sliding the virtual window moves surviving rows instead of rebinding every row shell. -->
-			{#each virtualWindow.items as item, windowItemOffset (item.key)}
+			<!-- Keyed by canonical row identity so version updates refresh content without replacing the row shell. -->
+			{#each virtualWindow.items as item, windowItemOffset (item.rowId)}
 				{@const itemIndex = virtualWindow.startIndex + windowItemOffset}
 				{@const measuredHeightPx = measuredHeightForItem(item.key, itemIndex)}
 				{@const rowEstimatePx = measuredHeightPx ?? item.estimatePx}
@@ -737,13 +735,6 @@ function attachController(node: HTMLElement): { destroy(): void } {
 					</MessageScrollerItem>
 				</div>
 			{/each}
-			{#if !isVirtualized}
-				<div
-					class="message-scroller__send-anchor-spacer"
-					bind:this={bottomSpacerEl}
-					aria-hidden="true"
-				></div>
-			{/if}
 		</div>
 	</div>
 </div>
@@ -808,12 +799,6 @@ function attachController(node: HTMLElement): { destroy(): void } {
 	.message-scroller__row-shell.is-virtualized > :global(*) {
 		width: 100%;
 		max-width: 100%;
-	}
-
-	.message-scroller__send-anchor-spacer {
-		flex: 0 0 auto;
-		height: 0;
-		pointer-events: none;
 	}
 
 	.message-scroller__viewport::-webkit-scrollbar {

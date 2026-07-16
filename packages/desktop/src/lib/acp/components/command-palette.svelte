@@ -1,6 +1,7 @@
 <script lang="ts">
 import * as Kbd from "$lib/components/ui/kbd/index.js";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
+import { HugeiconsIcon } from "@acepe/ui";
 import { TIMING } from "../constants/timing.js";
 import type { UseCommandPalette } from "../hooks/use-command-palette.svelte.js";
 
@@ -121,11 +122,21 @@ const filteredCommands = $derived(commandPalette.getFilteredCommands());
 					onclick={handleSelect}
 					onmouseenter={() => commandPalette.selectIndex(index)}
 				>
-					<Icon
-						class="h-3.5 w-3.5 shrink-0 transition-all {isSelected
-							? '-rotate-3 text-primary'
-							: 'text-muted-foreground group-hover:-rotate-3 group-hover:text-primary'}"
-					/>
+					{#if command.iconName}
+						<HugeiconsIcon
+							name={command.iconName}
+							size={14}
+							class="h-3.5 w-3.5 shrink-0 transition-all {isSelected
+								? '-rotate-3 text-primary'
+								: 'text-muted-foreground group-hover:-rotate-3 group-hover:text-primary'}"
+						/>
+					{:else if Icon}
+						<Icon
+							class="h-3.5 w-3.5 shrink-0 transition-all {isSelected
+								? '-rotate-3 text-primary'
+								: 'text-muted-foreground group-hover:-rotate-3 group-hover:text-primary'}"
+						/>
+					{/if}
 					<span class="flex-1">{command.label}</span>
 					{#if index < 9}
 						<Kbd.Root>{index + 1}</Kbd.Root>

@@ -153,6 +153,9 @@ export type AgentSourceHighlighter = (
 	filePath: string | null | undefined
 ) => string | null;
 
+/** Highlights a single code string (command segment, output stream, or script body). */
+export type AgentCodeHighlighter = (code: string) => string | null;
+
 export interface AgentToolEntry {
 	id: string;
 	type: "tool_call";
@@ -164,6 +167,10 @@ export interface AgentToolEntry {
 	subtitle?: string;
 	detailsText?: string | null;
 	scriptText?: string | null;
+	/** Lazily highlights browser execute-js script bodies when Shiki is ready. */
+	highlightScript?: AgentCodeHighlighter | null;
+	/** Optional pre-highlighted HTML for browser script (tests / overrides). */
+	scriptHtml?: string | null;
 	/** Populated for `kind === "edit"` from session tool arguments (drives {@link AgentToolEdit}). */
 	editDiffs?: readonly AgentToolEditDiffEntry[];
 	/** Populated for the local review affordance shown after a turn finishes. */
@@ -180,8 +187,14 @@ export interface AgentToolEntry {
 	// Execute-specific
 	command?: string | null;
 	commandHtmls?: readonly string[];
+	/** Lazily highlights each command segment when Shiki is ready (survives ready-race). */
+	highlightCommand?: AgentCodeHighlighter | null;
+	/** Lazily highlights stdout/stderr with the log grammar when Shiki is ready. */
+	highlightOutput?: AgentCodeHighlighter | null;
 	stdout?: string | null;
 	stderr?: string | null;
+	stdoutHtml?: string | null;
+	stderrHtml?: string | null;
 	exitCode?: number;
 	// Search-specific
 	query?: string | null;

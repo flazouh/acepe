@@ -88,7 +88,6 @@ function measureItem(node: HTMLElement) {
 -->
 <div
 	class={["message-scroller-item", isActiveTail && "is-active-tail"]}
-	style:--cv-estimate-px="{estimatePx}px"
 	data-row-id={rowId}
 	data-row-index={itemIndex}
 	data-cv-estimate-px={estimatePx}

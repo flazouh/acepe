@@ -41,7 +41,7 @@
 		slug,
 		content,
 		onClose,
-		iconBasePath = "",
+		iconBasePath = "/svgs/icons",
 		class: className,
 		headerActions,
 		contentRenderer,

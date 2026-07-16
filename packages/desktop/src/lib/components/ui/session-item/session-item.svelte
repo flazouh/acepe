@@ -656,7 +656,9 @@ function handleNextQuestion() {
 
 <div
 	bind:this={rowElement}
-	class="group relative z-10 flex cursor-pointer items-stretch gap-1 overflow-hidden py-0"
+	class="group relative z-10 flex cursor-pointer items-stretch gap-1 overflow-hidden py-0 transition-opacity {isOpen
+		? 'opacity-100'
+		: 'opacity-55'}"
 	style="padding-left: {paddingLeft}; padding-right: {paddingLeft}"
 	data-session-id={session.id}
 	onpointerenter={(e) => {

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { Button, Input, PlusIcon, HugeiconsIcon, SaveIcon } from "@acepe/ui";
+import { Button, Input, HugeiconsIcon } from "@acepe/ui";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 
 interface EnvRow {
@@ -190,7 +190,7 @@ function handleSave(): void {
 
 		<div class="flex justify-end">
 			<Button variant="outline" size="sm" onclick={addRow}>
-				<PlusIcon />
+				<HugeiconsIcon name="plus" size={14} />
 				Add variable
 			</Button>
 		</div>
@@ -226,7 +226,7 @@ function handleSave(): void {
 						</Button>
 					</div>
 					<Button type="button" variant="outline" size="icon" onclick={addRow}>
-						<PlusIcon />
+						<HugeiconsIcon name="plus" size={14} />
 					</Button>
 					<Button type="button" variant="outline" size="icon" onclick={() => removeRow(row.id)}>
 						<HugeiconsIcon name="trash" class="h-3.5 w-3.5" />
@@ -246,7 +246,7 @@ function handleSave(): void {
 
 	{#snippet footer()}
 		<Button variant="default" size="sm" onclick={handleSave}>
-			<SaveIcon class="size-3" data-testid="env-overrides-save-icon" />
+			<HugeiconsIcon name="save" size={12} class="size-3" data-testid="env-overrides-save-icon" />
 			Save
 		</Button>
 	{/snippet}

@@ -44,7 +44,7 @@ interface Props {
 
 let {
 	entry,
-	iconBasePath = "",
+	iconBasePath = "/svgs/icons",
 	editToolTheme,
 	projectPath,
 	streamingAnimationMode = "smooth",

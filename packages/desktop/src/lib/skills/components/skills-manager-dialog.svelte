@@ -1,5 +1,5 @@
 <script lang="ts">
-import { PlusIcon } from "@acepe/ui";
+import { HugeiconsIcon } from "@acepe/ui";
 import { Button } from "$lib/components/ui/button/index.js";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 
@@ -23,7 +23,7 @@ let skillsPageRef: ReturnType<typeof SkillsPage> | undefined = $state();
 >
 	{#snippet topRight()}
 		<Button variant="outline" size="sm" onclick={() => skillsPageRef?.openCreateDialog()}>
-			<PlusIcon />
+			<HugeiconsIcon name="plus" size={14} />
 			New Skill
 		</Button>
 	{/snippet}

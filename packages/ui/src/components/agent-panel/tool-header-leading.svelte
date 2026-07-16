@@ -14,7 +14,7 @@
 	let { kind, status = "done", class: className = "", children }: Props = $props();
 </script>
 
-<div class={`flex items-center gap-2 min-w-0 ${className}`.trim()}>
+<div class={`flex shrink-0 items-center gap-2 ${className}`.trim()}>
 	{#if kind !== undefined}
 		<ToolKindIcon {kind} {status} size={13} />
 	{/if}

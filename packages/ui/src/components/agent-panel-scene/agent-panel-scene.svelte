@@ -36,7 +36,7 @@ import AgentPanelFooter from "../agent-panel/agent-panel-footer.svelte";
 		scene,
 		actionCallbacks = {},
 		onComposerDraftTextChange,
-		iconBasePath = "",
+		iconBasePath = "/svgs/icons",
 		widthStyle = "",
 		centerColumnStyle = "",
 		editToolTheme,

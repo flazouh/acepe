@@ -21,6 +21,8 @@
 	import { prCardSectionMeta } from "./design-system-pr-card-specimens.js";
 	import DesignSystemReviewWorkspaceSection from "./design-system-review-workspace-section.svelte";
 	import { reviewWorkspaceSectionMeta } from "./design-system-review-workspace-specimens.js";
+	import DesignSystemSkillsSection from "./design-system-skills-section.svelte";
+	import { skillsSectionMeta } from "./design-system-skills-specimens.js";
 	import DesignSystemTaskToolSection from "./design-system-task-tool-section.svelte";
 	import { taskToolSectionMeta } from "./design-system-task-tool-specimens.js";
 	import DesignSystemUpdateCardSection from "./design-system-update-card-section.svelte";
@@ -41,6 +43,7 @@
 		| "new-thread-options"
 		| "pr-card"
 		| "review-workspace"
+		| "skills"
 		| "task-tool"
 		| "update-card";
 
@@ -53,6 +56,7 @@
 		{ id: "new-thread-options", label: newThreadOptionsSectionMeta.title },
 		{ id: "pr-card", label: prCardSectionMeta.title },
 		{ id: "review-workspace", label: reviewWorkspaceSectionMeta.title },
+		{ id: "skills", label: skillsSectionMeta.title },
 		{ id: "task-tool", label: taskToolSectionMeta.title },
 		{ id: "update-card", label: updateCardSectionMeta.title },
 	];
@@ -66,6 +70,7 @@
 		"new-thread-options": newThreadOptionsSectionMeta,
 		"pr-card": prCardSectionMeta,
 		"review-workspace": reviewWorkspaceSectionMeta,
+		skills: skillsSectionMeta,
 		"task-tool": taskToolSectionMeta,
 		"update-card": updateCardSectionMeta,
 	} as const;
@@ -83,6 +88,7 @@
 		if (sectionId === "new-thread-options") return "new-chat";
 		if (sectionId === "pr-card") return "pull-request";
 		if (sectionId === "review-workspace") return "review";
+		if (sectionId === "skills") return "skills";
 		if (sectionId === "task-tool") return "tasks";
 		if (sectionId === "update-card") return "download";
 		return null;
@@ -166,6 +172,8 @@
 					<DesignSystemPrCardSection />
 				{:else if activeSection === "review-workspace"}
 					<DesignSystemReviewWorkspaceSection />
+				{:else if activeSection === "skills"}
+					<DesignSystemSkillsSection />
 				{:else if activeSection === "task-tool"}
 					<DesignSystemTaskToolSection />
 				{:else if activeSection === "update-card"}

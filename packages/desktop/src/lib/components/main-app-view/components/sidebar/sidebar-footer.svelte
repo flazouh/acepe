@@ -1,5 +1,5 @@
 <script lang="ts">
-import { Button, DiscordIcon, HugeiconsIcon, XLogoIcon } from "@acepe/ui";
+import { Button, HugeiconsIcon } from "@acepe/ui";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { onMount } from "svelte";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
@@ -70,7 +70,7 @@ const releaseUrl = $derived(
 			onclick={() => openUrl("https://github.com/flazouh/acepe")}
 		>
 			{#snippet children()}
-				<HugeiconsIcon name="github" />
+				<HugeiconsIcon name="github-filled" size={16} filled />
 			{/snippet}
 		</Button>
 		<Button
@@ -80,7 +80,7 @@ const releaseUrl = $derived(
 			onclick={() => openUrl("https://x.com/acepedotdev")}
 		>
 			{#snippet children()}
-				<XLogoIcon />
+				<HugeiconsIcon name="twitter-filled" size={16} filled />
 			{/snippet}
 		</Button>
 		<Button
@@ -90,7 +90,7 @@ const releaseUrl = $derived(
 			onclick={() => openUrl("https://discord.gg/5YhW7T7qhS")}
 		>
 			{#snippet children()}
-				<DiscordIcon weight="fill" />
+				<HugeiconsIcon name="discord-filled" size={16} filled />
 			{/snippet}
 		</Button>
 		{#if updateButtonModel}

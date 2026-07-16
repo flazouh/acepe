@@ -5,9 +5,6 @@ import type { CommandPaletteState } from "../../types/command-palette-state.js";
 
 import { CommandPaletteManager } from "../command-palette-manager.js";
 
-// Mock icon shape; the manager only needs a component reference here.
-const mockIcon = {} as import("svelte").ComponentType;
-
 describe("CommandPaletteManager", () => {
 	const manager = new CommandPaletteManager();
 
@@ -15,7 +12,7 @@ describe("CommandPaletteManager", () => {
 		{
 			id: "create-thread",
 			label: "Create new thread",
-			icon: mockIcon,
+			iconName: "plus",
 		},
 	];
 

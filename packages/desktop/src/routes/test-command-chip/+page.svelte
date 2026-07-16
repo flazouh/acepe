@@ -8,7 +8,7 @@ import {
 	AgentInputMicButton,
 	AgentInputModeIcon,
 	AgentInputAgentSelector,
-	DefaultAgentHeartIcon,
+	DefaultAgentPinIcon,
 	AgentPanelPreSessionWorktreeCard,
 	AgentPanelSignInCard,
 	AgentPanelPermissionBarIcon,
@@ -721,7 +721,7 @@ const commandPaletteItems: CommandPaletteItem[] = [
 			</span>
 		{/each}
 	</div>
-	<div class="w-[260px] border border-border/40 p-2" data-testid="agent-selector-heart-fixture">
+	<div class="w-[260px] border border-border/40 p-2" data-testid="agent-selector-default-fixture">
 		<AgentInputAgentSelector
 			availableAgents={agentSelectorAgents}
 			currentAgentId="claude"
@@ -737,13 +737,13 @@ const commandPaletteItems: CommandPaletteItem[] = [
 	</div>
 	<div
 		class="flex w-[120px] items-center gap-3 border border-border/40 p-2 text-muted-foreground"
-		data-testid="default-agent-heart-icon-fixture"
+		data-testid="default-agent-pin-icon-fixture"
 	>
-		<span class="text-red-500">
-			<DefaultAgentHeartIcon filled={true} />
+		<span>
+			<DefaultAgentPinIcon active={true} />
 		</span>
 		<span>
-			<DefaultAgentHeartIcon />
+			<DefaultAgentPinIcon />
 		</span>
 	</div>
 	<div class="w-[420px] border border-border/40 p-2" data-testid="command-palette-icon-fixture">

@@ -20,6 +20,11 @@ export function getReadSourceHighlighter(
 	return bashHighlighter.highlightSource;
 }
 
+/** Browser execute-js scripts are JS/TS — reuse source highlighting with a synthetic .ts path. */
+export function getBrowserScriptHighlighter(): (code: string) => string | null {
+	return (code: string) => bashHighlighter.highlightSource(code, "browser-script.ts");
+}
+
 export function getReadSourceRangeLabel(toolCall: ToolCall): string | null {
 	if (toolCall.arguments.kind !== "read") {
 		return null;

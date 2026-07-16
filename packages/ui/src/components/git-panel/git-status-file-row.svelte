@@ -3,7 +3,6 @@
 	 * GitStatusFileRow — Single file row in the git status list.
 	 * Shows status icon, filename, DiffPill, and hover action buttons.
 	 */
-	import PlusIcon from "../icons/plus-icon.svelte";
 	import { FileStatusIcon, HugeiconsIcon, type FileStatusIconKind } from "../icons/index.js";
 
 	import { DiffPill } from "../diff-pill/index.js";
@@ -160,7 +159,7 @@
 					title="Stage file"
 					onclick={() => onStage?.(path)}
 				>
-					<PlusIcon />
+					<HugeiconsIcon name="plus" size={12} class="size-3" />
 				</button>
 			{/if}
 			{#if onDiscard}

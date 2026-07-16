@@ -24,7 +24,7 @@
 		entry,
 		variant,
 		durationTiming,
-		iconBasePath = "",
+		iconBasePath = "/svgs/icons",
 		onToolFileSelect,
 	}: Props = $props();
 

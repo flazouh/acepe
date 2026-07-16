@@ -7,6 +7,7 @@ import type { SessionStatus } from "../../../application/dto/session-status";
 import { mapCanonicalTurnStateToPresentationStatus } from "../../../store/canonical-turn-state-mapping.js";
 import type { TurnState } from "../../../store/types.js";
 import type { SessionStatusUI } from "../types";
+import type { LocalPlaceholderMode } from "./local-placeholder-mode.js";
 
 export interface CanonicalSessionPresentationStatusInput {
 	readonly lifecycle: SessionGraphLifecycle | null | undefined;
@@ -35,19 +36,14 @@ export interface CanonicalAgentPanelSessionStateInput {
 	readonly hasEntries?: boolean;
 	readonly hasOptimisticPendingEntry?: boolean;
 	readonly hasLocalPendingSendIntent?: boolean;
-	/**
-	 * Canonical "the model is producing output" signal (message text OR reasoning
-	 * is streaming). Once true, the turn is no longer *awaiting* the model, so the
-	 * "Planning next moves" placeholder must not render beneath the streaming row.
-	 */
-	readonly hasActiveStreamingTail?: boolean;
+	readonly hasTrailingCompletedTool: boolean;
 }
 
 export interface CanonicalAgentPanelSessionState {
 	readonly sessionStatus: SessionStatusUI;
 	readonly isConnected: boolean;
 	readonly isStreaming: boolean;
-	readonly showPlanningIndicator: boolean;
+	readonly localPlaceholderMode: LocalPlaceholderMode;
 	readonly canSubmit: boolean;
 	readonly showStop: boolean;
 }
@@ -207,7 +203,7 @@ export function deriveCanonicalAgentPanelSessionState(
 			sessionStatus: hasPendingSessionStart ? "warming" : "error",
 			isConnected: false,
 			isStreaming: false,
-			showPlanningIndicator: hasPendingSessionStart,
+			localPlaceholderMode: hasPendingSessionStart ? "connection" : "none",
 			canSubmit: false,
 			showStop: false,
 		};
@@ -218,7 +214,8 @@ export function deriveCanonicalAgentPanelSessionState(
 			sessionStatus: input.hasOptimisticPendingEntry === true ? "warming" : "empty",
 			isConnected: false,
 			isStreaming: false,
-			showPlanningIndicator: input.hasOptimisticPendingEntry === true,
+			localPlaceholderMode:
+				input.hasOptimisticPendingEntry === true ? "connection" : "none",
 			canSubmit: false,
 			showStop: false,
 		};
@@ -229,11 +226,26 @@ export function deriveCanonicalAgentPanelSessionState(
 	const hasCanonicalError =
 		input.source.lifecycle.status === "failed" || effectiveTurnState === "Failed";
 	const isBusy = hasCanonicalError ? false : isCanonicalBusy(effectiveActivity, effectiveTurnState);
-	const showPlanningIndicator =
+	const isConnecting =
+		input.source.lifecycle.status === "reserved" ||
+		input.source.lifecycle.status === "activating" ||
+		input.source.lifecycle.status === "reconnecting";
+	let localPlaceholderMode: LocalPlaceholderMode = "none";
+	if (
 		!hasCanonicalError &&
-		(input.hasOptimisticPendingEntry === true ||
-			input.hasLocalPendingSendIntent === true ||
-			(effectiveActivity?.kind === "awaiting_model" && input.hasActiveStreamingTail !== true));
+		isConnecting &&
+		(input.hasOptimisticPendingEntry === true || input.hasLocalPendingSendIntent === true)
+	) {
+		localPlaceholderMode = "connection";
+	} else if (
+		!hasCanonicalError &&
+		input.source.lifecycle.status === "ready" &&
+		effectiveActivity?.kind === "awaiting_model" &&
+		effectiveTurnState === "Running" &&
+		input.hasTrailingCompletedTool
+	) {
+		localPlaceholderMode = "planning_after_tool";
+	}
 	const baseStatus = mapCanonicalSessionToPanelStatus({
 		lifecycle: input.source.lifecycle,
 		activity: effectiveActivity,
@@ -247,7 +259,7 @@ export function deriveCanonicalAgentPanelSessionState(
 		sessionStatus,
 		isConnected: input.source.lifecycle.status === "ready",
 		isStreaming: isBusy,
-		showPlanningIndicator,
+		localPlaceholderMode,
 		canSubmit:
 			input.hasLocalPendingSendIntent === true
 				? false

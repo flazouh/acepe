@@ -27,7 +27,6 @@ export {
 	type PullRequestStatusKind,
 } from "./pull-request-status-icon.js";
 export { default as LoadingIcon } from "./loading-icon.svelte";
-export { default as MenuIcon } from "./menu-icon.svelte";
 export { default as PaletteIcon } from "./palette-icon.svelte";
 export {
 	DEFAULT_LOADING_ICON_COLOR_ID,
@@ -39,11 +38,9 @@ export {
 	type LoadingIconColorId,
 } from "./loading-icon-preferences.svelte.js";
 export { default as PlanIcon } from "./plan-icon.svelte";
-export { default as PlusIcon } from "./plus-icon.svelte";
 export { default as RecycleIcon } from "./recycle-icon.svelte";
 export { default as RevertIcon } from "./revert-icon.svelte";
 export { default as RobotIcon } from "./robot-icon.svelte";
-export { default as SaveIcon } from "./save-icon.svelte";
 export { default as StorageIcon } from "./storage-icon.svelte";
 export { default as WrenchIcon } from "./wrench-icon.svelte";
 export { default as XLogoIcon } from "./x-logo-icon.svelte";

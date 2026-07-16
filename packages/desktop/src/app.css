@@ -255,17 +255,6 @@
 	color: var(--shiki-dark);
 }
 
-/* Waiting indicator animations */
-@keyframes blink {
-	0%,
-	100% {
-		opacity: 1;
-	}
-	50% {
-		opacity: 0;
-	}
-}
-
 @layer base {
 	button:not(:disabled) {
 		cursor: pointer;
@@ -354,33 +343,16 @@
 	background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
-/* Shared list item animations */
-@keyframes fadeSlideIn {
-	from {
-		opacity: 0;
-		transform: translateY(-4px);
-	}
-	to {
-		opacity: 1;
-		transform: translateY(0);
-	}
-}
-
-@keyframes cardSlideIn {
-	from {
-		opacity: 0;
-		transform: translateY(-8px);
-	}
-	to {
-		opacity: 1;
-		transform: translateY(0);
-	}
-}
-
-/* Respect reduced motion preferences for list animations */
+/* Global reduced-motion backstop: kills any animation/transition duration that
+   isn't already gated by a bespoke reduced-motion guard. Bespoke guards (e.g.
+   text-shimmer, animate-number) still take precedence where they exist because
+   they do more than stop the animation (they also swap layout/paint state). */
 @media (prefers-reduced-motion: reduce) {
-	[style*="fadeSlideIn"],
-	[style*="cardSlideIn"] {
-		animation: none !important;
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
 	}
 }

@@ -9,11 +9,17 @@ import {
 	type AgentUserFileSelectEvent,
 	type AgentToolFileSelectEvent,
 } from "@acepe/ui/agent-panel";
-import { DiffPill, HugeiconsIcon, setThinkingPreferences, type PrChecksItem } from "@acepe/ui";
+import {
+	DiffPill,
+	HugeiconsIcon,
+	reducedMotion,
+	setThinkingPreferences,
+	type PrChecksItem,
+} from "@acepe/ui";
 import { Button } from "@acepe/ui/button";
 import * as ButtonGroup from "@acepe/ui/button-group";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { onDestroy, onMount, tick } from "svelte";
+import { onDestroy, tick } from "svelte";
 import { toast } from "svelte-sonner";
 import type { TurnState } from "../../../store/types.js";
 import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
@@ -162,7 +168,7 @@ recordPanelOpenPerformanceMark(panelId, "agent-panel:props");
 
 const logger = createLogger({ id: "agent-panel-render-trace", name: "AgentPanelRenderTrace" });
 let lastPanelTraceSignature = $state<string | null>(null);
-let prefersReducedMotion = $state(false);
+const prefersReducedMotion = $derived(reducedMotion.current);
 const DEFERRED_COMPOSER_FALLBACK_MS = 250;
 
 function isAgentPanelRenderTraceEnabled(): boolean {
@@ -304,22 +310,6 @@ setThinkingPreferences({
 			!chatPreferencesStore.thinkingBlockCollapsedByDefault
 		);
 	},
-});
-
-onMount(() => {
-	const mediaQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)") ?? null;
-	if (mediaQuery === null) {
-		prefersReducedMotion = false;
-		return;
-	}
-	const updateReducedMotion = (event: MediaQueryList | MediaQueryListEvent): void => {
-		prefersReducedMotion = event.matches;
-	};
-	updateReducedMotion(mediaQuery);
-	mediaQuery.addEventListener("change", updateReducedMotion);
-	return () => {
-		mediaQuery.removeEventListener("change", updateReducedMotion);
-	};
 });
 
 // ============================================================
@@ -1842,7 +1832,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 						sceneEntries={tokenRevealSceneEntries}
 						optimisticUserEntry={sessionController.optimisticUserEntryForViewport}
 						{pendingUserRevealRequestKey}
-						showLocalPlanningIndicator={sessionController.showPlanningIndicator}
+						localPlaceholderMode={sessionController.localPlaceholderMode}
 						sessionProjectPath={effectiveProjectPath ?? sessionController.sessionProjectPath}
 						{allProjects}
 						onProjectSelected={handleProjectSelected}
@@ -1963,6 +1953,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 								<AgentSelector
 									{availableAgents}
 									currentAgentId={effectivePanelAgentId}
+									projectPath={worktreeToggleProjectPath}
 									{onAgentChange}
 									showLabel
 								/>

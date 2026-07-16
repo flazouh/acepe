@@ -2,6 +2,7 @@
 	import { onMount } from "svelte";
 	import type { Snippet } from "svelte";
 
+	import { reducedMotion as reducedMotionQuery } from "../../lib/hooks/reduced-motion.svelte.js";
 	import type { KanbanSceneCardData, KanbanScenePlacement } from "./kanban-scene-types.js";
 	import type { SectionedFeedSectionId } from "../attention-queue/types.js";
 	import type { KanbanBoardColumnLayout } from "./kanban-board-layout.js";
@@ -30,7 +31,7 @@ let { layout, cardRenderer, emptyHint, ghostRenderer, columnHeaderActions }: Pro
 let scrollElement = $state<HTMLDivElement | null>(null);
 let boardElement = $state<HTMLDivElement | null>(null);
 let overlays = $state<readonly KanbanBoardMotionOverlayState[]>([]);
-let reducedMotion = $state(false);
+const reducedMotion = $derived(reducedMotionQuery.current);
 let animatingCardIds = $state<ReadonlySet<string>>(new Set());
 
 const lastKnownPositions = new Map<string, { placement: KanbanScenePlacement; rect: KanbanBoardRect }>();
@@ -341,7 +342,6 @@ onMount(() => {
 		return;
 	}
 
-	const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
 	const hostMutationObserver = new MutationObserver((mutations) => {
 		console.log(`[kanban-motion] MutationObserver fired, ${mutations.length} mutation(s)`);
 		for (const mutation of mutations) {
@@ -388,12 +388,6 @@ onMount(() => {
 			});
 		}
 	});
-	const updateReducedMotion = (): void => {
-		reducedMotion = mediaQuery.matches;
-	};
-
-	updateReducedMotion();
-	mediaQuery.addEventListener("change", updateReducedMotion);
 	if (boardElement) {
 		hostMutationObserver.observe(boardElement, {
 			subtree: true,
@@ -412,7 +406,6 @@ onMount(() => {
 			cancelDeferredMeasurement(cardId);
 		}
 		hostMutationObserver.disconnect();
-		mediaQuery.removeEventListener("change", updateReducedMotion);
 	};
 });
 </script>

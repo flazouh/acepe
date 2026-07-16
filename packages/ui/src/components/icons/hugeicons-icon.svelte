@@ -8,6 +8,11 @@
 	interface Props {
 		name: HugeiconsIconName;
 		size?: number;
+		/**
+		 * When true, omit strokeWidth so registry icons with `fill="currentColor"`
+		 * render as solid marks (brand logos). Stroke icons stay the default.
+		 */
+		filled?: boolean;
 		class?: string;
 		style?: string;
 		role?: string;
@@ -18,6 +23,7 @@
 	let {
 		name,
 		size = 24,
+		filled = false,
 		class: className = "shrink-0",
 		style,
 		role,
@@ -30,14 +36,27 @@
 	const ariaHidden = $derived(ariaLabel ? undefined : "true");
 </script>
 
-<HugeiconsRenderer
-	icon={icon}
-	{size}
-	strokeWidth={1.75}
-	class={className}
-	{style}
-	role={resolvedRole}
-	aria-label={ariaLabel}
-	data-testid={dataTestid}
-	aria-hidden={ariaHidden}
-/>
+{#if filled}
+	<HugeiconsRenderer
+		icon={icon}
+		{size}
+		class={className}
+		{style}
+		role={resolvedRole}
+		aria-label={ariaLabel}
+		data-testid={dataTestid}
+		aria-hidden={ariaHidden}
+	/>
+{:else}
+	<HugeiconsRenderer
+		icon={icon}
+		{size}
+		strokeWidth={1.75}
+		class={className}
+		{style}
+		role={resolvedRole}
+		aria-label={ariaLabel}
+		data-testid={dataTestid}
+		aria-hidden={ariaHidden}
+	/>
+{/if}

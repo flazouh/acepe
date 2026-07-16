@@ -6,15 +6,21 @@
 <script lang="ts">
 	import type { Snippet } from "svelte";
 
-	import { Colors } from "../../lib/colors.js";
 	import { Selector, SelectorItem } from "../selector/index.js";
+	import * as DropdownMenu from "../dropdown-menu/index.js";
+	import {
+		dropdownMenuItemTypographyClass,
+		dropdownMenuSectionTypographyClass,
+	} from "../dropdown-menu/dropdown-menu-typography.js";
+	import { SegmentedProgressBar } from "../segmented-progress-bar/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import { BUTTON_CHIP_ICON_SIZE_PX } from "../button/variants.js";
 	import type { ButtonVariant } from "../button/index.js";
 	import type {
 		AgentInputAgentSelectorIconParams,
 		AgentInputAgentSelectorItem,
 	} from "./agent-input-agent-selector-types.js";
-	import DefaultAgentHeartIcon from "./default-agent-heart-icon.svelte";
+	import DefaultAgentPinIcon from "./default-agent-pin-icon.svelte";
 
 	export type { AgentInputAgentSelectorItem } from "./agent-input-agent-selector-types.js";
 
@@ -23,7 +29,10 @@
 		currentAgentId: string | null;
 		defaultAgentId?: string | null;
 		onAgentChange: (agentId: string) => void;
+		onAgentInstall?: (agentId: string) => void;
 		onDefaultAgentToggle?: (agentId: string | null) => void;
+		notInstalledLabel?: string;
+		installingLabel?: string;
 		isLoading?: boolean;
 		onOpenChange?: (open: boolean) => void;
 		class?: string;
@@ -42,7 +51,10 @@
 		currentAgentId,
 		defaultAgentId = null,
 		onAgentChange,
+		onAgentInstall,
 		onDefaultAgentToggle,
+		notInstalledLabel = "Not installed",
+		installingLabel = "Installing…",
 		isLoading = false,
 		onOpenChange,
 		class: className = "",
@@ -68,6 +80,20 @@
 			onAgentChange(agentId);
 		}
 		isDropdownOpen = false;
+	}
+
+	function isAgentInstalled(agent: AgentInputAgentSelectorItem): boolean {
+		return agent.installed !== false;
+	}
+
+	function handleNotInstalledSelect(agent: AgentInputAgentSelectorItem, event: Event) {
+		// Keep the menu open and never select an agent that is not ready yet.
+		event.preventDefault();
+		if (agent.installing) {
+			// Install already in flight — swallow repeat clicks.
+			return;
+		}
+		onAgentInstall?.(agent.id);
 	}
 
 	function handleOpenChange(open: boolean) {
@@ -124,6 +150,67 @@
 	{:else}
 		{#each availableAgents as agent (agent.id)}
 			{@const isSelected = agent.id === currentAgentId}
+			{#if !isAgentInstalled(agent)}
+				<DropdownMenu.Item
+					closeOnSelect={false}
+					onSelect={(event) => handleNotInstalledSelect(agent, event)}
+					class="group/item transition-colors py-1"
+				>
+					{#if agent.installing}
+						<div class="flex w-full min-w-0 flex-col gap-1.5">
+							<div class="flex min-w-0 items-center gap-2">
+								{@render renderAgentIcon({
+									agentId: agent.id,
+									providerBrand: agent.providerBrand ?? null,
+									providerLabel: agent.providerLabel ?? agent.name,
+									class: "h-3.5 w-3.5 shrink-0 opacity-60",
+									size: 14,
+								})}
+								<div class="flex min-w-0 flex-1 flex-col gap-0.5">
+									<span class="truncate {dropdownMenuItemTypographyClass} text-muted-foreground">
+										{capitalizeName(agent.name)}
+									</span>
+									<span class="{dropdownMenuSectionTypographyClass} text-muted-foreground">
+										{installingLabel}
+									</span>
+								</div>
+							</div>
+							<SegmentedProgressBar
+								ariaLabel={`Installing ${capitalizeName(agent.name)}`}
+								label=""
+								percent={agent.installProgress ?? 0}
+								segmentCount={12}
+								showPercent={true}
+								variant="downloadFillWidth"
+							/>
+						</div>
+					{:else}
+						<div class="flex w-full min-w-0 items-center gap-2">
+							{@render renderAgentIcon({
+								agentId: agent.id,
+								providerBrand: agent.providerBrand ?? null,
+								providerLabel: agent.providerLabel ?? agent.name,
+								class: "h-3.5 w-3.5 shrink-0 opacity-60",
+								size: 14,
+							})}
+							<div class="flex min-w-0 flex-1 flex-col gap-0.5">
+								<span class="truncate {dropdownMenuItemTypographyClass} text-muted-foreground">
+									{capitalizeName(agent.name)}
+								</span>
+								<span class="{dropdownMenuSectionTypographyClass} {agent.installError
+									? 'text-destructive'
+									: 'text-muted-foreground'}">
+									{agent.installError ?? notInstalledLabel}
+								</span>
+							</div>
+							<HugeiconsIcon
+								name="download"
+								class="shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/item:opacity-100"
+							/>
+						</div>
+					{/if}
+				</DropdownMenu.Item>
+			{:else}
 			<SelectorItem
 				label={capitalizeName(agent.name)}
 				selected={isSelected}
@@ -140,37 +227,27 @@
 				{/snippet}
 				{#snippet trailing()}
 					{#if onDefaultAgentToggle}
+						{@const isDefault = agent.id === defaultAgentId}
 						<button
 							type="button"
-							class="default-agent-toggle shrink-0 {agent.id === defaultAgentId
-								? ''
-								: 'opacity-0 group-hover/item:opacity-100 focus-visible:opacity-100 text-muted-foreground'} transition-opacity"
-							style={`--default-agent-color: ${Colors.red};${agent.id === defaultAgentId ? `color: ${Colors.red};` : ""}`}
+							class="group/pin shrink-0 transition-colors {isDefault
+								? 'text-foreground'
+								: 'text-muted-foreground hover:text-foreground focus-visible:text-foreground'}"
 							onclick={(event: MouseEvent) => {
 								event.stopPropagation();
 								event.preventDefault();
-								onDefaultAgentToggle(agent.id === defaultAgentId ? null : agent.id);
+								onDefaultAgentToggle(isDefault ? null : agent.id);
 							}}
-							aria-label={agent.id === defaultAgentId
+							aria-label={isDefault
 								? `Unset ${agent.name} as default agent`
 								: `Set ${agent.name} as default agent`}
 						>
-							{#if agent.id === defaultAgentId}
-								<DefaultAgentHeartIcon filled={true} />
-							{:else}
-								<DefaultAgentHeartIcon />
-							{/if}
+							<DefaultAgentPinIcon active={isDefault} />
 						</button>
 					{/if}
 				{/snippet}
 			</SelectorItem>
+			{/if}
 		{/each}
 	{/if}
 </Selector>
-
-<style>
-	.default-agent-toggle:hover,
-	.default-agent-toggle:focus-visible {
-		color: var(--default-agent-color);
-	}
-</style>

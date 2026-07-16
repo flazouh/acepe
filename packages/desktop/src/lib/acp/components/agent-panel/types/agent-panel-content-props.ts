@@ -12,6 +12,7 @@ import type { PanelViewState } from "../../../logic/panel-visibility";
 import type { Project } from "../../../logic/project-manager.svelte";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import type { TranscriptRowsState } from "../../../store/transcript-rows-store.js";
+import type { LocalPlaceholderMode } from "../logic/local-placeholder-mode.js";
 
 /**
  * Props for the AgentPanelContent component.
@@ -27,7 +28,7 @@ export interface AgentPanelContentProps {
 	readonly optimisticUserEntry?: AgentPanelSceneEntryModel | null;
 	readonly rowsProjectionOverride?: TranscriptRowsState | null;
 	readonly pendingUserRevealRequestKey?: string | null;
-	readonly showLocalPlanningIndicator?: boolean;
+	readonly localPlaceholderMode?: LocalPlaceholderMode;
 	readonly sessionProjectPath: string | null;
 	readonly allProjects?: readonly Project[];
 	scrollContainer?: HTMLDivElement | null;

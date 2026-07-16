@@ -2,6 +2,7 @@ import { ResultAsync } from "neverthrow";
 import { createHighlighter } from "shiki";
 
 import { getCursorThemeName, loadCursorLightTheme, loadCursorTheme } from "./shiki-theme.js";
+import { exceedsSyntaxHighlightCap } from "./syntax-highlight-cap.js";
 
 type ShikiHighlighter = Awaited<ReturnType<typeof createHighlighter>>;
 
@@ -13,6 +14,26 @@ let ready = $state(false);
 let highlighter: ShikiHighlighter | null = null;
 let darkThemeName = "";
 let lightThemeName = "";
+
+const highlightCache = new Map<string, string>();
+const HIGHLIGHT_CACHE_MAX = 64;
+
+function cachedHighlight(cacheKey: string, compute: () => string): string {
+	const existing = highlightCache.get(cacheKey);
+	if (existing !== undefined) {
+		return existing;
+	}
+
+	const html = compute();
+	if (highlightCache.size >= HIGHLIGHT_CACHE_MAX) {
+		const oldestKey = highlightCache.keys().next().value;
+		if (oldestKey !== undefined) {
+			highlightCache.delete(oldestKey);
+		}
+	}
+	highlightCache.set(cacheKey, html);
+	return html;
+}
 
 // Start initialization eagerly on module import
 loadCursorTheme()
@@ -61,7 +82,8 @@ loadCursorTheme()
  * Reactive Shiki bash highlighter singleton.
  *
  * `bashHighlighter.ready` is a `$state` — any `$derived` that reads it
- * will re-compute when the highlighter finishes loading.
+ * (directly or via highlight* methods) will re-compute when the highlighter
+ * finishes loading. Highlight methods also enforce {@link exceedsSyntaxHighlightCap}.
  */
 export const bashHighlighter = {
 	get ready() {
@@ -71,21 +93,25 @@ export const bashHighlighter = {
 	/**
 	 * Highlight a bash command string using the Cursor dual-theme.
 	 * Returns inner HTML with `--shiki-light` / `--shiki-dark` CSS variables,
-	 * or null if the highlighter isn't initialized yet.
+	 * or null if the highlighter isn't initialized yet / content exceeds the cap.
 	 */
 	highlight(code: string): string | null {
-		if (!highlighter) return null;
+		const active = highlighter;
+		if (!ready || !active) return null;
+		if (exceedsSyntaxHighlightCap(code)) return null;
 
-		const html = highlighter.codeToHtml(code.trim(), {
-			lang: "bash",
-			themes: {
-				dark: darkThemeName,
-				light: lightThemeName,
-			},
-			defaultColor: false,
+		const trimmed = code.trim();
+		return cachedHighlight(`bash:${trimmed}`, () => {
+			const html = active.codeToHtml(trimmed, {
+				lang: "bash",
+				themes: {
+					dark: darkThemeName,
+					light: lightThemeName,
+				},
+				defaultColor: false,
+			});
+			return stripPreCodeWrapper(html);
 		});
-
-		return stripPreCodeWrapper(html);
 	},
 
 	/**
@@ -93,18 +119,21 @@ export const bashHighlighter = {
 	 * Preserves content as-is (no trim). Same dual-theme CSS variables as commands.
 	 */
 	highlightOutput(code: string): string | null {
-		if (!highlighter) return null;
+		const active = highlighter;
+		if (!ready || !active) return null;
+		if (exceedsSyntaxHighlightCap(code)) return null;
 
-		const html = highlighter.codeToHtml(code, {
-			lang: "log",
-			themes: {
-				dark: darkThemeName,
-				light: lightThemeName,
-			},
-			defaultColor: false,
+		return cachedHighlight(`log:${code}`, () => {
+			const html = active.codeToHtml(code, {
+				lang: "log",
+				themes: {
+					dark: darkThemeName,
+					light: lightThemeName,
+				},
+				defaultColor: false,
+			});
+			return stripPreCodeWrapper(html);
 		});
-
-		return stripPreCodeWrapper(html);
 	},
 
 	/**
@@ -112,18 +141,22 @@ export const bashHighlighter = {
 	 * Falls back to TypeScript because most Acepe read tools are TS/Svelte-adjacent.
 	 */
 	highlightSource(code: string, filePath: string | null | undefined): string | null {
-		if (!highlighter) return null;
+		const active = highlighter;
+		if (!ready || !active) return null;
+		if (exceedsSyntaxHighlightCap(code)) return null;
 
-		const html = highlighter.codeToHtml(code, {
-			lang: languageForFilePath(filePath),
-			themes: {
-				dark: darkThemeName,
-				light: lightThemeName,
-			},
-			defaultColor: false,
+		const lang = languageForFilePath(filePath);
+		return cachedHighlight(`source:${lang}:${code}`, () => {
+			const html = active.codeToHtml(code, {
+				lang,
+				themes: {
+					dark: darkThemeName,
+					light: lightThemeName,
+				},
+				defaultColor: false,
+			});
+			return stripPreCodeWrapper(html);
 		});
-
-		return stripPreCodeWrapper(html);
 	},
 };
 

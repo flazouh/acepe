@@ -42,7 +42,7 @@
 		status?: AgentToolStatus;
 		/** Optional elapsed label shown in the header (e.g. "for 2.34s") */
 		durationTiming?: ToolDurationTiming;
-		/** Base path for file type SVG icons (e.g. "hugeicons") */
+		/** Base path for file type SVG icons (e.g. "/svgs/icons") */
 		iconBasePath?: string;
 		/** Whether clicking the file should be interactive */
 		interactive?: boolean;
@@ -70,7 +70,7 @@
 		deletions = 0,
 		status = "done",
 		durationTiming,
-		iconBasePath = "",
+		iconBasePath = "/svgs/icons",
 		interactive = false,
 		onSelect,
 		ariaCollapseSource = "Collapse read content",

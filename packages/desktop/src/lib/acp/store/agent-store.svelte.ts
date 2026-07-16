@@ -6,11 +6,11 @@
  */
 
 import { listen } from "@tauri-apps/api/event";
-import type { ResultAsync } from "neverthrow";
+import { ResultAsync } from "neverthrow";
 import { getContext, setContext } from "svelte";
 import { toast } from "svelte-sonner";
 
-import type { AppError } from "../errors/app-error.js";
+import { AgentError, type AppError } from "../errors/app-error.js";
 import { createLogger } from "../utils/logger.js";
 import { api } from "./api.js";
 import type { Agent } from "./types.js";
@@ -29,12 +29,18 @@ interface AgentInstallProgress {
 	message: string;
 }
 
+export type AgentInstallationReadiness =
+	| { readonly status: "pending" }
+	| { readonly status: "failed"; readonly message: string };
+
 export class AgentStore {
 	agents = $state<Agent[]>([]);
 	agentsLoading = $state(false);
 
 	/** Tracks install progress per agent ID */
 	installing = $state<Record<string, { stage: string; progress: number }>>({});
+	/** Keeps every picker behind the post-install capability-catalog barrier. */
+	installationReadiness = $state<Record<string, AgentInstallationReadiness>>({});
 
 	private unlistenProgress: (() => void) | null = null;
 	/** Resolves when the progress event listener is registered. */
@@ -100,29 +106,27 @@ export class AgentStore {
 	/**
 	 * Install an automatically provisioned agent.
 	 */
-	async installAgent(agentId: string): Promise<void> {
-		// Ensure progress listener is registered before starting install
-		await this.listenerReady;
-
-		logger.info("Installing agent", { agentId });
-		this.installing = {
-			...this.installing,
-			[agentId]: { stage: "starting", progress: 0 },
-		};
-
-		const result = await api.installAgent(agentId);
-
-		if (result.isOk()) {
-			logger.info("Agent installed successfully", { agentId });
-			// Refresh agent list to pick up new availability
-			await this.loadAvailableAgents();
-		} else {
-			logger.error("Failed to install agent", result.error);
-			toast.error(`Failed to install agent: ${result.error.message}`);
-			// Clear installing state on error
-			const { [agentId]: _, ...rest } = this.installing;
-			this.installing = rest;
-		}
+	installAgent(agentId: string): ResultAsync<void, AppError> {
+		return ResultAsync.fromPromise(
+			this.listenerReady,
+			() => new AgentError("register install progress listener")
+		)
+			.andThen(() => {
+				logger.info("Installing agent", { agentId });
+				this.installing[agentId] = { stage: "starting", progress: 0 };
+				return api.installAgent(agentId);
+			})
+			.andThen(() =>
+				this.loadAvailableAgents().map(() => {
+					logger.info("Agent installed successfully", { agentId });
+				})
+			)
+			.mapErr((error) => {
+				logger.error("Failed to install agent", error);
+				toast.error(`Failed to install agent: ${error.message}`);
+				delete this.installing[agentId];
+				return error;
+			});
 	}
 
 	/**
@@ -147,6 +151,22 @@ export class AgentStore {
 	 */
 	isInstalling(agentId: string): boolean {
 		return agentId in this.installing;
+	}
+
+	beginAgentInstallationReadiness(agentId: string): void {
+		this.installationReadiness[agentId] = { status: "pending" };
+	}
+
+	failAgentInstallationReadiness(agentId: string, message: string): void {
+		this.installationReadiness[agentId] = { status: "failed", message };
+	}
+
+	completeAgentInstallationReadiness(agentId: string): void {
+		delete this.installationReadiness[agentId];
+	}
+
+	getAgentInstallationReadiness(agentId: string): AgentInstallationReadiness | null {
+		return this.installationReadiness[agentId] ?? null;
 	}
 
 	/**

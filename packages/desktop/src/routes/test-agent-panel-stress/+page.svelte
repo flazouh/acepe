@@ -8,11 +8,21 @@ import {
 	type MessageScrollerItemSource,
 } from "@acepe/ui/agent-panel";
 import SceneContentViewport from "$lib/acp/components/agent-panel/components/scene-content-viewport.svelte";
+import { deriveCanonicalAgentPanelSessionState } from "$lib/acp/components/agent-panel/logic/session-status-mapper.js";
+import { hasTrailingCompletedTool } from "$lib/acp/components/agent-panel/logic/transcript-viewport-row-facts.js";
+import type { LocalPlaceholderMode } from "$lib/acp/components/agent-panel/logic/local-placeholder-mode.js";
 import type { TurnState } from "$lib/acp/store/types.js";
-import type { TranscriptViewportRow, TranscriptViewportRowKind } from "$lib/services/acp-types.js";
+import type {
+	SessionGraphLifecycle,
+	TranscriptViewportRow,
+	TranscriptViewportRowKind,
+} from "$lib/services/acp-types.js";
 import {
 	AGENT_PANEL_STRESS_ROW_COUNT_PRESETS,
+	createAgentPanelPlanningBetweenToolsFixtureSequence,
+	createAgentPanelSendAttachFixtureSequence,
 	createAgentPanelStressFixture,
+	type AgentPanelSendAttachFixtureSequence,
 	type AgentPanelStressFixture,
 	type AgentPanelStressPreset,
 } from "$lib/acp/testing/agent-panel-stress-fixture.js";
@@ -37,6 +47,10 @@ type StressLabWindowHandle = {
 	readonly regenerate: () => void;
 	readonly runScenario: (options: StressLabScenarioOptions) => Promise<AgentPanelStressDump>;
 	readonly runScrollSample: () => Promise<AgentPanelStressDump>;
+	readonly runSendAttachScenario: (
+		options: SendAttachScenarioOptions
+	) => Promise<SendAttachScenarioResult>;
+	readonly runPlanningBetweenToolsScenario: () => Promise<PlanningBetweenToolsScenarioResult>;
 };
 
 type StressLabWindow = Window &
@@ -51,6 +65,72 @@ type StressLabScenarioOptions = {
 	readonly seed?: number;
 	readonly includeStreamingTail?: boolean;
 	readonly runScrollSample?: boolean;
+};
+
+type SendAttachScenarioOptions = {
+	readonly rowCount: number;
+	readonly preScrollOffsetPx: number;
+};
+
+type SendAttachScenarioSample = {
+	readonly label: string;
+	readonly rowCount: number;
+	readonly stableRowId: string;
+	readonly stableRowVersion: string | null;
+	readonly stableRowContent: string | null;
+	readonly stableRowShellPreserved: boolean | null;
+	readonly scrollHeightPx: number;
+	readonly clientHeightPx: number;
+	readonly maxScrollTopPx: number;
+	readonly scrollTopPx: number;
+	readonly distFromBottomPx: number;
+	readonly geometryReleased: boolean;
+	readonly controllerReleased: boolean;
+	readonly longMarkdownRowId: string;
+	readonly longMarkdownHeightPx: number;
+	readonly longMarkdownNative: boolean;
+	readonly placeholderCount: number;
+	readonly spacerCount: number;
+};
+
+type SendAttachScenarioResult = {
+	readonly hookAvailable: boolean;
+	readonly opened: boolean;
+	readonly labPresent: boolean;
+	readonly route: string;
+	readonly requestedRowCount: number;
+	readonly rowCount: number;
+	readonly requestedPreScrollOffsetPx: number;
+	readonly preconditionPassed: boolean;
+	readonly passed: boolean;
+	readonly maxExtentCollapsePx: number;
+	readonly nativeClampDetected: boolean;
+	readonly stableRowShellPreserved: boolean;
+	readonly samples: readonly SendAttachScenarioSample[];
+};
+
+type PlanningBetweenToolsScenarioResult = {
+	readonly hookAvailable: boolean;
+	readonly opened: boolean;
+	readonly labPresent: boolean;
+	readonly route: string;
+	readonly passed: boolean;
+	readonly restoredCompletedToolStage: boolean;
+	readonly samples: readonly {
+		readonly stage: "completed_tool_tail" | "active_assistant_tail";
+		readonly sessionId: string;
+		readonly lifecycleStatus: "ready";
+		readonly activityKind: "awaiting_model";
+		readonly turnState: "Running";
+		readonly trailingRowId: string | null;
+		readonly trailingRowKind: string | null;
+		readonly trailingOperationStates: readonly string[];
+		readonly activeStreamingTail: string | null;
+		readonly localPlaceholderMode: LocalPlaceholderMode;
+		readonly planningRowCount: number;
+		readonly planningText: string | null;
+		readonly planningVisible: boolean;
+	}[];
 };
 
 type FrameWaitSource = "raf" | "timeout";
@@ -117,6 +197,28 @@ const DEFAULT_PROJECT_PATH = "/tmp/acepe-agent-panel-stress";
 const FRAME_SAMPLE_COUNT = 45;
 const SCROLL_UPDATE_SAMPLE_COUNT = 24;
 const MAX_PROFILE_SAMPLE_COUNT = 2_000;
+const SEND_ATTACH_BOTTOM_TOLERANCE_PX = 24;
+const SEND_ATTACH_MAX_EXTENT_COLLAPSE_PX = 2_200;
+const SEND_ATTACH_MIN_LONG_ROW_HEIGHT_PX = 1_800;
+const SEND_ATTACH_MAX_LONG_ROW_HEIGHT_PX = 2_700;
+const PLANNING_ROW_SELECTOR = '[data-row-id="awaiting:planning"]';
+const PLANNING_ROW_EXPECTED_TEXT = "Planning next moves";
+const PLANNING_BETWEEN_TOOLS_LIFECYCLE: SessionGraphLifecycle = {
+	status: "ready",
+	detachedReason: null,
+	failureReason: null,
+	errorMessage: null,
+	actionability: {
+		canSend: false,
+		canResume: false,
+		canRetry: false,
+		canArchive: true,
+		canConfigure: true,
+		recommendedAction: "wait",
+		recoveryPhase: "none",
+		compactStatus: "ready",
+	},
+};
 const STRESS_LAB_ENABLED =
 	import.meta.env.DEV || import.meta.env.VITE_ENABLE_STRESS_LAB === "1";
 
@@ -131,6 +233,9 @@ let dumpTimestampIso = $state(new Date().toISOString());
 let profileRevision = $state(0);
 let profileSamples: AgentPanelPerformanceSample[] = [];
 let renderSequence = 0;
+let sendAttachPendingUserRevealRequestKey = $state<string | null>(null);
+let sendAttachControllerReleased = $state(false);
+let localPlaceholderMode = $state<LocalPlaceholderMode>("none");
 
 function readNowMs(): number {
 	return globalThis.performance?.now() ?? Date.now();
@@ -289,9 +394,6 @@ function diagnosticKindLabel(kind: TranscriptViewportRowKind): string {
 	}
 	if (kind === "assistantThought") {
 		return "Thought";
-	}
-	if (kind === "awaitingPlaceholder") {
-		return "Pending";
 	}
 	if (kind === "tool") {
 		return "Tool";
@@ -883,10 +985,12 @@ async function regenerateFixtureAndMeasure(): Promise<AgentPanelStressDump> {
 }
 
 function regenerateFixture(): void {
+	localPlaceholderMode = "none";
 	void regenerateFixtureAndMeasure();
 }
 
 async function runScenario(options: StressLabScenarioOptions): Promise<AgentPanelStressDump> {
+	localPlaceholderMode = "none";
 	if (options.rowCount !== undefined && Number.isFinite(options.rowCount)) {
 		selectedRowCount = Math.max(0, Math.floor(options.rowCount));
 	}
@@ -908,6 +1012,371 @@ async function runScenario(options: StressLabScenarioOptions): Promise<AgentPane
 		return runScrollSample();
 	}
 	return renderedDump;
+}
+
+function sendAttachRowElement(rowId: string): HTMLElement | null {
+	if (transcriptHost === null) {
+		return null;
+	}
+	return transcriptHost.querySelector<HTMLElement>(
+		`[data-row-id="${CSS.escape(rowId)}"]`
+	);
+}
+
+async function settleSendAttachStage(): Promise<void> {
+	await waitForDomFlush();
+	await waitForNextFrame();
+	await waitForNextFrame();
+	await waitForDomFlush();
+}
+
+function derivePlanningBetweenToolsMode(
+	targetFixture: AgentPanelStressFixture
+): LocalPlaceholderMode {
+	return deriveCanonicalAgentPanelSessionState({
+		source: {
+			kind: "canonical",
+			lifecycle: PLANNING_BETWEEN_TOOLS_LIFECYCLE,
+			activity: {
+				kind: "awaiting_model",
+				activeOperationCount: 0,
+				activeSubagentCount: 0,
+				dominantOperationId: null,
+				blockingInteractionId: null,
+			},
+			turnState: "Running",
+		},
+		hasEntries: targetFixture.rowsProjection.rows.length > 0,
+		hasTrailingCompletedTool: hasTrailingCompletedTool(
+			targetFixture.rowsProjection.rows
+		),
+	}).localPlaceholderMode;
+}
+
+async function applyPlanningBetweenToolsStage(
+	targetFixture: AgentPanelStressFixture
+): Promise<void> {
+	selectedRowCount = targetFixture.rowsProjection.rows.length;
+	selectedPreset = targetFixture.preset;
+	selectedRendererMode = "full";
+	seed = targetFixture.seed;
+	includeStreamingTail = targetFixture.summary.activeTailRowId !== null;
+	fixture = targetFixture;
+	localPlaceholderMode = derivePlanningBetweenToolsMode(targetFixture);
+	await settleSendAttachStage();
+}
+
+function planningRowIsVisible(row: HTMLElement): boolean {
+	const style = getComputedStyle(row);
+	const rect = row.getBoundingClientRect();
+	return (
+		style.display !== "none" &&
+		style.visibility !== "hidden" &&
+		Number(style.opacity) > 0 &&
+		rect.width > 0 &&
+		rect.height > 0
+	);
+}
+
+function samplePlanningBetweenToolsStage(
+	stage: "completed_tool_tail" | "active_assistant_tail"
+): PlanningBetweenToolsScenarioResult["samples"][number] {
+	const trailingRow = fixture.rowsProjection.rows.at(-1);
+	const planningRows =
+		transcriptHost === null
+			? []
+			: Array.from(transcriptHost.querySelectorAll<HTMLElement>(PLANNING_ROW_SELECTOR));
+	const planningRow = planningRows[0];
+	const planningText =
+		planningRow === undefined
+			? null
+			: (planningRow.textContent || "").trim().replace(/\s+/g, " ");
+	return {
+		stage,
+		sessionId: fixture.sessionId,
+		lifecycleStatus: "ready",
+		activityKind: "awaiting_model",
+		turnState: "Running",
+		trailingRowId: trailingRow === undefined ? null : trailingRow.rowId,
+		trailingRowKind: trailingRow === undefined ? null : trailingRow.kind,
+		trailingOperationStates:
+			trailingRow === undefined
+				? []
+				: trailingRow.operationLinks.map((operationLink) => operationLink.state),
+		activeStreamingTail:
+			trailingRow === undefined ? null : trailingRow.activeStreamingTail,
+		localPlaceholderMode,
+		planningRowCount: planningRows.length,
+		planningText,
+		planningVisible: planningRows.some(planningRowIsVisible),
+	};
+}
+
+function completedToolPlanningSamplePassed(
+	sample: PlanningBetweenToolsScenarioResult["samples"][number]
+): boolean {
+	return (
+		sample.trailingRowKind === "tool" &&
+		sample.trailingOperationStates.length > 0 &&
+		sample.trailingOperationStates.every((state) => state === "completed") &&
+		sample.localPlaceholderMode === "planning_after_tool" &&
+		sample.planningRowCount === 1 &&
+		sample.planningVisible &&
+		sample.planningText?.includes(PLANNING_ROW_EXPECTED_TEXT) === true
+	);
+}
+
+function activeAssistantPlanningSamplePassed(
+	sample: PlanningBetweenToolsScenarioResult["samples"][number]
+): boolean {
+	return (
+		sample.trailingRowKind === "assistantText" &&
+		sample.activeStreamingTail === "message" &&
+		sample.localPlaceholderMode === "none" &&
+		sample.planningRowCount === 0 &&
+		!sample.planningVisible
+	);
+}
+
+export async function runPlanningBetweenToolsScenario(): Promise<PlanningBetweenToolsScenarioResult> {
+	const sequence = createAgentPanelPlanningBetweenToolsFixtureSequence();
+	await applyPlanningBetweenToolsStage(sequence.completedToolTail);
+	const completedToolSample = samplePlanningBetweenToolsStage("completed_tool_tail");
+
+	await applyPlanningBetweenToolsStage(sequence.activeAssistantTail);
+	const activeAssistantSample = samplePlanningBetweenToolsStage("active_assistant_tail");
+
+	await applyPlanningBetweenToolsStage(sequence.completedToolTail);
+	const restoredCompletedToolSample = samplePlanningBetweenToolsStage("completed_tool_tail");
+	const restoredCompletedToolStage = completedToolPlanningSamplePassed(
+		restoredCompletedToolSample
+	);
+	return {
+		hookAvailable: true,
+		opened: typeof window !== "undefined" && window.location.pathname === ROUTE,
+		labPresent: transcriptHost !== null,
+		route: ROUTE,
+		passed:
+			completedToolPlanningSamplePassed(completedToolSample) &&
+			activeAssistantPlanningSamplePassed(activeAssistantSample) &&
+			restoredCompletedToolStage,
+		restoredCompletedToolStage,
+		samples: [completedToolSample, activeAssistantSample],
+	};
+}
+
+async function sampleSendAttachStage(input: {
+	readonly label: string;
+	readonly sequence: AgentPanelSendAttachFixtureSequence;
+	readonly stableRowShell: Element | null;
+}): Promise<SendAttachScenarioSample> {
+	await settleSendAttachStage();
+	const viewport = resolveScrollViewport();
+	const scrollHeightPx = viewport === null ? 0 : Math.round(viewport.scrollHeight);
+	const clientHeightPx = viewport === null ? 0 : Math.round(viewport.clientHeight);
+	const maxScrollTopPx = Math.max(0, scrollHeightPx - clientHeightPx);
+	const scrollTopPx = viewport === null ? 0 : Math.round(viewport.scrollTop);
+	const distFromBottomPx = Math.max(0, maxScrollTopPx - scrollTopPx);
+	const longRow = sendAttachRowElement(input.sequence.longMarkdownRowId);
+	const stableRow = sendAttachRowElement(input.sequence.streamingRowId);
+	const stableRowProjection = fixture.rowsProjection.byId.get(input.sequence.streamingRowId);
+	const stableRowContent =
+		stableRow === null
+			? null
+			: (stableRow.textContent || "").trim().replace(/\s+/g, " ");
+	return {
+		label: input.label,
+		rowCount: fixture.rowsProjection.rows.length,
+		stableRowId: input.sequence.streamingRowId,
+		stableRowVersion:
+			stableRowProjection === undefined ? null : stableRowProjection.version,
+		stableRowContent,
+		stableRowShellPreserved:
+			input.stableRowShell === null || stableRow === null
+				? null
+				: stableRow.parentElement === input.stableRowShell,
+		scrollHeightPx,
+		clientHeightPx,
+		maxScrollTopPx,
+		scrollTopPx,
+		distFromBottomPx,
+		geometryReleased: distFromBottomPx > SEND_ATTACH_BOTTOM_TOLERANCE_PX,
+		controllerReleased: sendAttachControllerReleased,
+		longMarkdownRowId: input.sequence.longMarkdownRowId,
+		longMarkdownHeightPx:
+			longRow === null ? 0 : Math.round(longRow.getBoundingClientRect().height),
+		longMarkdownNative:
+			longRow !== null && longRow.querySelector("[data-native-markdown-mode]") !== null,
+		placeholderCount:
+			transcriptHost === null
+				? 0
+				: transcriptHost.querySelectorAll(
+						'[data-row-id="awaiting:planning"], [data-row-id="local:planning"]'
+					).length,
+		spacerCount:
+			transcriptHost === null
+				? 0
+				: transcriptHost.querySelectorAll(
+						".message-scroller__send-anchor-spacer, [data-send-anchor-spacer]"
+					).length,
+	};
+}
+
+function maximumSendAttachExtentCollapse(
+	samples: readonly SendAttachScenarioSample[]
+): number {
+	let maxCollapsePx = 0;
+	for (let index = 1; index < samples.length; index += 1) {
+		const previous = samples[index - 1];
+		const current = samples[index];
+		if (previous === undefined || current === undefined) {
+			continue;
+		}
+		maxCollapsePx = Math.max(
+			maxCollapsePx,
+			previous.maxScrollTopPx - current.maxScrollTopPx
+		);
+	}
+	return maxCollapsePx;
+}
+
+export async function runSendAttachScenario(
+	options: SendAttachScenarioOptions
+): Promise<SendAttachScenarioResult> {
+	localPlaceholderMode = "none";
+	const sequence = createAgentPanelSendAttachFixtureSequence({
+		rowCount: options.rowCount,
+	});
+	selectedRowCount = sequence.initial.rowsProjection.rows.length;
+	selectedPreset = "text-heavy";
+	selectedRendererMode = "full";
+	includeStreamingTail = false;
+	sendAttachPendingUserRevealRequestKey = null;
+	sendAttachControllerReleased = false;
+	fixture = sequence.initial;
+	await settleSendAttachStage();
+
+	const viewport = resolveScrollViewport();
+	if (viewport !== null) {
+		viewport.dispatchEvent(
+			new WheelEvent("wheel", {
+				bubbles: true,
+				cancelable: true,
+				deltaY: -Math.max(1, options.preScrollOffsetPx),
+			})
+		);
+		const maxScrollTopPx = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+		viewport.scrollTop = Math.max(0, maxScrollTopPx - options.preScrollOffsetPx);
+		viewport.dispatchEvent(new Event("scroll"));
+	}
+
+	const samples: SendAttachScenarioSample[] = [];
+	const preSendSample = await sampleSendAttachStage({
+		label: "pre-send",
+		sequence,
+		stableRowShell: null,
+	});
+	samples.push(preSendSample);
+	const preconditionPassed =
+		Math.abs(preSendSample.distFromBottomPx - options.preScrollOffsetPx) <=
+			SEND_ATTACH_BOTTOM_TOLERANCE_PX &&
+		preSendSample.controllerReleased;
+
+	sendAttachPendingUserRevealRequestKey =
+		`send-attach:${Date.now().toString()}:${renderSequence.toString()}`;
+	samples.push(
+		await sampleSendAttachStage({
+			label: "after-send",
+			sequence,
+			stableRowShell: null,
+		})
+	);
+
+	fixture = sequence.pendingUser;
+	samples.push(
+		await sampleSendAttachStage({
+			label: "after-pending-user",
+			sequence,
+			stableRowShell: null,
+		})
+	);
+
+	fixture = sequence.firstStream;
+	samples.push(
+		await sampleSendAttachStage({
+			label: "after-first-stream",
+			sequence,
+			stableRowShell: null,
+		})
+	);
+	const stableRowBeforeUpdate = sendAttachRowElement(sequence.streamingRowId);
+	const stableRowShell =
+		stableRowBeforeUpdate === null ? null : stableRowBeforeUpdate.parentElement;
+
+	fixture = sequence.updatedStream;
+	const updatedSample = await sampleSendAttachStage({
+		label: "after-version-update",
+		sequence,
+		stableRowShell,
+	});
+	samples.push(updatedSample);
+	const finalSample = await sampleSendAttachStage({
+		label: "final",
+		sequence,
+		stableRowShell,
+	});
+	samples.push(finalSample);
+
+	const maxExtentCollapsePx = maximumSendAttachExtentCollapse(samples);
+	let nativeClampDetected = false;
+	let zeroSyntheticRows = true;
+	let longMarkdownValid = true;
+	for (let index = 0; index < samples.length; index += 1) {
+		const sample = samples[index];
+		if (sample === undefined) {
+			continue;
+		}
+		if (index > 0 && (sample.geometryReleased || sample.controllerReleased)) {
+			nativeClampDetected = true;
+		}
+		if (sample.placeholderCount !== 0 || sample.spacerCount !== 0) {
+			zeroSyntheticRows = false;
+		}
+		if (
+			!sample.longMarkdownNative ||
+			sample.longMarkdownHeightPx < SEND_ATTACH_MIN_LONG_ROW_HEIGHT_PX ||
+			sample.longMarkdownHeightPx > SEND_ATTACH_MAX_LONG_ROW_HEIGHT_PX
+		) {
+			longMarkdownValid = false;
+		}
+	}
+	const stableRowShellPreserved =
+		updatedSample.stableRowShellPreserved === true &&
+		finalSample.stableRowShellPreserved === true &&
+		finalSample.stableRowVersion === `${sequence.streamingRowId}:v2` &&
+		(finalSample.stableRowContent || "").includes("send-attach-stream-version-two");
+	const passed =
+		preconditionPassed &&
+		!nativeClampDetected &&
+		maxExtentCollapsePx < SEND_ATTACH_MAX_EXTENT_COLLAPSE_PX &&
+		stableRowShellPreserved &&
+		zeroSyntheticRows &&
+		longMarkdownValid;
+	return {
+		hookAvailable: true,
+		opened: typeof window !== "undefined" && window.location.pathname === ROUTE,
+		labPresent: transcriptHost !== null,
+		route: ROUTE,
+		requestedRowCount: options.rowCount,
+		rowCount: fixture.rowsProjection.rows.length,
+		requestedPreScrollOffsetPx: options.preScrollOffsetPx,
+		preconditionPassed,
+		passed,
+		maxExtentCollapsePx,
+		nativeClampDetected,
+		stableRowShellPreserved,
+		samples,
+	};
 }
 
 function handleRowCountChange(event: Event): void {
@@ -959,18 +1428,27 @@ function downloadDump(): void {
 	URL.revokeObjectURL(url);
 }
 
+function handleSendAttachFollowStateChange(state: {
+	readonly released: boolean;
+	readonly hasUnreadBelow: boolean;
+}): void {
+	sendAttachControllerReleased = state.released;
+}
+
 function publishWindowHandle(): void {
 	const stressWindow = readStressLabWindow();
 	if (stressWindow === null) {
 		return;
 	}
-	stressWindow.__agentPanelStressLab = {
-		route: ROUTE,
-		getDump: () => stressDump,
-		regenerate: regenerateFixture,
-		runScenario,
-		runScrollSample,
-	};
+		stressWindow.__agentPanelStressLab = {
+			route: ROUTE,
+			getDump: () => stressDump,
+			regenerate: regenerateFixture,
+			runScenario,
+			runScrollSample,
+			runSendAttachScenario,
+			runPlanningBetweenToolsScenario,
+		};
 }
 
 onMount(() => {
@@ -1217,11 +1695,14 @@ onDestroy(() => {
 								{turnState}
 								projectPath={DEFAULT_PROJECT_PATH}
 								sessionId={fixture.sessionId}
-								skipRowsBootstrap={true}
-								showWorkingSpark={includeStreamingTail}
+									skipRowsBootstrap={true}
+									pendingUserRevealRequestKey={sendAttachPendingUserRevealRequestKey}
+									{localPlaceholderMode}
+									showWorkingSpark={includeStreamingTail}
 								isFullscreen={false}
 								modifiedFilesState={null}
 								profileRecorder={recordProfileSample}
+								onFollowStateChange={handleSendAttachFollowStateChange}
 							/>
 						{:else}
 							<MessageScroller
