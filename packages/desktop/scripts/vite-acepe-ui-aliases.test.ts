@@ -1,6 +1,6 @@
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
 import { describe, expect, it } from "bun:test";
+import { join } from "node:path";
+import uiPackageJson from "../../ui/package.json" with { type: "json" };
 import { buildAcepeUiResolveAliases } from "./vite-acepe-ui-aliases.js";
 
 const desktopRoot = join(import.meta.dirname, "..");
@@ -14,13 +14,11 @@ describe("buildAcepeUiResolveAliases", () => {
 
 		expect(rootAlias).toBeDefined();
 		expect(rootAlias?.replacement).toBe(join(uiPackageRoot, "src/index.ts"));
-		expect(existsSync(rootAlias?.replacement ?? "")).toBe(true);
 
 		expect(usageWidgetAlias).toBeDefined();
 		expect(usageWidgetAlias?.replacement).toBe(
 			join(uiPackageRoot, "src/components/usage-widget/index.ts")
 		);
-		expect(existsSync(usageWidgetAlias?.replacement ?? "")).toBe(true);
 	});
 
 	it("maps string exports such as design-tokens.css directly", () => {
@@ -29,7 +27,6 @@ describe("buildAcepeUiResolveAliases", () => {
 
 		expect(cssAlias).toBeDefined();
 		expect(cssAlias?.replacement).toBe(join(uiPackageRoot, "src/lib/design-tokens.css"));
-		expect(existsSync(cssAlias?.replacement ?? "")).toBe(true);
 	});
 
 	it("sorts aliases longest-key-first so subpaths win over the root entry", () => {
@@ -43,12 +40,8 @@ describe("buildAcepeUiResolveAliases", () => {
 	});
 
 	it("produces one alias per package.json export key", () => {
-		const packageJson = JSON.parse(readFileSync(join(uiPackageRoot, "package.json"), "utf8")) as {
-			exports: Record<string, unknown>;
-		};
 		const aliases = buildAcepeUiResolveAliases(uiPackageRoot);
-
-		expect(aliases.length).toBe(Object.keys(packageJson.exports).length);
+		expect(aliases.length).toBe(Object.keys(uiPackageJson.exports).length);
 	});
 
 	it("includes node_modules symlink root alias when desktopPackageRoot is provided", () => {

@@ -16,12 +16,19 @@
 		"check:dead-code": "bun scripts/dead-code/find-dead-code.ts --strict",
 		"dead-code:apply": "bun scripts/dead-code/apply-dead-code.ts",
 		"dead-code:apply:force": "bun scripts/dead-code/apply-dead-code.ts --apply",
+		"hooks:install": "lefthook install",
+		"hooks:pre-commit": "lefthook run pre-commit",
+		"hooks:pre-push": "lefthook run pre-push",
 		"install:source": "bash scripts/install-from-source.sh",
+		"prepare": "lefthook install",
 		"test:install-source": "bash scripts/__tests__/install-from-source.test.sh",
 		"test": "bun run test:install-source && bun scripts/forbid-structural-tests.ts packages && bun run --cwd packages/ui test && bun run --cwd packages/desktop test && bun run --cwd packages/website test"
 	},
 	"engines": {
 		"node": "20.x"
+	},
+	"devDependencies": {
+		"lefthook": "2.1.10"
 	},
 	"dependencies": {
 		"@babel/parser": "^8.0.4",
