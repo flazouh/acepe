@@ -2,7 +2,6 @@
 	import type { WorkerPoolManager } from "@pierre/diffs/worker";
 	import type {
 		AgentPanelConversationEntry as AgentPanelConversationEntryModel,
-		AnyAgentEntry,
 	} from "../agent-panel/types.js";
 
 	import AgentAssistantMessage from "../agent-panel/agent-assistant-message.svelte";
@@ -36,94 +35,6 @@
 		value: AgentPanelConversationEntryModel
 	): value is Extract<AgentPanelConversationEntryModel, { type: "tool_call" }> {
 		return value.type === "tool_call";
-	}
-
-	function mapTaskChildren(
-		children: readonly AgentPanelConversationEntryModel[] | undefined
-	): AnyAgentEntry[] | undefined {
-		if (!children || children.length === 0) {
-			return undefined;
-		}
-
-		return children.map((child) => {
-			if (child.type === "user") {
-				return {
-					id: child.id,
-					type: "user",
-					text: child.text
-				};
-			}
-
-			if (child.type === "assistant") {
-				return {
-					id: child.id,
-					type: "assistant",
-					markdown: child.markdown,
-					isStreaming: child.isStreaming,
-					tokenRevealCss: child.tokenRevealCss
-				};
-			}
-
-			if (child.type === "thinking") {
-				return {
-					id: child.id,
-					type: "thinking",
-					durationMs: child.durationMs,
-					startedAtMs: child.startedAtMs,
-					label: child.label
-				};
-			}
-
-			if (child.type === "missing") {
-				return {
-					id: child.id,
-					type: "missing",
-					title: child.title,
-					message: child.message,
-					diagnosticLabel: child.diagnosticLabel
-				};
-			}
-
-			return {
-				id: child.id,
-				type: "tool_call",
-				kind: child.kind,
-				title: child.title,
-				subtitle: child.subtitle,
-				detailsText: child.detailsText,
-				filePath: child.filePath,
-				status: child.status,
-				command: child.command,
-				stdout: child.stdout,
-				stderr: child.stderr,
-				exitCode: child.exitCode,
-				query: child.query,
-				searchPath: child.searchPath,
-				searchFiles: child.searchFiles ? Array.from(child.searchFiles) : undefined,
-				searchResultCount: child.searchResultCount,
-				url: child.url,
-				resultText: child.resultText,
-				webSearchLinks: child.webSearchLinks
-					? child.webSearchLinks.map((link) => ({
-							title: link.title,
-							url: link.url,
-							domain: link.domain,
-							pageAge: link.pageAge
-						}))
-					: undefined,
-				webSearchSummary: child.webSearchSummary,
-				skillName: child.skillName,
-				skillArgs: child.skillArgs,
-				skillDescription: child.skillDescription,
-				taskDescription: child.taskDescription,
-				taskPrompt: child.taskPrompt,
-				taskResultText: child.taskResultText,
-				taskChildren: mapTaskChildren(child.taskChildren),
-				presentationState: child.presentationState,
-				degradedReason: child.degradedReason,
-				editDiffs: child.editDiffs
-			};
-		});
 	}
 
 	const lintFileCount = $derived.by(() => {
@@ -284,8 +195,7 @@
 	<AgentToolTask
 		description={entry.taskDescription ?? entry.title}
 		prompt={entry.taskPrompt}
-		resultText={entry.taskResultText}
-		children={mapTaskChildren(entry.taskChildren)}
+		latestAction={entry.taskLatestAction}
 		status={entry.status}
 		{iconBasePath}
 	/>

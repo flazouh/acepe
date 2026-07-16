@@ -2,6 +2,7 @@
 import type { Snippet } from "svelte";
 import type {
 	AgentPanelConversationEntry,
+	AgentTaskDetailBinding,
 	AgentPanelPlanActionEvent,
 	AgentPanelPlanViewEvent,
 	AgentPanelQuestionSelectEvent,
@@ -40,6 +41,7 @@ interface Props {
 	onUserFileSelect?: (event: AgentUserFileSelectEvent) => void;
 	onReview?: (event: AgentPanelReviewActionEvent) => void;
 	isPlanActionAvailable?: (event: AgentPanelPlanActionEvent) => boolean;
+	taskDetail?: AgentTaskDetailBinding | null;
 }
 
 let {
@@ -58,6 +60,7 @@ let {
 	onUserFileSelect,
 	onReview,
 	isPlanActionAvailable,
+	taskDetail = null,
 }: Props = $props();
 
 function handleUserTokenClick(
@@ -132,5 +135,6 @@ function handleUserTokenClick(
 		{onToolFileSelect}
 		{onReview}
 		{isPlanActionAvailable}
+		{taskDetail}
 	/>
 {/if}

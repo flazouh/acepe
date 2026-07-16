@@ -38,8 +38,8 @@
 <!--
 	Workspace container: one full-width surface per project. Separation comes from
 	a quiet fill + shape, never borders, shadows, or large color fills. It reuses
-	the tool-call surface token (bg-input/30) so the shell reads as the same quiet
-	surface family, distinct from the accent tint used by selected session rows.
+	the quiet input-surface family (bg-input wash) so the shell reads with the same
+	recessed fill language as tool cards, distinct from selected-row accent tint.
 	The header is the top band; session content is inset within the same surface.
 	Collapsed groups render an empty content region that adds no height, so they
 	stay compact.

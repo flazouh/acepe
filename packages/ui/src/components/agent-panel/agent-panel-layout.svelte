@@ -180,8 +180,7 @@
 						<AgentToolTask
 							description={entry.taskDescription ?? entry.title}
 							prompt={entry.taskPrompt}
-							resultText={entry.taskResultText}
-							children={entry.taskChildren}
+							latestAction={entry.taskLatestAction}
 							status={entry.status}
 							{iconBasePath}
 						/>

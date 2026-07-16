@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Button } from "../button/index.js";
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import ToolLabel from "./tool-label.svelte";
 	import TextShimmer from "../text-shimmer/text-shimmer.svelte";
@@ -67,7 +68,7 @@
 <AgentToolCard>
 	{#if viewState.showLoadingFallback}
 		<!-- Loading state: skill name not yet streamed -->
-		<div class="flex h-6 items-start gap-1.5 pl-2 pr-1.5 py-0.5">
+		<div class="flex h-6 items-start gap-1.5 pl-2 pr-0.5 py-0.5">
 			<div class="flex min-w-0 flex-1 items-center gap-1.5">
 				<ToolLabel {status}>
 					{loadingLabel}
@@ -76,12 +77,12 @@
 		</div>
 	{:else if viewState.showMissingNameFallback}
 		<!-- No skill name -->
-		<div class="flex h-6 items-center pl-2 pr-1.5">
+		<div class="flex h-6 items-center pl-2 pr-0.5">
 			<span class="font-sans text-sm">{fallbackLabel}</span>
 		</div>
 	{:else}
 		<!-- Header - fixed height -->
-		<div class="flex h-6 items-center justify-between pl-2 pr-1.5 text-sm">
+		<div class="flex h-6 items-center justify-between gap-1.5 pl-2 pr-0.5 text-sm">
 			<!-- Left side: icon + skill name + args -->
 			<div class="flex min-w-0 flex-1 items-center gap-1.5 truncate">
 				{#if viewState.isPending}
@@ -100,7 +101,7 @@
 			</div>
 
 			<!-- Right side: status + expand button -->
-			<div class="ml-1.5 flex shrink-0 items-center gap-1.5">
+			<div class="ml-1.5 flex shrink-0 items-center gap-1">
 				<AgentToolDurationLabel
 					timing={durationTiming}
 					class="font-sans text-xs"
@@ -116,16 +117,23 @@
 
 				<!-- Expand/Collapse button - only show when has content -->
 				{#if viewState.hasContent}
-					<button
-						type="button"
+					<Button
+						variant="ghost"
+						size="icon-sm"
+						data-header-control
+						class="text-muted-foreground"
 						onclick={toggleExpand}
-						class="flex items-center justify-center p-0.5 rounded-sm bg-transparent border-none text-muted-foreground cursor-pointer transition-colors hover:bg-muted/50 hover:text-foreground"
 						aria-label={isExpanded ? ariaCollapseLabel : ariaExpandLabel}
 						aria-expanded={isExpanded}
+						title={isExpanded ? ariaCollapseLabel : ariaExpandLabel}
 					>
-						<HugeiconsIcon name="chevron-right" class="size-3 shrink-0 text-muted-foreground transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}"
-						/>
-					</button>
+						{#snippet children()}
+							<HugeiconsIcon
+								name="chevron-right"
+								class="transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}"
+							/>
+						{/snippet}
+					</Button>
 				{/if}
 			</div>
 		</div>

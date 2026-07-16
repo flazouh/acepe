@@ -6,6 +6,7 @@ import type { AssistantMessage } from "../../lib/assistant-message/types.js";
 import type { ChunkGroup } from "../../lib/assistant-message/assistant-chunk-grouper.js";
 import type { StreamingAnimationMode } from "../../lib/assistant-message/types.js";
 import type { CommandChipModel } from "../command-chip/command-chip.types.js";
+import type { Snippet } from "svelte";
 
 export type AgentSessionStatus =
 	| "empty"
@@ -156,6 +157,42 @@ export type AgentSourceHighlighter = (
 /** Highlights a single code string (command segment, output stream, or script body). */
 export type AgentCodeHighlighter = (code: string) => string | null;
 
+export interface AgentTaskTranscriptScope {
+	kind: "operation";
+	operationId: string;
+}
+
+export interface AgentTaskLatestAction {
+	id: string;
+	kind?: AgentToolKind;
+	title: string;
+	subtitle?: string;
+	filePath?: string;
+	status: AgentToolStatus;
+}
+
+export interface AgentTaskDetailRow {
+	rowId: string;
+	entry: AgentPanelConversationEntry;
+}
+
+export interface AgentTaskDetailPresentation {
+	open: boolean;
+	status: "idle" | "loading" | "ready" | "error";
+	rows: readonly AgentTaskDetailRow[];
+	hasMore: boolean;
+	errorMessage: string | null;
+}
+
+export type AgentTaskDetailRowRenderer = Snippet<[AgentTaskDetailRow, number]>;
+
+export interface AgentTaskDetailBinding {
+	presentation: AgentTaskDetailPresentation;
+	renderRow: AgentTaskDetailRowRenderer;
+	onOpenChange: (open: boolean) => void;
+	onLoadMore: () => void;
+}
+
 export interface AgentToolEntry {
 	id: string;
 	type: "tool_call";
@@ -218,6 +255,8 @@ export interface AgentToolEntry {
 	taskDescription?: string | null;
 	taskPrompt?: string | null;
 	taskResultText?: string | null;
+	taskTranscriptScope?: AgentTaskTranscriptScope | null;
+	taskLatestAction?: AgentTaskLatestAction | null;
 	taskChildren?: AnyAgentEntry[];
 	// Plan-specific
 	planTitle?: string | null;

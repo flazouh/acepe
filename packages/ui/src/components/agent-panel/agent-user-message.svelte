@@ -4,7 +4,7 @@
 	import { CommandChip } from "../command-chip/index.js";
 	import { RichTokenText } from "../rich-token-text/index.js";
 	import { UserMessageContainer } from "../user-message-container/index.js";
-	import AgentMessageMeta from "./agent-message-meta.svelte";
+	import AgentCopyButton from "./agent-copy-button.svelte";
 
 	interface Props {
 		text: string;
@@ -28,9 +28,32 @@
 	const hasCommandChunks = $derived(commandChunks.length > 0);
 	const hasTextChunks = $derived(textChunks.length > 0);
 	const isOnlyCommandOutput = $derived(hasCommandChunks && !hasTextChunks);
+
+	const timestampDate = $derived.by(() => {
+		if (timestampMs == null || Number.isNaN(timestampMs)) return null;
+		return new Date(timestampMs);
+	});
+	const timestampLabel = $derived.by(() => {
+		if (timestampDate == null) return null;
+		return timestampDate.toLocaleTimeString("en-US", {
+			hour: "2-digit",
+			minute: "2-digit",
+			hour12: false,
+		});
+	});
+	const timestampTitle = $derived.by(() => {
+		if (timestampDate == null) return undefined;
+		return timestampDate.toLocaleString();
+	});
+	const copyText = $derived.by(() => {
+		if (hasTextChunks) {
+			return textChunks.map((chunk) => chunk.text).join("\n");
+		}
+		return text;
+	});
 </script>
 
-<div class="group/user-message flex flex-col gap-1.5">
+<div class="group/user-message flex w-full min-w-0 flex-col gap-1.5">
 	{#if hasCommandChunks}
 		<div class="space-y-1.5">
 			{#each commandChunks as chunk (`${chunk.command}:${chunk.stdout}`)}
@@ -40,34 +63,39 @@
 	{/if}
 
 	{#if hasTextChunks}
-		<div class="flex flex-col items-end gap-0.5">
-			<UserMessageContainer class="border border-border">
-				<div class="flex flex-col items-end gap-1.5">
-					{#each textChunks as chunk, index (`${index}:${chunk.text}`)}
-						<RichTokenText text={chunk.text} {onTokenClick} class="text-foreground" />
-					{/each}
-				</div>
-			</UserMessageContainer>
-			{@render bottomWidget()}
-		</div>
+		<UserMessageContainer class="w-full" dataTestid="agent-user-message-card">
+			{#snippet header()}
+				{@render messageHeader()}
+			{/snippet}
+			<div class="flex flex-col gap-1.5">
+				{#each textChunks as chunk, index (`${index}:${chunk.text}`)}
+					<RichTokenText text={chunk.text} {onTokenClick} class="text-foreground" />
+				{/each}
+			</div>
+		</UserMessageContainer>
 	{:else if !isOnlyCommandOutput}
-		<div class="flex flex-col items-end gap-0.5">
-			<UserMessageContainer class="border border-border">
-				<RichTokenText {text} {onTokenClick} class="text-foreground" />
-			</UserMessageContainer>
-			{@render bottomWidget()}
-		</div>
+		<UserMessageContainer class="w-full" dataTestid="agent-user-message-card">
+			{#snippet header()}
+				{@render messageHeader()}
+			{/snippet}
+			<RichTokenText {text} {onTokenClick} class="text-foreground" />
+		</UserMessageContainer>
 	{/if}
 </div>
 
-<!--
-	The bottom widget sits below the bubble and fades in on hover. It carries the
-	timestamp and the copy button together, so the bubble itself never shifts.
--->
-{#snippet bottomWidget()}
-	<div
-		class="opacity-0 transition-opacity duration-150 group-hover/user-message:opacity-100 group-focus-within/user-message:opacity-100"
-	>
-		<AgentMessageMeta {text} {timestampMs} variant="user" showCopy={true} />
+{#snippet messageHeader()}
+	{#if timestampLabel}
+		<span
+			class="min-w-0 truncate font-sans text-xs tabular-nums text-muted-foreground"
+			title={timestampTitle}
+			data-testid="agent-user-message-timestamp"
+		>
+			{timestampLabel}
+		</span>
+	{:else}
+		<span class="min-w-0 flex-1"></span>
+	{/if}
+	<div class="ml-auto flex shrink-0 items-center gap-1">
+		<AgentCopyButton text={copyText} size="header" class="text-muted-foreground" />
 	</div>
 {/snippet}
