@@ -32,6 +32,17 @@ const IGNORE_404_PATHS = [
 	"/favicon.ico",
 ];
 
+/** Old favicon paths → /brand/* so sticky Chrome/CF caches cannot keep the prior mark. */
+const FAVICON_REDIRECTS: Record<string, string> = {
+	"/favicon.ico": "/brand/acepe-mark.ico",
+	"/favicon.svg": "/brand/acepe-mark.svg",
+	"/favicon-16x16.png": "/brand/acepe-mark-16.png",
+	"/favicon-32x32.png": "/brand/acepe-mark-32.png",
+	"/favicon-192x192.png": "/brand/acepe-mark-192.png",
+	"/favicon-512x512.png": "/brand/acepe-mark-512.png",
+	"/apple-touch-icon.png": "/brand/acepe-mark-180.png",
+};
+
 const CORS_HEADERS = {
 	"Access-Control-Allow-Origin": "*",
 	"Access-Control-Allow-Methods": "GET, POST, PATCH, PUT, DELETE, OPTIONS",
@@ -95,4 +106,24 @@ const handleLegacyLocaleRedirect: Handle = async ({ event, resolve }) => {
 	return resolve(event);
 };
 
-export const handle: Handle = sequence(handleCors, handleLegacyLocaleRedirect, handleBotFilter);
+const handleFaviconRedirect: Handle = async ({ event, resolve }) => {
+	const target = FAVICON_REDIRECTS[event.url.pathname];
+	if (target !== undefined) {
+		return new Response(null, {
+			status: 302,
+			headers: {
+				Location: target,
+				"Cache-Control": "no-store",
+			},
+		});
+	}
+
+	return resolve(event);
+};
+
+export const handle: Handle = sequence(
+	handleCors,
+	handleFaviconRedirect,
+	handleLegacyLocaleRedirect,
+	handleBotFilter,
+);
