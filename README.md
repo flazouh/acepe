@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="packages/website/static/images/landing/acepe-working-view.png" width="1200" alt="Acepe working view" />
+  <img src="packages/website/static/images/landing/readme-banner.png" width="1200" alt="Acepe — the Agentic Developer Environment" />
 </p>
 
 <div align="center">
