@@ -11,10 +11,14 @@ import {
 	openStreamingReproLab,
 	probeAgentPanelScrollPages,
 	probeComputerUse,
+	probeComposerEnterSubmit,
+	probeFirstSendTimeline,
 	probeFrameRate,
 	probeHappyPathPerformance,
 	probeLedgerBackfill,
+	probePlanningBetweenTools,
 	probeSessionOpenContent,
+	probeSendAttachStress,
 	reloadWebview,
 	resetOnboarding,
 	scanAgentPanelRows,
@@ -299,7 +303,10 @@ describe("acepe-qa interaction helpers", () => {
 		expect(executedScript).toContain("thenText");
 	});
 
-	it("hovers by text and returns the matched element", async () => {
+	it("moves the native pointer and proves CSS hover before sampling the matched element", async () => {
+		let webviewCallCount = 0;
+		let movedPoint: { readonly x: number; readonly y: number } | null = null;
+		const evaluatedScripts: string[] = [];
 		const runner: CommandRunner = (command) => {
 			const joined = command.join(" ");
 			if (joined.includes("driver-session")) {
@@ -309,11 +316,32 @@ describe("acepe-qa interaction helpers", () => {
 					stderr: "",
 				});
 			}
+			webviewCallCount += 1;
+			evaluatedScripts.push(joined);
+			if (webviewCallCount === 1) {
+				return okAsync({
+					code: 0,
+					stdout: wrapped(
+						JSON.stringify({
+							found: true,
+							marker: "acepe-qa-hover-1",
+							screenPoint: {
+								x: 410,
+								y: 260,
+							},
+						})
+					),
+					stderr: "",
+				});
+			}
 			return okAsync({
 				code: 0,
 				stdout: wrapped(
 					JSON.stringify({
 						hovered: true,
+						matchesHoverPseudoClass: true,
+						pointerMoved: true,
+						screenPoint: { x: 410, y: 260 },
 						match: {
 							index: 0,
 							tag: "div",
@@ -359,16 +387,30 @@ describe("acepe-qa interaction helpers", () => {
 				stderr: "",
 			});
 		};
+		const movePointer = (point: { readonly x: number; readonly y: number }) => {
+			movedPoint = point;
+			return okAsync(null);
+		};
 
 		const result = await hoverWebview({
 			appIdentifier: "9223",
 			selector: null,
 			text: "Session row",
 			runner,
+			movePointer,
+			delayMs: 100,
 		});
 
 		expect(result.isOk()).toBe(true);
+		expect(webviewCallCount).toBe(2);
+		expect(movedPoint).toEqual({ x: 410, y: 260 });
+		expect(evaluatedScripts[0]).toContain("innerPosition");
+		expect(evaluatedScripts[0]).toContain("scaleFactor");
+		expect(evaluatedScripts[0]).toContain('invoke("activate_window"');
+		expect(evaluatedScripts[1]).toContain('matches(":hover")');
+		expect(evaluatedScripts[1]).toContain("await sleep(100)");
 		expect(result._unsafeUnwrap().hovered).toBe(true);
+		expect(result._unsafeUnwrap().matchesHoverPseudoClass).toBe(true);
 		expect(result._unsafeUnwrap().match?.text).toBe("Session row");
 	});
 
@@ -408,7 +450,10 @@ describe("acepe-qa interaction helpers", () => {
 		expect(sawScrollReset).toBe(true);
 	});
 
-	it("reloads the current WebView route", async () => {
+	it("reloads without awaiting the destroyed document and verifies the reconnected WebView", async () => {
+		const webviewCommands: string[] = [];
+		let kickoffScript = "";
+		let readinessScript = "";
 		const runner: CommandRunner = (command) => {
 			const joined = command.join(" ");
 			if (joined.includes("driver-session")) {
@@ -418,7 +463,23 @@ describe("acepe-qa interaction helpers", () => {
 					stderr: "",
 				});
 			}
-			expect(joined).toContain("window.location.reload()");
+			if (command.includes("webview-execute-js-sync")) {
+				webviewCommands.push("sync");
+				kickoffScript = command[command.indexOf("--script") + 1] ?? "";
+				return okAsync({
+					code: 0,
+					stdout: wrapped(
+						JSON.stringify({
+							from: "http://localhost:1420/settings",
+							to: "http://localhost:1420/settings",
+							path: "/settings",
+						})
+					),
+					stderr: "",
+				});
+			}
+			webviewCommands.push("async");
+			readinessScript = command[command.indexOf("--script") + 1] ?? "";
 			return okAsync({
 				code: 0,
 				stdout: wrapped(
@@ -439,6 +500,11 @@ describe("acepe-qa interaction helpers", () => {
 
 		expect(result.isOk()).toBe(true);
 		expect(result._unsafeUnwrap().path).toBe("/settings");
+		expect(webviewCommands).toEqual(["sync", "async"]);
+		expect(kickoffScript).toContain("sessionStorage.setItem");
+		expect(kickoffScript).toContain("window.location.reload()");
+		expect(readinessScript).toContain("sessionStorage.getItem");
+		expect(readinessScript).toContain("window.location.href");
 	});
 
 	it("keeps row churn collection out of the frame rate probe unless requested", async () => {
@@ -1548,6 +1614,142 @@ describe("acepe-qa interaction helpers", () => {
 		expect(evaluatedScript).toContain("setFocus");
 	});
 
+	it("runs the provider-free send attach scenario in the stress route", async () => {
+		let evaluatedScript = "";
+		const runner: CommandRunner = (command) => {
+			const joined = command.join(" ");
+			if (joined.includes("driver-session")) {
+				return okAsync({ code: 0, stdout: "", stderr: "" });
+			}
+			evaluatedScript = joined;
+			return okAsync({
+				code: 0,
+				stdout: wrapped(
+					JSON.stringify({
+						hookAvailable: true,
+						opened: true,
+						labPresent: true,
+						route: "/test-agent-panel-stress",
+						requestedRowCount: 120,
+						rowCount: 122,
+						requestedPreScrollOffsetPx: 2000,
+						preconditionPassed: true,
+						passed: true,
+						maxExtentCollapsePx: 0,
+						nativeClampDetected: false,
+						stableRowShellPreserved: true,
+						samples: [
+							{
+								label: "after-version-update",
+								rowCount: 122,
+								stableRowId: "stress:send-attach:row:streaming-assistant",
+								stableRowVersion: "stress:send-attach:row:streaming-assistant:v2",
+								stableRowContent: "send-attach-stream-version-two",
+								stableRowShellPreserved: true,
+								scrollHeightPx: 8000,
+								clientHeightPx: 800,
+								maxScrollTopPx: 7200,
+								scrollTopPx: 7200,
+								distFromBottomPx: 0,
+								geometryReleased: false,
+								controllerReleased: false,
+								longMarkdownRowId: "stress:text-heavy:61:row:00117",
+								longMarkdownHeightPx: 2200,
+								longMarkdownNative: true,
+								placeholderCount: 0,
+								spacerCount: 0,
+							},
+						],
+					})
+				),
+				stderr: "",
+			});
+		};
+
+		const result = await probeSendAttachStress({
+			appIdentifier: "9223",
+			rowCount: 120,
+			preScrollOffsetPx: 2000,
+			delayMs: 300,
+			runner,
+		});
+
+		expect(result.isOk()).toBe(true);
+		expect(result._unsafeUnwrap().passed).toBe(true);
+		expect(evaluatedScript).toContain("/test-agent-panel-stress");
+		expect(evaluatedScript).toContain("runSendAttachScenario");
+		expect(evaluatedScript).toContain("rowCount: 120");
+		expect(evaluatedScript).toContain("preScrollOffsetPx: 2000");
+	});
+
+	it("runs the provider-free planning-between-tools transition in the stress route", async () => {
+		let evaluatedScript = "";
+		const runner: CommandRunner = (command) => {
+			const joined = command.join(" ");
+			if (joined.includes("driver-session")) {
+				return okAsync({ code: 0, stdout: "", stderr: "" });
+			}
+			evaluatedScript = joined;
+			return okAsync({
+				code: 0,
+				stdout: wrapped(
+					JSON.stringify({
+						hookAvailable: true,
+						opened: true,
+						labPresent: true,
+						route: "/test-agent-panel-stress",
+						passed: true,
+						restoredCompletedToolStage: true,
+						samples: [
+							{
+								stage: "completed_tool_tail",
+								sessionId: "stress-agent-panel-planning-between-tools-session",
+								lifecycleStatus: "ready",
+								activityKind: "awaiting_model",
+								turnState: "Running",
+								trailingRowId: "stress:tool-heavy:71:row:00001",
+								trailingRowKind: "tool",
+								trailingOperationStates: ["completed"],
+								activeStreamingTail: null,
+								localPlaceholderMode: "planning_after_tool",
+								planningRowCount: 1,
+								planningText: "Planning next moves",
+								planningVisible: true,
+							},
+							{
+								stage: "active_assistant_tail",
+								sessionId: "stress-agent-panel-planning-between-tools-session",
+								lifecycleStatus: "ready",
+								activityKind: "awaiting_model",
+								turnState: "Running",
+								trailingRowId: "stress:tool-heavy:71:row:00002",
+								trailingRowKind: "assistantText",
+								trailingOperationStates: [],
+								activeStreamingTail: "message",
+								localPlaceholderMode: "none",
+								planningRowCount: 0,
+								planningText: null,
+								planningVisible: false,
+							},
+						],
+					})
+				),
+				stderr: "",
+			});
+		};
+
+		const result = await probePlanningBetweenTools({
+			appIdentifier: "9223",
+			delayMs: 300,
+			runner,
+		});
+
+		expect(result.isOk()).toBe(true);
+		expect(result._unsafeUnwrap().passed).toBe(true);
+		expect(evaluatedScript).toContain("/test-agent-panel-stress");
+		expect(evaluatedScript).toContain("runPlanningBetweenToolsScenario");
+	});
+
 	it("keeps the send prompt separate from DOM text helpers", async () => {
 		let evaluatedScript = "";
 		const runner: CommandRunner = (command) => {
@@ -1580,13 +1782,178 @@ describe("acepe-qa interaction helpers", () => {
 			submit: true,
 			selector: "",
 			selectorIndex: 2,
+			panelId: "panel-1",
+			sessionId: "session-1",
 			runner,
 		});
 
 		expect(result.isOk()).toBe(true);
 		expect(evaluatedScript).toContain("const promptText =");
 		expect(evaluatedScript).toContain("const selectorIndex = 2");
+		expect(evaluatedScript).toContain('const panelId = "panel-1"');
+		expect(evaluatedScript).toContain('const sessionId = "session-1"');
+		expect(evaluatedScript).toContain("[data-qa-agent-panel-id]");
+		expect(evaluatedScript).toContain("[data-session-id]");
 		expect(evaluatedScript).not.toContain('const text = "QA prompt"');
 		expect(evaluatedScript).toContain("button.textContent");
+	});
+
+	it("probes plain Enter submission inside the exact historical session panel", async () => {
+		let evaluatedScript = "";
+		const runner: CommandRunner = (command) => {
+			const joined = command.join(" ");
+			if (joined.includes("driver-session")) {
+				return okAsync({ code: 0, stdout: "", stderr: "" });
+			}
+			evaluatedScript = joined;
+			return okAsync({
+				code: 0,
+				stdout: wrapped(
+					JSON.stringify({
+						targetFound: true,
+						composerFound: true,
+						textApplied: "QA enter prompt",
+						sendReadyBeforeEnter: true,
+						enterDefaultPrevented: true,
+						newlineWouldBeInserted: false,
+						draftAfterEnter: "",
+						submittedUserRowFound: true,
+						planningBefore: null,
+						planningAfter: null,
+					})
+				),
+				stderr: "",
+			});
+		};
+
+		const result = await probeComposerEnterSubmit({
+			appIdentifier: "9223",
+			text: "QA enter prompt",
+			panelId: "panel-f38",
+			sessionId: "session-f38",
+			runner,
+		});
+
+		expect(result.isOk()).toBe(true);
+		expect(evaluatedScript).toContain('const panelId = "panel-f38"');
+		expect(evaluatedScript).toContain('const sessionId = "session-f38"');
+		expect(evaluatedScript).toContain("new KeyboardEvent");
+		expect(evaluatedScript).toContain('key: "Enter"');
+		expect(evaluatedScript).toContain("defaultPrevented");
+		expect(evaluatedScript).toContain("__acepePlanningSnapshot");
+		expect(evaluatedScript).toContain("submittedUserRowFound");
+	});
+
+	it("scopes the first-send timeline to one exact panel and session", async () => {
+		const evaluatedScripts: string[] = [];
+		const sample = {
+			label: "after-click",
+			elapsedMs: 0,
+			composerText: "",
+			composerContainsPrompt: false,
+			messageVisible: true,
+			messageVisibleInTranscript: true,
+			sentRowVisibleInViewport: true,
+			planningVisible: false,
+			readyVisible: false,
+			matchingTextLeafCount: 1,
+			matchingTranscriptViewportCount: 1,
+			transcriptViewportCount: 1,
+			maxOnscreenRowHeightPx: 48,
+			placeholderHeightPx: null,
+			placeholderText: null,
+			panelId: "panel-opencode",
+			sessionId: "session-opencode",
+			planningSourceKind: "canonical",
+			planningLifecycleStatus: "ready",
+			planningHasLocalPendingSendIntent: false,
+			planningHasTrailingCompletedTool: false,
+			planningLocalPlaceholderMode: "none",
+			scrollTopPx: 1_000,
+			maxScrollTopPx: 1_000,
+			scrollAttached: true,
+			scrollReleased: false,
+			distFromBottomPx: 0,
+			bodyPreview: "Reply with 1.",
+		};
+		const runner: CommandRunner = (command) => {
+			const joined = command.join(" ");
+			if (joined.includes("driver-session")) {
+				return okAsync({ code: 0, stdout: "", stderr: "" });
+			}
+			evaluatedScripts.push(joined);
+			const payload = joined.includes("const baseSelector")
+				? {
+						composerFound: true,
+						selectedComposerIndex: 0,
+						selectedComposerName: "Send follow-up",
+						sendFound: true,
+						sendReadyBeforeClick: true,
+						sent: true,
+						prompt: "Reply with 1.",
+						samples: [sample],
+						preScroll: {
+							requestedOffsetPx: 2_000,
+							attempted: true,
+							passed: true,
+							tolerancePx: 24,
+							scrollTopPx: 8_000,
+							maxScrollTopPx: 10_000,
+							distFromBottomPx: 2_000,
+						},
+						scrollProvenance: {
+							installed: true,
+							restored: true,
+							writes: [],
+							events: [],
+						},
+					}
+				: sample;
+			return okAsync({
+				code: 0,
+				stdout: wrapped(JSON.stringify(payload)),
+				stderr: "",
+			});
+		};
+
+		const result = await probeFirstSendTimeline({
+			appIdentifier: "9223",
+			text: "Reply with 1.",
+			selector: "",
+			panelId: "panel-opencode",
+			sessionId: "session-opencode",
+			preScrollOffsetPx: 2_000,
+			timeoutMs: 0,
+			runner,
+		});
+
+		expect(result.isOk()).toBe(true);
+		expect(evaluatedScripts).toHaveLength(1);
+		for (const script of evaluatedScripts) {
+			expect(script).toContain('const targetPanelId = "panel-opencode"');
+			expect(script).toContain('const targetSessionId = "session-opencode"');
+			expect(script).toContain("[data-qa-agent-panel-id]");
+			expect(script).toContain("targetPanelRoot.querySelectorAll");
+			expect(script).toContain('Object.defineProperty(scrollEl, "scrollTop"');
+			expect(script).toContain("nativeScrollTopDescriptor.get.call");
+			expect(script).toContain("nativeScrollTopDescriptor.set.call");
+			expect(script).toContain("new Error().stack");
+			expect(script).toContain('scrollEl.addEventListener("scroll"');
+			expect(script).toContain("event.isTrusted");
+			expect(script).toContain("nearestSetterMovedScrollTop === true");
+			expect(script).toContain("nearestSetterResultMatchesEvent === true");
+			expect(script).toContain('provenance = "native-layout-or-anchoring"');
+			expect(script).toContain("finally");
+			expect(script).toContain("originalInstanceScrollTopDescriptor");
+			expect(script).toContain("const requestedPreScrollOffsetPx = 2000");
+			expect(script).toContain('new WheelEvent("wheel"');
+			expect(script).toContain("scrollEl.scrollTop = Math.max");
+			expect(script).toContain('scrollEl.dispatchEvent(new Event("scroll"');
+			expect(script).toContain("requestAnimationFrame");
+			expect(script).toContain("if (!preScroll.passed)");
+			expect(script.indexOf("if (!preScroll.passed)")).toBeLessThan(
+				script.indexOf("applyPrompt(candidate)")
+			);
+		}
 	});
 });

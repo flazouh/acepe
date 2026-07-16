@@ -358,6 +358,7 @@ export const domElementSummarySchema = z.object({
 	focused: z.boolean(),
 	computedStyle: z.object({
 		display: z.string(),
+		opacity: z.string().optional(),
 		color: z.string(),
 		backgroundColor: z.string(),
 		gap: z.string(),
@@ -389,8 +390,27 @@ export const clickResultSchema = z.object({
 
 export const hoverResultSchema = z.object({
 	hovered: z.boolean(),
+	matchesHoverPseudoClass: z.boolean(),
+	pointerMoved: z.boolean(),
+	screenPoint: z
+		.object({
+			x: z.number(),
+			y: z.number(),
+		})
+		.nullable(),
 	match: domElementSummarySchema.nullable(),
 	after: domInspectionResultSchema.nullable().optional(),
+});
+
+export const hoverTargetResultSchema = z.object({
+	found: z.boolean(),
+	marker: z.string(),
+	screenPoint: z
+		.object({
+			x: z.number(),
+			y: z.number(),
+		})
+		.nullable(),
 });
 
 export const thinkingToggleProbeResultSchema = z.object({
@@ -645,6 +665,69 @@ export const agentPanelStressLabRunStatusSchema = z.object({
 	result: agentPanelStressLabResultSchema.nullable(),
 });
 
+export const sendAttachStressSampleSchema = z.object({
+	label: z.string(),
+	rowCount: z.number(),
+	stableRowId: z.string(),
+	stableRowVersion: z.string().nullable(),
+	stableRowContent: z.string().nullable(),
+	stableRowShellPreserved: z.boolean().nullable(),
+	scrollHeightPx: z.number(),
+	clientHeightPx: z.number(),
+	maxScrollTopPx: z.number(),
+	scrollTopPx: z.number(),
+	distFromBottomPx: z.number(),
+	geometryReleased: z.boolean(),
+	controllerReleased: z.boolean(),
+	longMarkdownRowId: z.string(),
+	longMarkdownHeightPx: z.number(),
+	longMarkdownNative: z.boolean(),
+	placeholderCount: z.number(),
+	spacerCount: z.number(),
+});
+
+export const sendAttachStressProbeResultSchema = z.object({
+	hookAvailable: z.boolean(),
+	opened: z.boolean(),
+	labPresent: z.boolean(),
+	route: z.string(),
+	requestedRowCount: z.number(),
+	rowCount: z.number(),
+	requestedPreScrollOffsetPx: z.number(),
+	preconditionPassed: z.boolean(),
+	passed: z.boolean(),
+	maxExtentCollapsePx: z.number(),
+	nativeClampDetected: z.boolean(),
+	stableRowShellPreserved: z.boolean(),
+	samples: z.array(sendAttachStressSampleSchema),
+});
+
+export const planningBetweenToolsSampleSchema = z.object({
+	stage: z.enum(["completed_tool_tail", "active_assistant_tail"]),
+	sessionId: z.string(),
+	lifecycleStatus: z.literal("ready"),
+	activityKind: z.literal("awaiting_model"),
+	turnState: z.literal("Running"),
+	trailingRowId: z.string().nullable(),
+	trailingRowKind: z.string().nullable(),
+	trailingOperationStates: z.array(z.string()),
+	activeStreamingTail: z.string().nullable(),
+	localPlaceholderMode: z.enum(["none", "connection", "planning_after_tool"]),
+	planningRowCount: z.number(),
+	planningText: z.string().nullable(),
+	planningVisible: z.boolean(),
+});
+
+export const planningBetweenToolsProbeResultSchema = z.object({
+	hookAvailable: z.boolean(),
+	opened: z.boolean(),
+	labPresent: z.boolean(),
+	route: z.string(),
+	passed: z.boolean(),
+	restoredCompletedToolStage: z.boolean(),
+	samples: z.array(planningBetweenToolsSampleSchema),
+});
+
 export const startupPerformanceTraceEntrySchema = z.object({
 	name: z.string(),
 	startedAtMs: z.number(),
@@ -826,6 +909,19 @@ export const sendComposerResultSchema = z.object({
 	sent: z.boolean(),
 });
 
+export const composerEnterSubmitProbeResultSchema = z.object({
+	targetFound: z.boolean(),
+	composerFound: z.boolean(),
+	textApplied: z.string(),
+	sendReadyBeforeEnter: z.boolean(),
+	enterDefaultPrevented: z.boolean(),
+	newlineWouldBeInserted: z.boolean(),
+	draftAfterEnter: z.string(),
+	submittedUserRowFound: z.boolean(),
+	planningBefore: z.lazy(() => planningDebugSnapshotSchema.nullable()),
+	planningAfter: z.lazy(() => planningDebugSnapshotSchema.nullable()),
+});
+
 export const navigateResultSchema = z.object({
 	from: z.string(),
 	to: z.string(),
@@ -929,8 +1025,77 @@ export const firstSendTimelineSampleSchema = z.object({
 	transcriptViewportCount: z.number(),
 	maxOnscreenRowHeightPx: z.number(),
 	placeholderHeightPx: z.number().nullable(),
+	placeholderText: z.string().nullable().optional(),
+	panelId: z.string().nullable(),
+	sessionId: z.string().nullable(),
+	planningSourceKind: z.string().nullable().optional(),
+	planningLifecycleStatus: z.string().nullable().optional(),
+	planningHasLocalPendingSendIntent: z.boolean().nullable().optional(),
+	planningHasTrailingCompletedTool: z.boolean().nullable().optional(),
+	planningLocalPlaceholderMode: z
+		.enum(["none", "connection", "planning_after_tool"])
+		.nullable()
+		.optional(),
+	scrollTopPx: z.number(),
+	maxScrollTopPx: z.number(),
+	scrollAttached: z.boolean(),
+	scrollReleased: z.boolean(),
 	distFromBottomPx: z.number(),
 	bodyPreview: z.string(),
+});
+
+export const firstSendScrollTopWriteSchema = z.object({
+	elapsedMs: z.number(),
+	requestedScrollTopPx: z.number(),
+	beforeScrollTopPx: z.number(),
+	afterScrollTopPx: z.number(),
+	scrollHeightPx: z.number(),
+	clientHeightPx: z.number(),
+	maxScrollTopPx: z.number(),
+	distFromBottomPx: z.number(),
+	stack: z.string(),
+});
+
+export const firstSendScrollEventSchema = z.object({
+	elapsedMs: z.number(),
+	isTrusted: z.boolean().nullable(),
+	scrollTopPx: z.number(),
+	previousScrollTopPx: z.number(),
+	deltaScrollTopPx: z.number(),
+	scrollHeightPx: z.number(),
+	clientHeightPx: z.number(),
+	maxScrollTopPx: z.number(),
+	distFromBottomPx: z.number(),
+	nearestSetterAtMs: z.number().nullable(),
+	nearestSetterDeltaMs: z.number().nullable(),
+	nearestSetterMovedScrollTop: z.boolean().nullable(),
+	nearestSetterResultMatchesEvent: z.boolean().nullable(),
+	nearestInputIntentKind: z.string().nullable(),
+	nearestInputIntentAtMs: z.number().nullable(),
+	nearestInputIntentDeltaMs: z.number().nullable(),
+	provenance: z.enum([
+		"setter",
+		"input-intent",
+		"native-layout-or-anchoring",
+		"synthetic-or-unknown",
+	]),
+});
+
+export const firstSendScrollProvenanceSchema = z.object({
+	installed: z.boolean(),
+	restored: z.boolean(),
+	writes: z.array(firstSendScrollTopWriteSchema),
+	events: z.array(firstSendScrollEventSchema),
+});
+
+export const firstSendPreScrollSchema = z.object({
+	requestedOffsetPx: z.number().nullable(),
+	attempted: z.boolean(),
+	passed: z.boolean(),
+	tolerancePx: z.number(),
+	scrollTopPx: z.number().nullable(),
+	maxScrollTopPx: z.number().nullable(),
+	distFromBottomPx: z.number().nullable(),
 });
 
 export const firstSendTimelineProbeResultSchema = z.object({
@@ -942,6 +1107,8 @@ export const firstSendTimelineProbeResultSchema = z.object({
 	sent: z.boolean(),
 	prompt: z.string(),
 	samples: z.array(firstSendTimelineSampleSchema),
+	preScroll: firstSendPreScrollSchema,
+	scrollProvenance: firstSendScrollProvenanceSchema,
 });
 
 export const openPersistedSessionDiagnosticEventSchema = z.object({
@@ -998,7 +1165,7 @@ export const openPersistedSessionDiagnosticEventSchema = z.object({
 		.object({
 			source: z.string(),
 			openPath: z
-				.enum(["hot_ledger", "legacy_rebuild", "compat_snapshot"])
+				.enum(["hot_ledger", "legacy_rebuild", "compat_snapshot", "fold_history"])
 				.nullable()
 				.optional()
 				.transform((value) => value ?? null),
@@ -1103,7 +1270,8 @@ export const planningDebugSnapshotSchema = z.object({
 	pendingSendIntentAttemptId: z.string().nullable(),
 	hasMessages: z.boolean(),
 	visibleEntryCount: z.number(),
-	showPlanningIndicator: z.boolean(),
+	hasTrailingCompletedTool: z.boolean(),
+	localPlaceholderMode: z.enum(["none", "connection", "planning_after_tool"]),
 	actionabilityCanSend: z.boolean().nullable(),
 	sessionCanSubmit: z.boolean(),
 	disableSendForFailedFirstSend: z.boolean(),
@@ -1151,6 +1319,9 @@ export const ledgerBackfillProbeResultSchema = z.object({
 });
 
 export type SendComposerResult = z.infer<typeof sendComposerResultSchema>;
+export type ComposerEnterSubmitProbeResult = z.infer<
+	typeof composerEnterSubmitProbeResultSchema
+>;
 export type PlanningDebugResult = z.infer<typeof planningDebugResultSchema>;
 export type ComputerUseProbeResult = z.infer<typeof computerUseProbeResultSchema>;
 export type LedgerBackfillProbeResult = z.infer<typeof ledgerBackfillProbeResultSchema>;
@@ -1183,6 +1354,12 @@ export type ResetOnboardingResult = z.infer<typeof resetOnboardingResultSchema>;
 export type StreamingReproLabResult = z.infer<typeof streamingReproLabResultSchema>;
 export type AgentPanelStressLabResult = z.infer<typeof agentPanelStressLabResultSchema>;
 export type AgentPanelStressLabRunStatus = z.infer<typeof agentPanelStressLabRunStatusSchema>;
+export type SendAttachStressProbeResult = z.infer<
+	typeof sendAttachStressProbeResultSchema
+>;
+export type PlanningBetweenToolsProbeResult = z.infer<
+	typeof planningBetweenToolsProbeResultSchema
+>;
 export type TauriInvokeTimingRecord = z.infer<typeof tauriInvokeTimingRecordSchema>;
 export type TauriPendingInvokeRecord = z.infer<typeof tauriPendingInvokeRecordSchema>;
 export type HappyPathPerformanceResult = z.infer<typeof happyPathPerformanceResultSchema>;

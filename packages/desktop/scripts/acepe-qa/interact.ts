@@ -5,6 +5,7 @@ import type {
 	AgentPanelStressLabResult,
 	AgentPanelStressLabRunStatus,
 	ClickResult,
+	ComposerEnterSubmitProbeResult,
 	ComputerUseProbeResult,
 	DomInspectionResult,
 	FirstSendTimelineProbeResult,
@@ -14,11 +15,13 @@ import type {
 	HoverResult,
 	LedgerBackfillProbeResult,
 	NavigateResult,
+	PlanningBetweenToolsProbeResult,
 	PlanningDebugResult,
 	ResetOnboardingResult,
 	ResizeProbeResult,
 	ResizeStreamProbeResult,
 	SendComposerResult,
+	SendAttachStressProbeResult,
 	SessionOpenContentProbeResult,
 	SessionOpenContentProbeRunStatus,
 	StreamingReproLabResult,
@@ -30,21 +33,24 @@ import {
 	agentPanelScrollPageProbeResultSchema,
 	agentPanelStressLabRunStatusSchema,
 	clickResultSchema,
+	composerEnterSubmitProbeResultSchema,
 	computerUseProbeResultSchema,
 	domInspectionResultSchema,
 	firstSendTimelineProbeResultSchema,
-	firstSendTimelineSampleSchema,
 	focusAppResultSchema,
 	frameRateProbeResultSchema,
 	happyPathPerformanceResultSchema,
 	hoverResultSchema,
+	hoverTargetResultSchema,
 	ledgerBackfillProbeResultSchema,
 	navigateResultSchema,
+	planningBetweenToolsProbeResultSchema,
 	planningDebugResultSchema,
 	resetOnboardingResultSchema,
 	resizeProbeResultSchema,
 	resizeStreamProbeResultSchema,
 	sendComposerResultSchema,
+	sendAttachStressProbeResultSchema,
 	sessionOpenContentProbeRunStatusSchema,
 	streamingReproLabResultSchema,
 	thinkingToggleProbeResultSchema,
@@ -53,10 +59,16 @@ import {
 import {
 	type CommandRunner,
 	executeWebviewJson,
+	executeWebviewJsonSync,
 	runCommand,
 	startDriverSession,
 	type TauriMcpFailure,
 } from "./tauri-mcp";
+import { dispatchWebviewClick } from "./click-event-dispatch";
+import {
+	moveNativePointer,
+	type NativePointerMover,
+} from "./native-pointer";
 
 export type DriverOptions = {
 	readonly appIdentifier: string;
@@ -69,7 +81,7 @@ function escapedJson(value: string): string {
 }
 
 function driverReady(options: DriverOptions): ResultAsync<null, TauriMcpFailure> {
-	const runner = options.runner ?? runCommand;
+	const runner = options.runner === undefined ? runCommand : options.runner;
 	const driver =
 		options.skipDriver === true
 			? okAsync({ code: 0, stdout: "", stderr: "" })
@@ -115,7 +127,6 @@ function focusAppScript(): string {
       tauriActivateError = error && typeof error.message === "string" ? error.message : String(error);
     });
   }
-
   const tauriWindow = window.__TAURI__ && window.__TAURI__.window;
   const currentWindow =
     tauriWindow &&
@@ -1295,6 +1306,7 @@ const qaSummary = (node, index) => ({
   focused: document.activeElement === node,
   computedStyle: {
     display: getComputedStyle(node).display,
+    opacity: getComputedStyle(node).opacity,
     color: getComputedStyle(node).color,
     backgroundColor: getComputedStyle(node).backgroundColor,
     gap: getComputedStyle(node).gap,
@@ -2001,48 +2013,9 @@ export function clickWebview(
   const thenText = ${escapedJson(options.thenText ?? "")};
   const key = ${escapedJson(options.key ?? "")};
 	const thenRequested = thenSelector.length > 0 || thenText.length > 0;
-	const clickElement = async (element, dispatchPointerEvents) => {
-		element.scrollIntoView({ block: "center", inline: "nearest" });
-		await sleep(100);
-		if (!dispatchPointerEvents) {
-			element.click();
-			return;
-		}
-		const rect = element.getBoundingClientRect();
-		const eventInit = {
-			bubbles: true,
-			cancelable: true,
-			view: window,
-			clientX: rect.left + rect.width / 2,
-			clientY: rect.top + rect.height / 2,
-			button: 0,
-			buttons: 1,
-			pointerId: 1,
-			pointerType: "mouse",
-			isPrimary: true,
-		};
-		const eventUpInit = {
-			bubbles: true,
-			cancelable: true,
-			view: window,
-			clientX: rect.left + rect.width / 2,
-			clientY: rect.top + rect.height / 2,
-			button: 0,
-			buttons: 0,
-			pointerId: 1,
-			pointerType: "mouse",
-			isPrimary: true,
-		};
-		if (typeof PointerEvent === "function") {
-			element.dispatchEvent(new PointerEvent("pointerdown", eventInit));
-		}
-		element.dispatchEvent(new MouseEvent("mousedown", eventInit));
-		if (typeof PointerEvent === "function") {
-			element.dispatchEvent(new PointerEvent("pointerup", eventUpInit));
-		}
-		element.dispatchEvent(new MouseEvent("mouseup", eventUpInit));
-		element.click();
-	};
+	const dispatchWebviewClick = ${dispatchWebviewClick.toString()};
+	const clickElement = (element, dispatchPointerEvents) =>
+		dispatchWebviewClick(element, dispatchPointerEvents, sleep);
   const candidates = selector.length > 0
     ? Array.from(document.querySelectorAll(selector))
     : Array.from(document.querySelectorAll("button, [role=button], [role=menuitem], a, input, textarea, [contenteditable=true]"));
@@ -2104,18 +2077,28 @@ export function hoverWebview(
 		readonly afterSelector?: string | null;
 		readonly afterLimit?: number;
 		readonly text: string | null;
+		readonly movePointer?: NativePointerMover;
+		readonly delayMs?: number;
 	}
 ): ResultAsync<HoverResult, TauriMcpFailure> {
 	const runner = options.runner ?? runCommand;
+	const pointerMover = options.movePointer ?? moveNativePointer;
+	const delayMs = Number.isFinite(options.delayMs)
+		? Math.max(0, Math.floor(options.delayMs ?? 350))
+		: 350;
 	return driverReady(options).andThen(() => {
-		const script = `
+		const marker = `acepe-qa-hover-${Date.now().toString(36)}`;
+		const locateScript = `
 (async () => {
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-  ${ELEMENT_SUMMARY_HELPERS}
+  const qaText = (node) => node ? (node.textContent || "").trim().replace(/\\s+/g, " ") : "";
   const selector = ${escapedJson(options.selector ?? "")};
   const text = ${escapedJson(options.text ?? "")};
-  const afterSelector = ${escapedJson(options.afterSelector ?? "")};
-  const afterLimit = ${Number.isFinite(options.afterLimit) ? String(options.afterLimit) : "10"};
+  const marker = ${escapedJson(marker)};
+  const markerAttribute = "data-acepe-qa-hover-target";
+  for (const markedNode of document.querySelectorAll("[data-acepe-qa-hover-target]")) {
+    markedNode.removeAttribute(markerAttribute);
+  }
   const candidates = selector.length > 0
     ? Array.from(document.querySelectorAll(selector))
     : Array.from(document.querySelectorAll("button, [role=button], [role=menuitem], a, input, textarea, [contenteditable=true]"));
@@ -2124,30 +2107,87 @@ export function hoverWebview(
     const label = node.getAttribute("aria-label") || "";
     return label.includes(text) || qaText(node).includes(text);
   }) || null;
-  if (match) {
-    match.scrollIntoView({ block: "center", inline: "nearest" });
-    await sleep(100);
-    const rect = match.getBoundingClientRect();
-    const eventInit = {
-      bubbles: true,
-      cancelable: true,
-      view: window,
-      clientX: rect.left + rect.width / 2,
-      clientY: rect.top + rect.height / 2,
-    };
-    if (typeof PointerEvent === "function") {
-      match.dispatchEvent(new PointerEvent("pointerover", eventInit));
-      match.dispatchEvent(new PointerEvent("pointerenter", eventInit));
-      match.dispatchEvent(new PointerEvent("pointermove", eventInit));
-    }
-    match.dispatchEvent(new Event("pointerover", { bubbles: true, cancelable: true, composed: true }));
-    match.dispatchEvent(new Event("pointerenter", { bubbles: false, cancelable: true, composed: true }));
-    match.dispatchEvent(new Event("pointermove", { bubbles: true, cancelable: true, composed: true }));
-    match.dispatchEvent(new MouseEvent("mouseover", eventInit));
-    match.dispatchEvent(new MouseEvent("mouseenter", eventInit));
-    match.dispatchEvent(new MouseEvent("mousemove", eventInit));
-    await sleep(300);
+  if (!match) {
+    return { found: false, marker, screenPoint: null };
   }
+
+  const tauriCore = window.__TAURI__ && window.__TAURI__.core;
+  if (tauriCore && typeof tauriCore.invoke === "function") {
+    await tauriCore.invoke("activate_window", { label: "main" }).then(
+      () => undefined,
+      () => undefined,
+    );
+  }
+  const tauriWindow = window.__TAURI__ && window.__TAURI__.window;
+  const currentWindow = tauriWindow && typeof tauriWindow.getCurrentWindow === "function"
+    ? tauriWindow.getCurrentWindow()
+    : null;
+  if (currentWindow && typeof currentWindow.show === "function") {
+    await currentWindow.show().then(() => undefined, () => undefined);
+  }
+  if (typeof window.focus === "function") window.focus();
+  if (currentWindow && typeof currentWindow.setFocus === "function") {
+    await currentWindow.setFocus().then(() => undefined, () => undefined);
+  }
+  await sleep(250);
+
+  match.setAttribute(markerAttribute, marker);
+  match.scrollIntoView({ block: "center", inline: "nearest" });
+  await sleep(150);
+  const rect = match.getBoundingClientRect();
+  const webviewScaleFactor = Number.isFinite(window.devicePixelRatio) && window.devicePixelRatio > 0
+    ? window.devicePixelRatio
+    : 1;
+  let screenScaleFactor = webviewScaleFactor;
+  let contentOriginX = window.screenX + Math.max(0, (window.outerWidth - window.innerWidth) / 2);
+  let contentOriginY = window.screenY + Math.max(0, window.outerHeight - window.innerHeight);
+  if (currentWindow && typeof currentWindow.scaleFactor === "function") {
+    await currentWindow.scaleFactor().then((scaleFactor) => {
+      if (Number.isFinite(scaleFactor) && scaleFactor > 0) screenScaleFactor = scaleFactor;
+    }, () => undefined);
+  }
+  if (currentWindow && typeof currentWindow.innerPosition === "function") {
+    await currentWindow.innerPosition().then((position) => {
+      contentOriginX = position.x / screenScaleFactor;
+      contentOriginY = position.y / screenScaleFactor;
+    }, () => undefined);
+  }
+  const cssPixelsToScreenPoints = webviewScaleFactor / screenScaleFactor;
+  return {
+    found: true,
+    marker,
+    screenPoint: {
+      x: contentOriginX + (rect.left + rect.width / 2) * cssPixelsToScreenPoints,
+      y: contentOriginY + (rect.top + rect.height / 2) * cssPixelsToScreenPoints,
+    },
+  };
+})()
+`;
+		return executeWebviewJson(
+			{
+				appIdentifier: options.appIdentifier,
+				script: locateScript,
+				schema: hoverTargetResultSchema,
+			},
+			runner
+		).andThen((target) => {
+			const move = target.screenPoint === null
+				? okAsync(null)
+				: pointerMover(target.screenPoint);
+			return move.andThen(() => {
+				const sampleScript = `
+(async () => {
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  ${ELEMENT_SUMMARY_HELPERS}
+  const marker = ${escapedJson(target.marker)};
+  const markerAttribute = "data-acepe-qa-hover-target";
+  const afterSelector = ${escapedJson(options.afterSelector ?? "")};
+  const afterLimit = ${Number.isFinite(options.afterLimit) ? String(options.afterLimit) : "10"};
+  const markedNodes = Array.from(document.querySelectorAll("[data-acepe-qa-hover-target]"));
+  const match = markedNodes.find((node) => node.getAttribute(markerAttribute) === marker) || null;
+  if (match) match.removeAttribute(markerAttribute);
+  await sleep(${delayMs.toString()});
+  const matchesHoverPseudoClass = match ? match.matches(":hover") : false;
   const after = afterSelector.length === 0
     ? null
     : (() => {
@@ -2159,20 +2199,25 @@ export function hoverWebview(
       };
     })();
   return {
-    hovered: Boolean(match),
+    hovered: matchesHoverPseudoClass,
+    matchesHoverPseudoClass,
+    pointerMoved: ${target.screenPoint === null ? "false" : "true"},
+    screenPoint: ${JSON.stringify(target.screenPoint)},
     match: match ? qaSummary(match, 0) : null,
     after,
   };
 })()
 `;
-		return executeWebviewJson(
-			{
-				appIdentifier: options.appIdentifier,
-				script,
-				schema: hoverResultSchema,
-			},
-			runner
-		);
+				return executeWebviewJson(
+					{
+						appIdentifier: options.appIdentifier,
+						script: sampleScript,
+						schema: hoverResultSchema,
+					},
+					runner
+				);
+			});
+		});
 	});
 }
 
@@ -2227,10 +2272,14 @@ export function reloadWebview(
 ): ResultAsync<NavigateResult, TauriMcpFailure> {
 	const runner = options.runner ?? runCommand;
 	return driverReady(options).andThen(() => {
+		const marker = `acepe-qa-reload-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+		const markerKey = "__acepeQaReloadMarker";
 		const script = `
 (() => {
   const from = window.location.href;
   const path = window.location.pathname + window.location.search + window.location.hash;
+  sessionStorage.setItem(${escapedJson(markerKey)}, ${escapedJson(marker)});
+  window.__acepeQaReloadPendingMarker = ${escapedJson(marker)};
   setTimeout(() => window.location.reload(), 0);
   return {
     from,
@@ -2239,14 +2288,79 @@ export function reloadWebview(
   };
 })()
 `;
-		return executeWebviewJson(
+		return executeWebviewJsonSync(
 			{
 				appIdentifier: options.appIdentifier,
 				script,
 				schema: navigateResultSchema,
 			},
 			runner
+		).andThen((kickoff) =>
+			pollReloadReadiness({
+				appIdentifier: options.appIdentifier,
+				runner,
+				marker,
+				markerKey,
+				expectedUrl: kickoff.from,
+				deadlineMs: Date.now() + 10_000,
+			})
 		);
+	});
+}
+
+function waitForReloadPollDelay(): ResultAsync<null, TauriMcpFailure> {
+	return ResultAsync.fromPromise(
+		new Promise<null>((resolve) => setTimeout(() => resolve(null), 100)),
+		(error) => ({
+			code: "reload_poll_delay_failed",
+			message: error instanceof Error ? error.message : "Reload poll delay failed.",
+		})
+	);
+}
+
+function pollReloadReadiness(input: {
+	readonly appIdentifier: string;
+	readonly runner: CommandRunner;
+	readonly marker: string;
+	readonly markerKey: string;
+	readonly expectedUrl: string;
+	readonly deadlineMs: number;
+}): ResultAsync<NavigateResult, TauriMcpFailure> {
+	const script = `
+(() => {
+  const marker = sessionStorage.getItem(${escapedJson(input.markerKey)});
+  if (
+    marker !== ${escapedJson(input.marker)} ||
+    window.__acepeQaReloadPendingMarker === ${escapedJson(input.marker)} ||
+    document.readyState !== "complete" ||
+    window.location.href !== ${escapedJson(input.expectedUrl)}
+  ) {
+    throw new Error("Reloaded WebView is not ready.");
+  }
+  sessionStorage.removeItem(${escapedJson(input.markerKey)});
+  return {
+    from: ${escapedJson(input.expectedUrl)},
+    to: window.location.href,
+    path: window.location.pathname + window.location.search + window.location.hash,
+  };
+})()
+`;
+	return executeWebviewJson(
+		{
+			appIdentifier: input.appIdentifier,
+			script,
+			schema: navigateResultSchema,
+			callTimeoutMs: 1_500,
+		},
+		input.runner
+	).orElse((failure) => {
+		if (Date.now() >= input.deadlineMs) {
+			return err({
+				code: "reload_webview_timeout",
+				message: `Reloaded WebView did not become ready: ${failure.message}`,
+			});
+		}
+		return waitForReloadPollDelay().andThen(() => pollReloadReadiness(input));
 	});
 }
 
@@ -2933,6 +3047,143 @@ export function openAgentPanelStressLab(
 	);
 }
 
+export function probeSendAttachStress(
+	options: DriverOptions & {
+		readonly rowCount: number;
+		readonly preScrollOffsetPx: number;
+		readonly delayMs: number;
+	}
+): ResultAsync<SendAttachStressProbeResult, TauriMcpFailure> {
+	const runner = options.runner === undefined ? runCommand : options.runner;
+	const script = `
+(async () => {
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const route = "/test-agent-panel-stress";
+  const targetUrl = new URL(route, window.location.origin);
+  const tauriWindow = window.__TAURI__ && window.__TAURI__.window;
+  const currentWindow = tauriWindow && typeof tauriWindow.getCurrentWindow === "function"
+    ? tauriWindow.getCurrentWindow()
+    : null;
+  if (currentWindow && typeof currentWindow.setFocus === "function") {
+    await currentWindow.setFocus().catch(() => undefined);
+    await sleep(150);
+  }
+  if (window.location.pathname !== route) {
+    const anchor = document.createElement("a");
+    anchor.href = targetUrl.href;
+    anchor.style.display = "none";
+    document.body.appendChild(anchor);
+    anchor.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+    anchor.remove();
+    for (let attempt = 0; attempt < 30 && window.location.pathname !== route; attempt += 1) {
+      await sleep(50);
+    }
+  }
+  await sleep(${options.delayMs.toString()});
+  let hook = window.__agentPanelStressLab || null;
+  for (let attempt = 0; attempt < 40 && !(hook && typeof hook.runSendAttachScenario === "function"); attempt += 1) {
+    await sleep(50);
+    hook = window.__agentPanelStressLab || null;
+  }
+  if (!(hook && typeof hook.runSendAttachScenario === "function")) {
+    return {
+      hookAvailable: false,
+      opened: window.location.pathname === route,
+      labPresent: Boolean(document.querySelector('[data-testid="agent-panel-stress-lab"]')),
+      route,
+      requestedRowCount: ${options.rowCount.toString()},
+      rowCount: 0,
+      requestedPreScrollOffsetPx: ${options.preScrollOffsetPx.toString()},
+      preconditionPassed: false,
+      passed: false,
+      maxExtentCollapsePx: 0,
+      nativeClampDetected: false,
+      stableRowShellPreserved: false,
+      samples: [],
+    };
+  }
+  return hook.runSendAttachScenario({
+    rowCount: ${options.rowCount.toString()},
+    preScrollOffsetPx: ${options.preScrollOffsetPx.toString()},
+  });
+})()
+`;
+	return driverReady(options).andThen(() =>
+		executeWebviewJson(
+			{
+				appIdentifier: options.appIdentifier,
+				script,
+				schema: sendAttachStressProbeResultSchema,
+				callTimeoutMs: 20_000,
+			},
+			runner
+		)
+		);
+}
+
+export function probePlanningBetweenTools(
+	options: DriverOptions & {
+		readonly delayMs: number;
+	}
+): ResultAsync<PlanningBetweenToolsProbeResult, TauriMcpFailure> {
+	const runner = options.runner === undefined ? runCommand : options.runner;
+	const script = `
+(async () => {
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const route = "/test-agent-panel-stress";
+  const targetUrl = new URL(route, window.location.origin);
+  const tauriWindow = window.__TAURI__ && window.__TAURI__.window;
+  const currentWindow = tauriWindow && typeof tauriWindow.getCurrentWindow === "function"
+    ? tauriWindow.getCurrentWindow()
+    : null;
+  if (currentWindow && typeof currentWindow.setFocus === "function") {
+    await currentWindow.setFocus().catch(() => undefined);
+    await sleep(150);
+  }
+  if (window.location.pathname !== route) {
+    const anchor = document.createElement("a");
+    anchor.href = targetUrl.href;
+    anchor.style.display = "none";
+    document.body.appendChild(anchor);
+    anchor.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+    anchor.remove();
+    for (let attempt = 0; attempt < 30 && window.location.pathname !== route; attempt += 1) {
+      await sleep(50);
+    }
+  }
+  await sleep(${options.delayMs.toString()});
+  let hook = window.__agentPanelStressLab || null;
+  for (let attempt = 0; attempt < 40 && !(hook && typeof hook.runPlanningBetweenToolsScenario === "function"); attempt += 1) {
+    await sleep(50);
+    hook = window.__agentPanelStressLab || null;
+  }
+  if (!(hook && typeof hook.runPlanningBetweenToolsScenario === "function")) {
+    return {
+      hookAvailable: false,
+      opened: window.location.pathname === route,
+      labPresent: Boolean(document.querySelector('[data-testid="agent-panel-stress-lab"]')),
+      route,
+      passed: false,
+      restoredCompletedToolStage: false,
+      samples: [],
+    };
+  }
+  return hook.runPlanningBetweenToolsScenario();
+})()
+`;
+	return driverReady(options).andThen(() =>
+		executeWebviewJson(
+			{
+				appIdentifier: options.appIdentifier,
+				script,
+				schema: planningBetweenToolsProbeResultSchema,
+				callTimeoutMs: 20_000,
+			},
+			runner
+		)
+	);
+}
+
 function stressLabResultHelpersScript(): string {
 	return `
   const stressLabResultFromDump = (dump) => ({
@@ -3129,6 +3380,8 @@ export function sendComposer(
 		readonly submit: boolean;
 		readonly selector: string;
 		readonly selectorIndex: number;
+		readonly panelId?: string;
+		readonly sessionId?: string;
 	}
 ): ResultAsync<SendComposerResult, TauriMcpFailure> {
 	const runner = options.runner ?? runCommand;
@@ -3139,13 +3392,29 @@ export function sendComposer(
   const submit = ${options.submit ? "true" : "false"};
   const selector = ${escapedJson(options.selector)};
   const selectorIndex = ${Math.max(0, Math.floor(options.selectorIndex)).toString()};
+  const panelId = ${escapedJson(options.panelId ?? "")};
+  const sessionId = ${escapedJson(options.sessionId ?? "")};
   const composerSelector = selector.length > 0 ? selector : "[contenteditable=true]";
   const rankCandidate = (node) => {
     const rect = node.getBoundingClientRect();
     const hit = document.elementFromPoint(rect.left + Math.min(rect.width - 1, Math.max(1, rect.width / 2)), rect.top + Math.min(rect.height - 1, Math.max(1, rect.height / 2)));
     return node === hit || node.contains(hit) ? 0 : 1;
   };
-  const candidates = Array.from(document.querySelectorAll(composerSelector)).sort((left, right) => rankCandidate(left) - rankCandidate(right));
+  const panelRoots = Array.from(document.querySelectorAll("[data-qa-agent-panel-id]"));
+  const targetRoot = panelId.length > 0 || sessionId.length > 0
+    ? panelRoots.find((root) => {
+        const rootPanelId = root.getAttribute("data-qa-agent-panel-id") || "";
+        const rootSessionId = root.getAttribute("data-session-id")
+          || root.querySelector("[data-session-id]")?.getAttribute("data-session-id")
+          || "";
+        return (panelId.length === 0 || rootPanelId === panelId)
+          && (sessionId.length === 0 || rootSessionId === sessionId);
+      }) || null
+    : null;
+  const searchRoot = targetRoot || (panelId.length > 0 || sessionId.length > 0 ? null : document);
+  const candidates = searchRoot
+    ? Array.from(searchRoot.querySelectorAll(composerSelector)).sort((left, right) => rankCandidate(left) - rankCandidate(right))
+    : [];
   const visibleCandidates = candidates.filter((node) => {
     const style = getComputedStyle(node);
     const rect = node.getBoundingClientRect();
@@ -3213,70 +3482,184 @@ export function sendComposer(
 	});
 }
 
+/**
+ * Exercise the manual composer path through the public DOM boundary: type a
+ * non-empty draft, observe the canonical submit projection, then dispatch a
+ * cancelable plain Enter keydown. A working composer prevents the browser's
+ * newline default and publishes the prompt as a user row in the same panel.
+ */
+export function probeComposerEnterSubmit(
+	options: DriverOptions & {
+		readonly text: string;
+		readonly panelId: string;
+		readonly sessionId: string;
+	}
+): ResultAsync<ComposerEnterSubmitProbeResult, TauriMcpFailure> {
+	const runner = options.runner ?? runCommand;
+	return driverReady(options).andThen(() => {
+		const script = `
+(async () => {
+  const promptText = ${escapedJson(options.text)};
+  const panelId = ${escapedJson(options.panelId)};
+  const sessionId = ${escapedJson(options.sessionId)};
+  const roots = Array.from(document.querySelectorAll("[data-qa-agent-panel-id]"));
+  const root = roots.find((candidate) => {
+    const candidatePanelId = candidate.getAttribute("data-qa-agent-panel-id") || "";
+    const candidateSessionId = candidate.getAttribute("data-session-id")
+      || candidate.querySelector("[data-session-id]")?.getAttribute("data-session-id")
+      || "";
+    return candidatePanelId === panelId && candidateSessionId === sessionId;
+  }) || null;
+  const planningSnapshot = () => {
+    const fn = window.__acepePlanningSnapshot;
+    if (typeof fn !== "function") return null;
+    const snapshots = fn(sessionId);
+    return Array.isArray(snapshots) ? snapshots[0] || null : null;
+  };
+  if (!root) {
+    return {
+      targetFound: false,
+      composerFound: false,
+      textApplied: "",
+      sendReadyBeforeEnter: false,
+      enterDefaultPrevented: false,
+      newlineWouldBeInserted: true,
+      draftAfterEnter: "",
+      submittedUserRowFound: false,
+      planningBefore: planningSnapshot(),
+      planningAfter: planningSnapshot(),
+    };
+  }
+  const visible = (node) => {
+    const style = getComputedStyle(node);
+    const rect = node.getBoundingClientRect();
+    return style.display !== "none" && style.visibility !== "hidden"
+      && Number(style.opacity) > 0 && rect.width > 0 && rect.height > 0;
+  };
+  const text = (node) => node ? (node.textContent || "").trim().replace(/\\s+/g, " ") : "";
+  const composer = Array.from(root.querySelectorAll("[contenteditable=true], textarea, input"))
+    .find(visible) || null;
+  if (!composer) {
+    return {
+      targetFound: true,
+      composerFound: false,
+      textApplied: "",
+      sendReadyBeforeEnter: false,
+      enterDefaultPrevented: false,
+      newlineWouldBeInserted: true,
+      draftAfterEnter: "",
+      submittedUserRowFound: false,
+      planningBefore: planningSnapshot(),
+      planningAfter: planningSnapshot(),
+    };
+  }
+  composer.focus();
+  if (composer instanceof HTMLTextAreaElement || composer instanceof HTMLInputElement) {
+    composer.value = promptText;
+    composer.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: promptText }));
+  } else {
+    const selection = getSelection();
+    if (selection) {
+      selection.removeAllRanges();
+      const range = document.createRange();
+      range.selectNodeContents(composer);
+      selection.addRange(range);
+    }
+    const data = new DataTransfer();
+    data.setData("text/plain", promptText);
+    const paste = new ClipboardEvent("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(paste, "clipboardData", { value: data });
+    composer.dispatchEvent(paste);
+  }
+  await Promise.resolve();
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  const buttons = Array.from(root.querySelectorAll("button")).filter(visible);
+  const send = buttons.find((button) => {
+    const name = (button.getAttribute("aria-label") || text(button)).trim();
+    return name === "Send message" || name === "Send follow-up";
+  }) || null;
+  const planningBefore = planningSnapshot();
+  const enter = new KeyboardEvent("keydown", {
+    key: "Enter",
+    code: "Enter",
+    bubbles: true,
+    cancelable: true,
+    shiftKey: false,
+    metaKey: false,
+    ctrlKey: false,
+  });
+  composer.dispatchEvent(enter);
+  await Promise.resolve();
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  const draftAfterEnter = composer instanceof HTMLTextAreaElement || composer instanceof HTMLInputElement
+    ? composer.value
+    : text(composer);
+  const submittedUserRowFound = Array.from(root.querySelectorAll("*")).some((node) =>
+    node !== composer && !composer.contains(node) && node.children.length === 0
+      && visible(node) && text(node) === promptText
+  );
+  return {
+    targetFound: true,
+    composerFound: true,
+    textApplied: promptText,
+    sendReadyBeforeEnter: Boolean(send) && !send.disabled,
+    enterDefaultPrevented: enter.defaultPrevented,
+    newlineWouldBeInserted: !enter.defaultPrevented,
+    draftAfterEnter,
+    submittedUserRowFound,
+    planningBefore,
+    planningAfter: planningSnapshot(),
+  };
+})()
+`;
+		return executeWebviewJson(
+			{
+				appIdentifier: options.appIdentifier,
+				script,
+				schema: composerEnterSubmitProbeResultSchema,
+				callTimeoutMs: 5_000,
+			},
+			runner
+		);
+	});
+}
+
 export function probeFirstSendTimeline(
 	options: DriverOptions & {
 		readonly text: string;
 		readonly selector: string;
+		readonly panelId: string;
+		readonly sessionId: string;
+		readonly preScrollOffsetPx?: number | null;
 		readonly timeoutMs: number;
 	}
 ): ResultAsync<FirstSendTimelineProbeResult, TauriMcpFailure> {
 	const runner = options.runner ?? runCommand;
+	const preScrollOffsetPx =
+		options.preScrollOffsetPx !== undefined &&
+		options.preScrollOffsetPx !== null &&
+		Number.isFinite(options.preScrollOffsetPx) &&
+		options.preScrollOffsetPx > 0
+			? Math.round(options.preScrollOffsetPx)
+			: null;
 	return driverReady(options).andThen(() =>
-		ResultAsync.fromPromise(
-			(async () => {
-				const initial = await executeWebviewJson(
-					{
-						appIdentifier: options.appIdentifier,
-						script: firstSendSubmitScript(options.text, options.selector),
-						schema: firstSendTimelineProbeResultSchema,
-						callTimeoutMs: 5_000,
-					},
-					runner
-				).match(
-					(value) => value,
-					(error) => {
-						throw new FirstSendProbeError(error);
-					}
-				);
-				const samples = Array.from(initial.samples);
-				const earlyDelays = [10, 40, 50, 150, 250, 500];
-				for (const delay of earlyDelays) {
-					await sleepMs(delay);
-					const sample = await firstSendTimelineSample(options.appIdentifier, options.text, runner);
-					samples.push(sample);
-				}
-				while ((samples[samples.length - 1]?.elapsedMs ?? 0) < options.timeoutMs) {
-					await sleepMs(500);
-					const sample = await firstSendTimelineSample(options.appIdentifier, options.text, runner);
-					samples.push(sample);
-				}
-				return {
-					composerFound: initial.composerFound,
-					selectedComposerIndex: initial.selectedComposerIndex,
-					selectedComposerName: initial.selectedComposerName,
-					sendFound: initial.sendFound,
-					sendReadyBeforeClick: initial.sendReadyBeforeClick,
-					sent: initial.sent,
-					prompt: initial.prompt,
-					samples,
-				};
-			})(),
-			(error) =>
-				error instanceof FirstSendProbeError
-					? error.failure
-					: {
-							code: "first_send_probe_failed",
-							message:
-								error instanceof Error ? error.message : "Unable to collect first-send timeline.",
-						}
+		executeWebviewJson(
+			{
+				appIdentifier: options.appIdentifier,
+				script: firstSendSubmitScript(
+					options.text,
+					options.selector,
+					options.panelId,
+					options.sessionId,
+					preScrollOffsetPx,
+					options.timeoutMs
+				),
+				schema: firstSendTimelineProbeResultSchema,
+				callTimeoutMs: options.timeoutMs + 5_000,
+			},
+			runner
 		)
 	);
-}
-
-class FirstSendProbeError extends Error {
-	constructor(readonly failure: TauriMcpFailure) {
-		super(failure.message);
-	}
 }
 
 class AgentPanelStressLabProbeError extends Error {
@@ -3289,12 +3672,17 @@ function sleepMs(delayMs: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
-type FirstSendTimelineSample = FirstSendTimelineProbeResult["samples"][number];
-
-function firstSendSharedSamplerScript(promptExpression: string, labelExpression: string): string {
+function firstSendSharedSamplerScript(
+	promptExpression: string,
+	labelExpression: string,
+	panelIdExpression: string,
+	sessionIdExpression: string
+): string {
 	return `
   const probePrompt = ${promptExpression};
   const sampleLabel = ${labelExpression};
+  const targetPanelId = ${panelIdExpression};
+  const targetSessionId = ${sessionIdExpression};
   const probeState = window.__acepeFirstSendProbe || { startedAt: performance.now() };
   const text = (node) => node ? (node.textContent || "").trim().replace(/\\s+/g, " ") : "";
   const isVisible = (node) => {
@@ -3302,10 +3690,21 @@ function firstSendSharedSamplerScript(promptExpression: string, labelExpression:
     const rect = node.getBoundingClientRect();
     return style.display !== "none" && style.visibility !== "hidden" && Number(style.opacity) > 0 && rect.width > 0 && rect.height > 0;
   };
-  const leafTextNodes = () => Array.from(document.querySelectorAll("body *")).filter((node) => node.children.length === 0);
+	const targetPanelRoot = Array.from(document.querySelectorAll("[data-qa-agent-panel-id]")).find((candidate) => {
+		const candidatePanelId = candidate.getAttribute("data-qa-agent-panel-id") || "";
+		const candidateSessionId = candidate.getAttribute("data-qa-agent-panel-session-id")
+			|| candidate.querySelector("[data-session-id]")?.getAttribute("data-session-id")
+			|| "";
+		return candidatePanelId === targetPanelId && candidateSessionId === targetSessionId;
+	}) || null;
+	const leafTextNodes = () => targetPanelRoot
+		? Array.from(targetPanelRoot.querySelectorAll("*")).filter((node) => node.children.length === 0)
+		: [];
   const hasVisibleLeafContaining = (needle) => leafTextNodes().some((node) => isVisible(node) && text(node).includes(needle));
   const countVisibleLeavesContaining = (needle) => leafTextNodes().filter((node) => isVisible(node) && text(node).includes(needle)).length;
-  const visibleTranscriptViewports = () => Array.from(document.querySelectorAll("[data-testid='rust-transcript-viewport']")).filter(isVisible);
+	const visibleTranscriptViewports = () => targetPanelRoot
+		? Array.from(targetPanelRoot.querySelectorAll("[data-testid='rust-transcript-viewport']")).filter(isVisible)
+		: [];
   const countVisibleTranscriptsContaining = (needle) => visibleTranscriptViewports().filter((node) => text(node).includes(needle)).length;
   const transcriptViewports = visibleTranscriptViewports();
   const transcriptViewportContainingPrompt = transcriptViewports.find((node) => text(node).includes(probePrompt)) || null;
@@ -3326,11 +3725,27 @@ function firstSendSharedSamplerScript(promptExpression: string, labelExpression:
   }
   const placeholder = firstVisibleTranscriptViewport ? firstVisibleTranscriptViewport.querySelector("[data-row-id='awaiting:planning'], [data-row-id='local:planning']") : null;
   const placeholderHeightPx = placeholder ? Math.round(placeholder.getBoundingClientRect().height) : null;
-  const distFromBottomPx = scrollEl ? Math.round(scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight) : 0;
+	const placeholderText = placeholder ? text(placeholder) : null;
+	const panelRoot = targetPanelRoot ? targetPanelRoot.querySelector("[data-session-id]") : null;
+	const sessionId = targetPanelRoot
+		? targetPanelRoot.getAttribute("data-qa-agent-panel-session-id") || panelRoot?.getAttribute("data-session-id") || null
+		: null;
+	const planningSnapshots = typeof window.__acepePlanningSnapshot === "function"
+		? window.__acepePlanningSnapshot(sessionId)
+		: [];
+	const planningSnapshot = planningSnapshots[0] || null;
+	const panelId = targetPanelRoot ? targetPanelRoot.getAttribute("data-qa-agent-panel-id") : null;
+	const scrollTopPx = scrollEl ? Math.round(scrollEl.scrollTop) : 0;
+	const maxScrollTopPx = scrollEl ? Math.max(0, Math.round(scrollEl.scrollHeight - scrollEl.clientHeight)) : 0;
+	const distFromBottomPx = scrollEl ? Math.max(0, maxScrollTopPx - scrollTopPx) : 0;
+	const scrollAttached = scrollEl ? distFromBottomPx <= 24 : false;
+	const scrollReleased = scrollEl ? !scrollAttached : false;
   const sentRowVisibleInViewport = rows.some((row) => text(row).includes(probePrompt) && rowIntersectsViewport(row));
-  const visibleComposers = Array.from(document.querySelectorAll("[contenteditable=true], textarea")).filter(isVisible);
+	const visibleComposers = targetPanelRoot
+		? Array.from(targetPanelRoot.querySelectorAll("[contenteditable=true], textarea")).filter(isVisible)
+		: [];
   const composerText = visibleComposers.map((node) => text(node)).find((value) => value.includes(probePrompt)) || "";
-  const bodyText = text(document.body);
+	const bodyText = text(targetPanelRoot);
   const matchingTranscriptViewportCount = countVisibleTranscriptsContaining(probePrompt);
   return {
     label: sampleLabel,
@@ -3344,20 +3759,46 @@ function firstSendSharedSamplerScript(promptExpression: string, labelExpression:
     readyVisible: hasVisibleLeafContaining("Ready to assist") || bodyText.includes("Ready to assist"),
     matchingTextLeafCount: countVisibleLeavesContaining(probePrompt),
     matchingTranscriptViewportCount,
-    transcriptViewportCount: document.querySelectorAll("[data-testid='rust-transcript-viewport']").length,
+		transcriptViewportCount: targetPanelRoot
+			? targetPanelRoot.querySelectorAll("[data-testid='rust-transcript-viewport']").length
+			: 0,
     maxOnscreenRowHeightPx,
     placeholderHeightPx,
+	placeholderText,
+	panelId,
+	sessionId,
+	planningSourceKind: planningSnapshot ? planningSnapshot.sourceKind : null,
+	planningLifecycleStatus: planningSnapshot ? planningSnapshot.lifecycleStatus : null,
+	planningHasLocalPendingSendIntent: planningSnapshot ? planningSnapshot.hasLocalPendingSendIntent : null,
+	planningHasTrailingCompletedTool: planningSnapshot ? planningSnapshot.hasTrailingCompletedTool : null,
+	planningLocalPlaceholderMode: planningSnapshot ? planningSnapshot.localPlaceholderMode : null,
+	scrollTopPx,
+	maxScrollTopPx,
+	scrollAttached,
+	scrollReleased,
     distFromBottomPx,
     bodyPreview: bodyText.slice(0, 500),
   };
 `;
 }
 
-function firstSendSubmitScript(prompt: string, selector: string): string {
+function firstSendSubmitScript(
+	prompt: string,
+	selector: string,
+	panelId: string,
+	sessionId: string,
+	preScrollOffsetPx: number | null,
+	timeoutMs: number
+): string {
 	return `
 (async () => {
   const prompt = ${escapedJson(prompt)};
   const selector = ${escapedJson(selector)};
+  const targetPanelId = ${escapedJson(panelId)};
+  const targetSessionId = ${escapedJson(sessionId)};
+	const requestedPreScrollOffsetPx = ${preScrollOffsetPx === null ? "null" : preScrollOffsetPx.toString()};
+	const preScrollTolerancePx = 24;
+  const timeoutMs = ${Math.max(0, timeoutMs).toString()};
   const baseSelector = selector.length > 0 ? selector : "[contenteditable=true], textarea";
   const text = (node) => node ? (node.textContent || "").trim().replace(/\\s+/g, " ") : "";
   const isVisible = (node) => {
@@ -3370,15 +3811,250 @@ function firstSendSubmitScript(prompt: string, selector: string): string {
     const hit = document.elementFromPoint(rect.left + Math.min(rect.width - 1, Math.max(1, rect.width / 2)), rect.top + Math.min(rect.height - 1, Math.max(1, rect.height / 2)));
     return node === hit || node.contains(hit) ? 0 : 1;
   };
-  const candidates = Array.from(document.querySelectorAll(baseSelector)).filter(isVisible).sort((left, right) => rankCandidate(left) - rankCandidate(right));
-  window.__acepeFirstSendProbe = { startedAt: performance.now(), prompt };
+	const targetPanelRoot = Array.from(document.querySelectorAll("[data-qa-agent-panel-id]")).find((candidate) => {
+		const candidatePanelId = candidate.getAttribute("data-qa-agent-panel-id") || "";
+		const candidateSessionId = candidate.getAttribute("data-qa-agent-panel-session-id")
+			|| candidate.querySelector("[data-session-id]")?.getAttribute("data-session-id")
+			|| "";
+		return candidatePanelId === targetPanelId && candidateSessionId === targetSessionId;
+	}) || null;
+	const candidates = targetPanelRoot
+		? Array.from(targetPanelRoot.querySelectorAll(baseSelector)).filter(isVisible).sort((left, right) => rankCandidate(left) - rankCandidate(right))
+		: [];
+	window.__acepeFirstSendProbe = { startedAt: performance.now(), prompt, panelId: targetPanelId, sessionId: targetSessionId };
+	const scrollWrites = [];
+	const scrollEvents = [];
+	const inputIntents = [];
+	const scrollProvenance = {
+		installed: false,
+		restored: false,
+		writes: scrollWrites,
+		events: scrollEvents,
+	};
+	const targetTranscriptViewport = targetPanelRoot
+		? Array.from(targetPanelRoot.querySelectorAll("[data-testid='rust-transcript-viewport']")).find(isVisible) || null
+		: null;
+	const scrollEl = targetTranscriptViewport
+		? targetTranscriptViewport.querySelector("[role='log']") || targetTranscriptViewport
+		: null;
+	const originalInstanceScrollTopDescriptor = scrollEl
+		? Object.getOwnPropertyDescriptor(scrollEl, "scrollTop") || null
+		: null;
+	let scrollTopDescriptorOwner = scrollEl ? Object.getPrototypeOf(scrollEl) : null;
+	let nativeScrollTopDescriptor = null;
+	while (scrollTopDescriptorOwner && nativeScrollTopDescriptor === null) {
+		nativeScrollTopDescriptor = Object.getOwnPropertyDescriptor(scrollTopDescriptorOwner, "scrollTop") || null;
+		scrollTopDescriptorOwner = Object.getPrototypeOf(scrollTopDescriptorOwner);
+	}
+	const elapsedMs = () => Math.round(performance.now() - window.__acepeFirstSendProbe.startedAt);
+	const geometry = () => {
+		if (!scrollEl) {
+			return {
+				scrollTopPx: 0,
+				scrollHeightPx: 0,
+				clientHeightPx: 0,
+				maxScrollTopPx: 0,
+				distFromBottomPx: 0,
+			};
+		}
+		const scrollTopPx = Math.round(scrollEl.scrollTop);
+		const scrollHeightPx = Math.round(scrollEl.scrollHeight);
+		const clientHeightPx = Math.round(scrollEl.clientHeight);
+		const maxScrollTopPx = Math.max(0, scrollHeightPx - clientHeightPx);
+		return {
+			scrollTopPx,
+			scrollHeightPx,
+			clientHeightPx,
+			maxScrollTopPx,
+			distFromBottomPx: Math.max(0, maxScrollTopPx - scrollTopPx),
+		};
+	};
+	const compactStack = () => String(new Error().stack || "")
+		.split("\\n")
+		.slice(2, 8)
+		.map((line) => line.trim())
+		.filter((line) => line.length > 0)
+		.join(" <- ")
+		.slice(0, 800);
+	const nearestPrior = (records, atMs) => {
+		for (let recordIndex = records.length - 1; recordIndex >= 0; recordIndex -= 1) {
+			const record = records[recordIndex];
+			if (record.elapsedMs <= atMs) return record;
+		}
+		return null;
+	};
+	const recordInputIntent = (event) => {
+		inputIntents.push({ kind: event.type, elapsedMs: elapsedMs() });
+	};
+	let previousScrollTopPx = geometry().scrollTopPx;
+	const recordScrollEvent = (event) => {
+		const eventAtMs = elapsedMs();
+		const currentGeometry = geometry();
+		const nearestSetter = nearestPrior(scrollWrites, eventAtMs);
+		const nearestInputIntent = nearestPrior(inputIntents, eventAtMs);
+		const nearestSetterDeltaMs = nearestSetter
+			? Math.max(0, eventAtMs - nearestSetter.elapsedMs)
+			: null;
+		const nearestSetterMovedScrollTop = nearestSetter
+			? Math.abs(nearestSetter.afterScrollTopPx - nearestSetter.beforeScrollTopPx) > 0.5
+			: null;
+		const nearestSetterResultMatchesEvent = nearestSetter
+			? Math.abs(currentGeometry.scrollTopPx - nearestSetter.afterScrollTopPx) <= 1
+			: null;
+		const nearestInputIntentDeltaMs = nearestInputIntent
+			? Math.max(0, eventAtMs - nearestInputIntent.elapsedMs)
+			: null;
+		const isTrusted = typeof event.isTrusted === "boolean" ? event.isTrusted : null;
+		let provenance = "synthetic-or-unknown";
+		if (
+			isTrusted !== false
+			&& nearestSetterDeltaMs !== null
+			&& nearestSetterDeltaMs <= 100
+			&& nearestSetterMovedScrollTop === true
+			&& nearestSetterResultMatchesEvent === true
+		) {
+			provenance = "setter";
+		} else if (
+			isTrusted !== false
+			&& nearestInputIntentDeltaMs !== null
+			&& nearestInputIntentDeltaMs <= 250
+		) {
+			provenance = "input-intent";
+		} else if (isTrusted === true) {
+			provenance = "native-layout-or-anchoring";
+		}
+		scrollEvents.push({
+			elapsedMs: eventAtMs,
+			isTrusted,
+			scrollTopPx: currentGeometry.scrollTopPx,
+			previousScrollTopPx,
+			deltaScrollTopPx: currentGeometry.scrollTopPx - previousScrollTopPx,
+			scrollHeightPx: currentGeometry.scrollHeightPx,
+			clientHeightPx: currentGeometry.clientHeightPx,
+			maxScrollTopPx: currentGeometry.maxScrollTopPx,
+			distFromBottomPx: currentGeometry.distFromBottomPx,
+			nearestSetterAtMs: nearestSetter ? nearestSetter.elapsedMs : null,
+			nearestSetterDeltaMs,
+			nearestSetterMovedScrollTop,
+			nearestSetterResultMatchesEvent,
+			nearestInputIntentKind: nearestInputIntent ? nearestInputIntent.kind : null,
+			nearestInputIntentAtMs: nearestInputIntent ? nearestInputIntent.elapsedMs : null,
+			nearestInputIntentDeltaMs,
+			provenance,
+		});
+		previousScrollTopPx = currentGeometry.scrollTopPx;
+	};
+	const inputIntentKinds = ["wheel", "touchstart", "touchmove", "pointerdown", "keydown"];
+	if (scrollEl) {
+		for (const inputIntentKind of inputIntentKinds) {
+			scrollEl.addEventListener(inputIntentKind, recordInputIntent, { capture: true, passive: true });
+		}
+		scrollEl.addEventListener("scroll", recordScrollEvent, { passive: true });
+	}
+	if (
+		scrollEl
+		&& nativeScrollTopDescriptor
+		&& typeof nativeScrollTopDescriptor.get === "function"
+		&& typeof nativeScrollTopDescriptor.set === "function"
+		&& Object.isExtensible(scrollEl)
+		&& (originalInstanceScrollTopDescriptor === null || originalInstanceScrollTopDescriptor.configurable)
+	) {
+		Object.defineProperty(scrollEl, "scrollTop", {
+			configurable: true,
+			enumerable: nativeScrollTopDescriptor.enumerable === true,
+			get() {
+				return nativeScrollTopDescriptor.get.call(scrollEl);
+			},
+			set(value) {
+				const beforeGeometry = geometry();
+				const requestedScrollTopPx = Number(value);
+				const write = {
+					elapsedMs: elapsedMs(),
+					requestedScrollTopPx: Number.isFinite(requestedScrollTopPx) ? requestedScrollTopPx : 0,
+					beforeScrollTopPx: beforeGeometry.scrollTopPx,
+					afterScrollTopPx: beforeGeometry.scrollTopPx,
+					scrollHeightPx: beforeGeometry.scrollHeightPx,
+					clientHeightPx: beforeGeometry.clientHeightPx,
+					maxScrollTopPx: beforeGeometry.maxScrollTopPx,
+					distFromBottomPx: beforeGeometry.distFromBottomPx,
+					stack: compactStack(),
+				};
+				scrollWrites.push(write);
+				nativeScrollTopDescriptor.set.call(scrollEl, value);
+				const afterGeometry = geometry();
+				write.afterScrollTopPx = afterGeometry.scrollTopPx;
+				write.scrollHeightPx = afterGeometry.scrollHeightPx;
+				write.clientHeightPx = afterGeometry.clientHeightPx;
+				write.maxScrollTopPx = afterGeometry.maxScrollTopPx;
+				write.distFromBottomPx = afterGeometry.distFromBottomPx;
+			},
+		});
+		scrollProvenance.installed = true;
+	}
+	try {
   const samples = [];
   const sample = (label) => {
     samples.push((() => {
-${firstSendSharedSamplerScript("prompt", "label")}
+${firstSendSharedSamplerScript(
+	"prompt",
+	"label",
+	escapedJson(panelId),
+	escapedJson(sessionId)
+)}
     })());
   };
   sample("before-input");
+	const preScroll = {
+		requestedOffsetPx: requestedPreScrollOffsetPx,
+		attempted: false,
+		passed: requestedPreScrollOffsetPx === null,
+		tolerancePx: preScrollTolerancePx,
+		scrollTopPx: null,
+		maxScrollTopPx: null,
+		distFromBottomPx: null,
+	};
+	if (requestedPreScrollOffsetPx !== null) {
+		preScroll.attempted = true;
+		if (scrollEl) {
+			scrollEl.dispatchEvent(new WheelEvent("wheel", {
+				bubbles: true,
+				cancelable: true,
+				deltaY: -requestedPreScrollOffsetPx,
+			}));
+			const beforePreScrollGeometry = geometry();
+			scrollEl.scrollTop = Math.max(0, beforePreScrollGeometry.maxScrollTopPx - requestedPreScrollOffsetPx);
+			scrollEl.dispatchEvent(new Event("scroll", { bubbles: false }));
+			await Promise.resolve();
+			await new Promise((resolve) => {
+				if (typeof requestAnimationFrame === "function") {
+					requestAnimationFrame(() => resolve());
+					return;
+				}
+				setTimeout(resolve, 16);
+			});
+			await Promise.resolve();
+			const afterPreScrollGeometry = geometry();
+			preScroll.scrollTopPx = afterPreScrollGeometry.scrollTopPx;
+			preScroll.maxScrollTopPx = afterPreScrollGeometry.maxScrollTopPx;
+			preScroll.distFromBottomPx = afterPreScrollGeometry.distFromBottomPx;
+			preScroll.passed = afterPreScrollGeometry.distFromBottomPx >= Math.max(0, requestedPreScrollOffsetPx - preScrollTolerancePx);
+		}
+		sample("after-pre-scroll");
+		if (!preScroll.passed) {
+			return {
+				composerFound: candidates.length > 0,
+				selectedComposerIndex: null,
+				selectedComposerName: null,
+				sendFound: false,
+				sendReadyBeforeClick: false,
+				sent: false,
+				prompt,
+				samples,
+				preScroll,
+				scrollProvenance,
+			};
+		}
+	}
   if (candidates.length === 0) {
     return {
       composerFound: false,
@@ -3387,9 +4063,11 @@ ${firstSendSharedSamplerScript("prompt", "label")}
       sendFound: false,
       sendReadyBeforeClick: false,
       sent: false,
-      prompt,
-      samples,
-    };
+	      prompt,
+	      samples,
+	      preScroll,
+	      scrollProvenance,
+	    };
   }
   const clearComposer = (target) => {
     if (target instanceof HTMLTextAreaElement || target instanceof HTMLInputElement) {
@@ -3492,6 +4170,15 @@ ${firstSendSharedSamplerScript("prompt", "label")}
   sample("after-click");
   await Promise.resolve();
   sample("after-click-microtask");
+	const earlyDelays = [10, 40, 50, 150, 250, 500];
+	for (const delay of earlyDelays) {
+		await new Promise((resolve) => setTimeout(resolve, delay));
+		sample("after-" + Math.round(performance.now() - window.__acepeFirstSendProbe.startedAt).toString() + "ms");
+	}
+	while ((performance.now() - window.__acepeFirstSendProbe.startedAt) < timeoutMs) {
+		await new Promise((resolve) => setTimeout(resolve, 500));
+		sample("after-" + Math.round(performance.now() - window.__acepeFirstSendProbe.startedAt).toString() + "ms");
+	}
   return {
     composerFound: true,
     selectedComposerIndex: composerIndex,
@@ -3499,36 +4186,31 @@ ${firstSendSharedSamplerScript("prompt", "label")}
     sendFound: Boolean(send),
     sendReadyBeforeClick,
     sent,
-    prompt,
-    samples,
-  };
+	    prompt,
+	    samples,
+	    preScroll,
+	    scrollProvenance,
+	  };
+	} finally {
+		if (scrollEl) {
+			for (const inputIntentKind of inputIntentKinds) {
+				scrollEl.removeEventListener(inputIntentKind, recordInputIntent, true);
+			}
+			scrollEl.removeEventListener("scroll", recordScrollEvent);
+		}
+		if (scrollEl && scrollProvenance.installed) {
+			if (originalInstanceScrollTopDescriptor) {
+				Object.defineProperty(scrollEl, "scrollTop", originalInstanceScrollTopDescriptor);
+				scrollProvenance.restored = true;
+			} else {
+				scrollProvenance.restored = delete scrollEl.scrollTop;
+			}
+		} else {
+			scrollProvenance.restored = true;
+		}
+	}
 })()
 `;
-}
-
-async function firstSendTimelineSample(
-	appIdentifier: string,
-	prompt: string,
-	runner: CommandRunner
-): Promise<FirstSendTimelineSample> {
-	return executeWebviewJson(
-		{
-			appIdentifier,
-			script: `
-(() => {
-${firstSendSharedSamplerScript(escapedJson(prompt), `"after-" + Math.round(performance.now() - ((window.__acepeFirstSendProbe || { startedAt: performance.now() }).startedAt)).toString() + "ms"`)}
-})()
-`,
-			schema: firstSendTimelineSampleSchema,
-			callTimeoutMs: 5_000,
-		},
-		runner
-	).match(
-		(value) => value,
-		(error) => {
-			throw new FirstSendProbeError(error);
-		}
-	);
 }
 
 // Poll for a node whose text contains `text` and report whether it is actually

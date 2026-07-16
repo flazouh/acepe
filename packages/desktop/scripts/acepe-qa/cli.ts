@@ -19,13 +19,16 @@ import {
 	openStreamingReproLab,
 	probeAgentPanelScrollPages,
 	probeComputerUse,
+	probeComposerEnterSubmit,
 	probeFirstSendTimeline,
 	probeFrameRate,
 	probeHappyPathPerformance,
 	probeLedgerBackfill,
 	probePanelResize,
 	probePanelResizeStream,
+	probePlanningBetweenTools,
 	probeSessionOpenContent,
+	probeSendAttachStress,
 	probeThinkingToggle,
 	readPlanningDebug,
 	reloadWebview,
@@ -73,6 +76,7 @@ type CliOptions = {
 	readonly dx: number | null;
 	readonly dy: number | null;
 	readonly sessionId: string;
+	readonly panelId: string;
 	readonly projectPath: string;
 	readonly agentId: string;
 	readonly sourcePath: string;
@@ -87,6 +91,7 @@ type CliOptions = {
 	readonly rendererMode: string;
 	readonly seed: number;
 	readonly scrollStepPx: number | null;
+	readonly preScrollOffsetPx: number | null;
 	readonly noSubmit: boolean;
 	readonly noScrollSample: boolean;
 	readonly noStreamingTail: boolean;
@@ -457,6 +462,7 @@ export function parseOptions(args: readonly string[], checkoutRoot: string): Cli
 			dx: null,
 			dy: null,
 			sessionId: "",
+			panelId: "",
 			projectPath: "",
 			agentId: "",
 			sourcePath: "",
@@ -471,6 +477,7 @@ export function parseOptions(args: readonly string[], checkoutRoot: string): Cli
 			rendererMode: "full",
 			seed: 1,
 			scrollStepPx: null,
+			preScrollOffsetPx: null,
 			noSubmit: false,
 			noScrollSample: false,
 			noStreamingTail: false,
@@ -486,6 +493,7 @@ export function parseOptions(args: readonly string[], checkoutRoot: string): Cli
 	const levelCandidate = valueArg(args, "--level", "summary");
 	const levelParsed = observeLevelSchema.safeParse(levelCandidate);
 	const level = levelParsed.success ? levelParsed.data : "summary";
+	const defaultDelayMs = command === "hover" ? "350" : "300";
 	return {
 		command,
 		appIdentifier: valueArg(args, "--app", "9223"),
@@ -505,13 +513,17 @@ export function parseOptions(args: readonly string[], checkoutRoot: string): Cli
 		dx: numberArg(args, "--dx"),
 		dy: numberArg(args, "--dy"),
 		sessionId: valueArg(args, "--session-id", ""),
+		panelId: valueArg(args, "--panel-id", ""),
 		projectPath: valueArg(args, "--project-path", ""),
 		agentId: valueArg(args, "--agent-id", ""),
 		sourcePath: valueArg(args, "--source-path", ""),
 		title: valueArg(args, "--title", ""),
 		path: valueArg(args, "--path", ""),
 		limit: Number.parseInt(valueArg(args, "--limit", "10"), 10),
-		delayMs: Number.parseInt(valueArg(args, "--delay", valueArg(args, "--delay-ms", "300")), 10),
+		delayMs: Number.parseInt(
+			valueArg(args, "--delay", valueArg(args, "--delay-ms", defaultDelayMs)),
+			10
+		),
 		settleMs: Number.parseInt(
 			valueArg(args, "--settle-ms", valueArg(args, "--delay", valueArg(args, "--delay-ms", "300"))),
 			10
@@ -522,6 +534,7 @@ export function parseOptions(args: readonly string[], checkoutRoot: string): Cli
 		rendererMode: valueArg(args, "--renderer-mode", "full"),
 		seed: Number.parseInt(valueArg(args, "--seed", "1"), 10),
 		scrollStepPx: numberArg(args, "--scroll-step-px"),
+		preScrollOffsetPx: numberArg(args, "--pre-scroll-offset-px"),
 		noSubmit: hasArg(args, "--no-submit"),
 		noScrollSample: hasArg(args, "--no-scroll-sample"),
 		noStreamingTail: hasArg(args, "--no-streaming-tail"),
@@ -781,7 +794,7 @@ export async function runCli(
 			command: "help",
 			status: "ok",
 			summary: [
-				"usage: bun run qa [doctor|focus-app|frame-rate-probe|agent-panel-row-scan|agent-panel-scroll-page-probe|ledger-backfill-probe|observe|screenshot|navigate|reload|inspect|inspect-shadow|click|hover|computer-probe|resize-probe|resize-stream-probe|thinking-toggle-probe|first-send-probe|session-open-content-probe|happy-path-perf|streaming-repro-lab|agent-panel-stress-lab|hmr-ui-probe|send|watch|reset-onboarding] [--app=9223] [--format=json]",
+				"usage: bun run qa [doctor|focus-app|frame-rate-probe|agent-panel-row-scan|agent-panel-scroll-page-probe|ledger-backfill-probe|observe|screenshot|navigate|reload|inspect|inspect-shadow|click|hover|computer-probe|resize-probe|resize-stream-probe|thinking-toggle-probe|first-send-probe|composer-enter-probe|session-open-content-probe|happy-path-perf|streaming-repro-lab|agent-panel-stress-lab|planning-between-tools-probe|send-attach-stress-probe|hmr-ui-probe|send|watch|reset-onboarding] [--app=9223] [--format=json]",
 				"doctor checks the real dev Tauri target before QA.",
 				"focus-app brings the Acepe desktop app to the macOS foreground.",
 				"frame-rate-probe samples requestAnimationFrame cadence; add --selector to scroll an element while sampling, --scroll-step-px for fixed per-frame scroll speed, --with-row-churn for row mount diagnostics, and --with-profile for agent-panel render phase samples.",
@@ -800,13 +813,16 @@ export async function runCli(
 				"resize-probe drags the first panel resize edge and reports frame-by-frame width lag; tune with --dx, --limit steps, --delay ms.",
 				"resize-stream-probe streams pointer moves over --timeout ms and reports continuous-drag lag.",
 				"thinking-toggle-probe clicks the first thinking block and samples open/closed state over 500ms.",
-				"first-send-probe types into the first composer, clicks send, and samples optimistic/planning visibility.",
+				"first-send-probe types into an exact --panel-id/--session-id composer, clicks send, and samples optimistic/planning visibility.",
+				"composer-enter-probe types into an exact --panel-id/--session-id composer and verifies plain Enter submission.",
 				"session-open-content-probe opens --session-id and reports panel, transcript viewport, and first row paint timing; use --keep-open to inspect failures.",
 				"happy-path-perf measures app timing plus temporary agent panel open/composer-ready/close timing.",
 				"streaming-repro-lab opens the dev Streaming Repro Lab and samples native token reveal DOM.",
 				"agent-panel-stress-lab opens the Agent Panel Stress Lab and samples render/scroll metrics; tune with --rows, --preset, --renderer-mode, --seed.",
+				"planning-between-tools-probe runs the provider-free completed-tool to active-assistant transition and restores the visible planning stage.",
+				"send-attach-stress-probe runs the provider-free send/first-stream WebKit geometry scenario; tune with --rows and --pre-scroll-offset-px.",
 				"hmr-ui-probe edits a @acepe/ui Svelte file and asserts Vite emits a single canonical HMR path (requires running dev server; restart after vite.config alias changes).",
-				"send types --text into the composer and submits (use --no-submit to type only).",
+				"send types --text into the composer and submits; scope multi-panel QA with --panel-id and --session-id (use --no-submit to type only).",
 				"watch polls for --text and reports whether it is actually VISIBLE (not just in the DOM), with --timeout ms.",
 				"reset-onboarding opens Dev Tools, resets onboarding, and returns onboarding facts.",
 			],
@@ -1365,7 +1381,7 @@ export async function runCli(
 					`snapshots: ${debug.value.snapshots.length.toString()}`,
 					...debug.value.snapshots.map(
 						(snapshot) =>
-							`- ${snapshot.sessionId ?? "null"} planning=${snapshot.showPlanningIndicator} | optimistic=${snapshot.hasOptimisticPendingEntry} pendingSend=${snapshot.hasLocalPendingSendIntent} activity=${snapshot.activityKind ?? "null"} turn=${snapshot.turnState ?? "null"} lifecycle=${snapshot.lifecycleStatus ?? "null"} source=${snapshot.sourceKind ?? "null"} canSend=${snapshot.actionabilityCanSend === null ? "null" : snapshot.actionabilityCanSend.toString()} canSubmit=${snapshot.sessionCanSubmit.toString()} disableSend=${snapshot.disableSendForFailedFirstSend.toString()} entries=${snapshot.visibleEntryCount.toString()}`
+							`- ${snapshot.sessionId ?? "null"} placeholderMode=${snapshot.localPlaceholderMode} | trailingCompletedTool=${snapshot.hasTrailingCompletedTool.toString()} optimistic=${snapshot.hasOptimisticPendingEntry} pendingSend=${snapshot.hasLocalPendingSendIntent} activity=${snapshot.activityKind ?? "null"} turn=${snapshot.turnState ?? "null"} lifecycle=${snapshot.lifecycleStatus ?? "null"} source=${snapshot.sourceKind ?? "null"} canSend=${snapshot.actionabilityCanSend === null ? "null" : snapshot.actionabilityCanSend.toString()} canSubmit=${snapshot.sessionCanSubmit.toString()} disableSend=${snapshot.disableSendForFailedFirstSend.toString()} entries=${snapshot.visibleEntryCount.toString()}`
 					),
 				]
 			: [
@@ -1669,6 +1685,7 @@ export async function runCli(
 			afterSelector: options.afterSelector.length === 0 ? null : options.afterSelector,
 			afterLimit: Number.isFinite(options.limit) ? options.limit : 10,
 			text: options.text.length === 0 ? null : options.text,
+			delayMs: options.delayMs,
 			skipDriver: options.skipDriver,
 		});
 		if (hover.isErr()) {
@@ -1692,6 +1709,12 @@ export async function runCli(
 			status: hover.value.hovered ? "ok" : "warn",
 			summary: [
 				`hovered: ${hover.value.hovered ? "yes" : "no"}`,
+				`css :hover: ${hover.value.matchesHoverPseudoClass ? "yes" : "no"}`,
+				`native pointer: ${hover.value.pointerMoved ? "moved" : "not moved"}`,
+				`sample delay: ${options.delayMs.toString()}ms`,
+				hover.value.screenPoint === null
+					? "screen point: none"
+					: `screen point: ${hover.value.screenPoint.x.toFixed(1)}, ${hover.value.screenPoint.y.toFixed(1)}`,
 				hover.value.match === null
 					? "match: none"
 					: `match: ${hover.value.match.tag} "${hover.value.match.text.slice(0, 80)}"`,
@@ -1844,15 +1867,15 @@ export async function runCli(
 	}
 
 	if (options.command === "first-send-probe") {
-		if (options.text.length === 0) {
+		if (options.text.length === 0 || options.panelId.length === 0 || options.sessionId.length === 0) {
 			const result = buildResult({
 				command: "first-send-probe",
 				status: "fail",
-				summary: ["Missing --text."],
+				summary: ["Missing --text, --panel-id, or --session-id."],
 				error: dependencyError(
-					"missing_text",
-					"first-send-probe needs --text.",
-					"Example: bun run qa first-send-probe --text='QA ping: reply ok'"
+					"missing_first_send_probe_target",
+					"first-send-probe needs prompt text and exact panel/session identity.",
+					"Example: bun run qa first-send-probe --panel-id=<panel> --session-id=<session> --text='QA ping: reply ok'"
 				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
@@ -1862,6 +1885,9 @@ export async function runCli(
 			appIdentifier: options.appIdentifier,
 			text: options.text,
 			selector: options.selector,
+			panelId: options.panelId,
+			sessionId: options.sessionId,
+			preScrollOffsetPx: options.preScrollOffsetPx,
 			timeoutMs: Number.isFinite(options.timeoutMs) ? options.timeoutMs : 5_000,
 			skipDriver: options.skipDriver,
 		});
@@ -1888,6 +1914,73 @@ export async function runCli(
 			summary: probeSummary.lines,
 			artifactPath,
 			artifactKind: artifactPath === undefined ? undefined : "first-send-probe",
+			error: artifact.isErr()
+				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+				: undefined,
+		});
+		return emitVerifiedUiResult(options, result);
+	}
+
+	if (options.command === "composer-enter-probe") {
+		if (options.text.length === 0 || options.panelId.length === 0 || options.sessionId.length === 0) {
+			const result = buildResult({
+				command: "composer-enter-probe",
+				status: "fail",
+				summary: ["Missing --text, --panel-id, or --session-id."],
+				error: dependencyError(
+					"missing_enter_probe_target",
+					"composer-enter-probe needs prompt text and exact panel/session identity.",
+					"Example: bun run qa composer-enter-probe --panel-id=<panel> --session-id=<session> --text='QA prompt'"
+				),
+			});
+			process.stdout.write(formatCommandResult(result, options.format));
+			return statusExitCode(result.status);
+		}
+		const probe = await probeComposerEnterSubmit({
+			appIdentifier: options.appIdentifier,
+			text: options.text,
+			panelId: options.panelId,
+			sessionId: options.sessionId,
+			skipDriver: options.skipDriver,
+		});
+		if (probe.isErr()) {
+			const result = buildResult({
+				command: "composer-enter-probe",
+				status: "fail",
+				summary: ["Unable to probe plain Enter submission."],
+				error: dependencyError(
+					probe.error.code,
+					probe.error.message,
+					"Run qa doctor and confirm the exact panel remains open."
+				),
+			});
+			process.stdout.write(formatCommandResult(result, options.format));
+			return statusExitCode(result.status);
+		}
+		const artifact = await writeJsonArtifact("composer-enter-probe", probe.value);
+		const artifactPath = artifact.isOk() ? artifact.value : undefined;
+		const passed =
+			probe.value.targetFound &&
+			probe.value.composerFound &&
+			probe.value.sendReadyBeforeEnter &&
+			probe.value.enterDefaultPrevented &&
+			!probe.value.newlineWouldBeInserted &&
+			probe.value.draftAfterEnter.length === 0 &&
+			probe.value.submittedUserRowFound;
+		const result = buildResult({
+			command: "composer-enter-probe",
+			status: passed ? "ok" : "fail",
+			summary: [
+				`target: ${probe.value.targetFound ? "found" : "missing"}`,
+				`composer: ${probe.value.composerFound ? "found" : "missing"}`,
+				`send ready before Enter: ${probe.value.sendReadyBeforeEnter ? "yes" : "no"}`,
+				`Enter default prevented: ${probe.value.enterDefaultPrevented ? "yes" : "no"}`,
+				`browser newline default: ${probe.value.newlineWouldBeInserted ? "would run" : "blocked"}`,
+				`submitted user row: ${probe.value.submittedUserRowFound ? "found" : "missing"}`,
+				`lifecycle before/after: ${probe.value.planningBefore?.lifecycleStatus ?? "unknown"} -> ${probe.value.planningAfter?.lifecycleStatus ?? "unknown"}`,
+			],
+			artifactPath,
+			artifactKind: artifactPath === undefined ? undefined : "composer-enter-probe",
 			error: artifact.isErr()
 				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
 				: undefined,
@@ -2203,6 +2296,119 @@ export async function runCli(
 		return emitVerifiedUiResult(options, result);
 	}
 
+	if (options.command === "planning-between-tools-probe") {
+		const probe = await probePlanningBetweenTools({
+			appIdentifier: options.appIdentifier,
+			delayMs: Number.isFinite(options.delayMs) ? options.delayMs : 300,
+			skipDriver: options.skipDriver,
+		});
+		if (probe.isErr()) {
+			const result = buildResult({
+				command: "planning-between-tools-probe",
+				status: "fail",
+				summary: ["Unable to run the provider-free planning-between-tools probe."],
+				error: dependencyError(
+					probe.error.code,
+					probe.error.message,
+					"Run acepe-qa doctor; ensure the dev app contains the planning-between-tools stress hook."
+				),
+			});
+			process.stdout.write(formatCommandResult(result, options.format));
+			return statusExitCode(result.status);
+		}
+		const completedToolSample = probe.value.samples.find(
+			(sample) => sample.stage === "completed_tool_tail"
+		);
+		const activeAssistantSample = probe.value.samples.find(
+			(sample) => sample.stage === "active_assistant_tail"
+		);
+		const artifact = await writeJsonArtifact("planning-between-tools-probe", probe.value);
+		const artifactPath = artifact.isOk() ? artifact.value : undefined;
+		const result = buildResult({
+			command: "planning-between-tools-probe",
+			status: probe.value.passed ? "ok" : "fail",
+			summary: [
+				`hook: ${probe.value.hookAvailable ? "available" : "missing"}`,
+				`opened: ${probe.value.opened ? "yes" : "no"} lab=${probe.value.labPresent ? "present" : "missing"}`,
+				completedToolSample === undefined
+					? "stage A: missing"
+					: `stage A: tail=${completedToolSample.trailingRowKind === null ? "none" : completedToolSample.trailingRowKind} mode=${completedToolSample.localPlaceholderMode} planning=${completedToolSample.planningRowCount.toString()} visible=${completedToolSample.planningVisible ? "yes" : "no"}`,
+				activeAssistantSample === undefined
+					? "stage B: missing"
+					: `stage B: tail=${activeAssistantSample.trailingRowKind === null ? "none" : activeAssistantSample.trailingRowKind} active=${activeAssistantSample.activeStreamingTail === null ? "none" : activeAssistantSample.activeStreamingTail} mode=${activeAssistantSample.localPlaceholderMode} planning=${activeAssistantSample.planningRowCount.toString()}`,
+				`restored completed-tool stage: ${probe.value.restoredCompletedToolStage ? "yes" : "no"}`,
+			],
+			artifactPath,
+			artifactKind: artifactPath === undefined ? undefined : "planning-between-tools-probe",
+			error: artifact.isErr()
+				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+				: undefined,
+		});
+		return emitVerifiedUiResult(options, result);
+	}
+
+	if (options.command === "send-attach-stress-probe") {
+		const rowCount = Number.isFinite(options.rows) ? options.rows : 120;
+		const preScrollOffsetPx =
+			options.preScrollOffsetPx === null ? 2_000 : options.preScrollOffsetPx;
+		const probe = await probeSendAttachStress({
+			appIdentifier: options.appIdentifier,
+			rowCount,
+			preScrollOffsetPx,
+			delayMs: Number.isFinite(options.delayMs) ? options.delayMs : 300,
+			skipDriver: options.skipDriver,
+		});
+		if (probe.isErr()) {
+			const result = buildResult({
+				command: "send-attach-stress-probe",
+				status: "fail",
+				summary: ["Unable to run the provider-free send attach stress probe."],
+				error: dependencyError(
+					probe.error.code,
+					probe.error.message,
+					"Run acepe-qa doctor; ensure the dev app contains the send attach stress hook."
+				),
+			});
+			process.stdout.write(formatCommandResult(result, options.format));
+			return statusExitCode(result.status);
+		}
+		let maxPostSendDfbPx = 0;
+		let maxPlaceholderCount = 0;
+		let maxSpacerCount = 0;
+		let longRowHeightPx = 0;
+		for (const sample of probe.value.samples) {
+			if (sample.label !== "pre-send") {
+				maxPostSendDfbPx = Math.max(maxPostSendDfbPx, sample.distFromBottomPx);
+			}
+			maxPlaceholderCount = Math.max(maxPlaceholderCount, sample.placeholderCount);
+			maxSpacerCount = Math.max(maxSpacerCount, sample.spacerCount);
+			longRowHeightPx = Math.max(longRowHeightPx, sample.longMarkdownHeightPx);
+		}
+		const artifact = await writeJsonArtifact("send-attach-stress-probe", probe.value);
+		const artifactPath = artifact.isOk() ? artifact.value : undefined;
+		const result = buildResult({
+			command: "send-attach-stress-probe",
+			status: probe.value.passed ? "ok" : "fail",
+			summary: [
+				`hook: ${probe.value.hookAvailable ? "available" : "missing"}`,
+				`opened: ${probe.value.opened ? "yes" : "no"} lab=${probe.value.labPresent ? "present" : "missing"}`,
+				`scenario: requestedRows=${probe.value.requestedRowCount.toString()} finalRows=${probe.value.rowCount.toString()} preScroll=${probe.value.requestedPreScrollOffsetPx.toString()}px`,
+				`precondition: ${probe.value.preconditionPassed ? "passed" : "failed"}`,
+				`post-send: maxDfb=${Math.round(maxPostSendDfbPx).toString()}px nativeClamp=${probe.value.nativeClampDetected ? "yes" : "no"}`,
+				`extent collapse: ${Math.round(probe.value.maxExtentCollapsePx).toString()}px`,
+				`stable row shell: ${probe.value.stableRowShellPreserved ? "preserved" : "replaced"}`,
+				`long NativeMarkdown row: ${Math.round(longRowHeightPx).toString()}px`,
+				`placeholder/spacer max: ${maxPlaceholderCount.toString()}/${maxSpacerCount.toString()}`,
+			],
+			artifactPath,
+			artifactKind: artifactPath === undefined ? undefined : "send-attach-stress-probe",
+			error: artifact.isErr()
+				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+				: undefined,
+		});
+		return emitVerifiedUiResult(options, result);
+	}
+
 	if (options.command === "hmr-ui-probe") {
 		const probe = await probeUiPackageHmr({
 			checkoutRoot: options.checkoutRoot,
@@ -2310,6 +2516,8 @@ export async function runCli(
 			text: options.text,
 			selector: options.selector,
 			selectorIndex: options.selectorIndex,
+			panelId: options.panelId,
+			sessionId: options.sessionId,
 			submit: !options.noSubmit,
 			skipDriver: options.skipDriver,
 		});
@@ -2411,7 +2619,7 @@ export async function runCli(
 		error: dependencyError(
 			"unknown_command",
 			options.command,
-			"Use doctor, focus-app, frame-rate-probe, agent-panel-row-scan, agent-panel-scroll-page-probe, observe, screenshot, navigate, inspect, click, hover, thinking-toggle-probe, first-send-probe, happy-path-perf, streaming-repro-lab, agent-panel-stress-lab, hmr-ui-probe, send, watch, or reset-onboarding."
+			"Use doctor, focus-app, frame-rate-probe, agent-panel-row-scan, agent-panel-scroll-page-probe, observe, screenshot, navigate, inspect, click, hover, thinking-toggle-probe, first-send-probe, happy-path-perf, streaming-repro-lab, agent-panel-stress-lab, planning-between-tools-probe, hmr-ui-probe, send, watch, or reset-onboarding."
 		),
 	});
 	process.stdout.write(formatCommandResult(result, options.format));

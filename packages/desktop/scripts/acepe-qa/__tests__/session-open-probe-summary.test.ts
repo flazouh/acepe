@@ -329,4 +329,26 @@ describe("sessionOpenContentProbeResultSchema", () => {
 		expect(openEvent?.initialRowPageStartRowIndex).toBe(99_936);
 		expect(openEvent?.initialRowPagePayloadBytes).toBe(12_345);
 	});
+
+	it("accepts fold-history replay paths from the modern session opener", () => {
+		const parsed = sessionOpenContentProbeResultSchema.parse(
+			probeWithTiming({
+				firstRowPaintMs: 24,
+				openResultTiming: timing({
+					source: "fold-history",
+					openPath: "fold_history",
+					providerLoadMs: 4,
+					ledgerTailReadMs: 11,
+					assembleMs: 2,
+					compactMs: 0,
+					totalMs: 11,
+				}),
+			})
+		);
+		const summary = summarizeSessionOpenContentProbe(parsed);
+
+		expect(parsed.openEvents[0]?.openResultTiming?.openPath).toBe("fold_history");
+		expect(summary.backendLine).toContain("source=fold-history path=fold_history");
+		expect(summary.status).toBe("warn");
+	});
 });
