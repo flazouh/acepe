@@ -137,6 +137,10 @@ compound-engineering.local.md
 *.svg
 !packages/ui/src/components/icons/svg/
 !packages/ui/src/components/icons/svg/*.svg
+!packages/desktop/static/svgs/icons/
+!packages/desktop/static/svgs/icons/*.svg
+!packages/website/static/svgs/icons/
+!packages/website/static/svgs/icons/*.svg
 *.svgz
 *.tif
 *.tiff

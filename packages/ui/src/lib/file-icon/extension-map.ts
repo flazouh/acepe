@@ -1,12 +1,6 @@
-import {
-	hugeiconsIconDataUri,
-	type HugeiconsIconName,
-} from "../../components/icons/index.js";
-
 /**
- * Maps file extensions and filenames to the source names used by the
- * Hugeicons-backed file icon renderer. The old external SVG pack is no longer
- * part of the runtime; the legacy names below are normalized at the boundary.
+ * Maps file extensions and filenames to icon names.
+ * Used with a base path (e.g. /svgs/icons) to resolve full icon URLs.
  */
 export const extensionToIcon: Record<string, string> = {
 	// TypeScript
@@ -322,73 +316,9 @@ export const filenameToIcon: Record<string, string> = {
 const FALLBACK_ICON = "file";
 const FOLDER_ICON = "folder";
 
-const LEGACY_FILE_ICON_TO_HUGEICON: Readonly<Record<string, HugeiconsIconName>> = {
-	file: "file",
-	document: "document",
-	text: "file-text",
-	"file-text": "file-text",
-	image: "image",
-	video: "image",
-	audio: "image",
-	font: "text",
-	pdf: "document",
-	word: "document",
-	archive: "archive",
-	zip: "archive",
-	database: "database",
-	console: "terminal",
-	terminal: "terminal",
-	settings: "settings",
-	tune: "sliders",
-	git: "git",
-	diff: "git-diff",
-	folder: "folder",
-	"folder-open": "folder-open",
-	code: "code",
-	typescript: "code",
-	javascript: "code",
-	python: "code",
-	rust: "code",
-	go: "code",
-	java: "code",
-	ruby: "code",
-	php: "code",
-	swift: "code",
-	kotlin: "code",
-	c: "code",
-	cpp: "code",
-	csharp: "code",
-	haskell: "code",
-	graphql: "code",
-	json: "code",
-	yaml: "code",
-	xml: "code",
-	markdown: "file-text",
-	readme: "file-text",
-	license: "document",
-	"package.json": "code",
-	npm: "code",
-	bun: "code",
-	lock: "lock",
-	eslint: "wrench",
-	prettier: "wrench",
-	vitest: "check-circle",
-	test: "check-circle",
-	certificate: "security-check",
-	key: "lock",
-};
-
-function normalizeFileIconName(name: string): HugeiconsIconName {
-	const directName = LEGACY_FILE_ICON_TO_HUGEICON[name];
-	if (directName) {
-		return directName;
-	}
-
-	if (name.startsWith("folder")) {
-		return "folder";
-	}
-
-	return "file";
+/** Strip trailing `:line` / `:line:column` so `foo.ts:12` still resolves as TypeScript. */
+function stripLocationSuffix(path: string): string {
+	return path.replace(/(:\d+){1,2}$/, "");
 }
 
 /**
@@ -396,36 +326,37 @@ function normalizeFileIconName(name: string): HugeiconsIconName {
  */
 export function getFileIconName(extension: string): string {
 	const ext = extension.toLowerCase().replace(/^\./, "");
-	return normalizeFileIconName(extensionToIcon[ext] ?? FALLBACK_ICON);
+	return extensionToIcon[ext] ?? FALLBACK_ICON;
 }
 
 /**
  * Get icon name for a specific filename.
  */
 export function getFilenameIconName(filename: string): string | undefined {
-	const lower = filename.toLowerCase();
-	const iconName = filenameToIcon[lower];
-	return iconName ? normalizeFileIconName(iconName) : undefined;
+	const withoutLocation = stripLocationSuffix(filename);
+	const basename = withoutLocation.split(/[\\/]/).pop() ?? withoutLocation;
+	const lower = basename.toLowerCase();
+	return filenameToIcon[lower];
 }
 
 /**
- * Get a self-contained Hugeicons SVG data URI for a file.
- * Checks filename first, then falls back to extension. `basePath` is retained
- * as a source-compatible parameter for callers that used the old SVG pack.
+ * Get the full icon source path for a file.
+ * Checks filename first, then falls back to extension.
+ * @param basePath - Base path for icon directory (e.g. "/svgs/icons")
  */
 export function getFileIconSrc(
 	filenameOrExtension: string,
-	basePath: string = "hugeicons"
+	basePath: string = "/svgs/icons"
 ): string {
-	void basePath;
-	const filenameIcon = getFilenameIconName(filenameOrExtension);
+	const pathForLookup = stripLocationSuffix(filenameOrExtension);
+	const filenameIcon = getFilenameIconName(pathForLookup);
 	if (filenameIcon) {
-		return hugeiconsIconDataUri(filenameIcon);
+		return `${basePath}/${filenameIcon}.svg`;
 	}
 
-	let ext = filenameOrExtension;
-	if (filenameOrExtension.includes(".")) {
-		const parts = filenameOrExtension.split(".");
+	let ext = pathForLookup;
+	if (pathForLookup.includes(".")) {
+		const parts = pathForLookup.split(".");
 		ext = parts[parts.length - 1];
 		if (parts.length >= 2 && parts[parts.length - 2] === "d" && ext === "ts") {
 			ext = "d.ts";
@@ -433,33 +364,127 @@ export function getFileIconSrc(
 	}
 
 	const iconName = getFileIconName(ext);
-	return hugeiconsIconDataUri(iconName);
-}
-
-/** Get the fallback Hugeicons source. */
-export function getFallbackIconSrc(basePath: string = "hugeicons"): string {
-	void basePath;
-	return hugeiconsIconDataUri(FALLBACK_ICON);
-}
-
-/** Get the Hugeicons folder source. */
-export function getFolderIconSrc(
-	isOpen: boolean = false,
-	basePath: string = "hugeicons"
-): string {
-	void basePath;
-	return hugeiconsIconDataUri(isOpen ? "folder-open" : FOLDER_ICON);
+	return `${basePath}/${iconName}.svg`;
 }
 
 /**
- * Get a Hugeicons folder source. Folder specialization belonged to the old
- * external SVG pack and is intentionally collapsed to one consistent icon.
+ * Get the fallback icon source path.
+ */
+export function getFallbackIconSrc(basePath: string = "/svgs/icons"): string {
+	return `${basePath}/${FALLBACK_ICON}.svg`;
+}
+
+/**
+ * Get folder icon source path.
+ */
+export function getFolderIconSrc(
+	isOpen: boolean = false,
+	basePath: string = "/svgs/icons"
+): string {
+	return `${basePath}/${FOLDER_ICON}${isOpen ? "-open" : ""}.svg`;
+}
+
+/**
+ * Get a specialized folder icon if available (e.g., folder-node, folder-react).
  */
 export function getSpecialFolderIconSrc(
 	folderName: string,
 	isOpen: boolean = false,
-	basePath: string = "hugeicons"
+	basePath: string = "/svgs/icons"
 ): string {
-	void folderName;
+	const specialFolders: Record<string, string> = {
+		node_modules: "folder-node",
+		src: "folder-src",
+		lib: "folder-lib",
+		dist: "folder-dist",
+		build: "folder-dist",
+		out: "folder-dist",
+		public: "folder-public",
+		static: "folder-public",
+		assets: "folder-images",
+		images: "folder-images",
+		img: "folder-images",
+		components: "folder-components",
+		pages: "folder-views",
+		views: "folder-views",
+		routes: "folder-routes",
+		api: "folder-api",
+		styles: "folder-css",
+		css: "folder-css",
+		scripts: "folder-scripts",
+		js: "folder-javascript",
+		ts: "folder-typescript",
+		tests: "folder-test",
+		test: "folder-test",
+		__tests__: "folder-test",
+		spec: "folder-test",
+		config: "folder-config",
+		configs: "folder-config",
+		utils: "folder-utils",
+		helpers: "folder-helper",
+		hooks: "folder-hook",
+		types: "folder-typescript",
+		interfaces: "folder-interface",
+		models: "folder-database",
+		services: "folder-src",
+		controllers: "folder-controller",
+		middleware: "folder-middleware",
+		plugins: "folder-plugin",
+		docs: "folder-docs",
+		documentation: "folder-docs",
+		examples: "folder-examples",
+		templates: "folder-template",
+		layouts: "folder-layout",
+		store: "folder-store",
+		stores: "folder-store",
+		redux: "folder-redux",
+		context: "folder-context",
+		providers: "folder-context",
+		shared: "folder-shared",
+		common: "folder-common",
+		core: "folder-core",
+		packages: "folder-packages",
+		modules: "folder-packages",
+		vendor: "folder-packages",
+		".git": "folder-git",
+		".github": "folder-github",
+		".vscode": "folder-vscode",
+		".idea": "folder-intellij",
+		docker: "folder-docker",
+		kubernetes: "folder-kubernetes",
+		k8s: "folder-kubernetes",
+		terraform: "folder-terraform",
+		aws: "folder-aws",
+		azure: "folder-azure",
+		gcp: "folder-gcp",
+		android: "folder-android",
+		ios: "folder-ios",
+		mobile: "folder-mobile",
+		server: "folder-server",
+		client: "folder-client",
+		frontend: "folder-client",
+		backend: "folder-server",
+		functions: "folder-functions",
+		lambda: "folder-functions",
+		graphql: "folder-graphql",
+		prisma: "folder-prisma",
+		supabase: "folder-supabase",
+		firebase: "folder-firebase",
+		svelte: "folder-svelte",
+		react: "folder-react",
+		vue: "folder-vue",
+		angular: "folder-angular",
+		next: "folder-next",
+		nuxt: "folder-nuxt",
+		astro: "folder-astro",
+	};
+
+	const lowerName = folderName.toLowerCase();
+	const specialFolder = specialFolders[lowerName];
+
+	if (specialFolder) {
+		return `${basePath}/${specialFolder}${isOpen ? "-open" : ""}.svg`;
+	}
+
 	return getFolderIconSrc(isOpen, basePath);
 }
