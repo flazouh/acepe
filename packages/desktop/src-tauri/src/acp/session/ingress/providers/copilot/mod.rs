@@ -1,7 +1,7 @@
 //! Copilot history ingress — events.jsonl → ordered `ProviderEvent` stream.
 //!
 //! Production replay routes `events.jsonl` → `ProviderEventReplayAccumulator` →
-//! ordered `ProviderEvent` stream without legacy snapshot wrappers.
+//! ordered `ProviderEvent` stream (no `StoredEntry` or `SessionThreadSnapshot` on ingress).
 //! The accumulator merges duplicate tool-call rows, applies todo timing, and drops
 //! `AgentThoughtChunk` updates before fold replay.
 
@@ -10,35 +10,41 @@ mod disk;
 
 pub use disk::load_provider_events_from_disk;
 
-use async_trait::async_trait;
+use std::path::PathBuf;
 
 use crate::acp::session::ingress::event::ProviderEvent;
-use crate::acp::session::ingress::source::{
-    HistoryError, HistoryInput, HistoryReplayInput, HistorySource,
-};
+use crate::acp::session::ingress::source::{HistoryError, HistoryInput, HistorySource};
+use crate::acp::session_descriptor::SessionReplayContext;
 
 /// Reads Copilot `events.jsonl` history into provider-agnostic ingress events.
 pub struct CopilotHistorySource;
 
-#[async_trait]
 impl HistorySource for CopilotHistorySource {
-    async fn read(&self, input: HistoryInput) -> Result<Vec<ProviderEvent>, HistoryError> {
+    fn read(&self, input: HistoryInput) -> Result<Vec<ProviderEvent>, HistoryError> {
         let source_path = resolve_source_path(&input)?;
-        load_provider_events_from_disk(&input.session_id, source_path.as_deref())
-            .await
-            .map_err(HistoryError::InvalidFormat)
+        let title = fallback_title(&input.session_id);
+        block_on_async(load_provider_events_from_disk(
+            &input.session_id,
+            source_path.as_deref(),
+            &title,
+        ))
+        .map_err(HistoryError::InvalidFormat)
     }
+}
 
-    async fn read_replay(
-        &self,
-        input: HistoryReplayInput,
-    ) -> Result<Vec<ProviderEvent>, HistoryError> {
-        self.read(HistoryInput {
-            session_id: input.session_id,
-            workspace_root: input.source_path,
-        })
-        .await
+fn block_on_async<F: std::future::Future>(future: F) -> F::Output {
+    if let Ok(handle) = tokio::runtime::Handle::try_current() {
+        handle.block_on(future)
+    } else {
+        tokio::runtime::Runtime::new()
+            .expect("tokio runtime for Copilot history ingress")
+            .block_on(future)
     }
+}
+
+fn fallback_title(session_id: &str) -> String {
+    let short_id = &session_id[..8.min(session_id.len())];
+    format!("Session {short_id}")
 }
 
 /// Resolve transcript path override from history input.
@@ -66,30 +72,32 @@ fn resolve_source_path(input: &HistoryInput) -> Result<Option<String>, HistoryEr
     Ok(None)
 }
 
+/// Load Copilot history events for production replay.
+pub async fn load_replay_events(
+    replay_context: &SessionReplayContext,
+) -> Result<Vec<ProviderEvent>, HistoryError> {
+    let input = HistoryInput {
+        session_id: replay_context.history_session_id.clone(),
+        workspace_root: replay_context.source_path.as_ref().map(PathBuf::from),
+    };
+    let source_path = resolve_source_path(&input)?;
+    let title = fallback_title(&input.session_id);
+    load_provider_events_from_disk(&input.session_id, source_path.as_deref(), &title)
+        .await
+        .map_err(HistoryError::InvalidFormat)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::acp::parsers::AgentType;
     use crate::acp::session::ingress::event::ProviderEventKind;
+    use crate::acp::session_descriptor::{SessionDescriptorCompatibility, SessionReplayContext};
     use crate::acp::session_update::{
         ContentChunk, ToolArguments, ToolCallData, ToolCallStatus, ToolCallUpdateData, ToolKind,
     };
     use crate::acp::types::ContentBlock;
     use crate::copilot_history::convert_replay_updates_to_provider_events;
-
-    #[tokio::test]
-    async fn copilot_history_source_reads_inside_active_tokio_runtime() {
-        let temp_file = tempfile::NamedTempFile::new().expect("temp events file");
-
-        let error = CopilotHistorySource
-            .read(HistoryInput {
-                session_id: "missing-session".to_string(),
-                workspace_root: Some(temp_file.path().to_path_buf()),
-            })
-            .await
-            .expect_err("a transcript outside Copilot storage must be rejected");
-
-        assert!(matches!(error, HistoryError::InvalidFormat(_)));
-    }
 
     #[test]
     fn copilot_history_source_maps_replay_entries_to_provider_events() {
@@ -206,7 +214,26 @@ mod tests {
         assert_eq!(events.len(), 1);
         assert!(matches!(
             &events[0].kind,
-            ProviderEventKind::AssistantText { text } if text == "I found the replay path."
+            ProviderEventKind::AssistantText { text, .. } if text == "I found the replay path."
         ));
+    }
+
+    #[tokio::test]
+    async fn copilot_replay_returns_an_error_inside_an_active_tokio_runtime() {
+        let replay_context = SessionReplayContext {
+            local_session_id: "copilot-nested-runtime".to_string(),
+            history_session_id: "copilot-nested-runtime".to_string(),
+            agent_id: crate::acp::types::CanonicalAgentId::Copilot,
+            parser_agent_type: AgentType::Copilot,
+            project_path: "/project".to_string(),
+            worktree_path: None,
+            effective_cwd: "/project".to_string(),
+            source_path: None,
+            compatibility: SessionDescriptorCompatibility::Canonical,
+        };
+
+        let result = load_replay_events(&replay_context).await;
+
+        assert!(result.is_err());
     }
 }

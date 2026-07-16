@@ -1,11 +1,15 @@
 use crate::acp::event_hub::AcpEventHubState;
 use crate::acp::lifecycle::{DetachedReason, LifecycleStatus};
 use crate::acp::projections::{
-    is_terminal_operation_state, ProjectionRegistry, SessionProjectionSnapshot, SessionSnapshot,
-    SessionTurnState,
+    is_terminal_operation_state, InteractionState, ProjectionRegistry, SessionProjectionSnapshot,
+    SessionSnapshot, SessionTurnState,
+};
+use crate::acp::session::fold_export::{
+    materialized_thread_snapshot_from_provider_fold_first,
+    materialized_thread_snapshot_from_thread_snapshot_fold_first, MaterializedThreadSnapshot,
 };
 use crate::acp::session_descriptor::SessionReplayContext;
-use crate::acp::session_state_engine::graph::{select_active_streaming_tail, SessionStateGraph};
+use crate::acp::session_state_engine::graph::select_active_streaming_tail;
 use crate::acp::session_state_engine::protocol::ViewportBufferPush;
 use crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeRegistry;
 use crate::acp::session_state_engine::selectors::{
@@ -14,6 +18,8 @@ use crate::acp::session_state_engine::selectors::{
 use crate::acp::session_state_engine::{
     SessionGraphRevision, SessionStateEnvelope, SessionStatePayload,
 };
+use crate::acp::session_thread_snapshot::{ProviderOwnedSessionSnapshot, SessionThreadSnapshot};
+use crate::acp::transcript_projection::relink_operations_to_transcript;
 use crate::acp::transcript_projection::{
     assistant_boundary_entry_count_from_transcript_entries, TranscriptEntryRole,
     TranscriptProjectionRegistry, TranscriptSegment, TranscriptSnapshot,
@@ -25,7 +31,8 @@ use crate::acp::transcript_viewport::ledger::{
 };
 use crate::acp::transcript_viewport::TranscriptViewportRow;
 use crate::db::repository::{
-    SessionJournalEventRepository, SessionMetadataRepository, SessionTranscriptRowLedgerRepository,
+    SessionEventSequenceRepository, SessionJournalEventRepository, SessionMetadataRepository,
+    SessionTranscriptRowLedgerRepository,
 };
 use sea_orm::DbConn;
 use std::collections::HashSet;
@@ -34,12 +41,51 @@ use std::time::Instant;
 use uuid::Uuid;
 
 use super::operation_sanitize::{
-    sanitize_interactions_for_historical_open, sanitize_operations_for_historical_open,
+    hot_ledger_rows_require_historical_normalization, sanitize_interactions_for_historical_open,
+    sanitize_operations_for_historical_open, sanitize_transcript_rows_for_historical_open,
+    warn_unresolved_tool_rows_in_open_graph,
 };
+use super::transcript_merge::merge_provider_tool_rows_into_local_transcript;
 use super::types::{
     NewSessionOpenResultInput, SessionOpenError, SessionOpenFound, SessionOpenPath,
     SessionOpenResult, SessionOpenTranscriptRowPage,
 };
+
+pub(super) fn reconcile_provider_history_into_local_projection(
+    mut local: SessionProjectionSnapshot,
+    provider: SessionProjectionSnapshot,
+) -> SessionProjectionSnapshot {
+    let local_tool_call_ids = local
+        .operations
+        .iter()
+        .map(|operation| operation.tool_call_id.clone())
+        .collect::<HashSet<_>>();
+    let mut operations = provider
+        .operations
+        .into_iter()
+        .filter(|operation| !local_tool_call_ids.contains(&operation.tool_call_id))
+        .collect::<Vec<_>>();
+    operations.append(&mut local.operations);
+
+    let local_interaction_ids = local
+        .interactions
+        .iter()
+        .map(|interaction| interaction.id.clone())
+        .collect::<HashSet<_>>();
+    let mut interactions = provider
+        .interactions
+        .into_iter()
+        .filter(|interaction| !local_interaction_ids.contains(&interaction.id))
+        .collect::<Vec<_>>();
+    interactions.append(&mut local.interactions);
+
+    SessionProjectionSnapshot {
+        session: local.session,
+        operations,
+        interactions,
+        runtime: local.runtime,
+    }
+}
 
 /// Build a short display title from a session ID (first 8 chars).
 pub(crate) fn default_session_title(session_id: &str) -> String {
@@ -120,9 +166,19 @@ pub fn apply_runtime_authority_to_session_open_result(
     let SessionOpenResult::Found(found) = &mut result else {
         return result;
     };
-    if let Some(runtime_snapshot) = runtime_registry
-        .and_then(|registry| registry.current_snapshot_for_session(&found.canonical_session_id))
+    let runtime_snapshot = runtime_registry
+        .and_then(|registry| registry.current_snapshot_for_session(&found.canonical_session_id));
+    // A hot-ledger open header persisted mid-turn can carry a stale
+    // `Running` turn state if the app died before the turn completed. Only a
+    // live runtime authority (Ready lifecycle) may vouch for an active turn;
+    // otherwise apply the same historical-close normalization the fold path
+    // applies so cold opens never resurrect a permanent spinner.
+    if found.open_path == SessionOpenPath::HotLedger
+        && hot_ledger_rows_require_historical_normalization(runtime_snapshot.as_ref())
     {
+        normalize_cold_hot_ledger_open_found(found);
+    }
+    if let Some(runtime_snapshot) = runtime_snapshot {
         found.graph_revision = found.graph_revision.max(runtime_snapshot.graph_revision);
         found.lifecycle = runtime_snapshot.lifecycle;
         found.capabilities = runtime_snapshot.capabilities;
@@ -144,6 +200,52 @@ pub fn apply_runtime_authority_to_session_open_result(
     found.lifecycle = lifecycle_for_panel_open(found.lifecycle.clone());
 
     result
+}
+
+/// Normalize a cold hot-ledger open the same way `apply_historical_close`
+/// normalizes fold-history opens: demote a stale non-terminal turn state to a
+/// terminal one and re-derive activity from the normalized state.
+fn normalize_cold_hot_ledger_open_found(found: &mut SessionOpenFound) {
+    let has_history = found.message_count > 0
+        || found
+            .initial_transcript_row_page
+            .as_ref()
+            .is_some_and(|page| page.total_row_count > 0);
+    if !is_terminal_turn_state(&found.turn_state) {
+        found.turn_state = if found.active_turn_failure.is_some() {
+            SessionTurnState::Failed
+        } else if has_history {
+            SessionTurnState::Completed
+        } else {
+            SessionTurnState::Idle
+        };
+    }
+    found.active_streaming_tail = None;
+    if let Some(initial_page) = found.initial_transcript_row_page.as_mut() {
+        sanitize_transcript_rows_for_historical_open(&mut initial_page.rows);
+    }
+    if let Some(initial_envelope) = found.initial_viewport_envelope.as_mut() {
+        if let SessionStatePayload::ViewportBufferPush { push } = &mut initial_envelope.payload {
+            sanitize_transcript_rows_for_historical_open(&mut push.rows);
+        }
+    }
+    found.activity = select_session_graph_activity(
+        &found.lifecycle,
+        &found.turn_state,
+        &found.operations,
+        &found.interactions,
+        found.active_turn_failure.as_ref(),
+    );
+}
+
+fn is_terminal_turn_state(turn_state: &SessionTurnState) -> bool {
+    matches!(
+        turn_state,
+        SessionTurnState::Idle
+            | SessionTurnState::Completed
+            | SessionTurnState::Failed
+            | SessionTurnState::Cancelled
+    )
 }
 
 fn lifecycle_for_panel_open(lifecycle: SessionGraphLifecycle) -> SessionGraphLifecycle {
@@ -196,45 +298,6 @@ pub(crate) fn session_projection_snapshot_from_open_found(
         interactions: found.interactions.clone(),
         runtime: None,
     }
-}
-
-/// Install the complete canonical graph represented by a session-open result.
-///
-/// New sessions call this before releasing buffered provider events, so every
-/// live event has a Rust-owned graph authority to fold into.
-pub(crate) fn seed_session_graph_from_open_found(
-    runtime_registry: &SessionGraphRuntimeRegistry,
-    found: &SessionOpenFound,
-) {
-    runtime_registry.seed_graph(
-        found.canonical_session_id.clone(),
-        SessionStateGraph {
-            requested_session_id: found.requested_session_id.clone(),
-            canonical_session_id: found.canonical_session_id.clone(),
-            is_alias: found.is_alias,
-            agent_id: found.agent_id.clone(),
-            project_path: found.project_path.clone(),
-            worktree_path: found.worktree_path.clone(),
-            source_path: found.source_path.clone(),
-            sequence_id: found.sequence_id,
-            revision: SessionGraphRevision::new(
-                found.graph_revision,
-                found.transcript_snapshot.revision,
-                found.last_event_seq,
-            ),
-            transcript_snapshot: found.transcript_snapshot.clone(),
-            operations: found.operations.clone(),
-            interactions: found.interactions.clone(),
-            turn_state: found.turn_state.clone(),
-            message_count: found.message_count,
-            active_streaming_tail: found.active_streaming_tail.clone(),
-            active_turn_failure: found.active_turn_failure.clone(),
-            last_terminal_turn_id: found.last_terminal_turn_id.clone(),
-            lifecycle: found.lifecycle.clone(),
-            activity: found.activity.clone(),
-            capabilities: found.capabilities.clone(),
-        },
-    );
 }
 
 pub(super) fn build_initial_viewport_envelope(
@@ -567,8 +630,7 @@ pub async fn session_open_result_from_current_row_ledger_with_initial_page_polic
     let canonical_session_id = &replay_context.local_session_id;
     let open_token = Uuid::new_v4();
     let epoch_ms = chrono::Utc::now().timestamp_millis().max(0) as u64;
-    hub.arm_reservation(open_token, canonical_session_id.clone(), 0, epoch_ms)
-        .map_err(|error| error.to_string())?;
+    hub.arm_reservation(open_token, canonical_session_id.clone(), 0, epoch_ms);
     let journal_cutoff_started_at = Instant::now();
     let row_affecting_cutoff = match SessionJournalEventRepository::max_row_affecting_event_seq(
         db,
@@ -838,6 +900,368 @@ async fn mark_current_row_ledger_rebuild_needed(
     })
 }
 
+pub async fn session_open_result_from_thread_snapshot(
+    db: &DbConn,
+    hub: &Arc<AcpEventHubState>,
+    runtime_registry: Option<&SessionGraphRuntimeRegistry>,
+    replay_context: &SessionReplayContext,
+    requested_session_id: &str,
+    snapshot: &SessionThreadSnapshot,
+) -> SessionOpenResult {
+    let canonical_session_id = &replay_context.local_session_id;
+    let journal_cutoff_started_at = Instant::now();
+    let last_event_seq =
+        match SessionEventSequenceRepository::last_assigned_event_seq(db, canonical_session_id)
+            .await
+        {
+            Ok(seq) => seq.unwrap_or(0),
+            Err(err) => {
+                return SessionOpenResult::Error(SessionOpenError::internal(
+                    requested_session_id,
+                    format!(
+                    "Failed to determine journal cutoff for session {canonical_session_id}: {err}"
+                ),
+                ));
+            }
+        };
+    let journal_cutoff_ms = elapsed_ms(journal_cutoff_started_at);
+    let materialize_started_at = Instant::now();
+    let materialized = materialized_thread_snapshot_from_thread_snapshot_fold_first(
+        canonical_session_id,
+        replay_context,
+        snapshot,
+        last_event_seq,
+    );
+    let materialize_ms = elapsed_ms(materialize_started_at);
+
+    session_open_result_from_materialized_provider_history(
+        db,
+        hub,
+        runtime_registry,
+        replay_context,
+        requested_session_id,
+        materialized,
+        snapshot.entries.len(),
+        journal_cutoff_ms,
+        materialize_ms,
+    )
+    .await
+}
+
+pub async fn session_open_result_from_provider_owned_snapshot(
+    db: &DbConn,
+    hub: &Arc<AcpEventHubState>,
+    runtime_registry: Option<&SessionGraphRuntimeRegistry>,
+    replay_context: &SessionReplayContext,
+    requested_session_id: &str,
+    snapshot: &ProviderOwnedSessionSnapshot,
+) -> SessionOpenResult {
+    let canonical_session_id = &replay_context.local_session_id;
+    let journal_cutoff_started_at = Instant::now();
+    let last_event_seq =
+        match SessionEventSequenceRepository::last_assigned_event_seq(db, canonical_session_id)
+            .await
+        {
+            Ok(seq) => seq.unwrap_or(0),
+            Err(err) => {
+                return SessionOpenResult::Error(SessionOpenError::internal(
+                    requested_session_id,
+                    format!(
+                    "Failed to determine journal cutoff for session {canonical_session_id}: {err}"
+                ),
+                ));
+            }
+        };
+    let journal_cutoff_ms = elapsed_ms(journal_cutoff_started_at);
+    let materialize_started_at = Instant::now();
+    let materialized = materialized_thread_snapshot_from_provider_fold_first(
+        canonical_session_id,
+        replay_context,
+        snapshot,
+        last_event_seq,
+    );
+    let materialize_ms = elapsed_ms(materialize_started_at);
+    let provider_history_entry_count = materialized.transcript_snapshot.entries.len();
+
+    session_open_result_from_materialized_provider_history(
+        db,
+        hub,
+        runtime_registry,
+        replay_context,
+        requested_session_id,
+        materialized,
+        provider_history_entry_count,
+        journal_cutoff_ms,
+        materialize_ms,
+    )
+    .await
+}
+
+async fn session_open_result_from_materialized_provider_history(
+    db: &DbConn,
+    hub: &Arc<AcpEventHubState>,
+    runtime_registry: Option<&SessionGraphRuntimeRegistry>,
+    replay_context: &SessionReplayContext,
+    requested_session_id: &str,
+    materialized: MaterializedThreadSnapshot,
+    provider_history_entry_count: usize,
+    journal_cutoff_ms: u128,
+    materialize_ms: u128,
+) -> SessionOpenResult {
+    let provider_projection = materialized.projection;
+    let total_started_at = Instant::now();
+    let canonical_session_id = &replay_context.local_session_id;
+    let is_alias = requested_session_id != canonical_session_id;
+    let projection_event_seq = match SessionJournalEventRepository::max_row_affecting_event_seq(
+        db,
+        canonical_session_id,
+    )
+    .await
+    {
+        Ok(seq) => seq.unwrap_or(0),
+        Err(err) => {
+            return SessionOpenResult::Error(SessionOpenError::internal(
+                requested_session_id,
+                format!(
+                    "Failed to determine projection cutoff for session {canonical_session_id}: {err}"
+                ),
+            ));
+        }
+    };
+    let last_event_seq =
+        match SessionEventSequenceRepository::last_assigned_event_seq(db, canonical_session_id)
+            .await
+        {
+            Ok(seq) => seq.unwrap_or(0),
+            Err(err) => {
+                return SessionOpenResult::Error(SessionOpenError::internal(
+                    requested_session_id,
+                    format!(
+                    "Failed to determine journal cutoff for session {canonical_session_id}: {err}"
+                ),
+                ));
+            }
+        };
+
+    let open_token = Uuid::new_v4();
+    let epoch_ms = chrono::Utc::now().timestamp_millis().max(0) as u64;
+    hub.arm_reservation(
+        open_token,
+        canonical_session_id.clone(),
+        last_event_seq,
+        epoch_ms,
+    );
+
+    let metadata_started_at = Instant::now();
+    let session_metadata =
+        match SessionMetadataRepository::get_by_id(db, canonical_session_id).await {
+            Ok(metadata) => metadata,
+            Err(err) => {
+                hub.supersede_reservation(open_token);
+                return SessionOpenResult::Error(SessionOpenError::internal(
+                    requested_session_id,
+                    format!(
+                        "Failed to load session metadata for session {canonical_session_id}: {err}"
+                    ),
+                ));
+            }
+        };
+    let Some(session_metadata) = session_metadata else {
+        hub.supersede_reservation(open_token);
+        return SessionOpenResult::Error(SessionOpenError::internal(
+            requested_session_id,
+            format!("Session metadata missing for session {canonical_session_id}"),
+        ));
+    };
+    let metadata_ms = elapsed_ms(metadata_started_at);
+    let local_journal_started_at = Instant::now();
+    let (transcript_snapshot, transcript_from_local_journal, local_projection) =
+        match load_local_journal_transcript(db, replay_context, canonical_session_id).await {
+            Ok(Some(local_replay)) => (
+                merge_provider_tool_rows_into_local_transcript(
+                    local_replay.transcript_snapshot,
+                    &materialized.transcript_snapshot,
+                    &provider_projection.operations,
+                ),
+                true,
+                Some(local_replay.projection),
+            ),
+            Ok(None) => (materialized.transcript_snapshot, false, None),
+            Err(message) => {
+                hub.supersede_reservation(open_token);
+                return SessionOpenResult::Error(SessionOpenError::internal(
+                    requested_session_id,
+                    message,
+                ));
+            }
+        };
+    let local_journal_ms = elapsed_ms(local_journal_started_at);
+    let projection_started_at = Instant::now();
+    let use_local_projection = local_projection.as_ref().is_some_and(|local| {
+        local
+            .session
+            .as_ref()
+            .is_some_and(|session| session.last_event_seq >= projection_event_seq)
+    });
+    let projection = if use_local_projection {
+        reconcile_provider_history_into_local_projection(
+            local_projection.expect("checked local projection"),
+            provider_projection,
+        )
+    } else {
+        provider_projection
+    };
+    let session_snap = projection.session.as_ref();
+    let operations = if transcript_from_local_journal {
+        relink_operations_to_transcript(&transcript_snapshot, projection.operations)
+    } else {
+        projection.operations
+    };
+    let interactions = projection.interactions;
+    let projected_graph_revision = session_snap
+        .map(|session| session.last_event_seq)
+        .unwrap_or(last_event_seq);
+    // Provider history can lag behind the canonical journal frontier. In that
+    // case, preserve transcript content but do not resurrect stale active work.
+    let projection_frontier = if use_local_projection {
+        projection_event_seq
+    } else {
+        last_event_seq
+    };
+    let projection_is_behind_journal = projected_graph_revision < projection_frontier;
+    let graph_revision = projected_graph_revision.max(last_event_seq);
+    let raw_turn_state = session_snap
+        .map(|session| session.turn_state.clone())
+        .unwrap_or(SessionTurnState::Idle);
+    let had_historical_active_state = raw_turn_state == SessionTurnState::Running
+        || operations
+            .iter()
+            .any(|operation| !is_terminal_operation_state(&operation.operation_state))
+        || interactions
+            .iter()
+            .any(|interaction| interaction.state == InteractionState::Pending);
+    let turn_state = if projection_is_behind_journal {
+        SessionTurnState::Idle
+    } else if raw_turn_state == SessionTurnState::Failed {
+        raw_turn_state
+    } else if had_historical_active_state {
+        if provider_history_entry_count == 0 {
+            SessionTurnState::Idle
+        } else {
+            SessionTurnState::Completed
+        }
+    } else {
+        raw_turn_state
+    };
+    let message_count = if transcript_from_local_journal {
+        transcript_snapshot.entries.len() as u64
+    } else if projection_is_behind_journal {
+        0
+    } else {
+        session_snap
+            .map(|session| session.message_count)
+            .unwrap_or(0)
+    };
+    let active_turn_failure = if projection_is_behind_journal {
+        None
+    } else {
+        session_snap.and_then(|session| session.active_turn_failure.clone())
+    };
+    let last_terminal_turn_id = if projection_is_behind_journal {
+        None
+    } else {
+        session_snap.and_then(|session| session.last_terminal_turn_id.clone())
+    };
+    let first_user_title = derive_title_from_transcript_snapshot(&transcript_snapshot);
+    let operations =
+        sanitize_operations_for_historical_open(operations, projection_is_behind_journal);
+    let interactions = sanitize_interactions_for_historical_open(interactions);
+    warn_unresolved_tool_rows_in_open_graph(
+        canonical_session_id,
+        &replay_context.agent_id,
+        &transcript_snapshot,
+        &operations,
+    );
+
+    let lifecycle = SessionGraphLifecycle::reconnecting();
+    let capabilities = SessionGraphCapabilities::empty();
+
+    // Viewport authority is keyed only by the canonical session id; the frontend
+    // re-keys to the canonical id at open time, so no alias duplication is needed.
+    if let Some(runtime_registry) = runtime_registry {
+        runtime_registry.restore_open_session_state(
+            canonical_session_id.clone(),
+            graph_revision,
+            lifecycle.clone(),
+            capabilities.clone(),
+        );
+    }
+    let activity = select_session_graph_activity(
+        &lifecycle,
+        &turn_state,
+        &operations,
+        &interactions,
+        active_turn_failure.as_ref(),
+    );
+    let active_streaming_tail =
+        select_active_streaming_tail(&turn_state, &activity, &transcript_snapshot);
+    let projection_ms = elapsed_ms(projection_started_at);
+    let total_ms = elapsed_ms(total_started_at);
+    if total_ms > 500 {
+        tracing::warn!(
+            session_id = %canonical_session_id,
+            requested_session_id = %requested_session_id,
+            agent_id = %replay_context.agent_id,
+            journal_cutoff_ms,
+            metadata_ms,
+            materialize_ms,
+            local_journal_ms,
+            projection_ms,
+            total_ms,
+            transcript_entry_count = transcript_snapshot.entries.len(),
+            operation_count = operations.len(),
+            "Slow provider-owned session-open assembly"
+        );
+    }
+
+    let mut found = SessionOpenFound {
+        requested_session_id: requested_session_id.to_string(),
+        canonical_session_id: canonical_session_id.clone(),
+        is_alias,
+        last_event_seq,
+        graph_revision,
+        open_token: open_token.to_string(),
+        agent_id: replay_context.agent_id.clone(),
+        project_path: replay_context.project_path.clone(),
+        worktree_path: replay_context.worktree_path.clone(),
+        source_path: replay_context.source_path.clone(),
+        sequence_id: session_metadata.sequence_id,
+        transcript_snapshot,
+        session_title: resolve_canonical_session_title(
+            Some(&session_metadata),
+            canonical_session_id,
+            first_user_title.as_deref(),
+        ),
+        operations,
+        interactions,
+        turn_state,
+        message_count,
+        activity,
+        active_streaming_tail,
+        lifecycle,
+        capabilities,
+        open_path: SessionOpenPath::FoldHistory,
+        initial_transcript_row_page: None,
+        initial_viewport_envelope: None,
+        open_result_timing: None,
+        active_turn_failure,
+        last_terminal_turn_id,
+    };
+    found.initial_viewport_envelope = build_initial_viewport_envelope(runtime_registry, &found);
+
+    SessionOpenResult::Found(Box::new(found))
+}
+
 pub async fn session_open_result_from_completed_local_journal(
     db: &DbConn,
     hub: &Arc<AcpEventHubState>,
@@ -847,14 +1271,15 @@ pub async fn session_open_result_from_completed_local_journal(
     capabilities: SessionGraphCapabilities,
 ) -> Result<Option<SessionOpenResult>, String> {
     let canonical_session_id = &replay_context.local_session_id;
-    let last_event_seq = SessionJournalEventRepository::max_event_seq(db, canonical_session_id)
-        .await
-        .map_err(|error| {
-            format!(
+    let last_event_seq =
+        SessionEventSequenceRepository::last_assigned_event_seq(db, canonical_session_id)
+            .await
+            .map_err(|error| {
+                format!(
                 "Failed to determine journal cutoff for session {canonical_session_id}: {error}"
             )
-        })?
-        .unwrap_or(0);
+            })?
+            .unwrap_or(0);
 
     let open_token = Uuid::new_v4();
     let epoch_ms = chrono::Utc::now().timestamp_millis().max(0) as u64;
@@ -863,8 +1288,7 @@ pub async fn session_open_result_from_completed_local_journal(
         canonical_session_id.clone(),
         last_event_seq,
         epoch_ms,
-    )
-    .map_err(|error| error.to_string())?;
+    );
 
     let local_replay =
         match load_completed_local_journal_transcript(db, replay_context, canonical_session_id)
@@ -1050,26 +1474,22 @@ pub async fn session_open_result_for_new_session(
     input: NewSessionOpenResultInput,
 ) -> SessionOpenResult {
     let session_id = input.session_id;
-    let last_event_seq = match SessionJournalEventRepository::max_event_seq(db, &session_id).await {
-        Ok(seq) => seq.unwrap_or(0),
-        Err(err) => {
-            return SessionOpenResult::Error(SessionOpenError::internal(
-                &session_id,
-                format!("Failed to determine journal cutoff for new session {session_id}: {err}"),
-            ));
-        }
-    };
+    let last_event_seq =
+        match SessionEventSequenceRepository::last_assigned_event_seq(db, &session_id).await {
+            Ok(seq) => seq.unwrap_or(0),
+            Err(err) => {
+                return SessionOpenResult::Error(SessionOpenError::internal(
+                    &session_id,
+                    format!(
+                        "Failed to determine journal cutoff for new session {session_id}: {err}"
+                    ),
+                ));
+            }
+        };
 
     let open_token = Uuid::new_v4();
     let epoch_ms = chrono::Utc::now().timestamp_millis().max(0) as u64;
-    if let Err(error) =
-        hub.arm_reservation(open_token, session_id.clone(), last_event_seq, epoch_ms)
-    {
-        return SessionOpenResult::Error(SessionOpenError::internal(
-            &session_id,
-            error.to_string(),
-        ));
-    }
+    hub.arm_reservation(open_token, session_id.clone(), last_event_seq, epoch_ms);
 
     let replay_context = SessionReplayContext {
         local_session_id: session_id.clone(),
@@ -1095,7 +1515,7 @@ pub async fn session_open_result_for_new_session(
     let transcript_snapshot = local_replay
         .as_ref()
         .map(|replay| replay.transcript_snapshot.clone())
-        .unwrap_or_else(|| TranscriptSnapshot::empty(last_event_seq));
+        .unwrap_or_else(|| TranscriptSnapshot::from_stored_entries(last_event_seq, &[]));
     let first_user_title = derive_title_from_transcript_snapshot(&transcript_snapshot);
     let message_count = transcript_snapshot.entries.len() as u64;
     let projection = local_replay.map(|replay| replay.projection);
@@ -1168,21 +1588,4 @@ pub async fn session_open_result_for_new_session(
         last_terminal_turn_id: session_projection
             .and_then(|session| session.last_terminal_turn_id.clone()),
     }))
-}
-
-/// Build a new-session open result and install its canonical graph authority.
-///
-/// The command path invokes this before releasing pre-reservation provider
-/// events, so the first live event always folds into an existing graph.
-pub(crate) async fn session_open_result_for_new_session_with_runtime_registry(
-    db: &DbConn,
-    hub: &Arc<AcpEventHubState>,
-    runtime_registry: &SessionGraphRuntimeRegistry,
-    input: NewSessionOpenResultInput,
-) -> SessionOpenResult {
-    let result = session_open_result_for_new_session(db, hub, input).await;
-    if let SessionOpenResult::Found(found) = &result {
-        seed_session_graph_from_open_found(runtime_registry, found);
-    }
-    result
 }

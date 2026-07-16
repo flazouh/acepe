@@ -1,12 +1,12 @@
 use crate::acp::parsers::acp_fields::normalize_tool_call_id;
 use crate::acp::parsers::{get_parser, AgentType};
-use crate::acp::session::ingress::tool_identity::classify_kind_from_provider_name;
 use crate::acp::session_update::{
     SessionUpdate, ToolArguments, ToolCallData, ToolCallUpdateData, ToolKind,
 };
 use crate::acp::tool_call_presentation::{
     merge_tool_arguments, synthesize_locations, synthesize_title, title_is_placeholder,
 };
+use crate::acp::tool_identity::classify_kind_from_provider_name;
 use crate::session_jsonl::types::{ContentBlock, FullSession};
 use dashmap::DashMap;
 use std::collections::HashMap;
@@ -554,7 +554,7 @@ async fn load_session_tool_use_cache(session_id: &str) -> Option<SessionToolUseC
 
     let metadata = tokio::fs::metadata(&store_db_path).await.ok()?;
     let modified_at = metadata.modified().ok()?;
-    let session = crate::acp::session::ingress::providers::cursor::cursor_sqlite_parser::parse_cursor_store_db(
+    let session = crate::history::cursor_sqlite_parser::parse_cursor_store_db(
         &store_db_path,
         session_id,
         None,

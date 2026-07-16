@@ -9,6 +9,9 @@ pub struct Model {
     pub session_id: String,
 
     #[sea_orm(primary_key, auto_increment = false)]
+    pub scope_key: String,
+
+    #[sea_orm(primary_key, auto_increment = false)]
     pub row_index: i64,
 
     pub row_id: String,

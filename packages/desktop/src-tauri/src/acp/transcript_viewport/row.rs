@@ -1,10 +1,10 @@
 use crate::acp::projections::{
     InteractionKind, InteractionState, OperationSnapshot, OperationState,
 };
-use crate::acp::session::ingress::tool_identity::display_name_for_tool;
 use crate::acp::session_state_engine::graph::ActiveStreamingTailContentKind;
 use crate::acp::session_update::{SessionCompactionEvent, TodoItem, ToolArguments, ToolKind};
-use crate::acp::transcript_projection::{TranscriptEntryRole, TranscriptSegment};
+use crate::acp::tool_identity::display_name_for_tool;
+use crate::acp::transcript_projection::{TranscriptEntryRole, TranscriptScope, TranscriptSegment};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -13,6 +13,8 @@ use serde_json::Value;
 pub struct TranscriptViewportRow {
     pub row_id: String,
     pub source_entry_id: String,
+    #[serde(default)]
+    pub scope: TranscriptScope,
     pub kind: TranscriptViewportRowKind,
     pub version: String,
     pub anchor_eligible: bool,
@@ -32,7 +34,6 @@ pub enum TranscriptViewportRowKind {
     AssistantThought,
     Tool,
     SessionActivity,
-    AwaitingPlaceholder,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -95,6 +96,24 @@ pub struct TranscriptViewportOperationDisplayFacts {
     pub parent_tool_call_id: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub child_tool_call_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub child_transcript_scope: Option<TranscriptScope>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub latest_child_action: Option<TranscriptViewportLatestChildAction>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct TranscriptViewportLatestChildAction {
+    pub operation_id: String,
+    pub tool_call_id: String,
+    pub kind: Option<ToolKind>,
+    pub state: OperationState,
+    pub title: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subtitle: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_path_summary: Option<String>,
 }
 
 impl TranscriptViewportOperationDisplayFacts {
@@ -145,7 +164,35 @@ impl TranscriptViewportOperationDisplayFacts {
             error_summary,
             interaction_ids,
             parent_tool_call_id: operation.parent_tool_call_id.clone(),
-            child_tool_call_ids: operation.child_tool_call_ids.clone(),
+            child_tool_call_ids: Vec::new(),
+            child_transcript_scope: (operation.kind == Some(ToolKind::Task))
+                .then(|| TranscriptScope::Operation(operation.id.clone())),
+            latest_child_action: None,
+        })
+    }
+
+    pub(crate) fn attach_scoped_children(&mut self, children: &[OperationSnapshot]) {
+        self.child_tool_call_ids = children
+            .iter()
+            .map(|operation| operation.tool_call_id.clone())
+            .collect();
+        self.latest_child_action = children
+            .last()
+            .and_then(TranscriptViewportLatestChildAction::from_operation);
+    }
+}
+
+impl TranscriptViewportLatestChildAction {
+    fn from_operation(operation: &OperationSnapshot) -> Option<Self> {
+        Some(Self {
+            operation_id: operation.id.clone(),
+            tool_call_id: operation.tool_call_id.clone(),
+            kind: operation.kind,
+            state: operation.operation_state.clone(),
+            title: display_title(operation)?,
+            subtitle: command_summary(operation)
+                .or_else(|| result_summary(operation.result.as_ref())),
+            target_path_summary: target_path_summary(operation),
         })
     }
 }

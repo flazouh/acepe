@@ -16,32 +16,33 @@ fn indexed_source_path(file_path: String) -> Option<String> {
     SessionMetadataRepository::normalized_source_path(&file_path)
 }
 
-fn derive_title_from_canonical_transcript(
-    transcript: &crate::acp::transcript_projection::TranscriptSnapshot,
+fn derive_title_from_converted_session(
+    session: &crate::acp::session_thread_snapshot::SessionThreadSnapshot,
 ) -> Option<String> {
     use crate::acp::session_open_snapshot::derive_title_from_transcript_snapshot;
+    use crate::acp::transcript_projection::TranscriptSnapshot;
 
-    derive_title_from_transcript_snapshot(transcript)
+    let transcript = TranscriptSnapshot::from_stored_entries(0, &session.entries);
+    derive_title_from_transcript_snapshot(&transcript)
 }
 
 fn resolve_indexed_session_title(
     session_id: &str,
     display: &str,
     title_overridden: bool,
-    transcript: Option<&crate::acp::transcript_projection::TranscriptSnapshot>,
-    converted_title: Option<&str>,
+    session: Option<&crate::acp::session_thread_snapshot::SessionThreadSnapshot>,
 ) -> String {
     if title_overridden {
         return display.to_string();
     }
 
-    if let Some(transcript) = transcript {
-        if let Some(title) = derive_title_from_canonical_transcript(transcript) {
+    if let Some(session) = session {
+        if let Some(title) = derive_title_from_converted_session(session) {
             return title;
         }
-    }
-    if let Some(title) = converted_title.filter(|title| !title.trim().is_empty()) {
-        return title.to_string();
+        if !session.title.trim().is_empty() {
+            return session.title.clone();
+        }
     }
 
     crate::history::title_utils::derive_session_title(display, 100)
@@ -49,7 +50,7 @@ fn resolve_indexed_session_title(
 }
 
 fn derive_indexed_session_title(session_id: &str, display: &str, title_overridden: bool) -> String {
-    resolve_indexed_session_title(session_id, display, title_overridden, None, None)
+    resolve_indexed_session_title(session_id, display, title_overridden, None)
 }
 
 fn copilot_session_to_history_entry(
@@ -734,34 +735,40 @@ fn confident_reconciled_title(extracted_display: &str) -> Option<String> {
 mod tests {
     use super::{
         confident_reconciled_title, copilot_session_to_history_entry, derive_indexed_session_title,
-        derive_title_from_canonical_transcript, filter_hidden_external_file_scan_entries,
+        derive_title_from_converted_session, filter_hidden_external_file_scan_entries,
         indexed_source_path, is_reconcilable_placeholder_row, merge_history_entries_by_id,
         placeholder_reconcile_negative_cache, project_paths_missing_from_index,
         reconcile_placeholder_row, resolve_indexed_session_title,
         scan_indexed_project_sessions_inner, scan_project_sessions_inner,
     };
-    use crate::acp::transcript_projection::{
-        TranscriptEntry, TranscriptEntryRole, TranscriptSegment, TranscriptSnapshot,
-    };
+    use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
     use crate::acp::types::CanonicalAgentId;
     use crate::copilot_history::CopilotListedSession;
     use crate::db::repository::{SessionLifecycleState, SessionMetadataRow};
     use crate::session_jsonl::types::HistoryEntry;
+    use crate::session_jsonl::types::{StoredContentBlock, StoredEntry, StoredUserMessage};
     use std::fs;
 
-    fn make_transcript(user_text: &str) -> TranscriptSnapshot {
-        TranscriptSnapshot {
-            revision: 1,
-            entries: vec![TranscriptEntry {
-                entry_id: "entry-1".to_string(),
-                role: TranscriptEntryRole::User,
-                segments: vec![TranscriptSegment::Text {
-                    segment_id: "entry-1:text:0".to_string(),
-                    text: user_text.to_string(),
-                }],
-                attempt_id: None,
-                timestamp_ms: Some(1_775_433_600_000),
+    fn make_session(title: &str, user_text: &str) -> SessionThreadSnapshot {
+        let content = StoredContentBlock {
+            block_type: "text".to_string(),
+            text: Some(user_text.to_string()),
+        };
+
+        SessionThreadSnapshot {
+            entries: vec![StoredEntry::User {
+                id: "entry-1".to_string(),
+                message: StoredUserMessage {
+                    id: None,
+                    content: content.clone(),
+                    chunks: vec![content],
+                    sent_at: None,
+                },
+                timestamp: Some("2026-04-06T00:00:00Z".to_string()),
             }],
+            title: title.to_string(),
+            created_at: "2026-04-06T00:00:00Z".to_string(),
+            current_mode_id: None,
         }
     }
 
@@ -869,25 +876,11 @@ mod tests {
     }
 
     #[test]
-    fn canonical_transcript_title_derivation_works() {
-        let transcript = make_transcript("Original transcript title");
+    fn converted_session_title_derivation_works() {
+        let converted = make_session("Fallback", "Original transcript title");
         assert_eq!(
-            derive_title_from_canonical_transcript(&transcript),
+            derive_title_from_converted_session(&converted),
             Some("Original transcript title".to_string())
-        );
-    }
-
-    #[test]
-    fn converted_title_is_used_when_canonical_transcript_has_no_title() {
-        assert_eq!(
-            resolve_indexed_session_title(
-                "session-1",
-                "Fallback display",
-                false,
-                Some(&TranscriptSnapshot::empty(0)),
-                Some("Converted title")
-            ),
-            "Converted title"
         );
     }
 
@@ -910,15 +903,14 @@ mod tests {
             sequence_id: Some(2),
         };
 
-        let transcript = make_transcript("Original transcript title");
+        let converted = make_session("Original transcript title", "Original transcript title");
 
         assert_eq!(
             resolve_indexed_session_title(
                 &row.id,
                 &row.display,
                 row.title_overridden,
-                Some(&transcript),
-                Some("Original transcript title")
+                Some(&converted)
             ),
             "Design changes"
         );

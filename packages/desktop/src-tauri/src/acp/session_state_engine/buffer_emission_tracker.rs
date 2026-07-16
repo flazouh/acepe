@@ -363,6 +363,7 @@ mod tests {
 
     fn transcript_entry(index: usize, text: String) -> TranscriptEntry {
         TranscriptEntry {
+            scope: crate::acp::transcript_projection::TranscriptScope::Root,
             entry_id: format!("assistant-{index}"),
             role: TranscriptEntryRole::Assistant,
             segments: vec![TranscriptSegment::Text {

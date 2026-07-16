@@ -1,6 +1,10 @@
 use crate::acp::commands::transcript_viewport_commands::TranscriptViewportCommandRevision;
 use crate::acp::error::SerializableAcpError;
+use crate::acp::session_open_snapshot::{
+    hot_ledger_rows_require_historical_normalization, sanitize_transcript_rows_for_historical_open,
+};
 use crate::acp::session_state_engine::revision::SessionGraphRevision;
+use crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeRegistry;
 use crate::acp::transcript_viewport::ledger::{
     validate_current_row_payload, SessionTranscriptRowLedgerMetadata,
     SessionTranscriptRowLedgerRead, TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
@@ -9,7 +13,8 @@ use crate::acp::transcript_viewport::TranscriptViewportRow;
 use crate::commands::observability::{expected_acp_command_result, CommandResult};
 use crate::db::repository::SessionTranscriptRowLedgerRepository;
 use sea_orm::DbConn;
-use tauri::State;
+use std::sync::Arc;
+use tauri::{AppHandle, Manager, State};
 
 const MAX_TRANSCRIPT_ROW_PAGE_LIMIT: u64 = 512;
 
@@ -39,6 +44,7 @@ pub enum TranscriptRowPageResult {
 #[tauri::command]
 #[specta::specta]
 pub async fn acp_read_transcript_row_page(
+    app: AppHandle,
     db: State<'_, DbConn>,
     session_id: String,
     start_row_index: i64,
@@ -46,6 +52,7 @@ pub async fn acp_read_transcript_row_page(
     expected_revision: TranscriptViewportCommandRevision,
 ) -> CommandResult<TranscriptRowPageResult> {
     let db = db.inner().clone();
+    let runtime_registry = app.state::<Arc<SessionGraphRuntimeRegistry>>();
     expected_acp_command_result(
         "acp_read_transcript_row_page",
         read_transcript_row_page_from_ledger(
@@ -54,6 +61,7 @@ pub async fn acp_read_transcript_row_page(
             start_row_index,
             limit,
             expected_revision.into(),
+            Some(runtime_registry.inner().as_ref()),
         )
         .await,
     )
@@ -65,6 +73,7 @@ pub(crate) async fn read_transcript_row_page_from_ledger(
     start_row_index: i64,
     limit: u64,
     expected_revision: SessionGraphRevision,
+    runtime_registry: Option<&SessionGraphRuntimeRegistry>,
 ) -> Result<TranscriptRowPageResult, SerializableAcpError> {
     let bounded_start_row_index = start_row_index.max(0);
     let bounded_limit = limit.clamp(1, MAX_TRANSCRIPT_ROW_PAGE_LIMIT);
@@ -95,7 +104,7 @@ pub(crate) async fn read_transcript_row_page_from_ledger(
                 .iter()
                 .map(|row| row.row_json.len() as u64)
                 .sum::<u64>();
-            let decoded_rows = rows
+            let mut decoded_rows = rows
                 .into_iter()
                 .map(|row| {
                     let decoded: TranscriptViewportRow =
@@ -134,6 +143,11 @@ pub(crate) async fn read_transcript_row_page_from_ledger(
                     Ok(decoded)
                 })
                 .collect::<Result<Vec<_>, SerializableAcpError>>()?;
+            let runtime_snapshot = runtime_registry
+                .and_then(|registry| registry.current_snapshot_for_session(session_id));
+            if hot_ledger_rows_require_historical_normalization(runtime_snapshot.as_ref()) {
+                sanitize_transcript_rows_for_historical_open(&mut decoded_rows);
+            }
 
             Ok(TranscriptRowPageResult::Current {
                 projection_version: metadata.projection_version,
@@ -194,6 +208,7 @@ mod tests {
         TranscriptViewportRow {
             row_id: row_id.to_string(),
             source_entry_id: row_id.to_string(),
+            scope: crate::acp::transcript_projection::TranscriptScope::Root,
             kind: TranscriptViewportRowKind::AssistantText,
             version: format!("{row_id}:v1"),
             anchor_eligible: true,
@@ -266,6 +281,7 @@ mod tests {
             1,
             2,
             SessionGraphRevision::new(11, 7, 13),
+            None,
         )
         .await
         .expect("read page");
@@ -310,6 +326,7 @@ mod tests {
             0,
             128,
             SessionGraphRevision::new(11, 7, 12),
+            None,
         )
         .await
         .expect("read page");
@@ -340,6 +357,7 @@ mod tests {
             0,
             128,
             SessionGraphRevision::new(11, 7, 13),
+            None,
         )
         .await
         .expect("read page");

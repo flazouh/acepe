@@ -272,22 +272,26 @@ pub(super) async fn load_transcript_snapshot_for_state_lookup_with_app(
         }
 
         if let Some(app) = app {
-            if let Some(folded) =
-                load_provider_history_for_command(app, replay_context, last_event_seq).await?
+            if let Some(provider_snapshot) =
+                crate::acp::session_restore::load_provider_owned_session_snapshot(
+                    app.clone(),
+                    replay_context,
+                )
+                .await
+                .map_err(SerializableAcpError::from)?
             {
-                let graph = install_provider_history_for_command(
+                let materialized = materialized_thread_snapshot_from_provider_fold_first(
                     canonical_session_id,
-                    folded,
-                    app.state::<Arc<SessionGraphRuntimeRegistry>>().inner(),
-                    app.state::<Arc<ProjectionRegistry>>().inner(),
-                    transcript_registry,
+                    replay_context,
+                    &provider_snapshot,
+                    last_event_seq,
                 );
-                return Ok(graph.transcript_snapshot);
+                return Ok(materialized.transcript_snapshot);
             }
         }
     }
 
-    Ok(TranscriptSnapshot::empty(last_event_seq))
+    Ok(TranscriptSnapshot::from_stored_entries(last_event_seq, &[]))
 }
 
 #[derive(Debug, Clone)]
@@ -354,12 +358,17 @@ pub(super) async fn load_session_projection_lookup(
         });
     };
 
-    let resolved_replay_context = replay_context
-        .as_ref()
-        .expect("replay context should exist with metadata");
-    let imported_graph = load_provider_history_for_command(app, resolved_replay_context, 0).await?;
+    let imported_thread_snapshot =
+        crate::acp::session_restore::load_provider_owned_session_snapshot(
+            app.clone(),
+            replay_context
+                .as_ref()
+                .expect("replay context should exist with metadata"),
+        )
+        .await
+        .map_err(SerializableAcpError::from)?;
 
-    let Some(imported_graph) = imported_graph else {
+    let Some(imported_thread_snapshot) = imported_thread_snapshot else {
         return Ok(SessionProjectionLookup {
             projection: runtime_projection,
             metadata,
@@ -368,20 +377,22 @@ pub(super) async fn load_session_projection_lookup(
         });
     };
 
-    let graph = install_provider_history_for_command(
+    let materialized_import = materialized_thread_snapshot_from_provider_fold_first(
         session_id,
-        imported_graph,
-        runtime_registry.inner(),
-        projection_registry.inner(),
-        app.state::<Arc<TranscriptProjectionRegistry>>().inner(),
+        replay_context
+            .as_ref()
+            .expect("replay context should exist with metadata"),
+        &imported_thread_snapshot,
+        0,
     );
-    let imported_projection = projection_registry.session_projection(&graph.canonical_session_id);
+    let mut imported_projection = materialized_import.projection;
+    imported_projection.runtime = None;
 
     Ok(SessionProjectionLookup {
         projection: imported_projection,
         metadata,
         replay_context,
-        transcript_snapshot: Some(graph.transcript_snapshot),
+        transcript_snapshot: None,
     })
 }
 

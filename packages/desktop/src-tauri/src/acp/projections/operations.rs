@@ -8,7 +8,6 @@ impl ProjectionRegistry {
         session_id: &str,
         tool_call_id: &str,
     ) -> Option<OperationSnapshot> {
-        let _read_guard = self.projection_read_guard();
         let operation_id = self.lookup_operation_id_by_tool_call(session_id, tool_call_id)?;
         self.operations_by_id
             .get(&operation_id)
@@ -55,7 +54,6 @@ impl ProjectionRegistry {
 
     #[must_use]
     pub fn operation(&self, operation_id: &str) -> Option<OperationSnapshot> {
-        let _read_guard = self.projection_read_guard();
         self.operations_by_id
             .get(operation_id)
             .map(|snapshot| snapshot.clone())
@@ -63,11 +61,6 @@ impl ProjectionRegistry {
 
     #[must_use]
     pub fn session_operations(&self, session_id: &str) -> Vec<OperationSnapshot> {
-        let _read_guard = self.projection_read_guard();
-        self.session_operations_unlocked(session_id)
-    }
-
-    fn session_operations_unlocked(&self, session_id: &str) -> Vec<OperationSnapshot> {
         let Some(operation_ids) = self.session_operation_ids.get(session_id) else {
             return Vec::new();
         };
@@ -84,7 +77,6 @@ impl ProjectionRegistry {
 
     #[must_use]
     pub fn last_cancelled_operation_patches(&self, session_id: &str) -> Vec<OperationSnapshot> {
-        let _read_guard = self.projection_read_guard();
         let Some(operation_ids) = self.last_cancelled_operation_ids.get(session_id) else {
             return Vec::new();
         };
@@ -101,7 +93,6 @@ impl ProjectionRegistry {
 
     #[must_use]
     pub fn interaction(&self, interaction_id: &str) -> Option<InteractionSnapshot> {
-        let _read_guard = self.projection_read_guard();
         self.interactions_by_id
             .get(interaction_id)
             .map(|interaction| interaction.clone())
@@ -109,11 +100,6 @@ impl ProjectionRegistry {
 
     #[must_use]
     pub fn session_interactions(&self, session_id: &str) -> Vec<InteractionSnapshot> {
-        let _read_guard = self.projection_read_guard();
-        self.session_interactions_unlocked(session_id)
-    }
-
-    fn session_interactions_unlocked(&self, session_id: &str) -> Vec<InteractionSnapshot> {
         let Some(interaction_ids) = self.session_interaction_ids.get(session_id) else {
             return Vec::new();
         };
@@ -130,11 +116,10 @@ impl ProjectionRegistry {
 
     #[must_use]
     pub fn session_projection(&self, session_id: &str) -> SessionProjectionSnapshot {
-        let _read_guard = self.projection_read_guard();
         SessionProjectionSnapshot {
-            session: self.snapshot_for_session_unlocked(session_id),
-            operations: self.session_operations_unlocked(session_id),
-            interactions: self.session_interactions_unlocked(session_id),
+            session: self.snapshot_for_session(session_id),
+            operations: self.session_operations(session_id),
+            interactions: self.session_interactions(session_id),
             runtime: None,
         }
     }
@@ -145,14 +130,11 @@ impl ProjectionRegistry {
         session_id: &str,
         request_id: u64,
     ) -> Option<InteractionSnapshot> {
-        let _read_guard = self.projection_read_guard();
         let interaction_id = self
             .interaction_id_by_request_key
             .get(&create_session_request_key(session_id, request_id))
             .map(|entry| entry.value().clone())?;
-        self.interactions_by_id
-            .get(&interaction_id)
-            .map(|interaction| interaction.clone())
+        self.interaction(&interaction_id)
     }
 
     pub fn resolve_interaction(
@@ -210,6 +192,15 @@ impl ProjectionRegistry {
             .get(&create_session_request_key(session_id, request_id))
             .map(|entry| entry.value().clone())?;
         self.resolve_interaction(session_id, &interaction_id, state, response)
+    }
+
+    pub(crate) fn import_thread_snapshot(
+        &self,
+        session_id: &str,
+        agent_id: Option<CanonicalAgentId>,
+        thread_snapshot: &SessionThreadSnapshot,
+    ) {
+        self.import_stored_entries(session_id, agent_id, &thread_snapshot.entries);
     }
 
     pub(crate) fn import_stored_entries(

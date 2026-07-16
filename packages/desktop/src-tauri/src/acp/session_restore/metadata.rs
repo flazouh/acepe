@@ -1,6 +1,5 @@
-use crate::acp::projections::OperationState;
-use crate::acp::session_state_engine::graph::SessionStateGraph;
-use crate::acp::session_update::ToolKind;
+use crate::acp::session_thread_snapshot::{ProviderOwnedSessionSnapshot, SessionThreadSnapshot};
+use crate::acp::session_update::{ToolCallStatus, ToolKind};
 use crate::db::repository::SessionMetadataRow;
 
 pub fn canonicalize_persisted_worktree_path(
@@ -22,39 +21,43 @@ pub fn canonicalize_persisted_worktree_path(
 }
 
 pub fn apply_session_title_metadata(
-    title: String,
+    mut session: SessionThreadSnapshot,
     metadata: Option<&SessionMetadataRow>,
-) -> String {
+) -> SessionThreadSnapshot {
     if let Some(row) = metadata {
         if row.title_overridden {
-            return row.display.clone();
+            session.title = row.display.clone();
         }
     }
 
-    title
+    session
 }
 
-pub fn derive_current_mode_id_from_graph(graph: &SessionStateGraph) -> Option<String> {
+pub fn apply_provider_session_title_metadata(
+    mut session: ProviderOwnedSessionSnapshot,
+    metadata: Option<&SessionMetadataRow>,
+) -> ProviderOwnedSessionSnapshot {
+    session.thread_snapshot = apply_session_title_metadata(session.thread_snapshot, metadata);
+    session
+}
+
+pub fn derive_current_mode_id_from_snapshot(snapshot: &SessionThreadSnapshot) -> Option<String> {
     let mut current_mode_id: Option<String> = None;
 
-    for operation in &graph.operations {
-        let Some(kind) = &operation.kind else {
+    for entry in &snapshot.entries {
+        let crate::session_jsonl::types::StoredEntry::ToolCall { message, .. } = entry else {
+            continue;
+        };
+
+        let Some(kind) = message.kind else {
             continue;
         };
 
         match kind {
-            ToolKind::EnterPlanMode
-                if matches!(
-                    operation.operation_state,
-                    OperationState::Pending
-                        | OperationState::Running
-                        | OperationState::Blocked
-                        | OperationState::Completed
-                ) =>
-            {
+            ToolKind::EnterPlanMode if message.status != ToolCallStatus::Failed => {
                 current_mode_id = Some("plan".to_string());
             }
-            ToolKind::ExitPlanMode if operation.operation_state == OperationState::Completed => {
+            ToolKind::ExitPlanMode if message.status == ToolCallStatus::Completed => {
                 current_mode_id = Some("build".to_string());
             }
             _ => {}
@@ -65,37 +68,47 @@ pub fn derive_current_mode_id_from_graph(graph: &SessionStateGraph) -> Option<St
 }
 
 pub fn apply_derived_current_mode_metadata(
-    current_mode_id: Option<String>,
-    graph: &SessionStateGraph,
-) -> Option<String> {
-    current_mode_id.or_else(|| derive_current_mode_id_from_graph(graph))
+    mut session: SessionThreadSnapshot,
+) -> SessionThreadSnapshot {
+    if session.current_mode_id.is_none() {
+        session.current_mode_id = derive_current_mode_id_from_snapshot(&session);
+    }
+
+    session
+}
+
+pub fn apply_provider_derived_current_mode_metadata(
+    mut session: ProviderOwnedSessionSnapshot,
+) -> ProviderOwnedSessionSnapshot {
+    session.thread_snapshot = apply_derived_current_mode_metadata(session.thread_snapshot);
+    session
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        apply_derived_current_mode_metadata, apply_session_title_metadata,
-        derive_current_mode_id_from_graph,
-    };
-    use crate::acp::session::fold_export::fold_graph_from_history_events;
-    use crate::acp::session::ingress::event::{ProviderEvent, ProviderEventKind};
-    use crate::acp::session_state_engine::graph::SessionStateGraph;
-    use crate::acp::session_update::{ToolArguments, ToolCallData, ToolCallStatus, ToolKind};
-    use crate::acp::types::CanonicalAgentId;
+    use super::{apply_session_title_metadata, derive_current_mode_id_from_snapshot};
+    use crate::acp::session_thread_snapshot::SessionThreadSnapshot;
+    use crate::acp::session_update::{ToolCallStatus, ToolKind};
     use crate::db::repository::SessionMetadataRow;
 
-    fn make_tool_call_event(
-        provider_seq: u64,
+    fn make_session(title: &str) -> SessionThreadSnapshot {
+        SessionThreadSnapshot {
+            entries: vec![],
+            title: title.to_string(),
+            created_at: "2026-04-06T00:00:00Z".to_string(),
+            current_mode_id: None,
+        }
+    }
+
+    fn make_tool_call_entry(
         id: &str,
         kind: ToolKind,
         status: ToolCallStatus,
-    ) -> ProviderEvent {
-        ProviderEvent {
-            source: CanonicalAgentId::ClaudeCode,
-            provider_seq,
-            provider_row_id: format!("row-{provider_seq}"),
-            timestamp_ms: None,
-            kind: ProviderEventKind::ToolCall(ToolCallData {
+    ) -> crate::session_jsonl::types::StoredEntry {
+        use crate::acp::session_update::{ToolArguments, ToolCallData};
+        crate::session_jsonl::types::StoredEntry::ToolCall {
+            id: id.to_string(),
+            message: ToolCallData {
                 id: id.to_string(),
                 name: kind.as_str().to_string(),
                 arguments: ToolArguments::PlanMode {
@@ -119,12 +132,9 @@ mod tests {
                 question_answer: None,
                 awaiting_plan_approval: false,
                 plan_approval_request_id: None,
-            }),
+            },
+            timestamp: None,
         }
-    }
-
-    fn fold_graph(events: &[ProviderEvent]) -> SessionStateGraph {
-        fold_graph_from_history_events("session-1", &CanonicalAgentId::ClaudeCode, "/repo", events)
     }
 
     #[test]
@@ -147,9 +157,9 @@ mod tests {
         };
 
         let converted =
-            apply_session_title_metadata("Original Transcript Title".to_string(), Some(&row));
+            apply_session_title_metadata(make_session("Original Transcript Title"), Some(&row));
 
-        assert_eq!(converted, "Autonomous Mode");
+        assert_eq!(converted.title, "Autonomous Mode");
     }
 
     #[test]
@@ -171,104 +181,54 @@ mod tests {
             sequence_id: Some(1),
         };
 
-        let converted = apply_session_title_metadata(String::new(), Some(&row));
+        let converted =
+            apply_session_title_metadata(SessionThreadSnapshot::empty("session-1"), Some(&row));
 
-        assert_eq!(converted, "Autonomous Mode");
-    }
-
-    #[test]
-    fn parsed_title_is_kept_without_an_explicit_override() {
-        assert_eq!(
-            apply_session_title_metadata("Transcript title".to_string(), None),
-            "Transcript title"
-        );
+        assert_eq!(converted.title, "Autonomous Mode");
     }
 
     #[test]
     fn derives_plan_mode_from_enter_plan_mode_entries() {
-        let graph = fold_graph(&[make_tool_call_event(
-            1,
-            "tool-enter-plan-1",
-            ToolKind::EnterPlanMode,
-            ToolCallStatus::Completed,
-        )]);
+        let session = SessionThreadSnapshot {
+            entries: vec![make_tool_call_entry(
+                "tool-enter-plan-1",
+                ToolKind::EnterPlanMode,
+                ToolCallStatus::Completed,
+            )],
+            title: "Plan session".to_string(),
+            created_at: "2026-04-06T00:00:00Z".to_string(),
+            current_mode_id: None,
+        };
 
         assert_eq!(
-            derive_current_mode_id_from_graph(&graph),
+            derive_current_mode_id_from_snapshot(&session),
             Some("plan".to_string())
         );
     }
 
     #[test]
     fn keeps_plan_mode_when_exit_plan_mode_is_not_completed() {
-        let graph = fold_graph(&[
-            make_tool_call_event(
-                1,
-                "tool-enter-plan-1",
-                ToolKind::EnterPlanMode,
-                ToolCallStatus::Completed,
-            ),
-            make_tool_call_event(
-                2,
-                "tool-exit-plan-1",
-                ToolKind::ExitPlanMode,
-                ToolCallStatus::Pending,
-            ),
-        ]);
+        let session = SessionThreadSnapshot {
+            entries: vec![
+                make_tool_call_entry(
+                    "tool-enter-plan-1",
+                    ToolKind::EnterPlanMode,
+                    ToolCallStatus::Completed,
+                ),
+                make_tool_call_entry(
+                    "tool-exit-plan-1",
+                    ToolKind::ExitPlanMode,
+                    ToolCallStatus::Pending,
+                ),
+            ],
+            title: "Pending exit".to_string(),
+            created_at: "2026-04-06T00:00:00Z".to_string(),
+            current_mode_id: None,
+        };
 
         assert_eq!(
-            derive_current_mode_id_from_graph(&graph),
+            derive_current_mode_id_from_snapshot(&session),
             Some("plan".to_string())
-        );
-    }
-
-    #[test]
-    fn completed_exit_returns_to_build_mode() {
-        let graph = fold_graph(&[
-            make_tool_call_event(
-                1,
-                "tool-enter-plan-1",
-                ToolKind::EnterPlanMode,
-                ToolCallStatus::Completed,
-            ),
-            make_tool_call_event(
-                2,
-                "tool-exit-plan-1",
-                ToolKind::ExitPlanMode,
-                ToolCallStatus::Completed,
-            ),
-        ]);
-
-        assert_eq!(
-            derive_current_mode_id_from_graph(&graph),
-            Some("build".to_string())
-        );
-    }
-
-    #[test]
-    fn failed_enter_does_not_select_plan_mode() {
-        let graph = fold_graph(&[make_tool_call_event(
-            1,
-            "tool-enter-plan-1",
-            ToolKind::EnterPlanMode,
-            ToolCallStatus::Failed,
-        )]);
-
-        assert_eq!(derive_current_mode_id_from_graph(&graph), None);
-    }
-
-    #[test]
-    fn explicit_current_mode_metadata_wins_over_derived_history() {
-        let graph = fold_graph(&[make_tool_call_event(
-            1,
-            "tool-enter-plan-1",
-            ToolKind::EnterPlanMode,
-            ToolCallStatus::Completed,
-        )]);
-
-        assert_eq!(
-            apply_derived_current_mode_metadata(Some("build".to_string()), &graph),
-            Some("build".to_string())
         );
     }
 }

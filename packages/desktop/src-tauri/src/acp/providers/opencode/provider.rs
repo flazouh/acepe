@@ -7,12 +7,11 @@ use crate::acp::client_trait::CommunicationMode;
 use crate::acp::error::AcpResult;
 use crate::acp::opencode::{OpenCodeHttpClient, OpenCodeManagerRegistry};
 use crate::acp::provider::{
-    load_registered_provider_history_events, AgentProvider, ProjectDiscoveryCompleteness,
-    ProjectPathListing, ProviderHistoryLoadError, SpawnConfig,
+    AgentProvider, ProjectDiscoveryCompleteness, ProjectPathListing, SpawnConfig,
 };
 use crate::acp::runtime_resolver::SpawnEnvStrategy;
-use crate::acp::session::ingress::event::ProviderEvent;
 use crate::acp::session_descriptor::SessionReplayContext;
+use crate::acp::session_thread_snapshot::ProviderOwnedSessionSnapshot;
 use crate::acp::session_update::AvailableCommand;
 use crate::acp::types::CanonicalAgentId;
 use crate::history::session_context::SessionContext;
@@ -28,46 +27,6 @@ use tokio::time::{timeout, Duration};
 /// OpenCode HTTP Agent Provider
 /// Uses HTTP REST API + SSE instead of ACP JSON-RPC
 pub struct OpenCodeProvider;
-
-async fn opencode_history_events_with_http_fallback<Fetch, FetchFuture>(
-    disk_result: Result<Option<Vec<ProviderEvent>>, ProviderHistoryLoadError>,
-    fetch_http: Fetch,
-) -> Result<Option<Vec<ProviderEvent>>, ProviderHistoryLoadError>
-where
-    Fetch: FnOnce() -> FetchFuture + Send,
-    FetchFuture: Future<Output = Result<Vec<ProviderEvent>, String>> + Send,
-{
-    let disk_error = match disk_result {
-        Ok(Some(events)) if !events.is_empty() => return Ok(Some(events)),
-        Ok(Some(_)) | Ok(None) => None,
-        Err(error) => Some(error),
-    };
-
-    match fetch_http().await {
-        Ok(events) => Ok(Some(events)),
-        Err(http_error) => match disk_error {
-            Some(error) => Err(error),
-            None => Err(ProviderHistoryLoadError::provider_unavailable(format!(
-                "OpenCode provider history load failed: {http_error}"
-            ))),
-        },
-    }
-}
-
-async fn load_opencode_disk_history_events(
-    replay_context: &SessionReplayContext,
-) -> Result<Option<Vec<ProviderEvent>>, ProviderHistoryLoadError> {
-    let first_result = load_registered_provider_history_events(replay_context).await;
-    if matches!(&first_result, Ok(Some(events)) if !events.is_empty())
-        || replay_context.source_path.is_none()
-    {
-        return first_result;
-    }
-
-    let mut discovery_context = replay_context.clone();
-    discovery_context.source_path = None;
-    load_registered_provider_history_events(&discovery_context).await
-}
 
 /// Environment allowlist for downloaded agent subprocesses.
 const ALLOWED_ENV_KEYS: &[&str] = &[
@@ -297,39 +256,118 @@ impl AgentProvider for OpenCodeProvider {
         apply_opencode_session_defaults(cwd, models, modes)
     }
 
-    fn load_provider_history_events<'a>(
+    fn load_provider_owned_session<'a>(
         &'a self,
         app: &'a AppHandle,
         context: &'a SessionContext,
-        replay_context: &'a SessionReplayContext,
+        _replay_context: &'a SessionReplayContext,
     ) -> Pin<
         Box<
-            dyn Future<Output = Result<Option<Vec<ProviderEvent>>, ProviderHistoryLoadError>>
-                + Send
+            dyn Future<
+                    Output = Result<
+                        Option<ProviderOwnedSessionSnapshot>,
+                        crate::acp::provider::ProviderHistoryLoadError,
+                    >,
+                > + Send
                 + 'a,
         >,
     > {
         Box::pin(async move {
+            use crate::acp::session::delivery::{
+                history_error_to_provider_error, load_fold_graph_from_history,
+            };
+            use crate::acp::session::fold_export::{
+                default_session_title, provider_owned_snapshot_from_folded_graph,
+            };
+            use crate::acp::types::CanonicalAgentId;
+
             let session_id = &context.local_session_id;
             let lookup_session_id = &context.history_session_id;
-            let disk_result = load_opencode_disk_history_events(replay_context).await;
-            opencode_history_events_with_http_fallback(disk_result, || async move {
-                crate::opencode_history::commands::fetch_opencode_history_events_from_http(
-                    app,
+            let title = default_session_title(lookup_session_id);
+
+            let try_load = |project_path: &str, source_path: Option<&str>| {
+                load_fold_graph_from_history(
+                    &CanonicalAgentId::OpenCode,
                     lookup_session_id,
-                    &context.effective_project_path,
+                    project_path,
+                    source_path,
                 )
-                .await
-            })
-            .await
-            .map_err(|error| {
-                tracing::warn!(
+                .map(|graph| {
+                    graph.map(|graph| {
+                        provider_owned_snapshot_from_folded_graph(graph, title.clone())
+                    })
+                })
+            };
+
+            if let Some(source_path) = context.source_path.as_deref() {
+                match try_load(&context.effective_project_path, Some(source_path)) {
+                    Ok(Some(snapshot)) => {
+                        tracing::info!(
+                            session_id = %session_id,
+                            "Loaded OpenCode session from local disk via HistorySource fold"
+                        );
+                        return Ok(Some(snapshot));
+                    }
+                    Ok(None) => {}
+                    Err(error) => {
+                        tracing::warn!(
+                            session_id = %session_id,
+                            source_path = %source_path,
+                            error = %error,
+                            "OpenCode HistorySource load failed for source_path, falling back to session lookup"
+                        );
+                    }
+                }
+            }
+
+            let disk_result = try_load(&context.effective_project_path, None);
+
+            if let Ok(Some(snapshot)) = disk_result {
+                tracing::info!(
                     session_id = %session_id,
-                    error = ?error,
-                    "OpenCode provider history event load failed"
+                    "Loaded OpenCode session from local disk via HistorySource fold"
                 );
-                error
-            })
+                return Ok(Some(snapshot));
+            }
+
+            match &disk_result {
+                Ok(None) => tracing::info!(
+                    session_id = %session_id,
+                    "No local messages for OpenCode session, trying HTTP API"
+                ),
+                Err(error) => tracing::warn!(
+                    session_id = %session_id,
+                    error = %error,
+                    "Disk-based OpenCode loading failed, trying HTTP API"
+                ),
+                _ => unreachable!(),
+            }
+
+            match crate::opencode_history::commands::fetch_provider_owned_opencode_session(
+                app,
+                lookup_session_id,
+                &context.effective_project_path,
+            )
+            .await
+            {
+                Ok(snapshot) => Ok(Some(snapshot)),
+                Err(error) => {
+                    tracing::warn!(
+                        session_id = %session_id,
+                        error = ?error,
+                        "HTTP fallback also failed for OpenCode session"
+                    );
+                    if let Err(disk_error) = disk_result {
+                        Err(history_error_to_provider_error(disk_error))
+                    } else {
+                        Err(
+                            crate::acp::provider::ProviderHistoryLoadError::provider_unavailable(
+                                format!("OpenCode provider history load failed: {error}"),
+                            ),
+                        )
+                    }
+                }
+            }
         })
     }
 
@@ -430,7 +468,6 @@ async fn count_opencode_sessions_for_project(project_path: &str) -> Result<u32, 
 mod tests {
     use super::*;
     use crate::acp::client::{AvailableModel, SessionModelState, SessionModes};
-    use crate::acp::session::ingress::event::ProviderEventKind;
     use std::fs;
 
     #[test]
@@ -445,33 +482,6 @@ mod tests {
     #[test]
     fn allowed_env_keys_forward_opencode_api_key() {
         assert!(ALLOWED_ENV_KEYS.contains(&"OPENCODE_API_KEY"));
-    }
-
-    #[tokio::test]
-    async fn opencode_history_uses_http_events_when_disk_history_is_missing() {
-        let expected = ProviderEvent {
-            provider_seq: 0,
-            source: CanonicalAgentId::OpenCode,
-            provider_row_id: "http-message".to_string(),
-            timestamp_ms: None,
-            kind: ProviderEventKind::AssistantText {
-                text: "Loaded over HTTP".to_string(),
-            },
-        };
-
-        let events = opencode_history_events_with_http_fallback(Ok(None), || async {
-            Ok(vec![expected.clone()])
-        })
-        .await
-        .expect("HTTP fallback should succeed")
-        .expect("HTTP fallback should return provider events");
-
-        assert_eq!(events.len(), 1);
-        assert_eq!(events[0].provider_row_id, "http-message");
-        assert!(matches!(
-            &events[0].kind,
-            ProviderEventKind::AssistantText { text } if text == "Loaded over HTTP"
-        ));
     }
 
     #[test]

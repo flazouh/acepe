@@ -1,29 +1,36 @@
+use std::any::Any;
 use std::collections::{HashMap, VecDeque};
+use std::future::Future;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use futures::FutureExt;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 use tokio::sync::watch;
 use uuid::Uuid;
 
+use crate::acp::session::engine::fold::{fold_full, FoldContext};
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_open_snapshot::SessionOpenError;
 use crate::acp::session_state_engine::selectors::{
     SessionGraphCapabilities, SessionGraphLifecycle,
 };
 use crate::acp::transcript_viewport::ledger_rebuild::{
-    fold_provider_events_to_session_graph,
     rebuild_and_replace_current_transcript_row_ledger_from_journal,
+    rebuild_and_replace_current_transcript_row_ledger_from_provider_snapshot,
     rebuild_and_replace_current_transcript_row_ledger_from_session_graph,
 };
 use sea_orm::DbConn;
 
 use super::fold_provider_load::load_provider_history_events;
-use super::provider_load::session_open_error_from_provider_load;
+use super::provider_load::{
+    load_provider_owned_session_snapshot, session_open_error_from_provider_load,
+};
 
 const DEFAULT_MAX_CONCURRENT_REPAIRS: usize = 2;
 const COMPLETED_TICKET_TTL: Duration = Duration::from_secs(30);
+const REPAIR_OPERATION_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
@@ -270,8 +277,12 @@ impl TranscriptRepairCoordinator {
             let app_for_next = app.clone();
             tauri::async_runtime::spawn(async move {
                 let session_id = job.request.replay_context.local_session_id.clone();
-                let result =
-                    rebuild_canonical_transcript_ledger(app_for_repair, &job.request).await;
+                let result = run_repair_operation(
+                    &session_id,
+                    rebuild_canonical_transcript_ledger(app_for_repair, &job.request),
+                    REPAIR_OPERATION_TIMEOUT,
+                )
+                .await;
                 *job.completed_at
                     .lock()
                     .expect("transcript repair completion timestamp lock") = Some(Instant::now());
@@ -289,6 +300,58 @@ impl TranscriptRepairCoordinator {
             });
         }
     }
+}
+
+async fn run_repair_operation<F>(
+    session_id: &str,
+    operation: F,
+    timeout: Duration,
+) -> Result<(), SessionOpenError>
+where
+    F: Future<Output = Result<(), SessionOpenError>> + Send,
+{
+    match tokio::time::timeout(
+        timeout,
+        std::panic::AssertUnwindSafe(operation).catch_unwind(),
+    )
+    .await
+    {
+        Ok(Ok(result)) => result,
+        Ok(Err(payload)) => {
+            let message = panic_payload_message(payload.as_ref());
+            tracing::error!(
+                session_id = %session_id,
+                panic = %message,
+                "Transcript repair panicked; completing repair ticket with an error"
+            );
+            Err(SessionOpenError::internal(
+                session_id,
+                format!("Transcript repair panicked: {message}"),
+            ))
+        }
+        Err(_) => {
+            tracing::error!(
+                session_id = %session_id,
+                timeout_ms = timeout.as_millis(),
+                "Transcript repair timed out; completing repair ticket with an error"
+            );
+            Err(SessionOpenError::provider_unavailable(
+                session_id,
+                format!(
+                    "Transcript repair timed out after {} ms",
+                    timeout.as_millis()
+                ),
+            ))
+        }
+    }
+}
+
+fn panic_payload_message(payload: &(dyn Any + Send)) -> String {
+    payload
+        .downcast_ref::<&str>()
+        .map(|message| (*message).to_string())
+        .or_else(|| payload.downcast_ref::<String>().cloned())
+        .unwrap_or_else(|| "unknown panic payload".to_string())
 }
 
 const fn priority_rank(priority: TranscriptRepairPriority) -> u8 {
@@ -312,7 +375,12 @@ async fn rebuild_canonical_transcript_ledger(
 
     match load_provider_history_events(app.clone(), &request.replay_context).await {
         Ok(Some(events)) if !events.is_empty() => {
-            let graph = fold_provider_events_to_session_graph(&request.replay_context, &events);
+            let ctx = FoldContext::new(
+                request.replay_context.local_session_id.clone(),
+                request.replay_context.agent_id.clone(),
+                request.replay_context.project_path.clone(),
+            );
+            let graph = fold_full(&events, &ctx);
             match rebuild_and_replace_current_transcript_row_ledger_from_session_graph(
                 db.inner(),
                 &request.replay_context,
@@ -328,15 +396,38 @@ async fn rebuild_canonical_transcript_ledger(
                     tracing::warn!(
                         session_id = %session_id,
                         error = %error,
-                        "Provider event graph repair failed; falling back to canonical journal"
+                        "Fold-based transcript repair failed; falling back to provider snapshot"
                     );
                 }
             }
         }
         Ok(_) => {}
         Err(error) => {
-            return Err(session_open_error_from_provider_load(session_id, error));
+            tracing::warn!(
+                session_id = %session_id,
+                error = ?error,
+                "Provider history events unavailable for fold repair; falling back to provider snapshot"
+            );
         }
+    }
+
+    match load_provider_owned_session_snapshot(app.clone(), &request.replay_context).await {
+        Ok(Some(snapshot)) => {
+            let rebuilt = rebuild_and_replace_current_transcript_row_ledger_from_provider_snapshot(
+                db.inner(),
+                &request.replay_context,
+                &lifecycle,
+                &capabilities,
+                &snapshot,
+            )
+            .await
+            .map_err(|error| SessionOpenError::internal(session_id, error.to_string()))?;
+            if rebuilt.is_some() {
+                return Ok(());
+            }
+        }
+        Ok(None) => {}
+        Err(error) => return Err(session_open_error_from_provider_load(session_id, error)),
     }
     let rebuilt = rebuild_and_replace_current_transcript_row_ledger_from_journal(
         db.inner(),
@@ -359,8 +450,8 @@ async fn rebuild_canonical_transcript_ledger(
 #[cfg(test)]
 mod tests {
     use super::{
-        CoordinatorState, RepairCompletion, RepairJob, TranscriptRepairPriority,
-        TranscriptRepairRequest,
+        run_repair_operation, CoordinatorState, RepairCompletion, RepairJob,
+        TranscriptRepairPriority, TranscriptRepairRequest,
     };
     use crate::acp::session_descriptor::{SessionDescriptorCompatibility, SessionReplayContext};
     use crate::acp::types::CanonicalAgentId;
@@ -464,5 +555,49 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(scheduled, vec!["already-selected", "promoted"]);
         assert!(state.backfill.is_empty());
+    }
+
+    #[tokio::test]
+    async fn repair_worker_panic_becomes_a_completed_error() {
+        let result = run_repair_operation(
+            "panic-session",
+            async {
+                panic!("provider history panic");
+                #[allow(unreachable_code)]
+                Ok(())
+            },
+            std::time::Duration::from_secs(1),
+        )
+        .await;
+
+        let error = result.expect_err("repair panic must resolve the repair ticket");
+        assert!(matches!(
+            error.reason,
+            crate::acp::session_open_snapshot::SessionOpenErrorReason::Internal
+        ));
+        assert!(error.message.contains("provider history panic"));
+    }
+
+    #[tokio::test]
+    async fn repair_worker_timeout_becomes_a_completed_error() {
+        let result = tokio::time::timeout(
+            std::time::Duration::from_millis(100),
+            run_repair_operation(
+                "timeout-session",
+                std::future::pending::<
+                    Result<(), crate::acp::session_open_snapshot::SessionOpenError>,
+                >(),
+                std::time::Duration::from_millis(10),
+            ),
+        )
+        .await
+        .expect("repair timeout must resolve before the test deadline");
+
+        let error = result.expect_err("repair timeout must resolve the repair ticket");
+        assert!(matches!(
+            error.reason,
+            crate::acp::session_open_snapshot::SessionOpenErrorReason::ProviderUnavailable
+        ));
+        assert!(error.message.contains("timed out"));
     }
 }

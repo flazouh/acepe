@@ -27,6 +27,7 @@ fn sample_events() -> Vec<ProviderEvent> {
             timestamp_ms: None,
             kind: ProviderEventKind::AssistantText {
                 text: "assistant reply".to_string(),
+                parent_tool_use_id: None,
             },
         },
         ProviderEvent {

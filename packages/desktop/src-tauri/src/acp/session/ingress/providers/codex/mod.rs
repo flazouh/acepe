@@ -8,21 +8,34 @@ mod disk;
 
 pub use disk::load_provider_events;
 
-use async_trait::async_trait;
+use std::path::PathBuf;
 
 use crate::acp::session::ingress::event::ProviderEvent;
 use crate::acp::session::ingress::source::{HistoryError, HistoryInput, HistorySource};
+use crate::acp::session_descriptor::SessionReplayContext;
 
 /// Reads Codex rollout JSONL history into provider-agnostic ingress events.
 pub struct CodexHistorySource;
 
-#[async_trait]
 impl HistorySource for CodexHistorySource {
-    async fn read(&self, input: HistoryInput) -> Result<Vec<ProviderEvent>, HistoryError> {
+    fn read(&self, input: HistoryInput) -> Result<Vec<ProviderEvent>, HistoryError> {
         let (project_path, source_path) = resolve_paths(&input)?;
-        load_provider_events(&input.session_id, &project_path, source_path.as_deref())
-            .await
-            .map_err(|error| HistoryError::NotFound(error))
+        block_on_async(load_provider_events(
+            &input.session_id,
+            &project_path,
+            source_path.as_deref(),
+        ))
+        .map_err(|error| HistoryError::NotFound(error))
+    }
+}
+
+fn block_on_async<F: std::future::Future>(future: F) -> F::Output {
+    if let Ok(handle) = tokio::runtime::Handle::try_current() {
+        handle.block_on(future)
+    } else {
+        tokio::runtime::Runtime::new()
+            .expect("tokio runtime for Codex history ingress")
+            .block_on(future)
     }
 }
 
@@ -45,6 +58,20 @@ fn resolve_paths(input: &HistoryInput) -> Result<(String, Option<String>), Histo
     )))
 }
 
+/// Load Codex history events for production replay.
+pub async fn load_replay_events(
+    replay_context: &SessionReplayContext,
+) -> Result<Vec<ProviderEvent>, HistoryError> {
+    let input = HistoryInput {
+        session_id: replay_context.history_session_id.clone(),
+        workspace_root: Some(PathBuf::from(&replay_context.project_path)),
+    };
+    let (project_path, source_path) = resolve_paths(&input)?;
+    load_provider_events(&input.session_id, &project_path, source_path.as_deref())
+        .await
+        .map_err(HistoryError::NotFound)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -53,21 +80,6 @@ mod tests {
     use crate::acp::session_update::{ToolArguments, ToolCallData, ToolCallStatus, ToolKind};
     use crate::acp::types::CanonicalAgentId;
     use crate::session_jsonl::types::StoredEntry;
-
-    #[tokio::test]
-    async fn codex_history_source_reads_inside_active_tokio_runtime() {
-        let temp_file = tempfile::NamedTempFile::new().expect("temp rollout file");
-
-        let events = CodexHistorySource
-            .read(HistoryInput {
-                session_id: "missing-session".to_string(),
-                workspace_root: Some(temp_file.path().to_path_buf()),
-            })
-            .await
-            .expect("an empty rollout file should produce an empty event stream");
-
-        assert!(events.is_empty());
-    }
 
     #[test]
     fn codex_stored_entries_map_to_provider_events() {
@@ -121,5 +133,25 @@ mod tests {
             ProviderEventKind::UserText { text, .. } if text == "Run the tests"
         ));
         assert!(matches!(&events[1].kind, ProviderEventKind::ToolCall(_)));
+    }
+
+    #[tokio::test]
+    async fn codex_replay_returns_an_error_inside_an_active_tokio_runtime() {
+        let replay_context = SessionReplayContext {
+            local_session_id: "codex-nested-runtime".to_string(),
+            history_session_id: "codex-nested-runtime".to_string(),
+            agent_id: CanonicalAgentId::Codex,
+            parser_agent_type: crate::acp::parsers::AgentType::Codex,
+            project_path: env!("CARGO_MANIFEST_DIR").to_string(),
+            worktree_path: None,
+            effective_cwd: env!("CARGO_MANIFEST_DIR").to_string(),
+            source_path: None,
+            compatibility:
+                crate::acp::session_descriptor::SessionDescriptorCompatibility::Canonical,
+        };
+
+        let result = load_replay_events(&replay_context).await;
+
+        assert!(result.is_err());
     }
 }

@@ -1,8 +1,13 @@
-use crate::acp::projections::{SessionTurnState, TurnFailureSnapshot};
+use crate::acp::projections::{
+    InteractionSnapshot, OperationSnapshot, SessionTurnState, TurnFailureSnapshot,
+};
 use crate::acp::session_state_engine::graph::ActiveStreamingTail;
 use crate::acp::session_state_engine::selectors::{
     SessionGraphActivity, SessionGraphCapabilities, SessionGraphLifecycle,
 };
+use crate::acp::session_update::ToolKind;
+use crate::acp::transcript_projection::{TranscriptScope, TranscriptSnapshot};
+use crate::acp::transcript_viewport::projection::project_transcript_viewport_rows_for_scope;
 use crate::acp::transcript_viewport::row::{TranscriptViewportRow, TranscriptViewportRowKind};
 use crate::acp::types::CanonicalAgentId;
 use anyhow::{anyhow, Result};
@@ -17,11 +22,15 @@ use serde::{Deserialize, Serialize};
 // canonical transcript text.
 // v15 invalidates rows where Cursor's routine encrypted redacted-reasoning
 // blocks were projected as "[REDACTED]" Thought segments.
-pub const TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION: &str = "transcript_viewport_row:v15";
+// v16 removes the synthetic waiting placeholder from canonical transcript rows.
+// v17 persists independently pageable canonical transcript scopes and widens
+// parent Task rows with graph-derived child scope/action facts.
+pub const TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION: &str = "transcript_viewport_row:v17";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SerializedTranscriptRowLedgerRow {
     pub session_id: String,
+    pub scope: TranscriptScope,
     pub row_index: i64,
     pub row_id: String,
     pub source_entry_id: Option<String>,
@@ -34,8 +43,15 @@ pub struct SerializedTranscriptRowLedgerRow {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SerializedTranscriptRowLedgerScope {
+    pub scope: TranscriptScope,
+    pub rows: Vec<SerializedTranscriptRowLedgerRow>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SessionTranscriptRowLedgerMetadata {
     pub session_id: String,
+    pub scope: TranscriptScope,
     pub row_count: i64,
     pub transcript_revision: i64,
     pub graph_revision: i64,
@@ -134,6 +150,7 @@ pub fn serialize_viewport_rows_for_ledger_from_index(
         .map(|(index, row)| {
             Ok(SerializedTranscriptRowLedgerRow {
                 session_id: session_id.to_string(),
+                scope: row.scope.clone(),
                 row_index: start_row_index.saturating_add(index as i64),
                 row_id: row.row_id.clone(),
                 source_entry_id: Some(row.source_entry_id.clone()),
@@ -144,6 +161,63 @@ pub fn serialize_viewport_rows_for_ledger_from_index(
                 projection_version: projection_version.to_string(),
                 row_json: serde_json::to_string(row)?,
             })
+        })
+        .collect()
+}
+
+pub fn serialize_transcript_scopes_for_ledger(
+    session_id: &str,
+    transcript_revision: i64,
+    graph_revision: i64,
+    projection_version: &str,
+    transcript_snapshot: &TranscriptSnapshot,
+    operations: &[OperationSnapshot],
+    interactions: &[InteractionSnapshot],
+    active_streaming_tail: Option<&ActiveStreamingTail>,
+    awaiting_duration_started_at_ms: Option<u64>,
+) -> Result<Vec<SerializedTranscriptRowLedgerScope>> {
+    let mut scopes = vec![TranscriptScope::Root];
+    for entry in &transcript_snapshot.entries {
+        if !scopes.iter().any(|scope| scope == &entry.scope) {
+            scopes.push(entry.scope.clone());
+        }
+    }
+    for operation in operations {
+        if operation.kind == Some(ToolKind::Task) {
+            let scope = TranscriptScope::Operation(operation.id.clone());
+            if !scopes.iter().any(|existing_scope| existing_scope == &scope) {
+                scopes.push(scope);
+            }
+        }
+    }
+
+    scopes
+        .into_iter()
+        .map(|scope| {
+            let rows = project_transcript_viewport_rows_for_scope(
+                transcript_snapshot,
+                operations,
+                interactions,
+                if scope == TranscriptScope::Root {
+                    active_streaming_tail
+                } else {
+                    None
+                },
+                if scope == TranscriptScope::Root {
+                    awaiting_duration_started_at_ms
+                } else {
+                    None
+                },
+                &scope,
+            );
+            let rows = serialize_viewport_rows_for_ledger(
+                session_id,
+                transcript_revision,
+                graph_revision,
+                projection_version,
+                &rows,
+            )?;
+            Ok(SerializedTranscriptRowLedgerScope { scope, rows })
         })
         .collect()
 }
@@ -198,7 +272,6 @@ fn row_kind_key(kind: &TranscriptViewportRowKind) -> &'static str {
         TranscriptViewportRowKind::AssistantThought => "assistant_thought",
         TranscriptViewportRowKind::Tool => "tool",
         TranscriptViewportRowKind::SessionActivity => "session_activity",
-        TranscriptViewportRowKind::AwaitingPlaceholder => "awaiting_placeholder",
     }
 }
 
@@ -219,6 +292,7 @@ mod tests {
         let rows = vec![TranscriptViewportRow {
             row_id: "row-1".to_string(),
             source_entry_id: "entry-1".to_string(),
+            scope: crate::acp::transcript_projection::TranscriptScope::Root,
             kind: TranscriptViewportRowKind::Tool,
             version: "version-hash".to_string(),
             anchor_eligible: true,
@@ -261,6 +335,7 @@ mod tests {
         let rows = vec![TranscriptViewportRow {
             row_id: "row-9".to_string(),
             source_entry_id: "entry-9".to_string(),
+            scope: crate::acp::transcript_projection::TranscriptScope::Root,
             kind: TranscriptViewportRowKind::AssistantText,
             version: "version-hash".to_string(),
             anchor_eligible: true,
@@ -296,6 +371,7 @@ mod tests {
         let row = TranscriptViewportRow {
             row_id: "row-1".to_string(),
             source_entry_id: "entry-1".to_string(),
+            scope: crate::acp::transcript_projection::TranscriptScope::Root,
             kind: TranscriptViewportRowKind::Tool,
             version: "version-hash".to_string(),
             anchor_eligible: true,
@@ -333,6 +409,7 @@ mod tests {
         let row = TranscriptViewportRow {
             row_id: "row-1".to_string(),
             source_entry_id: "entry-1".to_string(),
+            scope: crate::acp::transcript_projection::TranscriptScope::Root,
             kind: TranscriptViewportRowKind::Tool,
             version: "version-hash".to_string(),
             anchor_eligible: true,
@@ -362,6 +439,8 @@ mod tests {
                     interaction_ids: Vec::new(),
                     parent_tool_call_id: None,
                     child_tool_call_ids: Vec::new(),
+                    child_transcript_scope: None,
+                    latest_child_action: None,
                 }),
                 operation: None,
             }],

@@ -1,5 +1,5 @@
 //! Scan streaming logs and historical session data; report tool names that the
-//! Cursor tool identity does not recognize (`Unclassified` / legacy `Other`).
+//! Cursor adapter does not recognize (kind = Other).
 //!
 //! Two sources:
 //! - LIVE (streaming): session/update with sessionUpdate "tool_call". Effective
@@ -14,8 +14,7 @@
 //! Default logs_dir: ./logs/streaming (relative to cwd). Pass a directory that
 //! contains both streaming and/or historical jsonl (same dir can have both).
 
-use acepe_lib::acp::parsers::AgentType;
-use acepe_lib::acp::session::ingress::tool_identity::classify_kind_from_provider_name;
+use acepe_lib::acp::parsers::CursorAdapter;
 use acepe_lib::acp::session_update::ToolKind;
 use std::cmp::Reverse;
 use std::collections::HashMap;
@@ -199,8 +198,8 @@ fn record_unmatched(
     payload_kind: &str,
     source: &'static str,
 ) {
-    let kind = classify_kind_from_provider_name(AgentType::Cursor, effective_name);
-    if !matches!(kind, ToolKind::Unclassified | ToolKind::Other) {
+    let kind = CursorAdapter::normalize(effective_name);
+    if kind != ToolKind::Other {
         return;
     }
     let sample = Sample {
@@ -215,32 +214,5 @@ fn record_unmatched(
     let entry = unmatched.get_mut(effective_name).unwrap();
     if entry.1.len() < 5 {
         entry.1.push(sample);
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::record_unmatched;
-    use std::collections::HashMap;
-
-    #[test]
-    fn records_names_unclassified_by_cursor_tool_identity() {
-        let mut unmatched = HashMap::new();
-
-        record_unmatched(&mut unmatched, "future_cursor_tool", "", "", "streaming");
-
-        assert_eq!(
-            unmatched.get("future_cursor_tool").map(|entry| entry.0),
-            Some(1)
-        );
-    }
-
-    #[test]
-    fn skips_names_classified_by_cursor_tool_identity() {
-        let mut unmatched = HashMap::new();
-
-        record_unmatched(&mut unmatched, "codebase_search", "", "", "streaming");
-
-        assert!(unmatched.is_empty());
     }
 }

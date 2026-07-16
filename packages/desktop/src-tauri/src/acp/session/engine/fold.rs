@@ -2,28 +2,24 @@
 //!
 //! Phase 1: skeleton + transcript facts. Full operation/interaction merge follows.
 
-use crate::acp::projections::SessionTurnState;
-use crate::acp::session::engine::fold_lifecycle::apply_historical_close;
-use crate::acp::session::ingress::event::ProviderEvent;
+use crate::acp::parsers::acp_fields::normalize_tool_call_id;
+use crate::acp::projections::{build_canonical_operation_id, SessionTurnState};
+use crate::acp::session::engine::fold_lifecycle::{apply_historical_close, apply_turn_end};
+use crate::acp::session::engine::fold_operations::{apply_tool_call, apply_tool_call_update};
+use crate::acp::session::ingress::event::{ProviderEvent, ProviderEventKind};
 use crate::acp::session_state_engine::graph::SessionStateGraph;
 use crate::acp::session_state_engine::revision::SessionGraphRevision;
 use crate::acp::session_state_engine::selectors::{
     SessionGraphActivity, SessionGraphCapabilities, SessionGraphLifecycle,
 };
+use crate::acp::transcript_projection::display_id::derive_session_activity_entry_id;
+use crate::acp::transcript_projection::snapshot::user_transcript_segment_from_text;
 use crate::acp::transcript_projection::{
-    assistant_boundary_entry_count_from_transcript_entries, turn_key_for_assistant_boundary,
-    TranscriptEntry, TranscriptEntryRole, TranscriptSnapshot,
+    derive_entry_id_for_snapshot_role, turn_key_for_assistant_boundary, TranscriptEntry,
+    TranscriptEntryRole, TranscriptScope, TranscriptSegment, TranscriptSnapshot,
 };
 use crate::acp::types::CanonicalAgentId;
-use std::collections::HashSet;
-
-#[cfg(test)]
-mod behavior_tests;
-#[cfg(test)]
-mod control_plane_tests;
-mod event_application;
-
-use event_application::{apply_event, apply_interaction_reply, refresh_graph_activity};
+use std::collections::BTreeMap;
 
 /// Context supplied to the fold (session identity, not live lifecycle).
 #[derive(Debug, Clone)]
@@ -53,37 +49,51 @@ pub struct GraphDelta {
     pub transcript_revision: i64,
 }
 
-/// A history-folded graph together with the provider events already applied to it.
-///
-/// The live runtime must seed both pieces atomically so reconnect delivery of the
-/// history frontier is recognized as replay instead of being appended twice.
-#[derive(Debug, Clone)]
-pub(crate) struct FoldedHistory {
-    pub(crate) graph: SessionStateGraph,
-    pub(crate) applied_fold_keys: HashSet<String>,
-}
-
 #[derive(Debug, Clone, Default)]
 struct HistoryTurnContext {
-    assistant_boundary_entry_count: usize,
+    assistant_boundary_entry_count_by_scope: BTreeMap<TranscriptScope, usize>,
 }
 
 impl HistoryTurnContext {
     fn from_transcript_entries(entries: &[TranscriptEntry]) -> Self {
-        Self {
-            assistant_boundary_entry_count: assistant_boundary_entry_count_from_transcript_entries(
-                entries,
-            ),
+        let mut context = Self::default();
+        let mut entry_count_by_scope = BTreeMap::new();
+        for entry in entries {
+            let entry_count = entry_count_by_scope.entry(entry.scope.clone()).or_insert(0);
+            *entry_count += 1;
+            if role_closes_assistant_boundary(&entry.role) {
+                context
+                    .assistant_boundary_entry_count_by_scope
+                    .insert(entry.scope.clone(), *entry_count);
+            }
+        }
+        context
+    }
+
+    fn current_turn_key(&self, scope: &TranscriptScope) -> String {
+        let boundary = self
+            .assistant_boundary_entry_count_by_scope
+            .get(scope)
+            .copied()
+            .unwrap_or(0);
+        let turn_key = turn_key_for_assistant_boundary(boundary);
+        match scope {
+            TranscriptScope::Root => turn_key,
+            TranscriptScope::Operation(operation_id) => {
+                format!("operation:{operation_id}:{turn_key}")
+            }
         }
     }
 
-    fn current_turn_key(&self) -> String {
-        turn_key_for_assistant_boundary(self.assistant_boundary_entry_count)
-    }
-
-    fn note_entry(&mut self, role: &TranscriptEntryRole, entries_len_after: usize) {
+    fn note_entry(
+        &mut self,
+        scope: &TranscriptScope,
+        role: &TranscriptEntryRole,
+        entries_len_after: usize,
+    ) {
         if role_closes_assistant_boundary(role) {
-            self.assistant_boundary_entry_count = entries_len_after;
+            self.assistant_boundary_entry_count_by_scope
+                .insert(scope.clone(), entries_len_after);
         }
     }
 }
@@ -95,32 +105,13 @@ fn role_closes_assistant_boundary(role: &TranscriptEntryRole) -> bool {
 /// Fold a full ordered event stream into a session graph (history open path).
 #[must_use]
 pub fn fold_full(events: &[ProviderEvent], ctx: &FoldContext) -> SessionStateGraph {
-    fold_history_with_dedup_frontier(events, ctx).graph
-}
-
-/// Fold ordered history and retain the idempotency frontier for live reconnect.
-#[must_use]
-pub(crate) fn fold_history_with_dedup_frontier(
-    events: &[ProviderEvent],
-    ctx: &FoldContext,
-) -> FoldedHistory {
     let mut graph = empty_graph(ctx);
     let mut turn_context = HistoryTurnContext::default();
-    let mut applied_fold_keys = HashSet::with_capacity(events.len());
     for event in events {
-        let previous_graph_revision = graph.revision.graph_revision;
         apply_event(&mut graph, &mut turn_context, event);
-        advance_graph_frontier(&mut graph, previous_graph_revision, event);
-        if let Some(key) = event.fold_dedup_key() {
-            applied_fold_keys.insert(key);
-        }
     }
     apply_historical_close(&mut graph);
-    refresh_graph_activity(&mut graph);
-    FoldedHistory {
-        graph,
-        applied_fold_keys,
-    }
+    graph
 }
 
 /// Fold one live event onto the previous graph.
@@ -130,25 +121,6 @@ pub fn fold_step(
     event: &ProviderEvent,
 ) -> (SessionStateGraph, GraphDelta) {
     fold_step_with_dedup(prev, event, &mut None)
-}
-
-/// Apply one user reply to an existing canonical interaction.
-#[must_use]
-pub(crate) fn fold_interaction_reply(
-    prev: &SessionStateGraph,
-    interaction_id: &str,
-    state: crate::acp::projections::InteractionState,
-    response: crate::acp::projections::InteractionResponse,
-    event_seq: i64,
-) -> Option<SessionStateGraph> {
-    let mut graph = prev.clone();
-    if !apply_interaction_reply(&mut graph, interaction_id, state, response, event_seq) {
-        return None;
-    }
-    graph.revision.graph_revision = prev.revision.graph_revision.saturating_add(1);
-    graph.revision.last_event_seq = prev.revision.last_event_seq.max(event_seq);
-    graph.revision.transcript_revision = graph.transcript_snapshot.revision;
-    Some(graph)
 }
 
 /// Fold one live event with optional idempotency keys (live replay only).
@@ -175,32 +147,19 @@ pub fn fold_step_with_dedup(
     };
 
     apply_event(&mut graph, &mut turn_context, event);
-    advance_graph_frontier(&mut graph, prev.revision.graph_revision, event);
     record_fold_applied_key(dedup_keys, event);
 
     delta.transcript_revision = graph.transcript_snapshot.revision;
     (graph, delta)
 }
 
-fn advance_graph_frontier(
-    graph: &mut SessionStateGraph,
-    previous_graph_revision: i64,
-    event: &ProviderEvent,
-) {
-    graph.revision.graph_revision = previous_graph_revision.saturating_add(1);
-    let event_seq = i64::try_from(event.provider_seq).unwrap_or(i64::MAX);
-    graph.revision.last_event_seq = graph.revision.last_event_seq.max(event_seq);
-    graph.revision.transcript_revision = graph.transcript_snapshot.revision;
-}
-
 fn fold_event_is_duplicate(
     dedup_keys: &Option<std::collections::HashSet<String>>,
     event: &ProviderEvent,
 ) -> bool {
-    let Some(key) = event.fold_dedup_key() else {
-        return false;
-    };
-    dedup_keys.as_ref().is_some_and(|keys| keys.contains(&key))
+    dedup_keys
+        .as_ref()
+        .is_some_and(|keys| keys.contains(&fold_applied_key_for_event(event)))
 }
 
 fn record_fold_applied_key(
@@ -208,10 +167,185 @@ fn record_fold_applied_key(
     event: &ProviderEvent,
 ) {
     if let Some(keys) = dedup_keys {
-        if let Some(key) = event.fold_dedup_key() {
-            keys.insert(key);
-        }
+        keys.insert(fold_applied_key_for_event(event));
     }
+}
+
+fn fold_applied_key_for_event(event: &ProviderEvent) -> String {
+    format!("{}:{}", event.provider_row_id, event.kind_discriminant())
+}
+
+fn apply_event(
+    graph: &mut SessionStateGraph,
+    turn_context: &mut HistoryTurnContext,
+    event: &ProviderEvent,
+) {
+    match &event.kind {
+        ProviderEventKind::UserText { text, attempt_id } => {
+            if !text.is_empty() {
+                let scope = TranscriptScope::Root;
+                let turn_key = turn_context.current_turn_key(&scope);
+                let entry_id =
+                    derive_entry_id_for_snapshot_role(&turn_key, &TranscriptEntryRole::User, None);
+                let segment_id = format!("{entry_id}:segment:{}", event.provider_seq);
+                append_transcript_entry(
+                    graph,
+                    turn_context,
+                    event,
+                    TranscriptEntry {
+                        entry_id,
+                        scope,
+                        role: TranscriptEntryRole::User,
+                        segments: vec![user_transcript_segment_from_text(segment_id, text.clone())],
+                        attempt_id: attempt_id.clone(),
+                        timestamp_ms: event.timestamp_ms,
+                    },
+                );
+            }
+        }
+        ProviderEventKind::UserPastedContent { text } => {
+            if !text.is_empty() {
+                let scope = TranscriptScope::Root;
+                let turn_key = turn_context.current_turn_key(&scope);
+                let entry_id =
+                    derive_entry_id_for_snapshot_role(&turn_key, &TranscriptEntryRole::User, None);
+                append_transcript_entry(
+                    graph,
+                    turn_context,
+                    event,
+                    TranscriptEntry {
+                        entry_id,
+                        scope,
+                        role: TranscriptEntryRole::User,
+                        segments: vec![TranscriptSegment::PastedContent {
+                            segment_id: format!("{turn_key}:event:{}", event.provider_seq),
+                            text: text.clone(),
+                        }],
+                        attempt_id: None,
+                        timestamp_ms: event.timestamp_ms,
+                    },
+                );
+            }
+        }
+        ProviderEventKind::AssistantText {
+            text,
+            parent_tool_use_id,
+        } => {
+            let scope = transcript_scope_for_parent(graph, parent_tool_use_id.as_deref());
+            let turn_key = turn_context.current_turn_key(&scope);
+            let entry_id =
+                derive_entry_id_for_snapshot_role(&turn_key, &TranscriptEntryRole::Assistant, None);
+            append_transcript_entry(
+                graph,
+                turn_context,
+                event,
+                TranscriptEntry {
+                    entry_id: entry_id.clone(),
+                    scope,
+                    role: TranscriptEntryRole::Assistant,
+                    segments: vec![TranscriptSegment::Text {
+                        segment_id: format!("{entry_id}:segment:{}", event.provider_seq),
+                        text: text.clone(),
+                    }],
+                    attempt_id: None,
+                    timestamp_ms: event.timestamp_ms,
+                },
+            );
+        }
+        ProviderEventKind::AssistantThought {
+            text,
+            redacted,
+            parent_tool_use_id,
+        } => {
+            if !text.is_empty() || redacted.is_some() {
+                let scope = transcript_scope_for_parent(graph, parent_tool_use_id.as_deref());
+                let turn_key = turn_context.current_turn_key(&scope);
+                let entry_id = derive_entry_id_for_snapshot_role(
+                    &turn_key,
+                    &TranscriptEntryRole::Assistant,
+                    None,
+                );
+                append_transcript_entry(
+                    graph,
+                    turn_context,
+                    event,
+                    TranscriptEntry {
+                        entry_id: entry_id.clone(),
+                        scope,
+                        role: TranscriptEntryRole::Assistant,
+                        segments: vec![TranscriptSegment::Thought {
+                            segment_id: format!("{entry_id}:segment:{}", event.provider_seq),
+                            text: thought_text_for_display(text, redacted.as_deref()),
+                        }],
+                        attempt_id: None,
+                        timestamp_ms: event.timestamp_ms,
+                    },
+                );
+            }
+        }
+        ProviderEventKind::ToolCall(tool_call) => {
+            let scope = transcript_scope_for_parent(graph, tool_call.parent_tool_use_id.as_deref());
+            let turn_key = turn_context.current_turn_key(&scope);
+            apply_tool_call(graph, event, tool_call, &scope, &turn_key);
+            let entries_len_after = graph
+                .transcript_snapshot
+                .entries
+                .iter()
+                .filter(|entry| entry.scope == scope)
+                .count();
+            turn_context.note_entry(&scope, &TranscriptEntryRole::Tool, entries_len_after);
+        }
+        ProviderEventKind::ToolCallUpdate(update) => {
+            apply_tool_call_update(graph, update);
+        }
+        ProviderEventKind::Compaction(compaction_event) => {
+            let scope = TranscriptScope::Root;
+            let turn_key = turn_context.current_turn_key(&scope);
+            let entry_id = derive_session_activity_entry_id(&turn_key, &compaction_event.event_id);
+            append_transcript_entry(
+                graph,
+                turn_context,
+                event,
+                TranscriptEntry {
+                    entry_id: entry_id.clone(),
+                    scope,
+                    role: TranscriptEntryRole::SessionActivity,
+                    segments: vec![TranscriptSegment::Compaction {
+                        segment_id: format!("{entry_id}:compaction"),
+                        event: compaction_event.clone(),
+                    }],
+                    attempt_id: None,
+                    timestamp_ms: compaction_event.timestamp_ms,
+                },
+            );
+        }
+        ProviderEventKind::TurnEnd { outcome } => {
+            apply_turn_end(graph, *outcome);
+        }
+        _ => {}
+    }
+}
+
+fn transcript_scope_for_parent(
+    graph: &SessionStateGraph,
+    parent_tool_use_id: Option<&str>,
+) -> TranscriptScope {
+    let Some(parent_tool_use_id) = parent_tool_use_id else {
+        return TranscriptScope::Root;
+    };
+    let normalized_parent_tool_use_id = normalize_tool_call_id(parent_tool_use_id);
+    let operation_id = graph
+        .operations
+        .iter()
+        .find(|operation| operation.tool_call_id == normalized_parent_tool_use_id)
+        .map(|operation| operation.id.clone())
+        .unwrap_or_else(|| {
+            build_canonical_operation_id(
+                &graph.canonical_session_id,
+                &normalized_parent_tool_use_id,
+            )
+        });
+    TranscriptScope::Operation(operation_id)
 }
 
 fn empty_graph(ctx: &FoldContext) -> SessionStateGraph {
@@ -250,8 +384,15 @@ fn append_transcript_entry(
 ) {
     graph.transcript_snapshot.revision += 1;
     let role = entry.role.clone();
+    let scope = entry.scope.clone();
     append_or_merge_entry(&mut graph.transcript_snapshot.entries, entry);
-    turn_context.note_entry(&role, graph.transcript_snapshot.entries.len());
+    let entries_len_after = graph
+        .transcript_snapshot
+        .entries
+        .iter()
+        .filter(|entry| entry.scope == scope)
+        .count();
+    turn_context.note_entry(&scope, &role, entries_len_after);
     graph.message_count += 1;
     graph.revision.transcript_revision = graph.transcript_snapshot.revision;
 }
@@ -262,7 +403,10 @@ fn append_or_merge_entry(entries: &mut Vec<TranscriptEntry>, entry: TranscriptEn
         return;
     };
 
-    if last_entry.entry_id == entry.entry_id && last_entry.role == entry.role {
+    if last_entry.entry_id == entry.entry_id
+        && last_entry.scope == entry.scope
+        && last_entry.role == entry.role
+    {
         if last_entry.timestamp_ms.is_none() {
             last_entry.timestamp_ms = entry.timestamp_ms;
         }
@@ -283,19 +427,6 @@ fn thought_text_for_display(text: &str, redacted_provider_data: Option<&str>) ->
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::acp::session::ingress::event::ProviderEventKind;
-    use crate::acp::session_update::CurrentModeData;
-    use crate::acp::transcript_projection::TranscriptSegment;
-
-    fn provider_event(provider_seq: u64, kind: ProviderEventKind) -> ProviderEvent {
-        ProviderEvent {
-            source: CanonicalAgentId::Cursor,
-            provider_seq,
-            provider_row_id: format!("row-{provider_seq}"),
-            timestamp_ms: None,
-            kind,
-        }
-    }
 
     #[test]
     fn fold_full_user_text_produces_transcript_entry() {
@@ -314,44 +445,6 @@ mod tests {
         let graph = fold_full(&events, &ctx);
         assert_eq!(graph.transcript_snapshot.entries.len(), 1);
         assert_eq!(graph.message_count, 1);
-    }
-
-    #[test]
-    fn fold_owns_separate_graph_transcript_and_event_frontiers() {
-        let ctx = FoldContext::new("sess-frontiers", CanonicalAgentId::Cursor, "/tmp");
-        let history = vec![
-            provider_event(
-                4,
-                ProviderEventKind::UserText {
-                    text: "hello".to_string(),
-                    attempt_id: None,
-                },
-            ),
-            provider_event(
-                7,
-                ProviderEventKind::ModeUpdate(CurrentModeData {
-                    current_mode_id: "plan".to_string(),
-                }),
-            ),
-        ];
-
-        let graph = fold_full(&history, &ctx);
-        assert_eq!(graph.revision.graph_revision, 2);
-        assert_eq!(graph.revision.transcript_revision, 1);
-        assert_eq!(graph.revision.last_event_seq, 7);
-
-        let (after, _) = fold_step(
-            &graph,
-            &provider_event(
-                9,
-                ProviderEventKind::AssistantText {
-                    text: "world".to_string(),
-                },
-            ),
-        );
-        assert_eq!(after.revision.graph_revision, 3);
-        assert_eq!(after.revision.transcript_revision, 2);
-        assert_eq!(after.revision.last_event_seq, 9);
     }
 
     #[test]
@@ -397,6 +490,7 @@ mod tests {
                 timestamp_ms: None,
                 kind: ProviderEventKind::AssistantText {
                     text: "part one".to_string(),
+                    parent_tool_use_id: None,
                 },
             },
             ProviderEvent {
@@ -406,6 +500,7 @@ mod tests {
                 timestamp_ms: None,
                 kind: ProviderEventKind::AssistantText {
                     text: "part two".to_string(),
+                    parent_tool_use_id: None,
                 },
             },
             ProviderEvent {
@@ -415,6 +510,7 @@ mod tests {
                 timestamp_ms: None,
                 kind: ProviderEventKind::AssistantText {
                     text: "part three".to_string(),
+                    parent_tool_use_id: None,
                 },
             },
         ];

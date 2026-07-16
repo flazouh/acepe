@@ -2,7 +2,10 @@ use crate::acp::client_loop::StreamingUpdateEmitter;
 use crate::acp::client_message_ids::normalize_message_id;
 use crate::acp::non_streaming_batcher::NonStreamingEventBatcher;
 use crate::acp::parsers::AgentType;
+use crate::acp::projections::RouteDecision;
 use crate::acp::provider::{prepare_session_updates_for_dispatch, AgentProvider};
+use crate::acp::session::ingress::event::ProviderEvent;
+use crate::acp::session::ingress::plugin::live_source_for;
 use crate::acp::session_update::SessionUpdate;
 use crate::acp::session_update_parser::{
     parse_session_update_notification_with_provider,
@@ -19,6 +22,36 @@ mod plan;
 mod reconciler;
 
 pub(crate) use reconciler::process_through_reconciler;
+
+fn canonical_agent_id_for_agent_type(agent_type: AgentType) -> crate::acp::types::CanonicalAgentId {
+    match agent_type {
+        AgentType::ClaudeCode => crate::acp::types::CanonicalAgentId::ClaudeCode,
+        AgentType::Copilot => crate::acp::types::CanonicalAgentId::Copilot,
+        AgentType::OpenCode => crate::acp::types::CanonicalAgentId::OpenCode,
+        AgentType::Cursor => crate::acp::types::CanonicalAgentId::Cursor,
+        AgentType::Codex => crate::acp::types::CanonicalAgentId::Codex,
+    }
+}
+
+fn ingress_fold_event_for_update(
+    agent_type: AgentType,
+    update: &SessionUpdate,
+) -> Option<ProviderEvent> {
+    if !matches!(
+        update,
+        SessionUpdate::UserMessageChunk { .. }
+            | SessionUpdate::AgentMessageChunk { .. }
+            | SessionUpdate::AgentThoughtChunk { .. }
+            | SessionUpdate::ToolCall { .. }
+            | SessionUpdate::ToolCallUpdate { .. }
+            | SessionUpdate::CompactionEvent { .. }
+    ) {
+        return None;
+    }
+
+    let live = live_source_for(&canonical_agent_id_for_agent_type(agent_type))?;
+    live.normalize_update(0, update, RouteDecision::default())
+}
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn handle_session_update_notification(
@@ -88,7 +121,12 @@ pub(crate) async fn handle_session_update_notification(
                     if let Some(session_id) = emitted_update.session_id() {
                         log_emitted_event(session_id, &emitted_update);
                     }
-                    dispatcher.enqueue(AcpUiEvent::session_update(emitted_update));
+                    let ingress_fold_event =
+                        ingress_fold_event_for_update(agent_type, &emitted_update);
+                    dispatcher.enqueue(AcpUiEvent::session_update_with_ingress_fold(
+                        emitted_update,
+                        ingress_fold_event,
+                    ));
                 }
             }
         }
@@ -140,6 +178,7 @@ mod tests {
 
         assert!(production_source.contains("prepare_session_updates_for_dispatch("));
         assert!(production_source.contains("session_update_notification_to_provider_events("));
+        assert!(production_source.contains("session_update_with_ingress_fold("));
         assert!(!production_source.contains(".enrich_session_update("));
         assert!(!production_source.contains(".uses_task_reconciler("));
         assert!(!production_source.contains("None => process_through_reconciler("));

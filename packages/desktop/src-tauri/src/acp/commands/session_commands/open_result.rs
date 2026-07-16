@@ -33,10 +33,9 @@ pub(super) async fn build_new_session_open_result(
             message: format!("Missing lifecycle checkpoint for new session {session_id}"),
         })?;
 
-    let result = crate::acp::session_open_snapshot::session_open_result_for_new_session_with_runtime_registry(
+    Ok(session_open_result_for_new_session(
         db.inner(),
         hub.inner(),
-        runtime_graph_registry.inner(),
         NewSessionOpenResultInput {
             session_id: session_id.to_string(),
             agent_id,
@@ -47,9 +46,7 @@ pub(super) async fn build_new_session_open_result(
             capabilities: runtime_snapshot.capabilities,
         },
     )
-    .await;
-
-    Ok(result)
+    .await)
 }
 
 pub(super) fn capabilities_from_new_session_response(

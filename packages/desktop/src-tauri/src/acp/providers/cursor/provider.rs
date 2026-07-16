@@ -20,9 +20,12 @@ use crate::acp::providers::cursor::{
     normalize_cursor_extension,
 };
 use crate::acp::runtime_resolver::SpawnEnvStrategy;
+use crate::acp::session_descriptor::SessionReplayContext;
+use crate::acp::session_thread_snapshot::ProviderOwnedSessionSnapshot;
 use crate::acp::session_update::AvailableCommand;
 use crate::acp::session_update::{SessionUpdate, ToolArguments, ToolKind};
 use crate::acp::task_reconciler::TaskReconciliationPolicy;
+use crate::history::session_context::SessionContext;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::future::Future;
@@ -301,6 +304,80 @@ impl AgentProvider for CursorProvider {
         forwarded: &Value,
     ) -> Option<String> {
         extract_cursor_query_from_synthetic_permission(parsed_arguments, forwarded)
+    }
+
+    fn load_provider_owned_session<'a>(
+        &'a self,
+        _app: &'a AppHandle,
+        context: &'a SessionContext,
+        _replay_context: &'a SessionReplayContext,
+    ) -> Pin<
+        Box<
+            dyn Future<
+                    Output = Result<
+                        Option<ProviderOwnedSessionSnapshot>,
+                        crate::acp::provider::ProviderHistoryLoadError,
+                    >,
+                > + Send
+                + 'a,
+        >,
+    > {
+        Box::pin(async move {
+            use crate::acp::session::delivery::{
+                history_error_to_provider_error, load_fold_graph_from_history,
+            };
+            use crate::acp::session::fold_export::{
+                default_session_title, provider_owned_snapshot_from_folded_graph,
+            };
+            use crate::acp::session::ingress::source::HistoryError;
+            use crate::acp::types::CanonicalAgentId;
+
+            let session_id = &context.local_session_id;
+            let lookup_session_id = &context.history_session_id;
+            let title = default_session_title(lookup_session_id);
+
+            let try_load = |project_path: &str, source_path: Option<&str>| {
+                load_fold_graph_from_history(
+                    &CanonicalAgentId::Cursor,
+                    lookup_session_id,
+                    project_path,
+                    source_path,
+                )
+                .map(|graph| {
+                    graph.map(|graph| {
+                        provider_owned_snapshot_from_folded_graph(graph, title.clone())
+                    })
+                })
+            };
+
+            if let Some(source_path) = context.source_path.as_deref() {
+                match try_load(&context.project_path, Some(source_path)) {
+                    Ok(Some(snapshot)) => return Ok(Some(snapshot)),
+                    Ok(None) => {}
+                    Err(error) => {
+                        tracing::warn!(
+                            session_id = %session_id,
+                            source_path = %source_path,
+                            error = %error,
+                            "Cursor HistorySource load failed for source_path, falling back to session lookup"
+                        );
+                    }
+                }
+            }
+
+            match try_load(&context.project_path, None) {
+                Ok(snapshot) => Ok(snapshot),
+                Err(HistoryError::NotFound(_)) => Ok(None),
+                Err(error) => {
+                    tracing::warn!(
+                        session_id = %session_id,
+                        error = %error,
+                        "Cursor session lookup failed"
+                    );
+                    Err(history_error_to_provider_error(error))
+                }
+            }
+        })
     }
 
     fn list_project_paths<'a>(

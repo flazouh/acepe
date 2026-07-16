@@ -7,7 +7,7 @@ pub use acp::session::ingress::providers::codex::codex_history;
 mod commands;
 pub mod computer_use;
 pub use acp::session::ingress::providers::copilot::copilot_history;
-pub use acp::session::ingress::providers::cursor::cursor_history;
+pub mod cursor_history;
 pub mod db;
 pub mod file_index;
 pub mod git;
@@ -16,7 +16,7 @@ pub mod history;
 mod macos_fps;
 #[cfg(target_os = "macos")]
 mod macos_resource_limits;
-pub use acp::session::ingress::providers::opencode::opencode_history;
+pub mod opencode_history;
 pub mod path_safety;
 pub mod project_access;
 pub mod provider_account_usage;

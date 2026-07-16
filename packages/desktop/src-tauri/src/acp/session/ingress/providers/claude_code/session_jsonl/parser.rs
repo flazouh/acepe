@@ -3,6 +3,7 @@ mod full_session;
 mod scan;
 mod text_utils;
 
+pub use convert::convert_full_session_to_materialized;
 #[cfg(test)]
 pub(crate) use convert::parse_converted_session;
 pub use full_session::{

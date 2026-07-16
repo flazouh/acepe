@@ -175,6 +175,7 @@ fn apply_transcript_delta(
                     existing_entry.segments.push(segment.clone());
                 } else {
                     snapshot.entries.push(TranscriptEntry {
+                        scope: crate::acp::transcript_projection::TranscriptScope::Root,
                         entry_id: entry_id.clone(),
                         role: role.clone(),
                         segments: vec![segment.clone()],
@@ -229,6 +230,7 @@ mod tests {
             transcript_snapshot: TranscriptSnapshot {
                 revision: 1,
                 entries: vec![TranscriptEntry {
+                    scope: crate::acp::transcript_projection::TranscriptScope::Root,
                     entry_id: "assistant-1".to_string(),
                     role: TranscriptEntryRole::Assistant,
                     segments: vec![TranscriptSegment::Text {
@@ -340,6 +342,7 @@ mod tests {
         let replacement_snapshot = TranscriptSnapshot {
             revision: 5,
             entries: vec![TranscriptEntry {
+                scope: crate::acp::transcript_projection::TranscriptScope::Root,
                 entry_id: "user-2".to_string(),
                 role: TranscriptEntryRole::User,
                 segments: vec![TranscriptSegment::Text {

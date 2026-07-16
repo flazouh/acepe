@@ -11,14 +11,16 @@ mod session_metadata_tests {
     };
     use crate::acp::session_journal::{decode_serialized_events, rebuild_session_projection};
     use crate::acp::session_update::{PermissionData, QuestionData, SessionUpdate};
+    use crate::acp::transcript_projection::TranscriptScope;
     use crate::acp::transcript_viewport::ledger::{
-        SerializedTranscriptRowLedgerRow, SessionTranscriptRowLedgerRead,
-        SessionTranscriptRowLedgerStatus,
+        SerializedTranscriptRowLedgerRow, SerializedTranscriptRowLedgerScope,
+        SessionTranscriptRowLedgerRead, SessionTranscriptRowLedgerStatus,
     };
     use crate::db::entities::prelude::AcepeSessionState;
     use crate::db::repository::{
         AppSettingsRepository, CreationAttemptRepositoryError, CreationAttemptStatus,
-        ProjectRepository, SessionHistoryEnrichmentRecord, SessionHistoryEnrichmentRepository,
+        ProjectRepository, SessionEventSequenceRepository, SessionEventWriter,
+        SessionHistoryEnrichmentRecord, SessionHistoryEnrichmentRepository,
         SessionJournalEventRepository, SessionMetadataRepository,
         SessionTranscriptRowLedgerRepository,
     };
@@ -173,6 +175,7 @@ mod session_metadata_tests {
     ) -> SerializedTranscriptRowLedgerRow {
         SerializedTranscriptRowLedgerRow {
             session_id: session_id.to_string(),
+            scope: crate::acp::transcript_projection::TranscriptScope::Root,
             row_index,
             row_id: row_id.to_string(),
             source_entry_id: Some(format!("entry-{row_index}")),
@@ -439,20 +442,12 @@ mod session_metadata_tests {
             session_id: Some("session-journal".to_string()),
         };
 
-        SessionJournalEventRepository::append_session_update(
-            &db,
-            "session-journal",
-            &permission_update,
-        )
-        .await
-        .unwrap();
-        SessionJournalEventRepository::append_session_update(
-            &db,
-            "session-journal",
-            &question_update,
-        )
-        .await
-        .unwrap();
+        SessionEventWriter::commit_session_update(&db, "session-journal", &permission_update)
+            .await
+            .unwrap();
+        SessionEventWriter::commit_session_update(&db, "session-journal", &question_update)
+            .await
+            .unwrap();
         let projection_registry = ProjectionRegistry::new();
         projection_registry.apply_session_update("session-journal", &question_update);
         let answered_question = projection_registry
@@ -478,10 +473,9 @@ mod session_metadata_tests {
             .await
             .unwrap();
         let journal = decode_serialized_events(&replay_context, serialized).unwrap();
-        assert_eq!(journal.len(), 3);
+        assert_eq!(journal.len(), 2);
         assert_eq!(journal[0].event_seq, 1);
         assert_eq!(journal[1].event_seq, 2);
-        assert_eq!(journal[2].event_seq, 3);
 
         let replayed = rebuild_session_projection(&replay_context, &journal);
 
@@ -492,7 +486,7 @@ mod session_metadata_tests {
             session.agent_id,
             Some(crate::acp::types::CanonicalAgentId::ClaudeCode)
         );
-        assert_eq!(session.last_event_seq, 3);
+        assert_eq!(session.last_event_seq, 2);
         assert_eq!(replayed.interactions.len(), 2);
         assert!(replayed
             .interactions
@@ -513,7 +507,7 @@ mod session_metadata_tests {
     }
 
     #[tokio::test]
-    async fn test_session_journal_persists_tool_call_payload() {
+    async fn test_session_journal_skips_tool_call_payload_persistence() {
         let db = setup_test_db().await;
         SessionMetadataRepository::upsert(
             &db,
@@ -555,24 +549,23 @@ mod session_metadata_tests {
             },
             session_id: Some("session-tool-call".to_string()),
         };
-        let appended = SessionJournalEventRepository::append_session_update(
-            &db,
-            "session-tool-call",
-            &tool_call,
-        )
-        .await
-        .expect("tool call append should succeed");
+        let appended =
+            SessionEventWriter::commit_session_update(&db, "session-tool-call", &tool_call)
+                .await
+                .expect("tool call append should succeed");
 
-        assert!(appended.is_some(), "canonical tool calls must be journaled");
+        assert!(
+            appended.record.is_none(),
+            "tool call payloads should no longer be journaled"
+        );
         let serialized = SessionJournalEventRepository::list_serialized(&db, "session-tool-call")
             .await
-            .expect("journal rows should load");
-        assert_eq!(serialized.len(), 1);
-        assert_eq!(serialized[0].event_kind, "projection_update");
+            .expect("journal rows should load without replay parsing");
+        assert!(serialized.is_empty());
     }
 
     #[tokio::test]
-    async fn test_session_journal_persists_question_without_replaying_pending_projection() {
+    async fn test_session_journal_skips_question_request_persistence() {
         let db = setup_test_db().await;
         SessionMetadataRepository::upsert(
             &db,
@@ -601,30 +594,20 @@ mod session_metadata_tests {
             },
             session_id: Some("session-question".to_string()),
         };
-        let appended = SessionJournalEventRepository::append_session_update(
-            &db,
-            "session-question",
-            &question_update,
-        )
-        .await
-        .expect("question request append should succeed");
+        let appended =
+            SessionEventWriter::commit_session_update(&db, "session-question", &question_update)
+                .await
+                .expect("question request append should succeed");
 
-        assert!(appended.is_some(), "canonical questions must be journaled");
+        assert!(
+            appended.record.is_none(),
+            "agent questions should enter the canonical graph, not the raw session-update journal"
+        );
         let serialized_before_answer =
             SessionJournalEventRepository::list_serialized(&db, "session-question")
                 .await
                 .expect("journal rows should load");
-        assert_eq!(serialized_before_answer.len(), 1);
-        assert_eq!(serialized_before_answer[0].event_kind, "projection_update");
-
-        let replay_context = replay_context_for_session(&db, "session-question").await;
-        let journal = decode_serialized_events(&replay_context, serialized_before_answer)
-            .expect("question journal should decode");
-        let replayed = rebuild_session_projection(&replay_context, &journal);
-        assert!(
-            replayed.interactions.is_empty(),
-            "question projection replay stays skipped until its interaction snapshot"
-        );
+        assert!(serialized_before_answer.is_empty());
 
         let projection_registry = ProjectionRegistry::new();
         projection_registry.apply_session_update("session-question", &question_update);
@@ -650,30 +633,34 @@ mod session_metadata_tests {
             SessionJournalEventRepository::list_serialized(&db, "session-question")
                 .await
                 .expect("journal rows should load");
-        assert_eq!(serialized_after_answer.len(), 2);
+        assert_eq!(serialized_after_answer.len(), 1);
         assert_eq!(
-            serialized_after_answer[1].event_kind,
+            serialized_after_answer[0].event_kind,
             "interaction_snapshot"
         );
     }
 
     // -----------------------------------------------------------------------
-    // max_event_seq
+    // last_assigned_event_seq
     // -----------------------------------------------------------------------
 
     #[tokio::test]
-    async fn max_event_seq_returns_none_for_session_with_no_events() {
+    async fn last_assigned_event_seq_returns_none_for_session_with_no_events() {
         let db = setup_test_db().await;
 
-        let result = SessionJournalEventRepository::max_event_seq(&db, "no-events-session")
-            .await
-            .expect("query should succeed");
+        let result =
+            SessionEventSequenceRepository::last_assigned_event_seq(&db, "no-events-session")
+                .await
+                .expect("query should succeed");
 
-        assert_eq!(result, None, "no events → max_event_seq should be None");
+        assert_eq!(
+            result, None,
+            "no events → last_assigned_event_seq should be None"
+        );
     }
 
     #[tokio::test]
-    async fn max_event_seq_returns_highest_seq_after_appends() {
+    async fn last_assigned_event_seq_returns_highest_seq_after_appends() {
         let db = setup_test_db().await;
         let session_id = "max-seq-session";
 
@@ -698,15 +685,19 @@ mod session_metadata_tests {
             .await
             .expect("append third");
 
-        let max_seq = SessionJournalEventRepository::max_event_seq(&db, session_id)
+        let max_seq = SessionEventSequenceRepository::last_assigned_event_seq(&db, session_id)
             .await
             .expect("query should succeed");
 
-        assert_eq!(max_seq, Some(3), "three events → max_event_seq should be 3");
+        assert_eq!(
+            max_seq,
+            Some(3),
+            "three events → last_assigned_event_seq should be 3"
+        );
     }
 
     #[tokio::test]
-    async fn max_event_seq_is_isolated_per_session() {
+    async fn last_assigned_event_seq_is_isolated_per_session() {
         let db = setup_test_db().await;
 
         for session_id in ["seq-iso-a", "seq-iso-b"] {
@@ -726,10 +717,10 @@ mod session_metadata_tests {
             turn_id: None,
         };
         // Append 2 events for session A
-        SessionJournalEventRepository::append_session_update(&db, "seq-iso-a", &update)
+        SessionEventWriter::commit_session_update(&db, "seq-iso-a", &update)
             .await
             .expect("append a1");
-        SessionJournalEventRepository::append_session_update(&db, "seq-iso-a", &update)
+        SessionEventWriter::commit_session_update(&db, "seq-iso-a", &update)
             .await
             .expect("append a2");
         // Append 5 events for session B
@@ -738,15 +729,15 @@ mod session_metadata_tests {
             turn_id: None,
         };
         for _ in 0..5 {
-            SessionJournalEventRepository::append_session_update(&db, "seq-iso-b", &update_b)
+            SessionEventWriter::commit_session_update(&db, "seq-iso-b", &update_b)
                 .await
                 .expect("append b");
         }
 
-        let max_a = SessionJournalEventRepository::max_event_seq(&db, "seq-iso-a")
+        let max_a = SessionEventSequenceRepository::last_assigned_event_seq(&db, "seq-iso-a")
             .await
             .expect("query a");
-        let max_b = SessionJournalEventRepository::max_event_seq(&db, "seq-iso-b")
+        let max_b = SessionEventSequenceRepository::last_assigned_event_seq(&db, "seq-iso-b")
             .await
             .expect("query b");
 
@@ -764,7 +755,7 @@ mod session_metadata_tests {
             turn_id: Some("turn-1".to_string()),
         };
 
-        SessionJournalEventRepository::append_session_update(&db, session_id, &update)
+        SessionEventWriter::commit_session_update(&db, session_id, &update)
             .await
             .expect("append row-affecting update");
         for _ in 0..3 {
@@ -921,6 +912,503 @@ mod session_metadata_tests {
             rows.iter().map(|row| row.row_index).collect::<Vec<_>>(),
             vec![1, 2]
         );
+    }
+
+    #[tokio::test]
+    async fn transcript_row_ledger_queries_rows_by_canonical_scope() {
+        let db = setup_test_db().await;
+        let session_id = "ledger-scope-session";
+        ensure_test_session(&db, session_id).await;
+        let child_scope = TranscriptScope::Operation("operation-task-1".to_string());
+        let root_row = serialized_ledger_row(session_id, 0, "root-row", "operation");
+        let mut child_row = serialized_ledger_row(session_id, 0, "child-row", "operation");
+        child_row.scope = child_scope.clone();
+
+        SessionTranscriptRowLedgerRepository::replace_current_scopes(
+            &db,
+            session_id,
+            "projection-v1",
+            7,
+            11,
+            13,
+            None,
+            vec![
+                SerializedTranscriptRowLedgerScope {
+                    scope: TranscriptScope::Root,
+                    rows: vec![root_row],
+                },
+                SerializedTranscriptRowLedgerScope {
+                    scope: child_scope.clone(),
+                    rows: vec![child_row],
+                },
+            ],
+        )
+        .await
+        .expect("scoped ledger write should succeed");
+
+        let root = SessionTranscriptRowLedgerRepository::read_range_page(
+            &db,
+            session_id,
+            "projection-v1",
+            0,
+            10,
+        )
+        .await
+        .expect("root scope read");
+        let child = SessionTranscriptRowLedgerRepository::read_range_page_for_scope(
+            &db,
+            session_id,
+            "projection-v1",
+            &child_scope,
+            0,
+            10,
+        )
+        .await
+        .expect("child scope read");
+
+        let SessionTranscriptRowLedgerRead::Current { metadata, rows } = root else {
+            panic!("expected current root scope");
+        };
+        assert_eq!(metadata.scope, TranscriptScope::Root);
+        assert_eq!(rows[0].row_id, "root-row");
+        let SessionTranscriptRowLedgerRead::Current { metadata, rows } = child else {
+            panic!("expected current child scope");
+        };
+        assert_eq!(metadata.scope, child_scope);
+        assert_eq!(rows[0].row_id, "child-row");
+    }
+
+    #[tokio::test]
+    async fn live_scope_update_does_not_rewrite_unrelated_operation_scope() {
+        let db = setup_test_db().await;
+        let session_id = "ledger-affected-scopes-session";
+        ensure_test_session(&db, session_id).await;
+        let changed_scope = TranscriptScope::Operation("operation-task-a".to_string());
+        let unrelated_scope = TranscriptScope::Operation("operation-task-b".to_string());
+        let mut changed_row = serialized_ledger_row(session_id, 0, "child-a", "operation");
+        changed_row.scope = changed_scope.clone();
+        let mut unrelated_row = serialized_ledger_row(session_id, 0, "child-b", "operation");
+        unrelated_row.scope = unrelated_scope.clone();
+        SessionTranscriptRowLedgerRepository::replace_current_scopes(
+            &db,
+            session_id,
+            "projection-v1",
+            7,
+            11,
+            13,
+            None,
+            vec![
+                SerializedTranscriptRowLedgerScope {
+                    scope: TranscriptScope::Root,
+                    rows: vec![serialized_ledger_row(
+                        session_id,
+                        0,
+                        "root-task",
+                        "operation",
+                    )],
+                },
+                SerializedTranscriptRowLedgerScope {
+                    scope: changed_scope.clone(),
+                    rows: vec![changed_row.clone()],
+                },
+                SerializedTranscriptRowLedgerScope {
+                    scope: unrelated_scope.clone(),
+                    rows: vec![unrelated_row.clone()],
+                },
+            ],
+        )
+        .await
+        .expect("initial scoped ledger");
+
+        let mut root_update = serialized_ledger_row(session_id, 0, "root-task", "operation");
+        root_update.row_version = "root-summary-v2".to_string();
+        root_update.transcript_revision = 8;
+        root_update.graph_revision = 12;
+        changed_row.row_version = "child-a-v2".to_string();
+        changed_row.transcript_revision = 8;
+        changed_row.graph_revision = 12;
+        unrelated_row.transcript_revision = 8;
+        unrelated_row.graph_revision = 12;
+        let changed = SessionTranscriptRowLedgerRepository::replace_changed_scopes(
+            &db,
+            session_id,
+            "projection-v1",
+            8,
+            12,
+            14,
+            None,
+            vec![
+                SerializedTranscriptRowLedgerScope {
+                    scope: TranscriptScope::Root,
+                    rows: vec![root_update],
+                },
+                SerializedTranscriptRowLedgerScope {
+                    scope: changed_scope.clone(),
+                    rows: vec![changed_row],
+                },
+                SerializedTranscriptRowLedgerScope {
+                    scope: unrelated_scope.clone(),
+                    rows: vec![unrelated_row],
+                },
+            ],
+        )
+        .await
+        .expect("affected scope replacement");
+
+        assert_eq!(changed, vec![TranscriptScope::Root, changed_scope]);
+        let unrelated = SessionTranscriptRowLedgerRepository::read_range_page_for_scope(
+            &db,
+            session_id,
+            "projection-v1",
+            &unrelated_scope,
+            0,
+            10,
+        )
+        .await
+        .expect("unrelated scope read");
+        let SessionTranscriptRowLedgerRead::Current { rows, .. } = unrelated else {
+            panic!("unrelated scope should remain current");
+        };
+        assert_eq!(rows[0].row_version, "v-0");
+        assert_eq!(rows[0].transcript_revision, 7);
+        assert_eq!(rows[0].graph_revision, 11);
+    }
+
+    #[tokio::test]
+    async fn changed_scope_replacement_persists_new_empty_operation_scope() {
+        let db = setup_test_db().await;
+        let session_id = "ledger-empty-scope-session";
+        ensure_test_session(&db, session_id).await;
+        let empty_scope = TranscriptScope::Operation("operation-empty-task".to_string());
+
+        SessionTranscriptRowLedgerRepository::replace_current(
+            &db,
+            session_id,
+            "projection-v1",
+            7,
+            11,
+            13,
+            None,
+            vec![serialized_ledger_row(
+                session_id,
+                0,
+                "root-task",
+                "operation",
+            )],
+        )
+        .await
+        .expect("initial root ledger");
+
+        let changed = SessionTranscriptRowLedgerRepository::replace_changed_scopes(
+            &db,
+            session_id,
+            "projection-v1",
+            7,
+            11,
+            14,
+            None,
+            vec![
+                SerializedTranscriptRowLedgerScope {
+                    scope: TranscriptScope::Root,
+                    rows: vec![serialized_ledger_row(
+                        session_id,
+                        0,
+                        "root-task",
+                        "operation",
+                    )],
+                },
+                SerializedTranscriptRowLedgerScope {
+                    scope: empty_scope.clone(),
+                    rows: Vec::new(),
+                },
+            ],
+        )
+        .await
+        .expect("empty operation scope replacement");
+
+        assert_eq!(changed, vec![empty_scope.clone()]);
+        let empty = SessionTranscriptRowLedgerRepository::read_range_page_for_scope(
+            &db,
+            session_id,
+            "projection-v1",
+            &empty_scope,
+            0,
+            10,
+        )
+        .await
+        .expect("empty scope read");
+        let SessionTranscriptRowLedgerRead::Current { metadata, rows } = empty else {
+            panic!("new empty operation scope should be current");
+        };
+        assert_eq!(metadata.scope, empty_scope);
+        assert_eq!(metadata.row_count, 0);
+        assert!(rows.is_empty());
+    }
+
+    #[tokio::test]
+    async fn changed_scope_replacement_removes_absent_scope_and_preserves_unrelated_scope() {
+        let db = setup_test_db().await;
+        let session_id = "ledger-removed-scope-session";
+        ensure_test_session(&db, session_id).await;
+        let removed_scope = TranscriptScope::Operation("operation-removed-task".to_string());
+        let unrelated_scope = TranscriptScope::Operation("operation-unrelated-task".to_string());
+        let mut removed_row = serialized_ledger_row(session_id, 0, "removed-child", "operation");
+        removed_row.scope = removed_scope.clone();
+        let mut unrelated_row =
+            serialized_ledger_row(session_id, 0, "unrelated-child", "operation");
+        unrelated_row.scope = unrelated_scope.clone();
+
+        SessionTranscriptRowLedgerRepository::replace_current_scopes(
+            &db,
+            session_id,
+            "projection-v1",
+            7,
+            11,
+            13,
+            None,
+            vec![
+                SerializedTranscriptRowLedgerScope {
+                    scope: TranscriptScope::Root,
+                    rows: vec![serialized_ledger_row(
+                        session_id,
+                        0,
+                        "root-task",
+                        "operation",
+                    )],
+                },
+                SerializedTranscriptRowLedgerScope {
+                    scope: removed_scope.clone(),
+                    rows: vec![removed_row],
+                },
+                SerializedTranscriptRowLedgerScope {
+                    scope: unrelated_scope.clone(),
+                    rows: vec![unrelated_row.clone()],
+                },
+            ],
+        )
+        .await
+        .expect("initial scoped ledger");
+
+        let changed = SessionTranscriptRowLedgerRepository::replace_changed_scopes(
+            &db,
+            session_id,
+            "projection-v1",
+            7,
+            11,
+            14,
+            None,
+            vec![
+                SerializedTranscriptRowLedgerScope {
+                    scope: TranscriptScope::Root,
+                    rows: vec![serialized_ledger_row(
+                        session_id,
+                        0,
+                        "root-task",
+                        "operation",
+                    )],
+                },
+                SerializedTranscriptRowLedgerScope {
+                    scope: unrelated_scope.clone(),
+                    rows: vec![unrelated_row],
+                },
+            ],
+        )
+        .await
+        .expect("complete canonical scope replacement");
+
+        assert_eq!(changed, vec![removed_scope.clone()]);
+        let removed = SessionTranscriptRowLedgerRepository::read_range_page_for_scope(
+            &db,
+            session_id,
+            "projection-v1",
+            &removed_scope,
+            0,
+            10,
+        )
+        .await
+        .expect("removed scope read");
+        assert_eq!(removed, SessionTranscriptRowLedgerRead::Missing);
+
+        let unrelated = SessionTranscriptRowLedgerRepository::read_range_page_for_scope(
+            &db,
+            session_id,
+            "projection-v1",
+            &unrelated_scope,
+            0,
+            10,
+        )
+        .await
+        .expect("unrelated scope read");
+        let SessionTranscriptRowLedgerRead::Current { rows, .. } = unrelated else {
+            panic!("unrelated scope should remain current");
+        };
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].row_id, "unrelated-child");
+        assert_eq!(rows[0].row_version, "v-0");
+    }
+
+    #[tokio::test]
+    async fn changed_scope_replacement_rejects_invalid_persisted_scope_key_atomically() {
+        let db = setup_test_db().await;
+        let session_id = "ledger-invalid-scope-session";
+        ensure_test_session(&db, session_id).await;
+        SessionTranscriptRowLedgerRepository::replace_current(
+            &db,
+            session_id,
+            "projection-v1",
+            7,
+            11,
+            13,
+            None,
+            vec![serialized_ledger_row(
+                session_id,
+                0,
+                "root-task",
+                "operation",
+            )],
+        )
+        .await
+        .expect("initial root ledger");
+        db.execute(Statement::from_string(
+            db.get_database_backend(),
+            format!(
+                "INSERT INTO session_transcript_row_scope \
+                 (session_id, scope_key, row_count, updated_at) \
+                 VALUES ('{session_id}', 'invalid-scope-key', 0, CURRENT_TIMESTAMP)"
+            ),
+        ))
+        .await
+        .expect("seed invalid persisted scope key");
+
+        let mut replacement = serialized_ledger_row(session_id, 0, "root-task", "operation");
+        replacement.projection_version = "projection-v2".to_string();
+        replacement.transcript_revision = 8;
+        replacement.graph_revision = 12;
+        let error = SessionTranscriptRowLedgerRepository::replace_changed_scopes(
+            &db,
+            session_id,
+            "projection-v2",
+            8,
+            12,
+            14,
+            None,
+            vec![SerializedTranscriptRowLedgerScope {
+                scope: TranscriptScope::Root,
+                rows: vec![replacement],
+            }],
+        )
+        .await
+        .expect_err("invalid persisted scope key must reject the replacement");
+        assert!(error
+            .to_string()
+            .contains("invalid persisted transcript row scope key"));
+
+        let root = SessionTranscriptRowLedgerRepository::read_range_page(
+            &db,
+            session_id,
+            "projection-v1",
+            0,
+            10,
+        )
+        .await
+        .expect("original root scope read");
+        let SessionTranscriptRowLedgerRead::Current { metadata, rows } = root else {
+            panic!("failed replacement must leave the original ledger current");
+        };
+        assert_eq!(metadata.last_event_seq, 13);
+        assert_eq!(metadata.projection_version, "projection-v1");
+        assert_eq!(rows[0].row_version, "v-0");
+    }
+
+    #[tokio::test]
+    async fn changed_scope_replacement_is_isolated_between_sessions() {
+        let db = setup_test_db().await;
+        let session_a = "ledger-scope-isolation-a";
+        let session_b = "ledger-scope-isolation-b";
+        let shared_scope = TranscriptScope::Operation("operation-shared-id".to_string());
+        for session_id in [session_a, session_b] {
+            ensure_test_session(&db, session_id).await;
+            let mut child_row =
+                serialized_ledger_row(session_id, 0, "shared-child-row", "operation");
+            child_row.scope = shared_scope.clone();
+            SessionTranscriptRowLedgerRepository::replace_current_scopes(
+                &db,
+                session_id,
+                "projection-v1",
+                7,
+                11,
+                13,
+                None,
+                vec![
+                    SerializedTranscriptRowLedgerScope {
+                        scope: TranscriptScope::Root,
+                        rows: vec![serialized_ledger_row(
+                            session_id,
+                            0,
+                            "shared-root-row",
+                            "operation",
+                        )],
+                    },
+                    SerializedTranscriptRowLedgerScope {
+                        scope: shared_scope.clone(),
+                        rows: vec![child_row],
+                    },
+                ],
+            )
+            .await
+            .expect("initial isolated scoped ledger");
+        }
+
+        SessionTranscriptRowLedgerRepository::replace_changed_scopes(
+            &db,
+            session_a,
+            "projection-v1",
+            7,
+            11,
+            14,
+            None,
+            vec![SerializedTranscriptRowLedgerScope {
+                scope: TranscriptScope::Root,
+                rows: vec![serialized_ledger_row(
+                    session_a,
+                    0,
+                    "shared-root-row",
+                    "operation",
+                )],
+            }],
+        )
+        .await
+        .expect("remove shared scope only from session A");
+
+        let removed_from_a = SessionTranscriptRowLedgerRepository::read_range_page_for_scope(
+            &db,
+            session_a,
+            "projection-v1",
+            &shared_scope,
+            0,
+            10,
+        )
+        .await
+        .expect("session A scope read");
+        assert_eq!(removed_from_a, SessionTranscriptRowLedgerRead::Missing);
+
+        let preserved_in_b = SessionTranscriptRowLedgerRepository::read_range_page_for_scope(
+            &db,
+            session_b,
+            "projection-v1",
+            &shared_scope,
+            0,
+            10,
+        )
+        .await
+        .expect("session B scope read");
+        let SessionTranscriptRowLedgerRead::Current { metadata, rows } = preserved_in_b else {
+            panic!("session B scope should remain current");
+        };
+        assert_eq!(metadata.last_event_seq, 13);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].session_id, session_b);
+        assert_eq!(rows[0].row_id, "shared-child-row");
     }
 
     #[tokio::test]

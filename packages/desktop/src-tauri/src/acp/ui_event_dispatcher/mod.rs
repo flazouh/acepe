@@ -7,14 +7,17 @@ use crate::acp::pre_reservation_event_buffer::{
     PreReservationEventBuffer, PreReservationIngressDecision,
 };
 use crate::acp::projections::{InteractionSnapshot, ProjectionRegistry};
+use crate::acp::session_state_engine::graph::select_active_streaming_tail;
 use crate::acp::session_state_engine::{
-    session_state_envelope_byte_budget_status, LiveSessionStateEnvelopeRequest,
-    SessionGraphRevision, SessionGraphRuntimeRegistry, SessionStateEnvelope,
+    build_delta_envelope, select_session_graph_activity, session_state_envelope_byte_budget_status,
+    turn_terminal_change_fields, DeltaEnvelopeParts, DeltaSessionProjectionFields,
+    LiveSessionStateEnvelopeRequest, SessionGraphRevision, SessionGraphRuntimeRegistry,
+    SessionStateEnvelope, SessionStateField,
 };
 use crate::acp::session_update::SessionUpdate;
 use crate::acp::session_update_parser::session_update_to_domain_event;
 use crate::acp::transcript_projection::TranscriptProjectionRegistry;
-use crate::db::repository::SessionJournalEventRepository;
+use crate::db::repository::SessionEventWriter;
 use sea_orm::DbConn;
 use serde_json::Value;
 use std::collections::{HashMap, VecDeque};

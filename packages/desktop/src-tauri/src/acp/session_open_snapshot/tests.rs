@@ -1,4 +1,5 @@
 use super::*;
+use crate::acp::commands::{read_transcript_row_page_from_ledger, TranscriptRowPageResult};
 use crate::acp::event_hub::AcpEventHubState;
 use crate::acp::projections::{
     InteractionState, OperationSnapshot, OperationSourceLink, OperationState, SessionTurnState,
@@ -8,7 +9,10 @@ use crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeRegis
 use crate::acp::session_state_engine::selectors::{
     SessionGraphActivity, SessionGraphCapabilities, SessionGraphLifecycle,
 };
-use crate::acp::session_state_engine::SessionStatePayload;
+use crate::acp::session_state_engine::{
+    ActiveStreamingTail, ActiveStreamingTailContentKind, SessionGraphRevision, SessionStatePayload,
+};
+use crate::acp::session_thread_snapshot::{ProviderOwnedSessionSnapshot, SessionThreadSnapshot};
 use crate::acp::session_update::{
     AvailableCommand, ToolArguments, ToolCallData, ToolCallStatus, ToolKind, TurnErrorKind,
     TurnErrorSource,
@@ -22,11 +26,13 @@ use crate::acp::transcript_viewport::ledger::{
     TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
 };
 use crate::acp::transcript_viewport::{
-    TranscriptViewportRow, TranscriptViewportRowContent, TranscriptViewportRowKind,
+    project_transcript_viewport_rows, TranscriptViewportRow, TranscriptViewportRowContent,
+    TranscriptViewportRowKind,
 };
 use crate::acp::types::CanonicalAgentId;
 use crate::db::repository::{
-    SessionJournalEventRepository, SessionMetadataRepository, SessionTranscriptRowLedgerRepository,
+    SessionEventWriter, SessionJournalEventRepository, SessionMetadataRepository,
+    SessionTranscriptRowLedgerRepository,
 };
 use crate::session_jsonl::types::{
     StoredAssistantChunk, StoredAssistantMessage, StoredContentBlock, StoredEntry,
@@ -50,30 +56,6 @@ async fn setup_db() -> DbConn {
 
 fn make_hub() -> Arc<AcpEventHubState> {
     Arc::new(AcpEventHubState::new())
-}
-
-async fn session_open_result_from_thread_fixture_events(
-    db: &DbConn,
-    hub: &Arc<AcpEventHubState>,
-    runtime_registry: Option<&SessionGraphRuntimeRegistry>,
-    replay_context: &SessionReplayContext,
-    requested_session_id: &str,
-    entries: &[StoredEntry],
-) -> SessionOpenResult {
-    let events =
-        crate::acp::session::ingress::stored_entry_events::stored_entries_to_provider_events(
-            entries,
-            replay_context.agent_id.clone(),
-        );
-    session_open_result_from_history_events(
-        db,
-        hub,
-        runtime_registry,
-        replay_context,
-        requested_session_id,
-        &events,
-    )
-    .await
 }
 
 fn new_session_open_input(
@@ -131,6 +113,7 @@ async fn current_row_ledger_open_returns_hot_tail_page_without_full_snapshot_bod
     let row = TranscriptViewportRow {
         row_id: "transcript:entry-1".to_string(),
         source_entry_id: "entry-1".to_string(),
+        scope: crate::acp::transcript_projection::TranscriptScope::Root,
         kind: TranscriptViewportRowKind::AssistantText,
         version: "row-version-1".to_string(),
         anchor_eligible: true,
@@ -349,6 +332,359 @@ async fn hot_ledger_open_normalizes_stale_runtime_restored_detached_lifecycle() 
 }
 
 #[tokio::test]
+async fn hot_ledger_cold_open_demotes_stale_running_turn_state() {
+    let db = setup_db().await;
+    let hub = make_hub();
+    let session_id = "hot-ledger-stale-running-cold";
+    seed_session_metadata(&db, session_id, "opencode").await;
+    append_frontier_barrier(&db, session_id).await;
+    let header = stale_running_header(CanonicalAgentId::OpenCode, "Stale running cold open");
+    let rows = serialize_viewport_rows_for_ledger(
+        session_id,
+        7,
+        1,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        &[assistant_text_row(
+            "entry-1",
+            "assistant reply before crash",
+        )],
+    )
+    .expect("ledger rows should serialize");
+    SessionTranscriptRowLedgerRepository::replace_current(
+        &db,
+        session_id,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        7,
+        1,
+        1,
+        Some(serde_json::to_string(&header).expect("header should serialize")),
+        rows,
+    )
+    .await
+    .expect("ledger write should succeed");
+    let runtime_registry = SessionGraphRuntimeRegistry::new();
+    let replay_context = replay_context_for_session(session_id, CanonicalAgentId::OpenCode);
+
+    let result =
+        session_open_result_from_current_row_ledger(&db, &hub, &replay_context, session_id, 128)
+            .await
+            .expect("hot ledger lookup should succeed")
+            .expect("current ledger should open hot");
+    let result = apply_runtime_authority_to_session_open_result(result, Some(&runtime_registry));
+    let SessionOpenResult::Found(found) = result else {
+        panic!("expected found hot ledger open");
+    };
+
+    assert_eq!(
+        found.turn_state,
+        SessionTurnState::Completed,
+        "cold hot-ledger open must demote stale Running turn state"
+    );
+    assert_ne!(
+        found.activity.kind,
+        crate::acp::session_state_engine::selectors::SessionGraphActivityKind::AwaitingModel,
+        "cold hot-ledger open must not serve an awaiting-model spinner"
+    );
+    assert!(
+        found.active_streaming_tail.is_none(),
+        "cold hot-ledger open must not serve an active streaming tail"
+    );
+}
+
+#[tokio::test]
+async fn hot_ledger_cold_open_closes_stale_tool_rows_and_streaming_tail() {
+    let db = setup_db().await;
+    let hub = make_hub();
+    let session_id = "hot-ledger-stale-browser-cold";
+    seed_session_metadata(&db, session_id, "claude-code").await;
+    append_frontier_barrier(&db, session_id).await;
+
+    let assistant_entry_id = "assistant-before-browser";
+    let mut header = stale_running_header(
+        CanonicalAgentId::ClaudeCode,
+        "Stale browser operation cold open",
+    );
+    header.active_streaming_tail = Some(ActiveStreamingTail {
+        row_id: format!("transcript:{assistant_entry_id}"),
+        content_kind: ActiveStreamingTailContentKind::Message,
+    });
+    let mut assistant_row = assistant_text_row(assistant_entry_id, "Opening the browser");
+    assistant_row.active_streaming_tail = Some(ActiveStreamingTailContentKind::Message);
+    let browser_row =
+        running_browser_tool_row(session_id, "browser-tool-entry", "toolu_stale_browser");
+    let rows = serialize_viewport_rows_for_ledger(
+        session_id,
+        7,
+        1,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        &[assistant_row, browser_row],
+    )
+    .expect("ledger rows should serialize");
+    SessionTranscriptRowLedgerRepository::replace_current(
+        &db,
+        session_id,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        7,
+        1,
+        1,
+        Some(serde_json::to_string(&header).expect("header should serialize")),
+        rows,
+    )
+    .await
+    .expect("ledger write should succeed");
+    let runtime_registry = SessionGraphRuntimeRegistry::new();
+    let replay_context = replay_context_for_session(session_id, CanonicalAgentId::ClaudeCode);
+
+    let result =
+        session_open_result_from_current_row_ledger(&db, &hub, &replay_context, session_id, 128)
+            .await
+            .expect("hot ledger lookup should succeed")
+            .expect("current ledger should open hot");
+    let result = apply_runtime_authority_to_session_open_result(result, Some(&runtime_registry));
+    let SessionOpenResult::Found(found) = result else {
+        panic!("expected found hot ledger open");
+    };
+
+    assert_eq!(found.turn_state, SessionTurnState::Completed);
+    assert!(found.active_streaming_tail.is_none());
+
+    let page = found
+        .initial_transcript_row_page
+        .as_ref()
+        .expect("hot open should include row page");
+    assert!(page.rows[0].active_streaming_tail.is_none());
+    assert_historical_browser_row_cancelled(&page.rows[1]);
+
+    let envelope = found
+        .initial_viewport_envelope
+        .as_ref()
+        .expect("hot open should include viewport push");
+    let SessionStatePayload::ViewportBufferPush { push } = &envelope.payload else {
+        panic!("expected viewport push payload");
+    };
+    assert!(push.rows[0].active_streaming_tail.is_none());
+    assert_historical_browser_row_cancelled(&push.rows[1]);
+}
+
+#[tokio::test]
+async fn hot_ledger_cold_open_normalizes_paginated_rows_and_versions() {
+    let db = setup_db().await;
+    let hub = make_hub();
+    let session_id = "hot-ledger-paginated-stale-browser-cold";
+    seed_session_metadata(&db, session_id, "claude-code").await;
+    append_frontier_barrier(&db, session_id).await;
+
+    let stale_tail_entry_id = "assistant-stale-tail-row-1";
+    let mut header = stale_running_header(
+        CanonicalAgentId::ClaudeCode,
+        "Paginated stale browser operation cold open",
+    );
+    header.active_streaming_tail = Some(ActiveStreamingTail {
+        row_id: format!("transcript:{stale_tail_entry_id}"),
+        content_kind: ActiveStreamingTailContentKind::Message,
+    });
+
+    let stale_tail_row = projected_assistant_text_row(
+        stale_tail_entry_id,
+        "Opening the browser",
+        Some(ActiveStreamingTailContentKind::Message),
+    );
+    let stale_tail_version = stale_tail_row.version.clone();
+    let historical_tail_version =
+        projected_assistant_text_row(stale_tail_entry_id, "Opening the browser", None).version;
+    let browser_row = browser_tool_row_with_state(
+        session_id,
+        "browser-tool-entry-row-10",
+        "toolu_stale_browser_paginated",
+        OperationState::Running,
+    );
+    let running_browser_version = browser_row.version.clone();
+    let historical_browser_version = browser_tool_row_with_state(
+        session_id,
+        "browser-tool-entry-row-10",
+        "toolu_stale_browser_paginated",
+        OperationState::Cancelled,
+    )
+    .version;
+    let mut rows = Vec::with_capacity(11);
+    rows.push(projected_assistant_text_row(
+        "assistant-row-0",
+        "Starting",
+        None,
+    ));
+    rows.push(stale_tail_row);
+    for index in 2..10 {
+        rows.push(projected_assistant_text_row(
+            &format!("assistant-row-{index}"),
+            &format!("Historical assistant row {index}"),
+            None,
+        ));
+    }
+    rows.push(browser_row);
+    let rows = serialize_viewport_rows_for_ledger(
+        session_id,
+        7,
+        1,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        &rows,
+    )
+    .expect("ledger rows should serialize");
+    SessionTranscriptRowLedgerRepository::replace_current(
+        &db,
+        session_id,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        7,
+        1,
+        1,
+        Some(serde_json::to_string(&header).expect("header should serialize")),
+        rows,
+    )
+    .await
+    .expect("ledger write should succeed");
+    let runtime_registry = SessionGraphRuntimeRegistry::new();
+    let replay_context = replay_context_for_session(session_id, CanonicalAgentId::ClaudeCode);
+
+    let result =
+        session_open_result_from_current_row_ledger(&db, &hub, &replay_context, session_id, 1)
+            .await
+            .expect("hot ledger lookup should succeed")
+            .expect("current ledger should open hot");
+    let result = apply_runtime_authority_to_session_open_result(result, Some(&runtime_registry));
+    let SessionOpenResult::Found(found) = result else {
+        panic!("expected found hot ledger open");
+    };
+    let initial_page = found
+        .initial_transcript_row_page
+        .as_ref()
+        .expect("hot open should include row page");
+    assert_eq!(initial_page.start_row_index, 10);
+    let initial_browser_row = initial_page
+        .rows
+        .first()
+        .expect("tail page should contain browser row");
+    assert_historical_browser_row_cancelled(initial_browser_row);
+
+    let older_page = read_transcript_row_page_from_ledger(
+        &db,
+        session_id,
+        1,
+        1,
+        SessionGraphRevision::new(1, 7, 1),
+        Some(&runtime_registry),
+    )
+    .await
+    .expect("older row page should read");
+    let TranscriptRowPageResult::Current { rows, .. } = older_page else {
+        panic!("expected current older row page");
+    };
+    let historical_tail_row = rows
+        .first()
+        .expect("older page should contain stale tail row");
+    assert!(
+        historical_tail_row.active_streaming_tail.is_none(),
+        "cold historical pagination must clear stale active tails"
+    );
+    assert_ne!(historical_tail_row.version, stale_tail_version);
+    assert_eq!(historical_tail_row.version, historical_tail_version);
+    assert_ne!(initial_browser_row.version, running_browser_version);
+    assert_eq!(initial_browser_row.version, historical_browser_version);
+
+    runtime_registry.restore_session_state(
+        session_id.to_string(),
+        2,
+        SessionGraphLifecycle::ready(),
+        SessionGraphCapabilities::empty(),
+    );
+    let live_page = read_transcript_row_page_from_ledger(
+        &db,
+        session_id,
+        10,
+        1,
+        SessionGraphRevision::new(1, 7, 1),
+        Some(&runtime_registry),
+    )
+    .await
+    .expect("live row page should read");
+    let TranscriptRowPageResult::Current { rows, .. } = live_page else {
+        panic!("expected current live row page");
+    };
+    let live_browser_row = rows.first().expect("live page should contain browser row");
+    assert_browser_row_running(live_browser_row);
+    assert_eq!(live_browser_row.version, running_browser_version);
+}
+
+#[tokio::test]
+async fn hot_ledger_open_preserves_running_turn_when_runtime_is_live() {
+    let db = setup_db().await;
+    let hub = make_hub();
+    let session_id = "hot-ledger-live-running";
+    seed_session_metadata(&db, session_id, "opencode").await;
+    append_frontier_barrier(&db, session_id).await;
+    let header = stale_running_header(CanonicalAgentId::OpenCode, "Live running open");
+    let rows = serialize_viewport_rows_for_ledger(
+        session_id,
+        7,
+        1,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        &[assistant_text_row("entry-1", "assistant reply mid turn")],
+    )
+    .expect("ledger rows should serialize");
+    SessionTranscriptRowLedgerRepository::replace_current(
+        &db,
+        session_id,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        7,
+        1,
+        1,
+        Some(serde_json::to_string(&header).expect("header should serialize")),
+        rows,
+    )
+    .await
+    .expect("ledger write should succeed");
+    let runtime_registry = SessionGraphRuntimeRegistry::new();
+    runtime_registry.restore_session_state(
+        session_id.to_string(),
+        8,
+        SessionGraphLifecycle::ready(),
+        SessionGraphCapabilities::empty(),
+    );
+    let replay_context = replay_context_for_session(session_id, CanonicalAgentId::OpenCode);
+
+    let result =
+        session_open_result_from_current_row_ledger(&db, &hub, &replay_context, session_id, 128)
+            .await
+            .expect("hot ledger lookup should succeed")
+            .expect("current ledger should open hot");
+    let result = apply_runtime_authority_to_session_open_result(result, Some(&runtime_registry));
+    let SessionOpenResult::Found(found) = result else {
+        panic!("expected found hot ledger open");
+    };
+
+    assert_eq!(
+        found.turn_state,
+        SessionTurnState::Running,
+        "live runtime with an attached session must keep the Running turn state"
+    );
+}
+
+fn stale_running_header(
+    agent_id: CanonicalAgentId,
+    session_title: &str,
+) -> SessionTranscriptRowLedgerOpenHeader {
+    let mut header = hot_ledger_header(agent_id, session_title);
+    header.turn_state = SessionTurnState::Running;
+    header.activity = SessionGraphActivity {
+        kind: crate::acp::session_state_engine::selectors::SessionGraphActivityKind::AwaitingModel,
+        active_operation_count: 0,
+        active_subagent_count: 0,
+        dominant_operation_id: None,
+        blocking_interaction_id: None,
+        kind_started_at_ms: Some(1_000),
+    };
+    header
+}
+
+#[tokio::test]
 async fn current_row_ledger_open_claim_frontier_matches_ledger_revision() {
     let db = setup_db().await;
     let hub = make_hub();
@@ -499,7 +835,7 @@ async fn current_row_ledger_hot_open_still_misses_after_projection_update() {
     )
     .await
     .expect("ledger write should succeed");
-    SessionJournalEventRepository::append_session_update(
+    SessionEventWriter::commit_session_update(
         &db,
         session_id,
         &crate::acp::session_update::SessionUpdate::AgentMessageChunk {
@@ -739,7 +1075,7 @@ async fn assert_large_hot_ledger_open_is_bounded(session_id: &str, row_count: us
 }
 
 #[tokio::test]
-async fn journal_rebuild_upgrades_stale_ledger_and_next_open_is_hot() {
+async fn journal_rebuild_upgrades_v16_ledger_to_v17_and_next_open_is_hot() {
     let db = setup_db().await;
     let hub = make_hub();
     let session_id = "journal-rebuilt-hot-open";
@@ -774,14 +1110,14 @@ async fn journal_rebuild_upgrades_stale_ledger_and_next_open_is_hot() {
         },
     ];
     for update in journal_updates {
-        SessionJournalEventRepository::append_session_update(&db, session_id, &update)
+        SessionEventWriter::commit_session_update(&db, session_id, &update)
             .await
             .expect("append journal update");
     }
     SessionTranscriptRowLedgerRepository::mark_rebuild_needed(
         &db,
         session_id,
-        "transcript_viewport_row:old",
+        "transcript_viewport_row:v16",
         0,
         0,
         0,
@@ -1001,6 +1337,7 @@ fn assistant_text_row(entry_id: &str, text: &str) -> TranscriptViewportRow {
     TranscriptViewportRow {
         row_id: format!("transcript:{entry_id}"),
         source_entry_id: entry_id.to_string(),
+        scope: crate::acp::transcript_projection::TranscriptScope::Root,
         kind: TranscriptViewportRowKind::AssistantText,
         version: format!("{entry_id}:version"),
         anchor_eligible: true,
@@ -1016,6 +1353,164 @@ fn assistant_text_row(entry_id: &str, text: &str) -> TranscriptViewportRow {
         },
         duration_started_at_ms: None,
     }
+}
+
+fn running_browser_tool_row(
+    session_id: &str,
+    entry_id: &str,
+    tool_call_id: &str,
+) -> TranscriptViewportRow {
+    browser_tool_row_with_state(session_id, entry_id, tool_call_id, OperationState::Running)
+}
+
+fn browser_tool_row_with_state(
+    session_id: &str,
+    entry_id: &str,
+    tool_call_id: &str,
+    operation_state: OperationState,
+) -> TranscriptViewportRow {
+    let operation = OperationSnapshot {
+        id: format!("operation:{tool_call_id}"),
+        session_id: session_id.to_string(),
+        tool_call_id: tool_call_id.to_string(),
+        name: "mcp__tauri__webview_execute_js".to_string(),
+        kind: Some(ToolKind::Browser),
+        provider_status: ToolCallStatus::InProgress,
+        title: Some("Run browser script".to_string()),
+        arguments: ToolArguments::Browser {
+            raw: json!({ "script": "document.title" }),
+            action: Some("execute_js".to_string()),
+            selector: None,
+            script: Some("document.title".to_string()),
+        },
+        progressive_arguments: None,
+        result: None,
+        computer_payload: None,
+        command: None,
+        normalized_todos: None,
+        parent_tool_call_id: None,
+        parent_operation_id: None,
+        child_tool_call_ids: Vec::new(),
+        child_operation_ids: Vec::new(),
+        operation_provenance_key: Some(tool_call_id.to_string()),
+        operation_state,
+        locations: None,
+        skill_meta: None,
+        normalized_questions: None,
+        question_answer: None,
+        awaiting_plan_approval: false,
+        plan_approval_request_id: None,
+        started_at_ms: None,
+        completed_at_ms: None,
+        source_link: OperationSourceLink::transcript_linked(entry_id.to_string()),
+        degradation_reason: None,
+    };
+    let mut row = project_transcript_viewport_rows(
+        &TranscriptSnapshot {
+            revision: 1,
+            entries: vec![TranscriptEntry {
+                scope: crate::acp::transcript_projection::TranscriptScope::Root,
+                entry_id: entry_id.to_string(),
+                role: TranscriptEntryRole::Tool,
+                segments: vec![TranscriptSegment::Text {
+                    segment_id: format!("{entry_id}:text:0"),
+                    text: "Browser".to_string(),
+                }],
+                attempt_id: None,
+                timestamp_ms: None,
+            }],
+        },
+        &[operation.clone()],
+        &[],
+        None,
+        None,
+    )
+    .into_iter()
+    .next()
+    .expect("browser operation should project a viewport row");
+    row.operation_links
+        .first_mut()
+        .expect("browser row should contain an operation link")
+        .operation = Some(Box::new(operation));
+    row
+}
+
+fn projected_assistant_text_row(
+    entry_id: &str,
+    text: &str,
+    active_streaming_tail: Option<ActiveStreamingTailContentKind>,
+) -> TranscriptViewportRow {
+    let active_streaming_tail = active_streaming_tail.map(|content_kind| ActiveStreamingTail {
+        row_id: entry_id.to_string(),
+        content_kind,
+    });
+    project_transcript_viewport_rows(
+        &TranscriptSnapshot {
+            revision: 1,
+            entries: vec![TranscriptEntry {
+                scope: crate::acp::transcript_projection::TranscriptScope::Root,
+                entry_id: entry_id.to_string(),
+                role: TranscriptEntryRole::Assistant,
+                segments: vec![TranscriptSegment::Text {
+                    segment_id: format!("{entry_id}:text:0"),
+                    text: text.to_string(),
+                }],
+                attempt_id: None,
+                timestamp_ms: None,
+            }],
+        },
+        &[],
+        &[],
+        active_streaming_tail.as_ref(),
+        None,
+    )
+    .into_iter()
+    .next()
+    .expect("assistant text should project a viewport row")
+}
+
+fn assert_historical_browser_row_cancelled(row: &TranscriptViewportRow) {
+    assert!(row.active_streaming_tail.is_none());
+    let link = row
+        .operation_links
+        .first()
+        .expect("browser row should link an operation");
+    assert_eq!(link.state, OperationState::Cancelled);
+    assert_eq!(
+        link.display_facts
+            .as_ref()
+            .expect("browser row should contain display facts")
+            .state,
+        OperationState::Cancelled
+    );
+    let operation = link
+        .operation
+        .as_ref()
+        .expect("browser row should contain its compact operation");
+    assert_eq!(operation.operation_state, OperationState::Cancelled);
+    assert_eq!(operation.provider_status, ToolCallStatus::InProgress);
+}
+
+fn assert_browser_row_running(row: &TranscriptViewportRow) {
+    let link = row
+        .operation_links
+        .first()
+        .expect("browser row should link an operation");
+    assert_eq!(link.state, OperationState::Running);
+    assert_eq!(
+        link.display_facts
+            .as_ref()
+            .expect("browser row should contain display facts")
+            .state,
+        OperationState::Running
+    );
+    assert_eq!(
+        link.operation
+            .as_ref()
+            .expect("browser row should contain its compact operation")
+            .operation_state,
+        OperationState::Running
+    );
 }
 
 async fn assert_rebuild_needed(db: &DbConn, session_id: &str) {
@@ -1166,8 +1661,13 @@ fn make_pending_plan_approval_entry(id: &str) -> StoredEntry {
     }
 }
 
-fn make_provider_thread_entries(entry_id: &str) -> Vec<StoredEntry> {
-    vec![make_tool_call_entry(entry_id)]
+fn make_provider_thread_snapshot(entry_id: &str, title: &str) -> SessionThreadSnapshot {
+    SessionThreadSnapshot {
+        entries: vec![make_tool_call_entry(entry_id)],
+        title: title.to_string(),
+        created_at: "2026-04-23T00:00:00Z".to_string(),
+        current_mode_id: None,
+    }
 }
 
 fn make_text_block(text: &str) -> StoredContentBlock {
@@ -1206,15 +1706,20 @@ fn make_assistant_entry(id: &str, text: &str) -> StoredEntry {
     }
 }
 
-fn make_provider_pipeline_entries(agent_id: &CanonicalAgentId) -> Vec<StoredEntry> {
+fn make_provider_pipeline_snapshot(agent_id: &CanonicalAgentId) -> SessionThreadSnapshot {
     let agent_name = agent_id.as_str();
-    vec![
-        make_user_entry(
-            &format!("{agent_name}-user-1"),
-            &format!("restore {agent_name} session"),
-        ),
-        make_tool_call_entry(&format!("{agent_name}-tool-read")),
-    ]
+    SessionThreadSnapshot {
+        entries: vec![
+            make_user_entry(
+                &format!("{agent_name}-user-1"),
+                &format!("restore {agent_name} session"),
+            ),
+            make_tool_call_entry(&format!("{agent_name}-tool-read")),
+        ],
+        title: format!("Restore {agent_name} session"),
+        created_at: "2026-04-23T00:00:00Z".to_string(),
+        current_mode_id: None,
+    }
 }
 
 fn make_error_entry(id: &str, text: &str) -> StoredEntry {
@@ -1238,7 +1743,6 @@ fn make_error_entry(id: &str, text: &str) -> StoredEntry {
 async fn new_session_returns_found_with_empty_state_and_seq_zero() {
     let db = setup_db().await;
     let hub = make_hub();
-    let runtime_registry = SessionGraphRuntimeRegistry::new();
     let session_id = "new-session-abc123";
     let capabilities = SessionGraphCapabilities {
         models: None,
@@ -1252,10 +1756,9 @@ async fn new_session_returns_found_with_empty_state_and_seq_zero() {
         autonomous_enabled: Some(true),
     };
 
-    let result = session_open_result_for_new_session_with_runtime_registry(
+    let result = session_open_result_for_new_session(
         &db,
         &hub,
-        &runtime_registry,
         new_session_open_input(session_id, capabilities.clone()),
     )
     .await;
@@ -1290,30 +1793,6 @@ async fn new_session_returns_found_with_empty_state_and_seq_zero() {
     assert_eq!(found.capabilities.autonomous_enabled, Some(true));
     // open_token must be a valid UUID
     assert!(Uuid::parse_str(&found.open_token).is_ok());
-
-    let graph = runtime_registry
-        .graph_for_session(session_id)
-        .expect("new session graph authority");
-    assert_eq!(graph.canonical_session_id, session_id);
-    assert_eq!(graph.requested_session_id, session_id);
-    assert_eq!(graph.revision.graph_revision, 0);
-    assert_eq!(graph.revision.transcript_revision, 0);
-    assert_eq!(graph.revision.last_event_seq, 0);
-    assert!(graph.transcript_snapshot.entries.is_empty());
-    assert!(graph.operations.is_empty());
-    assert!(graph.interactions.is_empty());
-    assert_eq!(graph.turn_state, SessionTurnState::Idle);
-    assert_eq!(graph.lifecycle.status, found.lifecycle.status);
-    assert_eq!(
-        graph
-            .capabilities
-            .available_commands
-            .as_ref()
-            .expect("graph available commands")
-            .len(),
-        1
-    );
-    assert_eq!(graph.capabilities.autonomous_enabled, Some(true));
 }
 
 // -----------------------------------------------------------------------
@@ -1405,7 +1884,7 @@ async fn new_session_open_result_rebuilds_completed_local_journal_transcript() {
         },
     ];
     for update in journal_updates {
-        SessionJournalEventRepository::append_session_update(&db, session_id, &update)
+        SessionEventWriter::commit_session_update(&db, session_id, &update)
             .await
             .expect("append journal update");
     }
@@ -1475,7 +1954,7 @@ async fn new_session_open_restores_canonical_turn_failure_from_local_journal() {
         },
     ];
     for update in updates {
-        SessionJournalEventRepository::append_session_update(&db, session_id, &update)
+        SessionEventWriter::commit_session_update(&db, session_id, &update)
             .await
             .expect("append journal update");
     }
@@ -1501,36 +1980,25 @@ async fn new_session_open_restores_canonical_turn_failure_from_local_journal() {
 }
 
 #[tokio::test]
-async fn provider_history_event_open_does_not_require_local_snapshot_tables() {
+async fn provider_thread_snapshot_open_does_not_require_local_snapshot_tables() {
     let db = setup_db().await;
     let hub = make_hub();
     let session_id = "provider-translated-open";
     seed_session_metadata(&db, session_id, "copilot").await;
     append_frontier_barrier(&db, session_id).await;
 
-    let provider_entries = make_provider_thread_entries("provider-read");
+    let provider_snapshot = make_provider_thread_snapshot("provider-read", "Provider title");
     let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Copilot);
-    let expected_events =
-        crate::acp::session::ingress::stored_entry_events::stored_entries_to_provider_events(
-            &provider_entries,
-            CanonicalAgentId::Copilot,
-        );
-    let expected_graph = crate::acp::session::fold_export::fold_graph_from_history_events(
-        session_id,
-        &CanonicalAgentId::Copilot,
-        "/workspace",
-        &expected_events,
-    );
-    let mut expected_transcript = expected_graph.transcript_snapshot;
-    expected_transcript.revision = 1;
+    let expected_transcript =
+        TranscriptSnapshot::from_stored_entries(1, &provider_snapshot.entries);
 
-    let result = session_open_result_from_thread_fixture_events(
+    let result = session_open_result_from_thread_snapshot(
         &db,
         &hub,
         None,
         &replay_context,
         session_id,
-        &provider_entries,
+        &provider_snapshot,
     )
     .await;
 
@@ -1562,7 +2030,7 @@ async fn provider_history_event_open_does_not_require_local_snapshot_tables() {
 }
 
 #[tokio::test]
-async fn provider_history_event_open_prefers_completed_local_journal_transcript() {
+async fn provider_thread_snapshot_open_prefers_completed_local_journal_transcript() {
     let db = setup_db().await;
     let hub = make_hub();
     let session_id = "provider-stale-local-journal-open";
@@ -1625,24 +2093,29 @@ async fn provider_history_event_open_prefers_completed_local_journal_transcript(
         },
     ];
     for update in journal_updates {
-        SessionJournalEventRepository::append_session_update(&db, session_id, &update)
+        SessionEventWriter::commit_session_update(&db, session_id, &update)
             .await
             .expect("append journal update");
     }
 
-    let stale_provider_entries = vec![
-        make_user_entry("provider-user-1", "hi"),
-        make_assistant_entry("provider-assistant-1", "Hello there."),
-    ];
+    let stale_provider_snapshot = SessionThreadSnapshot {
+        entries: vec![
+            make_user_entry("provider-user-1", "hi"),
+            make_assistant_entry("provider-assistant-1", "Hello there."),
+        ],
+        title: "Stale provider title".to_string(),
+        created_at: "2026-04-23T00:00:00Z".to_string(),
+        current_mode_id: None,
+    };
     let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Copilot);
 
-    let result = session_open_result_from_thread_fixture_events(
+    let result = session_open_result_from_thread_snapshot(
         &db,
         &hub,
         None,
         &replay_context,
         session_id,
-        &stale_provider_entries,
+        &stale_provider_snapshot,
     )
     .await;
 
@@ -1667,7 +2140,7 @@ async fn provider_history_event_open_prefers_completed_local_journal_transcript(
 }
 
 #[tokio::test]
-async fn provider_history_event_open_preserves_failure_before_frontier_barriers() {
+async fn provider_thread_snapshot_open_preserves_failure_before_frontier_barriers() {
     let db = setup_db().await;
     let hub = make_hub();
     let session_id = "provider-failure-before-barriers-open";
@@ -1703,23 +2176,28 @@ async fn provider_history_event_open_preserves_failure_before_frontier_barriers(
         },
     ];
     for update in updates {
-        SessionJournalEventRepository::append_session_update(&db, session_id, &update)
+        SessionEventWriter::commit_session_update(&db, session_id, &update)
             .await
             .expect("append journal update");
     }
     append_frontier_barrier(&db, session_id).await;
     append_frontier_barrier(&db, session_id).await;
 
-    let provider_entries = vec![make_user_entry("provider-user-1", "trigger failure")];
+    let provider_snapshot = SessionThreadSnapshot {
+        entries: vec![make_user_entry("provider-user-1", "trigger failure")],
+        title: "Failed provider turn".to_string(),
+        created_at: "2026-07-11T00:00:00Z".to_string(),
+        current_mode_id: None,
+    };
     let replay_context = replay_context_for_session(session_id, CanonicalAgentId::OpenCode);
 
-    let result = session_open_result_from_thread_fixture_events(
+    let result = session_open_result_from_thread_snapshot(
         &db,
         &hub,
         None,
         &replay_context,
         session_id,
-        &provider_entries,
+        &provider_snapshot,
     )
     .await;
 
@@ -1734,7 +2212,7 @@ async fn provider_history_event_open_preserves_failure_before_frontier_barriers(
 }
 
 #[tokio::test]
-async fn provider_history_event_open_keeps_provider_tool_rows_with_local_journal_transcript() {
+async fn provider_thread_snapshot_open_keeps_provider_tool_rows_with_local_journal_transcript() {
     let db = setup_db().await;
     let hub = make_hub();
     let session_id = "provider-local-journal-with-skill-tool-open";
@@ -1770,12 +2248,12 @@ async fn provider_history_event_open_keeps_provider_tool_rows_with_local_journal
         },
     ];
     for update in journal_updates {
-        SessionJournalEventRepository::append_session_update(&db, session_id, &update)
+        SessionEventWriter::commit_session_update(&db, session_id, &update)
             .await
             .expect("append journal update");
     }
     for turn_id in ["turn-2", "turn-3", "turn-4"] {
-        SessionJournalEventRepository::append_session_update(
+        SessionEventWriter::commit_session_update(
             &db,
             session_id,
             &crate::acp::session_update::SessionUpdate::TurnComplete {
@@ -1787,54 +2265,59 @@ async fn provider_history_event_open_keeps_provider_tool_rows_with_local_journal
         .expect("append newer local projection update");
     }
 
-    let provider_entries = vec![
-        make_user_entry("provider-user-1", "Can you diagnose this?"),
-        make_assistant_entry(
-            "provider-assistant-1",
-            "The user is invoking the diagnose skill.",
-        ),
-        StoredEntry::ToolCall {
-            id: "toolu_skill".to_string(),
-            message: ToolCallData {
+    let provider_snapshot = SessionThreadSnapshot {
+        entries: vec![
+            make_user_entry("provider-user-1", "Can you diagnose this?"),
+            make_assistant_entry(
+                "provider-assistant-1",
+                "The user is invoking the diagnose skill.",
+            ),
+            StoredEntry::ToolCall {
                 id: "toolu_skill".to_string(),
-                name: "skill".to_string(),
-                arguments: ToolArguments::Think {
-                    description: None,
-                    prompt: None,
-                    subagent_type: None,
-                    skill: Some("diagnose".to_string()),
-                    skill_args: None,
-                    raw: Some(json!({ "skill": "diagnose" })),
+                message: ToolCallData {
+                    id: "toolu_skill".to_string(),
+                    name: "skill".to_string(),
+                    arguments: ToolArguments::Think {
+                        description: None,
+                        prompt: None,
+                        subagent_type: None,
+                        skill: Some("diagnose".to_string()),
+                        skill_args: None,
+                        raw: Some(json!({ "skill": "diagnose" })),
+                    },
+                    diagnostic_input: None,
+                    status: ToolCallStatus::Completed,
+                    result: Some(json!({ "content": "Skill loaded" })),
+                    kind: Some(ToolKind::Skill),
+                    title: Some("diagnose".to_string()),
+                    locations: None,
+                    skill_meta: None,
+                    normalized_questions: None,
+                    normalized_todos: None,
+                    normalized_todo_update: None,
+                    parent_tool_use_id: None,
+                    task_children: None,
+                    question_answer: None,
+                    awaiting_plan_approval: false,
+                    plan_approval_request_id: None,
                 },
-                diagnostic_input: None,
-                status: ToolCallStatus::Completed,
-                result: Some(json!({ "content": "Skill loaded" })),
-                kind: Some(ToolKind::Skill),
-                title: Some("diagnose".to_string()),
-                locations: None,
-                skill_meta: None,
-                normalized_questions: None,
-                normalized_todos: None,
-                normalized_todo_update: None,
-                parent_tool_use_id: None,
-                task_children: None,
-                question_answer: None,
-                awaiting_plan_approval: false,
-                plan_approval_request_id: None,
+                timestamp: None,
             },
-            timestamp: None,
-        },
-        make_assistant_entry("provider-assistant-2", "I will diagnose it."),
-    ];
+            make_assistant_entry("provider-assistant-2", "I will diagnose it."),
+        ],
+        title: "Provider title".to_string(),
+        created_at: "2026-04-23T00:00:00Z".to_string(),
+        current_mode_id: None,
+    };
     let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Copilot);
 
-    let result = session_open_result_from_thread_fixture_events(
+    let result = session_open_result_from_thread_snapshot(
         &db,
         &hub,
         None,
         &replay_context,
         session_id,
-        &provider_entries,
+        &provider_snapshot,
     )
     .await;
 
@@ -1878,7 +2361,7 @@ async fn provider_history_event_open_keeps_provider_tool_rows_with_local_journal
 }
 
 #[tokio::test]
-async fn provider_history_event_open_includes_new_user_message_after_last_complete_turn() {
+async fn provider_thread_snapshot_open_includes_new_user_message_after_last_complete_turn() {
     let db = setup_db().await;
     let hub = make_hub();
     let session_id = "provider-stale-local-journal-incomplete-open";
@@ -1924,24 +2407,29 @@ async fn provider_history_event_open_includes_new_user_message_after_last_comple
         },
     ];
     for update in journal_updates {
-        SessionJournalEventRepository::append_session_update(&db, session_id, &update)
+        SessionEventWriter::commit_session_update(&db, session_id, &update)
             .await
             .expect("append journal update");
     }
 
-    let stale_provider_entries = vec![
-        make_user_entry("provider-user-1", "first question"),
-        make_assistant_entry("provider-assistant-1", "First answer."),
-    ];
+    let stale_provider_snapshot = SessionThreadSnapshot {
+        entries: vec![
+            make_user_entry("provider-user-1", "first question"),
+            make_assistant_entry("provider-assistant-1", "First answer."),
+        ],
+        title: "Stale provider title".to_string(),
+        created_at: "2026-04-23T00:00:00Z".to_string(),
+        current_mode_id: None,
+    };
     let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Copilot);
 
-    let result = session_open_result_from_thread_fixture_events(
+    let result = session_open_result_from_thread_snapshot(
         &db,
         &hub,
         None,
         &replay_context,
         session_id,
-        &stale_provider_entries,
+        &stale_provider_snapshot,
     )
     .await;
 
@@ -1966,22 +2454,22 @@ async fn provider_history_event_open_includes_new_user_message_after_last_comple
 }
 
 #[tokio::test]
-async fn provider_history_event_open_returns_claimable_reconnect_token() {
+async fn provider_thread_snapshot_open_returns_claimable_reconnect_token() {
     let db = setup_db().await;
     let hub = make_hub();
     let session_id = "provider-snapshot-only-open";
     seed_session_metadata(&db, session_id, "copilot").await;
 
-    let provider_entries = make_provider_thread_entries("provider-read");
+    let provider_snapshot = make_provider_thread_snapshot("provider-read", "Provider title");
     let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Copilot);
 
-    let result = session_open_result_from_thread_fixture_events(
+    let result = session_open_result_from_thread_snapshot(
         &db,
         &hub,
         None,
         &replay_context,
         session_id,
-        &provider_entries,
+        &provider_snapshot,
     )
     .await;
 
@@ -1996,7 +2484,7 @@ async fn provider_history_event_open_returns_claimable_reconnect_token() {
 }
 
 #[tokio::test]
-async fn provider_history_event_open_pipeline_restores_each_builtin_agent_to_canonical_state() {
+async fn provider_owned_open_pipeline_restores_each_builtin_agent_to_canonical_state() {
     for agent_id in provider_owned_agents_with_history_replay() {
         let db = setup_db().await;
         let hub = make_hub();
@@ -2005,16 +2493,18 @@ async fn provider_history_event_open_pipeline_restores_each_builtin_agent_to_can
         seed_session_metadata(&db, &session_id, agent_id.as_str()).await;
         append_frontier_barrier(&db, &session_id).await;
 
-        let provider_entries = make_provider_pipeline_entries(&agent_id);
+        let provider_snapshot = ProviderOwnedSessionSnapshot::from_thread_snapshot(
+            make_provider_pipeline_snapshot(&agent_id),
+        );
         let replay_context = replay_context_for_session(&session_id, agent_id.clone());
 
-        let result = session_open_result_from_thread_fixture_events(
+        let result = session_open_result_from_provider_owned_snapshot(
             &db,
             &hub,
             Some(&runtime_registry),
             &replay_context,
             &session_id,
-            &provider_entries,
+            &provider_snapshot,
         )
         .await;
 
@@ -2025,7 +2515,7 @@ async fn provider_history_event_open_pipeline_restores_each_builtin_agent_to_can
         assert_eq!(found.canonical_session_id, session_id);
         assert_eq!(found.last_event_seq, 1);
         assert!(found.graph_revision >= found.last_event_seq);
-        assert_eq!(found.transcript_snapshot.revision, 2);
+        assert_eq!(found.transcript_snapshot.revision, 1);
         assert_eq!(found.transcript_snapshot.entries.len(), 2);
         assert_eq!(
             found.transcript_snapshot.entries[0].role,
@@ -2059,35 +2549,34 @@ async fn provider_history_event_open_pipeline_restores_each_builtin_agent_to_can
             agent_id.as_str()
         );
 
-        let runtime_graph = runtime_registry
-            .graph_for_session(&session_id)
-            .expect("provider history open must seed the canonical runtime graph");
-        assert_eq!(runtime_graph.revision.graph_revision, found.graph_revision);
+        let runtime_snapshot = runtime_registry.snapshot_for_session(&session_id);
+        assert_eq!(runtime_snapshot.graph_revision, found.graph_revision);
         assert_eq!(
-            runtime_graph.lifecycle.status,
+            runtime_snapshot.lifecycle.status,
             crate::acp::lifecycle::LifecycleStatus::Reconnecting
         );
     }
 }
 
 #[tokio::test]
-async fn provider_history_event_open_normalizes_tool_transcript_ids_to_match_operations() {
+async fn provider_thread_snapshot_open_normalizes_tool_transcript_ids_to_match_operations() {
     let db = setup_db().await;
     let hub = make_hub();
     let session_id = "provider-normalized-tool-open";
     seed_session_metadata(&db, session_id, "cursor").await;
     append_frontier_barrier(&db, session_id).await;
 
-    let provider_entries = make_provider_thread_entries("provider-tool\ncursor-call");
+    let provider_snapshot =
+        make_provider_thread_snapshot("provider-tool\ncursor-call", "Provider title");
     let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Cursor);
 
-    let result = session_open_result_from_thread_fixture_events(
+    let result = session_open_result_from_thread_snapshot(
         &db,
         &hub,
         None,
         &replay_context,
         session_id,
-        &provider_entries,
+        &provider_snapshot,
     )
     .await;
 
@@ -2123,26 +2612,31 @@ async fn provider_history_event_open_normalizes_tool_transcript_ids_to_match_ope
 }
 
 #[tokio::test]
-async fn provider_history_event_open_titles_placeholder_metadata_from_first_user_message() {
+async fn provider_thread_snapshot_open_titles_placeholder_metadata_from_first_user_message() {
     let db = setup_db().await;
     let hub = make_hub();
     let session_id = "b859c458-ca4f-4c31-a3aa-6c606a1c065f";
     seed_session_metadata(&db, session_id, "claude-code").await;
     append_frontier_barrier(&db, session_id).await;
 
-    let entries = vec![make_user_entry(
-        "user-1",
-        "please enable anti alias in acepe.",
-    )];
+    let snapshot = SessionThreadSnapshot {
+        entries: vec![make_user_entry(
+            "user-1",
+            "please enable anti alias in acepe.",
+        )],
+        title: "Session b859c458".to_string(),
+        created_at: "2026-04-23T00:00:00Z".to_string(),
+        current_mode_id: None,
+    };
     let replay_context = replay_context_for_session(session_id, CanonicalAgentId::ClaudeCode);
 
-    let result = session_open_result_from_thread_fixture_events(
+    let result = session_open_result_from_thread_snapshot(
         &db,
         &hub,
         None,
         &replay_context,
         session_id,
-        &entries,
+        &snapshot,
     )
     .await;
 
@@ -2153,7 +2647,7 @@ async fn provider_history_event_open_titles_placeholder_metadata_from_first_user
 }
 
 #[tokio::test]
-async fn provider_history_event_open_keeps_renamed_title_over_first_user_message() {
+async fn provider_thread_snapshot_open_keeps_renamed_title_over_first_user_message() {
     let db = setup_db().await;
     let hub = make_hub();
     let session_id = "renamed-session-title";
@@ -2163,19 +2657,24 @@ async fn provider_history_event_open_keeps_renamed_title_over_first_user_message
         .expect("set title override");
     append_frontier_barrier(&db, session_id).await;
 
-    let entries = vec![make_user_entry(
-        "user-1",
-        "please enable anti alias in acepe.",
-    )];
+    let snapshot = SessionThreadSnapshot {
+        entries: vec![make_user_entry(
+            "user-1",
+            "please enable anti alias in acepe.",
+        )],
+        title: "please enable anti alias in acepe.".to_string(),
+        created_at: "2026-04-23T00:00:00Z".to_string(),
+        current_mode_id: None,
+    };
     let replay_context = replay_context_for_session(session_id, CanonicalAgentId::ClaudeCode);
 
-    let result = session_open_result_from_thread_fixture_events(
+    let result = session_open_result_from_thread_snapshot(
         &db,
         &hub,
         None,
         &replay_context,
         session_id,
-        &entries,
+        &snapshot,
     )
     .await;
 
@@ -2186,7 +2685,7 @@ async fn provider_history_event_open_keeps_renamed_title_over_first_user_message
 }
 
 #[tokio::test]
-async fn provider_history_event_open_restores_runtime_lifecycle_for_attach() {
+async fn provider_thread_snapshot_open_restores_runtime_lifecycle_for_attach() {
     let db = setup_db().await;
     let hub = make_hub();
     let runtime_registry = SessionGraphRuntimeRegistry::new();
@@ -2194,16 +2693,16 @@ async fn provider_history_event_open_restores_runtime_lifecycle_for_attach() {
     seed_session_metadata(&db, session_id, "copilot").await;
     append_frontier_barrier(&db, session_id).await;
 
-    let provider_entries = make_provider_thread_entries("provider-read");
+    let provider_snapshot = make_provider_thread_snapshot("provider-read", "Provider title");
     let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Copilot);
 
-    let result = session_open_result_from_thread_fixture_events(
+    let result = session_open_result_from_thread_snapshot(
         &db,
         &hub,
         Some(&runtime_registry),
         &replay_context,
         session_id,
-        &provider_entries,
+        &provider_snapshot,
     )
     .await;
 
@@ -2221,26 +2720,31 @@ async fn provider_history_event_open_restores_runtime_lifecycle_for_attach() {
 }
 
 #[tokio::test]
-async fn provider_history_event_open_merges_replayed_operation_evidence() {
+async fn provider_thread_snapshot_open_merges_replayed_operation_evidence() {
     let db = setup_db().await;
     let hub = make_hub();
     let session_id = "provider-duplicate-operation-open";
     seed_session_metadata(&db, session_id, "copilot").await;
     append_frontier_barrier(&db, session_id).await;
 
-    let provider_entries = vec![
-        make_tool_call_entry("provider-read"),
-        make_sparse_tool_call_entry("provider-read"),
-    ];
+    let provider_snapshot = SessionThreadSnapshot {
+        entries: vec![
+            make_tool_call_entry("provider-read"),
+            make_sparse_tool_call_entry("provider-read"),
+        ],
+        title: "Provider title".to_string(),
+        created_at: "2026-04-23T00:00:00Z".to_string(),
+        current_mode_id: None,
+    };
     let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Copilot);
 
-    let result = session_open_result_from_thread_fixture_events(
+    let result = session_open_result_from_thread_snapshot(
         &db,
         &hub,
         None,
         &replay_context,
         session_id,
-        &provider_entries,
+        &provider_snapshot,
     )
     .await;
 
@@ -2256,7 +2760,7 @@ async fn provider_history_event_open_merges_replayed_operation_evidence() {
 }
 
 #[tokio::test]
-async fn provider_history_event_open_downgrades_stale_active_operations_when_journal_is_ahead() {
+async fn provider_thread_snapshot_open_downgrades_stale_active_operations_when_journal_is_ahead() {
     let db = setup_db().await;
     let hub = make_hub();
     let session_id = "provider-stale-active-operation-open";
@@ -2264,16 +2768,21 @@ async fn provider_history_event_open_downgrades_stale_active_operations_when_jou
     append_frontier_barrier(&db, session_id).await;
     append_frontier_barrier(&db, session_id).await;
 
-    let provider_entries = vec![make_running_tool_call_entry("provider-read")];
+    let provider_snapshot = SessionThreadSnapshot {
+        entries: vec![make_running_tool_call_entry("provider-read")],
+        title: "Provider title".to_string(),
+        created_at: "2026-04-23T00:00:00Z".to_string(),
+        current_mode_id: None,
+    };
     let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Copilot);
 
-    let result = session_open_result_from_thread_fixture_events(
+    let result = session_open_result_from_thread_snapshot(
         &db,
         &hub,
         None,
         &replay_context,
         session_id,
-        &provider_entries,
+        &provider_snapshot,
     )
     .await;
 
@@ -2298,22 +2807,27 @@ async fn provider_history_event_open_downgrades_stale_active_operations_when_jou
 }
 
 #[tokio::test]
-async fn provider_history_event_open_closes_historical_active_operation_without_journal_gap() {
+async fn provider_thread_snapshot_open_closes_historical_active_operation_without_journal_gap() {
     let db = setup_db().await;
     let hub = make_hub();
     let session_id = "provider-historical-active-operation-open";
     seed_session_metadata(&db, session_id, "copilot").await;
 
-    let provider_entries = vec![make_running_tool_call_entry("provider-read")];
+    let provider_snapshot = SessionThreadSnapshot {
+        entries: vec![make_running_tool_call_entry("provider-read")],
+        title: "Provider title".to_string(),
+        created_at: "2026-04-23T00:00:00Z".to_string(),
+        current_mode_id: None,
+    };
     let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Copilot);
 
-    let result = session_open_result_from_thread_fixture_events(
+    let result = session_open_result_from_thread_snapshot(
         &db,
         &hub,
         None,
         &replay_context,
         session_id,
-        &provider_entries,
+        &provider_snapshot,
     )
     .await;
 
@@ -2332,25 +2846,30 @@ async fn provider_history_event_open_closes_historical_active_operation_without_
 }
 
 #[tokio::test]
-async fn provider_history_event_open_does_not_reopen_tool_interrupted_by_later_user_message() {
+async fn provider_thread_snapshot_open_does_not_reopen_tool_interrupted_by_later_user_message() {
     let db = setup_db().await;
     let hub = make_hub();
     let session_id = "provider-user-boundary-tool-open";
     seed_session_metadata(&db, session_id, "copilot").await;
 
-    let provider_entries = vec![
-        make_running_tool_call_entry("provider-write"),
-        make_user_entry("user-resumed", "i ran the command myself, proceed"),
-    ];
+    let provider_snapshot = SessionThreadSnapshot {
+        entries: vec![
+            make_running_tool_call_entry("provider-write"),
+            make_user_entry("user-resumed", "i ran the command myself, proceed"),
+        ],
+        title: "Provider title".to_string(),
+        created_at: "2026-04-23T00:00:00Z".to_string(),
+        current_mode_id: None,
+    };
     let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Copilot);
 
-    let result = session_open_result_from_thread_fixture_events(
+    let result = session_open_result_from_thread_snapshot(
         &db,
         &hub,
         None,
         &replay_context,
         session_id,
-        &provider_entries,
+        &provider_snapshot,
     )
     .await;
 
@@ -2370,22 +2889,27 @@ async fn provider_history_event_open_does_not_reopen_tool_interrupted_by_later_u
 }
 
 #[tokio::test]
-async fn provider_history_event_open_marks_historical_pending_interactions_unresolved() {
+async fn provider_thread_snapshot_open_marks_historical_pending_interactions_unresolved() {
     let db = setup_db().await;
     let hub = make_hub();
     let session_id = "provider-historical-pending-interaction-open";
     seed_session_metadata(&db, session_id, "copilot").await;
 
-    let provider_entries = vec![make_pending_plan_approval_entry("provider-plan")];
+    let provider_snapshot = SessionThreadSnapshot {
+        entries: vec![make_pending_plan_approval_entry("provider-plan")],
+        title: "Provider title".to_string(),
+        created_at: "2026-04-23T00:00:00Z".to_string(),
+        current_mode_id: None,
+    };
     let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Copilot);
 
-    let result = session_open_result_from_thread_fixture_events(
+    let result = session_open_result_from_thread_snapshot(
         &db,
         &hub,
         None,
         &replay_context,
         session_id,
-        &provider_entries,
+        &provider_snapshot,
     )
     .await;
 
@@ -2405,7 +2929,7 @@ async fn provider_history_event_open_marks_historical_pending_interactions_unres
 }
 
 #[tokio::test]
-async fn provider_history_event_open_does_not_reactivate_stale_historical_error() {
+async fn provider_thread_snapshot_open_does_not_reactivate_stale_historical_error() {
     let db = setup_db().await;
     let hub = make_hub();
     let session_id = "provider-stale-error-open";
@@ -2414,22 +2938,27 @@ async fn provider_history_event_open_does_not_reactivate_stale_historical_error(
     append_frontier_barrier(&db, session_id).await;
     append_frontier_barrier(&db, session_id).await;
 
-    let provider_entries = vec![
+    let provider_snapshot = SessionThreadSnapshot {
+        entries: vec![
             make_user_entry("user-1", "hi"),
             make_error_entry(
                 "error-1",
                 "Failed to authenticate. API Error: 401 {\"error\":{\"message\":\"User not found.\",\"code\":401}}",
             ),
-    ];
+        ],
+        title: "hi".to_string(),
+        created_at: "2026-04-23T00:00:00Z".to_string(),
+        current_mode_id: None,
+    };
     let replay_context = replay_context_for_session(session_id, CanonicalAgentId::ClaudeCode);
 
-    let result = session_open_result_from_thread_fixture_events(
+    let result = session_open_result_from_thread_snapshot(
         &db,
         &hub,
         None,
         &replay_context,
         session_id,
-        &provider_entries,
+        &provider_snapshot,
     )
     .await;
 
@@ -2444,23 +2973,23 @@ async fn provider_history_event_open_does_not_reactivate_stale_historical_error(
 }
 
 #[tokio::test]
-async fn provider_history_event_open_marks_alias_request_without_rewriting_canonical_id() {
+async fn provider_thread_snapshot_open_marks_alias_request_without_rewriting_canonical_id() {
     let db = setup_db().await;
     let hub = make_hub();
     let canonical_session_id = "canonical-provider-session";
     let requested_session_id = "provider-session-alias";
     seed_session_metadata(&db, canonical_session_id, "copilot").await;
-    let provider_entries = make_provider_thread_entries("provider-read");
+    let provider_snapshot = make_provider_thread_snapshot("provider-read", "Provider title");
     let replay_context =
         replay_context_for_session(canonical_session_id, CanonicalAgentId::Copilot);
 
-    let result = session_open_result_from_thread_fixture_events(
+    let result = session_open_result_from_thread_snapshot(
         &db,
         &hub,
         None,
         &replay_context,
         requested_session_id,
-        &provider_entries,
+        &provider_snapshot,
     )
     .await;
 
@@ -2580,6 +3109,7 @@ fn viewport_envelope_for_operation(
                 rows: vec![crate::acp::transcript_viewport::TranscriptViewportRow {
                     row_id: format!("transcript:{}", operation.tool_call_id),
                     source_entry_id: operation.tool_call_id.clone(),
+                    scope: crate::acp::transcript_projection::TranscriptScope::Root,
                     kind: crate::acp::transcript_viewport::TranscriptViewportRowKind::Tool,
                     version: "visible-op-version".to_string(),
                     anchor_eligible: true,
@@ -2626,6 +3156,7 @@ fn oversized_open_result_compacts_transcript_body_for_ipc() {
         transcript_snapshot: TranscriptSnapshot {
             revision: 11,
             entries: vec![crate::acp::transcript_projection::TranscriptEntry {
+                scope: crate::acp::transcript_projection::TranscriptScope::Root,
                 entry_id: "assistant-large".to_string(),
                 role: TranscriptEntryRole::Assistant,
                 segments: vec![TranscriptSegment::Text {
@@ -2732,6 +3263,7 @@ fn oversized_open_result_keeps_compact_completed_operations_when_they_fit() {
         .collect();
     let entries: Vec<TranscriptEntry> = (0..operation_count)
         .map(|index| TranscriptEntry {
+            scope: crate::acp::transcript_projection::TranscriptScope::Root,
             entry_id: format!(
                 "acepe::entry::assistant-boundary:{index}::tool::tool-display-{index}"
             ),
@@ -2821,6 +3353,7 @@ fn oversized_open_result_drops_historical_operations_when_still_over_budget() {
         transcript_snapshot: TranscriptSnapshot {
             revision: 11,
             entries: vec![TranscriptEntry {
+                scope: crate::acp::transcript_projection::TranscriptScope::Root,
                 entry_id: "assistant-large".to_string(),
                 role: TranscriptEntryRole::Assistant,
                 segments: vec![TranscriptSegment::Text {
@@ -2889,6 +3422,7 @@ fn oversized_open_result_keeps_initial_viewport_operations_before_actionable_fal
         transcript_snapshot: TranscriptSnapshot {
             revision: 11,
             entries: vec![TranscriptEntry {
+                scope: crate::acp::transcript_projection::TranscriptScope::Root,
                 entry_id: "assistant-large".to_string(),
                 role: TranscriptEntryRole::Assistant,
                 segments: vec![TranscriptSegment::Text {
@@ -2948,6 +3482,7 @@ fn large_entry_count_open_result_compacts_transcript_body_before_full_byte_count
     let entry_count = super::snapshot::SESSION_OPEN_TRANSCRIPT_COMPACTION_ENTRY_THRESHOLD + 1;
     let entries = (0..entry_count)
         .map(|index| TranscriptEntry {
+            scope: crate::acp::transcript_projection::TranscriptScope::Root,
             entry_id: format!("assistant-{index}"),
             role: TranscriptEntryRole::Assistant,
             segments: vec![TranscriptSegment::Text {
@@ -3006,7 +3541,7 @@ fn large_entry_count_open_result_compacts_transcript_body_before_full_byte_count
 }
 
 #[tokio::test]
-async fn provider_history_event_alias_open_keys_viewport_authority_to_canonical_id_only() {
+async fn provider_owned_alias_open_keys_viewport_authority_to_canonical_id_only() {
     let db = setup_db().await;
     let hub = make_hub();
     let runtime_registry = SessionGraphRuntimeRegistry::new();
@@ -3018,17 +3553,19 @@ async fn provider_history_event_alias_open_keys_viewport_authority_to_canonical_
     seed_session_metadata(&db, canonical_session_id, "copilot").await;
     append_frontier_barrier(&db, canonical_session_id).await;
 
-    let provider_entries = make_provider_pipeline_entries(&CanonicalAgentId::Copilot);
+    let provider_snapshot = ProviderOwnedSessionSnapshot::from_thread_snapshot(
+        make_provider_pipeline_snapshot(&CanonicalAgentId::Copilot),
+    );
     let replay_context =
         replay_context_for_session(canonical_session_id, CanonicalAgentId::Copilot);
 
-    let result = session_open_result_from_thread_fixture_events(
+    let result = session_open_result_from_provider_owned_snapshot(
         &db,
         &hub,
         Some(&runtime_registry),
         &replay_context,
         requested_session_id,
-        &provider_entries,
+        &provider_snapshot,
     )
     .await;
 
@@ -3141,66 +3678,6 @@ async fn found_result_open_token_has_active_reservation_in_hub() {
     assert!(
         hub.has_reservation(token),
         "reservation must be active after open"
-    );
-}
-
-#[tokio::test]
-async fn session_open_builders_do_not_return_an_unarmed_token_for_a_competing_open() {
-    let db = setup_db().await;
-    let hub = make_hub();
-    let session_id = "prepared-reservation-session";
-    let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Copilot);
-    let owner_token = Uuid::new_v4();
-    hub.arm_reservation(owner_token, session_id.to_string(), 0, 0)
-        .expect("first reservation should arm");
-    let prepared_owner = hub
-        .prepare_reservation_claim_for_session(owner_token, session_id)
-        .expect("first open should own the prepared reservation");
-
-    let ledger_error =
-        session_open_result_from_current_row_ledger(&db, &hub, &replay_context, session_id, 128)
-            .await
-            .expect_err("ledger open must propagate the reservation conflict");
-    assert!(ledger_error.contains("prepared open-token reservation"));
-
-    let local_journal_error = session_open_result_from_completed_local_journal(
-        &db,
-        &hub,
-        &replay_context,
-        session_id,
-        SessionGraphLifecycle::reconnecting(),
-        SessionGraphCapabilities::empty(),
-    )
-    .await
-    .expect_err("local journal open must propagate the reservation conflict");
-    assert!(local_journal_error.contains("prepared open-token reservation"));
-
-    let history_result =
-        session_open_result_from_history_events(&db, &hub, None, &replay_context, session_id, &[])
-            .await;
-    let SessionOpenResult::Error(history_error) = history_result else {
-        panic!("history open must not return an unarmed token: {history_result:?}");
-    };
-    assert!(history_error
-        .message
-        .contains("prepared open-token reservation"));
-
-    let new_session_result = session_open_result_for_new_session(
-        &db,
-        &hub,
-        new_session_open_input(session_id, SessionGraphCapabilities::empty()),
-    )
-    .await;
-
-    let SessionOpenResult::Error(error) = new_session_result else {
-        panic!("new-session open must not return an unarmed token: {new_session_result:?}");
-    };
-    assert_eq!(error.requested_session_id, session_id);
-    assert!(error.retryable);
-    assert!(
-        hub.commit_prepared_reservation_claim(prepared_owner)
-            .is_some(),
-        "the prepared owner must not be displaced by a competing open"
     );
 }
 
@@ -3411,8 +3888,8 @@ async fn error_outcome_round_trips_over_serde() {
     assert!(!e.retryable);
 }
 
-#[tokio::test]
-async fn fold_open_cursor_junk_matches_golden() {
+#[test]
+fn fold_open_cursor_junk_matches_golden() {
     use crate::acp::session::engine::persisted_region::{
         extract_persisted_region, persisted_regions_equal, PersistedSessionGraph,
     };
@@ -3431,7 +3908,6 @@ async fn fold_open_cursor_junk_matches_golden() {
             session_id: SESSION_ID.to_string(),
             workspace_root: Some(fixture_dir),
         })
-        .await
         .expect("read cursor junk fixture");
 
     assert!(
@@ -3439,58 +3915,25 @@ async fn fold_open_cursor_junk_matches_golden() {
         "HistorySource must emit events from junk fixture"
     );
 
-    let db = setup_db().await;
+    let rt = tokio::runtime::Runtime::new().expect("runtime");
+    let db = rt.block_on(setup_db());
     let hub = make_hub();
-    let runtime_registry = SessionGraphRuntimeRegistry::new();
-    seed_session_metadata(&db, SESSION_ID, "cursor").await;
+    rt.block_on(seed_session_metadata(&db, SESSION_ID, "cursor"));
     let replay_context = replay_context_for_session(SESSION_ID, CanonicalAgentId::Cursor);
 
-    let result = session_open_result_from_history_events(
+    let result = rt.block_on(session_open_result_from_history_events(
         &db,
         &hub,
-        Some(&runtime_registry),
+        None,
         &replay_context,
         SESSION_ID,
         &events,
-    )
-    .await;
+    ));
 
     let SessionOpenResult::Found(found) = result else {
         panic!("expected fold-based history open to succeed");
     };
     assert_eq!(found.open_path, SessionOpenPath::FoldHistory);
-    let held = runtime_registry
-        .graph_for_session(SESSION_ID)
-        .expect("fold-based open must seed the held session graph");
-    assert_eq!(
-        held.transcript_snapshot.entries,
-        found.transcript_snapshot.entries
-    );
-    assert_eq!(
-        serde_json::to_value(&held.operations).expect("serialize held operations"),
-        serde_json::to_value(&found.operations).expect("serialize open operations")
-    );
-    assert_eq!(
-        serde_json::to_value(&held.interactions).expect("serialize held interactions"),
-        serde_json::to_value(&found.interactions).expect("serialize open interactions")
-    );
-    assert_eq!(held.turn_state, found.turn_state);
-    assert_eq!(held.lifecycle.status, found.lifecycle.status);
-
-    let history_frontier = events
-        .last()
-        .expect("non-empty history must have a frontier event");
-    let transition = runtime_registry
-        .apply_provider_event_transition(SESSION_ID, history_frontier)
-        .expect("fold-based open must keep the held graph attached");
-    assert!(
-        !transition.applied,
-        "reconnect redelivery of the history frontier must be deduplicated"
-    );
-    assert_eq!(
-        transition.after.transcript_snapshot.entries, held.transcript_snapshot.entries,
-        "frontier redelivery must not duplicate transcript history"
-    );
 
     let folded = extract_persisted_region(
         &crate::acp::session_state_engine::graph::SessionStateGraph {

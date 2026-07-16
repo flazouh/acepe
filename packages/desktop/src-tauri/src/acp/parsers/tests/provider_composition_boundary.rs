@@ -70,15 +70,15 @@ fn adapter_case(current: &ProviderFamily, all: &[ProviderFamily]) -> BoundaryCas
                 format!("super::{}", family.adapter_module),
                 format!("super::{}Adapter", family.type_prefix),
                 format!(
-                    "crate::acp::session::ingress::tool_identity::providers::{}",
+                    "crate::acp::reconciler::providers::{}",
                     family.adapter_module
                 ),
                 format!(
-                    "crate::acp::session::ingress::tool_identity::providers::{}Adapter",
+                    "crate::acp::reconciler::providers::{}Adapter",
                     family.type_prefix
                 ),
                 format!(
-                    "crate::acp::session::ingress::tool_identity::providers::{}::{}Adapter",
+                    "crate::acp::reconciler::providers::{}::{}Adapter",
                     family.adapter_module, family.type_prefix
                 ),
                 format!("crate::acp::parsers::{}Adapter", family.type_prefix),
@@ -88,10 +88,7 @@ fn adapter_case(current: &ProviderFamily, all: &[ProviderFamily]) -> BoundaryCas
     forbidden_paths.extend(runtime_forbidden_paths());
 
     BoundaryCase {
-        relative_path: format!(
-            "session/ingress/tool_identity/providers/{}.rs",
-            current.adapter_module
-        ),
+        relative_path: format!("reconciler/providers/{}.rs", current.adapter_module),
         forbidden_paths,
     }
 }
@@ -199,10 +196,7 @@ fn provider_modules_do_not_cross_provider_boundaries() {
     let violations: Vec<String> = cases
         .iter()
         .flat_map(|case| {
-            let source_path = if case
-                .relative_path
-                .starts_with("session/ingress/tool_identity/")
-            {
+            let source_path = if case.relative_path.starts_with("reconciler/") {
                 acp_root.join(&case.relative_path)
             } else {
                 parser_root.join(&case.relative_path)

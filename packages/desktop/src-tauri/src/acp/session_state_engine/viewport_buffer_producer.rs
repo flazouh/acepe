@@ -228,6 +228,7 @@ mod tests {
         TranscriptViewportRow {
             row_id: row_id.to_string(),
             source_entry_id: row_id.to_string(),
+            scope: crate::acp::transcript_projection::TranscriptScope::Root,
             kind: TranscriptViewportRowKind::AssistantText,
             version: version.to_string(),
             anchor_eligible: true,

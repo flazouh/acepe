@@ -3,15 +3,15 @@
 
 use crate::{
     acp::session_journal::{
-        ProjectionJournalUpdate, SessionJournalEvent as SessionJournalRecord,
-        SessionJournalEventPayload,
+        SessionJournalEvent as SessionJournalRecord, SessionJournalEventPayload,
     },
-    db::entities::session_journal_event,
+    db::{entities::session_journal_event, repository::SessionEventSequenceRepository},
 };
 use anyhow::Result;
 use chrono::Utc;
 use sea_orm::{
-    ColumnTrait, DbConn, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+    ColumnTrait, DatabaseTransaction, DbConn, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
+    Set, TransactionTrait,
 };
 
 // ============================================================================
@@ -54,26 +54,6 @@ impl SessionJournalEventRepository {
             .collect::<Vec<_>>();
 
         Ok(rows)
-    }
-
-    pub async fn append_session_update(
-        db: &DbConn,
-        session_id: &str,
-        update: &crate::acp::session_update::SessionUpdate,
-    ) -> Result<Option<SessionJournalRecord>> {
-        let Some(update) = ProjectionJournalUpdate::from_session_update(update) else {
-            return Ok(None);
-        };
-
-        Self::append(
-            db,
-            session_id,
-            SessionJournalEventPayload::ProjectionUpdate {
-                update: Box::new(update),
-            },
-        )
-        .await
-        .map(Some)
     }
 
     pub async fn append_interaction_transition(
@@ -128,16 +108,19 @@ impl SessionJournalEventRepository {
         tracing::debug!(session_id = %session_id, "Appending session journal event");
 
         let tx = db.begin().await?;
-        let max_seq: Option<i64> = crate::db::entities::session_journal_event::Entity::find()
-            .select_only()
-            .column_as(session_journal_event::Column::EventSeq.max(), "max_seq")
-            .filter(session_journal_event::Column::SessionId.eq(session_id))
-            .into_tuple::<Option<i64>>()
-            .one(&tx)
-            .await?
-            .flatten();
-        let event =
-            SessionJournalRecord::new(session_id, max_seq.map_or(1, |seq| seq + 1), payload);
+        let event_seq =
+            SessionEventSequenceRepository::allocate_in_transaction(&tx, session_id).await?;
+        let event = SessionJournalRecord::new(session_id, event_seq, payload);
+        Self::insert_in_transaction(&tx, &event).await?;
+        tx.commit().await?;
+
+        Ok(event)
+    }
+
+    pub(crate) async fn insert_in_transaction(
+        tx: &DatabaseTransaction,
+        event: &SessionJournalRecord,
+    ) -> Result<()> {
         let active = crate::db::entities::session_journal_event::ActiveModel {
             event_id: Set(event.event_id.clone()),
             session_id: Set(event.session_id.clone()),
@@ -147,26 +130,9 @@ impl SessionJournalEventRepository {
             created_at: Set(Utc::now()),
         };
         crate::db::entities::session_journal_event::Entity::insert(active)
-            .exec(&tx)
+            .exec(tx)
             .await?;
-        tx.commit().await?;
-
-        Ok(event)
-    }
-
-    /// Return the maximum `event_seq` persisted for `session_id`, or `None`
-    /// when no events exist yet (i.e. `last_event_seq = 0` for a fresh
-    /// session).
-    pub async fn max_event_seq(db: &DbConn, session_id: &str) -> Result<Option<i64>> {
-        let max_seq: Option<i64> = crate::db::entities::session_journal_event::Entity::find()
-            .select_only()
-            .column_as(session_journal_event::Column::EventSeq.max(), "max_seq")
-            .filter(session_journal_event::Column::SessionId.eq(session_id))
-            .into_tuple::<Option<i64>>()
-            .one(db)
-            .await?
-            .flatten();
-        Ok(max_seq)
+        Ok(())
     }
 
     pub async fn max_row_affecting_event_seq(db: &DbConn, session_id: &str) -> Result<Option<i64>> {
@@ -183,7 +149,3 @@ impl SessionJournalEventRepository {
         Ok(max_seq)
     }
 }
-
-// ============================================================================
-// Session Metadata Repository
-// ============================================================================

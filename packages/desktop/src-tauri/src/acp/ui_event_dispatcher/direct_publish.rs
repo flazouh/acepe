@@ -81,14 +81,6 @@ pub(crate) async fn publish_direct_session_update<R: tauri::Runtime>(
         }
     }
 
-    if !super::persistence::update_has_canonical_ingress(&update) {
-        if let Some(session_id) = update.session_id() {
-            projection_registry
-                .inner()
-                .apply_session_update(session_id, &update);
-        }
-    }
-
     let hub = hub_state.inner().clone();
     let db = app.try_state::<DbConn>().map(|state| state.inner().clone());
 
@@ -96,7 +88,7 @@ pub(crate) async fn publish_direct_session_update<R: tauri::Runtime>(
     // apply, envelope build, and event publish for the same session across
     // concurrent Tokio tasks. Without this, the command-handler task (this
     // function) and the streaming-bridge drain task can race on
-    // `SessionJournalEventRepository::append_session_update`'s sequence
+    // `SessionEventWriter::commit_session_update`'s sequence
     // allocation and on `transcript_projection.apply_session_update`, producing
     // out-of-order entry list updates. Concurrent sessions remain parallel
     // because the lock is keyed by `session_id`. Plan: sub-task 1a in

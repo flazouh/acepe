@@ -44,8 +44,8 @@ fn should_update_goldens() -> bool {
         .is_some_and(|value| value == "1")
 }
 
-#[tokio::test]
-async fn cursor_junk_session_persisted_golden_matches_fold_path() {
+#[test]
+fn cursor_junk_session_persisted_golden_matches_fold_path() {
     const SESSION_ID: &str = "c2a34686-f99a-4632-90e2-e036b96124c2";
     const GOLDEN_NAME: &str = GOLDEN_CURSOR_JUNK_NAME;
     const PROJECT_PATH: &str = "/Users/alex/Documents/sandbox";
@@ -58,7 +58,6 @@ async fn cursor_junk_session_persisted_golden_matches_fold_path() {
             session_id: SESSION_ID.to_string(),
             workspace_root: Some(fixture_dir),
         })
-        .await
         .expect("read cursor junk fixture via HistorySource");
 
     let ctx = FoldContext::new(SESSION_ID, CanonicalAgentId::Cursor, PROJECT_PATH);

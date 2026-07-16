@@ -7,6 +7,8 @@
 mod database_reset;
 mod project;
 mod session_config_selection;
+mod session_event_sequence;
+mod session_event_writer;
 mod session_history_enrichment;
 mod session_journal;
 mod session_metadata;
@@ -18,6 +20,8 @@ mod skills;
 pub use database_reset::*;
 pub use project::*;
 pub use session_config_selection::*;
+pub use session_event_sequence::*;
+pub use session_event_writer::*;
 pub use session_history_enrichment::*;
 pub use session_journal::*;
 pub use session_metadata::*;

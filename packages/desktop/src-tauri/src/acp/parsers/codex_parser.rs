@@ -9,13 +9,13 @@ use crate::acp::parsers::types::{
     parse_todo_write, AgentParser, AgentType, ParseError, ParsedQuestion, ParsedTodo,
     ParsedUsageTelemetry, ParsedUsageTokens, UpdateType,
 };
-use crate::acp::session::ingress::tool_identity::providers::codex::CodexAdapter;
-use crate::acp::session::ingress::tool_identity::{
-    canonical_name_for_kind, infer_kind_from_payload_for_agent, web_search_context_signals,
-};
+use crate::acp::parsers::CodexAdapter;
 use crate::acp::session_update::{
     build_tool_call_from_raw, build_tool_call_update_from_raw, tool_call_status_from_str,
     RawToolCallInput, RawToolCallUpdateInput, ToolArguments, ToolCallStatus, ToolKind,
+};
+use crate::acp::tool_identity::{
+    canonical_name_for_kind, infer_kind_from_payload_for_agent, web_search_context_signals,
 };
 
 /// Case-insensitive substring check using ASCII lowering.
