@@ -10,7 +10,7 @@ The inventory also does not prove completeness. It extracts dedicated chunks who
 
 ## Target state
 
-Acepe uses confirmed Linear interface glyphs only. Extraction preserves the source set and runtime evidence needed to distinguish Linear UI chrome from decorative and brand assets. `RoundedIcon` falls back to Acepe's existing glyph whenever there is no exact confirmed Linear interface match. Decorative and brand assets remain available in the inventory for review but cannot silently replace interface icons.
+Acepe uses confirmed interface icon glyphs only. Extraction preserves the source set and runtime evidence needed to distinguish Linear UI chrome from decorative and brand assets. `RoundedIcon` falls back to Acepe's existing glyph whenever there is no exact confirmed interface icon match. Decorative and brand assets remain available in the inventory for review but cannot silently replace interface icons.
 
 Linear visual parity is an explicit goal of this work because the user requested Acepe adopt Linear's interface icon language. Semantic correctness remains the release gate: parity never justifies changing an icon's user intent. Extracted geometry is local-only pending a separate distribution/licensing decision; this plan does not approve publishing Linear assets.
 
@@ -39,7 +39,7 @@ Linear visual parity is an explicit goal of this work because the user requested
 | `scripts/linear-icons/__tests__/` | Add behavior tests for category preservation and deterministic output. |
 | Feature-bundle fixtures and coverage tests | Prove action-label linkage and unsupported syntax accounting. |
 | `scripts/linear-icons/inventory/coverage.json` | Commit the deterministic snapshot-scoped candidate classification report and its hash. |
-| `packages/ui/src/components/icons/rounded-to-linear-map.ts` | Replace total best-effort mapping with an exact confirmed interface mapping. |
+| `packages/ui/src/components/icons/rounded-to-interface-map.ts` | Replace total best-effort mapping with an exact confirmed interface mapping. |
 | `packages/ui/src/components/icons/resolve-rounded-icon-glyph.ts` | Fall back to Acepe geometry when no confirmed match exists. |
 | `packages/ui/src/components/icons/__tests__/` | Prove Base/dedicated use, decorative rejection, brands, and fallback behavior. |
 | Generated catalog and inventory files | Regenerate from corrected source metadata. |
@@ -75,7 +75,7 @@ Verification:
 - Focused icon mapping and resolver tests.
 - UI package icon test suite.
 
-### Phase 3: actual Linear interface evidence
+### Phase 3: actual interface icon evidence
 
 1. Inspect the installed Linear Electron app through macOS Computer Use/accessibility and screenshots. Where the rendered DOM is not directly exposed, correlate the visible control label and geometry with the cached `Root` sprite or dedicated component chunk; do not infer component identity from appearance alone.
 2. Trace observed glyph ids/components back to cached bundle geometry. Record the installed Linear version from `Info.plist`, asset chunk name, geometry hash, Linear surface, visible/control label, and observation method.
@@ -133,7 +133,7 @@ If extraction regeneration becomes unstable, keep the previous generated catalog
 - Manifest entries distinguish `Base`, `Brands`, `Decorative`, dedicated chunks, and shared sources.
 - Active runtime mappings contain no unapproved decorative/brand targets.
 - Unmapped Acepe icons render their original SVG geometry.
-- Confirmed Linear interface icons render Linear geometry.
+- Confirmed Interface icons render Linear geometry.
 - Extraction and generated catalogs are deterministic.
 - Typecheck and focused/full tests pass.
 - Tauri DOM inspection and screenshots prove the design-system catalog and representative app surfaces.
