@@ -4,17 +4,17 @@
 	"description": "A unified desktop interface for interacting with AI agents",
 	"icons": [
 		{
-			"src": "/favicon.svg?v=20260716",
+			"src": "/brand/acepe-mark.svg",
 			"sizes": "any",
 			"type": "image/svg+xml"
 		},
 		{
-			"src": "/favicon-192x192.png?v=20260716",
+			"src": "/brand/acepe-mark-192.png",
 			"sizes": "192x192",
 			"type": "image/png"
 		},
 		{
-			"src": "/favicon-512x512.png?v=20260716",
+			"src": "/brand/acepe-mark-512.png",
 			"sizes": "512x512",
 			"type": "image/png"
 		}

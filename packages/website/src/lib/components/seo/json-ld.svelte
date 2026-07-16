@@ -14,7 +14,7 @@ const organizationSchema = {
 	url: "https://acepe.dev",
 	logo: {
 		"@type": "ImageObject",
-		url: "https://acepe.dev/favicon-512x512.png",
+		url: "https://acepe.dev/brand/acepe-mark-512.png",
 		width: 512,
 		height: 512,
 	},
