@@ -36,11 +36,16 @@ const IGNORE_404_PATHS = [
 const FAVICON_REDIRECTS: Record<string, string> = {
 	"/favicon.ico": "/brand/acepe-mark.ico",
 	"/favicon.svg": "/brand/acepe-mark.svg",
-	"/favicon-16x16.png": "/brand/acepe-mark-16.png",
-	"/favicon-32x32.png": "/brand/acepe-mark-32.png",
-	"/favicon-192x192.png": "/brand/acepe-mark-192.png",
-	"/favicon-512x512.png": "/brand/acepe-mark-512.png",
-	"/apple-touch-icon.png": "/brand/acepe-mark-180.png",
+	"/favicon-16x16.png": "/brand/acepe-a-16.png",
+	"/favicon-32x32.png": "/brand/acepe-a-32.png",
+	"/favicon-192x192.png": "/brand/acepe-a-192.png",
+	"/favicon-512x512.png": "/brand/acepe-a-512.png",
+	"/apple-touch-icon.png": "/brand/acepe-a-180.png",
+	"/brand/acepe-mark-16.png": "/brand/acepe-a-16.png",
+	"/brand/acepe-mark-32.png": "/brand/acepe-a-32.png",
+	"/brand/acepe-mark-180.png": "/brand/acepe-a-180.png",
+	"/brand/acepe-mark-192.png": "/brand/acepe-a-192.png",
+	"/brand/acepe-mark-512.png": "/brand/acepe-a-512.png",
 };
 
 const CORS_HEADERS = {

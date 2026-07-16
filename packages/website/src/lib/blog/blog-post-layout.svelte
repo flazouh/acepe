@@ -53,7 +53,7 @@ const jsonLd = $derived([
 			url: "https://acepe.dev",
 			logo: {
 				"@type": "ImageObject",
-				url: "https://acepe.dev/brand/acepe-mark-512.png",
+				url: "https://acepe.dev/brand/acepe-a-512.png",
 			},
 		},
 		articleSection: metadata.category ?? "Product",
