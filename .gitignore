@@ -142,6 +142,7 @@ packages/website/.mcp.json
 !packages/website/static/svgs/icons/*.svg
 !packages/website/static/brand/
 !packages/website/static/brand/**
+!packages/website/static/images/landing/readme-banner.png
 *.svgz
 *.tif
 *.tiff
