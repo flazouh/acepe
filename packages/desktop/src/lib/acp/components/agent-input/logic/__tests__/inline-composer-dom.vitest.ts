@@ -5,8 +5,11 @@ import {
 	getSerializedCursorOffset,
 	getSerializedSelectionRange,
 	renderInlineComposerMessage,
+	sanitizeInlineComposerText,
+	scrubInlineComposerControlCharacters,
 	serializeInlineComposerMessage,
 	setSerializedCursorOffset,
+	shouldBlockComposerBeforeInput,
 } from "../inline-composer-dom.js";
 
 describe("inline-composer-dom", () => {
@@ -18,6 +21,55 @@ describe("inline-composer-dom", () => {
 		renderInlineComposerMessage(editor, message);
 
 		expect(serializeInlineComposerMessage(editor)).toBe(message);
+	});
+
+	it("strips browser-inserted group-separator control characters from serialized composer text", () => {
+		const editor = document.createElement("div");
+		editor.appendChild(document.createTextNode("hello\u001d\u001d world\u001d"));
+
+		expect(serializeInlineComposerMessage(editor)).toBe("hello world");
+		expect(sanitizeInlineComposerText("\u001d\u001d\u001d")).toBe("");
+		expect(sanitizeInlineComposerText("keep\nthis\tline")).toBe("keep\nthis\tline");
+		expect(
+			sanitizeInlineComposerText("@\u200B[file:a]", { preserveZeroWidthSpace: true })
+		).toBe("@\u200B[file:a]");
+	});
+
+	it("scrubs group-separator control characters from live composer text nodes", () => {
+		const editor = document.createElement("div");
+		editor.appendChild(document.createTextNode("\u001d\u001dhello\u001d"));
+		editor.appendChild(document.createTextNode("\u200B"));
+
+		expect(scrubInlineComposerControlCharacters(editor)).toBe(true);
+		expect(editor.textContent).toBe("hello\u200B");
+		expect(scrubInlineComposerControlCharacters(editor)).toBe(false);
+	});
+
+	it("blocks beforeinput insertText that is only invisible control characters", () => {
+		expect(
+			shouldBlockComposerBeforeInput({
+				inputType: "insertText",
+				data: "\u001d",
+			})
+		).toBe(true);
+		expect(
+			shouldBlockComposerBeforeInput({
+				inputType: "insertText",
+				data: "\u001d\u001d\u001d",
+			})
+		).toBe(true);
+		expect(
+			shouldBlockComposerBeforeInput({
+				inputType: "insertText",
+				data: "a",
+			})
+		).toBe(false);
+		expect(
+			shouldBlockComposerBeforeInput({
+				inputType: "insertParagraph",
+				data: null,
+			})
+		).toBe(false);
 	});
 
 	it("sets and gets serialized cursor offsets across token chips", () => {

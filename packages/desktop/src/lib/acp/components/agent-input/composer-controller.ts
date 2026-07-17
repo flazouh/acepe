@@ -41,8 +41,11 @@ export {
 	getSerializedSelectionRange,
 	getSerializedSelectionEnd,
 	renderInlineComposerMessage,
+	sanitizeInlineComposerText,
+	scrubInlineComposerControlCharacters,
 	serializeInlineComposerMessage,
 	setSerializedCursorOffset,
+	shouldBlockComposerBeforeInput,
 	toInlineTokenText,
 } from "./logic/inline-composer-dom.js";
 export { applyInlineTokenHoverTitles } from "./logic/inline-token-hover-titles.js";

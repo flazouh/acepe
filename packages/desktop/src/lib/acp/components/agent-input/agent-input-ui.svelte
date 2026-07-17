@@ -62,8 +62,11 @@ import {
 	resolveInitialModelIdForNewSession,
 	resolveModeMenuAction,
 	resolveVoiceMicTooltip,
+	sanitizeInlineComposerText,
+	scrubInlineComposerControlCharacters,
 	serializeInlineComposerMessage,
 	setSerializedCursorOffset,
+	shouldBlockComposerBeforeInput,
 	shouldInterruptComposerStream,
 	shouldRouteWindowVoiceHold,
 	shouldShowVoiceOverlay,
@@ -469,6 +472,7 @@ function handleEditorInput(options?: { suppressAutocomplete?: boolean }): void {
 		return;
 	}
 
+	scrubInlineComposerControlCharacters(editorRef);
 	const newMessage = serializeInlineComposerMessage(editorRef);
 	// Only set the flag when the message actually changed — otherwise Svelte
 	// won't schedule the $effect and the flag would get stuck as `true`.
@@ -1176,8 +1180,12 @@ function handleEditorKeyUp(event: KeyboardEvent): void {
 	}
 }
 
-function handleEditorBeforeInput(_event: InputEvent): void {
-	// No-op: voice hold key (Right Option) does not produce text input.
+function handleEditorBeforeInput(event: InputEvent): void {
+	// WebKit can fire insertText with U+001D (group separator) on ArrowRight
+	// inside contenteditable; block those so they never enter the draft.
+	if (shouldBlockComposerBeforeInput(event)) {
+		event.preventDefault();
+	}
 }
 
 function loadSlashCommandWorkspaceMarkdown(input: {
@@ -1227,6 +1235,9 @@ function handleEditorFocus(): void {
 		panelStore.focusPanel(panelId);
 	}
 	kb.setContext("inputFocused", true);
+	if (editorRef && scrubInlineComposerControlCharacters(editorRef)) {
+		handleEditorInput({ suppressAutocomplete: true });
+	}
 }
 
 function handleEditorBlur(): void {
@@ -1612,13 +1623,23 @@ $effect(() => {
 	// re-runs when it changes, but skip the expensive DOM re-serialization
 	// when handleEditorInput already synced the DOM on this microtask.
 	const _message = inputState.message;
+	const cleanedMessage = sanitizeInlineComposerText(_message, {
+		preserveZeroWidthSpace: true,
+	});
+	if (cleanedMessage !== _message) {
+		inputState.message = cleanedMessage;
+		return;
+	}
+	const scrubbedDom = scrubInlineComposerControlCharacters(editorRef);
 	if (editorJustSynced) {
 		editorJustSynced = false;
-		return;
+		if (!scrubbedDom) {
+			return;
+		}
 	}
 
 	const domMessage = serializeInlineComposerMessage(editorRef);
-	if (domMessage === _message) {
+	if (domMessage === _message && !scrubbedDom) {
 		return;
 	}
 	const cursorPos = Math.min(getSerializedCursorOffset(editorRef), _message.length);
