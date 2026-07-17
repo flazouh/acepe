@@ -18,7 +18,7 @@ import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { ResultAsync } from "neverthrow";
 import { tick } from "svelte";
-import { buildQueueItemQuestionUiState } from "$lib/acp/components/queue/queue-item-question-ui-state.js";
+import { buildQueueItemQuestionUiState } from "$lib/acp/components/session-attention/question-ui-state.js";
 import PrStateIcon from "$lib/acp/components/pr-state-icon.svelte";
 import { toast } from "svelte-sonner";
 import { copyTextToClipboard } from "$lib/acp/components/agent-panel/logic/clipboard-manager.js";
@@ -660,6 +660,7 @@ function handleNextQuestion() {
 		? 'opacity-100'
 		: 'opacity-55'}"
 	style="padding-left: {paddingLeft}; padding-right: {paddingLeft}"
+	data-testid="session-list-item"
 	data-session-id={session.id}
 	onpointerenter={(e) => {
 		isRowHovered = true;
@@ -700,7 +701,8 @@ function handleNextQuestion() {
 						</span>
 					{:else if showSessionFinishedIndicator}
 						<span
-							class="inline-flex h-4 w-4 shrink-0 items-center justify-center text-success"
+							class="inline-flex h-4 w-4 shrink-0 items-center justify-center"
+							style="color: var(--cursor-status-success)"
 							aria-label="Ready for review"
 							title="Ready for review"
 							data-testid="session-item-finished-indicator"

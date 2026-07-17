@@ -2,9 +2,9 @@
   NewChatDialog — the app-wide "new chat" modal (the new-session composer dialog).
 
   Extracted from kanban-view so it can be mounted once at the app shell and opened
-  from any new-thread entry point (sidebar "New chat", per-project +, ⌘T, kanban
-  columns) via `appState.onNewThreadOverride`. Self-contained: owns its composer
-  state and creates sessions through panelStore.
+  from global new-thread entry points (sidebar "New chat", ⌘N/⌘T, kanban columns)
+  via `appState.onNewThreadOverride`. Per-project "+" spawns a panel directly.
+  Self-contained: owns its composer state and creates sessions through panelStore.
 
   The composer renders the standard new-thread SETUP BAR (project / agent / branch /
   worktree chips) via AgentInput's `newThreadContext`, so it matches the empty-panel

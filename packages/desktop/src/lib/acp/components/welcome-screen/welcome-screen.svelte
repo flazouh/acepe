@@ -18,9 +18,9 @@ import {
 	resolveIssueActionLabel,
 } from "$lib/errors/issue-report.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
-import type { ProjectWithSessions } from "../add-repository/open-project-dialog-props.js";
 
 import {
+	type ProjectWithSessions,
 	shouldShowDiscoveredProject,
 	sortProjectsBySessionCount,
 } from "../add-repository/project-discovery.js";

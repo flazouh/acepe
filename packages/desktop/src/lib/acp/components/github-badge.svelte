@@ -5,7 +5,6 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import type { GitHubReference } from "../constants/github-badge-html.js";
 import { getGitHubURL } from "../constants/github-badge-html.js";
 import { fetchCommitDiff, fetchPrDiff } from "../services/github-service.js";
-import { getPanelStore } from "../store/panel-store.svelte.js";
 import {
 	enhanceGitHubReference,
 	getGitHubBadgeCopyText,
@@ -23,8 +22,6 @@ interface Props {
 }
 
 let { ref, repoContext, projectPath }: Props = $props();
-
-const panelStore = getPanelStore();
 
 const enhancedRef = $derived.by(() => {
 	return enhanceGitHubReference(ref, repoContext);
@@ -125,20 +122,6 @@ function handleClick(e: MouseEvent) {
 	e.stopPropagation();
 	if ((e.target as HTMLElement).closest(".github-badge-action-btn")) return;
 	ensureStatsLoaded();
-	if (enhancedRef.type === "issue" || !projectPath) return;
-
-	if (enhancedRef.type === "pr") {
-		panelStore.openGitDialog(projectPath, undefined, {
-			section: "prs",
-			prNumber: enhancedRef.number,
-		});
-		return;
-	}
-
-	panelStore.openGitDialog(projectPath, undefined, {
-		section: "commits",
-		commitSha: enhancedRef.sha,
-	});
 }
 
 function handleOpenInBrowser(e: MouseEvent) {

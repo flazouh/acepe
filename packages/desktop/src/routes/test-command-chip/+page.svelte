@@ -30,12 +30,9 @@ import {
 	KanbanSceneBoard,
 	LayoutModeIcon,
 	PrChecksList,
-	SectionedFeed,
 	type KanbanSceneCardData,
 	type KanbanSceneColumnGroup,
 	type PrChecksItem,
-	type SectionedFeedGroup,
-	type SectionedFeedItemData,
 } from "@acepe/ui";
 import { FeedSectionHeader } from "@acepe/ui/attention-queue";
 import { Button } from "@acepe/ui/button";
@@ -321,14 +318,6 @@ const questionTabFixture: AppTab = {
 	isFocused: true,
 	tooltipText: "Waiting for user input",
 };
-
-const codeFeedGroups: SectionedFeedGroup<SectionedFeedItemData>[] = [
-	{
-		id: "needs_review",
-		label: "Needs review",
-		items: [{}],
-	},
-];
 
 const codeKanbanCard: KanbanSceneCardData = {
 	id: "plan-approval-code-fixture",
@@ -928,13 +917,6 @@ const commandPaletteItems: CommandPaletteItem[] = [
 			onDismiss={() => {}}
 			onRetry={() => {}}
 		/>
-	</div>
-	<div class="w-[300px] border border-border/40 p-2" data-testid="feed-section-code-fixture">
-		<SectionedFeed groups={codeFeedGroups} totalCount={1} expanded={true}>
-			{#snippet itemRenderer(_item)}
-				<div class="px-2 py-1 text-[10px] text-muted-foreground">Review item</div>
-			{/snippet}
-		</SectionedFeed>
 	</div>
 	<div class="w-[300px] border border-border/40 p-2" data-testid="feed-section-eye-fixture">
 		<FeedSectionHeader sectionId="needs_review" label="Needs review" count={1} color="#88c0d0" />

@@ -1,27 +1,29 @@
-import { Colors } from "../../lib/colors.js";
 import type { SectionedFeedSectionId } from "./types.js";
 
+/**
+ * Status colors for attention / kanban section accents.
+ *
+ * Uses the Cursor theme status palette from
+ * `packages/desktop/static/themes/cursor*.theme.json` via CSS vars
+ * (`--cursor-status-*`), not the bright TAG_COLORS rainbow.
+ */
 export function sectionColor(id: SectionedFeedSectionId): string {
 	switch (id) {
 		case "answer_needed":
-			return Colors.orange;
+			return "var(--cursor-status-warning)";
 		case "planning":
-			return Colors.purple;
+			return "var(--muted-foreground)";
 		case "working":
-			return Colors.blue;
+			return "var(--muted-foreground)";
 		case "needs_review":
-			return Colors.pink;
+			return "var(--cursor-status-success)";
 		case "idle":
-			return "var(--success-reference)";
+			return "var(--muted-foreground)";
 		case "error":
-			return Colors.red;
+			return "var(--cursor-status-error)";
 	}
 }
 
 export function sectionAccentColor(id: SectionedFeedSectionId): string {
-	if (id === "needs_review") {
-		return Colors.purple;
-	}
-
 	return sectionColor(id);
 }

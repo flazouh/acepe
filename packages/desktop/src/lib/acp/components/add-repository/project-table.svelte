@@ -11,7 +11,7 @@ import { cn } from "$lib/utils.js";
 
 import ActionsCell from "./cells/actions-cell.svelte";
 import AgentCountsCell from "./cells/agent-counts-cell.svelte";
-import type { ProjectWithSessions } from "./open-project-dialog-props.js";
+import type { ProjectWithSessions } from "./project-discovery.js";
 
 interface Props {
 	projects: ProjectWithSessions[];

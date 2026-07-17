@@ -1,5 +1,5 @@
 /**
- * Queue types - Type definitions for the cross-project session queue.
+ * Session attention types - Type definitions for live sessions needing attention.
  */
 
 import type { SessionStatus } from "../../application/dto/session-status.js";
@@ -17,9 +17,11 @@ import type { SessionWorkBucket } from "../session-work-projection.js";
 import type { UrgencyInfo } from "../urgency.js";
 
 /**
- * Queue item representing a live session in the queue.
+ * Session attention item representing a live session that may need user attention.
+ *
+ * @alias QueueItem kept for backward compatibility during migration.
  */
-export interface QueueItem {
+export interface SessionAttentionItem {
 	/** Session ID */
 	readonly sessionId: string;
 	/** Panel ID if session is open in a panel, null otherwise */
@@ -84,3 +86,6 @@ export interface QueueItem {
 	 */
 	readonly state: SessionState;
 }
+
+/** @alias SessionAttentionItem kept for backward compatibility. */
+export type QueueItem = SessionAttentionItem;

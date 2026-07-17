@@ -1,5 +1,5 @@
 /**
- * Queue utilities - Helper functions for building queue items.
+ * Session attention utilities - Helper functions for building session attention items.
  */
 
 import type { SessionStatus } from "../../application/dto/session-status.js";
@@ -32,15 +32,6 @@ import {
 import type { UrgencyInfo } from "../urgency.js";
 import { deriveUrgency } from "../urgency.js";
 import type { QueueItem } from "./types.js";
-
-// Re-export section utilities from queue-section-utils.ts (kept separate for testability)
-export {
-	classifyItem,
-	groupIntoSections,
-	isNeedsReview,
-	type QueueSectionGroup,
-	type QueueSectionId,
-} from "./queue-section-utils.js";
 
 export interface QueueSessionSnapshot {
 	readonly id: string;
@@ -84,20 +75,8 @@ export interface BuildQueueSessionSnapshotInput {
 	> &
 		Partial<Pick<SessionOperationInteractionSnapshot, "pendingComputerPermission">>;
 	readonly hasUnseenCompletion: boolean;
+	readonly hasLocalPendingSendIntent?: boolean;
 	readonly sequenceId: number | null;
-}
-
-/**
- * Calculate total insertions and deletions for a session.
- * Uses checkpoint data only; returns 0/0 when checkpoints lack stats.
- */
-function computeSessionDiffStats(session: QueueSessionSnapshot): {
-	insertions: number;
-	deletions: number;
-} {
-	const checkpoints = checkpointStore.getCheckpoints(session.id);
-	const stats = computeStatsFromCheckpoints(checkpoints);
-	return stats ?? { insertions: 0, deletions: 0 };
 }
 
 /**
@@ -148,12 +127,14 @@ export function buildQueueSessionSnapshot(
 		currentModeId: input.currentModeId,
 		interactionSnapshot: input.interactionSnapshot,
 		hasUnseenCompletion: input.hasUnseenCompletion,
+		hasLocalPendingSendIntent: input.hasLocalPendingSendIntent ?? false,
 	});
 	const workProjection = deriveLiveSessionWorkProjection({
 		source: input.liveSessionSource,
 		currentModeId: input.currentModeId,
 		interactionSnapshot: input.interactionSnapshot,
 		hasUnseenCompletion: input.hasUnseenCompletion,
+		hasLocalPendingSendIntent: input.hasLocalPendingSendIntent ?? false,
 	});
 
 	return {
@@ -176,6 +157,19 @@ export function buildQueueSessionSnapshot(
 		activeTurnFailure: input.activeTurnFailure,
 		sequenceId: input.sequenceId,
 	};
+}
+
+/**
+ * Calculate total insertions and deletions for a session.
+ * Uses checkpoint data only; returns 0/0 when checkpoints lack stats.
+ */
+function computeSessionDiffStats(session: QueueSessionSnapshot): {
+	insertions: number;
+	deletions: number;
+} {
+	const checkpoints = checkpointStore.getCheckpoints(session.id);
+	const stats = computeStatsFromCheckpoints(checkpoints);
+	return stats ?? { insertions: 0, deletions: 0 };
 }
 
 /**

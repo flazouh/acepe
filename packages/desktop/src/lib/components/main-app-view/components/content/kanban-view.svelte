@@ -27,10 +27,10 @@ import {
 	getUnseenStore,
 } from "$lib/acp/store/index.js";
 import { getQuestionSelectionStore } from "$lib/acp/store/question-selection-store.svelte.js";
-import { buildQueueItemQuestionUiState } from "$lib/acp/components/queue/queue-item-question-ui-state.js";
+import { buildQueueItemQuestionUiState } from "$lib/acp/components/session-attention/question-ui-state.js";
 import type { SessionOperationInteractionSnapshot } from "$lib/acp/store/operation-association.js";
 import { CanonicalModeId } from "$lib/acp/types/canonical-mode-id.js";
-import { buildQueueItem, calculateSessionUrgency } from "$lib/acp/store/queue/utils.js";
+import { buildQueueItem, calculateSessionUrgency } from "$lib/acp/store/session-attention/utils.js";
 import { buildThreadBoard } from "$lib/acp/store/thread-board/build-thread-board.js";
 import type {
 	ThreadBoardItem,
@@ -364,18 +364,6 @@ function handleCardClick(cardId: string) {
 	applyCompletionAttentionAction(unseenStore, item.panelId, { kind: "explicit-reveal" });
 	activeDialogMode = "inspect";
 	activeDialogPanelId = item.panelId;
-}
-
-function handlePrFooterOpen(cardId: string): void {
-	const item = itemLookup.get(cardId);
-	if (!item || item.linkedPr == null) {
-		return;
-	}
-
-	panelStore.openGitDialog(item.projectPath, undefined, {
-		section: "prs",
-		prNumber: item.linkedPr.prNumber,
-	});
 }
 
 function handlePrFooterOpenExternal(cardId: string): void {
@@ -758,7 +746,6 @@ function handleRejectPlanApproval(sessionId: string): void {
 			onQuestionNext={handleNextQuestion}
 			onPlanApprove={handleApprovePlanApproval}
 			onPlanReject={handleRejectPlanApproval}
-			onPrFooterOpen={handlePrFooterOpen}
 			onPrFooterOpenExternal={handlePrFooterOpenExternal}
 		>
 			{#snippet columnHeaderActions(columnId)}

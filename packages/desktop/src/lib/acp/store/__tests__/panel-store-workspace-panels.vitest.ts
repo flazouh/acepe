@@ -5,24 +5,6 @@ import type { AgentStore } from "../agent-store.svelte.js";
 import { PanelStore } from "../panel-store.svelte.js";
 import type { SessionStore } from "../session-store.svelte.js";
 
-type GitDialogCapableStore = PanelStore & {
-	openGitDialog: (
-		projectPath: string,
-		width?: number
-	) => {
-		id: string;
-		projectPath: string;
-		width: number;
-		initialTarget?: undefined;
-	};
-	gitDialog: {
-		id: string;
-		projectPath: string;
-		width: number;
-		initialTarget?: undefined;
-	} | null;
-};
-
 let originalLocalStorageDescriptor: PropertyDescriptor | undefined;
 
 function createStore(): PanelStore {
@@ -931,25 +913,6 @@ describe("PanelStore workspacePanels", () => {
 			secondGroup.id,
 		]);
 		expect(store.getTerminalPanelGroupsForProject("/tmp/missing")).toEqual([]);
-	});
-
-	it("opens source control as a dialog without creating a workspace panel", () => {
-		const store = createStore() as GitDialogCapableStore;
-
-		store.viewMode = "project";
-		store.focusedViewProjectPath = "/tmp/project-a";
-
-		const gitDialog = store.openGitDialog("/tmp/project-b");
-
-		expect(store.workspacePanels).toHaveLength(0);
-		expect(store.focusedPanelId).toBeNull();
-		expect(store.focusedViewProjectPath).toBe("/tmp/project-b");
-		expect(store.gitDialog).toEqual({
-			id: gitDialog.id,
-			projectPath: "/tmp/project-b",
-			width: gitDialog.width,
-			initialTarget: undefined,
-		});
 	});
 
 	it("hydrates panel metadata when attaching a session", () => {

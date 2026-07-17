@@ -4,13 +4,14 @@ import {
 	ProjectHeader,
 	ProjectHeaderOverflowMenu,
 } from "@acepe/ui/app-layout";
-import { HugeiconsIcon } from "@acepe/ui";
+import { HugeiconsIcon, panelRevealIn, panelRevealOut } from "@acepe/ui";
 import { tick } from "svelte";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import type { SessionDisplayItem } from "$lib/acp/types/thread-display-item.js";
 import { Button } from "$lib/components/ui/button/index.js";
 import { ProjectCardSkeleton, SessionListSkeleton } from "$lib/components/ui/skeleton/index.js";
 import type { AgentInfo } from "../../logic/agent-manager.js";
+import type { SessionAttentionEntry } from "../../store/session-attention/index.js";
 import {
 	getSidebarSessions,
 	getNextSessionListVisibleCount,
@@ -39,6 +40,8 @@ interface Props {
 	scanning?: boolean;
 	/** Initial collapsed project paths for persistence */
 	initialCollapsedProjectPaths?: string[];
+	/** Open sessions that solicit attention when their project group is collapsed. */
+	attentionBySessionId?: ReadonlyMap<string, SessionAttentionEntry>;
 	onProjectColorChange?: (projectPath: string, color: string) => void;
 	onChangeProjectIcon?: (projectPath: string) => void;
 	onResetProjectIcon?: (projectPath: string) => void;
@@ -58,8 +61,6 @@ interface Props {
 	onSelectFile?: (filePath: string, projectPath: string) => void;
 	/** Called when collapsed project paths change (for persistence) */
 	onCollapsedProjectPathsChange?: (paths: string[]) => void;
-	/** Called when git panel button is clicked for a project */
-	onOpenGitPanel?: (projectPath: string) => void;
 	/** Called when PR badge is clicked on a session row */
 	onOpenPr?: (item: SessionListItem) => void;
 	/** Called when user archives a session from the sidebar */
@@ -90,6 +91,7 @@ let {
 	shortcutKeys: _shortcutKeys = ["⌘", "N"],
 	scanning = false,
 	initialCollapsedProjectPaths = [],
+	attentionBySessionId = new Map(),
 	onProjectColorChange,
 	onChangeProjectIcon,
 	onResetProjectIcon,
@@ -103,7 +105,6 @@ let {
 	onProjectClick,
 	onSelectFile,
 	onCollapsedProjectPathsChange,
-	onOpenGitPanel,
 	onOpenPr,
 	onArchiveSession,
 	onRenameSession,
@@ -231,6 +232,12 @@ function getVisibleSessionsForProject(group: SessionGroup): SessionListItem[] {
 		visibleSessionCounts.get(group.projectPath)
 	);
 	return sidebarSessions.slice(0, visibleCount);
+}
+
+function getAttentionRevealSessionsForProject(group: SessionGroup): SessionListItem[] {
+	return getFilteredSidebarSessionsForProject(group).filter((session) =>
+		attentionBySessionId.has(session.id)
+	);
 }
 
 function ensureSessionListOverflow(projectPath: string, totalSessions: number): void {
@@ -562,6 +569,36 @@ async function handleProjectContextMove(projectPath: string, offset: -1 | 1): Pr
 									/>
 								{/if}
 							</div>
+						{:else}
+							{@const revealSessions = getAttentionRevealSessionsForProject(group)}
+							{#if revealSessions.length > 0}
+								<div
+									class="sidebar-attention-reveal min-h-0 overflow-hidden pb-1"
+									data-sidebar-attention-reveal
+									data-project-path={group.projectPath}
+								>
+									{#each revealSessions as session (session.id)}
+										<div
+											class="sidebar-attention-reveal__row"
+											data-sidebar-attention-session={session.id}
+											in:panelRevealIn
+											out:panelRevealOut
+										>
+											<VirtualizedSessionList
+												sessions={[session]}
+												{selectedSessionId}
+												onSelectSession={handleSessionSelect}
+												{onOpenPr}
+												onArchive={onArchiveSession}
+												{onRenameSession}
+												{onCopyTranscriptMarkdown}
+												{onCopyTranscriptJson}
+												{onOpenTranscriptInAcepe}
+											/>
+										</div>
+									{/each}
+								</div>
+							{/if}
 						{/if}
 					{/snippet}
 				</AppSidebarProjectGroup>

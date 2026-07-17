@@ -35,7 +35,6 @@ describe("KeybindingManager", () => {
 		| "handleClosePanel"
 		| "debugPanelOpen"
 		| "sidebarOpen"
-		| "toggleFileExplorer"
 	>;
 	type KeybindingsServiceLike = Pick<KeybindingsService, "upsertAction">;
 	type SelectorRegistryLike = Pick<SelectorRegistry, "toggleFocused" | "cycleFocused">;
@@ -55,7 +54,6 @@ describe("KeybindingManager", () => {
 			handleClosePanel: mock(() => {}),
 			debugPanelOpen: false,
 			sidebarOpen: false,
-			toggleFileExplorer: mock(() => {}),
 		};
 
 		upsertActionMock = mock<(action: Action) => void>(() => {});

@@ -10,8 +10,8 @@ import { getWorktreeProjectDefaultStore } from "$lib/acp/components/worktree/wor
 import { Button } from "$lib/components/ui/button/index.js";
 import { HugeiconsIcon } from "@acepe/ui";
 import { getErrorCauseDetails } from "$lib/acp/errors/error-cause-details.js";
-import type { ProjectWithSessions } from "$lib/acp/components/add-repository/open-project-dialog-props.js";
 import {
+	type ProjectWithSessions,
 	shouldShowDiscoveredProject,
 	sortProjectsBySessionCount,
 } from "$lib/acp/components/add-repository/project-discovery.js";

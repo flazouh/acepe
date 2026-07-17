@@ -79,8 +79,6 @@ pub enum UserSettingKey {
     GitMergeStrategyPreference,
     /// Set of dismissed tooltip keys (JSON array of string keys)
     DismissedTooltips,
-    /// Whether the attention queue panel is shown in the sidebar (boolean)
-    AttentionQueueEnabled,
     /// Whether analytics providers should be disabled for this install (boolean)
     AnalyticsOptOut,
     /// User's preferred default agent ID for new sessions
@@ -134,7 +132,6 @@ impl UserSettingKey {
             UserSettingKey::GitTextGenerationAgent => "git_text_generation_agent",
             UserSettingKey::GitMergeStrategyPreference => "git_merge_strategy_preference",
             UserSettingKey::DismissedTooltips => "dismissed_tooltips",
-            UserSettingKey::AttentionQueueEnabled => "attention_queue_enabled",
             UserSettingKey::AnalyticsOptOut => "analytics_opt_out",
             UserSettingKey::DefaultAgentId => "default_agent_id",
             UserSettingKey::UiFontSize => "ui_font_size",
@@ -198,7 +195,6 @@ mod tests {
             "voice_enabled",
             "git_text_generation_agent",
             "dismissed_tooltips",
-            "attention_queue_enabled",
             "analytics_opt_out",
             "default_agent_id",
             "ui_font_size",

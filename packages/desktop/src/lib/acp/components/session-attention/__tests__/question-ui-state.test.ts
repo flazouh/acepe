@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import type { QuestionRequest } from "$lib/acp/types/question.js";
-import { buildQueueItemQuestionUiState } from "../queue-item-question-ui-state.js";
+import { buildQueueItemQuestionUiState } from "../question-ui-state.js";
 
 const COLORS = ["#1", "#2", "#3", "#4"];
 
@@ -114,5 +114,52 @@ describe("buildQueueItemQuestionUiState", () => {
 		expect(state.isSingleQuestionSingleSelect).toBe(true);
 		expect(state.showSubmitButton).toBe(true);
 		expect(state.otherText).toBe("custom");
+	});
+
+	it("keeps the freeform input visible for single-select questions", () => {
+		const QUESTION_COLORS = ["#7c3aed", "#22c55e", "#f97316", "#ec4899"];
+
+		const selectionReader = {
+			hasSelections() {
+				return false;
+			},
+			isOptionSelected() {
+				return false;
+			},
+			isOtherActive() {
+				return false;
+			},
+			getOtherText() {
+				return "";
+			},
+		};
+
+		const singleSelectQuestion: QuestionRequest = {
+			id: "question-1",
+			sessionId: "session-1",
+			questions: [
+				{
+					header: "Project type",
+					question: "What kind of project are you currently working on?",
+					multiSelect: false,
+					options: [
+						{
+							label: "Web app",
+							description: "A frontend or full-stack web application.",
+						},
+					],
+				},
+			],
+		};
+
+		const state = buildQueueItemQuestionUiState({
+			pendingQuestion: singleSelectQuestion,
+			questionId: "tool-call-1",
+			currentQuestionIndex: 0,
+			questionColors: QUESTION_COLORS,
+			selectionReader,
+		});
+
+		expect(state.showOtherInput).toBe(true);
 	});
 });

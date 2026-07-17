@@ -72,6 +72,12 @@ describe("ProjectHeaderOverflowMenu", () => {
 			key: "ArrowRight",
 			code: "ArrowRight",
 		});
+		expect(await screen.findByText("External CLI")).not.toBeNull();
+		expect(
+			screen.getByRole("button", {
+				name: "Hide sessions started outside Acepe from this project list.",
+			})
+		).not.toBeNull();
 		await fireEvent.click(
 			await screen.findByRole("switch", { name: "Hide external CLI sessions" })
 		);

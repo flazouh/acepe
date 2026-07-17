@@ -78,14 +78,7 @@ export {
 	QuestionSelectionStore,
 } from "./question-selection-store.svelte.js";
 export { createQuestionStore, getQuestionStore, QuestionStore } from "./question-store.svelte.js";
-export type { QueueItem } from "./queue/index.js";
-// Queue store
-export {
-	createQueueStore,
-	getQueueStore,
-	type QueueStore,
-	type QueueUpdateInput,
-} from "./queue/index.js";
+export type { QueueItem } from "./session-attention/index.js";
 export {
 	createReviewPreferenceStore,
 	getReviewPreferenceStore,

@@ -146,10 +146,6 @@ export type UserSettingKey =
  */
 "dismissed_tooltips" |
 /**
- * Whether the attention queue panel is shown in the sidebar (boolean)
- */
-"attention_queue_enabled" |
-/**
  * Whether analytics providers should be disabled for this install (boolean)
  */
 "analytics_opt_out" |
@@ -165,3 +161,4 @@ export type UserSettingKey =
  * Code/diff font size in px (stored as integer string, e.g. "13")
  */
 "code_font_size"
+

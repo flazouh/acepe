@@ -13,7 +13,6 @@ import type { MainAppViewState } from "../../logic/main-app-view-state.svelte.js
 interface Props {
 	state: MainAppViewState;
 	projectManager: ProjectManager;
-	onOpenGitPanel?: (projectPath: string) => void;
 	updaterState?: UpdaterBannerState;
 	onUpdateClick?: () => void;
 	onRetryUpdateClick?: () => void;
@@ -22,7 +21,6 @@ interface Props {
 let {
 	state: appState,
 	projectManager,
-	onOpenGitPanel,
 	updaterState,
 	onUpdateClick,
 	onRetryUpdateClick,

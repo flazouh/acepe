@@ -37,10 +37,7 @@ import {
 import { PanelAgentState } from "./panel-agent-state.svelte.js";
 import { PanelBrowserState } from "./panel-browser-state.svelte.js";
 import { PanelFileState } from "./panel-file-state.svelte.js";
-import {
-	PanelGitState,
-	type GitDialogState,
-} from "./panel-git-state.svelte.js";
+import { PanelGitState } from "./panel-git-state.svelte.js";
 import { PanelHotStateStore } from "./panel-hot-state.svelte.js";
 import { PanelReviewState } from "./panel-review-state.svelte.js";
 import { PanelTerminalState } from "./panel-terminal-state.svelte.js";
@@ -48,7 +45,7 @@ import type {
 	OpenProjectFileSystemDialogOptions,
 	ProjectFileSystemDialogState,
 } from "./project-file-system-dialog-state.js";
-import type { GitPanel, GitPanelInitialTarget } from "./git-panel-type.js";
+import type { GitPanel } from "./git-panel-type.js";
 import type { ReviewPanel } from "./review-panel-type.js";
 import type { SessionStore } from "./session-store.svelte.js";
 import type {
@@ -427,13 +424,6 @@ export class PanelStore {
 			getWorkspacePanels: () => this.workspacePanels,
 			setWorkspacePanels: (panels) => this.setWorkspacePanels(panels),
 			onPersist: () => this.onPersist(),
-			getViewMode: () => this.viewMode,
-			setFocusedViewProjectPath: (projectPath) => {
-				this.focusedViewProjectPath = projectPath;
-			},
-			setScrollX: (scrollX) => {
-				this.scrollX = scrollX;
-			},
 			captureTopLevelPanelCloseState: (closedPanelId) =>
 				this.captureTopLevelPanelCloseState(closedPanelId),
 			applyTopLevelPanelCloseState: (closeState) =>
@@ -966,10 +956,6 @@ export class PanelStore {
 
 	get gitPanelCount(): number {
 		return this.gitState.gitPanelCount;
-	}
-
-	get gitDialog(): GitDialogState | null {
-		return this.gitState.gitDialog;
 	}
 
 	get browserPanelCount(): number {
@@ -1734,24 +1720,6 @@ export class PanelStore {
 	// ============================================
 	// GIT DIALOG MANAGEMENT
 	// ============================================
-
-	/**
-	 * Open source control in a single dialog for a project.
-	 */
-	openGitDialog(
-		projectPath: string,
-		width?: number,
-		initialTarget?: GitPanelInitialTarget
-	): GitDialogState {
-		return this.gitState.openGitDialog(projectPath, width, initialTarget);
-	}
-
-	/**
-	 * Close the source control dialog.
-	 */
-	closeGitDialog(): void {
-		this.gitState.closeGitDialog();
-	}
 
 	// ============================================
 	// BROWSER PANEL MANAGEMENT

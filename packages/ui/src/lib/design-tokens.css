@@ -23,6 +23,21 @@
 	/** Level meter endpoints — use app theme success/destructive at runtime */
 	--token-level-fill-low: var(--success);
 	--token-level-fill-high: var(--destructive);
+	/**
+	 * Cursor status palette — sourced from packages/desktop/static/themes/cursor*.theme.json
+	 * (editorError / editorWarning / gitDecoration.addedResourceForeground).
+	 * Used for session attention icons; keep in sync with those theme files.
+	 */
+	--token-cursor-status-error-dark: #bf616a;
+	--token-cursor-status-warning-dark: #ebcb8b;
+	--token-cursor-status-success-dark: #a3be8c;
+	--token-cursor-status-error-light: #dc2626;
+	--token-cursor-status-warning-light: #eab308;
+	--token-cursor-status-success-light: #22c55e;
+	/** Runtime aliases — apps may remap for light/dark; defaults match Cursor dark. */
+	--cursor-status-error: var(--token-cursor-status-error-dark);
+	--cursor-status-warning: var(--token-cursor-status-warning-dark);
+	--cursor-status-success: var(--token-cursor-status-success-dark);
 	/** Default floating surface layer. Desktop overrides this above app-shell overlays. */
 	--overlay-z: 50;
 	/** Badge icon background when showing a project image (neutral, not project color) */

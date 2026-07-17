@@ -515,8 +515,6 @@ export interface PersistedWorkspaceState {
 	readonly focusedViewProjectPath?: string | null;
 	/** Project paths whose sidebar cards are collapsed */
 	readonly collapsedProjectPaths?: readonly string[];
-	/** Whether the attention queue card is expanded (defaults to true) */
-	readonly queueExpanded?: boolean;
 }
 
 export interface PersistedWorkspaceRestoreState extends PersistedWorkspaceState {

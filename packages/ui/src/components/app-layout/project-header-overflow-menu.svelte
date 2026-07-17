@@ -1,6 +1,7 @@
 <script lang="ts">
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import * as Popover from "../popover/index.js";
+	import * as Tooltip from "../tooltip/index.js";
 	import { Button } from "../button/index.js";
 	import { HugeiconsIcon, type HugeiconsIconName } from "../icons/index.js";
 	import { Selector, SelectorItem } from "../selector/index.js";
@@ -28,6 +29,8 @@
 		readonly kind: "toggle";
 		readonly id: string;
 		readonly label: string;
+		readonly ariaLabel: string;
+		readonly info: string;
 		readonly icon: HugeiconsIconName;
 		readonly checked: boolean;
 		readonly onToggle: (checked: boolean) => void;
@@ -70,6 +73,8 @@
 		hideExternalCliSessions?: boolean;
 		onHideExternalCliSessionsChange?: (hide: boolean) => void;
 		hideExternalCliSessionsLabel?: string;
+		hideExternalCliSessionsAriaLabel?: string;
+		hideExternalCliSessionsInfo?: string;
 	}
 
 	let {
@@ -86,7 +91,9 @@
 		onChangeProjectIcon,
 		hideExternalCliSessions = false,
 		onHideExternalCliSessionsChange,
-		hideExternalCliSessionsLabel = "Hide external CLI sessions",
+		hideExternalCliSessionsLabel = "External CLI",
+		hideExternalCliSessionsAriaLabel = "Hide external CLI sessions",
+		hideExternalCliSessionsInfo = "Hide sessions started outside Acepe from this project list.",
 	}: Props = $props();
 
 	let menuOpen = $state(false);
@@ -214,12 +221,14 @@
 			return null;
 		}
 
-		return createMenuSection("visibility", "Visibility", "eye", "min-w-[220px]", [
+		return createMenuSection("visibility", "Visibility", "eye", "min-w-[170px]", [
 			createMenuGroup("visibility", [
 				{
 					kind: "toggle",
 					id: "hide-external-cli-sessions",
 					label: hideExternalCliSessionsLabel,
+					ariaLabel: hideExternalCliSessionsAriaLabel,
+					info: hideExternalCliSessionsInfo,
 					icon: "terminal",
 					checked: hideExternalCliSessions,
 					onToggle: (checked) => {
@@ -342,14 +351,33 @@
 			onclick={(event) => handleToggleRowClick(event, entry)}
 			onkeydown={(event) => event.stopPropagation()}
 		>
-			<HugeiconsIcon name={entry.icon} class="shrink-0 text-muted-foreground" />
+			<HugeiconsIcon name={entry.icon} class="size-3 shrink-0 text-muted-foreground" />
 			<span class="min-w-0 flex-1 truncate">{entry.label}</span>
+			<Tooltip.Root>
+				<Tooltip.Trigger>
+					{#snippet child({ props })}
+						<button
+							{...props}
+							type="button"
+							aria-label={entry.info}
+							class="flex size-4 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+							onclick={(event) => event.stopPropagation()}
+							onkeydown={(event) => event.stopPropagation()}
+						>
+							<HugeiconsIcon name="question-circle" class="size-3.5" />
+						</button>
+					{/snippet}
+				</Tooltip.Trigger>
+				<Tooltip.Content side="top" class="max-w-[16rem] leading-relaxed font-normal">
+					{entry.info}
+				</Tooltip.Content>
+			</Tooltip.Root>
 			<Switch
 				checked={entry.checked}
 				onCheckedChange={(checked) => {
 					entry.onToggle(checked === true);
 				}}
-				aria-label={entry.label}
+				aria-label={entry.ariaLabel}
 			/>
 		</div>
 	{:else if entry.kind === "color-submenu"}

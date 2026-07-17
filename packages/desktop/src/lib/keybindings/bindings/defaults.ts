@@ -173,16 +173,6 @@ export const DEFAULT_KEYBINDINGS: Keybinding[] = [
 	},
 
 	// ============================================
-	// File Explorer Actions
-	// ============================================
-	{
-		key: "$mod+i",
-		command: KEYBINDING_ACTIONS.FILE_EXPLORER_TOGGLE,
-		when: "!settingsOpen && !modalOpen",
-		source: "default",
-	},
-
-	// ============================================
 	// View Actions (suppressed when settings is open)
 	// ============================================
 	{

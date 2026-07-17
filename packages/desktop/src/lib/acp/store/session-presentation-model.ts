@@ -19,7 +19,7 @@ import {
 	type SessionOperationInteractionSnapshot,
 } from "./operation-association.js";
 import { getPrimaryQuestionText } from "./question-selectors.js";
-import { buildQueueSessionSnapshot, type QueueSessionSnapshot } from "./queue/utils.js";
+import { buildQueueSessionSnapshot, type QueueSessionSnapshot } from "./session-attention/utils.js";
 import type { SessionLiveSyncReference } from "./session-cold-index.js";
 import {
 	deriveLiveSessionLifecyclePresentation,
@@ -216,17 +216,21 @@ export class SessionPresentationModel {
 			input.interactionStore
 		);
 		const liveSessionSource = this.getSessionLiveWorkSource(sessionId, input.active);
+		const hasLocalPendingSendIntent =
+			this.#deps.transientProjectionStore.getSessionHasLocalPendingSendIntent(sessionId);
 		const liveSessionState = deriveLiveSessionState({
 			source: liveSessionSource,
 			currentModeId,
 			interactionSnapshot,
 			hasUnseenCompletion: input.hasUnseenCompletion,
+			hasLocalPendingSendIntent,
 		});
 		const sessionWorkProjection = deriveLiveSessionWorkProjection({
 			source: liveSessionSource,
 			currentModeId,
 			interactionSnapshot,
 			hasUnseenCompletion: input.hasUnseenCompletion,
+			hasLocalPendingSendIntent,
 		});
 
 		return {
@@ -299,6 +303,8 @@ export class SessionPresentationModel {
 			liveSessionSource: this.getSessionLiveWorkSource(sessionId, input.active ?? true),
 			interactionSnapshot,
 			hasUnseenCompletion: input.hasUnseenCompletion,
+			hasLocalPendingSendIntent:
+				this.#deps.transientProjectionStore.getSessionHasLocalPendingSendIntent(sessionId),
 			sequenceId: this.#deps.getSessionMetadata(sessionId)?.sequenceId ?? null,
 		});
 	}
