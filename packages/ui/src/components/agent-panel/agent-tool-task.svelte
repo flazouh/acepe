@@ -66,7 +66,7 @@
 	const headerContentClass = $derived(taskClasses.headerContent);
 	const liveRowClass = $derived(taskClasses.liveRow);
 	const showDetailTrigger = $derived(detail !== null);
-	const showLiveRow = $derived(latestAction !== null);
+	const showLiveRow = $derived(isTaskPending(status) && latestAction !== null);
 	const liveRowHeight = $derived(compact ? "1.25rem" : "1.375rem");
 
 	function handleDetailOpenChange(nextOpen: boolean): void {

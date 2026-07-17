@@ -14,6 +14,7 @@
 		hasReadSourceBody,
 		hasReadSourceExcerptHtml,
 	} from "./agent-tool-read-state.js";
+	import AgentToolCard from "./agent-tool-card.svelte";
 	import ToolHeaderLeading from "./tool-header-leading.svelte";
 	import AgentToolDurationLabel from "./agent-tool-duration-label.svelte";
 	import type { ToolDurationTiming } from "./tool-duration.js";
@@ -110,7 +111,7 @@
 	}
 </script>
 
-<div class="agent-tool-read min-w-0 max-w-full overflow-hidden text-sm" data-testid="agent-tool-read">
+<AgentToolCard class="agent-tool-read" dataTestid="agent-tool-read">
 	<div role="group" class="flex h-6 items-center justify-between gap-1.5 pl-2 pr-0.5 text-sm">
 		<div class="flex min-w-0 flex-1 items-center gap-1">
 			<div class="flex min-w-0 items-center gap-1">
@@ -172,7 +173,7 @@
 			{/if}
 		</div>
 	{/if}
-</div>
+</AgentToolCard>
 
 <style>
 	.read-source {

@@ -142,7 +142,7 @@ describe("AgentToolTask", () => {
 		expect(onTaskDetailOpenChange).toHaveBeenCalledWith(false);
 	});
 
-	it("renders the latest child action for a completed historical Task", () => {
+	it("hides the latest child action for a completed historical Task", () => {
 		const onTaskDetailOpenChange = vi.fn();
 		const onTaskDetailLoadMore = vi.fn();
 
@@ -175,8 +175,6 @@ describe("AgentToolTask", () => {
 			},
 		});
 
-		expect(screen.getByTestId("agent-tool-task-current-tool-label").textContent).toContain(
-			"Read"
-		);
+		expect(screen.queryByTestId("agent-tool-task-current-tool-label")).toBeNull();
 	});
 });

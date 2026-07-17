@@ -211,7 +211,7 @@ describe("MarkdownText", () => {
 	});
 
 		const chip = container.querySelector(".file-path-badge");
-		expect(chip?.className).toContain("rounded-sm");
+		expect(chip?.className).toContain("rounded-md");
 		chip?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 
 		expect(openProjectFileSystemDialogMock).toHaveBeenCalledWith(

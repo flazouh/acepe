@@ -3,6 +3,10 @@ import { cn } from "../../lib/utils.js";
 export type ChipShellDensity = "badge" | "inline" | "plain";
 export type ChipShellSize = "default" | "sm";
 
+/** Shared accent chip surface for composer tokens, markdown chips, and badges. */
+export const CHIP_SHELL_SURFACE =
+	"inline-flex min-w-0 items-center rounded-md border border-border/60 bg-accent text-accent-foreground";
+
 interface ChipShellClassOptions {
 	density?: ChipShellDensity;
 	size?: ChipShellSize;
@@ -35,10 +39,8 @@ export function buildChipShellClassName({
 				? "gap-1.5 px-0.5 py-px text-[0.625rem]"
 				: "gap-1.5 px-1 py-0.5 text-xs";
 
-	const radiusClass = density === "inline" ? "rounded-md" : "rounded-sm";
-
 	return cn(
-		`inline-flex min-w-0 items-center ${radiusClass} border border-border/60 bg-accent text-accent-foreground`,
+		CHIP_SHELL_SURFACE,
 		densityClass,
 		interactive
 			? "cursor-pointer active:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
