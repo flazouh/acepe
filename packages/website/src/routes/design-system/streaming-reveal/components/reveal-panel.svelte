@@ -25,6 +25,17 @@ let { mode, label, description, state }: Props = $props();
 const reveal = $derived<"none" | "word" | "block">(
 	mode === "buffer-fade" ? "word" : mode === "block-fade" ? "block" : "none",
 );
+
+// block-fade reveals whole blocks, not characters: feed NativeMarkdown only the
+// completed-block prefix (everything up to the last blank-line boundary) so a
+// half-typed block stays hidden until it finishes, then surfaces and fades in as
+// a unit. Once the stream ends, show everything. Other modes render the raw
+// dripped text.
+const markdown = $derived.by(() => {
+	if (mode !== "block-fade" || state.done) return state.visibleText;
+	const boundary = state.visibleText.lastIndexOf("\n\n");
+	return boundary === -1 ? "" : state.visibleText.slice(0, boundary);
+});
 </script>
 
 <article
@@ -43,7 +54,7 @@ const reveal = $derived<"none" | "word" | "block">(
 	</header>
 
 	<div class="flex-1 overflow-y-auto px-4 py-4 text-[13px] leading-6 text-foreground" data-testid={`reveal-panel-${mode}-content`}>
-		<NativeMarkdown markdown={state.visibleText} mode="streaming" {reveal} />
+		<NativeMarkdown {markdown} mode="streaming" {reveal} />
 	</div>
 </article>
 

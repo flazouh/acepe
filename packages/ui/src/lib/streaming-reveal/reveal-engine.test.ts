@@ -65,14 +65,20 @@ function harness(
 const A100 = "a".repeat(100);
 
 describe("createRevealController — passthrough modes", () => {
-	for (const mode of ["instant", "block-fade"] as RevealMode[]) {
-		it(`${mode} reveals the whole push immediately, no frames`, () => {
-			const h = harness({ mode });
-			h.ctrl.push("hello world");
-			expect(h.last().visibleText).toBe("hello world");
-			expect(h.pending()).toBe(0); // never scheduled a frame
-		});
-	}
+	it("instant reveals the whole push immediately, no frames", () => {
+		const h = harness({ mode: "instant" });
+		h.ctrl.push("hello world");
+		expect(h.last().visibleText).toBe("hello world");
+		expect(h.pending()).toBe(0); // never scheduled a frame
+	});
+
+	it("block-fade drips (it is paced, not passthrough)", () => {
+		const h = harness({ mode: "block-fade" });
+		h.ctrl.push(A100);
+		expect(h.pending()).toBe(1); // scheduled a frame — reveal is paced
+		h.pump(16); // baseline only
+		expect(h.last()?.visibleText.length ?? 0).toBeLessThan(100);
+	});
 
 	it("reducedMotion forces passthrough even in a streaming mode", () => {
 		const h = harness({ mode: "buffer", reducedMotion: true });

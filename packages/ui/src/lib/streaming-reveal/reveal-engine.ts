@@ -18,9 +18,15 @@
 
 export type RevealMode = "instant" | "buffer" | "buffer-fade" | "block-fade";
 
-/** Modes that temporally drip characters. The others pass text through whole. */
+/**
+ * Modes that temporally drip characters. Only `instant` passes text through
+ * whole — every other mode paces its reveal. `block-fade` drips like the buffer
+ * modes; its consumer reveals only the completed-block prefix, so whole blocks
+ * surface one at a time as the drip crosses each boundary (rather than a burst
+ * of blocks appearing together, which reads no differently from `instant`).
+ */
 function isStreamingMode(mode: RevealMode): boolean {
-	return mode === "buffer" || mode === "buffer-fade";
+	return mode === "buffer" || mode === "buffer-fade" || mode === "block-fade";
 }
 
 export interface RevealState {
