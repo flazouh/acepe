@@ -3,15 +3,13 @@
  * Shared chrome for one reveal-mode panel: label, description, a
  * "streaming…" indicator that stops once `state.done`, and a fixed-size
  * content box so the four panels stay equal-width/equal-height for a fair
- * side-by-side comparison. The actual text rendering is delegated to the
- * renderer matching `mode` — three strategies (plain drip, per-word fade,
- * per-block fade) cover all four modes since `instant` and `buffer` share
- * a renderer.
+ * side-by-side comparison. All four modes render through the SAME real-app
+ * `NativeMarkdown` component fed the engine's smoothed `visibleText`; the
+ * only difference is the `reveal` prop, so this page shows exactly how each
+ * strategy behaves against production markdown (code blocks, lists, emphasis).
  */
 import type { RevealMode, RevealState } from "@acepe/ui/streaming-reveal";
-import BlockFadeReveal from "./block-fade-reveal.svelte";
-import PlainReveal from "./plain-reveal.svelte";
-import WordFadeReveal from "./word-fade-reveal.svelte";
+import { NativeMarkdown } from "@acepe/ui/native-markdown";
 
 interface Props {
 	mode: RevealMode;
@@ -21,6 +19,12 @@ interface Props {
 }
 
 let { mode, label, description, state }: Props = $props();
+
+// buffer-fade fades each word as it appears; block-fade fades whole blocks;
+// instant and buffer paint without a fade (buffer still drips via the engine).
+const reveal = $derived<"none" | "word" | "block">(
+	mode === "buffer-fade" ? "word" : mode === "block-fade" ? "block" : "none",
+);
 </script>
 
 <article
@@ -38,14 +42,8 @@ let { mode, label, description, state }: Props = $props();
 		</span>
 	</header>
 
-	<div class="flex-1 overflow-y-auto px-4 py-4 font-mono text-[13px] leading-6 text-foreground" data-testid={`reveal-panel-${mode}-content`}>
-		{#if mode === "block-fade"}
-			<BlockFadeReveal {state} />
-		{:else if mode === "buffer-fade"}
-			<WordFadeReveal {state} />
-		{:else}
-			<PlainReveal {state} />
-		{/if}
+	<div class="flex-1 overflow-y-auto px-4 py-4 text-[13px] leading-6 text-foreground" data-testid={`reveal-panel-${mode}-content`}>
+		<NativeMarkdown markdown={state.visibleText} mode="streaming" {reveal} />
 	</div>
 </article>
 
