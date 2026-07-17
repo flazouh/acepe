@@ -263,10 +263,17 @@ function findUnescapedIndexFrom(
 }
 
 /**
- * Closes a trailing unmatched `**`/`__`/`~~` run marker. Counts unescaped
- * occurrences of the marker in `text` (code-span-masked); an odd count means
- * the last one opened a span that never closed, so append the marker to
- * `original` to close it.
+ * Resolves a trailing unmatched `**`/`__`/`~~` run marker. Counts unescaped
+ * occurrences in `text` (code-span-masked); an odd count means the last marker
+ * opened a span that never closed. Three cases, because a character drip walks
+ * through every intermediate state:
+ *
+ *  1. Opener with no content yet (`x **`) → STRIP it. Appending would render
+ *     `x ****`, i.e. four literal asterisks flashing until real text arrives.
+ *  2. String ends mid-closing-delimiter (`x **bold*`, one of the two closing
+ *     chars revealed) → append only the missing char so it becomes `**bold**`,
+ *     not `**bold***`.
+ *  3. Otherwise (`x **bold`) → append the full marker to close cleanly.
  */
 function completeTrailingRunMarker(
 	text: string,
@@ -274,6 +281,7 @@ function completeTrailingRunMarker(
 	marker: "**" | "__" | "~~",
 ): string | null {
 	let count = 0;
+	let lastIndex = -1;
 	let searchFrom = 0;
 	while (true) {
 		const index = text.indexOf(marker, searchFrom);
@@ -282,6 +290,7 @@ function completeTrailingRunMarker(
 		}
 		if (!isEscaped(text, index)) {
 			count += 1;
+			lastIndex = index;
 		}
 		searchFrom = index + marker.length;
 	}
@@ -290,6 +299,40 @@ function completeTrailingRunMarker(
 		return null;
 	}
 
+	// Case 1: the opener is immediately followed by whitespace or the end of the
+	// string, so it cannot open emphasis (CommonMark left-flanking rule) — strip
+	// it rather than double it into a run of literal asterisks (`x ** ` → `x ****`).
+	const charAfterOpener = text[lastIndex + marker.length];
+	if (
+		charAfterOpener === undefined ||
+		charAfterOpener === " " ||
+		charAfterOpener === "\n" ||
+		charAfterOpener === "\t"
+	) {
+		return `${original.slice(0, lastIndex)}${original.slice(lastIndex + marker.length)}`;
+	}
+
+	// Case 2: the tail is a partial closing run (fewer marker chars than the
+	// marker length, and not the opener itself) — finish just those chars.
+	const markerChar = marker[0] as string;
+	let trailingRun = 0;
+	for (
+		let i = original.length - 1;
+		i >= 0 && original[i] === markerChar;
+		i -= 1
+	) {
+		trailingRun += 1;
+	}
+	const trailingStart = original.length - trailingRun;
+	if (
+		trailingRun > 0 &&
+		trailingRun < marker.length &&
+		trailingStart > lastIndex + marker.length - 1
+	) {
+		return `${original}${markerChar.repeat(marker.length - trailingRun)}`;
+	}
+
+	// Case 3: unclosed opener with content — close it.
 	return `${original}${marker}`;
 }
 

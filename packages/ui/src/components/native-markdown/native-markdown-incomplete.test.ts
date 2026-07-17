@@ -67,9 +67,7 @@ describe("completeIncompleteMarkdown", () => {
 		});
 
 		it("does not count emphasis markers inside a complete inline-code span", () => {
-			expect(completeIncompleteMarkdown("`a ** b` done")).toBe(
-				"`a ** b` done",
-			);
+			expect(completeIncompleteMarkdown("`a ** b` done")).toBe("`a ** b` done");
 		});
 
 		it("does not count several emphasis markers across multiple complete code spans", () => {
@@ -162,5 +160,25 @@ describe("completeIncompleteMarkdown", () => {
 				expect(twice).toBe(once);
 			});
 		}
+	});
+	describe("character-drip intermediate states (no literal marker runs)", () => {
+		const cases: [string, string][] = [
+			["guarantee **", "guarantee "],
+			["a ** b", "a  b"],
+			["guarantee **d", "guarantee **d**"],
+			["the **old value", "the **old value**"],
+			["the **old value*", "the **old value**"],
+			["**a** **b** **c", "**a** **b** **c**"],
+		];
+		for (const [input, expected] of cases) {
+			it(`${JSON.stringify(input)} -> ${JSON.stringify(expected)}`, () => {
+				expect(completeIncompleteMarkdown(input)).toBe(expected);
+			});
+		}
+		it("never emits a run of 3+ asterisks for drip states", () => {
+			for (const [input] of cases) {
+				expect(completeIncompleteMarkdown(input)).not.toMatch(/\*{3,}/);
+			}
+		});
 	});
 });
