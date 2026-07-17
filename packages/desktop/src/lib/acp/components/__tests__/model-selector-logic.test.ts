@@ -161,7 +161,7 @@ describe("model-selector-logic", () => {
 
 				const result = getModelDisplayName(model, agentId);
 
-				expect(result).toBe("Gpt-4");
+				expect(result).toBe("GPT-4");
 			});
 
 			it("capitalizes model name properly", () => {
@@ -174,6 +174,30 @@ describe("model-selector-logic", () => {
 				const result = getModelDisplayName(model, agentId);
 
 				expect(result).toBe("Claude 3.5 Sonnet");
+			});
+
+			it("formats raw GPT model tokens with readable suffixes", () => {
+				const model: Model = {
+					id: "gpt-5.6-sol",
+					name: "gpt-5.6-sol",
+					description: undefined,
+				};
+
+				const result = getModelDisplayName(model, agentId);
+
+				expect(result).toBe("GPT-5.6 Sol");
+			});
+
+			it("formats raw GPT Codex variant tokens", () => {
+				const model: Model = {
+					id: "gpt-5.3-codex-spark",
+					name: "gpt-5.3-codex-spark",
+					description: undefined,
+				};
+
+				const result = getModelDisplayName(model, agentId);
+
+				expect(result).toBe("GPT-5.3 Codex Spark");
 			});
 		});
 

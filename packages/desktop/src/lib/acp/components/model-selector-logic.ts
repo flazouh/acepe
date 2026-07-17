@@ -14,13 +14,53 @@ import type {
 } from "../../services/acp-types.js";
 import type { Model } from "../application/dto/model.js";
 
+const MODEL_NAME_ACRONYMS = new Map<string, string>([
+	["ai", "AI"],
+	["api", "API"],
+	["cli", "CLI"],
+	["gpt", "GPT"],
+	["mcp", "MCP"],
+	["sdk", "SDK"],
+	["ui", "UI"],
+	["url", "URL"],
+]);
+
+function formatModelNamePart(part: string): string {
+	const acronym = MODEL_NAME_ACRONYMS.get(part.toLowerCase());
+	if (acronym) {
+		return acronym;
+	}
+
+	return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+}
+
+function isVersionLikePart(part: string): boolean {
+	return /^[0-9][a-z0-9.]*$/iu.test(part);
+}
+
+function formatHyphenatedModelWord(word: string): string {
+	const parts = word.split("-").filter((part) => part.length > 0);
+	if (parts.length === 0) {
+		return word;
+	}
+
+	const firstPart = formatModelNamePart(parts[0]);
+	if (parts.length >= 2 && isVersionLikePart(parts[1])) {
+		const firstVersionPart = `${firstPart}-${parts[1]}`;
+		const remainingParts = parts.slice(2).map(formatModelNamePart);
+		return [firstVersionPart].concat(remainingParts).join(" ");
+	}
+
+	return parts.map(formatModelNamePart).join(" ");
+}
+
 /**
- * Capitalizes the first letter of each word in a string.
+ * Formats backend fallback names without changing canonical display metadata.
  */
-function capitalizeName(name: string): string {
+function formatFallbackModelName(name: string): string {
 	return name
 		.split(/\s+/)
-		.map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+		.map((word) => formatHyphenatedModelWord(word))
 		.join(" ");
 }
 
@@ -67,7 +107,7 @@ export function getModelDisplayName(
 		return displayModel.displayName;
 	}
 
-	return capitalizeName(model.name);
+	return formatFallbackModelName(model.name);
 }
 
 /**
