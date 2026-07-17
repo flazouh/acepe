@@ -1,6 +1,6 @@
 <script lang="ts">
 	import NativeMarkdownBlock from "./native-markdown-block.svelte";
-	import { parseNativeMarkdown } from "./native-markdown-model.js";
+	import { createNativeMarkdownParser } from "./native-markdown-model.js";
 	import type {
 		NativeMarkdownAnimation,
 		NativeMarkdownMode,
@@ -45,7 +45,10 @@
 		onTogglePrLink,
 	}: Props = $props();
 
-	const document = $derived(parseNativeMarkdown(markdown));
+	// One memoizing parser per instance: reuses block objects for the unchanged
+	// (completed) prefix so streaming re-renders only touch the growing tail.
+	const parseMarkdown = createNativeMarkdownParser();
+	const document = $derived(parseMarkdown(markdown));
 </script>
 
 <div
@@ -65,7 +68,6 @@
 		{#each document.blocks as block, blockIndex (blockIndex)}
 			<NativeMarkdownBlock
 				{block}
-				wordCount={document.wordCount}
 				{onExternalLinkClick}
 				{onFilePathClick}
 				{linkedPrNumber}

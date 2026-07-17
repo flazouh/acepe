@@ -27,7 +27,6 @@ const CODE_FENCE_PATTERN = /^\s*(`{3,}|~{3,})/u;
 
 export interface NativeMarkdownDocument {
 	readonly blocks: readonly NativeMarkdownBlock[];
-	readonly wordCount: number;
 }
 
 export type NativeMarkdownBlock =
@@ -199,7 +198,10 @@ interface InlineReferenceMatch {
 	readonly kind: "file" | "github";
 }
 
-export function parseNativeMarkdown(markdown: string): NativeMarkdownDocument {
+function tokenizeToBlocks(
+	markdown: string,
+	cache: ReadonlyMap<string, NativeMarkdownBlock> | null
+): { blocks: NativeMarkdownBlock[]; nextCache: Map<string, NativeMarkdownBlock> } {
 	const cursor: ParseCursor = {
 		nextKey: 0,
 		wordIndex: 0,
@@ -209,17 +211,49 @@ export function parseNativeMarkdown(markdown: string): NativeMarkdownDocument {
 		breaks: false,
 	});
 	const blocks: NativeMarkdownBlock[] = [];
+	const nextCache = new Map<string, NativeMarkdownBlock>();
 
 	for (const token of tokens) {
-		const block = normalizeBlockToken(token, cursor);
+		const raw = token.raw;
+		// Reuse the previously-normalized block when this token's source is
+		// unchanged, so the returned object is referentially identical across
+		// parses (only fresh tokens are normalized).
+		let block = cache?.get(raw) ?? null;
+		if (block === null) {
+			block = normalizeBlockToken(token, cursor);
+		}
 		if (block !== null) {
 			blocks.push(block);
+			if (!nextCache.has(raw)) {
+				nextCache.set(raw, block);
+			}
 		}
 	}
 
-	return {
-		blocks,
-		wordCount: cursor.wordIndex,
+	return { blocks, nextCache };
+}
+
+export function parseNativeMarkdown(markdown: string): NativeMarkdownDocument {
+	return { blocks: tokenizeToBlocks(markdown, null).blocks };
+}
+
+/**
+ * Stateful parser for STREAMING markdown. Reuses each block object whose source
+ * (`token.raw`) is unchanged since the previous parse, so a growing document
+ * yields referentially-stable blocks for its completed prefix. A renderer that
+ * keys blocks by position then skips re-rendering those blocks and only touches
+ * the changed tail block per frame — O(tail) per frame instead of O(document),
+ * which is what keeps a long streamed reply from dropping to ~26fps.
+ *
+ * Use ONE instance per rendered document (the cache assumes a single growing
+ * input, not interleaved unrelated documents).
+ */
+export function createNativeMarkdownParser(): (markdown: string) => NativeMarkdownDocument {
+	let cache = new Map<string, NativeMarkdownBlock>();
+	return (markdown: string): NativeMarkdownDocument => {
+		const { blocks, nextCache } = tokenizeToBlocks(markdown, cache);
+		cache = nextCache;
+		return { blocks };
 	};
 }
 

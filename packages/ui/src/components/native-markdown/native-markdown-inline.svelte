@@ -12,7 +12,6 @@
 
 	interface Props {
 		token: NativeMarkdownInline;
-		wordCount: number;
 		onExternalLinkClick?: (url: string) => void;
 		onFilePathClick?: (filePath: string) => void;
 		linkedPrNumber?: number | null;
@@ -21,7 +20,6 @@
 
 	let {
 		token,
-		wordCount,
 		onExternalLinkClick,
 		onFilePathClick,
 		linkedPrNumber,
@@ -58,7 +56,6 @@
 		{#each token.children as child (child.key)}
 			<Self
 				token={child}
-				{wordCount}
 				{onExternalLinkClick}
 				{onFilePathClick}
 				{linkedPrNumber}
@@ -85,7 +82,6 @@
 			{#each token.children as child (child.key)}
 				<Self
 					token={child}
-					{wordCount}
 					{onExternalLinkClick}
 					{onFilePathClick}
 					{linkedPrNumber}
@@ -99,7 +95,6 @@
 		{#each token.children as child (child.key)}
 			<Self
 				token={child}
-				{wordCount}
 				{onExternalLinkClick}
 				{onFilePathClick}
 				{linkedPrNumber}
@@ -112,7 +107,6 @@
 		{#each token.children as child (child.key)}
 			<Self
 				token={child}
-				{wordCount}
 				{onExternalLinkClick}
 				{onFilePathClick}
 				{linkedPrNumber}
@@ -125,7 +119,6 @@
 		{#each token.children as child (child.key)}
 			<Self
 				token={child}
-				{wordCount}
 				{onExternalLinkClick}
 				{onFilePathClick}
 				{linkedPrNumber}
