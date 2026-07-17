@@ -1,5 +1,6 @@
 <script lang="ts">
 	import NativeMarkdownBlock from "./native-markdown-block.svelte";
+	import { completeIncompleteMarkdown } from "./native-markdown-incomplete.js";
 	import { createNativeMarkdownParser } from "./native-markdown-model.js";
 	import type {
 		NativeMarkdownAnimation,
@@ -36,7 +37,7 @@
 		markdown,
 		class: className = "",
 		mode = "static",
-		parseIncompleteMarkdown: _parseIncompleteMarkdown,
+		parseIncompleteMarkdown = false,
 		animated: _animated,
 		reveal = "none",
 		onExternalLinkClick,
@@ -48,7 +49,14 @@
 	// One memoizing parser per instance: reuses block objects for the unchanged
 	// (completed) prefix so streaming re-renders only touch the growing tail.
 	const parseMarkdown = createNativeMarkdownParser();
-	const document = $derived(parseMarkdown(markdown));
+	// When streaming, auto-close dangling inline markdown (e.g. `**bold` ->
+	// `**bold**`) before parsing so partial syntax renders formatted instead of
+	// flashing raw markers. Completed prefix blocks keep a stable token.raw, so
+	// the parser's memoization still holds.
+	const effectiveMarkdown = $derived(
+		parseIncompleteMarkdown ? completeIncompleteMarkdown(markdown) : markdown
+	);
+	const document = $derived(parseMarkdown(effectiveMarkdown));
 </script>
 
 <div
