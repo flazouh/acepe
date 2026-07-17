@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from "svelte";
 	import { openUrl } from "@tauri-apps/plugin-opener";
 	import { reducedMotion } from "@acepe/ui";
 	import { NativeMarkdown } from "@acepe/ui/native-markdown";
@@ -73,7 +74,11 @@
 				revealState = next;
 			},
 		});
-		created.setTarget(text);
+		// Seed WITHOUT tracking `text` — otherwise this effect re-runs on every
+		// streaming delta, recreating the controller and restarting the drip from
+		// zero (the whole reply flickers as it resets and re-reveals). The feed
+		// effect below keeps the controller current as `text` grows.
+		untrack(() => created.setTarget(text));
 		controller = created;
 		// Tab hidden pauses rAF; flush so nothing is stranded mid-drip on return.
 		const onVisibility = () => {
