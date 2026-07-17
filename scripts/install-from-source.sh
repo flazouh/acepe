@@ -201,10 +201,7 @@ bun run --cwd packages/desktop bunx tauri build \
 	--bundles app \
 	--no-sign \
 	--ci \
-	--config '{"bundle":{"createUpdaterArtifacts":false}}' \
-	-- \
-	--no-default-features \
-	--features auto-download
+	--config '{"bundle":{"createUpdaterArtifacts":false}}'
 
 [[ -d "$BUILD_APP" ]] || die "Build completed without producing $BUILD_APP."
 

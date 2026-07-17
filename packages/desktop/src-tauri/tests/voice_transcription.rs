@@ -1,11 +1,11 @@
-/// Integration tests for whisper-rs transcription.
+/// Integration tests for voice transcription engines.
 ///
 /// These tests require a real model file on disk and are therefore opt-in:
 ///
 /// ```sh
 /// ACEPE_RUN_VOICE_TESTS=1 \
 /// ACEPE_VOICE_MODEL_PATH=/path/to/ggml-tiny.en.bin \
-/// cargo test --test voice_transcription
+/// cargo test --features manual-test-targets,whisper-native --test voice_transcription
 /// ```
 ///
 /// A WAV file path may also be supplied:
@@ -14,12 +14,15 @@
 /// ```
 /// If omitted, the tests synthesise a 1 s sine-wave burst (produces no speech
 /// text, but verifies the engine loads and runs without panicking).
+#[cfg(feature = "whisper-native")]
 use acepe_lib::voice::engine::{resample, TranscriptionEngine, WhisperEngine};
 
+#[cfg(feature = "whisper-native")]
 fn is_enabled() -> bool {
     std::env::var("ACEPE_RUN_VOICE_TESTS").is_ok()
 }
 
+#[cfg(feature = "whisper-native")]
 fn model_path() -> std::path::PathBuf {
     std::path::PathBuf::from(
         std::env::var("ACEPE_VOICE_MODEL_PATH")
@@ -27,6 +30,7 @@ fn model_path() -> std::path::PathBuf {
     )
 }
 
+#[cfg(feature = "whisper-native")]
 #[test]
 fn engine_loads_model_and_transcribes_silence() {
     if !is_enabled() {
@@ -59,6 +63,7 @@ fn engine_loads_model_and_transcribes_silence() {
     );
 }
 
+#[cfg(feature = "whisper-native")]
 #[test]
 fn engine_transcribes_wav_when_provided() {
     if !is_enabled() {
@@ -97,6 +102,7 @@ fn engine_transcribes_wav_when_provided() {
     );
 }
 
+#[cfg(feature = "whisper-native")]
 #[test]
 fn engine_errors_when_no_model_loaded() {
     let engine = WhisperEngine::new();
@@ -112,6 +118,7 @@ fn engine_errors_when_no_model_loaded() {
 
 /// Read a WAV file as a mono f32 PCM sample vector.
 /// Mixes down stereo to mono by averaging channels.
+#[cfg(feature = "whisper-native")]
 fn read_wav_as_f32_mono(path: &std::path::Path) -> anyhow::Result<Vec<f32>> {
     use std::io::BufReader;
 

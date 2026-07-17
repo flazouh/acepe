@@ -66,7 +66,7 @@ sha2 = "0.10"
 cpal = "0.15"
 ringbuf = "0.4"
 zeroize = "1"
-whisper-rs = "=0.16.0"
+whisper-rs = { version = "=0.16.0", optional = true }
 notify = "6"
 notify-debouncer-mini = "0.4"
 tracing = "0.1"
@@ -103,14 +103,13 @@ libc = "0.2"
 objc2 = { version = "0.6", features = ["catch-all"] }
 
 [features]
-default = ["whisper-metal", "auto-download"]
-auto-download = []
+default = []
 manual-test-targets = []
 websocket = []
 # PINNED exact version: audit whisper-rs-sys/build.rs before any bump.
-# Metal stays opt-in at the package level so release builds can disable it
-# with `--no-default-features` while keeping whisper available elsewhere.
-whisper-metal = ["whisper-rs/metal"]
+# Whisper stays opt-in so normal dev builds do not compile whisper.cpp.
+whisper-native = ["whisper-rs"]
+whisper-metal = ["whisper-native", "whisper-rs/metal"]
 
 [[bin]]
 name = "scan_unmatched_tools"

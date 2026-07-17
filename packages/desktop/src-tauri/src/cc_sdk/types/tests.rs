@@ -350,7 +350,7 @@ fn test_options_builder_with_new_fields() {
     // Verify plugins
     assert_eq!(options.plugins.len(), 1);
 
-    // Verify auto_download_cli
+    // Deprecated compatibility value is still preserved on options.
     assert!(options.auto_download_cli);
 }
 
@@ -502,7 +502,7 @@ fn test_default_options_new_fields() {
     assert!(options.sandbox.is_none());
     assert!(options.plugins.is_empty());
     assert!(options.user.is_none());
-    // Note: auto_download_cli defaults to false (Rust bool default)
-    // Users should explicitly enable it with .auto_download_cli(true)
+    // Deprecated compatibility value defaults to false and is ignored by
+    // runtime transport creation.
     assert!(!options.auto_download_cli);
 }
