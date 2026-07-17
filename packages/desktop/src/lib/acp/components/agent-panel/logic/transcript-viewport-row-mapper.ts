@@ -1,9 +1,12 @@
 import type {
+	AgentToolEditDiffEntry,
 	AgentToolKind,
 	AgentPanelSceneEntryModel,
+	AgentTaskLatestAction,
 	AgentToolStatus,
 } from "@acepe/ui/agent-panel";
 import type {
+	EditEntry,
 	JsonValue,
 	OperationSnapshot,
 	SessionCompactionEvent,
@@ -16,6 +19,7 @@ import type {
 import { formatOtherToolName } from "../../../registry/index.js";
 import { buildUserRowSceneModel } from "../../../logic/user-row-scene-model.js";
 import { transcriptSegmentPrimaryText } from "../../../session-state/transcript-text.js";
+import { calculateDiffStats, getFileName } from "../../../utils/file-utils.js";
 import {
 	getExecuteCommandHighlighter,
 	getExecuteOutputHighlighter,
@@ -120,6 +124,35 @@ export function resolveTranscriptViewportSceneEntryCandidate(
 function cleanDisplayText(value: string | null | undefined): string | null {
 	const text = value?.trim();
 	return text === undefined || text.length === 0 ? null : text;
+}
+
+function editDiffsFromEntries(
+	entries: readonly EditEntry[] | null | undefined
+): readonly AgentToolEditDiffEntry[] {
+	if (entries === null || entries === undefined || entries.length === 0) {
+		return [];
+	}
+
+	return entries.map((entry): AgentToolEditDiffEntry => {
+		const filePath = cleanDisplayText(entry.filePath) ?? cleanDisplayText(entry.moveFrom);
+		const oldString = entry.oldString ?? null;
+		const newString = entry.newString ?? entry.content ?? null;
+		const stats = calculateDiffStats({
+			oldString: oldString ?? "",
+			newString: newString ?? "",
+		});
+		const additions = stats?.added ?? 0;
+		const deletions = stats?.removed ?? 0;
+
+		return {
+			filePath,
+			fileName: filePath === null ? null : getFileName(filePath),
+			additions,
+			deletions,
+			oldString,
+			newString,
+		};
+	});
 }
 
 function jsonValueTextSummary(value: JsonValue | null | undefined): string | null {
@@ -403,6 +436,7 @@ function displayFactsFromEmbeddedOperation(
 		taskPrompt: operation.arguments.kind === "think" ? operation.arguments.prompt : null,
 		subagentType: operation.arguments.kind === "think" ? operation.arguments.subagent_type : null,
 		normalizedTodos: operation.normalized_todos,
+		editDiffs: operation.arguments.kind === "edit" ? operation.arguments.edits : undefined,
 		commandSummary: commandSummaryFromOperation(operation),
 		targetPathSummary: targetPathSummaryFromOperation(operation),
 		resultSummary,
@@ -499,6 +533,19 @@ function subtitleFromDisplayFacts(
 	);
 }
 
+function taskLatestActionFromDisplayFacts(
+	action: NonNullable<TranscriptViewportOperationDisplayFacts["latestChildAction"]>
+): AgentTaskLatestAction {
+	return {
+		id: action.operationId,
+		kind: mapViewportToolKind(action.kind),
+		title: action.title,
+		subtitle: action.subtitle ?? undefined,
+		filePath: action.targetPathSummary ?? undefined,
+		status: toolStatusFromOperationState(action.state),
+	};
+}
+
 function resolveViewportOperationDisplayFactsEntry(
 	row: TranscriptViewportRow
 ): AgentPanelSceneEntryModel | null {
@@ -520,6 +567,7 @@ function resolveViewportOperationDisplayFactsEntry(
 	const resultSummary = cleanDisplayText(facts.resultSummary);
 	const errorSummary = cleanDisplayText(facts.errorSummary);
 	const targetPath = cleanDisplayText(facts.targetPathSummary);
+	const editDiffs = editDiffsFromEntries(facts.editDiffs);
 	const query =
 		kind === "search" || kind === "web_search" ? cleanDisplayText(facts.commandSummary) : null;
 	const fetchUrl = kind === "fetch" ? cleanDisplayText(facts.commandSummary) : null;
@@ -538,6 +586,7 @@ function resolveViewportOperationDisplayFactsEntry(
 				? (errorSummary ?? resultSummary)
 				: null,
 		highlightScript: kind === "browser" ? getBrowserScriptHighlighter() : null,
+		editDiffs: kind === "edit" ? editDiffs : undefined,
 		filePath: targetPath ?? undefined,
 		status,
 		command,
@@ -557,6 +606,17 @@ function resolveViewportOperationDisplayFactsEntry(
 			? ([facts.subagentType, facts.taskDescription].filter(Boolean).join(" · ") || null)
 			: null,
 		taskPrompt: kind === "task" ? (facts.taskPrompt ?? null) : null,
+		taskTranscriptScope:
+			kind === "task" && facts.childTranscriptScope?.kind === "operation"
+				? {
+						kind: "operation",
+						operationId: facts.childTranscriptScope.operationId,
+					}
+				: null,
+		taskLatestAction:
+			kind === "task" && facts.latestChildAction
+				? taskLatestActionFromDisplayFacts(facts.latestChildAction)
+				: null,
 		todos: facts.normalizedTodos?.map((todo) => {
 			return {
 				content: todo.content,
@@ -603,6 +663,7 @@ export function resolveTranscriptViewportSceneEntry(
 			type: "user",
 			text: userRow.text,
 			chunks: userRow.chunks.length > 0 ? userRow.chunks : undefined,
+			timestampMs: row.timestampMs ?? undefined,
 		};
 	}
 
@@ -629,6 +690,7 @@ export function resolveTranscriptViewportSceneEntry(
 			},
 			isStreaming: row.activeStreamingTail !== null,
 			planningStartedAtMs: row.durationStartedAtMs ?? null,
+			timestampMs: row.timestampMs ?? undefined,
 		};
 	}
 

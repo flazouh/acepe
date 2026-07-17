@@ -111,6 +111,7 @@ describe("TranscriptRowsController older-row paging", () => {
 
 		expect(mocks.readTranscriptRowPage).toHaveBeenCalledWith({
 			sessionId: "session-1",
+			scope: { kind: "root" },
 			startRowIndex: 0,
 			limit: 256,
 			expectedRevision: pageRevision,

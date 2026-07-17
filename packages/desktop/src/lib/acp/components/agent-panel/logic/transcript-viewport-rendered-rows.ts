@@ -467,24 +467,12 @@ function shouldAppendLocalPlaceholder(input: {
 	if (input.mode === "none") {
 		return false;
 	}
-	if (input.mode === "planning_after_tool") {
-		return !hasLocalOptimisticUserRow(input.localRows) && hasTrailingCompletedTool(input.bufferRows);
-	}
 	for (const row of input.bufferRows) {
 		if (row.activeStreamingTail !== null) {
 			return false;
 		}
 	}
 	return !hasLocalPlaceholderRow(input.localRows);
-}
-
-function hasLocalOptimisticUserRow(rows: readonly RenderableTranscriptViewportRow[]): boolean {
-	for (const row of rows) {
-		if (row.localOnly && row.row.kind === "user") {
-			return true;
-		}
-	}
-	return false;
 }
 
 function appendLocalOptimisticRow(input: {

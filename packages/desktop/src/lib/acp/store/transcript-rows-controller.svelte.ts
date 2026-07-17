@@ -184,6 +184,7 @@ export class TranscriptRowsController {
 		this.#olderRowsRequestInFlight.add(sessionId);
 		void readTranscriptRowPage({
 			sessionId,
+			scope: { kind: "root" },
 			startRowIndex,
 			limit,
 			expectedRevision: revision,

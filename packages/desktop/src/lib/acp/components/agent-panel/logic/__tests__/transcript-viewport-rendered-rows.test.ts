@@ -15,12 +15,17 @@ import {
 	createRenderedTranscriptViewportRowResolver,
 } from "../transcript-viewport-rendered-rows.js";
 
-function createOptimisticUserEntry(id: string, text: string): AgentPanelSceneEntryModel {
+function createOptimisticUserEntry(
+	id: string,
+	text: string,
+	timestampMs?: number
+): AgentPanelSceneEntryModel {
 	return {
 		id,
 		type: "user",
 		text,
 		isOptimistic: true,
+		timestampMs,
 	};
 }
 
@@ -399,13 +404,13 @@ describe("buildRenderedTranscriptViewportRows", () => {
 			bufferRows,
 			bufferStartIndex: 0,
 			optimisticUserEntry: null,
-			localPlaceholderMode: "planning_after_tool",
+			localPlaceholderMode: "planning",
 		});
 		const lazySource = createRenderableTranscriptViewportRowSource({
 			bufferRows,
 			bufferStartIndex: 0,
 			optimisticUserEntry: null,
-			localPlaceholderMode: "planning_after_tool",
+			localPlaceholderMode: "planning",
 		});
 
 		expect(eagerRows.map((row) => row.rowId)).toEqual([
@@ -417,7 +422,7 @@ describe("buildRenderedTranscriptViewportRows", () => {
 		expect(lazySource.getRowId(1)).toBe("awaiting:planning");
 		expect(lazySource.getRenderable(1)?.row).toMatchObject({
 			kind: "localPlaceholder",
-			mode: "planning_after_tool",
+			mode: "planning",
 		});
 	});
 
@@ -432,7 +437,7 @@ describe("buildRenderedTranscriptViewportRows", () => {
 			],
 			bufferStartIndex: 0,
 			optimisticUserEntry: null,
-			localPlaceholderMode: "planning_after_tool",
+			localPlaceholderMode: "planning",
 			planningPlaceholderPresentation: {
 				label: "Connecting to Codex Agent",
 				agentIconSrc: "/icons/codex.svg",
@@ -465,10 +470,15 @@ describe("buildRenderedTranscriptViewportRows", () => {
 	});
 
 	it("adds local-only optimistic and planning rows before Rust has viewport rows", () => {
+		const sentAtMs = Date.UTC(2026, 6, 17, 0, 56, 39);
 		const rows = buildRenderedTranscriptViewportRows({
 			bufferRows: [],
 			bufferStartIndex: 0,
-			optimisticUserEntry: createOptimisticUserEntry("optimistic-user", "First message"),
+			optimisticUserEntry: createOptimisticUserEntry(
+				"optimistic-user",
+				"First message",
+				sentAtMs
+			),
 			localPlaceholderMode: "connection",
 		});
 
@@ -479,6 +489,7 @@ describe("buildRenderedTranscriptViewportRows", () => {
 			type: "user",
 			text: "First message",
 			isOptimistic: true,
+			timestampMs: sentAtMs,
 		});
 		expect(rows[1]?.row.kind).toBe("localPlaceholder");
 		expect(rows[1]?.row.rowId).toBe("awaiting:planning");

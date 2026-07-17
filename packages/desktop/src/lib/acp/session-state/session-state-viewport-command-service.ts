@@ -2,6 +2,7 @@ import type {
 	SessionGraphRevision,
 	SessionStateEnvelope,
 	TranscriptRowPageResult,
+	TranscriptScope,
 	TranscriptViewportRow,
 	TranscriptViewportCommandRevision,
 } from "../../services/acp-types.js";
@@ -92,12 +93,14 @@ export function requestTranscriptViewportBuffer(input: {
 
 export function readTranscriptRowPage(input: {
 	readonly sessionId: string;
+	readonly scope: TranscriptScope;
 	readonly startRowIndex: number;
 	readonly limit: number;
 	readonly expectedRevision: SessionGraphRevision | ViewportCommandRevisionInput;
 }): ReturnType<typeof invokeAsync<TranscriptRowPageResult>> {
 	return invokeAsync<TranscriptRowPageWireResult>("acp_read_transcript_row_page", {
 		sessionId: input.sessionId,
+		scope: input.scope,
 		startRowIndex: input.startRowIndex,
 		limit: input.limit,
 		expectedRevision: commandRevisionFrom(input.expectedRevision),

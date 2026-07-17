@@ -9,6 +9,7 @@ import {
 	type AgentPanelPlanViewEvent,
 	type AgentPanelQuestionSelectEvent,
 	type AgentPanelReviewActionEvent,
+	type AgentTaskDetailPresentation,
 	type AgentPanelSceneEntryModel,
 	type AgentUserFileSelectEvent,
 	type AgentToolFileSelectEvent,
@@ -42,6 +43,11 @@ import {
 	createRenderedTranscriptViewportRowResolver,
 } from "../logic/transcript-viewport-rendered-rows.js";
 import type { RenderableTranscriptViewportRow } from "../logic/transcript-viewport-rendered-rows.js";
+import {
+	createTaskTranscriptDialogController,
+	taskTranscriptDialogIdentity,
+} from "../logic/task-transcript-dialog-controller.svelte.js";
+import { taskTranscriptDialogPresentation } from "../logic/task-transcript-dialog-presentation.js";
 import { createSyntheticReviewEntry } from "../logic/synthetic-review-entry.js";
 import { recordPanelOpenPerformanceMark } from "../logic/panel-open-performance-mark.js";
 import { useTheme } from "../../../../components/theme/context.svelte.js";
@@ -93,6 +99,13 @@ type SceneContentViewportProps = {
 
 const permissionStore: PermissionStore | undefined = getPermissionStore();
 const sessionStore = getSessionStore();
+const taskTranscriptDialogController = createTaskTranscriptDialogController();
+
+type TaskTranscriptDialogBinding = {
+	readonly presentation: AgentTaskDetailPresentation;
+	readonly onOpenChange: (open: boolean) => void;
+	readonly onLoadMore: () => void;
+};
 
 let {
 	panelId,
@@ -227,8 +240,97 @@ const resolveRenderedRow = $derived.by(() => {
 			})
 	);
 });
+
+$effect(() => {
+	const revision = sessionId === null ? null : sessionStore.read.getSessionGraphRevision(sessionId);
+	if (revision === null) {
+		return;
+	}
+
+	for (let index = 0; index < renderableRowSource.length; index += 1) {
+		const renderable = renderableRowSource.getRenderable(index);
+		if (renderable === undefined) {
+			continue;
+		}
+		const rendered = resolveRenderedRow(renderable);
+		const entry = rendered.entry;
+		if (
+			entry.type !== "tool_call" ||
+			entry.kind !== "task" ||
+			entry.taskTranscriptScope?.kind !== "operation"
+		) {
+			continue;
+		}
+		const scope = {
+			kind: "operation" as const,
+			operationId: entry.taskTranscriptScope.operationId,
+		};
+		const identity = taskTranscriptDialogIdentity({
+			sessionId,
+			panelId,
+			rootRowId: rendered.row.rowId,
+			operationId: scope.operationId,
+		});
+		taskTranscriptDialogController.syncOpenRevision({
+			identity,
+			scope,
+			revision,
+		});
+	}
+});
+
 function getScrollerItemRenderable(item: MessageScrollerItem): RenderableTranscriptViewportRow {
 	return item as RenderableTranscriptViewportRow;
+}
+
+function taskTranscriptDialogBindingFor(
+	rowId: string,
+	entry: AgentPanelSceneEntryModel
+): TaskTranscriptDialogBinding | null {
+	if (
+		sessionId === null ||
+		entry.type !== "tool_call" ||
+		entry.kind !== "task" ||
+		entry.taskTranscriptScope?.kind !== "operation"
+	) {
+		return null;
+	}
+
+	const scope = {
+		kind: "operation" as const,
+		operationId: entry.taskTranscriptScope.operationId,
+	};
+	const identity = taskTranscriptDialogIdentity({
+		sessionId,
+		panelId,
+		rootRowId: rowId,
+		operationId: scope.operationId,
+	});
+
+	return {
+		presentation: taskTranscriptDialogPresentation(
+			taskTranscriptDialogController.getState(identity)
+		),
+		onOpenChange(open: boolean): void {
+			if (!open) {
+				taskTranscriptDialogController.close(identity);
+				return;
+			}
+			const revision = sessionStore.read.getSessionGraphRevision(identity.sessionId);
+			if (revision === null) {
+				return;
+			}
+			taskTranscriptDialogController.setOpen({
+				identity,
+				scope,
+				revision,
+				open: true,
+			});
+		},
+		onLoadMore(): void {
+			taskTranscriptDialogController.loadNextPage(identity);
+		},
+	};
 }
 
 function buildScrollerContentSignature(): string {
@@ -516,7 +618,9 @@ export function scrollToTop() {
 	{#snippet renderScrollerItem(item: MessageScrollerItem)}
 		{@const rendered = resolveRenderedRow(getScrollerItemRenderable(item))}
 		<TranscriptViewportRowRenderer
-			{rendered}
+			rowId={rendered.row.rowId}
+			rowIndex={rendered.index}
+			entry={rendered.entry}
 			{sessionId}
 			{projectPath}
 			{showWorkingSpark}
@@ -533,6 +637,7 @@ export function scrollToTop() {
 			{onReview}
 			{isPlanActionAvailable}
 			{getAttachedPermission}
+			taskDetailBindingFor={taskTranscriptDialogBindingFor}
 		/>
 	{/snippet}
 
