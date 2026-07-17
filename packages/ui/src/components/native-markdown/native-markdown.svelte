@@ -53,8 +53,16 @@
 	data-native-markdown-mode={mode}
 	data-reveal={reveal === "none" ? undefined : reveal}
 >
+		<!--
+		Keyed by position, not block.key: a streaming document only ever appends
+		or grows its last block, and block.key comes from the global nextKey
+		counter, which shifts when an earlier/in-progress block gains content —
+		remounting the tail block and restarting its reveal fade (block-fade
+		flicker). Index keys keep each block's identity stable as it streams in,
+		so a block reconciles in place and only genuinely new blocks fade.
+		-->
 	<div class="native-markdown-content">
-		{#each document.blocks as block (block.key)}
+		{#each document.blocks as block, blockIndex (blockIndex)}
 			<NativeMarkdownBlock
 				{block}
 				wordCount={document.wordCount}
