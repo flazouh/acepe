@@ -59,6 +59,9 @@ pub enum UserSettingKey {
     WorktreeTrust,
     /// Whether thinking blocks in chat are collapsed by default (boolean)
     ChatThinkingBlockCollapsedByDefault,
+    /// How assistant replies animate as they stream in
+    /// (instant | buffer | buffer-fade | block-fade)
+    ChatStreamingRevealMode,
     /// Whether plans render inline in chat vs sidebar panel (boolean)
     PlanInlineMode,
     /// Whether review opens fullscreen by default (boolean)
@@ -123,6 +126,7 @@ impl UserSettingKey {
             UserSettingKey::ChatThinkingBlockCollapsedByDefault => {
                 "chat_thinking_block_collapsed_by_default"
             }
+            UserSettingKey::ChatStreamingRevealMode => "chat_streaming_reveal_mode",
             UserSettingKey::PlanInlineMode => "plan_inline_mode",
             UserSettingKey::ReviewPreferFullscreen => "review_prefer_fullscreen",
             UserSettingKey::NotificationPreferences => "notification-preferences",
@@ -188,6 +192,7 @@ mod tests {
             "custom_agent_configs",
             "agent_env_overrides",
             "chat_thinking_block_collapsed_by_default",
+            "chat_streaming_reveal_mode",
             "plan_inline_mode",
             "notification-preferences",
             "voice_model",
