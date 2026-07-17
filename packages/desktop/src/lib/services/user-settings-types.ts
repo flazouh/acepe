@@ -110,6 +110,10 @@ export type UserSettingKey =
  */
 "chat_thinking_block_collapsed_by_default" |
 /**
+ * Streaming reveal animation mode for assistant replies (RevealMode string)
+ */
+"chat_streaming_reveal_mode" |
+/**
  * Whether plans render inline in chat vs sidebar panel (boolean)
  */
 "plan_inline_mode" |
