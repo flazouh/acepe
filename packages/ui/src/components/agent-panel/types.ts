@@ -4,7 +4,6 @@
  */
 import type { AssistantMessage } from "../../lib/assistant-message/types.js";
 import type { ChunkGroup } from "../../lib/assistant-message/assistant-chunk-grouper.js";
-import type { StreamingAnimationMode } from "../../lib/assistant-message/types.js";
 import type { CommandChipModel } from "../command-chip/command-chip.types.js";
 import type { Snippet } from "svelte";
 
@@ -82,27 +81,15 @@ export interface AgentAssistantEntry {
 	markdown: string;
 	message?: AssistantMessage;
 	isStreaming?: boolean;
-	tokenRevealCss?: TokenRevealCss;
 	timestampMs?: number;
 	/** Canonical awaiting-model anchor for the planning placeholder while streaming. */
 	planningStartedAtMs?: number | null;
 }
 
-export interface TokenRevealCss {
-	revealCount: number;
-	revealedCharCount: number;
-	baselineMs: number;
-	tokStepMs: number;
-	tokFadeDurMs: number;
-	mode: "smooth" | "instant";
-}
-
 export interface AssistantRenderBlockContext {
 	group: ChunkGroup;
 	isStreaming?: boolean;
-	tokenRevealCss?: TokenRevealCss;
 	projectPath?: string;
-	streamingAnimationMode?: StreamingAnimationMode;
 }
 
 /** One file/replace hunk in an edit tool — used by {@link AgentToolEdit}. */

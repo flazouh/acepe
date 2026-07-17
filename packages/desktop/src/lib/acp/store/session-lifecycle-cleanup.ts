@@ -39,7 +39,6 @@ export class SessionLifecycleCleanup {
 		this.#deps.projectionCore.sessionStateGraphs.delete(sessionId);
 		this.#deps.viewport.removeSession(sessionId);
 		this.#deps.projectionCore.canonicalCapabilitiesMaterialized.delete(sessionId);
-		this.#deps.projectionCore.rowTokenStreamsByRowId.delete(sessionId);
 		this.#deps.messagingSvc.clearSessionState(sessionId);
 		this.#deps.composerMachineService.removeMachine(sessionId);
 		preferencesStore.clearSessionModelPerMode(sessionId);
@@ -52,7 +51,6 @@ export class SessionLifecycleCleanup {
 		this.#deps.entryStore.clearEntries(sessionId);
 		this.#deps.projectionCore.sessionStateGraphs.delete(sessionId);
 		this.#deps.projectionCore.canonicalProjections.delete(sessionId);
-		this.#deps.projectionCore.rowTokenStreamsByRowId.delete(sessionId);
 		this.#deps.messagingSvc.clearSessionState(sessionId);
 	}
 }

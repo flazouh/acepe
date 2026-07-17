@@ -24,13 +24,11 @@ import type { TranscriptRowsState } from "../../../store/transcript-rows-store.j
 import type { TurnState } from "../../../store/types.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import type { LocalPlaceholderMode } from "../logic/local-placeholder-mode.js";
-import { getChatPreferencesStore } from "../../../store/chat-preferences-store.svelte.js";
 import {
 	getPermissionStore,
 	type PermissionStore,
 } from "../../../store/permission-store.svelte.js";
 import { getSessionStore } from "../../../store/session-store.svelte.js";
-import { DEFAULT_STREAMING_ANIMATION_MODE } from "../../../types/streaming-animation-mode.js";
 import { getWorkerPool } from "../../../utils/worker-pool-singleton.js";
 import {
 	pierreDiffsUnsafeCSS,
@@ -52,7 +50,6 @@ import { createSyntheticReviewEntry } from "../logic/synthetic-review-entry.js";
 import { recordPanelOpenPerformanceMark } from "../logic/panel-open-performance-mark.js";
 import { useTheme } from "../../../../components/theme/context.svelte.js";
 
-const EMPTY_SCENE_ENTRIES: readonly AgentPanelSceneEntryModel[] = [];
 const SEND_REVEAL_PEEK_PX = 72;
 const OLDER_ROWS_PREFETCH_ROW_THRESHOLD = 48;
 const OLDER_ROWS_PREFETCH_BEFORE_PX = 4_800;
@@ -63,7 +60,6 @@ const FALLBACK_UNLOADED_ROW_ESTIMATE_PX = rowEstimatePx("tool");
 
 type SceneContentViewportProps = {
 	panelId: string;
-	sceneEntries?: readonly AgentPanelSceneEntryModel[];
 	optimisticUserEntry?: AgentPanelSceneEntryModel | null;
 	rowsProjection?: TranscriptRowsState | null;
 	turnState: TurnState;
@@ -109,7 +105,6 @@ type TaskTranscriptDialogBinding = {
 
 let {
 	panelId,
-	sceneEntries,
 	optimisticUserEntry = null,
 	rowsProjection = null,
 	turnState,
@@ -136,11 +131,7 @@ let {
 	profileRecorder,
 }: SceneContentViewportProps = $props();
 
-const chatPrefs = getChatPreferencesStore();
 const themeState = useTheme();
-const streamingAnimationMode = $derived(
-	chatPrefs?.streamingAnimationMode ?? DEFAULT_STREAMING_ANIMATION_MODE
-);
 const rowsDiagnostics = $derived(sessionStore.viewport.getRowsDiagnostics(sessionId));
 const editToolTheme = $derived({
 	theme: themeState.effectiveTheme,
@@ -606,9 +597,7 @@ export function scrollToTop() {
 			<ContentBlockRouter
 				block={{ type: "text", text: context.group.text }}
 				isStreaming={context.isStreaming}
-				tokenRevealCss={context.tokenRevealCss}
 				{projectPath}
-				{streamingAnimationMode}
 			/>
 		{:else}
 			<ContentBlockRouter block={context.group.block} {projectPath} />
@@ -625,7 +614,6 @@ export function scrollToTop() {
 			{projectPath}
 			{showWorkingSpark}
 			{isFullscreen}
-			{streamingAnimationMode}
 			{editToolTheme}
 			{renderAssistantBlock}
 			{onQuestionSelect}

@@ -7,7 +7,6 @@ export type {
 	AssistantMessage,
 	AssistantMessageChunk,
 	ContentBlock,
-	StreamingAnimationMode,
 } from "../../lib/assistant-message/types.js";
 export { default as AgentAssistantMessage } from "./agent-assistant-message.svelte";
 export { default as ClaudeWorkingSpark } from "./claude-working-spark.svelte";
@@ -230,7 +229,6 @@ export { resolveVisibleAssistantMessageGroups } from "./agent-assistant-message-
 export type {
 	AgentAssistantEntry,
 	AssistantRenderBlockContext,
-	TokenRevealCss,
 	AgentPanelActionabilityModel,
 	AgentPanelActionCallbacks,
 	AgentPanelActionDescriptor,

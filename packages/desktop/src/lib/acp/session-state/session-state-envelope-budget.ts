@@ -33,7 +33,6 @@ const SESSION_STATE_ENVELOPE_MAX_BYTES_BY_KIND = {
 	capabilities: 128_000,
 	telemetry: 16_000,
 	plan: 128_000,
-	assistantTextDelta: 8_000,
 	viewportBufferPush: 512_000,
 	viewportBufferDelta: 128_000,
 } satisfies Record<SessionStatePayloadKind, number>;

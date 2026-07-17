@@ -13,7 +13,6 @@ import { canonicalAgentIdToString } from "../types/agent-id.js";
 import { sanitizeCanonicalCapabilities } from "./canonical-config-sanitize.js";
 import { deriveCapabilityPreviewState } from "./capability-projection.js";
 import type { CanonicalSessionProjection } from "./canonical-session-projection.js";
-import { preserveCanonicalStreamingState } from "./envelope-reducer/canonical-streaming-state.js";
 import { mapProjectionTurnFailure } from "./envelope-reducer/projection-turn-failure.js";
 import { seedTranscriptEntryIndex } from "./transcript-entry-index.js";
 import type { SessionCreationCoordinator } from "./session-creation-coordinator.svelte.js";
@@ -202,9 +201,6 @@ export class SessionOpenSnapshotApplier {
 				previewState: deriveCapabilityPreviewState(canonicalCapabilities),
 			},
 		});
-		const preservedStreamingState = preserveCanonicalStreamingState(
-			this.#deps.getCanonicalProjection(canonicalSessionId)
-		);
 		this.#deps.setCanonicalProjection(canonicalSessionId, {
 			lifecycle: graph.lifecycle,
 			activity: graph.activity,
@@ -213,8 +209,6 @@ export class SessionOpenSnapshotApplier {
 			lastTerminalTurnId: snapshot.lastTerminalTurnId ?? null,
 			activeStreamingTail: graph.activeStreamingTail ?? null,
 			capabilities: canonicalCapabilities,
-			tokenStream: preservedStreamingState.tokenStream,
-			clockAnchor: preservedStreamingState.clockAnchor,
 			revision: graph.revision,
 		});
 		this.#deps.sendContentLoad(canonicalSessionId);

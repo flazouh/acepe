@@ -10,8 +10,6 @@ import type {
 } from "../../../services/acp-types.js";
 import type { SessionStateCommand } from "../../session-state/session-state-command-router.js";
 import { sanitizeCanonicalCapabilities } from "../canonical-config-sanitize.js";
-import type { SessionClockAnchor } from "../canonical-session-projection.js";
-import type { RowTokenStream } from "../canonical-session-projection.js";
 import { graphWithCapabilities } from "../session-graph-builders.js";
 import {
 	graphWithLifecycle,
@@ -19,14 +17,8 @@ import {
 	graphWithTranscriptSnapshot,
 } from "../session-graph-builders.js";
 import type { SessionTransientProjection } from "../types.js";
-import {
-	applyTranscriptDeltaToSnapshot,
-	buildRowTokenStreamKey,
-	cloneRowTokenStreamMap,
-	countAppendedMarkdownWords,
-} from "../transcript-delta.js";
+import { applyTranscriptDeltaToSnapshot } from "../transcript-delta.js";
 import { buildCanonicalUsageTelemetry } from "./canonical-usage-telemetry.js";
-import { preserveCanonicalStreamingState } from "./canonical-streaming-state.js";
 import { emptySessionGraphCapabilities } from "./empty-session-graph-capabilities.js";
 import type { EnvelopePatch } from "./envelope-patch.js";
 import type { EnvelopeReducerSnapshot } from "./envelope-snapshot.js";
@@ -96,8 +88,6 @@ export function reduceCommand(
 			return reduceApplyLifecycle(snapshot, command, nowMs);
 		case "applyGraphPatches":
 			return reduceApplyGraphPatches(snapshot, command);
-		case "applyAssistantTextDelta":
-			return reduceApplyAssistantTextDelta(snapshot, command);
 		case "applyTranscriptDelta":
 			return reduceTranscriptDelta(snapshot, command.delta, command.revision);
 		case "refreshSnapshot":
@@ -128,7 +118,6 @@ function reduceApplyCapabilities(
 		return [];
 	}
 
-	const preservedStreamingState = preserveCanonicalStreamingState(snapshot.previousProjection);
 	const patches: EnvelopePatch[] = [
 		{
 			kind: "setCapabilitiesMaterialized",
@@ -149,8 +138,6 @@ function reduceApplyCapabilities(
 				lastTerminalTurnId: snapshot.previousProjection.lastTerminalTurnId,
 				activeStreamingTail: snapshot.previousProjection.activeStreamingTail,
 				capabilities: canonicalCapabilities,
-				tokenStream: preservedStreamingState.tokenStream,
-				clockAnchor: preservedStreamingState.clockAnchor,
 				revision: command.revision,
 			},
 		});
@@ -377,7 +364,6 @@ function reduceApplyLifecycle(
 		return [];
 	}
 
-	const preservedStreamingState = preserveCanonicalStreamingState(previousProjection);
 	const turnState = previousProjection?.turnState ?? "Idle";
 	const activeTurnFailure = previousProjection?.activeTurnFailure ?? null;
 	const graphActiveTurnFailure = previousGraph?.activeTurnFailure ?? null;
@@ -401,8 +387,6 @@ function reduceApplyLifecycle(
 				lastTerminalTurnId: previousProjection?.lastTerminalTurnId ?? null,
 				activeStreamingTail: previousProjection?.activeStreamingTail ?? null,
 				capabilities: previousProjection?.capabilities ?? emptySessionGraphCapabilities(),
-				tokenStream: preservedStreamingState.tokenStream,
-				clockAnchor: preservedStreamingState.clockAnchor,
 				revision: lifecycleRevision,
 			},
 		},
@@ -505,7 +489,6 @@ function reduceApplyGraphPatches(
 		return [];
 	}
 
-	const preservedStreamingState = preserveCanonicalStreamingState(previousProjection);
 	const previousGraph = snapshot.previousGraph;
 	const activeTurnFailure =
 		command.activeTurnFailure === undefined
@@ -593,8 +576,6 @@ function reduceApplyGraphPatches(
 			lastTerminalTurnId: nextLastTerminalTurnId,
 			activeStreamingTail: nextProjectionActiveStreamingTail,
 			capabilities: previousProjection.capabilities,
-			tokenStream: preservedStreamingState.tokenStream,
-			clockAnchor: preservedStreamingState.clockAnchor,
 			revision: command.revision,
 		},
 	});
@@ -625,98 +606,6 @@ function reduceApplyGraphPatches(
 	);
 
 	return patches;
-}
-
-function reduceApplyAssistantTextDelta(
-	snapshot: EnvelopeReducerSnapshot,
-	command: Extract<SessionStateCommand, { kind: "applyAssistantTextDelta" }>
-): readonly EnvelopePatch[] {
-	const delta = command.delta;
-	const projection = snapshot.previousProjection;
-	if (projection === null) {
-		return [
-			{
-				kind: "warnMissingCanonicalProjection",
-				sessionId: snapshot.sessionId,
-				reason: "assistantTextDelta",
-				context: {
-					turnId: delta.turnId,
-					rowId: delta.rowId,
-					deltaRevision: delta.revision,
-				},
-			},
-			{
-				kind: "refreshSessionStateSnapshot",
-				sessionId: snapshot.sessionId,
-				reason: "missingProjectionBeforeAssistantDelta",
-			},
-		];
-	}
-
-	const rowKey = buildRowTokenStreamKey(delta.turnId, delta.rowId);
-	const previousRow = projection.tokenStream.get(rowKey) ?? null;
-	if (previousRow !== null && delta.revision < previousRow.revision) {
-		return [];
-	}
-	if (delta.revision <= projection.revision.graphRevision) {
-		return [];
-	}
-
-	const currentText = previousRow?.accumulatedText ?? "";
-	if (delta.charOffset !== currentText.length) {
-		return [];
-	}
-
-	const nextText = `${currentText}${delta.deltaText}`;
-	const wordCounts = countAppendedMarkdownWords({
-		previousText: currentText,
-		previousWordCount: previousRow?.wordCount ?? 0,
-		deltaText: delta.deltaText,
-	});
-	const nextRow: RowTokenStream = {
-		turnId: delta.turnId,
-		rowId: delta.rowId,
-		accumulatedText: nextText,
-		wordCount: wordCounts.wordCount,
-		latestWordCount: wordCounts.latestWordCount,
-		firstDeltaProducedAtMonotonicMs:
-			previousRow?.firstDeltaProducedAtMonotonicMs ?? delta.producedAtMonotonicMs,
-		lastDeltaProducedAtMonotonicMs: delta.producedAtMonotonicMs,
-		revision: delta.revision,
-	};
-	const nextTokenStream = cloneRowTokenStreamMap(projection.tokenStream);
-	nextTokenStream.set(rowKey, nextRow);
-	const nextClockAnchor: SessionClockAnchor =
-		projection.clockAnchor ??
-		({
-			rustMonotonicMs: delta.producedAtMonotonicMs,
-			browserAnchorMs: snapshot.browserMonotonicMs,
-		} satisfies SessionClockAnchor);
-
-	return [
-		{
-			kind: "setCanonicalProjection",
-			sessionId: snapshot.sessionId,
-			projection: {
-				lifecycle: projection.lifecycle,
-				activity: projection.activity,
-				turnState: projection.turnState,
-				activeTurnFailure: projection.activeTurnFailure,
-				lastTerminalTurnId: projection.lastTerminalTurnId,
-				activeStreamingTail: projection.activeStreamingTail,
-				capabilities: projection.capabilities,
-				tokenStream: nextTokenStream,
-				clockAnchor: nextClockAnchor,
-				revision: projection.revision,
-			},
-		},
-		{
-			kind: "setRowTokenStream",
-			sessionId: snapshot.sessionId,
-			rowId: delta.rowId,
-			row: nextRow,
-		},
-	];
 }
 
 export function reduceTranscriptDelta(

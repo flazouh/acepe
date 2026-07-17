@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { openUrl } from "@tauri-apps/plugin-opener";
-	import type { TokenRevealCss } from "@acepe/ui/agent-panel";
 	import { NativeMarkdown } from "@acepe/ui/native-markdown";
 	import type { TogglePrLinkPayload } from "@acepe/ui/native-markdown";
 
@@ -8,19 +7,13 @@
 	import { getPanelStore, type OpenProjectFileSystemDialogOptions } from "../../store/index.js";
 	import { getSessionStore } from "../../store/session-store.svelte.js";
 	import { createLogger } from "../../utils/logger.js";
-	import {
-		DEFAULT_STREAMING_ANIMATION_MODE,
-		type StreamingAnimationMode,
-	} from "../../types/streaming-animation-mode.js";
 	import { resolveProjectFileReference } from "./logic/file-chip-diff-enhancer.js";
 
 	interface Props {
 		text: string;
 		/** Whether content is currently streaming */
 		isStreaming?: boolean;
-		tokenRevealCss?: TokenRevealCss;
 		projectPath?: string;
-		streamingAnimationMode?: StreamingAnimationMode;
 	}
 
 	const logger = createLogger({ id: "markdown-text", name: "Markdown Text" });
@@ -31,16 +24,11 @@
 	let {
 		text,
 		isStreaming = false,
-		tokenRevealCss,
 		projectPath: propProjectPath,
-		streamingAnimationMode = DEFAULT_STREAMING_ANIMATION_MODE,
 	}: Props = $props();
 
 	const projectPath = $derived(propProjectPath);
 	const nativeMarkdownMode = $derived(isStreaming ? "streaming" : "static");
-	const nativeMarkdownAnimation = $derived(
-		streamingAnimationMode === "smooth" ? undefined : false
-	);
 
 	const sessionId = $derived(sessionContext?.sessionId);
 	const linkProjectPath = $derived(sessionContext?.projectPath ?? propProjectPath);
@@ -102,8 +90,6 @@
 	markdown={text}
 	mode={nativeMarkdownMode}
 	parseIncompleteMarkdown={isStreaming}
-	animated={nativeMarkdownAnimation}
-	tokenRevealTiming={tokenRevealCss}
 	class="text-sm text-foreground"
 	onExternalLinkClick={openExternalLink}
 	onFilePathClick={openFilePath}

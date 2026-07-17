@@ -91,7 +91,6 @@ function withViewportPlanningTiming(
 			markdown: entry.markdown,
 			message: entry.message,
 			isStreaming: entry.isStreaming,
-			tokenRevealCss: entry.tokenRevealCss,
 			timestampMs: entry.timestampMs,
 			planningStartedAtMs: durationStartedAtMs,
 		};
@@ -436,7 +435,7 @@ function displayFactsFromEmbeddedOperation(
 		taskPrompt: operation.arguments.kind === "think" ? operation.arguments.prompt : null,
 		subagentType: operation.arguments.kind === "think" ? operation.arguments.subagent_type : null,
 		normalizedTodos: operation.normalized_todos,
-		editDiffs: operation.arguments.kind === "edit" ? operation.arguments.edits : undefined,
+		editDiffs: operation.arguments.kind === "edit" ? operation.arguments.edits : [],
 		commandSummary: commandSummaryFromOperation(operation),
 		targetPathSummary: targetPathSummaryFromOperation(operation),
 		resultSummary,

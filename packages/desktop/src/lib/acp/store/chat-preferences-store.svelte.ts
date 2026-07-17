@@ -8,10 +8,6 @@
 import { getContext, setContext } from "svelte";
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
-import {
-	DEFAULT_STREAMING_ANIMATION_MODE,
-	type StreamingAnimationMode,
-} from "../types/streaming-animation-mode.js";
 import { createLogger } from "../utils/logger.js";
 
 const logger = createLogger({ id: "chat-preferences", name: "ChatPreferencesStore" });
@@ -23,7 +19,6 @@ const STORE_KEY = Symbol("chat-preferences-store");
 export class ChatPreferencesStore {
 	/** When true, thinking blocks in assistant messages start collapsed. */
 	thinkingBlockCollapsedByDefault = $state(false);
-	streamingAnimationMode = $state<StreamingAnimationMode>(DEFAULT_STREAMING_ANIMATION_MODE);
 	isReady = $state(false);
 
 	private initialized = false;

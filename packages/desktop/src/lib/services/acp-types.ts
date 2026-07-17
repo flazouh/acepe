@@ -596,7 +596,7 @@ export type TranscriptViewportRowKind = "user" | "assistantText" | "assistantTho
 
 export type TranscriptViewportLatestChildAction = { operationId: string; toolCallId: string; kind: ToolKind | null; state: OperationState; title: string; subtitle?: string | null; targetPathSummary?: string | null }
 
-export type TranscriptViewportOperationDisplayFacts = { operationId: string; toolCallId: string; name: string; title: string; state: OperationState; kind: ToolKind | null; skillName?: string | null; skillArgs?: string | null; taskDescription?: string | null; taskPrompt?: string | null; subagentType?: string | null; normalizedTodos?: TodoItem[] | null; editDiffs?: EditEntry[]; commandSummary?: string | null; targetPathSummary?: string | null; resultSummary?: string | null; errorSummary?: string | null; interactionIds: string[]; parentToolCallId?: string | null; childToolCallIds: string[]; childTranscriptScope?: TranscriptScope | null; latestChildAction?: TranscriptViewportLatestChildAction | null }
+export type TranscriptViewportOperationDisplayFacts = { operationId: string; toolCallId: string; name: string; title: string; state: OperationState; kind: ToolKind | null; skillName?: string | null; skillArgs?: string | null; taskDescription?: string | null; taskPrompt?: string | null; subagentType?: string | null; normalizedTodos?: TodoItem[] | null; editDiffs: EditEntry[]; commandSummary?: string | null; targetPathSummary?: string | null; resultSummary?: string | null; errorSummary?: string | null; interactionIds: string[]; parentToolCallId?: string | null; childToolCallIds: string[]; childTranscriptScope?: TranscriptScope | null; latestChildAction?: TranscriptViewportLatestChildAction | null }
 
 export type TranscriptViewportOperationLink = { operationId: string; toolCallId: string; name: string; state: OperationState; displayFacts?: TranscriptViewportOperationDisplayFacts | null; operation?: OperationSnapshot | null }
 
@@ -613,8 +613,6 @@ export type SessionStateSnapshotMaterialization = { graph: SessionStateGraph }
 export type SessionStateField = "transcriptSnapshot" | "operations" | "activity" | "turnState" | "activeTurnFailure" | "lastTerminalTurnId" | "activeStreamingTail" | "interactions"
 
 export type SessionStateDelta = { fromRevision: SessionGraphRevision; toRevision: SessionGraphRevision; activity: SessionGraphActivity; turnState: SessionTurnState; activeTurnFailure?: TurnFailureSnapshot | null; lastTerminalTurnId?: string | null; activeStreamingTail: ActiveStreamingTail | null; transcriptOperations: TranscriptDeltaOperation[]; operationPatches: OperationSnapshot[]; interactionPatches: InteractionSnapshot[]; changedFields?: SessionStateField[] }
-
-export type AssistantTextDeltaPayload = { turnId: string; rowId: string; charOffset: number; deltaText: string; producedAtMonotonicMs: number; revision: number }
 
 /**
  * Diagnostic emitted alongside a buffer push/delta (e.g. a rejected height
@@ -647,7 +645,7 @@ export type ViewportBufferDelta = { sessionId: string; graphRevision: SessionGra
 
 export type TranscriptViewportCommandRevision = { graphRevision: number; transcriptRevision: number; lastEventSeq: number }
 
-export type SessionStatePayload = { kind: "snapshot"; graph: SessionStateGraph } | { kind: "delta"; delta: SessionStateDelta } | { kind: "lifecycle"; lifecycle: SessionGraphLifecycle; revision: SessionGraphRevision } | { kind: "capabilities"; capabilities: SessionGraphCapabilities; revision: SessionGraphRevision; pending_mutation_id?: string | null; preview_state: CapabilityPreviewState } | { kind: "telemetry"; telemetry: UsageTelemetryData; revision: SessionGraphRevision } | { kind: "plan"; plan: PlanData; revision: SessionGraphRevision } | { kind: "assistantTextDelta"; delta: AssistantTextDeltaPayload } | { kind: "viewportBufferPush"; push: ViewportBufferPush } | { kind: "viewportBufferDelta"; delta: ViewportBufferDelta }
+export type SessionStatePayload = { kind: "snapshot"; graph: SessionStateGraph } | { kind: "delta"; delta: SessionStateDelta } | { kind: "lifecycle"; lifecycle: SessionGraphLifecycle; revision: SessionGraphRevision } | { kind: "capabilities"; capabilities: SessionGraphCapabilities; revision: SessionGraphRevision; pending_mutation_id?: string | null; preview_state: CapabilityPreviewState } | { kind: "telemetry"; telemetry: UsageTelemetryData; revision: SessionGraphRevision } | { kind: "plan"; plan: PlanData; revision: SessionGraphRevision } | { kind: "viewportBufferPush"; push: ViewportBufferPush } | { kind: "viewportBufferDelta"; delta: ViewportBufferDelta }
 
 export type SessionStateEnvelope = { sessionId: string; graphRevision: number; lastEventSeq: number; payload: SessionStatePayload }
 

@@ -23,19 +23,31 @@ use std::sync::Arc;
 
 #[test]
 fn session_state_ui_event_rejects_oversized_envelopes() {
+    // Byte-budget enforcement is generic across payload kinds; a Capabilities
+    // payload with an oversized command description is an easy way to blow
+    // past its budget (see also
+    // `SessionStatePayloadKind::rejects_oversized_capabilities` in
+    // `session_state_engine/envelope.rs`).
+    let capabilities = crate::acp::session_state_engine::SessionGraphCapabilities {
+        models: None,
+        modes: None,
+        available_commands: Some(vec![AvailableCommand {
+            name: "oversized".to_string(),
+            description: "x".repeat(200_000),
+            input: None,
+        }]),
+        config_options: None,
+        autonomous_enabled: Some(true),
+    };
     let envelope = SessionStateEnvelope {
         session_id: "session-budget-1".to_string(),
         graph_revision: 1,
         last_event_seq: 1,
-        payload: crate::acp::session_state_engine::SessionStatePayload::AssistantTextDelta {
-            delta: crate::acp::session_state_engine::protocol::AssistantTextDeltaPayload {
-                turn_id: "turn-1".to_string(),
-                row_id: "assistant-1".to_string(),
-                char_offset: 0,
-                delta_text: "x".repeat(8_000),
-                produced_at_monotonic_ms: 5,
-                revision: 1,
-            },
+        payload: crate::acp::session_state_engine::SessionStatePayload::Capabilities {
+            capabilities: Box::new(capabilities),
+            revision: SessionGraphRevision::new(1, 1, 1),
+            pending_mutation_id: None,
+            preview_state: crate::acp::session_state_engine::CapabilityPreviewState::Canonical,
         },
     };
 
@@ -506,61 +518,6 @@ async fn persist_dispatch_event_builds_snapshot_envelope_from_journal_event_seq(
         }
         other => panic!("expected snapshot payload, got {:?}", other),
     }
-}
-
-#[tokio::test]
-async fn persist_dispatch_event_emits_assistant_text_delta_envelope_for_streaming_chunks() {
-    let db = setup_test_db().await;
-    SessionMetadataRepository::ensure_exists(
-        &db,
-        "session-1",
-        "/test/project",
-        "claude-code",
-        None,
-    )
-    .await
-    .expect("session metadata");
-    let event = AcpUiEvent::session_update(chunk_update_with_timestamp("session-1", "hello", 5));
-
-    let projection_registry = ProjectionRegistry::new();
-    if let AcpUiEventPayload::SessionUpdate(update) = &event.payload {
-        projection_registry.apply_session_update("session-1", update.as_ref());
-    }
-    let transcript_projection_registry = TranscriptProjectionRegistry::new();
-    let runtime_graph_registry = SessionGraphRuntimeRegistry::new();
-    seed_lifecycle(&runtime_graph_registry, "session-1");
-    let effects = persist_dispatch_event(
-        Some(&db),
-        &event,
-        &projection_registry,
-        &runtime_graph_registry,
-        &transcript_projection_registry,
-    )
-    .await;
-
-    assert!(
-        effects.session_state_envelope.is_some(),
-        "expected primary transcript/session envelope"
-    );
-    let delta = effects
-        .additional_session_state_envelopes
-        .iter()
-        .find_map(|envelope| match &envelope.payload {
-            crate::acp::session_state_engine::SessionStatePayload::AssistantTextDelta { delta } => {
-                Some(delta)
-            }
-            _ => None,
-        })
-        .expect("assistant text delta payload");
-    // row_id/turn_id must be the raw canonical entry_id (colons and dots
-    // intact) — the client correlates it against ActiveStreamingTail.row_id,
-    // which is never sanitized. See live_envelope_builder.rs.
-    assert_eq!(delta.row_id, "acepe::entry::session-start::assistant::.");
-    assert_eq!(delta.turn_id, "acepe::entry::session-start::assistant::.");
-    assert_eq!(delta.char_offset, 0);
-    assert_eq!(delta.delta_text, "hello");
-    assert_eq!(delta.produced_at_monotonic_ms, 5);
-    assert_eq!(delta.revision, 1);
 }
 
 #[tokio::test]

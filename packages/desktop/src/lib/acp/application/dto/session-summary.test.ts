@@ -61,8 +61,6 @@ function projection(input: {
 		lastTerminalTurnId: null,
 		activeStreamingTail: null,
 		capabilities: {},
-		tokenStream: new Map(),
-		clockAnchor: null,
 		revision: {
 			graphRevision: 1,
 			transcriptRevision: 1,

@@ -2053,24 +2053,6 @@ describe("SessionStore.applySessionStateGraph", () => {
 				lifecycle: createGraphLifecycle("ready"),
 			})
 		);
-		store.applySessionStateEnvelope("session-1", {
-			sessionId: "session-1",
-			graphRevision: 8,
-			lastEventSeq: 8,
-			payload: {
-				kind: "assistantTextDelta",
-				delta: {
-					turnId: "turn-live",
-					rowId: "assistant-1",
-					charOffset: 0,
-					deltaText: " it with code.",
-					producedAtMonotonicMs: 1,
-					revision: 8,
-				},
-			},
-		});
-		expect(getCanonicalProjection(store)?.tokenStream.size).toBe(1);
-
 		store.applySessionStateGraph(
 			createSessionStateGraph({
 				turnState: "Completed",
@@ -5617,14 +5599,15 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			graphRevision: 8,
 			lastEventSeq: 10,
 			payload: {
-				kind: "assistantTextDelta",
-				delta: {
-					turnId: "turn-1",
-					rowId: "assistant-1",
-					charOffset: 0,
-					deltaText: "x".repeat(getSessionStateEnvelopeByteBudget("assistantTextDelta")),
-					producedAtMonotonicMs: 12,
-					revision: 8,
+				kind: "lifecycle",
+				lifecycle: createGraphLifecycle(
+					"failed",
+					"x".repeat(getSessionStateEnvelopeByteBudget("lifecycle"))
+				),
+				revision: {
+					graphRevision: 8,
+					transcriptRevision: 7,
+					lastEventSeq: 8,
 				},
 			},
 		});

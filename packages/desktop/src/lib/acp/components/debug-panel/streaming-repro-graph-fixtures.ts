@@ -185,7 +185,6 @@ export function applyStreamingReproPhaseSceneOverrides(input: {
 					thinkingDurationMs: entry.message?.thinkingDurationMs,
 				},
 				isStreaming: entry.isStreaming,
-				tokenRevealCss: entry.tokenRevealCss,
 				timestampMs: entry.timestampMs,
 			});
 			continue;

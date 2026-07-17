@@ -1,5 +1,4 @@
 import type {
-	AssistantTextDeltaPayload,
 	CapabilityPreviewState,
 	InteractionSnapshot,
 	OperationSnapshot,
@@ -87,10 +86,6 @@ export type SessionStateCommand =
 			interactionPatches: InteractionSnapshot[];
 	  }
 	| {
-			kind: "applyAssistantTextDelta";
-			delta: AssistantTextDeltaPayload;
-	  }
-	| {
 			kind: "applyBufferPush";
 			push: ViewportBufferPush;
 	  }
@@ -137,13 +132,6 @@ function envelopeFrontierMatchesRevision(
 		envelope.graphRevision === revision.graphRevision &&
 		envelope.lastEventSeq === revision.lastEventSeq
 	);
-}
-
-function envelopeFrontierMatchesAssistantTextDelta(
-	envelope: Pick<SessionStateEnvelope, "graphRevision" | "lastEventSeq">,
-	delta: AssistantTextDeltaPayload
-): boolean {
-	return envelope.graphRevision === delta.revision && envelope.lastEventSeq === delta.revision;
 }
 
 function commandFromDeltaResolution(
@@ -491,22 +479,6 @@ export function routeSessionStateEnvelope(
 			}
 			return commands;
 		}
-		case "assistantTextDelta":
-			if (!envelopeFrontierMatchesAssistantTextDelta(envelope, envelope.payload.delta)) {
-				return [
-					{
-						kind: "refreshSnapshot",
-						fromRevision: envelope.payload.delta.revision,
-						toRevision: envelope.graphRevision,
-					},
-				];
-			}
-			return [
-				{
-					kind: "applyAssistantTextDelta",
-					delta: envelope.payload.delta,
-				},
-			];
 		case "viewportBufferPush":
 			if (!envelopeFrontierMatchesRevision(envelope, envelope.payload.push.graphRevision)) {
 				return [

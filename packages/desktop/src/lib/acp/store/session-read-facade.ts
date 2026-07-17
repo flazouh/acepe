@@ -24,7 +24,7 @@ import type { ToolCall } from "../types/tool-call.js";
 import type { ToolKind } from "../types/tool-kind.js";
 import type { ActiveTurnFailure } from "../types/turn-error.js";
 import type { Result } from "neverthrow";
-import type { CanonicalSessionProjection, RowTokenStream, SessionClockAnchor } from "./canonical-session-projection.js";
+import type { CanonicalSessionProjection } from "./canonical-session-projection.js";
 import type { CapabilityProjectionReader } from "./capability-projection-reader.js";
 import type { InteractionStore } from "./interaction-store.svelte.js";
 import type { SessionOperationInteractionSnapshot } from "./operation-association.js";
@@ -172,22 +172,6 @@ export class SessionReadFacade implements ISessionStateReader {
 
 	getSessionLastTerminalTurnId(sessionId: string): string | null {
 		return this.#deps.projectionCore.getLastTerminalTurnId(sessionId);
-	}
-
-	getRowTokenStream(sessionId: string, turnId: string, rowId: string): RowTokenStream | null {
-		return this.#deps.projectionCore.getRowTokenStream(sessionId, turnId, rowId);
-	}
-
-	getRowTokenStreamByRowId(sessionId: string, rowId: string): RowTokenStream | null {
-		return this.#deps.projectionCore.getRowTokenStreamByRowId(sessionId, rowId);
-	}
-
-	getActiveStreamingTailRowId(sessionId: string): string | null {
-		return this.#deps.projectionCore.getActiveStreamingTailRowId(sessionId);
-	}
-
-	getClockAnchor(sessionId: string): SessionClockAnchor | null {
-		return this.#deps.projectionCore.getClockAnchor(sessionId);
 	}
 
 	getGraphTranscriptRevision(sessionId: string): number | undefined {

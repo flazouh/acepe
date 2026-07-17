@@ -9,13 +9,11 @@
 import { describe, expect, it, mock } from "bun:test";
 import type { PanelStore } from "../../../store/panel-store.svelte.js";
 import type { SessionStore } from "../../../store/session-store.svelte.js";
-import type { ChatPreferencesStore } from "../../../store/chat-preferences-store.svelte.js";
 import { PanelConnectionState, type PanelConnectionErrorDetails } from "../../../types/panel-connection-state.js";
 import { AgentPanelSessionController } from "../state/agent-panel-session-controller.svelte.js";
 import { ConnectionController } from "../state/connection-controller.svelte.js";
 import { ContentScrollRevealController } from "../state/content-scroll-reveal-controller.svelte.js";
 import { AgentPanelViewStateController } from "../state/agent-panel-view-state-controller.svelte.js";
-import { AgentPanelScenePipelineController } from "../state/agent-panel-scene-pipeline-controller.svelte.js";
 import { WorktreeSetupController } from "../state/worktree-setup-controller.svelte.js";
 import { AgentPanelWorktreeController } from "../state/agent-panel-worktree-controller.svelte.js";
 
@@ -33,13 +31,11 @@ type AgentPanelWiringFixture = {
 	connection: ConnectionController;
 	contentScrollReveal: ContentScrollRevealController;
 	viewStateController: AgentPanelViewStateController;
-	scenePipelineController: AgentPanelScenePipelineController;
 	worktreeSetup: WorktreeSetupController;
 	worktreeController: AgentPanelWorktreeController;
 	holder: {
 		sessionId: string | null;
 		panelId: string;
-		graphHeaderTitle: string;
 		connectionState: PanelConnectionState | null;
 	};
 	pushConnectionSnapshot: (
@@ -69,9 +65,6 @@ function createAgentPanelWiringFixture(): AgentPanelWiringFixture {
 			getSessionMetadata: () => ({ title: "Fixture session" }),
 			getSessionTurnState: () => "Completed" as const,
 			getSessionLastTerminalTurnId: () => "turn-1",
-			getActiveStreamingTailRowId: () => null,
-			getClockAnchor: () => null,
-			getRowTokenStreamByRowId: () => null,
 			getSessionCurrentModelId: () => null,
 		},
 		presentation: {
@@ -101,7 +94,6 @@ function createAgentPanelWiringFixture(): AgentPanelWiringFixture {
 	const holder = {
 		sessionId: "session-fixture-1" as string | null,
 		panelId: "panel-fixture-1",
-		graphHeaderTitle: "Fixture graph header",
 		connectionState: null as PanelConnectionState | null,
 		connectionError: null as PanelConnectionErrorDetails | null,
 	};
@@ -169,28 +161,6 @@ function createAgentPanelWiringFixture(): AgentPanelWiringFixture {
 		}),
 	});
 
-	const scenePipelineController = new AgentPanelScenePipelineController({
-		getSessionId: () => holder.sessionId,
-		getGraphMaterializerInput: () => ({
-			panelId: sessionController.effectivePanelId,
-			graph: sessionController.agentPanelCanonicalSource,
-			header: {
-				title: holder.graphHeaderTitle,
-				subtitle: sessionController.sessionTitle,
-				agentIconSrc: null,
-				agentLabel: "Claude",
-				projectLabel: "Fixture project",
-				projectColor: "#3b82f6",
-				sequenceId: null,
-			},
-			optimistic: null,
-		}),
-		sessionStore: stubSessionStore,
-		chatPreferencesStore: null as unknown as ChatPreferencesStore,
-		getPrefersReducedMotion: () => false,
-		contentScrollReveal,
-	});
-
 	const worktreeSetup = new WorktreeSetupController();
 	const worktreeController = new AgentPanelWorktreeController({
 		getSessionId: () => holder.sessionId,
@@ -217,7 +187,6 @@ function createAgentPanelWiringFixture(): AgentPanelWiringFixture {
 		connection,
 		contentScrollReveal,
 		viewStateController,
-		scenePipelineController,
 		worktreeSetup,
 		worktreeController,
 		holder,
@@ -274,33 +243,6 @@ describe("AgentPanel component wiring characterization (plan 013 U1)", () => {
 			});
 			expect(fixture.viewStateController.viewState.kind).toBe("error");
 			expect(deriveShowInlineErrorCard(fixture)).toBe(false);
-		});
-	});
-
-	describe("scene pipeline feed order", () => {
-		it("materializes scene header from the graph materializer accessor chain", () => {
-			const fixture = createAgentPanelWiringFixture();
-			expect(fixture.scenePipelineController.graphMaterializedScene.header.title).toBe(
-				"Fixture graph header"
-			);
-		});
-
-		it("keeps reveal and token-reveal entries aligned with the materialized scene", () => {
-			const fixture = createAgentPanelWiringFixture();
-			expect(fixture.scenePipelineController.graphSceneEntries).toEqual(
-				fixture.scenePipelineController.graphMaterializedScene.conversation.entries
-			);
-			expect(fixture.scenePipelineController.tokenRevealSceneEntries).toEqual(
-				fixture.scenePipelineController.graphSceneEntries
-			);
-		});
-
-		it("pins scene materializer panelId from sessionController.effectivePanelId", () => {
-			const fixture = createAgentPanelWiringFixture();
-			expect(fixture.scenePipelineController.graphMaterializedScene.panelId).toBe(
-				fixture.sessionController.effectivePanelId
-			);
-			expect(fixture.scenePipelineController.graphMaterializedScene.panelId).toBe("panel-fixture-1");
 		});
 	});
 

@@ -8,7 +8,7 @@ import type {
 	TranscriptDelta,
 	SessionGraphRevision,
 } from "../../services/acp-types.js";
-import type { CanonicalSessionProjection, RowTokenStream } from "./canonical-session-projection.js";
+import type { CanonicalSessionProjection } from "./canonical-session-projection.js";
 import { AwaitingModelRefreshStore } from "./awaiting-model-refresh-store.svelte.js";
 import { CapabilityProjectionReader } from "./capability-projection-reader.js";
 import { ComposerMachineService } from "./composer-machine-service.svelte.js";
@@ -82,7 +82,6 @@ export type SessionStoreParts = {
 	readonly getCanonicalProjections: () => SvelteMap<string, CanonicalSessionProjection>;
 	readonly getSessionStateGraphs: () => SvelteMap<string, SessionStateGraph>;
 	readonly getCanonicalCapabilitiesMaterialized: () => SvelteMap<string, boolean>;
-	readonly getRowTokenStreamsByRowId: () => Map<string, Map<string, RowTokenStream>>;
 	readonly identityResolver: SessionIdentityResolver;
 };
 
@@ -376,7 +375,6 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 			}
 			return controller.refreshSessionStateSnapshot(sessionId);
 		},
-		rowTokenStreamsByRowId: projectionCore.rowTokenStreamsByRowId,
 	});
 
 	const stateRefreshController = new SessionStateRefreshController({
@@ -515,7 +513,6 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 		getCanonicalProjections: () => projectionCore.canonicalProjections,
 		getSessionStateGraphs: () => projectionCore.sessionStateGraphs,
 		getCanonicalCapabilitiesMaterialized: () => projectionCore.canonicalCapabilitiesMaterialized,
-		getRowTokenStreamsByRowId: () => projectionCore.rowTokenStreamsByRowId,
 		identityResolver,
 	};
 }

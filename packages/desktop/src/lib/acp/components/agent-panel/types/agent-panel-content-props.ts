@@ -24,7 +24,6 @@ export interface AgentPanelContentProps {
 	readonly panelId: string;
 	readonly viewState: PanelViewState;
 	readonly sessionId: string | null;
-	readonly sceneEntries?: readonly AgentPanelSceneEntryModel[];
 	readonly optimisticUserEntry?: AgentPanelSceneEntryModel | null;
 	readonly rowsProjectionOverride?: TranscriptRowsState | null;
 	readonly pendingUserRevealRequestKey?: string | null;

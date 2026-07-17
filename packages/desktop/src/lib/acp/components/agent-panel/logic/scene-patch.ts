@@ -23,18 +23,6 @@ export type AgentPanelSceneEntryArraySplicePatch = {
 	readonly trailingEntries: readonly AgentPanelSceneEntryModel[];
 };
 
-export type RevealScenePatchPayload = {
-	readonly baseSceneEntries: readonly AgentPanelSceneEntryModel[];
-	readonly entries: readonly AgentPanelSceneEntryModel[];
-	readonly entriesByIndex: ReadonlyMap<number, AgentPanelSceneEntryModel>;
-};
-
-export type TokenRevealScenePatchPayload = {
-	readonly baseSceneEntries: readonly AgentPanelSceneEntryModel[];
-	readonly entries: readonly AgentPanelSceneEntryModel[];
-	readonly entriesByIndex: ReadonlyMap<number, AgentPanelSceneEntryModel>;
-};
-
 export type ScenePatch =
 	| { readonly kind: "identity" }
 	| { readonly kind: "fullRebuild" }
@@ -42,9 +30,7 @@ export type ScenePatch =
 	| { readonly kind: "graphScene"; readonly patch: AgentPanelSceneEntryArrayPatch }
 	| { readonly kind: "graphSceneAppend"; readonly patch: AgentPanelSceneEntryArrayAppendPatch }
 	| { readonly kind: "graphSceneTruncation"; readonly patch: AgentPanelSceneEntryArrayTruncation }
-	| { readonly kind: "graphSceneSplice"; readonly patch: AgentPanelSceneEntryArraySplicePatch }
-	| { readonly kind: "displayScene"; readonly patch: RevealScenePatchPayload }
-	| { readonly kind: "tokenReveal"; readonly patch: TokenRevealScenePatchPayload };
+	| { readonly kind: "graphSceneSplice"; readonly patch: AgentPanelSceneEntryArraySplicePatch };
 
 export function scenePatchIdentity(): ScenePatch {
 	return { kind: "identity" };
@@ -76,14 +62,6 @@ export function scenePatchGraphSceneTruncation(
 
 export function scenePatchGraphSceneSplice(patch: AgentPanelSceneEntryArraySplicePatch): ScenePatch {
 	return { kind: "graphSceneSplice", patch };
-}
-
-export function scenePatchDisplayScene(patch: RevealScenePatchPayload): ScenePatch {
-	return { kind: "displayScene", patch };
-}
-
-export function scenePatchTokenReveal(patch: TokenRevealScenePatchPayload): ScenePatch {
-	return { kind: "tokenReveal", patch };
 }
 
 export type SceneEntryArrayResult = {

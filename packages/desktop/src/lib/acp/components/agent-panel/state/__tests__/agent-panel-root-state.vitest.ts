@@ -7,7 +7,6 @@ import {
 	type AgentPanelRootStateStores,
 } from "../agent-panel-root-state.svelte.js";
 import { AgentPanelLayoutController } from "../agent-panel-layout-controller.svelte.js";
-import { AgentPanelScenePipelineController } from "../agent-panel-scene-pipeline-controller.svelte.js";
 import { AgentPanelSessionController } from "../agent-panel-session-controller.svelte.js";
 import { AgentPanelViewStateController } from "../agent-panel-view-state-controller.svelte.js";
 import { AgentPanelWorktreeController } from "../agent-panel-worktree-controller.svelte.js";
@@ -97,21 +96,6 @@ describe("AgentPanelRootState", () => {
 					recoveryAction: null,
 				},
 			}),
-			getGraphMaterializerInput: () => ({
-				panelId: "panel-1",
-				graph: null,
-				header: {
-					title: "",
-					subtitle: null,
-					agentIconSrc: null,
-					agentLabel: null,
-					projectLabel: "Project",
-					projectColor: "#000000",
-					sequenceId: null,
-				},
-				optimistic: null,
-			}),
-			getPrefersReducedMotion: () => false,
 			getWorktreeToggleProjectPath: () => null,
 			getPanelPendingWorktreeEnabled: () => null,
 			getPanelPreparedWorktreeLaunch: () => null,
@@ -130,7 +114,6 @@ describe("AgentPanelRootState", () => {
 		expect(root.worktreeSetup).toBeInstanceOf(WorktreeSetupController);
 		expect(root.worktreeController).toBeInstanceOf(AgentPanelWorktreeController);
 		expect(root.viewStateController).toBeInstanceOf(AgentPanelViewStateController);
-		expect(root.scenePipelineController).toBeInstanceOf(AgentPanelScenePipelineController);
 		expect(root.prCard).toBeInstanceOf(PrCardController);
 		expect(root.reviewDialog).toBeInstanceOf(ReviewDialogController);
 

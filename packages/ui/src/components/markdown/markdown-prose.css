@@ -226,40 +226,6 @@
 	background: color-mix(in srgb, var(--border) 70%, transparent);
 }
 
-.markdown-content [data-sd-animate] {
-	display: inline-block;
-	overflow: hidden;
-	vertical-align: baseline;
-	white-space: nowrap;
-	line-height: 1;
-}
-
-.markdown-content[data-token-reveal-mode="smooth"] [data-sd-animate] {
-	opacity: 0;
-	animation-name: var(--sd-animation, sd-acepeTokenReveal);
-	animation-delay: calc(var(--token-reveal-baseline-ms, 0ms) + var(--sd-delay, 0ms));
-	animation-duration: var(--token-reveal-fade-ms, var(--sd-duration, 150ms));
-	animation-timing-function: var(--sd-easing, cubic-bezier(0.16, 1, 0.3, 1));
-	animation-fill-mode: both;
-	will-change: opacity, filter, transform;
-}
-
-@keyframes sd-acepeTokenReveal {
-	from {
-		opacity: 0;
-		filter: blur(1px);
-		transform: translateY(0.16em);
-	}
-	60% {
-		filter: blur(0);
-	}
-	to {
-		opacity: 1;
-		filter: blur(0);
-		transform: translateY(0);
-	}
-}
-
 .markdown-loading {
 	min-height: 1.5em;
 	opacity: 0.7;

@@ -74,6 +74,7 @@ function toolRow(state: OperationState): TranscriptViewportRow {
 					kind: "execute",
 					commandSummary: "bun test",
 					resultSummary: "Tests completed",
+					editDiffs: [],
 					interactionIds: [],
 					childToolCallIds: [],
 				},

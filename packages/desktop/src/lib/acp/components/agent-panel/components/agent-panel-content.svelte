@@ -23,7 +23,6 @@ let {
 	panelId,
 	viewState,
 	sessionId,
-	sceneEntries,
 	optimisticUserEntry = null,
 	rowsProjectionOverride = null,
 	pendingUserRevealRequestKey = null,
@@ -367,9 +366,6 @@ $effect(() => {
 		panelId,
 		sessionId,
 		viewState: viewState.kind,
-		entryCount: sceneEntries?.length ?? 0,
-		latestEntryId: sceneEntries?.at(-1)?.id ?? null,
-		latestEntryType: sceneEntries?.at(-1)?.type ?? null,
 		turnState,
 	});
 	if (signature === lastContentTraceSignature) {
@@ -391,9 +387,6 @@ export function prepareForNextUserReveal(options?: { force?: boolean }) {
 	logger.info("prepareForNextUserReveal: content", {
 		panelId,
 		sessionId,
-		entryCount: sceneEntries?.length ?? 0,
-		latestEntryId: sceneEntries?.at(-1)?.id ?? null,
-		latestEntryType: sceneEntries?.at(-1)?.type ?? null,
 		force: options?.force ?? false,
 	});
 	sceneViewportRef?.prepareForNextUserReveal(options);
@@ -431,7 +424,6 @@ export function scrollToTop() {
 			<SceneContentViewport
 				bind:this={sceneViewportRef}
 				{panelId}
-				{sceneEntries}
 				{optimisticUserEntry}
 				{rowsProjection}
 				{sessionId}

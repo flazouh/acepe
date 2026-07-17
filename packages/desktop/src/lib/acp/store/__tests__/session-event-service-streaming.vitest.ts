@@ -1614,14 +1614,15 @@ describe("SessionEventService streaming delta handling", () => {
 				graphRevision: 99,
 				lastEventSeq: 99,
 				payload: {
-					kind: "assistantTextDelta",
-					delta: {
-						turnId: "turn-1",
-						rowId: "assistant-1",
-						charOffset: 0,
-						deltaText: "x".repeat(getSessionStateEnvelopeByteBudget("assistantTextDelta")),
-						producedAtMonotonicMs: 12,
-						revision: 99,
+					kind: "lifecycle",
+					lifecycle: createGraphLifecycle(
+						"ready",
+						"x".repeat(getSessionStateEnvelopeByteBudget("lifecycle"))
+					),
+					revision: {
+						graphRevision: 99,
+						transcriptRevision: 99,
+						lastEventSeq: 99,
 					},
 				},
 			},

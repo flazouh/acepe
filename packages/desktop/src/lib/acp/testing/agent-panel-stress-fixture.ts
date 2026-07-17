@@ -215,14 +215,6 @@ function createAssistantEntry(
 				chunks: [{ type: "message", block: { type: "text", text } }],
 			},
 			isStreaming: true,
-			tokenRevealCss: {
-				revealCount: text.length,
-				revealedCharCount: text.length,
-				baselineMs: timestampMs,
-				tokStepMs: 12,
-				tokFadeDurMs: 80,
-				mode: "instant",
-			},
 			timestampMs,
 			planningStartedAtMs: timestampMs,
 		};
@@ -333,6 +325,7 @@ function createToolOperationLink(
 			targetPathSummary: null,
 			resultSummary: textFor("tool", index, seed),
 			errorSummary: null,
+			editDiffs: [],
 			interactionIds: [],
 			parentToolCallId: null,
 			childToolCallIds: [],

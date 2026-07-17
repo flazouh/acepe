@@ -1,5 +1,4 @@
 import type {
-	AssistantTextDeltaPayload,
 	InteractionSnapshot,
 	OperationSnapshot,
 	PlanData,
@@ -13,15 +12,14 @@ import type {
 	ViewportBufferDelta,
 	ViewportBufferPush,
 } from "../../../services/acp-types.js";
-import type { CanonicalSessionProjection, RowTokenStream } from "../canonical-session-projection.js";
+import type { CanonicalSessionProjection } from "../canonical-session-projection.js";
 import type { SessionTransientProjection, SessionUsageTelemetry } from "../types.js";
 import type { ActiveTurnFailure } from "../../types/turn-error.js";
 
 export type SessionStateSnapshotRefreshReason =
 	| "transcriptFrontierMismatch"
 	| "missingCanonicalProjection"
-	| "missingCanonicalGraph"
-	| "missingProjectionBeforeAssistantDelta";
+	| "missingCanonicalGraph";
 
 export type EnvelopePatch =
 	| {
@@ -131,19 +129,10 @@ export type EnvelopePatch =
 			};
 	  }
 	| {
-			kind: "setRowTokenStream";
-			sessionId: string;
-			rowId: string;
-			row: RowTokenStream;
-	  }
-	| {
 			kind: "warnMissingCanonicalProjection";
 			sessionId: string;
-			reason: "graphPatches" | "assistantTextDelta";
+			reason: "graphPatches";
 			context: {
 				readonly revision?: import("../../../services/acp-types.js").SessionGraphRevision;
-				readonly turnId?: string;
-				readonly rowId?: string;
-				readonly deltaRevision?: number;
 			};
 	  };

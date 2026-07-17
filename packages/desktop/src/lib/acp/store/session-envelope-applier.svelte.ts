@@ -29,12 +29,8 @@ import type { ActiveTurnFailure, TurnErrorUpdate } from "../types/turn-error.js"
 import { routeSessionStateEnvelope } from "../session-state/session-state-command-router.js";
 import type { SessionStateCommand } from "../session-state/session-state-command-router.js";
 import { sanitizeCanonicalCapabilities } from "./canonical-config-sanitize.js";
-import type {
-	CanonicalSessionProjection,
-	RowTokenStream,
-} from "./canonical-session-projection.js";
+import type { CanonicalSessionProjection } from "./canonical-session-projection.js";
 import { deriveCapabilityPreviewState } from "./capability-projection.js";
-import { preserveCanonicalStreamingState } from "./envelope-reducer/canonical-streaming-state.js";
 import type { EnvelopePatch } from "./envelope-reducer/envelope-patch.js";
 import type { EnvelopeReducerSnapshot } from "./envelope-reducer/envelope-snapshot.js";
 import { isNewerGraphRevision, isOlderGraphRevision } from "./envelope-reducer/graph-revision-order.js";
@@ -125,26 +121,7 @@ export type SessionEnvelopeApplierDeps = {
 	) => void;
 	readonly handleCanonicalTurnFailure: (sessionId: string, error: TurnErrorUpdate) => void;
 	readonly refreshSessionStateSnapshot: (sessionId: string) => InflightSessionStateRefresh;
-	readonly rowTokenStreamsByRowId: Map<string, Map<string, RowTokenStream>>;
 };
-
-function getBrowserMonotonicMs(): number {
-	return typeof performance === "undefined" ? Date.now() : performance.now();
-}
-
-function getOrCreateRowTokenStreamByRowId(
-	rowsBySessionId: Map<string, Map<string, RowTokenStream>>,
-	sessionId: string
-): Map<string, RowTokenStream> {
-	const existing = rowsBySessionId.get(sessionId);
-	if (existing !== undefined) {
-		return existing;
-	}
-
-	const created = new Map<string, RowTokenStream>();
-	rowsBySessionId.set(sessionId, created);
-	return created;
-}
 
 export class SessionEnvelopeApplier {
 	readonly #deps: SessionEnvelopeApplierDeps;
@@ -158,7 +135,6 @@ export class SessionEnvelopeApplier {
 		const sessionId = graph.canonicalSessionId;
 		const previousTransientProjection = this.#deps.getTransientProjection(sessionId);
 		const previousProjection = this.#deps.getCanonicalProjection(sessionId);
-		const preservedStreamingState = preserveCanonicalStreamingState(previousProjection);
 		seedTranscriptEntryIndex(graph.transcriptSnapshot.entries);
 		this.#deps.setSessionStateGraph(sessionId, graph);
 		const canonicalCapabilities = sanitizeCanonicalCapabilities(graph.capabilities);
@@ -173,8 +149,6 @@ export class SessionEnvelopeApplier {
 			lastTerminalTurnId: nextLastTerminalTurnId,
 			activeStreamingTail: graph.activeStreamingTail ?? null,
 			capabilities: canonicalCapabilities,
-			tokenStream: preservedStreamingState.tokenStream,
-			clockAnchor: preservedStreamingState.clockAnchor,
 			revision: graph.revision,
 		});
 		this.#applyCanonicalTerminalTurnSideEffects({
@@ -260,7 +234,6 @@ export class SessionEnvelopeApplier {
 			transientProjection: this.#deps.getTransientProjection(sessionId),
 			currentModelId: this.#deps.getSessionCurrentModelId(sessionId),
 			sessionCold: this.#deps.getSessionCold(sessionId),
-			browserMonotonicMs: getBrowserMonotonicMs(),
 		};
 	}
 
@@ -361,25 +334,10 @@ export class SessionEnvelopeApplier {
 					);
 					break;
 				case "warnMissingCanonicalProjection":
-					if (patch.reason === "graphPatches") {
-						logger.warn("Received session-state graph patches before canonical projection", {
-							sessionId: patch.sessionId,
-							revision: patch.context.revision,
-						});
-					} else {
-						logger.warn("Received assistant text delta before canonical projection", {
-							sessionId: patch.sessionId,
-							turnId: patch.context.turnId,
-							rowId: patch.context.rowId,
-							revision: patch.context.deltaRevision,
-						});
-					}
-					break;
-				case "setRowTokenStream":
-					getOrCreateRowTokenStreamByRowId(this.#deps.rowTokenStreamsByRowId, patch.sessionId).set(
-						patch.rowId,
-						patch.row
-					);
+					logger.warn("Received session-state graph patches before canonical projection", {
+						sessionId: patch.sessionId,
+						revision: patch.context.revision,
+					});
 					break;
 			}
 		}
@@ -463,19 +421,6 @@ export class SessionEnvelopeApplier {
 				});
 			}
 			return;
-		}
-
-		if (command.kind === "applyAssistantTextDelta") {
-			const projection = snapshot.previousProjection;
-			if (projection !== null && command.delta.revision <= projection.revision.graphRevision) {
-				logger.debug("Ignoring stale assistant text delta behind canonical graph frontier", {
-					sessionId,
-					turnId: command.delta.turnId,
-					rowId: command.delta.rowId,
-					deltaRevision: command.delta.revision,
-					graphRevision: projection.revision.graphRevision,
-				});
-			}
 		}
 	}
 

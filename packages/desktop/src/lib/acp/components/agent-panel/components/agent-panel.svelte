@@ -12,7 +12,6 @@ import {
 import {
 	DiffPill,
 	HugeiconsIcon,
-	reducedMotion,
 	setThinkingPreferences,
 	type PrChecksItem,
 } from "@acepe/ui";
@@ -168,7 +167,6 @@ recordPanelOpenPerformanceMark(panelId, "agent-panel:props");
 
 const logger = createLogger({ id: "agent-panel-render-trace", name: "AgentPanelRenderTrace" });
 let lastPanelTraceSignature = $state<string | null>(null);
-const prefersReducedMotion = $derived(reducedMotion.current);
 const DEFERRED_COMPOSER_FALLBACK_MS = 250;
 
 function isAgentPanelRenderTraceEnabled(): boolean {
@@ -210,26 +208,6 @@ const rootState = new AgentPanelRootState({
 		hasEffectiveProjectPath: !!effectiveProjectPath,
 		errorInfo: state.sessionController.errorInfo,
 	}),
-	getGraphMaterializerInput: (state) => ({
-		panelId: state.sessionController.effectivePanelId,
-		graph: state.sessionController.agentPanelCanonicalSource,
-		header: {
-			title: graphHeaderTitle,
-			subtitle: state.sessionController.sessionTitle,
-			agentIconSrc,
-			agentLabel: agentName,
-			projectLabel: displayProjectName,
-			projectColor,
-			sequenceId,
-		},
-		optimistic:
-			state.sessionController.optimisticUserEntryForGraph != null
-				? {
-						pendingUserEntry: state.sessionController.optimisticUserEntryForGraph,
-					}
-				: null,
-	}),
-	getPrefersReducedMotion: () => prefersReducedMotion,
 	getWorktreeToggleProjectPath: () => worktreeToggleProjectPath,
 	getPanelPendingWorktreeEnabled: () => panelPendingWorktreeEnabled,
 	getPanelPreparedWorktreeLaunch: () => panelPreparedWorktreeLaunch,
@@ -268,7 +246,6 @@ const checkpointTimeline = rootState.checkpointTimeline;
 const worktreeSetup = rootState.worktreeSetup;
 const worktreeController = rootState.worktreeController;
 const viewStateController = rootState.viewStateController;
-const scenePipelineController = rootState.scenePipelineController;
 const prCard = rootState.prCard;
 const reviewDialog = rootState.reviewDialog;
 
@@ -748,7 +725,6 @@ const displayTitle = $derived.by(() => {
 		projectName: displayProjectName,
 	});
 });
-const graphHeaderTitle = $derived(displayTitle ?? "");
 const sessionDiffStats = $derived.by(() => {
 	if (!sessionId) return { insertions: 0, deletions: 0 };
 	const checkpoints = checkpointStore.getCheckpoints(sessionId);
@@ -787,27 +763,6 @@ const planningPlaceholderPresentation = $derived(
 		showWorkingSpark,
 	})
 );
-const graphMaterializedScene = $derived(scenePipelineController.graphMaterializedScene);
-const graphSceneEntries = $derived(scenePipelineController.graphSceneEntries);
-const tokenRevealSceneEntries = $derived(scenePipelineController.tokenRevealSceneEntries);
-const tokenRevealSettleDelayMs = $derived(scenePipelineController.tokenRevealSettleDelayMs);
-$effect(() => {
-	const delayMs = tokenRevealSettleDelayMs;
-	if (delayMs === null) {
-		return;
-	}
-
-	const nextRevision = contentScrollReveal.settleRevision + 1;
-	const timeoutId = window.setTimeout(() => {
-		if (contentScrollReveal.settleRevision < nextRevision) {
-			contentScrollReveal.setSettleRevision(nextRevision);
-		}
-	}, delayMs);
-
-	return () => {
-		window.clearTimeout(timeoutId);
-	};
-});
 const isConnecting = $derived(
 	connection.state === PanelConnectionState.CONNECTING ||
 		(!sessionId && panelId ? sessionController.panelHotState?.pendingUserEntry !== null : false)
@@ -1829,7 +1784,6 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 						panelId={sessionController.effectivePanelId}
 						{viewState}
 						{sessionId}
-						sceneEntries={tokenRevealSceneEntries}
 						optimisticUserEntry={sessionController.optimisticUserEntryForViewport}
 						{pendingUserRevealRequestKey}
 						localPlaceholderMode={sessionController.localPlaceholderMode}

@@ -68,7 +68,6 @@
 			chunks: [{ type: "message", block: { type: "text", text: entry.markdown } }],
 		}}
 		isStreaming={entry.isStreaming}
-		tokenRevealCss={entry.tokenRevealCss}
 		timestampMs={entry.timestampMs}
 		{iconBasePath}
 	/>

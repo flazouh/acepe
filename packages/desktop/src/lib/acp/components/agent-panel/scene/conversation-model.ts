@@ -219,7 +219,6 @@ export function mapVirtualizedDisplayEntryToConversationEntry(
 				thinkingDurationMs: entry.message.thinkingDurationMs,
 			},
 			isStreaming: isStreamingAssistant || entry.isStreaming,
-			tokenRevealCss: entry.tokenRevealCss,
 			timestampMs: entry.timestamp?.getTime(),
 		};
 	}
@@ -238,7 +237,6 @@ export function mapVirtualizedDisplayEntryToConversationEntry(
 			type: mapped.type,
 			markdown: mapped.markdown,
 			isStreaming: isStreamingAssistant,
-			tokenRevealCss: mapped.tokenRevealCss,
 			timestampMs: mapped.timestampMs,
 		};
 	}

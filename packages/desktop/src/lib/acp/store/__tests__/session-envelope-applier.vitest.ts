@@ -112,7 +112,6 @@ describe("SessionEnvelopeApplier", () => {
 			handleCanonicalTurnComplete: vi.fn(),
 			handleCanonicalTurnFailure: vi.fn(),
 			refreshSessionStateSnapshot: vi.fn(() => okAsync(undefined)),
-			rowTokenStreamsByRowId: new Map(),
 		});
 
 		const graph = createMinimalGraph("session-1");

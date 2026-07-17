@@ -12,7 +12,6 @@ import type {
 	AssistantRenderBlockContext,
 } from "./types.js";
 import type { InlineArtefactTokenType } from "../../lib/inline-artefact/index.js";
-import type { StreamingAnimationMode } from "../../lib/assistant-message/types.js";
 import { isToolCallEntry } from "./agent-panel-conversation-entry-model.js";
 
 import AgentAssistantMessage from "./agent-assistant-message.svelte";
@@ -29,7 +28,6 @@ interface Props {
 	iconBasePath?: string;
 	editToolTheme?: EditToolTheme;
 	projectPath?: string;
-	streamingAnimationMode?: StreamingAnimationMode;
 	/** When true, streaming placeholders show the Claude working spark instead of the label. */
 	showWorkingSpark?: boolean;
 	renderAssistantBlock?: Snippet<[AssistantRenderBlockContext]>;
@@ -49,7 +47,6 @@ let {
 	iconBasePath = "/svgs/icons",
 	editToolTheme,
 	projectPath,
-	streamingAnimationMode = "smooth",
 	showWorkingSpark = false,
 	renderAssistantBlock,
 	onQuestionSelect,
@@ -92,11 +89,9 @@ function handleUserTokenClick(
 				chunks: [{ type: "message", block: { type: "text", text: entry.markdown } }],
 			}}
 			isStreaming={entry.isStreaming}
-			tokenRevealCss={entry.tokenRevealCss}
 			timestampMs={entry.timestampMs}
 			planningStartedAtMs={entry.planningStartedAtMs}
 			{projectPath}
-			{streamingAnimationMode}
 			{showWorkingSpark}
 		{iconBasePath}
 		renderBlock={renderAssistantBlock}

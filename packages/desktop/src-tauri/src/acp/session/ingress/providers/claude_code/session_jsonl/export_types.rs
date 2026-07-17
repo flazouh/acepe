@@ -36,7 +36,7 @@ use crate::acp::session_open_snapshot::{
     SessionOpenTranscriptRowPage,
 };
 use crate::acp::session_state_engine::protocol::{
-    AssistantTextDeltaPayload, ViewportBufferDelta, ViewportBufferDiagnostic, ViewportBufferPush,
+    ViewportBufferDelta, ViewportBufferDiagnostic, ViewportBufferPush,
 };
 use crate::acp::session_state_engine::{
     ActiveStreamingTail, ActiveStreamingTailContentKind, CapabilityPreviewState,
@@ -506,7 +506,6 @@ pub fn export_all_types() {
     export_acp_type!(SessionStateSnapshotMaterialization);
     export_acp_type!(SessionStateField);
     export_acp_type!(SessionStateDelta);
-    export_acp_type!(AssistantTextDeltaPayload);
     export_acp_type!(ViewportBufferDiagnostic);
     export_acp_type!(ViewportBufferPush);
     export_acp_type!(ViewportBufferDelta);
@@ -604,10 +603,6 @@ mod tests {
             contents
                 .contains("export type FrontendProviderProjection = ProviderMetadataProjection;"),
             "expected acp-types.ts to alias FrontendProviderProjection, but it did not"
-        );
-        assert!(
-            contents.contains("export type AssistantTextDeltaPayload ="),
-            "expected acp-types.ts to export AssistantTextDeltaPayload, but it did not"
         );
     }
 

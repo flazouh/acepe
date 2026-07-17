@@ -1,5 +1,4 @@
 import { describe, expect, it } from "bun:test";
-import { createRevealTextProjection } from "$lib/acp/components/agent-panel/logic/reveal-text-projection.js";
 import { materializeAgentPanelSceneFromGraph } from "$lib/acp/session-state/agent-panel-graph-materializer.js";
 
 import {
@@ -7,23 +6,6 @@ import {
 	buildStreamingReproGraphMaterializerInput,
 	getStreamingReproPresetById,
 } from "../streaming-repro-graph-fixtures";
-
-function revealSnapshotForInput(
-	input: ReturnType<typeof buildStreamingReproGraphMaterializerInput>
-): {
-	sceneEntries: ReturnType<typeof materializeAgentPanelSceneFromGraph>["conversation"]["entries"];
-	sessionId: string | null;
-	turnId: string | null;
-	turnCompleted: boolean;
-} {
-	const graph = input.graph;
-	return {
-		sceneEntries: materializeAgentPanelSceneFromGraph(input).conversation.entries,
-		sessionId: graph?.canonicalSessionId ?? null,
-		turnId: graph === null ? null : (graph.lastTerminalTurnId ?? `${graph.canonicalSessionId}:active`),
-		turnCompleted: graph?.turnState === "Completed",
-	};
-}
 
 describe("streaming-repro-graph-fixtures", () => {
 	it("builds a graph-backed thinking-only phase for the core preset", () => {
@@ -60,35 +42,6 @@ describe("streaming-repro-graph-fixtures", () => {
 		if (assistantEntry?.type === "assistant") {
 			expect(assistantEntry.isStreaming).toBe(true);
 			expect(assistantEntry.markdown).toContain("Umbrellas");
-		}
-	});
-
-	it("keeps full canonical text during the first-word regression preset", () => {
-		const preset = getStreamingReproPresetById("first-word-regression");
-		// The continuity now lives in the reveal-text projection (the display model
-		// that previously owned it was retired in U5). Drive the projection across
-		// the two phases the way the live controller does.
-		const projection = createRevealTextProjection();
-
-		const firstWordInput = buildStreamingReproGraphMaterializerInput({
-			panelId: "panel-debug",
-			preset,
-			phase: preset.phases[0],
-		});
-		projection.apply(revealSnapshotForInput(firstWordInput));
-
-		const fullRewriteInput = buildStreamingReproGraphMaterializerInput({
-			panelId: "panel-debug",
-			preset,
-			phase: preset.phases[1],
-		});
-		const projectedEntries = projection.apply(revealSnapshotForInput(fullRewriteInput)).entries;
-		const assistantEntry = projectedEntries.find((entry) => entry.type === "assistant");
-
-		expect(assistantEntry?.type).toBe("assistant");
-		if (assistantEntry?.type === "assistant") {
-			expect(assistantEntry.markdown).toBe(preset.phases[1].assistantText);
-			expect(assistantEntry.markdown).not.toBe("The");
 		}
 	});
 

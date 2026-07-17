@@ -11,9 +11,9 @@ use crate::acp::session_state_engine::envelope_router::{
 use crate::acp::session_state_engine::frontier::SessionFrontierDecision;
 use crate::acp::session_state_engine::graph::select_active_streaming_tail;
 use crate::acp::session_state_engine::live_envelope_builder::{
-    build_assistant_text_delta_from_components, build_live_session_state_capabilities_envelope,
-    build_live_session_state_delta_envelope, build_live_session_state_lifecycle_envelope,
-    build_live_session_state_plan_envelope, build_live_session_state_telemetry_envelope,
+    build_live_session_state_capabilities_envelope, build_live_session_state_delta_envelope,
+    build_live_session_state_lifecycle_envelope, build_live_session_state_plan_envelope,
+    build_live_session_state_telemetry_envelope,
 };
 use crate::acp::session_state_engine::selectors::{
     select_session_graph_activity, SessionGraphCapabilities, SessionGraphLifecycle,
@@ -378,29 +378,6 @@ impl SessionGraphRuntimeRegistry {
     }
 
     #[must_use]
-    pub fn build_assistant_text_delta_envelopes(
-        &self,
-        request: LiveSessionStateEnvelopeRequest<'_>,
-    ) -> Vec<SessionStateEnvelope> {
-        let snapshot = request
-            .transcript_projection_registry
-            .snapshot_for_session(request.session_id);
-        let Some(snapshot) = snapshot else {
-            return Vec::new();
-        };
-        let Some(transcript_delta) = request.transcript_delta else {
-            return Vec::new();
-        };
-        build_assistant_text_delta_from_components(
-            request.session_id,
-            request.update,
-            transcript_delta,
-            &snapshot,
-            request.revision,
-        )
-    }
-
-    #[must_use]
     pub fn build_additional_session_state_envelopes(
         &self,
         request: LiveSessionStateEnvelopeRequest<'_>,
@@ -413,7 +390,6 @@ impl SessionGraphRuntimeRegistry {
                 request.revision,
             ));
         }
-        envelopes.extend(self.build_assistant_text_delta_envelopes(request));
         if let Ok(Some(envelope)) = self.build_or_advance_viewport_buffer_envelope(
             request.session_id,
             request.revision,
@@ -1285,12 +1261,12 @@ mod tests {
     //! | Chunk timestamp monotonicity | `anchor_ledger` tests | — |
 
     use super::{
-        session_state_envelope_byte_budget_status, CapabilityPreviewState,
-        LiveSessionStateEnvelopeRequest, SessionGraphRuntimeRegistry, SessionStateField,
+        CapabilityPreviewState, LiveSessionStateEnvelopeRequest, SessionGraphRuntimeRegistry,
+        SessionStateField,
     };
     use crate::acp::session_state_engine::live_envelope_builder::{
-        build_assistant_text_delta_from_components, build_live_session_state_capabilities_envelope,
-        build_live_session_state_delta_envelope, build_live_session_state_telemetry_envelope,
+        build_live_session_state_capabilities_envelope, build_live_session_state_delta_envelope,
+        build_live_session_state_telemetry_envelope,
     };
 
     #[test]
@@ -1654,204 +1630,6 @@ mod tests {
             })
             .await
             .expect("turn-state envelope")
-    }
-
-    fn build_assistant_text_delta_for_update(
-        transcript_projection_registry: &TranscriptProjectionRegistry,
-        _runtime_registry: &SessionGraphRuntimeRegistry,
-        event_seq: i64,
-        update: &SessionUpdate,
-    ) -> SessionStateEnvelope {
-        let session_id = update.session_id().expect("session id on assistant chunk");
-        let transcript_delta = transcript_projection_registry
-            .apply_session_update_idle(event_seq, update)
-            .expect("transcript delta");
-        let snapshot = transcript_projection_registry
-            .snapshot_for_session(session_id)
-            .expect("transcript snapshot");
-        build_assistant_text_delta_from_components(
-            session_id,
-            update,
-            &transcript_delta,
-            &snapshot,
-            SessionGraphRevision::new(event_seq, event_seq, event_seq),
-        )
-        .into_iter()
-        .next()
-        .expect("assistant text delta envelope")
-    }
-
-    #[test]
-    fn assistant_text_delta_envelope_tracks_row_offsets_across_chunks() {
-        let transcript_projection_registry = TranscriptProjectionRegistry::new();
-        let runtime_registry = SessionGraphRuntimeRegistry::new();
-        let first = create_agent_message_chunk_update("session-1", Some("assistant-1"), "hello", 5);
-        let second =
-            create_agent_message_chunk_update("session-1", Some("assistant-1"), " world!", 7);
-        let third =
-            create_agent_message_chunk_update("session-1", Some("assistant-1"), " again", 9);
-
-        let first_envelope = build_assistant_text_delta_for_update(
-            &transcript_projection_registry,
-            &runtime_registry,
-            1,
-            &first,
-        );
-        let second_envelope = build_assistant_text_delta_for_update(
-            &transcript_projection_registry,
-            &runtime_registry,
-            2,
-            &second,
-        );
-        let third_envelope = build_assistant_text_delta_for_update(
-            &transcript_projection_registry,
-            &runtime_registry,
-            3,
-            &third,
-        );
-
-        let offsets = [first_envelope, second_envelope, third_envelope]
-            .into_iter()
-            .map(|envelope| match envelope.payload {
-                SessionStatePayload::AssistantTextDelta { delta } => delta.char_offset,
-                other => panic!("expected assistant text delta payload, got {other:?}"),
-            })
-            .collect::<Vec<_>>();
-
-        assert_eq!(offsets, vec![0, 5, 12]);
-    }
-
-    #[test]
-    fn assistant_text_delta_envelope_keeps_empty_delta_for_live_event_row_id() {
-        let transcript_projection_registry = TranscriptProjectionRegistry::new();
-        let runtime_registry = SessionGraphRuntimeRegistry::new();
-        let first =
-            create_agent_message_chunk_update("session-1", Some("assistant\n1"), "hello", 5);
-        let second = create_agent_message_chunk_update("session-1", Some("assistant\n1"), "", 6);
-
-        let _ = build_assistant_text_delta_for_update(
-            &transcript_projection_registry,
-            &runtime_registry,
-            1,
-            &first,
-        );
-        let second_envelope = build_assistant_text_delta_for_update(
-            &transcript_projection_registry,
-            &runtime_registry,
-            2,
-            &second,
-        );
-
-        match second_envelope.payload {
-            SessionStatePayload::AssistantTextDelta { delta } => {
-                // row_id/turn_id must be the RAW canonical entry_id (colons and
-                // dots intact), not a sanitized/mangled form. The consumer side
-                // (`select_active_streaming_tail` in graph.rs, and every other
-                // reader of `TranscriptEntry::entry_id`) uses the raw id as the
-                // row's identity. A sanitized row_id here breaks the lookup a
-                // client makes by raw row id, silently killing token-reveal.
-                assert_eq!(delta.row_id, "acepe::entry::session-start::assistant::.");
-                assert_eq!(delta.turn_id, "acepe::entry::session-start::assistant::.");
-                assert_eq!(delta.char_offset, 5);
-                assert_eq!(delta.delta_text, "");
-                assert_eq!(delta.produced_at_monotonic_ms, 6);
-            }
-            other => panic!("expected assistant text delta payload, got {other:?}"),
-        }
-    }
-
-    /// Regression test for the token-reveal dormancy bug: the assistant text
-    /// delta's `row_id` must exactly equal the transcript entry's raw
-    /// `entry_id` (as `select_active_streaming_tail` in graph.rs assigns to
-    /// `ActiveStreamingTail.row_id`). If these two diverge — e.g. because one
-    /// side sanitizes special characters (`:`, `.`) out of the id and the
-    /// other doesn't — the TypeScript `getRowTokenStreamByRowId(sessionId,
-    /// activeStreamingTail.rowId)` lookup misses and the reveal CSS never
-    /// resolves, even though the token stream is present in the store.
-    #[test]
-    fn assistant_text_delta_row_id_matches_raw_transcript_entry_id() {
-        let transcript_projection_registry = TranscriptProjectionRegistry::new();
-        let update =
-            create_agent_message_chunk_update("session-1", Some("assistant-1"), "hello", 5);
-        let transcript_delta = transcript_projection_registry
-            .apply_session_update_idle(1, &update)
-            .expect("transcript delta");
-        let snapshot = transcript_projection_registry
-            .snapshot_for_session("session-1")
-            .expect("transcript snapshot");
-        let raw_entry_id = snapshot
-            .entries
-            .last()
-            .expect("assistant entry in snapshot")
-            .entry_id
-            .clone();
-        assert!(
-            raw_entry_id.contains(':') || raw_entry_id.contains('.'),
-            "fixture entry_id should contain the canonical `::`/`.` separators \
-             this test guards against being sanitized away: {raw_entry_id}"
-        );
-
-        let envelope = build_assistant_text_delta_from_components(
-            "session-1",
-            &update,
-            &transcript_delta,
-            &snapshot,
-            SessionGraphRevision::new(1, 1, 1),
-        )
-        .into_iter()
-        .next()
-        .expect("assistant text delta envelope");
-
-        match envelope.payload {
-            SessionStatePayload::AssistantTextDelta { delta } => {
-                assert_eq!(
-                    delta.row_id, raw_entry_id,
-                    "assistant text delta row_id must match the raw transcript \
-                     entry_id byte-for-byte so it correlates with \
-                     ActiveStreamingTail.row_id on the client"
-                );
-            }
-            other => panic!("expected assistant text delta payload, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn assistant_text_delta_envelope_splits_oversized_chunks_at_source() {
-        let transcript_projection_registry = TranscriptProjectionRegistry::new();
-        let oversized_text = "x".repeat(8_000);
-        let update =
-            create_agent_message_chunk_update("session-1", Some("assistant-1"), &oversized_text, 5);
-        let transcript_delta = transcript_projection_registry
-            .apply_session_update_idle(1, &update)
-            .expect("transcript delta");
-        let snapshot = transcript_projection_registry
-            .snapshot_for_session("session-1")
-            .expect("transcript snapshot");
-
-        let envelopes = build_assistant_text_delta_from_components(
-            "session-1",
-            &update,
-            &transcript_delta,
-            &snapshot,
-            SessionGraphRevision::new(1, 1, 1),
-        );
-
-        assert!(
-            envelopes.len() > 1,
-            "oversized assistant text deltas should be split, not dropped"
-        );
-        let mut reconstructed = String::new();
-        for envelope in &envelopes {
-            session_state_envelope_byte_budget_status(envelope)
-                .expect("split assistant text delta should stay within budget");
-            match &envelope.payload {
-                SessionStatePayload::AssistantTextDelta { delta } => {
-                    reconstructed.push_str(&delta.delta_text);
-                }
-                other => panic!("expected assistant text delta payload, got {other:?}"),
-            }
-        }
-        assert_eq!(reconstructed, oversized_text);
     }
 
     fn assert_hot_tool_delta_contract(envelope: &SessionStateEnvelope) {

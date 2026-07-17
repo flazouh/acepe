@@ -20,9 +20,7 @@ getSanitizedAssistantChunkGroups,
 } from "./agent-assistant-message-state.js";
 import type { ChunkGroup } from "../../lib/assistant-message/assistant-chunk-grouper.js";
 import {
-resolveThoughtGroupTokenRevealCss,
 resolveVisibleAssistantMessageGroups,
-shouldStreamAssistantTextContent,
 shouldStreamAssistantThoughtContent,
 } from "./agent-assistant-message-visible-groups.js";
 import {
@@ -34,11 +32,7 @@ DEFAULT_THINKING_VIEWPORT_POLICY,
 thinkingViewportCssText,
 } from "../../lib/assistant-message/thinking-viewport-policy.js";
 import { getThinkingPreferences } from "../../lib/thinking-preferences-context.js";
-import type {
-	AssistantMessage,
-	StreamingAnimationMode,
-} from "../../lib/assistant-message/types.js";
-import type { TokenRevealCss } from "./types.js";
+import type { AssistantMessage } from "../../lib/assistant-message/types.js";
 
 /**
  * Context passed to the renderBlock snippet for every chunk group.
@@ -48,19 +42,15 @@ import type { TokenRevealCss } from "./types.js";
 interface RenderBlockContext {
 	group: ChunkGroup;
 	isStreaming?: boolean;
-	tokenRevealCss?: TokenRevealCss;
 	projectPath?: string;
-	streamingAnimationMode?: StreamingAnimationMode;
 }
 
 interface Props {
 	messageId?: string;
 	message: AssistantMessage;
 	isStreaming?: boolean;
-	tokenRevealCss?: TokenRevealCss;
 	projectPath?: string;
 	timestampMs?: number;
-	streamingAnimationMode?: StreamingAnimationMode;
 	/** Whether the thinking block starts collapsed. Defaults to false. */
 	initiallyCollapsed?: boolean;
 	/** Base path for file type SVG icons (used by the MarkdownDisplay fallback) */
@@ -83,10 +73,8 @@ let {
 	messageId,
 	message,
 	isStreaming = false,
-	tokenRevealCss,
 	projectPath,
 	timestampMs,
-	streamingAnimationMode = "smooth",
 	initiallyCollapsed,
 	iconBasePath = "/svgs/icons",
 	planningStartedAtMs = null,
@@ -166,13 +154,8 @@ function persistThinkingCollapse(next: boolean): void {
 const visibleMessageGroups = $derived.by(() => {
 	return resolveVisibleAssistantMessageGroups({
 		messageGroups: groupedChunks.messageGroups,
-		isStreaming,
-		tokenRevealCss,
-		lastMessageTextGroupIndex,
 	});
 });
-
-const activeTokenRevealCss = $derived(tokenRevealCss);
 
 let thinkingContainerRef = $state<HTMLDivElement | undefined>();
 let thinkingContentRef = $state<HTMLDivElement | undefined>();
@@ -243,26 +226,15 @@ bind:this={thinkingContainerRef}
 <div bind:this={thinkingContentRef}>
 {#each filteredThoughtGroups as group, index (index)}
 {@const isLastThoughtTextGroup = index === lastThoughtTextGroupIndex}
-{@const thoughtTokenRevealCss = resolveThoughtGroupTokenRevealCss({
-	isStreaming,
-	hasMessageContent,
-	isLastThoughtTextGroup,
-	activeTokenRevealCss,
-})}
 {#if renderBlock}
 							{@render renderBlock({
 								group,
-								isStreaming: shouldStreamAssistantTextContent({
-									isStreaming: shouldStreamAssistantThoughtContent({
-										isStreaming,
-										hasMessageContent,
-										isLastThoughtTextGroup,
-									}),
-									tokenRevealCss: thoughtTokenRevealCss,
+								isStreaming: shouldStreamAssistantThoughtContent({
+									isStreaming,
+									hasMessageContent,
+									isLastThoughtTextGroup,
 								}),
-								tokenRevealCss: thoughtTokenRevealCss,
 								projectPath,
-								streamingAnimationMode,
 							})}
 {:else if group.type === "text"}
 <MarkdownDisplay
@@ -288,13 +260,8 @@ bind:this={thinkingContainerRef}
 			{:else}
 			{@render renderBlock({
 				group,
-				isStreaming: shouldStreamAssistantTextContent({
-					isStreaming: isStreaming && isLastTextGroup,
-					tokenRevealCss: isLastTextGroup ? activeTokenRevealCss : undefined,
-				}),
-				tokenRevealCss: isLastTextGroup ? activeTokenRevealCss : undefined,
+				isStreaming: isStreaming && isLastTextGroup,
 				projectPath,
-				streamingAnimationMode,
 			})}
 			{/if}
 {:else if group.type === "text"}

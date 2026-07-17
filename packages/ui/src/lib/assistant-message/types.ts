@@ -46,10 +46,3 @@ export type AssistantMessage = {
 	thinkingDurationMs?: number;
 };
 
-export const STREAMING_ANIMATION_MODE_SMOOTH = "smooth";
-export const STREAMING_ANIMATION_MODE_INSTANT = "instant";
-
-export type StreamingAnimationMode = "smooth" | "instant";
-
-export const DEFAULT_STREAMING_ANIMATION_MODE: StreamingAnimationMode =
-	STREAMING_ANIMATION_MODE_SMOOTH;

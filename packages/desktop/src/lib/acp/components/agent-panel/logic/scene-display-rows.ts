@@ -1,7 +1,6 @@
 import type {
 	AgentAssistantEntry,
 	AgentPanelSceneEntryModel,
-	TokenRevealCss,
 } from "@acepe/ui/agent-panel";
 import { groupAssistantChunks } from "@acepe/ui/agent-panel";
 import type { SessionEntry } from "../../../application/dto/session-entry.js";
@@ -23,7 +22,6 @@ export type MergedAssistantDisplayEntry = {
 	timestamp?: Date;
 	latestTimestamp?: Date;
 	isStreaming?: boolean;
-	tokenRevealCss?: TokenRevealCss;
 };
 
 type MissingDisplayEntry = {
@@ -190,7 +188,6 @@ function createMergedAssistantDisplayEntryFromScene(
 		timestamp: ts,
 		latestTimestamp: ts,
 		isStreaming: entry.isStreaming,
-		tokenRevealCss: entry.tokenRevealCss,
 	};
 }
 
@@ -224,7 +221,6 @@ function mergeSceneAssistantEntry(
 		latestTimestamp:
 			entry.timestampMs !== undefined ? new Date(entry.timestampMs) : previous.latestTimestamp,
 		isStreaming: previous.isStreaming || entry.isStreaming,
-		tokenRevealCss: entry.tokenRevealCss,
 	};
 }
 
@@ -232,12 +228,7 @@ function shouldMergeSceneAssistantEntry(
 	previous: MergedAssistantDisplayEntry,
 	entry: AgentAssistantEntry
 ): boolean {
-	return (
-		previous.isStreaming !== true &&
-		entry.isStreaming !== true &&
-		previous.tokenRevealCss === undefined &&
-		entry.tokenRevealCss === undefined
-	);
+	return previous.isStreaming !== true && entry.isStreaming !== true;
 }
 
 /**

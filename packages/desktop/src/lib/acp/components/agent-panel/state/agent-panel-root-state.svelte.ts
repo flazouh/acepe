@@ -6,7 +6,6 @@
  * view glue until the next architecture units migrate those clusters.
  */
 
-import type { AgentPanelGraphMaterializerInput } from "../../../session-state/agent-panel-graph-materializer-types.js";
 import type { ChatPreferencesStore } from "../../../store/chat-preferences-store.svelte.js";
 import type { ConnectionStore } from "../../../store/connection-store.svelte.js";
 import type { InteractionStore } from "../../../store/interaction-store.svelte.js";
@@ -27,7 +26,6 @@ import { checkpointStore } from "../../../store/checkpoint-store.svelte.js";
 import { createPanelBranchLookupController } from "../logic/panel-branch-lookup.js";
 import { loadCheckpointsBeforeTimelineOpen } from "../services/index.js";
 import { AgentPanelLayoutController } from "./agent-panel-layout-controller.svelte.js";
-import { AgentPanelScenePipelineController } from "./agent-panel-scene-pipeline-controller.svelte.js";
 import { AgentPanelSessionController } from "./agent-panel-session-controller.svelte.js";
 import { AgentPanelState } from "./agent-panel-state.svelte.js";
 import { AgentPanelViewStateController } from "./agent-panel-view-state-controller.svelte.js";
@@ -79,10 +77,6 @@ export interface AgentPanelRootStateDeps {
 	readonly getHasPlan: () => boolean;
 	readonly getAgentName: () => string | null;
 	readonly getViewStateInput: (state: AgentPanelRootState) => PanelViewStateInput;
-	readonly getGraphMaterializerInput: (
-		state: AgentPanelRootState
-	) => AgentPanelGraphMaterializerInput;
-	readonly getPrefersReducedMotion: () => boolean;
 	readonly getWorktreeToggleProjectPath: () => string | null;
 	readonly getPanelPendingWorktreeEnabled: () => boolean | null;
 	readonly getPanelPreparedWorktreeLaunch: () => PreparedWorktreeLaunch | null;
@@ -121,7 +115,6 @@ export class AgentPanelRootState {
 	readonly worktreeSetup: WorktreeSetupController;
 	readonly worktreeController: AgentPanelWorktreeController;
 	readonly viewStateController: AgentPanelViewStateController;
-	readonly scenePipelineController: AgentPanelScenePipelineController;
 	readonly prCard: PrCardController;
 	readonly reviewDialog: ReviewDialogController;
 
@@ -196,15 +189,6 @@ export class AgentPanelRootState {
 
 		this.viewStateController = new AgentPanelViewStateController({
 			getViewStateInput: () => deps.getViewStateInput(this),
-		});
-
-		this.scenePipelineController = new AgentPanelScenePipelineController({
-			getSessionId: deps.getSessionId,
-			getGraphMaterializerInput: () => deps.getGraphMaterializerInput(this),
-			sessionStore: this.sessionStore,
-			chatPreferencesStore: this.chatPreferencesStore,
-			getPrefersReducedMotion: deps.getPrefersReducedMotion,
-			contentScrollReveal: this.contentScrollReveal,
 		});
 
 		this.prCard = new PrCardController();

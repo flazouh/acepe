@@ -68,8 +68,6 @@ function createProjection(
 			configOptions: [],
 			autonomousEnabled: null,
 		},
-		tokenStream: overrides.tokenStream ?? new Map(),
-		clockAnchor: overrides.clockAnchor ?? null,
 		revision: overrides.revision ?? revision,
 	};
 }
@@ -117,7 +115,6 @@ function createSnapshot(
 		transientProjection: overrides.transientProjection ?? DEFAULT_TRANSIENT_PROJECTION,
 		currentModelId: overrides.currentModelId ?? null,
 		sessionCold: overrides.sessionCold,
-		browserMonotonicMs: overrides.browserMonotonicMs ?? 1_000,
 	};
 }
 
@@ -223,8 +220,6 @@ describe("reduceCommand", () => {
 					lastTerminalTurnId: previousProjection.lastTerminalTurnId,
 					activeStreamingTail: previousProjection.activeStreamingTail,
 					capabilities,
-					tokenStream: previousProjection.tokenStream,
-					clockAnchor: previousProjection.clockAnchor,
 					revision: newerRevision,
 				},
 			},
@@ -1005,176 +1000,4 @@ describe("reduceCommand", () => {
 		);
 	});
 
-	it("warns and refreshes when assistant text delta arrives without canonical projection", () => {
-		const patches = reduceCommand(
-			createSnapshot({ previousProjection: null, previousGraph: null }),
-			{
-				kind: "applyAssistantTextDelta",
-				delta: {
-					turnId: "turn-1",
-					rowId: "row-1",
-					charOffset: 0,
-					deltaText: "hel",
-					producedAtMonotonicMs: 42,
-					revision: 10,
-				},
-			},
-			1_700_000_000_000
-		);
-
-		expect(patches).toEqual([
-			{
-				kind: "warnMissingCanonicalProjection",
-				sessionId: "session-1",
-				reason: "assistantTextDelta",
-				context: {
-					turnId: "turn-1",
-					rowId: "row-1",
-					deltaRevision: 10,
-				},
-			},
-			{
-				kind: "refreshSessionStateSnapshot",
-				sessionId: "session-1",
-				reason: "missingProjectionBeforeAssistantDelta",
-			},
-		]);
-	});
-
-	it("drops stale assistant text deltas by revision", () => {
-		const previousProjection = createProjection({
-			revision: {
-				graphRevision: 12,
-				transcriptRevision: 7,
-				lastEventSeq: 12,
-			},
-			tokenStream: new Map([
-				[
-					"turn-1:row-1",
-					{
-						turnId: "turn-1",
-						rowId: "row-1",
-						accumulatedText: "hello",
-						wordCount: 1,
-						latestWordCount: 1,
-						firstDeltaProducedAtMonotonicMs: 1,
-						lastDeltaProducedAtMonotonicMs: 2,
-						revision: 11,
-					},
-				],
-			]),
-		});
-
-		const patches = reduceCommand(
-			createSnapshot({ previousProjection, previousGraph: null }),
-			{
-				kind: "applyAssistantTextDelta",
-				delta: {
-					turnId: "turn-1",
-					rowId: "row-1",
-					charOffset: 5,
-					deltaText: "!",
-					producedAtMonotonicMs: 43,
-					revision: 10,
-				},
-			},
-			1_700_000_000_000
-		);
-
-		expect(patches).toEqual([]);
-	});
-
-	it("drops assistant text deltas with mismatched char offset", () => {
-		const previousProjection = createProjection({
-			revision: {
-				graphRevision: 9,
-				transcriptRevision: 7,
-				lastEventSeq: 9,
-			},
-			tokenStream: new Map([
-				[
-					"turn-1:row-1",
-					{
-						turnId: "turn-1",
-						rowId: "row-1",
-						accumulatedText: "hello",
-						wordCount: 1,
-						latestWordCount: 1,
-						firstDeltaProducedAtMonotonicMs: 1,
-						lastDeltaProducedAtMonotonicMs: 2,
-						revision: 9,
-					},
-				],
-			]),
-		});
-
-		const patches = reduceCommand(
-			createSnapshot({ previousProjection, previousGraph: null }),
-			{
-				kind: "applyAssistantTextDelta",
-				delta: {
-					turnId: "turn-1",
-					rowId: "row-1",
-					charOffset: 0,
-					deltaText: "x",
-					producedAtMonotonicMs: 44,
-					revision: 10,
-				},
-			},
-			1_700_000_000_000
-		);
-
-		expect(patches).toEqual([]);
-	});
-
-	it("accumulates assistant text deltas into canonical token stream", () => {
-		const previousProjection = createProjection({
-			revision: {
-				graphRevision: 9,
-				transcriptRevision: 7,
-				lastEventSeq: 9,
-			},
-		});
-
-		const patches = reduceCommand(
-			createSnapshot({ previousProjection, previousGraph: null }),
-			{
-				kind: "applyAssistantTextDelta",
-				delta: {
-					turnId: "turn-1",
-					rowId: "row-1",
-					charOffset: 0,
-					deltaText: "hel",
-					producedAtMonotonicMs: 42,
-					revision: 10,
-				},
-			},
-			1_700_000_000_000
-		);
-
-		expect(patches).toEqual([
-			{
-				kind: "setCanonicalProjection",
-				sessionId: "session-1",
-				projection: expect.objectContaining({
-					tokenStream: expect.any(Map),
-				}),
-			},
-			{
-				kind: "setRowTokenStream",
-				sessionId: "session-1",
-				rowId: "row-1",
-				row: {
-					turnId: "turn-1",
-					rowId: "row-1",
-					accumulatedText: "hel",
-					wordCount: 1,
-					latestWordCount: 1,
-					firstDeltaProducedAtMonotonicMs: 42,
-					lastDeltaProducedAtMonotonicMs: 42,
-					revision: 10,
-				},
-			},
-		]);
-	});
 });

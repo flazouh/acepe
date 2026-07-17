@@ -28,7 +28,6 @@ let {
 	projectPath,
 	showWorkingSpark = false,
 	isFullscreen = false,
-	streamingAnimationMode,
 	editToolTheme,
 	renderAssistantBlock,
 	onQuestionSelect,
@@ -49,7 +48,6 @@ let {
 	projectPath: string | undefined;
 	showWorkingSpark?: boolean;
 	isFullscreen?: boolean;
-	streamingAnimationMode: ConversationEntryProps["streamingAnimationMode"];
 	editToolTheme: ConversationEntryProps["editToolTheme"];
 	renderAssistantBlock: Snippet<[AssistantRenderBlockContext]>;
 	onQuestionSelect?: (event: AgentPanelQuestionSelectEvent) => void;
@@ -83,7 +81,6 @@ const taskDetailControllerBinding = $derived(taskDetailBindingFor(rowId, entry))
 		{projectPath}
 		{showWorkingSpark}
 		{isFullscreen}
-		{streamingAnimationMode}
 		{editToolTheme}
 		{renderAssistantBlock}
 		{onQuestionSelect}
@@ -121,7 +118,6 @@ const taskDetailControllerBinding = $derived(taskDetailBindingFor(rowId, entry))
 			iconBasePath="/svgs/icons"
 			{editToolTheme}
 			{projectPath}
-			{streamingAnimationMode}
 			{showWorkingSpark}
 			{renderAssistantBlock}
 			{onQuestionSelect}
