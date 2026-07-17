@@ -692,10 +692,13 @@ function createTextInline(text: string, cursor: ParseCursor): NativeMarkdownText
 
 	return {
 		type: "text",
-		key:
-			firstWordIndex === null
-				? nextKey(cursor, "text")
-				: nextKey(cursor, `text:${firstWordIndex}`),
+		// Anchor the key to the first word's document position, NOT a running
+		// nextKey counter. The counter increments for every space/mark before this
+		// key is minted, so it shifts each time the paragraph grows a word — which
+		// re-keys the text inline and remounts every word span under it (restarting
+		// each word's reveal fade → flicker). firstWordIndex is stable as a
+		// paragraph streams in, so its inline subtree is reconciled in place.
+		key: firstWordIndex === null ? nextKey(cursor, "text") : `text:${firstWordIndex}`,
 		parts,
 	};
 }
