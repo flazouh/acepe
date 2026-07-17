@@ -33,6 +33,10 @@ struct RawMessage {
     source_tool_use_id: Option<String>,
     /// Parent Task tool-call id for sidechain/subagent messages.
     parent_tool_use_id: Option<String>,
+    #[serde(rename = "isSidechain")]
+    is_sidechain: Option<bool>,
+    #[serde(rename = "agentId")]
+    agent_id: Option<String>,
     /// Tool use result data - contains questions and answers for AskUserQuestion tool
     #[serde(rename = "toolUseResult")]
     tool_use_result: Option<serde_json::Value>,
@@ -42,6 +46,12 @@ struct RawMessage {
     #[serde(rename = "promptSource")]
     prompt_source: Option<String>,
     entrypoint: Option<String>,
+    origin: Option<RawOrigin>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct RawOrigin {
+    kind: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -205,6 +215,37 @@ fn parse_user_text_blocks(text: &str, recover: bool) -> Vec<ContentBlock> {
     blocks
 }
 
+fn raw_content_starts_with(content: &serde_json::Value, prefix: &str) -> bool {
+    if let Some(text) = content.as_str() {
+        return text.trim_start().starts_with(prefix);
+    }
+
+    content
+        .as_array()
+        .and_then(|items| items.first())
+        .and_then(|item| item.get("text"))
+        .and_then(|text| text.as_str())
+        .is_some_and(|text| text.trim_start().starts_with(prefix))
+}
+
+fn is_task_notification_control_message(raw: &RawMessage, msg_content: &RawMessageContent) -> bool {
+    if msg_content.role != "user" {
+        return false;
+    }
+
+    if raw
+        .origin
+        .as_ref()
+        .and_then(|origin| origin.kind.as_deref())
+        == Some("task-notification")
+    {
+        return true;
+    }
+
+    raw.prompt_source.as_deref() == Some("sdk")
+        && raw_content_starts_with(&msg_content.content, "<task-notification>")
+}
+
 /// Resolve a UUID through alias mappings created during assistant message coalescing.
 /// A bounded loop avoids accidental infinite cycles.
 fn resolve_uuid_alias(uuid: String, aliases: &HashMap<String, String>) -> String {
@@ -246,6 +287,77 @@ fn assistant_blocks_are_mergeable_fragments(blocks: &[ContentBlock]) -> bool {
 fn assistant_fragments_can_merge(existing: &[ContentBlock], incoming: &[ContentBlock]) -> bool {
     assistant_blocks_are_mergeable_fragments(existing)
         && assistant_blocks_are_mergeable_fragments(incoming)
+}
+
+fn task_agent_parent_map_from_parent_jsonl(content: &str) -> HashMap<String, String> {
+    let mut task_agent_to_parent_tool_use_id = HashMap::new();
+
+    for line in content.lines() {
+        let Ok(json) = serde_json::from_str::<Value>(line) else {
+            continue;
+        };
+        let Some(tool_use_result) = json.get("toolUseResult") else {
+            continue;
+        };
+        let Some(agent_id) = tool_use_result.get("agentId").and_then(Value::as_str) else {
+            continue;
+        };
+        let Some(message_content) = json
+            .get("message")
+            .and_then(|message| message.get("content"))
+            .and_then(Value::as_array)
+        else {
+            continue;
+        };
+        let Some(parent_tool_use_id) = message_content.iter().find_map(|block| {
+            match block.get("type").and_then(Value::as_str) {
+                Some("tool_result") => block.get("tool_use_id").and_then(Value::as_str),
+                _ => None,
+            }
+        }) else {
+            continue;
+        };
+
+        task_agent_to_parent_tool_use_id
+            .insert(agent_id.to_string(), parent_tool_use_id.to_string());
+    }
+
+    task_agent_to_parent_tool_use_id
+}
+
+async fn sidechain_jsonl_lines_for_parent_tasks(
+    session_path: &PathBuf,
+    task_agent_to_parent_tool_use_id: &HashMap<String, String>,
+) -> Vec<String> {
+    if task_agent_to_parent_tool_use_id.is_empty() {
+        return Vec::new();
+    }
+
+    let Some(parent_dir) = session_path.parent() else {
+        return Vec::new();
+    };
+    let session_stem = session_path
+        .file_stem()
+        .map(std::path::PathBuf::from)
+        .unwrap_or_default();
+    let subagent_dirs = [
+        parent_dir.join(session_stem).join("subagents"),
+        parent_dir.join("subagents"),
+    ];
+    let mut sidechain_lines = Vec::new();
+
+    for agent_id in task_agent_to_parent_tool_use_id.keys() {
+        for subagents_dir in &subagent_dirs {
+            let sidechain_path = subagents_dir.join(format!("agent-{agent_id}.jsonl"));
+            let Ok(content) = tokio::fs::read_to_string(&sidechain_path).await else {
+                continue;
+            };
+            sidechain_lines.extend(content.lines().map(str::to_string));
+            break;
+        }
+    }
+
+    sidechain_lines
 }
 
 /// Order messages by following the parentUuid chain
@@ -388,6 +500,12 @@ async fn parse_full_session_from_path_with_path(
     session_path: &PathBuf,
 ) -> Result<(FullSession, PathBuf)> {
     let content = tokio::fs::read_to_string(session_path).await?;
+    let task_agent_to_parent_tool_use_id = task_agent_parent_map_from_parent_jsonl(&content);
+    let mut jsonl_lines: Vec<String> = content.lines().map(str::to_string).collect();
+    jsonl_lines.extend(
+        sidechain_jsonl_lines_for_parent_tasks(session_path, &task_agent_to_parent_tool_use_id)
+            .await,
+    );
 
     // Extract title using the same logic as extract_display_name_from_content()
     // This ensures session list and session header show the same title
@@ -399,13 +517,13 @@ async fn parse_full_session_from_path_with_path(
     let mut uuid_aliases: HashMap<String, String> = HashMap::new();
     let mut created_at = String::new();
 
-    for line in content.lines() {
+    for line in jsonl_lines {
         if line.trim().is_empty() {
             continue;
         }
 
         // Try to parse as raw message
-        let json: Value = match serde_json::from_str(line) {
+        let json: Value = match serde_json::from_str(&line) {
             Ok(j) => j,
             Err(e) => {
                 tracing::error!(
@@ -443,7 +561,7 @@ async fn parse_full_session_from_path_with_path(
             created_at = raw.timestamp.clone();
         }
 
-        let msg_content = match raw.message {
+        let msg_content = match raw.message.clone() {
             Some(c) => c,
             None => continue,
         };
@@ -459,10 +577,17 @@ async fn parse_full_session_from_path_with_path(
         let parent_tool_use_id = raw
             .parent_tool_use_id
             .clone()
-            .or_else(|| msg_content.parent_tool_use_id.clone());
+            .or_else(|| msg_content.parent_tool_use_id.clone())
+            .or_else(|| match (raw.is_sidechain, raw.agent_id.as_deref()) {
+                (Some(true), Some(agent_id)) => {
+                    task_agent_to_parent_tool_use_id.get(agent_id).cloned()
+                }
+                _ => None,
+            });
         let recover_acepe_pasted_content = msg_content.role == "user"
             && raw.prompt_source.as_deref() == Some("sdk")
             && raw.entrypoint.as_deref() == Some("sdk-rust");
+        let is_task_notification = is_task_notification_control_message(&raw, &msg_content);
         let content_blocks =
             parse_content_blocks(&msg_content.content, recover_acepe_pasted_content);
         let merge_key = if msg_content.role == "assistant" {
@@ -543,7 +668,7 @@ async fn parse_full_session_from_path_with_path(
             usage,
             error: raw.error.or(msg_content.error),
             request_id: raw.request_id,
-            is_meta: raw.is_meta.unwrap_or(false),
+            is_meta: raw.is_meta.unwrap_or(false) || is_task_notification,
             source_tool_use_id: raw.source_tool_use_id,
             parent_tool_use_id,
             tool_use_result: raw.tool_use_result,

@@ -12,7 +12,7 @@ pub use projection::{
     project_transcript_viewport_rows, project_transcript_viewport_rows_for_scope,
 };
 pub use row::{
-    TranscriptViewportInteractionLink, TranscriptViewportOperationDisplayFacts,
-    TranscriptViewportOperationLink, TranscriptViewportRow, TranscriptViewportRowContent,
-    TranscriptViewportRowKind,
+    TranscriptViewportInteractionLink, TranscriptViewportLatestChildAction,
+    TranscriptViewportOperationDisplayFacts, TranscriptViewportOperationLink,
+    TranscriptViewportRow, TranscriptViewportRowContent, TranscriptViewportRowKind,
 };

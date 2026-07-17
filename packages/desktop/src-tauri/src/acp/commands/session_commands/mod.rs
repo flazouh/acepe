@@ -36,8 +36,8 @@ use crate::acp::transcript_projection::{TranscriptProjectionRegistry, Transcript
 use crate::acp::types::CanonicalAgentId;
 use crate::commands::observability::{expected_acp_command_result, CommandResult};
 use crate::db::repository::{
-    SessionEventSequenceRepository, SessionJournalEventRepository, SessionMetadataRepository,
-    SessionMetadataRow,
+    SessionEventSeq, SessionEventSequenceRepository, SessionJournalEventRepository,
+    SessionMetadataRepository, SessionMetadataRow,
 };
 use sea_orm::DbConn;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
@@ -65,7 +65,7 @@ pub use fork_close::{acp_close_session, acp_fork_session};
 #[cfg(test)]
 use lifecycle::load_transcript_snapshot_for_resume;
 use lifecycle::{
-    emit_detached_lifecycle, load_live_session_graph_revision,
+    emit_detached_lifecycle, load_live_session_graph_revision, load_live_session_revision_lookup,
     load_transcript_snapshot_for_resume_with_app, replay_buffered_session_state_events,
 };
 pub(crate) use lifecycle::{emit_lifecycle_event, publish_session_state_envelope};
@@ -90,7 +90,8 @@ use state::{
     projection_has_graph_state,
 };
 use state_lookup::{
-    projection_snapshot_with_runtime, resolve_state_lookup_authority, runtime_snapshot_for_refresh,
+    has_live_active_turn_evidence, projection_snapshot_with_runtime,
+    resolve_state_lookup_authority, runtime_snapshot_for_refresh,
     warn_unresolved_tool_rows_in_state_lookup,
 };
 pub use unarchive::acp_unarchive_session;

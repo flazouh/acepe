@@ -61,7 +61,7 @@ async fn update_permission_projection(
         reply: Some(reply.to_string()),
     };
     if projection_registry
-        .resolve_interaction(session_id, permission_id, state.clone(), response.clone())
+        .prepare_interaction_resolution(session_id, permission_id, state.clone(), response.clone())
         .is_none()
     {
         tracing::debug!(
@@ -72,22 +72,33 @@ async fn update_permission_projection(
         return;
     }
 
-    if let Err(error) = SessionJournalEventRepository::append_interaction_transition(
+    let committed = match SessionJournalEventRepository::append_interaction_transition(
         db.inner(),
+        session_id,
+        permission_id,
+        state.clone(),
+        response.clone(),
+    )
+    .await
+    {
+        Ok(committed) => committed,
+        Err(error) => {
+            tracing::error!(
+                error = %error,
+                session_id = %session_id,
+                permission_id = %permission_id,
+                "Failed to persist permission reply into session journal"
+            );
+            return;
+        }
+    };
+    let _ = projection_registry.resolve_interaction_at_event_seq(
         session_id,
         permission_id,
         state,
         response,
-    )
-    .await
-    {
-        tracing::error!(
-            error = %error,
-            session_id = %session_id,
-            permission_id = %permission_id,
-            "Failed to persist permission reply into session journal"
-        );
-    }
+        committed.event_seq,
+    );
 }
 
 async fn update_question_projection(
@@ -107,7 +118,7 @@ async fn update_question_projection(
     let response = InteractionResponse::Question {
         answers: json!(parsed_answers),
     };
-    let Some(interaction_patch) = projection_registry.resolve_interaction(
+    let Some(interaction_candidate) = projection_registry.prepare_interaction_resolution(
         session_id,
         question_id,
         state.clone(),
@@ -121,11 +132,11 @@ async fn update_question_projection(
         return;
     };
 
-    let persist_result = if interaction_patch.state == InteractionState::Answered {
+    let persist_result = if interaction_candidate.state == InteractionState::Answered {
         SessionJournalEventRepository::append_interaction_snapshot(
             db.inner(),
             session_id,
-            interaction_patch,
+            interaction_candidate,
         )
         .await
     } else {
@@ -133,20 +144,31 @@ async fn update_question_projection(
             db.inner(),
             session_id,
             question_id,
-            state,
-            response,
+            state.clone(),
+            response.clone(),
         )
         .await
     };
 
-    if let Err(error) = persist_result {
-        tracing::error!(
-            error = %error,
-            session_id = %session_id,
-            question_id = %question_id,
-            "Failed to persist question reply into session journal"
-        );
-    }
+    let committed = match persist_result {
+        Ok(committed) => committed,
+        Err(error) => {
+            tracing::error!(
+                error = %error,
+                session_id = %session_id,
+                question_id = %question_id,
+                "Failed to persist question reply into session journal"
+            );
+            return;
+        }
+    };
+    let _ = projection_registry.resolve_interaction_at_event_seq(
+        session_id,
+        question_id,
+        state,
+        response,
+        committed.event_seq,
+    );
 }
 
 #[derive(Debug, Clone, serde::Deserialize, Type)]

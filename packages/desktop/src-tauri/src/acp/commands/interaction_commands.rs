@@ -61,7 +61,7 @@ where
                 .snapshot_for_session(session_id)
                 .map(|snapshot| snapshot.revision)
         })
-        .unwrap_or(last_event_seq);
+        .unwrap_or(0);
     let original_capabilities = runtime_snapshot.capabilities;
     let pending_capabilities = mutate_capabilities(original_capabilities.clone());
     let mutation_id = format!(

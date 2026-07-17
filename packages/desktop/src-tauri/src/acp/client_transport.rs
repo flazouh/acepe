@@ -332,7 +332,7 @@ pub(crate) async fn persist_interaction_transition(
     response: InteractionResponse,
     source: &str,
 ) {
-    let Some(interaction_patch) = projection_registry.resolve_interaction(
+    let Some(interaction_candidate) = projection_registry.prepare_interaction_resolution(
         session_id,
         interaction_id,
         state.clone(),
@@ -347,28 +347,37 @@ pub(crate) async fn persist_interaction_transition(
         return;
     };
 
-    if let Some(db) = db {
-        let persist_result = if interaction_patch.kind == InteractionKind::Question
-            && interaction_patch.state == InteractionState::Answered
-        {
-            SessionJournalEventRepository::append_interaction_snapshot(
-                db,
-                session_id,
-                interaction_patch.clone(),
-            )
-            .await
-        } else {
-            SessionJournalEventRepository::append_interaction_transition(
-                db,
-                session_id,
-                interaction_id,
-                state,
-                response,
-            )
-            .await
-        };
-
-        if let Err(error) = persist_result {
+    let Some(db) = db else {
+        tracing::error!(
+            session_id = %session_id,
+            interaction_id = %interaction_id,
+            source = %source,
+            "Cannot resolve interaction without durable session event storage"
+        );
+        return;
+    };
+    let persist_result = if interaction_candidate.kind == InteractionKind::Question
+        && interaction_candidate.state == InteractionState::Answered
+    {
+        SessionJournalEventRepository::append_interaction_snapshot(
+            db,
+            session_id,
+            interaction_candidate,
+        )
+        .await
+    } else {
+        SessionJournalEventRepository::append_interaction_transition(
+            db,
+            session_id,
+            interaction_id,
+            state.clone(),
+            response.clone(),
+        )
+        .await
+    };
+    let committed = match persist_result {
+        Ok(committed) => committed,
+        Err(error) => {
             tracing::error!(
                 error = %error,
                 session_id = %session_id,
@@ -376,8 +385,25 @@ pub(crate) async fn persist_interaction_transition(
                 source = %source,
                 "Failed to persist interaction transition into session journal"
             );
+            return;
         }
-    }
+    };
+    let Some(interaction_patch) = projection_registry.resolve_interaction_at_event_seq(
+        session_id,
+        interaction_id,
+        state,
+        response,
+        committed.event_seq,
+    ) else {
+        tracing::error!(
+            session_id = %session_id,
+            interaction_id = %interaction_id,
+            event_seq = committed.event_seq,
+            source = %source,
+            "Committed interaction transition could not be projected"
+        );
+        return;
+    };
 
     if let Some(dispatcher) = dispatcher {
         dispatcher.enqueue_interaction_transition_state(session_id, interaction_patch);
@@ -515,6 +541,27 @@ mod tests {
         }
     }
 
+    async fn setup_interaction_test_db(session_id: &str) -> DbConn {
+        use sea_orm_migration::MigratorTrait;
+
+        let db = sea_orm::Database::connect("sqlite::memory:")
+            .await
+            .expect("in-memory interaction database");
+        crate::db::migrations::Migrator::up(&db, None)
+            .await
+            .expect("interaction database migrations");
+        crate::db::repository::SessionMetadataRepository::ensure_exists(
+            &db,
+            session_id,
+            "/test/project",
+            "claude-code",
+            None,
+        )
+        .await
+        .expect("interaction session metadata");
+        db
+    }
+
     #[test]
     fn computer_permission_transition_is_local_and_typed() {
         let approved = interaction_transition_from_result(
@@ -549,10 +596,68 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn interaction_projection_changes_only_after_journal_commit() {
+        use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
+
+        let session_id = "session-interaction-commit-boundary";
+        let permission_id = "permission-commit-boundary";
+        let db = setup_interaction_test_db(session_id).await;
+        let projection_registry = ProjectionRegistry::new();
+        projection_registry.register_session(session_id.to_string(), CanonicalAgentId::ClaudeCode);
+        projection_registry.apply_session_update(
+            session_id,
+            &permission_request_update(session_id, permission_id, 41, "tool-commit-boundary"),
+        );
+        db.execute(Statement::from_string(
+            DatabaseBackend::Sqlite,
+            format!(
+                "CREATE TRIGGER fail_interaction_journal_insert \
+                 BEFORE INSERT ON session_journal_event \
+                 WHEN NEW.session_id = '{session_id}' \
+                 BEGIN SELECT RAISE(ABORT, 'forced interaction journal failure'); END"
+            ),
+        ))
+        .await
+        .expect("install journal failure trigger");
+
+        persist_interaction_transition(
+            &projection_registry,
+            Some(&db),
+            None,
+            session_id,
+            permission_id,
+            InteractionState::Approved,
+            SessionDomainEventKind::InteractionResolved,
+            InteractionResponse::Permission {
+                accepted: true,
+                option_id: Some("allow_once".to_string()),
+                reply: Some("once".to_string()),
+            },
+            "test",
+        )
+        .await;
+
+        let interaction = projection_registry
+            .interaction(permission_id)
+            .expect("permission interaction remains available");
+        assert_eq!(interaction.state, InteractionState::Pending);
+        assert_eq!(interaction.responded_at_event_seq, None);
+        assert_eq!(
+            crate::db::repository::SessionEventSequenceRepository::last_assigned_event_seq(
+                &db, session_id,
+            )
+            .await
+            .expect("read interaction sequence after rollback"),
+            None
+        );
+    }
+
+    #[tokio::test]
     async fn interaction_transition_emits_session_state_delta_for_resumed_operation() {
         let session_id = "session-interaction-delta";
         let tool_call_id = "tool-read-1";
         let permission_id = "permission-read-1";
+        let db = setup_interaction_test_db(session_id).await;
         let projection_registry = StdArc::new(ProjectionRegistry::new());
         projection_registry.register_session(session_id.to_string(), CanonicalAgentId::ClaudeCode);
         projection_registry.apply_session_update(
@@ -574,7 +679,7 @@ mod tests {
 
         persist_interaction_transition(
             &projection_registry,
-            None,
+            Some(&db),
             Some(&dispatcher),
             session_id,
             permission_id,
@@ -618,6 +723,7 @@ mod tests {
         let session_id = "session-interaction-cancelled-delta";
         let tool_call_id = "tool-read-cancelled-1";
         let permission_id = "permission-read-cancelled-1";
+        let db = setup_interaction_test_db(session_id).await;
         let projection_registry = StdArc::new(ProjectionRegistry::new());
         projection_registry.register_session(session_id.to_string(), CanonicalAgentId::ClaudeCode);
         projection_registry.apply_session_update(
@@ -635,7 +741,7 @@ mod tests {
 
         persist_interaction_transition(
             &projection_registry,
-            None,
+            Some(&db),
             Some(&dispatcher),
             session_id,
             permission_id,

@@ -240,6 +240,7 @@ mod tests {
                 segments: Vec::new(),
             },
             duration_started_at_ms: None,
+            timestamp_ms: None,
         }
     }
 

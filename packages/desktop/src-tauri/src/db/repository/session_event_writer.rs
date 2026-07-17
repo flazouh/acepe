@@ -6,16 +6,30 @@ use crate::{
         SessionJournalEventPayload,
     },
     acp::session_update::SessionUpdate,
-    db::repository::{SessionEventSequenceRepository, SessionJournalEventRepository},
+    db::repository::{
+        SessionEventSeq, SessionEventSequenceRepository, SessionJournalEventRepository,
+    },
 };
 use anyhow::Result;
 use sea_orm::{DbConn, TransactionTrait};
 
 #[derive(Debug, Clone)]
 pub struct SequencedSessionUpdate {
-    pub event_seq: i64,
-    pub previous_event_seq: i64,
+    event_seq: SessionEventSeq,
+    previous_event_seq: SessionEventSeq,
     pub record: Option<SessionJournalRecord>,
+}
+
+impl SequencedSessionUpdate {
+    #[must_use]
+    pub const fn event_seq(&self) -> SessionEventSeq {
+        self.event_seq
+    }
+
+    #[must_use]
+    pub const fn previous_event_seq(&self) -> SessionEventSeq {
+        self.previous_event_seq
+    }
 }
 
 pub struct SessionEventWriter;
@@ -37,7 +51,7 @@ impl SessionEventWriter {
             .map(|update| SessionJournalEventPayload::ProjectionUpdate {
                 update: Box::new(update),
             })
-            .map(|payload| SessionJournalRecord::new(session_id, event_seq, payload));
+            .map(|payload| SessionJournalRecord::new(session_id, event_seq.get(), payload));
         if let Some(record) = record.as_ref() {
             SessionJournalEventRepository::insert_in_transaction(&tx, record).await?;
         }
@@ -45,7 +59,7 @@ impl SessionEventWriter {
 
         Ok(SequencedSessionUpdate {
             event_seq,
-            previous_event_seq: event_seq.saturating_sub(1),
+            previous_event_seq: event_seq.previous(),
             record,
         })
     }
@@ -118,7 +132,7 @@ mod tests {
         let mut errors = Vec::new();
         for task in tasks {
             match task.await.expect("writer task should not panic") {
-                Ok(result) => sequences.push(result.event_seq),
+                Ok(result) => sequences.push(result.event_seq().get()),
                 Err(error) => errors.push(format!("{error:#}")),
             }
         }
@@ -144,8 +158,8 @@ mod tests {
         )
         .await
         .expect("commit non-journaled update");
-        assert_eq!(first.event_seq, 1);
-        assert_eq!(first.previous_event_seq, 0);
+        assert_eq!(first.event_seq().get(), 1);
+        assert_eq!(first.previous_event_seq().get(), 0);
         assert!(first.record.is_none());
 
         let second = SessionEventWriter::commit_session_update(
@@ -155,8 +169,8 @@ mod tests {
         )
         .await
         .expect("commit journaled update");
-        assert_eq!(second.event_seq, 2);
-        assert_eq!(second.previous_event_seq, 1);
+        assert_eq!(second.event_seq().get(), 2);
+        assert_eq!(second.previous_event_seq().get(), 1);
         assert_eq!(
             second.record.as_ref().map(|record| record.event_seq),
             Some(2)
@@ -211,7 +225,7 @@ mod tests {
         )
         .await
         .expect("commit after rollback");
-        assert_eq!(committed.event_seq, 1);
+        assert_eq!(committed.event_seq().get(), 1);
     }
 
     #[tokio::test]
@@ -254,7 +268,8 @@ mod tests {
         assert_eq!(
             SessionEventSequenceRepository::last_assigned_event_seq(&reopened, SESSION_ID)
                 .await
-                .expect("read reopened frontier"),
+                .expect("read reopened frontier")
+                .map(|event_seq| event_seq.get()),
             Some(2)
         );
         let next = SessionEventWriter::commit_session_update(
@@ -264,6 +279,6 @@ mod tests {
         )
         .await
         .expect("commit after reopen");
-        assert_eq!(next.event_seq, 3);
+        assert_eq!(next.event_seq().get(), 3);
     }
 }

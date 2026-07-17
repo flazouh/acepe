@@ -6,8 +6,12 @@ use crate::acp::projections::{
 };
 use crate::acp::session_descriptor::{SessionDescriptorCompatibility, SessionReplayContext};
 use crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeRegistry;
+use crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeSnapshot;
 use crate::acp::session_state_engine::selectors::{
     SessionGraphActivity, SessionGraphCapabilities, SessionGraphLifecycle,
+};
+use crate::acp::session_state_engine::transcript_rows_ledger::{
+    TranscriptRowsLedger, TranscriptRowsLedgerWriteHint,
 };
 use crate::acp::session_state_engine::{
     ActiveStreamingTail, ActiveStreamingTailContentKind, SessionGraphRevision, SessionStatePayload,
@@ -18,7 +22,8 @@ use crate::acp::session_update::{
     TurnErrorSource,
 };
 use crate::acp::transcript_projection::{
-    TranscriptEntry, TranscriptEntryRole, TranscriptSegment, TranscriptSnapshot,
+    TranscriptEntry, TranscriptEntryRole, TranscriptProjectionRegistry, TranscriptSegment,
+    TranscriptSnapshot,
 };
 use crate::acp::transcript_viewport::ledger::{
     serialize_viewport_rows_for_ledger, SessionTranscriptRowLedgerOpenHeader,
@@ -128,6 +133,7 @@ async fn current_row_ledger_open_returns_hot_tail_page_without_full_snapshot_bod
             }],
         },
         duration_started_at_ms: None,
+        timestamp_ms: None,
     };
     let rows = serialize_viewport_rows_for_ledger(
         session_id,
@@ -620,13 +626,20 @@ async fn hot_ledger_open_preserves_running_turn_when_runtime_is_live() {
     let session_id = "hot-ledger-live-running";
     seed_session_metadata(&db, session_id, "opencode").await;
     append_frontier_barrier(&db, session_id).await;
-    let header = stale_running_header(CanonicalAgentId::OpenCode, "Live running open");
+    let assistant_entry_id = "entry-1";
+    let mut header = stale_running_header(CanonicalAgentId::OpenCode, "Live running open");
+    header.active_streaming_tail = Some(ActiveStreamingTail {
+        row_id: format!("transcript:{assistant_entry_id}"),
+        content_kind: ActiveStreamingTailContentKind::Message,
+    });
+    let mut assistant_row = assistant_text_row(assistant_entry_id, "assistant reply mid turn");
+    assistant_row.active_streaming_tail = Some(ActiveStreamingTailContentKind::Message);
     let rows = serialize_viewport_rows_for_ledger(
         session_id,
         7,
         1,
         TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
-        &[assistant_text_row("entry-1", "assistant reply mid turn")],
+        &[assistant_row],
     )
     .expect("ledger rows should serialize");
     SessionTranscriptRowLedgerRepository::replace_current(
@@ -665,6 +678,61 @@ async fn hot_ledger_open_preserves_running_turn_when_runtime_is_live() {
         SessionTurnState::Running,
         "live runtime with an attached session must keep the Running turn state"
     );
+}
+
+#[tokio::test]
+async fn hot_ledger_open_with_ready_runtime_closes_running_turn_without_active_evidence() {
+    let db = setup_db().await;
+    let hub = make_hub();
+    let session_id = "hot-ledger-ready-stale-running";
+    seed_session_metadata(&db, session_id, "opencode").await;
+    append_frontier_barrier(&db, session_id).await;
+    let header = stale_running_header(CanonicalAgentId::OpenCode, "Ready stale running open");
+    let rows = serialize_viewport_rows_for_ledger(
+        session_id,
+        7,
+        1,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        &[assistant_text_row("entry-1", "assistant reply after turn")],
+    )
+    .expect("ledger rows should serialize");
+    SessionTranscriptRowLedgerRepository::replace_current(
+        &db,
+        session_id,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        7,
+        1,
+        1,
+        Some(serde_json::to_string(&header).expect("header should serialize")),
+        rows,
+    )
+    .await
+    .expect("ledger write should succeed");
+    let runtime_registry = SessionGraphRuntimeRegistry::new();
+    runtime_registry.restore_session_state(
+        session_id.to_string(),
+        8,
+        SessionGraphLifecycle::ready(),
+        SessionGraphCapabilities::empty(),
+    );
+    let replay_context = replay_context_for_session(session_id, CanonicalAgentId::OpenCode);
+
+    let result =
+        session_open_result_from_current_row_ledger(&db, &hub, &replay_context, session_id, 128)
+            .await
+            .expect("hot ledger lookup should succeed")
+            .expect("current ledger should open hot");
+    let result = apply_runtime_authority_to_session_open_result(result, Some(&runtime_registry));
+    let SessionOpenResult::Found(found) = result else {
+        panic!("expected found hot ledger open");
+    };
+
+    assert_eq!(found.turn_state, SessionTurnState::Completed);
+    assert_ne!(
+        found.activity.kind,
+        crate::acp::session_state_engine::selectors::SessionGraphActivityKind::AwaitingModel
+    );
+    assert!(found.active_streaming_tail.is_none());
 }
 
 fn stale_running_header(
@@ -737,6 +805,137 @@ async fn current_row_ledger_open_claim_frontier_matches_ledger_revision() {
     assert_eq!(found.last_event_seq, 7);
     assert_eq!(claim.last_event_seq, 7);
     assert_eq!(claim.buffered_events.len(), 1);
+}
+
+#[tokio::test]
+async fn row_ledger_pipeline_preserves_delivery_frontier_when_transcript_revision_is_ahead() {
+    let db = setup_db().await;
+    let hub = make_hub();
+    let session_id = "row-ledger-independent-delivery-frontier";
+    seed_session_metadata(&db, session_id, "codex").await;
+    append_frontier_barrier(&db, session_id).await;
+
+    let projection_registry = crate::acp::projections::ProjectionRegistry::new();
+    let transcript_projection_registry = TranscriptProjectionRegistry::new();
+    let mut session = crate::acp::projections::SessionSnapshot::new(
+        session_id.to_string(),
+        Some(CanonicalAgentId::Codex),
+    );
+    session.message_count = 1;
+    session.transcript_entry_count = 1;
+    projection_registry.restore_session_projection(
+        crate::acp::projections::SessionProjectionSnapshot {
+            session: Some(session),
+            operations: Vec::new(),
+            interactions: Vec::new(),
+            runtime: None,
+        },
+    );
+    transcript_projection_registry.restore_session_snapshot(
+        session_id.to_string(),
+        TranscriptSnapshot {
+            revision: 41,
+            entries: vec![TranscriptEntry {
+                scope: crate::acp::transcript_projection::TranscriptScope::Root,
+                entry_id: "entry-1".to_string(),
+                role: TranscriptEntryRole::Assistant,
+                segments: vec![TranscriptSegment::Text {
+                    segment_id: "entry-1:text:0".to_string(),
+                    text: "transcript progress is not delivery progress".to_string(),
+                }],
+                attempt_id: None,
+                timestamp_ms: None,
+            }],
+        },
+    );
+    let revision = SessionGraphRevision::new(7, 41, 1);
+
+    let materialized = TranscriptRowsLedger::new()
+        .materialize_rows(
+            SessionGraphRuntimeSnapshot::default(),
+            session_id,
+            revision,
+            &projection_registry,
+            &transcript_projection_registry,
+        )
+        .expect("rows should materialize");
+    assert_eq!(materialized.effective_revision.transcript_revision, 41);
+    assert_eq!(
+        materialized.effective_revision.last_event_seq, 1,
+        "materialization must preserve the delivery frontier"
+    );
+
+    let write_hint = TranscriptRowsLedgerWriteHint {
+        force_full_replace: false,
+        changed_source_entry_ids: vec!["entry-1".to_string()],
+        changed_tool_call_ids: Vec::new(),
+        changed_interaction_ids: Vec::new(),
+    };
+    let persisted_materialization = TranscriptRowsLedger::new()
+        .materialize_persisted_rows(
+            SessionGraphRuntimeSnapshot::default(),
+            session_id,
+            revision,
+            &projection_registry,
+            &transcript_projection_registry,
+            &write_hint,
+        )
+        .expect("persisted rows should materialize")
+        .expect("session should be attached");
+    assert_eq!(
+        persisted_materialization
+            .effective_revision
+            .transcript_revision,
+        41
+    );
+    assert_eq!(
+        persisted_materialization.effective_revision.last_event_seq, 1,
+        "fast persistence materialization must preserve the delivery frontier"
+    );
+
+    let runtime_registry = SessionGraphRuntimeRegistry::new();
+    runtime_registry
+        .persist_current_transcript_row_ledger(
+            &db,
+            session_id,
+            revision,
+            &projection_registry,
+            &transcript_projection_registry,
+            write_hint,
+        )
+        .await
+        .expect("row ledger should persist");
+    let persisted = SessionTranscriptRowLedgerRepository::read_tail_page(
+        &db,
+        session_id,
+        TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
+        128,
+    )
+    .await
+    .expect("persisted row ledger should read");
+    let SessionTranscriptRowLedgerRead::Current { metadata, .. } = persisted else {
+        panic!("expected current persisted row ledger");
+    };
+    assert_eq!(metadata.transcript_revision, 41);
+    assert_eq!(
+        metadata.last_event_seq, 1,
+        "persistence must preserve the delivery frontier"
+    );
+
+    let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Codex);
+    let opened =
+        session_open_result_from_current_row_ledger(&db, &hub, &replay_context, session_id, 128)
+            .await
+            .expect("hot ledger lookup should succeed")
+            .expect("persisted ledger should open hot");
+    let SessionOpenResult::Found(found) = opened else {
+        panic!("expected found hot ledger open");
+    };
+    assert_eq!(found.transcript_snapshot.revision, 41);
+    assert_eq!(
+        found.last_event_seq, 1,
+        "open must preserve the persisted delivery frontier"
+    );
 }
 
 #[tokio::test]
@@ -1352,6 +1551,7 @@ fn assistant_text_row(entry_id: &str, text: &str) -> TranscriptViewportRow {
             }],
         },
         duration_started_at_ms: None,
+        timestamp_ms: None,
     }
 }
 
@@ -1818,6 +2018,14 @@ async fn new_session_with_seed_journal_event_returns_proven_seq() {
         panic!("expected Found, got {result:?}");
     };
     assert_eq!(found.last_event_seq, 1, "seed event should yield seq=1");
+    assert_eq!(
+        found.graph_revision, 0,
+        "delivery allocation must not invent graph progress"
+    );
+    assert_eq!(
+        found.transcript_snapshot.revision, 0,
+        "delivery allocation must not invent transcript progress"
+    );
 }
 
 #[tokio::test]
@@ -1918,6 +2126,70 @@ async fn new_session_open_result_rebuilds_completed_local_journal_transcript() {
             "do you have access to the tauri mcp ?",
             "No — I don't see a Tauri MCP server."
         ]
+    );
+}
+
+#[tokio::test]
+async fn completed_local_journal_open_does_not_infer_graph_revision_from_delivery() {
+    let db = setup_db().await;
+    let hub = make_hub();
+    let session_id = "completed-local-journal-frontiers";
+    seed_session_metadata(&db, session_id, "copilot").await;
+
+    let updates = [
+        crate::acp::session_update::SessionUpdate::UserMessageChunk {
+            chunk: crate::acp::session_update::ContentChunk {
+                content: crate::acp::types::ContentBlock::Text {
+                    text: "hello".to_string(),
+                },
+                aggregation_hint: None,
+            },
+            session_id: Some(session_id.to_string()),
+            attempt_id: Some("attempt-1".to_string()),
+        },
+        crate::acp::session_update::SessionUpdate::AgentMessageChunk {
+            chunk: crate::acp::session_update::ContentChunk {
+                content: crate::acp::types::ContentBlock::Text {
+                    text: "hi".to_string(),
+                },
+                aggregation_hint: None,
+            },
+            part_id: None,
+            message_id: Some("assistant-1".to_string()),
+            parent_tool_use_id: None,
+            session_id: Some(session_id.to_string()),
+            produced_at_monotonic_ms: None,
+        },
+        crate::acp::session_update::SessionUpdate::TurnComplete {
+            session_id: Some(session_id.to_string()),
+            turn_id: Some("turn-1".to_string()),
+        },
+    ];
+    for update in updates {
+        SessionEventWriter::commit_session_update(&db, session_id, &update)
+            .await
+            .expect("append completed local journal update");
+    }
+
+    let result = session_open_result_from_completed_local_journal(
+        &db,
+        &hub,
+        &replay_context_for_session(session_id, CanonicalAgentId::Copilot),
+        session_id,
+        SessionGraphLifecycle::reconnecting(),
+        SessionGraphCapabilities::empty(),
+    )
+    .await
+    .expect("completed journal open should succeed")
+    .expect("completed journal should produce an open result");
+
+    let SessionOpenResult::Found(found) = result else {
+        panic!("expected Found, got {result:?}");
+    };
+    assert_eq!(found.last_event_seq, 3);
+    assert_eq!(
+        found.graph_revision, 0,
+        "delivery replay must not invent graph progress"
     );
 }
 
@@ -2492,6 +2764,8 @@ async fn provider_owned_open_pipeline_restores_each_builtin_agent_to_canonical_s
         let session_id = format!("{}-pipeline-session", agent_id.as_str());
         seed_session_metadata(&db, &session_id, agent_id.as_str()).await;
         append_frontier_barrier(&db, &session_id).await;
+        append_frontier_barrier(&db, &session_id).await;
+        append_frontier_barrier(&db, &session_id).await;
 
         let provider_snapshot = ProviderOwnedSessionSnapshot::from_thread_snapshot(
             make_provider_pipeline_snapshot(&agent_id),
@@ -2513,9 +2787,12 @@ async fn provider_owned_open_pipeline_restores_each_builtin_agent_to_canonical_s
         };
         assert_eq!(found.agent_id, agent_id);
         assert_eq!(found.canonical_session_id, session_id);
-        assert_eq!(found.last_event_seq, 1);
-        assert!(found.graph_revision >= found.last_event_seq);
-        assert_eq!(found.transcript_snapshot.revision, 1);
+        assert_eq!(found.last_event_seq, 3);
+        assert_ne!(
+            found.graph_revision, found.last_event_seq,
+            "folded provider graph revision must not be replaced by delivery"
+        );
+        assert_eq!(found.transcript_snapshot.revision, 2);
         assert_eq!(found.transcript_snapshot.entries.len(), 2);
         assert_eq!(
             found.transcript_snapshot.entries[0].role,
@@ -2760,7 +3037,7 @@ async fn provider_thread_snapshot_open_merges_replayed_operation_evidence() {
 }
 
 #[tokio::test]
-async fn provider_thread_snapshot_open_downgrades_stale_active_operations_when_journal_is_ahead() {
+async fn provider_thread_snapshot_open_does_not_treat_delivery_barriers_as_graph_progress() {
     let db = setup_db().await;
     let hub = make_hub();
     let session_id = "provider-stale-active-operation-open";
@@ -2790,19 +3067,13 @@ async fn provider_thread_snapshot_open_downgrades_stale_active_operations_when_j
         panic!("expected Found, got {result:?}");
     };
     assert_eq!(found.last_event_seq, 2);
-    assert_eq!(found.turn_state, SessionTurnState::Idle);
+    assert_eq!(found.graph_revision, 1);
+    assert_eq!(found.turn_state, SessionTurnState::Completed);
     assert_eq!(found.operations.len(), 1);
     let operation = &found.operations[0];
     assert_eq!(
         operation.operation_state,
-        crate::acp::projections::OperationState::Degraded
-    );
-    assert_eq!(
-        operation
-            .degradation_reason
-            .as_ref()
-            .map(|reason| reason.code.clone()),
-        Some(crate::acp::projections::OperationDegradationCode::AbsentFromHistory)
+        crate::acp::projections::OperationState::Cancelled
     );
 }
 
@@ -2966,8 +3237,8 @@ async fn provider_thread_snapshot_open_does_not_reactivate_stale_historical_erro
         panic!("expected Found, got {result:?}");
     };
     assert_eq!(found.last_event_seq, 3);
-    assert_eq!(found.graph_revision, 3);
-    assert_eq!(found.turn_state, SessionTurnState::Idle);
+    assert_eq!(found.graph_revision, 0);
+    assert_eq!(found.turn_state, SessionTurnState::Completed);
     assert!(found.active_turn_failure.is_none());
     assert_eq!(found.transcript_snapshot.entries.len(), 1);
 }
@@ -3131,6 +3402,7 @@ fn viewport_envelope_for_operation(
                             segments: Vec::new(),
                         },
                     duration_started_at_ms: None,
+                    timestamp_ms: None,
                 }],
                 request_generation: None,
                 diagnostics: Vec::new(),
@@ -3978,5 +4250,37 @@ fn fold_open_cursor_junk_matches_golden() {
     assert!(
         persisted_regions_equal(&folded, &golden),
         "fold_open cursor junk must match Phase 0 golden"
+    );
+}
+
+#[tokio::test]
+async fn fold_open_keeps_folded_graph_revision_independent_from_delivery() {
+    use crate::acp::session::ingress::stored_entry_events::stored_entries_to_provider_events;
+
+    let db = setup_db().await;
+    let hub = make_hub();
+    let session_id = "fold-open-independent-frontiers";
+    seed_session_metadata(&db, session_id, "cursor").await;
+    let snapshot = make_provider_pipeline_snapshot(&CanonicalAgentId::Cursor);
+    let events = stored_entries_to_provider_events(&snapshot.entries, CanonicalAgentId::Cursor);
+    let replay_context = replay_context_for_session(session_id, CanonicalAgentId::Cursor);
+
+    let result = session_open_result_from_history_events(
+        &db,
+        &hub,
+        None,
+        &replay_context,
+        session_id,
+        &events,
+    )
+    .await;
+
+    let SessionOpenResult::Found(found) = result else {
+        panic!("expected fold-based history open to succeed");
+    };
+    assert_eq!(found.last_event_seq, 0);
+    assert!(
+        found.graph_revision > found.last_event_seq,
+        "folded graph progress must remain independent from delivery"
     );
 }

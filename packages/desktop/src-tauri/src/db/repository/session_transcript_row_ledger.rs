@@ -87,6 +87,7 @@ impl SessionTranscriptRowLedgerRepository {
         scopes: Vec<SerializedTranscriptRowLedgerScope>,
     ) -> Result<()> {
         for scope_rows in &scopes {
+            Self::validate_scope(&scope_rows.scope)?;
             for (index, row) in scope_rows.rows.iter().enumerate() {
                 Self::validate_row(
                     session_id,
@@ -154,6 +155,7 @@ impl SessionTranscriptRowLedgerRepository {
         scopes: Vec<SerializedTranscriptRowLedgerScope>,
     ) -> Result<Vec<TranscriptScope>> {
         for scope_rows in &scopes {
+            Self::validate_scope(&scope_rows.scope)?;
             for (index, row) in scope_rows.rows.iter().enumerate() {
                 Self::validate_row(
                     session_id,
@@ -474,12 +476,17 @@ impl SessionTranscriptRowLedgerRepository {
         ))
         .one(db)
         .await?;
+        let persisted_scope = scope_model
+            .as_ref()
+            .map(|model| Self::parse_persisted_scope_key(&model.scope_key))
+            .transpose()?;
         if scope_model.is_none()
             && header.rebuild_status == SessionTranscriptRowLedgerStatus::Current.as_str()
         {
             return Ok(None);
         }
-        Self::metadata_from_models(header, scope_model, scope.clone()).map(Some)
+        let metadata_scope = persisted_scope.unwrap_or_else(|| scope.clone());
+        Self::metadata_from_models(header, scope_model, metadata_scope).map(Some)
     }
 
     async fn load_rows_from(
@@ -632,6 +639,14 @@ impl SessionTranscriptRowLedgerRepository {
     fn parse_persisted_scope_key(scope_key: &str) -> Result<TranscriptScope> {
         TranscriptScope::from_ledger_key(scope_key)
             .ok_or_else(|| anyhow!("invalid persisted transcript row scope key: {scope_key}"))
+    }
+
+    fn validate_scope(scope: &TranscriptScope) -> Result<()> {
+        let scope_key = scope.ledger_key();
+        if TranscriptScope::from_ledger_key(&scope_key).as_ref() != Some(scope) {
+            return Err(anyhow!("invalid transcript row scope key: {scope_key}"));
+        }
+        Ok(())
     }
 
     #[allow(clippy::too_many_arguments)]

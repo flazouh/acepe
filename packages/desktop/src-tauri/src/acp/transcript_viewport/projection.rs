@@ -74,10 +74,11 @@ fn project_transcript_viewport_entry_rows_for_scope(
     awaiting_duration_started_at_ms: Option<u64>,
     scope: &TranscriptScope,
 ) -> Vec<TranscriptViewportRow> {
-    let operation_links_by_entry = operation_links_by_entry_id(entries, operations);
+    let normalized_entries = normalize_entry_scopes(entries, operations);
+    let operation_links_by_entry = operation_links_by_entry_id(&normalized_entries, operations);
     let interaction_links_by_operation = interaction_links_by_operation_id(interactions);
 
-    entries
+    normalized_entries
         .iter()
         .filter(|entry| &entry.scope == scope)
         .filter_map(|entry| {
@@ -90,6 +91,49 @@ fn project_transcript_viewport_entry_rows_for_scope(
             )
         })
         .collect()
+}
+
+fn normalize_entry_scopes(
+    entries: &[TranscriptEntry],
+    operations: &[OperationSnapshot],
+) -> Vec<TranscriptEntry> {
+    let operation_id_by_tool_call_id = operation_id_by_tool_call_id(operations);
+    entries
+        .iter()
+        .map(|entry| normalize_entry_scope(entry, &operation_id_by_tool_call_id))
+        .collect()
+}
+
+fn normalize_entry_scope(
+    entry: &TranscriptEntry,
+    operation_id_by_tool_call_id: &BTreeMap<String, String>,
+) -> TranscriptEntry {
+    let TranscriptScope::Operation(scope_id) = &entry.scope else {
+        return entry.clone();
+    };
+    let Some(operation_id) = operation_id_by_tool_call_id.get(scope_id) else {
+        return entry.clone();
+    };
+    if operation_id == scope_id {
+        return entry.clone();
+    }
+
+    TranscriptEntry {
+        entry_id: entry.entry_id.clone(),
+        scope: TranscriptScope::Operation(operation_id.clone()),
+        role: entry.role.clone(),
+        segments: entry.segments.clone(),
+        attempt_id: entry.attempt_id.clone(),
+        timestamp_ms: entry.timestamp_ms,
+    }
+}
+
+fn operation_id_by_tool_call_id(operations: &[OperationSnapshot]) -> BTreeMap<String, String> {
+    let mut ids = BTreeMap::new();
+    for operation in operations {
+        ids.insert(operation.tool_call_id.clone(), operation.id.clone());
+    }
+    ids
 }
 
 fn project_entry(
@@ -128,6 +172,7 @@ fn project_entry(
         operation_links.as_slice(),
         interaction_links.as_slice(),
         &content,
+        entry.timestamp_ms,
     );
 
     let duration_started_at_ms = if active_streaming_tail.is_some() {
@@ -148,6 +193,7 @@ fn project_entry(
         interaction_links,
         content,
         duration_started_at_ms,
+        timestamp_ms: entry.timestamp_ms,
     })
 }
 
@@ -340,12 +386,20 @@ fn row_version(
     operation_links: &[TranscriptViewportOperationLink],
     interaction_links: &[TranscriptViewportInteractionLink],
     content: &TranscriptViewportRowContent,
+    timestamp_ms: Option<i64>,
 ) -> String {
     let mut hasher = Sha256::new();
     hasher.update(entry_id.as_bytes());
     hasher.update(scope.ledger_key().as_bytes());
     hasher.update(format!("{kind:?}").as_bytes());
     hasher.update(format!("{active_streaming_tail:?}").as_bytes());
+    // Include timestamp in the version so ledgers rebuild when wall-clock
+    // time is added to the row payload (or when it changes).
+    hasher.update(b"timestamp_ms");
+    match timestamp_ms {
+        Some(value) => hasher.update(value.to_string().as_bytes()),
+        None => hasher.update(b"none"),
+    }
 
     for operation_link in operation_links {
         hasher.update(operation_link.operation_id.as_bytes());
@@ -365,6 +419,7 @@ fn row_version(
             hasher.update(format!("{:?}", display_facts.task_prompt).as_bytes());
             hasher.update(format!("{:?}", display_facts.subagent_type).as_bytes());
             hasher.update(format!("{:?}", display_facts.normalized_todos).as_bytes());
+            hasher.update(format!("{:?}", display_facts.edit_diffs).as_bytes());
             if let Some(command_summary) = &display_facts.command_summary {
                 hasher.update(command_summary.as_bytes());
             }
@@ -458,6 +513,7 @@ pub(crate) fn canonical_transcript_viewport_row_version(row: &TranscriptViewport
         &row.operation_links,
         &row.interaction_links,
         &row.content,
+        row.timestamp_ms,
     )
 }
 
@@ -629,6 +685,15 @@ mod tests {
             }),
             canonical_operation_id: Some(operation_id.to_string()),
         }
+    }
+
+    #[test]
+    fn projects_entry_timestamp_ms_onto_viewport_row() {
+        let mut entry = text_entry("user-1", TranscriptEntryRole::User, "hello");
+        entry.timestamp_ms = Some(1770000000000_i64);
+        let rows = project_transcript_viewport_rows(&snapshot(vec![entry]), &[], &[], None, None);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].timestamp_ms, Some(1770000000000_i64));
     }
 
     #[test]

@@ -81,7 +81,15 @@ pub(crate) fn build_assistant_text_delta_from_components(
             return Vec::new();
         }
     };
-    let row_id = sanitize_row_id(row_entry_id);
+    // row_id must be the RAW canonical entry_id, byte-for-byte identical to
+    // `TranscriptEntry::entry_id`. `select_active_streaming_tail` (graph.rs)
+    // assigns `ActiveStreamingTail.row_id = entry.entry_id.clone()` with no
+    // sanitization, and the client looks up the token stream by that raw id
+    // (`getRowTokenStreamByRowId`). Sanitizing here (previously via
+    // `sanitize_row_id`, replacing `:`/`.` with `-`) desynced the two ids and
+    // made every token-reveal lookup miss silently — the delta payload built
+    // fine, it just filed under a key nothing ever reads by.
+    let row_id = row_entry_id.to_string();
     let turn_id = assistant_turn_id_from_snapshot(snapshot, row_index, &row_id);
     build_budgeted_assistant_text_delta_state_envelopes(
         session_id,
@@ -324,19 +332,6 @@ fn assistant_turn_id_from_snapshot(
         .find(|entry| entry.role == TranscriptEntryRole::User)
         .map(|entry| entry.entry_id.clone())
         .unwrap_or_else(|| sanitized_row_id.to_string())
-}
-
-fn sanitize_row_id(row_id: &str) -> String {
-    row_id
-        .chars()
-        .map(|ch| {
-            if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
-                ch
-            } else {
-                '-'
-            }
-        })
-        .collect()
 }
 
 #[cfg(test)]

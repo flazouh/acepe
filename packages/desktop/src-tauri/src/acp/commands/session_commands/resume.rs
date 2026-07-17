@@ -1,5 +1,6 @@
 use super::super::*;
 use super::*;
+use crate::db::repository::SessionEventSeq;
 
 /// Resume an existing ACP session.
 ///
@@ -427,26 +428,27 @@ pub(super) async fn async_resume_session_work(
             )
             .await
             .map_err(SerializableAcpError::from)?;
-        let materialized_restored_snapshot =
-            if let Some(snapshot) = restored_thread_snapshot.as_ref() {
-                let last_event_seq =
+        let materialized_restored_snapshot = if let Some(snapshot) =
+            restored_thread_snapshot.as_ref()
+        {
+            let last_event_seq =
                     SessionEventSequenceRepository::last_assigned_event_seq(db.inner(), session_id)
                         .await
                         .map_err(|error| SerializableAcpError::InvalidState {
                             message: format!(
-                    "Failed to determine journal cutoff for resumed session {session_id}: {error}"
+                    "Failed to determine delivery event-sequence frontier for resumed session {session_id}: {error}"
                 ),
                         })?
-                        .unwrap_or(0);
-                Some(materialized_thread_snapshot_from_provider_fold_first(
-                    session_id,
-                    &replay_context,
-                    snapshot,
-                    last_event_seq,
-                ))
-            } else {
-                None
-            };
+                        .unwrap_or(SessionEventSeq::ZERO);
+            Some(materialized_thread_snapshot_from_provider_fold_first(
+                session_id,
+                &replay_context,
+                snapshot,
+                last_event_seq.get(),
+            ))
+        } else {
+            None
+        };
         let transcript_snapshot = if let Some(materialized) =
             materialized_restored_snapshot.as_ref()
         {

@@ -25,7 +25,9 @@ use serde::{Deserialize, Serialize};
 // v16 removes the synthetic waiting placeholder from canonical transcript rows.
 // v17 persists independently pageable canonical transcript scopes and widens
 // parent Task rows with graph-derived child scope/action facts.
-pub const TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION: &str = "transcript_viewport_row:v17";
+// v20 invalidates rows that were built before restored raw Claude sidechain
+// files were discovered from Claude's per-session subagents directory.
+pub const TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION: &str = "transcript_viewport_row:v21";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SerializedTranscriptRowLedgerRow {
@@ -178,6 +180,9 @@ pub fn serialize_transcript_scopes_for_ledger(
 ) -> Result<Vec<SerializedTranscriptRowLedgerScope>> {
     let mut scopes = vec![TranscriptScope::Root];
     for entry in &transcript_snapshot.entries {
+        if entry_scope_is_provider_tool_alias(&entry.scope, operations) {
+            continue;
+        }
         if !scopes.iter().any(|scope| scope == &entry.scope) {
             scopes.push(entry.scope.clone());
         }
@@ -220,6 +225,18 @@ pub fn serialize_transcript_scopes_for_ledger(
             Ok(SerializedTranscriptRowLedgerScope { scope, rows })
         })
         .collect()
+}
+
+fn entry_scope_is_provider_tool_alias(
+    scope: &TranscriptScope,
+    operations: &[OperationSnapshot],
+) -> bool {
+    let TranscriptScope::Operation(scope_id) = scope else {
+        return false;
+    };
+    operations
+        .iter()
+        .any(|operation| operation.tool_call_id == *scope_id && operation.id != *scope_id)
 }
 
 pub(crate) fn validate_current_row_payload(row: &TranscriptViewportRow) -> Result<()> {
@@ -307,6 +324,7 @@ mod tests {
                 }],
             },
             duration_started_at_ms: None,
+            timestamp_ms: None,
         }];
 
         let serialized =
@@ -350,6 +368,7 @@ mod tests {
                 }],
             },
             duration_started_at_ms: None,
+            timestamp_ms: None,
         }];
 
         let serialized = super::serialize_viewport_rows_for_ledger_from_index(
@@ -393,6 +412,7 @@ mod tests {
                 }],
             },
             duration_started_at_ms: None,
+            timestamp_ms: None,
         };
 
         let result =
@@ -432,6 +452,7 @@ mod tests {
                     task_prompt: None,
                     subagent_type: None,
                     normalized_todos: None,
+                    edit_diffs: Vec::new(),
                     command_summary: Some("bun test".to_string()),
                     target_path_summary: None,
                     result_summary: None,
@@ -453,6 +474,7 @@ mod tests {
                 }],
             },
             duration_started_at_ms: None,
+            timestamp_ms: None,
         };
 
         let serialized =

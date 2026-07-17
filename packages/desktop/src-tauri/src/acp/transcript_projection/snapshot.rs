@@ -139,6 +139,7 @@ impl TranscriptSnapshot {
 pub struct TranscriptEntry {
     pub entry_id: String,
     #[serde(default, skip_serializing_if = "TranscriptScope::is_root")]
+    #[specta(optional)]
     pub scope: TranscriptScope,
     pub role: TranscriptEntryRole,
     pub segments: Vec<TranscriptSegment>,
@@ -181,7 +182,10 @@ impl TranscriptEntry {
                     timestamp_ms: parse_timestamp_to_millis(&event.timestamp),
                 })
             }
-            CanonicalTranscriptEventKind::AssistantText { text, .. } => {
+            CanonicalTranscriptEventKind::AssistantText {
+                text,
+                parent_tool_use_id,
+            } => {
                 let entry_id = derive_entry_id_for_snapshot_role(
                     turn_key,
                     &TranscriptEntryRole::Assistant,
@@ -189,7 +193,7 @@ impl TranscriptEntry {
                 );
                 Some(Self {
                     entry_id,
-                    scope: TranscriptScope::Root,
+                    scope: scope_from_parent_tool_use_id(parent_tool_use_id.as_deref()),
                     role: TranscriptEntryRole::Assistant,
                     segments: vec![TranscriptSegment::Text {
                         segment_id: format!("{turn_key}:event:{}", event.transcript_seq),
@@ -202,7 +206,7 @@ impl TranscriptEntry {
             CanonicalTranscriptEventKind::AssistantThought {
                 text,
                 redacted_provider_data,
-                ..
+                parent_tool_use_id,
             } => {
                 let entry_id = derive_entry_id_for_snapshot_role(
                     turn_key,
@@ -211,7 +215,7 @@ impl TranscriptEntry {
                 );
                 Some(Self {
                     entry_id,
-                    scope: TranscriptScope::Root,
+                    scope: scope_from_parent_tool_use_id(parent_tool_use_id.as_deref()),
                     role: TranscriptEntryRole::Assistant,
                     segments: vec![TranscriptSegment::Thought {
                         segment_id: format!("{turn_key}:event:{}", event.transcript_seq),
@@ -223,7 +227,10 @@ impl TranscriptEntry {
             }
             CanonicalTranscriptEventKind::AssistantError { .. } => None,
             CanonicalTranscriptEventKind::ToolUse {
-                tool_call_id, name, ..
+                tool_call_id,
+                name,
+                parent_tool_use_id,
+                ..
             } => {
                 if tool_call_id.trim().is_empty() {
                     return None;
@@ -231,7 +238,7 @@ impl TranscriptEntry {
                 let entry_id = derive_tool_entry_id(turn_key, tool_call_id);
                 Some(Self {
                     entry_id: entry_id.clone(),
-                    scope: TranscriptScope::Root,
+                    scope: scope_from_parent_tool_use_id(parent_tool_use_id.as_deref()),
                     role: TranscriptEntryRole::Tool,
                     segments: vec![TranscriptSegment::Text {
                         segment_id: format!("{entry_id}:tool"),
@@ -323,6 +330,13 @@ impl TranscriptEntry {
     }
 }
 
+fn scope_from_parent_tool_use_id(parent_tool_use_id: Option<&str>) -> TranscriptScope {
+    parent_tool_use_id
+        .filter(|tool_use_id| !tool_use_id.trim().is_empty())
+        .map(|tool_use_id| TranscriptScope::Operation(tool_use_id.to_string()))
+        .unwrap_or(TranscriptScope::Root)
+}
+
 fn thought_text_for_display(text: &str, redacted_provider_data: Option<&str>) -> String {
     match redacted_provider_data {
         Some(_) if text.trim().is_empty() => "[REDACTED]".to_string(),
@@ -343,7 +357,10 @@ fn append_or_merge_entry(entries: &mut Vec<TranscriptEntry>, entry: TranscriptEn
         return;
     };
 
-    if last_entry.entry_id == entry.entry_id && last_entry.role == entry.role {
+    if last_entry.entry_id == entry.entry_id
+        && last_entry.scope == entry.scope
+        && last_entry.role == entry.role
+    {
         if last_entry.timestamp_ms.is_none() {
             last_entry.timestamp_ms = entry.timestamp_ms;
         }

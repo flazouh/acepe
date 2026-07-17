@@ -27,7 +27,8 @@ use crate::acp::transcript_projection::{TranscriptProjectionRegistry, Transcript
 use crate::acp::types::{CanonicalAgentId, ContentBlock};
 use crate::db::migrations::Migrator;
 use crate::db::repository::{
-    SessionEventWriter, SessionJournalEventRepository, SessionMetadataRepository,
+    SessionEventSequenceRepository, SessionEventWriter, SessionJournalEventRepository,
+    SessionMetadataRepository,
 };
 use crate::session_jsonl::types::StoredEntry;
 use sea_orm::{Database, DbConn};
@@ -397,7 +398,7 @@ async fn live_session_graph_revision_keeps_transcript_frontier_distinct() {
     .await
     .expect("load live graph revision");
 
-    assert_eq!(revision.graph_revision, 5);
+    assert_eq!(revision.graph_revision, 0);
     assert_eq!(revision.transcript_revision, 0);
     assert_eq!(revision.last_event_seq, 5);
 }
@@ -450,18 +451,23 @@ async fn state_lookup_returns_empty_transcript_without_provider_backed_content()
         .expect("append state frontier barrier");
 
     let replay_context = replay_context_for_session(&db, "state-session").await;
+    let delivery_event_frontier =
+        SessionEventSequenceRepository::last_assigned_event_seq(&db, "state-session")
+            .await
+            .expect("load state delivery frontier")
+            .expect("state delivery frontier");
     let transcript = load_transcript_snapshot_for_state_lookup(
         &db,
         &TranscriptProjectionRegistry::new(),
         "state-session",
         "state-session",
         Some(&replay_context),
-        1,
+        delivery_event_frontier,
     )
     .await
     .expect("load transcript snapshot");
 
-    assert_eq!(transcript.revision, 1);
+    assert_eq!(transcript.revision, 0);
     assert!(transcript.entries.is_empty());
 }
 
@@ -541,13 +547,18 @@ async fn state_lookup_rebuilds_completed_transcript_from_local_journal() {
     }
 
     let replay_context = replay_context_for_session(&db, "state-journal-session").await;
+    let delivery_event_frontier =
+        SessionEventSequenceRepository::last_assigned_event_seq(&db, "state-journal-session")
+            .await
+            .expect("load journal delivery frontier")
+            .expect("journal delivery frontier");
     let transcript = load_transcript_snapshot_for_state_lookup(
         &db,
         &TranscriptProjectionRegistry::new(),
         "state-journal-session",
         "state-journal-session",
         Some(&replay_context),
-        6,
+        delivery_event_frontier,
     )
     .await
     .expect("load transcript snapshot");
@@ -632,7 +643,7 @@ fn state_lookup_without_live_runtime_closes_stale_running_turn() {
 }
 
 #[test]
-fn state_lookup_with_live_runtime_preserves_running_turn() {
+fn state_lookup_with_live_active_turn_evidence_preserves_running_turn() {
     let authority = resolve_state_lookup_authority(
         true,
         true,
@@ -645,6 +656,23 @@ fn state_lookup_with_live_runtime_preserves_running_turn() {
     assert_eq!(
         authority.turn_state,
         crate::acp::projections::SessionTurnState::Running
+    );
+}
+
+#[test]
+fn state_lookup_closes_stale_running_turn_when_runtime_has_no_active_turn_evidence() {
+    let authority = resolve_state_lookup_authority(
+        false,
+        true,
+        crate::acp::projections::SessionTurnState::Running,
+        Vec::new(),
+        Vec::new(),
+        None,
+    );
+
+    assert_eq!(
+        authority.turn_state,
+        crate::acp::projections::SessionTurnState::Completed
     );
 }
 
@@ -683,7 +711,7 @@ async fn resume_returns_empty_transcript_for_barrier_only_session() {
         .await
         .expect("barrier-only session should resume");
 
-    assert_eq!(transcript.revision, 1);
+    assert_eq!(transcript.revision, 0);
     assert!(transcript.entries.is_empty());
 }
 
@@ -710,7 +738,7 @@ async fn resume_returns_empty_transcript_for_known_session_without_snapshot() {
         .await
         .expect("known session without snapshot should resume");
 
-    assert_eq!(transcript.revision, 2);
+    assert_eq!(transcript.revision, 0);
     assert!(transcript.entries.is_empty());
 }
 
@@ -765,9 +793,9 @@ async fn resume_resolution_rejects_existing_session_with_incompatible_override()
     match error {
         SerializableAcpError::ProtocolError { message } => {
             assert_eq!(
-                    message,
-                    "session session-copilot is bound to copilot and cannot resume with override claude-code"
-                );
+                message,
+                "session session-copilot is bound to copilot and cannot resume with override claude-code"
+            );
         }
         other => panic!("expected protocol error, got {:?}", other),
     }

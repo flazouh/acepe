@@ -338,9 +338,11 @@ export type TodoUpdate = { operation: TodoUpdateOperation; items?: TodoItem[] | 
 
 export type TranscriptEntryRole = "user" | "assistant" | "tool" | "sessionActivity"
 
+export type TranscriptScope = { kind: "root" } | { kind: "operation"; operationId: string }
+
 export type TranscriptSegment = { kind: "text"; segmentId: string; text: string } | { kind: "thought"; segmentId: string; text: string } | { kind: "pastedContent"; segmentId: string; text: string } | { kind: "localCommand"; segmentId: string; command: string; message: string; args: string; stdout: string; modelDisplayName?: string | null; modelDescription?: string | null } | { kind: "compaction"; segmentId: string; event: SessionCompactionEvent }
 
-export type TranscriptEntry = { entryId: string; role: TranscriptEntryRole; segments: TranscriptSegment[]; attemptId?: string | null; timestampMs?: number | null }
+export type TranscriptEntry = { entryId: string; scope?: TranscriptScope; role: TranscriptEntryRole; segments: TranscriptSegment[]; attemptId?: string | null; timestampMs?: number | null }
 
 export type TranscriptSnapshot = { revision: number; entries: TranscriptEntry[] }
 
@@ -504,7 +506,7 @@ export type SessionOpenTranscriptRowPage = { projectionVersion: string; startRow
 /**
  * Diagnostic-only timing for the restored-session open path.
  */
-export type SessionOpenResultTiming = { source: string; openPath: SessionOpenPath; ledgerProbeStatus: string; contextMs: number; providerLoadMs: number; ledgerTailReadMs: number; ledgerJournalCutoffMs: number; ledgerPageReadMs: number; ledgerHeaderDecodeMs: number; ledgerRowsDecodeMs: number; ledgerResultBuildMs: number; runtimeLookupMs: number; assembleMs: number; restoreAuthorityMs: number; compactMs: number; localJournalFallbackMs: number; totalMs: number; transcriptEntryCount: number; operationCount: number }
+export type SessionOpenResultTiming = { source: string; openPath: SessionOpenPath; ledgerProbeStatus: string; contextMs: number; providerLoadMs: number; ledgerTailReadMs: number; ledgerProjectionFrontierMs: number; ledgerPageReadMs: number; ledgerHeaderDecodeMs: number; ledgerRowsDecodeMs: number; ledgerResultBuildMs: number; runtimeLookupMs: number; assembleMs: number; restoreAuthorityMs: number; compactMs: number; localJournalFallbackMs: number; totalMs: number; transcriptEntryCount: number; operationCount: number }
 
 /**
  * Full payload for a `found` outcome.
@@ -525,15 +527,14 @@ canonicalSessionId: string;
  */
 isAlias: boolean;
 /**
- * Proven journal cutoff.  `0` only when no journal events exist yet.
+ * Proven delivery event-sequence frontier. `0` only before any delivery
+ * sequence has been assigned.
  */
 lastEventSeq: number;
 /**
- * Canonical graph frontier at the proven cutoff.
- *
- * During the compatibility window this may still be seeded from persisted
- * state that mirrors `last_event_seq`, but open/materialization paths must
- * carry it explicitly instead of re-deriving graph lineage from delivery.
+ * Canonical graph revision carried independently from `last_event_seq`.
+ * Open and materialization paths must not derive graph lineage from the
+ * delivery event-sequence frontier.
  */
 graphRevision: number;
 /**
@@ -593,7 +594,9 @@ export type ActiveStreamingTail = { rowId: string; contentKind: ActiveStreamingT
 
 export type TranscriptViewportRowKind = "user" | "assistantText" | "assistantThought" | "tool" | "sessionActivity"
 
-export type TranscriptViewportOperationDisplayFacts = { operationId: string; toolCallId: string; name: string; title: string; state: OperationState; kind: ToolKind | null; skillName?: string | null; skillArgs?: string | null; taskDescription?: string | null; taskPrompt?: string | null; subagentType?: string | null; normalizedTodos?: TodoItem[] | null; commandSummary?: string | null; targetPathSummary?: string | null; resultSummary?: string | null; errorSummary?: string | null; interactionIds: string[]; parentToolCallId?: string | null; childToolCallIds: string[] }
+export type TranscriptViewportLatestChildAction = { operationId: string; toolCallId: string; kind: ToolKind | null; state: OperationState; title: string; subtitle?: string | null; targetPathSummary?: string | null }
+
+export type TranscriptViewportOperationDisplayFacts = { operationId: string; toolCallId: string; name: string; title: string; state: OperationState; kind: ToolKind | null; skillName?: string | null; skillArgs?: string | null; taskDescription?: string | null; taskPrompt?: string | null; subagentType?: string | null; normalizedTodos?: TodoItem[] | null; editDiffs?: EditEntry[]; commandSummary?: string | null; targetPathSummary?: string | null; resultSummary?: string | null; errorSummary?: string | null; interactionIds: string[]; parentToolCallId?: string | null; childToolCallIds: string[]; childTranscriptScope?: TranscriptScope | null; latestChildAction?: TranscriptViewportLatestChildAction | null }
 
 export type TranscriptViewportOperationLink = { operationId: string; toolCallId: string; name: string; state: OperationState; displayFacts?: TranscriptViewportOperationDisplayFacts | null; operation?: OperationSnapshot | null }
 
@@ -601,7 +604,7 @@ export type TranscriptViewportInteractionLink = { interactionId: string; kind: I
 
 export type TranscriptViewportRowContent = { kind: "transcript"; role: TranscriptEntryRole; segments: TranscriptSegment[] } | { kind: "compaction"; event: SessionCompactionEvent }
 
-export type TranscriptViewportRow = { rowId: string; sourceEntryId: string; kind: TranscriptViewportRowKind; version: string; anchorEligible: boolean; activeStreamingTail: ActiveStreamingTailContentKind | null; operationLinks: TranscriptViewportOperationLink[]; interactionLinks: TranscriptViewportInteractionLink[]; content: TranscriptViewportRowContent; durationStartedAtMs?: number | null }
+export type TranscriptViewportRow = { rowId: string; sourceEntryId: string; scope?: TranscriptScope; kind: TranscriptViewportRowKind; version: string; anchorEligible: boolean; activeStreamingTail: ActiveStreamingTailContentKind | null; operationLinks: TranscriptViewportOperationLink[]; interactionLinks: TranscriptViewportInteractionLink[]; content: TranscriptViewportRowContent; durationStartedAtMs?: number | null; timestampMs?: number | null }
 
 export type SessionStateGraph = { requestedSessionId: string; canonicalSessionId: string; isAlias: boolean; agentId: CanonicalAgentId; projectPath: string; worktreePath?: string | null; sourcePath?: string | null; sequenceId?: number | null; revision: SessionGraphRevision; transcriptSnapshot: TranscriptSnapshot; operations: OperationSnapshot[]; interactions: InteractionSnapshot[]; turnState: SessionTurnState; messageCount: number; activeStreamingTail: ActiveStreamingTail | null; activeTurnFailure?: TurnFailureSnapshot | null; lastTerminalTurnId?: string | null; lifecycle: SessionGraphLifecycle; activity: SessionGraphActivity; capabilities: SessionGraphCapabilities }
 

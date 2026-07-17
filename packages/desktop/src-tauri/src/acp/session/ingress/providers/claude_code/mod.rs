@@ -7,12 +7,14 @@ pub mod session_jsonl;
 use std::path::PathBuf;
 
 use crate::acp::session::ingress::event::ProviderEvent;
+use crate::acp::session::ingress::full_session_to_provider_events;
 use crate::acp::session::ingress::source::{HistoryError, HistoryInput, HistorySource};
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::types::CanonicalAgentId;
 
 use discovery::find_session_file;
 use jsonl::{parse_jsonl_file, session_updates_to_provider_events};
+use session_jsonl::parser::parse_full_session_from_path;
 
 /// Reads Claude Code NDJSON history into provider-agnostic ingress events.
 pub struct ClaudeHistorySource;
@@ -20,11 +22,59 @@ pub struct ClaudeHistorySource;
 impl HistorySource for ClaudeHistorySource {
     fn read(&self, input: HistoryInput) -> Result<Vec<ProviderEvent>, HistoryError> {
         let jsonl_path = resolve_jsonl_path(&input)?;
-        let updates = parse_jsonl_file(&jsonl_path)?;
+        let updates = match parse_jsonl_file(&jsonl_path) {
+            Ok(updates) => updates,
+            Err(error) => {
+                return read_raw_claude_jsonl(&input, jsonl_path, error);
+            }
+        };
         Ok(session_updates_to_provider_events(
             CanonicalAgentId::ClaudeCode,
             &updates,
         ))
+    }
+}
+
+fn read_raw_claude_jsonl(
+    input: &HistoryInput,
+    jsonl_path: PathBuf,
+    original_error: HistoryError,
+) -> Result<Vec<ProviderEvent>, HistoryError> {
+    let session_id = input.session_id.clone();
+    let full_session =
+        block_on_async(
+            async move { parse_full_session_from_path(&session_id, "", &jsonl_path).await },
+        )
+        .map_err(|error| {
+            HistoryError::InvalidFormat(format!(
+                "{original_error}; raw Claude parse failed: {error}"
+            ))
+        })?;
+
+    Ok(full_session_to_provider_events(
+        &full_session,
+        CanonicalAgentId::ClaudeCode,
+        crate::acp::parsers::AgentType::ClaudeCode,
+    ))
+}
+
+fn block_on_async<F>(future: F) -> F::Output
+where
+    F: std::future::Future + Send + 'static,
+    F::Output: Send + 'static,
+{
+    if tokio::runtime::Handle::try_current().is_ok() {
+        std::thread::spawn(move || {
+            tokio::runtime::Runtime::new()
+                .expect("create runtime for Claude history parsing")
+                .block_on(future)
+        })
+        .join()
+        .expect("Claude history parsing thread should complete")
+    } else {
+        tokio::runtime::Runtime::new()
+            .expect("create runtime for Claude history parsing")
+            .block_on(future)
     }
 }
 
@@ -115,7 +165,9 @@ mod tests {
     use super::*;
     use crate::acp::session::ingress::event::ProviderEventKind;
     use crate::acp::session_update::ToolCallStatus;
+    use std::fs;
     use std::path::PathBuf;
+    use tempfile::TempDir;
 
     fn historical_tool_call_fixture_dir() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/acp/reconciler/tests/fixtures")
@@ -175,5 +227,135 @@ mod tests {
 
         assert_eq!(events.len(), 4);
         assert_eq!(events[0].source, CanonicalAgentId::ClaudeCode);
+    }
+
+    #[test]
+    fn claude_history_source_reads_raw_claude_sidechain_jsonl() {
+        const SESSION_ID: &str = "550e8400-e29b-41d4-a716-446655440000";
+        let temp_dir = TempDir::new().expect("temp dir");
+        let session_dir = temp_dir.path().join("project");
+        let subagents_dir = session_dir.join("subagents");
+        fs::create_dir_all(&subagents_dir).expect("create subagents dir");
+
+        let agent_id = "ac373ea9520618f17";
+        let parent_tool_use_id = "toolu_task_parent";
+        let session_path = session_dir.join(format!("{SESSION_ID}.jsonl"));
+        let parent_content = [
+            serde_json::json!({
+                "type": "queue-operation",
+                "operation": "enqueue",
+                "sessionId": SESSION_ID
+            })
+            .to_string(),
+            serde_json::json!({
+                "parentUuid": null,
+                "isSidechain": false,
+                "type": "assistant",
+                "sessionId": SESSION_ID,
+                "uuid": "parent-assistant",
+                "timestamp": "2026-07-16T12:07:32.288Z",
+                "message": {
+                    "role": "assistant",
+                    "content": [{
+                        "type": "tool_use",
+                        "id": parent_tool_use_id,
+                        "name": "Agent",
+                        "input": {
+                            "description": "Inspect dir",
+                            "subagent_type": "Explore",
+                            "prompt": "Read README.md"
+                        }
+                    }]
+                }
+            })
+            .to_string(),
+            serde_json::json!({
+                "parentUuid": "parent-assistant",
+                "isSidechain": false,
+                "type": "user",
+                "sessionId": SESSION_ID,
+                "uuid": "parent-result",
+                "timestamp": "2026-07-16T12:07:41.805Z",
+                "message": {
+                    "role": "user",
+                    "content": [{
+                        "type": "tool_result",
+                        "tool_use_id": parent_tool_use_id,
+                        "content": [{
+                            "type": "text",
+                            "text": "Child report"
+                        }]
+                    }]
+                },
+                "toolUseResult": {
+                    "status": "completed",
+                    "agentId": agent_id,
+                    "agentType": "Explore",
+                    "content": [{
+                        "type": "text",
+                        "text": "Child report"
+                    }]
+                }
+            })
+            .to_string(),
+        ]
+        .join("\n");
+        fs::write(&session_path, parent_content).expect("write parent session");
+
+        let sidechain_path = subagents_dir.join(format!("agent-{agent_id}.jsonl"));
+        let sidechain_content = [
+            serde_json::json!({
+                "parentUuid": null,
+                "isSidechain": true,
+                "agentId": agent_id,
+                "type": "user",
+                "sessionId": SESSION_ID,
+                "uuid": "child-user",
+                "timestamp": "2026-07-16T12:07:32.303Z",
+                "message": {
+                    "role": "user",
+                    "content": "Read README.md"
+                }
+            })
+            .to_string(),
+            serde_json::json!({
+                "parentUuid": "child-user",
+                "isSidechain": true,
+                "agentId": agent_id,
+                "type": "assistant",
+                "sessionId": SESSION_ID,
+                "uuid": "child-assistant",
+                "timestamp": "2026-07-16T12:07:41.768Z",
+                "message": {
+                    "role": "assistant",
+                    "content": [{
+                        "type": "text",
+                        "text": "Child report"
+                    }]
+                }
+            })
+            .to_string(),
+        ]
+        .join("\n");
+        fs::write(sidechain_path, sidechain_content).expect("write sidechain session");
+
+        let source = ClaudeHistorySource;
+        let events = source
+            .read(HistoryInput {
+                session_id: SESSION_ID.to_string(),
+                workspace_root: Some(session_path),
+            })
+            .expect("raw Claude JSONL should parse");
+
+        assert!(events.iter().any(|event| {
+            matches!(
+                &event.kind,
+                ProviderEventKind::AssistantText {
+                    text,
+                    parent_tool_use_id: event_parent_tool_use_id
+                } if text == "Child report"
+                    && event_parent_tool_use_id.as_deref() == Some(parent_tool_use_id)
+            )
+        }));
     }
 }

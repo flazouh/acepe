@@ -11,7 +11,8 @@ use crate::acp::session_state_engine::selectors::{
     select_session_graph_activity, SessionGraphCapabilities, SessionGraphLifecycle,
 };
 use crate::db::repository::{
-    SessionEventSequenceRepository, SessionJournalEventRepository, SessionMetadataRepository,
+    SessionEventSeq, SessionEventSequenceRepository, SessionJournalEventRepository,
+    SessionMetadataRepository,
 };
 use sea_orm::DbConn;
 use std::sync::Arc;
@@ -41,21 +42,23 @@ pub async fn session_open_result_from_history_events(
     let total_started_at = Instant::now();
     let canonical_session_id = &replay_context.local_session_id;
     let is_alias = requested_session_id != canonical_session_id;
-    let journal_cutoff_started_at = Instant::now();
-    let last_event_seq =
-        match SessionEventSequenceRepository::last_assigned_event_seq(db, canonical_session_id)
-            .await
-        {
-            Ok(seq) => seq.unwrap_or(0),
-            Err(err) => {
-                return SessionOpenResult::Error(SessionOpenError::internal(
+    let event_sequence_frontier_started_at = Instant::now();
+    let last_event_seq = match SessionEventSequenceRepository::last_assigned_event_seq(
+        db,
+        canonical_session_id,
+    )
+    .await
+    {
+        Ok(seq) => seq.unwrap_or(SessionEventSeq::ZERO),
+        Err(err) => {
+            return SessionOpenResult::Error(SessionOpenError::internal(
                     requested_session_id,
                     format!(
-                    "Failed to determine journal cutoff for session {canonical_session_id}: {err}"
+                        "Failed to determine delivery event-sequence frontier for session {canonical_session_id}: {err}"
                 ),
                 ));
-            }
-        };
+        }
+    };
     let projection_event_seq = match SessionJournalEventRepository::max_row_affecting_event_seq(
         db,
         canonical_session_id,
@@ -72,14 +75,14 @@ pub async fn session_open_result_from_history_events(
             ));
         }
     };
-    let journal_cutoff_ms = elapsed_ms(journal_cutoff_started_at);
+    let event_sequence_frontier_ms = elapsed_ms(event_sequence_frontier_started_at);
 
     let open_token = Uuid::new_v4();
     let epoch_ms = chrono::Utc::now().timestamp_millis().max(0) as u64;
     hub.arm_reservation(
         open_token,
         canonical_session_id.clone(),
-        last_event_seq,
+        last_event_seq.get(),
         epoch_ms,
     );
 
@@ -155,16 +158,16 @@ pub async fn session_open_result_from_history_events(
 
     let mut operations = graph.operations.clone();
     let interactions = graph.interactions.clone();
-    let projected_graph_revision = session_snap
+    let projected_last_event_seq = session_snap
         .map(|session| session.last_event_seq)
-        .unwrap_or(last_event_seq);
+        .unwrap_or(last_event_seq.get());
     let projection_frontier = if use_local_projection {
         projection_event_seq
     } else {
-        last_event_seq
+        last_event_seq.get()
     };
-    let projection_is_behind_journal = projected_graph_revision < projection_frontier;
-    let graph_revision = projected_graph_revision.max(last_event_seq);
+    let projection_is_behind_journal = projected_last_event_seq < projection_frontier;
+    let graph_revision = graph.revision.graph_revision;
     let raw_turn_state = graph.turn_state.clone();
     let had_historical_active_state = raw_turn_state == SessionTurnState::Running
         || operations
@@ -240,7 +243,7 @@ pub async fn session_open_result_from_history_events(
             session_id = %canonical_session_id,
             requested_session_id = %requested_session_id,
             agent_id = %replay_context.agent_id,
-            journal_cutoff_ms,
+            event_sequence_frontier_ms,
             metadata_ms,
             fold_ms,
             local_journal_ms,
@@ -256,7 +259,7 @@ pub async fn session_open_result_from_history_events(
         requested_session_id: requested_session_id.to_string(),
         canonical_session_id: canonical_session_id.clone(),
         is_alias,
-        last_event_seq,
+        last_event_seq: last_event_seq.get(),
         graph_revision,
         open_token: open_token.to_string(),
         agent_id: replay_context.agent_id.clone(),

@@ -74,7 +74,7 @@ pub async fn acp_get_session_state(
                 .map(|registry| registry.inner().as_ref()),
             &canonical_session_id,
         );
-        let revision = load_live_session_graph_revision(
+        let revision_lookup = load_live_session_revision_lookup(
             db.inner(),
             transcript_registry.inner().as_ref(),
             app.try_state::<Arc<SessionGraphRuntimeRegistry>>()
@@ -82,7 +82,9 @@ pub async fn acp_get_session_state(
             &canonical_session_id,
         )
         .await?;
-        let last_event_seq = revision.last_event_seq;
+        let revision = revision_lookup.revision;
+        let delivery_event_frontier = revision_lookup.delivery_event_frontier;
+        let last_event_seq = delivery_event_frontier.get();
         let transcript_snapshot = if let Some(snapshot) = materialized_transcript_snapshot {
             snapshot
         } else {
@@ -93,7 +95,7 @@ pub async fn acp_get_session_state(
                 &canonical_session_id,
                 &session_id,
                 lookup.replay_context.as_ref(),
-                last_event_seq,
+                delivery_event_frontier,
             )
             .await?
         };
@@ -125,8 +127,15 @@ pub async fn acp_get_session_state(
         let raw_turn_state = projection_session
             .map(|session| session.turn_state.clone())
             .unwrap_or(crate::acp::projections::SessionTurnState::Idle);
-        let state_lookup_authority = resolve_state_lookup_authority(
+        let live_active_turn_evidence = has_live_active_turn_evidence(
             runtime_snapshot.graph_revision > 0,
+            &raw_turn_state,
+            &raw_operations,
+            &raw_interactions,
+            &transcript_snapshot,
+        );
+        let state_lookup_authority = resolve_state_lookup_authority(
+            live_active_turn_evidence,
             !transcript_snapshot.entries.is_empty(),
             raw_turn_state,
             raw_operations,
@@ -209,7 +218,7 @@ pub(super) async fn load_transcript_snapshot_for_state_lookup(
     canonical_session_id: &str,
     requested_session_id: &str,
     replay_context: Option<&SessionReplayContext>,
-    last_event_seq: i64,
+    delivery_event_frontier: SessionEventSeq,
 ) -> Result<TranscriptSnapshot, SerializableAcpError> {
     load_transcript_snapshot_for_state_lookup_with_app(
         None,
@@ -218,7 +227,7 @@ pub(super) async fn load_transcript_snapshot_for_state_lookup(
         canonical_session_id,
         requested_session_id,
         replay_context,
-        last_event_seq,
+        delivery_event_frontier,
     )
     .await
 }
@@ -230,7 +239,7 @@ pub(super) async fn load_transcript_snapshot_for_state_lookup_with_app(
     canonical_session_id: &str,
     requested_session_id: &str,
     replay_context: Option<&SessionReplayContext>,
-    last_event_seq: i64,
+    delivery_event_frontier: SessionEventSeq,
 ) -> Result<TranscriptSnapshot, SerializableAcpError> {
     if let Some(snapshot) = transcript_registry
         .snapshot_for_session(canonical_session_id)
@@ -284,14 +293,14 @@ pub(super) async fn load_transcript_snapshot_for_state_lookup_with_app(
                     canonical_session_id,
                     replay_context,
                     &provider_snapshot,
-                    last_event_seq,
+                    delivery_event_frontier.get(),
                 );
                 return Ok(materialized.transcript_snapshot);
             }
         }
     }
 
-    Ok(TranscriptSnapshot::from_stored_entries(last_event_seq, &[]))
+    Ok(TranscriptSnapshot::from_stored_entries(0, &[]))
 }
 
 #[derive(Debug, Clone)]

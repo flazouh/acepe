@@ -2,6 +2,7 @@
 
 use crate::acp::projections::RouteDecision;
 use crate::acp::session::ingress::event::{ProviderEvent, ProviderEventKind};
+use crate::acp::session_state_engine::wall_clock_ms;
 use crate::acp::session_update::{ContentChunk, SessionUpdate};
 use crate::acp::types::{CanonicalAgentId, ContentBlock};
 
@@ -86,7 +87,7 @@ pub fn session_update_to_provider_event(
         source,
         provider_seq,
         provider_row_id,
-        timestamp_ms: None,
+        timestamp_ms: Some(i64::try_from(wall_clock_ms()).unwrap_or(i64::MAX)),
         kind,
     })
 }
@@ -218,6 +219,7 @@ fn assistant_text_from_chunk(chunk: &ContentChunk) -> Option<String> {
 mod tests {
     use super::*;
     use crate::acp::session_update::{ToolArguments, ToolCallData, ToolCallStatus, ToolKind};
+    use chrono::Utc;
 
     #[test]
     fn suppresses_late_assistant_chunks_after_terminal_turn() {
@@ -247,6 +249,56 @@ mod tests {
             decision,
         )
         .is_none());
+    }
+
+    #[test]
+    fn stamps_live_text_events_with_wall_clock_timestamp() {
+        let user_update = SessionUpdate::UserMessageChunk {
+            session_id: Some("sess-1".to_string()),
+            chunk: ContentChunk {
+                content: ContentBlock::Text {
+                    text: "hi".to_string(),
+                },
+                aggregation_hint: None,
+            },
+            attempt_id: Some("attempt-1".to_string()),
+        };
+        let assistant_update = SessionUpdate::AgentMessageChunk {
+            session_id: Some("sess-1".to_string()),
+            chunk: ContentChunk {
+                content: ContentBlock::Text {
+                    text: "Hi! What are we working on today?".to_string(),
+                },
+                aggregation_hint: None,
+            },
+            message_id: Some("message-1".to_string()),
+            part_id: Some("part-1".to_string()),
+            parent_tool_use_id: None,
+            produced_at_monotonic_ms: None,
+        };
+
+        let before = Utc::now().timestamp_millis();
+        let user_event = session_update_to_provider_event(
+            CanonicalAgentId::ClaudeCode,
+            1,
+            &user_update,
+            RouteDecision::default(),
+        )
+        .expect("user update maps");
+        let assistant_event = session_update_to_provider_event(
+            CanonicalAgentId::ClaudeCode,
+            2,
+            &assistant_update,
+            RouteDecision::default(),
+        )
+        .expect("assistant update maps");
+        let after = Utc::now().timestamp_millis();
+
+        for timestamp_ms in [user_event.timestamp_ms, assistant_event.timestamp_ms] {
+            let timestamp_ms = timestamp_ms.expect("live text event timestamp");
+            assert!(timestamp_ms >= before);
+            assert!(timestamp_ms <= after);
+        }
     }
 
     #[test]

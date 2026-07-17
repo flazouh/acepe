@@ -92,20 +92,14 @@ pub(super) async fn persist_dispatch_event(
                 return DispatchPersistenceEffects::default();
             }
         };
-    let event_seq = append_result.event_seq;
-    let previous_event_seq = append_result.previous_event_seq;
+    let event_seq = append_result.event_seq();
+    let previous_event_seq = append_result.previous_event_seq();
 
     match append_result.record {
         Some(_record) => {
             let checkpoint = match runtime_graph_registry
                 .supervisor()
-                .record_session_update(
-                    db,
-                    projection_registry,
-                    session_id,
-                    event_seq,
-                    update.as_ref(),
-                )
+                .record_session_update(db, projection_registry, session_id, update.as_ref())
                 .await
             {
                 Ok(checkpoint) => checkpoint,
@@ -121,7 +115,7 @@ pub(super) async fn persist_dispatch_event(
             };
             projection_registry.apply_session_update_at_event_seq(
                 session_id,
-                event_seq,
+                event_seq.get(),
                 update.as_ref(),
             );
             let terminal_decision =
@@ -132,7 +126,7 @@ pub(super) async fn persist_dispatch_event(
                     transcript_event_seq,
                     update.as_ref(),
                     terminal_decision,
-                    restamped_ingress_fold_event(event, event_seq, update.as_ref()).as_ref(),
+                    restamped_ingress_fold_event(event, event_seq.get(), update.as_ref()).as_ref(),
                 );
             let transcript_revision = transcript_projection_registry
                 .snapshot_for_session(session_id)
@@ -141,20 +135,16 @@ pub(super) async fn persist_dispatch_event(
             let revision = SessionGraphRevision::new(
                 checkpoint.graph_revision,
                 transcript_revision,
-                event_seq,
+                event_seq.get(),
             );
             let request = LiveSessionStateEnvelopeRequest {
                 db,
                 session_id,
                 update: update.as_ref(),
                 previous_revision: SessionGraphRevision::new(
-                    if previous_runtime_snapshot.graph_revision > 0 {
-                        previous_runtime_snapshot.graph_revision
-                    } else {
-                        previous_event_seq
-                    },
+                    previous_runtime_snapshot.graph_revision,
                     previous_transcript_revision,
-                    previous_event_seq,
+                    previous_event_seq.get(),
                 ),
                 revision,
                 projection_registry,
@@ -185,12 +175,12 @@ pub(super) async fn persist_dispatch_event(
         None => {
             let graph_revision = runtime_graph_registry.apply_session_update_with_graph_seed(
                 session_id,
-                previous_event_seq,
+                previous_runtime_snapshot.graph_revision,
                 update.as_ref(),
             );
             projection_registry.apply_session_update_at_event_seq(
                 session_id,
-                event_seq,
+                event_seq.get(),
                 update.as_ref(),
             );
             let terminal_decision =
@@ -209,7 +199,7 @@ pub(super) async fn persist_dispatch_event(
                     transcript_event_seq,
                     update.as_ref(),
                     terminal_decision,
-                    restamped_ingress_fold_event(event, event_seq, update.as_ref()).as_ref(),
+                    restamped_ingress_fold_event(event, event_seq.get(), update.as_ref()).as_ref(),
                 );
             let transcript_revision = transcript_projection_registry
                 .snapshot_for_session(session_id)
@@ -240,19 +230,15 @@ pub(super) async fn persist_dispatch_event(
                 }
             }
             let revision =
-                SessionGraphRevision::new(graph_revision, transcript_revision, event_seq);
+                SessionGraphRevision::new(graph_revision, transcript_revision, event_seq.get());
             let request = LiveSessionStateEnvelopeRequest {
                 db,
                 session_id,
                 update: update.as_ref(),
                 previous_revision: SessionGraphRevision::new(
-                    if previous_runtime_snapshot.graph_revision > 0 {
-                        previous_runtime_snapshot.graph_revision
-                    } else {
-                        previous_event_seq
-                    },
+                    previous_runtime_snapshot.graph_revision,
                     previous_transcript_revision,
-                    previous_event_seq,
+                    previous_event_seq.get(),
                 ),
                 revision,
                 projection_registry,

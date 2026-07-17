@@ -552,8 +552,11 @@ async fn persist_dispatch_event_emits_assistant_text_delta_envelope_for_streamin
             _ => None,
         })
         .expect("assistant text delta payload");
-    assert_eq!(delta.row_id, "acepe--entry--session-start--assistant---");
-    assert_eq!(delta.turn_id, "acepe--entry--session-start--assistant---");
+    // row_id/turn_id must be the raw canonical entry_id (colons and dots
+    // intact) — the client correlates it against ActiveStreamingTail.row_id,
+    // which is never sanitized. See live_envelope_builder.rs.
+    assert_eq!(delta.row_id, "acepe::entry::session-start::assistant::.");
+    assert_eq!(delta.turn_id, "acepe::entry::session-start::assistant::.");
     assert_eq!(delta.char_offset, 0);
     assert_eq!(delta.delta_text, "hello");
     assert_eq!(delta.produced_at_monotonic_ms, 5);
@@ -1731,14 +1734,25 @@ fn dispatcher_enqueues_turn_complete_domain_event_after_session_update() {
     }
 }
 
-#[test]
-fn dispatcher_updates_projection_snapshot_for_session_updates() {
-    let projection_registry = Arc::new(ProjectionRegistry::new());
+#[tokio::test]
+async fn persistence_updates_projection_snapshot_after_durable_allocation() {
+    let db = setup_test_db().await;
+    SessionMetadataRepository::ensure_exists(
+        &db,
+        "session-1",
+        "/test/project",
+        "claude-code",
+        None,
+    )
+    .await
+    .expect("session metadata");
+    let projection_registry = ProjectionRegistry::new();
     projection_registry.register_session("session-1".to_string(), CanonicalAgentId::ClaudeCode);
-    let (dispatcher, _captured_events) =
-        AcpUiEventDispatcher::test_sink_with_projection_registry(Arc::clone(&projection_registry));
+    let runtime_graph_registry = SessionGraphRuntimeRegistry::new();
+    seed_lifecycle(&runtime_graph_registry, "session-1");
+    let transcript_projection_registry = TranscriptProjectionRegistry::new();
 
-    dispatcher.enqueue(AcpUiEvent::session_update(
+    for update in [
         SessionUpdate::AgentMessageChunk {
             chunk: ContentChunk {
                 content: ContentBlock::Text {
@@ -1752,11 +1766,20 @@ fn dispatcher_updates_projection_snapshot_for_session_updates() {
             session_id: Some("session-1".to_string()),
             produced_at_monotonic_ms: None,
         },
-    ));
-    dispatcher.enqueue(AcpUiEvent::session_update(SessionUpdate::TurnComplete {
-        session_id: Some("session-1".to_string()),
-        turn_id: None,
-    }));
+        SessionUpdate::TurnComplete {
+            session_id: Some("session-1".to_string()),
+            turn_id: None,
+        },
+    ] {
+        persist_dispatch_event(
+            Some(&db),
+            &AcpUiEvent::session_update(update),
+            &projection_registry,
+            &runtime_graph_registry,
+            &transcript_projection_registry,
+        )
+        .await;
+    }
 
     let snapshot = projection_registry
         .snapshot_for_session("session-1")

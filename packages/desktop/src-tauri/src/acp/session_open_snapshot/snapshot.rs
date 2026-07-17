@@ -1,19 +1,19 @@
 use crate::acp::event_hub::AcpEventHubState;
 use crate::acp::lifecycle::{DetachedReason, LifecycleStatus};
 use crate::acp::projections::{
-    is_terminal_operation_state, InteractionState, ProjectionRegistry, SessionProjectionSnapshot,
-    SessionSnapshot, SessionTurnState,
+    InteractionState, ProjectionRegistry, SessionProjectionSnapshot, SessionSnapshot,
+    SessionTurnState, is_terminal_operation_state,
 };
 use crate::acp::session::fold_export::{
-    materialized_thread_snapshot_from_provider_fold_first,
-    materialized_thread_snapshot_from_thread_snapshot_fold_first, MaterializedThreadSnapshot,
+    MaterializedThreadSnapshot, materialized_thread_snapshot_from_provider_fold_first,
+    materialized_thread_snapshot_from_thread_snapshot_fold_first,
 };
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_state_engine::graph::select_active_streaming_tail;
 use crate::acp::session_state_engine::protocol::ViewportBufferPush;
 use crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeRegistry;
 use crate::acp::session_state_engine::selectors::{
-    select_session_graph_activity, SessionGraphCapabilities, SessionGraphLifecycle,
+    SessionGraphCapabilities, SessionGraphLifecycle, select_session_graph_activity,
 };
 use crate::acp::session_state_engine::{
     SessionGraphRevision, SessionStateEnvelope, SessionStatePayload,
@@ -21,18 +21,18 @@ use crate::acp::session_state_engine::{
 use crate::acp::session_thread_snapshot::{ProviderOwnedSessionSnapshot, SessionThreadSnapshot};
 use crate::acp::transcript_projection::relink_operations_to_transcript;
 use crate::acp::transcript_projection::{
-    assistant_boundary_entry_count_from_transcript_entries, TranscriptEntryRole,
-    TranscriptProjectionRegistry, TranscriptSegment, TranscriptSnapshot,
+    TranscriptEntryRole, TranscriptProjectionRegistry, TranscriptSegment, TranscriptSnapshot,
+    assistant_boundary_entry_count_from_transcript_entries,
 };
+use crate::acp::transcript_viewport::TranscriptViewportRow;
 use crate::acp::transcript_viewport::ledger::{
     SerializedTranscriptRowLedgerRow, SessionTranscriptRowLedgerOpenHeader,
     SessionTranscriptRowLedgerRead, SessionTranscriptRowLedgerStatus,
     TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
 };
-use crate::acp::transcript_viewport::TranscriptViewportRow;
 use crate::db::repository::{
-    SessionEventSequenceRepository, SessionJournalEventRepository, SessionMetadataRepository,
-    SessionTranscriptRowLedgerRepository,
+    SessionEventSeq, SessionEventSequenceRepository, SessionJournalEventRepository,
+    SessionMetadataRepository, SessionTranscriptRowLedgerRepository,
 };
 use sea_orm::DbConn;
 use std::collections::HashSet;
@@ -169,13 +169,10 @@ pub fn apply_runtime_authority_to_session_open_result(
     let runtime_snapshot = runtime_registry
         .and_then(|registry| registry.current_snapshot_for_session(&found.canonical_session_id));
     // A hot-ledger open header persisted mid-turn can carry a stale
-    // `Running` turn state if the app died before the turn completed. Only a
-    // live runtime authority (Ready lifecycle) may vouch for an active turn;
-    // otherwise apply the same historical-close normalization the fold path
-    // applies so cold opens never resurrect a permanent spinner.
-    if found.open_path == SessionOpenPath::HotLedger
-        && hot_ledger_rows_require_historical_normalization(runtime_snapshot.as_ref())
-    {
+    // `Running` turn state if the app died before the turn completed. A Ready
+    // lifecycle only proves the session can be used; active turn evidence still
+    // has to come from rows, operations, or interactions.
+    if hot_ledger_open_requires_historical_normalization(found, runtime_snapshot.as_ref()) {
         normalize_cold_hot_ledger_open_found(found);
     }
     if let Some(runtime_snapshot) = runtime_snapshot {
@@ -200,6 +197,46 @@ pub fn apply_runtime_authority_to_session_open_result(
     found.lifecycle = lifecycle_for_panel_open(found.lifecycle.clone());
 
     result
+}
+
+fn hot_ledger_open_requires_historical_normalization(
+    found: &SessionOpenFound,
+    runtime_snapshot: Option<
+        &crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeSnapshot,
+    >,
+) -> bool {
+    if found.open_path != SessionOpenPath::HotLedger || is_terminal_turn_state(&found.turn_state) {
+        return false;
+    }
+
+    if hot_ledger_rows_require_historical_normalization(runtime_snapshot) {
+        return true;
+    }
+
+    !hot_ledger_open_has_live_active_turn_evidence(found)
+}
+
+fn hot_ledger_open_has_live_active_turn_evidence(found: &SessionOpenFound) -> bool {
+    found.active_streaming_tail.is_some()
+        || found
+            .operations
+            .iter()
+            .any(|operation| !is_terminal_operation_state(&operation.operation_state))
+        || found
+            .interactions
+            .iter()
+            .any(|interaction| interaction.state == InteractionState::Pending)
+        || hot_ledger_latest_row_is_user(found)
+}
+
+fn hot_ledger_latest_row_is_user(found: &SessionOpenFound) -> bool {
+    found
+        .initial_transcript_row_page
+        .as_ref()
+        .and_then(|page| page.rows.last())
+        .is_some_and(|row| {
+            row.kind == crate::acp::transcript_viewport::TranscriptViewportRowKind::User
+        })
 }
 
 /// Normalize a cold hot-ledger open the same way `apply_historical_close`
@@ -594,7 +631,7 @@ pub enum CurrentRowLedgerOpenLookup {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct CurrentRowLedgerOpenTiming {
-    pub journal_cutoff_ms: u128,
+    pub projection_frontier_ms: u128,
     pub page_read_ms: u128,
     pub header_decode_ms: u128,
     pub rows_decode_ms: u128,
@@ -631,8 +668,8 @@ pub async fn session_open_result_from_current_row_ledger_with_initial_page_polic
     let open_token = Uuid::new_v4();
     let epoch_ms = chrono::Utc::now().timestamp_millis().max(0) as u64;
     hub.arm_reservation(open_token, canonical_session_id.clone(), 0, epoch_ms);
-    let journal_cutoff_started_at = Instant::now();
-    let row_affecting_cutoff = match SessionJournalEventRepository::max_row_affecting_event_seq(
+    let projection_frontier_started_at = Instant::now();
+    let row_affecting_frontier = match SessionJournalEventRepository::max_row_affecting_event_seq(
         db,
         canonical_session_id,
     )
@@ -642,11 +679,11 @@ pub async fn session_open_result_from_current_row_ledger_with_initial_page_polic
         Err(error) => {
             hub.supersede_reservation(open_token);
             return Err(format!(
-                "Failed to determine row-affecting journal cutoff for session {canonical_session_id}: {error}"
+                "Failed to determine row-affecting projection frontier for session {canonical_session_id}: {error}"
             ));
         }
     };
-    let journal_cutoff_ms = elapsed_ms(journal_cutoff_started_at);
+    let projection_frontier_ms = elapsed_ms(projection_frontier_started_at);
     let page_read_started_at = Instant::now();
     let ledger_read = match SessionTranscriptRowLedgerRepository::read_tail_page(
         db,
@@ -685,7 +722,7 @@ pub async fn session_open_result_from_current_row_ledger_with_initial_page_polic
             return Ok(CurrentRowLedgerOpenLookup::Miss(miss));
         }
     };
-    if metadata.last_event_seq < row_affecting_cutoff {
+    if metadata.last_event_seq < row_affecting_frontier {
         hub.supersede_reservation(open_token);
         return Ok(CurrentRowLedgerOpenLookup::Miss(
             CurrentRowLedgerOpenMiss::BehindJournal,
@@ -847,7 +884,7 @@ pub async fn session_open_result_from_current_row_ledger_with_initial_page_polic
     Ok(CurrentRowLedgerOpenLookup::Found {
         result,
         timing: CurrentRowLedgerOpenTiming {
-            journal_cutoff_ms,
+            projection_frontier_ms,
             page_read_ms,
             header_decode_ms,
             rows_decode_ms,
@@ -909,28 +946,30 @@ pub async fn session_open_result_from_thread_snapshot(
     snapshot: &SessionThreadSnapshot,
 ) -> SessionOpenResult {
     let canonical_session_id = &replay_context.local_session_id;
-    let journal_cutoff_started_at = Instant::now();
-    let last_event_seq =
-        match SessionEventSequenceRepository::last_assigned_event_seq(db, canonical_session_id)
-            .await
-        {
-            Ok(seq) => seq.unwrap_or(0),
-            Err(err) => {
-                return SessionOpenResult::Error(SessionOpenError::internal(
-                    requested_session_id,
-                    format!(
-                    "Failed to determine journal cutoff for session {canonical_session_id}: {err}"
+    let event_sequence_frontier_started_at = Instant::now();
+    let last_event_seq = match SessionEventSequenceRepository::last_assigned_event_seq(
+        db,
+        canonical_session_id,
+    )
+    .await
+    {
+        Ok(seq) => seq.unwrap_or(SessionEventSeq::ZERO),
+        Err(err) => {
+            return SessionOpenResult::Error(SessionOpenError::internal(
+                requested_session_id,
+                format!(
+                    "Failed to determine delivery event-sequence frontier for session {canonical_session_id}: {err}"
                 ),
-                ));
-            }
-        };
-    let journal_cutoff_ms = elapsed_ms(journal_cutoff_started_at);
+            ));
+        }
+    };
+    let event_sequence_frontier_ms = elapsed_ms(event_sequence_frontier_started_at);
     let materialize_started_at = Instant::now();
     let materialized = materialized_thread_snapshot_from_thread_snapshot_fold_first(
         canonical_session_id,
         replay_context,
         snapshot,
-        last_event_seq,
+        last_event_seq.get(),
     );
     let materialize_ms = elapsed_ms(materialize_started_at);
 
@@ -942,7 +981,7 @@ pub async fn session_open_result_from_thread_snapshot(
         requested_session_id,
         materialized,
         snapshot.entries.len(),
-        journal_cutoff_ms,
+        event_sequence_frontier_ms,
         materialize_ms,
     )
     .await
@@ -957,28 +996,30 @@ pub async fn session_open_result_from_provider_owned_snapshot(
     snapshot: &ProviderOwnedSessionSnapshot,
 ) -> SessionOpenResult {
     let canonical_session_id = &replay_context.local_session_id;
-    let journal_cutoff_started_at = Instant::now();
-    let last_event_seq =
-        match SessionEventSequenceRepository::last_assigned_event_seq(db, canonical_session_id)
-            .await
-        {
-            Ok(seq) => seq.unwrap_or(0),
-            Err(err) => {
-                return SessionOpenResult::Error(SessionOpenError::internal(
-                    requested_session_id,
-                    format!(
-                    "Failed to determine journal cutoff for session {canonical_session_id}: {err}"
+    let event_sequence_frontier_started_at = Instant::now();
+    let last_event_seq = match SessionEventSequenceRepository::last_assigned_event_seq(
+        db,
+        canonical_session_id,
+    )
+    .await
+    {
+        Ok(seq) => seq.unwrap_or(SessionEventSeq::ZERO),
+        Err(err) => {
+            return SessionOpenResult::Error(SessionOpenError::internal(
+                requested_session_id,
+                format!(
+                    "Failed to determine delivery event-sequence frontier for session {canonical_session_id}: {err}"
                 ),
-                ));
-            }
-        };
-    let journal_cutoff_ms = elapsed_ms(journal_cutoff_started_at);
+            ));
+        }
+    };
+    let event_sequence_frontier_ms = elapsed_ms(event_sequence_frontier_started_at);
     let materialize_started_at = Instant::now();
     let materialized = materialized_thread_snapshot_from_provider_fold_first(
         canonical_session_id,
         replay_context,
         snapshot,
-        last_event_seq,
+        last_event_seq.get(),
     );
     let materialize_ms = elapsed_ms(materialize_started_at);
     let provider_history_entry_count = materialized.transcript_snapshot.entries.len();
@@ -991,7 +1032,7 @@ pub async fn session_open_result_from_provider_owned_snapshot(
         requested_session_id,
         materialized,
         provider_history_entry_count,
-        journal_cutoff_ms,
+        event_sequence_frontier_ms,
         materialize_ms,
     )
     .await
@@ -1005,9 +1046,10 @@ async fn session_open_result_from_materialized_provider_history(
     requested_session_id: &str,
     materialized: MaterializedThreadSnapshot,
     provider_history_entry_count: usize,
-    journal_cutoff_ms: u128,
+    event_sequence_frontier_ms: u128,
     materialize_ms: u128,
 ) -> SessionOpenResult {
+    let materialized_graph_revision = materialized.graph_revision;
     let provider_projection = materialized.projection;
     let total_started_at = Instant::now();
     let canonical_session_id = &replay_context.local_session_id;
@@ -1028,27 +1070,29 @@ async fn session_open_result_from_materialized_provider_history(
             ));
         }
     };
-    let last_event_seq =
-        match SessionEventSequenceRepository::last_assigned_event_seq(db, canonical_session_id)
-            .await
-        {
-            Ok(seq) => seq.unwrap_or(0),
-            Err(err) => {
-                return SessionOpenResult::Error(SessionOpenError::internal(
-                    requested_session_id,
-                    format!(
-                    "Failed to determine journal cutoff for session {canonical_session_id}: {err}"
+    let last_event_seq = match SessionEventSequenceRepository::last_assigned_event_seq(
+        db,
+        canonical_session_id,
+    )
+    .await
+    {
+        Ok(seq) => seq.unwrap_or(SessionEventSeq::ZERO),
+        Err(err) => {
+            return SessionOpenResult::Error(SessionOpenError::internal(
+                requested_session_id,
+                format!(
+                    "Failed to determine delivery event-sequence frontier for session {canonical_session_id}: {err}"
                 ),
-                ));
-            }
-        };
+            ));
+        }
+    };
 
     let open_token = Uuid::new_v4();
     let epoch_ms = chrono::Utc::now().timestamp_millis().max(0) as u64;
     hub.arm_reservation(
         open_token,
         canonical_session_id.clone(),
-        last_event_seq,
+        last_event_seq.get(),
         epoch_ms,
     );
 
@@ -1118,18 +1162,18 @@ async fn session_open_result_from_materialized_provider_history(
         projection.operations
     };
     let interactions = projection.interactions;
-    let projected_graph_revision = session_snap
+    let projected_last_event_seq = session_snap
         .map(|session| session.last_event_seq)
-        .unwrap_or(last_event_seq);
+        .unwrap_or(last_event_seq.get());
     // Provider history can lag behind the canonical journal frontier. In that
     // case, preserve transcript content but do not resurrect stale active work.
     let projection_frontier = if use_local_projection {
         projection_event_seq
     } else {
-        last_event_seq
+        last_event_seq.get()
     };
-    let projection_is_behind_journal = projected_graph_revision < projection_frontier;
-    let graph_revision = projected_graph_revision.max(last_event_seq);
+    let projection_is_behind_journal = projected_last_event_seq < projection_frontier;
+    let graph_revision = materialized_graph_revision;
     let raw_turn_state = session_snap
         .map(|session| session.turn_state.clone())
         .unwrap_or(SessionTurnState::Idle);
@@ -1212,7 +1256,7 @@ async fn session_open_result_from_materialized_provider_history(
             session_id = %canonical_session_id,
             requested_session_id = %requested_session_id,
             agent_id = %replay_context.agent_id,
-            journal_cutoff_ms,
+            event_sequence_frontier_ms,
             metadata_ms,
             materialize_ms,
             local_journal_ms,
@@ -1228,7 +1272,7 @@ async fn session_open_result_from_materialized_provider_history(
         requested_session_id: requested_session_id.to_string(),
         canonical_session_id: canonical_session_id.clone(),
         is_alias,
-        last_event_seq,
+        last_event_seq: last_event_seq.get(),
         graph_revision,
         open_token: open_token.to_string(),
         agent_id: replay_context.agent_id.clone(),
@@ -1276,17 +1320,17 @@ pub async fn session_open_result_from_completed_local_journal(
             .await
             .map_err(|error| {
                 format!(
-                "Failed to determine journal cutoff for session {canonical_session_id}: {error}"
+                "Failed to determine delivery event-sequence frontier for session {canonical_session_id}: {error}"
             )
             })?
-            .unwrap_or(0);
+            .unwrap_or(SessionEventSeq::ZERO);
 
     let open_token = Uuid::new_v4();
     let epoch_ms = chrono::Utc::now().timestamp_millis().max(0) as u64;
     hub.arm_reservation(
         open_token,
         canonical_session_id.clone(),
-        last_event_seq,
+        last_event_seq.get(),
         epoch_ms,
     );
 
@@ -1348,8 +1392,8 @@ pub async fn session_open_result_from_completed_local_journal(
         requested_session_id: requested_session_id.to_string(),
         canonical_session_id: canonical_session_id.clone(),
         is_alias: requested_session_id != canonical_session_id,
-        last_event_seq,
-        graph_revision: last_event_seq,
+        last_event_seq: last_event_seq.get(),
+        graph_revision: 0,
         open_token: open_token.to_string(),
         agent_id: replay_context.agent_id.clone(),
         project_path: replay_context.project_path.clone(),
@@ -1384,21 +1428,25 @@ async fn load_completed_local_journal_transcript(
     replay_context: &SessionReplayContext,
     canonical_session_id: &str,
 ) -> Result<Option<LocalJournalReplay>, String> {
-    let serialized_events =
-        SessionJournalEventRepository::list_serialized(db, canonical_session_id)
-            .await
-            .map_err(|error| {
-                format!(
+    let serialized_events = SessionJournalEventRepository::list_serialized(
+        db,
+        canonical_session_id,
+    )
+    .await
+    .map_err(|error| {
+        format!(
             "Failed to load local transcript journal for session {canonical_session_id}: {error}"
         )
-            })?;
-    let journal_events =
-        crate::acp::session_journal::decode_serialized_events(replay_context, serialized_events)
-            .map_err(|error| {
-                format!(
+    })?;
+    let journal_events = crate::acp::session_journal::decode_serialized_events(
+        replay_context,
+        serialized_events,
+    )
+    .map_err(|error| {
+        format!(
             "Failed to decode local transcript journal for session {canonical_session_id}: {error}"
         )
-            })?;
+    })?;
 
     let repaired_events =
         crate::acp::session_journal::repair_legacy_parent_tool_use_ids_from_streaming_log(
@@ -1432,21 +1480,25 @@ pub(super) async fn load_local_journal_transcript(
     replay_context: &SessionReplayContext,
     canonical_session_id: &str,
 ) -> Result<Option<LocalJournalReplay>, String> {
-    let serialized_events =
-        SessionJournalEventRepository::list_serialized(db, canonical_session_id)
-            .await
-            .map_err(|error| {
-                format!(
+    let serialized_events = SessionJournalEventRepository::list_serialized(
+        db,
+        canonical_session_id,
+    )
+    .await
+    .map_err(|error| {
+        format!(
             "Failed to load local transcript journal for session {canonical_session_id}: {error}"
         )
-            })?;
-    let journal_events =
-        crate::acp::session_journal::decode_serialized_events(replay_context, serialized_events)
-            .map_err(|error| {
-                format!(
+    })?;
+    let journal_events = crate::acp::session_journal::decode_serialized_events(
+        replay_context,
+        serialized_events,
+    )
+    .map_err(|error| {
+        format!(
             "Failed to decode local transcript journal for session {canonical_session_id}: {error}"
         )
-            })?;
+    })?;
 
     let repaired_events =
         crate::acp::session_journal::repair_legacy_parent_tool_use_ids_from_streaming_log(
@@ -1474,22 +1526,31 @@ pub async fn session_open_result_for_new_session(
     input: NewSessionOpenResultInput,
 ) -> SessionOpenResult {
     let session_id = input.session_id;
-    let last_event_seq =
-        match SessionEventSequenceRepository::last_assigned_event_seq(db, &session_id).await {
-            Ok(seq) => seq.unwrap_or(0),
-            Err(err) => {
-                return SessionOpenResult::Error(SessionOpenError::internal(
-                    &session_id,
-                    format!(
-                        "Failed to determine journal cutoff for new session {session_id}: {err}"
-                    ),
-                ));
-            }
-        };
+    let last_event_seq = match SessionEventSequenceRepository::last_assigned_event_seq(
+        db,
+        &session_id,
+    )
+    .await
+    {
+        Ok(seq) => seq.unwrap_or(SessionEventSeq::ZERO),
+        Err(err) => {
+            return SessionOpenResult::Error(SessionOpenError::internal(
+                &session_id,
+                format!(
+                    "Failed to determine delivery event-sequence frontier for new session {session_id}: {err}"
+                ),
+            ));
+        }
+    };
 
     let open_token = Uuid::new_v4();
     let epoch_ms = chrono::Utc::now().timestamp_millis().max(0) as u64;
-    hub.arm_reservation(open_token, session_id.clone(), last_event_seq, epoch_ms);
+    hub.arm_reservation(
+        open_token,
+        session_id.clone(),
+        last_event_seq.get(),
+        epoch_ms,
+    );
 
     let replay_context = SessionReplayContext {
         local_session_id: session_id.clone(),
@@ -1515,7 +1576,7 @@ pub async fn session_open_result_for_new_session(
     let transcript_snapshot = local_replay
         .as_ref()
         .map(|replay| replay.transcript_snapshot.clone())
-        .unwrap_or_else(|| TranscriptSnapshot::from_stored_entries(last_event_seq, &[]));
+        .unwrap_or_else(|| TranscriptSnapshot::from_stored_entries(0, &[]));
     let first_user_title = derive_title_from_transcript_snapshot(&transcript_snapshot);
     let message_count = transcript_snapshot.entries.len() as u64;
     let projection = local_replay.map(|replay| replay.projection);
@@ -1556,8 +1617,8 @@ pub async fn session_open_result_for_new_session(
         requested_session_id: session_id.clone(),
         canonical_session_id: session_id.clone(),
         is_alias: false,
-        last_event_seq,
-        graph_revision: last_event_seq,
+        last_event_seq: last_event_seq.get(),
+        graph_revision: 0,
         open_token: open_token.to_string(),
         agent_id: input.agent_id,
         project_path: input.project_path,

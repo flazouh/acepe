@@ -260,27 +260,28 @@ impl SessionJournalEvent {
     pub fn replay_into(&self, registry: &ProjectionRegistry) {
         match &self.payload {
             SessionJournalEventPayload::ProjectionUpdate { update } => {
-                if matches!(
+                if !matches!(
                     update.as_ref(),
                     ProjectionJournalUpdate::QuestionRequest { .. }
                 ) {
-                    return;
+                    registry.apply_session_update_at_event_seq(
+                        &self.session_id,
+                        self.event_seq,
+                        &update.as_ref().clone().into_session_update(),
+                    );
                 }
-                registry.apply_session_update(
-                    &self.session_id,
-                    &update.as_ref().clone().into_session_update(),
-                );
             }
             SessionJournalEventPayload::InteractionTransition {
                 interaction_id,
                 state,
                 response,
             } => {
-                let _ = registry.resolve_interaction(
+                let _ = registry.resolve_interaction_at_event_seq(
                     &self.session_id,
                     interaction_id,
                     state.clone(),
                     response.clone(),
+                    self.event_seq,
                 );
             }
             SessionJournalEventPayload::InteractionSnapshot { interaction } => {
@@ -289,6 +290,7 @@ impl SessionJournalEvent {
             }
             SessionJournalEventPayload::MaterializationBarrier => {}
         }
+        registry.observe_session_event_seq(&self.session_id, self.event_seq);
     }
 }
 

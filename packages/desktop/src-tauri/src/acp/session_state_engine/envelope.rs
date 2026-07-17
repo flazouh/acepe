@@ -153,6 +153,7 @@ mod tests {
                 }],
             },
             duration_started_at_ms: None,
+            timestamp_ms: None,
         }
     }
 

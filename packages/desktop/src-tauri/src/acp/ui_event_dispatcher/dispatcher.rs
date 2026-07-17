@@ -333,14 +333,10 @@ impl AcpUiEventDispatcher {
             .as_ref()
             .map(|snapshot| snapshot.revision)
             .unwrap_or(0);
-        let previous_graph_revision = if previous_runtime_snapshot.graph_revision > 0 {
-            previous_runtime_snapshot.graph_revision
-        } else {
-            session_snapshot.last_event_seq.saturating_sub(1)
-        };
+        let previous_graph_revision = previous_runtime_snapshot.graph_revision;
         let graph_revision = self
             .runtime_graph_registry
-            .advance_graph_revision_with_seed(session_id, session_snapshot.last_event_seq);
+            .advance_graph_revision_with_seed(session_id, previous_graph_revision);
         let revision = SessionGraphRevision::new(
             graph_revision,
             previous_transcript_revision,

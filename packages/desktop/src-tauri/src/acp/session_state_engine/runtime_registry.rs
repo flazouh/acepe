@@ -1744,11 +1744,72 @@ mod tests {
 
         match second_envelope.payload {
             SessionStatePayload::AssistantTextDelta { delta } => {
-                assert_eq!(delta.row_id, "acepe--entry--session-start--assistant---");
-                assert_eq!(delta.turn_id, "acepe--entry--session-start--assistant---");
+                // row_id/turn_id must be the RAW canonical entry_id (colons and
+                // dots intact), not a sanitized/mangled form. The consumer side
+                // (`select_active_streaming_tail` in graph.rs, and every other
+                // reader of `TranscriptEntry::entry_id`) uses the raw id as the
+                // row's identity. A sanitized row_id here breaks the lookup a
+                // client makes by raw row id, silently killing token-reveal.
+                assert_eq!(delta.row_id, "acepe::entry::session-start::assistant::.");
+                assert_eq!(delta.turn_id, "acepe::entry::session-start::assistant::.");
                 assert_eq!(delta.char_offset, 5);
                 assert_eq!(delta.delta_text, "");
                 assert_eq!(delta.produced_at_monotonic_ms, 6);
+            }
+            other => panic!("expected assistant text delta payload, got {other:?}"),
+        }
+    }
+
+    /// Regression test for the token-reveal dormancy bug: the assistant text
+    /// delta's `row_id` must exactly equal the transcript entry's raw
+    /// `entry_id` (as `select_active_streaming_tail` in graph.rs assigns to
+    /// `ActiveStreamingTail.row_id`). If these two diverge — e.g. because one
+    /// side sanitizes special characters (`:`, `.`) out of the id and the
+    /// other doesn't — the TypeScript `getRowTokenStreamByRowId(sessionId,
+    /// activeStreamingTail.rowId)` lookup misses and the reveal CSS never
+    /// resolves, even though the token stream is present in the store.
+    #[test]
+    fn assistant_text_delta_row_id_matches_raw_transcript_entry_id() {
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+        let update =
+            create_agent_message_chunk_update("session-1", Some("assistant-1"), "hello", 5);
+        let transcript_delta = transcript_projection_registry
+            .apply_session_update_idle(1, &update)
+            .expect("transcript delta");
+        let snapshot = transcript_projection_registry
+            .snapshot_for_session("session-1")
+            .expect("transcript snapshot");
+        let raw_entry_id = snapshot
+            .entries
+            .last()
+            .expect("assistant entry in snapshot")
+            .entry_id
+            .clone();
+        assert!(
+            raw_entry_id.contains(':') || raw_entry_id.contains('.'),
+            "fixture entry_id should contain the canonical `::`/`.` separators \
+             this test guards against being sanitized away: {raw_entry_id}"
+        );
+
+        let envelope = build_assistant_text_delta_from_components(
+            "session-1",
+            &update,
+            &transcript_delta,
+            &snapshot,
+            SessionGraphRevision::new(1, 1, 1),
+        )
+        .into_iter()
+        .next()
+        .expect("assistant text delta envelope");
+
+        match envelope.payload {
+            SessionStatePayload::AssistantTextDelta { delta } => {
+                assert_eq!(
+                    delta.row_id, raw_entry_id,
+                    "assistant text delta row_id must match the raw transcript \
+                     entry_id byte-for-byte so it correlates with \
+                     ActiveStreamingTail.row_id on the client"
+                );
             }
             other => panic!("expected assistant text delta payload, got {other:?}"),
         }

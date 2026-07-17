@@ -487,9 +487,7 @@ async fn current_binary_fingerprint_async() -> Option<(String, u64, u64)> {
     .flatten()
 }
 
-fn resolve_catalog_claude_cli_with<Resolve>(
-    resolve: Resolve,
-) -> crate::cc_sdk::Result<PathBuf>
+fn resolve_catalog_claude_cli_with<Resolve>(resolve: Resolve) -> crate::cc_sdk::Result<PathBuf>
 where
     Resolve: FnOnce(Duration) -> crate::cc_sdk::Result<PathBuf>,
 {
@@ -681,12 +679,13 @@ async fn fetch_authoritative_catalog() -> Result<AuthoritativeCatalogPayload, St
     let binary_path_str = canonical.to_string_lossy().to_string();
 
     let bytes = tokio::fs::read(&canonical)
-    .await
-    .map_err(|error| format!("Failed reading Claude binary: {error}"))?;
-    let models = run_blocking_catalog_task(CATALOG_SCAN_TIMEOUT, "Claude catalog scan", move || {
-        extract_from_binary_bytes(&bytes)
-    })
-    .await?;
+        .await
+        .map_err(|error| format!("Failed reading Claude binary: {error}"))?;
+    let models =
+        run_blocking_catalog_task(CATALOG_SCAN_TIMEOUT, "Claude catalog scan", move || {
+            extract_from_binary_bytes(&bytes)
+        })
+        .await?;
 
     Ok(AuthoritativeCatalogPayload {
         models,
@@ -916,7 +915,10 @@ fn native_string_records(bytes: &[u8]) -> Vec<NativeStringRecord<'_>> {
             offset += 1;
             continue;
         };
-        if !value.bytes().all(|byte| byte.is_ascii_graphic() || byte == b' ') {
+        if !value
+            .bytes()
+            .all(|byte| byte.is_ascii_graphic() || byte == b' ')
+        {
             offset += 1;
             continue;
         }
@@ -1024,14 +1026,12 @@ pub(crate) fn derive_display_name(canonical_id: &str) -> String {
     }
 
     // Find the family token index.
-    let family_idx = parts
-        .iter()
-        .position(|p| {
-            matches!(
-                p.to_ascii_lowercase().as_str(),
-                "fable" | "opus" | "sonnet" | "haiku"
-            )
-        });
+    let family_idx = parts.iter().position(|p| {
+        matches!(
+            p.to_ascii_lowercase().as_str(),
+            "fable" | "opus" | "sonnet" | "haiku"
+        )
+    });
 
     let Some(family_idx) = family_idx else {
         return canonical_id.to_string();
@@ -1092,15 +1092,12 @@ mod tests {
     async fn blocking_catalog_work_is_bounded_without_blocking_the_async_runtime() {
         let started = std::time::Instant::now();
 
-        let result = run_blocking_catalog_task(
-            Duration::from_millis(20),
-            "test catalog scan",
-            || {
+        let result =
+            run_blocking_catalog_task(Duration::from_millis(20), "test catalog scan", || {
                 std::thread::sleep(Duration::from_millis(200));
                 Ok::<(), String>(())
-            },
-        )
-        .await;
+            })
+            .await;
 
         assert!(result.is_err(), "blocking work must obey the outer timeout");
         assert!(
@@ -1240,7 +1237,10 @@ mod tests {
 
         let result = extract_from_binary_bytes(&bytes);
 
-        assert!(result.is_err(), "stray binary literals are not catalog evidence");
+        assert!(
+            result.is_err(),
+            "stray binary literals are not catalog evidence"
+        );
     }
 
     // ── claude_model_family + filter_to_picker_defaults ──────────────────────

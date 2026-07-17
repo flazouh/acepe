@@ -111,7 +111,7 @@ mod tests {
             requested_session_id: session_id.to_string(),
             canonical_session_id: session_id.to_string(),
             is_alias: false,
-            last_event_seq: graph_revision,
+            last_event_seq: 7,
             graph_revision,
             open_token: "open-token".to_string(),
             agent_id: CanonicalAgentId::Codex,
@@ -120,7 +120,7 @@ mod tests {
             source_path: None,
             sequence_id: Some(119),
             transcript_snapshot: TranscriptSnapshot {
-                revision: graph_revision,
+                revision: 3,
                 entries: Vec::new(),
             },
             session_title: "Session".to_string(),

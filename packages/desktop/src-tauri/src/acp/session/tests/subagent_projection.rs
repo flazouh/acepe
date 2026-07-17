@@ -8,7 +8,7 @@ use crate::acp::session::ingress::event::{ProviderEvent, ProviderEventKind};
 use crate::acp::session::ingress::full_session_to_provider_events;
 use crate::acp::session_state_engine::graph::SessionStateGraph;
 use crate::acp::session_update::{
-    ToolArguments, ToolCallData, ToolCallStatus, ToolKind, ToolSourceContext,
+    EditEntry, ToolArguments, ToolCallData, ToolCallStatus, ToolKind, ToolSourceContext,
 };
 use crate::acp::transcript_projection::TranscriptScope;
 use crate::acp::transcript_viewport::{
@@ -90,6 +90,37 @@ fn child_read_tool_call() -> ToolCallData {
         normalized_todos: None,
         normalized_todo_update: None,
         parent_tool_use_id: Some(PARENT_TASK_ID.to_string()),
+        task_children: None,
+        question_answer: None,
+        awaiting_plan_approval: false,
+        plan_approval_request_id: None,
+    }
+}
+
+fn edit_tool_call() -> ToolCallData {
+    ToolCallData {
+        id: "toolu_edit_lines".to_string(),
+        name: "Edit".to_string(),
+        arguments: ToolArguments::Edit {
+            edits: vec![EditEntry {
+                file_path: Some("/project/src/app.ts".to_string()),
+                move_from: None,
+                old_string: Some("const label = \"old\";".to_string()),
+                new_string: Some("const label = \"new\";".to_string()),
+                content: None,
+            }],
+        },
+        diagnostic_input: None,
+        status: ToolCallStatus::Completed,
+        result: Some(json!({ "summary": "updated src/app.ts" })),
+        kind: Some(ToolKind::Edit),
+        title: Some("Edit src/app.ts".to_string()),
+        locations: None,
+        skill_meta: None,
+        normalized_questions: None,
+        normalized_todos: None,
+        normalized_todo_update: None,
+        parent_tool_use_id: None,
         task_children: None,
         question_answer: None,
         awaiting_plan_approval: false,
@@ -229,6 +260,25 @@ fn parent_task_row_exposes_latest_child_action() {
     assert_eq!(
         actual_parent_projection, expected_parent_projection,
         "the serialized parent Task row must expose graph-derived scope plus directly usable latest-child Read facts"
+    );
+}
+
+#[test]
+fn edit_tool_row_exposes_changed_lines_in_display_facts() {
+    let context = FoldContext::new(SESSION_ID, CanonicalAgentId::ClaudeCode, "/project");
+    let graph = fold_full(&[tool_call_event(1, edit_tool_call())], &context);
+    let rows = project_rows(&graph);
+    let edit_row = row_for_tool_call(&rows, "toolu_edit_lines");
+    let facts = display_facts_json(edit_row, "toolu_edit_lines");
+
+    assert_eq!(
+        facts["editDiffs"],
+        json!([{
+            "filePath": "/project/src/app.ts",
+            "oldString": "const label = \"old\";",
+            "newString": "const label = \"new\";"
+        }]),
+        "the serialized viewport row must carry edit hunks so the live app can render changed lines"
     );
 }
 

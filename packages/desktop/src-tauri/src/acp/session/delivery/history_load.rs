@@ -110,7 +110,8 @@ pub fn load_materialized_from_history(
         materialized_thread_snapshot_from_folded_graph(
             history_session_id,
             &graph,
-            graph.revision.graph_revision,
+            graph.revision.transcript_revision,
+            graph.revision.last_event_seq,
         )
     }))
 }

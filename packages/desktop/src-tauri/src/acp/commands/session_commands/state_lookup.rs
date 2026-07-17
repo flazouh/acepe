@@ -31,14 +31,14 @@ pub(super) struct StateLookupAuthority {
 }
 
 pub(super) fn resolve_state_lookup_authority(
-    has_live_runtime_state: bool,
+    has_live_active_turn_evidence: bool,
     transcript_has_entries: bool,
     raw_turn_state: SessionTurnState,
     raw_operations: Vec<OperationSnapshot>,
     raw_interactions: Vec<InteractionSnapshot>,
     raw_active_turn_failure: Option<TurnFailureSnapshot>,
 ) -> StateLookupAuthority {
-    if has_live_runtime_state {
+    if has_live_active_turn_evidence {
         return StateLookupAuthority {
             operations: raw_operations,
             interactions: raw_interactions,
@@ -75,6 +75,29 @@ pub(super) fn resolve_state_lookup_authority(
         turn_state,
         active_turn_failure,
     }
+}
+
+pub(super) fn has_live_active_turn_evidence(
+    has_live_runtime_state: bool,
+    raw_turn_state: &SessionTurnState,
+    raw_operations: &[OperationSnapshot],
+    raw_interactions: &[InteractionSnapshot],
+    transcript_snapshot: &TranscriptSnapshot,
+) -> bool {
+    if !has_live_runtime_state || raw_turn_state != &SessionTurnState::Running {
+        return false;
+    }
+
+    raw_operations
+        .iter()
+        .any(|operation| !is_terminal_operation_state(&operation.operation_state))
+        || raw_interactions
+            .iter()
+            .any(|interaction| interaction.state == InteractionState::Pending)
+        || transcript_snapshot
+            .entries
+            .last()
+            .is_some_and(|entry| entry.role == TranscriptEntryRole::User)
 }
 
 pub(super) fn projection_snapshot_with_runtime(

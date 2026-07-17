@@ -212,15 +212,14 @@ impl SessionSupervisor {
             });
         }
 
-        let barrier = SessionJournalEventRepository::append_materialization_barrier(db, session_id)
+        SessionJournalEventRepository::append_materialization_barrier(db, session_id)
             .await
             .map_err(|error| SessionSupervisorError::Persistence {
                 message: format!(
                     "Failed to append reservation frontier for session {session_id}: {error}"
                 ),
             })?;
-        let checkpoint =
-            LifecycleCheckpoint::new(barrier.event_seq, LifecycleState::reserved(), capabilities);
+        let checkpoint = LifecycleCheckpoint::new(0, LifecycleState::reserved(), capabilities);
         self.persist_runtime_checkpoint(db, projection_registry, session_id, &checkpoint)
             .await?;
         let created = self.seed_checkpoint(session_id.to_string(), checkpoint.clone());
@@ -262,7 +261,7 @@ impl SessionSupervisor {
             LifecycleStatus::Reserved | LifecycleStatus::Detached | LifecycleStatus::Failed => {}
         }
 
-        let barrier = SessionJournalEventRepository::append_materialization_barrier(db, session_id)
+        SessionJournalEventRepository::append_materialization_barrier(db, session_id)
             .await
             .map_err(|error| SessionSupervisorError::Persistence {
                 message: format!(
@@ -270,7 +269,7 @@ impl SessionSupervisor {
                 ),
             })?;
         let checkpoint = LifecycleCheckpoint::new(
-            current_checkpoint.graph_revision.max(barrier.event_seq),
+            current_checkpoint.graph_revision.saturating_add(1),
             LifecycleState::activating(),
             current_checkpoint.capabilities,
         );
@@ -286,7 +285,6 @@ impl SessionSupervisor {
         db: &DbConn,
         projection_registry: &ProjectionRegistry,
         session_id: &str,
-        event_seq: i64,
         update: &SessionUpdate,
     ) -> Result<LifecycleCheckpoint, SessionSupervisorError> {
         let gate = self.gate_for_session(session_id);
@@ -298,7 +296,8 @@ impl SessionSupervisor {
         })?;
         let mut runtime_snapshot =
             SessionGraphRuntimeSnapshot::from_checkpoint(&previous_checkpoint);
-        runtime_snapshot.apply_update_with_graph_seed(event_seq.saturating_sub(1), update);
+        runtime_snapshot.graph_revision = runtime_snapshot.graph_revision.saturating_add(1);
+        runtime_snapshot.apply_update(update);
         let checkpoint = runtime_snapshot.into_checkpoint();
         let advances_runtime_epoch = previous_checkpoint.lifecycle != checkpoint.lifecycle;
         self.persist_runtime_checkpoint(db, projection_registry, session_id, &checkpoint)
@@ -320,7 +319,7 @@ impl SessionSupervisor {
     ) -> Result<LifecycleCheckpoint, SessionSupervisorError> {
         let gate = self.gate_for_session(session_id);
         let _guard = gate.lock().await;
-        let barrier = SessionJournalEventRepository::append_materialization_barrier(db, session_id)
+        SessionJournalEventRepository::append_materialization_barrier(db, session_id)
             .await
             .map_err(|error| SessionSupervisorError::Persistence {
                 message: format!(
@@ -334,7 +333,7 @@ impl SessionSupervisor {
         })?;
         let mut runtime_snapshot =
             SessionGraphRuntimeSnapshot::from_checkpoint(&current_checkpoint);
-        runtime_snapshot.graph_revision = runtime_snapshot.graph_revision.max(barrier.event_seq);
+        runtime_snapshot.graph_revision = runtime_snapshot.graph_revision.saturating_add(1);
         runtime_snapshot.apply_update(update);
         let checkpoint = runtime_snapshot.into_checkpoint();
         self.persist_runtime_checkpoint(db, projection_registry, session_id, &checkpoint)
@@ -356,20 +355,23 @@ impl SessionSupervisor {
     ) -> Result<LifecycleCheckpoint, SessionSupervisorError> {
         let gate = self.gate_for_session(session_id);
         let _guard = gate.lock().await;
-        let barrier = SessionJournalEventRepository::append_materialization_barrier(db, session_id)
+        SessionJournalEventRepository::append_materialization_barrier(db, session_id)
             .await
             .map_err(|error| SessionSupervisorError::Persistence {
                 message: format!(
                     "Failed to append lifecycle frontier for session {session_id}: {error}"
                 ),
             })?;
-        let capabilities = self
-            .snapshot_for_session(session_id)
-            .ok_or_else(|| SessionSupervisorError::SessionNotFound {
+        let current_checkpoint = self.snapshot_for_session(session_id).ok_or_else(|| {
+            SessionSupervisorError::SessionNotFound {
                 session_id: session_id.to_string(),
-            })?
-            .capabilities;
-        let checkpoint = LifecycleCheckpoint::new(barrier.event_seq, lifecycle, capabilities);
+            }
+        })?;
+        let checkpoint = LifecycleCheckpoint::new(
+            current_checkpoint.graph_revision.saturating_add(1),
+            lifecycle,
+            current_checkpoint.capabilities,
+        );
         self.persist_runtime_checkpoint(db, projection_registry, session_id, &checkpoint)
             .await?;
         let stored = self.store_checkpoint(session_id, checkpoint.clone(), true);
