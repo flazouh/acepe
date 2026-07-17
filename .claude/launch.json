@@ -1,0 +1,17 @@
+{
+	"version": "0.0.1",
+	"configurations": [
+		{
+			"name": "desktop",
+			"runtimeExecutable": "bun",
+			"runtimeArgs": ["run", "--cwd", "/Users/alex/Documents/acepe/packages/desktop", "dev"],
+			"port": 1420
+		},
+		{
+			"name": "website",
+			"runtimeExecutable": "bun",
+			"runtimeArgs": ["run", "--cwd", "/Users/alex/Documents/acepe/packages/website", "dev"],
+			"port": 5173
+		}
+	]
+}
