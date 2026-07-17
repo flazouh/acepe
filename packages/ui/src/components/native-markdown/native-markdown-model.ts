@@ -678,7 +678,12 @@ function createTextInline(text: string, cursor: ParseCursor): NativeMarkdownText
 			cursor.wordIndex += 1;
 			parts.push({
 				type: "word",
-				key: `word:${wordIndex}:${partText}`,
+				// Keyed by document word position only — NOT the text. A streaming tail
+				// word grows char by char; keeping the key stable lets Svelte update the
+				// span's text in place instead of re-mounting it every keystroke (which
+				// would restart the mount-driven reveal fade and flicker the leading
+				// word). wordIndex is a document-global counter, unique per word.
+				key: `word:${wordIndex}`,
 				text: partText,
 				wordIndex,
 			});
