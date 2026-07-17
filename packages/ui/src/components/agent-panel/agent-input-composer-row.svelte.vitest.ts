@@ -146,7 +146,10 @@ describe("AgentInputComposerRow", () => {
 		expect(submitButton.className).toContain("rounded-l-lg");
 		expect(submitButton.className).not.toContain("opacity-50");
 		expect(menuButton.className).toContain("rounded-r-lg");
-		expect(menuButton.className).not.toContain("opacity-50");
+		expect(menuButton.className).toContain("bg-foreground");
+		expect(menuButton.className).toContain("dark:bg-foreground");
+		expect(menuButton.className).not.toContain("dark:bg-input/30");
+		expect(menuButton.className.split(/\s+/)).not.toContain("opacity-50");
 		expect(menuButton.hasAttribute("disabled")).toBe(false);
 
 		await fireEvent.click(menuButton);
@@ -179,7 +182,7 @@ describe("AgentInputComposerRow", () => {
 		const buttonGroup = submitButton.closest('[data-slot="button-group"]');
 
 		expect(buttonGroup?.className).toContain("opacity-50");
-		expect(menuButton.className).not.toContain("opacity-50");
+		expect(menuButton.className.split(/\s+/)).not.toContain("opacity-50");
 		expect(menuButton.hasAttribute("disabled")).toBe(false);
 	});
 
@@ -200,8 +203,8 @@ describe("AgentInputComposerRow", () => {
 		const submitButton = screen.getByRole("button", { name: "Stop agent" });
 		const buttonGroup = submitButton.closest('[data-slot="button-group"]');
 
-		expect(buttonGroup?.className).not.toContain("opacity-50");
-		expect(menuButton.className).not.toContain("opacity-50");
+		expect(buttonGroup?.className.split(/\s+/)).not.toContain("opacity-50");
+		expect(menuButton.className.split(/\s+/)).not.toContain("opacity-50");
 		expect(menuButton.hasAttribute("disabled")).toBe(false);
 	});
 });

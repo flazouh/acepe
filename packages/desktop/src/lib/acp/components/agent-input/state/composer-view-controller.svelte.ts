@@ -262,6 +262,18 @@ export class ComposerViewController {
 			: this.provisionalModelId
 	);
 
+	readonly effectiveDefaultModelId = $derived.by(() => {
+		if (!this.capabilitiesAgentId) {
+			return null;
+		}
+
+		const preferredProviderId = agentModelPrefs.getModelProvider(this.capabilitiesAgentId);
+		const providerScopedDefault = preferredProviderId
+			? agentModelPrefs.getDefaultModel(this.capabilitiesAgentId, preferredProviderId)
+			: null;
+		return providerScopedDefault ?? agentModelPrefs.getDefaultModel(this.capabilitiesAgentId, null);
+	});
+
 	readonly effectiveCurrentModeId = $derived.by(() =>
 		resolveToolbarModeId({
 			liveCurrentModeId: this.sessionCurrentModeId,
@@ -322,6 +334,7 @@ export class ComposerViewController {
 		resolveToolbarModelId({
 			liveCurrentModelId: this.sessionCurrentModelId,
 			provisionalModelId: this.effectiveComposerProvisionalModelId,
+			defaultModelId: this.effectiveDefaultModelId,
 			availableModels: this.effectiveAvailableModels,
 			allowsImplicitModelSelection:
 				this.effectiveCapabilityProviderMetadata?.allowsImplicitModelSelection ?? true,

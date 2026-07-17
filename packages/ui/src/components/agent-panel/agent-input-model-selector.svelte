@@ -47,7 +47,9 @@ interface Props {
 	reasoningEffortTooltipLabel?: string;
 	ontoggle?: (isOpen: boolean) => void;
 	onModelChange: (modelId: string) => void | Promise<void>;
+	showFavoriteActions?: boolean;
 	onToggleFavorite?: (modelId: string) => void;
+	onDefaultModelToggle?: (modelId: string) => void;
 	hideTriggerProviderMark?: boolean;
 	triggerSize?: SelectorTriggerSize;
 	embeddedInGroup?: boolean;
@@ -77,7 +79,9 @@ let {
 	reasoningEffortTooltipLabel = "Reasoning effort",
 	ontoggle,
 	onModelChange,
+	showFavoriteActions = false,
 	onToggleFavorite,
+	onDefaultModelToggle,
 	hideTriggerProviderMark = false,
 	triggerSize = "pill",
 	embeddedInGroup = false,
@@ -101,7 +105,6 @@ const totalModelCount = $derived(
 		reasoningGroups,
 	})
 );
-const showFavorites = $derived(favoriteModels.length > 0);
 const showSearch = $derived(
 	shouldShowModelSearch({
 		usesVariantSelector,
@@ -238,7 +241,7 @@ function selectProvider(providerId: string): void {
 		{searchQuery}
 		{showSearch}
 		{showGroups}
-		{showFavorites}
+		{showFavoriteActions}
 		{isLoading}
 		{searchPlaceholder}
 		{loadingLabel}
@@ -251,5 +254,6 @@ function selectProvider(providerId: string): void {
 		onProviderChange={selectProvider}
 		onSelect={selectModel}
 		{onToggleFavorite}
+		{onDefaultModelToggle}
 	/>
 {/if}

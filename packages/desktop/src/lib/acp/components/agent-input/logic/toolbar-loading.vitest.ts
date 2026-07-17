@@ -106,4 +106,20 @@ describe("toolbar-loading", () => {
 			})
 		).toBe(true);
 	});
+
+	it("does not flash selector loading for an existing session after the model cache has loaded", () => {
+		expect(
+			resolveSelectorsLoading({
+				hasSession: true,
+				isSessionConnecting: true,
+				hasSelectedAgent: true,
+				visibleModesCount: 0,
+				availableModelsCount: 0,
+				modelsDisplay: null,
+				isCacheLoaded: true,
+				isPreconnectionLoading: false,
+				resolvableModelId: null,
+			})
+		).toBe(false);
+	});
 });

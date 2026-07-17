@@ -1073,6 +1073,22 @@ export class SessionConnectionManager {
 					return this.setModel(sessionId, previousModelForMode);
 				}
 
+				const defaultModelForAgent = preferencesStore.getDefaultModel(
+					sessionIdentity.agentId,
+					null
+				);
+				if (
+					defaultModelForAgent &&
+					availableModels.some((m) => m.id === defaultModelForAgent) === true
+				) {
+					logger.debug("Applying default model for mode", {
+						sessionId,
+						modeId,
+						modelId: defaultModelForAgent,
+					});
+					return this.setModel(sessionId, defaultModelForAgent);
+				}
+
 				return okAsync(undefined);
 			})
 			.mapErr((error) => {

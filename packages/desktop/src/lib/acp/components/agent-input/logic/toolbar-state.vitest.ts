@@ -54,15 +54,16 @@ describe("toolbar-state", () => {
 	});
 
 	describe("resolveToolbarModelId", () => {
-		it("prefers live current model", () => {
+		it("shows a valid provisional model selection while live capabilities catch up", () => {
 			expect(
 				resolveToolbarModelId({
 					liveCurrentModelId: "claude-opus",
 					provisionalModelId: "claude-sonnet",
+					defaultModelId: null,
 					availableModels,
 					allowsImplicitModelSelection: true,
 				})
-			).toBe("claude-opus");
+			).toBe("claude-sonnet");
 		});
 
 		it("uses valid provisional model when live is missing", () => {
@@ -70,6 +71,7 @@ describe("toolbar-state", () => {
 				resolveToolbarModelId({
 					liveCurrentModelId: null,
 					provisionalModelId: "claude-opus",
+					defaultModelId: null,
 					availableModels,
 					allowsImplicitModelSelection: true,
 				})
@@ -81,6 +83,7 @@ describe("toolbar-state", () => {
 				resolveToolbarModelId({
 					liveCurrentModelId: null,
 					provisionalModelId: null,
+					defaultModelId: null,
 					availableModels,
 					allowsImplicitModelSelection: true,
 				})
@@ -92,6 +95,7 @@ describe("toolbar-state", () => {
 				resolveToolbarModelId({
 					liveCurrentModelId: null,
 					provisionalModelId: "invalid-model",
+					defaultModelId: null,
 					availableModels,
 					allowsImplicitModelSelection: true,
 				})
@@ -103,10 +107,35 @@ describe("toolbar-state", () => {
 				resolveToolbarModelId({
 					liveCurrentModelId: null,
 					provisionalModelId: null,
+					defaultModelId: null,
 					availableModels,
 					allowsImplicitModelSelection: false,
 				})
 			).toBeNull();
+		});
+
+		it("uses a valid default model before falling back to the first available model", () => {
+			expect(
+				resolveToolbarModelId({
+					liveCurrentModelId: null,
+					provisionalModelId: null,
+					defaultModelId: "claude-opus",
+					availableModels,
+					allowsImplicitModelSelection: true,
+				})
+			).toBe("claude-opus");
+		});
+
+		it("ignores a stale default model", () => {
+			expect(
+				resolveToolbarModelId({
+					liveCurrentModelId: null,
+					provisionalModelId: null,
+					defaultModelId: "missing",
+					availableModels,
+					allowsImplicitModelSelection: true,
+				})
+			).toBe("claude-sonnet");
 		});
 	});
 

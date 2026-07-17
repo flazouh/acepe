@@ -109,7 +109,7 @@ function handleEnterBehaviorChange(value: string): void {
 	<ButtonGroup class={buttonGroupClass}>
 		{@render submitButton()}
 		<Selector
-			{disabled}
+			variant="ghost"
 			align="end"
 			side="top"
 			sideOffset={8}

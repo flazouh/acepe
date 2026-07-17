@@ -123,6 +123,7 @@ vi.mock("../api.js", () => ({
 
 const getSessionModelForMode = vi.fn();
 const setSessionModelForMode = vi.fn();
+const getDefaultModel = vi.fn();
 const updateModelsCache = vi.fn();
 const updateModelsDisplayCache = vi.fn();
 const updateModesCache = vi.fn();
@@ -135,6 +136,7 @@ const updateProviderMetadataCache = vi.fn();
 
 vi.mock("../agent-model-preferences-store.svelte.js", () => ({
 	getSessionModelForMode,
+	getDefaultModel,
 	setSessionModelForMode,
 	updateModelsCache,
 	updateModelsDisplayCache,
@@ -415,6 +417,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		(stateReader.getSessionCurrentModeId as ReturnType<typeof vi.fn>).mockReturnValue(null);
 		(connectionManager.isConnecting as ReturnType<typeof vi.fn>).mockReturnValue(false);
 		ensureLoaded.mockReturnValue(okAsync(undefined));
+		getDefaultModel.mockReturnValue(null);
 		fetchCanonicalSessionStateEnvelope.mockReturnValue(errAsync(new Error("not polled")));
 		fetchSessionConnectionReadiness.mockReturnValue(errAsync(new Error("not polled")));
 		isSessionModelLoaded.mockReturnValue(true);
@@ -1348,7 +1351,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		// Lifecycle failure arrives while resumeSession invoke is still in-flight
 		rejectLifecycle(
 			new Error(
-				"Failed to install Claude CLI: Invalid configuration: Auto-download feature is not enabled."
+				"Failed to install Claude CLI: Invalid configuration: managed install failed."
 			)
 		);
 
@@ -2742,6 +2745,100 @@ describe("SessionConnectionManager autonomous policy", () => {
 		expect(setMode).toHaveBeenCalledWith(sessionId, "plan");
 		expect(setSessionAutonomous).toHaveBeenCalledWith(sessionId, false);
 		expect(transientProjection.updateTransientProjection).not.toHaveBeenCalled();
+	});
+
+	it("applies the agent default model when switching modes without a session model memory", async () => {
+		mockResidualStateReader(stateReader, { acpSessionId: sessionId });
+		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
+			id: sessionId,
+			projectPath: "/tmp/project",
+			agentId: "claude-code",
+			title: "Claude Session",
+			updatedAt: new Date(),
+			createdAt: new Date(),
+			parentId: null,
+		} satisfies SessionCold);
+		(stateReader.getSessionIdentity as ReturnType<typeof vi.fn>).mockReturnValue({
+			id: sessionId,
+			projectPath: "/tmp/project",
+			agentId: "claude-code",
+			worktreePath: null,
+		});
+		(capabilities.readCapabilities as ReturnType<typeof vi.fn>).mockReturnValue({
+			availableModes: [{ id: "plan", name: "Plan", description: null }],
+			availableModels: [
+				{ id: "model-a", name: "Model A", description: null },
+				{ id: "model-b", name: "Model B", description: null },
+			],
+			availableCommands: [],
+			modelsDisplay: undefined,
+		});
+		getSessionModelForMode.mockReturnValue(undefined);
+		getDefaultModel.mockReturnValue("model-b");
+		setMode.mockReturnValue(okAsync(undefined));
+		setModel.mockReturnValue(okAsync(undefined));
+
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			transientProjection,
+			capabilities,
+			entryManager,
+			connectionManager,
+		});
+
+		const result = await manager.setMode(sessionId, "plan");
+		expect(result.isOk()).toBe(true);
+
+		expect(getDefaultModel).toHaveBeenCalledWith("claude-code", null);
+		expect(setModel).toHaveBeenCalledWith(sessionId, "model-b");
+	});
+
+	it("prefers the remembered session model over the agent default model when switching modes", async () => {
+		mockResidualStateReader(stateReader, { acpSessionId: sessionId });
+		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
+			id: sessionId,
+			projectPath: "/tmp/project",
+			agentId: "claude-code",
+			title: "Claude Session",
+			updatedAt: new Date(),
+			createdAt: new Date(),
+			parentId: null,
+		} satisfies SessionCold);
+		(stateReader.getSessionIdentity as ReturnType<typeof vi.fn>).mockReturnValue({
+			id: sessionId,
+			projectPath: "/tmp/project",
+			agentId: "claude-code",
+			worktreePath: null,
+		});
+		(capabilities.readCapabilities as ReturnType<typeof vi.fn>).mockReturnValue({
+			availableModes: [{ id: "plan", name: "Plan", description: null }],
+			availableModels: [
+				{ id: "model-a", name: "Model A", description: null },
+				{ id: "model-b", name: "Model B", description: null },
+			],
+			availableCommands: [],
+			modelsDisplay: undefined,
+		});
+		getSessionModelForMode.mockReturnValue("model-a");
+		getDefaultModel.mockReturnValue("model-b");
+		setMode.mockReturnValue(okAsync(undefined));
+		setModel.mockReturnValue(okAsync(undefined));
+
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			transientProjection,
+			capabilities,
+			entryManager,
+			connectionManager,
+		});
+
+		const result = await manager.setMode(sessionId, "plan");
+		expect(result.isOk()).toBe(true);
+
+		expect(setModel).toHaveBeenCalledWith(sessionId, "model-a");
+		expect(getDefaultModel).not.toHaveBeenCalled();
 	});
 
 	it("does not sync Autonomous during mode switch when canonical autonomous state is unknown", async () => {

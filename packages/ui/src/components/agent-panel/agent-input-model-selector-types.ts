@@ -9,6 +9,7 @@ export interface AgentInputModelSelectorItem {
 	description?: string;
 	searchText?: string;
 	isFavorite?: boolean;
+	isDefault?: boolean;
 	hideProviderMark?: boolean;
 }
 

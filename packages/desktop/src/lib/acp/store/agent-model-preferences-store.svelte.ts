@@ -2,7 +2,7 @@
  * Agent Model Preferences Store
  *
  * Module-level store (not context-based) for managing:
- * - Default models per agent per provider mode
+ * - Default models per agent per provider scope
  * - Favorite models per agent
  * - Cached available models per agent (for settings and optimistic display)
  * - Cached available modes per agent (for optimistic display)
@@ -31,6 +31,7 @@ const logger = createLogger({
 
 // SQLite storage keys
 const AGENT_FAVORITE_MODELS_KEY = "agent_favorite_models";
+const AGENT_DEFAULT_MODELS_KEY = "agent_default_models";
 const AGENT_MODEL_PROVIDER_KEY = "agent_model_provider";
 const AGENT_AVAILABLE_MODELS_CACHE_KEY = "agent_available_models_cache";
 const AGENT_AVAILABLE_MODELS_DISPLAY_CACHE_KEY = "agent_available_models_display_cache";
@@ -48,7 +49,12 @@ export interface PrGenerationPreferences {
 }
 
 // State using Svelte 5 runes
+const AGENT_DEFAULT_MODEL_SCOPE = "__agent__";
+
+type AgentDefaultModels = Record<string, Record<string, string>>;
+
 let favorites = $state<Record<string, string[]>>({});
+let defaultModels = $state<AgentDefaultModels>({});
 let modelProviderByAgent = $state<Record<string, string>>({});
 let availableModelsCache = $state<Record<string, Model[]>>({});
 let availableModelsDisplayCache = $state<Record<string, ModelsForDisplay>>({});
@@ -98,6 +104,46 @@ export function toggleFavorite(agentId: string, modelId: string): void {
 	}
 
 	persistFavorites();
+}
+
+function getDefaultModelScopeKey(providerId: string | null | undefined): string {
+	return providerId && providerId.length > 0 ? providerId : AGENT_DEFAULT_MODEL_SCOPE;
+}
+
+export function getDefaultModel(agentId: string, providerId: string | null | undefined): string | null {
+	const scopeKey = getDefaultModelScopeKey(providerId);
+	return defaultModels[agentId]?.[scopeKey] ?? null;
+}
+
+export function isDefaultModel(
+	agentId: string,
+	providerId: string | null | undefined,
+	modelId: string
+): boolean {
+	return getDefaultModel(agentId, providerId) === modelId;
+}
+
+export function setDefaultModel(
+	agentId: string,
+	providerId: string | null | undefined,
+	modelId: string | null
+): void {
+	const scopeKey = getDefaultModelScopeKey(providerId);
+
+	if (!defaultModels[agentId]) {
+		defaultModels[agentId] = {};
+	}
+
+	if (modelId === null) {
+		delete defaultModels[agentId][scopeKey];
+		if (Object.keys(defaultModels[agentId]).length === 0) {
+			delete defaultModels[agentId];
+		}
+	} else {
+		defaultModels[agentId][scopeKey] = modelId;
+	}
+
+	persistDefaultModels();
 }
 
 export function getModelProvider(agentId: string): string | null {
@@ -276,6 +322,25 @@ export function loadPersistedState(): ResultAsync<void, AppError> {
 		})
 		.orElse(() => okAsync(undefined));
 
+	const defaultModelsLoad = tauriClient.settings
+		.get<AgentDefaultModels>(AGENT_DEFAULT_MODELS_KEY)
+		.map((persisted) => {
+			if (persisted && typeof persisted === "object") {
+				defaultModels = persisted;
+				logger_instance.debug("Loaded agent default models", {
+					agents: Object.keys(persisted).length,
+				});
+			}
+			return undefined;
+		})
+		.mapErr((err) => {
+			logger_instance.debug("No persisted default models found (expected on first run)", {
+				error: err.message,
+			});
+			return err;
+		})
+		.orElse(() => okAsync(undefined));
+
 	const modelsCacheLoad = tauriClient.settings
 		.get<Record<string, Model[]>>(AGENT_AVAILABLE_MODELS_CACHE_KEY)
 		.map((persisted) => {
@@ -400,6 +465,7 @@ export function loadPersistedState(): ResultAsync<void, AppError> {
 
 	loadPromise = ResultAsync.combine([
 		favoritesLoad,
+		defaultModelsLoad,
 		modelProvidersLoad,
 		modelsCacheLoad,
 		providerMetadataCacheLoad,
@@ -440,6 +506,14 @@ function persistFavorites(): void {
 		.set<Record<string, string[]>>(AGENT_FAVORITE_MODELS_KEY, favorites)
 		.mapErr((err) => {
 			logger_instance.error("Failed to persist favorite models", { error: err.message });
+		});
+}
+
+function persistDefaultModels(): void {
+	tauriClient.settings
+		.set<AgentDefaultModels>(AGENT_DEFAULT_MODELS_KEY, defaultModels)
+		.mapErr((err) => {
+			logger_instance.error("Failed to persist default models", { error: err.message });
 		});
 }
 

@@ -61,7 +61,12 @@ export function resolveSelectorsLoading(input: ResolveSelectorsLoadingInput): bo
 		modelsDisplay: input.modelsDisplay,
 	});
 
-	if (input.hasSession && input.isSessionConnecting && !hasResolvableSelection) {
+	if (
+		input.hasSession &&
+		input.isSessionConnecting &&
+		!hasResolvableSelection &&
+		!input.isCacheLoaded
+	) {
 		return true;
 	}
 
