@@ -332,8 +332,13 @@ function completeTrailingRunMarker(
 		return `${original}${markerChar.repeat(marker.length - trailingRun)}`;
 	}
 
-	// Case 3: unclosed opener with content — close it.
-	return `${original}${marker}`;
+	// Case 3: unclosed opener with content — close it just after the last
+	// non-whitespace character, so a trailing space (common mid multi-word bold,
+	// e.g. "**every ") doesn't put whitespace before the closer and make it an
+	// invalid, literal-rendering delimiter ("**every **" → shows the asterisks).
+	const trimmedEnd = original.replace(/\s+$/u, "");
+	const trailingWhitespace = original.slice(trimmedEnd.length);
+	return `${trimmedEnd}${marker}${trailingWhitespace}`;
 }
 
 /**
