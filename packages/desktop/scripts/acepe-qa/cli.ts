@@ -34,6 +34,7 @@ import {
 	reloadWebview,
 	resetOnboarding,
 	scanAgentPanelRows,
+	selectPanelProject,
 	sendComposer,
 	watchForVisibleText,
 } from "./interact";
@@ -794,7 +795,7 @@ export async function runCli(
 			command: "help",
 			status: "ok",
 			summary: [
-				"usage: bun run qa [doctor|focus-app|frame-rate-probe|agent-panel-row-scan|agent-panel-scroll-page-probe|ledger-backfill-probe|observe|screenshot|navigate|reload|inspect|inspect-shadow|click|hover|computer-probe|resize-probe|resize-stream-probe|thinking-toggle-probe|first-send-probe|composer-enter-probe|session-open-content-probe|happy-path-perf|streaming-repro-lab|agent-panel-stress-lab|planning-between-tools-probe|send-attach-stress-probe|hmr-ui-probe|send|watch|reset-onboarding] [--app=9223] [--format=json]",
+				"usage: bun run qa [doctor|focus-app|frame-rate-probe|agent-panel-row-scan|agent-panel-scroll-page-probe|ledger-backfill-probe|observe|screenshot|navigate|reload|inspect|inspect-shadow|select-project|click|hover|computer-probe|resize-probe|resize-stream-probe|thinking-toggle-probe|first-send-probe|composer-enter-probe|session-open-content-probe|happy-path-perf|streaming-repro-lab|agent-panel-stress-lab|planning-between-tools-probe|send-attach-stress-probe|hmr-ui-probe|send|watch|reset-onboarding] [--app=9223] [--format=json]",
 				"doctor checks the real dev Tauri target before QA.",
 				"focus-app brings the Acepe desktop app to the macOS foreground.",
 				"frame-rate-probe samples requestAnimationFrame cadence; add --selector to scroll an element while sampling, --scroll-step-px for fixed per-frame scroll speed, --with-row-churn for row mount diagnostics, and --with-profile for agent-panel render phase samples.",
@@ -807,6 +808,7 @@ export async function runCli(
 				"reload refreshes the current WebView route.",
 				"inspect returns compact DOM facts for --selector.",
 				"inspect-shadow returns compact DOM facts inside shadow DOM with --host-selector and --selector.",
+				"select-project selects --project-path inside the exact --panel-id after read-only path resolution and rejects ambiguous project names.",
 				"click clicks by --selector or --text; add --then-selector or --then-text for a popover item, or --key=Enter to activate focused controls.",
 				"hover hovers by --selector or --text; add --after-selector to inspect immediately after hover.",
 				"computer-probe invokes the real app's acepe_computer.act MCP path; add --action and --target-label to act.",
@@ -1602,6 +1604,69 @@ export async function runCli(
 			error: artifact.isErr()
 				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
 				: undefined,
+		});
+		return emitVerifiedUiResult(options, result);
+	}
+
+	if (options.command === "select-project") {
+		if (options.panelId.length === 0 || options.projectPath.length === 0) {
+			const result = buildResult({
+				command: "select-project",
+				status: "fail",
+				summary: ["Missing --panel-id or --project-path."],
+				error: dependencyError(
+					"missing_project_target",
+					"select-project needs an exact panel id and project path.",
+					"Example: bun run qa select-project --panel-id=empty-state-panel --project-path=/repo/acepe"
+				),
+			});
+			process.stdout.write(formatCommandResult(result, options.format));
+			return statusExitCode(result.status);
+		}
+		const selection = await selectPanelProject({
+			appIdentifier: options.appIdentifier,
+			panelId: options.panelId,
+			projectPath: options.projectPath,
+			skipDriver: options.skipDriver,
+		});
+		if (selection.isErr()) {
+			const result = buildResult({
+				command: "select-project",
+				status: "fail",
+				summary: ["Unable to select the project in the Acepe WebView."],
+				error: dependencyError(
+					selection.error.code,
+					selection.error.message,
+					"Run acepe-qa doctor, then retry with an exact panel id and project path."
+				),
+			});
+			process.stdout.write(formatCommandResult(result, options.format));
+			return statusExitCode(result.status);
+		}
+		const artifact = await writeJsonArtifact("select-project", selection.value);
+		const artifactPath = artifact.isOk() ? artifact.value : undefined;
+		const result = buildResult({
+			command: "select-project",
+			status: selection.value.selected ? "ok" : "fail",
+			summary: [
+				`panel: ${selection.value.panelId}`,
+				`project path: ${selection.value.projectPath}`,
+				`project name: ${selection.value.projectName ?? "missing"}`,
+				`selected: ${selection.value.selected ? "yes" : "no"}`,
+				`selected aria label: ${selection.value.selectedAriaLabel ?? "missing"}`,
+				`error: ${selection.value.errorMessage ?? "none"}`,
+			],
+			artifactPath,
+			artifactKind: artifactPath === undefined ? undefined : "select-project",
+			error: artifact.isErr()
+				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+				: selection.value.selected
+					? undefined
+					: dependencyError(
+							"project_selection_failed",
+							selection.value.errorMessage ?? "The project selection was not reflected in the target panel.",
+							"Inspect the target panel project trigger and retry."
+						),
 		});
 		return emitVerifiedUiResult(options, result);
 	}

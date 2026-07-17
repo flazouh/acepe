@@ -43,6 +43,21 @@ describe("acepe-qa cli options", () => {
 		expect(options.sessionId).toBe("session-f38");
 	});
 
+	it("parses stable panel and project path identity for project selection", () => {
+		const options = parseOptions(
+			[
+				"select-project",
+				"--panel-id=panel-acepe",
+				"--project-path=/repo/acepe",
+			],
+			"/repo"
+		);
+
+		expect(options.command).toBe("select-project");
+		expect(options.panelId).toBe("panel-acepe");
+		expect(options.projectPath).toBe("/repo/acepe");
+	});
+
 	it("parses an optional first-send pre-scroll offset", () => {
 		const options = parseOptions(
 			["first-send-probe", "--pre-scroll-offset-px=2000"],

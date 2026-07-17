@@ -388,6 +388,19 @@ export const clickResultSchema = z.object({
 	match: domElementSummarySchema.nullable(),
 });
 
+export const panelProjectSelectionResultSchema = z.object({
+	panelId: z.string(),
+	projectPath: z.string(),
+	projectName: z.string().nullable(),
+	projectFound: z.boolean(),
+	ambiguousName: z.boolean(),
+	triggerFound: z.boolean(),
+	optionFound: z.boolean(),
+	selected: z.boolean(),
+	selectedAriaLabel: z.string().nullable(),
+	errorMessage: z.string().nullable(),
+});
+
 export const hoverResultSchema = z.object({
 	hovered: z.boolean(),
 	matchesHoverPseudoClass: z.boolean(),
@@ -712,7 +725,7 @@ export const planningBetweenToolsSampleSchema = z.object({
 	trailingRowKind: z.string().nullable(),
 	trailingOperationStates: z.array(z.string()),
 	activeStreamingTail: z.string().nullable(),
-	localPlaceholderMode: z.enum(["none", "connection", "planning_after_tool"]),
+	localPlaceholderMode: z.enum(["none", "connection", "planning"]),
 	planningRowCount: z.number(),
 	planningText: z.string().nullable(),
 	planningVisible: z.boolean(),
@@ -1033,7 +1046,7 @@ export const firstSendTimelineSampleSchema = z.object({
 	planningHasLocalPendingSendIntent: z.boolean().nullable().optional(),
 	planningHasTrailingCompletedTool: z.boolean().nullable().optional(),
 	planningLocalPlaceholderMode: z
-		.enum(["none", "connection", "planning_after_tool"])
+		.enum(["none", "connection", "planning"])
 		.nullable()
 		.optional(),
 	scrollTopPx: z.number(),
@@ -1118,6 +1131,7 @@ export const openPersistedSessionDiagnosticEventSchema = z.object({
 		"stale-panel",
 		"missing-metadata",
 		"request-started",
+		"result-preparing",
 		"result-missing",
 		"result-error",
 		"result-found",
@@ -1177,7 +1191,7 @@ export const openPersistedSessionDiagnosticEventSchema = z.object({
 				.nullable()
 				.optional()
 				.transform((value) => value ?? null),
-			ledgerJournalCutoffMs: z.number().optional().default(0),
+			ledgerProjectionFrontierMs: z.number().optional().default(0),
 			ledgerPageReadMs: z.number().optional().default(0),
 			ledgerHeaderDecodeMs: z.number().optional().default(0),
 			ledgerRowsDecodeMs: z.number().optional().default(0),
@@ -1271,7 +1285,7 @@ export const planningDebugSnapshotSchema = z.object({
 	hasMessages: z.boolean(),
 	visibleEntryCount: z.number(),
 	hasTrailingCompletedTool: z.boolean(),
-	localPlaceholderMode: z.enum(["none", "connection", "planning_after_tool"]),
+	localPlaceholderMode: z.enum(["none", "connection", "planning"]),
 	actionabilityCanSend: z.boolean().nullable(),
 	sessionCanSubmit: z.boolean(),
 	disableSendForFailedFirstSend: z.boolean(),
@@ -1348,6 +1362,7 @@ export type AppObservation = z.infer<typeof appObservationSchema>;
 export type ScreenshotResult = z.infer<typeof screenshotResultSchema>;
 export type DomInspectionResult = z.infer<typeof domInspectionResultSchema>;
 export type ClickResult = z.infer<typeof clickResultSchema>;
+export type PanelProjectSelectionResult = z.infer<typeof panelProjectSelectionResultSchema>;
 export type HoverResult = z.infer<typeof hoverResultSchema>;
 export type ThinkingToggleProbeResult = z.infer<typeof thinkingToggleProbeResultSchema>;
 export type ResetOnboardingResult = z.infer<typeof resetOnboardingResultSchema>;

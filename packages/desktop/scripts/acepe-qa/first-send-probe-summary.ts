@@ -65,6 +65,16 @@ function detachedSampleCount(samples: FirstSendTimelineProbeResult["samples"]): 
 	return count;
 }
 
+function hiddenPlanningSampleCount(samples: FirstSendTimelineProbeResult["samples"]): number {
+	let count = 0;
+	for (const sample of samples) {
+		if (sample.planningLocalPlaceholderMode === "planning" && !sample.planningVisible) {
+			count += 1;
+		}
+	}
+	return count;
+}
+
 function sentRowHiddenDurationMs(samples: FirstSendTimelineProbeResult["samples"]): number {
 	let firstHiddenAtMs: number | null = null;
 	let lastHiddenAtMs: number | null = null;
@@ -103,6 +113,7 @@ export function summarizeFirstSendProbe(
 	const rowMaxHeightPx = maxOnscreenRowHeight(probe.samples);
 	const maxDfbPx = maxDistFromBottom(probe.samples);
 	const detachedSamples = detachedSampleCount(probe.samples);
+	const hiddenPlanningSamples = hiddenPlanningSampleCount(probe.samples);
 	const hiddenDurationMs = sentRowHiddenDurationMs(probe.samples);
 	let trustedScrollEvents = 0;
 	for (const event of probe.scrollProvenance.events) {
@@ -134,6 +145,7 @@ export function summarizeFirstSendProbe(
 		`onscreen row max height: ${rowMaxHeightPx === null ? "none" : `${Math.round(rowMaxHeightPx).toString()}px`}`,
 		`max dfb: ${maxDfbPx === null ? "none" : `${Math.round(maxDfbPx).toString()}px`}`,
 		`detached samples: ${detachedSamples.toString()}`,
+		`hidden planning samples: ${hiddenPlanningSamples.toString()}`,
 		`sent row hidden before stream: ${hiddenDurationMs.toString()}ms`,
 		`scrollTop writes: ${probe.scrollProvenance.writes.length.toString()}`,
 		`scroll events: ${probe.scrollProvenance.events.length.toString()} (trusted ${trustedScrollEvents.toString()})`,
@@ -146,6 +158,7 @@ export function summarizeFirstSendProbe(
 		!probe.sent ||
 		!probe.preScroll.passed ||
 		detachedSamples > 0 ||
+		hiddenPlanningSamples > 0 ||
 		(placeholderMaxHeightPx !== null &&
 			placeholderMaxHeightPx > PLACEHOLDER_HEIGHT_FAIL_PX)
 	) {

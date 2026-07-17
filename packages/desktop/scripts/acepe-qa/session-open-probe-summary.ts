@@ -99,7 +99,7 @@ export function formatSessionOpenBackendTiming(events: readonly SessionOpenEvent
 		`context=${formatOptionalMs(timing.contextMs)}`,
 		`provider=${formatOptionalMs(timing.providerLoadMs)}`,
 		`ledger=${formatOptionalMs(timing.ledgerTailReadMs)}`,
-		`ledgerJournal=${formatOptionalMs(timing.ledgerJournalCutoffMs)}`,
+		`ledgerProjection=${formatOptionalMs(timing.ledgerProjectionFrontierMs)}`,
 		`ledgerPage=${formatOptionalMs(timing.ledgerPageReadMs)}`,
 		`ledgerHeader=${formatOptionalMs(timing.ledgerHeaderDecodeMs)}`,
 		`ledgerRows=${formatOptionalMs(timing.ledgerRowsDecodeMs)}`,
