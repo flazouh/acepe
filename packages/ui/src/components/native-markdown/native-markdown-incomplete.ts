@@ -162,7 +162,44 @@ function completeInlineEmphasisAndLinks(markdown: string): string {
 		return italicCompleted;
 	}
 
+	// A lone trailing `*`/`_` preceded by whitespace is the first character of an
+	// opener being revealed one char at a time (e.g. "reads *" on the way to
+	// "reads **bold**"). It can't open emphasis where it is (a marker followed by
+	// end-of-string can't be left-flanking), so strip it rather than flash a
+	// literal asterisk for a frame. Only fires when nothing else completed.
+	const loneMarkerStripped = stripTrailingLoneOpener(masked, markdown);
+	if (loneMarkerStripped !== null) {
+		return loneMarkerStripped;
+	}
+
 	return markdown;
+}
+
+function stripTrailingLoneOpener(
+	text: string,
+	original: string,
+): string | null {
+	const lastIndex = text.length - 1;
+	const lastChar = text[lastIndex];
+	if ((lastChar !== "*" && lastChar !== "_") || isEscaped(text, lastIndex)) {
+		return null;
+	}
+	// Must be a single marker (not part of a `**`/`__` run the run-marker pass owns).
+	if (text[lastIndex - 1] === lastChar) {
+		return null;
+	}
+	// Only strip when it's clearly an opener attempt: preceded by whitespace or at
+	// the very start. `word*` (no space) is an ambiguous closer — leave it.
+	const before = text[lastIndex - 1];
+	if (
+		before !== undefined &&
+		before !== " " &&
+		before !== "\n" &&
+		before !== "\t"
+	) {
+		return null;
+	}
+	return original.slice(0, lastIndex);
 }
 
 /**

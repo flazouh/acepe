@@ -171,6 +171,8 @@ describe("completeIncompleteMarkdown", () => {
 			["**a** **b** **c", "**a** **b** **c**"],
 			["reads **every ", "reads **every** "],
 			["reads **every single", "reads **every single**"],
+			["reads *", "reads "],
+			["reads strict *", "reads strict "],
 		];
 		for (const [input, expected] of cases) {
 			it(`${JSON.stringify(input)} -> ${JSON.stringify(expected)}`, () => {
