@@ -96,6 +96,7 @@ interface MakeInputOptions {
 	readonly hasPendingQuestion?: boolean;
 	readonly pendingComputerPermission?: ComputerPermissionInteraction | null;
 	readonly hasUnseenCompletion?: boolean;
+	readonly hasLocalPendingSendIntent?: boolean;
 }
 
 function makeInput(options: MakeInputOptions = {}): LiveSessionWorkInput {
@@ -124,6 +125,7 @@ function makeInput(options: MakeInputOptions = {}): LiveSessionWorkInput {
 			pendingPermission: null,
 		},
 		hasUnseenCompletion: options.hasUnseenCompletion ?? false,
+		hasLocalPendingSendIntent: options.hasLocalPendingSendIntent ?? false,
 	};
 }
 
@@ -336,6 +338,23 @@ describe("deriveLiveCanonicalActivity", () => {
 		expect(selectSessionStatusForPresentation(projection)).toBe("error");
 	});
 
+	it("keeps pending-send missing canonical rows connecting instead of erroring", () => {
+		const projection = deriveLiveSessionWorkProjection(
+			makeInput({
+				source: {
+					kind: "missing_canonical",
+					sessionId: "session-1",
+				},
+				hasLocalPendingSendIntent: true,
+			})
+		);
+
+		expect(projection.hasError).toBe(false);
+		expect(projection.state.connection).toBe("connecting");
+		expect(projection.canonicalActivity).toBe("idle");
+		expect(selectSessionStatusForPresentation(projection)).toBe("connecting");
+	});
+
 	it("keeps inactive history sessions neutral when no canonical projection is loaded", () => {
 		const projection = deriveLiveSessionWorkProjection(
 			makeInput({
@@ -407,6 +426,40 @@ describe("deriveLiveSessionWorkProjection", () => {
 		expect(failedProjection.hasError).toBe(true);
 		expect(failedProjection.canonicalActivity).toBe("error");
 		expect(selectSessionStatusForPresentation(failedProjection)).toBe("error");
+	});
+
+	it("does not surface a stale lifecycle error message while reconnecting", () => {
+		const projection = deriveLiveSessionWorkProjection(
+			makeInput({
+				canonicalProjection: makeCanonicalProjection(
+					"reconnecting",
+					"idle",
+					"Previous connection failed"
+				),
+			})
+		);
+
+		expect(projection.hasError).toBe(false);
+		expect(projection.state.connection).toBe("connecting");
+		expect(projection.canonicalActivity).toBe("idle");
+		expect(selectSessionStatusForPresentation(projection)).toBe("connecting");
+	});
+
+	it("does not surface a stale lifecycle error message while detached", () => {
+		const projection = deriveLiveSessionWorkProjection(
+			makeInput({
+				canonicalProjection: makeCanonicalProjection(
+					"detached",
+					"idle",
+					"Previous connection failed"
+				),
+			})
+		);
+
+		expect(projection.hasError).toBe(false);
+		expect(projection.state.connection).toBe("disconnected");
+		expect(projection.canonicalActivity).toBe("idle");
+		expect(selectSessionStatusForPresentation(projection)).toBe("idle");
 	});
 
 	it("surfaces canonical active turn failures", () => {

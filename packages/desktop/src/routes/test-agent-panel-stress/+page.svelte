@@ -1119,7 +1119,7 @@ function completedToolPlanningSamplePassed(
 		sample.trailingRowKind === "tool" &&
 		sample.trailingOperationStates.length > 0 &&
 		sample.trailingOperationStates.every((state) => state === "completed") &&
-		sample.localPlaceholderMode === "planning_after_tool" &&
+		sample.localPlaceholderMode === "planning" &&
 		sample.planningRowCount === 1 &&
 		sample.planningVisible &&
 		sample.planningText?.includes(PLANNING_ROW_EXPECTED_TEXT) === true

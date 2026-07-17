@@ -225,6 +225,10 @@ export class UrgencyTabsStore {
 				pendingPermission: interactionSnapshot?.pendingPermission ?? null,
 			},
 			hasUnseenCompletion: false,
+			hasLocalPendingSendIntent:
+				sessionId !== null
+					? this.sessionStore.read.getSessionHasLocalPendingSendIntent(sessionId)
+					: false,
 		});
 		const workBucket = selectSessionWorkBucket(workProjection);
 		const lifecycleStatus =

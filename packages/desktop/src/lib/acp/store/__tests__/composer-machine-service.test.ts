@@ -81,7 +81,7 @@ describe("ComposerMachineService", () => {
 		expect(service.getState("s1")?.value).toBe("interactive");
 	});
 
-	it("commits canonical config on successful config operation", async () => {
+	it("keeps accepted provisional config after success until canonical projection rebinds", async () => {
 		const service = makeService(() => makeCommitState("plan", "m1", true));
 		const ok = await service.runConfigOperation(
 			"s1",
@@ -95,9 +95,9 @@ describe("ComposerMachineService", () => {
 		expect(ok).toBe(true);
 		expect(service.getState("s1")?.value).toBe("interactive");
 		const snap = service.getState("s1")!;
-		expect(snap.context.committedModeId).toBe("plan");
-		expect(snap.context.committedModelId).toBe("m1");
-		expect(snap.context.committedAutonomousEnabled).toBe(true);
+		expect(snap.context.committedModeId).toBe("build");
+		expect(snap.context.committedModelId).toBe("m2");
+		expect(snap.context.committedAutonomousEnabled).toBe(false);
 	});
 
 	it("does not mutate committed autonomous state until the config operation commits", async () => {

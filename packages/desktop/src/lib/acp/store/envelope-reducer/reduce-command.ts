@@ -1,6 +1,9 @@
 import type {
+	ActiveStreamingTail,
+	SessionGraphActivity,
 	SessionGraphCapabilities,
 	SessionGraphRevision,
+	SessionTurnState,
 	SessionStateGraph,
 	TranscriptDelta,
 	TranscriptSnapshot,
@@ -38,6 +41,38 @@ import {
 	defaultIdleActivity,
 	reconcileStoredGraphActivity,
 } from "./reconcile-graph-activity.js";
+
+function terminalTurnState(turnState: SessionTurnState | null | undefined): boolean {
+	return turnState === "Completed" || turnState === "Failed" || turnState === "Cancelled";
+}
+
+function activityForGraphPatch(input: {
+	readonly commandActivity: SessionGraphActivity | undefined;
+	readonly previousActivity: SessionGraphActivity;
+	readonly nextTurnState: SessionTurnState;
+}): SessionGraphActivity {
+	if (input.commandActivity !== undefined) {
+		return mergeSessionGraphActivityTiming(
+			input.previousActivity,
+			input.commandActivity,
+			Date.now()
+		);
+	}
+
+	return terminalTurnState(input.nextTurnState) ? defaultIdleActivity() : input.previousActivity;
+}
+
+function activeStreamingTailForGraphPatch(input: {
+	readonly commandActiveStreamingTail: ActiveStreamingTail | null | undefined;
+	readonly previousActiveStreamingTail: ActiveStreamingTail | null;
+	readonly nextTurnState: SessionTurnState;
+}): ActiveStreamingTail | null {
+	if (input.commandActiveStreamingTail !== undefined) {
+		return input.commandActiveStreamingTail;
+	}
+
+	return terminalTurnState(input.nextTurnState) ? null : input.previousActiveStreamingTail;
+}
 
 export function reduceCommand(
 	snapshot: EnvelopeReducerSnapshot,
@@ -476,19 +511,21 @@ function reduceApplyGraphPatches(
 		command.activeTurnFailure === undefined
 			? previousProjection.activeTurnFailure
 			: mapProjectionTurnFailure(command.activeTurnFailure);
-	const nextActivity =
-		command.activity === undefined
-			? previousProjection.activity
-			: mergeSessionGraphActivityTiming(
-					previousProjection.activity,
-					command.activity,
-					Date.now()
-				);
 	const nextTurnState = command.turnState ?? previousProjection.turnState;
+	const nextProjectionActivity = activityForGraphPatch({
+		commandActivity: command.activity,
+		previousActivity: previousProjection.activity,
+		nextTurnState,
+	});
 	const nextLastTerminalTurnId =
 		command.lastTerminalTurnId === undefined
 			? previousProjection.lastTerminalTurnId
 			: command.lastTerminalTurnId;
+	const nextProjectionActiveStreamingTail = activeStreamingTailForGraphPatch({
+		commandActiveStreamingTail: command.activeStreamingTail,
+		previousActiveStreamingTail: previousProjection.activeStreamingTail,
+		nextTurnState,
+	});
 
 	const patches: EnvelopePatch[] = [
 		{
@@ -518,6 +555,16 @@ function reduceApplyGraphPatches(
 			},
 		];
 	}
+	const nextGraphActivity = activityForGraphPatch({
+		commandActivity: command.activity,
+		previousActivity: previousGraph.activity,
+		nextTurnState,
+	});
+	const nextGraphActiveStreamingTail = activeStreamingTailForGraphPatch({
+		commandActiveStreamingTail: command.activeStreamingTail,
+		previousActiveStreamingTail: previousGraph.activeStreamingTail,
+		nextTurnState,
+	});
 
 	patches.push({
 		kind: "setSessionStateGraph",
@@ -525,11 +572,11 @@ function reduceApplyGraphPatches(
 		graph: graphWithPatches({
 			graph: previousGraph,
 			revision: command.revision,
-			activity: command.activity,
+			activity: nextGraphActivity,
 			turnState: command.turnState,
 			activeTurnFailure: command.activeTurnFailure,
 			lastTerminalTurnId: command.lastTerminalTurnId,
-			activeStreamingTail: command.activeStreamingTail,
+			activeStreamingTail: nextGraphActiveStreamingTail,
 			operationPatches: command.operationPatches,
 			interactionPatches: command.interactionPatches,
 		}),
@@ -540,14 +587,11 @@ function reduceApplyGraphPatches(
 		sessionId: snapshot.sessionId,
 		projection: {
 			lifecycle: previousProjection.lifecycle,
-			activity: nextActivity,
+			activity: nextProjectionActivity,
 			turnState: nextTurnState,
 			activeTurnFailure,
 			lastTerminalTurnId: nextLastTerminalTurnId,
-			activeStreamingTail:
-				command.activeStreamingTail === undefined
-					? previousProjection.activeStreamingTail
-					: command.activeStreamingTail,
+			activeStreamingTail: nextProjectionActiveStreamingTail,
 			capabilities: previousProjection.capabilities,
 			tokenStream: preservedStreamingState.tokenStream,
 			clockAnchor: preservedStreamingState.clockAnchor,
@@ -575,7 +619,7 @@ function reduceApplyGraphPatches(
 		{
 			kind: "syncAwaitingModelRefreshTimer",
 			sessionId: snapshot.sessionId,
-			activity: nextActivity,
+			activity: nextProjectionActivity,
 			turnState: nextTurnState,
 		}
 	);

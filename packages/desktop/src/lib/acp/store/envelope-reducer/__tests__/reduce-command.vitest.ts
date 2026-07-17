@@ -772,6 +772,73 @@ describe("reduceCommand", () => {
 		expect(patches.some((patch) => patch.kind === "reconcileConnectionMachine")).toBe(true);
 	});
 
+	it("normalizes terminal turn graph patches to idle even when activity fields are omitted", () => {
+		const staleActivity = {
+			kind: "awaiting_model" as const,
+			activeOperationCount: 0,
+			activeSubagentCount: 0,
+			dominantOperationId: null,
+			blockingInteractionId: null,
+		};
+		const staleTail = { rowId: "assistant-1", contentKind: "message" as const };
+		const previousProjection = createProjection({
+			activity: staleActivity,
+			turnState: "Running",
+			activeStreamingTail: staleTail,
+		});
+		const previousGraph = createGraph({
+			activity: staleActivity,
+			turnState: "Running",
+			activeStreamingTail: staleTail,
+		});
+
+		const patches = reduceCommand(
+			createSnapshot({ previousProjection, previousGraph }),
+			{
+				kind: "applyGraphPatches",
+				revision: newerRevision,
+				activity: undefined,
+				turnState: "Completed",
+				activeTurnFailure: null,
+				lastTerminalTurnId: "turn-1",
+				activeStreamingTail: undefined,
+				operationPatches: [],
+				interactionPatches: [],
+			},
+			1_700_000_000_000
+		);
+
+		const graphPatch = patches.find((patch) => patch.kind === "setSessionStateGraph");
+		const projectionPatch = patches.find((patch) => patch.kind === "setCanonicalProjection");
+
+		expect(graphPatch).toMatchObject({
+			graph: {
+				activity: {
+					kind: "idle",
+					activeOperationCount: 0,
+					activeSubagentCount: 0,
+					dominantOperationId: null,
+					blockingInteractionId: null,
+				},
+				activeStreamingTail: null,
+				turnState: "Completed",
+			},
+		});
+		expect(projectionPatch).toMatchObject({
+			projection: {
+				activity: {
+					kind: "idle",
+					activeOperationCount: 0,
+					activeSubagentCount: 0,
+					dominantOperationId: null,
+					blockingInteractionId: null,
+				},
+				activeStreamingTail: null,
+				turnState: "Completed",
+			},
+		});
+	});
+
 	it("refreshes snapshot when graph patches arrive before canonical projection", () => {
 		const patches = reduceCommand(
 			createSnapshot({ previousProjection: null }),

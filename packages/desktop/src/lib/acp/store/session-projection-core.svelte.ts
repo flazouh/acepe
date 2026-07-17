@@ -34,7 +34,7 @@ function connectionErrorFromGraphState(
 	lifecycle: SessionGraphLifecycle,
 	activeTurnFailure: ActiveTurnFailure | null
 ): string | null {
-	if (lifecycle.status === "failed" || lifecycle.status === "detached") {
+	if (lifecycle.status === "failed") {
 		return lifecycle.errorMessage ?? null;
 	}
 

@@ -230,6 +230,11 @@ export function deriveCanonicalAgentPanelSessionState(
 		input.source.lifecycle.status === "reserved" ||
 		input.source.lifecycle.status === "activating" ||
 		input.source.lifecycle.status === "reconnecting";
+	const shouldShowPlanningPlaceholder =
+		input.source.lifecycle.status === "ready" &&
+		effectiveActivity?.kind === "awaiting_model" &&
+		effectiveTurnState === "Running" &&
+		(input.hasLocalPendingSendIntent === true || input.hasTrailingCompletedTool);
 	let localPlaceholderMode: LocalPlaceholderMode = "none";
 	if (
 		!hasCanonicalError &&
@@ -237,14 +242,8 @@ export function deriveCanonicalAgentPanelSessionState(
 		(input.hasOptimisticPendingEntry === true || input.hasLocalPendingSendIntent === true)
 	) {
 		localPlaceholderMode = "connection";
-	} else if (
-		!hasCanonicalError &&
-		input.source.lifecycle.status === "ready" &&
-		effectiveActivity?.kind === "awaiting_model" &&
-		effectiveTurnState === "Running" &&
-		input.hasTrailingCompletedTool
-	) {
-		localPlaceholderMode = "planning_after_tool";
+	} else if (!hasCanonicalError && shouldShowPlanningPlaceholder) {
+		localPlaceholderMode = "planning";
 	}
 	const baseStatus = mapCanonicalSessionToPanelStatus({
 		lifecycle: input.source.lifecycle,

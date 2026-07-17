@@ -52,6 +52,44 @@ function createReadyLifecycle(): SessionGraphLifecycle {
 	};
 }
 
+function createReconnectingLifecycleWithStaleError(): SessionGraphLifecycle {
+	return {
+		status: "reconnecting",
+		detachedReason: null,
+		failureReason: null,
+		errorMessage: "Previous connection failed",
+		actionability: {
+			canSend: false,
+			canResume: false,
+			canRetry: false,
+			canArchive: true,
+			canConfigure: false,
+			recommendedAction: "wait",
+			recoveryPhase: "reconnecting",
+			compactStatus: "reconnecting",
+		},
+	};
+}
+
+function createDetachedLifecycleWithStaleError(): SessionGraphLifecycle {
+	return {
+		status: "detached",
+		detachedReason: "restoredRequiresAttach",
+		failureReason: null,
+		errorMessage: "Previous connection failed",
+		actionability: {
+			canSend: false,
+			canResume: true,
+			canRetry: false,
+			canArchive: true,
+			canConfigure: false,
+			recommendedAction: "resume",
+			recoveryPhase: "detached",
+			compactStatus: "detached",
+		},
+	};
+}
+
 function createCapabilities(): SessionGraphCapabilities {
 	return {
 		models: {
@@ -94,7 +132,8 @@ function createCapabilities(): SessionGraphCapabilities {
 function createGraph(
 	capabilities: SessionGraphCapabilities,
 	entries: TranscriptEntry[] = [],
-	interactions: InteractionSnapshot[] = []
+	interactions: InteractionSnapshot[] = [],
+	lifecycle: SessionGraphLifecycle = createReadyLifecycle()
 ): SessionStateGraph {
 	const revision = createRevision(7);
 	return {
@@ -117,7 +156,7 @@ function createGraph(
 		activeTurnFailure: null,
 		lastTerminalTurnId: null,
 		activeStreamingTail: null,
-		lifecycle: createReadyLifecycle(),
+		lifecycle,
 		activity: createIdleActivity(),
 		capabilities,
 	};
@@ -467,6 +506,49 @@ describe("SessionStore canonical projection accessors", () => {
 		});
 		expect(store.read.getSessionCapabilityPendingMutationId("session-1")).toBeNull();
 		expect(store.read.getSessionCapabilityPreviewState("session-1")).toBe("canonical");
+	});
+
+	it("does not surface stale lifecycle error text in the sidebar while reconnecting", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+		store.applySessionStateGraph(
+			createGraph(
+				createCapabilities(),
+				[],
+				[],
+				createReconnectingLifecycleWithStaleError()
+			)
+		);
+
+		const presentation = store.presentation.getSessionListItemPresentation({
+			sessionId: "session-1",
+			interactionStore: new InteractionStore(),
+			hasUnseenCompletion: false,
+			active: true,
+		});
+
+		expect(presentation.connectionError).toBeNull();
+		expect(presentation.liveSessionState.connection).toBe("connecting");
+		expect(presentation.sessionWorkProjection.hasError).toBe(false);
+	});
+
+	it("does not surface stale lifecycle error text in the sidebar while detached", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+		store.applySessionStateGraph(
+			createGraph(createCapabilities(), [], [], createDetachedLifecycleWithStaleError())
+		);
+
+		const presentation = store.presentation.getSessionListItemPresentation({
+			sessionId: "session-1",
+			interactionStore: new InteractionStore(),
+			hasUnseenCompletion: false,
+			active: true,
+		});
+
+		expect(presentation.connectionError).toBeNull();
+		expect(presentation.liveSessionState.connection).toBe("disconnected");
+		expect(presentation.sessionWorkProjection.hasError).toBe(false);
 	});
 
 	it("returns pending question interactions through the question selector only", () => {

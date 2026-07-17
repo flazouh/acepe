@@ -142,13 +142,15 @@ export class ComposerMachineService {
 		actor.send({ type: "DISPATCH_END" });
 	}
 
-	completeConfigSuccess(sessionId: string): void {
-		const canonical = this.deps.getCommitState(sessionId);
+	completeConfigSuccess(
+		sessionId: string,
+		acceptedState: ComposerSessionCommitState
+	): void {
 		this.send(sessionId, {
 			type: "CONFIG_BLOCK_SUCCESS",
-			committedModeId: canonical.modeId,
-			committedModelId: canonical.modelId,
-			committedAutonomousEnabled: canonical.autonomousEnabled,
+			committedModeId: acceptedState.modeId,
+			committedModelId: acceptedState.modelId,
+			committedAutonomousEnabled: acceptedState.autonomousEnabled,
 		});
 	}
 
@@ -181,7 +183,20 @@ export class ComposerMachineService {
 				return false;
 			}
 			if (ok) {
-				this.completeConfigSuccess(sessionId);
+				this.completeConfigSuccess(sessionId, {
+					modeId:
+						beginPayload.provisionalModeId !== undefined
+							? beginPayload.provisionalModeId
+							: afterBegin.context.committedModeId,
+					modelId:
+						beginPayload.provisionalModelId !== undefined
+							? beginPayload.provisionalModelId
+							: afterBegin.context.committedModelId,
+					autonomousEnabled:
+						beginPayload.provisionalAutonomousEnabled !== undefined
+							? beginPayload.provisionalAutonomousEnabled
+							: afterBegin.context.committedAutonomousEnabled,
+				});
 			} else {
 				this.completeConfigFail(sessionId);
 			}
