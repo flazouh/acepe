@@ -405,7 +405,7 @@ describe("NativeMarkdown", () => {
 		});
 
 		const chip = container.querySelector(".file-path-badge");
-		expect(chip?.className).toContain("rounded-sm");
+		expect(chip?.className).toContain("rounded-md");
 		expect(chip?.querySelector("img")?.getAttribute("src")).toMatch(/^data:image\/svg\+xml,/);
 		chip?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 
@@ -445,7 +445,7 @@ describe("NativeMarkdown", () => {
 
 		const chip = container.querySelector(".github-badge");
 		expect(chip?.getAttribute("href")).toBe("https://github.com/flazouh/acepe/pull/184");
-		expect(chip?.className).toContain("rounded-sm");
+		expect(chip?.className).toContain("rounded-md");
 		chip?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 
 		expect(onExternalLinkClick).toHaveBeenCalledWith("https://github.com/flazouh/acepe/pull/184");

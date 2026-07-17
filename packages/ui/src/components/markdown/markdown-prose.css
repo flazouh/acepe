@@ -235,8 +235,12 @@
 }
 
 .markdown-content[data-token-reveal-mode="smooth"] [data-sd-animate] {
+	opacity: 0;
+	animation-name: var(--sd-animation, sd-acepeTokenReveal);
 	animation-delay: calc(var(--token-reveal-baseline-ms, 0ms) + var(--sd-delay, 0ms));
 	animation-duration: var(--token-reveal-fade-ms, var(--sd-duration, 150ms));
+	animation-timing-function: var(--sd-easing, cubic-bezier(0.16, 1, 0.3, 1));
+	animation-fill-mode: both;
 	will-change: opacity, filter, transform;
 }
 

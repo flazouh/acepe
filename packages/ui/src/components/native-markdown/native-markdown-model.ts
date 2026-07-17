@@ -687,7 +687,10 @@ function createTextInline(text: string, cursor: ParseCursor): NativeMarkdownText
 
 	return {
 		type: "text",
-		key: firstWordIndex === null ? nextKey(cursor, "text") : `text:${firstWordIndex}`,
+		key:
+			firstWordIndex === null
+				? nextKey(cursor, "text")
+				: nextKey(cursor, `text:${firstWordIndex}`),
 		parts,
 	};
 }
