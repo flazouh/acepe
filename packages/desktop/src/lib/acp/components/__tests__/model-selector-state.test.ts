@@ -7,12 +7,12 @@ import {
 	getModelSelectorDisplayName,
 	getModelSelectorItemId,
 	getModelSelectorItemLabel,
-	resolveModelSelectorAgentId,
 	getModelSelectorProviderBrand,
 	getModelSelectorSearchText,
 	getPreferredReasoningVariantId,
 	getSelectedModel,
 	getSelectedReasoningBaseGroup,
+	resolveModelSelectorAgentId,
 } from "../model-selector-state.js";
 
 const models: Model[] = [
@@ -47,9 +47,7 @@ const reasoningGroups: ReasoningBaseModelGroup[] = [
 
 describe("model selector state", () => {
 	it("selects the current model from available models", () => {
-		expect(getSelectedModel({ currentModelId: "gpt-5", availableModels: models })).toBe(
-			models[1]
-		);
+		expect(getSelectedModel({ currentModelId: "gpt-5", availableModels: models })).toBe(models[1]);
 		expect(getSelectedModel({ currentModelId: null, availableModels: models })).toBeNull();
 		expect(getSelectedModel({ currentModelId: "missing", availableModels: models })).toBeNull();
 	});
@@ -70,7 +68,7 @@ describe("model selector state", () => {
 				selectedModel: models[1]!,
 				agentId: "codex",
 			})
-		).toBe("Gpt Five");
+		).toBe("GPT Five");
 		expect(
 			getModelSelectorDisplayName({
 				currentModelId: "missing",
@@ -143,7 +141,7 @@ describe("model selector state", () => {
 				agentId: "codex",
 				modelsDisplay: null,
 			})
-		).toBe("Gpt Five");
+		).toBe("GPT Five");
 		expect(
 			getModelSelectorItemLabel({
 				model: { modelId: "display-id", displayName: "Display" },

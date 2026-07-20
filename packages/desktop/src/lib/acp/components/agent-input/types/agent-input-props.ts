@@ -2,6 +2,7 @@ import type { Snippet } from "svelte";
 
 import type { SessionStatus } from "../../../application/dto/session-status.js";
 import type { AgentInfo } from "../../../logic/agent-manager.js";
+import type { QuestionRequest } from "../../../types/question.js";
 import type { PreparedWorktreeLaunch } from "../../../types/worktree-info.js";
 
 /**
@@ -40,6 +41,9 @@ export interface NewThreadContextBinding {
  * - Without session (projectPath + projectName for new session creation)
  */
 export interface AgentInputProps {
+	/** Canonical question currently awaiting this session's response. */
+	readonly pendingQuestion?: QuestionRequest | null;
+
 	/**
 	 * Existing session ID to use for sending messages.
 	 */

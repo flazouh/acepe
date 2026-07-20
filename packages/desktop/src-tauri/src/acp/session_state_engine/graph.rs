@@ -67,21 +67,6 @@ fn assistant_tail_content_kind(entry: &TranscriptEntry) -> ActiveStreamingTailCo
     ActiveStreamingTailContentKind::Thought
 }
 
-fn find_latest_assistant_entry_after_latest_user(
-    entries: &[TranscriptEntry],
-) -> Option<&TranscriptEntry> {
-    for entry in entries.iter().rev() {
-        if entry.role == TranscriptEntryRole::User {
-            return None;
-        }
-        if entry.role == TranscriptEntryRole::Assistant {
-            return Some(entry);
-        }
-    }
-
-    None
-}
-
 pub fn select_active_streaming_tail(
     turn_state: &SessionTurnState,
     activity: &SessionGraphActivity,
@@ -105,11 +90,7 @@ pub fn select_active_streaming_tail(
         }
     }
 
-    let entry = find_latest_assistant_entry_after_latest_user(entries)?;
-    Some(ActiveStreamingTail {
-        row_id: entry.entry_id.clone(),
-        content_kind: assistant_tail_content_kind(entry),
-    })
+    None
 }
 
 pub(crate) fn select_active_streaming_tail_for_known_last_entry(
@@ -218,7 +199,7 @@ mod tests {
     }
 
     #[test]
-    fn active_streaming_tail_keeps_open_assistant_while_awaiting_more_model_text() {
+    fn active_streaming_tail_is_absent_when_awaiting_model_after_tool_tail() {
         let result = select_active_streaming_tail(
             &SessionTurnState::Running,
             &SessionGraphActivity {
@@ -236,12 +217,6 @@ mod tests {
             ]),
         );
 
-        assert_eq!(
-            result,
-            Some(ActiveStreamingTail {
-                row_id: "a1".to_string(),
-                content_kind: ActiveStreamingTailContentKind::Message,
-            })
-        );
+        assert_eq!(result, None);
     }
 }

@@ -1,19 +1,19 @@
 use crate::acp::event_hub::AcpEventHubState;
 use crate::acp::lifecycle::{DetachedReason, LifecycleStatus};
 use crate::acp::projections::{
-    InteractionState, ProjectionRegistry, SessionProjectionSnapshot, SessionSnapshot,
-    SessionTurnState, is_terminal_operation_state,
+    is_terminal_operation_state, InteractionState, ProjectionRegistry, SessionProjectionSnapshot,
+    SessionSnapshot, SessionTurnState,
 };
 use crate::acp::session::fold_export::{
-    MaterializedThreadSnapshot, materialized_thread_snapshot_from_provider_fold_first,
-    materialized_thread_snapshot_from_thread_snapshot_fold_first,
+    materialized_thread_snapshot_from_provider_fold_first,
+    materialized_thread_snapshot_from_thread_snapshot_fold_first, MaterializedThreadSnapshot,
 };
 use crate::acp::session_descriptor::SessionReplayContext;
 use crate::acp::session_state_engine::graph::select_active_streaming_tail;
 use crate::acp::session_state_engine::protocol::ViewportBufferPush;
 use crate::acp::session_state_engine::runtime_registry::SessionGraphRuntimeRegistry;
 use crate::acp::session_state_engine::selectors::{
-    SessionGraphCapabilities, SessionGraphLifecycle, select_session_graph_activity,
+    select_session_graph_activity, SessionGraphCapabilities, SessionGraphLifecycle,
 };
 use crate::acp::session_state_engine::{
     SessionGraphRevision, SessionStateEnvelope, SessionStatePayload,
@@ -21,15 +21,15 @@ use crate::acp::session_state_engine::{
 use crate::acp::session_thread_snapshot::{ProviderOwnedSessionSnapshot, SessionThreadSnapshot};
 use crate::acp::transcript_projection::relink_operations_to_transcript;
 use crate::acp::transcript_projection::{
-    TranscriptEntryRole, TranscriptProjectionRegistry, TranscriptSegment, TranscriptSnapshot,
-    assistant_boundary_entry_count_from_transcript_entries,
+    assistant_boundary_entry_count_from_transcript_entries, TranscriptEntryRole,
+    TranscriptProjectionRegistry, TranscriptSegment, TranscriptSnapshot,
 };
-use crate::acp::transcript_viewport::TranscriptViewportRow;
 use crate::acp::transcript_viewport::ledger::{
     SerializedTranscriptRowLedgerRow, SessionTranscriptRowLedgerOpenHeader,
     SessionTranscriptRowLedgerRead, SessionTranscriptRowLedgerStatus,
     TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION,
 };
+use crate::acp::transcript_viewport::TranscriptViewportRow;
 use crate::db::repository::{
     SessionEventSeq, SessionEventSequenceRepository, SessionJournalEventRepository,
     SessionMetadataRepository, SessionTranscriptRowLedgerRepository,
@@ -1428,25 +1428,21 @@ async fn load_completed_local_journal_transcript(
     replay_context: &SessionReplayContext,
     canonical_session_id: &str,
 ) -> Result<Option<LocalJournalReplay>, String> {
-    let serialized_events = SessionJournalEventRepository::list_serialized(
-        db,
-        canonical_session_id,
-    )
-    .await
-    .map_err(|error| {
-        format!(
+    let serialized_events =
+        SessionJournalEventRepository::list_serialized(db, canonical_session_id)
+            .await
+            .map_err(|error| {
+                format!(
             "Failed to load local transcript journal for session {canonical_session_id}: {error}"
         )
-    })?;
-    let journal_events = crate::acp::session_journal::decode_serialized_events(
-        replay_context,
-        serialized_events,
-    )
-    .map_err(|error| {
-        format!(
+            })?;
+    let journal_events =
+        crate::acp::session_journal::decode_serialized_events(replay_context, serialized_events)
+            .map_err(|error| {
+                format!(
             "Failed to decode local transcript journal for session {canonical_session_id}: {error}"
         )
-    })?;
+            })?;
 
     let repaired_events =
         crate::acp::session_journal::repair_legacy_parent_tool_use_ids_from_streaming_log(
@@ -1480,25 +1476,21 @@ pub(super) async fn load_local_journal_transcript(
     replay_context: &SessionReplayContext,
     canonical_session_id: &str,
 ) -> Result<Option<LocalJournalReplay>, String> {
-    let serialized_events = SessionJournalEventRepository::list_serialized(
-        db,
-        canonical_session_id,
-    )
-    .await
-    .map_err(|error| {
-        format!(
+    let serialized_events =
+        SessionJournalEventRepository::list_serialized(db, canonical_session_id)
+            .await
+            .map_err(|error| {
+                format!(
             "Failed to load local transcript journal for session {canonical_session_id}: {error}"
         )
-    })?;
-    let journal_events = crate::acp::session_journal::decode_serialized_events(
-        replay_context,
-        serialized_events,
-    )
-    .map_err(|error| {
-        format!(
+            })?;
+    let journal_events =
+        crate::acp::session_journal::decode_serialized_events(replay_context, serialized_events)
+            .map_err(|error| {
+                format!(
             "Failed to decode local transcript journal for session {canonical_session_id}: {error}"
         )
-    })?;
+            })?;
 
     let repaired_events =
         crate::acp::session_journal::repair_legacy_parent_tool_use_ids_from_streaming_log(

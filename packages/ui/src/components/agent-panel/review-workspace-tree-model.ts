@@ -56,15 +56,41 @@ export function createReviewWorkspaceTreeDecoration(
 	file: ReviewWorkspaceFileItem,
 ): FileTreeRowDecoration {
 	const reviewText = reviewStatusText(file);
+	const resetText = resetStatusText(file);
 	const diffText = diffSummaryText(file);
-	const text = diffText.length > 0 ? `${reviewText} ${diffText}` : reviewText;
+	const statusText = resetText ?? reviewText;
+	const text = diffText.length > 0 ? `${statusText} ${diffText}` : statusText;
 	const additionLabel = file.additions === 1 ? "addition" : "additions";
 	const deletionLabel = file.deletions === 1 ? "deletion" : "deletions";
 
 	return {
 		text,
-		title: `${file.filePath}: ${reviewText}, ${file.additions} ${additionLabel}, ${file.deletions} ${deletionLabel}`,
+		title: `${file.filePath}: ${statusText}, ${file.additions} ${additionLabel}, ${file.deletions} ${deletionLabel}`,
 	};
+}
+
+function resetStatusText(file: ReviewWorkspaceFileItem): string | null {
+	if (file.resetStatusLabel) {
+		return file.resetStatusLabel;
+	}
+
+	if (file.resetStatus === "confirming") {
+		return "Confirm reset";
+	}
+
+	if (file.resetStatus === "resetting") {
+		return "Resetting";
+	}
+
+	if (file.resetStatus === "reset") {
+		return "Reset";
+	}
+
+	if (file.resetStatus === "failed") {
+		return "Reset failed";
+	}
+
+	return null;
 }
 
 function reviewStatusText(file: ReviewWorkspaceFileItem): string {

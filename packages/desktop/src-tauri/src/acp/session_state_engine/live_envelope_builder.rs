@@ -6,9 +6,9 @@ use crate::acp::session_state_engine::selectors::{
     SessionGraphCapabilities, SessionGraphLifecycle,
 };
 use crate::acp::session_state_engine::{
-    build_delta_envelope, turn_terminal_change_fields, CapabilityPreviewState,
-    DeltaEnvelopeParts, DeltaSessionProjectionFields, SessionGraphRevision, SessionStateEnvelope,
-    SessionStateField, SessionStatePayload,
+    build_delta_envelope, turn_terminal_change_fields, CapabilityPreviewState, DeltaEnvelopeParts,
+    DeltaSessionProjectionFields, SessionGraphRevision, SessionStateEnvelope, SessionStateField,
+    SessionStatePayload,
 };
 use crate::acp::transcript_projection::TranscriptDelta;
 
@@ -98,4 +98,3 @@ pub(crate) fn build_live_session_state_capabilities_envelope(
         },
     }
 }
-

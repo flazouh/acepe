@@ -48,10 +48,7 @@ type OpenPersistedSessionDiagnosticRecorder = (event: OpenPersistedSessionDiagno
 
 let diagnosticRecorder: OpenPersistedSessionDiagnosticRecorder | null = null;
 
-type SessionOpenStore = Pick<
-	SessionStore,
-	"read" | "loading" | "connection"
->;
+type SessionOpenStore = Pick<SessionStore, "read" | "loading" | "connection">;
 
 type SessionOpenHydratorLike = Pick<
 	SessionOpenHydrator,
@@ -339,7 +336,10 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 				return okAsync(undefined);
 			}
 
-			if (!hydration.applied) {
+			if (
+				!hydration.applied &&
+				sessionStore.read.getSessionCanSend(hydration.canonicalSessionId) === true
+			) {
 				sessionStore.loading.setSessionLoaded(hydration.canonicalSessionId);
 				sessionOpenHydrator.clearAttempt(panelId);
 				return okAsync(undefined);
@@ -419,15 +419,14 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 		}
 	);
 
-	openPromise
-		.finally(() => {
-			if (inflightPanelSessions.get(panelId) === sessionId) {
-				inflightPanelSessions.delete(panelId);
-			}
-			recordDiagnostic("finished", {
-				shouldAttemptLocalReattach,
-			});
+	openPromise.finally(() => {
+		if (inflightPanelSessions.get(panelId) === sessionId) {
+			inflightPanelSessions.delete(panelId);
+		}
+		recordDiagnostic("finished", {
+			shouldAttemptLocalReattach,
 		});
+	});
 }
 
 export function __resetOpenPersistedSessionForTests(): void {

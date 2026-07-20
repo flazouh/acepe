@@ -12,12 +12,14 @@ const models: AgentInputVoiceModel[] = [
 		name: "Tiny",
 		sizeBytes: 76 * 1024 * 1024,
 		isDownloaded: true,
+		isDownloadable: true,
 	},
 	{
 		id: "large",
 		name: "Large",
 		sizeBytes: 1.5 * 1024 * 1024 * 1024,
 		isDownloaded: false,
+		isDownloadable: true,
 	},
 ];
 
@@ -53,6 +55,42 @@ describe("agent input voice model menu state", () => {
 		]);
 	});
 
+	it("labels unconfigured external speech backend without a fake file size", () => {
+		const rows = getVoiceModelRows({
+			models: [
+				{
+					id: "external",
+					name: "Speech to text",
+					sizeBytes: 0,
+					isDownloaded: false,
+					isDownloadable: false,
+				},
+			],
+			selectedModelId: "external",
+			downloadingModelId: null,
+		});
+
+		expect(rows[0]?.sizeLabel).toBe("Not configured");
+	});
+
+	it("labels configured external speech backend as ready", () => {
+		const rows = getVoiceModelRows({
+			models: [
+				{
+					id: "external",
+					name: "Speech to text",
+					sizeBytes: 0,
+					isDownloaded: true,
+					isDownloadable: false,
+				},
+			],
+			selectedModelId: "external",
+			downloadingModelId: null,
+		});
+
+		expect(rows[0]?.sizeLabel).toBe("Ready");
+	});
+
 	it("sorts models by tier before building rows", () => {
 		const unsorted: AgentInputVoiceModel[] = [
 			{
@@ -60,12 +98,14 @@ describe("agent input voice model menu state", () => {
 				name: "Large",
 				sizeBytes: 1024,
 				isDownloaded: true,
+				isDownloadable: true,
 			},
 			{
 				id: "tiny",
 				name: "Tiny",
 				sizeBytes: 512,
 				isDownloaded: true,
+				isDownloadable: true,
 			},
 		];
 

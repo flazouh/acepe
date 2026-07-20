@@ -1,5 +1,11 @@
 <script lang="ts">
-import { ReviewWorkspace, resolveReviewWorkspaceSelectedIndex } from "@acepe/ui/agent-panel";
+import {
+	ReviewWorkspace,
+	resolveReviewWorkspaceSelectedIndex,
+	type ReviewWorkspaceFileItem,
+	type ReviewWorkspaceFileResetStatus,
+} from "@acepe/ui/agent-panel";
+import { SvelteMap } from "svelte/reactivity";
 import { toast } from "svelte-sonner";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 
@@ -27,6 +33,7 @@ interface Props {
 	showCloseButton?: boolean;
 	compact?: boolean;
 	flat?: boolean;
+	fileListVariant?: "tree" | "flat";
 	diffDensity?: ReviewDiffDensity;
 	diffStyle?: DiffViewStyle;
 	diffOptions?: ReviewDiffOptions;
@@ -46,6 +53,7 @@ let {
 	showCloseButton = true,
 	compact = false,
 	flat = false,
+	fileListVariant = "tree",
 	diffDensity = "default",
 	diffStyle = "unified",
 	diffOptions,
@@ -53,9 +61,41 @@ let {
 	onControlsChange,
 }: Props = $props();
 
-const reviewWorkspaceFiles = $derived.by(() =>
-	buildReviewWorkspaceFilesFromSessionState(reviewFilesState, sessionId)
-);
+interface FileResetState {
+	status: ReviewWorkspaceFileResetStatus;
+	label: string | null;
+}
+
+let fileResetStates = new SvelteMap<string, FileResetState>();
+
+const reviewWorkspaceFiles = $derived.by(() => {
+	const files = buildReviewWorkspaceFilesFromSessionState(reviewFilesState, sessionId);
+
+	return files.map<ReviewWorkspaceFileItem>((file) => {
+		const resetState = fileResetStates.get(file.filePath);
+		return {
+			id: file.id,
+			filePath: file.filePath,
+			fileName: file.fileName,
+			sourceIndex: file.sourceIndex,
+			reviewStatus: file.reviewStatus,
+			resetStatus: resetState?.status ?? "idle",
+			resetStatusLabel: resetState?.label ?? null,
+			additions: file.additions,
+			deletions: file.deletions,
+			onSelect: file.onSelect,
+			onRevert: file.onRevert,
+		};
+	});
+});
+
+function setFileResetState(
+	filePath: string,
+	status: ReviewWorkspaceFileResetStatus,
+	label: string | null
+): void {
+	fileResetStates.set(filePath, { status, label });
+}
 
 function handleFileRevert(displayIndex: number): void {
 	const file = reviewWorkspaceFiles[displayIndex];
@@ -63,10 +103,36 @@ function handleFileRevert(displayIndex: number): void {
 		toast.error("Cannot revert: no project path");
 		return;
 	}
-	tauriClient.git.discardChanges(projectPath, [file.filePath]).match(
-		() => toast.success(`Discarded changes in ${file.fileName ?? file.filePath.split("/").pop()}`),
-		(err) => toast.error(`Failed to discard: ${err.message}`)
+
+	const currentStatus = file.resetStatus ?? "idle";
+	if (currentStatus !== "confirming" && currentStatus !== "failed") {
+		setFileResetState(file.filePath, "confirming", "Reset this file?");
+		return;
+	}
+
+	const capturedFile: ReviewWorkspaceFileItem = file;
+	setFileResetState(capturedFile.filePath, "resetting", "Resetting");
+	tauriClient.git.discardChanges(projectPath, [capturedFile.filePath]).match(
+		() => {
+			setFileResetState(capturedFile.filePath, "reset", "Reset");
+			toast.success(
+				`Discarded changes in ${capturedFile.fileName ?? capturedFile.filePath.split("/").pop()}`
+			);
+		},
+		(err) => {
+			setFileResetState(capturedFile.filePath, "failed", "Reset failed");
+			toast.error(`Failed to discard: ${err.message}`);
+		}
 	);
+}
+
+function handleFileRevertCancel(displayIndex: number): void {
+	const file = reviewWorkspaceFiles[displayIndex];
+	if (!file) {
+		return;
+	}
+
+	fileResetStates.delete(file.filePath);
 }
 
 const reviewWorkspaceSelectedIndex = $derived.by(() => {
@@ -93,6 +159,37 @@ function handleWorkspaceFileSelect(displayIndex: number): void {
 	const selectedFile = reviewWorkspaceFiles[displayIndex];
 	onFileIndexChange(selectedFile?.sourceIndex ?? displayIndex);
 }
+
+function handleSelectedFileRevert(): void {
+	if (reviewWorkspaceSelectedIndex === null) {
+		return;
+	}
+
+	handleFileRevert(reviewWorkspaceSelectedIndex);
+}
+
+function handleContentControlsChange(controls: ReviewControlsSnapshot | null): void {
+	if (!onControlsChange) {
+		return;
+	}
+
+	if (controls === null) {
+		onControlsChange(null);
+		return;
+	}
+
+	onControlsChange({
+		fileCurrent: controls.fileCurrent,
+		fileTotal: controls.fileTotal,
+		isReviewed: controls.isReviewed,
+		onToggleReviewed: controls.onToggleReviewed,
+		onRevertFile: handleSelectedFileRevert,
+		hasPrevFile: controls.hasPrevFile,
+		hasNextFile: controls.hasNextFile,
+		onPrevFile: controls.onPrevFile,
+		onNextFile: controls.onNextFile,
+	});
+}
 </script>
 
 <div class="flex h-full min-h-0 flex-1 flex-col">
@@ -102,12 +199,14 @@ function handleWorkspaceFileSelect(displayIndex: number): void {
 	{onClose}
 	onFileSelect={handleWorkspaceFileSelect}
 	onFileRevert={handleFileRevert}
+	onFileRevertCancel={handleFileRevertCancel}
 	headerLabel={"Review Changes"}
 	closeButtonLabel={"Back"}
 	emptyStateLabel={REVIEW_WORKSPACE_EMPTY_STATE_LABEL}
 	{showHeader}
 	{showCloseButton}
 	{compact}
+	{fileListVariant}
 	{flat}
 >
 	{#snippet content()}
@@ -122,7 +221,7 @@ function handleWorkspaceFileSelect(displayIndex: number): void {
 			{diffOptions}
 			{onClose}
 			{onFileIndexChange}
-			{onControlsChange}
+			onControlsChange={handleContentControlsChange}
 			{hideBottomWidget}
 		/>
 	{/snippet}

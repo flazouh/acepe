@@ -1,23 +1,23 @@
 <script lang="ts">
-	import {
-		AgentPanelStatePanel,
-		type AgentPanelPerformanceRecorder,
-		type AgentPanelPerformanceSample,
-	} from "@acepe/ui/agent-panel";
-	import { onDestroy, onMount } from "svelte";
-	import { getInteractionStore } from "../../../store/interaction-store.svelte.js";
-	import { deriveLiveSessionWorkProjection } from "../../../store/live-session-work.js";
-	import { getSessionStore } from "../../../store/session-store.svelte.js";
-	import { createLogger } from "../../../utils/logger.js";
-	import ProjectSelectionPanel from "../../project-selection-panel.svelte";
-	import ReadyToAssistPlaceholder from "../../ready-to-assist-placeholder.svelte";
-	import { resolveAgentPanelContentRuntime } from "../logic/agent-panel-content-runtime.js";
-	import {
-		recordPanelOpenPerformanceMark,
-		type PanelOpenPerformanceMarkName,
-	} from "../logic/panel-open-performance-mark.js";
-	import type { AgentPanelContentProps } from "../types/agent-panel-content-props.js";
-	import SceneContentViewport from "./scene-content-viewport.svelte";
+import {
+	AgentPanelStatePanel,
+	type AgentPanelPerformanceRecorder,
+	type AgentPanelPerformanceSample,
+} from "@acepe/ui/agent-panel";
+import { onDestroy, onMount } from "svelte";
+import { getInteractionStore } from "../../../store/interaction-store.svelte.js";
+import { deriveLiveSessionWorkProjection } from "../../../store/live-session-work.js";
+import { getSessionStore } from "../../../store/session-store.svelte.js";
+import { createLogger } from "../../../utils/logger.js";
+import ProjectSelectionPanel from "../../project-selection-panel.svelte";
+import ReadyToAssistPlaceholder from "../../ready-to-assist-placeholder.svelte";
+import { resolveAgentPanelContentRuntime } from "../logic/agent-panel-content-runtime.js";
+import {
+	recordPanelOpenPerformanceMark,
+	type PanelOpenPerformanceMarkName,
+} from "../logic/panel-open-performance-mark.js";
+import type { AgentPanelContentProps } from "../types/agent-panel-content-props.js";
+import SceneContentViewport from "./scene-content-viewport.svelte";
 
 let {
 	panelId,
@@ -45,6 +45,7 @@ let {
 	availableAgents = [],
 	effectiveTheme = "dark",
 	modifiedFilesState = null,
+	suppressSyntheticReviewEntry = false,
 	onQuestionSelect,
 	onPlanBuild,
 	onPlanCancel,
@@ -55,7 +56,7 @@ let {
 	isPlanActionAvailable,
 }: AgentPanelContentProps = $props();
 
-	recordPanelOpenPerformanceMark(panelId, "agent-panel-content:props");
+recordPanelOpenPerformanceMark(panelId, "agent-panel-content:props");
 
 const sessionStore = getSessionStore();
 const interactionStore = getInteractionStore();
@@ -236,7 +237,10 @@ const interactionSnapshot = $derived.by(() => {
 			pendingPlanApproval: null,
 			pendingPlanApprovalOperation: null,
 		};
-	return sessionStore.presentation.getSessionOperationInteractionSnapshot(sessionId, interactionStore);
+	return sessionStore.presentation.getSessionOperationInteractionSnapshot(
+		sessionId,
+		interactionStore
+	);
 });
 const sessionWorkProjection = $derived.by(() => {
 	if (!sessionId) {
@@ -245,7 +249,9 @@ const sessionWorkProjection = $derived.by(() => {
 
 	return deriveLiveSessionWorkProjection({
 		source: liveSessionSource,
-		currentModeId: sessionId ? (sessionStore?.read.getSessionCurrentModeId(sessionId) ?? null) : null,
+		currentModeId: sessionId
+			? (sessionStore?.read.getSessionCurrentModeId(sessionId) ?? null)
+			: null,
 		interactionSnapshot: {
 			pendingQuestion: interactionSnapshot.pendingQuestion,
 			pendingPlanApproval: interactionSnapshot.pendingPlanApproval,
@@ -272,8 +278,7 @@ const hasRenderableTranscriptRows = $derived(
 	sessionId !== null && rowsProjection?.sessionId === sessionId && rowsProjection.rows.length > 0
 );
 const shouldRenderTranscriptViewport = $derived(
-	viewState.kind === "conversation" ||
-		hasRenderableTranscriptRows
+	viewState.kind === "conversation" || hasRenderableTranscriptRows
 );
 
 function recordSceneBoundaryMark(
@@ -436,6 +441,7 @@ export function scrollToTop() {
 				{showWorkingSpark}
 				{isFullscreen}
 				{modifiedFilesState}
+				{suppressSyntheticReviewEntry}
 				{onQuestionSelect}
 				{onPlanBuild}
 				{onPlanCancel}

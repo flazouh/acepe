@@ -297,4 +297,101 @@ describe("ReviewWorkspace file navigation", () => {
 		expect(codeCard.className).toContain("rounded");
 		expect(codeCard.className).toContain("border");
 	});
+
+	it("can render a flat file list without the directory tree", async () => {
+		const onFileSelect = vi.fn();
+
+		render(ReviewWorkspace, {
+			files: createFiles(),
+			selectedFileIndex: 0,
+			headerLabel: "Review changes",
+			emptyStateLabel: "Nothing to review",
+			content: createContentSnippet("Pierre diff"),
+			fileListVariant: "flat",
+			showHeader: false,
+			showCloseButton: false,
+			onFileSelect,
+		});
+
+		expect(screen.queryByTestId("review-workspace-file-tree")).toBeNull();
+		expect(screen.getByTestId("review-workspace-flat-file-list")).toBeTruthy();
+		expect(screen.getAllByTestId("review-workspace-flat-file-row")).toHaveLength(2);
+
+		await fireEvent.click(screen.getAllByTestId("review-workspace-flat-file-row")[1]);
+
+		expect(onFileSelect).toHaveBeenCalledWith(1);
+	});
+
+	it("shows reset confirmation inline on the flat file row", async () => {
+		const onFileRevert = vi.fn();
+		const onFileRevertCancel = vi.fn();
+		const files: ReviewWorkspaceFileItem[] = [
+			{
+				id: "file-1",
+				filePath: "src/lib/alpha.ts",
+				fileName: "alpha.ts",
+				reviewStatus: "unreviewed",
+				resetStatus: "confirming",
+				resetStatusLabel: "Reset this file?",
+				additions: 12,
+				deletions: 2,
+			},
+		];
+
+		render(ReviewWorkspace, {
+			files,
+			selectedFileIndex: 0,
+			headerLabel: "Review changes",
+			emptyStateLabel: "Nothing to review",
+			content: createContentSnippet("Pierre diff"),
+			fileListVariant: "flat",
+			showHeader: false,
+			showCloseButton: false,
+			onFileRevert,
+			onFileRevertCancel,
+		});
+
+		expect(screen.queryByText("Revert file?")).toBeNull();
+		expect(screen.getByTestId("review-workspace-flat-file-reset-status").textContent).toBe(
+			"Reset this file?"
+		);
+		expect(screen.getByTestId("review-workspace-flat-file-reset-confirm")).toBeTruthy();
+
+		await fireEvent.click(screen.getByText("Cancel"));
+		await fireEvent.click(screen.getByText("Reset"));
+
+		expect(onFileRevertCancel).toHaveBeenCalledWith(0);
+		expect(onFileRevert).toHaveBeenCalledWith(0);
+	});
+
+	it("shows reset completion status on the flat file row", async () => {
+		render(ReviewWorkspace, {
+			files: [
+				{
+					id: "file-1",
+					filePath: "src/lib/alpha.ts",
+					fileName: "alpha.ts",
+					reviewStatus: "unreviewed",
+					resetStatus: "reset",
+					resetStatusLabel: "Reset",
+					additions: 12,
+					deletions: 2,
+				},
+			],
+			selectedFileIndex: 0,
+			headerLabel: "Review changes",
+			emptyStateLabel: "Nothing to review",
+			content: createContentSnippet("Pierre diff"),
+			fileListVariant: "flat",
+			showHeader: false,
+			showCloseButton: false,
+			onFileRevert: vi.fn(),
+		});
+
+		const row = screen.getByTestId("review-workspace-flat-file-row");
+
+		expect(row.getAttribute("data-reset-status")).toBe("reset");
+		expect(screen.getByTestId("review-workspace-flat-file-reset-status").textContent).toBe("Reset");
+		expect(screen.queryByTestId("review-workspace-flat-file-revert")).toBeNull();
+	});
 });

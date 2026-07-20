@@ -13,6 +13,7 @@
 		name: string;
 		sizeBytes: number;
 		isDownloaded: boolean;
+		isDownloadable: boolean;
 	}[] = [];
 
 	const voiceState = $derived.by((): AgentComposerToolbarVoiceBinding | null => {

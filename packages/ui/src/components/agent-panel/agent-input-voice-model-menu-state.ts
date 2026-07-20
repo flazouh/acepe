@@ -3,6 +3,7 @@ export interface AgentInputVoiceModel {
 	name: string;
 	sizeBytes: number;
 	isDownloaded: boolean;
+	isDownloadable: boolean;
 }
 
 export interface VoiceModelMenuRow {
@@ -42,6 +43,14 @@ export function formatVoiceModelSize(bytes: number): string {
 	return `${Math.round(bytes / (1024 * 1024))} MB`;
 }
 
+export function getVoiceModelStatusLabel(model: AgentInputVoiceModel): string {
+	if (!model.isDownloadable) {
+		return model.isDownloaded ? "Ready" : "Not configured";
+	}
+
+	return formatVoiceModelSize(model.sizeBytes);
+}
+
 export function getVoiceModelRows({
 	models,
 	selectedModelId,
@@ -54,7 +63,7 @@ export function getVoiceModelRows({
 	const sortedModels = [...models].sort(compareVoiceModelsByTier);
 	return sortedModels.map((model) => ({
 		model,
-		sizeLabel: formatVoiceModelSize(model.sizeBytes),
+		sizeLabel: getVoiceModelStatusLabel(model),
 		isSelected: selectedModelId === model.id,
 		isDownloading: downloadingModelId === model.id,
 	}));

@@ -9,18 +9,13 @@ import {
 	type AgentUserFileSelectEvent,
 	type AgentToolFileSelectEvent,
 } from "@acepe/ui/agent-panel";
-import {
-	DiffPill,
-	HugeiconsIcon,
-	setThinkingPreferences,
-	type PrChecksItem,
-} from "@acepe/ui";
+import { DiffPill, HugeiconsIcon, setThinkingPreferences, type PrChecksItem } from "@acepe/ui";
 import { Button } from "@acepe/ui/button";
 import * as ButtonGroup from "@acepe/ui/button-group";
-import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { onDestroy, tick } from "svelte";
 import { toast } from "svelte-sonner";
 import type { TurnState } from "../../../store/types.js";
+import type { QuestionRequest } from "../../../types/question.js";
 import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
 import AgentAttachedFilePane from "../../../../components/main-app-view/components/content/agent-attached-file-pane.svelte";
 import type { Project } from "../../../logic/project-manager.svelte";
@@ -100,10 +95,10 @@ import { resolveProjectFileReference } from "../../messages/logic/file-chip-diff
 import AgentPanelContent from "./agent-panel-content.svelte";
 import AgentPanelHeader from "./agent-panel-header.svelte";
 import AgentPanelResizeEdge from "./agent-panel-resize-edge.svelte";
+import AgentPanelReviewDiffSettingsMenu from "./agent-panel-review-diff-settings-menu.svelte";
 import AgentPanelReviewWorkspace from "./agent-panel-review-workspace.svelte";
 import type { ReviewControlsSnapshot } from "./agent-panel-review-content-types.js";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
-import { AlertDialog } from "bits-ui";
 import AgentPanelTerminalDrawer from "./agent-panel-terminal-drawer.svelte";
 import AgentPanelPreComposerStack from "./agent-panel-pre-composer-stack.svelte";
 import { PlanSidebar } from "../../plan-sidebar/index.js";
@@ -249,34 +244,10 @@ const viewStateController = rootState.viewStateController;
 const prCard = rootState.prCard;
 const reviewDialog = rootState.reviewDialog;
 
-// Filename pending revert confirmation in the review modal (null = closed).
-let reviewRevertConfirmFileName = $state<string | null>(null);
 let isUnarchivingSession = $state(false);
 let isSigningIn = $state(false);
 let signInError = $state<string | null>(null);
 let signInAttempt = 0;
-
-function keepReviewDiffSettingsMenuOpen(event: Event): void {
-	event.preventDefault();
-}
-
-function handleReviewDiffStyleChange(value: string): void {
-	if (value === "unified" || value === "split") {
-		reviewDialog.setDiffStyle(value);
-	}
-}
-
-function handleReviewDiffIndicatorStyleChange(value: string): void {
-	if (value === "bars" || value === "classic" || value === "none") {
-		reviewDialog.setDiffIndicatorStyle(value);
-	}
-}
-
-function handleReviewDiffLineChangeStyleChange(value: string): void {
-	if (value === "none" || value === "word" || value === "character") {
-		reviewDialog.setDiffLineChangeStyle(value);
-	}
-}
 
 setThinkingPreferences({
 	get defaultExpanded() {
@@ -301,6 +272,15 @@ setThinkingPreferences({
 // session controller (single source + unit-tested); these stay as thin
 // reactive aliases. Ref-inlining to sessionController.* is deferred to U5.
 const panelSnapshot = $derived(panelId ? panelStore.getTopLevelPanel(panelId) : null);
+const pendingComposerQuestion = $derived.by<QuestionRequest | null>(() => {
+	if (sessionId === null) {
+		return null;
+	}
+	return sessionStore.presentation.getSessionOperationInteractionSnapshot(
+		sessionId,
+		interactionStore
+	).pendingQuestion;
+});
 const panelPendingWorktreeEnabled = $derived(
 	panelSnapshot?.kind === "agent" ? (panelSnapshot.pendingWorktreeEnabled ?? null) : null
 );
@@ -802,9 +782,7 @@ let recordedDeferredComposerMountKey = $state<string | null>(null);
 const renderDeferredOpenChrome = $derived(
 	!deferInitialComposerMountWork || deferredComposerMountKey === inputRenderKey
 );
-const renderComposerInput = $derived(
-	renderDeferredOpenChrome
-);
+const renderComposerInput = $derived(renderDeferredOpenChrome);
 const branchLookupPath = $derived(
 	(worktreeDeleted ? null : effectiveActiveWorktreePath) ?? effectiveProjectPath ?? null
 );
@@ -981,10 +959,7 @@ $effect(() => {
 		recordedDeferredComposerMountKey = key;
 		recordPanelOpenPerformanceMark(panelId, "agent-panel:composer-mount-deferred");
 	}
-	if (
-		waitForInitialTranscriptRowsBeforeComposer &&
-		deferredComposerFallbackReadyKey !== key
-	) {
+	if (waitForInitialTranscriptRowsBeforeComposer && deferredComposerFallbackReadyKey !== key) {
 		const timeoutId = window.setTimeout(() => {
 			if (deferredComposerFallbackReadyKey === key || deferredComposerMountKey === key) {
 				return;
@@ -1799,6 +1774,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 						{availableAgents}
 						{effectiveTheme}
 						{modifiedFilesState}
+						suppressSyntheticReviewEntry={sessionController.hasImmediatePendingSendIntent}
 						onQuestionSelect={handleQuestionSelect}
 						onPlanBuild={handlePlanBuild}
 						onPlanCancel={handlePlanCancel}
@@ -1954,6 +1930,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 							<AgentInput
 							bind:this={agentInputRef}
 							sessionId={sessionId ?? undefined}
+							pendingQuestion={pendingComposerQuestion}
 							sessionIsConnected={sessionController.sessionIsConnected}
 							sessionIsStreaming={sessionController.sessionIsStreaming}
 							sessionCanSubmit={sessionController.sessionCanSubmit}
@@ -2123,6 +2100,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 		closeLabel="Close review"
 		contentOverflow="hidden"
 		contentClass="!bg-background !rounded-lg"
+		showTitle={false}
 		onOpenChange={(open) => reviewDialog.setOpen(open)}
 	>
 		{#snippet topLeft()}
@@ -2162,160 +2140,16 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 				class="flex max-w-[min(520px,calc(100vw-12rem))] flex-wrap items-center justify-end gap-1.5"
 				data-testid="review-dialog-header-actions"
 			>
-				<DropdownMenu.Root>
-					<DropdownMenu.Trigger>
-						{#snippet child({ props })}
-							<Button
-								{...props}
-								variant="secondary"
-								size="xs"
-								class="shrink-0"
-								aria-label="Diff settings"
-								title="Diff settings"
-								data-testid="review-dialog-diff-settings-trigger"
-							>
-								<HugeiconsIcon name="settings" class="size-[13px] shrink-0" />
-								Diff
-							</Button>
-						{/snippet}
-					</DropdownMenu.Trigger>
-					<DropdownMenu.Content
-						align="end"
-						sideOffset={6}
-						class="w-64"
-						data-testid="review-dialog-diff-settings-menu"
-					>
-						<DropdownMenu.Group>
-							<DropdownMenu.GroupHeading>Layout</DropdownMenu.GroupHeading>
-							<DropdownMenu.RadioGroup
-								value={reviewDialog.diffStyle}
-								onValueChange={handleReviewDiffStyleChange}
-							>
-								<DropdownMenu.RadioItem
-									value="unified"
-									onSelect={keepReviewDiffSettingsMenuOpen}
-									data-testid="review-dialog-diff-style-unified"
-								>
-									<HugeiconsIcon name="git-diff-unified" class="size-3" />
-									Unified
-								</DropdownMenu.RadioItem>
-								<DropdownMenu.RadioItem
-									value="split"
-									onSelect={keepReviewDiffSettingsMenuOpen}
-									data-testid="review-dialog-diff-style-split"
-								>
-									<HugeiconsIcon name="git-diff" class="size-3" />
-									Split
-								</DropdownMenu.RadioItem>
-							</DropdownMenu.RadioGroup>
-						</DropdownMenu.Group>
-
-						<DropdownMenu.Separator />
-
-						<DropdownMenu.Group>
-							<DropdownMenu.GroupHeading>Indicators</DropdownMenu.GroupHeading>
-							<DropdownMenu.RadioGroup
-								value={diffOptions.indicatorStyle}
-								onValueChange={handleReviewDiffIndicatorStyleChange}
-							>
-								<DropdownMenu.RadioItem
-									value="bars"
-									onSelect={keepReviewDiffSettingsMenuOpen}
-									data-testid="review-dialog-diff-indicators-bars"
-								>
-									<HugeiconsIcon name="diff-bars" class="size-3" />
-									Bars
-								</DropdownMenu.RadioItem>
-								<DropdownMenu.RadioItem
-									value="classic"
-									onSelect={keepReviewDiffSettingsMenuOpen}
-									data-testid="review-dialog-diff-indicators-classic"
-								>
-									<HugeiconsIcon name="diff-classic" class="size-3" />
-									Classic
-								</DropdownMenu.RadioItem>
-								<DropdownMenu.RadioItem
-									value="none"
-									onSelect={keepReviewDiffSettingsMenuOpen}
-									data-testid="review-dialog-diff-indicators-none"
-								>
-									<HugeiconsIcon name="minus" class="size-3" />
-									None
-								</DropdownMenu.RadioItem>
-							</DropdownMenu.RadioGroup>
-						</DropdownMenu.Group>
-
-						<DropdownMenu.Separator />
-
-						<DropdownMenu.Group>
-							<DropdownMenu.GroupHeading>Inline Changes</DropdownMenu.GroupHeading>
-							<DropdownMenu.RadioGroup
-								value={diffOptions.lineChangeStyle}
-								onValueChange={handleReviewDiffLineChangeStyleChange}
-							>
-								<DropdownMenu.RadioItem
-									value="none"
-									onSelect={keepReviewDiffSettingsMenuOpen}
-									data-testid="review-dialog-line-change-none"
-								>
-									<HugeiconsIcon name="minus" class="size-3" />
-									None
-								</DropdownMenu.RadioItem>
-								<DropdownMenu.RadioItem
-									value="word"
-									onSelect={keepReviewDiffSettingsMenuOpen}
-									data-testid="review-dialog-line-change-word"
-								>
-									<HugeiconsIcon name="format" class="size-3" />
-									Word
-								</DropdownMenu.RadioItem>
-								<DropdownMenu.RadioItem
-									value="character"
-									onSelect={keepReviewDiffSettingsMenuOpen}
-									data-testid="review-dialog-line-change-character"
-								>
-									<HugeiconsIcon name="code" class="size-3" />
-									Character
-								</DropdownMenu.RadioItem>
-							</DropdownMenu.RadioGroup>
-						</DropdownMenu.Group>
-
-						<DropdownMenu.Separator />
-
-						<DropdownMenu.Group>
-							<DropdownMenu.GroupHeading>Display</DropdownMenu.GroupHeading>
-							<DropdownMenu.CheckboxItem
-								checked={diffOptions.showBackgrounds}
-								onCheckedChange={(checked) =>
-									reviewDialog.setDiffShowBackgrounds(checked === true)}
-								onSelect={keepReviewDiffSettingsMenuOpen}
-								data-testid="review-dialog-toggle-backgrounds"
-							>
-								<HugeiconsIcon name="diff-backgrounds" class="size-3" />
-								Backgrounds
-							</DropdownMenu.CheckboxItem>
-							<DropdownMenu.CheckboxItem
-								checked={diffOptions.wrapLines}
-								onCheckedChange={(checked) => reviewDialog.setDiffWrapLines(checked === true)}
-								onSelect={keepReviewDiffSettingsMenuOpen}
-								data-testid="review-dialog-toggle-wrapping"
-							>
-								<HugeiconsIcon name="diff-wrapping" class="size-3" />
-								Wrapping
-							</DropdownMenu.CheckboxItem>
-							<DropdownMenu.CheckboxItem
-								checked={diffOptions.showLineNumbers}
-								onCheckedChange={(checked) =>
-									reviewDialog.setDiffShowLineNumbers(checked === true)}
-								onSelect={keepReviewDiffSettingsMenuOpen}
-								data-testid="review-dialog-toggle-line-numbers"
-							>
-								<HugeiconsIcon name="diff-line-numbers" class="size-3" />
-								Line Numbers
-							</DropdownMenu.CheckboxItem>
-						</DropdownMenu.Group>
-					</DropdownMenu.Content>
-				</DropdownMenu.Root>
+				<AgentPanelReviewDiffSettingsMenu
+					diffStyle={reviewDialog.diffStyle}
+					{diffOptions}
+					onDiffStyleChange={(value) => reviewDialog.setDiffStyle(value)}
+					onDiffIndicatorStyleChange={(value) => reviewDialog.setDiffIndicatorStyle(value)}
+					onDiffLineChangeStyleChange={(value) => reviewDialog.setDiffLineChangeStyle(value)}
+					onDiffShowBackgroundsChange={(value) => reviewDialog.setDiffShowBackgrounds(value)}
+					onDiffWrapLinesChange={(value) => reviewDialog.setDiffWrapLines(value)}
+					onDiffShowLineNumbersChange={(value) => reviewDialog.setDiffShowLineNumbers(value)}
+				/>
 
 				{#if controls && controls.fileTotal > 1}
 					<ButtonGroup.Root class="shrink-0" aria-label="File navigation">
@@ -2371,11 +2205,8 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 						variant="secondary"
 						size="xs"
 						class="shrink-0"
-						onclick={() => {
-							reviewRevertConfirmFileName =
-								reviewDialog.filesState?.files[reviewDialog.clampedFileIndex]?.fileName ?? "this file";
-						}}
-						title="Revert file"
+						onclick={() => reviewDialog.controls?.onRevertFile()}
+						title="Reset file"
 					>
 						<HugeiconsIcon name="undo" class="shrink-0" style="width: 11px; height: 11px; color: {Colors.red};" />
 						Revert
@@ -2395,6 +2226,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 				showCloseButton={false}
 				compact={true}
 				flat={true}
+				fileListVariant="flat"
 				diffDensity="default"
 				diffStyle={reviewDialog.diffStyle}
 				diffOptions={reviewDialog.diffOptions}
@@ -2405,50 +2237,6 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 			/>
 		{/if}
 	</DialogFrame>
-{/if}
-
-{#if reviewRevertConfirmFileName !== null}
-	<AlertDialog.Root
-		open={true}
-		onOpenChange={(open) => {
-			if (!open) {
-				reviewRevertConfirmFileName = null;
-			}
-		}}
-	>
-		<AlertDialog.Portal>
-			<AlertDialog.Overlay
-				class="fixed inset-0 z-[calc(var(--overlay-z,50)+20)] bg-black/55 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
-			/>
-			<AlertDialog.Content
-				class="fixed left-1/2 top-1/2 z-[calc(var(--overlay-z,50)+21)] w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-background p-4 shadow-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
-			>
-				<AlertDialog.Title class="text-sm font-medium text-foreground">
-					Revert file?
-				</AlertDialog.Title>
-				<AlertDialog.Description class="mt-1.5 text-sm leading-snug text-muted-foreground">
-					This discards the agent's changes to {reviewRevertConfirmFileName} in your working tree.
-					This cannot be undone.
-				</AlertDialog.Description>
-				<div class="mt-4 flex items-center justify-end gap-2">
-					<AlertDialog.Cancel
-						class="inline-flex h-8 items-center justify-center rounded-md border border-border bg-transparent px-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-					>
-						Cancel
-					</AlertDialog.Cancel>
-					<AlertDialog.Action
-						class="inline-flex h-8 items-center justify-center rounded-md bg-destructive px-3 text-sm font-medium text-destructive-foreground transition-colors hover:bg-destructive/90"
-						onclick={() => {
-							reviewDialog.controls?.onRevertFile();
-							reviewRevertConfirmFileName = null;
-						}}
-					>
-						Revert
-					</AlertDialog.Action>
-				</div>
-			</AlertDialog.Content>
-		</AlertDialog.Portal>
-	</AlertDialog.Root>
 {/if}
 
 {#if inlinePlanDialogPlan}

@@ -27,7 +27,7 @@ use serde::{Deserialize, Serialize};
 // parent Task rows with graph-derived child scope/action facts.
 // v20 invalidates rows that were built before restored raw Claude sidechain
 // files were discovered from Claude's per-session subagents directory.
-pub const TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION: &str = "transcript_viewport_row:v21";
+pub const TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION: &str = "transcript_viewport_row:v22";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SerializedTranscriptRowLedgerRow {

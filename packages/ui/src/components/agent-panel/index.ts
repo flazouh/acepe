@@ -305,6 +305,7 @@ export type {
 	AgentWebSearchLink,
 	AnyAgentEntry,
 	LintDiagnostic,
+	ReviewWorkspaceFileResetStatus,
 	ReviewWorkspaceFileItem,
 } from "./types.js";
 export {

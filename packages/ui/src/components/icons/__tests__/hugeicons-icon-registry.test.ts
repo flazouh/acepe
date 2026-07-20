@@ -48,6 +48,24 @@ describe("hugeicons icon registry", () => {
 		}
 	});
 
+	it("uses distinct icons for diff settings menu choices", () => {
+		const diffSettingsIconNames = [
+			"git-diff-unified",
+			"diff-layout-split",
+			"diff-bars",
+			"diff-classic",
+			"diff-inline-word",
+			"diff-inline-character",
+			"diff-backgrounds",
+			"diff-wrapping",
+			"diff-line-numbers",
+		] as const satisfies readonly HugeiconsIconName[];
+
+		const resolvedIcons = diffSettingsIconNames.map((name) => resolveHugeiconsIcon(name));
+
+		expect(new Set(resolvedIcons).size).toBe(resolvedIcons.length);
+	});
+
 	it("uses a visible Hugeicons fallback only for truly unknown names", () => {
 		expect(isHugeiconsIconName("missing-icon")).toBe(false);
 		expect(resolveHugeiconsIcon("missing-icon").length).toBeGreaterThan(0);

@@ -385,6 +385,7 @@ const agentInputController = createAgentInputController({
 	getProps: () => props,
 	inputState,
 	getComposerInteraction: () => composerView.composerInteraction,
+	getPendingQuestion: () => props.pendingQuestion ?? null,
 	getAutonomousToggleActive: () => composerView.autonomousToggleActive,
 	getProvisionalModeId: () => composerView.provisionalModeId,
 	getInitialModelIdForNewSession: () =>
@@ -1841,6 +1842,7 @@ $effect(() => {
 										name: model.name,
 										sizeBytes: model.size_bytes,
 										isDownloaded: model.is_downloaded,
+										isDownloadable: model.download_url.trim().length > 0,
 									}))}
 									voiceSelectedModelId={voiceSettingsStore.selectedModelId}
 									voiceModelsLoading={voiceSettingsStore.modelsLoading}

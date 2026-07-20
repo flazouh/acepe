@@ -93,9 +93,12 @@ describe("VoiceSettingsStore", () => {
 			useDebounce: (callback: () => void) => callback,
 			useEventListener: () => () => {},
 			useResizeObserver: () => () => {},
-			watch: Object.assign(vi.fn(() => () => {}), {
-				pre: vi.fn(() => () => {}),
-			}),
+			watch: Object.assign(
+				vi.fn(() => () => {}),
+				{
+					pre: vi.fn(() => () => {}),
+				}
+			),
 		}));
 		vi.mock("$lib/utils/tauri-client.js", () => ({
 			openFileInEditor: vi.fn(),
@@ -187,6 +190,32 @@ describe("VoiceSettingsStore", () => {
 		expect(store.enabled).toBe(true);
 		expect(store.selectedModelId).toBe("small.en");
 		expect(store.language).toBe("auto");
+	});
+
+	it("normalizes a legacy selected model to the available backend model", async () => {
+		getSettingMock
+			.mockReturnValueOnce(okAsync(true))
+			.mockReturnValueOnce(okAsync("small.en"))
+			.mockReturnValueOnce(okAsync("auto"));
+		listModelsMock.mockReturnValue(
+			okAsync([
+				{
+					id: "external",
+					name: "Speech to text",
+					size_bytes: 0,
+					is_english_only: false,
+					is_downloaded: false,
+					is_loaded: false,
+					download_url: "",
+				},
+			])
+		);
+
+		const store = new VoiceSettingsStore();
+		await store.initialize();
+
+		expect(store.selectedModelId).toBe("external");
+		expect(setSettingMock).toHaveBeenCalledWith("voice_model", "external");
 	});
 
 	it("persists updates, normalizes language, and reloads a downloaded model when selected", async () => {

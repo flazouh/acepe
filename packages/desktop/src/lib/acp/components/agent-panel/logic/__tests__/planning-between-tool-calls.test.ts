@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 
 import type {
+	OperationSnapshot,
 	OperationState,
 	SessionGraphLifecycle,
 	TranscriptViewportRow,
@@ -123,7 +124,47 @@ function activeAssistantRow(kind: "assistantText" | "assistantThought"): Transcr
 	};
 }
 
-function awaitingModelSessionState(bufferRows: readonly TranscriptViewportRow[]) {
+function operationSnapshot(state: OperationState): OperationSnapshot {
+	return {
+		id: "operation-1",
+		session_id: "session-1",
+		tool_call_id: "tool-call-1",
+		name: "exec_command",
+		kind: "execute",
+		provider_status: state === "completed" ? "completed" : "in_progress",
+		title: "Run checks",
+		arguments: { kind: "execute", command: "bun test" },
+		progressive_arguments: null,
+		result: null,
+		computer_payload: null,
+		command: "bun test",
+		normalized_todos: null,
+		parent_tool_call_id: null,
+		parent_operation_id: null,
+		child_tool_call_ids: [],
+		child_operation_ids: [],
+		operation_provenance_key: "tool-call-1",
+		operation_state: state,
+		locations: null,
+		skill_meta: null,
+		normalized_questions: null,
+		question_answer: null,
+		awaiting_plan_approval: false,
+		plan_approval_request_id: null,
+		started_at_ms: null,
+		completed_at_ms: state === "completed" ? 1_700_000_000_100 : null,
+		source_link: {
+			kind: "transcript_linked",
+			entry_id: "tool-1",
+		},
+		degradation_reason: null,
+	};
+}
+
+function awaitingModelSessionState(
+	bufferRows: readonly TranscriptViewportRow[],
+	operations: readonly OperationSnapshot[] | null = null
+) {
 	return deriveCanonicalAgentPanelSessionState({
 		source: {
 			kind: "canonical",
@@ -138,12 +179,15 @@ function awaitingModelSessionState(bufferRows: readonly TranscriptViewportRow[])
 			turnState: "Running",
 		},
 		hasEntries: true,
-		hasTrailingCompletedTool: hasTrailingCompletedTool(bufferRows),
+		hasTrailingCompletedTool: hasTrailingCompletedTool(bufferRows, operations),
 	});
 }
 
-function renderAwaitingModelRows(bufferRows: readonly TranscriptViewportRow[]) {
-	const sessionState = awaitingModelSessionState(bufferRows);
+function renderAwaitingModelRows(
+	bufferRows: readonly TranscriptViewportRow[],
+	operations: readonly OperationSnapshot[] | null = null
+) {
+	const sessionState = awaitingModelSessionState(bufferRows, operations);
 	return buildRenderedTranscriptViewportRows({
 		bufferRows,
 		bufferStartIndex: 0,
@@ -156,16 +200,27 @@ function renderAwaitingModelRows(bufferRows: readonly TranscriptViewportRow[]) {
 test("shows Planning next moves after a tool completes while awaiting the next model move", () => {
 	const renderedRows = renderAwaitingModelRows([userRow(), toolRow("completed")]);
 
-	expect(renderedRows.map((row) => row.entry.type)).toEqual([
-		"user",
-		"tool_call",
-		"thinking",
-	]);
+	expect(renderedRows.map((row) => row.entry.type)).toEqual(["user", "tool_call", "thinking"]);
 	expect(renderedRows.at(-1)).toMatchObject({
 		localOnly: true,
 		entry: {
 			type: "thinking",
 			label: null,
+		},
+	});
+});
+
+test("uses canonical operation patches when the trailing viewport tool link is stale", () => {
+	const renderedRows = renderAwaitingModelRows(
+		[userRow(), toolRow("running")],
+		[operationSnapshot("completed")]
+	);
+
+	expect(renderedRows.map((row) => row.entry.type)).toEqual(["user", "tool_call", "thinking"]);
+	expect(renderedRows.at(-1)).toMatchObject({
+		localOnly: true,
+		entry: {
+			type: "thinking",
 		},
 	});
 });
@@ -189,11 +244,7 @@ test("does not add planning below active assistant text after a completed tool",
 		activeAssistantRow("assistantText"),
 	]);
 
-	expect(renderedRows.map((row) => row.entry.type)).toEqual([
-		"user",
-		"tool_call",
-		"assistant",
-	]);
+	expect(renderedRows.map((row) => row.entry.type)).toEqual(["user", "tool_call", "assistant"]);
 });
 
 test("does not add planning below active assistant thought after a completed tool", () => {
@@ -203,10 +254,6 @@ test("does not add planning below active assistant thought after a completed too
 		activeAssistantRow("assistantThought"),
 	]);
 
-	expect(renderedRows.map((row) => row.entry.type)).toEqual([
-		"user",
-		"tool_call",
-		"assistant",
-	]);
+	expect(renderedRows.map((row) => row.entry.type)).toEqual(["user", "tool_call", "assistant"]);
 	expect(renderedRows.at(-1)?.localOnly).toBe(false);
 });

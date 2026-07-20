@@ -57,7 +57,7 @@ describe("AgentPanelToolReview", () => {
 		const totalDiff = screen.getByTestId("agent-panel-tool-review-total-diff");
 		const reviewButton = screen.getByRole("button", { name: "Review" });
 
-		expect(card.textContent).toContain("Edited files");
+		expect(card.textContent).toContain("2 files changed");
 		expect(card.textContent).toContain("alpha.ts");
 		expect(card.textContent).toContain("beta.ts");
 		expect(card.textContent).toContain("+12");
@@ -66,6 +66,7 @@ describe("AgentPanelToolReview", () => {
 		expect(totalDiff.textContent).toContain("-3");
 		expect(fileList.className).toContain("max-h-");
 		expect(fileList.className).toContain("overflow-y-auto");
+		expect(card.querySelector("[data-testid='tool-header-leading-icon']")).toBeNull();
 		expect(reviewButton.querySelector("svg")).toBeNull();
 
 		await fireEvent.click(reviewButton);
@@ -75,6 +76,37 @@ describe("AgentPanelToolReview", () => {
 			toolCallId: undefined,
 			interactionId: undefined,
 		});
+	});
+
+	it("uses the diff pill summary without rendering zero deletions", () => {
+		render(AgentPanelConversationEntry, {
+			props: {
+				entry: {
+					id: "local-review",
+					type: "tool_call",
+					kind: "review",
+					title: "Edited files",
+					status: "done",
+					reviewFiles: [
+						{
+							id: "src/lib/alpha.ts",
+							filePath: "src/lib/alpha.ts",
+							fileName: "alpha.ts",
+							additions: 4,
+							deletions: 0,
+						},
+					],
+				},
+				onReview: vi.fn(),
+			},
+		});
+
+		const card = screen.getByTestId("agent-panel-tool-review");
+		const totalDiff = screen.getByTestId("agent-panel-tool-review-total-diff");
+
+		expect(card.textContent).toContain("1 file changed");
+		expect(totalDiff.textContent).toContain("+4");
+		expect(totalDiff.textContent).not.toContain("-0");
 	});
 
 	it("disables Review when there are no files", () => {

@@ -655,6 +655,12 @@ export interface AgentPanelPrCardModel {
 }
 
 export type AgentPanelFileReviewStatus = "reviewed" | "unreviewed";
+export type ReviewWorkspaceFileResetStatus =
+	| "idle"
+	| "confirming"
+	| "resetting"
+	| "reset"
+	| "failed";
 
 export interface AgentPanelModifiedFileItem {
 	id: string;
@@ -662,6 +668,8 @@ export interface AgentPanelModifiedFileItem {
 	fileName?: string | null;
 	sourceIndex?: number;
 	reviewStatus?: AgentPanelFileReviewStatus;
+	resetStatus?: ReviewWorkspaceFileResetStatus;
+	resetStatusLabel?: string | null;
 	additions: number;
 	deletions: number;
 	onSelect?: () => void;

@@ -76,6 +76,7 @@ type SceneContentViewportProps = {
 	showWorkingSpark?: boolean;
 	isFullscreen?: boolean;
 	modifiedFilesState?: ModifiedFilesState | null;
+	suppressSyntheticReviewEntry?: boolean;
 	onNearBottomChange?: (isNearBottom: boolean) => void;
 	onNearTopChange?: (isNearTop: boolean) => void;
 	onFollowStateChange?: (state: {
@@ -117,6 +118,7 @@ let {
 	showWorkingSpark = false,
 	isFullscreen = false,
 	modifiedFilesState = null,
+	suppressSyntheticReviewEntry = false,
 	onNearBottomChange,
 	onNearTopChange,
 	onFollowStateChange,
@@ -175,7 +177,9 @@ let scrollerScrollActive = false;
 
 const bufferRows = $derived(rowsProjection?.rows ?? []);
 const syntheticReviewEntry = $derived(
-	createSyntheticReviewEntry({ turnState, modifiedFilesState })
+	suppressSyntheticReviewEntry
+		? null
+		: createSyntheticReviewEntry({ turnState, modifiedFilesState })
 );
 const renderableRowSource = $derived.by(() => {
 	return measureAgentPanelPerformance(
@@ -196,10 +200,7 @@ const virtualLeadingSpacePx = $derived.by(() => {
 	if (!Number.isInteger(loadedStartRowIndex) || loadedStartRowIndex <= 0) {
 		return 0;
 	}
-	const sampleCount = Math.min(
-		UNLOADED_ROW_ESTIMATE_SAMPLE_LIMIT,
-		renderableRowSource.length
-	);
+	const sampleCount = Math.min(UNLOADED_ROW_ESTIMATE_SAMPLE_LIMIT, renderableRowSource.length);
 	const sampleStartIndex = Math.max(0, renderableRowSource.length - sampleCount);
 	let estimateTotalPx = 0;
 	let measuredEstimateCount = 0;
@@ -427,10 +428,7 @@ function requestOlderRowsAfterFirstPaint(targetSessionId: string): void {
 	sessionStore.viewport.requestOlderRows(targetSessionId);
 }
 
-function requestOlderRowsWhenScrollSettled(
-	targetSessionId: string,
-	scrollActive: boolean
-): void {
+function requestOlderRowsWhenScrollSettled(targetSessionId: string, scrollActive: boolean): void {
 	if (scrollActive) {
 		pendingOlderRowsAfterScrollSessionId = targetSessionId;
 		return;
@@ -440,11 +438,7 @@ function requestOlderRowsWhenScrollSettled(
 
 function flushPendingOlderRowsAfterScroll(state: MessageScrollerRangeState): void {
 	const targetSessionId = pendingOlderRowsAfterScrollSessionId;
-	if (
-		targetSessionId === null ||
-		state.scrollActive ||
-		sessionId !== targetSessionId
-	) {
+	if (targetSessionId === null || state.scrollActive || sessionId !== targetSessionId) {
 		return;
 	}
 	pendingOlderRowsAfterScrollSessionId = null;

@@ -136,7 +136,8 @@
 							</span>
 						</div>
 
-						{#if row.model.isDownloaded}
+						{#if row.model.isDownloaded && row.model.isDownloadable}
+							<!-- svelte-ignore a11y_click_events_have_key_events -->
 							<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 							<div
 								role="group"
@@ -160,7 +161,8 @@
 									<HugeiconsIcon name="trash" />
 								</Button>
 							</div>
-						{:else}
+						{:else if row.model.isDownloadable}
+							<!-- svelte-ignore a11y_click_events_have_key_events -->
 							<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 							<div
 								role="group"

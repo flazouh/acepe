@@ -184,10 +184,16 @@ function isCanonicalBusy(
 	activity: SessionGraphActivity | null | undefined,
 	turnState: SessionTurnState | null | undefined
 ): boolean {
+	// A provider may keep its turn open while it waits for a user reply. The
+	// canonical activity is more specific than that open turn, so preserve the
+	// send-capable composer instead of presenting a Stop action.
+	if (activity?.kind === "waiting_for_user") {
+		return false;
+	}
+
 	return (
 		activity?.kind === "running_operation" ||
 		activity?.kind === "awaiting_model" ||
-		activity?.kind === "waiting_for_user" ||
 		turnState === "Running"
 	);
 }
@@ -214,8 +220,7 @@ export function deriveCanonicalAgentPanelSessionState(
 			sessionStatus: input.hasOptimisticPendingEntry === true ? "warming" : "empty",
 			isConnected: false,
 			isStreaming: false,
-			localPlaceholderMode:
-				input.hasOptimisticPendingEntry === true ? "connection" : "none",
+			localPlaceholderMode: input.hasOptimisticPendingEntry === true ? "connection" : "none",
 			canSubmit: false,
 			showStop: false,
 		};

@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use tokio::sync::Mutex as TokioMutex;
 
 const EXTERNAL_BACKEND_ID: &str = "external";
-const EXTERNAL_BACKEND_NAME: &str = "External STT";
+const EXTERNAL_BACKEND_NAME: &str = "Speech to text";
 const EXTERNAL_BACKEND_SENTINEL_PATH: &str = "__acepe_external_stt_backend__";
 const EXTERNAL_STT_COMMAND_ENV: &str = "ACEPE_VOICE_STT_COMMAND";
 const EXTERNAL_STT_MODEL_PATH_ENV: &str = "ACEPE_VOICE_STT_MODEL_PATH";

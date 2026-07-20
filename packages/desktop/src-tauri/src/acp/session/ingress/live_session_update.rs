@@ -80,6 +80,15 @@ pub fn session_update_to_provider_event(
         SessionUpdate::CompactionEvent { event, .. } => {
             ProviderEventKind::Compaction(event.clone())
         }
+        SessionUpdate::TurnComplete { .. } => ProviderEventKind::TurnEnd {
+            outcome: crate::acp::session::ingress::event::TurnOutcome::Completed,
+        },
+        SessionUpdate::TurnError { .. } => ProviderEventKind::TurnEnd {
+            outcome: crate::acp::session::ingress::event::TurnOutcome::Failed,
+        },
+        SessionUpdate::TurnCancelled { .. } => ProviderEventKind::TurnEnd {
+            outcome: crate::acp::session::ingress::event::TurnOutcome::Cancelled,
+        },
         _ => return None,
     };
 
@@ -136,6 +145,15 @@ fn history_fallback_event(
         SessionUpdate::ToolCallUpdate { update, .. } => {
             ProviderEventKind::ToolCallUpdate(update.clone())
         }
+        SessionUpdate::TurnComplete { .. } => ProviderEventKind::TurnEnd {
+            outcome: crate::acp::session::ingress::event::TurnOutcome::Completed,
+        },
+        SessionUpdate::TurnError { .. } => ProviderEventKind::TurnEnd {
+            outcome: crate::acp::session::ingress::event::TurnOutcome::Failed,
+        },
+        SessionUpdate::TurnCancelled { .. } => ProviderEventKind::TurnEnd {
+            outcome: crate::acp::session::ingress::event::TurnOutcome::Cancelled,
+        },
         _ => return None,
     };
 
@@ -203,14 +221,24 @@ fn provider_row_id_for_history_update(index: usize, update: &SessionUpdate) -> S
 
 fn user_text_from_chunk(chunk: &ContentChunk) -> Option<String> {
     match &chunk.content {
-        ContentBlock::Text { text } if !text.is_empty() => Some(text.clone()),
+        ContentBlock::Text { text }
+            if !text.is_empty() && !is_task_notification_control_text(text) =>
+        {
+            Some(text.clone())
+        }
         _ => None,
     }
 }
 
+fn is_task_notification_control_text(text: &str) -> bool {
+    text.trim_start().starts_with("<task-notification>")
+}
+
 fn assistant_text_from_chunk(chunk: &ContentChunk) -> Option<String> {
     match &chunk.content {
-        ContentBlock::Text { text } => Some(text.clone()),
+        ContentBlock::Text { text } if !is_task_notification_control_text(text) => {
+            Some(text.clone())
+        }
         _ => None,
     }
 }
@@ -302,6 +330,53 @@ mod tests {
     }
 
     #[test]
+    fn suppresses_live_task_notification_control_user_text() {
+        let update = SessionUpdate::UserMessageChunk {
+            session_id: Some("sess-1".to_string()),
+            chunk: ContentChunk {
+                content: ContentBlock::Text {
+                    text: "\n<task-notification>\n<task-id>a2431485225cc7142</task-id>\n<tool-use-id>toolu_01NYFH2fnPUSvMgBZGH1yhRX</tool-use-id>\n<status>completed</status>\n</task-notification>".to_string(),
+                },
+                aggregation_hint: None,
+            },
+            attempt_id: None,
+        };
+
+        assert!(session_update_to_provider_event(
+            CanonicalAgentId::ClaudeCode,
+            8,
+            &update,
+            RouteDecision::default(),
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn suppresses_live_task_notification_control_assistant_text() {
+        let update = SessionUpdate::AgentMessageChunk {
+            session_id: Some("sess-1".to_string()),
+            chunk: ContentChunk {
+                content: ContentBlock::Text {
+                    text: "<task-notification>\n<tool-use-id>toolu_01NYFH2fnPUSvMgBZGH1yhRX</tool-use-id>\n</task-notification>".to_string(),
+                },
+                aggregation_hint: None,
+            },
+            message_id: Some("msg-1".to_string()),
+            part_id: Some("part-1".to_string()),
+            parent_tool_use_id: None,
+            produced_at_monotonic_ms: None,
+        };
+
+        assert!(session_update_to_provider_event(
+            CanonicalAgentId::ClaudeCode,
+            9,
+            &update,
+            RouteDecision::default(),
+        )
+        .is_none());
+    }
+
+    #[test]
     fn maps_tool_call_update_with_live_row_id() {
         use crate::acp::session_update::ToolCallUpdateData;
 
@@ -334,6 +409,29 @@ mod tests {
         .expect("tool call update maps");
 
         assert_eq!(event.provider_row_id, "call-1:update:7");
+    }
+
+    #[test]
+    fn maps_turn_complete_to_a_completed_turn_end() {
+        let update = SessionUpdate::TurnComplete {
+            session_id: Some("sess-1".to_string()),
+            turn_id: Some("turn-1".to_string()),
+        };
+
+        let event = session_update_to_provider_event(
+            CanonicalAgentId::ClaudeCode,
+            8,
+            &update,
+            RouteDecision::default(),
+        )
+        .expect("turn completion maps");
+
+        assert!(matches!(
+            event.kind,
+            ProviderEventKind::TurnEnd {
+                outcome: crate::acp::session::ingress::event::TurnOutcome::Completed
+            }
+        ));
     }
 
     #[test]

@@ -12,6 +12,7 @@
 	import { isVoiceActive } from "./agent-input-composer-toolbar-state.js";
 	import type { AgentInputConfigOption } from "./agent-input-config-option-types.js";
 	import type { AgentComposerToolbarVoiceBinding } from "./agent-input-toolbar-voice.js";
+	import type { AgentInputVoiceModel } from "./agent-input-voice-model-menu-state.js";
 
 	let {
 		inputReady,
@@ -48,12 +49,7 @@
 		composerIsDispatching: boolean;
 		getMicButtonTitle: (voice: AgentComposerToolbarVoiceBinding) => string;
 		onVoiceMicKeyDown: (event: KeyboardEvent, voice: AgentComposerToolbarVoiceBinding) => void;
-		voiceModels: readonly {
-			id: string;
-			name: string;
-			sizeBytes: number;
-			isDownloaded: boolean;
-		}[];
+		voiceModels: readonly AgentInputVoiceModel[];
 		voiceSelectedModelId: string | null;
 		voiceModelsLoading: boolean;
 		voiceDownloadingModelId: string | null;

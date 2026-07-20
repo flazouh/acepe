@@ -1,21 +1,21 @@
 import {
-  rowEstimatePx,
-  type AgentPanelSceneEntryModel,
-  type MessageScrollerItem,
-  type MessageScrollerItemSource,
+	type AgentPanelSceneEntryModel,
+	type MessageScrollerItem,
+	type MessageScrollerItemSource,
+	rowEstimatePx,
 } from "@acepe/ui/agent-panel";
 import type { TranscriptViewportRow } from "../../../../services/acp-types.js";
 import { renderKey } from "../../../store/transcript-rows-store.js";
-import type { LocalPlaceholderRow } from "./local-placeholder-row.js";
 import type {
 	LocalPlaceholderMode,
 	VisibleLocalPlaceholderMode,
 } from "./local-placeholder-mode.js";
+import type { LocalPlaceholderRow } from "./local-placeholder-row.js";
 import type { RenderableTranscriptRow } from "./renderable-transcript-row.js";
 import { hasTrailingCompletedTool } from "./transcript-viewport-row-facts.js";
 import {
-  resolveTranscriptViewportSceneEntry,
-  resolveTranscriptViewportSceneEntryCandidate,
+	resolveTranscriptViewportSceneEntry,
+	resolveTranscriptViewportSceneEntryCandidate,
 } from "./transcript-viewport-row-mapper.js";
 
 export type RenderedTranscriptViewportRow = {
@@ -117,7 +117,8 @@ export function buildRenderableTranscriptViewportRows(input: {
 	if (
 		input.syntheticReviewEntry !== null &&
 		input.syntheticReviewEntry !== undefined &&
-		!getRepresentedSceneEntryIds().has(input.syntheticReviewEntry.id)
+		!getRepresentedSceneEntryIds().has(input.syntheticReviewEntry.id) &&
+		!hasLocalNextTurnTail(renderableRows)
 	) {
 		renderableRows.push(
 			createRenderableTranscriptViewportRow({
@@ -152,9 +153,7 @@ export function createRenderableTranscriptViewportRowSource(input: {
 		return localRows[index - baseLength];
 	}
 
-	function getBaseMetadata(
-		index: number
-	): RenderableTranscriptViewportRowMetadata | null {
+	function getBaseMetadata(index: number): RenderableTranscriptViewportRowMetadata | null {
 		if (index < 0 || index >= baseLength) {
 			return null;
 		}
@@ -226,15 +225,15 @@ export function createRenderableTranscriptViewportRowSource(input: {
 			}
 			return getBaseMetadata(index)?.rowId ?? null;
 		},
-    getEstimatePx(index: number): number {
-      if (index >= baseLength) {
-        const localRow = getLocalRow(index);
-        if (localRow === undefined) {
-          return rowEstimatePx("assistantText");
-        }
-        return localRow.estimatePx;
-      }
-      return getBaseMetadata(index)?.estimatePx ?? rowEstimatePx("assistantText");
+		getEstimatePx(index: number): number {
+			if (index >= baseLength) {
+				const localRow = getLocalRow(index);
+				if (localRow === undefined) {
+					return rowEstimatePx("assistantText");
+				}
+				return localRow.estimatePx;
+			}
+			return getBaseMetadata(index)?.estimatePx ?? rowEstimatePx("assistantText");
 		},
 		isActiveTail(index: number): boolean {
 			if (index >= baseLength) {
@@ -327,7 +326,8 @@ function buildLocalRenderableTranscriptViewportRows(input: {
 	if (
 		input.syntheticReviewEntry !== null &&
 		input.syntheticReviewEntry !== undefined &&
-		!getRepresentedSceneEntryIds().has(input.syntheticReviewEntry.id)
+		!getRepresentedSceneEntryIds().has(input.syntheticReviewEntry.id) &&
+		!hasLocalNextTurnTail(localRows)
 	) {
 		localRows.push(
 			createRenderableTranscriptViewportRow({
@@ -459,6 +459,19 @@ function buildRepresentedSceneEntryIdsForBuffer(
 	return representedSceneEntryIds;
 }
 
+function hasLocalNextTurnTail(
+	localRows: readonly {
+		readonly row: RenderableTranscriptRow;
+		readonly localOnly?: boolean;
+	}[]
+): boolean {
+	const localTail = localRows[localRows.length - 1]?.row;
+	if (localRows[localRows.length - 1]?.localOnly === false) {
+		return false;
+	}
+	return localTail?.kind === "user" || localTail?.kind === "localPlaceholder";
+}
+
 function shouldAppendLocalPlaceholder(input: {
 	readonly mode: LocalPlaceholderMode;
 	readonly bufferRows: readonly TranscriptViewportRow[];
@@ -481,7 +494,10 @@ function appendLocalOptimisticRow(input: {
 	readonly bufferStartIndex: number;
 	readonly representedSceneEntryIds: Set<string>;
 }): void {
-	if (!isLocalOptimisticUserEntry(input.entry) || input.representedSceneEntryIds.has(input.entry.id)) {
+	if (
+		!isLocalOptimisticUserEntry(input.entry) ||
+		input.representedSceneEntryIds.has(input.entry.id)
+	) {
 		return;
 	}
 	input.renderableRows.push(
@@ -546,9 +562,7 @@ function createLocalOptimisticUserRow(
 	};
 }
 
-function createLocalPlanningRow(
-	mode: VisibleLocalPlaceholderMode
-): LocalPlaceholderRow {
+function createLocalPlanningRow(mode: VisibleLocalPlaceholderMode): LocalPlaceholderRow {
 	return {
 		rowId: PLANNING_ROW_ID,
 		sourceEntryId: PLANNING_ROW_ID,
