@@ -134,7 +134,7 @@ describe("NativeMarkdown", () => {
 		expect(container.querySelector("[data-acepe-code-language='go']")?.textContent).toContain("Go");
 		expect(
 			container.querySelector("[data-acepe-code-language='go'] img")?.getAttribute("src")
-		).toMatch(/^data:image\/svg\+xml,/);
+		).toBe("/svgs/icons/go.svg");
 
 		await waitFor(() => {
 			expect(container.querySelector("[data-acepe-code-highlighted='true']")).not.toBeNull();
@@ -302,7 +302,9 @@ describe("NativeMarkdown", () => {
 
 		const chip = container.querySelector(".file-path-badge");
 		expect(chip?.className).toContain("rounded-md");
-		expect(chip?.querySelector("img")?.getAttribute("src")).toMatch(/^data:image\/svg\+xml,/);
+		expect(chip?.querySelector("img")?.getAttribute("src")).toBe(
+			"/svgs/icons/typescript.svg"
+		);
 		chip?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 
 		expect(onFilePathClick).toHaveBeenCalledWith("packages/ui/src/index.ts");

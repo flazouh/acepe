@@ -60,7 +60,9 @@ describe("AgentErrorCard", () => {
 
 		const primary = view.getByText("Model unavailable");
 		const actions = view.container.querySelector('[data-qa="agent-error-actions"]');
-		expect(actions).toBeTruthy();
+		if (actions === null) {
+			throw new Error("Agent error actions were not rendered");
+		}
 		expect(primary.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 	});
 

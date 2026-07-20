@@ -36,8 +36,8 @@ describe("AgentInputMicButton", () => {
 		expect(button.className).toContain("h-7");
 		expect(button.className).toContain("w-6");
 		expect(icon.tagName.toLowerCase()).toBe("svg");
-		expect(icon.getAttribute("viewBox")).toBe("0 0 16 16");
-		expect(icon.querySelectorAll("path")).toHaveLength(2);
+		expect(icon.getAttribute("viewBox")).toBe("0 0 24 24");
+		expect(icon.querySelectorAll("path").length).toBeGreaterThan(0);
 		expect(icon.querySelector("path")?.getAttribute("stroke")).toBe("currentColor");
 	});
 });

@@ -368,7 +368,7 @@ describe("MessageScroller", () => {
 		const view = render(MessageScrollerContentHarness, {
 			props: {
 				items: [item({ key: "assistant:v1", rowId: "assistant", estimatePx: 150 })],
-				onReady: (readyController) => {
+				onReady: (readyController: StickToBottomController) => {
 					controller = readyController;
 				},
 			},
@@ -394,7 +394,7 @@ describe("MessageScroller", () => {
 					anchorEligible: false,
 				}),
 			],
-			onReady: (readyController) => {
+			onReady: (readyController: StickToBottomController) => {
 				controller = readyController;
 			},
 		});

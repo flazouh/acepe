@@ -79,7 +79,9 @@ describe("AgentAssistantMessage", () => {
 			window.setTimeout(resolve, 25);
 		});
 
-		expect(view.queryByTestId("thinking-block-content")).toBeNull();
+		expect(view.getByTestId("thinking-block-content").closest(".thinking-collapsible")?.className).toContain(
+			"is-collapsed"
+		);
 		expect(view.getByRole("button", { name: "Expand thinking" })).toBeTruthy();
 	});
 
@@ -111,7 +113,9 @@ describe("AgentAssistantMessage", () => {
 		};
 		const view = render(AgentAssistantMessage, { props });
 
-		expect(view.queryByTestId("thinking-block-content")).toBeNull();
+		expect(view.getByTestId("thinking-block-content").closest(".thinking-collapsible")?.className).toContain(
+			"is-collapsed"
+		);
 
 		await fireEvent.click(view.getByRole("button", { name: "Expand thinking" }));
 		await view.rerender(props);

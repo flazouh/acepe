@@ -30,7 +30,7 @@ describe("FullscreenAction Hugeicons", () => {
 		const button = getByLabelText("Fullscreen");
 		expect(button).toBeTruthy();
 		expect(button.className).toContain("size-5");
-		expect(container.querySelector('svg[viewBox="0 0 20 20"]')).not.toBeNull();
+		expect(container.querySelector('svg[viewBox="0 0 24 24"]')).not.toBeNull();
 		expect(container.querySelector("svg")?.getAttribute("class")).toContain("shrink-0");
 	});
 
@@ -44,7 +44,7 @@ describe("FullscreenAction Hugeicons", () => {
 		const button = getByLabelText("Exit fullscreen");
 		expect(button).toBeTruthy();
 		expect(button.className).toContain("size-5");
-		expect(container.querySelector('svg[viewBox="0 0 20 20"]')).not.toBeNull();
+		expect(container.querySelector('svg[viewBox="0 0 24 24"]')).not.toBeNull();
 		expect(container.querySelector("svg")?.getAttribute("class")).toContain("shrink-0");
 	});
 });

@@ -138,7 +138,11 @@
 			{#each Array.from({ length: segmentCount }, (_, index) => index) as index (index)}
 				{@const isFilled = index < filledSegmentCount}
 				<div
-					class={cn(classes.segment(), isFilled ? undefined : "bg-muted-foreground/[0.18]")}
+					class={cn(
+						classes.segment(),
+						isFilled ? classes.segmentFilled() : "bg-muted-foreground/[0.18]"
+					)}
+					data-filled={isFilled ? "true" : undefined}
 					style={isFilled ? getFilledSegmentBackgroundStyle() : undefined}
 				></div>
 			{/each}
