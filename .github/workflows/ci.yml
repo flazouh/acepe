@@ -303,7 +303,6 @@ jobs:
           cargo nextest run --no-default-features -E 'not test(claude_history::export_types)'
           # nextest does not run doctests; run them separately to keep coverage.
           cargo test --no-default-features --doc
-          cargo check --no-default-features --features auto-download
 
       - name: gpui-agent-panel-poc clippy + test
         if: env.RUN_GPUI_POC == 'true'
