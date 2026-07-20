@@ -3,18 +3,25 @@ export type Affected = {
 	desktopRust: boolean;
 	website: boolean;
 	ui: boolean;
-	agentPanelContract: boolean;
 	rootScripts: boolean;
 	shared: boolean;
 	gpuiPoc: boolean;
 };
 
-function matchesAny(files: readonly string[], prefixes: readonly string[]): boolean {
-	return files.some((file) => prefixes.some((prefix) => file === prefix || file.startsWith(prefix)));
+function matchesAny(
+	files: readonly string[],
+	prefixes: readonly string[],
+): boolean {
+	return files.some((file) =>
+		prefixes.some((prefix) => file === prefix || file.startsWith(prefix)),
+	);
 }
 
 function isDesktopFrontend(file: string): boolean {
-	return file.startsWith("packages/desktop/") && !file.startsWith("packages/desktop/src-tauri/");
+	return (
+		file.startsWith("packages/desktop/") &&
+		!file.startsWith("packages/desktop/src-tauri/")
+	);
 }
 
 export function classifyPushFiles(files: readonly string[]): Affected {
@@ -23,7 +30,6 @@ export function classifyPushFiles(files: readonly string[]): Affected {
 		desktopRust: matchesAny(files, ["packages/desktop/src-tauri/"]),
 		website: matchesAny(files, ["packages/website/"]),
 		ui: matchesAny(files, ["packages/ui/"]),
-		agentPanelContract: matchesAny(files, ["packages/agent-panel-contract/"]),
 		rootScripts: matchesAny(files, ["scripts/"]),
 		shared: matchesAny(files, [
 			"bun.lock",
@@ -44,22 +50,17 @@ export function shouldRunDesktop(affected: Affected): boolean {
 		affected.desktopFrontend ||
 		affected.desktopRust ||
 		affected.ui ||
-		affected.agentPanelContract ||
 		affected.rootScripts ||
 		affected.shared
 	);
 }
 
 export function shouldRunWebsite(affected: Affected): boolean {
-	return affected.website || affected.ui || affected.agentPanelContract || affected.shared;
+	return affected.website || affected.ui || affected.shared;
 }
 
 export function shouldRunUi(affected: Affected): boolean {
 	return affected.ui || affected.rootScripts || affected.shared;
-}
-
-export function shouldRunAgentPanelContract(affected: Affected): boolean {
-	return affected.agentPanelContract || affected.shared;
 }
 
 export function shouldRunTauriBackend(affected: Affected): boolean {

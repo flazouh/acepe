@@ -12,7 +12,6 @@ import { spawnSync } from "node:child_process";
 
 import {
 	classifyPushFiles,
-	shouldRunAgentPanelContract,
 	shouldRunDesktop,
 	shouldRunGpuiPoc,
 	shouldRunTauriBackend,
@@ -25,9 +24,13 @@ function resolvePushFiles(argvFiles: readonly string[]): string[] {
 		return argvFiles.filter((file) => file.length > 0);
 	}
 
-	const upstream = spawnSync("git", ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"], {
-		encoding: "utf8",
-	});
+	const upstream = spawnSync(
+		"git",
+		["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"],
+		{
+			encoding: "utf8",
+		},
+	);
 	const base =
 		upstream.status === 0 && upstream.stdout.trim().length > 0
 			? upstream.stdout.trim()
@@ -47,7 +50,12 @@ function resolvePushFiles(argvFiles: readonly string[]): string[] {
 		.filter((line) => line.length > 0);
 }
 
-function run(label: string, command: string, args: readonly string[], cwd?: string): void {
+function run(
+	label: string,
+	command: string,
+	args: readonly string[],
+	cwd?: string,
+): void {
 	console.log(`\n→ ${label}`);
 	const result = spawnSync(command, [...args], {
 		cwd,
@@ -76,14 +84,15 @@ function runShell(label: string, command: string, cwd?: string): void {
 
 const files = resolvePushFiles(process.argv.slice(2));
 if (files.length === 0) {
-	console.log("No push files detected; running repo-wide structural guard only.");
+	console.log(
+		"No push files detected; running repo-wide structural guard only.",
+	);
 }
 
 const affected = classifyPushFiles(files);
 const runDesktop = shouldRunDesktop(affected);
 const runWebsite = shouldRunWebsite(affected);
 const runUi = shouldRunUi(affected);
-const runAgentPanelContract = shouldRunAgentPanelContract(affected);
 const runTauriBackend = shouldRunTauriBackend(affected);
 const runGpuiPoc = shouldRunGpuiPoc(affected);
 
@@ -95,17 +104,19 @@ console.log(
 			runDesktop,
 			runWebsite,
 			runUi,
-			runAgentPanelContract,
 			runTauriBackend,
 			runGpuiPoc,
 		},
 		null,
-		2
-	)
+		2,
+	),
 );
 
 // Always — mirrors CI structural_forbid job.
-run("structural test guard", "bun", ["scripts/forbid-structural-tests.ts", "packages"]);
+run("structural test guard", "bun", [
+	"scripts/forbid-structural-tests.ts",
+	"packages",
+]);
 run("dependency audit", "bun", ["run", "audit"]);
 
 if (runDesktop) {
@@ -113,7 +124,7 @@ if (runDesktop) {
 		"desktop biome",
 		"bunx",
 		["@biomejs/biome", "check", "--diagnostic-level=error", "."],
-		"packages/desktop"
+		"packages/desktop",
 	);
 	runShell("desktop check", "bun run check", "packages/desktop");
 	runShell("desktop check:svelte", "bun run check:svelte", "packages/desktop");
@@ -125,7 +136,7 @@ if (runWebsite) {
 		"website biome",
 		"bunx",
 		["@biomejs/biome", "check", "--diagnostic-level=error", "."],
-		"packages/website"
+		"packages/website",
 	);
 	runShell("website check", "bun run check", "packages/website");
 	runShell("website test", "bun run test", "packages/website");
@@ -136,20 +147,16 @@ if (runUi) {
 	runShell("ui test", "bun test", "packages/ui");
 }
 
-if (runAgentPanelContract) {
-	runShell("agent-panel-contract test", "bun test", "packages/agent-panel-contract");
-}
-
 if (runTauriBackend) {
 	runShell(
 		"tauri clippy",
 		"cargo clippy --no-default-features -- -D warnings",
-		"packages/desktop/src-tauri"
+		"packages/desktop/src-tauri",
 	);
 	runShell(
 		"tauri test",
 		"cargo nextest run --no-default-features -E 'not test(claude_history::export_types)'",
-		"packages/desktop/src-tauri"
+		"packages/desktop/src-tauri",
 	);
 }
 
@@ -157,21 +164,26 @@ if (runGpuiPoc) {
 	runShell(
 		"gpui-agent-panel-poc clippy",
 		"cargo clippy -- -D warnings",
-		"packages/gpui-agent-panel-poc"
+		"packages/gpui-agent-panel-poc",
 	);
-	runShell("gpui-agent-panel-poc test", "cargo test", "packages/gpui-agent-panel-poc");
+	runShell(
+		"gpui-agent-panel-poc test",
+		"cargo test",
+		"packages/gpui-agent-panel-poc",
+	);
 }
 
 if (
 	!runDesktop &&
 	!runWebsite &&
 	!runUi &&
-	!runAgentPanelContract &&
 	!runTauriBackend &&
 	!runGpuiPoc &&
 	files.length > 0
 ) {
-	console.log("\nNo package-specific frontend/backend checks required for this push set.");
+	console.log(
+		"\nNo package-specific frontend/backend checks required for this push set.",
+	);
 }
 
 console.log("\n✔ Pre-push checks passed");
