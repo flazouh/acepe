@@ -7,7 +7,7 @@ import {
 	getDefaultViewportSize,
 	scrollToIndexCalls,
 	shouldSuppressRenderedChildren,
-} from "./vlist-stub-state.js";
+} from "./transcript-virtualizer-state.js";
 
 type VListStubProps = {
 	data: readonly unknown[];

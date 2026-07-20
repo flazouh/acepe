@@ -408,7 +408,7 @@ async function handleProjectContextMove(projectPath: string, offset: -1 | 1): Pr
 }
 </script>
 
-{#snippet projectOverflowMenu(group, projectIndex)}
+{#snippet projectOverflowMenu(group: SessionGroup, projectIndex: number)}
 	<ProjectHeaderOverflowMenu
 		projectName={group.projectName}
 		currentColor={group.projectColor}
@@ -439,7 +439,7 @@ async function handleProjectContextMove(projectPath: string, offset: -1 | 1): Pr
 	/>
 {/snippet}
 
-{#snippet projectHeaderActions(group, projectIndex)}
+{#snippet projectHeaderActions(group: SessionGroup, projectIndex: number)}
 	<div
 		class="flex shrink-0 items-center gap-0.5"
 		role="presentation"
@@ -462,7 +462,7 @@ async function handleProjectContextMove(projectPath: string, offset: -1 | 1): Pr
 	</div>
 {/snippet}
 
-{#snippet sidebarProjectHeader(group, projectIndex, isExpanded)}
+{#snippet sidebarProjectHeader(group: SessionGroup, projectIndex: number, isExpanded: boolean)}
 	<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 	<div
 		use:projectHeaderFocusTarget={group.projectPath}

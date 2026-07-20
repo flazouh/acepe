@@ -1,325 +1,341 @@
 <script lang="ts">
-	import * as DropdownMenu from "../dropdown-menu/index.js";
-	import * as Popover from "../popover/index.js";
-	import * as Tooltip from "../tooltip/index.js";
-	import { Button } from "../button/index.js";
-	import { HugeiconsIcon, type HugeiconsIconName } from "../icons/index.js";
-	import { Selector, SelectorItem } from "../selector/index.js";
-	import { Switch } from "../switch/index.js";
-	import { dropdownMenuItemRadiusClass } from "../dropdown-menu/dropdown-menu-item.classes.js";
-	import { dropdownMenuItemTypographyClass } from "../dropdown-menu/dropdown-menu-typography.js";
-	import { PROJECT_COLOR_OPTIONS } from "./project-color-options.js";
-	import ProjectColorSwatch from "./project-color-swatch.svelte";
-	import { buildProjectHeaderOverflowMenuState } from "./project-menu-state.js";
+import { Button } from "../button/index.js";
+import { dropdownMenuItemRadiusClass } from "../dropdown-menu/dropdown-menu-item.classes.js";
+import { dropdownMenuItemTypographyClass } from "../dropdown-menu/dropdown-menu-typography.js";
+import * as DropdownMenu from "../dropdown-menu/index.js";
+import { HugeiconsIcon, type HugeiconsIconName } from "../icons/index.js";
+import * as Popover from "../popover/index.js";
+import { Selector, SelectorItem } from "../selector/index.js";
+import { Switch } from "../switch/index.js";
+import * as Tooltip from "../tooltip/index.js";
+import { PROJECT_COLOR_OPTIONS } from "./project-color-options.js";
+import ProjectColorSwatch from "./project-color-swatch.svelte";
+import { buildProjectHeaderOverflowMenuState } from "./project-menu-state.js";
 
-	type ProjectMenuContentWidth = "min-w-[170px]" | "min-w-[190px]" | "min-w-[220px]";
+type ProjectMenuContentWidth =
+	| "min-w-[170px]"
+	| "min-w-[190px]"
+	| "min-w-[220px]";
 
-	type ProjectMenuActionEntry = {
-		readonly kind: "action";
-		readonly id: string;
-		readonly label: string;
-		readonly icon: HugeiconsIconName;
-		readonly iconClass?: string;
-		readonly disabled?: boolean;
-		readonly destructive?: boolean;
-		readonly onSelect: () => void;
-	};
+type ProjectMenuActionEntry = {
+	readonly kind: "action";
+	readonly id: string;
+	readonly label: string;
+	readonly icon: HugeiconsIconName;
+	readonly iconClass?: string;
+	readonly disabled?: boolean;
+	readonly destructive?: boolean;
+	readonly onSelect: () => void;
+};
 
-	type ProjectMenuToggleEntry = {
-		readonly kind: "toggle";
-		readonly id: string;
-		readonly label: string;
-		readonly ariaLabel: string;
-		readonly info: string;
-		readonly icon: HugeiconsIconName;
-		readonly checked: boolean;
-		readonly onToggle: (checked: boolean) => void;
-	};
+type ProjectMenuToggleEntry = {
+	readonly kind: "toggle";
+	readonly id: string;
+	readonly label: string;
+	readonly ariaLabel: string;
+	readonly info: string;
+	readonly icon: HugeiconsIconName;
+	readonly checked: boolean;
+	readonly onToggle: (checked: boolean) => void;
+};
 
-	type ProjectMenuColorEntry = {
-		readonly kind: "color-submenu";
-		readonly id: string;
-		readonly label: string;
-		readonly icon: HugeiconsIconName;
-	};
+type ProjectMenuColorEntry = {
+	readonly kind: "color-submenu";
+	readonly id: string;
+	readonly label: string;
+	readonly icon: HugeiconsIconName;
+};
 
-	type ProjectMenuEntry = ProjectMenuActionEntry | ProjectMenuToggleEntry | ProjectMenuColorEntry;
+type ProjectMenuEntry =
+	| ProjectMenuActionEntry
+	| ProjectMenuToggleEntry
+	| ProjectMenuColorEntry;
 
-	type ProjectMenuGroup = {
-		readonly id: string;
-		readonly entries: readonly ProjectMenuEntry[];
-	};
+type ProjectMenuGroup = {
+	readonly id: string;
+	readonly entries: readonly ProjectMenuEntry[];
+};
 
-	type ProjectMenuSection = {
-		readonly id: string;
-		readonly label: string;
-		readonly icon: HugeiconsIconName;
-		readonly contentWidthClass: ProjectMenuContentWidth;
-		readonly groups: readonly ProjectMenuGroup[];
-	};
+type ProjectMenuSection = {
+	readonly id: string;
+	readonly label: string;
+	readonly icon: HugeiconsIconName;
+	readonly contentWidthClass: ProjectMenuContentWidth;
+	readonly groups: readonly ProjectMenuGroup[];
+};
 
-	interface Props {
-		projectName: string;
-		currentColor?: string;
-		onColorChange?: (color: string) => void;
-		projectIconSrc?: string | null;
-		onResetProjectIcon?: () => void;
-		onRemoveProject?: () => void;
-		onMoveUp?: () => void;
-		onMoveDown?: () => void;
-		moveUpDisabled?: boolean;
-		moveDownDisabled?: boolean;
-		onChangeProjectIcon?: () => void;
-		hideExternalCliSessions?: boolean;
-		onHideExternalCliSessionsChange?: (hide: boolean) => void;
-		hideExternalCliSessionsLabel?: string;
-		hideExternalCliSessionsAriaLabel?: string;
-		hideExternalCliSessionsInfo?: string;
-	}
+interface Props {
+	projectName: string;
+	currentColor?: string;
+	onColorChange?: (color: string) => void;
+	projectIconSrc?: string | null;
+	onResetProjectIcon?: () => void;
+	onRemoveProject?: () => void;
+	onMoveUp?: () => void;
+	onMoveDown?: () => void;
+	moveUpDisabled?: boolean;
+	moveDownDisabled?: boolean;
+	onChangeProjectIcon?: () => void;
+	hideExternalCliSessions?: boolean;
+	onHideExternalCliSessionsChange?: (hide: boolean) => void;
+	hideExternalCliSessionsLabel?: string;
+	hideExternalCliSessionsAriaLabel?: string;
+	hideExternalCliSessionsInfo?: string;
+}
 
-	let {
-		projectName,
+let {
+	projectName,
+	currentColor,
+	onColorChange,
+	projectIconSrc = null,
+	onResetProjectIcon,
+	onRemoveProject,
+	onMoveUp,
+	onMoveDown,
+	moveUpDisabled = false,
+	moveDownDisabled = false,
+	onChangeProjectIcon,
+	hideExternalCliSessions = false,
+	onHideExternalCliSessionsChange,
+	hideExternalCliSessionsLabel = "External CLI",
+	hideExternalCliSessionsAriaLabel = "Hide external CLI sessions",
+	hideExternalCliSessionsInfo = "Hide sessions started outside Acepe from this project list.",
+}: Props = $props();
+
+let menuOpen = $state(false);
+let showRemoveConfirm = $state(false);
+let triggerRef: HTMLButtonElement | null = $state(null);
+const colorOptions = PROJECT_COLOR_OPTIONS;
+
+function handleColorSelect(colorName: string) {
+	onColorChange?.(colorName);
+	closeMenu();
+}
+
+const menuState = $derived(
+	buildProjectHeaderOverflowMenuState({
 		currentColor,
-		onColorChange,
-		projectIconSrc = null,
-		onResetProjectIcon,
-		onRemoveProject,
-		onMoveUp,
-		onMoveDown,
-		moveUpDisabled = false,
-		moveDownDisabled = false,
-		onChangeProjectIcon,
-		hideExternalCliSessions = false,
-		onHideExternalCliSessionsChange,
-		hideExternalCliSessionsLabel = "External CLI",
-		hideExternalCliSessionsAriaLabel = "Hide external CLI sessions",
-		hideExternalCliSessionsInfo = "Hide sessions started outside Acepe from this project list.",
-	}: Props = $props();
+		colorOptions,
+		projectIconSrc,
+		hasColorChange: Boolean(onColorChange),
+		hasResetProjectIconAction: Boolean(onResetProjectIcon),
+		hasRemoveProjectAction: Boolean(onRemoveProject),
+		hasChangeProjectIconAction: Boolean(onChangeProjectIcon),
+	}),
+);
+const hasIcon = $derived(menuState.hasIcon);
+const hasResetProjectIcon = $derived(menuState.hasResetProjectIcon);
+const showColorPicker = $derived(menuState.showColorPicker);
 
-	let menuOpen = $state(false);
-	let showRemoveConfirm = $state(false);
-	let triggerRef: HTMLButtonElement | null = $state(null);
-	const colorOptions = PROJECT_COLOR_OPTIONS;
+const menuSections = $derived.by(() => {
+	const sections: ProjectMenuSection[] = [];
+	const organizeSection = createOrganizeMenuSection();
+	const sessionsSection = createSessionsMenuSection();
+	const appearanceSection = createAppearanceMenuSection();
+	const dangerSection = createDangerMenuSection();
 
-	function handleColorSelect(colorName: string) {
-		onColorChange?.(colorName);
-		closeMenu();
+	if (organizeSection !== null) {
+		sections.push(organizeSection);
+	}
+	if (sessionsSection !== null) {
+		sections.push(sessionsSection);
+	}
+	if (appearanceSection !== null) {
+		sections.push(appearanceSection);
+	}
+	if (dangerSection !== null) {
+		sections.push(dangerSection);
 	}
 
-	const menuState = $derived(
-		buildProjectHeaderOverflowMenuState({
-			currentColor,
-			colorOptions,
-			projectIconSrc,
-			hasColorChange: Boolean(onColorChange),
-			hasResetProjectIconAction: Boolean(onResetProjectIcon),
-			hasRemoveProjectAction: Boolean(onRemoveProject),
-			hasChangeProjectIconAction: Boolean(onChangeProjectIcon),
-		})
+	return sections;
+});
+
+function createMenuGroup(
+	id: string,
+	entries: readonly ProjectMenuEntry[],
+): ProjectMenuGroup {
+	return {
+		id,
+		entries,
+	};
+}
+
+function createMenuSection(
+	id: string,
+	label: string,
+	icon: HugeiconsIconName,
+	contentWidthClass: ProjectMenuContentWidth,
+	groups: readonly ProjectMenuGroup[],
+): ProjectMenuSection | null {
+	const visibleGroups: ProjectMenuGroup[] = [];
+
+	for (const group of groups) {
+		if (group.entries.length > 0) {
+			visibleGroups.push(group);
+		}
+	}
+
+	if (visibleGroups.length === 0) {
+		return null;
+	}
+
+	return {
+		id,
+		label,
+		icon,
+		contentWidthClass,
+		groups: visibleGroups,
+	};
+}
+
+function createOrganizeMenuSection(): ProjectMenuSection | null {
+	const entries: ProjectMenuEntry[] = [];
+
+	if (onMoveUp) {
+		entries.push({
+			kind: "action",
+			id: "move-up",
+			label: "Move Up",
+			icon: "arrow-up",
+			disabled: moveUpDisabled,
+			onSelect: () => {
+				onMoveUp?.();
+				closeMenu();
+			},
+		});
+	}
+
+	if (onMoveDown) {
+		entries.push({
+			kind: "action",
+			id: "move-down",
+			label: "Move Down",
+			icon: "arrow-up",
+			iconClass: "shrink-0 rotate-180",
+			disabled: moveDownDisabled,
+			onSelect: () => {
+				onMoveDown?.();
+				closeMenu();
+			},
+		});
+	}
+
+	return createMenuSection("order", "Order", "menu", "min-w-[170px]", [
+		createMenuGroup("order", entries),
+	]);
+}
+
+function createSessionsMenuSection(): ProjectMenuSection | null {
+	if (!onHideExternalCliSessionsChange) {
+		return null;
+	}
+
+	return createMenuSection("visibility", "Visibility", "eye", "min-w-[170px]", [
+		createMenuGroup("visibility", [
+			{
+				kind: "toggle",
+				id: "hide-external-cli-sessions",
+				label: hideExternalCliSessionsLabel,
+				ariaLabel: hideExternalCliSessionsAriaLabel,
+				info: hideExternalCliSessionsInfo,
+				icon: "terminal",
+				checked: hideExternalCliSessions,
+				onToggle: (checked) => {
+					onHideExternalCliSessionsChange?.(checked);
+				},
+			},
+		]),
+	]);
+}
+
+function createAppearanceMenuSection(): ProjectMenuSection | null {
+	const entries: ProjectMenuEntry[] = [];
+
+	if (onChangeProjectIcon) {
+		entries.push({
+			kind: "action",
+			id: "change-project-icon",
+			label: "Icon...",
+			icon: "image",
+			onSelect: () => {
+				onChangeProjectIcon?.();
+				closeMenu();
+			},
+		});
+	}
+
+	if (showColorPicker) {
+		entries.push({
+			kind: "color-submenu",
+			id: "project-color",
+			label: "Color",
+			icon: "sliders",
+		});
+	}
+
+	if (hasIcon && onResetProjectIcon) {
+		entries.push({
+			kind: "action",
+			id: "reset-project-icon",
+			label: "Reset to letter badge",
+			icon: "avatar",
+			onSelect: () => {
+				onResetProjectIcon?.();
+				closeMenu();
+			},
+		});
+	}
+
+	return createMenuSection(
+		"appearance",
+		"Appearance",
+		"image",
+		"min-w-[190px]",
+		[createMenuGroup("project-identity", entries)],
 	);
-	const hasIcon = $derived(menuState.hasIcon);
-	const hasResetProjectIcon = $derived(menuState.hasResetProjectIcon);
-	const showColorPicker = $derived(menuState.showColorPicker);
+}
 
-	const menuSections = $derived.by(() => {
-		const sections: ProjectMenuSection[] = [];
-		const organizeSection = createOrganizeMenuSection();
-		const sessionsSection = createSessionsMenuSection();
-		const appearanceSection = createAppearanceMenuSection();
-		const dangerSection = createDangerMenuSection();
-
-		if (organizeSection !== null) {
-			sections.push(organizeSection);
-		}
-		if (sessionsSection !== null) {
-			sections.push(sessionsSection);
-		}
-		if (appearanceSection !== null) {
-			sections.push(appearanceSection);
-		}
-		if (dangerSection !== null) {
-			sections.push(dangerSection);
-		}
-
-		return sections;
-	});
-
-	function createMenuGroup(id: string, entries: readonly ProjectMenuEntry[]): ProjectMenuGroup {
-		return {
-			id,
-			entries,
-		};
+function createDangerMenuSection(): ProjectMenuSection | null {
+	if (!onRemoveProject) {
+		return null;
 	}
 
-	function createMenuSection(
-		id: string,
-		label: string,
-		icon: HugeiconsIconName,
-		contentWidthClass: ProjectMenuContentWidth,
-		groups: readonly ProjectMenuGroup[]
-	): ProjectMenuSection | null {
-		const visibleGroups: ProjectMenuGroup[] = [];
-
-		for (const group of groups) {
-			if (group.entries.length > 0) {
-				visibleGroups.push(group);
-			}
-		}
-
-		if (visibleGroups.length === 0) {
-			return null;
-		}
-
-		return {
-			id,
-			label,
-			icon,
-			contentWidthClass,
-			groups: visibleGroups,
-		};
-	}
-
-	function createOrganizeMenuSection(): ProjectMenuSection | null {
-		const entries: ProjectMenuEntry[] = [];
-
-		if (onMoveUp) {
-			entries.push({
+	return createMenuSection("project", "Project", "folder", "min-w-[190px]", [
+		createMenuGroup("destructive", [
+			{
 				kind: "action",
-				id: "move-up",
-				label: "Move Up",
-				icon: "arrow-up",
-				disabled: moveUpDisabled,
-				onSelect: () => {
-					onMoveUp?.();
-					closeMenu();
-				},
-			});
-		}
+				id: "remove-project",
+				label: "Remove Project",
+				icon: "trash",
+				destructive: true,
+				onSelect: handleRemoveClick,
+			},
+		]),
+	]);
+}
 
-		if (onMoveDown) {
-			entries.push({
-				kind: "action",
-				id: "move-down",
-				label: "Move Down",
-				icon: "arrow-up",
-				iconClass: "shrink-0 rotate-180",
-				disabled: moveDownDisabled,
-				onSelect: () => {
-					onMoveDown?.();
-					closeMenu();
-				},
-			});
-		}
+function handleRemoveClick() {
+	menuOpen = false;
+	showRemoveConfirm = true;
+}
 
-		return createMenuSection("order", "Order", "drag", "min-w-[170px]", [
-			createMenuGroup("order", entries),
-		]);
+function closeMenu() {
+	menuOpen = false;
+}
+
+function handleToggleRowClick(
+	event: MouseEvent,
+	entry: ProjectMenuToggleEntry,
+) {
+	event.stopPropagation();
+
+	const target = event.target;
+	if (target instanceof HTMLElement && target.closest("[data-slot='switch']")) {
+		return;
 	}
 
-	function createSessionsMenuSection(): ProjectMenuSection | null {
-		if (!onHideExternalCliSessionsChange) {
-			return null;
-		}
-
-		return createMenuSection("visibility", "Visibility", "eye", "min-w-[170px]", [
-			createMenuGroup("visibility", [
-				{
-					kind: "toggle",
-					id: "hide-external-cli-sessions",
-					label: hideExternalCliSessionsLabel,
-					ariaLabel: hideExternalCliSessionsAriaLabel,
-					info: hideExternalCliSessionsInfo,
-					icon: "terminal",
-					checked: hideExternalCliSessions,
-					onToggle: (checked) => {
-						onHideExternalCliSessionsChange?.(checked);
-					},
-				},
-			]),
-		]);
-	}
-
-	function createAppearanceMenuSection(): ProjectMenuSection | null {
-		const entries: ProjectMenuEntry[] = [];
-
-		if (onChangeProjectIcon) {
-			entries.push({
-				kind: "action",
-				id: "change-project-icon",
-				label: "Icon...",
-				icon: "image",
-				onSelect: () => {
-					onChangeProjectIcon?.();
-					closeMenu();
-				},
-			});
-		}
-
-		if (showColorPicker) {
-			entries.push({
-				kind: "color-submenu",
-				id: "project-color",
-				label: "Color",
-				icon: "sliders",
-			});
-		}
-
-		if (hasIcon && onResetProjectIcon) {
-			entries.push({
-				kind: "action",
-				id: "reset-project-icon",
-				label: "Reset to letter badge",
-				icon: "avatar",
-				onSelect: () => {
-					onResetProjectIcon?.();
-					closeMenu();
-				},
-			});
-		}
-
-		return createMenuSection("appearance", "Appearance", "image", "min-w-[190px]", [
-			createMenuGroup("project-identity", entries),
-		]);
-	}
-
-	function createDangerMenuSection(): ProjectMenuSection | null {
-		if (!onRemoveProject) {
-			return null;
-		}
-
-		return createMenuSection("project", "Project", "folder", "min-w-[190px]", [
-			createMenuGroup("destructive", [
-				{
-					kind: "action",
-					id: "remove-project",
-					label: "Remove Project",
-					icon: "trash",
-					destructive: true,
-					onSelect: handleRemoveClick,
-				},
-			]),
-		]);
-	}
-
-	function handleRemoveClick() {
-		menuOpen = false;
-		showRemoveConfirm = true;
-	}
-
-	function closeMenu() {
-		menuOpen = false;
-	}
-
-	function handleToggleRowClick(event: MouseEvent, entry: ProjectMenuToggleEntry) {
-		event.stopPropagation();
-
-		const target = event.target;
-		if (target instanceof HTMLElement && target.closest("[data-slot='switch']")) {
-			return;
-		}
-
-		entry.onToggle(!entry.checked);
-	}
+	entry.onToggle(!entry.checked);
+}
 </script>
 
 {#snippet menuItemContent(icon: HugeiconsIconName, label: string, iconClass = "shrink-0", labelClass = "")}

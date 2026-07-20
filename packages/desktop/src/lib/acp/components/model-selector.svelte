@@ -210,7 +210,9 @@ const favoriteModels = $derived.by(() => {
 				);
 			});
 	}
-	return validModels.filter((model) => favoriteIds.includes(model.id)).map(toSelectorItem);
+	return validModels
+		.filter((model) => favoriteIds.includes(model.id))
+		.map((model) => toSelectorItem(model));
 });
 
 const modelGroups = $derived.by<AgentInputModelSelectorGroup[]>(() => {
@@ -231,7 +233,7 @@ const modelGroups = $derived.by<AgentInputModelSelectorGroup[]>(() => {
 		label: group.label,
 		providerBrand: modelProviderBrand,
 		providerLabel,
-		items: group.models.map(toSelectorItem),
+		items: group.models.map((model) => toSelectorItem(model)),
 	}));
 });
 

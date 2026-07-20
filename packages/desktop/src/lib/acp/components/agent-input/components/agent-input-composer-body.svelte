@@ -7,6 +7,7 @@ import {
 	AgentInputSlashCommandDropdown,
 	AgentInputVoiceRecordingOverlay,
 	type AgentInputEnterBehavior,
+	type AgentInputSlashCommand,
 	type AgentInputSlashCommandWorkspaceMarkdownResult,
 	type SlashPaletteItem,
 	type SlashPaletteSection,
@@ -101,8 +102,8 @@ let {
 	onPrimaryButtonClick: () => void;
 	onSlashPaletteItemSelect: (item: SlashPaletteItem) => void;
 	loadSlashCommandWorkspaceMarkdown?: (input: {
-		readonly command: { name: string; description: string; input?: { hint: string } | null };
-		readonly tokenType: "command" | "skill";
+		readonly command: AgentInputSlashCommand;
+		readonly tokenType: "command" | "skill" | "mcp";
 	}) => Promise<AgentInputSlashCommandWorkspaceMarkdownResult>;
 	onFileSelect: (file: { path: string }) => void;
 	onSlashDropdownClose: () => void;
@@ -127,7 +128,7 @@ let {
 const submitIntent = $derived(
 	composerInteraction.primaryButtonIntent === "steer" || (isStreaming && !hasDraftInput)
 		? "steer"
-		: composerInteraction.primaryButtonIntent === "stop"
+		: composerInteraction.primaryButtonIntent === "cancel"
 			? "stop"
 			: "send"
 );

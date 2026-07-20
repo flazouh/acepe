@@ -6,7 +6,6 @@ import type {
 	TranscriptEntry,
 	TranscriptViewportRow,
 } from "$lib/services/acp-types.js";
-import { materializeAgentPanelSceneFromGraph } from "$lib/acp/session-state/agent-panel-graph-materializer.js";
 import AgentPanelContent from "$lib/acp/components/agent-panel/components/agent-panel-content.svelte";
 import { Button } from "$lib/components/ui/button/index.js";
 
@@ -15,7 +14,6 @@ import {
 	type StreamingReproController,
 } from "./streaming-repro-controller";
 import {
-	applyStreamingReproPhaseSceneOverrides,
 	buildStreamingReproGraphMaterializerInput,
 	getStreamingReproPresetById,
 } from "./streaming-repro-graph-fixtures";
@@ -45,11 +43,9 @@ type StreamingReproPerfProbeResult = {
 	readonly steps: readonly StreamingReproPerfStep[];
 };
 
-declare global {
-	interface Window {
-		__acepeStreamingReproPerfProbe?: () => Promise<StreamingReproPerfProbeResult>;
-	}
-}
+type StreamingReproWindow = Window & {
+	__acepeStreamingReproPerfProbe?: () => Promise<StreamingReproPerfProbeResult>;
+};
 
 const DEFAULT_VIEW_STATE: PanelViewState = { kind: "conversation", errorDetails: null };
 const DEFAULT_SESSION_ID = "streaming-repro-session";
@@ -97,16 +93,10 @@ const activeStepCount = $derived.by(() => {
 	return controller.activePreset.phases.length;
 });
 
-const materializedScene = $derived(materializeAgentPanelSceneFromGraph(activePhaseInput));
-const reproSceneEntries = $derived(
-	applyStreamingReproPhaseSceneOverrides({
-		entries: materializedScene.conversation.entries,
-		phase: controller.activePhase,
-	})
-);
 const activeGraph = $derived(activePhaseInput.graph);
 const rowsProjectionOverride = $derived.by(() => {
-	const rows = activeGraph.transcriptSnapshot.entries.map((entry) =>
+	const graph = activeGraph;
+	const rows = (graph?.transcriptSnapshot.entries ?? []).map((entry) =>
 		createStreamingReproViewportRow(entry)
 	);
 	const byId = new Map<string, TranscriptViewportRow>();
@@ -117,7 +107,7 @@ const rowsProjectionOverride = $derived.by(() => {
 	}
 	return {
 		sessionId: DEFAULT_SESSION_ID,
-		emissionSeq: activeGraph.revision.transcriptRevision,
+		emissionSeq: graph?.revision.transcriptRevision ?? 0,
 		revision: null,
 		projectionVersion: null,
 		totalRowCount: null,
@@ -128,13 +118,6 @@ const rowsProjectionOverride = $derived.by(() => {
 		rows,
 	};
 });
-// Token-reveal projection removed (2026-07-17 teardown of the dead
-// AgentPanelScenePipelineController pipeline). This now passes the
-// materialized+overridden scene entries straight through; the rebuild's
-// client-side presentation buffer will re-point this derived to its own
-// projection.
-const projectedSceneEntries = $derived(reproSceneEntries);
-
 const turnState = $derived<SessionTurnState>(activeGraph?.turnState ?? "Completed");
 const isWaitingForFirstAssistantText = $derived(
 	activeGraph?.activity.kind === "awaiting_model" && activeGraph.activeStreamingTail === null
@@ -151,15 +134,16 @@ function entryTextLength(entry: TranscriptEntry): number {
 }
 
 function createStreamingReproViewportRow(entry: TranscriptEntry): TranscriptViewportRow {
+	const graph = activeGraph;
 	const activeTail =
-		activeGraph.activeStreamingTail?.rowId === entry.entryId
-			? activeGraph.activeStreamingTail.contentKind
+		graph?.activeStreamingTail?.rowId === entry.entryId
+			? graph.activeStreamingTail.contentKind
 			: null;
 	return {
 		rowId: entry.entryId,
 		sourceEntryId: entry.entryId,
 		kind: entry.role === "user" ? "user" : "assistantText",
-		version: `${entry.entryId}:repro:${String(activeGraph.revision.transcriptRevision)}:${String(entryTextLength(entry))}`,
+		version: `${entry.entryId}:repro:${String(graph?.revision.transcriptRevision ?? 0)}:${String(entryTextLength(entry))}`,
 		anchorEligible: true,
 		activeStreamingTail: activeTail,
 		operationLinks: [],
@@ -251,10 +235,11 @@ async function runStreamingReproPerfProbe(): Promise<StreamingReproPerfProbeResu
 }
 
 onMount(() => {
-	window.__acepeStreamingReproPerfProbe = runStreamingReproPerfProbe;
+	const reproWindow = window as StreamingReproWindow;
+	reproWindow.__acepeStreamingReproPerfProbe = runStreamingReproPerfProbe;
 	return () => {
-		if (window.__acepeStreamingReproPerfProbe === runStreamingReproPerfProbe) {
-			delete window.__acepeStreamingReproPerfProbe;
+		if (reproWindow.__acepeStreamingReproPerfProbe === runStreamingReproPerfProbe) {
+			delete reproWindow.__acepeStreamingReproPerfProbe;
 		}
 	};
 });
@@ -280,7 +265,6 @@ onMount(() => {
 			panelId={DEFAULT_PANEL_ID}
 			viewState={DEFAULT_VIEW_STATE}
 			sessionId={DEFAULT_SESSION_ID}
-			sceneEntries={projectedSceneEntries}
 			{rowsProjectionOverride}
 			sessionProjectPath={activeGraph?.projectPath ?? null}
 			allProjects={[]}

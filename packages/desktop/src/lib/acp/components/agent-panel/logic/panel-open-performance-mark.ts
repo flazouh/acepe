@@ -54,11 +54,11 @@ declare global {
 }
 
 export function recordPanelOpenPerformanceMark(
-	panelId: string,
+	panelId: string | undefined,
 	name: PanelOpenPerformanceMarkName
 ): void {
 	const enabled = import.meta.env.DEV || import.meta.env.VITE_ENABLE_QA_HOOKS === "1";
-	if (!enabled || typeof window === "undefined") {
+	if (!enabled || panelId === undefined || typeof window === "undefined") {
 		return;
 	}
 	window.__acepeRecordPanelOpenPerformanceMark?.(panelId, name, performance.now());

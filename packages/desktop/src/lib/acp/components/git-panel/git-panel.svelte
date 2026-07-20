@@ -19,7 +19,7 @@ import {
 	ProjectLetterBadge,
 	getMicButtonVisualState,
 } from "@acepe/ui";
-import { GitWorkspace } from "@acepe/ui/git-panel";
+import { GitWorkspace, type GitLogEntryFile } from "@acepe/ui/git-panel";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { onMount, untrack } from "svelte";
@@ -149,7 +149,7 @@ let selectedPrDiff = $state<PrDiff | null>(null);
 let selectedPrLoading = $state(false);
 let _loading = $state(false);
 let cachedRepoContext = $state<RepoContext | null>(null);
-let expandedCommitFiles = $state<Record<string, UILogEntryFile[]>>({});
+let expandedCommitFiles = $state<Record<string, GitLogEntryFile[]>>({});
 let worktrees = $state<WorktreeInfo[]>([]);
 let worktreeDeleteConfirm = $state<string | "all" | null>(null);
 let selectedChangesFile = $state<string>("");

@@ -42,7 +42,7 @@ function resolveProviderIcon(agentId: string | null | undefined): string | undef
 
 	const providerBrand = agentStore.getProviderMetadata(agentId)?.providerBrand ?? null;
 
-	return getProviderBrandIcon(providerBrand, themeState.effectiveTheme);
+	return getProviderBrandIcon(providerBrand, themeState.effectiveTheme) ?? undefined;
 }
 
 function tabToAppTab(tab: TabBarTab): AppTab {

@@ -175,7 +175,7 @@ function isAgentPanelRenderTraceEnabled(): boolean {
 // svelte-ignore state_referenced_locally -- constructor timing should use this instance's initial panel id.
 recordPanelOpenPerformanceMark(panelId, "agent-panel:root-state-start");
 const worktreeProjectDefaultStore = getWorktreeProjectDefaultStore();
-const rootState = new AgentPanelRootState({
+const rootState: AgentPanelRootState = new AgentPanelRootState({
 	stores: {
 		sessionStore: getSessionStore(),
 		panelStore: getPanelStore(),
@@ -192,7 +192,7 @@ const rootState = new AgentPanelRootState({
 	getHasAttachedFilePane: () => hasAttachedFilePane,
 	getIsFullscreen: () => isFullscreen,
 	getHasPlan: () => planState.plan !== null,
-	getAgentName: () => agentName,
+	getAgentName: (): string | null => agentName,
 	getViewStateInput: (state) => ({
 		lifecyclePresentation: state.sessionController.lifecyclePresentation,
 		entriesCount: state.sessionController.knownVisibleEntryCount,
@@ -231,7 +231,7 @@ const interactionStore = rootState.interactionStore;
 const permissionStore = rootState.permissionStore;
 const agentStore = rootState.agentStore;
 const messageQueueStore = rootState.messageQueueStore;
-const sessionController = rootState.sessionController;
+const sessionController: AgentPanelRootState["sessionController"] = rootState.sessionController;
 const connection = rootState.connection;
 const panelState = rootState.panelState;
 const panelBranchLookup = rootState.panelBranchLookup;
@@ -487,7 +487,9 @@ const effectiveProjectName = $derived(
 const preSessionSelectedProject = $derived(worktreeController.preSessionSelectedProject);
 
 // ✅ Derived values from granular session data
-const effectivePanelAgentId = $derived(selectedAgentId ?? sessionController.sessionAgentId);
+const effectivePanelAgentId: string | null = $derived(
+	selectedAgentId ?? sessionController.sessionAgentId
+);
 // Claude is the only agent with a bespoke working spark; the transcript's planning
 // placeholder swaps it in for the label while streaming (gated on canonical agentId).
 const showWorkingSpark = $derived(
@@ -496,7 +498,7 @@ const showWorkingSpark = $derived(
 		selectedAgentId,
 	})
 );
-const agentName = $derived.by(() => {
+const agentName: string | null = $derived.by((): string | null => {
 	if (!effectivePanelAgentId) {
 		return null;
 	}

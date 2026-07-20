@@ -288,7 +288,7 @@ function renderContent(
 		panelId: "panel-1",
 		viewState,
 		sessionId: overrides?.sessionId !== undefined ? overrides.sessionId : "session-1",
-		sceneEntries: overrides?.sceneEntries,
+		optimisticUserEntry: overrides?.sceneEntries?.[0],
 		rowsProjectionOverride: overrides?.rowsProjectionOverride,
 		sessionProjectPath: null,
 		allProjects: [],

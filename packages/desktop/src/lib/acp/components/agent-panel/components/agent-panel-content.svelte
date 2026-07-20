@@ -259,13 +259,13 @@ const sessionWorkProjection = $derived.by(() => {
 			pendingPermission: interactionSnapshot.pendingPermission,
 		},
 		hasUnseenCompletion: false,
+		hasLocalPendingSendIntent: false,
 	});
 });
 
 const runtime = $derived(
 	resolveAgentPanelContentRuntime({
 		liveSessionSource,
-		sessionWorkProjection,
 	})
 );
 const turnState = $derived(runtime.turnState);

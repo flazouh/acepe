@@ -234,7 +234,10 @@ const resolveRenderedRow = $derived.by(() => {
 });
 
 $effect(() => {
-	const revision = sessionId === null ? null : sessionStore.read.getSessionGraphRevision(sessionId);
+	if (sessionId === null) {
+		return;
+	}
+	const revision = sessionStore.read?.getSessionGraphRevision(sessionId) ?? null;
 	if (revision === null) {
 		return;
 	}

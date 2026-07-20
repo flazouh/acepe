@@ -131,7 +131,6 @@ function renderViewport(options: {
 }) {
 	return render(SceneContentViewport, {
 		panelId: "panel-1",
-		sceneEntries: [],
 		rowsProjection: options.rowsProjection,
 		turnState: "idle",
 		projectPath: undefined,

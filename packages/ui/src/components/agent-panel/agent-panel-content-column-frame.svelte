@@ -1,24 +1,25 @@
 <script lang="ts">
-	import type { Snippet } from "svelte";
+import type { Snippet } from "svelte";
 
-	import { cn } from "../../lib/utils.js";
+import { cn } from "../../lib/utils.js";
 
-	interface Props {
-		centered?: boolean;
-		widthClass?: string;
-		class?: string;
-		innerClass?: string;
-		children?: Snippet;
-	}
+interface Props {
+	centered?: boolean;
+	widthClass?: string;
+	class?: string;
+	innerClass?: string;
+	children?: Snippet;
+	"data-input-area"?: boolean;
+}
 
-	let {
-		centered = false,
-		widthClass = "max-w-3xl",
-		class: className = "",
-		innerClass = "",
-		children,
-		...restProps
-	}: Props = $props();
+let {
+	centered = false,
+	widthClass = "max-w-3xl",
+	class: className = "",
+	innerClass = "",
+	children,
+	...restProps
+}: Props = $props();
 </script>
 
 <div

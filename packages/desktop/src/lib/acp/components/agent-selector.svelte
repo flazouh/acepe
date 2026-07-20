@@ -93,7 +93,7 @@ function handleAgentInstall(agentId: string): void {
 
 	const canonicalAgent = agentStore.getAgent(agentId);
 	const installRequired =
-		(canonicalAgent?.availability_kind.installed ?? agent.availability_kind?.installed) !== true;
+		(canonicalAgent?.availability_kind?.installed ?? agent.availability_kind?.installed) !== true;
 	agentStore.beginAgentInstallationReadiness(agentId);
 	void installAgentForSelection(
 		{

@@ -1,77 +1,86 @@
 <script lang="ts">
-	import * as Dialog from "../dialog/index.js";
-	import { Button } from "../button/index.js";
-	import { HugeiconsIcon } from "../icons/index.js";
-	import type {
-		AgentTaskDetailBinding,
-		AgentTaskLatestAction,
-		AgentToolStatus,
-	} from "./types.js";
-	import AgentToolCard from "./agent-tool-card.svelte";
-	import AgentCompactToolDisplay from "./compact-tool-display.svelte";
-	import CylinderSwap from "./cylinder-swap.svelte";
-	import ToolHeaderLeading from "./tool-header-leading.svelte";
-	import AgentToolDurationLabel from "./agent-tool-duration-label.svelte";
-	import type { ToolDurationTiming } from "./tool-duration.js";
-	import {
-		getTaskTitle,
-		getTaskUiClasses,
-		hasTaskPrompt,
-		isTaskPending,
-	} from "./agent-tool-task-state.js";
+import { Button } from "../button/index.js";
+import * as Dialog from "../dialog/index.js";
+import { HugeiconsIcon } from "../icons/index.js";
+import AgentToolCard from "./agent-tool-card.svelte";
+import AgentToolDurationLabel from "./agent-tool-duration-label.svelte";
+import {
+	getTaskTitle,
+	getTaskUiClasses,
+	hasTaskPrompt,
+	isTaskPending,
+} from "./agent-tool-task-state.js";
+import AgentCompactToolDisplay from "./compact-tool-display.svelte";
+import CylinderSwap from "./cylinder-swap.svelte";
+import type { ToolDurationTiming } from "./tool-duration.js";
+import ToolHeaderLeading from "./tool-header-leading.svelte";
+import type {
+	AgentTaskDetailBinding,
+	AgentTaskLatestAction,
+	AgentToolEntry,
+	AgentToolStatus,
+} from "./types.js";
 
-	interface Props {
-		description: string | null;
-		prompt?: string | null;
-		latestAction?: AgentTaskLatestAction | null;
-		detail?: AgentTaskDetailBinding | null;
-		status?: AgentToolStatus;
-		showDoneIcon?: boolean;
-		compact?: boolean;
-		durationTiming?: ToolDurationTiming;
-		iconBasePath?: string;
-		runningFallback?: string;
-		doneFallback?: string;
-	}
+interface Props {
+	description: string | null;
+	prompt?: string | null;
+	latestAction?: AgentTaskLatestAction | null;
+	children?: readonly AgentToolEntry[];
+	resultText?: string | null;
+	detail?: AgentTaskDetailBinding | null;
+	status?: AgentToolStatus;
+	showDoneIcon?: boolean;
+	compact?: boolean;
+	durationTiming?: ToolDurationTiming;
+	iconBasePath?: string;
+	runningFallback?: string;
+	doneFallback?: string;
+}
 
-	let {
+let {
+	description,
+	prompt,
+	latestAction = null,
+	children = [],
+	resultText = null,
+	detail = null,
+	status = "done",
+	showDoneIcon = false,
+	compact = false,
+	durationTiming,
+	iconBasePath = "/svgs/icons",
+	runningFallback = "Running task…",
+	doneFallback = "Task",
+}: Props = $props();
+
+const isDone = $derived(status === "done");
+const titleText = $derived(
+	getTaskTitle({
 		description,
-		prompt,
-		latestAction = null,
-		detail = null,
-		status = "done",
-		showDoneIcon = false,
-		compact = false,
-		durationTiming,
-		iconBasePath = "/svgs/icons",
-		runningFallback = "Running task…",
-		doneFallback = "Task",
-	}: Props = $props();
+		status,
+		runningFallback,
+		doneFallback,
+	}),
+);
 
-	const isDone = $derived(status === "done");
-	const titleText = $derived(
-		getTaskTitle({
-			description,
-			status,
-			runningFallback,
-			doneFallback,
-		})
-	);
+const hasPrompt = $derived(hasTaskPrompt(prompt));
+const shouldShowDoneIcon = $derived(showDoneIcon && isDone);
+const taskClasses = $derived(getTaskUiClasses(compact));
+const cardClass = $derived(taskClasses.card);
+const headerClass = $derived(taskClasses.header);
+const headerContentClass = $derived(taskClasses.headerContent);
+const liveRowClass = $derived(taskClasses.liveRow);
+const showDetailTrigger = $derived(detail !== null);
+const fallbackLatestAction = $derived(children[children.length - 1] ?? null);
+const displayedLatestAction = $derived(latestAction ?? fallbackLatestAction);
+const showLiveRow = $derived(
+	isTaskPending(status) && displayedLatestAction !== null,
+);
+const liveRowHeight = $derived(compact ? "1.25rem" : "1.375rem");
 
-	const hasPrompt = $derived(hasTaskPrompt(prompt));
-	const shouldShowDoneIcon = $derived(showDoneIcon && isDone);
-	const taskClasses = $derived(getTaskUiClasses(compact));
-	const cardClass = $derived(taskClasses.card);
-	const headerClass = $derived(taskClasses.header);
-	const headerContentClass = $derived(taskClasses.headerContent);
-	const liveRowClass = $derived(taskClasses.liveRow);
-	const showDetailTrigger = $derived(detail !== null);
-	const showLiveRow = $derived(isTaskPending(status) && latestAction !== null);
-	const liveRowHeight = $derived(compact ? "1.25rem" : "1.375rem");
-
-	function handleDetailOpenChange(nextOpen: boolean): void {
-		detail?.onOpenChange(nextOpen);
-	}
+function handleDetailOpenChange(nextOpen: boolean): void {
+	detail?.onOpenChange(nextOpen);
+}
 </script>
 
 <AgentToolCard class={cardClass} dataTestid="agent-tool-task-card">
@@ -112,16 +121,20 @@
 		{/if}
 	</div>
 
-	{#if showLiveRow && latestAction}
+	{#if showLiveRow && displayedLatestAction}
 		<div class={liveRowClass} data-testid="agent-tool-task-live-tool">
-			<CylinderSwap key={latestAction.id} height={liveRowHeight} class="w-full">
+			<CylinderSwap key={displayedLatestAction.id} height={liveRowHeight} class="w-full">
 				{#snippet children()}
 					<div data-testid="agent-tool-task-current-tool-label" class="min-w-0">
-						<AgentCompactToolDisplay tool={latestAction} {iconBasePath} />
+						<AgentCompactToolDisplay tool={displayedLatestAction} {iconBasePath} />
 					</div>
 				{/snippet}
 			</CylinderSwap>
 		</div>
+	{/if}
+
+	{#if status === "error" && resultText}
+		<p class="px-2 pb-2 text-sm text-destructive whitespace-pre-wrap">{resultText}</p>
 	{/if}
 </AgentToolCard>
 

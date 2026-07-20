@@ -1,10 +1,10 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
-
 import {
-	type StickToBottomController,
-	createStickToBottomController,
-} from "./stick-to-bottom-effects.js";
+	type AgentPanelPerformanceRecorder,
+	measureAgentPanelPerformance,
+	recordAgentPanelPerformanceSample,
+} from "./agent-panel-performance-profile.js";
 import MessageScrollerItem from "./message-scroller-item.svelte";
 import {
 	createArrayMessageScrollerItemSource,
@@ -13,17 +13,16 @@ import {
 	type MessageScrollerRangeState,
 } from "./message-scroller-types.js";
 import {
-	measureAgentPanelPerformance,
-	recordAgentPanelPerformanceSample,
-	type AgentPanelPerformanceRecorder,
-} from "./agent-panel-performance-profile.js";
-import {
 	createMessageScrollerVirtualLayoutFromSource,
 	createMessageScrollerVirtualWindowFromSourceLayout,
 	type MessageScrollerMeasuredHeight,
 	resolveMessageScrollerVirtualAnchorFromSourceLayout,
 	resolveMessageScrollerVirtualRowTopFromSourceLayout,
 } from "./message-scroller-virtual-layout.js";
+import {
+	createStickToBottomController,
+	type StickToBottomController,
+} from "./stick-to-bottom-effects.js";
 
 const DEFAULT_VIEWPORT_HEIGHT_PX = 800;
 const MEASURE_WRITE_THRESHOLD_PX = 0.5;
@@ -122,7 +121,9 @@ const virtualizationThreshold = $derived(
 	hasLeadingVirtualSpace ? 0 : VIRTUALIZATION_ROW_THRESHOLD,
 );
 const virtualScrollTopPx = $derived(
-	isVirtualized ? Math.max(0, scrollTopPx - safeVirtualLeadingSpacePx) : scrollTopPx,
+	isVirtualized
+		? Math.max(0, scrollTopPx - safeVirtualLeadingSpacePx)
+		: scrollTopPx,
 );
 const virtualWindowScrollTopPx = $derived(
 	isVirtualized
@@ -174,12 +175,12 @@ const virtualTrailOverscanPx = $derived(
 		),
 	),
 );
-const virtualOverscanBeforePx = $derived(
+const virtualOverscanBeforePx = $derived.by(() =>
 	scrollDirection === "backward"
 		? virtualLeadOverscanPx
 		: virtualTrailOverscanPx,
 );
-const virtualOverscanAfterPx = $derived(
+const virtualOverscanAfterPx = $derived.by(() =>
 	scrollDirection === "backward"
 		? virtualTrailOverscanPx
 		: virtualLeadOverscanPx,
@@ -202,9 +203,7 @@ const virtualWindow = $derived.by(() => {
 	);
 });
 const virtualizedContentHeightPx = $derived(
-	isVirtualized
-		? safeVirtualLeadingSpacePx + virtualWindow.totalPx
-		: null,
+	isVirtualized ? safeVirtualLeadingSpacePx + virtualWindow.totalPx : null,
 );
 
 function visibleRangeState(): MessageScrollerRangeState {
@@ -235,10 +234,7 @@ function visibleRangeSignature(state: MessageScrollerRangeState): string {
 }
 
 function sourceAnchorSignature(): string {
-	return [
-		itemCount,
-		Math.round(safeVirtualLeadingSpacePx),
-	].join(":");
+	return [itemCount, Math.round(safeVirtualLeadingSpacePx)].join(":");
 }
 
 function shouldPreserveSourceChangeAnchor(viewport: HTMLElement): boolean {
@@ -312,7 +308,9 @@ function applyPendingSourceChangeAnchor(input: {
 		return;
 	}
 	const nextScrollTopPx = Math.max(0, rowTopPx - input.viewportOffsetPx);
-	if (Math.abs(viewport.scrollTop - nextScrollTopPx) > MEASURE_WRITE_THRESHOLD_PX) {
+	if (
+		Math.abs(viewport.scrollTop - nextScrollTopPx) > MEASURE_WRITE_THRESHOLD_PX
+	) {
 		viewport.scrollTop = nextScrollTopPx;
 		readViewportGeometry(viewport);
 	}
@@ -412,10 +410,10 @@ $effect(() => {
 		requestAnimationFrame(() => {
 			applyPendingSourceChangeAnchor({
 				rowId: anchor.rowId,
-					viewportOffsetPx: anchor.viewportOffsetPx,
-					signature: anchor.signature,
-					epoch: anchor.epoch,
-					clearWhenDone: true,
+				viewportOffsetPx: anchor.viewportOffsetPx,
+				signature: anchor.signature,
+				epoch: anchor.epoch,
+				clearWhenDone: true,
 			});
 		});
 		return;
@@ -600,12 +598,14 @@ function resolveAnchor(): { rowId: string; topPx: number } | null {
 	if (!contentEl) {
 		return null;
 	}
+	const resolvedContentEl = contentEl;
 	return measureAgentPanelPerformance(
 		profileRecorder,
 		{ phase: "message-scroller.resolve-anchor", itemCount },
 		() => {
 			flushMeasuredHeightWrites();
-			const scrollTop = contentEl.parentElement?.scrollTop ?? scrollTopPx;
+			const scrollTop =
+				resolvedContentEl.parentElement?.scrollTop ?? scrollTopPx;
 			if (isVirtualized) {
 				const anchor = resolveMessageScrollerVirtualAnchorFromSourceLayout({
 					itemSource: profiledItemSource,
@@ -619,7 +619,7 @@ function resolveAnchor(): { rowId: string; topPx: number } | null {
 							topPx: safeVirtualLeadingSpacePx + anchor.topPx,
 						};
 			}
-			const candidates = contentEl.querySelectorAll<HTMLElement>(
+			const candidates = resolvedContentEl.querySelectorAll<HTMLElement>(
 				"[data-anchor][data-row-id]",
 			);
 			for (const el of candidates) {
@@ -636,8 +636,7 @@ function resolveAnchor(): { rowId: string; topPx: number } | null {
 function attachController(node: HTMLElement): { destroy(): void } {
 	const firstChild = node.firstElementChild;
 	const contentNode =
-		contentEl ??
-		(firstChild instanceof HTMLElement ? firstChild : undefined);
+		contentEl ?? (firstChild instanceof HTMLElement ? firstChild : undefined);
 	readViewportGeometry(node);
 	viewportResizeObserver?.disconnect();
 	viewportResizeObserver =

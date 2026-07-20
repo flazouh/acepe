@@ -621,8 +621,6 @@ const visibleSessions = $derived.by(() => {
 			isSessionOpen={(sessionId) => panelStore.isSessionOpen(sessionId)}
 			onSelectFile={handleSelectFile}
 			onCollapsedProjectPathsChange={(paths) => appState.handleCollapsedProjectPathsChange(paths)}
-			onOpenTerminal={handleOpenTerminal}
-			onOpenBrowser={handleOpenBrowser}
 			onArchiveSession={handleArchiveSession}
 			onRenameSession={handleRenameSession}
 			onCopyTranscriptMarkdown={handleCopyTranscriptMarkdown}

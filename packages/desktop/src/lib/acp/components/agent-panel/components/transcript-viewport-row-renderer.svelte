@@ -1,7 +1,7 @@
 <script lang="ts">
 import { AgentPanelConversationEntry } from "@acepe/ui/agent-panel";
 import type {
-	AgentPanelConversationEntry as AgentPanelDisplayEntry,
+	AnyAgentEntry as AgentPanelDisplayEntry,
 	AgentPanelPlanActionEvent,
 	AgentPanelPlanViewEvent,
 	AgentPanelQuestionSelectEvent,

@@ -1,7 +1,5 @@
 <script lang="ts">
 import { AgentToolTask } from "@acepe/ui/agent-panel";
-import * as m from "$lib/paraglide/messages.js";
-import { getSessionStore } from "../../store/index.js";
 import type { TurnState } from "../../store/types.js";
 import type { ToolCall } from "../../types/tool-call.js";
 import { getToolStatus } from "../../utils/tool-state-utils.js";
@@ -16,12 +14,11 @@ interface Props {
 
 let { toolCall, turnState }: Props = $props();
 
-const sessionStore = getSessionStore();
 const toolStatus = $derived(getToolStatus(toolCall, turnState));
 
 // Extract subagent data
 const subagent = $derived.by(() => {
-	return resolveTaskSubagent(toolCall, sessionStore.getStreamingArguments(toolCall.id));
+	return resolveTaskSubagent(toolCall);
 });
 
 // Get the result as a string
@@ -59,7 +56,6 @@ const durationTiming = $derived({
 	showDoneIcon={toolStatus.isSuccess}
 	iconBasePath="/svgs/icons"
 	{durationTiming}
-	runningFallback={m.tool_task_running_fallback()}
-	doneFallback={m.tool_task_fallback()}
-	resultLabel={m.tool_task_result_label()}
+	runningFallback="Running task…"
+	doneFallback="Task"
 />

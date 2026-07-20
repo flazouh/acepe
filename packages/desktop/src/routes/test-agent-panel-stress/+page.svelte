@@ -401,12 +401,18 @@ function diagnosticKindLabel(kind: TranscriptViewportRowKind): string {
 }
 
 function diagnosticRowText(row: TranscriptViewportRow): string {
+	if (row.content.kind !== "transcript") {
+		return row.rowId;
+	}
 	const segment = row.content.segments[0];
 	if (segment === undefined) {
 		return row.rowId;
 	}
 	if (segment.kind === "localCommand") {
 		return segment.message;
+	}
+	if (segment.kind === "compaction") {
+		return row.rowId;
 	}
 	return segment.text;
 }
@@ -1669,7 +1675,6 @@ onDestroy(() => {
 						{#if selectedRendererMode === "full"}
 							<SceneContentViewport
 								panelId={PANEL_ID}
-								sceneEntries={fixture.sceneEntries}
 								rowsProjection={fixture.rowsProjection}
 								{turnState}
 								projectPath={DEFAULT_PROJECT_PATH}

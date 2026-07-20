@@ -128,22 +128,6 @@ import {
 	createSessionOpenInteractionGraphConsumer,
 } from "./main-app-view/logic/live-interaction-graph-consumer.js";
 
-declare global {
-	interface Window {
-		__acepeOpenStreamingReproLab?: () => boolean;
-		__acepeHappyPathProbe?: (
-			options?: MainAppHappyPathProbeOptions
-		) => Promise<MainAppHappyPathProbeResult>;
-		__acepeSessionOpenContentProbe?: (
-			options: SessionOpenContentProbeOptions
-		) => Promise<SessionOpenContentProbeResult>;
-		__acepeCleanupHappyPathProbePanels?: (
-			options?: MainAppHappyPathProbeCleanupOptions
-		) => MainAppHappyPathProbeCleanupResult;
-		__acepeRuntimeErrors?: AcepeRuntimeErrorRecord[];
-	}
-}
-
 const HAPPY_PATH_PROBE_PANEL_ID_PREFIX = "qa-happy-path-probe-";
 
 type MainAppHappyPathProbeOptions = {
@@ -167,6 +151,20 @@ type AcepeRuntimeErrorRecord = {
 	readonly line?: number | null;
 	readonly column?: number | null;
 	readonly stack?: string | null;
+};
+
+type MainAppQaWindow = Window & {
+	__acepeOpenStreamingReproLab?: () => boolean;
+	__acepeHappyPathProbe?: (
+		options?: MainAppHappyPathProbeOptions
+	) => Promise<MainAppHappyPathProbeResult>;
+	__acepeSessionOpenContentProbe?: (
+		options: SessionOpenContentProbeOptions
+	) => Promise<SessionOpenContentProbeResult>;
+	__acepeCleanupHappyPathProbePanels?: (
+		options?: MainAppHappyPathProbeCleanupOptions
+	) => MainAppHappyPathProbeCleanupResult;
+	__acepeRuntimeErrors?: AcepeRuntimeErrorRecord[];
 };
 
 type MainAppHappyPathNavigationTiming = {
@@ -346,7 +344,7 @@ function readMainAppNavigationTiming(): MainAppHappyPathNavigationTiming {
 }
 
 function readRuntimeErrorMessages(): readonly string[] {
-	const records = window.__acepeRuntimeErrors;
+	const records = (window as MainAppQaWindow).__acepeRuntimeErrors;
 	if (!Array.isArray(records)) {
 		return [];
 	}
@@ -557,8 +555,8 @@ function isSessionlessHappyPathProbeCandidate(panel: {
 	readonly id: string;
 	readonly sessionId: string | null;
 	readonly agentId: string | null;
-	readonly sourcePath: string | null;
-	readonly worktreePath: string | null;
+	readonly sourcePath?: string | null;
+	readonly worktreePath?: string | null;
 	readonly ownerPanelId: string | null;
 	readonly kind: string;
 }): boolean {
@@ -855,20 +853,22 @@ function installHappyPathProbeQaHook(): void {
 	if (!QA_HOOKS_ENABLED) {
 		return;
 	}
-	window.__acepeHappyPathProbe = runHappyPathProbe;
-	window.__acepeSessionOpenContentProbe = runSessionOpenContentProbeForQa;
-	window.__acepeCleanupHappyPathProbePanels = cleanupHappyPathProbePanels;
+	const qaWindow = window as MainAppQaWindow;
+	qaWindow.__acepeHappyPathProbe = runHappyPathProbe;
+	qaWindow.__acepeSessionOpenContentProbe = runSessionOpenContentProbeForQa;
+	qaWindow.__acepeCleanupHappyPathProbePanels = cleanupHappyPathProbePanels;
 }
 
 function uninstallHappyPathProbeQaHook(): void {
-	if (window.__acepeHappyPathProbe === runHappyPathProbe) {
-		delete window.__acepeHappyPathProbe;
+	const qaWindow = window as MainAppQaWindow;
+	if (qaWindow.__acepeHappyPathProbe === runHappyPathProbe) {
+		delete qaWindow.__acepeHappyPathProbe;
 	}
-	if (window.__acepeSessionOpenContentProbe === runSessionOpenContentProbeForQa) {
-		delete window.__acepeSessionOpenContentProbe;
+	if (qaWindow.__acepeSessionOpenContentProbe === runSessionOpenContentProbeForQa) {
+		delete qaWindow.__acepeSessionOpenContentProbe;
 	}
-	if (window.__acepeCleanupHappyPathProbePanels === cleanupHappyPathProbePanels) {
-		delete window.__acepeCleanupHappyPathProbePanels;
+	if (qaWindow.__acepeCleanupHappyPathProbePanels === cleanupHappyPathProbePanels) {
+		delete qaWindow.__acepeCleanupHappyPathProbePanels;
 	}
 }
 
@@ -1503,15 +1503,16 @@ function installStreamingReproQaHook(): void {
 	if (!import.meta.env.DEV) {
 		return;
 	}
-	window.__acepeOpenStreamingReproLab = openStreamingReproLabForQa;
+	(window as MainAppQaWindow).__acepeOpenStreamingReproLab = openStreamingReproLabForQa;
 }
 
 function uninstallStreamingReproQaHook(): void {
 	if (!import.meta.env.DEV) {
 		return;
 	}
-	if (window.__acepeOpenStreamingReproLab === openStreamingReproLabForQa) {
-		delete window.__acepeOpenStreamingReproLab;
+	const qaWindow = window as MainAppQaWindow;
+	if (qaWindow.__acepeOpenStreamingReproLab === openStreamingReproLabForQa) {
+		delete qaWindow.__acepeOpenStreamingReproLab;
 	}
 }
 

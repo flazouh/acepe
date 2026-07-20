@@ -159,7 +159,13 @@ setSessionListHighlightContext(highlightContext);
 		aria-hidden="true"
 	></div>
 	{#each rows as row, index (getRowKey(row, index))}
-		<svelte:boundary onerror={(error) => logSessionItemBoundaryError(row.item.id, error)}>
+		<svelte:boundary
+			onerror={(error) =>
+				logSessionItemBoundaryError(
+					row.item.id,
+					error instanceof Error ? error : new Error(String(error))
+				)}
+		>
 			<SessionItem
 				thread={{
 					id: row.item.id,

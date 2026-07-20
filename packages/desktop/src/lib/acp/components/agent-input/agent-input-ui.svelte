@@ -6,6 +6,8 @@ import { getPreconnectionAgentSkillsStore } from "$lib/skills/store/preconnectio
 import { getVoiceSettingsStore } from "$lib/stores/voice-settings-store.svelte.js";
 import type {
 	AgentInputEnterBehavior,
+	AgentInputSlashCommand,
+	AgentInputSlashCommandWorkspaceMarkdownResult,
 	AttachMenuCommandItem,
 	SlashPaletteItem,
 } from "@acepe/ui/agent-panel";
@@ -1190,9 +1192,15 @@ function handleEditorBeforeInput(event: InputEvent): void {
 }
 
 function loadSlashCommandWorkspaceMarkdown(input: {
-	readonly command: AvailableCommand;
-	readonly tokenType: "command" | "skill";
-}) {
+	readonly command: AgentInputSlashCommand;
+	readonly tokenType: "command" | "skill" | "mcp";
+}): Promise<AgentInputSlashCommandWorkspaceMarkdownResult> {
+	if (input.tokenType === "mcp") {
+		return Promise.resolve({
+			status: "error",
+			message: "Full markdown is not available for MCP commands.",
+		});
+	}
 	return loadSlashCommandWorkspaceMarkdownFromModule({
 		command: input.command,
 		tokenType: input.tokenType,
