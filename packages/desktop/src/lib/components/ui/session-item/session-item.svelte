@@ -657,6 +657,7 @@ function handleNextQuestion() {
 {/if}
 
 <div
+	role="none"
 	bind:this={rowElement}
 	class="group relative z-10 flex cursor-pointer items-stretch gap-1 overflow-hidden py-0 transition-opacity {isOpen
 		? 'opacity-100'

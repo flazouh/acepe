@@ -1,5 +1,5 @@
 <script lang="ts">
-import { onDestroy, onMount } from "svelte";
+import { onDestroy, onMount, untrack } from "svelte";
 import { toast } from "svelte-sonner";
 import { getKeybindingsService, isMac } from "$lib/keybindings/index.js";
 import { getPreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
@@ -90,8 +90,9 @@ import type { AgentInputProps } from "./types/agent-input-props.js";
 
 // Keep props as reactive object instead of destructuring
 const props: AgentInputProps = $props();
-if (props.panelId) {
-	recordPanelOpenPerformanceMark(props.panelId, "agent-input:props");
+const initialPanelId = untrack(() => props.panelId);
+if (initialPanelId) {
+	recordPanelOpenPerformanceMark(initialPanelId, "agent-input:props");
 }
 const logger = createLogger({ id: "agent-input-send-trace", name: "AgentInputSendTrace" });
 const kb = getKeybindingsService();
@@ -118,11 +119,15 @@ const effectiveVoiceSessionId = $derived(props.voiceSessionId ?? props.sessionId
 
 let isShiftPressed = $state(false);
 let enterBehavior = $state<AgentInputEnterBehavior>("queue");
-let inputState!: AgentInputState;
+const inputState: AgentInputState = new AgentInputState(
+	sessionStore,
+	panelStore,
+	(): string | null => composerView.filePickerProjectPath
+);
 
-const composerView = new ComposerViewController({
+const composerView: ComposerViewController = new ComposerViewController({
 	getProps: () => props,
-	getInputState: () => inputState,
+	getInputState: (): AgentInputState => inputState,
 	getIsShiftPressed: () => isShiftPressed,
 	sessionStore,
 	panelStore,
@@ -133,13 +138,8 @@ const composerView = new ComposerViewController({
 	logger,
 });
 
-inputState = new AgentInputState(
-	sessionStore,
-	panelStore,
-	() => composerView.filePickerProjectPath
-);
-if (props.panelId) {
-	recordPanelOpenPerformanceMark(props.panelId, "agent-input:state-end");
+if (initialPanelId) {
+	recordPanelOpenPerformanceMark(initialPanelId, "agent-input:state-end");
 }
 
 const voiceSessionController = new VoiceSessionController({
@@ -424,8 +424,8 @@ const {
 	handleSteer,
 	handlePrimaryButtonClick,
 } = agentInputController;
-if (props.panelId) {
-	recordPanelOpenPerformanceMark(props.panelId, "agent-input:controller-end");
+if (initialPanelId) {
+	recordPanelOpenPerformanceMark(initialPanelId, "agent-input:controller-end");
 }
 
 export function retrySend(): void {

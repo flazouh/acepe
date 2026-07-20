@@ -809,7 +809,6 @@ async function finishOnboarding(): Promise<void> {
 
 	.onboarding-preview-timeline,
 	.onboarding-preview-timeline-entry,
-	.onboarding-preview-tool,
 	.onboarding-preview-diff,
 	.onboarding-preview-composer {
 		position: relative;

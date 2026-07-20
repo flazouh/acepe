@@ -4,7 +4,7 @@ import {
 	type AgentPanelPerformanceRecorder,
 	type AgentPanelPerformanceSample,
 } from "@acepe/ui/agent-panel";
-import { onDestroy, onMount } from "svelte";
+import { onDestroy, onMount, untrack } from "svelte";
 import { getInteractionStore } from "../../../store/interaction-store.svelte.js";
 import { deriveLiveSessionWorkProjection } from "../../../store/live-session-work.js";
 import { getSessionStore } from "../../../store/session-store.svelte.js";
@@ -56,7 +56,10 @@ let {
 	isPlanActionAvailable,
 }: AgentPanelContentProps = $props();
 
-recordPanelOpenPerformanceMark(panelId, "agent-panel-content:props");
+recordPanelOpenPerformanceMark(
+	untrack(() => panelId),
+	"agent-panel-content:props"
+);
 
 const sessionStore = getSessionStore();
 const interactionStore = getInteractionStore();
