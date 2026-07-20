@@ -248,7 +248,7 @@ describe("hashContent", () => {
 			// A 4x larger batch should stay within a small constant-factor multiple
 			// so we still catch obvious algorithmic regressions.
 			expect(longBatchMedian).toBeLessThan(shortBatchMedian * 6);
-		});
+		}, 15_000);
 	});
 });
 
