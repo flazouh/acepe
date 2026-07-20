@@ -40,7 +40,19 @@ pub fn session_update_to_provider_event(
     let provider_seq = u64::try_from(event_seq.max(0)).unwrap_or(0);
     let provider_row_id = provider_row_id_for_live_update(event_seq, update);
 
-    let kind = match update {
+    let kind = provider_event_kind(update)?;
+
+    Some(ProviderEvent {
+        source,
+        provider_seq,
+        provider_row_id,
+        timestamp_ms: Some(i64::try_from(wall_clock_ms()).unwrap_or(i64::MAX)),
+        kind,
+    })
+}
+
+fn provider_event_kind(update: &SessionUpdate) -> Option<ProviderEventKind> {
+    Some(match update {
         SessionUpdate::UserMessageChunk {
             chunk, attempt_id, ..
         } => {
@@ -90,14 +102,6 @@ pub fn session_update_to_provider_event(
             outcome: crate::acp::session::ingress::event::TurnOutcome::Cancelled,
         },
         _ => return None,
-    };
-
-    Some(ProviderEvent {
-        source,
-        provider_seq,
-        provider_row_id,
-        timestamp_ms: Some(i64::try_from(wall_clock_ms()).unwrap_or(i64::MAX)),
-        kind,
     })
 }
 
@@ -110,20 +114,11 @@ pub fn session_updates_to_provider_events(
     updates
         .iter()
         .enumerate()
-        .filter_map(|(index, update)| {
-            let event_seq = i64::try_from(index + 1).unwrap_or(i64::MAX);
-            session_update_to_provider_event(
-                source.clone(),
-                event_seq,
-                update,
-                RouteDecision::default(),
-            )
-            .or_else(|| history_fallback_event(source.clone(), index, update))
-        })
+        .filter_map(|(index, update)| history_event(source.clone(), index, update))
         .collect()
 }
 
-fn history_fallback_event(
+fn history_event(
     source: CanonicalAgentId,
     index: usize,
     update: &SessionUpdate,
@@ -131,31 +126,7 @@ fn history_fallback_event(
     let provider_seq = index as u64 + 1;
     let provider_row_id = provider_row_id_for_history_update(index, update);
 
-    let kind = match update {
-        SessionUpdate::UserMessageChunk {
-            chunk, attempt_id, ..
-        } => {
-            let text = user_text_from_chunk(chunk)?;
-            ProviderEventKind::UserText {
-                text,
-                attempt_id: attempt_id.clone(),
-            }
-        }
-        SessionUpdate::ToolCall { tool_call, .. } => ProviderEventKind::ToolCall(tool_call.clone()),
-        SessionUpdate::ToolCallUpdate { update, .. } => {
-            ProviderEventKind::ToolCallUpdate(update.clone())
-        }
-        SessionUpdate::TurnComplete { .. } => ProviderEventKind::TurnEnd {
-            outcome: crate::acp::session::ingress::event::TurnOutcome::Completed,
-        },
-        SessionUpdate::TurnError { .. } => ProviderEventKind::TurnEnd {
-            outcome: crate::acp::session::ingress::event::TurnOutcome::Failed,
-        },
-        SessionUpdate::TurnCancelled { .. } => ProviderEventKind::TurnEnd {
-            outcome: crate::acp::session::ingress::event::TurnOutcome::Cancelled,
-        },
-        _ => return None,
-    };
+    let kind = provider_event_kind(update)?;
 
     Some(ProviderEvent {
         source,

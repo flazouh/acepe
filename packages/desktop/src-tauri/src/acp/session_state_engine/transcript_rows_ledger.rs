@@ -939,7 +939,7 @@ mod tests {
             SessionGraphActivityKind::AwaitingModel
         );
         assert_eq!(materialized.rows.len(), 1);
-        assert_eq!(materialized.rows[0].row_id, "transcript:entry-1");
+        assert_eq!(materialized.rows[0].row_id, "transcript:root:entry-1");
         assert_eq!(materialized.rows[0].kind, TranscriptViewportRowKind::User);
     }
 
@@ -1111,7 +1111,7 @@ mod tests {
         assert_eq!(materialized.effective_revision.graph_revision, 11);
         assert_eq!(materialized.effective_revision.transcript_revision, 7);
         assert_eq!(materialized.rows.len(), 1);
-        assert_eq!(materialized.rows[0].row_id, "transcript:entry-1");
+        assert_eq!(materialized.rows[0].row_id, "transcript:root:entry-1");
         let row_json: serde_json::Value =
             serde_json::from_str(&materialized.rows[0].row_json).expect("row json should parse");
         assert_eq!(row_json["operationLinks"][0]["operationId"], "operation-1");
@@ -1192,7 +1192,7 @@ mod tests {
         assert!(!fast.replace_all);
         assert_eq!(fast.rows.len(), 1);
         assert_eq!(fast.rows[0].row_index, 2);
-        assert_eq!(fast.rows[0].row_id, "transcript:entry-2");
+        assert_eq!(fast.rows[0].row_id, "transcript:root:entry-2");
         assert_eq!(fast.rows[0].row_json, full.rows[2].row_json);
     }
 
@@ -1260,9 +1260,9 @@ mod tests {
         assert!(!fast.replace_all);
         assert_eq!(fast.rows.len(), 3);
         assert_eq!(fast.rows[0].row_index, 1);
-        assert_eq!(fast.rows[0].row_id, "transcript:entry-1");
+        assert_eq!(fast.rows[0].row_id, "transcript:root:entry-1");
         assert_eq!(fast.rows[2].row_index, 3);
-        assert_eq!(fast.rows[2].row_id, "transcript:entry-3");
+        assert_eq!(fast.rows[2].row_id, "transcript:root:entry-3");
         assert_eq!(fast.rows[0].row_json, full.rows[1].row_json);
         assert_eq!(fast.rows[2].row_json, full.rows[3].row_json);
     }
@@ -1320,8 +1320,8 @@ mod tests {
         assert_eq!(fast.start_row_index, 1);
         assert!(!fast.replace_all);
         assert_eq!(fast.rows.len(), 3);
-        assert_eq!(fast.rows[0].row_id, "transcript:entry-1");
-        assert_eq!(fast.rows[2].row_id, "transcript:entry-3");
+        assert_eq!(fast.rows[0].row_id, "transcript:root:entry-1");
+        assert_eq!(fast.rows[2].row_id, "transcript:root:entry-3");
     }
 
     #[test]
@@ -1378,8 +1378,8 @@ mod tests {
         assert_eq!(fast.start_row_index, 1);
         assert!(!fast.replace_all);
         assert_eq!(fast.rows.len(), 3);
-        assert_eq!(fast.rows[0].row_id, "transcript:entry-1");
-        assert_eq!(fast.rows[2].row_id, "transcript:entry-3");
+        assert_eq!(fast.rows[0].row_id, "transcript:root:entry-1");
+        assert_eq!(fast.rows[2].row_id, "transcript:root:entry-3");
     }
 
     #[test]
@@ -1435,8 +1435,8 @@ mod tests {
         assert_eq!(fast.start_row_index, 1);
         assert!(!fast.replace_all);
         assert_eq!(fast.rows.len(), 4);
-        assert_eq!(fast.rows[0].row_id, "transcript:entry-1");
-        assert_eq!(fast.rows[3].row_id, "transcript:entry-4");
+        assert_eq!(fast.rows[0].row_id, "transcript:root:entry-1");
+        assert_eq!(fast.rows[3].row_id, "transcript:root:entry-4");
     }
 
     #[test]
@@ -1507,8 +1507,8 @@ mod tests {
         assert_eq!(fast.start_row_index, 1);
         assert!(!fast.replace_all);
         assert_eq!(fast.rows.len(), 4);
-        assert_eq!(fast.rows[0].row_id, "transcript:entry-1");
-        assert_eq!(fast.rows[3].row_id, "transcript:entry-4");
+        assert_eq!(fast.rows[0].row_id, "transcript:root:entry-1");
+        assert_eq!(fast.rows[3].row_id, "transcript:root:entry-4");
         assert_suffix_rows_match_full_materialization(&fast, &full);
     }
 
@@ -1618,7 +1618,7 @@ mod tests {
         assert!(!fast.replace_all);
         assert_eq!(fast.rows.len(), 1);
         assert_eq!(fast.rows[0].row_index, 2);
-        assert_eq!(fast.rows[0].row_id, "transcript:entry-2");
+        assert_eq!(fast.rows[0].row_id, "transcript:root:entry-2");
     }
 
     #[test]
@@ -1675,7 +1675,7 @@ mod tests {
         assert!(!fast.replace_all);
         assert_eq!(fast.rows.len(), 1);
         assert_eq!(fast.rows[0].row_index, 2);
-        assert_eq!(fast.rows[0].row_id, "transcript:entry-2");
+        assert_eq!(fast.rows[0].row_id, "transcript:root:entry-2");
     }
 
     #[test]
