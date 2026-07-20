@@ -3,6 +3,8 @@
   Ported from https://github.com/serafimcloud/animated-blur-number (MIT).
 -->
 <script lang="ts">
+	import { untrack } from "svelte";
+
 	import { onMount } from "svelte";
 
 	import CharSlot from "./char-slot.svelte";
@@ -96,7 +98,7 @@
 	);
 
 	let direction = $state(1);
-	let prevValue = value;
+	let prevValue = untrack(() => value);
 
 	$effect(() => {
 		const next = value;

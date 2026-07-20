@@ -47,9 +47,7 @@ const fullTitle = $derived(
 		: `${title}${titleSuffix}`
 );
 
-const canonicalPath = $derived(
-	canonical ?? canonicalizePathname(page.url?.pathname ?? "/")
-);
+const canonicalPath = $derived(canonical ?? canonicalizePathname(page.url?.pathname ?? "/"));
 const canonicalUrl = $derived(
 	canonicalPath.startsWith("http") ? canonicalPath : `${BASE_URL}${canonicalPath}`
 );
@@ -64,12 +62,8 @@ const absoluteImage = $derived.by((): string => {
 // is 1200x630; custom callers may supply their own dimensions. Lying about
 // dimensions causes incorrect cropping in social link previews.
 const isDefaultImage = $derived(image === DEFAULT_IMAGE);
-const declaredImageWidth = $derived(
-	imageWidth ?? (isDefaultImage ? 1200 : undefined)
-);
-const declaredImageHeight = $derived(
-	imageHeight ?? (isDefaultImage ? 630 : undefined)
-);
+const declaredImageWidth = $derived(imageWidth ?? (isDefaultImage ? 1200 : undefined));
+const declaredImageHeight = $derived(imageHeight ?? (isDefaultImage ? 630 : undefined));
 
 const robotsContent = $derived(
 	noindex

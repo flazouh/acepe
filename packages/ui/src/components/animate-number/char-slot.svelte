@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { untrack } from "svelte";
+
 	interface Props {
 		char: string;
 		direction: number;
@@ -8,11 +10,11 @@
 
 	let { char, direction, duration, blur }: Props = $props();
 
-	let cur = $state(char);
+	let cur = $state(untrack(() => char));
 	let out = $state<string | null>(null);
 	let gen = $state(0);
 
-	let prevChar = char;
+	let prevChar = untrack(() => char);
 
 	$effect(() => {
 		const next = char;

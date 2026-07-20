@@ -9,11 +9,13 @@ export type WebsiteThemePreference = (typeof websiteThemePreferences)[number];
 /** Resolved appearance applied to the document. */
 export type WebsiteTheme = "dark" | "light";
 
-export function isWebsiteThemePreference(value: string | null): value is WebsiteThemePreference {
+export function isWebsiteThemePreference(
+	value: string | null | undefined
+): value is WebsiteThemePreference {
 	return value === "system" || value === "light" || value === "dark";
 }
 
-export function isWebsiteTheme(value: string | null): value is WebsiteTheme {
+export function isWebsiteTheme(value: string | null | undefined): value is WebsiteTheme {
 	return value === "dark" || value === "light";
 }
 
@@ -98,7 +100,8 @@ export function setWebsiteThemePreference(
 		persist?: boolean;
 	}
 ): WebsiteTheme {
-	const rootElement = options?.rootElement ?? (typeof document !== "undefined" ? document.documentElement : null);
+	const rootElement =
+		options?.rootElement ?? (typeof document !== "undefined" ? document.documentElement : null);
 	const mediaQuery =
 		options?.mediaQuery ??
 		(typeof window !== "undefined" ? window.matchMedia("(prefers-color-scheme: dark)") : null);

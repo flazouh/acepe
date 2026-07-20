@@ -4,6 +4,9 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
 	plugins: [tailwindcss(), sveltekit()],
+	ssr: {
+		noExternal: ["@acepe/ui", "@fontsource-variable/archivo"],
+	},
 
 	test: {
 		expect: { requireAssertions: true },

@@ -8,9 +8,7 @@ import type { HugeiconsIconName } from "@acepe/ui/icons";
 
 let { data } = $props();
 
-type BlogIcon =
-	| { kind: "hugeicons"; name: HugeiconsIconName }
-	| { kind: "storage" };
+type BlogIcon = { kind: "hugeicons"; name: HugeiconsIconName } | { kind: "storage" };
 
 type Post = BlogPostMetadata & { icon: BlogIcon };
 
@@ -49,7 +47,8 @@ const blogJsonLd = {
 	"@type": "Blog",
 	name: "Acepe Blog",
 	url: "https://acepe.dev/blog",
-	description: "Product updates, deep dives, and how-to guides for the Acepe agentic developer environment.",
+	description:
+		"Product updates, deep dives, and how-to guides for the Acepe agentic developer environment.",
 	publisher: {
 		"@type": "Organization",
 		name: "Acepe",

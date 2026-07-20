@@ -45,7 +45,7 @@ const PROVIDER_BRAND_ICON_PATHS: Record<ProviderBrand, ProviderBrandIconPaths> =
 
 export function getProviderBrandIconSrc(
 	providerBrand: ProviderBrand | null | undefined,
-	theme: Theme,
+	theme: Theme
 ): string {
 	return PROVIDER_BRAND_ICON_PATHS[providerBrand ?? "custom"][theme];
 }

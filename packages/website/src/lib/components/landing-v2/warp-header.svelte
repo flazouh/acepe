@@ -12,8 +12,7 @@ function formatStars(count: number): string {
 	return count.toString();
 }
 
-const navLinkClass =
-	"text-[14px] text-foreground/70 transition-colors hover:text-foreground";
+const navLinkClass = "text-[14px] text-foreground/70 transition-colors hover:text-foreground";
 </script>
 
 <header class="sticky top-0 z-50 border-b border-border/40 bg-background/80 backdrop-blur-xl">

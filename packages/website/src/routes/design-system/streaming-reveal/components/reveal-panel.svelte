@@ -23,7 +23,7 @@ let { mode, label, description, state }: Props = $props();
 // buffer-fade fades each word as it appears; block-fade fades whole blocks;
 // instant and buffer paint without a fade (buffer still drips via the engine).
 const reveal = $derived<"none" | "word" | "block">(
-	mode === "buffer-fade" ? "word" : mode === "block-fade" ? "block" : "none",
+	mode === "buffer-fade" ? "word" : mode === "block-fade" ? "block" : "none"
 );
 
 // block-fade reveals whole blocks, not characters: feed NativeMarkdown only the

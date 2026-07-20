@@ -570,7 +570,7 @@ const favoriteModels = $derived(modelGroups.flatMap((g) => g.items.filter((i) =>
 		<AppMainLayout>
 			{#snippet sidebar()}
 				<AppSidebarLayout>
-					{#snippet queueSection()}
+					{#snippet topNav()}
 						<div class="mb-0.5 mt-1.5 flex shrink-0 flex-col overflow-hidden rounded-lg bg-card/50 mx-1.5">
 							<div class="flex w-full items-center gap-1.5 px-2 py-1.5">
 								<span class="text-[11px] font-medium text-muted-foreground">Attention Queue</span>
@@ -830,8 +830,7 @@ const favoriteModels = $derived(modelGroups.flatMap((g) => g.items.filter((i) =>
 														{modelGroups}
 														{favoriteModels}
 														onModelChange={() => {}}
-														onSetBuildDefault={() => {}}
-														onSetPlanDefault={() => {}}
+												onDefaultModelToggle={() => {}}
 														onToggleFavorite={() => {}}
 													/>
 													<AgentInputDivider />

@@ -2,9 +2,7 @@
 const description =
 	"A native desktop client for Claude Code, Codex, Cursor Agent, and any ACP-compatible AI agent. Same powerful agents, better interface.";
 
-const sameAs = [
-	"https://github.com/flazouh/acepe",
-];
+const sameAs = ["https://github.com/flazouh/acepe"];
 
 const organizationSchema = {
 	"@context": "https://schema.org",
