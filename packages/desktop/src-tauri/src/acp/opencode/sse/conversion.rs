@@ -1174,11 +1174,9 @@ fn ensure_permission_raw_input(
                 }
             }
         }
-        ToolKind::Fetch => {
-            if !raw_object.contains_key("url") {
-                if let Some(url) = label_tail.or(first_pattern) {
-                    raw_object.insert("url".to_string(), Value::String(url));
-                }
+        ToolKind::Fetch if !raw_object.contains_key("url") => {
+            if let Some(url) = label_tail.or(first_pattern) {
+                raw_object.insert("url".to_string(), Value::String(url));
             }
         }
         _ => {}
