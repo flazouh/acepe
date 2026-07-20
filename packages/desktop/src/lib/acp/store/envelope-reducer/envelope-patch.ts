@@ -12,9 +12,9 @@ import type {
 	ViewportBufferDelta,
 	ViewportBufferPush,
 } from "../../../services/acp-types.js";
+import type { ActiveTurnFailure } from "../../types/turn-error.js";
 import type { CanonicalSessionProjection } from "../canonical-session-projection.js";
 import type { SessionTransientProjection, SessionUsageTelemetry } from "../types.js";
-import type { ActiveTurnFailure } from "../../types/turn-error.js";
 
 export type SessionStateSnapshotRefreshReason =
 	| "transcriptFrontierMismatch"

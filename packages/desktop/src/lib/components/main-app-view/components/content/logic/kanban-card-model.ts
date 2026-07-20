@@ -12,13 +12,13 @@ import {
 	projectSessionPreviewActivity,
 } from "$lib/acp/components/activity-entry/activity-entry-projection.js";
 import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
-import type { Panel, PanelHotState } from "$lib/acp/store/types.js";
-import type { ThreadBoardItem } from "$lib/acp/store/thread-board/thread-board-item.js";
 import {
 	deriveSessionTitleFromUserInput,
 	formatRichSessionTitle,
 	formatSessionTitleForDisplay,
 } from "$lib/acp/store/session-title-policy.js";
+import type { ThreadBoardItem } from "$lib/acp/store/thread-board/thread-board-item.js";
+import type { Panel, PanelHotState } from "$lib/acp/store/types.js";
 
 export interface OptimisticKanbanCard {
 	readonly panelId: string;

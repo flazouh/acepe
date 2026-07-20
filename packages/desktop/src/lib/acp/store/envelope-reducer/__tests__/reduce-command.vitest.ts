@@ -14,8 +14,8 @@ import type { SessionStateCommand } from "../../../session-state/session-state-c
 import type { CanonicalSessionProjection } from "../../canonical-session-projection.js";
 import type { SessionTransientProjection } from "../../types.js";
 import { DEFAULT_TRANSIENT_PROJECTION } from "../../types.js";
-import type { EnvelopeReducerSnapshot } from "../envelope-snapshot.js";
 import { buildCanonicalUsageTelemetry } from "../canonical-usage-telemetry.js";
+import type { EnvelopeReducerSnapshot } from "../envelope-snapshot.js";
 import { reduceCommand } from "../reduce-command.js";
 
 const revision: SessionGraphRevision = {
@@ -99,9 +99,7 @@ function createGraph(overrides: Partial<SessionStateGraph> = {}): SessionStateGr
 	};
 }
 
-function createSnapshot(
-	overrides: Partial<EnvelopeReducerSnapshot> = {}
-): EnvelopeReducerSnapshot {
+function createSnapshot(overrides: Partial<EnvelopeReducerSnapshot> = {}): EnvelopeReducerSnapshot {
 	return {
 		sessionId: overrides.sessionId ?? "session-1",
 		hasSessionIdentity: overrides.hasSessionIdentity ?? true,
@@ -109,8 +107,7 @@ function createSnapshot(
 			overrides.previousProjection !== undefined
 				? overrides.previousProjection
 				: createProjection(),
-		previousGraph:
-			overrides.previousGraph !== undefined ? overrides.previousGraph : createGraph(),
+		previousGraph: overrides.previousGraph !== undefined ? overrides.previousGraph : createGraph(),
 		capabilitiesMaterialized: overrides.capabilitiesMaterialized ?? false,
 		transientProjection: overrides.transientProjection ?? DEFAULT_TRANSIENT_PROJECTION,
 		currentModelId: overrides.currentModelId ?? null,
@@ -936,8 +933,7 @@ describe("reduceCommand", () => {
 		expect(
 			patches.some(
 				(patch) =>
-					patch.kind === "updateTransientProjection" &&
-					patch.updates.pendingSendIntent === null
+					patch.kind === "updateTransientProjection" && patch.updates.pendingSendIntent === null
 			)
 		).toBe(false);
 	});
@@ -999,5 +995,4 @@ describe("reduceCommand", () => {
 			])
 		);
 	});
-
 });

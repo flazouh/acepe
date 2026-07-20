@@ -1,9 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import {
-	buildCopyButtonDisplayState,
-	getCopyButtonVariantFlags,
-} from "./copy-button-state.js";
+import { buildCopyButtonDisplayState, getCopyButtonVariantFlags } from "./copy-button-state.js";
 
 describe("copy-button-state", () => {
 	it("builds uncontrolled inline state", () => {

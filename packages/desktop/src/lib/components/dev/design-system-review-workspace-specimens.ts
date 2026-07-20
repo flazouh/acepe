@@ -25,7 +25,8 @@ export const reviewWorkspaceSpecimenFiles: readonly ReviewWorkspaceFileItem[] = 
 	},
 	{
 		id: "review-desktop-host",
-		filePath: "packages/desktop/src/lib/acp/components/agent-panel/components/agent-panel-review-workspace.svelte",
+		filePath:
+			"packages/desktop/src/lib/acp/components/agent-panel/components/agent-panel-review-workspace.svelte",
 		fileName: "agent-panel-review-workspace.svelte",
 		reviewStatus: "unreviewed",
 		additions: 16,

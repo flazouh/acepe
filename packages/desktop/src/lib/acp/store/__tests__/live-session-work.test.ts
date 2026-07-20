@@ -11,9 +11,9 @@ import {
 	deriveLiveSessionState,
 	deriveLiveSessionWorkProjection,
 	inactiveSessionWorkSourceFromCanonicalProjection,
-	liveSessionWorkSourceFromCanonicalProjection,
 	type LiveSessionWorkInput,
 	type LiveSessionWorkSource,
+	liveSessionWorkSourceFromCanonicalProjection,
 } from "../live-session-work.js";
 import { selectSessionStatusForPresentation } from "../session-work-projection.js";
 

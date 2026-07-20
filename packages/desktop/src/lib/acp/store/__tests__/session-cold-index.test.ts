@@ -74,10 +74,7 @@ describe("session cold index array helpers", () => {
 			);
 		}
 
-		const patched = createPatchedReferenceArray(
-			references,
-			createReference("session-25", 100)
-		);
+		const patched = createPatchedReferenceArray(references, createReference("session-25", 100));
 
 		expect(Object.keys(patched)).toHaveLength(50);
 		expect(patched[0]?.id).toBe("session-49");

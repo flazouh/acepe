@@ -8,10 +8,10 @@
  * from its lifecycle/disconnect paths.
  */
 import type { ResultAsync } from "neverthrow";
+import type { SessionGraphActivity, SessionTurnState } from "../../services/acp-types.js";
 import type { AppError } from "../errors/app-error.js";
 import { createLogger } from "../utils/logger.js";
 import type { CanonicalSessionProjection } from "./canonical-session-projection.js";
-import type { SessionGraphActivity, SessionTurnState } from "../../services/acp-types.js";
 
 const logger = createLogger({ id: "awaiting-model-refresh", name: "AwaitingModelRefreshStore" });
 

@@ -176,10 +176,7 @@ describe("git status cache", () => {
 			now: () => 1000,
 			fetchGitStatusSummary: () => {
 				summaryFetchCount += 1;
-				return okAsync([
-					createStatus("src/one.ts", 1, 0),
-					createStatus("src/two.ts", 4, 2),
-				]);
+				return okAsync([createStatus("src/one.ts", 1, 0), createStatus("src/two.ts", 4, 2)]);
 			},
 			fetchFileGitStatusSummary: () => {
 				fileSummaryFetchCount += 1;
@@ -198,10 +195,7 @@ describe("git status cache", () => {
 
 	it("does not scan a cached project summary map for one file lookup misses", async () => {
 		let fileSummaryFetchCount = 0;
-		const statuses = [
-			createStatus("src/one.ts", 1, 0),
-			createStatus("src/two.ts", 4, 2),
-		];
+		const statuses = [createStatus("src/one.ts", 1, 0), createStatus("src/two.ts", 4, 2)];
 
 		const cache = createGitStatusCache({
 			ttlMs: 2000,

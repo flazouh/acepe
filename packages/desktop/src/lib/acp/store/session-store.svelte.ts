@@ -8,31 +8,36 @@
 
 import type { ResultAsync } from "neverthrow";
 import { getContext, setContext } from "svelte";
-import { SvelteSet } from "svelte/reactivity";
-import type { SessionOpenFound, SessionStateEnvelope, SessionStateGraph, TranscriptDelta, SessionGraphRevision } from "../../services/acp-types.js";
+import type { SvelteSet } from "svelte/reactivity";
+import type {
+	SessionGraphRevision,
+	SessionOpenFound,
+	SessionStateEnvelope,
+	SessionStateGraph,
+	TranscriptDelta,
+} from "../../services/acp-types.js";
 import type { AppError } from "../errors/app-error.js";
-import type { SessionEventHandler } from "./session-event-handler.js";
-import type { SessionUsageTelemetry } from "./types.js";
 import type { TurnErrorUpdate } from "../types/turn-error.js";
-import type { SessionCold, SessionIdentity } from "./types.js";
-import type { TranscriptRowsController } from "./transcript-rows-controller.svelte.js";
-import type { SessionReadFacade } from "./session-read-facade.js";
-import type { SessionWriteFacade } from "./session-write-facade.js";
+import type { CanonicalSessionProjection } from "./canonical-session-projection.js";
+import type { ComposerMachineService } from "./composer-machine-service.svelte.js";
 import type { SessionConnectionManager } from "./services/session-connection-manager.js";
 import type { SessionConnectionFacade } from "./session-connection-facade.js";
-import type { SessionLoadingFacade } from "./session-loading-facade.js";
-import type { ComposerMachineService } from "./composer-machine-service.svelte.js";
-import type { SessionPresentationModel } from "./session-presentation-model.js";
 import type { SessionEntryStore } from "./session-entry-store.svelte.js";
-import type { CanonicalSessionProjection } from "./canonical-session-projection.js";
+import type { SessionEventHandler } from "./session-event-handler.js";
+import type { SessionLoadingFacade } from "./session-loading-facade.js";
+import type { SessionPresentationModel } from "./session-presentation-model.js";
+import type { SessionReadFacade } from "./session-read-facade.js";
 import { composeSessionStoreParts, type SessionStoreParts } from "./session-store-compose.js";
+import type { SessionWriteFacade } from "./session-write-facade.js";
+import type { TranscriptRowsController } from "./transcript-rows-controller.svelte.js";
+import type { SessionCold, SessionIdentity, SessionUsageTelemetry } from "./types.js";
 
+export type { SessionQuestionInteractionSnapshot } from "./session-presentation-model.js";
 export {
 	mergeInteractionSnapshots,
 	mergeOperationSnapshots,
 	operationSnapshotIndexes,
 } from "./snapshot-merge.js";
-export type { SessionQuestionInteractionSnapshot } from "./session-presentation-model.js";
 
 const SESSION_STORE_KEY = Symbol("session-store");
 let currentSessionStore: SessionStore | null = null;
@@ -47,11 +52,16 @@ export type SessionCreationResult =
 
 export type LiveSessionStateGraphConsumer = {
 	replaceSessionStateGraph(graph: SessionStateGraph): void;
-	applySessionInteractionPatches?(snapshots: ReadonlyArray<import("../../services/acp-types.js").InteractionSnapshot>): void;
+	applySessionInteractionPatches?(
+		snapshots: ReadonlyArray<import("../../services/acp-types.js").InteractionSnapshot>
+	): void;
 };
 
 export interface SessionStoreCallbacks {
-	onPlanUpdate?: (sessionId: string, planData: import("../../services/converted-session-types.js").PlanData) => void;
+	onPlanUpdate?: (
+		sessionId: string,
+		planData: import("../../services/converted-session-types.js").PlanData
+	) => void;
 	onTurnComplete?: (sessionId: string) => void;
 	onTurnInterrupted?: (sessionId: string) => void;
 	onTurnError?: (sessionId: string) => void;
@@ -210,7 +220,10 @@ export class SessionStore implements SessionEventHandler {
 	}
 
 	/** Test seam — canonical projection map for parity/projection tests */
-	get canonicalProjections(): import("svelte/reactivity").SvelteMap<string, CanonicalSessionProjection> {
+	get canonicalProjections(): import("svelte/reactivity").SvelteMap<
+		string,
+		CanonicalSessionProjection
+	> {
 		return this.#parts.projectionCore.canonicalProjections;
 	}
 

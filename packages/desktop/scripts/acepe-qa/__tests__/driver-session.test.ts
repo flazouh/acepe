@@ -1,9 +1,9 @@
 import { describe, expect, it } from "bun:test";
 import {
+	type DriverSessionManager,
 	ensureDriverSession,
 	localIpv4BridgeHosts,
 	parseDriverSessionIdentity,
-	type DriverSessionManager,
 } from "../driver-session";
 
 describe("acepe-qa driver session", () => {

@@ -1,7 +1,4 @@
-import {
-	selectSessionWorkBucket,
-	type SessionWorkProjection,
-} from "../session-work-projection.js";
+import { type SessionWorkProjection, selectSessionWorkBucket } from "../session-work-projection.js";
 
 /**
  * Attention kinds that solicit the user when a project group is collapsed.
@@ -14,9 +11,7 @@ export interface SessionAttentionEntry {
 	readonly panelId: string;
 }
 
-export function selectAttentionKind(
-	projection: SessionWorkProjection
-): AttentionKind | null {
+export function selectAttentionKind(projection: SessionWorkProjection): AttentionKind | null {
 	const bucket = selectSessionWorkBucket(projection);
 	if (bucket === "answer_needed" || bucket === "needs_review" || bucket === "error") {
 		return bucket;

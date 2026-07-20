@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
 import { errAsync, okAsync } from "neverthrow";
+import { describe, expect, it, vi } from "vitest";
 
 import { AgentError } from "../../../../errors/app-error.js";
 import type { PanelStore } from "../../../../store/panel-store.svelte.js";

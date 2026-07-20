@@ -3,7 +3,11 @@ import type { ModifiedFileEntry } from "../../../../types/modified-file-entry.js
 import type { ModifiedFilesState } from "../../../../types/modified-files-state.js";
 import { createSyntheticReviewEntry } from "../synthetic-review-entry.js";
 
-function createModifiedFile(filePath: string, totalAdded: number, totalRemoved: number): ModifiedFileEntry {
+function createModifiedFile(
+	filePath: string,
+	totalAdded: number,
+	totalRemoved: number
+): ModifiedFileEntry {
 	return {
 		filePath,
 		fileName: filePath.split("/").at(-1) ?? filePath,

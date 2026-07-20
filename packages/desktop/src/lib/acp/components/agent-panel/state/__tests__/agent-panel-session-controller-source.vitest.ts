@@ -65,7 +65,13 @@ describe("AgentPanelSessionController canonical source binding", () => {
 		const controller = makeController({
 			kind: "canonical",
 			lifecycle: lifecycle("ready", true),
-			activity: { kind: "idle", activeOperationCount: 0, activeSubagentCount: 0, dominantOperationId: null, blockingInteractionId: null },
+			activity: {
+				kind: "idle",
+				activeOperationCount: 0,
+				activeSubagentCount: 0,
+				dominantOperationId: null,
+				blockingInteractionId: null,
+			},
 			turnState: "Completed",
 		});
 
@@ -77,7 +83,13 @@ describe("AgentPanelSessionController canonical source binding", () => {
 		const controller = makeController({
 			kind: "canonical",
 			lifecycle: lifecycle("ready", false),
-			activity: { kind: "idle", activeOperationCount: 0, activeSubagentCount: 0, dominantOperationId: null, blockingInteractionId: null },
+			activity: {
+				kind: "idle",
+				activeOperationCount: 0,
+				activeSubagentCount: 0,
+				dominantOperationId: null,
+				blockingInteractionId: null,
+			},
 			turnState: "Completed",
 		});
 

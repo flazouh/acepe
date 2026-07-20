@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-
+import type { ComposerMcpCatalog } from "$lib/services/acp-types.js";
 import {
 	buildAttachMenuCommandSections,
 	buildAttachMenuMcpServerGroups,
@@ -9,7 +9,6 @@ import {
 	shouldShowActiveModeChip,
 } from "../attach-menu-items.js";
 import { resolveComposerPlaceholder } from "../composer-placeholder.js";
-import type { ComposerMcpCatalog } from "$lib/services/acp-types.js";
 
 describe("buildAttachMenuModes", () => {
 	it("maps available modes to attach menu items with selection state", () => {

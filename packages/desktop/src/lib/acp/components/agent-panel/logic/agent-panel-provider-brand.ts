@@ -24,7 +24,9 @@ function providerBrandFromAgentId(agentId: string | null | undefined): ProviderB
 	return matchingBrand ?? null;
 }
 
-function usableProviderBrand(providerBrand: ProviderBrand | null | undefined): ProviderBrand | null {
+function usableProviderBrand(
+	providerBrand: ProviderBrand | null | undefined
+): ProviderBrand | null {
 	if (providerBrand === null || providerBrand === undefined || providerBrand === "custom") {
 		return null;
 	}

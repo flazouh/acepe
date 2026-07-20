@@ -6,14 +6,18 @@
  * The parent `SessionStore` holds one instance. The coordinator owns the
  * creation-lifecycle slice; the parent delegates through verb methods.
  */
-import { SvelteMap } from "svelte/reactivity";
+
 import type { ResultAsync } from "neverthrow";
+import { SvelteMap } from "svelte/reactivity";
+import type {
+	InteractionSnapshot,
+	SessionOpenFound,
+	SessionStateGraph,
+} from "../../services/acp-types.js";
 import type { AppError } from "../errors/app-error.js";
-import type { InteractionSnapshot, SessionOpenFound } from "../../services/acp-types.js";
-import type { SessionStateGraph } from "../../services/acp-types.js";
 import type { TurnErrorUpdate } from "../types/turn-error.js";
-import type { SessionMessagingService } from "./services/session-messaging-service.js";
 import type { CreatedPendingSessionResult } from "./services/session-connection-manager.js";
+import type { SessionMessagingService } from "./services/session-messaging-service.js";
 
 export type CreatedSessionHydrator = {
 	hydrateCreated(found: SessionOpenFound): ResultAsync<void, AppError>;

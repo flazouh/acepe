@@ -4,8 +4,9 @@
  * shapes, collect appended/patched entries, list visible interaction entries,
  * and compare scene-entry lists. Pure helpers over canonical snapshots. GOD-safe.
  */
-import type { InteractionSnapshot, TranscriptEntry } from "../../services/acp-types.js";
+
 import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel/types";
+import type { InteractionSnapshot, TranscriptEntry } from "../../services/acp-types.js";
 import type { AgentPanelCanonicalSource } from "./agent-panel-canonical-source.js";
 import { questionInteractionToSceneEntry } from "./entry-materializers.js";
 import { areSceneEntriesEquivalent } from "./scene-equivalence.js";

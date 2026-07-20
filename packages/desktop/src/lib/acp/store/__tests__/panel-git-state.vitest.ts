@@ -1,11 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-
-import {
-	PanelGitState,
-	type PanelGitStateDeps,
-} from "../panel-git-state.svelte.js";
-import type { TopLevelPanelCloseState } from "../panel-terminal-state.svelte.js";
 import type { GitPanel } from "../git-panel-type.js";
+import { PanelGitState, type PanelGitStateDeps } from "../panel-git-state.svelte.js";
+import type { TopLevelPanelCloseState } from "../panel-terminal-state.svelte.js";
 import type { WorkspacePanel } from "../types.js";
 
 describe("PanelGitState", () => {

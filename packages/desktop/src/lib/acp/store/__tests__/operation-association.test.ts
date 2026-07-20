@@ -7,14 +7,14 @@ import type {
 } from "../../types/interaction.js";
 import { buildAcpPermissionId, type PermissionRequest } from "../../types/permission.js";
 import type { QuestionRequest } from "../../types/question.js";
+import { InteractionStore } from "../interaction-store.svelte.js";
 import {
 	buildSessionOperationInteractionSnapshot,
-	findOperationForPermission,
 	findOperationForComputerPermission,
+	findOperationForPermission,
 	findOperationForPlanApproval,
 	findOperationForQuestion,
 } from "../operation-association.js";
-import { InteractionStore } from "../interaction-store.svelte.js";
 import { OperationStore } from "../operation-store.svelte.js";
 
 function createExecuteOperation(
@@ -31,7 +31,7 @@ function createExecuteOperation(
 		arguments: overrides?.arguments ?? { kind: "execute", command },
 		provider_status: overrides?.provider_status ?? "pending",
 		operation_state: overrides?.operation_state ?? "pending",
-	awaiting_plan_approval: false,
+		awaiting_plan_approval: false,
 		source_link: overrides?.source_link ?? { kind: "transcript_linked", entry_id: id },
 		result: overrides?.result ?? null,
 		kind: overrides?.kind ?? "execute",
@@ -301,7 +301,7 @@ describe("operation association", () => {
 				kind: "execute",
 				provider_status: "pending",
 				operation_state: "pending",
-	awaiting_plan_approval: false,
+				awaiting_plan_approval: false,
 				source_link: { kind: "transcript_linked", entry_id: "stored-tool-1" },
 				title: "Run command",
 				arguments: { kind: "execute", command: "mkdir demo" },
@@ -391,10 +391,13 @@ describe("operation association", () => {
 			createPendingPermissionInteraction("session-1", "tool-1"),
 		]);
 		const values = interactions.permissionsPending.values.bind(interactions.permissionsPending);
-		(interactions.permissionsPending as unknown as { values: () => IterableIterator<PermissionRequest> }).values =
-			() => {
-				throw new Error("snapshot selector must not scan all pending permissions");
-			};
+		(
+			interactions.permissionsPending as unknown as {
+				values: () => IterableIterator<PermissionRequest>;
+			}
+		).values = () => {
+			throw new Error("snapshot selector must not scan all pending permissions");
+		};
 
 		try {
 			const snapshot = buildSessionOperationInteractionSnapshot(
@@ -423,9 +426,11 @@ describe("operation association", () => {
 		const values = interactions.computerPermissionsPending.values.bind(
 			interactions.computerPermissionsPending
 		);
-		(interactions.computerPermissionsPending as unknown as {
-			values: () => IterableIterator<ComputerPermissionInteraction>;
-		}).values = () => {
+		(
+			interactions.computerPermissionsPending as unknown as {
+				values: () => IterableIterator<ComputerPermissionInteraction>;
+			}
+		).values = () => {
 			throw new Error("snapshot selector must not scan all pending computer permissions");
 		};
 
@@ -462,22 +467,35 @@ describe("operation association", () => {
 		const computerPermissionValues = interactions.computerPermissionsPending.values.bind(
 			interactions.computerPermissionsPending
 		);
-		(interactions.questionsPending as unknown as { values: () => IterableIterator<QuestionRequest> }).values =
-			() => {
-				throw new Error("question selector must not scan all pending questions");
-			};
-		(interactions.permissionsPending as unknown as { values: () => IterableIterator<PermissionRequest> }).values =
-			() => {
-				throw new Error("permission selector must not scan all pending permissions");
-			};
-		(interactions.planApprovalsPending as unknown as { values: () => IterableIterator<PlanApprovalInteraction> }).values =
-			() => {
-				throw new Error("approval selector must not scan all pending approvals");
-			};
-		(interactions.computerPermissionsPending as unknown as {
-			values: () => IterableIterator<ComputerPermissionInteraction>;
-		}).values = () => {
-			throw new Error("computer permission selector must not scan all pending computer permissions");
+		(
+			interactions.questionsPending as unknown as {
+				values: () => IterableIterator<QuestionRequest>;
+			}
+		).values = () => {
+			throw new Error("question selector must not scan all pending questions");
+		};
+		(
+			interactions.permissionsPending as unknown as {
+				values: () => IterableIterator<PermissionRequest>;
+			}
+		).values = () => {
+			throw new Error("permission selector must not scan all pending permissions");
+		};
+		(
+			interactions.planApprovalsPending as unknown as {
+				values: () => IterableIterator<PlanApprovalInteraction>;
+			}
+		).values = () => {
+			throw new Error("approval selector must not scan all pending approvals");
+		};
+		(
+			interactions.computerPermissionsPending as unknown as {
+				values: () => IterableIterator<ComputerPermissionInteraction>;
+			}
+		).values = () => {
+			throw new Error(
+				"computer permission selector must not scan all pending computer permissions"
+			);
 		};
 
 		try {

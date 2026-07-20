@@ -3,8 +3,8 @@ import type {
 	SessionStateEnvelope,
 	TranscriptRowPageResult,
 	TranscriptScope,
-	TranscriptViewportRow,
 	TranscriptViewportCommandRevision,
+	TranscriptViewportRow,
 } from "../../services/acp-types.js";
 import { invokeAsync } from "../../utils/tauri-client/invoke.js";
 
@@ -19,7 +19,7 @@ export type TranscriptViewportCommandEnvelopeResult = ReturnType<
 >;
 
 type TranscriptRowPageWireResult =
-	| ({
+	| {
 			readonly status: "current";
 			readonly projection_version: string;
 			readonly start_row_index: number;
@@ -29,7 +29,7 @@ type TranscriptRowPageWireResult =
 			readonly graph_revision: number;
 			readonly last_event_seq: number;
 			readonly rows: TranscriptViewportRow[];
-	  })
+	  }
 	| { readonly status: "missing" }
 	| {
 			readonly status: "stale";

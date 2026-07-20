@@ -34,8 +34,6 @@ describe("buildSlashPaletteSections", () => {
 			"commands",
 		]);
 		expect(sections.find((section) => section.id === "skills")?.items[0]?.kind).toBe("skill");
-		expect(sections.find((section) => section.id === "commands")?.items[0]?.kind).toBe(
-			"command"
-		);
+		expect(sections.find((section) => section.id === "commands")?.items[0]?.kind).toBe("command");
 	});
 });

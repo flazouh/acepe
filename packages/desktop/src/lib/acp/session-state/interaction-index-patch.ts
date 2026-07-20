@@ -5,6 +5,7 @@
  * a full rebuild when the shape isn't stable. Pure derivations. GOD-safe.
  */
 import type { InteractionSnapshot, TranscriptEntry } from "../../services/acp-types.js";
+import { collectAppendedInteractions } from "./conversation-stability.js";
 import { getInteractionSnapshotArrayPatch } from "./interaction-snapshot-array-patch.js";
 import { createPatchedReadonlyMap } from "./patched-readonly-map.js";
 import {
@@ -12,7 +13,6 @@ import {
 	createAppendedInteractionIndex,
 	createTruncatedInteractionIndex,
 } from "./transcript-interaction-index.js";
-import { collectAppendedInteractions } from "./conversation-stability.js";
 
 export function createPatchedInteractionIndex(
 	byInteractionId: ReadonlyMap<string, InteractionSnapshot>,

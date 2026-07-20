@@ -67,7 +67,9 @@ export function shouldLoadGitHubStats(input: {
 	);
 }
 
-export function getGitHubDiffStats(files: readonly Pick<FileDiff, "additions" | "deletions">[]): GitHubDiffStats {
+export function getGitHubDiffStats(
+	files: readonly Pick<FileDiff, "additions" | "deletions">[]
+): GitHubDiffStats {
 	return files.reduce<GitHubDiffStats>(
 		(stats, file) => ({
 			insertions: stats.insertions + (file.additions ?? 0),

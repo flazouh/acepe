@@ -1,24 +1,24 @@
 <script lang="ts">
-	import { AgentToolTask, AgentToolWebSearch } from "@acepe/ui";
-	import { AgentCopyButton } from "@acepe/ui/agent-panel";
-	import { NativeMarkdown } from "@acepe/ui/native-markdown";
+import { AgentToolTask, AgentToolWebSearch } from "@acepe/ui";
+import { AgentCopyButton } from "@acepe/ui/agent-panel";
+import { NativeMarkdown } from "@acepe/ui/native-markdown";
 
-	import { Badge } from "$lib/components/ui/badge/index.js";
-	import SettingRow from "$lib/components/settings-page/setting-row.svelte";
-	import SettingsSection from "$lib/components/settings-page/settings-section.svelte";
-	import CopyButton from "$lib/acp/components/messages/copy-button.svelte";
+import { Badge } from "$lib/components/ui/badge/index.js";
+import SettingRow from "$lib/components/settings-page/setting-row.svelte";
+import SettingsSection from "$lib/components/settings-page/settings-section.svelte";
+import CopyButton from "$lib/acp/components/messages/copy-button.svelte";
 
-	import {
-		featuredTaskToolSpecimen,
-		taskToolSpecimens,
-		type TaskToolSpecimen,
-	} from "./design-system-task-tool-specimens.js";
+import {
+	featuredTaskToolSpecimen,
+	taskToolSpecimens,
+	type TaskToolSpecimen,
+} from "./design-system-task-tool-specimens.js";
 
-	function specimenDescription(specimen: TaskToolSpecimen): string {
-		const mode = specimen.compact ? "compact" : "default";
-		const childCount = specimen.children.length;
-		return `${specimen.caption} · ${mode} · ${childCount} ${childCount === 1 ? "child" : "children"}`;
-	}
+function specimenDescription(specimen: TaskToolSpecimen): string {
+	const mode = specimen.compact ? "compact" : "default";
+	const childCount = specimen.children.length;
+	return `${specimen.caption} · ${mode} · ${childCount} ${childCount === 1 ? "child" : "children"}`;
+}
 </script>
 
 <div class="w-full">

@@ -132,11 +132,15 @@ describe("SessionStore PR linking", () => {
 		});
 		resolveAutomaticSessionPrNumberFromShipWorkflowMock.mockReturnValue(okAsync(99));
 
-		const applied = await store.connection.applyAutomaticPrLinkFromShipWorkflow("session-1", "/repo", {
-			status: "created",
-			number: 99,
-			url: "https://github.com/flazouh/acepe/pull/99",
-		});
+		const applied = await store.connection.applyAutomaticPrLinkFromShipWorkflow(
+			"session-1",
+			"/repo",
+			{
+				status: "created",
+				number: 99,
+				url: "https://github.com/flazouh/acepe/pull/99",
+			}
+		);
 
 		expect(applied._unsafeUnwrap()).toBeNull();
 		expect(store.read.getSessionCold("session-1")?.prNumber).toBe(17);

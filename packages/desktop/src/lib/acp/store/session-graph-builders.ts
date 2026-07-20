@@ -8,14 +8,14 @@
 import type {
 	InteractionSnapshot,
 	OperationSnapshot,
-	SessionGraphCapabilities,
 	SessionGraphActivity,
-	SessionGraphRevision,
+	SessionGraphCapabilities,
 	SessionGraphLifecycle,
+	SessionGraphRevision,
 	SessionStateGraph,
 	SessionTurnState,
-	TurnFailureSnapshot,
 	TranscriptSnapshot,
+	TurnFailureSnapshot,
 } from "../../services/acp-types.js";
 import {
 	mergeSessionGraphActivityTiming,
@@ -62,7 +62,9 @@ function assertSessionStateGraphCopyKeyCoverage(
 
 assertSessionStateGraphCopyKeyCoverage({});
 
-export function sessionExportContentError(kind: SessionExportContentErrorKind): SessionExportContentError {
+export function sessionExportContentError(
+	kind: SessionExportContentErrorKind
+): SessionExportContentError {
 	switch (kind) {
 		case "session_not_found":
 			return {
@@ -170,7 +172,6 @@ export function graphWithCapabilities(
 	};
 }
 
-
 export function graphWithPatches(input: {
 	readonly graph: SessionStateGraph;
 	readonly revision: SessionGraphRevision;
@@ -185,11 +186,7 @@ export function graphWithPatches(input: {
 	const nextActivity =
 		input.activity === undefined
 			? input.graph.activity
-			: mergeSessionGraphActivityTiming(
-					input.graph.activity,
-					input.activity,
-					Date.now()
-				);
+			: mergeSessionGraphActivityTiming(input.graph.activity, input.activity, Date.now());
 
 	return {
 		requestedSessionId: input.graph.requestedSessionId,
@@ -228,4 +225,3 @@ export function graphWithPatches(input: {
 		capabilities: input.graph.capabilities,
 	};
 }
-

@@ -1,23 +1,23 @@
 import type {
-	AgentToolEditDiffEntry,
-	AgentToolKind,
 	AgentPanelSceneEntryModel,
 	AgentTaskLatestAction,
+	AgentToolEditDiffEntry,
+	AgentToolKind,
 	AgentToolStatus,
 } from "@acepe/ui/agent-panel";
 import type {
 	EditEntry,
 	JsonValue,
 	OperationSnapshot,
-	SessionCompactionEvent,
 	OperationState,
+	SessionCompactionEvent,
 	TranscriptSegment,
 	TranscriptViewportOperationDisplayFacts,
 	TranscriptViewportOperationLink,
 	TranscriptViewportRow,
 } from "../../../../services/acp-types.js";
-import { formatOtherToolName } from "../../../registry/index.js";
 import { buildUserRowSceneModel } from "../../../logic/user-row-scene-model.js";
+import { formatOtherToolName } from "../../../registry/index.js";
 import { transcriptSegmentPrimaryText } from "../../../session-state/transcript-text.js";
 import { calculateDiffStats, getFileName } from "../../../utils/file-utils.js";
 import {
@@ -601,9 +601,10 @@ function resolveViewportOperationDisplayFactsEntry(
 		resultText: errorSummary ?? resultSummary,
 		skillName: kind === "skill" ? (facts.skillName ?? null) : null,
 		skillArgs: kind === "skill" ? (facts.skillArgs ?? null) : null,
-		taskDescription: kind === "task"
-			? ([facts.subagentType, facts.taskDescription].filter(Boolean).join(" · ") || null)
-			: null,
+		taskDescription:
+			kind === "task"
+				? [facts.subagentType, facts.taskDescription].filter(Boolean).join(" · ") || null
+				: null,
 		taskPrompt: kind === "task" ? (facts.taskPrompt ?? null) : null,
 		taskTranscriptScope:
 			kind === "task" && facts.childTranscriptScope?.kind === "operation"

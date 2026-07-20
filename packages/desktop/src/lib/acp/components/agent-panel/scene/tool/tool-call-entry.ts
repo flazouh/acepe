@@ -4,13 +4,24 @@ import type {
 	AgentToolPresentationState,
 	AgentToolStatus,
 } from "@acepe/ui/agent-panel/types";
-import type { ToolCall } from "../../../../types/tool-call.js";
 import type { TurnState } from "../../../../store/types.js";
+import type { ToolCall } from "../../../../types/tool-call.js";
 import { stripAnsiCodes } from "../../../../utils/ansi-utils.js";
 import { extractSkillCallInput } from "../../../../utils/extract-skill-call-input.js";
-import { mapToolStatus } from "./tool-status.js";
-import { normalizeToolKind, resolveToolTitle } from "./tool-title.js";
-import { getToolFilePath, getToolSubtitle } from "./tool-subtitle.js";
+import { mapBrowserPayload } from "./payloads/browser-payload.js";
+import { mapEditDiffEntriesForToolCall } from "./payloads/edit-diff-payload.js";
+import {
+	getExecuteCommandHighlighter,
+	getExecuteOutputHighlighter,
+} from "./payloads/execute-command.js";
+import { mapFetchResultText } from "./payloads/fetch-payload.js";
+import { mapLintDiagnostics } from "./payloads/lint-payload.js";
+import { mapPlanPayload } from "./payloads/plan-payload.js";
+import { mapQuestion } from "./payloads/question-payload.js";
+import { mapSearchPayload } from "./payloads/search-payload.js";
+import { mapTaskDescription, mapTaskResultText } from "./payloads/task-payload.js";
+import { mapTodos } from "./payloads/todos-payload.js";
+import { mapWebSearchPayload } from "./payloads/web-search-payload.js";
 import {
 	getBrowserScriptHighlighter,
 	getReadSourceExcerpt,
@@ -18,20 +29,9 @@ import {
 	getReadSourceRangeLabel,
 } from "./tool-read-source.js";
 import { serializeOtherToolDetails, serializeToolResult } from "./tool-result.js";
-import { mapSearchPayload } from "./payloads/search-payload.js";
-import { mapFetchResultText } from "./payloads/fetch-payload.js";
-import { mapWebSearchPayload } from "./payloads/web-search-payload.js";
-import { mapBrowserPayload } from "./payloads/browser-payload.js";
-import { mapLintDiagnostics } from "./payloads/lint-payload.js";
-import { mapTaskDescription, mapTaskResultText } from "./payloads/task-payload.js";
-import { mapPlanPayload } from "./payloads/plan-payload.js";
-import { mapQuestion } from "./payloads/question-payload.js";
-import { mapTodos } from "./payloads/todos-payload.js";
-import { mapEditDiffEntriesForToolCall } from "./payloads/edit-diff-payload.js";
-import {
-	getExecuteCommandHighlighter,
-	getExecuteOutputHighlighter,
-} from "./payloads/execute-command.js";
+import { mapToolStatus } from "./tool-status.js";
+import { getToolFilePath, getToolSubtitle } from "./tool-subtitle.js";
+import { normalizeToolKind, resolveToolTitle } from "./tool-title.js";
 
 export interface MapToolCallEntryOptions {
 	readonly displayEntryId?: string;
@@ -71,9 +71,7 @@ function mapToolCallEntry(
 	const browserPayload = mapBrowserPayload(toolCall);
 	const skillPayload = extractSkillCallInput(toolCall.arguments);
 	const planPayload = mapPlanPayload(toolCall);
-	const status =
-		options.canonicalStatus ??
-		mapToolStatus(toolCall, turnState, parentCompleted);
+	const status = options.canonicalStatus ?? mapToolStatus(toolCall, turnState, parentCompleted);
 	const diagnosticDetails =
 		options.includeDiagnosticDetails === false ? null : serializeOtherToolDetails(toolCall);
 	const command = toolCall.arguments.kind === "execute" ? toolCall.arguments.command : null;

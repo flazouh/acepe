@@ -54,7 +54,7 @@ function createOperationSnapshot(overrides?: Partial<OperationSnapshot>): Operat
 		kind: overrides?.kind ?? "execute",
 		provider_status: overrides?.provider_status ?? "in_progress",
 		operation_state: overrides?.operation_state ?? "running",
-	awaiting_plan_approval: false,
+		awaiting_plan_approval: false,
 		source_link: overrides?.source_link ?? {
 			kind: "transcript_linked",
 			entry_id: "tool-1",
@@ -130,9 +130,11 @@ describe("OperationStore", () => {
 		]);
 		const firstOperations = operationStore.getSessionOperations("session-1");
 		const originalFirstOperation = firstOperations[0];
-		const operationsById = (operationStore as unknown as {
-			operationsById: Map<string, unknown>;
-		}).operationsById;
+		const operationsById = (
+			operationStore as unknown as {
+				operationsById: Map<string, unknown>;
+			}
+		).operationsById;
 		const originalGet = operationsById.get;
 
 		Object.defineProperty(firstOperations, "0", {
@@ -193,12 +195,14 @@ describe("OperationStore", () => {
 			}),
 		]);
 		operationStore.getSessionOperations("session-1");
-		const sessionOperationsCache = (operationStore as unknown as {
-			sessionOperationsBySession: Map<
-				string,
-				{ readonly operationIndexById: ReadonlyMap<string, number> & Record<symbol, unknown> }
-			>;
-		}).sessionOperationsBySession;
+		const sessionOperationsCache = (
+			operationStore as unknown as {
+				sessionOperationsBySession: Map<
+					string,
+					{ readonly operationIndexById: ReadonlyMap<string, number> & Record<symbol, unknown> }
+				>;
+			}
+		).sessionOperationsBySession;
 		const cachedIndex = sessionOperationsCache.get("session-1")?.operationIndexById;
 		const originalIterator = cachedIndex?.[Symbol.iterator];
 		if (cachedIndex !== undefined) {
@@ -225,10 +229,9 @@ describe("OperationStore", () => {
 		const nextCachedIndex = sessionOperationsCache.get("session-1")?.operationIndexById;
 		expect(nextCachedIndex?.get(firstOperationId)).toBe(0);
 		expect(nextCachedIndex?.get(secondOperationId)).toBe(1);
-		expect(operationStore.getSessionOperations("session-1").map((operation) => operation.id)).toEqual([
-			firstOperationId,
-			secondOperationId,
-		]);
+		expect(
+			operationStore.getSessionOperations("session-1").map((operation) => operation.id)
+		).toEqual([firstOperationId, secondOperationId]);
 	});
 
 	it("keeps cached operations stable for semantically duplicate patches", () => {
@@ -333,9 +336,11 @@ describe("OperationStore", () => {
 		]);
 		const firstToolCalls = operationStore.getSessionToolCalls("session-1");
 		const originalFirstToolCall = firstToolCalls[0];
-		const operationsById = (operationStore as unknown as {
-			operationsById: Map<string, unknown>;
-		}).operationsById;
+		const operationsById = (
+			operationStore as unknown as {
+				operationsById: Map<string, unknown>;
+			}
+		).operationsById;
 		const originalGet = operationsById.get;
 
 		Object.defineProperty(firstToolCalls, "0", {
@@ -430,9 +435,11 @@ describe("OperationStore", () => {
 		const firstToolCalls = operationStore.getSessionToolCalls("session-1");
 		expect(firstToolCalls[0]?.taskChildren?.[0]?.status).toBe("in_progress");
 		const originalSecondRoot = firstToolCalls[1];
-		const operationsById = (operationStore as unknown as {
-			operationsById: Map<string, unknown>;
-		}).operationsById;
+		const operationsById = (
+			operationStore as unknown as {
+				operationsById: Map<string, unknown>;
+			}
+		).operationsById;
 		const originalGet = operationsById.get;
 
 		operationStore.applySessionOperationPatches("session-1", [
@@ -609,7 +616,9 @@ describe("OperationStore", () => {
 
 		const originalGetSessionOperations = operationStore.getSessionOperations;
 		operationStore.getSessionOperations = () => {
-			throw new Error("last tool selector should not scan operations when the last tool is unchanged");
+			throw new Error(
+				"last tool selector should not scan operations when the last tool is unchanged"
+			);
 		};
 
 		expect(operationStore.getLastToolCall("session-1")).toBe(firstLastTool);
@@ -826,9 +835,7 @@ describe("OperationStore", () => {
 				materializeToolCall: (operationId: string, visited: Set<string>) => unknown;
 			}
 		).materializeToolCall = () => {
-			throw new Error(
-				"current streaming selector should reuse the patched root tool call cache"
-			);
+			throw new Error("current streaming selector should reuse the patched root tool call cache");
 		};
 
 		try {
@@ -1428,9 +1435,11 @@ describe("OperationStore", () => {
 				operation_state: "completed",
 			}),
 		]);
-		const operationsById = (operationStore as unknown as {
-			operationsById: Map<string, unknown>;
-		}).operationsById;
+		const operationsById = (
+			operationStore as unknown as {
+				operationsById: Map<string, unknown>;
+			}
+		).operationsById;
 		const originalGet = operationsById.get;
 		operationsById.get = (operationId: string) => {
 			if (operationId === childOperationId) {
@@ -1458,7 +1467,7 @@ describe("OperationStore", () => {
 				tool_call_id: "tool-1",
 				provider_status: "pending",
 				operation_state: "pending",
-	awaiting_plan_approval: false,
+				awaiting_plan_approval: false,
 				arguments: { kind: "execute", command: "mkdir demo" },
 				command: "mkdir demo",
 			}),
@@ -1481,7 +1490,7 @@ describe("OperationStore", () => {
 				tool_call_id: "tool-1",
 				provider_status: "in_progress",
 				operation_state: "running",
-	awaiting_plan_approval: false,
+				awaiting_plan_approval: false,
 				arguments: { kind: "execute", command: "mkdir demo" },
 				progressive_arguments: { kind: "execute", command: "mkdir demo && cd demo" },
 				command: "mkdir demo && cd demo",
@@ -1499,7 +1508,7 @@ describe("OperationStore", () => {
 				tool_call_id: "tool-1",
 				provider_status: "completed",
 				operation_state: "completed",
-	awaiting_plan_approval: false,
+				awaiting_plan_approval: false,
 				arguments: { kind: "execute", command: "mkdir demo && cd demo" },
 				progressive_arguments: null,
 				result: "done",
@@ -1568,7 +1577,7 @@ describe("OperationStore", () => {
 				kind: "task",
 				provider_status: "completed",
 				operation_state: "completed",
-	awaiting_plan_approval: false,
+				awaiting_plan_approval: false,
 				title: "Task",
 				arguments: { kind: "other", raw: {} },
 				result: null,
@@ -1581,7 +1590,7 @@ describe("OperationStore", () => {
 				tool_call_id: "task-child",
 				provider_status: "completed",
 				operation_state: "completed",
-	awaiting_plan_approval: false,
+				awaiting_plan_approval: false,
 				arguments: { kind: "execute", command: "go test ./..." },
 				command: "go test ./...",
 				parent_tool_call_id: "task-parent",
@@ -1623,7 +1632,7 @@ describe("OperationStore", () => {
 				kind: "execute",
 				provider_status: "pending",
 				operation_state: "pending",
-	awaiting_plan_approval: false,
+				awaiting_plan_approval: false,
 				source_link: { kind: "transcript_linked", entry_id: "tool-1" },
 				title: "First",
 				arguments: { kind: "execute", command: "pwd" },
@@ -1644,7 +1653,7 @@ describe("OperationStore", () => {
 				kind: "execute",
 				provider_status: "completed",
 				operation_state: "completed",
-	awaiting_plan_approval: false,
+				awaiting_plan_approval: false,
 				source_link: { kind: "transcript_linked", entry_id: "tool-2" },
 				title: "Second",
 				arguments: { kind: "execute", command: "ls" },
@@ -1683,7 +1692,7 @@ describe("OperationStore", () => {
 				kind: "execute",
 				provider_status: "completed",
 				operation_state: "completed",
-	awaiting_plan_approval: false,
+				awaiting_plan_approval: false,
 				source_link: { kind: "transcript_linked", entry_id: "tool-1" },
 				title: "First",
 				arguments: { kind: "execute", command: "pwd" },
@@ -1704,7 +1713,7 @@ describe("OperationStore", () => {
 				kind: null,
 				provider_status: "in_progress",
 				operation_state: "running",
-	awaiting_plan_approval: false,
+				awaiting_plan_approval: false,
 				source_link: { kind: "transcript_linked", entry_id: "tool-2" },
 				title: "Second",
 				arguments: { kind: "execute", command: "grep needle" },
@@ -1735,7 +1744,7 @@ describe("OperationStore", () => {
 				kind: "execute",
 				provider_status: "completed",
 				operation_state: "completed",
-	awaiting_plan_approval: false,
+				awaiting_plan_approval: false,
 				source_link: { kind: "transcript_linked", entry_id: "tool-1" },
 				title: "First",
 				arguments: { kind: "execute", command: "pwd" },
@@ -1756,7 +1765,7 @@ describe("OperationStore", () => {
 				kind: "execute",
 				provider_status: "in_progress",
 				operation_state: "running",
-	awaiting_plan_approval: false,
+				awaiting_plan_approval: false,
 				source_link: { kind: "transcript_linked", entry_id: "tool-2" },
 				title: "Second",
 				arguments: { kind: "execute", command: "bun test" },
@@ -1865,7 +1874,7 @@ describe("OperationStore", () => {
 				kind: "execute",
 				provider_status: "completed",
 				operation_state: "completed",
-	awaiting_plan_approval: false,
+				awaiting_plan_approval: false,
 				source_link: { kind: "transcript_linked", entry_id: "tool-1" },
 				title: "Run command",
 				arguments: { kind: "execute", command: "printf hello" },
@@ -1899,7 +1908,7 @@ describe("OperationStore", () => {
 				kind: null,
 				provider_status: "in_progress",
 				operation_state: "running",
-	awaiting_plan_approval: false,
+				awaiting_plan_approval: false,
 				source_link: { kind: "transcript_linked", entry_id: "tool-1" },
 				title: "Todo list",
 				arguments: { kind: "other", raw: {} },
@@ -1950,7 +1959,7 @@ describe("OperationStore", () => {
 				kind: "execute",
 				provider_status: "in_progress",
 				operation_state: "blocked",
-	awaiting_plan_approval: false,
+				awaiting_plan_approval: false,
 				source_link: { kind: "transcript_linked", entry_id: "tool-1" },
 				operation_provenance_key: "tool-1",
 				title: "First",
@@ -1985,7 +1994,7 @@ describe("OperationStore", () => {
 				kind: "execute",
 				provider_status: "completed",
 				operation_state: "completed",
-	awaiting_plan_approval: false,
+				awaiting_plan_approval: false,
 				source_link: { kind: "transcript_linked", entry_id: "tool-1" },
 				operation_provenance_key: "tool-1",
 				title: "Run command",
@@ -2007,7 +2016,7 @@ describe("OperationStore", () => {
 				kind: "execute",
 				provider_status: "in_progress",
 				operation_state: "running",
-	awaiting_plan_approval: false,
+				awaiting_plan_approval: false,
 				source_link: { kind: "transcript_linked", entry_id: "tool-1" },
 				operation_provenance_key: "tool-1",
 				title: "Run command",
@@ -2034,12 +2043,12 @@ describe("OperationStore", () => {
 		operationStore.applySessionOperationPatches("session-1", [
 			createOperationSnapshot({
 				operation_state: "blocked",
-	awaiting_plan_approval: false,
+				awaiting_plan_approval: false,
 				provider_status: "in_progress",
 			}),
 			createOperationSnapshot({
 				operation_state: "running",
-	awaiting_plan_approval: false,
+				awaiting_plan_approval: false,
 				provider_status: "in_progress",
 			}),
 		]);
@@ -2051,7 +2060,7 @@ describe("OperationStore", () => {
 		operationStore.applySessionOperationPatches("session-1", [
 			createOperationSnapshot({
 				operation_state: "completed",
-	awaiting_plan_approval: false,
+				awaiting_plan_approval: false,
 				provider_status: "completed",
 				result: "done",
 			}),
@@ -2071,14 +2080,14 @@ describe("OperationStore", () => {
 				tool_call_id: "tool-cancelled",
 				operation_provenance_key: "tool-cancelled",
 				operation_state: "blocked",
-	awaiting_plan_approval: false,
+				awaiting_plan_approval: false,
 			}),
 			createOperationSnapshot({
 				id: "op-cancelled",
 				tool_call_id: "tool-cancelled",
 				operation_provenance_key: "tool-cancelled",
 				operation_state: "cancelled",
-	awaiting_plan_approval: false,
+				awaiting_plan_approval: false,
 				provider_status: "in_progress",
 			}),
 			createOperationSnapshot({
@@ -2086,14 +2095,14 @@ describe("OperationStore", () => {
 				tool_call_id: "tool-degraded",
 				operation_provenance_key: "tool-degraded",
 				operation_state: "blocked",
-	awaiting_plan_approval: false,
+				awaiting_plan_approval: false,
 			}),
 			createOperationSnapshot({
 				id: "op-degraded",
 				tool_call_id: "tool-degraded",
 				operation_provenance_key: "tool-degraded",
 				operation_state: "degraded",
-	awaiting_plan_approval: false,
+				awaiting_plan_approval: false,
 				provider_status: "failed",
 			}),
 		]);
@@ -2111,7 +2120,7 @@ describe("OperationStore", () => {
 		operationStore.replaceSessionOperations("session-1", [
 			createOperationSnapshot({
 				operation_state: "blocked",
-	awaiting_plan_approval: false,
+				awaiting_plan_approval: false,
 				provider_status: "in_progress",
 			}),
 		]);
@@ -2155,7 +2164,7 @@ describe("OperationStore", () => {
 					tool_call_id: testCase.toolCallId,
 					operation_provenance_key: testCase.toolCallId,
 					operation_state: testCase.terminalState,
-	awaiting_plan_approval: false,
+					awaiting_plan_approval: false,
 					provider_status: testCase.providerStatus,
 				}),
 				createOperationSnapshot({
@@ -2163,7 +2172,7 @@ describe("OperationStore", () => {
 					tool_call_id: testCase.toolCallId,
 					operation_provenance_key: testCase.toolCallId,
 					operation_state: "running",
-	awaiting_plan_approval: false,
+					awaiting_plan_approval: false,
 					provider_status: "in_progress",
 				}),
 			]);
@@ -2196,7 +2205,7 @@ describe("OperationStore", () => {
 				kind: "execute",
 				provider_status: "in_progress",
 				operation_state: "blocked",
-	awaiting_plan_approval: false,
+				awaiting_plan_approval: false,
 				source_link: { kind: "transcript_linked", entry_id: "tool-1" },
 				operation_provenance_key: "tool-1",
 				title: "Run command",

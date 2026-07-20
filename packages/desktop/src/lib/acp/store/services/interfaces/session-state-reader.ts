@@ -5,19 +5,10 @@
  * Extracted services use this to access session data without circular dependencies.
  */
 
-import type {
-	SessionGraphLifecycle,
-	SessionTurnState,
-} from "../../../../services/acp-types.js";
-import type {
-	Mode,
-	Model,
-	SessionCold,
-	SessionIdentity,
-	SessionMetadata,
-} from "../../types.js";
+import type { SessionGraphLifecycle, SessionTurnState } from "../../../../services/acp-types.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import type { ToolCall } from "../../../types/tool-call.js";
+import type { Mode, Model, SessionCold, SessionIdentity, SessionMetadata } from "../../types.js";
 
 /**
  * Interface for reading session state.

@@ -190,14 +190,16 @@ function handleUseAutomaticLinking(): void {
 }
 
 function handleSelectPullRequest(pr: SessionPrLinkPickerPullRequest): void {
-	void sessionStore.connection.updateSessionPrLink(sessionId, projectPath, pr.number, "manual").match(
-		() => {
-			handleClosePicker();
-		},
-		(error) => {
-			toast.error(`Failed to link pull request: ${error.message}`);
-		}
-	);
+	void sessionStore.connection
+		.updateSessionPrLink(sessionId, projectPath, pr.number, "manual")
+		.match(
+			() => {
+				handleClosePicker();
+			},
+			(error) => {
+				toast.error(`Failed to link pull request: ${error.message}`);
+			}
+		);
 }
 
 async function handleTransferPrLink(otherSessionId: string, prNumber: number): Promise<void> {

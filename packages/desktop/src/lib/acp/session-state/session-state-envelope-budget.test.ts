@@ -452,9 +452,7 @@ describe("session-state envelope byte budgets", () => {
 		const result = checkSessionStateEnvelopeByteBudget(
 			createEnvelope({
 				kind: "telemetry",
-				telemetry: createTelemetry(
-					"x".repeat(getSessionStateEnvelopeByteBudget("telemetry"))
-				),
+				telemetry: createTelemetry("x".repeat(getSessionStateEnvelopeByteBudget("telemetry"))),
 				revision,
 			})
 		);
@@ -515,9 +513,7 @@ describe("session-state envelope byte budgets", () => {
 		const result = checkSessionStateEnvelopeByteBudget(
 			createEnvelope({
 				kind: "snapshot",
-				graph: createSnapshotGraph(
-					"x".repeat(getSessionStateEnvelopeByteBudget("snapshot"))
-				),
+				graph: createSnapshotGraph("x".repeat(getSessionStateEnvelopeByteBudget("snapshot"))),
 			})
 		);
 

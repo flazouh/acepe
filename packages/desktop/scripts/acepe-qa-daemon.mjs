@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { createServer } from "node:net";
 import { existsSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { createServer } from "node:net";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -33,13 +33,20 @@ function findPackageRoot(packageName) {
 	if (candidates.length === 0) {
 		throw new Error(`Unable to locate ${packageName}. Run one normal qa command to warm npx.`);
 	}
-	candidates.sort((left, right) => statSync(join(right, "package.json")).mtimeMs - statSync(join(left, "package.json")).mtimeMs);
+	candidates.sort(
+		(left, right) =>
+			statSync(join(right, "package.json")).mtimeMs - statSync(join(left, "package.json")).mtimeMs
+	);
 	return candidates[0];
 }
 
 const packageRoot = findPackageRoot("@hypothesi/tauri-mcp-server");
-const sessionManager = await import(pathToFileURL(join(packageRoot, "dist", "driver", "session-manager.js")).href);
-const webviewExecutor = await import(pathToFileURL(join(packageRoot, "dist", "driver", "webview-executor.js")).href);
+const sessionManager = await import(
+	pathToFileURL(join(packageRoot, "dist", "driver", "session-manager.js")).href
+);
+const webviewExecutor = await import(
+	pathToFileURL(join(packageRoot, "dist", "driver", "webview-executor.js")).href
+);
 let webviewRunCounter = 0;
 
 function withTimeout(promise, timeoutMs, label) {
@@ -96,11 +103,7 @@ async function executeWebviewScript(appIdentifier, script, timeoutMs) {
 })()
 `;
 	contextResultJson(
-		await webviewExecutor.executeInWebviewWithContext(
-			kickoffScript,
-			undefined,
-			appIdentifier
-		)
+		await webviewExecutor.executeInWebviewWithContext(kickoffScript, undefined, appIdentifier)
 	);
 	const startedAt = Date.now();
 	while (Date.now() - startedAt < timeoutMs) {
@@ -119,17 +122,19 @@ async function executeWebviewScript(appIdentifier, script, timeoutMs) {
 			)
 		);
 		if (status.status === "done") {
-			webviewExecutor.executeInWebviewWithContext(
-				`
+			webviewExecutor
+				.executeInWebviewWithContext(
+					`
 (() => {
   const results = window.__acepeQaAsyncResults || {};
   delete results[${JSON.stringify(runId)}];
   return true;
 })()
 `,
-				undefined,
-				appIdentifier
-			).catch(() => undefined);
+					undefined,
+					appIdentifier
+				)
+				.catch(() => undefined);
 			return status.value;
 		}
 		if (status.status === "error" || status.status === "missing") {
@@ -157,8 +162,7 @@ async function handleRequest(request) {
 			timeoutMs + 2000,
 			"Tauri MCP WebView JS execution"
 		);
-		const resultText =
-			typeof result === "string" ? result : JSON.stringify(result);
+		const resultText = typeof result === "string" ? result : JSON.stringify(result);
 		return {
 			ok: true,
 			text: `${resultText}\n\n[Executed in window: main]`,
@@ -228,11 +232,13 @@ const server = createServer((socket) => {
 					socket.write(jsonLine(response));
 				})
 				.catch((error) => {
-					socket.write(jsonLine({
-						ok: false,
-						code: "daemon_request_failed",
-						message: error instanceof Error ? error.message : String(error),
-					}));
+					socket.write(
+						jsonLine({
+							ok: false,
+							code: "daemon_request_failed",
+							message: error instanceof Error ? error.message : String(error),
+						})
+					);
 				});
 			newlineIndex = buffer.indexOf("\n");
 		}

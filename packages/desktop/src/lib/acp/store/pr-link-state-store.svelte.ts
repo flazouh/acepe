@@ -11,26 +11,26 @@
  * facade unchanged.
  */
 import { errAsync, okAsync, type ResultAsync } from "neverthrow";
-import type { AppError } from "../errors/app-error.js";
-import { SessionNotFoundError } from "../errors/app-error.js";
-import { createLogger } from "../utils/logger.js";
 import type { GitStackedPrStep, PrChecks, PrDetails } from "../../utils/tauri-client/git.js";
 import { tauriClient } from "../../utils/tauri-client.js";
-import type {
-	SessionCold,
-	SessionIdentity,
-	SessionLinkedPr,
-	SessionMetadata,
-	SessionPrLinkMode,
-} from "./types.js";
-import type { SessionMutableColdUpdates } from "./types.js";
 import { buildPartialSessionLinkedPr } from "../application/dto/session-linked-pr.js";
+import type { AppError } from "../errors/app-error.js";
+import { SessionNotFoundError } from "../errors/app-error.js";
+import type { Operation } from "../types/operation.js";
+import { createLogger } from "../utils/logger.js";
 import {
 	extractPrCandidateFromGhCreateToolCall,
 	resolveAutomaticSessionPrNumberFromShipWorkflow,
 	resolveAutomaticSessionPrNumberFromToolCall,
 } from "./services/session-pr-link-attribution.js";
-import type { Operation } from "../types/operation.js";
+import type {
+	SessionCold,
+	SessionIdentity,
+	SessionLinkedPr,
+	SessionMetadata,
+	SessionMutableColdUpdates,
+	SessionPrLinkMode,
+} from "./types.js";
 
 function operationResultToText(result: Operation["result"]): string | null {
 	if (result == null) {
@@ -185,7 +185,10 @@ export class PrLinkStateStore {
 		return tauriClient.history.setSessionPrNumber(sessionId, prNumber, prLinkMode);
 	}
 
-	restoreAutomaticSessionPrLink(sessionId: string, projectPath: string): ResultAsync<void, AppError> {
+	restoreAutomaticSessionPrLink(
+		sessionId: string,
+		projectPath: string
+	): ResultAsync<void, AppError> {
 		return this.updateSessionPrLink(sessionId, projectPath, null, "automatic");
 	}
 
@@ -563,7 +566,11 @@ export class PrLinkStateStore {
 		return refs;
 	}
 
-	private applyPrDetailsToSessions(projectPath: string, prNumber: number, details: PrDetails): void {
+	private applyPrDetailsToSessions(
+		projectPath: string,
+		prNumber: number,
+		details: PrDetails
+	): void {
 		const matchingSessions = this.getSessionPrLinkRefs(projectPath, prNumber);
 
 		if (matchingSessions.length === 0) {
@@ -621,11 +628,7 @@ export class PrLinkStateStore {
 		}
 	}
 
-	private applyPrChecksToSessions(
-		projectPath: string,
-		prNumber: number,
-		checks: PrChecks
-	): void {
+	private applyPrChecksToSessions(projectPath: string, prNumber: number, checks: PrChecks): void {
 		const matchingSessions = this.getSessionPrLinkRefs(projectPath, prNumber);
 
 		for (const session of matchingSessions) {
@@ -708,7 +711,11 @@ export class PrLinkStateStore {
 				continue;
 			}
 
-			this.#deps.updateSession(session.sessionId, { linkedPr: nextLinkedPr }, { touchUpdatedAt: false });
+			this.#deps.updateSession(
+				session.sessionId,
+				{ linkedPr: nextLinkedPr },
+				{ touchUpdatedAt: false }
+			);
 		}
 	}
 
@@ -744,7 +751,11 @@ export class PrLinkStateStore {
 				continue;
 			}
 
-			this.#deps.updateSession(session.sessionId, { linkedPr: nextLinkedPr }, { touchUpdatedAt: false });
+			this.#deps.updateSession(
+				session.sessionId,
+				{ linkedPr: nextLinkedPr },
+				{ touchUpdatedAt: false }
+			);
 		}
 	}
 }

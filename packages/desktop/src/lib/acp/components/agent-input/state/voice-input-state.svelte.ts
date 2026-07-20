@@ -4,7 +4,6 @@ import { SoundEffect } from "$lib/acp/types/sounds.js";
 import { playSound } from "$lib/acp/utils/sound.js";
 import { tauriClient } from "../../../../utils/tauri-client.js";
 import type { AppError } from "../../../errors/app-error.js";
-import { createLogger } from "../../../utils/logger.js";
 import type {
 	AmplitudePayload,
 	RecordingErrorPayload,
@@ -13,6 +12,7 @@ import type {
 	VoiceInputPhase,
 	VoiceModelDownloadProgress,
 } from "../../../types/voice-input.js";
+import { createLogger } from "../../../utils/logger.js";
 import { canCancelVoiceInteraction, shouldShowVoiceOverlay } from "../logic/voice-ui-state.js";
 import { transition } from "./voice-transitions.js";
 import { WaveformState } from "./waveform-state.svelte.js";

@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { Button, HugeiconsIcon, Selector } from "@acepe/ui";
-	import * as DropdownMenu from "@acepe/ui/dropdown-menu";
+import { Button, HugeiconsIcon, Selector } from "@acepe/ui";
+import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 </script>
 
 <section class="space-y-4" data-testid="design-system-skills-copy-section">

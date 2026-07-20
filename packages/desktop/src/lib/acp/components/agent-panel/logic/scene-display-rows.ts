@@ -1,7 +1,4 @@
-import type {
-	AgentAssistantEntry,
-	AgentPanelSceneEntryModel,
-} from "@acepe/ui/agent-panel";
+import type { AgentAssistantEntry, AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
 import { groupAssistantChunks } from "@acepe/ui/agent-panel";
 import type { SessionEntry } from "../../../application/dto/session-entry.js";
 import type { AssistantMessage } from "../../../types/assistant-message.js";
@@ -369,8 +366,7 @@ function createReplacedTailVirtualizedDisplayEntryArray(
 					return selectReplacedTailVirtualizedDisplayEntry(baseRows, tailRow, index);
 				}
 				if (property === "slice") {
-					return (start?: number, end?: number) =>
-						Array.prototype.slice.call(receiver, start, end);
+					return (start?: number, end?: number) => Array.prototype.slice.call(receiver, start, end);
 				}
 			}
 			const value = Reflect.get(targetArray, property, receiver);
@@ -426,8 +422,7 @@ function createAppendedVirtualizedDisplayEntryArray(
 					return selectAppendedVirtualizedDisplayEntry(baseRows, appendedRows, index);
 				}
 				if (property === "slice") {
-					return (start?: number, end?: number) =>
-						Array.prototype.slice.call(receiver, start, end);
+					return (start?: number, end?: number) => Array.prototype.slice.call(receiver, start, end);
 				}
 			}
 			const value = Reflect.get(targetArray, property, receiver);

@@ -1,6 +1,4 @@
 import { Colors } from "@acepe/ui/colors";
-
-import type { StructuredData, StructuredEntry } from "./format/types.js";
 import {
 	formatStructuredPrimitive,
 	getStructuredContainerSummary,
@@ -8,6 +6,7 @@ import {
 	toStructuredEntries,
 	tryParseJsonString,
 } from "./format/parsers/structured.js";
+import type { StructuredData, StructuredEntry } from "./format/types.js";
 
 export interface StructuredNodeDisplayState {
 	displayValue: StructuredData;

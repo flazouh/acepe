@@ -36,10 +36,7 @@ interface FileDiffResult {
 	fileName: string;
 }
 
-type FetchFileContent = (
-	filePath: string,
-	projectPath: string
-) => ResultAsync<string, unknown>;
+type FetchFileContent = (filePath: string, projectPath: string) => ResultAsync<string, unknown>;
 
 type FetchFileDiff = (
 	filePath: string,
@@ -162,10 +159,7 @@ class FileContentCache {
 		const request = this.fetchFileContent(filePath, projectPath)
 			.mapErr((error) => {
 				this.contentInflightByKey.delete(cacheKey);
-				return new FileContentCacheError(
-					`Failed to read file ${filePath}: ${error}`,
-					"READ_ERROR"
-				);
+				return new FileContentCacheError(`Failed to read file ${filePath}: ${error}`, "READ_ERROR");
 			})
 			.map((content) => {
 				this.contentCache.set(cacheKey, content);

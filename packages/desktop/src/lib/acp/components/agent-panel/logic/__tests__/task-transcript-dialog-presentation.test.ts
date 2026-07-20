@@ -1,11 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import type {
-	TranscriptScope,
-	TranscriptViewportRow,
-} from "../../../../../services/acp-types.js";
+import type { TranscriptScope, TranscriptViewportRow } from "../../../../../services/acp-types.js";
 import type { TaskTranscriptDialogState } from "../task-transcript-dialog-controller.svelte.js";
-import { taskTranscriptDialogPresentation } from "../task-transcript-dialog-presentation.js";
 import { taskTranscriptDialogIdentity } from "../task-transcript-dialog-controller.svelte.js";
+import { taskTranscriptDialogPresentation } from "../task-transcript-dialog-presentation.js";
 
 const scope: TranscriptScope = {
 	kind: "operation",
@@ -68,13 +65,7 @@ describe("taskTranscriptDialogPresentation", () => {
 
 		const presentation = taskTranscriptDialogPresentation(state);
 
-		expect(presentation.rows.map((row) => row.rowId)).toEqual([
-			"thought-row",
-			"final-row",
-		]);
-		expect(presentation.rows.map((row) => row.entry.type)).toEqual([
-			"assistant",
-			"assistant",
-		]);
+		expect(presentation.rows.map((row) => row.rowId)).toEqual(["thought-row", "final-row"]);
+		expect(presentation.rows.map((row) => row.entry.type)).toEqual(["assistant", "assistant"]);
 	});
 });

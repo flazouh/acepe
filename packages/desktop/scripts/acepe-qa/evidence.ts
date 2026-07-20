@@ -25,7 +25,9 @@ export function uiQaEvidencePath(checkoutRoot: string): string {
 	return join(checkoutRoot, ".codex", "state", "ui-qa-evidence.json");
 }
 
-export function writeUiQaEvidence(input: UiQaEvidenceInput): ResultAsync<string, UiQaEvidenceFailure> {
+export function writeUiQaEvidence(
+	input: UiQaEvidenceInput
+): ResultAsync<string, UiQaEvidenceFailure> {
 	const path = uiQaEvidencePath(input.checkoutRoot);
 	const directory = join(input.checkoutRoot, ".codex", "state");
 	const payload = {
@@ -36,9 +38,12 @@ export function writeUiQaEvidence(input: UiQaEvidenceInput): ResultAsync<string,
 		verifiedAt: input.nowIso ?? new Date().toISOString(),
 	};
 	return ResultAsync.fromPromise(
-		mkdir(directory, { recursive: true }).then(() => Bun.write(path, `${JSON.stringify(payload, null, 2)}\n`)),
+		mkdir(directory, { recursive: true }).then(() =>
+			Bun.write(path, `${JSON.stringify(payload, null, 2)}\n`)
+		),
 		(error) => {
-			const normalized = error instanceof Error ? error : new Error("Unable to write UI QA evidence.");
+			const normalized =
+				error instanceof Error ? error : new Error("Unable to write UI QA evidence.");
 			return {
 				code: "ui_qa_evidence_write_failed",
 				message: errorMessage(normalized),

@@ -148,9 +148,7 @@ function capturePublicSnapshot(store: PanelStoreInstance): PublicPanelStoreSnaps
 	const terminalTabIdsByGroup: Record<string, readonly string[]> = {};
 	const selectedTerminalTabByGroup: Record<string, string | null> = {};
 	for (const group of terminalGroups) {
-		terminalTabIdsByGroup[group.id] = store
-			.getTerminalTabsForGroup(group.id)
-			.map((tab) => tab.id);
+		terminalTabIdsByGroup[group.id] = store.getTerminalTabsForGroup(group.id).map((tab) => tab.id);
 		selectedTerminalTabByGroup[group.id] = store.getSelectedTerminalTabId(group.id);
 	}
 
@@ -357,7 +355,10 @@ describe("PanelStore persistence parity", () => {
 		expect(first).not.toBeNull();
 		expect(store.getPanelBySessionId("session-lifecycle")).toBe(first);
 		expect(store.isSessionOpen("session-lifecycle")).toBe(true);
-		expect(store.getTopLevelAgentPanelIds()).toEqual([second ? second.id : "", first ? first.id : ""]);
+		expect(store.getTopLevelAgentPanelIds()).toEqual([
+			second ? second.id : "",
+			first ? first.id : "",
+		]);
 
 		store.focusPanel(first ? first.id : "");
 		expect(store.focusedPanel).toBe(first);

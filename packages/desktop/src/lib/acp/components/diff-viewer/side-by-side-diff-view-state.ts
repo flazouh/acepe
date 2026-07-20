@@ -37,7 +37,10 @@ export function getSideBySideDiffLanguage(filePath: string): string | undefined 
 
 export function buildSideBySideDiffViewState(diff: FileDiff): SideBySideDiffViewState {
 	const parseResult = parsePatchToBeforeAfter(diff.patch, diff.status);
-	const mode = getSideBySideDiffViewMode(diff, parseResult.isErr() ? parseResult.error.type : undefined);
+	const mode = getSideBySideDiffViewMode(
+		diff,
+		parseResult.isErr() ? parseResult.error.type : undefined
+	);
 
 	if (parseResult.isErr()) {
 		return {
@@ -56,7 +59,10 @@ export function buildSideBySideDiffViewState(diff: FileDiff): SideBySideDiffView
 	};
 }
 
-function getSideBySideDiffViewMode(diff: FileDiff, errorType: string | undefined): SideBySideDiffViewMode {
+function getSideBySideDiffViewMode(
+	diff: FileDiff,
+	errorType: string | undefined
+): SideBySideDiffViewMode {
 	if (errorType === "binary_file") {
 		return "binary";
 	}

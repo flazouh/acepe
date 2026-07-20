@@ -38,7 +38,7 @@ describe("toolbar-config-options", () => {
 				category: "fast_mode",
 				type: "boolean",
 				currentValue: false,
-					presentation: "compactSpeed",
+				presentation: "compactSpeed",
 			},
 		]);
 	});
@@ -78,7 +78,7 @@ describe("toolbar-config-options", () => {
 				category: "thought_level",
 				type: "select",
 				currentValue: "medium",
-					presentation: "compactReasoning",
+				presentation: "compactReasoning",
 				options: [
 					{ name: "Low", value: "low" },
 					{ name: "Medium", value: "medium" },
@@ -90,7 +90,7 @@ describe("toolbar-config-options", () => {
 				category: "service_tier",
 				type: "select",
 				currentValue: "standard",
-					presentation: "compactSpeed",
+				presentation: "compactSpeed",
 				options: [
 					{ name: "Standard", value: "standard" },
 					{ name: "Fast", value: "fast" },
@@ -109,7 +109,7 @@ describe("toolbar-config-options", () => {
 						category: "thought_level",
 						type: "select",
 						currentValue: "medium",
-					presentation: "compactReasoning",
+						presentation: "compactReasoning",
 						options: [
 							{ name: "Low", value: "low" },
 							{ name: "Medium", value: "medium" },
@@ -121,7 +121,7 @@ describe("toolbar-config-options", () => {
 						category: "service_tier",
 						type: "select",
 						currentValue: "standard",
-					presentation: "compactSpeed",
+						presentation: "compactSpeed",
 						options: [
 							{ name: "Standard", value: "standard" },
 							{ name: "Fast", value: "fast" },
@@ -141,7 +141,7 @@ describe("toolbar-config-options", () => {
 				category: "thought_level",
 				type: "select",
 				currentValue: "medium",
-					presentation: "compactReasoning",
+				presentation: "compactReasoning",
 				options: [
 					{ name: "Low", value: "low" },
 					{ name: "Medium", value: "medium" },
@@ -153,7 +153,7 @@ describe("toolbar-config-options", () => {
 				category: "service_tier",
 				type: "select",
 				currentValue: "standard",
-					presentation: "compactSpeed",
+				presentation: "compactSpeed",
 				options: [
 					{ name: "Standard", value: "standard" },
 					{ name: "Fast", value: "fast" },
@@ -172,7 +172,7 @@ describe("toolbar-config-options", () => {
 						category: "thought_level",
 						type: "select",
 						currentValue: "medium",
-					presentation: "compactReasoning",
+						presentation: "compactReasoning",
 						options: [
 							{ name: "Low", value: "low" },
 							{ name: "Medium", value: "medium" },
@@ -184,7 +184,7 @@ describe("toolbar-config-options", () => {
 						category: "service_tier",
 						type: "select",
 						currentValue: "standard",
-					presentation: "compactSpeed",
+						presentation: "compactSpeed",
 						options: [
 							{ name: "Standard", value: "standard" },
 							{ name: "Fast", value: "fast" },
@@ -218,7 +218,7 @@ describe("toolbar-config-options", () => {
 				category: "service_tier",
 				type: "select",
 				currentValue: "standard",
-					presentation: "compactSpeed",
+				presentation: "compactSpeed",
 				options: [
 					{ name: "Standard", value: "standard" },
 					{ name: "Fast", value: "fast" },
@@ -282,7 +282,7 @@ describe("toolbar-config-options", () => {
 				category: "reasoning",
 				type: "select",
 				currentValue: "medium",
-					presentation: "compactReasoning",
+				presentation: "compactReasoning",
 				options: [
 					{ name: "Low", value: "low" },
 					{ name: "Medium", value: "medium" },

@@ -71,9 +71,9 @@ describe("kanban view scene contract", () => {
 			"idle",
 			"error",
 		]);
-		expect(buildKanbanSceneGroups(scene).find((group) => group.id === "answer_needed")?.items).toEqual(
-			[]
-		);
+		expect(
+			buildKanbanSceneGroups(scene).find((group) => group.id === "answer_needed")?.items
+		).toEqual([]);
 	});
 
 	it("keeps optimistic cards ahead of live session cards in the same column", () => {

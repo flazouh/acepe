@@ -13,9 +13,9 @@
 
 import { okAsync, ResultAsync } from "neverthrow";
 import { tauriClient } from "$lib/utils/tauri-client.js";
-import {
-	type ModelsForDisplay,
-	type ProviderMetadataProjection,
+import type {
+	ModelsForDisplay,
+	ProviderMetadataProjection,
 } from "../../services/acp-provider-metadata.js";
 import type { Mode } from "../application/dto/mode.js";
 import type { Model } from "../application/dto/model.js";
@@ -110,7 +110,10 @@ function getDefaultModelScopeKey(providerId: string | null | undefined): string 
 	return providerId && providerId.length > 0 ? providerId : AGENT_DEFAULT_MODEL_SCOPE;
 }
 
-export function getDefaultModel(agentId: string, providerId: string | null | undefined): string | null {
+export function getDefaultModel(
+	agentId: string,
+	providerId: string | null | undefined
+): string | null {
 	const scopeKey = getDefaultModelScopeKey(providerId);
 	return defaultModels[agentId]?.[scopeKey] ?? null;
 }

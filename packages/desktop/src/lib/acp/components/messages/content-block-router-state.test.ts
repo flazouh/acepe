@@ -1,8 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { resolveContentBlockRouteState } from "./content-block-router-state.js";
 
-const testFileSrcConverter = (path: string) =>
-	`asset://localhost/${encodeURIComponent(path)}`;
+const testFileSrcConverter = (path: string) => `asset://localhost/${encodeURIComponent(path)}`;
 
 describe("content-block-router-state", () => {
 	it("returns explicit render data for valid text blocks", () => {

@@ -849,8 +849,7 @@ function runSessionOpenContentProbeForQa(
 	);
 }
 
-const QA_HOOKS_ENABLED =
-	import.meta.env.DEV || import.meta.env.VITE_ENABLE_QA_HOOKS === "1";
+const QA_HOOKS_ENABLED = import.meta.env.DEV || import.meta.env.VITE_ENABLE_QA_HOOKS === "1";
 
 function installHappyPathProbeQaHook(): void {
 	if (!QA_HOOKS_ENABLED) {
@@ -1646,8 +1645,8 @@ onMount(async () => {
 				getProjectPaths: () => projectManager.projects.map((project) => project.path),
 			})
 			.mapErr((error) => {
-			logger.error("Failed to load worktree project default preferences", { error });
-		});
+				logger.error("Failed to load worktree project default preferences", { error });
+			});
 	});
 	scheduleNonCriticalStartupWork(() => {
 		void agentModelPreferencesStore.loadPersistedState().match(
@@ -1676,10 +1675,7 @@ $effect(() => {
 
 // Track modalOpen context so overlay UIs suppress app-level keybindings
 $effect(() => {
-	kb.setContext(
-		"modalOpen",
-		viewState.settingsModalOpen || viewState.reviewFullscreenOpen
-	);
+	kb.setContext("modalOpen", viewState.settingsModalOpen || viewState.reviewFullscreenOpen);
 });
 
 function handleSessionCreated(sessionId: string) {

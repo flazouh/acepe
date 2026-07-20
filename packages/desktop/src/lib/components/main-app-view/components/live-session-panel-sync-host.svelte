@@ -3,11 +3,7 @@
  * Host for live-session panel materialization.
  * Previously lived inside AppQueueRow (attention queue); kept after that panel was removed.
  */
-import {
-	getInteractionStore,
-	getPanelStore,
-	getSessionStore,
-} from "$lib/acp/store/index.js";
+import { getInteractionStore, getPanelStore, getSessionStore } from "$lib/acp/store/index.js";
 import { DEFAULT_PANEL_WIDTH } from "$lib/acp/store/types.js";
 
 import type { MainAppViewState } from "../logic/main-app-view-state.svelte.js";

@@ -139,10 +139,7 @@ function recordCompletedInvokeTiming(
 	};
 	completedInvokeTimings.push(record);
 	if (completedInvokeTimings.length > MAX_COMPLETED_INVOKE_TIMINGS) {
-		completedInvokeTimings.splice(
-			0,
-			completedInvokeTimings.length - MAX_COMPLETED_INVOKE_TIMINGS
-		);
+		completedInvokeTimings.splice(0, completedInvokeTimings.length - MAX_COMPLETED_INVOKE_TIMINGS);
 	}
 	return record;
 }
@@ -269,7 +266,11 @@ if (typeof window !== "undefined" && debugInvoke) {
 	};
 }
 
-if (typeof window !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.DEV) {
+if (
+	typeof window !== "undefined" &&
+	typeof import.meta.env !== "undefined" &&
+	import.meta.env.DEV
+) {
 	window.__ACEPE_GET_INVOKE_TIMINGS__ = getTauriInvokeTimings;
 }
 
@@ -300,13 +301,7 @@ function invokeAsyncWithRuntime<T>(
 				return value;
 			},
 			(error: InvokeErrorValue) => {
-				const record = recordCompletedInvokeTiming(
-					invokeId,
-					cmd,
-					argsSummary,
-					start,
-					"error"
-				);
+				const record = recordCompletedInvokeTiming(invokeId, cmd, argsSummary, start, "error");
 				pendingInvokes.delete(invokeId);
 				if (debugInvoke) {
 					console.debug(`[INVOKE] #${invokeId} FAILED ${cmd} ${record.durationMs}ms`);

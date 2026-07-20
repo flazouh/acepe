@@ -55,8 +55,7 @@ export function listProvisionalConfigEntriesToApply(input: {
 	for (const [configId, value] of Object.entries(input.provisionalValues)) {
 		const liveOption = input.liveConfigOptions?.find((option) => option.id === configId);
 		const liveValue = liveOption?.currentValue;
-		const liveString =
-			liveValue === null || liveValue === undefined ? null : String(liveValue);
+		const liveString = liveValue === null || liveValue === undefined ? null : String(liveValue);
 		if (liveString !== value) {
 			entries.push({ configId, value });
 		}

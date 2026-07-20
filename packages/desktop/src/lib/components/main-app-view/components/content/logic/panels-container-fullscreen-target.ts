@@ -1,5 +1,5 @@
-import type { FilePanel } from "$lib/acp/store/file-panel-type.js";
 import type { BrowserPanel } from "$lib/acp/store/browser-panel-type.js";
+import type { FilePanel } from "$lib/acp/store/file-panel-type.js";
 import type { ReviewPanel } from "$lib/acp/store/review-panel-type.js";
 import type { TerminalPanelGroup, WorkspacePanel } from "$lib/acp/store/types.js";
 

@@ -1,8 +1,8 @@
 import { SvelteMap } from "svelte/reactivity";
 import type {
 	SessionGraphRevision,
-	TranscriptScope,
 	TranscriptRowPageResult,
+	TranscriptScope,
 	TranscriptViewportRow,
 } from "../../../../services/acp-types.js";
 import { readTranscriptRowPage } from "../../../session-state/session-state-viewport-command-service.js";
@@ -41,9 +41,7 @@ export type TaskTranscriptDialogState = {
 };
 
 export type TaskTranscriptDialogControllerDeps = {
-	readonly readPage: (
-		input: TaskTranscriptPageInput
-	) => ReturnType<typeof readTranscriptRowPage>;
+	readonly readPage: (input: TaskTranscriptPageInput) => ReturnType<typeof readTranscriptRowPage>;
 };
 
 export function taskTranscriptDialogIdentity(input: {
@@ -57,12 +55,7 @@ export function taskTranscriptDialogIdentity(input: {
 		panelId: input.panelId,
 		rootRowId: input.rootRowId,
 		operationId: input.operationId,
-		key: JSON.stringify([
-			input.sessionId,
-			input.panelId,
-			input.rootRowId,
-			input.operationId,
-		]),
+		key: JSON.stringify([input.sessionId, input.panelId, input.rootRowId, input.operationId]),
 	};
 }
 
@@ -104,7 +97,9 @@ function revisionsEqual(left: SessionGraphRevision, right: SessionGraphRevision)
 	);
 }
 
-function revisionFromStalePageResult(result: Extract<TranscriptRowPageResult, { status: "stale" }>): SessionGraphRevision {
+function revisionFromStalePageResult(
+	result: Extract<TranscriptRowPageResult, { status: "stale" }>
+): SessionGraphRevision {
 	return {
 		graphRevision: result.graphRevision,
 		transcriptRevision: result.transcriptRevision,
@@ -261,8 +256,7 @@ export class TaskTranscriptDialogController {
 						return;
 					}
 
-					const rows =
-						startRowIndex === 0 ? result.rows : current.rows.concat(result.rows);
+					const rows = startRowIndex === 0 ? result.rows : current.rows.concat(result.rows);
 					this.#states.set(state.identity.key, {
 						identity: current.identity,
 						scope: current.scope,

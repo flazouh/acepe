@@ -56,8 +56,7 @@ export class WorktreeProjectDefaultStore {
 				);
 
 				const needsSave =
-					isWorktreeProjectDefaultsEmpty(loadedMap) &&
-					!isWorktreeProjectDefaultsEmpty(migratedMap);
+					isWorktreeProjectDefaultsEmpty(loadedMap) && !isWorktreeProjectDefaultsEmpty(migratedMap);
 
 				if (needsSave) {
 					return saveWorktreeProjectDefaults(migratedMap).map(() => {

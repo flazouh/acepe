@@ -68,9 +68,10 @@ const passedPermissionToolCallId = $derived(permission?.tool?.callID ?? null);
 const selectedReply = $derived(
 	currentPermission !== null
 		? (permissionStore.getReplyInFlight(currentPermission.id) ??
-			(passedPermissionToolCallId !== null
-				? permissionStore.getAnsweredForToolCall(sessionId, passedPermissionToolCallId)?.reply ?? null
-				: null))
+				(passedPermissionToolCallId !== null
+					? (permissionStore.getAnsweredForToolCall(sessionId, passedPermissionToolCallId)?.reply ??
+						null)
+					: null))
 		: null
 );
 const isRepresentedByToolCall = $derived.by(() => {

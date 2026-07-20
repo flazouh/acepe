@@ -20,9 +20,7 @@ function createStore(
 		getSessionCurrentModeId: vi.fn(() => null),
 		getSessionCurrentToolKind: vi.fn(() => null),
 		getSessionLiveWorkSource: vi.fn((sessionId: string | null) =>
-			sessionId === null
-				? { kind: "no_session" }
-				: { kind: "missing_canonical", sessionId }
+			sessionId === null ? { kind: "no_session" } : { kind: "missing_canonical", sessionId }
 		),
 		getSessionOperationInteractionSnapshot: vi.fn(() => ({
 			pendingQuestion: null,

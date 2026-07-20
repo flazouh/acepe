@@ -1,6 +1,6 @@
-import type { Component } from "svelte";
 import { PaletteIcon, RobotIcon } from "@acepe/ui";
 import type { HugeiconsIconName } from "@acepe/ui/icons";
+import type { Component } from "svelte";
 
 import type { SettingsSectionId } from "./settings-types.js";
 
@@ -121,9 +121,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
 	},
 ];
 
-export function getSettingsSectionDefinition(
-	id: SettingsSectionId
-): SettingsSectionDefinition {
+export function getSettingsSectionDefinition(id: SettingsSectionId): SettingsSectionDefinition {
 	const match = SETTINGS_SECTIONS.find((section) => section.id === id);
 	if (match) {
 		return match;

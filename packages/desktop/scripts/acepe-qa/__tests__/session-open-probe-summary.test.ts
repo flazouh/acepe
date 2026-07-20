@@ -1,13 +1,12 @@
 import { describe, expect, it } from "bun:test";
-
+import {
+	type SessionOpenContentProbeResult,
+	sessionOpenContentProbeResultSchema,
+} from "../schemas";
 import {
 	formatSessionOpenBackendTiming,
 	summarizeSessionOpenContentProbe,
 } from "../session-open-probe-summary";
-import {
-	sessionOpenContentProbeResultSchema,
-	type SessionOpenContentProbeResult,
-} from "../schemas";
 
 type SessionOpenEvent = SessionOpenContentProbeResult["openEvents"][number];
 type SessionOpenTiming = NonNullable<SessionOpenEvent["openResultTiming"]>;

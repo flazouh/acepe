@@ -51,7 +51,7 @@ function createRunningOperation(): OperationSnapshot {
 		child_tool_call_ids: [],
 		child_operation_ids: [],
 		operation_state: "blocked",
-	awaiting_plan_approval: false,
+		awaiting_plan_approval: false,
 		source_link: { kind: "transcript_linked", entry_id: "tool-1" },
 	};
 }
@@ -243,9 +243,7 @@ function addSession(store: SessionStore): void {
 //   - `sequenceId` is optional (`number | null`); the cold path coalesces a missing
 //     value to `null`, the live path leaves it `undefined`. Both are type-valid.
 // Everything else must match exactly.
-function normalizeForCanonicalParity(
-	graph: SessionStateGraph | null
-): SessionStateGraph | null {
+function normalizeForCanonicalParity(graph: SessionStateGraph | null): SessionStateGraph | null {
 	if (graph === null) {
 		return null;
 	}
@@ -268,9 +266,9 @@ describe("canonical projection parity", () => {
 
 		expect(coldStore.read.hasSessionCanonicalProjection("session-1")).toBe(true);
 		expect(liveStore.read.hasSessionCanonicalProjection("session-1")).toBe(true);
-		expect(
-			normalizeForCanonicalParity(liveStore.getSessionStateGraphForTest("session-1"))
-		).toEqual(normalizeForCanonicalParity(coldStore.getSessionStateGraphForTest("session-1")));
+		expect(normalizeForCanonicalParity(liveStore.getSessionStateGraphForTest("session-1"))).toEqual(
+			normalizeForCanonicalParity(coldStore.getSessionStateGraphForTest("session-1"))
+		);
 		expect(liveStore.read.getSessionAvailableModels("session-1")).toEqual(
 			coldStore.read.getSessionAvailableModels("session-1")
 		);
@@ -397,8 +395,16 @@ describe("canonical projection parity", () => {
 			entries: SessionStateGraph["transcriptSnapshot"]["entries"]
 		): boolean => entries.some((entry) => (entry.role as string) === "error");
 
-		expect(hasTranscriptErrorRole(liveStore.getSessionStateGraphForTest("session-1")!.transcriptSnapshot.entries)).toBe(false);
-		expect(hasTranscriptErrorRole(coldStore.getSessionStateGraphForTest("session-1")!.transcriptSnapshot.entries)).toBe(false);
+		expect(
+			hasTranscriptErrorRole(
+				liveStore.getSessionStateGraphForTest("session-1")!.transcriptSnapshot.entries
+			)
+		).toBe(false);
+		expect(
+			hasTranscriptErrorRole(
+				coldStore.getSessionStateGraphForTest("session-1")!.transcriptSnapshot.entries
+			)
+		).toBe(false);
 		expect(liveStore.getSessionStateGraphForTest("session-1")?.activeTurnFailure).not.toBeNull();
 		expect(coldStore.getSessionStateGraphForTest("session-1")?.activeTurnFailure).toBeNull();
 		expect(liveStore.getSessionStateGraphForTest("session-1")?.turnState).toBe("Failed");

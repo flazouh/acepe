@@ -1,26 +1,26 @@
 <script lang="ts">
-	import {
-		ClaudeWorkingSpark,
-		PlanningPlaceholderRow,
-		type ToolDurationTiming,
-		CLAUDE_WORKING_SPARK_DURATION_MS,
-		CLAUDE_WORKING_SPARK_FRAME_COUNT,
-	} from "@acepe/ui/agent-panel";
-	import { Badge } from "$lib/components/ui/badge/index.js";
-	import SettingRow from "$lib/components/settings-page/setting-row.svelte";
-	import SettingsSection from "$lib/components/settings-page/settings-section.svelte";
+import {
+	ClaudeWorkingSpark,
+	PlanningPlaceholderRow,
+	type ToolDurationTiming,
+	CLAUDE_WORKING_SPARK_DURATION_MS,
+	CLAUDE_WORKING_SPARK_FRAME_COUNT,
+} from "@acepe/ui/agent-panel";
+import { Badge } from "$lib/components/ui/badge/index.js";
+import SettingRow from "$lib/components/settings-page/setting-row.svelte";
+import SettingsSection from "$lib/components/settings-page/settings-section.svelte";
 
-	import { claudeSparkSpecimens } from "./design-system-claude-spark-specimens.js";
+import { claudeSparkSpecimens } from "./design-system-claude-spark-specimens.js";
 
-	const brand = "#d97757";
+const brand = "#d97757";
 
-	// The genuine running-turn timing, exactly as the agent panel builds it, so the
-	// real PlanningPlaceholderRow ticks its seconds counter.
-	const planningTiming: ToolDurationTiming = {
-		startedAtMs: Date.now() - 3000,
-		completedAtMs: null,
-		status: "running",
-	};
+// The genuine running-turn timing, exactly as the agent panel builds it, so the
+// real PlanningPlaceholderRow ticks its seconds counter.
+const planningTiming: ToolDurationTiming = {
+	startedAtMs: Date.now() - 3000,
+	completedAtMs: null,
+	status: "running",
+};
 </script>
 
 <div class="w-full">

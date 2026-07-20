@@ -6,11 +6,11 @@ import type { Operation, OperationState } from "../types/operation.js";
 import type { PermissionRequest } from "../types/permission.js";
 import type { ToolCall } from "../types/tool-call.js";
 import type { ToolKind } from "../types/tool-kind.js";
+import { mapOperationStateToToolPresentationStatus } from "../utils/tool-state-utils.js";
 import {
 	isPermissionRepresentedByOperation,
 	visiblePermissionsForOperations,
 } from "./permission-operation-projection.js";
-import { mapOperationStateToToolPresentationStatus } from "../utils/tool-state-utils.js";
 import { normalizeToolResult } from "./services/tool-result-normalizer.js";
 
 function createSessionToolKey(sessionId: string, toolCallId: string): string {
@@ -386,8 +386,7 @@ export class OperationStore {
 		let canPreserveLastToolCall =
 			cachedLastToolCall === undefined || cachedLastToolCall.version === previousVersion;
 		let canPreserveLastTodoToolCall =
-			cachedLastTodoToolCall === undefined ||
-			cachedLastTodoToolCall.version === previousVersion;
+			cachedLastTodoToolCall === undefined || cachedLastTodoToolCall.version === previousVersion;
 		const resolvePatchedRootToolCall = (rootOperationId: string): ToolCall | undefined => {
 			const cachedToolCall = patchedRootToolCallsByOperationId.get(rootOperationId);
 			if (cachedToolCall !== undefined) {
@@ -411,7 +410,10 @@ export class OperationStore {
 		);
 		for (const operation of incomingOperations) {
 			const existingOperation = this.operationsById.get(operation.id);
-			if (existingOperation !== undefined && areOperationsEquivalent(existingOperation, operation)) {
+			if (
+				existingOperation !== undefined &&
+				areOperationsEquivalent(existingOperation, operation)
+			) {
 				continue;
 			}
 			const existingIsRootOperation = existingOperation?.parentOperationId === null;
@@ -459,7 +461,9 @@ export class OperationStore {
 			this.operationsById.set(operation.id, operation);
 			this.indexOperation(operation);
 			const rootOperationId =
-				operation.parentOperationId === null ? operation.id : this.findRootOperationId(operation.id);
+				operation.parentOperationId === null
+					? operation.id
+					: this.findRootOperationId(operation.id);
 			if (
 				rootOperationId !== null &&
 				cachedLastToolCall?.version === previousVersion &&
@@ -481,8 +485,7 @@ export class OperationStore {
 				rootOperationId !== null &&
 				cachedLastTodoToolCall?.version === previousVersion &&
 				cachedLastTodoToolCall.toolCall !== null &&
-				this.getByToolCallId(sessionId, cachedLastTodoToolCall.toolCall.id)?.id ===
-					rootOperationId
+				this.getByToolCallId(sessionId, cachedLastTodoToolCall.toolCall.id)?.id === rootOperationId
 			) {
 				canPreserveLastTodoToolCall = false;
 			}
@@ -496,10 +499,7 @@ export class OperationStore {
 					shouldRecomputeRootOperationIds = true;
 					shouldRecomputeLastRootOperation = true;
 				}
-				if (
-					operationHasTodos(existingOperation) ||
-					operationHasTodos(operation)
-				) {
+				if (operationHasTodos(existingOperation) || operationHasTodos(operation)) {
 					shouldRecomputeLastTodoOperation = true;
 				}
 			}
@@ -1013,8 +1013,7 @@ function createPatchedOperationArray(
 					return selectPatchedOperation(baseOperations, operationPatches, appended, index);
 				}
 				if (property === "slice") {
-					return (start?: number, end?: number) =>
-						Array.prototype.slice.call(receiver, start, end);
+					return (start?: number, end?: number) => Array.prototype.slice.call(receiver, start, end);
 				}
 			}
 			const value = Reflect.get(targetArray, property, receiver);
@@ -1055,22 +1054,17 @@ function createAppendedOperationIdArray(
 			if (property === Symbol.iterator) {
 				return function* () {
 					for (let index = 0; index < targetArray.length; index += 1) {
-						yield index === baseOperationIds.length
-							? appendedOperationId
-							: baseOperationIds[index];
+						yield index === baseOperationIds.length ? appendedOperationId : baseOperationIds[index];
 					}
 				};
 			}
 			if (typeof property === "string") {
 				const index = toArrayIndex(property);
 				if (index !== null) {
-					return index === baseOperationIds.length
-						? appendedOperationId
-						: baseOperationIds[index];
+					return index === baseOperationIds.length ? appendedOperationId : baseOperationIds[index];
 				}
 				if (property === "slice") {
-					return (start?: number, end?: number) =>
-						Array.prototype.slice.call(receiver, start, end);
+					return (start?: number, end?: number) => Array.prototype.slice.call(receiver, start, end);
 				}
 			}
 			const value = Reflect.get(targetArray, property, receiver);
@@ -1089,10 +1083,7 @@ function createAppendedOperationIdArray(
 				return {
 					configurable: true,
 					enumerable: true,
-					value:
-						index === baseOperationIds.length
-							? appendedOperationId
-							: baseOperationIds[index],
+					value: index === baseOperationIds.length ? appendedOperationId : baseOperationIds[index],
 					writable: false,
 				};
 			}
@@ -1130,8 +1121,7 @@ function createPatchedToolCallArray(
 					return selectPatchedToolCall(baseToolCalls, toolCallPatches, appended, index);
 				}
 				if (property === "slice") {
-					return (start?: number, end?: number) =>
-						Array.prototype.slice.call(receiver, start, end);
+					return (start?: number, end?: number) => Array.prototype.slice.call(receiver, start, end);
 				}
 			}
 			const value = Reflect.get(targetArray, property, receiver);
@@ -1174,7 +1164,9 @@ function patchCachedItemIndex<T extends { readonly id: string }>(
 	return new AppendedItemIndexMap(baseIndexById, appendedItems, baseLength);
 }
 
-class AppendedItemIndexMap<T extends { readonly id: string }> implements ReadonlyMap<string, number> {
+class AppendedItemIndexMap<T extends { readonly id: string }>
+	implements ReadonlyMap<string, number>
+{
 	readonly [Symbol.toStringTag] = "AppendedItemIndexMap";
 
 	constructor(

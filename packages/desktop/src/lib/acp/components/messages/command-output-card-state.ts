@@ -27,8 +27,7 @@ export function buildCommandOutputCardState(
 
 	return {
 		modelInfo,
-		isModelCommand:
-			output.command === "/model" || output.message === "model" || modelInfo !== null,
+		isModelCommand: output.command === "/model" || output.message === "model" || modelInfo !== null,
 		displayModel: getDisplayModel(modelInfo),
 		cleanStdout,
 	};

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import {
 	enhanceGitHubReference,
-	getGitHubBadgeResetStatsState,
 	getGitHubBadgeCopyText,
+	getGitHubBadgeResetStatsState,
 	getGitHubDiffStats,
 	getGitHubStatsKey,
 	shouldLoadGitHubStats,
@@ -11,10 +11,7 @@ import {
 describe("github badge state", () => {
 	it("enhances bare commit refs with repo context", () => {
 		expect(
-			enhanceGitHubReference(
-				{ type: "commit", sha: "abc123" },
-				{ owner: "flazouh", repo: "acepe" }
-			)
+			enhanceGitHubReference({ type: "commit", sha: "abc123" }, { owner: "flazouh", repo: "acepe" })
 		).toEqual({
 			type: "commit",
 			sha: "abc123",
@@ -100,9 +97,9 @@ describe("github badge state", () => {
 
 	it("builds copy text for refs", () => {
 		expect(getGitHubBadgeCopyText({ type: "commit", sha: "abc123" })).toBe("abc123");
-		expect(getGitHubBadgeCopyText({ type: "pr", owner: "flazouh", repo: "acepe", number: 42 })).toBe(
-			"flazouh/acepe#42"
-		);
+		expect(
+			getGitHubBadgeCopyText({ type: "pr", owner: "flazouh", repo: "acepe", number: 42 })
+		).toBe("flazouh/acepe#42");
 		expect(
 			getGitHubBadgeCopyText({ type: "issue", owner: "flazouh", repo: "acepe", number: 7 })
 		).toBe("flazouh/acepe#7");

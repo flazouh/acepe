@@ -1,8 +1,8 @@
-import type { InteractionSnapshot, SessionStateGraph } from "$lib/services/acp-types.js";
 import type { InteractionStore } from "$lib/acp/store/interaction-store.svelte.js";
 import type { PlanApprovalInteraction } from "$lib/acp/types/interaction.js";
 import type { PermissionRequest } from "$lib/acp/types/permission.js";
 import type { QuestionRequest } from "$lib/acp/types/question.js";
+import type { InteractionSnapshot, SessionStateGraph } from "$lib/services/acp-types.js";
 
 interface LiveInteractionGraphConsumerInput {
 	readonly interactionStore: InteractionStore;

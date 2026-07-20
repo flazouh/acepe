@@ -3,6 +3,8 @@ import { describe, expect, it } from "bun:test";
 import type { SessionEntry } from "../../../application/dto/session-entry.js";
 import type { Project } from "../../../logic/project-manager.svelte.js";
 import type { ToolCall } from "../../../types/tool-call.js";
+import { extractProjectName } from "../../../utils/path-utils.js";
+import { generateFallbackProjectColor } from "../../../utils/project-utils.js";
 import {
 	buildSessionRows,
 	createDisplayItems,
@@ -13,8 +15,6 @@ import {
 	getSidebarSessions,
 	isSessionListNearBottom,
 } from "../session-list-logic.js";
-import { extractProjectName } from "../../../utils/path-utils.js";
-import { generateFallbackProjectColor } from "../../../utils/project-utils.js";
 import type { SessionListItem } from "../session-list-types.js";
 
 function isSessionListBadgeIdentityReady(

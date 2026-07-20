@@ -1,12 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-
+import { PanelFileState, type PanelFileStateDeps } from "../panel-file-state.svelte.js";
 import { createPrependedItemArray } from "../panel-store-array-patches.js";
-import {
-	PanelFileState,
-	type PanelFileStateDeps,
-} from "../panel-file-state.svelte.js";
-import type { Panel, WorkspacePanel } from "../types.js";
 import type { TopLevelPanelCloseState } from "../panel-terminal-state.svelte.js";
+import type { Panel, WorkspacePanel } from "../types.js";
 
 function createOwnerPanel(ownerPanelId: string): Panel {
 	return {
@@ -28,9 +24,7 @@ function createOwnerPanel(ownerPanelId: string): Panel {
 	};
 }
 
-function createFileState(
-	overrides?: Partial<PanelFileStateDeps>
-): {
+function createFileState(overrides?: Partial<PanelFileStateDeps>): {
 	state: PanelFileState;
 	workspacePanels: WorkspacePanel[];
 	persist: ReturnType<typeof vi.fn>;

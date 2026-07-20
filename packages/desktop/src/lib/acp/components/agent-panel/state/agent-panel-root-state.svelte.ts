@@ -6,23 +6,23 @@
  * view glue until the next architecture units migrate those clusters.
  */
 
+import type { PanelViewStateInput } from "../../../logic/panel-visibility.js";
+import type { Project } from "../../../logic/project-manager.svelte.js";
+import type { AgentStore } from "../../../store/agent-store.svelte.js";
 import type { ChatPreferencesStore } from "../../../store/chat-preferences-store.svelte.js";
+import { checkpointStore } from "../../../store/checkpoint-store.svelte.js";
 import type { ConnectionStore } from "../../../store/connection-store.svelte.js";
 import type { InteractionStore } from "../../../store/interaction-store.svelte.js";
 import type { MessageQueueStore } from "../../../store/message-queue/index.js";
-import type { AgentStore } from "../../../store/agent-store.svelte.js";
 import type { PanelStore } from "../../../store/panel-store.svelte.js";
 import type { PermissionStore } from "../../../store/permission-store.svelte.js";
 import type { SessionStore } from "../../../store/session-store.svelte.js";
 import type { Checkpoint } from "../../../types/checkpoint.js";
-import {
-	type PanelConnectionErrorDetails,
-	type PanelConnectionState,
+import type {
+	PanelConnectionErrorDetails,
+	PanelConnectionState,
 } from "../../../types/panel-connection-state.js";
 import type { PreparedWorktreeLaunch } from "../../../types/worktree-info.js";
-import type { Project } from "../../../logic/project-manager.svelte.js";
-import type { PanelViewStateInput } from "../../../logic/panel-visibility.js";
-import { checkpointStore } from "../../../store/checkpoint-store.svelte.js";
 import { createPanelBranchLookupController } from "../logic/panel-branch-lookup.js";
 import { loadCheckpointsBeforeTimelineOpen } from "../services/index.js";
 import { AgentPanelLayoutController } from "./agent-panel-layout-controller.svelte.js";
@@ -32,8 +32,8 @@ import { AgentPanelViewStateController } from "./agent-panel-view-state-controll
 import { AgentPanelWorktreeController } from "./agent-panel-worktree-controller.svelte.js";
 import { CheckpointTimelineController } from "./checkpoint-timeline-controller.svelte.js";
 import {
-	createConnectionController,
 	type ConnectionControllerDeps,
+	createConnectionController,
 } from "./connection-controller.svelte.js";
 import { ContentScrollRevealController } from "./content-scroll-reveal-controller.svelte.js";
 import { PrCardController } from "./pr-card-controller.svelte.js";

@@ -39,10 +39,7 @@ export function buildKanbanThreadDialogPanelSnapshot(
 		pendingProjectSelection: panel.pendingProjectSelection,
 		selectedAgentId: resolveKanbanThreadDialogConfiguredAgentId(panel, input.sessionIdentity),
 		isWaitingForSession: panel.sessionId !== null && input.sessionIdentity === undefined,
-		project:
-			sessionProjectPath === null
-				? null
-				: (input.getProject(sessionProjectPath) ?? null),
+		project: sessionProjectPath === null ? null : (input.getProject(sessionProjectPath) ?? null),
 	};
 }
 

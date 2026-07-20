@@ -4,9 +4,7 @@ import { parseOptions } from "../cli";
 describe("acepe-qa cli options", () => {
 	it("keeps hover sampling at 350ms unless --delay overrides it", () => {
 		expect(parseOptions(["hover", "--selector=button"], "/repo").delayMs).toBe(350);
-		expect(parseOptions(["hover", "--selector=button", "--delay=100"], "/repo").delayMs).toBe(
-			100
-		);
+		expect(parseOptions(["hover", "--selector=button", "--delay=100"], "/repo").delayMs).toBe(100);
 	});
 
 	it("parses scroll page settle timing independently from generic delay", () => {
@@ -45,11 +43,7 @@ describe("acepe-qa cli options", () => {
 
 	it("parses stable panel and project path identity for project selection", () => {
 		const options = parseOptions(
-			[
-				"select-project",
-				"--panel-id=panel-acepe",
-				"--project-path=/repo/acepe",
-			],
+			["select-project", "--panel-id=panel-acepe", "--project-path=/repo/acepe"],
 			"/repo"
 		);
 
@@ -59,10 +53,7 @@ describe("acepe-qa cli options", () => {
 	});
 
 	it("parses an optional first-send pre-scroll offset", () => {
-		const options = parseOptions(
-			["first-send-probe", "--pre-scroll-offset-px=2000"],
-			"/repo"
-		);
+		const options = parseOptions(["first-send-probe", "--pre-scroll-offset-px=2000"], "/repo");
 
 		expect(options.preScrollOffsetPx).toBe(2_000);
 		expect(parseOptions(["first-send-probe"], "/repo").preScrollOffsetPx).toBeNull();

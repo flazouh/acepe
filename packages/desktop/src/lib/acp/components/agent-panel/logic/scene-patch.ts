@@ -60,7 +60,9 @@ export function scenePatchGraphSceneTruncation(
 	return { kind: "graphSceneTruncation", patch };
 }
 
-export function scenePatchGraphSceneSplice(patch: AgentPanelSceneEntryArraySplicePatch): ScenePatch {
+export function scenePatchGraphSceneSplice(
+	patch: AgentPanelSceneEntryArraySplicePatch
+): ScenePatch {
 	return { kind: "graphSceneSplice", patch };
 }
 

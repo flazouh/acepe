@@ -1045,10 +1045,7 @@ export const firstSendTimelineSampleSchema = z.object({
 	planningLifecycleStatus: z.string().nullable().optional(),
 	planningHasLocalPendingSendIntent: z.boolean().nullable().optional(),
 	planningHasTrailingCompletedTool: z.boolean().nullable().optional(),
-	planningLocalPlaceholderMode: z
-		.enum(["none", "connection", "planning"])
-		.nullable()
-		.optional(),
+	planningLocalPlaceholderMode: z.enum(["none", "connection", "planning"]).nullable().optional(),
 	scrollTopPx: z.number(),
 	maxScrollTopPx: z.number(),
 	scrollAttached: z.boolean(),
@@ -1333,9 +1330,7 @@ export const ledgerBackfillProbeResultSchema = z.object({
 });
 
 export type SendComposerResult = z.infer<typeof sendComposerResultSchema>;
-export type ComposerEnterSubmitProbeResult = z.infer<
-	typeof composerEnterSubmitProbeResultSchema
->;
+export type ComposerEnterSubmitProbeResult = z.infer<typeof composerEnterSubmitProbeResultSchema>;
 export type PlanningDebugResult = z.infer<typeof planningDebugResultSchema>;
 export type ComputerUseProbeResult = z.infer<typeof computerUseProbeResultSchema>;
 export type LedgerBackfillProbeResult = z.infer<typeof ledgerBackfillProbeResultSchema>;
@@ -1369,12 +1364,8 @@ export type ResetOnboardingResult = z.infer<typeof resetOnboardingResultSchema>;
 export type StreamingReproLabResult = z.infer<typeof streamingReproLabResultSchema>;
 export type AgentPanelStressLabResult = z.infer<typeof agentPanelStressLabResultSchema>;
 export type AgentPanelStressLabRunStatus = z.infer<typeof agentPanelStressLabRunStatusSchema>;
-export type SendAttachStressProbeResult = z.infer<
-	typeof sendAttachStressProbeResultSchema
->;
-export type PlanningBetweenToolsProbeResult = z.infer<
-	typeof planningBetweenToolsProbeResultSchema
->;
+export type SendAttachStressProbeResult = z.infer<typeof sendAttachStressProbeResultSchema>;
+export type PlanningBetweenToolsProbeResult = z.infer<typeof planningBetweenToolsProbeResultSchema>;
 export type TauriInvokeTimingRecord = z.infer<typeof tauriInvokeTimingRecordSchema>;
 export type TauriPendingInvokeRecord = z.infer<typeof tauriPendingInvokeRecordSchema>;
 export type HappyPathPerformanceResult = z.infer<typeof happyPathPerformanceResultSchema>;

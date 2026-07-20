@@ -15,7 +15,6 @@
  */
 
 import { okAsync, type ResultAsync } from "neverthrow";
-import type { CanonicalModeId } from "$lib/acp/types/canonical-mode-id.js";
 import { resolveDefaultAgentIdForCreate } from "$lib/acp/components/session-list/session-list-logic.js";
 import type { SessionListItem } from "$lib/acp/components/session-list/session-list-types.js";
 import type { WorktreeProjectDefaultStore } from "$lib/acp/components/worktree/worktree-project-default-store.svelte.js";
@@ -27,12 +26,9 @@ import type { ConnectionStore } from "$lib/acp/store/connection-store.svelte.js"
 import type { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
 import type { SessionOpenHydrator } from "$lib/acp/store/services/session-open-hydrator.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
-import type {
-	Panel,
-	PersistedReviewFullscreenState,
-	ViewMode,
-} from "$lib/acp/store/types.js";
+import type { Panel, PersistedReviewFullscreenState, ViewMode } from "$lib/acp/store/types.js";
 import type { WorkspaceStore } from "$lib/acp/store/workspace-store.svelte.js";
+import type { CanonicalModeId } from "$lib/acp/types/canonical-mode-id.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { type IssueReportDraft, openIssueReportDraft } from "$lib/errors/issue-report.js";
 import type { KeybindingsService } from "$lib/keybindings/service.svelte.js";

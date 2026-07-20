@@ -18,7 +18,10 @@ import type { TranscriptDelta, TranscriptSnapshot } from "../../services/acp-typ
 import { createLogger } from "../utils/logger.js";
 import { OperationStore } from "./operation-store.svelte.js";
 import { EntryIndexManager } from "./services/entry-index-manager";
-import type { IEntryStoreInternal, ToolCallEntryRef } from "./services/interfaces/entry-store-internal.js";
+import type {
+	IEntryStoreInternal,
+	ToolCallEntryRef,
+} from "./services/interfaces/entry-store-internal.js";
 import type { IEntryManager } from "./services/interfaces/index.js";
 import { normalizeToolResult } from "./services/tool-result-normalizer.js";
 import {
@@ -313,10 +316,7 @@ export class SessionEntryStore implements IEntryManager, IEntryStoreInternal {
 			if (existingEntry === undefined) {
 				continue;
 			}
-			const updatedEntry = appendTranscriptSegmentToSessionEntry(
-				existingEntry,
-				operation.segment
-			);
+			const updatedEntry = appendTranscriptSegmentToSessionEntry(existingEntry, operation.segment);
 			if (updatedEntry === null) {
 				continue;
 			}
@@ -530,8 +530,7 @@ function createPatchedSessionEntryArray(
 					return selectPatchedSessionEntry(base, patchedIndexes, appended, index);
 				}
 				if (property === "slice") {
-					return (start?: number, end?: number) =>
-						Array.prototype.slice.call(receiver, start, end);
+					return (start?: number, end?: number) => Array.prototype.slice.call(receiver, start, end);
 				}
 			}
 			const value = Reflect.get(targetArray, property, receiver);

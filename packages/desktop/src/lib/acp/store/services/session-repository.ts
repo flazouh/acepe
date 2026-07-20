@@ -17,12 +17,12 @@ import type {
 	StartupSessionsResponse,
 } from "../../../services/claude-history-types.js";
 import { tauriClient } from "../../../utils/tauri-client.js";
+import { sessionColdFromSlices } from "../../application/dto/session-cold.js";
+import type { SessionIdentity } from "../../application/dto/session-identity.js";
 import {
 	buildPartialSessionLinkedPr,
 	type SessionPrLinkMode,
 } from "../../application/dto/session-linked-pr.js";
-import type { SessionIdentity } from "../../application/dto/session-identity.js";
-import { sessionColdFromSlices } from "../../application/dto/session-cold.js";
 import type { SessionMetadata } from "../../application/dto/session-metadata.js";
 import { AgentError, type AppError } from "../../errors/app-error.js";
 import { canonicalAgentIdToString } from "../../types/agent-id.js";

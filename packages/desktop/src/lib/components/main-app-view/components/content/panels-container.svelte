@@ -15,10 +15,7 @@ import type { MainAppViewState } from "../../logic/main-app-view-state.svelte.js
 import { getSpawnableSessionAgents } from "../../logic/spawnable-agents.js";
 
 import AgentPanelHost from "./agent-panel-host.svelte";
-import {
-	groupAllPanelsByProject,
-	sortProjectGroupsForMultiLayout,
-} from "./panel-grouping.js";
+import { groupAllPanelsByProject, sortProjectGroupsForMultiLayout } from "./panel-grouping.js";
 import KanbanView from "./kanban-view.svelte";
 import MultiProjectGroupLabel from "./multi-project-group-label.svelte";
 import { shouldHideAgentPanelProjectBadge } from "./panel-project-badge-visibility.js";

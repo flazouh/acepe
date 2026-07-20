@@ -1,5 +1,5 @@
-import type { AgentPanelStressPreset } from "./agent-panel-stress-fixture.js";
 import type { AgentPanelPerformanceSample } from "@acepe/ui/agent-panel";
+import type { AgentPanelStressPreset } from "./agent-panel-stress-fixture.js";
 
 export type AgentPanelStressRendererMode = "full" | "text-only" | "shell-only";
 

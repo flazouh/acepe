@@ -11,7 +11,9 @@ export function normalizeNullableFilePath(value: string | null | undefined): str
 	return trimmed.length > 0 ? trimmed : null;
 }
 
-export function mapEditDiffEntriesForToolCall(toolCall: ToolCall): readonly AgentToolEditDiffEntry[] {
+export function mapEditDiffEntriesForToolCall(
+	toolCall: ToolCall
+): readonly AgentToolEditDiffEntry[] {
 	const resolved = resolveToolCallEditDiffs(
 		toolCall.arguments,
 		toolCall.progressiveArguments ?? null

@@ -1,11 +1,7 @@
-import type {
-	SlashPaletteItem,
-	SlashPaletteSection,
-} from "@acepe/ui/agent-panel";
 import type { ProviderBrand } from "@acepe/ui";
-
-import type { ComposerMcpCatalog, ModelsForDisplay } from "$lib/services/acp-types.js";
+import type { SlashPaletteItem, SlashPaletteSection } from "@acepe/ui/agent-panel";
 import type { ProviderMetadataProjection } from "$lib/services/acp-provider-metadata.js";
+import type { ComposerMcpCatalog, ModelsForDisplay } from "$lib/services/acp-types.js";
 import type { Model } from "../../../application/dto/model.js";
 import type { AvailableCommand } from "../../../types/available-command.js";
 import type { AvailableMode } from "../../../types/available-mode.js";

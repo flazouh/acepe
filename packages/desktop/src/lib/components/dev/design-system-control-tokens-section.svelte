@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { ControlTokensShowcase } from "@acepe/ui";
+import { ControlTokensShowcase } from "@acepe/ui";
 </script>
 
 <ControlTokensShowcase />

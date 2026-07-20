@@ -2,7 +2,10 @@ import type { ResultAsync } from "neverthrow";
 
 import type { AppError } from "../errors/app-error.js";
 import { api } from "../store/api.js";
-import type { ComputerPermissionInteraction, PlanApprovalInteraction } from "../types/interaction.js";
+import type {
+	ComputerPermissionInteraction,
+	PlanApprovalInteraction,
+} from "../types/interaction.js";
 import type { InteractionReplyRequest } from "../types/interaction-reply-request.js";
 import type { PermissionReply, PermissionRequest } from "../types/permission.js";
 import type { QuestionAnswer, QuestionRequest } from "../types/question.js";

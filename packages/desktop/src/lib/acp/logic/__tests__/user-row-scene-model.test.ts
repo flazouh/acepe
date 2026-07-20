@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
-
-import { buildUserRowSceneModel, mergeAdjacentUserCommandChunks } from "../user-row-scene-model.js";
 import type { TranscriptEntry } from "../../../services/acp-types.js";
+import { buildUserRowSceneModel, mergeAdjacentUserCommandChunks } from "../user-row-scene-model.js";
 
 function userEntry(segments: TranscriptEntry["segments"]): TranscriptEntry {
 	return {

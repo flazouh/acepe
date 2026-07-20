@@ -13,10 +13,7 @@
 
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import { createActor } from "xstate";
-import type {
-	SessionGraphLifecycle,
-	SessionTurnState,
-} from "../../services/acp-types.js";
+import type { SessionGraphLifecycle, SessionTurnState } from "../../services/acp-types.js";
 import {
 	ConnectionEvent,
 	ConnectionState,

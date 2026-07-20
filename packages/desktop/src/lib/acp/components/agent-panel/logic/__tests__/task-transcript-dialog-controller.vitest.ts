@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
 import { okAsync } from "neverthrow";
+import { describe, expect, it, vi } from "vitest";
 import type {
 	SessionGraphRevision,
 	TranscriptRowPageResult,
@@ -8,8 +8,8 @@ import type {
 } from "../../../../../services/acp-types.js";
 import {
 	TaskTranscriptDialogController,
-	taskTranscriptDialogIdentity,
 	type TaskTranscriptPageInput,
+	taskTranscriptDialogIdentity,
 } from "../task-transcript-dialog-controller.svelte.js";
 
 const revision: SessionGraphRevision = {
@@ -223,9 +223,7 @@ describe("TaskTranscriptDialogController", () => {
 			status: "ready",
 			errorMessage: null,
 		});
-		expect(controller.getState(identity).rows.map((entry) => entry.rowId)).toEqual([
-			"read-result",
-		]);
+		expect(controller.getState(identity).rows.map((entry) => entry.rowId)).toEqual(["read-result"]);
 		expect(readPage).toHaveBeenNthCalledWith(1, {
 			sessionId: "session-1",
 			scope,

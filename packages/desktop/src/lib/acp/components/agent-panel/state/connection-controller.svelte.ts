@@ -5,8 +5,8 @@
  * that touch DOM refs + stores stay in the component spine.
  */
 import type { ConnectionStore } from "../../../store/connection-store.svelte.js";
-import {
-	type PanelConnectionErrorDetails,
+import type {
+	PanelConnectionErrorDetails,
 	PanelConnectionState,
 } from "../../../types/panel-connection-state.js";
 

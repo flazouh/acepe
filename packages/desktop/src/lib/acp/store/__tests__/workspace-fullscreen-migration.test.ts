@@ -66,8 +66,12 @@ function createPanelStoreStub() {
 			panelStore.terminalPanels = workspacePanels.filter(
 				(panel) => panel.kind === "terminal"
 			) as never[];
-			panelStore.browserPanels = workspacePanels.filter((panel) => panel.kind === "browser") as never[];
-			panelStore.reviewPanels = workspacePanels.filter((panel) => panel.kind === "review") as never[];
+			panelStore.browserPanels = workspacePanels.filter(
+				(panel) => panel.kind === "browser"
+			) as never[];
+			panelStore.reviewPanels = workspacePanels.filter(
+				(panel) => panel.kind === "review"
+			) as never[];
 			panelStore.gitPanels = workspacePanels.filter((panel) => panel.kind === "git") as never[];
 		}),
 		restoreTerminalPanelState: mock(

@@ -9,7 +9,7 @@
  */
 
 import { getContext, setContext } from "svelte";
-import { SvelteMap } from "svelte/reactivity";
+import type { SvelteMap } from "svelte/reactivity";
 import type { ModifiedFilesState } from "../types/modified-files-state.js";
 import type { PreparedWorktreeLaunch } from "../types/worktree-info.js";
 import { createLogger } from "../utils/logger.js";
@@ -18,6 +18,13 @@ import type { BrowserPanel } from "./browser-panel-type.js";
 import { EmbeddedTerminalStore } from "./embedded-terminal-store.svelte.js";
 import type { OpenFilePanelOptions } from "./file-panel-ownership.js";
 import type { FilePanel } from "./file-panel-type.js";
+import type { GitPanel } from "./git-panel-type.js";
+import { PanelAgentState } from "./panel-agent-state.svelte.js";
+import { PanelBrowserState } from "./panel-browser-state.svelte.js";
+import { PanelFileState } from "./panel-file-state.svelte.js";
+import { PanelGitState } from "./panel-git-state.svelte.js";
+import { PanelHotStateStore } from "./panel-hot-state.svelte.js";
+import { PanelReviewState } from "./panel-review-state.svelte.js";
 import {
 	createAppendedItemArray,
 	createArrayLikeOwnKeys,
@@ -34,18 +41,11 @@ import {
 	areWorkspacePanelListsEqual,
 	type TopLevelPanelProjectRef,
 } from "./panel-store-equality.js";
-import { PanelAgentState } from "./panel-agent-state.svelte.js";
-import { PanelBrowserState } from "./panel-browser-state.svelte.js";
-import { PanelFileState } from "./panel-file-state.svelte.js";
-import { PanelGitState } from "./panel-git-state.svelte.js";
-import { PanelHotStateStore } from "./panel-hot-state.svelte.js";
-import { PanelReviewState } from "./panel-review-state.svelte.js";
 import { PanelTerminalState } from "./panel-terminal-state.svelte.js";
 import type {
 	OpenProjectFileSystemDialogOptions,
 	ProjectFileSystemDialogState,
 } from "./project-file-system-dialog-state.js";
-import type { GitPanel } from "./git-panel-type.js";
 import type { ReviewPanel } from "./review-panel-type.js";
 import type { SessionStore } from "./session-store.svelte.js";
 import type {
@@ -379,8 +379,7 @@ export class PanelStore {
 			},
 			captureTopLevelPanelCloseState: (closedPanelId) =>
 				this.captureTopLevelPanelCloseState(closedPanelId),
-			applyTopLevelPanelCloseState: (closeState) =>
-				this.applyTopLevelPanelCloseState(closeState),
+			applyTopLevelPanelCloseState: (closeState) => this.applyTopLevelPanelCloseState(closeState),
 		});
 		this.fileState = new PanelFileState({
 			getWorkspacePanels: () => this.workspacePanels,
@@ -407,8 +406,7 @@ export class PanelStore {
 			onPersist: () => this.onPersist(),
 			captureTopLevelPanelCloseState: (closedPanelId) =>
 				this.captureTopLevelPanelCloseState(closedPanelId),
-			applyTopLevelPanelCloseState: (closeState) =>
-				this.applyTopLevelPanelCloseState(closeState),
+			applyTopLevelPanelCloseState: (closeState) => this.applyTopLevelPanelCloseState(closeState),
 		});
 		this.reviewState = new PanelReviewState({
 			getWorkspacePanels: () => this.workspacePanels,
@@ -417,8 +415,7 @@ export class PanelStore {
 			onPersist: () => this.onPersist(),
 			captureTopLevelPanelCloseState: (closedPanelId) =>
 				this.captureTopLevelPanelCloseState(closedPanelId),
-			applyTopLevelPanelCloseState: (closeState) =>
-				this.applyTopLevelPanelCloseState(closeState),
+			applyTopLevelPanelCloseState: (closeState) => this.applyTopLevelPanelCloseState(closeState),
 		});
 		this.gitState = new PanelGitState({
 			getWorkspacePanels: () => this.workspacePanels,
@@ -426,8 +423,7 @@ export class PanelStore {
 			onPersist: () => this.onPersist(),
 			captureTopLevelPanelCloseState: (closedPanelId) =>
 				this.captureTopLevelPanelCloseState(closedPanelId),
-			applyTopLevelPanelCloseState: (closeState) =>
-				this.applyTopLevelPanelCloseState(closeState),
+			applyTopLevelPanelCloseState: (closeState) => this.applyTopLevelPanelCloseState(closeState),
 		});
 		this.browserState = new PanelBrowserState({
 			getWorkspacePanels: () => this.workspacePanels,
@@ -436,8 +432,7 @@ export class PanelStore {
 			onPersist: () => this.onPersist(),
 			captureTopLevelPanelCloseState: (closedPanelId) =>
 				this.captureTopLevelPanelCloseState(closedPanelId),
-			applyTopLevelPanelCloseState: (closeState) =>
-				this.applyTopLevelPanelCloseState(closeState),
+			applyTopLevelPanelCloseState: (closeState) => this.applyTopLevelPanelCloseState(closeState),
 		});
 	}
 
@@ -501,7 +496,9 @@ export class PanelStore {
 
 	private setWorkspacePanels(nextPanels: readonly WorkspacePanel[]): void {
 		this.workspacePanels = Array.from(nextPanels);
-		const topLevelPanels = this.workspacePanels.filter((panel) => this.isTopLevelWorkspacePanel(panel));
+		const topLevelPanels = this.workspacePanels.filter((panel) =>
+			this.isTopLevelWorkspacePanel(panel)
+		);
 		if (!areWorkspacePanelListsEqual(this.topLevelWorkspacePanelList, topLevelPanels)) {
 			this.topLevelWorkspacePanelList = topLevelPanels;
 		}
@@ -729,11 +726,15 @@ export class PanelStore {
 			sourcePath:
 				panel.sessionId !== null
 					? (sessionMetadata?.sourcePath ?? undefined)
-					: (panel.sourcePath ? panel.sourcePath : undefined),
+					: panel.sourcePath
+						? panel.sourcePath
+						: undefined,
 			worktreePath:
 				panel.sessionId !== null
 					? (sessionIdentity?.worktreePath ?? undefined)
-					: (panel.worktreePath ? panel.worktreePath : undefined),
+					: panel.worktreePath
+						? panel.worktreePath
+						: undefined,
 			sessionTitle:
 				panel.sessionId !== null
 					? (sessionMetadata?.title ?? undefined)
@@ -742,10 +743,8 @@ export class PanelStore {
 			planSidebarExpanded: hotState.planSidebarExpanded,
 			messageDraft: hotState.messageDraft || undefined,
 			embeddedTerminalDrawerOpen: hotState.embeddedTerminalDrawerOpen ? true : undefined,
-			selectedEmbeddedTerminalTabId:
-				this.embeddedTerminals.getSelectedTabId(panel.id) || undefined,
-			sequenceId:
-				panel.sessionId !== null ? (sessionMetadata?.sequenceId ?? undefined) : undefined,
+			selectedEmbeddedTerminalTabId: this.embeddedTerminals.getSelectedTabId(panel.id) || undefined,
+			sequenceId: panel.sessionId !== null ? (sessionMetadata?.sequenceId ?? undefined) : undefined,
 			pendingWorktreeEnabled:
 				panel.pendingWorktreeEnabled === null || panel.pendingWorktreeEnabled === undefined
 					? undefined
@@ -868,7 +867,9 @@ export class PanelStore {
 		}));
 	}
 
-	private serializeTerminalTabs(terminalTabs: ReadonlyArray<TerminalTab>): PersistedTerminalTabState[] {
+	private serializeTerminalTabs(
+		terminalTabs: ReadonlyArray<TerminalTab>
+	): PersistedTerminalTabState[] {
 		return terminalTabs.map((tab) => ({
 			id: tab.id,
 			groupId: tab.groupId,
@@ -877,7 +878,9 @@ export class PanelStore {
 		}));
 	}
 
-	private serializeBrowserPanels(browserPanels: ReadonlyArray<BrowserPanel>): PersistedBrowserPanelState[] {
+	private serializeBrowserPanels(
+		browserPanels: ReadonlyArray<BrowserPanel>
+	): PersistedBrowserPanelState[] {
 		return browserPanels.map((panel) => ({
 			projectPath: panel.projectPath,
 			url: panel.url,

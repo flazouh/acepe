@@ -1,21 +1,21 @@
-import type { MainAppViewError } from "../errors/main-app-view-error.js";
-import type { MainAppViewState } from "./main-app-view-state.svelte.js";
-import {
-	setOpenPersistedSessionDiagnosticRecorder,
-	type OpenPersistedSessionDiagnosticEvent,
-} from "./open-persisted-session.js";
-import {
-	setSessionOpenHydratorTimingRecorder,
-	type SessionOpenHydrationTimingRecord,
-} from "$lib/acp/store/services/session-open-hydrator.js";
-import type { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
-import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
+import type { AgentPanelPerformanceSample } from "@acepe/ui/agent-panel";
 import type { PanelOpenPerformanceMarkName } from "$lib/acp/components/agent-panel/logic/panel-open-performance-mark.js";
+import type { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
+import {
+	type SessionOpenHydrationTimingRecord,
+	setSessionOpenHydratorTimingRecorder,
+} from "$lib/acp/store/services/session-open-hydrator.js";
+import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import type {
 	TauriInvokeTimingRecord,
 	TauriPendingInvokeRecord,
 } from "$lib/utils/tauri-client/invoke.js";
-import type { AgentPanelPerformanceSample } from "@acepe/ui/agent-panel";
+import type { MainAppViewError } from "../errors/main-app-view-error.js";
+import type { MainAppViewState } from "./main-app-view-state.svelte.js";
+import {
+	type OpenPersistedSessionDiagnosticEvent,
+	setOpenPersistedSessionDiagnosticRecorder,
+} from "./open-persisted-session.js";
 
 export type SessionOpenContentProbeOptions = {
 	readonly sessionId: string;

@@ -1,15 +1,15 @@
 <script lang="ts">
-	import type { Snippet } from "svelte";
+import type { Snippet } from "svelte";
 
-	let {
-		open,
-		children,
-		footer,
-	}: {
-		open: boolean;
-		children?: Snippet;
-		footer?: Snippet;
-	} = $props();
+let {
+	open,
+	children,
+	footer,
+}: {
+	open: boolean;
+	children?: Snippet;
+	footer?: Snippet;
+} = $props();
 </script>
 
 {#if open}

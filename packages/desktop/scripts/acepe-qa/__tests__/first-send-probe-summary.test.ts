@@ -93,7 +93,8 @@ function sample(
 	if (fields.placeholderText !== undefined) result.placeholderText = fields.placeholderText;
 	if (fields.panelId !== undefined) result.panelId = fields.panelId;
 	if (fields.sessionId !== undefined) result.sessionId = fields.sessionId;
-	if (fields.planningSourceKind !== undefined) result.planningSourceKind = fields.planningSourceKind;
+	if (fields.planningSourceKind !== undefined)
+		result.planningSourceKind = fields.planningSourceKind;
 	if (fields.planningLifecycleStatus !== undefined) {
 		result.planningLifecycleStatus = fields.planningLifecycleStatus;
 	}
@@ -217,9 +218,7 @@ describe("summarizeFirstSendProbe", () => {
 		const summary = summarizeFirstSendProbe(probe);
 
 		expect(summary.status).toBe("fail");
-		expect(summary.lines).toContain(
-			"pre-scroll: failed requested=2000px dfb=100px tolerance=24px"
-		);
+		expect(summary.lines).toContain("pre-scroll: failed requested=2000px dfb=100px tolerance=24px");
 	});
 
 	it("summarizes setter, input, native layout, and synthetic scroll events", () => {

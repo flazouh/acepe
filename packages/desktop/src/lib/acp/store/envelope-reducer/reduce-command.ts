@@ -3,36 +3,33 @@ import type {
 	SessionGraphActivity,
 	SessionGraphCapabilities,
 	SessionGraphRevision,
-	SessionTurnState,
 	SessionStateGraph,
+	SessionTurnState,
 	TranscriptDelta,
 	TranscriptSnapshot,
 } from "../../../services/acp-types.js";
 import type { SessionStateCommand } from "../../session-state/session-state-command-router.js";
 import { sanitizeCanonicalCapabilities } from "../canonical-config-sanitize.js";
-import { graphWithCapabilities } from "../session-graph-builders.js";
 import {
+	graphWithCapabilities,
 	graphWithLifecycle,
 	graphWithPatches,
 	graphWithTranscriptSnapshot,
 } from "../session-graph-builders.js";
-import type { SessionTransientProjection } from "../types.js";
 import { applyTranscriptDeltaToSnapshot } from "../transcript-delta.js";
+import type { SessionTransientProjection } from "../types.js";
 import { buildCanonicalUsageTelemetry } from "./canonical-usage-telemetry.js";
 import { emptySessionGraphCapabilities } from "./empty-session-graph-capabilities.js";
 import type { EnvelopePatch } from "./envelope-patch.js";
 import type { EnvelopeReducerSnapshot } from "./envelope-snapshot.js";
 import { isNewerGraphRevision, isOlderGraphRevision } from "./graph-revision-order.js";
 import { createLifecycleOnlyGraph } from "./lifecycle-only-graph.js";
-import { mapProjectionTurnFailure } from "./projection-turn-failure.js";
 import {
 	mergeSessionGraphActivityTiming,
 	seedSessionGraphActivityTimingIfNeeded,
 } from "./merge-session-graph-activity-timing.js";
-import {
-	defaultIdleActivity,
-	reconcileStoredGraphActivity,
-} from "./reconcile-graph-activity.js";
+import { mapProjectionTurnFailure } from "./projection-turn-failure.js";
+import { defaultIdleActivity, reconcileStoredGraphActivity } from "./reconcile-graph-activity.js";
 
 function terminalTurnState(turnState: SessionTurnState | null | undefined): boolean {
 	return turnState === "Completed" || turnState === "Failed" || turnState === "Cancelled";
@@ -312,10 +309,7 @@ function buildReplaceGraphProjection(
 				activeTurnFailure: operationGraph.activeTurnFailure ?? null,
 				lastTerminalTurnId: operationGraph.lastTerminalTurnId ?? null,
 				lifecycle: operationGraph.lifecycle,
-				activity: seedSessionGraphActivityTimingIfNeeded(
-					operationGraph.activity,
-					Date.now()
-				),
+				activity: seedSessionGraphActivityTimingIfNeeded(operationGraph.activity, Date.now()),
 				capabilities: operationGraph.capabilities,
 			};
 		}
@@ -404,11 +398,7 @@ function reduceApplyLifecycle(
 			graph: graphWithLifecycle(
 				previousGraph,
 				command.lifecycle,
-				mergeSessionGraphActivityTiming(
-					previousGraph.activity,
-					reconciledActivity,
-					nowMs
-				),
+				mergeSessionGraphActivityTiming(previousGraph.activity, reconciledActivity, nowMs),
 				lifecycleRevision
 			),
 		});

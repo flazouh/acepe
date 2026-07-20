@@ -4,10 +4,10 @@ import type {
 	TranscriptViewportRow,
 } from "../../../services/acp-types.js";
 import {
-	EMPTY_TRANSCRIPT_ROWS_STATE,
 	applyRowsDelta,
 	applyRowsPage,
 	applyRowsPush,
+	EMPTY_TRANSCRIPT_ROWS_STATE,
 	renderKey,
 } from "../transcript-rows-store.js";
 
@@ -89,11 +89,10 @@ function delta(
 
 describe("applyRowsPush", () => {
 	test("a push establishes rows in canonical order keyed by id", () => {
-		const { state, status } = applyRowsPush(EMPTY_TRANSCRIPT_ROWS_STATE, push("s", 5, [
-			row("r1", "v1"),
-			row("r2", "v1"),
-			row("r3", "v1"),
-		]));
+		const { state, status } = applyRowsPush(
+			EMPTY_TRANSCRIPT_ROWS_STATE,
+			push("s", 5, [row("r1", "v1"), row("r2", "v1"), row("r3", "v1")])
+		);
 		expect(status).toBe("applied");
 		expect(state.order).toEqual(["r1", "r2", "r3"]);
 		expect(state.rows.map((r) => r.rowId)).toEqual(["r1", "r2", "r3"]);
@@ -117,11 +116,10 @@ describe("applyRowsPush", () => {
 	});
 
 	test("duplicate id within a push is last-write-wins at first-seen position", () => {
-		const { state } = applyRowsPush(EMPTY_TRANSCRIPT_ROWS_STATE, push("s", 1, [
-			row("r1", "v1"),
-			row("r2", "v1"),
-			row("r1", "v2"),
-		]));
+		const { state } = applyRowsPush(
+			EMPTY_TRANSCRIPT_ROWS_STATE,
+			push("s", 1, [row("r1", "v1"), row("r2", "v1"), row("r1", "v2")])
+		);
 		expect(state.order).toEqual(["r1", "r2"]);
 		expect(state.byId.get("r1")?.version).toBe("v2");
 	});
@@ -214,16 +212,19 @@ describe("applyRowsPush", () => {
 });
 
 describe("applyRowsDelta (canonical chain)", () => {
-	const base = applyRowsPush(EMPTY_TRANSCRIPT_ROWS_STATE, push("s", 10, [
-		row("r1", "v1"),
-		row("r2", "v1"),
-		row("r3", "v1"),
-	])).state;
+	const base = applyRowsPush(
+		EMPTY_TRANSCRIPT_ROWS_STATE,
+		push("s", 10, [row("r1", "v1"), row("r2", "v1"), row("r3", "v1")])
+	).state;
 
 	test("append + prepend + remove preserves canonical order", () => {
 		const { state, status } = applyRowsDelta(
 			base,
-			delta(11, { prependedRows: [row("r0", "v1")], appendedRows: [row("r4", "v1")], removedRowIds: ["r2"] })
+			delta(11, {
+				prependedRows: [row("r0", "v1")],
+				appendedRows: [row("r4", "v1")],
+				removedRowIds: ["r2"],
+			})
 		);
 		expect(status).toBe("applied");
 		expect(state.order).toEqual(["r0", "r1", "r3", "r4"]);
@@ -243,7 +244,10 @@ describe("applyRowsDelta (canonical chain)", () => {
 	});
 
 	test("a delta with no base buffer is a gap", () => {
-		const { status } = applyRowsDelta(EMPTY_TRANSCRIPT_ROWS_STATE, delta(1, { appendedRows: [row("r1", "v1")] }));
+		const { status } = applyRowsDelta(
+			EMPTY_TRANSCRIPT_ROWS_STATE,
+			delta(1, { appendedRows: [row("r1", "v1")] })
+		);
 		expect(status).toBe("gap");
 	});
 
@@ -276,7 +280,10 @@ describe("applyRowsPage", () => {
 			EMPTY_TRANSCRIPT_ROWS_STATE,
 			revisionPush("s", 10, [row("r2", "v1"), row("r3", "v1")])
 		).state;
-		const withTailWindow = applyRowsPage(base, page("s", 2, [row("r2", "v1"), row("r3", "v1")])).state;
+		const withTailWindow = applyRowsPage(
+			base,
+			page("s", 2, [row("r2", "v1"), row("r3", "v1")])
+		).state;
 
 		const { state, status } = applyRowsPage(
 			withTailWindow,
@@ -312,9 +319,10 @@ describe("applyRowsPage", () => {
 
 describe("B1 — stuck streaming-tail clears via a version bump", () => {
 	test("renderKey changes when a survivor row's tail clears with a bumped version", () => {
-		const streaming = applyRowsPush(EMPTY_TRANSCRIPT_ROWS_STATE, push("s", 1, [
-			row("assistant-1", "v1", "message"),
-		])).state;
+		const streaming = applyRowsPush(
+			EMPTY_TRANSCRIPT_ROWS_STATE,
+			push("s", 1, [row("assistant-1", "v1", "message")])
+		).state;
 		const before = streaming.byId.get("assistant-1");
 		expect(before?.activeStreamingTail).toBe("message");
 
@@ -330,11 +338,14 @@ describe("B1 — stuck streaming-tail clears via a version bump", () => {
 	});
 
 	test("the same in-place clear also resolves through a delta (last-write-wins)", () => {
-		const streaming = applyRowsPush(EMPTY_TRANSCRIPT_ROWS_STATE, push("s", 1, [
-			row("assistant-1", "v1", "message"),
-			row("tool-1", "v1"),
-		])).state;
-		const settled = applyRowsDelta(streaming, delta(2, { appendedRows: [row("assistant-1", "v2", null)] })).state;
+		const streaming = applyRowsPush(
+			EMPTY_TRANSCRIPT_ROWS_STATE,
+			push("s", 1, [row("assistant-1", "v1", "message"), row("tool-1", "v1")])
+		).state;
+		const settled = applyRowsDelta(
+			streaming,
+			delta(2, { appendedRows: [row("assistant-1", "v2", null)] })
+		).state;
 		expect(settled.order).toEqual(["assistant-1", "tool-1"]); // position held
 		expect(settled.byId.get("assistant-1")?.version).toBe("v2");
 		expect(settled.byId.get("assistant-1")?.activeStreamingTail).toBeNull();

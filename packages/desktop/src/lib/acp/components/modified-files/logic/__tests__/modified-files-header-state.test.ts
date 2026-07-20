@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import type { ModifiedFileEntry } from "../../../../types/modified-file-entry.js";
 import type { ModifiedFilesState } from "../../../../types/modified-files-state.js";
+import type { FileReviewStatus } from "../../../review-panel/review-session-state.js";
 import {
 	canKeepAllFiles,
 	countReviewedFiles,
@@ -9,7 +10,6 @@ import {
 	isModifiedFilesReviewComplete,
 	mapReviewStatusForHeader,
 } from "../modified-files-header-state.js";
-import type { FileReviewStatus } from "../../../review-panel/review-session-state.js";
 
 function makeFile(filePath: string, totalAdded: number, totalRemoved: number): ModifiedFileEntry {
 	return {

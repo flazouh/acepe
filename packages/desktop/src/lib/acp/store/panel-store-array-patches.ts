@@ -20,8 +20,7 @@ export function createPrependedItemArray<T>(item: T, baseItems: readonly T[]): T
 					return selectPrependedItem(item, baseItems, index);
 				}
 				if (property === "slice") {
-					return (start?: number, end?: number) =>
-						Array.prototype.slice.call(receiver, start, end);
+					return (start?: number, end?: number) => Array.prototype.slice.call(receiver, start, end);
 				}
 			}
 			const value = Reflect.get(targetArray, property, receiver);
@@ -69,8 +68,7 @@ export function createAppendedItemArray<T>(baseItems: readonly T[], item: T): T[
 					return index === baseItems.length ? item : baseItems[index];
 				}
 				if (property === "slice") {
-					return (start?: number, end?: number) =>
-						Array.prototype.slice.call(receiver, start, end);
+					return (start?: number, end?: number) => Array.prototype.slice.call(receiver, start, end);
 				}
 			}
 			const value = Reflect.get(targetArray, property, receiver);
@@ -126,8 +124,7 @@ export function createPatchedItemArray<T extends { readonly id: string }>(
 					return index === patchedIndex ? updatedItem : baseItems[index];
 				}
 				if (property === "slice") {
-					return (start?: number, end?: number) =>
-						Array.prototype.slice.call(receiver, start, end);
+					return (start?: number, end?: number) => Array.prototype.slice.call(receiver, start, end);
 				}
 			}
 			const value = Reflect.get(targetArray, property, receiver);
@@ -183,8 +180,7 @@ export function createRemovedItemArray<T extends { readonly id: string }>(
 					return selectRemovedItem(baseItems, removedIndex, index);
 				}
 				if (property === "slice") {
-					return (start?: number, end?: number) =>
-						Array.prototype.slice.call(receiver, start, end);
+					return (start?: number, end?: number) => Array.prototype.slice.call(receiver, start, end);
 				}
 			}
 			const value = Reflect.get(targetArray, property, receiver);
@@ -227,7 +223,11 @@ export function findItemIndexById<T extends { readonly id: string }>(
 	return -1;
 }
 
-export function selectPrependedItem<T>(item: T, baseItems: readonly T[], index: number): T | undefined {
+export function selectPrependedItem<T>(
+	item: T,
+	baseItems: readonly T[],
+	index: number
+): T | undefined {
 	if (index === 0) {
 		return item;
 	}

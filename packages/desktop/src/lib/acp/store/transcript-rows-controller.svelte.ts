@@ -6,19 +6,19 @@
  */
 import { SvelteMap } from "svelte/reactivity";
 import type {
-	SessionOpenTranscriptRowPage,
 	SessionGraphRevision,
+	SessionOpenTranscriptRowPage,
 	SessionStateEnvelope,
 	ViewportBufferDelta,
 	ViewportBufferPush,
 } from "../../services/acp-types.js";
-import { createLogger } from "../utils/logger.js";
 import {
 	readTranscriptRowPage,
 	requestTranscriptViewportBuffer,
 } from "../session-state/session-state-viewport-command-service.js";
-import { TranscriptRowsStore } from "./transcript-rows-store.svelte.js";
+import { createLogger } from "../utils/logger.js";
 import type { TranscriptRowsState } from "./transcript-rows-store.js";
+import { TranscriptRowsStore } from "./transcript-rows-store.svelte.js";
 
 const TRANSCRIPT_ROW_PAGE_SIZE = 256;
 
@@ -86,7 +86,8 @@ export class TranscriptRowsController {
 	applyBufferPush(push: ViewportBufferPush): void {
 		const previousState = this.#rowsBySession.get(push.sessionId)?.state ?? null;
 		const previousRowCount = previousState?.rows.length ?? null;
-		const isRequestGeneratedPush = push.requestGeneration !== null && push.requestGeneration !== undefined;
+		const isRequestGeneratedPush =
+			push.requestGeneration !== null && push.requestGeneration !== undefined;
 		const hasLoadedLedgerWindow =
 			previousState !== null &&
 			previousState.rows.length > 0 &&
@@ -124,7 +125,7 @@ export class TranscriptRowsController {
 			reason:
 				push.requestGeneration === null || push.requestGeneration === undefined
 					? null
-					: this.#freshRowsRequestReasonBySession.get(push.sessionId) ?? null,
+					: (this.#freshRowsRequestReasonBySession.get(push.sessionId) ?? null),
 		});
 		if (status === "applied") {
 			this.bumpProjectionRevision();
@@ -198,9 +199,7 @@ export class TranscriptRowsController {
 						status === "stale"
 							? `older-current:state=${revisionLabel(
 									stateBeforeApply?.revision ?? null
-								)}:page=${result.graphRevision}/${result.transcriptRevision}/${
-									result.lastEventSeq
-								}`
+								)}:page=${result.graphRevision}/${result.transcriptRevision}/${result.lastEventSeq}`
 							: "older-current";
 					this.recordDiagnostic(sessionId, {
 						action: "apply-page",

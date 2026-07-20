@@ -13,8 +13,8 @@ vi.mock("svelte", async () => {
 	return import(/* @vite-ignore */ svelteClientPath);
 });
 
-import VirtualizedSessionList from "../virtualized-session-list.svelte";
 import type { SessionListItem } from "../session-list-types.js";
+import VirtualizedSessionList from "../virtualized-session-list.svelte";
 
 function createSessionItem(overrides?: Partial<SessionListItem>): SessionListItem {
 	const createdAt = new Date("2026-05-24T08:00:00.000Z");

@@ -10,8 +10,8 @@
  * projections — no `canonical ?? hotState` fallback and no local actionability derivation.
  */
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
-import type { PreparedWorktreeLaunch } from "../types/worktree-info.js";
 import { resolveAgentPanelHeaderSequenceId } from "../components/agent-panel/logic/agent-panel-header-sequence-id.js";
+import type { PreparedWorktreeLaunch } from "../types/worktree-info.js";
 import { createLogger } from "../utils/logger.js";
 import {
 	createAppendedItemArray,
@@ -60,9 +60,7 @@ export interface PanelAgentStateDeps {
 	getSessionIdentity: (sessionId: string) => SessionIdentitySlice | undefined;
 	getSessionMetadata: (sessionId: string) => SessionMetadataSlice | undefined;
 	hasPendingCreationSession: (sessionId: string) => boolean;
-	getPendingCreationSession: (
-		sessionId: string
-	) => { readonly sequenceId: number | null } | null;
+	getPendingCreationSession: (sessionId: string) => { readonly sequenceId: number | null } | null;
 	resolveCanonicalSessionId: (requestedId: string) => string | null;
 	focusOpenedTopLevelPanel: (panelId: string) => void;
 	onSpawnedPanelFocused: (panel: Panel) => void;
@@ -188,10 +186,7 @@ export class PanelAgentState {
 			}
 			this.topLevelAgentPanelBySessionId.set(canonicalSessionId, updatedPanel);
 		}
-		this.topLevelAgentPanelList = createPatchedItemArray(
-			this.topLevelAgentPanelList,
-			updatedPanel
-		);
+		this.topLevelAgentPanelList = createPatchedItemArray(this.topLevelAgentPanelList, updatedPanel);
 		if (updatedPanel.projectPath !== null) {
 			const projectPanels = this.topLevelAgentPanelsByProject.get(updatedPanel.projectPath);
 			if (projectPanels !== undefined) {
@@ -278,13 +273,9 @@ export class PanelAgentState {
 	}> {
 		return this.topLevelAgentPanelList.map((panel) => {
 			const sessionIdentity =
-				panel.sessionId !== null
-					? this.deps.getSessionIdentity(panel.sessionId)
-					: undefined;
+				panel.sessionId !== null ? this.deps.getSessionIdentity(panel.sessionId) : undefined;
 			const sessionMetadata =
-				panel.sessionId !== null
-					? this.deps.getSessionMetadata(panel.sessionId)
-					: undefined;
+				panel.sessionId !== null ? this.deps.getSessionMetadata(panel.sessionId) : undefined;
 			const isPendingCreationSession =
 				panel.sessionId !== null &&
 				sessionIdentity === undefined &&
@@ -300,8 +291,7 @@ export class PanelAgentState {
 						? resolveAgentPanelHeaderSequenceId({
 								sessionMetadataSequenceId: sessionMetadata?.sequenceId,
 								pendingCreationSequenceId: isPendingCreationSession
-									? (this.deps.getPendingCreationSession(panel.sessionId)?.sequenceId ??
-										null)
+									? (this.deps.getPendingCreationSession(panel.sessionId)?.sequenceId ?? null)
 									: null,
 								hasPendingCreationSession: isPendingCreationSession,
 							})
@@ -564,7 +554,8 @@ export class PanelAgentState {
 			sessionId,
 			sessionProjectPath: sessionIdentity?.projectPath ?? null,
 			sessionWorktreePath: sessionIdentity?.worktreePath ?? null,
-			panelProjectPathBefore: this.panels.find((panel) => panel.id === panelId)?.projectPath ?? null,
+			panelProjectPathBefore:
+				this.panels.find((panel) => panel.id === panelId)?.projectPath ?? null,
 		});
 		this.panels = this.panels.map((panel) =>
 			panel.id === panelId

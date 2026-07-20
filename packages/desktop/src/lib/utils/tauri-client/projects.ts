@@ -11,8 +11,16 @@ export const projects = {
 		return storageCommands.get_projects.invoke<ProjectData[]>();
 	},
 
-	getRecentProjects: (limit = 50, preferredPaths: string[] = [], offset = 0): ResultAsync<ProjectData[], AppError> => {
-		return storageCommands.get_recent_projects.invoke<ProjectData[]>({ limit, preferredPaths, offset });
+	getRecentProjects: (
+		limit = 50,
+		preferredPaths: string[] = [],
+		offset = 0
+	): ResultAsync<ProjectData[], AppError> => {
+		return storageCommands.get_recent_projects.invoke<ProjectData[]>({
+			limit,
+			preferredPaths,
+			offset,
+		});
 	},
 
 	getProjectCount: (): ResultAsync<number, AppError> => {

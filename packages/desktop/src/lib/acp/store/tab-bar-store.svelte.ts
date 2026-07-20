@@ -125,7 +125,10 @@ export class TabBarStore {
 
 		const interactionSnapshot =
 			sessionId !== null
-				? this.sessionStore.presentation.getSessionOperationInteractionSnapshot(sessionId, this.interactions)
+				? this.sessionStore.presentation.getSessionOperationInteractionSnapshot(
+						sessionId,
+						this.interactions
+					)
 				: null;
 		const pendingQuestion = interactionSnapshot?.pendingQuestion ?? null;
 		const pendingPlanApproval = interactionSnapshot?.pendingPlanApproval ?? null;
@@ -163,9 +166,7 @@ export class TabBarStore {
 			projectIconSrc: projectPath ? (this.getProjectIconSrc?.(projectPath) ?? null) : null,
 			projectPath,
 			sequenceId:
-				sessionId !== null
-					? (sessionMetadata?.sequenceId ?? null)
-					: (panel.sequenceId ?? null),
+				sessionId !== null ? (sessionMetadata?.sequenceId ?? null) : (panel.sequenceId ?? null),
 		});
 	}
 }

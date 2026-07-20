@@ -31,7 +31,9 @@ const canonicalOverlapTransientProjectionFields = [
 	"lastTerminalTurnId",
 ] as const;
 
-function expectNoCanonicalOverlapTransientProjectionWrites(updateTransientProjection: ReturnType<typeof vi.fn>): void {
+function expectNoCanonicalOverlapTransientProjectionWrites(
+	updateTransientProjection: ReturnType<typeof vi.fn>
+): void {
 	for (const call of updateTransientProjection.mock.calls) {
 		const updates = call[1];
 		for (const field of canonicalOverlapTransientProjectionFields) {
@@ -215,9 +217,9 @@ describe("SessionMessagingService.sendMessage", () => {
 						},
 						timestamp: expect.any(Date),
 					},
-					},
-				})
-			);
+				},
+			})
+		);
 		expectNoCanonicalOverlapTransientProjectionWrites(
 			deps.transientProjectionManager.updateTransientProjection as ReturnType<typeof vi.fn>
 		);
@@ -331,12 +333,15 @@ describe("SessionMessagingService.sendMessage", () => {
 						},
 						timestamp: expect.any(Date),
 					},
-					},
-				})
-			);
-		expect(deps.transientProjectionManager.updateTransientProjection).toHaveBeenLastCalledWith("pending-session", {
-			pendingSendIntent: null,
-		});
+				},
+			})
+		);
+		expect(deps.transientProjectionManager.updateTransientProjection).toHaveBeenLastCalledWith(
+			"pending-session",
+			{
+				pendingSendIntent: null,
+			}
+		);
 		expectNoCanonicalOverlapTransientProjectionWrites(
 			deps.transientProjectionManager.updateTransientProjection as ReturnType<typeof vi.fn>
 		);

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-	PanelConnectionState,
 	type PanelConnectionErrorDetails,
+	PanelConnectionState,
 } from "../../../../types/panel-connection-state.js";
 import { ConnectionController } from "../connection-controller.svelte.js";
 
@@ -28,7 +28,10 @@ describe("ConnectionController", () => {
 				listeners.add(callback);
 				return () => listeners.delete(callback);
 			},
-			push: (nextState: PanelConnectionState, nextError: PanelConnectionErrorDetails | null = null) => {
+			push: (
+				nextState: PanelConnectionState,
+				nextError: PanelConnectionErrorDetails | null = null
+			) => {
 				state = nextState;
 				error = nextError;
 				for (const listener of listeners) {

@@ -1,7 +1,11 @@
 <script lang="ts">
 import { onMount, tick } from "svelte";
 import type { PanelViewState } from "$lib/acp/logic/panel-visibility.js";
-import type { SessionTurnState, TranscriptEntry, TranscriptViewportRow } from "$lib/services/acp-types.js";
+import type {
+	SessionTurnState,
+	TranscriptEntry,
+	TranscriptViewportRow,
+} from "$lib/services/acp-types.js";
 import { materializeAgentPanelSceneFromGraph } from "$lib/acp/session-state/agent-panel-graph-materializer.js";
 import AgentPanelContent from "$lib/acp/components/agent-panel/components/agent-panel-content.svelte";
 import { Button } from "$lib/components/ui/button/index.js";
@@ -184,17 +188,15 @@ function countRenderedRows(): number {
 
 function countAnimatedTokenSpans(): number {
 	return (
-		labElement?.querySelectorAll(
-			'[data-sd-animate="true"], [data-acepe-token-reveal-tail="true"]'
-		).length ?? 0
+		labElement?.querySelectorAll('[data-sd-animate="true"], [data-acepe-token-reveal-tail="true"]')
+			.length ?? 0
 	);
 }
 
 function readTokenRevealMode(): string | null {
 	return (
-		labElement
-			?.querySelector("[data-token-reveal-mode]")
-			?.getAttribute("data-token-reveal-mode") ?? null
+		labElement?.querySelector("[data-token-reveal-mode]")?.getAttribute("data-token-reveal-mode") ??
+		null
 	);
 }
 

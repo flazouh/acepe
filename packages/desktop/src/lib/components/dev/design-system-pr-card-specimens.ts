@@ -1,5 +1,4 @@
-import type { AgentPanelPrCardModel } from "@acepe/ui";
-import type { PrChecksItem } from "@acepe/ui";
+import type { AgentPanelPrCardModel, PrChecksItem } from "@acepe/ui";
 
 export interface PrCardComponentLink {
 	readonly id: string;

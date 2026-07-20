@@ -8,6 +8,8 @@
  * patches to the existing sub-store owners without introducing dual-write or
  * `canonical ?? hot` fallback.
  */
+
+import type { ResultAsync } from "neverthrow";
 import type {
 	InteractionSnapshot,
 	OperationSnapshot,
@@ -25,15 +27,19 @@ import type {
 	ViewportBufferPush,
 } from "../../services/acp-types.js";
 import type { AppError } from "../errors/app-error.js";
-import type { ActiveTurnFailure, TurnErrorUpdate } from "../types/turn-error.js";
-import { routeSessionStateEnvelope } from "../session-state/session-state-command-router.js";
 import type { SessionStateCommand } from "../session-state/session-state-command-router.js";
+import { routeSessionStateEnvelope } from "../session-state/session-state-command-router.js";
+import type { ActiveTurnFailure, TurnErrorUpdate } from "../types/turn-error.js";
+import { createLogger } from "../utils/logger.js";
 import { sanitizeCanonicalCapabilities } from "./canonical-config-sanitize.js";
 import type { CanonicalSessionProjection } from "./canonical-session-projection.js";
 import { deriveCapabilityPreviewState } from "./capability-projection.js";
 import type { EnvelopePatch } from "./envelope-reducer/envelope-patch.js";
 import type { EnvelopeReducerSnapshot } from "./envelope-reducer/envelope-snapshot.js";
-import { isNewerGraphRevision, isOlderGraphRevision } from "./envelope-reducer/graph-revision-order.js";
+import {
+	isNewerGraphRevision,
+	isOlderGraphRevision,
+} from "./envelope-reducer/graph-revision-order.js";
 import { mapProjectionTurnFailure } from "./envelope-reducer/projection-turn-failure.js";
 import { reduceCommand, reduceTranscriptDelta } from "./envelope-reducer/reduce-command.js";
 import { seedTranscriptEntryIndex } from "./transcript-entry-index.js";
@@ -43,8 +49,6 @@ import type {
 	SessionTransientProjection,
 	SessionUsageTelemetry,
 } from "./types.js";
-import { createLogger } from "../utils/logger.js";
-import type { ResultAsync } from "neverthrow";
 
 const logger = createLogger({ id: "session-envelope-applier", name: "SessionEnvelopeApplier" });
 
@@ -115,10 +119,7 @@ export type SessionEnvelopeApplierDeps = {
 	) => void;
 	readonly syncSessionSequenceFromGraph: (graph: SessionStateGraph) => void;
 	readonly composerEndDispatch: (sessionId: string) => void;
-	readonly handleCanonicalTurnComplete: (
-		sessionId: string,
-		lastTerminalTurnId?: string
-	) => void;
+	readonly handleCanonicalTurnComplete: (sessionId: string, lastTerminalTurnId?: string) => void;
 	readonly handleCanonicalTurnFailure: (sessionId: string, error: TurnErrorUpdate) => void;
 	readonly refreshSessionStateSnapshot: (sessionId: string) => InflightSessionStateRefresh;
 };
@@ -429,7 +430,9 @@ export class SessionEnvelopeApplier {
 		const patches = reduceCommand(snapshot, command, Date.now());
 		this.#logEnvelopeReducerNoop(sessionId, command, snapshot, patches);
 		if (command.kind === "replaceGraph" && patches.length > 0) {
-			const replacedTranscript = patches.some((patch) => patch.kind === "replaceTranscriptSnapshot");
+			const replacedTranscript = patches.some(
+				(patch) => patch.kind === "replaceTranscriptSnapshot"
+			);
 			if (!replacedTranscript) {
 				const previousGraph = snapshot.previousGraph;
 				logger.debug("Ignoring non-advancing session-state transcript snapshot", {
@@ -488,12 +491,9 @@ export class SessionEnvelopeApplier {
 			turn_id: input.projectedFailure.turn_id ?? undefined,
 			error: {
 				message: input.projectedFailure.message,
-				code:
-					input.projectedFailure.code != null ? input.projectedFailure.code : undefined,
+				code: input.projectedFailure.code != null ? input.projectedFailure.code : undefined,
 				details:
-					input.projectedFailure.details != null
-						? input.projectedFailure.details
-						: undefined,
+					input.projectedFailure.details != null ? input.projectedFailure.details : undefined,
 				kind: input.projectedFailure.kind,
 				source: input.projectedFailure.source ?? "unknown",
 			},

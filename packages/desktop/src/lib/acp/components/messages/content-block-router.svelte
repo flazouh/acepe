@@ -15,11 +15,7 @@ interface Props {
 	projectPath?: string;
 }
 
-let {
-	block,
-	isStreaming = false,
-	projectPath: propProjectPath,
-}: Props = $props();
+let { block, isStreaming = false, projectPath: propProjectPath }: Props = $props();
 
 const projectPath = $derived(propProjectPath);
 const routeState = $derived(resolveContentBlockRouteState(block, convertFileSrc));

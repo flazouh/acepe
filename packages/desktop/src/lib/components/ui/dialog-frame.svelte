@@ -1,10 +1,6 @@
 <script lang="ts">
 import * as Dialog from "@acepe/ui/dialog";
-import {
-	getDialogHeaderIconCloseClass,
-	HugeiconsIcon,
-	type HeaderIconCloseSize,
-} from "@acepe/ui";
+import { getDialogHeaderIconCloseClass, HugeiconsIcon, type HeaderIconCloseSize } from "@acepe/ui";
 import type { Snippet } from "svelte";
 
 type DialogFrameCloseControl = Snippet<[]>;
@@ -73,24 +69,24 @@ const dialogSizeClass = $derived(
 	size === "fullscreen"
 		? "h-[100dvh] w-screen max-h-none max-w-none rounded-none border-0 shadow-none"
 		: size === "form"
-		? "h-auto w-full sm:max-w-md max-h-[min(86vh,860px)]"
-		: size === "medium"
-			? "h-auto w-full max-w-lg max-h-[70vh]"
-			: size === "wide"
-				? "h-auto w-full sm:max-w-2xl max-h-[min(86vh,860px)]"
-				: size === "panel"
-					? "h-[70vh] max-h-[700px] w-full max-w-5xl"
-					: size === "debug"
-						? "h-[85vh] max-h-[900px] w-full max-w-6xl"
-						: size === "palette"
-							? "h-auto w-full max-w-md"
-							: size === "palette-lg"
-								? "h-auto w-full max-w-lg"
-								: size === "bare"
-									? "h-[90vh] w-fit max-w-[96vw]"
-									: size === "compact"
-										? "h-[min(78vh,680px)] w-[min(92vw,920px)]"
-										: "h-[min(86vh,860px)] w-[min(94vw,1180px)]"
+			? "h-auto w-full sm:max-w-md max-h-[min(86vh,860px)]"
+			: size === "medium"
+				? "h-auto w-full max-w-lg max-h-[70vh]"
+				: size === "wide"
+					? "h-auto w-full sm:max-w-2xl max-h-[min(86vh,860px)]"
+					: size === "panel"
+						? "h-[70vh] max-h-[700px] w-full max-w-5xl"
+						: size === "debug"
+							? "h-[85vh] max-h-[900px] w-full max-w-6xl"
+							: size === "palette"
+								? "h-auto w-full max-w-md"
+								: size === "palette-lg"
+									? "h-auto w-full max-w-lg"
+									: size === "bare"
+										? "h-[90vh] w-fit max-w-[96vw]"
+										: size === "compact"
+											? "h-[min(78vh,680px)] w-[min(92vw,920px)]"
+											: "h-[min(86vh,860px)] w-[min(94vw,1180px)]"
 );
 
 const isAutoHeight = $derived(

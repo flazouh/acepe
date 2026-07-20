@@ -34,10 +34,7 @@ describe("CheckpointTimelineController", () => {
 	});
 
 	it("returns [] when there is no session", () => {
-		const { controller } = make(
-			{ sessionId: null },
-			{ getCheckpoints: () => [cp("c1")] }
-		);
+		const { controller } = make({ sessionId: null }, { getCheckpoints: () => [cp("c1")] });
 		expect(controller.checkpoints).toEqual([]);
 	});
 

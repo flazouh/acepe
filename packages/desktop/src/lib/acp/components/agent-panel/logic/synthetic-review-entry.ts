@@ -1,7 +1,4 @@
-import type {
-	AgentPanelSceneEntryModel,
-	AgentToolReviewFileEntry,
-} from "@acepe/ui/agent-panel";
+import type { AgentPanelSceneEntryModel, AgentToolReviewFileEntry } from "@acepe/ui/agent-panel";
 import type { TurnState } from "../../../store/types.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 

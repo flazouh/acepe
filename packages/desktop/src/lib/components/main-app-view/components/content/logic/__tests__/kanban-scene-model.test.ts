@@ -2,7 +2,10 @@ import { describe, expect, it } from "bun:test";
 
 import type { KanbanSceneCardData } from "@acepe/ui";
 
-import type { ThreadBoardGroup, ThreadBoardItem } from "$lib/acp/store/thread-board/thread-board-item.js";
+import type {
+	ThreadBoardGroup,
+	ThreadBoardItem,
+} from "$lib/acp/store/thread-board/thread-board-item.js";
 
 import type { OptimisticKanbanCard } from "../kanban-card-model.js";
 import {

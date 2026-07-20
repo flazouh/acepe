@@ -9,13 +9,16 @@
 import { describe, expect, it, mock } from "bun:test";
 import type { PanelStore } from "../../../store/panel-store.svelte.js";
 import type { SessionStore } from "../../../store/session-store.svelte.js";
-import { PanelConnectionState, type PanelConnectionErrorDetails } from "../../../types/panel-connection-state.js";
+import {
+	type PanelConnectionErrorDetails,
+	PanelConnectionState,
+} from "../../../types/panel-connection-state.js";
 import { AgentPanelSessionController } from "../state/agent-panel-session-controller.svelte.js";
+import { AgentPanelViewStateController } from "../state/agent-panel-view-state-controller.svelte.js";
+import { AgentPanelWorktreeController } from "../state/agent-panel-worktree-controller.svelte.js";
 import { ConnectionController } from "../state/connection-controller.svelte.js";
 import { ContentScrollRevealController } from "../state/content-scroll-reveal-controller.svelte.js";
-import { AgentPanelViewStateController } from "../state/agent-panel-view-state-controller.svelte.js";
 import { WorktreeSetupController } from "../state/worktree-setup-controller.svelte.js";
-import { AgentPanelWorktreeController } from "../state/agent-panel-worktree-controller.svelte.js";
 
 mock.module("svelte-sonner", () => ({
 	toast: {
@@ -120,8 +123,7 @@ function createAgentPanelWiringFixture(): AgentPanelWiringFixture {
 
 	const connectionStore = {
 		getState: () => holder.connectionState,
-		getContext: () =>
-			holder.connectionError === null ? null : { error: holder.connectionError },
+		getContext: () => (holder.connectionError === null ? null : { error: holder.connectionError }),
 		onChange: (callback: ConnectionChangeCallback) => {
 			connectionListeners.add(callback);
 			return () => connectionListeners.delete(callback);

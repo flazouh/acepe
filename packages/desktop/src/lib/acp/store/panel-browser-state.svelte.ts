@@ -48,9 +48,7 @@ export class PanelBrowserState {
 		kind: WorkspacePanelKind,
 		nextPanels: readonly WorkspacePanel[]
 	): void {
-		const remainingPanels = this.deps
-			.getWorkspacePanels()
-			.filter((panel) => panel.kind !== kind);
+		const remainingPanels = this.deps.getWorkspacePanels().filter((panel) => panel.kind !== kind);
 		this.deps.setWorkspacePanels(Array.from(nextPanels).concat(remainingPanels));
 	}
 
@@ -98,7 +96,9 @@ export class PanelBrowserState {
 		if (!projectPath) {
 			logger.warn("openBrowserPanel called without projectPath", { url });
 		}
-		const existing = this.getBrowserPanelsForProject(projectPath).find((panel) => panel.url === url);
+		const existing = this.getBrowserPanelsForProject(projectPath).find(
+			(panel) => panel.url === url
+		);
 		if (existing) {
 			this.deps.focusOpenedTopLevelPanel(existing.id);
 			logger.debug("Browser panel already open for URL, focusing", { url, projectPath });

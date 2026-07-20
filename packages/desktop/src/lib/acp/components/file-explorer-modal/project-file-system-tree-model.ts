@@ -56,7 +56,12 @@ export function createProjectFileSystemTreeModel(
 			});
 		}
 
-		addDecoration(decorationsByPath, file.path, file.gitStatus.insertions, file.gitStatus.deletions);
+		addDecoration(
+			decorationsByPath,
+			file.path,
+			file.gitStatus.insertions,
+			file.gitStatus.deletions
+		);
 		addAggregates(aggregateByDirectoryPath, file.path, {
 			insertions: file.gitStatus.insertions,
 			deletions: file.gitStatus.deletions,

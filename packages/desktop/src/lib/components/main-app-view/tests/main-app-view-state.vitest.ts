@@ -121,9 +121,7 @@ function createState(options?: {
 					: undefined
 		),
 		getFirstTopLevelPanel: vi.fn(() => agentPanel),
-		getPanel: vi.fn((panelId: string) =>
-			panelId === "panel-1" ? { id: "panel-1" } : undefined
-		),
+		getPanel: vi.fn((panelId: string) => (panelId === "panel-1" ? { id: "panel-1" } : undefined)),
 		panels: [agentPanel],
 	} as Partial<PanelStore>;
 

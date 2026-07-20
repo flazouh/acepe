@@ -45,9 +45,7 @@ export class PanelGitState {
 		kind: WorkspacePanelKind,
 		nextPanels: readonly WorkspacePanel[]
 	): void {
-		const remainingPanels = this.deps
-			.getWorkspacePanels()
-			.filter((panel) => panel.kind !== kind);
+		const remainingPanels = this.deps.getWorkspacePanels().filter((panel) => panel.kind !== kind);
 		this.deps.setWorkspacePanels(Array.from(nextPanels).concat(remainingPanels));
 	}
 

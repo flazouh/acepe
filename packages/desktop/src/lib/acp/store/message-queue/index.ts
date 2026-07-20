@@ -8,4 +8,4 @@ export {
 	serializeWithAttachments,
 } from "./message-queue-store.svelte.js";
 
-export { queuedMessageId, type QueuedMessage, type QueuedMessageId } from "./types.js";
+export { type QueuedMessage, type QueuedMessageId, queuedMessageId } from "./types.js";

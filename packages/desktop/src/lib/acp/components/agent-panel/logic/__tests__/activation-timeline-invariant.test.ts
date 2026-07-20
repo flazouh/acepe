@@ -24,9 +24,8 @@
  * transition that drops the message.
  */
 import { describe, expect, it } from "bun:test";
-
-import type { SessionEntry } from "../../../../application/dto/session-entry.js";
 import type { TranscriptEntry } from "../../../../../services/acp-types.js";
+import type { SessionEntry } from "../../../../application/dto/session-entry.js";
 import {
 	deriveCanonicalUserEntryPresence,
 	resolveOptimisticUserEntryForGraph,
@@ -94,9 +93,7 @@ function deriveDisplay(step: LifecycleStep): DisplayDerivation {
 		hasCanonicalMatchingPendingUserEntry: presence.hasCanonicalMatchingPendingUserEntry,
 	});
 
-	const canonicalEntryCount = hasSession
-		? (step.canonicalTranscriptEntries?.length ?? null)
-		: 0;
+	const canonicalEntryCount = hasSession ? (step.canonicalTranscriptEntries?.length ?? null) : 0;
 	const visibleEntryCount = resolveVisibleEntryCount({
 		canonicalEntryCount,
 		canonicalMessageCount: canonicalEntryCount,
@@ -201,9 +198,7 @@ function resumeTimeline(): readonly LifecycleStep[] {
 			boundSessionId: "session-existing",
 			panelPendingUserEntry: null,
 			sessionPendingSendIntent: null,
-			canonicalTranscriptEntries: [
-				canonicalUserEntry("user-prev", null),
-			],
+			canonicalTranscriptEntries: [canonicalUserEntry("user-prev", null)],
 			messageInFlight: false,
 		},
 	];

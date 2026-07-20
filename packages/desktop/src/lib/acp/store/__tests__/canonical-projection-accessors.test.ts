@@ -10,10 +10,9 @@ import type {
 	SessionStateGraph,
 	TranscriptEntry,
 } from "$lib/services/acp-types.js";
-
+import { transcriptSegmentPrimaryText } from "../../session-state/transcript-text.js";
 import { InteractionStore } from "../interaction-store.svelte.js";
 import { SessionStore } from "../session-store.svelte.js";
-import { transcriptSegmentPrimaryText } from "../../session-state/transcript-text.js";
 
 function createRevision(graphRevision: number): SessionGraphRevision {
 	return {
@@ -199,11 +198,7 @@ function createQuestionInteraction(): InteractionSnapshot {
 	};
 }
 
-function textEntry(
-	entryId: string,
-	role: TranscriptEntry["role"],
-	text: string
-): TranscriptEntry {
+function textEntry(entryId: string, role: TranscriptEntry["role"], text: string): TranscriptEntry {
 	return {
 		entryId,
 		role,
@@ -238,6 +233,7 @@ describe("SessionStore canonical projection accessors", () => {
 		const entries = [userEntry, assistantEntry];
 		store.applySessionStateGraph(createGraph(createCapabilities(), entries));
 		const originalIterator = entries[Symbol.iterator];
+		// biome-ignore lint/correctness/useYield: This sentinel iterator intentionally throws before yielding.
 		entries[Symbol.iterator] = function* () {
 			throw new Error("must not scan full transcript entries after graph snapshot");
 		};
@@ -263,10 +259,9 @@ describe("SessionStore canonical projection accessors", () => {
 
 			const transcriptEntries = store.read.getSessionTranscriptEntries("session-1");
 			expect(transcriptEntries?.[0]).toBe(userEntry);
-			expect(transcriptEntries?.[1]?.segments.map((segment) => transcriptSegmentPrimaryText(segment))).toEqual([
-				"Answer",
-				" More",
-			]);
+			expect(
+				transcriptEntries?.[1]?.segments.map((segment) => transcriptSegmentPrimaryText(segment))
+			).toEqual(["Answer", " More"]);
 		} finally {
 			entries[Symbol.iterator] = originalIterator;
 		}
@@ -512,12 +507,7 @@ describe("SessionStore canonical projection accessors", () => {
 		const store = new SessionStore();
 		addColdSession(store);
 		store.applySessionStateGraph(
-			createGraph(
-				createCapabilities(),
-				[],
-				[],
-				createReconnectingLifecycleWithStaleError()
-			)
+			createGraph(createCapabilities(), [], [], createReconnectingLifecycleWithStaleError())
 		);
 
 		const presentation = store.presentation.getSessionListItemPresentation({
@@ -561,7 +551,9 @@ describe("SessionStore canonical projection accessors", () => {
 		expect(store.presentation.getSessionQuestionInteraction("session-1", "question-1")).toBe(
 			questionInteraction
 		);
-		expect(store.presentation.getSessionQuestionInteraction("session-1", "missing-question")).toBeNull();
+		expect(
+			store.presentation.getSessionQuestionInteraction("session-1", "missing-question")
+		).toBeNull();
 	});
 
 	it("preserves missing canonical autonomous state inside materialized capabilities", () => {

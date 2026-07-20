@@ -1,12 +1,11 @@
 import { describe, expect, it, mock } from "bun:test";
 
 import type { PrChecksItem } from "@acepe/ui";
-
-import type { SessionLinkedPr } from "$lib/acp/application/dto/session-linked-pr.js";
 import type { SessionEntry } from "$lib/acp/application/dto/session-entry.js";
-import { DEFAULT_PANEL_HOT_STATE, type Panel, type PanelHotState } from "$lib/acp/store/types.js";
-import type { ThreadBoardItem } from "$lib/acp/store/thread-board/thread-board-item.js";
+import type { SessionLinkedPr } from "$lib/acp/application/dto/session-linked-pr.js";
 import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
+import type { ThreadBoardItem } from "$lib/acp/store/thread-board/thread-board-item.js";
+import { DEFAULT_PANEL_HOT_STATE, type Panel, type PanelHotState } from "$lib/acp/store/types.js";
 
 mock.module("$lib/acp/components/activity-entry/activity-entry-projection.js", () => ({
 	isActiveCompactActivityKind: (kind: string) => kind === "streaming" || kind === "thinking",

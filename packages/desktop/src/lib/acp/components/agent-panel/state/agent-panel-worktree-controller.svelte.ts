@@ -148,8 +148,9 @@ export class AgentPanelWorktreeController {
 			return null;
 		}
 		return (
-			this.#deps.getAllProjects().find((candidate) => candidate.path === worktreeToggleProjectPath) ??
-			null
+			this.#deps
+				.getAllProjects()
+				.find((candidate) => candidate.path === worktreeToggleProjectPath) ?? null
 		);
 	});
 

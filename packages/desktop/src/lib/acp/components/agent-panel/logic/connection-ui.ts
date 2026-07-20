@@ -72,9 +72,7 @@ export function derivePanelErrorInfo(inputs: PanelErrorInputs): PanelErrorInfo {
 		// rather than the raw creation message — single classification authority.
 		const panelFailureReason = inputs.panelConnectionError?.failureReason ?? null;
 		const curated =
-			panelFailureReason !== null
-				? failureCopy(inputs.agentDisplayName, panelFailureReason)
-				: null;
+			panelFailureReason !== null ? failureCopy(inputs.agentDisplayName, panelFailureReason) : null;
 		const rawMessage = inputs.panelConnectionError?.message ?? null;
 		const display = curated ?? rawMessage;
 		return {

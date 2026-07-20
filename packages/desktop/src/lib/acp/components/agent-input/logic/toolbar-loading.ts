@@ -70,7 +70,12 @@ export function resolveSelectorsLoading(input: ResolveSelectorsLoadingInput): bo
 		return true;
 	}
 
-	if (!input.hasSession && input.hasSelectedAgent && !hasResolvableSelection && !input.isCacheLoaded) {
+	if (
+		!input.hasSession &&
+		input.hasSelectedAgent &&
+		!hasResolvableSelection &&
+		!input.isCacheLoaded
+	) {
 		return true;
 	}
 

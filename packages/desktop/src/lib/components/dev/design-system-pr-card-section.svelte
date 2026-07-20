@@ -1,68 +1,70 @@
 <script lang="ts">
-	import {
-		AgentPanelPrCard,
-		BrowserNavActions,
-		GitCommitHeader,
-		GitPrHeader,
-		KanbanScenePrFooter,
-		PrChecksList,
-		PrChecksSummary,
-		type GitCommitData,
-		type GitPrData,
-	} from "@acepe/ui";
+import {
+	AgentPanelPrCard,
+	BrowserNavActions,
+	GitCommitHeader,
+	GitPrHeader,
+	KanbanScenePrFooter,
+	PrChecksList,
+	PrChecksSummary,
+	type GitCommitData,
+	type GitPrData,
+} from "@acepe/ui";
 
-	import CiJobModal from "$lib/acp/components/pr-status-card/ci-job-modal.svelte";
-	import GitHubBadge from "$lib/acp/components/github-badge.svelte";
-	import { Badge } from "$lib/components/ui/badge/index.js";
-	import SettingRow from "$lib/components/settings-page/setting-row.svelte";
-	import SettingsSection from "$lib/components/settings-page/settings-section.svelte";
+import CiJobModal from "$lib/acp/components/pr-status-card/ci-job-modal.svelte";
+import GitHubBadge from "$lib/acp/components/github-badge.svelte";
+import { Badge } from "$lib/components/ui/badge/index.js";
+import SettingRow from "$lib/components/settings-page/setting-row.svelte";
+import SettingsSection from "$lib/components/settings-page/settings-section.svelte";
 
-	import {
-		featuredCiJobCheck,
-		featuredCiJobDetails,
-		featuredPrCardSpecimen,
-		prCardComponentLinks,
-		prCardSpecimens,
-		prChecksSummarySpecimens,
-		type PrCardComponentLink,
-		type PrCardSpecimen,
-		type PrChecksSummarySpecimen,
-	} from "./design-system-pr-card-specimens.js";
+import {
+	featuredCiJobCheck,
+	featuredCiJobDetails,
+	featuredPrCardSpecimen,
+	prCardComponentLinks,
+	prCardSpecimens,
+	prChecksSummarySpecimens,
+	type PrCardComponentLink,
+	type PrCardSpecimen,
+	type PrChecksSummarySpecimen,
+} from "./design-system-pr-card-specimens.js";
 
-	let ciModalOpen = $state(false);
+let ciModalOpen = $state(false);
 
-	function layerBadgeVariant(layer: PrCardComponentLink["layer"]): "default" | "secondary" | "outline" {
-		if (layer === "View") return "secondary";
-		if (layer === "Controller") return "outline";
-		return "default";
-	}
+function layerBadgeVariant(
+	layer: PrCardComponentLink["layer"]
+): "default" | "secondary" | "outline" {
+	if (layer === "View") return "secondary";
+	if (layer === "Controller") return "outline";
+	return "default";
+}
 
-	function checksSpecimenDescription(specimen: PrChecksSummarySpecimen): string {
-		return specimen.caption;
-	}
+function checksSpecimenDescription(specimen: PrChecksSummarySpecimen): string {
+	return specimen.caption;
+}
 
-	function prCardSpecimenDescription(specimen: PrCardSpecimen): string {
-		return specimen.caption;
-	}
+function prCardSpecimenDescription(specimen: PrCardSpecimen): string {
+	return specimen.caption;
+}
 
-	const externalPrHeaderSpecimen: GitPrData = {
-		number: 42,
-		title: "Land Linear external navigation icons",
-		author: "alex",
-		state: "open",
-		files: [],
-		githubUrl: "https://github.com/flazouh/acepe/pull/42",
-	};
+const externalPrHeaderSpecimen: GitPrData = {
+	number: 42,
+	title: "Land Linear external navigation icons",
+	author: "alex",
+	state: "open",
+	files: [],
+	githubUrl: "https://github.com/flazouh/acepe/pull/42",
+};
 
-	const externalCommitHeaderSpecimen: GitCommitData = {
-		sha: "3773ee3670000000000000000000000000000000",
-		shortSha: "3773ee3",
-		message: "Land Linear external navigation icons",
-		author: "alex",
-		date: "2026-07-12",
-		files: [],
-		githubUrl: "https://github.com/flazouh/acepe/commit/3773ee367",
-	};
+const externalCommitHeaderSpecimen: GitCommitData = {
+	sha: "3773ee3670000000000000000000000000000000",
+	shortSha: "3773ee3",
+	message: "Land Linear external navigation icons",
+	author: "alex",
+	date: "2026-07-12",
+	files: [],
+	githubUrl: "https://github.com/flazouh/acepe/commit/3773ee367",
+};
 </script>
 
 <div class="w-full">

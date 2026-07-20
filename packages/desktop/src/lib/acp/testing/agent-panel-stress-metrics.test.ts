@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+	type AgentPanelStressPerformanceWithMemory,
 	classifyAgentPanelStressFrameAttribution,
 	createAgentPanelStressDump,
 	formatMetricMs,
 	readAgentPanelStressMemory,
-	summarizeAgentPanelStressProfile,
 	summarizeAgentPanelStressMetrics,
-	type AgentPanelStressPerformanceWithMemory,
+	summarizeAgentPanelStressProfile,
 } from "./agent-panel-stress-metrics.js";
 
 describe("agent panel stress metrics", () => {

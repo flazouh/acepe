@@ -2,10 +2,7 @@
 import { HugeiconsIcon } from "@acepe/ui";
 import { ResultAsync } from "neverthrow";
 import { toastError, toastSuccess } from "$lib/components/ui/sonner/toast-bridge.js";
-import {
-	buildCopyButtonDisplayState,
-	type CopyButtonVariant,
-} from "./copy-button-state.js";
+import { buildCopyButtonDisplayState, type CopyButtonVariant } from "./copy-button-state.js";
 interface Props {
 	/**
 	 * Text to copy when clicked. Component handles clipboard + toast internally.

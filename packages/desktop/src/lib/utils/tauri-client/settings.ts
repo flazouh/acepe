@@ -1,8 +1,8 @@
 import { okAsync, Result, ResultAsync } from "neverthrow";
 
 import { AgentError, AppError } from "../../acp/errors/app-error.js";
-import type { UserSettingKey } from "../../services/user-settings-types.js";
 import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
+import type { UserSettingKey } from "../../services/user-settings-types.js";
 import type { ArchivedSessionRef, ThreadListSettings } from "./types.js";
 
 interface UserSettingValue {
@@ -206,11 +206,7 @@ function normalizeThreadListSettings(settings: ThreadListSettings): ThreadListSe
 const parseThreadListSettingsHotCache = Result.fromThrowable(
 	(stored: string): ThreadListSettings | null => {
 		const parsed = JSON.parse(stored) as ThreadListSettingsHotCachePayload;
-		if (
-			!parsed ||
-			parsed.version !== THREAD_LIST_SETTINGS_HOT_CACHE_VERSION ||
-			!parsed.settings
-		) {
+		if (!parsed || parsed.version !== THREAD_LIST_SETTINGS_HOT_CACHE_VERSION || !parsed.settings) {
 			return null;
 		}
 		return normalizeThreadListSettings(parsed.settings);
@@ -273,24 +269,22 @@ function flushSettingsBatch(): void {
 		keys.push(request.key);
 	}
 
-	void TAURI_COMMAND_CLIENT.storage.get_user_settings
-		.invoke<UserSettingValue[]>({ keys })
-		.match(
-			(values) => {
-				const valuesByKey = new Map<UserSettingKey, string | null>();
-				for (const value of values) {
-					valuesByKey.set(value.key, value.value);
-				}
-				for (const request of batch) {
-					request.resolve(valuesByKey.get(request.key) ?? null);
-				}
-			},
-			(error) => {
-				for (const request of batch) {
-					request.reject(error);
-				}
+	void TAURI_COMMAND_CLIENT.storage.get_user_settings.invoke<UserSettingValue[]>({ keys }).match(
+		(values) => {
+			const valuesByKey = new Map<UserSettingKey, string | null>();
+			for (const value of values) {
+				valuesByKey.set(value.key, value.value);
 			}
-		);
+			for (const request of batch) {
+				request.resolve(valuesByKey.get(request.key) ?? null);
+			}
+		},
+		(error) => {
+			for (const request of batch) {
+				request.reject(error);
+			}
+		}
+	);
 }
 
 function getRawBatched(key: UserSettingKey): ResultAsync<string | null, AppError> {

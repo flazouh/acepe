@@ -98,7 +98,8 @@ describe("fileContentCache", () => {
 
 	it("can synchronously peek cached file content after a successful load", async () => {
 		const cache = createFileContentCache({
-			fetchFileContent: () => ResultAsync.fromPromise(Promise.resolve("cached body"), (error) => error),
+			fetchFileContent: () =>
+				ResultAsync.fromPromise(Promise.resolve("cached body"), (error) => error),
 		});
 
 		expect(cache.peekFileContent("src/app.ts", "/repo")).toBeNull();

@@ -30,9 +30,9 @@ describe("inline-composer-dom", () => {
 		expect(serializeInlineComposerMessage(editor)).toBe("hello world");
 		expect(sanitizeInlineComposerText("\u001d\u001d\u001d")).toBe("");
 		expect(sanitizeInlineComposerText("keep\nthis\tline")).toBe("keep\nthis\tline");
-		expect(
-			sanitizeInlineComposerText("@\u200B[file:a]", { preserveZeroWidthSpace: true })
-		).toBe("@\u200B[file:a]");
+		expect(sanitizeInlineComposerText("@\u200B[file:a]", { preserveZeroWidthSpace: true })).toBe(
+			"@\u200B[file:a]"
+		);
 	});
 
 	it("scrubs group-separator control characters from live composer text nodes", () => {

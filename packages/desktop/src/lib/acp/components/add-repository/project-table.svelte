@@ -1,12 +1,5 @@
 <script lang="ts">
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableRow,
-	LoadingIcon,
-	HugeiconsIcon,
-} from "@acepe/ui";
+import { Table, TableBody, TableCell, TableRow, LoadingIcon, HugeiconsIcon } from "@acepe/ui";
 import { cn } from "$lib/utils.js";
 
 import ActionsCell from "./cells/actions-cell.svelte";
@@ -43,7 +36,11 @@ function displayPath(path: string): string {
 	return path.replace(/^\/Users\/[^/]+/, "~");
 }
 
-function handleProjectRowKeydown(event: KeyboardEvent, project: ProjectWithSessions, isAdded: boolean): void {
+function handleProjectRowKeydown(
+	event: KeyboardEvent,
+	project: ProjectWithSessions,
+	isAdded: boolean
+): void {
 	if (isAdded) return;
 	if (event.key !== "Enter" && event.key !== " ") return;
 

@@ -39,9 +39,7 @@ const effectiveProviderLabel = $derived(
 	providerLabel ?? canonicalProviderMetadata?.displayName ?? agentId
 );
 const iconPath = $derived(getProviderBrandIcon(effectiveProviderBrand, themeState.effectiveTheme));
-const iconClass = $derived(
-	["block shrink-0 object-contain", className].filter(Boolean).join(" ")
-);
+const iconClass = $derived(["block shrink-0 object-contain", className].filter(Boolean).join(" "));
 </script>
 
 {#if iconPath}

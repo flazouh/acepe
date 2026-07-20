@@ -7,17 +7,17 @@
  * reducer logic.
  */
 import type { SessionOpenFound, SessionStateGraph } from "../../services/acp-types.js";
-import { materializeSnapshotFromOpenFound } from "../session-state/session-state-protocol.js";
 import { sessionColdFromSlices } from "../application/dto/session-cold.js";
+import { materializeSnapshotFromOpenFound } from "../session-state/session-state-protocol.js";
 import { canonicalAgentIdToString } from "../types/agent-id.js";
 import { sanitizeCanonicalCapabilities } from "./canonical-config-sanitize.js";
-import { deriveCapabilityPreviewState } from "./capability-projection.js";
 import type { CanonicalSessionProjection } from "./canonical-session-projection.js";
+import { deriveCapabilityPreviewState } from "./capability-projection.js";
 import { mapProjectionTurnFailure } from "./envelope-reducer/projection-turn-failure.js";
-import { seedTranscriptEntryIndex } from "./transcript-entry-index.js";
 import type { SessionCreationCoordinator } from "./session-creation-coordinator.svelte.js";
 import type { SessionListState } from "./session-list-state.svelte.js";
 import { resolveSequenceIdBackfillForExistingSession } from "./session-sequence-id-backfill.js";
+import { seedTranscriptEntryIndex } from "./transcript-entry-index.js";
 import type {
 	SessionCold,
 	SessionIdentity,
@@ -183,11 +183,7 @@ export class SessionOpenSnapshotApplier {
 		}
 
 		this.#deps.replaceSessionOperations(canonicalSessionId, snapshot.operations);
-		this.#deps.replaceTranscriptSnapshot(
-			canonicalSessionId,
-			snapshot.transcriptSnapshot,
-			now
-		);
+		this.#deps.replaceTranscriptSnapshot(canonicalSessionId, snapshot.transcriptSnapshot, now);
 		this.#deps.initializeTransientProjection(canonicalSessionId);
 		const graph = materializeSnapshotFromOpenFound(snapshot).graph;
 		seedTranscriptEntryIndex(graph.transcriptSnapshot.entries);
@@ -219,10 +215,7 @@ export class SessionOpenSnapshotApplier {
 		const sessionId = graph.canonicalSessionId;
 		if (graph.isAlias && graph.requestedSessionId !== graph.canonicalSessionId) {
 			this.#deps.recordAliasRelationship(graph.requestedSessionId, graph.canonicalSessionId);
-			this.#deps.migratePendingSendIntentAlias(
-				graph.requestedSessionId,
-				graph.canonicalSessionId
-			);
+			this.#deps.migratePendingSendIntentAlias(graph.requestedSessionId, graph.canonicalSessionId);
 		}
 		if (this.#deps.getSessionIdentity(sessionId)) {
 			this.syncSessionSequenceFromGraph(graph);
@@ -293,10 +286,7 @@ export class SessionOpenSnapshotApplier {
 		);
 	}
 
-	syncSessionSequenceFromPendingCreation(
-		sessionId: string,
-		graph: SessionStateGraph
-	): void {
+	syncSessionSequenceFromPendingCreation(sessionId: string, graph: SessionStateGraph): void {
 		const metadata = this.#deps.getSessionMetadata(sessionId);
 		const pendingCreation =
 			this.#deps.creationCoordinator.getPendingCreation(sessionId) ??

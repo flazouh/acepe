@@ -1,11 +1,11 @@
-import { ResultAsync, okAsync } from "neverthrow";
+import { okAsync, ResultAsync } from "neverthrow";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
 	SessionGraphRevision,
 	SessionOpenTranscriptRowPage,
 	SessionStateEnvelope,
-	TranscriptViewportRow,
 	TranscriptRowPageResult,
+	TranscriptViewportRow,
 	ViewportBufferPush,
 } from "../../../services/acp-types.js";
 
@@ -64,10 +64,7 @@ function page(
 	};
 }
 
-function viewportPushEnvelope(
-	sessionId: string,
-	push: ViewportBufferPush
-): SessionStateEnvelope {
+function viewportPushEnvelope(sessionId: string, push: ViewportBufferPush): SessionStateEnvelope {
 	return {
 		sessionId,
 		graphRevision: push.graphRevision.graphRevision,
@@ -102,8 +99,7 @@ describe("TranscriptRowsController older-row paging", () => {
 		mocks.readTranscriptRowPage.mockReturnValue(okAsync(olderPageResult));
 		const controller = new TranscriptRowsController({
 			getGraphRevision: () => liveGraphRevision,
-			applySessionStateEnvelope: (_sessionId: string, _envelope: SessionStateEnvelope) =>
-				undefined,
+			applySessionStateEnvelope: (_sessionId: string, _envelope: SessionStateEnvelope) => undefined,
 		});
 
 		controller.applyInitialRowPage("session-1", page(256, [row("tail-row")], pageRevision));
@@ -122,8 +118,7 @@ describe("TranscriptRowsController older-row paging", () => {
 	it("ignores stale fresh-bootstrap responses after an initial row page applies", async () => {
 		const pageRevision = revision(11, 7, 13);
 		const liveGraphRevision = revision(99, 88, 77);
-		let resolveFreshEnvelope: (envelope: SessionStateEnvelope | null) => void = () =>
-			undefined;
+		let resolveFreshEnvelope: (envelope: SessionStateEnvelope | null) => void = () => undefined;
 		const freshEnvelopePromise = new Promise<SessionStateEnvelope | null>((resolve) => {
 			resolveFreshEnvelope = resolve;
 		});
@@ -160,8 +155,7 @@ describe("TranscriptRowsController older-row paging", () => {
 		const liveGraphRevision = revision(99, 88, 77);
 		const controller = new TranscriptRowsController({
 			getGraphRevision: () => liveGraphRevision,
-			applySessionStateEnvelope: (_sessionId: string, _envelope: SessionStateEnvelope) =>
-				undefined,
+			applySessionStateEnvelope: (_sessionId: string, _envelope: SessionStateEnvelope) => undefined,
 		});
 		const emptyFreshPush: ViewportBufferPush = {
 			sessionId: "session-1",
@@ -193,8 +187,7 @@ describe("TranscriptRowsController older-row paging", () => {
 		const liveGraphRevision = revision(99, 88, 77);
 		const controller = new TranscriptRowsController({
 			getGraphRevision: () => liveGraphRevision,
-			applySessionStateEnvelope: (_sessionId: string, _envelope: SessionStateEnvelope) =>
-				undefined,
+			applySessionStateEnvelope: (_sessionId: string, _envelope: SessionStateEnvelope) => undefined,
 		});
 		const emptyLivePush: ViewportBufferPush = {
 			sessionId: "session-1",

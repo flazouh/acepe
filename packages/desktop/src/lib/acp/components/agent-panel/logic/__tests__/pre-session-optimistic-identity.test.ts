@@ -27,9 +27,9 @@ describe("optimistic header identity (send-moment == final state)", () => {
 
 	describe("baseline: the bug the video captured", () => {
 		it("canonical-only header is the generic project placeholder when title is absent", () => {
-			expect(
-				deriveAgentPanelHeaderDisplayTitle({ sessionTitle: null, projectName: "acepe" })
-			).toBe("Conversation in acepe");
+			expect(deriveAgentPanelHeaderDisplayTitle({ sessionTitle: null, projectName: "acepe" })).toBe(
+				"Conversation in acepe"
+			);
 		});
 	});
 
@@ -104,15 +104,15 @@ describe("optimistic header identity (send-moment == final state)", () => {
 		});
 
 		it("does not show the spark for non-Claude agents", () => {
-			expect(
-				shouldShowClaudeWorkingSpark({ sessionAgentId: null, selectedAgentId: "codex" })
-			).toBe(false);
+			expect(shouldShowClaudeWorkingSpark({ sessionAgentId: null, selectedAgentId: "codex" })).toBe(
+				false
+			);
 		});
 
 		it("does not show the spark when neither identity is known", () => {
-			expect(
-				shouldShowClaudeWorkingSpark({ sessionAgentId: null, selectedAgentId: null })
-			).toBe(false);
+			expect(shouldShowClaudeWorkingSpark({ sessionAgentId: null, selectedAgentId: null })).toBe(
+				false
+			);
 		});
 	});
 });

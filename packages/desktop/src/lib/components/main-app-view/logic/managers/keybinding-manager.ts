@@ -14,11 +14,7 @@ import type { MainAppViewState } from "../main-app-view-state.svelte.js";
 
 type KeybindingState = Pick<
 	MainAppViewState,
-	| "toggleSettings"
-	| "commandPaletteOpen"
-	| "handleClosePanel"
-	| "debugPanelOpen"
-	| "sidebarOpen"
+	"toggleSettings" | "commandPaletteOpen" | "handleClosePanel" | "debugPanelOpen" | "sidebarOpen"
 >;
 type KeybindingServiceLike = Pick<KeybindingsService, "upsertAction">;
 type SelectorRegistryLike = Pick<SelectorRegistry, "toggleFocused" | "cycleFocused">;
@@ -179,7 +175,6 @@ export class KeybindingManager {
 				// Handler will be set by main-app-view
 			},
 		});
-
 	}
 
 	/**

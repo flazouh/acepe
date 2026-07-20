@@ -15,9 +15,7 @@ interface Props {
 let { timestamp, latencyMs, class: classes = "" }: Props = $props();
 
 const formattedTimestamp = $derived(timestamp ? formatMessageTimestamp(timestamp) : null);
-const formattedLatency = $derived(
-	latencyMs === undefined ? null : formatMessageLatency(latencyMs)
-);
+const formattedLatency = $derived(latencyMs === undefined ? null : formatMessageLatency(latencyMs));
 </script>
 
 <div class="text-xs text-muted-foreground flex items-center gap-2 {classes}">

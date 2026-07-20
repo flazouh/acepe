@@ -60,7 +60,11 @@ function fallbackPreview(
 describe("file explorer preview pane state", () => {
 	it("detects markdown text previews", () => {
 		expect(isFileExplorerMarkdownPreview(textPreview())).toBe(true);
-		expect(isFileExplorerMarkdownPreview(textPreview({ file_name: "notes.txt", language_hint: "markdown" }))).toBe(true);
+		expect(
+			isFileExplorerMarkdownPreview(
+				textPreview({ file_name: "notes.txt", language_hint: "markdown" })
+			)
+		).toBe(true);
 		expect(isFileExplorerMarkdownPreview(textPreview({ file_name: "app.ts" }))).toBe(false);
 		expect(isFileExplorerMarkdownPreview(diffPreview())).toBe(false);
 	});
@@ -72,15 +76,28 @@ describe("file explorer preview pane state", () => {
 	});
 
 	it("decides when plain text rendering is requested", () => {
-		expect(shouldRenderFileExplorerPlainText({ preview: textPreview(), preferPlainText: true })).toBe(true);
-		expect(shouldRenderFileExplorerPlainText({ preview: diffPreview(), preferPlainText: true })).toBe(true);
-		expect(shouldRenderFileExplorerPlainText({ preview: fallbackPreview("large"), preferPlainText: true })).toBe(false);
-		expect(shouldRenderFileExplorerPlainText({ preview: textPreview(), preferPlainText: false })).toBe(false);
+		expect(
+			shouldRenderFileExplorerPlainText({ preview: textPreview(), preferPlainText: true })
+		).toBe(true);
+		expect(
+			shouldRenderFileExplorerPlainText({ preview: diffPreview(), preferPlainText: true })
+		).toBe(true);
+		expect(
+			shouldRenderFileExplorerPlainText({
+				preview: fallbackPreview("large"),
+				preferPlainText: true,
+			})
+		).toBe(false);
+		expect(
+			shouldRenderFileExplorerPlainText({ preview: textPreview(), preferPlainText: false })
+		).toBe(false);
 	});
 
 	it("resolves code preview language", () => {
 		expect(getFileExplorerCodePreviewLanguage(null)).toBe("plaintext");
-		expect(getFileExplorerCodePreviewLanguage(textPreview({ language_hint: "markdown" }))).toBe("markdown");
+		expect(getFileExplorerCodePreviewLanguage(textPreview({ language_hint: "markdown" }))).toBe(
+			"markdown"
+		);
 		expect(getFileExplorerCodePreviewLanguage(diffPreview())).toBe("typescript");
 		expect(getFileExplorerCodePreviewLanguage(fallbackPreview("deleted"))).toBe("plaintext");
 	});
@@ -118,9 +135,15 @@ describe("file explorer preview pane state", () => {
 	});
 
 	it("maps fallback preview kinds to messages", () => {
-		expect(getFileExplorerFallbackMessage(fallbackPreview("binary"))).toBe("Binary file - cannot display preview");
-		expect(getFileExplorerFallbackMessage(fallbackPreview("large"))).toBe("File is too large to preview");
-		expect(getFileExplorerFallbackMessage(fallbackPreview("deleted"))).toBe("File has been deleted");
+		expect(getFileExplorerFallbackMessage(fallbackPreview("binary"))).toBe(
+			"Binary file - cannot display preview"
+		);
+		expect(getFileExplorerFallbackMessage(fallbackPreview("large"))).toBe(
+			"File is too large to preview"
+		);
+		expect(getFileExplorerFallbackMessage(fallbackPreview("deleted"))).toBe(
+			"File has been deleted"
+		);
 		expect(getFileExplorerFallbackMessage(null)).toBeNull();
 	});
 });

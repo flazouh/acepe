@@ -4,8 +4,8 @@ import type { FileGitStatus } from "$lib/services/converted-session-types.js";
 
 import {
 	normalizeToProjectRelativePath,
-	resolveProjectFileReference,
 	resolveDiffStatsForFilePath,
+	resolveProjectFileReference,
 } from "../file-chip-diff-enhancer.js";
 
 function createSessionState(

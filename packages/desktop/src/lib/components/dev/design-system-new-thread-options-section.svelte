@@ -1,16 +1,19 @@
 <script lang="ts">
-	import { InputContainer } from "@acepe/ui/input-container";
+import { InputContainer } from "@acepe/ui/input-container";
 
-	import { Badge } from "$lib/components/ui/badge/index.js";
-	import SettingRow from "$lib/components/settings-page/setting-row.svelte";
-	import SettingsSection from "$lib/components/settings-page/settings-section.svelte";
+import { Badge } from "$lib/components/ui/badge/index.js";
+import SettingRow from "$lib/components/settings-page/setting-row.svelte";
+import SettingsSection from "$lib/components/settings-page/settings-section.svelte";
 
-	import DesignSystemNewThreadOptionsBarDemo from "./design-system-new-thread-options-bar-demo.svelte";
-	import { featuredNewThreadOptionsSpecimen, mockProjects } from "./design-system-new-thread-options-specimens.js";
+import DesignSystemNewThreadOptionsBarDemo from "./design-system-new-thread-options-bar-demo.svelte";
+import {
+	featuredNewThreadOptionsSpecimen,
+	mockProjects,
+} from "./design-system-new-thread-options-specimens.js";
 
-	let featuredProject = $state(featuredNewThreadOptionsSpecimen.project);
-	let featuredAgentId = $state(featuredNewThreadOptionsSpecimen.agentId);
-	let featuredWorktreeOn = $state(featuredNewThreadOptionsSpecimen.worktreeOn);
+let featuredProject = $state(featuredNewThreadOptionsSpecimen.project);
+let featuredAgentId = $state(featuredNewThreadOptionsSpecimen.agentId);
+let featuredWorktreeOn = $state(featuredNewThreadOptionsSpecimen.worktreeOn);
 </script>
 
 <div class="w-full">

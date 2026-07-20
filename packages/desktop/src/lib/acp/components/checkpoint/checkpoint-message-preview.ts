@@ -1,5 +1,5 @@
-import type { TranscriptEntry } from "$lib/services/acp-types.js";
 import { segmentText } from "$lib/acp/session-state/transcript-text.js";
+import type { TranscriptEntry } from "$lib/services/acp-types.js";
 import type { Checkpoint } from "../../types/checkpoint.js";
 
 const MAX_PREVIEW_LENGTH = 50;
@@ -35,10 +35,7 @@ export function deriveCheckpointUserMessagePreviews(input: {
 			(entry) => (entry.timestampMs ?? 0) <= checkpointTime
 		);
 
-		previews.set(
-			checkpoint.id,
-			lastUserEntry ? extractCheckpointTextPreview(lastUserEntry) : null
-		);
+		previews.set(checkpoint.id, lastUserEntry ? extractCheckpointTextPreview(lastUserEntry) : null);
 	}
 
 	return previews;

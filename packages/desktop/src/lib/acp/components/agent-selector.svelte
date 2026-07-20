@@ -70,11 +70,12 @@ const agentItems = $derived(
 					: true,
 			installing: setupPending || (readiness === null && installState !== undefined),
 			// Rust emits install progress on a 0–1 scale; the shared row expects 0–100.
-			installProgress: setupPending && installState
-				? Math.round(installState.progress * 100)
-				: setupPending
-					? 100
-					: null,
+			installProgress:
+				setupPending && installState
+					? Math.round(installState.progress * 100)
+					: setupPending
+						? 100
+						: null,
 			installError:
 				readiness?.status === "failed"
 					? `Agent setup failed: ${readiness.message}. Click to retry.`

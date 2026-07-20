@@ -7,6 +7,7 @@
 
 import { okAsync, type ResultAsync } from "neverthrow";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
+import { scheduleDeferredIdleWork } from "$lib/utils/deferred-work.js";
 import {
 	CommandsProvider,
 	type CommandsProviderConfig,
@@ -21,7 +22,6 @@ import type { SessionStore } from "../store/session-store.svelte.js";
 import type { PaletteItem } from "../types/palette-item.js";
 import type { PaletteMode } from "../types/palette-mode.js";
 import { createLogger } from "../utils/logger.js";
-import { scheduleDeferredIdleWork } from "$lib/utils/deferred-work.js";
 
 const logger = createLogger({ id: "advanced-command-palette", name: "AdvancedCommandPalette" });
 

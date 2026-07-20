@@ -1,14 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import { CanonicalModeId } from "../../../types/canonical-mode-id.js";
-
+import { resolveResolvableToolbarModelId } from "./resolve-resolvable-toolbar-model-id.js";
 import {
 	resolveInitialModelIdForNewSession,
 	resolvePendingToolbarSelections,
 	resolveToolbarModeId,
 	resolveToolbarModelId,
 } from "./toolbar-state.js";
-import { resolveResolvableToolbarModelId } from "./resolve-resolvable-toolbar-model-id.js";
 
 describe("toolbar-state", () => {
 	const visibleModes = [

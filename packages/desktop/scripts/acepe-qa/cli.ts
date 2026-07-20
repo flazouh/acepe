@@ -18,8 +18,8 @@ import {
 	openAgentPanelStressLab,
 	openStreamingReproLab,
 	probeAgentPanelScrollPages,
-	probeComputerUse,
 	probeComposerEnterSubmit,
+	probeComputerUse,
 	probeFirstSendTimeline,
 	probeFrameRate,
 	probeHappyPathPerformance,
@@ -27,8 +27,8 @@ import {
 	probePanelResize,
 	probePanelResizeStream,
 	probePlanningBetweenTools,
-	probeSessionOpenContent,
 	probeSendAttachStress,
+	probeSessionOpenContent,
 	probeThinkingToggle,
 	readPlanningDebug,
 	reloadWebview,
@@ -1664,7 +1664,8 @@ export async function runCli(
 					? undefined
 					: dependencyError(
 							"project_selection_failed",
-							selection.value.errorMessage ?? "The project selection was not reflected in the target panel.",
+							selection.value.errorMessage ??
+								"The project selection was not reflected in the target panel.",
 							"Inspect the target panel project trigger and retry."
 						),
 		});
@@ -1932,7 +1933,11 @@ export async function runCli(
 	}
 
 	if (options.command === "first-send-probe") {
-		if (options.text.length === 0 || options.panelId.length === 0 || options.sessionId.length === 0) {
+		if (
+			options.text.length === 0 ||
+			options.panelId.length === 0 ||
+			options.sessionId.length === 0
+		) {
 			const result = buildResult({
 				command: "first-send-probe",
 				status: "fail",
@@ -1987,7 +1992,11 @@ export async function runCli(
 	}
 
 	if (options.command === "composer-enter-probe") {
-		if (options.text.length === 0 || options.panelId.length === 0 || options.sessionId.length === 0) {
+		if (
+			options.text.length === 0 ||
+			options.panelId.length === 0 ||
+			options.sessionId.length === 0
+		) {
 			const result = buildResult({
 				command: "composer-enter-probe",
 				status: "fail",

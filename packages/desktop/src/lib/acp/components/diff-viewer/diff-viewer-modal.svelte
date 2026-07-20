@@ -1,9 +1,5 @@
 <script lang="ts">
-import {
-	GitViewer,
-	LoadingIcon,
-	HugeiconsIcon,
-} from "@acepe/ui";
+import { GitViewer, LoadingIcon, HugeiconsIcon } from "@acepe/ui";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import { fetchCommitDiff, fetchPrDiff } from "../../services/github-service.js";
 import type { CommitDiff, GitHubError, PrDiff } from "../../types/github-integration.js";

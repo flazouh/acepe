@@ -16,11 +16,13 @@ vi.mock("svelte", async () => {
 const openUrlMock = vi.fn();
 const openFilePanelMock = vi.fn();
 const openProjectFileSystemDialogMock = vi.fn();
-const sessionContextState = vi.hoisted((): {
-	current: null | { projectPath: string; turnState: "idle" };
-} => ({
-	current: null,
-}));
+const sessionContextState = vi.hoisted(
+	(): {
+		current: null | { projectPath: string; turnState: "idle" };
+	} => ({
+		current: null,
+	})
+);
 
 vi.mock("@tauri-apps/plugin-opener", () => ({
 	openUrl: openUrlMock,
@@ -160,9 +162,9 @@ describe("MarkdownText", () => {
 			text: "Open `src/app.ts`",
 		});
 
-	await waitFor(() => {
-		expect(container.querySelector(".file-path-badge")?.textContent?.trim()).toBe("app.ts");
-	});
+		await waitFor(() => {
+			expect(container.querySelector(".file-path-badge")?.textContent?.trim()).toBe("app.ts");
+		});
 
 		container
 			.querySelector(".file-path-badge")
@@ -177,9 +179,9 @@ describe("MarkdownText", () => {
 			projectPath: "/repo",
 		});
 
-	await waitFor(() => {
-		expect(container.querySelector(".file-path-badge")?.textContent?.trim()).toBe("app.css");
-	});
+		await waitFor(() => {
+			expect(container.querySelector(".file-path-badge")?.textContent?.trim()).toBe("app.css");
+		});
 
 		const chip = container.querySelector(".file-path-badge");
 		expect(chip?.className).toContain("rounded-md");
@@ -199,11 +201,11 @@ describe("MarkdownText", () => {
 			isStreaming: false,
 		});
 
-	await waitFor(() => {
-		expect(container.querySelector(".github-badge")?.textContent?.trim()).toBe(
-			"flazouh/acepe#184"
-		);
-	});
+		await waitFor(() => {
+			expect(container.querySelector(".github-badge")?.textContent?.trim()).toBe(
+				"flazouh/acepe#184"
+			);
+		});
 
 		container
 			.querySelector(".github-badge")

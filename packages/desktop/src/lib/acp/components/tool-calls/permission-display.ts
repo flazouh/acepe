@@ -226,9 +226,10 @@ export function extractCompactPermissionDisplay(
 
 	return {
 		kind,
-		label: isPathAccessPermission(permission) && toolCallKind === "other"
-			? "Access"
-			: (TOOL_KIND_LABELS[kind] ?? "Permission"),
+		label:
+			isPathAccessPermission(permission) && toolCallKind === "other"
+				? "Access"
+				: (TOOL_KIND_LABELS[kind] ?? "Permission"),
 		command,
 		filePath,
 	};

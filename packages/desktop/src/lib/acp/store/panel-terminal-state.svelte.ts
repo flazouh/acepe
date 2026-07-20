@@ -7,8 +7,8 @@
  * and delegates its terminal-domain reads/writes here.
  */
 import { SvelteMap } from "svelte/reactivity";
-import { areTerminalPanelGroupListsEqual } from "./panel-store-equality.js";
 import { createLogger } from "../utils/logger.js";
+import { areTerminalPanelGroupListsEqual } from "./panel-store-equality.js";
 import type {
 	TerminalPanelGroup,
 	TerminalTab,
@@ -216,7 +216,9 @@ export class PanelTerminalState {
 				this.deps.switchFullscreen(group.id);
 			}
 		} else if (this.deps.getFullscreenPanelId() !== null) {
-			const fullscreenGroup = this.getTerminalPanelGroup(this.deps.getFullscreenPanelId() as string);
+			const fullscreenGroup = this.getTerminalPanelGroup(
+				this.deps.getFullscreenPanelId() as string
+			);
 			if (fullscreenGroup && fullscreenGroup.projectPath === projectPath) {
 				this.deps.switchFullscreen(group.id);
 			}

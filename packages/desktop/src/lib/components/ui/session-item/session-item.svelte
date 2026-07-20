@@ -487,7 +487,9 @@ const showSessionWorkingIndicator = $derived(
 		!pendingPermission &&
 		!pendingPlanApproval &&
 		!sessionWorkProjection.hasError &&
-		(projectedIsStreaming || previewActivityKind === "thinking" || session.activity?.isStreaming === true)
+		(projectedIsStreaming ||
+			previewActivityKind === "thinking" ||
+			session.activity?.isStreaming === true)
 );
 const showSessionFinishedIndicator = $derived(
 	!showSessionWorkingIndicator &&

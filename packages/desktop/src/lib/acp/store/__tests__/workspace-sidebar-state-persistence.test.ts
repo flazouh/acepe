@@ -86,10 +86,7 @@ function createPanelStoreStub() {
 		getPersistableWorkspacePanels: mock(() => {
 			const persistableTopLevelPanelIds = new Set<string>();
 			for (const panel of store.workspacePanels) {
-				if (
-					panel.ownerPanelId === null &&
-					(panel.kind !== "agent" || panel.autoCreated !== true)
-				) {
+				if (panel.ownerPanelId === null && (panel.kind !== "agent" || panel.autoCreated !== true)) {
 					persistableTopLevelPanelIds.add(panel.id);
 				}
 			}
@@ -136,8 +133,7 @@ function createPanelStoreStub() {
 							width: panel.width,
 							pendingProjectSelection: panel.pendingProjectSelection,
 							pendingWorktreeEnabled:
-								panel.pendingWorktreeEnabled === null ||
-								panel.pendingWorktreeEnabled === undefined
+								panel.pendingWorktreeEnabled === null || panel.pendingWorktreeEnabled === undefined
 									? undefined
 									: panel.pendingWorktreeEnabled,
 							preparedWorktreeLaunch: panel.preparedWorktreeLaunch ?? null,
@@ -150,9 +146,7 @@ function createPanelStoreStub() {
 							scrollTop: options?.getPanelScrollTop?.(panel.id) ?? 0,
 							planSidebarExpanded: hotState.planSidebarExpanded,
 							messageDraft: hotState.messageDraft || undefined,
-							embeddedTerminalDrawerOpen: hotState.embeddedTerminalDrawerOpen
-								? true
-								: undefined,
+							embeddedTerminalDrawerOpen: hotState.embeddedTerminalDrawerOpen ? true : undefined,
 							selectedEmbeddedTerminalTabId:
 								store.embeddedTerminals.getSelectedTabId(panel.id) ?? undefined,
 						};
@@ -208,28 +202,28 @@ function createPanelStoreStub() {
 			store.workspacePanels = workspacePanels;
 			store.panels = workspacePanels.filter((panel): panel is Panel => panel.kind === "agent");
 			store.filePanels = workspacePanels.filter((panel) => panel.kind === "file") as never[];
-			store.terminalPanels = workspacePanels.filter((panel) => panel.kind === "terminal") as never[];
+			store.terminalPanels = workspacePanels.filter(
+				(panel) => panel.kind === "terminal"
+			) as never[];
 			store.browserPanels = workspacePanels.filter((panel) => panel.kind === "browser") as never[];
 			store.reviewPanels = workspacePanels.filter((panel) => panel.kind === "review") as never[];
 			store.gitPanels = workspacePanels.filter((panel) => panel.kind === "git") as never[];
 		}),
-		restoreTerminalPanelState: mock(
-			(groups: TerminalPanelGroupStub[], tabs: TerminalTabStub[]) => {
-				store.terminalPanelGroups = groups;
-				store.terminalTabs = tabs;
-				store.terminalPanels = groups.map((group) => ({
-					id: group.id,
-					kind: "terminal" as const,
-					projectPath: group.projectPath,
-					width: group.width,
-					ownerPanelId: null,
-					groupId: group.id,
-				})) as never[];
-				store.workspacePanels = store.workspacePanels
-					.filter((panel) => panel.kind !== "terminal")
-					.concat(store.terminalPanels);
-			}
-		),
+		restoreTerminalPanelState: mock((groups: TerminalPanelGroupStub[], tabs: TerminalTabStub[]) => {
+			store.terminalPanelGroups = groups;
+			store.terminalTabs = tabs;
+			store.terminalPanels = groups.map((group) => ({
+				id: group.id,
+				kind: "terminal" as const,
+				projectPath: group.projectPath,
+				width: group.width,
+				ownerPanelId: null,
+				groupId: group.id,
+			})) as never[];
+			store.workspacePanels = store.workspacePanels
+				.filter((panel) => panel.kind !== "terminal")
+				.concat(store.terminalPanels);
+		}),
 		hotState: new SvelteMap(),
 		setPlanSidebarExpanded: mock(() => {}),
 		setMessageDraft: mock(() => {}),

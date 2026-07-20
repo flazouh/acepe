@@ -1,6 +1,6 @@
 import type { AgentToolStatus } from "@acepe/ui/agent-panel/types";
-import type { ToolCall } from "../../../../types/tool-call.js";
 import type { TurnState } from "../../../../store/types.js";
+import type { ToolCall } from "../../../../types/tool-call.js";
 
 export function hasToolResult(toolCall: ToolCall): boolean {
 	const hasRawResult = toolCall.result !== null && toolCall.result !== undefined;

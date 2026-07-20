@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { PanelErrorInfo } from "../../logic/connection-ui.js";
 import type { PanelLifecyclePresentation } from "../../../../logic/panel-visibility.js";
+import type { PanelErrorInfo } from "../../logic/connection-ui.js";
 import { AgentPanelViewStateController } from "../agent-panel-view-state-controller.svelte.js";
 
 const READY_LIFECYCLE: PanelLifecyclePresentation = {
@@ -55,5 +55,4 @@ describe("AgentPanelViewStateController", () => {
 		expect(controller.viewState.kind).toBe("conversation");
 		expect(controller.panelViewKind).toBe("conversation");
 	});
-
 });

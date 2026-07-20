@@ -30,11 +30,7 @@ import { KeybindingManager } from "../logic/managers/keybinding-manager.js";
 describe("KeybindingManager", () => {
 	type KeybindingState = Pick<
 		MainAppViewState,
-		| "toggleSettings"
-		| "commandPaletteOpen"
-		| "handleClosePanel"
-		| "debugPanelOpen"
-		| "sidebarOpen"
+		"toggleSettings" | "commandPaletteOpen" | "handleClosePanel" | "debugPanelOpen" | "sidebarOpen"
 	>;
 	type KeybindingsServiceLike = Pick<KeybindingsService, "upsertAction">;
 	type SelectorRegistryLike = Pick<SelectorRegistry, "toggleFocused" | "cycleFocused">;
@@ -170,6 +166,5 @@ describe("KeybindingManager", () => {
 			call?.[0].handler();
 			expect(mockSelectorRegistry.cycleFocused).toHaveBeenCalledWith("mode", "panel-1");
 		});
-
 	});
 });

@@ -64,7 +64,9 @@ export function materializeLifecycle(graph: AgentPanelCanonicalSource): AgentPan
 	};
 }
 
-export function buildLifecycleActions(graph: AgentPanelCanonicalSource): AgentPanelActionDescriptor[] {
+export function buildLifecycleActions(
+	graph: AgentPanelCanonicalSource
+): AgentPanelActionDescriptor[] {
 	const actions: AgentPanelActionDescriptor[] = [];
 
 	if (graph.lifecycle.actionability.canResume) {

@@ -1,100 +1,100 @@
 {
-  "transcriptSnapshot": {
-    "revision": 0,
-    "entries": [
-      {
-        "entryId": "acepe::entry::session-start::tool::call-read-1",
-        "role": "tool",
-        "segments": [
-          {
-            "kind": "text",
-            "segmentId": "acepe::entry::session-start::tool::call-read-1:tool",
-            "text": "Read config"
-          }
-        ]
-      },
-      {
-        "entryId": "acepe::entry::assistant-boundary:1::tool::call-sql-1",
-        "role": "tool",
-        "segments": [
-          {
-            "kind": "text",
-            "segmentId": "acepe::entry::assistant-boundary:1::tool::call-sql-1:tool",
-            "text": "Mark done"
-          }
-        ]
-      }
-    ]
-  },
-  "operations": [
-    {
-      "id": "op:13:sess-hist-001:11:call-read-1",
-      "session_id": "sess-hist-001",
-      "tool_call_id": "call-read-1",
-      "name": "Read",
-      "kind": "read",
-      "provider_status": "completed",
-      "title": "Read config",
-      "arguments": {
-        "kind": "read",
-        "file_path": "/project/app.toml"
-      },
-      "progressive_arguments": null,
-      "result": null,
-      "command": null,
-      "normalized_todos": null,
-      "parent_tool_call_id": null,
-      "parent_operation_id": null,
-      "child_tool_call_ids": [],
-      "child_operation_ids": [],
-      "operation_provenance_key": "call-read-1",
-      "operation_state": "completed",
-      "awaiting_plan_approval": false,
-      "source_link": {
-        "kind": "transcript_linked",
-        "entry_id": "acepe::entry::session-start::tool::call-read-1"
-      }
-    },
-    {
-      "id": "op:13:sess-hist-001:10:call-sql-1",
-      "session_id": "sess-hist-001",
-      "tool_call_id": "call-sql-1",
-      "name": "Todo",
-      "kind": "todo",
-      "provider_status": "completed",
-      "title": "Mark done",
-      "arguments": {
-        "kind": "think",
-        "description": "Mark done",
-        "raw": {
-          "description": "Mark done",
-          "query": "UPDATE todos SET status='done' WHERE id=1;"
-        }
-      },
-      "progressive_arguments": null,
-      "result": null,
-      "command": null,
-      "normalized_todos": [
-        {
-          "content": "1",
-          "activeForm": "1",
-          "status": "completed"
-        }
-      ],
-      "parent_tool_call_id": null,
-      "parent_operation_id": null,
-      "child_tool_call_ids": [],
-      "child_operation_ids": [],
-      "operation_provenance_key": "call-sql-1",
-      "operation_state": "completed",
-      "awaiting_plan_approval": false,
-      "source_link": {
-        "kind": "transcript_linked",
-        "entry_id": "acepe::entry::assistant-boundary:1::tool::call-sql-1"
-      }
-    }
-  ],
-  "interactions": [],
-  "turnState": "Completed",
-  "messageCount": 0
+	"transcriptSnapshot": {
+		"revision": 0,
+		"entries": [
+			{
+				"entryId": "acepe::entry::session-start::tool::call-read-1",
+				"role": "tool",
+				"segments": [
+					{
+						"kind": "text",
+						"segmentId": "acepe::entry::session-start::tool::call-read-1:tool",
+						"text": "Read config"
+					}
+				]
+			},
+			{
+				"entryId": "acepe::entry::assistant-boundary:1::tool::call-sql-1",
+				"role": "tool",
+				"segments": [
+					{
+						"kind": "text",
+						"segmentId": "acepe::entry::assistant-boundary:1::tool::call-sql-1:tool",
+						"text": "Mark done"
+					}
+				]
+			}
+		]
+	},
+	"operations": [
+		{
+			"id": "op:13:sess-hist-001:11:call-read-1",
+			"session_id": "sess-hist-001",
+			"tool_call_id": "call-read-1",
+			"name": "Read",
+			"kind": "read",
+			"provider_status": "completed",
+			"title": "Read config",
+			"arguments": {
+				"kind": "read",
+				"file_path": "/project/app.toml"
+			},
+			"progressive_arguments": null,
+			"result": null,
+			"command": null,
+			"normalized_todos": null,
+			"parent_tool_call_id": null,
+			"parent_operation_id": null,
+			"child_tool_call_ids": [],
+			"child_operation_ids": [],
+			"operation_provenance_key": "call-read-1",
+			"operation_state": "completed",
+			"awaiting_plan_approval": false,
+			"source_link": {
+				"kind": "transcript_linked",
+				"entry_id": "acepe::entry::session-start::tool::call-read-1"
+			}
+		},
+		{
+			"id": "op:13:sess-hist-001:10:call-sql-1",
+			"session_id": "sess-hist-001",
+			"tool_call_id": "call-sql-1",
+			"name": "Todo",
+			"kind": "todo",
+			"provider_status": "completed",
+			"title": "Mark done",
+			"arguments": {
+				"kind": "think",
+				"description": "Mark done",
+				"raw": {
+					"description": "Mark done",
+					"query": "UPDATE todos SET status='done' WHERE id=1;"
+				}
+			},
+			"progressive_arguments": null,
+			"result": null,
+			"command": null,
+			"normalized_todos": [
+				{
+					"content": "1",
+					"activeForm": "1",
+					"status": "completed"
+				}
+			],
+			"parent_tool_call_id": null,
+			"parent_operation_id": null,
+			"child_tool_call_ids": [],
+			"child_operation_ids": [],
+			"operation_provenance_key": "call-sql-1",
+			"operation_state": "completed",
+			"awaiting_plan_approval": false,
+			"source_link": {
+				"kind": "transcript_linked",
+				"entry_id": "acepe::entry::assistant-boundary:1::tool::call-sql-1"
+			}
+		}
+	],
+	"interactions": [],
+	"turnState": "Completed",
+	"messageCount": 0
 }

@@ -171,10 +171,10 @@ const sessionTableSessions: SessionSummary[] = Array.from(
 	(_, index): SessionSummary => {
 		const ordinal = index + 1;
 		return {
-				id: `fixture-session-${ordinal}`,
-				projectPath: "/Users/alex/Documents/acepe",
-				agentId: "codex",
-				title: `Pagination fixture ${ordinal}`,
+			id: `fixture-session-${ordinal}`,
+			projectPath: "/Users/alex/Documents/acepe",
+			agentId: "codex",
+			title: `Pagination fixture ${ordinal}`,
 			status: "ready",
 			entryCount: ordinal,
 			isConnected: true,

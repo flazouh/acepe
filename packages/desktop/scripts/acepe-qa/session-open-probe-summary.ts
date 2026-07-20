@@ -34,7 +34,9 @@ function formatWorkBeforePaint(value: number | null): string {
 	return value > 0 ? "yes" : "no";
 }
 
-function latestSessionOpenBackendEvent(events: readonly SessionOpenEvent[]): SessionOpenEvent | null {
+function latestSessionOpenBackendEvent(
+	events: readonly SessionOpenEvent[]
+): SessionOpenEvent | null {
 	let event: SessionOpenEvent | null = null;
 	for (let index = events.length - 1; index >= 0; index -= 1) {
 		const candidate = events[index];
@@ -55,9 +57,7 @@ function latestSessionOpenBackendEvent(events: readonly SessionOpenEvent[]): Ses
 	return event;
 }
 
-export function latestSessionOpenTiming(
-	events: readonly SessionOpenEvent[]
-): SessionOpenTiming {
+export function latestSessionOpenTiming(events: readonly SessionOpenEvent[]): SessionOpenTiming {
 	let timing: SessionOpenTiming = null;
 	for (let index = events.length - 1; index >= 0; index -= 1) {
 		const candidate = events[index]?.openResultTiming ?? null;

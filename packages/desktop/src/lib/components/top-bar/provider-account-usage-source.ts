@@ -65,7 +65,10 @@ export function buildProviderUsageCheckingAccounts(): ReadonlyArray<UsageProvide
 }
 
 export function buildProviderUsageErrorAccounts(): ReadonlyArray<UsageProviderAccount> {
-	return buildUnavailableAccounts("Usage unavailable", "Acepe could not read provider account limits");
+	return buildUnavailableAccounts(
+		"Usage unavailable",
+		"Acepe could not read provider account limits"
+	);
 }
 
 export function mapProviderAccountUsageToAccounts(
@@ -100,10 +103,7 @@ function mapProviderAccountUsageToAccount(provider: ProviderAccountUsage): Usage
 	};
 }
 
-function mapWindowToQuotaMetric(
-	providerId: string,
-	window: ProviderUsageWindow
-): UsageQuotaMetric {
+function mapWindowToQuotaMetric(providerId: string, window: ProviderUsageWindow): UsageQuotaMetric {
 	const usedPercent = clampPercent(window.usedFraction * 100);
 	const leftPercent = Math.max(0, 100 - usedPercent);
 

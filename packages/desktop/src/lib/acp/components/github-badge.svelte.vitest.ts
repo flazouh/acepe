@@ -15,8 +15,7 @@ vi.mock("svelte", async () => {
 
 vi.mock("@acepe/ui", async () => ({
 	GitHubBadge: (await import("./__tests__/fixtures/github-badge-stub.svelte")).default,
-	HugeiconsIcon: (await import("./pr-status-card/test-hugeicons-icon-stub.svelte"))
-		.default,
+	HugeiconsIcon: (await import("./pr-status-card/test-hugeicons-icon-stub.svelte")).default,
 }));
 
 vi.mock("@tauri-apps/plugin-opener", () => ({

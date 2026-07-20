@@ -101,9 +101,11 @@ describe("ReviewDiffViewState (read-only renderer)", () => {
 		const rendered = lastRenderArgs();
 		expect(rendered).not.toBeNull();
 		// The diff must still render its change lines (green/red), never collapse.
-		expect(rendered?.fileDiff.hunks.some((hunk) =>
-			hunk.hunkContent.some((content) => content.type === "change")
-		)).toBe(true);
+		expect(
+			rendered?.fileDiff.hunks.some((hunk) =>
+				hunk.hunkContent.some((content) => content.type === "change")
+			)
+		).toBe(true);
 	}, 20_000);
 
 	it("keeps rendered metadata structured-cloneable for worker postMessage", async () => {

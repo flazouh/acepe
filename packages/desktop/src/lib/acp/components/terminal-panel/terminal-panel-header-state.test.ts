@@ -145,12 +145,8 @@ describe("terminal panel header state", () => {
 	});
 
 	it("toggles the open tab menu id", () => {
-		expect(getNextOpenTerminalTabMenuId({ openMenuTabId: null, tabId: "tab-1" })).toBe(
-			"tab-1"
-		);
+		expect(getNextOpenTerminalTabMenuId({ openMenuTabId: null, tabId: "tab-1" })).toBe("tab-1");
 		expect(getNextOpenTerminalTabMenuId({ openMenuTabId: "tab-1", tabId: "tab-1" })).toBeNull();
-		expect(getNextOpenTerminalTabMenuId({ openMenuTabId: "tab-2", tabId: "tab-1" })).toBe(
-			"tab-1"
-		);
+		expect(getNextOpenTerminalTabMenuId({ openMenuTabId: "tab-2", tabId: "tab-1" })).toBe("tab-1");
 	});
 });

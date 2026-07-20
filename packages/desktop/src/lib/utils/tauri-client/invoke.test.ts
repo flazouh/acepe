@@ -8,13 +8,13 @@ mock.module("../../analytics.js", () => ({
 	captureCommandFailure: captureCommandFailureMock,
 }));
 
+import { CMD } from "./commands.js";
 import {
 	getTauriInvokeTimings,
 	invokeAsyncWithRuntimeForTesting,
 	resetTauriInvokeTimingsForTesting,
 	TauriCommandError,
 } from "./invoke.js";
-import { CMD } from "./commands.js";
 
 const invokeMock = mock(async (_cmd: string, _args?: InvokeArgs) => undefined);
 

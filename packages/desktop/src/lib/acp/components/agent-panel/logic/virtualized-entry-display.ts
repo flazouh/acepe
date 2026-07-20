@@ -9,10 +9,10 @@ export {
 	getSceneDisplayRowKey as getVirtualizedDisplayEntryKey,
 	getSceneDisplayRowTimestampMs as getVirtualizedDisplayEntryTimestampMs,
 	isMergedAssistantDisplayEntry,
-	resolveSceneDisplayRowThinkingDurationMs as resolveDisplayEntryThinkingDurationMs,
-	shouldObserveSceneDisplayRowRevealResize as shouldObserveRevealResize,
-	THINKING_DISPLAY_ENTRY,
 	type MergedAssistantDisplayEntry,
+	resolveSceneDisplayRowThinkingDurationMs as resolveDisplayEntryThinkingDurationMs,
 	type SceneDisplayRow,
 	type SceneDisplayRow as VirtualizedDisplayEntry,
+	shouldObserveSceneDisplayRowRevealResize as shouldObserveRevealResize,
+	THINKING_DISPLAY_ENTRY,
 } from "./scene-display-rows.js";

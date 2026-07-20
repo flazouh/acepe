@@ -1,9 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import {
-	buildFilePanelCsvViewState,
-	getCsvParserFormatKind,
-} from "./file-panel-csv-view-state.js";
+import { buildFilePanelCsvViewState, getCsvParserFormatKind } from "./file-panel-csv-view-state.js";
 
 describe("file-panel-csv-view-state", () => {
 	it("uses tsv parser only for tsv format", () => {

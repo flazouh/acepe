@@ -8,7 +8,11 @@ import {
 	getNewBranchNameError,
 	getNormalizedBranchName,
 } from "./branch-picker-state.js";
-import { BRANCH_PREFIXES, DEFAULT_BRANCH_PREFIX, type BranchPrefix } from "./branch-prefix-options.js";
+import {
+	BRANCH_PREFIXES,
+	DEFAULT_BRANCH_PREFIX,
+	type BranchPrefix,
+} from "./branch-prefix-options.js";
 
 interface Props {
 	open?: boolean;

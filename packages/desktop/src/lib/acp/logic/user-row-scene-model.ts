@@ -2,11 +2,14 @@
  * Projects canonical user transcript segments into agent-panel user-row chunks.
  * Pure — no stores, no side effects.
  */
-import type { TranscriptEntry, TranscriptSegment } from "../../services/acp-types.js";
+
 import type { AgentUserContentChunk } from "@acepe/ui/agent-panel/types";
+import type { TranscriptEntry, TranscriptSegment } from "../../services/acp-types.js";
 import { buildCommandChipModelFromSegment } from "./command-chip-model.js";
 
-function localCommandPrimaryText(segment: Extract<TranscriptSegment, { kind: "localCommand" }>): string {
+function localCommandPrimaryText(
+	segment: Extract<TranscriptSegment, { kind: "localCommand" }>
+): string {
 	if (segment.stdout.length > 0) {
 		return segment.stdout;
 	}
@@ -96,11 +99,15 @@ export function buildUserRowSceneModel(entry: TranscriptEntry): {
 	};
 }
 
-function isHeaderOnlyLocalCommand(chunk: Extract<AgentUserContentChunk, { kind: "localCommand" }>): boolean {
+function isHeaderOnlyLocalCommand(
+	chunk: Extract<AgentUserContentChunk, { kind: "localCommand" }>
+): boolean {
 	return chunk.command.length > 0 && chunk.stdout.length === 0;
 }
 
-function isStdoutOnlyLocalCommand(chunk: Extract<AgentUserContentChunk, { kind: "localCommand" }>): boolean {
+function isStdoutOnlyLocalCommand(
+	chunk: Extract<AgentUserContentChunk, { kind: "localCommand" }>
+): boolean {
 	return chunk.command.length === 0 && chunk.stdout.length > 0;
 }
 
@@ -129,10 +136,8 @@ export function mergeAdjacentUserCommandChunks(
 		message: leftChunk.message,
 		args: leftChunk.args,
 		stdout: rightChunk.stdout,
-		modelDisplayName:
-			rightChunk.chip.modelDisplayName ?? leftChunk.chip.modelDisplayName ?? null,
-		modelDescription:
-			rightChunk.chip.modelDescription ?? leftChunk.chip.modelDescription ?? null,
+		modelDisplayName: rightChunk.chip.modelDisplayName ?? leftChunk.chip.modelDisplayName ?? null,
+		modelDescription: rightChunk.chip.modelDescription ?? leftChunk.chip.modelDescription ?? null,
 	};
 
 	return [

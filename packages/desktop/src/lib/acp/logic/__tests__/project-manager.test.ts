@@ -1,7 +1,7 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
 import { okAsync } from "neverthrow";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ProjectManager, type Project } from "../project-manager.svelte.js";
+import { type Project, ProjectManager } from "../project-manager.svelte.js";
 
 type ProjectManagerClient = NonNullable<ConstructorParameters<typeof ProjectManager>[0]>;
 

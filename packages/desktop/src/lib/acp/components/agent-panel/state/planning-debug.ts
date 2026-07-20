@@ -60,8 +60,7 @@ function installGlobal(): void {
 	if (host.__acepePlanningSnapshot !== undefined) {
 		return;
 	}
-	host.__acepePlanningSnapshot = (sessionId?: string | null) =>
-		snapshotAll(sessionId ?? null);
+	host.__acepePlanningSnapshot = (sessionId?: string | null) => snapshotAll(sessionId ?? null);
 }
 
 /**

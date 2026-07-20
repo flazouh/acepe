@@ -1,4 +1,5 @@
 import type {
+	ActiveStreamingTail,
 	CapabilityPreviewState,
 	InteractionSnapshot,
 	OperationSnapshot,
@@ -8,9 +9,8 @@ import type {
 	SessionGraphLifecycle,
 	SessionGraphRevision,
 	SessionStateDelta,
-	SessionStateField,
-	ActiveStreamingTail,
 	SessionStateEnvelope,
+	SessionStateField,
 	SessionStateGraph,
 	SessionTurnState,
 	TranscriptDelta,
@@ -20,13 +20,13 @@ import type {
 	ViewportBufferPush,
 } from "../../services/acp-types.js";
 import {
-	resolveSessionStateDelta,
-	type SessionStateDeltaResolution,
-} from "./session-state-query-service.js";
-import {
 	checkSessionStateEnvelopeByteBudget,
 	type SessionStateEnvelopeByteBudgetResult,
 } from "./session-state-envelope-budget.js";
+import {
+	resolveSessionStateDelta,
+	type SessionStateDeltaResolution,
+} from "./session-state-query-service.js";
 
 export type SessionStateCommand =
 	| {
@@ -191,7 +191,7 @@ function graphDeltaIsMissingRequiredScalars(
 	}
 
 	const hasOwn = (field: SessionStateField): boolean =>
-		Object.prototype.hasOwnProperty.call(delta as Record<string, unknown>, field);
+		Object.hasOwn(delta as Record<string, unknown>, field);
 
 	for (const field of changedFields) {
 		switch (field) {
@@ -400,8 +400,7 @@ export function routeSessionStateEnvelope(
 			const includesTurnState = changedFields?.includes("turnState") ?? false;
 			const includesActiveTurnFailure = changedFields?.includes("activeTurnFailure") ?? false;
 			const includesLastTerminalTurnId = changedFields?.includes("lastTerminalTurnId") ?? false;
-			const includesActiveStreamingTail =
-				changedFields?.includes("activeStreamingTail") ?? false;
+			const includesActiveStreamingTail = changedFields?.includes("activeStreamingTail") ?? false;
 			const includesGraphState =
 				includesActivity ||
 				includesTurnState ||

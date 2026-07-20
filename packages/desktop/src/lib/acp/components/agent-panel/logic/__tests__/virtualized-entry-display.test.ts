@@ -440,10 +440,7 @@ describe("buildVirtualizedDisplayEntriesFromScene", () => {
 
 			expect(nextRows[0]).toBe(currentRows[0]);
 			expect(getVirtualizedDisplayEntryKey(nextRows[1]!)).toBe("a1");
-			expect(nextRows.map((entry) => getVirtualizedDisplayEntryKey(entry))).toEqual([
-				"u1",
-				"a1",
-			]);
+			expect(nextRows.map((entry) => getVirtualizedDisplayEntryKey(entry))).toEqual(["u1", "a1"]);
 		} finally {
 			currentRows.slice = originalSlice;
 		}

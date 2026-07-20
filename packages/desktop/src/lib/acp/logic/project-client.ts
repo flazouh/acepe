@@ -1,8 +1,8 @@
+import { resolveProjectColor } from "@acepe/ui/colors";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { Result, type ResultAsync } from "neverthrow";
 import type { ProjectAcepeConfig, ProjectData } from "../../utils/tauri-client/types.js";
 import { tauriClient } from "../../utils/tauri-client.js";
-import { resolveProjectColor } from "@acepe/ui/colors";
 import type { Project } from "./project-manager.svelte.js";
 import { ProjectError } from "./project-manager.svelte.js";
 
@@ -241,7 +241,11 @@ export class ProjectClient {
 	 * @param limit - Maximum number of projects to return (default: 100)
 	 * @returns ResultAsync containing array of projects
 	 */
-	getRecentProjects(limit = 50, preferredPaths: string[] = [], offset = 0): ResultAsync<Project[], ProjectError> {
+	getRecentProjects(
+		limit = 50,
+		preferredPaths: string[] = [],
+		offset = 0
+	): ResultAsync<Project[], ProjectError> {
 		return tauriClient.projects
 			.getRecentProjects(limit, preferredPaths, offset)
 			.mapErr(

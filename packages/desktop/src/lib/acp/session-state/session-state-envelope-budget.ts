@@ -43,9 +43,7 @@ export const SESSION_STATE_ENVELOPE_BYTE_BUDGETS: readonly SessionStateEnvelopeB
 		maxBytes,
 	}));
 
-export function getSessionStateEnvelopeByteBudget(
-	kind: SessionStatePayloadKind
-): number {
+export function getSessionStateEnvelopeByteBudget(kind: SessionStatePayloadKind): number {
 	return SESSION_STATE_ENVELOPE_MAX_BYTES_BY_KIND[kind];
 }
 

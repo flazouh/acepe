@@ -1,5 +1,5 @@
-import type { ConfigOptionData } from "../../../../services/converted-session-types.js";
 import type { ModelsForDisplay } from "../../../../services/acp-types.js";
+import type { ConfigOptionData } from "../../../../services/converted-session-types.js";
 import type { Model } from "../../../application/dto/model.js";
 
 import { supportsReasoningEffortPicker } from "../../model-selector-logic.js";
@@ -35,8 +35,7 @@ function isInteractiveConfigOption(configOption: ConfigOptionData): boolean {
 
 function isCompactToolbarOption(configOption: ConfigOptionData): boolean {
 	return (
-		configOption.presentation === "compactReasoning" ||
-		configOption.presentation === "compactSpeed"
+		configOption.presentation === "compactReasoning" || configOption.presentation === "compactSpeed"
 	);
 }
 

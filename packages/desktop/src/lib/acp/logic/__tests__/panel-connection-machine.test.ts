@@ -1,11 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { createActor } from "xstate";
-
+import { PanelConnectionEvent, PanelConnectionState } from "../../types/panel-connection-state.js";
 import { panelConnectionMachine } from "../panel-connection-machine.js";
-import {
-	PanelConnectionEvent,
-	PanelConnectionState,
-} from "../../types/panel-connection-state.js";
 
 describe("panelConnectionMachine", () => {
 	it("surfaces pre-session creation errors even if connecting never started", () => {

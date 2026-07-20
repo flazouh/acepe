@@ -7,6 +7,7 @@
  * its file-domain reads/writes here.
  */
 import { SvelteMap } from "svelte/reactivity";
+import { createLogger } from "../utils/logger.js";
 import {
 	createFilePanelCacheKey,
 	normalizeOpenFilePanelOptions,
@@ -14,13 +15,9 @@ import {
 } from "./file-panel-ownership.js";
 import type { FilePanel } from "./file-panel-type.js";
 import { DEFAULT_FILE_PANEL_WIDTH, MIN_FILE_PANEL_WIDTH } from "./file-panel-type.js";
-import {
-	createPrependedItemArray,
-	createRemovedItemArray,
-} from "./panel-store-array-patches.js";
+import { createPrependedItemArray, createRemovedItemArray } from "./panel-store-array-patches.js";
 import { areFilePanelListsEqual } from "./panel-store-equality.js";
 import type { TopLevelPanelCloseState } from "./panel-terminal-state.svelte.js";
-import { createLogger } from "../utils/logger.js";
 import type { Panel, WorkspacePanel, WorkspacePanelKind } from "./types.js";
 import { DEFAULT_PANEL_WIDTH, MIN_PANEL_WIDTH } from "./types.js";
 
@@ -72,9 +69,7 @@ export class PanelFileState {
 		kind: WorkspacePanelKind,
 		nextPanels: readonly WorkspacePanel[]
 	): void {
-		const remainingPanels = this.deps
-			.getWorkspacePanels()
-			.filter((panel) => panel.kind !== kind);
+		const remainingPanels = this.deps.getWorkspacePanels().filter((panel) => panel.kind !== kind);
 		this.deps.setWorkspacePanels(Array.from(nextPanels).concat(remainingPanels));
 	}
 
@@ -304,7 +299,9 @@ export class PanelFileState {
 
 	onOwnerPanelClosed(ownerPanelId: string): void {
 		this.activeFilePanelIdByOwnerPanelId.delete(ownerPanelId);
-		this.filePanels = this.filePanels.filter((filePanel) => filePanel.ownerPanelId !== ownerPanelId);
+		this.filePanels = this.filePanels.filter(
+			(filePanel) => filePanel.ownerPanelId !== ownerPanelId
+		);
 	}
 
 	clearAttachedFilePanelState(): void {
@@ -371,17 +368,14 @@ export class PanelFileState {
 			return;
 		}
 		const closeState =
-			panelToClose.ownerPanelId === null
-				? this.deps.captureTopLevelPanelCloseState(panelId)
-				: null;
+			panelToClose.ownerPanelId === null ? this.deps.captureTopLevelPanelCloseState(panelId) : null;
 		this.removeFilePanelFromIndexes(panelToClose);
 		if (panelToClose.ownerPanelId) {
 			const ownerPanelId = panelToClose.ownerPanelId;
 			const activePanelId = this.activeFilePanelIdByOwnerPanelId.get(panelToClose.ownerPanelId);
 			if (activePanelId === panelId) {
 				const replacementId =
-					this.attachedFilePanelsByOwnerPanelId.get(panelToClose.ownerPanelId)?.[0]?.id ??
-					null;
+					this.attachedFilePanelsByOwnerPanelId.get(panelToClose.ownerPanelId)?.[0]?.id ?? null;
 				if (replacementId) {
 					this.activeFilePanelIdByOwnerPanelId.set(panelToClose.ownerPanelId, replacementId);
 				} else {

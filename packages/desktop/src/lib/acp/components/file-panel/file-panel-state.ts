@@ -1,5 +1,5 @@
-import type { FilePanelDisplayOptions } from "./format/types.js";
 import type { RawEditorMode } from "./file-panel-raw-editor-mode.js";
+import type { FilePanelDisplayOptions } from "./format/types.js";
 
 export const FILE_PANEL_EDITOR_MODES: readonly RawEditorMode[] = ["write", "read"] as const;
 

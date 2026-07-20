@@ -129,10 +129,9 @@ describe("PanelStore workspacePanels", () => {
 			panel.id === secondPanel.id ? { ...panel, sessionId: "session-2" } : panel
 		);
 
-		expect(store.getTopLevelAgentPanelsForProject("/tmp/project").map((panel) => panel.id)).toEqual([
-			secondPanel.id,
-			firstPanel.id,
-		]);
+		expect(store.getTopLevelAgentPanelsForProject("/tmp/project").map((panel) => panel.id)).toEqual(
+			[secondPanel.id, firstPanel.id]
+		);
 		expect(store.getTopLevelAgentPanels().map((panel) => panel.id)).toEqual([
 			secondPanel.id,
 			otherPanel.id,
@@ -171,7 +170,11 @@ describe("PanelStore workspacePanels", () => {
 		const keptAgent = store.spawnPanel({ projectPath: "/tmp/keep" });
 		const removedFile = store.openFilePanel("src/remove.ts", "/tmp/remove");
 		const keptFile = store.openFilePanel("src/keep.ts", "/tmp/keep");
-		const removedBrowser = store.openBrowserPanel("/tmp/remove", "https://remove.example", "Remove");
+		const removedBrowser = store.openBrowserPanel(
+			"/tmp/remove",
+			"https://remove.example",
+			"Remove"
+		);
 		const keptBrowser = store.openBrowserPanel("/tmp/keep", "https://keep.example", "Keep");
 
 		store.removeWorkspacePanelsForProject("/tmp/remove");
@@ -463,6 +466,7 @@ describe("PanelStore workspacePanels", () => {
 		});
 		const workspaceIterator = store.workspacePanels[Symbol.iterator];
 		const workspaceFilter = store.workspacePanels.filter;
+		// biome-ignore lint/correctness/useYield: This sentinel iterator intentionally throws before yielding.
 		store.workspacePanels[Symbol.iterator] = function* () {
 			throw new Error("must not iterate workspace panels for persistable panel selection");
 		};
@@ -487,6 +491,7 @@ describe("PanelStore workspacePanels", () => {
 		const secondPanel = store.openFilePanel("src/second.ts", "/tmp/project");
 		const workspaceIterator = store.workspacePanels[Symbol.iterator];
 		const workspaceFindIndex = store.workspacePanels.findIndex;
+		// biome-ignore lint/correctness/useYield: This sentinel iterator intentionally throws before yielding.
 		store.workspacePanels[Symbol.iterator] = function* () {
 			throw new Error("must not iterate workspace panels for top-level panel index lookup");
 		};
@@ -567,6 +572,7 @@ describe("PanelStore workspacePanels", () => {
 		store.spawnPanel({ projectPath: "/tmp/project" });
 		const originalIterator = store.workspacePanels[Symbol.iterator];
 
+		// biome-ignore lint/correctness/useYield: This sentinel iterator intentionally throws before yielding.
 		store.workspacePanels[Symbol.iterator] = function* () {
 			throw new Error("must not iterate every workspace panel while opening a file");
 		};
@@ -659,9 +665,11 @@ describe("PanelStore workspacePanels", () => {
 		const agentPanels = store.getTopLevelAgentPanels();
 		const agentIterator = agentPanels[Symbol.iterator];
 
+		// biome-ignore lint/correctness/useYield: This sentinel iterator intentionally throws before yielding.
 		store.workspacePanels[Symbol.iterator] = function* () {
 			throw new Error("must not iterate every workspace panel while opening a session");
 		};
+		// biome-ignore lint/correctness/useYield: This sentinel iterator intentionally throws before yielding.
 		agentPanels[Symbol.iterator] = function* () {
 			throw new Error("must not iterate every agent panel while opening a session");
 		};
@@ -708,9 +716,11 @@ describe("PanelStore workspacePanels", () => {
 		const agentPanels = store.getTopLevelAgentPanels();
 		const agentIterator = agentPanels[Symbol.iterator];
 
+		// biome-ignore lint/correctness/useYield: This sentinel iterator intentionally throws before yielding.
 		store.workspacePanels[Symbol.iterator] = function* () {
 			throw new Error("must not iterate every workspace panel while materializing a session");
 		};
+		// biome-ignore lint/correctness/useYield: This sentinel iterator intentionally throws before yielding.
 		agentPanels[Symbol.iterator] = function* () {
 			throw new Error("must not iterate every agent panel while materializing a session");
 		};
@@ -755,6 +765,7 @@ describe("PanelStore workspacePanels", () => {
 		const projectPanels = store.getFilePanelsForProject("/tmp/project");
 		const originalIterator = projectPanels[Symbol.iterator];
 
+		// biome-ignore lint/correctness/useYield: This sentinel iterator intentionally throws before yielding.
 		projectPanels[Symbol.iterator] = function* () {
 			throw new Error("must not copy existing project file panels while opening a file");
 		};
@@ -778,6 +789,7 @@ describe("PanelStore workspacePanels", () => {
 		const ownerPanels = store.getAttachedFilePanels(owner.id);
 		const originalIterator = ownerPanels[Symbol.iterator];
 
+		// biome-ignore lint/correctness/useYield: This sentinel iterator intentionally throws before yielding.
 		ownerPanels[Symbol.iterator] = function* () {
 			throw new Error("must not copy existing owner file panels while opening an attached file");
 		};
@@ -810,10 +822,7 @@ describe("PanelStore workspacePanels", () => {
 		const otherPanel = store.openBrowserPanel("/tmp/other", "https://other.example", "Other");
 		const secondPanel = store.openBrowserPanel("/tmp/project", "https://two.example", "Two");
 
-		expect(store.getBrowserPanelsForProject("/tmp/project")).toEqual([
-			secondPanel,
-			firstPanel,
-		]);
+		expect(store.getBrowserPanelsForProject("/tmp/project")).toEqual([secondPanel, firstPanel]);
 		expect(store.getBrowserPanelsForProject("/tmp/other")).toEqual([otherPanel]);
 		expect(store.getBrowserPanelsForProject("/tmp/missing")).toEqual([]);
 	});
@@ -886,10 +895,9 @@ describe("PanelStore workspacePanels", () => {
 		const secondGroup = store.openTerminalPanel("/tmp/project");
 
 		expect(store.getTerminalPanelGroup(firstGroup.id)).toEqual(firstGroup);
-		expect(store.getTerminalPanelGroupsForProject("/tmp/project").map((group) => group.id)).toEqual([
-			firstGroup.id,
-			secondGroup.id,
-		]);
+		expect(store.getTerminalPanelGroupsForProject("/tmp/project").map((group) => group.id)).toEqual(
+			[firstGroup.id, secondGroup.id]
+		);
 		expect(store.getTerminalPanelGroupsForProject("/tmp/other").map((group) => group.id)).toEqual([
 			otherGroup.id,
 		]);
@@ -900,18 +908,15 @@ describe("PanelStore workspacePanels", () => {
 		const movedGroup = store.moveTerminalTabToNewPanel(extraTab!.id);
 		expect(movedGroup).not.toBeNull();
 		expect(store.getTerminalPanelGroup(movedGroup!.id)).toEqual(movedGroup);
-		expect(store.getTerminalPanelGroupsForProject("/tmp/project").map((group) => group.id)).toEqual([
-			firstGroup.id,
-			movedGroup!.id,
-			secondGroup.id,
-		]);
+		expect(store.getTerminalPanelGroupsForProject("/tmp/project").map((group) => group.id)).toEqual(
+			[firstGroup.id, movedGroup!.id, secondGroup.id]
+		);
 
 		store.closeTerminalPanel(movedGroup!.id);
 		expect(store.getTerminalPanelGroup(movedGroup!.id)).toBeUndefined();
-		expect(store.getTerminalPanelGroupsForProject("/tmp/project").map((group) => group.id)).toEqual([
-			firstGroup.id,
-			secondGroup.id,
-		]);
+		expect(store.getTerminalPanelGroupsForProject("/tmp/project").map((group) => group.id)).toEqual(
+			[firstGroup.id, secondGroup.id]
+		);
 		expect(store.getTerminalPanelGroupsForProject("/tmp/missing")).toEqual([]);
 	});
 
@@ -1018,9 +1023,7 @@ describe("PanelStore workspacePanels", () => {
 				getSessionMetadata: vi.fn(() => undefined),
 			},
 			connection: {
-				hasPendingCreationSession: vi.fn(
-					(sessionId: string) => sessionId === "pending-session"
-				),
+				hasPendingCreationSession: vi.fn((sessionId: string) => sessionId === "pending-session"),
 			},
 			getPendingCreationSession: vi.fn((sessionId: string) =>
 				sessionId === "pending-session"
@@ -1073,9 +1076,7 @@ describe("PanelStore workspacePanels", () => {
 				getSessionMetadata: vi.fn(() => undefined),
 			},
 			connection: {
-				hasPendingCreationSession: vi.fn(
-					(sessionId: string) => sessionId === "pending-session"
-				),
+				hasPendingCreationSession: vi.fn((sessionId: string) => sessionId === "pending-session"),
 			},
 			getPendingCreationSession: vi.fn((sessionId: string) =>
 				sessionId === "pending-session"

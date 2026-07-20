@@ -1,6 +1,6 @@
 import type { AgentInputSlashCommandWorkspaceMarkdownResult } from "@acepe/ui/agent-panel";
-import type { AgentSkills } from "$lib/skills/types/index.js";
 import { skillsApi } from "$lib/skills/api/skills-api.js";
+import type { AgentSkills } from "$lib/skills/types/index.js";
 import type { AvailableCommand } from "../../../types/available-command.js";
 
 function findSkillContentForCommand(input: {

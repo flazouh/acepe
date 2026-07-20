@@ -22,8 +22,8 @@ import type {
 	TranscriptEntry,
 } from "../../services/acp-types.js";
 import type { ActiveTurnFailure } from "../types/turn-error.js";
-import { mapProjectionTurnFailure } from "./envelope-reducer/projection-turn-failure.js";
 import type { CanonicalSessionProjection } from "./canonical-session-projection.js";
+import { mapProjectionTurnFailure } from "./envelope-reducer/projection-turn-failure.js";
 
 function connectionErrorFromGraphState(
 	lifecycle: SessionGraphLifecycle,
@@ -124,7 +124,9 @@ export class SessionProjectionCore {
 		return lifecycle.failureReason ?? null;
 	}
 
-	getSessionLifecycleDetachedReason(sessionId: string): import("$lib/services/acp-types.js").DetachedReason | null {
+	getSessionLifecycleDetachedReason(
+		sessionId: string
+	): import("$lib/services/acp-types.js").DetachedReason | null {
 		const lifecycle = this.getSessionStateGraph(sessionId)?.lifecycle ?? null;
 		if (lifecycle === null || lifecycle.status !== "detached") {
 			return null;

@@ -13,7 +13,7 @@
 
 import { errAsync, okAsync, ResultAsync, type ResultAsync as ResultAsyncType } from "neverthrow";
 import { getContext, setContext } from "svelte";
-import { SvelteMap } from "svelte/reactivity";
+import type { SvelteMap } from "svelte/reactivity";
 import type { AppError } from "../errors/app-error.js";
 import { AgentError } from "../errors/app-error.js";
 import { cancelQuestionRequest, replyToQuestionRequest } from "../logic/interaction-reply.js";
@@ -245,10 +245,7 @@ export class QuestionStore {
 		);
 	}
 
-	private deleteDirectPending(
-		questionId: string,
-		question: QuestionRequest | undefined
-	): void {
+	private deleteDirectPending(questionId: string, question: QuestionRequest | undefined): void {
 		this.interactions.deletePendingQuestionRequest(questionId);
 		if (question === undefined) {
 			return;

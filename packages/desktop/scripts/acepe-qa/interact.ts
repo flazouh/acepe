@@ -1,4 +1,6 @@
 import { err, okAsync, ResultAsync } from "neverthrow";
+import { dispatchWebviewClick } from "./click-event-dispatch";
+import { moveNativePointer, type NativePointerMover } from "./native-pointer";
 import type {
 	AgentPanelRowScanResult,
 	AgentPanelScrollPageProbeResult,
@@ -21,8 +23,8 @@ import type {
 	ResetOnboardingResult,
 	ResizeProbeResult,
 	ResizeStreamProbeResult,
-	SendComposerResult,
 	SendAttachStressProbeResult,
+	SendComposerResult,
 	SessionOpenContentProbeResult,
 	SessionOpenContentProbeRunStatus,
 	StreamingReproLabResult,
@@ -51,8 +53,8 @@ import {
 	resetOnboardingResultSchema,
 	resizeProbeResultSchema,
 	resizeStreamProbeResultSchema,
-	sendComposerResultSchema,
 	sendAttachStressProbeResultSchema,
+	sendComposerResultSchema,
 	sessionOpenContentProbeRunStatusSchema,
 	streamingReproLabResultSchema,
 	thinkingToggleProbeResultSchema,
@@ -66,11 +68,6 @@ import {
 	startDriverSession,
 	type TauriMcpFailure,
 } from "./tauri-mcp";
-import { dispatchWebviewClick } from "./click-event-dispatch";
-import {
-	moveNativePointer,
-	type NativePointerMover,
-} from "./native-pointer";
 
 export type DriverOptions = {
 	readonly appIdentifier: string;
@@ -2339,9 +2336,7 @@ export function hoverWebview(
 			},
 			runner
 		).andThen((target) => {
-			const move = target.screenPoint === null
-				? okAsync(null)
-				: pointerMover(target.screenPoint);
+			const move = target.screenPoint === null ? okAsync(null) : pointerMover(target.screenPoint);
 			return move.andThen(() => {
 				const sampleScript = `
 (async () => {
@@ -3286,7 +3281,7 @@ export function probeSendAttachStress(
 			},
 			runner
 		)
-		);
+	);
 }
 
 export function probePlanningBetweenTools(
@@ -4163,12 +4158,7 @@ function firstSendSubmitScript(
   const samples = [];
   const sample = (label) => {
     samples.push((() => {
-${firstSendSharedSamplerScript(
-	"prompt",
-	"label",
-	escapedJson(panelId),
-	escapedJson(sessionId)
-)}
+${firstSendSharedSamplerScript("prompt", "label", escapedJson(panelId), escapedJson(sessionId))}
     })());
   };
   sample("before-input");

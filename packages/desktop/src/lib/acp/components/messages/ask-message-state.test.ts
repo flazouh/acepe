@@ -50,9 +50,17 @@ describe("ask-message-state", () => {
 	});
 
 	it("ignores keys that are not valid shortcuts", () => {
-		expect(getAskOptionIdFromKeyboardShortcut({ altKey: false, key: "1" }, message.options)).toBeNull();
-		expect(getAskOptionIdFromKeyboardShortcut({ altKey: true, key: "x" }, message.options)).toBeNull();
-		expect(getAskOptionIdFromKeyboardShortcut({ altKey: true, key: "0" }, message.options)).toBeNull();
-		expect(getAskOptionIdFromKeyboardShortcut({ altKey: true, key: "3" }, message.options)).toBeNull();
+		expect(
+			getAskOptionIdFromKeyboardShortcut({ altKey: false, key: "1" }, message.options)
+		).toBeNull();
+		expect(
+			getAskOptionIdFromKeyboardShortcut({ altKey: true, key: "x" }, message.options)
+		).toBeNull();
+		expect(
+			getAskOptionIdFromKeyboardShortcut({ altKey: true, key: "0" }, message.options)
+		).toBeNull();
+		expect(
+			getAskOptionIdFromKeyboardShortcut({ altKey: true, key: "3" }, message.options)
+		).toBeNull();
 	});
 });

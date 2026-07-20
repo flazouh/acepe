@@ -1,10 +1,9 @@
 import { describe, expect, it } from "bun:test";
-
+import { AuthenticationRequiredError, CreationFailureError } from "../../../../errors/app-error.js";
 import { PanelConnectionState } from "../../../../types/panel-connection-state.js";
+import { SessionCreationError } from "../../errors/agent-input-error.js";
 import type { Attachment } from "../../types/attachment.js";
 import type { InlineImageReference } from "../../types/inline-image-reference.js";
-import { AuthenticationRequiredError, CreationFailureError } from "../../../../errors/app-error.js";
-import { SessionCreationError } from "../../errors/agent-input-error.js";
 import {
 	findAuthenticationRequirement,
 	findCreationFailureReason,

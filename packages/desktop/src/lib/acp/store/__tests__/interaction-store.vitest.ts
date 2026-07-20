@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import type { InteractionSnapshot } from "../../../services/acp-types.js";
 import { InteractionStore } from "../interaction-store.svelte.js";
 
-function createPendingPermissionInteraction(overrides?: Partial<InteractionSnapshot>): InteractionSnapshot {
+function createPendingPermissionInteraction(
+	overrides?: Partial<InteractionSnapshot>
+): InteractionSnapshot {
 	const id = overrides?.id ?? "permission-1";
 	const sessionId = overrides?.session_id ?? "session-1";
 	return {
@@ -38,7 +40,9 @@ function createPendingPermissionInteraction(overrides?: Partial<InteractionSnaps
 	};
 }
 
-function createPendingQuestionInteraction(overrides?: Partial<InteractionSnapshot>): InteractionSnapshot {
+function createPendingQuestionInteraction(
+	overrides?: Partial<InteractionSnapshot>
+): InteractionSnapshot {
 	const id = overrides?.id ?? "question-1";
 	const sessionId = overrides?.session_id ?? "session-1";
 	return {

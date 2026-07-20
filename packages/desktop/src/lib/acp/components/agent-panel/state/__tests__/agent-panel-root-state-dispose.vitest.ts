@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { PanelConnectionState } from "../../../../types/panel-connection-state.js";
 import {
-	AgentPanelRootState,
 	type AgentPanelConnectionController,
+	AgentPanelRootState,
 	type AgentPanelRootStateDeps,
 	type AgentPanelRootStateStores,
 } from "../agent-panel-root-state.svelte.js";

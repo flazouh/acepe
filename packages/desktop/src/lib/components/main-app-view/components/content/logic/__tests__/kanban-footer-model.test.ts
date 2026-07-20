@@ -51,7 +51,9 @@ function makePermissionRequest(overrides: Partial<PermissionRequest> = {}): Perm
 	};
 }
 
-function makePlanApproval(overrides: Partial<PlanApprovalInteraction> = {}): PlanApprovalInteraction {
+function makePlanApproval(
+	overrides: Partial<PlanApprovalInteraction> = {}
+): PlanApprovalInteraction {
 	return {
 		id: "approval-1",
 		kind: "plan_approval",

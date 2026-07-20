@@ -27,10 +27,7 @@ import { getAgentPreferencesStore, getAgentStore } from "$lib/acp/store/index.js
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import { ensureErrorReference } from "$lib/errors/error-reference.js";
-import {
-	openIssueReportDraft,
-	resolveIssueActionLabel,
-} from "$lib/errors/issue-report.js";
+import { openIssueReportDraft, resolveIssueActionLabel } from "$lib/errors/issue-report.js";
 import { toast } from "svelte-sonner";
 
 import {

@@ -219,8 +219,7 @@ const PLANNING_BETWEEN_TOOLS_LIFECYCLE: SessionGraphLifecycle = {
 		compactStatus: "ready",
 	},
 };
-const STRESS_LAB_ENABLED =
-	import.meta.env.DEV || import.meta.env.VITE_ENABLE_STRESS_LAB === "1";
+const STRESS_LAB_ENABLED = import.meta.env.DEV || import.meta.env.VITE_ENABLE_STRESS_LAB === "1";
 
 let selectedRowCount = $state(DEFAULT_ROW_COUNT);
 let selectedPreset = $state<AgentPanelStressPreset>(DEFAULT_PRESET);
@@ -1018,9 +1017,7 @@ function sendAttachRowElement(rowId: string): HTMLElement | null {
 	if (transcriptHost === null) {
 		return null;
 	}
-	return transcriptHost.querySelector<HTMLElement>(
-		`[data-row-id="${CSS.escape(rowId)}"]`
-	);
+	return transcriptHost.querySelector<HTMLElement>(`[data-row-id="${CSS.escape(rowId)}"]`);
 }
 
 async function settleSendAttachStage(): Promise<void> {
@@ -1047,9 +1044,7 @@ function derivePlanningBetweenToolsMode(
 			turnState: "Running",
 		},
 		hasEntries: targetFixture.rowsProjection.rows.length > 0,
-		hasTrailingCompletedTool: hasTrailingCompletedTool(
-			targetFixture.rowsProjection.rows
-		),
+		hasTrailingCompletedTool: hasTrailingCompletedTool(targetFixture.rowsProjection.rows),
 	}).localPlaceholderMode;
 }
 
@@ -1088,9 +1083,7 @@ function samplePlanningBetweenToolsStage(
 			: Array.from(transcriptHost.querySelectorAll<HTMLElement>(PLANNING_ROW_SELECTOR));
 	const planningRow = planningRows[0];
 	const planningText =
-		planningRow === undefined
-			? null
-			: (planningRow.textContent || "").trim().replace(/\s+/g, " ");
+		planningRow === undefined ? null : (planningRow.textContent || "").trim().replace(/\s+/g, " ");
 	return {
 		stage,
 		sessionId: fixture.sessionId,
@@ -1103,8 +1096,7 @@ function samplePlanningBetweenToolsStage(
 			trailingRow === undefined
 				? []
 				: trailingRow.operationLinks.map((operationLink) => operationLink.state),
-		activeStreamingTail:
-			trailingRow === undefined ? null : trailingRow.activeStreamingTail,
+		activeStreamingTail: trailingRow === undefined ? null : trailingRow.activeStreamingTail,
 		localPlaceholderMode,
 		planningRowCount: planningRows.length,
 		planningText,
@@ -1148,9 +1140,7 @@ export async function runPlanningBetweenToolsScenario(): Promise<PlanningBetween
 
 	await applyPlanningBetweenToolsStage(sequence.completedToolTail);
 	const restoredCompletedToolSample = samplePlanningBetweenToolsStage("completed_tool_tail");
-	const restoredCompletedToolStage = completedToolPlanningSamplePassed(
-		restoredCompletedToolSample
-	);
+	const restoredCompletedToolStage = completedToolPlanningSamplePassed(restoredCompletedToolSample);
 	return {
 		hookAvailable: true,
 		opened: typeof window !== "undefined" && window.location.pathname === ROUTE,
@@ -1181,15 +1171,12 @@ async function sampleSendAttachStage(input: {
 	const stableRow = sendAttachRowElement(input.sequence.streamingRowId);
 	const stableRowProjection = fixture.rowsProjection.byId.get(input.sequence.streamingRowId);
 	const stableRowContent =
-		stableRow === null
-			? null
-			: (stableRow.textContent || "").trim().replace(/\s+/g, " ");
+		stableRow === null ? null : (stableRow.textContent || "").trim().replace(/\s+/g, " ");
 	return {
 		label: input.label,
 		rowCount: fixture.rowsProjection.rows.length,
 		stableRowId: input.sequence.streamingRowId,
-		stableRowVersion:
-			stableRowProjection === undefined ? null : stableRowProjection.version,
+		stableRowVersion: stableRowProjection === undefined ? null : stableRowProjection.version,
 		stableRowContent,
 		stableRowShellPreserved:
 			input.stableRowShell === null || stableRow === null
@@ -1203,8 +1190,7 @@ async function sampleSendAttachStage(input: {
 		geometryReleased: distFromBottomPx > SEND_ATTACH_BOTTOM_TOLERANCE_PX,
 		controllerReleased: sendAttachControllerReleased,
 		longMarkdownRowId: input.sequence.longMarkdownRowId,
-		longMarkdownHeightPx:
-			longRow === null ? 0 : Math.round(longRow.getBoundingClientRect().height),
+		longMarkdownHeightPx: longRow === null ? 0 : Math.round(longRow.getBoundingClientRect().height),
 		longMarkdownNative:
 			longRow !== null && longRow.querySelector("[data-native-markdown-mode]") !== null,
 		placeholderCount:
@@ -1222,9 +1208,7 @@ async function sampleSendAttachStage(input: {
 	};
 }
 
-function maximumSendAttachExtentCollapse(
-	samples: readonly SendAttachScenarioSample[]
-): number {
+function maximumSendAttachExtentCollapse(samples: readonly SendAttachScenarioSample[]): number {
 	let maxCollapsePx = 0;
 	for (let index = 1; index < samples.length; index += 1) {
 		const previous = samples[index - 1];
@@ -1232,10 +1216,7 @@ function maximumSendAttachExtentCollapse(
 		if (previous === undefined || current === undefined) {
 			continue;
 		}
-		maxCollapsePx = Math.max(
-			maxCollapsePx,
-			previous.maxScrollTopPx - current.maxScrollTopPx
-		);
+		maxCollapsePx = Math.max(maxCollapsePx, previous.maxScrollTopPx - current.maxScrollTopPx);
 	}
 	return maxCollapsePx;
 }
@@ -1279,11 +1260,9 @@ export async function runSendAttachScenario(
 	samples.push(preSendSample);
 	const preconditionPassed =
 		Math.abs(preSendSample.distFromBottomPx - options.preScrollOffsetPx) <=
-			SEND_ATTACH_BOTTOM_TOLERANCE_PX &&
-		preSendSample.controllerReleased;
+			SEND_ATTACH_BOTTOM_TOLERANCE_PX && preSendSample.controllerReleased;
 
-	sendAttachPendingUserRevealRequestKey =
-		`send-attach:${Date.now().toString()}:${renderSequence.toString()}`;
+	sendAttachPendingUserRevealRequestKey = `send-attach:${Date.now().toString()}:${renderSequence.toString()}`;
 	samples.push(
 		await sampleSendAttachStage({
 			label: "after-send",
@@ -1440,15 +1419,15 @@ function publishWindowHandle(): void {
 	if (stressWindow === null) {
 		return;
 	}
-		stressWindow.__agentPanelStressLab = {
-			route: ROUTE,
-			getDump: () => stressDump,
-			regenerate: regenerateFixture,
-			runScenario,
-			runScrollSample,
-			runSendAttachScenario,
-			runPlanningBetweenToolsScenario,
-		};
+	stressWindow.__agentPanelStressLab = {
+		route: ROUTE,
+		getDump: () => stressDump,
+		regenerate: regenerateFixture,
+		runScenario,
+		runScrollSample,
+		runSendAttachScenario,
+		runPlanningBetweenToolsScenario,
+	};
 }
 
 onMount(() => {

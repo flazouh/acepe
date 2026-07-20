@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { PanelStore } from "../../../../store/panel-store.svelte.js";
 import {
-	ATTACHED_COLUMN_WIDTH,
 	AgentPanelLayoutController,
+	ATTACHED_COLUMN_WIDTH,
 } from "../agent-panel-layout-controller.svelte.js";
 
 describe("AgentPanelLayoutController", () => {

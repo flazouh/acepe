@@ -14,7 +14,6 @@ interface Props {
 }
 
 let { mode, modes, onModeChange }: Props = $props();
-
 </script>
 
 <div class="flex items-center gap-0.5 px-2 pt-2 pb-1.5">

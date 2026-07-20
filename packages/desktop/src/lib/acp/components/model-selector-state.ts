@@ -1,6 +1,9 @@
 import type { ProviderBrand as ModelPickerProviderBrand } from "@acepe/ui";
-import type { DisplayableModel, ModelsForDisplay } from "../../services/acp-types.js";
-import type { ProviderBrand as AgentProviderBrand } from "../../services/acp-types.js";
+import type {
+	ProviderBrand as AgentProviderBrand,
+	DisplayableModel,
+	ModelsForDisplay,
+} from "../../services/acp-types.js";
 import type { Model } from "../application/dto/model.js";
 import type { ModelId } from "../types/model-id.js";
 import {

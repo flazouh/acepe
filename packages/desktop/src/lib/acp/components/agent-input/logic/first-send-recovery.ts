@@ -40,15 +40,6 @@ function cloneAttachment(attachment: Attachment): Attachment {
 	return base;
 }
 
-function cloneInlineImageReference(image: InlineImageReference): InlineImageReference {
-	return {
-		displayName: image.displayName,
-		extension: image.extension,
-		content: image.content,
-		path: image.path,
-	};
-}
-
 export function restoreComposerStateAfterFailedSend(
 	target: ComposerRestoreTarget,
 	snapshot: ComposerRestoreSnapshot

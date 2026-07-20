@@ -1,12 +1,16 @@
-import { getModeDropdownOptions, getSelectedModeOption, type AgentInputConfigOption } from "@acepe/ui/agent-panel";
-
+import {
+	type AgentInputConfigOption,
+	getModeDropdownOptions,
+	getSelectedModeOption,
+} from "@acepe/ui/agent-panel";
+import type { ConfigOptionData } from "../../../../services/converted-session-types.js";
+import type { PreconnectionAgentSkillsStore } from "../../../../skills/store/preconnection-agent-skills-store.svelte.js";
 import * as agentModelPrefs from "../../../store/agent-model-preferences-store.svelte.js";
 import type { AgentStore } from "../../../store/agent-store.svelte.js";
 import type { PanelStore } from "../../../store/panel-store.svelte.js";
 import type { SessionStore } from "../../../store/session-store.svelte.js";
-import type { PreconnectionAgentSkillsStore } from "../../../../skills/store/preconnection-agent-skills-store.svelte.js";
-import { filterVisibleModes } from "../../../utils/mode-filter.js";
 import type { createLogger } from "../../../utils/logger.js";
+import { filterVisibleModes } from "../../../utils/mode-filter.js";
 import {
 	buildAttachMenuCommandSections,
 	buildAttachMenuMcpServerGroups,
@@ -17,29 +21,28 @@ import {
 	getEffectiveFilePickerProjectPath,
 	getToolbarConfigOptions,
 	hasToolbarCapabilityData,
-	PreconnectionCapabilitiesState,
-	PreconnectionRemoteCommandsState,
+	type PreconnectionCapabilitiesState,
+	type PreconnectionRemoteCommandsState,
 	resolveCapabilityContextProviderMetadata,
 	resolveCapabilitySource,
+	resolveComposerPlaceholder,
 	resolvePendingToolbarSelections,
 	resolveSelectedModeMenuOptionId,
 	resolveSelectorsLoading,
 	resolveSlashCommandSource,
 	resolveToolbarModeId,
 	resolveToolbarModelId,
-	resolveComposerPlaceholder,
 	sessionCapabilitySourceFromCapabilities,
 	shouldShowActiveModeChip,
 	shouldShowSlashCommandDropdown,
 } from "../composer-controller.js";
-import { resolveResolvableToolbarModelId } from "../logic/resolve-resolvable-toolbar-model-id.js";
 import {
 	applyProvisionalConfigOptionOverrides,
 	listProvisionalConfigEntriesToApply,
 } from "../logic/provisional-config-options.js";
-import type { ConfigOptionData } from "../../../../services/converted-session-types.js";
-import type { AgentInputState } from "./agent-input-state.svelte.js";
+import { resolveResolvableToolbarModelId } from "../logic/resolve-resolvable-toolbar-model-id.js";
 import type { AgentInputProps } from "../types/agent-input-props.js";
+import type { AgentInputState } from "./agent-input-state.svelte.js";
 
 type ComposerLogger = ReturnType<typeof createLogger>;
 
@@ -123,7 +126,9 @@ export class ComposerViewController {
 
 	readonly sessionHasCanonicalCapabilities = $derived.by(() => {
 		const sessionId = this.#deps.getProps().sessionId;
-		return sessionId ? this.#deps.sessionStore.read.hasSessionCanonicalCapabilities(sessionId) : false;
+		return sessionId
+			? this.#deps.sessionStore.read.hasSessionCanonicalCapabilities(sessionId)
+			: false;
 	});
 
 	readonly sessionCapabilities = $derived.by(() => {
@@ -214,7 +219,9 @@ export class ComposerViewController {
 
 	readonly sessionAvailableCommands = $derived.by(() => {
 		const sessionId = this.#deps.getProps().sessionId;
-		return sessionId ? (this.#deps.sessionStore.read.getSessionAvailableCommands(sessionId) ?? []) : [];
+		return sessionId
+			? (this.#deps.sessionStore.read.getSessionAvailableCommands(sessionId) ?? [])
+			: [];
 	});
 
 	readonly cachedModes = $derived.by(() =>
@@ -326,7 +333,9 @@ export class ComposerViewController {
 		})
 	);
 
-	readonly effectiveAvailableModels = $derived.by(() => this.capabilitySource.availableModels ?? []);
+	readonly effectiveAvailableModels = $derived.by(
+		() => this.capabilitySource.availableModels ?? []
+	);
 
 	readonly effectiveModelsDisplay = $derived.by(() => this.capabilitySource.modelsDisplay);
 
@@ -588,8 +597,7 @@ export class ComposerViewController {
 				agentId: this.capabilitiesAgentId,
 				projectPath: this.filePickerProjectPath,
 				preconnectionCapabilityMode:
-					this.effectiveCapabilityProviderMetadata?.preconnectionCapabilityMode ??
-					"unsupported",
+					this.effectiveCapabilityProviderMetadata?.preconnectionCapabilityMode ?? "unsupported",
 			}),
 			resolvableModelId: this.resolvableToolbarModelId,
 		})
@@ -645,8 +653,7 @@ export class ComposerViewController {
 				hasConnectedSession,
 				projectPath: this.filePickerProjectPath,
 				preconnectionCapabilityMode:
-					this.effectiveCapabilityProviderMetadata?.preconnectionCapabilityMode ??
-					"unsupported",
+					this.effectiveCapabilityProviderMetadata?.preconnectionCapabilityMode ?? "unsupported",
 			})
 			.mapErr((error) => {
 				this.#deps.logger.error("Failed to warm preconnection capabilities", {
@@ -735,9 +742,7 @@ export class ComposerViewController {
 		const configEntriesToApply = listProvisionalConfigEntriesToApply({
 			provisionalValues: this.provisionalConfigOptions,
 			liveConfigOptions,
-		}).filter(
-			(entry) => this.submittedProvisionalConfigOptions[entry.configId] !== entry.value
-		);
+		}).filter((entry) => this.submittedProvisionalConfigOptions[entry.configId] !== entry.value);
 
 		if (
 			!resolution.modeIdToApply &&

@@ -3,10 +3,7 @@ import { Button, HugeiconsIcon } from "@acepe/ui";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { onMount } from "svelte";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
-import {
-	getUpdateButtonModel,
-	type UpdaterBannerState,
-} from "../../logic/updater-state.js";
+import { getUpdateButtonModel, type UpdaterBannerState } from "../../logic/updater-state.js";
 
 import type { MainAppViewState } from "../../logic/main-app-view-state.svelte.js";
 
@@ -27,9 +24,7 @@ let {
 }: Props = $props();
 
 const chromeIconButton = { variant: "ghost" as const, size: "icon" as const };
-const updateButtonModel = $derived(
-	updaterState ? getUpdateButtonModel(updaterState) : null
-);
+const updateButtonModel = $derived(updaterState ? getUpdateButtonModel(updaterState) : null);
 
 function handleUpdateButtonClick(): void {
 	if (updateButtonModel?.kind === "error") {

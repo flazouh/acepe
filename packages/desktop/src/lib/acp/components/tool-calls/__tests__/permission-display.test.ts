@@ -282,9 +282,7 @@ describe("permission-display", () => {
 			extractCompactPermissionDisplay(
 				permission,
 				"/repo",
-				createEditToolCall(
-					"/repo/packages/desktop/src/lib/components/ui/dialog-frame.svelte"
-				)
+				createEditToolCall("/repo/packages/desktop/src/lib/components/ui/dialog-frame.svelte")
 			)
 		).toEqual({
 			kind: "edit",

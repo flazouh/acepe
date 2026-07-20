@@ -150,7 +150,6 @@ function handleCreateIssueReport(
 ): void {
 	state.openUserReportsWithDraft(draft);
 }
-
 </script>
 
 <div

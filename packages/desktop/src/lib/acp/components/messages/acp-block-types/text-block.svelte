@@ -7,11 +7,7 @@ interface Props {
 	projectPath?: string;
 }
 
-let {
-	text,
-	isStreaming = false,
-	projectPath,
-}: Props = $props();
+let { text, isStreaming = false, projectPath }: Props = $props();
 </script>
 
 <MarkdownText

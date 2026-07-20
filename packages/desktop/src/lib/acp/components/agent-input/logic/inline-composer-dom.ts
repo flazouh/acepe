@@ -1,11 +1,11 @@
 import { buildChipShellClassName } from "@acepe/ui/chip";
+import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
 import {
 	buildInlineArtefactIconClassName,
 	buildInlineArtefactLabelClassName,
 	INLINE_ARTEFACT_CLIPBOARD_PATH,
 	INLINE_ARTEFACT_PACKAGE_PATH,
 } from "@acepe/ui/inline-artefact-badge";
-import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
 import { getFallbackIconSrc, getFileIconSrc } from "$lib/components/ui/file-icon/extension-map.js";
 
 import {
@@ -28,8 +28,10 @@ export function sanitizeInlineComposerText(
 	options?: { readonly preserveZeroWidthSpace?: boolean }
 ): string {
 	const pattern = options?.preserveZeroWidthSpace
-		? /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\uFEFF\uFFFC]/g
-		: /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\u200B\uFEFF\uFFFC]/g;
+		? // biome-ignore lint/suspicious/noControlCharactersInRegex: Composer sanitization intentionally matches these control-code ranges.
+			/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\uFEFF\uFFFC]/g
+		: // biome-ignore lint/suspicious/noControlCharactersInRegex: Composer sanitization intentionally matches these control-code ranges.
+			/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\u200B\uFEFF\uFFFC]/g;
 	return text.replace(pattern, "");
 }
 

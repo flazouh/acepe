@@ -32,8 +32,8 @@ import { materializeAgentPanelSceneFromGraph } from "../../../../session-state/a
 import type { PanelStore } from "../../../../store/panel-store.svelte.js";
 import type { SessionStore } from "../../../../store/session-store.svelte.js";
 import { DEFAULT_PANEL_HOT_STATE } from "../../../../store/types.js";
-import { AgentInputState } from "../agent-input-state.svelte.js";
 import { SessionCreationError } from "../../errors/agent-input-error.js";
+import { AgentInputState } from "../agent-input-state.svelte.js";
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -203,11 +203,7 @@ describe("clearPendingUserEntry ordering invariant — retry / in-session send",
 			},
 		} as unknown as SessionStore;
 
-		const state = new AgentInputState(
-			sessionStore,
-			panelStore as PanelStore,
-			() => "/repo"
-		);
+		const state = new AgentInputState(sessionStore, panelStore as PanelStore, () => "/repo");
 
 		// Fast path: sessionId is present → goes directly to sendMessage, no pending entry needed.
 		// This covers retry when the session already exists (the common retry case).

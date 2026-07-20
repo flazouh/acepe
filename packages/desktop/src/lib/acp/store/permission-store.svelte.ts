@@ -282,10 +282,10 @@ export class PermissionStore {
 			this.deleteDirectPending(permissionId, previous);
 		}
 		this.interactions.setPendingPermissionRequest(permissionId, permission);
-		getOrCreateSessionPermissionIndex(
-			this.directPendingBySession,
-			permission.sessionId
-		).set(permissionId, permission);
+		getOrCreateSessionPermissionIndex(this.directPendingBySession, permission.sessionId).set(
+			permissionId,
+			permission
+		);
 	}
 
 	private deleteDirectPending(
@@ -359,10 +359,7 @@ export class PermissionStore {
 	 * The ACP subprocess sends options with specific optionIds (e.g., "default", "acceptEdits", "plan").
 	 * We need to map our generic reply types to the correct optionId from the original request.
 	 */
-	private resolveOptionId(
-		permission: PermissionRequest,
-		reply: PermissionReplyChoice
-	): string {
+	private resolveOptionId(permission: PermissionRequest, reply: PermissionReplyChoice): string {
 		// Try to find matching option from the stored options
 		const options = permission.metadata.options;
 

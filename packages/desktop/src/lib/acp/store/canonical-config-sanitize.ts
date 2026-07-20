@@ -190,4 +190,3 @@ export function sanitizeCanonicalCapabilities(
 		autonomousEnabled: capabilities.autonomousEnabled,
 	};
 }
-

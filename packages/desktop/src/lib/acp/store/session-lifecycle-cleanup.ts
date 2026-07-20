@@ -4,13 +4,13 @@
  */
 import * as preferencesStore from "./agent-model-preferences-store.svelte.js";
 import type { ComposerMachineService } from "./composer-machine-service.svelte.js";
-import type { SessionEntryStore } from "./session-entry-store.svelte.js";
 import type { SessionMessagingService } from "./services/session-messaging-service.js";
 import type { SessionRepository } from "./services/session-repository.js";
+import type { SessionEntryStore } from "./session-entry-store.svelte.js";
+import type { SessionIdentityResolver } from "./session-identity-resolver.js";
 import type { SessionProjectionCore } from "./session-projection-core.svelte.js";
 import type { SessionTransientProjectionStore } from "./session-transient-projection-store.svelte.js";
 import type { TranscriptRowsController } from "./transcript-rows-controller.svelte.js";
-import type { SessionIdentityResolver } from "./session-identity-resolver.js";
 
 export type SessionLifecycleCleanupDeps = {
 	readonly repository: SessionRepository;

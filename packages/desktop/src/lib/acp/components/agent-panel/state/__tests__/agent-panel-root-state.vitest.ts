@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { PanelConnectionState } from "../../../../types/panel-connection-state.js";
+import { AgentPanelLayoutController } from "../agent-panel-layout-controller.svelte.js";
 import {
-	AgentPanelRootState,
 	type AgentPanelConnectionController,
+	AgentPanelRootState,
 	type AgentPanelRootStateDeps,
 	type AgentPanelRootStateStores,
 } from "../agent-panel-root-state.svelte.js";
-import { AgentPanelLayoutController } from "../agent-panel-layout-controller.svelte.js";
 import { AgentPanelSessionController } from "../agent-panel-session-controller.svelte.js";
 import { AgentPanelViewStateController } from "../agent-panel-view-state-controller.svelte.js";
 import { AgentPanelWorktreeController } from "../agent-panel-worktree-controller.svelte.js";

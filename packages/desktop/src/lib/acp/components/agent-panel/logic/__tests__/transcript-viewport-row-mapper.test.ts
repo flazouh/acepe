@@ -1,14 +1,14 @@
 import { describe, expect, it } from "bun:test";
-import {
-	resolveTranscriptViewportSceneEntry,
-	segmentText,
-	toolStatusFromOperationState,
-} from "../transcript-viewport-row-mapper.js";
 import type {
 	OperationSnapshot,
 	TranscriptViewportOperationDisplayFacts,
 	TranscriptViewportRow,
 } from "../../../../../services/acp-types.js";
+import {
+	resolveTranscriptViewportSceneEntry,
+	segmentText,
+	toolStatusFromOperationState,
+} from "../transcript-viewport-row-mapper.js";
 
 function toolRowWithText(input: {
 	readonly text: string;
@@ -179,27 +179,31 @@ describe("transcript-viewport-row-mapper", () => {
 		const skillEntry = resolveTranscriptViewportSceneEntry(
 			toolRowWithText({
 				text: "Skill",
-				operationLinks: [{
-					operationId: "skill-operation",
-					toolCallId: "skill-call",
-					name: "Skill",
-					state: "completed",
-					displayFacts: null,
-					operation: skillOperation,
-				}],
+				operationLinks: [
+					{
+						operationId: "skill-operation",
+						toolCallId: "skill-call",
+						name: "Skill",
+						state: "completed",
+						displayFacts: null,
+						operation: skillOperation,
+					},
+				],
 			})
 		);
 		const taskEntry = resolveTranscriptViewportSceneEntry(
 			toolRowWithText({
 				text: "Agent",
-				operationLinks: [{
-					operationId: "task-operation",
-					toolCallId: "task-call",
-					name: "Agent",
-					state: "completed",
-					displayFacts: null,
-					operation: taskOperation,
-				}],
+				operationLinks: [
+					{
+						operationId: "task-operation",
+						toolCallId: "task-call",
+						name: "Agent",
+						state: "completed",
+						displayFacts: null,
+						operation: taskOperation,
+					},
+				],
 			})
 		);
 
@@ -214,84 +218,96 @@ describe("transcript-viewport-row-mapper", () => {
 	it("projects canonical Claude TaskCreate facts as Todo content", () => {
 		const row = toolRowWithText({
 			text: "TaskCreate",
-			operationLinks: [{
-				operationId: "todo-operation",
-				toolCallId: "todo-call",
-				name: "TaskCreate",
-				state: "completed",
-				displayFacts: {
+			operationLinks: [
+				{
 					operationId: "todo-operation",
 					toolCallId: "todo-call",
 					name: "TaskCreate",
-					title: "Todo",
 					state: "completed",
-					kind: "todo",
-					skillName: null,
-					skillArgs: null,
-					taskDescription: null,
-					taskPrompt: null,
-					subagentType: null,
-					normalizedTodos: [{
-						content: "Build red feedback loop",
-						activeForm: "Building red feedback loop",
-						status: "pending",
-					}],
-					editDiffs: [],
-					interactionIds: [],
-					childToolCallIds: [],
+					displayFacts: {
+						operationId: "todo-operation",
+						toolCallId: "todo-call",
+						name: "TaskCreate",
+						title: "Todo",
+						state: "completed",
+						kind: "todo",
+						skillName: null,
+						skillArgs: null,
+						taskDescription: null,
+						taskPrompt: null,
+						subagentType: null,
+						normalizedTodos: [
+							{
+								content: "Build red feedback loop",
+								activeForm: "Building red feedback loop",
+								status: "pending",
+							},
+						],
+						editDiffs: [],
+						interactionIds: [],
+						childToolCallIds: [],
+					},
 				},
-			}],
+			],
 		});
 
 		expect(resolveTranscriptViewportSceneEntry(row)).toMatchObject({
 			type: "tool_call",
-			todos: [{
-				content: "Build red feedback loop",
-				activeForm: "Building red feedback loop",
-				status: "pending",
-			}],
+			todos: [
+				{
+					content: "Build red feedback loop",
+					activeForm: "Building red feedback loop",
+					status: "pending",
+				},
+			],
 		});
 	});
 
 	it("maps canonical edit display facts into edit diffs for changed-line rendering", () => {
 		const row = toolRowWithText({
 			text: "Edit",
-			operationLinks: [{
-				operationId: "edit-operation",
-				toolCallId: "edit-call",
-				name: "Edit",
-				state: "completed",
-				displayFacts: {
+			operationLinks: [
+				{
 					operationId: "edit-operation",
 					toolCallId: "edit-call",
 					name: "Edit",
-					title: "Edit src/app.ts",
 					state: "completed",
-					kind: "edit",
-					editDiffs: [{
-						filePath: "/repo/src/app.ts",
-						oldString: "const label = \"old\";",
-						newString: "const label = \"new\";",
-					}],
-					targetPathSummary: "/repo/src/app.ts",
-					interactionIds: [],
-					childToolCallIds: [],
+					displayFacts: {
+						operationId: "edit-operation",
+						toolCallId: "edit-call",
+						name: "Edit",
+						title: "Edit src/app.ts",
+						state: "completed",
+						kind: "edit",
+						editDiffs: [
+							{
+								filePath: "/repo/src/app.ts",
+								oldString: 'const label = "old";',
+								newString: 'const label = "new";',
+							},
+						],
+						targetPathSummary: "/repo/src/app.ts",
+						interactionIds: [],
+						childToolCallIds: [],
+					},
 				},
-			}],
+			],
 		});
 
 		expect(resolveTranscriptViewportSceneEntry(row)).toMatchObject({
 			type: "tool_call",
 			kind: "edit",
 			filePath: "/repo/src/app.ts",
-			editDiffs: [{
-				filePath: "/repo/src/app.ts",
-				fileName: "app.ts",
-				additions: 1,
-				deletions: 1,
-				oldString: "const label = \"old\";",
-				newString: "const label = \"new\";",
-			}],
+			editDiffs: [
+				{
+					filePath: "/repo/src/app.ts",
+					fileName: "app.ts",
+					additions: 1,
+					deletions: 1,
+					oldString: 'const label = "old";',
+					newString: 'const label = "new";',
+				},
+			],
 		});
 	});
 	it("concatenates transcript segment text", () => {

@@ -10,7 +10,9 @@ export function isSlashSkillCommand(input: {
 	command: AvailableCommand;
 	preconnectionCommands: ReadonlyArray<AvailableCommand>;
 }): boolean {
-	const preconnectionSkillNames = new Set(input.preconnectionCommands.map((command) => command.name));
+	const preconnectionSkillNames = new Set(
+		input.preconnectionCommands.map((command) => command.name)
+	);
 	if (preconnectionSkillNames.has(input.command.name)) {
 		return true;
 	}

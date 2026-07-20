@@ -96,7 +96,7 @@ const agentId = $derived.by(() => {
 	if (panelId) {
 		const panel = panelStore.getTopLevelAgentPanel(panelId);
 		const sessionAgentId = panel?.sessionId
-			? sessionStore.read.getSessionIdentity(panel.sessionId)?.agentId ?? null
+			? (sessionStore.read.getSessionIdentity(panel.sessionId)?.agentId ?? null)
 			: null;
 		return resolveModelSelectorAgentId({
 			capabilitiesAgentId,
@@ -145,7 +145,8 @@ const primarySelectorLabel = $derived(selectedReasoningBaseGroup?.baseModelName 
 const validModels = $derived(availableModels.filter((model) => model.id));
 const displayGroups = $derived.by(() => modelsDisplay?.groups ?? []);
 const selectedDisplayGroup = $derived(
-	displayGroups.find((group) => group.models.some((model) => model.modelId === currentModelId)) ?? null
+	displayGroups.find((group) => group.models.some((model) => model.modelId === currentModelId)) ??
+		null
 );
 const hasDisplayGroups = $derived(hasUsableModelsDisplayGroups(modelsDisplay));
 const allDisplayableModels = $derived.by(() => {
@@ -184,7 +185,9 @@ function toSelectorItem(
 		}),
 		hideProviderMark: isDefaultChoiceModelId(id),
 		isFavorite: agentId ? preferencesStore.isFavorite(agentId, id) : false,
-		isDefault: agentId ? preferencesStore.isDefaultModel(agentId, providerScopeId ?? null, id) : false,
+		isDefault: agentId
+			? preferencesStore.isDefaultModel(agentId, providerScopeId ?? null, id)
+			: false,
 	};
 }
 

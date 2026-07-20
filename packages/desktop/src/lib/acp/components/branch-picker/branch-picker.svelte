@@ -49,9 +49,7 @@ let branchLoadFailed = $state(false);
 let createBranchDialogOpen = $state(false);
 
 const setupBarLayoutClass = "w-auto flex-none";
-const isSetupBarVariant = $derived(
-	variant === "setupBarChip" || variant === "setupBarChipGrouped"
-);
+const isSetupBarVariant = $derived(variant === "setupBarChip" || variant === "setupBarChipGrouped");
 const initGitButtonClass = $derived(
 	cn(
 		"gap-1.5",

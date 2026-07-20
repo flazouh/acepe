@@ -197,7 +197,8 @@ function buildQuotaLine(
 ): UsageWidgetModel["providers"][number]["lines"][number] {
 	const percentUsed = metric.limit <= 0 ? 0 : clampPercent((metric.used / metric.limit) * 100);
 	const percentLeft = Math.max(0, 100 - percentUsed);
-	const resetLabel = metric.resetAtMs === null ? metric.sourceLabel : formatAgeUntil(metric.resetAtMs, nowMs);
+	const resetLabel =
+		metric.resetAtMs === null ? metric.sourceLabel : formatAgeUntil(metric.resetAtMs, nowMs);
 
 	return {
 		type: "progress",
@@ -228,9 +229,7 @@ function isFiveHourQuotaMetric(metric: UsageQuotaMetric): boolean {
 	);
 }
 
-function selectTriggerQuotaMetric(
-	account: UsageProviderAccount
-): UsageQuotaMetric | null {
+function selectTriggerQuotaMetric(account: UsageProviderAccount): UsageQuotaMetric | null {
 	for (const metric of account.quotaMetrics) {
 		if (isFiveHourQuotaMetric(metric)) {
 			return metric;
@@ -267,7 +266,10 @@ function buildTriggerLimit(
 	};
 }
 
-function buildProvider(account: UsageProviderAccount, nowMs: number): UsageWidgetModel["providers"][number] {
+function buildProvider(
+	account: UsageProviderAccount,
+	nowMs: number
+): UsageWidgetModel["providers"][number] {
 	const lines: UsageWidgetModel["providers"][number]["lines"] = [];
 
 	for (const metric of account.quotaMetrics) {

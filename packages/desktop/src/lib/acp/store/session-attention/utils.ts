@@ -25,9 +25,9 @@ import {
 import type { SessionOperationInteractionSnapshot } from "../operation-association.js";
 import { deriveSessionState, statusToConnectionState } from "../session-state.js";
 import {
+	type SessionWorkBucket,
 	selectSessionStatusForPresentation,
 	selectSessionWorkBucket,
-	type SessionWorkBucket,
 } from "../session-work-projection.js";
 import type { UrgencyInfo } from "../urgency.js";
 import { deriveUrgency } from "../urgency.js";

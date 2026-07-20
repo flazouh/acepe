@@ -453,7 +453,10 @@ function resolveQuestionId(question: QuestionRequest): string {
 function getLiveInteractionSnapshot(item: ThreadBoardItem) {
 	return (
 		liveInteractionBySessionId.get(item.sessionId) ??
-		sessionStore.presentation.getSessionOperationInteractionSnapshot(item.sessionId, interactionStore)
+		sessionStore.presentation.getSessionOperationInteractionSnapshot(
+			item.sessionId,
+			interactionStore
+		)
 	);
 }
 

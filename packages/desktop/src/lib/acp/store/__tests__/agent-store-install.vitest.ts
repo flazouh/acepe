@@ -27,8 +27,8 @@ vi.mock("../api.js", () => ({
 	},
 }));
 
-import { AgentStore } from "../agent-store.svelte.js";
 import { AgentError } from "../../errors/app-error.js";
+import { AgentStore } from "../agent-store.svelte.js";
 
 describe("AgentStore installAgent", () => {
 	beforeEach(() => {

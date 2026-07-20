@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
-
+import type { LiveSessionLifecyclePresentation } from "$lib/acp/store/live-session-work.js";
 import {
 	ComposerMachineService,
 	type ComposerSessionCommitState,
 } from "../composer-machine-service.svelte.js";
-import type { LiveSessionLifecyclePresentation } from "$lib/acp/store/live-session-work.js";
 import { SessionTransientProjectionStore } from "../session-transient-projection-store.svelte.js";
 
 function makeCommitState(

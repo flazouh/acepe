@@ -52,21 +52,21 @@ function hiddenProbe(): FrameRateProbeResult {
 		rowChurnSamples: [
 			{
 				frameIndex: 0,
-					scrollTopPx: 320,
-					domRowCount: 16,
-					firstRowIndex: 0,
-					lastRowIndex: 15,
-					mountedRowCount: 0,
-					unmountedRowCount: 0,
-				},
-			],
-			maxMountedRowCount: 0,
-			maxUnmountedRowCount: 0,
-			maxDomRowCount: 16,
-			agentPanelProfileSamples: [],
-			agentPanelProfilePhaseSummaries: [],
-		};
-	}
+				scrollTopPx: 320,
+				domRowCount: 16,
+				firstRowIndex: 0,
+				lastRowIndex: 15,
+				mountedRowCount: 0,
+				unmountedRowCount: 0,
+			},
+		],
+		maxMountedRowCount: 0,
+		maxUnmountedRowCount: 0,
+		maxDomRowCount: 16,
+		agentPanelProfileSamples: [],
+		agentPanelProfilePhaseSummaries: [],
+	};
+}
 
 describe("frame rate probe summary", () => {
 	it("reports foreground FPS as valid", () => {

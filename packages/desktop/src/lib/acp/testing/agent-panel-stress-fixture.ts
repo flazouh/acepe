@@ -233,7 +233,11 @@ function createAssistantEntry(
 	};
 }
 
-function createThinkingEntry(id: string, text: string, timestampMs: number): AgentPanelSceneEntryModel {
+function createThinkingEntry(
+	id: string,
+	text: string,
+	timestampMs: number
+): AgentPanelSceneEntryModel {
 	return {
 		id,
 		type: "thinking",
@@ -446,8 +450,7 @@ function createRow(input: {
 			role,
 			segments: [segment],
 		},
-		durationStartedAtMs:
-			input.kind === "assistantThought" || input.activeTail ? timestampMs : null,
+		durationStartedAtMs: input.kind === "assistantThought" || input.activeTail ? timestampMs : null,
 	};
 
 	if (input.kind === "user") {
@@ -610,8 +613,7 @@ function sendAttachTranscriptRow(input: {
 			role: input.kind === "user" ? "user" : "assistant",
 			segments: [createTextSegment(input.rowId, input.text)],
 		},
-		durationStartedAtMs:
-			input.activeStreamingTail === null ? null : BASE_TIMESTAMP_MS + 500_000,
+		durationStartedAtMs: input.activeStreamingTail === null ? null : BASE_TIMESTAMP_MS + 500_000,
 	};
 }
 
@@ -628,10 +630,7 @@ export function createAgentPanelSendAttachFixtureSequence(options: {
 		includeStreamingTail: false,
 	});
 	let longRowIndex = base.rowsProjection.rows.length - 1;
-	while (
-		longRowIndex > 0 &&
-		base.rowsProjection.rows[longRowIndex]?.kind !== "assistantText"
-	) {
+	while (longRowIndex > 0 && base.rowsProjection.rows[longRowIndex]?.kind !== "assistantText") {
 		longRowIndex -= 1;
 	}
 	const originalLongRow = base.rowsProjection.rows[longRowIndex];
@@ -666,11 +665,7 @@ export function createAgentPanelSendAttachFixtureSequence(options: {
 	const pendingUser = appendFixtureRow(
 		initial,
 		pendingUserRow,
-		createUserEntry(
-			SEND_ATTACH_PENDING_USER_ENTRY_ID,
-			pendingUserText,
-			BASE_TIMESTAMP_MS + 501_000
-		)
+		createUserEntry(SEND_ATTACH_PENDING_USER_ENTRY_ID, pendingUserText, BASE_TIMESTAMP_MS + 501_000)
 	);
 	const firstStreamText = "send-attach-stream-version-one";
 	const firstStreamRow = sendAttachTranscriptRow({
@@ -691,8 +686,7 @@ export function createAgentPanelSendAttachFixtureSequence(options: {
 			true
 		)
 	);
-	const updatedStreamText =
-		"send-attach-stream-version-two confirms stable row content updated";
+	const updatedStreamText = "send-attach-stream-version-two confirms stable row content updated";
 	const updatedStreamRow = sendAttachTranscriptRow({
 		rowId: SEND_ATTACH_STREAMING_ROW_ID,
 		sourceEntryId: SEND_ATTACH_STREAMING_ENTRY_ID,

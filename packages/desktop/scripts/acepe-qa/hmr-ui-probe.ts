@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { err, ok, ResultAsync, type Result } from "neverthrow";
+import { err, ok, type Result, ResultAsync } from "neverthrow";
 
 export type HmrUiProbeFailure = {
 	readonly code: string;
@@ -52,8 +52,7 @@ async function fetchViteHmrToken(viteDevUrl: string): Promise<Result<string, Hmr
 	}
 	const source = await response.text();
 	const tokenMatch =
-		/const wsToken = "([A-Za-z0-9_-]+)"/.exec(source) ??
-		/token=([A-Za-z0-9_-]+)/.exec(source);
+		/const wsToken = "([A-Za-z0-9_-]+)"/.exec(source) ?? /token=([A-Za-z0-9_-]+)/.exec(source);
 	if (tokenMatch === null || tokenMatch[1] === undefined) {
 		return err(
 			dependencyFailure(
@@ -130,7 +129,9 @@ function watchHmrUpdatesAfterEdit(input: {
 			});
 
 			socket.addEventListener("error", () => {
-				rejectPromise(new Error(`Unable to connect to Vite HMR websocket at ${input.webSocketUrl}.`));
+				rejectPromise(
+					new Error(`Unable to connect to Vite HMR websocket at ${input.webSocketUrl}.`)
+				);
 			});
 		}),
 		(cause) =>
@@ -141,7 +142,10 @@ function watchHmrUpdatesAfterEdit(input: {
 	);
 }
 
-function applyProbeAttribute(source: string): { readonly nextSource: string; readonly applied: boolean } {
+function applyProbeAttribute(source: string): {
+	readonly nextSource: string;
+	readonly applied: boolean;
+} {
 	if (source.includes(`${PROBE_ATTRIBUTE}="${PROBE_ATTRIBUTE_VALUE}"`)) {
 		const stripped = removeProbeAttribute(source);
 		return { nextSource: stripped, applied: true };
@@ -235,8 +239,7 @@ export function probeUiPackageHmr(
 				hmrWebSocketUrl,
 				updatePaths,
 				svelteUpdatePaths: uniqueSvelteUpdatePaths,
-				duplicateModuleIdentity:
-					duplicateModuleIdentity || uniqueSvelteUpdatePaths.length !== 1,
+				duplicateModuleIdentity: duplicateModuleIdentity || uniqueSvelteUpdatePaths.length !== 1,
 				probeAttributeApplied: probeEdit.applied,
 			};
 		})(),

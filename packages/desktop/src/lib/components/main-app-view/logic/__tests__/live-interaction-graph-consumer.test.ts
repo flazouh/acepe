@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-
+import { InteractionStore } from "$lib/acp/store/interaction-store.svelte.js";
 import type {
 	InteractionSnapshot,
 	SessionGraphActionability,
@@ -8,7 +8,6 @@ import type {
 	SessionGraphLifecycle,
 	SessionStateGraph,
 } from "$lib/services/acp-types.js";
-import { InteractionStore } from "$lib/acp/store/interaction-store.svelte.js";
 import {
 	createLiveInteractionGraphConsumer,
 	createSessionOpenInteractionGraphConsumer,

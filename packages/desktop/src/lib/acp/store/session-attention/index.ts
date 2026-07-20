@@ -8,11 +8,11 @@ export { selectAttentionKind } from "./attention-kind.js";
 export { attentionStatusColor } from "./attention-status-color.js";
 export type { QueueItem, SessionAttentionItem } from "./types.js";
 export {
+	type BuildQueueSessionSnapshotInput,
 	buildQueueItem,
 	buildQueueSessionSnapshot,
 	calculateSessionUrgency,
 	deriveQueueSessionState,
-	type BuildQueueSessionSnapshotInput,
 	type ProjectBadgeLabelLookup,
 	type ProjectColorLookup,
 	type ProjectIconSrcLookup,

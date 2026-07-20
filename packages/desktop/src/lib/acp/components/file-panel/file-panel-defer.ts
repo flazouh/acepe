@@ -24,9 +24,7 @@ function getRequestIdleCallback():
 		: undefined;
 }
 
-function getCancelIdleCallback():
-	| ((handle: IdleCallbackHandle) => void)
-	| undefined {
+function getCancelIdleCallback(): ((handle: IdleCallbackHandle) => void) | undefined {
 	return typeof globalThis.cancelIdleCallback === "function"
 		? globalThis.cancelIdleCallback.bind(globalThis)
 		: undefined;

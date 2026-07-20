@@ -18,12 +18,14 @@ export async function copyThreadContentToClipboard(args: {
 	getSessionJsonExportContent: (id: string) => Result<string, SessionExportContentError>;
 }): Promise<void> {
 	const { sessionId, getSessionJsonExportContent } = args;
-	await getSessionJsonExportContent(sessionId).asyncAndThen((content) => {
-		return copyTextToClipboard(content);
-	}).match(
-		() => toast.success("Thread content copied to clipboard"),
-		(error) => toast.error(error.message)
-	);
+	await getSessionJsonExportContent(sessionId)
+		.asyncAndThen((content) => {
+			return copyTextToClipboard(content);
+		})
+		.match(
+			() => toast.success("Thread content copied to clipboard"),
+			(error) => toast.error(error.message)
+		);
 }
 
 export async function openSessionInFinder(args: {
@@ -147,10 +149,12 @@ export async function exportSessionJsonToClipboard(args: {
 	getSessionJsonExportContent: (id: string) => Result<string, SessionExportContentError>;
 }): Promise<void> {
 	const { sessionId, getSessionJsonExportContent } = args;
-	await getSessionJsonExportContent(sessionId).asyncAndThen((content) => {
-		return copyTextToClipboard(content);
-	}).match(
-		() => toast.success("Copied to clipboard"),
-		(error) => toast.error(`Failed to export: ${error.message}`)
-	);
+	await getSessionJsonExportContent(sessionId)
+		.asyncAndThen((content) => {
+			return copyTextToClipboard(content);
+		})
+		.match(
+			() => toast.success("Copied to clipboard"),
+			(error) => toast.error(`Failed to export: ${error.message}`)
+		);
 }

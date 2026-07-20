@@ -1,7 +1,7 @@
+import type { ComputerPermissionKind } from "../../services/acp-types.js";
 import type { PermissionRequest } from "./permission.js";
 import type { AnsweredQuestion, QuestionRequest } from "./question.js";
 import type { InteractionReplyHandler } from "./reply-handler.js";
-import type { ComputerPermissionKind } from "../../services/acp-types.js";
 
 export type InteractionKind = "permission" | "question" | "plan_approval" | "computer_permission";
 

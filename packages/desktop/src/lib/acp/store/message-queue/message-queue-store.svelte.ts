@@ -13,7 +13,7 @@ import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import type { Attachment } from "../../components/agent-input/types/attachment.js";
 import type { AppError } from "../../errors/app-error.js";
 import { createLogger } from "../../utils/logger.js";
-import { queuedMessageId, type QueuedMessage, type QueuedMessageId } from "./types.js";
+import { type QueuedMessage, type QueuedMessageId, queuedMessageId } from "./types.js";
 
 const logger = createLogger({ id: "message-queue-store", name: "MessageQueueStore" });
 
@@ -138,11 +138,7 @@ export function createMessageQueueStore(sender: MessageSender): MessageQueueStor
 		return true;
 	}
 
-	function updateMessage(
-		sessionId: string,
-		messageId: QueuedMessageId,
-		content: string
-	): boolean {
+	function updateMessage(sessionId: string, messageId: QueuedMessageId, content: string): boolean {
 		const queue = queues.get(sessionId);
 		if (!queue) return false;
 

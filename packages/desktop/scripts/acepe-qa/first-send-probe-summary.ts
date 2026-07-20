@@ -130,9 +130,10 @@ export function summarizeFirstSendProbe(
 		: probe.scrollProvenance.restored
 			? "installed/restored"
 			: "installed/not-restored";
-	const preScrollStatus = probe.preScroll.requestedOffsetPx === null
-		? "pre-scroll: not requested"
-		: `pre-scroll: ${probe.preScroll.passed ? "passed" : "failed"} requested=${Math.round(probe.preScroll.requestedOffsetPx).toString()}px dfb=${probe.preScroll.distFromBottomPx === null ? "none" : Math.round(probe.preScroll.distFromBottomPx).toString()}px tolerance=${Math.round(probe.preScroll.tolerancePx).toString()}px`;
+	const preScrollStatus =
+		probe.preScroll.requestedOffsetPx === null
+			? "pre-scroll: not requested"
+			: `pre-scroll: ${probe.preScroll.passed ? "passed" : "failed"} requested=${Math.round(probe.preScroll.requestedOffsetPx).toString()}px dfb=${probe.preScroll.distFromBottomPx === null ? "none" : Math.round(probe.preScroll.distFromBottomPx).toString()}px tolerance=${Math.round(probe.preScroll.tolerancePx).toString()}px`;
 	const lines = [
 		`composer: ${probe.composerFound ? "found" : "missing"}`,
 		`composer index: ${probe.selectedComposerIndex === null ? "none" : probe.selectedComposerIndex.toString()}`,
@@ -159,12 +160,14 @@ export function summarizeFirstSendProbe(
 		!probe.preScroll.passed ||
 		detachedSamples > 0 ||
 		hiddenPlanningSamples > 0 ||
-		(placeholderMaxHeightPx !== null &&
-			placeholderMaxHeightPx > PLACEHOLDER_HEIGHT_FAIL_PX)
+		(placeholderMaxHeightPx !== null && placeholderMaxHeightPx > PLACEHOLDER_HEIGHT_FAIL_PX)
 	) {
 		return { status: "fail", lines };
 	}
-	if (hiddenDurationMs > SENT_ROW_HIDDEN_WARN_MS || (maxDfbPx !== null && maxDfbPx > MAX_DFB_WARN_PX)) {
+	if (
+		hiddenDurationMs > SENT_ROW_HIDDEN_WARN_MS ||
+		(maxDfbPx !== null && maxDfbPx > MAX_DFB_WARN_PX)
+	) {
 		return { status: "warn", lines };
 	}
 	return { status: "ok", lines };
