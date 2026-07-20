@@ -1386,7 +1386,7 @@ impl SessionMetadataRepository {
         const MAX_TOTAL: usize = 500;
 
         let mut models = Vec::new();
-        let bounded_project_count = project_paths.len().min(MAX_PROJECTS).max(1);
+        let bounded_project_count = project_paths.len().clamp(1, MAX_PROJECTS);
         let fair_project_limit = (MAX_TOTAL / bounded_project_count).max(1);
         let fair_remainder = MAX_TOTAL % bounded_project_count;
         for (project_index, project_path) in project_paths.iter().take(MAX_PROJECTS).enumerate() {

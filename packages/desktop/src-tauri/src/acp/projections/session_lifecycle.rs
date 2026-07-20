@@ -164,7 +164,7 @@ impl ProjectionRegistry {
             .snapshots
             .get(session_id)
             .map(|entry| TerminalTurnGuard::from_snapshot(&entry))
-            .unwrap_or_else(|| TerminalTurnGuard::default());
+            .unwrap_or_default();
         guard.route(update)
     }
 

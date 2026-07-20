@@ -1620,7 +1620,7 @@ fn browser_tool_row_with_state(
                 timestamp_ms: None,
             }],
         },
-        &[operation.clone()],
+        std::slice::from_ref(&operation),
         &[],
         None,
         None,

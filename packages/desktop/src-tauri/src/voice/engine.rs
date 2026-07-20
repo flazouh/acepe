@@ -258,18 +258,18 @@ mod whisper_engine {
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
-    struct ResolvedLanguage<'a> {
-        language: Option<&'a str>,
-        detect_language: bool,
+    pub(super) struct ResolvedLanguage<'a> {
+        pub(super) language: Option<&'a str>,
+        pub(super) detect_language: bool,
     }
 
-    fn is_english_only_model_path(path: Option<&Path>) -> bool {
+    pub(super) fn is_english_only_model_path(path: Option<&Path>) -> bool {
         path.and_then(|model_path| model_path.file_name())
             .and_then(|file_name| file_name.to_str())
             .is_some_and(|file_name| file_name.contains(".en."))
     }
 
-    fn should_retry_empty_multilingual_transcription(
+    pub(super) fn should_retry_empty_multilingual_transcription(
         model_path: Option<&Path>,
         requested_language: Option<&str>,
         detected_language: Option<&str>,
@@ -358,7 +358,7 @@ mod whisper_engine {
         })
     }
 
-    fn resolve_whisper_language<'a>(
+    pub(super) fn resolve_whisper_language<'a>(
         model_path: Option<&Path>,
         requested_language: Option<&'a str>,
     ) -> ResolvedLanguage<'a> {

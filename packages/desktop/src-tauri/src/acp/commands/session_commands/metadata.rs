@@ -146,57 +146,6 @@ pub(super) fn creation_failure_classified(
     SerializableAcpError::CreationFailed(failure)
 }
 
-#[cfg(test)]
-mod creation_failure_classification_tests {
-    use super::creation_failure_classified;
-    use crate::acp::error::{CreationFailureKind, SerializableAcpError};
-    use crate::acp::lifecycle::FailureReason;
-
-    fn classified_reason(source: &SerializableAcpError) -> FailureReason {
-        match creation_failure_classified(
-            CreationFailureKind::ProviderFailedBeforeId,
-            source,
-            None,
-            Some("attempt-1".to_string()),
-            true,
-        ) {
-            SerializableAcpError::CreationFailed(failure) => failure.failure_reason,
-            other => panic!("expected CreationFailed, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn auth_required_creation_failure_falls_back_to_activation_failed() {
-        // Auth errors bypass cross-cutting classification and route to
-        // SessionDetached { AwaitingAuthentication } at the activation layer.
-        // CreationFailed therefore keeps the kind default.
-        let source = SerializableAcpError::AuthenticationRequired {
-            agent: "Cursor".to_string(),
-            instructions: "Run `agent login`.".to_string(),
-        };
-        assert_eq!(classified_reason(&source), FailureReason::ActivationFailed);
-    }
-
-    #[test]
-    fn session_gone_creation_failure_carries_session_gone_upstream_reason() {
-        let source = SerializableAcpError::SessionNotFound {
-            session_id: "abc".to_string(),
-        };
-        assert_eq!(
-            classified_reason(&source),
-            FailureReason::SessionGoneUpstream
-        );
-    }
-
-    #[test]
-    fn non_cross_cutting_creation_failure_falls_back_to_kind_default() {
-        // A generic provider fault has no cross-cutting meaning, so it keeps
-        // the creation-kind default (ProviderFailedBeforeId -> ActivationFailed).
-        let source = SerializableAcpError::ClientNotStarted;
-        assert_eq!(classified_reason(&source), FailureReason::ActivationFailed);
-    }
-}
-
 pub(super) async fn mark_creation_attempt_failed(db: &DbConn, attempt_id: &str, reason: &str) {
     if let Err(error) =
         SessionMetadataRepository::fail_creation_attempt(db, attempt_id, reason).await
@@ -291,4 +240,55 @@ pub(super) async fn resolve_fork_session_target(
         explicit_agent_id.map(CanonicalAgentId::parse),
     )
     .map_err(SerializableAcpError::from)
+}
+
+#[cfg(test)]
+mod creation_failure_classification_tests {
+    use super::creation_failure_classified;
+    use crate::acp::error::{CreationFailureKind, SerializableAcpError};
+    use crate::acp::lifecycle::FailureReason;
+
+    fn classified_reason(source: &SerializableAcpError) -> FailureReason {
+        match creation_failure_classified(
+            CreationFailureKind::ProviderFailedBeforeId,
+            source,
+            None,
+            Some("attempt-1".to_string()),
+            true,
+        ) {
+            SerializableAcpError::CreationFailed(failure) => failure.failure_reason,
+            other => panic!("expected CreationFailed, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn auth_required_creation_failure_falls_back_to_activation_failed() {
+        // Auth errors bypass cross-cutting classification and route to
+        // SessionDetached { AwaitingAuthentication } at the activation layer.
+        // CreationFailed therefore keeps the kind default.
+        let source = SerializableAcpError::AuthenticationRequired {
+            agent: "Cursor".to_string(),
+            instructions: "Run `agent login`.".to_string(),
+        };
+        assert_eq!(classified_reason(&source), FailureReason::ActivationFailed);
+    }
+
+    #[test]
+    fn session_gone_creation_failure_carries_session_gone_upstream_reason() {
+        let source = SerializableAcpError::SessionNotFound {
+            session_id: "abc".to_string(),
+        };
+        assert_eq!(
+            classified_reason(&source),
+            FailureReason::SessionGoneUpstream
+        );
+    }
+
+    #[test]
+    fn non_cross_cutting_creation_failure_falls_back_to_kind_default() {
+        // A generic provider fault has no cross-cutting meaning, so it keeps
+        // the creation-kind default (ProviderFailedBeforeId -> ActivationFailed).
+        let source = SerializableAcpError::ClientNotStarted;
+        assert_eq!(classified_reason(&source), FailureReason::ActivationFailed);
+    }
 }

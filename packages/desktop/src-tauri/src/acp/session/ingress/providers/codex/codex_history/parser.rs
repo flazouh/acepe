@@ -477,7 +477,7 @@ fn project_path_matches(path: &Path, session_id: &str, project_path: &str) -> bo
         return false;
     }
 
-    let Ok(record) = serde_json::from_str::<Value>(&first_line) else {
+    let Ok(record) = serde_json::from_str::<Value>(first_line) else {
         return false;
     };
 

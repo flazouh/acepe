@@ -122,15 +122,14 @@ impl ModelsDisplayTransformer for DefaultTransformer {
         }
 
         // Group by provider
-        let mut by_provider: std::collections::BTreeMap<
+        type ProviderModels = (
             String,
-            (
-                String,
-                Option<String>,
-                Option<UpstreamProviderBrand>,
-                Vec<DisplayableModel>,
-            ),
-        > = std::collections::BTreeMap::new();
+            Option<String>,
+            Option<UpstreamProviderBrand>,
+            Vec<DisplayableModel>,
+        );
+        let mut by_provider: std::collections::BTreeMap<String, ProviderModels> =
+            std::collections::BTreeMap::new();
         for m in valid {
             let provider = provider_from_model(m);
             let dm = to_displayable_provider(m, Some(&provider));

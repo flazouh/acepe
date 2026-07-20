@@ -4,7 +4,7 @@ use crate::acp::session::ingress::canonical_events::materialize_canonical_transc
 use crate::acp::transcript_projection::CanonicalTranscriptEventKind;
 use crate::acp::types::CanonicalAgentId;
 use crate::cc_sdk::AssistantMessageError;
-use crate::session_jsonl::types::{ContentBlock, HistoryEntry, SessionMessage, StoredEntry};
+use crate::session_jsonl::types::{ContentBlock, HistoryEntry, SessionMessage};
 use anyhow::Result;
 use std::fs;
 use std::path::{Path, PathBuf};

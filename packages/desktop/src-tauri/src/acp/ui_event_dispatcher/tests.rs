@@ -1480,9 +1480,7 @@ async fn drain_emits_canonical_append_segments_for_same_message_id_chunks() {
                             ..
                         } => {
                             assert_eq!(entry_id, "acepe::entry::session-start::assistant::.");
-                            match segment {
-                                _ => rendered.push_str(segment.primary_text()),
-                            }
+                            rendered.push_str(segment.primary_text())
                         }
                         other => panic!("unexpected transcript operation: {:?}", other),
                     }

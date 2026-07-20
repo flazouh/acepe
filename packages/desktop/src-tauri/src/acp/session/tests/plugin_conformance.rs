@@ -2,8 +2,6 @@
 
 use std::path::PathBuf;
 
-use crate::acp::parsers::AgentType;
-use crate::acp::session::ingress::canonical_events::canonical_transcript_events_to_provider_events;
 use crate::acp::session::ingress::event::ProviderEventKind;
 use crate::acp::session::ingress::plugin::registered_agents;
 use crate::acp::session::ingress::source::{HistoryInput, HistorySource, LiveSource};

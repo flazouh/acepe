@@ -7,7 +7,6 @@ use std::path::PathBuf;
 use crate::acp::session::ingress::event::ProviderEvent;
 use crate::acp::session::ingress::source::{HistoryError, HistoryInput, HistorySource};
 use crate::acp::session_descriptor::SessionReplayContext;
-use crate::acp::types::CanonicalAgentId;
 pub use crate::opencode_history::convert::opencode_messages_to_provider_events;
 
 use disk::load_opencode_messages_from_disk;
@@ -92,6 +91,7 @@ mod tests {
     use crate::acp::parsers::AgentType;
     use crate::acp::session::ingress::event::ProviderEventKind;
     use crate::acp::session_descriptor::{SessionDescriptorCompatibility, SessionReplayContext};
+    use crate::acp::types::CanonicalAgentId;
     use crate::opencode_history::types::{OpenCodeMessage, OpenCodeMessagePart};
 
     #[test]

@@ -613,7 +613,7 @@ mod tests {
         let graph = fold_full(&events, &ctx);
 
         assert!(
-            graph.operations.len() >= 1,
+            !graph.operations.is_empty(),
             "expected at least one operation, got {}",
             graph.operations.len()
         );

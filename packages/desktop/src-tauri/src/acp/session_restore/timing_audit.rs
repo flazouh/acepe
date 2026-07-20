@@ -81,7 +81,7 @@ pub async fn audit_session_load_timing_cli(
             let snapshot = super::fold_audit::claude_materialized_from_jsonl_path(
                 &session_id,
                 &project_path,
-                std::path::PathBuf::from(session_path),
+                session_path,
             )
             .map_err(|error| format!("Failed to fold Claude session history: {error}"))?;
             add_stage(&mut stages, "read_history_and_fold", t1);
@@ -216,7 +216,7 @@ pub async fn audit_session_load_timing_with_app(
             let snapshot = super::fold_audit::claude_materialized_from_jsonl_path(
                 &session_id,
                 &project_path,
-                std::path::PathBuf::from(session_path),
+                session_path,
             )
             .map_err(|error| format!("Failed to fold Claude session history: {error}"))?;
             add_stage(&mut stages, "read_history_and_fold", t1);

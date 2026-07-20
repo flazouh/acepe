@@ -17,24 +17,24 @@ pub fn session_update_to_provider_event(
     update: &SessionUpdate,
     decision: RouteDecision,
 ) -> Option<ProviderEvent> {
-    if decision.ignore_late {
-        if matches!(
+    if decision.ignore_late
+        && matches!(
             update,
             SessionUpdate::TurnError { .. } | SessionUpdate::TurnComplete { .. }
-        ) {
-            return None;
-        }
+        )
+    {
+        return None;
     }
-    if decision.suppress {
-        if matches!(
+    if decision.suppress
+        && matches!(
             update,
             SessionUpdate::AgentMessageChunk { .. }
                 | SessionUpdate::AgentThoughtChunk { .. }
                 | SessionUpdate::ToolCall { .. }
                 | SessionUpdate::ToolCallUpdate { .. }
-        ) {
-            return None;
-        }
+        )
+    {
+        return None;
     }
 
     let provider_seq = u64::try_from(event_seq.max(0)).unwrap_or(0);
@@ -437,7 +437,7 @@ mod tests {
     #[test]
     fn live_ingress_preserves_subagent_parent_scope_metadata() {
         const PARENT_TOOL_CALL_ID: &str = "toolu_task_parent";
-        let updates = vec![
+        let updates = [
             SessionUpdate::AgentThoughtChunk {
                 session_id: Some("sess-1".to_string()),
                 chunk: ContentChunk {

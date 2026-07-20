@@ -44,18 +44,11 @@ pub fn parse_git_diff(diff_text: &str) -> Vec<FileDiff> {
                 if let Some(file) = current_file.as_mut() {
                     file.status = "renamed".to_string();
                 }
-            } else if line.starts_with("@@") {
-                patch_content.push_str(line);
-                patch_content.push('\n');
-            } else if !line.starts_with("index ")
-                && !line.starts_with("---")
-                && !line.starts_with("+++")
-                && !line.is_empty()
-                && !patch_content.is_empty()
+            } else if line.starts_with("@@")
+                || line.starts_with("---")
+                || line.starts_with("+++")
+                || (!line.starts_with("index ") && !line.is_empty() && !patch_content.is_empty())
             {
-                patch_content.push_str(line);
-                patch_content.push('\n');
-            } else if line.starts_with("---") || line.starts_with("+++") {
                 patch_content.push_str(line);
                 patch_content.push('\n');
             }

@@ -25,7 +25,7 @@ impl HistorySource for CodexHistorySource {
             &project_path,
             source_path.as_deref(),
         ))
-        .map_err(|error| HistoryError::NotFound(error))
+        .map_err(HistoryError::NotFound)
     }
 }
 

@@ -72,7 +72,7 @@ mod tests {
             .build(mock_context(noop_assets()))
             .expect("mock app");
 
-        restore_session_open_authority(&app.handle(), &found_result("session-1", 42));
+        restore_session_open_authority(app.handle(), &found_result("session-1", 42));
 
         let snapshot = runtime_registry.snapshot_for_session("session-1");
         assert_eq!(snapshot.graph_revision, 42);
@@ -99,7 +99,7 @@ mod tests {
             .build(mock_context(noop_assets()))
             .expect("mock app");
 
-        restore_session_open_authority(&app.handle(), &found_result("session-1", 42));
+        restore_session_open_authority(app.handle(), &found_result("session-1", 42));
 
         let snapshot = runtime_registry.snapshot_for_session("session-1");
         assert_eq!(snapshot.graph_revision, 99);

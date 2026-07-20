@@ -15,7 +15,6 @@ use crate::acp::session::fold_export::materialized_thread_snapshot_from_full_ses
 use crate::acp::session_update::{ToolArguments, ToolCallStatus, ToolKind};
 use crate::acp::transcript_projection::display_id::tool_call_id_from_authority_entry_id;
 use crate::acp::transcript_projection::snapshot::TranscriptSnapshot;
-use crate::acp::transcript_projection::TranscriptEntryRole;
 use crate::acp::types::CanonicalAgentId;
 use crate::session_jsonl::types::{
     ContentBlock, FullSession, OrderedMessage, SessionStats, StoredEntry,

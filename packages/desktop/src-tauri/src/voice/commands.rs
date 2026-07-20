@@ -25,10 +25,10 @@ async fn resolve_verified_model_path(
 ) -> Result<PathBuf, String> {
     tracing::debug!(model_id, "resolving verified model path");
     ModelManager::validate_model_id(model_id).map_err(|error| error.to_string())?;
-    Ok(state
+    state
         .model_manager()
         .model_path(model_id)
-        .ok_or_else(|| format!("Unknown model: {}", model_id))?)
+        .ok_or_else(|| format!("Unknown model: {}", model_id))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]

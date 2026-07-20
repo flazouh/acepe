@@ -6,7 +6,6 @@ use crate::acp::parsers::AgentType;
 use crate::acp::projections::RouteDecision;
 use crate::acp::session::ingress::event::{ProviderEvent, ProviderEventKind};
 use crate::acp::session::ingress::plugin::live_source_for;
-use crate::acp::session::ingress::source::LiveSource;
 use crate::acp::session_update::{
     parse_session_update_with_agent, ContentChunk, SessionUpdate, ToolArguments, ToolCallData,
     ToolCallStatus, ToolKind,

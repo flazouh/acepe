@@ -54,6 +54,9 @@ axum = { version = "0.7", features = ["http1", "tokio"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls", "gzip"] }
 # SSE stream parsing for OpenCode events
 tokio-util = { version = "0.7", features = ["io"] }
+tokio-tungstenite = { version = "0.28", optional = true }
+url = { version = "2", optional = true }
+http = { version = "1", optional = true }
 tauri-plugin-notification = "2.3.3"
 tempfile = "3"
 toml = "0.8"
@@ -105,7 +108,7 @@ objc2 = { version = "0.6", features = ["catch-all"] }
 [features]
 default = []
 manual-test-targets = []
-websocket = []
+websocket = ["tokio-tungstenite", "url", "http"]
 # PINNED exact version: audit whisper-rs-sys/build.rs before any bump.
 # Whisper stays opt-in so normal dev builds do not compile whisper.cpp.
 whisper-native = ["whisper-rs"]

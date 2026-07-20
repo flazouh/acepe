@@ -2,7 +2,7 @@ use anyhow::Result;
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::session_jsonl::types::{
     ContentBlock, FullSession, OrderedMessage, SessionStats, TokenUsage,
@@ -326,7 +326,7 @@ fn task_agent_parent_map_from_parent_jsonl(content: &str) -> HashMap<String, Str
 }
 
 async fn sidechain_jsonl_lines_for_parent_tasks(
-    session_path: &PathBuf,
+    session_path: &Path,
     task_agent_to_parent_tool_use_id: &HashMap<String, String>,
 ) -> Vec<String> {
     if task_agent_to_parent_tool_use_id.is_empty() {

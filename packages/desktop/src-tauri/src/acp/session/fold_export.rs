@@ -29,7 +29,7 @@ pub fn default_session_title(session_id: &str) -> String {
 }
 
 /// Fold output packaged for session-open and session-command compat callers.
-pub(crate) struct MaterializedThreadSnapshot {
+pub struct MaterializedThreadSnapshot {
     pub transcript_snapshot: TranscriptSnapshot,
     pub projection: SessionProjectionSnapshot,
     pub graph_revision: i64,

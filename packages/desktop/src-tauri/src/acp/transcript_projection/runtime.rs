@@ -305,24 +305,24 @@ impl SessionTranscriptProjection {
         decision: RouteDecision,
         ingress_fold_event: Option<&crate::acp::session::ingress::event::ProviderEvent>,
     ) -> Option<Vec<TranscriptDeltaOperation>> {
-        if decision.ignore_late {
-            if matches!(
+        if decision.ignore_late
+            && matches!(
                 update,
                 SessionUpdate::TurnError { .. } | SessionUpdate::TurnComplete { .. }
-            ) {
-                return None;
-            }
+            )
+        {
+            return None;
         }
-        if decision.suppress {
-            if matches!(
+        if decision.suppress
+            && matches!(
                 update,
                 SessionUpdate::AgentMessageChunk { .. }
                     | SessionUpdate::AgentThoughtChunk { .. }
                     | SessionUpdate::ToolCall { .. }
                     | SessionUpdate::ToolCallUpdate { .. }
-            ) {
-                return None;
-            }
+            )
+        {
+            return None;
         }
         if let SessionUpdate::ToolCall { tool_call, .. } = update {
             if should_skip_unanswered_question_tool_row(tool_call) {
