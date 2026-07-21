@@ -717,7 +717,9 @@ function createTextInline(text: string, cursor: ParseCursor): NativeMarkdownText
 				// span's text in place instead of re-mounting it every keystroke (which
 				// would restart the mount-driven reveal fade and flicker the leading
 				// word). wordIndex is a document-global counter, unique per word.
-				key: `word:${wordIndex}`,
+				// `@` marks the word-counter namespace (see {@link nextKey}) so a
+				// word-anchored key can never collide with a `nextKey`-minted one.
+				key: `word@${wordIndex}`,
 				text: partText,
 				wordIndex,
 			});
@@ -732,7 +734,10 @@ function createTextInline(text: string, cursor: ParseCursor): NativeMarkdownText
 		// re-keys the text inline and remounts every word span under it (restarting
 		// each word's reveal fade → flicker). firstWordIndex is stable as a
 		// paragraph streams in, so its inline subtree is reconciled in place.
-		key: firstWordIndex === null ? nextKey(cursor, "text") : `text:${firstWordIndex}`,
+		// The `@` namespace keeps it clear of `nextKey(cursor, "text")`: the two
+		// counters run at nearly the same rate through prose, so sharing a `text:`
+		// prefix made sibling inlines collide (each_key_duplicate).
+		key: firstWordIndex === null ? nextKey(cursor, "text") : `text@${firstWordIndex}`,
 		parts,
 	};
 }
@@ -809,6 +814,13 @@ function collectInlineReferenceMatches(text: string): readonly InlineReferenceMa
 		});
 }
 
+/**
+ * Mint a key from the running parse counter. Keys minted here never contain
+ * `@`; that marker is reserved for keys anchored to `cursor.wordIndex`
+ * (see {@link createTextInline}), which is a second, independently advancing
+ * counter. Keeping the two namespaces disjoint is what stops a word-anchored
+ * key and a counter-minted key from landing on the same string.
+ */
 function nextKey(cursor: ParseCursor, prefix: string): string {
 	const key = `${prefix}:${cursor.nextKey}`;
 	cursor.nextKey += 1;

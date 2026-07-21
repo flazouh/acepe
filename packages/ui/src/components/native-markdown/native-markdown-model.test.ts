@@ -69,4 +69,15 @@ describe("parseNativeMarkdown", () => {
 
 		assertUniqueBlockTreeKeys(document.blocks);
 	});
+
+	it("keeps counter-minted and word-anchored text keys in separate namespaces", () => {
+		// Two independent counters used to mint into one `text:` namespace: the
+		// whitespace-only inline between the second and third `**a**` took
+		// `nextKey` 3, and the trailing word-bearing inline anchored to document
+		// word 3 — both `text:3`, siblings in the same keyed `{#each}`, so Svelte
+		// threw each_key_duplicate and the agent panel crashed mid-stream.
+		const document = parseNativeMarkdown("**a** **a** **a** a");
+
+		assertUniqueBlockTreeKeys(document.blocks);
+	});
 });
