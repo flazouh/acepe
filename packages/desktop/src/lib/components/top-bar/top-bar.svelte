@@ -34,7 +34,6 @@ interface Props {
 	/** Optional snippet for add project/repository button (e.g. dropdown). Rendered in top bar left after decorations. */
 	addProjectButton?: Snippet;
 	onDevSimulateUpdate?: () => void;
-	onDevShowDesignSystem?: () => void;
 	onDevShowStreamingReproLab?: () => void;
 	onDevResetOnboarding?: () => void;
 	showSidebarToggle?: boolean;
@@ -44,7 +43,6 @@ let {
 	viewState,
 	addProjectButton,
 	onDevSimulateUpdate,
-	onDevShowDesignSystem,
 	onDevShowStreamingReproLab,
 	onDevResetOnboarding,
 	showSidebarToggle = true,
@@ -347,7 +345,7 @@ onMount(() => {
 			</Tooltip.Trigger>
 			<Tooltip.Content>Feedback</Tooltip.Content>
 		</Tooltip.Root>
-		{#if import.meta.env.DEV && (onDevSimulateUpdate || onDevShowDesignSystem || onDevShowStreamingReproLab || onDevResetOnboarding)}
+		{#if import.meta.env.DEV && (onDevSimulateUpdate || onDevShowStreamingReproLab || onDevResetOnboarding)}
 			<Selector
 				align="end"
 				variant="ghost"
@@ -371,15 +369,6 @@ onMount(() => {
 							>
 								<HugeiconsIcon name="download" class="size-4" />
 								<span>Simulate Update</span>
-							</DropdownMenu.Item>
-						{/if}
-						{#if onDevShowDesignSystem}
-							<DropdownMenu.Item
-								class="cursor-pointer rounded-none px-2 py-1 text-[11px]"
-								onclick={onDevShowDesignSystem}
-							>
-								<HugeiconsIcon name="palette" class="size-4" />
-								<span>Design System</span>
 							</DropdownMenu.Item>
 						{/if}
 						{#if onDevShowStreamingReproLab}

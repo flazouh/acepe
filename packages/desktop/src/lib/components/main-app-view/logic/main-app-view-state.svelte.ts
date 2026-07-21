@@ -85,11 +85,6 @@ export class MainAppViewState {
 	commandPaletteOpen = $state(false);
 
 	/**
-	 * Whether the design system page is open (DEV only).
-	 */
-	designSystemOpen = $state(false);
-
-	/**
 	 * Whether the skills manager is open.
 	 */
 	skillsManagerOpen = $state(false);
@@ -630,13 +625,6 @@ export class MainAppViewState {
 		} else {
 			this.openSettings();
 		}
-	}
-
-	/**
-	 * Toggles the design system page open/closed (DEV only).
-	 */
-	toggleDesignSystem(): void {
-		this.designSystemOpen = !this.designSystemOpen;
 	}
 
 	/**

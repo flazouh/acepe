@@ -50,7 +50,6 @@ import type { PlanApprovalInteraction } from "$lib/acp/types/interaction.js";
 import type { QuestionRequest } from "$lib/acp/types/question.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { ThemeProvider } from "$lib/components/theme/index.js";
-import DesignSystemPage from "$lib/components/dev/design-system-page.svelte";
 import { KEYBINDING_ACTIONS } from "$lib/keybindings/constants.js";
 import { getKeybindingsService } from "$lib/keybindings/index.js";
 import {
@@ -1790,9 +1789,6 @@ onDestroy(() => {
 				onDevSimulateUpdate={() => {
 					startDevUpdateSimulation();
 				}}
-				onDevShowDesignSystem={() => {
-					viewState.designSystemOpen = true;
-				}}
 				onDevShowStreamingReproLab={() => {
 					viewState.debugPanelOpen = true;
 				}}
@@ -1848,7 +1844,7 @@ onDestroy(() => {
 					</div>
 				{/if}
 				<main
-					class="flex-1 flex min-h-0 flex-col gap-0.5 overflow-hidden transition-[background-color] duration-200 ease-out {showPanelsContainer || viewState.designSystemOpen
+					class="flex-1 flex min-h-0 flex-col gap-0.5 overflow-hidden transition-[background-color] duration-200 ease-out {showPanelsContainer
 						? ''
 						: 'justify-center items-center overflow-x-auto'}"
 				>
@@ -1868,13 +1864,7 @@ onDestroy(() => {
 						</div>
 					{/if}
 					<svelte:boundary onerror={(e) => console.error('[boundary:main-content]', e)}>
-						{#if viewState.designSystemOpen}
-							<DesignSystemPage
-								onClose={() => {
-									viewState.designSystemOpen = false;
-								}}
-							/>
-						{:else if showPanelsContainer}
+						{#if showPanelsContainer}
 							<div class="flex min-h-0 flex-1 flex-col gap-0.5 overflow-hidden">
 								<PanelsContainer
 									{projectManager}
