@@ -6,7 +6,6 @@ import {
 	LayoutModeIcon,
 	PillButton,
 	HugeiconsIcon,
-	StorageIcon,
 } from "@acepe/ui";
 import type { HugeiconsIconName } from "@acepe/ui/icons";
 import { CheckpointTimeline } from "@acepe/ui/checkpoint";
@@ -816,7 +815,7 @@ class:md:[direction:rtl]={i % 2 === 1}
 <div class="flex flex-col gap-4 [direction:ltr]">
 <div class="flex items-center gap-2 font-mono text-[10px] font-medium uppercase tracking-[0.22em] text-muted-foreground">
 {#if feature.icon.kind === "storage"}
-<StorageIcon class="size-3.5 text-primary/80" />
+<HugeiconsIcon name="database" class="size-3.5 text-primary/80" />
 {:else if feature.icon.kind === "layout"}
 <LayoutModeIcon mode={feature.icon.mode} class="size-3.5 text-primary/80" />
 {:else}

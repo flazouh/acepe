@@ -1,11 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
-
-vi.mock("@acepe/ui", () => {
-	return {
-		PaletteIcon: () => null,
-		RobotIcon: () => null,
-	};
-});
+import { describe, expect, it } from "vitest";
 
 describe("settings section registry", () => {
 	it("routes the General settings row to the targeted Interface icon", async () => {

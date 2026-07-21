@@ -22,7 +22,6 @@ vi.mock("@acepe/ui", async () => {
 	return {
 		HugeiconsIcon: HugeiconsIconStub,
 		LoadingIcon: Stub,
-		WrenchIcon: Stub,
 	};
 });
 

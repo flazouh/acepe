@@ -20,7 +20,7 @@ Single source of truth for the UI package boundary. The import guard script read
 
 - `$lib/utils`, `$lib/*` paths that resolve to `packages/ui/src/lib/**` (except store/paraglide)
 - Comments mentioning `packages/desktop` (guard parses import statements only)
-- Peer dependencies imported by shared UI primitives (`bits-ui`, `phosphor-svelte`, etc.)
+- Peer dependencies imported by shared UI primitives (`bits-ui`, `@hugeicons/svelte`, etc.)
 
 ## Governance — adding an exception
 

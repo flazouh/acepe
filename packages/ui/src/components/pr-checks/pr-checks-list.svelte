@@ -8,7 +8,7 @@
 		formatPrChecksSummaryAriaLabel,
 	} from "./pr-checks-summary-format.js";
 	import { Button } from "../button/index.js";
-	import { HugeiconsIcon, LoadingIcon, WrenchIcon } from "../icons/index.js";
+	import { HugeiconsIcon, LoadingIcon } from "../icons/index.js";
 
 	interface Props {
 		checks?: readonly PrChecksItem[];
@@ -149,7 +149,7 @@
 											onFixCheck(check);
 										}}
 									>
-										<WrenchIcon size={10} weight="fill" />
+										<HugeiconsIcon name="wrench" size={10} />
 									</Button>
 								{/if}
 								{#if check.detailsUrl}

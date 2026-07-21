@@ -355,8 +355,6 @@ export { GitHubBadge } from "./components/github-badge/index.js";
 export {
 	ArrowRightIcon,
 	BuildIcon,
-	DatabaseIcon,
-	DiscordIcon,
 	GoogleLogoIcon,
 	HugeiconsIcon,
 	formatHugeiconsIconName,
@@ -366,13 +364,8 @@ export {
 	LayoutModeIcon,
 	PullRequestStatusIcon,
 	LoadingIcon,
-	PaletteIcon,
 	PlanIcon,
-	RecycleIcon,
 	RevertIcon,
-	RobotIcon,
-	StorageIcon,
-	WrenchIcon,
 	XLogoIcon,
 } from "./components/icons/index.js";
 export type {

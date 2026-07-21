@@ -139,7 +139,3 @@ Canonical triage label vocabulary: `needs-triage`, `needs-info`, `ready-for-agen
 ### Domain docs
 
 Single-context layout: read `CONTEXT.md` for Acepe domain language and `docs/adr/` for decisions before working in an area. Both can be extended by `grill-with-docs`. See `docs/agents/domain.md`.
-
-## Local Model Routing
-
-Follow the global delegation policy in `/Users/alex/AGENTS.md` (or the nearest global instructions file). Local project rules in this file still win; do not weaken this repo's TDD, QA, or verification requirements.

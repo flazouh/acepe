@@ -1,5 +1,5 @@
 <script lang="ts">
-import { HugeiconsIcon, LoadingIcon, WrenchIcon } from "@acepe/ui";
+import { HugeiconsIcon, LoadingIcon } from "@acepe/ui";
 import type { PrChecksItem } from "@acepe/ui";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
@@ -69,7 +69,7 @@ function openOnGitHub(): void {
 			class="mr-auto gap-1.5"
 			onclick={() => onFix(check)}
 		>
-			<WrenchIcon size={12} weight="fill" />
+			<HugeiconsIcon name="wrench" size={12} />
 			Fix with agent
 		</Button>
 		<Button

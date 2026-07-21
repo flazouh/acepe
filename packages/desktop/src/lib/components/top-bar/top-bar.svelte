@@ -3,11 +3,9 @@ import {
 	Button,
 	LayoutModeIcon,
 	HugeiconsIcon,
-	PaletteIcon,
 	SegmentedToggleGroup,
 	Selector,
 	UsageLimitWidget,
-	WrenchIcon,
 } from "@acepe/ui";
 import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
@@ -359,7 +357,7 @@ onMount(() => {
 				triggerAriaLabel="Dev Tools"
 			>
 				{#snippet renderButton()}
-					<WrenchIcon weight="fill" style="color: #FAD83C" />
+					<HugeiconsIcon name="wrench" style="color: #FAD83C" />
 				{/snippet}
 
 				<DropdownMenu.Group>
@@ -380,7 +378,7 @@ onMount(() => {
 								class="cursor-pointer rounded-none px-2 py-1 text-[11px]"
 								onclick={onDevShowDesignSystem}
 							>
-								<PaletteIcon class="size-4" weight="fill" />
+								<HugeiconsIcon name="palette" class="size-4" />
 								<span>Design System</span>
 							</DropdownMenu.Item>
 						{/if}
@@ -389,7 +387,7 @@ onMount(() => {
 								class="cursor-pointer rounded-none px-2 py-1 text-[11px]"
 								onclick={onDevShowStreamingReproLab}
 							>
-								<WrenchIcon class="size-4" weight="fill" />
+								<HugeiconsIcon name="wrench" class="size-4" />
 								<span>Streaming Repro Lab</span>
 							</DropdownMenu.Item>
 						{/if}
@@ -398,7 +396,7 @@ onMount(() => {
 								class="cursor-pointer rounded-none px-2 py-1 text-[11px]"
 								onclick={onDevResetOnboarding}
 							>
-								<WrenchIcon class="size-4" weight="fill" />
+								<HugeiconsIcon name="wrench" class="size-4" />
 								<span>Reset Onboarding</span>
 							</DropdownMenu.Item>
 						{/if}

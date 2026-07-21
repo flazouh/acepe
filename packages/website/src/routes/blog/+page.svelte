@@ -1,5 +1,5 @@
 <script lang="ts">
-import { DiffPill, HugeiconsIcon, StorageIcon } from "@acepe/ui";
+import { DiffPill, HugeiconsIcon } from "@acepe/ui";
 import Header from "$lib/components/header.svelte";
 import Seo from "$lib/components/seo/seo.svelte";
 import type { BlogPostMetadata } from "$lib/blog/types.js";
@@ -107,7 +107,7 @@ const blogJsonLd = {
 						>
 							<div class="flex items-center gap-2">
 								{#if post.icon.kind === "storage"}
-									<StorageIcon class="size-3.5 text-muted-foreground/60" />
+									<HugeiconsIcon name="database" class="size-3.5 text-muted-foreground/60" />
 								{:else}
 									<HugeiconsIcon name={post.icon.name} class="size-3.5 text-muted-foreground/60" />
 								{/if}

@@ -16,12 +16,11 @@ vi.mock("svelte", async () => {
 	return import(/* @vite-ignore */ svelteClientPath);
 });
 
-vi.mock("@acepe/ui", async () => {
+vi.mock("@acepe/ui/icons", async () => {
 	const IconStub = (await import("./settings-sidebar-test-icon-stub.svelte")).default;
 
 	return {
-		PaletteIcon: IconStub,
-		RobotIcon: IconStub,
+		HugeiconsIcon: IconStub,
 	};
 });
 

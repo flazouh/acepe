@@ -1,6 +1,4 @@
-import { PaletteIcon, RobotIcon } from "@acepe/ui";
 import type { HugeiconsIconName } from "@acepe/ui/icons";
-import type { Component } from "svelte";
 
 import type { SettingsSectionId } from "./settings-types.js";
 
@@ -15,7 +13,6 @@ export interface SettingsSectionDefinition {
 	readonly id: SettingsSectionId;
 	readonly label: string;
 	readonly description: string;
-	readonly icon?: Component;
 	readonly interfaceIcon?: HugeiconsIconName;
 	readonly iconName?: HugeiconsIconName;
 	readonly groupId: SettingsNavGroupId;
@@ -41,7 +38,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
 		id: "appearance",
 		label: "Appearance",
 		description: "Choose how Acepe looks.",
-		icon: PaletteIcon,
+		iconName: "palette",
 		groupId: "general",
 	},
 	{
@@ -56,7 +53,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
 		id: "agents",
 		label: "Agents & models",
 		description: "Choose which agents are enabled and set defaults.",
-		icon: RobotIcon,
+		iconName: "robot",
 		groupId: "agents",
 		fullWidth: true,
 	},

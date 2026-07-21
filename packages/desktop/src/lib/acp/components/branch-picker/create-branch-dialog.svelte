@@ -89,20 +89,12 @@ $effect(() => {
 </script>
 
 {#snippet prefixIcon(prefix: BranchPrefix, dataTestid?: string)}
-	{#if prefix.iconName}
-		<HugeiconsIcon
-			name={prefix.iconName}
-			class="h-3.5 w-3.5 shrink-0"
-			style="color: {prefix.color}"
-			data-testid={dataTestid}
-		/>
-	{:else if prefix.icon}
-		<prefix.icon
-			class="h-3.5 w-3.5 shrink-0"
-			weight="fill"
-			style="color: {prefix.color}"
-		/>
-	{/if}
+	<HugeiconsIcon
+		name={prefix.iconName}
+		class="h-3.5 w-3.5 shrink-0"
+		style="color: {prefix.color}"
+		data-testid={dataTestid}
+	/>
 {/snippet}
 
 <DialogFrame

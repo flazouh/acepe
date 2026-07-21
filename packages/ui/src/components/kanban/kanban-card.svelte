@@ -6,7 +6,7 @@
 	import { Colors } from "../../lib/colors.js";
 	import { capitalizeLeadingCharacter } from "../../lib/utils.js";
 	import { Button } from "../button/index.js";
-	import { HugeiconsIcon, RobotIcon } from "../icons/index.js";
+	import { HugeiconsIcon } from "../icons/index.js";
 	import {
 	EmbeddedPanelHeader,
 	HeaderActionCell,
@@ -134,7 +134,12 @@ function handleKeydown(event: KeyboardEvent): void {
 							aria-label="Auto mode"
 							title="Auto mode"
 						>
-							<RobotIcon size={12} weight="fill" style="color: {Colors.purple}" class="shrink-0" />
+							<HugeiconsIcon
+								name="robot"
+								size={12}
+								style="color: {Colors.purple}"
+								class="shrink-0"
+							/>
 						</div>
 					{/if}
 				</div>

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { BrandLockup, DiscordIcon, HugeiconsIcon, XLogoIcon } from "@acepe/ui";
+import { BrandLockup, HugeiconsIcon, XLogoIcon } from "@acepe/ui";
 import { page } from "$app/stores";
 import { Drawer, DrawerContent, DrawerOverlay, DrawerPortal, DrawerTrigger } from "@acepe/ui";
 
@@ -79,7 +79,7 @@ const mobileNavLinkClass =
 				aria-label="Discord"
 				title="Discord"
 			>
-				<DiscordIcon class="h-4 w-4" />
+				<HugeiconsIcon name="discord" class="h-4 w-4" />
 			</a>
 			<a
 				href="https://x.com/acepedotdev"
@@ -159,7 +159,7 @@ const mobileNavLinkClass =
 								aria-label="Discord"
 								title="Discord"
 							>
-								<DiscordIcon class="h-4 w-4" />
+								<HugeiconsIcon name="discord" class="h-4 w-4" />
 							</a>
 							<a
 								href="https://x.com/acepedotdev"

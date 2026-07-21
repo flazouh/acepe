@@ -52,15 +52,8 @@ import {
 } from "@acepe/ui/git-panel";
 import {
 	BuildIcon,
-	DatabaseIcon,
-	DiscordIcon,
 	HugeiconsIcon,
-	PaletteIcon,
 	PlanIcon,
-	RecycleIcon,
-	RobotIcon,
-	StorageIcon,
-	WrenchIcon,
 } from "@acepe/ui/icons";
 import AddRepositoryActionsCell from "$lib/acp/components/add-repository/cells/actions-cell.svelte";
 import PaletteItem from "$lib/acp/components/advanced-command-palette/palette-item.svelte";
@@ -513,24 +506,23 @@ const commandPaletteItems: CommandPaletteItem[] = [
 		class="flex w-[120px] items-center gap-3 border border-border/40 p-2 text-muted-foreground"
 		data-testid="wrench-icon-fixture"
 	>
-		<WrenchIcon size={12} data-testid="wrench-icon-sm" />
-		<WrenchIcon class="size-4 text-foreground" data-testid="wrench-icon-md" />
+		<HugeiconsIcon name="wrench" size={12} data-testid="wrench-icon-sm" />
+		<HugeiconsIcon name="wrench" class="size-4 text-foreground" data-testid="wrench-icon-md" />
 	</div>
 	<div
 		class="flex w-[120px] items-center gap-3 border border-border/40 p-2 text-muted-foreground"
 		data-testid="database-storage-icon-fixture"
 	>
-		<DatabaseIcon size={14} data-testid="database-icon-sm" />
-		<StorageIcon size={14} data-testid="storage-icon-sm" />
+		<HugeiconsIcon name="database" size={14} data-testid="database-icon-sm" />
 	</div>
 	<div
 		class="flex w-[150px] items-center gap-3 border border-border/40 p-2 text-muted-foreground"
 		data-testid="semantic-local-icon-fixture"
 	>
-		<PaletteIcon size={14} data-testid="palette-icon-sm" />
-		<RobotIcon size={14} data-testid="robot-icon-sm" />
-		<RecycleIcon size={14} data-testid="recycle-icon-sm" />
-		<DiscordIcon size={14} data-testid="discord-icon-sm" />
+		<HugeiconsIcon name="palette" size={14} data-testid="palette-icon-sm" />
+		<HugeiconsIcon name="robot" size={14} data-testid="robot-icon-sm" />
+		<HugeiconsIcon name="recycle" size={14} data-testid="recycle-icon-sm" />
+		<HugeiconsIcon name="discord" size={14} data-testid="discord-icon-sm" />
 	</div>
 	<div class="w-[520px] space-y-2" data-testid="agent-tool-skill-fixture">
 		<AgentToolSkill skillName="diagnose" description="Diagnose hard bugs." status="done" />
@@ -774,16 +766,12 @@ const commandPaletteItems: CommandPaletteItem[] = [
 				class="inline-flex items-center gap-1.5 rounded-md bg-muted/30 px-2 py-1 text-[11px]"
 				data-testid={`branch-prefix-option-${prefix.label}`}
 			>
-				{#if prefix.iconName}
-					<HugeiconsIcon
-						name={prefix.iconName}
-						class="size-3.5 shrink-0"
-						style="color: {prefix.color}"
-						data-testid={`branch-prefix-option-${prefix.label}-hugeicons-icon`}
-					/>
-				{:else if prefix.icon}
-					<prefix.icon class="size-3.5 shrink-0" weight="fill" style="color: {prefix.color}" />
-				{/if}
+				<HugeiconsIcon
+					name={prefix.iconName}
+					class="size-3.5 shrink-0"
+					style="color: {prefix.color}"
+					data-testid={`branch-prefix-option-${prefix.label}-hugeicons-icon`}
+				/>
 				<span>{prefix.label}</span>
 			</span>
 		{/each}

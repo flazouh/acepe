@@ -35,7 +35,6 @@ function sectionsForGroup(groupId: SettingsNavGroupId) {
 			</div>
 			<div class="flex flex-col gap-px pb-1">
 				{#each groupSections as section (section.id)}
-					{@const Icon = section.icon}
 					{@const isActive = activeSection === section.id}
 					<button
 						type="button"
@@ -61,14 +60,6 @@ function sectionsForGroup(groupId: SettingsNavGroupId) {
 							<HugeiconsIcon
 								name={section.iconName}
 								data-testid={`settings-section-${section.id}-icon`}
-								class={cn(
-									"size-3.5 shrink-0 transition-colors",
-									isActive ? "text-foreground" : "text-muted-foreground"
-								)}
-							/>
-						{:else if Icon}
-							<Icon
-								weight="fill"
 								class={cn(
 									"size-3.5 shrink-0 transition-colors",
 									isActive ? "text-foreground" : "text-muted-foreground"
