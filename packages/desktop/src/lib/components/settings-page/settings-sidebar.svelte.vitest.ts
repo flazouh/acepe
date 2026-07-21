@@ -16,14 +16,6 @@ vi.mock("svelte", async () => {
 	return import(/* @vite-ignore */ svelteClientPath);
 });
 
-vi.mock("@acepe/ui/icons", async () => {
-	const IconStub = (await import("./settings-sidebar-test-icon-stub.svelte")).default;
-
-	return {
-		HugeiconsIcon: IconStub,
-	};
-});
-
 describe("SettingsSidebar", () => {
 	it("renders grouped navigation with section labels", () => {
 		const view = render(SettingsSidebar, {
