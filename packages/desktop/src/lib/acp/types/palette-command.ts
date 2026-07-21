@@ -1,5 +1,4 @@
 import type { HugeiconsIconName } from "@acepe/ui/icons";
-import type { Component, ComponentType } from "svelte";
 
 /**
  * Definition for a command in the command palette.
@@ -11,9 +10,6 @@ export interface PaletteCommandDef {
 	readonly label: string;
 	/** Optional description */
 	readonly description?: string;
-	/** Icon component */
-	// biome-ignore lint/suspicious/noExplicitAny: Svelte Component generic requires any
-	readonly icon?: ComponentType | Component<any>;
 	/** Hugeicons name used for this command. */
 	readonly iconName?: HugeiconsIconName;
 	/** Handler function to execute */

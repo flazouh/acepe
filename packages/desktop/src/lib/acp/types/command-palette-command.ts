@@ -1,5 +1,4 @@
 import type { HugeiconsIconName } from "@acepe/ui/icons";
-import type { ComponentType } from "svelte";
 
 /**
  * A command that can be executed from the command palette.
@@ -16,12 +15,7 @@ export interface CommandPaletteCommand {
 	label: string;
 
 	/**
-	 * Icon component to display.
-	 */
-	icon?: ComponentType;
-
-	/**
-	 * Hugeicons name used when no Svelte icon component is provided.
+	 * Hugeicons name used for this command.
 	 */
 	iconName?: HugeiconsIconName;
 

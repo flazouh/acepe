@@ -4,7 +4,7 @@ import {
 	getConfigOptionCurrentValue,
 	getConfigOptionCurrentValueLabel,
 	getConfigOptionIconKind,
-	getConfigOptionIconWeight,
+	isConfigOptionIconActive,
 	getConfigOptionNextBooleanValue,
 	getConfigOptionResolvedTriggerSize,
 	getConfigOptionTooltipBody,
@@ -106,29 +106,29 @@ describe("agent input config option selector state", () => {
 			"default"
 		);
 		expect(
-			getConfigOptionIconWeight({
+			isConfigOptionIconActive({
 				iconKind: "fast",
 				isBooleanConfigOption: true,
 				isBooleanEnabled: false,
 				currentValue: "false",
 			})
-		).toBe("bold");
+		).toBe(false);
 		expect(
-			getConfigOptionIconWeight({
+			isConfigOptionIconActive({
 				iconKind: "fast",
 				isBooleanConfigOption: true,
 				isBooleanEnabled: true,
 				currentValue: "true",
 			})
-		).toBe("fill");
+		).toBe(true);
 		expect(
-			getConfigOptionIconWeight({
+			isConfigOptionIconActive({
 				iconKind: "reasoning",
 				isBooleanConfigOption: false,
 				isBooleanEnabled: false,
 				currentValue: null,
 			})
-		).toBe("fill");
+		).toBe(true);
 	});
 
 	test("resolves composer trigger size for reasoning and other compact options", () => {
@@ -154,7 +154,6 @@ describe("agent input config option selector state", () => {
 		expect(state.isBooleanConfigOption).toBe(true);
 		expect(state.isBooleanEnabled).toBe(true);
 		expect(state.iconKind).toBe("fast");
-		expect(state.iconWeight).toBe("fill");
 		expect(state.currentValueLabel).toBe("On");
 		expect(state.buttonTitle).toBe("Fast mode: On");
 		expect(state.tooltipTitle).toBe("Fast mode");

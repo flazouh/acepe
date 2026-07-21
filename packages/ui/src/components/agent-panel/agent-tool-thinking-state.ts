@@ -9,7 +9,6 @@ export interface ThinkingPreferenceState {
 	defaultExpanded: boolean;
 	onToggleDefaultExpand: (() => void) | undefined;
 	defaultExpandLabel: string;
-	defaultExpandIconWeight: "fill" | "regular";
 	defaultExpandClass: string;
 }
 
@@ -42,7 +41,6 @@ export function getThinkingPreferenceState(
 		defaultExpandLabel: defaultExpanded
 			? "Collapse thinking by default"
 			: "Expand thinking by default",
-		defaultExpandIconWeight: defaultExpanded ? "fill" : "regular",
 		defaultExpandClass: defaultExpanded
 			? "text-foreground"
 			: "text-muted-foreground",

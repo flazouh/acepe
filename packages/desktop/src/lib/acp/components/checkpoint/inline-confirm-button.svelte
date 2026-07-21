@@ -1,20 +1,11 @@
 <script lang="ts">
 import { HugeiconsIcon } from "@acepe/ui";
-import type { Component } from "svelte";
 import { Button } from "$lib/components/ui/button/index.js";
 import { cn } from "$lib/utils.js";
-
-type InlineConfirmIconWeight = "thin" | "light" | "regular" | "bold" | "fill" | "duotone";
-type InlineConfirmIcon = Component<{
-	class?: string;
-	weight?: InlineConfirmIconWeight;
-}>;
 
 interface Props {
 	/** Text to show in default state */
 	label: string;
-	/** Icon component to show in default state */
-	icon?: InlineConfirmIcon;
 	/** Called when user confirms the action */
 	onConfirm: () => void;
 	/** Whether the action is in progress */
@@ -29,7 +20,6 @@ interface Props {
 
 let {
 	label,
-	icon: Icon,
 	onConfirm,
 	isLoading = false,
 	loadingLabel = "...",
@@ -99,9 +89,6 @@ $effect(() => {
 		{disabled}
 		onclick={handleInitialClick}
 	>
-		{#if Icon}
-			<Icon class="h-3.5 w-3.5" weight="bold" />
-		{/if}
 		<span class="ml-1 text-xs">{label}</span>
 	</Button>
 {/if}

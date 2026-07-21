@@ -111,7 +111,6 @@ const filteredCommands = $derived(commandPalette.getFilteredCommands());
 
 		<div class="max-h-64 overflow-y-auto overflow-hidden rounded-b-lg">
 			{#each filteredCommands as command, index (index)}
-				{@const Icon = command.icon}
 				{@const isSelected = index === commandPalette.state.selectedIndex}
 				{@const isLast = index === filteredCommands.length - 1}
 				<button
@@ -126,12 +125,6 @@ const filteredCommands = $derived(commandPalette.getFilteredCommands());
 						<HugeiconsIcon
 							name={command.iconName}
 							size={14}
-							class="h-3.5 w-3.5 shrink-0 transition-all {isSelected
-								? '-rotate-3 text-primary'
-								: 'text-muted-foreground group-hover:-rotate-3 group-hover:text-primary'}"
-						/>
-					{:else if Icon}
-						<Icon
 							class="h-3.5 w-3.5 shrink-0 transition-all {isSelected
 								? '-rotate-3 text-primary'
 								: 'text-muted-foreground group-hover:-rotate-3 group-hover:text-primary'}"

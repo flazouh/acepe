@@ -42,7 +42,6 @@ describe("agent tool thinking state", () => {
 
 		expect(state.defaultExpanded).toBe(false);
 		expect(state.defaultExpandLabel).toBe("Expand thinking by default");
-		expect(state.defaultExpandIconWeight).toBe("regular");
 		expect(state.defaultExpandClass).toBe("text-muted-foreground");
 	});
 
@@ -53,7 +52,6 @@ describe("agent tool thinking state", () => {
 
 		expect(state.defaultExpanded).toBe(true);
 		expect(state.defaultExpandLabel).toBe("Collapse thinking by default");
-		expect(state.defaultExpandIconWeight).toBe("fill");
 		expect(state.defaultExpandClass).toBe("text-foreground");
 	});
 

@@ -23,8 +23,6 @@ interface Props {
 
 let { item, query = "", isSelected, isLast, onclick, onmouseenter }: Props = $props();
 
-const Icon = $derived(item.icon);
-
 /** Check if this is a file item (has extension metadata) */
 const isFileItem = $derived(item.metadata.extension !== undefined);
 
@@ -96,13 +94,6 @@ const labelSegments = $derived.by(() => {
 				? 'text-primary'
 				: 'text-muted-foreground group-hover:text-foreground'}"
 			data-testid={`command-palette-${item.id}-hugeicons-icon`}
-		/>
-	{:else if Icon}
-		<Icon
-			class="size-3.5 shrink-0 transition-colors duration-100 {isSelected
-				? 'text-primary'
-				: 'text-muted-foreground group-hover:text-foreground'}"
-			weight="fill"
 		/>
 	{/if}
 

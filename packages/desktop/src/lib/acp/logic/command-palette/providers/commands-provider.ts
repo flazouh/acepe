@@ -23,7 +23,6 @@ function commandToPaletteItem(cmd: PaletteCommandDef): PaletteItem {
 		id: cmd.id,
 		label: cmd.label,
 		description: cmd.description,
-		icon: cmd.icon,
 		iconName: cmd.iconName,
 		metadata,
 	};
@@ -163,7 +162,6 @@ export class CommandsProvider implements PaletteProvider {
 				id: paletteItem.id,
 				label: paletteItem.label,
 				description: paletteItem.description,
-				icon: paletteItem.icon,
 				iconName: paletteItem.iconName,
 				metadata: paletteItem.metadata,
 				score,

@@ -127,7 +127,6 @@ export class SessionsProvider implements PaletteProvider {
 				id: paletteItem.id,
 				label: paletteItem.label,
 				description: paletteItem.description,
-				icon: paletteItem.icon,
 				iconName: paletteItem.iconName,
 				metadata: paletteItem.metadata,
 				score,

@@ -4,7 +4,6 @@ import type { SelectorTriggerSize } from "../selector/selector-trigger-classes.j
 import type { AgentInputConfigOption } from "./agent-input-config-option-types.js";
 
 export type ConfigOptionIconKind = "reasoning" | "fast" | "default";
-export type ConfigOptionIconWeight = "fill" | "bold";
 
 export interface ConfigOptionViewState {
 	currentValue: string | null;
@@ -16,7 +15,6 @@ export interface ConfigOptionViewState {
 	reasoningBarFilledSegmentCount: number;
 	reasoningBarPercent: number;
 	iconColor: string;
-	iconWeight: ConfigOptionIconWeight;
 	iconClass: string;
 	iconStyle: string;
 	buttonTitle: string;
@@ -287,14 +285,18 @@ export function getConfigOptionIconColor(iconKind: ConfigOptionIconKind): string
 	return Colors.cyan;
 }
 
-export function getConfigOptionIconWeight(input: {
+/**
+ * Whether the option's icon reads as active. Only the "fast" icon has an
+ * inactive state; every other kind is always active.
+ */
+export function isConfigOptionIconActive(input: {
 	iconKind: ConfigOptionIconKind;
 	isBooleanConfigOption: boolean;
 	isBooleanEnabled: boolean;
 	currentValue: string | null;
-}): ConfigOptionIconWeight {
-	if (input.iconKind !== "fast") return "fill";
-	if (input.isBooleanConfigOption && input.isBooleanEnabled) return "fill";
+}): boolean {
+	if (input.iconKind !== "fast") return true;
+	if (input.isBooleanConfigOption && input.isBooleanEnabled) return true;
 	if (!input.isBooleanConfigOption && input.currentValue) {
 		const normalized = input.currentValue.toLowerCase();
 		if (
@@ -303,10 +305,10 @@ export function getConfigOptionIconWeight(input: {
 			normalized === "on" ||
 			normalized === "enabled"
 		) {
-			return "fill";
+			return true;
 		}
 	}
-	return "bold";
+	return false;
 }
 
 export function getConfigOptionNextBooleanValue(
@@ -364,13 +366,13 @@ export function getConfigOptionViewState(
 				currentValue,
 			})
 		: getConfigOptionIconColor(iconKind);
-	const iconWeight = getConfigOptionIconWeight({
+	const isIconActive = isConfigOptionIconActive({
 		iconKind,
 		isBooleanConfigOption: isBooleanOption,
 		isBooleanEnabled,
 		currentValue,
 	});
-	const useMuted = iconKind === "fast" && iconWeight === "bold";
+	const useMuted = iconKind === "fast" && !isIconActive;
 	const tooltipTitle = configOption.name;
 	const tooltipDescription = getConfigOptionTooltipDescription({
 		configOption,
@@ -391,7 +393,6 @@ export function getConfigOptionViewState(
 		reasoningBarFilledSegmentCount,
 		reasoningBarPercent,
 		iconColor,
-		iconWeight,
 		iconClass: useMuted ? "text-muted-foreground" : "",
 		iconStyle: useMuted ? "" : `color: ${iconColor}`,
 		buttonTitle: `${configOption.name}: ${currentValueLabel}`,
