@@ -116,8 +116,7 @@ export function arePanelProjectRefListsEqual(
 	return (
 		left.length === right.length &&
 		left.every(
-			(ref, index) =>
-				ref.id === right[index]?.id && ref.projectPath === right[index]?.projectPath
+			(ref, index) => ref.id === right[index]?.id && ref.projectPath === right[index]?.projectPath
 		)
 	);
 }

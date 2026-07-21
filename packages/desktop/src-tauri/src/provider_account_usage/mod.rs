@@ -174,14 +174,15 @@ pub async fn get_provider_account_usage() -> Result<Vec<ProviderAccountUsage>, S
         .map_err(|error| format!("Provider account usage task failed: {error}"))?
         .map_err(|error| format!("Provider account usage failed: {error}"))?;
     let claude = load_claude_usage().await;
-    let mut providers = Vec::new();
-    providers.push(codex);
-    providers.push(claude);
-    providers.push(unavailable_provider(
-        "cursor",
-        "Cursor",
-        "Cursor quota needs the Cursor account API",
-    ));
+    let providers = vec![
+        codex,
+        claude,
+        unavailable_provider(
+            "cursor",
+            "Cursor",
+            "Cursor quota needs the Cursor account API",
+        ),
+    ];
     Ok(providers)
 }
 

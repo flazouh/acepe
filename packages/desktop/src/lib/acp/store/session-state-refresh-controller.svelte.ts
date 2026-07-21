@@ -17,10 +17,7 @@ const logger = createLogger({
 type InflightSessionStateRefresh = ResultAsync<void, AppError>;
 
 export type SessionStateRefreshControllerDeps = {
-	readonly applySessionStateEnvelope: (
-		sessionId: string,
-		envelope: SessionStateEnvelope
-	) => void;
+	readonly applySessionStateEnvelope: (sessionId: string, envelope: SessionStateEnvelope) => void;
 };
 
 export class SessionStateRefreshController {

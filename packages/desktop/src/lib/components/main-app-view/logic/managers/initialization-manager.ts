@@ -27,7 +27,7 @@
  * Phase 5 (Sequential - restored sessions):
  *   └── scheduleRestoredPanelHydration() [load restored session metadata after first-interaction time]
  *
-	 * Phase 6 (Fire & Forget):
+ * Phase 6 (Fire & Forget):
  *   ├── initializeSessionUpdatesInBackground()
  *   ├── loadUserKeybindingsAfterStartup()
  *   ├── loadAvailableAgentsAfterStartup()
@@ -43,8 +43,8 @@
  * validateRestoredSessions handles missing/deleted session edge cases.
  */
 
-import { errAsync, okAsync, type ResultAsync } from "neverthrow";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { errAsync, okAsync, type ResultAsync } from "neverthrow";
 import type { AppError } from "$lib/acp/errors/app-error.js";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import type { AgentPreferencesStore } from "$lib/acp/store/agent-preferences-store.svelte.js";
@@ -287,10 +287,7 @@ export class InitializationManager {
 		return String(error);
 	}
 
-	private traceStartupResult<T, E>(
-		name: string,
-		result: ResultAsync<T, E>
-	): ResultAsync<T, E> {
+	private traceStartupResult<T, E>(name: string, result: ResultAsync<T, E>): ResultAsync<T, E> {
 		const index = this.beginStartupTrace(name);
 		return result
 			.map((value) => {
@@ -328,33 +325,31 @@ export class InitializationManager {
 		void this.resolveSplashScreen();
 
 		// Phase 1: Initialize the critical keyboard shell path.
-		return (
-			this.traceStartupResult("initializeKeybindings", this.initializeKeybindings())
-				.map(() => {
-					this.state.shellReady = true;
-					this.finishStartupTraceIfPending(shellReadyTraceIndex, "ok", null);
-					this.completeInitialization(initializeTraceIndex);
-					scheduleImmediatePostStartupWork(() => {
-						this.restoreWorkspaceAfterInitialization();
-					});
-					return undefined;
-				})
-				.mapErr((error) => {
-					this.state.initializationInProgress = false;
-					this.state.workspaceRestorationPending = false;
-					this.finishStartupTraceIfPending(
-						shellReadyTraceIndex,
-						"error",
-						this.describeStartupTraceError(error)
-					);
-					this.finishStartupTrace(
-						initializeTraceIndex,
-						"error",
-						this.describeStartupTraceError(error)
-					);
-					return error;
-				})
-		);
+		return this.traceStartupResult("initializeKeybindings", this.initializeKeybindings())
+			.map(() => {
+				this.state.shellReady = true;
+				this.finishStartupTraceIfPending(shellReadyTraceIndex, "ok", null);
+				this.completeInitialization(initializeTraceIndex);
+				scheduleImmediatePostStartupWork(() => {
+					this.restoreWorkspaceAfterInitialization();
+				});
+				return undefined;
+			})
+			.mapErr((error) => {
+				this.state.initializationInProgress = false;
+				this.state.workspaceRestorationPending = false;
+				this.finishStartupTraceIfPending(
+					shellReadyTraceIndex,
+					"error",
+					this.describeStartupTraceError(error)
+				);
+				this.finishStartupTrace(
+					initializeTraceIndex,
+					"error",
+					this.describeStartupTraceError(error)
+				);
+				return error;
+			});
 	}
 
 	private completeInitialization(initializeTraceIndex: number): void {
@@ -519,7 +514,7 @@ export class InitializationManager {
 						"initializeSessionUpdates",
 						error instanceof Error ? error : new Error(String(error))
 					)
-				);
+			);
 	}
 
 	private initializeSessionUpdatesInBackground(): void {
@@ -580,7 +575,12 @@ export class InitializationManager {
 	}
 
 	private installHistoryIndexListener(): void {
-		if (!this.hasTauriInvoke() || this.historyIndexUnlisten !== null || this.historyIndexListenerPending) return;
+		if (
+			!this.hasTauriInvoke() ||
+			this.historyIndexUnlisten !== null ||
+			this.historyIndexListenerPending
+		)
+			return;
 		this.historyIndexListenerPending = true;
 		const generation = ++this.historyIndexListenerGeneration;
 		void listen<{ projectPaths: string[]; revision: number }>("history-index-changed", () => {
@@ -641,10 +641,7 @@ export class InitializationManager {
 				})
 				.mapErr(
 					(error) =>
-						new InitializationError(
-							"loadProjects",
-							error instanceof Error ? error : undefined
-						)
+						new InitializationError("loadProjects", error instanceof Error ? error : undefined)
 				)
 		);
 	}
@@ -656,10 +653,7 @@ export class InitializationManager {
 				.initialize()
 				.mapErr(
 					(error) =>
-						new InitializationError(
-							"initializeZoom",
-							error instanceof Error ? error : undefined
-						)
+						new InitializationError("initializeZoom", error instanceof Error ? error : undefined)
 				)
 		);
 	}
@@ -670,13 +664,15 @@ export class InitializationManager {
 			return okAsync(undefined);
 		}
 
-		return this.sessionStore.loading.scanSessions(projectPaths).mapErr(
-			(error) =>
-				new InitializationError(
-					"scanStartupSessionHistory",
-					error instanceof Error ? error : new Error(String(error))
-				)
-		);
+		return this.sessionStore.loading
+			.scanSessions(projectPaths)
+			.mapErr(
+				(error) =>
+					new InitializationError(
+						"scanStartupSessionHistory",
+						error instanceof Error ? error : new Error(String(error))
+					)
+			);
 	}
 
 	private getKnownProjectPaths(): string[] {
@@ -690,7 +686,10 @@ export class InitializationManager {
 				.loadAvailableAgents()
 				.mapErr(
 					(error) =>
-						new InitializationError("loadAvailableAgents", error instanceof Error ? error : undefined)
+						new InitializationError(
+							"loadAvailableAgents",
+							error instanceof Error ? error : undefined
+						)
 				)
 				.andThen((agents) => {
 					this.primeAgentPreferences(agents);
@@ -764,10 +763,7 @@ export class InitializationManager {
 			})
 			.mapErr(
 				(error) =>
-					new InitializationError(
-						"loadUserKeybindings",
-						error instanceof Error ? error : undefined
-					)
+					new InitializationError("loadUserKeybindings", error instanceof Error ? error : undefined)
 			);
 	}
 
@@ -802,10 +798,7 @@ export class InitializationManager {
 	}
 
 	private primeAgentPreferences(agents: readonly Agent[] = this.agentStore.agents): void {
-		this.agentPreferencesStore.primeStartupDefaults(
-			agents,
-			this.projectManager.projectCount
-		);
+		this.agentPreferencesStore.primeStartupDefaults(agents, this.projectManager.projectCount);
 	}
 
 	private initializeAgentPreferencesAfterStartup(
@@ -851,19 +844,17 @@ export class InitializationManager {
 				this.finishStartupTraceIfPending(restoreTraceIndex, "ok", null);
 				return restoredSessionIds;
 			})
-			.mapErr(
-				(error) => {
-					this.finishStartupTraceIfPending(
-						loadTraceIndex,
-						"error",
-						this.describeStartupTraceError(error)
-					);
-					return new InitializationError(
-						"restoreWorkspace",
-						error instanceof Error ? error : new Error(String(error))
-					);
-				}
-			);
+			.mapErr((error) => {
+				this.finishStartupTraceIfPending(
+					loadTraceIndex,
+					"error",
+					this.describeStartupTraceError(error)
+				);
+				return new InitializationError(
+					"restoreWorkspace",
+					error instanceof Error ? error : new Error(String(error))
+				);
+			});
 	}
 
 	private loadAndValidateRestoredPanelSessions(
@@ -889,8 +880,8 @@ export class InitializationManager {
 
 	private prioritizeRestoredSessionIds(restoredSessionIds: string[]): string[] {
 		const focusedSessionId =
-			this.panelStore.panels.find((panel) => panel.id === this.panelStore.focusedPanelId)?.sessionId ??
-			null;
+			this.panelStore.panels.find((panel) => panel.id === this.panelStore.focusedPanelId)
+				?.sessionId ?? null;
 		if (focusedSessionId === null || !restoredSessionIds.includes(focusedSessionId)) {
 			return restoredSessionIds;
 		}
@@ -969,9 +960,7 @@ export class InitializationManager {
 			}
 
 			const remappedCanonicalId = aliasRemaps[panel.sessionId];
-			const resolverCanonicalId = this.sessionStore.read.resolveCanonicalSessionId(
-				panel.sessionId
-			);
+			const resolverCanonicalId = this.sessionStore.read.resolveCanonicalSessionId(panel.sessionId);
 			const canonicalId = remappedCanonicalId ?? resolverCanonicalId;
 
 			if (canonicalId === null || canonicalId === undefined) {
@@ -1141,11 +1130,16 @@ export class InitializationManager {
 				if (!projectPath || !agentId) {
 					continue;
 				}
-				this.sessionStore.loading.registerSessionPlaceholder(panel.sessionId, projectPath, agentId, {
-					sourcePath: panel.sourcePath ?? undefined,
-					worktreePath: panel.worktreePath ?? undefined,
-					placeholderTitle: panel.sessionTitle ?? undefined,
-				});
+				this.sessionStore.loading.registerSessionPlaceholder(
+					panel.sessionId,
+					projectPath,
+					agentId,
+					{
+						sourcePath: panel.sourcePath ?? undefined,
+						worktreePath: panel.worktreePath ?? undefined,
+						placeholderTitle: panel.sessionTitle ?? undefined,
+					}
+				);
 			}
 
 			openPersistedSession({
@@ -1159,8 +1153,8 @@ export class InitializationManager {
 				source: "initialization-manager",
 				repairPriority: panel.id === this.panelStore.focusedPanelId ? "selected" : "visible",
 			});
-			}
 		}
+	}
 
 	/**
 	 * Cleans up initialization resources.

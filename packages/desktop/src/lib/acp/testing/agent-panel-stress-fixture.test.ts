@@ -2,13 +2,15 @@ import { describe, expect, it } from "vitest";
 import { buildRenderedTranscriptViewportRows } from "../components/agent-panel/logic/transcript-viewport-rendered-rows.js";
 import {
 	AGENT_PANEL_STRESS_ROW_COUNT_PRESETS,
+	type AgentPanelStressPreset,
 	createAgentPanelPlanningBetweenToolsFixtureSequence,
 	createAgentPanelSendAttachFixtureSequence,
 	createAgentPanelStressFixture,
-	type AgentPanelStressPreset,
 } from "./agent-panel-stress-fixture.js";
 
-function activeTailCount(rows: ReturnType<typeof createAgentPanelStressFixture>["rowsProjection"]["rows"]): number {
+function activeTailCount(
+	rows: ReturnType<typeof createAgentPanelStressFixture>["rowsProjection"]["rows"]
+): number {
 	let count = 0;
 	for (const row of rows) {
 		if (row.activeStreamingTail !== null) {
@@ -68,9 +70,7 @@ describe("createAgentPanelStressFixture", () => {
 		expect(pendingRow?.rowId).toBe(sequence.pendingUserRowId);
 		expect(pendingRow?.kind).toBe("user");
 
-		const firstStreamRow = sequence.firstStream.rowsProjection.byId.get(
-			sequence.streamingRowId
-		);
+		const firstStreamRow = sequence.firstStream.rowsProjection.byId.get(sequence.streamingRowId);
 		const updatedStreamRow = sequence.updatedStream.rowsProjection.byId.get(
 			sequence.streamingRowId
 		);
@@ -111,21 +111,18 @@ describe("createAgentPanelStressFixture", () => {
 	it.each([
 		["text-heavy", "assistantText", "tool"],
 		["tool-heavy", "tool", "assistantText"],
-	] as const)(
-		"uses the expected %s distribution",
-		(preset: AgentPanelStressPreset, dominantKind, secondaryKind) => {
-			const fixture = createAgentPanelStressFixture({
-				rowCount: 120,
-				preset,
-				seed: 1,
-				sessionId: "stress-session",
-			});
+	] as const)("uses the expected %s distribution", (preset: AgentPanelStressPreset, dominantKind, secondaryKind) => {
+		const fixture = createAgentPanelStressFixture({
+			rowCount: 120,
+			preset,
+			seed: 1,
+			sessionId: "stress-session",
+		});
 
-			expect(fixture.summary.kindCounts[dominantKind]).toBeGreaterThan(
-				fixture.summary.kindCounts[secondaryKind]
-			);
-		}
-	);
+		expect(fixture.summary.kindCounts[dominantKind]).toBeGreaterThan(
+			fixture.summary.kindCounts[secondaryKind]
+		);
+	});
 
 	it("returns an empty projection for zero rows", () => {
 		const fixture = createAgentPanelStressFixture({

@@ -1,42 +1,41 @@
 <script lang="ts">
-	import {
-		AgentInputMicButton,
-		AgentInputVoiceModelMenu,
-	} from "@acepe/ui/agent-panel";
-	import { FusedPrimaryOverflowGroup } from "@acepe/ui/panel-header";
+import { AgentInputMicButton, AgentInputVoiceModelMenu } from "@acepe/ui/agent-panel";
+import { FusedPrimaryOverflowGroup } from "@acepe/ui/panel-header";
 
-	import type { MicButtonSpecimen } from "./design-system-mic-button-specimens.js";
+import type { MicButtonSpecimen } from "./design-system-mic-button-specimens.js";
 
-	interface Props {
-		specimen?: MicButtonSpecimen;
-		showFusedShell?: boolean;
-	}
+interface Props {
+	specimen?: MicButtonSpecimen;
+	showFusedShell?: boolean;
+}
 
-	let {
-		specimen = {
-			id: "demo",
-			label: "Idle (fused)",
-			caption: "Embedded in voice control group",
-			visualState: "mic",
-			embeddedInGroup: true,
-		},
-		showFusedShell = true,
-	}: Props = $props();
+let {
+	specimen = {
+		id: "demo",
+		label: "Idle (fused)",
+		caption: "Embedded in voice control group",
+		visualState: "mic",
+		embeddedInGroup: true,
+	},
+	showFusedShell = true,
+}: Props = $props();
 
-	const mockVoiceModels = [
-		{
-			id: "whisper-base",
-			name: "Whisper Base",
-			sizeBytes: 142_000_000,
-			isDownloaded: true,
-		},
-		{
-			id: "whisper-small",
-			name: "Whisper Small",
-			sizeBytes: 466_000_000,
-			isDownloaded: false,
-		},
-	] as const;
+const mockVoiceModels = [
+	{
+		id: "whisper-base",
+		name: "Whisper Base",
+		sizeBytes: 142_000_000,
+		isDownloaded: true,
+		isDownloadable: true,
+	},
+	{
+		id: "whisper-small",
+		name: "Whisper Small",
+		sizeBytes: 466_000_000,
+		isDownloaded: false,
+		isDownloadable: true,
+	},
+] as const;
 </script>
 
 {#if showFusedShell && specimen.embeddedInGroup}

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "bun:test";
 
-import type { ProjectWithSessions } from "./open-project-dialog-props.js";
-import { shouldShowDiscoveredProject, sortProjectsBySessionCount } from "./project-discovery.js";
+import {
+	type ProjectWithSessions,
+	shouldShowDiscoveredProject,
+	sortProjectsBySessionCount,
+} from "./project-discovery.js";
 
 function makeProject(
 	name: string,

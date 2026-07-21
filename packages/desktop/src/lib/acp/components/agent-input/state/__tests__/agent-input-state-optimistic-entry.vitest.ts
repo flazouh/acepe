@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import { errAsync, okAsync } from "neverthrow";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@tauri-apps/api/core", () => ({
 	invoke: vi.fn(async () => undefined),
@@ -42,9 +42,7 @@ function makeSession(id: string = "session-123") {
 	};
 }
 
-function makePanelStore(input?: {
-	readonly pendingUserEntry?: SessionEntry | null;
-}): {
+function makePanelStore(input?: { readonly pendingUserEntry?: SessionEntry | null }): {
 	readonly store: Partial<PanelStore>;
 	readonly setPendingUserEntry: ReturnType<typeof vi.fn>;
 	readonly clearPendingUserEntry: ReturnType<typeof vi.fn>;
@@ -59,9 +57,7 @@ function makePanelStore(input?: {
 	});
 
 	const store: Partial<PanelStore> = {
-		getHotState: vi.fn(() =>
-			Object.assign({}, DEFAULT_PANEL_HOT_STATE, { pendingUserEntry })
-		),
+		getHotState: vi.fn(() => Object.assign({}, DEFAULT_PANEL_HOT_STATE, { pendingUserEntry })),
 		setPendingUserEntry,
 		clearPendingUserEntry,
 	};

@@ -31,7 +31,7 @@ async fn seed_session_metadata(db: &DbConn, session_id: &str) {
 }
 
 #[tokio::test]
-async fn reserve_sets_reserved_checkpoint_and_advances_frontier() {
+async fn reserve_keeps_graph_revision_independent_from_delivery_frontier() {
     let db = setup_db().await;
     seed_session_metadata(&db, "session-1").await;
     let projection_registry = ProjectionRegistry::new();
@@ -46,12 +46,13 @@ async fn reserve_sets_reserved_checkpoint_and_advances_frontier() {
         .await
         .expect("reserve session");
 
-    assert_eq!(checkpoint.graph_revision, 1);
+    assert_eq!(checkpoint.graph_revision, 0);
     assert_eq!(checkpoint.lifecycle, LifecycleState::reserved());
     assert_eq!(
         SessionEventSequenceRepository::last_assigned_event_seq(&db, "session-1")
             .await
-            .expect("load max seq"),
+            .expect("load max seq")
+            .map(|event_seq| event_seq.get()),
         Some(1)
     );
     let supervisor_checkpoint = supervisor
@@ -90,7 +91,8 @@ async fn double_reservation_returns_error_without_second_write() {
     assert_eq!(
         SessionEventSequenceRepository::last_assigned_event_seq(&db, "session-1")
             .await
-            .expect("load max seq"),
+            .expect("load max seq")
+            .map(|event_seq| event_seq.get()),
         Some(1)
     );
 }

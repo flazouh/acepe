@@ -212,8 +212,7 @@ function createLazySceneArray(length: number, counts: TrapCounts): readonly numb
 					return source[index];
 				}
 				if (key === "slice") {
-					return (start?: number, end?: number) =>
-						Array.prototype.slice.call(receiver, start, end);
+					return (start?: number, end?: number) => Array.prototype.slice.call(receiver, start, end);
 				}
 			}
 			return Reflect.get(targetArray, key, receiver);

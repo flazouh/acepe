@@ -1,11 +1,11 @@
 import { join } from "node:path";
-import { ResultAsync, err, ok } from "neverthrow";
+import { err, ok, type ResultAsync } from "neverthrow";
 import { z } from "zod";
 import type { TargetDoctorResult, TargetProcess } from "./schemas";
 import {
+	type CommandRunner,
 	executeWebviewJson,
 	runCommand,
-	type CommandRunner,
 	type TauriMcpFailure,
 } from "./tauri-mcp";
 
@@ -340,9 +340,10 @@ export function runDoctor(
 			return binaryFreshness(options.checkoutRoot, runner).andThen((freshness) =>
 				probeWebview(appIdentifiers, runner)
 					.andThen((probe) =>
-						frontendFreshness(options.checkoutRoot, probe.webview.url, runner).map(
-							(frontend) => ({ probe, frontend })
-						)
+						frontendFreshness(options.checkoutRoot, probe.webview.url, runner).map((frontend) => ({
+							probe,
+							frontend,
+						}))
 					)
 					.map(({ probe, frontend }) => {
 						const findings = buildFindings({

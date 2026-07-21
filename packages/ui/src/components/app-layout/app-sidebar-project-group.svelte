@@ -1,45 +1,45 @@
 <script lang="ts">
-	import type { Snippet } from "svelte";
+import type { Snippet } from "svelte";
 
-	import { cn } from "../../lib/utils.js";
-	import { ProjectLetterBadge } from "../project-letter-badge/index.js";
-	import AppSessionItem from "./app-session-item.svelte";
-	import type { AppProjectGroup } from "./types.js";
+import { cn } from "../../lib/utils.js";
+import { ProjectLetterBadge } from "../project-letter-badge/index.js";
+import AppSessionItem from "./app-session-item.svelte";
+import type { AppProjectGroup } from "./types.js";
 
-	interface SharedProps {
-		header?: Snippet;
-		children?: Snippet;
-		footer?: Snippet;
-		style?: string;
-		class?: string;
-	}
+interface SharedProps {
+	header?: Snippet;
+	children?: Snippet;
+	footer?: Snippet;
+	style?: string;
+	class?: string;
+}
 
-	type Props = SharedProps &
-		(
-			| { projectName: string; group?: AppProjectGroup }
-			| { projectName?: never; group: AppProjectGroup }
-		);
+type Props = SharedProps &
+	(
+		| { projectName: string; group?: AppProjectGroup }
+		| { projectName?: never; group: AppProjectGroup }
+	);
 
-	let {
-		projectName,
-		group,
-		header,
-		children,
-		footer,
-		style,
-		class: className = "",
-	}: Props = $props();
+let {
+	projectName,
+	group,
+	header,
+	children,
+	footer,
+	style,
+	class: className = "",
+}: Props = $props();
 
-	// Prefer the explicit prop; fall back to the group name so the container is
-	// always an accessibly-named region even when only a group is supplied.
-	const accessibleName = $derived(projectName ? projectName : group.name);
+// Prefer the explicit prop; fall back to the group name so the container is
+// always an accessibly-named region even when only a group is supplied.
+const accessibleName = $derived(projectName ?? group?.name ?? "Project");
 </script>
 
 <!--
 	Workspace container: one full-width surface per project. Separation comes from
 	a quiet fill + shape, never borders, shadows, or large color fills. It reuses
-	the tool-call surface token (bg-input/30) so the shell reads as the same quiet
-	surface family, distinct from the accent tint used by selected session rows.
+	the quiet input-surface family (bg-input wash) so the shell reads with the same
+	recessed fill language as tool cards, distinct from selected-row accent tint.
 	The header is the top band; session content is inset within the same surface.
 	Collapsed groups render an empty content region that adds no height, so they
 	stay compact.

@@ -551,7 +551,10 @@ mod tests {
         };
         assert!(delta.prepended_rows.is_empty());
         assert_eq!(delta.appended_rows.len(), 1);
-        assert_eq!(delta.appended_rows[0].row_id, "transcript:assistant-40");
+        assert_eq!(
+            delta.appended_rows[0].row_id,
+            "transcript:root:assistant-40"
+        );
 
         let state = tracker
             .state
@@ -565,7 +568,7 @@ mod tests {
         assert!(prior.budget_shrunk_tail);
         assert_eq!(
             prior.row_ids.last(),
-            Some(&"transcript:assistant-40".to_string())
+            Some(&"transcript:root:assistant-40".to_string())
         );
     }
 
@@ -605,7 +608,7 @@ mod tests {
         assert_eq!(
             push.rows[0].row_id,
             format!(
-                "transcript:assistant-{}",
+                "transcript:root:assistant-{}",
                 900usize.saturating_sub(INITIAL_VIEWPORT_ROW_PROJECTION_LIMIT)
             )
         );

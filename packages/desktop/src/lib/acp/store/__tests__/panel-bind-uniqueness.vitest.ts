@@ -29,9 +29,7 @@ function createPanel(overrides?: Partial<Panel>): Panel {
 	};
 }
 
-function createAgentState(
-	overrides?: Partial<PanelAgentStateDeps>
-): {
+function createAgentState(overrides?: Partial<PanelAgentStateDeps>): {
 	state: PanelAgentState;
 	disposedPanelIds: string[];
 	sessionIdentityById: Map<string, SessionIdentitySlice>;

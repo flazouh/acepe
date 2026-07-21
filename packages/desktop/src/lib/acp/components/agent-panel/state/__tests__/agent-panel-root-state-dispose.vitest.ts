@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { PanelConnectionState } from "../../../../types/panel-connection-state.js";
 import {
-	AgentPanelRootState,
 	type AgentPanelConnectionController,
+	AgentPanelRootState,
 	type AgentPanelRootStateDeps,
 	type AgentPanelRootStateStores,
 } from "../agent-panel-root-state.svelte.js";
@@ -89,21 +89,6 @@ function createRootStateDeps(
 				recoveryAction: null,
 			},
 		}),
-		getGraphMaterializerInput: () => ({
-			panelId: "panel-1",
-			graph: null,
-			header: {
-				title: "",
-				subtitle: null,
-				agentIconSrc: null,
-				agentLabel: null,
-				projectLabel: "Project",
-				projectColor: "#000000",
-				sequenceId: null,
-			},
-			optimistic: null,
-		}),
-		getPrefersReducedMotion: () => false,
 		getWorktreeToggleProjectPath: () => null,
 		getPanelPendingWorktreeEnabled: () => null,
 		getPanelPreparedWorktreeLaunch: () => null,

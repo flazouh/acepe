@@ -10,8 +10,8 @@ import { getWorktreeProjectDefaultStore } from "$lib/acp/components/worktree/wor
 import { Button } from "$lib/components/ui/button/index.js";
 import { HugeiconsIcon } from "@acepe/ui";
 import { getErrorCauseDetails } from "$lib/acp/errors/error-cause-details.js";
-import type { ProjectWithSessions } from "$lib/acp/components/add-repository/open-project-dialog-props.js";
 import {
+	type ProjectWithSessions,
 	shouldShowDiscoveredProject,
 	sortProjectsBySessionCount,
 } from "$lib/acp/components/add-repository/project-discovery.js";
@@ -27,10 +27,7 @@ import { getAgentPreferencesStore, getAgentStore } from "$lib/acp/store/index.js
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import { ensureErrorReference } from "$lib/errors/error-reference.js";
-import {
-	openIssueReportDraft,
-	resolveIssueActionLabel,
-} from "$lib/errors/issue-report.js";
+import { openIssueReportDraft, resolveIssueActionLabel } from "$lib/errors/issue-report.js";
 import { toast } from "svelte-sonner";
 
 import {

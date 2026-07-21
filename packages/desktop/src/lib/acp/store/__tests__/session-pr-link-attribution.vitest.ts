@@ -108,7 +108,10 @@ describe("gh pr create tool-call attribution", () => {
 
 		it("returns null when the create command printed no PR URL", () => {
 			expect(
-				extractPrCandidateFromGhCreateToolCall("gh pr create --fill", "error: no commits between...")
+				extractPrCandidateFromGhCreateToolCall(
+					"gh pr create --fill",
+					"error: no commits between..."
+				)
 			).toBeNull();
 			expect(extractPrCandidateFromGhCreateToolCall("gh pr create", null)).toBeNull();
 			expect(extractPrCandidateFromGhCreateToolCall(null, "anything")).toBeNull();

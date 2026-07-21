@@ -1,8 +1,8 @@
 import { okAsync, type ResultAsync } from "neverthrow";
 import { SvelteMap } from "svelte/reactivity";
 import type { AppError } from "$lib/acp/errors/app-error.js";
-import type { ComposerMcpCatalog } from "$lib/services/acp-types.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
+import type { ComposerMcpCatalog } from "$lib/services/acp-types.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 
 interface EnsureLoadedInput {
@@ -42,8 +42,7 @@ export class ComposerMcpCatalogState {
 	constructor(fetchCatalog?: FetchComposerMcpCatalog) {
 		this.fetchCatalog = fetchCatalog
 			? fetchCatalog
-			: (cwd, agentId, sessionId) =>
-					tauriClient.acp.getComposerMcpCatalog(cwd, agentId, sessionId);
+			: (cwd, agentId, sessionId) => tauriClient.acp.getComposerMcpCatalog(cwd, agentId, sessionId);
 	}
 
 	invalidate(input: EnsureLoadedInput): void {
@@ -57,7 +56,10 @@ export class ComposerMcpCatalogState {
 		}
 	}
 
-	ensureLoaded(input: EnsureLoadedInput, options?: { readonly force?: boolean }): ResultAsync<void, AppError> {
+	ensureLoaded(
+		input: EnsureLoadedInput,
+		options?: { readonly force?: boolean }
+	): ResultAsync<void, AppError> {
 		const cacheKey = buildCacheKey(input);
 		if (!cacheKey) {
 			return okAsync(undefined);

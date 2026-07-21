@@ -15,8 +15,7 @@ vi.mock("svelte", async () => {
 
 vi.mock("@acepe/ui", async () => ({
 	GitHubBadge: (await import("./__tests__/fixtures/github-badge-stub.svelte")).default,
-	HugeiconsIcon: (await import("./pr-status-card/test-hugeicons-icon-stub.svelte"))
-		.default,
+	HugeiconsIcon: (await import("./pr-status-card/test-hugeicons-icon-stub.svelte")).default,
 }));
 
 vi.mock("@tauri-apps/plugin-opener", () => ({
@@ -31,15 +30,8 @@ vi.mock("../hooks/use-session-context.js", () => ({
 	useSessionContext: () => null,
 }));
 
-const openGitDialogMock = vi.fn();
 const fetchCommitDiffMock = vi.fn();
 const fetchPrDiffMock = vi.fn();
-
-vi.mock("../store/panel-store.svelte.js", () => ({
-	getPanelStore: () => ({
-		openGitDialog: openGitDialogMock,
-	}),
-}));
 
 vi.mock("../services/github-service.js", () => ({
 	fetchCommitDiff: (...args: unknown[]) => fetchCommitDiffMock(...args),
@@ -50,7 +42,6 @@ const { default: GitHubBadgeComponent } = await import("./github-badge.svelte");
 
 describe("GitHubBadge", () => {
 	beforeEach(() => {
-		openGitDialogMock.mockClear();
 		fetchCommitDiffMock.mockReset();
 		fetchCommitDiffMock.mockResolvedValue({
 			match: (

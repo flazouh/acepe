@@ -4,23 +4,21 @@ import type {
 	AgentPanelSceneModel,
 } from "@acepe/ui/agent-panel/types";
 import type { SessionEntry } from "../application/dto/session-entry.js";
-import { mapSessionEntryToConversationEntry } from "../components/agent-panel/scene/desktop-agent-panel-scene.js";
 import { scenePatchFullRebuild } from "../components/agent-panel/logic/scene-patch.js";
+import { mapSessionEntryToConversationEntry } from "../components/agent-panel/scene/desktop-agent-panel-scene.js";
 import {
 	AGENT_PANEL_SCENE_TEXT_LIMITS,
 	type AgentPanelGraphHeaderInput,
 	type AgentPanelGraphMaterializerInput,
 	type AgentPanelGraphMaterializerReadModel,
 } from "./agent-panel-graph-materializer-types.js";
+
 export { applySceneTextLimits } from "./scene-text-limits.js";
-import {
-	buildLifecycleActions,
-	mapGraphStatus,
-	materializeLifecycle,
-} from "./graph-lifecycle.js";
-import { materializeConversation } from "./conversation-rebuild.js";
-import { materializeCachedConversation } from "./conversation-dispatcher.js";
+
 import type { CachedConversationState } from "./conversation-cache-types.js";
+import { materializeCachedConversation } from "./conversation-dispatcher.js";
+import { materializeConversation } from "./conversation-rebuild.js";
+import { buildLifecycleActions, mapGraphStatus, materializeLifecycle } from "./graph-lifecycle.js";
 
 // Re-export the public type surface (now owned by the -types module) so the
 // materializer's existing consumers keep importing it from here.

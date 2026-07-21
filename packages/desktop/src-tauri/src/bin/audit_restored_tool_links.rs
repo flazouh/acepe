@@ -201,10 +201,11 @@ async fn audit_recent_sessions(db: &DbConn, args: &Args) -> i32 {
 
 fn print_audit(audit: &RestoredToolLinkAudit) {
     println!(
-        "session={} agent={} entries={} transcript_tools={} operations={} unresolved={}",
+        "session={} agent={} entries={} scoped_entries={} transcript_tools={} operations={} unresolved={}",
         audit.session_id,
         audit.agent_id,
         audit.entry_count,
+        audit.scoped_entry_count,
         audit.transcript_tool_count,
         audit.operation_count,
         audit.unresolved_count

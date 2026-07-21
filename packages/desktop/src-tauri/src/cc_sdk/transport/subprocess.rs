@@ -226,19 +226,12 @@ impl SubprocessTransport {
         })
     }
 
-    /// Create a new subprocess transport with async initialization
+    /// Create a new subprocess transport with async initialization.
     ///
-    /// This version supports auto-downloading the CLI if `auto_download_cli` is enabled
-    /// in the options and the CLI is not found.
+    /// Runtime creation resolves only Acepe's managed Claude CLI. If the binary is
+    /// missing, callers should route through the explicit agent install/repair flow.
     pub async fn new_async(options: ClaudeCodeOptions) -> Result<Self> {
-        let cli_path = match find_claude_cli() {
-            Ok(path) => path,
-            Err(_) if options.auto_download_cli => {
-                info!("Claude CLI not found, attempting automatic download...");
-                crate::cc_sdk::cli_download::download_cli(None, None).await?
-            }
-            Err(e) => return Err(e),
-        };
+        let cli_path = find_claude_cli()?;
 
         Ok(Self {
             options,
@@ -1297,9 +1290,7 @@ pub fn find_claude_cli() -> Result<PathBuf> {
     find_claude_cli_with_version_timeout(CLI_VERSION_TIMEOUT)
 }
 
-pub(crate) fn find_claude_cli_with_version_timeout(
-    version_timeout: Duration,
-) -> Result<PathBuf> {
+pub(crate) fn find_claude_cli_with_version_timeout(version_timeout: Duration) -> Result<PathBuf> {
     let cached_path = agent_installer::get_cached_binary(&CanonicalAgentId::ClaudeCode)
         .ok_or_else(|| SdkError::CliNotFound {
             searched_paths:

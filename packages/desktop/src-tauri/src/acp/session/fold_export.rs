@@ -29,9 +29,10 @@ pub fn default_session_title(session_id: &str) -> String {
 }
 
 /// Fold output packaged for session-open and session-command compat callers.
-pub(crate) struct MaterializedThreadSnapshot {
+pub struct MaterializedThreadSnapshot {
     pub transcript_snapshot: TranscriptSnapshot,
     pub projection: SessionProjectionSnapshot,
+    pub graph_revision: i64,
 }
 
 /// Fold ordered history events into a session graph (single fold spine).
@@ -57,7 +58,7 @@ pub fn materialized_thread_snapshot_from_history_events(
     transcript_revision: i64,
 ) -> MaterializedThreadSnapshot {
     let graph = fold_graph_from_history_events(session_id, agent_id, project_path, events);
-    materialized_thread_snapshot_from_folded_graph(session_id, &graph, transcript_revision)
+    materialized_thread_snapshot_from_folded_graph(session_id, &graph, transcript_revision, 0)
 }
 
 /// Materialize a parsed full session through ingress events and fold.
@@ -94,6 +95,7 @@ pub fn materialized_from_stored_entries(
     MaterializedThreadSnapshot {
         transcript_snapshot,
         projection,
+        graph_revision: 0,
     }
 }
 
@@ -153,7 +155,8 @@ pub fn provider_owned_snapshot_from_folded_graph(
     let materialized = materialized_thread_snapshot_from_folded_graph(
         &graph.canonical_session_id,
         &graph,
-        graph.revision.graph_revision,
+        graph.revision.transcript_revision,
+        graph.revision.last_event_seq,
     );
     provider_owned_snapshot_from_materialized(&materialized, title, Vec::new())
 }
@@ -187,7 +190,7 @@ pub fn materialized_thread_snapshot_from_thread_snapshot_fold_first(
     session_id: &str,
     replay_context: &SessionReplayContext,
     snapshot: &SessionThreadSnapshot,
-    transcript_revision: i64,
+    last_event_seq: i64,
 ) -> MaterializedThreadSnapshot {
     let events =
         stored_entries_to_provider_events(&snapshot.entries, replay_context.agent_id.clone());
@@ -197,10 +200,12 @@ pub fn materialized_thread_snapshot_from_thread_snapshot_fold_first(
         &replay_context.project_path,
         &events,
     );
-    let mut folded =
-        materialized_thread_snapshot_from_folded_graph(session_id, &graph, transcript_revision);
-    folded.transcript_snapshot.revision = transcript_revision;
-    folded
+    materialized_thread_snapshot_from_folded_graph(
+        session_id,
+        &graph,
+        graph.transcript_snapshot.revision,
+        last_event_seq,
+    )
 }
 
 /// Build transcript + projection from a provider snapshot via fold.
@@ -209,13 +214,15 @@ pub fn materialized_thread_snapshot_from_provider_fold_first(
     session_id: &str,
     replay_context: &SessionReplayContext,
     snapshot: &ProviderOwnedSessionSnapshot,
-    transcript_revision: i64,
+    last_event_seq: i64,
 ) -> MaterializedThreadSnapshot {
     let graph = fold_graph_from_provider_snapshot(replay_context, snapshot);
-    let mut folded =
-        materialized_thread_snapshot_from_folded_graph(session_id, &graph, transcript_revision);
-    folded.transcript_snapshot.revision = transcript_revision;
-    folded
+    materialized_thread_snapshot_from_folded_graph(
+        session_id,
+        &graph,
+        graph.transcript_snapshot.revision,
+        last_event_seq,
+    )
 }
 
 /// Fold a provider-owned snapshot into a session graph (canonical events or stored entries).
@@ -255,6 +262,7 @@ pub(crate) fn materialized_thread_snapshot_from_folded_graph(
     session_id: &str,
     graph: &SessionStateGraph,
     transcript_revision: i64,
+    last_event_seq: i64,
 ) -> MaterializedThreadSnapshot {
     let mut transcript_snapshot = graph.transcript_snapshot.clone();
     transcript_snapshot.revision = transcript_snapshot.revision.max(transcript_revision);
@@ -262,7 +270,7 @@ pub(crate) fn materialized_thread_snapshot_from_folded_graph(
     let session = SessionSnapshot {
         session_id: session_id.to_string(),
         agent_id: Some(graph.agent_id.clone()),
-        last_event_seq: graph.revision.graph_revision,
+        last_event_seq,
         turn_state: graph.turn_state.clone(),
         message_count: graph.message_count,
         active_tool_call_ids: Vec::new(),
@@ -281,5 +289,38 @@ pub(crate) fn materialized_thread_snapshot_from_folded_graph(
             interactions: graph.interactions.clone(),
             runtime: None,
         },
+        graph_revision: graph.revision.graph_revision,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{fold_graph_from_history_events, materialized_thread_snapshot_from_folded_graph};
+    use crate::acp::session_state_engine::revision::SessionGraphRevision;
+    use crate::acp::types::CanonicalAgentId;
+
+    #[test]
+    fn folded_provider_projection_preserves_the_durable_event_frontier() {
+        let session_id = "provider-frontier-session";
+        let mut graph = fold_graph_from_history_events(
+            session_id,
+            &CanonicalAgentId::ClaudeCode,
+            "/test/project",
+            &[],
+        );
+        graph.revision = SessionGraphRevision::new(7, 3, 99);
+
+        let materialized =
+            materialized_thread_snapshot_from_folded_graph(session_id, &graph, 3, 41);
+
+        assert_eq!(
+            materialized
+                .projection
+                .session
+                .expect("materialized session projection")
+                .last_event_seq,
+            41
+        );
+        assert_eq!(materialized.graph_revision, 7);
     }
 }

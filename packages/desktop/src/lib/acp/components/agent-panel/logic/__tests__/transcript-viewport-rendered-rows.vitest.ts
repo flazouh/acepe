@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
+import { describe, expect, it } from "vitest";
 import type { TranscriptViewportRow } from "../../../../../services/acp-types.js";
 import { buildRenderableTranscriptViewportRows } from "../transcript-viewport-rendered-rows.js";
 

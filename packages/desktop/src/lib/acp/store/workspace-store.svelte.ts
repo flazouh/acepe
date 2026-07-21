@@ -527,10 +527,6 @@ export interface WorkspaceStateProviders {
 	getCollapsedProjectPaths?: () => string[];
 	/** Set collapsed project paths on restore */
 	setCollapsedProjectPaths?: (paths: string[]) => void;
-	/** Get attention queue expanded state */
-	getQueueExpanded?: () => boolean;
-	/** Set attention queue expanded state on restore */
-	setQueueExpanded?: (expanded: boolean) => void;
 }
 
 export class WorkspaceStore {
@@ -588,7 +584,6 @@ export class WorkspaceStore {
 				focusedViewProjectPath: panelSnapshot.focusedViewProjectPath,
 				// Sidebar card collapse state
 				collapsedProjectPaths: this.providers.getCollapsedProjectPaths?.() ?? [],
-				queueExpanded: this.providers.getQueueExpanded?.(),
 			};
 			api.saveWorkspaceState(state).mapErr((error) => {
 				logger.error("Failed to persist workspace state", { error });
@@ -633,9 +628,6 @@ export class WorkspaceStore {
 		}
 		if (state.collapsedProjectPaths !== undefined) {
 			this.providers.setCollapsedProjectPaths?.(Array.from(state.collapsedProjectPaths));
-		}
-		if (state.queueExpanded !== undefined) {
-			this.providers.setQueueExpanded?.(state.queueExpanded);
 		}
 	}
 

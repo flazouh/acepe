@@ -1,213 +1,212 @@
 <script lang="ts">
-	import * as DropdownMenu from "../dropdown-menu/index.js";
-	import * as Tooltip from "../tooltip/index.js";
-	import { mergeProps } from "bits-ui";
-	import type { Snippet } from "svelte";
+import { mergeProps } from "bits-ui";
+import type { Snippet } from "svelte";
+import { cn } from "../../lib/utils.js";
+import { Button, type ButtonVariant, buttonVariants } from "../button/index.js";
+import * as DropdownMenu from "../dropdown-menu/index.js";
+import { HugeiconsIcon } from "../icons/index.js";
+import * as Tooltip from "../tooltip/index.js";
+import {
+	getSelectorTriggerButtonPropsForContext,
+	getSelectorTriggerClass,
+	resolveSelectorTriggerSize,
+	type SelectorTriggerSize,
+} from "./selector-trigger-classes.js";
 
-	import { cn } from "../../lib/utils.js";
-	import { Button, type ButtonVariant, buttonVariants } from "../button/index.js";
-	import { HugeiconsIcon } from "../icons/index.js";
-	import {
-		getSelectorTriggerButtonPropsForContext,
-		getSelectorTriggerClass,
-		resolveSelectorTriggerSize,
-		type SelectorTriggerSize,
-	} from "./selector-trigger-classes.js";
+interface Props {
+	/**
+	 * Content for the label button (left side of the ButtonGroup).
+	 */
+	renderButton: Snippet;
 
-	interface Props {
-		/**
-		 * Content for the label button (left side of the ButtonGroup).
-		 */
-		renderButton: Snippet;
+	/**
+	 * Content for the dropdown. Rendered inside DropdownMenu.Content.
+	 */
+	children: Snippet;
 
-		/**
-		 * Content for the dropdown. Rendered inside DropdownMenu.Content.
-		 */
-		children: Snippet;
+	/**
+	 * Whether the dropdown is open. Bindable.
+	 */
+	open?: boolean;
 
-		/**
-		 * Whether the dropdown is open. Bindable.
-		 */
-		open?: boolean;
+	/**
+	 * Whether the selector is disabled.
+	 */
+	disabled?: boolean;
 
-		/**
-		 * Whether the selector is disabled.
-		 */
-		disabled?: boolean;
+	/**
+	 * Dropdown content alignment relative to the trigger.
+	 */
+	align?: "start" | "center" | "end";
 
-		/**
-		 * Dropdown content alignment relative to the trigger.
-		 */
-		align?: "start" | "center" | "end";
+	/**
+	 * Dropdown content side relative to the trigger.
+	 */
+	side?: "top" | "right" | "bottom" | "left";
 
-		/**
-		 * Dropdown content side relative to the trigger.
-		 */
-		side?: "top" | "right" | "bottom" | "left";
+	/**
+	 * CSS class for the root container.
+	 */
+	class?: string;
 
-		/**
-		 * CSS class for the root container.
-		 */
-		class?: string;
+	/**
+	 * Button variant for the selector button.
+	 */
+	variant?: ButtonVariant;
 
-		/**
-		 * Button variant for the selector button.
-		 */
-		variant?: ButtonVariant;
+	/**
+	 * Callback when open state changes.
+	 */
+	onOpenChange?: (isOpen: boolean) => void;
 
-		/**
-		 * Callback when open state changes.
-		 */
-		onOpenChange?: (isOpen: boolean) => void;
+	/**
+	 * Whether to render the trigger chevron.
+	 */
+	showChevron?: boolean;
 
-		/**
-		 * Whether to render the trigger chevron.
-		 */
-		showChevron?: boolean;
+	/**
+	 * Optional tooltip shown on trigger hover.
+	 */
+	tooltipLabel?: string;
 
-		/**
-		 * Optional tooltip shown on trigger hover.
-		 */
-		tooltipLabel?: string;
+	/**
+	 * Rich tooltip title (used with tooltipDescription).
+	 */
+	tooltipTitle?: string;
 
-		/**
-		 * Rich tooltip title (used with tooltipDescription).
-		 */
-		tooltipTitle?: string;
+	/**
+	 * Rich tooltip body shown below tooltipTitle.
+	 */
+	tooltipDescription?: string;
 
-		/**
-		 * Rich tooltip body shown below tooltipTitle.
-		 */
-		tooltipDescription?: string;
+	/**
+	 * Tooltip side relative to the trigger.
+	 */
+	tooltipSide?: "top" | "right" | "bottom" | "left";
 
-		/**
-		 * Tooltip side relative to the trigger.
-		 */
-		tooltipSide?: "top" | "right" | "bottom" | "left";
+	/**
+	 * Accessible label for the trigger button.
+	 */
+	triggerAriaLabel?: string;
 
-		/**
-		 * Accessible label for the trigger button.
-		 */
-		triggerAriaLabel?: string;
+	/**
+	 * Bindable reference to the trigger button element.
+	 */
+	triggerRef?: HTMLButtonElement | null;
 
-		/**
-		 * Bindable reference to the trigger button element.
-		 */
-		triggerRef?: HTMLButtonElement | null;
+	/**
+	 * Preset trigger sizing and shape.
+	 */
+	triggerSize?: SelectorTriggerSize;
 
-		/**
-		 * Preset trigger sizing and shape.
-		 */
-		triggerSize?: SelectorTriggerSize;
+	/**
+	 * Extra classes merged onto the trigger button (after preset triggerSize classes).
+	 */
+	triggerClass?: string;
 
-		/**
-		 * Extra classes merged onto the trigger button (after preset triggerSize classes).
-		 */
-		triggerClass?: string;
+	/**
+	 * When true, marks the trigger for fused button-group segment styling.
+	 */
+	embeddedInGroup?: boolean;
 
-		/**
-		 * When true, marks the trigger for fused button-group segment styling.
-		 */
-		embeddedInGroup?: boolean;
+	/**
+	 * Raise dropdown content above blocking overlays (branch picker, etc.).
+	 */
+	blockingOverlay?: boolean;
 
-		/**
-		 * Raise dropdown content above blocking overlays (branch picker, etc.).
-		 */
-		blockingOverlay?: boolean;
+	/**
+	 * Distance between trigger and dropdown content.
+	 */
+	sideOffset?: number;
 
-		/**
-		 * Distance between trigger and dropdown content.
-		 */
-		sideOffset?: number;
+	/**
+	 * Extra classes merged onto dropdown menu content.
+	 */
+	contentClass?: string;
 
-		/**
-		 * Extra classes merged onto dropdown menu content.
-		 */
-		contentClass?: string;
+	/**
+	 * When true, applies the trigger button's active visual state (open menu).
+	 */
+	triggerActive?: boolean;
 
-		/**
-		 * When true, applies the trigger button's active visual state (open menu).
-		 */
-		triggerActive?: boolean;
+	/**
+	 * Preset overflow trigger glyph. When set, renders instead of renderButton.
+	 */
+	triggerIcon?: "none" | "dots" | "gear";
+}
 
-		/**
-		 * Preset overflow trigger glyph. When set, renders instead of renderButton.
-		 */
-		triggerIcon?: "none" | "dots" | "gear";
-	}
+let {
+	renderButton,
+	children,
+	open = $bindable(false),
+	disabled = false,
+	align = "end",
+	side,
+	class: className,
+	variant = "outline",
+	onOpenChange,
+	showChevron = true,
+	tooltipLabel,
+	tooltipTitle,
+	tooltipDescription,
+	tooltipSide = "bottom",
+	triggerAriaLabel,
+	triggerRef = $bindable(null),
+	triggerSize = "default",
+	triggerClass: triggerClassOverride = "",
+	embeddedInGroup = false,
+	blockingOverlay = false,
+	sideOffset = 4,
+	contentClass: menuContentClass = "",
+	triggerActive = false,
+	triggerIcon = "none",
+}: Props = $props();
 
-	let {
-		renderButton,
-		children,
-		open = $bindable(false),
-		disabled = false,
-		align = "end",
-		side,
-		class: className,
-		variant = "outline",
-		onOpenChange,
-		showChevron = true,
-		tooltipLabel,
-		tooltipTitle,
-		tooltipDescription,
-		tooltipSide = "bottom",
-		triggerAriaLabel,
-		triggerRef = $bindable(null),
-		triggerSize = "default",
-		triggerClass: triggerClassOverride = "",
-		embeddedInGroup = false,
-		blockingOverlay = false,
-		sideOffset = 4,
-		contentClass: menuContentClass = "",
-		triggerActive = false,
-		triggerIcon = "none",
-	}: Props = $props();
+const resolvedTriggerSize = $derived(resolveSelectorTriggerSize(triggerSize));
 
-	const resolvedTriggerSize = $derived(resolveSelectorTriggerSize(triggerSize));
+const triggerButtonProps = $derived(
+	getSelectorTriggerButtonPropsForContext({
+		triggerSize,
+		embeddedInGroup,
+		variant,
+	}),
+);
 
-	const triggerButtonProps = $derived(
-		getSelectorTriggerButtonPropsForContext({
-			triggerSize,
-			embeddedInGroup,
-			variant,
-		})
-	);
+const triggerClass = $derived(
+	getSelectorTriggerClass({
+		triggerSize,
+		triggerClass: triggerClassOverride,
+	}),
+);
 
-	const triggerClass = $derived(
-		getSelectorTriggerClass({
-			triggerSize,
-			triggerClass: triggerClassOverride,
-		})
-	);
+const resolvedTriggerAriaLabel = $derived(
+	triggerAriaLabel ?? tooltipTitle ?? tooltipLabel,
+);
 
-	const resolvedTriggerAriaLabel = $derived(
-		triggerAriaLabel ?? tooltipTitle ?? tooltipLabel
-	);
+const triggerButtonClass = $derived(
+	cn(
+		buttonVariants({
+			variant: triggerButtonProps.variant,
+			size: triggerButtonProps.size,
+			active: triggerActive,
+		}),
+		triggerClass,
+		embeddedInGroup ? "!rounded-none" : "",
+		className,
+	),
+);
+const contentClass = $derived(
+	cn(
+		"w-fit max-w-[280px]",
+		blockingOverlay && "z-[var(--app-blocking-z)] isolate",
+		menuContentClass,
+	),
+);
 
-	const triggerButtonClass = $derived(
-		cn(
-			buttonVariants({
-				variant: triggerButtonProps.variant,
-				size: triggerButtonProps.size,
-				active: triggerActive,
-			}),
-			triggerClass,
-			embeddedInGroup ? "!rounded-none" : "",
-			className
-		)
-	);
-	const contentClass = $derived(
-		cn(
-			"w-fit max-w-[280px]",
-			blockingOverlay && "z-[var(--app-blocking-z)] isolate",
-			menuContentClass
-		)
-	);
-
-	export function toggle() {
-		open = !open;
-		onOpenChange?.(open);
-	}
+export function toggle() {
+	open = !open;
+	onOpenChange?.(open);
+}
 </script>
 
 {#snippet selectorTriggerButton(buttonProps: Record<string, unknown>)}
@@ -270,7 +269,8 @@
 	</DropdownMenu.Trigger>
 {/snippet}
 
-<DropdownMenu.Root bind:open {onOpenChange} class={embeddedInGroup ? "contents" : undefined}>
+<div class={embeddedInGroup ? "contents" : undefined}>
+	<DropdownMenu.Root bind:open {onOpenChange}>
 	{#if (tooltipLabel || tooltipDescription) && !embeddedInGroup}
 		<Tooltip.Root>
 			<Tooltip.Trigger>
@@ -302,4 +302,5 @@
 	<DropdownMenu.Content {align} {side} {sideOffset} class={contentClass}>
 		{@render children()}
 	</DropdownMenu.Content>
-</DropdownMenu.Root>
+	</DropdownMenu.Root>
+</div>

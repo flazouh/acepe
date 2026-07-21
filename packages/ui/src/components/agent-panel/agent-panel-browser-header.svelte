@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { untrack } from "svelte";
+
 	import {
 		BrowserNavActions,
 		CloseAction,
@@ -24,8 +26,8 @@
 
 	let props: Props = $props();
 
-	let inputValue = $state(props.url);
-	let lastSyncedUrl = $state(props.url);
+	let inputValue = $state(untrack(() => props.url));
+	let lastSyncedUrl = $state(untrack(() => props.url));
 
 	function updateInputValue(value: string): void {
 		inputValue = value;

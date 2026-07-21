@@ -7,11 +7,11 @@ import type { Attachment } from "../components/agent-input/types/attachment.js";
 import type { AppError } from "../errors/app-error.js";
 import { ConnectionError, SessionNotFoundError } from "../errors/app-error.js";
 import { createLogger } from "../utils/logger.js";
-import type { SessionCreationCoordinator } from "./session-creation-coordinator.svelte.js";
 import { canActivateCreatedSessionWithFirstPrompt } from "./services/first-send-activation.js";
 import type { SessionMessagingService } from "./services/session-messaging-service.js";
+import type { SessionCreationCoordinator } from "./session-creation-coordinator.svelte.js";
 import { getTitleUpdateFromUserMessage } from "./session-title-policy.js";
-import type { SessionMutableColdUpdates, SessionMetadata } from "./types.js";
+import type { SessionMetadata, SessionMutableColdUpdates } from "./types.js";
 
 const logger = createLogger({
 	id: "session-messaging-orchestrator",
@@ -21,7 +21,9 @@ const logger = createLogger({
 export type SessionMessagingOrchestratorDeps = {
 	readonly messagingSvc: SessionMessagingService;
 	readonly creationCoordinator: SessionCreationCoordinator;
-	readonly getSessionIdentity: (sessionId: string) => import("./types.js").SessionIdentity | undefined;
+	readonly getSessionIdentity: (
+		sessionId: string
+	) => import("./types.js").SessionIdentity | undefined;
 	readonly getSessionMetadata: (sessionId: string) => SessionMetadata | undefined;
 	readonly getSessionCanSend: (sessionId: string) => boolean | null;
 	readonly getSessionLifecycleStatus: (

@@ -8,8 +8,7 @@ function capitalizeLeadingCharacter(value: string): string {
 }
 
 export function resolveTaskSubagent(
-	toolCall: ToolCall,
-	_streamingArgs: unknown
+	toolCall: ToolCall
 ): { description: string | null; prompt: string | null } | null {
 	if (toolCall.arguments.kind !== "think") {
 		return null;

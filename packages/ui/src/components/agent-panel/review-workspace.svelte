@@ -16,12 +16,15 @@
 		onClose?: () => void;
 		onFileSelect?: (index: number) => void;
 		onFileRevert?: (index: number) => void;
+		onFileRevertCancel?: (index: number) => void;
+		onKeepFile?: () => void;
 		headerLabel: string;
 		emptyStateLabel: string;
 		closeButtonLabel?: string;
 		showHeader?: boolean;
 		showCloseButton?: boolean;
 		compact?: boolean;
+		fileListVariant?: "tree" | "flat";
 		/**
 		 * Flat surface: drop the boxed `bg-input/30` pane cards in favour of the
 		 * Source Control modal's flush, hairline-divider treatment. The host dialog
@@ -39,12 +42,15 @@
 		onClose,
 		onFileSelect,
 		onFileRevert,
+		onFileRevertCancel,
+		onKeepFile,
 		headerLabel,
 		emptyStateLabel,
 		closeButtonLabel = "Back",
 		showHeader = true,
 		showCloseButton = true,
 		compact = false,
+		fileListVariant = "tree",
 		flat = false,
 	}: Props = $props();
 
@@ -132,6 +138,8 @@
 				emptyStateLabel={emptyStateLabel}
 				onFileSelect={onFileSelect}
 				onFileRevert={onFileRevert}
+				onFileRevertCancel={onFileRevertCancel}
+				variant={fileListVariant}
 			/>
 		</aside>
 
@@ -149,6 +157,7 @@
 						{showCloseButton}
 						{headerActions}
 						{onClose}
+						{onKeepFile}
 						onPreviousFile={handlePreviousFile}
 						onNextFile={handleNextFile}
 					/>

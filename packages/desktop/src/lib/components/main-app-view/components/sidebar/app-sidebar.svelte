@@ -15,20 +15,25 @@ import type { Project, ProjectManager } from "$lib/acp/logic/project-manager.sve
 import {
 	getAgentPreferencesStore,
 	getAgentStore,
+	getInteractionStore,
 	getPanelStore,
 	getSessionStore,
+	getUnseenStore,
 } from "$lib/acp/store/index.js";
+import {
+	selectAttentionKind,
+	type SessionAttentionEntry,
+} from "$lib/acp/store/session-attention/index.js";
 import { getSessionArchiveStore } from "$lib/acp/store/session-archive-store.svelte.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { useTheme } from "$lib/components/theme/index.js";
-import { getAttentionQueueStore } from "$lib/stores/attention-queue-store.svelte.js";
 import { tauriClient } from "$lib/utils/tauri-client/index.js";
 
 import type { MainAppViewState } from "../../logic/main-app-view-state.svelte.js";
+import { applyCompletionAttentionAction } from "../../logic/completion-acknowledgement.js";
 import type { UpdaterBannerState } from "../../logic/updater-state.js";
 import { ensureProjectHeaderAgentSelected, getProjectHeaderAgents } from "./app-sidebar-agents.js";
 
-import AppQueueRow from "../app-queue-row.svelte";
 import SidebarFooter from "./sidebar-footer.svelte";
 import { buildSessionTranscriptFileDialogTarget } from "./session-transcript-file-dialog.js";
 
@@ -58,16 +63,52 @@ let {
 
 const panelStore = getPanelStore();
 const sessionStore = getSessionStore();
+const interactionStore = getInteractionStore();
+const unseenStore = getUnseenStore();
 const agentPreferencesStore = getAgentPreferencesStore();
 const agentStore = getAgentStore();
 const archiveStore = getSessionArchiveStore();
 const themeState = useTheme();
-const attentionQueueStore = getAttentionQueueStore();
+
+const attentionBySessionId = $derived.by(() => {
+	const map = new Map<string, SessionAttentionEntry>();
+
+	for (const panel of panelStore.panels) {
+		const sessionId = panel.sessionId;
+		if (sessionId === null) {
+			continue;
+		}
+
+		const presentation = sessionStore.presentation.getSessionListItemPresentation({
+			sessionId,
+			interactionStore,
+			hasUnseenCompletion: unseenStore.isUnseen(panel.id),
+			active: true,
+		});
+		const kind = selectAttentionKind(presentation.sessionWorkProjection);
+		if (kind === null) {
+			continue;
+		}
+
+		map.set(sessionId, {
+			kind,
+			panelId: panel.id,
+		});
+	}
+
+	return map;
+});
 
 function handleSelectSession(sessionId: string, sessionInfo?: SessionListItem) {
+	const attention = attentionBySessionId.get(sessionId);
 	appState.handleSelectSession(sessionId, sessionInfo).mapErr(() => {
 		// Error handling is done in the handler
 	});
+	if (attention !== undefined) {
+		applyCompletionAttentionAction(unseenStore, attention.panelId, {
+			kind: "explicit-reveal",
+		});
+	}
 }
 
 function handleNewThread() {
@@ -157,9 +198,6 @@ function handleRemoveProject(projectPath: string) {
 	for (const tp of panelStore.getTerminalPanelsForProject(projectPath)) {
 		panelStore.closeTerminalPanel(tp.id);
 	}
-	if (panelStore.gitDialog?.projectPath === projectPath) {
-		panelStore.closeGitDialog();
-	}
 	for (const fp of panelStore.getFilePanelsForProject(projectPath)) {
 		panelStore.closeFilePanel(fp.id);
 	}
@@ -186,14 +224,9 @@ function handleOpenBrowser(projectPath: string) {
 	panelStore.openBrowserPanel(projectPath, DEFAULT_BROWSER_HOME_URL, "acepe.dev");
 }
 
-function handleOpenGitPanel(projectPath: string) {
-	panelStore.openGitDialog(projectPath);
-}
-
-// ── Sidebar-header global actions (source control + file system) ──
-// These operate on the "current" project — the focused view/panel project, or
-// the first project — and let the user switch projects via a picker inside each
-// modal.
+// ── Sidebar-header global actions (file system) ──
+// Operates on the "current" project — the focused view/panel project, or
+// the first project — and lets the user switch projects via a picker inside the modal.
 let fileSystemProjectPath = $state<string | null>(null);
 
 function getCurrentProjectPath(): string | null {
@@ -205,13 +238,6 @@ function getCurrentProjectPath(): string | null {
 	);
 }
 
-function handleOpenSourceControl() {
-	const projectPath = getCurrentProjectPath();
-	if (projectPath) {
-		panelStore.openGitDialog(projectPath);
-	}
-}
-
 function handleOpenFileSystem() {
 	fileSystemProjectPath = getCurrentProjectPath();
 }
@@ -219,14 +245,6 @@ function handleOpenFileSystem() {
 const fileSystemProject = $derived(
 	fileSystemProjectPath ? (projectManager.getProject(fileSystemProjectPath) ?? null) : null
 );
-
-function handleOpenPr(sessionInfo: SessionListItem) {
-	if (sessionInfo.prNumber == null) return;
-	panelStore.openGitDialog(sessionInfo.projectPath, undefined, {
-		section: "prs",
-		prNumber: sessionInfo.prNumber,
-	});
-}
 
 function openTranscriptFileDialog(fullPath: string): void {
 	const target = buildSessionTranscriptFileDialogTarget(fullPath);
@@ -535,7 +553,7 @@ const visibleSessions = $derived.by(() => {
 				onclick={() => onImportProject?.()}
 			>
 				{#snippet children()}
-					<HugeiconsIcon name="add" />
+					<HugeiconsIcon name="folder-add" />
 				{/snippet}
 			</Button>
 			<div class="ml-auto flex items-center gap-0.5">
@@ -569,18 +587,6 @@ const visibleSessions = $derived.by(() => {
 					variant="ghost"
 					size="icon-sm"
 					data-header-control
-					title="Source control"
-					aria-label="Source control"
-					onclick={handleOpenSourceControl}
-				>
-					{#snippet children()}
-						<HugeiconsIcon name="git" />
-					{/snippet}
-				</Button>
-				<Button
-					variant="ghost"
-					size="icon-sm"
-					data-header-control
 					title="File system"
 					aria-label="File system"
 					onclick={handleOpenFileSystem}
@@ -593,12 +599,6 @@ const visibleSessions = $derived.by(() => {
 		</div>
 	{/snippet}
 
-	{#snippet queueSection()}
-		{#if panelStore.viewMode !== "kanban" && attentionQueueStore.enabled}
-			<AppQueueRow {projectManager} state={appState} />
-		{/if}
-	{/snippet}
-
 	{#snippet sessionList()}
 		<SessionList
 			sessions={visibleSessions}
@@ -607,6 +607,7 @@ const visibleSessions = $derived.by(() => {
 			recentProjects={projectManager.projects}
 			canCreateSession={projectManager.projectCount !== null && projectManager.projectCount > 0}
 			initialCollapsedProjectPaths={appState.collapsedProjectPaths}
+			attentionBySessionId={attentionBySessionId}
 			onSelectSession={handleSelectSession}
 			onCreateSession={handleNewThread}
 			onCreateSessionForProject={handleCreateSession}
@@ -620,10 +621,6 @@ const visibleSessions = $derived.by(() => {
 			isSessionOpen={(sessionId) => panelStore.isSessionOpen(sessionId)}
 			onSelectFile={handleSelectFile}
 			onCollapsedProjectPathsChange={(paths) => appState.handleCollapsedProjectPathsChange(paths)}
-			onOpenTerminal={handleOpenTerminal}
-			onOpenBrowser={handleOpenBrowser}
-			onOpenGitPanel={handleOpenGitPanel}
-			onOpenPr={handleOpenPr}
 			onArchiveSession={handleArchiveSession}
 			onRenameSession={handleRenameSession}
 			onCopyTranscriptMarkdown={handleCopyTranscriptMarkdown}
@@ -638,7 +635,6 @@ const visibleSessions = $derived.by(() => {
 		<SidebarFooter
 			{projectManager}
 			state={appState}
-			onOpenGitPanel={handleOpenGitPanel}
 			{updaterState}
 			{onUpdateClick}
 			{onRetryUpdateClick}

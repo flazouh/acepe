@@ -22,19 +22,14 @@ import type {
 	TranscriptEntry,
 } from "../../services/acp-types.js";
 import type { ActiveTurnFailure } from "../types/turn-error.js";
+import type { CanonicalSessionProjection } from "./canonical-session-projection.js";
 import { mapProjectionTurnFailure } from "./envelope-reducer/projection-turn-failure.js";
-import type {
-	CanonicalSessionProjection,
-	RowTokenStream,
-	SessionClockAnchor,
-} from "./canonical-session-projection.js";
-import { buildRowTokenStreamKey } from "./transcript-delta.js";
 
 function connectionErrorFromGraphState(
 	lifecycle: SessionGraphLifecycle,
 	activeTurnFailure: ActiveTurnFailure | null
 ): string | null {
-	if (lifecycle.status === "failed" || lifecycle.status === "detached") {
+	if (lifecycle.status === "failed") {
 		return lifecycle.errorMessage ?? null;
 	}
 
@@ -49,7 +44,6 @@ export class SessionProjectionCore {
 	readonly canonicalProjections = new SvelteMap<string, CanonicalSessionProjection>();
 	readonly sessionStateGraphs = new SvelteMap<string, SessionStateGraph>();
 	readonly canonicalCapabilitiesMaterialized = new SvelteMap<string, boolean>();
-	readonly rowTokenStreamsByRowId = new Map<string, Map<string, RowTokenStream>>();
 
 	hasCanonicalProjection(sessionId: string): boolean {
 		return this.canonicalProjections.has(sessionId);
@@ -104,30 +98,6 @@ export class SessionProjectionCore {
 		return this.sessionStateGraphs.get(sessionId)?.lastTerminalTurnId ?? null;
 	}
 
-	getActiveStreamingTailRowId(sessionId: string): string | null {
-		return this.canonicalProjections.get(sessionId)?.activeStreamingTail?.rowId ?? null;
-	}
-
-	getClockAnchor(sessionId: string): SessionClockAnchor | null {
-		return this.canonicalProjections.get(sessionId)?.clockAnchor ?? null;
-	}
-
-	getRowTokenStream(sessionId: string, turnId: string, rowId: string): RowTokenStream | null {
-		const projection = this.canonicalProjections.get(sessionId) ?? null;
-		if (projection === null) {
-			return null;
-		}
-		return projection.tokenStream.get(buildRowTokenStreamKey(turnId, rowId)) ?? null;
-	}
-
-	getRowTokenStreamByRowId(sessionId: string, rowId: string): RowTokenStream | null {
-		const projection = this.canonicalProjections.get(sessionId) ?? null;
-		if (projection === null) {
-			return null;
-		}
-		return this.rowTokenStreamsByRowId.get(sessionId)?.get(rowId) ?? null;
-	}
-
 	getSessionStateGraph(sessionId: string): SessionStateGraph | null {
 		return this.sessionStateGraphs.get(sessionId) ?? null;
 	}
@@ -154,7 +124,9 @@ export class SessionProjectionCore {
 		return lifecycle.failureReason ?? null;
 	}
 
-	getSessionLifecycleDetachedReason(sessionId: string): import("$lib/services/acp-types.js").DetachedReason | null {
+	getSessionLifecycleDetachedReason(
+		sessionId: string
+	): import("$lib/services/acp-types.js").DetachedReason | null {
 		const lifecycle = this.getSessionStateGraph(sessionId)?.lifecycle ?? null;
 		if (lifecycle === null || lifecycle.status !== "detached") {
 			return null;

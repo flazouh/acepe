@@ -17,7 +17,7 @@ export interface ReviewControlsSnapshot {
 	 * otherwise it stays on the current file (never closes the modal).
 	 */
 	onToggleReviewed: () => void;
-	/** Revert the current file's working-tree changes. The caller shows the confirm. */
+	/** Ask the review workspace to reset the current file. Confirmation is inline on the file row. */
 	onRevertFile: () => void;
 	hasPrevFile: boolean;
 	hasNextFile: boolean;

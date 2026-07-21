@@ -10,15 +10,11 @@ export function resolveEmptyStateProject<TProject extends EmptyStateProjectLike>
 	return input.selectedProject ?? input.projects[0] ?? null;
 }
 
-export function getEmptyStateProjectPath(
-	project: EmptyStateProjectLike | null
-): string | null {
+export function getEmptyStateProjectPath(project: EmptyStateProjectLike | null): string | null {
 	return project?.path ?? null;
 }
 
-export function getEmptyStateProjectName(
-	project: EmptyStateProjectLike | null
-): string | null {
+export function getEmptyStateProjectName(project: EmptyStateProjectLike | null): string | null {
 	return project?.name ?? null;
 }
 

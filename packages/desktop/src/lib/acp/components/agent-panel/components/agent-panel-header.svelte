@@ -101,8 +101,7 @@ const titleRichText = $derived.by(() => {
 
 type HeaderMenuContentWidth = "min-w-[180px]" | "min-w-[210px]" | "min-w-[220px]";
 
-type HeaderMenuIcon =
-	{ readonly name: HugeiconsIconName };
+type HeaderMenuIcon = { readonly name: HugeiconsIconName };
 
 type HeaderMenuAction = {
 	readonly id: string;
@@ -259,7 +258,12 @@ function createCopyMenuSection(): HeaderMenuSection | null {
 
 	if (hasCopyTitle) {
 		identityActions.push(
-			createMenuAction("copy-title", "Title", hugeiconsMenuIcon("file-text"), handleCopySessionTitle)
+			createMenuAction(
+				"copy-title",
+				"Title",
+				hugeiconsMenuIcon("file-text"),
+				handleCopySessionTitle
+			)
 		);
 	}
 
@@ -284,9 +288,14 @@ function createCopyMenuSection(): HeaderMenuSection | null {
 
 	if (onExportMarkdown != null) {
 		transcriptActions.push(
-			createMenuAction("export-markdown", "Transcript as Markdown", hugeiconsMenuIcon("file-text"), () => {
-				void onExportMarkdown?.();
-			})
+			createMenuAction(
+				"export-markdown",
+				"Transcript as Markdown",
+				hugeiconsMenuIcon("file-text"),
+				() => {
+					void onExportMarkdown?.();
+				}
+			)
 		);
 	}
 
@@ -309,33 +318,53 @@ function createOpenMenuSection(): HeaderMenuSection | null {
 
 	if (onOpenInAcepe != null) {
 		actions.push(
-			createMenuAction("open-in-acepe", "View Transcript File", hugeiconsMenuIcon("app-window"), () => {
-				void onOpenInAcepe?.();
-			})
+			createMenuAction(
+				"open-in-acepe",
+				"View Transcript File",
+				hugeiconsMenuIcon("app-window"),
+				() => {
+					void onOpenInAcepe?.();
+				}
+			)
 		);
 	}
 
 	if (onOpenRawFile != null) {
 		actions.push(
-			createMenuAction("open-raw-file", "Open Raw Transcript", hugeiconsMenuIcon("document"), () => {
-				void onOpenRawFile?.();
-			})
+			createMenuAction(
+				"open-raw-file",
+				"Open Raw Transcript",
+				hugeiconsMenuIcon("document"),
+				() => {
+					void onOpenRawFile?.();
+				}
+			)
 		);
 	}
 
 	if (onOpenInFinder != null) {
 		actions.push(
-			createMenuAction("reveal-transcript", "Reveal Transcript in Finder", hugeiconsMenuIcon("folder"), () => {
-				void onOpenInFinder?.();
-			})
+			createMenuAction(
+				"reveal-transcript",
+				"Reveal Transcript in Finder",
+				hugeiconsMenuIcon("folder"),
+				() => {
+					void onOpenInFinder?.();
+				}
+			)
 		);
 	}
 
 	if (hasWorktreeMenu) {
 		actions.push(
-			createMenuAction("open-worktree", openWorktreeMenuLabel, hugeiconsMenuIcon("worktree"), () => {
-				onOpenWorktree?.();
-			})
+			createMenuAction(
+				"open-worktree",
+				openWorktreeMenuLabel,
+				hugeiconsMenuIcon("worktree"),
+				() => {
+					onOpenWorktree?.();
+				}
+			)
 		);
 	}
 
@@ -425,15 +454,24 @@ function createDiagnosticsMenuSection(): HeaderMenuSection | null {
 
 	if (onExportRawStreaming != null) {
 		actions.push(
-			createMenuAction("open-streaming-log", "Open Streaming Log", hugeiconsMenuIcon("terminal"), () => {
-				void onExportRawStreaming?.();
-			})
+			createMenuAction(
+				"open-streaming-log",
+				"Open Streaming Log",
+				hugeiconsMenuIcon("terminal"),
+				() => {
+					void onExportRawStreaming?.();
+				}
+			)
 		);
 	}
 
-	return createMenuSection("diagnostics", "Diagnostics", hugeiconsMenuIcon("terminal"), "min-w-[210px]", [
-		createMenuGroup("logs", actions),
-	]);
+	return createMenuSection(
+		"diagnostics",
+		"Diagnostics",
+		hugeiconsMenuIcon("terminal"),
+		"min-w-[210px]",
+		[createMenuGroup("logs", actions)]
+	);
 }
 </script>
 

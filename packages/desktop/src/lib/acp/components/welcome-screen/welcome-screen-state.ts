@@ -1,5 +1,5 @@
 import type { ProviderBrand } from "@acepe/ui";
-import type { ProjectWithSessions } from "../add-repository/open-project-dialog-props.js";
+import type { ProjectWithSessions } from "../add-repository/project-discovery.js";
 
 export const SPLASH_AGENTS: readonly { brand: ProviderBrand; alt: string }[] = [
 	{ brand: "claude-code", alt: "Claude" },

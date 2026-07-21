@@ -264,7 +264,7 @@ describe("deriveCanonicalAgentPanelSessionState", () => {
 			sessionStatus: "running",
 			isConnected: true,
 			isStreaming: true,
-			localPlaceholderMode: "planning_after_tool",
+			localPlaceholderMode: "planning",
 			canSubmit: false,
 			showStop: true,
 		});
@@ -319,6 +319,58 @@ describe("deriveCanonicalAgentPanelSessionState", () => {
 			canSubmit: false,
 			showStop: false,
 		});
+	});
+
+	it("shows planning feedback for a ready session after send while the model has not answered yet", () => {
+		const state = deriveCanonicalAgentPanelSessionState({
+			source: {
+				kind: "canonical",
+				lifecycle: lifecycle("ready", false, false, true),
+				activity: {
+					kind: "awaiting_model",
+					activeOperationCount: 0,
+					activeSubagentCount: 0,
+					dominantOperationId: null,
+					blockingInteractionId: null,
+				},
+				turnState: "Running",
+			},
+			hasEntries: true,
+			hasLocalPendingSendIntent: true,
+			hasTrailingCompletedTool: false,
+		});
+
+		expect(state).toEqual({
+			sessionStatus: "running",
+			isConnected: true,
+			isStreaming: true,
+			localPlaceholderMode: "planning",
+			canSubmit: false,
+			showStop: true,
+		});
+	});
+
+	it("keeps the composer sendable while the canonical session waits for the user", () => {
+		const state = deriveCanonicalAgentPanelSessionState({
+			source: {
+				kind: "canonical",
+				lifecycle: lifecycle("ready", false, false, true),
+				activity: {
+					kind: "waiting_for_user",
+					activeOperationCount: 0,
+					activeSubagentCount: 0,
+					dominantOperationId: null,
+					blockingInteractionId: "question-1",
+				},
+				turnState: "Running",
+			},
+			hasEntries: true,
+			hasTrailingCompletedTool: false,
+		});
+
+		expect(state.canSubmit).toBe(true);
+		expect(state.isStreaming).toBe(false);
+		expect(state.showStop).toBe(false);
 	});
 
 	it("shows connecting feedback while a pending session is activating", () => {

@@ -247,6 +247,27 @@ describe("agent-panel rendered-row pipeline — planning placeholder", () => {
 		expect(result.planningRows).toHaveLength(0);
 	});
 
+	it("shows planning after send once the ready session is awaiting the model", () => {
+		const result = renderTurn({
+			activityKind: "awaiting_model",
+			turnState: "Running",
+			sceneEntries: [userEntry("user-1", "reply with exactly PULSE")],
+			bufferRows: [userRow("user-1", "reply with exactly PULSE")],
+			hasLocalPendingSendIntent: true,
+		});
+
+		expect(result.localPlaceholderMode).toBe("planning");
+		expect(result.planningRows).toHaveLength(1);
+		expect(result.planningRows[0]?.localOnly).toBe(true);
+		expect(result.planningRows[0]?.row.kind).toBe("localPlaceholder");
+		const planningEntry = result.planningRows[0]?.entry;
+		expect(planningEntry?.type).toBe("thinking");
+		if (planningEntry?.type !== "thinking") {
+			return;
+		}
+		expect(planningEntry.label).toBeNull();
+	});
+
 	it("shows connecting feedback while a pending session is activating", () => {
 		const result = renderTurn({
 			activityKind: "idle",

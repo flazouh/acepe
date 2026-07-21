@@ -6,6 +6,8 @@ let { isDragging, onPointerDown, onPointerMove, onPointerUp }: AgentPanelResizeE
 
 <!-- Wider invisible hit target, inset to avoid overlapping header/footer controls. -->
 <div
+	role="separator"
+	aria-orientation="vertical"
 	class="absolute top-7 bottom-7 right-0 z-10 flex w-3 cursor-col-resize justify-end touch-none"
 	onpointerdown={onPointerDown}
 	onpointermove={onPointerMove}

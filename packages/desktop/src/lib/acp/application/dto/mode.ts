@@ -8,5 +8,13 @@ export interface Mode {
 	readonly id: string;
 	readonly name: string;
 	readonly description?: string;
-	readonly iconKind?: "agent" | "plan" | "autonomous" | "bypass" | "ask" | "edit" | "review" | "unknown";
+	readonly iconKind?:
+		| "agent"
+		| "plan"
+		| "autonomous"
+		| "bypass"
+		| "ask"
+		| "edit"
+		| "review"
+		| "unknown";
 }

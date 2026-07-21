@@ -14,9 +14,7 @@ import {
 
 const SIDEBAR_PREVIEW_WIDTH = "272px";
 
-function variantDescription(
-	specimen: (typeof updateCardVariantSpecimens)[number],
-): string {
+function variantDescription(specimen: (typeof updateCardVariantSpecimens)[number]): string {
 	return specimen.description;
 }
 

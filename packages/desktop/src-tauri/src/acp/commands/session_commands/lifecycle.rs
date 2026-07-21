@@ -1,5 +1,6 @@
 use super::super::*;
 use super::*;
+use crate::db::repository::SessionEventSeq;
 
 pub(crate) async fn emit_lifecycle_event<R: tauri::Runtime>(
     app: &AppHandle<R>,
@@ -194,20 +195,26 @@ pub(crate) async fn emit_detached_lifecycle<R: tauri::Runtime>(
     }
 }
 
-pub(super) async fn load_live_session_graph_revision(
+#[derive(Debug, Clone, Copy)]
+pub(super) struct LiveSessionRevisionLookup {
+    pub revision: SessionGraphRevision,
+    pub delivery_event_frontier: SessionEventSeq,
+}
+
+pub(super) async fn load_live_session_revision_lookup(
     db: &DbConn,
     transcript_projection_registry: &TranscriptProjectionRegistry,
     runtime_registry: Option<&SessionGraphRuntimeRegistry>,
     session_id: &str,
-) -> Result<SessionGraphRevision, SerializableAcpError> {
+) -> Result<LiveSessionRevisionLookup, SerializableAcpError> {
     let last_event_seq = SessionEventSequenceRepository::last_assigned_event_seq(db, session_id)
         .await
         .map_err(|error| SerializableAcpError::InvalidState {
             message: format!(
-                "Failed to determine live session graph revision for session {session_id}: {error}"
+                "Failed to determine delivery event-sequence frontier for session {session_id}: {error}"
             ),
         })?
-        .unwrap_or(0);
+        .unwrap_or(SessionEventSeq::ZERO);
     let transcript_revision = transcript_projection_registry
         .snapshot_for_session(session_id)
         .map(|snapshot| snapshot.revision)
@@ -215,12 +222,31 @@ pub(super) async fn load_live_session_graph_revision(
     let graph_revision = runtime_registry
         .map(|registry| registry.snapshot_for_session(session_id).graph_revision)
         .filter(|revision| *revision > 0)
-        .unwrap_or(last_event_seq);
-    Ok(SessionGraphRevision::new(
-        graph_revision,
-        transcript_revision,
-        last_event_seq,
-    ))
+        .unwrap_or(0);
+    Ok(LiveSessionRevisionLookup {
+        revision: SessionGraphRevision::new(
+            graph_revision,
+            transcript_revision,
+            last_event_seq.get(),
+        ),
+        delivery_event_frontier: last_event_seq,
+    })
+}
+
+pub(super) async fn load_live_session_graph_revision(
+    db: &DbConn,
+    transcript_projection_registry: &TranscriptProjectionRegistry,
+    runtime_registry: Option<&SessionGraphRuntimeRegistry>,
+    session_id: &str,
+) -> Result<SessionGraphRevision, SerializableAcpError> {
+    Ok(load_live_session_revision_lookup(
+        db,
+        transcript_projection_registry,
+        runtime_registry,
+        session_id,
+    )
+    .await?
+    .revision)
 }
 
 pub(crate) fn publish_session_state_envelope(
@@ -303,11 +329,12 @@ pub(super) async fn load_transcript_snapshot_for_resume_with_app(
     db: &DbConn,
     session_id: &str,
 ) -> Result<TranscriptSnapshot, SerializableAcpError> {
-    let journal_max = SessionEventSequenceRepository::last_assigned_event_seq(db, session_id)
+    let delivery_event_frontier =
+        SessionEventSequenceRepository::last_assigned_event_seq(db, session_id)
         .await
         .map_err(|error| SerializableAcpError::InvalidState {
             message: format!(
-                "Failed to determine journal cutoff for resumed session {session_id}: {error}"
+                "Failed to determine delivery event-sequence frontier for resumed session {session_id}: {error}"
             ),
         })?;
     let metadata = SessionMetadataRepository::get_by_id(db, session_id)
@@ -357,7 +384,7 @@ pub(super) async fn load_transcript_snapshot_for_resume_with_app(
             return Ok(transcript_snapshot);
         }
     }
-    if has_metadata && journal_max == Some(1) {
+    if has_metadata && delivery_event_frontier.is_some_and(|event_seq| event_seq.get() == 1) {
         let first_event = crate::db::entities::session_journal_event::Entity::find()
             .filter(crate::db::entities::session_journal_event::Column::SessionId.eq(session_id))
             .filter(crate::db::entities::session_journal_event::Column::EventSeq.eq(1))
@@ -372,7 +399,7 @@ pub(super) async fn load_transcript_snapshot_for_resume_with_app(
             .as_ref()
             .is_some_and(|event| event.event_kind == "materialization_barrier")
         {
-            return Ok(TranscriptSnapshot::from_stored_entries(1, &[]));
+            return Ok(TranscriptSnapshot::from_stored_entries(0, &[]));
         }
     }
     if let Some(app) = app {
@@ -389,17 +416,16 @@ pub(super) async fn load_transcript_snapshot_for_resume_with_app(
                     session_id,
                     replay_context,
                     &provider_snapshot,
-                    journal_max.unwrap_or(0),
+                    delivery_event_frontier
+                        .unwrap_or(SessionEventSeq::ZERO)
+                        .get(),
                 );
                 return Ok(materialized.transcript_snapshot);
             }
         }
     }
     if metadata.is_some() {
-        return Ok(TranscriptSnapshot::from_stored_entries(
-            journal_max.unwrap_or(0),
-            &[],
-        ));
+        return Ok(TranscriptSnapshot::from_stored_entries(0, &[]));
     }
 
     Err(SerializableAcpError::InvalidState {

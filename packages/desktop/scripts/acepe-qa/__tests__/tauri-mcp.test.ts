@@ -2,11 +2,11 @@ import { describe, expect, it } from "bun:test";
 import { okAsync } from "neverthrow";
 import { z } from "zod";
 import {
+	type CommandRunner,
 	captureWebviewScreenshot,
 	executeWebviewJson,
 	jsonObjectPrefix,
 	unwrapTauriText,
-	type CommandRunner,
 } from "../tauri-mcp";
 
 function wrapped(text: string): string {

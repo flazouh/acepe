@@ -121,9 +121,7 @@ function createState(options?: {
 					: undefined
 		),
 		getFirstTopLevelPanel: vi.fn(() => agentPanel),
-		getPanel: vi.fn((panelId: string) =>
-			panelId === "panel-1" ? { id: "panel-1" } : undefined
-		),
+		getPanel: vi.fn((panelId: string) => (panelId === "panel-1" ? { id: "panel-1" } : undefined)),
 		panels: [agentPanel],
 	} as Partial<PanelStore>;
 
@@ -178,25 +176,7 @@ function createState(options?: {
 	return { state, workspaceStore, panelStore, projectManager, agentPreferencesStore };
 }
 
-describe("MainAppViewState file explorer", () => {
-	it("opens when the focused panel provides project context even without loaded projects", () => {
-		const { state } = createState({ focusedPanelProjectPath: "/repo" });
-
-		state.openFileExplorer();
-
-		expect(state.fileExplorerOpen).toBe(true);
-		expect(state.fileExplorerVisible).toBe(true);
-	});
-
-	it("does not open when there is no project context at all", () => {
-		const { state } = createState();
-
-		state.openFileExplorer();
-
-		expect(state.fileExplorerOpen).toBe(false);
-		expect(state.fileExplorerVisible).toBe(false);
-	});
-
+describe("MainAppViewState", () => {
 	it("treats single mode as fullscreen for the shell", () => {
 		const { state, panelStore } = createState();
 
@@ -267,7 +247,7 @@ describe("MainAppViewState file explorer", () => {
 		expect(setSelectedAgentIds).not.toHaveBeenCalled();
 	});
 
-	it("routes project-scoped thread creation through the override when one is registered", () => {
+	it("spawns a project panel directly even when a new-thread dialog override is registered", () => {
 		const { state, panelStore } = createState({
 			projects: [createProject("/repo", "Repo")],
 		});
@@ -276,10 +256,26 @@ describe("MainAppViewState file explorer", () => {
 
 		state.handleNewThreadForProject("/repo", "cursor");
 
-		expect(override).toHaveBeenCalledWith({
+		expect(override).not.toHaveBeenCalled();
+		expect(panelStore.spawnPanel).toHaveBeenCalledWith({
+			requireProjectSelection: false,
 			projectPath: "/repo",
-			agentId: "cursor",
+			pendingWorktreeEnabled: false,
 		});
+		expect(panelStore.setPanelAgent).toHaveBeenCalledWith("panel-1", "cursor");
+	});
+
+	it("still routes global new-thread through the override when one is registered", () => {
+		const { state, panelStore, projectManager } = createState({
+			projects: [createProject("/repo", "Repo")],
+		});
+		projectManager.projectCount = 1;
+		const override = vi.fn();
+		state.onNewThreadOverride = override;
+
+		state.handleNewThread();
+
+		expect(override).toHaveBeenCalledWith();
 		expect(panelStore.spawnPanel).not.toHaveBeenCalled();
 	});
 

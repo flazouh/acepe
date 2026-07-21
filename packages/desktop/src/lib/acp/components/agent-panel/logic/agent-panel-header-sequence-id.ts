@@ -12,10 +12,7 @@ export function resolveAgentPanelHeaderSequenceId(input: {
 		return input.sessionMetadataSequenceId;
 	}
 
-	if (
-		input.hasPendingCreationSession &&
-		input.pendingCreationSequenceId != null
-	) {
+	if (input.hasPendingCreationSession && input.pendingCreationSequenceId != null) {
 		return input.pendingCreationSequenceId;
 	}
 

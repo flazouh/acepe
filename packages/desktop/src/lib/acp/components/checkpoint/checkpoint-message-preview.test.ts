@@ -7,10 +7,7 @@ import {
 	extractCheckpointTextPreview,
 } from "./checkpoint-message-preview.js";
 
-function checkpoint(input: {
-	readonly id: string;
-	readonly createdAt: number;
-}): Checkpoint {
+function checkpoint(input: { readonly id: string; readonly createdAt: number }): Checkpoint {
 	return {
 		id: input.id,
 		sessionId: "session-1",

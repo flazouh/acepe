@@ -11,11 +11,6 @@ import type { AvailableCommand } from "../../../types/available-command.js";
 import type { FilePickerEntry } from "../../../types/file-picker-entry.js";
 import { createLogger } from "../../../utils/logger.js";
 import {
-	FileLoadError,
-	type MessageSendError,
-	SessionCreationError,
-} from "../errors/agent-input-error.js";
-import {
 	calculateDropdownPosition,
 	createImageAttachment,
 	createPendingUserEntry,
@@ -29,9 +24,14 @@ import {
 	sendMessage,
 	toInlineTokenText,
 } from "../composer-controller.js";
-import type { InlineImageReference } from "../types/inline-image-reference.js";
+import {
+	FileLoadError,
+	type MessageSendError,
+	SessionCreationError,
+} from "../errors/agent-input-error.js";
 import type { Attachment } from "../types/attachment.js";
 import type { DropdownPosition } from "../types/dropdown-position.js";
+import type { InlineImageReference } from "../types/inline-image-reference.js";
 import { TauriDragDropController } from "./tauri-drag-drop-controller.svelte.js";
 
 const DRAG_DROP_LISTENER_START_DELAY_MS = 100;

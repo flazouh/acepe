@@ -7,7 +7,6 @@ export type {
 	AssistantMessage,
 	AssistantMessageChunk,
 	ContentBlock,
-	StreamingAnimationMode,
 } from "../../lib/assistant-message/types.js";
 export { default as AgentAssistantMessage } from "./agent-assistant-message.svelte";
 export { default as ClaudeWorkingSpark } from "./claude-working-spark.svelte";
@@ -230,7 +229,6 @@ export { resolveVisibleAssistantMessageGroups } from "./agent-assistant-message-
 export type {
 	AgentAssistantEntry,
 	AssistantRenderBlockContext,
-	TokenRevealCss,
 	AgentPanelActionabilityModel,
 	AgentPanelActionCallbacks,
 	AgentPanelActionDescriptor,
@@ -284,6 +282,12 @@ export type {
 	AgentSessionActivityEntry,
 	AgentSessionActivityMetadataItem,
 	AgentSessionStatus,
+	AgentTaskDetailBinding,
+	AgentTaskDetailPresentation,
+	AgentTaskDetailRow,
+	AgentTaskDetailRowRenderer,
+	AgentTaskLatestAction,
+	AgentTaskTranscriptScope,
 	AgentMissingEntry,
 	AgentThinkingEntry,
 	AgentTodoItem,
@@ -301,6 +305,7 @@ export type {
 	AgentWebSearchLink,
 	AnyAgentEntry,
 	LintDiagnostic,
+	ReviewWorkspaceFileResetStatus,
 	ReviewWorkspaceFileItem,
 } from "./types.js";
 export {

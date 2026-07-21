@@ -7,12 +7,12 @@
  */
 import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel/types";
 import {
+	type SceneEntryArrayResult,
+	type ScenePatch,
 	scenePatchGraphScene,
 	scenePatchGraphSceneAppend,
 	scenePatchGraphSceneSplice,
 	scenePatchGraphSceneTruncation,
-	type SceneEntryArrayResult,
-	type ScenePatch,
 } from "../components/agent-panel/logic/scene-patch.js";
 import type { CachedConversationState } from "./conversation-cache-types.js";
 
@@ -71,8 +71,7 @@ export function createPatchedSceneEntryArray(
 					return entryPatches.get(index) ?? baseEntries[index];
 				}
 				if (property === "slice") {
-					return (start?: number, end?: number) =>
-						Array.prototype.slice.call(receiver, start, end);
+					return (start?: number, end?: number) => Array.prototype.slice.call(receiver, start, end);
 				}
 			}
 			const value = Reflect.get(targetArray, property, receiver);
@@ -188,8 +187,7 @@ export function createSceneEntryArrayView(
 					return selectEntry(index);
 				}
 				if (property === "slice") {
-					return (start?: number, end?: number) =>
-						Array.prototype.slice.call(receiver, start, end);
+					return (start?: number, end?: number) => Array.prototype.slice.call(receiver, start, end);
 				}
 			}
 			const value = Reflect.get(targetArray, property, receiver);

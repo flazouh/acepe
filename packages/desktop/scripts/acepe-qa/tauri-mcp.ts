@@ -2,10 +2,10 @@ import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, rmSync } from "node:fs";
 import { mkdtemp, readFile } from "node:fs/promises";
+import { Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Socket } from "node:net";
-import { Result, ResultAsync, err, ok } from "neverthrow";
+import { err, ok, Result, ResultAsync } from "neverthrow";
 import { z } from "zod";
 
 const TAURI_MCP_CLI_VERSION = "@hypothesi/tauri-mcp-cli@0.10.0";
@@ -25,7 +25,9 @@ export type TauriMcpFailure = {
 	readonly raw?: string;
 };
 
-export type CommandRunner = (command: readonly string[]) => ResultAsync<CommandExecution, TauriMcpFailure>;
+export type CommandRunner = (
+	command: readonly string[]
+) => ResultAsync<CommandExecution, TauriMcpFailure>;
 
 const tauriTextWrapperSchema = z.object({
 	content: z.array(z.object({ text: z.string().optional() })).optional(),
@@ -52,12 +54,24 @@ const daemonResponseSchema = z.object({
 	stdout: z.string().optional(),
 	stderr: z.string().optional(),
 	text: z.string().optional(),
-	content: z.array(z.object({ type: z.string().optional(), text: z.string().optional(), path: z.string().optional(), data: z.string().optional(), mimeType: z.string().optional() })).optional(),
+	content: z
+		.array(
+			z.object({
+				type: z.string().optional(),
+				text: z.string().optional(),
+				path: z.string().optional(),
+				data: z.string().optional(),
+				mimeType: z.string().optional(),
+			})
+		)
+		.optional(),
 	files: z.array(z.object({ path: z.string(), mimeType: z.string().optional() })).optional(),
 	message: z.string().optional(),
 });
 
-export function runCommand(command: readonly string[]): ResultAsync<CommandExecution, TauriMcpFailure> {
+export function runCommand(
+	command: readonly string[]
+): ResultAsync<CommandExecution, TauriMcpFailure> {
 	return ResultAsync.fromPromise(
 		(async () => {
 			const child = Bun.spawn(Array.from(command), {
@@ -211,7 +225,9 @@ function ensureDaemon(): ResultAsync<null, TauriMcpFailure> {
 		.orElse(() => startDaemon());
 }
 
-function commandFromDaemon(args: readonly string[]): ResultAsync<CommandExecution, TauriMcpFailure> {
+function commandFromDaemon(
+	args: readonly string[]
+): ResultAsync<CommandExecution, TauriMcpFailure> {
 	if (args[0] === "driver-session" && args[1] === "start") {
 		const appIdentifier = valueAfter(args, "--port") ?? "9223";
 		return ensureDaemon()
@@ -236,9 +252,7 @@ function commandFromDaemon(args: readonly string[]): ResultAsync<CommandExecutio
 				? { kind: "webview-execute-js-sync", appIdentifier, script }
 				: { kind: "webview-execute-js", appIdentifier, script, callTimeoutMs };
 		return ensureDaemon()
-			.andThen(() =>
-				daemonRequest(request, { timeoutMs: requestTimeoutMs })
-			)
+			.andThen(() => daemonRequest(request, { timeoutMs: requestTimeoutMs }))
 			.andThen((response) => {
 				if (!response.ok) {
 					return err({
@@ -360,7 +374,7 @@ export function jsonObjectPrefix(text: string): string | null {
 			escaped = inString;
 			continue;
 		}
-		if (char === "\"") {
+		if (char === '"') {
 			inString = !inString;
 			continue;
 		}
@@ -409,7 +423,8 @@ function executeWebviewJsonCommand<T>(
 			if (execution.code !== 0) {
 				return err({
 					code: "tauri_mcp_failed",
-					message: execution.stderr.trim() || execution.stdout.trim() || "Tauri MCP command failed.",
+					message:
+						execution.stderr.trim() || execution.stdout.trim() || "Tauri MCP command failed.",
 				});
 			}
 			return unwrapTauriText(execution.stdout)
@@ -445,7 +460,9 @@ function executeWebviewJsonCommand<T>(
 				return err({
 					code: "driver_session_failed",
 					message:
-						session.stderr.trim() || session.stdout.trim() || "Unable to start Tauri driver session.",
+						session.stderr.trim() ||
+						session.stdout.trim() ||
+						"Unable to start Tauri driver session.",
 				});
 			}
 			return execute();
@@ -517,7 +534,9 @@ export function captureWebviewScreenshot(
 			if (filePath !== undefined) {
 				return ok(filePath);
 			}
-			const imageContentPath = wrapper.data.content?.find((item) => item.type === "image" && item.path !== undefined)?.path;
+			const imageContentPath = wrapper.data.content?.find(
+				(item) => item.type === "image" && item.path !== undefined
+			)?.path;
 			if (imageContentPath !== undefined) {
 				return ok(imageContentPath);
 			}

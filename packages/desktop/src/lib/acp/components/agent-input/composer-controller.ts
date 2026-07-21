@@ -6,6 +6,12 @@
  * and are composed here, mirroring `VoiceSessionController` for voice lifecycle
  * and `agent-input-controller.ts` for send actions.
  */
+
+export {
+	deriveComposerInteractionState,
+	resolveComposerEnterKeyIntent,
+} from "../../logic/composer-ui-state.js";
+export type { SubmitIntent } from "../../logic/submit-intent.js";
 export {
 	buildAttachMenuCommandSections,
 	buildAttachMenuMcpServerGroups,
@@ -18,15 +24,22 @@ export {
 	buildSlashPaletteSections,
 	resolveSlashPaletteItemInsertText,
 } from "./logic/build-slash-palette-sections.js";
-export { ComposerMcpCatalogState } from "./logic/composer-mcp-catalog-state.svelte.js";
 export {
 	resolveCapabilityContextProviderMetadata,
 	resolveCapabilitySource,
 	sessionCapabilitySourceFromCapabilities,
 } from "./logic/capability-source.js";
+export { ComposerMcpCatalogState } from "./logic/composer-mcp-catalog-state.svelte.js";
 export { resolveComposerPlaceholder } from "./logic/composer-placeholder.js";
 export { calculateDropdownPosition } from "./logic/dropdown-trigger.js";
 export { getEffectiveFilePickerProjectPath } from "./logic/file-picker-context.js";
+export type { ComposerRestoreSnapshot } from "./logic/first-send-recovery.js";
+export {
+	findAuthenticationRequirement,
+	findCreationFailureReason,
+	formatPreSessionSendFailure,
+	restoreComposerStateAfterFailedSend,
+} from "./logic/first-send-recovery.js";
 export { createImageAttachment, isImageMimeType } from "./logic/image-attachment.js";
 export {
 	findInlineArtefactRangeAtPosition,
@@ -38,21 +51,25 @@ export {
 	getInlineTokenValue,
 	getSerializedCursorOffset,
 	getSerializedRangeForNode,
-	getSerializedSelectionRange,
 	getSerializedSelectionEnd,
+	getSerializedSelectionRange,
 	renderInlineComposerMessage,
+	sanitizeInlineComposerText,
+	scrubInlineComposerControlCharacters,
 	serializeInlineComposerMessage,
 	setSerializedCursorOffset,
+	shouldBlockComposerBeforeInput,
 	toInlineTokenText,
 } from "./logic/inline-composer-dom.js";
 export { applyInlineTokenHoverTitles } from "./logic/inline-token-hover-titles.js";
-export { shouldInterruptComposerStream } from "./logic/interrupt-shortcut.js";
 export {
 	hasAutocompleteTrigger,
 	parseFilePickerTrigger,
 	parseSlashCommandTrigger,
 	replaceActiveSlashTrigger,
 } from "./logic/input-parser.js";
+export { shouldInterruptComposerStream } from "./logic/interrupt-shortcut.js";
+export { type PreparedMessage, prepareMessageForSend } from "./logic/message-preparation.js";
 export { resolveModeMenuAction, resolveSelectedModeMenuOptionId } from "./logic/mode-menu-state.js";
 export { createPendingUserEntry } from "./logic/pending-user-entry.js";
 export { PreconnectionCapabilitiesState } from "./logic/preconnection-capabilities-state.svelte.js";
@@ -72,8 +89,6 @@ export {
 	resolveToolbarModeId,
 	resolveToolbarModelId,
 } from "./logic/toolbar-state.js";
-export { handleVoiceMicKeyDown } from "./logic/voice-mic-keyboard.js";
-export { resolveVoiceMicTooltip } from "./logic/voice-mic-labels.js";
 export { normalizeVoiceInputText } from "./logic/voice-input-text.js";
 export {
 	shouldRouteWindowVoiceHold,
@@ -81,22 +96,10 @@ export {
 	shouldStopVoiceHold,
 	shouldSyncPanelFocusOnEditorFocus,
 } from "./logic/voice-keyboard.js";
-export { canStartVoiceInteraction, shouldShowVoiceOverlay } from "./logic/voice-ui-state.js";
+export { handleVoiceMicKeyDown } from "./logic/voice-mic-keyboard.js";
+export { resolveVoiceMicTooltip } from "./logic/voice-mic-labels.js";
 export { toVoiceToolbarBinding } from "./logic/voice-toolbar-binding.js";
-export {
-	deriveComposerInteractionState,
-	resolveComposerEnterKeyIntent,
-} from "../../logic/composer-ui-state.js";
-export { type SubmitIntent } from "../../logic/submit-intent.js";
-
-export type { ComposerRestoreSnapshot } from "./logic/first-send-recovery.js";
-export {
-	findAuthenticationRequirement,
-	findCreationFailureReason,
-	formatPreSessionSendFailure,
-	restoreComposerStateAfterFailedSend,
-} from "./logic/first-send-recovery.js";
-export { type PreparedMessage, prepareMessageForSend } from "./logic/message-preparation.js";
+export { canStartVoiceInteraction, shouldShowVoiceOverlay } from "./logic/voice-ui-state.js";
 export {
 	ComposerViewController,
 	type ComposerViewControllerDeps,

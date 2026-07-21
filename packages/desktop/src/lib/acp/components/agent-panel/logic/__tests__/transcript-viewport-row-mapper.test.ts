@@ -1,14 +1,14 @@
 import { describe, expect, it } from "bun:test";
-import {
-	resolveTranscriptViewportSceneEntry,
-	segmentText,
-	toolStatusFromOperationState,
-} from "../transcript-viewport-row-mapper.js";
 import type {
 	OperationSnapshot,
 	TranscriptViewportOperationDisplayFacts,
 	TranscriptViewportRow,
 } from "../../../../../services/acp-types.js";
+import {
+	resolveTranscriptViewportSceneEntry,
+	segmentText,
+	toolStatusFromOperationState,
+} from "../transcript-viewport-row-mapper.js";
 
 function toolRowWithText(input: {
 	readonly text: string;
@@ -49,6 +49,7 @@ function executeDisplayFacts(input: {
 		targetPathSummary: null,
 		resultSummary: input.resultSummary,
 		errorSummary: null,
+		editDiffs: [],
 		interactionIds: [],
 		parentToolCallId: null,
 		childToolCallIds: [],
@@ -178,27 +179,31 @@ describe("transcript-viewport-row-mapper", () => {
 		const skillEntry = resolveTranscriptViewportSceneEntry(
 			toolRowWithText({
 				text: "Skill",
-				operationLinks: [{
-					operationId: "skill-operation",
-					toolCallId: "skill-call",
-					name: "Skill",
-					state: "completed",
-					displayFacts: null,
-					operation: skillOperation,
-				}],
+				operationLinks: [
+					{
+						operationId: "skill-operation",
+						toolCallId: "skill-call",
+						name: "Skill",
+						state: "completed",
+						displayFacts: null,
+						operation: skillOperation,
+					},
+				],
 			})
 		);
 		const taskEntry = resolveTranscriptViewportSceneEntry(
 			toolRowWithText({
 				text: "Agent",
-				operationLinks: [{
-					operationId: "task-operation",
-					toolCallId: "task-call",
-					name: "Agent",
-					state: "completed",
-					displayFacts: null,
-					operation: taskOperation,
-				}],
+				operationLinks: [
+					{
+						operationId: "task-operation",
+						toolCallId: "task-call",
+						name: "Agent",
+						state: "completed",
+						displayFacts: null,
+						operation: taskOperation,
+					},
+				],
 			})
 		);
 
@@ -213,41 +218,96 @@ describe("transcript-viewport-row-mapper", () => {
 	it("projects canonical Claude TaskCreate facts as Todo content", () => {
 		const row = toolRowWithText({
 			text: "TaskCreate",
-			operationLinks: [{
-				operationId: "todo-operation",
-				toolCallId: "todo-call",
-				name: "TaskCreate",
-				state: "completed",
-				displayFacts: {
+			operationLinks: [
+				{
 					operationId: "todo-operation",
 					toolCallId: "todo-call",
 					name: "TaskCreate",
-					title: "Todo",
 					state: "completed",
-					kind: "todo",
-					skillName: null,
-					skillArgs: null,
-					taskDescription: null,
-					taskPrompt: null,
-					subagentType: null,
-					normalizedTodos: [{
-						content: "Build red feedback loop",
-						activeForm: "Building red feedback loop",
-						status: "pending",
-					}],
-					interactionIds: [],
-					childToolCallIds: [],
+					displayFacts: {
+						operationId: "todo-operation",
+						toolCallId: "todo-call",
+						name: "TaskCreate",
+						title: "Todo",
+						state: "completed",
+						kind: "todo",
+						skillName: null,
+						skillArgs: null,
+						taskDescription: null,
+						taskPrompt: null,
+						subagentType: null,
+						normalizedTodos: [
+							{
+								content: "Build red feedback loop",
+								activeForm: "Building red feedback loop",
+								status: "pending",
+							},
+						],
+						editDiffs: [],
+						interactionIds: [],
+						childToolCallIds: [],
+					},
 				},
-			}],
+			],
 		});
 
 		expect(resolveTranscriptViewportSceneEntry(row)).toMatchObject({
 			type: "tool_call",
-			todos: [{
-				content: "Build red feedback loop",
-				activeForm: "Building red feedback loop",
-				status: "pending",
-			}],
+			todos: [
+				{
+					content: "Build red feedback loop",
+					activeForm: "Building red feedback loop",
+					status: "pending",
+				},
+			],
+		});
+	});
+
+	it("maps canonical edit display facts into edit diffs for changed-line rendering", () => {
+		const row = toolRowWithText({
+			text: "Edit",
+			operationLinks: [
+				{
+					operationId: "edit-operation",
+					toolCallId: "edit-call",
+					name: "Edit",
+					state: "completed",
+					displayFacts: {
+						operationId: "edit-operation",
+						toolCallId: "edit-call",
+						name: "Edit",
+						title: "Edit src/app.ts",
+						state: "completed",
+						kind: "edit",
+						editDiffs: [
+							{
+								filePath: "/repo/src/app.ts",
+								oldString: 'const label = "old";',
+								newString: 'const label = "new";',
+							},
+						],
+						targetPathSummary: "/repo/src/app.ts",
+						interactionIds: [],
+						childToolCallIds: [],
+					},
+				},
+			],
+		});
+
+		expect(resolveTranscriptViewportSceneEntry(row)).toMatchObject({
+			type: "tool_call",
+			kind: "edit",
+			filePath: "/repo/src/app.ts",
+			editDiffs: [
+				{
+					filePath: "/repo/src/app.ts",
+					fileName: "app.ts",
+					additions: 1,
+					deletions: 1,
+					oldString: 'const label = "old";',
+					newString: 'const label = "new";',
+				},
+			],
 		});
 	});
 	it("concatenates transcript segment text", () => {
@@ -295,6 +355,32 @@ describe("transcript-viewport-row-mapper", () => {
 			id: "assistant-1",
 			type: "assistant",
 			planningStartedAtMs: 1_700_000_000_000,
+		});
+	});
+
+	it("maps user transcript rows with wall-clock timestamps", () => {
+		const row = {
+			rowId: "transcript:user-1",
+			sourceEntryId: "user-1",
+			kind: "user",
+			version: "user-row:v1",
+			anchorEligible: true,
+			activeStreamingTail: null,
+			operationLinks: [],
+			interactionLinks: [],
+			content: {
+				kind: "transcript",
+				role: "user",
+				segments: [{ kind: "text", segmentId: "user-1:text:0", text: "hello" }],
+			},
+			timestampMs: 1770000000000,
+		} as TranscriptViewportRow;
+
+		expect(resolveTranscriptViewportSceneEntry(row)).toMatchObject({
+			id: "user-1",
+			type: "user",
+			text: "hello",
+			timestampMs: 1770000000000,
 		});
 	});
 
@@ -445,6 +531,7 @@ describe("transcript-viewport-row-mapper", () => {
 						targetPathSummary: "/repo/src/auth.ts",
 						resultSummary: null,
 						errorSummary: null,
+						editDiffs: [],
 						interactionIds: [],
 						parentToolCallId: null,
 						childToolCallIds: [],
@@ -469,6 +556,65 @@ describe("transcript-viewport-row-mapper", () => {
 			kind: "read",
 			filePath: "/repo/src/auth.ts",
 		});
+	});
+
+	it("maps the canonical Task child scope and latest action without nested child inference", () => {
+		const row = toolRowWithText({
+			text: "Task",
+			operationLinks: [
+				{
+					operationId: "operation-task-1",
+					toolCallId: "toolu-task-1",
+					name: "Task",
+					state: "running",
+					displayFacts: {
+						operationId: "operation-task-1",
+						toolCallId: "toolu-task-1",
+						name: "Task",
+						title: "Task",
+						state: "running",
+						kind: "task",
+						taskDescription: "Inspect the scoped transcript",
+						editDiffs: [],
+						interactionIds: [],
+						parentToolCallId: null,
+						childToolCallIds: ["toolu-read-1"],
+						childTranscriptScope: {
+							kind: "operation",
+							operationId: "operation-task-1",
+						},
+						latestChildAction: {
+							operationId: "operation-read-1",
+							toolCallId: "toolu-read-1",
+							kind: "read",
+							state: "running",
+							title: "Read",
+							subtitle: "src/session.rs",
+							targetPathSummary: "/repo/src/session.rs",
+						},
+					},
+				},
+			],
+		});
+
+		const entry = resolveTranscriptViewportSceneEntry(row);
+
+		if (entry.type !== "tool_call") {
+			throw new Error("expected a tool call entry");
+		}
+		expect(entry.taskTranscriptScope).toEqual({
+			kind: "operation",
+			operationId: "operation-task-1",
+		});
+		expect(entry.taskLatestAction).toEqual({
+			id: "operation-read-1",
+			kind: "read",
+			title: "Read",
+			subtitle: "src/session.rs",
+			filePath: "/repo/src/session.rs",
+			status: "running",
+		});
+		expect(entry.taskChildren).toBeUndefined();
 	});
 
 	it("uses embedded operation data when stale viewport rows have no display facts", () => {

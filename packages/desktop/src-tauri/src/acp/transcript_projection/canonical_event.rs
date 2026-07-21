@@ -2,7 +2,7 @@ use crate::acp::parsers::AgentType;
 use crate::cc_sdk::AssistantMessageError;
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct CanonicalTranscriptEvent {
+pub struct CanonicalTranscriptEvent {
     pub transcript_seq: u64,
     pub source: AgentType,
     pub provider_row_id: String,
@@ -16,7 +16,7 @@ pub(crate) struct CanonicalTranscriptEvent {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) enum CanonicalTranscriptEventKind {
+pub enum CanonicalTranscriptEventKind {
     UserText {
         text: String,
     },

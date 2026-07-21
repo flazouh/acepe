@@ -1,13 +1,12 @@
 import { describe, expect, it } from "bun:test";
-
+import {
+	type SessionOpenContentProbeResult,
+	sessionOpenContentProbeResultSchema,
+} from "../schemas";
 import {
 	formatSessionOpenBackendTiming,
 	summarizeSessionOpenContentProbe,
 } from "../session-open-probe-summary";
-import {
-	sessionOpenContentProbeResultSchema,
-	type SessionOpenContentProbeResult,
-} from "../schemas";
 
 type SessionOpenEvent = SessionOpenContentProbeResult["openEvents"][number];
 type SessionOpenTiming = NonNullable<SessionOpenEvent["openResultTiming"]>;
@@ -28,7 +27,7 @@ function timing(fields: {
 		contextMs: 1,
 		providerLoadMs: fields.providerLoadMs,
 		ledgerTailReadMs: fields.ledgerTailReadMs,
-		ledgerJournalCutoffMs: 0,
+		ledgerProjectionFrontierMs: 0,
 		ledgerPageReadMs: 0,
 		ledgerHeaderDecodeMs: 0,
 		ledgerRowsDecodeMs: 0,
@@ -292,6 +291,21 @@ describe("summarizeSessionOpenContentProbe", () => {
 });
 
 describe("sessionOpenContentProbeResultSchema", () => {
+	it("accepts result-preparing diagnostics from the real app probe", () => {
+		const probe = probeWithTiming({
+			firstRowPaintMs: null,
+			openResultTiming: null,
+		});
+		const openEvent = probe.openEvents[0];
+		expect(openEvent).toBeDefined();
+		if (openEvent === undefined) return;
+		Reflect.set(openEvent, "stage", "result-preparing");
+
+		const parsed = sessionOpenContentProbeResultSchema.parse(probe);
+
+		expect(parsed.openEvents[0]?.stage).toBe("result-preparing");
+	});
+
 	it("accepts stale-panel diagnostics from the real app probe", () => {
 		const parsed = sessionOpenContentProbeResultSchema.parse(
 			probeWithTiming({

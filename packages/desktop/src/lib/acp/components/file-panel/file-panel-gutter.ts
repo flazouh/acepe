@@ -17,7 +17,11 @@ export function resolveFilePanelGutterAction(input: {
 		return { kind: "none", reason: "missing-git-status" };
 	}
 
-	if (input.gitStatus.status === "A" || input.gitStatus.status === "?" || input.gitStatus.status === "??") {
+	if (
+		input.gitStatus.status === "A" ||
+		input.gitStatus.status === "?" ||
+		input.gitStatus.status === "??"
+	) {
 		return { kind: "new-file" };
 	}
 

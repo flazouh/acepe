@@ -24,10 +24,7 @@ describe("ContextManager computed providers (pull model)", () => {
 		let fileExplorerVisible = false;
 
 		manager.registerProvider("settingsOpen", () => settingsModalOpen);
-		manager.registerProvider(
-			"modalOpen",
-			() => settingsModalOpen || fileExplorerVisible
-		);
+		manager.registerProvider("modalOpen", () => settingsModalOpen || fileExplorerVisible);
 
 		// Mirrors a real binding guard: "threadActive && !modalOpen"
 		manager.registerProvider("threadActive", () => true);

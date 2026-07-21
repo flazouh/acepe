@@ -10,18 +10,19 @@ import {
 	openAgentPanelStressLab,
 	openStreamingReproLab,
 	probeAgentPanelScrollPages,
-	probeComputerUse,
 	probeComposerEnterSubmit,
+	probeComputerUse,
 	probeFirstSendTimeline,
 	probeFrameRate,
 	probeHappyPathPerformance,
 	probeLedgerBackfill,
 	probePlanningBetweenTools,
-	probeSessionOpenContent,
 	probeSendAttachStress,
+	probeSessionOpenContent,
 	reloadWebview,
 	resetOnboarding,
 	scanAgentPanelRows,
+	selectPanelProject,
 	sendComposer,
 } from "../interact";
 import type { CommandRunner } from "../tauri-mcp";
@@ -301,6 +302,50 @@ describe("acepe-qa interaction helpers", () => {
 		expect(result.isOk()).toBe(true);
 		expect(executedScript).toContain("Design System");
 		expect(executedScript).toContain("thenText");
+	});
+
+	it("selects a project by exact path inside an exact panel", async () => {
+		let executedScript = "";
+		const runner: CommandRunner = (command) => {
+			const joined = command.join(" ");
+			if (joined.includes("driver-session")) {
+				return okAsync({ code: 0, stdout: "", stderr: "" });
+			}
+			executedScript = joined;
+			return okAsync({
+				code: 0,
+				stdout: wrapped(
+					JSON.stringify({
+						panelId: "panel-acepe",
+						projectPath: "/repo/acepe",
+						projectName: "acepe",
+						projectFound: true,
+						ambiguousName: false,
+						triggerFound: true,
+						optionFound: true,
+						selected: true,
+						selectedAriaLabel: "acepe",
+						errorMessage: null,
+					})
+				),
+				stderr: "",
+			});
+		};
+
+		const result = await selectPanelProject({
+			appIdentifier: "9223",
+			panelId: "panel-acepe",
+			projectPath: "/repo/acepe",
+			runner,
+		});
+
+		expect(result.isOk()).toBe(true);
+		expect(result._unsafeUnwrap().selected).toBe(true);
+		expect(executedScript).toContain("get_projects");
+		expect(executedScript).toContain("/repo/acepe");
+		expect(executedScript).toContain("data-qa-agent-panel-id");
+		expect(executedScript).toContain("selectionDeadline");
+		expect(executedScript).not.toContain("selectorIndex");
 	});
 
 	it("moves the native pointer and proves CSS hover before sampling the matched element", async () => {
@@ -1711,7 +1756,7 @@ describe("acepe-qa interaction helpers", () => {
 								trailingRowKind: "tool",
 								trailingOperationStates: ["completed"],
 								activeStreamingTail: null,
-								localPlaceholderMode: "planning_after_tool",
+								localPlaceholderMode: "planning",
 								planningRowCount: 1,
 								planningText: "Planning next moves",
 								planningVisible: true,

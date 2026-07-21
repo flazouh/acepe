@@ -9,7 +9,11 @@
 import { SvelteMap } from "svelte/reactivity";
 
 import type { ITransientProjectionManager } from "./services/interfaces/index.js";
-import type { SessionPendingSendIntent, SessionTransientProjection, SessionUsageTelemetry } from "./types.js";
+import type {
+	SessionPendingSendIntent,
+	SessionTransientProjection,
+	SessionUsageTelemetry,
+} from "./types.js";
 
 import { DEFAULT_TRANSIENT_PROJECTION } from "./types.js";
 
@@ -74,7 +78,10 @@ export class SessionTransientProjectionStore implements ITransientProjectionMana
 	 * Only initializes if session doesn't already have a transient projection.
 	 * SvelteMap: .set() triggers fine-grained reactivity for this session only.
 	 */
-	initializeTransientProjection(sessionId: string, initialState?: Partial<SessionTransientProjection>): void {
+	initializeTransientProjection(
+		sessionId: string,
+		initialState?: Partial<SessionTransientProjection>
+	): void {
 		if (!this.transientProjections.has(sessionId)) {
 			// SvelteMap: fine-grained addition, only this session's subscribers re-render
 			this.transientProjections.set(

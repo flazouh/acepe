@@ -7,7 +7,6 @@ interface Props {
 		whatsNewLabel?: string;
 		onOpenChangelog?: () => void;
 		topNav?: Snippet;
-		queueSection?: Snippet;
 		sessionList: Snippet;
 		footer?: Snippet;
 	}
@@ -17,7 +16,6 @@ interface Props {
 		whatsNewLabel = "What's New",
 		onOpenChangelog,
 		topNav,
-		queueSection,
 		sessionList,
 		footer,
 	}: Props = $props();
@@ -30,13 +28,6 @@ interface Props {
 	{#if topNav}
 		<div class="shrink-0">
 			{@render topNav()}
-		</div>
-	{/if}
-
-	<!-- Queue Section -->
-	{#if queueSection}
-		<div class="shrink-0">
-			{@render queueSection()}
 		</div>
 	{/if}
 

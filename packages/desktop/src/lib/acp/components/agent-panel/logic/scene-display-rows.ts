@@ -1,8 +1,4 @@
-import type {
-	AgentAssistantEntry,
-	AgentPanelSceneEntryModel,
-	TokenRevealCss,
-} from "@acepe/ui/agent-panel";
+import type { AgentAssistantEntry, AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
 import { groupAssistantChunks } from "@acepe/ui/agent-panel";
 import type { SessionEntry } from "../../../application/dto/session-entry.js";
 import type { AssistantMessage } from "../../../types/assistant-message.js";
@@ -23,7 +19,6 @@ export type MergedAssistantDisplayEntry = {
 	timestamp?: Date;
 	latestTimestamp?: Date;
 	isStreaming?: boolean;
-	tokenRevealCss?: TokenRevealCss;
 };
 
 type MissingDisplayEntry = {
@@ -190,7 +185,6 @@ function createMergedAssistantDisplayEntryFromScene(
 		timestamp: ts,
 		latestTimestamp: ts,
 		isStreaming: entry.isStreaming,
-		tokenRevealCss: entry.tokenRevealCss,
 	};
 }
 
@@ -224,7 +218,6 @@ function mergeSceneAssistantEntry(
 		latestTimestamp:
 			entry.timestampMs !== undefined ? new Date(entry.timestampMs) : previous.latestTimestamp,
 		isStreaming: previous.isStreaming || entry.isStreaming,
-		tokenRevealCss: entry.tokenRevealCss,
 	};
 }
 
@@ -232,12 +225,7 @@ function shouldMergeSceneAssistantEntry(
 	previous: MergedAssistantDisplayEntry,
 	entry: AgentAssistantEntry
 ): boolean {
-	return (
-		previous.isStreaming !== true &&
-		entry.isStreaming !== true &&
-		previous.tokenRevealCss === undefined &&
-		entry.tokenRevealCss === undefined
-	);
+	return previous.isStreaming !== true && entry.isStreaming !== true;
 }
 
 /**
@@ -378,8 +366,7 @@ function createReplacedTailVirtualizedDisplayEntryArray(
 					return selectReplacedTailVirtualizedDisplayEntry(baseRows, tailRow, index);
 				}
 				if (property === "slice") {
-					return (start?: number, end?: number) =>
-						Array.prototype.slice.call(receiver, start, end);
+					return (start?: number, end?: number) => Array.prototype.slice.call(receiver, start, end);
 				}
 			}
 			const value = Reflect.get(targetArray, property, receiver);
@@ -435,8 +422,7 @@ function createAppendedVirtualizedDisplayEntryArray(
 					return selectAppendedVirtualizedDisplayEntry(baseRows, appendedRows, index);
 				}
 				if (property === "slice") {
-					return (start?: number, end?: number) =>
-						Array.prototype.slice.call(receiver, start, end);
+					return (start?: number, end?: number) => Array.prototype.slice.call(receiver, start, end);
 				}
 			}
 			const value = Reflect.get(targetArray, property, receiver);

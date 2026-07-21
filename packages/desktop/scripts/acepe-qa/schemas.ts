@@ -388,6 +388,19 @@ export const clickResultSchema = z.object({
 	match: domElementSummarySchema.nullable(),
 });
 
+export const panelProjectSelectionResultSchema = z.object({
+	panelId: z.string(),
+	projectPath: z.string(),
+	projectName: z.string().nullable(),
+	projectFound: z.boolean(),
+	ambiguousName: z.boolean(),
+	triggerFound: z.boolean(),
+	optionFound: z.boolean(),
+	selected: z.boolean(),
+	selectedAriaLabel: z.string().nullable(),
+	errorMessage: z.string().nullable(),
+});
+
 export const hoverResultSchema = z.object({
 	hovered: z.boolean(),
 	matchesHoverPseudoClass: z.boolean(),
@@ -712,7 +725,7 @@ export const planningBetweenToolsSampleSchema = z.object({
 	trailingRowKind: z.string().nullable(),
 	trailingOperationStates: z.array(z.string()),
 	activeStreamingTail: z.string().nullable(),
-	localPlaceholderMode: z.enum(["none", "connection", "planning_after_tool"]),
+	localPlaceholderMode: z.enum(["none", "connection", "planning"]),
 	planningRowCount: z.number(),
 	planningText: z.string().nullable(),
 	planningVisible: z.boolean(),
@@ -1032,10 +1045,7 @@ export const firstSendTimelineSampleSchema = z.object({
 	planningLifecycleStatus: z.string().nullable().optional(),
 	planningHasLocalPendingSendIntent: z.boolean().nullable().optional(),
 	planningHasTrailingCompletedTool: z.boolean().nullable().optional(),
-	planningLocalPlaceholderMode: z
-		.enum(["none", "connection", "planning_after_tool"])
-		.nullable()
-		.optional(),
+	planningLocalPlaceholderMode: z.enum(["none", "connection", "planning"]).nullable().optional(),
 	scrollTopPx: z.number(),
 	maxScrollTopPx: z.number(),
 	scrollAttached: z.boolean(),
@@ -1118,6 +1128,7 @@ export const openPersistedSessionDiagnosticEventSchema = z.object({
 		"stale-panel",
 		"missing-metadata",
 		"request-started",
+		"result-preparing",
 		"result-missing",
 		"result-error",
 		"result-found",
@@ -1177,7 +1188,7 @@ export const openPersistedSessionDiagnosticEventSchema = z.object({
 				.nullable()
 				.optional()
 				.transform((value) => value ?? null),
-			ledgerJournalCutoffMs: z.number().optional().default(0),
+			ledgerProjectionFrontierMs: z.number().optional().default(0),
 			ledgerPageReadMs: z.number().optional().default(0),
 			ledgerHeaderDecodeMs: z.number().optional().default(0),
 			ledgerRowsDecodeMs: z.number().optional().default(0),
@@ -1271,7 +1282,7 @@ export const planningDebugSnapshotSchema = z.object({
 	hasMessages: z.boolean(),
 	visibleEntryCount: z.number(),
 	hasTrailingCompletedTool: z.boolean(),
-	localPlaceholderMode: z.enum(["none", "connection", "planning_after_tool"]),
+	localPlaceholderMode: z.enum(["none", "connection", "planning"]),
 	actionabilityCanSend: z.boolean().nullable(),
 	sessionCanSubmit: z.boolean(),
 	disableSendForFailedFirstSend: z.boolean(),
@@ -1319,9 +1330,7 @@ export const ledgerBackfillProbeResultSchema = z.object({
 });
 
 export type SendComposerResult = z.infer<typeof sendComposerResultSchema>;
-export type ComposerEnterSubmitProbeResult = z.infer<
-	typeof composerEnterSubmitProbeResultSchema
->;
+export type ComposerEnterSubmitProbeResult = z.infer<typeof composerEnterSubmitProbeResultSchema>;
 export type PlanningDebugResult = z.infer<typeof planningDebugResultSchema>;
 export type ComputerUseProbeResult = z.infer<typeof computerUseProbeResultSchema>;
 export type LedgerBackfillProbeResult = z.infer<typeof ledgerBackfillProbeResultSchema>;
@@ -1348,18 +1357,15 @@ export type AppObservation = z.infer<typeof appObservationSchema>;
 export type ScreenshotResult = z.infer<typeof screenshotResultSchema>;
 export type DomInspectionResult = z.infer<typeof domInspectionResultSchema>;
 export type ClickResult = z.infer<typeof clickResultSchema>;
+export type PanelProjectSelectionResult = z.infer<typeof panelProjectSelectionResultSchema>;
 export type HoverResult = z.infer<typeof hoverResultSchema>;
 export type ThinkingToggleProbeResult = z.infer<typeof thinkingToggleProbeResultSchema>;
 export type ResetOnboardingResult = z.infer<typeof resetOnboardingResultSchema>;
 export type StreamingReproLabResult = z.infer<typeof streamingReproLabResultSchema>;
 export type AgentPanelStressLabResult = z.infer<typeof agentPanelStressLabResultSchema>;
 export type AgentPanelStressLabRunStatus = z.infer<typeof agentPanelStressLabRunStatusSchema>;
-export type SendAttachStressProbeResult = z.infer<
-	typeof sendAttachStressProbeResultSchema
->;
-export type PlanningBetweenToolsProbeResult = z.infer<
-	typeof planningBetweenToolsProbeResultSchema
->;
+export type SendAttachStressProbeResult = z.infer<typeof sendAttachStressProbeResultSchema>;
+export type PlanningBetweenToolsProbeResult = z.infer<typeof planningBetweenToolsProbeResultSchema>;
 export type TauriInvokeTimingRecord = z.infer<typeof tauriInvokeTimingRecordSchema>;
 export type TauriPendingInvokeRecord = z.infer<typeof tauriPendingInvokeRecordSchema>;
 export type HappyPathPerformanceResult = z.infer<typeof happyPathPerformanceResultSchema>;

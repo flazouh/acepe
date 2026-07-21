@@ -10,10 +10,9 @@ import type {
 	SessionStateGraph,
 	TranscriptEntry,
 } from "$lib/services/acp-types.js";
-
+import { transcriptSegmentPrimaryText } from "../../session-state/transcript-text.js";
 import { InteractionStore } from "../interaction-store.svelte.js";
 import { SessionStore } from "../session-store.svelte.js";
-import { transcriptSegmentPrimaryText } from "../../session-state/transcript-text.js";
 
 function createRevision(graphRevision: number): SessionGraphRevision {
 	return {
@@ -48,6 +47,44 @@ function createReadyLifecycle(): SessionGraphLifecycle {
 			recommendedAction: "send",
 			recoveryPhase: "none",
 			compactStatus: "ready",
+		},
+	};
+}
+
+function createReconnectingLifecycleWithStaleError(): SessionGraphLifecycle {
+	return {
+		status: "reconnecting",
+		detachedReason: null,
+		failureReason: null,
+		errorMessage: "Previous connection failed",
+		actionability: {
+			canSend: false,
+			canResume: false,
+			canRetry: false,
+			canArchive: true,
+			canConfigure: false,
+			recommendedAction: "wait",
+			recoveryPhase: "reconnecting",
+			compactStatus: "reconnecting",
+		},
+	};
+}
+
+function createDetachedLifecycleWithStaleError(): SessionGraphLifecycle {
+	return {
+		status: "detached",
+		detachedReason: "restoredRequiresAttach",
+		failureReason: null,
+		errorMessage: "Previous connection failed",
+		actionability: {
+			canSend: false,
+			canResume: true,
+			canRetry: false,
+			canArchive: true,
+			canConfigure: false,
+			recommendedAction: "resume",
+			recoveryPhase: "detached",
+			compactStatus: "detached",
 		},
 	};
 }
@@ -94,7 +131,8 @@ function createCapabilities(): SessionGraphCapabilities {
 function createGraph(
 	capabilities: SessionGraphCapabilities,
 	entries: TranscriptEntry[] = [],
-	interactions: InteractionSnapshot[] = []
+	interactions: InteractionSnapshot[] = [],
+	lifecycle: SessionGraphLifecycle = createReadyLifecycle()
 ): SessionStateGraph {
 	const revision = createRevision(7);
 	return {
@@ -117,7 +155,7 @@ function createGraph(
 		activeTurnFailure: null,
 		lastTerminalTurnId: null,
 		activeStreamingTail: null,
-		lifecycle: createReadyLifecycle(),
+		lifecycle,
 		activity: createIdleActivity(),
 		capabilities,
 	};
@@ -160,11 +198,7 @@ function createQuestionInteraction(): InteractionSnapshot {
 	};
 }
 
-function textEntry(
-	entryId: string,
-	role: TranscriptEntry["role"],
-	text: string
-): TranscriptEntry {
+function textEntry(entryId: string, role: TranscriptEntry["role"], text: string): TranscriptEntry {
 	return {
 		entryId,
 		role,
@@ -199,6 +233,7 @@ describe("SessionStore canonical projection accessors", () => {
 		const entries = [userEntry, assistantEntry];
 		store.applySessionStateGraph(createGraph(createCapabilities(), entries));
 		const originalIterator = entries[Symbol.iterator];
+		// biome-ignore lint/correctness/useYield: This sentinel iterator intentionally throws before yielding.
 		entries[Symbol.iterator] = function* () {
 			throw new Error("must not scan full transcript entries after graph snapshot");
 		};
@@ -224,10 +259,9 @@ describe("SessionStore canonical projection accessors", () => {
 
 			const transcriptEntries = store.read.getSessionTranscriptEntries("session-1");
 			expect(transcriptEntries?.[0]).toBe(userEntry);
-			expect(transcriptEntries?.[1]?.segments.map((segment) => transcriptSegmentPrimaryText(segment))).toEqual([
-				"Answer",
-				" More",
-			]);
+			expect(
+				transcriptEntries?.[1]?.segments.map((segment) => transcriptSegmentPrimaryText(segment))
+			).toEqual(["Answer", " More"]);
 		} finally {
 			entries[Symbol.iterator] = originalIterator;
 		}
@@ -469,6 +503,44 @@ describe("SessionStore canonical projection accessors", () => {
 		expect(store.read.getSessionCapabilityPreviewState("session-1")).toBe("canonical");
 	});
 
+	it("does not surface stale lifecycle error text in the sidebar while reconnecting", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+		store.applySessionStateGraph(
+			createGraph(createCapabilities(), [], [], createReconnectingLifecycleWithStaleError())
+		);
+
+		const presentation = store.presentation.getSessionListItemPresentation({
+			sessionId: "session-1",
+			interactionStore: new InteractionStore(),
+			hasUnseenCompletion: false,
+			active: true,
+		});
+
+		expect(presentation.connectionError).toBeNull();
+		expect(presentation.liveSessionState.connection).toBe("connecting");
+		expect(presentation.sessionWorkProjection.hasError).toBe(false);
+	});
+
+	it("does not surface stale lifecycle error text in the sidebar while detached", () => {
+		const store = new SessionStore();
+		addColdSession(store);
+		store.applySessionStateGraph(
+			createGraph(createCapabilities(), [], [], createDetachedLifecycleWithStaleError())
+		);
+
+		const presentation = store.presentation.getSessionListItemPresentation({
+			sessionId: "session-1",
+			interactionStore: new InteractionStore(),
+			hasUnseenCompletion: false,
+			active: true,
+		});
+
+		expect(presentation.connectionError).toBeNull();
+		expect(presentation.liveSessionState.connection).toBe("disconnected");
+		expect(presentation.sessionWorkProjection.hasError).toBe(false);
+	});
+
 	it("returns pending question interactions through the question selector only", () => {
 		const store = new SessionStore();
 		addColdSession(store);
@@ -479,7 +551,9 @@ describe("SessionStore canonical projection accessors", () => {
 		expect(store.presentation.getSessionQuestionInteraction("session-1", "question-1")).toBe(
 			questionInteraction
 		);
-		expect(store.presentation.getSessionQuestionInteraction("session-1", "missing-question")).toBeNull();
+		expect(
+			store.presentation.getSessionQuestionInteraction("session-1", "missing-question")
+		).toBeNull();
 	});
 
 	it("preserves missing canonical autonomous state inside materialized capabilities", () => {

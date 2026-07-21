@@ -276,10 +276,10 @@ fn duplicate_provider_derived_entry_ids_no_longer_need_viewport_dup_suffix() {
 
     let rows = project_transcript_viewport_rows(&snapshot, &[], &[], None, None);
 
-    assert_eq!(rows[0].row_id, format!("transcript:{authority_id}"));
+    assert_eq!(rows[0].row_id, format!("transcript:root:{authority_id}"));
     assert_eq!(
         rows[1].row_id,
-        format!("transcript:{authority_id}-second"),
+        format!("transcript:root:{authority_id}-second"),
         "authority assigns distinct ids; no #dup suffix"
     );
 }

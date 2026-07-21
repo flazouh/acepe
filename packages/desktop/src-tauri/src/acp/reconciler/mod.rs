@@ -59,9 +59,7 @@ pub use kind_payload::{
     canonical_name_for_kind, display_name_for_tool, infer_kind_from_payload,
     infer_kind_from_payload_for_agent,
 };
-pub(crate) use session_tool::{
-    classify_raw_tool_call, resolve_raw_tool_identity, ToolClassificationHints,
-};
+pub(crate) use session_tool::{classify_raw_tool_call, ToolClassificationHints};
 
 /// Resolve tool kind from a provider tool name via the authority name-table path.
 ///

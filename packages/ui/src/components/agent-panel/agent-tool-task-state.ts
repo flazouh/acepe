@@ -1,12 +1,4 @@
-import type { AgentToolStatus, AnyAgentEntry, AgentToolEntry } from "./types.js";
-import {
-	getTaskCurrentToolDisplay,
-	type AgentToolCompactDisplay,
-} from "./agent-tool-compact-display-state.js";
-
-export type TaskCurrentToolDisplay = AgentToolCompactDisplay;
-
-export { getTaskCurrentToolDisplay };
+import type { AgentToolStatus } from "./types.js";
 
 export function isTaskPending(status: AgentToolStatus): boolean {
 	return status === "pending" || status === "running";
@@ -26,55 +18,19 @@ export function getTaskTitle(input: {
 	return input.description ?? input.doneFallback;
 }
 
-export function getTaskToolChildren(
-	children: readonly AnyAgentEntry[]
-): readonly AgentToolEntry[] {
-	return children.filter((entry): entry is AgentToolEntry => entry.type === "tool_call");
-}
-
-export function getLastTaskToolCall(
-	toolCallChildren: readonly AgentToolEntry[]
-): AgentToolEntry | null {
-	return toolCallChildren.length > 0 ? toolCallChildren[toolCallChildren.length - 1] : null;
-}
-
-export function getTaskProgress(input: {
-	readonly toolCallChildren: readonly AgentToolEntry[];
-}): { readonly filledCount: number; readonly totalCount: number } {
-	const totalCount = input.toolCallChildren.length;
-	let filledCount = 0;
-	for (const entry of input.toolCallChildren) {
-		if (entry.status === "done") {
-			filledCount = filledCount + 1;
-		}
-	}
-	return { filledCount, totalCount };
-}
-
-export function shouldShowTaskProgress(totalCount: number): boolean {
-	return totalCount > 0;
-}
-
 export function hasTaskPrompt(prompt: string | null | undefined): boolean {
 	return Boolean(prompt);
-}
-
-export function hasTaskResult(input: {
-	readonly status: AgentToolStatus;
-	readonly resultText: string | null | undefined;
-}): boolean {
-	return input.status === "done" && Boolean(input.resultText);
 }
 
 export function getTaskUiClasses(compact: boolean) {
 	return {
 		card: compact ? "bg-accent/30 border-border/60" : "",
 		header: compact
-			? "flex min-h-7 min-w-0 items-center justify-between gap-1 px-1 py-0.5 text-sm"
-			: "flex min-h-7 items-center justify-between gap-1 px-2 text-sm",
+			? "flex h-6 min-w-0 items-center justify-between gap-1 pl-1 pr-0.5 text-sm"
+			: "flex h-6 items-center justify-between gap-1 pl-2 pr-0.5 text-sm",
 		headerContent: compact
 			? "flex min-w-0 flex-1 items-center justify-start gap-1"
 			: "flex min-w-0 flex-1 items-center justify-start gap-2",
-		liveRow: compact ? "px-1 pb-1 pt-0.5" : "px-2 pb-1.5",
+		liveRow: compact ? "px-1 pb-1 pt-0.5" : "pl-2 pr-0.5 pb-1.5",
 	};
 }

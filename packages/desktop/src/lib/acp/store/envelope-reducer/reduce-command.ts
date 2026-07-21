@@ -1,43 +1,67 @@
 import type {
+	ActiveStreamingTail,
+	SessionGraphActivity,
 	SessionGraphCapabilities,
 	SessionGraphRevision,
 	SessionStateGraph,
+	SessionTurnState,
 	TranscriptDelta,
 	TranscriptSnapshot,
 } from "../../../services/acp-types.js";
 import type { SessionStateCommand } from "../../session-state/session-state-command-router.js";
 import { sanitizeCanonicalCapabilities } from "../canonical-config-sanitize.js";
-import type { SessionClockAnchor } from "../canonical-session-projection.js";
-import type { RowTokenStream } from "../canonical-session-projection.js";
-import { graphWithCapabilities } from "../session-graph-builders.js";
 import {
+	graphWithCapabilities,
 	graphWithLifecycle,
 	graphWithPatches,
 	graphWithTranscriptSnapshot,
 } from "../session-graph-builders.js";
+import { applyTranscriptDeltaToSnapshot } from "../transcript-delta.js";
 import type { SessionTransientProjection } from "../types.js";
-import {
-	applyTranscriptDeltaToSnapshot,
-	buildRowTokenStreamKey,
-	cloneRowTokenStreamMap,
-	countAppendedMarkdownWords,
-} from "../transcript-delta.js";
 import { buildCanonicalUsageTelemetry } from "./canonical-usage-telemetry.js";
-import { preserveCanonicalStreamingState } from "./canonical-streaming-state.js";
 import { emptySessionGraphCapabilities } from "./empty-session-graph-capabilities.js";
 import type { EnvelopePatch } from "./envelope-patch.js";
 import type { EnvelopeReducerSnapshot } from "./envelope-snapshot.js";
 import { isNewerGraphRevision, isOlderGraphRevision } from "./graph-revision-order.js";
 import { createLifecycleOnlyGraph } from "./lifecycle-only-graph.js";
-import { mapProjectionTurnFailure } from "./projection-turn-failure.js";
 import {
 	mergeSessionGraphActivityTiming,
 	seedSessionGraphActivityTimingIfNeeded,
 } from "./merge-session-graph-activity-timing.js";
-import {
-	defaultIdleActivity,
-	reconcileStoredGraphActivity,
-} from "./reconcile-graph-activity.js";
+import { mapProjectionTurnFailure } from "./projection-turn-failure.js";
+import { defaultIdleActivity, reconcileStoredGraphActivity } from "./reconcile-graph-activity.js";
+
+function terminalTurnState(turnState: SessionTurnState | null | undefined): boolean {
+	return turnState === "Completed" || turnState === "Failed" || turnState === "Cancelled";
+}
+
+function activityForGraphPatch(input: {
+	readonly commandActivity: SessionGraphActivity | undefined;
+	readonly previousActivity: SessionGraphActivity;
+	readonly nextTurnState: SessionTurnState;
+}): SessionGraphActivity {
+	if (input.commandActivity !== undefined) {
+		return mergeSessionGraphActivityTiming(
+			input.previousActivity,
+			input.commandActivity,
+			Date.now()
+		);
+	}
+
+	return terminalTurnState(input.nextTurnState) ? defaultIdleActivity() : input.previousActivity;
+}
+
+function activeStreamingTailForGraphPatch(input: {
+	readonly commandActiveStreamingTail: ActiveStreamingTail | null | undefined;
+	readonly previousActiveStreamingTail: ActiveStreamingTail | null;
+	readonly nextTurnState: SessionTurnState;
+}): ActiveStreamingTail | null {
+	if (input.commandActiveStreamingTail !== undefined) {
+		return input.commandActiveStreamingTail;
+	}
+
+	return terminalTurnState(input.nextTurnState) ? null : input.previousActiveStreamingTail;
+}
 
 export function reduceCommand(
 	snapshot: EnvelopeReducerSnapshot,
@@ -61,8 +85,6 @@ export function reduceCommand(
 			return reduceApplyLifecycle(snapshot, command, nowMs);
 		case "applyGraphPatches":
 			return reduceApplyGraphPatches(snapshot, command);
-		case "applyAssistantTextDelta":
-			return reduceApplyAssistantTextDelta(snapshot, command);
 		case "applyTranscriptDelta":
 			return reduceTranscriptDelta(snapshot, command.delta, command.revision);
 		case "refreshSnapshot":
@@ -93,7 +115,6 @@ function reduceApplyCapabilities(
 		return [];
 	}
 
-	const preservedStreamingState = preserveCanonicalStreamingState(snapshot.previousProjection);
 	const patches: EnvelopePatch[] = [
 		{
 			kind: "setCapabilitiesMaterialized",
@@ -114,8 +135,6 @@ function reduceApplyCapabilities(
 				lastTerminalTurnId: snapshot.previousProjection.lastTerminalTurnId,
 				activeStreamingTail: snapshot.previousProjection.activeStreamingTail,
 				capabilities: canonicalCapabilities,
-				tokenStream: preservedStreamingState.tokenStream,
-				clockAnchor: preservedStreamingState.clockAnchor,
 				revision: command.revision,
 			},
 		});
@@ -290,10 +309,7 @@ function buildReplaceGraphProjection(
 				activeTurnFailure: operationGraph.activeTurnFailure ?? null,
 				lastTerminalTurnId: operationGraph.lastTerminalTurnId ?? null,
 				lifecycle: operationGraph.lifecycle,
-				activity: seedSessionGraphActivityTimingIfNeeded(
-					operationGraph.activity,
-					Date.now()
-				),
+				activity: seedSessionGraphActivityTimingIfNeeded(operationGraph.activity, Date.now()),
 				capabilities: operationGraph.capabilities,
 			};
 		}
@@ -342,7 +358,6 @@ function reduceApplyLifecycle(
 		return [];
 	}
 
-	const preservedStreamingState = preserveCanonicalStreamingState(previousProjection);
 	const turnState = previousProjection?.turnState ?? "Idle";
 	const activeTurnFailure = previousProjection?.activeTurnFailure ?? null;
 	const graphActiveTurnFailure = previousGraph?.activeTurnFailure ?? null;
@@ -366,8 +381,6 @@ function reduceApplyLifecycle(
 				lastTerminalTurnId: previousProjection?.lastTerminalTurnId ?? null,
 				activeStreamingTail: previousProjection?.activeStreamingTail ?? null,
 				capabilities: previousProjection?.capabilities ?? emptySessionGraphCapabilities(),
-				tokenStream: preservedStreamingState.tokenStream,
-				clockAnchor: preservedStreamingState.clockAnchor,
 				revision: lifecycleRevision,
 			},
 		},
@@ -385,11 +398,7 @@ function reduceApplyLifecycle(
 			graph: graphWithLifecycle(
 				previousGraph,
 				command.lifecycle,
-				mergeSessionGraphActivityTiming(
-					previousGraph.activity,
-					reconciledActivity,
-					nowMs
-				),
+				mergeSessionGraphActivityTiming(previousGraph.activity, reconciledActivity, nowMs),
 				lifecycleRevision
 			),
 		});
@@ -470,25 +479,26 @@ function reduceApplyGraphPatches(
 		return [];
 	}
 
-	const preservedStreamingState = preserveCanonicalStreamingState(previousProjection);
 	const previousGraph = snapshot.previousGraph;
 	const activeTurnFailure =
 		command.activeTurnFailure === undefined
 			? previousProjection.activeTurnFailure
 			: mapProjectionTurnFailure(command.activeTurnFailure);
-	const nextActivity =
-		command.activity === undefined
-			? previousProjection.activity
-			: mergeSessionGraphActivityTiming(
-					previousProjection.activity,
-					command.activity,
-					Date.now()
-				);
 	const nextTurnState = command.turnState ?? previousProjection.turnState;
+	const nextProjectionActivity = activityForGraphPatch({
+		commandActivity: command.activity,
+		previousActivity: previousProjection.activity,
+		nextTurnState,
+	});
 	const nextLastTerminalTurnId =
 		command.lastTerminalTurnId === undefined
 			? previousProjection.lastTerminalTurnId
 			: command.lastTerminalTurnId;
+	const nextProjectionActiveStreamingTail = activeStreamingTailForGraphPatch({
+		commandActiveStreamingTail: command.activeStreamingTail,
+		previousActiveStreamingTail: previousProjection.activeStreamingTail,
+		nextTurnState,
+	});
 
 	const patches: EnvelopePatch[] = [
 		{
@@ -518,6 +528,16 @@ function reduceApplyGraphPatches(
 			},
 		];
 	}
+	const nextGraphActivity = activityForGraphPatch({
+		commandActivity: command.activity,
+		previousActivity: previousGraph.activity,
+		nextTurnState,
+	});
+	const nextGraphActiveStreamingTail = activeStreamingTailForGraphPatch({
+		commandActiveStreamingTail: command.activeStreamingTail,
+		previousActiveStreamingTail: previousGraph.activeStreamingTail,
+		nextTurnState,
+	});
 
 	patches.push({
 		kind: "setSessionStateGraph",
@@ -525,11 +545,11 @@ function reduceApplyGraphPatches(
 		graph: graphWithPatches({
 			graph: previousGraph,
 			revision: command.revision,
-			activity: command.activity,
+			activity: nextGraphActivity,
 			turnState: command.turnState,
 			activeTurnFailure: command.activeTurnFailure,
 			lastTerminalTurnId: command.lastTerminalTurnId,
-			activeStreamingTail: command.activeStreamingTail,
+			activeStreamingTail: nextGraphActiveStreamingTail,
 			operationPatches: command.operationPatches,
 			interactionPatches: command.interactionPatches,
 		}),
@@ -540,17 +560,12 @@ function reduceApplyGraphPatches(
 		sessionId: snapshot.sessionId,
 		projection: {
 			lifecycle: previousProjection.lifecycle,
-			activity: nextActivity,
+			activity: nextProjectionActivity,
 			turnState: nextTurnState,
 			activeTurnFailure,
 			lastTerminalTurnId: nextLastTerminalTurnId,
-			activeStreamingTail:
-				command.activeStreamingTail === undefined
-					? previousProjection.activeStreamingTail
-					: command.activeStreamingTail,
+			activeStreamingTail: nextProjectionActiveStreamingTail,
 			capabilities: previousProjection.capabilities,
-			tokenStream: preservedStreamingState.tokenStream,
-			clockAnchor: preservedStreamingState.clockAnchor,
 			revision: command.revision,
 		},
 	});
@@ -575,104 +590,12 @@ function reduceApplyGraphPatches(
 		{
 			kind: "syncAwaitingModelRefreshTimer",
 			sessionId: snapshot.sessionId,
-			activity: nextActivity,
+			activity: nextProjectionActivity,
 			turnState: nextTurnState,
 		}
 	);
 
 	return patches;
-}
-
-function reduceApplyAssistantTextDelta(
-	snapshot: EnvelopeReducerSnapshot,
-	command: Extract<SessionStateCommand, { kind: "applyAssistantTextDelta" }>
-): readonly EnvelopePatch[] {
-	const delta = command.delta;
-	const projection = snapshot.previousProjection;
-	if (projection === null) {
-		return [
-			{
-				kind: "warnMissingCanonicalProjection",
-				sessionId: snapshot.sessionId,
-				reason: "assistantTextDelta",
-				context: {
-					turnId: delta.turnId,
-					rowId: delta.rowId,
-					deltaRevision: delta.revision,
-				},
-			},
-			{
-				kind: "refreshSessionStateSnapshot",
-				sessionId: snapshot.sessionId,
-				reason: "missingProjectionBeforeAssistantDelta",
-			},
-		];
-	}
-
-	const rowKey = buildRowTokenStreamKey(delta.turnId, delta.rowId);
-	const previousRow = projection.tokenStream.get(rowKey) ?? null;
-	if (previousRow !== null && delta.revision < previousRow.revision) {
-		return [];
-	}
-	if (delta.revision <= projection.revision.graphRevision) {
-		return [];
-	}
-
-	const currentText = previousRow?.accumulatedText ?? "";
-	if (delta.charOffset !== currentText.length) {
-		return [];
-	}
-
-	const nextText = `${currentText}${delta.deltaText}`;
-	const wordCounts = countAppendedMarkdownWords({
-		previousText: currentText,
-		previousWordCount: previousRow?.wordCount ?? 0,
-		deltaText: delta.deltaText,
-	});
-	const nextRow: RowTokenStream = {
-		turnId: delta.turnId,
-		rowId: delta.rowId,
-		accumulatedText: nextText,
-		wordCount: wordCounts.wordCount,
-		latestWordCount: wordCounts.latestWordCount,
-		firstDeltaProducedAtMonotonicMs:
-			previousRow?.firstDeltaProducedAtMonotonicMs ?? delta.producedAtMonotonicMs,
-		lastDeltaProducedAtMonotonicMs: delta.producedAtMonotonicMs,
-		revision: delta.revision,
-	};
-	const nextTokenStream = cloneRowTokenStreamMap(projection.tokenStream);
-	nextTokenStream.set(rowKey, nextRow);
-	const nextClockAnchor: SessionClockAnchor =
-		projection.clockAnchor ??
-		({
-			rustMonotonicMs: delta.producedAtMonotonicMs,
-			browserAnchorMs: snapshot.browserMonotonicMs,
-		} satisfies SessionClockAnchor);
-
-	return [
-		{
-			kind: "setCanonicalProjection",
-			sessionId: snapshot.sessionId,
-			projection: {
-				lifecycle: projection.lifecycle,
-				activity: projection.activity,
-				turnState: projection.turnState,
-				activeTurnFailure: projection.activeTurnFailure,
-				lastTerminalTurnId: projection.lastTerminalTurnId,
-				activeStreamingTail: projection.activeStreamingTail,
-				capabilities: projection.capabilities,
-				tokenStream: nextTokenStream,
-				clockAnchor: nextClockAnchor,
-				revision: projection.revision,
-			},
-		},
-		{
-			kind: "setRowTokenStream",
-			sessionId: snapshot.sessionId,
-			rowId: delta.rowId,
-			row: nextRow,
-		},
-	];
 }
 
 export function reduceTranscriptDelta(

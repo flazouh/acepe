@@ -1,26 +1,36 @@
 /**
  * SessionStore composition root — wires sub-stores and facades (ADR-0002).
  */
-import { SvelteMap } from "svelte/reactivity";
+import type { SvelteMap } from "svelte/reactivity";
 import type {
+	SessionGraphRevision,
 	SessionStateEnvelope,
 	SessionStateGraph,
 	TranscriptDelta,
-	SessionGraphRevision,
 } from "../../services/acp-types.js";
-import type { CanonicalSessionProjection, RowTokenStream } from "./canonical-session-projection.js";
 import { AwaitingModelRefreshStore } from "./awaiting-model-refresh-store.svelte.js";
+import type { CanonicalSessionProjection } from "./canonical-session-projection.js";
 import { CapabilityProjectionReader } from "./capability-projection-reader.js";
 import { ComposerMachineService } from "./composer-machine-service.svelte.js";
 import { OperationStore } from "./operation-store.svelte.js";
 import { PrLinkStateStore } from "./pr-link-state-store.svelte.js";
+import type { ISessionStateWriter } from "./services/interfaces/index.js";
+import { optimisticSessionColdFromPendingCreation } from "./services/optimistic-pending-session.js";
+import { SessionConnectionManager } from "./services/session-connection-manager.js";
+import { SessionMessagingService } from "./services/session-messaging-service.js";
+import { SessionRepository } from "./services/session-repository.js";
 import { SessionConnectionFacade } from "./session-connection-facade.js";
 import { SessionConnectionService } from "./session-connection-service.svelte.js";
 import { SessionCreationCoordinator } from "./session-creation-coordinator.svelte.js";
-import { optimisticSessionColdFromPendingCreation } from "./services/optimistic-pending-session.js";
-import { SessionEnvelopeApplier } from "./session-envelope-applier.svelte.js";
 import { SessionEntryStore } from "./session-entry-store.svelte.js";
+import { SessionEnvelopeApplier } from "./session-envelope-applier.svelte.js";
+import type { SessionEventHandler } from "./session-event-handler.js";
+import {
+	SessionEventService,
+	type SessionEventServiceCallbacks,
+} from "./session-event-service.svelte.js";
 import { SessionExportService } from "./session-export-service.js";
+import { SessionIdentityResolver } from "./session-identity-resolver.js";
 import { SessionLifecycleCleanup } from "./session-lifecycle-cleanup.js";
 import { SessionListState } from "./session-list-state.svelte.js";
 import { SessionLoadingFacade } from "./session-loading-facade.js";
@@ -30,20 +40,10 @@ import { SessionPresentationModel } from "./session-presentation-model.js";
 import { SessionProjectionCore } from "./session-projection-core.svelte.js";
 import { SessionReadFacade } from "./session-read-facade.js";
 import { SessionStateRefreshController } from "./session-state-refresh-controller.svelte.js";
+import type { SessionStoreCallbacks } from "./session-store.svelte.js";
 import { SessionTransientProjectionStore } from "./session-transient-projection-store.svelte.js";
 import { SessionWriteFacade } from "./session-write-facade.js";
-import { SessionConnectionManager } from "./services/session-connection-manager.js";
-import { SessionMessagingService } from "./services/session-messaging-service.js";
-import { SessionRepository } from "./services/session-repository.js";
-import {
-	SessionEventService,
-	type SessionEventServiceCallbacks,
-} from "./session-event-service.svelte.js";
-import type { ISessionStateWriter } from "./services/interfaces/index.js";
-import type { SessionEventHandler } from "./session-event-handler.js";
-import type { SessionStoreCallbacks } from "./session-store.svelte.js";
 import { TranscriptRowsController } from "./transcript-rows-controller.svelte.js";
-import { SessionIdentityResolver } from "./session-identity-resolver.js";
 
 export type SessionStoreParts = {
 	readonly listState: SessionListState;
@@ -82,7 +82,6 @@ export type SessionStoreParts = {
 	readonly getCanonicalProjections: () => SvelteMap<string, CanonicalSessionProjection>;
 	readonly getSessionStateGraphs: () => SvelteMap<string, SessionStateGraph>;
 	readonly getCanonicalCapabilitiesMaterialized: () => SvelteMap<string, boolean>;
-	readonly getRowTokenStreamsByRowId: () => Map<string, Map<string, RowTokenStream>>;
 	readonly identityResolver: SessionIdentityResolver;
 };
 
@@ -117,7 +116,8 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 		getSessionIdentity: (sessionId) => listState.getSessionIdentity(sessionId),
 		isCapabilitiesMaterialized: (sessionId) =>
 			projectionCore.canonicalCapabilitiesMaterialized.get(sessionId) === true,
-		getTransientProjection: (sessionId) => transientProjectionStore.getTransientProjection(sessionId),
+		getTransientProjection: (sessionId) =>
+			transientProjectionStore.getTransientProjection(sessionId),
 	});
 
 	const presentation = new SessionPresentationModel({
@@ -127,7 +127,8 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 		operationStore,
 		getSessionCurrentModeId: (sessionId) => capabilityReader.getCurrentModeId(sessionId),
 		getSessionConnectionError: (sessionId) => projectionCore.getSessionConnectionError(sessionId),
-		getSessionActiveTurnFailure: (sessionId) => projectionCore.getSessionActiveTurnFailure(sessionId),
+		getSessionActiveTurnFailure: (sessionId) =>
+			projectionCore.getSessionActiveTurnFailure(sessionId),
 		getSessionMetadata: (sessionId) => listState.getSessionMetadata(sessionId),
 		hasSessionCanonicalProjection: (sessionId) => projectionCore.hasCanonicalProjection(sessionId),
 	});
@@ -265,7 +266,9 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 		getSessionMetadata: (sessionId) => listState.getSessionMetadata(sessionId),
 	});
 
-	const connectionMgrRef: { current: SessionConnectionManager } = { current: null as unknown as SessionConnectionManager };
+	const connectionMgrRef: { current: SessionConnectionManager } = {
+		current: null as unknown as SessionConnectionManager,
+	};
 	const connectionMgr = new SessionConnectionManager(
 		read,
 		write,
@@ -312,7 +315,9 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 		);
 	};
 
-	const stateRefreshControllerRef: { current: SessionStateRefreshController | null } = { current: null };
+	const stateRefreshControllerRef: { current: SessionStateRefreshController | null } = {
+		current: null,
+	};
 	const awaitingModelRefreshRef: { current: AwaitingModelRefreshStore | null } = { current: null };
 
 	const envelopeApplier = new SessionEnvelopeApplier({
@@ -323,7 +328,8 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 		getSessionStateGraph: (sessionId) => projectionCore.getSessionStateGraph(sessionId),
 		getCapabilitiesMaterialized: (sessionId) =>
 			projectionCore.canonicalCapabilitiesMaterialized.get(sessionId) === true,
-		getTransientProjection: (sessionId) => transientProjectionStore.getTransientProjection(sessionId),
+		getTransientProjection: (sessionId) =>
+			transientProjectionStore.getTransientProjection(sessionId),
 		getSessionCurrentModelId: (sessionId) => read.getSessionCurrentModelId(sessionId),
 		getSessionCold: (sessionId) => read.getSessionCold(sessionId),
 		setCapabilitiesMaterialized: (sessionId, materialized) => {
@@ -337,7 +343,8 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 		},
 		updateTransientProjection: (sessionId, updates) =>
 			transientProjectionStore.updateTransientProjection(sessionId, updates),
-		updateUsageTelemetry: (sessionId, telemetry) => input.updateUsageTelemetry(sessionId, telemetry),
+		updateUsageTelemetry: (sessionId, telemetry) =>
+			input.updateUsageTelemetry(sessionId, telemetry),
 		applyViewportBufferPush: (push) => viewport.applyBufferPush(push),
 		applyViewportBufferDelta: (delta) => viewport.applyBufferDelta(delta),
 		replaceSessionOperations: (sessionId, operations) => {
@@ -352,16 +359,22 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 			operationStore.applySessionOperationPatches(sessionId, patches);
 			maybeAutoLinkPrFromOperations(sessionId);
 		},
-		replaceLiveSessionStateGraph: (graph) => creationCoordinator.replaceLiveSessionStateGraph(graph),
+		replaceLiveSessionStateGraph: (graph) =>
+			creationCoordinator.replaceLiveSessionStateGraph(graph),
 		applyLiveSessionInteractionPatches: (snapshots) =>
 			creationCoordinator.applyLiveSessionInteractionPatches(snapshots),
 		syncAwaitingModelRefreshTimer: (sessionId, activity, turnState) => {
-			awaitingModelRefreshRef.current?.syncAwaitingModelRefreshTimer(sessionId, activity, turnState);
+			awaitingModelRefreshRef.current?.syncAwaitingModelRefreshTimer(
+				sessionId,
+				activity,
+				turnState
+			);
 		},
 		reconcileConnectionMachine: (sessionId, lifecycle, turnState, activeTurnFailure) => {
 			connectionService.syncFromCanonicalState(sessionId, lifecycle, turnState, activeTurnFailure);
 		},
-		syncSessionSequenceFromGraph: (graph) => openSnapshotApplier.syncSessionSequenceFromGraph(graph),
+		syncSessionSequenceFromGraph: (graph) =>
+			openSnapshotApplier.syncSessionSequenceFromGraph(graph),
 		composerEndDispatch: (sessionId) => composerMachineService.endDispatch(sessionId),
 		handleCanonicalTurnComplete: (sessionId, lastTerminalTurnId) => {
 			messagingSvc.handleCanonicalTurnComplete(sessionId, lastTerminalTurnId);
@@ -376,7 +389,6 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 			}
 			return controller.refreshSessionStateSnapshot(sessionId);
 		},
-		rowTokenStreamsByRowId: projectionCore.rowTokenStreamsByRowId,
 	});
 
 	const stateRefreshController = new SessionStateRefreshController({
@@ -515,7 +527,6 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 		getCanonicalProjections: () => projectionCore.canonicalProjections,
 		getSessionStateGraphs: () => projectionCore.sessionStateGraphs,
 		getCanonicalCapabilitiesMaterialized: () => projectionCore.canonicalCapabilitiesMaterialized,
-		getRowTokenStreamsByRowId: () => projectionCore.rowTokenStreamsByRowId,
 		identityResolver,
 	};
 }

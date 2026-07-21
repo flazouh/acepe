@@ -1,23 +1,22 @@
 <script lang="ts">
-import { countWordsInMarkdown } from "@acepe/ui/markdown";
-import { onDestroy, onMount, tick } from "svelte";
+import { onMount, tick } from "svelte";
 import type { PanelViewState } from "$lib/acp/logic/panel-visibility.js";
-import type { SessionTurnState, TranscriptEntry, TranscriptViewportRow } from "$lib/services/acp-types.js";
-import { materializeAgentPanelSceneFromGraph } from "$lib/acp/session-state/agent-panel-graph-materializer.js";
+import type {
+	SessionTurnState,
+	TranscriptEntry,
+	TranscriptViewportRow,
+} from "$lib/services/acp-types.js";
 import AgentPanelContent from "$lib/acp/components/agent-panel/components/agent-panel-content.svelte";
 import { Button } from "$lib/components/ui/button/index.js";
 
 import {
 	createStreamingReproController,
-	resolveStreamingReproActiveTailRowId,
 	type StreamingReproController,
 } from "./streaming-repro-controller";
 import {
-	applyStreamingReproPhaseSceneOverrides,
 	buildStreamingReproGraphMaterializerInput,
 	getStreamingReproPresetById,
 } from "./streaming-repro-graph-fixtures";
-import { applyStreamingReproTokenReveal } from "./streaming-repro-token-reveal";
 
 interface Props {
 	controller?: StreamingReproController;
@@ -44,11 +43,9 @@ type StreamingReproPerfProbeResult = {
 	readonly steps: readonly StreamingReproPerfStep[];
 };
 
-declare global {
-	interface Window {
-		__acepeStreamingReproPerfProbe?: () => Promise<StreamingReproPerfProbeResult>;
-	}
-}
+type StreamingReproWindow = Window & {
+	__acepeStreamingReproPerfProbe?: () => Promise<StreamingReproPerfProbeResult>;
+};
 
 const DEFAULT_VIEW_STATE: PanelViewState = { kind: "conversation", errorDetails: null };
 const DEFAULT_SESSION_ID = "streaming-repro-session";
@@ -63,9 +60,6 @@ let {
 }: Props = $props();
 
 let controllerRevision = $state(0);
-let phaseElapsedMs = $state(0);
-let phaseAnimationStartedAtMs = $state(0);
-let phaseAnimationRafId: number | null = null;
 let labElement: HTMLDivElement | null = $state(null);
 
 function readAnimationNowMs(): number {
@@ -75,40 +69,6 @@ function readAnimationNowMs(): number {
 async function waitForDomFlush(): Promise<void> {
 	await tick();
 	await Promise.resolve();
-}
-
-function stopPhaseAnimationTick(): void {
-	if (phaseAnimationRafId === null) {
-		return;
-	}
-	cancelAnimationFrame(phaseAnimationRafId);
-	phaseAnimationRafId = null;
-}
-
-function shouldAnimateActivePhase(): boolean {
-	const phase = controller.activePhase;
-	if (resolveStreamingReproActiveTailRowId(phase) === null) {
-		return false;
-	}
-	if (phase.reducedMotion === true || phase.streamingAnimationMode === "instant") {
-		return false;
-	}
-	return countWordsInMarkdown(phase.assistantText) > 0;
-}
-
-function schedulePhaseAnimationTick(): void {
-	if (!shouldAnimateActivePhase()) {
-		stopPhaseAnimationTick();
-		return;
-	}
-	if (phaseAnimationRafId !== null) {
-		return;
-	}
-	phaseAnimationRafId = requestAnimationFrame((nowMs) => {
-		phaseAnimationRafId = null;
-		phaseElapsedMs = nowMs - phaseAnimationStartedAtMs;
-		schedulePhaseAnimationTick();
-	});
 }
 
 const activePhaseInput = $derived.by(() => {
@@ -133,16 +93,10 @@ const activeStepCount = $derived.by(() => {
 	return controller.activePreset.phases.length;
 });
 
-const materializedScene = $derived(materializeAgentPanelSceneFromGraph(activePhaseInput));
-const reproSceneEntries = $derived(
-	applyStreamingReproPhaseSceneOverrides({
-		entries: materializedScene.conversation.entries,
-		phase: controller.activePhase,
-	})
-);
 const activeGraph = $derived(activePhaseInput.graph);
 const rowsProjectionOverride = $derived.by(() => {
-	const rows = activeGraph.transcriptSnapshot.entries.map((entry) =>
+	const graph = activeGraph;
+	const rows = (graph?.transcriptSnapshot.entries ?? []).map((entry) =>
 		createStreamingReproViewportRow(entry)
 	);
 	const byId = new Map<string, TranscriptViewportRow>();
@@ -153,7 +107,7 @@ const rowsProjectionOverride = $derived.by(() => {
 	}
 	return {
 		sessionId: DEFAULT_SESSION_ID,
-		emissionSeq: activeGraph.revision.transcriptRevision,
+		emissionSeq: graph?.revision.transcriptRevision ?? 0,
 		revision: null,
 		projectionVersion: null,
 		totalRowCount: null,
@@ -164,18 +118,6 @@ const rowsProjectionOverride = $derived.by(() => {
 		rows,
 	};
 });
-const projectedSceneEntries = $derived.by(() => {
-	controllerRevision;
-	phaseElapsedMs;
-	return applyStreamingReproTokenReveal({
-		entries: reproSceneEntries,
-		preset: controller.activePreset,
-		phaseIndex: controller.phaseIndex,
-		phase: controller.activePhase,
-		phaseElapsedMs,
-	});
-});
-
 const turnState = $derived<SessionTurnState>(activeGraph?.turnState ?? "Completed");
 const isWaitingForFirstAssistantText = $derived(
 	activeGraph?.activity.kind === "awaiting_model" && activeGraph.activeStreamingTail === null
@@ -192,15 +134,16 @@ function entryTextLength(entry: TranscriptEntry): number {
 }
 
 function createStreamingReproViewportRow(entry: TranscriptEntry): TranscriptViewportRow {
+	const graph = activeGraph;
 	const activeTail =
-		activeGraph.activeStreamingTail?.rowId === entry.entryId
-			? activeGraph.activeStreamingTail.contentKind
+		graph?.activeStreamingTail?.rowId === entry.entryId
+			? graph.activeStreamingTail.contentKind
 			: null;
 	return {
 		rowId: entry.entryId,
 		sourceEntryId: entry.entryId,
 		kind: entry.role === "user" ? "user" : "assistantText",
-		version: `${entry.entryId}:repro:${String(activeGraph.revision.transcriptRevision)}:${String(entryTextLength(entry))}`,
+		version: `${entry.entryId}:repro:${String(graph?.revision.transcriptRevision ?? 0)}:${String(entryTextLength(entry))}`,
 		anchorEligible: true,
 		activeStreamingTail: activeTail,
 		operationLinks: [],
@@ -223,30 +166,21 @@ function nextPhase(): void {
 	controllerRevision += 1;
 }
 
-function resetPhaseAnimation(): void {
-	stopPhaseAnimationTick();
-	phaseAnimationStartedAtMs = readAnimationNowMs();
-	phaseElapsedMs = 0;
-	schedulePhaseAnimationTick();
-}
-
 function countRenderedRows(): number {
 	return labElement?.querySelectorAll("[data-row-id]").length ?? 0;
 }
 
 function countAnimatedTokenSpans(): number {
 	return (
-		labElement?.querySelectorAll(
-			'[data-sd-animate="true"], [data-acepe-token-reveal-tail="true"]'
-		).length ?? 0
+		labElement?.querySelectorAll('[data-sd-animate="true"], [data-acepe-token-reveal-tail="true"]')
+			.length ?? 0
 	);
 }
 
 function readTokenRevealMode(): string | null {
 	return (
-		labElement
-			?.querySelector("[data-token-reveal-mode]")
-			?.getAttribute("data-token-reveal-mode") ?? null
+		labElement?.querySelector("[data-token-reveal-mode]")?.getAttribute("data-token-reveal-mode") ??
+		null
 	);
 }
 
@@ -277,7 +211,6 @@ async function measureStreamingPhaseFlush(
 }
 
 async function runStreamingReproPerfProbe(): Promise<StreamingReproPerfProbeResult> {
-	stopPhaseAnimationTick();
 	const totalStartedAtMs = readAnimationNowMs();
 	const steps: StreamingReproPerfStep[] = [];
 
@@ -291,7 +224,6 @@ async function runStreamingReproPerfProbe(): Promise<StreamingReproPerfProbeResu
 		steps.push(await measureStreamingPhaseFlush(index, phaseStartedAtMs));
 	}
 
-	schedulePhaseAnimationTick();
 	return {
 		presetId: controller.activePreset.id,
 		phaseCount: controller.activePreset.phases.length,
@@ -302,24 +234,12 @@ async function runStreamingReproPerfProbe(): Promise<StreamingReproPerfProbeResu
 	};
 }
 
-$effect(() => {
-	controllerRevision;
-	resetPhaseAnimation();
-
-	return () => {
-		stopPhaseAnimationTick();
-	};
-});
-
-onDestroy(() => {
-	stopPhaseAnimationTick();
-});
-
 onMount(() => {
-	window.__acepeStreamingReproPerfProbe = runStreamingReproPerfProbe;
+	const reproWindow = window as StreamingReproWindow;
+	reproWindow.__acepeStreamingReproPerfProbe = runStreamingReproPerfProbe;
 	return () => {
-		if (window.__acepeStreamingReproPerfProbe === runStreamingReproPerfProbe) {
-			delete window.__acepeStreamingReproPerfProbe;
+		if (reproWindow.__acepeStreamingReproPerfProbe === runStreamingReproPerfProbe) {
+			delete reproWindow.__acepeStreamingReproPerfProbe;
 		}
 	};
 });
@@ -345,7 +265,6 @@ onMount(() => {
 			panelId={DEFAULT_PANEL_ID}
 			viewState={DEFAULT_VIEW_STATE}
 			sessionId={DEFAULT_SESSION_ID}
-			sceneEntries={projectedSceneEntries}
 			{rowsProjectionOverride}
 			sessionProjectPath={activeGraph?.projectPath ?? null}
 			allProjects={[]}

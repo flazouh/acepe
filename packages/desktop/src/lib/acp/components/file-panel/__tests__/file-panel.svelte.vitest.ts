@@ -231,14 +231,12 @@ describe("FilePanel", () => {
 					deletions: number;
 				}) => void
 			) => {
-				onOk(
-					{
-						path: "src/file.ts",
-						status: "M",
-						insertions: 5,
-						deletions: 1,
-					}
-				);
+				onOk({
+					path: "src/file.ts",
+					status: "M",
+					insertions: 5,
+					deletions: 1,
+				});
 				return Promise.resolve();
 			},
 		});

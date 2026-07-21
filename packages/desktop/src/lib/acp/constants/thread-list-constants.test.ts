@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-	getProviderBrandIcon,
-	resolveAgentIconProviderBrand,
-} from "./thread-list-constants.js";
+import { getProviderBrandIcon, resolveAgentIconProviderBrand } from "./thread-list-constants.js";
 
 describe("thread-list-constants", () => {
 	it("falls back to the built-in Codex provider brand when metadata is missing", () => {
@@ -14,7 +11,9 @@ describe("thread-list-constants", () => {
 		});
 
 		expect(providerBrand).toBe("codex");
-		expect(getProviderBrandIcon(providerBrand, "dark")).toBe("/svgs/agents/codex/codex-icon-dark.svg");
+		expect(getProviderBrandIcon(providerBrand, "dark")).toBe(
+			"/svgs/agents/codex/codex-icon-dark.svg"
+		);
 	});
 
 	it("falls back to the built-in Codex provider brand when metadata is custom", () => {

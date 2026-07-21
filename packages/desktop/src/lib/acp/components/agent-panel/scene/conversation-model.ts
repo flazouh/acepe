@@ -2,8 +2,8 @@ import type {
 	AgentPanelSceneEntryModel,
 	AgentPanelSessionStatus,
 } from "@acepe/ui/agent-panel/types";
-import type { SessionStatus } from "../../../application/dto/session-status.js";
 import type { SessionEntry } from "../../../application/dto/session-entry.js";
+import type { SessionStatus } from "../../../application/dto/session-status.js";
 import type { TurnState } from "../../../store/types.js";
 import type { SceneDisplayRow } from "../logic/scene-display-rows.js";
 import { contentBlocksToText, extractAssistantMarkdown } from "./assistant-content.js";
@@ -69,8 +69,7 @@ function createMappedConversationEntriesView(
 						: mapSessionEntryToConversationEntry(entry, turnState);
 				}
 				if (property === "slice") {
-					return (start?: number, end?: number) =>
-						Array.prototype.slice.call(receiver, start, end);
+					return (start?: number, end?: number) => Array.prototype.slice.call(receiver, start, end);
 				}
 			}
 			const value = Reflect.get(targetArray, property, receiver);
@@ -91,9 +90,7 @@ function createMappedConversationEntriesView(
 					configurable: true,
 					enumerable: true,
 					value:
-						entry === undefined
-							? undefined
-							: mapSessionEntryToConversationEntry(entry, turnState),
+						entry === undefined ? undefined : mapSessionEntryToConversationEntry(entry, turnState),
 					writable: false,
 				};
 			}
@@ -219,7 +216,6 @@ export function mapVirtualizedDisplayEntryToConversationEntry(
 				thinkingDurationMs: entry.message.thinkingDurationMs,
 			},
 			isStreaming: isStreamingAssistant || entry.isStreaming,
-			tokenRevealCss: entry.tokenRevealCss,
 			timestampMs: entry.timestamp?.getTime(),
 		};
 	}
@@ -238,7 +234,6 @@ export function mapVirtualizedDisplayEntryToConversationEntry(
 			type: mapped.type,
 			markdown: mapped.markdown,
 			isStreaming: isStreamingAssistant,
-			tokenRevealCss: mapped.tokenRevealCss,
 			timestampMs: mapped.timestampMs,
 		};
 	}

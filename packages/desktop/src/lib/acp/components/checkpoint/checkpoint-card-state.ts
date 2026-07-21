@@ -1,8 +1,4 @@
-import type {
-	CheckpointData,
-	CheckpointFile as UICheckpointFile,
-	FileRowState,
-} from "@acepe/ui";
+import type { CheckpointData, FileRowState, CheckpointFile as UICheckpointFile } from "@acepe/ui";
 import type { Checkpoint, FileSnapshot } from "../../types/checkpoint.js";
 
 export function buildCheckpointCardData(input: {

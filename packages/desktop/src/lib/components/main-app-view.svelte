@@ -6,7 +6,6 @@ import { check, type DownloadEvent } from "@tauri-apps/plugin-updater";
 import { okAsync, ResultAsync } from "neverthrow";
 import { onDestroy, onMount, tick } from "svelte";
 import { toast } from "svelte-sonner";
-import OpenProjectDialog from "$lib/acp/components/add-repository/open-project-dialog.svelte";
 import DiffViewerModal from "$lib/acp/components/diff-viewer/diff-viewer-modal.svelte";
 import { TabBar } from "$lib/acp/components/tab-bar/index.js";
 import { WelcomeScreen } from "$lib/acp/components/welcome-screen/index.js";
@@ -14,7 +13,6 @@ import { getWorktreeProjectDefaultStore } from "$lib/acp/components/worktree/wor
 import { LOGGER_IDS } from "$lib/acp/constants/logger-ids.js";
 import { useAdvancedCommandPalette } from "$lib/acp/hooks/use-advanced-command-palette.svelte.js";
 import { InboundRequestHandler } from "$lib/acp/logic/inbound-request-handler.js";
-import { ProjectClient } from "$lib/acp/logic/project-client.js";
 import {
 	ProjectManager,
 	type ProjectLoadPerformanceTrace,
@@ -33,7 +31,6 @@ import {
 	createPlanPreferenceStore,
 	createPlanStore,
 	createQuestionStore,
-	createQueueStore,
 	createReviewPreferenceStore,
 	createSessionStore,
 	SessionOpenHydrator,
@@ -66,7 +63,6 @@ import {
 import type { PlanData } from "$lib/services/converted-session-types.js";
 import { createPreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
 import { createAnalyticsPreferencesStore } from "$lib/stores/analytics-preferences-store.svelte.js";
-import { createAttentionQueueStore } from "$lib/stores/attention-queue-store.svelte.js";
 import { createDismissedTipsStore } from "$lib/stores/dismissed-tips-store.svelte.js";
 import { createNotificationPreferencesStore } from "$lib/stores/notification-preferences-store.svelte.js";
 import { createVoiceSettingsStore } from "$lib/stores/voice-settings-store.svelte.js";
@@ -79,24 +75,19 @@ import {
 } from "$lib/utils/tauri-client/invoke.js";
 import { playSound, preloadSound } from "$lib/acp/utils/sound.js";
 import { SoundEffect } from "$lib/acp/types/sounds.js";
-import { FileExplorerModal } from "$lib/acp/components/file-explorer-modal/index.js";
 import ProjectFileSystemDialog from "$lib/acp/components/file-explorer-modal/project-file-system-dialog.svelte";
 import EmptyStates from "./main-app-view/components/content/empty-states.svelte";
 import PanelsContainer from "./main-app-view/components/content/panels-container.svelte";
 import AppOverlays from "./main-app-view/components/overlays/app-overlays.svelte";
 import NewChatDialog from "./main-app-view/components/new-chat-dialog.svelte";
 import type { KanbanNewSessionRequest } from "./main-app-view/components/content/kanban-new-session-dialog-state.js";
-import SourceControlDialog from "./main-app-view/components/overlays/source-control-dialog.svelte";
+import LiveSessionPanelSyncHost from "./main-app-view/components/live-session-panel-sync-host.svelte";
 import AppSidebar from "./main-app-view/components/sidebar/app-sidebar.svelte";
 import {
 	acknowledgeExplicitPanelReveal,
 	applyCompletionAttentionAction,
 	performExplicitPanelReveal,
 } from "./main-app-view/logic/completion-acknowledgement.js";
-import {
-	buildFileExplorerProjectInfoByPath,
-	buildFileExplorerProjectPaths,
-} from "./main-app-view/logic/file-explorer-context.js";
 import {
 	runSessionOpenContentProbe,
 	type SessionOpenContentProbeOptions,
@@ -137,22 +128,6 @@ import {
 	createSessionOpenInteractionGraphConsumer,
 } from "./main-app-view/logic/live-interaction-graph-consumer.js";
 
-declare global {
-	interface Window {
-		__acepeOpenStreamingReproLab?: () => boolean;
-		__acepeHappyPathProbe?: (
-			options?: MainAppHappyPathProbeOptions
-		) => Promise<MainAppHappyPathProbeResult>;
-		__acepeSessionOpenContentProbe?: (
-			options: SessionOpenContentProbeOptions
-		) => Promise<SessionOpenContentProbeResult>;
-		__acepeCleanupHappyPathProbePanels?: (
-			options?: MainAppHappyPathProbeCleanupOptions
-		) => MainAppHappyPathProbeCleanupResult;
-		__acepeRuntimeErrors?: AcepeRuntimeErrorRecord[];
-	}
-}
-
 const HAPPY_PATH_PROBE_PANEL_ID_PREFIX = "qa-happy-path-probe-";
 
 type MainAppHappyPathProbeOptions = {
@@ -176,6 +151,20 @@ type AcepeRuntimeErrorRecord = {
 	readonly line?: number | null;
 	readonly column?: number | null;
 	readonly stack?: string | null;
+};
+
+type MainAppQaWindow = Window & {
+	__acepeOpenStreamingReproLab?: () => boolean;
+	__acepeHappyPathProbe?: (
+		options?: MainAppHappyPathProbeOptions
+	) => Promise<MainAppHappyPathProbeResult>;
+	__acepeSessionOpenContentProbe?: (
+		options: SessionOpenContentProbeOptions
+	) => Promise<SessionOpenContentProbeResult>;
+	__acepeCleanupHappyPathProbePanels?: (
+		options?: MainAppHappyPathProbeCleanupOptions
+	) => MainAppHappyPathProbeCleanupResult;
+	__acepeRuntimeErrors?: AcepeRuntimeErrorRecord[];
 };
 
 type MainAppHappyPathNavigationTiming = {
@@ -355,7 +344,7 @@ function readMainAppNavigationTiming(): MainAppHappyPathNavigationTiming {
 }
 
 function readRuntimeErrorMessages(): readonly string[] {
-	const records = window.__acepeRuntimeErrors;
+	const records = (window as MainAppQaWindow).__acepeRuntimeErrors;
 	if (!Array.isArray(records)) {
 		return [];
 	}
@@ -566,8 +555,8 @@ function isSessionlessHappyPathProbeCandidate(panel: {
 	readonly id: string;
 	readonly sessionId: string | null;
 	readonly agentId: string | null;
-	readonly sourcePath: string | null;
-	readonly worktreePath: string | null;
+	readonly sourcePath?: string | null;
+	readonly worktreePath?: string | null;
 	readonly ownerPanelId: string | null;
 	readonly kind: string;
 }): boolean {
@@ -858,27 +847,28 @@ function runSessionOpenContentProbeForQa(
 	);
 }
 
-const QA_HOOKS_ENABLED =
-	import.meta.env.DEV || import.meta.env.VITE_ENABLE_QA_HOOKS === "1";
+const QA_HOOKS_ENABLED = import.meta.env.DEV || import.meta.env.VITE_ENABLE_QA_HOOKS === "1";
 
 function installHappyPathProbeQaHook(): void {
 	if (!QA_HOOKS_ENABLED) {
 		return;
 	}
-	window.__acepeHappyPathProbe = runHappyPathProbe;
-	window.__acepeSessionOpenContentProbe = runSessionOpenContentProbeForQa;
-	window.__acepeCleanupHappyPathProbePanels = cleanupHappyPathProbePanels;
+	const qaWindow = window as MainAppQaWindow;
+	qaWindow.__acepeHappyPathProbe = runHappyPathProbe;
+	qaWindow.__acepeSessionOpenContentProbe = runSessionOpenContentProbeForQa;
+	qaWindow.__acepeCleanupHappyPathProbePanels = cleanupHappyPathProbePanels;
 }
 
 function uninstallHappyPathProbeQaHook(): void {
-	if (window.__acepeHappyPathProbe === runHappyPathProbe) {
-		delete window.__acepeHappyPathProbe;
+	const qaWindow = window as MainAppQaWindow;
+	if (qaWindow.__acepeHappyPathProbe === runHappyPathProbe) {
+		delete qaWindow.__acepeHappyPathProbe;
 	}
-	if (window.__acepeSessionOpenContentProbe === runSessionOpenContentProbeForQa) {
-		delete window.__acepeSessionOpenContentProbe;
+	if (qaWindow.__acepeSessionOpenContentProbe === runSessionOpenContentProbeForQa) {
+		delete qaWindow.__acepeSessionOpenContentProbe;
 	}
-	if (window.__acepeCleanupHappyPathProbePanels === cleanupHappyPathProbePanels) {
-		delete window.__acepeCleanupHappyPathProbePanels;
+	if (qaWindow.__acepeCleanupHappyPathProbePanels === cleanupHappyPathProbePanels) {
+		delete qaWindow.__acepeCleanupHappyPathProbePanels;
 	}
 }
 
@@ -895,8 +885,6 @@ const permissionStore = createPermissionStore(interactionStore);
 const questionStore = createQuestionStore(interactionStore);
 // QuestionSelectionStore is accessed via getQuestionSelectionStore() context, no direct reference needed
 createQuestionSelectionStore();
-// QueueStore is accessed via getQueueStore() context, no direct reference needed
-createQueueStore();
 // MessageQueueStore for per-session message stacking
 const messageQueueStore = createSessionMessageQueueStore(sessionStore);
 const planStore = createPlanStore();
@@ -920,7 +908,6 @@ const chatPreferencesStore = createChatPreferencesStore();
 const windowFocusStore = createWindowFocusStore();
 const notificationPrefsStore = createNotificationPreferencesStore();
 const analyticsPrefsStore = createAnalyticsPreferencesStore();
-const attentionQueueStore = createAttentionQueueStore();
 const dismissedTipsStore = createDismissedTipsStore();
 
 // Create workspace store first (for persist callback)
@@ -1207,8 +1194,9 @@ sessionStore.setCallbacks({
 
 // Project manager (separate for now, could be merged later)
 const projectManager = new ProjectManager();
-// App-wide new-chat modal: opened from any new-thread entry point via
-// viewState.onNewThreadOverride (registered in onMount once the ref is bound).
+// App-wide new-chat modal: opened from global new-thread entry points via
+// viewState.onNewThreadOverride (⌘N / sidebar New chat / kanban). Per-project
+// "+" actions spawn a panel directly via handleNewThreadForProject.
 let newChatDialog = $state<{ open: (request?: KanbanNewSessionRequest) => void }>();
 
 // Connect session store to project manager for scan operations on import
@@ -1287,14 +1275,11 @@ const viewState = new MainAppViewState(
 	sessionOpenHydrator
 );
 
-// Route every new-thread entry point (sidebar "New chat", per-project +, ⌘T,
-// kanban columns) to the single app-wide new-chat modal. The closure reads the
-// dialog ref at call time, so it works regardless of mount/HMR ordering.
+// Route global new-thread entry points (sidebar "New chat", ⌘N/⌘T, kanban) to
+// the app-wide new-chat modal. Per-project "+" spawns a panel directly.
+// The closure reads the dialog ref at call time for mount/HMR ordering.
 viewState.onNewThreadOverride = (request) => newChatDialog?.open(request);
 
-// Add repository dialog (unified import/clone/browse modal)
-const projectClient = new ProjectClient();
-let addProjectDialogOpen = $state(false);
 let startupMaximizeTriggered = false;
 let hmrTeardownActive = false;
 
@@ -1302,47 +1287,6 @@ if (import.meta.hot) {
 	import.meta.hot.dispose(() => {
 		hmrTeardownActive = true;
 	});
-}
-
-function handleAddProjectOpen(path: string, name: string) {
-	const project = {
-		path,
-		name,
-		createdAt: new Date(),
-		color: "cyan",
-	};
-	projectManager.addProject(project).match(
-		() => {
-			sessionStore.loading.scanSessions([path]).mapErr(() => {});
-			panelStore.spawnPanel({
-				projectPath: path,
-				pendingWorktreeEnabled: worktreeProjectDefaultStore.isEnabled(path),
-			});
-		},
-		(error) => {
-			toast.error(`Failed to open project: ${error.message}`);
-		}
-	);
-}
-
-function handleAddProjectImported(path: string, name: string) {
-	projectManager.addProjectOptimistic(path, name);
-	projectManager.loadProjects().mapErr(() => {});
-	sessionStore.loading.scanSessions([path]).mapErr(() => {});
-}
-
-async function handleOpenFolder() {
-	const result = await projectClient.browseProject();
-	result.match(
-		(project) => {
-			if (project) {
-				handleAddProjectOpen(project.path, project.name);
-			}
-		},
-		(error) => {
-			toast.error(`Failed to open folder: ${error.message}`);
-		}
-	);
 }
 
 function maximizeWindow(): void {
@@ -1559,15 +1503,16 @@ function installStreamingReproQaHook(): void {
 	if (!import.meta.env.DEV) {
 		return;
 	}
-	window.__acepeOpenStreamingReproLab = openStreamingReproLabForQa;
+	(window as MainAppQaWindow).__acepeOpenStreamingReproLab = openStreamingReproLabForQa;
 }
 
 function uninstallStreamingReproQaHook(): void {
 	if (!import.meta.env.DEV) {
 		return;
 	}
-	if (window.__acepeOpenStreamingReproLab === openStreamingReproLabForQa) {
-		delete window.__acepeOpenStreamingReproLab;
+	const qaWindow = window as MainAppQaWindow;
+	if (qaWindow.__acepeOpenStreamingReproLab === openStreamingReproLabForQa) {
+		delete qaWindow.__acepeOpenStreamingReproLab;
 	}
 }
 
@@ -1694,7 +1639,6 @@ onMount(async () => {
 		void planPreferenceStore.initialize();
 		void notificationPrefsStore.initialize();
 		void analyticsPrefsStore.initialize();
-		void attentionQueueStore.initialize();
 		void voiceSettingsStore.initialize();
 		void dismissedTipsStore.initialize();
 		void worktreeProjectDefaultStore
@@ -1702,8 +1646,8 @@ onMount(async () => {
 				getProjectPaths: () => projectManager.projects.map((project) => project.path),
 			})
 			.mapErr((error) => {
-			logger.error("Failed to load worktree project default preferences", { error });
-		});
+				logger.error("Failed to load worktree project default preferences", { error });
+			});
 	});
 	scheduleNonCriticalStartupWork(() => {
 		void agentModelPreferencesStore.loadPersistedState().match(
@@ -1732,12 +1676,7 @@ $effect(() => {
 
 // Track modalOpen context so overlay UIs suppress app-level keybindings
 $effect(() => {
-	kb.setContext(
-		"modalOpen",
-		viewState.settingsModalOpen ||
-			viewState.reviewFullscreenOpen ||
-			viewState.fileExplorerVisible
-	);
+	kb.setContext("modalOpen", viewState.settingsModalOpen || viewState.reviewFullscreenOpen);
 });
 
 function handleSessionCreated(sessionId: string) {
@@ -1786,40 +1725,6 @@ function handleGlobalKeydown(event: KeyboardEvent) {
 		}
 	}
 }
-
-const fileExplorerFocusContext = $derived.by(() => {
-	const focusedPanel = panelStore.focusedTopLevelPanel;
-	if (focusedPanel) {
-		const focusedWorktreePath = focusedPanel.kind === "agent" ? focusedPanel.worktreePath : null;
-		return {
-			focusedProjectPath: focusedPanel.projectPath ? focusedPanel.projectPath : null,
-			focusedWorktreePath: focusedWorktreePath ? focusedWorktreePath : null,
-		};
-	}
-
-	return {
-		focusedProjectPath: panelStore.focusedViewProjectPath
-			? panelStore.focusedViewProjectPath
-			: null,
-		focusedWorktreePath: null,
-	};
-});
-
-const fileExplorerProjectPaths = $derived.by(() => {
-	return buildFileExplorerProjectPaths(
-		projectManager.projects,
-		fileExplorerFocusContext.focusedProjectPath,
-		fileExplorerFocusContext.focusedWorktreePath
-	);
-});
-
-const fileExplorerProjectInfoByPath = $derived.by(() => {
-	return buildFileExplorerProjectInfoByPath(
-		projectManager.projects,
-		fileExplorerFocusContext.focusedProjectPath,
-		fileExplorerFocusContext.focusedWorktreePath
-	);
-});
 
 // Derived: check if any panel is open
 const hasAnyPanel = $derived(
@@ -1910,13 +1815,13 @@ onDestroy(() => {
 			</div>
 		{:else if !viewState.reviewFullscreenOpen}
 			<div class={resolveWorkspaceFrameClass()}>
+				<LiveSessionPanelSyncHost state={viewState} />
 				{#if showSidebar}
 					<div class={resolveWorkspaceSidebarClass(viewState.sidebarOpen)}>
 						<svelte:boundary onerror={(e) => console.error('[boundary:sidebar]', e)}>
 							<AppSidebar
 							{projectManager}
 							state={viewState}
-							onImportProject={() => (addProjectDialogOpen = true)}
 							updaterState={updaterState}
 							onUpdateClick={() => {
 								if (
@@ -2002,16 +1907,7 @@ onDestroy(() => {
 		{/if}
 	</div>
 	<AppOverlays state={viewState} {commandPalette} />
-	<SourceControlDialog {projectManager} />
 	<NewChatDialog bind:this={newChatDialog} {projectManager} />
-
-	<OpenProjectDialog
-		open={addProjectDialogOpen}
-		onOpenChange={(open) => (addProjectDialogOpen = open)}
-		onProjectImported={handleAddProjectImported}
-		onCloneComplete={handleAddProjectOpen}
-		onBrowseFolder={handleOpenFolder}
-	/>
 
 	{#if $gitHubDiffViewerStore.opened && $gitHubDiffViewerStore.reference}
 		<DiffViewerModal
@@ -2067,19 +1963,6 @@ onDestroy(() => {
 				onOpenFile={handleProjectFileSystemDialogOpenFile}
 			/>
 		{/key}
-	{/if}
-
-	<!-- File Explorer Modal (Cmd+I) -->
-	{#if viewState.fileExplorerVisible && fileExplorerProjectPaths.length > 0}
-		<FileExplorerModal
-			projectPaths={fileExplorerProjectPaths}
-			projectInfoByPath={fileExplorerProjectInfoByPath}
-			onClose={() => viewState.closeFileExplorer()}
-			onInsert={(projectPath, filePath) => {
-				panelStore.openFilePanel(filePath, projectPath);
-				viewState.closeFileExplorer();
-			}}
-		/>
 	{/if}
 
 	<!-- Onboarding Overlay (shows on first launch: splash → agents → projects → done) -->

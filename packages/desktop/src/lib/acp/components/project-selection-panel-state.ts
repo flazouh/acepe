@@ -12,14 +12,8 @@ export interface ProjectSelectionRemoteStatus {
 }
 
 export type ProjectSelectionMetadataScheduler = (callback: () => void) => () => void;
-export type ProjectSelectionDelayScheduler = (
-	callback: () => void,
-	delayMs: number
-) => () => void;
-export type ProjectSelectionIdleScheduler = (
-	callback: () => void,
-	timeoutMs: number
-) => () => void;
+export type ProjectSelectionDelayScheduler = (callback: () => void, delayMs: number) => () => void;
+export type ProjectSelectionIdleScheduler = (callback: () => void, timeoutMs: number) => () => void;
 
 const PROJECT_SELECTION_METADATA_DELAY_MS = 5_000;
 const PROJECT_SELECTION_METADATA_IDLE_TIMEOUT_MS = 5_000;
@@ -34,10 +28,7 @@ function scheduleProjectSelectionDelay(callback: () => void, delayMs: number): (
 function scheduleProjectSelectionIdle(callback: () => void, timeoutMs: number): () => void {
 	if (typeof window !== "undefined") {
 		const schedulingWindow = window as Window & {
-			requestIdleCallback?: (
-				callback: IdleRequestCallback,
-				options?: IdleRequestOptions
-			) => number;
+			requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
 			cancelIdleCallback?: (handle: number) => void;
 		};
 		if (typeof schedulingWindow.requestIdleCallback === "function") {
@@ -56,12 +47,14 @@ function scheduleProjectSelectionIdle(callback: () => void, timeoutMs: number): 
 	};
 }
 
-export function createProjectSelectionMetadataScheduler(options: {
-	readonly delayMs?: number;
-	readonly idleTimeoutMs?: number;
-	readonly scheduleDelay?: ProjectSelectionDelayScheduler;
-	readonly scheduleIdle?: ProjectSelectionIdleScheduler;
-} = {}): ProjectSelectionMetadataScheduler {
+export function createProjectSelectionMetadataScheduler(
+	options: {
+		readonly delayMs?: number;
+		readonly idleTimeoutMs?: number;
+		readonly scheduleDelay?: ProjectSelectionDelayScheduler;
+		readonly scheduleIdle?: ProjectSelectionIdleScheduler;
+	} = {}
+): ProjectSelectionMetadataScheduler {
 	const delayMs = options.delayMs ?? PROJECT_SELECTION_METADATA_DELAY_MS;
 	const idleTimeoutMs = options.idleTimeoutMs ?? PROJECT_SELECTION_METADATA_IDLE_TIMEOUT_MS;
 	const scheduleDelay = options.scheduleDelay ?? scheduleProjectSelectionDelay;

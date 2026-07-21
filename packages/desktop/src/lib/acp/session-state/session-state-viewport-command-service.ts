@@ -2,8 +2,9 @@ import type {
 	SessionGraphRevision,
 	SessionStateEnvelope,
 	TranscriptRowPageResult,
-	TranscriptViewportRow,
+	TranscriptScope,
 	TranscriptViewportCommandRevision,
+	TranscriptViewportRow,
 } from "../../services/acp-types.js";
 import { invokeAsync } from "../../utils/tauri-client/invoke.js";
 
@@ -18,7 +19,7 @@ export type TranscriptViewportCommandEnvelopeResult = ReturnType<
 >;
 
 type TranscriptRowPageWireResult =
-	| ({
+	| {
 			readonly status: "current";
 			readonly projection_version: string;
 			readonly start_row_index: number;
@@ -28,7 +29,7 @@ type TranscriptRowPageWireResult =
 			readonly graph_revision: number;
 			readonly last_event_seq: number;
 			readonly rows: TranscriptViewportRow[];
-	  })
+	  }
 	| { readonly status: "missing" }
 	| {
 			readonly status: "stale";
@@ -92,12 +93,14 @@ export function requestTranscriptViewportBuffer(input: {
 
 export function readTranscriptRowPage(input: {
 	readonly sessionId: string;
+	readonly scope: TranscriptScope;
 	readonly startRowIndex: number;
 	readonly limit: number;
 	readonly expectedRevision: SessionGraphRevision | ViewportCommandRevisionInput;
 }): ReturnType<typeof invokeAsync<TranscriptRowPageResult>> {
 	return invokeAsync<TranscriptRowPageWireResult>("acp_read_transcript_row_page", {
 		sessionId: input.sessionId,
+		scope: input.scope,
 		startRowIndex: input.startRowIndex,
 		limit: input.limit,
 		expectedRevision: commandRevisionFrom(input.expectedRevision),

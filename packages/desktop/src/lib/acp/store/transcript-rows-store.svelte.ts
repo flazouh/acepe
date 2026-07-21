@@ -11,15 +11,15 @@ import type {
 	ViewportBufferPush,
 } from "../../services/acp-types.js";
 import {
-	EMPTY_TRANSCRIPT_ROWS_STATE,
-	type RowsApplyStatus,
-	type TranscriptRowsState,
 	applyRowsDelta,
 	applyRowsPage,
 	applyRowsPush,
+	EMPTY_TRANSCRIPT_ROWS_STATE,
+	type RowsApplyStatus,
 	rowsDeltaFromBuffer,
 	rowsPageFromInitialPage,
 	rowsPushFromBuffer,
+	type TranscriptRowsState,
 } from "./transcript-rows-store.js";
 
 export class TranscriptRowsStore {

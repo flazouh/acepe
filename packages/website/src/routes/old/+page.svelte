@@ -420,7 +420,7 @@ const homepageKeywords = [
 					<div class="flex flex-col items-center gap-2.5 sm:flex-row">
 						<PillButton
 							href="/download"
-							variant="default"
+							variant="primary"
 							size="default"
 							class="h-12 py-1.5 pr-1.5 pl-6"
 						>
@@ -856,7 +856,7 @@ class:md:[direction:rtl]={i % 2 === 1}
 				<div class="flex flex-col items-center gap-3 sm:flex-row">
 					<PillButton
 						href="/download"
-						variant="default"
+						variant="primary"
 						size="default"
 						class="h-12 py-1.5 pr-1.5 pl-6 shadow-[0_12px_40px_-12px_rgba(247,126,44,0.55)]"
 					>

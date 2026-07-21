@@ -2,6 +2,7 @@
 
 use crate::acp::projections::RouteDecision;
 use crate::acp::session::ingress::event::{ProviderEvent, ProviderEventKind};
+use crate::acp::session_state_engine::wall_clock_ms;
 use crate::acp::session_update::{ContentChunk, SessionUpdate};
 use crate::acp::types::{CanonicalAgentId, ContentBlock};
 
@@ -16,30 +17,42 @@ pub fn session_update_to_provider_event(
     update: &SessionUpdate,
     decision: RouteDecision,
 ) -> Option<ProviderEvent> {
-    if decision.ignore_late {
-        if matches!(
+    if decision.ignore_late
+        && matches!(
             update,
             SessionUpdate::TurnError { .. } | SessionUpdate::TurnComplete { .. }
-        ) {
-            return None;
-        }
+        )
+    {
+        return None;
     }
-    if decision.suppress {
-        if matches!(
+    if decision.suppress
+        && matches!(
             update,
             SessionUpdate::AgentMessageChunk { .. }
                 | SessionUpdate::AgentThoughtChunk { .. }
                 | SessionUpdate::ToolCall { .. }
                 | SessionUpdate::ToolCallUpdate { .. }
-        ) {
-            return None;
-        }
+        )
+    {
+        return None;
     }
 
     let provider_seq = u64::try_from(event_seq.max(0)).unwrap_or(0);
     let provider_row_id = provider_row_id_for_live_update(event_seq, update);
 
-    let kind = match update {
+    let kind = provider_event_kind(update)?;
+
+    Some(ProviderEvent {
+        source,
+        provider_seq,
+        provider_row_id,
+        timestamp_ms: Some(i64::try_from(wall_clock_ms()).unwrap_or(i64::MAX)),
+        kind,
+    })
+}
+
+fn provider_event_kind(update: &SessionUpdate) -> Option<ProviderEventKind> {
+    Some(match update {
         SessionUpdate::UserMessageChunk {
             chunk, attempt_id, ..
         } => {
@@ -79,15 +92,16 @@ pub fn session_update_to_provider_event(
         SessionUpdate::CompactionEvent { event, .. } => {
             ProviderEventKind::Compaction(event.clone())
         }
+        SessionUpdate::TurnComplete { .. } => ProviderEventKind::TurnEnd {
+            outcome: crate::acp::session::ingress::event::TurnOutcome::Completed,
+        },
+        SessionUpdate::TurnError { .. } => ProviderEventKind::TurnEnd {
+            outcome: crate::acp::session::ingress::event::TurnOutcome::Failed,
+        },
+        SessionUpdate::TurnCancelled { .. } => ProviderEventKind::TurnEnd {
+            outcome: crate::acp::session::ingress::event::TurnOutcome::Cancelled,
+        },
         _ => return None,
-    };
-
-    Some(ProviderEvent {
-        source,
-        provider_seq,
-        provider_row_id,
-        timestamp_ms: None,
-        kind,
     })
 }
 
@@ -100,20 +114,11 @@ pub fn session_updates_to_provider_events(
     updates
         .iter()
         .enumerate()
-        .filter_map(|(index, update)| {
-            let event_seq = i64::try_from(index + 1).unwrap_or(i64::MAX);
-            session_update_to_provider_event(
-                source.clone(),
-                event_seq,
-                update,
-                RouteDecision::default(),
-            )
-            .or_else(|| history_fallback_event(source.clone(), index, update))
-        })
+        .filter_map(|(index, update)| history_event(source.clone(), index, update))
         .collect()
 }
 
-fn history_fallback_event(
+fn history_event(
     source: CanonicalAgentId,
     index: usize,
     update: &SessionUpdate,
@@ -121,22 +126,7 @@ fn history_fallback_event(
     let provider_seq = index as u64 + 1;
     let provider_row_id = provider_row_id_for_history_update(index, update);
 
-    let kind = match update {
-        SessionUpdate::UserMessageChunk {
-            chunk, attempt_id, ..
-        } => {
-            let text = user_text_from_chunk(chunk)?;
-            ProviderEventKind::UserText {
-                text,
-                attempt_id: attempt_id.clone(),
-            }
-        }
-        SessionUpdate::ToolCall { tool_call, .. } => ProviderEventKind::ToolCall(tool_call.clone()),
-        SessionUpdate::ToolCallUpdate { update, .. } => {
-            ProviderEventKind::ToolCallUpdate(update.clone())
-        }
-        _ => return None,
-    };
+    let kind = provider_event_kind(update)?;
 
     Some(ProviderEvent {
         source,
@@ -202,14 +192,24 @@ fn provider_row_id_for_history_update(index: usize, update: &SessionUpdate) -> S
 
 fn user_text_from_chunk(chunk: &ContentChunk) -> Option<String> {
     match &chunk.content {
-        ContentBlock::Text { text } if !text.is_empty() => Some(text.clone()),
+        ContentBlock::Text { text }
+            if !text.is_empty() && !is_task_notification_control_text(text) =>
+        {
+            Some(text.clone())
+        }
         _ => None,
     }
 }
 
+fn is_task_notification_control_text(text: &str) -> bool {
+    text.trim_start().starts_with("<task-notification>")
+}
+
 fn assistant_text_from_chunk(chunk: &ContentChunk) -> Option<String> {
     match &chunk.content {
-        ContentBlock::Text { text } => Some(text.clone()),
+        ContentBlock::Text { text } if !is_task_notification_control_text(text) => {
+            Some(text.clone())
+        }
         _ => None,
     }
 }
@@ -218,6 +218,7 @@ fn assistant_text_from_chunk(chunk: &ContentChunk) -> Option<String> {
 mod tests {
     use super::*;
     use crate::acp::session_update::{ToolArguments, ToolCallData, ToolCallStatus, ToolKind};
+    use chrono::Utc;
 
     #[test]
     fn suppresses_late_assistant_chunks_after_terminal_turn() {
@@ -245,6 +246,103 @@ mod tests {
             42,
             &update,
             decision,
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn stamps_live_text_events_with_wall_clock_timestamp() {
+        let user_update = SessionUpdate::UserMessageChunk {
+            session_id: Some("sess-1".to_string()),
+            chunk: ContentChunk {
+                content: ContentBlock::Text {
+                    text: "hi".to_string(),
+                },
+                aggregation_hint: None,
+            },
+            attempt_id: Some("attempt-1".to_string()),
+        };
+        let assistant_update = SessionUpdate::AgentMessageChunk {
+            session_id: Some("sess-1".to_string()),
+            chunk: ContentChunk {
+                content: ContentBlock::Text {
+                    text: "Hi! What are we working on today?".to_string(),
+                },
+                aggregation_hint: None,
+            },
+            message_id: Some("message-1".to_string()),
+            part_id: Some("part-1".to_string()),
+            parent_tool_use_id: None,
+            produced_at_monotonic_ms: None,
+        };
+
+        let before = Utc::now().timestamp_millis();
+        let user_event = session_update_to_provider_event(
+            CanonicalAgentId::ClaudeCode,
+            1,
+            &user_update,
+            RouteDecision::default(),
+        )
+        .expect("user update maps");
+        let assistant_event = session_update_to_provider_event(
+            CanonicalAgentId::ClaudeCode,
+            2,
+            &assistant_update,
+            RouteDecision::default(),
+        )
+        .expect("assistant update maps");
+        let after = Utc::now().timestamp_millis();
+
+        for timestamp_ms in [user_event.timestamp_ms, assistant_event.timestamp_ms] {
+            let timestamp_ms = timestamp_ms.expect("live text event timestamp");
+            assert!(timestamp_ms >= before);
+            assert!(timestamp_ms <= after);
+        }
+    }
+
+    #[test]
+    fn suppresses_live_task_notification_control_user_text() {
+        let update = SessionUpdate::UserMessageChunk {
+            session_id: Some("sess-1".to_string()),
+            chunk: ContentChunk {
+                content: ContentBlock::Text {
+                    text: "\n<task-notification>\n<task-id>a2431485225cc7142</task-id>\n<tool-use-id>toolu_01NYFH2fnPUSvMgBZGH1yhRX</tool-use-id>\n<status>completed</status>\n</task-notification>".to_string(),
+                },
+                aggregation_hint: None,
+            },
+            attempt_id: None,
+        };
+
+        assert!(session_update_to_provider_event(
+            CanonicalAgentId::ClaudeCode,
+            8,
+            &update,
+            RouteDecision::default(),
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn suppresses_live_task_notification_control_assistant_text() {
+        let update = SessionUpdate::AgentMessageChunk {
+            session_id: Some("sess-1".to_string()),
+            chunk: ContentChunk {
+                content: ContentBlock::Text {
+                    text: "<task-notification>\n<tool-use-id>toolu_01NYFH2fnPUSvMgBZGH1yhRX</tool-use-id>\n</task-notification>".to_string(),
+                },
+                aggregation_hint: None,
+            },
+            message_id: Some("msg-1".to_string()),
+            part_id: Some("part-1".to_string()),
+            parent_tool_use_id: None,
+            produced_at_monotonic_ms: None,
+        };
+
+        assert!(session_update_to_provider_event(
+            CanonicalAgentId::ClaudeCode,
+            9,
+            &update,
+            RouteDecision::default(),
         )
         .is_none());
     }
@@ -285,9 +383,32 @@ mod tests {
     }
 
     #[test]
+    fn maps_turn_complete_to_a_completed_turn_end() {
+        let update = SessionUpdate::TurnComplete {
+            session_id: Some("sess-1".to_string()),
+            turn_id: Some("turn-1".to_string()),
+        };
+
+        let event = session_update_to_provider_event(
+            CanonicalAgentId::ClaudeCode,
+            8,
+            &update,
+            RouteDecision::default(),
+        )
+        .expect("turn completion maps");
+
+        assert!(matches!(
+            event.kind,
+            ProviderEventKind::TurnEnd {
+                outcome: crate::acp::session::ingress::event::TurnOutcome::Completed
+            }
+        ));
+    }
+
+    #[test]
     fn live_ingress_preserves_subagent_parent_scope_metadata() {
         const PARENT_TOOL_CALL_ID: &str = "toolu_task_parent";
-        let updates = vec![
+        let updates = [
             SessionUpdate::AgentThoughtChunk {
                 session_id: Some("sess-1".to_string()),
                 chunk: ContentChunk {

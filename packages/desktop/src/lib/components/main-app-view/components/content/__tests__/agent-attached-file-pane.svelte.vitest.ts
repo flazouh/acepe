@@ -66,7 +66,8 @@ vi.mock("$lib/acp/store/index.js", () => ({
 		setActiveAttachedFilePanel: (ownerPanelId: string, filePanelId: string) =>
 			setActiveAttachedFilePanelMock(ownerPanelId, filePanelId),
 		closeFilePanel: (filePanelId: string) => closeFilePanelMock(filePanelId),
-		resizeFilePanel: (filePanelId: string, delta: number) => resizeFilePanelMock(filePanelId, delta),
+		resizeFilePanel: (filePanelId: string, delta: number) =>
+			resizeFilePanelMock(filePanelId, delta),
 	}),
 }));
 
@@ -124,18 +125,20 @@ describe("AgentAttachedFilePane", () => {
 		getProjectGitStatusSummaryMapMock.mockImplementation(() => {
 			throw new Error("must not load full project git status for attached file tabs");
 		});
-		getProjectFileGitStatusSummaryMock.mockImplementation((_projectPath: string, filePath: string) => ({
-			match: (
-				onOk: (
-					result: { path: string; status: string; insertions: number; deletions: number } | null
-				) => void
-			) => {
-				queueMicrotask(() => {
-					onOk(statusByFilePath.get(filePath) ?? null);
-				});
-				return Promise.resolve();
-			},
-		}));
+		getProjectFileGitStatusSummaryMock.mockImplementation(
+			(_projectPath: string, filePath: string) => ({
+				match: (
+					onOk: (
+						result: { path: string; status: string; insertions: number; deletions: number } | null
+					) => void
+				) => {
+					queueMicrotask(() => {
+						onOk(statusByFilePath.get(filePath) ?? null);
+					});
+					return Promise.resolve();
+				},
+			})
+		);
 
 		const initialFilePanels = [
 			createFilePanel("file-a", "src/a.ts"),

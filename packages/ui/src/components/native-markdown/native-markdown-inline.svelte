@@ -7,17 +7,11 @@
 		isGitHubUrl,
 		isLocalFileReference,
 		type NativeMarkdownInline,
-		type NativeMarkdownWordPart,
 	} from "./native-markdown-model.js";
-	import type {
-		NativeMarkdownTokenRevealTiming,
-		TogglePrLinkPayload,
-	} from "./types.js";
+	import type { TogglePrLinkPayload } from "./types.js";
 
 	interface Props {
 		token: NativeMarkdownInline;
-		wordCount: number;
-		tokenRevealTiming?: NativeMarkdownTokenRevealTiming;
 		onExternalLinkClick?: (url: string) => void;
 		onFilePathClick?: (filePath: string) => void;
 		linkedPrNumber?: number | null;
@@ -26,41 +20,11 @@
 
 	let {
 		token,
-		wordCount,
-		tokenRevealTiming,
 		onExternalLinkClick,
 		onFilePathClick,
 		linkedPrNumber,
 		onTogglePrLink,
 	}: Props = $props();
-
-	function isAnimatedWord(part: NativeMarkdownWordPart): boolean {
-		if (
-			tokenRevealTiming === undefined ||
-			tokenRevealTiming.mode === "instant" ||
-			tokenRevealTiming.revealCount < 1
-		) {
-			return false;
-		}
-
-		return part.wordIndex >= Math.max(0, wordCount - tokenRevealTiming.revealCount);
-	}
-
-	function getAnimatedWordStyle(part: NativeMarkdownWordPart): string | undefined {
-		if (!isAnimatedWord(part) || tokenRevealTiming === undefined) {
-			return undefined;
-		}
-
-		const tailStartIndex = Math.max(0, wordCount - tokenRevealTiming.revealCount);
-		const tailIndex = Math.max(0, part.wordIndex - tailStartIndex);
-		const delayMs = tailIndex * tokenRevealTiming.tokStepMs;
-		return [
-			"--sd-animation: sd-acepeTokenReveal",
-			`--sd-duration: ${String(tokenRevealTiming.tokFadeDurMs)}ms`,
-			"--sd-easing: cubic-bezier(0.16, 1, 0.3, 1)",
-			`--sd-delay: ${String(delayMs)}ms`,
-		].join("; ");
-	}
 
 	function handleExternalLinkClick(event: MouseEvent, href: string): void {
 		if (onExternalLinkClick === undefined || !isExternalUrl(href)) {
@@ -78,13 +42,7 @@
 		{#if part.type === "space"}
 			{part.text}
 		{:else}
-			{@const animated = isAnimatedWord(part)}
-			<span
-				data-markdown-token-word={part.text}
-				data-sd-animate={animated ? "true" : undefined}
-				data-acepe-token-reveal-tail={animated ? "true" : undefined}
-				style={getAnimatedWordStyle(part)}
-			>{part.text}</span>
+			<span data-markdown-token-word={part.text}>{part.text}</span>
 		{/if}
 	{/each}
 {:else if token.type === "code"}
@@ -98,8 +56,6 @@
 		{#each token.children as child (child.key)}
 			<Self
 				token={child}
-				{wordCount}
-				{tokenRevealTiming}
 				{onExternalLinkClick}
 				{onFilePathClick}
 				{linkedPrNumber}
@@ -126,8 +82,6 @@
 			{#each token.children as child (child.key)}
 				<Self
 					token={child}
-					{wordCount}
-					{tokenRevealTiming}
 					{onExternalLinkClick}
 					{onFilePathClick}
 					{linkedPrNumber}
@@ -141,8 +95,6 @@
 		{#each token.children as child (child.key)}
 			<Self
 				token={child}
-				{wordCount}
-				{tokenRevealTiming}
 				{onExternalLinkClick}
 				{onFilePathClick}
 				{linkedPrNumber}
@@ -155,8 +107,6 @@
 		{#each token.children as child (child.key)}
 			<Self
 				token={child}
-				{wordCount}
-				{tokenRevealTiming}
 				{onExternalLinkClick}
 				{onFilePathClick}
 				{linkedPrNumber}
@@ -169,8 +119,6 @@
 		{#each token.children as child (child.key)}
 			<Self
 				token={child}
-				{wordCount}
-				{tokenRevealTiming}
 				{onExternalLinkClick}
 				{onFilePathClick}
 				{linkedPrNumber}

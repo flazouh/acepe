@@ -77,6 +77,8 @@ const logger = createLogger({
 	name: "Model Selector",
 });
 
+const MODEL_FAVORITES_THRESHOLD = 12;
+
 let sharedSelectorRef: { toggle: () => void } | null = $state(null);
 let unregister: (() => void) | null = null;
 
@@ -94,7 +96,7 @@ const agentId = $derived.by(() => {
 	if (panelId) {
 		const panel = panelStore.getTopLevelAgentPanel(panelId);
 		const sessionAgentId = panel?.sessionId
-			? sessionStore.read.getSessionIdentity(panel.sessionId)?.agentId ?? null
+			? (sessionStore.read.getSessionIdentity(panel.sessionId)?.agentId ?? null)
 			: null;
 		return resolveModelSelectorAgentId({
 			capabilitiesAgentId,
@@ -143,7 +145,8 @@ const primarySelectorLabel = $derived(selectedReasoningBaseGroup?.baseModelName 
 const validModels = $derived(availableModels.filter((model) => model.id));
 const displayGroups = $derived.by(() => modelsDisplay?.groups ?? []);
 const selectedDisplayGroup = $derived(
-	displayGroups.find((group) => group.models.some((model) => model.modelId === currentModelId)) ?? null
+	displayGroups.find((group) => group.models.some((model) => model.modelId === currentModelId)) ??
+		null
 );
 const hasDisplayGroups = $derived(hasUsableModelsDisplayGroups(modelsDisplay));
 const allDisplayableModels = $derived.by(() => {
@@ -155,11 +158,12 @@ const allDisplayableModels = $derived.by(() => {
 const totalModelCount = $derived.by(() =>
 	hasDisplayGroups ? allDisplayableModels.length : validModels.length
 );
-const showFavorites = $derived(totalModelCount >= 5);
+const showFavoriteActions = $derived(totalModelCount > MODEL_FAVORITES_THRESHOLD);
 
 function toSelectorItem(
 	model: Model | DisplayableModel,
-	upstreamProviderLabel?: string
+	upstreamProviderLabel?: string,
+	providerScopeId?: string | null
 ): AgentInputModelSelectorItem {
 	const id = getModelSelectorItemId(model);
 	const name = getModelSelectorItemLabel({
@@ -181,11 +185,14 @@ function toSelectorItem(
 		}),
 		hideProviderMark: isDefaultChoiceModelId(id),
 		isFavorite: agentId ? preferencesStore.isFavorite(agentId, id) : false,
+		isDefault: agentId
+			? preferencesStore.isDefaultModel(agentId, providerScopeId ?? null, id)
+			: false,
 	};
 }
 
 const favoriteModels = $derived.by(() => {
-	if (!agentId || !showFavorites) {
+	if (!agentId || !showFavoriteActions) {
 		return [] as AgentInputModelSelectorItem[];
 	}
 	const favoriteIds = preferencesStore.getFavorites(agentId);
@@ -196,10 +203,16 @@ const favoriteModels = $derived.by(() => {
 				const group = displayGroups.find((candidate) =>
 					candidate.models.some((item) => item.modelId === model.modelId)
 				);
-				return toSelectorItem(model, group?.providerLabel ?? group?.label);
+				return toSelectorItem(
+					model,
+					group?.providerLabel ?? group?.label,
+					group?.providerId ?? null
+				);
 			});
 	}
-	return validModels.filter((model) => favoriteIds.includes(model.id)).map(toSelectorItem);
+	return validModels
+		.filter((model) => favoriteIds.includes(model.id))
+		.map((model) => toSelectorItem(model));
 });
 
 const modelGroups = $derived.by<AgentInputModelSelectorGroup[]>(() => {
@@ -210,13 +223,9 @@ const modelGroups = $derived.by<AgentInputModelSelectorGroup[]>(() => {
 			upstreamProviderBrand: group.providerBrand ?? null,
 			providerBrand: group.providerId ? null : modelProviderBrand,
 			providerLabel: group.providerLabel ?? providerLabel,
-			items: Array.from(group.models)
-				.sort((left, right) =>
-					left.displayName.localeCompare(right.displayName, undefined, {
-						sensitivity: "base",
-					})
-				)
-				.map((model) => toSelectorItem(model, group.providerLabel ?? group.label)),
+			items: group.models.map((model) =>
+				toSelectorItem(model, group.providerLabel ?? group.label, group.providerId ?? null)
+			),
 		}));
 	}
 
@@ -224,7 +233,7 @@ const modelGroups = $derived.by<AgentInputModelSelectorGroup[]>(() => {
 		label: group.label,
 		providerBrand: modelProviderBrand,
 		providerLabel,
-		items: group.models.map(toSelectorItem),
+		items: group.models.map((model) => toSelectorItem(model)),
 	}));
 });
 
@@ -278,6 +287,22 @@ async function handleSharedModelChange(modelId: string): Promise<void> {
 		}
 	}
 }
+
+function handleDefaultModelToggle(modelId: string): void {
+	if (!agentId) {
+		return;
+	}
+
+	const providerScopeId =
+		displayGroups.find((group) => group.models.some((model) => model.modelId === modelId))
+			?.providerId ?? null;
+	const currentDefaultModelId = preferencesStore.getDefaultModel(agentId, providerScopeId);
+	preferencesStore.setDefaultModel(
+		agentId,
+		providerScopeId,
+		currentDefaultModelId === modelId ? null : modelId
+	);
+}
 </script>
 
 <SharedAgentInputModelSelector
@@ -310,7 +335,9 @@ async function handleSharedModelChange(modelId: string): Promise<void> {
 	noReasoningLevelsLabel="No reasoning levels available"
 	reasoningEffortTooltipLabel={"Reasoning effort"}
 	onModelChange={handleSharedModelChange}
-	onToggleFavorite={agentId
+	{showFavoriteActions}
+	onToggleFavorite={agentId && showFavoriteActions
 		? (modelId) => preferencesStore.toggleFavorite(agentId, modelId)
 		: undefined}
+	onDefaultModelToggle={agentId ? handleDefaultModelToggle : undefined}
 />

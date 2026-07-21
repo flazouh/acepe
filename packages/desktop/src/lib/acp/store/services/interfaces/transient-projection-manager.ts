@@ -35,5 +35,8 @@ export interface ITransientProjectionManager {
 	/**
 	 * Initialize transient projection for a session with default values.
 	 */
-	initializeTransientProjection(sessionId: string, initialState?: Partial<SessionTransientProjection>): void;
+	initializeTransientProjection(
+		sessionId: string,
+		initialState?: Partial<SessionTransientProjection>
+	): void;
 }

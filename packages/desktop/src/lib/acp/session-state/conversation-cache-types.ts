@@ -4,8 +4,9 @@
  * incremental conversation-patch fast paths. Extracted so the patch-strategy
  * modules and the dispatcher share one contract. GOD-safe (types only).
  */
-import type { InteractionSnapshot, TranscriptEntry } from "../../services/acp-types.js";
+
 import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel/types";
+import type { InteractionSnapshot, TranscriptEntry } from "../../services/acp-types.js";
 import type { ScenePatch } from "../components/agent-panel/logic/scene-patch.js";
 import type { AgentPanelCanonicalSource } from "./agent-panel-canonical-source.js";
 import type { OperationIndex } from "./operation-index.js";

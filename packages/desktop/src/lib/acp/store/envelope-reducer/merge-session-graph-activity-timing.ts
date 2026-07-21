@@ -16,8 +16,7 @@ export function mergeSessionGraphActivityTiming(
 		activeSubagentCount: selected.activeSubagentCount,
 		dominantOperationId: selected.dominantOperationId ?? null,
 		blockingInteractionId: selected.blockingInteractionId ?? null,
-		kindStartedAtMs:
-			selected.kind === "idle" ? null : kindStartedAtMs,
+		kindStartedAtMs: selected.kind === "idle" ? null : kindStartedAtMs,
 	};
 }
 

@@ -1,26 +1,26 @@
 <script lang="ts">
-	import type {
-		AgentPanelPerformanceRecorder,
-		AgentPanelSceneEntryModel,
-	} from "@acepe/ui/agent-panel";
-	import type { TranscriptRowsState } from "../../../../../store/transcript-rows-store.js";
-	import type { TurnState } from "../../../../../store/types.js";
+import type {
+	AgentPanelPerformanceRecorder,
+	AgentPanelSceneEntryModel,
+} from "@acepe/ui/agent-panel";
+import type { TranscriptRowsState } from "../../../../../store/transcript-rows-store.js";
+import type { TurnState } from "../../../../../store/types.js";
 
-	let {
-		sessionId = null,
-		sceneEntries = [],
-		rowsProjection = null,
-		turnState = "idle",
-		skipRowsBootstrap = false,
-		profileRecorder,
-	} = $props<{
-		sessionId?: string | null;
-		sceneEntries?: readonly AgentPanelSceneEntryModel[];
-		rowsProjection?: TranscriptRowsState | null;
-		turnState?: TurnState;
-		skipRowsBootstrap?: boolean;
-		profileRecorder?: AgentPanelPerformanceRecorder;
-	}>();
+let {
+	sessionId = null,
+	sceneEntries = [],
+	rowsProjection = null,
+	turnState = "idle",
+	skipRowsBootstrap = false,
+	profileRecorder,
+} = $props<{
+	sessionId?: string | null;
+	sceneEntries?: readonly AgentPanelSceneEntryModel[];
+	rowsProjection?: TranscriptRowsState | null;
+	turnState?: TurnState;
+	skipRowsBootstrap?: boolean;
+	profileRecorder?: AgentPanelPerformanceRecorder;
+}>();
 </script>
 
 <div

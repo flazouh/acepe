@@ -3,6 +3,21 @@
 // in session-state/agent-panel-graph-materializer.ts; this barrel keeps the
 // historical module surface for activity-entry-projection, permission-bar,
 // agent-panel-graph-materializer, virtual-session-list, and scene tests.
+
+export {
+	buildDesktopErrorCard,
+	buildDesktopInstallCard,
+	buildDesktopPrCard,
+	buildDesktopWorktreeCard,
+} from "./cards.js";
+export { buildDesktopComposerModel } from "./composer-model.js";
+export {
+	mapSessionEntriesToConversationModel,
+	mapSessionEntryToConversationEntry,
+	mapSessionStatusToSceneStatus,
+	mapVirtualizedDisplayEntryToConversationEntry,
+} from "./conversation-model.js";
+export { buildDesktopPlanSidebar } from "./plan-sidebar.js";
 export type {
 	DesktopAgentPanelHeaderInput,
 	DesktopComposerInput,
@@ -11,19 +26,5 @@ export type {
 	DesktopPrCardInput,
 	DesktopWorktreeCardInput,
 } from "./scene-input-types.js";
-export { mapToolCallToSceneEntry } from "./tool/tool-call-entry.js";
-export {
-	mapSessionEntriesToConversationModel,
-	mapSessionEntryToConversationEntry,
-	mapSessionStatusToSceneStatus,
-	mapVirtualizedDisplayEntryToConversationEntry,
-} from "./conversation-model.js";
-export { buildDesktopPlanSidebar } from "./plan-sidebar.js";
-export { buildDesktopComposerModel } from "./composer-model.js";
 export { buildModifiedFilesStrip, buildPlanHeaderStrip } from "./strips.js";
-export {
-	buildDesktopErrorCard,
-	buildDesktopInstallCard,
-	buildDesktopPrCard,
-	buildDesktopWorktreeCard,
-} from "./cards.js";
+export { mapToolCallToSceneEntry } from "./tool/tool-call-entry.js";

@@ -181,6 +181,10 @@ impl ClaudeCcSdkClient {
         self.pending_questions = Arc::new(Mutex::new(HashMap::new()));
     }
 
+    fn take_pending_creation_attempt_for_stream(&mut self) -> Option<String> {
+        self.pending_creation_attempt_id.take()
+    }
+
     fn reset_pending_mode_for_safe_resume(&mut self) {
         self.pending_mode_id = Some("default".to_string());
     }
@@ -425,7 +429,7 @@ impl ClaudeCcSdkClient {
         let sid = session_id.clone();
         let db = self.db.clone();
         let app_handle = self.app_handle.clone();
-        let pending_creation_attempt_id = self.pending_creation_attempt_id.clone();
+        let pending_creation_attempt_id = self.take_pending_creation_attempt_for_stream();
         let project_path = self.current_cwd.clone();
         let context = StreamingBridgeContext {
             dispatcher,

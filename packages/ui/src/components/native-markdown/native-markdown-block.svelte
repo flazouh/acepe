@@ -7,15 +7,10 @@
 		NativeMarkdownInline as NativeMarkdownInlineToken,
 		NativeMarkdownTableAlign,
 	} from "./native-markdown-model.js";
-	import type {
-		NativeMarkdownTokenRevealTiming,
-		TogglePrLinkPayload,
-	} from "./types.js";
+	import type { TogglePrLinkPayload } from "./types.js";
 
 	interface Props {
 		block: NativeMarkdownBlock;
-		wordCount: number;
-		tokenRevealTiming?: NativeMarkdownTokenRevealTiming;
 		onExternalLinkClick?: (url: string) => void;
 		onFilePathClick?: (filePath: string) => void;
 		linkedPrNumber?: number | null;
@@ -24,8 +19,6 @@
 
 	let {
 		block,
-		wordCount,
-		tokenRevealTiming,
 		onExternalLinkClick,
 		onFilePathClick,
 		linkedPrNumber,
@@ -52,8 +45,6 @@
 	{#each children as child (child.key)}
 		<NativeMarkdownInline
 			token={child}
-			{wordCount}
-			{tokenRevealTiming}
 			{onExternalLinkClick}
 			{onFilePathClick}
 			{linkedPrNumber}
@@ -85,8 +76,6 @@
 					{#each item.blocks as itemBlock (itemBlock.key)}
 						<Self
 							block={itemBlock}
-							{wordCount}
-							{tokenRevealTiming}
 							{onExternalLinkClick}
 							{onFilePathClick}
 							{linkedPrNumber}
@@ -103,8 +92,6 @@
 					{#each item.blocks as itemBlock (itemBlock.key)}
 						<Self
 							block={itemBlock}
-							{wordCount}
-							{tokenRevealTiming}
 							{onExternalLinkClick}
 							{onFilePathClick}
 							{linkedPrNumber}
@@ -120,8 +107,6 @@
 		{#each block.blocks as childBlock (childBlock.key)}
 			<Self
 				block={childBlock}
-				{wordCount}
-				{tokenRevealTiming}
 				{onExternalLinkClick}
 				{onFilePathClick}
 				{linkedPrNumber}

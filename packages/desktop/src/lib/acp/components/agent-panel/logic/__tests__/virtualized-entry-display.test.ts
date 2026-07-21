@@ -359,40 +359,6 @@ describe("buildVirtualizedDisplayEntriesFromScene", () => {
 		}
 	});
 
-	it("keeps an animating assistant row separate from prior assistant text", () => {
-		const scene: AgentPanelSceneEntryModel[] = [
-			{ type: "assistant", id: "a1", markdown: "first ", isStreaming: false },
-			{
-				type: "assistant",
-				id: "a2",
-				markdown: "second answer",
-				isStreaming: false,
-				tokenRevealCss: {
-					revealCount: 2,
-					revealedCharCount: "second answer".length,
-					baselineMs: -32,
-					tokStepMs: 32,
-					tokFadeDurMs: 420,
-					mode: "smooth",
-				},
-			},
-		];
-
-		const result = buildVirtualizedDisplayEntriesFromScene(scene);
-
-		expect(result).toHaveLength(2);
-		expect(result[0]).toMatchObject({ type: "assistant_merged", markdown: "first " });
-		expect(result[1]).toMatchObject({
-			type: "assistant_merged",
-			markdown: "second answer",
-			tokenRevealCss: {
-				revealCount: 2,
-				revealedCharCount: "second answer".length,
-				baselineMs: -32,
-			},
-		});
-	});
-
 	it("still merges adjacent static assistant entries", () => {
 		const scene: AgentPanelSceneEntryModel[] = [
 			{ type: "assistant", id: "a1", markdown: "same", isStreaming: false },
@@ -404,7 +370,6 @@ describe("buildVirtualizedDisplayEntriesFromScene", () => {
 		expect(result[0]?.type).toBe("assistant_merged");
 		if (result[0]?.type === "assistant_merged") {
 			expect(result[0].markdown).toBe("same same suffix");
-			expect(result[0].tokenRevealCss).toBeUndefined();
 		}
 	});
 
@@ -475,10 +440,7 @@ describe("buildVirtualizedDisplayEntriesFromScene", () => {
 
 			expect(nextRows[0]).toBe(currentRows[0]);
 			expect(getVirtualizedDisplayEntryKey(nextRows[1]!)).toBe("a1");
-			expect(nextRows.map((entry) => getVirtualizedDisplayEntryKey(entry))).toEqual([
-				"u1",
-				"a1",
-			]);
+			expect(nextRows.map((entry) => getVirtualizedDisplayEntryKey(entry))).toEqual(["u1", "a1"]);
 		} finally {
 			currentRows.slice = originalSlice;
 		}

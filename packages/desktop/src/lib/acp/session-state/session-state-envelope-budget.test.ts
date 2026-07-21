@@ -188,7 +188,6 @@ describe("session-state envelope byte budgets", () => {
 
 	it("defines a byte budget for every session-state payload kind", () => {
 		expect(SESSION_STATE_ENVELOPE_BYTE_BUDGETS.map((budget) => budget.kind).sort()).toEqual([
-			"assistantTextDelta",
 			"capabilities",
 			"delta",
 			"lifecycle",
@@ -200,8 +199,8 @@ describe("session-state envelope byte budgets", () => {
 		]);
 	});
 
-	it("keeps tiny assistant text deltas much smaller than transcript deltas", () => {
-		expect(getSessionStateEnvelopeByteBudget("assistantTextDelta")).toBeLessThan(
+	it("keeps tiny lifecycle envelopes much smaller than transcript deltas", () => {
+		expect(getSessionStateEnvelopeByteBudget("lifecycle")).toBeLessThan(
 			getSessionStateEnvelopeByteBudget("delta")
 		);
 		expect(getSessionStateEnvelopeByteBudget("delta")).toBeLessThan(
@@ -209,54 +208,13 @@ describe("session-state envelope byte budgets", () => {
 		);
 	});
 
-	it("keeps viewport buffer push budget below snapshot budget but above tiny token deltas", () => {
+	it("keeps viewport buffer push budget below snapshot budget but above the smallest tier", () => {
 		expect(getSessionStateEnvelopeByteBudget("viewportBufferPush")).toBeLessThan(
 			getSessionStateEnvelopeByteBudget("snapshot")
 		);
 		expect(getSessionStateEnvelopeByteBudget("viewportBufferPush")).toBeGreaterThan(
-			getSessionStateEnvelopeByteBudget("assistantTextDelta")
+			getSessionStateEnvelopeByteBudget("lifecycle")
 		);
-	});
-
-	it("accepts a normal small assistant text delta", () => {
-		const result = checkSessionStateEnvelopeByteBudget(
-			createEnvelope({
-				kind: "assistantTextDelta",
-				delta: {
-					turnId: "turn-1",
-					rowId: "assistant-1",
-					charOffset: 0,
-					deltaText: "hello",
-					producedAtMonotonicMs: 12,
-					revision: 1,
-				},
-			})
-		);
-
-		expect(result.ok).toBe(true);
-		expect(result.kind).toBe("assistantTextDelta");
-	});
-
-	it("rejects oversized assistant text deltas so token updates stay small", () => {
-		const result = checkSessionStateEnvelopeByteBudget(
-			createEnvelope({
-				kind: "assistantTextDelta",
-				delta: {
-					turnId: "turn-1",
-					rowId: "assistant-1",
-					charOffset: 0,
-					deltaText: "x".repeat(getSessionStateEnvelopeByteBudget("assistantTextDelta")),
-					producedAtMonotonicMs: 12,
-					revision: 1,
-				},
-			})
-		);
-
-		expect(result).toMatchObject({
-			ok: false,
-			kind: "assistantTextDelta",
-			maxBytes: getSessionStateEnvelopeByteBudget("assistantTextDelta"),
-		});
 	});
 
 	it("accepts a bounded viewport buffer push", () => {
@@ -494,9 +452,7 @@ describe("session-state envelope byte budgets", () => {
 		const result = checkSessionStateEnvelopeByteBudget(
 			createEnvelope({
 				kind: "telemetry",
-				telemetry: createTelemetry(
-					"x".repeat(getSessionStateEnvelopeByteBudget("telemetry"))
-				),
+				telemetry: createTelemetry("x".repeat(getSessionStateEnvelopeByteBudget("telemetry"))),
 				revision,
 			})
 		);
@@ -557,9 +513,7 @@ describe("session-state envelope byte budgets", () => {
 		const result = checkSessionStateEnvelopeByteBudget(
 			createEnvelope({
 				kind: "snapshot",
-				graph: createSnapshotGraph(
-					"x".repeat(getSessionStateEnvelopeByteBudget("snapshot"))
-				),
+				graph: createSnapshotGraph("x".repeat(getSessionStateEnvelopeByteBudget("snapshot"))),
 			})
 		);
 

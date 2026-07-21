@@ -4,13 +4,13 @@
 import { okAsync, type ResultAsync } from "neverthrow";
 import type { HistoryEntry } from "../../services/claude-history-types.js";
 import type { AppError } from "../errors/app-error.js";
+import type { PrLinkStateStore } from "./pr-link-state-store.svelte.js";
+import type { SessionRepository } from "./services/session-repository.js";
 import type { SessionConnectionService } from "./session-connection-service.svelte.js";
 import type { SessionListState } from "./session-list-state.svelte.js";
-import type { SessionRepository } from "./services/session-repository.js";
-import type { PrLinkStateStore } from "./pr-link-state-store.svelte.js";
-import type { SessionCold } from "./types.js";
 import type { SessionReadFacade } from "./session-read-facade.js";
 import type { SessionWriteFacade } from "./session-write-facade.js";
+import type { SessionCold } from "./types.js";
 
 export type SessionLoadingFacadeDeps = {
 	readonly repository: SessionRepository;
@@ -48,16 +48,20 @@ export class SessionLoadingFacade {
 	}
 
 	loadSessions(projectPaths?: string[]): ResultAsync<SessionCold[], AppError> {
-		return this.#deps.repository.loadSessions(this.#deps.listState.sessions, projectPaths).map((sessions) => {
-			this.#deps.prLinkState.refreshAllPrStates();
-			return sessions;
-		});
+		return this.#deps.repository
+			.loadSessions(this.#deps.listState.sessions, projectPaths)
+			.map((sessions) => {
+				this.#deps.prLinkState.refreshAllPrStates();
+				return sessions;
+			});
 	}
 
 	scanSessions(projectPaths: string[]): ResultAsync<void, AppError> {
-		return this.#deps.repository.scanSessions(this.#deps.listState.sessions, projectPaths).map(() => {
-			this.#deps.prLinkState.refreshAllPrStates();
-		});
+		return this.#deps.repository
+			.scanSessions(this.#deps.listState.sessions, projectPaths)
+			.map(() => {
+				this.#deps.prLinkState.refreshAllPrStates();
+			});
 	}
 
 	refreshSessionsFromScan(entries: HistoryEntry[]): void {

@@ -26,11 +26,6 @@ import {
 import { extractAttachmentsFromChunks } from "../../../utils/extract-content-attachments.js";
 import { shouldDisableSendForFailedFirstSend } from "../../agent-input/logic/first-send-recovery.js";
 import {
-	type PlanningDebugSnapshot,
-	registerPlanningDebugSource,
-	unregisterPlanningDebugSource,
-} from "./planning-debug.js";
-import {
 	deriveCanonicalAgentPanelSessionState,
 	deriveCanonicalUserEntryPresence,
 	derivePanelErrorInfo,
@@ -42,6 +37,11 @@ import {
 import { hasTrailingCompletedTool as transcriptHasTrailingCompletedTool } from "../logic/transcript-viewport-row-facts.js";
 import { contentBlocksToText } from "../scene/assistant-content.js";
 import { mapSessionEntryToConversationEntry } from "../scene/conversation-model.js";
+import {
+	type PlanningDebugSnapshot,
+	registerPlanningDebugSource,
+	unregisterPlanningDebugSource,
+} from "./planning-debug.js";
 
 export interface AgentPanelSessionControllerDeps {
 	getSessionId: () => string | null;
@@ -299,7 +299,9 @@ export class AgentPanelSessionController {
 	});
 
 	readonly canonicalPanelSessionSource = $derived.by(() =>
-		this.#deps.sessionStore.presentation.getSessionAgentPanelSessionSource(this.#deps.getSessionId())
+		this.#deps.sessionStore.presentation.getSessionAgentPanelSessionSource(
+			this.#deps.getSessionId()
+		)
 	);
 
 	readonly canonicalSessionActivity = $derived.by(() =>
@@ -319,7 +321,10 @@ export class AgentPanelSessionController {
 		}
 		const rowsProjection = this.#deps.sessionStore.viewport.getRowsProjection(id);
 		return rowsProjection?.sessionId === id
-			? transcriptHasTrailingCompletedTool(rowsProjection.rows)
+			? transcriptHasTrailingCompletedTool(
+					rowsProjection.rows,
+					this.agentPanelCanonicalSource?.operations ?? null
+				)
 			: false;
 	});
 
@@ -363,7 +368,9 @@ export class AgentPanelSessionController {
 
 	readonly activeTurnError = $derived.by(() => {
 		const id = this.#deps.getSessionId();
-		const activeTurnFailure = id ? this.#deps.sessionStore.read.getSessionActiveTurnFailure(id) : null;
+		const activeTurnFailure = id
+			? this.#deps.sessionStore.read.getSessionActiveTurnFailure(id)
+			: null;
 		if (activeTurnFailure) {
 			return {
 				content: activeTurnFailure.message,

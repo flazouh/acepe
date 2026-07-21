@@ -1,4 +1,7 @@
-import { CanonicalModeId, type CanonicalModeId as CanonicalModeIdType } from "../types/canonical-mode-id.js";
+import {
+	CanonicalModeId,
+	type CanonicalModeId as CanonicalModeIdType,
+} from "../types/canonical-mode-id.js";
 
 /**
  * UI mode name to backend mode ID mapping.

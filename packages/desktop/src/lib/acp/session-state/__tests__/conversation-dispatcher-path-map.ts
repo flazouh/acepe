@@ -55,9 +55,7 @@ export const CONVERSATION_DISPATCHER_PATH_MAP: Record<
 	ConversationDispatcherPath,
 	readonly string[]
 > = {
-	reuse: [
-		"reuses conversation rows when only lifecycle changes",
-	],
+	reuse: ["reuses conversation rows when only lifecycle changes"],
 	"activity-only": [
 		"reuses conversation rows when only graph activity changes",
 		"keeps conversation rows stable when only the operations array identity changes",

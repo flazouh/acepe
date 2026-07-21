@@ -11,6 +11,7 @@
 		selectedFileIndex?: number | null;
 		showCloseButton?: boolean;
 		onClose?: () => void;
+		onKeepFile?: () => void;
 		onPreviousFile?: () => void;
 		onNextFile?: () => void;
 	}
@@ -23,6 +24,7 @@
 		selectedFileIndex = null,
 		showCloseButton = true,
 		onClose,
+		onKeepFile,
 		onPreviousFile,
 		onNextFile,
 	}: Props = $props();
@@ -48,8 +50,17 @@
 			selectedFileIndex !== null &&
 			selectedFileIndex < fileCount - 1
 	);
-	const primaryButtonLabel = $derived(hasNextFile ? "Next" : "Done");
+	const primaryButtonLabel = $derived(onKeepFile ? "Keep" : hasNextFile ? "Next" : "Done");
 	const showRightControls = $derived(headerActions !== undefined || showFileNavigation);
+
+	function handlePrimaryFileAction(): void {
+		if (onKeepFile) {
+			onKeepFile();
+			return;
+		}
+
+		onNextFile?.();
+	}
 </script>
 
 <div
@@ -104,8 +115,8 @@
 				<Button
 					variant="secondary"
 					size="xs"
-					disabled={!hasNextFile}
-					onclick={() => onNextFile?.()}
+					disabled={!onKeepFile && !hasNextFile}
+					onclick={handlePrimaryFileAction}
 					data-testid="review-workspace-next-file"
 				>
 					{primaryButtonLabel}

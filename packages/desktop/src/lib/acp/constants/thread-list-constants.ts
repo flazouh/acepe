@@ -98,7 +98,6 @@ export function resolveAgentIconProviderBrand(input: {
  */
 export const AGENT_ICON_BASE_CLASS = "block h-4 w-4 shrink-0 mt-0.5";
 
-
 /**
  * Time group labels.
  */

@@ -57,22 +57,24 @@ export function buildCanonicalUsageTelemetry(
 	return {
 		sessionSpendUsd,
 		latestStepCostUsd: usageTelemetryData.costUsd ?? null,
-		latestTokensTotal: hasOccupancySnapshot ? tokens.total ?? null : previous?.latestTokensTotal ?? null,
+		latestTokensTotal: hasOccupancySnapshot
+			? (tokens.total ?? null)
+			: (previous?.latestTokensTotal ?? null),
 		latestTokensInput: hasOccupancySnapshot
-			? tokens.input ?? null
-			: previous?.latestTokensInput ?? null,
+			? (tokens.input ?? null)
+			: (previous?.latestTokensInput ?? null),
 		latestTokensOutput: hasOccupancySnapshot
-			? tokens.output ?? null
-			: previous?.latestTokensOutput ?? null,
+			? (tokens.output ?? null)
+			: (previous?.latestTokensOutput ?? null),
 		latestTokensCacheRead: hasOccupancySnapshot
-			? tokens.cacheRead ?? null
-			: previous?.latestTokensCacheRead ?? null,
+			? (tokens.cacheRead ?? null)
+			: (previous?.latestTokensCacheRead ?? null),
 		latestTokensCacheWrite: hasOccupancySnapshot
-			? tokens.cacheWrite ?? null
-			: previous?.latestTokensCacheWrite ?? null,
+			? (tokens.cacheWrite ?? null)
+			: (previous?.latestTokensCacheWrite ?? null),
 		latestTokensReasoning: hasOccupancySnapshot
-			? tokens.reasoning ?? null
-			: previous?.latestTokensReasoning ?? null,
+			? (tokens.reasoning ?? null)
+			: (previous?.latestTokensReasoning ?? null),
 		lastTelemetryEventId: eventId,
 		contextBudget: resolveContextBudget(usageTelemetryData, previous, currentModelId, updatedAt),
 		updatedAt,

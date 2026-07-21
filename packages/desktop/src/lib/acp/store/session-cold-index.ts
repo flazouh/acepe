@@ -4,9 +4,10 @@
  * + incremental patches, and array removals. Pure list transforms — no
  * projection state. GOD-safe.
  */
-import type { SessionCold, SessionMutableColdUpdates } from "./types.js";
-import { SvelteMap } from "svelte/reactivity";
+
+import type { SvelteMap } from "svelte/reactivity";
 import { sessionColdFromSlices } from "../application/dto/session-cold.js";
+import type { SessionCold, SessionMutableColdUpdates } from "./types.js";
 
 export type SessionLiveSyncReference = {
 	readonly id: string;
@@ -51,7 +52,10 @@ export function createPatchedSessionColdArray(
 	return nextSessions;
 }
 
-export function findSessionColdIndexById(sessions: readonly SessionCold[], sessionId: string): number {
+export function findSessionColdIndexById(
+	sessions: readonly SessionCold[],
+	sessionId: string
+): number {
 	for (let index = 0; index < sessions.length; index += 1) {
 		if (sessions[index]?.id === sessionId) {
 			return index;
@@ -214,8 +218,9 @@ function removeSessionIdFromArray(sessionIds: readonly string[], sessionId: stri
 	return nextSessionIds;
 }
 
-
-export function sessionLiveSyncReferenceFromSession(session: SessionCold): SessionLiveSyncReference {
+export function sessionLiveSyncReferenceFromSession(
+	session: SessionCold
+): SessionLiveSyncReference {
 	return {
 		id: session.id,
 		updatedAtMs: session.updatedAt.getTime(),

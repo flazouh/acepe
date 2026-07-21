@@ -352,8 +352,8 @@ mod tests {
         )
         .expect("probe");
 
-        assert_eq!(probe.ok, true);
-        assert_eq!(probe.is_error, false);
+        assert!(probe.ok);
+        assert!(!probe.is_error);
         assert_eq!(probe.app.as_deref(), Some("Acepe"));
         assert_eq!(probe.window.as_deref(), Some("Main"));
         assert_eq!(probe.element_count, 1);
@@ -403,8 +403,8 @@ mod tests {
         )
         .expect("probe");
 
-        assert_eq!(probe.ok, false);
-        assert_eq!(probe.is_error, true);
+        assert!(!probe.ok);
+        assert!(probe.is_error);
         assert_eq!(probe.element_count, 0);
         assert_eq!(
             probe.error_code.as_deref(),
@@ -456,7 +456,7 @@ mod tests {
             computer_probe_from_mcp_response("session-1".to_string(), response, Some(action))
                 .expect("probe");
 
-        assert_eq!(probe.ok, true);
+        assert!(probe.ok);
         assert_eq!(probe.action_verb.as_deref(), Some("click"));
         assert_eq!(probe.action_target_label.as_deref(), Some("Run"));
         assert_eq!(probe.action_target_id.as_deref(), Some("c_1"));

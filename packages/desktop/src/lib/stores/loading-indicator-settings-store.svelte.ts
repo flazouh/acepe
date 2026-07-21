@@ -1,9 +1,9 @@
 import {
 	DEFAULT_LOADING_ICON_COLOR_ID,
-	LOADING_ICON_COLOR_OPTIONS,
 	isLoadingIconColorId,
-	normalizeLoadingIconColorId,
+	LOADING_ICON_COLOR_OPTIONS,
 	type LoadingIconColorId,
+	normalizeLoadingIconColorId,
 } from "@acepe/ui/icons";
 import { toast } from "svelte-sonner";
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";

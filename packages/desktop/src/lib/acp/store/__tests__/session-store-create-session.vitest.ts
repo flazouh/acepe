@@ -26,9 +26,9 @@ vi.mock("$lib/analytics.js", () => ({
 }));
 
 import type { SessionCold } from "../../application/dto/session-cold.js";
-import type { CreatedPendingSessionResult } from "../services/session-connection-manager.js";
 import { extractProjectName } from "../../utils/path-utils.js";
 import { generateFallbackProjectColor } from "../../utils/project-utils.js";
+import type { CreatedPendingSessionResult } from "../services/session-connection-manager.js";
 import { SessionStore } from "../session-store.svelte.js";
 
 function createPendingSessionResult(
@@ -344,7 +344,7 @@ describe("SessionStore.createSession", () => {
 					kind: "read",
 					provider_status: "completed",
 					operation_state: "completed",
-	awaiting_plan_approval: false,
+					awaiting_plan_approval: false,
 					source_link: { kind: "transcript_linked", entry_id: "tc-1" },
 					title: "Read file.ts",
 					arguments: { kind: "read", file_path: "file.ts" },
@@ -412,7 +412,10 @@ describe("SessionStore.createSession", () => {
 				),
 			};
 
-			const result = await storeForProvider.connection.createSession({ projectPath: "/repo", agentId });
+			const result = await storeForProvider.connection.createSession({
+				projectPath: "/repo",
+				agentId,
+			});
 			expect(result.isOk(), `createSession failed for agentId=${agentId}`).toBe(true);
 			expect(
 				hydrateCreated,
@@ -562,9 +565,7 @@ describe("SessionStore.createSession", () => {
 		};
 
 		storeWithInternals.connectionMgr = {
-			createSession: vi.fn(() =>
-				okAsync(createPendingSessionResult({ sequenceId: 12 }))
-			),
+			createSession: vi.fn(() => okAsync(createPendingSessionResult({ sequenceId: 12 }))),
 		};
 
 		await store.connection.createSession({
@@ -584,9 +585,7 @@ describe("SessionStore.createSession", () => {
 		};
 
 		storeWithInternals.connectionMgr = {
-			createSession: vi.fn(() =>
-				okAsync(createPendingSessionResult({ sequenceId: 12 }))
-			),
+			createSession: vi.fn(() => okAsync(createPendingSessionResult({ sequenceId: 12 }))),
 		};
 
 		await store.connection.createSession({

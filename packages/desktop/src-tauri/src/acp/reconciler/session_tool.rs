@@ -15,7 +15,7 @@ use crate::acp::session_update::{
 };
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct ToolClassificationHints<'a> {
+pub struct ToolClassificationHints<'a> {
     pub name: Option<&'a str>,
     pub title: Option<&'a str>,
     pub kind: Option<ToolKind>,
@@ -30,7 +30,7 @@ pub(crate) struct ToolIdentity {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct ClassifiedToolData {
+pub struct ClassifiedToolData {
     pub name: String,
     pub kind: ToolKind,
     pub arguments: ToolArguments,

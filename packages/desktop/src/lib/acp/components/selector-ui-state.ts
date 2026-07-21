@@ -30,9 +30,7 @@ interface SelectorDisabledInput {
 
 export function shouldDisableSelector(input: SelectorDisabledInput): boolean {
 	return (
-		input.disabled ||
-		input.isLoading ||
-		(input.itemCount === 0 && input.actionButtonCount === 0)
+		input.disabled || input.isLoading || (input.itemCount === 0 && input.actionButtonCount === 0)
 	);
 }
 

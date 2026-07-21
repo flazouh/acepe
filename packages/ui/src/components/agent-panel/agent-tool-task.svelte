@@ -1,106 +1,86 @@
 <script lang="ts">
-	import type { Snippet } from "svelte";
-	import * as Dialog from "../dialog/index.js";
-	import AgentPanelSceneEntry from "../agent-panel-scene/agent-panel-scene-entry.svelte";
-	import { SegmentedProgressBar } from "../segmented-progress-bar/index.js";
-	import { Button } from "../button/index.js";
-	import { HugeiconsIcon } from "../icons/index.js";
-	import type { AgentToolStatus, AnyAgentEntry } from "./types.js";
-	import AgentToolCard from "./agent-tool-card.svelte";
-	import AgentCompactToolDisplay from "./compact-tool-display.svelte";
-	import CylinderSwap from "./cylinder-swap.svelte";
-	import ToolHeaderLeading from "./tool-header-leading.svelte";
-	import AgentToolDurationLabel from "./agent-tool-duration-label.svelte";
-	import type { ToolDurationTiming } from "./tool-duration.js";
-	import type { EditToolTheme } from "./agent-tool-edit-theme.js";
-	import {
-		getLastTaskToolCall,
-		getTaskCurrentToolDisplay,
-		getTaskProgress,
-		getTaskTitle,
-		getTaskToolChildren,
-		getTaskUiClasses,
-		hasTaskPrompt,
-		hasTaskResult,
-		isTaskPending,
-		shouldShowTaskProgress,
-	} from "./agent-tool-task-state.js";
+import { Button } from "../button/index.js";
+import * as Dialog from "../dialog/index.js";
+import { HugeiconsIcon } from "../icons/index.js";
+import AgentToolCard from "./agent-tool-card.svelte";
+import AgentToolDurationLabel from "./agent-tool-duration-label.svelte";
+import {
+	getTaskTitle,
+	getTaskUiClasses,
+	hasTaskPrompt,
+	isTaskPending,
+} from "./agent-tool-task-state.js";
+import AgentCompactToolDisplay from "./compact-tool-display.svelte";
+import CylinderSwap from "./cylinder-swap.svelte";
+import type { ToolDurationTiming } from "./tool-duration.js";
+import ToolHeaderLeading from "./tool-header-leading.svelte";
+import type {
+	AgentTaskDetailBinding,
+	AgentTaskLatestAction,
+	AgentToolEntry,
+	AgentToolStatus,
+} from "./types.js";
 
-	interface Props {
-		description: string | null;
-		prompt?: string | null;
-		resultText?: string | null;
-		children?: readonly AnyAgentEntry[];
-		status?: AgentToolStatus;
-		showDoneIcon?: boolean;
-		compact?: boolean;
-		durationTiming?: ToolDurationTiming;
-		iconBasePath?: string;
-		editToolTheme?: EditToolTheme;
-		runningFallback?: string;
-		doneFallback?: string;
-		resultLabel?: string;
-		detailOpen?: boolean;
-		onDetailOpenChange?: (open: boolean) => void;
-		renderDetailEntry?: Snippet<[AnyAgentEntry]>;
-	}
+interface Props {
+	description: string | null;
+	prompt?: string | null;
+	latestAction?: AgentTaskLatestAction | null;
+	children?: readonly AgentToolEntry[];
+	resultText?: string | null;
+	detail?: AgentTaskDetailBinding | null;
+	status?: AgentToolStatus;
+	showDoneIcon?: boolean;
+	compact?: boolean;
+	durationTiming?: ToolDurationTiming;
+	iconBasePath?: string;
+	runningFallback?: string;
+	doneFallback?: string;
+}
 
-	let {
+let {
+	description,
+	prompt,
+	latestAction = null,
+	children = [],
+	resultText = null,
+	detail = null,
+	status = "done",
+	showDoneIcon = false,
+	compact = false,
+	durationTiming,
+	iconBasePath = "/svgs/icons",
+	runningFallback = "Running task…",
+	doneFallback = "Task",
+}: Props = $props();
+
+const isDone = $derived(status === "done");
+const titleText = $derived(
+	getTaskTitle({
 		description,
-		prompt,
-		resultText,
-		children = [],
-		status = "done",
-		showDoneIcon = false,
-		compact = false,
-		durationTiming,
-		iconBasePath = "/svgs/icons",
-		editToolTheme,
-		runningFallback = "Running task…",
-		doneFallback = "Task",
-		resultLabel = "Result",
-		detailOpen = $bindable(false),
-		onDetailOpenChange,
-		renderDetailEntry,
-	}: Props = $props();
+		status,
+		runningFallback,
+		doneFallback,
+	}),
+);
 
-	const isDone = $derived(status === "done");
-	const titleText = $derived(
-		getTaskTitle({
-			description,
-			status,
-			runningFallback,
-			doneFallback,
-		})
-	);
+const hasPrompt = $derived(hasTaskPrompt(prompt));
+const shouldShowDoneIcon = $derived(showDoneIcon && isDone);
+const taskClasses = $derived(getTaskUiClasses(compact));
+const cardClass = $derived(taskClasses.card);
+const headerClass = $derived(taskClasses.header);
+const headerContentClass = $derived(taskClasses.headerContent);
+const liveRowClass = $derived(taskClasses.liveRow);
+const showDetailTrigger = $derived(detail !== null);
+const fallbackLatestAction = $derived(children[children.length - 1] ?? null);
+const displayedLatestAction = $derived(latestAction ?? fallbackLatestAction);
+const showLiveRow = $derived(
+	isTaskPending(status) && displayedLatestAction !== null,
+);
+const liveRowHeight = $derived(compact ? "1.25rem" : "1.375rem");
 
-	const taskChildren = $derived(Array.from(children));
-	const toolCallChildren = $derived(getTaskToolChildren(taskChildren));
-	const lastToolCall = $derived(getLastTaskToolCall(toolCallChildren));
-	const currentToolDisplay = $derived(getTaskCurrentToolDisplay(lastToolCall));
-	const taskProgress = $derived(getTaskProgress({ toolCallChildren }));
-	const showProgress = $derived(shouldShowTaskProgress(taskProgress.totalCount));
-
-	const hasPrompt = $derived(hasTaskPrompt(prompt));
-	const hasResult = $derived(hasTaskResult({ status, resultText }));
-	const hasChildren = $derived(taskChildren.length > 0);
-	const shouldShowDoneIcon = $derived(showDoneIcon && isDone);
-	const taskClasses = $derived(getTaskUiClasses(compact));
-	const cardClass = $derived(taskClasses.card);
-	const headerClass = $derived(taskClasses.header);
-	const headerContentClass = $derived(taskClasses.headerContent);
-	const liveRowClass = $derived(taskClasses.liveRow);
-	const progressAriaLabel = $derived(
-		`${taskProgress.filledCount} of ${taskProgress.totalCount} tool calls complete`
-	);
-	const showDetailTrigger = $derived(hasChildren || hasPrompt || hasResult);
-	const showLiveRow = $derived(isTaskPending(status) && currentToolDisplay !== null);
-	const liveRowHeight = $derived(compact ? "1.25rem" : "1.375rem");
-
-	function handleDetailOpenChange(nextOpen: boolean): void {
-		detailOpen = nextOpen;
-		onDetailOpenChange?.(nextOpen);
-	}
+function handleDetailOpenChange(nextOpen: boolean): void {
+	detail?.onOpenChange(nextOpen);
+}
 </script>
 
 <AgentToolCard class={cardClass} dataTestid="agent-tool-task-card">
@@ -111,28 +91,14 @@
 			</ToolHeaderLeading>
 		</div>
 
-		{#if showProgress}
-			<div class="w-[52px] shrink-0" data-testid="agent-tool-task-progress">
-				<SegmentedProgressBar
-					ariaLabel={progressAriaLabel}
-					label=""
-					percent={0}
-					filledSegmentCount={taskProgress.filledCount}
-					segmentCount={taskProgress.totalCount}
-					showPercent={false}
-					decorative={true}
-					variant="downloadCompact"
-				/>
-			</div>
-		{/if}
-
 		<AgentToolDurationLabel timing={durationTiming} class="shrink-0 font-sans text-xs" />
 
 		{#if showDetailTrigger}
 			<Button
 				variant="ghost"
-				size="icon"
+				size="icon-sm"
 				data-header-control
+				class="text-muted-foreground"
 				aria-label="Open subtask transcript"
 				title="Open subtask transcript"
 				data-testid="agent-tool-task-open-button"
@@ -155,20 +121,24 @@
 		{/if}
 	</div>
 
-	{#if showLiveRow && currentToolDisplay}
+	{#if showLiveRow && displayedLatestAction}
 		<div class={liveRowClass} data-testid="agent-tool-task-live-tool">
-			<CylinderSwap key={currentToolDisplay.id} height={liveRowHeight} class="w-full">
+			<CylinderSwap key={displayedLatestAction.id} height={liveRowHeight} class="w-full">
 				{#snippet children()}
 					<div data-testid="agent-tool-task-current-tool-label" class="min-w-0">
-						<AgentCompactToolDisplay tool={currentToolDisplay} {iconBasePath} />
+						<AgentCompactToolDisplay tool={displayedLatestAction} {iconBasePath} />
 					</div>
 				{/snippet}
 			</CylinderSwap>
 		</div>
 	{/if}
+
+	{#if status === "error" && resultText}
+		<p class="px-2 pb-2 text-sm text-destructive whitespace-pre-wrap">{resultText}</p>
+	{/if}
 </AgentToolCard>
 
-<Dialog.Root open={detailOpen} onOpenChange={handleDetailOpenChange}>
+<Dialog.Root open={detail?.presentation.open ?? false} onOpenChange={handleDetailOpenChange}>
 	<Dialog.Content class="flex h-[min(86vh,860px)] max-h-[min(86vh,860px)] w-full max-w-2xl flex-col overflow-hidden p-0 sm:max-w-2xl">
 		<Dialog.Title class="sr-only">{titleText}</Dialog.Title>
 		<div class="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -176,18 +146,6 @@
 				<ToolHeaderLeading kind="task" {status}>
 					{titleText}
 				</ToolHeaderLeading>
-				{#if showProgress}
-					<SegmentedProgressBar
-						ariaLabel={progressAriaLabel}
-						label=""
-						percent={0}
-						filledSegmentCount={taskProgress.filledCount}
-						segmentCount={taskProgress.totalCount}
-						showPercent={false}
-						decorative={true}
-						variant="downloadCompact"
-					/>
-				{/if}
 			</div>
 
 			<div class="min-h-0 flex-1 overflow-y-auto" data-testid="agent-tool-task-detail-body">
@@ -199,33 +157,39 @@
 					</div>
 				{/if}
 
-				{#if hasChildren}
-					{#if renderDetailEntry}
-						<div class="py-2">
-							{#each taskChildren as child (child.id)}
-								<div class="px-3 py-1.5">
-									{@render renderDetailEntry(child)}
+				{#if detail}
+					{#if detail.presentation.status === "loading" && detail.presentation.rows.length === 0}
+						<div class="px-3 py-4 text-sm text-muted-foreground">Loading transcript…</div>
+					{/if}
+
+					{#if detail.presentation.rows.length > 0}
+						<div class="py-2" data-testid="agent-tool-task-transcript-rows">
+							{#each detail.presentation.rows as row, rowIndex (row.rowId)}
+								<div class="px-3 py-1.5" data-task-transcript-row-id={row.rowId}>
+									{@render detail.renderRow(row, rowIndex)}
 								</div>
 							{/each}
 						</div>
-					{:else}
-						<div class="py-2">
-							{#each taskChildren as child (child.id)}
-								<div class="px-3 py-1.5">
-									<AgentPanelSceneEntry entry={child} {iconBasePath} {editToolTheme} />
-								</div>
-							{/each}
+					{:else if detail.presentation.status === "ready"}
+						<div class="px-3 py-4 text-sm text-muted-foreground">No transcript rows yet.</div>
+					{/if}
+
+					{#if detail.presentation.errorMessage}
+						<div class="px-3 py-2 text-sm text-destructive">{detail.presentation.errorMessage}</div>
+					{/if}
+
+					{#if detail.presentation.hasMore}
+						<div class="flex justify-center px-3 py-2">
+							<Button
+								variant="outline"
+								size="sm"
+								onclick={detail.onLoadMore}
+								data-testid="agent-tool-task-load-more"
+							>
+								{#snippet children()}Load more{/snippet}
+							</Button>
 						</div>
 					{/if}
-				{/if}
-
-				{#if hasResult && resultText}
-					<div class="px-3 py-1.5">
-						<div class="rounded-md border border-border/40 bg-muted/30 px-3 py-2">
-							<div class="mb-1 text-xs font-medium text-muted-foreground">{resultLabel}</div>
-							<div class="text-sm whitespace-pre-wrap break-words">{resultText}</div>
-						</div>
-					</div>
 				{/if}
 			</div>
 		</div>

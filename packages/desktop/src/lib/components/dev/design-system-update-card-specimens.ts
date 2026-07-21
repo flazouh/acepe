@@ -1,7 +1,7 @@
 import {
 	SIDEBAR_UPDATE_CARD_VARIANTS,
-	type SidebarUpdateKind,
 	type SidebarUpdateCardVariant,
+	type SidebarUpdateKind,
 } from "@acepe/ui/app-layout";
 
 export const updateCardSectionMeta = {

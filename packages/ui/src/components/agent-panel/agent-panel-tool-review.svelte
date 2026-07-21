@@ -3,7 +3,6 @@
 	import { DiffPill } from "../diff-pill/index.js";
 	import { FilePathBadge } from "../file-path-badge/index.js";
 	import AgentToolCard from "./agent-tool-card.svelte";
-	import ToolHeaderLeading from "./tool-header-leading.svelte";
 	import { createReviewActionEvent, type AgentToolEntry } from "./agent-panel-conversation-entry-model.js";
 	import type { AgentPanelReviewActionEvent } from "./types.js";
 	import type { ToolDurationTiming } from "./tool-duration.js";
@@ -18,7 +17,7 @@
 	let { entry, iconBasePath = "/svgs/icons", onReview }: Props = $props();
 
 	const files = $derived(entry.reviewFiles ?? []);
-	const fileCountLabel = $derived(files.length === 1 ? "1 file" : `${files.length} files`);
+	const fileCountLabel = $derived(files.length === 1 ? "1 file changed" : `${files.length} files changed`);
 	const totalDiff = $derived.by(() => {
 		let additions = 0;
 		let deletions = 0;
@@ -41,11 +40,10 @@
 <AgentToolCard dataTestid="agent-panel-tool-review">
 	<div class="flex min-w-0 items-center gap-2 px-2.5 py-1.5 text-sm">
 		<div class="flex min-w-0 flex-1 items-center gap-1.5">
-			<ToolHeaderLeading kind="review" status={entry.status}>
-				{entry.title}
-			</ToolHeaderLeading>
-			<span class="shrink-0 text-xs text-muted-foreground/70">{fileCountLabel}</span>
-			<span class="shrink-0" data-testid="agent-panel-tool-review-total-diff">
+			<span class="min-w-0 truncate font-medium text-foreground">
+				{fileCountLabel}
+			</span>
+			<span data-testid="agent-panel-tool-review-total-diff" class="shrink-0">
 				<DiffPill
 					insertions={totalDiff.additions}
 					deletions={totalDiff.deletions}
@@ -57,6 +55,7 @@
 		<Button
 			variant="secondary"
 			size="xs"
+			class="!h-5 !rounded !px-1.5 !text-[11px] !leading-none"
 			disabled={reviewDisabled}
 			onclick={handleReview}
 		>

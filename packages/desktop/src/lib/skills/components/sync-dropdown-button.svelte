@@ -4,6 +4,7 @@ import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import AgentIcon from "$lib/acp/components/agent-icon.svelte";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import { Switch } from "$lib/components/ui/switch/index.js";
+import { revealInFinder } from "$lib/utils/tauri-client/index.js";
 import { libraryApi } from "../api/skills-api.js";
 import { getLibraryStore } from "../store/library-store.svelte.js";
 
@@ -29,7 +30,7 @@ function handleOpenFolder(e: Event, agentId: string) {
 	if (store.selectedSkill) {
 		libraryApi.getSkillFolderPath(agentId, store.selectedSkill.skill.name).map((path) => {
 			if (path) {
-				revealItemInDir(path);
+				revealInFinder(path);
 			}
 			return path;
 		});

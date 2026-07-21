@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import type { ProjectWithSessions } from "../../add-repository/open-project-dialog-props.js";
+import type { ProjectWithSessions } from "../../add-repository/project-discovery.js";
 import {
 	extractNameFromPath,
 	filterProjectsBySelectedAgents,

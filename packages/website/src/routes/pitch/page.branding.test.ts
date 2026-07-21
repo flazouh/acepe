@@ -17,7 +17,8 @@ describe("pitch page branding contract", () => {
 	it("renders the Acepe lockup and card-like slide surfaces", () => {
 		const { body } = render(Page);
 
-		expect(body).toContain("ACEPE");
+		expect(body).toContain('aria-label="Acepe"');
+		expect(body).toContain("CEPE");
 		expect(body).toContain("bg-card");
 		expect(body).toContain("border-border/60");
 	});

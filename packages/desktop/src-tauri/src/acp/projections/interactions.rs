@@ -1,13 +1,12 @@
 use super::*;
 
 impl ProjectionRegistry {
-    pub(crate) fn advance_session_event_seq(&self, session_id: &str) -> i64 {
+    pub(crate) fn observe_session_event_seq(&self, session_id: &str, event_seq: i64) {
         let mut snapshot = self
             .snapshots
             .entry(session_id.to_string())
             .or_insert_with(|| SessionSnapshot::new(session_id.to_string(), None));
-        snapshot.last_event_seq = snapshot.last_event_seq.saturating_add(1);
-        snapshot.last_event_seq
+        snapshot.last_event_seq = snapshot.last_event_seq.max(event_seq);
     }
 
     pub(crate) fn register_permission_interaction(

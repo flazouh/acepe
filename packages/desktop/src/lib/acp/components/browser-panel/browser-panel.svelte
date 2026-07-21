@@ -4,7 +4,7 @@ import {
 	AgentPanelBrowserPanel as SharedAgentPanelBrowserPanel,
 } from "@acepe/ui/agent-panel";
 import { ResultAsync } from "neverthrow";
-import { onDestroy, onMount } from "svelte";
+import { onDestroy, onMount, untrack } from "svelte";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { browserWebview } from "$lib/utils/tauri-client/browser-webview.js";
 import { getZoomService } from "$lib/services/zoom.svelte.js";
@@ -40,8 +40,8 @@ let isDestroyed = false;
 let closeRequested = false;
 let resizeObserver: ResizeObserver | null = null;
 let scrollCleanup: (() => void) | null = null;
-let currentUrl = $state(props.url);
-let lastSyncedUrl = $state(props.url);
+let currentUrl = $state(untrack(() => props.url));
+let lastSyncedUrl = $state(untrack(() => props.url));
 
 let isDragging = $state(false);
 let startX = $state(0);

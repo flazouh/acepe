@@ -3,6 +3,7 @@
 		AgentConversationRenderKind,
 		AgentToolEntry,
 	} from "./agent-panel-conversation-entry-model.js";
+	import type { AgentTaskDetailBinding } from "./types.js";
 	import AgentToolBrowser from "./agent-tool-browser.svelte";
 	import AgentToolExecute from "./agent-tool-execute.svelte";
 	import AgentToolFetch from "./agent-tool-fetch.svelte";
@@ -20,6 +21,7 @@
 		renderKind: AgentConversationRenderKind;
 		durationTiming?: ToolDurationTiming;
 		iconBasePath?: string;
+		taskDetail?: AgentTaskDetailBinding | null;
 	}
 
 	let {
@@ -27,6 +29,7 @@
 		renderKind,
 		durationTiming,
 		iconBasePath = "/svgs/icons",
+		taskDetail = null,
 	}: Props = $props();
 </script>
 
@@ -105,8 +108,8 @@
 	<AgentToolTask
 		description={entry.taskDescription ?? entry.title}
 		prompt={entry.taskPrompt}
-		resultText={entry.taskResultText}
-		children={entry.taskChildren}
+		latestAction={entry.taskLatestAction}
+		detail={taskDetail}
 		status={entry.status}
 		{durationTiming}
 		{iconBasePath}

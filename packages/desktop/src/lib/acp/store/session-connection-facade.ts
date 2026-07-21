@@ -2,27 +2,29 @@
  * SessionConnectionFacade — connect/disconnect/messaging/PR surface (ADR-0002).
  */
 import { okAsync, type ResultAsync } from "neverthrow";
-import type { AppError } from "../errors/app-error.js";
-import type { Attachment } from "../components/agent-input/types/attachment.js";
 import type { GitStackedPrStep, PrChecks, PrDetails } from "../../utils/tauri-client/git.js";
+import type { Attachment } from "../components/agent-input/types/attachment.js";
+import type { AppError } from "../errors/app-error.js";
 import type { AwaitingModelRefreshStore } from "./awaiting-model-refresh-store.svelte.js";
+import type { PrLinkStateStore } from "./pr-link-state-store.svelte.js";
+import type {
+	CreatedPendingSessionResult,
+	SessionConnectionManager,
+} from "./services/session-connection-manager.js";
+import type { SessionMessagingService } from "./services/session-messaging-service.js";
+import type { SessionCreationCoordinator } from "./session-creation-coordinator.svelte.js";
+import type { SessionEventHandler } from "./session-event-handler.js";
+import type { SessionListState } from "./session-list-state.svelte.js";
+import type { SessionMessagingOrchestrator } from "./session-messaging-orchestrator.js";
+import type { SessionReadFacade } from "./session-read-facade.js";
 import type {
 	CreatedSessionHydrator,
 	LiveSessionStateGraphConsumer,
 	SessionCreationResult,
+	SessionStoreCallbacks,
 } from "./session-store.svelte.js";
-import type { SessionCreationCoordinator } from "./session-creation-coordinator.svelte.js";
-import type { SessionListState } from "./session-list-state.svelte.js";
-import type { SessionMessagingOrchestrator } from "./session-messaging-orchestrator.js";
-import type { SessionStoreCallbacks } from "./session-store.svelte.js";
-import type { PrLinkStateStore } from "./pr-link-state-store.svelte.js";
-import type { SessionConnectionManager } from "./services/session-connection-manager.js";
-import type { CreatedPendingSessionResult } from "./services/session-connection-manager.js";
-import type { SessionMessagingService } from "./services/session-messaging-service.js";
-import type { SessionCold, SessionPrLinkMode } from "./types.js";
-import type { SessionEventHandler } from "./session-event-handler.js";
-import type { SessionReadFacade } from "./session-read-facade.js";
 import type { SessionWriteFacade } from "./session-write-facade.js";
+import type { SessionCold, SessionPrLinkMode } from "./types.js";
 
 export type SessionConnectionFacadeDeps = {
 	readonly connectionMgrRef: { current: SessionConnectionManager };
@@ -112,27 +114,34 @@ export class SessionConnectionFacade {
 		worktreePath?: string;
 		launchToken?: string;
 	}): ResultAsync<SessionCreationResult, AppError> {
-		return this.#deps.connectionMgrRef.current.createSession(options, this.#deps.eventHandler).andThen((createdSession) => {
-			if (createdSession.kind === "pending") {
-				this.#deps.creationCoordinator.beginPendingCreation(createdSession.sessionId, createdSession);
-				return okAsync(createdSession);
-			}
+		return this.#deps.connectionMgrRef.current
+			.createSession(options, this.#deps.eventHandler)
+			.andThen((createdSession) => {
+				if (createdSession.kind === "pending") {
+					this.#deps.creationCoordinator.beginPendingCreation(
+						createdSession.sessionId,
+						createdSession
+					);
+					return okAsync(createdSession);
+				}
 
-			if (
-				this.#deps.creationCoordinator.hasSessionOpenHydrator() &&
-				createdSession.sessionOpen?.outcome === "found"
-			) {
-				return this.#deps.creationCoordinator.hydrateCreatedSession(createdSession.sessionOpen).map(() => ({
+				if (
+					this.#deps.creationCoordinator.hasSessionOpenHydrator() &&
+					createdSession.sessionOpen?.outcome === "found"
+				) {
+					return this.#deps.creationCoordinator
+						.hydrateCreatedSession(createdSession.sessionOpen)
+						.map(() => ({
+							kind: "ready" as const,
+							session: createdSession.session,
+						}));
+				}
+
+				return okAsync({
 					kind: "ready" as const,
 					session: createdSession.session,
-				}));
-			}
-
-			return okAsync({
-				kind: "ready" as const,
-				session: createdSession.session,
+				});
 			});
-		});
 	}
 
 	setSessionOpenHydrator(hydrator: CreatedSessionHydrator): void {
@@ -140,14 +149,20 @@ export class SessionConnectionFacade {
 	}
 
 	setLiveSessionStateGraphConsumer(consumer: LiveSessionStateGraphConsumer): void {
-		this.#deps.creationCoordinator.attachSessionConsumers({ liveSessionStateGraphConsumer: consumer });
+		this.#deps.creationCoordinator.attachSessionConsumers({
+			liveSessionStateGraphConsumer: consumer,
+		});
 	}
 
 	connectSession(
 		sessionId: string,
 		options?: { openToken?: string; forceReconnect?: boolean }
 	): ResultAsync<SessionCold, AppError> {
-		return this.#deps.connectionMgrRef.current.connectSession(sessionId, this.#deps.eventHandler, options);
+		return this.#deps.connectionMgrRef.current.connectSession(
+			sessionId,
+			this.#deps.eventHandler,
+			options
+		);
 	}
 
 	disconnectSession(sessionId: string): void {
@@ -175,7 +190,11 @@ export class SessionConnectionFacade {
 	}
 
 	setAutonomousEnabled(sessionId: string, enabled: boolean): ResultAsync<void, AppError> {
-		return this.#deps.connectionMgrRef.current.setAutonomousEnabled(sessionId, enabled, this.#deps.eventHandler);
+		return this.#deps.connectionMgrRef.current.setAutonomousEnabled(
+			sessionId,
+			enabled,
+			this.#deps.eventHandler
+		);
 	}
 
 	setConfigOption(sessionId: string, configId: string, value: string): ResultAsync<void, AppError> {
@@ -206,7 +225,10 @@ export class SessionConnectionFacade {
 		return this.#deps.prLinkState.updateSessionPrLink(sessionId, projectPath, prNumber, prLinkMode);
 	}
 
-	restoreAutomaticSessionPrLink(sessionId: string, projectPath: string): ResultAsync<void, AppError> {
+	restoreAutomaticSessionPrLink(
+		sessionId: string,
+		projectPath: string
+	): ResultAsync<void, AppError> {
 		return this.#deps.prLinkState.restoreAutomaticSessionPrLink(sessionId, projectPath);
 	}
 

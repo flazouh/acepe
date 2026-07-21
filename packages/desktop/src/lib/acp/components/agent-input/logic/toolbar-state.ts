@@ -10,6 +10,7 @@ interface ResolveToolbarModeIdInput {
 interface ResolveToolbarModelIdInput {
 	readonly liveCurrentModelId: string | null;
 	readonly provisionalModelId: string | null;
+	readonly defaultModelId: string | null;
 	readonly availableModels: readonly Model[];
 	readonly allowsImplicitModelSelection: boolean;
 }
@@ -54,17 +55,22 @@ export function resolveToolbarModelId(input: ResolveToolbarModelIdInput): string
 	const {
 		liveCurrentModelId,
 		provisionalModelId,
+		defaultModelId,
 		availableModels,
 		allowsImplicitModelSelection,
 	} = input;
 	const availableModelIds = new Set(availableModels.map((model) => model.id));
 
+	if (provisionalModelId && availableModelIds.has(provisionalModelId)) {
+		return provisionalModelId;
+	}
+
 	if (liveCurrentModelId && availableModelIds.has(liveCurrentModelId)) {
 		return liveCurrentModelId;
 	}
 
-	if (provisionalModelId && availableModelIds.has(provisionalModelId)) {
-		return provisionalModelId;
+	if (defaultModelId && availableModelIds.has(defaultModelId)) {
+		return defaultModelId;
 	}
 
 	return allowsImplicitModelSelection ? (availableModels[0]?.id ?? null) : null;

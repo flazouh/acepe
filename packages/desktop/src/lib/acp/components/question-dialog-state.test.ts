@@ -1,11 +1,11 @@
 import { describe, expect, it } from "bun:test";
+import type { QuestionRequest } from "../types/question.js";
 import {
 	buildQuestionAnswers,
 	isQuestionAnswerSelected,
-	toggleQuestionAnswer,
 	type QuestionSelectionState,
+	toggleQuestionAnswer,
 } from "./question-dialog-state.js";
-import type { QuestionRequest } from "../types/question.js";
 
 function makeQuestions(): QuestionRequest["questions"] {
 	return [

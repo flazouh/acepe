@@ -162,24 +162,10 @@ pub struct ClaudeCodeOptions {
     /// Called with each line of stderr output from the CLI
     #[allow(clippy::type_complexity)]
     pub stderr_callback: Option<Arc<dyn Fn(&str) + Send + Sync>>,
-    /// Automatically download Claude Code CLI if not found
+    /// Deprecated compatibility flag.
     ///
-    /// When enabled, the SDK will automatically download and cache the Claude Code
-    /// CLI binary if it's not found in the system PATH or common installation locations.
-    ///
-    /// The CLI is cached in:
-    /// - macOS: `~/Library/Caches/cc-sdk/cli/`
-    /// - Linux: `~/.cache/cc-sdk/cli/`
-    /// - Windows: `%LOCALAPPDATA%\cc-sdk\cli\`
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # use acepe_lib::cc_sdk::ClaudeCodeOptions;
-    /// let options = ClaudeCodeOptions::builder()
-    ///     .auto_download_cli(true)
-    ///     .build();
-    /// ```
+    /// Acepe does not download Claude Code during runtime session creation.
+    /// Provisioning is owned by the explicit managed agent install/repair flow.
     pub auto_download_cli: bool,
 
     // ========== v0.7.0 Enhancements (Python SDK parity) ==========
@@ -588,19 +574,11 @@ impl ClaudeCodeOptionsBuilder {
         self
     }
 
-    /// Enable automatic CLI download
+    /// Deprecated compatibility setter.
     ///
-    /// When enabled, the SDK will automatically download and cache the Claude Code
-    /// CLI binary if it's not found in the system PATH or common installation locations.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # use acepe_lib::cc_sdk::ClaudeCodeOptions;
-    /// let options = ClaudeCodeOptions::builder()
-    ///     .auto_download_cli(true)
-    ///     .build();
-    /// ```
+    /// The value is preserved on [`ClaudeCodeOptions`] for callers that still set
+    /// it, but transport creation ignores it. Use Acepe's managed agent
+    /// install/repair flow to provision Claude Code.
     pub fn auto_download_cli(mut self, enable: bool) -> Self {
         self.options.auto_download_cli = enable;
         self

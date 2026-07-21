@@ -1,11 +1,13 @@
 <script lang="ts">
-import { onDestroy, onMount } from "svelte";
+import { onDestroy, onMount, untrack } from "svelte";
 import { toast } from "svelte-sonner";
 import { getKeybindingsService, isMac } from "$lib/keybindings/index.js";
 import { getPreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
 import { getVoiceSettingsStore } from "$lib/stores/voice-settings-store.svelte.js";
 import type {
 	AgentInputEnterBehavior,
+	AgentInputSlashCommand,
+	AgentInputSlashCommandWorkspaceMarkdownResult,
 	AttachMenuCommandItem,
 	SlashPaletteItem,
 } from "@acepe/ui/agent-panel";
@@ -62,8 +64,11 @@ import {
 	resolveInitialModelIdForNewSession,
 	resolveModeMenuAction,
 	resolveVoiceMicTooltip,
+	sanitizeInlineComposerText,
+	scrubInlineComposerControlCharacters,
 	serializeInlineComposerMessage,
 	setSerializedCursorOffset,
+	shouldBlockComposerBeforeInput,
 	shouldInterruptComposerStream,
 	shouldRouteWindowVoiceHold,
 	shouldShowVoiceOverlay,
@@ -85,8 +90,9 @@ import type { AgentInputProps } from "./types/agent-input-props.js";
 
 // Keep props as reactive object instead of destructuring
 const props: AgentInputProps = $props();
-if (props.panelId) {
-	recordPanelOpenPerformanceMark(props.panelId, "agent-input:props");
+const initialPanelId = untrack(() => props.panelId);
+if (initialPanelId) {
+	recordPanelOpenPerformanceMark(initialPanelId, "agent-input:props");
 }
 const logger = createLogger({ id: "agent-input-send-trace", name: "AgentInputSendTrace" });
 const kb = getKeybindingsService();
@@ -113,11 +119,15 @@ const effectiveVoiceSessionId = $derived(props.voiceSessionId ?? props.sessionId
 
 let isShiftPressed = $state(false);
 let enterBehavior = $state<AgentInputEnterBehavior>("queue");
-let inputState!: AgentInputState;
+const inputState: AgentInputState = new AgentInputState(
+	sessionStore,
+	panelStore,
+	(): string | null => composerView.filePickerProjectPath
+);
 
-const composerView = new ComposerViewController({
+const composerView: ComposerViewController = new ComposerViewController({
 	getProps: () => props,
-	getInputState: () => inputState,
+	getInputState: (): AgentInputState => inputState,
 	getIsShiftPressed: () => isShiftPressed,
 	sessionStore,
 	panelStore,
@@ -128,13 +138,8 @@ const composerView = new ComposerViewController({
 	logger,
 });
 
-inputState = new AgentInputState(
-	sessionStore,
-	panelStore,
-	() => composerView.filePickerProjectPath
-);
-if (props.panelId) {
-	recordPanelOpenPerformanceMark(props.panelId, "agent-input:state-end");
+if (initialPanelId) {
+	recordPanelOpenPerformanceMark(initialPanelId, "agent-input:state-end");
 }
 
 const voiceSessionController = new VoiceSessionController({
@@ -382,6 +387,7 @@ const agentInputController = createAgentInputController({
 	getProps: () => props,
 	inputState,
 	getComposerInteraction: () => composerView.composerInteraction,
+	getPendingQuestion: () => props.pendingQuestion ?? null,
 	getAutonomousToggleActive: () => composerView.autonomousToggleActive,
 	getProvisionalModeId: () => composerView.provisionalModeId,
 	getInitialModelIdForNewSession: () =>
@@ -418,8 +424,8 @@ const {
 	handleSteer,
 	handlePrimaryButtonClick,
 } = agentInputController;
-if (props.panelId) {
-	recordPanelOpenPerformanceMark(props.panelId, "agent-input:controller-end");
+if (initialPanelId) {
+	recordPanelOpenPerformanceMark(initialPanelId, "agent-input:controller-end");
 }
 
 export function retrySend(): void {
@@ -469,6 +475,7 @@ function handleEditorInput(options?: { suppressAutocomplete?: boolean }): void {
 		return;
 	}
 
+	scrubInlineComposerControlCharacters(editorRef);
 	const newMessage = serializeInlineComposerMessage(editorRef);
 	// Only set the flag when the message actually changed — otherwise Svelte
 	// won't schedule the $effect and the flag would get stuck as `true`.
@@ -1176,14 +1183,24 @@ function handleEditorKeyUp(event: KeyboardEvent): void {
 	}
 }
 
-function handleEditorBeforeInput(_event: InputEvent): void {
-	// No-op: voice hold key (Right Option) does not produce text input.
+function handleEditorBeforeInput(event: InputEvent): void {
+	// WebKit can fire insertText with U+001D (group separator) on ArrowRight
+	// inside contenteditable; block those so they never enter the draft.
+	if (shouldBlockComposerBeforeInput(event)) {
+		event.preventDefault();
+	}
 }
 
 function loadSlashCommandWorkspaceMarkdown(input: {
-	readonly command: AvailableCommand;
-	readonly tokenType: "command" | "skill";
-}) {
+	readonly command: AgentInputSlashCommand;
+	readonly tokenType: "command" | "skill" | "mcp";
+}): Promise<AgentInputSlashCommandWorkspaceMarkdownResult> {
+	if (input.tokenType === "mcp") {
+		return Promise.resolve({
+			status: "error",
+			message: "Full markdown is not available for MCP commands.",
+		});
+	}
 	return loadSlashCommandWorkspaceMarkdownFromModule({
 		command: input.command,
 		tokenType: input.tokenType,
@@ -1227,6 +1244,9 @@ function handleEditorFocus(): void {
 		panelStore.focusPanel(panelId);
 	}
 	kb.setContext("inputFocused", true);
+	if (editorRef && scrubInlineComposerControlCharacters(editorRef)) {
+		handleEditorInput({ suppressAutocomplete: true });
+	}
 }
 
 function handleEditorBlur(): void {
@@ -1612,13 +1632,23 @@ $effect(() => {
 	// re-runs when it changes, but skip the expensive DOM re-serialization
 	// when handleEditorInput already synced the DOM on this microtask.
 	const _message = inputState.message;
+	const cleanedMessage = sanitizeInlineComposerText(_message, {
+		preserveZeroWidthSpace: true,
+	});
+	if (cleanedMessage !== _message) {
+		inputState.message = cleanedMessage;
+		return;
+	}
+	const scrubbedDom = scrubInlineComposerControlCharacters(editorRef);
 	if (editorJustSynced) {
 		editorJustSynced = false;
-		return;
+		if (!scrubbedDom) {
+			return;
+		}
 	}
 
 	const domMessage = serializeInlineComposerMessage(editorRef);
-	if (domMessage === _message) {
+	if (domMessage === _message && !scrubbedDom) {
 		return;
 	}
 	const cursorPos = Math.min(getSerializedCursorOffset(editorRef), _message.length);
@@ -1820,6 +1850,7 @@ $effect(() => {
 										name: model.name,
 										sizeBytes: model.size_bytes,
 										isDownloaded: model.is_downloaded,
+										isDownloadable: model.download_url.trim().length > 0,
 									}))}
 									voiceSelectedModelId={voiceSettingsStore.selectedModelId}
 									voiceModelsLoading={voiceSettingsStore.modelsLoading}

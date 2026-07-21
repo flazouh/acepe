@@ -8,7 +8,14 @@ interface Props {
 	initialGitStatus?: { status: string; insertions: number; deletions: number } | null;
 }
 
-let { panelId, filePath, projectPath, projectName, width, initialGitStatus = null }: Props = $props();
+let {
+	panelId,
+	filePath,
+	projectPath,
+	projectName,
+	width,
+	initialGitStatus = null,
+}: Props = $props();
 </script>
 
 <div data-testid="attached-file-panel">

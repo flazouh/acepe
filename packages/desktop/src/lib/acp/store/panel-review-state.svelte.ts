@@ -8,9 +8,9 @@
 import { SvelteMap } from "svelte/reactivity";
 import type { ModifiedFilesState } from "../types/modified-files-state.js";
 import { createLogger } from "../utils/logger.js";
+import type { TopLevelPanelCloseState } from "./panel-terminal-state.svelte.js";
 import type { ReviewPanel } from "./review-panel-type.js";
 import { DEFAULT_REVIEW_PANEL_WIDTH, MIN_REVIEW_PANEL_WIDTH } from "./review-panel-type.js";
-import type { TopLevelPanelCloseState } from "./panel-terminal-state.svelte.js";
 import type { WorkspacePanel, WorkspacePanelKind } from "./types.js";
 
 const logger = createLogger({ id: "panel-review-state", name: "PanelReviewState" });
@@ -48,9 +48,7 @@ export class PanelReviewState {
 		kind: WorkspacePanelKind,
 		nextPanels: readonly WorkspacePanel[]
 	): void {
-		const remainingPanels = this.deps
-			.getWorkspacePanels()
-			.filter((panel) => panel.kind !== kind);
+		const remainingPanels = this.deps.getWorkspacePanels().filter((panel) => panel.kind !== kind);
 		this.deps.setWorkspacePanels(Array.from(nextPanels).concat(remainingPanels));
 	}
 

@@ -45,6 +45,9 @@ fn ingress_fold_event_for_update(
             | SessionUpdate::ToolCall { .. }
             | SessionUpdate::ToolCallUpdate { .. }
             | SessionUpdate::CompactionEvent { .. }
+            | SessionUpdate::TurnComplete { .. }
+            | SessionUpdate::TurnError { .. }
+            | SessionUpdate::TurnCancelled { .. }
     ) {
         return None;
     }
@@ -167,9 +170,28 @@ mod tests {
     use crate::acp::providers::cursor::{
         clear_test_tool_use_cache, seed_test_tool_use_cache, CursorProvider,
     };
+    use crate::acp::session::ingress::event::{ProviderEventKind, TurnOutcome};
     use crate::acp::session_update::ToolArguments;
     use crate::acp::ui_event_dispatcher::AcpUiEventPayload;
     use serde_json::json;
+
+    #[test]
+    fn passes_turn_completion_to_the_canonical_fold() {
+        let update = SessionUpdate::TurnComplete {
+            session_id: Some("session-1".to_string()),
+            turn_id: Some("turn-1".to_string()),
+        };
+
+        let event = ingress_fold_event_for_update(AgentType::ClaudeCode, &update)
+            .expect("turn completion reaches canonical fold");
+
+        assert!(matches!(
+            event.kind,
+            ProviderEventKind::TurnEnd {
+                outcome: TurnOutcome::Completed
+            }
+        ));
+    }
 
     #[test]
     fn shared_update_processing_delegates_session_enrichment_to_provider() {

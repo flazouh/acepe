@@ -1,10 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { ModifiedFilesState } from "../../types/modified-files-state.js";
-import {
-	PanelReviewState,
-	type PanelReviewStateDeps,
-} from "../panel-review-state.svelte.js";
+import { PanelReviewState, type PanelReviewStateDeps } from "../panel-review-state.svelte.js";
 import type { TopLevelPanelCloseState } from "../panel-terminal-state.svelte.js";
 import type { WorkspacePanel } from "../types.js";
 
@@ -17,9 +14,10 @@ function createModifiedFilesState(): ModifiedFilesState {
 	};
 }
 
-function createReviewState(
-	overrides?: Partial<PanelReviewStateDeps>
-): { state: PanelReviewState; workspacePanels: WorkspacePanel[] } {
+function createReviewState(overrides?: Partial<PanelReviewStateDeps>): {
+	state: PanelReviewState;
+	workspacePanels: WorkspacePanel[];
+} {
 	let workspacePanels: WorkspacePanel[] = [];
 
 	const deps: PanelReviewStateDeps = {

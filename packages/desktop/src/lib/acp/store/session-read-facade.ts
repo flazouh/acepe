@@ -1,6 +1,8 @@
 /**
  * SessionReadFacade — namespaced read surface for the session store (ADR-0002).
  */
+
+import type { Result } from "neverthrow";
 import type {
 	ModelsForDisplay,
 	ProviderMetadataProjection,
@@ -14,8 +16,11 @@ import type {
 	SessionTurnState,
 	TranscriptEntry,
 } from "../../services/acp-types.js";
-import { deriveSessionListStateFromCanonical, type SessionListState } from "../application/dto/session-summary.js";
 import type { SessionPrLinkReference } from "../application/dto/session-linked-pr.js";
+import {
+	deriveSessionListStateFromCanonical,
+	type SessionListState,
+} from "../application/dto/session-summary.js";
 import type { AgentPanelCanonicalSource } from "../session-state/agent-panel-canonical-source.js";
 import type { AvailableCommand } from "../types/available-command.js";
 import type { ModifiedFilesState } from "../types/modified-files-state.js";
@@ -23,18 +28,19 @@ import type { PermissionRequest } from "../types/permission.js";
 import type { ToolCall } from "../types/tool-call.js";
 import type { ToolKind } from "../types/tool-kind.js";
 import type { ActiveTurnFailure } from "../types/turn-error.js";
-import type { Result } from "neverthrow";
-import type { CanonicalSessionProjection, RowTokenStream, SessionClockAnchor } from "./canonical-session-projection.js";
+import type { CanonicalSessionProjection } from "./canonical-session-projection.js";
 import type { CapabilityProjectionReader } from "./capability-projection-reader.js";
 import type { InteractionStore } from "./interaction-store.svelte.js";
 import type { SessionOperationInteractionSnapshot } from "./operation-association.js";
 import type { OperationStore } from "./operation-store.svelte.js";
-import type { SessionExportContentError } from "./session-graph-builders.js";
-import type { SessionExportService } from "./session-export-service.js";
-import type { SessionListState as SessionListStateStore } from "./session-list-state.svelte.js";
+import type { ISessionStateReader } from "./services/interfaces/index.js";
 import type { SessionLiveSyncReference, SessionPaletteReference } from "./session-cold-index.js";
-import type { SessionProjectionCore } from "./session-projection-core.svelte.js";
+import type { SessionExportService } from "./session-export-service.js";
+import type { SessionExportContentError } from "./session-graph-builders.js";
+import type { SessionIdentityResolver } from "./session-identity-resolver.js";
+import type { SessionListState as SessionListStateStore } from "./session-list-state.svelte.js";
 import type { SessionPresentationModel } from "./session-presentation-model.js";
+import type { SessionProjectionCore } from "./session-projection-core.svelte.js";
 import type { SessionTransientProjectionStore } from "./session-transient-projection-store.svelte.js";
 import type {
 	Mode,
@@ -46,8 +52,6 @@ import type {
 	SessionPendingSendIntent,
 	SessionUsageTelemetry,
 } from "./types.js";
-import type { ISessionStateReader } from "./services/interfaces/index.js";
-import type { SessionIdentityResolver } from "./session-identity-resolver.js";
 
 export type SessionReadFacadeDeps = {
 	readonly listState: SessionListStateStore;
@@ -172,22 +176,6 @@ export class SessionReadFacade implements ISessionStateReader {
 
 	getSessionLastTerminalTurnId(sessionId: string): string | null {
 		return this.#deps.projectionCore.getLastTerminalTurnId(sessionId);
-	}
-
-	getRowTokenStream(sessionId: string, turnId: string, rowId: string): RowTokenStream | null {
-		return this.#deps.projectionCore.getRowTokenStream(sessionId, turnId, rowId);
-	}
-
-	getRowTokenStreamByRowId(sessionId: string, rowId: string): RowTokenStream | null {
-		return this.#deps.projectionCore.getRowTokenStreamByRowId(sessionId, rowId);
-	}
-
-	getActiveStreamingTailRowId(sessionId: string): string | null {
-		return this.#deps.projectionCore.getActiveStreamingTailRowId(sessionId);
-	}
-
-	getClockAnchor(sessionId: string): SessionClockAnchor | null {
-		return this.#deps.projectionCore.getClockAnchor(sessionId);
 	}
 
 	getGraphTranscriptRevision(sessionId: string): number | undefined {

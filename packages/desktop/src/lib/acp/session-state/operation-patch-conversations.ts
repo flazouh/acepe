@@ -5,31 +5,37 @@
  * projection. Pure; selected by the dispatcher.
  */
 import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel/types";
+import { scenePatchIdentity } from "../components/agent-panel/logic/scene-patch.js";
 import type {
 	CachedConversationInput,
 	CachedConversationState,
 } from "./conversation-cache-types.js";
+import {
+	materializeTranscriptEntry,
+	questionInteractionToSceneEntry,
+} from "./entry-materializers.js";
 import type { OperationIndex } from "./operation-index.js";
-import {
-	addSceneEntryPatch,
-	createAppendedSceneEntryArray,
-	createInsertedSceneEntryArray,
-	createPatchedSceneEntryArray,
-
-	conversationFromSceneEntryArrayResult,} from "./scene-entry-array.js";
-import { scenePatchIdentity } from "../components/agent-panel/logic/scene-patch.js";
-import {
-	createAppendedSceneEntryRowIndex,
-	createSplicedSceneEntryRowIndex,
-} from "./scene-entry-row-index.js";
-import { materializeTranscriptEntry, questionInteractionToSceneEntry } from "./entry-materializers.js";
-import { collectTrailingSceneEntries } from "./transcript-patch-conversations.js";
-import { areActiveStreamingTailsEquivalent, areSceneEntriesEquivalent } from "./scene-equivalence.js";
 import {
 	applyOperationIndexPatch,
 	applyStableMarkedOperationIndexPatchInPlace,
 	collectAffectedTranscriptEntryIds,
 } from "./operation-index-patch.js";
+import {
+	addSceneEntryPatch,
+	conversationFromSceneEntryArrayResult,
+	createAppendedSceneEntryArray,
+	createInsertedSceneEntryArray,
+	createPatchedSceneEntryArray,
+} from "./scene-entry-array.js";
+import {
+	createAppendedSceneEntryRowIndex,
+	createSplicedSceneEntryRowIndex,
+} from "./scene-entry-row-index.js";
+import {
+	areActiveStreamingTailsEquivalent,
+	areSceneEntriesEquivalent,
+} from "./scene-equivalence.js";
+import { collectTrailingSceneEntries } from "./transcript-patch-conversations.js";
 
 export function materializeOperationPatchedConversation(
 	previous: CachedConversationState | null,
@@ -54,11 +60,7 @@ export function materializeOperationPatchedConversation(
 			input.graph.operations,
 			previous.operationIndex
 		) ??
-		applyOperationIndexPatch(
-			previous.operations,
-			input.graph.operations,
-			previous.operationIndex
-		);
+		applyOperationIndexPatch(previous.operations, input.graph.operations, previous.operationIndex);
 	if (operationPatch === null) {
 		return null;
 	}
@@ -138,7 +140,10 @@ export function materializeOperationPatchedConversation(
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
 		transcriptEntryById: previous.transcriptEntryById,
-		conversation: conversationFromSceneEntryArrayResult(createPatchedSceneEntryArray(previous.conversation.entries, entryPatches), previous.conversation.isStreaming),
+		conversation: conversationFromSceneEntryArrayResult(
+			createPatchedSceneEntryArray(previous.conversation.entries, entryPatches),
+			previous.conversation.isStreaming
+		),
 		sceneEntryRowIndex: previous.sceneEntryRowIndex,
 	};
 }
@@ -168,7 +173,7 @@ function materializeBlockingInteractionActivityChange(
 	const nextVisibleInteraction =
 		nextBlockingInteractionId === null
 			? null
-			: previous.interactionById.get(nextBlockingInteractionId) ?? null;
+			: (previous.interactionById.get(nextBlockingInteractionId) ?? null);
 	if (nextBlockingInteractionId !== null && nextVisibleInteraction === null) {
 		return null;
 	}
@@ -187,7 +192,10 @@ function materializeBlockingInteractionActivityChange(
 			operations: input.graph.operations,
 			operationIndex,
 			activity: input.graph.activity,
-			conversation: conversationFromSceneEntryArrayResult(baseEntries, previous.conversation.isStreaming),
+			conversation: conversationFromSceneEntryArrayResult(
+				baseEntries,
+				previous.conversation.isStreaming
+			),
 		};
 	}
 	if (previousVisibleEntry === null && nextVisibleEntry !== null) {
@@ -198,7 +206,12 @@ function materializeBlockingInteractionActivityChange(
 			baseEntries.entries.length
 		);
 	} else if (previousVisibleEntry !== null && nextVisibleEntry === null) {
-		nextEntries = createInsertedSceneEntryArray(baseEntries.entries, transcriptSceneEntryCount, [], []);
+		nextEntries = createInsertedSceneEntryArray(
+			baseEntries.entries,
+			transcriptSceneEntryCount,
+			[],
+			[]
+		);
 		sceneEntryRowIndex = createSplicedSceneEntryRowIndex(
 			previous.sceneEntryRowIndex,
 			[previousVisibleEntry],
@@ -240,12 +253,10 @@ function materializeBlockingInteractionActivityChange(
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
 		transcriptEntryById: previous.transcriptEntryById,
-		conversation: conversationFromSceneEntryArrayResult(nextEntries, previous.conversation.isStreaming),
+		conversation: conversationFromSceneEntryArrayResult(
+			nextEntries,
+			previous.conversation.isStreaming
+		),
 		sceneEntryRowIndex,
 	};
 }
-
-
-
-
-

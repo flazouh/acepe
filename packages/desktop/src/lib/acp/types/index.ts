@@ -45,10 +45,10 @@ export type { ErrorMessage } from "./error-message.js";
 export type { InitializeResponse } from "./initialize-response.js";
 // OpenCode-specific types
 export type {
+	ComputerPermissionInteraction,
 	Interaction,
 	InteractionKind,
 	InteractionToolReference,
-	ComputerPermissionInteraction,
 	PermissionInteraction,
 	PlanApprovalInteraction,
 	QuestionInteraction,

@@ -14,8 +14,8 @@ import type { SessionStateCommand } from "../../../session-state/session-state-c
 import type { CanonicalSessionProjection } from "../../canonical-session-projection.js";
 import type { SessionTransientProjection } from "../../types.js";
 import { DEFAULT_TRANSIENT_PROJECTION } from "../../types.js";
-import type { EnvelopeReducerSnapshot } from "../envelope-snapshot.js";
 import { buildCanonicalUsageTelemetry } from "../canonical-usage-telemetry.js";
+import type { EnvelopeReducerSnapshot } from "../envelope-snapshot.js";
 import { reduceCommand } from "../reduce-command.js";
 
 const revision: SessionGraphRevision = {
@@ -68,8 +68,6 @@ function createProjection(
 			configOptions: [],
 			autonomousEnabled: null,
 		},
-		tokenStream: overrides.tokenStream ?? new Map(),
-		clockAnchor: overrides.clockAnchor ?? null,
 		revision: overrides.revision ?? revision,
 	};
 }
@@ -101,9 +99,7 @@ function createGraph(overrides: Partial<SessionStateGraph> = {}): SessionStateGr
 	};
 }
 
-function createSnapshot(
-	overrides: Partial<EnvelopeReducerSnapshot> = {}
-): EnvelopeReducerSnapshot {
+function createSnapshot(overrides: Partial<EnvelopeReducerSnapshot> = {}): EnvelopeReducerSnapshot {
 	return {
 		sessionId: overrides.sessionId ?? "session-1",
 		hasSessionIdentity: overrides.hasSessionIdentity ?? true,
@@ -111,13 +107,11 @@ function createSnapshot(
 			overrides.previousProjection !== undefined
 				? overrides.previousProjection
 				: createProjection(),
-		previousGraph:
-			overrides.previousGraph !== undefined ? overrides.previousGraph : createGraph(),
+		previousGraph: overrides.previousGraph !== undefined ? overrides.previousGraph : createGraph(),
 		capabilitiesMaterialized: overrides.capabilitiesMaterialized ?? false,
 		transientProjection: overrides.transientProjection ?? DEFAULT_TRANSIENT_PROJECTION,
 		currentModelId: overrides.currentModelId ?? null,
 		sessionCold: overrides.sessionCold,
-		browserMonotonicMs: overrides.browserMonotonicMs ?? 1_000,
 	};
 }
 
@@ -223,8 +217,6 @@ describe("reduceCommand", () => {
 					lastTerminalTurnId: previousProjection.lastTerminalTurnId,
 					activeStreamingTail: previousProjection.activeStreamingTail,
 					capabilities,
-					tokenStream: previousProjection.tokenStream,
-					clockAnchor: previousProjection.clockAnchor,
 					revision: newerRevision,
 				},
 			},
@@ -772,6 +764,73 @@ describe("reduceCommand", () => {
 		expect(patches.some((patch) => patch.kind === "reconcileConnectionMachine")).toBe(true);
 	});
 
+	it("normalizes terminal turn graph patches to idle even when activity fields are omitted", () => {
+		const staleActivity = {
+			kind: "awaiting_model" as const,
+			activeOperationCount: 0,
+			activeSubagentCount: 0,
+			dominantOperationId: null,
+			blockingInteractionId: null,
+		};
+		const staleTail = { rowId: "assistant-1", contentKind: "message" as const };
+		const previousProjection = createProjection({
+			activity: staleActivity,
+			turnState: "Running",
+			activeStreamingTail: staleTail,
+		});
+		const previousGraph = createGraph({
+			activity: staleActivity,
+			turnState: "Running",
+			activeStreamingTail: staleTail,
+		});
+
+		const patches = reduceCommand(
+			createSnapshot({ previousProjection, previousGraph }),
+			{
+				kind: "applyGraphPatches",
+				revision: newerRevision,
+				activity: undefined,
+				turnState: "Completed",
+				activeTurnFailure: null,
+				lastTerminalTurnId: "turn-1",
+				activeStreamingTail: undefined,
+				operationPatches: [],
+				interactionPatches: [],
+			},
+			1_700_000_000_000
+		);
+
+		const graphPatch = patches.find((patch) => patch.kind === "setSessionStateGraph");
+		const projectionPatch = patches.find((patch) => patch.kind === "setCanonicalProjection");
+
+		expect(graphPatch).toMatchObject({
+			graph: {
+				activity: {
+					kind: "idle",
+					activeOperationCount: 0,
+					activeSubagentCount: 0,
+					dominantOperationId: null,
+					blockingInteractionId: null,
+				},
+				activeStreamingTail: null,
+				turnState: "Completed",
+			},
+		});
+		expect(projectionPatch).toMatchObject({
+			projection: {
+				activity: {
+					kind: "idle",
+					activeOperationCount: 0,
+					activeSubagentCount: 0,
+					dominantOperationId: null,
+					blockingInteractionId: null,
+				},
+				activeStreamingTail: null,
+				turnState: "Completed",
+			},
+		});
+	});
+
 	it("refreshes snapshot when graph patches arrive before canonical projection", () => {
 		const patches = reduceCommand(
 			createSnapshot({ previousProjection: null }),
@@ -874,8 +933,7 @@ describe("reduceCommand", () => {
 		expect(
 			patches.some(
 				(patch) =>
-					patch.kind === "updateTransientProjection" &&
-					patch.updates.pendingSendIntent === null
+					patch.kind === "updateTransientProjection" && patch.updates.pendingSendIntent === null
 			)
 		).toBe(false);
 	});
@@ -936,178 +994,5 @@ describe("reduceCommand", () => {
 				},
 			])
 		);
-	});
-
-	it("warns and refreshes when assistant text delta arrives without canonical projection", () => {
-		const patches = reduceCommand(
-			createSnapshot({ previousProjection: null, previousGraph: null }),
-			{
-				kind: "applyAssistantTextDelta",
-				delta: {
-					turnId: "turn-1",
-					rowId: "row-1",
-					charOffset: 0,
-					deltaText: "hel",
-					producedAtMonotonicMs: 42,
-					revision: 10,
-				},
-			},
-			1_700_000_000_000
-		);
-
-		expect(patches).toEqual([
-			{
-				kind: "warnMissingCanonicalProjection",
-				sessionId: "session-1",
-				reason: "assistantTextDelta",
-				context: {
-					turnId: "turn-1",
-					rowId: "row-1",
-					deltaRevision: 10,
-				},
-			},
-			{
-				kind: "refreshSessionStateSnapshot",
-				sessionId: "session-1",
-				reason: "missingProjectionBeforeAssistantDelta",
-			},
-		]);
-	});
-
-	it("drops stale assistant text deltas by revision", () => {
-		const previousProjection = createProjection({
-			revision: {
-				graphRevision: 12,
-				transcriptRevision: 7,
-				lastEventSeq: 12,
-			},
-			tokenStream: new Map([
-				[
-					"turn-1:row-1",
-					{
-						turnId: "turn-1",
-						rowId: "row-1",
-						accumulatedText: "hello",
-						wordCount: 1,
-						latestWordCount: 1,
-						firstDeltaProducedAtMonotonicMs: 1,
-						lastDeltaProducedAtMonotonicMs: 2,
-						revision: 11,
-					},
-				],
-			]),
-		});
-
-		const patches = reduceCommand(
-			createSnapshot({ previousProjection, previousGraph: null }),
-			{
-				kind: "applyAssistantTextDelta",
-				delta: {
-					turnId: "turn-1",
-					rowId: "row-1",
-					charOffset: 5,
-					deltaText: "!",
-					producedAtMonotonicMs: 43,
-					revision: 10,
-				},
-			},
-			1_700_000_000_000
-		);
-
-		expect(patches).toEqual([]);
-	});
-
-	it("drops assistant text deltas with mismatched char offset", () => {
-		const previousProjection = createProjection({
-			revision: {
-				graphRevision: 9,
-				transcriptRevision: 7,
-				lastEventSeq: 9,
-			},
-			tokenStream: new Map([
-				[
-					"turn-1:row-1",
-					{
-						turnId: "turn-1",
-						rowId: "row-1",
-						accumulatedText: "hello",
-						wordCount: 1,
-						latestWordCount: 1,
-						firstDeltaProducedAtMonotonicMs: 1,
-						lastDeltaProducedAtMonotonicMs: 2,
-						revision: 9,
-					},
-				],
-			]),
-		});
-
-		const patches = reduceCommand(
-			createSnapshot({ previousProjection, previousGraph: null }),
-			{
-				kind: "applyAssistantTextDelta",
-				delta: {
-					turnId: "turn-1",
-					rowId: "row-1",
-					charOffset: 0,
-					deltaText: "x",
-					producedAtMonotonicMs: 44,
-					revision: 10,
-				},
-			},
-			1_700_000_000_000
-		);
-
-		expect(patches).toEqual([]);
-	});
-
-	it("accumulates assistant text deltas into canonical token stream", () => {
-		const previousProjection = createProjection({
-			revision: {
-				graphRevision: 9,
-				transcriptRevision: 7,
-				lastEventSeq: 9,
-			},
-		});
-
-		const patches = reduceCommand(
-			createSnapshot({ previousProjection, previousGraph: null }),
-			{
-				kind: "applyAssistantTextDelta",
-				delta: {
-					turnId: "turn-1",
-					rowId: "row-1",
-					charOffset: 0,
-					deltaText: "hel",
-					producedAtMonotonicMs: 42,
-					revision: 10,
-				},
-			},
-			1_700_000_000_000
-		);
-
-		expect(patches).toEqual([
-			{
-				kind: "setCanonicalProjection",
-				sessionId: "session-1",
-				projection: expect.objectContaining({
-					tokenStream: expect.any(Map),
-				}),
-			},
-			{
-				kind: "setRowTokenStream",
-				sessionId: "session-1",
-				rowId: "row-1",
-				row: {
-					turnId: "turn-1",
-					rowId: "row-1",
-					accumulatedText: "hel",
-					wordCount: 1,
-					latestWordCount: 1,
-					firstDeltaProducedAtMonotonicMs: 42,
-					lastDeltaProducedAtMonotonicMs: 42,
-					revision: 10,
-				},
-			},
-		]);
 	});
 });

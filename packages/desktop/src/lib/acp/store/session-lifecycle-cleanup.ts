@@ -4,13 +4,13 @@
  */
 import * as preferencesStore from "./agent-model-preferences-store.svelte.js";
 import type { ComposerMachineService } from "./composer-machine-service.svelte.js";
-import type { SessionEntryStore } from "./session-entry-store.svelte.js";
 import type { SessionMessagingService } from "./services/session-messaging-service.js";
 import type { SessionRepository } from "./services/session-repository.js";
+import type { SessionEntryStore } from "./session-entry-store.svelte.js";
+import type { SessionIdentityResolver } from "./session-identity-resolver.js";
 import type { SessionProjectionCore } from "./session-projection-core.svelte.js";
 import type { SessionTransientProjectionStore } from "./session-transient-projection-store.svelte.js";
 import type { TranscriptRowsController } from "./transcript-rows-controller.svelte.js";
-import type { SessionIdentityResolver } from "./session-identity-resolver.js";
 
 export type SessionLifecycleCleanupDeps = {
 	readonly repository: SessionRepository;
@@ -39,7 +39,6 @@ export class SessionLifecycleCleanup {
 		this.#deps.projectionCore.sessionStateGraphs.delete(sessionId);
 		this.#deps.viewport.removeSession(sessionId);
 		this.#deps.projectionCore.canonicalCapabilitiesMaterialized.delete(sessionId);
-		this.#deps.projectionCore.rowTokenStreamsByRowId.delete(sessionId);
 		this.#deps.messagingSvc.clearSessionState(sessionId);
 		this.#deps.composerMachineService.removeMachine(sessionId);
 		preferencesStore.clearSessionModelPerMode(sessionId);
@@ -52,7 +51,6 @@ export class SessionLifecycleCleanup {
 		this.#deps.entryStore.clearEntries(sessionId);
 		this.#deps.projectionCore.sessionStateGraphs.delete(sessionId);
 		this.#deps.projectionCore.canonicalProjections.delete(sessionId);
-		this.#deps.projectionCore.rowTokenStreamsByRowId.delete(sessionId);
 		this.#deps.messagingSvc.clearSessionState(sessionId);
 	}
 }

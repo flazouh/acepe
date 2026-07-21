@@ -8,29 +8,29 @@ import type {
 	SessionStateGraph,
 } from "../../services/acp-types.js";
 import {
-	agentPanelCanonicalSourceFromGraph,
 	type AgentPanelCanonicalSource,
+	agentPanelCanonicalSourceFromGraph,
 } from "../session-state/agent-panel-canonical-source.js";
 import type { ActiveTurnFailure } from "../types/turn-error.js";
 import type { CanonicalSessionProjection } from "./canonical-session-projection.js";
 import type { InteractionStore } from "./interaction-store.svelte.js";
 import {
-	buildSessionOperationInteractionSnapshot,
-	type SessionOperationInteractionSnapshot,
-} from "./operation-association.js";
-import { getPrimaryQuestionText } from "./question-selectors.js";
-import { buildQueueSessionSnapshot, type QueueSessionSnapshot } from "./queue/utils.js";
-import type { SessionLiveSyncReference } from "./session-cold-index.js";
-import {
 	deriveLiveSessionLifecyclePresentation,
 	deriveLiveSessionState,
 	deriveLiveSessionWorkProjection,
 	inactiveSessionWorkSourceFromCanonicalProjection,
-	liveSessionWorkSourceFromCanonicalProjection,
 	type LiveSessionLifecyclePresentation,
 	type LiveSessionWorkSource,
+	liveSessionWorkSourceFromCanonicalProjection,
 } from "./live-session-work.js";
+import {
+	buildSessionOperationInteractionSnapshot,
+	type SessionOperationInteractionSnapshot,
+} from "./operation-association.js";
 import type { OperationStore } from "./operation-store.svelte.js";
+import { getPrimaryQuestionText } from "./question-selectors.js";
+import { buildQueueSessionSnapshot, type QueueSessionSnapshot } from "./session-attention/utils.js";
+import type { SessionLiveSyncReference } from "./session-cold-index.js";
 import type { SessionTransientProjectionStore } from "./session-transient-projection-store.svelte.js";
 import type { SessionMetadata } from "./types.js";
 
@@ -116,9 +116,8 @@ export class SessionPresentationModel {
 	getSessionLifecyclePresentation(sessionId: string): LiveSessionLifecyclePresentation {
 		const projection = this.#deps.getCanonicalProjection(sessionId);
 		const graph = this.#deps.getSessionStateGraph(sessionId);
-		const transientProjection = this.#deps.transientProjectionStore.getTransientProjection(
-			sessionId
-		);
+		const transientProjection =
+			this.#deps.transientProjectionStore.getTransientProjection(sessionId);
 
 		return deriveLiveSessionLifecyclePresentation({
 			source: liveSessionWorkSourceFromCanonicalProjection(sessionId, projection),
@@ -151,8 +150,7 @@ export class SessionPresentationModel {
 	}
 
 	getSessionLiveWorkSource(sessionId: string | null, active: boolean): LiveSessionWorkSource {
-		const projection =
-			sessionId === null ? null : this.#deps.getCanonicalProjection(sessionId);
+		const projection = sessionId === null ? null : this.#deps.getCanonicalProjection(sessionId);
 		if (active) {
 			return liveSessionWorkSourceFromCanonicalProjection(sessionId, projection);
 		}
@@ -205,9 +203,8 @@ export class SessionPresentationModel {
 	getSessionListItemPresentation(input: SessionListItemPresentationInput) {
 		const sessionId = input.sessionId;
 		const currentModeId = this.#deps.getSessionCurrentModeId(sessionId);
-		const currentStreamingToolCall = this.#deps.operationStore.getCurrentStreamingToolCall(
-			sessionId
-		);
+		const currentStreamingToolCall =
+			this.#deps.operationStore.getCurrentStreamingToolCall(sessionId);
 		const lastToolCall = this.#deps.operationStore.getLastToolCall(sessionId);
 		const lastTodoToolCall = this.#deps.operationStore.getLastTodoToolCall(sessionId);
 		const currentToolKind = this.#deps.operationStore.getCurrentToolKind(sessionId);
@@ -216,17 +213,21 @@ export class SessionPresentationModel {
 			input.interactionStore
 		);
 		const liveSessionSource = this.getSessionLiveWorkSource(sessionId, input.active);
+		const hasLocalPendingSendIntent =
+			this.#deps.transientProjectionStore.getSessionHasLocalPendingSendIntent(sessionId);
 		const liveSessionState = deriveLiveSessionState({
 			source: liveSessionSource,
 			currentModeId,
 			interactionSnapshot,
 			hasUnseenCompletion: input.hasUnseenCompletion,
+			hasLocalPendingSendIntent,
 		});
 		const sessionWorkProjection = deriveLiveSessionWorkProjection({
 			source: liveSessionSource,
 			currentModeId,
 			interactionSnapshot,
 			hasUnseenCompletion: input.hasUnseenCompletion,
+			hasLocalPendingSendIntent,
 		});
 
 		return {
@@ -269,8 +270,7 @@ export class SessionPresentationModel {
 			activityPhase: lifecyclePresentation.activityPhase,
 			pendingQuestionId: pendingQuestion ? pendingQuestion.id : null,
 			pendingPlanApprovalId: pendingPlanApproval ? pendingPlanApproval.id : null,
-			pendingPermissionId:
-				pendingPermission?.id ?? pendingComputerPermission?.id ?? null,
+			pendingPermissionId: pendingPermission?.id ?? pendingComputerPermission?.id ?? null,
 		};
 	}
 
@@ -299,6 +299,8 @@ export class SessionPresentationModel {
 			liveSessionSource: this.getSessionLiveWorkSource(sessionId, input.active ?? true),
 			interactionSnapshot,
 			hasUnseenCompletion: input.hasUnseenCompletion,
+			hasLocalPendingSendIntent:
+				this.#deps.transientProjectionStore.getSessionHasLocalPendingSendIntent(sessionId),
 			sequenceId: this.#deps.getSessionMetadata(sessionId)?.sequenceId ?? null,
 		});
 	}

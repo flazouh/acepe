@@ -3,6 +3,7 @@ import type { getConnectionStore } from "../../store/connection-store.svelte.js"
 import type { getMessageQueueStore } from "../../store/message-queue/message-queue-store.svelte.js";
 import type { getPanelStore } from "../../store/panel-store.svelte.js";
 import type { getSessionStore } from "../../store/session-store.svelte.js";
+import type { QuestionRequest } from "../../types/question.js";
 import type { Logger } from "../../utils/logger.js";
 import type { AgentInputState } from "./state/agent-input-state.svelte.js";
 import type { AgentInputProps } from "./types/agent-input-props.js";
@@ -15,6 +16,7 @@ export interface AgentInputControllerHost {
 	getProps: () => AgentInputProps;
 	inputState: AgentInputState;
 	getComposerInteraction: () => ComposerInteractionState;
+	getPendingQuestion: () => QuestionRequest | null;
 	getAutonomousToggleActive: () => boolean;
 	getProvisionalModeId: () => string | null;
 	getInitialModelIdForNewSession: () => string | null;

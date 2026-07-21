@@ -5,163 +5,164 @@
  * These are the allowed keys for save_user_setting/get_user_setting commands.
  */
 export type UserSettingKey =
-/**
- * User's preferred theme (light, dark, system)
- */
-"user_theme" |
-/**
- * Color id (Tailwind palette) for the loading indicator
- */
-"loading_indicator_color" |
-/**
- * Workspace panel layout state (JSON)
- */
-"workspace_state" |
-/**
- * Custom keybindings (JSON map of command -> key)
- */
-"custom_keybindings" |
-/**
- * Webview zoom level (stored as float string, e.g., "1.0", "1.2")
- */
-"zoom_level" |
-/**
- * Default models per agent per mode (JSON map)
- */
-"agent_default_models" |
-/**
- * Favorite models per agent (JSON map)
- */
-"agent_favorite_models" |
-/**
- * Last model provider viewed per agent (JSON map)
- */
-"agent_model_provider" |
-/**
- * Cached available models per agent (JSON map)
- */
-"agent_available_models_cache" |
-/**
- * Cached available models display groups per agent (JSON map)
- */
-"agent_available_models_display_cache" |
-/**
- * Cached provider metadata per agent (JSON map)
- */
-"agent_provider_metadata_cache" |
-/**
- * Cached available modes per agent (JSON map)
- */
-"agent_available_modes_cache" |
-/**
- * Per-session model memory (JSON map)
- */
-"session_model_per_mode" |
-/**
- * Global PR generation preferences (JSON object)
- */
-"pr_generation_preferences" |
-/**
- * Command palette recent items (JSON array)
- */
-"command_palette_recent_items" |
-/**
- * OpenCode favorite models (JSON array)
- */
-"favorite_models" |
-/**
- * OpenCode recent models (JSON array)
- */
-"recent_models" |
-/**
- * Whether user has seen the splash screen (boolean string "true"/"false")
- */
-"has_seen_splash" |
-/**
- * Whether user has completed first-run onboarding
- */
-"has_completed_onboarding" |
-/**
- * Selected agent IDs for UI visibility/filtering (JSON array)
- */
-"selected_agent_ids" |
-/**
- * Persisted custom agent configurations (JSON array)
- */
-"custom_agent_configs" |
-/**
- * Persisted per-agent environment overrides (JSON object)
- */
-"agent_env_overrides" |
-/**
- * Use worktrees by default for new sessions (boolean, legacy — read-only for migration)
- */
-"worktree_global_default_enabled" |
-/**
- * Per-project worktree default for new sessions (JSON map: path -> boolean)
- */
-"worktree_project_defaults" |
-/**
- * Workspace trust decisions for setup commands (JSON map: path key -> { trusted, commands })
- */
-"worktree_trust" |
-/**
- * Whether thinking blocks in chat are collapsed by default (boolean)
- */
-"chat_thinking_block_collapsed_by_default" |
-/**
- * Whether plans render inline in chat vs sidebar panel (boolean)
- */
-"plan_inline_mode" |
-/**
- * Whether review opens fullscreen by default (boolean)
- */
-"review_prefer_fullscreen" |
-/**
- * Per-category notification preferences (JSON object)
- */
-"notification-preferences" |
-/**
- * Selected voice model ID (e.g. "small.en")
- */
-"voice_model" |
-/**
- * Preferred voice transcription language code (e.g. "en" or "auto")
- */
-"voice_language" |
-/**
- * Whether voice dictation is enabled (boolean)
- */
-"voice_enabled" |
-/**
- * Agent ID used for AI-generated commit messages and PR descriptions
- */
-"git_text_generation_agent" |
-/**
- * Preferred merge strategy for PRs (e.g., "squash", "merge", "rebase")
- */
-"git_merge_strategy_preference" |
-/**
- * Set of dismissed tooltip keys (JSON array of string keys)
- */
-"dismissed_tooltips" |
-/**
- * Whether the attention queue panel is shown in the sidebar (boolean)
- */
-"attention_queue_enabled" |
-/**
- * Whether analytics providers should be disabled for this install (boolean)
- */
-"analytics_opt_out" |
-/**
- * User's preferred default agent ID for new sessions
- */
-"default_agent_id" |
-/**
- * Base interface font size in px (stored as integer string, e.g. "14")
- */
-"ui_font_size" |
-/**
- * Code/diff font size in px (stored as integer string, e.g. "13")
- */
-"code_font_size"
+	/**
+	 * User's preferred theme (light, dark, system)
+	 */
+	| "user_theme"
+	/**
+	 * Color id (Tailwind palette) for the loading indicator
+	 */
+	| "loading_indicator_color"
+	/**
+	 * Workspace panel layout state (JSON)
+	 */
+	| "workspace_state"
+	/**
+	 * Custom keybindings (JSON map of command -> key)
+	 */
+	| "custom_keybindings"
+	/**
+	 * Webview zoom level (stored as float string, e.g., "1.0", "1.2")
+	 */
+	| "zoom_level"
+	/**
+	 * Default models per agent per mode (JSON map)
+	 */
+	| "agent_default_models"
+	/**
+	 * Favorite models per agent (JSON map)
+	 */
+	| "agent_favorite_models"
+	/**
+	 * Last model provider viewed per agent (JSON map)
+	 */
+	| "agent_model_provider"
+	/**
+	 * Cached available models per agent (JSON map)
+	 */
+	| "agent_available_models_cache"
+	/**
+	 * Cached available models display groups per agent (JSON map)
+	 */
+	| "agent_available_models_display_cache"
+	/**
+	 * Cached provider metadata per agent (JSON map)
+	 */
+	| "agent_provider_metadata_cache"
+	/**
+	 * Cached available modes per agent (JSON map)
+	 */
+	| "agent_available_modes_cache"
+	/**
+	 * Per-session model memory (JSON map)
+	 */
+	| "session_model_per_mode"
+	/**
+	 * Global PR generation preferences (JSON object)
+	 */
+	| "pr_generation_preferences"
+	/**
+	 * Command palette recent items (JSON array)
+	 */
+	| "command_palette_recent_items"
+	/**
+	 * OpenCode favorite models (JSON array)
+	 */
+	| "favorite_models"
+	/**
+	 * OpenCode recent models (JSON array)
+	 */
+	| "recent_models"
+	/**
+	 * Whether user has seen the splash screen (boolean string "true"/"false")
+	 */
+	| "has_seen_splash"
+	/**
+	 * Whether user has completed first-run onboarding
+	 */
+	| "has_completed_onboarding"
+	/**
+	 * Selected agent IDs for UI visibility/filtering (JSON array)
+	 */
+	| "selected_agent_ids"
+	/**
+	 * Persisted custom agent configurations (JSON array)
+	 */
+	| "custom_agent_configs"
+	/**
+	 * Persisted per-agent environment overrides (JSON object)
+	 */
+	| "agent_env_overrides"
+	/**
+	 * Use worktrees by default for new sessions (boolean, legacy — read-only for migration)
+	 */
+	| "worktree_global_default_enabled"
+	/**
+	 * Per-project worktree default for new sessions (JSON map: path -> boolean)
+	 */
+	| "worktree_project_defaults"
+	/**
+	 * Workspace trust decisions for setup commands (JSON map: path key -> { trusted, commands })
+	 */
+	| "worktree_trust"
+	/**
+	 * Whether thinking blocks in chat are collapsed by default (boolean)
+	 */
+	| "chat_thinking_block_collapsed_by_default"
+	/**
+	 * How assistant replies animate as they stream in
+	 * (instant | buffer | buffer-fade | block-fade)
+	 */
+	| "chat_streaming_reveal_mode"
+	/**
+	 * Whether plans render inline in chat vs sidebar panel (boolean)
+	 */
+	| "plan_inline_mode"
+	/**
+	 * Whether review opens fullscreen by default (boolean)
+	 */
+	| "review_prefer_fullscreen"
+	/**
+	 * Per-category notification preferences (JSON object)
+	 */
+	| "notification-preferences"
+	/**
+	 * Selected voice model ID (e.g. "small.en")
+	 */
+	| "voice_model"
+	/**
+	 * Preferred voice transcription language code (e.g. "en" or "auto")
+	 */
+	| "voice_language"
+	/**
+	 * Whether voice dictation is enabled (boolean)
+	 */
+	| "voice_enabled"
+	/**
+	 * Agent ID used for AI-generated commit messages and PR descriptions
+	 */
+	| "git_text_generation_agent"
+	/**
+	 * Preferred merge strategy for PRs (e.g., "squash", "merge", "rebase")
+	 */
+	| "git_merge_strategy_preference"
+	/**
+	 * Set of dismissed tooltip keys (JSON array of string keys)
+	 */
+	| "dismissed_tooltips"
+	/**
+	 * Whether analytics providers should be disabled for this install (boolean)
+	 */
+	| "analytics_opt_out"
+	/**
+	 * User's preferred default agent ID for new sessions
+	 */
+	| "default_agent_id"
+	/**
+	 * Base interface font size in px (stored as integer string, e.g. "14")
+	 */
+	| "ui_font_size"
+	/**
+	 * Code/diff font size in px (stored as integer string, e.g. "13")
+	 */
+	| "code_font_size";

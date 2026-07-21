@@ -39,10 +39,9 @@ function runBranchMetadataImmediately(callback: () => void): () => void {
 	return () => undefined;
 }
 
-export function createDelayedBranchMetadataScheduler(options: {
-	readonly delayMs?: number;
-	readonly idleTimeoutMs?: number;
-} = {}): EmptyStateBranchMetadataScheduler {
+export function createDelayedBranchMetadataScheduler(
+	options: { readonly delayMs?: number; readonly idleTimeoutMs?: number } = {}
+): EmptyStateBranchMetadataScheduler {
 	const delayMs = options.delayMs ?? DEFAULT_BRANCH_METADATA_DELAY_MS;
 	const idleTimeoutMs = options.idleTimeoutMs ?? DEFAULT_BRANCH_METADATA_IDLE_TIMEOUT_MS;
 

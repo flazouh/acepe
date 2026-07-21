@@ -1,22 +1,19 @@
-import type {
-	AgentPanelPerformanceSample,
-	AgentPanelSceneEntryModel,
-} from "@acepe/ui/agent-panel";
+import type { AgentPanelPerformanceSample, AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel";
 import { cleanup, render } from "@testing-library/svelte";
+import { tick } from "svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
-	SessionOpenTranscriptRowPage,
 	SessionGraphActivityKind,
+	SessionOpenTranscriptRowPage,
 	TranscriptViewportRow,
 } from "../../../../../services/acp-types.js";
-import { TranscriptRowsController } from "../../../../store/transcript-rows-controller.svelte.js";
 import type { PanelViewState } from "../../../../logic/panel-visibility.js";
-import type { TranscriptRowsState } from "../../../../store/transcript-rows-store.js";
 import type {
 	LiveSessionCanonicalProjection,
 	LiveSessionWorkSource,
 } from "../../../../store/live-session-work.js";
-import { tick } from "svelte";
+import { TranscriptRowsController } from "../../../../store/transcript-rows-controller.svelte.js";
+import type { TranscriptRowsState } from "../../../../store/transcript-rows-store.js";
 
 type SessionStoreMockState = {
 	hotState: {
@@ -264,7 +261,9 @@ function createRowsProjection(
 	};
 }
 
-function createInitialRowPage(rows: readonly TranscriptViewportRow[]): SessionOpenTranscriptRowPage {
+function createInitialRowPage(
+	rows: readonly TranscriptViewportRow[]
+): SessionOpenTranscriptRowPage {
 	return {
 		projectionVersion: "transcript_viewport_row:v5",
 		startRowIndex: 0,
@@ -289,7 +288,7 @@ function renderContent(
 		panelId: "panel-1",
 		viewState,
 		sessionId: overrides?.sessionId !== undefined ? overrides.sessionId : "session-1",
-		sceneEntries: overrides?.sceneEntries,
+		optimisticUserEntry: overrides?.sceneEntries?.[0],
 		rowsProjectionOverride: overrides?.rowsProjectionOverride,
 		sessionProjectPath: null,
 		allProjects: [],
@@ -339,9 +338,7 @@ describe("AgentPanelContent", () => {
 		const view = renderContent({ kind: "conversation", errorDetails: null });
 		const captureWindow = performanceCaptureWindow();
 
-		expect(view.getByTestId("virtualized-entry-list-stub").dataset.profileRecorder).toBe(
-			"absent"
-		);
+		expect(view.getByTestId("virtualized-entry-list-stub").dataset.profileRecorder).toBe("absent");
 		expect(typeof captureWindow.__acepeEnableAgentPanelPerformanceCapture).toBe("function");
 		expect(typeof captureWindow.__acepeDisableAgentPanelPerformanceCapture).toBe("function");
 		expect(typeof captureWindow.__acepeReadAgentPanelPerformanceCapture).toBe("function");
@@ -349,17 +346,13 @@ describe("AgentPanelContent", () => {
 		captureWindow.__acepeEnableAgentPanelPerformanceCapture?.();
 		await tick();
 
-		expect(view.getByTestId("virtualized-entry-list-stub").dataset.profileRecorder).toBe(
-			"present"
-		);
+		expect(view.getByTestId("virtualized-entry-list-stub").dataset.profileRecorder).toBe("present");
 		expect(captureWindow.__acepeReadAgentPanelPerformanceCapture?.()).toEqual([]);
 
 		captureWindow.__acepeDisableAgentPanelPerformanceCapture?.();
 		await tick();
 
-		expect(view.getByTestId("virtualized-entry-list-stub").dataset.profileRecorder).toBe(
-			"absent"
-		);
+		expect(view.getByTestId("virtualized-entry-list-stub").dataset.profileRecorder).toBe("absent");
 	});
 
 	it("renders the transcript when canonical rows arrive before view state catches up", () => {
@@ -505,8 +498,6 @@ describe("AgentPanelContent", () => {
 		);
 
 		expect(view.getByTestId("virtualized-entry-list-stub").dataset.rowCount).toBe("2");
-		expect(view.getByTestId("virtualized-entry-list-stub").dataset.skipRowsBootstrap).toBe(
-			"true"
-		);
+		expect(view.getByTestId("virtualized-entry-list-stub").dataset.skipRowsBootstrap).toBe("true");
 	});
 });

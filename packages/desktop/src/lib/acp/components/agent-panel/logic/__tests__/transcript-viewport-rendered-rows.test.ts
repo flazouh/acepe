@@ -4,10 +4,10 @@ import type {
 	OperationSnapshot,
 	TranscriptViewportRow,
 } from "../../../../../services/acp-types.js";
-import { createAgentPanelStressFixture } from "../../../../testing/agent-panel-stress-fixture.js";
-import { renderKey } from "../../../../store/transcript-rows-store.js";
 import type { AgentPanelCanonicalSource } from "../../../../session-state/agent-panel-canonical-source.js";
 import { createViewportOperationSceneEntryResolver } from "../../../../session-state/viewport-operation-scene-entry-resolver.js";
+import { renderKey } from "../../../../store/transcript-rows-store.js";
+import { createAgentPanelStressFixture } from "../../../../testing/agent-panel-stress-fixture.js";
 import {
 	buildRenderableTranscriptViewportRows,
 	buildRenderedTranscriptViewportRows,
@@ -15,12 +15,17 @@ import {
 	createRenderedTranscriptViewportRowResolver,
 } from "../transcript-viewport-rendered-rows.js";
 
-function createOptimisticUserEntry(id: string, text: string): AgentPanelSceneEntryModel {
+function createOptimisticUserEntry(
+	id: string,
+	text: string,
+	timestampMs?: number
+): AgentPanelSceneEntryModel {
 	return {
 		id,
 		type: "user",
 		text,
 		isOptimistic: true,
+		timestampMs,
 	};
 }
 
@@ -399,13 +404,13 @@ describe("buildRenderedTranscriptViewportRows", () => {
 			bufferRows,
 			bufferStartIndex: 0,
 			optimisticUserEntry: null,
-			localPlaceholderMode: "planning_after_tool",
+			localPlaceholderMode: "planning",
 		});
 		const lazySource = createRenderableTranscriptViewportRowSource({
 			bufferRows,
 			bufferStartIndex: 0,
 			optimisticUserEntry: null,
-			localPlaceholderMode: "planning_after_tool",
+			localPlaceholderMode: "planning",
 		});
 
 		expect(eagerRows.map((row) => row.rowId)).toEqual([
@@ -417,7 +422,7 @@ describe("buildRenderedTranscriptViewportRows", () => {
 		expect(lazySource.getRowId(1)).toBe("awaiting:planning");
 		expect(lazySource.getRenderable(1)?.row).toMatchObject({
 			kind: "localPlaceholder",
-			mode: "planning_after_tool",
+			mode: "planning",
 		});
 	});
 
@@ -427,12 +432,10 @@ describe("buildRenderedTranscriptViewportRows", () => {
 		const toolCallId = "call_label";
 		const operation = createViewportOperation({ entryId, operationId, toolCallId });
 		const rows = buildRenderedTranscriptViewportRows({
-			bufferRows: [
-				createLinkedViewportToolRow({ entryId, operationId, toolCallId, operation }),
-			],
+			bufferRows: [createLinkedViewportToolRow({ entryId, operationId, toolCallId, operation })],
 			bufferStartIndex: 0,
 			optimisticUserEntry: null,
-			localPlaceholderMode: "planning_after_tool",
+			localPlaceholderMode: "planning",
 			planningPlaceholderPresentation: {
 				label: "Connecting to Codex Agent",
 				agentIconSrc: "/icons/codex.svg",
@@ -465,10 +468,11 @@ describe("buildRenderedTranscriptViewportRows", () => {
 	});
 
 	it("adds local-only optimistic and planning rows before Rust has viewport rows", () => {
+		const sentAtMs = Date.UTC(2026, 6, 17, 0, 56, 39);
 		const rows = buildRenderedTranscriptViewportRows({
 			bufferRows: [],
 			bufferStartIndex: 0,
-			optimisticUserEntry: createOptimisticUserEntry("optimistic-user", "First message"),
+			optimisticUserEntry: createOptimisticUserEntry("optimistic-user", "First message", sentAtMs),
 			localPlaceholderMode: "connection",
 		});
 
@@ -479,6 +483,7 @@ describe("buildRenderedTranscriptViewportRows", () => {
 			type: "user",
 			text: "First message",
 			isOptimistic: true,
+			timestampMs: sentAtMs,
 		});
 		expect(rows[1]?.row.kind).toBe("localPlaceholder");
 		expect(rows[1]?.row.rowId).toBe("awaiting:planning");
@@ -525,6 +530,30 @@ describe("buildRenderedTranscriptViewportRows", () => {
 			title: "Edited files",
 			status: "done",
 		});
+	});
+
+	it("removes the synthetic review row as soon as an optimistic user send is appended", () => {
+		const rows = buildRenderedTranscriptViewportRows({
+			bufferRows: [createViewportUserRow("user-1", "Previous message")],
+			bufferStartIndex: 3,
+			optimisticUserEntry: createOptimisticUserEntry("pending-user", "hi"),
+			localPlaceholderMode: "none",
+			syntheticReviewEntry: createSyntheticReviewEntry(),
+		});
+
+		expect(rows.map((row) => row.row.rowId)).toEqual(["user-1", "local:optimistic:pending-user"]);
+	});
+
+	it("does not append the synthetic review row after a local planning placeholder", () => {
+		const rows = buildRenderedTranscriptViewportRows({
+			bufferRows: [createViewportUserRow("user-1", "Previous message")],
+			bufferStartIndex: 3,
+			optimisticUserEntry: null,
+			localPlaceholderMode: "planning",
+			syntheticReviewEntry: createSyntheticReviewEntry(),
+		});
+
+		expect(rows.map((row) => row.row.rowId)).toEqual(["user-1", "awaiting:planning"]);
 	});
 
 	it("does not append a synthetic review row when the caller omits it", () => {
@@ -619,9 +648,7 @@ describe("buildRenderedTranscriptViewportRows", () => {
 		const toolCallId = "call_embedded";
 		const operation = createViewportOperation({ entryId, operationId, toolCallId });
 		const rows = buildRenderedTranscriptViewportRows({
-			bufferRows: [
-				createLinkedViewportToolRow({ entryId, operationId, toolCallId, operation }),
-			],
+			bufferRows: [createLinkedViewportToolRow({ entryId, operationId, toolCallId, operation })],
 			bufferStartIndex: 0,
 			optimisticUserEntry: null,
 			localPlaceholderMode: "none",

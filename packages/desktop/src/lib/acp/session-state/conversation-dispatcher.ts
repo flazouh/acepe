@@ -17,7 +17,13 @@ import {
 	materializeBlockingInteractionRetargetConversation,
 	materializeInteractionPatchedConversation,
 } from "./interaction-patch-conversations.js";
+import { buildOperationIndex } from "./operation-index.js";
 import { materializeOperationPatchedConversation } from "./operation-patch-conversations.js";
+import { buildSceneEntryRowIndex } from "./scene-entry-row-index.js";
+import {
+	buildInteractionIndex,
+	buildTranscriptEntryIndex,
+} from "./transcript-interaction-index.js";
 import {
 	materializeStreamingStatePatchedConversation,
 	materializeTranscriptAppendedConversation,
@@ -26,9 +32,6 @@ import {
 	materializeTranscriptPatchedConversation,
 	materializeTranscriptTruncatedConversation,
 } from "./transcript-patch-conversations.js";
-import { buildOperationIndex } from "./operation-index.js";
-import { buildInteractionIndex, buildTranscriptEntryIndex } from "./transcript-interaction-index.js";
-import { buildSceneEntryRowIndex } from "./scene-entry-row-index.js";
 
 export function materializeCachedConversation(
 	previous: CachedConversationState | null,
@@ -113,4 +116,3 @@ export function materializeCachedConversation(
 		sceneEntryRowIndex: buildSceneEntryRowIndex(conversation.entries),
 	};
 }
-

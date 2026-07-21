@@ -240,8 +240,7 @@ export function createPatchedTranscriptEntryArray(
 					return selectPatchedTranscriptEntry(base, patchedIndexes, appended, index);
 				}
 				if (property === "slice") {
-					return (start?: number, end?: number) =>
-						Array.prototype.slice.call(receiver, start, end);
+					return (start?: number, end?: number) => Array.prototype.slice.call(receiver, start, end);
 				}
 			}
 			const value = Reflect.get(targetArray, property, receiver);
@@ -286,4 +285,3 @@ export function selectPatchedTranscriptEntry(
 	}
 	return appended[index - base.length];
 }
-

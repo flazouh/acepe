@@ -5,15 +5,11 @@ import type {
 	TranscriptEntry,
 	TranscriptSnapshot,
 } from "../../../services/acp-types.js";
-import { transcriptEntryIndexes } from "../transcript-entry-index.js";
-import { applyTranscriptDeltaToSnapshot } from "../transcript-delta.js";
 import { transcriptSegmentPrimaryText } from "../../session-state/transcript-text.js";
+import { applyTranscriptDeltaToSnapshot } from "../transcript-delta.js";
+import { transcriptEntryIndexes } from "../transcript-entry-index.js";
 
-function textEntry(
-	entryId: string,
-	role: TranscriptEntry["role"],
-	text: string
-): TranscriptEntry {
+function textEntry(entryId: string, role: TranscriptEntry["role"], text: string): TranscriptEntry {
 	return {
 		entryId,
 		role,
@@ -196,10 +192,9 @@ describe("applyTranscriptDeltaToSnapshot", () => {
 		expect(nextSnapshot.entries).toHaveLength(2);
 		expect(nextSnapshot.entries[0]).toBe(userEntry);
 		expect(nextSnapshot.entries[1]).not.toBe(assistantEntry);
-		expect(nextSnapshot.entries[1]?.segments.map((segment) => transcriptSegmentPrimaryText(segment))).toEqual([
-			"Answer",
-			" More",
-		]);
+		expect(
+			nextSnapshot.entries[1]?.segments.map((segment) => transcriptSegmentPrimaryText(segment))
+		).toEqual(["Answer", " More"]);
 	});
 
 	it("appends one segment without slicing the whole entry list", () => {
@@ -236,10 +231,11 @@ describe("applyTranscriptDeltaToSnapshot", () => {
 			expect(nextSnapshot.entries).toHaveLength(2);
 			expect(nextSnapshot.entries[0]).toBe(userEntry);
 			expect(nextSnapshot.entries[1]).not.toBe(assistantEntry);
-			expect([...nextSnapshot.entries][1]?.segments.map((segment) => transcriptSegmentPrimaryText(segment))).toEqual([
-				"Answer",
-				" More",
-			]);
+			expect(
+				[...nextSnapshot.entries][1]?.segments.map((segment) =>
+					transcriptSegmentPrimaryText(segment)
+				)
+			).toEqual(["Answer", " More"]);
 		} finally {
 			currentEntries.slice = originalSlice;
 		}

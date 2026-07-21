@@ -30,7 +30,9 @@ export function writeJsonArtifact(
 	const path = artifactPath(kind, options);
 	const directory = options.directory ?? "/tmp";
 	return ResultAsync.fromPromise(
-		mkdir(directory, { recursive: true }).then(() => Bun.write(path, `${JSON.stringify(payload, null, 2)}\n`)),
+		mkdir(directory, { recursive: true }).then(() =>
+			Bun.write(path, `${JSON.stringify(payload, null, 2)}\n`)
+		),
 		(error) => {
 			const normalized = error instanceof Error ? error : new Error("Artifact write failed.");
 			return {

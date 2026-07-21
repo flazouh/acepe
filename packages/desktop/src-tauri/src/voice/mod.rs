@@ -12,6 +12,8 @@ pub use commands::{
     voice_list_languages, voice_list_models, voice_load_model, voice_start_recording,
     voice_stop_recording,
 };
+pub use engine::ExternalCommandEngine;
+#[cfg(feature = "whisper-native")]
 pub use engine::WhisperEngine;
 pub use models::ModelManager;
 pub use runtime::VoiceRuntimeHandle;
@@ -25,7 +27,7 @@ impl VoiceState {
     pub fn new(app_data_dir: &Path) -> anyhow::Result<Self> {
         Ok(Self {
             model_manager: ModelManager::new(app_data_dir),
-            runtime: VoiceRuntimeHandle::spawn(Box::new(WhisperEngine::new()))?,
+            runtime: VoiceRuntimeHandle::spawn(Box::new(ExternalCommandEngine::from_env()))?,
         })
     }
 

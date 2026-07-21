@@ -1,12 +1,12 @@
 import { describe, expect, it } from "bun:test";
+import type { SelectorGroup } from "../../types/selector-group.js";
+import type { SelectorItem } from "../../types/selector-item.js";
 import {
 	findSelectedSelectorItem,
 	normalizeSelectorActionButtons,
 	shouldDisableSelector,
 	shouldShowSelectorActionSeparator,
 } from "../selector-ui-state.js";
-import type { SelectorGroup } from "../../types/selector-group.js";
-import type { SelectorItem } from "../../types/selector-item.js";
 
 const items: SelectorItem<string>[] = [
 	{ id: "alpha", name: "Alpha" },

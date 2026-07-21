@@ -3,11 +3,7 @@
  * Desktop wrapper for CheckpointCard.
  * Handles store integration and Tauri commands, delegates rendering to @acepe/ui.
  */
-import {
-	CheckpointCard as BaseCheckpointCard,
-	FilePathBadge,
-	type FileRowState,
-} from "@acepe/ui";
+import { CheckpointCard as BaseCheckpointCard, FilePathBadge, type FileRowState } from "@acepe/ui";
 import { SvelteMap } from "svelte/reactivity";
 import { checkpointStore } from "../../store/checkpoint-store.svelte.js";
 import type { Checkpoint, FileSnapshot } from "../../types/checkpoint.js";

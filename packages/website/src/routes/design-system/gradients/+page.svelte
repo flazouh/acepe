@@ -48,8 +48,7 @@ const variants: readonly GradientVariant[] = [
 		name: "Horizon",
 		character: "Quiet and spacious, with a soft horizontal rhythm.",
 		bestFor: "Full-width bands, login, empty states",
-		background:
-			BRAND_GRADIENT_IRIS_HORIZON,
+		background: BRAND_GRADIENT_IRIS_HORIZON,
 	},
 	{
 		id: "center-bloom",

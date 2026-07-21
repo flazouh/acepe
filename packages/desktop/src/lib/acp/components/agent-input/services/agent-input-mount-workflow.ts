@@ -48,10 +48,7 @@ export function shouldDeferInitialComposerMountWork(args: {
 	if (args.viewKind === "ready" && args.sessionCanSubmit === false) {
 		return true;
 	}
-	return (
-		args.viewKind === "conversation" &&
-		(args.visibleEntryCount ?? 0) > 0
-	);
+	return args.viewKind === "conversation" && (args.visibleEntryCount ?? 0) > 0;
 }
 
 export function shouldWaitForInitialTranscriptRowsBeforeComposer(args: {

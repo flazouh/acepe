@@ -36,6 +36,7 @@ type ErrorInfo = {
 	title: string;
 	summary?: string | null;
 	details?: string | null;
+	canRetry?: boolean;
 	recoveryAction?: "unarchive" | null;
 };
 

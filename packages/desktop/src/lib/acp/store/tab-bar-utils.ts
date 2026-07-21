@@ -282,6 +282,7 @@ export function panelToTab(input: PanelToTabInput): TabBarTab {
 			pendingPermission,
 		},
 		hasUnseenCompletion: isUnseen,
+		hasLocalPendingSendIntent: false,
 	};
 	const state = deriveLiveSessionState(liveSessionInput);
 	const workProjection = deriveLiveSessionWorkProjection(liveSessionInput);

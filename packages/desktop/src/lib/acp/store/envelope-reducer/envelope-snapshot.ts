@@ -12,5 +12,4 @@ export type EnvelopeReducerSnapshot = {
 	readonly transientProjection: SessionTransientProjection;
 	readonly currentModelId: string | null;
 	readonly sessionCold: SessionCold | undefined;
-	readonly browserMonotonicMs: number;
 };

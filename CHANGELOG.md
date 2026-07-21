@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2026.7.20] - 2026-07-20
+
+### Added
+- Task transcript dialogs now expose subagent history, including nested tool activity and completed task output
+- Agent model selectors can pin a default model for faster session setup
+- Review workspaces now offer flat and tree file lists, configurable diff display, per-file reset confirmation, and clearer review status
+- Single-question prompts can be answered directly from the composer
+
+### Changed
+- Streaming responses now use a framework-agnostic reveal buffer with paced block fades and a user-selectable reveal mode
+- Session events, transcript scopes, turn completion, and parent-child tool operations now flow through the canonical session model for more reliable live and restored sessions
+- Speech-to-text settings now handle external backends and unavailable saved models more clearly
+- Whisper transcription and managed CLI auto-download are now opt-in build features
+
+### Fixed
+- Streaming Markdown no longer remounts completed content, resets its reveal on every delta, or briefly exposes unfinished emphasis markers
+- Review diffs no longer re-render on every scroll frame
+- Pending sends no longer surface misleading connection errors, and restored sessions preserve their live reconnect path
+- Composer input strips control characters and displays fallback model names consistently
+- Thinking blocks collapse smoothly and no longer lose their token-reveal animation
+
 ## [2026.7.13] - 2026-07-13
 
 ### Fixed

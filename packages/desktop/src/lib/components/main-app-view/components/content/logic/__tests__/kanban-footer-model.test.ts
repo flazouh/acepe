@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import type { QueueItemQuestionUiState } from "$lib/acp/components/queue/queue-item-question-ui-state.js";
+import type { QueueItemQuestionUiState } from "$lib/acp/components/session-attention/question-ui-state.js";
 import type { CompactPermissionDisplay } from "$lib/acp/components/tool-calls/permission-display.js";
 import type { PlanApprovalInteraction } from "$lib/acp/types/interaction.js";
 import type { PermissionRequest } from "$lib/acp/types/permission.js";
@@ -51,7 +51,9 @@ function makePermissionRequest(overrides: Partial<PermissionRequest> = {}): Perm
 	};
 }
 
-function makePlanApproval(overrides: Partial<PlanApprovalInteraction> = {}): PlanApprovalInteraction {
+function makePlanApproval(
+	overrides: Partial<PlanApprovalInteraction> = {}
+): PlanApprovalInteraction {
 	return {
 		id: "approval-1",
 		kind: "plan_approval",

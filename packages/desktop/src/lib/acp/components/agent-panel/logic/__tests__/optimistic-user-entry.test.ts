@@ -1,10 +1,6 @@
 import { describe, expect, it } from "bun:test";
-
+import type { TranscriptEntry, TranscriptViewportRow } from "../../../../../services/acp-types.js";
 import type { SessionEntry } from "../../../../application/dto/session-entry.js";
-import type {
-	TranscriptEntry,
-	TranscriptViewportRow,
-} from "../../../../../services/acp-types.js";
 import {
 	deriveCanonicalUserEntryPresence,
 	resolveOptimisticUserEntryForGraph,

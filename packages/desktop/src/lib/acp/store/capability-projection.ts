@@ -5,14 +5,15 @@
  * metadata) and derive the preview-state classification. GOD-safe — pure
  * canonical → display projection, no provider repair, no state.
  */
-import type {
-	ConfigOptionData as CanonicalConfigOptionData,
-	SessionGraphCapabilities,
-} from "../../services/acp-types.js";
+
 import type {
 	ModelsForDisplay,
 	ProviderMetadataProjection,
 } from "../../services/acp-provider-metadata.js";
+import type {
+	ConfigOptionData as CanonicalConfigOptionData,
+	SessionGraphCapabilities,
+} from "../../services/acp-types.js";
 import type { AvailableCommand } from "../types/available-command.js";
 import type { Mode, Model, SessionCapabilities } from "./types.js";
 

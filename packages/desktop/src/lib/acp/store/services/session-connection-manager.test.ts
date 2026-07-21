@@ -1,5 +1,6 @@
-import { ResultAsync, errAsync, okAsync } from "neverthrow";
+import { errAsync, okAsync, ResultAsync } from "neverthrow";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ProviderMetadataProjection } from "../../../services/acp-provider-metadata.js";
 import type {
 	CanonicalAgentId,
 	SessionModelState,
@@ -9,9 +10,10 @@ import type {
 	AvailableCommand,
 	ConfigOptionData,
 } from "../../../services/converted-session-types.js";
-import type { ProviderMetadataProjection } from "../../../services/acp-provider-metadata.js";
 import { TauriCommandError } from "../../../utils/tauri-client/invoke.js";
 import { AgentError, CreationFailureError } from "../../errors/app-error.js";
+import { extractProjectName } from "../../utils/path-utils.js";
+import { generateFallbackProjectColor } from "../../utils/project-utils.js";
 import type { SessionEventHandler } from "../session-event-handler.js";
 import type { ConnectionCompleteData } from "../session-event-service.svelte.js";
 import { SessionEventService } from "../session-event-service.svelte.js";
@@ -21,8 +23,6 @@ import type { IEntryManager } from "./interfaces/entry-manager.js";
 import type { ISessionStateReader } from "./interfaces/session-state-reader.js";
 import type { ISessionStateWriter } from "./interfaces/session-state-writer.js";
 import type { ITransientProjectionManager } from "./interfaces/transient-projection-manager.js";
-import { extractProjectName } from "../../utils/path-utils.js";
-import { generateFallbackProjectColor } from "../../utils/project-utils.js";
 
 let SessionConnectionManager: typeof import("./session-connection-manager.js").SessionConnectionManager;
 
@@ -81,12 +81,14 @@ function mockResidualStateReader(
 	(stateReader.getSessionAcpSessionId as ReturnType<typeof vi.fn>).mockReturnValue(
 		state.acpSessionId
 	);
-	(
-		stateReader.getSessionAutonomousTransitionBusy as ReturnType<typeof vi.fn>
-	).mockReturnValue(state.autonomousTransition !== "idle");
+	(stateReader.getSessionAutonomousTransitionBusy as ReturnType<typeof vi.fn>).mockReturnValue(
+		state.autonomousTransition !== "idle"
+	);
 }
 
-function expectNoCanonicalOverlapTransientProjectionWrites(updateTransientProjection: ReturnType<typeof vi.fn>): void {
+function expectNoCanonicalOverlapTransientProjectionWrites(
+	updateTransientProjection: ReturnType<typeof vi.fn>
+): void {
 	for (const call of updateTransientProjection.mock.calls) {
 		const updates = call[1];
 		for (const field of canonicalOverlapTransientProjectionFields) {
@@ -123,6 +125,7 @@ vi.mock("../api.js", () => ({
 
 const getSessionModelForMode = vi.fn();
 const setSessionModelForMode = vi.fn();
+const getDefaultModel = vi.fn();
 const updateModelsCache = vi.fn();
 const updateModelsDisplayCache = vi.fn();
 const updateModesCache = vi.fn();
@@ -135,6 +138,7 @@ const updateProviderMetadataCache = vi.fn();
 
 vi.mock("../agent-model-preferences-store.svelte.js", () => ({
 	getSessionModelForMode,
+	getDefaultModel,
 	setSessionModelForMode,
 	updateModelsCache,
 	updateModelsDisplayCache,
@@ -233,7 +237,11 @@ function createReadySnapshotEnvelope(input: {
 	readonly models: SessionModelState;
 	readonly modes: {
 		readonly currentModeId: string;
-		readonly availableModes: Array<{ readonly id: string; readonly name: string; readonly description: string | null }>;
+		readonly availableModes: Array<{
+			readonly id: string;
+			readonly name: string;
+			readonly description: string | null;
+		}>;
 	};
 }): SessionStateEnvelope {
 	const revision = {
@@ -415,6 +423,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		(stateReader.getSessionCurrentModeId as ReturnType<typeof vi.fn>).mockReturnValue(null);
 		(connectionManager.isConnecting as ReturnType<typeof vi.fn>).mockReturnValue(false);
 		ensureLoaded.mockReturnValue(okAsync(undefined));
+		getDefaultModel.mockReturnValue(null);
 		fetchCanonicalSessionStateEnvelope.mockReturnValue(errAsync(new Error("not polled")));
 		fetchSessionConnectionReadiness.mockReturnValue(errAsync(new Error("not polled")));
 		isSessionModelLoaded.mockReturnValue(true);
@@ -468,7 +477,9 @@ describe("SessionConnectionManager.connectSession", () => {
 		const result = await manager.connectSession(sessionId, createMockEventHandler());
 		result._unsafeUnwrap();
 
-		expectNoCanonicalOverlapTransientProjectionWrites(transientProjection.updateTransientProjection as ReturnType<typeof vi.fn>);
+		expectNoCanonicalOverlapTransientProjectionWrites(
+			transientProjection.updateTransientProjection as ReturnType<typeof vi.fn>
+		);
 	});
 
 	it("does not mutate historical content while attaching transport to a hydrated session", async () => {
@@ -553,7 +564,9 @@ describe("SessionConnectionManager.connectSession", () => {
 			undefined,
 			undefined
 		);
-		expectNoCanonicalOverlapTransientProjectionWrites(transientProjection.updateTransientProjection as ReturnType<typeof vi.fn>);
+		expectNoCanonicalOverlapTransientProjectionWrites(
+			transientProjection.updateTransientProjection as ReturnType<typeof vi.fn>
+		);
 	});
 
 	it("does not treat the hydrated current mode as a launch profile when reconnecting a session", async () => {
@@ -619,7 +632,9 @@ describe("SessionConnectionManager.connectSession", () => {
 		const result = await manager.connectSession(sessionId, createMockEventHandler());
 		result._unsafeUnwrap();
 
-		expectNoCanonicalOverlapTransientProjectionWrites(transientProjection.updateTransientProjection as ReturnType<typeof vi.fn>);
+		expectNoCanonicalOverlapTransientProjectionWrites(
+			transientProjection.updateTransientProjection as ReturnType<typeof vi.fn>
+		);
 	});
 
 	it("does not write cached provider metadata back as live reconnect metadata", async () => {
@@ -825,16 +840,13 @@ describe("SessionConnectionManager.connectSession", () => {
 		expect(updateModelsCache).toHaveBeenCalledWith("claude-code", [
 			{ id: "default", name: "Default", description: undefined },
 		]);
-		expect(updateModelsDisplayCache).toHaveBeenCalledWith(
-			"claude-code",
-			{
-				groups: [],
-				presentation: {
-					displayFamily: "claudeLike",
-					usageMetrics: "contextWindowOnly",
-				},
-			}
-		);
+		expect(updateModelsDisplayCache).toHaveBeenCalledWith("claude-code", {
+			groups: [],
+			presentation: {
+				displayFamily: "claudeLike",
+				usageMetrics: "contextWindowOnly",
+			},
+		});
 		expect(updateProviderMetadataCache).toHaveBeenCalledWith("claude-code", undefined);
 		expect(updateModesCache).toHaveBeenCalledWith("claude-code", [
 			{ id: "build", name: "Build", description: undefined },
@@ -1073,16 +1085,13 @@ describe("SessionConnectionManager.connectSession", () => {
 		const result = await manager.connectSession(sessionId, createMockEventHandler());
 		result._unsafeUnwrap();
 
-		expect(updateModelsDisplayCache).toHaveBeenCalledWith(
-			"codex",
-			{
-				groups: [],
-				presentation: {
-					displayFamily: "providerGrouped",
-					usageMetrics: "spendAndContext",
-				},
-			}
-		);
+		expect(updateModelsDisplayCache).toHaveBeenCalledWith("codex", {
+			groups: [],
+			presentation: {
+				displayFamily: "providerGrouped",
+				usageMetrics: "spendAndContext",
+			},
+		});
 	});
 
 	it("does not synthesize connection or capability transient projection on connect", async () => {
@@ -1100,7 +1109,9 @@ describe("SessionConnectionManager.connectSession", () => {
 		const result = await manager.connectSession(sessionId, createMockEventHandler());
 		result._unsafeUnwrap();
 
-		expectNoCanonicalOverlapTransientProjectionWrites(transientProjection.updateTransientProjection as ReturnType<typeof vi.fn>);
+		expectNoCanonicalOverlapTransientProjectionWrites(
+			transientProjection.updateTransientProjection as ReturnType<typeof vi.fn>
+		);
 	});
 
 	it("does not rely on reconnect-time pending event flush after lifecycle-driven connect completes", async () => {
@@ -1300,7 +1311,9 @@ describe("SessionConnectionManager.connectSession", () => {
 		const result = await manager.connectSession(sessionId, createMockEventHandler());
 
 		expect(result.isErr()).toBe(true);
-		expectNoCanonicalOverlapTransientProjectionWrites(transientProjection.updateTransientProjection as ReturnType<typeof vi.fn>);
+		expectNoCanonicalOverlapTransientProjectionWrites(
+			transientProjection.updateTransientProjection as ReturnType<typeof vi.fn>
+		);
 		expect(connectionManager.sendConnectionError).toHaveBeenCalledWith(sessionId);
 	});
 
@@ -1347,9 +1360,7 @@ describe("SessionConnectionManager.connectSession", () => {
 
 		// Lifecycle failure arrives while resumeSession invoke is still in-flight
 		rejectLifecycle(
-			new Error(
-				"Failed to install Claude CLI: Invalid configuration: Auto-download feature is not enabled."
-			)
+			new Error("Failed to install Claude CLI: Invalid configuration: managed install failed.")
 		);
 
 		// Yield to the event loop so Node/Bun has a chance to fire unhandledRejection
@@ -1802,7 +1813,8 @@ describe("SessionConnectionManager.createSession", () => {
 		result._unsafeUnwrap();
 
 		const initUpdate =
-			(transientProjection.initializeTransientProjection as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] ?? {};
+			(transientProjection.initializeTransientProjection as ReturnType<typeof vi.fn>).mock
+				.calls[0]?.[1] ?? {};
 		expect(Object.hasOwn(initUpdate, "availableCommands")).toBe(false);
 	});
 
@@ -1819,11 +1831,7 @@ describe("SessionConnectionManager.createSession", () => {
 		const result = await manager.createSession({ projectPath, agentId }, createMockEventHandler());
 		result._unsafeUnwrap();
 
-		expect(setSessionModelForMode).toHaveBeenCalledWith(
-			sessionId,
-			"build",
-			"gpt-5.2-codex/high"
-		);
+		expect(setSessionModelForMode).toHaveBeenCalledWith(sessionId, "build", "gpt-5.2-codex/high");
 		expect(connectionManager.initializeConnectedSession).not.toHaveBeenCalled();
 	});
 
@@ -1876,7 +1884,9 @@ describe("SessionConnectionManager.createSession", () => {
 			worktreePath: null,
 		});
 		expect(stateWriter.addSession).not.toHaveBeenCalled();
-		expect(transientProjection.initializeTransientProjection).toHaveBeenCalledWith("provider-requested-id");
+		expect(transientProjection.initializeTransientProjection).toHaveBeenCalledWith(
+			"provider-requested-id"
+		);
 	});
 
 	it("projects deferred creation identity onto the pending session result", async () => {
@@ -2325,7 +2335,8 @@ describe("SessionConnectionManager.createSession", () => {
 		expect(setSessionAutonomous).toHaveBeenCalledWith(sessionId, true);
 
 		const initUpdate =
-			(transientProjection.initializeTransientProjection as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] ?? {};
+			(transientProjection.initializeTransientProjection as ReturnType<typeof vi.fn>).mock
+				.calls[0]?.[1] ?? {};
 		expect(Object.hasOwn(initUpdate, "autonomousEnabled")).toBe(false);
 	});
 });
@@ -2476,7 +2487,9 @@ describe("SessionConnectionManager autonomous policy", () => {
 		expect(transientProjection.updateTransientProjection).toHaveBeenNthCalledWith(1, sessionId, {
 			autonomousTransition: "enabling",
 		});
-		expectNoCanonicalOverlapTransientProjectionWrites(transientProjection.updateTransientProjection as ReturnType<typeof vi.fn>);
+		expectNoCanonicalOverlapTransientProjectionWrites(
+			transientProjection.updateTransientProjection as ReturnType<typeof vi.fn>
+		);
 	});
 
 	it("syncs Autonomous for a disconnected session without storing local capability truth", async () => {
@@ -2498,7 +2511,9 @@ describe("SessionConnectionManager autonomous policy", () => {
 		result._unsafeUnwrap();
 
 		expect(setSessionAutonomous).toHaveBeenCalledWith(sessionId, true);
-		expectNoCanonicalOverlapTransientProjectionWrites(transientProjection.updateTransientProjection as ReturnType<typeof vi.fn>);
+		expectNoCanonicalOverlapTransientProjectionWrites(
+			transientProjection.updateTransientProjection as ReturnType<typeof vi.fn>
+		);
 	});
 
 	it("rolls Autonomous state back when backend policy sync fails", async () => {
@@ -2534,7 +2549,9 @@ describe("SessionConnectionManager autonomous policy", () => {
 		expect(transientProjection.updateTransientProjection).toHaveBeenNthCalledWith(2, sessionId, {
 			autonomousTransition: "idle",
 		});
-		expectNoCanonicalOverlapTransientProjectionWrites(transientProjection.updateTransientProjection as ReturnType<typeof vi.fn>);
+		expectNoCanonicalOverlapTransientProjectionWrites(
+			transientProjection.updateTransientProjection as ReturnType<typeof vi.fn>
+		);
 	});
 
 	it("does not reconnect sessions to enable Autonomous", async () => {
@@ -2667,7 +2684,9 @@ describe("SessionConnectionManager autonomous policy", () => {
 		expect(transientProjection.updateTransientProjection).toHaveBeenNthCalledWith(2, sessionId, {
 			autonomousTransition: "idle",
 		});
-		expectNoCanonicalOverlapTransientProjectionWrites(transientProjection.updateTransientProjection as ReturnType<typeof vi.fn>);
+		expectNoCanonicalOverlapTransientProjectionWrites(
+			transientProjection.updateTransientProjection as ReturnType<typeof vi.fn>
+		);
 	});
 
 	it("sets mode without an autonomous execution-profile retry", async () => {
@@ -2742,6 +2761,100 @@ describe("SessionConnectionManager autonomous policy", () => {
 		expect(setMode).toHaveBeenCalledWith(sessionId, "plan");
 		expect(setSessionAutonomous).toHaveBeenCalledWith(sessionId, false);
 		expect(transientProjection.updateTransientProjection).not.toHaveBeenCalled();
+	});
+
+	it("applies the agent default model when switching modes without a session model memory", async () => {
+		mockResidualStateReader(stateReader, { acpSessionId: sessionId });
+		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
+			id: sessionId,
+			projectPath: "/tmp/project",
+			agentId: "claude-code",
+			title: "Claude Session",
+			updatedAt: new Date(),
+			createdAt: new Date(),
+			parentId: null,
+		} satisfies SessionCold);
+		(stateReader.getSessionIdentity as ReturnType<typeof vi.fn>).mockReturnValue({
+			id: sessionId,
+			projectPath: "/tmp/project",
+			agentId: "claude-code",
+			worktreePath: null,
+		});
+		(capabilities.readCapabilities as ReturnType<typeof vi.fn>).mockReturnValue({
+			availableModes: [{ id: "plan", name: "Plan", description: null }],
+			availableModels: [
+				{ id: "model-a", name: "Model A", description: null },
+				{ id: "model-b", name: "Model B", description: null },
+			],
+			availableCommands: [],
+			modelsDisplay: undefined,
+		});
+		getSessionModelForMode.mockReturnValue(undefined);
+		getDefaultModel.mockReturnValue("model-b");
+		setMode.mockReturnValue(okAsync(undefined));
+		setModel.mockReturnValue(okAsync(undefined));
+
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			transientProjection,
+			capabilities,
+			entryManager,
+			connectionManager,
+		});
+
+		const result = await manager.setMode(sessionId, "plan");
+		expect(result.isOk()).toBe(true);
+
+		expect(getDefaultModel).toHaveBeenCalledWith("claude-code", null);
+		expect(setModel).toHaveBeenCalledWith(sessionId, "model-b");
+	});
+
+	it("prefers the remembered session model over the agent default model when switching modes", async () => {
+		mockResidualStateReader(stateReader, { acpSessionId: sessionId });
+		(stateReader.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
+			id: sessionId,
+			projectPath: "/tmp/project",
+			agentId: "claude-code",
+			title: "Claude Session",
+			updatedAt: new Date(),
+			createdAt: new Date(),
+			parentId: null,
+		} satisfies SessionCold);
+		(stateReader.getSessionIdentity as ReturnType<typeof vi.fn>).mockReturnValue({
+			id: sessionId,
+			projectPath: "/tmp/project",
+			agentId: "claude-code",
+			worktreePath: null,
+		});
+		(capabilities.readCapabilities as ReturnType<typeof vi.fn>).mockReturnValue({
+			availableModes: [{ id: "plan", name: "Plan", description: null }],
+			availableModels: [
+				{ id: "model-a", name: "Model A", description: null },
+				{ id: "model-b", name: "Model B", description: null },
+			],
+			availableCommands: [],
+			modelsDisplay: undefined,
+		});
+		getSessionModelForMode.mockReturnValue("model-a");
+		getDefaultModel.mockReturnValue("model-b");
+		setMode.mockReturnValue(okAsync(undefined));
+		setModel.mockReturnValue(okAsync(undefined));
+
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			transientProjection,
+			capabilities,
+			entryManager,
+			connectionManager,
+		});
+
+		const result = await manager.setMode(sessionId, "plan");
+		expect(result.isOk()).toBe(true);
+
+		expect(setModel).toHaveBeenCalledWith(sessionId, "model-a");
+		expect(getDefaultModel).not.toHaveBeenCalled();
 	});
 
 	it("does not sync Autonomous during mode switch when canonical autonomous state is unknown", async () => {
@@ -2942,7 +3055,9 @@ describe("SessionConnectionManager.cancelStreaming", () => {
 		result._unsafeUnwrap();
 
 		expect(connectionManager.sendResponseComplete).toHaveBeenCalledWith(sessionId);
-		expectNoCanonicalOverlapTransientProjectionWrites(transientProjection.updateTransientProjection as ReturnType<typeof vi.fn>);
+		expectNoCanonicalOverlapTransientProjectionWrites(
+			transientProjection.updateTransientProjection as ReturnType<typeof vi.fn>
+		);
 	});
 
 	it("does not send machine event when API call fails", async () => {
@@ -3079,6 +3194,8 @@ describe("SessionConnectionManager.disconnectSession", () => {
 				acpSessionId: null,
 			})
 		);
-		expectNoCanonicalOverlapTransientProjectionWrites(transientProjection.updateTransientProjection as ReturnType<typeof vi.fn>);
+		expectNoCanonicalOverlapTransientProjectionWrites(
+			transientProjection.updateTransientProjection as ReturnType<typeof vi.fn>
+		);
 	});
 });

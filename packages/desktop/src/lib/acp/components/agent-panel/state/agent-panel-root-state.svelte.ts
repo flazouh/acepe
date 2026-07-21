@@ -6,36 +6,34 @@
  * view glue until the next architecture units migrate those clusters.
  */
 
-import type { AgentPanelGraphMaterializerInput } from "../../../session-state/agent-panel-graph-materializer-types.js";
+import type { PanelViewStateInput } from "../../../logic/panel-visibility.js";
+import type { Project } from "../../../logic/project-manager.svelte.js";
+import type { AgentStore } from "../../../store/agent-store.svelte.js";
 import type { ChatPreferencesStore } from "../../../store/chat-preferences-store.svelte.js";
+import { checkpointStore } from "../../../store/checkpoint-store.svelte.js";
 import type { ConnectionStore } from "../../../store/connection-store.svelte.js";
 import type { InteractionStore } from "../../../store/interaction-store.svelte.js";
 import type { MessageQueueStore } from "../../../store/message-queue/index.js";
-import type { AgentStore } from "../../../store/agent-store.svelte.js";
 import type { PanelStore } from "../../../store/panel-store.svelte.js";
 import type { PermissionStore } from "../../../store/permission-store.svelte.js";
 import type { SessionStore } from "../../../store/session-store.svelte.js";
 import type { Checkpoint } from "../../../types/checkpoint.js";
-import {
-	type PanelConnectionErrorDetails,
-	type PanelConnectionState,
+import type {
+	PanelConnectionErrorDetails,
+	PanelConnectionState,
 } from "../../../types/panel-connection-state.js";
 import type { PreparedWorktreeLaunch } from "../../../types/worktree-info.js";
-import type { Project } from "../../../logic/project-manager.svelte.js";
-import type { PanelViewStateInput } from "../../../logic/panel-visibility.js";
-import { checkpointStore } from "../../../store/checkpoint-store.svelte.js";
 import { createPanelBranchLookupController } from "../logic/panel-branch-lookup.js";
 import { loadCheckpointsBeforeTimelineOpen } from "../services/index.js";
 import { AgentPanelLayoutController } from "./agent-panel-layout-controller.svelte.js";
-import { AgentPanelScenePipelineController } from "./agent-panel-scene-pipeline-controller.svelte.js";
 import { AgentPanelSessionController } from "./agent-panel-session-controller.svelte.js";
 import { AgentPanelState } from "./agent-panel-state.svelte.js";
 import { AgentPanelViewStateController } from "./agent-panel-view-state-controller.svelte.js";
 import { AgentPanelWorktreeController } from "./agent-panel-worktree-controller.svelte.js";
 import { CheckpointTimelineController } from "./checkpoint-timeline-controller.svelte.js";
 import {
-	createConnectionController,
 	type ConnectionControllerDeps,
+	createConnectionController,
 } from "./connection-controller.svelte.js";
 import { ContentScrollRevealController } from "./content-scroll-reveal-controller.svelte.js";
 import { PrCardController } from "./pr-card-controller.svelte.js";
@@ -79,10 +77,6 @@ export interface AgentPanelRootStateDeps {
 	readonly getHasPlan: () => boolean;
 	readonly getAgentName: () => string | null;
 	readonly getViewStateInput: (state: AgentPanelRootState) => PanelViewStateInput;
-	readonly getGraphMaterializerInput: (
-		state: AgentPanelRootState
-	) => AgentPanelGraphMaterializerInput;
-	readonly getPrefersReducedMotion: () => boolean;
 	readonly getWorktreeToggleProjectPath: () => string | null;
 	readonly getPanelPendingWorktreeEnabled: () => boolean | null;
 	readonly getPanelPreparedWorktreeLaunch: () => PreparedWorktreeLaunch | null;
@@ -121,7 +115,6 @@ export class AgentPanelRootState {
 	readonly worktreeSetup: WorktreeSetupController;
 	readonly worktreeController: AgentPanelWorktreeController;
 	readonly viewStateController: AgentPanelViewStateController;
-	readonly scenePipelineController: AgentPanelScenePipelineController;
 	readonly prCard: PrCardController;
 	readonly reviewDialog: ReviewDialogController;
 
@@ -196,15 +189,6 @@ export class AgentPanelRootState {
 
 		this.viewStateController = new AgentPanelViewStateController({
 			getViewStateInput: () => deps.getViewStateInput(this),
-		});
-
-		this.scenePipelineController = new AgentPanelScenePipelineController({
-			getSessionId: deps.getSessionId,
-			getGraphMaterializerInput: () => deps.getGraphMaterializerInput(this),
-			sessionStore: this.sessionStore,
-			chatPreferencesStore: this.chatPreferencesStore,
-			getPrefersReducedMotion: deps.getPrefersReducedMotion,
-			contentScrollReveal: this.contentScrollReveal,
 		});
 
 		this.prCard = new PrCardController();

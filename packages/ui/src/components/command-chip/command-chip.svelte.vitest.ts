@@ -36,7 +36,7 @@ describe("CommandChip Hugeicons", () => {
 
 		expect(getByText("Model")).toBeTruthy();
 		expect(getByText("Opus")).toBeTruthy();
-		const icons = Array.from(container.querySelectorAll('svg[viewBox="0 0 20 20"]'));
+		const icons = Array.from(container.querySelectorAll('svg[viewBox="0 0 24 24"]'));
 		expect(icons).toHaveLength(2);
 		expect(icons[0]?.getAttribute("class")).toContain("h-3.5");
 		expect(icons[1]?.getAttribute("class")).toContain("rotate-180");

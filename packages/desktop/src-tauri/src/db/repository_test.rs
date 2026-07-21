@@ -451,7 +451,7 @@ mod session_metadata_tests {
         let projection_registry = ProjectionRegistry::new();
         projection_registry.apply_session_update("session-journal", &question_update);
         let answered_question = projection_registry
-            .resolve_interaction(
+            .prepare_interaction_resolution(
                 "session-journal",
                 "question-1",
                 InteractionState::Answered,
@@ -475,7 +475,7 @@ mod session_metadata_tests {
         let journal = decode_serialized_events(&replay_context, serialized).unwrap();
         assert_eq!(journal.len(), 2);
         assert_eq!(journal[0].event_seq, 1);
-        assert_eq!(journal[1].event_seq, 2);
+        assert_eq!(journal[1].event_seq, 3);
 
         let replayed = rebuild_session_projection(&replay_context, &journal);
 
@@ -486,7 +486,7 @@ mod session_metadata_tests {
             session.agent_id,
             Some(crate::acp::types::CanonicalAgentId::ClaudeCode)
         );
-        assert_eq!(session.last_event_seq, 2);
+        assert_eq!(session.last_event_seq, 3);
         assert_eq!(replayed.interactions.len(), 2);
         assert!(replayed
             .interactions
@@ -504,6 +504,88 @@ mod session_metadata_tests {
             }
             other => panic!("expected answered question response, got {:?}", other),
         }
+    }
+
+    #[tokio::test]
+    async fn interaction_transition_replay_uses_its_stored_event_sequence() {
+        let db = setup_test_db().await;
+        let session_id = "interaction-transition-sequence-replay";
+        ensure_test_session(&db, session_id).await;
+        let permission_update = SessionUpdate::PermissionRequest {
+            permission: PermissionData {
+                id: "permission-1".to_string(),
+                session_id: session_id.to_string(),
+                json_rpc_request_id: Some(7),
+                reply_handler: Some(
+                    crate::acp::session_update::InteractionReplyHandler::json_rpc(7),
+                ),
+                permission: "Execute".to_string(),
+                patterns: vec![],
+                metadata: json!({ "command": "bun test" }),
+                always: vec![],
+                auto_accepted: false,
+                tool: None,
+            },
+            session_id: Some(session_id.to_string()),
+        };
+        SessionEventWriter::commit_session_update(&db, session_id, &permission_update)
+            .await
+            .expect("persist permission request");
+        SessionEventWriter::commit_session_update(
+            &db,
+            session_id,
+            &SessionUpdate::CurrentModeUpdate {
+                update: crate::acp::session_update::CurrentModeData {
+                    current_mode_id: "plan".to_string(),
+                },
+                session_id: Some(session_id.to_string()),
+            },
+        )
+        .await
+        .expect("claim non-journaled sequence");
+        SessionJournalEventRepository::append_interaction_transition(
+            &db,
+            session_id,
+            "permission-1",
+            InteractionState::Approved,
+            InteractionResponse::Permission {
+                accepted: true,
+                option_id: Some("allow_once".to_string()),
+                reply: Some("once".to_string()),
+            },
+        )
+        .await
+        .expect("persist interaction transition");
+
+        let replay_context = replay_context_for_session(&db, session_id).await;
+        let serialized = SessionJournalEventRepository::list_serialized(&db, session_id)
+            .await
+            .expect("load sparse journal");
+        let journal =
+            decode_serialized_events(&replay_context, serialized).expect("decode journal");
+        assert_eq!(
+            journal
+                .iter()
+                .map(|event| event.event_seq)
+                .collect::<Vec<_>>(),
+            vec![1, 3]
+        );
+
+        let replayed = rebuild_session_projection(&replay_context, &journal);
+        let interaction = replayed
+            .interactions
+            .iter()
+            .find(|interaction| interaction.id == "permission-1")
+            .expect("replayed permission interaction");
+        assert_eq!(interaction.state, InteractionState::Approved);
+        assert_eq!(interaction.responded_at_event_seq, Some(3));
+        assert_eq!(
+            replayed
+                .session
+                .expect("replayed session projection")
+                .last_event_seq,
+            3
+        );
     }
 
     #[tokio::test]
@@ -612,7 +694,7 @@ mod session_metadata_tests {
         let projection_registry = ProjectionRegistry::new();
         projection_registry.apply_session_update("session-question", &question_update);
         let answered_question = projection_registry
-            .resolve_interaction(
+            .prepare_interaction_resolution(
                 "session-question",
                 "question-1",
                 InteractionState::Answered,
@@ -690,7 +772,7 @@ mod session_metadata_tests {
             .expect("query should succeed");
 
         assert_eq!(
-            max_seq,
+            max_seq.map(|seq| seq.get()),
             Some(3),
             "three events → last_assigned_event_seq should be 3"
         );
@@ -741,8 +823,16 @@ mod session_metadata_tests {
             .await
             .expect("query b");
 
-        assert_eq!(max_a, Some(2), "session A should have max_seq=2");
-        assert_eq!(max_b, Some(5), "session B should have max_seq=5");
+        assert_eq!(
+            max_a.map(|event_seq| event_seq.get()),
+            Some(2),
+            "session A should have max_seq=2"
+        );
+        assert_eq!(
+            max_b.map(|event_seq| event_seq.get()),
+            Some(5),
+            "session B should have max_seq=5"
+        );
     }
 
     #[tokio::test]
@@ -1143,6 +1233,171 @@ mod session_metadata_tests {
         assert_eq!(metadata.scope, empty_scope);
         assert_eq!(metadata.row_count, 0);
         assert!(rows.is_empty());
+    }
+
+    #[tokio::test]
+    async fn full_scope_replacement_rejects_empty_operation_scope() {
+        let db = setup_test_db().await;
+        let session_id = "ledger-invalid-empty-full-scope-session";
+        ensure_test_session(&db, session_id).await;
+
+        let error = SessionTranscriptRowLedgerRepository::replace_current_scopes(
+            &db,
+            session_id,
+            "projection-v1",
+            7,
+            11,
+            13,
+            None,
+            vec![
+                SerializedTranscriptRowLedgerScope {
+                    scope: TranscriptScope::Root,
+                    rows: vec![serialized_ledger_row(
+                        session_id,
+                        0,
+                        "root-task",
+                        "operation",
+                    )],
+                },
+                SerializedTranscriptRowLedgerScope {
+                    scope: TranscriptScope::Operation(String::new()),
+                    rows: Vec::new(),
+                },
+            ],
+        )
+        .await
+        .expect_err("empty operation scope must reject full replacement");
+        assert!(error
+            .to_string()
+            .contains("invalid transcript row scope key"));
+
+        let root = SessionTranscriptRowLedgerRepository::read_range_page(
+            &db,
+            session_id,
+            "projection-v1",
+            0,
+            10,
+        )
+        .await
+        .expect("root ledger read after rejected replacement");
+        assert_eq!(root, SessionTranscriptRowLedgerRead::Missing);
+    }
+
+    #[tokio::test]
+    async fn changed_scope_replacement_rejects_empty_operation_scope_atomically() {
+        let db = setup_test_db().await;
+        let session_id = "ledger-invalid-empty-changed-scope-session";
+        ensure_test_session(&db, session_id).await;
+        SessionTranscriptRowLedgerRepository::replace_current(
+            &db,
+            session_id,
+            "projection-v1",
+            7,
+            11,
+            13,
+            None,
+            vec![serialized_ledger_row(
+                session_id,
+                0,
+                "root-task",
+                "operation",
+            )],
+        )
+        .await
+        .expect("initial root ledger");
+
+        let mut replacement = serialized_ledger_row(session_id, 0, "root-task", "operation");
+        replacement.projection_version = "projection-v2".to_string();
+        replacement.transcript_revision = 8;
+        replacement.graph_revision = 12;
+        let error = SessionTranscriptRowLedgerRepository::replace_changed_scopes(
+            &db,
+            session_id,
+            "projection-v2",
+            8,
+            12,
+            14,
+            None,
+            vec![
+                SerializedTranscriptRowLedgerScope {
+                    scope: TranscriptScope::Root,
+                    rows: vec![replacement],
+                },
+                SerializedTranscriptRowLedgerScope {
+                    scope: TranscriptScope::Operation(String::new()),
+                    rows: Vec::new(),
+                },
+            ],
+        )
+        .await
+        .expect_err("empty operation scope must reject changed replacement");
+        assert!(error
+            .to_string()
+            .contains("invalid transcript row scope key"));
+
+        let root = SessionTranscriptRowLedgerRepository::read_range_page(
+            &db,
+            session_id,
+            "projection-v1",
+            0,
+            10,
+        )
+        .await
+        .expect("original root scope read");
+        let SessionTranscriptRowLedgerRead::Current { metadata, rows } = root else {
+            panic!("failed replacement must leave the original ledger current");
+        };
+        assert_eq!(metadata.last_event_seq, 13);
+        assert_eq!(metadata.projection_version, "projection-v1");
+        assert_eq!(rows[0].row_version, "v-0");
+    }
+
+    #[tokio::test]
+    async fn transcript_row_ledger_read_rejects_empty_operation_scope_metadata() {
+        let db = setup_test_db().await;
+        let session_id = "ledger-invalid-empty-metadata-scope-session";
+        ensure_test_session(&db, session_id).await;
+        SessionTranscriptRowLedgerRepository::replace_current(
+            &db,
+            session_id,
+            "projection-v1",
+            7,
+            11,
+            13,
+            None,
+            vec![serialized_ledger_row(
+                session_id,
+                0,
+                "root-task",
+                "operation",
+            )],
+        )
+        .await
+        .expect("initial root ledger");
+        db.execute(Statement::from_string(
+            db.get_database_backend(),
+            format!(
+                "INSERT INTO session_transcript_row_scope \
+                 (session_id, scope_key, row_count, updated_at) \
+                 VALUES ('{session_id}', 'operation:', 0, CURRENT_TIMESTAMP)"
+            ),
+        ))
+        .await
+        .expect("seed invalid empty operation scope metadata");
+
+        let error = SessionTranscriptRowLedgerRepository::read_range_page_for_scope(
+            &db,
+            session_id,
+            "projection-v1",
+            &TranscriptScope::Operation(String::new()),
+            0,
+            10,
+        )
+        .await
+        .expect_err("invalid persisted empty operation scope must reject the read");
+        assert!(error
+            .to_string()
+            .contains("invalid persisted transcript row scope key"));
     }
 
     #[tokio::test]
@@ -2781,6 +3036,44 @@ mod session_metadata_tests {
         .unwrap();
 
         assert_eq!(promoted.sequence_id, Some(1));
+    }
+
+    #[tokio::test]
+    async fn promoting_consumed_creation_attempt_for_same_provider_session_is_idempotent() {
+        let db = setup_test_db().await;
+        let attempt = SessionMetadataRepository::create_creation_attempt(
+            &db,
+            "/project",
+            "claude-code",
+            None,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+        let first_promotion = SessionMetadataRepository::promote_creation_attempt(
+            &db,
+            &attempt.id,
+            "provider-canonical-id",
+        )
+        .await
+        .unwrap();
+
+        let duplicate_promotion = SessionMetadataRepository::promote_creation_attempt(
+            &db,
+            &attempt.id,
+            "provider-canonical-id",
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(duplicate_promotion.id, first_promotion.id);
+        assert_eq!(duplicate_promotion.sequence_id, first_promotion.sequence_id);
+        assert_eq!(
+            duplicate_promotion.history_session_id(),
+            "provider-canonical-id"
+        );
     }
 
     #[tokio::test]

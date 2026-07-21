@@ -224,8 +224,7 @@ function createMergedSnapshotArray<TSnapshot extends SnapshotWithId>(
 					return selectMergedSnapshot(base, patchedIndexes, appended, index);
 				}
 				if (property === "slice") {
-					return (start?: number, end?: number) =>
-						Array.prototype.slice.call(receiver, start, end);
+					return (start?: number, end?: number) => Array.prototype.slice.call(receiver, start, end);
 				}
 			}
 			const value = Reflect.get(targetArray, property, receiver);
@@ -310,4 +309,3 @@ export function mergeInteractionSnapshots(
 	}
 	return next;
 }
-

@@ -1,6 +1,7 @@
 <script lang="ts">
 import type { WorkerPoolManager } from "@pierre/diffs/worker";
 
+import { Button } from "../button/index.js";
 import { FilePathBadge } from "../file-path-badge/index.js";
 import { HugeiconsIcon } from "../icons/index.js";
 import ToolHeaderLeading from "./tool-header-leading.svelte";
@@ -166,7 +167,7 @@ function expand() {
 
 <AgentToolCard>
 	<!-- Header: fixed h-6 height to prevent layout shift -->
-	<div role="group" class="flex h-6 items-center justify-between pl-2 pr-1.5 text-sm">
+	<div role="group" class="flex h-6 items-center justify-between gap-1.5 pl-2 pr-0.5 text-sm">
 		<!-- Left side: label + file info -->
 		<div class="flex items-center gap-1 truncate flex-1 min-w-0">
 			{#if displayModel.displayedFilePath && !displayModel.hasMultipleDiffs}
@@ -202,24 +203,31 @@ function expand() {
 		</div>
 
 		<!-- Right side: elapsed label + expand button -->
-		<div class="ml-1.5 flex shrink-0 items-center gap-1.5">
+		<div class="ml-1.5 flex shrink-0 items-center gap-1">
 			<AgentToolDurationLabel
 				timing={durationTiming}
 				class="font-sans text-xs"
 			/>
 			{#if !isPending && displayModel.hasContent}
-					<button
-						type="button"
-						onclick={toggleExpand}
-						class="flex items-center justify-center p-0.5 rounded-sm bg-transparent border-none text-muted-foreground cursor-pointer transition-colors hover:bg-muted/50 hover:text-foreground"
-						aria-label={isExpanded ? ariaCollapseDiff : ariaExpandDiff}
-						aria-expanded={isExpanded}
-					>
-						<HugeiconsIcon name="chevron-right" class="size-3 shrink-0 text-muted-foreground transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}"
+				<Button
+					variant="ghost"
+					size="icon-sm"
+					data-header-control
+					class="text-muted-foreground"
+					onclick={toggleExpand}
+					aria-label={isExpanded ? ariaCollapseDiff : ariaExpandDiff}
+					aria-expanded={isExpanded}
+					title={isExpanded ? ariaCollapseDiff : ariaExpandDiff}
+				>
+					{#snippet children()}
+						<HugeiconsIcon
+							name="chevron-right"
+							class="transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}"
 						/>
-					</button>
-				{/if}
-			</div>
+					{/snippet}
+				</Button>
+			{/if}
+		</div>
 	</div>
 
 	<!-- Pierre diffs content -->

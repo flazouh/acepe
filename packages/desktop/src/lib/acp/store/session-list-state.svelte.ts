@@ -8,7 +8,9 @@
  * derived list/index data, never canonical session-graph truth.
  */
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
-import type { SessionCold, SessionMutableColdUpdates } from "./types.js";
+import { sessionColdFromSlices } from "../application/dto/session-cold.js";
+import type { SessionPrLinkReference } from "../application/dto/session-linked-pr.js";
+import { createLogger } from "../utils/logger.js";
 import {
 	createPatchedReferenceArray,
 	createPatchedSessionColdArray,
@@ -22,18 +24,20 @@ import {
 	rebuildSessionIdsByProjectIndex,
 	rebuildSessionPaletteReferences,
 	rebuildSessionsByProjectIndex,
+	type SessionLiveSyncReference,
+	type SessionPaletteReference,
 	sessionColdFromExistingSession,
 	sessionColdWithMutableUpdates,
 	sessionLiveSyncReferenceFromSession,
 	sessionPaletteReferenceFromSession,
-	type SessionLiveSyncReference,
-	type SessionPaletteReference,
 } from "./session-cold-index.js";
-import { sessionColdFromSlices } from "../application/dto/session-cold.js";
-import type { SessionPrLinkReference } from "../application/dto/session-linked-pr.js";
 import type { SessionEntryStore } from "./session-entry-store.svelte.js";
-import type { SessionIdentity, SessionMetadata } from "./types.js";
-import { createLogger } from "../utils/logger.js";
+import type {
+	SessionCold,
+	SessionIdentity,
+	SessionMetadata,
+	SessionMutableColdUpdates,
+} from "./types.js";
 
 const logger = createLogger({ id: "session-list-state", name: "SessionListState" });
 

@@ -42,6 +42,7 @@ type DemoConfigOption = {
 	type: string;
 	currentValue: string;
 	options: { value: string; name: string }[];
+	presentation: "compactReasoning";
 };
 
 const noop = () => {};
@@ -89,7 +90,10 @@ type DemoPanel = {
 	editorRef: HTMLDivElement | null;
 };
 
-const availableModes = [{ id: "plan" }, { id: "build" }] as const;
+const availableModes = [
+	{ id: "plan", label: "Plan", description: null, iconKind: "plan" as const },
+	{ id: "build", label: "Build", description: null, iconKind: "agent" as const },
+] as const;
 const composerPlaceholder = "Plan, @ for context, / for commands";
 
 const theme = $derived($websiteThemeStore);
@@ -101,6 +105,7 @@ function createConfigOption(currentValue: "true" | "false"): DemoConfigOption {
 		category: "reasoning",
 		type: "boolean",
 		currentValue,
+		presentation: "compactReasoning",
 		options: [
 			{ value: "true", name: "On" },
 			{ value: "false", name: "Off" },
@@ -396,14 +401,14 @@ const demoModifiedFiles: readonly AgentPanelModifiedFileItem[] = [
 		filePath: "packages/desktop/src/lib/keyboard/panel-keyboard-handler.ts",
 		additions: 14,
 		deletions: 2,
-		reviewStatus: "accepted",
+		reviewStatus: "reviewed",
 	},
 	{
 		id: "f2",
 		filePath: "packages/desktop/src/lib/stores/panel-focus-store.ts",
 		additions: 6,
 		deletions: 0,
-		reviewStatus: "partial",
+		reviewStatus: "unreviewed",
 	},
 	{
 		id: "f3",
@@ -415,8 +420,6 @@ const demoModifiedFiles: readonly AgentPanelModifiedFileItem[] = [
 
 const demoModifiedFilesTrailing: AgentPanelModifiedFilesTrailingModel = {
 	reviewLabel: "Review",
-	keepState: "enabled",
-	keepLabel: "Keep",
 	reviewedCount: 1,
 	totalCount: 3,
 };
@@ -815,9 +818,9 @@ let { bare = false }: Props = $props();
 									<AgentInputAttachMenu
 										modes={availableModes.map((mode) => ({
 											id: mode.id,
-											label: mode.label ?? mode.name ?? mode.id,
-											description: mode.description ?? null,
-											iconKind: mode.iconKind ?? "unknown",
+											label: mode.label,
+											description: mode.description,
+											iconKind: mode.iconKind,
 											selected: mode.id === panel.currentModeId,
 										}))}
 										onModeChange={(modeId) => handleModeChange(panel.id, modeId)}
@@ -868,10 +871,8 @@ let { bare = false }: Props = $props();
 												modelGroups={panel.modelGroups}
 												favoriteModels={getFavoriteModels(panel)}
 												onModelChange={(modelId) => handleModelChange(panel.id, modelId)}
-												onSetBuildDefault={(modelId) =>
-													handleSetModeDefault(panel.id, modelId, "build")}
-												onSetPlanDefault={(modelId) =>
-													handleSetModeDefault(panel.id, modelId, "plan")}
+												onDefaultModelToggle={(modelId) =>
+													handleSetModeDefault(panel.id, modelId, panel.currentModeId)}
 												onToggleFavorite={(modelId) => handleToggleFavorite(panel.id, modelId)}
 											/>
 										{/snippet}

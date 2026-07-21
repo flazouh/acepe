@@ -34,7 +34,9 @@ const canonicalOverlapTransientProjectionFields = [
 	"lastTerminalTurnId",
 ] as const;
 
-function expectNoCanonicalOverlapTransientProjectionWrites(updateTransientProjection: ReturnType<typeof vi.fn>): void {
+function expectNoCanonicalOverlapTransientProjectionWrites(
+	updateTransientProjection: ReturnType<typeof vi.fn>
+): void {
 	for (const call of updateTransientProjection.mock.calls) {
 		const updates = call[1];
 		for (const field of canonicalOverlapTransientProjectionFields) {
@@ -167,9 +169,9 @@ describe("SessionMessagingService.handleCanonicalTurnComplete", () => {
 				pendingSendIntent: null,
 			})
 		);
-		const updates = (deps.transientProjectionManager.updateTransientProjection as ReturnType<typeof vi.fn>).mock.calls.map(
-			(call) => call[1]
-		);
+		const updates = (
+			deps.transientProjectionManager.updateTransientProjection as ReturnType<typeof vi.fn>
+		).mock.calls.map((call) => call[1]);
 		expect(updates).not.toContainEqual(
 			expect.objectContaining({ observedTerminalTurn: expect.anything() })
 		);
@@ -182,7 +184,9 @@ describe("SessionMessagingService.handleCanonicalTurnComplete", () => {
 				callOrder.push("sendResponseComplete");
 			}
 		);
-		(deps.transientProjectionManager.updateTransientProjection as ReturnType<typeof vi.fn>).mockImplementation(() => {
+		(
+			deps.transientProjectionManager.updateTransientProjection as ReturnType<typeof vi.fn>
+		).mockImplementation(() => {
 			callOrder.push("updateTransientProjection");
 		});
 
@@ -195,7 +199,9 @@ describe("SessionMessagingService.handleCanonicalTurnComplete", () => {
 	});
 
 	it("does not let stale completed transient projection suppress the stream-complete event", () => {
-		(deps.transientProjectionManager.getTransientProjection as ReturnType<typeof vi.fn>).mockReturnValue({
+		(
+			deps.transientProjectionManager.getTransientProjection as ReturnType<typeof vi.fn>
+		).mockReturnValue({
 			turnState: "completed",
 		});
 		(deps.connectionManager.isResponseInProgress as ReturnType<typeof vi.fn>).mockReturnValue(true);
@@ -210,7 +216,9 @@ describe("SessionMessagingService.handleCanonicalTurnComplete", () => {
 	});
 
 	it("does not treat stale completed transient projection as idempotency authority", () => {
-		(deps.transientProjectionManager.getTransientProjection as ReturnType<typeof vi.fn>).mockReturnValue({
+		(
+			deps.transientProjectionManager.getTransientProjection as ReturnType<typeof vi.fn>
+		).mockReturnValue({
 			turnState: "completed",
 		});
 		(deps.connectionManager.isResponseInProgress as ReturnType<typeof vi.fn>).mockReturnValue(true);
@@ -225,7 +233,9 @@ describe("SessionMessagingService.handleCanonicalTurnComplete", () => {
 
 	it("is idempotent when canonical turn state is already completed and machine is ready", () => {
 		deps.stateReader.getSessionTurnState = vi.fn().mockReturnValue("Completed");
-		(deps.connectionManager.isResponseInProgress as ReturnType<typeof vi.fn>).mockReturnValue(false);
+		(deps.connectionManager.isResponseInProgress as ReturnType<typeof vi.fn>).mockReturnValue(
+			false
+		);
 
 		service.handleCanonicalTurnComplete(sessionId);
 
@@ -236,7 +246,9 @@ describe("SessionMessagingService.handleCanonicalTurnComplete", () => {
 	});
 
 	it("does not let stale failed transient projection suppress a turnComplete", () => {
-		(deps.transientProjectionManager.getTransientProjection as ReturnType<typeof vi.fn>).mockReturnValue({
+		(
+			deps.transientProjectionManager.getTransientProjection as ReturnType<typeof vi.fn>
+		).mockReturnValue({
 			turnState: "error",
 			lastTerminalTurnId: "turn-1",
 		});
@@ -263,7 +275,9 @@ describe("SessionMessagingService.handleCanonicalTurnComplete", () => {
 	});
 
 	it("does not let stale failed transient projection with null turn id suppress a turnComplete", () => {
-		(deps.transientProjectionManager.getTransientProjection as ReturnType<typeof vi.fn>).mockReturnValue({
+		(
+			deps.transientProjectionManager.getTransientProjection as ReturnType<typeof vi.fn>
+		).mockReturnValue({
 			turnState: "error",
 			lastTerminalTurnId: null,
 		});
@@ -283,7 +297,9 @@ describe("SessionMessagingService.handleCanonicalTurnComplete", () => {
 	});
 
 	it("passes agent context when creating auto-checkpoints", () => {
-		(deps.transientProjectionManager.getTransientProjection as ReturnType<typeof vi.fn>).mockReturnValue({
+		(
+			deps.transientProjectionManager.getTransientProjection as ReturnType<typeof vi.fn>
+		).mockReturnValue({
 			turnState: "streaming",
 		});
 		(deps.stateReader.getSessionIdentity as ReturnType<typeof vi.fn>).mockReturnValue({

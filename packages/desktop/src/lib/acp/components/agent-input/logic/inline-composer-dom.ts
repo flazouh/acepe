@@ -1,11 +1,11 @@
 import { buildChipShellClassName } from "@acepe/ui/chip";
+import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
 import {
 	buildInlineArtefactIconClassName,
 	buildInlineArtefactLabelClassName,
 	INLINE_ARTEFACT_CLIPBOARD_PATH,
 	INLINE_ARTEFACT_PACKAGE_PATH,
 } from "@acepe/ui/inline-artefact-badge";
-import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
 import { getFallbackIconSrc, getFileIconSrc } from "$lib/components/ui/file-icon/extension-map.js";
 
 import {
@@ -15,6 +15,56 @@ import {
 
 const TOKEN_ATTR_TYPE = "data-inline-token-type";
 const TOKEN_ATTR_VALUE = "data-inline-token-value";
+
+/**
+ * Strip browser-inserted invisible/control characters from composer text.
+ * Keeps newlines and tabs. Drops C0 controls (including U+001D group separator
+ * that WebKit sometimes inserts on ArrowRight), BOM, and object-replacement.
+ * ZWSP is stripped from DOM serialization by default, but preserved when cleaning
+ * the message model so paste guards (`@\u200B[`) stay intact.
+ */
+export function sanitizeInlineComposerText(
+	text: string,
+	options?: { readonly preserveZeroWidthSpace?: boolean }
+): string {
+	const pattern = options?.preserveZeroWidthSpace
+		? // biome-ignore lint/suspicious/noControlCharactersInRegex: Composer sanitization intentionally matches these control-code ranges.
+			/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\uFEFF\uFFFC]/g
+		: // biome-ignore lint/suspicious/noControlCharactersInRegex: Composer sanitization intentionally matches these control-code ranges.
+			/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\u200B\uFEFF\uFFFC]/g;
+	return text.replace(pattern, "");
+}
+
+export function shouldBlockComposerBeforeInput(event: {
+	readonly inputType: string;
+	readonly data: string | null;
+}): boolean {
+	if (event.inputType !== "insertText" && event.inputType !== "insertReplacementText") {
+		return false;
+	}
+	const data = event.data ?? "";
+	if (data.length === 0) {
+		return false;
+	}
+	return sanitizeInlineComposerText(data).length === 0;
+}
+
+/** Remove control characters from live text nodes. Preserves caret ZWSP spacers. */
+export function scrubInlineComposerControlCharacters(editor: HTMLElement): boolean {
+	let changed = false;
+	const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+	let node = walker.nextNode();
+	while (node) {
+		const text = node.textContent ?? "";
+		const cleaned = sanitizeInlineComposerText(text, { preserveZeroWidthSpace: true });
+		if (cleaned !== text) {
+			node.textContent = cleaned;
+			changed = true;
+		}
+		node = walker.nextNode();
+	}
+	return changed;
+}
 
 export function toInlineTokenText(tokenType: InlineArtefactTokenType, value: string): string {
 	return `@[${tokenType}:${value}]`;
@@ -212,7 +262,7 @@ export function serializeInlineComposerMessage(editor: HTMLElement): string {
 
 	while (node) {
 		if (node.nodeType === Node.TEXT_NODE) {
-			result += (node.textContent ?? "").replace(/\u200B/g, "");
+			result += sanitizeInlineComposerText(node.textContent ?? "");
 			node = walker.nextNode();
 			continue;
 		}

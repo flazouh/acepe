@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import {
-	PanelBrowserState,
-	type PanelBrowserStateDeps,
-} from "../panel-browser-state.svelte.js";
+import { PanelBrowserState, type PanelBrowserStateDeps } from "../panel-browser-state.svelte.js";
 import type { TopLevelPanelCloseState } from "../panel-terminal-state.svelte.js";
 import type { WorkspacePanel } from "../types.js";
 
@@ -13,9 +10,10 @@ vi.mock("../../../utils/tauri-client/browser-webview.js", () => ({
 	},
 }));
 
-function createBrowserState(
-	overrides?: Partial<PanelBrowserStateDeps>
-): { state: PanelBrowserState; workspacePanels: WorkspacePanel[] } {
+function createBrowserState(overrides?: Partial<PanelBrowserStateDeps>): {
+	state: PanelBrowserState;
+	workspacePanels: WorkspacePanel[];
+} {
 	let workspacePanels: WorkspacePanel[] = [];
 
 	const deps: PanelBrowserStateDeps = {

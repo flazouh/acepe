@@ -5,31 +5,14 @@
  * prefix-patch / append / patch+append / truncation — falling back to a full
  * rebuild when the shape isn't stable. Pure; selected by the dispatcher.
  */
-import type { TranscriptEntry } from "../../services/acp-types.js";
+
 import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel/types";
+import type { TranscriptEntry } from "../../services/acp-types.js";
+import { scenePatchIdentity } from "../components/agent-panel/logic/scene-patch.js";
 import type {
 	CachedConversationInput,
 	CachedConversationState,
 } from "./conversation-cache-types.js";
-import {
-	addSceneEntryPatch,
-	createAppendedSceneEntryArray,
-	createInsertedSceneEntryArray,
-	createPatchedSceneEntryArray,
-	createTruncatedSceneEntryArray,
-
-	conversationFromSceneEntryArrayResult,} from "./scene-entry-array.js";
-import { scenePatchIdentity } from "../components/agent-panel/logic/scene-patch.js";
-import {
-	createAppendedSceneEntryRowIndex,
-	createSplicedSceneEntryRowIndex,
-	createTruncatedSceneEntryRowIndex,
-} from "./scene-entry-row-index.js";
-import { materializeTranscriptEntry } from "./entry-materializers.js";
-import {
-	createAppendedTranscriptEntryIndex,
-	createTruncatedTranscriptEntryIndex,
-} from "./interaction-index-patch.js";
 import {
 	collectAppendedTranscriptEntries,
 	collectStableTranscriptPatchedEntriesByIndex,
@@ -37,13 +20,31 @@ import {
 	isStableTranscriptPatchAndAppend,
 	isStableTranscriptTruncation,
 } from "./conversation-stability.js";
+import { materializeTranscriptEntry } from "./entry-materializers.js";
+import {
+	createAppendedTranscriptEntryIndex,
+	createTruncatedTranscriptEntryIndex,
+} from "./interaction-index-patch.js";
+import { createPatchedReadonlyMap } from "./patched-readonly-map.js";
+import {
+	addSceneEntryPatch,
+	conversationFromSceneEntryArrayResult,
+	createAppendedSceneEntryArray,
+	createInsertedSceneEntryArray,
+	createPatchedSceneEntryArray,
+	createTruncatedSceneEntryArray,
+} from "./scene-entry-array.js";
+import {
+	createAppendedSceneEntryRowIndex,
+	createSplicedSceneEntryRowIndex,
+	createTruncatedSceneEntryRowIndex,
+} from "./scene-entry-row-index.js";
 import {
 	areActiveStreamingTailsEquivalent,
 	areActivitiesCompatibleForConversationPatch,
 	areSceneEntriesEquivalent,
 } from "./scene-equivalence.js";
 import { getTranscriptEntryArrayPatch } from "./transcript-entry-array-patch.js";
-import { createPatchedReadonlyMap } from "./patched-readonly-map.js";
 
 export function materializeTranscriptArrayPatchedConversation(
 	previous: CachedConversationState | null,
@@ -135,7 +136,10 @@ export function materializeTranscriptArrayPatchedConversation(
 			transcriptEntryPatches === null
 				? previous.transcriptEntryById
 				: createPatchedReadonlyMap(previous.transcriptEntryById, transcriptEntryPatches),
-		conversation: conversationFromSceneEntryArrayResult(createPatchedSceneEntryArray(previous.conversation.entries, entryPatches), previous.conversation.isStreaming),
+		conversation: conversationFromSceneEntryArrayResult(
+			createPatchedSceneEntryArray(previous.conversation.entries, entryPatches),
+			previous.conversation.isStreaming
+		),
 		sceneEntryRowIndex: previous.sceneEntryRowIndex,
 	};
 }
@@ -159,7 +163,9 @@ export function materializeStreamingStatePatchedConversation(
 
 	const previousIsRunning = previous.turnState === "Running";
 	const nextIsRunning = input.graph.turnState === "Running";
-	const previousTailRowId = previousIsRunning ? (previous.activeStreamingTail?.rowId ?? null) : null;
+	const previousTailRowId = previousIsRunning
+		? (previous.activeStreamingTail?.rowId ?? null)
+		: null;
 	const nextTailRowId = nextIsRunning ? (input.graph.activeStreamingTail?.rowId ?? null) : null;
 	const rowIdsToPatch = new Set<string>();
 	if (previousTailRowId !== null) {
@@ -315,7 +321,10 @@ export function materializeTranscriptPatchedConversation(
 			transcriptEntryPatches === null
 				? previous.transcriptEntryById
 				: createPatchedReadonlyMap(previous.transcriptEntryById, transcriptEntryPatches),
-		conversation: conversationFromSceneEntryArrayResult(createPatchedSceneEntryArray(previous.conversation.entries, entryPatches), previous.conversation.isStreaming),
+		conversation: conversationFromSceneEntryArrayResult(
+			createPatchedSceneEntryArray(previous.conversation.entries, entryPatches),
+			previous.conversation.isStreaming
+		),
 		sceneEntryRowIndex: previous.sceneEntryRowIndex,
 	};
 }
@@ -353,24 +362,19 @@ export function materializeTranscriptPatchedAndAppendedConversation(
 		!hasMarkedPatchAndAppend &&
 		transcriptEntries.length > previous.transcriptEntries.length &&
 		isStableTranscriptPatchAndAppend(previous.transcriptEntries, transcriptEntries);
-	if (
-		!hasMarkedPatchAndAppend &&
-		!hasStablePatchAndAppend
-	) {
+	if (!hasMarkedPatchAndAppend && !hasStablePatchAndAppend) {
 		return null;
 	}
 
 	const appendStartIndex = previous.transcriptEntries.length;
 	const isRunning = input.graph.turnState === "Running";
 	const liveAssistantEntryId = isRunning ? (input.graph.activeStreamingTail?.rowId ?? null) : null;
-	const patchedEntriesByIndex =
-		hasMarkedPatchAndAppend
-			? transcriptPatch.patchedEntriesByIndex
-			: collectStableTranscriptPatchedEntriesByIndex(previous.transcriptEntries, transcriptEntries);
-	const appendedTranscriptEntries =
-		hasMarkedPatchAndAppend
-			? transcriptPatch.appendedEntries
-			: collectAppendedTranscriptEntries(transcriptEntries, appendStartIndex);
+	const patchedEntriesByIndex = hasMarkedPatchAndAppend
+		? transcriptPatch.patchedEntriesByIndex
+		: collectStableTranscriptPatchedEntriesByIndex(previous.transcriptEntries, transcriptEntries);
+	const appendedTranscriptEntries = hasMarkedPatchAndAppend
+		? transcriptPatch.appendedEntries
+		: collectAppendedTranscriptEntries(transcriptEntries, appendStartIndex);
 	if (patchedEntriesByIndex === null || appendedTranscriptEntries.length === 0) {
 		return null;
 	}
@@ -469,7 +473,10 @@ export function materializeTranscriptPatchedAndAppendedConversation(
 			activeStreamingTail: input.graph.activeStreamingTail,
 			activity: input.graph.activity,
 			transcriptEntryById,
-			conversation: conversationFromSceneEntryArrayResult(nextEntries, previous.conversation.isStreaming),
+			conversation: conversationFromSceneEntryArrayResult(
+				nextEntries,
+				previous.conversation.isStreaming
+			),
 			sceneEntryRowIndex,
 		};
 	}
@@ -517,12 +524,15 @@ export function materializeTranscriptPatchedAndAppendedConversation(
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
 		transcriptEntryById,
-		conversation: conversationFromSceneEntryArrayResult(createInsertedSceneEntryArray(
+		conversation: conversationFromSceneEntryArrayResult(
+			createInsertedSceneEntryArray(
 				previous.conversation.entries,
 				firstChangedRowIndex,
 				replacementEntries,
 				[]
-			), previous.conversation.isStreaming),
+			),
+			previous.conversation.isStreaming
+		),
 		sceneEntryRowIndex: createSplicedSceneEntryRowIndex(
 			previous.sceneEntryRowIndex,
 			previousSuffixEntries,
@@ -628,7 +638,10 @@ export function materializeTranscriptAppendedConversation(
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
 		transcriptEntryById,
-		conversation: conversationFromSceneEntryArrayResult(nextEntries, previous.conversation.isStreaming),
+		conversation: conversationFromSceneEntryArrayResult(
+			nextEntries,
+			previous.conversation.isStreaming
+		),
 		sceneEntryRowIndex,
 	};
 }
@@ -675,10 +688,7 @@ export function materializeTranscriptTruncatedConversation(
 	);
 	const conversationEntries =
 		previousTrailingEntries.length === 0
-			? createTruncatedSceneEntryArray(
-					previous.conversation.entries,
-					nextTranscriptSceneEntryCount
-				)
+			? createTruncatedSceneEntryArray(previous.conversation.entries, nextTranscriptSceneEntryCount)
 			: createInsertedSceneEntryArray(
 					previous.conversation.entries,
 					nextTranscriptSceneEntryCount,
@@ -691,10 +701,7 @@ export function materializeTranscriptTruncatedConversation(
 	);
 	const sceneEntryRowIndex =
 		previousTrailingEntries.length === 0
-			? createTruncatedSceneEntryRowIndex(
-					previous.sceneEntryRowIndex,
-					deletedSceneEntries
-				)
+			? createTruncatedSceneEntryRowIndex(previous.sceneEntryRowIndex, deletedSceneEntries)
 			: createSplicedSceneEntryRowIndex(
 					previous.sceneEntryRowIndex,
 					deletedSceneEntries,
@@ -788,4 +795,3 @@ function filterTrailingEntriesAfterAppends(
 	}
 	return trailingEntries;
 }
-

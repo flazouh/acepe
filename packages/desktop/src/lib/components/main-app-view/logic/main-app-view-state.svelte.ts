@@ -15,7 +15,6 @@
  */
 
 import { okAsync, type ResultAsync } from "neverthrow";
-import type { CanonicalModeId } from "$lib/acp/types/canonical-mode-id.js";
 import { resolveDefaultAgentIdForCreate } from "$lib/acp/components/session-list/session-list-logic.js";
 import type { SessionListItem } from "$lib/acp/components/session-list/session-list-types.js";
 import type { WorktreeProjectDefaultStore } from "$lib/acp/components/worktree/worktree-project-default-store.svelte.js";
@@ -27,12 +26,9 @@ import type { ConnectionStore } from "$lib/acp/store/connection-store.svelte.js"
 import type { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
 import type { SessionOpenHydrator } from "$lib/acp/store/services/session-open-hydrator.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
-import type {
-	Panel,
-	PersistedReviewFullscreenState,
-	ViewMode,
-} from "$lib/acp/store/types.js";
+import type { Panel, PersistedReviewFullscreenState, ViewMode } from "$lib/acp/store/types.js";
 import type { WorkspaceStore } from "$lib/acp/store/workspace-store.svelte.js";
+import type { CanonicalModeId } from "$lib/acp/types/canonical-mode-id.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { type IssueReportDraft, openIssueReportDraft } from "$lib/errors/issue-report.js";
 import type { KeybindingsService } from "$lib/keybindings/service.svelte.js";
@@ -89,11 +85,6 @@ export class MainAppViewState {
 	commandPaletteOpen = $state(false);
 
 	/**
-	 * Whether the file explorer modal is open.
-	 */
-	fileExplorerOpen = $state(false);
-
-	/**
 	 * Whether the design system page is open (DEV only).
 	 */
 	designSystemOpen = $state(false);
@@ -134,11 +125,6 @@ export class MainAppViewState {
 	 * Collapsed project paths in the sidebar.
 	 */
 	collapsedProjectPaths = $state<string[]>([]);
-
-	/**
-	 * Whether the attention queue card is expanded.
-	 */
-	queueExpanded = $state(true);
 
 	/**
 	 * Whether initialization is in progress (HMR guard).
@@ -187,23 +173,6 @@ export class MainAppViewState {
 	 */
 	getSessionStore(): SessionStore {
 		return this.sessionStore;
-	}
-
-	get fileExplorerVisible(): boolean {
-		if (!this.fileExplorerOpen) return false;
-		if (this.panelStore.focusedTopLevelPanel?.projectPath) {
-			return true;
-		}
-		if (this.panelStore.focusedViewProjectPath) return true;
-		return this.projectManager.projects.length > 0;
-	}
-
-	private hasFileExplorerProjectContext(): boolean {
-		if (this.panelStore.focusedTopLevelPanel?.projectPath) {
-			return true;
-		}
-		if (this.panelStore.focusedViewProjectPath) return true;
-		return this.projectManager.projects.length > 0;
 	}
 
 	/**
@@ -330,10 +299,6 @@ export class MainAppViewState {
 			setCollapsedProjectPaths: (paths) => {
 				this.collapsedProjectPaths = paths;
 			},
-			getQueueExpanded: () => this.queueExpanded,
-			setQueueExpanded: (expanded) => {
-				this.queueExpanded = expanded;
-			},
 			getReviewFullscreenState: () => ({
 				open: this.reviewFullscreenOpen,
 				sessionId: this.reviewFullscreenSessionId,
@@ -370,11 +335,6 @@ export class MainAppViewState {
 	handleCollapsedProjectPathsChange(paths: string[]): void {
 		this.collapsedProjectPaths = paths;
 		this.workspaceStore.persist(true);
-	}
-
-	handleQueueExpandedChange(expanded: boolean): void {
-		this.queueExpanded = expanded;
-		this.workspaceStore.persist();
 	}
 
 	// ============================================
@@ -455,8 +415,8 @@ export class MainAppViewState {
 	 * - 2+ projects (normal view): show project selection
 	 */
 	/**
-	 * Optional override for new-thread behavior (e.g. kanban dialog).
-	 * When set, new-thread requests call this instead of spawning a panel.
+	 * Optional override for global new-thread entry points (⌘N, sidebar New chat).
+	 * Project-scoped "+" actions always spawn a panel via handleNewThreadForProject.
 	 */
 	onNewThreadOverride:
 		| ((request?: {
@@ -472,7 +432,7 @@ export class MainAppViewState {
 			return;
 		}
 
-		// In kanban mode (or any custom override), delegate to the registered handler
+		// Global new-thread (⌘N / New chat) can open the app-wide dialog.
 		if (this.onNewThreadOverride) {
 			this.onNewThreadOverride();
 			return;
@@ -505,12 +465,11 @@ export class MainAppViewState {
 	}
 
 	/**
-	 * Handles creating a new thread for a specific project.
-	 * If agentId is provided, creates session immediately with that agent.
-	 * Otherwise, spawns a panel for user to select agent via buttons.
+	 * Spawns a new agent panel for a specific project (sidebar/tab "+" controls).
+	 * Always creates a panel; does not open the global new-chat dialog.
 	 *
 	 * @param projectPath - The project path to create a thread for
-	 * @param agentId - Optional agent ID to create session with immediately
+	 * @param agentId - Optional agent ID to preselect on the new panel
 	 */
 	handleNewThreadForProject(projectPath: string, agentId?: string): void {
 		const project = this.projectManager.getProject(projectPath);
@@ -524,14 +483,6 @@ export class MainAppViewState {
 				this.agentStore.agents,
 				this.agentPreferencesStore.defaultAgentId
 			);
-
-		if (this.onNewThreadOverride) {
-			this.onNewThreadOverride({
-				projectPath: project.path,
-				agentId: resolvedAgentId,
-			});
-			return;
-		}
 
 		const panel = this.panelStore.spawnPanel({
 			requireProjectSelection: false,
@@ -686,33 +637,6 @@ export class MainAppViewState {
 	 */
 	toggleDesignSystem(): void {
 		this.designSystemOpen = !this.designSystemOpen;
-	}
-
-	/**
-	 * Opens the file explorer modal.
-	 */
-	openFileExplorer(): void {
-		if (this.showSplash === true) return;
-		if (!this.hasFileExplorerProjectContext()) return;
-		this.fileExplorerOpen = true;
-	}
-
-	/**
-	 * Closes the file explorer modal.
-	 */
-	closeFileExplorer(): void {
-		this.fileExplorerOpen = false;
-	}
-
-	/**
-	 * Toggles the file explorer modal open/closed.
-	 */
-	toggleFileExplorer(): void {
-		if (this.fileExplorerOpen) {
-			this.closeFileExplorer();
-		} else {
-			this.openFileExplorer();
-		}
 	}
 
 	/**

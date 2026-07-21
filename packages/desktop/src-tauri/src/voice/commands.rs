@@ -3,7 +3,7 @@ use super::events::{
     VOICE_MODEL_DOWNLOAD_PROGRESS_EVENT, VOICE_RECORDING_ERROR_EVENT,
     VOICE_TRANSCRIPTION_COMPLETE_EVENT, VOICE_TRANSCRIPTION_ERROR_EVENT,
 };
-use super::models::{ModelDownloadComplete, ModelDownloadError, ModelInfo};
+use super::models::{ModelDownloadComplete, ModelDownloadError, ModelInfo, ModelManager};
 use super::runtime::{TranscriptionCompletePayload, TranscriptionErrorPayload};
 use super::VoiceState;
 use crate::commands::observability::{unexpected_command_result, CommandResult};
@@ -24,29 +24,11 @@ async fn resolve_verified_model_path(
     model_id: &str,
 ) -> Result<PathBuf, String> {
     tracing::debug!(model_id, "resolving verified model path");
-    let path: PathBuf = state
+    ModelManager::validate_model_id(model_id).map_err(|error| error.to_string())?;
+    state
         .model_manager()
         .model_path(model_id)
-        .ok_or_else(|| format!("Unknown model: {}", model_id))?;
-
-    if !path.exists() {
-        tracing::warn!(model_id, path = %path.display(), "model file not found on disk");
-        return Err(format!(
-            "Model '{}' is not downloaded. Download it first.",
-            model_id
-        ));
-    }
-
-    tracing::debug!(model_id, path = %path.display(), "validating model file (SHA-256)");
-    let id = model_id.to_string();
-    let p = path.clone();
-    tokio::task::spawn_blocking(move || super::models::validate_model_file(&id, &p))
-        .await
-        .map_err(|e| format!("Validation task panicked: {e}"))?
-        .map_err(|e| e.to_string())?;
-
-    tracing::debug!(model_id, "model file validated OK");
-    Ok(path)
+        .ok_or_else(|| format!("Unknown model: {}", model_id))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -88,27 +70,16 @@ pub async fn voice_list_languages() -> CommandResult<Vec<VoiceLanguageOption>> {
     unexpected_command_result(
         "voice_list_languages",
         "Failed to list voice languages",
-        async {
-            tracing::debug!("voice_list_languages");
-            let max_language_id = whisper_rs::get_lang_max_id();
-            let mut languages = Vec::new();
-
-            for language_id in 0..=max_language_id {
-                let code = whisper_rs::get_lang_str(language_id);
-                let name = whisper_rs::get_lang_str_full(language_id);
-                if let (Some(code), Some(name)) = (code, name) {
-                    languages.push(VoiceLanguageOption {
-                        code: code.to_string(),
-                        name: title_case_language_name(name),
-                    });
-                }
-            }
-
-            languages.sort_by(|left, right| left.name.cmp(&right.name));
-            tracing::debug!(count = languages.len(), "voice_list_languages done");
-            Ok(languages)
-        }
-        .await,
+        Ok(vec![
+            VoiceLanguageOption {
+                code: "auto".to_string(),
+                name: "Auto".to_string(),
+            },
+            VoiceLanguageOption {
+                code: "en".to_string(),
+                name: title_case_language_name("english"),
+            },
+        ]),
     )
 }
 

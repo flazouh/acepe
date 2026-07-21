@@ -6,6 +6,7 @@ import { getKeybindingsService } from "$lib/keybindings/index.js";
 import type { AgentInfo } from "../../logic/agent-manager.js";
 import type { Project } from "../../logic/project-manager.svelte.js";
 import { checkpointStore } from "../../store/checkpoint-store.svelte.js";
+import type { SessionAttentionEntry } from "../../store/session-attention/index.js";
 import type { SessionWithEntries } from "./session-list-logic.js";
 import * as logic from "./session-list-logic.js";
 import { SessionListState } from "./session-list-state.svelte.js";
@@ -23,6 +24,8 @@ interface Props {
 	scanning?: boolean;
 	/** Initial collapsed project paths for persistence */
 	initialCollapsedProjectPaths?: string[];
+	/** Open sessions that solicit attention when their project group is collapsed. */
+	attentionBySessionId?: ReadonlyMap<string, SessionAttentionEntry>;
 	onSelectSession: (sessionId: string, sessionInfo?: SessionListItem) => void;
 	onCreateSession?: () => void;
 	onCreateSessionForProject?: (projectPath: string, agentId?: string) => void;
@@ -40,8 +43,6 @@ interface Props {
 	onSelectFile?: (filePath: string, projectPath: string) => void;
 	/** Called when collapsed project paths change */
 	onCollapsedProjectPathsChange?: (paths: string[]) => void;
-	/** Called when git panel button is clicked for a project */
-	onOpenGitPanel?: (projectPath: string) => void;
 	/** Called when PR badge is clicked on a session row */
 	onOpenPr?: (sessionInfo: SessionListItem) => void;
 	/** Called when user archives a session from the sidebar */
@@ -70,6 +71,7 @@ let {
 	isSessionOpen = () => false,
 	scanning = false,
 	initialCollapsedProjectPaths = [],
+	attentionBySessionId = new Map(),
 	onSelectSession,
 	onCreateSession,
 	onCreateSessionForProject,
@@ -83,7 +85,6 @@ let {
 	onRemoveProject,
 	onSelectFile,
 	onCollapsedProjectPathsChange,
-	onOpenGitPanel,
 	onOpenPr,
 	onArchiveSession,
 	onRenameSession,
@@ -187,6 +188,7 @@ function handleCreateSessionForProject(projectPath: string, agentId?: string) {
 	{selectedSessionId}
 	{scanning}
 	{initialCollapsedProjectPaths}
+	{attentionBySessionId}
 	onSelectSession={handleSelectSession}
 	onCreateSession={handleCreateSession}
 	onCreateSessionForProject={handleCreateSessionForProject}
@@ -196,7 +198,6 @@ function handleCreateSessionForProject(projectPath: string, agentId?: string) {
 	{onProjectClick}
 	{onSelectFile}
 	{onCollapsedProjectPathsChange}
-	{onOpenGitPanel}
 	{onOpenPr}
 	{onArchiveSession}
 	onRenameSession={onRenameSession}

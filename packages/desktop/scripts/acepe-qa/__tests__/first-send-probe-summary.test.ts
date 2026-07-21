@@ -90,8 +90,23 @@ function sample(
 	if (fields.placeholderHeightPx !== undefined) {
 		result.placeholderHeightPx = fields.placeholderHeightPx;
 	}
+	if (fields.placeholderText !== undefined) result.placeholderText = fields.placeholderText;
 	if (fields.panelId !== undefined) result.panelId = fields.panelId;
 	if (fields.sessionId !== undefined) result.sessionId = fields.sessionId;
+	if (fields.planningSourceKind !== undefined)
+		result.planningSourceKind = fields.planningSourceKind;
+	if (fields.planningLifecycleStatus !== undefined) {
+		result.planningLifecycleStatus = fields.planningLifecycleStatus;
+	}
+	if (fields.planningHasLocalPendingSendIntent !== undefined) {
+		result.planningHasLocalPendingSendIntent = fields.planningHasLocalPendingSendIntent;
+	}
+	if (fields.planningHasTrailingCompletedTool !== undefined) {
+		result.planningHasTrailingCompletedTool = fields.planningHasTrailingCompletedTool;
+	}
+	if (fields.planningLocalPlaceholderMode !== undefined) {
+		result.planningLocalPlaceholderMode = fields.planningLocalPlaceholderMode;
+	}
 	if (fields.scrollTopPx !== undefined) result.scrollTopPx = fields.scrollTopPx;
 	if (fields.maxScrollTopPx !== undefined) result.maxScrollTopPx = fields.maxScrollTopPx;
 	if (fields.scrollAttached !== undefined) result.scrollAttached = fields.scrollAttached;
@@ -203,9 +218,7 @@ describe("summarizeFirstSendProbe", () => {
 		const summary = summarizeFirstSendProbe(probe);
 
 		expect(summary.status).toBe("fail");
-		expect(summary.lines).toContain(
-			"pre-scroll: failed requested=2000px dfb=100px tolerance=24px"
-		);
+		expect(summary.lines).toContain("pre-scroll: failed requested=2000px dfb=100px tolerance=24px");
 	});
 
 	it("summarizes setter, input, native layout, and synthetic scroll events", () => {
@@ -245,6 +258,20 @@ describe("summarizeFirstSendProbe", () => {
 
 		expect(summary.status).toBe("fail");
 		expect(summary.lines).toContain("placeholder max height: 1300px");
+	});
+
+	it("fails when debug state requests planning but no planning row is visible", () => {
+		const summary = summarizeFirstSendProbe(
+			probeWithSamples([
+				sample({
+					planningLocalPlaceholderMode: "planning",
+					planningVisible: false,
+				}),
+			])
+		);
+
+		expect(summary.status).toBe("fail");
+		expect(summary.lines).toContain("hidden planning samples: 1");
 	});
 
 	it("warns when the sent row is hidden for more than 500ms before streaming", () => {

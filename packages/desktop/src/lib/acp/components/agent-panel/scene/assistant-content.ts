@@ -35,7 +35,9 @@ export function contentBlocksToText(blocks: readonly ContentBlock[]): string {
 	return text.trim();
 }
 
-export function extractAssistantMarkdown(entry: Extract<SessionEntry, { type: "assistant" }>): string {
+export function extractAssistantMarkdown(
+	entry: Extract<SessionEntry, { type: "assistant" }>
+): string {
 	let text = "";
 
 	for (const chunk of entry.message.chunks) {

@@ -321,7 +321,6 @@ function handlePromptResetClick(): void {
 		customPrompt: undefined,
 	});
 }
-
 </script>
 
 {#if modifiedFilesState}

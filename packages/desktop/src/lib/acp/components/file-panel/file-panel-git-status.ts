@@ -46,12 +46,12 @@ export function resolveFilePanelGitStatus(
 	projectPath: string
 ): FileGitStatus | null {
 	const relativeFilePath = getRelativeFilePath(filePath, projectPath);
-	return getStatusByLikelyKey(statusMap, relativeFilePath) ?? getStatusByLikelyKey(statusMap, filePath);
+	return (
+		getStatusByLikelyKey(statusMap, relativeFilePath) ?? getStatusByLikelyKey(statusMap, filePath)
+	);
 }
 
-export function toFilePanelGitStatus(
-	status: FileGitStatus | null
-): FilePanelGitStatus | null {
+export function toFilePanelGitStatus(status: FileGitStatus | null): FilePanelGitStatus | null {
 	if (status === null) {
 		return null;
 	}

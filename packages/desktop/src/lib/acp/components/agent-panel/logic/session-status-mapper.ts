@@ -184,10 +184,16 @@ function isCanonicalBusy(
 	activity: SessionGraphActivity | null | undefined,
 	turnState: SessionTurnState | null | undefined
 ): boolean {
+	// A provider may keep its turn open while it waits for a user reply. The
+	// canonical activity is more specific than that open turn, so preserve the
+	// send-capable composer instead of presenting a Stop action.
+	if (activity?.kind === "waiting_for_user") {
+		return false;
+	}
+
 	return (
 		activity?.kind === "running_operation" ||
 		activity?.kind === "awaiting_model" ||
-		activity?.kind === "waiting_for_user" ||
 		turnState === "Running"
 	);
 }
@@ -214,8 +220,7 @@ export function deriveCanonicalAgentPanelSessionState(
 			sessionStatus: input.hasOptimisticPendingEntry === true ? "warming" : "empty",
 			isConnected: false,
 			isStreaming: false,
-			localPlaceholderMode:
-				input.hasOptimisticPendingEntry === true ? "connection" : "none",
+			localPlaceholderMode: input.hasOptimisticPendingEntry === true ? "connection" : "none",
 			canSubmit: false,
 			showStop: false,
 		};
@@ -230,6 +235,11 @@ export function deriveCanonicalAgentPanelSessionState(
 		input.source.lifecycle.status === "reserved" ||
 		input.source.lifecycle.status === "activating" ||
 		input.source.lifecycle.status === "reconnecting";
+	const shouldShowPlanningPlaceholder =
+		input.source.lifecycle.status === "ready" &&
+		effectiveActivity?.kind === "awaiting_model" &&
+		effectiveTurnState === "Running" &&
+		(input.hasLocalPendingSendIntent === true || input.hasTrailingCompletedTool);
 	let localPlaceholderMode: LocalPlaceholderMode = "none";
 	if (
 		!hasCanonicalError &&
@@ -237,14 +247,8 @@ export function deriveCanonicalAgentPanelSessionState(
 		(input.hasOptimisticPendingEntry === true || input.hasLocalPendingSendIntent === true)
 	) {
 		localPlaceholderMode = "connection";
-	} else if (
-		!hasCanonicalError &&
-		input.source.lifecycle.status === "ready" &&
-		effectiveActivity?.kind === "awaiting_model" &&
-		effectiveTurnState === "Running" &&
-		input.hasTrailingCompletedTool
-	) {
-		localPlaceholderMode = "planning_after_tool";
+	} else if (!hasCanonicalError && shouldShowPlanningPlaceholder) {
+		localPlaceholderMode = "planning";
 	}
 	const baseStatus = mapCanonicalSessionToPanelStatus({
 		lifecycle: input.source.lifecycle,

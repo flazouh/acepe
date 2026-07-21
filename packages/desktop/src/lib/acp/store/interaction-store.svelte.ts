@@ -37,10 +37,7 @@ export class InteractionStore {
 	readonly planApprovalsPending = new SvelteMap<string, PlanApprovalInteraction>();
 	readonly computerPermissionsPending = new SvelteMap<string, ComputerPermissionInteraction>();
 	private readonly answeredQuestionSessionIds = new SvelteMap<string, string>();
-	private readonly pendingPermissionsBySession = new Map<
-		string,
-		Map<string, PermissionRequest>
-	>();
+	private readonly pendingPermissionsBySession = new Map<string, Map<string, PermissionRequest>>();
 	private readonly pendingQuestionsBySession = new Map<string, Map<string, QuestionRequest>>();
 	private readonly pendingPlanApprovalsBySession = new Map<
 		string,
@@ -365,11 +362,7 @@ export class InteractionStore {
 			return;
 		}
 		if (existing !== undefined) {
-			deleteSessionIndexEntry(
-				this.pendingPermissionsBySession,
-				existing.sessionId,
-				interactionId
-			);
+			deleteSessionIndexEntry(this.pendingPermissionsBySession, existing.sessionId, interactionId);
 			removeCachedSessionIndexValue(
 				this.pendingPermissionValuesBySession,
 				existing.sessionId,
@@ -395,11 +388,7 @@ export class InteractionStore {
 			return;
 		}
 		this.permissionsPending.delete(interactionId);
-		deleteSessionIndexEntry(
-			this.pendingPermissionsBySession,
-			existing.sessionId,
-			interactionId
-		);
+		deleteSessionIndexEntry(this.pendingPermissionsBySession, existing.sessionId, interactionId);
 		removeCachedSessionIndexValue(
 			this.pendingPermissionValuesBySession,
 			existing.sessionId,
@@ -447,10 +436,7 @@ export class InteractionStore {
 		);
 	}
 
-	private setPendingPlanApproval(
-		interactionId: string,
-		approval: PlanApprovalInteraction
-	): void {
+	private setPendingPlanApproval(interactionId: string, approval: PlanApprovalInteraction): void {
 		const existing = this.planApprovalsPending.get(interactionId);
 		if (existing !== undefined && arePlanApprovalsEquivalent(existing, approval)) {
 			return;
@@ -486,11 +472,7 @@ export class InteractionStore {
 			return;
 		}
 		this.planApprovalsPending.delete(interactionId);
-		deleteSessionIndexEntry(
-			this.pendingPlanApprovalsBySession,
-			existing.sessionId,
-			interactionId
-		);
+		deleteSessionIndexEntry(this.pendingPlanApprovalsBySession, existing.sessionId, interactionId);
 		removeCachedSessionIndexValue(
 			this.pendingPlanApprovalValuesBySession,
 			existing.sessionId,
@@ -503,10 +485,7 @@ export class InteractionStore {
 		permission: ComputerPermissionInteraction
 	): void {
 		const existing = this.computerPermissionsPending.get(interactionId);
-		if (
-			existing !== undefined &&
-			areComputerPermissionsEquivalent(existing, permission)
-		) {
+		if (existing !== undefined && areComputerPermissionsEquivalent(existing, permission)) {
 			return;
 		}
 		if (existing !== undefined) {
@@ -522,10 +501,10 @@ export class InteractionStore {
 			);
 		}
 		this.computerPermissionsPending.set(interactionId, permission);
-		getOrCreateSessionIndex(
-			this.pendingComputerPermissionsBySession,
-			permission.sessionId
-		).set(interactionId, permission);
+		getOrCreateSessionIndex(this.pendingComputerPermissionsBySession, permission.sessionId).set(
+			interactionId,
+			permission
+		);
 		upsertCachedSessionIndexValue(
 			this.pendingComputerPermissionValuesBySession,
 			permission.sessionId,
@@ -682,8 +661,9 @@ function createRemovedSessionIndexValues<T>(
 	base: readonly T[],
 	removedIndex: number
 ): readonly T[] {
-	return createSessionIndexValuesView(base.length - 1, (index) =>
-		base[index < removedIndex ? index : index + 1]
+	return createSessionIndexValuesView(
+		base.length - 1,
+		(index) => base[index < removedIndex ? index : index + 1]
 	);
 }
 
@@ -707,8 +687,7 @@ function createSessionIndexValuesView<T>(
 					return selectValue(index);
 				}
 				if (property === "slice") {
-					return (start?: number, end?: number) =>
-						Array.prototype.slice.call(receiver, start, end);
+					return (start?: number, end?: number) => Array.prototype.slice.call(receiver, start, end);
 				}
 			}
 			const value = Reflect.get(targetArray, property, receiver);

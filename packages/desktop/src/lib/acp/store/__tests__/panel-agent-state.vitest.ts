@@ -30,9 +30,7 @@ function createPanel(overrides?: Partial<Panel>): Panel {
 	};
 }
 
-function createAgentState(
-	overrides?: Partial<PanelAgentStateDeps>
-): {
+function createAgentState(overrides?: Partial<PanelAgentStateDeps>): {
 	state: PanelAgentState;
 	workspacePanels: WorkspacePanel[];
 	persist: ReturnType<typeof vi.fn>;
@@ -109,9 +107,7 @@ describe("PanelAgentState", () => {
 		const { state } = createAgentState({
 			hasPendingCreationSession: (sessionId) => sessionId === "pending-session",
 			getPendingCreationSession: (sessionId) =>
-				sessionId === "pending-session"
-					? { sequenceId: 9 }
-					: null,
+				sessionId === "pending-session" ? { sequenceId: 9 } : null,
 		});
 		state.panels = [
 			createPanel({

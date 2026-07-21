@@ -73,10 +73,7 @@ describe("SessionCreationCoordinator", () => {
 
 			coordinator.failPendingCreation(pending.sessionId, turnErrorUpdate);
 
-			expect(handleCanonicalTurnFailure).toHaveBeenCalledWith(
-				pending.sessionId,
-				turnErrorUpdate
-			);
+			expect(handleCanonicalTurnFailure).toHaveBeenCalledWith(pending.sessionId, turnErrorUpdate);
 			expect(onTurnError).toHaveBeenCalledWith(pending.sessionId);
 			expect(coordinator.hasPendingCreation(pending.sessionId)).toBe(false);
 		});

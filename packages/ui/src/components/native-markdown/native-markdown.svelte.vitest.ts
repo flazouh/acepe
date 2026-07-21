@@ -49,12 +49,6 @@ afterEach(() => {
 	vi.unstubAllGlobals();
 });
 
-function getAnimatedTexts(container: HTMLElement): string[] {
-	return Array.from(container.querySelectorAll("[data-sd-animate]"))
-		.map((element) => element.textContent?.trim() ?? "")
-		.filter((text) => text.length > 0);
-}
-
 describe("NativeMarkdown", () => {
 	it("renders markdown natively", async () => {
 		const { container } = render(NativeMarkdown, {
@@ -140,7 +134,7 @@ describe("NativeMarkdown", () => {
 		expect(container.querySelector("[data-acepe-code-language='go']")?.textContent).toContain("Go");
 		expect(
 			container.querySelector("[data-acepe-code-language='go'] img")?.getAttribute("src")
-		).toMatch(/^data:image\/svg\+xml,/);
+		).toBe("/svgs/icons/go.svg");
 
 		await waitFor(() => {
 			expect(container.querySelector("[data-acepe-code-highlighted='true']")).not.toBeNull();
@@ -222,100 +216,11 @@ describe("NativeMarkdown", () => {
 		expect(container.querySelector("td")?.textContent).toBe("Tables");
 	});
 
-	it("does not invent a fallback word fade without canonical token timing", async () => {
-		const { container } = render(NativeMarkdown, {
-			markdown: "Hello streaming world",
-			mode: "streaming",
-			parseIncompleteMarkdown: true,
-		});
-
-		await waitFor(() => {
-			expect(container.textContent).toContain("Hello streaming world");
-		});
-
-		expect(container.querySelector("[data-sd-animate]")).toBeNull();
-	});
-
-	it("maps canonical token reveal timing onto native animation spans", async () => {
-		const { container } = render(NativeMarkdown, {
-			markdown: "Hello streaming world",
-			tokenRevealTiming: {
-				revealCount: 3,
-				revealedCharCount: "Hello streaming world".length,
-				baselineMs: -96,
-				tokStepMs: 48,
-				tokFadeDurMs: 630,
-				mode: "smooth",
-			},
-		});
-
-		await waitFor(() => {
-			expect(container.querySelector("[data-sd-animate]")).not.toBeNull();
-		});
-
-		const markdownContent = container.querySelector(".markdown-content") as HTMLElement | null;
-		const animatedWords = Array.from(
-			container.querySelectorAll("[data-sd-animate]")
-		) as HTMLElement[];
-		const animatedWord = animatedWords[0];
-		const secondAnimatedWord = animatedWords[1];
-		expect(markdownContent?.getAttribute("data-token-reveal-mode")).toBe("smooth");
-		expect(markdownContent?.getAttribute("style")).toContain(
-			"--token-reveal-baseline-ms: -96ms"
-		);
-		expect(animatedWord?.getAttribute("style")).toContain("--sd-duration: 630ms");
-		expect(secondAnimatedWord?.getAttribute("style")).toContain("--sd-delay: 48ms");
-	});
-
-	it("keeps token reveal animation on the latest streamed tail only", async () => {
-		const firstMarkdown = "alpha beta gamma delta";
-		const secondMarkdown = "alpha beta gamma delta epsilon";
-		const result = render(NativeMarkdown, {
-			markdown: firstMarkdown,
-			tokenRevealTiming: {
-				revealCount: 2,
-				revealedCharCount: firstMarkdown.length,
-				baselineMs: -96,
-				tokStepMs: 48,
-				tokFadeDurMs: 630,
-				mode: "smooth",
-			},
-		});
-
-		await waitFor(() => {
-			expect(getAnimatedTexts(result.container)).toEqual(["gamma", "delta"]);
-		});
-
-		await result.rerender({
-			markdown: secondMarkdown,
-			tokenRevealTiming: {
-				revealCount: 2,
-				revealedCharCount: secondMarkdown.length,
-				baselineMs: -96,
-				tokStepMs: 48,
-				tokFadeDurMs: 630,
-				mode: "smooth",
-			},
-		});
-
-		await waitFor(() => {
-			expect(getAnimatedTexts(result.container)).toEqual(["delta", "epsilon"]);
-		});
-	});
-
 	it("preserves existing word DOM nodes when streaming appends a new tail word", async () => {
 		const result = render(NativeMarkdown, {
 			markdown: "alpha beta gamma",
 			mode: "streaming",
 			parseIncompleteMarkdown: true,
-			tokenRevealTiming: {
-				revealCount: 1,
-				revealedCharCount: "alpha beta gamma".length,
-				baselineMs: -96,
-				tokStepMs: 48,
-				tokFadeDurMs: 630,
-				mode: "smooth",
-			},
 		});
 
 		await waitFor(() => {
@@ -335,14 +240,6 @@ describe("NativeMarkdown", () => {
 			markdown: "alpha beta gamma delta",
 			mode: "streaming",
 			parseIncompleteMarkdown: true,
-			tokenRevealTiming: {
-				revealCount: 1,
-				revealedCharCount: "alpha beta gamma delta".length,
-				baselineMs: -96,
-				tokStepMs: 48,
-				tokFadeDurMs: 630,
-				mode: "smooth",
-			},
 		});
 
 		await waitFor(() => {
@@ -356,7 +253,6 @@ describe("NativeMarkdown", () => {
 		expect(result.container.querySelector('[data-markdown-token-word="alpha"]')).toBe(
 			originalAlpha
 		);
-		expect(getAnimatedTexts(result.container)).toEqual(["delta"]);
 	});
 
 	it("routes external link clicks through the host callback", async () => {
@@ -405,8 +301,10 @@ describe("NativeMarkdown", () => {
 		});
 
 		const chip = container.querySelector(".file-path-badge");
-		expect(chip?.className).toContain("rounded-sm");
-		expect(chip?.querySelector("img")?.getAttribute("src")).toMatch(/^data:image\/svg\+xml,/);
+		expect(chip?.className).toContain("rounded-md");
+		expect(chip?.querySelector("img")?.getAttribute("src")).toBe(
+			"/svgs/icons/typescript.svg"
+		);
 		chip?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 
 		expect(onFilePathClick).toHaveBeenCalledWith("packages/ui/src/index.ts");
@@ -445,7 +343,7 @@ describe("NativeMarkdown", () => {
 
 		const chip = container.querySelector(".github-badge");
 		expect(chip?.getAttribute("href")).toBe("https://github.com/flazouh/acepe/pull/184");
-		expect(chip?.className).toContain("rounded-sm");
+		expect(chip?.className).toContain("rounded-md");
 		chip?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 
 		expect(onExternalLinkClick).toHaveBeenCalledWith("https://github.com/flazouh/acepe/pull/184");

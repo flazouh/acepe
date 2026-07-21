@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Button } from "../button/index.js";
 	import { HugeiconsIcon } from "../icons/index.js";
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import { scrollToEnd } from "./agent-tool-execute-effects.js";
@@ -121,7 +122,7 @@
 
 <AgentToolCard dataTestid="agent-tool-execute-card">
 	<!-- ── Header ── -->
-	<div class="flex h-6 items-center justify-between gap-1.5 px-2">
+	<div class="flex h-6 items-center justify-between gap-1.5 pl-2 pr-0.5 text-sm">
 		<div class="flex min-w-0 flex-1 items-center gap-1.5 truncate">
 			<ToolHeaderLeading kind="execute" {status}>
 				{headerText}
@@ -141,17 +142,24 @@
 			{/if}
 
 			{#if !isPending && hasOutput}
-				<button
-					type="button"
+				<Button
+					variant="ghost"
+					size="icon-sm"
+					data-header-control
+					class="text-muted-foreground"
 					onclick={() => {
 						isExpanded = !isExpanded;
 					}}
-					class="flex items-center justify-center rounded-lg border-none bg-transparent p-0.5 text-muted-foreground transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2 active:scale-95"
 					aria-label={isExpanded ? ariaCollapseOutput : ariaExpandOutput}
+					title={isExpanded ? ariaCollapseOutput : ariaExpandOutput}
 				>
-					<HugeiconsIcon name="chevron-down" class="size-3 shrink-0 transition-transform duration-150 {isExpanded ? 'rotate-180' : ''}"
-					/>
-				</button>
+					{#snippet children()}
+						<HugeiconsIcon
+							name="chevron-down"
+							class="transition-transform duration-150 {isExpanded ? 'rotate-180' : ''}"
+						/>
+					{/snippet}
+				</Button>
 			{/if}
 		</div>
 	</div>

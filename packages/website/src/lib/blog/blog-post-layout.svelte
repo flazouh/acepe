@@ -57,9 +57,7 @@ const jsonLd = $derived([
 			},
 		},
 		articleSection: metadata.category ?? "Product",
-		...(metadata.readingTimeMinutes
-			? { timeRequired: `PT${metadata.readingTimeMinutes}M` }
-			: {}),
+		...(metadata.readingTimeMinutes ? { timeRequired: `PT${metadata.readingTimeMinutes}M` } : {}),
 	},
 	{
 		"@context": "https://schema.org",

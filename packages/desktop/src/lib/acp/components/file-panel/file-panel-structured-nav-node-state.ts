@@ -1,5 +1,5 @@
-import type { StructuredData, StructuredEntry } from "./format/types.js";
 import { isStructuredContainer, toStructuredEntries } from "./format/parsers/structured.js";
+import type { StructuredData, StructuredEntry } from "./format/types.js";
 
 export interface StructuredNavNodeDisplayState {
 	isContainer: boolean;

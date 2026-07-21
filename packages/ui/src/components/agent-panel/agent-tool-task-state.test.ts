@@ -1,32 +1,11 @@
 import { describe, expect, it } from "bun:test";
 
 import {
-	getLastTaskToolCall,
-	getTaskCurrentToolDisplay,
-	getTaskProgress,
 	getTaskTitle,
-	getTaskToolChildren,
 	getTaskUiClasses,
 	hasTaskPrompt,
-	hasTaskResult,
 	isTaskPending,
-	shouldShowTaskProgress,
 } from "./agent-tool-task-state.js";
-import type { AnyAgentEntry, AgentToolEntry } from "./types.js";
-
-const toolEntry: AgentToolEntry = {
-	id: "tool-1",
-	type: "tool_call",
-	kind: "execute",
-	title: "Run tests",
-	status: "done",
-};
-
-const nonToolEntry: AnyAgentEntry = {
-	id: "assistant-1",
-	type: "assistant",
-	markdown: "hello",
-};
 
 describe("agent tool task state", () => {
 	it("detects pending task statuses", () => {
@@ -62,58 +41,20 @@ describe("agent tool task state", () => {
 		).toBe("Custom task");
 	});
 
-	it("counts completed tool calls for progress", () => {
-		const runningTool: AgentToolEntry = {
-			id: "tool-2",
-			type: "tool_call",
-			kind: "execute",
-			title: "Next step",
-			status: "running",
-		};
-		const toolChildren = [toolEntry, runningTool];
-		expect(getTaskProgress({ toolCallChildren: toolChildren })).toEqual({
-			filledCount: 1,
-			totalCount: 2,
-		});
-		expect(shouldShowTaskProgress(0)).toBe(false);
-		expect(shouldShowTaskProgress(2)).toBe(true);
-	});
-
-	it("filters child tool calls and finds the latest one", () => {
-		const children = [nonToolEntry, toolEntry];
-		const toolChildren = getTaskToolChildren(children);
-		expect(toolChildren).toEqual([toolEntry]);
-		expect(getLastTaskToolCall(toolChildren)).toBe(toolEntry);
-		expect(getLastTaskToolCall([])).toBeNull();
-	});
-
-	it("delegates current tool display mapping to the shared compact display helper", () => {
-		const runningReadTool: AgentToolEntry = {
-			id: "tool-read",
-			type: "tool_call",
-			kind: "read",
-			title: "Read",
-			filePath: "/repo/src/main.ts",
-			status: "running",
-		};
-		expect(getTaskCurrentToolDisplay(runningReadTool)?.title).toBe("Reading");
-		expect(getTaskCurrentToolDisplay(null)).toBeNull();
-	});
-
-	it("computes prompt and result visibility", () => {
+	it("computes prompt visibility", () => {
 		expect(hasTaskPrompt("prompt")).toBe(true);
 		expect(hasTaskPrompt(null)).toBe(false);
-		expect(hasTaskResult({ status: "done", resultText: "result" })).toBe(true);
-		expect(hasTaskResult({ status: "running", resultText: "result" })).toBe(false);
 	});
 
 	it("returns compact and normal class sets", () => {
 		expect(getTaskUiClasses(true).card).toContain("bg-accent");
-		expect(getTaskUiClasses(false).header).toContain("min-h-7");
+		expect(getTaskUiClasses(false).header).toContain("h-6");
+		expect(getTaskUiClasses(false).header).toContain("pl-2");
+		expect(getTaskUiClasses(false).header).toContain("pr-0.5");
 	});
 
 	it("exposes a live-row class for the second (animated) tool row", () => {
-		expect(getTaskUiClasses(false).liveRow).toContain("px-2");
+		expect(getTaskUiClasses(false).liveRow).toContain("pl-2");
 		expect(getTaskUiClasses(true).liveRow).toContain("px-1");
 	});
 });

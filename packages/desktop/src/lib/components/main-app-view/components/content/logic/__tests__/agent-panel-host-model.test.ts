@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
+import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
 import type { Panel, PanelHotState } from "$lib/acp/store/types.js";
 import { DEFAULT_PANEL_HOT_STATE } from "$lib/acp/store/types.js";
-import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
 import {
 	buildAgentPanelHostModel,
 	resolveAgentPanelHostProjectPath,

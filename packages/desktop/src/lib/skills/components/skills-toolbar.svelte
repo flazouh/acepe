@@ -1,5 +1,5 @@
 <script lang="ts">
-import { HugeiconsIcon } from "@acepe/ui";
+import { HugeiconsIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { Button } from "$lib/components/ui/button/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";

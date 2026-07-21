@@ -422,7 +422,7 @@ describe("openPersistedSession", () => {
 						contextMs: 2,
 						providerLoadMs: 120,
 						ledgerTailReadMs: 0,
-						ledgerJournalCutoffMs: 0,
+						ledgerProjectionFrontierMs: 0,
 						ledgerPageReadMs: 0,
 						ledgerHeaderDecodeMs: 0,
 						ledgerRowsDecodeMs: 0,
@@ -496,14 +496,14 @@ describe("openPersistedSession", () => {
 		expect(foundEvent?.initialRowPageTotalRowCount).toBe(5349);
 		expect(foundEvent?.initialRowPageStartRowIndex).toBe(5221);
 		expect(foundEvent?.initialRowPagePayloadBytes).toBe(4096);
-			expect(foundEvent?.openResultTiming).toEqual({
-				source: "provider-owned-snapshot",
-				openPath: "legacy_rebuild",
-				ledgerProbeStatus: "missing",
-				contextMs: 2,
-				providerLoadMs: 120,
-				ledgerTailReadMs: 0,
-				ledgerJournalCutoffMs: 0,
+		expect(foundEvent?.openResultTiming).toEqual({
+			source: "provider-owned-snapshot",
+			openPath: "legacy_rebuild",
+			ledgerProbeStatus: "missing",
+			contextMs: 2,
+			providerLoadMs: 120,
+			ledgerTailReadMs: 0,
+			ledgerProjectionFrontierMs: 0,
 			ledgerPageReadMs: 0,
 			ledgerHeaderDecodeMs: 0,
 			ledgerRowsDecodeMs: 0,
@@ -645,6 +645,41 @@ describe("openPersistedSession", () => {
 		);
 		expect(sessionStore.loading.setSessionLoaded).toHaveBeenCalledWith("session-1");
 		expect(sessionStore.connection.connectSession).not.toHaveBeenCalled();
+	});
+
+	it("reconnects already-current snapshots when canonical state is not sendable", async () => {
+		sessionStore.read.getSessionCanSend = mock(() => false);
+		sessionOpenHydrator = {
+			beginAttempt: mock(() => "request-1"),
+			clearAttempt: mock(() => {}),
+			hydrateFound: mock(() =>
+				okAsync({
+					canonicalSessionId: "session-1",
+					openToken: "open-token-1",
+					applied: false,
+				})
+			),
+			isCurrentAttempt: mock(() => true),
+		};
+
+		openPersistedSession({
+			panelId: "panel-1",
+			sessionId: "session-1",
+			sessionStore,
+			sessionOpenHydrator,
+			getSessionOpenResult: getSessionOpenResultMock,
+			timeoutMs: 10_000,
+			source: "session-handler",
+		});
+
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(sessionStore.connection.connectSession).toHaveBeenCalledWith("session-1", {
+			openToken: "open-token-1",
+			forceReconnect: true,
+		});
+		expect(sessionStore.loading.setSessionLoaded).toHaveBeenCalledWith("session-1");
+		expect(sessionOpenHydrator.clearAttempt).toHaveBeenCalledWith("panel-1");
 	});
 
 	it("[E2E] uses canonical session id for store updates when hydration rewrites an alias", async () => {

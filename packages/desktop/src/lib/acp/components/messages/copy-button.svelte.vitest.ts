@@ -16,8 +16,7 @@ vi.mock("svelte", async () => {
 });
 
 vi.mock("@acepe/ui", async () => {
-	const IconStub = (await import("../pr-status-card/test-hugeicons-icon-stub.svelte"))
-		.default;
+	const IconStub = (await import("../pr-status-card/test-hugeicons-icon-stub.svelte")).default;
 
 	return {
 		HugeiconsIcon: IconStub,

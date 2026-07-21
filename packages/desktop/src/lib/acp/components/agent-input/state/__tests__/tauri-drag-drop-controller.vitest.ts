@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
-	type TauriDragDropListen,
 	TauriDragDropController,
+	type TauriDragDropListen,
 } from "../tauri-drag-drop-controller.svelte.js";
 
 function createPendingPromise<T>() {

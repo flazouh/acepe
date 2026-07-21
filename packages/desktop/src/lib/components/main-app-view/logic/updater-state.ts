@@ -117,9 +117,7 @@ export function getUpdaterActionLabel(state: UpdaterBannerState): string | null 
 	return null;
 }
 
-export function getUpdateButtonModel(
-	state: UpdaterBannerState
-): UpdateButtonModel | null {
+export function getUpdateButtonModel(state: UpdaterBannerState): UpdateButtonModel | null {
 	if (state.kind === "available") {
 		return {
 			label: "Update",

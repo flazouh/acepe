@@ -1,17 +1,10 @@
 <script lang="ts">
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableRow,
-	LoadingIcon,
-	HugeiconsIcon,
-} from "@acepe/ui";
+import { Table, TableBody, TableCell, TableRow, LoadingIcon, HugeiconsIcon } from "@acepe/ui";
 import { cn } from "$lib/utils.js";
 
 import ActionsCell from "./cells/actions-cell.svelte";
 import AgentCountsCell from "./cells/agent-counts-cell.svelte";
-import type { ProjectWithSessions } from "./open-project-dialog-props.js";
+import type { ProjectWithSessions } from "./project-discovery.js";
 
 interface Props {
 	projects: ProjectWithSessions[];
@@ -43,7 +36,11 @@ function displayPath(path: string): string {
 	return path.replace(/^\/Users\/[^/]+/, "~");
 }
 
-function handleProjectRowKeydown(event: KeyboardEvent, project: ProjectWithSessions, isAdded: boolean): void {
+function handleProjectRowKeydown(
+	event: KeyboardEvent,
+	project: ProjectWithSessions,
+	isAdded: boolean
+): void {
 	if (isAdded) return;
 	if (event.key !== "Enter" && event.key !== " ") return;
 

@@ -8,9 +8,7 @@ import {
 } from "../panel-agent-state.svelte.js";
 import type { Panel, WorkspacePanel } from "../types.js";
 
-function createAgentState(
-	overrides?: Partial<PanelAgentStateDeps>
-): {
+function createAgentState(overrides?: Partial<PanelAgentStateDeps>): {
 	state: PanelAgentState;
 	workspacePanels: WorkspacePanel[];
 	resolveCanonicalSessionId: ReturnType<typeof vi.fn>;

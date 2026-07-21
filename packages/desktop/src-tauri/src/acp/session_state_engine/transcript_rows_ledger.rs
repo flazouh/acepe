@@ -19,7 +19,7 @@ use crate::acp::session_state_engine::{
     SessionStatePayload,
 };
 use crate::acp::transcript_projection::{
-    TranscriptEntry, TranscriptEntryRole, TranscriptProjectionRegistry,
+    TranscriptEntry, TranscriptEntryRole, TranscriptProjectionRegistry, TranscriptScope,
 };
 use crate::acp::transcript_viewport::ledger::{
     serialize_transcript_scopes_for_ledger, serialize_viewport_rows_for_ledger_from_index,
@@ -236,6 +236,13 @@ impl TranscriptRowsLedger {
         if entry_slice.entries.len() != changed_entry_ids.len() {
             return Ok(None);
         }
+        if entry_slice
+            .entries
+            .iter()
+            .any(|entry| entry.entry.scope != TranscriptScope::Root)
+        {
+            return Ok(None);
+        }
         let indexed_entry = entry_slice
             .entries
             .iter()
@@ -258,7 +265,7 @@ impl TranscriptRowsLedger {
                 revision.graph_revision
             },
             transcript_revision: entry_slice.revision,
-            last_event_seq: revision.last_event_seq.max(entry_slice.revision),
+            last_event_seq: revision.last_event_seq,
         };
 
         let selected_activity = select_session_graph_activity(
@@ -373,7 +380,7 @@ impl TranscriptRowsLedger {
                 revision.graph_revision
             },
             transcript_revision: transcript_snapshot.revision,
-            last_event_seq: revision.last_event_seq.max(transcript_snapshot.revision),
+            last_event_seq: revision.last_event_seq,
         };
 
         let operations = projection_snapshot.operations;
@@ -932,7 +939,7 @@ mod tests {
             SessionGraphActivityKind::AwaitingModel
         );
         assert_eq!(materialized.rows.len(), 1);
-        assert_eq!(materialized.rows[0].row_id, "transcript:entry-1");
+        assert_eq!(materialized.rows[0].row_id, "transcript:root:entry-1");
         assert_eq!(materialized.rows[0].kind, TranscriptViewportRowKind::User);
     }
 
@@ -1104,7 +1111,7 @@ mod tests {
         assert_eq!(materialized.effective_revision.graph_revision, 11);
         assert_eq!(materialized.effective_revision.transcript_revision, 7);
         assert_eq!(materialized.rows.len(), 1);
-        assert_eq!(materialized.rows[0].row_id, "transcript:entry-1");
+        assert_eq!(materialized.rows[0].row_id, "transcript:root:entry-1");
         let row_json: serde_json::Value =
             serde_json::from_str(&materialized.rows[0].row_json).expect("row json should parse");
         assert_eq!(row_json["operationLinks"][0]["operationId"], "operation-1");
@@ -1185,7 +1192,7 @@ mod tests {
         assert!(!fast.replace_all);
         assert_eq!(fast.rows.len(), 1);
         assert_eq!(fast.rows[0].row_index, 2);
-        assert_eq!(fast.rows[0].row_id, "transcript:entry-2");
+        assert_eq!(fast.rows[0].row_id, "transcript:root:entry-2");
         assert_eq!(fast.rows[0].row_json, full.rows[2].row_json);
     }
 
@@ -1253,9 +1260,9 @@ mod tests {
         assert!(!fast.replace_all);
         assert_eq!(fast.rows.len(), 3);
         assert_eq!(fast.rows[0].row_index, 1);
-        assert_eq!(fast.rows[0].row_id, "transcript:entry-1");
+        assert_eq!(fast.rows[0].row_id, "transcript:root:entry-1");
         assert_eq!(fast.rows[2].row_index, 3);
-        assert_eq!(fast.rows[2].row_id, "transcript:entry-3");
+        assert_eq!(fast.rows[2].row_id, "transcript:root:entry-3");
         assert_eq!(fast.rows[0].row_json, full.rows[1].row_json);
         assert_eq!(fast.rows[2].row_json, full.rows[3].row_json);
     }
@@ -1313,8 +1320,8 @@ mod tests {
         assert_eq!(fast.start_row_index, 1);
         assert!(!fast.replace_all);
         assert_eq!(fast.rows.len(), 3);
-        assert_eq!(fast.rows[0].row_id, "transcript:entry-1");
-        assert_eq!(fast.rows[2].row_id, "transcript:entry-3");
+        assert_eq!(fast.rows[0].row_id, "transcript:root:entry-1");
+        assert_eq!(fast.rows[2].row_id, "transcript:root:entry-3");
     }
 
     #[test]
@@ -1371,8 +1378,8 @@ mod tests {
         assert_eq!(fast.start_row_index, 1);
         assert!(!fast.replace_all);
         assert_eq!(fast.rows.len(), 3);
-        assert_eq!(fast.rows[0].row_id, "transcript:entry-1");
-        assert_eq!(fast.rows[2].row_id, "transcript:entry-3");
+        assert_eq!(fast.rows[0].row_id, "transcript:root:entry-1");
+        assert_eq!(fast.rows[2].row_id, "transcript:root:entry-3");
     }
 
     #[test]
@@ -1428,8 +1435,8 @@ mod tests {
         assert_eq!(fast.start_row_index, 1);
         assert!(!fast.replace_all);
         assert_eq!(fast.rows.len(), 4);
-        assert_eq!(fast.rows[0].row_id, "transcript:entry-1");
-        assert_eq!(fast.rows[3].row_id, "transcript:entry-4");
+        assert_eq!(fast.rows[0].row_id, "transcript:root:entry-1");
+        assert_eq!(fast.rows[3].row_id, "transcript:root:entry-4");
     }
 
     #[test]
@@ -1500,9 +1507,62 @@ mod tests {
         assert_eq!(fast.start_row_index, 1);
         assert!(!fast.replace_all);
         assert_eq!(fast.rows.len(), 4);
-        assert_eq!(fast.rows[0].row_id, "transcript:entry-1");
-        assert_eq!(fast.rows[3].row_id, "transcript:entry-4");
+        assert_eq!(fast.rows[0].row_id, "transcript:root:entry-1");
+        assert_eq!(fast.rows[3].row_id, "transcript:root:entry-4");
         assert_suffix_rows_match_full_materialization(&fast, &full);
+    }
+
+    #[test]
+    fn operation_scoped_changed_entry_skips_root_suffix_fast_path() {
+        let ledger = super::TranscriptRowsLedger::new();
+        let session_id = "session-operation-scope-suffix";
+        let runtime_snapshot = SessionGraphRuntimeSnapshot::default();
+        let projection_registry = ProjectionRegistry::new();
+        let transcript_projection_registry = TranscriptProjectionRegistry::new();
+        let mut session =
+            SessionSnapshot::new(session_id.to_string(), Some(CanonicalAgentId::ClaudeCode));
+        session.message_count = 1;
+        session.transcript_entry_count = 1;
+        projection_registry.restore_session_projection(SessionProjectionSnapshot {
+            session: Some(session),
+            operations: Vec::new(),
+            interactions: Vec::new(),
+            runtime: None,
+        });
+        transcript_projection_registry.restore_session_snapshot(
+            session_id.to_string(),
+            TranscriptSnapshot {
+                revision: 7,
+                entries: vec![operation_transcript_entry(
+                    "operation-1",
+                    "entry-child",
+                    TranscriptEntryRole::Assistant,
+                    "child report",
+                )],
+            },
+        );
+        let hint = super::TranscriptRowsLedgerWriteHint {
+            force_full_replace: false,
+            changed_source_entry_ids: vec!["entry-child".to_string()],
+            changed_tool_call_ids: Vec::new(),
+            changed_interaction_ids: Vec::new(),
+        };
+
+        let fast = ledger
+            .materialize_changed_entry_suffix_persisted_rows(
+                &runtime_snapshot,
+                session_id,
+                SessionGraphRevision::new(11, 7, 11),
+                &projection_registry,
+                &transcript_projection_registry,
+                &hint,
+            )
+            .expect("operation-scoped fast-path check should not error");
+
+        assert!(
+            fast.is_none(),
+            "operation-scoped transcript entries must use full scoped ledger materialization"
+        );
     }
 
     #[test]
@@ -1558,7 +1618,7 @@ mod tests {
         assert!(!fast.replace_all);
         assert_eq!(fast.rows.len(), 1);
         assert_eq!(fast.rows[0].row_index, 2);
-        assert_eq!(fast.rows[0].row_id, "transcript:entry-2");
+        assert_eq!(fast.rows[0].row_id, "transcript:root:entry-2");
     }
 
     #[test]
@@ -1615,7 +1675,7 @@ mod tests {
         assert!(!fast.replace_all);
         assert_eq!(fast.rows.len(), 1);
         assert_eq!(fast.rows[0].row_index, 2);
-        assert_eq!(fast.rows[0].row_id, "transcript:entry-2");
+        assert_eq!(fast.rows[0].row_id, "transcript:root:entry-2");
     }
 
     #[test]
@@ -1837,6 +1897,27 @@ mod tests {
         }
     }
 
+    fn operation_transcript_entry(
+        operation_id: &str,
+        entry_id: &str,
+        role: TranscriptEntryRole,
+        text: &str,
+    ) -> TranscriptEntry {
+        TranscriptEntry {
+            scope: crate::acp::transcript_projection::TranscriptScope::Operation(
+                operation_id.to_string(),
+            ),
+            entry_id: entry_id.to_string(),
+            role,
+            segments: vec![TranscriptSegment::Text {
+                segment_id: format!("{entry_id}:text:0"),
+                text: text.to_string(),
+            }],
+            attempt_id: None,
+            timestamp_ms: None,
+        }
+    }
+
     fn viewport_row(index: usize, text_len: usize) -> TranscriptViewportRow {
         TranscriptViewportRow {
             row_id: format!("row-{index}"),
@@ -1856,6 +1937,7 @@ mod tests {
                 }],
             },
             duration_started_at_ms: None,
+            timestamp_ms: None,
         }
     }
 }

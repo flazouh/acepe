@@ -71,7 +71,9 @@ if (
 		console.error(`- delete old viewport authority file ${relative(process.cwd(), filePath)}`);
 	}
 	for (const filePath of forbiddenImports) {
-		console.error(`- remove forbidden viewport authority import ${relative(process.cwd(), filePath)}`);
+		console.error(
+			`- remove forbidden viewport authority import ${relative(process.cwd(), filePath)}`
+		);
 	}
 	for (const filePath of providerIdentityRepairs) {
 		console.error(`- remove provider-id display repair ${relative(process.cwd(), filePath)}`);

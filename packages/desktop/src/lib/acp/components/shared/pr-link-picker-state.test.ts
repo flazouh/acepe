@@ -74,10 +74,7 @@ describe("pr link picker state", () => {
 
 		const grouped = groupSessionPrLinksByNumber(references);
 
-		expect(grouped.get(12)?.map((reference) => reference.id)).toEqual([
-			"session-1",
-			"session-2",
-		]);
+		expect(grouped.get(12)?.map((reference) => reference.id)).toEqual(["session-1", "session-2"]);
 		expect(grouped.get(13)?.map((reference) => reference.id)).toEqual(["session-3"]);
 	});
 
@@ -90,12 +87,8 @@ describe("pr link picker state", () => {
 		expect(filterPullRequestsByQuery(pullRequests, "queue").map((item) => item.number)).toEqual([
 			12,
 		]);
-		expect(filterPullRequestsByQuery(pullRequests, "SAM").map((item) => item.number)).toEqual([
-			24,
-		]);
-		expect(filterPullRequestsByQuery(pullRequests, "#12").map((item) => item.number)).toEqual([
-			12,
-		]);
+		expect(filterPullRequestsByQuery(pullRequests, "SAM").map((item) => item.number)).toEqual([24]);
+		expect(filterPullRequestsByQuery(pullRequests, "#12").map((item) => item.number)).toEqual([12]);
 		expect(filterPullRequestsByQuery(pullRequests, "  ")).toBe(pullRequests);
 	});
 

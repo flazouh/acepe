@@ -1,8 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
-import AgentPanelHeader from "../agent-panel-header.svelte";
 import type { AgentPanelHeaderProps } from "../../types/agent-panel-header-props.js";
+import AgentPanelHeader from "../agent-panel-header.svelte";
 
 vi.mock(
 	"svelte",
@@ -571,7 +570,9 @@ describe("AgentPanelHeader project-header style", () => {
 			key: "ArrowRight",
 			code: "ArrowRight",
 		});
-		const copyLogPathItem = await screen.findByRole("menuitem", { name: "Copy Streaming Log Path" });
+		const copyLogPathItem = await screen.findByRole("menuitem", {
+			name: "Copy Streaming Log Path",
+		});
 		const renderedIcon = copyLogPathItem.querySelector("svg");
 
 		expect(renderedIcon?.tagName.toLowerCase()).toBe("svg");

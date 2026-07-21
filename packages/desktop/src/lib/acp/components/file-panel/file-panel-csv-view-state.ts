@@ -1,5 +1,5 @@
-import type { FilePanelFormatKind, TableData } from "./format/types.js";
 import { parseTableContent } from "./format/parsers/delimited.js";
+import type { FilePanelFormatKind, TableData } from "./format/types.js";
 
 export type FilePanelCsvViewState =
 	| {

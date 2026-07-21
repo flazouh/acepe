@@ -1,4 +1,9 @@
-import { errAsync, okAsync, ResultAsync, type ResultAsync as NeverthrowResultAsync } from "neverthrow";
+import {
+	errAsync,
+	type ResultAsync as NeverthrowResultAsync,
+	okAsync,
+	ResultAsync,
+} from "neverthrow";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { OperationSnapshot } from "../../../services/acp-types.js";
@@ -56,7 +61,7 @@ function createExecuteOperation(id: string, command: string): OperationSnapshot 
 		kind: "execute",
 		provider_status: "pending",
 		operation_state: "pending",
-	awaiting_plan_approval: false,
+		awaiting_plan_approval: false,
 		source_link: { kind: "transcript_linked", entry_id: id },
 		title: "Run command",
 		arguments: { kind: "execute", command },

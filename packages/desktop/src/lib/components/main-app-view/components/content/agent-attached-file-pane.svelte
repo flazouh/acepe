@@ -85,9 +85,7 @@ const activeFileProject = $derived(
 	activeFilePanel === null ? undefined : projectsByPath.get(activeFilePanel.projectPath)
 );
 const badgeLabelByPath = $derived(
-	computeProjectBadgeLabels(
-		projects.map((project) => ({ key: project.path, name: project.name }))
-	)
+	computeProjectBadgeLabels(projects.map((project) => ({ key: project.path, name: project.name })))
 );
 const activeFilePanelGitStatus = $derived.by(() =>
 	activeFilePanel === null
@@ -113,10 +111,7 @@ $effect(() => {
 	// switching the active tab should not rebuild badge state for every attached tab.
 	let nextGitStatusByFilePanelKey = currentGitStatuses;
 	if (retainedGitStatusFilePanels !== currentFilePanels) {
-		nextGitStatusByFilePanelKey = createRetainedGitStatusMap(
-			currentFilePanels,
-			currentGitStatuses
-		);
+		nextGitStatusByFilePanelKey = createRetainedGitStatusMap(currentFilePanels, currentGitStatuses);
 		gitStatusByFilePanelKey = nextGitStatusByFilePanelKey;
 		retainedGitStatusFilePanels = currentFilePanels;
 	}

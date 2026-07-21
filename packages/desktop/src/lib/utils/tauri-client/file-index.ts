@@ -3,7 +3,6 @@ import type { ResultAsync } from "neverthrow";
 import type { AppError } from "../../acp/errors/app-error.js";
 import type {
 	FileExplorerPreviewResponse,
-	FileExplorerSearchResponse,
 	FileGitStatus,
 	ProjectIndex,
 } from "../../services/converted-session-types.js";
@@ -112,20 +111,6 @@ export const fileIndex = {
 		return fileIndexCommands.create_directory.invoke<void>({
 			projectPath,
 			relativePath,
-		});
-	},
-
-	searchProjectFilesForExplorer: (
-		projectPath: string,
-		query: string,
-		limit: number,
-		offset: number
-	): ResultAsync<FileExplorerSearchResponse, AppError> => {
-		return fileIndexCommands.search_project_files_for_explorer.invoke<FileExplorerSearchResponse>({
-			projectPath,
-			query,
-			limit,
-			offset,
 		});
 	},
 

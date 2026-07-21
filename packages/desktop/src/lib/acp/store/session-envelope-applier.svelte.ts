@@ -8,6 +8,8 @@
  * patches to the existing sub-store owners without introducing dual-write or
  * `canonical ?? hot` fallback.
  */
+
+import type { ResultAsync } from "neverthrow";
 import type {
 	InteractionSnapshot,
 	OperationSnapshot,
@@ -25,19 +27,19 @@ import type {
 	ViewportBufferPush,
 } from "../../services/acp-types.js";
 import type { AppError } from "../errors/app-error.js";
-import type { ActiveTurnFailure, TurnErrorUpdate } from "../types/turn-error.js";
-import { routeSessionStateEnvelope } from "../session-state/session-state-command-router.js";
 import type { SessionStateCommand } from "../session-state/session-state-command-router.js";
+import { routeSessionStateEnvelope } from "../session-state/session-state-command-router.js";
+import type { ActiveTurnFailure, TurnErrorUpdate } from "../types/turn-error.js";
+import { createLogger } from "../utils/logger.js";
 import { sanitizeCanonicalCapabilities } from "./canonical-config-sanitize.js";
-import type {
-	CanonicalSessionProjection,
-	RowTokenStream,
-} from "./canonical-session-projection.js";
+import type { CanonicalSessionProjection } from "./canonical-session-projection.js";
 import { deriveCapabilityPreviewState } from "./capability-projection.js";
-import { preserveCanonicalStreamingState } from "./envelope-reducer/canonical-streaming-state.js";
 import type { EnvelopePatch } from "./envelope-reducer/envelope-patch.js";
 import type { EnvelopeReducerSnapshot } from "./envelope-reducer/envelope-snapshot.js";
-import { isNewerGraphRevision, isOlderGraphRevision } from "./envelope-reducer/graph-revision-order.js";
+import {
+	isNewerGraphRevision,
+	isOlderGraphRevision,
+} from "./envelope-reducer/graph-revision-order.js";
 import { mapProjectionTurnFailure } from "./envelope-reducer/projection-turn-failure.js";
 import { reduceCommand, reduceTranscriptDelta } from "./envelope-reducer/reduce-command.js";
 import { seedTranscriptEntryIndex } from "./transcript-entry-index.js";
@@ -47,8 +49,6 @@ import type {
 	SessionTransientProjection,
 	SessionUsageTelemetry,
 } from "./types.js";
-import { createLogger } from "../utils/logger.js";
-import type { ResultAsync } from "neverthrow";
 
 const logger = createLogger({ id: "session-envelope-applier", name: "SessionEnvelopeApplier" });
 
@@ -119,32 +119,10 @@ export type SessionEnvelopeApplierDeps = {
 	) => void;
 	readonly syncSessionSequenceFromGraph: (graph: SessionStateGraph) => void;
 	readonly composerEndDispatch: (sessionId: string) => void;
-	readonly handleCanonicalTurnComplete: (
-		sessionId: string,
-		lastTerminalTurnId?: string
-	) => void;
+	readonly handleCanonicalTurnComplete: (sessionId: string, lastTerminalTurnId?: string) => void;
 	readonly handleCanonicalTurnFailure: (sessionId: string, error: TurnErrorUpdate) => void;
 	readonly refreshSessionStateSnapshot: (sessionId: string) => InflightSessionStateRefresh;
-	readonly rowTokenStreamsByRowId: Map<string, Map<string, RowTokenStream>>;
 };
-
-function getBrowserMonotonicMs(): number {
-	return typeof performance === "undefined" ? Date.now() : performance.now();
-}
-
-function getOrCreateRowTokenStreamByRowId(
-	rowsBySessionId: Map<string, Map<string, RowTokenStream>>,
-	sessionId: string
-): Map<string, RowTokenStream> {
-	const existing = rowsBySessionId.get(sessionId);
-	if (existing !== undefined) {
-		return existing;
-	}
-
-	const created = new Map<string, RowTokenStream>();
-	rowsBySessionId.set(sessionId, created);
-	return created;
-}
 
 export class SessionEnvelopeApplier {
 	readonly #deps: SessionEnvelopeApplierDeps;
@@ -158,7 +136,6 @@ export class SessionEnvelopeApplier {
 		const sessionId = graph.canonicalSessionId;
 		const previousTransientProjection = this.#deps.getTransientProjection(sessionId);
 		const previousProjection = this.#deps.getCanonicalProjection(sessionId);
-		const preservedStreamingState = preserveCanonicalStreamingState(previousProjection);
 		seedTranscriptEntryIndex(graph.transcriptSnapshot.entries);
 		this.#deps.setSessionStateGraph(sessionId, graph);
 		const canonicalCapabilities = sanitizeCanonicalCapabilities(graph.capabilities);
@@ -173,8 +150,6 @@ export class SessionEnvelopeApplier {
 			lastTerminalTurnId: nextLastTerminalTurnId,
 			activeStreamingTail: graph.activeStreamingTail ?? null,
 			capabilities: canonicalCapabilities,
-			tokenStream: preservedStreamingState.tokenStream,
-			clockAnchor: preservedStreamingState.clockAnchor,
 			revision: graph.revision,
 		});
 		this.#applyCanonicalTerminalTurnSideEffects({
@@ -260,7 +235,6 @@ export class SessionEnvelopeApplier {
 			transientProjection: this.#deps.getTransientProjection(sessionId),
 			currentModelId: this.#deps.getSessionCurrentModelId(sessionId),
 			sessionCold: this.#deps.getSessionCold(sessionId),
-			browserMonotonicMs: getBrowserMonotonicMs(),
 		};
 	}
 
@@ -361,25 +335,10 @@ export class SessionEnvelopeApplier {
 					);
 					break;
 				case "warnMissingCanonicalProjection":
-					if (patch.reason === "graphPatches") {
-						logger.warn("Received session-state graph patches before canonical projection", {
-							sessionId: patch.sessionId,
-							revision: patch.context.revision,
-						});
-					} else {
-						logger.warn("Received assistant text delta before canonical projection", {
-							sessionId: patch.sessionId,
-							turnId: patch.context.turnId,
-							rowId: patch.context.rowId,
-							revision: patch.context.deltaRevision,
-						});
-					}
-					break;
-				case "setRowTokenStream":
-					getOrCreateRowTokenStreamByRowId(this.#deps.rowTokenStreamsByRowId, patch.sessionId).set(
-						patch.rowId,
-						patch.row
-					);
+					logger.warn("Received session-state graph patches before canonical projection", {
+						sessionId: patch.sessionId,
+						revision: patch.context.revision,
+					});
 					break;
 			}
 		}
@@ -464,19 +423,6 @@ export class SessionEnvelopeApplier {
 			}
 			return;
 		}
-
-		if (command.kind === "applyAssistantTextDelta") {
-			const projection = snapshot.previousProjection;
-			if (projection !== null && command.delta.revision <= projection.revision.graphRevision) {
-				logger.debug("Ignoring stale assistant text delta behind canonical graph frontier", {
-					sessionId,
-					turnId: command.delta.turnId,
-					rowId: command.delta.rowId,
-					deltaRevision: command.delta.revision,
-					graphRevision: projection.revision.graphRevision,
-				});
-			}
-		}
 	}
 
 	#applyEnvelopeReducerCommand(sessionId: string, command: SessionStateCommand): void {
@@ -484,7 +430,9 @@ export class SessionEnvelopeApplier {
 		const patches = reduceCommand(snapshot, command, Date.now());
 		this.#logEnvelopeReducerNoop(sessionId, command, snapshot, patches);
 		if (command.kind === "replaceGraph" && patches.length > 0) {
-			const replacedTranscript = patches.some((patch) => patch.kind === "replaceTranscriptSnapshot");
+			const replacedTranscript = patches.some(
+				(patch) => patch.kind === "replaceTranscriptSnapshot"
+			);
 			if (!replacedTranscript) {
 				const previousGraph = snapshot.previousGraph;
 				logger.debug("Ignoring non-advancing session-state transcript snapshot", {
@@ -543,12 +491,9 @@ export class SessionEnvelopeApplier {
 			turn_id: input.projectedFailure.turn_id ?? undefined,
 			error: {
 				message: input.projectedFailure.message,
-				code:
-					input.projectedFailure.code != null ? input.projectedFailure.code : undefined,
+				code: input.projectedFailure.code != null ? input.projectedFailure.code : undefined,
 				details:
-					input.projectedFailure.details != null
-						? input.projectedFailure.details
-						: undefined,
+					input.projectedFailure.details != null ? input.projectedFailure.details : undefined,
 				kind: input.projectedFailure.kind,
 				source: input.projectedFailure.source ?? "unknown",
 			},

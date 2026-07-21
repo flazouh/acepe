@@ -6,8 +6,11 @@ import type {
 	TranscriptEntry,
 	TranscriptSnapshot,
 } from "../../../services/acp-types.js";
+import type {
+	CachedConversationInput,
+	CachedConversationState,
+} from "../conversation-cache-types.js";
 import { materializeCachedConversation } from "../conversation-dispatcher.js";
-import type { CachedConversationInput, CachedConversationState } from "../conversation-cache-types.js";
 
 function createActionability() {
 	return {

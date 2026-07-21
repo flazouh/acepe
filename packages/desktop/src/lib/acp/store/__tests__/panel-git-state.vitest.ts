@@ -1,60 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-
-import {
-	PanelGitState,
-	type PanelGitStateDeps,
-} from "../panel-git-state.svelte.js";
-import type { TopLevelPanelCloseState } from "../panel-terminal-state.svelte.js";
 import type { GitPanel } from "../git-panel-type.js";
+import { PanelGitState, type PanelGitStateDeps } from "../panel-git-state.svelte.js";
+import type { TopLevelPanelCloseState } from "../panel-terminal-state.svelte.js";
 import type { WorkspacePanel } from "../types.js";
 
-function createGitState(
-	overrides?: Partial<PanelGitStateDeps>
-): { state: PanelGitState; workspacePanels: WorkspacePanel[]; persist: ReturnType<typeof vi.fn> } {
-	let workspacePanels: WorkspacePanel[] = [];
-	const persist = vi.fn();
-
-	const deps: PanelGitStateDeps = {
-		getWorkspacePanels: () => workspacePanels,
-		setWorkspacePanels: (panels) => {
-			workspacePanels = Array.from(panels);
-		},
-		onPersist: () => {
-			persist();
-		},
-		getViewMode: () => "multi",
-		setFocusedViewProjectPath: () => {},
-		setScrollX: () => {},
-		captureTopLevelPanelCloseState: () =>
-			({
-				nextTopLevelPanelId: null,
-				wasFocusedPanel: false,
-				wasVisibleSingleModePanel: false,
-				wasLegacyFullscreenPanel: false,
-			}) satisfies TopLevelPanelCloseState,
-		applyTopLevelPanelCloseState: () => {},
-	};
-
-	const state = new PanelGitState({ ...deps, ...overrides });
-	return { state, workspacePanels, persist };
-}
-
 describe("PanelGitState", () => {
-	it("opens and closes the git dialog without PanelStore", () => {
-		const { state, persist } = createGitState();
-
-		const dialog = state.openGitDialog("/tmp/project");
-		expect(state.gitDialog).toEqual({
-			id: dialog.id,
-			projectPath: "/tmp/project",
-			width: dialog.width,
-		});
-
-		state.closeGitDialog();
-		expect(state.gitDialog).toBeNull();
-		expect(persist).toHaveBeenCalledTimes(2);
-	});
-
 	it("closes a legacy git workspace panel", () => {
 		const applyCloseState = vi.fn();
 		const workspace: { panels: WorkspacePanel[] } = { panels: [] };
@@ -64,19 +14,17 @@ describe("PanelGitState", () => {
 				workspace.panels = Array.from(panels);
 			},
 			onPersist: () => {},
-			getViewMode: () => "multi",
-			setFocusedViewProjectPath: () => {},
-			setScrollX: () => {},
-			captureTopLevelPanelCloseState: () => ({
-				nextTopLevelPanelId: null,
-				wasFocusedPanel: false,
-				wasVisibleSingleModePanel: false,
-				wasLegacyFullscreenPanel: false,
-			}),
+			captureTopLevelPanelCloseState: () =>
+				({
+					nextTopLevelPanelId: null,
+					wasFocusedPanel: false,
+					wasVisibleSingleModePanel: false,
+					wasLegacyFullscreenPanel: false,
+				}) satisfies TopLevelPanelCloseState,
 			applyTopLevelPanelCloseState: (closeState) => {
 				applyCloseState(closeState);
 			},
-		});
+		} satisfies PanelGitStateDeps);
 
 		const gitPanel: GitPanel = {
 			id: "git-panel-1",

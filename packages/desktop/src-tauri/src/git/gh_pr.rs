@@ -784,7 +784,7 @@ fn parse_step_logs(
 
     for raw_line in log_text.lines() {
         // Strip timestamp prefix ("2026-06-26T11:31:28.2369080Z content" → "content")
-        let content = raw_line.splitn(2, ' ').nth(1).unwrap_or(raw_line);
+        let content = raw_line.split_once(' ').map(|x| x.1).unwrap_or(raw_line);
 
         if let Some(group_name) = content.strip_prefix("##[group]") {
             if step_names.iter().any(|s| s.as_str() == group_name) {

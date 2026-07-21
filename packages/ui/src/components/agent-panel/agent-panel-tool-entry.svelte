@@ -4,6 +4,7 @@ import type {
 	AgentPanelPlanViewEvent,
 	AgentPanelQuestionSelectEvent,
 	AgentPanelReviewActionEvent,
+	AgentTaskDetailBinding,
 	AgentToolFileSelectEvent,
 } from "./types.js";
 import {
@@ -32,6 +33,7 @@ interface Props {
 	onToolFileSelect?: (event: AgentToolFileSelectEvent) => void;
 	onReview?: (event: AgentPanelReviewActionEvent) => void;
 	isPlanActionAvailable?: (event: AgentPanelPlanActionEvent) => boolean;
+	taskDetail?: AgentTaskDetailBinding | null;
 }
 
 let {
@@ -45,6 +47,7 @@ let {
 	onToolFileSelect,
 	onReview,
 	isPlanActionAvailable,
+	taskDetail = null,
 }: Props = $props();
 
 const renderKind = $derived(resolveConversationRenderKind(entry));
@@ -108,5 +111,6 @@ const durationTiming = $derived<ToolDurationTiming>({
 		{renderKind}
 		{durationTiming}
 		{iconBasePath}
+		{taskDetail}
 	/>
 {/if}

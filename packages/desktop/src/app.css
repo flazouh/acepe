@@ -36,6 +36,10 @@
 	--success-foreground: #ffffff;
 	--build-icon: var(--success);
 	--plan-icon: var(--token-plan-icon-light);
+	/* Cursor status icons — from static/themes/cursor-light.theme.json */
+	--cursor-status-error: var(--token-cursor-status-error-light);
+	--cursor-status-warning: var(--token-cursor-status-warning-light);
+	--cursor-status-success: var(--token-cursor-status-success-light);
 	--border: rgba(13, 13, 13, 0.078);
 	--input: rgba(13, 13, 13, 0.078);
 	--ring: #0169cc;
@@ -114,6 +118,10 @@
 	--success-foreground: #121212;
 	--build-icon: var(--token-build-icon-dark);
 	--plan-icon: var(--token-plan-icon-dark);
+	/* Cursor status icons — from static/themes/cursor.theme.json */
+	--cursor-status-error: var(--token-cursor-status-error-dark);
+	--cursor-status-warning: var(--token-cursor-status-warning-dark);
+	--cursor-status-success: var(--token-cursor-status-success-dark);
 	--border: #292928;
 	--input: #292928;
 	--ring: #a5a39d;

@@ -22,6 +22,7 @@ import type {
 } from "../../../services/acp-types.js";
 import { TauriCommandError } from "../../../utils/tauri-client/invoke.js";
 import { tauriClient } from "../../../utils/tauri-client.js";
+import { sessionColdFromSlices } from "../../application/dto/session-cold.js";
 import type { AppError } from "../../errors/app-error.js";
 import {
 	AgentError,
@@ -30,7 +31,6 @@ import {
 	CreationFailureError,
 	SessionNotFoundError,
 } from "../../errors/app-error.js";
-import { sessionColdFromSlices } from "../../application/dto/session-cold.js";
 import { createLogger } from "../../utils/logger.js";
 import { extractProjectName } from "../../utils/path-utils.js";
 import { generateFallbackProjectColor } from "../../utils/project-utils.js";
@@ -225,7 +225,10 @@ function canonicalCurrentModeId(reader: ISessionStateReader, sessionId: string):
 	return reader.getSessionCurrentModeId(sessionId);
 }
 
-function canonicalAutonomousEnabled(reader: ISessionStateReader, sessionId: string): boolean | null {
+function canonicalAutonomousEnabled(
+	reader: ISessionStateReader,
+	sessionId: string
+): boolean | null {
 	return reader.getSessionAutonomousEnabled(sessionId);
 }
 
@@ -274,7 +277,9 @@ export class SessionConnectionManager {
 	// ============================================
 
 	private supportsAutonomousMode(modeId: string | undefined): boolean {
-		return modeId === "agent" || modeId === "default" || modeId === "autopilot" || modeId === "build";
+		return (
+			modeId === "agent" || modeId === "default" || modeId === "autopilot" || modeId === "build"
+		);
 	}
 
 	private setSessionAutonomous(sessionId: string, enabled: boolean): ResultAsync<void, AppError> {
@@ -544,29 +549,29 @@ export class SessionConnectionManager {
 				> = explicitSelectionError
 					? errAsync(explicitSelectionError)
 					: hasExplicitInitialSelection
-					? (targetModeChanged && targetMode
-							? api.setMode(sessionId, targetMode.id)
-							: okAsync(undefined)
-						)
-							.andThen(() => {
-								const shouldApplyExplicitModel =
-									explicitInitialModel !== null &&
-									(targetModeChanged || explicitInitialModel.id !== currentModel?.id);
+						? (targetModeChanged && targetMode
+								? api.setMode(sessionId, targetMode.id)
+								: okAsync(undefined)
+							)
+								.andThen(() => {
+									const shouldApplyExplicitModel =
+										explicitInitialModel !== null &&
+										(targetModeChanged || explicitInitialModel.id !== currentModel?.id);
 
-								if (shouldApplyExplicitModel && targetModel) {
-									return api.setModel(sessionId, targetModel.id);
-								}
+									if (shouldApplyExplicitModel && targetModel) {
+										return api.setModel(sessionId, targetModel.id);
+									}
 
-								return okAsync(undefined);
-							})
-							.map(() => ({
-								currentMode: targetMode,
-								currentModel: targetModel,
-							}))
-					: okAsync({
-							currentMode,
-							currentModel,
-						});
+									return okAsync(undefined);
+								})
+								.map(() => ({
+									currentMode: targetMode,
+									currentModel: targetModel,
+								}))
+						: okAsync({
+								currentMode,
+								currentModel,
+							});
 
 				return applyInitialSelection
 					.orElse((error) =>
@@ -622,11 +627,7 @@ export class SessionConnectionManager {
 
 							// Initialize per-mode model memory with current mode choice
 							if (currentMode && currentModel) {
-								preferencesStore.setSessionModelForMode(
-									sessionId,
-									currentMode.id,
-									currentModel.id
-								);
+								preferencesStore.setSessionModelForMode(sessionId, currentMode.id, currentModel.id);
 							}
 
 							// Store only cold data (identity + metadata) in the sessions array
@@ -1071,6 +1072,22 @@ export class SessionConnectionManager {
 						modelId: previousModelForMode,
 					});
 					return this.setModel(sessionId, previousModelForMode);
+				}
+
+				const defaultModelForAgent = preferencesStore.getDefaultModel(
+					sessionIdentity.agentId,
+					null
+				);
+				if (
+					defaultModelForAgent &&
+					availableModels.some((m) => m.id === defaultModelForAgent) === true
+				) {
+					logger.debug("Applying default model for mode", {
+						sessionId,
+						modeId,
+						modelId: defaultModelForAgent,
+					});
+					return this.setModel(sessionId, defaultModelForAgent);
 				}
 
 				return okAsync(undefined);

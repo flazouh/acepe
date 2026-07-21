@@ -6,17 +6,19 @@ import type { SessionOpenFound } from "../../services/acp-types.js";
 import type { AppError } from "../errors/app-error.js";
 import { SessionNotFoundError } from "../errors/app-error.js";
 import { api } from "./api.js";
+import type { ISessionStateWriter } from "./services/interfaces/index.js";
 import type { SessionLifecycleCleanup } from "./session-lifecycle-cleanup.js";
 import type { SessionListState } from "./session-list-state.svelte.js";
 import type { SessionOpenSnapshotApplier } from "./session-open-snapshot-applier.svelte.js";
 import type { SessionCold, SessionMutableColdUpdates } from "./types.js";
-import type { ISessionStateWriter } from "./services/interfaces/index.js";
 
 export type SessionWriteFacadeDeps = {
 	readonly listState: SessionListState;
 	readonly lifecycleCleanup: SessionLifecycleCleanup;
 	readonly openSnapshotApplier: SessionOpenSnapshotApplier;
-	readonly getSessionMetadata: (sessionId: string) => import("./types.js").SessionMetadata | undefined;
+	readonly getSessionMetadata: (
+		sessionId: string
+	) => import("./types.js").SessionMetadata | undefined;
 };
 
 export class SessionWriteFacade implements ISessionStateWriter {

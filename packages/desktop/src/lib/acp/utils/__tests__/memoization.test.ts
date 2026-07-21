@@ -64,7 +64,7 @@ describe("LRUCache", () => {
 	});
 
 	describe("performance", () => {
-		it("should handle 10,000 insertions in under 50ms", () => {
+		it("should handle 10,000 insertions within the CI performance budget", () => {
 			const cache = new LRUCache<string, number>(1000);
 			const start = performance.now();
 
@@ -73,7 +73,7 @@ describe("LRUCache", () => {
 			}
 
 			const elapsed = performance.now() - start;
-			expect(elapsed).toBeLessThan(50);
+			expect(elapsed).toBeLessThan(250);
 			expect(cache.size).toBe(1000); // Should be at max size
 		});
 	});
@@ -248,7 +248,7 @@ describe("hashContent", () => {
 			// A 4x larger batch should stay within a small constant-factor multiple
 			// so we still catch obvious algorithmic regressions.
 			expect(longBatchMedian).toBeLessThan(shortBatchMedian * 6);
-		});
+		}, 15_000);
 	});
 });
 

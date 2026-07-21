@@ -1,29 +1,33 @@
 <script lang="ts">
 import { AgentPanelConversationEntry } from "@acepe/ui/agent-panel";
 import type {
+	AnyAgentEntry as AgentPanelDisplayEntry,
 	AgentPanelPlanActionEvent,
 	AgentPanelPlanViewEvent,
 	AgentPanelQuestionSelectEvent,
 	AgentPanelReviewActionEvent,
+	AgentTaskDetailPresentation,
+	AgentTaskDetailRow,
 	AgentUserFileSelectEvent,
 	AgentToolFileSelectEvent,
 	AssistantRenderBlockContext,
 } from "@acepe/ui/agent-panel";
 import type { ComponentProps, Snippet } from "svelte";
 import type { PermissionRequest } from "../../../types/permission.js";
-import type { RenderedTranscriptViewportRow } from "../logic/transcript-viewport-rendered-rows.js";
 import MessageWrapper from "../../messages/message-wrapper.svelte";
 import PermissionBar from "../../tool-calls/permission-bar.svelte";
+import TranscriptViewportRowRenderer from "./transcript-viewport-row-renderer.svelte";
 
 type ConversationEntryProps = ComponentProps<typeof AgentPanelConversationEntry>;
 
 let {
-	rendered,
+	rowId,
+	rowIndex,
+	entry,
 	sessionId = null,
 	projectPath,
 	showWorkingSpark = false,
 	isFullscreen = false,
-	streamingAnimationMode,
 	editToolTheme,
 	renderAssistantBlock,
 	onQuestionSelect,
@@ -35,13 +39,15 @@ let {
 	onReview,
 	isPlanActionAvailable,
 	getAttachedPermission,
+	taskDetailBindingFor,
 }: {
-	rendered: RenderedTranscriptViewportRow;
+	rowId: string;
+	rowIndex: number;
+	entry: AgentPanelDisplayEntry;
 	sessionId?: string | null;
 	projectPath: string | undefined;
 	showWorkingSpark?: boolean;
 	isFullscreen?: boolean;
-	streamingAnimationMode: ConversationEntryProps["streamingAnimationMode"];
 	editToolTheme: ConversationEntryProps["editToolTheme"];
 	renderAssistantBlock: Snippet<[AssistantRenderBlockContext]>;
 	onQuestionSelect?: (event: AgentPanelQuestionSelectEvent) => void;
@@ -53,32 +59,65 @@ let {
 	onReview?: (event: AgentPanelReviewActionEvent) => void;
 	isPlanActionAvailable?: (event: AgentPanelPlanActionEvent) => boolean;
 	getAttachedPermission: (sessionId: string, toolCallId: string) => PermissionRequest | undefined;
+	taskDetailBindingFor: (
+		rowId: string,
+		entry: AgentPanelDisplayEntry
+	) => {
+		readonly presentation: AgentTaskDetailPresentation;
+		readonly onOpenChange: (open: boolean) => void;
+		readonly onLoadMore: () => void;
+	} | null;
 } = $props();
+
+const taskDetailControllerBinding = $derived(taskDetailBindingFor(rowId, entry));
 </script>
+
+{#snippet renderTaskDetailRow(row: AgentTaskDetailRow, scopedRowIndex: number)}
+	<TranscriptViewportRowRenderer
+		rowId={row.rowId}
+		rowIndex={scopedRowIndex}
+		entry={row.entry}
+		{sessionId}
+		{projectPath}
+		{showWorkingSpark}
+		{isFullscreen}
+		{editToolTheme}
+		{renderAssistantBlock}
+		{onQuestionSelect}
+		{onPlanBuild}
+		{onPlanCancel}
+		{onPlanViewFull}
+		{onToolFileSelect}
+		{onUserFileSelect}
+		{onReview}
+		{isPlanActionAvailable}
+		{getAttachedPermission}
+		{taskDetailBindingFor}
+	/>
+{/snippet}
 
 <div
 	class="transcript-viewport-row"
-	data-entry-key={rendered.row.rowId}
-	data-entry-type={rendered.entry.type}
-	data-tool-kind={rendered.entry.type === "tool_call" ? rendered.entry.kind : undefined}
-	data-tool-status={rendered.entry.type === "tool_call" ? rendered.entry.status : undefined}
-	data-tool-title={rendered.entry.type === "tool_call" ? rendered.entry.title : undefined}
-	data-tool-presentation-state={rendered.entry.type === "tool_call" ? rendered.entry.presentationState : undefined}
-	data-missing-entry={rendered.entry.type === "missing" ? "" : undefined}
+	data-entry-key={rowId}
+	data-entry-type={entry.type}
+	data-tool-kind={entry.type === "tool_call" ? entry.kind : undefined}
+	data-tool-status={entry.type === "tool_call" ? entry.status : undefined}
+	data-tool-title={entry.type === "tool_call" ? entry.title : undefined}
+	data-tool-presentation-state={entry.type === "tool_call" ? entry.presentationState : undefined}
+	data-missing-entry={entry.type === "missing" ? "" : undefined}
 >
 	<MessageWrapper
-		entryIndex={rendered.index}
-		entryKey={rendered.row.rowId}
-		messageId={rendered.entry.type === "user" ? rendered.entry.id : undefined}
+		entryIndex={rowIndex}
+		entryKey={rowId}
+		messageId={entry.type === "user" ? entry.id : undefined}
 		observeRevealResize={false}
 		{isFullscreen}
 	>
 		<AgentPanelConversationEntry
-			entry={rendered.entry}
+			{entry}
 			iconBasePath="/svgs/icons"
 			{editToolTheme}
 			{projectPath}
-			{streamingAnimationMode}
 			{showWorkingSpark}
 			{renderAssistantBlock}
 			{onQuestionSelect}
@@ -89,9 +128,17 @@ let {
 			{onUserFileSelect}
 			{onReview}
 			{isPlanActionAvailable}
+			taskDetail={taskDetailControllerBinding === null
+				? null
+				: {
+						presentation: taskDetailControllerBinding.presentation,
+						renderRow: renderTaskDetailRow,
+						onOpenChange: taskDetailControllerBinding.onOpenChange,
+						onLoadMore: taskDetailControllerBinding.onLoadMore,
+					}}
 		/>
-		{#if rendered.entry.type === "tool_call" && rendered.entry.toolCallId !== undefined && sessionId !== null}
-			{@const attachedPermission = getAttachedPermission(sessionId, rendered.entry.toolCallId)}
+		{#if entry.type === "tool_call" && entry.toolCallId !== undefined && sessionId !== null}
+			{@const attachedPermission = getAttachedPermission(sessionId, entry.toolCallId)}
 			{#if attachedPermission !== undefined}
 				<div class="tool-call-permission-row">
 					<div class="tool-call-permission-attachment">

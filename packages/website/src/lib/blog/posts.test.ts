@@ -18,9 +18,7 @@ describe("blog post registry", () => {
 		]);
 
 		expect(attentionQueueBlogPost.relatedLinks).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({ href: "/compare/1code" }),
-			])
+			expect.arrayContaining([expect.objectContaining({ href: "/compare/1code" })])
 		);
 
 		expect(checkpointsBlogPost.relatedLinks).toEqual(
@@ -38,9 +36,7 @@ describe("blog post registry", () => {
 		);
 
 		expect(gitViewerBlogPost.relatedLinks).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({ href: "/compare/cursor" }),
-			])
+			expect.arrayContaining([expect.objectContaining({ href: "/compare/cursor" })])
 		);
 	});
 });

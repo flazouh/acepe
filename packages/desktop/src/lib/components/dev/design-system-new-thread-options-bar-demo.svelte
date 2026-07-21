@@ -1,36 +1,33 @@
 <script lang="ts">
-	import { AgentInputNewThreadOptions } from "@acepe/ui/agent-panel";
+import { AgentInputNewThreadOptions } from "@acepe/ui/agent-panel";
 
-	import AgentSelector from "$lib/acp/components/agent-selector.svelte";
-	import ProjectSelector from "$lib/acp/components/project-selector.svelte";
-	import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
+import AgentSelector from "$lib/acp/components/agent-selector.svelte";
+import ProjectSelector from "$lib/acp/components/project-selector.svelte";
+import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
 
-	import {
-		mockAgents,
-		mockProjects,
-	} from "./design-system-new-thread-options-specimens.js";
+import { mockAgents, mockProjects } from "./design-system-new-thread-options-specimens.js";
 
-	interface Props {
-		selectedProject?: Project;
-		selectedAgentId?: string;
-		worktreeOn?: boolean;
-		showWorktree?: boolean;
-		showBranch?: boolean;
-		onProjectChange?: (project: Project) => void;
-		onAgentChange?: (agentId: string) => void;
-		onWorktreeToggle?: (on: boolean) => void;
-	}
+interface Props {
+	selectedProject?: Project;
+	selectedAgentId?: string;
+	worktreeOn?: boolean;
+	showWorktree?: boolean;
+	showBranch?: boolean;
+	onProjectChange?: (project: Project) => void;
+	onAgentChange?: (agentId: string) => void;
+	onWorktreeToggle?: (on: boolean) => void;
+}
 
-	let {
-		selectedProject = mockProjects[0],
-		selectedAgentId = "codex",
-		worktreeOn = false,
-		showWorktree = true,
-		showBranch = false,
-		onProjectChange,
-		onAgentChange,
-		onWorktreeToggle,
-	}: Props = $props();
+let {
+	selectedProject = mockProjects[0],
+	selectedAgentId = "codex",
+	worktreeOn = false,
+	showWorktree = true,
+	showBranch = false,
+	onProjectChange,
+	onAgentChange,
+	onWorktreeToggle,
+}: Props = $props();
 </script>
 
 {#snippet projectControl()}

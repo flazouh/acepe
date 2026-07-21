@@ -1480,7 +1480,6 @@ async fn ready_dispatch_permit_survives_non_lifecycle_session_updates() {
             &db,
             &projection_registry,
             session_id,
-            2,
             &crate::acp::session_update::SessionUpdate::TurnComplete {
                 session_id: Some(session_id.to_string()),
                 turn_id: Some("turn-1".to_string()),

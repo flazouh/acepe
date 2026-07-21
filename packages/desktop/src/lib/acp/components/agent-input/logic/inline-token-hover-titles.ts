@@ -1,5 +1,5 @@
-import { decodeInlineTextTokenValue, truncateHoverPreview } from "./inline-token-preview.js";
 import { getInlineTokenType, getInlineTokenValue } from "./inline-composer-dom.js";
+import { decodeInlineTextTokenValue, truncateHoverPreview } from "./inline-token-preview.js";
 
 export function applyInlineTokenHoverTitles(editor: HTMLElement): void {
 	const tokenNodes = editor.querySelectorAll("[data-inline-token-type][data-inline-token-value]");
@@ -17,15 +17,15 @@ export function applyInlineTokenHoverTitles(editor: HTMLElement): void {
 		}
 
 		if (tokenType === "text_ref") {
-		// No native title; text references use the custom preview overlay.
-		node.removeAttribute("title");
-		continue;
-	}
+			// No native title; text references use the custom preview overlay.
+			node.removeAttribute("title");
+			continue;
+		}
 
-	if (tokenType === "image_ref") {
-		node.removeAttribute("title");
-		continue;
-	}
+		if (tokenType === "image_ref") {
+			node.removeAttribute("title");
+			continue;
+		}
 
 		if (tokenType === "text") {
 			const decoded = decodeInlineTextTokenValue(tokenValue);

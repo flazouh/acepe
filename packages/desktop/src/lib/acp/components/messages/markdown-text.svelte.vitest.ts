@@ -16,11 +16,13 @@ vi.mock("svelte", async () => {
 const openUrlMock = vi.fn();
 const openFilePanelMock = vi.fn();
 const openProjectFileSystemDialogMock = vi.fn();
-const sessionContextState = vi.hoisted((): {
-	current: null | { projectPath: string; turnState: "idle" };
-} => ({
-	current: null,
-}));
+const sessionContextState = vi.hoisted(
+	(): {
+		current: null | { projectPath: string; turnState: "idle" };
+	} => ({
+		current: null,
+	})
+);
 
 vi.mock("@tauri-apps/plugin-opener", () => ({
 	openUrl: openUrlMock,
@@ -100,35 +102,6 @@ describe("MarkdownText", () => {
 		expect(view.container.textContent).not.toBe("Hello");
 	});
 
-	it("applies canonical token reveal timing inside the agent panel", async () => {
-		const { container } = render(MarkdownText, {
-			text: "Hello streaming world",
-			isStreaming: false,
-			tokenRevealCss: {
-				revealCount: 3,
-				revealedCharCount: "Hello streaming world".length,
-				baselineMs: -96,
-				tokStepMs: 48,
-				tokFadeDurMs: 630,
-				mode: "smooth",
-			},
-		});
-
-		await waitFor(() => {
-			expect(container.querySelector("[data-sd-animate]")).not.toBeNull();
-		});
-
-		const markdownContent = container.querySelector(".markdown-content") as HTMLElement | null;
-		const animatedWord = container.querySelector("[data-sd-animate]") as HTMLElement | null;
-		expect(markdownContent?.getAttribute("data-token-reveal-mode")).toBe("smooth");
-		expect(markdownContent?.getAttribute("style")).toContain(
-			"--token-reveal-baseline-ms: -96ms"
-		);
-		expect(animatedWord?.getAttribute("style")).toContain(
-			"--sd-animation: sd-acepeTokenReveal"
-		);
-	});
-
 	it("opens external markdown links through the Tauri opener", async () => {
 		const { container } = render(MarkdownText, {
 			text: "[Acepe](https://acepe.dev)",
@@ -189,9 +162,9 @@ describe("MarkdownText", () => {
 			text: "Open `src/app.ts`",
 		});
 
-	await waitFor(() => {
-		expect(container.querySelector(".file-path-badge")?.textContent?.trim()).toBe("app.ts");
-	});
+		await waitFor(() => {
+			expect(container.querySelector(".file-path-badge")?.textContent?.trim()).toBe("app.ts");
+		});
 
 		container
 			.querySelector(".file-path-badge")
@@ -206,12 +179,12 @@ describe("MarkdownText", () => {
 			projectPath: "/repo",
 		});
 
-	await waitFor(() => {
-		expect(container.querySelector(".file-path-badge")?.textContent?.trim()).toBe("app.css");
-	});
+		await waitFor(() => {
+			expect(container.querySelector(".file-path-badge")?.textContent?.trim()).toBe("app.css");
+		});
 
 		const chip = container.querySelector(".file-path-badge");
-		expect(chip?.className).toContain("rounded-sm");
+		expect(chip?.className).toContain("rounded-md");
 		chip?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 
 		expect(openProjectFileSystemDialogMock).toHaveBeenCalledWith(
@@ -228,11 +201,11 @@ describe("MarkdownText", () => {
 			isStreaming: false,
 		});
 
-	await waitFor(() => {
-		expect(container.querySelector(".github-badge")?.textContent?.trim()).toBe(
-			"flazouh/acepe#184"
-		);
-	});
+		await waitFor(() => {
+			expect(container.querySelector(".github-badge")?.textContent?.trim()).toBe(
+				"flazouh/acepe#184"
+			);
+		});
 
 		container
 			.querySelector(".github-badge")

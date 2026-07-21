@@ -13,11 +13,6 @@ import type {
 } from "$lib/services/acp-types.js";
 import { materializeAgentPanelSceneFromGraph } from "../../../../session-state/agent-panel-graph-materializer.js";
 import {
-	createGraphSceneEntryIndex,
-	findGraphSceneEntryForDisplayEntry,
-} from "../../../../session-state/graph-scene-entry-index.js";
-import { buildRevealScenePatchedEntries } from "./reveal-scene-patch-test-helper.js";
-import {
 	buildVirtualizedDisplayEntriesFromScene,
 	getVirtualizedDisplayEntryKey,
 	isMergedAssistantDisplayEntry,
@@ -212,10 +207,7 @@ describe("canonical graph to agent panel display flow", () => {
 				title: "Canonical flow",
 			},
 		});
-		const displayedSceneEntries = buildRevealScenePatchedEntries(
-			scene.conversation.entries,
-			new Map()
-		);
+		const displayedSceneEntries = scene.conversation.entries;
 		const virtualizedEntries = buildVirtualizedDisplayEntriesFromScene(displayedSceneEntries);
 
 		expect(displayedSceneEntries.map((entry) => entry.id)).toEqual([
@@ -266,11 +258,5 @@ describe("canonical graph to agent panel display flow", () => {
 			status: "done",
 			presentationState: "resolved",
 		});
-		expect(
-			findGraphSceneEntryForDisplayEntry(
-				virtualizedEntries[2],
-				createGraphSceneEntryIndex(displayedSceneEntries)
-			)
-		).toBe(toolSceneEntry);
 	});
 });

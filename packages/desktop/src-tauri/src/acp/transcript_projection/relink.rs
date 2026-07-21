@@ -41,7 +41,7 @@ pub(crate) fn relink_operations_to_transcript(
 mod tests {
     use super::*;
     use crate::acp::projections::{OperationSnapshot, OperationSourceLink, OperationState};
-    use crate::acp::session_update::{ToolArguments, ToolCallData, ToolCallStatus};
+    use crate::acp::session_update::{ToolArguments, ToolCallStatus};
     use crate::acp::transcript_projection::{
         derive_tool_entry_id, TranscriptEntry, TranscriptEntryRole, TranscriptSegment,
     };

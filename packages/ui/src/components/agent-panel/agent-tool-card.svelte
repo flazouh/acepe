@@ -16,7 +16,7 @@
 
 	const base = "agent-tool-card min-w-0 max-w-full rounded-lg overflow-hidden text-sm";
 	const variantClasses: Record<Variant, string> = {
-		default: "bg-input/30",
+		default: "bg-input/50",
 		muted: "bg-muted/30",
 		card: "bg-card",
 	};

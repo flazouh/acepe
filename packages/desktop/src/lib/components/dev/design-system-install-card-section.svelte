@@ -1,24 +1,24 @@
 <script lang="ts">
-	import { InputContainer } from "@acepe/ui/input-container";
+import { InputContainer } from "@acepe/ui/input-container";
 
-	import AgentInstallCard from "$lib/acp/components/agent-panel/components/agent-install-card.svelte";
-	import { Badge } from "$lib/components/ui/badge/index.js";
-	import SettingRow from "$lib/components/settings-page/setting-row.svelte";
-	import SettingsSection from "$lib/components/settings-page/settings-section.svelte";
+import AgentInstallCard from "$lib/acp/components/agent-panel/components/agent-install-card.svelte";
+import { Badge } from "$lib/components/ui/badge/index.js";
+import SettingRow from "$lib/components/settings-page/setting-row.svelte";
+import SettingsSection from "$lib/components/settings-page/settings-section.svelte";
 
-	import {
-		featuredInstallCardSpecimen,
-		installCardSpecimens,
-	} from "./design-system-install-card-specimens.js";
+import {
+	featuredInstallCardSpecimen,
+	installCardSpecimens,
+} from "./design-system-install-card-specimens.js";
 
-	function formatProgress(progress: number): string {
-		const percent = progress < 0 ? 0 : progress > 1 ? 100 : Math.round(progress * 100);
-		return `${percent}%`;
-	}
+function formatProgress(progress: number): string {
+	const percent = progress < 0 ? 0 : progress > 1 ? 100 : Math.round(progress * 100);
+	return `${percent}%`;
+}
 
-	function specimenDescription(specimen: (typeof installCardSpecimens)[number]): string {
-		return `${specimen.caption} · ${specimen.agentId} · ${formatProgress(specimen.progress)}`;
-	}
+function specimenDescription(specimen: (typeof installCardSpecimens)[number]): string {
+	return `${specimen.caption} · ${specimen.agentId} · ${formatProgress(specimen.progress)}`;
+}
 </script>
 
 <div class="w-full">

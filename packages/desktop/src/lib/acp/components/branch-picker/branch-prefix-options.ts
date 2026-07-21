@@ -1,6 +1,6 @@
 import { Colors } from "@acepe/ui/colors";
-import { RecycleIcon, WrenchIcon } from "@acepe/ui/icons";
 import type { HugeiconsIconName } from "@acepe/ui/icons";
+import { RecycleIcon, WrenchIcon } from "@acepe/ui/icons";
 import type { Component } from "svelte";
 
 export interface BranchPrefix {

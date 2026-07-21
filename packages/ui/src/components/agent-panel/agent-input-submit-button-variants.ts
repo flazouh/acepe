@@ -18,7 +18,7 @@ export const agentInputSubmitPrimarySegmentVariants = tv({
 });
 
 export const agentInputSubmitMenuSegmentClass =
-	"inline-flex h-7 w-5 shrink-0 cursor-pointer items-center justify-center rounded-l-none rounded-r-lg border-l border-background/20 bg-foreground p-0 text-background transition-all outline-none hover:bg-foreground/85 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 [&_svg]:pointer-events-none [&_svg]:shrink-0";
+	"inline-flex h-7 w-5 shrink-0 cursor-pointer items-center justify-center rounded-l-none rounded-r-lg border-l border-background/20 bg-foreground p-0 text-background transition-all outline-none hover:bg-foreground/85 dark:bg-foreground dark:hover:bg-foreground/85 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 [&_svg]:pointer-events-none [&_svg]:shrink-0";
 
 /** Opacity for standalone submit when disabled. */
 export const agentInputSubmitStandaloneDisabledClass = "disabled:opacity-50";

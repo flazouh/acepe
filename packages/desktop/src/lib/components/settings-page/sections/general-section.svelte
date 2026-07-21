@@ -4,7 +4,6 @@ import { Button } from "$lib/components/ui/button/index.js";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import { Switch } from "$lib/components/ui/switch/index.js";
 import { getAnalyticsPreferencesStore } from "$lib/stores/analytics-preferences-store.svelte.js";
-import { getAttentionQueueStore } from "$lib/stores/attention-queue-store.svelte.js";
 import { getNotificationPreferencesStore } from "$lib/stores/notification-preferences-store.svelte.js";
 import { settings } from "$lib/utils/tauri-client/settings.js";
 import SettingRow from "../setting-row.svelte";
@@ -12,7 +11,6 @@ import SettingsSection from "../settings-section.svelte";
 import SettingsSectionHeader from "../settings-section-header.svelte";
 
 const notifPrefs = getNotificationPreferencesStore();
-const attentionQueue = getAttentionQueueStore();
 const analyticsPrefs = getAnalyticsPreferencesStore();
 
 let showResetConfirm = $state(false);
@@ -53,17 +51,6 @@ async function handleResetDatabase() {
 				checked={notifPrefs.completionsEnabled}
 				onCheckedChange={(checked) => {
 					notifPrefs.setCompletionsEnabled(checked === true);
-				}}
-			/>
-		</SettingRow>
-		<SettingRow
-			label="Attention queue"
-			description="Show an attention queue in the sidebar listing sessions that need your input or are actively working."
-		>
-			<Switch
-				checked={attentionQueue.enabled}
-				onCheckedChange={(checked) => {
-					void attentionQueue.setEnabled(checked === true);
 				}}
 			/>
 		</SettingRow>

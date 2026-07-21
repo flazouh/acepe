@@ -16,7 +16,6 @@ pub enum SessionStatePayloadKind {
     Capabilities,
     Telemetry,
     Plan,
-    AssistantTextDelta,
     ViewportBufferPush,
     ViewportBufferDelta,
 }
@@ -59,7 +58,6 @@ impl SessionStatePayloadKind {
             SessionStatePayload::Capabilities { .. } => Self::Capabilities,
             SessionStatePayload::Telemetry { .. } => Self::Telemetry,
             SessionStatePayload::Plan { .. } => Self::Plan,
-            SessionStatePayload::AssistantTextDelta { .. } => Self::AssistantTextDelta,
             SessionStatePayload::ViewportBufferPush { .. } => Self::ViewportBufferPush,
             SessionStatePayload::ViewportBufferDelta { .. } => Self::ViewportBufferDelta,
         }
@@ -73,7 +71,6 @@ impl SessionStatePayloadKind {
             Self::Capabilities => 128_000,
             Self::Telemetry => 16_000,
             Self::Plan => 128_000,
-            Self::AssistantTextDelta => 8_000,
             // A buffer push carries the visible slice plus a bounded overscan
             // window; the producer shrinks the buffer to stay under this cap.
             Self::ViewportBufferPush => 512_000,
@@ -153,6 +150,7 @@ mod tests {
                 }],
             },
             duration_started_at_ms: None,
+            timestamp_ms: None,
         }
     }
 

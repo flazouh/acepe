@@ -1,20 +1,20 @@
 <script lang="ts">
-	import { InputContainer } from "@acepe/ui/input-container";
-	import { Colors } from "@acepe/ui/colors";
+import { InputContainer } from "@acepe/ui/input-container";
+import { Colors } from "@acepe/ui/colors";
 
-	import { Badge } from "$lib/components/ui/badge/index.js";
-	import SettingRow from "$lib/components/settings-page/setting-row.svelte";
-	import SettingsSection from "$lib/components/settings-page/settings-section.svelte";
+import { Badge } from "$lib/components/ui/badge/index.js";
+import SettingRow from "$lib/components/settings-page/setting-row.svelte";
+import SettingsSection from "$lib/components/settings-page/settings-section.svelte";
 
-	import DesignSystemMicButtonDemo from "./design-system-mic-button-demo.svelte";
-	import {
-		featuredMicButtonSpecimen,
-		micButtonSpecimens,
-	} from "./design-system-mic-button-specimens.js";
+import DesignSystemMicButtonDemo from "./design-system-mic-button-demo.svelte";
+import {
+	featuredMicButtonSpecimen,
+	micButtonSpecimens,
+} from "./design-system-mic-button-specimens.js";
 
-	function specimenDescription(specimen: (typeof micButtonSpecimens)[number]): string {
-		return `${specimen.caption} · ${specimen.visualState}`;
-	}
+function specimenDescription(specimen: (typeof micButtonSpecimens)[number]): string {
+	return `${specimen.caption} · ${specimen.visualState}`;
+}
 </script>
 
 <div class="w-full">

@@ -1441,20 +1441,31 @@ describe("routeSessionStateEnvelope", () => {
 		]);
 	});
 
-	it("rejects oversized assistant text deltas before routing work", () => {
+	it("rejects oversized lifecycle envelopes before routing work", () => {
 		const envelope: SessionStateEnvelope = {
 			sessionId: "session-1",
 			graphRevision: 8,
 			lastEventSeq: 10,
 			payload: {
-				kind: "assistantTextDelta",
-				delta: {
-					turnId: "turn-1",
-					rowId: "assistant-1",
-					charOffset: 0,
-					deltaText: "x".repeat(getSessionStateEnvelopeByteBudget("assistantTextDelta")),
-					producedAtMonotonicMs: 12,
-					revision: 1,
+				kind: "lifecycle",
+				lifecycle: {
+					status: "ready",
+					errorMessage: "x".repeat(getSessionStateEnvelopeByteBudget("lifecycle")),
+					actionability: {
+						canSend: true,
+						canResume: false,
+						canRetry: false,
+						canArchive: true,
+						canConfigure: true,
+						recommendedAction: "send",
+						recoveryPhase: "none",
+						compactStatus: "ready",
+					},
+				},
+				revision: {
+					graphRevision: 8,
+					transcriptRevision: 7,
+					lastEventSeq: 10,
 				},
 			},
 		};
@@ -1474,46 +1485,9 @@ describe("routeSessionStateEnvelope", () => {
 			kind: "rejectOversizedEnvelope",
 			budget: {
 				ok: false,
-				kind: "assistantTextDelta",
-				maxBytes: getSessionStateEnvelopeByteBudget("assistantTextDelta"),
+				kind: "lifecycle",
+				maxBytes: getSessionStateEnvelopeByteBudget("lifecycle"),
 			},
 		});
-	});
-
-	it("refreshes when an assistant text delta envelope frontier disagrees with the delta revision", () => {
-		const envelope: SessionStateEnvelope = {
-			sessionId: "session-1",
-			graphRevision: 8,
-			lastEventSeq: 10,
-			payload: {
-				kind: "assistantTextDelta",
-				delta: {
-					turnId: "turn-1",
-					rowId: "assistant-1",
-					charOffset: 0,
-					deltaText: "hello",
-					producedAtMonotonicMs: 12,
-					revision: 9,
-				},
-			},
-		};
-
-		expect(
-			routeSessionStateEnvelope(
-				"session-1",
-				{
-					graphRevision: 7,
-					transcriptRevision: 7,
-					lastEventSeq: 7,
-				},
-				envelope
-			)
-		).toEqual([
-			{
-				kind: "refreshSnapshot",
-				fromRevision: 9,
-				toRevision: 8,
-			},
-		]);
 	});
 });

@@ -120,14 +120,13 @@ function applyStableOperationIndexPatchInPlace(
 	const patchedOperationByTranscriptEntryId =
 		createTranscriptLinkedOperationPatchMap(operationsToPatch);
 	const hasPatchedOperations = changedOperationIds.size > 0;
-	let operationIndex =
-		hasPatchedOperations
-			? createPatchedOperationIndex(
-					previousIndex,
-					patchedOperationById,
-					patchedOperationByTranscriptEntryId
-				)
-			: previousIndex;
+	let operationIndex = hasPatchedOperations
+		? createPatchedOperationIndex(
+				previousIndex,
+				patchedOperationById,
+				patchedOperationByTranscriptEntryId
+			)
+		: previousIndex;
 
 	if (nextOperations.length > previousOperations.length) {
 		const appendedOperations: OperationSnapshot[] = [];

@@ -10,22 +10,29 @@
  * provider branching, no dual-write. Capability writes stay on the canonical
  * envelope path in SessionStore.
  */
-import type {
-	ConfigOptionData as CanonicalConfigOptionData,
-	SessionGraphRevision,
-} from "../../services/acp-types.js";
+
 import type {
 	ModelsForDisplay,
 	ProviderMetadataProjection,
 } from "../../services/acp-provider-metadata.js";
+import type {
+	ConfigOptionData as CanonicalConfigOptionData,
+	SessionGraphRevision,
+} from "../../services/acp-types.js";
 import type { AvailableCommand } from "../types/available-command.js";
 import type { CanonicalSessionProjection } from "./canonical-session-projection.js";
-import type { Mode, Model, SessionCapabilities, SessionIdentity, SessionTransientProjection } from "./types.js";
 import {
 	deriveCapabilityPreviewState,
-	projectGraphCapabilities,
 	type ProjectedGraphCapabilities,
+	projectGraphCapabilities,
 } from "./capability-projection.js";
+import type {
+	Mode,
+	Model,
+	SessionCapabilities,
+	SessionIdentity,
+	SessionTransientProjection,
+} from "./types.js";
 
 export interface CapabilityProjectionDeps {
 	readonly getCanonicalProjection: (sessionId: string) => CanonicalSessionProjection | null;

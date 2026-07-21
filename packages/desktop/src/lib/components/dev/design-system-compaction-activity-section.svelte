@@ -1,22 +1,22 @@
 <script lang="ts">
-	import { AgentSessionActivityEntryView } from "@acepe/ui/agent-panel";
+import { AgentSessionActivityEntryView } from "@acepe/ui/agent-panel";
 
-	import { Badge } from "$lib/components/ui/badge/index.js";
-	import SettingRow from "$lib/components/settings-page/setting-row.svelte";
-	import SettingsSection from "$lib/components/settings-page/settings-section.svelte";
+import { Badge } from "$lib/components/ui/badge/index.js";
+import SettingRow from "$lib/components/settings-page/setting-row.svelte";
+import SettingsSection from "$lib/components/settings-page/settings-section.svelte";
 
-	import {
-		compactionActivitySpecimens,
-		type CompactionActivitySpecimen,
-	} from "./design-system-compaction-activity-specimens.js";
+import {
+	compactionActivitySpecimens,
+	type CompactionActivitySpecimen,
+} from "./design-system-compaction-activity-specimens.js";
 
-	const featuredSpecimen = compactionActivitySpecimens.find(
-		(specimen) => specimen.id === "completed"
-	);
+const featuredSpecimen = compactionActivitySpecimens.find(
+	(specimen) => specimen.id === "completed"
+);
 
-	function specimenDescription(specimen: CompactionActivitySpecimen): string {
-		return `${specimen.caption} · ${specimen.entry.status}`;
-	}
+function specimenDescription(specimen: CompactionActivitySpecimen): string {
+	return `${specimen.caption} · ${specimen.entry.status}`;
+}
 </script>
 
 <div class="w-full">

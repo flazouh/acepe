@@ -1,7 +1,10 @@
 use super::*;
+use crate::acp::parsers::AgentType;
+use crate::acp::session::ingress::canonical_events::materialize_canonical_transcript_events;
+use crate::acp::transcript_projection::CanonicalTranscriptEventKind;
 use crate::acp::types::CanonicalAgentId;
 use crate::cc_sdk::AssistantMessageError;
-use crate::session_jsonl::types::{ContentBlock, HistoryEntry, SessionMessage, StoredEntry};
+use crate::session_jsonl::types::{ContentBlock, HistoryEntry, SessionMessage};
 use anyhow::Result;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -150,6 +153,126 @@ async fn test_parse_full_session_preserves_assistant_message_error() {
 }
 
 #[tokio::test]
+async fn parse_full_session_attaches_sidechain_messages_to_parent_task_result_agent_id() {
+    let (_temp_dir, claude_dir) = setup_test_claude_dir().unwrap();
+    let projects_dir = claude_dir.join("projects").join("test-project");
+    let subagents_dir = projects_dir.join("subagents");
+    fs::create_dir_all(&subagents_dir).unwrap();
+
+    let session_id = "550e8400-e29b-41d4-a716-446655440000";
+    let agent_id = "ac373ea9520618f17";
+    let file_path = projects_dir.join(format!("{session_id}.jsonl"));
+    let parent_tool_use_id = "toolu_task_parent";
+    let parent_content = [
+        serde_json::json!({
+            "parentUuid": null,
+            "isSidechain": false,
+            "type": "assistant",
+            "sessionId": session_id,
+            "uuid": "parent-assistant",
+            "timestamp": "2026-07-16T12:07:32.288Z",
+            "message": {
+                "role": "assistant",
+                "content": [{
+                    "type": "tool_use",
+                    "id": parent_tool_use_id,
+                    "name": "Agent",
+                    "input": {
+                        "description": "Inspect dir",
+                        "subagent_type": "Explore",
+                        "prompt": "Read README.md"
+                    }
+                }]
+            }
+        })
+        .to_string(),
+        serde_json::json!({
+            "parentUuid": "parent-assistant",
+            "isSidechain": false,
+            "type": "user",
+            "sessionId": session_id,
+            "uuid": "parent-result",
+            "timestamp": "2026-07-16T12:07:41.805Z",
+            "message": {
+                "role": "user",
+                "content": [{
+                    "type": "tool_result",
+                    "tool_use_id": parent_tool_use_id,
+                    "content": [{
+                        "type": "text",
+                        "text": "Child report"
+                    }]
+                }]
+            },
+            "toolUseResult": {
+                "status": "completed",
+                "agentId": agent_id,
+                "agentType": "Explore",
+                "content": [{
+                    "type": "text",
+                    "text": "Child report"
+                }]
+            }
+        })
+        .to_string(),
+    ]
+    .join("\n");
+    fs::write(&file_path, parent_content).unwrap();
+
+    let sidechain_path = subagents_dir.join(format!("agent-{agent_id}.jsonl"));
+    let sidechain_content = [
+        serde_json::json!({
+            "parentUuid": null,
+            "isSidechain": true,
+            "agentId": agent_id,
+            "type": "user",
+            "sessionId": session_id,
+            "uuid": "child-user",
+            "timestamp": "2026-07-16T12:07:32.303Z",
+            "message": {
+                "role": "user",
+                "content": "Read README.md"
+            }
+        })
+        .to_string(),
+        serde_json::json!({
+            "parentUuid": "child-user",
+            "isSidechain": true,
+            "agentId": agent_id,
+            "type": "assistant",
+            "sessionId": session_id,
+            "uuid": "child-assistant",
+            "timestamp": "2026-07-16T12:07:41.768Z",
+            "message": {
+                "role": "assistant",
+                "content": [{
+                    "type": "text",
+                    "text": "Child report"
+                }]
+            }
+        })
+        .to_string(),
+    ]
+    .join("\n");
+    fs::write(sidechain_path, sidechain_content).unwrap();
+
+    let session = parse_full_session_from_path(session_id, "/Users/test", &file_path)
+        .await
+        .unwrap();
+
+    let child_assistant = session
+        .messages
+        .iter()
+        .find(|message| message.uuid == "child-assistant")
+        .expect("sidechain assistant should be included");
+
+    assert_eq!(
+        child_assistant.parent_tool_use_id.as_deref(),
+        Some(parent_tool_use_id)
+    );
+}
+
+#[tokio::test]
 async fn acepe_sdk_history_recovers_generated_pasted_content_but_literal_text_does_not() {
     let (_temp_dir, claude_dir) = setup_test_claude_dir().unwrap();
     let projects_dir = claude_dir.join("projects").join("test-project");
@@ -194,6 +317,82 @@ async fn acepe_sdk_history_recovers_generated_pasted_content_but_literal_text_do
         [ContentBlock::Text { text }]
             if text.contains("<pasted-content lines=\"1\">literal</pasted-content>")
     ));
+}
+
+#[tokio::test]
+async fn parse_full_session_marks_sdk_task_notifications_as_meta_control_rows() {
+    let (_temp_dir, claude_dir) = setup_test_claude_dir().unwrap();
+    let projects_dir = claude_dir.join("projects").join("test-project");
+    fs::create_dir_all(&projects_dir).unwrap();
+    let session_id = "550e8400-e29b-41d4-a716-446655440000";
+    let file_path = projects_dir.join(format!("{}.jsonl", session_id));
+    let task_tool_use_id = "toolu_task_parent";
+    let assistant_task = serde_json::json!({
+        "type": "assistant",
+        "sessionId": session_id,
+        "uuid": "assistant-task",
+        "timestamp": "2026-07-17T01:52:54.272Z",
+        "message": {
+            "role": "assistant",
+            "content": [{
+                "type": "tool_use",
+                "id": task_tool_use_id,
+                "name": "Agent",
+                "input": {
+                    "description": "Trivial test edit in a test file",
+                    "prompt": "This is a throwaway verification task",
+                    "subagent_type": "fast-worker"
+                }
+            }]
+        }
+    });
+    let task_notification = serde_json::json!({
+        "type": "user",
+        "sessionId": session_id,
+        "uuid": "task-notification",
+        "timestamp": "2026-07-17T01:53:18.014Z",
+        "promptSource": "sdk",
+        "entrypoint": "sdk-rust",
+        "origin": { "kind": "task-notification" },
+        "message": {
+            "role": "user",
+            "content": "<task-notification>\n<tool-use-id>toolu_task_parent</tool-use-id>\n<status>completed</status>\n<result>done</result>\n</task-notification>"
+        }
+    });
+    fs::write(
+        &file_path,
+        format!("{assistant_task}\n{task_notification}\n"),
+    )
+    .unwrap();
+
+    let session = parse_full_session_from_path(session_id, "/Users/test", &file_path)
+        .await
+        .unwrap();
+
+    let notification = session
+        .messages
+        .iter()
+        .find(|message| message.uuid == "task-notification")
+        .expect("task notification row should be parsed for ordering metadata");
+    assert!(
+        notification.is_meta,
+        "SDK task notifications are provider control rows, not visible chat messages"
+    );
+
+    let events = materialize_canonical_transcript_events(&session, AgentType::ClaudeCode);
+    assert!(events.iter().any(|event| matches!(
+        &event.kind,
+        CanonicalTranscriptEventKind::ToolUse { tool_call_id, .. }
+            if tool_call_id == task_tool_use_id
+    )));
+    assert!(
+        !events.iter().any(|event| matches!(
+            &event.kind,
+            CanonicalTranscriptEventKind::UserText { text }
+                if text.contains("<task-notification>")
+        )),
+        "restored transcript must not expose task-notification XML as chat text"
+    );
 }
 
 #[tokio::test]
@@ -973,7 +1172,9 @@ async fn test_scan_all_threads_empty_project() {
 #[ignore] // Ignore by default - requires real Claude history files
 async fn test_real_file_with_summary() {
     // Test on a file that has a summary
-    let file_path = PathBuf::from("/Users/example/.claude/projects/-Users-example-Documents-sample-repo/35c55ab2-7600-4a4c-946b-1e1473f80225.jsonl");
+    let file_path = PathBuf::from(
+        "/Users/example/.claude/projects/-Users-example-Documents-sample-repo/35c55ab2-7600-4a4c-946b-1e1473f80225.jsonl",
+    );
 
     if !file_path.exists() {
         println!("Test file does not exist, skipping test");
@@ -1069,7 +1270,9 @@ async fn test_real_file_with_summary() {
 #[ignore] // Ignore by default - requires real Claude history files
 async fn test_real_file_without_summary() {
     // Test on a file that might not have a summary
-    let file_path = PathBuf::from("/Users/example/.claude/projects/-Users-example-Documents-sample-repo/037829eb-e264-4e3a-b60d-9eb303b2598d.jsonl");
+    let file_path = PathBuf::from(
+        "/Users/example/.claude/projects/-Users-example-Documents-sample-repo/037829eb-e264-4e3a-b60d-9eb303b2598d.jsonl",
+    );
 
     if !file_path.exists() {
         println!("Test file does not exist, skipping test");
@@ -1104,7 +1307,9 @@ async fn test_real_file_without_summary() {
 #[ignore] // Ignore by default - requires real Claude history files
 async fn test_most_recent_session() {
     // Test on the most recent session file
-    let file_path = PathBuf::from("/Users/example/.claude/projects/-Users-example-Documents-fluentai/038e127d-239a-4aad-baf7-f7ade1438f7f.jsonl");
+    let file_path = PathBuf::from(
+        "/Users/example/.claude/projects/-Users-example-Documents-fluentai/038e127d-239a-4aad-baf7-f7ade1438f7f.jsonl",
+    );
 
     if !file_path.exists() {
         println!("Test file does not exist, skipping test");

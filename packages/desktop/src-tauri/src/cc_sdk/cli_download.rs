@@ -1,7 +1,8 @@
-//! Automatic Claude Code CLI download and management
+//! Managed Claude Code CLI provisioning.
 //!
-//! This module provides functionality to automatically download and manage
-//! the Claude Code CLI binary, similar to Python SDK's bundling approach.
+//! This module provides the explicit install/update implementation for Acepe's
+//! managed Claude Code CLI binary. It is used by the agent installer and startup
+//! update check; runtime session creation must not silently download the CLI.
 //!
 //! # Download Strategy
 //!
@@ -14,11 +15,6 @@
 //! - macOS: `~/Library/Caches/cc-sdk/cli/`
 //! - Windows: `%LOCALAPPDATA%\cc-sdk\cli\`
 //!
-//! # Feature Flag
-//!
-//! The download functionality requires the `auto-download` feature (enabled by default).
-//! To disable, use `default-features = false` in your Cargo.toml.
-
 use super::errors::{Result, SdkError};
 use crate::cc_sdk::transport::subprocess::SemVer;
 use std::path::{Path, PathBuf};
@@ -91,7 +87,7 @@ pub fn is_cli_cached() -> bool {
     false
 }
 
-/// Download the Claude Code CLI to the cache directory
+/// Download the Claude Code CLI to Acepe's managed cache directory.
 ///
 /// # Arguments
 ///
@@ -102,11 +98,6 @@ pub fn is_cli_cached() -> bool {
 ///
 /// Path to the downloaded CLI binary
 ///
-/// # Feature Flag
-///
-/// This function requires the `auto-download` feature to be enabled.
-/// When disabled, it returns an error directing users to install manually.
-#[cfg(feature = "auto-download")]
 pub async fn download_cli(
     version: Option<&str>,
     on_progress: Option<DownloadProgressCallback>,
@@ -212,7 +203,7 @@ fn parse_exact_release(version: &str) -> Option<SemVer> {
 fn npm_package_for_version(version: &str) -> Result<String> {
     if !is_exact_semver(version) {
         return Err(SdkError::ConfigError(format!(
-            "Claude CLI auto-download requires an exact semver version, got `{version}`"
+            "Managed Claude CLI install requires an exact semver version, got `{version}`"
         )));
     }
 
@@ -227,24 +218,9 @@ fn is_exact_semver(version: &str) -> bool {
             .all(|part| !part.is_empty() && part.chars().all(|ch| ch.is_ascii_digit()))
 }
 
-/// Stub for download_cli when auto-download feature is disabled
-#[cfg(not(feature = "auto-download"))]
-pub async fn download_cli(
-    _version: Option<&str>,
-    _on_progress: Option<DownloadProgressCallback>,
-) -> Result<PathBuf> {
-    Err(SdkError::ConfigError(
-        "Auto-download feature is not enabled. \
-        Either enable it with `features = [\"auto-download\"]` in Cargo.toml, \
-        or install Claude CLI manually: npm install -g @anthropic-ai/claude-code"
-            .to_string(),
-    ))
-}
-
 /// Process-unique token for scratch paths, so concurrent installs (e.g. the startup
-/// update check and a first-use install in client_factory) never collide on a shared
+/// update check and an explicit install flow) never collide on a shared
 /// temp dir or staging file.
-#[cfg(feature = "auto-download")]
 fn unique_token() -> String {
     use std::sync::atomic::{AtomicU64, Ordering};
     static COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -261,7 +237,6 @@ fn unique_token() -> String {
 /// chmods 0755 on unix, then `rename`s over the target. A partial/failed copy can
 /// never corrupt the live binary, and the rename gives a fresh inode so a Claude
 /// subprocess already running off the old binary is unaffected.
-#[cfg(feature = "auto-download")]
 fn atomically_install_binary(source: &Path, target: &Path) -> Result<()> {
     let parent = target.parent().ok_or_else(|| {
         SdkError::ConfigError(format!(
@@ -302,14 +277,12 @@ fn atomically_install_binary(source: &Path, target: &Path) -> Result<()> {
 /// Relative path inside the installed npm package to the real native binary. The
 /// package's `bin` field maps `claude` -> `bin/claude.exe` on every platform (the
 /// `.exe` name is used even on macOS/Linux).
-#[cfg(feature = "auto-download")]
 const CLAUDE_NATIVE_BIN_REL: &str = "bin/claude.exe";
 
 /// Sanity floor for the installed native binary. The real binary is ~200 MB; the
 /// package's fallback `bin/claude.exe` (when the platform binary was never fetched)
 /// is a ~500-byte error shim. Anything this small means the postinstall did not
 /// produce a real binary, so we refuse to install it over a working one.
-#[cfg(feature = "auto-download")]
 const MIN_NATIVE_BINARY_BYTES: u64 = 1_000_000;
 
 /// Install the managed Claude CLI via npm.
@@ -320,7 +293,6 @@ const MIN_NATIVE_BINARY_BYTES: u64 = 1_000_000;
 /// scripts run, then invoke ONLY that trusted package's own installer explicitly —
 /// the package's documented manual step. Copying `node_modules/.bin/claude` without
 /// this yields a ~500-byte error shim, not a working binary.
-#[cfg(feature = "auto-download")]
 async fn install_cli_for_platform(
     version: &str,
     target_path: &Path,
@@ -434,32 +406,20 @@ async fn install_cli_for_platform(
     Ok(target_path.to_path_buf())
 }
 
-/// Ensure the CLI is available, downloading if necessary
+/// Ensure the managed CLI is available.
 ///
-/// This is the main entry point for CLI management.
+/// Runtime callers must not silently provision binaries. Cold installs are owned
+/// by Acepe's explicit agent install/repair flow.
 #[allow(dead_code)]
-pub async fn ensure_cli(auto_download: bool) -> Result<PathBuf> {
+pub async fn ensure_cli(_auto_download: bool) -> Result<PathBuf> {
     // First, try the managed CLI resolver.
     if let Ok(path) = super::transport::subprocess::find_claude_cli() {
         return Ok(path);
     }
 
-    // Download if auto_download is enabled
-    if auto_download {
-        info!("Claude Code CLI not found, downloading...");
-        return download_cli(None, None).await;
-    }
-
     Err(SdkError::CliNotFound {
         searched_paths: "Claude Code CLI not found.\n\n\
-            To automatically download, create the client with auto_download enabled:\n\
-            ```rust\n\
-            let options = ClaudeCodeOptions::builder()\n\
-                .auto_download_cli(true)\n\
-                .build();\n\
-            ```\n\n\
-            Or install manually:\n\
-            npm install -g @anthropic-ai/claude-code"
+            Install or repair Claude Code from Acepe's built-in agent install flow."
             .to_string(),
     })
 }
@@ -508,10 +468,9 @@ pub(crate) enum UpdateOutcome {
 /// non-error `Skipped*` outcome and leaves the existing cached binary untouched. This
 /// function never returns the binary path and is safe to fire-and-forget from startup.
 ///
-/// Cold install (binary absent) is intentionally **not** handled here — it returns
-/// [`UpdateOutcome::SkippedCold`] so the install flow (`client_factory` →
-/// `install_agent`, which holds `install_guard`) owns first provisioning and the two
-/// paths never race on the shared cache/target.
+/// Cold install (binary absent) is intentionally **not** handled here. It returns
+/// [`UpdateOutcome::SkippedCold`] so the explicit install flow owns first
+/// provisioning and the two paths never race on the shared cache/target.
 pub(crate) async fn ensure_managed_claude_up_to_date() -> UpdateOutcome {
     let Some(cli_path) = get_cached_cli_path() else {
         return UpdateOutcome::SkippedCold;

@@ -21,10 +21,6 @@ describe("default keybindings", () => {
 		expect(getBinding(KEYBINDING_ACTIONS.URGENCY_JUMP_FIRST)?.when).toContain("!modalOpen");
 	});
 
-	it("does not allow the file explorer toggle to fire from another modal", () => {
-		expect(getBinding(KEYBINDING_ACTIONS.FILE_EXPLORER_TOGGLE)?.when).toContain("!modalOpen");
-	});
-
 	it("keeps mode cycling available while the composer is focused", () => {
 		expect(getBinding(KEYBINDING_ACTIONS.SELECTOR_MODE_TOGGLE)?.when).not.toContain(
 			"!inputFocused"

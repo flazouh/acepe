@@ -1,7 +1,6 @@
 const WORKSPACE_FRAME_BASE_CLASS = "flex-1 flex min-h-0 gap-0.5 overflow-hidden";
 
-const WORKSPACE_SIDEBAR_BASE_CLASS =
-	"shrink-0 flex flex-col h-full min-h-0 overflow-hidden";
+const WORKSPACE_SIDEBAR_BASE_CLASS = "shrink-0 flex flex-col h-full min-h-0 overflow-hidden";
 
 export function resolveWorkspaceFrameClass(): string {
 	return WORKSPACE_FRAME_BASE_CLASS;

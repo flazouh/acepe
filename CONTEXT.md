@@ -35,6 +35,7 @@ Truth is **owned by canonical, Rust-side data**. Provider output is *input*, not
 
 ### Canonical model
 - **Canonical model** — the Rust-owned source of truth: canonical event order, identity, and tool-call mapping. The product's durable internal model, independent of any provider.
+- **Session event sequence** — the durable per-session delivery and claim watermark allocated only by the SQLite `session_event_sequence` authority. It is separate from graph revision and transcript revision and is never derived from either projection counter, retained journal rows, or an in-memory increment.
 - **Provider projection** — Acepe's canonical representation of an object owned by an external collaboration, ticket, or version-control provider, including its Acepe identity, provider connection, object kind, external identity, revision or cursor, provenance, synchronization state, and Acepe-owned relationships. The tuple `(provider connection, object kind, external identity)` is unique and makes repeated provider events idempotent. The external provider remains authoritative for provider-owned fields: an Acepe command stays visibly pending until a provider event confirms it. Acepe-owned objects require no provider projection. _Avoid:_ copied object, local mirror.
 - **Canonical transcript** — the ordered, canonical record of a session's events. Transcript **order** and **identity** are corrected here, never in the UI.
 - **Display entry** — a UI-facing item projected from the canonical transcript.

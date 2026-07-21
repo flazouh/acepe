@@ -39,7 +39,10 @@ export class PanelHotStateStore {
 		this.hotState.delete(panelId);
 	}
 
-	recordAutoSessionSuppressionOnClose(sessionId: string | null, autoCreated: boolean | undefined): void {
+	recordAutoSessionSuppressionOnClose(
+		sessionId: string | null,
+		autoCreated: boolean | undefined
+	): void {
 		if (autoCreated !== true || sessionId === null) {
 			return;
 		}

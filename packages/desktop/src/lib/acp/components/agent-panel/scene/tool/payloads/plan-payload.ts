@@ -30,7 +30,9 @@ export function mapPlanPayload(toolCall: ToolCall): {
 	}
 
 	const rawPlan =
-		(toolCall.arguments.kind === "planMode" ? normalizePlanString(toolCall.arguments.plan) : null) ??
+		(toolCall.arguments.kind === "planMode"
+			? normalizePlanString(toolCall.arguments.plan)
+			: null) ??
 		readStringField(toolCall.result, "plan") ??
 		readStringField(toolCall.result, "content");
 	const planContent = rawPlan !== null && rawPlan !== undefined ? rawPlan : null;
@@ -49,10 +51,10 @@ export function mapPlanPayload(toolCall: ToolCall): {
 				: toolCall.status === "completed"
 					? "approved"
 					: planContent !== null &&
-						  (toolCall.kind === "exit_plan_mode" || toolCall.awaitingPlanApproval === true)
+							(toolCall.kind === "exit_plan_mode" || toolCall.awaitingPlanApproval === true)
 						? "interactive"
-					: toolCall.awaitingPlanApproval === true
-						? "interactive"
-						: "streaming",
+						: toolCall.awaitingPlanApproval === true
+							? "interactive"
+							: "streaming",
 	};
 }

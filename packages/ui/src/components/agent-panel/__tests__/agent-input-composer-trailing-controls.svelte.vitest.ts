@@ -32,4 +32,17 @@ describe("AgentInputComposerTrailingControls", () => {
 		expect(modelControl?.classList.contains("w-fit")).toBe(true);
 		expect(modelControl?.classList.contains("max-w-[min(18rem,100%)]")).toBe(true);
 	});
+
+	it("keeps model and context visible while voice is active", () => {
+		const view = render(AgentInputComposerTrailingControlsFixture, {
+			props: {
+				voiceActive: true,
+			},
+		});
+		const modelControl = view.container.querySelector('[data-qa="agent-input-model-control"]');
+		const metricsChip = view.container.querySelector('[data-qa="agent-input-metrics-chip"]');
+
+		expect(modelControl?.classList.contains("opacity-0")).toBe(false);
+		expect(metricsChip?.classList.contains("opacity-0")).toBe(false);
+	});
 });

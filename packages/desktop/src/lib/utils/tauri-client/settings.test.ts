@@ -27,8 +27,8 @@ const getThreadListSettingsInvoke = mock(() =>
 		archivedSessions: [],
 	})
 );
-const saveThreadListSettingsInvoke = mock(
-	(_args: { settings: TestThreadListSettings }) => okAsync(undefined)
+const saveThreadListSettingsInvoke = mock((_args: { settings: TestThreadListSettings }) =>
+	okAsync(undefined)
 );
 const requestDestructiveConfirmationTokenInvoke = mock(() => okAsync("confirmation-token-1"));
 const resetDatabaseInvoke = mock(() => okAsync(undefined));
@@ -104,8 +104,8 @@ describe("settings tauri client", () => {
 			})
 		);
 		saveThreadListSettingsInvoke.mockReset();
-		saveThreadListSettingsInvoke.mockImplementation(
-			(_args: { settings: TestThreadListSettings }) => okAsync(undefined)
+		saveThreadListSettingsInvoke.mockImplementation((_args: { settings: TestThreadListSettings }) =>
+			okAsync(undefined)
 		);
 		requestDestructiveConfirmationTokenInvoke.mockReset();
 		requestDestructiveConfirmationTokenInvoke.mockImplementation(() =>

@@ -4,39 +4,43 @@
  * interaction set changed (patch / stable-patch / blocking-retarget / stable
  * append / stable truncate / marked-patch). Pure; selected by the dispatcher.
  */
-import type { InteractionSnapshot } from "../../services/acp-types.js";
+
 import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel/types";
+import type { InteractionSnapshot } from "../../services/acp-types.js";
+import { scenePatchIdentity } from "../components/agent-panel/logic/scene-patch.js";
 import type {
 	CachedConversationInput,
 	CachedConversationState,
 } from "./conversation-cache-types.js";
 import {
-	createAppendedSceneEntryArray,
-	createInsertedSceneEntryArray,
-	createPatchedSceneEntryArray,
-
-	conversationFromSceneEntryArrayResult,} from "./scene-entry-array.js";
-import { scenePatchIdentity } from "../components/agent-panel/logic/scene-patch.js";
-import {
-	createAppendedSceneEntryRowIndex,
-	createSplicedSceneEntryRowIndex,
-} from "./scene-entry-row-index.js";
-import { interactionSceneEntryId, questionInteractionToSceneEntry } from "./entry-materializers.js";
-import {
 	areSceneEntryListsEquivalent,
 	collectAppendedInteractions,
 	materializeVisibleInteractionEntries,
 } from "./conversation-stability.js";
-import { areActiveStreamingTailsEquivalent, areSceneEntriesEquivalent } from "./scene-equivalence.js";
-import {
-	createAppendedInteractionIndex,
-	createTruncatedInteractionIndex,
-} from "./transcript-interaction-index.js";
+import { interactionSceneEntryId, questionInteractionToSceneEntry } from "./entry-materializers.js";
 import {
 	createPatchedInteractionIndex,
 	resolveUpdatedInteractionIndex,
 } from "./interaction-index-patch.js";
 import { getInteractionSnapshotArrayPatch } from "./interaction-snapshot-array-patch.js";
+import {
+	conversationFromSceneEntryArrayResult,
+	createAppendedSceneEntryArray,
+	createInsertedSceneEntryArray,
+	createPatchedSceneEntryArray,
+} from "./scene-entry-array.js";
+import {
+	createAppendedSceneEntryRowIndex,
+	createSplicedSceneEntryRowIndex,
+} from "./scene-entry-row-index.js";
+import {
+	areActiveStreamingTailsEquivalent,
+	areSceneEntriesEquivalent,
+} from "./scene-equivalence.js";
+import {
+	createAppendedInteractionIndex,
+	createTruncatedInteractionIndex,
+} from "./transcript-interaction-index.js";
 import { collectTrailingSceneEntries } from "./transcript-patch-conversations.js";
 
 export function materializeInteractionPatchedConversation(
@@ -68,10 +72,7 @@ export function materializeInteractionPatchedConversation(
 			return patched;
 		}
 	}
-	const stableInteractionPatch = materializeStableInteractionPatchedConversation(
-		previous,
-		input
-	);
+	const stableInteractionPatch = materializeStableInteractionPatchedConversation(previous, input);
 	if (stableInteractionPatch !== null) {
 		return stableInteractionPatch;
 	}
@@ -82,10 +83,7 @@ export function materializeInteractionPatchedConversation(
 	if (blockingInteractionRetarget !== null) {
 		return blockingInteractionRetarget;
 	}
-	const stableInteractionAppend = materializeStableInteractionAppendedConversation(
-		previous,
-		input
-	);
+	const stableInteractionAppend = materializeStableInteractionAppendedConversation(previous, input);
 	if (stableInteractionAppend !== null) {
 		return stableInteractionAppend;
 	}
@@ -142,7 +140,10 @@ export function materializeInteractionPatchedConversation(
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
 		transcriptEntryById: previous.transcriptEntryById,
-		conversation: conversationFromSceneEntryArrayResult(nextEntries, previous.conversation.isStreaming),
+		conversation: conversationFromSceneEntryArrayResult(
+			nextEntries,
+			previous.conversation.isStreaming
+		),
 		sceneEntryRowIndex,
 	};
 }
@@ -189,7 +190,9 @@ function materializeStableInteractionPatchedConversation(
 	);
 	const nextBlockingInteractionId = input.graph.activity.blockingInteractionId ?? null;
 	const nextVisibleInteraction =
-		nextBlockingInteractionId === null ? null : interactionById.get(nextBlockingInteractionId) ?? null;
+		nextBlockingInteractionId === null
+			? null
+			: (interactionById.get(nextBlockingInteractionId) ?? null);
 	const nextVisibleEntry =
 		nextVisibleInteraction === null
 			? null
@@ -275,7 +278,10 @@ function materializeStableInteractionPatchedConversation(
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
 		transcriptEntryById: previous.transcriptEntryById,
-		conversation: conversationFromSceneEntryArrayResult(nextEntries, previous.conversation.isStreaming),
+		conversation: conversationFromSceneEntryArrayResult(
+			nextEntries,
+			previous.conversation.isStreaming
+		),
 		sceneEntryRowIndex,
 	};
 }
@@ -302,7 +308,7 @@ export function materializeBlockingInteractionRetargetConversation(
 	const nextVisibleInteraction =
 		nextBlockingInteractionId === null
 			? null
-			: previous.interactionById.get(nextBlockingInteractionId) ?? null;
+			: (previous.interactionById.get(nextBlockingInteractionId) ?? null);
 	if (nextBlockingInteractionId !== null && nextVisibleInteraction === null) {
 		return null;
 	}
@@ -386,7 +392,10 @@ export function materializeBlockingInteractionRetargetConversation(
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
 		transcriptEntryById: previous.transcriptEntryById,
-		conversation: conversationFromSceneEntryArrayResult(nextEntries, previous.conversation.isStreaming),
+		conversation: conversationFromSceneEntryArrayResult(
+			nextEntries,
+			previous.conversation.isStreaming
+		),
 		sceneEntryRowIndex,
 	};
 }
@@ -408,8 +417,7 @@ function materializeStableInteractionAppendedConversation(
 		return null;
 	}
 
-	const previousVisibleEntry: AgentPanelSceneEntryModel | null =
-		previousVisibleEntries[0] ?? null;
+	const previousVisibleEntry: AgentPanelSceneEntryModel | null = previousVisibleEntries[0] ?? null;
 	const previousBlockingInteractionId = previous.activity.blockingInteractionId ?? null;
 	const nextBlockingInteractionId = input.graph.activity.blockingInteractionId ?? null;
 	const appendedInteractions = collectAppendedInteractions(
@@ -490,7 +498,10 @@ function materializeStableInteractionAppendedConversation(
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
 		transcriptEntryById: previous.transcriptEntryById,
-		conversation: conversationFromSceneEntryArrayResult(nextEntries, previous.conversation.isStreaming),
+		conversation: conversationFromSceneEntryArrayResult(
+			nextEntries,
+			previous.conversation.isStreaming
+		),
 		sceneEntryRowIndex,
 	};
 }
@@ -512,8 +523,7 @@ function materializeStableInteractionTruncatedConversation(
 		return null;
 	}
 
-	const previousVisibleEntry: AgentPanelSceneEntryModel | null =
-		previousVisibleEntries[0] ?? null;
+	const previousVisibleEntry: AgentPanelSceneEntryModel | null = previousVisibleEntries[0] ?? null;
 	const interactionById = createTruncatedInteractionIndex(
 		previous.interactionById,
 		previous.interactions,
@@ -551,12 +561,15 @@ function materializeStableInteractionTruncatedConversation(
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
 		transcriptEntryById: previous.transcriptEntryById,
-		conversation: conversationFromSceneEntryArrayResult(createInsertedSceneEntryArray(
+		conversation: conversationFromSceneEntryArrayResult(
+			createInsertedSceneEntryArray(
 				previous.conversation.entries,
 				transcriptSceneEntryCount,
 				[],
 				[]
-			), previous.conversation.isStreaming),
+			),
+			previous.conversation.isStreaming
+		),
 		sceneEntryRowIndex: createSplicedSceneEntryRowIndex(
 			previous.sceneEntryRowIndex,
 			[previousVisibleEntry],
@@ -580,8 +593,7 @@ function materializeMarkedInteractionPatchedConversation(
 	if (previousVisibleEntries.length > 1) {
 		return null;
 	}
-	const previousVisibleEntry: AgentPanelSceneEntryModel | null =
-		previousVisibleEntries[0] ?? null;
+	const previousVisibleEntry: AgentPanelSceneEntryModel | null = previousVisibleEntries[0] ?? null;
 	let nextVisibleEntry: AgentPanelSceneEntryModel | null = previousVisibleEntry;
 	let visibleEntryChanged = false;
 
@@ -721,8 +733,10 @@ function materializeMarkedInteractionPatchedConversation(
 		activeStreamingTail: input.graph.activeStreamingTail,
 		activity: input.graph.activity,
 		transcriptEntryById: previous.transcriptEntryById,
-		conversation: conversationFromSceneEntryArrayResult(nextEntries, previous.conversation.isStreaming),
+		conversation: conversationFromSceneEntryArrayResult(
+			nextEntries,
+			previous.conversation.isStreaming
+		),
 		sceneEntryRowIndex,
 	};
 }
-

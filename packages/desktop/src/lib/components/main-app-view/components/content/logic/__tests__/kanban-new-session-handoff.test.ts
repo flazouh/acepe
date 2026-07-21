@@ -25,11 +25,7 @@ describe("completeKanbanNewSessionHandoff", () => {
 			sessionPanelWidth: 600,
 		});
 
-		expect(calls).toEqual([
-			"update:panel-new:session-56",
-			"front:panel-new",
-			"focus:panel-new",
-		]);
+		expect(calls).toEqual(["update:panel-new:session-56", "front:panel-new", "focus:panel-new"]);
 		expect(panelStore.openSession).not.toHaveBeenCalled();
 	});
 

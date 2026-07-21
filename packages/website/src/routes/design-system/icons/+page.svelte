@@ -1,23 +1,19 @@
 <script lang="ts">
-	import {
-		formatHugeiconsIconName,
-		HugeiconsIcon,
-		hugeiconsIconLibrary,
-	} from "@acepe/ui/icons";
-	import DesignSystemHeader from "$lib/design-system/design-system-header.svelte";
+import { formatHugeiconsIconName, HugeiconsIcon, hugeiconsIconLibrary } from "@acepe/ui/icons";
+import DesignSystemHeader from "$lib/design-system/design-system-header.svelte";
 
-	let searchQuery = $state("");
+let searchQuery = $state("");
 
-	const filteredIcons = $derived.by(() => {
-		const query = searchQuery.trim().toLowerCase();
-		if (query.length === 0) {
-			return hugeiconsIconLibrary;
-		}
+const filteredIcons = $derived.by(() => {
+	const query = searchQuery.trim().toLowerCase();
+	if (query.length === 0) {
+		return hugeiconsIconLibrary;
+	}
 
-		return hugeiconsIconLibrary.filter(
-			(icon) => icon.name.includes(query) || icon.label.toLowerCase().includes(query),
-		);
-	});
+	return hugeiconsIconLibrary.filter(
+		(icon) => icon.name.includes(query) || icon.label.toLowerCase().includes(query)
+	);
+});
 </script>
 
 <svelte:head>

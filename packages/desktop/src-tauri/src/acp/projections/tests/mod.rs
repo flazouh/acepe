@@ -862,7 +862,7 @@ fn interaction_projection_resolves_by_id_and_request_id() {
     );
 
     let permission = registry
-        .resolve_interaction(
+        .resolve_interaction_at_event_seq(
             "session-1",
             "permission-1",
             InteractionState::Approved,
@@ -871,19 +871,21 @@ fn interaction_projection_resolves_by_id_and_request_id() {
                 option_id: Some("allow".to_string()),
                 reply: Some("once".to_string()),
             },
+            3,
         )
         .expect("expected permission transition");
     assert_eq!(permission.state, InteractionState::Approved);
     assert_eq!(permission.responded_at_event_seq, Some(3));
 
     let question = registry
-        .resolve_interaction_by_request_id(
+        .resolve_interaction_by_request_id_at_event_seq(
             "session-1",
             8,
             InteractionState::Answered,
             InteractionResponse::Question {
                 answers: json!({ "Question": ["Yes"] }),
             },
+            4,
         )
         .expect("expected question transition");
     assert_eq!(question.state, InteractionState::Answered);
@@ -2873,7 +2875,7 @@ fn pending_permission_blocks_linked_operation_and_approval_resumes_it() {
     assert_eq!(blocked.operation_state, OperationState::Blocked);
 
     registry
-        .resolve_interaction(
+        .resolve_interaction_at_event_seq(
             "session-1",
             "permission-1",
             InteractionState::Approved,
@@ -2882,6 +2884,7 @@ fn pending_permission_blocks_linked_operation_and_approval_resumes_it() {
                 option_id: Some("allow_once".to_string()),
                 reply: Some("once".to_string()),
             },
+            3,
         )
         .expect("expected permission resolution");
 
@@ -2941,11 +2944,12 @@ fn computer_permission_interaction_blocks_linked_operation_and_approval_resumes_
     assert_eq!(blocked.operation_state, OperationState::Blocked);
 
     registry
-        .resolve_interaction(
+        .resolve_interaction_at_event_seq(
             "session-1",
             &interaction_id,
             InteractionState::Approved,
             InteractionResponse::ComputerPermission { accepted: true },
+            2,
         )
         .expect("expected computer permission resolution");
 
@@ -3000,11 +3004,12 @@ fn restored_pending_computer_permission_reblocks_and_resumes_linked_operation() 
     assert_eq!(blocked.operation_state, OperationState::Blocked);
 
     restored
-        .resolve_interaction(
+        .resolve_interaction_at_event_seq(
             "session-1",
             &interaction_id,
             InteractionState::Approved,
             InteractionResponse::ComputerPermission { accepted: true },
+            2,
         )
         .expect("expected restored computer permission resolution");
 
@@ -3057,11 +3062,12 @@ fn computer_permission_interaction_denial_cancels_linked_operation() {
     assert!(blocked.computer_payload.is_some());
 
     registry
-        .resolve_interaction(
+        .resolve_interaction_at_event_seq(
             "session-1",
             &interaction_id,
             InteractionState::Rejected,
             InteractionResponse::ComputerPermission { accepted: false },
+            3,
         )
         .expect("expected computer permission rejection");
 
@@ -3381,13 +3387,14 @@ fn pending_question_blocks_linked_operation_and_answer_resumes_it() {
     assert_eq!(blocked.operation_state, OperationState::Blocked);
 
     registry
-        .resolve_interaction(
+        .resolve_interaction_at_event_seq(
             "session-1",
             "question-1",
             InteractionState::Answered,
             InteractionResponse::Question {
                 answers: json!({ "Proceed?": ["Yes"] }),
             },
+            3,
         )
         .expect("expected question resolution");
 
@@ -3420,11 +3427,12 @@ fn plan_approval_blocks_linked_operation_and_approval_resumes_it() {
 
     let plan_id = build_plan_approval_interaction_id("session-1", "plan-tool", 44);
     registry
-        .resolve_interaction(
+        .resolve_interaction_at_event_seq(
             "session-1",
             &plan_id,
             InteractionState::Approved,
             InteractionResponse::PlanApproval { approved: true },
+            2,
         )
         .expect("expected plan approval resolution");
 

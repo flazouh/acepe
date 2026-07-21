@@ -22,7 +22,9 @@ interface BuildAttachMenuCommandSectionsInput {
 	readonly preconnectionCommands: readonly AvailableCommand[];
 }
 
-export function buildAttachMenuModes(input: BuildAttachMenuModesInput): readonly AttachMenuModeItem[] {
+export function buildAttachMenuModes(
+	input: BuildAttachMenuModesInput
+): readonly AttachMenuModeItem[] {
 	const items: AttachMenuModeItem[] = [];
 	for (const mode of input.modes) {
 		items.push({

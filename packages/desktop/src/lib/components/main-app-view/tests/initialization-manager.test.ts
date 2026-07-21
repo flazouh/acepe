@@ -157,13 +157,18 @@ mock.module("runed", () => ({
 	useDebounce: (callback: () => void) => callback,
 	useEventListener: () => () => {},
 	useResizeObserver: () => () => {},
-	watch: Object.assign(mock(() => () => {}), {
-		pre: mock(() => () => {}),
-	}),
+	watch: Object.assign(
+		mock(() => () => {}),
+		{
+			pre: mock(() => () => {}),
+		}
+	),
 }));
 
 import type { MainAppViewState } from "../logic/main-app-view-state.svelte.js";
-type InitializationManagerConstructor = typeof import("../logic/managers/initialization-manager.js").InitializationManager;
+
+type InitializationManagerConstructor =
+	typeof import("../logic/managers/initialization-manager.js").InitializationManager;
 type InitializationManagerInstance = InstanceType<InitializationManagerConstructor>;
 let InitializationManager: InitializationManagerConstructor;
 
@@ -287,25 +292,25 @@ describe("InitializationManager", () => {
 		if (InitializationManager === undefined) {
 			({ InitializationManager } = await import("../logic/managers/initialization-manager.js"));
 		}
-			openPersistedSessionMock.mockReset();
-			zoomInitializeMock.mockReset();
-			zoomInitializeMock.mockImplementation(() => okAsync(undefined));
-			warmRecentTranscriptRowLedgersMock.mockReset();
-			warmRecentTranscriptRowLedgersMock.mockImplementation(() =>
-				okAsync({
-					requestedLimit: 8,
-					candidateCount: 0,
-					checkedCount: 0,
-					rebuiltCount: 0,
-					rebuiltFromProviderCount: 0,
-					skippedCurrentCount: 0,
-					skippedNoJournalCount: 0,
-					skippedMissingFactsCount: 0,
-					failedCount: 0,
-					failedSessionIds: [],
-				})
-			);
-			listPreconnectionCapabilitiesMock.mockReset();
+		openPersistedSessionMock.mockReset();
+		zoomInitializeMock.mockReset();
+		zoomInitializeMock.mockImplementation(() => okAsync(undefined));
+		warmRecentTranscriptRowLedgersMock.mockReset();
+		warmRecentTranscriptRowLedgersMock.mockImplementation(() =>
+			okAsync({
+				requestedLimit: 8,
+				candidateCount: 0,
+				checkedCount: 0,
+				rebuiltCount: 0,
+				rebuiltFromProviderCount: 0,
+				skippedCurrentCount: 0,
+				skippedNoJournalCount: 0,
+				skippedMissingFactsCount: 0,
+				failedCount: 0,
+				failedSessionIds: [],
+			})
+		);
+		listPreconnectionCapabilitiesMock.mockReset();
 		listPreconnectionCapabilitiesMock.mockReturnValue(
 			okAsync({
 				status: "resolved",
@@ -331,15 +336,15 @@ describe("InitializationManager", () => {
 			removeEventListener: mock(() => {}),
 		} as unknown as Window & typeof globalThis;
 
-			mockState = {
-				debugPanelOpen: false,
-				settingsModalOpen: false,
-				commandPaletteOpen: false,
-				initializationInProgress: false,
-				initializationComplete: false,
-				workspaceRestorationPending: false,
-				initializationError: null,
-			} as unknown as MainAppViewState;
+		mockState = {
+			debugPanelOpen: false,
+			settingsModalOpen: false,
+			commandPaletteOpen: false,
+			initializationInProgress: false,
+			initializationComplete: false,
+			workspaceRestorationPending: false,
+			initializationError: null,
+		} as unknown as MainAppViewState;
 
 		mockSessionStore = {
 			initializeSessionUpdates: mock(() => okAsync(undefined)),
@@ -1004,12 +1009,7 @@ describe("InitializationManager", () => {
 				},
 			];
 
-			const restoredSession = buildSession(
-				"session-1",
-				"claude-code",
-				"/project1",
-				"Session 1"
-			);
+			const restoredSession = buildSession("session-1", "claude-code", "/project1", "Session 1");
 			mockSessionStore.loading.loadStartupSessions = mock(() =>
 				okAsync({ missing: [], aliasRemaps: {} })
 			);
@@ -1042,7 +1042,10 @@ describe("InitializationManager", () => {
 					color: "blue",
 				},
 			];
-			mockWorkspaceStore.restore = mock(() => ["session-1", "session-2"]) as WorkspaceStore["restore"];
+			mockWorkspaceStore.restore = mock(() => [
+				"session-1",
+				"session-2",
+			]) as WorkspaceStore["restore"];
 			mockPanelStore.focusedPanelId = "panel-2";
 			mockPanelStore.panels = [
 				{
@@ -1077,8 +1080,12 @@ describe("InitializationManager", () => {
 			await manager.initialize();
 			await runImmediateTimers();
 
-			expect(mockSessionStore.loading.loadStartupSessions).toHaveBeenNthCalledWith(1, ["session-2"]);
-			expect(mockSessionStore.loading.loadStartupSessions).toHaveBeenNthCalledWith(2, ["session-1"]);
+			expect(mockSessionStore.loading.loadStartupSessions).toHaveBeenNthCalledWith(1, [
+				"session-2",
+			]);
+			expect(mockSessionStore.loading.loadStartupSessions).toHaveBeenNthCalledWith(2, [
+				"session-1",
+			]);
 			expect(mockProjectManager.loadProjects).toHaveBeenCalledWith(["/project1"]);
 			expect(openPersistedSessionMock.mock.calls.map((call) => call[0]?.panelId)).toEqual([
 				"panel-2",
@@ -1447,9 +1454,7 @@ describe("InitializationManager", () => {
 				},
 			];
 			mockSessionStore.read.getSessionCold = mock(() => undefined);
-			mockSessionStore.loading.registerSessionPlaceholder = mock(
-				() => {}
-			);
+			mockSessionStore.loading.registerSessionPlaceholder = mock(() => {});
 
 			await manager.initialize();
 			await Promise.resolve();

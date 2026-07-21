@@ -173,6 +173,7 @@ impl TranscriptRepairCoordinator {
         })
     }
 
+    #[allow(clippy::map_entry)] // Promotion must happen before borrowing the active repair.
     pub fn request(
         self: &Arc<Self>,
         app: AppHandle,

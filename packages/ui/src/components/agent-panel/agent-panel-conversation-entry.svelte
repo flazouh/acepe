@@ -2,6 +2,7 @@
 import type { Snippet } from "svelte";
 import type {
 	AgentPanelConversationEntry,
+	AgentTaskDetailBinding,
 	AgentPanelPlanActionEvent,
 	AgentPanelPlanViewEvent,
 	AgentPanelQuestionSelectEvent,
@@ -11,7 +12,6 @@ import type {
 	AssistantRenderBlockContext,
 } from "./types.js";
 import type { InlineArtefactTokenType } from "../../lib/inline-artefact/index.js";
-import type { StreamingAnimationMode } from "../../lib/assistant-message/types.js";
 import { isToolCallEntry } from "./agent-panel-conversation-entry-model.js";
 
 import AgentAssistantMessage from "./agent-assistant-message.svelte";
@@ -28,7 +28,6 @@ interface Props {
 	iconBasePath?: string;
 	editToolTheme?: EditToolTheme;
 	projectPath?: string;
-	streamingAnimationMode?: StreamingAnimationMode;
 	/** When true, streaming placeholders show the Claude working spark instead of the label. */
 	showWorkingSpark?: boolean;
 	renderAssistantBlock?: Snippet<[AssistantRenderBlockContext]>;
@@ -40,6 +39,7 @@ interface Props {
 	onUserFileSelect?: (event: AgentUserFileSelectEvent) => void;
 	onReview?: (event: AgentPanelReviewActionEvent) => void;
 	isPlanActionAvailable?: (event: AgentPanelPlanActionEvent) => boolean;
+	taskDetail?: AgentTaskDetailBinding | null;
 }
 
 let {
@@ -47,7 +47,6 @@ let {
 	iconBasePath = "/svgs/icons",
 	editToolTheme,
 	projectPath,
-	streamingAnimationMode = "smooth",
 	showWorkingSpark = false,
 	renderAssistantBlock,
 	onQuestionSelect,
@@ -58,6 +57,7 @@ let {
 	onUserFileSelect,
 	onReview,
 	isPlanActionAvailable,
+	taskDetail = null,
 }: Props = $props();
 
 function handleUserTokenClick(
@@ -89,11 +89,9 @@ function handleUserTokenClick(
 				chunks: [{ type: "message", block: { type: "text", text: entry.markdown } }],
 			}}
 			isStreaming={entry.isStreaming}
-			tokenRevealCss={entry.tokenRevealCss}
 			timestampMs={entry.timestampMs}
 			planningStartedAtMs={entry.planningStartedAtMs}
 			{projectPath}
-			{streamingAnimationMode}
 			{showWorkingSpark}
 		{iconBasePath}
 		renderBlock={renderAssistantBlock}
@@ -132,5 +130,6 @@ function handleUserTokenClick(
 		{onToolFileSelect}
 		{onReview}
 		{isPlanActionAvailable}
+		{taskDetail}
 	/>
 {/if}

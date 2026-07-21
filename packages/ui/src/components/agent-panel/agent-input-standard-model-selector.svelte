@@ -6,6 +6,7 @@
 	import { getSelectorTriggerButtonVariant } from "../selector/selector-trigger-classes.js";
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import { cn } from "../../lib/utils.js";
+	import AgentInputModelDefaultPin from "./agent-input-model-default-pin.svelte";
 	import AgentInputModelFavoriteStar from "./agent-input-model-favorite-star.svelte";
 	import type {
 		AgentInputModelSelectorGroup,
@@ -27,7 +28,7 @@
 		searchQuery?: string;
 		showSearch?: boolean;
 		showGroups?: boolean;
-		showFavorites?: boolean;
+		showFavoriteActions?: boolean;
 		isLoading?: boolean;
 		searchPlaceholder?: string;
 		loadingLabel?: string;
@@ -40,6 +41,7 @@
 		onProviderChange?: (providerId: string) => void;
 		onSelect: (modelId: string) => void;
 		onToggleFavorite?: (modelId: string) => void;
+		onDefaultModelToggle?: (modelId: string) => void;
 	}
 
 	let {
@@ -57,7 +59,7 @@
 		searchQuery = "",
 		showSearch = false,
 		showGroups = false,
-		showFavorites = false,
+		showFavoriteActions = false,
 		isLoading = false,
 		searchPlaceholder = "Search models",
 		loadingLabel = "Loading models...",
@@ -70,6 +72,7 @@
 		onProviderChange,
 		onSelect,
 		onToggleFavorite,
+		onDefaultModelToggle,
 	}: Props = $props();
 
 	const selectorVariant = $derived(getSelectorTriggerButtonVariant(triggerSize));
@@ -173,7 +176,7 @@
 					{/each}
 				</div>
 			{/if}
-			{#if showFavorites && !searchQuery}
+			{#if showFavoriteActions && favoriteModels.length > 0 && !searchQuery}
 				<div class="flex flex-col gap-0.5 bg-popover px-0 pb-0.5">
 					{#each favoriteModels as item (item.id)}
 						<SelectorItem
@@ -191,18 +194,27 @@
 								{/if}
 							{/snippet}
 							{#snippet trailing()}
-								{#if onToggleFavorite}
-									<AgentInputModelFavoriteStar
-										isFavorite={Boolean(item.isFavorite)}
-										onToggle={() => onToggleFavorite(item.id)}
-									/>
-								{/if}
+								<div class="flex shrink-0 items-center gap-1">
+									{#if onDefaultModelToggle}
+										<AgentInputModelDefaultPin
+											isDefault={Boolean(item.isDefault)}
+											label={item.name}
+											onToggle={() => onDefaultModelToggle(item.id)}
+										/>
+									{/if}
+									{#if onToggleFavorite}
+										<AgentInputModelFavoriteStar
+											isFavorite={Boolean(item.isFavorite)}
+											label={item.name}
+											onToggle={() => onToggleFavorite(item.id)}
+										/>
+									{/if}
+								</div>
 							{/snippet}
 						</SelectorItem>
 					{/each}
 				</div>
 			{/if}
-
 			<div class="flex flex-col gap-0.5 max-h-[250px] overflow-y-auto px-0 scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
 				{#if filteredGroups.length === 0}
 					<div class="px-2 py-4 text-center text-xs text-muted-foreground" data-qa="model-provider-empty">
@@ -240,12 +252,22 @@
 								{/if}
 							{/snippet}
 							{#snippet trailing()}
-								{#if onToggleFavorite}
-									<AgentInputModelFavoriteStar
-										isFavorite={Boolean(item.isFavorite)}
-										onToggle={() => onToggleFavorite(item.id)}
-									/>
-								{/if}
+								<div class="flex shrink-0 items-center gap-1">
+									{#if onDefaultModelToggle}
+										<AgentInputModelDefaultPin
+											isDefault={Boolean(item.isDefault)}
+											label={item.name}
+											onToggle={() => onDefaultModelToggle(item.id)}
+										/>
+									{/if}
+									{#if showFavoriteActions && onToggleFavorite}
+										<AgentInputModelFavoriteStar
+											isFavorite={Boolean(item.isFavorite)}
+											label={item.name}
+											onToggle={() => onToggleFavorite(item.id)}
+										/>
+									{/if}
+								</div>
 							{/snippet}
 						</SelectorItem>
 					{/each}

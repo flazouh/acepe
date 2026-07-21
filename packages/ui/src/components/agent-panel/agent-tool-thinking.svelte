@@ -128,23 +128,56 @@
 					tabindex="-1"
 					aria-hidden="true"
 				>
-					<HugeiconsIcon name="chevron-right" class="size-3 shrink-0 text-muted-foreground transition-transform duration-150 {collapsed ? '' : 'rotate-90'}"
+					<!-- Duration/easing must match .thinking-collapsible or the caret and the panel desync. -->
+					<HugeiconsIcon name="chevron-right" class="size-3 shrink-0 text-muted-foreground transition-transform duration-fast ease-smooth-out {collapsed ? '' : 'rotate-90'}"
 					/>
 				</button>
 			{/if}
 		</div>
 	{/if}
 
-	{#if !collapsed && children}
-		<div class="mt-1.5 flex min-w-0 items-stretch gap-2 text-xs leading-normal">
-			<div
-				data-testid="thinking-block-line"
-				class="w-px shrink-0 self-stretch rounded-full bg-border/70"
-				aria-hidden="true"
-			></div>
-			<div data-testid="thinking-block-content" class="min-w-0 flex-1 text-xs leading-normal">
-				{@render children()}
+	{#if children}
+		<!--
+			Height animates via grid-template-rows 0fr→1fr: no JS measurement, and the
+			row track is the only animated property. Spacing lives on the inner element,
+			never on the track — padding/margin on a 0fr track leaves a residual strip
+			so the block never fully closes.
+		-->
+		<div class="thinking-collapsible" class:is-collapsed={collapsed}>
+			<div class="thinking-collapsible-inner">
+				<div class="mt-1.5 flex min-w-0 items-stretch gap-2 text-xs leading-normal">
+					<div
+						data-testid="thinking-block-line"
+						class="w-px shrink-0 self-stretch rounded-full bg-border/70"
+						aria-hidden="true"
+					></div>
+					<div data-testid="thinking-block-content" class="min-w-0 flex-1 text-xs leading-normal">
+						{@render children()}
+					</div>
+				</div>
 			</div>
 		</div>
 	{/if}
 </div>
+
+<style>
+	.thinking-collapsible {
+		display: grid;
+		grid-template-rows: 1fr;
+		opacity: 1;
+		transition:
+			grid-template-rows var(--duration-fast) var(--ease-smooth-out),
+			opacity var(--duration-quick) var(--ease-smooth-out);
+	}
+
+	.thinking-collapsible.is-collapsed {
+		grid-template-rows: 0fr;
+		opacity: 0;
+		pointer-events: none;
+	}
+
+	.thinking-collapsible-inner {
+		min-height: 0;
+		overflow: hidden;
+	}
+</style>

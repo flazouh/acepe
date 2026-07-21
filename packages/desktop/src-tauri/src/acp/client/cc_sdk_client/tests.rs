@@ -535,6 +535,19 @@ fn bind_pending_creation_attempt_seeds_model_and_mode() {
 }
 
 #[test]
+fn stream_handoff_consumes_pending_creation_attempt_once() {
+    let mut client = make_test_client();
+    client.bind_pending_creation_attempt(Some("attempt-1".to_string()), None, None);
+
+    let first_handoff = client.take_pending_creation_attempt_for_stream();
+    let second_handoff = client.take_pending_creation_attempt_for_stream();
+
+    assert_eq!(first_handoff.as_deref(), Some("attempt-1"));
+    assert_eq!(second_handoff, None);
+    assert_eq!(client.pending_creation_attempt_id, None);
+}
+
+#[test]
 fn sanitize_pending_model_for_connect_clears_model_when_catalog_is_empty() {
     let mut client = make_test_client();
     client.pending_model_id = Some("stale-model".to_string());

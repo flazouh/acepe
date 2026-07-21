@@ -6,7 +6,11 @@ mock.module("@tauri-apps/api/core", () => ({
 	convertFileSrc: (path: string) => `asset://localhost/${encodeURIComponent(path)}`,
 }));
 
-import { convertIconPath, normalizeProjectIconUpdatePath, ProjectClient } from "../project-client.js";
+import {
+	convertIconPath,
+	normalizeProjectIconUpdatePath,
+	ProjectClient,
+} from "../project-client.js";
 
 const originalLocalStorageDescriptor = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
 let localStorageValues: Map<string, string>;

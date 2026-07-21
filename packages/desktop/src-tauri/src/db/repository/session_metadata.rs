@@ -475,6 +475,28 @@ impl SessionMetadataRepository {
             .ok_or_else(|| CreationAttemptRepositoryError::NotFound {
                 attempt_id: attempt_id.to_string(),
             })?;
+        if attempt.status == CreationAttemptStatus::Consumed.as_str()
+            && attempt.provider_session_id.as_deref() == Some(provider_session_id)
+        {
+            let metadata_model = SessionMetadata::find_by_id(provider_session_id)
+                .one(&txn)
+                .await?
+                .ok_or_else(|| CreationAttemptRepositoryError::InvalidState {
+                    message: format!(
+                        "consumed creation attempt {attempt_id} points to missing session {provider_session_id}"
+                    ),
+                })?;
+            let state_model = AcepeSessionState::find_by_id(provider_session_id)
+                .one(&txn)
+                .await?;
+            txn.commit().await?;
+
+            return Ok(compose_session_metadata_row(
+                metadata_model,
+                state_model.as_ref(),
+            ));
+        }
+
         if attempt.status != CreationAttemptStatus::Pending.as_str() {
             return Err(CreationAttemptRepositoryError::NotPending {
                 attempt_id: attempt_id.to_string(),
@@ -929,6 +951,18 @@ impl SessionMetadataRepository {
     pub(crate) fn normalized_source_path(file_path: &str) -> Option<String> {
         if file_path.is_empty() || Self::is_non_persisted_session_file_path(file_path) {
             None
+        } else if file_path.starts_with("-") && file_path.ends_with(".jsonl") {
+            let claude_home = std::env::var("CLAUDE_HOME")
+                .map(std::path::PathBuf::from)
+                .ok()
+                .or_else(|| dirs::home_dir().map(|home| home.join(".claude")))?;
+            Some(
+                claude_home
+                    .join("projects")
+                    .join(file_path)
+                    .to_string_lossy()
+                    .to_string(),
+            )
         } else {
             Some(file_path.to_string())
         }
@@ -1352,7 +1386,7 @@ impl SessionMetadataRepository {
         const MAX_TOTAL: usize = 500;
 
         let mut models = Vec::new();
-        let bounded_project_count = project_paths.len().min(MAX_PROJECTS).max(1);
+        let bounded_project_count = project_paths.len().clamp(1, MAX_PROJECTS);
         let fair_project_limit = (MAX_TOTAL / bounded_project_count).max(1);
         let fair_remainder = MAX_TOTAL % bounded_project_count;
         for (project_index, project_path) in project_paths.iter().take(MAX_PROJECTS).enumerate() {

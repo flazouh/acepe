@@ -8,9 +8,12 @@
 import { err, ok, type Result } from "neverthrow";
 import type { SessionStateGraph } from "../../services/acp-types.js";
 import { sessionColdFromSlices } from "../application/dto/session-cold.js";
-import { sessionExportContentError, type SessionExportContentError } from "./session-graph-builders.js";
 import { sessionGraphToJsonExportContent } from "../utils/session-export.js";
 import { sessionGraphToMarkdown } from "../utils/session-to-markdown.js";
+import {
+	type SessionExportContentError,
+	sessionExportContentError,
+} from "./session-graph-builders.js";
 import type { SessionIdentity, SessionMetadata } from "./types.js";
 
 export interface SessionExportDeps {
@@ -44,7 +47,10 @@ export class SessionExportService {
 		}
 
 		return ok(
-			sessionGraphToJsonExportContent(sessionColdFromSlices(sessionIdentity, sessionMetadata), graph)
+			sessionGraphToJsonExportContent(
+				sessionColdFromSlices(sessionIdentity, sessionMetadata),
+				graph
+			)
 		);
 	}
 }

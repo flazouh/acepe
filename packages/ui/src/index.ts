@@ -209,6 +209,11 @@ export {
 	SectionedFeed,
 } from "./components/attention-queue/index.js";
 export {
+	panelRevealIn,
+	panelRevealOut,
+	type PanelRevealParams,
+} from "./components/transitions/panel-reveal.js";
+export {
 	Button,
 	type ButtonProps,
 	type ButtonSize,
@@ -253,6 +258,7 @@ export {
 } from "./components/checkpoint/index.js";
 export {
 	ChipShell,
+	CHIP_SHELL_SURFACE,
 	buildChipShellClassName,
 	type ChipShellDensity,
 	type ChipShellSize,

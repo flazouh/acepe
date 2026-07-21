@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Button } from "../button/index.js";
 	import { HugeiconsIcon } from "../icons/index.js";
 
 	import AgentToolCard from "./agent-tool-card.svelte";
@@ -83,7 +84,7 @@
 
 <AgentToolCard>
 	<!-- Header: same fixed height as edit card -->
-	<div role="group" class="flex h-7 items-center justify-between pl-2.5 pr-2 text-sm">
+	<div role="group" class="flex h-6 items-center justify-between gap-1.5 pl-2 pr-0.5 text-sm">
 		<div class="flex min-w-0 flex-1 items-center gap-2 truncate">
 			<ToolHeaderLeading kind="read_lints" {status}>
 				{labelText}
@@ -98,19 +99,26 @@
 		</div>
 
 		{#if durationTiming || (!isPending && hasContent)}
-			<div class="ml-2 flex shrink-0 items-center gap-2">
+			<div class="ml-1.5 flex shrink-0 items-center gap-1">
 				<AgentToolDurationLabel timing={durationTiming} class="text-sm" />
 				{#if !isPending && hasContent}
-					<button
-						type="button"
+					<Button
+						variant="ghost"
+						size="icon-sm"
+						data-header-control
+						class="text-muted-foreground"
 						onclick={toggleExpand}
-						class="flex items-center justify-center rounded-sm border-none bg-transparent p-1 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
 						aria-label={isExpanded ? ariaCollapse : ariaExpand}
 						aria-expanded={isExpanded}
+						title={isExpanded ? ariaCollapse : ariaExpand}
 					>
-						<HugeiconsIcon name="chevron-right" class="size-3 shrink-0 text-muted-foreground transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}"
-						/>
-					</button>
+						{#snippet children()}
+							<HugeiconsIcon
+								name="chevron-right"
+								class="transition-transform duration-150 {isExpanded ? 'rotate-90' : ''}"
+							/>
+						{/snippet}
+					</Button>
 				{/if}
 			</div>
 		{/if}

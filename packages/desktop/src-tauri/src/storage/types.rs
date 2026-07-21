@@ -59,6 +59,9 @@ pub enum UserSettingKey {
     WorktreeTrust,
     /// Whether thinking blocks in chat are collapsed by default (boolean)
     ChatThinkingBlockCollapsedByDefault,
+    /// How assistant replies animate as they stream in
+    /// (instant | buffer | buffer-fade | block-fade)
+    ChatStreamingRevealMode,
     /// Whether plans render inline in chat vs sidebar panel (boolean)
     PlanInlineMode,
     /// Whether review opens fullscreen by default (boolean)
@@ -79,8 +82,6 @@ pub enum UserSettingKey {
     GitMergeStrategyPreference,
     /// Set of dismissed tooltip keys (JSON array of string keys)
     DismissedTooltips,
-    /// Whether the attention queue panel is shown in the sidebar (boolean)
-    AttentionQueueEnabled,
     /// Whether analytics providers should be disabled for this install (boolean)
     AnalyticsOptOut,
     /// User's preferred default agent ID for new sessions
@@ -125,6 +126,7 @@ impl UserSettingKey {
             UserSettingKey::ChatThinkingBlockCollapsedByDefault => {
                 "chat_thinking_block_collapsed_by_default"
             }
+            UserSettingKey::ChatStreamingRevealMode => "chat_streaming_reveal_mode",
             UserSettingKey::PlanInlineMode => "plan_inline_mode",
             UserSettingKey::ReviewPreferFullscreen => "review_prefer_fullscreen",
             UserSettingKey::NotificationPreferences => "notification-preferences",
@@ -134,7 +136,6 @@ impl UserSettingKey {
             UserSettingKey::GitTextGenerationAgent => "git_text_generation_agent",
             UserSettingKey::GitMergeStrategyPreference => "git_merge_strategy_preference",
             UserSettingKey::DismissedTooltips => "dismissed_tooltips",
-            UserSettingKey::AttentionQueueEnabled => "attention_queue_enabled",
             UserSettingKey::AnalyticsOptOut => "analytics_opt_out",
             UserSettingKey::DefaultAgentId => "default_agent_id",
             UserSettingKey::UiFontSize => "ui_font_size",
@@ -191,6 +192,7 @@ mod tests {
             "custom_agent_configs",
             "agent_env_overrides",
             "chat_thinking_block_collapsed_by_default",
+            "chat_streaming_reveal_mode",
             "plan_inline_mode",
             "notification-preferences",
             "voice_model",
@@ -198,7 +200,6 @@ mod tests {
             "voice_enabled",
             "git_text_generation_agent",
             "dismissed_tooltips",
-            "attention_queue_enabled",
             "analytics_opt_out",
             "default_agent_id",
             "ui_font_size",

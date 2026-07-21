@@ -9,7 +9,7 @@ import type {
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 
-const STORE_KEY = Symbol("voice-settings");
+const STORE_KEY = Symbol.for("acepe.voice-settings");
 const DEFAULT_MODEL_ID = "small.en";
 const DEFAULT_LANGUAGE = "auto";
 const logger = createLogger({
@@ -75,6 +75,7 @@ export class VoiceSettingsStore {
 			this.refreshLanguages(),
 			this.registerListeners(),
 		]);
+		await this.normalizeSelectedModel();
 		await this.normalizePersistedLanguage();
 		this.initialized = true;
 	}
@@ -245,6 +246,34 @@ export class VoiceSettingsStore {
 		} else {
 			logger.error("Failed to load voice languages", { error: result.error });
 		}
+	}
+
+	private async normalizeSelectedModel(): Promise<void> {
+		if (this.models.length === 0) {
+			return;
+		}
+
+		const selectedModel = this.models.find((model) => model.id === this.selectedModelId) ?? null;
+		if (selectedModel !== null) {
+			return;
+		}
+
+		const nextModel = this.models[0];
+		if (nextModel === undefined) {
+			return;
+		}
+
+		const result = await tauriClient.settings.set(VOICE_MODEL_KEY, nextModel.id);
+		if (result.isErr()) {
+			logger.warn("Failed to normalize persisted voice model preference", {
+				error: result.error,
+				modelId: nextModel.id,
+				previousModelId: this.selectedModelId,
+			});
+			return;
+		}
+
+		this.selectedModelId = nextModel.id;
 	}
 
 	private async preloadSelectedModel(): Promise<void> {

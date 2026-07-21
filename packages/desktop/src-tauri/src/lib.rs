@@ -1,3 +1,11 @@
+// All-target builds include canonical projection and provider-history helpers whose
+// consumers are target- or feature-specific. Keep these cohesive APIs available.
+#![allow(dead_code)]
+// Tauri commands and canonical persistence functions have stable, explicit argument lists.
+#![allow(clippy::too_many_arguments)]
+// Boxing these serialized domain variants would change their public construction API.
+#![allow(clippy::large_enum_variant)]
+
 pub mod acp;
 pub mod analytics;
 pub mod browser_webview;

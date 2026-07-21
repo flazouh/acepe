@@ -1,8 +1,5 @@
 import type { MessageQueueStore } from "../../../store/message-queue/message-queue-store.svelte.js";
-import {
-	queuedMessageId,
-	type QueuedMessageId,
-} from "../../../store/message-queue/types.js";
+import { type QueuedMessageId, queuedMessageId } from "../../../store/message-queue/types.js";
 import type { Attachment } from "../../agent-input/types/attachment.js";
 
 type QueuedMessage = {

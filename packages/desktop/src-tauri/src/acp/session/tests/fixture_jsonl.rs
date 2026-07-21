@@ -109,6 +109,7 @@ mod tests {
 
         let events = session_updates_to_provider_events(CanonicalAgentId::ClaudeCode, &updates);
         assert_eq!(events.len(), 4);
+        assert!(events.iter().all(|event| event.timestamp_ms.is_none()));
         assert!(events.iter().any(|event| {
             matches!(
                 &event.kind,

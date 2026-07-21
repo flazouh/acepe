@@ -53,7 +53,7 @@ describe("VoiceSessionController", () => {
 	});
 
 	it("activates voice state after registerListeners completes", async () => {
-		let effectiveSessionId: string | null = "session-a";
+		const effectiveSessionId: string | null = "session-a";
 		const { factory, created } = createFakeVoiceFactory({});
 
 		const controller = new VoiceSessionController({
@@ -140,7 +140,7 @@ describe("VoiceSessionController", () => {
 	});
 
 	it("dispose is idempotent and tears down the active voice state", async () => {
-		let effectiveSessionId: string | null = "session-a";
+		const effectiveSessionId: string | null = "session-a";
 		const { factory, created } = createFakeVoiceFactory({});
 
 		const controller = new VoiceSessionController({

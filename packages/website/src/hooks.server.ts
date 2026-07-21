@@ -130,5 +130,5 @@ export const handle: Handle = sequence(
 	handleCors,
 	handleFaviconRedirect,
 	handleLegacyLocaleRedirect,
-	handleBotFilter,
+	handleBotFilter
 );

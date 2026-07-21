@@ -1,5 +1,5 @@
 import type {
-	AssistantTextDeltaPayload,
+	ActiveStreamingTail,
 	CapabilityPreviewState,
 	InteractionSnapshot,
 	OperationSnapshot,
@@ -9,9 +9,8 @@ import type {
 	SessionGraphLifecycle,
 	SessionGraphRevision,
 	SessionStateDelta,
-	SessionStateField,
-	ActiveStreamingTail,
 	SessionStateEnvelope,
+	SessionStateField,
 	SessionStateGraph,
 	SessionTurnState,
 	TranscriptDelta,
@@ -21,13 +20,13 @@ import type {
 	ViewportBufferPush,
 } from "../../services/acp-types.js";
 import {
-	resolveSessionStateDelta,
-	type SessionStateDeltaResolution,
-} from "./session-state-query-service.js";
-import {
 	checkSessionStateEnvelopeByteBudget,
 	type SessionStateEnvelopeByteBudgetResult,
 } from "./session-state-envelope-budget.js";
+import {
+	resolveSessionStateDelta,
+	type SessionStateDeltaResolution,
+} from "./session-state-query-service.js";
 
 export type SessionStateCommand =
 	| {
@@ -87,10 +86,6 @@ export type SessionStateCommand =
 			interactionPatches: InteractionSnapshot[];
 	  }
 	| {
-			kind: "applyAssistantTextDelta";
-			delta: AssistantTextDeltaPayload;
-	  }
-	| {
 			kind: "applyBufferPush";
 			push: ViewportBufferPush;
 	  }
@@ -137,13 +132,6 @@ function envelopeFrontierMatchesRevision(
 		envelope.graphRevision === revision.graphRevision &&
 		envelope.lastEventSeq === revision.lastEventSeq
 	);
-}
-
-function envelopeFrontierMatchesAssistantTextDelta(
-	envelope: Pick<SessionStateEnvelope, "graphRevision" | "lastEventSeq">,
-	delta: AssistantTextDeltaPayload
-): boolean {
-	return envelope.graphRevision === delta.revision && envelope.lastEventSeq === delta.revision;
 }
 
 function commandFromDeltaResolution(
@@ -203,7 +191,7 @@ function graphDeltaIsMissingRequiredScalars(
 	}
 
 	const hasOwn = (field: SessionStateField): boolean =>
-		Object.prototype.hasOwnProperty.call(delta as Record<string, unknown>, field);
+		Object.hasOwn(delta as Record<string, unknown>, field);
 
 	for (const field of changedFields) {
 		switch (field) {
@@ -412,8 +400,7 @@ export function routeSessionStateEnvelope(
 			const includesTurnState = changedFields?.includes("turnState") ?? false;
 			const includesActiveTurnFailure = changedFields?.includes("activeTurnFailure") ?? false;
 			const includesLastTerminalTurnId = changedFields?.includes("lastTerminalTurnId") ?? false;
-			const includesActiveStreamingTail =
-				changedFields?.includes("activeStreamingTail") ?? false;
+			const includesActiveStreamingTail = changedFields?.includes("activeStreamingTail") ?? false;
 			const includesGraphState =
 				includesActivity ||
 				includesTurnState ||
@@ -491,22 +478,6 @@ export function routeSessionStateEnvelope(
 			}
 			return commands;
 		}
-		case "assistantTextDelta":
-			if (!envelopeFrontierMatchesAssistantTextDelta(envelope, envelope.payload.delta)) {
-				return [
-					{
-						kind: "refreshSnapshot",
-						fromRevision: envelope.payload.delta.revision,
-						toRevision: envelope.graphRevision,
-					},
-				];
-			}
-			return [
-				{
-					kind: "applyAssistantTextDelta",
-					delta: envelope.payload.delta,
-				},
-			];
 		case "viewportBufferPush":
 			if (!envelopeFrontierMatchesRevision(envelope, envelope.payload.push.graphRevision)) {
 				return [

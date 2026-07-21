@@ -79,5 +79,7 @@ export function saveWorktreeProjectDefaults(
 
 /** Legacy global default — read-only for one-time migration. */
 export function loadWorktreeDefault(): ResultAsync<boolean, AppError> {
-	return tauriClient.settings.get<boolean>(LEGACY_GLOBAL_DEFAULT_KEY).map((value) => value ?? false);
+	return tauriClient.settings
+		.get<boolean>(LEGACY_GLOBAL_DEFAULT_KEY)
+		.map((value) => value ?? false);
 }

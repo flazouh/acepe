@@ -1,7 +1,7 @@
 import { formatOtherToolName } from "../../../../registry/index.js";
+import type { TurnState } from "../../../../store/types.js";
 import type { ToolCall } from "../../../../types/tool-call.js";
 import type { ToolKind } from "../../../../types/tool-kind.js";
-import type { TurnState } from "../../../../store/types.js";
 
 export function normalizeToolKind(kind: ToolKind | null | undefined) {
 	if (!kind) {

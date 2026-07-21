@@ -54,12 +54,6 @@ vi.mock("../../../store/permission-store.svelte.js", () => ({
 	}),
 }));
 
-vi.mock("../../../store/chat-preferences-store.svelte.js", () => ({
-	getChatPreferencesStore: () => ({
-		streamingAnimationMode: "none",
-	}),
-}));
-
 vi.mock("../../../utils/worker-pool-singleton.js", () => ({
 	getWorkerPool: () => null,
 }));
@@ -137,7 +131,6 @@ function renderViewport(options: {
 }) {
 	return render(SceneContentViewport, {
 		panelId: "panel-1",
-		sceneEntries: [],
 		rowsProjection: options.rowsProjection,
 		turnState: "idle",
 		projectPath: undefined,

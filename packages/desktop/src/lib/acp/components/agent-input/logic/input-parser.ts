@@ -177,9 +177,7 @@ export function replaceActiveSlashTrigger(input: {
 	const before = input.message.substring(0, start);
 	const after = input.message.substring(input.cursorPos);
 	const message =
-		input.replacement.length > 0
-			? `${before}${input.replacement}${after}`
-			: `${before}${after}`;
+		input.replacement.length > 0 ? `${before}${input.replacement}${after}` : `${before}${after}`;
 	const cursor = before.length + input.replacement.length;
 
 	return { message, cursor };

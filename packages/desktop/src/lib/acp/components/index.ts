@@ -1,3 +1,4 @@
+export { ProjectHeader, ProjectHeaderOverflowMenu } from "@acepe/ui/app-layout";
 export { default as AgentInput } from "./agent-input/agent-input-ui.svelte";
 export { AgentPanel } from "./agent-panel/index.js";
 export { default as AgentSelector } from "./agent-selector.svelte";
@@ -13,10 +14,8 @@ export { default as PanelTabs } from "./panel-tabs.svelte";
 export { default as PlanDialog } from "./plan-dialog.svelte";
 export { PlanSidebar } from "./plan-sidebar/index.js";
 export { default as PlanView } from "./plan-view.svelte";
-export { ProjectHeader, ProjectHeaderOverflowMenu } from "@acepe/ui/app-layout";
 export { default as ProjectSelectionPanel } from "./project-selection-panel.svelte";
 export { default as ProjectSelector } from "./project-selector.svelte";
-export { QueueSection } from "./queue/index.js";
 export { SessionList } from "./session-list/index.js";
 export { default as SessionStatusIndicator } from "./session-status-indicator.svelte";
 export { default as SessionHeader } from "./thread-header.svelte";

@@ -4,19 +4,22 @@
  * the reuse predicates the dispatcher uses to short-circuit. Pure. GOD-safe.
  */
 import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel/types";
+import { scenePatchFullRebuild } from "../components/agent-panel/logic/scene-patch.js";
+import {
+	flattenUserChunkText,
+	mergeAdjacentUserCommandChunks,
+} from "../logic/user-row-scene-model.js";
 import type { AgentPanelCanonicalSource } from "./agent-panel-canonical-source.js";
 import type {
 	CachedConversationInput,
 	CachedConversationState,
 } from "./conversation-cache-types.js";
-import { buildOperationIndex, type OperationIndex } from "./operation-index.js";
-import { materializeTranscriptEntry, questionInteractionToSceneEntry } from "./entry-materializers.js";
-import { scenePatchFullRebuild } from "../components/agent-panel/logic/scene-patch.js";
-import { areActiveStreamingTailsEquivalent, areActivitiesEquivalent } from "./scene-equivalence.js";
 import {
-	flattenUserChunkText,
-	mergeAdjacentUserCommandChunks,
-} from "../logic/user-row-scene-model.js";
+	materializeTranscriptEntry,
+	questionInteractionToSceneEntry,
+} from "./entry-materializers.js";
+import { buildOperationIndex, type OperationIndex } from "./operation-index.js";
+import { areActiveStreamingTailsEquivalent, areActivitiesEquivalent } from "./scene-equivalence.js";
 
 function mergeAdjacentUserCommandEntries(
 	entries: AgentPanelSceneEntryModel[]

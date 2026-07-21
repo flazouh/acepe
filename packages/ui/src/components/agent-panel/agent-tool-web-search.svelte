@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Button } from "../button/index.js";
 	import { HugeiconsIcon } from "../icons/index.js";
 	import AgentToolCard from "./agent-tool-card.svelte";
 	import {
@@ -86,7 +87,7 @@
 	<div class="flex min-w-0 flex-1 flex-col">
 		<!-- Header: label + query/count/duration + chevron top right -->
 		<div
-			class="flex h-6 min-w-0 items-center justify-between gap-2 border-b border-border px-2 bg-muted/40"
+			class="flex h-6 min-w-0 items-center justify-between gap-1.5 border-b border-border bg-muted/40 pl-2 pr-0.5 text-sm"
 		>
 			<div class="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
 				<ToolHeaderLeading kind="web_search" {status}>{headerLabel}</ToolHeaderLeading>
@@ -108,15 +109,22 @@
 				/>
 			</div>
 			{#if hasLinks || hasSummary}
-				<button
-					type="button"
+				<Button
+					variant="ghost"
+					size="icon-sm"
+					data-header-control
+					class="text-muted-foreground"
 					onclick={() => { isCollapsed = !isCollapsed; }}
-					class="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent p-0 transition-colors hover:bg-muted"
 					aria-label={isCollapsed ? ariaExpandResults : ariaCollapseResults}
+					title={isCollapsed ? ariaExpandResults : ariaCollapseResults}
 				>
-					<HugeiconsIcon name="chevron-right" class="size-3 shrink-0 text-muted-foreground transition-transform duration-150 {isCollapsed ? '' : 'rotate-90'}"
-					/>
-				</button>
+					{#snippet children()}
+						<HugeiconsIcon
+							name="chevron-right"
+							class="transition-transform duration-150 {isCollapsed ? '' : 'rotate-90'}"
+						/>
+					{/snippet}
+				</Button>
 			{/if}
 		</div>
 

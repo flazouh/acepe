@@ -62,9 +62,6 @@ export const KEYBINDING_ACTIONS = {
 	// Modal Actions
 	MODAL_CLOSE: "modal.close",
 
-	// File Explorer Actions
-	FILE_EXPLORER_TOGGLE: "fileExplorer.toggle",
-
 	// View/Zoom Actions
 	ZOOM_IN: "view.zoom.in",
 	ZOOM_OUT: "view.zoom.out",

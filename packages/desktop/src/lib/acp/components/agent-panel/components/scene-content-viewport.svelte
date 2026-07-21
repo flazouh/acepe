@@ -9,6 +9,7 @@ import {
 	type AgentPanelPlanViewEvent,
 	type AgentPanelQuestionSelectEvent,
 	type AgentPanelReviewActionEvent,
+	type AgentTaskDetailPresentation,
 	type AgentPanelSceneEntryModel,
 	type AgentUserFileSelectEvent,
 	type AgentToolFileSelectEvent,
@@ -23,13 +24,11 @@ import type { TranscriptRowsState } from "../../../store/transcript-rows-store.j
 import type { TurnState } from "../../../store/types.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import type { LocalPlaceholderMode } from "../logic/local-placeholder-mode.js";
-import { getChatPreferencesStore } from "../../../store/chat-preferences-store.svelte.js";
 import {
 	getPermissionStore,
 	type PermissionStore,
 } from "../../../store/permission-store.svelte.js";
 import { getSessionStore } from "../../../store/session-store.svelte.js";
-import { DEFAULT_STREAMING_ANIMATION_MODE } from "../../../types/streaming-animation-mode.js";
 import { getWorkerPool } from "../../../utils/worker-pool-singleton.js";
 import {
 	pierreDiffsUnsafeCSS,
@@ -42,11 +41,15 @@ import {
 	createRenderedTranscriptViewportRowResolver,
 } from "../logic/transcript-viewport-rendered-rows.js";
 import type { RenderableTranscriptViewportRow } from "../logic/transcript-viewport-rendered-rows.js";
+import {
+	createTaskTranscriptDialogController,
+	taskTranscriptDialogIdentity,
+} from "../logic/task-transcript-dialog-controller.svelte.js";
+import { taskTranscriptDialogPresentation } from "../logic/task-transcript-dialog-presentation.js";
 import { createSyntheticReviewEntry } from "../logic/synthetic-review-entry.js";
 import { recordPanelOpenPerformanceMark } from "../logic/panel-open-performance-mark.js";
 import { useTheme } from "../../../../components/theme/context.svelte.js";
 
-const EMPTY_SCENE_ENTRIES: readonly AgentPanelSceneEntryModel[] = [];
 const SEND_REVEAL_PEEK_PX = 72;
 const OLDER_ROWS_PREFETCH_ROW_THRESHOLD = 48;
 const OLDER_ROWS_PREFETCH_BEFORE_PX = 4_800;
@@ -57,7 +60,6 @@ const FALLBACK_UNLOADED_ROW_ESTIMATE_PX = rowEstimatePx("tool");
 
 type SceneContentViewportProps = {
 	panelId: string;
-	sceneEntries?: readonly AgentPanelSceneEntryModel[];
 	optimisticUserEntry?: AgentPanelSceneEntryModel | null;
 	rowsProjection?: TranscriptRowsState | null;
 	turnState: TurnState;
@@ -74,6 +76,7 @@ type SceneContentViewportProps = {
 	showWorkingSpark?: boolean;
 	isFullscreen?: boolean;
 	modifiedFilesState?: ModifiedFilesState | null;
+	suppressSyntheticReviewEntry?: boolean;
 	onNearBottomChange?: (isNearBottom: boolean) => void;
 	onNearTopChange?: (isNearTop: boolean) => void;
 	onFollowStateChange?: (state: {
@@ -93,10 +96,16 @@ type SceneContentViewportProps = {
 
 const permissionStore: PermissionStore | undefined = getPermissionStore();
 const sessionStore = getSessionStore();
+const taskTranscriptDialogController = createTaskTranscriptDialogController();
+
+type TaskTranscriptDialogBinding = {
+	readonly presentation: AgentTaskDetailPresentation;
+	readonly onOpenChange: (open: boolean) => void;
+	readonly onLoadMore: () => void;
+};
 
 let {
 	panelId,
-	sceneEntries,
 	optimisticUserEntry = null,
 	rowsProjection = null,
 	turnState,
@@ -109,6 +118,7 @@ let {
 	showWorkingSpark = false,
 	isFullscreen = false,
 	modifiedFilesState = null,
+	suppressSyntheticReviewEntry = false,
 	onNearBottomChange,
 	onNearTopChange,
 	onFollowStateChange,
@@ -123,11 +133,7 @@ let {
 	profileRecorder,
 }: SceneContentViewportProps = $props();
 
-const chatPrefs = getChatPreferencesStore();
 const themeState = useTheme();
-const streamingAnimationMode = $derived(
-	chatPrefs?.streamingAnimationMode ?? DEFAULT_STREAMING_ANIMATION_MODE
-);
 const rowsDiagnostics = $derived(sessionStore.viewport.getRowsDiagnostics(sessionId));
 const editToolTheme = $derived({
 	theme: themeState.effectiveTheme,
@@ -171,7 +177,9 @@ let scrollerScrollActive = false;
 
 const bufferRows = $derived(rowsProjection?.rows ?? []);
 const syntheticReviewEntry = $derived(
-	createSyntheticReviewEntry({ turnState, modifiedFilesState })
+	suppressSyntheticReviewEntry
+		? null
+		: createSyntheticReviewEntry({ turnState, modifiedFilesState })
 );
 const renderableRowSource = $derived.by(() => {
 	return measureAgentPanelPerformance(
@@ -192,10 +200,7 @@ const virtualLeadingSpacePx = $derived.by(() => {
 	if (!Number.isInteger(loadedStartRowIndex) || loadedStartRowIndex <= 0) {
 		return 0;
 	}
-	const sampleCount = Math.min(
-		UNLOADED_ROW_ESTIMATE_SAMPLE_LIMIT,
-		renderableRowSource.length
-	);
+	const sampleCount = Math.min(UNLOADED_ROW_ESTIMATE_SAMPLE_LIMIT, renderableRowSource.length);
 	const sampleStartIndex = Math.max(0, renderableRowSource.length - sampleCount);
 	let estimateTotalPx = 0;
 	let measuredEstimateCount = 0;
@@ -227,8 +232,100 @@ const resolveRenderedRow = $derived.by(() => {
 			})
 	);
 });
+
+$effect(() => {
+	if (sessionId === null) {
+		return;
+	}
+	const revision = sessionStore.read?.getSessionGraphRevision(sessionId) ?? null;
+	if (revision === null) {
+		return;
+	}
+
+	for (let index = 0; index < renderableRowSource.length; index += 1) {
+		const renderable = renderableRowSource.getRenderable(index);
+		if (renderable === undefined) {
+			continue;
+		}
+		const rendered = resolveRenderedRow(renderable);
+		const entry = rendered.entry;
+		if (
+			entry.type !== "tool_call" ||
+			entry.kind !== "task" ||
+			entry.taskTranscriptScope?.kind !== "operation"
+		) {
+			continue;
+		}
+		const scope = {
+			kind: "operation" as const,
+			operationId: entry.taskTranscriptScope.operationId,
+		};
+		const identity = taskTranscriptDialogIdentity({
+			sessionId,
+			panelId,
+			rootRowId: rendered.row.rowId,
+			operationId: scope.operationId,
+		});
+		taskTranscriptDialogController.syncOpenRevision({
+			identity,
+			scope,
+			revision,
+		});
+	}
+});
+
 function getScrollerItemRenderable(item: MessageScrollerItem): RenderableTranscriptViewportRow {
 	return item as RenderableTranscriptViewportRow;
+}
+
+function taskTranscriptDialogBindingFor(
+	rowId: string,
+	entry: AgentPanelSceneEntryModel
+): TaskTranscriptDialogBinding | null {
+	if (
+		sessionId === null ||
+		entry.type !== "tool_call" ||
+		entry.kind !== "task" ||
+		entry.taskTranscriptScope?.kind !== "operation"
+	) {
+		return null;
+	}
+
+	const scope = {
+		kind: "operation" as const,
+		operationId: entry.taskTranscriptScope.operationId,
+	};
+	const identity = taskTranscriptDialogIdentity({
+		sessionId,
+		panelId,
+		rootRowId: rowId,
+		operationId: scope.operationId,
+	});
+
+	return {
+		presentation: taskTranscriptDialogPresentation(
+			taskTranscriptDialogController.getState(identity)
+		),
+		onOpenChange(open: boolean): void {
+			if (!open) {
+				taskTranscriptDialogController.close(identity);
+				return;
+			}
+			const revision = sessionStore.read.getSessionGraphRevision(identity.sessionId);
+			if (revision === null) {
+				return;
+			}
+			taskTranscriptDialogController.setOpen({
+				identity,
+				scope,
+				revision,
+				open: true,
+			});
+		},
+		onLoadMore(): void {
+			taskTranscriptDialogController.loadNextPage(identity);
+		},
+	};
 }
 
 function buildScrollerContentSignature(): string {
@@ -334,10 +431,7 @@ function requestOlderRowsAfterFirstPaint(targetSessionId: string): void {
 	sessionStore.viewport.requestOlderRows(targetSessionId);
 }
 
-function requestOlderRowsWhenScrollSettled(
-	targetSessionId: string,
-	scrollActive: boolean
-): void {
+function requestOlderRowsWhenScrollSettled(targetSessionId: string, scrollActive: boolean): void {
 	if (scrollActive) {
 		pendingOlderRowsAfterScrollSessionId = targetSessionId;
 		return;
@@ -347,11 +441,7 @@ function requestOlderRowsWhenScrollSettled(
 
 function flushPendingOlderRowsAfterScroll(state: MessageScrollerRangeState): void {
 	const targetSessionId = pendingOlderRowsAfterScrollSessionId;
-	if (
-		targetSessionId === null ||
-		state.scrollActive ||
-		sessionId !== targetSessionId
-	) {
+	if (targetSessionId === null || state.scrollActive || sessionId !== targetSessionId) {
 		return;
 	}
 	pendingOlderRowsAfterScrollSessionId = null;
@@ -504,9 +594,7 @@ export function scrollToTop() {
 			<ContentBlockRouter
 				block={{ type: "text", text: context.group.text }}
 				isStreaming={context.isStreaming}
-				tokenRevealCss={context.tokenRevealCss}
 				{projectPath}
-				{streamingAnimationMode}
 			/>
 		{:else}
 			<ContentBlockRouter block={context.group.block} {projectPath} />
@@ -516,12 +604,13 @@ export function scrollToTop() {
 	{#snippet renderScrollerItem(item: MessageScrollerItem)}
 		{@const rendered = resolveRenderedRow(getScrollerItemRenderable(item))}
 		<TranscriptViewportRowRenderer
-			{rendered}
+			rowId={rendered.row.rowId}
+			rowIndex={rendered.index}
+			entry={rendered.entry}
 			{sessionId}
 			{projectPath}
 			{showWorkingSpark}
 			{isFullscreen}
-			{streamingAnimationMode}
 			{editToolTheme}
 			{renderAssistantBlock}
 			{onQuestionSelect}
@@ -533,6 +622,7 @@ export function scrollToTop() {
 			{onReview}
 			{isPlanActionAvailable}
 			{getAttachedPermission}
+			taskDetailBindingFor={taskTranscriptDialogBindingFor}
 		/>
 	{/snippet}
 

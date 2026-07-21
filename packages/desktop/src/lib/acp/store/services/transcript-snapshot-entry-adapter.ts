@@ -1,17 +1,17 @@
 import {
-	toolCallIdFromEntry,
 	type SessionEntry,
+	toolCallIdFromEntry,
 	userMessageIdFromEntry,
 } from "$lib/acp/application/dto/session-entry.js";
+import {
+	transcriptSegmentLegacyUserText,
+	transcriptSegmentPrimaryText,
+} from "$lib/acp/session-state/transcript-text.js";
 import type {
 	TranscriptEntry,
 	TranscriptSegment,
 	TranscriptSnapshot,
 } from "$lib/services/acp-types.js";
-import {
-	transcriptSegmentLegacyUserText,
-	transcriptSegmentPrimaryText,
-} from "$lib/acp/session-state/transcript-text.js";
 import type {
 	ContentBlock,
 	ToolCallData,

@@ -1,5 +1,18 @@
 import type { ProjectInfo } from "$lib/utils/tauri-client/types.js";
-import type { ProjectWithSessions } from "./open-project-dialog-props.js";
+
+/**
+ * Represents a project with session counts per agent.
+ */
+export interface ProjectWithSessions {
+	/** Absolute path to the project */
+	path: string;
+	/** Display name of the project */
+	name: string;
+	/** Session counts per agent ID - number or "loading" while fetching or "error" on failure */
+	agentCounts: Map<string, number | "loading" | "error">;
+	/** Total number of sessions - number or "loading" while fetching or "error" on failure */
+	totalSessions: number | "loading" | "error";
+}
 
 function isAcepeManagedWorktreePath(path: string): boolean {
 	return path.includes("/.acepe/worktrees/");

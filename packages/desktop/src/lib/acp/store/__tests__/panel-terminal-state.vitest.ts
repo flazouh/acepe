@@ -15,9 +15,11 @@ function requireValue<T>(value: T | null): T {
 	return value;
 }
 
-function createTerminalState(
-	overrides?: Partial<PanelTerminalStateDeps>
-): { state: PanelTerminalState; workspacePanels: WorkspacePanel[]; persist: ReturnType<typeof vi.fn> } {
+function createTerminalState(overrides?: Partial<PanelTerminalStateDeps>): {
+	state: PanelTerminalState;
+	workspacePanels: WorkspacePanel[];
+	persist: ReturnType<typeof vi.fn>;
+} {
 	let workspacePanels: WorkspacePanel[] = [];
 	const persist = vi.fn();
 
@@ -115,9 +117,8 @@ describe("PanelTerminalState", () => {
 		const firstTab = requireValue(state.openTerminalTab(first.id));
 		const secondGroup = requireValue(state.moveTerminalTabToNewPanel(firstTab.id));
 
-		expect(state.getTerminalPanelGroupsForProject("/tmp/project").map((group) => group.id)).toEqual([
-			first.id,
-			secondGroup.id,
-		]);
+		expect(state.getTerminalPanelGroupsForProject("/tmp/project").map((group) => group.id)).toEqual(
+			[first.id, secondGroup.id]
+		);
 	});
 });

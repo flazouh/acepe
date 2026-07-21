@@ -71,9 +71,6 @@ export function resolveAgentPanelHostSelectedAgentId(input: {
 		: null;
 }
 
-function findProjectByPath(
-	projects: readonly Project[],
-	projectPath: string
-): Project | null {
+function findProjectByPath(projects: readonly Project[], projectPath: string): Project | null {
 	return projects.find((candidate) => candidate.path === projectPath) ?? null;
 }

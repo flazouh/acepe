@@ -78,14 +78,23 @@ impl SessionJournalEventRepository {
     pub async fn append_interaction_snapshot(
         db: &DbConn,
         session_id: &str,
-        interaction: crate::acp::projections::InteractionSnapshot,
+        mut interaction: crate::acp::projections::InteractionSnapshot,
     ) -> Result<SessionJournalRecord> {
-        Self::append(
-            db,
+        tracing::debug!(session_id = %session_id, "Appending interaction snapshot journal event");
+
+        let tx = db.begin().await?;
+        let event_seq =
+            SessionEventSequenceRepository::allocate_in_transaction(&tx, session_id).await?;
+        interaction.responded_at_event_seq = Some(event_seq.get());
+        let event = SessionJournalRecord::new(
             session_id,
+            event_seq.get(),
             SessionJournalEventPayload::InteractionSnapshot { interaction },
-        )
-        .await
+        );
+        Self::insert_in_transaction(&tx, &event).await?;
+        tx.commit().await?;
+
+        Ok(event)
     }
 
     pub async fn append_materialization_barrier(
@@ -110,7 +119,7 @@ impl SessionJournalEventRepository {
         let tx = db.begin().await?;
         let event_seq =
             SessionEventSequenceRepository::allocate_in_transaction(&tx, session_id).await?;
-        let event = SessionJournalRecord::new(session_id, event_seq, payload);
+        let event = SessionJournalRecord::new(session_id, event_seq.get(), payload);
         Self::insert_in_transaction(&tx, &event).await?;
         tx.commit().await?;
 

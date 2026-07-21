@@ -345,7 +345,7 @@ describe("agent input config option selector state", () => {
 		).toBe("var(--destructive)");
 		expect(
 			getReasoningVariantIconColor({
-				variants: [{ id: "max", name: "Max" }],
+				variants: [{ id: "max" }],
 				selectedVariantId: "max",
 			})
 		).toBe(Colors.purple);

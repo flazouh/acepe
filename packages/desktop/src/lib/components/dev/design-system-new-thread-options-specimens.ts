@@ -1,10 +1,8 @@
 import type { AgentInputConfigOption } from "@acepe/ui/agent-panel";
-
+import { TAG_COLORS } from "@acepe/ui/colors";
 import type { Model } from "$lib/acp/application/dto/model.js";
 import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
 import type { ProviderMetadataProjection } from "$lib/services/acp-types.js";
-
-import { TAG_COLORS } from "@acepe/ui/colors";
 
 export const newThreadOptionsSectionMeta = {
 	title: "New thread options",

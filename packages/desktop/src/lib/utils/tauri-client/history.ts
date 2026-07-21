@@ -65,9 +65,11 @@ export const history = {
 	warmRecentTranscriptRowLedgers: (
 		limit?: number
 	): ResultAsync<TranscriptRowLedgerBackfillResult, AppError> => {
-		return historyCommands.warm_recent_transcript_row_ledgers.invoke<TranscriptRowLedgerBackfillResult>({
-			limit: limit ?? null,
-		});
+		return historyCommands.warm_recent_transcript_row_ledgers.invoke<TranscriptRowLedgerBackfillResult>(
+			{
+				limit: limit ?? null,
+			}
+		);
 	},
 
 	getUnifiedPlan: (

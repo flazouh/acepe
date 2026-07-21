@@ -14,6 +14,7 @@
 
 import { beforeEach, describe, expect, it } from "bun:test";
 import { createActor } from "xstate";
+import { deriveSessionUIState } from "../../logic/__tests__/session-machine-ui-state-test-helper";
 import {
 	ConnectionEvent,
 	ConnectionState,
@@ -21,7 +22,6 @@ import {
 	type SessionMachineSnapshot,
 	sessionMachine,
 } from "../../logic/session-machine";
-import { deriveSessionUIState } from "../../logic/__tests__/session-machine-ui-state-test-helper";
 import type { SessionEntry } from "../types";
 
 /**

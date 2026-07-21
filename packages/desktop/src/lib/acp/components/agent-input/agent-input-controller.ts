@@ -1,9 +1,9 @@
 import { toast } from "svelte-sonner";
 import { shouldClearPersistedDraftBeforeAsyncSend } from "$lib/components/main-app-view/components/content/logic/empty-state-send-state.js";
 import { findErrorReference } from "$lib/errors/error-reference.js";
+import { replyToQuestionRequest } from "../../logic/interaction-reply.js";
 import { PanelConnectionEvent } from "../../types/panel-connection-state.js";
 import type { AgentInputControllerHost } from "./agent-input-controller-host.js";
-import { SessionCreationError } from "./errors/agent-input-error.js";
 import {
 	type ComposerRestoreSnapshot,
 	createPendingUserEntry,
@@ -14,6 +14,8 @@ import {
 	prepareMessageForSend,
 	restoreComposerStateAfterFailedSend,
 } from "./composer-controller.js";
+import { SessionCreationError } from "./errors/agent-input-error.js";
+import { buildSingleQuestionComposerReply } from "./logic/single-question-composer-reply.js";
 import { prepareWorktreePathForPendingSend } from "./services/index.js";
 import type { Attachment } from "./types/attachment.js";
 import type { InlineImageReference } from "./types/inline-image-reference.js";
@@ -196,6 +198,34 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 
 		if (defaultSubmitAction === "queue") {
 			if (!props.sessionId) {
+				return;
+			}
+			const pendingQuestion = host.getPendingQuestion();
+			const pendingQuestionReply =
+				pendingQuestion === null
+					? null
+					: buildSingleQuestionComposerReply(pendingQuestion, host.inputState.message);
+			if (
+				pendingQuestion !== null &&
+				pendingQuestionReply !== null &&
+				host.inputState.attachments.length === 0
+			) {
+				const restoreSnapshot = createComposerRestoreSnapshot();
+				const prepared = captureAndClearInput();
+				if (prepared === null) {
+					return;
+				}
+				const result = await replyToQuestionRequest(
+					pendingQuestion,
+					pendingQuestionReply.answers,
+					pendingQuestionReply.answerMap
+				);
+				if (result.isErr()) {
+					applyComposerRestoreSnapshot(restoreSnapshot);
+					toast.error(`Failed to answer question: ${result.error.message}`);
+					return;
+				}
+				clearDraft();
 				return;
 			}
 			const { inputState } = host;
@@ -399,20 +429,20 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 			props.onSessionCreated?.(createdSessionId, effectivePanelId ?? null);
 		};
 		const sendResult = host.inputState.sendPreparedMessage({
-				content: prepared.content,
-				panelId: effectivePanelId,
-				sessionId: props.sessionId,
-				initialAutonomousEnabled: host.getAutonomousToggleActive(),
-				initialModeId: props.sessionId ? null : host.getProvisionalModeId(),
-				initialModelId: host.getInitialModelIdForNewSession(),
-				selectedAgentId: props.selectedAgentId,
-				projectPath: props.projectPath,
-				projectName: props.projectName,
-				onSessionCreated: handleSessionCreated,
-				worktreePath: worktreePathForSend,
-				launchToken: preparedWorktreeLaunch?.launchToken ?? null,
-				imageAttachments: prepared.imageAttachments,
-			});
+			content: prepared.content,
+			panelId: effectivePanelId,
+			sessionId: props.sessionId,
+			initialAutonomousEnabled: host.getAutonomousToggleActive(),
+			initialModeId: props.sessionId ? null : host.getProvisionalModeId(),
+			initialModelId: host.getInitialModelIdForNewSession(),
+			selectedAgentId: props.selectedAgentId,
+			projectPath: props.projectPath,
+			projectName: props.projectName,
+			onSessionCreated: handleSessionCreated,
+			worktreePath: worktreePathForSend,
+			launchToken: preparedWorktreeLaunch?.launchToken ?? null,
+			imageAttachments: prepared.imageAttachments,
+		});
 		if (effectivePanelId && props.sessionId) {
 			// sendPreparedMessage installs the correctly shaped session optimistic row
 			// synchronously, so the panel-local click row can hand off in this task.
@@ -508,7 +538,11 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 		host.sessionStore.connection
 			.cancelStreaming(sessionId)
 			.andThen(() =>
-				host.sessionStore.connection.sendMessage(sessionId, prepared.content, prepared.imageAttachments)
+				host.sessionStore.connection.sendMessage(
+					sessionId,
+					prepared.content,
+					prepared.imageAttachments
+				)
 			)
 			.mapErr((error) => {
 				console.error("Steer failed:", error);

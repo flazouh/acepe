@@ -137,14 +137,14 @@ impl ProjectionRegistry {
         self.interaction(&interaction_id)
     }
 
-    pub fn resolve_interaction(
+    #[must_use]
+    pub fn prepare_interaction_resolution(
         &self,
         session_id: &str,
         interaction_id: &str,
         state: InteractionState,
         response: InteractionResponse,
     ) -> Option<InteractionSnapshot> {
-        let responded_at_event_seq = self.advance_session_event_seq(session_id);
         let mut interaction = self
             .interactions_by_id
             .get(interaction_id)
@@ -154,11 +154,25 @@ impl ProjectionRegistry {
         }
 
         interaction.state = state;
-        interaction.responded_at_event_seq = Some(responded_at_event_seq);
         interaction.response = Some(response);
+        Some(interaction)
+    }
+
+    pub fn resolve_interaction_at_event_seq(
+        &self,
+        session_id: &str,
+        interaction_id: &str,
+        state: InteractionState,
+        response: InteractionResponse,
+        event_seq: i64,
+    ) -> Option<InteractionSnapshot> {
+        let mut interaction =
+            self.prepare_interaction_resolution(session_id, interaction_id, state, response)?;
+        interaction.responded_at_event_seq = Some(event_seq);
         self.interactions_by_id
             .insert(interaction_id.to_string(), interaction.clone());
         self.advance_operation_after_interaction_resolution(&interaction);
+        self.observe_session_event_seq(session_id, event_seq);
         Some(interaction)
     }
 
@@ -180,18 +194,25 @@ impl ProjectionRegistry {
         snapshot.last_event_seq = snapshot.last_event_seq.max(event_seq);
     }
 
-    pub fn resolve_interaction_by_request_id(
+    pub fn resolve_interaction_by_request_id_at_event_seq(
         &self,
         session_id: &str,
         request_id: u64,
         state: InteractionState,
         response: InteractionResponse,
+        event_seq: i64,
     ) -> Option<InteractionSnapshot> {
         let interaction_id = self
             .interaction_id_by_request_key
             .get(&create_session_request_key(session_id, request_id))
             .map(|entry| entry.value().clone())?;
-        self.resolve_interaction(session_id, &interaction_id, state, response)
+        self.resolve_interaction_at_event_seq(
+            session_id,
+            &interaction_id,
+            state,
+            response,
+            event_seq,
+        )
     }
 
     pub(crate) fn import_thread_snapshot(

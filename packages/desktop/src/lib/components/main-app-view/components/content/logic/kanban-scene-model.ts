@@ -1,8 +1,4 @@
-import type {
-	KanbanSceneCardData,
-	KanbanSceneColumnData,
-	KanbanSceneModel,
-} from "@acepe/ui";
+import type { KanbanSceneCardData, KanbanSceneColumnData, KanbanSceneModel } from "@acepe/ui";
 
 import type {
 	ThreadBoardGroup,
@@ -10,10 +6,7 @@ import type {
 } from "$lib/acp/store/thread-board/thread-board-item.js";
 import type { ThreadBoardStatus } from "$lib/acp/store/thread-board/thread-board-status.js";
 
-import {
-	buildDesktopKanbanScene,
-	type DesktopKanbanSceneEntry,
-} from "../desktop-kanban-scene.js";
+import { buildDesktopKanbanScene, type DesktopKanbanSceneEntry } from "../desktop-kanban-scene.js";
 import type { OptimisticKanbanCard } from "./kanban-card-model.js";
 
 export const KANBAN_SECTION_ORDER: readonly ThreadBoardStatus[] = [

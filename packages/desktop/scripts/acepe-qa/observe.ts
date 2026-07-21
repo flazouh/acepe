@@ -1,12 +1,12 @@
-import { ResultAsync, err, ok, okAsync } from "neverthrow";
+import { err, ok, okAsync, type ResultAsync } from "neverthrow";
 import type { AppObservation, ObserveLevel, ScreenshotResult } from "./schemas";
 import { appObservationSchema, screenshotResultSchema } from "./schemas";
 import {
+	type CommandRunner,
 	captureWebviewScreenshot,
 	executeWebviewJson,
 	runCommand,
 	startDriverSession,
-	type CommandRunner,
 	type TauriMcpFailure,
 } from "./tauri-mcp";
 
@@ -83,7 +83,8 @@ export function observeApp(options: ObserveOptions): ResultAsync<AppObservation,
 		if (session.code !== 0) {
 			return err({
 				code: "driver_session_failed",
-				message: session.stderr.trim() || session.stdout.trim() || "Unable to start Tauri driver session.",
+				message:
+					session.stderr.trim() || session.stdout.trim() || "Unable to start Tauri driver session.",
 			});
 		}
 		return executeWebviewJson(
@@ -112,7 +113,8 @@ export function screenshotApp(options: {
 		if (session.code !== 0) {
 			return err({
 				code: "driver_session_failed",
-				message: session.stderr.trim() || session.stdout.trim() || "Unable to start Tauri driver session.",
+				message:
+					session.stderr.trim() || session.stdout.trim() || "Unable to start Tauri driver session.",
 			});
 		}
 		return captureWebviewScreenshot(options.appIdentifier, runner).andThen((path) => {

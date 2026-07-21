@@ -38,7 +38,7 @@
 		<!-- Suppress benign ResizeObserver loop error -->
 		<script>
 			window.__acepeRuntimeErrors = window.__acepeRuntimeErrors || [];
-			window.addEventListener("unhandledrejection", function (event) {
+			window.addEventListener("unhandledrejection", (event) => {
 				window.__acepeRuntimeErrors.push({
 					type: "unhandledrejection",
 					message: event.reason?.message || String(event.reason)

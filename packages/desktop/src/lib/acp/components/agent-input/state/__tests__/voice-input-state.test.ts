@@ -225,9 +225,12 @@ describe("VoiceInputState", () => {
 			useDebounce: (callback: () => void) => callback,
 			useEventListener: () => () => {},
 			useResizeObserver: () => () => {},
-			watch: Object.assign(mock(() => () => {}), {
-				pre: mock(() => () => {}),
-			}),
+			watch: Object.assign(
+				mock(() => () => {}),
+				{
+					pre: mock(() => () => {}),
+				}
+			),
 		}));
 		mock.module("$lib/acp/utils/sound.js", () => ({
 			playSound: playSoundMock,

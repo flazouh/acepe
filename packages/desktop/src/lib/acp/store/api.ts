@@ -8,9 +8,9 @@
 import { okAsync, type ResultAsync } from "neverthrow";
 import type {
 	ProviderMetadataProjection,
-	SessionOpenResult,
 	SessionGraphCapabilities,
 	SessionGraphLifecycle,
+	SessionOpenResult,
 	SessionStateEnvelope,
 } from "../../services/acp-types.js";
 import type { HistoryEntry, StartupSessionsResponse } from "../../services/claude-history-types";
@@ -62,13 +62,7 @@ export function newSession(
 	initialModelId?: string,
 	initialModeId?: string
 ): ResultAsync<ResumeSessionResult, AppError> {
-	return tauriClient.acp.newSession(
-		cwd,
-		agentId,
-		launchToken,
-		initialModelId,
-		initialModeId
-	);
+	return tauriClient.acp.newSession(cwd, agentId, launchToken, initialModelId, initialModeId);
 }
 
 /**

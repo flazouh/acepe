@@ -78,26 +78,12 @@ pub enum SessionStatePayload {
         plan: PlanData,
         revision: SessionGraphRevision,
     },
-    AssistantTextDelta {
-        delta: AssistantTextDeltaPayload,
-    },
     ViewportBufferPush {
         push: ViewportBufferPush,
     },
     ViewportBufferDelta {
         delta: ViewportBufferDelta,
     },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct AssistantTextDeltaPayload {
-    pub turn_id: String,
-    pub row_id: String,
-    pub char_offset: u32,
-    pub delta_text: String,
-    pub produced_at_monotonic_ms: u64,
-    pub revision: i64,
 }
 
 /// Diagnostic emitted alongside a buffer push/delta (e.g. a rejected height
@@ -147,84 +133,9 @@ pub struct ViewportBufferDelta {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        AssistantTextDeltaPayload, SessionStatePayload, ViewportBufferDiagnostic,
-        ViewportBufferPush,
-    };
+    use super::{SessionStatePayload, ViewportBufferDiagnostic, ViewportBufferPush};
     use crate::acp::session_state_engine::revision::SessionGraphRevision;
     use crate::acp::transcript_viewport::TranscriptViewportRow;
-
-    #[test]
-    fn assistant_text_delta_round_trip_preserves_all_fields() {
-        let payload = SessionStatePayload::AssistantTextDelta {
-            delta: AssistantTextDeltaPayload {
-                turn_id: "turn-7".to_string(),
-                row_id: "row-3".to_string(),
-                char_offset: 42,
-                delta_text: "Hello".to_string(),
-                produced_at_monotonic_ms: 12_345,
-                revision: 9,
-            },
-        };
-
-        let json = serde_json::to_string(&payload).expect("serialize");
-        assert!(json.contains("\"kind\":\"assistantTextDelta\""));
-        assert!(json.contains("\"turnId\":\"turn-7\""));
-        assert!(json.contains("\"rowId\":\"row-3\""));
-        assert!(json.contains("\"charOffset\":42"));
-        assert!(json.contains("\"deltaText\":\"Hello\""));
-        assert!(json.contains("\"producedAtMonotonicMs\":12345"));
-        assert!(json.contains("\"revision\":9"));
-
-        let restored: SessionStatePayload = serde_json::from_str(&json).expect("deserialize");
-        match restored {
-            SessionStatePayload::AssistantTextDelta { delta } => {
-                assert_eq!(delta.turn_id, "turn-7");
-                assert_eq!(delta.row_id, "row-3");
-                assert_eq!(delta.char_offset, 42);
-                assert_eq!(delta.delta_text, "Hello");
-                assert_eq!(delta.produced_at_monotonic_ms, 12_345);
-                assert_eq!(delta.revision, 9);
-            }
-            other => panic!("unexpected variant: {other:?}"),
-        }
-    }
-
-    #[test]
-    fn assistant_text_delta_allows_empty_delta_text() {
-        let payload = SessionStatePayload::AssistantTextDelta {
-            delta: AssistantTextDeltaPayload {
-                turn_id: "t".to_string(),
-                row_id: "r".to_string(),
-                char_offset: 0,
-                delta_text: String::new(),
-                produced_at_monotonic_ms: 0,
-                revision: 0,
-            },
-        };
-        let json = serde_json::to_string(&payload).expect("serialize");
-        let restored: SessionStatePayload = serde_json::from_str(&json).expect("deserialize");
-        match restored {
-            SessionStatePayload::AssistantTextDelta { delta } => {
-                assert!(delta.delta_text.is_empty());
-                assert_eq!(delta.char_offset, 0);
-            }
-            other => panic!("unexpected variant: {other:?}"),
-        }
-    }
-
-    #[test]
-    fn assistant_text_delta_missing_produced_at_fails_deserialize() {
-        let bad = r#"{
-            "kind":"assistantTextDelta",
-            "delta":{"turnId":"t","rowId":"r","charOffset":0,"deltaText":"hi","revision":1}
-        }"#;
-        let result: Result<SessionStatePayload, _> = serde_json::from_str(bad);
-        assert!(
-            result.is_err(),
-            "expected deserialize error, got {result:?}"
-        );
-    }
 
     #[test]
     fn viewport_buffer_push_round_trip_uses_camel_case_wire_fields() {

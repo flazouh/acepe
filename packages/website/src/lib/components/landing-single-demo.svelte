@@ -308,8 +308,7 @@ const favoriteModels = $derived(
 															{modelGroups}
 															{favoriteModels}
 															onModelChange={() => {}}
-															onSetBuildDefault={() => {}}
-															onSetPlanDefault={() => {}}
+												onDefaultModelToggle={() => {}}
 															onToggleFavorite={() => {}}
 														/>
 														<AgentInputDivider />

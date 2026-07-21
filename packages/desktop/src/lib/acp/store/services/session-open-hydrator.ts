@@ -170,18 +170,11 @@ export class SessionOpenHydrator {
 		return ResultAsync.fromPromise(queued, toAppError);
 	}
 
-	hydrateFoundNow(
-		panelId: string,
-		requestToken: string,
-		found: SessionOpenFound
-	) {
+	hydrateFoundNow(panelId: string, requestToken: string, found: SessionOpenFound) {
 		if (this.panelChains.get(panelId) !== undefined) {
 			return ok(null);
 		}
-		return Result.fromThrowable(
-			() => this.applyFound(panelId, requestToken, found),
-			toAppError
-		)();
+		return Result.fromThrowable(() => this.applyFound(panelId, requestToken, found), toAppError)();
 	}
 
 	hydrateCreated(found: SessionOpenFound): ResultAsync<void, AppError> {

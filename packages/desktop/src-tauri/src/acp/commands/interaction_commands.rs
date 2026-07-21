@@ -61,7 +61,7 @@ where
                 .snapshot_for_session(session_id)
                 .map(|snapshot| snapshot.revision)
         })
-        .unwrap_or(last_event_seq);
+        .unwrap_or(0);
     let original_capabilities = runtime_snapshot.capabilities;
     let pending_capabilities = mutate_capabilities(original_capabilities.clone());
     let mutation_id = format!(
@@ -597,13 +597,11 @@ pub(crate) async fn send_prompt_with_app_handle<R: tauri::Runtime>(
         super::session_commands::emit_lifecycle_event(app, &hub, update, &session_id).await;
     }
 
-    if result.is_ok() {
-        if !client_publishes_user_prompt {
-            if let Some(update) = synthetic_user_update {
-                let published = publish_direct_session_update(app, update.clone()).await;
-                if published {
-                    remember_synthetic_user_prompt(&update);
-                }
+    if result.is_ok() && !client_publishes_user_prompt {
+        if let Some(update) = synthetic_user_update {
+            let published = publish_direct_session_update(app, update.clone()).await;
+            if published {
+                remember_synthetic_user_prompt(&update);
             }
         }
     }

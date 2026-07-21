@@ -80,7 +80,7 @@ const meta = [
 						<div class="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
 							<PillButton
 								href="#early-access"
-								variant="default"
+								variant="primary"
 								size="default"
 								class="h-12 py-1.5 pr-1.5 pl-6"
 							>
@@ -204,7 +204,7 @@ const meta = [
 				<div class="mt-10 flex flex-col items-start gap-3 sm:flex-row sm:items-center">
 					<PillButton
 						href="/download"
-						variant="default"
+						variant="primary"
 						size="default"
 						class="h-12 py-1.5 pr-1.5 pl-6 shadow-[0_18px_50px_-18px_rgba(91,168,154,0.45)]"
 					>

@@ -67,6 +67,7 @@ describe("SessionStore renameSession", () => {
 		});
 		const sessions = (store as unknown as StoreWithPrivateSessions).sessions;
 		const originalIterator = sessions[Symbol.iterator];
+		// biome-ignore lint/correctness/useYield: This sentinel iterator intentionally throws before yielding.
 		sessions[Symbol.iterator] = function* () {
 			throw new Error("must not iterate existing sessions while adding a session");
 		};
@@ -169,6 +170,7 @@ describe("SessionStore renameSession", () => {
 		});
 		const sessions = (store as unknown as StoreWithPrivateSessions).sessions;
 		const originalIterator = sessions[Symbol.iterator];
+		// biome-ignore lint/correctness/useYield: This sentinel iterator intentionally throws before yielding.
 		sessions[Symbol.iterator] = function* () {
 			throw new Error("must not regroup every session for a project lookup");
 		};

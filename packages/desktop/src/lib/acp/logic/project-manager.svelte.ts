@@ -1,9 +1,8 @@
-import { okAsync, ResultAsync } from "neverthrow";
-import { SvelteDate, SvelteMap } from "svelte/reactivity";
-import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
-
 import { resolveProjectColor } from "@acepe/ui/colors";
 import { computeProjectBadgeLabels } from "@acepe/ui/project-letter-badge";
+import { okAsync, type ResultAsync } from "neverthrow";
+import { SvelteDate, SvelteMap } from "svelte/reactivity";
+import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import { ProjectClient } from "./project-client.js";
 
 /**

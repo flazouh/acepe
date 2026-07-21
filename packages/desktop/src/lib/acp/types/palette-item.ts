@@ -1,5 +1,5 @@
-import type { Component, ComponentType } from "svelte";
 import type { HugeiconsIconName } from "@acepe/ui/icons";
+import type { Component, ComponentType } from "svelte";
 
 /**
  * Metadata for palette items, varies by mode.

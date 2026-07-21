@@ -25,7 +25,9 @@ export function buildFilePanelTabsViewState(input: {
 		activeFilePanel,
 		showTabs: input.filePanels.length > 1,
 		widthStyle: activeFilePanel ? getFilePanelTabsWidthStyle(activeFilePanel.width) : "",
-		tabs: input.filePanels.map((panel) => buildFilePanelTabView(panel, activeFilePanel?.id ?? null)),
+		tabs: input.filePanels.map((panel) =>
+			buildFilePanelTabView(panel, activeFilePanel?.id ?? null)
+		),
 	};
 }
 

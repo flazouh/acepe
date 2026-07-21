@@ -11,10 +11,7 @@ import {
 	getContextUsagePercent,
 	hasVisibleModelSelectorMetrics,
 } from "./model-selector.metrics-chip.logic.js";
-import {
-	getUsageMetricsPresentation,
-	isContextWindowOnlyMetrics,
-} from "./model-selector-logic.js";
+import { getUsageMetricsPresentation, isContextWindowOnlyMetrics } from "./model-selector-logic.js";
 
 interface Props {
 	sessionId?: string | null;

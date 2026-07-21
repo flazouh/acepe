@@ -18,9 +18,9 @@ import {
 	resolveIssueActionLabel,
 } from "$lib/errors/issue-report.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
-import type { ProjectWithSessions } from "../add-repository/open-project-dialog-props.js";
 
 import {
+	type ProjectWithSessions,
 	shouldShowDiscoveredProject,
 	sortProjectsBySessionCount,
 } from "../add-repository/project-discovery.js";
@@ -809,7 +809,6 @@ async function finishOnboarding(): Promise<void> {
 
 	.onboarding-preview-timeline,
 	.onboarding-preview-timeline-entry,
-	.onboarding-preview-tool,
 	.onboarding-preview-diff,
 	.onboarding-preview-composer {
 		position: relative;

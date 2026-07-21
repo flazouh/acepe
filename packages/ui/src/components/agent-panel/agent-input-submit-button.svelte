@@ -10,6 +10,7 @@ import {
 import { ButtonGroup } from "../button-group/index.js";
 import * as DropdownMenu from "../dropdown-menu/index.js";
 import { HugeiconsIcon } from "../icons/index.js";
+import { Selector } from "../selector/index.js";
 import { cn } from "../../lib/utils.js";
 
 interface Props {
@@ -107,37 +108,41 @@ function handleEnterBehaviorChange(value: string): void {
 {#if showEnterBehaviorMenu}
 	<ButtonGroup class={buttonGroupClass}>
 		{@render submitButton()}
-		<DropdownMenu.Root>
-			<DropdownMenu.Trigger
-				aria-label={enterBehaviorMenuLabel}
-				class={agentInputSubmitMenuSegmentClass}
-			>
-				<HugeiconsIcon name="more" class="h-4 w-4" />
-			</DropdownMenu.Trigger>
-			<DropdownMenu.Content side="top" align="end" sideOffset={8} class="w-64 p-1">
-				<DropdownMenu.RadioGroup value={enterBehavior} onValueChange={handleEnterBehaviorChange}>
-					{#each behaviorOptions as option (option.value)}
-						<DropdownMenu.RadioItem
-							value={option.value}
-							hideIndicator={true}
-							class="flex-col items-stretch gap-0.5 !ps-2 py-1.5 pe-2 text-left data-[state=checked]:bg-accent data-[state=checked]:text-accent-foreground"
-						>
-							{#snippet children({ checked })}
-								<div class="flex min-w-0 items-center justify-between gap-2">
-									<span class="truncate text-xs font-medium">{option.label}</span>
-									<span class="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
-										{#if checked}
-											<HugeiconsIcon name="check" class="h-3.5 w-3.5" />
-										{/if}
-									</span>
-								</div>
-								<span class="text-[11px] leading-snug text-muted-foreground">{option.description}</span>
-							{/snippet}
-						</DropdownMenu.RadioItem>
-					{/each}
-				</DropdownMenu.RadioGroup>
-			</DropdownMenu.Content>
-		</DropdownMenu.Root>
+		<Selector
+			variant="ghost"
+			align="end"
+			side="top"
+			sideOffset={8}
+			showChevron={false}
+			embeddedInGroup={true}
+			triggerIcon="dots"
+			triggerAriaLabel={enterBehaviorMenuLabel}
+			triggerClass={agentInputSubmitMenuSegmentClass}
+			contentClass="w-64 p-1"
+		>
+			{#snippet renderButton()}{/snippet}
+			<DropdownMenu.RadioGroup value={enterBehavior} onValueChange={handleEnterBehaviorChange}>
+				{#each behaviorOptions as option (option.value)}
+					<DropdownMenu.RadioItem
+						value={option.value}
+						hideIndicator={true}
+						class="flex-col items-stretch gap-0.5 !ps-2 py-1.5 pe-2 text-left data-[state=checked]:bg-accent data-[state=checked]:text-accent-foreground"
+					>
+						{#snippet children({ checked })}
+							<div class="flex min-w-0 items-center justify-between gap-2">
+								<span class="truncate text-xs font-medium">{option.label}</span>
+								<span class="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+									{#if checked}
+										<HugeiconsIcon name="check" class="h-3.5 w-3.5" />
+									{/if}
+								</span>
+							</div>
+							<span class="text-[11px] leading-snug text-muted-foreground">{option.description}</span>
+						{/snippet}
+					</DropdownMenu.RadioItem>
+				{/each}
+			</DropdownMenu.RadioGroup>
+		</Selector>
 	</ButtonGroup>
 {:else}
 	{@render submitButton()}

@@ -16,6 +16,7 @@ export type { NewSessionResponse as ResumeSessionResult } from "../../services/a
 // Re-export session DTOs for store consumers.
 export type { Mode } from "../application/dto/mode.js";
 export type { Model } from "../application/dto/model.js";
+export type { Session } from "../application/dto/session.js";
 export type { SessionCapabilities } from "../application/dto/session-capabilities.js";
 export type { SessionCold } from "../application/dto/session-cold.js";
 export type { SessionEntry } from "../application/dto/session-entry.js";
@@ -27,20 +28,19 @@ export type {
 export type { SessionMetadata } from "../application/dto/session-metadata.js";
 export type { SessionStatus } from "../application/dto/session-status.js";
 export type { SessionSummary } from "../application/dto/session-summary.js";
-export type { Session } from "../application/dto/session.js";
 export type { TaskProgress } from "../application/dto/task-progress.js";
 
 // ============================================
 // STORE-SPECIFIC TYPES
 // ============================================
 
-import type { SessionIdentity } from "../application/dto/session-identity.js";
-import type { SessionMetadata } from "../application/dto/session-metadata.js";
 import type { ProviderMetadataProjection } from "../../services/acp-types.js";
 import type { SessionCapabilities } from "../application/dto/session-capabilities.js";
+import type { SessionIdentity } from "../application/dto/session-identity.js";
+import type { SessionMetadata } from "../application/dto/session-metadata.js";
 import type { ComposerRestoreSnapshot } from "../components/agent-input/logic/first-send-recovery.js";
-import type { ModifiedFilesState } from "../types/modified-files-state.js";
 import type { ModifiedFileEntry } from "../types/modified-file-entry.js";
+import type { ModifiedFilesState } from "../types/modified-files-state.js";
 import type { PreparedWorktreeLaunch } from "../types/worktree-info.js";
 
 export type SessionMutableColdUpdates = Partial<SessionMetadata> & {
@@ -515,8 +515,6 @@ export interface PersistedWorkspaceState {
 	readonly focusedViewProjectPath?: string | null;
 	/** Project paths whose sidebar cards are collapsed */
 	readonly collapsedProjectPaths?: readonly string[];
-	/** Whether the attention queue card is expanded (defaults to true) */
-	readonly queueExpanded?: boolean;
 }
 
 export interface PersistedWorkspaceRestoreState extends PersistedWorkspaceState {

@@ -65,7 +65,12 @@ describe("checkpoint card state", () => {
 				makeFileSnapshot({ id: "added", filePath: "src/a.ts", linesAdded: 2 }),
 				makeFileSnapshot({ id: "removed", filePath: "src/b.ts", linesRemoved: 1 }),
 				makeFileSnapshot({ id: "unchanged", filePath: "src/c.ts" }),
-				makeFileSnapshot({ id: "unknown", filePath: "src/d.ts", linesAdded: null, linesRemoved: null }),
+				makeFileSnapshot({
+					id: "unknown",
+					filePath: "src/d.ts",
+					linesAdded: null,
+					linesRemoved: null,
+				}),
 			])
 		).toEqual([
 			{

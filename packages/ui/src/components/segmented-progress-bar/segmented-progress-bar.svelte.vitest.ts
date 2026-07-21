@@ -140,13 +140,14 @@ describe("SegmentedProgressBar", () => {
 
 		const root = container.querySelector('[data-variant="setupReasoningBar"]');
 		const segments = container.querySelectorAll('[data-variant="setupReasoningBar"] > div > div');
-		const filledSegments = Array.from(segments).filter((segment) =>
-			segment.getAttribute("style")?.includes("background-color")
+		const filledSegments = container.querySelectorAll(
+			'[data-variant="setupReasoningBar"] [data-filled="true"]'
 		);
 
 		expect(root).not.toBeNull();
 		expect(segments).toHaveLength(5);
 		expect(filledSegments).toHaveLength(2);
+		expect(filledSegments[0]?.className).toContain("--segment-fill");
 		expect(segments[0]?.className).toContain("h-[3px]");
 		expect(segments[0]?.className).toContain("w-full");
 	});

@@ -1,5 +1,5 @@
-import type { Component, ComponentType } from "svelte";
 import type { HugeiconsIconName } from "@acepe/ui/icons";
+import type { Component, ComponentType } from "svelte";
 
 /**
  * Definition for a command in the command palette.

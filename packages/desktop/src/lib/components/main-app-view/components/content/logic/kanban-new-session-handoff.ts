@@ -12,9 +12,7 @@ export interface CompleteKanbanNewSessionHandoffInput {
 	readonly sessionPanelWidth: number;
 }
 
-export function completeKanbanNewSessionHandoff(
-	input: CompleteKanbanNewSessionHandoffInput
-): void {
+export function completeKanbanNewSessionHandoff(input: CompleteKanbanNewSessionHandoffInput): void {
 	if (input.panelId) {
 		input.panelStore.updatePanelSession(input.panelId, input.sessionId);
 		input.panelStore.movePanelToFront(input.panelId);

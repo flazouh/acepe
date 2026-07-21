@@ -97,7 +97,9 @@ export function sessionGraphToMarkdown(graph: SessionStateGraph): string {
 			case "tool": {
 				const operation = operationByEntryId.get(entry.entryId);
 				const name = operation?.title ?? operation?.name ?? transcriptSegmentText(entry) ?? "Tool";
-				const target = operation ? operationTarget(operation.arguments) : transcriptSegmentText(entry);
+				const target = operation
+					? operationTarget(operation.arguments)
+					: transcriptSegmentText(entry);
 				lines.push(`## Tool: ${name}\n`);
 				if (target.trim()) {
 					lines.push(target.trim());

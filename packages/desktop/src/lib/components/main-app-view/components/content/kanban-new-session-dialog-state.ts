@@ -35,8 +35,7 @@ export interface KanbanNewSessionResetState {
 	readonly worktreePending: boolean;
 }
 
-export interface BuildKanbanNewSessionResetStateInput
-	extends ResolveKanbanNewSessionDefaultsInput {
+export interface BuildKanbanNewSessionResetStateInput extends ResolveKanbanNewSessionDefaultsInput {
 	readonly request?: KanbanNewSessionRequest | null;
 	readonly currentComposerKey: number;
 	readonly fallbackModeId: CanonicalModeId;

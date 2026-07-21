@@ -2,7 +2,9 @@ use crate::acp::projections::{
     InteractionKind, InteractionState, OperationSnapshot, OperationState,
 };
 use crate::acp::session_state_engine::graph::ActiveStreamingTailContentKind;
-use crate::acp::session_update::{SessionCompactionEvent, TodoItem, ToolArguments, ToolKind};
+use crate::acp::session_update::{
+    EditEntry, SessionCompactionEvent, TodoItem, ToolArguments, ToolKind,
+};
 use crate::acp::tool_identity::display_name_for_tool;
 use crate::acp::transcript_projection::{TranscriptEntryRole, TranscriptScope, TranscriptSegment};
 use serde::{Deserialize, Serialize};
@@ -24,6 +26,8 @@ pub struct TranscriptViewportRow {
     pub content: TranscriptViewportRowContent,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub duration_started_at_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timestamp_ms: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
@@ -82,6 +86,8 @@ pub struct TranscriptViewportOperationDisplayFacts {
     pub subagent_type: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub normalized_todos: Option<Vec<TodoItem>>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub edit_diffs: Vec<EditEntry>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub command_summary: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -144,6 +150,7 @@ impl TranscriptViewportOperationDisplayFacts {
                 ),
                 _ => (None, None, None, None, None),
             };
+        let edit_diffs = edit_diffs(operation);
 
         Some(Self {
             operation_id: operation.id.clone(),
@@ -158,6 +165,7 @@ impl TranscriptViewportOperationDisplayFacts {
             task_prompt,
             subagent_type,
             normalized_todos: operation.normalized_todos.clone(),
+            edit_diffs,
             command_summary,
             target_path_summary,
             result_summary,
@@ -179,6 +187,13 @@ impl TranscriptViewportOperationDisplayFacts {
         self.latest_child_action = children
             .last()
             .and_then(TranscriptViewportLatestChildAction::from_operation);
+    }
+}
+
+fn edit_diffs(operation: &OperationSnapshot) -> Vec<EditEntry> {
+    match &operation.arguments {
+        ToolArguments::Edit { edits } => edits.clone(),
+        _ => Vec::new(),
     }
 }
 

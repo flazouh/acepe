@@ -260,27 +260,28 @@ impl SessionJournalEvent {
     pub fn replay_into(&self, registry: &ProjectionRegistry) {
         match &self.payload {
             SessionJournalEventPayload::ProjectionUpdate { update } => {
-                if matches!(
+                if !matches!(
                     update.as_ref(),
                     ProjectionJournalUpdate::QuestionRequest { .. }
                 ) {
-                    return;
+                    registry.apply_session_update_at_event_seq(
+                        &self.session_id,
+                        self.event_seq,
+                        &update.as_ref().clone().into_session_update(),
+                    );
                 }
-                registry.apply_session_update(
-                    &self.session_id,
-                    &update.as_ref().clone().into_session_update(),
-                );
             }
             SessionJournalEventPayload::InteractionTransition {
                 interaction_id,
                 state,
                 response,
             } => {
-                let _ = registry.resolve_interaction(
+                let _ = registry.resolve_interaction_at_event_seq(
                     &self.session_id,
                     interaction_id,
                     state.clone(),
                     response.clone(),
+                    self.event_seq,
                 );
             }
             SessionJournalEventPayload::InteractionSnapshot { interaction } => {
@@ -289,6 +290,7 @@ impl SessionJournalEvent {
             }
             SessionJournalEventPayload::MaterializationBarrier => {}
         }
+        registry.observe_session_event_seq(&self.session_id, self.event_seq);
     }
 }
 
@@ -532,9 +534,21 @@ fn rebuild_local_transcript_snapshot_until(
         };
         let session_update = update.as_ref().clone().into_session_update();
         let decision = terminal_guard.route(&session_update);
-        if let Some(delta) =
-            registry.apply_session_update(event.event_seq, &session_update, decision)
-        {
+        let ingress_fold_event =
+            crate::acp::session::ingress::plugin::live_source_for(&replay_context.agent_id)
+                .and_then(|source| {
+                    source.normalize_update(event.event_seq, &session_update, decision)
+                })
+                .map(|mut provider_event| {
+                    provider_event.timestamp_ms = Some(event.created_at_ms);
+                    provider_event
+                });
+        if let Some(delta) = registry.apply_session_update_with_ingress(
+            event.event_seq,
+            &session_update,
+            decision,
+            ingress_fold_event.as_ref(),
+        ) {
             if delta.operations.iter().any(operation_contains_text_segment) {
                 applied_transcript_text = true;
             }

@@ -1,8 +1,8 @@
 //! `SessionOpenResult` — unified session-open contract.
 //!
-//! Describes the full canonical session state at a proven journal cutoff, along
+//! Describes the full canonical session state at a proven delivery event-sequence frontier, along
 //! with an attach-ready open token that guarantees gap-free delta delivery from
-//! that cutoff once the client claims it (Unit 3).
+//! that frontier once the client claims it (Unit 3).
 //!
 //! ## Ordering guarantee
 //!

@@ -8,7 +8,7 @@ use crate::acp::session::ingress::event::{ProviderEvent, ProviderEventKind};
 use crate::acp::session::ingress::full_session_to_provider_events;
 use crate::acp::session_state_engine::graph::SessionStateGraph;
 use crate::acp::session_update::{
-    ToolArguments, ToolCallData, ToolCallStatus, ToolKind, ToolSourceContext,
+    EditEntry, ToolArguments, ToolCallData, ToolCallStatus, ToolKind, ToolSourceContext,
 };
 use crate::acp::transcript_projection::TranscriptScope;
 use crate::acp::transcript_viewport::{
@@ -90,6 +90,37 @@ fn child_read_tool_call() -> ToolCallData {
         normalized_todos: None,
         normalized_todo_update: None,
         parent_tool_use_id: Some(PARENT_TASK_ID.to_string()),
+        task_children: None,
+        question_answer: None,
+        awaiting_plan_approval: false,
+        plan_approval_request_id: None,
+    }
+}
+
+fn edit_tool_call() -> ToolCallData {
+    ToolCallData {
+        id: "toolu_edit_lines".to_string(),
+        name: "Edit".to_string(),
+        arguments: ToolArguments::Edit {
+            edits: vec![EditEntry {
+                file_path: Some("/project/src/app.ts".to_string()),
+                move_from: None,
+                old_string: Some("const label = \"old\";".to_string()),
+                new_string: Some("const label = \"new\";".to_string()),
+                content: None,
+            }],
+        },
+        diagnostic_input: None,
+        status: ToolCallStatus::Completed,
+        result: Some(json!({ "summary": "updated src/app.ts" })),
+        kind: Some(ToolKind::Edit),
+        title: Some("Edit src/app.ts".to_string()),
+        locations: None,
+        skill_meta: None,
+        normalized_questions: None,
+        normalized_todos: None,
+        normalized_todo_update: None,
+        parent_tool_use_id: None,
         task_children: None,
         question_answer: None,
         awaiting_plan_approval: false,
@@ -200,8 +231,14 @@ fn parent_task_row_exposes_latest_child_action() {
         TranscriptScope::Operation(parent_operation.id.clone()),
         "the scoped source entry must own canonical child lineage"
     );
-    assert_eq!(child_operation.parent_tool_call_id, None);
-    assert_eq!(child_operation.parent_operation_id, None);
+    assert_eq!(
+        child_operation.parent_tool_call_id.as_deref(),
+        Some(PARENT_TASK_ID)
+    );
+    assert_eq!(
+        child_operation.parent_operation_id.as_deref(),
+        Some(parent_operation.id.as_str())
+    );
 
     let parent_row = row_for_tool_call(&rows, PARENT_TASK_ID);
     let parent_facts = display_facts_json(parent_row, PARENT_TASK_ID);
@@ -229,6 +266,101 @@ fn parent_task_row_exposes_latest_child_action() {
     assert_eq!(
         actual_parent_projection, expected_parent_projection,
         "the serialized parent Task row must expose graph-derived scope plus directly usable latest-child Read facts"
+    );
+}
+
+#[test]
+fn edit_tool_row_exposes_changed_lines_in_display_facts() {
+    let context = FoldContext::new(SESSION_ID, CanonicalAgentId::ClaudeCode, "/project");
+    let graph = fold_full(&[tool_call_event(1, edit_tool_call())], &context);
+    let rows = project_rows(&graph);
+    let edit_row = row_for_tool_call(&rows, "toolu_edit_lines");
+    let facts = display_facts_json(edit_row, "toolu_edit_lines");
+
+    assert_eq!(
+        facts["editDiffs"],
+        json!([{
+            "filePath": "/project/src/app.ts",
+            "oldString": "const label = \"old\";",
+            "newString": "const label = \"new\";"
+        }]),
+        "the serialized viewport row must carry edit hunks so the live app can render changed lines"
+    );
+}
+
+#[test]
+fn parent_task_event_with_task_children_exposes_latest_child_action() {
+    let context = FoldContext::new(SESSION_ID, CanonicalAgentId::ClaudeCode, "/project");
+    let mut parent_task = task_tool_call();
+    parent_task.task_children = Some(vec![child_read_tool_call()]);
+    let base_graph = fold_full(&[], &context);
+    let graph = fold_step(&base_graph, &tool_call_event(1, parent_task)).0;
+    let rows = project_rows(&graph);
+
+    let child_operation = graph
+        .operations
+        .iter()
+        .find(|operation| operation.tool_call_id == CHILD_READ_ID)
+        .expect("child Read operation");
+    let parent_operation = graph
+        .operations
+        .iter()
+        .find(|operation| operation.tool_call_id == PARENT_TASK_ID)
+        .expect("parent Task operation");
+    let OperationSourceLink::TranscriptLinked { entry_id } = &child_operation.source_link else {
+        panic!("child Read must link to its scoped transcript entry");
+    };
+    let child_source_entry = graph
+        .transcript_snapshot
+        .entries
+        .iter()
+        .find(|entry| &entry.entry_id == entry_id)
+        .expect("child Read source entry");
+    assert_eq!(
+        child_source_entry.scope,
+        TranscriptScope::Operation(parent_operation.id.clone()),
+        "embedded Task children must produce scoped transcript rows"
+    );
+    assert_eq!(
+        child_operation.parent_tool_call_id.as_deref(),
+        Some(PARENT_TASK_ID)
+    );
+    assert_eq!(
+        child_operation.parent_operation_id.as_deref(),
+        Some(parent_operation.id.as_str())
+    );
+    assert_eq!(parent_operation.child_tool_call_ids, vec![CHILD_READ_ID]);
+    assert_eq!(
+        parent_operation.child_operation_ids,
+        vec![child_operation.id.clone()]
+    );
+
+    let parent_row = row_for_tool_call(&rows, PARENT_TASK_ID);
+    let parent_facts = display_facts_json(parent_row, PARENT_TASK_ID);
+    let actual_parent_projection = json!({
+        "childToolCallIds": parent_facts["childToolCallIds"].clone(),
+        "childTranscriptScope": parent_facts["childTranscriptScope"].clone(),
+        "latestChildAction": parent_facts["latestChildAction"].clone(),
+    });
+    let expected_parent_projection = json!({
+        "childToolCallIds": [CHILD_READ_ID],
+        "childTranscriptScope": {
+            "kind": "operation",
+            "operationId": parent_operation.id,
+        },
+        "latestChildAction": {
+            "operationId": child_operation.id,
+            "toolCallId": CHILD_READ_ID,
+            "kind": "read",
+            "state": "running",
+            "title": CHILD_READ_TITLE,
+            "targetPathSummary": CHILD_PATH,
+        },
+    });
+
+    assert_eq!(
+        actual_parent_projection, expected_parent_projection,
+        "live parent Task events with embedded children must expose the same latest-child facts as separate child events"
     );
 }
 
@@ -528,8 +660,14 @@ fn session_open_preserves_subagent_transcript_in_task_scope() {
         panic!("child Read must link to its scoped transcript entry");
     };
     assert_eq!(entry_id, &task_rows[1].source_entry_id);
-    assert_eq!(child_operation.parent_tool_call_id, None);
-    assert_eq!(child_operation.parent_operation_id, None);
+    assert_eq!(
+        child_operation.parent_tool_call_id.as_deref(),
+        Some(PARENT_TASK_ID)
+    );
+    assert_eq!(
+        child_operation.parent_operation_id.as_deref(),
+        Some(task_operation.id.as_str())
+    );
 }
 
 #[test]

@@ -2,8 +2,8 @@ import { okAsync, Result, type ResultAsync } from "neverthrow";
 
 import type { AppError } from "../../acp/errors/app-error.js";
 import type { PersistedWorkspaceState } from "../../acp/store/types.js";
-import type { UserSettingKey } from "../../services/user-settings-types.js";
 import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
+import type { UserSettingKey } from "../../services/user-settings-types.js";
 
 const WORKSPACE_STATE_KEY: UserSettingKey = "workspace_state";
 const WORKSPACE_HOT_CACHE_KEY = "acepe.workspace_state.hot_cache";

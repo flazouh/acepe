@@ -1,7 +1,6 @@
 import { fireEvent, render } from "@testing-library/svelte";
 import { describe, expect, it, vi } from "vitest";
 
-
 import { SETTINGS_SECTIONS } from "./settings-section-registry.js";
 import SettingsSidebar from "./settings-sidebar.svelte";
 

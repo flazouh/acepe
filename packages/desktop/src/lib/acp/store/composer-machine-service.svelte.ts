@@ -9,9 +9,9 @@ import { createActor } from "xstate";
 import { type ComposerMachineEvent, composerMachine } from "../logic/composer-machine.js";
 import type { ComposerMachineSnapshot } from "../logic/composer-ui-state.js";
 import { deriveStoreComposerState, type StoreComposerState } from "../logic/composer-ui-state.js";
+import { createLogger } from "../utils/logger.js";
 import type { LiveSessionLifecyclePresentation } from "./live-session-work.js";
 import type { SessionTransientProjectionStore } from "./session-transient-projection-store.svelte.js";
-import { createLogger } from "../utils/logger.js";
 
 const logger = createLogger({ id: "composer-machine-service", name: "ComposerMachineService" });
 
@@ -26,9 +26,7 @@ export interface ComposerSessionCommitState {
 export type ComposerMachineServiceDeps = {
 	readonly getCommitState: (sessionId: string) => ComposerSessionCommitState;
 	readonly transientProjectionStore: SessionTransientProjectionStore;
-	readonly getSessionLifecyclePresentation: (
-		sessionId: string
-	) => LiveSessionLifecyclePresentation;
+	readonly getSessionLifecyclePresentation: (sessionId: string) => LiveSessionLifecyclePresentation;
 };
 
 export class ComposerMachineService {
@@ -142,13 +140,12 @@ export class ComposerMachineService {
 		actor.send({ type: "DISPATCH_END" });
 	}
 
-	completeConfigSuccess(sessionId: string): void {
-		const canonical = this.deps.getCommitState(sessionId);
+	completeConfigSuccess(sessionId: string, acceptedState: ComposerSessionCommitState): void {
 		this.send(sessionId, {
 			type: "CONFIG_BLOCK_SUCCESS",
-			committedModeId: canonical.modeId,
-			committedModelId: canonical.modelId,
-			committedAutonomousEnabled: canonical.autonomousEnabled,
+			committedModeId: acceptedState.modeId,
+			committedModelId: acceptedState.modelId,
+			committedAutonomousEnabled: acceptedState.autonomousEnabled,
 		});
 	}
 
@@ -181,7 +178,20 @@ export class ComposerMachineService {
 				return false;
 			}
 			if (ok) {
-				this.completeConfigSuccess(sessionId);
+				this.completeConfigSuccess(sessionId, {
+					modeId:
+						beginPayload.provisionalModeId !== undefined
+							? beginPayload.provisionalModeId
+							: afterBegin.context.committedModeId,
+					modelId:
+						beginPayload.provisionalModelId !== undefined
+							? beginPayload.provisionalModelId
+							: afterBegin.context.committedModelId,
+					autonomousEnabled:
+						beginPayload.provisionalAutonomousEnabled !== undefined
+							? beginPayload.provisionalAutonomousEnabled
+							: afterBegin.context.committedAutonomousEnabled,
+				});
 			} else {
 				this.completeConfigFail(sessionId);
 			}

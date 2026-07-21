@@ -1,4 +1,8 @@
-import type { SessionGraphActivity, SessionGraphLifecycle, SessionTurnState } from "../../../services/acp-types.js";
+import type {
+	SessionGraphActivity,
+	SessionGraphLifecycle,
+	SessionTurnState,
+} from "../../../services/acp-types.js";
 import type { ActiveTurnFailure } from "../../types/turn-error.js";
 import {
 	mergeSessionGraphActivityTiming,

@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use crate::acp::projections::{OperationSnapshot, OperationSourceLink, ProjectionRegistry};
 use crate::acp::session::fold_export::MaterializedThreadSnapshot;
 use crate::acp::transcript_projection::{
-    TranscriptEntryRole, TranscriptSegment, TranscriptSnapshot,
+    TranscriptEntryRole, TranscriptScope, TranscriptSegment, TranscriptSnapshot,
 };
 use crate::acp::types::CanonicalAgentId;
 use crate::session_jsonl::types::StoredEntry;
@@ -24,11 +24,13 @@ pub fn audit_restored_tool_links_from_materialized(
         .iter()
         .filter(|entry| entry.role == TranscriptEntryRole::Tool)
         .count();
+    let scoped_entry_count = scoped_entry_count(transcript_snapshot);
 
     RestoredToolLinkAudit {
         session_id: session_id.to_string(),
         agent_id: agent_id.to_string_with_prefix(),
         entry_count: transcript_snapshot.entries.len(),
+        scoped_entry_count,
         transcript_tool_count,
         operation_count: operations.len(),
         unresolved_count: unresolved_rows.len(),
@@ -51,16 +53,26 @@ pub fn audit_restored_tool_links_from_stored_entries(
         .iter()
         .filter(|entry| entry.role == TranscriptEntryRole::Tool)
         .count();
+    let scoped_entry_count = scoped_entry_count(&transcript_snapshot);
 
     RestoredToolLinkAudit {
         session_id: session_id.to_string(),
         agent_id: agent_id.to_string_with_prefix(),
         entry_count: entries.len(),
+        scoped_entry_count,
         transcript_tool_count,
         operation_count: projection.operations.len(),
         unresolved_count: unresolved_rows.len(),
         unresolved_rows,
     }
+}
+
+fn scoped_entry_count(transcript_snapshot: &TranscriptSnapshot) -> usize {
+    transcript_snapshot
+        .entries
+        .iter()
+        .filter(|entry| entry.scope != TranscriptScope::Root)
+        .count()
 }
 
 fn unresolved_tool_rows_for_operations(

@@ -42,7 +42,7 @@ pub struct AcpEventBridgeInfo {
 pub struct OpenTokenReservation {
     /// Canonical (Acepe-local) session ID this reservation belongs to.
     pub canonical_session_id: String,
-    /// Proven journal cutoff at the time the reservation was armed.
+    /// Proven delivery event-sequence frontier when the reservation was armed.
     pub last_event_seq: i64,
     /// Wall-clock epoch of the open attempt in milliseconds.
     pub epoch_ms: u64,

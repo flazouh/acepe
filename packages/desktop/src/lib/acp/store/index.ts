@@ -57,10 +57,6 @@ export {
 } from "./message-queue/index.js";
 export { OperationStore } from "./operation-store.svelte.js";
 export { createPanelStore, getPanelStore, PanelStore } from "./panel-store.svelte.js";
-export type {
-	OpenProjectFileSystemDialogOptions,
-	ProjectFileSystemDialogState,
-} from "./project-file-system-dialog-state.js";
 export {
 	createPermissionStore,
 	getPermissionStore,
@@ -72,26 +68,23 @@ export {
 	PlanPreferenceStore,
 } from "./plan-preference-store.svelte.js";
 export { createPlanStore, getPlanStore, PlanStore } from "./plan-store.svelte.js";
+export type {
+	OpenProjectFileSystemDialogOptions,
+	ProjectFileSystemDialogState,
+} from "./project-file-system-dialog-state.js";
 export {
 	createQuestionSelectionStore,
 	getQuestionSelectionStore,
 	QuestionSelectionStore,
 } from "./question-selection-store.svelte.js";
 export { createQuestionStore, getQuestionStore, QuestionStore } from "./question-store.svelte.js";
-export type { QueueItem } from "./queue/index.js";
-// Queue store
-export {
-	createQueueStore,
-	getQueueStore,
-	type QueueStore,
-	type QueueUpdateInput,
-} from "./queue/index.js";
 export {
 	createReviewPreferenceStore,
 	getReviewPreferenceStore,
 	ReviewPreferenceStore,
 } from "./review-preference-store.svelte.js";
 export { SessionOpenHydrator } from "./services/session-open-hydrator.js";
+export type { QueueItem } from "./session-attention/index.js";
 // Session state model
 export type {
 	ActivityState,

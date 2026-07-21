@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { untrack } from "svelte";
+	import { Button } from "../button/index.js";
 	import { FilePathBadge } from "../file-path-badge/index.js";
 	import { HugeiconsIcon } from "../icons/index.js";
 	import {
@@ -13,6 +14,7 @@
 		hasReadSourceBody,
 		hasReadSourceExcerptHtml,
 	} from "./agent-tool-read-state.js";
+	import AgentToolCard from "./agent-tool-card.svelte";
 	import ToolHeaderLeading from "./tool-header-leading.svelte";
 	import AgentToolDurationLabel from "./agent-tool-duration-label.svelte";
 	import type { ToolDurationTiming } from "./tool-duration.js";
@@ -109,8 +111,8 @@
 	}
 </script>
 
-<div class="agent-tool-read min-w-0 max-w-full overflow-hidden text-sm" data-testid="agent-tool-read">
-	<div role="group" class="flex h-6 items-center justify-between pl-2 pr-1.5 text-sm">
+<AgentToolCard class="agent-tool-read" dataTestid="agent-tool-read">
+	<div role="group" class="flex h-6 items-center justify-between gap-1.5 pl-2 pr-0.5 text-sm">
 		<div class="flex min-w-0 flex-1 items-center gap-1">
 			<div class="flex min-w-0 items-center gap-1">
 				<ToolHeaderLeading kind="read" {status}>
@@ -136,16 +138,23 @@
 			class="ml-1.5 shrink-0 font-sans text-xs"
 		/>
 		{#if sourceExcerpt}
-			<button
-				type="button"
+			<Button
+				variant="ghost"
+				size="icon-sm"
+				data-header-control
+				class="text-muted-foreground"
 				onclick={toggleExpanded}
-				class="ml-1 flex shrink-0 items-center justify-center rounded-lg border-none bg-transparent p-0.5 text-muted-foreground transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2 active:scale-95"
 				aria-label={isExpanded ? ariaCollapseSource : ariaExpandSource}
 				aria-expanded={isExpanded}
+				title={isExpanded ? ariaCollapseSource : ariaExpandSource}
 			>
-				<HugeiconsIcon name="chevron-down" class="size-3 shrink-0 transition-transform duration-150 {isExpanded ? '' : '-rotate-90'}"
-				/>
-			</button>
+				{#snippet children()}
+					<HugeiconsIcon
+						name="chevron-down"
+						class="transition-transform duration-150 {isExpanded ? '' : '-rotate-90'}"
+					/>
+				{/snippet}
+			</Button>
 		{/if}
 	</div>
 	{#if hasSourceBody && isExpanded}
@@ -164,7 +173,7 @@
 			{/if}
 		</div>
 	{/if}
-</div>
+</AgentToolCard>
 
 <style>
 	.read-source {

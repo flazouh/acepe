@@ -12,6 +12,7 @@ pub struct RestoredToolLinkAudit {
     pub session_id: String,
     pub agent_id: String,
     pub entry_count: usize,
+    pub scoped_entry_count: usize,
     pub transcript_tool_count: usize,
     pub operation_count: usize,
     pub unresolved_count: usize,

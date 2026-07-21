@@ -1,4 +1,6 @@
 import { err, okAsync, ResultAsync } from "neverthrow";
+import { dispatchWebviewClick } from "./click-event-dispatch";
+import { moveNativePointer, type NativePointerMover } from "./native-pointer";
 import type {
 	AgentPanelRowScanResult,
 	AgentPanelScrollPageProbeResult,
@@ -15,13 +17,14 @@ import type {
 	HoverResult,
 	LedgerBackfillProbeResult,
 	NavigateResult,
+	PanelProjectSelectionResult,
 	PlanningBetweenToolsProbeResult,
 	PlanningDebugResult,
 	ResetOnboardingResult,
 	ResizeProbeResult,
 	ResizeStreamProbeResult,
-	SendComposerResult,
 	SendAttachStressProbeResult,
+	SendComposerResult,
 	SessionOpenContentProbeResult,
 	SessionOpenContentProbeRunStatus,
 	StreamingReproLabResult,
@@ -44,13 +47,14 @@ import {
 	hoverTargetResultSchema,
 	ledgerBackfillProbeResultSchema,
 	navigateResultSchema,
+	panelProjectSelectionResultSchema,
 	planningBetweenToolsProbeResultSchema,
 	planningDebugResultSchema,
 	resetOnboardingResultSchema,
 	resizeProbeResultSchema,
 	resizeStreamProbeResultSchema,
-	sendComposerResultSchema,
 	sendAttachStressProbeResultSchema,
+	sendComposerResultSchema,
 	sessionOpenContentProbeRunStatusSchema,
 	streamingReproLabResultSchema,
 	thinkingToggleProbeResultSchema,
@@ -64,11 +68,6 @@ import {
 	startDriverSession,
 	type TauriMcpFailure,
 } from "./tauri-mcp";
-import { dispatchWebviewClick } from "./click-event-dispatch";
-import {
-	moveNativePointer,
-	type NativePointerMover,
-} from "./native-pointer";
 
 export type DriverOptions = {
 	readonly appIdentifier: string;
@@ -1992,6 +1991,172 @@ export function probeLedgerBackfill(
 	});
 }
 
+export function selectPanelProject(
+	options: DriverOptions & {
+		readonly panelId: string;
+		readonly projectPath: string;
+	}
+): ResultAsync<PanelProjectSelectionResult, TauriMcpFailure> {
+	const runner = options.runner ?? runCommand;
+	return driverReady(options).andThen(() => {
+		const script = `
+(async () => {
+  const panelId = ${escapedJson(options.panelId)};
+  const projectPath = ${escapedJson(options.projectPath)};
+  const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+  const result = (fields) => ({
+    panelId,
+    projectPath,
+    projectName: fields.projectName,
+    projectFound: fields.projectFound,
+    ambiguousName: fields.ambiguousName,
+    triggerFound: fields.triggerFound,
+    optionFound: fields.optionFound,
+    selected: fields.selected,
+    selectedAriaLabel: fields.selectedAriaLabel,
+    errorMessage: fields.errorMessage,
+  });
+  const tauriCore = window.__TAURI__ && window.__TAURI__.core;
+  if (!tauriCore || typeof tauriCore.invoke !== "function") {
+    return result({
+      projectName: null,
+      projectFound: false,
+      ambiguousName: false,
+      triggerFound: false,
+      optionFound: false,
+      selected: false,
+      selectedAriaLabel: null,
+      errorMessage: "tauri_invoke_unavailable",
+    });
+  }
+  const projects = await tauriCore.invoke("get_projects");
+  const exactProjects = Array.isArray(projects)
+    ? projects.filter((project) => project && project.path === projectPath && typeof project.name === "string")
+    : [];
+  if (exactProjects.length !== 1) {
+    return result({
+      projectName: null,
+      projectFound: false,
+      ambiguousName: false,
+      triggerFound: false,
+      optionFound: false,
+      selected: false,
+      selectedAriaLabel: null,
+      errorMessage: exactProjects.length === 0 ? "project_path_not_found" : "duplicate_project_path",
+    });
+  }
+  const projectName = exactProjects[0].name;
+  const sameNameProjects = projects.filter((project) => project && project.name === projectName);
+  const ambiguousName = sameNameProjects.some((project) => project.path !== projectPath);
+  if (ambiguousName) {
+    return result({
+      projectName,
+      projectFound: true,
+      ambiguousName: true,
+      triggerFound: false,
+      optionFound: false,
+      selected: false,
+      selectedAriaLabel: null,
+      errorMessage: "project_name_is_not_unique_in_picker",
+    });
+  }
+  const panelRoot = Array.from(document.querySelectorAll("[data-qa-agent-panel-id]"))
+    .find((candidate) => candidate.getAttribute("data-qa-agent-panel-id") === panelId) || null;
+  if (panelRoot === null) {
+    return result({
+      projectName,
+      projectFound: true,
+      ambiguousName: false,
+      triggerFound: false,
+      optionFound: false,
+      selected: false,
+      selectedAriaLabel: null,
+      errorMessage: "panel_not_found",
+    });
+  }
+  const projectNames = new Set(projects.map((project) => project && project.name).filter((name) => typeof name === "string"));
+  const triggerCandidates = Array.from(panelRoot.querySelectorAll("button[data-dropdown-menu-trigger]"))
+    .filter((button) => projectNames.has(button.getAttribute("aria-label") || ""));
+  if (triggerCandidates.length !== 1) {
+    return result({
+      projectName,
+      projectFound: true,
+      ambiguousName: false,
+      triggerFound: false,
+      optionFound: false,
+      selected: false,
+      selectedAriaLabel: null,
+      errorMessage: triggerCandidates.length === 0 ? "project_trigger_not_found" : "project_trigger_is_ambiguous",
+    });
+  }
+  const trigger = triggerCandidates[0];
+  if (trigger.getAttribute("aria-label") === projectName) {
+    return result({
+      projectName,
+      projectFound: true,
+      ambiguousName: false,
+      triggerFound: true,
+      optionFound: true,
+      selected: true,
+      selectedAriaLabel: projectName,
+      errorMessage: null,
+    });
+  }
+  trigger.click();
+  await wait(100);
+  const normalizeText = (value) => (value || "").trim().replace(/\\s+/g, " ");
+  const optionCandidates = Array.from(document.querySelectorAll('[role="menuitem"]'))
+    .filter((option) => {
+      const text = normalizeText(option.textContent);
+      return text === projectName || text.endsWith(" " + projectName);
+    });
+  if (optionCandidates.length !== 1) {
+    trigger.click();
+    return result({
+      projectName,
+      projectFound: true,
+      ambiguousName: false,
+      triggerFound: true,
+      optionFound: false,
+      selected: false,
+      selectedAriaLabel: trigger.getAttribute("aria-label"),
+      errorMessage: optionCandidates.length === 0 ? "project_option_not_found" : "project_option_is_ambiguous",
+    });
+  }
+  optionCandidates[0].click();
+  const selectionDeadline = performance.now() + 2_000;
+  let selectedTrigger = null;
+  while (performance.now() < selectionDeadline) {
+    selectedTrigger = Array.from(panelRoot.querySelectorAll("button[data-dropdown-menu-trigger]"))
+      .find((button) => button.getAttribute("aria-label") === projectName) || null;
+    if (selectedTrigger !== null) break;
+    await wait(50);
+  }
+  const selectedAriaLabel = selectedTrigger === null ? null : selectedTrigger.getAttribute("aria-label");
+  return result({
+    projectName,
+    projectFound: true,
+    ambiguousName: false,
+    triggerFound: true,
+    optionFound: true,
+    selected: selectedAriaLabel === projectName,
+    selectedAriaLabel,
+    errorMessage: selectedAriaLabel === projectName ? null : "project_selection_not_reflected_in_panel",
+  });
+})()
+`;
+		return executeWebviewJson(
+			{
+				appIdentifier: options.appIdentifier,
+				script,
+				schema: panelProjectSelectionResultSchema,
+				callTimeoutMs: 10_000,
+			},
+			runner
+		);
+	});
+}
+
 export function clickWebview(
 	options: DriverOptions & {
 		readonly selector: string | null;
@@ -2171,9 +2336,7 @@ export function hoverWebview(
 			},
 			runner
 		).andThen((target) => {
-			const move = target.screenPoint === null
-				? okAsync(null)
-				: pointerMover(target.screenPoint);
+			const move = target.screenPoint === null ? okAsync(null) : pointerMover(target.screenPoint);
 			return move.andThen(() => {
 				const sampleScript = `
 (async () => {
@@ -3118,7 +3281,7 @@ export function probeSendAttachStress(
 			},
 			runner
 		)
-		);
+	);
 }
 
 export function probePlanningBetweenTools(
@@ -3995,12 +4158,7 @@ function firstSendSubmitScript(
   const samples = [];
   const sample = (label) => {
     samples.push((() => {
-${firstSendSharedSamplerScript(
-	"prompt",
-	"label",
-	escapedJson(panelId),
-	escapedJson(sessionId)
-)}
+${firstSendSharedSamplerScript("prompt", "label", escapedJson(panelId), escapedJson(sessionId))}
     })());
   };
   sample("before-input");

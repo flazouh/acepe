@@ -1,5 +1,5 @@
-import type { SessionCold } from "../application/dto/session-cold.js";
 import type { SessionStateGraph } from "../../services/acp-types.js";
+import type { SessionCold } from "../application/dto/session-cold.js";
 
 interface CanonicalSessionExportData {
 	readonly session: SessionCold;

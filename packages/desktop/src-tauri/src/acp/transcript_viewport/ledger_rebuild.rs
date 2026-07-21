@@ -26,8 +26,8 @@ use crate::acp::transcript_viewport::ledger::{
 };
 use crate::acp::transcript_viewport::projection::project_transcript_viewport_rows;
 use crate::db::repository::{
-    SessionEventSequenceRepository, SessionJournalEventRepository, SessionMetadataRepository,
-    SessionTranscriptRowLedgerRepository,
+    SessionEventSeq, SessionEventSequenceRepository, SessionJournalEventRepository,
+    SessionMetadataRepository, SessionTranscriptRowLedgerRepository,
 };
 use anyhow::{anyhow, Result};
 use sea_orm::DbConn;
@@ -119,16 +119,9 @@ pub(crate) fn rebuild_transcript_row_ledger_from_journal(
         )
     });
     let transcript_snapshot = rebuild_local_transcript_snapshot(replay_context, events)
-        .unwrap_or_else(|| empty_transcript_snapshot(last_event_seq));
+        .unwrap_or_else(empty_transcript_snapshot);
     let first_user_title = derive_title_from_transcript_snapshot(&transcript_snapshot);
-    let graph_revision = projection
-        .session
-        .as_ref()
-        .map(|session| session.last_event_seq)
-        .unwrap_or(last_event_seq)
-        .max(last_event_seq);
-    let revision =
-        SessionGraphRevision::new(graph_revision, transcript_snapshot.revision, last_event_seq);
+    let revision = SessionGraphRevision::new(0, transcript_snapshot.revision, last_event_seq);
     let viewport_rows = project_transcript_viewport_rows(
         &transcript_snapshot,
         &projection.operations,
@@ -177,7 +170,7 @@ pub(crate) async fn rebuild_and_replace_current_transcript_row_ledger_from_provi
         &replay_context.local_session_id,
     )
     .await?
-    .unwrap_or(0);
+    .unwrap_or(SessionEventSeq::ZERO);
     let projection_event_seq = SessionJournalEventRepository::max_row_affecting_event_seq(
         db,
         &replay_context.local_session_id,
@@ -188,7 +181,7 @@ pub(crate) async fn rebuild_and_replace_current_transcript_row_ledger_from_provi
         replay_context,
         lifecycle,
         snapshot,
-        last_event_seq,
+        last_event_seq.get(),
     )?;
     let serialized_events =
         SessionJournalEventRepository::list_serialized(db, &replay_context.local_session_id)
@@ -207,9 +200,9 @@ pub(crate) async fn rebuild_and_replace_current_transcript_row_ledger_from_provi
     }) {
         rebuilt.session = local_session;
         rebuilt.revision = SessionGraphRevision::new(
-            rebuilt.session.last_event_seq,
+            rebuilt.revision.graph_revision,
             rebuilt.revision.transcript_revision,
-            last_event_seq,
+            last_event_seq.get(),
         );
         let operations =
             sanitize_operations_for_historical_open(local_projection.operations, false);
@@ -268,7 +261,7 @@ pub(crate) async fn rebuild_and_replace_current_transcript_row_ledger_from_sessi
         &replay_context.local_session_id,
     )
     .await?
-    .unwrap_or(0);
+    .unwrap_or(SessionEventSeq::ZERO);
     let projection_event_seq = SessionJournalEventRepository::max_row_affecting_event_seq(
         db,
         &replay_context.local_session_id,
@@ -279,7 +272,7 @@ pub(crate) async fn rebuild_and_replace_current_transcript_row_ledger_from_sessi
         replay_context,
         lifecycle,
         graph,
-        last_event_seq,
+        last_event_seq.get(),
     )?;
     let serialized_events =
         SessionJournalEventRepository::list_serialized(db, &replay_context.local_session_id)
@@ -298,9 +291,9 @@ pub(crate) async fn rebuild_and_replace_current_transcript_row_ledger_from_sessi
     }) {
         rebuilt.session = local_session;
         rebuilt.revision = SessionGraphRevision::new(
-            rebuilt.session.last_event_seq,
+            rebuilt.revision.graph_revision,
             rebuilt.revision.transcript_revision,
-            last_event_seq,
+            last_event_seq.get(),
         );
         let operations =
             sanitize_operations_for_historical_open(local_projection.operations, false);
@@ -359,7 +352,7 @@ pub(crate) fn rebuild_transcript_row_ledger_from_session_graph(
     let session = SessionSnapshot {
         session_id: replay_context.local_session_id.clone(),
         agent_id: Some(replay_context.agent_id.clone()),
-        last_event_seq: graph.revision.graph_revision.max(last_event_seq),
+        last_event_seq,
         turn_state: graph.turn_state.clone(),
         message_count: graph.message_count,
         active_tool_call_ids: Vec::new(),
@@ -380,7 +373,7 @@ pub(crate) fn rebuild_transcript_row_ledger_from_session_graph(
     let active_streaming_tail =
         select_active_streaming_tail(&session.turn_state, &activity, &transcript_snapshot);
     let first_user_title = derive_title_from_transcript_snapshot(&transcript_snapshot);
-    let graph_revision = session.last_event_seq.max(last_event_seq);
+    let graph_revision = graph.revision.graph_revision;
     let revision =
         SessionGraphRevision::new(graph_revision, transcript_snapshot.revision, last_event_seq);
     let viewport_rows = project_transcript_viewport_rows(
@@ -540,9 +533,9 @@ fn max_session_event_seq(
         .max()
 }
 
-fn empty_transcript_snapshot(revision: i64) -> TranscriptSnapshot {
+fn empty_transcript_snapshot() -> TranscriptSnapshot {
     TranscriptSnapshot {
-        revision,
+        revision: 0,
         entries: Vec::new(),
     }
 }
@@ -749,12 +742,12 @@ mod tests {
         let events = vec![
             SessionJournalEvent::new(
                 "local-session",
-                1,
+                41,
                 SessionJournalEventPayload::MaterializationBarrier,
             ),
             SessionJournalEvent::new(
                 "local-session",
-                2,
+                42,
                 SessionJournalEventPayload::MaterializationBarrier,
             ),
         ];
@@ -763,9 +756,9 @@ mod tests {
             .expect("barrier-only rebuild should succeed")
             .expect("barrier-only session should materialize an empty ledger");
 
-        assert_eq!(rebuilt.revision.graph_revision, 2);
-        assert_eq!(rebuilt.revision.transcript_revision, 2);
-        assert_eq!(rebuilt.revision.last_event_seq, 2);
+        assert_eq!(rebuilt.revision.graph_revision, 0);
+        assert_eq!(rebuilt.revision.transcript_revision, 0);
+        assert_eq!(rebuilt.revision.last_event_seq, 42);
         assert!(rebuilt.rows.is_empty());
     }
 
@@ -827,7 +820,7 @@ mod tests {
                 crate::acp::lifecycle::DetachedReason::RestoredRequiresAttach,
             ),
             &provider_snapshot,
-            0,
+            41,
         )
         .expect("provider snapshot should rebuild a ledger");
 
@@ -835,7 +828,8 @@ mod tests {
             rebuilt.projection_version,
             TRANSCRIPT_ROW_LEDGER_PROJECTION_VERSION
         );
-        assert_eq!(rebuilt.revision.last_event_seq, 0);
+        assert_eq!(rebuilt.revision.last_event_seq, 41);
+        assert_ne!(rebuilt.revision.graph_revision, 41);
         assert!(!rebuilt.rows.is_empty());
         let row = rebuilt
             .rows

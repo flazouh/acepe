@@ -8,14 +8,14 @@ export interface ClaudeSparkSpecimen {
 export const claudeSparkSectionMeta = {
 	title: "Claude working spark",
 	description:
-		"Claude's real \"working\" animation, reproduced 1:1 from the desktop app — an 84-frame alpha-mask sprite (48×48/frame) scrolled with steps() and tinted via currentColor. Replaces the agent icon while Claude is streaming (\"Planning next moves\").",
+		'Claude\'s real "working" animation, reproduced 1:1 from the desktop app — an 84-frame alpha-mask sprite (48×48/frame) scrolled with steps() and tinted via currentColor. Replaces the agent icon while Claude is streaming ("Planning next moves").',
 };
 
 export const claudeSparkSpecimens: readonly ClaudeSparkSpecimen[] = [
 	{
 		id: "row",
 		label: "In-row · 12px",
-		caption: "As rendered left of \"Planning next moves\"",
+		caption: 'As rendered left of "Planning next moves"',
 		size: 12,
 	},
 	{

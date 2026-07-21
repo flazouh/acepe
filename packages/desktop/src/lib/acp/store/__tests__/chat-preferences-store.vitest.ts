@@ -1,8 +1,6 @@
 import { okAsync } from "neverthrow";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DEFAULT_STREAMING_ANIMATION_MODE } from "../../types/streaming-animation-mode.js";
-
 const getSettingMock = vi.fn();
 const setSettingMock = vi.fn();
 
@@ -35,7 +33,6 @@ describe("ChatPreferencesStore", () => {
 		await store.initialize();
 
 		expect(store.thinkingBlockCollapsedByDefault).toBe(false);
-		expect(store.streamingAnimationMode).toBe(DEFAULT_STREAMING_ANIMATION_MODE);
 		expect(store.isReady).toBe(true);
 	});
 
@@ -46,6 +43,5 @@ describe("ChatPreferencesStore", () => {
 		await store.initialize();
 
 		expect(store.thinkingBlockCollapsedByDefault).toBe(true);
-		expect(store.streamingAnimationMode).toBe(DEFAULT_STREAMING_ANIMATION_MODE);
 	});
 });

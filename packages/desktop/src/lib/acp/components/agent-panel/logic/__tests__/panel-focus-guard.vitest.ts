@@ -16,7 +16,7 @@ describe("isInteractiveClickTarget", () => {
 	});
 
 	it("treats a registered data-input-area (and its descendants) as interactive", () => {
-		const area = el('<div data-input-area><span>child</span></div>');
+		const area = el("<div data-input-area><span>child</span></div>");
 		expect(isInteractiveClickTarget(area)).toBe(true);
 		expect(isInteractiveClickTarget(area.querySelector("span") as HTMLElement)).toBe(true);
 	});

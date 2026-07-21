@@ -12,6 +12,7 @@
 	import { isVoiceActive } from "./agent-input-composer-toolbar-state.js";
 	import type { AgentInputConfigOption } from "./agent-input-config-option-types.js";
 	import type { AgentComposerToolbarVoiceBinding } from "./agent-input-toolbar-voice.js";
+	import type { AgentInputVoiceModel } from "./agent-input-voice-model-menu-state.js";
 
 	let {
 		inputReady,
@@ -48,12 +49,7 @@
 		composerIsDispatching: boolean;
 		getMicButtonTitle: (voice: AgentComposerToolbarVoiceBinding) => string;
 		onVoiceMicKeyDown: (event: KeyboardEvent, voice: AgentComposerToolbarVoiceBinding) => void;
-		voiceModels: readonly {
-			id: string;
-			name: string;
-			sizeBytes: number;
-			isDownloaded: boolean;
-		}[];
+		voiceModels: readonly AgentInputVoiceModel[];
 		voiceSelectedModelId: string | null;
 		voiceModelsLoading: boolean;
 		voiceDownloadingModelId: string | null;
@@ -98,10 +94,9 @@
 			</div>
 		{/if}
 		<div
-			class="w-fit min-w-0 max-w-[min(18rem,100%)] shrink overflow-hidden transition-opacity duration-200 ease-out
+			class="w-fit min-w-0 max-w-[min(18rem,100%)] shrink overflow-hidden
 				[&_[role=group]]:!min-w-0 [&_[role=group]]:!max-w-full
-				[&_[data-slot=button]]:!min-w-0 [&_[data-slot=button]]:!max-w-full
-				{fadeWhenVoiceActiveClass}"
+				[&_[data-slot=button]]:!min-w-0 [&_[data-slot=button]]:!max-w-full"
 			data-qa="agent-input-model-control"
 		>
 			{#if fuseModelWithReasoning && reasoningToolbarOption && onConfigOptionChange}
@@ -151,7 +146,7 @@
 			{voiceCloseLabel}
 		/>
 		{#if metricsChip}
-			<div class="shrink-0 transition-opacity duration-200 ease-out {fadeWhenVoiceActiveClass}">
+			<div class="shrink-0" data-qa="agent-input-metrics-chip">
 				{@render metricsChip()}
 			</div>
 		{/if}

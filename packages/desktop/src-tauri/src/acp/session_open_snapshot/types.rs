@@ -84,7 +84,7 @@ pub struct SessionOpenResultTiming {
     pub context_ms: u128,
     pub provider_load_ms: u128,
     pub ledger_tail_read_ms: u128,
-    pub ledger_journal_cutoff_ms: u128,
+    pub ledger_projection_frontier_ms: u128,
     pub ledger_page_read_ms: u128,
     pub ledger_header_decode_ms: u128,
     pub ledger_rows_decode_ms: u128,
@@ -225,13 +225,12 @@ pub struct SessionOpenFound {
     /// (i.e. the caller supplied a provider-side alias that was resolved to a
     /// different canonical ID).
     pub is_alias: bool,
-    /// Proven journal cutoff.  `0` only when no journal events exist yet.
+    /// Proven delivery event-sequence frontier. `0` only before any delivery
+    /// sequence has been assigned.
     pub last_event_seq: i64,
-    /// Canonical graph frontier at the proven cutoff.
-    ///
-    /// During the compatibility window this may still be seeded from persisted
-    /// state that mirrors `last_event_seq`, but open/materialization paths must
-    /// carry it explicitly instead of re-deriving graph lineage from delivery.
+    /// Canonical graph revision carried independently from `last_event_seq`.
+    /// Open and materialization paths must not derive graph lineage from the
+    /// delivery event-sequence frontier.
     pub graph_revision: i64,
     /// Single-use attach token (UUID string).  All hub events for this session
     /// published after this token is armed are buffered in the `event_hub`

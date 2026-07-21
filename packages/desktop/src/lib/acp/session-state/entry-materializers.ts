@@ -5,16 +5,18 @@
  * projections over the canonical source — no canonical mutation. GOD-safe:
  * tool identity comes from canonical operation/tool-call ids, never reordered.
  */
+
+import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel/types";
 import type {
 	InteractionSnapshot,
 	OperationSnapshot,
 	TranscriptEntry,
 } from "../../services/acp-types.js";
-import type { AgentPanelSceneEntryModel } from "@acepe/ui/agent-panel/types";
-import type { ToolCall } from "../types/tool-call.js";
 import { mapToolCallToSceneEntry } from "../components/agent-panel/scene/desktop-agent-panel-scene.js";
+import { buildUserRowSceneModel } from "../logic/user-row-scene-model.js";
 import { mapCanonicalTurnStateToPresentationStatus } from "../store/canonical-turn-state-mapping.js";
 import { normalizeToolResult } from "../store/services/tool-result-normalizer.js";
+import type { ToolCall } from "../types/tool-call.js";
 import { mapOperationStateToToolPresentationStatus } from "../utils/tool-state-utils.js";
 import type { AgentPanelCanonicalSource } from "./agent-panel-canonical-source.js";
 import { AGENT_PANEL_SCENE_TEXT_LIMITS } from "./agent-panel-graph-materializer-types.js";
@@ -26,7 +28,6 @@ import {
 	buildAssistantMessageFromTranscriptEntry,
 	segmentText,
 } from "./transcript-text.js";
-import { buildUserRowSceneModel } from "../logic/user-row-scene-model.js";
 import { logUnresolvedToolDiagnostics } from "./unresolved-tool-diagnostics.js";
 
 export function interactionSceneEntryId(interactionId: string): string {
@@ -236,9 +237,7 @@ export function materializeTranscriptEntry(
 	if (entry.role === "assistant") {
 		const markdown = assistantMarkdownText(entry);
 		const planningStartedAtMs =
-			isStreaming &&
-			graph.activity.kind === "awaiting_model" &&
-			markdown.trim() === ""
+			isStreaming && graph.activity.kind === "awaiting_model" && markdown.trim() === ""
 				? (graph.activity.kindStartedAtMs ?? null)
 				: null;
 		return {

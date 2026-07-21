@@ -1,9 +1,7 @@
 import { cleanup, fireEvent, render } from "@testing-library/svelte";
-import { createRawSnippet } from "svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import AgentAssistantMessage from "../agent-assistant-message.svelte";
-import type { AssistantRenderBlockContext, TokenRevealCss } from "../types.js";
 
 vi.mock("svelte", async () => {
 	const { createRequire } = await import("node:module");
@@ -34,23 +32,6 @@ describe("AgentAssistantMessage", () => {
 			{ type: "thought" as const, block: { type: "text" as const, text: "Weighing the options." } },
 		],
 	};
-
-	const tokenRevealCss: TokenRevealCss = {
-		revealCount: 2,
-		revealedCharCount: "alpha beta gamma".length,
-		baselineMs: -112,
-		tokStepMs: 48,
-		tokFadeDurMs: 630,
-		mode: "smooth",
-	};
-
-	const renderBlockProbe = createRawSnippet<[AssistantRenderBlockContext]>((context) => ({
-		render: () => {
-			const value = context();
-			const reveal = value.tokenRevealCss;
-			return `<div data-testid="render-block-probe" data-group-type="${value.group.type}" data-is-streaming="${value.isStreaming === true ? "true" : "false"}" data-token-reveal-baseline="${reveal === undefined ? "missing" : String(reveal.baselineMs)}"></div>`;
-		},
-	}));
 
 	it("shows a shimmering Thinking header while streaming", async () => {
 		const view = render(AgentAssistantMessage, {
@@ -98,7 +79,9 @@ describe("AgentAssistantMessage", () => {
 			window.setTimeout(resolve, 25);
 		});
 
-		expect(view.queryByTestId("thinking-block-content")).toBeNull();
+		expect(view.getByTestId("thinking-block-content").closest(".thinking-collapsible")?.className).toContain(
+			"is-collapsed"
+		);
 		expect(view.getByRole("button", { name: "Expand thinking" })).toBeTruthy();
 	});
 
@@ -121,26 +104,6 @@ describe("AgentAssistantMessage", () => {
 		expect(view.getByRole("button", { name: "Collapse thinking" })).toBeTruthy();
 	});
 
-	it("keeps token reveal timing on the settled final text group", () => {
-		const view = render(AgentAssistantMessage, {
-			props: {
-				message: {
-					chunks: [
-						{ type: "message" as const, block: { type: "text" as const, text: "alpha beta gamma" } },
-					],
-				},
-				isStreaming: false,
-				tokenRevealCss,
-				renderBlock: renderBlockProbe,
-			},
-		});
-
-		const probe = view.getByTestId("render-block-probe");
-		expect(probe.getAttribute("data-group-type")).toBe("text");
-		expect(probe.getAttribute("data-is-streaming")).toBe("false");
-		expect(probe.getAttribute("data-token-reveal-baseline")).toBe("-112");
-	});
-
 	it("keeps settled thinking content expanded after the user opens it", async () => {
 		const props = {
 			messageId: "assistant-rerender",
@@ -150,7 +113,9 @@ describe("AgentAssistantMessage", () => {
 		};
 		const view = render(AgentAssistantMessage, { props });
 
-		expect(view.queryByTestId("thinking-block-content")).toBeNull();
+		expect(view.getByTestId("thinking-block-content").closest(".thinking-collapsible")?.className).toContain(
+			"is-collapsed"
+		);
 
 		await fireEvent.click(view.getByRole("button", { name: "Expand thinking" }));
 		await view.rerender(props);
