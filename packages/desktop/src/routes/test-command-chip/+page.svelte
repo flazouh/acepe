@@ -50,11 +50,7 @@ import {
 	type GitStatusFile,
 	type GitStashEntry,
 } from "@acepe/ui/git-panel";
-import {
-	BuildIcon,
-	HugeiconsIcon,
-	PlanIcon,
-} from "@acepe/ui/icons";
+import { BuildIcon, HugeiconsIcon, PlanIcon } from "@acepe/ui/icons";
 import AddRepositoryActionsCell from "$lib/acp/components/add-repository/cells/actions-cell.svelte";
 import PaletteItem from "$lib/acp/components/advanced-command-palette/palette-item.svelte";
 import { BRANCH_PREFIXES } from "$lib/acp/components/branch-picker/branch-prefix-options.js";
