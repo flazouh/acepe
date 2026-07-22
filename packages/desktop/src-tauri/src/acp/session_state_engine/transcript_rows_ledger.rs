@@ -19,7 +19,8 @@ use crate::acp::session_state_engine::{
     SessionStatePayload,
 };
 use crate::acp::transcript_projection::{
-    TranscriptEntry, TranscriptEntryRole, TranscriptProjectionRegistry, TranscriptScope,
+    tool_call_id_from_authority_entry_id, TranscriptEntry, TranscriptEntryRole,
+    TranscriptProjectionRegistry, TranscriptScope,
 };
 use crate::acp::transcript_viewport::ledger::{
     serialize_transcript_scopes_for_ledger, serialize_viewport_rows_for_ledger_from_index,
@@ -607,11 +608,11 @@ fn first_changed_row_index(
                 .changed_source_entry_ids
                 .iter()
                 .any(|entry_id| entry_id == &row.source_entry_id)
-                || row.operation_links.iter().any(|link| {
+                || row_tool_call_ids(row).iter().any(|row_tool_call_id| {
                     write_hint
                         .changed_tool_call_ids
                         .iter()
-                        .any(|tool_call_id| tool_call_id == &link.tool_call_id)
+                        .any(|tool_call_id| tool_call_id == row_tool_call_id)
                 })
                 || row.interaction_links.iter().any(|link| {
                     write_hint
@@ -621,6 +622,28 @@ fn first_changed_row_index(
                 })
         })
         .unwrap_or(rows.len())
+}
+
+/// Every tool call id this row can be dirtied by.
+///
+/// Operation links are not enough on their own: a tool row materialized before
+/// its operation existed has none, and matching only on links would leave it
+/// permanently unreachable by any later tool-call update — it would render as
+/// an unavailable row forever, even across session re-open. The canonical tool
+/// entry id already carries the tool call id, so identity survives the missing
+/// link.
+fn row_tool_call_ids(row: &TranscriptViewportRow) -> Vec<String> {
+    let mut tool_call_ids: Vec<String> = row
+        .operation_links
+        .iter()
+        .map(|link| link.tool_call_id.clone())
+        .collect();
+    if let Some(entry_tool_call_id) = tool_call_id_from_authority_entry_id(&row.source_entry_id) {
+        if !tool_call_ids.contains(&entry_tool_call_id) {
+            tool_call_ids.push(entry_tool_call_id);
+        }
+    }
+    tool_call_ids
 }
 
 fn changed_entry_ids_for_fast_path(
@@ -1766,6 +1789,33 @@ mod tests {
         };
 
         assert_eq!(super::first_changed_row_index(&rows, &hint), 2);
+    }
+
+    #[test]
+    fn write_hint_selects_tool_row_that_has_no_operation_links_yet() {
+        // A tool row materialized before its operation existed carries no
+        // operation links. Matching the hint only against links already on the
+        // row strands it permanently: no later tool-call update can mark it
+        // dirty, so it keeps rendering as "Unavailable transcript row" even
+        // across session re-open. The canonical entry id already carries the
+        // tool call id, so the row is identifiable without a link.
+        let mut tool_row = viewport_row(1, 10);
+        tool_row.kind = TranscriptViewportRowKind::Tool;
+        tool_row.source_entry_id = crate::acp::transcript_projection::derive_tool_entry_id(
+            "assistant-boundary:1",
+            "toolu_pending",
+        );
+        tool_row.operation_links = Vec::new();
+
+        let rows = vec![viewport_row(0, 10), tool_row, viewport_row(2, 10)];
+        let hint = super::TranscriptRowsLedgerWriteHint {
+            force_full_replace: false,
+            changed_source_entry_ids: Vec::new(),
+            changed_tool_call_ids: vec!["toolu_pending".to_string()],
+            changed_interaction_ids: Vec::new(),
+        };
+
+        assert_eq!(super::first_changed_row_index(&rows, &hint), 1);
     }
 
     fn viewport_push(
