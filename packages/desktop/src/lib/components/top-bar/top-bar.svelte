@@ -5,7 +5,6 @@ import {
 	HugeiconsIcon,
 	SegmentedToggleGroup,
 	Selector,
-	UsageLimitWidget,
 } from "@acepe/ui";
 import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
@@ -325,7 +324,6 @@ onMount(() => {
 					</div>
 			</Selector>
 		{/snippet}
-		<UsageLimitWidget model={usageWidgetModel} onRefresh={refreshProviderUsageAccounts} />
 		{@render layoutControl()}
 		<Tooltip.Root>
 			<Tooltip.Trigger>
