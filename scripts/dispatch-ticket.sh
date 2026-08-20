@@ -24,4 +24,16 @@ Hard rules:
 4. Colocate a .test.ts beside every new source file.
 5. Do not stage or commit. Do not touch packages/desktop/src/lib/services.
 
-When done, run your package typecheck and lint:effect, and report pass or fail for each." 2>&1
+When done, run your package typecheck and lint:effect, and report pass or fail for each." 2>&1 | tee /tmp/lane-${TICKET}.log
+
+# cursor-agent exits 0 even when the API drops the connection and nothing is written.
+# Fail loudly so the dispatcher does not report a silent no-op as success.
+if grep -qE 'RetriableError|command failed unexpectedly' "/tmp/lane-${TICKET}.log"; then
+  echo "LANE FAILED: ${TICKET} hit a cursor-agent transport error and wrote nothing."
+  exit 1
+fi
+if [ -z "$(/usr/bin/git status --porcelain | grep -v 'lib/services')" ]; then
+  echo "LANE FAILED: ${TICKET} produced no changes."
+  exit 1
+fi
+echo "LANE OK: ${TICKET} produced changes."
