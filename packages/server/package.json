@@ -6,6 +6,8 @@
 	"type": "module",
 	"exports": {
 		"./persistence/Layers/Sqlite": "./src/persistence/Layers/Sqlite.ts",
+		"./persistence/Layers/OrchestrationEventStore": "./src/persistence/Layers/OrchestrationEventStore.ts",
+		"./persistence/Services/OrchestrationEventStore": "./src/persistence/Services/OrchestrationEventStore.ts",
 		"./persistence/Migrations": "./src/persistence/Migrations.ts"
 	},
 	"scripts": {
@@ -14,6 +16,7 @@
 		"test": "bun --bun vitest run"
 	},
 	"dependencies": {
+		"@acepe/contracts": "workspace:*",
 		"@effect/platform-bun": "catalog:",
 		"@effect/sql-sqlite-bun": "catalog:",
 		"effect": "catalog:"

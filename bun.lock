@@ -130,6 +130,7 @@
       "name": "@acepe/server",
       "version": "0.0.1",
       "dependencies": {
+        "@acepe/contracts": "workspace:*",
         "@effect/platform-bun": "catalog:",
         "@effect/sql-sqlite-bun": "catalog:",
         "effect": "catalog:",
