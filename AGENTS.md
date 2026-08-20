@@ -50,6 +50,7 @@ cargo clippy       # Rust lint (in src-tauri/)
 
 - ALWAYS invoke Svelte skills before modifying/creating Svelte code: `svelte-runes`, `svelte-components`, `sveltekit-structure`, `sveltekit-data-flow`.
 - NEVER use `$effect`. Use `$derived` for computed values, event handlers for actions. If unavoidable, guard writes with comparison.
+- **Effect-TS vs Svelte `$effect`:** Write Effect-TS as `Effect.Effect` and import `* as Effect` from `effect/Effect`. Write the Svelte rune as `$effect`. Never name an Effect-TS program `effect`; name it `program` or a domain noun. Bind Effect atoms into Svelte with `createSubscriber` from `svelte/reactivity` (`@acepe/effect-svelte`); do not use the `$effect` rune for that.
 - ALL new UI components must be dumb/presentational in `packages/ui`. No Tauri, store, runtime, or app-specific logic — they must be reusable from `@acepe/ui`. See "UI Package MVC" below for the extraction workflow and enforcement.
 
 ### Architecture

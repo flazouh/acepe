@@ -105,6 +105,26 @@
         "vitest": "^4.1.9",
       },
     },
+    "packages/effect-svelte": {
+      "name": "@acepe/effect-svelte",
+      "version": "0.0.1",
+      "dependencies": {
+        "effect": "catalog:",
+      },
+      "devDependencies": {
+        "@effect/language-service": "catalog:",
+        "@sveltejs/vite-plugin-svelte": "^7.1.2",
+        "@testing-library/svelte": "^5.3.1",
+        "happy-dom": "^20.10.3",
+        "svelte": "^5.56.3",
+        "typescript": "5.9.3",
+        "vite": "^8.0.16",
+        "vitest": "^4.1.9",
+      },
+      "peerDependencies": {
+        "svelte": "^5.0.0",
+      },
+    },
     "packages/ui": {
       "name": "@acepe/ui",
       "version": "0.0.1",
@@ -199,6 +219,8 @@
   },
   "packages": {
     "@acepe/contracts": ["@acepe/contracts@workspace:packages/contracts"],
+
+    "@acepe/effect-svelte": ["@acepe/effect-svelte@workspace:packages/effect-svelte"],
 
     "@acepe/ui": ["@acepe/ui@workspace:packages/ui"],
 
