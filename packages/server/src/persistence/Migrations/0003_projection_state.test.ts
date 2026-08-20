@@ -6,8 +6,8 @@ import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as Path from "effect/Path"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
-import { makeSqliteLayer } from "./Layers/Sqlite.ts"
-import { runMigrations } from "./Migrations.ts"
+import { makeSqliteLayer } from "../Layers/Sqlite.ts"
+import projectionState from "./0003_projection_state.ts"
 
 const TempSqlite = Layer.unwrap(
 	Effect.gen(function*() {
@@ -21,27 +21,21 @@ const TempSqlite = Layer.unwrap(
 	})
 ).pipe(Layer.provide(Layer.mergeAll(BunFileSystem.layer, BunPath.layer)))
 
-Vitest.layer(TempSqlite)("runMigrations", (it) => {
-	it.effect("records 0001_init in _migrations and applies nothing on the second run", () =>
+Vitest.layer(TempSqlite)("0003_projection_state", (it) => {
+	it.effect("creates projection_state keyed by projector name", () =>
 		Effect.gen(function*() {
 			const sql = yield* SqlClient.SqlClient
-			const first = yield* runMigrations
-			const second = yield* runMigrations
-			const rows = yield* sql<{
-				migration_id: number
-				name: string
-			}>`SELECT migration_id, name FROM _migrations ORDER BY migration_id`.withoutTransform
-			Vitest.assert.deepStrictEqual(first, [
-				[1, "init"],
-				[2, "event_store"],
-				[3, "projection_state"]
-			])
-			Vitest.assert.deepStrictEqual(second, [])
-			Vitest.assert.deepStrictEqual(rows, [
-				{ migration_id: 1, name: "init" },
-				{ migration_id: 2, name: "event_store" },
-				{ migration_id: 3, name: "projection_state" }
-			])
+			yield* projectionState
+			const columns = yield* sql<{ name: string; pk: number }>`
+				PRAGMA table_info(projection_state)
+			`.withoutTransform
+			Vitest.assert.deepStrictEqual(
+				columns.map((column) => column.name),
+				["name", "last_applied_sequence"]
+			)
+			const nameColumn = columns.find((column) => column.name === "name")
+			Vitest.assert.isDefined(nameColumn)
+			Vitest.assert.strictEqual(Number(nameColumn.pk), 1)
 		})
 	)
 })
