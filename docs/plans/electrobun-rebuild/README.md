@@ -35,6 +35,21 @@ Wave 8  Cutover          AC-045 .. AC-047    serial
 
 **AC-018 (replay harness and grader).** Every ticket in Waves 4 to 7 is gradeable in seconds once it exists, and unverifiable until it does. Agent throughput is not the constraint; verification is.
 
+## Pinned toolchain
+
+`effect@4` is at RC. The npm `latest` tag still resolves to `3.22.1`, so an unpinned install silently gives you v3.
+
+| Package | Version |
+|---|---|
+| `effect` | `4.0.0-rc.111` |
+| `@effect/platform-bun` | `4.0.0-rc.111` |
+| `@effect/platform-node` | `4.0.0-rc.111` |
+| `@effect/sql-sqlite-bun` | `4.0.0-rc.111` |
+| `@effect/vitest` | `4.0.0-rc.111` |
+| `@effect/language-service` | `0.87.2` (versions independently) |
+
+Implementor model: `cursor-grok-4.6-xhigh` via `cursor-agent`.
+
 ## Tickets
 
 
