@@ -2,7 +2,25 @@ import { describe, expect, it } from "bun:test"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 
-import { IsoDateTime, JsonObject, Sequence } from "./baseSchemas.ts"
+import { IsoDateTime, JsonObject, Sequence, TrimmedNonEmptyString } from "./baseSchemas.ts"
+
+describe("TrimmedNonEmptyString", () => {
+	it("decodes a non-empty string", () => {
+		expect(Option.getOrUndefined(Schema.decodeUnknownOption(TrimmedNonEmptyString)("Acepe"))).toBe(
+			"Acepe",
+		)
+	})
+
+	it("trims padding", () => {
+		expect(
+			Option.getOrUndefined(Schema.decodeUnknownOption(TrimmedNonEmptyString)("  Acepe  ")),
+		).toBe("Acepe")
+	})
+
+	it("rejects an empty string", () => {
+		expect(Option.isNone(Schema.decodeUnknownOption(TrimmedNonEmptyString)(""))).toBe(true)
+	})
+})
 
 describe("IsoDateTime", () => {
 	it("decodes an ISO-8601 date-time string", () => {
