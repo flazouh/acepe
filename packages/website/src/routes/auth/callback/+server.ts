@@ -1,6 +1,8 @@
 import { error, redirect } from "@sveltejs/kit";
 import { env } from "$env/dynamic/private";
 import { createSession, findOrCreateUserByGoogle } from "$lib/server/auth/admin";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import type { RequestHandler } from "./$types";
 
 interface GoogleTokenResponse {
@@ -78,26 +80,32 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 	const userInfo: GoogleUserInfo = await userInfoResponse.json();
 
 	// Find or create user
-	const userResult = await findOrCreateUserByGoogle({
-		googleId: userInfo.sub,
-		email: userInfo.email,
-		name: userInfo.name,
-		picture: userInfo.picture,
-	});
+	const userResult = await Effect.runPromise(
+		Effect.result(
+			findOrCreateUserByGoogle({
+				googleId: userInfo.sub,
+				email: userInfo.email,
+				name: userInfo.name,
+				picture: userInfo.picture,
+			}),
+		),
+	);
 
-	if (userResult.isErr()) {
-		throw error(500, userResult.error.message);
+	if (Result.isFailure(userResult)) {
+		throw error(500, userResult.failure.message);
 	}
 
-	// Create session
-	const sessionResult = await createSession(userResult.value.id);
+	const user = userResult.success;
 
-	if (sessionResult.isErr()) {
+	// Create session
+	const sessionResult = await Effect.runPromise(Effect.result(createSession(user.id)));
+
+	if (Result.isFailure(sessionResult)) {
 		throw error(500, "Failed to create session");
 	}
 
 	// Set session cookie
-	cookies.set("session", sessionResult.value.id, {
+	cookies.set("session", sessionResult.success.id, {
 		path: "/",
 		httpOnly: true,
 		secure: process.env.NODE_ENV === "production",
@@ -106,7 +114,7 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 	});
 
 	// Redirect to admin if user is admin, otherwise to home
-	if (userResult.value.isAdmin) {
+	if (user.isAdmin) {
 		throw redirect(303, "/admin");
 	}
 

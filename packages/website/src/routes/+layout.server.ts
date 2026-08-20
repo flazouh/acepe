@@ -1,5 +1,7 @@
 import { dev } from "$app/environment";
 import { getFeatureFlags } from "$lib/server/feature-flags";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import type { LayoutServerLoad } from "./$types";
 
 const defaultFeatureFlags = {
@@ -33,11 +35,14 @@ export const load: LayoutServerLoad = async ({ url }) => {
 		};
 	}
 
-	const [featureFlagsResult, stars] = await Promise.all([getFeatureFlags(), getGitHubStars()]);
+	const [featureFlagsResult, stars] = await Promise.all([
+		Effect.runPromise(Effect.result(getFeatureFlags())),
+		getGitHubStars(),
+	]);
 
 	// Use fallback values if feature flags fail to load
-	const featureFlags = featureFlagsResult.isOk()
-		? featureFlagsResult.value
+	const featureFlags = Result.isSuccess(featureFlagsResult)
+		? featureFlagsResult.success
 		: {
 				loginEnabled: defaultFeatureFlags.loginEnabled,
 				downloadEnabled: defaultFeatureFlags.downloadEnabled,

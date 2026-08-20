@@ -1,4 +1,6 @@
-import { Result } from "neverthrow";
+import { fromThrowable } from "@acepe/effect-result/fromThrowable";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 
 export type InlineArtefactTokenType =
 	| "file"
@@ -32,9 +34,9 @@ const INLINE_ARTEFACT_REGEX = new RegExp(INLINE_ARTEFACT_PATTERN, "g");
 const INLINE_TEXT_PREVIEW_LIMIT = 24;
 const INLINE_TEXT_TITLE_LIMIT = 500;
 
-const decodeInlineTextTokenValue = Result.fromThrowable(
+const decodeInlineTextTokenValue = fromThrowable(
 	(value: string) => decodeURIComponent(escape(atob(value))),
-	() => new Error("Invalid inline text token")
+	() => new Error("Invalid inline text token"),
 );
 
 function truncateInlineText(value: string, maxChars: number): string {
@@ -47,12 +49,12 @@ function truncateInlineText(value: string, maxChars: number): string {
 function summarizeInlineTextToken(
 	value: string
 ): { label: string; charCount: number; title: string } | null {
-	const decoded = decodeInlineTextTokenValue(value);
-	if (decoded.isErr()) {
+	const decoded = Effect.runSync(Effect.result(decodeInlineTextTokenValue(value)));
+	if (Result.isFailure(decoded)) {
 		return null;
 	}
 
-	const content = decoded.value;
+	const content = decoded.success;
 	const firstLine = content.split("\n")[0] || "";
 	const label = firstLine.length > 0
 		? truncateInlineText(firstLine, INLINE_TEXT_PREVIEW_LIMIT)

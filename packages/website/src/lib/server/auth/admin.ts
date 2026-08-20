@@ -1,6 +1,7 @@
+import { fromPromise } from "@acepe/effect-result/fromPromise";
 import { eq } from "drizzle-orm";
+import * as Effect from "effect/Effect";
 import { nanoid } from "nanoid";
-import { ResultAsync } from "neverthrow";
 import { db } from "../db/client";
 import { sessions, users } from "../db/schema";
 import {
@@ -34,15 +35,13 @@ interface Session {
 /**
  * Find or create a user by Google OAuth data.
  */
-export function findOrCreateUserByGoogle(data: GoogleUserData): ResultAsync<User, AuthError> {
-	return ResultAsync.fromPromise(
-		(async () => {
-			// Check if user exists
+export function findOrCreateUserByGoogle(data: GoogleUserData): Effect.Effect<User, AuthError> {
+	return fromPromise(
+		async () => {
 			const existingUsers = await db.select().from(users).where(eq(users.googleId, data.googleId));
 
 			if (existingUsers.length > 0) {
 				const user = existingUsers[0];
-				// Update user info
 				await db
 					.update(users)
 					.set({
@@ -53,14 +52,15 @@ export function findOrCreateUserByGoogle(data: GoogleUserData): ResultAsync<User
 					.where(eq(users.id, user.id));
 
 				return {
-					...user,
+					id: user.id,
+					email: data.email,
+					googleId: user.googleId,
 					name: data.name,
 					picture: data.picture,
-					email: data.email,
+					isAdmin: user.isAdmin,
 				};
 			}
 
-			// Create new user
 			const newUser = {
 				id: nanoid(),
 				email: data.email,
@@ -73,7 +73,7 @@ export function findOrCreateUserByGoogle(data: GoogleUserData): ResultAsync<User
 			await db.insert(users).values(newUser);
 
 			return newUser;
-		})(),
+		},
 		(error) => new UnauthorizedError(`Failed to authenticate: ${error}`)
 	);
 }
@@ -81,9 +81,9 @@ export function findOrCreateUserByGoogle(data: GoogleUserData): ResultAsync<User
 /**
  * Create a new session for a user
  */
-export function createSession(userId: string): ResultAsync<Session, AuthError> {
-	return ResultAsync.fromPromise(
-		(async () => {
+export function createSession(userId: string): Effect.Effect<Session, AuthError> {
+	return fromPromise(
+		async () => {
 			const session = {
 				id: nanoid(),
 				userId,
@@ -93,7 +93,7 @@ export function createSession(userId: string): ResultAsync<Session, AuthError> {
 			await db.insert(sessions).values(session);
 
 			return session;
-		})(),
+		},
 		(error) => new SessionCreationFailedError(`Failed to create session: ${error}`)
 	);
 }
@@ -101,9 +101,9 @@ export function createSession(userId: string): ResultAsync<Session, AuthError> {
 /**
  * Validate a session and return the user
  */
-export function validateSession(sessionId: string): ResultAsync<User | null, AuthError> {
-	return ResultAsync.fromPromise(
-		(async () => {
+export function validateSession(sessionId: string): Effect.Effect<User | null, AuthError> {
+	return fromPromise(
+		async () => {
 			const result = await db
 				.select({
 					session: sessions,
@@ -119,14 +119,13 @@ export function validateSession(sessionId: string): ResultAsync<User | null, Aut
 
 			const { session, user } = result[0];
 
-			// Check if session is expired
 			if (session.expiresAt < new Date()) {
 				await db.delete(sessions).where(eq(sessions.id, sessionId));
 				return null;
 			}
 
 			return user;
-		})(),
+		},
 		(error) => new UnauthorizedError(`Failed to validate session: ${error}`)
 	);
 }
@@ -134,11 +133,11 @@ export function validateSession(sessionId: string): ResultAsync<User | null, Aut
 /**
  * Delete a session (logout)
  */
-export function deleteSession(sessionId: string): ResultAsync<void, AuthError> {
-	return ResultAsync.fromPromise(
-		(async () => {
+export function deleteSession(sessionId: string): Effect.Effect<void, AuthError> {
+	return fromPromise(
+		async () => {
 			await db.delete(sessions).where(eq(sessions.id, sessionId));
-		})(),
+		},
 		(error) => new UnauthorizedError(`Failed to delete session: ${error}`)
 	);
 }
