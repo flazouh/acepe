@@ -526,14 +526,15 @@ fn init_logging() {
 
     #[cfg(debug_assertions)]
     {
-        let console_layer = fmt::layer()
-            .event_format(PrettyDevEventFormatter::new())
-            .with_ansi(true);
-
         tracing_subscriber::registry()
             .with(env_filter)
             .with(analytics::sentry_tracing_layer())
-            .with(console_layer)
+            .with(
+                fmt::layer()
+                    .with_writer(crate::commands::sidecar::debug_console_writer)
+                    .event_format(PrettyDevEventFormatter::new())
+                    .with_ansi(true),
+            )
             .with(file_layer)
             .init();
     }
@@ -723,6 +724,12 @@ fn run_claude_model_hydration_probe_cli(
             cli_probe,
         })
     })
+}
+
+/// Start the same Tauri backend as [`run`], speaking NDJSON JSON-RPC on stdio.
+pub fn run_sidecar() {
+    crate::commands::sidecar::enable();
+    run();
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -1194,6 +1201,9 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app_handle, event| match event {
+            tauri::RunEvent::Ready => {
+                crate::commands::sidecar::attach(app_handle);
+            }
             tauri::RunEvent::ExitRequested { .. } => {
                 cleanup_app_runtime(app_handle, "exit requested");
             }
