@@ -18,6 +18,7 @@
 		"src/service-worker.ts",
 		"src/service-worker/**/*.ts",
 		"src/service-worker.d.ts",
-		"src/service-worker/**/*.d.ts"
+		"src/service-worker/**/*.d.ts",
+		"src/bun/**"
 	]
 }

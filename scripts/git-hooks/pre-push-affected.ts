@@ -14,6 +14,7 @@ import {
 	classifyPushFiles,
 	shouldRunAgentPanelContract,
 	shouldRunDesktop,
+	shouldRunElectrobunShell,
 	shouldRunGpuiPoc,
 	shouldRunTauriBackend,
 	shouldRunUi,
@@ -86,6 +87,7 @@ const runUi = shouldRunUi(affected);
 const runAgentPanelContract = shouldRunAgentPanelContract(affected);
 const runTauriBackend = shouldRunTauriBackend(affected);
 const runGpuiPoc = shouldRunGpuiPoc(affected);
+const runElectrobunShell = shouldRunElectrobunShell(affected);
 
 console.log("Pre-push affected sets:");
 console.log(
@@ -98,6 +100,7 @@ console.log(
 			runAgentPanelContract,
 			runTauriBackend,
 			runGpuiPoc,
+			runElectrobunShell,
 		},
 		null,
 		2
@@ -153,6 +156,16 @@ if (runTauriBackend) {
 	);
 }
 
+if (runElectrobunShell) {
+	runShell("electrobun-shell typecheck", "bun run typecheck", "packages/electrobun-shell");
+	runShell("electrobun-shell lint:effect", "bun run lint:effect", "packages/electrobun-shell");
+	runShell("electrobun-shell test", "bun run test", "packages/electrobun-shell");
+	runShell(
+		"electrobun desktop glue tests",
+		"bun test packages/desktop/electrobun.config.test.ts packages/desktop/src/bun/main.test.ts",
+	);
+}
+
 if (runGpuiPoc) {
 	runShell(
 		"gpui-agent-panel-poc clippy",
@@ -169,6 +182,7 @@ if (
 	!runAgentPanelContract &&
 	!runTauriBackend &&
 	!runGpuiPoc &&
+	!runElectrobunShell &&
 	files.length > 0
 ) {
 	console.log("\nNo package-specific frontend/backend checks required for this push set.");

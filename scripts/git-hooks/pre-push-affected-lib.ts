@@ -7,6 +7,7 @@ export type Affected = {
 	rootScripts: boolean;
 	shared: boolean;
 	gpuiPoc: boolean;
+	electrobunShell: boolean;
 };
 
 function matchesAny(files: readonly string[], prefixes: readonly string[]): boolean {
@@ -36,6 +37,13 @@ export function classifyPushFiles(files: readonly string[]): Affected {
 			"railway.json",
 		]),
 		gpuiPoc: matchesAny(files, ["packages/gpui-agent-panel-poc/"]),
+		electrobunShell: matchesAny(files, [
+			"packages/electrobun-shell/",
+			"packages/desktop/electrobun.config.ts",
+			"packages/desktop/src/bun/",
+			"scripts/build-electrobun.sh",
+			"scripts/demo-electrobun-update.sh",
+		]),
 	};
 }
 
@@ -68,4 +76,8 @@ export function shouldRunTauriBackend(affected: Affected): boolean {
 
 export function shouldRunGpuiPoc(affected: Affected): boolean {
 	return affected.gpuiPoc;
+}
+
+export function shouldRunElectrobunShell(affected: Affected): boolean {
+	return affected.electrobunShell || affected.shared;
 }
