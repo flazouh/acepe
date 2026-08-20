@@ -5,6 +5,9 @@
 	"license": "MIT",
 	"type": "module",
 	"exports": {
+		"./orchestration/Errors": "./src/orchestration/Errors.ts",
+		"./orchestration/commandInvariants": "./src/orchestration/commandInvariants.ts",
+		"./orchestration/decider": "./src/orchestration/decider.ts",
 		"./persistence/Layers/Sqlite": "./src/persistence/Layers/Sqlite.ts",
 		"./persistence/Migrations": "./src/persistence/Migrations.ts"
 	},
@@ -14,6 +17,7 @@
 		"test": "bun --bun vitest run"
 	},
 	"dependencies": {
+		"@acepe/contracts": "workspace:*",
 		"@effect/platform-bun": "catalog:",
 		"@effect/sql-sqlite-bun": "catalog:",
 		"effect": "catalog:"
