@@ -1,6 +1,8 @@
+pub mod jsonrpc;
 pub mod names;
 pub mod observability;
 pub mod registry;
+pub mod sidecar;
 pub mod window;
 
 // TODO: Re-enable when tauri_specta::ts import is fixed

@@ -47,7 +47,7 @@ specta-typescript = "0.0.9"
 dotenv = "0.15"
 dirs = "5"
 tokio = { version = "1", features = ["fs", "io-util", "rt-multi-thread", "macros", "sync", "process", "signal", "time"] }
-tokio-stream = { version = "0.1", features = ["sync"] }
+tokio-stream = { version = "0.1", features = ["sync", "io-util"] }
 futures = "0.3"
 axum = { version = "0.7", features = ["http1", "tokio"] }
 # HTTP client for OpenCode REST API
@@ -113,6 +113,10 @@ websocket = ["tokio-tungstenite", "url", "http"]
 # Whisper stays opt-in so normal dev builds do not compile whisper.cpp.
 whisper-native = ["whisper-rs"]
 whisper-metal = ["whisper-native", "whisper-rs/metal"]
+
+[[bin]]
+name = "acepe-sidecar"
+path = "src/bin/sidecar.rs"
 
 [[bin]]
 name = "scan_unmatched_tools"

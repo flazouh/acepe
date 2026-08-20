@@ -557,3 +557,16 @@ crate::all_command_entries!(
     define_registered_tauri_handlers_macro,
     registered_tauri_handlers
 );
+
+macro_rules! define_sidecar_command_names {
+    ($($field:ident : $command:ident),* $(,)?) => {
+        /// JSON-RPC method names the sidecar dispatcher accepts.
+        ///
+        /// Generated from the same `all_command_entries!` chain as
+        /// `registered_tauri_handlers!()`, so every Tauri command is reachable
+        /// by name.
+        pub static SIDECAR_COMMAND_NAMES: &[&str] = &[$(stringify!($command)),*];
+    };
+}
+
+crate::all_command_entries!(define_sidecar_command_names);
