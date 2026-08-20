@@ -1,0 +1,27 @@
+{
+	"name": "@acepe/server",
+	"version": "0.0.1",
+	"private": true,
+	"license": "MIT",
+	"type": "module",
+	"exports": {
+		"./persistence/Layers/Sqlite": "./src/persistence/Layers/Sqlite.ts",
+		"./persistence/Migrations": "./src/persistence/Migrations.ts"
+	},
+	"scripts": {
+		"typecheck": "tsc --noEmit -p tsconfig.json",
+		"lint:effect": "effect-language-service diagnostics --project tsconfig.json --strict --format pretty",
+		"test": "bun --bun vitest run"
+	},
+	"dependencies": {
+		"@effect/platform-bun": "catalog:",
+		"@effect/sql-sqlite-bun": "catalog:",
+		"effect": "catalog:"
+	},
+	"devDependencies": {
+		"@effect/language-service": "catalog:",
+		"@effect/vitest": "catalog:",
+		"typescript": "5.9.3",
+		"vitest": "4.1.10"
+	}
+}
