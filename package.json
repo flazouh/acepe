@@ -23,7 +23,7 @@
 	},
 	"scripts": {
 		"audit": "bun audit --audit-level high",
-		"typecheck": "bun run check:effect-lint && bun run --cwd packages/contracts typecheck && bun run --cwd packages/contracts lint:effect && bun run --cwd packages/desktop typecheck",
+		"typecheck": "bun run check:effect-lint && bun run --cwd packages/contracts typecheck && bun run --cwd packages/contracts lint:effect && bun run --cwd packages/effect-svelte typecheck && bun run --cwd packages/effect-svelte lint:effect && bun run --cwd packages/desktop typecheck",
 		"check:dead-code": "bun scripts/dead-code/find-dead-code.ts --strict",
 		"dead-code:apply": "bun scripts/dead-code/apply-dead-code.ts",
 		"dead-code:apply:force": "bun scripts/dead-code/apply-dead-code.ts --apply",
@@ -33,8 +33,8 @@
 		"install:source": "bash scripts/install-from-source.sh",
 		"prepare": "sh -c 'if [ -d .git ]; then lefthook install; fi'",
 		"test:install-source": "bash scripts/__tests__/install-from-source.test.sh",
-		"test": "bun run test:install-source && bun run check:effect-lint && bun scripts/forbid-structural-tests.ts packages && bun run --cwd packages/contracts test && bun run --cwd packages/ui test && bun run --cwd packages/desktop test && bun run --cwd packages/website test",
-		"lint:effect": "bun run --cwd packages/contracts lint:effect",
+		"test": "bun run test:install-source && bun run check:effect-lint && bun scripts/forbid-structural-tests.ts packages && bun run --cwd packages/contracts test && bun run --cwd packages/effect-svelte test && bun run --cwd packages/ui test && bun run --cwd packages/desktop test && bun run --cwd packages/website test",
+		"lint:effect": "bun run --cwd packages/contracts lint:effect && bun run --cwd packages/effect-svelte lint:effect",
 		"check:effect-lint": "bun scripts/check-effect-lint-strict.ts"
 	},
 	"engines": {
