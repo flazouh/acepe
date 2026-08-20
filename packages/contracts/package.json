@@ -13,13 +13,15 @@
 	"scripts": {
 		"build": "tsdown src/index.ts --no-config --format esm --dts --clean --tsconfig tsconfig.json",
 		"typecheck": "tsc --noEmit -p tsconfig.json",
-		"lint:effect": "effect-language-service diagnostics --project tsconfig.json --strict --format pretty"
+		"lint:effect": "effect-language-service diagnostics --project tsconfig.json --strict --format pretty",
+		"test": "bun test src"
 	},
 	"dependencies": {
 		"effect": "catalog:"
 	},
 	"devDependencies": {
 		"@effect/language-service": "catalog:",
+		"bun-types": "1.3.5",
 		"tsdown": "0.22.14",
 		"typescript": "5.9.3"
 	}
