@@ -1,5 +1,6 @@
 <script lang="ts" module>
-	import { errAsync, ResultAsync } from "neverthrow";
+	import { fromPromise } from "@acepe/effect-result/fromPromise";
+	import * as Effect from "effect/Effect";
 	import { codeToHtml, type ThemeRegistrationAny } from "shiki";
 
 	interface CursorCodeThemes {
@@ -60,52 +61,57 @@
 		return startLine >= 1 ? startLine : undefined;
 	}
 
-	function writeClipboardText(text: string): ResultAsync<void, Error> {
+	function writeClipboardText(text: string): Effect.Effect<void, Error> {
 		const clipboard = typeof navigator === "undefined" ? undefined : navigator.clipboard;
 		if (clipboard === undefined || typeof clipboard.writeText !== "function") {
-			return errAsync(new Error("Clipboard API not available"));
+			return Effect.fail(new Error("Clipboard API not available"));
 		}
 
-		return ResultAsync.fromPromise(
-			clipboard.writeText(text),
+		return fromPromise(
+			() => clipboard.writeText(text),
 			(error) => new Error(`Failed to copy code block: ${String(error)}`),
 		);
 	}
 
-	function fetchCursorTheme(path: string, label: string): ResultAsync<ThemeRegistrationAny, Error> {
+	function fetchCursorTheme(
+		path: string,
+		label: string,
+	): Effect.Effect<ThemeRegistrationAny, Error> {
 		const href =
 			typeof window === "undefined" ? path : new URL(path, window.location.origin).toString();
-		return ResultAsync.fromPromise(
-			fetch(href).then((response) => {
-				if (!response.ok) {
-					throw new Error(`Failed to load ${label} Cursor theme: ${response.status}`);
-				}
-				return response.json() as Promise<ThemeRegistrationAny>;
-			}),
+		return fromPromise(
+			() =>
+				fetch(href).then((response) => {
+					if (!response.ok) {
+						throw new Error(`Failed to load ${label} Cursor theme: ${response.status}`);
+					}
+					return response.json() as Promise<ThemeRegistrationAny>;
+				}),
 			(error) => (error instanceof Error ? error : new Error(String(error))),
 		);
 	}
 
-	function loadCursorCodeThemes(): ResultAsync<CursorCodeThemes, Error> {
-		if (cursorCodeThemesPromise === null) {
-			cursorCodeThemesPromise = fetchCursorTheme("/themes/cursor-light.theme.json", "light")
-				.andThen((light) =>
-					fetchCursorTheme("/themes/cursor.theme.json", "dark").map((dark) => ({
-						dark,
-						light,
-					})),
-				)
-				.match(
-					(themes) => themes,
-					(error) => {
-						cursorCodeThemesPromise = null;
-						throw error;
-					},
-				);
+	function loadCursorCodeThemes(): Effect.Effect<CursorCodeThemes, Error> {
+		let pending = cursorCodeThemesPromise;
+		if (pending === null) {
+			pending = Effect.runPromise(
+				Effect.gen(function* () {
+					const light = yield* fetchCursorTheme("/themes/cursor-light.theme.json", "light");
+					const dark = yield* fetchCursorTheme("/themes/cursor.theme.json", "dark");
+					return { dark, light };
+				}),
+			);
+			cursorCodeThemesPromise = pending;
+			void pending.then(
+				() => undefined,
+				() => {
+					cursorCodeThemesPromise = null;
+				},
+			);
 		}
 
-		return ResultAsync.fromPromise(
-			cursorCodeThemesPromise,
+		return fromPromise(
+			() => pending,
 			(error) => (error instanceof Error ? error : new Error(String(error))),
 		);
 	}
@@ -113,17 +119,18 @@
 	function highlightCode(
 		code: string,
 		normalizedLanguage: string,
-	): ResultAsync<string, Error> {
-		return loadCursorCodeThemes().andThen((themes) =>
-			ResultAsync.fromPromise(
-				codeToHtml(code, {
-					lang: normalizedLanguage || "text",
-					themes: {
-						light: themes.light,
-						dark: themes.dark,
-					},
-					defaultColor: false,
-				}),
+	): Effect.Effect<string, Error> {
+		return Effect.flatMap(loadCursorCodeThemes(), (themes) =>
+			fromPromise(
+				() =>
+					codeToHtml(code, {
+						lang: normalizedLanguage || "text",
+						themes: {
+							light: themes.light,
+							dark: themes.dark,
+						},
+						defaultColor: false,
+					}),
 				(error) => new Error(`Failed to highlight code block: ${String(error)}`),
 			),
 		);
@@ -165,12 +172,14 @@
 			return Promise.resolve(null);
 		}
 
-		return highlightCode(code, normalizedLanguage).match(
-			(html) => html,
-			(error) => {
-				console.error(error.message);
-				return null;
-			},
+		return Effect.runPromise(
+			Effect.match(highlightCode(code, normalizedLanguage), {
+				onFailure: (error) => {
+					console.error(error.message);
+					return null;
+				},
+				onSuccess: (html) => html,
+			}),
 		);
 	});
 
@@ -193,20 +202,22 @@
 		}
 
 		const copyText = code.endsWith("\n") ? code : `${code}\n`;
-		void writeClipboardText(copyText).match(
-			() => {
-				copied = true;
-				if (copiedTimeoutId !== null) {
-					window.clearTimeout(copiedTimeoutId);
-				}
-				copiedTimeoutId = window.setTimeout(() => {
-					copied = false;
-					copiedTimeoutId = null;
-				}, 1500);
-			},
-			(error) => {
-				console.error("Failed to copy code block", error);
-			},
+		void Effect.runPromise(
+			Effect.match(writeClipboardText(copyText), {
+				onSuccess: () => {
+					copied = true;
+					if (copiedTimeoutId !== null) {
+						window.clearTimeout(copiedTimeoutId);
+					}
+					copiedTimeoutId = window.setTimeout(() => {
+						copied = false;
+						copiedTimeoutId = null;
+					}, 1500);
+				},
+				onFailure: (error) => {
+					console.error("Failed to copy code block", error);
+				},
+			}),
 		);
 	}
 </script>

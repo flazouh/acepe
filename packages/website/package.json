@@ -23,14 +23,15 @@
 		"db:studio": "drizzle-kit studio"
 	},
 	"dependencies": {
+		"@acepe/effect-result": "workspace:*",
 		"@acepe/ui": "workspace:*",
 		"@aws-sdk/client-s3": "^3.1069.0",
 		"@aws-sdk/s3-request-presigner": "^3.1069.0",
 		"bits-ui": "^2.14.4",
 		"clsx": "^2.1.1",
 		"drizzle-orm": "^0.45.2",
+		"effect": "catalog:",
 		"nanoid": "^5.0.0",
-		"neverthrow": "^8.2.0",
 		"pino": "^10.1.0",
 		"postgres": "^3.4.5",
 		"shiki": "^3.22.0",

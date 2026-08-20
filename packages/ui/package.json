@@ -230,6 +230,7 @@
     "tailwindcss": "^4.0.0"
   },
   "dependencies": {
+    "@acepe/effect-result": "workspace:*",
     "@fontsource-variable/archivo": "^5.2.8",
     "@hugeicons/core-free-icons": "^4.2.2",
     "@hugeicons/svelte": "^1.1.4",
@@ -238,9 +239,9 @@
     "@tanstack/svelte-query": "^5.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "effect": "catalog:",
     "lru-cache": "^11.2.4",
     "marked": "17.0.6",
-    "neverthrow": "^8.2.0",
     "shiki": "^3.22.0",
     "tailwind-merge": "^3.4.0",
     "tailwind-variants": "^3.2.2",
