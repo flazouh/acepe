@@ -3,6 +3,14 @@
 # Usage: scripts/dispatch-ticket.sh AC-002 <base-ref>
 set -euo pipefail
 
+# Bash reads a script incrementally, so editing this file while lanes are
+# running corrupts them mid-flight. Re-exec from an immutable copy.
+if [ "${LANE_SELF_COPY:-}" != "1" ]; then
+  _copy="$(mktemp -t dispatch-ticket)"
+  cat "$0" > "$_copy"
+  LANE_SELF_COPY=1 exec bash "$_copy" "$@"
+fi
+
 TICKET="${1:?ticket id required}"
 BASE="${2:-HEAD}"
 REPO="/Users/alex/Documents/acepe"
