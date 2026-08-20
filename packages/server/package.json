@@ -5,14 +5,11 @@
 	"license": "MIT",
 	"type": "module",
 	"exports": {
-<<<<<<< HEAD
-		"./orchestration/Schemas": "./src/orchestration/Schemas.ts",
-		"./orchestration/projector": "./src/orchestration/projector.ts",
-=======
 		"./orchestration/Errors": "./src/orchestration/Errors.ts",
+		"./orchestration/Schemas": "./src/orchestration/Schemas.ts",
 		"./orchestration/commandInvariants": "./src/orchestration/commandInvariants.ts",
 		"./orchestration/decider": "./src/orchestration/decider.ts",
->>>>>>> feat/ac-008
+		"./orchestration/projector": "./src/orchestration/projector.ts",
 		"./persistence/Layers/Sqlite": "./src/persistence/Layers/Sqlite.ts",
 		"./persistence/Layers/OrchestrationEventStore": "./src/persistence/Layers/OrchestrationEventStore.ts",
 		"./persistence/Services/OrchestrationEventStore": "./src/persistence/Services/OrchestrationEventStore.ts",
