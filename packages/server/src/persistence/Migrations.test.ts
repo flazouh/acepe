@@ -33,12 +33,14 @@ Vitest.layer(TempSqlite)("runMigrations", (it) => {
 			}>`SELECT migration_id, name FROM _migrations ORDER BY migration_id`.withoutTransform
 			Vitest.assert.deepStrictEqual(first, [
 				[1, "init"],
-				[2, "event_store"]
+				[2, "event_store"],
+				[4, "command_receipts"]
 			])
 			Vitest.assert.deepStrictEqual(second, [])
 			Vitest.assert.deepStrictEqual(rows, [
 				{ migration_id: 1, name: "init" },
-				{ migration_id: 2, name: "event_store" }
+				{ migration_id: 2, name: "event_store" },
+				{ migration_id: 4, name: "command_receipts" }
 			])
 		})
 	)

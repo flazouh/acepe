@@ -9,7 +9,9 @@
 		"./orchestration/projector": "./src/orchestration/projector.ts",
 		"./persistence/Layers/Sqlite": "./src/persistence/Layers/Sqlite.ts",
 		"./persistence/Layers/OrchestrationEventStore": "./src/persistence/Layers/OrchestrationEventStore.ts",
+		"./persistence/Layers/OrchestrationCommandReceipts": "./src/persistence/Layers/OrchestrationCommandReceipts.ts",
 		"./persistence/Services/OrchestrationEventStore": "./src/persistence/Services/OrchestrationEventStore.ts",
+		"./persistence/Services/OrchestrationCommandReceipts": "./src/persistence/Services/OrchestrationCommandReceipts.ts",
 		"./persistence/Migrations": "./src/persistence/Migrations.ts"
 	},
 	"scripts": {
