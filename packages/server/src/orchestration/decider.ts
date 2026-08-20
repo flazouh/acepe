@@ -93,20 +93,41 @@ const turnCancelledPayload = (command: TurnCancelCommand): TurnCancelledPayload 
 	}
 }
 
+const withEnvelope = <
+	const Kind extends OrchestrationEvent["aggregateKind"],
+	AggregateId extends Extract<OrchestrationEvent, { aggregateKind: Kind }>["aggregateId"]
+>(input: {
+	readonly sequence: Sequence
+	readonly eventId: EventId
+	readonly aggregateKind: Kind
+	readonly aggregateId: AggregateId
+	readonly occurredAt: IsoDateTime
+	readonly commandId: OrchestrationEvent["commandId"]
+}) => ({
+	sequence: input.sequence,
+	eventId: input.eventId,
+	aggregateKind: input.aggregateKind,
+	aggregateId: input.aggregateId,
+	occurredAt: input.occurredAt,
+	commandId: input.commandId,
+	causationEventId: null,
+	correlationId: input.commandId,
+	metadata: EMPTY_METADATA
+})
+
 const projectCreatedEvent = (
 	command: ProjectCreateCommand,
 	identity: DecideIdentity,
 	sequence: Sequence
 ): ProjectCreatedEvent => ({
-	sequence,
-	eventId: identity.eventId,
-	aggregateKind: "project",
-	aggregateId: command.projectId,
-	occurredAt: identity.occurredAt,
-	commandId: command.commandId,
-	causationEventId: null,
-	correlationId: command.commandId,
-	metadata: EMPTY_METADATA,
+	...withEnvelope({
+		sequence,
+		eventId: identity.eventId,
+		aggregateKind: "project",
+		aggregateId: command.projectId,
+		occurredAt: identity.occurredAt,
+		commandId: command.commandId
+	}),
 	type: "ProjectCreated",
 	payload: {
 		projectId: command.projectId,
@@ -120,15 +141,14 @@ const projectMetaUpdatedEvent = (
 	identity: DecideIdentity,
 	sequence: Sequence
 ): ProjectMetaUpdatedEvent => ({
-	sequence,
-	eventId: identity.eventId,
-	aggregateKind: "project",
-	aggregateId: command.projectId,
-	occurredAt: identity.occurredAt,
-	commandId: command.commandId,
-	causationEventId: null,
-	correlationId: command.commandId,
-	metadata: EMPTY_METADATA,
+	...withEnvelope({
+		sequence,
+		eventId: identity.eventId,
+		aggregateKind: "project",
+		aggregateId: command.projectId,
+		occurredAt: identity.occurredAt,
+		commandId: command.commandId
+	}),
 	type: "ProjectMetaUpdated",
 	payload: projectMetaUpdatedPayload(command)
 })
@@ -138,15 +158,14 @@ const projectDeletedEvent = (
 	identity: DecideIdentity,
 	sequence: Sequence
 ): ProjectDeletedEvent => ({
-	sequence,
-	eventId: identity.eventId,
-	aggregateKind: "project",
-	aggregateId: command.projectId,
-	occurredAt: identity.occurredAt,
-	commandId: command.commandId,
-	causationEventId: null,
-	correlationId: command.commandId,
-	metadata: EMPTY_METADATA,
+	...withEnvelope({
+		sequence,
+		eventId: identity.eventId,
+		aggregateKind: "project",
+		aggregateId: command.projectId,
+		occurredAt: identity.occurredAt,
+		commandId: command.commandId
+	}),
 	type: "ProjectDeleted",
 	payload: {
 		projectId: command.projectId
@@ -158,15 +177,14 @@ const sessionCreatedEvent = (
 	identity: DecideIdentity,
 	sequence: Sequence
 ): SessionCreatedEvent => ({
-	sequence,
-	eventId: identity.eventId,
-	aggregateKind: "session",
-	aggregateId: command.sessionId,
-	occurredAt: identity.occurredAt,
-	commandId: command.commandId,
-	causationEventId: null,
-	correlationId: command.commandId,
-	metadata: EMPTY_METADATA,
+	...withEnvelope({
+		sequence,
+		eventId: identity.eventId,
+		aggregateKind: "session",
+		aggregateId: command.sessionId,
+		occurredAt: identity.occurredAt,
+		commandId: command.commandId
+	}),
 	type: "SessionCreated",
 	payload: {
 		sessionId: command.sessionId,
@@ -180,15 +198,14 @@ const sessionMetaUpdatedEvent = (
 	identity: DecideIdentity,
 	sequence: Sequence
 ): SessionMetaUpdatedEvent => ({
-	sequence,
-	eventId: identity.eventId,
-	aggregateKind: "session",
-	aggregateId: command.sessionId,
-	occurredAt: identity.occurredAt,
-	commandId: command.commandId,
-	causationEventId: null,
-	correlationId: command.commandId,
-	metadata: EMPTY_METADATA,
+	...withEnvelope({
+		sequence,
+		eventId: identity.eventId,
+		aggregateKind: "session",
+		aggregateId: command.sessionId,
+		occurredAt: identity.occurredAt,
+		commandId: command.commandId
+	}),
 	type: "SessionMetaUpdated",
 	payload: sessionMetaUpdatedPayload(command)
 })
@@ -198,15 +215,14 @@ const sessionArchivedEvent = (
 	identity: DecideIdentity,
 	sequence: Sequence
 ): SessionArchivedEvent => ({
-	sequence,
-	eventId: identity.eventId,
-	aggregateKind: "session",
-	aggregateId: command.sessionId,
-	occurredAt: identity.occurredAt,
-	commandId: command.commandId,
-	causationEventId: null,
-	correlationId: command.commandId,
-	metadata: EMPTY_METADATA,
+	...withEnvelope({
+		sequence,
+		eventId: identity.eventId,
+		aggregateKind: "session",
+		aggregateId: command.sessionId,
+		occurredAt: identity.occurredAt,
+		commandId: command.commandId
+	}),
 	type: "SessionArchived",
 	payload: {
 		sessionId: command.sessionId
@@ -218,15 +234,14 @@ const sessionUnarchivedEvent = (
 	identity: DecideIdentity,
 	sequence: Sequence
 ): SessionUnarchivedEvent => ({
-	sequence,
-	eventId: identity.eventId,
-	aggregateKind: "session",
-	aggregateId: command.sessionId,
-	occurredAt: identity.occurredAt,
-	commandId: command.commandId,
-	causationEventId: null,
-	correlationId: command.commandId,
-	metadata: EMPTY_METADATA,
+	...withEnvelope({
+		sequence,
+		eventId: identity.eventId,
+		aggregateKind: "session",
+		aggregateId: command.sessionId,
+		occurredAt: identity.occurredAt,
+		commandId: command.commandId
+	}),
 	type: "SessionUnarchived",
 	payload: {
 		sessionId: command.sessionId
@@ -238,15 +253,14 @@ const sessionDeletedEvent = (
 	identity: DecideIdentity,
 	sequence: Sequence
 ): SessionDeletedEvent => ({
-	sequence,
-	eventId: identity.eventId,
-	aggregateKind: "session",
-	aggregateId: command.sessionId,
-	occurredAt: identity.occurredAt,
-	commandId: command.commandId,
-	causationEventId: null,
-	correlationId: command.commandId,
-	metadata: EMPTY_METADATA,
+	...withEnvelope({
+		sequence,
+		eventId: identity.eventId,
+		aggregateKind: "session",
+		aggregateId: command.sessionId,
+		occurredAt: identity.occurredAt,
+		commandId: command.commandId
+	}),
 	type: "SessionDeleted",
 	payload: {
 		sessionId: command.sessionId
@@ -258,15 +272,14 @@ const messageSentEvent = (
 	identity: DecideIdentity,
 	sequence: Sequence
 ): MessageSentEvent => ({
-	sequence,
-	eventId: identity.eventId,
-	aggregateKind: "session",
-	aggregateId: command.sessionId,
-	occurredAt: identity.occurredAt,
-	commandId: command.commandId,
-	causationEventId: null,
-	correlationId: command.commandId,
-	metadata: EMPTY_METADATA,
+	...withEnvelope({
+		sequence,
+		eventId: identity.eventId,
+		aggregateKind: "session",
+		aggregateId: command.sessionId,
+		occurredAt: identity.occurredAt,
+		commandId: command.commandId
+	}),
 	type: "MessageSent",
 	payload: {
 		sessionId: command.sessionId,
@@ -280,15 +293,14 @@ const turnCancelledEvent = (
 	identity: DecideIdentity,
 	sequence: Sequence
 ): TurnCancelledEvent => ({
-	sequence,
-	eventId: identity.eventId,
-	aggregateKind: "session",
-	aggregateId: command.sessionId,
-	occurredAt: identity.occurredAt,
-	commandId: command.commandId,
-	causationEventId: null,
-	correlationId: command.commandId,
-	metadata: EMPTY_METADATA,
+	...withEnvelope({
+		sequence,
+		eventId: identity.eventId,
+		aggregateKind: "session",
+		aggregateId: command.sessionId,
+		occurredAt: identity.occurredAt,
+		commandId: command.commandId
+	}),
 	type: "TurnCancelled",
 	payload: turnCancelledPayload(command)
 })
