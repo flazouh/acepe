@@ -1,0 +1,25 @@
+{
+	"name": "@acepe/contracts",
+	"version": "0.0.1",
+	"private": true,
+	"license": "MIT",
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./src/index.ts",
+			"import": "./src/index.ts"
+		}
+	},
+	"scripts": {
+		"build": "tsdown src/index.ts --no-config --format esm --dts --clean --tsconfig tsconfig.json",
+		"typecheck": "tsc --noEmit -p tsconfig.json"
+	},
+	"dependencies": {
+		"effect": "catalog:"
+	},
+	"devDependencies": {
+		"@effect/language-service": "catalog:",
+		"tsdown": "0.22.14",
+		"typescript": "5.9.3"
+	}
+}

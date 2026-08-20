@@ -10,9 +10,20 @@
 		"type": "github",
 		"url": "https://github.com/sponsors/flazouh"
 	},
-	"workspaces": ["packages/*"],
+	"workspaces": [
+		"packages/*"
+	],
+	"catalog": {
+		"effect": "4.0.0-rc.111",
+		"@effect/platform-bun": "4.0.0-rc.111",
+		"@effect/platform-node": "4.0.0-rc.111",
+		"@effect/sql-sqlite-bun": "4.0.0-rc.111",
+		"@effect/vitest": "4.0.0-rc.111",
+		"@effect/language-service": "0.87.2"
+	},
 	"scripts": {
 		"audit": "bun audit --audit-level high",
+		"typecheck": "bun run --cwd packages/contracts typecheck && bun run --cwd packages/desktop typecheck",
 		"check:dead-code": "bun scripts/dead-code/find-dead-code.ts --strict",
 		"dead-code:apply": "bun scripts/dead-code/apply-dead-code.ts",
 		"dead-code:apply:force": "bun scripts/dead-code/apply-dead-code.ts --apply",
@@ -28,6 +39,7 @@
 		"node": "20.x"
 	},
 	"devDependencies": {
+		"@effect/language-service": "catalog:",
 		"lefthook": "2.1.10"
 	},
 	"dependencies": {
