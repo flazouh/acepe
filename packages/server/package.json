@@ -12,7 +12,9 @@
 		"./orchestration/projector": "./src/orchestration/projector.ts",
 		"./persistence/Layers/Sqlite": "./src/persistence/Layers/Sqlite.ts",
 		"./persistence/Layers/OrchestrationEventStore": "./src/persistence/Layers/OrchestrationEventStore.ts",
+		"./persistence/Layers/ProjectionState": "./src/persistence/Layers/ProjectionState.ts",
 		"./persistence/Services/OrchestrationEventStore": "./src/persistence/Services/OrchestrationEventStore.ts",
+		"./persistence/Services/ProjectionState": "./src/persistence/Services/ProjectionState.ts",
 		"./persistence/Migrations": "./src/persistence/Migrations.ts"
 	},
 	"scripts": {
