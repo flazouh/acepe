@@ -1,0 +1,33 @@
+{
+	"name": "@acepe/harness",
+	"version": "0.0.1",
+	"private": true,
+	"license": "MIT",
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./src/index.ts",
+			"import": "./src/index.ts"
+		}
+	},
+	"bin": {
+		"acepe-record": "./src/cli.ts"
+	},
+	"scripts": {
+		"typecheck": "tsc --noEmit -p tsconfig.json",
+		"lint:effect": "effect-language-service diagnostics --project tsconfig.json --strict --format pretty",
+		"test": "bun --bun vitest run",
+		"record": "bun src/cli.ts"
+	},
+	"dependencies": {
+		"@acepe/sidecar": "workspace:*",
+		"@effect/platform-bun": "catalog:",
+		"effect": "catalog:"
+	},
+	"devDependencies": {
+		"@effect/language-service": "catalog:",
+		"@effect/vitest": "catalog:",
+		"typescript": "5.9.3",
+		"vitest": "4.1.9"
+	}
+}
