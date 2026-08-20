@@ -1,0 +1,54 @@
+{
+	"name": "@acepe/effect-svelte",
+	"version": "0.0.1",
+	"private": true,
+	"license": "MIT",
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./src/index.ts",
+			"svelte": "./src/index.ts",
+			"default": "./src/index.ts"
+		},
+		"./atom": {
+			"types": "./src/atom.svelte.ts",
+			"svelte": "./src/atom.svelte.ts",
+			"default": "./src/atom.svelte.ts"
+		},
+		"./runtime": {
+			"types": "./src/runtime.ts",
+			"default": "./src/runtime.ts"
+		},
+		"./resource": {
+			"types": "./src/resource.ts",
+			"svelte": "./src/resource.ts",
+			"default": "./src/resource.ts"
+		},
+		"./scope": {
+			"types": "./src/scope.ts",
+			"svelte": "./src/scope.ts",
+			"default": "./src/scope.ts"
+		}
+	},
+	"scripts": {
+		"typecheck": "tsc --noEmit -p tsconfig.json",
+		"lint:effect": "effect-language-service diagnostics --project tsconfig.json --strict --format pretty",
+		"test": "vitest run --config vitest.config.ts"
+	},
+	"dependencies": {
+		"effect": "catalog:"
+	},
+	"peerDependencies": {
+		"svelte": "^5.0.0"
+	},
+	"devDependencies": {
+		"@effect/language-service": "catalog:",
+		"@sveltejs/vite-plugin-svelte": "^7.1.2",
+		"@testing-library/svelte": "^5.3.1",
+		"happy-dom": "^20.10.3",
+		"svelte": "^5.56.3",
+		"typescript": "5.9.3",
+		"vite": "^8.0.16",
+		"vitest": "^4.1.9"
+	}
+}
