@@ -38,6 +38,7 @@ jobs:
       run_tauri_backend: ${{ steps.combine.outputs.run_tauri_backend }}
       run_gpui_poc: ${{ steps.combine.outputs.run_gpui_poc }}
       run_backend: ${{ steps.combine.outputs.run_backend }}
+      run_electrobun_shell: ${{ steps.combine.outputs.run_electrobun_shell }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -74,6 +75,12 @@ jobs:
               - 'railway.json'
             gpui_agent_panel_poc:
               - 'packages/gpui-agent-panel-poc/**'
+            electrobun_shell:
+              - 'packages/electrobun-shell/**'
+              - 'packages/desktop/electrobun.config.ts'
+              - 'packages/desktop/src/bun/**'
+              - 'scripts/build-electrobun.sh'
+              - 'scripts/demo-electrobun-update.sh'
 
       - name: Set affected job flags from filter (or full matrix on workflow_dispatch)
         id: combine
@@ -88,6 +95,7 @@ jobs:
             echo "run_tauri_backend=true" >> "$GITHUB_OUTPUT"
             echo "run_gpui_poc=true" >> "$GITHUB_OUTPUT"
             echo "run_backend=true" >> "$GITHUB_OUTPUT"
+            echo "run_electrobun_shell=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           if [ "${{ github.event_name }}" != "pull_request" ]; then
@@ -99,6 +107,7 @@ jobs:
             echo "run_tauri_backend=false" >> "$GITHUB_OUTPUT"
             echo "run_gpui_poc=false" >> "$GITHUB_OUTPUT"
             echo "run_backend=false" >> "$GITHUB_OUTPUT"
+            echo "run_electrobun_shell=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           desktop_frontend='${{ steps.paths.outputs.desktop_frontend }}'
@@ -109,6 +118,7 @@ jobs:
           root_scripts='${{ steps.paths.outputs.root_scripts }}'
           shared='${{ steps.paths.outputs.shared }}'
           gpui_agent_panel_poc='${{ steps.paths.outputs.gpui_agent_panel_poc }}'
+          electrobun_shell='${{ steps.paths.outputs.electrobun_shell }}'
 
           if [ "$desktop_frontend" = "true" ] || [ "$desktop_rust" = "true" ] || [ "$ui" = "true" ] || [ "$agent_panel_contract" = "true" ] || [ "$root_scripts" = "true" ] || [ "$shared" = "true" ]; then
             echo "run_desktop=true" >> "$GITHUB_OUTPUT"
@@ -150,6 +160,12 @@ jobs:
             echo "run_gpui_poc=true" >> "$GITHUB_OUTPUT"
           else
             echo "run_gpui_poc=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [ "$electrobun_shell" = "true" ] || [ "$shared" = "true" ]; then
+            echo "run_electrobun_shell=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_electrobun_shell=false" >> "$GITHUB_OUTPUT"
           fi
 
           if [ "$desktop_rust" = "true" ] || [ "$shared" = "true" ] || [ "$gpui_agent_panel_poc" = "true" ]; then
@@ -328,3 +344,35 @@ jobs:
           set -o pipefail
           cargo clippy --all-targets -- -D warnings
           cargo test
+
+  electrobun:
+    name: Electrobun
+    needs: filter
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      RUN_ELECTROBUN_SHELL: ${{ needs.filter.outputs.run_electrobun_shell }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+        if: env.RUN_ELECTROBUN_SHELL == 'true'
+        with:
+          bun-version: 1.3.10
+          cache: true
+          cache-dependency-path: bun.lock
+
+      - if: env.RUN_ELECTROBUN_SHELL == 'true'
+        run: bun install --frozen-lockfile
+
+      - name: No affected Electrobun shell
+        if: env.RUN_ELECTROBUN_SHELL != 'true'
+        run: echo "No affected Electrobun shell; Electrobun check is a no-op."
+
+      - name: Electrobun shell typecheck, lint, and tests
+        if: env.RUN_ELECTROBUN_SHELL == 'true'
+        run: |
+          bun run --cwd packages/electrobun-shell typecheck
+          bun run --cwd packages/electrobun-shell lint:effect
+          bun run --cwd packages/electrobun-shell test
+          bun test packages/desktop/electrobun.config.test.ts packages/desktop/src/bun/main.test.ts

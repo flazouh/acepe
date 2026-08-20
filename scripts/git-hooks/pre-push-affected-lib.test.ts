@@ -34,4 +34,10 @@ describe("classifyPushFiles", () => {
 		expect(affected.shared).toBe(false);
 		expect(affected.rootScripts).toBe(true);
 	});
+
+	it("classifies the electrobun shell package", () => {
+		const affected = classifyPushFiles(["packages/electrobun-shell/src/ping.ts"]);
+		expect(affected.electrobunShell).toBe(true);
+		expect(affected.desktopFrontend).toBe(false);
+	});
 });

@@ -12,6 +12,9 @@ const config = {
 		adapter: adapter({
 			fallback: "index.html",
 		}),
+		paths: {
+			relative: process.env.ACEPE_ELECTROBUN === "1",
+		},
 	},
 };
 

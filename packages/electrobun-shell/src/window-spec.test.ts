@@ -1,0 +1,13 @@
+import { expect, test } from "bun:test"
+
+import { acepeWindowSpec } from "./window-spec.ts"
+
+test("shell window loads the svelte bundle over views://", () => {
+	expect(acepeWindowSpec.url).toBe("views://mainview/index.html")
+})
+
+test("shell window matches the Acepe frame size", () => {
+	expect(acepeWindowSpec.title).toBe("Acepe")
+	expect(acepeWindowSpec.frame.width).toBe(1512)
+	expect(acepeWindowSpec.frame.height).toBe(982)
+})

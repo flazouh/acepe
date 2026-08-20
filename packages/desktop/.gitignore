@@ -1,6 +1,8 @@
 .DS_Store
 node_modules
 /build
+/electrobun-build
+/electrobun-artifacts
 /.svelte-kit
 /package
 .env
