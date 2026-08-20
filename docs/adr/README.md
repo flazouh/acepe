@@ -29,3 +29,4 @@ What gets better, what gets worse, what we now owe.
 - [ADR-0003](0003-dom-authority-transcript-viewport.md) — Use DOM-authority scrolling for the transcript viewport
 - [ADR-0004](0004-unified-selector-architecture.md) — Unified selector kit: Selector, SelectorItem, SelectorPanel; one compositional recipe
 - [ADR-0005](0005-durable-session-event-sequence-authority.md) — Use a durable per-session event sequence authority
+- [ADR-0006](0006-version-orchestration-events-by-adding-tagged-members.md) — Version orchestration events by adding tagged members, never by changing an existing payload

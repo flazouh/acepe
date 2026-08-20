@@ -1,9 +1,8 @@
 import * as Match from "effect/Match"
 import * as Schema from "effect/Schema"
 
+import { TrimmedNonEmptyString } from "./baseSchemas.ts"
 import { CommandId, MessageId, ProjectId, SessionId, TurnId } from "./ids.ts"
-
-const TrimmedNonEmptyString = Schema.Trim.check(Schema.isNonEmpty())
 
 export const OrchestrationAggregateKind = Schema.Literals(["project", "session"])
 export type OrchestrationAggregateKind = typeof OrchestrationAggregateKind.Type
