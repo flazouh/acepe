@@ -5,6 +5,8 @@
 	"license": "MIT",
 	"type": "module",
 	"exports": {
+		"./orchestration/Schemas": "./src/orchestration/Schemas.ts",
+		"./orchestration/projector": "./src/orchestration/projector.ts",
 		"./persistence/Layers/Sqlite": "./src/persistence/Layers/Sqlite.ts",
 		"./persistence/Layers/OrchestrationEventStore": "./src/persistence/Layers/OrchestrationEventStore.ts",
 		"./persistence/Services/OrchestrationEventStore": "./src/persistence/Services/OrchestrationEventStore.ts",
