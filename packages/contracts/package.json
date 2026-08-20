@@ -12,7 +12,8 @@
 	},
 	"scripts": {
 		"build": "tsdown src/index.ts --no-config --format esm --dts --clean --tsconfig tsconfig.json",
-		"typecheck": "tsc --noEmit -p tsconfig.json"
+		"typecheck": "tsc --noEmit -p tsconfig.json",
+		"lint:effect": "effect-language-service diagnostics --project tsconfig.json --strict --format pretty"
 	},
 	"dependencies": {
 		"effect": "catalog:"
