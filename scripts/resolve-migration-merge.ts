@@ -53,10 +53,22 @@ function resolveOnce(text: string): string | null {
 	return text.slice(0, match.index) + body + "\n" + rest
 }
 
-const conflicted = execSync("/usr/bin/git diff --name-only --diff-filter=U", { encoding: "utf8" })
+// Only these files are reliably union-shaped. Anything else — bootstrap.ts,
+// source modules with nested structures — must be resolved by hand, because a
+// blind union produces syntactically valid-looking nonsense.
+const UNION_SAFE = new Set([
+	"packages/server/package.json",
+	"packages/server/src/persistence/Migrations.ts",
+	"packages/server/src/persistence/Migrations.test.ts",
+])
+
+const allConflicted = execSync("/usr/bin/git diff --name-only --diff-filter=U", { encoding: "utf8" })
 	.split("\n")
 	.map((l) => l.trim())
 	.filter(Boolean)
+
+const conflicted = allConflicted.filter((f) => UNION_SAFE.has(f))
+const handOnly = allConflicted.filter((f) => !UNION_SAFE.has(f))
 
 if (conflicted.length === 0) {
 	console.log("resolve-migration-merge: no conflicted files.")
@@ -84,6 +96,13 @@ for (const file of conflicted) {
 
 for (const f of resolved) console.log(`union-resolved: ${f}`)
 for (const f of skipped) console.log(`LEFT FOR YOU: ${f}`)
+
+for (const f of handOnly) console.log(`NOT union-safe, resolve by hand: ${f}`)
+
+if (handOnly.length > 0) {
+	console.error(`\n${handOnly.length} file(s) are outside the union-safe list. Resolve them by hand.`)
+	process.exit(1)
+}
 
 if (skipped.length > 0) {
 	console.error(`\n${skipped.length} file(s) were not clean unions. Resolve them by hand.`)

@@ -87,12 +87,14 @@ const pipelineLayer = Layer.unwrap(
 			{
 				name: turns.name,
 				apply: turns.apply,
-				truncate: turns.truncate,
+				truncate: turns.truncate
 			},
-			{,
+			{
 				name: activities.name,
 				apply: activities.apply,
-				truncate: activities.truncate,
+				truncate: activities.truncate
+			},
+			{
 				name: checkpoints.name,
 				apply: checkpoints.apply,
 				truncate: checkpoints.truncate

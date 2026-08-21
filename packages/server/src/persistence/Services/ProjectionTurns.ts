@@ -316,6 +316,10 @@ export const evolveProjectedTurns = (
 			SessionDeleted: () => Effect.succeed(current),
 			MessageSent: (sent) => projectMessageSent(current, sent),
 			TokenAppended: (appended) => projectTokenAppended(current, appended),
-			TurnCancelled: (cancelled) => projectTurnCancelled(current, cancelled)
+
+			TurnCancelled: (cancelled) => projectTurnCancelled(current, cancelled),
+			CheckpointCreated: () => Effect.succeed(current),
+			CheckpointReadinessChanged: () => Effect.succeed(current),
+			CheckpointReverted: () => Effect.succeed(current)
 		})
 	)(event)
