@@ -1,4 +1,4 @@
-import { startAcepeShell } from "@acepe/electrobun-shell";
+import { launchAcepeShellWindow } from "@acepe/electrobun-shell";
 import { makeAcepeLive } from "@acepe/server/bootstrap";
 import {
 	encodedDispatch,
@@ -20,7 +20,7 @@ const runtime = ManagedRuntime.make(
 	}),
 );
 
-startAcepeShell(
+const launched = launchAcepeShellWindow(
 	{
 		defineRpc: (handlers) =>
 			BrowserView.defineRPC({
@@ -44,6 +44,14 @@ startAcepeShell(
 		},
 	},
 	{
+		writeError: (line) => {
+			process.stderr.write(`${line}\n`);
+		},
+		exit: (code) => process.exit(code),
+	},
+);
+
+launched.attach({
 		dispatch: (params) => runtime.runPromise(encodedDispatch(params)),
 		snapshot: (params) => runtime.runPromise(encodedSnapshot(params)),
 		getProjectIndex: (params) => runtime.runPromise(encodedGetProjectIndex(params)),
@@ -56,5 +64,4 @@ startAcepeShell(
 			);
 			return undefined;
 		},
-	},
-);
+	});
