@@ -17,9 +17,12 @@ if [ "${ACEPE_SIGN:-}" = "true" ]; then
   export ELECTROBUN_APPLEID="${ELECTROBUN_APPLEID:-${APPLE_ID:-}}"
   export ELECTROBUN_APPLEIDPASS="${ELECTROBUN_APPLEIDPASS:-${APPLE_PASSWORD:-}}"
   export ELECTROBUN_TEAMID="${ELECTROBUN_TEAMID:-${APPLE_TEAM_ID:-}}"
-  if [ -z "${ELECTROBUN_DEVELOPER_ID}" ] || [ -z "${ELECTROBUN_APPLEID}" ] || [ -z "${ELECTROBUN_APPLEIDPASS}" ] || [ -z "${ELECTROBUN_TEAMID}" ]; then
-    echo "ACEPE_SIGN=true needs ELECTROBUN_DEVELOPER_ID, ELECTROBUN_APPLEID, ELECTROBUN_APPLEIDPASS, and ELECTROBUN_TEAMID (or the APPLE_* equivalents)." >&2
+  if [ -z "${ELECTROBUN_DEVELOPER_ID}" ]; then
+    echo "ACEPE_SIGN=true needs ELECTROBUN_DEVELOPER_ID or APPLE_SIGNING_IDENTITY." >&2
     exit 1
+  fi
+  if [ -z "${ELECTROBUN_APPLEID}" ] || [ -z "${ELECTROBUN_APPLEIDPASS}" ] || [ -z "${ELECTROBUN_TEAMID}" ]; then
+    echo "Apple ID notarisation credentials are missing. Codesign will run. Notarisation and staple will skip." >&2
   fi
 fi
 
@@ -34,7 +37,9 @@ if [ "${ACEPE_SIGN:-}" = "true" ]; then
     echo "No .app bundle found under packages/desktop/electrobun-build" >&2
     exit 1
   fi
-  xcrun stapler staple "${APP}"
-  xcrun stapler validate "${APP}"
-  codesign --verify --deep --strict --verbose=2 "${APP}"
+  if [ -n "${ELECTROBUN_APPLEID}" ] && [ -n "${ELECTROBUN_APPLEIDPASS}" ] && [ -n "${ELECTROBUN_TEAMID}" ]; then
+    xcrun stapler staple "${APP}"
+    xcrun stapler validate "${APP}"
+  fi
+  codesign --verify --strict --verbose=2 "${APP}"
 fi

@@ -1,16 +1,52 @@
 import { expect, test } from "bun:test"
 import * as ConfigProvider from "effect/ConfigProvider"
 import * as Effect from "effect/Effect"
+import * as Option from "effect/Option"
 
 import {
 	githubSecretToElectrobunEnv,
+	hasNotarizeCredentials,
 	loadSigningPolicy,
 	macEntitlements,
 	stapleCommands,
 } from "./signing.ts"
 
-test("signing credentials turn codesign, notarize, and staple on", () => {
+test("ACEPE_SIGN without Apple credentials codesigns and skips notarisation", () => {
 	const provider = ConfigProvider.fromEnv({ env: { ACEPE_SIGN: "true" } })
+	const policy = Effect.runSync(
+		loadSigningPolicy.pipe(Effect.provideService(ConfigProvider.ConfigProvider, provider)),
+	)
+	expect(policy.codesign).toBe(true)
+	expect(policy.notarize).toBe(false)
+	expect(policy.staple).toBe(false)
+})
+
+test("ACEPE_SIGN with Apple ID credentials codesigns, notarises, and staples", () => {
+	const provider = ConfigProvider.fromEnv({
+		env: {
+			ACEPE_SIGN: "true",
+			ELECTROBUN_APPLEID: "dev@acepe.app",
+			ELECTROBUN_APPLEIDPASS: "app-specific-password",
+			ELECTROBUN_TEAMID: "GD7PWQBWJV",
+		},
+	})
+	const policy = Effect.runSync(
+		loadSigningPolicy.pipe(Effect.provideService(ConfigProvider.ConfigProvider, provider)),
+	)
+	expect(policy.codesign).toBe(true)
+	expect(policy.notarize).toBe(true)
+	expect(policy.staple).toBe(true)
+})
+
+test("ACEPE_SIGN with GitHub Apple secrets codesigns, notarises, and staples", () => {
+	const provider = ConfigProvider.fromEnv({
+		env: {
+			ACEPE_SIGN: "true",
+			APPLE_ID: "dev@acepe.app",
+			APPLE_PASSWORD: "app-specific-password",
+			APPLE_TEAM_ID: "GD7PWQBWJV",
+		},
+	})
 	const policy = Effect.runSync(
 		loadSigningPolicy.pipe(Effect.provideService(ConfigProvider.ConfigProvider, provider)),
 	)
@@ -27,6 +63,39 @@ test("missing credentials leave the local build unsigned", () => {
 	expect(policy.codesign).toBe(false)
 	expect(policy.notarize).toBe(false)
 	expect(policy.staple).toBe(false)
+})
+
+test("notarize credentials need the full Apple ID trio or the API key trio", () => {
+	expect(
+		hasNotarizeCredentials({
+			appleId: Option.some("dev@acepe.app"),
+			applePassword: Option.some("app-specific-password"),
+			teamId: Option.some("GD7PWQBWJV"),
+			apiIssuer: Option.none(),
+			apiKey: Option.none(),
+			apiKeyPath: Option.none(),
+		}),
+	).toBe(true)
+	expect(
+		hasNotarizeCredentials({
+			appleId: Option.some("dev@acepe.app"),
+			applePassword: Option.none(),
+			teamId: Option.some("GD7PWQBWJV"),
+			apiIssuer: Option.none(),
+			apiKey: Option.none(),
+			apiKeyPath: Option.none(),
+		}),
+	).toBe(false)
+	expect(
+		hasNotarizeCredentials({
+			appleId: Option.none(),
+			applePassword: Option.none(),
+			teamId: Option.none(),
+			apiIssuer: Option.some("issuer"),
+			apiKey: Option.some("key-id"),
+			apiKeyPath: Option.some("/tmp/AuthKey.p8"),
+		}),
+	).toBe(true)
 })
 
 test("staple commands attach and check the notarisation ticket", () => {
