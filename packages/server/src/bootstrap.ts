@@ -39,6 +39,8 @@ import { ProjectionTurns } from "./persistence/Services/ProjectionTurns.ts"
 import { ProjectionCheckpoints } from "./persistence/Services/ProjectionCheckpoints.ts"
 import { ProjectionProjects } from "./persistence/Services/ProjectionProjects.ts"
 import { HardcodedProviderLive } from "./provider/HardcodedProvider.ts"
+import { FileIndexServiceLive } from "./fileIndex/Layers/FileIndexService.ts"
+import { FileIndexWarmOnImportLive } from "./fileIndex/Layers/FileIndexWarmOnImport.ts"
 import { RpcHandlersLive } from "./rpc/handlers.ts"
 import { runStdioServer } from "./rpc/stdio.ts"
 
@@ -125,11 +127,13 @@ export const makeAcepeLive = (input: AcepeLiveInput) => {
 	const engine = engineAt(input.filename)
 	const snapshots = ProjectionSnapshotQueryLive
 	const rpc = RpcHandlersLive.pipe(Layer.provideMerge(snapshots))
+	const fileIndex = FileIndexWarmOnImportLive.pipe(Layer.provideMerge(FileIndexServiceLive))
 	return Layer.mergeAll(
 		rpc,
 		HardcodedProviderLive(input.tokenDelay),
 		pipelineLayer,
-		snapshots
+		snapshots,
+		fileIndex
 	).pipe(Layer.provideMerge(engine))
 }
 
