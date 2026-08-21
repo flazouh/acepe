@@ -31,7 +31,7 @@
 		"hooks:pre-commit": "lefthook run pre-commit",
 		"hooks:pre-push": "lefthook run pre-push",
 		"install:source": "bash scripts/install-from-source.sh",
-		"prepare": "sh -c 'if [ -d .git ]; then lefthook install; fi'",
+		"prepare": "./scripts/prepare-effect.sh && sh -c 'if [ -d .git ]; then lefthook install; fi'",
 		"test:install-source": "bash scripts/__tests__/install-from-source.test.sh",
 		"test": "bun run test:install-source && bun run check:effect-lint && bun run check:migrations && bun scripts/forbid-structural-tests.ts packages && bun run --cwd packages/contracts test && bun run --cwd packages/effect-result test && bun run --cwd packages/effect-svelte test && bun run --cwd packages/harness test && bun run --cwd packages/server test && bun run --cwd packages/sidecar test && bun run --cwd packages/electrobun-shell test && bun run --cwd packages/transcript-viewport test && bun run --cwd packages/ui test && bun run --cwd packages/desktop test && bun run --cwd packages/website test",
 		"lint:effect": "bun run --cwd packages/contracts lint:effect && bun run --cwd packages/effect-result lint:effect && bun run --cwd packages/effect-svelte lint:effect && bun run --cwd packages/harness lint:effect && bun run --cwd packages/server lint:effect && bun run --cwd packages/sidecar lint:effect && bun run --cwd packages/electrobun-shell lint:effect && bun run --cwd packages/transcript-viewport lint:effect",

@@ -2,6 +2,7 @@
 
 # Dependencies
 node_modules/
+.repos/effect
 .pnp
 .pnp.js
 
