@@ -117,6 +117,55 @@ describe("applyEventToRpcSessionSnapshot", () => {
 		expect(duplicate.snapshotSequence).toBe(10)
 	})
 
+	it("applies SessionMetaUpdated pull-request fields onto the snapshot session", () => {
+		const afterSession = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), sessionCreated)
+		const linked = applyEventToRpcSessionSnapshot(afterSession, {
+			sequence: 3,
+			eventId: EventId.make("event-3"),
+			aggregateKind: "session",
+			aggregateId: sessionId,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: {},
+			type: "SessionMetaUpdated",
+			payload: {
+				sessionId,
+				prNumber: 42,
+				prLinkMode: "manual",
+			},
+		})
+		expect(linked.session?.prNumber).toBe(42)
+		expect(linked.session?.prLinkMode).toBe("manual")
+		expect(linked.session?.title).toBe("First session")
+	})
+
+	it("discards a SessionMetaUpdated at or below snapshotSequence", () => {
+		const afterSession = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), sessionCreated)
+		const skipped = applyEventToRpcSessionSnapshot(afterSession, {
+			sequence: 2,
+			eventId: EventId.make("event-stale"),
+			aggregateKind: "session",
+			aggregateId: sessionId,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: {},
+			type: "SessionMetaUpdated",
+			payload: {
+				sessionId,
+				title: "Stale title",
+				prNumber: 99,
+				prLinkMode: "manual",
+			},
+		})
+		expect(skipped.session?.title).toBe("First session")
+		expect(skipped.session?.prNumber).toBeNull()
+		expect(skipped.snapshotSequence).toBe(2)
+	})
+
 	it("ignores transcript events from another session", () => {
 		const afterSession = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), sessionCreated)
 		const other = applyEventToRpcSessionSnapshot(afterSession, {

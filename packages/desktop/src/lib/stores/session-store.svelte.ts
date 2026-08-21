@@ -1,42 +1,36 @@
-import {
-	applyEventToRpcSessionSnapshot,
-	emptyRpcSessionSnapshot,
-	type RpcClient,
-	type SessionId,
-} from "@acepe/contracts";
+import type { RpcClient } from "@acepe/contracts";
 import { atomState } from "@acepe/effect-svelte/atom";
-import * as Effect from "effect/Effect";
-import * as Stream from "effect/Stream";
-import * as Atom from "effect/unstable/reactivity/Atom";
 import type * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
+
+import { composeSessionStore } from "./session-store-compose.ts";
+import { sessionStoreView } from "./session-store-optimistic.ts";
 
 export const createSessionStore = (input: {
 	readonly client: RpcClient;
 	readonly registry: AtomRegistry.AtomRegistry;
 }) => {
-	const snapshotAtom = Atom.make(emptyRpcSessionSnapshot(0));
-	const snapshot = atomState(snapshotAtom, input.registry);
-
-	const openSession = Effect.fn("openSession")(function* (sessionId: SessionId) {
-		const snap = yield* input.client.snapshot(sessionId);
-		input.registry.set(snapshotAtom, snap);
-		yield* input.client.events(snap.snapshotSequence).pipe(
-			Stream.runForEach((event) =>
-				Effect.sync(() => {
-					const current = input.registry.get(snapshotAtom);
-					input.registry.set(
-						snapshotAtom,
-						applyEventToRpcSessionSnapshot(current, event),
-					);
-				}),
-			),
-		);
-	});
+	const parts = composeSessionStore(input);
+	const snapshot = atomState(parts.snapshotAtom, input.registry);
+	const sendMoment = atomState(parts.sendMomentAtom, input.registry);
 
 	return {
 		snapshot,
-		snapshotAtom,
-		openSession,
-		dispatch: input.client.dispatch,
+		snapshotAtom: parts.snapshotAtom,
+		openSession: parts.openSession,
+		dispatch: parts.dispatch,
+		recordSendMoment: parts.recordSendMoment,
+		togglePrLink: parts.togglePrLink,
+		get headerTitle(): string | null {
+			return sessionStoreView({
+				snapshot: snapshot.current,
+				sendMoment: sendMoment.current,
+			}).headerTitle;
+		},
+		get showWorkingSpark(): boolean {
+			return sessionStoreView({
+				snapshot: snapshot.current,
+				sendMoment: sendMoment.current,
+			}).showWorkingSpark;
+		},
 	};
 };

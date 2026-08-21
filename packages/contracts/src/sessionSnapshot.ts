@@ -72,6 +72,8 @@ const touchSession = (
 		lastActivityAt: occurredAt,
 		archivedAt: session.archivedAt,
 		deletedAt: session.deletedAt,
+		prNumber: session.prNumber,
+		prLinkMode: session.prLinkMode,
 	}
 }
 
@@ -156,6 +158,37 @@ const applySessionCreated = (
 		lastActivityAt: event.occurredAt,
 		archivedAt: null,
 		deletedAt: null,
+		prNumber: null,
+		prLinkMode: null,
+	}
+	return replaceMessages(snapshot, event.sequence, snapshot.messages, session)
+}
+
+const applySessionMetaUpdated = (
+	snapshot: RpcSessionSnapshot,
+	event: Extract<OrchestrationEvent, { readonly type: "SessionMetaUpdated" }>,
+): RpcSessionSnapshot => {
+	if (!isThisSession(snapshot, event.payload.sessionId)) {
+		return withSequence(snapshot, event.sequence)
+	}
+	if (snapshot.session === null) {
+		return withSequence(snapshot, event.sequence)
+	}
+	const current = snapshot.session
+	const session: RpcProjectedSession = {
+		sessionId: current.sessionId,
+		projectId: current.projectId,
+		title: event.payload.title !== undefined ? event.payload.title : current.title,
+		provider: current.provider,
+		createdAt: current.createdAt,
+		updatedAt: event.occurredAt,
+		lastActivityAt: event.occurredAt,
+		archivedAt: current.archivedAt,
+		deletedAt: current.deletedAt,
+		prNumber:
+			event.payload.prNumber !== undefined ? event.payload.prNumber : current.prNumber,
+		prLinkMode:
+			event.payload.prLinkMode !== undefined ? event.payload.prLinkMode : current.prLinkMode,
 	}
 	return replaceMessages(snapshot, event.sequence, snapshot.messages, session)
 }
@@ -170,6 +203,8 @@ export const applyEventToRpcSessionSnapshot = (
 	switch (event.type) {
 		case "SessionCreated":
 			return applySessionCreated(snapshot, event)
+		case "SessionMetaUpdated":
+			return applySessionMetaUpdated(snapshot, event)
 		case "MessageSent": {
 			if (!isThisSession(snapshot, event.payload.sessionId)) {
 				return withSequence(snapshot, event.sequence)

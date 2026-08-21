@@ -102,7 +102,9 @@ const DumpRow = Schema.Struct({
 	updated_at: Schema.String,
 	last_activity_at: Schema.String,
 	archived_at: Schema.NullOr(Schema.String),
-	deleted_at: Schema.NullOr(Schema.String)
+	deleted_at: Schema.NullOr(Schema.String),
+	pr_number: Schema.NullOr(Schema.Int),
+	pr_link_mode: Schema.NullOr(Schema.String)
 })
 const decodeDumpRows = Schema.decodeUnknownEffect(Schema.Array(DumpRow))
 
@@ -150,7 +152,9 @@ const dumpTable = Effect.fn("dumpProjectionSessions")(function*() {
 			updated_at,
 			last_activity_at,
 			archived_at,
-			deleted_at
+			deleted_at,
+			pr_number,
+			pr_link_mode
 		FROM projection_sessions
 		ORDER BY session_id ASC
 	`.withoutTransform
@@ -401,6 +405,41 @@ Vitest.layer(isolatedSessions())("archived and deleted stay in the table", (it) 
 			Vitest.assert.strictEqual(listed.length, 1)
 			Vitest.assert.strictEqual(listed[0]?.archivedAt, LATER)
 			Vitest.assert.strictEqual(listed[0]?.deletedAt, LATER)
+		})
+	)
+})
+
+Vitest.layer(isolatedSessions())("pull-request link", (it) => {
+	it.effect("stores pr_number and pr_link_mode from SessionMetaUpdated", () =>
+		Effect.gen(function*() {
+			const sql = yield* SqlClient.SqlClient
+			const sessions = yield* ProjectionSessions
+			yield* sessions.apply(
+				sessionEvent(1, "SessionCreated", NOW, {
+					sessionId,
+					projectId,
+					title: "First session"
+				}),
+				sql
+			)
+			yield* sessions.apply(
+				sessionEvent(2, "SessionMetaUpdated", LATER, {
+					sessionId,
+					prNumber: 42,
+					prLinkMode: "manual" as const
+				}),
+				sql
+			)
+			const row = yield* sessions.get(sessionId)
+			const session = Option.match(row, {
+				onNone: () => {
+					Vitest.assert.fail("expected a projected session")
+					return undefined as never
+				},
+				onSome: (value) => value
+			})
+			Vitest.assert.strictEqual(session.prNumber, 42)
+			Vitest.assert.strictEqual(session.prLinkMode, "manual")
 		})
 	)
 })

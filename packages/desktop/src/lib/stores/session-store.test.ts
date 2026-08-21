@@ -1,9 +1,10 @@
 import { describe, expect, it } from "bun:test";
 import {
 	CommandId,
-	emptyRpcSessionSnapshot,
 	EventId,
+	emptyRpcSessionSnapshot,
 	MessageId,
+	type OrchestrationCommand,
 	type OrchestrationEvent,
 	ProjectId,
 	type RpcClient,
@@ -91,6 +92,8 @@ const snapshotWithUser: RpcSessionSnapshot = {
 		lastActivityAt: occurredAt,
 		archivedAt: null,
 		deletedAt: null,
+		prNumber: null,
+		prLinkMode: null,
 	},
 	messages: [
 		{
@@ -129,9 +132,7 @@ describe("createSessionStore", () => {
 			Effect.gen(function* () {
 				const registry = AtomRegistry.make();
 				const store = createSessionStore({
-					client: fakeClient(
-						TRACER_REPLY_TOKENS.map((token, index) => tokenAt(4 + index, token)),
-					),
+					client: fakeClient(TRACER_REPLY_TOKENS.map((token, index) => tokenAt(4 + index, token))),
 					registry,
 				});
 				yield* store.openSession(sessionId);
@@ -150,7 +151,7 @@ describe("createSessionStore", () => {
 					expect(assistant.content.text).toBe(TRACER_REPLY_TEXT);
 					expect(assistant.sequence).toBe(4);
 				}
-			}),
+			})
 		));
 
 	it("discards replayed events at or below snapshotSequence", () =>
@@ -158,12 +159,78 @@ describe("createSessionStore", () => {
 			Effect.gen(function* () {
 				const registry = AtomRegistry.make();
 				const store = createSessionStore({
-					client: fakeClient([sessionCreated, messageSent, tokenAt(4, "Hello")]),
+					client: {
+						dispatch: () => Effect.succeed({ sequence: 1 }),
+						snapshot: () => Effect.succeed(snapshotWithUser),
+						events: () =>
+							Stream.fromArray([
+								sessionCreated,
+								messageSent,
+								tokenAt(3, "WRONG"),
+								tokenAt(4, "Hello"),
+							]),
+					},
 					registry,
 				});
 				yield* store.openSession(sessionId);
 				expect(store.snapshot.current.messages).toHaveLength(2);
 				expect(store.snapshot.current.messages[0]?.messageId).toBe(userMessageId);
-			}),
+				const assistant = store.snapshot.current.messages[1];
+				expect(assistant?.rowType).toBe("assistant");
+				if (assistant?.rowType === "assistant") {
+					expect(assistant.content.text).toBe("Hello");
+				}
+			})
+		));
+
+	it("renders the send-moment header and spark without storing a session title", () => {
+		const registry = AtomRegistry.make();
+		const store = createSessionStore({
+			client: fakeClient([]),
+			registry,
+		});
+		store.recordSendMoment({
+			text: "Reply with only the word hello",
+			selectedAgentId: "claude-code",
+			projectName: "acepe",
+		});
+		expect(store.snapshot.current.session).toBeNull();
+		expect(store.headerTitle).toBe("Reply with only the word hello");
+		expect(store.showWorkingSpark).toBe(true);
+	});
+
+	it("dispatches the PR link toggle through session.meta.update", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				const dispatched: Array<OrchestrationCommand> = [];
+				const registry = AtomRegistry.make();
+				const store = createSessionStore({
+					client: {
+						dispatch: (command) => {
+							dispatched.push(command);
+							return Effect.succeed({ sequence: 4 });
+						},
+						snapshot: () => Effect.succeed(snapshotWithUser),
+						events: () => Stream.fromArray([]),
+					},
+					registry,
+				});
+				yield* store.openSession(sessionId);
+				yield* store.togglePrLink({
+					commandId: CommandId.make("cmd-pr"),
+					sessionId,
+					prNumber: 42,
+					prLinkMode: "manual",
+				});
+				expect(dispatched).toEqual([
+					{
+						type: "session.meta.update",
+						commandId: CommandId.make("cmd-pr"),
+						sessionId,
+						prNumber: 42,
+						prLinkMode: "manual",
+					},
+				]);
+			})
 		));
 });

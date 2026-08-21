@@ -41,7 +41,9 @@ const oracle = {
 		updatedAt: HISTORY_TEST_NOW,
 		lastActivityAt: HISTORY_TEST_NOW,
 		archivedAt: null,
-		deletedAt: null
+		deletedAt: null,
+		prNumber: null,
+		prLinkMode: null
 	},
 	messages: [
 		{

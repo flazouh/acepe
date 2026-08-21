@@ -51,11 +51,19 @@ export const SessionCreateCommand = Schema.Struct({
 })
 export type SessionCreateCommand = typeof SessionCreateCommand.Type
 
+export const SessionPrLinkMode = Schema.Literals(["automatic", "manual"])
+export type SessionPrLinkMode = typeof SessionPrLinkMode.Type
+
+export const SessionPrNumber = Schema.Int.check(Schema.isGreaterThanOrEqualTo(1))
+export type SessionPrNumber = typeof SessionPrNumber.Type
+
 export const SessionMetaUpdateCommand = Schema.Struct({
 	type: Schema.Literal("session.meta.update"),
 	commandId: CommandId,
 	sessionId: SessionId,
 	title: Schema.optionalKey(TrimmedNonEmptyString),
+	prNumber: SessionPrNumber.pipe(Schema.NullOr, Schema.optionalKey),
+	prLinkMode: Schema.optionalKey(SessionPrLinkMode),
 })
 export type SessionMetaUpdateCommand = typeof SessionMetaUpdateCommand.Type
 

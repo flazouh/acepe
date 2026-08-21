@@ -284,6 +284,16 @@ describe("OrchestrationEvent", () => {
 		)
 	})
 
+	it("round-trips SessionMetaUpdated with a pull-request link", () => {
+		roundTrip(
+			sessionEvent("SessionMetaUpdated", {
+				sessionId,
+				prNumber: 42,
+				prLinkMode: "manual" as const,
+			}),
+		)
+	})
+
 	it("round-trips generated union members", () => {
 		const arbitrary = Schema.toArbitrary(OrchestrationEvent)(FastCheck)
 		FastCheck.assert(

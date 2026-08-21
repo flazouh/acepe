@@ -81,6 +81,8 @@ const snapshot: RpcSessionSnapshot = {
 		lastActivityAt: "2026-08-20T12:00:00.000Z",
 		archivedAt: null,
 		deletedAt: null,
+		prNumber: null,
+		prLinkMode: null,
 	},
 	messages: [
 		{
