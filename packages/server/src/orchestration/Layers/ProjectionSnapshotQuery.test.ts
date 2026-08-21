@@ -124,21 +124,21 @@ const checkpoint = Effect.fn("checkpoint")(function*(name: string, sequence: num
 const createOptionalTables = Effect.gen(function*() {
 	const sql = yield* SqlClient.SqlClient
 	yield* sql`
-		CREATE TABLE projection_turns (
+		CREATE TABLE IF NOT EXISTS projection_turns (
 			turn_id TEXT PRIMARY KEY NOT NULL,
 			session_id TEXT NOT NULL,
 			sequence INTEGER NOT NULL
 		)
 	`.withoutTransform
 	yield* sql`
-		CREATE TABLE projection_session_activities (
+		CREATE TABLE IF NOT EXISTS projection_session_activities (
 			activity_id TEXT PRIMARY KEY NOT NULL,
 			session_id TEXT NOT NULL,
 			sequence INTEGER NOT NULL
 		)
 	`.withoutTransform
 	yield* sql`
-		CREATE TABLE projection_pending_approvals (
+		CREATE TABLE IF NOT EXISTS projection_pending_approvals (
 			approval_request_id TEXT PRIMARY KEY NOT NULL,
 			session_id TEXT NOT NULL,
 			sequence INTEGER NOT NULL
