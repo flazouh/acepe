@@ -3,39 +3,37 @@ import * as Arr from "effect/Array"
 import * as Effect from "effect/Effect"
 import { parseGitignore } from "./gitignore.ts"
 import { applyFileIndexUpdates, buildProjectIndex, sortIndexedFiles } from "./incremental.ts"
-import { indexedFileFromRelativePath } from "./scanner.ts"
+import { makeIndexedFile } from "./makeIndexedFile.ts"
 import type { IndexedFile } from "./Schemas.ts"
 
 Vitest.describe("sortIndexedFiles", () => {
-	Vitest.it.effect("puts git-changed files first, then sorts by path", () =>
-		Effect.gen(function*() {
-			const clean = yield* indexedFileFromRelativePath("z.ts")
-			const changed: IndexedFile = {
+	Vitest.it("puts git-changed files first, then sorts by path", () => {
+		const clean = makeIndexedFile("z.ts")
+		const changed: IndexedFile = {
+			path: "b.ts",
+			extension: "ts",
+			lineCount: 0,
+			gitStatus: {
 				path: "b.ts",
-				extension: "ts",
-				lineCount: 0,
-				gitStatus: {
-					path: "b.ts",
-					status: "M",
-					insertions: 1,
-					deletions: 0
-				}
+				status: "M",
+				insertions: 1,
+				deletions: 0
 			}
-			const other = yield* indexedFileFromRelativePath("a.ts")
-			const sorted = sortIndexedFiles([clean, other, changed])
-			Vitest.assert.deepStrictEqual(Arr.map(sorted, (file) => file.path), [
-				"b.ts",
-				"a.ts",
-				"z.ts"
-			])
-		})
-	)
+		}
+		const other = makeIndexedFile("a.ts")
+		const sorted = sortIndexedFiles([clean, other, changed])
+		Vitest.assert.deepStrictEqual(Arr.map(sorted, (file) => file.path), [
+			"b.ts",
+			"a.ts",
+			"z.ts"
+		])
+	})
 })
 
 Vitest.describe("buildProjectIndex", () => {
 	Vitest.it.effect("counts files and lines after sort", () =>
 		Effect.gen(function*() {
-			const first = yield* indexedFileFromRelativePath("b.ts")
+			const first = makeIndexedFile("b.ts")
 			const second: IndexedFile = {
 				path: "a.ts",
 				extension: "ts",
@@ -53,8 +51,8 @@ Vitest.describe("buildProjectIndex", () => {
 Vitest.describe("applyFileIndexUpdates", () => {
 	Vitest.it.effect("upserts and removes without walking the tree", () =>
 		Effect.gen(function*() {
-			const existing = yield* indexedFileFromRelativePath("src/keep.ts")
-			const stale = yield* indexedFileFromRelativePath("src/gone.ts")
+			const existing = makeIndexedFile("src/keep.ts")
+			const stale = makeIndexedFile("src/gone.ts")
 			const index = yield* buildProjectIndex("/tmp/project", [existing, stale], [])
 			const next = yield* applyFileIndexUpdates(
 				index,
@@ -74,7 +72,7 @@ Vitest.describe("applyFileIndexUpdates", () => {
 
 	Vitest.it.effect("drops upserts that gitignore would exclude", () =>
 		Effect.gen(function*() {
-			const existing = yield* indexedFileFromRelativePath("src/keep.ts")
+			const existing = makeIndexedFile("src/keep.ts")
 			const index = yield* buildProjectIndex("/tmp/project", [existing], [])
 			const next = yield* applyFileIndexUpdates(
 				index,

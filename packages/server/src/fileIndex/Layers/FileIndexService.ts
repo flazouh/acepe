@@ -3,6 +3,7 @@ import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Path from "effect/Path"
+import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner"
 import type { GitignoreRule } from "../gitignore.ts"
 import { FILE_INDEX_CACHE_TTL_MS, makeIndexCache } from "../indexCache.ts"
 import { applyFileIndexUpdates, buildProjectIndex, emptyGitStatus } from "../incremental.ts"
@@ -18,10 +19,11 @@ export type CachedProjectIndex = {
 const makeFileIndexService = Effect.fn("FileIndexService.make")(function*() {
 	const fs = yield* FileSystem.FileSystem
 	const path = yield* Path.Path
+	const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
 	const cache = yield* makeIndexCache<CachedProjectIndex, FileIndexError>(FILE_INDEX_CACHE_TTL_MS)
 
 	const scan = Effect.fn("FileIndexService.scan")(function*(projectPath: string) {
-		const scanned = yield* scanProject(fs, path, projectPath)
+		const scanned = yield* scanProject(fs, path, spawner, projectPath)
 		return {
 			index: yield* buildProjectIndex(projectPath, scanned.files, emptyGitStatus()),
 			ignoreRules: scanned.ignoreRules

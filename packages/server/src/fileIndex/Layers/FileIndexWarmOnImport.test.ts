@@ -4,6 +4,9 @@ import {
 	ProjectId,
 	TrimmedNonEmptyString
 } from "@acepe/contracts"
+import * as BunChildProcessSpawner from "@effect/platform-bun/BunChildProcessSpawner"
+import * as BunFileSystem from "@effect/platform-bun/BunFileSystem"
+import * as BunPath from "@effect/platform-bun/BunPath"
 import * as Vitest from "@effect/vitest"
 import * as Arr from "effect/Array"
 import * as Effect from "effect/Effect"
@@ -20,10 +23,17 @@ import { FileIndexService } from "../Services/FileIndexService.ts"
 import { FileIndexServiceLive } from "./FileIndexService.ts"
 import { FileIndexWarmOnImportLive } from "./FileIndexWarmOnImport.ts"
 
+const FileIndexPlatform = Layer.mergeAll(
+	HistoryPlatform,
+	BunChildProcessSpawner.layer.pipe(
+		Layer.provideMerge(Layer.mergeAll(BunFileSystem.layer, BunPath.layer))
+	)
+)
+
 const TestLive = FileIndexWarmOnImportLive.pipe(
 	Layer.provideMerge(FileIndexServiceLive),
 	Layer.provideMerge(HistoryEngineLive),
-	Layer.provideMerge(HistoryPlatform)
+	Layer.provideMerge(FileIndexPlatform)
 )
 
 const isolated = () => Layer.fresh(TestLive)

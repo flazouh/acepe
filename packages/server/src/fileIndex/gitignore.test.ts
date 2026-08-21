@@ -3,6 +3,7 @@ import {
 	exceedsMaxScanDepth,
 	extensionFromRelativePath,
 	isGitInternalPath,
+	isGitignoreName,
 	isIgnoredPath,
 	MAX_SCAN_DEPTH,
 	parseGitignore,
@@ -29,6 +30,13 @@ Vitest.describe("path helpers", () => {
 		Vitest.assert.strictEqual(isGitInternalPath(".git/config"), true)
 		Vitest.assert.strictEqual(isGitInternalPath("src/.git/hooks/pre-commit"), true)
 		Vitest.assert.strictEqual(isGitInternalPath("src/main.ts"), false)
+	})
+
+	Vitest.it("recognizes gitignore files outside .git", () => {
+		Vitest.assert.strictEqual(isGitignoreName(".gitignore"), true)
+		Vitest.assert.strictEqual(isGitignoreName("pkg/.gitignore"), true)
+		Vitest.assert.strictEqual(isGitignoreName(".git/info/exclude"), false)
+		Vitest.assert.strictEqual(isGitignoreName("src/main.ts"), false)
 	})
 
 	Vitest.it("rejects paths deeper than the walker max", () => {

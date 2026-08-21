@@ -64,9 +64,15 @@ Vitest.it.live(
 				Effect.fail(new RpcTransportError({ reason: "unused dispatch" }))
 			const unusedSnapshot: RpcTransport["snapshot"] = () =>
 				Effect.fail(new RpcTransportError({ reason: "unused snapshot" }))
+			const unusedGetProjectIndex: RpcTransport["getProjectIndex"] = () =>
+				Effect.fail(new RpcTransportError({ reason: "unused getProjectIndex" }))
+			const unusedInvalidateProjectIndex: RpcTransport["invalidateProjectIndex"] = () =>
+				Effect.fail(new RpcTransportError({ reason: "unused invalidateProjectIndex" }))
 			const transport = {
 				dispatch: unusedDispatch,
 				snapshot: unusedSnapshot,
+				getProjectIndex: unusedGetProjectIndex,
+				invalidateProjectIndex: unusedInvalidateProjectIndex,
 				events: (fromSequence: Parameters<RpcTransport["events"]>[0]) =>
 					Stream.unwrap(
 						Effect.gen(function*() {

@@ -13,8 +13,10 @@ import { OrchestrationCommand, ProjectCreateCommand } from "./orchestration.ts"
 import {
 	AcepeRpc,
 	decodeDispatchExit,
+	decodeGetProjectIndexExit,
 	decodeOrchestrationEvent,
 	encodeDispatchExit,
+	encodeGetProjectIndexExit,
 	encodeOrchestrationEvent,
 	exitToEffect,
 	generateElectrobunRpcSchema,
@@ -101,11 +103,27 @@ const snapshot: RpcSessionSnapshot = {
 
 const unusedDispatch: RpcTransport["dispatch"] = (_command) => Effect.succeed({ sequence: 0 })
 const unusedSnapshot: RpcTransport["snapshot"] = (_sessionId) => Effect.succeed(emptySnapshot)
+const unusedGetProjectIndex: RpcTransport["getProjectIndex"] = (_projectPath) =>
+	Effect.succeed({
+		projectPath: "/tmp/acepe",
+		files: [],
+		gitStatus: [],
+		totalFiles: 0,
+		totalLines: 0,
+	})
+const unusedInvalidateProjectIndex: RpcTransport["invalidateProjectIndex"] = (_projectPath) =>
+	Effect.void
 
 describe("AcepeRpc primitives", () => {
-	it("exposes exactly dispatch, snapshot, and events", () => {
+	it("exposes dispatch, snapshot, events, and file index", () => {
 		expect(groupTags).toEqual(primitiveTags)
-		expect(groupTags).toEqual(["dispatch", "events", "snapshot"])
+		expect(groupTags).toEqual([
+			"dispatch",
+			"events",
+			"getProjectIndex",
+			"invalidateProjectIndex",
+			"snapshot",
+		])
 	})
 })
 
@@ -153,6 +171,22 @@ describe("Schema-encoded boundary", () => {
 		expect(decoded).toEqual(createProject)
 	})
 
+	it("round-trips a project index through Exit", () => {
+		const encoded = Exit.succeed({
+			projectPath: "/tmp/acepe",
+			files: [],
+			gitStatus: [],
+			totalFiles: 0,
+			totalLines: 0,
+		}).pipe(encodeGetProjectIndexExit, Effect.runSync)
+		const decoded = encoded.pipe(decodeGetProjectIndexExit, Effect.runSync)
+		expect(Exit.isSuccess(decoded)).toBe(true)
+		if (Exit.isSuccess(decoded)) {
+			expect(decoded.value.projectPath).toBe("/tmp/acepe")
+			expect(decoded.value.totalFiles).toBe(0)
+		}
+	})
+
 	it("round-trips a session snapshot", () => {
 		const encoded = Effect.runSync(Schema.encodeUnknownEffect(RpcSessionSnapshot)(snapshot))
 		const decoded = Effect.runSync(Schema.decodeUnknownEffect(RpcSessionSnapshot)(encoded))
@@ -182,6 +216,8 @@ const failingAfter = (
 ): RpcTransport => ({
 	dispatch: unusedDispatch,
 	snapshot: unusedSnapshot,
+	getProjectIndex: unusedGetProjectIndex,
+	invalidateProjectIndex: unusedInvalidateProjectIndex,
 	events: (fromSequence) =>
 		Stream.unwrap(
 			Ref.updateAndGet(calls, (count) => count + 1).pipe(
@@ -219,6 +255,8 @@ describe("makeResumingRpcClient", () => {
 		makeResumingRpcClient({
 			dispatch: unusedDispatch,
 			snapshot: unusedSnapshot,
+			getProjectIndex: unusedGetProjectIndex,
+			invalidateProjectIndex: unusedInvalidateProjectIndex,
 			events: (_fromSequence) =>
 				Stream.fromArray([eventAt(1), eventAt(2), eventAt(2), eventAt(3)]),
 		})
@@ -236,6 +274,8 @@ describe("makeResumingRpcClient", () => {
 		makeResumingRpcClient({
 			dispatch: unusedDispatch,
 			snapshot: unusedSnapshot,
+			getProjectIndex: unusedGetProjectIndex,
+			invalidateProjectIndex: unusedInvalidateProjectIndex,
 			events: (_fromSequence) => Stream.fromArray([eventAt(1), eventAt(3)]),
 		})
 			.events(0)

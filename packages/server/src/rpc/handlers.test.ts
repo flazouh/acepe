@@ -6,10 +6,12 @@ import {
 	SessionCreateCommand,
 	SessionId
 } from "@acepe/contracts"
+import * as BunChildProcessSpawner from "@effect/platform-bun/BunChildProcessSpawner"
 import * as BunCrypto from "@effect/platform-bun/BunCrypto"
 import * as BunFileSystem from "@effect/platform-bun/BunFileSystem"
 import * as BunPath from "@effect/platform-bun/BunPath"
 import * as Vitest from "@effect/vitest"
+import * as Arr from "effect/Array"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Fiber from "effect/Fiber"
@@ -28,6 +30,7 @@ import {
 	encodeContentJson,
 	userMessageRow
 } from "../persistence/Services/ProjectionSessionMessages.ts"
+import { FileIndexServiceLive } from "../fileIndex/Layers/FileIndexService.ts"
 import { OrchestrationEngineLive } from "../orchestration/Layers/OrchestrationEngine.ts"
 import { ProjectionSnapshotQueryLive } from "../orchestration/Layers/ProjectionSnapshotQuery.ts"
 import { RpcHandlersLive } from "./handlers.ts"
@@ -76,9 +79,19 @@ const EngineAndStore = OrchestrationEngineLive.pipe(
 	Layer.provide(BunCrypto.layer)
 )
 
+const FileIndexPlatform = Layer.mergeAll(
+	BunFileSystem.layer,
+	BunPath.layer,
+	BunChildProcessSpawner.layer.pipe(
+		Layer.provideMerge(Layer.mergeAll(BunFileSystem.layer, BunPath.layer))
+	)
+)
+
 const TestLive = RpcHandlersLive.pipe(
 	Layer.provideMerge(ProjectionSnapshotQueryLive),
-	Layer.provideMerge(EngineAndStore)
+	Layer.provideMerge(EngineAndStore),
+	Layer.provideMerge(FileIndexServiceLive),
+	Layer.provideMerge(FileIndexPlatform)
 )
 
 const isolatedRpc = () => Layer.fresh(TestLive)
@@ -245,6 +258,31 @@ Vitest.layer(isolatedRpc())("live events", (it) => {
 			const events = yield* Fiber.join(fiber)
 			Vitest.assert.strictEqual(events[0]?.type, "ProjectCreated")
 			Vitest.assert.strictEqual(events[0]?.sequence, 1)
+		})
+	)
+})
+
+Vitest.layer(isolatedRpc())("file index rpc", (it) => {
+	it.effect("returns a project index over getProjectIndex", () =>
+		Effect.gen(function*() {
+			const fs = yield* FileSystem.FileSystem
+			const path = yield* Path.Path
+			const client = yield* RpcTest.makeClient(AcepeRpc)
+			const dir = yield* fs.makeTempDirectoryScoped()
+			yield* fs.writeFileString(path.join(dir, "main.ts"), "export const main = 1\n")
+			const index = yield* client.getProjectIndex({ projectPath: dir })
+			Vitest.assert.strictEqual(index.projectPath, dir)
+			Vitest.assert.strictEqual(Arr.some(index.files, (file) => file.path === "main.ts"), true)
+		})
+	)
+
+	it.effect("fails getProjectIndex when the root is missing", () =>
+		Effect.gen(function*() {
+			const client = yield* RpcTest.makeClient(AcepeRpc)
+			const error = yield* Effect.flip(
+				client.getProjectIndex({ projectPath: "/missing/acepe-file-index-rpc" })
+			)
+			Vitest.assert.strictEqual(error._tag, "FileIndexRootNotFoundError")
 		})
 	)
 })

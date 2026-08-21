@@ -13,6 +13,7 @@ import {
 	tracerAssistantMessageId,
 	tracerTokenCommandId
 } from "@acepe/contracts"
+import * as BunChildProcessSpawner from "@effect/platform-bun/BunChildProcessSpawner"
 import * as BunFileSystem from "@effect/platform-bun/BunFileSystem"
 import * as BunPath from "@effect/platform-bun/BunPath"
 import * as Vitest from "@effect/vitest"
@@ -83,7 +84,13 @@ const waitForAssistant = Effect.fn("waitForAssistant")(function*() {
 	return yield* snapshots.snapshot(sessionId)
 })
 
-const Platform = Layer.mergeAll(BunFileSystem.layer, BunPath.layer)
+const Platform = Layer.mergeAll(
+	BunFileSystem.layer,
+	BunPath.layer,
+	BunChildProcessSpawner.layer.pipe(
+		Layer.provideMerge(Layer.mergeAll(BunFileSystem.layer, BunPath.layer))
+	)
+)
 
 Vitest.layer(isolated())("tracer bullet rpc path", (it) => {
 	it.effect("projects a user row and concatenated assistant reply", () =>

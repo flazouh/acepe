@@ -1,6 +1,9 @@
 import {
 	CommandId,
 	decodeDispatchExit,
+	decodeGetProjectIndexExit,
+	decodeInvalidateProjectIndexExit,
+	exitToEffect,
 	MessageId,
 	MessageSendCommand,
 	ProjectCreateCommand,
@@ -9,12 +12,19 @@ import {
 	SessionId
 } from "@acepe/contracts"
 import * as Vitest from "@effect/vitest"
+import * as Arr from "effect/Array"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
+import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
+import * as Path from "effect/Path"
 import { acepeTestLive } from "../bootstrap.ts"
-import { encodedDispatch } from "./encodedBoundary.ts"
+import {
+	encodedDispatch,
+	encodedGetProjectIndex,
+	encodedInvalidateProjectIndex
+} from "./encodedBoundary.ts"
 
 const isolated = () => acepeTestLive(Duration.zero).pipe(Layer.fresh)
 
@@ -64,6 +74,44 @@ Vitest.layer(isolated())("encoded Electrobun boundary", (it) => {
 			if (Exit.isSuccess(decoded)) {
 				Vitest.assert.strictEqual(decoded.value.sequence, 3)
 			}
+		})
+	)
+
+	it.effect("encodes a getProjectIndex Exit", () =>
+		Effect.gen(function*() {
+			const fs = yield* FileSystem.FileSystem
+			const path = yield* Path.Path
+			const dir = yield* fs.makeTempDirectoryScoped()
+			yield* fs.writeFileString(path.join(dir, "main.ts"), "export const main = 1\n")
+			const encoded = yield* encodedGetProjectIndex({ projectPath: dir })
+			const decoded = yield* decodeGetProjectIndexExit(encoded)
+			Vitest.assert.isTrue(Exit.isSuccess(decoded))
+			if (Exit.isSuccess(decoded)) {
+				Vitest.assert.strictEqual(decoded.value.projectPath, dir)
+				Vitest.assert.strictEqual(
+					Arr.some(decoded.value.files, (file) => file.path === "main.ts"),
+					true
+				)
+			}
+		})
+	)
+
+	it.effect("encodes a missing-root getProjectIndex failure Exit", () =>
+		Effect.gen(function*() {
+			const encoded = yield* encodedGetProjectIndex({
+				projectPath: "/missing/acepe-file-index-encoded"
+			})
+			const decoded = yield* decodeGetProjectIndexExit(encoded)
+			const error = yield* exitToEffect(decoded).pipe(Effect.flip)
+			Vitest.assert.strictEqual(error._tag, "FileIndexRootNotFoundError")
+		})
+	)
+
+	it.effect("encodes an invalidateProjectIndex Exit", () =>
+		Effect.gen(function*() {
+			const encoded = yield* encodedInvalidateProjectIndex({ projectPath: "/tmp/acepe" })
+			const decoded = yield* decodeInvalidateProjectIndexExit(encoded)
+			Vitest.assert.isTrue(Exit.isSuccess(decoded))
 		})
 	)
 })

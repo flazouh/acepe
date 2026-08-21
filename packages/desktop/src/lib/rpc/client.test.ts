@@ -3,6 +3,7 @@ import {
 	CommandId,
 	EventId,
 	encodeDispatchExit,
+	encodeGetProjectIndexExit,
 	encodeOrchestrationEvent,
 	encodeSnapshotExit,
 	ProjectCreateCommand,
@@ -59,6 +60,8 @@ const makeBridge = (input: {
 	readonly dispatch?: (params: unknown) => Promise<unknown>;
 	readonly snapshot?: (params: unknown) => Promise<unknown>;
 	readonly events?: (params: unknown) => Promise<unknown>;
+	readonly getProjectIndex?: (params: unknown) => Promise<unknown>;
+	readonly invalidateProjectIndex?: (params: unknown) => Promise<unknown>;
 }): ElectrobunRpcBridge & { readonly emitEvents: (payload: unknown) => void } => {
 	const listeners: Array<(payload: unknown) => void> = [];
 	return {
@@ -73,6 +76,14 @@ const makeBridge = (input: {
 					: input.snapshot(params),
 			events: (params) =>
 				input.events === undefined ? Promise.resolve(undefined) : input.events(params),
+			getProjectIndex: (params) =>
+				input.getProjectIndex === undefined
+					? Promise.reject(new Error("unused getProjectIndex"))
+					: input.getProjectIndex(params),
+			invalidateProjectIndex: (params) =>
+				input.invalidateProjectIndex === undefined
+					? Promise.reject(new Error("unused invalidateProjectIndex"))
+					: input.invalidateProjectIndex(params),
 		},
 		addMessageListener: (_message, listener) => {
 			listeners.push(listener);
@@ -133,6 +144,28 @@ describe("makeElectrobunRpcTransport", () => {
 				const snapshot = yield* transport.snapshot(sessionId);
 				expect(snapshot.session).toBe(null);
 				expect(snapshot.snapshotSequence).toBe(0);
+			})
+		));
+
+	it("decodes a getProjectIndex Exit", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				const encoded = yield* encodeGetProjectIndexExit(
+					Exit.succeed({
+						projectPath: "/tmp/acepe",
+						files: [],
+						gitStatus: [],
+						totalFiles: 0,
+						totalLines: 0,
+					})
+				);
+				const bridge = makeBridge({
+					getProjectIndex: () => Promise.resolve(encoded),
+				});
+				const transport = makeElectrobunRpcTransport(bridge);
+				const index = yield* transport.getProjectIndex("/tmp/acepe");
+				expect(index.totalFiles).toBe(0);
+				expect(index.projectPath).toBe("/tmp/acepe");
 			})
 		));
 

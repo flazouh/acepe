@@ -1,3 +1,4 @@
+import * as BunChildProcessSpawner from "@effect/platform-bun/BunChildProcessSpawner"
 import * as BunFileSystem from "@effect/platform-bun/BunFileSystem"
 import * as BunPath from "@effect/platform-bun/BunPath"
 import * as Vitest from "@effect/vitest"
@@ -9,10 +10,17 @@ import * as Option from "effect/Option"
 import * as Path from "effect/Path"
 import * as Schema from "effect/Schema"
 import * as Str from "effect/String"
+import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner"
 import { FileIndexNotADirectoryError, FileIndexRootNotFoundError } from "./Errors.ts"
-import { indexedFileFromRelativePath, scanProject } from "./scanner.ts"
+import { scanProject } from "./scanner.ts"
 
-const Platform = Layer.mergeAll(BunFileSystem.layer, BunPath.layer)
+const Platform = Layer.mergeAll(
+	BunFileSystem.layer,
+	BunPath.layer,
+	BunChildProcessSpawner.layer.pipe(
+		Layer.provideMerge(Layer.mergeAll(BunFileSystem.layer, BunPath.layer))
+	)
+)
 
 const writeTree = Effect.fn("writeTree")(function*(
 	fs: FileSystem.FileSystem,
@@ -27,19 +35,7 @@ const writeTree = Effect.fn("writeTree")(function*(
 	yield* fs.writeFileString(path.join(root, ".gitignore"), "ignored.txt\n")
 	yield* fs.writeFileString(path.join(root, "ignored.txt"), "// ignored\n")
 	yield* fs.writeFileString(path.join(root, ".git", "config"), "[core]\n")
-	yield* fs.writeFileString(path.join(root, ".git", "hooks", "pre-commit"), "#!/bin/sh\n")
-})
-
-Vitest.describe("indexedFileFromRelativePath", () => {
-	Vitest.it.effect("builds metadata without reading file contents", () =>
-		Effect.gen(function*() {
-			const file = yield* indexedFileFromRelativePath("subdir/nested.js")
-			Vitest.assert.strictEqual(file.path, "subdir/nested.js")
-			Vitest.assert.strictEqual(file.extension, "js")
-			Vitest.assert.strictEqual(file.lineCount, 0)
-			Vitest.assert.strictEqual(file.gitStatus, null)
-		})
-	)
+	yield* fs.writeFileString(path.join(root, ".git", "hooks", "pre-commit"), "#!/bin/sh\n"	)
 })
 
 Vitest.layer(Platform)("scanProject", (it) => {
@@ -47,9 +43,10 @@ Vitest.layer(Platform)("scanProject", (it) => {
 		Effect.gen(function*() {
 			const fs = yield* FileSystem.FileSystem
 			const path = yield* Path.Path
+			const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
 			const dir = yield* fs.makeTempDirectoryScoped()
 			yield* writeTree(fs, path, dir)
-			const scanned = yield* scanProject(fs, path, dir)
+			const scanned = yield* scanProject(fs, path, spawner, dir)
 			const paths = Arr.sort(
 				Arr.map(scanned.files, (file) => file.path),
 				Str.Order
@@ -67,7 +64,10 @@ Vitest.layer(Platform)("scanProject", (it) => {
 		Effect.gen(function*() {
 			const fs = yield* FileSystem.FileSystem
 			const path = yield* Path.Path
-			const error = yield* Effect.flip(scanProject(fs, path, "/missing/acepe-file-index-root"))
+			const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+			const error = yield* Effect.flip(
+				scanProject(fs, path, spawner, "/missing/acepe-file-index-root")
+			)
 			Vitest.assert.strictEqual(error._tag, "FileIndexRootNotFoundError")
 			Vitest.assert.isTrue(Schema.is(FileIndexRootNotFoundError)(error))
 		})
@@ -77,12 +77,32 @@ Vitest.layer(Platform)("scanProject", (it) => {
 		Effect.gen(function*() {
 			const fs = yield* FileSystem.FileSystem
 			const path = yield* Path.Path
+			const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
 			const dir = yield* fs.makeTempDirectoryScoped()
 			const filePath = path.join(dir, "README.md")
 			yield* fs.writeFileString(filePath, "hi\n")
-			const error = yield* Effect.flip(scanProject(fs, path, filePath))
+			const error = yield* Effect.flip(scanProject(fs, path, spawner, filePath))
 			Vitest.assert.strictEqual(error._tag, "FileIndexNotADirectoryError")
 			Vitest.assert.isTrue(Schema.is(FileIndexNotADirectoryError)(error))
+		})
+	)
+
+	it.effect("scans when .git is a worktree gitdir file", () =>
+		Effect.gen(function*() {
+			const fs = yield* FileSystem.FileSystem
+			const path = yield* Path.Path
+			const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+			const dir = yield* fs.makeTempDirectoryScoped()
+			yield* fs.writeFileString(path.join(dir, ".git"), "gitdir: /missing/acepe-gitdir\n")
+			yield* fs.writeFileString(path.join(dir, ".gitignore"), "ignored.txt\n")
+			yield* fs.writeFileString(path.join(dir, "kept.ts"), "export const kept = 1\n")
+			yield* fs.writeFileString(path.join(dir, "ignored.txt"), "nope\n")
+			const scanned = yield* scanProject(fs, path, spawner, dir)
+			const paths = Arr.sort(
+				Arr.map(scanned.files, (file) => file.path),
+				Str.Order
+			)
+			Vitest.assert.deepStrictEqual(paths, [".gitignore", "kept.ts"])
 		})
 	)
 })

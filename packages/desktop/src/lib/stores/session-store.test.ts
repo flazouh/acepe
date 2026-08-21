@@ -107,9 +107,19 @@ const snapshotWithUser: RpcSessionSnapshot = {
 	pendingApprovals: [],
 };
 
+const unusedProjectIndex = {
+	projectPath: "/tmp/acepe",
+	files: [],
+	gitStatus: [],
+	totalFiles: 0,
+	totalLines: 0,
+};
+
 const fakeClient = (events: ReadonlyArray<OrchestrationEvent>): RpcClient => ({
 	dispatch: () => Effect.succeed({ sequence: 1 }),
 	snapshot: () => Effect.succeed(snapshotWithUser),
+	getProjectIndex: () => Effect.succeed(unusedProjectIndex),
+	invalidateProjectIndex: () => Effect.void,
 	events: (fromSequence) =>
 		Stream.fromArray(events.filter((event) => event.sequence > fromSequence)),
 });
