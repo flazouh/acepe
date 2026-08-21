@@ -32,7 +32,9 @@ const readById = Effect.fn("ProjectionSessions.readById")(function*(
 			updated_at,
 			last_activity_at,
 			archived_at,
-			deleted_at
+			deleted_at,
+			pr_number,
+			pr_link_mode
 		FROM projection_sessions
 		WHERE session_id = ${sessionId}
 	`.withoutTransform
@@ -66,7 +68,9 @@ const upsert = Effect.fn("ProjectionSessions.upsert")(function*(
 			updated_at,
 			last_activity_at,
 			archived_at,
-			deleted_at
+			deleted_at,
+			pr_number,
+			pr_link_mode
 		) VALUES (
 			${session.sessionId},
 			${session.projectId},
@@ -76,7 +80,9 @@ const upsert = Effect.fn("ProjectionSessions.upsert")(function*(
 			${session.updatedAt},
 			${session.lastActivityAt},
 			${session.archivedAt},
-			${session.deletedAt}
+			${session.deletedAt},
+			${session.prNumber},
+			${session.prLinkMode}
 		)
 		ON CONFLICT(session_id) DO UPDATE SET
 			project_id = excluded.project_id,
@@ -86,7 +92,9 @@ const upsert = Effect.fn("ProjectionSessions.upsert")(function*(
 			updated_at = excluded.updated_at,
 			last_activity_at = excluded.last_activity_at,
 			archived_at = excluded.archived_at,
-			deleted_at = excluded.deleted_at
+			deleted_at = excluded.deleted_at,
+			pr_number = excluded.pr_number,
+			pr_link_mode = excluded.pr_link_mode
 	`.withoutTransform.pipe(Effect.asVoid)
 })
 
@@ -122,7 +130,9 @@ export const ProjectionSessionsLive = Layer.effect(ProjectionSessions)(
 					updated_at,
 					last_activity_at,
 					archived_at,
-					deleted_at
+					deleted_at,
+					pr_number,
+					pr_link_mode
 				FROM projection_sessions
 				ORDER BY last_activity_at DESC, session_id ASC
 			`.withoutTransform

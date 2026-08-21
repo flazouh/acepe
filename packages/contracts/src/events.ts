@@ -11,7 +11,11 @@ import {
 	ToolCallId,
 	TurnId,
 } from "./ids.ts"
-import type { OrchestrationAggregateKind } from "./orchestration.ts"
+import {
+	type OrchestrationAggregateKind,
+	SessionPrLinkMode,
+	SessionPrNumber,
+} from "./orchestration.ts"
 
 export const CorrelationId = CommandId
 export type CorrelationId = typeof CorrelationId.Type
@@ -63,6 +67,8 @@ export type SessionCreatedPayload = typeof SessionCreatedPayload.Type
 export const SessionMetaUpdatedPayload = Schema.Struct({
 	sessionId: SessionId,
 	title: Schema.optionalKey(TrimmedNonEmptyString),
+	prNumber: SessionPrNumber.pipe(Schema.NullOr, Schema.optionalKey),
+	prLinkMode: Schema.optionalKey(SessionPrLinkMode),
 })
 export type SessionMetaUpdatedPayload = typeof SessionMetaUpdatedPayload.Type
 

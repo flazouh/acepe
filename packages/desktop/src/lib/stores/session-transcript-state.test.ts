@@ -21,6 +21,8 @@ describe("transcriptRowsFromSnapshot", () => {
 				lastActivityAt: occurredAt,
 				archivedAt: null,
 				deletedAt: null,
+				prNumber: null,
+				prLinkMode: null,
 			},
 			messages: [
 				{

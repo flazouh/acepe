@@ -1,0 +1,14 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"allowArbitraryExtensions": true,
+		"lib": ["ESNext", "DOM"],
+		"types": ["bun-types"]
+	},
+	"include": [
+		"src/lib/stores/session-store.svelte.ts",
+		"src/lib/stores/session-store-compose.ts",
+		"src/lib/stores/session-store-optimistic.ts",
+		"src/lib/stores/session-store-pr-link.ts"
+	]
+}

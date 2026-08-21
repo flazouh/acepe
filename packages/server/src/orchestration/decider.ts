@@ -82,13 +82,57 @@ const projectMetaUpdatedPayload = (command: ProjectMetaUpdateCommand): ProjectMe
 }
 
 const sessionMetaUpdatedPayload = (command: SessionMetaUpdateCommand): SessionMetaUpdatedPayload => {
-	if (command.title === undefined) {
-		return { sessionId: command.sessionId }
+	const hasTitle = command.title !== undefined
+	const hasPrNumber = command.prNumber !== undefined
+	const hasPrLinkMode = command.prLinkMode !== undefined
+	if (hasTitle && hasPrNumber && hasPrLinkMode) {
+		return {
+			sessionId: command.sessionId,
+			title: command.title,
+			prNumber: command.prNumber,
+			prLinkMode: command.prLinkMode
+		}
 	}
-	return {
-		sessionId: command.sessionId,
-		title: command.title
+	if (hasTitle && hasPrNumber) {
+		return {
+			sessionId: command.sessionId,
+			title: command.title,
+			prNumber: command.prNumber
+		}
 	}
+	if (hasTitle && hasPrLinkMode) {
+		return {
+			sessionId: command.sessionId,
+			title: command.title,
+			prLinkMode: command.prLinkMode
+		}
+	}
+	if (hasPrNumber && hasPrLinkMode) {
+		return {
+			sessionId: command.sessionId,
+			prNumber: command.prNumber,
+			prLinkMode: command.prLinkMode
+		}
+	}
+	if (hasTitle) {
+		return {
+			sessionId: command.sessionId,
+			title: command.title
+		}
+	}
+	if (hasPrNumber) {
+		return {
+			sessionId: command.sessionId,
+			prNumber: command.prNumber
+		}
+	}
+	if (hasPrLinkMode) {
+		return {
+			sessionId: command.sessionId,
+			prLinkMode: command.prLinkMode
+		}
+	}
+	return { sessionId: command.sessionId }
 }
 
 const turnCancelledPayload = (command: TurnCancelCommand): TurnCancelledPayload => {

@@ -213,7 +213,9 @@ Vitest.describe("evolveProjectedSession", () => {
 				updatedAt: NOW,
 				lastActivityAt: NOW,
 				archivedAt: null,
-				deletedAt: null
+				deletedAt: null,
+				prNumber: null,
+				prLinkMode: null
 			})
 		})
 	)
@@ -359,6 +361,28 @@ Vitest.describe("evolveProjectedSession", () => {
 				])
 			)
 			Vitest.assert.strictEqual(row.title, "Renamed session")
+		})
+	)
+
+	Vitest.it.effect("applies SessionMetaUpdated pull-request fields", () =>
+		Effect.gen(function*() {
+			const row = requireSession(
+				yield* fold([
+					sessionEvent(1, "SessionCreated", NOW, {
+						sessionId,
+						projectId,
+						title: "First session"
+					}),
+					sessionEvent(2, "SessionMetaUpdated", LATER, {
+						sessionId,
+						prNumber: 42,
+						prLinkMode: "manual" as const
+					})
+				])
+			)
+			Vitest.assert.strictEqual(row.prNumber, 42)
+			Vitest.assert.strictEqual(row.prLinkMode, "manual")
+			Vitest.assert.strictEqual(row.title, "First session")
 		})
 	)
 

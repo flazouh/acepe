@@ -44,7 +44,9 @@ Vitest.describe("SessionProjectionSnapshot", () => {
 					updatedAt: now,
 					lastActivityAt: now,
 					archivedAt: null,
-					deletedAt: null
+					deletedAt: null,
+					prNumber: null,
+					prLinkMode: null
 				},
 				messages: [
 					{

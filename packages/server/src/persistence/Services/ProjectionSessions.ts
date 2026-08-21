@@ -8,6 +8,8 @@ import {
 	SessionDeletedPayload,
 	SessionId,
 	SessionMetaUpdatedPayload,
+	SessionPrLinkMode,
+	SessionPrNumber,
 	SessionUnarchivedPayload,
 	TokenAppendedPayload,
 	TrimmedNonEmptyString,
@@ -44,7 +46,9 @@ export const ProjectedSession = Schema.Struct({
 	updatedAt: IsoDateTime,
 	lastActivityAt: IsoDateTime,
 	archivedAt: Schema.NullOr(IsoDateTime),
-	deletedAt: Schema.NullOr(IsoDateTime)
+	deletedAt: Schema.NullOr(IsoDateTime),
+	prNumber: SessionPrNumber.pipe(Schema.NullOr),
+	prLinkMode: SessionPrLinkMode.pipe(Schema.NullOr)
 })
 export type ProjectedSession = typeof ProjectedSession.Type
 
@@ -57,7 +61,9 @@ const ProjectionSessionRow = Schema.Struct({
 	updated_at: IsoDateTime,
 	last_activity_at: IsoDateTime,
 	archived_at: Schema.NullOr(IsoDateTime),
-	deleted_at: Schema.NullOr(IsoDateTime)
+	deleted_at: Schema.NullOr(IsoDateTime),
+	pr_number: SessionPrNumber.pipe(Schema.NullOr),
+	pr_link_mode: SessionPrLinkMode.pipe(Schema.NullOr)
 })
 
 export interface ProjectionSessionsShape {
@@ -94,7 +100,9 @@ const projectedSessionFromRow = (
 	updatedAt: row.updated_at,
 	lastActivityAt: row.last_activity_at,
 	archivedAt: row.archived_at,
-	deletedAt: row.deleted_at
+	deletedAt: row.deleted_at,
+	prNumber: row.pr_number,
+	prLinkMode: row.pr_link_mode
 })
 
 const decodeRow = Schema.decodeUnknownEffect(ProjectionSessionRow)
@@ -179,7 +187,9 @@ const touch = (session: ProjectedSession, occurredAt: IsoDateTime): ProjectedSes
 	updatedAt: occurredAt,
 	lastActivityAt: occurredAt,
 	archivedAt: session.archivedAt,
-	deletedAt: session.deletedAt
+	deletedAt: session.deletedAt,
+	prNumber: session.prNumber,
+	prLinkMode: session.prLinkMode
 })
 
 const projectSessionCreated = (
@@ -196,7 +206,9 @@ const projectSessionCreated = (
 				updatedAt: event.occurredAt,
 				lastActivityAt: event.occurredAt,
 				archivedAt: null,
-				deletedAt: null
+				deletedAt: null,
+				prNumber: null,
+				prLinkMode: null
 			})
 		)
 	)
@@ -214,12 +226,21 @@ const projectSessionMetaUpdated = (
 		Effect.map((payload) =>
 			mapExisting(current, (session) => {
 				const stamped = touch(session, event.occurredAt)
-				if (payload.title === undefined) {
-					return stamped
-				}
 				return {
-					...stamped,
-					title: resolveStoredTitle(payload.title)
+					sessionId: stamped.sessionId,
+					projectId: stamped.projectId,
+					title:
+						payload.title !== undefined ? resolveStoredTitle(payload.title) : stamped.title,
+					provider: stamped.provider,
+					createdAt: stamped.createdAt,
+					updatedAt: stamped.updatedAt,
+					lastActivityAt: stamped.lastActivityAt,
+					archivedAt: stamped.archivedAt,
+					deletedAt: stamped.deletedAt,
+					prNumber:
+						payload.prNumber !== undefined ? payload.prNumber : stamped.prNumber,
+					prLinkMode:
+						payload.prLinkMode !== undefined ? payload.prLinkMode : stamped.prLinkMode
 				}
 			})
 		)

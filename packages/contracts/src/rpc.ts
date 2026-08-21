@@ -8,7 +8,7 @@ import {
 	SessionId,
 	TurnId,
 } from "./ids.ts"
-import { OrchestrationCommand } from "./orchestration.ts"
+import { OrchestrationCommand, SessionPrLinkMode, SessionPrNumber } from "./orchestration.ts"
 import * as Arr from "effect/Array"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
@@ -122,6 +122,8 @@ export const RpcProjectedSession = Schema.Struct({
 	lastActivityAt: IsoDateTime,
 	archivedAt: Schema.NullOr(IsoDateTime),
 	deletedAt: Schema.NullOr(IsoDateTime),
+	prNumber: SessionPrNumber.pipe(Schema.NullOr),
+	prLinkMode: SessionPrLinkMode.pipe(Schema.NullOr),
 })
 export type RpcProjectedSession = typeof RpcProjectedSession.Type
 

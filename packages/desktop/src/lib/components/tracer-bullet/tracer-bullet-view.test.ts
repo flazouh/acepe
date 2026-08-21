@@ -58,6 +58,8 @@ describe("tracer bullet controller mapping", () => {
 								lastActivityAt: occurredAt,
 								archivedAt: null,
 								deletedAt: null,
+								prNumber: null,
+								prLinkMode: null,
 							},
 							messages: [
 								{

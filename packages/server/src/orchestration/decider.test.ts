@@ -294,6 +294,41 @@ Vitest.describe("decide", () => {
 		})
 	)
 
+	Vitest.it.effect("emits SessionMetaUpdated pull-request fields from the command", () =>
+		Effect.gen(function*() {
+			const events = yield* decide(
+				sessionReadModel,
+				SessionMetaUpdateCommand.make({
+					type: "session.meta.update",
+					commandId,
+					sessionId,
+					prNumber: 42,
+					prLinkMode: "manual"
+				}),
+				identity
+			)
+			Vitest.assert.deepStrictEqual(events, [
+				{
+					sequence: 3,
+					eventId,
+					aggregateKind: "session",
+					aggregateId: sessionId,
+					occurredAt,
+					commandId,
+					causationEventId: null,
+					correlationId: commandId,
+					metadata: {},
+					type: "SessionMetaUpdated",
+					payload: {
+						sessionId,
+						prNumber: 42,
+						prLinkMode: "manual"
+					}
+				}
+			])
+		})
+	)
+
 	Vitest.it.effect("emits SessionArchived for a live session", () =>
 		Effect.gen(function*() {
 			const events = yield* decide(

@@ -310,6 +310,18 @@ describe("OrchestrationCommand", () => {
 		)
 	})
 
+	it("round-trips session.meta.update with a pull-request link", () => {
+		roundTrip(
+			SessionMetaUpdateCommand.make({
+				type: "session.meta.update",
+				commandId,
+				sessionId,
+				prNumber: 42,
+				prLinkMode: "manual",
+			}),
+		)
+	})
+
 	for (const { command, schema } of memberCases) {
 		it(`round-trips generated ${command.type} commands`, () => {
 			const arbitrary = Schema.toArbitrary(schema)(FastCheck)
