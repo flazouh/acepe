@@ -2,11 +2,21 @@ import { expect, test } from "bun:test"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 
-import { handlePing, pingRequestHandler } from "./ping.ts"
+import { handlePing, pingRequestHandler, formatRpcRoundtripLine, formatWindowOpenedLine } from "./ping.ts"
 
 test("webview ping round trip returns the echoed message from bun", () => {
 	const returned = pingRequestHandler({ message: "acepe" })
 	expect(returned).toEqual({ echo: "acepe" })
+})
+
+test("rpc round trip line is greppable from the bun process log", () => {
+	expect(formatRpcRoundtripLine("desktop round trip")).toBe(
+		"acepe-shell-rpc-roundtrip: desktop round trip",
+	)
+})
+
+test("window opened line is greppable from the bun process log", () => {
+	expect(formatWindowOpenedLine("Acepe")).toBe("acepe-shell-window-opened: Acepe")
 })
 
 test("handlePing decodes the request through Schema", () => {

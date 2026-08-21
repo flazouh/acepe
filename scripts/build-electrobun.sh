@@ -30,6 +30,7 @@ bun run build
 # Electrobun only codesigns, notarises, writes artifacts, and generates patches
 # when --env is stable or canary. Plain `electrobun build` stays a local dev bundle.
 bunx electrobun build --env=stable
+bun "$DESKTOP/src/bun/expand-stable-app.ts"
 
 if [ "${ACEPE_SIGN:-}" = "true" ]; then
   APP="$(find electrobun-build -name '*.app' -type d ! -path '*.app/*' | head -n 1 || true)"

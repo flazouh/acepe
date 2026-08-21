@@ -20,6 +20,7 @@ const isBridge = (value: unknown): value is ElectrobunRpcBridge => {
 		return false;
 	}
 	const request = record.request as {
+		readonly ping?: unknown;
 		readonly dispatch?: unknown;
 		readonly snapshot?: unknown;
 		readonly events?: unknown;
@@ -27,6 +28,7 @@ const isBridge = (value: unknown): value is ElectrobunRpcBridge => {
 		readonly invalidateProjectIndex?: unknown;
 	};
 	return (
+		Predicate.isFunction(request.ping) &&
 		Predicate.isFunction(request.dispatch) &&
 		Predicate.isFunction(request.snapshot) &&
 		Predicate.isFunction(request.events) &&

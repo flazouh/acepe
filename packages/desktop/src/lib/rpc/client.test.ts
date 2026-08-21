@@ -66,6 +66,7 @@ const makeBridge = (input: {
 	const listeners: Array<(payload: unknown) => void> = [];
 	return {
 		request: {
+			ping: () => Promise.resolve({ echo: "desktop round trip" }),
 			dispatch: (params) =>
 				input.dispatch === undefined
 					? Promise.reject(new Error("unused dispatch"))
