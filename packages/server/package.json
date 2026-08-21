@@ -34,7 +34,13 @@
 		"./rpc/encodedBoundary": "./src/rpc/encodedBoundary.ts",
 		"./rpc/stdio": "./src/rpc/stdio.ts",
 		"./bootstrap": "./src/bootstrap.ts",
-		"./provider/HardcodedProvider": "./src/provider/HardcodedProvider.ts"
+		"./provider/HardcodedProvider": "./src/provider/HardcodedProvider.ts",
+		"./provider/Services/ProviderAdapter": "./src/provider/Services/ProviderAdapter.ts",
+		"./provider/Services/FakeProviderAdapter": "./src/provider/Services/FakeProviderAdapter.ts",
+		"./provider/Services/ProviderAdapterRegistry": "./src/provider/Services/ProviderAdapterRegistry.ts",
+		"./provider/Services/ProviderRegistry": "./src/provider/Services/ProviderRegistry.ts",
+		"./provider/Layers/ProviderAdapterRegistry": "./src/provider/Layers/ProviderAdapterRegistry.ts",
+		"./provider/Layers/ProviderRegistry": "./src/provider/Layers/ProviderRegistry.ts"
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit -p tsconfig.json",
