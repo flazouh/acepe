@@ -1,5 +1,6 @@
 <script lang="ts">
 import { AgentInputAgentSelector } from "@acepe/ui";
+import * as Effect from "effect/Effect";
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
 import { getAgentPreferencesStore, getAgentStore } from "../store/index.js";
 import type { AgentAvailabilityKind } from "../store/types.js";
@@ -95,30 +96,34 @@ function handleAgentInstall(agentId: string): void {
 	const installRequired =
 		(canonicalAgent?.availability_kind?.installed ?? agent.availability_kind?.installed) !== true;
 	agentStore.beginAgentInstallationReadiness(agentId);
-	void installAgentForSelection(
-		{
-			agentId,
-			installRequired,
-			projectPath,
-			preconnectionCapabilityMode: resolvePostInstallCapabilityMode({
-				projectedProviderMetadata: agent.provider_metadata,
-				canonicalProviderMetadata: canonicalAgent?.providerMetadata,
-				requiresPostInstallCatalog: true,
-			}),
-		},
-		{
-			installAgent: (targetAgentId) => agentStore.installAgent(targetAgentId),
-			refreshPreconnectionCapabilities: (input, options) =>
-				preconnectionCapabilitiesState.ensureLoaded(input, options),
-			selectAgent: onAgentChange,
-		}
-	).match(
-		() => {
-			agentStore.completeAgentInstallationReadiness(agentId);
-		},
-		(error) => {
-			agentStore.failAgentInstallationReadiness(agentId, error.message);
-		}
+	void Effect.runPromise(
+		installAgentForSelection(
+			{
+				agentId,
+				installRequired,
+				projectPath,
+				preconnectionCapabilityMode: resolvePostInstallCapabilityMode({
+					projectedProviderMetadata: agent.provider_metadata,
+					canonicalProviderMetadata: canonicalAgent?.providerMetadata,
+					requiresPostInstallCatalog: true,
+				}),
+			},
+			{
+				installAgent: (targetAgentId) => agentStore.installAgent(targetAgentId),
+				refreshPreconnectionCapabilities: (input, options) =>
+					preconnectionCapabilitiesState.ensureLoaded(input, options),
+				selectAgent: onAgentChange,
+			}
+		).pipe(
+			Effect.match({
+				onSuccess: () => {
+					agentStore.completeAgentInstallationReadiness(agentId);
+				},
+				onFailure: (error) => {
+					agentStore.failAgentInstallationReadiness(agentId, error.message);
+				},
+			})
+		)
 	);
 }
 

@@ -1,6 +1,7 @@
 <script lang="ts">
 import { HugeiconsIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
+import * as Effect from "effect/Effect";
 import { toast } from "svelte-sonner";
 import { PreconnectionCapabilitiesState } from "$lib/acp/components/agent-input/logic/preconnection-capabilities-state.svelte.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
@@ -73,20 +74,24 @@ $effect(() => {
 			cachedProviderMetadata: preferencesStore.getCachedProviderMetadata(agent.id),
 		});
 
-		preconnectionCapabilitiesState
-			.ensureLoaded({
-				agentId: agent.id,
-				hasConnectedSession: false,
-				projectPath: null,
-				preconnectionCapabilityMode: providerMetadata?.preconnectionCapabilityMode ?? "unsupported",
-			})
-			.mapErr((error) => {
-				logger.error("Failed to warm settings preconnection capabilities", {
+		void Effect.runPromise(
+			preconnectionCapabilitiesState
+				.ensureLoaded({
 					agentId: agent.id,
-					error: error.message,
-				});
-				return undefined;
-			});
+					hasConnectedSession: false,
+					projectPath: null,
+					preconnectionCapabilityMode: providerMetadata?.preconnectionCapabilityMode ?? "unsupported",
+				})
+				.pipe(
+					Effect.catch((error) => {
+						logger.error("Failed to warm settings preconnection capabilities", {
+							agentId: agent.id,
+							error: error.message,
+						});
+						return Effect.succeed(undefined);
+					})
+				)
+		);
 	}
 });
 
@@ -104,11 +109,15 @@ function setAgentChecked(agentId: string, checked: boolean): void {
 		return;
 	}
 
-	agentPreferencesStore.setSelectedAgentIds(result.value).match(
-		() => undefined,
-		(error) => {
-			toast.error(error.message);
-		}
+	void Effect.runPromise(
+		agentPreferencesStore.setSelectedAgentIds(result.value).pipe(
+			Effect.match({
+				onSuccess: () => undefined,
+				onFailure: (error) => {
+					toast.error(error.message);
+				},
+			})
+		)
 	);
 }
 </script>
@@ -181,13 +190,17 @@ function setAgentChecked(agentId: string, checked: boolean): void {
 						agentName={agent.name}
 						value={agentPreferencesStore.getAgentEnvOverrides(agent.id)}
 						onSave={(env) => {
-							agentPreferencesStore.setAgentEnvOverrides(agent.id, env).match(
-								() => {
-									toast.success(`${agent.name} environment saved`);
-								},
-								(error) => {
-									toast.error(error.message);
-								}
+							void Effect.runPromise(
+								agentPreferencesStore.setAgentEnvOverrides(agent.id, env).pipe(
+									Effect.match({
+										onSuccess: () => {
+											toast.success(`${agent.name} environment saved`);
+										},
+										onFailure: (error) => {
+											toast.error(error.message);
+										},
+									})
+								)
 							);
 						}}
 					/>

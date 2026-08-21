@@ -1,17 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
-import { okAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 
 const getUserSettingsInvoke = mock((args: { keys: string[] }) =>
-	okAsync(
+	Effect.succeed(
 		args.keys.map((key) => ({
 			key,
 			value: key === "has_seen_splash" ? "true" : null,
 		}))
 	)
 );
-const getCustomKeybindingsInvoke = mock(() => okAsync({ "app.open": "$mod+o" }));
+const getCustomKeybindingsInvoke = mock(() => Effect.succeed({ "app.open": "$mod+o" }));
 const saveCustomKeybindingsInvoke = mock((_args: { keybindings: Record<string, string> }) =>
-	okAsync(undefined)
+	Effect.succeed(undefined)
 );
 type TestThreadListSettings = {
 	hiddenProjects: string[];
@@ -22,16 +23,16 @@ type TestThreadListSettings = {
 	}>;
 };
 const getThreadListSettingsInvoke = mock(() =>
-	okAsync({
+	Effect.succeed({
 		hiddenProjects: ["/repo/hidden"],
 		archivedSessions: [],
 	})
 );
 const saveThreadListSettingsInvoke = mock((_args: { settings: TestThreadListSettings }) =>
-	okAsync(undefined)
+	Effect.succeed(undefined)
 );
-const requestDestructiveConfirmationTokenInvoke = mock(() => okAsync("confirmation-token-1"));
-const resetDatabaseInvoke = mock(() => okAsync(undefined));
+const requestDestructiveConfirmationTokenInvoke = mock(() => Effect.succeed("confirmation-token-1"));
+const resetDatabaseInvoke = mock(() => Effect.succeed(undefined));
 
 mock.module("../../services/tauri-command-client.js", () => ({
 	TAURI_COMMAND_CLIENT: {
@@ -83,7 +84,7 @@ describe("settings tauri client", () => {
 		});
 		getUserSettingsInvoke.mockReset();
 		getUserSettingsInvoke.mockImplementation((args: { keys: string[] }) =>
-			okAsync(
+			Effect.succeed(
 				args.keys.map((key) => ({
 					key,
 					value: key === "has_seen_splash" ? "true" : null,
@@ -91,28 +92,28 @@ describe("settings tauri client", () => {
 			)
 		);
 		getCustomKeybindingsInvoke.mockReset();
-		getCustomKeybindingsInvoke.mockImplementation(() => okAsync({ "app.open": "$mod+o" }));
+		getCustomKeybindingsInvoke.mockImplementation(() => Effect.succeed({ "app.open": "$mod+o" }));
 		saveCustomKeybindingsInvoke.mockReset();
 		saveCustomKeybindingsInvoke.mockImplementation(
-			(_args: { keybindings: Record<string, string> }) => okAsync(undefined)
+			(_args: { keybindings: Record<string, string> }) => Effect.succeed(undefined)
 		);
 		getThreadListSettingsInvoke.mockReset();
 		getThreadListSettingsInvoke.mockImplementation(() =>
-			okAsync({
+			Effect.succeed({
 				hiddenProjects: ["/repo/hidden"],
 				archivedSessions: [],
 			})
 		);
 		saveThreadListSettingsInvoke.mockReset();
 		saveThreadListSettingsInvoke.mockImplementation((_args: { settings: TestThreadListSettings }) =>
-			okAsync(undefined)
+			Effect.succeed(undefined)
 		);
 		requestDestructiveConfirmationTokenInvoke.mockReset();
 		requestDestructiveConfirmationTokenInvoke.mockImplementation(() =>
-			okAsync("confirmation-token-1")
+			Effect.succeed("confirmation-token-1")
 		);
 		resetDatabaseInvoke.mockReset();
-		resetDatabaseInvoke.mockImplementation(() => okAsync(undefined));
+		resetDatabaseInvoke.mockImplementation(() => Effect.succeed(undefined));
 	});
 
 	afterEach(() => {
@@ -124,18 +125,8 @@ describe("settings tauri client", () => {
 	});
 
 	it("batches same-tick user setting reads into one command", async () => {
-		const splash = settings.getRaw("has_seen_splash").match(
-			(value) => value,
-			(error) => {
-				throw error;
-			}
-		);
-		const defaultAgent = settings.getRaw("default_agent_id").match(
-			(value) => value,
-			(error) => {
-				throw error;
-			}
-		);
+		const splash = Effect.runPromise(settings.getRaw("has_seen_splash"));
+		const defaultAgent = Effect.runPromise(settings.getRaw("default_agent_id"));
 
 		await expect(Promise.all([splash, defaultAgent])).resolves.toEqual(["true", null]);
 		expect(getUserSettingsInvoke).toHaveBeenCalledTimes(1);
@@ -155,20 +146,18 @@ describe("settings tauri client", () => {
 			})
 		);
 
-		const keybindings = await settings.getCustomKeybindings();
+		const keybindings = await Effect.runPromise(settings.getCustomKeybindings());
 
-		expect(keybindings.isOk()).toBe(true);
-		expect(keybindings._unsafeUnwrap()).toEqual({
+		expect(keybindings).toEqual({
 			"app.cached": "$mod+k",
 		});
 		expect(getCustomKeybindingsInvoke).not.toHaveBeenCalled();
 	});
 
 	it("falls back to Tauri and refreshes the custom keybindings hot cache", async () => {
-		const keybindings = await settings.getCustomKeybindings();
+		const keybindings = await Effect.runPromise(settings.getCustomKeybindings());
 
-		expect(keybindings.isOk()).toBe(true);
-		expect(keybindings._unsafeUnwrap()).toEqual({
+		expect(keybindings).toEqual({
 			"app.open": "$mod+o",
 		});
 		expect(getCustomKeybindingsInvoke).toHaveBeenCalledTimes(1);
@@ -185,10 +174,9 @@ describe("settings tauri client", () => {
 	it("drops malformed custom keybindings hot cache before loading from Tauri", async () => {
 		localStorageValues.set("acepe.custom_keybindings.hot_cache", "{not json");
 
-		const keybindings = await settings.getCustomKeybindings();
+		const keybindings = await Effect.runPromise(settings.getCustomKeybindings());
 
-		expect(keybindings.isOk()).toBe(true);
-		expect(keybindings._unsafeUnwrap()).toEqual({
+		expect(keybindings).toEqual({
 			"app.open": "$mod+o",
 		});
 		expect(getCustomKeybindingsInvoke).toHaveBeenCalledTimes(1);
@@ -207,9 +195,9 @@ describe("settings tauri client", () => {
 			"app.save": "$mod+s",
 		};
 
-		const result = await settings.saveCustomKeybindings(keybindings);
+		const result = await Effect.runPromise(Effect.result(settings.saveCustomKeybindings(keybindings)));
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(saveCustomKeybindingsInvoke).toHaveBeenCalledWith({ keybindings });
 		expect(localStorageValues.get("acepe.custom_keybindings.hot_cache")).toBe(
 			JSON.stringify({
@@ -237,10 +225,9 @@ describe("settings tauri client", () => {
 			})
 		);
 
-		const settingsResult = await settings.getThreadListSettings();
+		const settingsResult = await Effect.runPromise(settings.getThreadListSettings());
 
-		expect(settingsResult.isOk()).toBe(true);
-		expect(settingsResult._unsafeUnwrap()).toEqual({
+		expect(settingsResult).toEqual({
 			hiddenProjects: ["/repo/cached"],
 			archivedSessions: [
 				{
@@ -254,10 +241,9 @@ describe("settings tauri client", () => {
 	});
 
 	it("falls back to Tauri and refreshes the thread list settings hot cache", async () => {
-		const settingsResult = await settings.getThreadListSettings();
+		const settingsResult = await Effect.runPromise(settings.getThreadListSettings());
 
-		expect(settingsResult.isOk()).toBe(true);
-		expect(settingsResult._unsafeUnwrap()).toEqual({
+		expect(settingsResult).toEqual({
 			hiddenProjects: ["/repo/hidden"],
 			archivedSessions: [],
 		});
@@ -279,9 +265,11 @@ describe("settings tauri client", () => {
 			archivedSessions: [],
 		};
 
-		const result = await settings.saveThreadListSettings(threadListSettings);
+		const result = await Effect.runPromise(
+			Effect.result(settings.saveThreadListSettings(threadListSettings))
+		);
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(saveThreadListSettingsInvoke).toHaveBeenCalledWith({ settings: threadListSettings });
 		expect(localStorageValues.get("acepe.thread_list_settings.hot_cache")).toBe(
 			JSON.stringify({
@@ -292,12 +280,7 @@ describe("settings tauri client", () => {
 	});
 
 	it("requests a scoped destructive confirmation token before resetting the database", async () => {
-		await settings.resetDatabase().match(
-			() => undefined,
-			(error) => {
-				throw error;
-			}
-		);
+		await Effect.runPromise(settings.resetDatabase());
 
 		expect(requestDestructiveConfirmationTokenInvoke).toHaveBeenCalledWith({
 			operation: "reset_database",

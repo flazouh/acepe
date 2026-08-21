@@ -1,4 +1,4 @@
-import { okAsync, type ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 
 import type { AppError } from "$lib/acp/errors/app-error.js";
 import type { ProviderMetadataProjection } from "$lib/services/acp-types.js";
@@ -18,11 +18,11 @@ interface PreconnectionCapabilitiesInput {
 }
 
 interface InstallableAgentSelectionDependencies {
-	readonly installAgent: (agentId: string) => ResultAsync<void, AppError>;
+	readonly installAgent: (agentId: string) => Effect.Effect<void, AppError>;
 	readonly refreshPreconnectionCapabilities: (
 		input: PreconnectionCapabilitiesInput,
 		options: { readonly force: boolean }
-	) => ResultAsync<void, AppError>;
+	) => Effect.Effect<void, AppError>;
 	readonly selectAgent: (agentId: string) => void;
 }
 
@@ -55,12 +55,12 @@ export function resolvePostInstallCapabilityMode(
 export function installAgentForSelection(
 	input: InstallableAgentSelectionInput,
 	dependencies: InstallableAgentSelectionDependencies
-): ResultAsync<void, AppError> {
+): Effect.Effect<void, AppError> {
 	const installation = input.installRequired
 		? dependencies.installAgent(input.agentId)
-		: okAsync(undefined);
-	return installation
-		.andThen(() =>
+		: Effect.succeed(undefined);
+	return installation.pipe(
+		Effect.flatMap(() =>
 			dependencies.refreshPreconnectionCapabilities(
 				{
 					agentId: input.agentId,
@@ -70,8 +70,9 @@ export function installAgentForSelection(
 				},
 				{ force: true }
 			)
-		)
-		.map(() => {
+		),
+		Effect.map(() => {
 			dependencies.selectAgent(input.agentId);
-		});
+		})
+	);
 }

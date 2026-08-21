@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
 import type { InvokeArgs } from "@tauri-apps/api/core";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { AgentError } from "../../acp/errors/app-error.js";
 
 const captureCommandFailureMock = mock(() => undefined);
@@ -40,13 +42,20 @@ describe("invokeAsync", () => {
 			},
 		});
 
-		const result = await invokeAsyncWithRuntimeForTesting(
-			<T>(cmd: string, args?: InvokeArgs) => invokeMock(cmd, args) as Promise<T>,
-			"acp_new_session"
+		const result = await Effect.runPromise(
+			Effect.result(
+				invokeAsyncWithRuntimeForTesting(
+					<T>(cmd: string, args?: InvokeArgs) => invokeMock(cmd, args) as Promise<T>,
+					"acp_new_session"
+				)
+			)
 		);
 
-		expect(result.isErr()).toBe(true);
-		const error = result._unsafeUnwrapErr();
+		expect(Result.isFailure(result)).toBe(true);
+		if (!Result.isFailure(result)) {
+			throw new Error("expected invoke to fail");
+		}
+		const error = result.failure;
 		expect(error).toBeInstanceOf(AgentError);
 		expect(error.message).toBe("Agent operation failed: acp_new_session");
 		expect(error.cause?.message).toBe(
@@ -66,13 +75,20 @@ describe("invokeAsync", () => {
 			},
 		});
 
-		const result = await invokeAsyncWithRuntimeForTesting(
-			<T>(cmd: string, args?: InvokeArgs) => invokeMock(cmd, args) as Promise<T>,
-			"save_user_setting"
+		const result = await Effect.runPromise(
+			Effect.result(
+				invokeAsyncWithRuntimeForTesting(
+					<T>(cmd: string, args?: InvokeArgs) => invokeMock(cmd, args) as Promise<T>,
+					"save_user_setting"
+				)
+			)
 		);
 
-		expect(result.isErr()).toBe(true);
-		const error = result._unsafeUnwrapErr();
+		expect(Result.isFailure(result)).toBe(true);
+		if (!Result.isFailure(result)) {
+			throw new Error("expected invoke to fail");
+		}
+		const error = result.failure;
 		expect(error).toBeInstanceOf(TauriCommandError);
 		expect(error.message).toBe("Failed to save user setting");
 		expect((error as TauriCommandError).backendCorrelationId).toBe("corr-123");
@@ -97,34 +113,49 @@ describe("invokeAsync", () => {
 	it("can keep best-effort invoke failures out of command failure telemetry", async () => {
 		invokeMock.mockRejectedValueOnce("notification plugin failed");
 
-		const result = await invokeAsyncWithRuntimeForTesting(
-			<T>(cmd: string, args?: InvokeArgs) => invokeMock(cmd, args) as Promise<T>,
-			CMD.notifications.send,
-			{ options: { title: "Task Complete", body: "Agent finished work" } },
-			{ reportFailure: false }
+		const result = await Effect.runPromise(
+			Effect.result(
+				invokeAsyncWithRuntimeForTesting(
+					<T>(cmd: string, args?: InvokeArgs) => invokeMock(cmd, args) as Promise<T>,
+					CMD.notifications.send,
+					{ options: { title: "Task Complete", body: "Agent finished work" } },
+					{ reportFailure: false }
+				)
+			)
 		);
 
-		expect(result.isErr()).toBe(true);
-		const error = result._unsafeUnwrapErr();
+		expect(Result.isFailure(result)).toBe(true);
+		if (!Result.isFailure(result)) {
+			throw new Error("expected invoke to fail");
+		}
+		const error = result.failure;
 		expect(error).toBeInstanceOf(AgentError);
 		expect(error.message).toBe("Agent operation failed: plugin:notification|notify");
 		expect(captureCommandFailureMock).not.toHaveBeenCalled();
 	});
 
 	it("records completed invoke timings for performance probes", async () => {
-		const successResult = await invokeAsyncWithRuntimeForTesting(
-			<T>(_cmd: string, _args?: InvokeArgs) => Promise.resolve("ok" as T),
-			"fast_command"
+		const successResult = await Effect.runPromise(
+			Effect.result(
+				invokeAsyncWithRuntimeForTesting(
+					<T>(_cmd: string, _args?: InvokeArgs) => Promise.resolve("ok" as T),
+					"fast_command"
+				)
+			)
 		);
-		const failureResult = await invokeAsyncWithRuntimeForTesting(
-			<T>(_cmd: string, _args?: InvokeArgs) => Promise.reject("boom") as Promise<T>,
-			"failing_command",
-			undefined,
-			{ reportFailure: false }
+		const failureResult = await Effect.runPromise(
+			Effect.result(
+				invokeAsyncWithRuntimeForTesting(
+					<T>(_cmd: string, _args?: InvokeArgs) => Promise.reject("boom") as Promise<T>,
+					"failing_command",
+					undefined,
+					{ reportFailure: false }
+				)
+			)
 		);
 
-		expect(successResult.isOk()).toBe(true);
-		expect(failureResult.isErr()).toBe(true);
+		expect(Result.isSuccess(successResult)).toBe(true);
+		expect(Result.isFailure(failureResult)).toBe(true);
 		expect(getTauriInvokeTimings()).toEqual([
 			expect.objectContaining({
 				command: "fast_command",
@@ -140,13 +171,17 @@ describe("invokeAsync", () => {
 	});
 
 	it("summarizes get_user_settings keys for startup performance probes", async () => {
-		const result = await invokeAsyncWithRuntimeForTesting(
-			<T>(_cmd: string, _args?: InvokeArgs) => Promise.resolve([] as T),
-			"get_user_settings",
-			{ keys: ["user_theme", "zoom_level"] }
+		const result = await Effect.runPromise(
+			Effect.result(
+				invokeAsyncWithRuntimeForTesting(
+					<T>(_cmd: string, _args?: InvokeArgs) => Promise.resolve([] as T),
+					"get_user_settings",
+					{ keys: ["user_theme", "zoom_level"] }
+				)
+			)
 		);
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(getTauriInvokeTimings()).toEqual([
 			expect.objectContaining({
 				command: "get_user_settings",

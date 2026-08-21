@@ -1,4 +1,4 @@
-import { err, ok, type Result } from "neverthrow";
+import * as Result from "effect/Result";
 
 import type { JsonValue, ToolArguments } from "../../services/converted-session-types.js";
 import type { AcpError } from "../errors/index.js";
@@ -74,16 +74,16 @@ function buildNormalizedBase(
 
 export function normalizeInboundInteractionRequest(
 	request: JsonRpcRequest
-): Result<NormalizedInboundInteractionRequest, AcpError> {
+): Result.Result<NormalizedInboundInteractionRequest, AcpError> {
 	const paramsResult = parseRequestPermissionParams(request.params);
-	if (paramsResult.isErr()) {
-		return err(paramsResult.error);
+	if (Result.isFailure(paramsResult)) {
+		return Result.fail(paramsResult.failure);
 	}
 
-	const params = paramsResult.value;
+	const params = paramsResult.success;
 	const base = buildNormalizedBase(request, params);
 
-	return ok({
+	return Result.succeed({
 		kind: "permission",
 		sessionId: base.sessionId,
 		jsonRpcRequestId: base.jsonRpcRequestId,
@@ -112,7 +112,7 @@ export function toPermissionRequest(
 		metadata: {
 			diagnosticRawInput: request.diagnosticRawInput,
 			parsedArguments: request.parsedArguments,
-			options: request.options,
+			options: Array.from(request.options),
 		},
 		always: request.alwaysOptionIds,
 		tool: {

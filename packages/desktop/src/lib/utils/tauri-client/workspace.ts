@@ -1,4 +1,6 @@
-import { okAsync, Result, type ResultAsync } from "neverthrow";
+import { fromThrowable } from "@acepe/effect-result/fromThrowable";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 
 import type { AppError } from "../../acp/errors/app-error.js";
 import type { PersistedWorkspaceState } from "../../acp/store/types.js";
@@ -9,7 +11,7 @@ const WORKSPACE_STATE_KEY: UserSettingKey = "workspace_state";
 const WORKSPACE_HOT_CACHE_KEY = "acepe.workspace_state.hot_cache";
 const storageCommands = TAURI_COMMAND_CLIENT.storage;
 
-const parseWorkspaceState = Result.fromThrowable(
+const parseWorkspaceState = fromThrowable(
 	(stored: string): PersistedWorkspaceState | null => {
 		const parsed = JSON.parse(stored) as PersistedWorkspaceState;
 		if (parsed && Array.isArray(parsed.panels)) {
@@ -20,7 +22,7 @@ const parseWorkspaceState = Result.fromThrowable(
 	() => null
 );
 
-const readWorkspaceHotCacheItem = Result.fromThrowable(
+const readWorkspaceHotCacheItem = fromThrowable(
 	(): string | null => {
 		if (typeof localStorage === "undefined") {
 			return null;
@@ -30,7 +32,7 @@ const readWorkspaceHotCacheItem = Result.fromThrowable(
 	() => null
 );
 
-const writeWorkspaceHotCacheItem = Result.fromThrowable(
+const writeWorkspaceHotCacheItem = fromThrowable(
 	(state: PersistedWorkspaceState): void => {
 		if (typeof localStorage === "undefined") {
 			return;
@@ -41,15 +43,15 @@ const writeWorkspaceHotCacheItem = Result.fromThrowable(
 );
 
 function readWorkspaceHotCache(): PersistedWorkspaceState | null {
-	const cachedItemResult = readWorkspaceHotCacheItem();
-	const cachedItem = cachedItemResult.isOk() ? cachedItemResult.value : null;
+	const cachedItemResult = Effect.runSync(Effect.result(readWorkspaceHotCacheItem()));
+	const cachedItem = Result.isSuccess(cachedItemResult) ? cachedItemResult.success : null;
 	if (cachedItem === null) {
 		return null;
 	}
 
-	const parsedResult = parseWorkspaceState(cachedItem);
-	if (parsedResult.isOk() && parsedResult.value !== null) {
-		return parsedResult.value;
+	const parsedResult = Effect.runSync(Effect.result(parseWorkspaceState(cachedItem)));
+	if (Result.isSuccess(parsedResult) && parsedResult.success !== null) {
+		return parsedResult.success;
 	}
 
 	if (typeof localStorage !== "undefined") {
@@ -59,11 +61,11 @@ function readWorkspaceHotCache(): PersistedWorkspaceState | null {
 }
 
 function writeWorkspaceHotCache(state: PersistedWorkspaceState): void {
-	writeWorkspaceHotCacheItem(state);
+	void Effect.runSync(Effect.result(writeWorkspaceHotCacheItem(state)));
 }
 
 export const workspace = {
-	saveWorkspaceState: (state: PersistedWorkspaceState): ResultAsync<void, AppError> => {
+	saveWorkspaceState: (state: PersistedWorkspaceState): Effect.Effect<void, AppError> => {
 		writeWorkspaceHotCache(state);
 		return storageCommands.save_user_setting.invoke<void>({
 			key: WORKSPACE_STATE_KEY,
@@ -71,26 +73,28 @@ export const workspace = {
 		});
 	},
 
-	loadWorkspaceState: (): ResultAsync<PersistedWorkspaceState | null, AppError> => {
+	loadWorkspaceState: (): Effect.Effect<PersistedWorkspaceState | null, AppError> => {
 		const hotCacheState = readWorkspaceHotCache();
 		if (hotCacheState !== null) {
-			return okAsync(hotCacheState);
+			return Effect.succeed(hotCacheState);
 		}
 
 		return storageCommands.get_user_setting
 			.invoke<string | null>({
 				key: WORKSPACE_STATE_KEY,
 			})
-			.map((stored) => {
-				if (stored === null) {
+			.pipe(
+				Effect.map((stored) => {
+					if (stored === null) {
+						return null;
+					}
+					const parsedResult = Effect.runSync(Effect.result(parseWorkspaceState(stored)));
+					if (Result.isSuccess(parsedResult) && parsedResult.success !== null) {
+						writeWorkspaceHotCache(parsedResult.success);
+						return parsedResult.success;
+					}
 					return null;
-				}
-				const parsedResult = parseWorkspaceState(stored);
-				if (parsedResult.isOk() && parsedResult.value !== null) {
-					writeWorkspaceHotCache(parsedResult.value);
-					return parsedResult.value;
-				}
-				return null;
-			});
+				})
+			);
 	},
 };

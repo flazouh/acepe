@@ -11,6 +11,7 @@ import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { AppTopBar } from "@acepe/ui/app-layout";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import * as Effect from "effect/Effect";
 import { onMount, type Snippet } from "svelte";
 import { getPanelStore, getSessionStore } from "$lib/acp/store/index.js";
 import type { ViewMode } from "$lib/acp/store/types.js";
@@ -152,13 +153,17 @@ function switchLayoutFamily(nextFamily: LayoutFamily): void {
 }
 
 function refreshProviderUsageAccounts(): void {
-	void loadProviderAccountUsageAccounts().match(
-		(accounts) => {
-			providerUsageAccounts = accounts;
-		},
-		() => {
-			providerUsageAccounts = buildProviderUsageErrorAccounts();
-		}
+	void Effect.runPromise(
+		loadProviderAccountUsageAccounts().pipe(
+			Effect.match({
+				onSuccess: (accounts) => {
+					providerUsageAccounts = accounts;
+				},
+				onFailure: () => {
+					providerUsageAccounts = buildProviderUsageErrorAccounts();
+				},
+			})
+		)
 	);
 }
 

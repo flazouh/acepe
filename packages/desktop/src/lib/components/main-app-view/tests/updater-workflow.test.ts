@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import type { DownloadEvent } from "@tauri-apps/plugin-updater";
+import * as Effect from "effect/Effect";
 
 import {
 	downloadAndInstallUpdate,
@@ -24,13 +25,10 @@ describe("updater-workflow", () => {
 			},
 		};
 
-		const version = await predownloadUpdate(update, (event) => {
-			events.push(event);
-		}).match(
-			(result) => result,
-			(error) => {
-				throw error;
-			}
+		const version = await Effect.runPromise(
+			predownloadUpdate(update, (event) => {
+				events.push(event);
+			})
 		);
 
 		expect(version).toBe("1.2.3");
@@ -50,13 +48,10 @@ describe("updater-workflow", () => {
 			},
 		};
 
-		await installDownloadedUpdate(update, async () => {
-			order.push("relaunch");
-		}).match(
-			() => undefined,
-			(error) => {
-				throw error;
-			}
+		await Effect.runPromise(
+			installDownloadedUpdate(update, async () => {
+				order.push("relaunch");
+			})
 		);
 
 		expect(order).toEqual(["install", "relaunch"]);
@@ -77,19 +72,16 @@ describe("updater-workflow", () => {
 			},
 		};
 
-		const version = await downloadAndInstallUpdate(
-			update,
-			(event) => {
-				events.push(event);
-			},
-			async () => {
-				order.push("relaunch");
-			}
-		).match(
-			(result) => result,
-			(error) => {
-				throw error;
-			}
+		const version = await Effect.runPromise(
+			downloadAndInstallUpdate(
+				update,
+				(event) => {
+					events.push(event);
+				},
+				async () => {
+					order.push("relaunch");
+				}
+			)
 		);
 
 		expect(version).toBe("1.2.3");

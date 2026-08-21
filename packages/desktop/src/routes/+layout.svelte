@@ -1,5 +1,7 @@
 <script lang="ts">
-import { ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { onMount } from "svelte";
 import { registerCursorThemeForPierreDiffs } from "$lib/acp/utils/pierre-diffs-theme.js";
 import { ensureWorkerPoolInitialized } from "$lib/acp/utils/worker-pool-singleton.js";
@@ -14,16 +16,20 @@ onMount(async () => {
 
 	// Register Cursor theme with pierre/diffs BEFORE initializing highlighter
 	// This must complete before the highlighter tries to use the theme
-	const themeResult = await ResultAsync.fromPromise(
-		registerCursorThemeForPierreDiffs(),
-		(error) =>
-			new Error(
-				`Failed to register Cursor theme: ${error instanceof Error ? error.message : String(error)}`
+	const themeResult = await Effect.runPromise(
+		Effect.result(
+			fromPromise(
+				() => registerCursorThemeForPierreDiffs(),
+				(error) =>
+					new Error(
+						`Failed to register Cursor theme: ${error instanceof Error ? error.message : String(error)}`
+					)
 			)
+		)
 	);
 
-	if (themeResult.isErr()) {
-		console.error("Failed to register Cursor theme for pierre/diffs:", themeResult.error);
+	if (Result.isFailure(themeResult)) {
+		console.error("Failed to register Cursor theme for pierre/diffs:", themeResult.failure);
 	}
 
 	// Initialize singleton worker pool for syntax highlighting

@@ -1,5 +1,6 @@
-import { okAsync } from "neverthrow";
 import { describe, expect, it, vi } from "vitest";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 
 import type { SessionCold } from "../../../../application/dto/session-cold.js";
 import type { PanelStore } from "../../../../store/panel-store.svelte.js";
@@ -15,6 +16,11 @@ vi.mock("@tauri-apps/api/event", () => ({
 	listen: vi.fn(async () => () => {}),
 }));
 
+
+async function runToResult<A, E>(effect: Effect.Effect<A, E>): Promise<Result.Result<A, E>> {
+	return Effect.runPromise(Effect.result(effect));
+}
+
 describe("AgentInputState - initial session title", () => {
 	it("uses the first user prompt as the created session title", async () => {
 		const createdSession: SessionCold = {
@@ -27,8 +33,8 @@ describe("AgentInputState - initial session title", () => {
 			sessionLifecycleState: "created",
 			parentId: null,
 		};
-		const createSession = vi.fn(() => okAsync({ kind: "ready" as const, session: createdSession }));
-		const sendMessage = vi.fn(() => okAsync(undefined));
+		const createSession = vi.fn(() => Effect.succeed({ kind: "ready" as const, session: createdSession }));
+		const sendMessage = vi.fn(() => Effect.succeed(undefined));
 		const getSessionCold = vi.fn(() => createdSession);
 		const mockStore = {
 			connection: {
@@ -50,14 +56,14 @@ describe("AgentInputState - initial session title", () => {
 			() => "/tmp/project"
 		);
 
-		const result = await state.sendPreparedMessage({
+		const result = await runToResult(state.sendPreparedMessage({
 			content: "Build kanban parity\n\nShow the title immediately.",
 			projectPath: "/tmp/project",
 			projectName: "Acepe",
 			selectedAgentId: "claude-code",
-		});
+		}));
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(createSession).toHaveBeenCalledWith(
 			expect.objectContaining({
 				agentId: "claude-code",
@@ -84,10 +90,10 @@ describe("AgentInputState - initial session title", () => {
 			sessionLifecycleState: "created",
 			parentId: null,
 		};
-		const createSession = vi.fn(() => okAsync({ kind: "ready" as const, session: createdSession }));
+		const createSession = vi.fn(() => Effect.succeed({ kind: "ready" as const, session: createdSession }));
 		const sendMessage = vi.fn(() => {
 			events.push("send-message");
-			return okAsync(undefined);
+			return Effect.succeed(undefined);
 		});
 		const getSessionCold = vi.fn(() => createdSession);
 		const mockStore = {
@@ -122,7 +128,7 @@ describe("AgentInputState - initial session title", () => {
 			() => "/tmp/project"
 		);
 
-		const result = await state.sendPreparedMessage({
+		const result = await runToResult(state.sendPreparedMessage({
 			content: "Build kanban parity",
 			panelId: "panel-1",
 			projectPath: "/tmp/project",
@@ -131,15 +137,15 @@ describe("AgentInputState - initial session title", () => {
 			onSessionCreated: () => {
 				events.push("session-created");
 			},
-		});
+		}));
 
-		expect(result.isOk()).toBe(true);
-		expect(events).toEqual(["set-pending", "session-created", "send-message", "clear-pending"]);
+		expect(Result.isSuccess(result)).toBe(true);
+		expect(events).toEqual(["set-pending", "send-message", "session-created", "clear-pending"]);
 	});
 
 	it("sends the first message through a deferred creation handle without requiring a cold session", async () => {
 		const createSession = vi.fn(() =>
-			okAsync({
+			Effect.succeed({
 				kind: "pending" as const,
 				sessionId: "provider-requested-id",
 				creationAttemptId: "attempt-1",
@@ -153,7 +159,7 @@ describe("AgentInputState - initial session title", () => {
 				worktreePath: null,
 			})
 		);
-		const sendMessage = vi.fn(() => okAsync(undefined));
+		const sendMessage = vi.fn(() => Effect.succeed(undefined));
 		const onSessionCreated = vi.fn();
 		const mockStore = {
 			connection: {
@@ -183,16 +189,16 @@ describe("AgentInputState - initial session title", () => {
 			() => "/tmp/project"
 		);
 
-		const result = await state.sendPreparedMessage({
+		const result = await runToResult(state.sendPreparedMessage({
 			content: "Build stable panels",
 			panelId: "panel-1",
 			projectPath: "/tmp/project",
 			projectName: "Acepe",
 			selectedAgentId: "claude-code",
 			onSessionCreated,
-		});
+		}));
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(onSessionCreated).toHaveBeenCalledWith("provider-requested-id", "panel-1");
 		expect(sendMessage).toHaveBeenCalledWith("provider-requested-id", "Build stable panels", []);
 	});

@@ -1,3 +1,4 @@
+import * as Result from "effect/Result";
 import { parseTableContent } from "./format/parsers/delimited.js";
 import type { FilePanelFormatKind, TableData } from "./format/types.js";
 
@@ -20,20 +21,20 @@ export function buildFilePanelCsvViewState(input: {
 }): FilePanelCsvViewState {
 	const parseResult = parseTableContent(input.content, getCsvParserFormatKind(input.formatKind));
 
-	if (parseResult.isErr()) {
+	if (Result.isFailure(parseResult)) {
 		return {
 			type: "error",
-			message: parseResult.error.message,
+			message: parseResult.failure.message,
 		};
 	}
 
-	if (parseResult.value.headers.length === 0) {
+	if (parseResult.success.headers.length === 0) {
 		return { type: "empty" };
 	}
 
 	return {
 		type: "table",
-		data: parseResult.value,
+		data: parseResult.success,
 	};
 }
 

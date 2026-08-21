@@ -2,7 +2,7 @@
  * Error types for main app view operations.
  *
  * These errors are designed for:
- * 1. Type-safe error handling with ResultAsync
+ * 1. Type-safe error handling with Effect
  * 2. Telemetry and monitoring (each has a unique code)
  * 3. User-facing error messages
  */

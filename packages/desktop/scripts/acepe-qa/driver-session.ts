@@ -1,6 +1,9 @@
 import { networkInterfaces } from "node:os";
-import { Result } from "neverthrow";
-import { z } from "zod";
+import { decodeUnknown } from "@acepe/effect-result/decodeUnknown";
+import { fromThrowable } from "@acepe/effect-result/fromThrowable";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
+import * as Schema from "effect/Schema";
 
 const EXPECTED_APP_IDENTIFIER = "com.acepe.app";
 const SESSION_START_FAILURE_TEXT = "Session start failed";
@@ -16,21 +19,29 @@ export type DriverSessionManager = {
 	) => Promise<string>;
 };
 
-const singleSessionStatusSchema = z.object({
-	connected: z.literal(true),
-	identifier: z.string().nullable(),
-	port: z.number(),
+const singleSessionStatusSchema = Schema.Struct({
+	connected: Schema.Literal(true),
+	identifier: Schema.NullOr(Schema.String),
+	port: Schema.Number,
 });
 
-const multipleSessionStatusSchema = z.object({
-	connected: z.literal(true),
-	apps: z.array(
-		z.object({
-			identifier: z.string().nullable(),
-			port: z.number(),
+const multipleSessionStatusSchema = Schema.Struct({
+	connected: Schema.Literal(true),
+	apps: Schema.Array(
+		Schema.Struct({
+			identifier: Schema.NullOr(Schema.String),
+			port: Schema.Number,
 		})
 	),
 });
+
+const decodeSingleSessionStatus = decodeUnknown(singleSessionStatusSchema, () => null);
+const decodeMultipleSessionStatus = decodeUnknown(multipleSessionStatusSchema, () => null);
+
+const parseStatusJson = fromThrowable(
+	(input: string) => JSON.parse(input) as object,
+	() => null
+);
 
 export function localIpv4BridgeHosts(
 	interfaces: NetworkInterfaces = networkInterfaces()
@@ -55,24 +66,21 @@ export function parseDriverSessionIdentity(
 	status: string,
 	port: number
 ): { readonly identifier: string | null; readonly port: number } | null {
-	const json = Result.fromThrowable(
-		(input: string) => JSON.parse(input) as object,
-		() => null
-	)(status);
-	if (json.isErr()) {
+	const json = Effect.runSync(Effect.result(parseStatusJson(status)));
+	if (Result.isFailure(json)) {
 		return null;
 	}
-	const single = singleSessionStatusSchema.safeParse(json.value);
-	if (single.success) {
-		return single.data.port === port
-			? { identifier: single.data.identifier, port: single.data.port }
+	const single = decodeSingleSessionStatus(json.success);
+	if (Result.isSuccess(single)) {
+		return single.success.port === port
+			? { identifier: single.success.identifier, port: single.success.port }
 			: null;
 	}
-	const multiple = multipleSessionStatusSchema.safeParse(json.value);
-	if (!multiple.success) {
+	const multiple = decodeMultipleSessionStatus(json.success);
+	if (Result.isFailure(multiple)) {
 		return null;
 	}
-	const app = multiple.data.apps.find((candidate) => candidate.port === port);
+	const app = multiple.success.apps.find((candidate) => candidate.port === port);
 	return app === undefined ? null : { identifier: app.identifier, port: app.port };
 }
 

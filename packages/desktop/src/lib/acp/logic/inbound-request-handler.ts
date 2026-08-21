@@ -12,14 +12,15 @@
  * 4. Sends the JSON-RPC response back via the Tauri command
  */
 
-import { okAsync, type Result, type ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { ACP_INBOUND_METHODS } from "../constants/acp-methods.js";
 import type { AcpError } from "../errors/index.js";
 import { ProtocolError } from "../errors/index.js";
 
 import {
-	ErrorResponseParamsSchema,
 	type JsonRpcRequest,
+	parseErrorResponseParams,
 	parseInboundRequest,
 } from "../schemas/inbound-request.schema.js";
 import { api } from "../store/api.js";
@@ -53,13 +54,13 @@ export class InboundRequestHandler {
 	 *
 	 * @param onPermissionRequest - Callback for permission requests
 	 */
-	start(onPermissionRequest: OnPermissionRequest): ResultAsync<void, AcpError> {
+	start(onPermissionRequest: OnPermissionRequest): Effect.Effect<void, AcpError> {
 		logger.info("InboundRequestHandler.start() called");
 
 		if (this.unlistenFn !== null) {
 			logger.debug("Inbound request handler already running, skipping duplicate start");
 			this.onPermissionRequest = onPermissionRequest;
-			return okAsync(undefined);
+			return Effect.succeed(undefined);
 		}
 
 		this.onPermissionRequest = onPermissionRequest;
@@ -69,14 +70,15 @@ export class InboundRequestHandler {
 				return;
 			}
 			this.handleEvent(envelope.payload);
-		})
-			.map((unlisten) => {
+		}).pipe(
+			Effect.map((unlisten) => {
 				this.unlistenFn = unlisten;
 				logger.info("Inbound request handler started successfully");
-			})
-			.mapErr(
+			}),
+			Effect.mapError(
 				(error) => new ProtocolError(`Failed to listen for inbound requests: ${error}`, error)
-			);
+			)
+		);
 	}
 
 	/**
@@ -101,12 +103,12 @@ export class InboundRequestHandler {
 
 		const parseResult = this.parseRequest(payload);
 
-		if (parseResult.isErr()) {
-			logger.error("Failed to parse inbound request:", parseResult.error);
+		if (Result.isFailure(parseResult)) {
+			logger.error("Failed to parse inbound request:", parseResult.failure);
 			return;
 		}
 
-		const request = parseResult.value;
+		const request = parseResult.success;
 		logger.debug("Received inbound request", { method: request.method, id: request.id });
 
 		switch (request.method) {
@@ -123,7 +125,7 @@ export class InboundRequestHandler {
 	/**
 	 * Parse a raw payload into a JSON-RPC request.
 	 */
-	private parseRequest(payload: unknown): Result<JsonRpcRequest, AcpError> {
+	private parseRequest(payload: unknown): Result.Result<JsonRpcRequest, AcpError> {
 		return parseInboundRequest(payload);
 	}
 
@@ -136,13 +138,13 @@ export class InboundRequestHandler {
 	 */
 	private handlePermissionRequest(request: JsonRpcRequest): void {
 		const normalizedResult = normalizeInboundInteractionRequest(request);
-		if (normalizedResult.isErr()) {
-			logger.error("Invalid requestPermission params", { error: normalizedResult.error });
+		if (Result.isFailure(normalizedResult)) {
+			logger.error("Invalid requestPermission params", { error: normalizedResult.failure });
 			this.sendErrorResponse(request, -32602, "Invalid params");
 			return;
 		}
 
-		const normalizedRequest = normalizedResult.value;
+		const normalizedRequest = normalizedResult.success;
 		const permission = toPermissionRequest(normalizedRequest);
 
 		logger.debug("Created permission request from inbound request", {
@@ -161,8 +163,8 @@ export class InboundRequestHandler {
 	 */
 	private sendErrorResponse(request: JsonRpcRequest, code: number, message: string): void {
 		// For errors, we need to find the sessionId from the params
-		const paramsResult = ErrorResponseParamsSchema.safeParse(request.params);
-		const sessionId = paramsResult.success ? paramsResult.data.sessionId : undefined;
+		const params = parseErrorResponseParams(request.params);
+		const sessionId = params?.sessionId;
 
 		if (!sessionId) {
 			logger.error("Cannot send error response: no sessionId", { requestId: request.id });
@@ -173,9 +175,18 @@ export class InboundRequestHandler {
 			error: { code, message },
 		};
 
-		api.respondInboundRequest(sessionId, request.id, errorResult).match(
-			() => logger.debug("Sent error response", { requestId: request.id }),
-			(err) => logger.error("Failed to send error response", { error: err })
+		void Effect.runPromise(
+			(
+				api.respondInboundRequest(sessionId, request.id, errorResult) as Effect.Effect<
+					void,
+					AcpError
+				>
+			).pipe(
+				Effect.match({
+					onSuccess: () => logger.debug("Sent error response", { requestId: request.id }),
+					onFailure: (err) => logger.error("Failed to send error response", { error: err }),
+				})
+			)
 		);
 	}
 }
@@ -193,7 +204,7 @@ export function respondToPermission(
 	jsonRpcRequestId: number,
 	allowed: boolean,
 	optionId: string = allowed ? "allow" : "reject"
-): ResultAsync<void, AcpError> {
+): Effect.Effect<void, AcpError> {
 	const result = {
 		outcome: {
 			outcome: allowed ? "selected" : "cancelled",
@@ -208,10 +219,14 @@ export function respondToPermission(
 		optionId,
 	});
 
-	return api.respondInboundRequest(sessionId, jsonRpcRequestId, result).mapErr((error) => {
-		logger.error("Failed to send permission response", { error });
-		return new ProtocolError(`Failed to send permission response: ${error.message}`, error);
-	});
+	return (
+		api.respondInboundRequest(sessionId, jsonRpcRequestId, result) as Effect.Effect<void, AcpError>
+	).pipe(
+		Effect.mapError((error) => {
+			logger.error("Failed to send permission response", { error });
+			return new ProtocolError(`Failed to send permission response: ${error.message}`, error);
+		})
+	);
 }
 
 /**
@@ -228,7 +243,7 @@ export function respondToQuestion(
 	sessionId: string,
 	jsonRpcRequestId: number,
 	answers: Record<string, string | string[]>
-): ResultAsync<void, AcpError> {
+): Effect.Effect<void, AcpError> {
 	// The ACP agent expects: outcome with optionId "allow" so canUseTool accepts it,
 	// plus _meta.answers so our patched canUseTool can extract the answers.
 	const result = {
@@ -247,10 +262,14 @@ export function respondToQuestion(
 		answerCount: Object.keys(answers).length,
 	});
 
-	return api.respondInboundRequest(sessionId, jsonRpcRequestId, result).mapErr((error) => {
-		logger.error("Failed to send question response", { error });
-		return new ProtocolError(`Failed to send question response: ${error.message}`, error);
-	});
+	return (
+		api.respondInboundRequest(sessionId, jsonRpcRequestId, result) as Effect.Effect<void, AcpError>
+	).pipe(
+		Effect.mapError((error) => {
+			logger.error("Failed to send question response", { error });
+			return new ProtocolError(`Failed to send question response: ${error.message}`, error);
+		})
+	);
 }
 
 /**
@@ -262,7 +281,7 @@ export function respondToQuestion(
 export function cancelQuestion(
 	sessionId: string,
 	jsonRpcRequestId: number
-): ResultAsync<void, AcpError> {
+): Effect.Effect<void, AcpError> {
 	const result = {
 		outcome: {
 			outcome: "cancelled",
@@ -274,10 +293,14 @@ export function cancelQuestion(
 		jsonRpcRequestId,
 	});
 
-	return api.respondInboundRequest(sessionId, jsonRpcRequestId, result).mapErr((error) => {
-		logger.error("Failed to cancel question", { error });
-		return new ProtocolError(`Failed to cancel question: ${error.message}`, error);
-	});
+	return (
+		api.respondInboundRequest(sessionId, jsonRpcRequestId, result) as Effect.Effect<void, AcpError>
+	).pipe(
+		Effect.mapError((error) => {
+			logger.error("Failed to cancel question", { error });
+			return new ProtocolError(`Failed to cancel question: ${error.message}`, error);
+		})
+	);
 }
 
 /**
@@ -293,7 +316,7 @@ export function respondToPlanApproval(
 	sessionId: string,
 	jsonRpcRequestId: number,
 	approved: boolean
-): ResultAsync<void, AcpError> {
+): Effect.Effect<void, AcpError> {
 	const result = { approved };
 
 	logger.debug("Sending plan approval response", {
@@ -302,8 +325,12 @@ export function respondToPlanApproval(
 		approved,
 	});
 
-	return api.respondInboundRequest(sessionId, jsonRpcRequestId, result).mapErr((error) => {
-		logger.error("Failed to send plan approval response", { error });
-		return new ProtocolError(`Failed to send plan approval response: ${error.message}`, error);
-	});
+	return (
+		api.respondInboundRequest(sessionId, jsonRpcRequestId, result) as Effect.Effect<void, AcpError>
+	).pipe(
+		Effect.mapError((error) => {
+			logger.error("Failed to send plan approval response", { error });
+			return new ProtocolError(`Failed to send plan approval response: ${error.message}`, error);
+		})
+	);
 }

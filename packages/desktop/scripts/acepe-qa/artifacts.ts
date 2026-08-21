@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
 
 export type ArtifactWriteOptions = {
 	readonly directory?: string;
@@ -26,13 +27,14 @@ export function writeJsonArtifact(
 	kind: string,
 	payload: object,
 	options: ArtifactWriteOptions = {}
-): ResultAsync<string, ArtifactWriteFailure> {
+): Effect.Effect<string, ArtifactWriteFailure> {
 	const path = artifactPath(kind, options);
 	const directory = options.directory ?? "/tmp";
-	return ResultAsync.fromPromise(
-		mkdir(directory, { recursive: true }).then(() =>
-			Bun.write(path, `${JSON.stringify(payload, null, 2)}\n`)
-		),
+	return fromPromise(
+		() =>
+			mkdir(directory, { recursive: true }).then(() =>
+				Bun.write(path, `${JSON.stringify(payload, null, 2)}\n`)
+			),
 		(error) => {
 			const normalized = error instanceof Error ? error : new Error("Artifact write failed.");
 			return {
@@ -40,5 +42,5 @@ export function writeJsonArtifact(
 				message: errorMessage(normalized),
 			} satisfies ArtifactWriteFailure;
 		}
-	).map(() => path);
+	).pipe(Effect.map(() => path));
 }

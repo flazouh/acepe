@@ -5,8 +5,12 @@ import { mkdtemp, readFile } from "node:fs/promises";
 import { Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { err, ok, Result, ResultAsync } from "neverthrow";
-import { z } from "zod";
+import { decodeUnknown } from "@acepe/effect-result/decodeUnknown";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import { fromThrowable } from "@acepe/effect-result/fromThrowable";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
+import * as Schema from "effect/Schema";
 
 const TAURI_MCP_CLI_VERSION = "@hypothesi/tauri-mcp-cli@0.10.0";
 const DAEMON_PROTOCOL_VERSION = "v3";
@@ -27,66 +31,101 @@ export type TauriMcpFailure = {
 
 export type CommandRunner = (
 	command: readonly string[]
-) => ResultAsync<CommandExecution, TauriMcpFailure>;
+) => Effect.Effect<CommandExecution, TauriMcpFailure>;
 
-const tauriTextWrapperSchema = z.object({
-	content: z.array(z.object({ text: z.string().optional() })).optional(),
-	text: z.string().nullable().optional(),
+const tauriTextWrapperSchema = Schema.Struct({
+	content: Schema.optionalKey(
+		Schema.Array(Schema.Struct({ text: Schema.optionalKey(Schema.String) }))
+	),
+	text: Schema.optionalKey(Schema.NullOr(Schema.String)),
 });
 
-const tauriScreenshotWrapperSchema = z.object({
-	files: z.array(z.object({ path: z.string() })).optional(),
-	content: z
-		.array(
-			z.object({
-				type: z.string().optional(),
-				path: z.string().optional(),
-				text: z.string().optional(),
+const tauriScreenshotWrapperSchema = Schema.Struct({
+	files: Schema.optionalKey(Schema.Array(Schema.Struct({ path: Schema.String }))),
+	content: Schema.optionalKey(
+		Schema.Array(
+			Schema.Struct({
+				type: Schema.optionalKey(Schema.String),
+				path: Schema.optionalKey(Schema.String),
+				text: Schema.optionalKey(Schema.String),
 			})
 		)
-		.optional(),
-	text: z.string().optional(),
+	),
+	text: Schema.optionalKey(Schema.String),
 });
 
-const daemonResponseSchema = z.object({
-	ok: z.boolean(),
-	code: z.union([z.number(), z.string()]).optional(),
-	stdout: z.string().optional(),
-	stderr: z.string().optional(),
-	text: z.string().optional(),
-	content: z
-		.array(
-			z.object({
-				type: z.string().optional(),
-				text: z.string().optional(),
-				path: z.string().optional(),
-				data: z.string().optional(),
-				mimeType: z.string().optional(),
+const daemonResponseSchema = Schema.Struct({
+	ok: Schema.Boolean,
+	code: Schema.optionalKey(Schema.Union([Schema.Number, Schema.String])),
+	stdout: Schema.optionalKey(Schema.String),
+	stderr: Schema.optionalKey(Schema.String),
+	text: Schema.optionalKey(Schema.String),
+	content: Schema.optionalKey(
+		Schema.Array(
+			Schema.Struct({
+				type: Schema.optionalKey(Schema.String),
+				text: Schema.optionalKey(Schema.String),
+				path: Schema.optionalKey(Schema.String),
+				data: Schema.optionalKey(Schema.String),
+				mimeType: Schema.optionalKey(Schema.String),
 			})
 		)
-		.optional(),
-	files: z.array(z.object({ path: z.string(), mimeType: z.string().optional() })).optional(),
-	message: z.string().optional(),
+	),
+	files: Schema.optionalKey(
+		Schema.Array(
+			Schema.Struct({ path: Schema.String, mimeType: Schema.optionalKey(Schema.String) })
+		)
+	),
+	message: Schema.optionalKey(Schema.String),
 });
+
+type DaemonResponse = typeof daemonResponseSchema.Type;
+
+const decodeTauriTextWrapper = decodeUnknown(tauriTextWrapperSchema, (error) => ({
+	code: "tauri_wrapper_parse_failed",
+	message: error.message,
+}));
+
+const decodeTauriScreenshotWrapper = decodeUnknown(tauriScreenshotWrapperSchema, (error) => ({
+	code: "screenshot_payload_schema_failed",
+	message: error.message,
+}));
+
+const decodeDaemonResponse = decodeUnknown(daemonResponseSchema, (error) => ({
+	code: "qa_daemon_response_schema_failed",
+	message: error.message,
+}));
+
+function schemaFailure(
+	code: string,
+	error: { readonly message: string },
+	raw?: string
+): TauriMcpFailure {
+	if (raw === undefined) {
+		return { code, message: error.message };
+	}
+	return { code, message: error.message, raw };
+}
 
 export function runCommand(
 	command: readonly string[]
-): ResultAsync<CommandExecution, TauriMcpFailure> {
-	return ResultAsync.fromPromise(
-		(async () => {
-			const child = Bun.spawn(Array.from(command), {
-				stdout: "pipe",
-				stderr: "pipe",
-			});
-			const stdout = await new Response(child.stdout).text();
-			const stderr = await new Response(child.stderr).text();
-			const code = await child.exited;
-			return {
-				code,
-				stdout,
-				stderr,
-			};
-		})(),
+): Effect.Effect<CommandExecution, TauriMcpFailure> {
+	return fromPromise(
+		() =>
+			(async () => {
+				const child = Bun.spawn(Array.from(command), {
+					stdout: "pipe",
+					stderr: "pipe",
+				});
+				const stdout = await new Response(child.stdout).text();
+				const stderr = await new Response(child.stderr).text();
+				const code = await child.exited;
+				return {
+					code,
+					stdout,
+					stderr,
+				};
+			})(),
 		(error) => {
 			const message = error instanceof Error ? error.message : "Command failed.";
 			return {
@@ -117,47 +156,50 @@ function valueAfter(args: readonly string[], flag: string): string | null {
 	return args[index + 1] ?? null;
 }
 
+const parseDaemonJson = fromThrowable(
+	(input: string) => JSON.parse(input) as object,
+	(error) => new Error(error instanceof Error ? error.message : "Daemon JSON parse failed.")
+);
+
 function daemonRequest(
 	payload: object,
 	options?: { readonly timeoutMs?: number }
-): ResultAsync<z.infer<typeof daemonResponseSchema>, TauriMcpFailure> {
-	return ResultAsync.fromPromise(
-		new Promise<z.infer<typeof daemonResponseSchema>>((resolve, reject) => {
-			const socket = new Socket();
-			let buffer = "";
-			const timeout = setTimeout(() => {
-				socket.destroy();
-				reject(new Error("Acepe QA daemon request timed out."));
-			}, options?.timeoutMs ?? DAEMON_REQUEST_TIMEOUT_MS);
-			socket.on("data", (chunk) => {
-				buffer += chunk.toString("utf8");
-				const newlineIndex = buffer.indexOf("\n");
-				if (newlineIndex < 0) {
-					return;
-				}
-				clearTimeout(timeout);
-				socket.end();
-				const raw = buffer.slice(0, newlineIndex);
-				const parsed = Result.fromThrowable(
-					(input: string) => JSON.parse(input) as object,
-					(error) => new Error(error instanceof Error ? error.message : "Daemon JSON parse failed.")
-				)(raw);
-				if (parsed.isErr()) {
-					reject(parsed.error);
-					return;
-				}
-				const response = daemonResponseSchema.safeParse(parsed.value);
-				if (!response.success) {
-					reject(new Error(response.error.message));
-					return;
-				}
-				resolve(response.data);
-			});
-			socket.on("error", reject);
-			socket.connect(daemonSocketPath(), () => {
-				socket.write(`${JSON.stringify(payload)}\n`);
-			});
-		}),
+): Effect.Effect<DaemonResponse, TauriMcpFailure> {
+	return fromPromise(
+		() =>
+			new Promise<DaemonResponse>((resolve, reject) => {
+				const socket = new Socket();
+				let buffer = "";
+				const timeout = setTimeout(() => {
+					socket.destroy();
+					reject(new Error("Acepe QA daemon request timed out."));
+				}, options?.timeoutMs ?? DAEMON_REQUEST_TIMEOUT_MS);
+				socket.on("data", (chunk) => {
+					buffer += chunk.toString("utf8");
+					const newlineIndex = buffer.indexOf("\n");
+					if (newlineIndex < 0) {
+						return;
+					}
+					clearTimeout(timeout);
+					socket.end();
+					const raw = buffer.slice(0, newlineIndex);
+					const parsed = Effect.runSync(Effect.result(parseDaemonJson(raw)));
+					if (Result.isFailure(parsed)) {
+						reject(parsed.failure);
+						return;
+					}
+					const response = decodeDaemonResponse(parsed.success);
+					if (Result.isFailure(response)) {
+						reject(new Error(response.failure.message));
+						return;
+					}
+					resolve(response.success);
+				});
+				socket.on("error", reject);
+				socket.connect(daemonSocketPath(), () => {
+					socket.write(`${JSON.stringify(payload)}\n`);
+				});
+			}),
 		(error) => ({
 			code: "qa_daemon_request_failed",
 			message: error instanceof Error ? error.message : "Acepe QA daemon request failed.",
@@ -165,23 +207,24 @@ function daemonRequest(
 	);
 }
 
-function waitForDaemon(readyPath: string): ResultAsync<null, TauriMcpFailure> {
-	return ResultAsync.fromPromise(
-		new Promise<null>((resolve, reject) => {
-			const started = Date.now();
-			const tick = () => {
-				if (existsSync(readyPath)) {
-					resolve(null);
-					return;
-				}
-				if (Date.now() - started > DAEMON_START_TIMEOUT_MS) {
-					reject(new Error("Acepe QA daemon did not become ready."));
-					return;
-				}
-				setTimeout(tick, 40);
-			};
-			tick();
-		}),
+function waitForDaemon(readyPath: string): Effect.Effect<null, TauriMcpFailure> {
+	return fromPromise(
+		() =>
+			new Promise<null>((resolve, reject) => {
+				const started = Date.now();
+				const tick = () => {
+					if (existsSync(readyPath)) {
+						resolve(null);
+						return;
+					}
+					if (Date.now() - started > DAEMON_START_TIMEOUT_MS) {
+						reject(new Error("Acepe QA daemon did not become ready."));
+						return;
+					}
+					setTimeout(tick, 40);
+				};
+				tick();
+			}),
 		(error) => ({
 			code: "qa_daemon_start_failed",
 			message: error instanceof Error ? error.message : "Acepe QA daemon did not become ready.",
@@ -189,29 +232,25 @@ function waitForDaemon(readyPath: string): ResultAsync<null, TauriMcpFailure> {
 	);
 }
 
-function startDaemon(): ResultAsync<null, TauriMcpFailure> {
-	return ResultAsync.fromPromise(
-		mkdtemp(join(tmpdir(), "acepe-qa-daemon-")).then(async (directory) => {
-			const readyPath = join(directory, "ready.json");
-			const socketPath = daemonSocketPath();
-			if (existsSync(socketPath)) {
-				rmSync(socketPath, { force: true });
-			}
-			const child = spawn(process.execPath, [daemonScriptPath(), socketPath, readyPath], {
-				cwd: process.cwd(),
-				detached: true,
-				stdio: "ignore",
-			});
-			child.unref();
-			await waitForDaemon(readyPath).match(
-				() => undefined,
-				(error) => {
-					throw new Error(error.message);
+function startDaemon(): Effect.Effect<null, TauriMcpFailure> {
+	return fromPromise(
+		() =>
+			mkdtemp(join(tmpdir(), "acepe-qa-daemon-")).then(async (directory) => {
+				const readyPath = join(directory, "ready.json");
+				const socketPath = daemonSocketPath();
+				if (existsSync(socketPath)) {
+					rmSync(socketPath, { force: true });
 				}
-			);
-			await readFile(readyPath, "utf8");
-			return null;
-		}),
+				const child = spawn(process.execPath, [daemonScriptPath(), socketPath, readyPath], {
+					cwd: process.cwd(),
+					detached: true,
+					stdio: "ignore",
+				});
+				child.unref();
+				await Effect.runPromise(waitForDaemon(readyPath));
+				await readFile(readyPath, "utf8");
+				return null;
+			}),
 		(error) => ({
 			code: "qa_daemon_start_failed",
 			message: error instanceof Error ? error.message : "Unable to start Acepe QA daemon.",
@@ -219,24 +258,26 @@ function startDaemon(): ResultAsync<null, TauriMcpFailure> {
 	);
 }
 
-function ensureDaemon(): ResultAsync<null, TauriMcpFailure> {
-	return daemonRequest({ kind: "ping" })
-		.map(() => null)
-		.orElse(() => startDaemon());
+function ensureDaemon(): Effect.Effect<null, TauriMcpFailure> {
+	return daemonRequest({ kind: "ping" }).pipe(
+		Effect.map(() => null),
+		Effect.catch(() => startDaemon())
+	);
 }
 
 function commandFromDaemon(
 	args: readonly string[]
-): ResultAsync<CommandExecution, TauriMcpFailure> {
+): Effect.Effect<CommandExecution, TauriMcpFailure> {
 	if (args[0] === "driver-session" && args[1] === "start") {
 		const appIdentifier = valueAfter(args, "--port") ?? "9223";
-		return ensureDaemon()
-			.andThen(() => daemonRequest({ kind: "driver-session-start", appIdentifier }))
-			.map((response) => ({
+		return ensureDaemon().pipe(
+			Effect.flatMap(() => daemonRequest({ kind: "driver-session-start", appIdentifier })),
+			Effect.map((response) => ({
 				code: typeof response.code === "number" ? response.code : response.ok ? 0 : 1,
 				stdout: response.stdout ?? "",
 				stderr: response.stderr ?? "",
-			}));
+			}))
+		);
 	}
 
 	if (args[0] === "webview-execute-js" || args[0] === "webview-execute-js-sync") {
@@ -251,16 +292,16 @@ function commandFromDaemon(
 			args[0] === "webview-execute-js-sync"
 				? { kind: "webview-execute-js-sync", appIdentifier, script }
 				: { kind: "webview-execute-js", appIdentifier, script, callTimeoutMs };
-		return ensureDaemon()
-			.andThen(() => daemonRequest(request, { timeoutMs: requestTimeoutMs }))
-			.andThen((response) => {
+		return ensureDaemon().pipe(
+			Effect.flatMap(() => daemonRequest(request, { timeoutMs: requestTimeoutMs })),
+			Effect.flatMap((response) => {
 				if (!response.ok) {
-					return err({
+					return Effect.fail({
 						code: "qa_daemon_webview_failed",
 						message: response.message ?? "Acepe QA daemon WebView call failed.",
 					});
 				}
-				return ok({
+				return Effect.succeed({
 					code: 0,
 					stdout: JSON.stringify({
 						text: response.text ?? "",
@@ -268,21 +309,22 @@ function commandFromDaemon(
 					}),
 					stderr: "",
 				});
-			});
+			})
+		);
 	}
 
 	if (args[0] === "webview-screenshot") {
 		const appIdentifier = valueAfter(args, "--app-identifier") ?? "9223";
-		return ensureDaemon()
-			.andThen(() => daemonRequest({ kind: "webview-screenshot", appIdentifier }))
-			.andThen((response) => {
+		return ensureDaemon().pipe(
+			Effect.flatMap(() => daemonRequest({ kind: "webview-screenshot", appIdentifier })),
+			Effect.flatMap((response) => {
 				if (!response.ok) {
-					return err({
+					return Effect.fail({
 						code: "qa_daemon_screenshot_failed",
 						message: response.message ?? "Acepe QA daemon screenshot failed.",
 					});
 				}
-				return ok({
+				return Effect.succeed({
 					code: 0,
 					stdout: JSON.stringify({
 						text: response.text ?? "Screenshot captured",
@@ -291,10 +333,11 @@ function commandFromDaemon(
 					}),
 					stderr: "",
 				});
-			});
+			})
+		);
 	}
 
-	return err({
+	return Effect.fail({
 		code: "qa_daemon_unsupported_command",
 		message: args[0] ?? "empty command",
 	});
@@ -303,7 +346,7 @@ function commandFromDaemon(
 function runTauriMcpCli(
 	args: readonly string[],
 	runner: CommandRunner = runCommand
-): ResultAsync<CommandExecution, TauriMcpFailure> {
+): Effect.Effect<CommandExecution, TauriMcpFailure> {
 	const command = ["npx", "-y", "-p", TAURI_MCP_CLI_VERSION, "tauri-mcp"].concat(Array.from(args));
 	return runner(command);
 }
@@ -311,7 +354,7 @@ function runTauriMcpCli(
 export function runTauriMcp(
 	args: readonly string[],
 	runner: CommandRunner = runCommand
-): ResultAsync<CommandExecution, TauriMcpFailure> {
+): Effect.Effect<CommandExecution, TauriMcpFailure> {
 	if (runner !== runCommand) {
 		return runTauriMcpCli(args, runner);
 	}
@@ -323,37 +366,47 @@ export function runTauriMcp(
 	) {
 		return commandFromDaemon(args);
 	}
-	return commandFromDaemon(args).orElse(() => runTauriMcpCli(args, runner));
+	return commandFromDaemon(args).pipe(Effect.catch(() => runTauriMcpCli(args, runner)));
 }
 
-export function parseJsonText(text: string): Result<object, TauriMcpFailure> {
-	const parse = Result.fromThrowable(
-		(input: string) => JSON.parse(input) as object,
-		(error) => {
-			const message = error instanceof Error ? error.message : "JSON parse failed.";
-			return {
-				code: "json_parse_failed",
-				message,
-				raw: text.slice(0, 1_000),
-			};
-		}
+const parseJsonObject = fromThrowable(
+	(input: string) => JSON.parse(input) as object,
+	(error) => {
+		const message = error instanceof Error ? error.message : "JSON parse failed.";
+		return {
+			code: "json_parse_failed",
+			message,
+		};
+	}
+);
+
+export function parseJsonText(text: string): Result.Result<object, TauriMcpFailure> {
+	const parsed = Effect.runSync(Effect.result(parseJsonObject(text)));
+	if (Result.isFailure(parsed)) {
+		return Result.fail({
+			code: parsed.failure.code,
+			message: parsed.failure.message,
+			raw: text.slice(0, 1_000),
+		});
+	}
+	return Result.succeed(parsed.success);
+}
+
+export function unwrapTauriText(stdout: string): Result.Result<string, TauriMcpFailure> {
+	return parseJsonText(stdout).pipe(
+		Result.andThen((parsed) => {
+			const parsedWrapper = decodeTauriTextWrapper(parsed);
+			if (Result.isFailure(parsedWrapper)) {
+				return Result.fail(
+					schemaFailure("tauri_wrapper_parse_failed", parsedWrapper.failure, stdout.slice(0, 1_000))
+				);
+			}
+			const firstContent = parsedWrapper.success.content?.find(
+				(item) => item.text !== undefined
+			)?.text;
+			return Result.succeed(firstContent ?? parsedWrapper.success.text ?? stdout);
+		})
 	);
-	return parse(text);
-}
-
-export function unwrapTauriText(stdout: string): Result<string, TauriMcpFailure> {
-	return parseJsonText(stdout).andThen((parsed) => {
-		const parsedWrapper = tauriTextWrapperSchema.safeParse(parsed);
-		if (!parsedWrapper.success) {
-			return err({
-				code: "tauri_wrapper_parse_failed",
-				message: parsedWrapper.error.message,
-				raw: stdout.slice(0, 1_000),
-			});
-		}
-		const firstContent = parsedWrapper.data.content?.find((item) => item.text !== undefined)?.text;
-		return ok(firstContent ?? parsedWrapper.data.text ?? stdout);
-	});
 }
 
 export function jsonObjectPrefix(text: string): string | null {
@@ -394,19 +447,23 @@ export function jsonObjectPrefix(text: string): string | null {
 	return null;
 }
 
-function executeWebviewJsonCommand<T>(
+function executeWebviewJsonCommand<S extends Schema.ConstraintDecoder<unknown>>(
 	input: {
 		readonly appIdentifier: string;
 		readonly script: string;
-		readonly schema: z.ZodType<T>;
+		readonly schema: S;
 		readonly callTimeoutMs?: number;
 	},
 	runner: CommandRunner,
 	commandName: "webview-execute-js" | "webview-execute-js-sync"
-): ResultAsync<T, TauriMcpFailure> {
+): Effect.Effect<S["Type"], TauriMcpFailure> {
 	const callTimeoutMs = input.callTimeoutMs ?? 15_000;
+	const decodePayload = decodeUnknown(input.schema, (error) => ({
+		code: "tauri_payload_schema_failed",
+		message: error.message,
+	}));
 
-	const execute = (): ResultAsync<T, TauriMcpFailure> =>
+	const execute = (): Effect.Effect<S["Type"], TauriMcpFailure> =>
 		runTauriMcp(
 			[
 				commandName,
@@ -419,78 +476,78 @@ function executeWebviewJsonCommand<T>(
 				input.script,
 			],
 			runner
-		).andThen((execution) => {
-			if (execution.code !== 0) {
-				return err({
-					code: "tauri_mcp_failed",
-					message:
-						execution.stderr.trim() || execution.stdout.trim() || "Tauri MCP command failed.",
-				});
-			}
-			return unwrapTauriText(execution.stdout)
-				.andThen((text) => {
-					const jsonText = jsonObjectPrefix(text);
-					if (jsonText === null) {
-						return err({
-							code: "tauri_payload_not_json",
-							message: `Tauri MCP did not return a JSON payload. Raw: ${text.slice(0, 500)}`,
-							raw: text.slice(0, 1_000),
-						});
-					}
-					return parseJsonText(jsonText);
-				})
-				.andThen((json) => {
-					const parsed = input.schema.safeParse(json);
-					if (!parsed.success) {
-						return err({
-							code: "tauri_payload_schema_failed",
-							message: parsed.error.message,
-						});
-					}
-					return ok(parsed.data);
-				});
-		});
+		).pipe(
+			Effect.flatMap((execution) => {
+				if (execution.code !== 0) {
+					return Effect.fail({
+						code: "tauri_mcp_failed",
+						message:
+							execution.stderr.trim() || execution.stdout.trim() || "Tauri MCP command failed.",
+					});
+				}
+				return unwrapTauriText(execution.stdout).pipe(
+					Result.andThen((text) => {
+						const jsonText = jsonObjectPrefix(text);
+						if (jsonText === null) {
+							return Result.fail({
+								code: "tauri_payload_not_json",
+								message: `Tauri MCP did not return a JSON payload. Raw: ${text.slice(0, 500)}`,
+								raw: text.slice(0, 1_000),
+							});
+						}
+						return parseJsonText(jsonText);
+					}),
+					Result.andThen((json) => decodePayload(json)),
+					(parsed) =>
+						Result.isSuccess(parsed) ? Effect.succeed(parsed.success) : Effect.fail(parsed.failure)
+				);
+			})
+		);
 
-	return execute().orElse((failure) => {
-		if (!isNoActiveDriverSessionFailure(failure)) {
-			return err(failure);
-		}
-		return startDriverSession(input.appIdentifier, runner).andThen((session) => {
-			if (session.code !== 0) {
-				return err({
-					code: "driver_session_failed",
-					message:
-						session.stderr.trim() ||
-						session.stdout.trim() ||
-						"Unable to start Tauri driver session.",
-				});
+	return execute().pipe(
+		Effect.catch((failure) => {
+			if (!isNoActiveDriverSessionFailure(failure)) {
+				return Effect.fail(failure);
 			}
-			return execute();
-		});
-	});
+			return startDriverSession(input.appIdentifier, runner).pipe(
+				Effect.flatMap((session) => {
+					if (session.code !== 0) {
+						return Effect.fail({
+							code: "driver_session_failed",
+							message:
+								session.stderr.trim() ||
+								session.stdout.trim() ||
+								"Unable to start Tauri driver session.",
+						});
+					}
+					return execute();
+				})
+			);
+		})
+	);
 }
 
-export function executeWebviewJson<T>(
+export function executeWebviewJson<S extends Schema.ConstraintDecoder<unknown>>(
 	input: {
 		readonly appIdentifier: string;
 		readonly script: string;
-		readonly schema: z.ZodType<T>;
+		readonly schema: S;
 		readonly callTimeoutMs?: number;
 	},
 	runner: CommandRunner = runCommand
-): ResultAsync<T, TauriMcpFailure> {
+): Effect.Effect<S["Type"], TauriMcpFailure> {
 	return executeWebviewJsonCommand(input, runner, "webview-execute-js");
 }
 
-export function executeWebviewJsonSync<T>(
+export function executeWebviewJsonSync<S extends Schema.ConstraintDecoder<unknown>>(
 	input: {
 		readonly appIdentifier: string;
 		readonly script: string;
-		readonly schema: z.ZodType<T>;
+		readonly schema: S;
 		readonly callTimeoutMs?: number;
 	},
 	runner: CommandRunner = runCommand
-): ResultAsync<T, TauriMcpFailure> {
+): Effect.Effect<S["Type"], TauriMcpFailure> {
 	return executeWebviewJsonCommand(input, runner, "webview-execute-js-sync");
 }
 
@@ -504,49 +561,50 @@ function isNoActiveDriverSessionFailure(failure: TauriMcpFailure): boolean {
 export function startDriverSession(
 	appIdentifier: string,
 	runner: CommandRunner = runCommand
-): ResultAsync<CommandExecution, TauriMcpFailure> {
+): Effect.Effect<CommandExecution, TauriMcpFailure> {
 	return runTauriMcp(["driver-session", "start", "--port", appIdentifier], runner);
 }
 
 export function captureWebviewScreenshot(
 	appIdentifier: string,
 	runner: CommandRunner = runCommand
-): ResultAsync<string, TauriMcpFailure> {
+): Effect.Effect<string, TauriMcpFailure> {
 	return runTauriMcp(
 		["webview-screenshot", "--app-identifier", appIdentifier, "--json"],
 		runner
-	).andThen((execution) => {
-		if (execution.code !== 0) {
-			return err({
-				code: "screenshot_failed",
-				message: execution.stderr.trim() || execution.stdout.trim() || "Screenshot command failed.",
-			});
-		}
-		return parseJsonText(execution.stdout).andThen((json) => {
-			const wrapper = tauriScreenshotWrapperSchema.safeParse(json);
-			if (!wrapper.success) {
-				return err({
-					code: "screenshot_payload_schema_failed",
-					message: wrapper.error.message,
+	).pipe(
+		Effect.flatMap((execution) => {
+			if (execution.code !== 0) {
+				return Effect.fail({
+					code: "screenshot_failed",
+					message:
+						execution.stderr.trim() || execution.stdout.trim() || "Screenshot command failed.",
 				});
 			}
-			const filePath = wrapper.data.files?.[0]?.path;
-			if (filePath !== undefined) {
-				return ok(filePath);
-			}
-			const imageContentPath = wrapper.data.content?.find(
-				(item) => item.type === "image" && item.path !== undefined
-			)?.path;
-			if (imageContentPath !== undefined) {
-				return ok(imageContentPath);
-			}
-			if (wrapper.data.text !== undefined) {
-				return ok(wrapper.data.text);
-			}
-			return err({
-				code: "screenshot_path_missing",
-				message: "Screenshot succeeded but did not include an image path.",
-			});
-		});
-	});
+			return parseJsonText(execution.stdout).pipe(
+				Result.andThen((json) => decodeTauriScreenshotWrapper(json)),
+				Result.andThen((wrapper) => {
+					const filePath = wrapper.files?.[0]?.path;
+					if (filePath !== undefined) {
+						return Result.succeed(filePath);
+					}
+					const imageContentPath = wrapper.content?.find(
+						(item) => item.type === "image" && item.path !== undefined
+					)?.path;
+					if (imageContentPath !== undefined) {
+						return Result.succeed(imageContentPath);
+					}
+					if (wrapper.text !== undefined) {
+						return Result.succeed(wrapper.text);
+					}
+					return Result.fail({
+						code: "screenshot_path_missing",
+						message: "Screenshot succeeded but did not include an image path.",
+					});
+				}),
+				(parsed) =>
+					Result.isSuccess(parsed) ? Effect.succeed(parsed.success) : Effect.fail(parsed.failure)
+			);
+		})
+	);
 }

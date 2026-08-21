@@ -1,15 +1,15 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
-import { okAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 
 // Mock modules BEFORE any imports that use them
 
 // Mock the zoom service module to avoid $state runtime issues
 mock.module("$lib/services/zoom.svelte.js", () => ({
 	getZoomService: () => ({
-		initialize: () => okAsync(undefined),
-		zoomIn: () => okAsync(undefined),
-		zoomOut: () => okAsync(undefined),
-		resetZoom: () => okAsync(undefined),
+		initialize: () => Effect.succeed(undefined),
+		zoomIn: () => Effect.succeed(undefined),
+		zoomOut: () => Effect.succeed(undefined),
+		resetZoom: () => Effect.succeed(undefined),
 		zoomLevel: 1.0,
 		zoomPercentage: "100%",
 	}),

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import * as Result from "effect/Result";
 
 import { KeybindingRegistry } from "./bindings/registry.svelte.js";
 import { formatKeyString, formatKeyStringToArray, parseKeyString } from "./utils/formatter.js";
@@ -26,6 +27,6 @@ describe("keybinding registry", () => {
 			source: "user",
 		});
 
-		expect(result.isErr()).toBe(true);
+		expect(Result.isFailure(result)).toBe(true);
 	});
 });

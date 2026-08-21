@@ -1,4 +1,5 @@
 <script lang="ts">
+import * as Result from "effect/Result";
 import type { FilePanelFormatKind } from "./format/types.js";
 import { getFormatKind, parseStructuredContent } from "./format/registry.js";
 import FilePanelStructuredNode from "./file-panel-structured-node.svelte";
@@ -18,12 +19,12 @@ const parseResult = $derived.by(() => {
 
 const parseError = $derived.by(() => {
 	const result = parseResult;
-	return result.isErr() ? result.error.message : null;
+	return Result.isFailure(result) ? result.failure.message : null;
 });
 
 const parsedData = $derived.by(() => {
 	const result = parseResult;
-	return result.isOk() ? result.value : null;
+	return Result.isSuccess(result) ? result.success : null;
 });
 </script>
 

@@ -1,4 +1,5 @@
-import { okAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PrChecks, PrDetails } from "../../../utils/tauri-client/git.js";
@@ -75,11 +76,11 @@ describe("SessionStore PR linking", () => {
 	beforeEach(() => {
 		store = new SessionStore();
 		setSessionPrNumberMock.mockReset();
-		setSessionPrNumberMock.mockReturnValue(okAsync(undefined));
+		setSessionPrNumberMock.mockReturnValue(Effect.succeed(undefined));
 		prDetailsMock.mockReset();
-		prDetailsMock.mockReturnValue(okAsync(createPrDetails()));
+		prDetailsMock.mockReturnValue(Effect.succeed(createPrDetails()));
 		prChecksMock.mockReset();
-		prChecksMock.mockReturnValue(okAsync(createPrChecks()));
+		prChecksMock.mockReturnValue(Effect.succeed(createPrChecks()));
 		resolveAutomaticSessionPrNumberFromShipWorkflowMock.mockReset();
 	});
 
@@ -94,7 +95,7 @@ describe("SessionStore PR linking", () => {
 			parentId: null,
 		});
 
-		await store.connection.updateSessionPrLink("session-1", "/repo", 42, "manual");
+		await Effect.runPromise(store.connection.updateSessionPrLink("session-1", "/repo", 42, "manual"));
 
 		const session = store.read.getSessionCold("session-1");
 		expect(session?.prNumber).toBe(42);
@@ -130,9 +131,9 @@ describe("SessionStore PR linking", () => {
 			createdAt: new Date("2026-04-23T19:00:00.000Z"),
 			parentId: null,
 		});
-		resolveAutomaticSessionPrNumberFromShipWorkflowMock.mockReturnValue(okAsync(99));
+		resolveAutomaticSessionPrNumberFromShipWorkflowMock.mockReturnValue(Effect.succeed(99));
 
-		const applied = await store.connection.applyAutomaticPrLinkFromShipWorkflow(
+		const applied = await Effect.runPromise(Effect.result(store.connection.applyAutomaticPrLinkFromShipWorkflow(
 			"session-1",
 			"/repo",
 			{
@@ -140,9 +141,9 @@ describe("SessionStore PR linking", () => {
 				number: 99,
 				url: "https://github.com/flazouh/acepe/pull/99",
 			}
-		);
+		)));
 
-		expect(applied._unsafeUnwrap()).toBeNull();
+		expect(Result.getOrThrow(applied)).toBeNull();
 		expect(store.read.getSessionCold("session-1")?.prNumber).toBe(17);
 		expect(setSessionPrNumberMock).not.toHaveBeenCalled();
 	});

@@ -10,12 +10,12 @@
  * (refreshSessionPrState, invalidatePrDetails, etc.) route through the store
  * facade unchanged.
  */
-import { errAsync, okAsync, type ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
 import type { GitStackedPrStep, PrChecks, PrDetails } from "../../utils/tauri-client/git.js";
 import { tauriClient } from "../../utils/tauri-client.js";
 import { buildPartialSessionLinkedPr } from "../application/dto/session-linked-pr.js";
-import type { AppError } from "../errors/app-error.js";
-import { SessionNotFoundError } from "../errors/app-error.js";
+import { AgentError, AppError, SessionNotFoundError } from "../errors/app-error.js";
 import type { Operation } from "../types/operation.js";
 import { createLogger } from "../utils/logger.js";
 import {
@@ -40,6 +40,13 @@ function operationResultToText(result: Operation["result"]): string | null {
 }
 
 const logger = createLogger({ id: "pr-link-state-store", name: "PrLinkStateStore" });
+
+function toPrLinkError(operation: string, error: unknown): AppError {
+	if (error instanceof AppError) {
+		return error;
+	}
+	return new AgentError(operation, error instanceof Error ? error : new Error(String(error)));
+}
 
 const PR_CHECKS_POLL_INTERVAL_MS = 10_000;
 const PR_STATE_CACHE_TTL_MS = 60_000;
@@ -121,9 +128,9 @@ export class PrLinkStateStore {
 
 	// Cache/dedupe Maps
 	private readonly prDetailsCache = new Map<string, CachedPrDetails>();
-	private readonly prDetailsInflight = new Map<string, ResultAsync<PrDetails | null, never>>();
+	private readonly prDetailsInflight = new Map<string, Promise<PrDetails | null>>();
 	private readonly prChecksCache = new Map<string, CachedPrChecks>();
-	private readonly prChecksInflight = new Map<string, ResultAsync<PrChecks | null, never>>();
+	private readonly prChecksInflight = new Map<string, Promise<PrChecks | null>>();
 	private readonly prChecksVisibleSurfaces = new Map<string, Set<string>>();
 	private readonly prChecksPollTimers = new Map<string, ReturnType<typeof setTimeout>>();
 	private readonly prLinkUpdateSequence = new Map<string, number>();
@@ -137,10 +144,10 @@ export class PrLinkStateStore {
 		projectPath: string,
 		prNumber: number | null,
 		prLinkMode: SessionPrLinkMode
-	): ResultAsync<void, AppError> {
+	): Effect.Effect<void, AppError> {
 		const sessionMetadata = this.#deps.getSessionMetadata(sessionId);
 		if (!sessionMetadata) {
-			return errAsync(new SessionNotFoundError(sessionId));
+			return Effect.fail(new SessionNotFoundError(sessionId));
 		}
 
 		const nextLinkedPr =
@@ -179,7 +186,7 @@ export class PrLinkStateStore {
 
 		if (prNumber != null) {
 			this.setLinkedPrLoading(projectPath, prNumber, true);
-			void this.refreshSessionPrState(sessionId, projectPath, prNumber);
+			void Effect.runPromise(this.refreshSessionPrState(sessionId, projectPath, prNumber));
 		}
 
 		return tauriClient.history.setSessionPrNumber(sessionId, prNumber, prLinkMode);
@@ -188,7 +195,7 @@ export class PrLinkStateStore {
 	restoreAutomaticSessionPrLink(
 		sessionId: string,
 		projectPath: string
-	): ResultAsync<void, AppError> {
+	): Effect.Effect<void, AppError> {
 		return this.updateSessionPrLink(sessionId, projectPath, null, "automatic");
 	}
 
@@ -196,28 +203,31 @@ export class PrLinkStateStore {
 		sessionId: string,
 		projectPath: string,
 		pr: GitStackedPrStep
-	): ResultAsync<number | null, never> {
+	): Effect.Effect<number | null, never> {
 		const nextSequence = (this.prLinkUpdateSequence.get(sessionId) ?? 0) + 1;
 		this.prLinkUpdateSequence.set(sessionId, nextSequence);
 
-		return resolveAutomaticSessionPrNumberFromShipWorkflow(projectPath, pr).andThen((prNumber) => {
-			if (this.prLinkUpdateSequence.get(sessionId) !== nextSequence) {
-				return okAsync<number | null, never>(null);
-			}
+		return resolveAutomaticSessionPrNumberFromShipWorkflow(projectPath, pr).pipe(
+			Effect.flatMap((prNumber) => {
+				if (this.prLinkUpdateSequence.get(sessionId) !== nextSequence) {
+					return Effect.succeed<number | null>(null);
+				}
 
-			if (prNumber == null) {
-				return okAsync<number | null, never>(null);
-			}
+				if (prNumber == null) {
+					return Effect.succeed<number | null>(null);
+				}
 
-			const sessionMetadata = this.#deps.getSessionMetadata(sessionId);
-			if (!sessionMetadata || sessionMetadata.prLinkMode === "manual") {
-				return okAsync<number | null, never>(null);
-			}
+				const sessionMetadata = this.#deps.getSessionMetadata(sessionId);
+				if (!sessionMetadata || sessionMetadata.prLinkMode === "manual") {
+					return Effect.succeed<number | null>(null);
+				}
 
-			return this.updateSessionPrLink(sessionId, projectPath, prNumber, "automatic")
-				.map(() => prNumber)
-				.orElse(() => okAsync<number | null, never>(null));
-		});
+				return this.updateSessionPrLink(sessionId, projectPath, prNumber, "automatic").pipe(
+					Effect.map(() => prNumber),
+					Effect.catch(() => Effect.succeed<number | null>(null))
+				);
+			})
+		);
 	}
 
 	/**
@@ -257,29 +267,34 @@ export class PrLinkStateStore {
 		const nextSequence = (this.prLinkUpdateSequence.get(sessionId) ?? 0) + 1;
 		this.prLinkUpdateSequence.set(sessionId, nextSequence);
 
-		void resolveAutomaticSessionPrNumberFromToolCall(
-			projectPath,
-			candidateCommand,
-			candidateResultText
-		).andThen((prNumber) => {
-			if (prNumber == null || this.prLinkUpdateSequence.get(sessionId) !== nextSequence) {
-				return okAsync<number | null, never>(null);
-			}
+		void Effect.runPromise(
+			resolveAutomaticSessionPrNumberFromToolCall(
+				projectPath,
+				candidateCommand,
+				candidateResultText
+			).pipe(
+				Effect.flatMap((prNumber) => {
+					if (prNumber == null || this.prLinkUpdateSequence.get(sessionId) !== nextSequence) {
+						return Effect.succeed<number | null>(null);
+					}
 
-			// Re-check the guard: a manual link may have landed during the async repo lookup.
-			const latestMetadata = this.#deps.getSessionMetadata(sessionId);
-			if (
-				!latestMetadata ||
-				latestMetadata.prLinkMode === "manual" ||
-				latestMetadata.prNumber != null
-			) {
-				return okAsync<number | null, never>(null);
-			}
+					// Re-check the guard: a manual link may have landed during the async repo lookup.
+					const latestMetadata = this.#deps.getSessionMetadata(sessionId);
+					if (
+						!latestMetadata ||
+						latestMetadata.prLinkMode === "manual" ||
+						latestMetadata.prNumber != null
+					) {
+						return Effect.succeed<number | null>(null);
+					}
 
-			return this.updateSessionPrLink(sessionId, projectPath, prNumber, "automatic")
-				.map(() => prNumber)
-				.orElse(() => okAsync<number | null, never>(null));
-		});
+					return this.updateSessionPrLink(sessionId, projectPath, prNumber, "automatic").pipe(
+						Effect.map(() => prNumber),
+						Effect.catch(() => Effect.succeed<number | null>(null))
+					);
+				})
+			)
+		);
 	}
 
 	invalidatePrDetails(projectPath: string, prNumber: number): void {
@@ -327,9 +342,9 @@ export class PrLinkStateStore {
 		projectPath: string,
 		prNumber: number,
 		options?: { force?: boolean }
-	): ResultAsync<PrChecks | null, never> {
+	): Effect.Effect<PrChecks | null> {
 		if (prNumber <= 0) {
-			return okAsync<PrChecks | null, never>(null);
+			return Effect.succeed(null);
 		}
 
 		const cacheKey = this.getPrDetailsCacheKey(projectPath, prNumber);
@@ -337,19 +352,20 @@ export class PrLinkStateStore {
 		if (cachedChecks) {
 			this.applyPrChecksToSessions(projectPath, prNumber, cachedChecks);
 			this.updatePrChecksPollingState(projectPath, prNumber, cachedChecks);
-			return okAsync<PrChecks | null, never>(cachedChecks);
+			return Effect.succeed(cachedChecks);
 		}
 
 		this.setLinkedPrChecksLoading(projectPath, prNumber, true);
 
 		const inflightRequest = this.prChecksInflight.get(cacheKey);
 		if (inflightRequest) {
-			return inflightRequest;
+			return fromPromise(() => inflightRequest, (error) => toPrLinkError("prChecks", error)).pipe(
+				Effect.catch(() => Effect.succeed<PrChecks | null>(null))
+			);
 		}
 
-		const request = tauriClient.git
-			.prChecks(projectPath, prNumber)
-			.map((checks): PrChecks | null => {
+		const request = tauriClient.git.prChecks(projectPath, prNumber).pipe(
+			Effect.map((checks): PrChecks | null => {
 				this.prChecksCache.set(cacheKey, {
 					checks,
 					fetchedAt: Date.now(),
@@ -358,8 +374,8 @@ export class PrLinkStateStore {
 				this.applyPrChecksToSessions(projectPath, prNumber, checks);
 				this.updatePrChecksPollingState(projectPath, prNumber, checks);
 				return checks;
-			})
-			.orElse((err) => {
+			}),
+			Effect.catch((err) => {
 				this.prChecksInflight.delete(cacheKey);
 				logger.warn("Failed to fetch PR checks", {
 					sessionId,
@@ -368,40 +384,47 @@ export class PrLinkStateStore {
 				});
 				this.setLinkedPrChecksLoading(projectPath, prNumber, false);
 				this.updatePrChecksPollingState(projectPath, prNumber, null);
-				return okAsync<PrChecks | null, never>(null);
-			});
+				return Effect.succeed<PrChecks | null>(null);
+			})
+		);
 
-		this.prChecksInflight.set(cacheKey, request);
-		return request;
+		const pending = Effect.runPromise(request).finally(() => {
+			this.prChecksInflight.delete(cacheKey);
+		});
+		this.prChecksInflight.set(cacheKey, pending);
+		return fromPromise(() => pending, (error) => toPrLinkError("prChecks", error)).pipe(
+			Effect.catch(() => Effect.succeed<PrChecks | null>(null))
+		);
 	}
 
 	refreshSessionPrState(
 		sessionId: string,
 		projectPath: string,
 		prNumber: number
-	): ResultAsync<PrDetails | null, never> {
+	): Effect.Effect<PrDetails | null> {
 		if (prNumber <= 0) {
-			return okAsync<PrDetails | null, never>(null);
+			return Effect.succeed(null);
 		}
 
 		const cacheKey = this.getPrDetailsCacheKey(projectPath, prNumber);
 		const cachedDetails = this.getFreshCachedPrDetails(cacheKey);
 		if (cachedDetails) {
 			this.applyPrDetailsToSessions(projectPath, prNumber, cachedDetails);
-			return okAsync<PrDetails | null, never>(cachedDetails);
+			return Effect.succeed(cachedDetails);
 		}
 
 		this.setLinkedPrLoading(projectPath, prNumber, true);
 
 		const inflightRequest = this.prDetailsInflight.get(cacheKey);
 		if (inflightRequest) {
-			return inflightRequest;
+			return fromPromise(() => inflightRequest, (error) => toPrLinkError("prDetails", error)).pipe(
+				Effect.catch(() => Effect.succeed<PrDetails | null>(null))
+			);
 		}
 
 		logger.debug("refreshSessionPrState: calling prDetails", { sessionId, projectPath, prNumber });
-		const request = tauriClient.git
-			.prDetails(projectPath, prNumber)
-			.map((details): PrDetails | null => {
+		const request = tauriClient.git.prDetails(projectPath, prNumber).pipe(
+			Effect.map((details): PrDetails | null => {
 				this.prDetailsCache.set(cacheKey, {
 					details,
 					fetchedAt: Date.now(),
@@ -413,8 +436,8 @@ export class PrLinkStateStore {
 				});
 				this.applyPrDetailsToSessions(projectPath, prNumber, details);
 				return details;
-			})
-			.orElse((err) => {
+			}),
+			Effect.catch((err) => {
 				this.prDetailsInflight.delete(cacheKey);
 				logger.warn("Failed to fetch PR details", {
 					sessionId,
@@ -422,11 +445,17 @@ export class PrLinkStateStore {
 					error: err.message,
 				});
 				this.setLinkedPrLoading(projectPath, prNumber, false);
-				return okAsync<PrDetails | null, never>(null);
-			});
+				return Effect.succeed<PrDetails | null>(null);
+			})
+		);
 
-		this.prDetailsInflight.set(cacheKey, request);
-		return request;
+		const pending = Effect.runPromise(request).finally(() => {
+			this.prDetailsInflight.delete(cacheKey);
+		});
+		this.prDetailsInflight.set(cacheKey, pending);
+		return fromPromise(() => pending, (error) => toPrLinkError("prDetails", error)).pipe(
+			Effect.catch(() => Effect.succeed<PrDetails | null>(null))
+		);
 	}
 
 	refreshAllPrStates(): void {
@@ -441,7 +470,9 @@ export class PrLinkStateStore {
 			if (prNumber == null) {
 				continue;
 			}
-			void this.refreshSessionPrState(sessionIdentity.id, sessionIdentity.projectPath, prNumber);
+			void Effect.runPromise(
+				this.refreshSessionPrState(sessionIdentity.id, sessionIdentity.projectPath, prNumber)
+			);
 		}
 	}
 
@@ -453,7 +484,7 @@ export class PrLinkStateStore {
 		if (this.prChecksPollTimers.has(cacheKey)) {
 			return;
 		}
-		void this.refreshSessionPrChecks(cacheKey, projectPath, prNumber, { force: true });
+		void Effect.runPromise(this.refreshSessionPrChecks(cacheKey, projectPath, prNumber, { force: true }));
 	}
 
 	private schedulePrChecksPoll(projectPath: string, prNumber: number): void {
@@ -464,7 +495,9 @@ export class PrLinkStateStore {
 		}
 		const timerId = setTimeout(() => {
 			this.prChecksPollTimers.delete(cacheKey);
-			void this.refreshSessionPrChecks(cacheKey, projectPath, prNumber, { force: true });
+			void Effect.runPromise(
+				this.refreshSessionPrChecks(cacheKey, projectPath, prNumber, { force: true })
+			);
 		}, PR_CHECKS_POLL_INTERVAL_MS);
 		this.prChecksPollTimers.set(cacheKey, timerId);
 	}

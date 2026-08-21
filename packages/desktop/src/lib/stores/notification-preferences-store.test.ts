@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
+import * as Effect from "effect/Effect";
 
-const getMock = mock(async () => ({ isOk: () => true, value: null }));
-const setMock = mock(() => ({ mapErr: () => ({}) }));
+const getMock = mock(() => Effect.succeed(null));
+const setMock = mock(() => Effect.succeed(undefined));
 
 mock.module("svelte", () => ({
 	getContext: mock(() => {
@@ -36,7 +37,8 @@ describe("notification-preferences-store", () => {
 	beforeEach(() => {
 		getMock.mockReset();
 		setMock.mockClear();
-		getMock.mockResolvedValue({ isOk: () => true, value: null });
+		getMock.mockReturnValue(Effect.succeed(null));
+		setMock.mockReturnValue(Effect.succeed(undefined));
 	});
 
 	it("does not expose the removed in-app toast preference", async () => {

@@ -1,5 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 
 import type { ProjectIndex } from "../../../../../services/converted-session-types.js";
 import type { PanelStore } from "../../../../store/panel-store.svelte.js";
@@ -34,10 +36,15 @@ function createProjectIndex(projectPath: string, files: string[]): ProjectIndex 
 	};
 }
 
+
+async function runToResult<A, E>(effect: Effect.Effect<A, E>): Promise<Result.Result<A, E>> {
+	return Effect.runPromise(Effect.result(effect));
+}
+
 describe("AgentInputState - file picker loading", () => {
 	let state: AgentInputState;
 	let projectPath: string | null;
-	const mockedInvoke = vi.mocked(invoke);
+	const mockedInvoke = invoke as unknown as ReturnType<typeof vi.fn>;
 
 	beforeEach(() => {
 		projectPath = "/tmp/project";
@@ -72,14 +79,14 @@ describe("AgentInputState - file picker loading", () => {
 			return Promise.reject(new Error(`Unexpected project path: ${nextProjectPath}`));
 		});
 
-		const firstResult = await state.loadProjectFiles("/tmp/project");
-		expect(firstResult.isOk()).toBe(true);
+		const firstResult = await runToResult(state.loadProjectFiles("/tmp/project"));
+		expect(Result.isSuccess(firstResult)).toBe(true);
 		expect(state.availableFiles.map((file) => file.path)).toEqual(["src/base.ts"]);
 
 		projectPath = "/tmp/project/.worktrees/feature";
 
-		const secondResult = await state.loadProjectFiles("/tmp/project/.worktrees/feature");
-		expect(secondResult.isOk()).toBe(true);
+		const secondResult = await runToResult(state.loadProjectFiles("/tmp/project/.worktrees/feature"));
+		expect(Result.isSuccess(secondResult)).toBe(true);
 		expect(mockedInvoke).toHaveBeenNthCalledWith(1, "get_project_files", {
 			projectPath: "/tmp/project",
 		});
@@ -111,16 +118,16 @@ describe("AgentInputState - file picker loading", () => {
 			return Promise.reject(new Error(`Unexpected command: ${command}`));
 		});
 
-		const firstResult = await state.loadProjectFiles("/tmp/project/.worktrees/feature");
-		expect(firstResult.isOk()).toBe(true);
+		const firstResult = await runToResult(state.loadProjectFiles("/tmp/project/.worktrees/feature"));
+		expect(Result.isSuccess(firstResult)).toBe(true);
 		expect(state.availableFiles.map((file) => file.path)).toEqual(["src/existing.ts"]);
 
 		files = ["src/existing.ts", "src/new-file.ts"];
 
-		const secondResult = await state.loadProjectFiles("/tmp/project/.worktrees/feature", {
+		const secondResult = await runToResult(state.loadProjectFiles("/tmp/project/.worktrees/feature", {
 			refresh: true,
-		});
-		expect(secondResult.isOk()).toBe(true);
+		}));
+		expect(Result.isSuccess(secondResult)).toBe(true);
 		expect(mockedInvoke).toHaveBeenNthCalledWith(1, "get_project_files", {
 			projectPath: "/tmp/project/.worktrees/feature",
 		});

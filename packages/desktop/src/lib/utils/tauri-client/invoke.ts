@@ -1,5 +1,6 @@
+import { fromPromise } from "@acepe/effect-result/fromPromise";
 import { invoke } from "@tauri-apps/api/core";
-import { ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 
 import type { AppError } from "../../acp/errors/app-error.js";
 import { AgentError } from "../../acp/errors/app-error.js";
@@ -64,7 +65,7 @@ const completedInvokeTimings: TauriInvokeTimingRecord[] = [];
 
 export interface GeneratedCommand<TName extends string> {
 	readonly name: TName;
-	invoke<TResult>(args?: InvokeArgs): ResultAsync<TResult, AppError>;
+	invoke<TResult>(args?: InvokeArgs): Effect.Effect<TResult, AppError>;
 }
 
 interface InvokeOptions {
@@ -279,7 +280,7 @@ function invokeAsyncWithRuntime<T>(
 	cmd: string,
 	args?: Parameters<typeof invoke>[1],
 	options: InvokeOptions = DEFAULT_INVOKE_OPTIONS
-): ResultAsync<T, AppError> {
+): Effect.Effect<T, AppError> {
 	const invokeId = `invoke-${++invokeCounter}`;
 	const start = nowMs();
 	const argsStr = debugInvoke && args ? JSON.stringify(args).slice(0, 200) : undefined;
@@ -288,27 +289,28 @@ function invokeAsyncWithRuntime<T>(
 	pendingInvokes.set(invokeId, { cmd, start, argsSummary, args: argsStr });
 	if (debugInvoke) console.debug(`[INVOKE] #${invokeId} START ${cmd}`, argsStr ?? "");
 
-	return ResultAsync.fromPromise(
-		runtime<T>(cmd, args).then(
-			(value) => {
-				const record = recordCompletedInvokeTiming(invokeId, cmd, argsSummary, start, "ok");
-				pendingInvokes.delete(invokeId);
-				if (record.durationMs > 1000) {
-					console.warn(`[INVOKE] #${invokeId} DONE ${cmd} took ${record.durationMs}ms`);
-				} else if (debugInvoke) {
-					console.debug(`[INVOKE] #${invokeId} DONE ${cmd} ${record.durationMs}ms`);
+	return fromPromise(
+		() =>
+			runtime<T>(cmd, args).then(
+				(value) => {
+					const record = recordCompletedInvokeTiming(invokeId, cmd, argsSummary, start, "ok");
+					pendingInvokes.delete(invokeId);
+					if (record.durationMs > 1000) {
+						console.warn(`[INVOKE] #${invokeId} DONE ${cmd} took ${record.durationMs}ms`);
+					} else if (debugInvoke) {
+						console.debug(`[INVOKE] #${invokeId} DONE ${cmd} ${record.durationMs}ms`);
+					}
+					return value;
+				},
+				(error: InvokeErrorValue) => {
+					const record = recordCompletedInvokeTiming(invokeId, cmd, argsSummary, start, "error");
+					pendingInvokes.delete(invokeId);
+					if (debugInvoke) {
+						console.debug(`[INVOKE] #${invokeId} FAILED ${cmd} ${record.durationMs}ms`);
+					}
+					throw error;
 				}
-				return value;
-			},
-			(error: InvokeErrorValue) => {
-				const record = recordCompletedInvokeTiming(invokeId, cmd, argsSummary, start, "error");
-				pendingInvokes.delete(invokeId);
-				if (debugInvoke) {
-					console.debug(`[INVOKE] #${invokeId} FAILED ${cmd} ${record.durationMs}ms`);
-				}
-				throw error;
-			}
-		),
+			),
 		(error) => {
 			const elapsed = roundMs(nowMs() - start);
 			pendingInvokes.delete(invokeId);
@@ -348,26 +350,26 @@ function invokeAsyncWithRuntime<T>(
 }
 
 /**
- * Wrap Tauri invoke with ResultAsync for consistent error handling.
+ * Wrap Tauri invoke with Effect for consistent error handling.
  */
 export function invokeAsync<T>(
 	cmd: string,
 	args?: Parameters<typeof invoke>[1]
-): ResultAsync<T, AppError> {
+): Effect.Effect<T, AppError> {
 	return invokeAsyncWithRuntime(invoke, cmd, args);
 }
 
 export function invokeAsyncQuiet<T>(
 	cmd: string,
 	args?: Parameters<typeof invoke>[1]
-): ResultAsync<T, AppError> {
+): Effect.Effect<T, AppError> {
 	return invokeAsyncWithRuntime(invoke, cmd, args, { reportFailure: false });
 }
 
 export function createGeneratedCommand<TName extends string>(name: TName): GeneratedCommand<TName> {
 	return {
 		name,
-		invoke<TResult>(args?: InvokeArgs): ResultAsync<TResult, AppError> {
+		invoke<TResult>(args?: InvokeArgs): Effect.Effect<TResult, AppError> {
 			return invokeAsync<TResult>(name, args);
 		},
 	};

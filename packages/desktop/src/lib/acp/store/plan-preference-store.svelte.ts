@@ -5,6 +5,8 @@
  * When false, plans open in the sidebar panel (current/legacy behavior).
  */
 
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { getContext, setContext } from "svelte";
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
@@ -26,8 +28,10 @@ export class PlanPreferenceStore {
 		if (this.initialized) return;
 		this.initialized = true;
 
-		const result = await tauriClient.settings.get<boolean>(PLAN_INLINE_MODE_KEY);
-		if (result.isOk() && result.value === false) {
+		const result = await Effect.runPromise(
+			Effect.result(tauriClient.settings.get<boolean>(PLAN_INLINE_MODE_KEY))
+		);
+		if (Result.isSuccess(result) && result.success === false) {
 			this.preferInline = false;
 		}
 		this.isReady = true;
@@ -35,9 +39,16 @@ export class PlanPreferenceStore {
 
 	async setPreferInline(value: boolean): Promise<void> {
 		this.preferInline = value;
-		tauriClient.settings.set(PLAN_INLINE_MODE_KEY, value).mapErr((err) => {
-			logger.warn("Failed to persist plan preference", { error: err });
-		});
+		void Effect.runPromise(
+			tauriClient.settings.set(PLAN_INLINE_MODE_KEY, value).pipe(
+				Effect.match({
+					onSuccess: () => undefined,
+					onFailure: (err) => {
+						logger.warn("Failed to persist plan preference", { error: err });
+					},
+				})
+			)
+		);
 	}
 }
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+import * as Effect from "effect/Effect";
 import { onMount } from "svelte";
 import { SvelteSet } from "svelte/reactivity";
 import { ProjectLetterBadge, Selector, SelectorItem, computeProjectBadgeLabels } from "@acepe/ui";
@@ -76,11 +77,15 @@ onMount(() => {
 	if (missingProjectPaths) return;
 	const paths = recentProjects.map((p) => p.path);
 	if (paths.length === 0) return;
-	void tauriClient.projects.getMissingProjectPaths(paths).match(
-		(missing) => {
-			for (const p of missing) localMissingPaths.add(p);
-		},
-		() => {}
+	void Effect.runPromise(
+		tauriClient.projects.getMissingProjectPaths(paths).pipe(
+			Effect.match({
+				onSuccess: (missing) => {
+					for (const p of missing) localMissingPaths.add(p);
+				},
+				onFailure: () => undefined,
+			})
+		)
 	);
 });
 

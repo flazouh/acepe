@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
-import { errAsync, okAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import type { Project, ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import { ProjectError } from "$lib/acp/logic/project-manager.svelte.js";
 
@@ -18,7 +19,7 @@ describe("ProjectHandler", () => {
 		mockProjectManager = {
 			recentProjects: [],
 			selectedProject: null,
-			importProject: mock(() => okAsync(null)),
+			importProject: mock(() => Effect.succeed(null)),
 		} as unknown as ProjectManager;
 
 		handler = new ProjectHandler(mockState, mockProjectManager);
@@ -32,30 +33,30 @@ describe("ProjectHandler", () => {
 				createdAt: new Date(),
 				color: "blue",
 			};
-			mockProjectManager.importProject = mock(() => okAsync(project));
+			mockProjectManager.importProject = mock(() => Effect.succeed(project));
 
-			const result = await handler.addProject();
+			const result = await Effect.runPromise(Effect.result(handler.addProject()));
 
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 			expect(mockProjectManager.importProject).toHaveBeenCalled();
 		});
 
 		it("should return ok if user cancels file picker", async () => {
-			mockProjectManager.importProject = mock(() => okAsync(null));
+			mockProjectManager.importProject = mock(() => Effect.succeed(null));
 
-			const result = await handler.addProject();
+			const result = await Effect.runPromise(Effect.result(handler.addProject()));
 
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 		});
 
 		it("should return error if import fails", async () => {
 			mockProjectManager.importProject = mock(() =>
-				errAsync(new ProjectError("Import failed", "STORAGE_ERROR"))
+				Effect.fail(new ProjectError("Import failed", "STORAGE_ERROR"))
 			);
 
-			const result = await handler.addProject();
+			const result = await Effect.runPromise(Effect.result(handler.addProject()));
 
-			expect(result.isErr()).toBe(true);
+			expect(Result.isFailure(result)).toBe(true);
 		});
 	});
 });

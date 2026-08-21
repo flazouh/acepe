@@ -1,4 +1,4 @@
-import type { ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 
 import type { AppError } from "../../acp/errors/app-error.js";
 import type { CloneResult } from "../../acp/types/index.js";
@@ -13,27 +13,27 @@ export const git = {
 		url: string,
 		destination: string,
 		branch?: string
-	): ResultAsync<CloneResult, AppError> => {
+	): Effect.Effect<CloneResult, AppError> => {
 		return gitCommands.clone.invoke<CloneResult>({ url, destination, branch });
 	},
 
-	browseDestination: (): ResultAsync<string | null, AppError> => {
+	browseDestination: (): Effect.Effect<string | null, AppError> => {
 		return gitCommands.browse_destination.invoke<string | null>();
 	},
 
-	init: (projectPath: string): ResultAsync<void, AppError> => {
+	init: (projectPath: string): Effect.Effect<void, AppError> => {
 		return gitCommands.init.invoke<void>({ projectPath });
 	},
 
-	isRepo: (projectPath: string): ResultAsync<boolean, AppError> => {
+	isRepo: (projectPath: string): Effect.Effect<boolean, AppError> => {
 		return gitCommands.is_repo.invoke<boolean>({ projectPath });
 	},
 
-	currentBranch: (projectPath: string): ResultAsync<string, AppError> => {
+	currentBranch: (projectPath: string): Effect.Effect<string, AppError> => {
 		return gitCommands.current_branch.invoke<string>({ projectPath });
 	},
 
-	listBranches: (projectPath: string): ResultAsync<string[], AppError> => {
+	listBranches: (projectPath: string): Effect.Effect<string[], AppError> => {
 		return gitCommands.list_branches.invoke<string[]>({ projectPath });
 	},
 
@@ -41,22 +41,22 @@ export const git = {
 		projectPath: string,
 		branch: string,
 		create = false
-	): ResultAsync<string, AppError> => {
+	): Effect.Effect<string, AppError> => {
 		return gitCommands.checkout_branch.invoke<string>({ projectPath, branch, create });
 	},
 
-	hasUncommittedChanges: (projectPath: string): ResultAsync<boolean, AppError> => {
+	hasUncommittedChanges: (projectPath: string): Effect.Effect<boolean, AppError> => {
 		return gitCommands.has_uncommitted_changes.invoke<boolean>({ projectPath });
 	},
 
-	worktreeCreate: (projectPath: string): ResultAsync<WorktreeInfo, AppError> => {
+	worktreeCreate: (projectPath: string): Effect.Effect<WorktreeInfo, AppError> => {
 		return gitCommands.worktree_create.invoke<WorktreeInfo>({ projectPath });
 	},
 
 	prepareWorktreeSessionLaunch: (
 		projectPath: string,
 		agentId: string
-	): ResultAsync<PreparedWorktreeLaunch, AppError> => {
+	): Effect.Effect<PreparedWorktreeLaunch, AppError> => {
 		return gitCommands.prepare_worktree_session_launch.invoke<PreparedWorktreeLaunch>({
 			projectPath,
 			agentId,
@@ -66,99 +66,99 @@ export const git = {
 	discardPreparedWorktreeSessionLaunch: (
 		launchToken: string,
 		removeWorktree = false
-	): ResultAsync<void, AppError> => {
+	): Effect.Effect<void, AppError> => {
 		return gitCommands.discard_prepared_worktree_session_launch.invoke<void>({
 			launchToken,
 			removeWorktree,
 		});
 	},
 
-	worktreeRemove: (worktreePath: string, force?: boolean): ResultAsync<void, AppError> => {
+	worktreeRemove: (worktreePath: string, force?: boolean): Effect.Effect<void, AppError> => {
 		return gitCommands.worktree_remove.invoke<void>({
 			worktreePath,
 			force: force ?? false,
 		});
 	},
 
-	worktreeReset: (worktreePath: string): ResultAsync<void, AppError> => {
+	worktreeReset: (worktreePath: string): Effect.Effect<void, AppError> => {
 		return gitCommands.worktree_reset.invoke<void>({ worktreePath });
 	},
 
-	worktreeList: (projectPath: string): ResultAsync<WorktreeInfo[], AppError> => {
+	worktreeList: (projectPath: string): Effect.Effect<WorktreeInfo[], AppError> => {
 		return gitCommands.worktree_list.invoke<WorktreeInfo[]>({ projectPath });
 	},
 
-	worktreeRename: (worktreePath: string, newName: string): ResultAsync<WorktreeInfo, AppError> => {
+	worktreeRename: (worktreePath: string, newName: string): Effect.Effect<WorktreeInfo, AppError> => {
 		return gitCommands.worktree_rename.invoke<WorktreeInfo>({ worktreePath, newName });
 	},
 
-	worktreeDiskSize: (path: string): ResultAsync<number, AppError> => {
+	worktreeDiskSize: (path: string): Effect.Effect<number, AppError> => {
 		return gitCommands.worktree_disk_size.invoke<number>({ path });
 	},
 
 	// ─── Git Panel Operations ───────────────────────────────────────────
 
-	panelStatus: (projectPath: string): ResultAsync<GitPanelFileStatus[], AppError> => {
+	panelStatus: (projectPath: string): Effect.Effect<GitPanelFileStatus[], AppError> => {
 		return gitCommands.panel_status.invoke<GitPanelFileStatus[]>({ projectPath });
 	},
 
-	diffStats: (projectPath: string): ResultAsync<GitDiffStats, AppError> => {
+	diffStats: (projectPath: string): Effect.Effect<GitDiffStats, AppError> => {
 		return gitCommands.diff_stats.invoke<GitDiffStats>({ projectPath });
 	},
 
-	stageFiles: (projectPath: string, files: string[]): ResultAsync<void, AppError> => {
+	stageFiles: (projectPath: string, files: string[]): Effect.Effect<void, AppError> => {
 		return gitCommands.stage_files.invoke<void>({ projectPath, files });
 	},
 
-	unstageFiles: (projectPath: string, files: string[]): ResultAsync<void, AppError> => {
+	unstageFiles: (projectPath: string, files: string[]): Effect.Effect<void, AppError> => {
 		return gitCommands.unstage_files.invoke<void>({ projectPath, files });
 	},
 
-	stageAll: (projectPath: string): ResultAsync<void, AppError> => {
+	stageAll: (projectPath: string): Effect.Effect<void, AppError> => {
 		return gitCommands.stage_all.invoke<void>({ projectPath });
 	},
 
-	discardChanges: (projectPath: string, files: string[]): ResultAsync<void, AppError> => {
+	discardChanges: (projectPath: string, files: string[]): Effect.Effect<void, AppError> => {
 		return gitCommands.discard_changes.invoke<void>({ projectPath, files });
 	},
 
-	commit: (projectPath: string, message: string): ResultAsync<GitCommitResult, AppError> => {
+	commit: (projectPath: string, message: string): Effect.Effect<GitCommitResult, AppError> => {
 		return gitCommands.commit.invoke<GitCommitResult>({ projectPath, message });
 	},
 
-	push: (projectPath: string): ResultAsync<void, AppError> => {
+	push: (projectPath: string): Effect.Effect<void, AppError> => {
 		return gitCommands.push.invoke<void>({ projectPath });
 	},
 
-	pull: (projectPath: string): ResultAsync<void, AppError> => {
+	pull: (projectPath: string): Effect.Effect<void, AppError> => {
 		return gitCommands.pull.invoke<void>({ projectPath });
 	},
 
-	fetch: (projectPath: string): ResultAsync<void, AppError> => {
+	fetch: (projectPath: string): Effect.Effect<void, AppError> => {
 		return gitCommands.fetch.invoke<void>({ projectPath });
 	},
 
-	remoteStatus: (projectPath: string): ResultAsync<GitRemoteStatus, AppError> => {
+	remoteStatus: (projectPath: string): Effect.Effect<GitRemoteStatus, AppError> => {
 		return gitCommands.remote_status.invoke<GitRemoteStatus>({ projectPath });
 	},
 
-	stashList: (projectPath: string): ResultAsync<GitStashEntry[], AppError> => {
+	stashList: (projectPath: string): Effect.Effect<GitStashEntry[], AppError> => {
 		return gitCommands.stash_list.invoke<GitStashEntry[]>({ projectPath });
 	},
 
-	stashPop: (projectPath: string, index: number): ResultAsync<void, AppError> => {
+	stashPop: (projectPath: string, index: number): Effect.Effect<void, AppError> => {
 		return gitCommands.stash_pop.invoke<void>({ projectPath, index });
 	},
 
-	stashDrop: (projectPath: string, index: number): ResultAsync<void, AppError> => {
+	stashDrop: (projectPath: string, index: number): Effect.Effect<void, AppError> => {
 		return gitCommands.stash_drop.invoke<void>({ projectPath, index });
 	},
 
-	stashSave: (projectPath: string, message?: string): ResultAsync<void, AppError> => {
+	stashSave: (projectPath: string, message?: string): Effect.Effect<void, AppError> => {
 		return gitCommands.stash_save.invoke<void>({ projectPath, message });
 	},
 
-	log: (projectPath: string, limit = 50): ResultAsync<GitLogEntry[], AppError> => {
+	log: (projectPath: string, limit = 50): Effect.Effect<GitLogEntry[], AppError> => {
 		return gitCommands.log.invoke<GitLogEntry[]>({ projectPath, limit });
 	},
 
@@ -166,11 +166,11 @@ export const git = {
 		projectPath: string,
 		name: string,
 		startPoint?: string
-	): ResultAsync<string, AppError> => {
+	): Effect.Effect<string, AppError> => {
 		return gitCommands.create_branch.invoke<string>({ projectPath, name, startPoint });
 	},
 
-	deleteBranch: (projectPath: string, name: string, force = false): ResultAsync<void, AppError> => {
+	deleteBranch: (projectPath: string, name: string, force = false): Effect.Effect<void, AppError> => {
 		return gitCommands.delete_branch.invoke<void>({ projectPath, name, force });
 	},
 
@@ -181,7 +181,7 @@ export const git = {
 	 * @param projectPath - Path to the git project root.
 	 * @param action - "commit" | "commit_push" | "commit_push_pr"
 	 * @param commitMessage - Message for the commit.
-	 * @returns ResultAsync resolving to per-step result (commit, push, pr).
+	 * @returns Effect resolving to per-step result (commit, push, pr).
 	 */
 	runStackedAction: (
 		projectPath: string,
@@ -189,7 +189,7 @@ export const git = {
 		commitMessage: string,
 		prTitle?: string,
 		prBody?: string
-	): ResultAsync<GitStackedActionResult, AppError> => {
+	): Effect.Effect<GitStackedActionResult, AppError> => {
 		return gitCommands.run_stacked_action.invoke<GitStackedActionResult>({
 			projectPath,
 			action,
@@ -206,18 +206,18 @@ export const git = {
 	collectShipContext: (
 		projectPath: string,
 		customInstructions?: string
-	): ResultAsync<ShipContext | null, AppError> => {
+	): Effect.Effect<ShipContext | null, AppError> => {
 		return gitCommands.collect_ship_context.invoke<ShipContext | null>({
 			projectPath,
 			customInstructions,
 		});
 	},
 
-	prDetails: (projectPath: string, prNumber: number): ResultAsync<PrDetails, AppError> => {
+	prDetails: (projectPath: string, prNumber: number): Effect.Effect<PrDetails, AppError> => {
 		return gitCommands.pr_details.invoke<PrDetails>({ projectPath, prNumber });
 	},
 
-	prChecks: (projectPath: string, prNumber: number): ResultAsync<PrChecks, AppError> => {
+	prChecks: (projectPath: string, prNumber: number): Effect.Effect<PrChecks, AppError> => {
 		return gitCommands.pr_checks.invoke<PrChecks>({ projectPath, prNumber });
 	},
 
@@ -225,39 +225,39 @@ export const git = {
 		projectPath: string,
 		prNumber: number,
 		strategy: MergeStrategy
-	): ResultAsync<void, AppError> => {
+	): Effect.Effect<void, AppError> => {
 		return gitCommands.merge_pr.invoke<void>({ projectPath, prNumber, strategy });
 	},
 
-	getOpenPrForBranch: (projectPath: string): ResultAsync<OpenPrInfo | null, AppError> => {
+	getOpenPrForBranch: (projectPath: string): Effect.Effect<OpenPrInfo | null, AppError> => {
 		return gitCommands.get_open_pr_for_branch.invoke<OpenPrInfo | null>({ projectPath });
 	},
 
-	ciJobDetails: (projectPath: string, detailsUrl: string): ResultAsync<CiJobDetails, AppError> => {
+	ciJobDetails: (projectPath: string, detailsUrl: string): Effect.Effect<CiJobDetails, AppError> => {
 		return gitCommands.ci_job_details.invoke<CiJobDetails>({ projectPath, detailsUrl });
 	},
 
 	// ─── Git HEAD Watcher ──────────────────────────────────────────────
 
-	watchHead: (projectPath: string): ResultAsync<void, AppError> => {
+	watchHead: (projectPath: string): Effect.Effect<void, AppError> => {
 		return gitCommands.watch_head.invoke<void>({ projectPath });
 	},
 
-	loadWorktreeConfig: (projectPath: string): ResultAsync<WorktreeConfig | null, AppError> => {
+	loadWorktreeConfig: (projectPath: string): Effect.Effect<WorktreeConfig | null, AppError> => {
 		return gitCommands.load_worktree_config.invoke<WorktreeConfig | null>({ projectPath });
 	},
 
 	runWorktreeSetup: (
 		worktreePath: string,
 		projectPath: string
-	): ResultAsync<SetupResult, AppError> => {
+	): Effect.Effect<SetupResult, AppError> => {
 		return gitCommands.run_worktree_setup.invoke<SetupResult>({ worktreePath, projectPath });
 	},
 
 	saveWorktreeConfig: (
 		projectPath: string,
 		setupCommands: string[]
-	): ResultAsync<void, AppError> => {
+	): Effect.Effect<void, AppError> => {
 		return gitCommands.save_worktree_config.invoke<void>({ projectPath, setupCommands });
 	},
 };

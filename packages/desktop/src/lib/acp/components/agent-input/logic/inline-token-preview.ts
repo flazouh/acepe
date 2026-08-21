@@ -1,4 +1,6 @@
-import { Result } from "neverthrow";
+import { fromThrowable } from "@acepe/effect-result/fromThrowable";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 
 const HOVER_PREVIEW_MAX_CHARS = 500;
 
@@ -10,9 +12,10 @@ export function truncateHoverPreview(value: string): string {
 }
 
 export function decodeInlineTextTokenValue(value: string): string | null {
-	const result = Result.fromThrowable(
+	const decodeToken = fromThrowable(
 		(v: string) => decodeURIComponent(escape(atob(v))),
 		() => new Error("Invalid base64 or URI")
-	)(value);
-	return result.isOk() ? result.value : null;
+	);
+	const result = Effect.runSync(Effect.result(decodeToken(value)));
+	return Result.isSuccess(result) ? result.success : null;
 }

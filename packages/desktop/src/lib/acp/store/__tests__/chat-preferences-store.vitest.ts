@@ -1,4 +1,4 @@
-import { okAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getSettingMock = vi.fn();
@@ -23,11 +23,11 @@ describe("ChatPreferencesStore", () => {
 
 		({ ChatPreferencesStore } = await import("../chat-preferences-store.svelte.js"));
 
-		setSettingMock.mockReturnValue(okAsync(undefined));
+		setSettingMock.mockReturnValue(Effect.succeed(undefined));
 	});
 
 	it("defaults to smooth when no settings are stored", async () => {
-		getSettingMock.mockReturnValue(okAsync(null));
+		getSettingMock.mockReturnValue(Effect.succeed(null));
 
 		const store = new ChatPreferencesStore();
 		await store.initialize();
@@ -37,7 +37,9 @@ describe("ChatPreferencesStore", () => {
 	});
 
 	it("loads the persisted thinking preference", async () => {
-		getSettingMock.mockReturnValueOnce(okAsync(true));
+		getSettingMock
+			.mockReturnValueOnce(Effect.succeed(true))
+			.mockReturnValueOnce(Effect.succeed(null));
 
 		const store = new ChatPreferencesStore();
 		await store.initialize();

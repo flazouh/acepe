@@ -1,4 +1,5 @@
-import { err, okAsync, ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
 import { dispatchWebviewClick } from "./click-event-dispatch";
 import { moveNativePointer, type NativePointerMover } from "./native-pointer";
 import type {
@@ -79,22 +80,26 @@ function escapedJson(value: string): string {
 	return JSON.stringify(value);
 }
 
-function driverReady(options: DriverOptions): ResultAsync<null, TauriMcpFailure> {
+function driverReady(options: DriverOptions): Effect.Effect<null, TauriMcpFailure> {
 	const runner = options.runner === undefined ? runCommand : options.runner;
 	const driver =
 		options.skipDriver === true
-			? okAsync({ code: 0, stdout: "", stderr: "" })
+			? Effect.succeed({ code: 0, stdout: "", stderr: "" })
 			: startDriverSession(options.appIdentifier, runner);
-	return driver.andThen((session) => {
-		if (session.code !== 0) {
-			return err({
-				code: "driver_session_failed",
-				message:
-					session.stderr.trim() || session.stdout.trim() || "Unable to start Tauri driver session.",
-			});
-		}
-		return okAsync(null);
-	});
+	return driver.pipe(
+		Effect.flatMap((session) => {
+			if (session.code !== 0) {
+				return Effect.fail({
+					code: "driver_session_failed",
+					message:
+						session.stderr.trim() ||
+						session.stdout.trim() ||
+						"Unable to start Tauri driver session.",
+				});
+			}
+			return Effect.succeed(null);
+		})
+	);
 }
 
 function focusAppScript(): string {
@@ -223,16 +228,20 @@ function focusAppScript(): string {
 `;
 }
 
-export function focusDevApp(options: DriverOptions): ResultAsync<FocusAppResult, TauriMcpFailure> {
-	return driverReady(options).andThen(() =>
-		executeWebviewJson(
-			{
-				appIdentifier: options.appIdentifier,
-				script: focusAppScript(),
-				schema: focusAppResultSchema,
-				callTimeoutMs: 8_000,
-			},
-			options.runner
+export function focusDevApp(
+	options: DriverOptions
+): Effect.Effect<FocusAppResult, TauriMcpFailure> {
+	return driverReady(options).pipe(
+		Effect.flatMap(() =>
+			executeWebviewJson(
+				{
+					appIdentifier: options.appIdentifier,
+					script: focusAppScript(),
+					schema: focusAppResultSchema,
+					callTimeoutMs: 8_000,
+				},
+				options.runner
+			)
 		)
 	);
 }
@@ -641,30 +650,32 @@ export function probeFrameRate(
 		readonly collectAgentPanelProfile?: boolean;
 		readonly scrollStepPx?: number | null;
 	}
-): ResultAsync<FrameRateProbeResult, TauriMcpFailure> {
+): Effect.Effect<FrameRateProbeResult, TauriMcpFailure> {
 	const callTimeoutMs = Math.max(8_000, options.sampleCount * 80);
-	return driverReady(options).andThen(() =>
-		executeWebviewJson(
-			{
-				appIdentifier: options.appIdentifier,
-				script: frameRateProbeScript({
-					sampleCount: Math.max(1, Math.floor(options.sampleCount)),
-					selector: options.selector,
-					selectorIndex: options.selectorIndex ?? 0,
-					collectRowChurn: options.collectRowChurn === true,
-					collectAgentPanelProfile: options.collectAgentPanelProfile === true,
-					scrollStepPx:
-						options.scrollStepPx !== undefined &&
-						options.scrollStepPx !== null &&
-						Number.isFinite(options.scrollStepPx) &&
-						options.scrollStepPx > 0
-							? options.scrollStepPx
-							: null,
-				}),
-				schema: frameRateProbeResultSchema,
-				callTimeoutMs,
-			},
-			options.runner
+	return driverReady(options).pipe(
+		Effect.flatMap(() =>
+			executeWebviewJson(
+				{
+					appIdentifier: options.appIdentifier,
+					script: frameRateProbeScript({
+						sampleCount: Math.max(1, Math.floor(options.sampleCount)),
+						selector: options.selector,
+						selectorIndex: options.selectorIndex ?? 0,
+						collectRowChurn: options.collectRowChurn === true,
+						collectAgentPanelProfile: options.collectAgentPanelProfile === true,
+						scrollStepPx:
+							options.scrollStepPx !== undefined &&
+							options.scrollStepPx !== null &&
+							Number.isFinite(options.scrollStepPx) &&
+							options.scrollStepPx > 0
+								? options.scrollStepPx
+								: null,
+					}),
+					schema: frameRateProbeResultSchema,
+					callTimeoutMs,
+				},
+				options.runner
+			)
 		)
 	);
 }
@@ -675,10 +686,11 @@ export function scanAgentPanelRows(
 		readonly selectorIndex: number;
 		readonly limit: number;
 	}
-): ResultAsync<AgentPanelRowScanResult, TauriMcpFailure> {
+): Effect.Effect<AgentPanelRowScanResult, TauriMcpFailure> {
 	const runner = options.runner ?? runCommand;
-	return driverReady(options).andThen(() => {
-		const script = `
+	return driverReady(options).pipe(
+		Effect.flatMap(() => {
+			const script = `
 (() => {
   const selector = ${escapedJson(options.selector)};
   const selectorIndex = ${Math.max(0, Math.floor(options.selectorIndex)).toString()};
@@ -823,15 +835,16 @@ export function scanAgentPanelRows(
 	  };
 })()
 `;
-		return executeWebviewJson(
-			{
-				appIdentifier: options.appIdentifier,
-				script,
-				schema: agentPanelRowScanResultSchema,
-			},
-			runner
-		);
-	});
+			return executeWebviewJson(
+				{
+					appIdentifier: options.appIdentifier,
+					script,
+					schema: agentPanelRowScanResultSchema,
+				},
+				runner
+			);
+		})
+	);
 }
 
 export function probeAgentPanelScrollPages(
@@ -842,18 +855,19 @@ export function probeAgentPanelScrollPages(
 		readonly scrollStepPx: number | null;
 		readonly settleMs: number;
 	}
-): ResultAsync<AgentPanelScrollPageProbeResult, TauriMcpFailure> {
+): Effect.Effect<AgentPanelScrollPageProbeResult, TauriMcpFailure> {
 	const runner = options.runner ?? runCommand;
-	return driverReady(options).andThen(() => {
-		const sampleCount = Math.max(1, Math.floor(options.sampleCount));
-		const settleMs = Math.max(0, Math.floor(options.settleMs));
-		const scrollStepPx =
-			options.scrollStepPx !== null &&
-			Number.isFinite(options.scrollStepPx) &&
-			options.scrollStepPx > 0
-				? options.scrollStepPx
-				: null;
-		const script = `
+	return driverReady(options).pipe(
+		Effect.flatMap(() => {
+			const sampleCount = Math.max(1, Math.floor(options.sampleCount));
+			const settleMs = Math.max(0, Math.floor(options.settleMs));
+			const scrollStepPx =
+				options.scrollStepPx !== null &&
+				Number.isFinite(options.scrollStepPx) &&
+				options.scrollStepPx > 0
+					? options.scrollStepPx
+					: null;
+			const script = `
 (async () => {
   const selector = ${escapedJson(options.selector)};
   const selectorIndex = ${Math.max(0, Math.floor(options.selectorIndex)).toString()};
@@ -1259,16 +1273,17 @@ export function probeAgentPanelScrollPages(
   };
 })()
 `;
-		return executeWebviewJson(
-			{
-				appIdentifier: options.appIdentifier,
-				script,
-				schema: agentPanelScrollPageProbeResultSchema,
-				callTimeoutMs: Math.max(20_000, sampleCount * (settleMs + 600)),
-			},
-			runner
-		);
-	});
+			return executeWebviewJson(
+				{
+					appIdentifier: options.appIdentifier,
+					script,
+					schema: agentPanelScrollPageProbeResultSchema,
+					callTimeoutMs: Math.max(20_000, sampleCount * (settleMs + 600)),
+				},
+				runner
+			);
+		})
+	);
 }
 
 const ELEMENT_SUMMARY_HELPERS = `
@@ -1333,10 +1348,11 @@ export function inspectDom(
 		readonly selector: string;
 		readonly limit: number;
 	}
-): ResultAsync<DomInspectionResult, TauriMcpFailure> {
+): Effect.Effect<DomInspectionResult, TauriMcpFailure> {
 	const runner = options.runner ?? runCommand;
-	return driverReady(options).andThen(() => {
-		const script = `
+	return driverReady(options).pipe(
+		Effect.flatMap(() => {
+			const script = `
 (() => {
   ${ELEMENT_SUMMARY_HELPERS}
   const selector = ${escapedJson(options.selector)};
@@ -1348,15 +1364,16 @@ export function inspectDom(
   };
 })()
 `;
-		return executeWebviewJson(
-			{
-				appIdentifier: options.appIdentifier,
-				script,
-				schema: domInspectionResultSchema,
-			},
-			runner
-		);
-	});
+			return executeWebviewJson(
+				{
+					appIdentifier: options.appIdentifier,
+					script,
+					schema: domInspectionResultSchema,
+				},
+				runner
+			);
+		})
+	);
 }
 
 export function inspectShadowDom(
@@ -1365,10 +1382,11 @@ export function inspectShadowDom(
 		readonly selector: string;
 		readonly limit: number;
 	}
-): ResultAsync<DomInspectionResult, TauriMcpFailure> {
+): Effect.Effect<DomInspectionResult, TauriMcpFailure> {
 	const runner = options.runner ?? runCommand;
-	return driverReady(options).andThen(() => {
-		const script = `
+	return driverReady(options).pipe(
+		Effect.flatMap(() => {
+			const script = `
 (() => {
   ${ELEMENT_SUMMARY_HELPERS}
   const hostSelector = ${escapedJson(options.hostSelector)};
@@ -1396,25 +1414,27 @@ export function inspectShadowDom(
   };
 })()
 `;
-		return executeWebviewJson(
-			{
-				appIdentifier: options.appIdentifier,
-				script,
-				schema: domInspectionResultSchema,
-			},
-			runner
-		);
-	});
+			return executeWebviewJson(
+				{
+					appIdentifier: options.appIdentifier,
+					script,
+					schema: domInspectionResultSchema,
+				},
+				runner
+			);
+		})
+	);
 }
 
 export function readPlanningDebug(
 	options: DriverOptions & {
 		readonly sessionId: string | null;
 	}
-): ResultAsync<PlanningDebugResult, TauriMcpFailure> {
+): Effect.Effect<PlanningDebugResult, TauriMcpFailure> {
 	const runner = options.runner ?? runCommand;
-	return driverReady(options).andThen(() => {
-		const script = `
+	return driverReady(options).pipe(
+		Effect.flatMap(() => {
+			const script = `
 (() => {
   const fn = window.__acepePlanningSnapshot;
   if (typeof fn !== "function") {
@@ -1425,26 +1445,28 @@ export function readPlanningDebug(
   return { available: true, snapshots: Array.isArray(snapshots) ? snapshots : [] };
 })()
 `;
-		return executeWebviewJson(
-			{
-				appIdentifier: options.appIdentifier,
-				script,
-				schema: planningDebugResultSchema,
-			},
-			runner
-		);
-	});
+			return executeWebviewJson(
+				{
+					appIdentifier: options.appIdentifier,
+					script,
+					schema: planningDebugResultSchema,
+				},
+				runner
+			);
+		})
+	);
 }
 
 export function probeHappyPathPerformance(
 	options: DriverOptions & {
 		readonly timeoutMs?: number;
 	}
-): ResultAsync<HappyPathPerformanceResult, TauriMcpFailure> {
+): Effect.Effect<HappyPathPerformanceResult, TauriMcpFailure> {
 	const runner = options.runner ?? runCommand;
 	const timeoutMs = options.timeoutMs ?? 20_000;
-	return driverReady(options).andThen(() => {
-		const script = `
+	return driverReady(options).pipe(
+		Effect.flatMap(() => {
+			const script = `
 (async () => {
   const timeoutMs = ${timeoutMs.toString()};
   const waitForFrame = () => new Promise((resolve) => {
@@ -1577,16 +1599,17 @@ export function probeHappyPathPerformance(
   return await hook({ timeoutMs });
 })()
 `;
-		return executeWebviewJson(
-			{
-				appIdentifier: options.appIdentifier,
-				script,
-				schema: happyPathPerformanceResultSchema,
-				callTimeoutMs: timeoutMs + 2_000,
-			},
-			runner
-		);
-	});
+			return executeWebviewJson(
+				{
+					appIdentifier: options.appIdentifier,
+					script,
+					schema: happyPathPerformanceResultSchema,
+					callTimeoutMs: timeoutMs + 2_000,
+				},
+				runner
+			);
+		})
+	);
 }
 
 export function probeSessionOpenContent(
@@ -1599,28 +1622,32 @@ export function probeSessionOpenContent(
 		readonly timeoutMs?: number;
 		readonly closeAfter?: boolean;
 	}
-): ResultAsync<SessionOpenContentProbeResult, TauriMcpFailure> {
+): Effect.Effect<SessionOpenContentProbeResult, TauriMcpFailure> {
 	const runner = options.runner ?? runCommand;
 	const requestedTimeoutMs = options.timeoutMs ?? 5_000;
 	const inPageTimeoutMs = Math.min(Math.max(1_000, requestedTimeoutMs), 60_000);
 	const runId = `session-open-content-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-	return driverReady(options).andThen(() =>
-		startSessionOpenContentProbeRun({
-			options,
-			runner,
-			runId,
-			inPageTimeoutMs,
-		}).andThen((status) => {
-			if (status.status === "done" && status.result !== null) {
-				return okAsync(status.result);
-			}
-			return pollSessionOpenContentProbeRun({
+	return driverReady(options).pipe(
+		Effect.flatMap(() =>
+			startSessionOpenContentProbeRun({
 				options,
 				runner,
 				runId,
-				deadlineMs: Date.now() + inPageTimeoutMs + 15_000,
-			});
-		})
+				inPageTimeoutMs,
+			}).pipe(
+				Effect.flatMap((status) => {
+					if (status.status === "done" && status.result !== null) {
+						return Effect.succeed(status.result);
+					}
+					return pollSessionOpenContentProbeRun({
+						options,
+						runner,
+						runId,
+						deadlineMs: Date.now() + inPageTimeoutMs + 15_000,
+					});
+				})
+			)
+		)
 	);
 }
 
@@ -1672,7 +1699,7 @@ function startSessionOpenContentProbeRun(input: {
 	readonly runner: CommandRunner;
 	readonly runId: string;
 	readonly inPageTimeoutMs: number;
-}): ResultAsync<SessionOpenContentProbeRunStatus, TauriMcpFailure> {
+}): Effect.Effect<SessionOpenContentProbeRunStatus, TauriMcpFailure> {
 	const script = `
 (async () => {
   const runId = ${escapedJson(input.runId)};
@@ -1804,7 +1831,7 @@ function readSessionOpenContentProbeRun(input: {
 	readonly options: DriverOptions;
 	readonly runner: CommandRunner;
 	readonly runId: string;
-}): ResultAsync<SessionOpenContentProbeRunStatus, TauriMcpFailure> {
+}): Effect.Effect<SessionOpenContentProbeRunStatus, TauriMcpFailure> {
 	const script = `
 (() => {
   const runId = ${escapedJson(input.runId)};
@@ -1823,11 +1850,12 @@ function readSessionOpenContentProbeRun(input: {
 	);
 }
 
-function waitForProbePollDelay(): ResultAsync<null, TauriMcpFailure> {
-	return ResultAsync.fromPromise(
-		new Promise<null>((resolve) => {
-			setTimeout(() => resolve(null), 250);
-		}),
+function waitForProbePollDelay(): Effect.Effect<null, TauriMcpFailure> {
+	return fromPromise(
+		() =>
+			new Promise<null>((resolve) => {
+				setTimeout(() => resolve(null), 250);
+			}),
 		(error) => ({
 			code: "poll_delay_failed",
 			message: error instanceof Error ? error.message : "Probe poll delay failed.",
@@ -1840,19 +1868,23 @@ function pollSessionOpenContentProbeRun(input: {
 	readonly runner: CommandRunner;
 	readonly runId: string;
 	readonly deadlineMs: number;
-}): ResultAsync<SessionOpenContentProbeResult, TauriMcpFailure> {
-	return readSessionOpenContentProbeRun(input).andThen((status) => {
-		if (status.status === "done" && status.result !== null) {
-			return okAsync(status.result);
-		}
-		if (Date.now() >= input.deadlineMs) {
-			return err({
-				code: "session_open_content_probe_timeout",
-				message: "Session open content probe did not finish before the QA polling deadline.",
-			});
-		}
-		return waitForProbePollDelay().andThen(() => pollSessionOpenContentProbeRun(input));
-	});
+}): Effect.Effect<SessionOpenContentProbeResult, TauriMcpFailure> {
+	return readSessionOpenContentProbeRun(input).pipe(
+		Effect.flatMap((status) => {
+			if (status.status === "done" && status.result !== null) {
+				return Effect.succeed(status.result);
+			}
+			if (Date.now() >= input.deadlineMs) {
+				return Effect.fail({
+					code: "session_open_content_probe_timeout",
+					message: "Session open content probe did not finish before the QA polling deadline.",
+				});
+			}
+			return waitForProbePollDelay().pipe(
+				Effect.flatMap(() => pollSessionOpenContentProbeRun(input))
+			);
+		})
+	);
 }
 
 export function probeComputerUse(
@@ -1865,10 +1897,11 @@ export function probeComputerUse(
 		readonly dx: number | null;
 		readonly dy: number | null;
 	}
-): ResultAsync<ComputerUseProbeResult, TauriMcpFailure> {
+): Effect.Effect<ComputerUseProbeResult, TauriMcpFailure> {
 	const runner = options.runner ?? runCommand;
-	return driverReady(options).andThen(() => {
-		const script = `
+	return driverReady(options).pipe(
+		Effect.flatMap(() => {
+			const script = `
 (async () => {
   const sessionId = ${escapedJson(options.sessionId)};
   const action = ${options.action.length === 0 ? "null" : escapedJson(options.action)};
@@ -1949,26 +1982,28 @@ export function probeComputerUse(
   }
 })()
 `;
-		return executeWebviewJson(
-			{
-				appIdentifier: options.appIdentifier,
-				script,
-				schema: computerUseProbeResultSchema,
-				callTimeoutMs: 20_000,
-			},
-			runner
-		);
-	});
+			return executeWebviewJson(
+				{
+					appIdentifier: options.appIdentifier,
+					script,
+					schema: computerUseProbeResultSchema,
+					callTimeoutMs: 20_000,
+				},
+				runner
+			);
+		})
+	);
 }
 
 export function probeLedgerBackfill(
 	options: DriverOptions & {
 		readonly limit: number;
 	}
-): ResultAsync<LedgerBackfillProbeResult, TauriMcpFailure> {
+): Effect.Effect<LedgerBackfillProbeResult, TauriMcpFailure> {
 	const runner = options.runner ?? runCommand;
-	return driverReady(options).andThen(() => {
-		const script = `
+	return driverReady(options).pipe(
+		Effect.flatMap(() => {
+			const script = `
 (async () => {
   const tauriCore = window.__TAURI__ && window.__TAURI__.core;
   if (!tauriCore || typeof tauriCore.invoke !== "function") {
@@ -1979,16 +2014,17 @@ export function probeLedgerBackfill(
   });
 })()
 `;
-		return executeWebviewJson(
-			{
-				appIdentifier: options.appIdentifier,
-				script,
-				schema: ledgerBackfillProbeResultSchema,
-				callTimeoutMs: 30_000,
-			},
-			runner
-		);
-	});
+			return executeWebviewJson(
+				{
+					appIdentifier: options.appIdentifier,
+					script,
+					schema: ledgerBackfillProbeResultSchema,
+					callTimeoutMs: 30_000,
+				},
+				runner
+			);
+		})
+	);
 }
 
 export function selectPanelProject(
@@ -1996,10 +2032,11 @@ export function selectPanelProject(
 		readonly panelId: string;
 		readonly projectPath: string;
 	}
-): ResultAsync<PanelProjectSelectionResult, TauriMcpFailure> {
+): Effect.Effect<PanelProjectSelectionResult, TauriMcpFailure> {
 	const runner = options.runner ?? runCommand;
-	return driverReady(options).andThen(() => {
-		const script = `
+	return driverReady(options).pipe(
+		Effect.flatMap(() => {
+			const script = `
 (async () => {
   const panelId = ${escapedJson(options.panelId)};
   const projectPath = ${escapedJson(options.projectPath)};
@@ -2145,16 +2182,17 @@ export function selectPanelProject(
   });
 })()
 `;
-		return executeWebviewJson(
-			{
-				appIdentifier: options.appIdentifier,
-				script,
-				schema: panelProjectSelectionResultSchema,
-				callTimeoutMs: 10_000,
-			},
-			runner
-		);
-	});
+			return executeWebviewJson(
+				{
+					appIdentifier: options.appIdentifier,
+					script,
+					schema: panelProjectSelectionResultSchema,
+					callTimeoutMs: 10_000,
+				},
+				runner
+			);
+		})
+	);
 }
 
 export function clickWebview(
@@ -2165,10 +2203,11 @@ export function clickWebview(
 		readonly thenText?: string | null;
 		readonly key?: string | null;
 	}
-): ResultAsync<ClickResult, TauriMcpFailure> {
+): Effect.Effect<ClickResult, TauriMcpFailure> {
 	const runner = options.runner ?? runCommand;
-	return driverReady(options).andThen(() => {
-		const script = `
+	return driverReady(options).pipe(
+		Effect.flatMap(() => {
+			const script = `
 (async () => {
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   ${ELEMENT_SUMMARY_HELPERS}
@@ -2225,15 +2264,16 @@ export function clickWebview(
   };
 })()
 `;
-		return executeWebviewJson(
-			{
-				appIdentifier: options.appIdentifier,
-				script,
-				schema: clickResultSchema,
-			},
-			runner
-		);
-	});
+			return executeWebviewJson(
+				{
+					appIdentifier: options.appIdentifier,
+					script,
+					schema: clickResultSchema,
+				},
+				runner
+			);
+		})
+	);
 }
 
 export function hoverWebview(
@@ -2245,15 +2285,16 @@ export function hoverWebview(
 		readonly movePointer?: NativePointerMover;
 		readonly delayMs?: number;
 	}
-): ResultAsync<HoverResult, TauriMcpFailure> {
+): Effect.Effect<HoverResult, TauriMcpFailure> {
 	const runner = options.runner ?? runCommand;
 	const pointerMover = options.movePointer ?? moveNativePointer;
 	const delayMs = Number.isFinite(options.delayMs)
 		? Math.max(0, Math.floor(options.delayMs ?? 350))
 		: 350;
-	return driverReady(options).andThen(() => {
-		const marker = `acepe-qa-hover-${Date.now().toString(36)}`;
-		const locateScript = `
+	return driverReady(options).pipe(
+		Effect.flatMap(() => {
+			const marker = `acepe-qa-hover-${Date.now().toString(36)}`;
+			const locateScript = `
 (async () => {
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const qaText = (node) => node ? (node.textContent || "").trim().replace(/\\s+/g, " ") : "";
@@ -2328,17 +2369,20 @@ export function hoverWebview(
   };
 })()
 `;
-		return executeWebviewJson(
-			{
-				appIdentifier: options.appIdentifier,
-				script: locateScript,
-				schema: hoverTargetResultSchema,
-			},
-			runner
-		).andThen((target) => {
-			const move = target.screenPoint === null ? okAsync(null) : pointerMover(target.screenPoint);
-			return move.andThen(() => {
-				const sampleScript = `
+			return executeWebviewJson(
+				{
+					appIdentifier: options.appIdentifier,
+					script: locateScript,
+					schema: hoverTargetResultSchema,
+				},
+				runner
+			).pipe(
+				Effect.flatMap((target) => {
+					const move =
+						target.screenPoint === null ? Effect.succeed(null) : pointerMover(target.screenPoint);
+					return move.pipe(
+						Effect.flatMap(() => {
+							const sampleScript = `
 (async () => {
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   ${ELEMENT_SUMMARY_HELPERS}
@@ -2371,27 +2415,31 @@ export function hoverWebview(
   };
 })()
 `;
-				return executeWebviewJson(
-					{
-						appIdentifier: options.appIdentifier,
-						script: sampleScript,
-						schema: hoverResultSchema,
-					},
-					runner
-				);
-			});
-		});
-	});
+							return executeWebviewJson(
+								{
+									appIdentifier: options.appIdentifier,
+									script: sampleScript,
+									schema: hoverResultSchema,
+								},
+								runner
+							);
+						})
+					);
+				})
+			);
+		})
+	);
 }
 
 export function navigateWebview(
 	options: DriverOptions & {
 		readonly path: string;
 	}
-): ResultAsync<NavigateResult, TauriMcpFailure> {
+): Effect.Effect<NavigateResult, TauriMcpFailure> {
 	const runner = options.runner ?? runCommand;
-	return driverReady(options).andThen(() => {
-		const script = `
+	return driverReady(options).pipe(
+		Effect.flatMap(() => {
+			const script = `
 (async () => {
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const path = ${escapedJson(options.path)};
@@ -2419,25 +2467,27 @@ export function navigateWebview(
   };
 })()
 `;
-		return executeWebviewJson(
-			{
-				appIdentifier: options.appIdentifier,
-				script,
-				schema: navigateResultSchema,
-			},
-			runner
-		);
-	});
+			return executeWebviewJson(
+				{
+					appIdentifier: options.appIdentifier,
+					script,
+					schema: navigateResultSchema,
+				},
+				runner
+			);
+		})
+	);
 }
 
 export function reloadWebview(
 	options: DriverOptions
-): ResultAsync<NavigateResult, TauriMcpFailure> {
+): Effect.Effect<NavigateResult, TauriMcpFailure> {
 	const runner = options.runner ?? runCommand;
-	return driverReady(options).andThen(() => {
-		const marker = `acepe-qa-reload-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-		const markerKey = "__acepeQaReloadMarker";
-		const script = `
+	return driverReady(options).pipe(
+		Effect.flatMap(() => {
+			const marker = `acepe-qa-reload-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+			const markerKey = "__acepeQaReloadMarker";
+			const script = `
 (() => {
   const from = window.location.href;
   const path = window.location.pathname + window.location.search + window.location.hash;
@@ -2451,29 +2501,32 @@ export function reloadWebview(
   };
 })()
 `;
-		return executeWebviewJsonSync(
-			{
-				appIdentifier: options.appIdentifier,
-				script,
-				schema: navigateResultSchema,
-			},
-			runner
-		).andThen((kickoff) =>
-			pollReloadReadiness({
-				appIdentifier: options.appIdentifier,
-				runner,
-				marker,
-				markerKey,
-				expectedUrl: kickoff.from,
-				deadlineMs: Date.now() + 10_000,
-			})
-		);
-	});
+			return executeWebviewJsonSync(
+				{
+					appIdentifier: options.appIdentifier,
+					script,
+					schema: navigateResultSchema,
+				},
+				runner
+			).pipe(
+				Effect.flatMap((kickoff) =>
+					pollReloadReadiness({
+						appIdentifier: options.appIdentifier,
+						runner,
+						marker,
+						markerKey,
+						expectedUrl: kickoff.from,
+						deadlineMs: Date.now() + 10_000,
+					})
+				)
+			);
+		})
+	);
 }
 
-function waitForReloadPollDelay(): ResultAsync<null, TauriMcpFailure> {
-	return ResultAsync.fromPromise(
-		new Promise<null>((resolve) => setTimeout(() => resolve(null), 100)),
+function waitForReloadPollDelay(): Effect.Effect<null, TauriMcpFailure> {
+	return fromPromise(
+		() => new Promise<null>((resolve) => setTimeout(() => resolve(null), 100)),
 		(error) => ({
 			code: "reload_poll_delay_failed",
 			message: error instanceof Error ? error.message : "Reload poll delay failed.",
@@ -2488,7 +2541,7 @@ function pollReloadReadiness(input: {
 	readonly markerKey: string;
 	readonly expectedUrl: string;
 	readonly deadlineMs: number;
-}): ResultAsync<NavigateResult, TauriMcpFailure> {
+}): Effect.Effect<NavigateResult, TauriMcpFailure> {
 	const script = `
 (() => {
   const marker = sessionStorage.getItem(${escapedJson(input.markerKey)});
@@ -2516,15 +2569,17 @@ function pollReloadReadiness(input: {
 			callTimeoutMs: 1_500,
 		},
 		input.runner
-	).orElse((failure) => {
-		if (Date.now() >= input.deadlineMs) {
-			return err({
-				code: "reload_webview_timeout",
-				message: `Reloaded WebView did not become ready: ${failure.message}`,
-			});
-		}
-		return waitForReloadPollDelay().andThen(() => pollReloadReadiness(input));
-	});
+	).pipe(
+		Effect.catch((failure) => {
+			if (Date.now() >= input.deadlineMs) {
+				return Effect.fail({
+					code: "reload_webview_timeout",
+					message: `Reloaded WebView did not become ready: ${failure.message}`,
+				});
+			}
+			return waitForReloadPollDelay().pipe(Effect.flatMap(() => pollReloadReadiness(input)));
+		})
+	);
 }
 
 export function probePanelResize(
@@ -2533,10 +2588,11 @@ export function probePanelResize(
 		readonly steps: number;
 		readonly stepDelayMs: number;
 	}
-): ResultAsync<ResizeProbeResult, TauriMcpFailure> {
+): Effect.Effect<ResizeProbeResult, TauriMcpFailure> {
 	const runner = options.runner ?? runCommand;
-	return driverReady(options).andThen(() => {
-		const script = `
+	return driverReady(options).pipe(
+		Effect.flatMap(() => {
+			const script = `
 	(async () => {
 	  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 	  const nextFrame = () => new Promise((resolve) => requestAnimationFrame((time) => resolve(time)));
@@ -2732,16 +2788,17 @@ export function probePanelResize(
 	  };
 	})()
 	`;
-		return executeWebviewJson(
-			{
-				appIdentifier: options.appIdentifier,
-				script,
-				schema: resizeProbeResultSchema,
-				callTimeoutMs: 20_000,
-			},
-			runner
-		);
-	});
+			return executeWebviewJson(
+				{
+					appIdentifier: options.appIdentifier,
+					script,
+					schema: resizeProbeResultSchema,
+					callTimeoutMs: 20_000,
+				},
+				runner
+			);
+		})
+	);
 }
 
 export function probePanelResizeStream(
@@ -2750,10 +2807,11 @@ export function probePanelResizeStream(
 		readonly durationMs: number;
 		readonly moveIntervalMs: number;
 	}
-): ResultAsync<ResizeStreamProbeResult, TauriMcpFailure> {
+): Effect.Effect<ResizeStreamProbeResult, TauriMcpFailure> {
 	const runner = options.runner ?? runCommand;
-	return driverReady(options).andThen(() => {
-		const script = `
+	return driverReady(options).pipe(
+		Effect.flatMap(() => {
+			const script = `
 	(async () => {
 	  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 	  const nextFrame = () => new Promise((resolve) => requestAnimationFrame((time) => resolve(time)));
@@ -2960,24 +3018,26 @@ export function probePanelResizeStream(
 	  };
 	})()
 	`;
-		return executeWebviewJson(
-			{
-				appIdentifier: options.appIdentifier,
-				script,
-				schema: resizeStreamProbeResultSchema,
-				callTimeoutMs: 20_000,
-			},
-			runner
-		);
-	});
+			return executeWebviewJson(
+				{
+					appIdentifier: options.appIdentifier,
+					script,
+					schema: resizeStreamProbeResultSchema,
+					callTimeoutMs: 20_000,
+				},
+				runner
+			);
+		})
+	);
 }
 
 export function probeThinkingToggle(
 	options: DriverOptions
-): ResultAsync<ThinkingToggleProbeResult, TauriMcpFailure> {
+): Effect.Effect<ThinkingToggleProbeResult, TauriMcpFailure> {
 	const runner = options.runner ?? runCommand;
-	return driverReady(options).andThen(() => {
-		const script = `
+	return driverReady(options).pipe(
+		Effect.flatMap(() => {
+			const script = `
 (async () => {
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const normalize = (node) => node ? (node.textContent || "").trim().replace(/\\s+/g, " ") : null;
@@ -3030,26 +3090,28 @@ export function probeThinkingToggle(
   return { found: true, clicked: true, samples };
 })()
 `;
-		return executeWebviewJson(
-			{
-				appIdentifier: options.appIdentifier,
-				script,
-				schema: thinkingToggleProbeResultSchema,
-				callTimeoutMs: 10_000,
-			},
-			runner
-		);
-	});
+			return executeWebviewJson(
+				{
+					appIdentifier: options.appIdentifier,
+					script,
+					schema: thinkingToggleProbeResultSchema,
+					callTimeoutMs: 10_000,
+				},
+				runner
+			);
+		})
+	);
 }
 
 export function resetOnboarding(
 	options: DriverOptions & {
 		readonly delayMs: number;
 	}
-): ResultAsync<ResetOnboardingResult, TauriMcpFailure> {
+): Effect.Effect<ResetOnboardingResult, TauriMcpFailure> {
 	const runner = options.runner ?? runCommand;
-	return driverReady(options).andThen(() => {
-		const script = `
+	return driverReady(options).pipe(
+		Effect.flatMap(() => {
+			const script = `
 (async () => {
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const qaText = (node) => node ? (node.textContent || "").trim().replace(/\\s+/g, " ") : "";
@@ -3075,26 +3137,28 @@ export function resetOnboarding(
   };
 })()
 `;
-		return executeWebviewJson(
-			{
-				appIdentifier: options.appIdentifier,
-				script,
-				schema: resetOnboardingResultSchema,
-				callTimeoutMs: 20_000,
-			},
-			runner
-		);
-	});
+			return executeWebviewJson(
+				{
+					appIdentifier: options.appIdentifier,
+					script,
+					schema: resetOnboardingResultSchema,
+					callTimeoutMs: 20_000,
+				},
+				runner
+			);
+		})
+	);
 }
 
 export function openStreamingReproLab(
 	options: DriverOptions & {
 		readonly delayMs: number;
 	}
-): ResultAsync<StreamingReproLabResult, TauriMcpFailure> {
+): Effect.Effect<StreamingReproLabResult, TauriMcpFailure> {
 	const runner = options.runner ?? runCommand;
-	return driverReady(options).andThen(() => {
-		const script = `
+	return driverReady(options).pipe(
+		Effect.flatMap(() => {
+			const script = `
 (async () => {
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const open = window.__acepeOpenStreamingReproLab;
@@ -3121,16 +3185,17 @@ export function openStreamingReproLab(
   };
 })()
 `;
-		return executeWebviewJson(
-			{
-				appIdentifier: options.appIdentifier,
-				script,
-				schema: streamingReproLabResultSchema,
-				callTimeoutMs: 20_000,
-			},
-			runner
-		);
-	});
+			return executeWebviewJson(
+				{
+					appIdentifier: options.appIdentifier,
+					script,
+					schema: streamingReproLabResultSchema,
+					callTimeoutMs: 20_000,
+				},
+				runner
+			);
+		})
+	);
 }
 
 export function openAgentPanelStressLab(
@@ -3144,68 +3209,68 @@ export function openAgentPanelStressLab(
 		readonly delayMs: number;
 		readonly timeoutMs: number;
 	}
-): ResultAsync<AgentPanelStressLabResult, TauriMcpFailure> {
+): Effect.Effect<AgentPanelStressLabResult, TauriMcpFailure> {
 	const runner = options.runner ?? runCommand;
-	return driverReady(options).andThen(() =>
-		ResultAsync.fromPromise(
-			(async () => {
-				const started = await executeWebviewJson(
-					{
-						appIdentifier: options.appIdentifier,
-						script: startAgentPanelStressLabScript(options),
-						schema: agentPanelStressLabRunStatusSchema,
-						callTimeoutMs: 5_000,
-					},
-					runner
-				).match(
-					(value) => value,
-					(error) => {
-						throw new AgentPanelStressLabProbeError(error);
-					}
-				);
-				if (started.status === "done" && started.result !== null) {
-					return started.result;
-				}
-				if (started.status === "error" || started.runId === null) {
-					throw new AgentPanelStressLabProbeError({
-						code: "agent_panel_stress_lab_start_failed",
-						message: started.message ?? "Unable to start the Agent Panel Stress Lab.",
-					});
-				}
-
-				const startedAtMs = Date.now();
-				let status: AgentPanelStressLabRunStatus = started;
-				while (Date.now() - startedAtMs < options.timeoutMs) {
-					await sleepMs(250);
-					status = await readAgentPanelStressLabRunStatus(
-						options.appIdentifier,
-						started.runId,
-						runner
-					);
-					if (status.status === "done" && status.result !== null) {
-						return status.result;
-					}
-					if (status.status === "error" || status.status === "missing") {
-						throw new AgentPanelStressLabProbeError({
-							code: "agent_panel_stress_lab_run_failed",
-							message: status.message ?? "Agent Panel Stress Lab run did not finish.",
-						});
-					}
-				}
-
-				throw new AgentPanelStressLabProbeError({
-					code: "agent_panel_stress_lab_timeout",
-					message: `Agent Panel Stress Lab did not finish within ${options.timeoutMs.toString()}ms.`,
-				});
-			})(),
-			(error) =>
-				error instanceof AgentPanelStressLabProbeError
-					? error.failure
-					: {
-							code: "agent_panel_stress_lab_failed",
-							message:
-								error instanceof Error ? error.message : "Unable to collect stress lab metrics.",
+	return driverReady(options).pipe(
+		Effect.flatMap(() =>
+			fromPromise(
+				() =>
+					(async () => {
+						const started = await Effect.runPromise(
+							executeWebviewJson(
+								{
+									appIdentifier: options.appIdentifier,
+									script: startAgentPanelStressLabScript(options),
+									schema: agentPanelStressLabRunStatusSchema,
+									callTimeoutMs: 5_000,
+								},
+								runner
+							).pipe(Effect.mapError((error) => new AgentPanelStressLabProbeError(error)))
+						);
+						if (started.status === "done" && started.result !== null) {
+							return started.result;
 						}
+						if (started.status === "error" || started.runId === null) {
+							throw new AgentPanelStressLabProbeError({
+								code: "agent_panel_stress_lab_start_failed",
+								message: started.message ?? "Unable to start the Agent Panel Stress Lab.",
+							});
+						}
+
+						const startedAtMs = Date.now();
+						let status: AgentPanelStressLabRunStatus = started;
+						while (Date.now() - startedAtMs < options.timeoutMs) {
+							await sleepMs(250);
+							status = await readAgentPanelStressLabRunStatus(
+								options.appIdentifier,
+								started.runId,
+								runner
+							);
+							if (status.status === "done" && status.result !== null) {
+								return status.result;
+							}
+							if (status.status === "error" || status.status === "missing") {
+								throw new AgentPanelStressLabProbeError({
+									code: "agent_panel_stress_lab_run_failed",
+									message: status.message ?? "Agent Panel Stress Lab run did not finish.",
+								});
+							}
+						}
+
+						throw new AgentPanelStressLabProbeError({
+							code: "agent_panel_stress_lab_timeout",
+							message: `Agent Panel Stress Lab did not finish within ${options.timeoutMs.toString()}ms.`,
+						});
+					})(),
+				(error) =>
+					error instanceof AgentPanelStressLabProbeError
+						? error.failure
+						: {
+								code: "agent_panel_stress_lab_failed",
+								message:
+									error instanceof Error ? error.message : "Unable to collect stress lab metrics.",
+							}
+			)
 		)
 	);
 }
@@ -3216,7 +3281,7 @@ export function probeSendAttachStress(
 		readonly preScrollOffsetPx: number;
 		readonly delayMs: number;
 	}
-): ResultAsync<SendAttachStressProbeResult, TauriMcpFailure> {
+): Effect.Effect<SendAttachStressProbeResult, TauriMcpFailure> {
 	const runner = options.runner === undefined ? runCommand : options.runner;
 	const script = `
 (async () => {
@@ -3271,15 +3336,17 @@ export function probeSendAttachStress(
   });
 })()
 `;
-	return driverReady(options).andThen(() =>
-		executeWebviewJson(
-			{
-				appIdentifier: options.appIdentifier,
-				script,
-				schema: sendAttachStressProbeResultSchema,
-				callTimeoutMs: 20_000,
-			},
-			runner
+	return driverReady(options).pipe(
+		Effect.flatMap(() =>
+			executeWebviewJson(
+				{
+					appIdentifier: options.appIdentifier,
+					script,
+					schema: sendAttachStressProbeResultSchema,
+					callTimeoutMs: 20_000,
+				},
+				runner
+			)
 		)
 	);
 }
@@ -3288,7 +3355,7 @@ export function probePlanningBetweenTools(
 	options: DriverOptions & {
 		readonly delayMs: number;
 	}
-): ResultAsync<PlanningBetweenToolsProbeResult, TauriMcpFailure> {
+): Effect.Effect<PlanningBetweenToolsProbeResult, TauriMcpFailure> {
 	const runner = options.runner === undefined ? runCommand : options.runner;
 	const script = `
 (async () => {
@@ -3334,15 +3401,17 @@ export function probePlanningBetweenTools(
   return hook.runPlanningBetweenToolsScenario();
 })()
 `;
-	return driverReady(options).andThen(() =>
-		executeWebviewJson(
-			{
-				appIdentifier: options.appIdentifier,
-				script,
-				schema: planningBetweenToolsProbeResultSchema,
-				callTimeoutMs: 20_000,
-			},
-			runner
+	return driverReady(options).pipe(
+		Effect.flatMap(() =>
+			executeWebviewJson(
+				{
+					appIdentifier: options.appIdentifier,
+					script,
+					schema: planningBetweenToolsProbeResultSchema,
+					callTimeoutMs: 20_000,
+				},
+				runner
+			)
 		)
 	);
 }
@@ -3496,10 +3565,11 @@ async function readAgentPanelStressLabRunStatus(
 	runId: string,
 	runner: CommandRunner
 ): Promise<AgentPanelStressLabRunStatus> {
-	return executeWebviewJson(
-		{
-			appIdentifier,
-			script: `
+	return Effect.runPromise(
+		executeWebviewJson(
+			{
+				appIdentifier,
+				script: `
 (() => {
   const runId = ${escapedJson(runId)};
   const runs = window.__agentPanelStressLabRuns || {};
@@ -3515,23 +3585,23 @@ async function readAgentPanelStressLabRunStatus(
   };
 })()
 `,
-			schema: agentPanelStressLabRunStatusSchema,
-			callTimeoutMs: 5_000,
-		},
-		runner
-	).match(
-		(value) => value,
-		(error) => {
-			if (error.code === "tauri_payload_not_json" || error.code === "qa_daemon_request_failed") {
-				return {
-					runId,
-					status: "running",
-					message: null,
-					result: null,
-				};
-			}
-			throw new AgentPanelStressLabProbeError(error);
-		}
+				schema: agentPanelStressLabRunStatusSchema,
+				callTimeoutMs: 5_000,
+			},
+			runner
+		).pipe(
+			Effect.catch((error) => {
+				if (error.code === "tauri_payload_not_json" || error.code === "qa_daemon_request_failed") {
+					return Effect.succeed({
+						runId,
+						status: "running",
+						message: null,
+						result: null,
+					} satisfies AgentPanelStressLabRunStatus);
+				}
+				return Effect.fail(new AgentPanelStressLabProbeError(error));
+			})
+		)
 	);
 }
 
@@ -3546,10 +3616,11 @@ export function sendComposer(
 		readonly panelId?: string;
 		readonly sessionId?: string;
 	}
-): ResultAsync<SendComposerResult, TauriMcpFailure> {
+): Effect.Effect<SendComposerResult, TauriMcpFailure> {
 	const runner = options.runner ?? runCommand;
-	return driverReady(options).andThen(() => {
-		const script = `
+	return driverReady(options).pipe(
+		Effect.flatMap(() => {
+			const script = `
 (async () => {
   const promptText = ${escapedJson(options.text)};
   const submit = ${options.submit ? "true" : "false"};
@@ -3634,15 +3705,16 @@ export function sendComposer(
   return { composerFound: true, textApplied: ce.textContent || "", sendReady, sent };
 })()
 `;
-		return executeWebviewJson(
-			{
-				appIdentifier: options.appIdentifier,
-				script,
-				schema: sendComposerResultSchema,
-			},
-			runner
-		);
-	});
+			return executeWebviewJson(
+				{
+					appIdentifier: options.appIdentifier,
+					script,
+					schema: sendComposerResultSchema,
+				},
+				runner
+			);
+		})
+	);
 }
 
 /**
@@ -3657,10 +3729,11 @@ export function probeComposerEnterSubmit(
 		readonly panelId: string;
 		readonly sessionId: string;
 	}
-): ResultAsync<ComposerEnterSubmitProbeResult, TauriMcpFailure> {
+): Effect.Effect<ComposerEnterSubmitProbeResult, TauriMcpFailure> {
 	const runner = options.runner ?? runCommand;
-	return driverReady(options).andThen(() => {
-		const script = `
+	return driverReady(options).pipe(
+		Effect.flatMap(() => {
+			const script = `
 (async () => {
   const promptText = ${escapedJson(options.text)};
   const panelId = ${escapedJson(options.panelId)};
@@ -3775,16 +3848,17 @@ export function probeComposerEnterSubmit(
   };
 })()
 `;
-		return executeWebviewJson(
-			{
-				appIdentifier: options.appIdentifier,
-				script,
-				schema: composerEnterSubmitProbeResultSchema,
-				callTimeoutMs: 5_000,
-			},
-			runner
-		);
-	});
+			return executeWebviewJson(
+				{
+					appIdentifier: options.appIdentifier,
+					script,
+					schema: composerEnterSubmitProbeResultSchema,
+					callTimeoutMs: 5_000,
+				},
+				runner
+			);
+		})
+	);
 }
 
 export function probeFirstSendTimeline(
@@ -3796,7 +3870,7 @@ export function probeFirstSendTimeline(
 		readonly preScrollOffsetPx?: number | null;
 		readonly timeoutMs: number;
 	}
-): ResultAsync<FirstSendTimelineProbeResult, TauriMcpFailure> {
+): Effect.Effect<FirstSendTimelineProbeResult, TauriMcpFailure> {
 	const runner = options.runner ?? runCommand;
 	const preScrollOffsetPx =
 		options.preScrollOffsetPx !== undefined &&
@@ -3805,22 +3879,24 @@ export function probeFirstSendTimeline(
 		options.preScrollOffsetPx > 0
 			? Math.round(options.preScrollOffsetPx)
 			: null;
-	return driverReady(options).andThen(() =>
-		executeWebviewJson(
-			{
-				appIdentifier: options.appIdentifier,
-				script: firstSendSubmitScript(
-					options.text,
-					options.selector,
-					options.panelId,
-					options.sessionId,
-					preScrollOffsetPx,
-					options.timeoutMs
-				),
-				schema: firstSendTimelineProbeResultSchema,
-				callTimeoutMs: options.timeoutMs + 5_000,
-			},
-			runner
+	return driverReady(options).pipe(
+		Effect.flatMap(() =>
+			executeWebviewJson(
+				{
+					appIdentifier: options.appIdentifier,
+					script: firstSendSubmitScript(
+						options.text,
+						options.selector,
+						options.panelId,
+						options.sessionId,
+						preScrollOffsetPx,
+						options.timeoutMs
+					),
+					schema: firstSendTimelineProbeResultSchema,
+					callTimeoutMs: options.timeoutMs + 5_000,
+				},
+				runner
+			)
 		)
 	);
 }
@@ -4379,10 +4455,11 @@ export function watchForVisibleText(
 		readonly text: string;
 		readonly timeoutMs: number;
 	}
-): ResultAsync<WatchResult, TauriMcpFailure> {
+): Effect.Effect<WatchResult, TauriMcpFailure> {
 	const runner = options.runner ?? runCommand;
-	return driverReady(options).andThen(() => {
-		const script = `
+	return driverReady(options).pipe(
+		Effect.flatMap(() => {
+			const script = `
 (async () => {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const needle = ${escapedJson(options.text)};
@@ -4408,14 +4485,15 @@ export function watchForVisibleText(
   return { text: needle, presentInDom, visible, firstVisibleAtMs, elapsedMs: Math.round(performance.now() - t0), timedOut: !visible, matched };
 })()
 `;
-		return executeWebviewJson(
-			{
-				appIdentifier: options.appIdentifier,
-				script,
-				schema: watchResultSchema,
-				callTimeoutMs: options.timeoutMs + 5_000,
-			},
-			runner
-		);
-	});
+			return executeWebviewJson(
+				{
+					appIdentifier: options.appIdentifier,
+					script,
+					schema: watchResultSchema,
+					callTimeoutMs: options.timeoutMs + 5_000,
+				},
+				runner
+			);
+		})
+	);
 }

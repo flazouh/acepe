@@ -1,4 +1,4 @@
-import { err, ok, type Result } from "neverthrow";
+import * as Result from "effect/Result";
 
 import { FILE_PICKER_TRIGGER, SLASH_COMMAND_TRIGGER } from "../constants/agent-input-constants.js";
 import { ValidationError } from "../errors/agent-input-error.js";
@@ -49,21 +49,13 @@ export interface TriggerParseResult {
  * @param message - The full message text
  * @param cursorPos - Current cursor position in the message
  * @returns Result containing trigger info if found, or null if not triggered
- *
- * @example
- * ```ts
- * const result = parseFilePickerTrigger("Hello @file", 12);
- * if (result.isOk() && result.value) {
- *   // Show file picker at result.value.startIndex with query result.value.query
- * }
- * ```
  */
 export function parseFilePickerTrigger(
 	message: string,
 	cursorPos: number
-): Result<TriggerParseResult | null, ValidationError> {
+): Result.Result<TriggerParseResult | null, ValidationError> {
 	if (cursorPos < 0 || cursorPos > message.length) {
-		return err(
+		return Result.fail(
 			new ValidationError(
 				`Invalid cursor position: ${cursorPos} (message length: ${message.length})`,
 				"cursorPos"
@@ -75,24 +67,24 @@ export function parseFilePickerTrigger(
 	const lastAtIndex = textBeforeCursor.lastIndexOf(FILE_PICKER_TRIGGER);
 
 	if (lastAtIndex < 0) {
-		return ok(null);
+		return Result.succeed(null);
 	}
 	if (isInsideInlineArtefact(message, lastAtIndex)) {
-		return ok(null);
+		return Result.succeed(null);
 	}
 
 	// Check if @ is at start or after whitespace
 	const charBefore = lastAtIndex === 0 ? " " : textBeforeCursor[lastAtIndex - 1];
 
 	if (charBefore !== " " && charBefore !== "\n" && lastAtIndex !== 0) {
-		return ok(null);
+		return Result.succeed(null);
 	}
 
 	// Check there's no space after the @ (still typing)
 	const textAfterAt = textBeforeCursor.substring(lastAtIndex + 1);
 
 	if (textAfterAt.includes(" ")) {
-		return ok(null);
+		return Result.succeed(null);
 	}
 
 	const result = {
@@ -100,7 +92,7 @@ export function parseFilePickerTrigger(
 		query: textAfterAt,
 	};
 
-	return ok(result);
+	return Result.succeed(result);
 }
 
 /**
@@ -109,21 +101,13 @@ export function parseFilePickerTrigger(
  * @param message - The full message text
  * @param cursorPos - Current cursor position in the message
  * @returns Result containing trigger info if found, or null if not triggered
- *
- * @example
- * ```ts
- * const result = parseSlashCommandTrigger("Hello /cmd", 12);
- * if (result.isOk() && result.value) {
- *   // Show slash command dropdown at result.value.startIndex with query result.value.query
- * }
- * ```
  */
 export function parseSlashCommandTrigger(
 	message: string,
 	cursorPos: number
-): Result<TriggerParseResult | null, ValidationError> {
+): Result.Result<TriggerParseResult | null, ValidationError> {
 	if (cursorPos < 0 || cursorPos > message.length) {
-		return err(
+		return Result.fail(
 			new ValidationError(
 				`Invalid cursor position: ${cursorPos} (message length: ${message.length})`,
 				"cursorPos"
@@ -135,24 +119,24 @@ export function parseSlashCommandTrigger(
 	const lastSlashIndex = textBeforeCursor.lastIndexOf(SLASH_COMMAND_TRIGGER);
 
 	if (lastSlashIndex < 0) {
-		return ok(null);
+		return Result.succeed(null);
 	}
 	if (isInsideInlineArtefact(message, lastSlashIndex)) {
-		return ok(null);
+		return Result.succeed(null);
 	}
 
 	// Check if / is at start or after whitespace
 	const charBefore = lastSlashIndex === 0 ? " " : textBeforeCursor[lastSlashIndex - 1];
 
 	if (charBefore !== " " && charBefore !== "\n" && lastSlashIndex !== 0) {
-		return ok(null);
+		return Result.succeed(null);
 	}
 
 	// Check there's no space after the / (still typing command)
 	const textAfterSlash = textBeforeCursor.substring(lastSlashIndex + 1);
 
 	if (textAfterSlash.includes(" ")) {
-		return ok(null);
+		return Result.succeed(null);
 	}
 
 	const result = {
@@ -160,7 +144,7 @@ export function parseSlashCommandTrigger(
 		query: textAfterSlash,
 	};
 
-	return ok(result);
+	return Result.succeed(result);
 }
 
 export function replaceActiveSlashTrigger(input: {
@@ -169,11 +153,11 @@ export function replaceActiveSlashTrigger(input: {
 	replacement: string;
 }): { message: string; cursor: number } | null {
 	const triggerResult = parseSlashCommandTrigger(input.message, input.cursorPos);
-	if (!triggerResult.isOk() || triggerResult.value === null) {
+	if (!Result.isSuccess(triggerResult) || triggerResult.success === null) {
 		return null;
 	}
 
-	const start = triggerResult.value.startIndex;
+	const start = triggerResult.success.startIndex;
 	const before = input.message.substring(0, start);
 	const after = input.message.substring(input.cursorPos);
 	const message =

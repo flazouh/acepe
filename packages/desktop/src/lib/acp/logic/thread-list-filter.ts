@@ -1,3 +1,4 @@
+import * as Result from "effect/Result";
 import type { SessionDisplayItem } from "../types/thread-display-item.js";
 import type { ThreadFilter } from "../types/thread-filter.js";
 
@@ -41,7 +42,7 @@ export function groupThreadsByTime(
 	for (const thread of threads) {
 		const groupResult = getTimeGroup(thread.createdAt);
 		// Use "Older" as fallback for invalid dates
-		const group = groupResult.isOk() ? groupResult.value : "Older";
+		const group = Result.isSuccess(groupResult) ? groupResult.success : "Older";
 		if (!groups[group]) {
 			groups[group] = [];
 		}

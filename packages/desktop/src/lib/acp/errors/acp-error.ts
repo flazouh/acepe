@@ -2,7 +2,7 @@
  * Base error class for all ACP-related errors.
  *
  * All ACP errors extend this class to provide consistent error handling
- * and enable proper error type checking with neverthrow.
+ * and enable proper error type checking with Effect.
  *
  * @example
  * ```typescript

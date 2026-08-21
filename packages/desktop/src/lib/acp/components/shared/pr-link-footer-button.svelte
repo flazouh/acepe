@@ -18,6 +18,8 @@ import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
 import PrStateIcon from "$lib/acp/components/pr-state-icon.svelte";
 import { listPullRequests, getRepoContext } from "$lib/acp/services/github-service.js";
 import { getSessionStore } from "$lib/acp/store/session-store.svelte.js";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { toast } from "svelte-sonner";
 import { Tooltip } from "bits-ui";
 import {
@@ -130,29 +132,34 @@ function ensureOpenPullRequestsLoaded(): void {
 	loading = true;
 	loadingProjectPath = requestedProjectPath;
 	loadError = null;
-	void getRepoContext(requestedProjectPath)
-		.andThen((repoContext) =>
-			listPullRequests(repoContext.owner, repoContext.repo, "open").map((pullRequests) => ({
-				pullRequests,
-				repoContext,
-			}))
+	void Effect.runPromise(
+		getRepoContext(requestedProjectPath).pipe(
+			Effect.flatMap((repoContext) =>
+				listPullRequests(repoContext.owner, repoContext.repo, "open").pipe(
+					Effect.map((pullRequests) => ({
+						pullRequests,
+						repoContext,
+					}))
+				)
+			),
+			Effect.match({
+				onSuccess: ({ pullRequests, repoContext }) => {
+					if (loadingProjectPath !== requestedProjectPath) return;
+					openPullRequests = pullRequests;
+					loadedProjectPath = requestedProjectPath;
+					loadedRepoContext = repoContext;
+					loading = false;
+					loadingProjectPath = null;
+				},
+				onFailure: (error) => {
+					if (loadingProjectPath !== requestedProjectPath) return;
+					loadError = error.message;
+					loading = false;
+					loadingProjectPath = null;
+				},
+			})
 		)
-		.match(
-			({ pullRequests, repoContext }) => {
-				if (loadingProjectPath !== requestedProjectPath) return;
-				openPullRequests = pullRequests;
-				loadedProjectPath = requestedProjectPath;
-				loadedRepoContext = repoContext;
-				loading = false;
-				loadingProjectPath = null;
-			},
-			(error) => {
-				if (loadingProjectPath !== requestedProjectPath) return;
-				loadError = error.message;
-				loading = false;
-				loadingProjectPath = null;
-			}
-		);
+	);
 }
 
 function handleTogglePicker(): void {
@@ -179,49 +186,53 @@ function handleClosePicker(): void {
 }
 
 function handleUseAutomaticLinking(): void {
-	void sessionStore.connection.restoreAutomaticSessionPrLink(sessionId, projectPath).match(
-		() => {
-			handleClosePicker();
-		},
-		(error) => {
-			toast.error(`Failed to restore automatic linking: ${error.message}`);
-		}
+	void Effect.runPromise(
+		sessionStore.connection.restoreAutomaticSessionPrLink(sessionId, projectPath).pipe(
+			Effect.match({
+				onSuccess: () => {
+					handleClosePicker();
+				},
+				onFailure: (error) => {
+					toast.error(`Failed to restore automatic linking: ${error.message}`);
+				},
+			})
+		)
 	);
 }
 
 function handleSelectPullRequest(pr: SessionPrLinkPickerPullRequest): void {
-	void sessionStore.connection
-		.updateSessionPrLink(sessionId, projectPath, pr.number, "manual")
-		.match(
-			() => {
-				handleClosePicker();
-			},
-			(error) => {
-				toast.error(`Failed to link pull request: ${error.message}`);
-			}
-		);
+	void Effect.runPromise(
+		sessionStore.connection.updateSessionPrLink(sessionId, projectPath, pr.number, "manual").pipe(
+			Effect.match({
+				onSuccess: () => {
+					handleClosePicker();
+				},
+				onFailure: (error) => {
+					toast.error(`Failed to link pull request: ${error.message}`);
+				},
+			})
+		)
+	);
 }
 
 async function handleTransferPrLink(otherSessionId: string, prNumber: number): Promise<void> {
-	const unlinkResult = await sessionStore.connection.updateSessionPrLink(
-		otherSessionId,
-		projectPath,
-		null,
-		"manual"
+	const unlinkResult = await Effect.runPromise(
+		Effect.result(
+			sessionStore.connection.updateSessionPrLink(otherSessionId, projectPath, null, "manual")
+		)
 	);
-	if (unlinkResult.isErr()) {
-		toast.error(`Failed to unlink other session: ${unlinkResult.error.message}`);
+	if (Result.isFailure(unlinkResult)) {
+		toast.error(`Failed to unlink other session: ${unlinkResult.failure.message}`);
 		return;
 	}
 
-	const linkResult = await sessionStore.connection.updateSessionPrLink(
-		sessionId,
-		projectPath,
-		prNumber,
-		"manual"
+	const linkResult = await Effect.runPromise(
+		Effect.result(
+			sessionStore.connection.updateSessionPrLink(sessionId, projectPath, prNumber, "manual")
+		)
 	);
-	if (linkResult.isErr()) {
-		toast.error(`Failed to link pull request: ${linkResult.error.message}`);
+	if (Result.isFailure(linkResult)) {
+		toast.error(`Failed to link pull request: ${linkResult.failure.message}`);
 		return;
 	}
 

@@ -1,5 +1,6 @@
-import { errAsync, okAsync } from "neverthrow";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 
 vi.mock("@tauri-apps/api/core", () => ({
 	invoke: vi.fn(async () => undefined),
@@ -79,15 +80,15 @@ function makeSessionStore(input?: {
 		connection: {
 			createSession: vi.fn(() => {
 				if (input?.createFails === true) {
-					return errAsync(new Error("create failed") as never);
+					return Effect.fail(new Error("create failed") as never);
 				}
-				return okAsync({ kind: "ready" as const, session });
+				return Effect.succeed({ kind: "ready" as const, session });
 			}),
 			sendMessage: vi.fn(() => {
 				if (input?.sendFails === true) {
-					return errAsync(new Error("send failed") as never);
+					return Effect.fail(new Error("send failed") as never);
 				}
-				return okAsync(undefined);
+				return Effect.succeed(undefined);
 			}),
 		},
 		read: {
@@ -98,6 +99,11 @@ function makeSessionStore(input?: {
 			endDispatch: vi.fn(() => {}),
 		},
 	} as unknown as SessionStore;
+}
+
+
+async function runToResult<A, E>(effect: Effect.Effect<A, E>): Promise<Result.Result<A, E>> {
+	return Effect.runPromise(Effect.result(effect));
 }
 
 describe("AgentInputState optimistic pending entry rollback", () => {
@@ -114,15 +120,15 @@ describe("AgentInputState optimistic pending entry rollback", () => {
 			() => "/repo"
 		);
 
-		const result = await state.sendPreparedMessage({
+		const result = await runToResult(state.sendPreparedMessage({
 			content: "Hello agent",
 			panelId: "panel-1",
 			projectPath: "/repo",
 			projectName: "Acepe",
 			selectedAgentId: "claude-code",
-		});
+		}));
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(panel.setPendingUserEntry).toHaveBeenCalledTimes(1);
 		expect(panel.clearPendingUserEntry).toHaveBeenCalledTimes(1);
 		expect(panel.getPendingUserEntry()).toBeNull();
@@ -137,15 +143,15 @@ describe("AgentInputState optimistic pending entry rollback", () => {
 			() => "/repo"
 		);
 
-		const result = await state.sendPreparedMessage({
+		const result = await runToResult(state.sendPreparedMessage({
 			content: "Hello agent",
 			panelId: "panel-1",
 			projectPath: "/repo",
 			projectName: "Acepe",
 			selectedAgentId: "claude-code",
-		});
+		}));
 
-		expect(result.isErr()).toBe(true);
+		expect(Result.isFailure(result)).toBe(true);
 		expect(panel.setPendingUserEntry).toHaveBeenCalledTimes(1);
 		expect(panel.clearPendingUserEntry).toHaveBeenCalledTimes(1);
 		expect(panel.getPendingUserEntry()).toBeNull();
@@ -160,15 +166,15 @@ describe("AgentInputState optimistic pending entry rollback", () => {
 			() => "/repo"
 		);
 
-		const result = await state.sendPreparedMessage({
+		const result = await runToResult(state.sendPreparedMessage({
 			content: "Hello agent",
 			panelId: "panel-1",
 			projectPath: "/repo",
 			projectName: "Acepe",
 			selectedAgentId: "claude-code",
-		});
+		}));
 
-		expect(result.isErr()).toBe(true);
+		expect(Result.isFailure(result)).toBe(true);
 		expect(panel.setPendingUserEntry).toHaveBeenCalledTimes(1);
 		expect(panel.clearPendingUserEntry).toHaveBeenCalledTimes(1);
 		expect(panel.getPendingUserEntry()).toBeNull();
@@ -193,16 +199,16 @@ describe("AgentInputState optimistic pending entry rollback", () => {
 			() => "/repo"
 		);
 
-		const result = await state.sendPreparedMessage({
+		const result = await runToResult(state.sendPreparedMessage({
 			content: "Hello agent",
 			panelId: "panel-1",
 			projectPath: "",
 			selectedAgentId: "claude-code",
-		});
+		}));
 
-		expect(result.isErr()).toBe(true);
-		if (result.isErr()) {
-			expect(result.error).toBeInstanceOf(SessionCreationError);
+		expect(Result.isFailure(result)).toBe(true);
+		if (Result.isFailure(result)) {
+			expect(result.failure).toBeInstanceOf(SessionCreationError);
 		}
 		expect(panel.setPendingUserEntry).not.toHaveBeenCalled();
 		expect(panel.clearPendingUserEntry).toHaveBeenCalledTimes(1);
@@ -228,14 +234,14 @@ describe("AgentInputState optimistic pending entry rollback", () => {
 			() => "/repo"
 		);
 
-		const result = await state.sendPreparedMessage({
+		const result = await runToResult(state.sendPreparedMessage({
 			content: "Hello agent",
 			panelId: "panel-1",
 			projectPath: "/repo",
 			selectedAgentId: null,
-		});
+		}));
 
-		expect(result.isErr()).toBe(true);
+		expect(Result.isFailure(result)).toBe(true);
 		expect(panel.setPendingUserEntry).not.toHaveBeenCalled();
 		expect(panel.clearPendingUserEntry).toHaveBeenCalledTimes(1);
 		expect(panel.getPendingUserEntry()).toBeNull();
@@ -260,14 +266,14 @@ describe("AgentInputState optimistic pending entry rollback", () => {
 			() => "/repo"
 		);
 
-		const result = await state.sendPreparedMessage({
+		const result = await runToResult(state.sendPreparedMessage({
 			content: "Hello agent",
 			panelId: "panel-1",
 			projectPath: "/repo",
 			selectedAgentId: "claude-code",
-		});
+		}));
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(panel.setPendingUserEntry).not.toHaveBeenCalled();
 		expect(panel.clearPendingUserEntry).toHaveBeenCalledTimes(1);
 	});

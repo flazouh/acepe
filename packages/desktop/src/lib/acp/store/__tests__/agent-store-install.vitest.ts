@@ -1,4 +1,5 @@
-import { errAsync, okAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -37,9 +38,9 @@ describe("AgentStore installAgent", () => {
 	});
 
 	it("returns success only after the installed availability has refreshed", async () => {
-		mocks.installAgent.mockReturnValue(okAsync(undefined));
+		mocks.installAgent.mockReturnValue(Effect.succeed(undefined));
 		mocks.listAgents.mockReturnValue(
-			okAsync([
+			Effect.succeed([
 				{
 					id: "claude-code",
 					name: "Claude Code",
@@ -49,9 +50,9 @@ describe("AgentStore installAgent", () => {
 		);
 
 		const store = new AgentStore();
-		const result = await store.installAgent("claude-code");
+		const result = await Effect.runPromise(Effect.result(store.installAgent("claude-code")));
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(mocks.installAgent).toHaveBeenCalledWith("claude-code");
 		expect(mocks.listAgents).toHaveBeenCalledOnce();
 		expect(store.agents[0]?.availability_kind).toEqual({
@@ -62,14 +63,14 @@ describe("AgentStore installAgent", () => {
 
 	it("returns failure without refreshing availability and clears install progress", async () => {
 		const installError = new AgentError("install claude-code");
-		mocks.installAgent.mockReturnValue(errAsync(installError));
+		mocks.installAgent.mockReturnValue(Effect.fail(installError));
 
 		const store = new AgentStore();
-		const result = await store.installAgent("claude-code");
+		const result = await Effect.runPromise(Effect.result(store.installAgent("claude-code")));
 
-		expect(result.isErr()).toBe(true);
-		if (result.isErr()) {
-			expect(result.error).toBe(installError);
+		expect(Result.isFailure(result)).toBe(true);
+		if (Result.isFailure(result)) {
+			expect(result.failure).toBe(installError);
 		}
 		expect(mocks.listAgents).not.toHaveBeenCalled();
 		expect(store.isInstalling("claude-code")).toBe(false);

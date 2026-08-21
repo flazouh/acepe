@@ -3,7 +3,7 @@
  * Provides access to session/thread search and navigation.
  */
 
-import { okAsync, type ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import type { SessionPaletteReference } from "../../../store/session-cold-index.js";
 import type { SessionStore } from "../../../store/session-store.svelte.js";
 import { normalizeTitleForDisplay } from "../../../store/session-title-policy.js";
@@ -137,14 +137,14 @@ export class SessionsProvider implements PaletteProvider {
 	/**
 	 * Execute: open the session.
 	 */
-	execute(item: PaletteItem): ResultAsync<void, Error> {
+	execute(item: PaletteItem): Effect.Effect<void, Error> {
 		// Add to recent
 		this.addToRecent(item);
 
 		// Open the session
 		this.config.onOpenSession(item.id, item.metadata.projectPath ?? "");
 
-		return okAsync(undefined);
+		return Effect.succeed(undefined);
 	}
 
 	/**

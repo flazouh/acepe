@@ -1,4 +1,4 @@
-import { okAsync, ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import { getContext, setContext } from "svelte";
 import { SvelteSet } from "svelte/reactivity";
 import type { AppError } from "$lib/acp/errors/app-error.js";
@@ -200,8 +200,13 @@ export function deriveAgentPreferencesInitializationState(
 	};
 }
 
-function chainPersistOperations(operations: ReadonlyArray<ResultAsync<void, AppError>>) {
-	return operations.reduce((acc, operation) => acc.andThen(() => operation), okAsync(undefined));
+function chainPersistOperations(
+	operations: ReadonlyArray<Effect.Effect<void, AppError>>
+): Effect.Effect<void, AppError> {
+	return operations.reduce<Effect.Effect<void, AppError>>(
+		(acc, operation) => acc.pipe(Effect.flatMap(() => operation)),
+		Effect.succeed(undefined)
+	);
 }
 
 export class AgentPreferencesStore {
@@ -238,18 +243,18 @@ export class AgentPreferencesStore {
 		}
 	}
 
-	initialize(agents: readonly Agent[], projectCount: number | null): ResultAsync<void, Error> {
+	initialize(agents: readonly Agent[], projectCount: number | null): Effect.Effect<void, Error> {
 		const availableAgentIds = agents.map((agent) => agent.id);
 		const initializationMutationRevision = this.localMutationRevision;
 
-		return ResultAsync.combine([
+		return Effect.all([
 			tauriClient.settings.get<boolean>(HAS_COMPLETED_ONBOARDING_KEY),
 			tauriClient.settings.get<string[]>(SELECTED_AGENT_IDS_KEY),
 			tauriClient.settings.get<CustomAgentConfig[]>(CUSTOM_AGENT_CONFIGS_KEY),
 			tauriClient.settings.get<AgentEnvOverrides>(AGENT_ENV_OVERRIDES_KEY),
 			tauriClient.settings.get<string>(DEFAULT_AGENT_ID_KEY),
-		])
-			.andThen(
+		]).pipe(
+			Effect.flatMap(
 				([
 					persistedOnboardingCompleted,
 					persistedSelectedAgentIds,
@@ -259,7 +264,7 @@ export class AgentPreferencesStore {
 				]) => {
 					if (initializationMutationRevision !== this.localMutationRevision) {
 						this.initialized = true;
-						return okAsync(undefined);
+						return Effect.succeed(undefined);
 					}
 
 					const initState = deriveAgentPreferencesInitializationState({
@@ -278,7 +283,7 @@ export class AgentPreferencesStore {
 							? persistedDefaultAgentId
 							: null;
 
-					const persistOperations: ResultAsync<void, AppError>[] = [];
+					const persistOperations: Effect.Effect<void, AppError>[] = [];
 					if (initState.shouldPersistOnboardingCompleted) {
 						persistOperations.push(
 							tauriClient.settings.set(HAS_COMPLETED_ONBOARDING_KEY, initState.onboardingCompleted)
@@ -290,21 +295,22 @@ export class AgentPreferencesStore {
 						);
 					}
 
-					return chainPersistOperations(persistOperations).map(() => {
-						this.initialized = true;
-						return undefined;
-					});
+					return chainPersistOperations(persistOperations).pipe(
+						Effect.map(() => {
+							this.initialized = true;
+							return undefined;
+						})
+					);
 				}
-			)
-			.mapErr((error) => new Error(`Failed to initialize agent preferences: ${error.message}`));
+			),
+			Effect.mapError((error) => new Error(`Failed to initialize agent preferences: ${error.message}`))
+		);
 	}
 
-	setSelectedAgentIds(agentIds: readonly string[]): ResultAsync<void, Error> {
+	setSelectedAgentIds(agentIds: readonly string[]): Effect.Effect<void, Error> {
 		const validation = validateAndNormalizeSelectedAgentIds(agentIds);
 		if (!validation.ok) {
-			return ResultAsync.fromPromise(Promise.reject(new Error(validation.error)), (error) =>
-				error instanceof Error ? error : new Error(String(error))
-			);
+			return Effect.fail(new Error(validation.error));
 		}
 
 		const normalized = validation.value;
@@ -314,56 +320,60 @@ export class AgentPreferencesStore {
 		// Clear default agent if it was removed from the selected list
 		if (this.defaultAgentId && !normalized.includes(this.defaultAgentId)) {
 			this.defaultAgentId = null;
-			return tauriClient.settings
-				.set(SELECTED_AGENT_IDS_KEY, normalized)
-				.andThen(() => tauriClient.settings.set(DEFAULT_AGENT_ID_KEY, null))
-				.mapErr((error) => new Error(`Failed to persist selected agents: ${error.message}`));
+			return tauriClient.settings.set(SELECTED_AGENT_IDS_KEY, normalized).pipe(
+				Effect.flatMap(() => tauriClient.settings.set(DEFAULT_AGENT_ID_KEY, null)),
+				Effect.mapError((error) => new Error(`Failed to persist selected agents: ${error.message}`))
+			);
 		}
 
-		return tauriClient.settings
-			.set(SELECTED_AGENT_IDS_KEY, normalized)
-			.mapErr((error) => new Error(`Failed to persist selected agents: ${error.message}`));
+		return tauriClient.settings.set(SELECTED_AGENT_IDS_KEY, normalized).pipe(
+			Effect.mapError((error) => new Error(`Failed to persist selected agents: ${error.message}`))
+		);
 	}
 
-	setDefaultAgentId(agentId: string | null): ResultAsync<void, Error> {
+	setDefaultAgentId(agentId: string | null): Effect.Effect<void, Error> {
 		// Validate that the agent is in the selected list (or null to clear)
 		if (agentId !== null && !this.selectedAgentIds.includes(agentId)) {
-			return okAsync(undefined);
+			return Effect.succeed(undefined);
 		}
 
 		this.markLocalMutation();
 		this.defaultAgentId = agentId;
-		return tauriClient.settings
-			.set(DEFAULT_AGENT_ID_KEY, agentId)
-			.mapErr((error) => new Error(`Failed to persist default agent: ${error.message}`));
+		return tauriClient.settings.set(DEFAULT_AGENT_ID_KEY, agentId).pipe(
+			Effect.mapError((error) => new Error(`Failed to persist default agent: ${error.message}`))
+		);
 	}
 
-	completeOnboarding(agentIds: readonly string[]): ResultAsync<void, Error> {
-		return this.setSelectedAgentIds(agentIds).andThen(() => {
-			this.markLocalMutation();
-			this.onboardingCompleted = true;
-			return tauriClient.settings
-				.set(HAS_COMPLETED_ONBOARDING_KEY, true)
-				.mapErr((error) => new Error(`Failed to persist onboarding completion: ${error.message}`));
-		});
+	completeOnboarding(agentIds: readonly string[]): Effect.Effect<void, Error> {
+		return this.setSelectedAgentIds(agentIds).pipe(
+			Effect.flatMap(() => {
+				this.markLocalMutation();
+				this.onboardingCompleted = true;
+				return tauriClient.settings.set(HAS_COMPLETED_ONBOARDING_KEY, true).pipe(
+					Effect.mapError(
+						(error) => new Error(`Failed to persist onboarding completion: ${error.message}`)
+					)
+				);
+			})
+		);
 	}
 
-	resetOnboardingForDev(): ResultAsync<void, Error> {
+	resetOnboardingForDev(): Effect.Effect<void, Error> {
 		this.markLocalMutation();
 		this.onboardingCompleted = false;
-		return tauriClient.settings
-			.set(HAS_COMPLETED_ONBOARDING_KEY, false)
-			.mapErr((error) => new Error(`Failed to reset onboarding completion: ${error.message}`));
+		return tauriClient.settings.set(HAS_COMPLETED_ONBOARDING_KEY, false).pipe(
+			Effect.mapError((error) => new Error(`Failed to reset onboarding completion: ${error.message}`))
+		);
 	}
 
-	addCustomAgentConfig(config: CustomAgentConfig): ResultAsync<void, Error> {
+	addCustomAgentConfig(config: CustomAgentConfig): Effect.Effect<void, Error> {
 		const updatedConfigs = upsertCustomAgentConfigs(this.customAgentConfigs, config);
 
 		this.markLocalMutation();
 		this.customAgentConfigs = updatedConfigs;
-		return tauriClient.settings
-			.set(CUSTOM_AGENT_CONFIGS_KEY, updatedConfigs)
-			.mapErr((error) => new Error(`Failed to persist custom agent config: ${error.message}`));
+		return tauriClient.settings.set(CUSTOM_AGENT_CONFIGS_KEY, updatedConfigs).pipe(
+			Effect.mapError((error) => new Error(`Failed to persist custom agent config: ${error.message}`))
+		);
 	}
 
 	getAgentEnvOverrides(agentId: string): Record<string, string> {
@@ -373,14 +383,14 @@ export class AgentPreferencesStore {
 	setAgentEnvOverrides(
 		agentId: string,
 		env: Readonly<Record<string, string>>
-	): ResultAsync<void, Error> {
+	): Effect.Effect<void, Error> {
 		const updatedOverrides = upsertAgentEnvOverrides(this.agentEnvOverrides, agentId, env);
 
 		this.markLocalMutation();
 		this.agentEnvOverrides = updatedOverrides;
-		return tauriClient.settings
-			.set(AGENT_ENV_OVERRIDES_KEY, updatedOverrides)
-			.mapErr((error) => new Error(`Failed to persist agent env overrides: ${error.message}`));
+		return tauriClient.settings.set(AGENT_ENV_OVERRIDES_KEY, updatedOverrides).pipe(
+			Effect.mapError((error) => new Error(`Failed to persist agent env overrides: ${error.message}`))
+		);
 	}
 
 	getSelectedAgentIdsForCandidates(candidateAgentIds: readonly string[]): string[] {

@@ -1,6 +1,9 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { err, ok, type Result, ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import { fromThrowable } from "@acepe/effect-result/fromThrowable";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 
 export type HmrUiProbeFailure = {
 	readonly code: string;
@@ -39,11 +42,13 @@ function normalizeBasename(filePath: string): string {
 	return segments[segments.length - 1] ?? filePath;
 }
 
-async function fetchViteHmrToken(viteDevUrl: string): Promise<Result<string, HmrUiProbeFailure>> {
+async function fetchViteHmrToken(
+	viteDevUrl: string
+): Promise<Result.Result<string, HmrUiProbeFailure>> {
 	const clientUrl = `${viteDevUrl.replace(/\/$/, "")}/@vite/client`;
 	const response = await fetch(clientUrl);
 	if (!response.ok) {
-		return err(
+		return Result.fail(
 			dependencyFailure(
 				"vite_client_unavailable",
 				`Unable to fetch ${clientUrl} (${response.status.toString()}).`
@@ -54,14 +59,14 @@ async function fetchViteHmrToken(viteDevUrl: string): Promise<Result<string, Hmr
 	const tokenMatch =
 		/const wsToken = "([A-Za-z0-9_-]+)"/.exec(source) ?? /token=([A-Za-z0-9_-]+)/.exec(source);
 	if (tokenMatch === null || tokenMatch[1] === undefined) {
-		return err(
+		return Result.fail(
 			dependencyFailure(
 				"vite_hmr_token_missing",
 				`Could not parse HMR token from ${clientUrl}. Is the Vite dev server running?`
 			)
 		);
 	}
-	return ok(tokenMatch[1]);
+	return Result.succeed(tokenMatch[1]);
 }
 
 function buildHmrWebSocketUrl(viteDevUrl: string, token: string): string {
@@ -70,70 +75,79 @@ function buildHmrWebSocketUrl(viteDevUrl: string, token: string): string {
 	return `${protocol}//${parsed.host}/?token=${token}`;
 }
 
+type HmrUpdatePayload = {
+	readonly type?: string;
+	readonly updates?: readonly { readonly path?: string }[];
+};
+
+const parseHmrPayload = fromThrowable(
+	(input: string) => JSON.parse(input) as HmrUpdatePayload,
+	() => null
+);
+
 function watchHmrUpdatesAfterEdit(input: {
 	readonly webSocketUrl: string;
 	readonly editedFile: string;
 	readonly nextSource: string;
 	readonly timeoutMs: number;
 	readonly viteDevUrl: string;
-}): ResultAsync<readonly string[], HmrUiProbeFailure> {
-	return ResultAsync.fromPromise(
-		new Promise<readonly string[]>((resolvePromise, rejectPromise) => {
-			const collectedPaths: string[] = [];
-			const socket = new WebSocket(input.webSocketUrl, "vite-hmr");
-			let editApplied = false;
+}): Effect.Effect<readonly string[], HmrUiProbeFailure> {
+	return fromPromise(
+		() =>
+			new Promise<readonly string[]>((resolvePromise, rejectPromise) => {
+				const collectedPaths: string[] = [];
+				const socket = new WebSocket(input.webSocketUrl, "vite-hmr");
+				let editApplied = false;
 
-			const finish = (paths: readonly string[]) => {
-				clearTimeout(timeoutHandle);
-				if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
-					socket.close();
-				}
-				resolvePromise(paths);
-			};
-
-			const timeoutHandle = setTimeout(() => {
-				finish(collectedPaths);
-			}, input.timeoutMs);
-
-			socket.addEventListener("open", () => {
-				const moduleUrl = `${input.viteDevUrl.replace(/\/$/, "")}/@fs${input.editedFile}`;
-				void fetch(moduleUrl).finally(() => {
-					setTimeout(() => {
-						if (!editApplied) {
-							editApplied = true;
-							writeFileSync(input.editedFile, input.nextSource, "utf8");
-						}
-					}, 500);
-				});
-			});
-
-			socket.addEventListener("message", (event) => {
-				const payload = typeof event.data === "string" ? event.data : "";
-				if (payload.length === 0) {
-					return;
-				}
-				let parsed: { type?: string; updates?: readonly { path?: string }[] };
-				try {
-					parsed = JSON.parse(payload) as { type?: string; updates?: readonly { path?: string }[] };
-				} catch {
-					return;
-				}
-				if (parsed.type !== "update" || parsed.updates === undefined) {
-					return;
-				}
-				for (const update of parsed.updates) {
-					if (typeof update.path === "string" && update.path.length > 0) {
-						collectedPaths.push(update.path);
+				const finish = (paths: readonly string[]) => {
+					clearTimeout(timeoutHandle);
+					if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
+						socket.close();
 					}
-				}
-			});
+					resolvePromise(paths);
+				};
 
-			socket.addEventListener("error", () => {
-				rejectPromise(
-					new Error(`Unable to connect to Vite HMR websocket at ${input.webSocketUrl}.`)
-				);
-			});
-		}),
+				const timeoutHandle = setTimeout(() => {
+					finish(collectedPaths);
+				}, input.timeoutMs);
+
+				socket.addEventListener("open", () => {
+					const moduleUrl = `${input.viteDevUrl.replace(/\/$/, "")}/@fs${input.editedFile}`;
+					void fetch(moduleUrl).finally(() => {
+						setTimeout(() => {
+							if (!editApplied) {
+								editApplied = true;
+								writeFileSync(input.editedFile, input.nextSource, "utf8");
+							}
+						}, 500);
+					});
+				});
+
+				socket.addEventListener("message", (event) => {
+					const payload = typeof event.data === "string" ? event.data : "";
+					if (payload.length === 0) {
+						return;
+					}
+					const parsed = Effect.runSync(Effect.result(parseHmrPayload(payload)));
+					if (Result.isFailure(parsed)) {
+						return;
+					}
+					if (parsed.success.type !== "update" || parsed.success.updates === undefined) {
+						return;
+					}
+					for (const update of parsed.success.updates) {
+						if (typeof update.path === "string" && update.path.length > 0) {
+							collectedPaths.push(update.path);
+						}
+					}
+				});
+
+				socket.addEventListener("error", () => {
+					rejectPromise(
+						new Error(`Unable to connect to Vite HMR websocket at ${input.webSocketUrl}.`)
+					);
+				});
+			}),
 		(cause) =>
 			dependencyFailure(
 				"vite_hmr_websocket_failed",
@@ -194,7 +208,7 @@ function filterSveltePathsForBasename(
 
 export function probeUiPackageHmr(
 	options: HmrUiProbeOptions
-): ResultAsync<HmrUiProbeResult, HmrUiProbeFailure> {
+): Effect.Effect<HmrUiProbeResult, HmrUiProbeFailure> {
 	const viteDevUrl = options.viteDevUrl ?? "http://localhost:1420";
 	const relativeUiFile = options.relativeUiFile ?? DEFAULT_RELATIVE_UI_FILE;
 	const timeoutMs = options.timeoutMs ?? 12_000;
@@ -203,46 +217,51 @@ export function probeUiPackageHmr(
 	const originalSource = readFileSync(editedFile, "utf8");
 	const probeEdit = applyProbeAttribute(originalSource);
 
-	return ResultAsync.fromPromise(
-		(async (): Promise<HmrUiProbeResult> => {
-			const tokenResult = await fetchViteHmrToken(viteDevUrl);
-			if (tokenResult.isErr()) {
-				throw tokenResult.error;
-			}
-			const hmrWebSocketUrl = buildHmrWebSocketUrl(viteDevUrl, tokenResult.value);
-			const updatePathsResult = await watchHmrUpdatesAfterEdit({
-				webSocketUrl: hmrWebSocketUrl,
-				editedFile,
-				nextSource: probeEdit.nextSource,
-				timeoutMs,
-				viteDevUrl,
-			});
-			if (updatePathsResult.isErr()) {
+	return fromPromise(
+		() =>
+			(async (): Promise<HmrUiProbeResult> => {
+				const tokenResult = await fetchViteHmrToken(viteDevUrl);
+				if (Result.isFailure(tokenResult)) {
+					throw tokenResult.failure;
+				}
+				const hmrWebSocketUrl = buildHmrWebSocketUrl(viteDevUrl, tokenResult.success);
+				const updatePathsResult = await Effect.runPromise(
+					Effect.result(
+						watchHmrUpdatesAfterEdit({
+							webSocketUrl: hmrWebSocketUrl,
+							editedFile,
+							nextSource: probeEdit.nextSource,
+							timeoutMs,
+							viteDevUrl,
+						})
+					)
+				);
+				if (Result.isFailure(updatePathsResult)) {
+					writeFileSync(editedFile, originalSource, "utf8");
+					throw updatePathsResult.failure;
+				}
 				writeFileSync(editedFile, originalSource, "utf8");
-				throw updatePathsResult.error;
-			}
-			writeFileSync(editedFile, originalSource, "utf8");
-			const updatePaths = updatePathsResult.value;
-			const basenameMatches = updatePaths.filter((entry) => entry.endsWith(editedBasename));
-			const uniqueBasenameMatches = Array.from(new Set(basenameMatches));
-			const svelteUpdatePaths = filterSveltePathsForBasename(updatePaths, editedBasename);
-			const uniqueSvelteUpdatePaths = Array.from(new Set(svelteUpdatePaths)).filter(
-				(entry) => !entry.includes("/node_modules/@acepe/ui/")
-			);
-			const duplicateModuleIdentity =
-				uniqueBasenameMatches.some((entry) => entry.includes("/node_modules/@acepe/ui/")) &&
-				uniqueBasenameMatches.some((entry) => entry.includes("/@fs/"));
-			return {
-				editedFile,
-				editedBasename,
-				viteDevUrl,
-				hmrWebSocketUrl,
-				updatePaths,
-				svelteUpdatePaths: uniqueSvelteUpdatePaths,
-				duplicateModuleIdentity: duplicateModuleIdentity || uniqueSvelteUpdatePaths.length !== 1,
-				probeAttributeApplied: probeEdit.applied,
-			};
-		})(),
+				const updatePaths = updatePathsResult.success;
+				const basenameMatches = updatePaths.filter((entry) => entry.endsWith(editedBasename));
+				const uniqueBasenameMatches = Array.from(new Set(basenameMatches));
+				const svelteUpdatePaths = filterSveltePathsForBasename(updatePaths, editedBasename);
+				const uniqueSvelteUpdatePaths = Array.from(new Set(svelteUpdatePaths)).filter(
+					(entry) => !entry.includes("/node_modules/@acepe/ui/")
+				);
+				const duplicateModuleIdentity =
+					uniqueBasenameMatches.some((entry) => entry.includes("/node_modules/@acepe/ui/")) &&
+					uniqueBasenameMatches.some((entry) => entry.includes("/@fs/"));
+				return {
+					editedFile,
+					editedBasename,
+					viteDevUrl,
+					hmrWebSocketUrl,
+					updatePaths,
+					svelteUpdatePaths: uniqueSvelteUpdatePaths,
+					duplicateModuleIdentity: duplicateModuleIdentity || uniqueSvelteUpdatePaths.length !== 1,
+					probeAttributeApplied: probeEdit.applied,
+				};
+			})(),
 		(cause) =>
 			typeof cause === "object" &&
 			cause !== null &&

@@ -3,7 +3,8 @@
  * Provides access to application commands/actions.
  */
 
-import { okAsync, ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
 import type { PaletteCommandDef } from "../../../types/palette-command.js";
 import type { PaletteItem, PaletteItemMetadata } from "../../../types/palette-item.js";
 import { fuzzySearch } from "../fuzzy-search.js";
@@ -172,10 +173,10 @@ export class CommandsProvider implements PaletteProvider {
 	/**
 	 * Execute a command.
 	 */
-	execute(item: PaletteItem): ResultAsync<void, Error> {
+	execute(item: PaletteItem): Effect.Effect<void, Error> {
 		const cmd = this.commandsById.get(item.id);
 		if (!cmd) {
-			return okAsync(undefined);
+			return Effect.succeed(undefined);
 		}
 
 		// Add to recent
@@ -184,9 +185,12 @@ export class CommandsProvider implements PaletteProvider {
 		// Execute the command
 		const result = cmd.handler();
 		if (result instanceof Promise) {
-			return ResultAsync.fromPromise(result, (e) => new Error(String(e)));
+			return fromPromise(
+				() => result,
+				(e) => new Error(String(e))
+			);
 		}
-		return okAsync(undefined);
+		return Effect.succeed(undefined);
 	}
 
 	/**

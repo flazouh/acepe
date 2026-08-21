@@ -1,5 +1,6 @@
 <script lang="ts">
 import { onDestroy, tick, untrack } from "svelte";
+import * as Effect from "effect/Effect";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
 import { fileContentCache } from "../../services/file-content-cache.svelte.js";
 import {
@@ -110,24 +111,28 @@ $effect(() => {
 		return;
 	}
 
-	fileContentCache.getFileDiff(currentFile.filePath, currentProjectPath).match(
-		(diff) => {
-			if (requestKey !== lastRequestedDiffKey) {
-				return;
-			}
+	void Effect.runPromise(
+		fileContentCache.getFileDiff(currentFile.filePath, currentProjectPath).pipe(
+			Effect.match({
+				onSuccess: (diff) => {
+					if (requestKey !== lastRequestedDiffKey) {
+						return;
+					}
 
-			fetchedDiffData = createReviewDiffData(currentFile, diff.oldContent, diff.newContent);
-			fetchedDiffSettled = true;
-		},
-		(error) => {
-			if (requestKey !== lastRequestedDiffKey) {
-				return;
-			}
+					fetchedDiffData = createReviewDiffData(currentFile, diff.oldContent, diff.newContent);
+					fetchedDiffSettled = true;
+				},
+				onFailure: (error) => {
+					if (requestKey !== lastRequestedDiffKey) {
+						return;
+					}
 
-			console.error(`Failed to load full diff for ${currentFile.filePath}:`, error.message);
-			fetchedDiffData = null;
-			fetchedDiffSettled = true;
-		}
+					console.error(`Failed to load full diff for ${currentFile.filePath}:`, error.message);
+					fetchedDiffData = null;
+					fetchedDiffSettled = true;
+				},
+			})
+		)
 	);
 });
 

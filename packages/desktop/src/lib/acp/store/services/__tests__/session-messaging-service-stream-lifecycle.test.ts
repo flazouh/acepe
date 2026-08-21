@@ -6,7 +6,7 @@
  * preventing the UI from getting stuck in "Planning next moves".
  */
 
-import { okAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import type { IConnectionManager } from "../interfaces/connection-manager.js";
@@ -119,7 +119,7 @@ describe("SessionMessagingService.handleCanonicalTurnComplete", () => {
 	beforeEach(() => {
 		deps = createMockDeps();
 		createCheckpoint.mockReturnValue(
-			okAsync({
+			Effect.succeed({
 				id: "checkpoint-1",
 				sessionId,
 				checkpointNumber: 1,

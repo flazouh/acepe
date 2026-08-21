@@ -1,5 +1,6 @@
+import { fromPromise } from "@acepe/effect-result/fromPromise";
 import { fromShikiTheme, renderMermaid as renderMermaidSvg } from "beautiful-mermaid";
-import { errAsync, okAsync, ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import type { ThemeRegistration } from "shiki";
 
 import { loadCursorLightTheme, loadCursorTheme } from "./shiki-theme.js";
@@ -50,25 +51,30 @@ function extractColorsFromTheme(theme: ThemeRegistration): DiagramColors {
 	return fromShikiTheme(theme) as DiagramColors;
 }
 
+function toError(error: unknown): Error {
+	return error instanceof Error ? error : new Error(String(error));
+}
+
 /**
  * Initializes mermaid colors from Cursor themes.
  * Must be called before rendering diagrams.
  */
-export function initializeMermaidColors(): ResultAsync<void, Error> {
+export function initializeMermaidColors(): Effect.Effect<void, Error> {
 	if (isInitialized) {
-		return okAsync(undefined);
+		return Effect.succeed(undefined);
 	}
 
-	return loadCursorTheme()
-		.andThen((darkTheme) => {
+	return loadCursorTheme().pipe(
+		Effect.flatMap((darkTheme) => {
 			darkColors = extractColorsFromTheme(darkTheme);
 			return loadCursorLightTheme();
-		})
-		.map((lightTheme) => {
+		}),
+		Effect.map((lightTheme) => {
 			lightColors = extractColorsFromTheme(lightTheme);
 			isInitialized = true;
-		})
-		.mapErr((error) => new Error(`Failed to initialize mermaid colors: ${error.message}`));
+		}),
+		Effect.mapError((error) => new Error(`Failed to initialize mermaid colors: ${error.message}`))
+	);
 }
 
 /**
@@ -77,44 +83,53 @@ export function initializeMermaidColors(): ResultAsync<void, Error> {
  *
  * @param code - The mermaid diagram code to render
  * @param isDark - Whether to use dark theme colors
- * @returns ResultAsync with SVG string on success or Error on failure
+ * @returns Effect with SVG string on success or Error on failure
  */
-export function renderMermaid(code: string, isDark: boolean = true): ResultAsync<string, Error> {
+export function renderMermaid(code: string, isDark: boolean = true): Effect.Effect<string, Error> {
 	const trimmedCode = code.trim();
 	if (!trimmedCode) {
-		return errAsync(new Error("Empty mermaid code"));
+		return Effect.fail(new Error("Empty mermaid code"));
 	}
 
 	// Check cache first
 	const cacheKey = getCacheKey(trimmedCode, isDark);
 	const cached = svgCache.get(cacheKey);
 	if (cached) {
-		return okAsync(cached);
+		return Effect.succeed(cached);
 	}
 
 	const colors = isDark ? darkColors : lightColors;
 
 	if (!colors) {
-		return initializeMermaidColors().andThen(() => renderMermaid(trimmedCode, isDark));
+		return initializeMermaidColors().pipe(Effect.flatMap(() => renderMermaid(trimmedCode, isDark)));
 	}
 
-	return ResultAsync.fromPromise(
-		renderMermaidSvg(trimmedCode, {
-			...colors,
-			transparent: true,
-		}),
-		(error) => (error instanceof Error ? error : new Error(String(error)))
-	).map((svg) => {
-		addToCache(cacheKey, svg);
-		return svg;
-	});
+	return fromPromise(
+		() =>
+			renderMermaidSvg(trimmedCode, {
+				bg: colors.bg,
+				fg: colors.fg,
+				line: colors.line,
+				accent: colors.accent,
+				muted: colors.muted,
+				surface: colors.surface,
+				border: colors.border,
+				transparent: true,
+			}),
+		toError
+	).pipe(
+		Effect.map((svg) => {
+			addToCache(cacheKey, svg);
+			return svg;
+		})
+	);
 }
 
 /**
  * Pre-initializes mermaid colors during app startup.
  * Call this early to eliminate cold-start delay for first diagram render.
  */
-export function preInitializeMermaid(): ResultAsync<void, Error> {
+export function preInitializeMermaid(): Effect.Effect<void, Error> {
 	return initializeMermaidColors();
 }
 

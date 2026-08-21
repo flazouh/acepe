@@ -1,5 +1,7 @@
+import { fromPromise } from "@acepe/effect-result/fromPromise";
 import { describe, expect, it } from "bun:test";
-import { ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 
 import { createFileContentCache } from "./file-content-cache.svelte.js";
 
@@ -11,6 +13,14 @@ function createDeferred<T>() {
 	return { promise, resolve };
 }
 
+function toUnknownError(error: unknown): unknown {
+	return error;
+}
+
+async function runResult<A, E>(effect: Effect.Effect<A, E>) {
+	return Effect.runPromise(Effect.result(effect));
+}
+
 describe("fileContentCache", () => {
 	it("shares in-flight file content reads for the same file", async () => {
 		const deferred = createDeferred<string>();
@@ -18,7 +28,7 @@ describe("fileContentCache", () => {
 		const cache = createFileContentCache({ fetchFileContent });
 		function fetchFileContent() {
 			fetchCount += 1;
-			return ResultAsync.fromPromise(deferred.promise, (error) => error);
+			return fromPromise(() => deferred.promise, toUnknownError);
 		}
 
 		const first = cache.getFileContent("src/app.ts", "/repo");
@@ -27,19 +37,19 @@ describe("fileContentCache", () => {
 		expect(fetchCount).toBe(1);
 		deferred.resolve("export const answer = 42;\n");
 
-		const firstResult = await first;
-		const secondResult = await second;
-		expect(firstResult.isOk()).toBe(true);
-		expect(secondResult.isOk()).toBe(true);
-		if (firstResult.isOk() && secondResult.isOk()) {
-			expect(firstResult.value).toBe("export const answer = 42;\n");
-			expect(secondResult.value).toBe("export const answer = 42;\n");
+		const firstResult = await runResult(first);
+		const secondResult = await runResult(second);
+		expect(Result.isSuccess(firstResult)).toBe(true);
+		expect(Result.isSuccess(secondResult)).toBe(true);
+		if (Result.isSuccess(firstResult) && Result.isSuccess(secondResult)) {
+			expect(firstResult.success).toBe("export const answer = 42;\n");
+			expect(secondResult.success).toBe("export const answer = 42;\n");
 		}
 
-		const cachedResult = await cache.getFileContent("src/app.ts", "/repo");
-		expect(cachedResult.isOk()).toBe(true);
-		if (cachedResult.isOk()) {
-			expect(cachedResult.value).toBe("export const answer = 42;\n");
+		const cachedResult = await runResult(cache.getFileContent("src/app.ts", "/repo"));
+		expect(Result.isSuccess(cachedResult)).toBe(true);
+		if (Result.isSuccess(cachedResult)) {
+			expect(cachedResult.success).toBe("export const answer = 42;\n");
 		}
 		expect(fetchCount).toBe(1);
 	});
@@ -54,7 +64,7 @@ describe("fileContentCache", () => {
 		const cache = createFileContentCache({ fetchFileDiff });
 		function fetchFileDiff() {
 			fetchCount += 1;
-			return ResultAsync.fromPromise(deferred.promise, (error) => error);
+			return fromPromise(() => deferred.promise, toUnknownError);
 		}
 
 		const first = cache.getFileDiff("src/app.ts", "/repo");
@@ -67,27 +77,27 @@ describe("fileContentCache", () => {
 			fileName: "app.ts",
 		});
 
-		const firstResult = await first;
-		const secondResult = await second;
-		expect(firstResult.isOk()).toBe(true);
-		expect(secondResult.isOk()).toBe(true);
-		if (firstResult.isOk() && secondResult.isOk()) {
-			expect(firstResult.value).toEqual({
+		const firstResult = await runResult(first);
+		const secondResult = await runResult(second);
+		expect(Result.isSuccess(firstResult)).toBe(true);
+		expect(Result.isSuccess(secondResult)).toBe(true);
+		if (Result.isSuccess(firstResult) && Result.isSuccess(secondResult)) {
+			expect(firstResult.success).toEqual({
 				oldContent: "old",
 				newContent: "new",
 				fileName: "app.ts",
 			});
-			expect(secondResult.value).toEqual({
+			expect(secondResult.success).toEqual({
 				oldContent: "old",
 				newContent: "new",
 				fileName: "app.ts",
 			});
 		}
 
-		const cachedResult = await cache.getFileDiff("src/app.ts", "/repo");
-		expect(cachedResult.isOk()).toBe(true);
-		if (cachedResult.isOk()) {
-			expect(cachedResult.value).toEqual({
+		const cachedResult = await runResult(cache.getFileDiff("src/app.ts", "/repo"));
+		expect(Result.isSuccess(cachedResult)).toBe(true);
+		if (Result.isSuccess(cachedResult)) {
+			expect(cachedResult.success).toEqual({
 				oldContent: "old",
 				newContent: "new",
 				fileName: "app.ts",
@@ -98,14 +108,13 @@ describe("fileContentCache", () => {
 
 	it("can synchronously peek cached file content after a successful load", async () => {
 		const cache = createFileContentCache({
-			fetchFileContent: () =>
-				ResultAsync.fromPromise(Promise.resolve("cached body"), (error) => error),
+			fetchFileContent: () => fromPromise(() => Promise.resolve("cached body"), toUnknownError),
 		});
 
 		expect(cache.peekFileContent("src/app.ts", "/repo")).toBeNull();
 
-		const result = await cache.getFileContent("src/app.ts", "/repo");
-		expect(result.isOk()).toBe(true);
+		const result = await runResult(cache.getFileContent("src/app.ts", "/repo"));
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(cache.peekFileContent("src/app.ts", "/repo")).toBe("cached body");
 	});
 });

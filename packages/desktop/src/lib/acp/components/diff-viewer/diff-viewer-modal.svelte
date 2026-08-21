@@ -1,5 +1,6 @@
 <script lang="ts">
 import { GitViewer, LoadingIcon, HugeiconsIcon } from "@acepe/ui";
+import * as Effect from "effect/Effect";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import { fetchCommitDiff, fetchPrDiff } from "../../services/github-service.js";
 import type { CommitDiff, GitHubError, PrDiff } from "../../types/github-integration.js";
@@ -38,30 +39,36 @@ async function loadDiff() {
 	selectedFile = "";
 
 	if (reference.type === "commit" && reference.sha && projectPath) {
-		const result = await fetchCommitDiff(reference.sha, projectPath);
-		result.match(
-			(commitDiff) => {
-				diff = commitDiff;
-				if (diff.files.length > 0) {
-					selectedFile = diff.files[0].path;
-				}
-			},
-			(err) => {
-				error = err;
-			}
+		await Effect.runPromise(
+			fetchCommitDiff(reference.sha, projectPath).pipe(
+				Effect.match({
+					onSuccess: (commitDiff) => {
+						diff = commitDiff;
+						if (diff.files.length > 0) {
+							selectedFile = diff.files[0].path;
+						}
+					},
+					onFailure: (err) => {
+						error = err;
+					},
+				})
+			)
 		);
 	} else if (reference.type === "pr" && reference.owner && reference.repo && reference.number) {
-		const result = await fetchPrDiff(reference.owner, reference.repo, reference.number);
-		result.match(
-			(prDiff) => {
-				diff = prDiff;
-				if (diff.files.length > 0) {
-					selectedFile = diff.files[0].path;
-				}
-			},
-			(err) => {
-				error = err;
-			}
+		await Effect.runPromise(
+			fetchPrDiff(reference.owner, reference.repo, reference.number).pipe(
+				Effect.match({
+					onSuccess: (prDiff) => {
+						diff = prDiff;
+						if (diff.files.length > 0) {
+							selectedFile = diff.files[0].path;
+						}
+					},
+					onFailure: (err) => {
+						error = err;
+					},
+				})
+			)
 		);
 	} else {
 		error = { type: "unknown_error", message: "Invalid reference or missing project path" };

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import * as Result from "effect/Result";
 
 import { parseTableContent } from "./format/parsers/delimited";
 import { tryParseJsonString } from "./format/parsers/structured";
@@ -109,10 +110,10 @@ describe("parseTableContent", () => {
 	it("parses csv rows", () => {
 		const parsed = parseTableContent("name,age\nAlex,31\nSam,22", "csv");
 
-		expect(parsed.isOk()).toBe(true);
-		if (parsed.isOk()) {
-			expect(parsed.value.headers).toEqual(["name", "age"]);
-			expect(parsed.value.rows).toEqual([
+		expect(Result.isSuccess(parsed)).toBe(true);
+		if (Result.isSuccess(parsed)) {
+			expect(parsed.success.headers).toEqual(["name", "age"]);
+			expect(parsed.success.rows).toEqual([
 				["Alex", "31"],
 				["Sam", "22"],
 			]);
@@ -122,10 +123,10 @@ describe("parseTableContent", () => {
 	it("parses tsv rows", () => {
 		const parsed = parseTableContent("name\tage\nAlex\t31\nSam\t22", "tsv");
 
-		expect(parsed.isOk()).toBe(true);
-		if (parsed.isOk()) {
-			expect(parsed.value.headers).toEqual(["name", "age"]);
-			expect(parsed.value.rows).toEqual([
+		expect(Result.isSuccess(parsed)).toBe(true);
+		if (Result.isSuccess(parsed)) {
+			expect(parsed.success.headers).toEqual(["name", "age"]);
+			expect(parsed.success.rows).toEqual([
 				["Alex", "31"],
 				["Sam", "22"],
 			]);
@@ -135,7 +136,7 @@ describe("parseTableContent", () => {
 	it("returns error for unclosed quoted value", () => {
 		const parsed = parseTableContent('name,note\n"Alex,broken', "csv");
 
-		expect(parsed.isErr()).toBe(true);
+		expect(Result.isFailure(parsed)).toBe(true);
 	});
 });
 
@@ -143,45 +144,45 @@ describe("parseStructuredContent", () => {
 	it("parses valid json", () => {
 		const parsed = parseStructuredContent('{"name":"acepe","enabled":true}', "json");
 
-		expect(parsed.isOk()).toBe(true);
-		if (parsed.isOk()) {
-			expect(parsed.value).toEqual({ name: "acepe", enabled: true });
+		expect(Result.isSuccess(parsed)).toBe(true);
+		if (Result.isSuccess(parsed)) {
+			expect(parsed.success).toEqual({ name: "acepe", enabled: true });
 		}
 	});
 
 	it("parses env-like files", () => {
 		const parsed = parseStructuredContent("API_URL=https://x.dev\nFEATURE=true", "env");
 
-		expect(parsed.isOk()).toBe(true);
-		if (parsed.isOk()) {
-			expect(parsed.value).toEqual({ API_URL: "https://x.dev", FEATURE: "true" });
+		expect(Result.isSuccess(parsed)).toBe(true);
+		if (Result.isSuccess(parsed)) {
+			expect(parsed.success).toEqual({ API_URL: "https://x.dev", FEATURE: "true" });
 		}
 	});
 
 	it("parses ndjson files", () => {
 		const parsed = parseStructuredContent('{"a":1}\n{"b":2}', "ndjson");
 
-		expect(parsed.isOk()).toBe(true);
-		if (parsed.isOk()) {
-			expect(parsed.value).toEqual([{ a: 1 }, { b: 2 }]);
+		expect(Result.isSuccess(parsed)).toBe(true);
+		if (Result.isSuccess(parsed)) {
+			expect(parsed.success).toEqual([{ a: 1 }, { b: 2 }]);
 		}
 	});
 
 	it("parses lockfile files", () => {
 		const parsed = parseStructuredContent('{"name":"demo","lockfileVersion":3}', "lockfile");
 
-		expect(parsed.isOk()).toBe(true);
-		if (parsed.isOk()) {
-			expect(parsed.value).toEqual({ name: "demo", lockfileVersion: 3 });
+		expect(Result.isSuccess(parsed)).toBe(true);
+		if (Result.isSuccess(parsed)) {
+			expect(parsed.success).toEqual({ name: "demo", lockfileVersion: 3 });
 		}
 	});
 
 	it("returns error for invalid json", () => {
 		const parsed = parseStructuredContent("{invalid", "json");
 
-		expect(parsed.isErr()).toBe(true);
-		if (parsed.isErr()) {
-			expect(parsed.error.message).toContain("Invalid JSON");
+		expect(Result.isFailure(parsed)).toBe(true);
+		if (Result.isFailure(parsed)) {
+			expect(parsed.failure.message).toContain("Invalid JSON");
 		}
 	});
 });

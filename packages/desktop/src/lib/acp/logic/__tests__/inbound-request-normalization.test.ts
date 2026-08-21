@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import * as Result from "effect/Result";
 
 import { ACP_INBOUND_METHODS } from "../../constants/acp-methods.js";
 import {
@@ -36,12 +37,12 @@ describe("normalizeInboundInteractionRequest", () => {
 			},
 		});
 
-		expect(result.isOk()).toBe(true);
-		if (result.isErr()) {
-			throw new Error(result.error.message);
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isFailure(result)) {
+			throw new Error(result.failure.message);
 		}
 
-		const normalized = result.value;
+		const normalized = result.success;
 		expect(normalized.kind).toBe("permission");
 		expect(normalized.alwaysOptionIds).toEqual(["allow_always"]);
 	});
@@ -74,12 +75,12 @@ describe("normalizeInboundInteractionRequest", () => {
 			},
 		});
 
-		expect(result.isOk()).toBe(true);
-		if (result.isErr()) {
-			throw new Error(result.error.message);
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isFailure(result)) {
+			throw new Error(result.failure.message);
 		}
 
-		const normalized = result.value;
+		const normalized = result.success;
 		expect(normalized.kind).toBe("permission");
 		expect(normalized.toolLabel).toBe("AskUserQuestion");
 	});
@@ -104,12 +105,12 @@ describe("normalizeInboundInteractionRequest", () => {
 			},
 		});
 
-		expect(result.isOk()).toBe(true);
-		if (result.isErr()) {
-			throw new Error(result.error.message);
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isFailure(result)) {
+			throw new Error(result.failure.message);
 		}
 
-		const normalized = result.value;
+		const normalized = result.success;
 		expect(normalized.kind).toBe("permission");
 		expect(toPermissionRequest(normalized)).toEqual({
 			id: "session-14\u0000tool-14\u000014",
@@ -150,12 +151,12 @@ describe("normalizeInboundInteractionRequest", () => {
 			},
 		});
 
-		expect(result.isOk()).toBe(true);
-		if (result.isErr()) {
-			throw new Error(result.error.message);
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isFailure(result)) {
+			throw new Error(result.failure.message);
 		}
 
-		const normalized = result.value;
+		const normalized = result.success;
 		expect(normalized.kind).toBe("permission");
 		expect(toPermissionRequest(normalized)).toEqual({
 			id: "session-15\u0000permission-request-15\u000015",

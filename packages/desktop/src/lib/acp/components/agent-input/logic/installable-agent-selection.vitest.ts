@@ -1,7 +1,9 @@
-import { errAsync, okAsync, ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { describe, expect, it, vi } from "vitest";
 
-import { AgentError } from "$lib/acp/errors/app-error.js";
+import { AgentError, type AppError } from "$lib/acp/errors/app-error.js";
 import {
 	installAgentForSelection,
 	resolvePostInstallCapabilityMode,
@@ -16,6 +18,20 @@ function createDeferred<T>(): {
 		resolve = resolvePromise;
 	});
 	return { promise, resolve };
+}
+
+function toAppError(error: unknown): AppError {
+	if (error instanceof AgentError) {
+		return error;
+	}
+	return new AgentError(
+		"installable-agent-selection",
+		error instanceof Error ? error : new Error(String(error))
+	);
+}
+
+async function runToResult<A, E>(effect: Effect.Effect<A, E>): Promise<Result.Result<A, E>> {
+	return Effect.runPromise(Effect.result(effect));
 }
 
 describe("installAgentForSelection", () => {
@@ -43,13 +59,13 @@ describe("installAgentForSelection", () => {
 	it("waits for install and forced capability refresh before selecting the agent", async () => {
 		const install = createDeferred<void>();
 		const capabilities = createDeferred<void>();
-		const installAgent = vi.fn(() => ResultAsync.fromSafePromise(install.promise));
+		const installAgent = vi.fn(() => fromPromise(() => install.promise, toAppError));
 		const refreshPreconnectionCapabilities = vi.fn(() =>
-			ResultAsync.fromSafePromise(capabilities.promise)
+			fromPromise(() => capabilities.promise, toAppError)
 		);
 		const selectAgent = vi.fn();
 
-		const result = installAgentForSelection(
+		const program = installAgentForSelection(
 			{
 				agentId: "claude-code",
 				installRequired: true,
@@ -62,6 +78,7 @@ describe("installAgentForSelection", () => {
 				selectAgent,
 			}
 		);
+		const resultPromise = runToResult(program);
 
 		expect(installAgent).toHaveBeenCalledWith("claude-code");
 		expect(refreshPreconnectionCapabilities).not.toHaveBeenCalled();
@@ -82,42 +99,44 @@ describe("installAgentForSelection", () => {
 		expect(selectAgent).not.toHaveBeenCalled();
 
 		capabilities.resolve();
-		expect((await result).isOk()).toBe(true);
+		expect(Result.isSuccess(await resultPromise)).toBe(true);
 		expect(selectAgent).toHaveBeenCalledWith("claude-code");
 	});
 
 	it("keeps the previous agent selected when installation fails", async () => {
 		const installError = new AgentError("install managed agent");
-		const installAgent = vi.fn(() => errAsync(installError));
-		const refreshPreconnectionCapabilities = vi.fn(() => okAsync(undefined));
+		const installAgent = vi.fn(() => Effect.fail(installError));
+		const refreshPreconnectionCapabilities = vi.fn(() => Effect.succeed(undefined));
 		const selectAgent = vi.fn();
 
-		const result = await installAgentForSelection(
-			{
-				agentId: "managed-agent",
-				installRequired: true,
-				projectPath: "/projects/acepe",
-				preconnectionCapabilityMode: "projectScoped",
-			},
-			{
-				installAgent,
-				refreshPreconnectionCapabilities,
-				selectAgent,
-			}
+		const result = await runToResult(
+			installAgentForSelection(
+				{
+					agentId: "managed-agent",
+					installRequired: true,
+					projectPath: "/projects/acepe",
+					preconnectionCapabilityMode: "projectScoped",
+				},
+				{
+					installAgent,
+					refreshPreconnectionCapabilities,
+					selectAgent,
+				}
+			)
 		);
 
-		expect(result.isErr()).toBe(true);
+		expect(Result.isFailure(result)).toBe(true);
 		expect(refreshPreconnectionCapabilities).not.toHaveBeenCalled();
 		expect(selectAgent).not.toHaveBeenCalled();
 	});
 
 	it("retries a failed catalog refresh without reinstalling before selecting", async () => {
 		const refreshError = new AgentError("refresh managed agent catalog");
-		const installAgent = vi.fn(() => okAsync(undefined));
+		const installAgent = vi.fn(() => Effect.succeed(undefined));
 		const refreshPreconnectionCapabilities = vi
 			.fn()
-			.mockReturnValueOnce(errAsync(refreshError))
-			.mockReturnValueOnce(okAsync(undefined));
+			.mockReturnValueOnce(Effect.fail(refreshError))
+			.mockReturnValueOnce(Effect.succeed(undefined));
 		const selectAgent = vi.fn();
 		const input = {
 			agentId: "managed-agent",
@@ -131,13 +150,13 @@ describe("installAgentForSelection", () => {
 			selectAgent,
 		};
 
-		const first = await installAgentForSelection(input, dependencies);
-		expect(first.isErr()).toBe(true);
+		const first = await runToResult(installAgentForSelection(input, dependencies));
+		expect(Result.isFailure(first)).toBe(true);
 		expect(installAgent).not.toHaveBeenCalled();
 		expect(selectAgent).not.toHaveBeenCalled();
 
-		const second = await installAgentForSelection(input, dependencies);
-		expect(second.isOk()).toBe(true);
+		const second = await runToResult(installAgentForSelection(input, dependencies));
+		expect(Result.isSuccess(second)).toBe(true);
 		expect(installAgent).not.toHaveBeenCalled();
 		expect(refreshPreconnectionCapabilities).toHaveBeenCalledTimes(2);
 		expect(selectAgent).toHaveBeenCalledOnce();

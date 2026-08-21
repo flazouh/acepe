@@ -1,4 +1,5 @@
-import { errAsync, okAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AgentError } from "$lib/acp/errors/app-error.js";
@@ -15,6 +16,10 @@ function makeCommand(name: string, description: string): AvailableCommand {
 	};
 }
 
+async function runToResult<A, E>(effect: Effect.Effect<A, E>): Promise<Result.Result<A, E>> {
+	return Effect.runPromise(Effect.result(effect));
+}
+
 describe("PreconnectionRemoteCommandsState", () => {
 	const fetchFn = vi.fn();
 
@@ -23,17 +28,21 @@ describe("PreconnectionRemoteCommandsState", () => {
 	});
 
 	it("loads project-scoped commands before a session exists", async () => {
-		fetchFn.mockReturnValueOnce(okAsync([makeCommand("compact", "compact the session")]));
+		fetchFn.mockReturnValueOnce(
+			Effect.succeed([makeCommand("compact", "compact the session")])
+		);
 
 		const state = new PreconnectionRemoteCommandsState(fetchFn);
-		const result = await state.ensureLoaded({
-			agentId: "opencode",
-			hasConnectedSession: false,
-			projectPath: "/repo",
-			preconnectionSlashMode: "projectScoped",
-		});
+		const result = await runToResult(
+			state.ensureLoaded({
+				agentId: "opencode",
+				hasConnectedSession: false,
+				projectPath: "/repo",
+				preconnectionSlashMode: "projectScoped",
+			})
+		);
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(fetchFn).toHaveBeenCalledWith("/repo", "opencode");
 		expect(
 			state.getCommands({
@@ -49,14 +58,16 @@ describe("PreconnectionRemoteCommandsState", () => {
 		const state = new PreconnectionRemoteCommandsState(fetchFn);
 		const skillCommands = [makeCommand("ce:brainstorm", "Brainstorm")];
 
-		const result = await state.ensureLoaded({
-			agentId: "claude-code",
-			hasConnectedSession: false,
-			projectPath: "/repo",
-			preconnectionSlashMode: "startupGlobal",
-		});
+		const result = await runToResult(
+			state.ensureLoaded({
+				agentId: "claude-code",
+				hasConnectedSession: false,
+				projectPath: "/repo",
+				preconnectionSlashMode: "startupGlobal",
+			})
+		);
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(fetchFn).not.toHaveBeenCalled();
 		expect(
 			state.getCommands({
@@ -69,41 +80,47 @@ describe("PreconnectionRemoteCommandsState", () => {
 	});
 
 	it("does not refetch commands when the same agent and project are already loaded", async () => {
-		fetchFn.mockReturnValue(okAsync([makeCommand("compact", "compact the session")]));
+		fetchFn.mockReturnValue(Effect.succeed([makeCommand("compact", "compact the session")]));
 
 		const state = new PreconnectionRemoteCommandsState(fetchFn);
-		await state.ensureLoaded({
-			agentId: "copilot",
-			hasConnectedSession: false,
-			projectPath: "/repo",
-			preconnectionSlashMode: "projectScoped",
-		});
+		await runToResult(
+			state.ensureLoaded({
+				agentId: "copilot",
+				hasConnectedSession: false,
+				projectPath: "/repo",
+				preconnectionSlashMode: "projectScoped",
+			})
+		);
 
-		const second = await state.ensureLoaded({
-			agentId: "copilot",
-			hasConnectedSession: false,
-			projectPath: "/repo",
-			preconnectionSlashMode: "projectScoped",
-		});
+		const second = await runToResult(
+			state.ensureLoaded({
+				agentId: "copilot",
+				hasConnectedSession: false,
+				projectPath: "/repo",
+				preconnectionSlashMode: "projectScoped",
+			})
+		);
 
-		expect(second.isOk()).toBe(true);
+		expect(Result.isSuccess(second)).toBe(true);
 		expect(fetchFn).toHaveBeenCalledTimes(1);
 	});
 
 	it("does not load project-scoped commands after a session is connected", async () => {
 		fetchFn.mockReturnValueOnce(
-			okAsync([makeCommand("systematic-debugging", "Debug methodically")])
+			Effect.succeed([makeCommand("systematic-debugging", "Debug methodically")])
 		);
 
 		const state = new PreconnectionRemoteCommandsState(fetchFn);
-		const result = await state.ensureLoaded({
-			agentId: "copilot",
-			hasConnectedSession: true,
-			projectPath: "/repo",
-			preconnectionSlashMode: "projectScoped",
-		});
+		const result = await runToResult(
+			state.ensureLoaded({
+				agentId: "copilot",
+				hasConnectedSession: true,
+				projectPath: "/repo",
+				preconnectionSlashMode: "projectScoped",
+			})
+		);
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(fetchFn).not.toHaveBeenCalled();
 		expect(
 			state.getCommands({
@@ -117,18 +134,20 @@ describe("PreconnectionRemoteCommandsState", () => {
 
 	it("clears the loading marker after a fetch failure", async () => {
 		fetchFn.mockReturnValueOnce(
-			errAsync(new AgentError("acp_list_preconnection_commands", new Error("boom")))
+			Effect.fail(new AgentError("acp_list_preconnection_commands", new Error("boom")))
 		);
 
 		const state = new PreconnectionRemoteCommandsState(fetchFn);
-		const result = await state.ensureLoaded({
-			agentId: "opencode",
-			hasConnectedSession: false,
-			projectPath: "/repo",
-			preconnectionSlashMode: "projectScoped",
-		});
+		const result = await runToResult(
+			state.ensureLoaded({
+				agentId: "opencode",
+				hasConnectedSession: false,
+				projectPath: "/repo",
+				preconnectionSlashMode: "projectScoped",
+			})
+		);
 
-		expect(result.isErr()).toBe(true);
+		expect(Result.isFailure(result)).toBe(true);
 		expect(state.loadingCacheKey).toBeNull();
 	});
 });

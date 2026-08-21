@@ -1,4 +1,5 @@
-import { errAsync, ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
 
 import { readFileAsDataUrl } from "./file-reader.js";
 
@@ -47,23 +48,25 @@ export function isInlineImageAttachment(a: {
 export function createImageAttachment(
 	file: File,
 	mimeType: string
-): ResultAsync<
+): Effect.Effect<
 	{ type: "image"; path: string; displayName: string; extension: string; content: string },
 	ImageAttachmentError
 > {
 	if (file.size > MAX_IMAGE_BYTES) {
-		return errAsync({ kind: "too_large", maxBytes: MAX_IMAGE_BYTES });
+		return Effect.fail({ kind: "too_large", maxBytes: MAX_IMAGE_BYTES });
 	}
 	const extension = file.name?.split(".").pop() ?? getExtensionFromMimeType(mimeType);
 	const displayName = file.name || generateImageName();
-	return ResultAsync.fromPromise(
-		readFileAsDataUrl(file),
+	return fromPromise(
+		() => readFileAsDataUrl(file),
 		(): ImageAttachmentError => ({ kind: "read_failed" })
-	).map((content) => ({
-		type: "image" as const,
-		path: "",
-		displayName,
-		extension,
-		content,
-	}));
+	).pipe(
+		Effect.map((content) => ({
+			type: "image" as const,
+			path: "",
+			displayName,
+			extension,
+			content,
+		}))
+	);
 }

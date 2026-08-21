@@ -1,5 +1,5 @@
 import { mock } from "bun:test";
-import { errAsync, okAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const listenMock = vi.fn();
@@ -123,11 +123,11 @@ describe("VoiceSettingsStore", () => {
 
 		({ VoiceSettingsStore } = await import("./voice-settings-store.svelte.js"));
 
-		setSettingMock.mockReturnValue(okAsync(undefined));
-		loadModelMock.mockReturnValue(okAsync(undefined));
+		setSettingMock.mockReturnValue(Effect.succeed(undefined));
+		loadModelMock.mockReturnValue(Effect.succeed(undefined));
 		listenMock.mockResolvedValue(() => undefined);
 		listModelsMock.mockReturnValue(
-			okAsync([
+			Effect.succeed([
 				{
 					id: "small.en",
 					name: "Small (English)",
@@ -158,7 +158,7 @@ describe("VoiceSettingsStore", () => {
 			])
 		);
 		listLanguagesMock.mockReturnValue(
-			okAsync([
+			Effect.succeed([
 				{ code: "en", name: "English" },
 				{ code: "fr", name: "French" },
 				{ code: "es", name: "Spanish" },
@@ -168,9 +168,9 @@ describe("VoiceSettingsStore", () => {
 
 	it("loads persisted voice preferences and normalizes multilingual language to auto", async () => {
 		getSettingMock
-			.mockReturnValueOnce(okAsync(false))
-			.mockReturnValueOnce(okAsync("small"))
-			.mockReturnValueOnce(okAsync("fr"));
+			.mockReturnValueOnce(Effect.succeed(false))
+			.mockReturnValueOnce(Effect.succeed("small"))
+			.mockReturnValueOnce(Effect.succeed("fr"));
 
 		const store = new VoiceSettingsStore();
 		await store.initialize();
@@ -185,9 +185,9 @@ describe("VoiceSettingsStore", () => {
 
 	it("does not preload the selected downloaded model during initialization", async () => {
 		getSettingMock
-			.mockReturnValueOnce(okAsync(true))
-			.mockReturnValueOnce(okAsync("small.en"))
-			.mockReturnValueOnce(okAsync("auto"));
+			.mockReturnValueOnce(Effect.succeed(true))
+			.mockReturnValueOnce(Effect.succeed("small.en"))
+			.mockReturnValueOnce(Effect.succeed("auto"));
 
 		const store = new VoiceSettingsStore();
 		await store.initialize();
@@ -196,7 +196,7 @@ describe("VoiceSettingsStore", () => {
 	});
 
 	it("falls back to defaults when no settings are stored", async () => {
-		getSettingMock.mockReturnValue(okAsync(null));
+		getSettingMock.mockReturnValue(Effect.succeed(null));
 
 		const store = new VoiceSettingsStore();
 		await store.initialize();
@@ -207,7 +207,7 @@ describe("VoiceSettingsStore", () => {
 	});
 
 	it("persists updates, normalizes language, and reloads a downloaded model when selected", async () => {
-		getSettingMock.mockReturnValue(okAsync(null));
+		getSettingMock.mockReturnValue(Effect.succeed(null));
 
 		const store = new VoiceSettingsStore();
 		await store.initialize();
@@ -223,7 +223,7 @@ describe("VoiceSettingsStore", () => {
 	});
 
 	it("retries initialization after a startup failure", async () => {
-		getSettingMock.mockReturnValue(okAsync(null));
+		getSettingMock.mockReturnValue(Effect.succeed(null));
 		listenMock
 			.mockRejectedValueOnce(new Error("listener setup failed"))
 			.mockResolvedValue(() => undefined);
@@ -235,7 +235,7 @@ describe("VoiceSettingsStore", () => {
 	});
 
 	it("disposes registered event listeners", async () => {
-		getSettingMock.mockReturnValue(okAsync(null));
+		getSettingMock.mockReturnValue(Effect.succeed(null));
 		const unlistenA = vi.fn();
 		const unlistenB = vi.fn();
 		const unlistenC = vi.fn();
@@ -255,10 +255,10 @@ describe("VoiceSettingsStore", () => {
 
 	it("rolls back the selected model when loading the new model fails", async () => {
 		getSettingMock
-			.mockReturnValueOnce(okAsync(true))
-			.mockReturnValueOnce(okAsync("small"))
-			.mockReturnValueOnce(okAsync("auto"));
-		loadModelMock.mockReturnValue(errAsync(new Error("load failed")));
+			.mockReturnValueOnce(Effect.succeed(true))
+			.mockReturnValueOnce(Effect.succeed("small"))
+			.mockReturnValueOnce(Effect.succeed("auto"));
+		loadModelMock.mockReturnValue(Effect.fail(new Error("load failed")));
 
 		const store = new VoiceSettingsStore();
 		await store.initialize();
@@ -271,9 +271,9 @@ describe("VoiceSettingsStore", () => {
 
 	it("forces auto language when selecting an english-only model", async () => {
 		getSettingMock
-			.mockReturnValueOnce(okAsync(true))
-			.mockReturnValueOnce(okAsync("small"))
-			.mockReturnValueOnce(okAsync("es"));
+			.mockReturnValueOnce(Effect.succeed(true))
+			.mockReturnValueOnce(Effect.succeed("small"))
+			.mockReturnValueOnce(Effect.succeed("es"));
 
 		const store = new VoiceSettingsStore();
 		await store.initialize();
@@ -286,9 +286,9 @@ describe("VoiceSettingsStore", () => {
 
 	it("normalizes language immediately when selecting an undownloaded english-only model", async () => {
 		getSettingMock
-			.mockReturnValueOnce(okAsync(true))
-			.mockReturnValueOnce(okAsync("small"))
-			.mockReturnValueOnce(okAsync("fr"));
+			.mockReturnValueOnce(Effect.succeed(true))
+			.mockReturnValueOnce(Effect.succeed("small"))
+			.mockReturnValueOnce(Effect.succeed("fr"));
 
 		const store = new VoiceSettingsStore();
 		await store.initialize();
@@ -303,9 +303,9 @@ describe("VoiceSettingsStore", () => {
 
 	it("keeps multilingual auto mode unchanged", async () => {
 		getSettingMock
-			.mockReturnValueOnce(okAsync(true))
-			.mockReturnValueOnce(okAsync("small"))
-			.mockReturnValueOnce(okAsync("auto"));
+			.mockReturnValueOnce(Effect.succeed(true))
+			.mockReturnValueOnce(Effect.succeed("small"))
+			.mockReturnValueOnce(Effect.succeed("auto"));
 
 		const store = new VoiceSettingsStore();
 		await store.initialize();
@@ -316,9 +316,9 @@ describe("VoiceSettingsStore", () => {
 
 	it("resets persisted explicit language for multilingual models back to auto", async () => {
 		getSettingMock
-			.mockReturnValueOnce(okAsync(true))
-			.mockReturnValueOnce(okAsync("small"))
-			.mockReturnValueOnce(okAsync("en"));
+			.mockReturnValueOnce(Effect.succeed(true))
+			.mockReturnValueOnce(Effect.succeed("small"))
+			.mockReturnValueOnce(Effect.succeed("en"));
 
 		const store = new VoiceSettingsStore();
 		await store.initialize();

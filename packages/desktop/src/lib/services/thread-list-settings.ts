@@ -1,4 +1,4 @@
-import type { ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import { settings } from "$lib/utils/tauri-client/settings.js";
 
 export interface ArchivedSessionRef {
@@ -20,26 +20,28 @@ export class ThreadListSettingsService {
 	/**
 	 * Save thread list settings to persistent storage.
 	 */
-	saveSettings(settings: ThreadListSettings): ResultAsync<void, Error> {
-		return settingsService.saveThreadListSettings(settings).mapErr((error) => {
-			return new Error(`Failed to save thread list settings: ${error}`);
-		});
+	saveSettings(settings: ThreadListSettings): Effect.Effect<void, Error> {
+		return settingsService.saveThreadListSettings(settings).pipe(
+			Effect.mapError((error) => {
+				return new Error(`Failed to save thread list settings: ${error}`);
+			})
+		);
 	}
 
 	/**
 	 * Load thread list settings from persistent storage.
 	 * Returns default settings if none have been saved.
 	 */
-	getSettings(): ResultAsync<ThreadListSettings, Error> {
-		return settingsService
-			.getThreadListSettings()
-			.mapErr((error) => {
+	getSettings(): Effect.Effect<ThreadListSettings, Error> {
+		return settingsService.getThreadListSettings().pipe(
+			Effect.mapError((error) => {
 				return new Error(`Failed to get thread list settings: ${error}`);
-			})
-			.map((settings) => ({
-				hiddenProjects: settings.hiddenProjects,
-				archivedSessions: settings.archivedSessions ?? [],
-			}));
+			}),
+			Effect.map((loaded) => ({
+				hiddenProjects: loaded.hiddenProjects,
+				archivedSessions: loaded.archivedSessions ?? [],
+			}))
+		);
 	}
 
 	/**
@@ -49,7 +51,7 @@ export class ThreadListSettingsService {
 	toggleProjectVisibility(
 		projectPath: string,
 		currentSettings: ThreadListSettings
-	): ResultAsync<ThreadListSettings, Error> {
+	): Effect.Effect<ThreadListSettings, Error> {
 		const hiddenSet = new Set(currentSettings.hiddenProjects);
 
 		if (hiddenSet.has(projectPath)) {
@@ -63,7 +65,7 @@ export class ThreadListSettingsService {
 			archivedSessions: currentSettings.archivedSessions ?? [],
 		};
 
-		return this.saveSettings(newSettings).map(() => newSettings);
+		return this.saveSettings(newSettings).pipe(Effect.map(() => newSettings));
 	}
 
 	/**
@@ -73,7 +75,7 @@ export class ThreadListSettingsService {
 		projectPath: string,
 		visible: boolean,
 		currentSettings: ThreadListSettings
-	): ResultAsync<ThreadListSettings, Error> {
+	): Effect.Effect<ThreadListSettings, Error> {
 		const hiddenSet = new Set(currentSettings.hiddenProjects);
 
 		if (visible) {
@@ -87,7 +89,7 @@ export class ThreadListSettingsService {
 			archivedSessions: currentSettings.archivedSessions ?? [],
 		};
 
-		return this.saveSettings(newSettings).map(() => newSettings);
+		return this.saveSettings(newSettings).pipe(Effect.map(() => newSettings));
 	}
 
 	/**

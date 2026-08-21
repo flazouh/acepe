@@ -1,4 +1,5 @@
-import { errAsync, okAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AgentError } from "../../errors/app-error.js";
@@ -21,12 +22,12 @@ describe("SessionStore cancelStreaming", () => {
 		store.setCallbacks({ onTurnInterrupted });
 
 		vi.spyOn(SessionConnectionManager.prototype, "cancelStreaming").mockReturnValue(
-			okAsync(undefined)
+			Effect.succeed(undefined)
 		);
 
-		const result = await store.connection.cancelStreaming("session-123");
+		const result = await Effect.runPromise(Effect.result(store.connection.cancelStreaming("session-123")));
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(onTurnInterrupted).toHaveBeenCalledWith("session-123");
 	});
 
@@ -35,12 +36,12 @@ describe("SessionStore cancelStreaming", () => {
 		store.setCallbacks({ onTurnInterrupted });
 
 		vi.spyOn(SessionConnectionManager.prototype, "cancelStreaming").mockReturnValue(
-			errAsync(new AgentError("cancelStreaming", new Error("network error")))
+			Effect.fail(new AgentError("cancelStreaming", new Error("network error")))
 		);
 
-		const result = await store.connection.cancelStreaming("session-123");
+		const result = await Effect.runPromise(Effect.result(store.connection.cancelStreaming("session-123")));
 
-		expect(result.isErr()).toBe(true);
+		expect(Result.isFailure(result)).toBe(true);
 		expect(onTurnInterrupted).not.toHaveBeenCalled();
 	});
 });

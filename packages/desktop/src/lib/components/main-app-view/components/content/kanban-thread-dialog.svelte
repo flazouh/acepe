@@ -1,4 +1,5 @@
 <script lang="ts">
+import * as Effect from "effect/Effect";
 import { AgentPanel } from "$lib/acp/components/index.js";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import {
@@ -139,10 +140,13 @@ function handleDialogOpenAutoFocus(): void {
 				onClose={() => {
 					handlePanelClose();
 				}}
-				onCreateSessionForProject={(project) =>
-					mainAppState.handleCreateSessionForProject(panelSnapshot.panelId, project).mapErr(() => {
-						// Error handling is done in the handler
-					})}
+				onCreateSessionForProject={(project) => {
+					void Effect.runPromise(
+						mainAppState
+							.handleCreateSessionForProject(panelSnapshot.panelId, project)
+							.pipe(Effect.catch(() => Effect.void))
+					);
+				}}
 				onSessionCreated={(sessionId) => panelStore.updatePanelSession(panelSnapshot.panelId, sessionId)}
 				onResizePanel={(currentPanelId, delta) => mainAppState.handleResizePanel(currentPanelId, delta)}
 				onToggleFullscreen={() => {

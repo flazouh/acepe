@@ -7,6 +7,7 @@
  */
 
 import { toast } from "svelte-sonner";
+import * as Result from "effect/Result";
 import type { PanelStore } from "../../../store/panel-store.svelte.js";
 import type { SessionStore } from "../../../store/session-store.svelte.js";
 import type { Logger } from "../../../utils/logger.js";
@@ -41,7 +42,13 @@ export function createAgentPanelExportHandlers(deps: AgentPanelExportHandlerDeps
 		}
 		await copyThreadContentToClipboard({
 			sessionId,
-			getSessionJsonExportContent: (id) => deps.sessionStore.read.getSessionJsonExportContent(id),
+		getSessionJsonExportContent: (id) => {
+			const result = deps.sessionStore.read.getSessionJsonExportContent(id);
+			if (Result.isSuccess(result)) {
+				return Result.succeed(result.success);
+			}
+			return Result.fail(result.failure);
+		},
 		});
 	}
 
@@ -82,12 +89,14 @@ export function createAgentPanelExportHandlers(deps: AgentPanelExportHandlerDeps
 	async function handleExportMarkdown(): Promise<void> {
 		const sessionId = deps.getSessionId();
 		if (!sessionId) return;
-		await deps.sessionStore.read.getSessionMarkdownExportContent(sessionId).match(
-			(markdown) => exportSessionMarkdownToClipboard(markdown),
-			(error) => {
+		Result.match(deps.sessionStore.read.getSessionMarkdownExportContent(sessionId), {
+			onSuccess: (markdown) => {
+				void exportSessionMarkdownToClipboard(markdown);
+			},
+			onFailure: (error) => {
 				toast.error(error.message);
-			}
-		);
+			},
+		});
 	}
 
 	async function handleExportJson() {
@@ -95,7 +104,13 @@ export function createAgentPanelExportHandlers(deps: AgentPanelExportHandlerDeps
 		if (!sessionId) return;
 		await exportSessionJsonToClipboard({
 			sessionId,
-			getSessionJsonExportContent: (id) => deps.sessionStore.read.getSessionJsonExportContent(id),
+		getSessionJsonExportContent: (id) => {
+			const result = deps.sessionStore.read.getSessionJsonExportContent(id);
+			if (Result.isSuccess(result)) {
+				return Result.succeed(result.success);
+			}
+			return Result.fail(result.failure);
+		},
 		});
 	}
 

@@ -1,4 +1,4 @@
-import { err, ok, type Result } from "neverthrow";
+import * as Result from "effect/Result";
 import { LOGGER_IDS } from "../constants/logger-ids.js";
 import type { TodoItem, TodoSnapshot, TodoState, TodoStatus } from "../types/todo.js";
 import type { ToolCall } from "../types/tool-call.js";
@@ -69,11 +69,11 @@ export class TodoStateError extends Error {
 /**
  * Validates that a status string is a valid TodoStatus.
  */
-function validateStatus(status: string): Result<TodoStatus, TodoStateError> {
+function validateStatus(status: string): Result.Result<TodoStatus, TodoStateError> {
 	if (VALID_TODO_STATUSES.includes(status as TodoStatus)) {
-		return ok(status as TodoStatus);
+		return Result.succeed(status as TodoStatus);
 	}
-	return err(new TodoStateError(`Invalid todo status: "${status}"`, "INVALID_STATUS"));
+	return Result.fail(new TodoStateError(`Invalid todo status: "${status}"`, "INVALID_STATUS"));
 }
 
 /**
@@ -168,17 +168,17 @@ function entriesFromToolCalls(toolCalls: ReadonlyArray<ToolCall>): EntryWithMess
 
 export function createTodoState(
 	thread: ThreadWithEntries | null
-): Result<TodoState | null, TodoStateError> {
+): Result.Result<TodoState | null, TodoStateError> {
 	// Null thread is a valid empty state
 	if (!thread) {
-		return ok(null);
+		return Result.succeed(null);
 	}
 
 	const todoWrites = thread.entries.filter(hasTodos);
 
 	// No todos is a valid empty state, not an error
 	if (todoWrites.length === 0) {
-		return ok(null);
+		return Result.succeed(null);
 	}
 
 	// Track timing for each task by content
@@ -207,12 +207,12 @@ export function createTodoState(
 		for (const todo of todos) {
 			// Validate status before processing
 			const statusResult = validateStatus(todo.status);
-			if (statusResult.isErr()) {
-				logger.warn("Skipping todo with invalid status:", todo.content, statusResult.error);
+			if (Result.isFailure(statusResult)) {
+				logger.warn("Skipping todo with invalid status:", todo.content, statusResult.failure);
 				continue;
 			}
 
-			const validStatus = statusResult.value;
+			const validStatus = statusResult.success;
 			const timing = taskTimings.get(todo.content) ?? {};
 			const prevTodo = previousTodos.find((p) => p.content === todo.content);
 
@@ -243,8 +243,8 @@ export function createTodoState(
 	for (const todo of currentTodos) {
 		// Validate status
 		const statusResult = validateStatus(todo.status);
-		if (statusResult.isErr()) {
-			logger.warn("Skipping invalid todo in final state:", todo.content, statusResult.error);
+		if (Result.isFailure(statusResult)) {
+			logger.warn("Skipping invalid todo in final state:", todo.content, statusResult.failure);
 			continue;
 		}
 
@@ -256,7 +256,7 @@ export function createTodoState(
 		items.push({
 			content: todo.content,
 			activeForm: todo.activeForm,
-			status: statusResult.value,
+			status: statusResult.success,
 			startedAt: timing.startedAt,
 			completedAt: timing.completedAt,
 			duration,
@@ -278,10 +278,10 @@ export function createTodoState(
 
 	// If we have no valid items and no valid timestamp, return null
 	if (items.length === 0) {
-		return ok(null);
+		return Result.succeed(null);
 	}
 
-	return ok({
+	return Result.succeed({
 		items,
 		currentTask,
 		completedCount,
@@ -293,9 +293,9 @@ export function createTodoState(
 
 export function createTodoStateFromToolCalls(
 	thread: TodoToolCallThread | null
-): Result<TodoState | null, TodoStateError> {
+): Result.Result<TodoState | null, TodoStateError> {
 	if (!thread) {
-		return ok(null);
+		return Result.succeed(null);
 	}
 
 	return createTodoState({
@@ -312,25 +312,25 @@ export function createTodoStateFromToolCalls(
  */
 export function createTodoSnapshotFromToolCall(
 	toolCall: ToolCall
-): Result<TodoSnapshot | null, TodoStateError> {
+): Result.Result<TodoSnapshot | null, TodoStateError> {
 	const todos = toolCall.normalizedTodos;
 	if (!todos || todos.length === 0) {
 		// No todos is a valid empty state
-		return ok(null);
+		return Result.succeed(null);
 	}
 
 	// Validate and filter todos
 	const validTodos = todos.filter((t) => {
 		const statusResult = validateStatus(t.status);
-		if (statusResult.isErr()) {
-			logger.warn("Skipping invalid todo in snapshot:", t.content, statusResult.error);
+		if (Result.isFailure(statusResult)) {
+			logger.warn("Skipping invalid todo in snapshot:", t.content, statusResult.failure);
 			return false;
 		}
 		return true;
 	});
 
 	if (validTodos.length === 0) {
-		return ok(null);
+		return Result.succeed(null);
 	}
 
 	const inProgressTodo = validTodos.find((t) => t.status === "in_progress");
@@ -341,7 +341,7 @@ export function createTodoSnapshotFromToolCall(
 	const completedCount = validTodos.filter((t) => t.status === "completed").length;
 	const allCompleted = completedCount === validTodos.length;
 
-	return ok({
+	return Result.succeed({
 		inProgressTask: inProgressTodo
 			? {
 					content: inProgressTodo.content,

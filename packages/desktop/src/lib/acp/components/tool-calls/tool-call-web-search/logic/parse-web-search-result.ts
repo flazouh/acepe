@@ -1,4 +1,6 @@
-import { Result } from "neverthrow";
+import { fromThrowable } from "@acepe/effect-result/fromThrowable";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import type { JsonValue } from "$lib/services/converted-session-types.js";
 
 import type { WebSearchLink, WebSearchResult } from "../types/web-search-result.js";
@@ -7,12 +9,15 @@ import type { WebSearchLink, WebSearchResult } from "../types/web-search-result.
  * Extract domain from a URL string.
  */
 function extractDomain(url: string): string {
-	return Result.fromThrowable(
+	const parseUrl = fromThrowable(
 		() => new URL(url),
 		() => new Error("invalid")
-	)()
-		.map((u: URL) => u.hostname.replace(/^www\./, ""))
-		.unwrapOr(url);
+	);
+	const parsed = Effect.runSync(Effect.result(parseUrl()));
+	return Result.getOrElse(
+		parsed.pipe(Result.map((u: URL) => u.hostname.replace(/^www\./, ""))),
+		() => url
+	);
 }
 
 /**
@@ -45,14 +50,20 @@ function parseLinksFromText(text: string): { links: WebSearchLink[]; summary: st
 
 	const summary = text.slice(0, linksMatch.index).trim();
 
-	const parsed = Result.fromThrowable(
+	const parseLinks = fromThrowable(
 		() => JSON.parse(linksMatch[1]) as unknown[],
 		() => new Error("parse")
-	)();
-	return parsed
-		.map((arr: unknown[]) => arr.map(tryParseLink).filter((l): l is WebSearchLink => l !== null))
-		.map((links: WebSearchLink[]) => ({ links, summary }))
-		.unwrapOr({ links: [] as WebSearchLink[], summary: text });
+	);
+	const parsed = Effect.runSync(Effect.result(parseLinks()));
+	return Result.getOrElse(
+		parsed.pipe(
+			Result.map((arr: unknown[]) =>
+				arr.map(tryParseLink).filter((l): l is WebSearchLink => l !== null)
+			),
+			Result.map((links: WebSearchLink[]) => ({ links, summary }))
+		),
+		() => ({ links: [] as WebSearchLink[], summary: text })
+	);
 }
 
 /**

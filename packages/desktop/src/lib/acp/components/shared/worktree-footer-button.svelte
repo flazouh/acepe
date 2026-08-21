@@ -1,6 +1,7 @@
 <script lang="ts">
 import { Tooltip } from "bits-ui";
 import { HugeiconsIcon } from "@acepe/ui";
+import * as Effect from "effect/Effect";
 import { revealInFinder } from "$lib/utils/tauri-client/opener.js";
 import { toast } from "svelte-sonner";
 
@@ -19,11 +20,15 @@ let { worktreePath, label, mode = "worktree" }: Props = $props();
 
 function handleClick(): void {
 	if (!worktreePath) return;
-	void revealInFinder(worktreePath).match(
-		() => {},
-		(error) => {
-			toast.error(`Could not reveal in Finder: ${error.message}`);
-		}
+	void Effect.runPromise(
+		revealInFinder(worktreePath).pipe(
+			Effect.match({
+				onSuccess: () => undefined,
+				onFailure: (error) => {
+					toast.error(`Could not reveal in Finder: ${error.message}`);
+				},
+			})
+		)
 	);
 }
 </script>

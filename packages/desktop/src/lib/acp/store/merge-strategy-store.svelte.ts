@@ -3,6 +3,8 @@
  * Defaults to "squash". Stored in user settings so it survives restarts.
  */
 
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
 import { scheduleDeferredIdleWork } from "$lib/utils/deferred-work.js";
 import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
@@ -22,9 +24,11 @@ class MergeStrategyStore {
 		this.initialized = true;
 		this.initializeScheduled = false;
 
-		const result = await tauriClient.settings.get<MergeStrategy>(SETTING_KEY);
-		if (result.isOk() && result.value) {
-			this.strategy = result.value;
+		const result = await Effect.runPromise(
+			Effect.result(tauriClient.settings.get<MergeStrategy>(SETTING_KEY))
+		);
+		if (Result.isSuccess(result) && result.success) {
+			this.strategy = result.success;
 		}
 	}
 
@@ -40,7 +44,14 @@ class MergeStrategyStore {
 
 	async set(value: MergeStrategy): Promise<void> {
 		this.strategy = value;
-		tauriClient.settings.set(SETTING_KEY, value).mapErr(() => {});
+		void Effect.runPromise(
+			tauriClient.settings.set(SETTING_KEY, value).pipe(
+				Effect.match({
+					onSuccess: () => undefined,
+					onFailure: () => undefined,
+				})
+			)
+		);
 	}
 }
 

@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 
 import type { RepoContext } from "../../types/github-integration.js";
 
@@ -52,11 +54,11 @@ describe("GitHub Service - repo context cache", () => {
 	});
 
 	it("refetches repo context after clearing the repo context cache", async () => {
-		const first = await serviceModule.getRepoContext("/repo");
-		const second = await serviceModule.getRepoContext("/repo");
+		const first = await Effect.runPromise(Effect.result(serviceModule.getRepoContext("/repo")));
+		const second = await Effect.runPromise(Effect.result(serviceModule.getRepoContext("/repo")));
 
-		expect(first.isOk()).toBe(true);
-		expect(second.isOk()).toBe(true);
+		expect(Result.isSuccess(first)).toBe(true);
+		expect(Result.isSuccess(second)).toBe(true);
 		expect(invokeMock).toHaveBeenCalledTimes(1);
 
 		if (!serviceModule.clearRepoContextCache) {
@@ -65,8 +67,8 @@ describe("GitHub Service - repo context cache", () => {
 
 		serviceModule.clearRepoContextCache();
 
-		const third = await serviceModule.getRepoContext("/repo");
-		expect(third.isOk()).toBe(true);
+		const third = await Effect.runPromise(Effect.result(serviceModule.getRepoContext("/repo")));
+		expect(Result.isSuccess(third)).toBe(true);
 		expect(invokeMock).toHaveBeenCalledTimes(2);
 	});
 });

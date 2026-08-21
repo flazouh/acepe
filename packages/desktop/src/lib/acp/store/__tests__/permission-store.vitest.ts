@@ -1,9 +1,6 @@
-import {
-	errAsync,
-	type ResultAsync as NeverthrowResultAsync,
-	okAsync,
-	ResultAsync,
-} from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { OperationSnapshot } from "../../../services/acp-types.js";
@@ -77,7 +74,7 @@ function createExecuteOperation(id: string, command: string): OperationSnapshot 
 }
 
 const mockReplyInteraction = vi.fn(
-	(_request: Record<string, unknown>): NeverthrowResultAsync<void, AppError> => okAsync(undefined)
+	(_request: Record<string, unknown>): Effect.Effect<void, AppError> => Effect.succeed(undefined)
 );
 
 vi.mock("../api.js", () => ({
@@ -366,9 +363,9 @@ describe("PermissionStore", () => {
 			store.add(sessionOneSecond);
 			store.add(sessionTwoPermission);
 
-			const result = await store.cancelForSession("session-1");
+			const result = await Effect.runPromise(Effect.result(store.cancelForSession("session-1")));
 
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 			expect(store.pending.has(sessionOneFirst.id)).toBe(false);
 			expect(store.pending.has(sessionOneSecond.id)).toBe(false);
 			expect(store.pending.has(sessionTwoPermission.id)).toBe(true);
@@ -388,7 +385,7 @@ describe("PermissionStore", () => {
 			};
 
 			store.add(permission);
-			await store.reply("perm-http", "once");
+			await Effect.runPromise(store.reply("perm-http", "once"));
 
 			expect(mockReplyInteraction).toHaveBeenCalledWith({
 				sessionId: "session-http",
@@ -409,10 +406,11 @@ describe("PermissionStore", () => {
 		it("keeps permission visible and marks the selected reply while reply is in flight", async () => {
 			let resolveReply!: () => void;
 			mockReplyInteraction.mockReturnValueOnce(
-				ResultAsync.fromPromise(
-					new Promise<void>((resolve) => {
-						resolveReply = resolve;
-					}),
+				fromPromise(
+					() =>
+						new Promise<void>((resolve) => {
+							resolveReply = resolve;
+						}),
 					() => new AgentError("replyPermission", new Error("reply failed"))
 				)
 			);
@@ -425,8 +423,9 @@ describe("PermissionStore", () => {
 			expect(store.pending.get(permission.id)).toEqual(permission);
 			expect(store.getReplyInFlight(permission.id)).toBe("always");
 
+			const pending = Effect.runPromise(result);
 			resolveReply();
-			await result;
+			await pending;
 
 			expect(store.pending.has(permission.id)).toBe(false);
 			expect(store.getReplyInFlight(permission.id)).toBe(null);
@@ -440,7 +439,7 @@ describe("PermissionStore", () => {
 			const permission = createAcpPermission("session-jsonrpc", "tool-jsonrpc", 456);
 
 			store.add(permission);
-			await store.reply(permission.id, "once");
+			await Effect.runPromise(store.reply(permission.id, "once"));
 
 			expect(mockReplyInteraction).toHaveBeenCalledWith({
 				sessionId: "session-jsonrpc",
@@ -464,7 +463,7 @@ describe("PermissionStore", () => {
 
 			store.add(firstPermission);
 			store.add(secondPermission);
-			await store.reply(firstPermission.id, "once");
+			await Effect.runPromise(store.reply(firstPermission.id, "once"));
 
 			expect(mockReplyInteraction).toHaveBeenCalledTimes(2);
 			expect(mockReplyInteraction).toHaveBeenNthCalledWith(1, {
@@ -509,7 +508,7 @@ describe("PermissionStore", () => {
 			};
 
 			store.add(permission);
-			await store.reply(permission.id, "always");
+			await Effect.runPromise(store.reply(permission.id, "always"));
 
 			expect(mockReplyInteraction).toHaveBeenCalledWith({
 				sessionId: "session-always",
@@ -530,7 +529,7 @@ describe("PermissionStore", () => {
 			const permission = createAcpPermission("session-reject", "tool-reject", 101);
 
 			store.add(permission);
-			await store.reply(permission.id, "reject");
+			await Effect.runPromise(store.reply(permission.id, "reject"));
 
 			expect(mockReplyInteraction).toHaveBeenCalledWith({
 				sessionId: "session-reject",
@@ -548,14 +547,14 @@ describe("PermissionStore", () => {
 		});
 
 		it("should return error for non-existent permission", async () => {
-			const result = await store.reply("non-existent", "once");
+			const result = await Effect.runPromise(Effect.result(store.reply("non-existent", "once")));
 
-			expect(result.isErr()).toBe(true);
+			expect(Result.isFailure(result)).toBe(true);
 		});
 
 		it("reinserts a permission when replying via HTTP fails", async () => {
 			mockReplyInteraction.mockReturnValueOnce(
-				errAsync(new AgentError("replyPermission", new Error("network failed")))
+				Effect.fail(new AgentError("replyPermission", new Error("network failed")))
 			);
 
 			const permission: PermissionRequest = {
@@ -568,9 +567,9 @@ describe("PermissionStore", () => {
 			};
 
 			store.add(permission);
-			const result = await store.reply(permission.id, "once");
+			const result = await Effect.runPromise(Effect.result(store.reply(permission.id, "once")));
 
-			expect(result.isErr()).toBe(true);
+			expect(Result.isFailure(result)).toBe(true);
 			expect(store.pending.get(permission.id)).toEqual(permission);
 		});
 
@@ -587,7 +586,7 @@ describe("PermissionStore", () => {
 			]);
 			expect(store.getSessionProgress("session-batch")).toEqual({ total: 2, completed: 0 });
 
-			await store.reply(firstPermission.id, "once");
+			await Effect.runPromise(store.reply(firstPermission.id, "once"));
 
 			expect(store.getForSession("session-batch").map((permission) => permission.id)).toEqual([
 				secondPermission.id,
@@ -606,8 +605,8 @@ describe("PermissionStore", () => {
 			store.add(secondPermission);
 			store.add(otherSessionPermission);
 
-			const result = await store.drainPendingForSession("session-1");
-			result._unsafeUnwrap();
+			const result = await Effect.runPromise(Effect.result(store.drainPendingForSession("session-1")));
+			Result.getOrThrow(result);
 
 			expect(store.pending.has(otherSessionPermission.id)).toBe(true);
 			expect(store.pending.has(firstPermission.id)).toBe(false);
@@ -620,8 +619,8 @@ describe("PermissionStore", () => {
 			store.add(permission);
 			store.remove(permission.id);
 
-			const result = await store.drainPendingForSession("session-1");
-			result._unsafeUnwrap();
+			const result = await Effect.runPromise(Effect.result(store.drainPendingForSession("session-1")));
+			Result.getOrThrow(result);
 
 			expect(mockReplyInteraction).not.toHaveBeenCalledWith(
 				expect.objectContaining({

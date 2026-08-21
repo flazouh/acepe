@@ -1,4 +1,5 @@
 <script lang="ts">
+import * as Effect from "effect/Effect";
 import { SvelteSet } from "svelte/reactivity";
 import { toast } from "svelte-sonner";
 import { tauriClient } from "$lib/utils/tauri-client.js";
@@ -135,11 +136,15 @@ function handleRevertFile(): void {
 	}
 
 	const capturedFile = selectedFile;
-	tauriClient.git.discardChanges(projectPath, [capturedFile.filePath]).match(
-		() => {
-			toast.success(`Reverted changes in ${capturedFile.fileName}`);
-		},
-		(error: Error) => toast.error(`Failed to revert: ${error.message}`)
+	void Effect.runPromise(
+		tauriClient.git.discardChanges(projectPath, [capturedFile.filePath]).pipe(
+			Effect.match({
+				onSuccess: () => {
+					toast.success(`Reverted changes in ${capturedFile.fileName}`);
+				},
+				onFailure: (error) => toast.error(`Failed to revert: ${error.message}`),
+			})
+		)
 	);
 }
 

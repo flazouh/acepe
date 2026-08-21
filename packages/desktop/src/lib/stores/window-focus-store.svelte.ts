@@ -5,8 +5,10 @@
  * Event-driven via Tauri's `onFocusChanged` — no polling.
  */
 
+import { fromPromise } from "@acepe/effect-result/fromPromise";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { getContext, setContext } from "svelte";
 import { createLogger } from "$lib/acp/utils/logger.js";
 
@@ -20,26 +22,35 @@ export class WindowFocusStore {
 	async initialize(): Promise<void> {
 		const win = getCurrentWindow();
 
-		const focused = await ResultAsync.fromPromise(
-			win.isFocused(),
-			(e) => new Error(`Failed to check focus: ${e}`)
+		const focused = await Effect.runPromise(
+			Effect.result(
+				fromPromise(
+					() => win.isFocused(),
+					(e) => new Error(`Failed to check focus: ${e}`)
+				)
+			)
 		);
-		if (focused.isOk()) {
-			this.isFocused = focused.value;
+		if (Result.isSuccess(focused)) {
+			this.isFocused = focused.success;
 		} else {
-			logger.error("Failed to check initial focus state", { error: focused.error });
+			logger.error("Failed to check initial focus state", { error: focused.failure });
 		}
 
-		const listener = await ResultAsync.fromPromise(
-			win.onFocusChanged(({ payload }) => {
-				this.isFocused = payload;
-			}),
-			(e) => new Error(`Failed to listen focus: ${e}`)
+		const listener = await Effect.runPromise(
+			Effect.result(
+				fromPromise(
+					() =>
+						win.onFocusChanged(({ payload }) => {
+							this.isFocused = payload;
+						}),
+					(e) => new Error(`Failed to listen focus: ${e}`)
+				)
+			)
 		);
-		if (listener.isOk()) {
-			this.unlisten.push(listener.value);
+		if (Result.isSuccess(listener)) {
+			this.unlisten.push(listener.success);
 		} else {
-			logger.error("Failed to listen for focus changes", { error: listener.error });
+			logger.error("Failed to listen for focus changes", { error: listener.failure });
 		}
 	}
 

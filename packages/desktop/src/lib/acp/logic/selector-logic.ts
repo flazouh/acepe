@@ -1,4 +1,4 @@
-import { err, ok, type Result } from "neverthrow";
+import * as Result from "effect/Result";
 import { SelectorError } from "../errors/selector-error.js";
 import type { SelectorGroup } from "../types/selector-group.js";
 import type { SelectorItem } from "../types/selector-item.js";
@@ -14,25 +14,28 @@ import type { SelectorItem } from "../types/selector-item.js";
  * @example
  * ```typescript
  * const result = findItemById(items, "item-1");
- * result
- *   .map(item => console.log('Found:', item))
- *   .mapErr(error => console.error('Error:', error));
+ * Result.match(result, {
+ *   onSuccess: (item) => console.log("Found:", item),
+ *   onFailure: (error) => console.error("Error:", error),
+ * });
  * ```
  */
 export function findItemById<T = string>(
 	items: SelectorItem<T>[],
 	id: T | null
-): Result<SelectorItem<T> | null, SelectorError> {
+): Result.Result<SelectorItem<T> | null, SelectorError> {
 	if (id === null) {
-		return ok(null);
+		return Result.succeed(null);
 	}
 
 	const item = items.find((item) => item.id === id);
 	if (!item) {
-		return err(new SelectorError(`Item with id "${String(id)}" not found`, "ITEM_NOT_FOUND"));
+		return Result.fail(
+			new SelectorError(`Item with id "${String(id)}" not found`, "ITEM_NOT_FOUND")
+		);
 	}
 
-	return ok(item);
+	return Result.succeed(item);
 }
 
 /**
@@ -132,18 +135,23 @@ export function isItemSelected<T = string>(item: SelectorItem<T>, selectedId: T 
  * @example
  * ```typescript
  * const result = validateItems(items);
- * result
- *   .map(() => console.log('Valid'))
- *   .mapErr(error => console.error('Error:', error));
+ * Result.match(result, {
+ *   onSuccess: () => console.log("Valid"),
+ *   onFailure: (error) => console.error("Error:", error),
+ * });
  * ```
  */
-export function validateItems<T = string>(items: SelectorItem<T>[]): Result<void, SelectorError> {
+export function validateItems<T = string>(
+	items: SelectorItem<T>[]
+): Result.Result<void, SelectorError> {
 	const ids = new Set<T>();
 	for (const item of items) {
 		if (ids.has(item.id)) {
-			return err(new SelectorError(`Duplicate item ID found: ${String(item.id)}`, "INVALID_ITEM"));
+			return Result.fail(
+				new SelectorError(`Duplicate item ID found: ${String(item.id)}`, "INVALID_ITEM")
+			);
 		}
 		ids.add(item.id);
 	}
-	return ok(undefined);
+	return Result.succeed(undefined);
 }

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import * as Result from "effect/Result";
 
 import type { InlineImageReference } from "../../types/inline-image-reference.js";
 import { prepareMessageForSend } from "../message-preparation.js";
@@ -6,31 +7,31 @@ import { prepareMessageForSend } from "../message-preparation.js";
 describe("prepareMessageForSend", () => {
 	it("returns validated content for plain text", () => {
 		const result = prepareMessageForSend("Hello world", new Map(), []);
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value.content).toBe("Hello world");
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success.content).toBe("Hello world");
 		}
 	});
 
 	it("returns error for empty message", () => {
 		const result = prepareMessageForSend("", new Map(), []);
-		expect(result.isErr()).toBe(true);
+		expect(Result.isFailure(result)).toBe(true);
 	});
 
 	it("returns error for whitespace-only message", () => {
 		const result = prepareMessageForSend("   ", new Map(), []);
-		expect(result.isErr()).toBe(true);
+		expect(Result.isFailure(result)).toBe(true);
 	});
 
 	it("expands @[text_ref:UUID] tokens to @[text:BASE64]", () => {
 		const textMap = new Map([["abc-123", "Hello from pasted text"]]);
 		const result = prepareMessageForSend("Check this: @[text_ref:abc-123]", textMap, []);
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value.content).toContain("@[text:");
-			expect(result.value.content).not.toContain("@[text_ref:");
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success.content).toContain("@[text:");
+			expect(result.success.content).not.toContain("@[text_ref:");
 			// Decode the base64 to verify round-trip
-			const match = result.value.content.match(/@\[text:([^\]]+)\]/);
+			const match = result.success.content.match(/@\[text:([^\]]+)\]/);
 			expect(match).not.toBeNull();
 			const encodedText = match?.[1];
 			if (!encodedText) {
@@ -47,35 +48,35 @@ describe("prepareMessageForSend", () => {
 			["id-2", "Second paste"],
 		]);
 		const result = prepareMessageForSend("@[text_ref:id-1] and @[text_ref:id-2]", textMap, []);
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			const matches = result.value.content.match(/@\[text:[^\]]+\]/g);
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			const matches = result.success.content.match(/@\[text:[^\]]+\]/g);
 			expect(matches).toHaveLength(2);
 		}
 	});
 
 	it("removes unknown text_ref tokens (missing from map)", () => {
 		const result = prepareMessageForSend("Before @[text_ref:unknown-id] after", new Map(), []);
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value.content).toBe("Before  after");
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success.content).toBe("Before  after");
 		}
 	});
 
 	it("preserves file attachment tokens", () => {
 		const result = prepareMessageForSend("@[file:/path/to/file.ts] review this", new Map(), []);
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value.content).toContain("@[file:/path/to/file.ts]");
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success.content).toContain("@[file:/path/to/file.ts]");
 		}
 	});
 
 	it("handles unicode content in text_ref expansion", () => {
 		const textMap = new Map([["uni-id", "Hello 世界 🌍"]]);
 		const result = prepareMessageForSend("@[text_ref:uni-id]", textMap, []);
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			const match = result.value.content.match(/@\[text:([^\]]+)\]/);
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			const match = result.success.content.match(/@\[text:([^\]]+)\]/);
 			expect(match).not.toBeNull();
 			const encodedText = match?.[1];
 			if (!encodedText) {
@@ -88,9 +89,9 @@ describe("prepareMessageForSend", () => {
 
 	it("trims whitespace from final content", () => {
 		const result = prepareMessageForSend("  Hello  ", new Map(), []);
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value.content).toBe("Hello");
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success.content).toBe("Hello");
 		}
 	});
 
@@ -105,9 +106,9 @@ describe("prepareMessageForSend", () => {
 			},
 		];
 		const result = prepareMessageForSend("review", new Map(), attachments);
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value.content).toContain("@[file:/src/index.ts]");
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success.content).toContain("@[file:/src/index.ts]");
 		}
 	});
 
@@ -123,11 +124,11 @@ describe("prepareMessageForSend", () => {
 			},
 		];
 		const result = prepareMessageForSend("check this", new Map(), attachments);
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value.content).not.toContain("@[image:");
-			expect(result.value.imageAttachments).toHaveLength(1);
-			expect(result.value.imageAttachments[0].content).toBe("data:image/png;base64,iVBORw0KGgo");
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success.content).not.toContain("@[image:");
+			expect(result.success.imageAttachments).toHaveLength(1);
+			expect(result.success.imageAttachments[0].content).toBe("data:image/png;base64,iVBORw0KGgo");
 		}
 	});
 
@@ -149,12 +150,12 @@ describe("prepareMessageForSend", () => {
 			[],
 			imageMap
 		);
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value.content).toBe("check this");
-			expect(result.value.content).not.toContain("@[image_ref:");
-			expect(result.value.imageAttachments).toHaveLength(1);
-			expect(result.value.imageAttachments[0].displayName).toBe("screenshot.png");
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success.content).toBe("check this");
+			expect(result.success.content).not.toContain("@[image_ref:");
+			expect(result.success.imageAttachments).toHaveLength(1);
+			expect(result.success.imageAttachments[0].displayName).toBe("screenshot.png");
 		}
 	});
 
@@ -171,18 +172,18 @@ describe("prepareMessageForSend", () => {
 			],
 		]);
 		const result = prepareMessageForSend("@[image_ref:img-ref-1]", new Map(), [], imageMap);
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value.content).toBe("");
-			expect(result.value.imageAttachments).toHaveLength(1);
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success.content).toBe("");
+			expect(result.success.imageAttachments).toHaveLength(1);
 		}
 	});
 
 	it("removes unknown image_ref tokens (missing from map)", () => {
 		const result = prepareMessageForSend("Before @[image_ref:unknown-id] after", new Map(), []);
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value.content).toBe("Before after");
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success.content).toBe("Before after");
 		}
 	});
 
@@ -198,10 +199,10 @@ describe("prepareMessageForSend", () => {
 			},
 		];
 		const result = prepareMessageForSend("", new Map(), attachments);
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value.content).toBe("");
-			expect(result.value.imageAttachments).toHaveLength(1);
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success.content).toBe("");
+			expect(result.success.imageAttachments).toHaveLength(1);
 		}
 	});
 
@@ -217,10 +218,10 @@ describe("prepareMessageForSend", () => {
 			},
 		];
 		const result = prepareMessageForSend("look", new Map(), attachments);
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value.content).toContain("@[image:/Users/example/screenshot.png]");
-			expect(result.value.imageAttachments).toHaveLength(0);
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success.content).toContain("@[image:/Users/example/screenshot.png]");
+			expect(result.success.imageAttachments).toHaveLength(0);
 		}
 	});
 
@@ -243,19 +244,19 @@ describe("prepareMessageForSend", () => {
 			},
 		];
 		const result = prepareMessageForSend("review", new Map(), attachments);
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value.content).toContain("@[file:/src/app.ts]");
-			expect(result.value.content).not.toContain("@[image:");
-			expect(result.value.imageAttachments).toHaveLength(1);
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success.content).toContain("@[file:/src/app.ts]");
+			expect(result.success.content).not.toContain("@[image:");
+			expect(result.success.imageAttachments).toHaveLength(1);
 		}
 	});
 
 	it("returns empty imageAttachments when no images", () => {
 		const result = prepareMessageForSend("Hello", new Map(), []);
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value.imageAttachments).toHaveLength(0);
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success.imageAttachments).toHaveLength(0);
 		}
 	});
 });

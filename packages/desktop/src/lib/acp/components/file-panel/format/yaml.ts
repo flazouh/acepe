@@ -1,4 +1,6 @@
-import { Result } from "neverthrow";
+import { fromThrowable } from "@acepe/effect-result/fromThrowable";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { parse as parseYaml } from "yaml";
 import { normalizeStructuredData } from "./parsers/structured.js";
 import type { FormatConfig, StructuredData } from "./types.js";
@@ -18,15 +20,15 @@ export const yamlConfig: FormatConfig = {
 		availableModes: ["structured", "raw"],
 		defaultMode: "structured",
 	},
-	parseStructured: (content: string): Result<StructuredData, Error> => {
-		const parsed = Result.fromThrowable(
+	parseStructured: (content: string): Result.Result<StructuredData, Error> => {
+		const parseYamlValue = fromThrowable(
 			() => parseYaml(content) as StructuredCandidate,
 			(error) =>
 				error instanceof Error
 					? new Error(`Invalid YAML: ${error.message}`)
 					: new Error("Invalid YAML")
-		)();
-
-		return parsed.map(normalizeStructuredData);
+		);
+		const parsed = Effect.runSync(Effect.result(parseYamlValue()));
+		return parsed.pipe(Result.map(normalizeStructuredData));
 	},
 };

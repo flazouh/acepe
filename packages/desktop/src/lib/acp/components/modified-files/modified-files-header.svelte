@@ -15,6 +15,7 @@ import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import { Textarea } from "$lib/components/ui/textarea/index.js";
 import { toast } from "svelte-sonner";
+import * as Effect from "effect/Effect";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import type {
@@ -245,9 +246,13 @@ function handleRevertFile(filePath: string): void {
 		toast.error("Cannot revert: no project path");
 		return;
 	}
-	tauriClient.git.discardChanges(projectPath, [filePath]).match(
-		() => toast.success(`Discarded changes in ${filePath.split("/").pop()}`),
-		(err) => toast.error(`Failed to discard: ${err.message}`)
+	void Effect.runPromise(
+		tauriClient.git.discardChanges(projectPath, [filePath]).pipe(
+			Effect.match({
+				onSuccess: () => toast.success(`Discarded changes in ${filePath.split("/").pop()}`),
+				onFailure: (err) => toast.error(`Failed to discard: ${err.message}`),
+			})
+		)
 	);
 }
 

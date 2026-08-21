@@ -1,8 +1,9 @@
 import { describe, expect, it, mock } from "bun:test";
-import { okAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 
 const getEventBridgeInfoInvoke = mock(() =>
-	okAsync({
+	Effect.succeed({
 		eventsUrl: "http://127.0.0.1:1234/events",
 	})
 );
@@ -25,16 +26,16 @@ describe("acp tauri client", () => {
 		const first = acp.getEventBridgeInfo();
 		const second = acp.getEventBridgeInfo();
 
-		const firstInfo = await first;
-		const secondInfo = await second;
-		const thirdInfo = await acp.getEventBridgeInfo();
+		const firstInfo = await Effect.runPromise(Effect.result(first));
+		const secondInfo = await Effect.runPromise(Effect.result(second));
+		const thirdInfo = await Effect.runPromise(Effect.result(acp.getEventBridgeInfo()));
 
-		expect(firstInfo.isOk()).toBe(true);
-		expect(secondInfo.isOk()).toBe(true);
-		expect(thirdInfo.isOk()).toBe(true);
-		expect(firstInfo._unsafeUnwrap().eventsUrl).toBe("http://127.0.0.1:1234/events");
-		expect(secondInfo._unsafeUnwrap().eventsUrl).toBe("http://127.0.0.1:1234/events");
-		expect(thirdInfo._unsafeUnwrap().eventsUrl).toBe("http://127.0.0.1:1234/events");
+		expect(Result.isSuccess(firstInfo)).toBe(true);
+		expect(Result.isSuccess(secondInfo)).toBe(true);
+		expect(Result.isSuccess(thirdInfo)).toBe(true);
+		expect(Result.getOrThrow(firstInfo).eventsUrl).toBe("http://127.0.0.1:1234/events");
+		expect(Result.getOrThrow(secondInfo).eventsUrl).toBe("http://127.0.0.1:1234/events");
+		expect(Result.getOrThrow(thirdInfo).eventsUrl).toBe("http://127.0.0.1:1234/events");
 		expect(getEventBridgeInfoInvoke).toHaveBeenCalledTimes(1);
 	});
 });

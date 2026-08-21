@@ -5,6 +5,7 @@ import {
 	type ReviewWorkspaceFileItem,
 	type ReviewWorkspaceFileResetStatus,
 } from "@acepe/ui/agent-panel";
+import * as Effect from "effect/Effect";
 import { SvelteMap } from "svelte/reactivity";
 import { toast } from "svelte-sonner";
 import { tauriClient } from "$lib/utils/tauri-client.js";
@@ -112,17 +113,21 @@ function handleFileRevert(displayIndex: number): void {
 
 	const capturedFile: ReviewWorkspaceFileItem = file;
 	setFileResetState(capturedFile.filePath, "resetting", "Resetting");
-	tauriClient.git.discardChanges(projectPath, [capturedFile.filePath]).match(
-		() => {
-			setFileResetState(capturedFile.filePath, "reset", "Reset");
-			toast.success(
-				`Discarded changes in ${capturedFile.fileName ?? capturedFile.filePath.split("/").pop()}`
-			);
-		},
-		(err) => {
-			setFileResetState(capturedFile.filePath, "failed", "Reset failed");
-			toast.error(`Failed to discard: ${err.message}`);
-		}
+	void Effect.runPromise(
+		tauriClient.git.discardChanges(projectPath, [capturedFile.filePath]).pipe(
+			Effect.match({
+				onSuccess: () => {
+					setFileResetState(capturedFile.filePath, "reset", "Reset");
+					toast.success(
+						`Discarded changes in ${capturedFile.fileName ?? capturedFile.filePath.split("/").pop()}`
+					);
+				},
+				onFailure: (err) => {
+					setFileResetState(capturedFile.filePath, "failed", "Reset failed");
+					toast.error(`Failed to discard: ${err.message}`);
+				},
+			})
+		)
 	);
 }
 

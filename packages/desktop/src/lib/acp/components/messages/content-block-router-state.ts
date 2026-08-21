@@ -1,3 +1,4 @@
+import * as Result from "effect/Result";
 import type { ContentBlock } from "../../schemas/content-block.schema.js";
 import { validateContentBlock } from "../../utils/content-block-validator.js";
 
@@ -57,14 +58,14 @@ export function resolveContentBlockRouteState(
 ): ContentBlockRouteState {
 	const validationResult = validateContentBlock(block);
 
-	if (validationResult.isErr()) {
+	if (Result.isFailure(validationResult)) {
 		return {
 			type: "invalid",
-			message: validationResult.error.message,
+			message: validationResult.failure.message,
 		};
 	}
 
-	const validatedBlock = validationResult.value;
+	const validatedBlock = validationResult.success;
 
 	return {
 		type: "render",

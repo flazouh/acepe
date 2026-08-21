@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import * as Result from "effect/Result";
 import { EDIT_TOOL_ERROR_CODES } from "../../errors/index.js";
 import { extractEditArguments } from "../extract-edit-arguments.js";
 
@@ -19,13 +20,13 @@ describe("extractEditArguments", () => {
 
 		const result = extractEditArguments(args);
 
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value.filePath).toBe("src/lib/utils/format.ts");
-			expect(result.value.oldString).toBe(
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success.filePath).toBe("src/lib/utils/format.ts");
+			expect(result.success.oldString).toBe(
 				"export function formatDate(date: Date): string {\n  return date.toISOString();\n}"
 			);
-			expect(result.value.newString).toBe(
+			expect(result.success.newString).toBe(
 				"export function formatDate(date: Date): string {\n  return date.toLocaleDateString();\n}"
 			);
 		}
@@ -44,12 +45,12 @@ describe("extractEditArguments", () => {
 
 		const result = extractEditArguments(args);
 
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value.newString).toBe(
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success.newString).toBe(
 				"<script>\n  export let label: string;\n</script>\n\n<button>{label}</button>"
 			);
-			expect(result.value.oldString).toBeNull();
+			expect(result.success.oldString).toBeNull();
 		}
 	});
 
@@ -67,37 +68,37 @@ describe("extractEditArguments", () => {
 
 		const result = extractEditArguments(args);
 
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value.oldString).toBeNull();
-			expect(result.value.newString).toContain("export class ApiClient");
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success.oldString).toBeNull();
+			expect(result.success.newString).toContain("export class ApiClient");
 		}
 	});
 
 	it("should return error for null arguments", () => {
 		const result = extractEditArguments(null);
 
-		expect(result.isErr()).toBe(true);
-		if (result.isErr()) {
-			expect(result.error.code).toBe(EDIT_TOOL_ERROR_CODES.INVALID_ARGUMENTS);
+		expect(Result.isFailure(result)).toBe(true);
+		if (Result.isFailure(result)) {
+			expect(result.failure.code).toBe(EDIT_TOOL_ERROR_CODES.INVALID_ARGUMENTS);
 		}
 	});
 
 	it("should return error for undefined arguments", () => {
 		const result = extractEditArguments(undefined);
 
-		expect(result.isErr()).toBe(true);
-		if (result.isErr()) {
-			expect(result.error.code).toBe(EDIT_TOOL_ERROR_CODES.INVALID_ARGUMENTS);
+		expect(Result.isFailure(result)).toBe(true);
+		if (Result.isFailure(result)) {
+			expect(result.failure.code).toBe(EDIT_TOOL_ERROR_CODES.INVALID_ARGUMENTS);
 		}
 	});
 
 	it("should return error for non-object arguments", () => {
 		const result = extractEditArguments("not an object" as any);
 
-		expect(result.isErr()).toBe(true);
-		if (result.isErr()) {
-			expect(result.error.code).toBe(EDIT_TOOL_ERROR_CODES.INVALID_ARGUMENTS);
+		expect(Result.isFailure(result)).toBe(true);
+		if (Result.isFailure(result)) {
+			expect(result.failure.code).toBe(EDIT_TOOL_ERROR_CODES.INVALID_ARGUMENTS);
 		}
 	});
 
@@ -134,14 +135,14 @@ describe("extractEditArguments", () => {
 		const result2 = extractEditArguments(args2);
 		const result3 = extractEditArguments(args3);
 
-		expect(result1.isOk()).toBe(true);
-		expect(result2.isOk()).toBe(true);
-		expect(result3.isOk()).toBe(true);
+		expect(Result.isSuccess(result1)).toBe(true);
+		expect(Result.isSuccess(result2)).toBe(true);
+		expect(Result.isSuccess(result3)).toBe(true);
 
-		if (result1.isOk() && result2.isOk() && result3.isOk()) {
-			expect(result1.value.filePath).toBe("packages/desktop/src/lib/utils.ts");
-			expect(result2.value.filePath).toBe("packages/desktop/src/lib/utils.ts");
-			expect(result3.value.filePath).toBe("packages/desktop/src/lib/utils.ts");
+		if (Result.isSuccess(result1) && Result.isSuccess(result2) && Result.isSuccess(result3)) {
+			expect(result1.success.filePath).toBe("packages/desktop/src/lib/utils.ts");
+			expect(result2.success.filePath).toBe("packages/desktop/src/lib/utils.ts");
+			expect(result3.success.filePath).toBe("packages/desktop/src/lib/utils.ts");
 		}
 	});
 
@@ -153,9 +154,9 @@ describe("extractEditArguments", () => {
 
 		const result = extractEditArguments(args);
 
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value.filePath).toBeNull();
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success.filePath).toBeNull();
 		}
 	});
 });

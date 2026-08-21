@@ -1,4 +1,4 @@
-import { okAsync, type ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 
 export interface RemoveWorktreeAndMarkSessionWorktreeDeletedOptions {
 	readonly force: boolean;
@@ -7,7 +7,10 @@ export interface RemoveWorktreeAndMarkSessionWorktreeDeletedOptions {
 }
 
 export interface RemoveWorktreeAndMarkSessionWorktreeDeletedDependencies<ErrorType> {
-	readonly removeWorktree: (worktreePath: string, force: boolean) => ResultAsync<void, ErrorType>;
+	readonly removeWorktree: (
+		worktreePath: string,
+		force: boolean
+	) => Effect.Effect<void, ErrorType>;
 	readonly markSessionWorktreeDeleted: (sessionId: string) => void;
 	readonly clearSessionWorktreeDeleted: (sessionId: string) => void;
 	readonly disconnectSession: (sessionId: string) => void;
@@ -16,10 +19,10 @@ export interface RemoveWorktreeAndMarkSessionWorktreeDeletedDependencies<ErrorTy
 export function removeWorktreeAndMarkSessionWorktreeDeleted<ErrorType>(
 	options: RemoveWorktreeAndMarkSessionWorktreeDeletedOptions,
 	dependencies: RemoveWorktreeAndMarkSessionWorktreeDeletedDependencies<ErrorType>
-): ResultAsync<void, ErrorType> {
+): Effect.Effect<void, ErrorType> {
 	const { force, sessionId, worktreePath } = options;
 	if (!worktreePath) {
-		return okAsync(undefined);
+		return Effect.succeed(undefined);
 	}
 
 	if (!sessionId) {
@@ -28,14 +31,14 @@ export function removeWorktreeAndMarkSessionWorktreeDeleted<ErrorType>(
 
 	dependencies.markSessionWorktreeDeleted(sessionId);
 
-	return dependencies
-		.removeWorktree(worktreePath, force)
-		.andThen(() => {
+	return dependencies.removeWorktree(worktreePath, force).pipe(
+		Effect.flatMap(() => {
 			dependencies.disconnectSession(sessionId);
-			return okAsync(undefined);
-		})
-		.mapErr((error) => {
+			return Effect.succeed(undefined);
+		}),
+		Effect.mapError((error) => {
 			dependencies.clearSessionWorktreeDeleted(sessionId);
 			return error;
-		});
+		})
+	);
 }

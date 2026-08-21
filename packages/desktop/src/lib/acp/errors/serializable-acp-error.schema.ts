@@ -1,73 +1,75 @@
-import { z } from "zod";
+import { decodeUnknown } from "@acepe/effect-result/decodeUnknown";
+import * as Result from "effect/Result";
+import * as Schema from "effect/Schema";
 import type { FailureReason } from "$lib/services/acp-types.js";
 
 /**
- * Zod schema for SerializableAcpError types that match the Rust SerializableAcpError enum.
+ * Effect Schema for SerializableAcpError types that match the Rust SerializableAcpError enum.
  * These are used for IPC communication and are validated on the frontend.
  */
 
-const AgentNotFoundSchema = z.object({
-	type: z.literal("agent_not_found"),
-	data: z.object({ agent_id: z.string() }),
+const AgentNotFoundSchema = Schema.Struct({
+	type: Schema.Literal("agent_not_found"),
+	data: Schema.Struct({ agent_id: Schema.String }),
 });
 
-const NoProviderConfiguredSchema = z.object({
-	type: z.literal("no_provider_configured"),
+const NoProviderConfiguredSchema = Schema.Struct({
+	type: Schema.Literal("no_provider_configured"),
 });
 
-const SessionNotFoundSchema = z.object({
-	type: z.literal("session_not_found"),
-	data: z.object({ session_id: z.string() }),
+const SessionNotFoundSchema = Schema.Struct({
+	type: Schema.Literal("session_not_found"),
+	data: Schema.Struct({ session_id: Schema.String }),
 });
 
-const ClientNotStartedSchema = z.object({
-	type: z.literal("client_not_started"),
+const ClientNotStartedSchema = Schema.Struct({
+	type: Schema.Literal("client_not_started"),
 });
 
-const OpenCodeServerNotRunningSchema = z.object({
-	type: z.literal("opencode_server_not_running"),
+const OpenCodeServerNotRunningSchema = Schema.Struct({
+	type: Schema.Literal("opencode_server_not_running"),
 });
 
-const SubprocessSpawnFailedSchema = z.object({
-	type: z.literal("subprocess_spawn_failed"),
-	data: z.object({ command: z.string(), error: z.string() }),
+const SubprocessSpawnFailedSchema = Schema.Struct({
+	type: Schema.Literal("subprocess_spawn_failed"),
+	data: Schema.Struct({ command: Schema.String, error: Schema.String }),
 });
 
-const JsonRpcErrorSchema = z.object({
-	type: z.literal("json_rpc_error"),
-	data: z.object({ message: z.string() }),
+const JsonRpcErrorSchema = Schema.Struct({
+	type: Schema.Literal("json_rpc_error"),
+	data: Schema.Struct({ message: Schema.String }),
 });
 
-const ProtocolErrorSchema = z.object({
-	type: z.literal("protocol_error"),
-	data: z.object({ message: z.string() }),
+const ProtocolErrorSchema = Schema.Struct({
+	type: Schema.Literal("protocol_error"),
+	data: Schema.Struct({ message: Schema.String }),
 });
 
-const HttpErrorSchema = z.object({
-	type: z.literal("http_error"),
-	data: z.object({ message: z.string() }),
+const HttpErrorSchema = Schema.Struct({
+	type: Schema.Literal("http_error"),
+	data: Schema.Struct({ message: Schema.String }),
 });
 
-const SerializationErrorSchema = z.object({
-	type: z.literal("serialization_error"),
-	data: z.object({ message: z.string() }),
+const SerializationErrorSchema = Schema.Struct({
+	type: Schema.Literal("serialization_error"),
+	data: Schema.Struct({ message: Schema.String }),
 });
 
-const ChannelClosedSchema = z.object({
-	type: z.literal("channel_closed"),
+const ChannelClosedSchema = Schema.Struct({
+	type: Schema.Literal("channel_closed"),
 });
 
-const TimeoutSchema = z.object({
-	type: z.literal("timeout"),
-	data: z.object({ operation: z.string() }),
+const TimeoutSchema = Schema.Struct({
+	type: Schema.Literal("timeout"),
+	data: Schema.Struct({ operation: Schema.String }),
 });
 
-const InvalidStateSchema = z.object({
-	type: z.literal("invalid_state"),
-	data: z.object({ message: z.string() }),
+const InvalidStateSchema = Schema.Struct({
+	type: Schema.Literal("invalid_state"),
+	data: Schema.Struct({ message: Schema.String }),
 });
 
-const CreationFailureKindSchema = z.enum([
+const CreationFailureKindSchema = Schema.Literals([
 	"provider_failed_before_id",
 	"invalid_provider_session_id",
 	"provider_identity_mismatch",
@@ -82,7 +84,7 @@ const CreationFailureKindSchema = z.enum([
  * canonical union and this enum ever drift, so a new reason can't slip past
  * `bun run check`.
  */
-const FailureReasonSchema = z.enum([
+const FailureReasonSchema = Schema.Literals([
 	"deterministicRestoreFault",
 	"activationFailed",
 	"resumeFailed",
@@ -95,36 +97,36 @@ const FailureReasonSchema = z.enum([
 ]);
 
 // Compile-time bidirectional equality between the canonical `FailureReason`
-// union and the Zod enum above. Either side gaining a member the other lacks
+// union and the Schema literals above. Either side gaining a member the other lacks
 // collapses this type to `never` and fails the assignment.
-type FailureReasonsInSync = [z.infer<typeof FailureReasonSchema>] extends [FailureReason]
-	? [FailureReason] extends [z.infer<typeof FailureReasonSchema>]
+type FailureReasonsInSync = [typeof FailureReasonSchema.Type] extends [FailureReason]
+	? [FailureReason] extends [typeof FailureReasonSchema.Type]
 		? true
 		: never
 	: never;
 const _failureReasonInSync: FailureReasonsInSync = true;
 void _failureReasonInSync;
 
-const CreationFailedSchema = z.object({
-	type: z.literal("creation_failed"),
-	data: z.object({
+const CreationFailedSchema = Schema.Struct({
+	type: Schema.Literal("creation_failed"),
+	data: Schema.Struct({
 		kind: CreationFailureKindSchema,
-		message: z.string(),
-		sessionId: z.string().nullable(),
-		creationAttemptId: z.string().nullable(),
-		retryable: z.boolean(),
+		message: Schema.String,
+		sessionId: Schema.NullOr(Schema.String),
+		creationAttemptId: Schema.NullOr(Schema.String),
+		retryable: Schema.Boolean,
 		// Canonical classification shared with the resume path. Always emitted by
 		// current Rust, but optional+nullable to tolerate older payloads.
-		failureReason: FailureReasonSchema.nullish(),
+		failureReason: Schema.optionalKey(Schema.NullishOr(FailureReasonSchema)),
 	}),
 });
 
-const AuthenticationRequiredSchema = z.object({
-	type: z.literal("authentication_required"),
-	data: z.object({ agent: z.string(), instructions: z.string() }),
+const AuthenticationRequiredSchema = Schema.Struct({
+	type: Schema.Literal("authentication_required"),
+	data: Schema.Struct({ agent: Schema.String, instructions: Schema.String }),
 });
 
-const ProviderHistoryFailureKindSchema = z.enum([
+const ProviderHistoryFailureKindSchema = Schema.Literals([
 	"provider_unavailable",
 	"provider_history_missing",
 	"provider_unparseable",
@@ -133,25 +135,25 @@ const ProviderHistoryFailureKindSchema = z.enum([
 	"internal",
 ]);
 
-const ProviderHistoryFailedSchema = z.object({
-	type: z.literal("provider_history_failed"),
-	data: z.object({
+const ProviderHistoryFailedSchema = Schema.Struct({
+	type: Schema.Literal("provider_history_failed"),
+	data: Schema.Struct({
 		kind: ProviderHistoryFailureKindSchema,
-		message: z.string(),
-		sessionId: z.string().nullable(),
-		retryable: z.boolean(),
+		message: Schema.String,
+		sessionId: Schema.NullOr(Schema.String),
+		retryable: Schema.Boolean,
 	}),
 });
 
-const ViewportSessionNotAttachedSchema = z.object({
-	type: z.literal("viewport_session_not_attached"),
-	data: z.object({ session_id: z.string() }),
+const ViewportSessionNotAttachedSchema = Schema.Struct({
+	type: Schema.Literal("viewport_session_not_attached"),
+	data: Schema.Struct({ session_id: Schema.String }),
 });
 
 /**
  * Combined schema for all SerializableAcpError variants.
  */
-export const SerializableAcpErrorSchema = z.discriminatedUnion("type", [
+export const SerializableAcpErrorSchema = Schema.Union([
 	AgentNotFoundSchema,
 	NoProviderConfiguredSchema,
 	SessionNotFoundSchema,
@@ -172,9 +174,11 @@ export const SerializableAcpErrorSchema = z.discriminatedUnion("type", [
 ]);
 
 /**
- * Type inferred from the Zod schema.
+ * Type inferred from the schema.
  */
-export type SerializableAcpError = z.infer<typeof SerializableAcpErrorSchema>;
+export type SerializableAcpError = typeof SerializableAcpErrorSchema.Type;
+
+const decodeSerializableAcpError = decodeUnknown(SerializableAcpErrorSchema, () => null);
 
 /**
  * Validates and parses an unknown value as a SerializableAcpError.
@@ -183,6 +187,6 @@ export type SerializableAcpError = z.infer<typeof SerializableAcpErrorSchema>;
  * @returns The parsed SerializableAcpError if valid, null otherwise
  */
 export function parseSerializableAcpError(value: unknown): SerializableAcpError | null {
-	const result = SerializableAcpErrorSchema.safeParse(value);
-	return result.success ? result.data : null;
+	const decoded = decodeSerializableAcpError(value);
+	return Result.isSuccess(decoded) ? decoded.success : null;
 }

@@ -11,7 +11,8 @@
  * All data is persisted to SQLite via tauriClient.settings
  */
 
-import { okAsync, ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import type {
 	ModelsForDisplay,
@@ -19,7 +20,7 @@ import type {
 } from "../../services/acp-provider-metadata.js";
 import type { Mode } from "../application/dto/mode.js";
 import type { Model } from "../application/dto/model.js";
-import type { AppError } from "../errors/app-error.js";
+import { AgentError, AppError } from "../errors/app-error.js";
 import type { SessionModelPerMode } from "../types/agent-model-preferences.js";
 
 import { createLogger } from "../utils/logger.js";
@@ -62,11 +63,34 @@ let availableProviderMetadataCache = $state<Record<string, ProviderMetadataProje
 let availableModesCache = $state<Record<string, Mode[]>>({});
 let sessionModelPerMode = $state<SessionModelPerMode>({});
 let prGenerationPrefs = $state<PrGenerationPreferences>({});
-let loadPromise: ResultAsync<void, AppError> | null = null;
+let loadPromise: Promise<void> | null = null;
 let sessionModelLoadState = $state<"unloaded" | "loading" | "loaded" | "failed">("unloaded");
 let cacheLoaded = $state(false);
 
 const logger_instance = logger;
+
+function toLoadError(error: unknown): AppError {
+	if (error instanceof AppError) {
+		return error;
+	}
+	return new AgentError(
+		"loadPersistedState",
+		error instanceof Error ? error : new Error(String(error))
+	);
+}
+
+function persistOrLog(program: Effect.Effect<void, AppError>, message: string): void {
+	void Effect.runPromise(
+		program.pipe(
+			Effect.match({
+				onSuccess: () => undefined,
+				onFailure: (err) => {
+					logger_instance.error(message, { error: err.message });
+				},
+			})
+		)
+	);
+}
 
 // ============================================
 // PUBLIC API
@@ -299,35 +323,35 @@ export function isCacheLoaded(): boolean {
  * Load all persisted preferences from SQLite.
  * Called once on app startup.
  */
-export function loadPersistedState(): ResultAsync<void, AppError> {
+export function loadPersistedState(): Effect.Effect<void, AppError> {
 	if (loadPromise) {
-		return loadPromise;
+		return fromPromise(() => loadPromise as Promise<void>, toLoadError);
 	}
 
 	sessionModelLoadState = "loading";
 
+	const recover = (message: string) => (err: AppError) => {
+		logger_instance.debug(message, { error: err.message });
+		return Effect.succeed(undefined);
+	};
+
 	const favoritesLoad = tauriClient.settings
 		.get<Record<string, string[]>>(AGENT_FAVORITE_MODELS_KEY)
-		.map((persisted) => {
-			if (persisted && typeof persisted === "object") {
-				favorites = persisted;
-				logger_instance.debug("Loaded agent favorite models", {
-					agents: Object.keys(persisted).length,
-				});
-			}
-			return undefined;
-		})
-		.mapErr((err) => {
-			logger_instance.debug("No persisted favorite models found (expected on first run)", {
-				error: err.message,
-			});
-			return err;
-		})
-		.orElse(() => okAsync(undefined));
+		.pipe(
+			Effect.map((persisted) => {
+				if (persisted && typeof persisted === "object") {
+					favorites = persisted;
+					logger_instance.debug("Loaded agent favorite models", {
+						agents: Object.keys(persisted).length,
+					});
+				}
+				return undefined;
+			}),
+			Effect.catch(recover("No persisted favorite models found (expected on first run)"))
+		);
 
-	const defaultModelsLoad = tauriClient.settings
-		.get<AgentDefaultModels>(AGENT_DEFAULT_MODELS_KEY)
-		.map((persisted) => {
+	const defaultModelsLoad = tauriClient.settings.get<AgentDefaultModels>(AGENT_DEFAULT_MODELS_KEY).pipe(
+		Effect.map((persisted) => {
 			if (persisted && typeof persisted === "object") {
 				defaultModels = persisted;
 				logger_instance.debug("Loaded agent default models", {
@@ -335,45 +359,35 @@ export function loadPersistedState(): ResultAsync<void, AppError> {
 				});
 			}
 			return undefined;
-		})
-		.mapErr((err) => {
-			logger_instance.debug("No persisted default models found (expected on first run)", {
-				error: err.message,
-			});
-			return err;
-		})
-		.orElse(() => okAsync(undefined));
+		}),
+		Effect.catch(recover("No persisted default models found (expected on first run)"))
+	);
 
 	const modelsCacheLoad = tauriClient.settings
 		.get<Record<string, Model[]>>(AGENT_AVAILABLE_MODELS_CACHE_KEY)
-		.map((persisted) => {
-			if (persisted && typeof persisted === "object") {
-				availableModelsCache = persisted;
-				logger_instance.debug("Loaded cached available models", {
-					agents: Object.keys(persisted).length,
-				});
-			}
-			return undefined;
-		})
-		.mapErr((err) => {
-			logger_instance.debug("No cached models found (expected on first run)", {
-				error: err.message,
-			});
-			return err;
-		})
-		.orElse(() => okAsync(undefined));
+		.pipe(
+			Effect.map((persisted) => {
+				if (persisted && typeof persisted === "object") {
+					availableModelsCache = persisted;
+					logger_instance.debug("Loaded cached available models", {
+						agents: Object.keys(persisted).length,
+					});
+				}
+				return undefined;
+			}),
+			Effect.catch(recover("No cached models found (expected on first run)"))
+		);
 
-	const modelProvidersLoad = tauriClient.settings
-		.get<Record<string, string>>(AGENT_MODEL_PROVIDER_KEY)
-		.map((persisted) => {
+	const modelProvidersLoad = tauriClient.settings.get<Record<string, string>>(AGENT_MODEL_PROVIDER_KEY).pipe(
+		Effect.map((persisted) => {
 			if (persisted && typeof persisted === "object") modelProviderByAgent = persisted;
 			return undefined;
-		})
-		.orElse(() => okAsync(undefined));
+		}),
+		Effect.catch(() => Effect.succeed(undefined))
+	);
 
-	const modesCacheLoad = tauriClient.settings
-		.get<Record<string, Mode[]>>(AGENT_AVAILABLE_MODES_CACHE_KEY)
-		.map((persisted) => {
+	const modesCacheLoad = tauriClient.settings.get<Record<string, Mode[]>>(AGENT_AVAILABLE_MODES_CACHE_KEY).pipe(
+		Effect.map((persisted) => {
 			if (persisted && typeof persisted === "object") {
 				availableModesCache = persisted;
 				logger_instance.debug("Loaded cached available modes", {
@@ -381,73 +395,53 @@ export function loadPersistedState(): ResultAsync<void, AppError> {
 				});
 			}
 			return undefined;
-		})
-		.mapErr((err) => {
-			logger_instance.debug("No cached modes found (expected on first run)", {
-				error: err.message,
-			});
-			return err;
-		})
-		.orElse(() => okAsync(undefined));
+		}),
+		Effect.catch(recover("No cached modes found (expected on first run)"))
+	);
 
 	const providerMetadataCacheLoad = tauriClient.settings
 		.get<Record<string, ProviderMetadataProjection>>(AGENT_PROVIDER_METADATA_CACHE_KEY)
-		.map((persisted) => {
-			if (persisted && typeof persisted === "object") {
-				availableProviderMetadataCache = persisted;
-				logger_instance.debug("Loaded cached provider metadata", {
-					agents: Object.keys(persisted).length,
-				});
-			}
-			return undefined;
-		})
-		.mapErr((err) => {
-			logger_instance.debug("No cached provider metadata found (expected on first run)", {
-				error: err.message,
-			});
-			return err;
-		})
-		.orElse(() => okAsync(undefined));
+		.pipe(
+			Effect.map((persisted) => {
+				if (persisted && typeof persisted === "object") {
+					availableProviderMetadataCache = persisted;
+					logger_instance.debug("Loaded cached provider metadata", {
+						agents: Object.keys(persisted).length,
+					});
+				}
+				return undefined;
+			}),
+			Effect.catch(recover("No cached provider metadata found (expected on first run)"))
+		);
 
 	const modelsDisplayCacheLoad = tauriClient.settings
 		.get<Record<string, ModelsForDisplay>>(AGENT_AVAILABLE_MODELS_DISPLAY_CACHE_KEY)
-		.map((persisted) => {
-			if (persisted && typeof persisted === "object") {
-				availableModelsDisplayCache = persisted;
-				logger_instance.debug("Loaded cached available models display", {
-					agents: Object.keys(persisted).length,
-				});
-			}
-			return undefined;
-		})
-		.mapErr((err) => {
-			logger_instance.debug("No cached models display found (expected on first run)", {
-				error: err.message,
-			});
-			return err;
-		})
-		.orElse(() => okAsync(undefined));
+		.pipe(
+			Effect.map((persisted) => {
+				if (persisted && typeof persisted === "object") {
+					availableModelsDisplayCache = persisted;
+					logger_instance.debug("Loaded cached available models display", {
+						agents: Object.keys(persisted).length,
+					});
+				}
+				return undefined;
+			}),
+			Effect.catch(recover("No cached models display found (expected on first run)"))
+		);
 
-	const prGenerationPrefsLoad = tauriClient.settings
-		.get<PrGenerationPreferences>(PR_GENERATION_PREFS_KEY)
-		.map((persisted) => {
+	const prGenerationPrefsLoad = tauriClient.settings.get<PrGenerationPreferences>(PR_GENERATION_PREFS_KEY).pipe(
+		Effect.map((persisted) => {
 			if (persisted && typeof persisted === "object") {
 				prGenerationPrefs = persisted;
 				logger_instance.debug("Loaded PR generation preferences", persisted);
 			}
 			return undefined;
-		})
-		.mapErr((err) => {
-			logger_instance.debug("No PR generation preferences found (expected on first run)", {
-				error: err.message,
-			});
-			return err;
-		})
-		.orElse(() => okAsync(undefined));
+		}),
+		Effect.catch(recover("No PR generation preferences found (expected on first run)"))
+	);
 
-	const sessionModelsLoad = tauriClient.settings
-		.get<SessionModelPerMode>(SESSION_MODEL_PER_MODE_KEY)
-		.map((persisted) => {
+	const sessionModelsLoad = tauriClient.settings.get<SessionModelPerMode>(SESSION_MODEL_PER_MODE_KEY).pipe(
+		Effect.map((persisted) => {
 			sessionModelLoadState = "loaded";
 			if (persisted && typeof persisted === "object") {
 				sessionModelPerMode = persisted;
@@ -456,34 +450,38 @@ export function loadPersistedState(): ResultAsync<void, AppError> {
 				});
 			}
 			return undefined;
-		})
-		.mapErr((err) => {
+		}),
+		Effect.catch((err) => {
 			sessionModelLoadState = "failed";
 			logger_instance.debug("No session model memory found (expected on first run)", {
 				error: err.message,
 			});
-			return err;
+			return Effect.succeed(undefined);
 		})
-		.orElse(() => okAsync(undefined));
+	);
 
-	loadPromise = ResultAsync.combine([
-		favoritesLoad,
-		defaultModelsLoad,
-		modelProvidersLoad,
-		modelsCacheLoad,
-		providerMetadataCacheLoad,
-		modelsDisplayCacheLoad,
-		modesCacheLoad,
-		sessionModelsLoad,
-		prGenerationPrefsLoad,
-	]).map(() => {
-		cacheLoaded = true;
-	});
+	loadPromise = Effect.runPromise(
+		Effect.all([
+			favoritesLoad,
+			defaultModelsLoad,
+			modelProvidersLoad,
+			modelsCacheLoad,
+			providerMetadataCacheLoad,
+			modelsDisplayCacheLoad,
+			modesCacheLoad,
+			sessionModelsLoad,
+			prGenerationPrefsLoad,
+		]).pipe(
+			Effect.map(() => {
+				cacheLoaded = true;
+			})
+		)
+	);
 
-	return loadPromise;
+	return fromPromise(() => loadPromise as Promise<void>, toLoadError);
 }
 
-export function ensureLoaded(): ResultAsync<void, AppError> {
+export function ensureLoaded(): Effect.Effect<void, AppError> {
 	return loadPersistedState();
 }
 
@@ -492,81 +490,73 @@ export function ensureLoaded(): ResultAsync<void, AppError> {
 // ============================================
 
 function persistProviderMetadataCache(): void {
-	tauriClient.settings
-		.set<Record<string, ProviderMetadataProjection>>(
+	persistOrLog(
+		tauriClient.settings.set<Record<string, ProviderMetadataProjection>>(
 			AGENT_PROVIDER_METADATA_CACHE_KEY,
 			availableProviderMetadataCache
-		)
-		.mapErr((err) => {
-			logger_instance.error("Failed to persist provider metadata cache", {
-				error: err.message,
-			});
-		});
+		),
+		"Failed to persist provider metadata cache"
+	);
 }
 
 function persistFavorites(): void {
-	tauriClient.settings
-		.set<Record<string, string[]>>(AGENT_FAVORITE_MODELS_KEY, favorites)
-		.mapErr((err) => {
-			logger_instance.error("Failed to persist favorite models", { error: err.message });
-		});
+	persistOrLog(
+		tauriClient.settings.set<Record<string, string[]>>(AGENT_FAVORITE_MODELS_KEY, favorites),
+		"Failed to persist favorite models"
+	);
 }
 
 function persistDefaultModels(): void {
-	tauriClient.settings
-		.set<AgentDefaultModels>(AGENT_DEFAULT_MODELS_KEY, defaultModels)
-		.mapErr((err) => {
-			logger_instance.error("Failed to persist default models", { error: err.message });
-		});
+	persistOrLog(
+		tauriClient.settings.set<AgentDefaultModels>(AGENT_DEFAULT_MODELS_KEY, defaultModels),
+		"Failed to persist default models"
+	);
 }
 
 function persistModelProviders(): void {
-	tauriClient.settings
-		.set<Record<string, string>>(AGENT_MODEL_PROVIDER_KEY, modelProviderByAgent)
-		.mapErr((err) => {
-			logger_instance.error("Failed to persist model provider", { error: err.message });
-		});
+	persistOrLog(
+		tauriClient.settings.set<Record<string, string>>(AGENT_MODEL_PROVIDER_KEY, modelProviderByAgent),
+		"Failed to persist model provider"
+	);
 }
 
 function persistModelsCache(): void {
-	tauriClient.settings
-		.set<Record<string, Model[]>>(AGENT_AVAILABLE_MODELS_CACHE_KEY, availableModelsCache)
-		.mapErr((err) => {
-			logger_instance.error("Failed to persist models cache", { error: err.message });
-		});
+	persistOrLog(
+		tauriClient.settings.set<Record<string, Model[]>>(
+			AGENT_AVAILABLE_MODELS_CACHE_KEY,
+			availableModelsCache
+		),
+		"Failed to persist models cache"
+	);
 }
 
 function persistModelsDisplayCache(): void {
-	tauriClient.settings
-		.set<Record<string, ModelsForDisplay>>(
+	persistOrLog(
+		tauriClient.settings.set<Record<string, ModelsForDisplay>>(
 			AGENT_AVAILABLE_MODELS_DISPLAY_CACHE_KEY,
 			availableModelsDisplayCache
-		)
-		.mapErr((err) => {
-			logger_instance.error("Failed to persist models display cache", { error: err.message });
-		});
+		),
+		"Failed to persist models display cache"
+	);
 }
 
 function persistModesCache(): void {
-	tauriClient.settings
-		.set<Record<string, Mode[]>>(AGENT_AVAILABLE_MODES_CACHE_KEY, availableModesCache)
-		.mapErr((err) => {
-			logger_instance.error("Failed to persist modes cache", { error: err.message });
-		});
+	persistOrLog(
+		tauriClient.settings.set<Record<string, Mode[]>>(AGENT_AVAILABLE_MODES_CACHE_KEY, availableModesCache),
+		"Failed to persist modes cache"
+	);
 }
 
 function persistSessionModelPerMode(): void {
-	tauriClient.settings
-		.set<SessionModelPerMode>(SESSION_MODEL_PER_MODE_KEY, sessionModelPerMode)
-		.mapErr((err) => {
-			logger_instance.error("Failed to persist session model per mode", { error: err.message });
-		});
+	persistOrLog(
+		tauriClient.settings.set<SessionModelPerMode>(SESSION_MODEL_PER_MODE_KEY, sessionModelPerMode),
+		"Failed to persist session model per mode"
+	);
 }
 
 function persistPrGenerationPrefs(): void {
-	tauriClient.settings
-		.set<PrGenerationPreferences>(PR_GENERATION_PREFS_KEY, prGenerationPrefs)
-		.mapErr((err) => {
-			logger_instance.error("Failed to persist PR generation preferences", { error: err.message });
-		});
+	persistOrLog(
+		tauriClient.settings.set<PrGenerationPreferences>(PR_GENERATION_PREFS_KEY, prGenerationPrefs),
+		"Failed to persist PR generation preferences"
+	);
 }

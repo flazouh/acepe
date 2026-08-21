@@ -1,6 +1,7 @@
 <script lang="ts">
 import { AgentPanelErrorCard } from "@acepe/ui/agent-panel";
-import { ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
 import { getSingletonHighlighter, type Highlighter } from "shiki";
 import type { Snippet } from "svelte";
 import { onMount } from "svelte";
@@ -59,22 +60,27 @@ $effect(() => {
 });
 
 onMount(() => {
-	loadCursorTheme()
-		.andThen((loadedTheme) => {
-			return ResultAsync.fromPromise(
-				getSingletonHighlighter({
-					themes: [loadedTheme],
-					langs: ["typescript", "javascript", "text", "json"],
-				}),
-				() => new Error("Failed to load highlighter")
-			);
-		})
-		.map((h) => {
-			highlighter = h;
-		})
-		.mapErr((err: Error) => {
-			console.error("Failed to initialize highlighter:", err);
-		});
+	void Effect.runPromise(
+		loadCursorTheme().pipe(
+			Effect.flatMap((loadedTheme) =>
+				fromPromise(
+					() =>
+						getSingletonHighlighter({
+							themes: [loadedTheme],
+							langs: ["typescript", "javascript", "text", "json"],
+						}),
+					() => new Error("Failed to load highlighter")
+				)
+			),
+			Effect.map((h) => {
+				highlighter = h;
+			}),
+			Effect.catch((err: Error) => {
+				console.error("Failed to initialize highlighter:", err);
+				return Effect.void;
+			})
+		)
+	);
 });
 
 const highlightedError = $derived.by(() => {

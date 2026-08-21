@@ -1,4 +1,5 @@
 import type { ProviderBrand } from "@acepe/ui";
+import * as Effect from "effect/Effect";
 import { TAURI_COMMAND_CLIENT } from "$lib/services/tauri-command-client.js";
 import type {
 	UsageAccountConnectionState,
@@ -57,7 +58,7 @@ const PROVIDERS: ReadonlyArray<ProviderIdentity> = [
 export function loadProviderAccountUsageAccounts() {
 	return TAURI_COMMAND_CLIENT.provider_account_usage.get
 		.invoke<ProviderAccountUsage[]>()
-		.map(mapProviderAccountUsageToAccounts);
+		.pipe(Effect.map(mapProviderAccountUsageToAccounts));
 }
 
 export function buildProviderUsageCheckingAccounts(): ReadonlyArray<UsageProviderAccount> {

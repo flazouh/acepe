@@ -1,4 +1,5 @@
 <script lang="ts">
+import * as Effect from "effect/Effect";
 import { toast } from "svelte-sonner";
 import AgentErrorCard from "$lib/acp/components/agent-panel/components/agent-error-card.svelte";
 import { copyTextToClipboard } from "$lib/acp/components/agent-panel/logic/clipboard-manager.js";
@@ -70,13 +71,17 @@ function handleCopyBoundaryReference(referenceId: string | null): void {
 		return;
 	}
 
-	void copyTextToClipboard(referenceId).match(
-		() => {
-			toast.success("Reference ID copied");
-		},
-		(error) => {
-			toast.error(error.message);
-		}
+	void Effect.runPromise(
+		copyTextToClipboard(referenceId).pipe(
+			Effect.match({
+				onSuccess: () => {
+					toast.success("Reference ID copied");
+				},
+				onFailure: (error) => {
+					toast.error(error.message);
+				},
+			})
+		)
 	);
 }
 
@@ -116,9 +121,9 @@ function handleClose(): void {
 }
 
 function handleCreateSessionForProject(project: Pick<Project, "path" | "name">) {
-	return state.handleCreateSessionForProject(panelId, project).mapErr(() => {
-		// Error handling is done in the handler.
-	});
+	void Effect.runPromise(
+		state.handleCreateSessionForProject(panelId, project).pipe(Effect.catch(() => Effect.void))
+	);
 }
 
 function handleSessionCreated(sessionId: string): void {

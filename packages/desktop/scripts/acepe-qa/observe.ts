@@ -1,4 +1,6 @@
-import { err, ok, okAsync, type ResultAsync } from "neverthrow";
+import { decodeUnknown } from "@acepe/effect-result/decodeUnknown";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import type { AppObservation, ObserveLevel, ScreenshotResult } from "./schemas";
 import { appObservationSchema, screenshotResultSchema } from "./schemas";
 import {
@@ -73,59 +75,73 @@ export type ObserveOptions = {
 	readonly skipDriver?: boolean;
 };
 
-export function observeApp(options: ObserveOptions): ResultAsync<AppObservation, TauriMcpFailure> {
+const decodeScreenshotResult = decodeUnknown(screenshotResultSchema, (error) => ({
+	code: "screenshot_schema_failed",
+	message: error.message,
+}));
+
+export function observeApp(
+	options: ObserveOptions
+): Effect.Effect<AppObservation, TauriMcpFailure> {
 	const runner = options.runner ?? runCommand;
 	const driver =
 		options.skipDriver === true
-			? okAsync({ code: 0, stdout: "", stderr: "" })
+			? Effect.succeed({ code: 0, stdout: "", stderr: "" })
 			: startDriverSession(options.appIdentifier, runner);
-	return driver.andThen((session) => {
-		if (session.code !== 0) {
-			return err({
-				code: "driver_session_failed",
-				message:
-					session.stderr.trim() || session.stdout.trim() || "Unable to start Tauri driver session.",
-			});
-		}
-		return executeWebviewJson(
-			{
-				appIdentifier: options.appIdentifier,
-				script: OBSERVE_SCRIPT,
-				schema: appObservationSchema,
-				callTimeoutMs: options.level === "raw" ? 30_000 : 15_000,
-			},
-			runner
-		);
-	});
+	return driver.pipe(
+		Effect.flatMap((session) => {
+			if (session.code !== 0) {
+				return Effect.fail({
+					code: "driver_session_failed",
+					message:
+						session.stderr.trim() ||
+						session.stdout.trim() ||
+						"Unable to start Tauri driver session.",
+				});
+			}
+			return executeWebviewJson(
+				{
+					appIdentifier: options.appIdentifier,
+					script: OBSERVE_SCRIPT,
+					schema: appObservationSchema,
+					callTimeoutMs: options.level === "raw" ? 30_000 : 15_000,
+				},
+				runner
+			);
+		})
+	);
 }
 
 export function screenshotApp(options: {
 	readonly appIdentifier: string;
 	readonly runner?: CommandRunner;
 	readonly skipDriver?: boolean;
-}): ResultAsync<ScreenshotResult, TauriMcpFailure> {
+}): Effect.Effect<ScreenshotResult, TauriMcpFailure> {
 	const runner = options.runner ?? runCommand;
 	const driver =
 		options.skipDriver === true
-			? okAsync({ code: 0, stdout: "", stderr: "" })
+			? Effect.succeed({ code: 0, stdout: "", stderr: "" })
 			: startDriverSession(options.appIdentifier, runner);
-	return driver.andThen((session) => {
-		if (session.code !== 0) {
-			return err({
-				code: "driver_session_failed",
-				message:
-					session.stderr.trim() || session.stdout.trim() || "Unable to start Tauri driver session.",
-			});
-		}
-		return captureWebviewScreenshot(options.appIdentifier, runner).andThen((path) => {
-			const parsed = screenshotResultSchema.safeParse({ path });
-			if (!parsed.success) {
-				return err({
-					code: "screenshot_schema_failed",
-					message: parsed.error.message,
+	return driver.pipe(
+		Effect.flatMap((session) => {
+			if (session.code !== 0) {
+				return Effect.fail({
+					code: "driver_session_failed",
+					message:
+						session.stderr.trim() ||
+						session.stdout.trim() ||
+						"Unable to start Tauri driver session.",
 				});
 			}
-			return ok(parsed.data);
-		});
-	});
+			return captureWebviewScreenshot(options.appIdentifier, runner).pipe(
+				Effect.flatMap((path) => {
+					const parsed = decodeScreenshotResult({ path });
+					if (Result.isFailure(parsed)) {
+						return Effect.fail(parsed.failure);
+					}
+					return Effect.succeed(parsed.success);
+				})
+			);
+		})
+	);
 }

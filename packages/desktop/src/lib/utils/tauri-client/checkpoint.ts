@@ -1,4 +1,4 @@
-import type { ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 
 import type { AppError } from "../../acp/errors/app-error.js";
 import type { Checkpoint, FileSnapshot, RevertResult } from "../../acp/types/index.js";
@@ -19,7 +19,7 @@ export const checkpoint = {
 			worktreePath?: string;
 			agentId?: string;
 		}
-	): ResultAsync<Checkpoint, AppError> => {
+	): Effect.Effect<Checkpoint, AppError> => {
 		return checkpointCommands.create.invoke<Checkpoint>({
 			sessionId,
 			projectPath,
@@ -32,7 +32,7 @@ export const checkpoint = {
 		});
 	},
 
-	list: (sessionId: string): ResultAsync<Checkpoint[], AppError> => {
+	list: (sessionId: string): Effect.Effect<Checkpoint[], AppError> => {
 		return checkpointCommands.list.invoke<Checkpoint[]>({ sessionId });
 	},
 
@@ -40,7 +40,7 @@ export const checkpoint = {
 		sessionId: string,
 		checkpointId: string,
 		filePath: string
-	): ResultAsync<string, AppError> => {
+	): Effect.Effect<string, AppError> => {
 		return checkpointCommands.get_file_content.invoke<string>({
 			sessionId,
 			checkpointId,
@@ -52,17 +52,19 @@ export const checkpoint = {
 		sessionId: string,
 		checkpointId: string,
 		filePath: string
-	): ResultAsync<FileDiffContent, AppError> => {
+	): Effect.Effect<FileDiffContent, AppError> => {
 		return checkpointCommands.get_file_diff_content
 			.invoke<FileDiffContent>({
 				sessionId,
 				checkpointId,
 				filePath,
 			})
-			.map((res) => ({
-				oldContent: res.oldContent ?? null,
-				newContent: res.newContent,
-			}));
+			.pipe(
+				Effect.map((res) => ({
+					oldContent: res.oldContent ?? null,
+					newContent: res.newContent,
+				}))
+			);
 	},
 
 	revert: (
@@ -70,7 +72,7 @@ export const checkpoint = {
 		checkpointId: string,
 		projectPath: string,
 		worktreePath?: string
-	): ResultAsync<RevertResult, AppError> => {
+	): Effect.Effect<RevertResult, AppError> => {
 		return checkpointCommands.revert.invoke<RevertResult>({
 			sessionId,
 			checkpointId,
@@ -85,7 +87,7 @@ export const checkpoint = {
 		filePath: string,
 		projectPath: string,
 		worktreePath?: string
-	): ResultAsync<void, AppError> => {
+	): Effect.Effect<void, AppError> => {
 		return checkpointCommands.revert_file.invoke<void>({
 			sessionId,
 			checkpointId,
@@ -98,7 +100,7 @@ export const checkpoint = {
 	getFileSnapshots: (
 		sessionId: string,
 		checkpointId: string
-	): ResultAsync<FileSnapshot[], AppError> => {
+	): Effect.Effect<FileSnapshot[], AppError> => {
 		return checkpointCommands.get_file_snapshots.invoke<FileSnapshot[]>({
 			sessionId,
 			checkpointId,

@@ -1,9 +1,14 @@
 import { describe, expect, it, mock } from "bun:test";
-import { errAsync, okAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import type { Session } from "../../../../application/dto/session.js";
 import type { SessionStore } from "../../../../store/session-store.svelte.js";
 import { MessageSendError, SessionCreationError } from "../../errors/agent-input-error.js";
 import { type CreateSessionOptions, createSession, sendMessage } from "../session-manager.js";
+
+async function runToResult<A, E>(effect: Effect.Effect<A, E>): Promise<Result.Result<A, E>> {
+	return Effect.runPromise(Effect.result(effect));
+}
 
 describe("createSession", () => {
 	it("should create session with provided options", async () => {
@@ -29,7 +34,7 @@ describe("createSession", () => {
 				createdAt: new Date(),
 				parentId: null,
 			};
-			return okAsync({ kind: "ready" as const, session });
+			return Effect.succeed({ kind: "ready" as const, session });
 		});
 		const mockStore = {
 			connection: {
@@ -45,10 +50,10 @@ describe("createSession", () => {
 			title: "Build kanban parity",
 		};
 
-		const result = await createSession(mockStore, options);
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value).toEqual({
+		const result = await runToResult(createSession(mockStore, options));
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success).toEqual({
 				sessionId: "session-123",
 				deferredCreation: false,
 			});
@@ -67,7 +72,7 @@ describe("createSession", () => {
 		const mockStore = {
 			connection: {
 				createSession: mock(() => {
-					return errAsync(new Error("Store error"));
+					return Effect.fail(new Error("Store error"));
 				}),
 			},
 		} as unknown as SessionStore;
@@ -78,27 +83,27 @@ describe("createSession", () => {
 			projectName: "Test Project",
 		};
 
-		const result = await createSession(mockStore, options);
-		expect(result.isErr()).toBe(true);
-		if (result.isErr()) {
-			expect(result.error).toBeInstanceOf(SessionCreationError);
-			expect(result.error.agentId).toBe("claude-code");
-			expect(result.error.projectPath).toBe("/test");
+		const result = await runToResult(createSession(mockStore, options));
+		expect(Result.isFailure(result)).toBe(true);
+		if (Result.isFailure(result)) {
+			expect(result.failure).toBeInstanceOf(SessionCreationError);
+			expect(result.failure.agentId).toBe("claude-code");
+			expect(result.failure.projectPath).toBe("/test");
 		}
 	});
 });
 
 describe("sendMessage", () => {
 	it("should send message successfully", async () => {
-		const sendMessageMock = mock(() => okAsync(undefined));
+		const sendMessageMock = mock(() => Effect.succeed(undefined));
 		const mockStore = {
 			connection: {
 				sendMessage: sendMessageMock,
 			},
 		} as unknown as SessionStore;
 
-		const result = await sendMessage(mockStore, "session-123", "Hello");
-		expect(result.isOk()).toBe(true);
+		const result = await runToResult(sendMessage(mockStore, "session-123", "Hello"));
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(sendMessageMock).toHaveBeenCalledWith("session-123", "Hello", []);
 	});
 
@@ -106,30 +111,30 @@ describe("sendMessage", () => {
 		const mockStore = {
 			connection: {
 				sendMessage: mock(() => {
-					return errAsync(new Error("Send error"));
+					return Effect.fail(new Error("Send error"));
 				}),
 			},
 		} as unknown as SessionStore;
 
-		const result = await sendMessage(mockStore, "session-123", "Hello");
-		expect(result.isErr()).toBe(true);
-		if (result.isErr()) {
-			expect(result.error).toBeInstanceOf(MessageSendError);
-			expect(result.error.sessionId).toBe("session-123");
-			expect(result.error.message).toBe("Hello");
+		const result = await runToResult(sendMessage(mockStore, "session-123", "Hello"));
+		expect(Result.isFailure(result)).toBe(true);
+		if (Result.isFailure(result)) {
+			expect(result.failure).toBeInstanceOf(MessageSendError);
+			expect(result.failure.sessionId).toBe("session-123");
+			expect(result.failure.message).toBe("Hello");
 		}
 	});
 
 	it("should handle empty message", async () => {
-		const sendMessageMock = mock(() => okAsync(undefined));
+		const sendMessageMock = mock(() => Effect.succeed(undefined));
 		const mockStore = {
 			connection: {
 				sendMessage: sendMessageMock,
 			},
 		} as unknown as SessionStore;
 
-		const result = await sendMessage(mockStore, "session-123", "");
-		expect(result.isOk()).toBe(true);
+		const result = await runToResult(sendMessage(mockStore, "session-123", ""));
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(sendMessageMock).toHaveBeenCalledWith("session-123", "", []);
 	});
 });

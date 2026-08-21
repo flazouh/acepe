@@ -26,6 +26,8 @@ import { getPanelStore } from "$lib/acp/store/panel-store.svelte.js";
 import { getAgentPreferencesStore, getAgentStore } from "$lib/acp/store/index.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { ensureErrorReference } from "$lib/errors/error-reference.js";
 import { openIssueReportDraft, resolveIssueActionLabel } from "$lib/errors/issue-report.js";
 import { toast } from "svelte-sonner";
@@ -241,58 +243,66 @@ function handleProjectChange(project: Project) {
 
 function handleBrowseProject() {
 	if (showProjectChooser) {
-		void projectManager.browseProject().match(
-			(project) => {
-				if (project === null) {
-					return;
-				}
-				stageProjectImport({
-					path: project.path,
-					name: project.name,
-					agentCounts: new Map(),
-					totalSessions: "loading",
-				});
-			},
-			(error) => {
-				if (!isUnexpectedProjectError(error)) {
-					projectImportError = null;
-					toast.error(error.message);
-					return;
-				}
+		void Effect.runPromise(
+			projectManager.browseProject().pipe(
+				Effect.match({
+					onSuccess: (project) => {
+						if (project === null) {
+							return;
+						}
+						stageProjectImport({
+							path: project.path,
+							name: project.name,
+							agentCounts: new Map(),
+							totalSessions: "loading",
+						});
+					},
+					onFailure: (error) => {
+						if (!isUnexpectedProjectError(error)) {
+							projectImportError = null;
+							toast.error(error.message);
+							return;
+						}
 
-				const errorReference = ensureErrorReference(error);
-				const errorDetails = getErrorCauseDetails(error);
-				projectImportError = buildProjectImportErrorState({
-					error,
-					causeDetails: errorDetails,
-					reference: errorReference,
-				});
-			}
+						const errorReference = ensureErrorReference(error);
+						const errorDetails = getErrorCauseDetails(error);
+						projectImportError = buildProjectImportErrorState({
+							error,
+							causeDetails: errorDetails,
+							reference: errorReference,
+						});
+					},
+				})
+			)
 		);
 		return;
 	}
 
-	void projectManager.importProject().match(
-		(project) => {
-			if (project !== null) {
-				projectImportError = null;
-			}
-		},
-		(error) => {
-			if (!isUnexpectedProjectError(error)) {
-				projectImportError = null;
-				toast.error(error.message);
-				return;
-			}
+	void Effect.runPromise(
+		projectManager.importProject().pipe(
+			Effect.match({
+				onSuccess: (project) => {
+					if (project !== null) {
+						projectImportError = null;
+					}
+				},
+				onFailure: (error) => {
+					if (!isUnexpectedProjectError(error)) {
+						projectImportError = null;
+						toast.error(error.message);
+						return;
+					}
 
-			const errorReference = ensureErrorReference(error);
-			const errorDetails = getErrorCauseDetails(error);
-			projectImportError = buildProjectImportErrorState({
-				error,
-				causeDetails: errorDetails,
-				reference: errorReference,
-			});
-		}
+					const errorReference = ensureErrorReference(error);
+					const errorDetails = getErrorCauseDetails(error);
+					projectImportError = buildProjectImportErrorState({
+						error,
+						causeDetails: errorDetails,
+						reference: errorReference,
+					});
+				},
+			})
+		)
 	);
 }
 
@@ -323,9 +333,8 @@ function stageProjectImport(project: ProjectWithSessions): void {
 		];
 	}
 
-	void tauriClient.history.countSessionsForProject(project.path).match(
-		() => undefined,
-		() => undefined
+	void Effect.runPromise(
+		tauriClient.history.countSessionsForProject(project.path).pipe(Effect.catch(() => Effect.void))
 	);
 }
 
@@ -341,9 +350,11 @@ async function loadDiscoveredProjectsForEmptyState(): Promise<void> {
 	discoveredProjectsLoading = true;
 	discoveredProjects = [];
 
-	const pathsResult = await tauriClient.history.listAllProjectPaths();
-	pathsResult.match(
-		(projectInfos) => {
+	const pathsResult = await Effect.runPromise(
+		Effect.result(tauriClient.history.listAllProjectPaths())
+	);
+	Result.match(pathsResult, {
+		onSuccess: (projectInfos) => {
 			const deduped = new Map<string, ProjectWithSessions>();
 			const discoverableProjectInfos = projectInfos.filter(shouldShowDiscoveredProject);
 
@@ -362,47 +373,54 @@ async function loadDiscoveredProjectsForEmptyState(): Promise<void> {
 			discoveredProjectsLoaded = true;
 
 			for (const path of deduped.keys()) {
-				void tauriClient.history.countSessionsForProject(path).match(
-					(counts) => {
-						const total = Object.values(counts.counts).reduce((sum, count) => sum + count, 0);
-						discoveredProjects = sortProjectsBySessionCount(
-							discoveredProjects.map((project) =>
-								project.path === path
-									? {
-											path: project.path,
-											name: project.name,
-											agentCounts: new Map(
-												Object.entries(counts.counts).map(([agentId, count]) => [agentId, count])
-											),
-											totalSessions: total,
-										}
-									: project
-							)
-						);
-					},
-					() => {
-						discoveredProjects = sortProjectsBySessionCount(
-							discoveredProjects.map((project) =>
-								project.path === path
-									? {
-											path: project.path,
-											name: project.name,
-											agentCounts: project.agentCounts,
-											totalSessions: "error",
-										}
-									: project
-							)
-						);
-					}
+				void Effect.runPromise(
+					tauriClient.history.countSessionsForProject(path).pipe(
+						Effect.match({
+							onSuccess: (counts) => {
+								const total = Object.values(counts.counts).reduce((sum, count) => sum + count, 0);
+								discoveredProjects = sortProjectsBySessionCount(
+									discoveredProjects.map((project) =>
+										project.path === path
+											? {
+													path: project.path,
+													name: project.name,
+													agentCounts: new Map(
+														Object.entries(counts.counts).map(([agentId, count]) => [
+															agentId,
+															count,
+														])
+													),
+													totalSessions: total,
+												}
+											: project
+									)
+								);
+							},
+							onFailure: () => {
+								discoveredProjects = sortProjectsBySessionCount(
+									discoveredProjects.map((project) =>
+										project.path === path
+											? {
+													path: project.path,
+													name: project.name,
+													agentCounts: project.agentCounts,
+													totalSessions: "error",
+												}
+											: project
+									)
+								);
+							},
+						})
+					)
 				);
 			}
 		},
-		(error) => {
+		onFailure: (error) => {
 			discoveredProjectsLoading = false;
 			discoveredProjectsLoaded = true;
 			toast.error(error.message);
-		}
-	);
+		},
+	});
 }
 
 async function handleDiscoveredProjectImport(path: string, name: string): Promise<void> {
@@ -435,9 +453,11 @@ async function continueWithPendingProjectImports(): Promise<void> {
 	}
 
 	for (const project of pendingProjectImports) {
-		const result = await tauriClient.projects.importProject(project.path, project.name);
-		if (result.isErr()) {
-			toast.error(result.error.message);
+		const result = await Effect.runPromise(
+			Effect.result(tauriClient.projects.importProject(project.path, project.name))
+		);
+		if (Result.isFailure(result)) {
+			toast.error(result.failure.message);
 			return;
 		}
 
@@ -446,7 +466,7 @@ async function continueWithPendingProjectImports(): Promise<void> {
 
 	pendingProjectImports = [];
 	projectImportError = null;
-	void projectManager.loadProjects();
+	void Effect.runPromise(projectManager.loadProjects().pipe(Effect.catch(() => Effect.void)));
 }
 
 async function copyProjectImportReferenceId() {
@@ -455,13 +475,17 @@ async function copyProjectImportReferenceId() {
 		return;
 	}
 
-	await copyTextToClipboard(referenceId).match(
-		() => {
-			toast.success("Reference ID copied");
-		},
-		(error) => {
-			toast.error(error.message);
-		}
+	await Effect.runPromise(
+		copyTextToClipboard(referenceId).pipe(
+			Effect.match({
+				onSuccess: () => {
+					toast.success("Reference ID copied");
+				},
+				onFailure: (error) => {
+					toast.error(error.message);
+				},
+			})
+		)
 	);
 }
 
@@ -495,18 +519,22 @@ function handleInitGitRepo() {
 		return;
 	}
 
-	void tauriClient.git.init(projectPath).match(
-		() => {
-			refreshBranchPickerMetadata(projectPath, { loadDetails: true });
-		},
-		(error) => {
-			const message = error.cause?.message ?? error.message ?? "Failed to initialize git";
-			toast.error(message);
-			logger.error("[EmptyStateBranchPicker] Failed to initialize git", {
-				projectPath,
-				error,
-			});
-		}
+	void Effect.runPromise(
+		tauriClient.git.init(projectPath).pipe(
+			Effect.match({
+				onSuccess: () => {
+					refreshBranchPickerMetadata(projectPath, { loadDetails: true });
+				},
+				onFailure: (error) => {
+					const message = error.cause?.message ?? error.message ?? "Failed to initialize git";
+					toast.error(message);
+					logger.error("[EmptyStateBranchPicker] Failed to initialize git", {
+						projectPath,
+						error,
+					});
+				},
+			})
+		)
 	);
 }
 
@@ -521,16 +549,20 @@ function persistSelectedAgent(agentId: string) {
 		agentId
 	);
 
-	void agentPreferencesStore.setSelectedAgentIds(nextSelectedAgentIds).match(
-		() => undefined,
-		(error) => {
-			toast.error(error.message);
-			logger.error("[EmptyStateAgents] Failed to persist selected agents", {
-				agentId,
-				error,
-				projectPath,
-			});
-		}
+	void Effect.runPromise(
+		agentPreferencesStore.setSelectedAgentIds(nextSelectedAgentIds).pipe(
+			Effect.match({
+				onSuccess: () => undefined,
+				onFailure: (error) => {
+					toast.error(error.message);
+					logger.error("[EmptyStateAgents] Failed to persist selected agents", {
+						agentId,
+						error,
+						projectPath,
+					});
+				},
+			})
+		)
 	);
 }
 

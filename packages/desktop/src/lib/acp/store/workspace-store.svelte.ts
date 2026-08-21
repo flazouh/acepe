@@ -5,7 +5,7 @@
  * to/from persistent storage.
  */
 
-import type { ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 
 import { getContext, setContext } from "svelte";
 import { SvelteMap } from "svelte/reactivity";
@@ -585,9 +585,16 @@ export class WorkspaceStore {
 				// Sidebar card collapse state
 				collapsedProjectPaths: this.providers.getCollapsedProjectPaths?.() ?? [],
 			};
-			api.saveWorkspaceState(state).mapErr((error) => {
-				logger.error("Failed to persist workspace state", { error });
-			});
+			void Effect.runPromise(
+				api.saveWorkspaceState(state).pipe(
+					Effect.match({
+						onSuccess: () => undefined,
+						onFailure: (error) => {
+							logger.error("Failed to persist workspace state", { error });
+						},
+					})
+				)
+			);
 		};
 
 		if (this.persistDebounce) {
@@ -921,7 +928,7 @@ export class WorkspaceStore {
 	/**
 	 * Load workspace state from persistent storage.
 	 */
-	load(): ResultAsync<PersistedWorkspaceRestoreState | null, AppError> {
+	load(): Effect.Effect<PersistedWorkspaceRestoreState | null, AppError> {
 		return api.loadWorkspaceState();
 	}
 }

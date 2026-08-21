@@ -2,7 +2,7 @@
  * SessionMessagingOrchestrator — send-message policy and title side-effects for
  * the session store (see docs/adr/0002).
  */
-import { errAsync, type ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import type { Attachment } from "../components/agent-input/types/attachment.js";
 import type { AppError } from "../errors/app-error.js";
 import { ConnectionError, SessionNotFoundError } from "../errors/app-error.js";
@@ -48,7 +48,7 @@ export class SessionMessagingOrchestrator {
 		sessionId: string,
 		content: string,
 		attachments: readonly Attachment[] = []
-	): ResultAsync<void, AppError> {
+	): Effect.Effect<void, AppError> {
 		// Route the first send on the explicit pending-creation flag, NOT on
 		// identity-absence. A deferred session now carries optimistic identity for
 		// display (agent icon, title, working spark), so identity presence no
@@ -56,18 +56,20 @@ export class SessionMessagingOrchestrator {
 		if (this.#deps.creationCoordinator.hasPendingCreation(sessionId)) {
 			return this.#deps.messagingSvc
 				.sendPendingCreationMessage(sessionId, content, attachments)
-				.mapErr((error) => {
-					this.#deps.creationCoordinator.completePendingCreation(sessionId);
-					return error;
-				});
+				.pipe(
+					Effect.mapError((error) => {
+						this.#deps.creationCoordinator.completePendingCreation(sessionId);
+						return error;
+					})
+				);
 		}
 		const sessionIdentity = this.#deps.getSessionIdentity(sessionId);
 		const sessionMetadata = this.#deps.getSessionMetadata(sessionId);
 		if (!sessionIdentity) {
-			return errAsync(new SessionNotFoundError(sessionId));
+			return Effect.fail(new SessionNotFoundError(sessionId));
 		}
 		if (!sessionMetadata) {
-			return errAsync(new SessionNotFoundError(sessionId));
+			return Effect.fail(new SessionNotFoundError(sessionId));
 		}
 		const canonicalCanSend = this.#deps.getSessionCanSend(sessionId);
 		logger.info("sendMessage: store entrypoint", {
@@ -78,30 +80,32 @@ export class SessionMessagingOrchestrator {
 		});
 
 		const send = () =>
-			this.#deps.messagingSvc.sendMessage(sessionId, content, attachments).map(() => {
-				const currentTitle = this.#deps.getSessionMetadata(sessionId)?.title;
-				logger.debug("[sendMessage] After message sent, checking title update", {
-					sessionId,
-					currentTitle: currentTitle?.substring(0, 100),
-				});
-				if (!currentTitle) {
-					logger.debug("[sendMessage] No current title, skipping title update");
-					return;
-				}
+			this.#deps.messagingSvc.sendMessage(sessionId, content, attachments).pipe(
+				Effect.map(() => {
+					const currentTitle = this.#deps.getSessionMetadata(sessionId)?.title;
+					logger.debug("[sendMessage] After message sent, checking title update", {
+						sessionId,
+						currentTitle: currentTitle?.substring(0, 100),
+					});
+					if (!currentTitle) {
+						logger.debug("[sendMessage] No current title, skipping title update");
+						return;
+					}
 
-				const derivedTitle = getTitleUpdateFromUserMessage(currentTitle, content);
-				logger.debug("[sendMessage] Title derivation result", {
-					derivedTitle,
-					willUpdate: !!derivedTitle,
-				});
-				if (!derivedTitle) {
-					logger.debug("[sendMessage] No derived title, skipping update");
-					return;
-				}
+					const derivedTitle = getTitleUpdateFromUserMessage(currentTitle, content);
+					logger.debug("[sendMessage] Title derivation result", {
+						derivedTitle,
+						willUpdate: !!derivedTitle,
+					});
+					if (!derivedTitle) {
+						logger.debug("[sendMessage] No derived title, skipping update");
+						return;
+					}
 
-				logger.debug("[sendMessage] Updating session title", { derivedTitle });
-				this.#deps.updateSession(sessionId, { title: derivedTitle });
-			});
+					logger.debug("[sendMessage] Updating session title", { derivedTitle });
+					this.#deps.updateSession(sessionId, { title: derivedTitle });
+				})
+			);
 
 		const canSend = canonicalCanSend === true;
 		const lifecycleStatus = this.#deps.getSessionLifecycleStatus(sessionId);
@@ -113,6 +117,6 @@ export class SessionMessagingOrchestrator {
 		if (canSend || canActivateFirstPrompt) {
 			return send();
 		}
-		return errAsync(new ConnectionError(sessionId));
+		return Effect.fail(new ConnectionError(sessionId));
 	}
 }

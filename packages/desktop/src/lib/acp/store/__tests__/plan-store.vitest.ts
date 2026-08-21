@@ -1,6 +1,5 @@
-import type { ResultAsync } from "neverthrow";
-import { errAsync, okAsync } from "neverthrow";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import * as Effect from "effect/Effect";
 
 import type { PlanData, SessionPlanResponse } from "../../../services/converted-session-types.js";
 
@@ -10,9 +9,11 @@ type GetUnifiedPlan = (
 	sessionId: string,
 	projectPath: string,
 	agentId: string
-) => ResultAsync<SessionPlanResponse | null, AppError>;
+) => Effect.Effect<SessionPlanResponse | null, AppError>;
 
-const getUnifiedPlanMock = vi.fn<GetUnifiedPlan>();
+const { getUnifiedPlanMock } = vi.hoisted(() => ({
+	getUnifiedPlanMock: vi.fn<GetUnifiedPlan>(),
+}));
 
 vi.mock("../../../utils/tauri-client.js", () => ({
 	openFileInEditor: vi.fn(),
@@ -186,7 +187,7 @@ describe("PlanStore", () => {
 
 	describe("loadPlan (disk fallback)", () => {
 		it("loads plan from disk for historical sessions", async () => {
-			getUnifiedPlanMock.mockReturnValue(okAsync(samplePlan));
+			getUnifiedPlanMock.mockReturnValue(Effect.succeed(samplePlan));
 
 			const store = new PlanStore();
 			store.loadPlan("session-1", "/project", "agent");
@@ -219,7 +220,7 @@ describe("PlanStore", () => {
 
 		it("handles disk load errors gracefully", async () => {
 			getUnifiedPlanMock.mockReturnValue(
-				errAsync(new AgentError("getUnifiedPlan", new Error("Network error")))
+				Effect.fail(new AgentError("getUnifiedPlan", new Error("Network error")))
 			);
 
 			const store = new PlanStore();

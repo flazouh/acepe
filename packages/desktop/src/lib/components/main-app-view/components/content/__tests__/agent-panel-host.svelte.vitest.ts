@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/svelte";
-import { okAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AgentPanelProps } from "$lib/acp/components/agent-panel/types/agent-panel-props.js";
 import { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
@@ -145,7 +145,7 @@ describe("AgentPanelHost", () => {
 			handleClosePanel: vi.fn(() => {
 				panelRef.current = null;
 			}),
-			handleCreateSessionForProject: vi.fn(() => okAsync(undefined)),
+			handleCreateSessionForProject: vi.fn(() => Effect.succeed(undefined)),
 			handleResizePanel: vi.fn(),
 			handleToggleFullscreen: vi.fn(),
 			handleFocusPanel: vi.fn(),

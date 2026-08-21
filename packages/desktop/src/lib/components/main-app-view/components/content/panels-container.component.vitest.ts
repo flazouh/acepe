@@ -1,5 +1,5 @@
 import { cleanup, render, waitFor } from "@testing-library/svelte";
-import { okAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import type { AgentStore } from "$lib/acp/store/agent-store.svelte.js";
@@ -160,7 +160,7 @@ function createMainAppState(): MainAppViewState {
 		handlePanelAgentChange: vi.fn(),
 		handleToggleFullscreen: vi.fn(),
 		handleFocusPanel: vi.fn(),
-		handleCreateSessionForProject: vi.fn(() => okAsync(undefined)),
+		handleCreateSessionForProject: vi.fn(() => Effect.succeed(undefined)),
 		openUserReportsWithDraft: vi.fn(),
 	}) as MainAppViewState;
 }

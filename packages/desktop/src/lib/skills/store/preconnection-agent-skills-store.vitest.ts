@@ -1,4 +1,5 @@
-import { errAsync, okAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentError } from "../../acp/errors/app-error";
 import type { ProviderMetadataProjection } from "../../services/acp-types.js";
@@ -46,15 +47,19 @@ describe("PreconnectionAgentSkillsStore", () => {
 	it("warms startup-global providers through the shared ACP preconnection command", async () => {
 		const fetchPreconnectionCommands = vi
 			.fn()
-			.mockReturnValueOnce(okAsync([{ name: "ce:brainstorm", description: "Brainstorm" }]));
+			.mockReturnValueOnce(Effect.succeed([{ name: "ce:brainstorm", description: "Brainstorm" }]));
 
 		const store = new PreconnectionAgentSkillsStore(fetchPreconnectionCommands);
-		const result = await store.initialize([
-			buildAgent("claude-code", "startupGlobal"),
-			buildAgent("copilot", "projectScoped"),
-		]);
+		const result = await Effect.runPromise(
+			Effect.result(
+				store.initialize([
+					buildAgent("claude-code", "startupGlobal"),
+					buildAgent("copilot", "projectScoped"),
+				])
+			)
+		);
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(fetchPreconnectionCommands).toHaveBeenCalledTimes(1);
 		expect(fetchPreconnectionCommands).toHaveBeenCalledWith("", "claude-code");
 		expect(store.getCommandsForAgent("claude-code")).toEqual([
@@ -89,13 +94,15 @@ describe("PreconnectionAgentSkillsStore", () => {
 		const fetchPreconnectionCommands = vi
 			.fn()
 			.mockReturnValue(
-				errAsync(new AgentError("acp_list_preconnection_commands", new Error("boom")))
+				Effect.fail(new AgentError("acp_list_preconnection_commands", new Error("boom")))
 			);
 
 		const store = new PreconnectionAgentSkillsStore(fetchPreconnectionCommands);
-		const result = await store.initialize([buildAgent("claude-code", "startupGlobal")]);
+		const result = await Effect.runPromise(
+			Effect.result(store.initialize([buildAgent("claude-code", "startupGlobal")]))
+		);
 
-		expect(result.isErr()).toBe(true);
+		expect(Result.isFailure(result)).toBe(true);
 		expect(store.loaded).toBe(false);
 		expect(store.error).toBe("Agent operation failed: acp_list_preconnection_commands");
 		expect(store.getCommandsForAgent("claude-code")).toEqual([]);
@@ -105,16 +112,20 @@ describe("PreconnectionAgentSkillsStore", () => {
 		const fetchPreconnectionCommands = vi
 			.fn()
 			.mockReturnValueOnce(
-				errAsync(new AgentError("acp_list_preconnection_commands", new Error("boom")))
+				Effect.fail(new AgentError("acp_list_preconnection_commands", new Error("boom")))
 			)
-			.mockReturnValueOnce(okAsync([{ name: "ce:review", description: "Review changes" }]));
+			.mockReturnValueOnce(Effect.succeed([{ name: "ce:review", description: "Review changes" }]));
 
 		const store = new PreconnectionAgentSkillsStore(fetchPreconnectionCommands);
-		const firstResult = await store.initialize([buildAgent("claude-code", "startupGlobal")]);
-		const secondResult = await store.initialize([buildAgent("claude-code", "startupGlobal")]);
+		const firstResult = await Effect.runPromise(
+			Effect.result(store.initialize([buildAgent("claude-code", "startupGlobal")]))
+		);
+		const secondResult = await Effect.runPromise(
+			Effect.result(store.initialize([buildAgent("claude-code", "startupGlobal")]))
+		);
 
-		expect(firstResult.isErr()).toBe(true);
-		expect(secondResult.isOk()).toBe(true);
+		expect(Result.isFailure(firstResult)).toBe(true);
+		expect(Result.isSuccess(secondResult)).toBe(true);
 		expect(store.getCommandsForAgent("claude-code")).toEqual([
 			{
 				name: "ce:review",
@@ -127,9 +138,11 @@ describe("PreconnectionAgentSkillsStore", () => {
 	it("marks warmup complete when no startup-global providers exist", async () => {
 		const fetchPreconnectionCommands = vi.fn();
 		const store = new PreconnectionAgentSkillsStore(fetchPreconnectionCommands);
-		const result = await store.initialize([buildAgent("copilot", "projectScoped")]);
+		const result = await Effect.runPromise(
+			Effect.result(store.initialize([buildAgent("copilot", "projectScoped")]))
+		);
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(store.loaded).toBe(true);
 		expect(fetchPreconnectionCommands).not.toHaveBeenCalled();
 	});

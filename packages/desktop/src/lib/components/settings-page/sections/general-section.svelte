@@ -1,4 +1,5 @@
 <script lang="ts">
+import * as Effect from "effect/Effect";
 import { toast } from "svelte-sonner";
 import { Button } from "$lib/components/ui/button/index.js";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
@@ -16,13 +17,17 @@ const analyticsPrefs = getAnalyticsPreferencesStore();
 let showResetConfirm = $state(false);
 
 async function handleResetDatabase() {
-	await settings.resetDatabase().match(
-		() => {
-			showResetConfirm = false;
-		},
-		(error) => {
-			toast.error(`Failed to reset database: ${error.message}`);
-		}
+	await Effect.runPromise(
+		settings.resetDatabase().pipe(
+			Effect.match({
+				onSuccess: () => {
+					showResetConfirm = false;
+				},
+				onFailure: (error) => {
+					toast.error(`Failed to reset database: ${error.message}`);
+				},
+			})
+		)
 	);
 }
 </script>

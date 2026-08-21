@@ -1,7 +1,7 @@
 /**
  * SessionConnectionFacade — connect/disconnect/messaging/PR surface (ADR-0002).
  */
-import { okAsync, type ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import type { GitStackedPrStep, PrChecks, PrDetails } from "../../utils/tauri-client/git.js";
 import type { Attachment } from "../components/agent-input/types/attachment.js";
 import type { AppError } from "../errors/app-error.js";
@@ -113,35 +113,37 @@ export class SessionConnectionFacade {
 		initialModelId?: string;
 		worktreePath?: string;
 		launchToken?: string;
-	}): ResultAsync<SessionCreationResult, AppError> {
+	}	): Effect.Effect<SessionCreationResult, AppError> {
 		return this.#deps.connectionMgrRef.current
 			.createSession(options, this.#deps.eventHandler)
-			.andThen((createdSession) => {
-				if (createdSession.kind === "pending") {
-					this.#deps.creationCoordinator.beginPendingCreation(
-						createdSession.sessionId,
-						createdSession
-					);
-					return okAsync(createdSession);
-				}
+			.pipe(
+				Effect.flatMap((createdSession): Effect.Effect<SessionCreationResult, AppError> => {
+					if (createdSession.kind === "pending") {
+						this.#deps.creationCoordinator.beginPendingCreation(
+							createdSession.sessionId,
+							createdSession
+						);
+						return Effect.succeed(createdSession);
+					}
 
-				if (
-					this.#deps.creationCoordinator.hasSessionOpenHydrator() &&
-					createdSession.sessionOpen?.outcome === "found"
-				) {
-					return this.#deps.creationCoordinator
-						.hydrateCreatedSession(createdSession.sessionOpen)
-						.map(() => ({
-							kind: "ready" as const,
-							session: createdSession.session,
-						}));
-				}
+					if (
+						this.#deps.creationCoordinator.hasSessionOpenHydrator() &&
+						createdSession.sessionOpen?.outcome === "found"
+					) {
+						return this.#deps.creationCoordinator.hydrateCreatedSession(createdSession.sessionOpen).pipe(
+							Effect.map((): SessionCreationResult => ({
+								kind: "ready",
+								session: createdSession.session,
+							}))
+						);
+					}
 
-				return okAsync({
-					kind: "ready" as const,
-					session: createdSession.session,
-				});
-			});
+					return Effect.succeed({
+						kind: "ready",
+						session: createdSession.session,
+					});
+				})
+			);
 	}
 
 	setSessionOpenHydrator(hydrator: CreatedSessionHydrator): void {
@@ -157,7 +159,7 @@ export class SessionConnectionFacade {
 	connectSession(
 		sessionId: string,
 		options?: { openToken?: string; forceReconnect?: boolean }
-	): ResultAsync<SessionCold, AppError> {
+	): Effect.Effect<SessionCold, AppError> {
 		return this.#deps.connectionMgrRef.current.connectSession(
 			sessionId,
 			this.#deps.eventHandler,
@@ -181,15 +183,15 @@ export class SessionConnectionFacade {
 		this.#deps.awaitingModelRefresh.clearAllAwaitingModelRefreshTimers();
 	}
 
-	setModel(sessionId: string, modelId: string): ResultAsync<void, AppError> {
+	setModel(sessionId: string, modelId: string): Effect.Effect<void, AppError> {
 		return this.#deps.connectionMgrRef.current.setModel(sessionId, modelId);
 	}
 
-	setMode(sessionId: string, modeId: string): ResultAsync<void, AppError> {
+	setMode(sessionId: string, modeId: string): Effect.Effect<void, AppError> {
 		return this.#deps.connectionMgrRef.current.setMode(sessionId, modeId);
 	}
 
-	setAutonomousEnabled(sessionId: string, enabled: boolean): ResultAsync<void, AppError> {
+	setAutonomousEnabled(sessionId: string, enabled: boolean): Effect.Effect<void, AppError> {
 		return this.#deps.connectionMgrRef.current.setAutonomousEnabled(
 			sessionId,
 			enabled,
@@ -197,22 +199,24 @@ export class SessionConnectionFacade {
 		);
 	}
 
-	setConfigOption(sessionId: string, configId: string, value: string): ResultAsync<void, AppError> {
+	setConfigOption(sessionId: string, configId: string, value: string): Effect.Effect<void, AppError> {
 		return this.#deps.connectionMgrRef.current.setConfigOption(sessionId, configId, value);
 	}
 
-	cancelStreaming(sessionId: string): ResultAsync<void, AppError> {
-		return this.#deps.connectionMgrRef.current.cancelStreaming(sessionId).map(() => {
-			this.#deps.getCallbacks().onTurnInterrupted?.(sessionId);
-			return undefined;
-		});
+	cancelStreaming(sessionId: string): Effect.Effect<void, AppError> {
+		return this.#deps.connectionMgrRef.current.cancelStreaming(sessionId).pipe(
+			Effect.map(() => {
+				this.#deps.getCallbacks().onTurnInterrupted?.(sessionId);
+				return undefined;
+			})
+		);
 	}
 
 	sendMessage(
 		sessionId: string,
 		content: string,
 		attachments: readonly Attachment[] = []
-	): ResultAsync<void, AppError> {
+	): Effect.Effect<void, AppError> {
 		return this.#deps.messagingOrchestrator.sendMessage(sessionId, content, attachments);
 	}
 
@@ -221,14 +225,14 @@ export class SessionConnectionFacade {
 		projectPath: string,
 		prNumber: number | null,
 		prLinkMode: SessionPrLinkMode
-	): ResultAsync<void, AppError> {
+	): Effect.Effect<void, AppError> {
 		return this.#deps.prLinkState.updateSessionPrLink(sessionId, projectPath, prNumber, prLinkMode);
 	}
 
 	restoreAutomaticSessionPrLink(
 		sessionId: string,
 		projectPath: string
-	): ResultAsync<void, AppError> {
+	): Effect.Effect<void, AppError> {
 		return this.#deps.prLinkState.restoreAutomaticSessionPrLink(sessionId, projectPath);
 	}
 
@@ -236,7 +240,7 @@ export class SessionConnectionFacade {
 		sessionId: string,
 		projectPath: string,
 		pr: GitStackedPrStep
-	): ResultAsync<number | null, never> {
+	): Effect.Effect<number | null, never> {
 		return this.#deps.prLinkState.applyAutomaticPrLinkFromShipWorkflow(sessionId, projectPath, pr);
 	}
 
@@ -261,7 +265,7 @@ export class SessionConnectionFacade {
 		projectPath: string,
 		prNumber: number,
 		options?: { force?: boolean }
-	): ResultAsync<PrChecks | null, never> {
+	): Effect.Effect<PrChecks | null, never> {
 		return this.#deps.prLinkState.refreshSessionPrChecks(sessionId, projectPath, prNumber, options);
 	}
 
@@ -269,7 +273,7 @@ export class SessionConnectionFacade {
 		sessionId: string,
 		projectPath: string,
 		prNumber: number
-	): ResultAsync<PrDetails | null, never> {
+	): Effect.Effect<PrDetails | null, never> {
 		return this.#deps.prLinkState.refreshSessionPrState(sessionId, projectPath, prNumber);
 	}
 

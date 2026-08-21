@@ -1,6 +1,8 @@
 <script lang="ts">
 import { onDestroy, onMount } from "svelte";
 import { toast } from "svelte-sonner";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { getKeybindingsService, isMac } from "$lib/keybindings/index.js";
 import { getPreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
 import { getVoiceSettingsStore } from "$lib/stores/voice-settings-store.svelte.js";
@@ -376,9 +378,11 @@ function syncEditorFromMessage(nextCursor: number | null = null): void {
 
 async function handleCancel() {
 	if (props.sessionId) {
-		const result = await sessionStore.connection.cancelStreaming(props.sessionId);
-		if (result.isErr()) {
-			console.error("Failed to cancel streaming:", result.error);
+		const result = await Effect.runPromise(
+			Effect.result(sessionStore.connection.cancelStreaming(props.sessionId))
+		);
+		if (Result.isFailure(result)) {
+			console.error("Failed to cancel streaming:", result.failure);
 		}
 	}
 }
@@ -490,18 +494,20 @@ function handleEditorInput(options?: { suppressAutocomplete?: boolean }): void {
 	} else {
 		const cursorPos = getSerializedCursorOffset(editorRef);
 		const fileTriggerResult = parseFilePickerTrigger(inputState.message, cursorPos);
-		if (fileTriggerResult.isOk() && fileTriggerResult.value) {
+		if (Result.isSuccess(fileTriggerResult) && fileTriggerResult.success) {
 			const dropdownPosition = getCaretDropdownPosition();
 			if (!dropdownPosition) {
 				dismissAllDropdowns();
 			} else {
-				const trigger = fileTriggerResult.value;
+				const trigger = fileTriggerResult.success;
 				if (composerView.filePickerProjectPath) {
-					inputState
-						.loadProjectFiles(composerView.filePickerProjectPath, {
-							refresh: !inputState.showFileDropdown,
-						})
-						.mapErr(() => undefined);
+					void Effect.runPromise(
+						inputState
+							.loadProjectFiles(composerView.filePickerProjectPath, {
+								refresh: !inputState.showFileDropdown,
+							})
+							.pipe(Effect.catch(() => Effect.succeed(undefined)))
+					);
 				}
 
 				inputState.showFileDropdown = true;
@@ -525,42 +531,52 @@ function handleEditorInput(options?: { suppressAutocomplete?: boolean }): void {
 				!preconnectionAgentSkillsStore.loaded &&
 				!preconnectionAgentSkillsStore.loading
 			) {
-				preconnectionAgentSkillsStore.ensureLoaded(agentStore.agents).mapErr((error) => {
-					logger.error("Failed to warm preconnection skills", {
-						agentId: composerView.capabilitiesAgentId,
-						projectPath: composerView.filePickerProjectPath,
-						error: error.message,
-					});
-					return undefined;
-				});
+				void Effect.runPromise(
+					preconnectionAgentSkillsStore.ensureLoaded(agentStore.agents).pipe(
+						Effect.mapError((error) => {
+							logger.error("Failed to warm preconnection skills", {
+								agentId: composerView.capabilitiesAgentId,
+								projectPath: composerView.filePickerProjectPath,
+								error: error.message,
+							});
+							return error;
+						}),
+						Effect.catch(() => Effect.succeed(undefined))
+					)
+				);
 			}
 
-			preconnectionRemoteCommandsState
-				.ensureLoaded({
-					agentId: composerView.capabilitiesAgentId,
-					hasConnectedSession,
-					projectPath: composerView.filePickerProjectPath,
-					preconnectionSlashMode:
-						composerView.effectiveCapabilityProviderMetadata?.preconnectionSlashMode ??
-						"unsupported",
-				})
-				.mapErr((error) => {
-					logger.error("Failed to warm remote preconnection commands", {
+			void Effect.runPromise(
+				preconnectionRemoteCommandsState
+					.ensureLoaded({
 						agentId: composerView.capabilitiesAgentId,
+						hasConnectedSession,
 						projectPath: composerView.filePickerProjectPath,
-						error: error.message,
-					});
-					return undefined;
-				});
+						preconnectionSlashMode:
+							composerView.effectiveCapabilityProviderMetadata?.preconnectionSlashMode ??
+							"unsupported",
+					})
+					.pipe(
+						Effect.mapError((error) => {
+							logger.error("Failed to warm remote preconnection commands", {
+								agentId: composerView.capabilitiesAgentId,
+								projectPath: composerView.filePickerProjectPath,
+								error: error.message,
+							});
+							return error;
+						}),
+						Effect.catch(() => Effect.succeed(undefined))
+					)
+			);
 
 			const slashTriggerResult = parseSlashCommandTrigger(inputState.message, cursorPos);
-			if (slashTriggerResult.isOk() && slashTriggerResult.value) {
+			if (Result.isSuccess(slashTriggerResult) && slashTriggerResult.success) {
 				const dropdownPosition = getCaretDropdownPosition();
 				if (!dropdownPosition) {
 					inputState.showSlashDropdown = false;
 					inputState.slashQuery = "";
 				} else {
-					const trigger = slashTriggerResult.value;
+					const trigger = slashTriggerResult.success;
 					inputState.showSlashDropdown = true;
 					inputState.slashStartIndex = trigger.startIndex;
 					inputState.slashQuery = trigger.query;
@@ -800,8 +816,10 @@ async function handleModeChange(modeId: string) {
 				provisionalAutonomousEnabled: composerView.autonomousToggleActive,
 			},
 			async () => {
-				const result = await sessionStore.connection.setMode(sessionId, modeId);
-				if (result.isErr()) {
+				const result = await Effect.runPromise(
+					Effect.result(sessionStore.connection.setMode(sessionId, modeId))
+				);
+				if (Result.isFailure(result)) {
 					toast.error("Failed to switch mode.");
 					return false;
 				}
@@ -818,16 +836,20 @@ async function applyAutonomousEnabledToSession(nextEnabled: boolean): Promise<bo
 		return false;
 	}
 
-	const result = await sessionStore.connection.setAutonomousEnabled(props.sessionId, nextEnabled);
-	if (result.isErr()) {
+	const result = await Effect.runPromise(
+		Effect.result(sessionStore.connection.setAutonomousEnabled(props.sessionId, nextEnabled))
+	);
+	if (Result.isFailure(result)) {
 		toast.error(nextEnabled ? "Failed to enable Auto-approve." : "Failed to disable Auto-approve.");
 		return false;
 	}
 
 	if (nextEnabled) {
-		const drainResult = await permissionStore.drainPendingForSession(props.sessionId);
-		if (drainResult.isErr()) {
-			logger.error("Failed to drain Auto-approve permissions", { error: drainResult.error });
+		const drainResult = await Effect.runPromise(
+			Effect.result(permissionStore.drainPendingForSession(props.sessionId))
+		);
+		if (Result.isFailure(drainResult)) {
+			logger.error("Failed to drain Auto-approve permissions", { error: drainResult.failure });
 			toast.error("Auto-approve is on, but some pending permissions still need attention.");
 		}
 		return true;
@@ -888,11 +910,10 @@ async function handleModeMenuChange(optionId: string): Promise<void> {
 		},
 		async () => {
 			if (resolution.modeIdToApply) {
-				const modeResult = await sessionStore.connection.setMode(
-					sessionId,
-					resolution.modeIdToApply
+				const modeResult = await Effect.runPromise(
+					Effect.result(sessionStore.connection.setMode(sessionId, resolution.modeIdToApply))
 				);
-				if (modeResult.isErr()) {
+				if (Result.isFailure(modeResult)) {
 					toast.error("Failed to switch mode.");
 					return false;
 				}
@@ -924,8 +945,10 @@ async function handleModelChange(modelId: string) {
 				provisionalAutonomousEnabled: composerView.autonomousToggleActive,
 			},
 			async () => {
-				const result = await sessionStore.connection.setModel(sessionId, modelId);
-				if (result.isErr()) {
+				const result = await Effect.runPromise(
+					Effect.result(sessionStore.connection.setModel(sessionId, modelId))
+				);
+				if (Result.isFailure(result)) {
 					toast.error("Failed to switch model.");
 					return false;
 				}
@@ -954,8 +977,10 @@ async function handleConfigOptionChange(configId: string, value: string) {
 			provisionalAutonomousEnabled: composerView.autonomousToggleActive,
 		},
 		async () => {
-			const result = await sessionStore.connection.setConfigOption(sessionId, configId, value);
-			return result.isOk();
+			const result = await Effect.runPromise(
+				Effect.result(sessionStore.connection.setConfigOption(sessionId, configId, value))
+			);
+			return Result.isSuccess(result);
 		}
 	);
 
@@ -1354,14 +1379,14 @@ function handleAttachImageFromMenu(): void {
 }
 
 async function insertInlineImageFromFile(file: File, mimeType: string): Promise<boolean> {
-	const result = await createImageAttachment(file, mimeType);
-	if (result.isErr()) {
-		if (result.error.kind === "too_large") {
+	const result = await Effect.runPromise(Effect.result(createImageAttachment(file, mimeType)));
+	if (Result.isFailure(result)) {
+		if (result.failure.kind === "too_large") {
 			toast.error("Image exceeds 10 MB limit");
 		}
 		return false;
 	}
-	const attachment = result.value;
+	const attachment = result.success;
 	const token = inputState.createInlineImageReferenceToken({
 		displayName: attachment.displayName,
 		extension: attachment.extension,

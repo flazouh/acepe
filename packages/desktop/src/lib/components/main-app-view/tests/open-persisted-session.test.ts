@@ -1,13 +1,16 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
-import { errAsync, ok, okAsync, ResultAsync } from "neverthrow";
-import { ConnectionError } from "$lib/acp/errors/app-error.js";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
+import { ConnectionError, type AppError } from "$lib/acp/errors/app-error.js";
 import type { SessionOpenHydrator } from "$lib/acp/store/services/session-open-hydrator.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import type { SessionOpenResult } from "$lib/services/acp-types.js";
 import type { OpenPersistedSessionDiagnosticEvent } from "../logic/open-persisted-session.js";
 
-const getSessionOpenResultMock = mock((_sessionId?: string) =>
-	okAsync(createFoundResult("session-1"))
+const getSessionOpenResultMock = mock(
+	(_sessionId?: string): Effect.Effect<SessionOpenResult, AppError> =>
+		Effect.succeed(createFoundResult("session-1"))
 );
 
 let openPersistedSession: typeof import("../logic/open-persisted-session.js").openPersistedSession;
@@ -39,6 +42,12 @@ interface TestSessionLookup {
 	readonly updatedAt: Date;
 	readonly parentId: string | null;
 	readonly sessionLifecycleState?: "created" | "persisted";
+}
+
+function toOpenResultError(error: unknown): AppError {
+	return error instanceof Error
+		? new ConnectionError("session-1", error)
+		: new ConnectionError("session-1", new Error(String(error)));
 }
 
 function waitForTimerTurn(): Promise<void> {
@@ -77,7 +86,7 @@ describe("openPersistedSession", () => {
 		} = await import(`../logic/open-persisted-session.js?test=${Date.now()}`));
 		resetOpenPersistedSessionForTests();
 		getSessionOpenResultMock.mockReset();
-		getSessionOpenResultMock.mockImplementation(() => okAsync(createFoundResult("session-1")));
+		getSessionOpenResultMock.mockImplementation(() => Effect.succeed(createFoundResult("session-1")));
 
 		sessionStore = {
 			read: {
@@ -93,7 +102,7 @@ describe("openPersistedSession", () => {
 				setLocalCreatedSessionLoaded: mock(() => {}),
 			},
 			connection: {
-				connectSession: mock(() => okAsync({} as ExistingSession)),
+				connectSession: mock(() => Effect.succeed({} as ExistingSession)),
 			},
 			clearSessionEntries: mock(() => {}),
 		} as unknown as SessionOpenStore;
@@ -112,7 +121,7 @@ describe("openPersistedSession", () => {
 			beginAttempt: mock(() => "request-1"),
 			clearAttempt: mock(() => {}),
 			hydrateFound: mock(() =>
-				okAsync({
+				Effect.succeed({
 					canonicalSessionId: "session-1",
 					openToken: "open-token-1",
 					applied: true,
@@ -124,10 +133,12 @@ describe("openPersistedSession", () => {
 
 	it("dedupes concurrent calls for the same panel", async () => {
 		getSessionOpenResultMock.mockImplementation(() =>
-			ResultAsync.fromSafePromise(
-				new Promise<SessionOpenResult>((resolve) => {
-					setTimeout(() => resolve(createFoundResult("session-1")), 0);
-				})
+			fromPromise(
+				() =>
+					new Promise<SessionOpenResult>((resolve) => {
+						setTimeout(() => resolve(createFoundResult("session-1")), 0);
+					}),
+				toOpenResultError
 			)
 		);
 
@@ -173,12 +184,14 @@ describe("openPersistedSession", () => {
 		}));
 		getSessionOpenResultMock.mockImplementation((sessionId?: string) =>
 			sessionId === "session-1"
-				? ResultAsync.fromSafePromise(
-						new Promise<SessionOpenResult>((resolve) => {
-							setTimeout(() => resolve(createFoundResult("session-1")), 10);
-						})
+				? fromPromise(
+						() =>
+							new Promise<SessionOpenResult>((resolve) => {
+								setTimeout(() => resolve(createFoundResult("session-1")), 10);
+							}),
+						toOpenResultError
 					)
-				: okAsync(createFoundResult("session-2"))
+				: Effect.succeed(createFoundResult("session-2"))
 		);
 		const open = (sessionId: string) =>
 			openPersistedSession({
@@ -202,10 +215,12 @@ describe("openPersistedSession", () => {
 
 	it("dedupes concurrent calls for the same panel across initialization and session handlers", async () => {
 		getSessionOpenResultMock.mockImplementation(() =>
-			ResultAsync.fromSafePromise(
-				new Promise<SessionOpenResult>((resolve) => {
-					setTimeout(() => resolve(createFoundResult("session-1")), 0);
-				})
+			fromPromise(
+				() =>
+					new Promise<SessionOpenResult>((resolve) => {
+						setTimeout(() => resolve(createFoundResult("session-1")), 0);
+					}),
+				toOpenResultError
 			)
 		);
 
@@ -237,7 +252,7 @@ describe("openPersistedSession", () => {
 		const callOrder: string[] = [];
 		sessionOpenHydrator.hydrateFound = mock(() => {
 			callOrder.push("hydrate");
-			return okAsync({
+			return Effect.succeed({
 				canonicalSessionId: "session-1",
 				openToken: "open-token-1",
 				applied: true,
@@ -245,7 +260,7 @@ describe("openPersistedSession", () => {
 		});
 		sessionStore.connection.connectSession = mock(() => {
 			callOrder.push("reconnect");
-			return okAsync({} as ExistingSession);
+			return Effect.succeed({} as ExistingSession);
 		});
 		openPersistedSession({
 			panelId: "panel-1",
@@ -276,9 +291,9 @@ describe("openPersistedSession", () => {
 	});
 
 	it("awaits canonical transcript repair before hydrating and reconnecting", async () => {
-		const awaitSessionOpenRepair = mock(() => okAsync(createFoundResult("session-1")));
+		const awaitSessionOpenRepair = mock(() => Effect.succeed(createFoundResult("session-1")));
 		getSessionOpenResultMock.mockImplementation(() =>
-			okAsync({
+			Effect.succeed({
 				outcome: "preparing" as const,
 				requestedSessionId: "session-1",
 				repairTicket: "repair-1",
@@ -307,7 +322,7 @@ describe("openPersistedSession", () => {
 
 	it("uses the immediate hydrator result when no panel hydrate is queued", async () => {
 		sessionOpenHydrator.hydrateFoundNow = mock(() =>
-			ok({
+			Result.succeed({
 				canonicalSessionId: "session-1",
 				openToken: "open-token-1",
 				applied: true,
@@ -341,7 +356,7 @@ describe("openPersistedSession", () => {
 	it("hydrates a prepared open result without fetching again", async () => {
 		const preparedOpenResult = createFoundResult("session-1");
 		sessionOpenHydrator.hydrateFoundNow = mock(() =>
-			ok({
+			Result.succeed({
 				canonicalSessionId: "session-1",
 				openToken: "open-token-1",
 				applied: true,
@@ -377,11 +392,13 @@ describe("openPersistedSession", () => {
 		const restoreRecorder = setOpenPersistedSessionDiagnosticRecorder((event) => {
 			events.push(event);
 		});
+		const pendingOpenResult = new Promise<SessionOpenResult>((resolve) => {
+			resolveOpenResult = resolve;
+		});
 		getSessionOpenResultMock.mockImplementation(() =>
-			ResultAsync.fromSafePromise(
-				new Promise<SessionOpenResult>((resolve) => {
-					resolveOpenResult = resolve;
-				})
+			fromPromise(
+				() => pendingOpenResult,
+				toOpenResultError
 			)
 		);
 
@@ -413,7 +430,7 @@ describe("openPersistedSession", () => {
 			events.push(event);
 		});
 		getSessionOpenResultMock.mockImplementation(() =>
-			okAsync(
+			Effect.succeed(
 				createFoundResult("session-1", {
 					openResultTiming: {
 						source: "provider-owned-snapshot",
@@ -561,7 +578,7 @@ describe("openPersistedSession", () => {
 			sessionOpenHydrator.beginAttempt = mock(() => `request-${sessionId}`);
 			sessionOpenHydrator.hydrateFound = mock(() => {
 				callOrder.push(`hydrate:${sessionId}`);
-				return okAsync({
+				return Effect.succeed({
 					canonicalSessionId: sessionId,
 					openToken: `open-token-${sessionId}`,
 					applied: true,
@@ -573,11 +590,11 @@ describe("openPersistedSession", () => {
 			sessionOpenHydrator.isCurrentAttempt = mock(() => true);
 			sessionStore.connection.connectSession = mock((connectedSessionId: string) => {
 				callOrder.push(`reconnect:${connectedSessionId}`);
-				return okAsync({} as ExistingSession);
+				return Effect.succeed({} as ExistingSession);
 			});
 			getSessionOpenResultMock.mockImplementation(() => {
 				callOrder.push(`open:${sessionId}`);
-				return okAsync(createFoundResult(sessionId));
+				return Effect.succeed(createFoundResult(sessionId));
 			});
 
 			openPersistedSession({
@@ -614,7 +631,7 @@ describe("openPersistedSession", () => {
 			beginAttempt: mock(() => "request-1"),
 			clearAttempt: mock(() => {}),
 			hydrateFound: mock(() =>
-				okAsync({
+				Effect.succeed({
 					canonicalSessionId: "session-1",
 					openToken: "open-token-1",
 					applied: false,
@@ -653,7 +670,7 @@ describe("openPersistedSession", () => {
 			beginAttempt: mock(() => "request-1"),
 			clearAttempt: mock(() => {}),
 			hydrateFound: mock(() =>
-				okAsync({
+				Effect.succeed({
 					canonicalSessionId: "session-1",
 					openToken: "open-token-1",
 					applied: false,
@@ -699,7 +716,7 @@ describe("openPersistedSession", () => {
 			parentId: null,
 		});
 		getSessionOpenResultMock.mockImplementation(() =>
-			okAsync(
+			Effect.succeed(
 				createFoundResult(requestedId, {
 					canonicalSessionId: canonicalId,
 					isAlias: true,
@@ -707,7 +724,7 @@ describe("openPersistedSession", () => {
 			)
 		);
 		sessionOpenHydrator.hydrateFound = mock(() =>
-			okAsync({ canonicalSessionId: canonicalId, openToken: "token-alias", applied: true })
+			Effect.succeed({ canonicalSessionId: canonicalId, openToken: "token-alias", applied: true })
 		);
 
 		openPersistedSession({
@@ -755,7 +772,7 @@ describe("openPersistedSession", () => {
 	it("surfaces an explicit non-openable result without connecting when the result is missing", async () => {
 		getSessionOpenResultMock.mockImplementation(
 			() =>
-				okAsync({
+				Effect.succeed({
 					outcome: "missing",
 					requestedSessionId: "session-1",
 				} as SessionOpenResult) as unknown as ReturnType<typeof getSessionOpenResultMock>
@@ -782,7 +799,7 @@ describe("openPersistedSession", () => {
 	it("falls back to local reattach when Rust cannot open a local-created snapshot", async () => {
 		getSessionOpenResultMock.mockImplementation(
 			() =>
-				okAsync({
+				Effect.succeed({
 					outcome: "missing",
 					requestedSessionId: "session-1",
 				} as SessionOpenResult) as unknown as ReturnType<typeof getSessionOpenResultMock>
@@ -820,7 +837,7 @@ describe("openPersistedSession", () => {
 	it("falls back to local reattach when local-created snapshot open rejects", async () => {
 		getSessionOpenResultMock.mockImplementation(
 			() =>
-				errAsync(new Error("open snapshot unavailable")) as unknown as ReturnType<
+				Effect.fail(new Error("open snapshot unavailable")) as unknown as ReturnType<
 					typeof getSessionOpenResultMock
 				>
 		);
@@ -894,7 +911,7 @@ describe("openPersistedSession", () => {
 		// other than logging.
 		getSessionOpenResultMock.mockImplementation(
 			() =>
-				okAsync({
+				Effect.succeed({
 					outcome: "missing",
 					requestedSessionId: "session-1",
 				} as SessionOpenResult) as unknown as ReturnType<typeof getSessionOpenResultMock>
@@ -910,7 +927,7 @@ describe("openPersistedSession", () => {
 			parentId: null,
 		});
 		sessionStore.connection.connectSession = mock(() =>
-			errAsync(new ConnectionError("session-1", new Error("Resource not found: Session session-1")))
+			Effect.fail(new ConnectionError("session-1", new Error("Resource not found: Session session-1")))
 		);
 
 		openPersistedSession({
@@ -942,7 +959,7 @@ describe("openPersistedSession", () => {
 		// canonical-driven. open-persisted-session must not synthesize copy.
 		getSessionOpenResultMock.mockImplementation(
 			() =>
-				okAsync({
+				Effect.succeed({
 					outcome: "error",
 					requestedSessionId: "session-1",
 					message: "Claude provider history parse failed: invalid JSON",
@@ -972,7 +989,7 @@ describe("openPersistedSession", () => {
 		// UI reads lifecycle.failureReason. No TS-side copy synthesis here.
 		getSessionOpenResultMock.mockImplementation(
 			() =>
-				okAsync({
+				Effect.succeed({
 					outcome: "error",
 					requestedSessionId: "session-1",
 					message: "database is locked while loading session-1",
@@ -1012,7 +1029,7 @@ describe("openPersistedSession", () => {
 		});
 		getSessionOpenResultMock.mockImplementation(
 			() =>
-				okAsync({
+				Effect.succeed({
 					outcome: "missing",
 					requestedSessionId: "session-1",
 				} as SessionOpenResult) as unknown as ReturnType<typeof getSessionOpenResultMock>

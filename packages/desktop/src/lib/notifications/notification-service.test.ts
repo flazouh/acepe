@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, mock } from "bun:test";
-import { errAsync, okAsync, type ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 
 const isPermissionGrantedMock = mock(async (): Promise<boolean> => true);
 const requestPermissionMock = mock(
 	async (): Promise<"default" | "denied" | "granted"> => "granted"
 );
-const sendNotificationMock = mock((): ResultAsync<void, Error> => okAsync(undefined));
+const sendNotificationMock = mock((): Effect.Effect<void, Error> => Effect.succeed(undefined));
 const playSoundMock = mock(() => {});
 
 async function flushAsyncNotifications(): Promise<void> {
@@ -150,7 +150,7 @@ describe("notification-service", () => {
 			requestPermission: requestPermissionMock,
 			send: sendNotificationMock,
 		});
-		sendNotificationMock.mockReturnValueOnce(errAsync(new Error("notification plugin failed")));
+		sendNotificationMock.mockReturnValueOnce(Effect.fail(new Error("notification plugin failed")));
 
 		const payload: NotificationPayload = {
 			id: "native-fallback-1",

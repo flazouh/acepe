@@ -1,4 +1,5 @@
-import { okAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { type Project, ProjectManager } from "../project-manager.svelte.js";
@@ -18,9 +19,9 @@ function createProjectClient(options: {
 	readonly cachedProjects: Project[] | null;
 	readonly storageProjects: Project[];
 }) {
-	const getProjects = vi.fn(() => okAsync(options.storageProjects));
+	const getProjects = vi.fn(() => Effect.succeed(options.storageProjects));
 	const getRecentProjects = vi.fn((_limit: number, _preferredPaths: string[], _offset: number) =>
-		okAsync(options.storageProjects)
+		Effect.succeed(options.storageProjects)
 	);
 	const writeCachedProjects = vi.fn((_projects: readonly Project[]) => {});
 	const client = {
@@ -28,27 +29,27 @@ function createProjectClient(options: {
 		getRecentProjects,
 		getCachedProjects: vi.fn(() => options.cachedProjects),
 		writeCachedProjects,
-		browseProject: vi.fn(() => okAsync(null as Project | null)),
-		importProject: vi.fn((project: Project) => okAsync(project)),
-		addProject: vi.fn((_project: Project) => okAsync(undefined)),
+		browseProject: vi.fn(() => Effect.succeed(null as Project | null)),
+		importProject: vi.fn((project: Project) => Effect.succeed(project)),
+		addProject: vi.fn((_project: Project) => Effect.succeed(undefined)),
 		updateProjectColor: vi.fn((path: string, _color: string) =>
-			okAsync(createProject(path, "Updated"))
+			Effect.succeed(createProject(path, "Updated"))
 		),
 		updateProjectIcon: vi.fn((path: string, _iconPath: string | null) =>
-			okAsync(createProject(path, "Updated"))
+			Effect.succeed(createProject(path, "Updated"))
 		),
-		listProjectImages: vi.fn((_projectPath: string) => okAsync([] as string[])),
+		listProjectImages: vi.fn((_projectPath: string) => Effect.succeed([] as string[])),
 		updateProjectShowExternalCliSessions: vi.fn((_path: string, value: boolean) =>
-			okAsync({
+			Effect.succeed({
 				setupScript: "",
 				runScript: "",
 				showExternalCliSessions: value,
 			})
 		),
-		browseProjectIcon: vi.fn(() => okAsync(null as string | null)),
-		backfillProjectIcons: vi.fn(() => okAsync(0)),
-		updateProjectOrder: vi.fn((_orderedPaths: string[]) => okAsync(options.storageProjects)),
-		removeProject: vi.fn((_path: string) => okAsync(undefined)),
+		browseProjectIcon: vi.fn(() => Effect.succeed(null as string | null)),
+		backfillProjectIcons: vi.fn(() => Effect.succeed(0)),
+		updateProjectOrder: vi.fn((_orderedPaths: string[]) => Effect.succeed(options.storageProjects)),
+		removeProject: vi.fn((_path: string) => Effect.succeed(undefined)),
 	} satisfies ProjectManagerClient;
 
 	return {
@@ -89,9 +90,9 @@ describe("ProjectManager", () => {
 		});
 		const manager = new ProjectManager(projectClient.client);
 
-		const result = await manager.loadProjects();
+		const result = await Effect.runPromise(Effect.result(manager.loadProjects()));
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(manager.projects).toEqual([storageProject]);
 		expect(manager.projectCount).toBe(1);
 		expect(projectClient.getProjects).not.toHaveBeenCalled();
@@ -107,9 +108,9 @@ describe("ProjectManager", () => {
 		});
 		const manager = new ProjectManager(projectClient.client);
 
-		const result = await manager.loadProjects();
+		const result = await Effect.runPromise(Effect.result(manager.loadProjects()));
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(projectClient.getRecentProjects).toHaveBeenCalledWith(50, [], 0);
 		expect(projectClient.getProjects).not.toHaveBeenCalled();
 		expect(manager.projects).toEqual([firstProject, secondProject]);

@@ -1,4 +1,4 @@
-import { ok, type Result } from "neverthrow";
+import * as Result from "effect/Result";
 import { serializeWithAttachments } from "../../../store/message-queue/message-queue-store.svelte.js";
 import type { ValidationError } from "../errors/agent-input-error.js";
 import type { Attachment } from "../types/attachment.js";
@@ -64,7 +64,7 @@ export function prepareMessageForSend(
 	inlineTextMap: ReadonlyMap<string, string>,
 	attachments: readonly Attachment[],
 	inlineImageMap: ReadonlyMap<string, InlineImageReference> = new Map()
-): Result<PreparedMessage, ValidationError> {
+): Result.Result<PreparedMessage, ValidationError> {
 	const legacyImageAttachments = attachments.filter(isInlineImageAttachment);
 	const otherAttachments = attachments.filter((attachment) => !isInlineImageAttachment(attachment));
 
@@ -75,8 +75,10 @@ export function prepareMessageForSend(
 
 	// Allow image-only messages (empty text + inline or legacy images)
 	if (!withAttachments.trim() && imageAttachments.length > 0) {
-		return ok({ content: "", imageAttachments });
+		return Result.succeed({ content: "", imageAttachments });
 	}
 
-	return validateMessage(withAttachments).map((content) => ({ content, imageAttachments }));
+	return validateMessage(withAttachments).pipe(
+		Result.map((content) => ({ content, imageAttachments }))
+	);
 }

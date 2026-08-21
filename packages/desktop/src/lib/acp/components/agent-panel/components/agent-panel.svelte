@@ -13,6 +13,8 @@ import { DiffPill, HugeiconsIcon, setThinkingPreferences, type PrChecksItem } fr
 import { Button } from "@acepe/ui/button";
 import * as ButtonGroup from "@acepe/ui/button-group";
 import { onDestroy, tick } from "svelte";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { toast } from "svelte-sonner";
 import type { TurnState } from "../../../store/types.js";
 import type { QuestionRequest } from "../../../types/question.js";
@@ -856,16 +858,20 @@ function fetchPrDetails(target: {
 	prNumber: number;
 }): void {
 	prCard.resetDetails();
-	void sessionStore.connection
-		.refreshSessionPrState(target.sessionId, target.projectPath, target.prNumber)
-		.match(
-			(details) => {
-				prCard.setDetails(details);
-			},
-			() => {
-				// refreshSessionPrState never errors (orElse swallows), but match requires both branches
-			}
-		);
+	void Effect.runPromise(
+		sessionStore.connection
+			.refreshSessionPrState(target.sessionId, target.projectPath, target.prNumber)
+			.pipe(
+				Effect.match({
+					onSuccess: (details) => {
+						prCard.setDetails(details);
+					},
+					onFailure: () => {
+						// refreshSessionPrState never errors (orElse swallows), but match requires both branches
+					},
+				})
+			)
+	);
 }
 
 $effect(() => {
@@ -1014,17 +1020,21 @@ $effect(() => {
 		if (currentVersion !== branchRequestVersion) {
 			return;
 		}
-		void fetchPanelGitBranch(decision.path).match(
-			(branch) => {
-				if (currentVersion === branchRequestVersion) {
-					_panelBranch = branch;
-				}
-			},
-			() => {
-				if (currentVersion === branchRequestVersion) {
-					_panelBranch = null;
-				}
-			}
+		void Effect.runPromise(
+			fetchPanelGitBranch(decision.path).pipe(
+				Effect.match({
+					onSuccess: (branch) => {
+						if (currentVersion === branchRequestVersion) {
+							_panelBranch = branch;
+						}
+					},
+					onFailure: () => {
+						if (currentVersion === branchRequestVersion) {
+							_panelBranch = null;
+						}
+					},
+				})
+			)
 		);
 	});
 });
@@ -1040,25 +1050,29 @@ $effect(() => {
 		return;
 	}
 	let disposed = false;
-	void fetchWorktreePathListedForProject(projectPath, worktreePath).match(
-		(listed) => {
-			if (disposed) return;
-			if (!listed) {
-				worktreeController.setWorktreeDeleted(true);
-				if (currentSessionId) {
-					sessionStore.connection.disconnectSession(currentSessionId);
-				}
-			} else {
-				worktreeController.setWorktreeDeleted(false);
-			}
-		},
-		() => {
-			if (disposed) return;
-			worktreeController.setWorktreeDeleted(true);
-			if (currentSessionId) {
-				sessionStore.connection.disconnectSession(currentSessionId);
-			}
-		}
+	void Effect.runPromise(
+		fetchWorktreePathListedForProject(projectPath, worktreePath).pipe(
+			Effect.match({
+				onSuccess: (listed) => {
+					if (disposed) return;
+					if (!listed) {
+						worktreeController.setWorktreeDeleted(true);
+						if (currentSessionId) {
+							sessionStore.connection.disconnectSession(currentSessionId);
+						}
+					} else {
+						worktreeController.setWorktreeDeleted(false);
+					}
+				},
+				onFailure: () => {
+					if (disposed) return;
+					worktreeController.setWorktreeDeleted(true);
+					if (currentSessionId) {
+						sessionStore.connection.disconnectSession(currentSessionId);
+					}
+				},
+			})
+		)
 	);
 	return () => {
 		disposed = true;
@@ -1128,15 +1142,15 @@ async function handleCreatePr(config?: PrGenerationConfig) {
 		onStreamUpdate: (data) => prCard.applyStreamUpdate(data),
 		deps: {
 			applyAutomaticSessionPrLink: async (id, projectPath, pr) => {
-				const result = await sessionStore.connection.applyAutomaticPrLinkFromShipWorkflow(
-					id,
-					projectPath,
-					pr
+				const result = await Effect.runPromise(
+					Effect.result(
+						sessionStore.connection.applyAutomaticPrLinkFromShipWorkflow(id, projectPath, pr)
+					)
 				);
-				return result.match(
-					(prNumber) => prNumber,
-					() => null
-				);
+				if (Result.isSuccess(result)) {
+					return result.success;
+				}
+				return null;
 			},
 		},
 	});
@@ -1189,11 +1203,15 @@ function handleOpenWorktree(): void {
 		return;
 	}
 
-	void revealInFinder(path).match(
-		() => {},
-		(error) => {
-			toast.error(`Could not reveal in Finder: ${error.message}`);
-		}
+	void Effect.runPromise(
+		revealInFinder(path).pipe(
+			Effect.match({
+				onSuccess: () => {},
+				onFailure: (error) => {
+					toast.error(`Could not reveal in Finder: ${error.message}`);
+				},
+			})
+		)
 	);
 }
 
@@ -1274,17 +1292,21 @@ function handleUnarchiveSession() {
 	}
 
 	isUnarchivingSession = true;
-	void tauriClient.acp.unarchiveSession(sessionId).match(
-		() => {
-			isUnarchivingSession = false;
-			toast.success("Session unarchived");
-			connection.clearDismissedError();
-			handleRetryConnection();
-		},
-		(error) => {
-			isUnarchivingSession = false;
-			toast.error(`Failed to unarchive session: ${error.message}`);
-		}
+	void Effect.runPromise(
+		tauriClient.acp.unarchiveSession(sessionId).pipe(
+			Effect.match({
+				onSuccess: () => {
+					isUnarchivingSession = false;
+					toast.success("Session unarchived");
+					connection.clearDismissedError();
+					handleRetryConnection();
+				},
+				onFailure: (error) => {
+					isUnarchivingSession = false;
+					toast.error(`Failed to unarchive session: ${error.message}`);
+				},
+			})
+		)
 	);
 }
 
@@ -1320,44 +1342,52 @@ function handleSignIn() {
 	isSigningIn = true;
 	signInError = null;
 
-	void tauriClient.acp.authenticateAgent(agentId).match(
-		() => {
-			if (
-				signInAttempt !== attempt ||
-				effectivePanelAgentId !== agentId ||
-				panelId !== panelIdAtStart ||
-				sessionController.signInRequirement === null
-			) {
-				if (signInAttempt === attempt) {
-					isSigningIn = false;
-				}
-				return;
-			}
-			isSigningIn = false;
-			signInError = null;
-			if (sessionIdAtStart !== null) {
-				void sessionStore.connection
-					.connectSession(sessionIdAtStart, { forceReconnect: true })
-					.match(
-						() => undefined,
-						(error) => {
-							signInError = error.message;
+	void Effect.runPromise(
+		tauriClient.acp.authenticateAgent(agentId).pipe(
+			Effect.match({
+				onSuccess: () => {
+					if (
+						signInAttempt !== attempt ||
+						effectivePanelAgentId !== agentId ||
+						panelId !== panelIdAtStart ||
+						sessionController.signInRequirement === null
+					) {
+						if (signInAttempt === attempt) {
+							isSigningIn = false;
 						}
-					);
-				return;
-			}
-			if (panelIdAtStart) {
-				panelStore.clearSignInRequirement(panelIdAtStart);
-			}
-			agentInputRef?.retrySend();
-		},
-		(error) => {
-			if (signInAttempt !== attempt) {
-				return;
-			}
-			isSigningIn = false;
-			signInError = error.message;
-		}
+						return;
+					}
+					isSigningIn = false;
+					signInError = null;
+					if (sessionIdAtStart !== null) {
+						void Effect.runPromise(
+							sessionStore.connection
+								.connectSession(sessionIdAtStart, { forceReconnect: true })
+								.pipe(
+									Effect.match({
+										onSuccess: () => undefined,
+										onFailure: (error) => {
+											signInError = error.message;
+										},
+									})
+								)
+						);
+						return;
+					}
+					if (panelIdAtStart) {
+						panelStore.clearSignInRequirement(panelIdAtStart);
+					}
+					agentInputRef?.retrySend();
+				},
+				onFailure: (error) => {
+					if (signInAttempt !== attempt) {
+						return;
+					}
+					isSigningIn = false;
+					signInError = error.message;
+				},
+			})
+		)
 	);
 }
 
@@ -1366,11 +1396,15 @@ function handleCancelSignIn() {
 	if (agentId === null || agentId === undefined || !isSigningIn) {
 		return;
 	}
-	void tauriClient.acp.cancelAgentAuthentication(agentId).match(
-		() => undefined,
-		(error) => {
-			signInError = error.message;
-		}
+	void Effect.runPromise(
+		tauriClient.acp.cancelAgentAuthentication(agentId).pipe(
+			Effect.match({
+				onSuccess: () => undefined,
+				onFailure: (error) => {
+					signInError = error.message;
+				},
+			})
+		)
 	);
 }
 
@@ -1380,13 +1414,17 @@ function handleCopyInlineErrorReference() {
 		return;
 	}
 
-	void copyTextToClipboard(referenceId).match(
-		() => {
-			toast.success("Reference ID copied");
-		},
-		(error) => {
-			toast.error(error.message);
-		}
+	void Effect.runPromise(
+		copyTextToClipboard(referenceId).pipe(
+			Effect.match({
+				onSuccess: () => {
+					toast.success("Reference ID copied");
+				},
+				onFailure: (error) => {
+					toast.error(error.message);
+				},
+			})
+		)
 	);
 }
 
@@ -1446,7 +1484,7 @@ const todoState = $derived.by(() => {
 		isStreaming: sessionController.sessionIsStreaming,
 	};
 	const result = todoManager.getTodoStateFromToolCalls(sessionId, threadData);
-	return result.isOk() ? result.value : null;
+	return Result.isSuccess(result) ? result.success : null;
 });
 const showTodoHeader = $derived(todoState !== null && todoState.totalCount > 0);
 
@@ -1585,12 +1623,7 @@ function handleInlinePlanDialogOpenChange(open: boolean): void {
 }
 
 async function handlePlanSidebarSendMessage(sid: string, message: string): Promise<void> {
-	await sessionStore.connection.sendMessage(sid, message).match(
-		() => {},
-		(error) => {
-			throw error;
-		}
-	);
+	await Effect.runPromise(sessionStore.connection.sendMessage(sid, message));
 }
 
 async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
@@ -1598,12 +1631,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 	const label = check.workflowName ? `${check.workflowName} › ${check.name}` : check.name;
 	const urlLine = check.detailsUrl ? `\n${check.detailsUrl}` : "";
 	const message = `Fix the failing CI check: "${label}"${urlLine}`;
-	await sessionStore.connection.sendMessage(sessionId, message).match(
-		() => {},
-		(error) => {
-			throw error;
-		}
-	);
+	await Effect.runPromise(sessionStore.connection.sendMessage(sessionId, message));
 }
 </script>
 
@@ -1910,17 +1938,21 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 											if (!worktreeToggleProjectPath) {
 												return;
 											}
-											void tauriClient.git.init(worktreeToggleProjectPath).match(
-												() => {
-													refreshPreSessionBranchMetadata(worktreeToggleProjectPath, {
-														loadDetails: true,
-													});
-												},
-												(error) => {
-													const message =
-														error.cause?.message ?? error.message ?? "Failed to initialize git";
-													toast.error(message);
-												}
+											void Effect.runPromise(
+												tauriClient.git.init(worktreeToggleProjectPath).pipe(
+													Effect.match({
+														onSuccess: () => {
+															refreshPreSessionBranchMetadata(worktreeToggleProjectPath, {
+																loadDetails: true,
+															});
+														},
+														onFailure: (error) => {
+															const message =
+																error.cause?.message ?? error.message ?? "Failed to initialize git";
+															toast.error(message);
+														},
+													})
+												)
 											);
 										}}
 									/>

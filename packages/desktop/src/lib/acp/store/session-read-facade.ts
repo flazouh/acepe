@@ -2,7 +2,7 @@
  * SessionReadFacade — namespaced read surface for the session store (ADR-0002).
  */
 
-import type { Result } from "neverthrow";
+import type * as Result from "effect/Result";
 import type {
 	ModelsForDisplay,
 	ProviderMetadataProjection,
@@ -304,11 +304,15 @@ export class SessionReadFacade implements ISessionStateReader {
 		return this.#deps.operationStore.getVisiblePermissionsForSessionBar(permissions);
 	}
 
-	getSessionMarkdownExportContent(sessionId: string): Result<string, SessionExportContentError> {
+	getSessionMarkdownExportContent(
+		sessionId: string
+	): Result.Result<string, SessionExportContentError> {
 		return this.#deps.exportService.getMarkdownExportContent(sessionId);
 	}
 
-	getSessionJsonExportContent(sessionId: string): Result<string, SessionExportContentError> {
+	getSessionJsonExportContent(
+		sessionId: string
+	): Result.Result<string, SessionExportContentError> {
 		return this.#deps.exportService.getJsonExportContent(sessionId);
 	}
 

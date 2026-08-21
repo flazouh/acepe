@@ -7,7 +7,7 @@
 -->
 <script lang="ts">
 import { AgentPanelTerminalDrawer as SharedAgentPanelTerminalDrawer } from "@acepe/ui/agent-panel";
-import { ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import { HugeiconsIcon } from "@acepe/ui";
 import { onMount } from "svelte";
 import type { EmbeddedTerminalTab } from "$lib/acp/store/embedded-terminal-store.svelte.js";
@@ -58,17 +58,19 @@ let detectedShell: string | null = $state(null);
 let shellError: string | null = $state(null);
 
 onMount(() => {
-	shell
-		.getDefaultShell()
-		.mapErr((e) => (e instanceof Error ? e.message : String(e)))
-		.match(
-			(s) => {
-				detectedShell = s;
-			},
-			(e) => {
-				shellError = e;
-			}
-		);
+	void Effect.runPromise(
+		shell.getDefaultShell().pipe(
+			Effect.mapError((e) => (e instanceof Error ? e.message : String(e))),
+			Effect.match({
+				onSuccess: (s) => {
+					detectedShell = s;
+				},
+				onFailure: (e) => {
+					shellError = e;
+				},
+			})
+		)
+	);
 });
 
 // ---- Handlers ----

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import * as Result from "effect/Result";
 
 import type { SelectorItem } from "../../types/selector-item.js";
 
@@ -41,31 +42,31 @@ describe("selector-logic", () => {
 	describe("findItemById", () => {
 		it("should find an item by ID", () => {
 			const result = findItemById(mockItems, "item-1");
-			expect(result.isOk()).toBe(true);
-			if (result.isOk()) {
-				expect(result.value).toEqual(mockItems[0]);
+			expect(Result.isSuccess(result)).toBe(true);
+			if (Result.isSuccess(result)) {
+				expect(result.success).toEqual(mockItems[0]);
 			}
 		});
 
 		it("should return null when id is null", () => {
 			const result = findItemById(mockItems, null);
-			expect(result.isOk()).toBe(true);
-			if (result.isOk()) {
-				expect(result.value).toBeNull();
+			expect(Result.isSuccess(result)).toBe(true);
+			if (Result.isSuccess(result)) {
+				expect(result.success).toBeNull();
 			}
 		});
 
 		it("should return error when item not found", () => {
 			const result = findItemById(mockItems, "nonexistent");
-			expect(result.isErr()).toBe(true);
-			if (result.isErr()) {
-				expect(result.error.code).toBe("ITEM_NOT_FOUND");
+			expect(Result.isFailure(result)).toBe(true);
+			if (Result.isFailure(result)) {
+				expect(result.failure.code).toBe("ITEM_NOT_FOUND");
 			}
 		});
 
 		it("should handle empty array", () => {
 			const result = findItemById([], "item-1");
-			expect(result.isErr()).toBe(true);
+			expect(Result.isFailure(result)).toBe(true);
 		});
 	});
 
@@ -152,7 +153,7 @@ describe("selector-logic", () => {
 	describe("validateItems", () => {
 		it("should return ok for valid items", () => {
 			const result = validateItems(mockItems);
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 		});
 
 		it("should return error for duplicate IDs", () => {
@@ -161,15 +162,15 @@ describe("selector-logic", () => {
 				{ id: "1", name: "Item 2" },
 			];
 			const result = validateItems(duplicateItems);
-			expect(result.isErr()).toBe(true);
-			if (result.isErr()) {
-				expect(result.error.code).toBe("INVALID_ITEM");
+			expect(Result.isFailure(result)).toBe(true);
+			if (Result.isFailure(result)) {
+				expect(result.failure.code).toBe("INVALID_ITEM");
 			}
 		});
 
 		it("should return ok for empty array", () => {
 			const result = validateItems([]);
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 		});
 
 		it("should handle items with different types of IDs", () => {
@@ -178,7 +179,7 @@ describe("selector-logic", () => {
 				{ id: "2", name: "Item 2" },
 			];
 			const result = validateItems(mixedItems);
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 		});
 	});
 });

@@ -2,10 +2,10 @@
  * Checkpoint store for file versioning and revert functionality.
  *
  * This store provides reactive state management for checkpoints and
- * wraps the Tauri commands with ResultAsync error handling.
+ * wraps the Tauri commands with Effect error handling.
  */
 
-import { errAsync, type ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import { SvelteMap } from "svelte/reactivity";
 import type { FileDiffContent } from "../../services/checkpoint-types.js";
 import { tauriClient } from "../../utils/tauri-client.js";
@@ -42,23 +42,23 @@ export class CheckpointStore {
 	 *
 	 * Updates the local cache and returns the loaded checkpoints.
 	 */
-	loadCheckpoints(sessionId: string): ResultAsync<Checkpoint[], CheckpointError> {
+	loadCheckpoints(sessionId: string): Effect.Effect<Checkpoint[], CheckpointError> {
 		this.isLoading = true;
 
-		return tauriClient.checkpoint
-			.list(sessionId)
-			.mapErr(
+		return tauriClient.checkpoint.list(sessionId).pipe(
+			Effect.mapError(
 				(e) => new CheckpointError(`Failed to load checkpoints: ${e.message}`, "STORAGE_ERROR", e)
-			)
-			.map((checkpoints) => {
+			),
+			Effect.map((checkpoints) => {
 				this.checkpointsBySession.set(sessionId, checkpoints);
 				this.isLoading = false;
 				return checkpoints;
-			})
-			.orElse((error) => {
+			}),
+			Effect.catch((error) => {
 				this.isLoading = false;
-				return errAsync(error);
-			});
+				return Effect.fail(error);
+			})
+		);
 	}
 
 	/**
@@ -86,23 +86,23 @@ export class CheckpointStore {
 			worktreePath?: string;
 			agentId?: string;
 		}
-	): ResultAsync<Checkpoint, CheckpointError> {
-		return tauriClient.checkpoint
-			.create(sessionId, projectPath, modifiedFiles, options)
-			.mapErr((e) => {
+	): Effect.Effect<Checkpoint, CheckpointError> {
+		return tauriClient.checkpoint.create(sessionId, projectPath, modifiedFiles, options).pipe(
+			Effect.mapError((e) => {
 				const detailedMessage = formatErrorWithCauses(e);
 				return new CheckpointError(
 					`Failed to create checkpoint: ${detailedMessage}`,
 					"CREATE_FAILED",
 					e
 				);
-			})
-			.map((checkpoint) => {
+			}),
+			Effect.map((checkpoint) => {
 				// Prepend to existing list (newest first)
 				const existing = this.checkpointsBySession.get(sessionId) ?? [];
 				this.checkpointsBySession.set(sessionId, [checkpoint, ...existing]);
 				return checkpoint;
-			});
+			})
+		);
 	}
 
 	/**
@@ -120,10 +120,10 @@ export class CheckpointStore {
 		sessionId: string,
 		checkpointId: string,
 		projectPath: string
-	): ResultAsync<RevertResult, CheckpointError> {
-		return tauriClient.checkpoint
-			.revert(sessionId, checkpointId, projectPath)
-			.mapErr((e) => new CheckpointError(`Failed to revert: ${e.message}`, "REVERT_FAILED", e));
+	): Effect.Effect<RevertResult, CheckpointError> {
+		return tauriClient.checkpoint.revert(sessionId, checkpointId, projectPath).pipe(
+			Effect.mapError((e) => new CheckpointError(`Failed to revert: ${e.message}`, "REVERT_FAILED", e))
+		);
 	}
 
 	/**
@@ -139,12 +139,12 @@ export class CheckpointStore {
 		checkpointId: string,
 		filePath: string,
 		projectPath: string
-	): ResultAsync<void, CheckpointError> {
-		return tauriClient.checkpoint
-			.revertFile(sessionId, checkpointId, filePath, projectPath)
-			.mapErr(
+	): Effect.Effect<void, CheckpointError> {
+		return tauriClient.checkpoint.revertFile(sessionId, checkpointId, filePath, projectPath).pipe(
+			Effect.mapError(
 				(e) => new CheckpointError(`Failed to revert file: ${e.message}`, "REVERT_FAILED", e)
-			);
+			)
+		);
 	}
 
 	/**
@@ -160,12 +160,12 @@ export class CheckpointStore {
 		sessionId: string,
 		checkpointId: string,
 		filePath: string
-	): ResultAsync<string, CheckpointError> {
-		return tauriClient.checkpoint
-			.getFileContent(sessionId, checkpointId, filePath)
-			.mapErr(
+	): Effect.Effect<string, CheckpointError> {
+		return tauriClient.checkpoint.getFileContent(sessionId, checkpointId, filePath).pipe(
+			Effect.mapError(
 				(e) => new CheckpointError(`Failed to get file content: ${e.message}`, "FILE_NOT_FOUND", e)
-			);
+			)
+		);
 	}
 
 	/**
@@ -179,13 +179,13 @@ export class CheckpointStore {
 		sessionId: string,
 		checkpointId: string,
 		filePath: string
-	): ResultAsync<FileDiffContent, CheckpointError> {
-		return tauriClient.checkpoint
-			.getFileDiffContent(sessionId, checkpointId, filePath)
-			.mapErr(
+	): Effect.Effect<FileDiffContent, CheckpointError> {
+		return tauriClient.checkpoint.getFileDiffContent(sessionId, checkpointId, filePath).pipe(
+			Effect.mapError(
 				(e) =>
 					new CheckpointError(`Failed to get file diff content: ${e.message}`, "FILE_NOT_FOUND", e)
-			);
+			)
+		);
 	}
 
 	/**
@@ -197,12 +197,12 @@ export class CheckpointStore {
 	getFileSnapshotsForCheckpoint(
 		sessionId: string,
 		checkpointId: string
-	): ResultAsync<FileSnapshot[], CheckpointError> {
-		return tauriClient.checkpoint
-			.getFileSnapshots(sessionId, checkpointId)
-			.mapErr(
+	): Effect.Effect<FileSnapshot[], CheckpointError> {
+		return tauriClient.checkpoint.getFileSnapshots(sessionId, checkpointId).pipe(
+			Effect.mapError(
 				(e) => new CheckpointError(`Failed to get file snapshots: ${e.message}`, "STORAGE_ERROR", e)
-			);
+			)
+		);
 	}
 
 	/**

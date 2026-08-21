@@ -1,5 +1,6 @@
 <script lang="ts">
 import { AgentPanelTodoHeader as SharedAgentPanelTodoHeader } from "@acepe/ui/agent-panel";
+import * as Result from "effect/Result";
 import type { SessionStatus } from "../application/dto/session-status.js";
 import type { ToolCall } from "../types/tool-call.js";
 
@@ -29,10 +30,10 @@ const todoState = $derived.by(() => {
 		isStreaming,
 	};
 	const result = manager.getTodoStateFromToolCalls(sessionId, threadData);
-	if (result.isOk()) {
-		return result.value;
+	if (Result.isSuccess(result)) {
+		return result.success;
 	} else {
-		console.error("Failed to create todo state:", result.error);
+		console.error("Failed to create todo state:", result.failure);
 		return null;
 	}
 });

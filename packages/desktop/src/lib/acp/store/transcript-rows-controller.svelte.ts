@@ -4,6 +4,7 @@
  * revision-driven request loop. It does not store pixels, scroll mode, offsets,
  * or viewport height; the WebView DOM owns those.
  */
+import * as Effect from "effect/Effect";
 import { SvelteMap } from "svelte/reactivity";
 import type {
 	SessionGraphRevision,
@@ -183,53 +184,57 @@ export class TranscriptRowsController {
 		const startRowIndex = Math.max(0, loadedStartRowIndex - TRANSCRIPT_ROW_PAGE_SIZE);
 		const limit = loadedStartRowIndex - startRowIndex;
 		this.#olderRowsRequestInFlight.add(sessionId);
-		void readTranscriptRowPage({
-			sessionId,
-			scope: { kind: "root" },
-			startRowIndex,
-			limit,
-			expectedRevision: revision,
-		}).match(
-			(result) => {
-				if (result.status === "current") {
-					const stateBeforeApply = this.#rowsBySession.get(sessionId)?.state ?? null;
-					const previousRowCount = stateBeforeApply?.rows.length ?? null;
-					const status = this.storeFor(sessionId).applyPage(sessionId, result);
-					const pageApplyReason =
-						status === "stale"
-							? `older-current:state=${revisionLabel(
-									stateBeforeApply?.revision ?? null
-								)}:page=${result.graphRevision}/${result.transcriptRevision}/${result.lastEventSeq}`
-							: "older-current";
-					this.recordDiagnostic(sessionId, {
-						action: "apply-page",
-						status,
-						rowCount: result.rows.length,
-						previousRowCount,
-						emissionSeq: null,
-						requestGeneration: null,
-						reason: pageApplyReason,
-					});
-					if (status === "stale") {
-						this.requestFreshRows(sessionId, `older-page-apply-stale:${pageApplyReason}`);
-					}
-				} else if (result.status === "stale") {
-					this.recordDiagnostic(sessionId, {
-						action: "read-page",
-						status: "stale",
-						rowCount: null,
-						previousRowCount: currentState.rows.length,
-						emissionSeq: null,
-						requestGeneration: null,
-						reason: "older-stale",
-					});
-					this.requestFreshRows(sessionId, "older-stale");
-				}
-				this.#olderRowsRequestInFlight.delete(sessionId);
-			},
-			() => {
-				this.#olderRowsRequestInFlight.delete(sessionId);
-			}
+		void Effect.runPromise(
+			readTranscriptRowPage({
+				sessionId,
+				scope: { kind: "root" },
+				startRowIndex,
+				limit,
+				expectedRevision: revision,
+			}).pipe(
+				Effect.match({
+					onSuccess: (result) => {
+						if (result.status === "current") {
+							const stateBeforeApply = this.#rowsBySession.get(sessionId)?.state ?? null;
+							const previousRowCount = stateBeforeApply?.rows.length ?? null;
+							const status = this.storeFor(sessionId).applyPage(sessionId, result);
+							const pageApplyReason =
+								status === "stale"
+									? `older-current:state=${revisionLabel(
+											stateBeforeApply?.revision ?? null
+										)}:page=${result.graphRevision}/${result.transcriptRevision}/${result.lastEventSeq}`
+									: "older-current";
+							this.recordDiagnostic(sessionId, {
+								action: "apply-page",
+								status,
+								rowCount: result.rows.length,
+								previousRowCount,
+								emissionSeq: null,
+								requestGeneration: null,
+								reason: pageApplyReason,
+							});
+							if (status === "stale") {
+								this.requestFreshRows(sessionId, `older-page-apply-stale:${pageApplyReason}`);
+							}
+						} else if (result.status === "stale") {
+							this.recordDiagnostic(sessionId, {
+								action: "read-page",
+								status: "stale",
+								rowCount: null,
+								previousRowCount: currentState.rows.length,
+								emissionSeq: null,
+								requestGeneration: null,
+								reason: "older-stale",
+							});
+							this.requestFreshRows(sessionId, "older-stale");
+						}
+						this.#olderRowsRequestInFlight.delete(sessionId);
+					},
+					onFailure: () => {
+						this.#olderRowsRequestInFlight.delete(sessionId);
+					},
+				})
+			)
 		);
 	}
 
@@ -318,40 +323,44 @@ export class TranscriptRowsController {
 			reason,
 		});
 		this.#freshRowsRequestInFlight.add(sessionId);
-		void requestTranscriptViewportBuffer({ sessionId, revision, requestGeneration }).match(
-			(envelope) => {
-				if (this.#freshRowsRequestGenerationBySession.get(sessionId) !== requestGeneration) {
-					this.recordDiagnostic(sessionId, {
-						action: "request-fresh",
-						status: "ignored",
-						rowCount: null,
-						previousRowCount: this.#rowsBySession.get(sessionId)?.state.rows.length ?? null,
-						emissionSeq: null,
-						requestGeneration,
-						reason: "generation-mismatch",
-					});
-					return;
-				}
-				if (envelope !== null) {
-					this.deps.applySessionStateEnvelope(sessionId, envelope);
-				}
-				this.#freshRowsRequestInFlight.delete(sessionId);
-			},
-			() => {
-				if (this.#freshRowsRequestGenerationBySession.get(sessionId) !== requestGeneration) {
-					this.recordDiagnostic(sessionId, {
-						action: "request-fresh",
-						status: "ignored",
-						rowCount: null,
-						previousRowCount: this.#rowsBySession.get(sessionId)?.state.rows.length ?? null,
-						emissionSeq: null,
-						requestGeneration,
-						reason: "generation-mismatch-error",
-					});
-					return;
-				}
-				this.#freshRowsRequestInFlight.delete(sessionId);
-			}
+		void Effect.runPromise(
+			requestTranscriptViewportBuffer({ sessionId, revision, requestGeneration }).pipe(
+				Effect.match({
+					onSuccess: (envelope) => {
+						if (this.#freshRowsRequestGenerationBySession.get(sessionId) !== requestGeneration) {
+							this.recordDiagnostic(sessionId, {
+								action: "request-fresh",
+								status: "ignored",
+								rowCount: null,
+								previousRowCount: this.#rowsBySession.get(sessionId)?.state.rows.length ?? null,
+								emissionSeq: null,
+								requestGeneration,
+								reason: "generation-mismatch",
+							});
+							return;
+						}
+						if (envelope !== null) {
+							this.deps.applySessionStateEnvelope(sessionId, envelope);
+						}
+						this.#freshRowsRequestInFlight.delete(sessionId);
+					},
+					onFailure: () => {
+						if (this.#freshRowsRequestGenerationBySession.get(sessionId) !== requestGeneration) {
+							this.recordDiagnostic(sessionId, {
+								action: "request-fresh",
+								status: "ignored",
+								rowCount: null,
+								previousRowCount: this.#rowsBySession.get(sessionId)?.state.rows.length ?? null,
+								emissionSeq: null,
+								requestGeneration,
+								reason: "generation-mismatch-error",
+							});
+							return;
+						}
+						this.#freshRowsRequestInFlight.delete(sessionId);
+					},
+				})
+			)
 		);
 	}
 }

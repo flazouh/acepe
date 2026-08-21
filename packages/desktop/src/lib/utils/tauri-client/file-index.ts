@@ -1,4 +1,4 @@
-import type { ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 
 import type { AppError } from "../../acp/errors/app-error.js";
 import type {
@@ -11,11 +11,11 @@ import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
 const fileIndexCommands = TAURI_COMMAND_CLIENT.file_index;
 
 export const fileIndex = {
-	getProjectGitStatus: (projectPath: string): ResultAsync<FileGitStatus[], AppError> => {
+	getProjectGitStatus: (projectPath: string): Effect.Effect<FileGitStatus[], AppError> => {
 		return fileIndexCommands.get_project_git_status.invoke<FileGitStatus[]>({ projectPath });
 	},
 
-	getProjectGitStatusSummary: (projectPath: string): ResultAsync<FileGitStatus[], AppError> => {
+	getProjectGitStatusSummary: (projectPath: string): Effect.Effect<FileGitStatus[], AppError> => {
 		return fileIndexCommands.get_project_git_status_summary.invoke<FileGitStatus[]>({
 			projectPath,
 		});
@@ -24,7 +24,7 @@ export const fileIndex = {
 	getFileGitStatusSummary: (
 		projectPath: string,
 		filePath: string
-	): ResultAsync<FileGitStatus | null, AppError> => {
+	): Effect.Effect<FileGitStatus | null, AppError> => {
 		return fileIndexCommands.get_file_git_status_summary.invoke<FileGitStatus | null>({
 			projectPath,
 			filePath,
@@ -33,33 +33,33 @@ export const fileIndex = {
 
 	getProjectGitOverviewSummary: (
 		projectPath: string
-	): ResultAsync<{ branch: string | null; gitStatus: FileGitStatus[] }, AppError> => {
+	): Effect.Effect<{ branch: string | null; gitStatus: FileGitStatus[] }, AppError> => {
 		return fileIndexCommands.get_project_git_overview_summary.invoke<{
 			branch: string | null;
 			gitStatus: FileGitStatus[];
 		}>({ projectPath });
 	},
 
-	getProjectFiles: (projectPath: string): ResultAsync<ProjectIndex, AppError> => {
+	getProjectFiles: (projectPath: string): Effect.Effect<ProjectIndex, AppError> => {
 		return fileIndexCommands.get_project_files.invoke<ProjectIndex>({ projectPath });
 	},
 
-	invalidateProjectFiles: (projectPath: string): ResultAsync<void, AppError> => {
+	invalidateProjectFiles: (projectPath: string): Effect.Effect<void, AppError> => {
 		return fileIndexCommands.invalidate_project_files.invoke<void>({ projectPath });
 	},
 
-	readFileContent: (filePath: string, projectPath: string): ResultAsync<string, AppError> => {
+	readFileContent: (filePath: string, projectPath: string): Effect.Effect<string, AppError> => {
 		return fileIndexCommands.read_file_content.invoke<string>({ filePath, projectPath });
 	},
 
-	resolveFilePath: (filePath: string, projectPath: string): ResultAsync<string, AppError> => {
+	resolveFilePath: (filePath: string, projectPath: string): Effect.Effect<string, AppError> => {
 		return fileIndexCommands.resolve_file_path.invoke<string>({ filePath, projectPath });
 	},
 
 	getFileDiff: (
 		filePath: string,
 		projectPath: string
-	): ResultAsync<{ oldContent: string | null; newContent: string; fileName: string }, AppError> => {
+	): Effect.Effect<{ oldContent: string | null; newContent: string; fileName: string }, AppError> => {
 		return fileIndexCommands.get_file_diff.invoke<{
 			oldContent: string | null;
 			newContent: string;
@@ -71,7 +71,7 @@ export const fileIndex = {
 		filePath: string,
 		projectPath: string,
 		content: string
-	): ResultAsync<void, AppError> => {
+	): Effect.Effect<void, AppError> => {
 		return fileIndexCommands.revert_file_content.invoke<void>({
 			filePath,
 			projectPath,
@@ -79,11 +79,11 @@ export const fileIndex = {
 		});
 	},
 
-	readImageAsBase64: (filePath: string): ResultAsync<string, AppError> => {
+	readImageAsBase64: (filePath: string): Effect.Effect<string, AppError> => {
 		return fileIndexCommands.read_image_as_base64.invoke<string>({ filePath });
 	},
 
-	deletePath: (projectPath: string, relativePath: string): ResultAsync<void, AppError> => {
+	deletePath: (projectPath: string, relativePath: string): Effect.Effect<void, AppError> => {
 		return fileIndexCommands.delete_path.invoke<void>({ projectPath, relativePath });
 	},
 
@@ -91,7 +91,7 @@ export const fileIndex = {
 		projectPath: string,
 		fromRelative: string,
 		toRelative: string
-	): ResultAsync<void, AppError> => {
+	): Effect.Effect<void, AppError> => {
 		return fileIndexCommands.rename_path.invoke<void>({
 			projectPath,
 			fromRelative,
@@ -99,15 +99,15 @@ export const fileIndex = {
 		});
 	},
 
-	copyFile: (projectPath: string, relativePath: string): ResultAsync<string, AppError> => {
+	copyFile: (projectPath: string, relativePath: string): Effect.Effect<string, AppError> => {
 		return fileIndexCommands.copy_file.invoke<string>({ projectPath, relativePath });
 	},
 
-	createFile: (projectPath: string, relativePath: string): ResultAsync<void, AppError> => {
+	createFile: (projectPath: string, relativePath: string): Effect.Effect<void, AppError> => {
 		return fileIndexCommands.create_file.invoke<void>({ projectPath, relativePath });
 	},
 
-	createDirectory: (projectPath: string, relativePath: string): ResultAsync<void, AppError> => {
+	createDirectory: (projectPath: string, relativePath: string): Effect.Effect<void, AppError> => {
 		return fileIndexCommands.create_directory.invoke<void>({
 			projectPath,
 			relativePath,
@@ -117,7 +117,7 @@ export const fileIndex = {
 	getFileExplorerPreview: (
 		projectPath: string,
 		filePath: string
-	): ResultAsync<FileExplorerPreviewResponse, AppError> => {
+	): Effect.Effect<FileExplorerPreviewResponse, AppError> => {
 		return fileIndexCommands.get_file_explorer_preview.invoke<FileExplorerPreviewResponse>({
 			projectPath,
 			filePath,

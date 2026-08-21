@@ -1,4 +1,6 @@
-import { Result } from "neverthrow";
+import { fromThrowable } from "@acepe/effect-result/fromThrowable";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { normalizeStructuredData } from "./parsers/structured.js";
 import type { FormatConfig, StructuredData } from "./types.js";
 
@@ -17,15 +19,15 @@ export const jsonConfig: FormatConfig = {
 		availableModes: ["structured", "raw"],
 		defaultMode: "structured",
 	},
-	parseStructured: (content: string): Result<StructuredData, Error> => {
-		const parsed = Result.fromThrowable(
+	parseStructured: (content: string): Result.Result<StructuredData, Error> => {
+		const parseJson = fromThrowable(
 			() => JSON.parse(content) as StructuredCandidate,
 			(error) =>
 				error instanceof Error
 					? new Error(`Invalid JSON: ${error.message}`)
 					: new Error("Invalid JSON")
-		)();
-
-		return parsed.map(normalizeStructuredData);
+		);
+		const parsed = Effect.runSync(Effect.result(parseJson()));
+		return parsed.pipe(Result.map(normalizeStructuredData));
 	},
 };

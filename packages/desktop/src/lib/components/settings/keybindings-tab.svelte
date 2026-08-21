@@ -8,6 +8,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@acepe/ui";
+import * as Effect from "effect/Effect";
 import { SvelteMap } from "svelte/reactivity";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { Kbd, KbdGroup } from "$lib/components/ui/kbd/index.js";
@@ -55,8 +56,14 @@ function getBinding(actionId: string): Keybinding | undefined {
 
 async function handleSaveKeybinding(actionId: string, key: string) {
 	isLoading = true;
-	const result = await kb.saveUserKeybinding({ key, command: actionId, source: "user" });
-	result.mapErr((e) => logger.error("Failed to save keybinding:", e));
+	await Effect.runPromise(
+		kb.saveUserKeybinding({ key, command: actionId, source: "user" }).pipe(
+			Effect.match({
+				onSuccess: () => undefined,
+				onFailure: (e) => logger.error("Failed to save keybinding:", e),
+			})
+		)
+	);
 	editingActionId = null;
 	isLoading = false;
 }
@@ -64,8 +71,14 @@ async function handleSaveKeybinding(actionId: string, key: string) {
 async function handleReset(actionId: string) {
 	if (!kb.hasUserKeybinding(actionId)) return;
 	isLoading = true;
-	const result = await kb.deleteUserKeybinding(actionId);
-	result.mapErr((e) => logger.error("Failed to reset keybinding:", e));
+	await Effect.runPromise(
+		kb.deleteUserKeybinding(actionId).pipe(
+			Effect.match({
+				onSuccess: () => undefined,
+				onFailure: (e) => logger.error("Failed to reset keybinding:", e),
+			})
+		)
+	);
 	isLoading = false;
 }
 
@@ -73,9 +86,17 @@ async function handleResetAllToDefaults() {
 	if (!confirm("Reset all keybindings to defaults? This will remove all custom keybindings."))
 		return;
 	isLoading = true;
-	const result = await saveCustomKeybindings({});
-	result.mapErr((e) => logger.error("Failed to reset keybindings:", e));
-	await kb.loadUserKeybindings();
+	await Effect.runPromise(
+		saveCustomKeybindings({}).pipe(
+			Effect.match({
+				onSuccess: () => undefined,
+				onFailure: (e) => logger.error("Failed to reset keybindings:", e),
+			})
+		)
+	);
+	await Effect.runPromise(
+		kb.loadUserKeybindings().pipe(Effect.catch(() => Effect.void))
+	);
 	if (kb.isInstalled() && typeof window !== "undefined") kb.reinstall();
 	isLoading = false;
 }

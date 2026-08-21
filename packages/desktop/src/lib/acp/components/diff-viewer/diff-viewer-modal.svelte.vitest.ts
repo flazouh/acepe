@@ -1,5 +1,4 @@
 import { cleanup, render, waitFor } from "@testing-library/svelte";
-import { ok } from "neverthrow";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import DiffViewerModal from "./diff-viewer-modal.svelte";
@@ -31,37 +30,41 @@ vi.mock("@acepe/ui", async () => {
 
 vi.mock("../../services/github-service.js", () => ({
 	fetchCommitDiff: vi.fn(() =>
-		Promise.resolve(
-			ok({
-				sha: "abc1234",
-				shortSha: "abc1234",
-				message: "Test commit",
-				messageBody: "",
-				author: "Acepe",
-				authorEmail: "acepe@example.com",
-				date: "2026-03-12T00:00:00Z",
-				files: [],
-				repoContext: null,
-			})
-		)
+		Promise.resolve({
+			match(onOk: (value: unknown) => void) {
+				onOk({
+					sha: "abc1234",
+					shortSha: "abc1234",
+					message: "Test commit",
+					messageBody: "",
+					author: "Acepe",
+					authorEmail: "acepe@example.com",
+					date: "2026-03-12T00:00:00Z",
+					files: [],
+					repoContext: null,
+				});
+			},
+		})
 	),
 	fetchPrDiff: vi.fn(() =>
-		Promise.resolve(
-			ok({
-				pr: {
-					number: 42,
-					title: "Test PR",
-					author: "Acepe",
-					state: "open",
-					description: "",
-				},
-				files: [],
-				repoContext: {
-					owner: "acepe",
-					repo: "desktop",
-				},
-			})
-		)
+		Promise.resolve({
+			match(onOk: (value: unknown) => void) {
+				onOk({
+					pr: {
+						number: 42,
+						title: "Test PR",
+						author: "Acepe",
+						state: "open",
+						description: "",
+					},
+					files: [],
+					repoContext: {
+						owner: "acepe",
+						repo: "desktop",
+					},
+				});
+			},
+		})
 	),
 }));
 

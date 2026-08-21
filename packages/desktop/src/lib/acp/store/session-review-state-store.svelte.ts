@@ -1,6 +1,9 @@
-import { errAsync, okAsync, ResultAsync } from "neverthrow";
+import { decodeUnknown } from "@acepe/effect-result/decodeUnknown";
+import { fromThrowable } from "@acepe/effect-result/fromThrowable";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
+import * as Schema from "effect/Schema";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
-import { z } from "zod";
 import { tauriClient } from "../../utils/tauri-client.js";
 import { createLogger } from "../utils/logger.js";
 
@@ -9,18 +12,18 @@ const logger = createLogger({
 	name: "SessionReviewStateStore",
 });
 
-const persistedFileReviewProgressSchema = z.object({
-	filePath: z.string().min(1),
-	reviewed: z.boolean(),
+const persistedFileReviewProgressSchema = Schema.Struct({
+	filePath: Schema.NonEmptyString,
+	reviewed: Schema.Boolean,
 });
 
-const sessionReviewStateSchema = z.object({
-	version: z.literal(2),
-	filesByRevisionKey: z.record(z.string(), persistedFileReviewProgressSchema),
+const sessionReviewStateSchema = Schema.Struct({
+	version: Schema.Literal(2),
+	filesByRevisionKey: Schema.Record(Schema.String, persistedFileReviewProgressSchema),
 });
 
-export type PersistedFileReviewProgress = z.infer<typeof persistedFileReviewProgressSchema>;
-export type SessionReviewState = z.infer<typeof sessionReviewStateSchema>;
+export type PersistedFileReviewProgress = typeof persistedFileReviewProgressSchema.Type;
+export type SessionReviewState = typeof sessionReviewStateSchema.Type;
 
 function createEmptyReviewState(): SessionReviewState {
 	return {
@@ -33,24 +36,31 @@ function statesEqual(a: SessionReviewState, b: SessionReviewState): boolean {
 	return JSON.stringify(a) === JSON.stringify(b);
 }
 
-function decodeState(raw: string | null): ResultAsync<SessionReviewState | null, Error> {
-	if (raw === null) return okAsync(null);
+function decodeState(raw: string | null): Effect.Effect<SessionReviewState | null, Error> {
+	if (raw === null) return Effect.succeed(null);
 
-	return ResultAsync.fromPromise(
-		Promise.resolve(raw).then((value) => JSON.parse(value)),
+	const parseJson = fromThrowable(
+		(value: string): unknown => JSON.parse(value),
 		(error) =>
 			error instanceof Error
 				? error
 				: new Error(`Failed to parse review state JSON: ${String(error)}`)
-	).andThen((parsed) => {
-		const validation = sessionReviewStateSchema.safeParse(parsed);
-		if (validation.success) {
-			return okAsync(validation.data);
-		}
-		// Older per-hunk schema versions are no longer supported; drop them so
-		// the review modal starts from a clean per-file reviewed state.
-		return errAsync(new Error(`Invalid review state: ${validation.error.message}`));
-	});
+	);
+
+	return parseJson(raw).pipe(
+		Effect.flatMap((parsed) => {
+			const validation = decodeUnknown(
+				sessionReviewStateSchema,
+				(error) => new Error(`Invalid review state: ${error.message}`)
+			)(parsed);
+			if (Result.isSuccess(validation)) {
+				return Effect.succeed(validation.success);
+			}
+			// Older per-hunk schema versions are no longer supported; drop them so
+			// the review modal starts from a clean per-file reviewed state.
+			return Effect.fail(validation.failure);
+		})
+	);
 }
 
 export class SessionReviewStateStore {
@@ -83,25 +93,26 @@ export class SessionReviewStateStore {
 		}
 
 		this.loadingSessionIds.add(sessionId);
-		const loadPromise = tauriClient.sessionReviewState
-			.get(sessionId)
-			.andThen((raw) => decodeState(raw))
-			.match(
-				(state) => {
-					this.statesBySession.set(sessionId, state);
-					this.loadedSessionIds.add(sessionId);
-					this.loadingSessionIds.delete(sessionId);
-				},
-				(error) => {
-					logger.error("Failed to load session review state", { sessionId, error });
-					this.statesBySession.set(sessionId, null);
-					this.loadedSessionIds.add(sessionId);
-					this.loadingSessionIds.delete(sessionId);
-				}
+		const loadPromise = Effect.runPromise(
+			tauriClient.sessionReviewState.get(sessionId).pipe(
+				Effect.flatMap((raw) => decodeState(raw)),
+				Effect.match({
+					onSuccess: (state) => {
+						this.statesBySession.set(sessionId, state);
+						this.loadedSessionIds.add(sessionId);
+						this.loadingSessionIds.delete(sessionId);
+					},
+					onFailure: (error) => {
+						logger.error("Failed to load session review state", { sessionId, error });
+						this.statesBySession.set(sessionId, null);
+						this.loadedSessionIds.add(sessionId);
+						this.loadingSessionIds.delete(sessionId);
+					},
+				})
 			)
-			.then(() => {
-				this.loadPromisesBySession.delete(sessionId);
-			});
+		).then(() => {
+			this.loadPromisesBySession.delete(sessionId);
+		});
 
 		this.loadPromisesBySession.set(sessionId, loadPromise);
 		return loadPromise;
@@ -161,9 +172,16 @@ export class SessionReviewStateStore {
 			this.saveTimers.delete(sessionId);
 		}
 
-		tauriClient.sessionReviewState.delete(sessionId).mapErr((error) => {
-			logger.error("Failed to delete session review state", { sessionId, error });
-		});
+		void Effect.runPromise(
+			tauriClient.sessionReviewState.delete(sessionId).pipe(
+				Effect.match({
+					onSuccess: () => undefined,
+					onFailure: (error) => {
+						logger.error("Failed to delete session review state", { sessionId, error });
+					},
+				})
+			)
+		);
 	}
 
 	private schedulePersist(sessionId: string): void {
@@ -173,9 +191,16 @@ export class SessionReviewStateStore {
 		const timer = setTimeout(() => {
 			this.saveTimers.delete(sessionId);
 			const state = this.getState(sessionId) ?? createEmptyReviewState();
-			tauriClient.sessionReviewState.save(sessionId, JSON.stringify(state)).mapErr((error) => {
-				logger.error("Failed to persist session review state", { sessionId, error });
-			});
+			void Effect.runPromise(
+				tauriClient.sessionReviewState.save(sessionId, JSON.stringify(state)).pipe(
+					Effect.match({
+						onSuccess: () => undefined,
+						onFailure: (error) => {
+							logger.error("Failed to persist session review state", { sessionId, error });
+						},
+					})
+				)
+			);
 		}, 250);
 
 		this.saveTimers.set(sessionId, timer);

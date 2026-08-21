@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect";
 import type {
 	SessionGraphRevision,
 	SessionStateEnvelope,
@@ -104,5 +105,5 @@ export function readTranscriptRowPage(input: {
 		startRowIndex: input.startRowIndex,
 		limit: input.limit,
 		expectedRevision: commandRevisionFrom(input.expectedRevision),
-	}).map(transcriptRowPageResultFromWire);
+	}).pipe(Effect.map(transcriptRowPageResultFromWire));
 }

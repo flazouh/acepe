@@ -1,4 +1,5 @@
-import { errAsync, okAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const fetchCanonicalSessionStateEnvelopeMock = vi.fn();
@@ -182,7 +183,7 @@ describe("SessionStore.createSession", () => {
 	beforeEach(() => {
 		store = new SessionStore();
 		vi.clearAllMocks();
-		sendPromptMock.mockReturnValue(okAsync(undefined));
+		sendPromptMock.mockReturnValue(Effect.succeed(undefined));
 	});
 
 	it("returns minimal PR link references for a project", () => {
@@ -260,7 +261,7 @@ describe("SessionStore.createSession", () => {
 	it("hydrates the canonical session-open snapshot returned during session creation", async () => {
 		const session = createSession();
 		const sessionOpen = createSessionOpenFound();
-		const hydrateCreated = vi.fn(() => okAsync(undefined));
+		const hydrateCreated = vi.fn(() => Effect.succeed(undefined));
 		const storeWithInternals = store as unknown as {
 			connectionMgr: {
 				createSession: ReturnType<typeof vi.fn>;
@@ -270,7 +271,7 @@ describe("SessionStore.createSession", () => {
 		store.connection.setSessionOpenHydrator({ hydrateCreated });
 		storeWithInternals.connectionMgr = {
 			createSession: vi.fn(() =>
-				okAsync({
+				Effect.succeed({
 					kind: "ready" as const,
 					session,
 					sessionOpen: {
@@ -281,13 +282,13 @@ describe("SessionStore.createSession", () => {
 			),
 		};
 
-		const result = await store.connection.createSession({
+		const result = await Effect.runPromise(Effect.result(store.connection.createSession({
 			projectPath: "/repo",
 			agentId: "copilot",
-		});
+		})));
 
-		expect(result.isOk()).toBe(true);
-		expect(result._unsafeUnwrap()).toEqual({ kind: "ready", session });
+		expect(Result.isSuccess(result)).toBe(true);
+		expect(Result.getOrThrow(result)).toEqual({ kind: "ready", session });
 		expect(hydrateCreated).toHaveBeenCalledWith({
 			outcome: "found",
 			...sessionOpen,
@@ -302,7 +303,7 @@ describe("SessionStore.createSession", () => {
 		// If the underlying connection fails (e.g. crash/recovery scenario), the
 		// result must surface as an error so callers can decide how to recover
 		// rather than silently ending up with a partially-initialized session.
-		const hydrateCreated = vi.fn(() => okAsync(undefined));
+		const hydrateCreated = vi.fn(() => Effect.succeed(undefined));
 		const storeWithInternals = store as unknown as {
 			connectionMgr: {
 				createSession: ReturnType<typeof vi.fn>;
@@ -311,16 +312,16 @@ describe("SessionStore.createSession", () => {
 
 		store.connection.setSessionOpenHydrator({ hydrateCreated });
 		storeWithInternals.connectionMgr = {
-			createSession: vi.fn(() => errAsync(new Error("Provider crashed during session creation"))),
+			createSession: vi.fn(() => Effect.fail(new Error("Provider crashed during session creation"))),
 		};
 
-		const result = await store.connection.createSession({
+		const result = await Effect.runPromise(Effect.result(store.connection.createSession({
 			projectPath: "/repo",
 			agentId: "copilot",
-		});
+		})));
 
 		// Must propagate as Err — no silent divergence
-		expect(result.isErr()).toBe(true);
+		expect(Result.isFailure(result)).toBe(true);
 		// Must not partially hydrate when the connection itself failed
 		expect(hydrateCreated).not.toHaveBeenCalled();
 	});
@@ -360,7 +361,7 @@ describe("SessionStore.createSession", () => {
 			],
 		});
 
-		const hydrateCreated = vi.fn(() => okAsync(undefined));
+		const hydrateCreated = vi.fn(() => Effect.succeed(undefined));
 		const storeWithInternals = store as unknown as {
 			connectionMgr: { createSession: ReturnType<typeof vi.fn> };
 		};
@@ -368,7 +369,7 @@ describe("SessionStore.createSession", () => {
 		store.connection.setSessionOpenHydrator({ hydrateCreated });
 		storeWithInternals.connectionMgr = {
 			createSession: vi.fn(() =>
-				okAsync({
+				Effect.succeed({
 					kind: "ready" as const,
 					session,
 					sessionOpen: { outcome: "found" as const, ...sessionOpen },
@@ -376,7 +377,7 @@ describe("SessionStore.createSession", () => {
 			),
 		};
 
-		await store.connection.createSession({ projectPath: "/repo", agentId: "copilot" });
+		await Effect.runPromise(store.connection.createSession({ projectPath: "/repo", agentId: "copilot" }));
 
 		// The hydrator must receive the full snapshot including operations
 		expect(hydrateCreated).toHaveBeenCalledWith(
@@ -395,7 +396,7 @@ describe("SessionStore.createSession", () => {
 		for (const agentId of providers) {
 			const session = createSession({ agentId });
 			const sessionOpen = createSessionOpenFound({ agentId });
-			const hydrateCreated = vi.fn(() => okAsync(undefined));
+			const hydrateCreated = vi.fn(() => Effect.succeed(undefined));
 			const storeForProvider = new (store.constructor as new () => typeof store)();
 			const storeWithInternals = storeForProvider as unknown as {
 				connectionMgr: { createSession: ReturnType<typeof vi.fn> };
@@ -404,7 +405,7 @@ describe("SessionStore.createSession", () => {
 			storeForProvider.connection.setSessionOpenHydrator({ hydrateCreated });
 			storeWithInternals.connectionMgr = {
 				createSession: vi.fn(() =>
-					okAsync({
+					Effect.succeed({
 						kind: "ready" as const,
 						session,
 						sessionOpen: { outcome: "found" as const, ...sessionOpen },
@@ -412,11 +413,11 @@ describe("SessionStore.createSession", () => {
 				),
 			};
 
-			const result = await storeForProvider.connection.createSession({
+			const result = await Effect.runPromise(Effect.result(storeForProvider.connection.createSession({
 				projectPath: "/repo",
 				agentId,
-			});
-			expect(result.isOk(), `createSession failed for agentId=${agentId}`).toBe(true);
+			})));
+			expect(Result.isSuccess(result), `createSession failed for agentId=${agentId}`).toBe(true);
 			expect(
 				hydrateCreated,
 				`hydrateCreated not called for agentId=${agentId}`
@@ -432,16 +433,16 @@ describe("SessionStore.createSession", () => {
 		};
 
 		storeWithInternals.connectionMgr = {
-			createSession: vi.fn(() => okAsync(createPendingSessionResult())),
+			createSession: vi.fn(() => Effect.succeed(createPendingSessionResult())),
 		};
 
-		const result = await store.connection.createSession({
+		const result = await Effect.runPromise(Effect.result(store.connection.createSession({
 			projectPath: "/repo",
 			agentId: "claude-code",
-		});
+		})));
 
-		expect(result.isOk()).toBe(true);
-		expect(result._unsafeUnwrap()).toEqual(createPendingSessionResult());
+		expect(Result.isSuccess(result)).toBe(true);
+		expect(Result.getOrThrow(result)).toEqual(createPendingSessionResult());
 		// Optimistic identity is registered immediately (panel can resolve agent +
 		// title), while still tracked as pending until canonical promotion.
 		expect(store.read.getAllSessions()).toHaveLength(1);
@@ -481,7 +482,7 @@ describe("SessionStore.createSession", () => {
 
 		storeWithInternals.connectionMgr = {
 			createSession: vi.fn(() =>
-				okAsync(
+				Effect.succeed(
 					createPendingSessionResult({
 						agentId: "claude-code",
 						title: "Build stable panels",
@@ -490,10 +491,10 @@ describe("SessionStore.createSession", () => {
 			),
 		};
 
-		await store.connection.createSession({
+		await Effect.runPromise(store.connection.createSession({
 			projectPath: "/repo",
 			agentId: "claude-code",
-		});
+		}));
 
 		// Identity + title must be resolvable from the cold registry BEFORE the
 		// canonical graph materializes, so the agent panel shows the agent icon,
@@ -524,7 +525,7 @@ describe("SessionStore.createSession", () => {
 
 		storeWithInternals.connectionMgr = {
 			createSession: vi.fn(() =>
-				okAsync(
+				Effect.succeed(
 					createPendingSessionResult({
 						sessionId: "pending-session",
 						title: "Failed Thread",
@@ -533,10 +534,10 @@ describe("SessionStore.createSession", () => {
 			),
 		};
 
-		await store.connection.createSession({
+		await Effect.runPromise(store.connection.createSession({
 			projectPath: "/repo",
 			agentId: "claude-code",
-		});
+		}));
 
 		// Optimistic session is present after creation...
 		expect(store.read.getSessionIdentity("pending-session")).toBeDefined();
@@ -565,13 +566,13 @@ describe("SessionStore.createSession", () => {
 		};
 
 		storeWithInternals.connectionMgr = {
-			createSession: vi.fn(() => okAsync(createPendingSessionResult({ sequenceId: 12 }))),
+			createSession: vi.fn(() => Effect.succeed(createPendingSessionResult({ sequenceId: 12 }))),
 		};
 
-		await store.connection.createSession({
+		await Effect.runPromise(store.connection.createSession({
 			projectPath: "/repo",
 			agentId: "claude-code",
-		});
+		}));
 
 		expect(store.connection.materializePendingCreationSession("provider-requested-id")).toBe(true);
 		expect(store.read.getSessionMetadata("provider-requested-id")?.sequenceId).toBe(12);
@@ -585,13 +586,13 @@ describe("SessionStore.createSession", () => {
 		};
 
 		storeWithInternals.connectionMgr = {
-			createSession: vi.fn(() => okAsync(createPendingSessionResult({ sequenceId: 12 }))),
+			createSession: vi.fn(() => Effect.succeed(createPendingSessionResult({ sequenceId: 12 }))),
 		};
 
-		await store.connection.createSession({
+		await Effect.runPromise(store.connection.createSession({
 			projectPath: "/repo",
 			agentId: "claude-code",
-		});
+		}));
 
 		store.write.addSession(
 			createSession({
@@ -623,13 +624,13 @@ describe("SessionStore.createSession", () => {
 		};
 
 		storeWithInternals.connectionMgr = {
-			createSession: vi.fn(() => okAsync(createPendingSessionResult())),
+			createSession: vi.fn(() => Effect.succeed(createPendingSessionResult())),
 		};
 
-		await store.connection.createSession({
+		await Effect.runPromise(store.connection.createSession({
 			projectPath: "/repo",
 			agentId: "claude-code",
-		});
+		}));
 
 		expect(store.connection.materializePendingCreationSession("provider-requested-id")).toBe(true);
 		expect(store.read.getSessionMetadata("provider-requested-id")?.sequenceId).toBeUndefined();
@@ -731,13 +732,13 @@ describe("SessionStore.createSession", () => {
 		};
 
 		storeWithInternals.connectionMgr = {
-			createSession: vi.fn(() => okAsync(createPendingSessionResult())),
+			createSession: vi.fn(() => Effect.succeed(createPendingSessionResult())),
 		};
 
-		await store.connection.createSession({
+		await Effect.runPromise(store.connection.createSession({
 			projectPath: "/repo",
 			agentId: "claude-code",
-		});
+		}));
 
 		store.ensureSessionFromStateGraph(
 			createSessionStateGraph({
@@ -767,7 +768,7 @@ describe("SessionStore.createSession", () => {
 
 		storeWithInternals.connectionMgr = {
 			createSession: vi.fn(() =>
-				okAsync(
+				Effect.succeed(
 					createPendingSessionResult({
 						sessionId: "requested-local-id",
 						title: "Aliased Thread",
@@ -776,10 +777,10 @@ describe("SessionStore.createSession", () => {
 			),
 		};
 
-		await store.connection.createSession({
+		await Effect.runPromise(store.connection.createSession({
 			projectPath: "/repo",
 			agentId: "claude-code",
-		});
+		}));
 
 		const materialized = store.ensureSessionFromStateGraph(
 			createSessionStateGraph({
@@ -806,7 +807,7 @@ describe("SessionStore.createSession", () => {
 
 	it("migrates the first-send pending intent when an aliased pending creation becomes canonical", async () => {
 		vi.spyOn(store.connectionMgr, "createSession").mockReturnValue(
-			okAsync(
+			Effect.succeed(
 				createPendingSessionResult({
 					sessionId: "requested-local-id",
 					title: "Aliased Thread",
@@ -814,16 +815,16 @@ describe("SessionStore.createSession", () => {
 			)
 		);
 
-		await store.connection.createSession({
+		await Effect.runPromise(store.connection.createSession({
 			projectPath: "/repo",
 			agentId: "claude-code",
-		});
+		}));
 
-		const sendResult = await store.connection.sendMessage(
+		const sendResult = await Effect.runPromise(Effect.result(store.connection.sendMessage(
 			"requested-local-id",
 			"first prompt survives promotion"
-		);
-		expect(sendResult.isOk()).toBe(true);
+		)));
+		expect(Result.isSuccess(sendResult)).toBe(true);
 		const requestedPending = store.read.getSessionPendingSendIntent("requested-local-id");
 		expect(requestedPending).toMatchObject({
 			attemptId: expect.any(String),
@@ -862,7 +863,7 @@ describe("SessionStore.createSession", () => {
 
 		storeWithInternals.connectionMgr = {
 			createSession: vi.fn(() =>
-				okAsync(
+				Effect.succeed(
 					createPendingSessionResult({
 						sessionId: "pending-session",
 						title: "Failed Thread",
@@ -871,10 +872,10 @@ describe("SessionStore.createSession", () => {
 			),
 		};
 
-		await store.connection.createSession({
+		await Effect.runPromise(store.connection.createSession({
 			projectPath: "/repo",
 			agentId: "claude-code",
-		});
+		}));
 
 		store.connection.failPendingCreationSession("pending-session", {
 			type: "turnError",

@@ -1,9 +1,10 @@
 /**
  * Frontend service for GitHub integration.
- * Wraps Tauri commands with neverthrow error handling and caching.
+ * Wraps Tauri commands with Effect error handling and caching.
  */
 
-import { errAsync, okAsync, ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
 import { Commands, invoke } from "../../utils/tauri-commands.js";
 import type {
 	CommitDiff,
@@ -52,6 +53,10 @@ function isCacheValid(entry: { diff: unknown; timestamp: number; type: "commit" 
  * Converts Tauri errors to GitHubError type.
  */
 function tauriErrorToGitHubError(error: unknown): GitHubError {
+	if (isGitHubError(error)) {
+		return error;
+	}
+
 	const msg = error instanceof Error ? error.message : String(error);
 
 	if (msg.includes("git: not found") || msg.includes("git not found")) {
@@ -85,49 +90,61 @@ function tauriErrorToGitHubError(error: unknown): GitHubError {
 	return { type: "unknown_error", message: msg };
 }
 
+function isGitHubError(error: unknown): error is GitHubError {
+	if (error === null || typeof error !== "object") {
+		return false;
+	}
+	if (!("type" in error) || !("message" in error)) {
+		return false;
+	}
+	return typeof error.type === "string" && typeof error.message === "string";
+}
+
 /**
  * Cache for repo context lookups.
  * Keyed by projectPath. Repo context rarely changes (owner/repo from git remote),
  * so we cache indefinitely and deduplicate in-flight requests.
  */
 const repoContextCache = new Map<string, RepoContext>();
-const repoContextInflight = new Map<string, ResultAsync<RepoContext, GitHubError>>();
+const repoContextInflight = new Map<string, Promise<RepoContext>>();
 
 /**
  * Gets repository context from git config.
  * Results are cached per projectPath for the lifetime of the app session,
  * and concurrent requests for the same path are deduplicated.
  */
-export function getRepoContext(projectPath: string): ResultAsync<RepoContext, GitHubError> {
+export function getRepoContext(projectPath: string): Effect.Effect<RepoContext, GitHubError> {
 	// Return cached result immediately
 	const cached = repoContextCache.get(projectPath);
 	if (cached) {
-		return okAsync(cached);
+		return Effect.succeed(cached);
 	}
 
 	// Deduplicate in-flight requests
 	const inflight = repoContextInflight.get(projectPath);
 	if (inflight) {
-		return inflight;
+		return fromPromise(() => inflight, tauriErrorToGitHubError);
 	}
 
-	const request = ResultAsync.fromPromise(
-		invoke<RepoContext>(Commands.github.get_github_repo_context, { projectPath }),
-		(error) => tauriErrorToGitHubError(error)
-	).map((ctx) => {
-		repoContextCache.set(projectPath, ctx);
-		repoContextInflight.delete(projectPath);
-		return ctx;
-	});
+	const pending = Effect.runPromise(
+		fromPromise(
+			() => invoke<RepoContext>(Commands.github.get_github_repo_context, { projectPath }),
+			tauriErrorToGitHubError
+		)
+	).then(
+		(ctx) => {
+			repoContextCache.set(projectPath, ctx);
+			repoContextInflight.delete(projectPath);
+			return ctx;
+		},
+		(error: unknown) => {
+			repoContextInflight.delete(projectPath);
+			throw error;
+		}
+	);
 
-	// Clean up inflight on error too
-	request.mapErr((err) => {
-		repoContextInflight.delete(projectPath);
-		return err;
-	});
-
-	repoContextInflight.set(projectPath, request);
-	return request;
+	repoContextInflight.set(projectPath, pending);
+	return fromPromise(() => pending, tauriErrorToGitHubError);
 }
 
 /**
@@ -138,23 +155,26 @@ export function fetchCommitDiff(
 	sha: string,
 	projectPath: string,
 	repoContext?: RepoContext
-): ResultAsync<CommitDiff, GitHubError> {
+): Effect.Effect<CommitDiff, GitHubError> {
 	const cacheKey = getCacheKey("commit", sha);
 
 	// Check cache
 	const cached = diffCache.get(cacheKey);
 	if (cached && isCacheValid(cached)) {
-		return okAsync(cached.diff as CommitDiff);
+		return Effect.succeed(cached.diff as CommitDiff);
 	}
 
-	return ResultAsync.fromPromise(
-		invoke<CommitDiff>(Commands.github.fetch_commit_diff, { sha, projectPath, repoContext }),
-		(error) => tauriErrorToGitHubError(error)
-	).map((diff) => {
-		// Cache the result
-		diffCache.set(cacheKey, { diff, timestamp: Date.now(), type: "commit" });
-		return diff;
-	});
+	return fromPromise(
+		() =>
+			invoke<CommitDiff>(Commands.github.fetch_commit_diff, { sha, projectPath, repoContext }),
+		tauriErrorToGitHubError
+	).pipe(
+		Effect.map((diff) => {
+			// Cache the result
+			diffCache.set(cacheKey, { diff, timestamp: Date.now(), type: "commit" });
+			return diff;
+		})
+	);
 }
 
 /**
@@ -165,23 +185,25 @@ export function fetchPrDiff(
 	owner: string,
 	repo: string,
 	prNumber: number
-): ResultAsync<PrDiff, GitHubError> {
+): Effect.Effect<PrDiff, GitHubError> {
 	const cacheKey = getCacheKey("pr", `${owner}/${repo}#${prNumber}`);
 
 	// Check cache
 	const cached = diffCache.get(cacheKey);
 	if (cached && isCacheValid(cached)) {
-		return okAsync(cached.diff as PrDiff);
+		return Effect.succeed(cached.diff as PrDiff);
 	}
 
-	return ResultAsync.fromPromise(
-		invoke<PrDiff>(Commands.github.fetch_pr_diff, { owner, repo, prNumber }),
-		(error) => tauriErrorToGitHubError(error)
-	).map((diff) => {
-		// Cache the result
-		diffCache.set(cacheKey, { diff, timestamp: Date.now(), type: "pr" });
-		return diff;
-	});
+	return fromPromise(
+		() => invoke<PrDiff>(Commands.github.fetch_pr_diff, { owner, repo, prNumber }),
+		tauriErrorToGitHubError
+	).pipe(
+		Effect.map((diff) => {
+			// Cache the result
+			diffCache.set(cacheKey, { diff, timestamp: Date.now(), type: "pr" });
+			return diff;
+		})
+	);
 }
 
 /**
@@ -193,15 +215,16 @@ export function listPullRequests(
 	repo: string,
 	state?: "open" | "closed" | "all",
 	limit?: number
-): ResultAsync<PrListItem[], GitHubError> {
-	return ResultAsync.fromPromise(
-		invoke<PrListItem[]>(Commands.github.list_pull_requests, {
-			owner,
-			repo,
-			state: state ?? "open",
-			limit: limit ?? 30,
-		}),
-		(error) => tauriErrorToGitHubError(error)
+): Effect.Effect<PrListItem[], GitHubError> {
+	return fromPromise(
+		() =>
+			invoke<PrListItem[]>(Commands.github.list_pull_requests, {
+				owner,
+				repo,
+				state: state ?? "open",
+				limit: limit ?? 30,
+			}),
+		tauriErrorToGitHubError
 	);
 }
 
@@ -213,23 +236,23 @@ export function fetchDiff(
 	ref: string,
 	projectPath: string,
 	refType: "commit" | "pr"
-): ResultAsync<Diff, GitHubError> {
+): Effect.Effect<Diff, GitHubError> {
 	if (refType === "commit") {
 		// For commits, first try without repo context (git), then fall back to gh
 		return fetchCommitDiff(ref, projectPath);
-	} else {
-		// For PRs, parse owner/repo#number format
-		const match = ref.match(/^([^/]+)\/([^#]+)#(\d+)$/);
-		if (!match) {
-			return errAsync({
-				type: "parse_error",
-				message: "Invalid PR reference format. Use owner/repo#123",
-			} satisfies GitHubError);
-		}
-
-		const [, owner, repo, prNumber] = match;
-		return fetchPrDiff(owner, repo, parseInt(prNumber, 10)) as ResultAsync<Diff, GitHubError>;
 	}
+
+	// For PRs, parse owner/repo#number format
+	const match = ref.match(/^([^/]+)\/([^#]+)#(\d+)$/);
+	if (!match) {
+		return Effect.fail({
+			type: "parse_error",
+			message: "Invalid PR reference format. Use owner/repo#123",
+		} satisfies GitHubError);
+	}
+
+	const [, owner, repo, prNumber] = match;
+	return fetchPrDiff(owner, repo, parseInt(prNumber, 10));
 }
 
 /**
@@ -273,16 +296,17 @@ export function fetchWorkingFileDiff(
 	status: FileDiff["status"],
 	additions: number,
 	deletions: number
-): ResultAsync<FileDiff, GitHubError> {
-	return ResultAsync.fromPromise(
-		invoke<FileDiff>(Commands.github.git_working_file_diff, {
-			projectPath,
-			filePath,
-			staged,
-			status,
-			additions,
-			deletions,
-		}),
-		(error) => tauriErrorToGitHubError(error)
+): Effect.Effect<FileDiff, GitHubError> {
+	return fromPromise(
+		() =>
+			invoke<FileDiff>(Commands.github.git_working_file_diff, {
+				projectPath,
+				filePath,
+				staged,
+				status,
+				additions,
+				deletions,
+			}),
+		tauriErrorToGitHubError
 	);
 }

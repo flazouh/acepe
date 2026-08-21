@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import { okAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import {
 	clickWebview,
 	focusDevApp,
@@ -42,13 +43,13 @@ describe("acepe-qa interaction helpers", () => {
 		const runner: CommandRunner = (command) => {
 			const joined = command.join(" ");
 			if (joined.includes("driver-session")) {
-				return okAsync({
+				return Effect.succeed({
 					code: 0,
 					stdout: "",
 					stderr: "",
 				});
 			}
-			return okAsync({
+			return Effect.succeed({
 				code: 0,
 				stdout: wrapped(
 					JSON.stringify({
@@ -102,16 +103,20 @@ describe("acepe-qa interaction helpers", () => {
 			});
 		};
 
-		const result = await inspectDom({
-			appIdentifier: "9223",
-			selector: ".onboarding-preview-panel",
-			limit: 3,
-			runner,
-		});
+		const result = await Effect.runPromise(
+			Effect.result(
+				inspectDom({
+					appIdentifier: "9223",
+					selector: ".onboarding-preview-panel",
+					limit: 3,
+					runner,
+				})
+			)
+		);
 
-		expect(result.isOk()).toBe(true);
-		expect(result._unsafeUnwrap().count).toBe(3);
-		expect(result._unsafeUnwrap().elements[0]?.rect.height).toBe(221);
+		expect(Result.isSuccess(result)).toBe(true);
+		expect(Result.getOrThrow(result).count).toBe(3);
+		expect(Result.getOrThrow(result).elements[0]?.rect.height).toBe(221);
 	});
 
 	it("inspects shadow DOM elements through the WebView", async () => {
@@ -119,7 +124,7 @@ describe("acepe-qa interaction helpers", () => {
 		const runner: CommandRunner = (command) => {
 			const joined = command.join(" ");
 			if (joined.includes("driver-session")) {
-				return okAsync({
+				return Effect.succeed({
 					code: 0,
 					stdout: "",
 					stderr: "",
@@ -127,7 +132,7 @@ describe("acepe-qa interaction helpers", () => {
 			}
 			sawShadowScript =
 				joined.includes("shadowRoot") && joined.includes('[data-testid=\\"git-file-tree\\"]');
-			return okAsync({
+			return Effect.succeed({
 				code: 0,
 				stdout: wrapped(
 					JSON.stringify({
@@ -183,17 +188,21 @@ describe("acepe-qa interaction helpers", () => {
 			});
 		};
 
-		const result = await inspectShadowDom({
-			appIdentifier: "9223",
-			hostSelector: '[data-testid="git-file-tree"]',
-			selector: 'button[data-type="item"]',
-			limit: 3,
-			runner,
-		});
+		const result = await Effect.runPromise(
+			Effect.result(
+				inspectShadowDom({
+					appIdentifier: "9223",
+					hostSelector: '[data-testid="git-file-tree"]',
+					selector: 'button[data-type="item"]',
+					limit: 3,
+					runner,
+				})
+			)
+		);
 
-		expect(result.isOk()).toBe(true);
-		expect(result._unsafeUnwrap().count).toBe(2);
-		expect(result._unsafeUnwrap().elements[0]?.role).toBe("treeitem");
+		expect(Result.isSuccess(result)).toBe(true);
+		expect(Result.getOrThrow(result).count).toBe(2);
+		expect(Result.getOrThrow(result).elements[0]?.role).toBe("treeitem");
 		expect(sawShadowScript).toBe(true);
 	});
 
@@ -201,13 +210,13 @@ describe("acepe-qa interaction helpers", () => {
 		const runner: CommandRunner = (command) => {
 			const joined = command.join(" ");
 			if (joined.includes("driver-session")) {
-				return okAsync({
+				return Effect.succeed({
 					code: 0,
 					stdout: "",
 					stderr: "",
 				});
 			}
-			return okAsync({
+			return Effect.succeed({
 				code: 0,
 				stdout: wrapped(
 					JSON.stringify({
@@ -258,16 +267,20 @@ describe("acepe-qa interaction helpers", () => {
 			});
 		};
 
-		const result = await clickWebview({
-			appIdentifier: "9223",
-			selector: null,
-			text: "Reset Onboarding",
-			runner,
-		});
+		const result = await Effect.runPromise(
+			Effect.result(
+				clickWebview({
+					appIdentifier: "9223",
+					selector: null,
+					text: "Reset Onboarding",
+					runner,
+				})
+			)
+		);
 
-		expect(result.isOk()).toBe(true);
-		expect(result._unsafeUnwrap().clicked).toBe(true);
-		expect(result._unsafeUnwrap().match?.text).toBe("Reset Onboarding");
+		expect(Result.isSuccess(result)).toBe(true);
+		expect(Result.getOrThrow(result).clicked).toBe(true);
+		expect(Result.getOrThrow(result).match?.text).toBe("Reset Onboarding");
 	});
 
 	it("keeps a popover workflow in one WebView script", async () => {
@@ -275,10 +288,10 @@ describe("acepe-qa interaction helpers", () => {
 		const runner: CommandRunner = (command) => {
 			const joined = command.join(" ");
 			if (joined.includes("driver-session")) {
-				return okAsync({ code: 0, stdout: "", stderr: "" });
+				return Effect.succeed({ code: 0, stdout: "", stderr: "" });
 			}
 			executedScript = joined;
-			return okAsync({
+			return Effect.succeed({
 				code: 0,
 				stdout: wrapped(
 					JSON.stringify({
@@ -290,16 +303,20 @@ describe("acepe-qa interaction helpers", () => {
 			});
 		};
 
-		const result = await clickWebview({
-			appIdentifier: "9223",
-			selector: "button[aria-label='Dev Tools']",
-			text: null,
-			thenSelector: null,
-			thenText: "Design System",
-			runner,
-		});
+		const result = await Effect.runPromise(
+			Effect.result(
+				clickWebview({
+					appIdentifier: "9223",
+					selector: "button[aria-label='Dev Tools']",
+					text: null,
+					thenSelector: null,
+					thenText: "Design System",
+					runner,
+				})
+			)
+		);
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(executedScript).toContain("Design System");
 		expect(executedScript).toContain("thenText");
 	});
@@ -309,10 +326,10 @@ describe("acepe-qa interaction helpers", () => {
 		const runner: CommandRunner = (command) => {
 			const joined = command.join(" ");
 			if (joined.includes("driver-session")) {
-				return okAsync({ code: 0, stdout: "", stderr: "" });
+				return Effect.succeed({ code: 0, stdout: "", stderr: "" });
 			}
 			executedScript = joined;
-			return okAsync({
+			return Effect.succeed({
 				code: 0,
 				stdout: wrapped(
 					JSON.stringify({
@@ -332,15 +349,19 @@ describe("acepe-qa interaction helpers", () => {
 			});
 		};
 
-		const result = await selectPanelProject({
-			appIdentifier: "9223",
-			panelId: "panel-acepe",
-			projectPath: "/repo/acepe",
-			runner,
-		});
+		const result = await Effect.runPromise(
+			Effect.result(
+				selectPanelProject({
+					appIdentifier: "9223",
+					panelId: "panel-acepe",
+					projectPath: "/repo/acepe",
+					runner,
+				})
+			)
+		);
 
-		expect(result.isOk()).toBe(true);
-		expect(result._unsafeUnwrap().selected).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
+		expect(Result.getOrThrow(result).selected).toBe(true);
 		expect(executedScript).toContain("get_projects");
 		expect(executedScript).toContain("/repo/acepe");
 		expect(executedScript).toContain("data-qa-agent-panel-id");
@@ -355,7 +376,7 @@ describe("acepe-qa interaction helpers", () => {
 		const runner: CommandRunner = (command) => {
 			const joined = command.join(" ");
 			if (joined.includes("driver-session")) {
-				return okAsync({
+				return Effect.succeed({
 					code: 0,
 					stdout: "",
 					stderr: "",
@@ -364,7 +385,7 @@ describe("acepe-qa interaction helpers", () => {
 			webviewCallCount += 1;
 			evaluatedScripts.push(joined);
 			if (webviewCallCount === 1) {
-				return okAsync({
+				return Effect.succeed({
 					code: 0,
 					stdout: wrapped(
 						JSON.stringify({
@@ -379,7 +400,7 @@ describe("acepe-qa interaction helpers", () => {
 					stderr: "",
 				});
 			}
-			return okAsync({
+			return Effect.succeed({
 				code: 0,
 				stdout: wrapped(
 					JSON.stringify({
@@ -434,19 +455,23 @@ describe("acepe-qa interaction helpers", () => {
 		};
 		const movePointer = (point: { readonly x: number; readonly y: number }) => {
 			movedPoint = point;
-			return okAsync(null);
+			return Effect.succeed(null);
 		};
 
-		const result = await hoverWebview({
-			appIdentifier: "9223",
-			selector: null,
-			text: "Session row",
-			runner,
-			movePointer,
-			delayMs: 100,
-		});
+		const result = await Effect.runPromise(
+			Effect.result(
+				hoverWebview({
+					appIdentifier: "9223",
+					selector: null,
+					text: "Session row",
+					runner,
+					movePointer,
+					delayMs: 100,
+				})
+			)
+		);
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(webviewCallCount).toBe(2);
 		expect(movedPoint).toEqual({ x: 410, y: 260 });
 		expect(evaluatedScripts[0]).toContain("innerPosition");
@@ -454,9 +479,9 @@ describe("acepe-qa interaction helpers", () => {
 		expect(evaluatedScripts[0]).toContain('invoke("activate_window"');
 		expect(evaluatedScripts[1]).toContain('matches(":hover")');
 		expect(evaluatedScripts[1]).toContain("await sleep(100)");
-		expect(result._unsafeUnwrap().hovered).toBe(true);
-		expect(result._unsafeUnwrap().matchesHoverPseudoClass).toBe(true);
-		expect(result._unsafeUnwrap().match?.text).toBe("Session row");
+		expect(Result.getOrThrow(result).hovered).toBe(true);
+		expect(Result.getOrThrow(result).matchesHoverPseudoClass).toBe(true);
+		expect(Result.getOrThrow(result).match?.text).toBe("Session row");
 	});
 
 	it("navigates the WebView to an app route", async () => {
@@ -464,14 +489,14 @@ describe("acepe-qa interaction helpers", () => {
 		const runner: CommandRunner = (command) => {
 			const joined = command.join(" ");
 			if (joined.includes("driver-session")) {
-				return okAsync({
+				return Effect.succeed({
 					code: 0,
 					stdout: "",
 					stderr: "",
 				});
 			}
 			sawScrollReset = joined.includes("window.scrollTo(0, 0)");
-			return okAsync({
+			return Effect.succeed({
 				code: 0,
 				stdout: wrapped(
 					JSON.stringify({
@@ -484,14 +509,18 @@ describe("acepe-qa interaction helpers", () => {
 			});
 		};
 
-		const result = await navigateWebview({
-			appIdentifier: "9223",
-			path: "/test-thinking-block",
-			runner,
-		});
+		const result = await Effect.runPromise(
+			Effect.result(
+				navigateWebview({
+					appIdentifier: "9223",
+					path: "/test-thinking-block",
+					runner,
+				})
+			)
+		);
 
-		expect(result.isOk()).toBe(true);
-		expect(result._unsafeUnwrap().path).toBe("/test-thinking-block");
+		expect(Result.isSuccess(result)).toBe(true);
+		expect(Result.getOrThrow(result).path).toBe("/test-thinking-block");
 		expect(sawScrollReset).toBe(true);
 	});
 
@@ -502,7 +531,7 @@ describe("acepe-qa interaction helpers", () => {
 		const runner: CommandRunner = (command) => {
 			const joined = command.join(" ");
 			if (joined.includes("driver-session")) {
-				return okAsync({
+				return Effect.succeed({
 					code: 0,
 					stdout: "",
 					stderr: "",
@@ -511,7 +540,7 @@ describe("acepe-qa interaction helpers", () => {
 			if (command.includes("webview-execute-js-sync")) {
 				webviewCommands.push("sync");
 				kickoffScript = command[command.indexOf("--script") + 1] ?? "";
-				return okAsync({
+				return Effect.succeed({
 					code: 0,
 					stdout: wrapped(
 						JSON.stringify({
@@ -525,7 +554,7 @@ describe("acepe-qa interaction helpers", () => {
 			}
 			webviewCommands.push("async");
 			readinessScript = command[command.indexOf("--script") + 1] ?? "";
-			return okAsync({
+			return Effect.succeed({
 				code: 0,
 				stdout: wrapped(
 					JSON.stringify({
@@ -538,13 +567,17 @@ describe("acepe-qa interaction helpers", () => {
 			});
 		};
 
-		const result = await reloadWebview({
-			appIdentifier: "9223",
-			runner,
-		});
+		const result = await Effect.runPromise(
+			Effect.result(
+				reloadWebview({
+					appIdentifier: "9223",
+					runner,
+				})
+			)
+		);
 
-		expect(result.isOk()).toBe(true);
-		expect(result._unsafeUnwrap().path).toBe("/settings");
+		expect(Result.isSuccess(result)).toBe(true);
+		expect(Result.getOrThrow(result).path).toBe("/settings");
 		expect(webviewCommands).toEqual(["sync", "async"]);
 		expect(kickoffScript).toContain("sessionStorage.setItem");
 		expect(kickoffScript).toContain("window.location.reload()");
@@ -558,7 +591,7 @@ describe("acepe-qa interaction helpers", () => {
 		const runner: CommandRunner = (command) => {
 			const joined = command.join(" ");
 			if (joined.includes("driver-session")) {
-				return okAsync({
+				return Effect.succeed({
 					code: 0,
 					stdout: "",
 					stderr: "",
@@ -566,7 +599,7 @@ describe("acepe-qa interaction helpers", () => {
 			}
 			evaluatedScript = joined;
 			sawLightProbe = joined.includes("const collectRowChurn = false;");
-			return okAsync({
+			return Effect.succeed({
 				code: 0,
 				stdout: wrapped(
 					JSON.stringify({
@@ -599,18 +632,22 @@ describe("acepe-qa interaction helpers", () => {
 			});
 		};
 
-		const result = await probeFrameRate({
-			appIdentifier: "9223",
-			sampleCount: 2,
-			selector: ".message-scroller__viewport",
-			runner,
-		});
+		const result = await Effect.runPromise(
+			Effect.result(
+				probeFrameRate({
+					appIdentifier: "9223",
+					sampleCount: 2,
+					selector: ".message-scroller__viewport",
+					runner,
+				})
+			)
+		);
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(sawLightProbe).toBe(true);
 		expect(evaluatedScript).toContain("clearTimeout(timeoutId)");
 		expect(evaluatedScript).toContain("const effectiveSampleCount =");
-		expect(result._unsafeUnwrap().rowChurnSamples).toHaveLength(0);
+		expect(Result.getOrThrow(result).rowChurnSamples).toHaveLength(0);
 	});
 
 	it("enables row churn collection and fixed scroll steps for diagnostic frame rate probes", async () => {
@@ -618,7 +655,7 @@ describe("acepe-qa interaction helpers", () => {
 		const runner: CommandRunner = (command) => {
 			const joined = command.join(" ");
 			if (joined.includes("driver-session")) {
-				return okAsync({
+				return Effect.succeed({
 					code: 0,
 					stdout: "",
 					stderr: "",
@@ -629,7 +666,7 @@ describe("acepe-qa interaction helpers", () => {
 				joined.includes("const scrollStepPx = 425;") &&
 				joined.includes("dispatchWheelIntent") &&
 				joined.includes("beforeScrollTop - scrollStepPx");
-			return okAsync({
+			return Effect.succeed({
 				code: 0,
 				stdout: wrapped(
 					JSON.stringify({
@@ -672,18 +709,22 @@ describe("acepe-qa interaction helpers", () => {
 			});
 		};
 
-		const result = await probeFrameRate({
-			appIdentifier: "9223",
-			sampleCount: 1,
-			selector: ".message-scroller__viewport",
-			collectRowChurn: true,
-			scrollStepPx: 425,
-			runner,
-		});
+		const result = await Effect.runPromise(
+			Effect.result(
+				probeFrameRate({
+					appIdentifier: "9223",
+					sampleCount: 1,
+					selector: ".message-scroller__viewport",
+					collectRowChurn: true,
+					scrollStepPx: 425,
+					runner,
+				})
+			)
+		);
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(sawDiagnosticProbe).toBe(true);
-		expect(result._unsafeUnwrap().maxMountedRowCount).toBe(2);
+		expect(Result.getOrThrow(result).maxMountedRowCount).toBe(2);
 	});
 
 	it("enables agent panel profile collection for diagnostic frame rate probes", async () => {
@@ -692,7 +733,7 @@ describe("acepe-qa interaction helpers", () => {
 		const runner: CommandRunner = (command) => {
 			const joined = command.join(" ");
 			if (joined.includes("driver-session")) {
-				return okAsync({
+				return Effect.succeed({
 					code: 0,
 					stdout: "",
 					stderr: "",
@@ -703,7 +744,7 @@ describe("acepe-qa interaction helpers", () => {
 				joined.includes("const collectAgentPanelProfile = true;") &&
 				joined.includes("__acepeEnableAgentPanelPerformanceCapture") &&
 				joined.includes("__acepeReadAgentPanelPerformanceCapture");
-			return okAsync({
+			return Effect.succeed({
 				code: 0,
 				stdout: wrapped(
 					JSON.stringify({
@@ -754,20 +795,24 @@ describe("acepe-qa interaction helpers", () => {
 			});
 		};
 
-		const result = await probeFrameRate({
-			appIdentifier: "9223",
-			sampleCount: 1,
-			selector: ".message-scroller__viewport",
-			collectAgentPanelProfile: true,
-			runner,
-		});
+		const result = await Effect.runPromise(
+			Effect.result(
+				probeFrameRate({
+					appIdentifier: "9223",
+					sampleCount: 1,
+					selector: ".message-scroller__viewport",
+					collectAgentPanelProfile: true,
+					runner,
+				})
+			)
+		);
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(sawProfileProbe).toBe(true);
 		expect(evaluatedScript.indexOf("__acepeEnableAgentPanelPerformanceCapture")).toBeLessThan(
 			evaluatedScript.indexOf("document.querySelectorAll(selector)")
 		);
-		expect(result._unsafeUnwrap().agentPanelProfileSamples).toHaveLength(1);
+		expect(Result.getOrThrow(result).agentPanelProfileSamples).toHaveLength(1);
 	});
 
 	it("scans active agent panel rows for generic Tool labels", async () => {
@@ -775,14 +820,14 @@ describe("acepe-qa interaction helpers", () => {
 		const runner: CommandRunner = (command) => {
 			const joined = command.join(" ");
 			if (joined.includes("driver-session")) {
-				return okAsync({
+				return Effect.succeed({
 					code: 0,
 					stdout: "",
 					stderr: "",
 				});
 			}
 			evaluatedScript = joined;
-			return okAsync({
+			return Effect.succeed({
 				code: 0,
 				stdout: wrapped(
 					JSON.stringify({
@@ -817,18 +862,22 @@ describe("acepe-qa interaction helpers", () => {
 			});
 		};
 
-		const result = await scanAgentPanelRows({
-			appIdentifier: "9223",
-			selector: '[data-testid="agent-panel-host"] .message-scroller__viewport',
-			selectorIndex: 2,
-			limit: 10,
-			runner,
-		});
+		const result = await Effect.runPromise(
+			Effect.result(
+				scanAgentPanelRows({
+					appIdentifier: "9223",
+					selector: '[data-testid="agent-panel-host"] .message-scroller__viewport',
+					selectorIndex: 2,
+					limit: 10,
+					runner,
+				})
+			)
+		);
 
-		expect(result.isOk()).toBe(true);
-		expect(result._unsafeUnwrap().exactGenericToolRowCount).toBe(0);
-		expect(result._unsafeUnwrap().rawProviderToolRowCount).toBe(0);
-		expect(result._unsafeUnwrap().rowCount).toBe(2);
+		expect(Result.isSuccess(result)).toBe(true);
+		expect(Result.getOrThrow(result).exactGenericToolRowCount).toBe(0);
+		expect(Result.getOrThrow(result).rawProviderToolRowCount).toBe(0);
+		expect(Result.getOrThrow(result).rowCount).toBe(2);
 		expect(evaluatedScript).toContain("[data-row-id]");
 		expect(evaluatedScript).toContain("document.querySelectorAll(selector)");
 		expect(evaluatedScript).toContain("selectorIndex = 2");
@@ -841,14 +890,14 @@ describe("acepe-qa interaction helpers", () => {
 		const runner: CommandRunner = (command) => {
 			const joined = command.join(" ");
 			if (joined.includes("driver-session")) {
-				return okAsync({
+				return Effect.succeed({
 					code: 0,
 					stdout: "",
 					stderr: "",
 				});
 			}
 			evaluatedScript = joined;
-			return okAsync({
+			return Effect.succeed({
 				code: 0,
 				stdout: wrapped(
 					JSON.stringify({
@@ -930,24 +979,28 @@ describe("acepe-qa interaction helpers", () => {
 			});
 		};
 
-		const result = await probeAgentPanelScrollPages({
-			appIdentifier: "9223",
-			selector: '[data-testid="agent-panel-host"] .message-scroller__viewport',
-			selectorIndex: 2,
-			sampleCount: 6,
-			scrollStepPx: 600,
-			settleMs: 250,
-			runner,
-		});
+		const result = await Effect.runPromise(
+			Effect.result(
+				probeAgentPanelScrollPages({
+					appIdentifier: "9223",
+					selector: '[data-testid="agent-panel-host"] .message-scroller__viewport',
+					selectorIndex: 2,
+					sampleCount: 6,
+					scrollStepPx: 600,
+					settleMs: 250,
+					runner,
+				})
+			)
+		);
 
-		expect(result.isOk()).toBe(true);
-		expect(result._unsafeUnwrap().loadedMoreRows).toBe(true);
-		expect(result._unsafeUnwrap().blankViewportSampleCount).toBe(0);
-		expect(result._unsafeUnwrap().maxRawProviderToolRowCount).toBe(0);
-		expect(result._unsafeUnwrap().samples[0]?.bufferStartIndex).toBe(6800);
-		expect(result._unsafeUnwrap().frameDeltasMs).toEqual([]);
-		expect(result._unsafeUnwrap().averageFrameDeltaMs).toBeNull();
-		expect(result._unsafeUnwrap().missed120FrameCount).toBe(0);
+		expect(Result.isSuccess(result)).toBe(true);
+		expect(Result.getOrThrow(result).loadedMoreRows).toBe(true);
+		expect(Result.getOrThrow(result).blankViewportSampleCount).toBe(0);
+		expect(Result.getOrThrow(result).maxRawProviderToolRowCount).toBe(0);
+		expect(Result.getOrThrow(result).samples[0]?.bufferStartIndex).toBe(6800);
+		expect(Result.getOrThrow(result).frameDeltasMs).toEqual([]);
+		expect(Result.getOrThrow(result).averageFrameDeltaMs).toBeNull();
+		expect(Result.getOrThrow(result).missed120FrameCount).toBe(0);
 		expect(evaluatedScript).toContain("target.scrollTop = Math.max");
 		expect(evaluatedScript).toContain("document.querySelectorAll(selector)");
 		expect(evaluatedScript).toContain("selectorIndex = 2");
@@ -968,7 +1021,7 @@ describe("acepe-qa interaction helpers", () => {
 		const runner: CommandRunner = (command) => {
 			const joined = command.join(" ");
 			if (joined.includes("driver-session")) {
-				return okAsync({
+				return Effect.succeed({
 					code: 0,
 					stdout: "",
 					stderr: "",
@@ -978,7 +1031,7 @@ describe("acepe-qa interaction helpers", () => {
 				joined.includes("getCurrentWindow") &&
 				joined.includes("setFocus") &&
 				joined.includes("150");
-			return okAsync({
+			return Effect.succeed({
 				code: 0,
 				stdout: wrapped(
 					JSON.stringify({
@@ -1007,19 +1060,23 @@ describe("acepe-qa interaction helpers", () => {
 			});
 		};
 
-		const result = await probeComputerUse({
-			appIdentifier: "9223",
-			sessionId: "qa-native-focus",
-			action: "",
-			targetLabel: "",
-			text: "",
-			key: "",
-			dx: null,
-			dy: null,
-			runner,
-		});
+		const result = await Effect.runPromise(
+			Effect.result(
+				probeComputerUse({
+					appIdentifier: "9223",
+					sessionId: "qa-native-focus",
+					action: "",
+					targetLabel: "",
+					text: "",
+					key: "",
+					dx: null,
+					dy: null,
+					runner,
+				})
+			)
+		);
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(sawWindowFocus).toBe(true);
 	});
 
@@ -1028,14 +1085,14 @@ describe("acepe-qa interaction helpers", () => {
 		const runner: CommandRunner = (command) => {
 			const joined = command.join(" ");
 			if (joined.includes("driver-session")) {
-				return okAsync({
+				return Effect.succeed({
 					code: 0,
 					stdout: "",
 					stderr: "",
 				});
 			}
 			evaluatedScript = joined;
-			return okAsync({
+			return Effect.succeed({
 				code: 0,
 				stdout: wrapped(
 					JSON.stringify({
@@ -1061,14 +1118,18 @@ describe("acepe-qa interaction helpers", () => {
 			});
 		};
 
-		const result = await focusDevApp({
-			appIdentifier: "9223",
-			runner,
-		});
+		const result = await Effect.runPromise(
+			Effect.result(
+				focusDevApp({
+					appIdentifier: "9223",
+					runner,
+				})
+			)
+		);
 
-		expect(result.isOk()).toBe(true);
-		expect(result._unsafeUnwrap().documentVisibilityState).toBe("visible");
-		expect(result._unsafeUnwrap().documentHasFocus).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
+		expect(Result.getOrThrow(result).documentVisibilityState).toBe("visible");
+		expect(Result.getOrThrow(result).documentHasFocus).toBe(true);
 		expect(evaluatedScript).toContain("activate_window");
 		expect(evaluatedScript).toContain("getCurrentWindow");
 		expect(evaluatedScript).not.toContain("setAlwaysOnTop");
@@ -1086,14 +1147,14 @@ describe("acepe-qa interaction helpers", () => {
 		const runner: CommandRunner = (command) => {
 			const joined = command.join(" ");
 			if (joined.includes("driver-session")) {
-				return okAsync({
+				return Effect.succeed({
 					code: 0,
 					stdout: "",
 					stderr: "",
 				});
 			}
 			evaluatedScript = joined;
-			return okAsync({
+			return Effect.succeed({
 				code: 0,
 				stdout: wrapped(
 					JSON.stringify({
@@ -1218,20 +1279,24 @@ describe("acepe-qa interaction helpers", () => {
 			});
 		};
 
-		const result = await probeHappyPathPerformance({
-			appIdentifier: "9223",
-			runner,
-		});
+		const result = await Effect.runPromise(
+			Effect.result(
+				probeHappyPathPerformance({
+					appIdentifier: "9223",
+					runner,
+				})
+			)
+		);
 
-		expect(result.isOk()).toBe(true);
-		expect(result._unsafeUnwrap().openClose.panelOpenMarks["agent-panel-host:props"]).toBe(6);
-		expect(result._unsafeUnwrap().timingEnvironment.likelyThrottled).toBe(false);
-		expect(result._unsafeUnwrap().openClose.panelMarkedWorkMs).toBe(3);
-		expect(result._unsafeUnwrap().openClose.panelDomMutationMs).toBe(11);
-		expect(result._unsafeUnwrap().openClose.composerMutationMs).toBe(47);
-		expect(result._unsafeUnwrap().openClose.composerReadyMs).toBe(32);
-		expect(result._unsafeUnwrap().openClose.composerReadyAfterCreateMs).toBe(48);
-		expect(result._unsafeUnwrap().openClose.closeTrace?.totalMs).toBe(4);
+		expect(Result.isSuccess(result)).toBe(true);
+		expect(Result.getOrThrow(result).openClose.panelOpenMarks["agent-panel-host:props"]).toBe(6);
+		expect(Result.getOrThrow(result).timingEnvironment.likelyThrottled).toBe(false);
+		expect(Result.getOrThrow(result).openClose.panelMarkedWorkMs).toBe(3);
+		expect(Result.getOrThrow(result).openClose.panelDomMutationMs).toBe(11);
+		expect(Result.getOrThrow(result).openClose.composerMutationMs).toBe(47);
+		expect(Result.getOrThrow(result).openClose.composerReadyMs).toBe(32);
+		expect(Result.getOrThrow(result).openClose.composerReadyAfterCreateMs).toBe(48);
+		expect(Result.getOrThrow(result).openClose.closeTrace?.totalMs).toBe(4);
 		expect(evaluatedScript).toContain("__acepeHappyPathProbe");
 		expect(evaluatedScript).toContain("ensureMainRoute");
 		expect(evaluatedScript).toContain('new URL("/", window.location.origin)');
@@ -1243,14 +1308,14 @@ describe("acepe-qa interaction helpers", () => {
 		const runner: CommandRunner = (command) => {
 			const joined = command.join(" ");
 			if (joined.includes("driver-session")) {
-				return okAsync({
+				return Effect.succeed({
 					code: 0,
 					stdout: "",
 					stderr: "",
 				});
 			}
 			evaluatedScript = joined;
-			return okAsync({
+			return Effect.succeed({
 				code: 0,
 				stdout: wrapped(
 					JSON.stringify({
@@ -1270,14 +1335,18 @@ describe("acepe-qa interaction helpers", () => {
 			});
 		};
 
-		const result = await probeLedgerBackfill({
-			appIdentifier: "9223",
-			limit: 1,
-			runner,
-		});
+		const result = await Effect.runPromise(
+			Effect.result(
+				probeLedgerBackfill({
+					appIdentifier: "9223",
+					limit: 1,
+					runner,
+				})
+			)
+		);
 
-		expect(result.isOk()).toBe(true);
-		expect(result._unsafeUnwrap().rebuiltFromProviderCount).toBe(1);
+		expect(Result.isSuccess(result)).toBe(true);
+		expect(Result.getOrThrow(result).rebuiltFromProviderCount).toBe(1);
 		expect(evaluatedScript).toContain("warm_recent_transcript_row_ledgers");
 		expect(evaluatedScript).toContain("limit: 1");
 	});
@@ -1287,14 +1356,14 @@ describe("acepe-qa interaction helpers", () => {
 		const runner: CommandRunner = (command) => {
 			const joined = command.join(" ");
 			if (joined.includes("driver-session")) {
-				return okAsync({
+				return Effect.succeed({
 					code: 0,
 					stdout: "",
 					stderr: "",
 				});
 			}
 			evaluatedScript = joined;
-			return okAsync({
+			return Effect.succeed({
 				code: 0,
 				stdout: wrapped(
 					JSON.stringify({
@@ -1377,20 +1446,26 @@ describe("acepe-qa interaction helpers", () => {
 			});
 		};
 
-		const result = await probeSessionOpenContent({
-			appIdentifier: "9223",
-			sessionId: "session-heavy",
-			projectPath: "/Users/alex/Documents/acepe",
-			agentId: "codex",
-			sourcePath: "/Users/alex/.codex/session.jsonl",
-			title: "Heavy session",
-			runner,
-		});
+		const result = await Effect.runPromise(
+			Effect.result(
+				probeSessionOpenContent({
+					appIdentifier: "9223",
+					sessionId: "session-heavy",
+					projectPath: "/Users/alex/Documents/acepe",
+					agentId: "codex",
+					sourcePath: "/Users/alex/.codex/session.jsonl",
+					title: "Heavy session",
+					runner,
+				})
+			)
+		);
 
-		expect(result.isOk()).toBe(true);
-		expect(result._unsafeUnwrap().firstRowPaintMs).toBe(49);
-		expect(result._unsafeUnwrap().tauriInvokeTimings[0]?.command).toBe("get_session_open_result");
-		expect(result._unsafeUnwrap().openEvents.map((event) => event.stage)).toEqual([
+		expect(Result.isSuccess(result)).toBe(true);
+		expect(Result.getOrThrow(result).firstRowPaintMs).toBe(49);
+		expect(Result.getOrThrow(result).tauriInvokeTimings[0]?.command).toBe(
+			"get_session_open_result"
+		);
+		expect(Result.getOrThrow(result).openEvents.map((event) => event.stage)).toEqual([
 			"request-started",
 			"hydrated",
 		]);
@@ -1403,13 +1478,13 @@ describe("acepe-qa interaction helpers", () => {
 		const runner: CommandRunner = (command) => {
 			const joined = command.join(" ");
 			if (joined.includes("driver-session")) {
-				return okAsync({
+				return Effect.succeed({
 					code: 0,
 					stdout: "",
 					stderr: "",
 				});
 			}
-			return okAsync({
+			return Effect.succeed({
 				code: 0,
 				stdout: wrapped(
 					JSON.stringify({
@@ -1429,15 +1504,19 @@ describe("acepe-qa interaction helpers", () => {
 			});
 		};
 
-		const result = await resetOnboarding({
-			appIdentifier: "9223",
-			delayMs: 300,
-			runner,
-		});
+		const result = await Effect.runPromise(
+			Effect.result(
+				resetOnboarding({
+					appIdentifier: "9223",
+					delayMs: 300,
+					runner,
+				})
+			)
+		);
 
-		expect(result.isOk()).toBe(true);
-		expect(result._unsafeUnwrap().panelCount).toBe(3);
-		expect(result._unsafeUnwrap().animated).toEqual([
+		expect(Result.isSuccess(result)).toBe(true);
+		expect(Result.getOrThrow(result).panelCount).toBe(3);
+		expect(Result.getOrThrow(result).animated).toEqual([
 			{
 				className: "onboarding-preview-stream-line",
 				animationName: "onboarding-preview-stream-reveal",
@@ -1449,13 +1528,13 @@ describe("acepe-qa interaction helpers", () => {
 		const runner: CommandRunner = (command) => {
 			const joined = command.join(" ");
 			if (joined.includes("driver-session")) {
-				return okAsync({
+				return Effect.succeed({
 					code: 0,
 					stdout: "",
 					stderr: "",
 				});
 			}
-			return okAsync({
+			return Effect.succeed({
 				code: 0,
 				stdout: wrapped(
 					JSON.stringify({
@@ -1502,16 +1581,20 @@ describe("acepe-qa interaction helpers", () => {
 			});
 		};
 
-		const result = await openStreamingReproLab({
-			appIdentifier: "9223",
-			delayMs: 300,
-			runner,
-		});
+		const result = await Effect.runPromise(
+			Effect.result(
+				openStreamingReproLab({
+					appIdentifier: "9223",
+					delayMs: 300,
+					runner,
+				})
+			)
+		);
 
-		expect(result.isOk()).toBe(true);
-		expect(result._unsafeUnwrap().labPresent).toBe(true);
-		expect(result._unsafeUnwrap().tokenRevealAnimatedCount).toBe(2);
-		expect(result._unsafeUnwrap().performance?.steps.at(1)?.domFlushMs).toBe(8);
+		expect(Result.isSuccess(result)).toBe(true);
+		expect(Result.getOrThrow(result).labPresent).toBe(true);
+		expect(Result.getOrThrow(result).tokenRevealAnimatedCount).toBe(2);
+		expect(Result.getOrThrow(result).performance?.steps.at(1)?.domFlushMs).toBe(8);
 	});
 
 	it("opens the agent panel stress lab and returns scroll metrics", async () => {
@@ -1519,14 +1602,14 @@ describe("acepe-qa interaction helpers", () => {
 		const runner: CommandRunner = (command) => {
 			const joined = command.join(" ");
 			if (joined.includes("driver-session")) {
-				return okAsync({
+				return Effect.succeed({
 					code: 0,
 					stdout: "",
 					stderr: "",
 				});
 			}
 			evaluatedScript = joined;
-			return okAsync({
+			return Effect.succeed({
 				code: 0,
 				stdout: wrapped(
 					JSON.stringify({
@@ -1635,23 +1718,27 @@ describe("acepe-qa interaction helpers", () => {
 			});
 		};
 
-		const result = await openAgentPanelStressLab({
-			appIdentifier: "9223",
-			rowCount: 5000,
-			preset: "mixed",
-			rendererMode: "shell-only",
-			seed: 7,
-			includeStreamingTail: true,
-			runScrollSample: true,
-			delayMs: 300,
-			timeoutMs: 20_000,
-			runner,
-		});
+		const result = await Effect.runPromise(
+			Effect.result(
+				openAgentPanelStressLab({
+					appIdentifier: "9223",
+					rowCount: 5000,
+					preset: "mixed",
+					rendererMode: "shell-only",
+					seed: 7,
+					includeStreamingTail: true,
+					runScrollSample: true,
+					delayMs: 300,
+					timeoutMs: 20_000,
+					runner,
+				})
+			)
+		);
 
-		expect(result.isOk()).toBe(true);
-		expect(result._unsafeUnwrap().rendererMode).toBe("shell-only");
-		expect(result._unsafeUnwrap().domRowCount).toBe(5000);
-		expect(result._unsafeUnwrap().jankFrameCount).toBe(3);
+		expect(Result.isSuccess(result)).toBe(true);
+		expect(Result.getOrThrow(result).rendererMode).toBe("shell-only");
+		expect(Result.getOrThrow(result).domRowCount).toBe(5000);
+		expect(Result.getOrThrow(result).jankFrameCount).toBe(3);
 		expect(evaluatedScript).toContain("/test-agent-panel-stress");
 		expect(evaluatedScript).toContain("const rowCount = 5000");
 		expect(evaluatedScript).toContain('const rendererMode = "shell-only"');
@@ -1664,10 +1751,10 @@ describe("acepe-qa interaction helpers", () => {
 		const runner: CommandRunner = (command) => {
 			const joined = command.join(" ");
 			if (joined.includes("driver-session")) {
-				return okAsync({ code: 0, stdout: "", stderr: "" });
+				return Effect.succeed({ code: 0, stdout: "", stderr: "" });
 			}
 			evaluatedScript = joined;
-			return okAsync({
+			return Effect.succeed({
 				code: 0,
 				stdout: wrapped(
 					JSON.stringify({
@@ -1711,16 +1798,20 @@ describe("acepe-qa interaction helpers", () => {
 			});
 		};
 
-		const result = await probeSendAttachStress({
-			appIdentifier: "9223",
-			rowCount: 120,
-			preScrollOffsetPx: 2000,
-			delayMs: 300,
-			runner,
-		});
+		const result = await Effect.runPromise(
+			Effect.result(
+				probeSendAttachStress({
+					appIdentifier: "9223",
+					rowCount: 120,
+					preScrollOffsetPx: 2000,
+					delayMs: 300,
+					runner,
+				})
+			)
+		);
 
-		expect(result.isOk()).toBe(true);
-		expect(result._unsafeUnwrap().passed).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
+		expect(Result.getOrThrow(result).passed).toBe(true);
 		expect(evaluatedScript).toContain("/test-agent-panel-stress");
 		expect(evaluatedScript).toContain("runSendAttachScenario");
 		expect(evaluatedScript).toContain("rowCount: 120");
@@ -1732,10 +1823,10 @@ describe("acepe-qa interaction helpers", () => {
 		const runner: CommandRunner = (command) => {
 			const joined = command.join(" ");
 			if (joined.includes("driver-session")) {
-				return okAsync({ code: 0, stdout: "", stderr: "" });
+				return Effect.succeed({ code: 0, stdout: "", stderr: "" });
 			}
 			evaluatedScript = joined;
-			return okAsync({
+			return Effect.succeed({
 				code: 0,
 				stdout: wrapped(
 					JSON.stringify({
@@ -1783,14 +1874,18 @@ describe("acepe-qa interaction helpers", () => {
 			});
 		};
 
-		const result = await probePlanningBetweenTools({
-			appIdentifier: "9223",
-			delayMs: 300,
-			runner,
-		});
+		const result = await Effect.runPromise(
+			Effect.result(
+				probePlanningBetweenTools({
+					appIdentifier: "9223",
+					delayMs: 300,
+					runner,
+				})
+			)
+		);
 
-		expect(result.isOk()).toBe(true);
-		expect(result._unsafeUnwrap().passed).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
+		expect(Result.getOrThrow(result).passed).toBe(true);
 		expect(evaluatedScript).toContain("/test-agent-panel-stress");
 		expect(evaluatedScript).toContain("runPlanningBetweenToolsScenario");
 	});
@@ -1800,14 +1895,14 @@ describe("acepe-qa interaction helpers", () => {
 		const runner: CommandRunner = (command) => {
 			const joined = command.join(" ");
 			if (joined.includes("driver-session")) {
-				return okAsync({
+				return Effect.succeed({
 					code: 0,
 					stdout: "",
 					stderr: "",
 				});
 			}
 			evaluatedScript = joined;
-			return okAsync({
+			return Effect.succeed({
 				code: 0,
 				stdout: wrapped(
 					JSON.stringify({
@@ -1821,18 +1916,22 @@ describe("acepe-qa interaction helpers", () => {
 			});
 		};
 
-		const result = await sendComposer({
-			appIdentifier: "9223",
-			text: "QA prompt",
-			submit: true,
-			selector: "",
-			selectorIndex: 2,
-			panelId: "panel-1",
-			sessionId: "session-1",
-			runner,
-		});
+		const result = await Effect.runPromise(
+			Effect.result(
+				sendComposer({
+					appIdentifier: "9223",
+					text: "QA prompt",
+					submit: true,
+					selector: "",
+					selectorIndex: 2,
+					panelId: "panel-1",
+					sessionId: "session-1",
+					runner,
+				})
+			)
+		);
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(evaluatedScript).toContain("const promptText =");
 		expect(evaluatedScript).toContain("const selectorIndex = 2");
 		expect(evaluatedScript).toContain('const panelId = "panel-1"');
@@ -1848,10 +1947,10 @@ describe("acepe-qa interaction helpers", () => {
 		const runner: CommandRunner = (command) => {
 			const joined = command.join(" ");
 			if (joined.includes("driver-session")) {
-				return okAsync({ code: 0, stdout: "", stderr: "" });
+				return Effect.succeed({ code: 0, stdout: "", stderr: "" });
 			}
 			evaluatedScript = joined;
-			return okAsync({
+			return Effect.succeed({
 				code: 0,
 				stdout: wrapped(
 					JSON.stringify({
@@ -1871,15 +1970,19 @@ describe("acepe-qa interaction helpers", () => {
 			});
 		};
 
-		const result = await probeComposerEnterSubmit({
-			appIdentifier: "9223",
-			text: "QA enter prompt",
-			panelId: "panel-f38",
-			sessionId: "session-f38",
-			runner,
-		});
+		const result = await Effect.runPromise(
+			Effect.result(
+				probeComposerEnterSubmit({
+					appIdentifier: "9223",
+					text: "QA enter prompt",
+					panelId: "panel-f38",
+					sessionId: "session-f38",
+					runner,
+				})
+			)
+		);
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(evaluatedScript).toContain('const panelId = "panel-f38"');
 		expect(evaluatedScript).toContain('const sessionId = "session-f38"');
 		expect(evaluatedScript).toContain("new KeyboardEvent");
@@ -1924,7 +2027,7 @@ describe("acepe-qa interaction helpers", () => {
 		const runner: CommandRunner = (command) => {
 			const joined = command.join(" ");
 			if (joined.includes("driver-session")) {
-				return okAsync({ code: 0, stdout: "", stderr: "" });
+				return Effect.succeed({ code: 0, stdout: "", stderr: "" });
 			}
 			evaluatedScripts.push(joined);
 			const payload = joined.includes("const baseSelector")
@@ -1954,25 +2057,29 @@ describe("acepe-qa interaction helpers", () => {
 						},
 					}
 				: sample;
-			return okAsync({
+			return Effect.succeed({
 				code: 0,
 				stdout: wrapped(JSON.stringify(payload)),
 				stderr: "",
 			});
 		};
 
-		const result = await probeFirstSendTimeline({
-			appIdentifier: "9223",
-			text: "Reply with 1.",
-			selector: "",
-			panelId: "panel-opencode",
-			sessionId: "session-opencode",
-			preScrollOffsetPx: 2_000,
-			timeoutMs: 0,
-			runner,
-		});
+		const result = await Effect.runPromise(
+			Effect.result(
+				probeFirstSendTimeline({
+					appIdentifier: "9223",
+					text: "Reply with 1.",
+					selector: "",
+					panelId: "panel-opencode",
+					sessionId: "session-opencode",
+					preScrollOffsetPx: 2_000,
+					timeoutMs: 0,
+					runner,
+				})
+			)
+		);
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(evaluatedScripts).toHaveLength(1);
 		for (const script of evaluatedScripts) {
 			expect(script).toContain('const targetPanelId = "panel-opencode"');

@@ -1,5 +1,7 @@
+import { fromPromise } from "@acepe/effect-result/fromPromise";
 import { describe, expect, it } from "bun:test";
-import { okAsync, ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import type { FileGitStatus } from "$lib/services/converted-session-types.js";
 import type { AppError } from "../../errors/app-error.js";
 import { AgentError } from "../../errors/app-error.js";
@@ -35,6 +37,17 @@ function createStatus(path: string, insertions: number, deletions: number): File
 	};
 }
 
+function toAppError(error: unknown): AppError {
+	return new AgentError(
+		"test-getProjectGitStatus",
+		error instanceof Error ? error : new Error(String(error))
+	);
+}
+
+async function runResult<A, E>(effect: Effect.Effect<A, E>) {
+	return Effect.runPromise(Effect.result(effect));
+}
+
 describe("git status cache", () => {
 	it("reuses cached values within ttl", async () => {
 		let now = 1000;
@@ -45,17 +58,17 @@ describe("git status cache", () => {
 			now: () => now,
 			fetchGitStatus: () => {
 				fetchCount += 1;
-				return okAsync([createStatus("src/file.ts", 2, 1)]);
+				return Effect.succeed([createStatus("src/file.ts", 2, 1)]);
 			},
 		});
 
-		const first = await cache.getProjectGitStatusMap("/repo");
-		expect(first.isOk()).toBe(true);
+		const first = await runResult(cache.getProjectGitStatusMap("/repo"));
+		expect(Result.isSuccess(first)).toBe(true);
 		expect(fetchCount).toBe(1);
 
 		now += 1000;
-		const second = await cache.getProjectGitStatusMap("/repo");
-		expect(second.isOk()).toBe(true);
+		const second = await runResult(cache.getProjectGitStatusMap("/repo"));
+		expect(Result.isSuccess(second)).toBe(true);
 		expect(fetchCount).toBe(1);
 	});
 
@@ -68,17 +81,17 @@ describe("git status cache", () => {
 			now: () => now,
 			fetchGitStatus: () => {
 				fetchCount += 1;
-				return okAsync([createStatus("src/file.ts", fetchCount, 0)]);
+				return Effect.succeed([createStatus("src/file.ts", fetchCount, 0)]);
 			},
 		});
 
-		const first = await cache.getProjectGitStatusMap("/repo");
-		expect(first.isOk()).toBe(true);
+		const first = await runResult(cache.getProjectGitStatusMap("/repo"));
+		expect(Result.isSuccess(first)).toBe(true);
 		expect(fetchCount).toBe(1);
 
 		now += 2500;
-		const second = await cache.getProjectGitStatusMap("/repo");
-		expect(second.isOk()).toBe(true);
+		const second = await runResult(cache.getProjectGitStatusMap("/repo"));
+		expect(Result.isSuccess(second)).toBe(true);
 		expect(fetchCount).toBe(2);
 	});
 
@@ -91,14 +104,7 @@ describe("git status cache", () => {
 			now: () => 1000,
 			fetchGitStatus: () => {
 				fetchCount += 1;
-				return ResultAsync.fromPromise(
-					deferred.promise,
-					(error): AppError =>
-						new AgentError(
-							"test-getProjectGitStatus",
-							error instanceof Error ? error : new Error(String(error))
-						)
-				);
+				return fromPromise(() => deferred.promise, toAppError);
 			},
 		});
 
@@ -109,9 +115,9 @@ describe("git status cache", () => {
 
 		deferred.resolve([createStatus("src/file.ts", 4, 2)]);
 
-		const [first, second] = await Promise.all([firstPromise, secondPromise]);
-		expect(first.isOk()).toBe(true);
-		expect(second.isOk()).toBe(true);
+		const [first, second] = await Promise.all([runResult(firstPromise), runResult(secondPromise)]);
+		expect(Result.isSuccess(first)).toBe(true);
+		expect(Result.isSuccess(second)).toBe(true);
 	});
 
 	it("uses the summary fetcher for summary status maps", async () => {
@@ -123,20 +129,20 @@ describe("git status cache", () => {
 			now: () => 1000,
 			fetchGitStatus: () => {
 				fullFetchCount += 1;
-				return okAsync([createStatus("src/full.ts", 8, 3)]);
+				return Effect.succeed([createStatus("src/full.ts", 8, 3)]);
 			},
 			fetchGitStatusSummary: () => {
 				summaryFetchCount += 1;
-				return okAsync([createStatus("src/summary.ts", 0, 0)]);
+				return Effect.succeed([createStatus("src/summary.ts", 0, 0)]);
 			},
 		});
 
-		const summary = await cache.getProjectGitStatusSummaryMap("/repo");
+		const summary = await runResult(cache.getProjectGitStatusSummaryMap("/repo"));
 
-		expect(summary.isOk()).toBe(true);
+		expect(Result.isSuccess(summary)).toBe(true);
 		expect(fullFetchCount).toBe(0);
 		expect(summaryFetchCount).toBe(1);
-		expect(summary._unsafeUnwrap().get("src/summary.ts")?.insertions).toBe(0);
+		expect(Result.getOrThrow(summary).get("src/summary.ts")?.insertions).toBe(0);
 	});
 
 	it("fetches one file summary status without fetching the project summary map", async () => {
@@ -148,21 +154,23 @@ describe("git status cache", () => {
 			now: () => 1000,
 			fetchGitStatusSummary: () => {
 				summaryFetchCount += 1;
-				return okAsync([createStatus("src/project.ts", 1, 0)]);
+				return Effect.succeed([createStatus("src/project.ts", 1, 0)]);
 			},
 			fetchFileGitStatusSummary: (_projectPath, filePath) => {
 				fileSummaryFetchCount += 1;
-				return okAsync(filePath.endsWith("two.ts") ? createStatus("src/two.ts", 4, 2) : null);
+				return Effect.succeed(filePath.endsWith("two.ts") ? createStatus("src/two.ts", 4, 2) : null);
 			},
 		});
 
-		const first = await cache.getProjectFileGitStatusSummary("/repo", "/repo/src/two.ts");
-		const second = await cache.getProjectFileGitStatusSummary("/repo", "/repo/src/two.ts");
+		const first = await runResult(cache.getProjectFileGitStatusSummary("/repo", "/repo/src/two.ts"));
+		const second = await runResult(
+			cache.getProjectFileGitStatusSummary("/repo", "/repo/src/two.ts")
+		);
 
-		expect(first.isOk()).toBe(true);
-		expect(second.isOk()).toBe(true);
-		expect(first._unsafeUnwrap()?.path).toBe("src/two.ts");
-		expect(second._unsafeUnwrap()?.path).toBe("src/two.ts");
+		expect(Result.isSuccess(first)).toBe(true);
+		expect(Result.isSuccess(second)).toBe(true);
+		expect(Result.getOrThrow(first)?.path).toBe("src/two.ts");
+		expect(Result.getOrThrow(second)?.path).toBe("src/two.ts");
 		expect(summaryFetchCount).toBe(0);
 		expect(fileSummaryFetchCount).toBe(1);
 	});
@@ -176,19 +184,21 @@ describe("git status cache", () => {
 			now: () => 1000,
 			fetchGitStatusSummary: () => {
 				summaryFetchCount += 1;
-				return okAsync([createStatus("src/one.ts", 1, 0), createStatus("src/two.ts", 4, 2)]);
+				return Effect.succeed([createStatus("src/one.ts", 1, 0), createStatus("src/two.ts", 4, 2)]);
 			},
 			fetchFileGitStatusSummary: () => {
 				fileSummaryFetchCount += 1;
-				return okAsync(null);
+				return Effect.succeed(null);
 			},
 		});
 
-		await cache.getProjectGitStatusSummaryMap("/repo");
-		const result = await cache.getProjectFileGitStatusSummary("/repo", "/repo/src/two.ts");
+		await runResult(cache.getProjectGitStatusSummaryMap("/repo"));
+		const result = await runResult(
+			cache.getProjectFileGitStatusSummary("/repo", "/repo/src/two.ts")
+		);
 
-		expect(result.isOk()).toBe(true);
-		expect(result._unsafeUnwrap()?.path).toBe("src/two.ts");
+		expect(Result.isSuccess(result)).toBe(true);
+		expect(Result.getOrThrow(result)?.path).toBe("src/two.ts");
 		expect(summaryFetchCount).toBe(1);
 		expect(fileSummaryFetchCount).toBe(0);
 	});
@@ -200,23 +210,22 @@ describe("git status cache", () => {
 		const cache = createGitStatusCache({
 			ttlMs: 2000,
 			now: () => 1000,
-			fetchGitStatusSummary: () => okAsync(statuses),
+			fetchGitStatusSummary: () => Effect.succeed(statuses),
 			fetchFileGitStatusSummary: (_projectPath, filePath) => {
 				fileSummaryFetchCount += 1;
-				return okAsync(
+				return Effect.succeed(
 					filePath.endsWith("nested/two.ts") ? createStatus("nested/two.ts", 7, 3) : null
 				);
 			},
 		});
 
-		await cache.getProjectGitStatusSummaryMap("/repo");
-		const result = await cache.getProjectFileGitStatusSummary(
-			"/repo/nested",
-			"/repo/nested/two.ts"
+		await runResult(cache.getProjectGitStatusSummaryMap("/repo"));
+		const result = await runResult(
+			cache.getProjectFileGitStatusSummary("/repo/nested", "/repo/nested/two.ts")
 		);
 
-		expect(result.isOk()).toBe(true);
-		expect(result._unsafeUnwrap()?.path).toBe("nested/two.ts");
+		expect(Result.isSuccess(result)).toBe(true);
+		expect(Result.getOrThrow(result)?.path).toBe("nested/two.ts");
 		expect(fileSummaryFetchCount).toBe(1);
 	});
 
@@ -229,19 +238,19 @@ describe("git status cache", () => {
 			now: () => 1000,
 			fetchGitStatus: () => {
 				fullFetchCount += 1;
-				return okAsync([createStatus("src/full.ts", fullFetchCount, 0)]);
+				return Effect.succeed([createStatus("src/full.ts", fullFetchCount, 0)]);
 			},
 			fetchGitStatusSummary: () => {
 				summaryFetchCount += 1;
-				return okAsync([createStatus("src/summary.ts", summaryFetchCount, 0)]);
+				return Effect.succeed([createStatus("src/summary.ts", summaryFetchCount, 0)]);
 			},
 		});
 
-		await cache.getProjectGitStatusMap("/repo");
-		await cache.getProjectGitStatusSummaryMap("/repo");
+		await runResult(cache.getProjectGitStatusMap("/repo"));
+		await runResult(cache.getProjectGitStatusSummaryMap("/repo"));
 		cache.invalidateProjectGitStatus("/repo");
-		await cache.getProjectGitStatusMap("/repo");
-		await cache.getProjectGitStatusSummaryMap("/repo");
+		await runResult(cache.getProjectGitStatusMap("/repo"));
+		await runResult(cache.getProjectGitStatusSummaryMap("/repo"));
 
 		expect(fullFetchCount).toBe(2);
 		expect(summaryFetchCount).toBe(2);

@@ -1,14 +1,16 @@
 /**
  * Skills Store - Reactive state management for the Skills Manager.
  *
- * Uses Svelte 5 runes for reactive state and neverthrow ResultAsync
+ * Uses Svelte 5 runes for reactive state and Effect
  * for error handling.
  */
 
-import { okAsync, ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
 import { getContext, setContext } from "svelte";
 import { SvelteSet } from "svelte/reactivity";
 import type { AppError } from "../../acp/errors/app-error.js";
+import { AgentError } from "../../acp/errors/app-error.js";
 import { createLogger } from "../../acp/utils/logger.js";
 
 import { copyPluginSkillToAgent, getPluginSkill, skillsApi } from "../api/skills-api.js";
@@ -71,15 +73,14 @@ export class SkillsStore {
 	/**
 	 * Load the tree structure of all agents and skills.
 	 */
-	loadTree(): ResultAsync<void, AppError> {
+	loadTree(): Effect.Effect<void, AppError> {
 		this.loading = true;
 		this.error = null;
 
 		logger.debug("Loading skills tree");
 
-		return skillsApi
-			.listTree()
-			.map((nodes) => {
+		return skillsApi.listTree().pipe(
+			Effect.map((nodes) => {
 				this.tree = nodes;
 				this.loading = false;
 
@@ -99,13 +100,14 @@ export class SkillsStore {
 				this.expandedNodes = newExpanded;
 
 				logger.debug("Skills tree loaded", { agentCount: nodes.length });
-			})
-			.mapErr((err) => {
+			}),
+			Effect.mapError((err) => {
 				this.loading = false;
 				this.error = err.message;
 				logger.error("Failed to load skills tree", err);
 				return err;
-			});
+			})
+		);
 	}
 
 	/**
@@ -133,7 +135,7 @@ export class SkillsStore {
 	/**
 	 * Select a skill and load its content.
 	 */
-	selectSkill(skillId: string): ResultAsync<void, AppError> {
+	selectSkill(skillId: string): Effect.Effect<void, AppError> {
 		// Check for unsaved changes
 		if (this.isDirty) {
 			logger.warn("Selecting new skill with unsaved changes", {
@@ -145,9 +147,8 @@ export class SkillsStore {
 
 		this.loading = true;
 
-		return skillsApi
-			.getSkill(skillId)
-			.map((skill) => {
+		return skillsApi.getSkill(skillId).pipe(
+			Effect.map((skill) => {
 				// Clear plugin skill selection
 				this.selectedPluginSkill = null;
 				this.selectedSkill = skill;
@@ -155,13 +156,14 @@ export class SkillsStore {
 				this.isDirty = false;
 				this.loading = false;
 				logger.debug("Skill selected", { skillId, name: skill.name });
-			})
-			.mapErr((err) => {
+			}),
+			Effect.mapError((err) => {
 				this.loading = false;
 				this.error = err.message;
 				logger.error("Failed to select skill", { skillId, error: err });
 				return err;
-			});
+			})
+		);
 	}
 
 	/**
@@ -177,7 +179,7 @@ export class SkillsStore {
 	/**
 	 * Select a plugin skill (read-only).
 	 */
-	selectPluginSkill(skillId: string): ResultAsync<void, AppError> {
+	selectPluginSkill(skillId: string): Effect.Effect<void, AppError> {
 		// Check for unsaved changes
 		if (this.isDirty) {
 			logger.warn("Selecting plugin skill with unsaved changes", {
@@ -188,8 +190,8 @@ export class SkillsStore {
 
 		this.loading = true;
 
-		return getPluginSkill(skillId)
-			.map((skill) => {
+		return getPluginSkill(skillId).pipe(
+			Effect.map((skill) => {
 				// Clear regular skill selection
 				this.selectedSkill = null;
 				this.selectedPluginSkill = skill;
@@ -197,33 +199,35 @@ export class SkillsStore {
 				this.isDirty = false;
 				this.loading = false;
 				logger.debug("Plugin skill selected", { skillId, name: skill.name });
-			})
-			.mapErr((err) => {
+			}),
+			Effect.mapError((err) => {
 				this.loading = false;
 				this.error = err.message;
 				logger.error("Failed to select plugin skill", { skillId, error: err });
 				return err;
-			});
+			})
+		);
 	}
 
 	/**
 	 * Copy a plugin skill to an agent directory.
 	 */
-	copyPluginSkillToAgent(skillId: string, targetAgentId: string): ResultAsync<Skill, AppError> {
+	copyPluginSkillToAgent(skillId: string, targetAgentId: string): Effect.Effect<Skill, AppError> {
 		logger.debug("Copying plugin skill to agent", { skillId, targetAgentId });
 
-		return copyPluginSkillToAgent(skillId, targetAgentId)
-			.map((newSkill) => {
+		return copyPluginSkillToAgent(skillId, targetAgentId).pipe(
+			Effect.map((newSkill) => {
 				// Refresh tree to show new skill
-				this.loadTree();
+				void Effect.runPromise(Effect.result(this.loadTree()));
 				logger.debug("Plugin skill copied", { skillId, newSkillId: newSkill.id });
 				return newSkill;
-			})
-			.mapErr((err) => {
+			}),
+			Effect.mapError((err) => {
 				this.error = err.message;
 				logger.error("Failed to copy plugin skill", { skillId, targetAgentId, error: err });
 				return err;
-			});
+			})
+		);
 	}
 
 	// ============================================
@@ -241,9 +245,9 @@ export class SkillsStore {
 	/**
 	 * Save the current skill.
 	 */
-	saveSkill(): ResultAsync<void, AppError> {
+	saveSkill(): Effect.Effect<void, AppError> {
 		if (!this.selectedSkill || !this.isDirty) {
-			return okAsync(undefined);
+			return Effect.succeed(undefined);
 		}
 
 		this.isSaving = true;
@@ -251,20 +255,20 @@ export class SkillsStore {
 
 		logger.debug("Saving skill", { skillId });
 
-		return skillsApi
-			.updateSkill(skillId, this.editorContent)
-			.map((updatedSkill) => {
+		return skillsApi.updateSkill(skillId, this.editorContent).pipe(
+			Effect.map((updatedSkill) => {
 				this.selectedSkill = updatedSkill;
 				this.isDirty = false;
 				this.isSaving = false;
 				logger.debug("Skill saved", { skillId });
-			})
-			.mapErr((err) => {
+			}),
+			Effect.mapError((err) => {
 				this.isSaving = false;
 				this.error = err.message;
 				logger.error("Failed to save skill", { skillId, error: err });
 				return err;
-			});
+			})
+		);
 	}
 
 	// ============================================
@@ -279,46 +283,46 @@ export class SkillsStore {
 		folderName: string,
 		name: string,
 		description: string
-	): ResultAsync<Skill, AppError> {
+	): Effect.Effect<Skill, AppError> {
 		logger.debug("Creating skill", { agentId, folderName, name });
 
-		return skillsApi
-			.createSkill(agentId, folderName, name, description)
-			.map((skill) => {
+		return skillsApi.createSkill(agentId, folderName, name, description).pipe(
+			Effect.map((skill) => {
 				// Refresh tree to show new skill
-				this.loadTree();
+				void Effect.runPromise(Effect.result(this.loadTree()));
 				logger.debug("Skill created", { skillId: skill.id });
 				return skill;
-			})
-			.mapErr((err) => {
+			}),
+			Effect.mapError((err) => {
 				this.error = err.message;
 				logger.error("Failed to create skill", { agentId, folderName, error: err });
 				return err;
-			});
+			})
+		);
 	}
 
 	/**
 	 * Delete a skill.
 	 */
-	deleteSkill(skillId: string): ResultAsync<void, AppError> {
+	deleteSkill(skillId: string): Effect.Effect<void, AppError> {
 		logger.debug("Deleting skill", { skillId });
 
-		return skillsApi
-			.deleteSkill(skillId)
-			.map(() => {
+		return skillsApi.deleteSkill(skillId).pipe(
+			Effect.map(() => {
 				// Clear selection if this was the selected skill
 				if (this.selectedSkill?.id === skillId) {
 					this.clearSelection();
 				}
 				// Refresh tree
-				this.loadTree();
+				void Effect.runPromise(Effect.result(this.loadTree()));
 				logger.debug("Skill deleted", { skillId });
-			})
-			.mapErr((err) => {
+			}),
+			Effect.mapError((err) => {
 				this.error = err.message;
 				logger.error("Failed to delete skill", { skillId, error: err });
 				return err;
-			});
+			})
+		);
 	}
 
 	/**
@@ -328,22 +332,22 @@ export class SkillsStore {
 		skillId: string,
 		targetAgentId: string,
 		newFolderName?: string
-	): ResultAsync<Skill, AppError> {
+	): Effect.Effect<Skill, AppError> {
 		logger.debug("Copying skill", { skillId, targetAgentId, newFolderName });
 
-		return skillsApi
-			.copySkillTo(skillId, targetAgentId, newFolderName)
-			.map((newSkill) => {
+		return skillsApi.copySkillTo(skillId, targetAgentId, newFolderName).pipe(
+			Effect.map((newSkill) => {
 				// Refresh tree to show new skill
-				this.loadTree();
+				void Effect.runPromise(Effect.result(this.loadTree()));
 				logger.debug("Skill copied", { skillId, newSkillId: newSkill.id });
 				return newSkill;
-			})
-			.mapErr((err) => {
+			}),
+			Effect.mapError((err) => {
 				this.error = err.message;
 				logger.error("Failed to copy skill", { skillId, targetAgentId, error: err });
 				return err;
-			});
+			})
+		);
 	}
 
 	// ============================================
@@ -353,24 +357,30 @@ export class SkillsStore {
 	/**
 	 * Initialize file watching for skill changes.
 	 */
-	initializeWatcher(): ResultAsync<void, AppError> {
-		return skillsApi
-			.startWatching()
-			.andThen(() => {
-				return ResultAsync.fromSafePromise(
-					skillsApi.onSkillsChanged((event) => {
-						this.handleSkillsChanged(event);
-					})
-				);
-			})
-			.map((cleanup) => {
+	initializeWatcher(): Effect.Effect<void, AppError> {
+		return skillsApi.startWatching().pipe(
+			Effect.flatMap(() =>
+				fromPromise(
+					() =>
+						skillsApi.onSkillsChanged((event) => {
+							this.handleSkillsChanged(event);
+						}),
+					(error) =>
+						new AgentError(
+							"on_skills_changed",
+							error instanceof Error ? error : new Error(String(error))
+						)
+				)
+			),
+			Effect.map((cleanup) => {
 				this.watcherCleanup = cleanup;
 				logger.debug("File watcher initialized");
-			})
-			.mapErr((err) => {
+			}),
+			Effect.mapError((err) => {
 				logger.error("Failed to initialize file watcher", err);
 				return err;
-			});
+			})
+		);
 	}
 
 	/**
@@ -380,7 +390,7 @@ export class SkillsStore {
 		logger.debug("Skills changed", event);
 
 		// Refresh tree on any change
-		this.loadTree();
+		void Effect.runPromise(Effect.result(this.loadTree()));
 
 		// If currently selected skill was modified externally, reload it
 		if (this.selectedSkill) {
@@ -390,7 +400,7 @@ export class SkillsStore {
 					this.clearSelection();
 				} else if (event.changeType === "modified" && !this.isDirty) {
 					logger.debug("Selected skill was modified externally, reloading");
-					this.selectSkill(this.selectedSkill.id);
+					void Effect.runPromise(Effect.result(this.selectSkill(this.selectedSkill.id)));
 				}
 			}
 		}
@@ -404,7 +414,7 @@ export class SkillsStore {
 			this.watcherCleanup();
 			this.watcherCleanup = null;
 		}
-		skillsApi.stopWatching();
+		void Effect.runPromise(Effect.result(skillsApi.stopWatching()));
 		logger.debug("Skills store cleaned up");
 	}
 

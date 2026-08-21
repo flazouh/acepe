@@ -1,7 +1,7 @@
 /**
  * Library Store - Reactive state management for the Unified Skills Library.
  *
- * Uses Svelte 5 runes for reactive state and neverthrow ResultAsync
+ * Uses Svelte 5 runes for reactive state and Effect
  * for error handling.
  *
  * Design: No explicit "save" - edits are written directly to the database
@@ -9,10 +9,12 @@
  * agent directories.
  */
 
-import { okAsync, ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { getContext, setContext } from "svelte";
 import { SvelteMap } from "svelte/reactivity";
 import type { AppError } from "../../acp/errors/app-error.js";
+import { AgentError } from "../../acp/errors/app-error.js";
 import { formatTimeAgo } from "../../acp/logic/thread-list-date-utils.js";
 import { createLogger } from "../../acp/utils/logger.js";
 import { libraryApi, pluginSkillsApi } from "../api/skills-api.js";
@@ -125,56 +127,56 @@ export class LibraryStore {
 	 * Initialize the library store.
 	 * Checks if this is first run and loads skills.
 	 */
-	initialize(): ResultAsync<void, AppError> {
+	initialize(): Effect.Effect<void, AppError> {
 		this.loading = true;
 		this.error = null;
 
 		logger.debug("Initializing library store");
 
 		// Load plugins in parallel with library check
-		this.loadPlugins();
+		void Effect.runPromise(Effect.result(this.loadPlugins()));
 
-		return libraryApi
-			.isEmpty()
-			.andThen((isEmpty) => {
+		return libraryApi.isEmpty().pipe(
+			Effect.flatMap((isEmpty) => {
 				if (isEmpty) {
 					logger.debug("First run detected - auto-importing skills from agent directories");
-					return this.importExisting().andThen(() => this.loadSkills());
+					return this.importExisting().pipe(Effect.flatMap(() => this.loadSkills()));
 				}
 
 				this.isFirstRun = false;
 				return this.loadSkills();
-			})
-			.mapErr((err) => {
+			}),
+			Effect.mapError((err) => {
 				this.loading = false;
 				this.error = err.message;
 				logger.error("Failed to initialize library", err);
 				return err;
-			});
+			})
+		);
 	}
 
 	/**
 	 * Import existing skills from agent directories.
 	 */
-	importExisting(): ResultAsync<LibrarySkill[], AppError> {
+	importExisting(): Effect.Effect<LibrarySkill[], AppError> {
 		this.loading = true;
 		this.error = null;
 
 		logger.debug("Importing existing skills");
 
-		return libraryApi
-			.importExisting()
-			.andThen((imported) => {
+		return libraryApi.importExisting().pipe(
+			Effect.flatMap((imported) => {
 				this.isFirstRun = false;
 				logger.debug("Imported skills", { count: imported.length });
-				return this.loadSkills().map(() => imported);
-			})
-			.mapErr((err) => {
+				return this.loadSkills().pipe(Effect.map(() => imported));
+			}),
+			Effect.mapError((err) => {
 				this.loading = false;
 				this.error = err.message;
 				logger.error("Failed to import existing skills", err);
 				return err;
-			});
+			})
+		);
 	}
 
 	// ============================================
@@ -184,25 +186,25 @@ export class LibraryStore {
 	/**
 	 * Load all skills with sync status.
 	 */
-	loadSkills(): ResultAsync<void, AppError> {
+	loadSkills(): Effect.Effect<void, AppError> {
 		this.loading = true;
 		this.error = null;
 
 		logger.debug("Loading skills");
 
-		return libraryApi
-			.listSkillsWithSync()
-			.map((skills) => {
+		return libraryApi.listSkillsWithSync().pipe(
+			Effect.map((skills) => {
 				this.skills = skills;
 				this.loading = false;
 				logger.debug("Skills loaded", { count: skills.length });
-			})
-			.mapErr((err) => {
+			}),
+			Effect.mapError((err) => {
 				this.loading = false;
 				this.error = err.message;
 				logger.error("Failed to load skills", err);
 				return err;
-			});
+			})
+		);
 	}
 
 	// ============================================
@@ -212,26 +214,26 @@ export class LibraryStore {
 	/**
 	 * Select a skill and load its content.
 	 */
-	selectSkill(skillId: string): ResultAsync<void, AppError> {
+	selectSkill(skillId: string): Effect.Effect<void, AppError> {
 		// Cancel any pending auto-save
 		this.cancelPendingSave();
 
 		this.loading = true;
 
-		return libraryApi
-			.getSkill(skillId)
-			.map((skill) => {
+		return libraryApi.getSkill(skillId).pipe(
+			Effect.map((skill) => {
 				this.selectedSkill = skill;
 				this.editorContent = skill.skill.content;
 				this.loading = false;
 				logger.debug("Skill selected", { skillId, name: skill.skill.name });
-			})
-			.mapErr((err) => {
+			}),
+			Effect.mapError((err) => {
 				this.loading = false;
 				this.error = err.message;
 				logger.error("Failed to select skill", { skillId, error: err });
 				return err;
-			});
+			})
+		);
 	}
 
 	/**
@@ -246,10 +248,10 @@ export class LibraryStore {
 	 * Select the first skill in the library automatically.
 	 * Used for initializing the UI with a default selection.
 	 */
-	selectFirstSkill(): ResultAsync<void, AppError> {
+	selectFirstSkill(): Effect.Effect<void, AppError> {
 		if (this.skills.length === 0) {
 			logger.debug("No skills available to select first skill");
-			return okAsync(undefined);
+			return Effect.succeed(undefined);
 		}
 
 		const firstSkillId = this.skills[0].skill.id;
@@ -291,7 +293,7 @@ export class LibraryStore {
 		// Format using the existing date utility
 		const date = new Date(latestSyncedAt);
 		const result = formatTimeAgo(date);
-		return result.isOk() ? `Synced ${result.value}` : "Never";
+		return Result.isSuccess(result) ? `Synced ${result.success}` : "Never";
 	}
 
 	// ============================================
@@ -351,29 +353,33 @@ export class LibraryStore {
 		this.isSaving = true;
 		logger.debug("Auto-saving skill", { skillId });
 
-		libraryApi
-			.updateSkill(skillId, undefined, undefined, content, undefined)
-			.andThen(() => libraryApi.getSkill(skillId))
-			.map((updatedSkill) => {
-				// Only update if still viewing the same skill
-				if (this.selectedSkill?.skill.id === skillId) {
-					this.selectedSkill = updatedSkill;
-				}
+		void Effect.runPromise(
+			libraryApi.updateSkill(skillId, undefined, undefined, content, undefined).pipe(
+				Effect.flatMap(() => libraryApi.getSkill(skillId)),
+				Effect.match({
+					onSuccess: (updatedSkill) => {
+						// Only update if still viewing the same skill
+						if (this.selectedSkill?.skill.id === skillId) {
+							this.selectedSkill = updatedSkill;
+						}
 
-				// Update in skills list
-				const index = this.skills.findIndex((s) => s.skill.id === skillId);
-				if (index >= 0) {
-					this.skills[index] = updatedSkill;
-				}
+						// Update in skills list
+						const index = this.skills.findIndex((s) => s.skill.id === skillId);
+						if (index >= 0) {
+							this.skills[index] = updatedSkill;
+						}
 
-				this.isSaving = false;
-				logger.debug("Skill auto-saved", { skillId });
-			})
-			.mapErr((err) => {
-				this.isSaving = false;
-				this.error = err.message;
-				logger.error("Failed to auto-save skill", { skillId, error: err });
-			});
+						this.isSaving = false;
+						logger.debug("Skill auto-saved", { skillId });
+					},
+					onFailure: (err) => {
+						this.isSaving = false;
+						this.error = err.message;
+						logger.error("Failed to auto-save skill", { skillId, error: err });
+					},
+				})
+			)
+		);
 	}
 
 	// ============================================
@@ -388,43 +394,43 @@ export class LibraryStore {
 		description: string | null,
 		content: string,
 		category: string | null
-	): ResultAsync<LibrarySkill, AppError> {
+	): Effect.Effect<LibrarySkill, AppError> {
 		logger.debug("Creating skill", { name });
 
-		return libraryApi
-			.createSkill(name, description, content, category)
-			.map((skill) => {
-				this.loadSkills();
+		return libraryApi.createSkill(name, description, content, category).pipe(
+			Effect.map((skill) => {
+				void Effect.runPromise(Effect.result(this.loadSkills()));
 				logger.debug("Skill created", { skillId: skill.id });
 				return skill;
-			})
-			.mapErr((err) => {
+			}),
+			Effect.mapError((err) => {
 				this.error = err.message;
 				logger.error("Failed to create skill", { name, error: err });
 				return err;
-			});
+			})
+		);
 	}
 
 	/**
 	 * Delete a skill.
 	 */
-	deleteSkill(skillId: string): ResultAsync<void, AppError> {
+	deleteSkill(skillId: string): Effect.Effect<void, AppError> {
 		logger.debug("Deleting skill", { skillId });
 
-		return libraryApi
-			.deleteSkill(skillId)
-			.map(() => {
+		return libraryApi.deleteSkill(skillId).pipe(
+			Effect.map(() => {
 				if (this.selectedSkill?.skill.id === skillId) {
 					this.clearSelection();
 				}
-				this.loadSkills();
+				void Effect.runPromise(Effect.result(this.loadSkills()));
 				logger.debug("Skill deleted", { skillId });
-			})
-			.mapErr((err) => {
+			}),
+			Effect.mapError((err) => {
 				this.error = err.message;
 				logger.error("Failed to delete skill", { skillId, error: err });
 				return err;
-			});
+			})
+		);
 	}
 
 	// ============================================
@@ -434,26 +440,26 @@ export class LibraryStore {
 	/**
 	 * Load all plugins with skills.
 	 */
-	loadPlugins(): ResultAsync<void, AppError> {
+	loadPlugins(): Effect.Effect<void, AppError> {
 		this.loadingPlugins = true;
 
 		logger.debug("Loading plugins");
 
-		return pluginSkillsApi
-			.listPlugins()
-			.map((plugins) => {
+		return pluginSkillsApi.listPlugins().pipe(
+			Effect.map((plugins) => {
 				this.plugins = plugins;
 				this.loadingPlugins = false;
 				logger.debug("Plugins loaded", { count: plugins.length });
 
 				// Load skills for each plugin
 				this.loadAllPluginSkills();
-			})
-			.mapErr((err) => {
+			}),
+			Effect.mapError((err) => {
 				this.loadingPlugins = false;
 				logger.error("Failed to load plugins", err);
 				return err;
-			});
+			})
+		);
 	}
 
 	/**
@@ -461,98 +467,97 @@ export class LibraryStore {
 	 */
 	private loadAllPluginSkills(): void {
 		for (const plugin of this.plugins) {
-			this.loadPluginSkillsForPlugin(plugin.id);
+			void Effect.runPromise(Effect.result(this.loadPluginSkillsForPlugin(plugin.id)));
 		}
 	}
 
 	/**
 	 * Load skills for a specific plugin.
 	 */
-	loadPluginSkillsForPlugin(pluginId: string): ResultAsync<PluginSkill[], AppError> {
+	loadPluginSkillsForPlugin(pluginId: string): Effect.Effect<PluginSkill[], AppError> {
 		const plugin = this.plugins.find((p) => p.id === pluginId);
 		if (!plugin) {
-			return okAsync([]);
+			return Effect.succeed([]);
 		}
 
 		// Check if already loaded
 		if (this.pluginSkills.has(pluginId)) {
-			return okAsync(this.pluginSkills.get(pluginId) ?? []);
+			return Effect.succeed(this.pluginSkills.get(pluginId) ?? []);
 		}
 
 		logger.debug("Loading skills for plugin", { pluginId });
 
-		return pluginSkillsApi
-			.listPluginSkills(pluginId)
-			.map((skills) => {
+		return pluginSkillsApi.listPluginSkills(pluginId).pipe(
+			Effect.map((skills) => {
 				// SvelteMap handles reactivity automatically
 				this.pluginSkills.set(pluginId, skills);
 				logger.debug("Plugin skills loaded", { pluginId, count: skills.length });
 				return skills;
-			})
-			.mapErr((err) => {
+			}),
+			Effect.mapError((err) => {
 				logger.error("Failed to load plugin skills", { pluginId, error: err });
 				return err;
-			});
+			})
+		);
 	}
 
 	/**
 	 * Select a plugin skill for preview (read-only).
 	 */
-	selectPluginSkill(skillId: string): ResultAsync<void, AppError> {
+	selectPluginSkill(skillId: string): Effect.Effect<void, AppError> {
 		// Clear library selection when viewing plugin skill
 		this.cancelPendingSave();
 		this.selectedSkill = null;
 
 		logger.debug("Selecting plugin skill", { skillId });
 
-		return pluginSkillsApi
-			.getPluginSkill(skillId)
-			.map((skill) => {
+		return pluginSkillsApi.getPluginSkill(skillId).pipe(
+			Effect.map((skill) => {
 				this.selectedPluginSkill = skill;
 				this.editorContent = skill.content;
 				logger.debug("Plugin skill selected", { skillId, name: skill.name });
-			})
-			.mapErr((err) => {
+			}),
+			Effect.mapError((err) => {
 				this.error = err.message;
 				logger.error("Failed to select plugin skill", { skillId, error: err });
 				return err;
-			});
+			})
+		);
 	}
 
 	/**
 	 * Copy a plugin skill to the library.
 	 */
-	copyPluginSkillToLibrary(skillId: string): ResultAsync<LibrarySkill, AppError> {
+	copyPluginSkillToLibrary(skillId: string): Effect.Effect<LibrarySkill, AppError> {
 		if (!this.selectedPluginSkill) {
-			return ResultAsync.fromPromise(
-				Promise.reject(new Error("No plugin skill selected")),
-				(e) => e as AppError
+			return Effect.fail(
+				new AgentError("copy_plugin_skill", new Error("No plugin skill selected"))
 			);
 		}
 
 		const skill = this.selectedPluginSkill;
 		logger.debug("Copying plugin skill to library", { skillId, name: skill.name });
 
-		return libraryApi
-			.createSkill(skill.name, skill.description, skill.content, null)
-			.map((newSkill) => {
+		return libraryApi.createSkill(skill.name, skill.description, skill.content, null).pipe(
+			Effect.map((newSkill) => {
 				// Clear plugin selection
 				this.selectedPluginSkill = null;
 
 				// Reload library skills
-				this.loadSkills();
+				void Effect.runPromise(Effect.result(this.loadSkills()));
 
 				// Select the new skill
-				this.selectSkill(newSkill.id);
+				void Effect.runPromise(Effect.result(this.selectSkill(newSkill.id)));
 
 				logger.debug("Plugin skill copied to library", { newSkillId: newSkill.id });
 				return newSkill;
-			})
-			.mapErr((err) => {
+			}),
+			Effect.mapError((err) => {
 				this.error = err.message;
 				logger.error("Failed to copy plugin skill to library", { skillId, error: err });
 				return err;
-			});
+			})
+		);
 	}
 
 	/**
@@ -569,97 +574,101 @@ export class LibraryStore {
 	/**
 	 * Set sync target enabled/disabled for a skill.
 	 */
-	setSyncTarget(skillId: string, agentId: string, enabled: boolean): ResultAsync<void, AppError> {
+	setSyncTarget(skillId: string, agentId: string, enabled: boolean): Effect.Effect<void, AppError> {
 		logger.debug("Setting sync target", { skillId, agentId, enabled });
 
-		return libraryApi
-			.setSyncTarget(skillId, agentId, enabled)
-			.andThen(() => {
+		return libraryApi.setSyncTarget(skillId, agentId, enabled).pipe(
+			Effect.flatMap(() => {
 				// Reload the skill to get updated sync status
 				if (this.selectedSkill?.skill.id === skillId) {
-					return libraryApi.getSkill(skillId).map((skill) => {
-						this.selectedSkill = skill;
+					return libraryApi.getSkill(skillId).pipe(
+						Effect.map((skill) => {
+							this.selectedSkill = skill;
 
-						// Update in skills list
-						const index = this.skills.findIndex((s) => s.skill.id === skillId);
-						if (index >= 0) {
-							this.skills[index] = skill;
-						}
-					});
+							// Update in skills list
+							const index = this.skills.findIndex((s) => s.skill.id === skillId);
+							if (index >= 0) {
+								this.skills[index] = skill;
+							}
+						})
+					);
 				}
-				return okAsync(undefined);
-			})
-			.mapErr((err) => {
+				return Effect.succeed(undefined);
+			}),
+			Effect.mapError((err) => {
 				this.error = err.message;
 				logger.error("Failed to set sync target", { skillId, agentId, error: err });
 				return err;
-			});
+			})
+		);
 	}
 
 	/**
 	 * Sync a single skill to all enabled agents.
 	 */
-	syncSkill(skillId: string): ResultAsync<void, AppError> {
+	syncSkill(skillId: string): Effect.Effect<void, AppError> {
 		this.syncing = true;
 
 		logger.debug("Syncing skill", { skillId });
 
-		return libraryApi
-			.syncSkill(skillId)
-			.andThen((results) => {
+		return libraryApi.syncSkill(skillId).pipe(
+			Effect.flatMap((results) => {
 				const failed = results.filter((r) => !r.success);
 				if (failed.length > 0) {
 					logger.warn("Some sync targets failed", { failed });
 				}
 
 				// Reload to get updated sync status
-				return this.loadSkills().map(() => {
-					// Re-select if this was selected
-					if (this.selectedSkill?.skill.id === skillId) {
-						this.selectSkill(skillId);
-					}
-				});
-			})
-			.map(() => {
+				return this.loadSkills().pipe(
+					Effect.map(() => {
+						// Re-select if this was selected
+						if (this.selectedSkill?.skill.id === skillId) {
+							void Effect.runPromise(Effect.result(this.selectSkill(skillId)));
+						}
+					})
+				);
+			}),
+			Effect.map(() => {
 				this.syncing = false;
 				logger.debug("Skill synced", { skillId });
-			})
-			.mapErr((err) => {
+			}),
+			Effect.mapError((err) => {
 				this.syncing = false;
 				this.error = err.message;
 				logger.error("Failed to sync skill", { skillId, error: err });
 				return err;
-			});
+			})
+		);
 	}
 
 	/**
 	 * Sync all skills to all enabled agents.
 	 */
-	syncAll(): ResultAsync<SyncResult, AppError> {
+	syncAll(): Effect.Effect<SyncResult, AppError> {
 		this.syncing = true;
 
 		logger.debug("Syncing all skills");
 
-		return libraryApi
-			.syncAll()
-			.andThen((result) => {
+		return libraryApi.syncAll().pipe(
+			Effect.flatMap((result) => {
 				// Reload to get updated sync status
-				return this.loadSkills().map(() => result);
-			})
-			.map((result) => {
+				return this.loadSkills().pipe(Effect.map(() => result));
+			}),
+			Effect.map((result) => {
 				this.syncing = false;
 				logger.debug("All skills synced", {
 					synced: result.syncedCount,
 					failed: result.failedCount,
 				});
 				return result;
-			})
-			.mapErr((err) => {
+			}),
+			Effect.mapError((err) => {
 				this.syncing = false;
 				this.error = err.message;
 				logger.error("Failed to sync all skills", err);
 				return err;
-			});
+			})
+		);
 	}
 
 	// ============================================

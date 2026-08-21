@@ -4,6 +4,7 @@
  * Handles store integration and Tauri commands, delegates rendering to @acepe/ui.
  */
 import { CheckpointCard as BaseCheckpointCard, FilePathBadge, type FileRowState } from "@acepe/ui";
+import * as Effect from "effect/Effect";
 import { SvelteMap } from "svelte/reactivity";
 import { checkpointStore } from "../../store/checkpoint-store.svelte.js";
 import type { Checkpoint, FileSnapshot } from "../../types/checkpoint.js";
@@ -84,20 +85,15 @@ async function handleRevertFile(fileId: string, filePath: string) {
 	const currentState = fileStates.get(fileId);
 	fileStates.set(fileId, buildCheckpointFileRevertState(currentState, true));
 
-	const result = await checkpointStore.revertFile(
-		checkpoint.sessionId,
-		checkpoint.id,
-		filePath,
-		projectPath
-	);
-
-	result.match(
-		() => {
-			// Success - clear reverting state
-		},
-		() => {
-			// Error - will be handled by store
-		}
+	await Effect.runPromise(
+		checkpointStore
+			.revertFile(checkpoint.sessionId, checkpoint.id, filePath, projectPath)
+			.pipe(
+				Effect.match({
+					onSuccess: () => undefined,
+					onFailure: () => undefined,
+				})
+			)
 	);
 
 	fileStates.set(fileId, buildCheckpointFileRevertState(currentState, false));
@@ -114,26 +110,30 @@ async function handleToggleFileDiff(fileId: string) {
 		// Get the file snapshot to find the file path
 		const fileSnapshot = fileSnapshots.find((f) => f.id === fileId);
 		if (fileSnapshot) {
-			const result = await checkpointStore.getFileDiffContentAtCheckpoint(
-				checkpoint.sessionId,
-				checkpoint.id,
-				fileSnapshot.filePath
-			);
-
-			result.match(
-				({ oldContent, newContent }) => {
-					fileStates.set(
-						fileId,
-						buildCheckpointDiffLoadedState({
-							filePath: fileSnapshot.filePath,
-							oldContent,
-							newContent,
+			await Effect.runPromise(
+				checkpointStore
+					.getFileDiffContentAtCheckpoint(
+						checkpoint.sessionId,
+						checkpoint.id,
+						fileSnapshot.filePath
+					)
+					.pipe(
+						Effect.match({
+							onSuccess: ({ oldContent, newContent }) => {
+								fileStates.set(
+									fileId,
+									buildCheckpointDiffLoadedState({
+										filePath: fileSnapshot.filePath,
+										oldContent,
+										newContent,
+									})
+								);
+							},
+							onFailure: () => {
+								fileStates.set(fileId, buildCheckpointDiffLoadFailedState());
+							},
 						})
-					);
-				},
-				() => {
-					fileStates.set(fileId, buildCheckpointDiffLoadFailedState());
-				}
+					)
 			);
 		}
 	} else {

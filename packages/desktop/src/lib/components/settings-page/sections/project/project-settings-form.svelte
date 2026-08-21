@@ -1,4 +1,6 @@
 <script lang="ts">
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { onMount } from "svelte";
 import { toast } from "svelte-sonner";
 import { ScriptEditor } from "@acepe/ui/script-editor";
@@ -46,15 +48,19 @@ function applyLoadedSettings(settings: ProjectAcepeConfig) {
 
 async function loadSettings() {
 	status = "loading";
-	await tauriClient.projects.getProjectAcepeConfig(projectPath).match(
-		(settings) => {
-			applyLoadedSettings(settings);
-			status = "ready";
-		},
-		(error) => {
-			status = "error";
-			toast.error(`Failed to load project settings: ${error.message}`);
-		}
+	await Effect.runPromise(
+		tauriClient.projects.getProjectAcepeConfig(projectPath).pipe(
+			Effect.match({
+				onSuccess: (settings) => {
+					applyLoadedSettings(settings);
+					status = "ready";
+				},
+				onFailure: (error) => {
+					status = "error";
+					toast.error(`Failed to load project settings: ${error.message}`);
+				},
+			})
+		)
 	);
 }
 
@@ -63,13 +69,17 @@ onMount(() => {
 });
 
 async function reloadVisibilityOrFallback(previousValue: boolean) {
-	await tauriClient.projects.getProjectAcepeConfig(projectPath).match(
-		(settings) => {
-			applyLoadedSettings(settings);
-		},
-		() => {
-			hideExternalCliSessions = previousValue;
-		}
+	await Effect.runPromise(
+		tauriClient.projects.getProjectAcepeConfig(projectPath).pipe(
+			Effect.match({
+				onSuccess: (settings) => {
+					applyLoadedSettings(settings);
+				},
+				onFailure: () => {
+					hideExternalCliSessions = previousValue;
+				},
+			})
+		)
 	);
 }
 
@@ -78,9 +88,11 @@ async function saveVisibility(nextValue: boolean) {
 	hideExternalCliSessions = nextValue;
 	isSavingVisibility = true;
 
-	const result = await projectManager.updateProjectShowExternalCliSessions(projectPath, !nextValue);
-	if (result.isErr()) {
-		toast.error(`Failed to save project visibility: ${result.error.message}`);
+	const result = await Effect.runPromise(
+		Effect.result(projectManager.updateProjectShowExternalCliSessions(projectPath, !nextValue))
+	);
+	if (Result.isFailure(result)) {
+		toast.error(`Failed to save project visibility: ${result.failure.message}`);
 		await reloadVisibilityOrFallback(previousValue);
 	}
 
@@ -96,13 +108,17 @@ async function saveScript(kind: "setup_script" | "run_script") {
 	}
 
 	const nextConfig = currentConfig(!hideExternalCliSessions);
-	await tauriClient.projects.saveProjectAcepeConfig(projectPath, nextConfig).match(
-		(saved) => {
-			applyLoadedSettings(saved);
-		},
-		(error) => {
-			toast.error(`Failed to save project script: ${error.message}`);
-		}
+	await Effect.runPromise(
+		tauriClient.projects.saveProjectAcepeConfig(projectPath, nextConfig).pipe(
+			Effect.match({
+				onSuccess: (saved) => {
+					applyLoadedSettings(saved);
+				},
+				onFailure: (error) => {
+					toast.error(`Failed to save project script: ${error.message}`);
+				},
+			})
+		)
 	);
 
 	if (isSetup) {

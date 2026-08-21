@@ -1,6 +1,7 @@
 <script lang="ts">
 import { GitHubBadge, HugeiconsIcon } from "@acepe/ui";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import * as Effect from "effect/Effect";
 
 import type { GitHubReference } from "../constants/github-badge-html.js";
 import { getGitHubURL } from "../constants/github-badge-html.js";
@@ -84,33 +85,41 @@ function ensureStatsLoaded() {
 	statsLoading = true;
 
 	if (enhancedRef.type === "commit" && enhancedRef.sha) {
-		void fetchCommitDiff(enhancedRef.sha, currentProjectPath).then((result) => {
-			result.match(
-				(diff) => {
-					const stats = getGitHubDiffStats(diff.files);
-					insertions = stats.insertions;
-					deletions = stats.deletions;
-				},
-				() => {}
-			);
-			statsLoading = false;
-		});
+		void Effect.runPromise(
+			fetchCommitDiff(enhancedRef.sha, currentProjectPath).pipe(
+				Effect.match({
+					onSuccess: (diff) => {
+						const stats = getGitHubDiffStats(diff.files);
+						insertions = stats.insertions;
+						deletions = stats.deletions;
+						statsLoading = false;
+					},
+					onFailure: () => {
+						statsLoading = false;
+					},
+				})
+			)
+		);
 		return;
 	}
 
 	if (enhancedRef.type === "pr" && enhancedRef.owner && enhancedRef.repo) {
-		void fetchPrDiff(enhancedRef.owner, enhancedRef.repo, enhancedRef.number).then((result) => {
-			result.match(
-				(diff) => {
-					prState = diff.pr.state;
-					const stats = getGitHubDiffStats(diff.files);
-					insertions = stats.insertions;
-					deletions = stats.deletions;
-				},
-				() => {}
-			);
-			statsLoading = false;
-		});
+		void Effect.runPromise(
+			fetchPrDiff(enhancedRef.owner, enhancedRef.repo, enhancedRef.number).pipe(
+				Effect.match({
+					onSuccess: (diff) => {
+						prState = diff.pr.state;
+						const stats = getGitHubDiffStats(diff.files);
+						insertions = stats.insertions;
+						deletions = stats.deletions;
+						statsLoading = false;
+					},
+					onFailure: () => {
+						statsLoading = false;
+					},
+				})
+			)
+		);
 		return;
 	}
 

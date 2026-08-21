@@ -1,6 +1,6 @@
 import { join } from "node:path";
-import { err, ok, type ResultAsync } from "neverthrow";
-import { z } from "zod";
+import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
 import type { TargetDoctorResult, TargetProcess } from "./schemas";
 import {
 	type CommandRunner,
@@ -12,9 +12,9 @@ import {
 const DEFAULT_APP_IDENTIFIER = "9223";
 const DEFAULT_APP_IDENTIFIER_CANDIDATES = ["9223", "9224", "9225", "9226", "9227"];
 
-const webviewPingSchema = z.object({
-	url: z.string().nullable(),
-	title: z.string().nullable(),
+const webviewPingSchema = Schema.Struct({
+	url: Schema.NullOr(Schema.String),
+	title: Schema.NullOr(Schema.String),
 });
 
 export type DoctorOptions = {
@@ -95,8 +95,8 @@ function probeWebview(
 	appIdentifiers: readonly string[],
 	runner: CommandRunner,
 	index: number = 0
-): ResultAsync<
-	{ readonly port: string; readonly webview: z.infer<typeof webviewPingSchema> },
+): Effect.Effect<
+	{ readonly port: string; readonly webview: typeof webviewPingSchema.Type },
 	TauriMcpFailure
 > {
 	const port = appIdentifiers[index] ?? DEFAULT_APP_IDENTIFIER;
@@ -108,30 +108,31 @@ function probeWebview(
 			callTimeoutMs: 5_000,
 		},
 		runner
-	)
-		.map((webview) => ({
+	).pipe(
+		Effect.map((webview) => ({
 			port,
 			webview,
-		}))
-		.orElse((failure) => {
+		})),
+		Effect.catch((failure) => {
 			const nextIndex = index + 1;
 			if (nextIndex >= appIdentifiers.length) {
-				return err(failure);
+				return Effect.fail(failure);
 			}
 			return probeWebview(appIdentifiers, runner, nextIndex);
-		});
+		})
+	);
 }
 
 function binaryFreshness(
 	checkoutRoot: string,
 	runner: CommandRunner
-): ResultAsync<BinaryFreshness, TauriMcpFailure> {
+): Effect.Effect<BinaryFreshness, TauriMcpFailure> {
 	const binaryPath = join(checkoutRoot, "packages/desktop/src-tauri/target/debug/acepe");
 	const sourceRoot = join(checkoutRoot, "packages/desktop/src-tauri/src");
-	return runner(["find", sourceRoot, "-name", "*.rs", "-newer", binaryPath])
-		.andThen((execution) => {
+	return runner(["find", sourceRoot, "-name", "*.rs", "-newer", binaryPath]).pipe(
+		Effect.flatMap((execution) => {
 			if (execution.code !== 0) {
-				return err({
+				return Effect.fail({
 					code: "binary_freshness_failed",
 					message:
 						execution.stderr.trim() ||
@@ -150,22 +151,23 @@ function binaryFreshness(
 						source.startsWith(checkoutRoot) ? source.slice(checkoutRoot.length + 1) : source
 					)
 					.join(", ");
-				return ok({
+				return Effect.succeed({
 					status: "stale",
 					message: `Rust source is newer than target/debug/acepe: ${firstSources}`,
 				} satisfies BinaryFreshness);
 			}
-			return ok({
+			return Effect.succeed({
 				status: "fresh",
 				message: "target/debug/acepe is newer than all checked Rust sources.",
 			} satisfies BinaryFreshness);
-		})
-		.orElse((failure) =>
-			ok({
+		}),
+		Effect.catch((failure) =>
+			Effect.succeed({
 				status: "unknown",
 				message: failure.message,
 			} satisfies BinaryFreshness)
-		);
+		)
+	);
 }
 
 function webviewUsesLiveVite(url: string | null): boolean {
@@ -180,7 +182,7 @@ function findFrontendSourcesNewerThanBuild(
 	sourceRoot: string,
 	buildRoot: string,
 	runner: CommandRunner
-): ResultAsync<readonly string[], TauriMcpFailure> {
+): Effect.Effect<readonly string[], TauriMcpFailure> {
 	return runner([
 		"find",
 		sourceRoot,
@@ -201,34 +203,36 @@ function findFrontendSourcesNewerThanBuild(
 		")",
 		"-newer",
 		buildRoot,
-	]).andThen((execution) => {
-		if (execution.code !== 0) {
-			return err({
-				code: "frontend_freshness_failed",
-				message:
-					execution.stderr.trim() ||
-					execution.stdout.trim() ||
-					"Unable to compare frontend sources with the built frontend.",
-			});
-		}
-		const sources = execution.stdout
-			.split("\n")
-			.map((line) => line.trim())
-			.filter((line) => line.length > 0)
-			.map((source) =>
-				source.startsWith(checkoutRoot) ? source.slice(checkoutRoot.length + 1) : source
-			);
-		return ok(sources);
-	});
+	]).pipe(
+		Effect.flatMap((execution) => {
+			if (execution.code !== 0) {
+				return Effect.fail({
+					code: "frontend_freshness_failed",
+					message:
+						execution.stderr.trim() ||
+						execution.stdout.trim() ||
+						"Unable to compare frontend sources with the built frontend.",
+				});
+			}
+			const sources = execution.stdout
+				.split("\n")
+				.map((line) => line.trim())
+				.filter((line) => line.length > 0)
+				.map((source) =>
+					source.startsWith(checkoutRoot) ? source.slice(checkoutRoot.length + 1) : source
+				);
+			return Effect.succeed(sources);
+		})
+	);
 }
 
 function frontendFreshness(
 	checkoutRoot: string,
 	webviewUrl: string | null,
 	runner: CommandRunner
-): ResultAsync<FrontendFreshness, TauriMcpFailure> {
+): Effect.Effect<FrontendFreshness, TauriMcpFailure> {
 	if (webviewUsesLiveVite(webviewUrl)) {
-		return ok({
+		return Effect.succeed({
 			status: "fresh",
 			message: "WebView is using the live Vite dev server.",
 		} satisfies FrontendFreshness);
@@ -237,13 +241,13 @@ function frontendFreshness(
 	const buildRoot = join(checkoutRoot, "packages/desktop/build");
 	const desktopSourceRoot = join(checkoutRoot, "packages/desktop/src");
 	const uiSourceRoot = join(checkoutRoot, "packages/ui/src");
-	return findFrontendSourcesNewerThanBuild(checkoutRoot, desktopSourceRoot, buildRoot, runner)
-		.andThen((desktopSources) =>
-			findFrontendSourcesNewerThanBuild(checkoutRoot, uiSourceRoot, buildRoot, runner).map(
-				(uiSources) => desktopSources.concat(uiSources)
+	return findFrontendSourcesNewerThanBuild(checkoutRoot, desktopSourceRoot, buildRoot, runner).pipe(
+		Effect.flatMap((desktopSources) =>
+			findFrontendSourcesNewerThanBuild(checkoutRoot, uiSourceRoot, buildRoot, runner).pipe(
+				Effect.map((uiSources) => desktopSources.concat(uiSources))
 			)
-		)
-		.map((staleSources) => {
+		),
+		Effect.map((staleSources) => {
 			if (staleSources.length === 0) {
 				return {
 					status: "fresh",
@@ -256,13 +260,14 @@ function frontendFreshness(
 					.slice(0, 3)
 					.join(", ")}`,
 			} satisfies FrontendFreshness;
-		})
-		.orElse((failure) =>
-			ok({
+		}),
+		Effect.catch((failure) =>
+			Effect.succeed({
 				status: "unknown",
 				message: failure.message,
 			} satisfies FrontendFreshness)
-		);
+		)
+	);
 }
 
 function buildFindings(input: {
@@ -319,105 +324,112 @@ function statusFromFindings(
 
 export function runDoctor(
 	options: DoctorOptions
-): ResultAsync<TargetDoctorResult, TauriMcpFailure> {
+): Effect.Effect<TargetDoctorResult, TauriMcpFailure> {
 	const runner = options.runner ?? runCommand;
 	const appIdentifier = options.appIdentifier ?? DEFAULT_APP_IDENTIFIER;
-	return runner(["ps", "-axo", "pid=,command="])
-		.andThen((execution) => {
+	return runner(["ps", "-axo", "pid=,command="]).pipe(
+		Effect.flatMap((execution) => {
 			if (execution.code !== 0) {
-				return err({
+				return Effect.fail({
 					code: "process_list_failed",
 					message: execution.stderr.trim() || "Unable to list running processes.",
 				});
 			}
-			return ok(parseProcessList(execution.stdout, options.checkoutRoot));
-		})
-		.andThen((processes) => {
+			return Effect.succeed(parseProcessList(execution.stdout, options.checkoutRoot));
+		}),
+		Effect.flatMap((processes) => {
 			const devProcesses = processes.filter((process) => process.kind === "dev");
 			const productionProcesses = processes.filter((process) => process.kind === "production");
 			const port = detectPort(devProcesses, appIdentifier);
 			const appIdentifiers = appIdentifierCandidates(port);
-			return binaryFreshness(options.checkoutRoot, runner).andThen((freshness) =>
-				probeWebview(appIdentifiers, runner)
-					.andThen((probe) =>
-						frontendFreshness(options.checkoutRoot, probe.webview.url, runner).map((frontend) => ({
-							probe,
-							frontend,
-						}))
-					)
-					.map(({ probe, frontend }) => {
-						const findings = buildFindings({
-							devProcesses,
-							productionProcesses,
-							bridgeAvailable: true,
-							binaryFreshness: freshness,
-							frontendFreshness: frontend,
-							webviewResponsive: true,
-							webviewError: null,
-						});
-						return {
-							checkoutRoot: options.checkoutRoot,
-							appIdentifier: probe.port,
-							status: statusFromFindings(findings, freshness, frontend),
-							devProcessCount: devProcesses.length,
-							productionProcessCount: productionProcesses.length,
-							devProcesses,
-							productionProcesses,
-							bridge: {
-								port: probe.port,
-								available: true,
-							},
-							binaryFreshness: freshness,
-							frontendFreshness: frontend,
-							webview: {
-								responsive: true,
-								url: probe.webview.url,
-								title: probe.webview.title,
-								error: null,
-							},
-							findings,
-						} satisfies TargetDoctorResult;
-					})
-					.orElse((failure) => {
-						const findings = buildFindings({
-							devProcesses,
-							productionProcesses,
-							bridgeAvailable: false,
-							binaryFreshness: freshness,
-							frontendFreshness: {
+			return binaryFreshness(options.checkoutRoot, runner).pipe(
+				Effect.flatMap((freshness) =>
+					probeWebview(appIdentifiers, runner).pipe(
+						Effect.flatMap((probe) =>
+							frontendFreshness(options.checkoutRoot, probe.webview.url, runner).pipe(
+								Effect.map((frontend) => ({
+									probe,
+									frontend,
+								}))
+							)
+						),
+						Effect.map(({ probe, frontend }) => {
+							const findings = buildFindings({
+								devProcesses,
+								productionProcesses,
+								bridgeAvailable: true,
+								binaryFreshness: freshness,
+								frontendFreshness: frontend,
+								webviewResponsive: true,
+								webviewError: null,
+							});
+							return {
+								checkoutRoot: options.checkoutRoot,
+								appIdentifier: probe.port,
+								status: statusFromFindings(findings, freshness, frontend),
+								devProcessCount: devProcesses.length,
+								productionProcessCount: productionProcesses.length,
+								devProcesses,
+								productionProcesses,
+								bridge: {
+									port: probe.port,
+									available: true,
+								},
+								binaryFreshness: freshness,
+								frontendFreshness: frontend,
+								webview: {
+									responsive: true,
+									url: probe.webview.url,
+									title: probe.webview.title,
+									error: null,
+								},
+								findings,
+							} satisfies TargetDoctorResult;
+						}),
+						Effect.catch((failure) => {
+							const findings = buildFindings({
+								devProcesses,
+								productionProcesses,
+								bridgeAvailable: false,
+								binaryFreshness: freshness,
+								frontendFreshness: {
+									status: "unknown",
+									message:
+										"WebView was not responsive, so frontend freshness could not be checked.",
+								},
+								webviewResponsive: false,
+								webviewError: failure.message,
+							});
+							const frontend: FrontendFreshness = {
 								status: "unknown",
 								message: "WebView was not responsive, so frontend freshness could not be checked.",
-							},
-							webviewResponsive: false,
-							webviewError: failure.message,
-						});
-						const frontend: FrontendFreshness = {
-							status: "unknown",
-							message: "WebView was not responsive, so frontend freshness could not be checked.",
-						};
-						return ok({
-							checkoutRoot: options.checkoutRoot,
-							appIdentifier: port,
-							status: statusFromFindings(findings, freshness, frontend),
-							devProcessCount: devProcesses.length,
-							productionProcessCount: productionProcesses.length,
-							devProcesses,
-							productionProcesses,
-							bridge: {
-								port,
-								available: false,
-							},
-							binaryFreshness: freshness,
-							frontendFreshness: frontend,
-							webview: {
-								responsive: false,
-								url: null,
-								title: null,
-								error: failure.message,
-							},
-							findings,
-						} satisfies TargetDoctorResult);
-					})
+							};
+							return Effect.succeed({
+								checkoutRoot: options.checkoutRoot,
+								appIdentifier: port,
+								status: statusFromFindings(findings, freshness, frontend),
+								devProcessCount: devProcesses.length,
+								productionProcessCount: productionProcesses.length,
+								devProcesses,
+								productionProcesses,
+								bridge: {
+									port,
+									available: false,
+								},
+								binaryFreshness: freshness,
+								frontendFreshness: frontend,
+								webview: {
+									responsive: false,
+									url: null,
+									title: null,
+									error: failure.message,
+								},
+								findings,
+							} satisfies TargetDoctorResult);
+						})
+					)
+				)
 			);
-		});
+		})
+	);
 }

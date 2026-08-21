@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it } from "bun:test";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 
 import { isMermaidInitialized, renderMermaid, resetMermaidRenderer } from "../mermaid-renderer.js";
 
@@ -16,20 +18,20 @@ describe("mermaid-renderer", () => {
 	describe("renderMermaid", () => {
 		describe("input validation", () => {
 			it("should return an error for empty input", async () => {
-				const result = await renderMermaid("", true);
+				const result = await Effect.runPromise(Effect.result(renderMermaid("", true)));
 
-				expect(result.isErr()).toBe(true);
-				if (result.isErr()) {
-					expect(result.error.message).toBe("Empty mermaid code");
+				expect(Result.isFailure(result)).toBe(true);
+				if (Result.isFailure(result)) {
+					expect(result.failure.message).toBe("Empty mermaid code");
 				}
 			});
 
 			it("should return an error for whitespace-only input", async () => {
-				const result = await renderMermaid("   \n\t  ", true);
+				const result = await Effect.runPromise(Effect.result(renderMermaid("   \n\t  ", true)));
 
-				expect(result.isErr()).toBe(true);
-				if (result.isErr()) {
-					expect(result.error.message).toBe("Empty mermaid code");
+				expect(Result.isFailure(result)).toBe(true);
+				if (Result.isFailure(result)) {
+					expect(result.failure.message).toBe("Empty mermaid code");
 				}
 			});
 		});
@@ -38,23 +40,29 @@ describe("mermaid-renderer", () => {
 			it("should accept isDark = true", async () => {
 				// This will fail in test env due to missing theme files,
 				// but validates the API accepts the parameter
-				const result = await renderMermaid("flowchart LR\n  A --> B", true);
+				const result = await Effect.runPromise(
+					Effect.result(renderMermaid("flowchart LR\n  A --> B", true))
+				);
 
 				// In test env, this will error due to missing theme files
 				// The important thing is it doesn't throw
-				expect(result.isOk() || result.isErr()).toBe(true);
+				expect(Result.isSuccess(result) || Result.isFailure(result)).toBe(true);
 			});
 
 			it("should accept isDark = false", async () => {
-				const result = await renderMermaid("flowchart LR\n  A --> B", false);
+				const result = await Effect.runPromise(
+					Effect.result(renderMermaid("flowchart LR\n  A --> B", false))
+				);
 
-				expect(result.isOk() || result.isErr()).toBe(true);
+				expect(Result.isSuccess(result) || Result.isFailure(result)).toBe(true);
 			});
 
 			it("should default to dark theme when isDark is not provided", async () => {
-				const result = await renderMermaid("flowchart LR\n  A --> B");
+				const result = await Effect.runPromise(
+					Effect.result(renderMermaid("flowchart LR\n  A --> B"))
+				);
 
-				expect(result.isOk() || result.isErr()).toBe(true);
+				expect(Result.isSuccess(result) || Result.isFailure(result)).toBe(true);
 			});
 		});
 	});

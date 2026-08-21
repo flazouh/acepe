@@ -1,5 +1,6 @@
 <script lang="ts">
 import { FilePanelLayout } from "@acepe/ui/file-panel";
+import * as Effect from "effect/Effect";
 import type { GitGutterInput } from "$lib/components/ui/codemirror-editor/git-gutter.js";
 import {
 	CodeMirrorEditor,
@@ -149,21 +150,25 @@ $effect(() => {
 			return;
 		}
 
-		fileContentCache.getFileContent(currentFilePath, currentProjectPath).match(
-			(fileContent) => {
-				// Only update if still relevant (file hasn't changed)
-				if (!cancelled && filePath === currentFilePath && projectPath === currentProjectPath) {
-					content = fileContent;
-					loading = false;
-				}
-			},
-			(err) => {
-				// Only update if still relevant (file hasn't changed)
-				if (!cancelled && filePath === currentFilePath && projectPath === currentProjectPath) {
-					error = err.message;
-					loading = false;
-				}
-			}
+		void Effect.runPromise(
+			fileContentCache.getFileContent(currentFilePath, currentProjectPath).pipe(
+				Effect.match({
+					onSuccess: (fileContent) => {
+						// Only update if still relevant (file hasn't changed)
+						if (!cancelled && filePath === currentFilePath && projectPath === currentProjectPath) {
+							content = fileContent;
+							loading = false;
+						}
+					},
+					onFailure: (err) => {
+						// Only update if still relevant (file hasn't changed)
+						if (!cancelled && filePath === currentFilePath && projectPath === currentProjectPath) {
+							error = err.message;
+							loading = false;
+						}
+					},
+				})
+			)
 		);
 	});
 
@@ -198,31 +203,35 @@ $effect(() => {
 			return;
 		}
 
-		gitStatusCache.getProjectFileGitStatusSummary(currentProjectPath, currentFilePath).match(
-			(fileStatus) => {
-				if (!cancelled && filePath === currentFilePath && projectPath === currentProjectPath) {
-					logger.info("Git status lookup result", {
-						currentFilePath,
-						currentProjectPath,
-						fileStatusPath: fileStatus?.path ?? null,
-						fileStatusCode: fileStatus?.status ?? null,
-						insertions: fileStatus?.insertions ?? null,
-						deletions: fileStatus?.deletions ?? null,
-					});
-					gitStatus = toFilePanelGitStatus(fileStatus);
-				}
-			},
-			(error) => {
-				// Silently ignore git status errors - file might not be in a git repo
-				if (!cancelled && filePath === currentFilePath && projectPath === currentProjectPath) {
-					logger.info("Git status fetch failed", {
-						currentFilePath,
-						currentProjectPath,
-						error: String(error),
-					});
-					gitStatus = null;
-				}
-			}
+		void Effect.runPromise(
+			gitStatusCache.getProjectFileGitStatusSummary(currentProjectPath, currentFilePath).pipe(
+				Effect.match({
+					onSuccess: (fileStatus) => {
+						if (!cancelled && filePath === currentFilePath && projectPath === currentProjectPath) {
+							logger.info("Git status lookup result", {
+								currentFilePath,
+								currentProjectPath,
+								fileStatusPath: fileStatus?.path ?? null,
+								fileStatusCode: fileStatus?.status ?? null,
+								insertions: fileStatus?.insertions ?? null,
+								deletions: fileStatus?.deletions ?? null,
+							});
+							gitStatus = toFilePanelGitStatus(fileStatus);
+						}
+					},
+					onFailure: (error) => {
+						// Silently ignore git status errors - file might not be in a git repo
+						if (!cancelled && filePath === currentFilePath && projectPath === currentProjectPath) {
+							logger.info("Git status fetch failed", {
+								currentFilePath,
+								currentProjectPath,
+								error: String(error),
+							});
+							gitStatus = null;
+						}
+					},
+				})
+			)
 		);
 	});
 
@@ -292,29 +301,33 @@ $effect(() => {
 				currentFilePath,
 				currentProjectPath,
 			});
-			fileContentCache.getFileDiff(currentFilePath, currentProjectPath).match(
-				(diff) => {
-					if (!cancelled && filePath === currentFilePath && projectPath === currentProjectPath) {
-						logger.info("File diff loaded for gutter", {
-							currentFilePath,
-							currentProjectPath,
-							hasOldContent: diff.oldContent !== null,
-							oldLength: diff.oldContent?.length ?? 0,
-							newLength: diff.newContent.length,
-						});
-						gitGutterInput = { kind: "modified", oldContent: diff.oldContent ?? "" };
-					}
-				},
-				(error) => {
-					if (!cancelled && filePath === currentFilePath && projectPath === currentProjectPath) {
-						logger.info("File diff fetch failed for gutter", {
-							currentFilePath,
-							currentProjectPath,
-							error: String(error),
-						});
-						gitGutterInput = null;
-					}
-				}
+			void Effect.runPromise(
+				fileContentCache.getFileDiff(currentFilePath, currentProjectPath).pipe(
+					Effect.match({
+						onSuccess: (diff) => {
+							if (!cancelled && filePath === currentFilePath && projectPath === currentProjectPath) {
+								logger.info("File diff loaded for gutter", {
+									currentFilePath,
+									currentProjectPath,
+									hasOldContent: diff.oldContent !== null,
+									oldLength: diff.oldContent?.length ?? 0,
+									newLength: diff.newContent.length,
+								});
+								gitGutterInput = { kind: "modified", oldContent: diff.oldContent ?? "" };
+							}
+						},
+						onFailure: (error) => {
+							if (!cancelled && filePath === currentFilePath && projectPath === currentProjectPath) {
+								logger.info("File diff fetch failed for gutter", {
+									currentFilePath,
+									currentProjectPath,
+									error: String(error),
+								});
+								gitGutterInput = null;
+							}
+						},
+					})
+				)
 			);
 		});
 

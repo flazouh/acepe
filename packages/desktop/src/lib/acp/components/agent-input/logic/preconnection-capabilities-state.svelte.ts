@@ -1,6 +1,7 @@
-import { okAsync, ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
 import { SvelteMap } from "svelte/reactivity";
-import type { AppError } from "$lib/acp/errors/app-error.js";
+import { AgentError, AppError } from "$lib/acp/errors/app-error.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import type { ProviderMetadataProjection, ResolvedCapabilities } from "$lib/services/acp-types.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
@@ -31,7 +32,7 @@ interface StartupGlobalCapabilitiesAgent {
 type FetchCapabilities = (
 	projectPath: string,
 	agentId: string
-) => ResultAsync<ResolvedCapabilities, AppError>;
+) => Effect.Effect<ResolvedCapabilities, AppError>;
 
 const logger = createLogger({
 	id: "preconnection-capabilities",
@@ -39,8 +40,24 @@ const logger = createLogger({
 });
 
 const capabilitiesByKey = new SvelteMap<string, ResolvedCapabilities>();
-const inFlightByKey = new Map<string, ResultAsync<ResolvedCapabilities, AppError>>();
+const inFlightByKey = new Map<string, Promise<ResolvedCapabilities>>();
 const loadingByKey = new SvelteMap<string, true>();
+
+function toAppError(error: unknown): AppError {
+	if (error instanceof AppError) {
+		return error;
+	}
+	return new AgentError(
+		"preconnection-capabilities",
+		error instanceof Error ? error : new Error(String(error))
+	);
+}
+
+function wrapPending(
+	pending: Promise<ResolvedCapabilities>
+): Effect.Effect<ResolvedCapabilities, AppError> {
+	return fromPromise(() => pending, toAppError);
+}
 
 function buildCacheKey(
 	agentId: string | null,
@@ -108,7 +125,7 @@ export class PreconnectionCapabilitiesState {
 	ensureLoaded(
 		input: EnsureLoadedInput,
 		options: EnsureLoadedOptions = {}
-	): ResultAsync<void, AppError> {
+	): Effect.Effect<void, AppError> {
 		const cacheKey = buildCacheKey(
 			input.agentId,
 			input.projectPath,
@@ -116,10 +133,10 @@ export class PreconnectionCapabilitiesState {
 		);
 		const existingRequest = cacheKey ? inFlightByKey.get(cacheKey) : undefined;
 		if (existingRequest && cacheKey && options.force) {
-			return existingRequest
-				.map(() => undefined)
-				.orElse(() => okAsync(undefined))
-				.andThen(() => {
+			return wrapPending(existingRequest).pipe(
+				Effect.map(() => undefined),
+				Effect.catch(() => Effect.succeed(undefined)),
+				Effect.flatMap(() => {
 					capabilitiesByKey.delete(cacheKey);
 					inFlightByKey.delete(cacheKey);
 					loadingByKey.delete(cacheKey);
@@ -127,22 +144,24 @@ export class PreconnectionCapabilitiesState {
 						this.loadingCacheKey = null;
 					}
 					return this.ensureLoaded(input, { force: true });
-				});
+				})
+			);
 		}
 		if (existingRequest && cacheKey) {
 			this.loadingCacheKey = cacheKey;
-			return existingRequest
-				.map(() => {
+			return wrapPending(existingRequest).pipe(
+				Effect.map(() => {
 					if (this.loadingCacheKey === cacheKey) {
 						this.loadingCacheKey = null;
 					}
-				})
-				.mapErr((error) => {
+				}),
+				Effect.mapError((error) => {
 					if (this.loadingCacheKey === cacheKey) {
 						this.loadingCacheKey = null;
 					}
 					return error;
-				});
+				})
+			);
 		}
 
 		if (cacheKey && options.force) {
@@ -162,23 +181,23 @@ export class PreconnectionCapabilitiesState {
 				alreadyLoading,
 			})
 		) {
-			return okAsync(undefined);
+			return Effect.succeed(undefined);
 		}
 
 		const agentId = input.agentId;
 		if (!cacheKey || !agentId) {
-			return okAsync(undefined);
+			return Effect.succeed(undefined);
 		}
 
 		const cwd = input.projectPath ?? "";
-		const request = this.fetchCapabilities(cwd, agentId);
+		const pending = Effect.runPromise(this.fetchCapabilities(cwd, agentId));
 
-		inFlightByKey.set(cacheKey, request);
+		inFlightByKey.set(cacheKey, pending);
 		loadingByKey.set(cacheKey, true);
 		this.loadingCacheKey = cacheKey;
 
-		return request
-			.map((capabilities) => {
+		return wrapPending(pending).pipe(
+			Effect.map((capabilities) => {
 				capabilitiesByKey.set(cacheKey, capabilities);
 				inFlightByKey.delete(cacheKey);
 				loadingByKey.delete(cacheKey);
@@ -192,8 +211,8 @@ export class PreconnectionCapabilitiesState {
 					modelCount: capabilities.availableModels.length,
 					modeCount: capabilities.availableModes.length,
 				});
-			})
-			.mapErr((error) => {
+			}),
+			Effect.mapError((error) => {
 				inFlightByKey.delete(cacheKey);
 				loadingByKey.delete(cacheKey);
 				if (this.loadingCacheKey === cacheKey) {
@@ -205,7 +224,8 @@ export class PreconnectionCapabilitiesState {
 					error: error.message,
 				});
 				return error;
-			});
+			})
+		);
 	}
 
 	getCapabilities(input: GetCapabilitiesInput): ResolvedCapabilities | null {
@@ -232,7 +252,7 @@ export class PreconnectionCapabilitiesState {
 
 	initializeStartupGlobal(
 		agents: ReadonlyArray<StartupGlobalCapabilitiesAgent>
-	): ResultAsync<void, AppError> {
+	): Effect.Effect<void, AppError> {
 		const startupGlobalAgents = agents.filter(
 			(agent) =>
 				(agent.providerMetadata ?? agent.provider_metadata)?.preconnectionCapabilityMode ===
@@ -240,7 +260,7 @@ export class PreconnectionCapabilitiesState {
 		);
 
 		if (startupGlobalAgents.length === 0) {
-			return okAsync(undefined);
+			return Effect.succeed(undefined);
 		}
 
 		const requests = startupGlobalAgents.map((agent) =>
@@ -254,6 +274,6 @@ export class PreconnectionCapabilitiesState {
 			})
 		);
 
-		return ResultAsync.combine(requests).map(() => undefined);
+		return Effect.all(requests).pipe(Effect.map(() => undefined));
 	}
 }

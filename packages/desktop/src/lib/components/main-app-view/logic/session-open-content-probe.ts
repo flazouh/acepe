@@ -1,4 +1,5 @@
 import type { AgentPanelPerformanceSample } from "@acepe/ui/agent-panel";
+import * as Effect from "effect/Effect";
 import type { PanelOpenPerformanceMarkName } from "$lib/acp/components/agent-panel/logic/panel-open-performance-mark.js";
 import type { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
 import {
@@ -485,20 +486,21 @@ export async function runSessionOpenContentProbe(
 	const selectStartedAtMs = deps.performance.now();
 	let selectCallMs: number | null = null;
 	const selectState: SelectSessionProbeState = { outcome: null };
-	const selectPromise = deps.viewState
-		.handleSelectSession(options.sessionId)
-		.match(
-			(): SelectSessionOutcome => ({ ok: true, message: null }),
-			(error: MainAppViewError): SelectSessionOutcome => ({
-				ok: false,
-				message: error.message,
+	const selectPromise = Effect.runPromise(
+		deps.viewState.handleSelectSession(options.sessionId).pipe(
+			Effect.match({
+				onSuccess: (): SelectSessionOutcome => ({ ok: true, message: null }),
+				onFailure: (error: MainAppViewError): SelectSessionOutcome => ({
+					ok: false,
+					message: error.message,
+				}),
 			})
 		)
-		.then((outcome) => {
-			selectCallMs = roundPerfMs(deps.performance.now() - selectStartedAtMs);
-			selectState.outcome = outcome;
-			return outcome;
-		});
+	).then((outcome) => {
+		selectCallMs = roundPerfMs(deps.performance.now() - selectStartedAtMs);
+		selectState.outcome = outcome;
+		return outcome;
+	});
 
 	let panelId: string | null = null;
 	while (deps.performance.now() < deadlineMs) {

@@ -4,7 +4,7 @@
  * Handles adding projects, browsing for projects, etc.
  */
 
-import type { ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import { type MainAppViewError, ProjectOperationError } from "../../errors/main-app-view-error.js";
 import type { MainAppViewState } from "../main-app-view-state.svelte.js";
@@ -29,14 +29,14 @@ export class ProjectHandler {
 	 *
 	 * Triggers session scanning automatically for the imported project.
 	 *
-	 * @returns ResultAsync indicating success or error
+	 * @returns Effect indicating success or error
 	 */
-	addProject(): ResultAsync<void, MainAppViewError> {
-		return this.projectManager
-			.importProject()
-			.map(() => undefined)
-			.mapErr(
+	addProject(): Effect.Effect<void, MainAppViewError> {
+		return this.projectManager.importProject().pipe(
+			Effect.map(() => undefined),
+			Effect.mapError(
 				(error) => new ProjectOperationError("import", error instanceof Error ? error : undefined)
-			);
+			)
+		);
 	}
 }

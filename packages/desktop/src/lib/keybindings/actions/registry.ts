@@ -5,7 +5,10 @@
  * triggered by keybindings, command palette, or programmatically.
  */
 
-import { err, ok, okAsync, Result, ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import { fromThrowable } from "@acepe/effect-result/fromThrowable";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 
 import type { ContextManager } from "../context/manager.svelte.js";
 import type { Action, ActionCategory } from "../types.js";
@@ -18,14 +21,14 @@ export class ActionRegistry {
 	/**
 	 * Register a new action.
 	 */
-	register(action: Action): Result<void, KeybindingError> {
+	register(action: Action): Result.Result<void, KeybindingError> {
 		if (this.actions.has(action.id)) {
-			return err(
+			return Result.fail(
 				new KeybindingError("ACTION_ALREADY_EXISTS", `Action "${action.id}" already registered`)
 			);
 		}
 		this.actions.set(action.id, action);
-		return ok(undefined);
+		return Result.succeed(undefined);
 	}
 
 	/**
@@ -38,14 +41,14 @@ export class ActionRegistry {
 	/**
 	 * Register multiple actions at once.
 	 */
-	registerMany(actions: Action[]): Result<void, KeybindingError> {
+	registerMany(actions: Action[]): Result.Result<void, KeybindingError> {
 		for (const action of actions) {
 			const result = this.register(action);
-			if (result.isErr()) {
+			if (Result.isFailure(result)) {
 				return result;
 			}
 		}
-		return ok(undefined);
+		return Result.succeed(undefined);
 	}
 
 	/**
@@ -60,23 +63,23 @@ export class ActionRegistry {
 	/**
 	 * Unregister an action by ID.
 	 */
-	unregister(id: string): Result<void, KeybindingError> {
+	unregister(id: string): Result.Result<void, KeybindingError> {
 		if (!this.actions.has(id)) {
-			return err(new KeybindingError("ACTION_NOT_FOUND", `Action "${id}" not found`));
+			return Result.fail(new KeybindingError("ACTION_NOT_FOUND", `Action "${id}" not found`));
 		}
 		this.actions.delete(id);
-		return ok(undefined);
+		return Result.succeed(undefined);
 	}
 
 	/**
 	 * Get an action by ID.
 	 */
-	get(id: string): Result<Action, KeybindingError> {
+	get(id: string): Result.Result<Action, KeybindingError> {
 		const action = this.actions.get(id);
 		if (!action) {
-			return err(new KeybindingError("ACTION_NOT_FOUND", `Action "${id}" not found`));
+			return Result.fail(new KeybindingError("ACTION_NOT_FOUND", `Action "${id}" not found`));
 		}
-		return ok(action);
+		return Result.succeed(action);
 	}
 
 	/**
@@ -116,59 +119,22 @@ export class ActionRegistry {
 	/**
 	 * Execute an action by ID.
 	 */
-	execute(id: string, contextManager?: ContextManager): ResultAsync<void, KeybindingError> {
+	execute(id: string, contextManager?: ContextManager): Effect.Effect<void, KeybindingError> {
 		const actionResult = this.get(id);
-		if (actionResult.isErr()) {
-			return okAsync().andThen(() => err(actionResult.error));
+		if (Result.isFailure(actionResult)) {
+			return Effect.fail(actionResult.failure);
 		}
 
-		const action = actionResult.value;
+		const action = actionResult.success;
 
 		// Check context if provided
 		if (action.when && contextManager) {
 			const contextResult = contextManager.evaluate(action.when);
-			if (contextResult.isErr()) {
-				return okAsync().andThen(() => err(contextResult.error));
+			if (Result.isFailure(contextResult)) {
+				return Effect.fail(contextResult.failure);
 			}
-			if (!contextResult.value) {
-				return okAsync().andThen(() =>
-					err(
-						new KeybindingError(
-							"CONTEXT_CHECK_FAILED",
-							`Action "${id}" context check failed: ${action.when}`
-						)
-					)
-				);
-			}
-		}
-
-		return ResultAsync.fromPromise(
-			Promise.resolve(action.handler()),
-			(error) => new KeybindingError("EXECUTION_FAILED", `Action "${id}" execution failed`, error)
-		);
-	}
-
-	/**
-	 * Execute an action synchronously by ID.
-	 * Use this for keybinding handlers where immediate execution is preferred.
-	 * Returns Result instead of ResultAsync for synchronous error handling.
-	 */
-	executeSync(id: string, contextManager?: ContextManager): Result<void, KeybindingError> {
-		const actionResult = this.get(id);
-		if (actionResult.isErr()) {
-			return err(actionResult.error);
-		}
-
-		const action = actionResult.value;
-
-		// Check context if provided
-		if (action.when && contextManager) {
-			const contextResult = contextManager.evaluate(action.when);
-			if (contextResult.isErr()) {
-				return err(contextResult.error);
-			}
-			if (!contextResult.value) {
-				return err(
+			if (!contextResult.success) {
+				return Effect.fail(
 					new KeybindingError(
 						"CONTEXT_CHECK_FAILED",
 						`Action "${id}" context check failed: ${action.when}`
@@ -177,13 +143,48 @@ export class ActionRegistry {
 			}
 		}
 
-		const safeHandler = Result.fromThrowable(
+		return fromPromise(
+			() => Promise.resolve(action.handler()),
+			(error) => new KeybindingError("EXECUTION_FAILED", `Action "${id}" execution failed`, error)
+		);
+	}
+
+	/**
+	 * Execute an action synchronously by ID.
+	 * Use this for keybinding handlers where immediate execution is preferred.
+	 * Returns Result instead of Effect for synchronous error handling.
+	 */
+	executeSync(id: string, contextManager?: ContextManager): Result.Result<void, KeybindingError> {
+		const actionResult = this.get(id);
+		if (Result.isFailure(actionResult)) {
+			return Result.fail(actionResult.failure);
+		}
+
+		const action = actionResult.success;
+
+		// Check context if provided
+		if (action.when && contextManager) {
+			const contextResult = contextManager.evaluate(action.when);
+			if (Result.isFailure(contextResult)) {
+				return Result.fail(contextResult.failure);
+			}
+			if (!contextResult.success) {
+				return Result.fail(
+					new KeybindingError(
+						"CONTEXT_CHECK_FAILED",
+						`Action "${id}" context check failed: ${action.when}`
+					)
+				);
+			}
+		}
+
+		const safeHandler = fromThrowable(
 			() => {
 				action.handler();
 			},
 			(error) => new KeybindingError("EXECUTION_FAILED", `Action "${id}" execution failed`, error)
 		);
-		return safeHandler();
+		return Effect.runSync(Effect.result(safeHandler()));
 	}
 
 	/**
@@ -191,17 +192,17 @@ export class ActionRegistry {
 	 */
 	isAvailable(id: string, contextManager?: ContextManager): boolean {
 		const actionResult = this.get(id);
-		if (actionResult.isErr()) {
+		if (Result.isFailure(actionResult)) {
 			return false;
 		}
 
-		const action = actionResult.value;
+		const action = actionResult.success;
 		if (!(action.when && contextManager)) {
 			return true;
 		}
 
 		const contextResult = contextManager.evaluate(action.when);
-		return contextResult.isOk() && contextResult.value;
+		return Result.isSuccess(contextResult) && contextResult.success;
 	}
 
 	/**

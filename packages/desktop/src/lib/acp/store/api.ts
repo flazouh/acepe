@@ -5,7 +5,7 @@
  * All commands are type-checked at compile time.
  */
 
-import { okAsync, type ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import type {
 	ProviderMetadataProjection,
 	SessionGraphCapabilities,
@@ -32,8 +32,8 @@ import type {
 /**
  * Initialize the ACP agent service.
  */
-export function initialize(): ResultAsync<void, AppError> {
-	return tauriClient.acp.initialize().map(() => undefined);
+export function initialize(): Effect.Effect<void, AppError> {
+	return tauriClient.acp.initialize().pipe(Effect.map(() => undefined));
 }
 
 /**
@@ -48,7 +48,7 @@ export function resumeSession(
 	agentId?: string,
 	launchModeId?: string,
 	openToken?: string
-): ResultAsync<void, AppError> {
+): Effect.Effect<void, AppError> {
 	return tauriClient.acp.resumeSession(sessionId, cwd, attemptId, agentId, launchModeId, openToken);
 }
 
@@ -61,7 +61,7 @@ export function newSession(
 	launchToken?: string,
 	initialModelId?: string,
 	initialModeId?: string
-): ResultAsync<ResumeSessionResult, AppError> {
+): Effect.Effect<ResumeSessionResult, AppError> {
 	return tauriClient.acp.newSession(cwd, agentId, launchToken, initialModelId, initialModeId);
 }
 
@@ -75,21 +75,21 @@ export function sendPrompt(
 	sessionId: string,
 	content: ReadonlyArray<Record<string, unknown> & { type: string }>,
 	attemptId?: string
-): ResultAsync<void, AppError> {
+): Effect.Effect<void, AppError> {
 	return tauriClient.acp.sendPrompt(sessionId, content, attemptId);
 }
 
 /**
  * Set the model for a session.
  */
-export function setModel(sessionId: string, modelId: string): ResultAsync<void, AppError> {
+export function setModel(sessionId: string, modelId: string): Effect.Effect<void, AppError> {
 	return tauriClient.acp.setModel(sessionId, modelId);
 }
 
 /**
  * Set the mode for a session.
  */
-export function setMode(sessionId: string, modeId: string): ResultAsync<void, AppError> {
+export function setMode(sessionId: string, modeId: string): Effect.Effect<void, AppError> {
 	return tauriClient.acp.setMode(sessionId, modeId);
 }
 
@@ -99,7 +99,7 @@ export function setMode(sessionId: string, modeId: string): ResultAsync<void, Ap
 export function setSessionAutonomous(
 	sessionId: string,
 	enabled: boolean
-): ResultAsync<void, AppError> {
+): Effect.Effect<void, AppError> {
 	return tauriClient.acp.setSessionAutonomous(sessionId, enabled);
 }
 
@@ -116,8 +116,8 @@ export function setConfigOption(
 	sessionId: string,
 	configId: string,
 	value: string
-): ResultAsync<SetConfigOptionResponse, AppError> {
-	return tauriClient.acp.setConfigOption(sessionId, configId, value) as ResultAsync<
+): Effect.Effect<SetConfigOptionResponse, AppError> {
+	return tauriClient.acp.setConfigOption(sessionId, configId, value) as Effect.Effect<
 		SetConfigOptionResponse,
 		AppError
 	>;
@@ -126,14 +126,14 @@ export function setConfigOption(
 /**
  * Cancel/stop streaming for a session.
  */
-export function stopStreaming(sessionId: string): ResultAsync<void, AppError> {
+export function stopStreaming(sessionId: string): Effect.Effect<void, AppError> {
 	return tauriClient.acp.cancel(sessionId);
 }
 
 /**
  * Reply to a canonical interaction through one backend-owned command path.
  */
-export function replyInteraction(request: InteractionReplyRequest): ResultAsync<void, AppError> {
+export function replyInteraction(request: InteractionReplyRequest): Effect.Effect<void, AppError> {
 	return tauriClient.acp.replyInteraction(request);
 }
 
@@ -145,7 +145,7 @@ export function respondInboundRequest(
 	sessionId: string,
 	requestId: number,
 	result: unknown
-): ResultAsync<void, AppError> {
+): Effect.Effect<void, AppError> {
 	return tauriClient.acp.respondInboundRequest(sessionId, requestId, result);
 }
 
@@ -153,13 +153,13 @@ export function respondInboundRequest(
  * Close a session and clean up its subprocess.
  * This kills the ACP subprocess associated with the session.
  */
-export function closeSession(sessionId: string): ResultAsync<void, AppError> {
+export function closeSession(sessionId: string): Effect.Effect<void, AppError> {
 	return tauriClient.acp.closeSession(sessionId);
 }
 
 export function fetchCanonicalSessionStateEnvelope(
 	sessionId: string
-): ResultAsync<SessionStateEnvelope, AppError> {
+): Effect.Effect<SessionStateEnvelope, AppError> {
 	return tauriClient.acp.getSessionState(sessionId);
 }
 
@@ -171,7 +171,7 @@ export interface SessionConnectionReadiness {
 
 export function fetchSessionConnectionReadiness(
 	sessionId: string
-): ResultAsync<SessionConnectionReadiness, AppError> {
+): Effect.Effect<SessionConnectionReadiness, AppError> {
 	return tauriClient.acp.getSessionConnectionReadiness(sessionId);
 }
 
@@ -184,7 +184,7 @@ export function fetchSessionConnectionReadiness(
  *
  * @param projectPaths - Array of project paths to scan for sessions.
  */
-export function scanSessions(projectPaths: string[]): ResultAsync<HistoryEntry[], AppError> {
+export function scanSessions(projectPaths: string[]): Effect.Effect<HistoryEntry[], AppError> {
 	return tauriClient.history.scanProjectSessions(projectPaths);
 }
 
@@ -197,7 +197,7 @@ export function scanSessions(projectPaths: string[]): ResultAsync<HistoryEntry[]
  */
 export function getStartupSessions(
 	sessionIds: string[]
-): ResultAsync<StartupSessionsResponse, AppError> {
+): Effect.Effect<StartupSessionsResponse, AppError> {
 	return tauriClient.history.getStartupSessions(sessionIds);
 }
 
@@ -207,7 +207,7 @@ export function getSessionOpenResult(
 	agentId: string,
 	sourcePath?: string,
 	repairPriority: "selected" | "visible" | "backfill" = "selected"
-): ResultAsync<SessionOpenResult, AppError> {
+): Effect.Effect<SessionOpenResult, AppError> {
 	return tauriClient.history.getSessionOpenResult(
 		sessionId,
 		projectPath,
@@ -219,11 +219,11 @@ export function getSessionOpenResult(
 
 export function awaitSessionOpenRepair(
 	repairTicket: string
-): ResultAsync<SessionOpenResult, AppError> {
+): Effect.Effect<SessionOpenResult, AppError> {
 	return tauriClient.history.awaitSessionOpenRepair(repairTicket);
 }
 
-export function setSessionTitle(sessionId: string, title: string): ResultAsync<void, AppError> {
+export function setSessionTitle(sessionId: string, title: string): Effect.Effect<void, AppError> {
 	return tauriClient.history.setSessionTitle(sessionId, title);
 }
 
@@ -233,16 +233,16 @@ export function setSessionTitle(sessionId: string, title: string): ResultAsync<v
 
 /**
  * Save workspace state to database.
- * Returns ResultAsync for proper error handling.
+ * Returns Effect.Effect for proper error handling.
  */
-export function saveWorkspaceState(state: PersistedWorkspaceState): ResultAsync<void, AppError> {
+export function saveWorkspaceState(state: PersistedWorkspaceState): Effect.Effect<void, AppError> {
 	return tauriClient.workspace.saveWorkspaceState(state);
 }
 
 /**
  * Load workspace state from database.
  */
-export function loadWorkspaceState(): ResultAsync<PersistedWorkspaceRestoreState | null, AppError> {
+export function loadWorkspaceState(): Effect.Effect<PersistedWorkspaceRestoreState | null, AppError> {
 	return tauriClient.workspace.loadWorkspaceState();
 }
 
@@ -264,29 +264,29 @@ export interface AgentInfo {
 /**
  * List available agents.
  */
-export function listAgents(): ResultAsync<AgentInfo[], AppError> {
+export function listAgents(): Effect.Effect<AgentInfo[], AppError> {
 	return tauriClient.acp.listAgents();
 }
 
 /**
  * Install an automatically provisioned agent.
  */
-export function installAgent(agentId: string): ResultAsync<void, AppError> {
+export function installAgent(agentId: string): Effect.Effect<void, AppError> {
 	return tauriClient.acp.installAgent(agentId);
 }
 
 /**
  * Uninstall a previously downloaded agent.
  */
-export function uninstallAgent(agentId: string): ResultAsync<void, AppError> {
+export function uninstallAgent(agentId: string): Effect.Effect<void, AppError> {
 	return tauriClient.acp.uninstallAgent(agentId);
 }
 
 /**
  * Initialize ACP service.
  */
-export function initializeAcp(): ResultAsync<void, AppError> {
-	return tauriClient.acp.initialize().map(() => undefined);
+export function initializeAcp(): Effect.Effect<void, AppError> {
+	return tauriClient.acp.initialize().pipe(Effect.map(() => undefined));
 }
 
 // ============================================

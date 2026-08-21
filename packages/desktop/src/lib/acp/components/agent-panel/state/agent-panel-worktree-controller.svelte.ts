@@ -4,6 +4,7 @@
  * Composes with WorktreeSetupController.
  */
 
+import * as Effect from "effect/Effect";
 import { toast } from "svelte-sonner";
 import type { Project } from "../../../logic/project-manager.svelte.js";
 import type { PanelStore } from "../../../store/panel-store.svelte.js";
@@ -218,18 +219,23 @@ export class AgentPanelWorktreeController {
 
 		const sessionProjectPath = this.#deps.getSessionProjectPath();
 		const sessionAgentId = this.#deps.getSessionAgentId();
-		void persistSessionWorktreePathAfterRename(
-			sessionId,
-			info.directory,
-			sessionProjectPath ? sessionProjectPath : undefined,
-			sessionAgentId ? sessionAgentId : undefined
-		).mapErr((error) => {
-			console.error("Failed to persist renamed worktree path to DB", {
+		void Effect.runPromise(
+			persistSessionWorktreePathAfterRename(
 				sessionId,
-				worktreePath: info.directory,
-				error,
-			});
-		});
+				info.directory,
+				sessionProjectPath ? sessionProjectPath : undefined,
+				sessionAgentId ? sessionAgentId : undefined
+			).pipe(
+				Effect.catch((error) => {
+					console.error("Failed to persist renamed worktree path to DB", {
+						sessionId,
+						worktreePath: info.directory,
+						error,
+					});
+					return Effect.succeed(undefined);
+				})
+			)
+		);
 	}
 
 	handlePreSessionWorktreeYes(): void {
@@ -252,13 +258,17 @@ export class AgentPanelWorktreeController {
 		}
 		const preparedLaunch = this.#deps.getPanelPreparedWorktreeLaunch();
 		if (preparedLaunch) {
-			void discardPreparedWorktreeSessionLaunch(preparedLaunch.launchToken, true).match(
-				() => {
-					this.#deps.panelStore.clearPreparedWorktreeLaunch(panelId);
-				},
-				(error) => {
-					toast.error(`Failed to discard prepared worktree: ${error.message}`);
-				}
+			void Effect.runPromise(
+				discardPreparedWorktreeSessionLaunch(preparedLaunch.launchToken, true).pipe(
+					Effect.match({
+						onSuccess: () => {
+							this.#deps.panelStore.clearPreparedWorktreeLaunch(panelId);
+						},
+						onFailure: (error) => {
+							toast.error(`Failed to discard prepared worktree: ${error.message}`);
+						},
+					})
+				)
 			);
 		}
 		this.#deps.panelStore.setPendingWorktreeEnabled(panelId, false);
@@ -276,13 +286,17 @@ export class AgentPanelWorktreeController {
 		}
 		const preparedLaunch = this.#deps.getPanelPreparedWorktreeLaunch();
 		if (preparedLaunch) {
-			void discardPreparedWorktreeSessionLaunch(preparedLaunch.launchToken, true).match(
-				() => {
-					this.#deps.panelStore.clearPreparedWorktreeLaunch(panelId);
-				},
-				(error) => {
-					toast.error(`Failed to discard prepared worktree: ${error.message}`);
-				}
+			void Effect.runPromise(
+				discardPreparedWorktreeSessionLaunch(preparedLaunch.launchToken, true).pipe(
+					Effect.match({
+						onSuccess: () => {
+							this.#deps.panelStore.clearPreparedWorktreeLaunch(panelId);
+						},
+						onFailure: (error) => {
+							toast.error(`Failed to discard prepared worktree: ${error.message}`);
+						},
+					})
+				)
 			);
 		}
 		this.#deps.panelStore.setPendingWorktreeEnabled(panelId, false);
@@ -298,16 +312,20 @@ export class AgentPanelWorktreeController {
 		const panelId = this.#deps.getPanelId();
 		const preparedLaunch = this.#deps.getPanelPreparedWorktreeLaunch();
 		if (panelId && preparedLaunch) {
-			void discardPreparedWorktreeSessionLaunch(preparedLaunch.launchToken, true).match(
-				() => {
-					this.#activeWorktreePath = null;
-					this.#activeWorktreeOwnerProjectPath = null;
-					this.#deps.panelStore.clearPreparedWorktreeLaunch(panelId);
-					this.#deps.panelStore.setPendingWorktreeEnabled(panelId, false);
-				},
-				(error) => {
-					toast.error(`Failed to discard prepared worktree: ${error.message}`);
-				}
+			void Effect.runPromise(
+				discardPreparedWorktreeSessionLaunch(preparedLaunch.launchToken, true).pipe(
+					Effect.match({
+						onSuccess: () => {
+							this.#activeWorktreePath = null;
+							this.#activeWorktreeOwnerProjectPath = null;
+							this.#deps.panelStore.clearPreparedWorktreeLaunch(panelId);
+							this.#deps.panelStore.setPendingWorktreeEnabled(panelId, false);
+						},
+						onFailure: (error) => {
+							toast.error(`Failed to discard prepared worktree: ${error.message}`);
+						},
+					})
+				)
 			);
 			return;
 		}

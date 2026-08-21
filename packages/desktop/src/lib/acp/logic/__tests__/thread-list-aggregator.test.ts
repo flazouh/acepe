@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import * as Result from "effect/Result";
 
 import type { SessionDisplayItem } from "../../types/thread-display-item.js";
 import { EMPTY_FILTER } from "../../types/thread-filter.js";
@@ -47,19 +48,19 @@ describe("thread-list-aggregator", () => {
 	describe("aggregateThreads", () => {
 		it("should merge active threads and historical conversations", () => {
 			const result = aggregateThreads(activeThreads, historicalConversations);
-			expect(result.isOk()).toBe(true);
-			if (result.isOk()) {
+			expect(Result.isSuccess(result)).toBe(true);
+			if (Result.isSuccess(result)) {
 				// Should have 3 unique threads (session-1 is deduplicated, active takes precedence)
-				expect(result.value.length).toBe(3);
+				expect(result.success.length).toBe(3);
 			}
 		});
 
 		it("should prefer active threads over historical when id matches", () => {
 			const result = aggregateThreads(activeThreads, historicalConversations);
-			expect(result.isOk()).toBe(true);
-			if (result.isOk()) {
+			expect(Result.isSuccess(result)).toBe(true);
+			if (Result.isSuccess(result)) {
 				// id IS the session ID (canonical)
-				const session1Thread = result.value.find((t) => t.id === "session-1");
+				const session1Thread = result.success.find((t) => t.id === "session-1");
 				expect(session1Thread).toBeDefined();
 				expect(session1Thread?.title).toBe("Active Thread 1");
 			}
@@ -67,9 +68,9 @@ describe("thread-list-aggregator", () => {
 
 		it("should sort threads by createdAt descending", () => {
 			const result = aggregateThreads(activeThreads, historicalConversations);
-			expect(result.isOk()).toBe(true);
-			if (result.isOk()) {
-				const sorted = result.value;
+			expect(Result.isSuccess(result)).toBe(true);
+			if (Result.isSuccess(result)) {
+				const sorted = result.success;
 				for (let i = 0; i < sorted.length - 1; i++) {
 					expect(sorted[i].createdAt.getTime() >= sorted[i + 1].createdAt.getTime()).toBe(true);
 				}
@@ -80,10 +81,10 @@ describe("thread-list-aggregator", () => {
 			const result = aggregateThreads(activeThreads, historicalConversations, {
 				projectPaths: ["/path/to/project-a"],
 			});
-			expect(result.isOk()).toBe(true);
-			if (result.isOk()) {
-				expect(result.value.length).toBe(2);
-				expect(result.value.every((t) => t.projectPath === "/path/to/project-a")).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
+			if (Result.isSuccess(result)) {
+				expect(result.success.length).toBe(2);
+				expect(result.success.every((t) => t.projectPath === "/path/to/project-a")).toBe(true);
 			}
 		});
 
@@ -92,11 +93,11 @@ describe("thread-list-aggregator", () => {
 				projectPaths: ["/path/to/project-a"],
 				agentIds: ["claude-code"],
 			});
-			expect(result.isOk()).toBe(true);
-			if (result.isOk()) {
-				expect(result.value.length).toBe(2);
+			expect(Result.isSuccess(result)).toBe(true);
+			if (Result.isSuccess(result)) {
+				expect(result.success.length).toBe(2);
 				expect(
-					result.value.every(
+					result.success.every(
 						(t) => t.projectPath === "/path/to/project-a" && t.agentId === "claude-code"
 					)
 				).toBe(true);
@@ -105,25 +106,25 @@ describe("thread-list-aggregator", () => {
 
 		it("should handle empty active threads", () => {
 			const result = aggregateThreads([], historicalConversations);
-			expect(result.isOk()).toBe(true);
-			if (result.isOk()) {
-				expect(result.value.length).toBe(2);
+			expect(Result.isSuccess(result)).toBe(true);
+			if (Result.isSuccess(result)) {
+				expect(result.success.length).toBe(2);
 			}
 		});
 
 		it("should handle empty historical conversations", () => {
 			const result = aggregateThreads(activeThreads, []);
-			expect(result.isOk()).toBe(true);
-			if (result.isOk()) {
-				expect(result.value.length).toBe(2);
+			expect(Result.isSuccess(result)).toBe(true);
+			if (Result.isSuccess(result)) {
+				expect(result.success.length).toBe(2);
 			}
 		});
 
 		it("should handle both empty", () => {
 			const result = aggregateThreads([], []);
-			expect(result.isOk()).toBe(true);
-			if (result.isOk()) {
-				expect(result.value).toEqual([]);
+			expect(Result.isSuccess(result)).toBe(true);
+			if (Result.isSuccess(result)) {
+				expect(result.success).toEqual([]);
 			}
 		});
 	});
@@ -131,7 +132,7 @@ describe("thread-list-aggregator", () => {
 	describe("validateFilter", () => {
 		it("should return ok for empty filter", () => {
 			const result = validateFilter(EMPTY_FILTER);
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 		});
 
 		it("should return ok for valid date range", () => {
@@ -141,7 +142,7 @@ describe("thread-list-aggregator", () => {
 					end: new Date("2024-01-31"),
 				},
 			});
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 		});
 
 		it("should return error for invalid date range (start after end)", () => {
@@ -151,9 +152,9 @@ describe("thread-list-aggregator", () => {
 					end: new Date("2024-01-01"),
 				},
 			});
-			expect(result.isErr()).toBe(true);
-			if (result.isErr()) {
-				expect(result.error.message).toContain("Date range start must be");
+			expect(Result.isFailure(result)).toBe(true);
+			if (Result.isFailure(result)) {
+				expect(result.failure.message).toContain("Date range start must be");
 			}
 		});
 
@@ -161,9 +162,9 @@ describe("thread-list-aggregator", () => {
 			const result = validateFilter({
 				projectPaths: [],
 			});
-			expect(result.isErr()).toBe(true);
-			if (result.isErr()) {
-				expect(result.error.message).toContain("projectPaths");
+			expect(Result.isFailure(result)).toBe(true);
+			if (Result.isFailure(result)) {
+				expect(result.failure.message).toContain("projectPaths");
 			}
 		});
 
@@ -171,9 +172,9 @@ describe("thread-list-aggregator", () => {
 			const result = validateFilter({
 				agentIds: [],
 			});
-			expect(result.isErr()).toBe(true);
-			if (result.isErr()) {
-				expect(result.error.message).toContain("agentIds");
+			expect(Result.isFailure(result)).toBe(true);
+			if (Result.isFailure(result)) {
+				expect(result.failure.message).toContain("agentIds");
 			}
 		});
 
@@ -181,9 +182,9 @@ describe("thread-list-aggregator", () => {
 			const result = validateFilter({
 				sessionIds: [],
 			});
-			expect(result.isErr()).toBe(true);
-			if (result.isErr()) {
-				expect(result.error.message).toContain("sessionIds");
+			expect(Result.isFailure(result)).toBe(true);
+			if (Result.isFailure(result)) {
+				expect(result.failure.message).toContain("sessionIds");
 			}
 		});
 
@@ -193,7 +194,7 @@ describe("thread-list-aggregator", () => {
 				agentIds: ["claude-code"],
 				sessionIds: ["session-1"],
 			});
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 		});
 	});
 });

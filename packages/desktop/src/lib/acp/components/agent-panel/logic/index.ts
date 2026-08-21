@@ -2,7 +2,7 @@
  * Agent Panel Business Logic
  *
  * Pure functions for agent panel operations.
- * All functions use neverthrow Result types for error handling.
+ * All functions use Effect Result types for error handling.
  */
 
 export { mapCanonicalTurnStateToPresentationStatus } from "../../../store/canonical-turn-state-mapping";

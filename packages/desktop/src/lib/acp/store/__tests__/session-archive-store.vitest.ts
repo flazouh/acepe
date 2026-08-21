@@ -1,4 +1,5 @@
-import { okAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { describe, expect, it } from "vitest";
 
 import type {
@@ -21,13 +22,13 @@ class FakeThreadListSettingsClient {
 	saveCalls: ThreadListSettings[] = [];
 
 	getSettings() {
-		return okAsync(this.settings);
+		return Effect.succeed(this.settings);
 	}
 
 	saveSettings(settings: ThreadListSettings) {
 		this.settings = settings;
 		this.saveCalls.push(settings);
-		return okAsync(undefined);
+		return Effect.succeed(undefined);
 	}
 }
 
@@ -81,16 +82,16 @@ describe("SessionArchiveStore", () => {
 		};
 
 		const store = new SessionArchiveStore(client);
-		const result = await store.load();
+		const result = await Effect.runPromise(Effect.result(store.load()));
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(store.isArchived(archived)).toBe(true);
 	});
 
 	it("archives idempotently and preserves hiddenProjects", async () => {
 		const client = new FakeThreadListSettingsClient();
 		const store = new SessionArchiveStore(client);
-		await store.load();
+		await Effect.runPromise(store.load());
 
 		const session: ArchivedSessionRef = {
 			sessionId: "s1",
@@ -98,8 +99,8 @@ describe("SessionArchiveStore", () => {
 			agentId: "claude-code",
 		};
 
-		await store.archive(session);
-		await store.archive(session);
+		await Effect.runPromise(store.archive(session));
+		await Effect.runPromise(store.archive(session));
 
 		expect(store.isArchived(session)).toBe(true);
 		expect(client.settings.hiddenProjects).toEqual(["/existing/project"]);
@@ -117,13 +118,13 @@ describe("SessionArchiveStore", () => {
 		};
 
 		const store = new SessionArchiveStore(client);
-		await store.load();
+		await Effect.runPromise(store.load());
 
-		await store.unarchive({
+		await Effect.runPromise(store.unarchive({
 			sessionId: "same",
 			projectPath: "/repo-a",
 			agentId: "claude-code",
-		});
+		}));
 
 		expect(
 			store.isArchived({

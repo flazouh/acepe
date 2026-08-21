@@ -5,7 +5,7 @@
  * which actions. Uses tinykeys for efficient keyboard event handling.
  */
 
-import { err, ok, type Result } from "neverthrow";
+import * as Result from "effect/Result";
 import { SvelteMap } from "svelte/reactivity";
 import { tinykeys } from "tinykeys";
 import type { ActionRegistry } from "../actions/registry.js";
@@ -36,9 +36,9 @@ export class KeybindingRegistry {
 	/**
 	 * Register a new keybinding.
 	 */
-	register(binding: Keybinding): Result<void, KeybindingError> {
+	register(binding: Keybinding): Result.Result<void, KeybindingError> {
 		if (isSequenceKeybinding(binding.key)) {
-			return err(
+			return Result.fail(
 				new KeybindingError(
 					"INVALID_KEYBINDING",
 					`Keybinding sequences are not supported: "${binding.key}"`
@@ -51,7 +51,7 @@ export class KeybindingRegistry {
 			(b) => b.key === binding.key && b.command === binding.command
 		);
 		if (existing) {
-			return err(
+			return Result.fail(
 				new KeybindingError(
 					"BINDING_CONFLICT",
 					`Keybinding "${binding.key}" -> "${binding.command}" already exists`
@@ -61,20 +61,20 @@ export class KeybindingRegistry {
 
 		this.bindings = [...this.bindings, { ...binding, source: binding.source ?? "default" }];
 		this.version++;
-		return ok(undefined);
+		return Result.succeed(undefined);
 	}
 
 	/**
 	 * Register multiple keybindings at once.
 	 */
-	registerMany(bindings: Keybinding[]): Result<void, KeybindingError> {
+	registerMany(bindings: Keybinding[]): Result.Result<void, KeybindingError> {
 		for (const binding of bindings) {
 			const result = this.register(binding);
-			if (result.isErr()) {
+			if (Result.isFailure(result)) {
 				return result;
 			}
 		}
-		return ok(undefined);
+		return Result.succeed(undefined);
 	}
 
 	/**
@@ -105,17 +105,17 @@ export class KeybindingRegistry {
 	/**
 	 * Remove a keybinding.
 	 */
-	unregister(key: string, command: string): Result<void, KeybindingError> {
+	unregister(key: string, command: string): Result.Result<void, KeybindingError> {
 		const index = this.bindings.findIndex((b) => b.key === key && b.command === command);
 		if (index === -1) {
-			return err(
+			return Result.fail(
 				new KeybindingError("ACTION_NOT_FOUND", `Keybinding "${key}" -> "${command}" not found`)
 			);
 		}
 		// Create new array without the removed binding
 		this.bindings = this.bindings.filter((_, i) => i !== index);
 		this.version++;
-		return ok(undefined);
+		return Result.succeed(undefined);
 	}
 
 	/**
@@ -211,7 +211,7 @@ export class KeybindingRegistry {
 		target: Window | HTMLElement,
 		actionRegistry: ActionRegistry,
 		contextManager: ContextManager
-	): Result<void, KeybindingError> {
+	): Result.Result<void, KeybindingError> {
 		// Store references for reinstall
 		this.actionRegistry = actionRegistry;
 		this.contextManager = contextManager;
@@ -233,7 +233,7 @@ export class KeybindingRegistry {
 						// Check context
 						if (b.when) {
 							const contextResult = contextManager.evaluate(b.when);
-							if (contextResult.isErr() || !contextResult.value) {
+							if (!Result.isSuccess(contextResult) || !contextResult.success) {
 								continue;
 							}
 						}
@@ -249,7 +249,7 @@ export class KeybindingRegistry {
 					// Check context
 					if (binding.when) {
 						const contextResult = contextManager.evaluate(binding.when);
-						if (contextResult.isErr() || !contextResult.value) {
+						if (!Result.isSuccess(contextResult) || !contextResult.success) {
 							return;
 						}
 					}
@@ -262,15 +262,15 @@ export class KeybindingRegistry {
 		}
 
 		this.unsubscribe = tinykeys(target as Window, keyMap);
-		return ok(undefined);
+		return Result.succeed(undefined);
 	}
 
 	/**
 	 * Reinstall keybindings (after adding/removing bindings).
 	 */
-	reinstall(target: Window | HTMLElement): Result<void, KeybindingError> {
+	reinstall(target: Window | HTMLElement): Result.Result<void, KeybindingError> {
 		if (!(this.actionRegistry && this.contextManager)) {
-			return err(
+			return Result.fail(
 				new KeybindingError("INSTALL_FAILED", "Cannot reinstall - no previous install found")
 			);
 		}

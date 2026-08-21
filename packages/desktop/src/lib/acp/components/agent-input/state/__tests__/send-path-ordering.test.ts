@@ -17,7 +17,8 @@
  * is vacuously satisfied. The critical window is the pre-session (new-session) path.
  */
 import { describe, expect, it, mock } from "bun:test";
-import { errAsync, okAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 
 // Must appear before any import that transitively loads @tauri-apps/api modules.
 mock.module("@tauri-apps/api/core", () => ({
@@ -78,11 +79,11 @@ function makeOrderedSessionStore(
 		connection: {
 			createSession: mock(() => {
 				events.push("session-created");
-				return okAsync({ kind: "ready" as const, session });
+				return Effect.succeed({ kind: "ready" as const, session });
 			}),
 			sendMessage: mock(() => {
 				events.push("send-message");
-				return opts.sendFails ? errAsync(new Error("network error") as never) : okAsync(undefined);
+				return opts.sendFails ? Effect.fail(new Error("network error") as never) : Effect.succeed(undefined);
 			}),
 		},
 		read: {
@@ -99,6 +100,11 @@ function makeOrderedSessionStore(
 // Normal send path (pre-session — no sessionId)
 // ---------------------------------------------------------------------------
 
+
+async function runToResult<A, E>(effect: Effect.Effect<A, E>): Promise<Result.Result<A, E>> {
+	return Effect.runPromise(Effect.result(effect));
+}
+
 describe("clearPendingUserEntry ordering invariant — normal send (pre-session)", () => {
 	it("hands pending ownership to the session after send resolves", async () => {
 		const { store: panelStore, events } = makeOrderedPanelStore();
@@ -110,15 +116,15 @@ describe("clearPendingUserEntry ordering invariant — normal send (pre-session)
 			() => "/repo"
 		);
 
-		const result = await state.sendPreparedMessage({
+		const result = await runToResult(state.sendPreparedMessage({
 			content: "Hello agent",
 			panelId: "panel-1",
 			projectPath: "/repo",
 			projectName: "Acepe",
 			selectedAgentId: "claude-code",
-		});
+		}));
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		// Critical ordering: set → create → send → clear.
 		// sendMessage installs pendingSendIntent before it resolves, so clearing the
 		// panel-level pending entry does not produce an empty first-send panel.
@@ -135,15 +141,15 @@ describe("clearPendingUserEntry ordering invariant — normal send (pre-session)
 			() => "/repo"
 		);
 
-		const result = await state.sendPreparedMessage({
+		const result = await runToResult(state.sendPreparedMessage({
 			content: "Hello agent",
 			panelId: "panel-1",
 			projectPath: "/repo",
 			projectName: "Acepe",
 			selectedAgentId: "claude-code",
-		});
+		}));
 
-		expect(result.isErr()).toBe(true);
+		expect(Result.isFailure(result)).toBe(true);
 		// Even on failure, clear is always called — pending entry cannot get stuck.
 		expect(events).toContain("set-pending");
 		expect(events).toContain("clear-pending");
@@ -162,7 +168,7 @@ describe("clearPendingUserEntry ordering invariant — normal send (pre-session)
 			() => "/repo"
 		);
 
-		const result = await state.sendPreparedMessage({
+		const result = await runToResult(state.sendPreparedMessage({
 			content: "Hello agent",
 			panelId: "panel-1",
 			projectPath: "/repo",
@@ -171,11 +177,11 @@ describe("clearPendingUserEntry ordering invariant — normal send (pre-session)
 			onSessionCreated: (sessionId) => {
 				createdSessions.push(sessionId);
 			},
-		});
+		}));
 
-		expect(result.isErr()).toBe(true);
-		if (result.isErr()) {
-			expect(result.error).toBeInstanceOf(SessionCreationError);
+		expect(Result.isFailure(result)).toBe(true);
+		if (Result.isFailure(result)) {
+			expect(result.failure).toBeInstanceOf(SessionCreationError);
 		}
 		expect(createdSessions).toEqual([]);
 		expect(events).toEqual(["set-pending", "session-created", "send-message", "clear-pending"]);
@@ -196,7 +202,7 @@ describe("clearPendingUserEntry ordering invariant — retry / in-session send",
 		const session = makeSession("existing-session");
 		const sessionStore = {
 			connection: {
-				sendMessage: mock(() => okAsync(undefined)),
+				sendMessage: mock(() => Effect.succeed(undefined)),
 			},
 			read: {
 				getSessionCold: mock(() => session),
@@ -207,13 +213,13 @@ describe("clearPendingUserEntry ordering invariant — retry / in-session send",
 
 		// Fast path: sessionId is present → goes directly to sendMessage, no pending entry needed.
 		// This covers retry when the session already exists (the common retry case).
-		const result = await state.sendPreparedMessage({
+		const result = await runToResult(state.sendPreparedMessage({
 			content: "Retry message",
 			panelId: "panel-1",
 			sessionId: "existing-session",
-		});
+		}));
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(panelStore.setPendingUserEntry).not.toHaveBeenCalled();
 		expect(panelStore.clearPendingUserEntry).not.toHaveBeenCalled();
 	});
@@ -239,15 +245,15 @@ describe("clearPendingUserEntry ordering invariant — slash-command (pre-sessio
 		);
 
 		// Slash-command token format injected by handleCommandSelect before the user presses send.
-		const result = await state.sendPreparedMessage({
+		const result = await runToResult(state.sendPreparedMessage({
 			content: "@[command:/gsd-plan] Build a login page",
 			panelId: "panel-1",
 			projectPath: "/repo",
 			projectName: "Acepe",
 			selectedAgentId: "claude-code",
-		});
+		}));
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		// Ordering invariant holds regardless of content format.
 		expect(events).toEqual(["set-pending", "session-created", "send-message", "clear-pending"]);
 	});
@@ -273,15 +279,15 @@ describe("clearPendingUserEntry ordering invariant — voice (pre-session)", () 
 		);
 
 		// normalizeVoiceInputText output: trimmed, normalised transcribed text.
-		const result = await state.sendPreparedMessage({
+		const result = await runToResult(state.sendPreparedMessage({
 			content: "Build a login page with OAuth support",
 			panelId: "panel-1",
 			projectPath: "/repo",
 			projectName: "Acepe",
 			selectedAgentId: "claude-code",
-		});
+		}));
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		// Ordering invariant holds regardless of how the content was produced.
 		expect(events).toEqual(["set-pending", "session-created", "send-message", "clear-pending"]);
 	});

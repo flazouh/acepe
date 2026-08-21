@@ -1,4 +1,5 @@
-import { okAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../api.js", () => ({
@@ -43,11 +44,11 @@ describe("SessionStore renameSession", () => {
 			parentId: null,
 		});
 
-		(api.setSessionTitle as unknown as MockReturnValue).mockReturnValue(okAsync(undefined));
+		(api.setSessionTitle as unknown as MockReturnValue).mockReturnValue(Effect.succeed(undefined));
 
-		const result = await store.write.renameSession("session-rename-1", "  Renamed title  ");
+		const result = await Effect.runPromise(Effect.result(store.write.renameSession("session-rename-1", "  Renamed title  ")));
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(api.setSessionTitle).toHaveBeenCalledWith("session-rename-1", "Renamed title");
 		expect(store.read.getSessionCold("session-rename-1")?.title).toBe("Renamed title");
 		expect(store.read.getSessionCold("session-rename-1")?.updatedAt.toISOString()).toBe(

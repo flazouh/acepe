@@ -17,6 +17,7 @@
 import { AgentPanelPrCard as SharedAgentPanelPrCard, type AgentPanelPrCardModel } from "@acepe/ui";
 import "@acepe/ui/markdown-prose.css";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import * as Effect from "effect/Effect";
 import DiffViewerModal from "../diff-viewer/diff-viewer-modal.svelte";
 import CiJobModal from "./ci-job-modal.svelte";
 import PrChecksSurface from "../shared/pr-checks-surface.svelte";
@@ -93,14 +94,18 @@ async function handleViewDetails(check: PrChecksItem): Promise<void> {
 	ciJobDetails = null;
 	ciJobLoading = true;
 	ciModalOpen = true;
-	await git.ciJobDetails(projectPath, check.detailsUrl).match(
-		(details) => {
-			ciJobDetails = details;
-			ciJobLoading = false;
-		},
-		() => {
-			ciJobLoading = false;
-		}
+	await Effect.runPromise(
+		git.ciJobDetails(projectPath, check.detailsUrl).pipe(
+			Effect.match({
+				onSuccess: (details) => {
+					ciJobDetails = details;
+					ciJobLoading = false;
+				},
+				onFailure: () => {
+					ciJobLoading = false;
+				},
+			})
+		)
 	);
 }
 

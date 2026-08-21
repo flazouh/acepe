@@ -5,9 +5,7 @@
  * Called from agent-panel's send flow when a worktree has been created.
  */
 
-import type { ResultAsync } from "neverthrow";
-
-import { okAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 
 import type { AppError } from "../../errors/app-error.js";
@@ -33,37 +31,36 @@ export interface WorktreeSetupOptions {
  */
 export function runWorktreeSetup(
 	options: WorktreeSetupOptions
-): ResultAsync<WorktreeSetupResult, AppError> {
+): Effect.Effect<WorktreeSetupResult, AppError> {
 	const { projectPath, worktreeCwd } = options;
 
 	console.info(TAG, "starting", { projectPath, worktreeCwd });
 
-	return tauriClient.git
-		.loadWorktreeConfig(projectPath)
-		.mapErr((error) => {
+	return tauriClient.git.loadWorktreeConfig(projectPath).pipe(
+		Effect.mapError((error) => {
 			console.error(TAG, "load-config failed", { projectPath, worktreeCwd, error });
 			return error;
-		})
-		.andThen((config) => {
+		}),
+		Effect.flatMap((config) => {
 			const commands = config?.setupCommands ?? [];
 			console.info(TAG, "config loaded", { commands, projectPath });
 			if (commands.length === 0) {
 				console.info(TAG, "no setup commands, skipping");
-				return okAsync({ cwd: worktreeCwd, setupSuccess: true });
+				return Effect.succeed({ cwd: worktreeCwd, setupSuccess: true });
 			}
 
 			return executeSetup(worktreeCwd, projectPath);
-		});
+		})
+	);
 }
 
 function executeSetup(
 	worktreeCwd: string,
 	projectPath: string
-): ResultAsync<WorktreeSetupResult, AppError> {
+): Effect.Effect<WorktreeSetupResult, AppError> {
 	console.info(TAG, "executing setup commands", { worktreeCwd, projectPath });
-	return tauriClient.git
-		.runWorktreeSetup(worktreeCwd, projectPath)
-		.map((result) => {
+	return tauriClient.git.runWorktreeSetup(worktreeCwd, projectPath).pipe(
+		Effect.map((result) => {
 			if (!result.success) {
 				console.error(TAG, "setup commands failed", {
 					error: result.error,
@@ -75,9 +72,10 @@ function executeSetup(
 				});
 			}
 			return { cwd: worktreeCwd, setupSuccess: result.success };
-		})
-		.mapErr((error) => {
+		}),
+		Effect.mapError((error) => {
 			console.error(TAG, "run-setup-invoke failed", { projectPath, worktreeCwd, error });
 			return error;
-		});
+		})
+	);
 }

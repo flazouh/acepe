@@ -1,4 +1,5 @@
-import { okAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const getSessionStateMock = vi.fn();
@@ -384,9 +385,9 @@ function getCanonicalProjection(
 
 beforeEach(() => {
 	getSessionStateMock.mockReset();
-	getSessionStateMock.mockReturnValue(okAsync(createSnapshotEnvelope()));
+	getSessionStateMock.mockReturnValue(Effect.succeed(createSnapshotEnvelope()));
 	sendPromptMock.mockReset();
-	sendPromptMock.mockReturnValue(okAsync(undefined));
+	sendPromptMock.mockReturnValue(Effect.succeed(undefined));
 });
 
 afterEach(() => {
@@ -2103,7 +2104,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 				],
 			},
 		});
-		getSessionStateMock.mockReturnValue(okAsync(createSnapshotEnvelope(refreshedGraph)));
+		getSessionStateMock.mockReturnValue(Effect.succeed(createSnapshotEnvelope(refreshedGraph)));
 		store.applySessionStateGraph(
 			createSessionStateGraph({
 				turnState: "Running",
@@ -3654,7 +3655,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		});
 
 		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope(initialGraph));
-		getSessionStateMock.mockReturnValueOnce(okAsync(createSnapshotEnvelope(refreshedGraph)));
+		getSessionStateMock.mockReturnValueOnce(Effect.succeed(createSnapshotEnvelope(refreshedGraph)));
 
 		store.applySessionStateEnvelope("session-1", {
 			sessionId: "session-1",
@@ -4652,7 +4653,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 				],
 			},
 		});
-		getSessionStateMock.mockReturnValue(okAsync(createSnapshotEnvelope(recoveredGraph)));
+		getSessionStateMock.mockReturnValue(Effect.succeed(createSnapshotEnvelope(recoveredGraph)));
 		store.applySessionStateEnvelope(sessionId, createSnapshotEnvelope(initialGraph));
 
 		store.applySessionStateEnvelope(sessionId, {
@@ -4757,12 +4758,12 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		const result = await store.connection.sendMessage(
+		const result = await Effect.runPromise(Effect.result(store.connection.sendMessage(
 			"session-1",
 			"cursor UI diagnostic ping - reply ok"
-		);
+		)));
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(sendPromptMock).toHaveBeenCalledWith(
 			"session-1",
 			[{ type: "text", text: "cursor UI diagnostic ping - reply ok" }],
@@ -4807,12 +4808,12 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		const result = await store.connection.sendMessage(
+		const result = await Effect.runPromise(Effect.result(store.connection.sendMessage(
 			"session-1",
 			"cursor UI diagnostic ping - reply ok"
-		);
+		)));
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(store.read.getSessionPendingSendIntent("session-1")).toEqual({
 			attemptId: expect.any(String),
 			startedAt: expect.any(Number),
@@ -4895,8 +4896,8 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		const result = await store.connection.sendMessage("session-1", "cursor canonical handoff test");
-		expect(result.isOk()).toBe(true);
+		const result = await Effect.runPromise(Effect.result(store.connection.sendMessage("session-1", "cursor canonical handoff test")));
+		expect(Result.isSuccess(result)).toBe(true);
 
 		const pending = store.read.getSessionPendingSendIntent("session-1");
 		expect(pending).not.toBeNull();
@@ -5021,8 +5022,8 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		const result = await store.connection.sendMessage("session-1", "cursor delta acceptance test");
-		expect(result.isOk()).toBe(true);
+		const result = await Effect.runPromise(Effect.result(store.connection.sendMessage("session-1", "cursor delta acceptance test")));
+		expect(Result.isSuccess(result)).toBe(true);
 
 		const pending = store.read.getSessionPendingSendIntent("session-1");
 		expect(pending).not.toBeNull();
@@ -5121,8 +5122,8 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		const result = await store.connection.sendMessage("session-1", "codex terminal cleanup test");
-		expect(result.isOk()).toBe(true);
+		const result = await Effect.runPromise(Effect.result(store.connection.sendMessage("session-1", "codex terminal cleanup test")));
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(store.read.getSessionPendingSendIntent("session-1")).not.toBeNull();
 
 		store.applySessionStateEnvelope(
@@ -5234,8 +5235,8 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		const result = await store.connection.sendMessage("session-1", "copilot acknowledged prompt");
-		expect(result.isOk()).toBe(true);
+		const result = await Effect.runPromise(Effect.result(store.connection.sendMessage("session-1", "copilot acknowledged prompt")));
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(store.read.getSessionPendingSendIntent("session-1")).not.toBeNull();
 
 		store.applySessionStateEnvelope(
@@ -5324,12 +5325,12 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			parentId: null,
 		});
 
-		const result = await store.connection.sendMessage(
+		const result = await Effect.runPromise(Effect.result(store.connection.sendMessage(
 			"session-1",
 			"cursor UI diagnostic ping - reply ok"
-		);
+		)));
 
-		expect(result.isErr()).toBe(true);
+		expect(Result.isFailure(result)).toBe(true);
 		expect(sendPromptMock).not.toHaveBeenCalled();
 		expect(connectSession).not.toHaveBeenCalled();
 	});
@@ -5427,12 +5428,12 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		expect(store.read.getSessionHasLocalPendingSendIntent("session-1")).toBe(false);
 		expect(store.read.getSessionUsageTelemetry("session-1")).toBeNull();
 
-		const result = await store.connection.sendMessage(
+		const result = await Effect.runPromise(Effect.result(store.connection.sendMessage(
 			"session-1",
 			"cursor UI diagnostic ping - reply ok"
-		);
+		)));
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(store.read.getSessionPendingSendIntent("session-1")).toMatchObject({
 			attemptId: expect.any(String),
 		});
@@ -5478,7 +5479,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					})
 				)
 			);
-			return okAsync(restoredSession);
+			return Effect.succeed(restoredSession);
 		});
 		store.write.addSession(restoredSession);
 		store.applySessionStateEnvelope(
@@ -5506,12 +5507,12 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		const result = await store.connection.sendMessage(
+		const result = await Effect.runPromise(Effect.result(store.connection.sendMessage(
 			"session-1",
 			"cursor restored follow-up - reply ok"
-		);
+		)));
 
-		expect(result.isErr()).toBe(true);
+		expect(Result.isFailure(result)).toBe(true);
 		expect(connectSession).not.toHaveBeenCalled();
 		expect(sendPromptMock).not.toHaveBeenCalled();
 	});
@@ -5529,12 +5530,12 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			sessionLifecycleState: "created",
 			parentId: null,
 		});
-		const result = await store.connection.sendMessage(
+		const result = await Effect.runPromise(Effect.result(store.connection.sendMessage(
 			"session-1",
 			"cursor restored follow-up - reply ok"
-		);
+		)));
 
-		expect(result.isErr()).toBe(true);
+		expect(Result.isFailure(result)).toBe(true);
 		expect(sendPromptMock).not.toHaveBeenCalled();
 		expect(connectSession).not.toHaveBeenCalled();
 	});
@@ -5779,11 +5780,11 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		const sendResult = await store.connection.sendMessage(
+		const sendResult = await Effect.runPromise(Effect.result(store.connection.sendMessage(
 			"session-1",
 			"multi-command ordering test"
-		);
-		expect(sendResult.isOk()).toBe(true);
+		)));
+		expect(Result.isSuccess(sendResult)).toBe(true);
 		expect(store.read.getSessionPendingSendIntent("session-1")).not.toBeNull();
 
 		const pending = store.read.getSessionPendingSendIntent("session-1");

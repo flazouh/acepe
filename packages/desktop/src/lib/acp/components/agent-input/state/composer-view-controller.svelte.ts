@@ -3,6 +3,8 @@ import {
 	getModeDropdownOptions,
 	getSelectedModeOption,
 } from "@acepe/ui/agent-panel";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import type { ConfigOptionData } from "../../../../services/converted-session-types.js";
 import type { PreconnectionAgentSkillsStore } from "../../../../skills/store/preconnection-agent-skills-store.svelte.js";
 import * as agentModelPrefs from "../../../store/agent-model-preferences-store.svelte.js";
@@ -512,7 +514,11 @@ export class ComposerViewController {
 		if (!this.attachMenuShowMcpSection) {
 			return;
 		}
-		void this.mcpCatalogState.ensureLoaded(this.attachMenuMcpCatalogInput, { force });
+		void Effect.runPromise(
+			this.mcpCatalogState
+				.ensureLoaded(this.attachMenuMcpCatalogInput, { force })
+				.pipe(Effect.catch(() => Effect.succeed(undefined)))
+		);
 	}
 
 	readonly selectedModeOption = $derived.by(() =>
@@ -647,22 +653,27 @@ export class ComposerViewController {
 
 	syncPreconnectionCapabilities(): void {
 		const hasConnectedSession = this.sessionLifecyclePresentation?.connectionPhase === "connected";
-		this.#deps.preconnectionCapabilitiesState
-			.ensureLoaded({
-				agentId: this.capabilitiesAgentId,
-				hasConnectedSession,
-				projectPath: this.filePickerProjectPath,
-				preconnectionCapabilityMode:
-					this.effectiveCapabilityProviderMetadata?.preconnectionCapabilityMode ?? "unsupported",
-			})
-			.mapErr((error) => {
-				this.#deps.logger.error("Failed to warm preconnection capabilities", {
+		void Effect.runPromise(
+			this.#deps.preconnectionCapabilitiesState
+				.ensureLoaded({
 					agentId: this.capabilitiesAgentId,
+					hasConnectedSession,
 					projectPath: this.filePickerProjectPath,
-					error: error.message,
-				});
-				return undefined;
-			});
+					preconnectionCapabilityMode:
+						this.effectiveCapabilityProviderMetadata?.preconnectionCapabilityMode ?? "unsupported",
+				})
+				.pipe(
+					Effect.mapError((error) => {
+						this.#deps.logger.error("Failed to warm preconnection capabilities", {
+							agentId: this.capabilitiesAgentId,
+							projectPath: this.filePickerProjectPath,
+							error: error.message,
+						});
+						return error;
+					}),
+					Effect.catch(() => Effect.succeed(undefined))
+				)
+		);
 	}
 
 	setProvisionalConfigOption(configId: string, value: string): void {
@@ -765,32 +776,38 @@ export class ComposerViewController {
 				},
 				async () => {
 					if (resolution.modeIdToApply) {
-						const modeResult = await this.#deps.sessionStore.connection.setMode(
-							sessionId,
-							resolution.modeIdToApply
+						const modeResult = await Effect.runPromise(
+							Effect.result(
+								this.#deps.sessionStore.connection.setMode(sessionId, resolution.modeIdToApply)
+							)
 						);
-						if (modeResult.isErr()) {
+						if (Result.isFailure(modeResult)) {
 							return false;
 						}
 					}
 
 					if (resolution.modelIdToApply) {
-						const modelResult = await this.#deps.sessionStore.connection.setModel(
-							sessionId,
-							resolution.modelIdToApply
+						const modelResult = await Effect.runPromise(
+							Effect.result(
+								this.#deps.sessionStore.connection.setModel(sessionId, resolution.modelIdToApply)
+							)
 						);
-						if (modelResult.isErr()) {
+						if (Result.isFailure(modelResult)) {
 							return false;
 						}
 					}
 
 					for (const entry of configEntriesToApply) {
-						const configResult = await this.#deps.sessionStore.connection.setConfigOption(
-							sessionId,
-							entry.configId,
-							entry.value
+						const configResult = await Effect.runPromise(
+							Effect.result(
+								this.#deps.sessionStore.connection.setConfigOption(
+									sessionId,
+									entry.configId,
+									entry.value
+								)
+							)
 						);
-						if (configResult.isErr()) {
+						if (Result.isFailure(configResult)) {
 							return false;
 						}
 					}

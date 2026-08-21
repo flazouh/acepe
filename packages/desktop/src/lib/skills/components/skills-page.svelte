@@ -1,6 +1,6 @@
 <script lang="ts">
-import { okAsync } from "neverthrow";
 import { HugeiconsIcon } from "@acepe/ui";
+import * as Effect from "effect/Effect";
 import { onMount } from "svelte";
 import AgentIcon from "$lib/acp/components/agent-icon.svelte";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
@@ -31,11 +31,17 @@ const syncedAgents = $derived(
 );
 
 onMount(() => {
-	store.initialize().andThen(() => {
-		const firstSkill = store.skills[0];
-		if (!firstSkill) return okAsync(undefined);
-		return store.selectSkill(firstSkill.skill.id);
-	});
+	void Effect.runPromise(
+		Effect.result(
+			store.initialize().pipe(
+				Effect.flatMap(() => {
+					const firstSkill = store.skills[0];
+					if (!firstSkill) return Effect.succeed(undefined);
+					return store.selectSkill(firstSkill.skill.id);
+				})
+			)
+		)
+	);
 });
 
 function handleEditorChange(value: string) {
@@ -45,16 +51,16 @@ function handleEditorChange(value: string) {
 function handleSkillSelect(skillId: string) {
 	// Clear plugin selection when selecting a library skill
 	store.clearPluginSelection();
-	store.selectSkill(skillId);
+	void Effect.runPromise(Effect.result(store.selectSkill(skillId)));
 }
 
 function handlePluginSkillSelect(skillId: string) {
-	store.selectPluginSkill(skillId);
+	void Effect.runPromise(Effect.result(store.selectPluginSkill(skillId)));
 }
 
 function handleCopyToLibrary() {
 	if (!store.selectedPluginSkill) return;
-	store.copyPluginSkillToLibrary(store.selectedPluginSkill.id);
+	void Effect.runPromise(Effect.result(store.copyPluginSkillToLibrary(store.selectedPluginSkill.id)));
 }
 
 // Whether we're viewing a plugin skill (read-only)
@@ -78,10 +84,10 @@ async function handleDeleteSkill() {
 
 	if (deleteFromAgents && syncedAgents.length > 0) {
 		const agentIds = syncedAgents.map((a) => a.agentId);
-		await libraryApi.deleteSkillFromAgents(skillName, agentIds);
+		await Effect.runPromise(Effect.result(libraryApi.deleteSkillFromAgents(skillName, agentIds)));
 	}
 
-	await store.deleteSkill(skillId);
+	await Effect.runPromise(Effect.result(store.deleteSkill(skillId)));
 
 	isDeleting = false;
 	deleteDialogOpen = false;

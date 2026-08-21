@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import * as Result from "effect/Result";
 
 import type { CommandPaletteCommand } from "../../types/command-palette-command.js";
 import type { CommandPaletteState } from "../../types/command-palette-state.js";
@@ -77,34 +78,34 @@ describe("CommandPaletteManager", () => {
 	describe("getCommandByIndex", () => {
 		it("should return command at valid index", () => {
 			const result = manager.getCommandByIndex(mockCommands, 0);
-			expect(result.isOk()).toBe(true);
-			if (result.isOk()) {
-				expect(result.value.id).toBe("create-thread");
+			expect(Result.isSuccess(result)).toBe(true);
+			if (Result.isSuccess(result)) {
+				expect(result.success.id).toBe("create-thread");
 			}
 		});
 
 		it("should return error for negative index", () => {
 			const result = manager.getCommandByIndex(mockCommands, -1);
-			expect(result.isErr()).toBe(true);
-			if (result.isErr()) {
-				expect(result.error.code).toBe("INVALID_STATE");
+			expect(Result.isFailure(result)).toBe(true);
+			if (Result.isFailure(result)) {
+				expect(result.failure.code).toBe("INVALID_STATE");
 			}
 		});
 
 		it("should return error for index out of bounds", () => {
 			const result = manager.getCommandByIndex(mockCommands, 10);
-			expect(result.isErr()).toBe(true);
-			if (result.isErr()) {
-				expect(result.error.code).toBe("INVALID_STATE");
+			expect(Result.isFailure(result)).toBe(true);
+			if (Result.isFailure(result)) {
+				expect(result.failure.code).toBe("INVALID_STATE");
 			}
 		});
 
 		it("should return error when index is out of bounds for empty array", () => {
 			const emptyCommands: CommandPaletteCommand[] = [];
 			const result = manager.getCommandByIndex(emptyCommands, 0);
-			expect(result.isErr()).toBe(true);
-			if (result.isErr()) {
-				expect(result.error.code).toBe("INVALID_STATE");
+			expect(Result.isFailure(result)).toBe(true);
+			if (Result.isFailure(result)) {
+				expect(result.failure.code).toBe("INVALID_STATE");
 			}
 		});
 	});

@@ -6,7 +6,9 @@ import {
 	type LineDiffTypes,
 	parseDiffFromFile,
 } from "@pierre/diffs";
-import { ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 
 import {
 	buildPierreDiffOptions,
@@ -273,9 +275,10 @@ export class ReviewDiffViewState {
 		const generation = ++this.initGeneration;
 
 		// Ensure theme is registered and AWAIT completion before rendering
-		const themeResult = await ResultAsync.fromPromise(
-			ensurePierreThemeRegistered(),
-			(e) => e as Error
+		const themeResult = await Effect.runPromise(
+			Effect.result(
+				fromPromise(() => ensurePierreThemeRegistered(), (e) => e as Error)
+			)
 		);
 
 		// A newer initializeDiff call started while we were awaiting — abandon
@@ -284,10 +287,10 @@ export class ReviewDiffViewState {
 			return;
 		}
 
-		if (themeResult.isErr()) {
+		if (Result.isFailure(themeResult)) {
 			console.error(
 				"Theme registration failed, proceeding without custom theme:",
-				themeResult.error
+				themeResult.failure
 			);
 		}
 

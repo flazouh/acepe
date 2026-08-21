@@ -1,4 +1,6 @@
-import { Result } from "neverthrow";
+import { fromThrowable } from "@acepe/effect-result/fromThrowable";
+import * as Effect from "effect/Effect";
+import type * as Result from "effect/Result";
 
 import type { TableData } from "../types.js";
 
@@ -83,13 +85,14 @@ function normalizeRow(row: string[], columnCount: number): string[] {
 export function parseTableContent(
 	content: string,
 	formatKind: "csv" | "tsv"
-): Result<TableData, Error> {
+): Result.Result<TableData, Error> {
 	const delimiter = formatKind === "tsv" ? "\t" : ",";
-	return Result.fromThrowable(
+	const parseTable = fromThrowable(
 		() => parseDelimited(content, delimiter),
 		(error) =>
 			error instanceof Error
 				? new Error(`Invalid ${formatKind.toUpperCase()}: ${error.message}`)
 				: new Error("Invalid table file")
-	)();
+	);
+	return Effect.runSync(Effect.result(parseTable()));
 }

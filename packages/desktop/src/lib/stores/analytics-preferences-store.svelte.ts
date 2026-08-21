@@ -1,3 +1,5 @@
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { getContext, setContext } from "svelte";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { setAnalyticsEnabled } from "$lib/analytics.js";
@@ -20,9 +22,11 @@ export class AnalyticsPreferencesStore {
 		if (this.initialized) return;
 		this.initialized = true;
 
-		const result = await tauriClient.settings.get<boolean>(SETTINGS_KEY);
-		if (result.isOk() && result.value !== null) {
-			this.enabled = !result.value;
+		const result = await Effect.runPromise(
+			Effect.result(tauriClient.settings.get<boolean>(SETTINGS_KEY))
+		);
+		if (Result.isSuccess(result) && result.success !== null) {
+			this.enabled = !result.success;
 		}
 	}
 
@@ -30,10 +34,12 @@ export class AnalyticsPreferencesStore {
 		const previous = this.enabled;
 		this.enabled = value;
 
-		const persistResult = await tauriClient.settings.set(SETTINGS_KEY, !value);
-		if (persistResult.isErr()) {
+		const persistResult = await Effect.runPromise(
+			Effect.result(tauriClient.settings.set(SETTINGS_KEY, !value))
+		);
+		if (Result.isFailure(persistResult)) {
 			this.enabled = previous;
-			logger.error("Failed to persist analytics preference", { error: persistResult.error });
+			logger.error("Failed to persist analytics preference", { error: persistResult.failure });
 			return;
 		}
 

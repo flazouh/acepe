@@ -2,7 +2,8 @@
  * Session menu actions: clipboard, Finder, raw log, Acepe file panel — async side effects for agent panel.
  */
 
-import type { Result } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { toast } from "svelte-sonner";
 import { openFileInEditor } from "$lib/utils/tauri-client/opener.js";
 import { revealInFinder, tauriClient } from "$lib/utils/tauri-client.js";
@@ -15,17 +16,20 @@ type Logger = ReturnType<typeof createLogger>;
 
 export async function copyThreadContentToClipboard(args: {
 	sessionId: string;
-	getSessionJsonExportContent: (id: string) => Result<string, SessionExportContentError>;
+	getSessionJsonExportContent: (
+		id: string
+	) => Result.Result<string, SessionExportContentError>;
 }): Promise<void> {
 	const { sessionId, getSessionJsonExportContent } = args;
-	await getSessionJsonExportContent(sessionId)
-		.asyncAndThen((content) => {
-			return copyTextToClipboard(content);
-		})
-		.match(
-			() => toast.success("Thread content copied to clipboard"),
-			(error) => toast.error(error.message)
-		);
+	await Effect.runPromise(
+		Effect.fromResult(getSessionJsonExportContent(sessionId)).pipe(
+			Effect.flatMap((content) => copyTextToClipboard(content)),
+			Effect.match({
+				onSuccess: () => toast.success("Thread content copied to clipboard"),
+				onFailure: (error) => toast.error(error.message),
+			})
+		)
+	);
 }
 
 export async function openSessionInFinder(args: {
@@ -46,7 +50,14 @@ export async function openSessionInFinder(args: {
 		return;
 	}
 
-	await revealInFinder(target.path).mapErr(() => toast.error("Failed to open thread in Finder"));
+	await Effect.runPromise(
+		revealInFinder(target.path).pipe(
+			Effect.catch(() => {
+				toast.error("Failed to open thread in Finder");
+				return Effect.succeed(undefined);
+			})
+		)
+	);
 }
 
 export async function openStreamingLog(sessionId: string | null): Promise<void> {
@@ -55,9 +66,13 @@ export async function openStreamingLog(sessionId: string | null): Promise<void> 
 		return;
 	}
 
-	await tauriClient.shell.openStreamingLog(sessionId).match(
-		() => undefined,
-		(error) => toast.error(`Failed to open streaming log: ${error.message}`)
+	await Effect.runPromise(
+		tauriClient.shell.openStreamingLog(sessionId).pipe(
+			Effect.match({
+				onSuccess: () => undefined,
+				onFailure: (error) => toast.error(`Failed to open streaming log: ${error.message}`),
+			})
+		)
 	);
 }
 
@@ -74,29 +89,31 @@ export async function copyStreamingLogPathToClipboard(args: {
 
 	logger.info("copyStreamingLogPathToClipboard: requesting streaming log path", { sessionId });
 
-	await tauriClient.shell
-		.getStreamingLogPath(sessionId)
-		.andThen((path) => {
-			logger.info("copyStreamingLogPathToClipboard: received streaming log path", {
-				sessionId,
-				path,
-			});
-
-			return copyTextToClipboard(path);
-		})
-		.match(
-			() => {
-				logger.info("copyStreamingLogPathToClipboard: copy succeeded", { sessionId });
-				toast.success("Path copied to clipboard");
-			},
-			(error) => {
-				logger.error("copyStreamingLogPathToClipboard: copy failed", {
+	await Effect.runPromise(
+		tauriClient.shell.getStreamingLogPath(sessionId).pipe(
+			Effect.flatMap((path) => {
+				logger.info("copyStreamingLogPathToClipboard: received streaming log path", {
 					sessionId,
-					error: error.message,
+					path,
 				});
-				toast.error("Failed to copy path");
-			}
-		);
+
+				return copyTextToClipboard(path);
+			}),
+			Effect.match({
+				onSuccess: () => {
+					logger.info("copyStreamingLogPathToClipboard: copy succeeded", { sessionId });
+					toast.success("Path copied to clipboard");
+				},
+				onFailure: (error) => {
+					logger.error("copyStreamingLogPathToClipboard: copy failed", {
+						sessionId,
+						error: error.message,
+					});
+					toast.error("Failed to copy path");
+				},
+			})
+		)
+	);
 }
 
 export async function openSessionRawFileInEditor(args: {
@@ -105,13 +122,15 @@ export async function openSessionRawFileInEditor(args: {
 }): Promise<void> {
 	const { sessionId, sessionProjectPath } = args;
 	if (!sessionId || !sessionProjectPath) return;
-	await tauriClient.shell
-		.getSessionFilePath(sessionId, sessionProjectPath)
-		.andThen((path) => openFileInEditor(path))
-		.match(
-			() => toast.success("Opened streaming log in file manager"),
-			(err) => toast.error(`Failed to open session file: ${err.message}`)
-		);
+	await Effect.runPromise(
+		tauriClient.shell.getSessionFilePath(sessionId, sessionProjectPath).pipe(
+			Effect.flatMap((path) => openFileInEditor(path)),
+			Effect.match({
+				onSuccess: () => toast.success("Opened streaming log in file manager"),
+				onFailure: (err) => toast.error(`Failed to open session file: ${err.message}`),
+			})
+		)
+	);
 }
 
 export async function openSessionFileInAcepePanel(args: {
@@ -126,35 +145,46 @@ export async function openSessionFileInAcepePanel(args: {
 }): Promise<void> {
 	const { sessionId, sessionProjectPath, effectivePanelId, openFilePanel } = args;
 	if (!sessionId || !sessionProjectPath) return;
-	await tauriClient.shell.getSessionFilePath(sessionId, sessionProjectPath).match(
-		(fullPath) => {
-			const parts = fullPath.split(/[/\\]/);
-			const fileName = parts.pop() ?? fullPath;
-			const dirPath = parts.join("/") || "/";
-			openFilePanel(fileName, dirPath, { ownerPanelId: effectivePanelId });
-		},
-		(err) => toast.error(`Failed to open session file: ${err.message}`)
+	await Effect.runPromise(
+		tauriClient.shell.getSessionFilePath(sessionId, sessionProjectPath).pipe(
+			Effect.match({
+				onSuccess: (fullPath) => {
+					const parts = fullPath.split(/[/\\]/);
+					const fileName = parts.pop() ?? fullPath;
+					const dirPath = parts.join("/") || "/";
+					openFilePanel(fileName, dirPath, { ownerPanelId: effectivePanelId });
+				},
+				onFailure: (err) => toast.error(`Failed to open session file: ${err.message}`),
+			})
+		)
 	);
 }
 
 export async function exportSessionMarkdownToClipboard(markdown: string): Promise<void> {
-	await copyTextToClipboard(markdown).match(
-		() => toast.success("Copied to clipboard"),
-		(err) => toast.error(`Failed to export: ${err.message}`)
+	await Effect.runPromise(
+		copyTextToClipboard(markdown).pipe(
+			Effect.match({
+				onSuccess: () => toast.success("Copied to clipboard"),
+				onFailure: (err) => toast.error(`Failed to export: ${err.message}`),
+			})
+		)
 	);
 }
 
 export async function exportSessionJsonToClipboard(args: {
 	sessionId: string;
-	getSessionJsonExportContent: (id: string) => Result<string, SessionExportContentError>;
+	getSessionJsonExportContent: (
+		id: string
+	) => Result.Result<string, SessionExportContentError>;
 }): Promise<void> {
 	const { sessionId, getSessionJsonExportContent } = args;
-	await getSessionJsonExportContent(sessionId)
-		.asyncAndThen((content) => {
-			return copyTextToClipboard(content);
-		})
-		.match(
-			() => toast.success("Copied to clipboard"),
-			(error) => toast.error(`Failed to export: ${error.message}`)
-		);
+	await Effect.runPromise(
+		Effect.fromResult(getSessionJsonExportContent(sessionId)).pipe(
+			Effect.flatMap((content) => copyTextToClipboard(content)),
+			Effect.match({
+				onSuccess: () => toast.success("Copied to clipboard"),
+				onFailure: (error) => toast.error(`Failed to export: ${error.message}`),
+			})
+		)
+	);
 }

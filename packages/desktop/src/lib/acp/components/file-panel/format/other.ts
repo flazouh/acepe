@@ -1,4 +1,4 @@
-import { ok, type Result } from "neverthrow";
+import * as Result from "effect/Result";
 
 import type { FormatConfig, StructuredData } from "./types.js";
 
@@ -8,5 +8,6 @@ export const otherConfig: FormatConfig = {
 		availableModes: ["raw"],
 		defaultMode: "raw",
 	},
-	parseStructured: (content: string): Result<StructuredData, Error> => ok({ raw: content }),
+	parseStructured: (content: string): Result.Result<StructuredData, Error> =>
+		Result.succeed({ raw: content }),
 };

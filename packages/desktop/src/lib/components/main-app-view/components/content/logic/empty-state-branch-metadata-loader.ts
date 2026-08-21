@@ -1,16 +1,14 @@
+import * as Effect from "effect/Effect";
+
 export interface EmptyStateBranchDiffStats {
 	readonly insertions: number;
 	readonly deletions: number;
 }
 
-interface MatchableResult<T> {
-	match(onOk: (value: T) => void, onErr: (error: unknown) => void): unknown;
-}
-
 export interface EmptyStateBranchMetadataGitClient {
-	isRepo(projectPath: string): MatchableResult<boolean>;
-	currentBranch(projectPath: string): MatchableResult<string | null>;
-	diffStats(projectPath: string): MatchableResult<EmptyStateBranchDiffStats>;
+	isRepo(projectPath: string): Effect.Effect<boolean, unknown>;
+	currentBranch(projectPath: string): Effect.Effect<string | null, unknown>;
+	diffStats(projectPath: string): Effect.Effect<EmptyStateBranchDiffStats, unknown>;
 }
 
 export interface EmptyStateBranchMetadataWriter {
@@ -143,48 +141,60 @@ export function createEmptyStateBranchMetadataLoader(options: {
 				return;
 			}
 
-			void options.gitClient.isRepo(projectPath).match(
-				(repo) => {
-					if (!isCurrent(currentRequestVersion)) {
-						return;
-					}
+			void Effect.runPromise(
+				options.gitClient.isRepo(projectPath).pipe(
+					Effect.match({
+						onSuccess: (repo) => {
+							if (!isCurrent(currentRequestVersion)) {
+								return;
+							}
 
-					options.writer.setIsGitRepo(repo);
-					if (!repo || !shouldLoadDetails) {
-						return;
-					}
+							options.writer.setIsGitRepo(repo);
+							if (!repo || !shouldLoadDetails) {
+								return;
+							}
 
-					void options.gitClient.currentBranch(projectPath).match(
-						(branch) => {
+							void Effect.runPromise(
+								options.gitClient.currentBranch(projectPath).pipe(
+									Effect.match({
+										onSuccess: (branch) => {
+											if (isCurrent(currentRequestVersion)) {
+												options.writer.setCurrentBranch(branch);
+											}
+										},
+										onFailure: () => {
+											if (isCurrent(currentRequestVersion)) {
+												options.writer.setCurrentBranch(null);
+											}
+										},
+									})
+								)
+							);
+
+							void Effect.runPromise(
+								options.gitClient.diffStats(projectPath).pipe(
+									Effect.match({
+										onSuccess: (stats) => {
+											if (isCurrent(currentRequestVersion)) {
+												options.writer.setDiffStats(stats);
+											}
+										},
+										onFailure: () => {
+											if (isCurrent(currentRequestVersion)) {
+												options.writer.setDiffStats(null);
+											}
+										},
+									})
+								)
+							);
+						},
+						onFailure: () => {
 							if (isCurrent(currentRequestVersion)) {
-								options.writer.setCurrentBranch(branch);
+								options.writer.setIsGitRepo(false);
 							}
 						},
-						() => {
-							if (isCurrent(currentRequestVersion)) {
-								options.writer.setCurrentBranch(null);
-							}
-						}
-					);
-
-					void options.gitClient.diffStats(projectPath).match(
-						(stats) => {
-							if (isCurrent(currentRequestVersion)) {
-								options.writer.setDiffStats(stats);
-							}
-						},
-						() => {
-							if (isCurrent(currentRequestVersion)) {
-								options.writer.setDiffStats(null);
-							}
-						}
-					);
-				},
-				() => {
-					if (isCurrent(currentRequestVersion)) {
-						options.writer.setIsGitRepo(false);
-					}
-				}
+					})
+				)
 			);
 		});
 	}

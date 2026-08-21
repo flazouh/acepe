@@ -10,6 +10,7 @@ import type {
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import { PierreFileTree } from "@acepe/ui";
 import { Colors } from "@acepe/ui/colors";
+import * as Effect from "effect/Effect";
 import { onMount } from "svelte";
 import FileExplorerPreviewPane from "./file-explorer-preview-pane.svelte";
 import { createProjectFileSystemTreeModel } from "./project-file-system-tree-model.js";
@@ -96,25 +97,29 @@ function loadProjectFiles(refresh: boolean): void {
 	loading = true;
 	error = null;
 	const load = refresh
-		? tauriClient.fileIndex
-				.invalidateProjectFiles(projectPath)
-				.andThen(() => tauriClient.fileIndex.getProjectFiles(projectPath))
+		? tauriClient.fileIndex.invalidateProjectFiles(projectPath).pipe(
+				Effect.flatMap(() => tauriClient.fileIndex.getProjectFiles(projectPath))
+			)
 		: tauriClient.fileIndex.getProjectFiles(projectPath);
 
-	void load.match(
-		(result) => {
-			const nextTreeModel = createProjectFileSystemTreeModel(result.files);
-			treeModel = nextTreeModel;
-			loading = false;
-			const nextSelected = selectedFilePath ?? nextTreeModel.firstFilePath;
-			if (nextSelected !== null) {
-				selectFile(nextSelected);
-			}
-		},
-		(loadError) => {
-			error = loadError.message;
-			loading = false;
-		}
+	void Effect.runPromise(
+		load.pipe(
+			Effect.match({
+				onSuccess: (result) => {
+					const nextTreeModel = createProjectFileSystemTreeModel(result.files);
+					treeModel = nextTreeModel;
+					loading = false;
+					const nextSelected = selectedFilePath ?? nextTreeModel.firstFilePath;
+					if (nextSelected !== null) {
+						selectFile(nextSelected);
+					}
+				},
+				onFailure: (loadError) => {
+					error = loadError.message;
+					loading = false;
+				},
+			})
+		)
 	);
 }
 
@@ -134,15 +139,19 @@ function selectFile(filePath: string): void {
 	preview = null;
 	const seq = previewRequestSeq + 1;
 	previewRequestSeq = seq;
-	void tauriClient.fileIndex.getFileExplorerPreview(projectPath, filePath).match(
-		(result) => {
-			if (seq !== previewRequestSeq) return;
-			preview = result;
-		},
-		(previewError) => {
-			if (seq !== previewRequestSeq) return;
-			preview = fallbackPreview(filePath, previewError.message);
-		}
+	void Effect.runPromise(
+		tauriClient.fileIndex.getFileExplorerPreview(projectPath, filePath).pipe(
+			Effect.match({
+				onSuccess: (result) => {
+					if (seq !== previewRequestSeq) return;
+					preview = result;
+				},
+				onFailure: (previewError) => {
+					if (seq !== previewRequestSeq) return;
+					preview = fallbackPreview(filePath, previewError.message);
+				},
+			})
+		)
 	);
 }
 

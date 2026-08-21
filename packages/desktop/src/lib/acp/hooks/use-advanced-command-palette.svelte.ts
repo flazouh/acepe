@@ -5,7 +5,7 @@
  * Uses provider pattern for mode-specific logic.
  */
 
-import { okAsync, type ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import { scheduleDeferredIdleWork } from "$lib/utils/deferred-work.js";
 import {
@@ -105,9 +105,13 @@ export class UseAdvancedCommandPalette {
 		]);
 
 		scheduleDeferredIdleWork(() => {
-			this.recentStore.load().match(
-				() => logger.debug("Recent items loaded"),
-				(error) => logger.warn("Failed to load recent items:", error)
+			void Effect.runPromise(
+				this.recentStore.load().pipe(
+					Effect.match({
+						onSuccess: () => logger.debug("Recent items loaded"),
+						onFailure: (error) => logger.warn("Failed to load recent items:", error),
+					})
+				)
 			);
 		});
 	}
@@ -285,10 +289,10 @@ export class UseAdvancedCommandPalette {
 	/**
 	 * Execute the selected item.
 	 */
-	executeSelected(): ResultAsync<void, Error> {
+	executeSelected(): Effect.Effect<void, Error> {
 		const item = this.getSelectedItem();
 		if (!item) {
-			return okAsync(undefined);
+			return Effect.succeed(undefined);
 		}
 
 		logger.info("Executing item:", item.id, "mode:", this._mode);

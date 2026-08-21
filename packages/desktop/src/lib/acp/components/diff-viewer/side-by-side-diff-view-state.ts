@@ -1,3 +1,4 @@
+import * as Result from "effect/Result";
 import type { FileDiff } from "../../types/github-integration.js";
 import { parsePatchToBeforeAfter } from "../../utils/diff-patch-parser.js";
 
@@ -39,10 +40,10 @@ export function buildSideBySideDiffViewState(diff: FileDiff): SideBySideDiffView
 	const parseResult = parsePatchToBeforeAfter(diff.patch, diff.status);
 	const mode = getSideBySideDiffViewMode(
 		diff,
-		parseResult.isErr() ? parseResult.error.type : undefined
+		Result.isFailure(parseResult) ? parseResult.failure.type : undefined
 	);
 
-	if (parseResult.isErr()) {
+	if (Result.isFailure(parseResult)) {
 		return {
 			mode,
 			before: "",
@@ -53,8 +54,8 @@ export function buildSideBySideDiffViewState(diff: FileDiff): SideBySideDiffView
 
 	return {
 		mode,
-		before: parseResult.value.before,
-		after: parseResult.value.after,
+		before: parseResult.success.before,
+		after: parseResult.success.after,
 		language: getSideBySideDiffLanguage(diff.path),
 	};
 }

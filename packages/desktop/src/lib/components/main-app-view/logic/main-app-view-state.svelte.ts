@@ -14,7 +14,7 @@
  * ```
  */
 
-import { okAsync, type ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import { resolveDefaultAgentIdForCreate } from "$lib/acp/components/session-list/session-list-logic.js";
 import type { SessionListItem } from "$lib/acp/components/session-list/session-list-types.js";
 import type { WorktreeProjectDefaultStore } from "$lib/acp/components/worktree/worktree-project-default-store.svelte.js";
@@ -339,9 +339,9 @@ export class MainAppViewState {
 	/**
 	 * Initializes the app.
 	 *
-	 * @returns ResultAsync indicating success or error
+	 * @returns Effect indicating success or error
 	 */
-	initialize(): ResultAsync<void, MainAppViewError> {
+	initialize(): Effect.Effect<void, MainAppViewError> {
 		return this.initializationManager.initialize();
 	}
 
@@ -369,12 +369,12 @@ export class MainAppViewState {
 	 *
 	 * @param sessionId - The session ID to select
 	 * @param sessionInfo - Optional session info for loading historical sessions
-	 * @returns ResultAsync indicating success or error
+	 * @returns Effect indicating success or error
 	 */
 	handleSelectSession(
 		sessionId: string,
 		sessionInfo?: SessionListItem
-	): ResultAsync<void, MainAppViewError> {
+	): Effect.Effect<void, MainAppViewError> {
 		return this.sessionHandler.selectSession(sessionId, sessionInfo);
 	}
 
@@ -382,9 +382,9 @@ export class MainAppViewState {
 	 * Handles creating a new session.
 	 *
 	 * @param options - Session creation options
-	 * @returns ResultAsync containing the session ID or error
+	 * @returns Effect containing the session ID or error
 	 */
-	handleCreateSession(options: CreateSessionOptions): ResultAsync<string, MainAppViewError> {
+	handleCreateSession(options: CreateSessionOptions): Effect.Effect<string, MainAppViewError> {
 		return this.sessionHandler.createSession(options);
 	}
 
@@ -393,12 +393,12 @@ export class MainAppViewState {
 	 *
 	 * @param panelId - The panel ID
 	 * @param project - The project to create session for
-	 * @returns ResultAsync indicating success or error
+	 * @returns Effect indicating success or error
 	 */
 	handleCreateSessionForProject(
 		panelId: string,
 		project: Pick<Project, "path" | "name">
-	): ResultAsync<void, MainAppViewError> {
+	): Effect.Effect<void, MainAppViewError> {
 		return this.sessionHandler.createSessionForProject(panelId, project);
 	}
 
@@ -590,9 +590,9 @@ export class MainAppViewState {
 	/**
 	 * Handles adding a new project.
 	 *
-	 * @returns ResultAsync indicating success or error
+	 * @returns Effect indicating success or error
 	 */
-	handleAddProject(): ResultAsync<void, MainAppViewError> {
+	handleAddProject(): Effect.Effect<void, MainAppViewError> {
 		return this.projectHandler.addProject();
 	}
 
@@ -723,15 +723,19 @@ export class MainAppViewState {
 			agentId
 		);
 
-		void this.agentPreferencesStore.setSelectedAgentIds(nextSelectedAgentIds).match(
-			() => undefined,
-			(error) => {
-				logger.error("[SpawnableAgents] Failed to persist selected agents", {
-					agentId,
-					error,
-					panelId,
-				});
-			}
+		void Effect.runPromise(
+			this.agentPreferencesStore.setSelectedAgentIds(nextSelectedAgentIds).pipe(
+				Effect.match({
+					onSuccess: () => undefined,
+					onFailure: (error) => {
+						logger.error("[SpawnableAgents] Failed to persist selected agents", {
+							agentId,
+							error,
+							panelId,
+						});
+					},
+				})
+			)
 		);
 	}
 }
