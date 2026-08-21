@@ -18,9 +18,11 @@
 		"./persistence/Layers/OrchestrationEventStore": "./src/persistence/Layers/OrchestrationEventStore.ts",
 		"./persistence/Layers/OrchestrationCommandReceipts": "./src/persistence/Layers/OrchestrationCommandReceipts.ts",
 		"./persistence/Layers/ProjectionState": "./src/persistence/Layers/ProjectionState.ts",
+		"./persistence/Layers/ProjectionSessionMessages": "./src/persistence/Layers/ProjectionSessionMessages.ts",
 		"./persistence/Services/OrchestrationCommandReceipts": "./src/persistence/Services/OrchestrationCommandReceipts.ts",
 		"./persistence/Services/OrchestrationEventStore": "./src/persistence/Services/OrchestrationEventStore.ts",
 		"./persistence/Services/ProjectionState": "./src/persistence/Services/ProjectionState.ts",
+		"./persistence/Services/ProjectionSessionMessages": "./src/persistence/Services/ProjectionSessionMessages.ts",
 		"./persistence/Migrations": "./src/persistence/Migrations.ts"
 	},
 	"scripts": {
