@@ -20,6 +20,22 @@ BRANCH="feat/$(echo "$TICKET" | tr "[:upper:]" "[:lower:]")"
 MODEL="cursor-grok-4.6-xhigh"
 
 cd "$REPO"
+
+# A re-dispatched ticket still has its old worktree and branch. Clear both
+# rather than dying with "a branch named X already exists".
+if /usr/bin/git worktree list --porcelain | grep -q "^worktree $WT$"; then
+  /usr/bin/git worktree remove --force "$WT" >/dev/null 2>&1 || true
+fi
+if /usr/bin/git show-ref --verify --quiet "refs/heads/$BRANCH"; then
+  if /usr/bin/git branch --merged HEAD | tr -d ' *' | grep -qx "$BRANCH"; then
+    /usr/bin/git branch -D "$BRANCH" >/dev/null 2>&1 || true
+  else
+    echo "REFUSING: branch $BRANCH exists and is NOT merged into HEAD."
+    echo "It holds unmerged work. Merge or rename it before re-dispatching."
+    exit 1
+  fi
+fi
+/usr/bin/git worktree prune
 /usr/bin/git worktree add -q -b "$BRANCH" "$WT" "$BASE"
 cd "$WT"
 bun install --silent >/dev/null 2>&1 || bun install >/dev/null 2>&1 || true
