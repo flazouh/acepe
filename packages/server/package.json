@@ -44,7 +44,13 @@
 		"./provider/Services/ProviderAdapterRegistry": "./src/provider/Services/ProviderAdapterRegistry.ts",
 		"./provider/Services/ProviderRegistry": "./src/provider/Services/ProviderRegistry.ts",
 		"./provider/Layers/ProviderAdapterRegistry": "./src/provider/Layers/ProviderAdapterRegistry.ts",
-		"./provider/Layers/ProviderRegistry": "./src/provider/Layers/ProviderRegistry.ts"
+		"./provider/Layers/ProviderRegistry": "./src/provider/Layers/ProviderRegistry.ts",
+		"./history/Layers/ClaudeHistory": "./src/history/Layers/ClaudeHistory.ts",
+		"./history/Layers/CursorHistory": "./src/history/Layers/CursorHistory.ts",
+		"./history/Layers/OpenCodeHistory": "./src/history/Layers/OpenCodeHistory.ts",
+		"./history/Services/ClaudeHistory": "./src/history/Services/ClaudeHistory.ts",
+		"./history/Services/CursorHistory": "./src/history/Services/CursorHistory.ts",
+		"./history/Services/OpenCodeHistory": "./src/history/Services/OpenCodeHistory.ts"
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit -p tsconfig.json",
