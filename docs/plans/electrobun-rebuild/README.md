@@ -22,6 +22,7 @@ Wave 4  Providers        AC-023 .. AC-029    fully parallel after AC-023
 Wave 5  Projections      AC-030 .. AC-034    fully parallel
 Wave 6  Services         AC-035 .. AC-040    fully parallel
 Wave 7  Frontend         AC-041 .. AC-044    AC-044 is a wide refactor
+        Follow-ups       AC-049, AC-051     desktop neverthrow + desktop Effect lint
 Wave 8  Cutover          AC-045 .. AC-047    serial
 QA      Live app QA      AC-050              after AC-022 and AC-045
 ```
