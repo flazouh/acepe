@@ -11,6 +11,8 @@ export type AcepeWindowSpec = {
 	readonly title: string
 	readonly url: string
 	readonly frame: WindowFrame
+	readonly activate: true
+	readonly hidden: false
 }
 
 export const acepeWindowSpec: AcepeWindowSpec = {
@@ -22,4 +24,6 @@ export const acepeWindowSpec: AcepeWindowSpec = {
 		x: 0,
 		y: 0,
 	},
+	activate: true,
+	hidden: false,
 }

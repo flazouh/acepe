@@ -20,6 +20,8 @@ test("startAcepeShell opens the svelte bundle and exposes dispatch snapshot even
 	)
 	expect(opened.url).toBe(acepeWindowSpec.url)
 	expect(opened.title).toBe("Acepe")
+	expect(opened.activate).toBe(true)
+	expect(opened.hidden).toBe(false)
 	expect(opened.rpc.ping({ message: "hello from webview" })).toEqual({
 		echo: "hello from webview"
 	})

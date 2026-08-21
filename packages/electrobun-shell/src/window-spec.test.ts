@@ -11,3 +11,8 @@ test("shell window matches the Acepe frame size", () => {
 	expect(acepeWindowSpec.frame.width).toBe(1512)
 	expect(acepeWindowSpec.frame.height).toBe(982)
 })
+
+test("shell window asks the host to activate a visible app window", () => {
+	expect(acepeWindowSpec.activate).toBe(true)
+	expect(acepeWindowSpec.hidden).toBe(false)
+})
