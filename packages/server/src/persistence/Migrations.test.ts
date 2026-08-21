@@ -36,7 +36,8 @@ Vitest.layer(TempSqlite)("runMigrations", (it) => {
 				[2, "event_store"],
 				[3, "projection_state"],
 				[4, "command_receipts"],
-				[5, "projection_messages"]
+				[5, "projection_messages"],
+				[6, "projection_sessions"]
 			])
 			Vitest.assert.deepStrictEqual(second, [])
 			Vitest.assert.deepStrictEqual(rows, [
@@ -44,7 +45,8 @@ Vitest.layer(TempSqlite)("runMigrations", (it) => {
 				{ migration_id: 2, name: "event_store" },
 				{ migration_id: 3, name: "projection_state" },
 				{ migration_id: 4, name: "command_receipts" },
-				{ migration_id: 5, name: "projection_messages" }
+				{ migration_id: 5, name: "projection_messages" },
+				{ migration_id: 6, name: "projection_sessions" }
 			])
 		})
 	)

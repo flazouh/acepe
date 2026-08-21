@@ -23,6 +23,8 @@
 		"./persistence/Services/OrchestrationEventStore": "./src/persistence/Services/OrchestrationEventStore.ts",
 		"./persistence/Services/ProjectionState": "./src/persistence/Services/ProjectionState.ts",
 		"./persistence/Services/ProjectionSessionMessages": "./src/persistence/Services/ProjectionSessionMessages.ts",
+		"./persistence/Layers/ProjectionSessions": "./src/persistence/Layers/ProjectionSessions.ts",
+		"./persistence/Services/ProjectionSessions": "./src/persistence/Services/ProjectionSessions.ts",
 		"./persistence/Migrations": "./src/persistence/Migrations.ts"
 	},
 	"scripts": {
