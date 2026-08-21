@@ -53,6 +53,8 @@
 		"./provider/Layers/CursorProvider": "./src/provider/Layers/CursorProvider.ts",
 		"./provider/Layers/CodexAdapter": "./src/provider/Layers/CodexAdapter.ts",
 		"./provider/Layers/CodexProvider": "./src/provider/Layers/CodexProvider.ts",
+		"./provider/Layers/OpenCodeAdapter": "./src/provider/Layers/OpenCodeAdapter.ts",
+		"./provider/Layers/OpenCodeProvider": "./src/provider/Layers/OpenCodeProvider.ts",
 		"./provider/Layers/ProviderAdapterRegistry": "./src/provider/Layers/ProviderAdapterRegistry.ts",
 		"./provider/Layers/ProviderRegistry": "./src/provider/Layers/ProviderRegistry.ts",
 		"./history/Layers/ClaudeHistory": "./src/history/Layers/ClaudeHistory.ts",
