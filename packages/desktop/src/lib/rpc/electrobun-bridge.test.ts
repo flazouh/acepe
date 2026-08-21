@@ -10,6 +10,7 @@ import type { ElectrobunRpcBridge } from "./client.ts";
 
 const fakeBridge = (): ElectrobunRpcBridge => ({
 	request: {
+		ping: () => Promise.resolve({ echo: "desktop round trip" }),
 		dispatch: () => Promise.resolve(undefined),
 		snapshot: () => Promise.resolve(undefined),
 		events: () => Promise.resolve(undefined),

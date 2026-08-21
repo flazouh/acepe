@@ -24,6 +24,7 @@ import * as Stream from "effect/Stream";
 
 export type ElectrobunRpcBridge = {
 	readonly request: {
+		readonly ping: (params: unknown) => Promise<unknown>;
 		readonly dispatch: (params: unknown) => Promise<unknown>;
 		readonly snapshot: (params: unknown) => Promise<unknown>;
 		readonly events: (params: unknown) => Promise<unknown>;
