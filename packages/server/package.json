@@ -57,7 +57,11 @@
 		"./provider/Services/AgentInstaller": "./src/provider/Services/AgentInstaller.ts",
 		"./provider/agentJson": "./src/provider/agentJson.ts",
 		"./provider/claudeVersion": "./src/provider/claudeVersion.ts",
-		"./provider/localOverrides": "./src/provider/localOverrides.ts"
+		"./provider/localOverrides": "./src/provider/localOverrides.ts",
+		"./terminal/Layers/NodePtyAdapter": "./src/terminal/Layers/NodePtyAdapter.ts",
+		"./terminal/Layers/TerminalService": "./src/terminal/Layers/TerminalService.ts",
+		"./terminal/Services/PtyAdapter": "./src/terminal/Services/PtyAdapter.ts",
+		"./terminal/Services/TerminalService": "./src/terminal/Services/TerminalService.ts"
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit -p tsconfig.json",
@@ -70,7 +74,8 @@
 		"@acepe/sidecar": "workspace:*",
 		"@effect/platform-bun": "catalog:",
 		"@effect/sql-sqlite-bun": "catalog:",
-		"effect": "catalog:"
+		"effect": "catalog:",
+		"node-pty": "^1.1.0"
 	},
 	"devDependencies": {
 		"@acepe/harness": "workspace:*",
