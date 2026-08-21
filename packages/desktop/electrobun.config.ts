@@ -25,7 +25,7 @@ export default {
 	},
 	build: {
 		bun: {
-			entrypoint: "src/bun/main.ts",
+			entrypoint: "src/bun/index.ts",
 		},
 		copy: {
 			"build/": "views/mainview/",

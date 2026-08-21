@@ -56,7 +56,7 @@ export const makeElectrobunConfig = (input: {
 	},
 	build: {
 		bun: {
-			entrypoint: "src/bun/main.ts",
+			entrypoint: "src/bun/index.ts",
 		},
 		copy: {
 			"build/": svelteBundleCopy["build/"],

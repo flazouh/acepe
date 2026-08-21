@@ -11,7 +11,7 @@ test("config opens a bun process and copies the svelte bundle", () => {
 		notarize: true,
 		baseUrl: "https://github.com/flazouh/acepe/releases/latest/download",
 	})
-	expect(config.build.bun.entrypoint).toBe("src/bun/main.ts")
+	expect(config.build.bun.entrypoint).toBe("src/bun/index.ts")
 	expect(config.build.copy["build/"]).toBe("views/mainview/")
 	expect(config.build.buildFolder).toBe("electrobun-build")
 	expect(config.build.artifactFolder).toBe("electrobun-artifacts")
