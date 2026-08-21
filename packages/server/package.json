@@ -49,6 +49,8 @@
 		"./provider/Layers/ClaudeProvider": "./src/provider/Layers/ClaudeProvider.ts",
 		"./provider/Layers/CopilotAdapter": "./src/provider/Layers/CopilotAdapter.ts",
 		"./provider/Layers/CopilotProvider": "./src/provider/Layers/CopilotProvider.ts",
+		"./provider/Layers/CursorAdapter": "./src/provider/Layers/CursorAdapter.ts",
+		"./provider/Layers/CursorProvider": "./src/provider/Layers/CursorProvider.ts",
 		"./provider/Layers/ProviderAdapterRegistry": "./src/provider/Layers/ProviderAdapterRegistry.ts",
 		"./provider/Layers/ProviderRegistry": "./src/provider/Layers/ProviderRegistry.ts",
 		"./history/Layers/ClaudeHistory": "./src/history/Layers/ClaudeHistory.ts",
@@ -84,6 +86,7 @@
 	"dependencies": {
 		"@acepe/contracts": "workspace:*",
 		"@acepe/sidecar": "workspace:*",
+		"@agentclientprotocol/sdk": "1.4.0",
 		"@anthropic-ai/claude-agent-sdk": "0.3.170",
 		"@effect/platform-bun": "catalog:",
 		"@effect/sql-sqlite-bun": "catalog:",
