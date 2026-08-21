@@ -12,7 +12,6 @@ export type AcepeElectrobunConfig = {
 		readonly version: string
 	}
 	readonly build: {
-		readonly mainProcess: "bun"
 		readonly bun: {
 			readonly entrypoint: string
 		}
@@ -24,7 +23,8 @@ export type AcepeElectrobunConfig = {
 			readonly codesign: boolean
 			readonly notarize: boolean
 			readonly bundleCEF: boolean
-			readonly entitlements: Record<string, boolean>
+			readonly createDmg: boolean
+			readonly entitlements: Record<string, boolean | string>
 		}
 	}
 	readonly release: {
@@ -55,7 +55,6 @@ export const makeElectrobunConfig = (input: {
 		version: input.version,
 	},
 	build: {
-		mainProcess: "bun",
 		bun: {
 			entrypoint: "src/bun/main.ts",
 		},
@@ -69,6 +68,7 @@ export const makeElectrobunConfig = (input: {
 			codesign: input.codesign,
 			notarize: input.notarize,
 			bundleCEF: false,
+			createDmg: input.codesign,
 			entitlements: macEntitlements,
 		},
 	},
