@@ -823,8 +823,15 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init());
 
+    // The sidecar's stdout IS its JSON-RPC transport. The MCP bridge plugin
+    // writes plain log lines there, which corrupts the NDJSON stream and breaks
+    // any strict parser downstream, including the record and replay harness.
     #[cfg(debug_assertions)]
-    let builder = builder.plugin(tauri_plugin_mcp_bridge::init());
+    let builder = if crate::commands::sidecar::is_enabled() {
+        builder
+    } else {
+        builder.plugin(tauri_plugin_mcp_bridge::init())
+    };
 
     builder
         .setup(|app| {
