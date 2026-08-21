@@ -1,4 +1,5 @@
 import {
+	CheckpointId,
 	CommandId,
 	EventId,
 	MessageId,
@@ -37,6 +38,7 @@ type SessionEventType = Extract<
 	| "SessionDeleted"
 	| "MessageSent"
 	| "TurnCancelled"
+	| "CheckpointReverted"
 >
 
 const sessionEvent = <const Type extends SessionEventType, Payload>(
@@ -385,6 +387,30 @@ Vitest.describe("evolveProjectedSession", () => {
 			const second = yield* fold(events)
 			Vitest.assert.deepStrictEqual(first, second)
 			Vitest.assert.strictEqual(requireSession(first).title, "Ship the lifecycle slice")
+		})
+	)
+
+	Vitest.it.effect("does not change the session row when a checkpoint is reverted", () =>
+		Effect.gen(function*() {
+			const created = yield* fold([
+				sessionEvent(1, "SessionCreated", NOW, {
+					sessionId,
+					projectId,
+					title: "First session"
+				})
+			])
+			const afterRevert = yield* fold([
+				sessionEvent(1, "SessionCreated", NOW, {
+					sessionId,
+					projectId,
+					title: "First session"
+				}),
+				sessionEvent(2, "CheckpointReverted", LATER, {
+					sessionId,
+					checkpointId: CheckpointId.make("checkpoint-1")
+				})
+			])
+			Vitest.assert.deepStrictEqual(created, afterRevert)
 		})
 	)
 })

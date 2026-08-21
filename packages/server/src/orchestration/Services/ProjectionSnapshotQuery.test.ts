@@ -76,7 +76,8 @@ Vitest.describe("SessionProjectionSnapshot", () => {
 						sessionId,
 						sequence: 4
 					}
-				]
+				],
+				checkpoints: []
 			})
 			Vitest.assert.strictEqual(snapshot.snapshotSequence, 4)
 			Vitest.assert.strictEqual(snapshot.session?.title, "Ship the slice")

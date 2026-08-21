@@ -15,7 +15,12 @@ import {
 	SessionUnarchiveCommand,
 	TokenAppendCommand,
 	TurnCancelCommand,
-	TurnId
+	TurnId,
+	CheckpointCreateCommand,
+	CheckpointId,
+	CheckpointReportReadinessCommand,
+	CheckpointRevertCommand,
+	ToolCallId
 } from "@acepe/contracts"
 import * as Vitest from "@effect/vitest"
 import * as Effect from "effect/Effect"
@@ -31,6 +36,8 @@ const projectId = ProjectId.make("project-1")
 const sessionId = SessionId.make("session-1")
 const messageId = MessageId.make("message-1")
 const turnId = TurnId.make("turn-1")
+const checkpointId = CheckpointId.make("checkpoint-1")
+const toolCallId = ToolCallId.make("tool-1")
 
 const identity: DecideIdentity = {
 	eventId,
@@ -568,6 +575,88 @@ Vitest.describe("decide", () => {
 					payload: { sessionId }
 				}
 			])
+		})
+	)
+
+	Vitest.it.effect("emits CheckpointCreated from checkpoint.create", () =>
+		Effect.gen(function*() {
+			const events = yield* decide(
+				sessionReadModel,
+				CheckpointCreateCommand.make({
+					type: "checkpoint.create",
+					commandId,
+					sessionId,
+					checkpointId,
+					checkpointNumber: 1,
+					name: "After edit",
+					isAuto: true,
+					toolCallId,
+					fileCount: 2
+				}),
+				identity
+			)
+			Vitest.assert.deepStrictEqual(events, [
+				{
+					sequence: 3,
+					eventId,
+					aggregateKind: "session",
+					aggregateId: sessionId,
+					occurredAt,
+					commandId,
+					causationEventId: null,
+					correlationId: commandId,
+					metadata: {},
+					type: "CheckpointCreated",
+					payload: {
+						sessionId,
+						checkpointId,
+						checkpointNumber: 1,
+						name: "After edit",
+						isAuto: true,
+						toolCallId,
+						fileCount: 2
+					}
+				}
+			])
+		})
+	)
+
+	Vitest.it.effect("emits CheckpointReadinessChanged from checkpoint.report-readiness", () =>
+		Effect.gen(function*() {
+			const events = yield* decide(
+				sessionReadModel,
+				CheckpointReportReadinessCommand.make({
+					type: "checkpoint.report-readiness",
+					commandId,
+					sessionId,
+					checkpointId,
+					status: "ready"
+				}),
+				identity
+			)
+			Vitest.assert.strictEqual(events[0]?.type, "CheckpointReadinessChanged")
+			if (events[0]?.type === "CheckpointReadinessChanged") {
+				Vitest.assert.strictEqual(events[0].payload.status, "ready")
+			}
+		})
+	)
+
+	Vitest.it.effect("emits CheckpointReverted from checkpoint.revert", () =>
+		Effect.gen(function*() {
+			const events = yield* decide(
+				sessionReadModel,
+				CheckpointRevertCommand.make({
+					type: "checkpoint.revert",
+					commandId,
+					sessionId,
+					checkpointId
+				}),
+				identity
+			)
+			Vitest.assert.strictEqual(events[0]?.type, "CheckpointReverted")
+			if (events[0]?.type === "CheckpointReverted") {
+				Vitest.assert.strictEqual(events[0].payload.checkpointId, checkpointId)
+			}
 		})
 	)
 })

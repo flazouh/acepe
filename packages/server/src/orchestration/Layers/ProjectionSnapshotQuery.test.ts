@@ -157,7 +157,8 @@ Vitest.layer(isolatedQuery())("missing session", (it) => {
 				messages: [],
 				turns: [],
 				activities: [],
-				pendingApprovals: []
+				pendingApprovals: [],
+				checkpoints: []
 			})
 		})
 	)
@@ -290,7 +291,7 @@ Vitest.layer(isolatedQuery())("no N+1 across messages", (it) => {
 })
 
 Vitest.layer(isolatedQuery())("optional tables absent", (it) => {
-	it.effect("returns empty turns, activities and pending approvals", () =>
+	it.effect("returns empty turns, activities, pending approvals and checkpoints", () =>
 		Effect.gen(function*() {
 			const query = yield* ProjectionSnapshotQuery
 			yield* insertSession(sessionId, "Ship the slice")
@@ -299,6 +300,7 @@ Vitest.layer(isolatedQuery())("optional tables absent", (it) => {
 			Vitest.assert.deepStrictEqual(snapshot.turns, [])
 			Vitest.assert.deepStrictEqual(snapshot.activities, [])
 			Vitest.assert.deepStrictEqual(snapshot.pendingApprovals, [])
+			Vitest.assert.deepStrictEqual(snapshot.checkpoints, [])
 		})
 	)
 })

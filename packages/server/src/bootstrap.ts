@@ -20,6 +20,7 @@ import { OrchestrationCommandReceiptsLive } from "./persistence/Layers/Orchestra
 import { OrchestrationEventStoreLive } from "./persistence/Layers/OrchestrationEventStore.ts"
 import { ProjectionSessionMessagesLive } from "./persistence/Layers/ProjectionSessionMessages.ts"
 import { ProjectionSessionsLive } from "./persistence/Layers/ProjectionSessions.ts"
+import { ProjectionCheckpointsLive } from "./persistence/Layers/ProjectionCheckpoints.ts"
 import { ProjectionStateLive } from "./persistence/Layers/ProjectionState.ts"
 import { makeSqliteLayer } from "./persistence/Layers/Sqlite.ts"
 import { runMigrations } from "./persistence/Migrations.ts"
@@ -28,6 +29,7 @@ import {
 	ProjectionSessionMessages
 } from "./persistence/Services/ProjectionSessionMessages.ts"
 import { ProjectionSessions } from "./persistence/Services/ProjectionSessions.ts"
+import { ProjectionCheckpoints } from "./persistence/Services/ProjectionCheckpoints.ts"
 import { HardcodedProviderLive } from "./provider/HardcodedProvider.ts"
 import { RpcHandlersLive } from "./rpc/handlers.ts"
 import { runStdioServer } from "./rpc/stdio.ts"
@@ -47,7 +49,8 @@ const persistenceAt = (filename: string) => {
 		OrchestrationCommandReceiptsLive,
 		ProjectionStateLive,
 		ProjectionSessionsLive,
-		ProjectionSessionMessagesLive
+		ProjectionSessionMessagesLive,
+		ProjectionCheckpointsLive
 	).pipe(Layer.provideMerge(migrated))
 }
 
@@ -60,6 +63,7 @@ const pipelineLayer = Layer.unwrap(
 	Effect.gen(function*() {
 		const sessions = yield* ProjectionSessions
 		const messages = yield* ProjectionSessionMessages
+		const checkpoints = yield* ProjectionCheckpoints
 		const messagesName = yield* decodeProjectorName(PROJECTION_SESSION_MESSAGES_NAME)
 		return ProjectionPipelineLive([
 			{
@@ -71,6 +75,11 @@ const pipelineLayer = Layer.unwrap(
 				name: messagesName,
 				apply: messages.apply,
 				truncate: messages.truncate
+			},
+			{
+				name: checkpoints.name,
+				apply: checkpoints.apply,
+				truncate: checkpoints.truncate
 			}
 		])
 	})

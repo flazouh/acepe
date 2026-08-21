@@ -389,6 +389,42 @@ Vitest.describe("projectEvent", () => {
 		})
 	)
 
+	Vitest.it.effect("records CheckpointCreated on the in-memory session and ignores revert", () =>
+		Effect.gen(function*() {
+			const checkpointId = CheckpointId.make("checkpoint-1")
+			const model = yield* fold([
+				projectCreated,
+				sessionCreated,
+				sessionEventEnvelope(3, "CheckpointCreated", LATER, {
+					sessionId,
+					checkpointId,
+					checkpointNumber: 1,
+					name: "After edit",
+					isAuto: true,
+					toolCallId: null,
+					fileCount: 1
+				}),
+				sessionEventEnvelope(4, "CheckpointReadinessChanged", LATER, {
+					sessionId,
+					checkpointId,
+					status: "ready" as const
+				}),
+				sessionEventEnvelope(5, "CheckpointReverted", LATER, {
+					sessionId,
+					checkpointId
+				})
+			])
+			const session = requireSession(model)
+			Vitest.assert.deepStrictEqual(session.checkpoints, [
+				{
+					id: checkpointId,
+					createdAt: LATER
+				}
+			])
+			Vitest.assert.strictEqual(session.updatedAt, LATER)
+		})
+	)
+
 	Vitest.it.effect.prop(
 		"replaying the same generated sequence from empty yields the same read model",
 		[
