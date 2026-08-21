@@ -262,6 +262,49 @@ Vitest.describe("projectEvent", () => {
 		})
 	)
 
+	Vitest.it.effect("concatenates TokenAppended tokens onto one assistant message", () =>
+		Effect.gen(function*() {
+			const assistantId = MessageId.make("message-assistant")
+			const model = yield* fold([
+				projectCreated,
+				sessionCreated,
+				sessionEventEnvelope(3, "MessageSent", NOW, {
+					sessionId,
+					messageId,
+					text: "Ping"
+				}),
+				sessionEventEnvelope(4, "TokenAppended", LATER, {
+					sessionId,
+					messageId: assistantId,
+					token: "Hello"
+				}),
+				sessionEventEnvelope(5, "TokenAppended", LATER, {
+					sessionId,
+					messageId: assistantId,
+					token: " from"
+				}),
+				sessionEventEnvelope(6, "TokenAppended", LATER, {
+					sessionId,
+					messageId: assistantId,
+					token: " Acepe."
+				})
+			])
+			const session = requireSession(model)
+			Vitest.assert.deepStrictEqual(session.messages, [
+				{
+					id: messageId,
+					text: "Ping",
+					createdAt: NOW
+				},
+				{
+					id: assistantId,
+					text: "Hello from Acepe.",
+					createdAt: LATER
+				}
+			])
+		})
+	)
+
 	Vitest.it.effect("fails when the payload does not match its own schema", () =>
 		Effect.gen(function*() {
 			const error = yield* Effect.flip(

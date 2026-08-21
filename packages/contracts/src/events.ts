@@ -1,6 +1,6 @@
 import * as Schema from "effect/Schema"
 
-import { IsoDateTime, JsonObject, Sequence, TrimmedNonEmptyString } from "./baseSchemas.ts"
+import { IsoDateTime, JsonObject, Sequence, StreamToken, TrimmedNonEmptyString } from "./baseSchemas.ts"
 import { CommandId, EventId, MessageId, ProjectId, SessionId, TurnId } from "./ids.ts"
 import type { OrchestrationAggregateKind } from "./orchestration.ts"
 
@@ -17,6 +17,7 @@ export const OrchestrationEventType = Schema.Literals([
 	"SessionUnarchived",
 	"SessionDeleted",
 	"MessageSent",
+	"TokenAppended",
 	"TurnCancelled",
 ])
 export type OrchestrationEventType = typeof OrchestrationEventType.Type
@@ -74,6 +75,13 @@ export const MessageSentPayload = Schema.Struct({
 	text: TrimmedNonEmptyString,
 })
 export type MessageSentPayload = typeof MessageSentPayload.Type
+
+export const TokenAppendedPayload = Schema.Struct({
+	sessionId: SessionId,
+	messageId: MessageId,
+	token: StreamToken,
+})
+export type TokenAppendedPayload = typeof TokenAppendedPayload.Type
 
 export const TurnCancelledPayload = Schema.Struct({
 	sessionId: SessionId,
@@ -178,6 +186,14 @@ export const MessageSentEvent = defineOrchestrationEvent({
 })
 export type MessageSentEvent = typeof MessageSentEvent.Type
 
+export const TokenAppendedEvent = defineOrchestrationEvent({
+	type: "TokenAppended",
+	payload: TokenAppendedPayload,
+	aggregateKind: "session",
+	aggregateId: SessionId,
+})
+export type TokenAppendedEvent = typeof TokenAppendedEvent.Type
+
 export const TurnCancelledEvent = defineOrchestrationEvent({
 	type: "TurnCancelled",
 	payload: TurnCancelledPayload,
@@ -196,6 +212,7 @@ export const OrchestrationEvent = Schema.Union([
 	SessionUnarchivedEvent,
 	SessionDeletedEvent,
 	MessageSentEvent,
+	TokenAppendedEvent,
 	TurnCancelledEvent,
 ])
 export type OrchestrationEvent = typeof OrchestrationEvent.Type

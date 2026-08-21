@@ -312,6 +312,12 @@ export {
 } from "./components/drawer/index.js";
 export { FilePathBadge } from "./components/file-path-badge/index.js";
 export {
+	TracerTranscript,
+	tracerTranscriptRow,
+	type TracerTranscriptRole,
+	type TracerTranscriptRow,
+} from "./components/tracer-transcript/index.js";
+export {
 	PierreFileTree,
 	type PierreFileTreeActionItem,
 	type PierreFileTreeProps,

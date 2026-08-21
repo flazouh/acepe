@@ -8,6 +8,7 @@ import { CommandId, MessageId, ProjectId, SessionId, TurnId } from "./ids.ts"
 import {
 	commandToAggregateRef,
 	MessageSendCommand,
+	TokenAppendCommand,
 	type OrchestrationAggregateRef,
 	OrchestrationCommand,
 	ProjectCreateCommand,
@@ -31,6 +32,7 @@ const v1CommandTypes = [
 	"session.unarchive",
 	"session.delete",
 	"message.send",
+	"token.append",
 	"turn.cancel",
 ] as const
 
@@ -166,6 +168,20 @@ const memberCases = [
 			sessionId,
 			messageId,
 			text: "Ship the lifecycle slice",
+		}),
+	},
+	{
+		schema: TokenAppendCommand,
+		aggregate: {
+			aggregateKind: "session",
+			aggregateId: sessionId,
+		} satisfies OrchestrationAggregateRef,
+		command: TokenAppendCommand.make({
+			type: "token.append",
+			commandId,
+			sessionId,
+			messageId,
+			token: "Hello",
 		}),
 	},
 	{

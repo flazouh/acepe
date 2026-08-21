@@ -37,7 +37,7 @@ import {
 
 const EVENT_PAGE_SIZE = 1_000
 
-const toRpcSnapshot = (snapshot: SessionProjectionSnapshot): RpcSessionSnapshot => ({
+export const toRpcSnapshot = (snapshot: SessionProjectionSnapshot): RpcSessionSnapshot => ({
 	snapshotSequence: snapshot.snapshotSequence,
 	session: snapshot.session,
 	messages: snapshot.messages,
@@ -46,7 +46,7 @@ const toRpcSnapshot = (snapshot: SessionProjectionSnapshot): RpcSessionSnapshot 
 	pendingApprovals: snapshot.pendingApprovals
 })
 
-const toRpcError = (
+export const toRpcError = (
 	error: OrchestrationDispatchError | Schema.SchemaError | SqlError
 ): RpcServerError => {
 	if (Schema.is(OrchestrationCommandInvariantError)(error)) {
@@ -103,7 +103,7 @@ const readAllFrom = Effect.fn("readAllFrom")(function*(
 	}
 })
 
-const eventsFromSequence = (
+export const eventsFromSequence = (
 	store: EventStoreShape,
 	engine: OrchestrationEngineShape,
 	fromSequence: Sequence

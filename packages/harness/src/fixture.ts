@@ -25,6 +25,7 @@ export const RecordedExchangeLine = Schema.fromJsonString(RecordedExchange)
 export const JsonLine = Schema.fromJsonString(Schema.Json)
 
 export const REFERENCE_FIXTURE_FILE_NAME = "claude-session-reference.ndjson"
+export const TRACER_BULLET_FIXTURE_FILE_NAME = "tracer-bullet-reference.ndjson"
 
 export const decodeJsonLine = Effect.fn("decodeJsonLine")((line: string) =>
 	Schema.decodeUnknownEffect(JsonLine)(line),
@@ -49,4 +50,10 @@ export const referenceFixturePath = Effect.fn("referenceFixturePath")(function* 
 	const path = yield* Path.Path
 	const here = yield* path.fromFileUrl(new URL(import.meta.url))
 	return path.join(path.dirname(here), "..", "fixtures", REFERENCE_FIXTURE_FILE_NAME)
+})
+
+export const tracerBulletFixturePath = Effect.fn("tracerBulletFixturePath")(function* () {
+	const path = yield* Path.Path
+	const here = yield* path.fromFileUrl(new URL(import.meta.url))
+	return path.join(path.dirname(here), "..", "fixtures", TRACER_BULLET_FIXTURE_FILE_NAME)
 })

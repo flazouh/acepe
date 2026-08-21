@@ -37,7 +37,9 @@
       "dependencies": {
         "@acepe/contracts": "workspace:*",
         "@acepe/effect-result": "workspace:*",
+        "@acepe/effect-svelte": "workspace:*",
         "@acepe/electrobun-shell": "workspace:*",
+        "@acepe/server": "workspace:*",
         "@acepe/ui": "workspace:*",
         "@codemirror/autocomplete": "^6.20.0",
         "@codemirror/commands": "^6.10.1",
@@ -162,6 +164,7 @@
       "version": "0.0.1",
       "bin": {
         "acepe-record": "./src/cli.ts",
+        "harness": "./src/cli.ts",
       },
       "dependencies": {
         "@acepe/sidecar": "workspace:*",
@@ -180,11 +183,13 @@
       "version": "0.0.1",
       "dependencies": {
         "@acepe/contracts": "workspace:*",
+        "@acepe/sidecar": "workspace:*",
         "@effect/platform-bun": "catalog:",
         "@effect/sql-sqlite-bun": "catalog:",
         "effect": "catalog:",
       },
       "devDependencies": {
+        "@acepe/harness": "workspace:*",
         "@effect/language-service": "catalog:",
         "@effect/vitest": "catalog:",
         "typescript": "5.9.3",

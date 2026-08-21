@@ -5,6 +5,8 @@ export {
 	RecordedExchange,
 	REFERENCE_FIXTURE_FILE_NAME,
 	referenceFixturePath,
+	TRACER_BULLET_FIXTURE_FILE_NAME,
+	tracerBulletFixturePath,
 } from "./fixture.ts"
 export type { IsoDateTime } from "./fixture.ts"
 export {

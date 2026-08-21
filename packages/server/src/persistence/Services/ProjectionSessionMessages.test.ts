@@ -14,6 +14,7 @@ import {
 	compactionSeamRow,
 	decodeProjectedMessage,
 	encodeContentJson,
+	nextAssistantFromToken,
 	PROJECTION_SESSION_MESSAGES_NAME,
 	ProjectionSessionMessages,
 	rowFromEvent,
@@ -107,6 +108,47 @@ Vitest.describe("rowFromEvent", () => {
 	Vitest.it("ignores events that are not transcript rows", () => {
 		Vitest.assert.isTrue(Option.isNone(rowFromEvent(projectCreated())))
 	})
+})
+
+Vitest.describe("nextAssistantFromToken", () => {
+	const tokenEvent = (
+		sequence: number,
+		token: string
+	): Extract<OrchestrationEvent, { readonly type: "TokenAppended" }> => ({
+		sequence,
+		eventId: EventId.make(`event-${sequence}`),
+		aggregateKind: "session",
+		aggregateId: sessionId,
+		occurredAt,
+		commandId,
+		causationEventId: null,
+		correlationId: commandId,
+		metadata: {},
+		type: "TokenAppended",
+		payload: {
+			sessionId,
+			messageId,
+			token
+		}
+	})
+
+	Vitest.it.effect("creates an assistant row from the first token", () =>
+		Effect.gen(function*() {
+			const row = yield* nextAssistantFromToken(tokenEvent(4, "Hello"), Option.none())
+			Vitest.assert.strictEqual(row.rowType, "assistant")
+			Vitest.assert.strictEqual(row.sequence, 4)
+			Vitest.assert.strictEqual(row.content.text, "Hello")
+		})
+	)
+
+	Vitest.it.effect("concatenates onto the first token sequence", () =>
+		Effect.gen(function*() {
+			const first = yield* nextAssistantFromToken(tokenEvent(4, "Hello"), Option.none())
+			const second = yield* nextAssistantFromToken(tokenEvent(5, " from"), Option.some(first))
+			Vitest.assert.strictEqual(second.sequence, 4)
+			Vitest.assert.strictEqual(second.content.text, "Hello from")
+		})
+	)
 })
 
 Vitest.describe("encodeContentJson", () => {

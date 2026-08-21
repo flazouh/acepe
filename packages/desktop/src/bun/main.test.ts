@@ -1,21 +1,36 @@
 import { expect, test } from "bun:test";
-import { startShell } from "@acepe/electrobun-shell";
+import { startAcepeShell } from "@acepe/electrobun-shell";
 
 test("bun entry ping handler returns the echoed value", () => {
-	const opened = startShell({
-		defineRpc: (handlers) => handlers,
-		openWindow: (input) => input,
-	});
+	const opened = startAcepeShell(
+		{
+			defineRpc: (handlers) => handlers,
+			openWindow: (input) => input,
+		},
+		{
+			dispatch: (params) => params,
+			snapshot: (params) => params,
+			events: (params) => params,
+		},
+	);
 	expect(opened.rpc.ping({ message: "desktop round trip" })).toEqual({
 		echo: "desktop round trip",
 	});
 });
 
-test("bun entry window loads the svelte bundle", () => {
-	const opened = startShell({
-		defineRpc: (handlers) => handlers,
-		openWindow: (input) => input,
-	});
+test("bun entry window loads the svelte bundle and exposes acepe rpc", () => {
+	const opened = startAcepeShell(
+		{
+			defineRpc: (handlers) => handlers,
+			openWindow: (input) => input,
+		},
+		{
+			dispatch: () => ({ sequence: 1 }),
+			snapshot: () => ({ snapshotSequence: 0 }),
+			events: () => undefined,
+		},
+	);
 	expect(opened.url).toBe("views://mainview/index.html");
 	expect(opened.title).toBe("Acepe");
+	expect(opened.rpc.dispatch({ type: "project.create" })).toEqual({ sequence: 1 });
 });

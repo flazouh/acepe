@@ -25,6 +25,8 @@ import type {
 	SessionMetaUpdatedPayload,
 	SessionUnarchiveCommand,
 	SessionUnarchivedEvent,
+	TokenAppendCommand,
+	TokenAppendedEvent,
 	TurnCancelCommand,
 	TurnCancelledEvent,
 	TurnCancelledPayload
@@ -288,6 +290,27 @@ const messageSentEvent = (
 	}
 })
 
+const tokenAppendedEvent = (
+	command: TokenAppendCommand,
+	identity: DecideIdentity,
+	sequence: Sequence
+): TokenAppendedEvent => ({
+	...withEnvelope({
+		sequence,
+		eventId: identity.eventId,
+		aggregateKind: "session",
+		aggregateId: command.sessionId,
+		occurredAt: identity.occurredAt,
+		commandId: command.commandId
+	}),
+	type: "TokenAppended",
+	payload: {
+		sessionId: command.sessionId,
+		messageId: command.messageId,
+		token: command.token
+	}
+})
+
 const turnCancelledEvent = (
 	command: TurnCancelCommand,
 	identity: DecideIdentity,
@@ -427,6 +450,19 @@ const decideMessageSend = Effect.fn("decideMessageSend")(function*(
 	return [messageSentEvent(command, identity, nextSequence(readModel.snapshotSequence))]
 })
 
+const decideTokenAppend = Effect.fn("decideTokenAppend")(function*(
+	readModel: OrchestrationReadModel,
+	command: TokenAppendCommand,
+	identity: DecideIdentity
+) {
+	yield* requireSessionNotArchived({
+		readModel,
+		command,
+		sessionId: command.sessionId
+	})
+	return [tokenAppendedEvent(command, identity, nextSequence(readModel.snapshotSequence))]
+})
+
 const decideTurnCancel = Effect.fn("decideTurnCancel")(function*(
 	readModel: OrchestrationReadModel,
 	command: TurnCancelCommand,
@@ -464,6 +500,8 @@ export const decide = Effect.fn("decide")(function*(
 			return yield* decideSessionDelete(readModel, command, identity)
 		case "message.send":
 			return yield* decideMessageSend(readModel, command, identity)
+		case "token.append":
+			return yield* decideTokenAppend(readModel, command, identity)
 		case "turn.cancel":
 			return yield* decideTurnCancel(readModel, command, identity)
 	}

@@ -1,0 +1,142 @@
+import { describe, expect, it } from "bun:test"
+
+import { EventId } from "./ids.ts"
+import { CommandId, MessageId, ProjectId, SessionId } from "./ids.ts"
+import {
+	applyEventToRpcSessionSnapshot,
+	emptyRpcSessionSnapshot,
+} from "./sessionSnapshot.ts"
+import { TRACER_REPLY_TEXT, TRACER_REPLY_TOKENS } from "./tracerBullet.ts"
+
+const commandId = CommandId.make("cmd-1")
+const projectId = ProjectId.make("project-1")
+const sessionId = SessionId.make("session-1")
+const otherSessionId = SessionId.make("session-2")
+const userMessageId = MessageId.make("message-user")
+const assistantMessageId = MessageId.make("message-assistant")
+const occurredAt = "2026-08-20T12:00:00.000Z"
+
+const sessionCreated = {
+	sequence: 2,
+	eventId: EventId.make("event-2"),
+	aggregateKind: "session" as const,
+	aggregateId: sessionId,
+	occurredAt,
+	commandId,
+	causationEventId: null,
+	correlationId: commandId,
+	metadata: {},
+	type: "SessionCreated" as const,
+	payload: {
+		sessionId,
+		projectId,
+		title: "First session",
+	},
+}
+
+const messageSent = {
+	sequence: 3,
+	eventId: EventId.make("event-3"),
+	aggregateKind: "session" as const,
+	aggregateId: sessionId,
+	occurredAt,
+	commandId,
+	causationEventId: null,
+	correlationId: commandId,
+	metadata: {},
+	type: "MessageSent" as const,
+	payload: {
+		sessionId,
+		messageId: userMessageId,
+		text: "Ping",
+	},
+}
+
+const tokenAt = (sequence: number, token: string) => ({
+	sequence,
+	eventId: EventId.make(`event-${sequence}`),
+	aggregateKind: "session" as const,
+	aggregateId: sessionId,
+	occurredAt,
+	commandId,
+	causationEventId: null,
+	correlationId: commandId,
+	metadata: {},
+	type: "TokenAppended" as const,
+	payload: {
+		sessionId,
+		messageId: assistantMessageId,
+		token,
+	},
+})
+
+describe("applyEventToRpcSessionSnapshot", () => {
+	it("discards events at or below snapshotSequence", () => {
+		const loaded = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), sessionCreated)
+		const again = applyEventToRpcSessionSnapshot(loaded, sessionCreated)
+		expect(again).toEqual(loaded)
+	})
+
+	it("appends a user row then concatenates assistant tokens in sequence", () => {
+		const afterSession = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), sessionCreated)
+		const afterUser = applyEventToRpcSessionSnapshot(afterSession, messageSent)
+		const afterTokens = TRACER_REPLY_TOKENS.reduce(
+			(snapshot, token, index) => applyEventToRpcSessionSnapshot(snapshot, tokenAt(4 + index, token)),
+			afterUser,
+		)
+		expect(afterTokens.snapshotSequence).toBe(6)
+		expect(afterTokens.messages.map((row) => row.rowType)).toEqual(["user", "assistant"])
+		expect(afterTokens.messages.map((row) => row.sequence)).toEqual([3, 4])
+		expect(afterTokens.messages[0]?.content).toEqual({ text: "Ping" })
+		expect(afterTokens.messages[1]?.content).toEqual({ text: TRACER_REPLY_TEXT })
+	})
+
+	it("does not duplicate a user message already in the snapshot", () => {
+		const afterUser = applyEventToRpcSessionSnapshot(
+			applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), sessionCreated),
+			messageSent,
+		)
+		const duplicate = applyEventToRpcSessionSnapshot(afterUser, {
+			sequence: 10,
+			eventId: EventId.make("event-10"),
+			aggregateKind: "session",
+			aggregateId: sessionId,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: {},
+			type: "MessageSent",
+			payload: {
+				sessionId,
+				messageId: userMessageId,
+				text: "Ping",
+			},
+		})
+		expect(duplicate.messages).toHaveLength(1)
+		expect(duplicate.snapshotSequence).toBe(10)
+	})
+
+	it("ignores transcript events from another session", () => {
+		const afterSession = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), sessionCreated)
+		const other = applyEventToRpcSessionSnapshot(afterSession, {
+			sequence: 3,
+			eventId: EventId.make("event-3"),
+			aggregateKind: "session",
+			aggregateId: otherSessionId,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: {},
+			type: "MessageSent",
+			payload: {
+				sessionId: otherSessionId,
+				messageId: userMessageId,
+				text: "Other",
+			},
+		})
+		expect(other.messages).toEqual([])
+		expect(other.snapshotSequence).toBe(3)
+	})
+})

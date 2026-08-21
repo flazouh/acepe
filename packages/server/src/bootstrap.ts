@@ -1,0 +1,141 @@
+import { TrimmedNonEmptyString } from "@acepe/contracts"
+import * as BunCrypto from "@effect/platform-bun/BunCrypto"
+import * as BunFileSystem from "@effect/platform-bun/BunFileSystem"
+import * as BunPath from "@effect/platform-bun/BunPath"
+import * as BunRuntime from "@effect/platform-bun/BunRuntime"
+import * as BunServices from "@effect/platform-bun/BunServices"
+import * as Duration from "effect/Duration"
+import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
+import * as Layer from "effect/Layer"
+import * as Option from "effect/Option"
+import * as Path from "effect/Path"
+import * as Schema from "effect/Schema"
+import * as Stdio from "effect/Stdio"
+import { parseBootstrapArgs } from "./bootstrapArgs.ts"
+import { OrchestrationEngineLive } from "./orchestration/Layers/OrchestrationEngine.ts"
+import { ProjectionPipelineLive } from "./orchestration/Layers/ProjectionPipeline.ts"
+import { ProjectionSnapshotQueryLive } from "./orchestration/Layers/ProjectionSnapshotQuery.ts"
+import { OrchestrationCommandReceiptsLive } from "./persistence/Layers/OrchestrationCommandReceipts.ts"
+import { OrchestrationEventStoreLive } from "./persistence/Layers/OrchestrationEventStore.ts"
+import { ProjectionSessionMessagesLive } from "./persistence/Layers/ProjectionSessionMessages.ts"
+import { ProjectionSessionsLive } from "./persistence/Layers/ProjectionSessions.ts"
+import { ProjectionStateLive } from "./persistence/Layers/ProjectionState.ts"
+import { makeSqliteLayer } from "./persistence/Layers/Sqlite.ts"
+import { runMigrations } from "./persistence/Migrations.ts"
+import {
+	PROJECTION_SESSION_MESSAGES_NAME,
+	ProjectionSessionMessages
+} from "./persistence/Services/ProjectionSessionMessages.ts"
+import { ProjectionSessions } from "./persistence/Services/ProjectionSessions.ts"
+import { HardcodedProviderLive } from "./provider/HardcodedProvider.ts"
+import { RpcHandlersLive } from "./rpc/handlers.ts"
+import { runStdioServer } from "./rpc/stdio.ts"
+
+const decodeProjectorName = Schema.decodeUnknownEffect(TrimmedNonEmptyString)
+
+export type AcepeLiveInput = {
+	readonly filename: string
+	readonly tokenDelay: Duration.Duration
+}
+
+const persistenceAt = (filename: string) => {
+	const sqlite = makeSqliteLayer({ filename, readonly: false })
+	const migrated = Layer.effectDiscard(runMigrations).pipe(Layer.provideMerge(sqlite))
+	return Layer.mergeAll(
+		OrchestrationEventStoreLive,
+		OrchestrationCommandReceiptsLive,
+		ProjectionStateLive,
+		ProjectionSessionsLive,
+		ProjectionSessionMessagesLive
+	).pipe(Layer.provideMerge(migrated))
+}
+
+const engineAt = (filename: string) =>
+	OrchestrationEngineLive.pipe(Layer.provideMerge(persistenceAt(filename)), Layer.provide(BunCrypto.layer))
+
+export const acepeEngineLive = (filename: string) => engineAt(filename)
+
+const pipelineLayer = Layer.unwrap(
+	Effect.gen(function*() {
+		const sessions = yield* ProjectionSessions
+		const messages = yield* ProjectionSessionMessages
+		const messagesName = yield* decodeProjectorName(PROJECTION_SESSION_MESSAGES_NAME)
+		return ProjectionPipelineLive([
+			{
+				name: sessions.name,
+				apply: sessions.apply,
+				truncate: sessions.truncate
+			},
+			{
+				name: messagesName,
+				apply: messages.apply,
+				truncate: messages.truncate
+			}
+		])
+	})
+)
+
+export const makeAcepeLive = (input: AcepeLiveInput) => {
+	const engine = engineAt(input.filename)
+	const snapshots = ProjectionSnapshotQueryLive
+	const rpc = RpcHandlersLive.pipe(Layer.provideMerge(snapshots))
+	return Layer.mergeAll(
+		rpc,
+		HardcodedProviderLive(input.tokenDelay),
+		pipelineLayer,
+		snapshots
+	).pipe(Layer.provideMerge(engine))
+}
+
+export const acepeTestLive = (tokenDelay: Duration.Duration) =>
+	Layer.unwrap(
+		Effect.gen(function*() {
+			const fs = yield* FileSystem.FileSystem
+			const path = yield* Path.Path
+			const dir = yield* fs.makeTempDirectoryScoped()
+			return makeAcepeLive({
+				filename: path.join(dir, "acepe-test.db"),
+				tokenDelay
+			})
+		})
+	).pipe(Layer.provide(Layer.mergeAll(BunFileSystem.layer, BunPath.layer)))
+
+const stdioFilename = Effect.gen(function*() {
+	const fs = yield* FileSystem.FileSystem
+	const path = yield* Path.Path
+	const dir = yield* fs.makeTempDirectory()
+	return path.join(dir, "acepe.db")
+})
+
+export const runBootstrap = Effect.fn("runBootstrap")(function*() {
+	const stdio = yield* Stdio.Stdio
+	const args = parseBootstrapArgs(yield* stdio.args)
+	if (args.stdio === false) {
+		return
+	}
+	const filename = yield* Option.match(args.dbFilename, {
+		onNone: () => stdioFilename,
+		onSome: (value) => Effect.succeed(value)
+	})
+	yield* runStdioServer().pipe(
+		// @effect-diagnostics-next-line strictEffectProvide:off
+		Effect.provide(
+			makeAcepeLive({
+				filename,
+				tokenDelay: args.tokenDelay
+			})
+		)
+	)
+})
+
+const importMeta = import.meta as ImportMeta & { readonly main?: boolean }
+if (importMeta.main === true) {
+	BunRuntime.runMain(
+		runBootstrap().pipe(
+			Effect.scoped,
+			// @effect-diagnostics-next-line strictEffectProvide:off
+			Effect.provide(Layer.mergeAll(BunServices.layer, BunFileSystem.layer, BunPath.layer))
+		)
+	)
+}
