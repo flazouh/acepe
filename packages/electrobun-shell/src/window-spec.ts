@@ -8,6 +8,9 @@ export type WindowFrame = {
 }
 
 export type AcepeWindowSpec = {
+	// electrobun-qa injects its preload here when the QA surface is enabled.
+	// Null in signed builds, where the preload and host are dropped entirely.
+	readonly preload: string | null
 	readonly title: string
 	readonly url: string
 	readonly frame: WindowFrame
@@ -16,6 +19,7 @@ export type AcepeWindowSpec = {
 }
 
 export const acepeWindowSpec: AcepeWindowSpec = {
+	preload: null,
 	title: "Acepe",
 	url: svelteBundleViewUrl,
 	frame: {

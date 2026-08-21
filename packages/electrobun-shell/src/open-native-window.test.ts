@@ -25,6 +25,7 @@ test("electrobun window options forward activate hidden title url frame and rpc"
 		frame: acepeWindowSpec.frame,
 		activate: acepeWindowSpec.activate,
 		hidden: acepeWindowSpec.hidden,
+		preload: acepeWindowSpec.preload,
 		rpc: { ping: pingRequestHandler },
 	})
 	expect(options.activate).toBe(true)

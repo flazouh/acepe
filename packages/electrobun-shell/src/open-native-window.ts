@@ -12,6 +12,9 @@ export type ElectrobunWindowOptions<Rpc> = {
 	readonly activate: boolean
 	readonly hidden: boolean
 	readonly rpc: Rpc
+	// Injected by electrobun-qa when the QA surface is enabled. Null in signed
+	// builds, where the preload and host are dropped entirely.
+	readonly preload: string | null
 }
 
 export type ElectrobunWindowHandle = {
@@ -38,6 +41,7 @@ export const electrobunWindowOptions = <Rpc>(
 	activate: input.activate,
 	hidden: input.hidden,
 	rpc: input.rpc,
+	preload: input.preload,
 })
 
 export const realizeAcepeNativeWindow = (

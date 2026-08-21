@@ -24,6 +24,7 @@ export const startShell = <Rpc>(host: ShellHost<Rpc>): OpenedWindow<Rpc> => {
 		frame: acepeWindowSpec.frame,
 		activate: acepeWindowSpec.activate,
 		hidden: acepeWindowSpec.hidden,
+		preload: acepeWindowSpec.preload,
 		rpc,
 	})
 }
