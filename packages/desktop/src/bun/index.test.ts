@@ -34,7 +34,7 @@ test("bun entry window loads the svelte bundle and exposes acepe rpc", () => {
 			invalidateProjectIndex: () => undefined,
 		},
 	);
-	expect(opened.url).toBe("views://mainview/index.html");
+	expect(opened.url).toBe("views://mainview/");
 	expect(opened.title).toBe("Acepe");
 	expect(opened.rpc.dispatch({ type: "project.create" })).toEqual({ sequence: 1 });
 });

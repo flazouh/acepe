@@ -42,7 +42,7 @@ test("ping round trip works before live rpc work is attached", () => {
 	})
 	expect(launched.opened.activate).toBe(true)
 	expect(launched.opened.hidden).toBe(false)
-	expect(launched.opened.url).toBe("views://mainview/index.html")
+	expect(launched.opened.url).toBe("views://mainview/")
 })
 
 test("dispatch before attach fails with a named startup error", () => {
