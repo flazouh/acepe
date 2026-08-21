@@ -17,6 +17,11 @@ import {
 	type ProjectedCheckpoint
 } from "../../persistence/Services/ProjectionCheckpoints.ts"
 import {
+	decodeStoredProjectedProject,
+	PROJECTION_PROJECTS_TABLE,
+	type ProjectedProject
+} from "../../persistence/Services/ProjectionProjects.ts"
+import {
 	decodeProjectedPendingApprovals,
 	decodeProjectedSessionActivities,
 	decodeProjectedTurns,
@@ -235,8 +240,39 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 			return yield* sql.withTransaction(readSnapshot(sessionId))
 		})
 
+		const readProjects = Effect.fn("ProjectionSnapshotQuery.readProjects")(function*() {
+			const rows = yield* sql`
+				SELECT name
+				FROM sqlite_master
+				WHERE type = 'table'
+					AND name = ${PROJECTION_PROJECTS_TABLE}
+			`.withoutTransform
+			if (Arr.isReadonlyArrayNonEmpty(rows) === false) {
+				return Arr.empty<ProjectedProject>()
+			}
+			const projectRows = yield* sql`
+				SELECT
+					project_id,
+					title,
+					workspace_root,
+					created_at,
+					updated_at,
+					deleted_at,
+					session_count,
+					scan_warmed_at
+				FROM projection_projects
+				ORDER BY updated_at DESC, project_id ASC
+			`.withoutTransform
+			return yield* Effect.forEach(projectRows, decodeStoredProjectedProject)
+		})
+
+		const listProjects = Effect.fn("ProjectionSnapshotQuery.listProjects")(function*() {
+			return yield* sql.withTransaction(readProjects())
+		})
+
 		return ProjectionSnapshotQuery.of({
-			snapshot
+			snapshot,
+			listProjects
 		})
 	})
 )

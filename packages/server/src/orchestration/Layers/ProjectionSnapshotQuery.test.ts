@@ -164,6 +164,16 @@ Vitest.layer(isolatedQuery())("missing session", (it) => {
 	)
 })
 
+Vitest.layer(isolatedQuery())("listProjects", (it) => {
+	it.effect("returns an empty list when projection_projects has no rows", () =>
+		Effect.gen(function*() {
+			const query = yield* ProjectionSnapshotQuery
+			const listed = yield* query.listProjects()
+			Vitest.assert.deepStrictEqual(listed, [])
+		})
+	)
+})
+
 Vitest.layer(isolatedQuery())("one transaction snapshot", (it) => {
 	it.effect("returns session, messages, turns, activities and pending approvals", () =>
 		Effect.gen(function*() {

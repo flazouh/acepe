@@ -63,7 +63,8 @@ const oracle = {
 	],
 	turns: [],
 	activities: [],
-	pendingApprovals: []
+	pendingApprovals: [],
+	checkpoints: []
 }
 
 Vitest.layer(isolated())("ClaudeHistoryLive", (it) => {

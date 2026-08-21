@@ -25,6 +25,7 @@ import { ProjectionSessionsLive } from "./persistence/Layers/ProjectionSessions.
 import { ProjectionCheckpointsLive } from "./persistence/Layers/ProjectionCheckpoints.ts"
 import { ProjectionStateLive } from "./persistence/Layers/ProjectionState.ts"
 import { ProjectionTurnsLive } from "./persistence/Layers/ProjectionTurns.ts"
+import { ProjectionProjectsLive } from "./persistence/Layers/ProjectionProjects.ts"
 import { makeSqliteLayer } from "./persistence/Layers/Sqlite.ts"
 import { runMigrations } from "./persistence/Migrations.ts"
 import {
@@ -36,6 +37,7 @@ import { ProjectionSessionActivities } from "./persistence/Services/ProjectionSe
 import { ProjectionSessions } from "./persistence/Services/ProjectionSessions.ts"
 import { ProjectionTurns } from "./persistence/Services/ProjectionTurns.ts"
 import { ProjectionCheckpoints } from "./persistence/Services/ProjectionCheckpoints.ts"
+import { ProjectionProjects } from "./persistence/Services/ProjectionProjects.ts"
 import { HardcodedProviderLive } from "./provider/HardcodedProvider.ts"
 import { RpcHandlersLive } from "./rpc/handlers.ts"
 import { runStdioServer } from "./rpc/stdio.ts"
@@ -59,7 +61,8 @@ const persistenceAt = (filename: string) => {
 		ProjectionTurnsLive,
 		ProjectionSessionActivitiesLive,
 		ProjectionCheckpointsLive,
-		ProjectionPendingApprovalsLive
+		ProjectionPendingApprovalsLive,
+		ProjectionProjectsLive
 	).pipe(Layer.provideMerge(migrated))
 }
 
@@ -76,6 +79,7 @@ const pipelineLayer = Layer.unwrap(
 		const activities = yield* ProjectionSessionActivities
 		const checkpoints = yield* ProjectionCheckpoints
 		const projectionPendingApprovals = yield* ProjectionPendingApprovals
+		const projects = yield* ProjectionProjects
 		const messagesName = yield* decodeProjectorName(PROJECTION_SESSION_MESSAGES_NAME)
 		return ProjectionPipelineLive([
 			{
@@ -102,12 +106,16 @@ const pipelineLayer = Layer.unwrap(
 				name: checkpoints.name,
 				apply: checkpoints.apply,
 				truncate: checkpoints.truncate
-			}
-			,
+			},
 			{
 				name: projectionPendingApprovals.name,
 				apply: projectionPendingApprovals.apply,
 				truncate: projectionPendingApprovals.truncate
+			},
+			{
+				name: projects.name,
+				apply: projects.apply,
+				truncate: projects.truncate
 			}
 		])
 	})

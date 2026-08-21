@@ -11,7 +11,12 @@ import * as TestClock from "effect/testing/TestClock"
 import { OrchestrationEngineLive } from "../orchestration/Layers/OrchestrationEngine.ts"
 import { OrchestrationCommandReceiptsLive } from "../persistence/Layers/OrchestrationCommandReceipts.ts"
 import { OrchestrationEventStoreLive } from "../persistence/Layers/OrchestrationEventStore.ts"
+import { ProjectionCheckpointsLive } from "../persistence/Layers/ProjectionCheckpoints.ts"
+import { ProjectionPendingApprovalsLive } from "../persistence/Layers/ProjectionPendingApprovals.ts"
+import { ProjectionProjectsLive } from "../persistence/Layers/ProjectionProjects.ts"
+import { ProjectionSessionActivitiesLive } from "../persistence/Layers/ProjectionSessionActivities.ts"
 import { ProjectionSessionMessagesLive } from "../persistence/Layers/ProjectionSessionMessages.ts"
+import { ProjectionTurnsLive } from "../persistence/Layers/ProjectionTurns.ts"
 import { ProjectionSessionsLive } from "../persistence/Layers/ProjectionSessions.ts"
 import { ProjectionStateLive } from "../persistence/Layers/ProjectionState.ts"
 import { makeSqliteLayer } from "../persistence/Layers/Sqlite.ts"
@@ -48,7 +53,12 @@ const PersistenceLive = Layer.mergeAll(
 	OrchestrationCommandReceiptsLive,
 	ProjectionStateLive,
 	ProjectionSessionsLive,
-	ProjectionSessionMessagesLive
+	ProjectionSessionMessagesLive,
+	ProjectionTurnsLive,
+	ProjectionSessionActivitiesLive,
+	ProjectionCheckpointsLive,
+	ProjectionPendingApprovalsLive,
+	ProjectionProjectsLive
 ).pipe(Layer.provideMerge(MigratedSqlite))
 
 export const HistoryEngineLive = OrchestrationEngineLive.pipe(

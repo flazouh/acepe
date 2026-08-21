@@ -10,6 +10,7 @@ import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import type { SqlError } from "effect/unstable/sql/SqlError"
+import { type ProjectedProject } from "../../persistence/Services/ProjectionProjects.ts"
 import { ProjectedSession } from "../../persistence/Services/ProjectionSessions.ts"
 import { ProjectionSessionMessage } from "../../persistence/Services/ProjectionSessionMessages.ts"
 import {
@@ -23,7 +24,8 @@ export const SNAPSHOT_PROJECTOR_NAMES = [
 	"projection.turns",
 	"projection.session-activities",
 	"projection.pending-approvals",
-	"projection.checkpoints"
+	"projection.checkpoints",
+	"projection.projects"
 ] as const
 
 export const PROJECTION_TURNS_TABLE = "projection_turns"
@@ -151,6 +153,10 @@ export interface ProjectionSnapshotQueryShape {
 	readonly snapshot: (
 		sessionId: SessionId
 	) => Effect.Effect<SessionProjectionSnapshot, SqlError | Schema.SchemaError>
+	readonly listProjects: () => Effect.Effect<
+		ReadonlyArray<ProjectedProject>,
+		SqlError | Schema.SchemaError
+	>
 }
 
 export class ProjectionSnapshotQuery extends Context.Service<
