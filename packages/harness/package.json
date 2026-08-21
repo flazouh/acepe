@@ -11,13 +11,16 @@
 		}
 	},
 	"bin": {
-		"acepe-record": "./src/cli.ts"
+		"acepe-record": "./src/cli.ts",
+		"harness": "./src/cli.ts"
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit -p tsconfig.json",
 		"lint:effect": "effect-language-service diagnostics --project tsconfig.json --strict --format pretty",
 		"test": "bun --bun vitest run",
-		"record": "bun src/cli.ts"
+		"record": "bun src/cli.ts",
+		"harness": "bun src/cli.ts",
+		"replay": "bun src/cli.ts replay"
 	},
 	"dependencies": {
 		"@acepe/sidecar": "workspace:*",
