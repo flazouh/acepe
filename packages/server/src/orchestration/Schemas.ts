@@ -13,6 +13,9 @@ export const MAX_SESSION_MESSAGES = 2_000
 export const MAX_SESSION_CHECKPOINTS = 500
 
 export {
+	CheckpointCreatedPayload,
+	CheckpointReadinessChangedPayload,
+	CheckpointRevertedPayload,
 	MessageSentPayload,
 	ProjectCreatedPayload,
 	ProjectDeletedPayload,

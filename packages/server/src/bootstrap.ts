@@ -21,6 +21,7 @@ import { OrchestrationEventStoreLive } from "./persistence/Layers/OrchestrationE
 import { ProjectionSessionActivitiesLive } from "./persistence/Layers/ProjectionSessionActivities.ts"
 import { ProjectionSessionMessagesLive } from "./persistence/Layers/ProjectionSessionMessages.ts"
 import { ProjectionSessionsLive } from "./persistence/Layers/ProjectionSessions.ts"
+import { ProjectionCheckpointsLive } from "./persistence/Layers/ProjectionCheckpoints.ts"
 import { ProjectionStateLive } from "./persistence/Layers/ProjectionState.ts"
 import { ProjectionTurnsLive } from "./persistence/Layers/ProjectionTurns.ts"
 import { makeSqliteLayer } from "./persistence/Layers/Sqlite.ts"
@@ -32,6 +33,7 @@ import {
 import { ProjectionSessionActivities } from "./persistence/Services/ProjectionSessionActivities.ts"
 import { ProjectionSessions } from "./persistence/Services/ProjectionSessions.ts"
 import { ProjectionTurns } from "./persistence/Services/ProjectionTurns.ts"
+import { ProjectionCheckpoints } from "./persistence/Services/ProjectionCheckpoints.ts"
 import { HardcodedProviderLive } from "./provider/HardcodedProvider.ts"
 import { RpcHandlersLive } from "./rpc/handlers.ts"
 import { runStdioServer } from "./rpc/stdio.ts"
@@ -53,7 +55,8 @@ const persistenceAt = (filename: string) => {
 		ProjectionSessionsLive,
 		ProjectionSessionMessagesLive,
 		ProjectionTurnsLive,
-		ProjectionSessionActivitiesLive
+		ProjectionSessionActivitiesLive,
+		ProjectionCheckpointsLive
 	).pipe(Layer.provideMerge(migrated))
 }
 
@@ -68,6 +71,7 @@ const pipelineLayer = Layer.unwrap(
 		const messages = yield* ProjectionSessionMessages
 		const turns = yield* ProjectionTurns
 		const activities = yield* ProjectionSessionActivities
+		const checkpoints = yield* ProjectionCheckpoints
 		const messagesName = yield* decodeProjectorName(PROJECTION_SESSION_MESSAGES_NAME)
 		return ProjectionPipelineLive([
 			{
@@ -83,12 +87,15 @@ const pipelineLayer = Layer.unwrap(
 			{
 				name: turns.name,
 				apply: turns.apply,
-				truncate: turns.truncate
+				truncate: turns.truncate,
 			},
-			{
+			{,
 				name: activities.name,
 				apply: activities.apply,
-				truncate: activities.truncate
+				truncate: activities.truncate,
+				name: checkpoints.name,
+				apply: checkpoints.apply,
+				truncate: checkpoints.truncate
 			}
 		])
 	})

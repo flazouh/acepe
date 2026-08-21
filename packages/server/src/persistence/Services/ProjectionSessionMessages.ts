@@ -188,7 +188,10 @@ export const rowFromEvent = (
 			SessionArchived: ignoreEvent,
 			SessionUnarchived: ignoreEvent,
 			SessionDeleted: ignoreEvent,
-			TurnCancelled: ignoreEvent
+			TurnCancelled: ignoreEvent,
+			CheckpointCreated: ignoreEvent,
+			CheckpointReadinessChanged: ignoreEvent,
+			CheckpointReverted: ignoreEvent
 		})
 	)(event)
 

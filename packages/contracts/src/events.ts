@@ -1,7 +1,16 @@
 import * as Schema from "effect/Schema"
 
-import { IsoDateTime, JsonObject, Sequence, StreamToken, TrimmedNonEmptyString } from "./baseSchemas.ts"
-import { CommandId, EventId, MessageId, ProjectId, SessionId, TurnId } from "./ids.ts"
+import { CheckpointFileCount, CheckpointNumber, CheckpointStatus, IsoDateTime, JsonObject, Sequence, StreamToken, TrimmedNonEmptyString } from "./baseSchemas.ts"
+import {
+	CheckpointId,
+	CommandId,
+	EventId,
+	MessageId,
+	ProjectId,
+	SessionId,
+	ToolCallId,
+	TurnId,
+} from "./ids.ts"
 import type { OrchestrationAggregateKind } from "./orchestration.ts"
 
 export const CorrelationId = CommandId
@@ -19,6 +28,9 @@ export const OrchestrationEventType = Schema.Literals([
 	"MessageSent",
 	"TokenAppended",
 	"TurnCancelled",
+	"CheckpointCreated",
+	"CheckpointReadinessChanged",
+	"CheckpointReverted",
 ])
 export type OrchestrationEventType = typeof OrchestrationEventType.Type
 
@@ -88,6 +100,30 @@ export const TurnCancelledPayload = Schema.Struct({
 	turnId: Schema.optionalKey(TurnId),
 })
 export type TurnCancelledPayload = typeof TurnCancelledPayload.Type
+
+export const CheckpointCreatedPayload = Schema.Struct({
+	sessionId: SessionId,
+	checkpointId: CheckpointId,
+	checkpointNumber: CheckpointNumber,
+	name: Schema.NullOr(TrimmedNonEmptyString),
+	isAuto: Schema.Boolean,
+	toolCallId: Schema.NullOr(ToolCallId),
+	fileCount: CheckpointFileCount,
+})
+export type CheckpointCreatedPayload = typeof CheckpointCreatedPayload.Type
+
+export const CheckpointReadinessChangedPayload = Schema.Struct({
+	sessionId: SessionId,
+	checkpointId: CheckpointId,
+	status: CheckpointStatus,
+})
+export type CheckpointReadinessChangedPayload = typeof CheckpointReadinessChangedPayload.Type
+
+export const CheckpointRevertedPayload = Schema.Struct({
+	sessionId: SessionId,
+	checkpointId: CheckpointId,
+})
+export type CheckpointRevertedPayload = typeof CheckpointRevertedPayload.Type
 
 const defineOrchestrationEvent = <
 	const EventType extends OrchestrationEventType,
@@ -202,6 +238,30 @@ export const TurnCancelledEvent = defineOrchestrationEvent({
 })
 export type TurnCancelledEvent = typeof TurnCancelledEvent.Type
 
+export const CheckpointCreatedEvent = defineOrchestrationEvent({
+	type: "CheckpointCreated",
+	payload: CheckpointCreatedPayload,
+	aggregateKind: "session",
+	aggregateId: SessionId,
+})
+export type CheckpointCreatedEvent = typeof CheckpointCreatedEvent.Type
+
+export const CheckpointReadinessChangedEvent = defineOrchestrationEvent({
+	type: "CheckpointReadinessChanged",
+	payload: CheckpointReadinessChangedPayload,
+	aggregateKind: "session",
+	aggregateId: SessionId,
+})
+export type CheckpointReadinessChangedEvent = typeof CheckpointReadinessChangedEvent.Type
+
+export const CheckpointRevertedEvent = defineOrchestrationEvent({
+	type: "CheckpointReverted",
+	payload: CheckpointRevertedPayload,
+	aggregateKind: "session",
+	aggregateId: SessionId,
+})
+export type CheckpointRevertedEvent = typeof CheckpointRevertedEvent.Type
+
 export const OrchestrationEvent = Schema.Union([
 	ProjectCreatedEvent,
 	ProjectMetaUpdatedEvent,
@@ -214,5 +274,8 @@ export const OrchestrationEvent = Schema.Union([
 	MessageSentEvent,
 	TokenAppendedEvent,
 	TurnCancelledEvent,
+	CheckpointCreatedEvent,
+	CheckpointReadinessChangedEvent,
+	CheckpointRevertedEvent,
 ])
 export type OrchestrationEvent = typeof OrchestrationEvent.Type

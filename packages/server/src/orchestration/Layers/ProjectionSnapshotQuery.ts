@@ -12,6 +12,11 @@ import {
 } from "../../persistence/Services/ProjectionSessionMessages.ts"
 import { decodeStoredProjectedSession } from "../../persistence/Services/ProjectionSessions.ts"
 import {
+	decodeStoredProjectedCheckpoints,
+	PROJECTION_CHECKPOINTS_TABLE,
+	type ProjectedCheckpoint
+} from "../../persistence/Services/ProjectionCheckpoints.ts"
+import {
 	decodeProjectedPendingApprovals,
 	decodeProjectedSessionActivities,
 	decodeProjectedTurns,
@@ -166,6 +171,35 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 			}
 		)
 
+		const readCheckpoints = Effect.fn("ProjectionSnapshotQuery.readCheckpoints")(function*(
+			sessionId: SessionId,
+			snapshotSequence: Sequence,
+			present: HashSet.HashSet<string>
+		) {
+			if (!HashSet.has(present, PROJECTION_CHECKPOINTS_TABLE)) {
+				return Arr.empty<ProjectedCheckpoint>()
+			}
+			const rows = yield* sql`
+				SELECT
+					checkpoint_id,
+					session_id,
+					sequence,
+					checkpoint_number,
+					name,
+					is_auto,
+					tool_call_id,
+					file_count,
+					status,
+					created_at,
+					last_reverted_at
+				FROM projection_checkpoints
+				WHERE session_id = ${sessionId}
+					AND sequence <= ${snapshotSequence}
+				ORDER BY checkpoint_number ASC
+			`.withoutTransform
+			return yield* decodeStoredProjectedCheckpoints(rows)
+		})
+
 		const readSnapshot = Effect.fn("ProjectionSnapshotQuery.readSnapshot")(function*(
 			sessionId: SessionId
 		) {
@@ -180,13 +214,15 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 				snapshotSequence,
 				present
 			)
+			const checkpoints = yield* readCheckpoints(sessionId, snapshotSequence, present)
 			return {
 				snapshotSequence,
 				session,
 				messages,
 				turns,
 				activities,
-				pendingApprovals
+				pendingApprovals,
+				checkpoints
 			}
 		})
 

@@ -18,5 +18,14 @@ export type IsoDateTime = typeof IsoDateTime.Type
 export const Sequence = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
 export type Sequence = typeof Sequence.Type
 
+export const CheckpointStatus = Schema.Literals(["ready", "missing", "error"])
+export type CheckpointStatus = typeof CheckpointStatus.Type
+
+export const CheckpointNumber = Schema.Int.check(Schema.isGreaterThanOrEqualTo(1))
+export type CheckpointNumber = typeof CheckpointNumber.Type
+
+export const CheckpointFileCount = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
+export type CheckpointFileCount = typeof CheckpointFileCount.Type
+
 export const JsonObject = Schema.JsonObject
 export type JsonObject = typeof JsonObject.Type

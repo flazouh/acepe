@@ -23,7 +23,8 @@ import {
 	SessionMetaUpdatedPayload,
 	SessionUnarchivedPayload,
 	TokenAppendedPayload,
-	TurnCancelledPayload
+	TurnCancelledPayload,
+	CheckpointCreatedPayload
 } from "./Schemas.ts"
 
 const formatIssue = SchemaIssue.makeFormatterDefault()
@@ -308,6 +309,26 @@ const projectTurnCancelled = (
 		)
 	)
 
+const projectCheckpointCreated = (
+	model: OrchestrationReadModel,
+	event: Extract<OrchestrationEvent, { readonly type: "CheckpointCreated" }>
+): Effect.Effect<OrchestrationReadModel, OrchestrationProjectorDecodeError> =>
+	decodePayload(CheckpointCreatedPayload, event.payload, event.type, "payload").pipe(
+		Effect.map((payload) =>
+			updateSession(model, payload.sessionId, (session) => ({
+				...session,
+				updatedAt: event.occurredAt,
+				checkpoints: retainNewest(
+					addOrReplaceById(session.checkpoints, {
+						id: payload.checkpointId,
+						createdAt: event.occurredAt
+					}),
+					MAX_SESSION_CHECKPOINTS
+				)
+			}))
+		)
+	)
+
 export const projectEvent = (
 	readModel: OrchestrationReadModel,
 	event: OrchestrationEvent
@@ -325,7 +346,10 @@ export const projectEvent = (
 			SessionDeleted: (deleted) => projectSessionDeleted(model, deleted),
 			MessageSent: (sent) => projectMessageSent(model, sent),
 			TokenAppended: (appended) => projectTokenAppended(model, appended),
-			TurnCancelled: (cancelled) => projectTurnCancelled(model, cancelled)
+			TurnCancelled: (cancelled) => projectTurnCancelled(model, cancelled),
+			CheckpointCreated: (created) => projectCheckpointCreated(model, created),
+			CheckpointReadinessChanged: () => Effect.succeed(model),
+			CheckpointReverted: () => Effect.succeed(model)
 		})
 	)(event)
 }

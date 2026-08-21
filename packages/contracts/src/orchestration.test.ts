@@ -4,9 +4,12 @@ import * as Exit from "effect/Exit"
 import * as Schema from "effect/Schema"
 import * as FastCheck from "effect/testing/FastCheck"
 
-import { CommandId, MessageId, ProjectId, SessionId, TurnId } from "./ids.ts"
+import { CheckpointId, CommandId, MessageId, ProjectId, SessionId, ToolCallId, TurnId } from "./ids.ts"
 import {
 	commandToAggregateRef,
+	CheckpointCreateCommand,
+	CheckpointReportReadinessCommand,
+	CheckpointRevertCommand,
 	MessageSendCommand,
 	TokenAppendCommand,
 	type OrchestrationAggregateRef,
@@ -34,6 +37,9 @@ const v1CommandTypes = [
 	"message.send",
 	"token.append",
 	"turn.cancel",
+	"checkpoint.create",
+	"checkpoint.report-readiness",
+	"checkpoint.revert",
 ] as const
 
 type V1CommandType = (typeof v1CommandTypes)[number]
@@ -52,6 +58,8 @@ const projectId = ProjectId.make("project-1")
 const sessionId = SessionId.make("session-1")
 const messageId = MessageId.make("message-1")
 const turnId = TurnId.make("turn-1")
+const checkpointId = CheckpointId.make("checkpoint-1")
+const toolCallId = ToolCallId.make("tool-1")
 
 const memberCases = [
 	{
@@ -195,6 +203,51 @@ const memberCases = [
 			commandId,
 			sessionId,
 			turnId,
+		}),
+	},
+	{
+		schema: CheckpointCreateCommand,
+		aggregate: {
+			aggregateKind: "session",
+			aggregateId: sessionId,
+		} satisfies OrchestrationAggregateRef,
+		command: CheckpointCreateCommand.make({
+			type: "checkpoint.create",
+			commandId,
+			sessionId,
+			checkpointId,
+			checkpointNumber: 1,
+			name: "After edit",
+			isAuto: true,
+			toolCallId,
+			fileCount: 2,
+		}),
+	},
+	{
+		schema: CheckpointReportReadinessCommand,
+		aggregate: {
+			aggregateKind: "session",
+			aggregateId: sessionId,
+		} satisfies OrchestrationAggregateRef,
+		command: CheckpointReportReadinessCommand.make({
+			type: "checkpoint.report-readiness",
+			commandId,
+			sessionId,
+			checkpointId,
+			status: "ready",
+		}),
+	},
+	{
+		schema: CheckpointRevertCommand,
+		aggregate: {
+			aggregateKind: "session",
+			aggregateId: sessionId,
+		} satisfies OrchestrationAggregateRef,
+		command: CheckpointRevertCommand.make({
+			type: "checkpoint.revert",
+			commandId,
+			sessionId,
+			checkpointId,
 		}),
 	},
 ] as const

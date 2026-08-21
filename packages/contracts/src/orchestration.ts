@@ -1,8 +1,8 @@
 import * as Match from "effect/Match"
 import * as Schema from "effect/Schema"
 
-import { StreamToken, TrimmedNonEmptyString } from "./baseSchemas.ts"
-import { CommandId, MessageId, ProjectId, SessionId, TurnId } from "./ids.ts"
+import { CheckpointFileCount, CheckpointNumber, CheckpointStatus, StreamToken, TrimmedNonEmptyString } from "./baseSchemas.ts"
+import { CheckpointId, CommandId, MessageId, ProjectId, SessionId, ToolCallId, TurnId } from "./ids.ts"
 
 export const OrchestrationAggregateKind = Schema.Literals(["project", "session"])
 export type OrchestrationAggregateKind = typeof OrchestrationAggregateKind.Type
@@ -106,6 +106,36 @@ export const TurnCancelCommand = Schema.Struct({
 })
 export type TurnCancelCommand = typeof TurnCancelCommand.Type
 
+export const CheckpointCreateCommand = Schema.Struct({
+	type: Schema.Literal("checkpoint.create"),
+	commandId: CommandId,
+	sessionId: SessionId,
+	checkpointId: CheckpointId,
+	checkpointNumber: CheckpointNumber,
+	name: Schema.NullOr(TrimmedNonEmptyString),
+	isAuto: Schema.Boolean,
+	toolCallId: Schema.NullOr(ToolCallId),
+	fileCount: CheckpointFileCount,
+})
+export type CheckpointCreateCommand = typeof CheckpointCreateCommand.Type
+
+export const CheckpointReportReadinessCommand = Schema.Struct({
+	type: Schema.Literal("checkpoint.report-readiness"),
+	commandId: CommandId,
+	sessionId: SessionId,
+	checkpointId: CheckpointId,
+	status: CheckpointStatus,
+})
+export type CheckpointReportReadinessCommand = typeof CheckpointReportReadinessCommand.Type
+
+export const CheckpointRevertCommand = Schema.Struct({
+	type: Schema.Literal("checkpoint.revert"),
+	commandId: CommandId,
+	sessionId: SessionId,
+	checkpointId: CheckpointId,
+})
+export type CheckpointRevertCommand = typeof CheckpointRevertCommand.Type
+
 export const OrchestrationCommand = Schema.Union([
 	ProjectCreateCommand,
 	ProjectMetaUpdateCommand,
@@ -118,6 +148,9 @@ export const OrchestrationCommand = Schema.Union([
 	MessageSendCommand,
 	TokenAppendCommand,
 	TurnCancelCommand,
+	CheckpointCreateCommand,
+	CheckpointReportReadinessCommand,
+	CheckpointRevertCommand,
 ])
 export type OrchestrationCommand = typeof OrchestrationCommand.Type
 
@@ -144,5 +177,8 @@ export const commandToAggregateRef = Match.type<OrchestrationCommand>().pipe(
 		"message.send": (command) => sessionRef(command.sessionId),
 		"token.append": (command) => sessionRef(command.sessionId),
 		"turn.cancel": (command) => sessionRef(command.sessionId),
+		"checkpoint.create": (command) => sessionRef(command.sessionId),
+		"checkpoint.report-readiness": (command) => sessionRef(command.sessionId),
+		"checkpoint.revert": (command) => sessionRef(command.sessionId),
 	}),
 )

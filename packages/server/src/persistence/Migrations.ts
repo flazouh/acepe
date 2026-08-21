@@ -7,6 +7,7 @@ import projectionMessages from "./Migrations/0005_projection_messages.ts"
 import projectionSessions from "./Migrations/0006_projection_sessions.ts"
 import projectionTurns from "./Migrations/0007_projection_turns.ts"
 import projectionSessionActivities from "./Migrations/0008_projection_session_activities.ts"
+import projectionCheckpoints from "./Migrations/0009_projection_checkpoints.ts"
 
 const MIGRATIONS_TABLE = "_migrations"
 
@@ -18,7 +19,8 @@ const loader = SqliteMigrator.fromRecord({
 	"0005_projection_messages": projectionMessages,
 	"0006_projection_sessions": projectionSessions,
 	"0007_projection_turns": projectionTurns,
-	"0008_projection_session_activities": projectionSessionActivities
+	"0008_projection_session_activities": projectionSessionActivities,
+	"0009_projection_checkpoints": projectionCheckpoints
 })
 
 export const runMigrations = SqliteMigrator.run({

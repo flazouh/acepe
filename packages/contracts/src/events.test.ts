@@ -5,6 +5,9 @@ import * as Schema from "effect/Schema"
 import * as FastCheck from "effect/testing/FastCheck"
 
 import {
+	CheckpointCreatedPayload,
+	CheckpointReadinessChangedPayload,
+	CheckpointRevertedPayload,
 	MessageSentPayload,
 	OrchestrationEvent,
 	ProjectCreatedPayload,
@@ -18,7 +21,7 @@ import {
 	SessionUnarchivedPayload,
 	TurnCancelledPayload,
 } from "./events.ts"
-import { CommandId, EventId, MessageId, ProjectId, SessionId, TurnId } from "./ids.ts"
+import { CheckpointId, CommandId, EventId, MessageId, ProjectId, SessionId, ToolCallId, TurnId } from "./ids.ts"
 
 const v1EventTypes = [
 	"ProjectCreated",
@@ -32,6 +35,9 @@ const v1EventTypes = [
 	"MessageSent",
 	"TokenAppended",
 	"TurnCancelled",
+	"CheckpointCreated",
+	"CheckpointReadinessChanged",
+	"CheckpointReverted",
 ] as const
 
 type V1EventType = (typeof v1EventTypes)[number]
@@ -69,6 +75,8 @@ const projectId = ProjectId.make("project-1")
 const sessionId = SessionId.make("session-1")
 const messageId = MessageId.make("message-1")
 const turnId = TurnId.make("turn-1")
+const checkpointId = CheckpointId.make("checkpoint-1")
+const toolCallId = ToolCallId.make("tool-1")
 const occurredAt = "2026-08-20T12:00:00.000Z"
 
 const projectEvent = <const Type extends ProjectEventType, Payload>(
@@ -181,6 +189,33 @@ const memberCases = [
 		event: sessionEvent("TurnCancelled", {
 			sessionId,
 			turnId,
+		}),
+	},
+	{
+		payloadSchema: CheckpointCreatedPayload,
+		event: sessionEvent("CheckpointCreated", {
+			sessionId,
+			checkpointId,
+			checkpointNumber: 1,
+			name: "After edit",
+			isAuto: true,
+			toolCallId,
+			fileCount: 2,
+		}),
+	},
+	{
+		payloadSchema: CheckpointReadinessChangedPayload,
+		event: sessionEvent("CheckpointReadinessChanged", {
+			sessionId,
+			checkpointId,
+			status: "ready" as const,
+		}),
+	},
+	{
+		payloadSchema: CheckpointRevertedPayload,
+		event: sessionEvent("CheckpointReverted", {
+			sessionId,
+			checkpointId,
 		}),
 	},
 ] as const

@@ -12,13 +12,18 @@ import * as Schema from "effect/Schema"
 import type { SqlError } from "effect/unstable/sql/SqlError"
 import { ProjectedSession } from "../../persistence/Services/ProjectionSessions.ts"
 import { ProjectionSessionMessage } from "../../persistence/Services/ProjectionSessionMessages.ts"
+import {
+	PROJECTION_CHECKPOINTS_TABLE,
+	ProjectedCheckpoint
+} from "../../persistence/Services/ProjectionCheckpoints.ts"
 
 export const SNAPSHOT_PROJECTOR_NAMES = [
 	"projection.sessions",
 	"projection.session-messages",
 	"projection.turns",
 	"projection.session-activities",
-	"projection.pending-approvals"
+	"projection.pending-approvals",
+	"projection.checkpoints"
 ] as const
 
 export const PROJECTION_TURNS_TABLE = "projection_turns"
@@ -28,7 +33,8 @@ export const PROJECTION_PENDING_APPROVALS_TABLE = "projection_pending_approvals"
 export const SNAPSHOT_OPTIONAL_TABLES = [
 	PROJECTION_TURNS_TABLE,
 	PROJECTION_SESSION_ACTIVITIES_TABLE,
-	PROJECTION_PENDING_APPROVALS_TABLE
+	PROJECTION_PENDING_APPROVALS_TABLE,
+	PROJECTION_CHECKPOINTS_TABLE
 ] as const
 
 export const ProjectedTurn = Schema.Struct({
@@ -58,7 +64,8 @@ export const SessionProjectionSnapshot = Schema.Struct({
 	messages: Schema.Array(ProjectionSessionMessage),
 	turns: Schema.Array(ProjectedTurn),
 	activities: Schema.Array(ProjectedSessionActivity),
-	pendingApprovals: Schema.Array(ProjectedPendingApproval)
+	pendingApprovals: Schema.Array(ProjectedPendingApproval),
+	checkpoints: Schema.Array(ProjectedCheckpoint)
 })
 export type SessionProjectionSnapshot = typeof SessionProjectionSnapshot.Type
 
@@ -134,6 +141,11 @@ export const decodeProjectedPendingApprovals = Effect.fn("decodeProjectedPending
 		return Arr.map(rows, projectedPendingApprovalFromRow)
 	}
 )
+
+export {
+	decodeStoredProjectedCheckpoint,
+	decodeStoredProjectedCheckpoints
+} from "../../persistence/Services/ProjectionCheckpoints.ts"
 
 export interface ProjectionSnapshotQueryShape {
 	readonly snapshot: (

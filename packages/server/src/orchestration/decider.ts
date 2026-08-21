@@ -1,4 +1,10 @@
 import type {
+	CheckpointCreateCommand,
+	CheckpointCreatedEvent,
+	CheckpointReportReadinessCommand,
+	CheckpointReadinessChangedEvent,
+	CheckpointRevertCommand,
+	CheckpointRevertedEvent,
 	EventId,
 	IsoDateTime,
 	JsonObject,
@@ -328,6 +334,72 @@ const turnCancelledEvent = (
 	payload: turnCancelledPayload(command)
 })
 
+const checkpointCreatedEvent = (
+	command: CheckpointCreateCommand,
+	identity: DecideIdentity,
+	sequence: Sequence
+): CheckpointCreatedEvent => ({
+	...withEnvelope({
+		sequence,
+		eventId: identity.eventId,
+		aggregateKind: "session",
+		aggregateId: command.sessionId,
+		occurredAt: identity.occurredAt,
+		commandId: command.commandId
+	}),
+	type: "CheckpointCreated",
+	payload: {
+		sessionId: command.sessionId,
+		checkpointId: command.checkpointId,
+		checkpointNumber: command.checkpointNumber,
+		name: command.name,
+		isAuto: command.isAuto,
+		toolCallId: command.toolCallId,
+		fileCount: command.fileCount
+	}
+})
+
+const checkpointReadinessChangedEvent = (
+	command: CheckpointReportReadinessCommand,
+	identity: DecideIdentity,
+	sequence: Sequence
+): CheckpointReadinessChangedEvent => ({
+	...withEnvelope({
+		sequence,
+		eventId: identity.eventId,
+		aggregateKind: "session",
+		aggregateId: command.sessionId,
+		occurredAt: identity.occurredAt,
+		commandId: command.commandId
+	}),
+	type: "CheckpointReadinessChanged",
+	payload: {
+		sessionId: command.sessionId,
+		checkpointId: command.checkpointId,
+		status: command.status
+	}
+})
+
+const checkpointRevertedEvent = (
+	command: CheckpointRevertCommand,
+	identity: DecideIdentity,
+	sequence: Sequence
+): CheckpointRevertedEvent => ({
+	...withEnvelope({
+		sequence,
+		eventId: identity.eventId,
+		aggregateKind: "session",
+		aggregateId: command.sessionId,
+		occurredAt: identity.occurredAt,
+		commandId: command.commandId
+	}),
+	type: "CheckpointReverted",
+	payload: {
+		sessionId: command.sessionId,
+		checkpointId: command.checkpointId
+	}
+})
+
 const decideProjectCreate = Effect.fn("decideProjectCreate")(function*(
 	readModel: OrchestrationReadModel,
 	command: ProjectCreateCommand,
@@ -476,6 +548,47 @@ const decideTurnCancel = Effect.fn("decideTurnCancel")(function*(
 	return [turnCancelledEvent(command, identity, nextSequence(readModel.snapshotSequence))]
 })
 
+const decideCheckpointCreate = Effect.fn("decideCheckpointCreate")(function*(
+	readModel: OrchestrationReadModel,
+	command: CheckpointCreateCommand,
+	identity: DecideIdentity
+) {
+	yield* requireSessionNotArchived({
+		readModel,
+		command,
+		sessionId: command.sessionId
+	})
+	return [checkpointCreatedEvent(command, identity, nextSequence(readModel.snapshotSequence))]
+})
+
+const decideCheckpointReportReadiness = Effect.fn("decideCheckpointReportReadiness")(function*(
+	readModel: OrchestrationReadModel,
+	command: CheckpointReportReadinessCommand,
+	identity: DecideIdentity
+) {
+	yield* requireSessionNotArchived({
+		readModel,
+		command,
+		sessionId: command.sessionId
+	})
+	return [
+		checkpointReadinessChangedEvent(command, identity, nextSequence(readModel.snapshotSequence))
+	]
+})
+
+const decideCheckpointRevert = Effect.fn("decideCheckpointRevert")(function*(
+	readModel: OrchestrationReadModel,
+	command: CheckpointRevertCommand,
+	identity: DecideIdentity
+) {
+	yield* requireSessionNotArchived({
+		readModel,
+		command,
+		sessionId: command.sessionId
+	})
+	return [checkpointRevertedEvent(command, identity, nextSequence(readModel.snapshotSequence))]
+})
+
 export const decide = Effect.fn("decide")(function*(
 	readModel: OrchestrationReadModel,
 	command: OrchestrationCommand,
@@ -504,5 +617,11 @@ export const decide = Effect.fn("decide")(function*(
 			return yield* decideTokenAppend(readModel, command, identity)
 		case "turn.cancel":
 			return yield* decideTurnCancel(readModel, command, identity)
+		case "checkpoint.create":
+			return yield* decideCheckpointCreate(readModel, command, identity)
+		case "checkpoint.report-readiness":
+			return yield* decideCheckpointReportReadiness(readModel, command, identity)
+		case "checkpoint.revert":
+			return yield* decideCheckpointRevert(readModel, command, identity)
 	}
 })

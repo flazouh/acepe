@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 
-import { IsoDateTime, JsonObject, Sequence, StreamToken, TrimmedNonEmptyString } from "./baseSchemas.ts"
+import { CheckpointFileCount, CheckpointNumber, CheckpointStatus, IsoDateTime, JsonObject, Sequence, StreamToken, TrimmedNonEmptyString } from "./baseSchemas.ts"
 
 describe("TrimmedNonEmptyString", () => {
 	it("decodes a non-empty string", () => {
@@ -60,6 +60,44 @@ describe("Sequence", () => {
 
 	it("rejects a non-integer", () => {
 		expect(Option.isNone(Schema.decodeUnknownOption(Sequence)(1.5))).toBe(true)
+	})
+})
+
+describe("CheckpointStatus", () => {
+	it("decodes ready, missing, and error", () => {
+		expect(Option.getOrUndefined(Schema.decodeUnknownOption(CheckpointStatus)("ready"))).toBe(
+			"ready",
+		)
+		expect(Option.getOrUndefined(Schema.decodeUnknownOption(CheckpointStatus)("missing"))).toBe(
+			"missing",
+		)
+		expect(Option.getOrUndefined(Schema.decodeUnknownOption(CheckpointStatus)("error"))).toBe(
+			"error",
+		)
+	})
+
+	it("rejects an unknown status", () => {
+		expect(Option.isNone(Schema.decodeUnknownOption(CheckpointStatus)("pending"))).toBe(true)
+	})
+})
+
+describe("CheckpointNumber", () => {
+	it("decodes a positive integer", () => {
+		expect(Option.getOrUndefined(Schema.decodeUnknownOption(CheckpointNumber)(1))).toBe(1)
+	})
+
+	it("rejects zero", () => {
+		expect(Option.isNone(Schema.decodeUnknownOption(CheckpointNumber)(0))).toBe(true)
+	})
+})
+
+describe("CheckpointFileCount", () => {
+	it("decodes zero", () => {
+		expect(Option.getOrUndefined(Schema.decodeUnknownOption(CheckpointFileCount)(0))).toBe(0)
+	})
+
+	it("rejects a negative count", () => {
+		expect(Option.isNone(Schema.decodeUnknownOption(CheckpointFileCount)(-1))).toBe(true)
 	})
 })
 
