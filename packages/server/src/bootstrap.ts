@@ -22,6 +22,7 @@ import { ProjectionSessionMessagesLive } from "./persistence/Layers/ProjectionSe
 import { ProjectionSessionsLive } from "./persistence/Layers/ProjectionSessions.ts"
 import { ProjectionStateLive } from "./persistence/Layers/ProjectionState.ts"
 import { ProjectionTurnsLive } from "./persistence/Layers/ProjectionTurns.ts"
+import { ProjectionProjectsLive } from "./persistence/Layers/ProjectionProjects.ts"
 import { makeSqliteLayer } from "./persistence/Layers/Sqlite.ts"
 import { runMigrations } from "./persistence/Migrations.ts"
 import {
@@ -30,6 +31,7 @@ import {
 } from "./persistence/Services/ProjectionSessionMessages.ts"
 import { ProjectionSessions } from "./persistence/Services/ProjectionSessions.ts"
 import { ProjectionTurns } from "./persistence/Services/ProjectionTurns.ts"
+import { ProjectionProjects } from "./persistence/Services/ProjectionProjects.ts"
 import { HardcodedProviderLive } from "./provider/HardcodedProvider.ts"
 import { RpcHandlersLive } from "./rpc/handlers.ts"
 import { runStdioServer } from "./rpc/stdio.ts"
@@ -50,7 +52,8 @@ const persistenceAt = (filename: string) => {
 		ProjectionStateLive,
 		ProjectionSessionsLive,
 		ProjectionSessionMessagesLive,
-		ProjectionTurnsLive
+		ProjectionTurnsLive,
+		ProjectionProjectsLive
 	).pipe(Layer.provideMerge(migrated))
 }
 
@@ -64,6 +67,7 @@ const pipelineLayer = Layer.unwrap(
 		const sessions = yield* ProjectionSessions
 		const messages = yield* ProjectionSessionMessages
 		const turns = yield* ProjectionTurns
+		const projects = yield* ProjectionProjects
 		const messagesName = yield* decodeProjectorName(PROJECTION_SESSION_MESSAGES_NAME)
 		return ProjectionPipelineLive([
 			{
@@ -80,6 +84,11 @@ const pipelineLayer = Layer.unwrap(
 				name: turns.name,
 				apply: turns.apply,
 				truncate: turns.truncate
+			},
+			{
+				name: projects.name,
+				apply: projects.apply,
+				truncate: projects.truncate
 			}
 		])
 	})

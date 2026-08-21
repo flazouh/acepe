@@ -12,7 +12,8 @@ import {
 	decodeProjectedSessionActivities,
 	decodeProjectedTurns,
 	decodeSessionProjectionSnapshot,
-	ProjectionSnapshotQuery
+	ProjectionSnapshotQuery,
+	SNAPSHOT_PROJECTOR_NAMES
 } from "./ProjectionSnapshotQuery.ts"
 
 const sessionId = SessionId.make("session-1")
@@ -25,6 +26,7 @@ Vitest.describe("ProjectionSnapshotQuery", () => {
 			ProjectionSnapshotQuery.key,
 			"@acepe/server/orchestration/Services/ProjectionSnapshotQuery"
 		)
+		Vitest.assert.isTrue(SNAPSHOT_PROJECTOR_NAMES.includes("projection.projects"))
 	})
 })
 

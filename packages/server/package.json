@@ -29,6 +29,8 @@
 		"./persistence/Services/ProjectionSessions": "./src/persistence/Services/ProjectionSessions.ts",
 		"./persistence/Layers/ProjectionTurns": "./src/persistence/Layers/ProjectionTurns.ts",
 		"./persistence/Services/ProjectionTurns": "./src/persistence/Services/ProjectionTurns.ts",
+		"./persistence/Layers/ProjectionProjects": "./src/persistence/Layers/ProjectionProjects.ts",
+		"./persistence/Services/ProjectionProjects": "./src/persistence/Services/ProjectionProjects.ts",
 		"./persistence/Migrations": "./src/persistence/Migrations.ts",
 		"./rpc/handlers": "./src/rpc/handlers.ts",
 		"./rpc/encodedBoundary": "./src/rpc/encodedBoundary.ts",
