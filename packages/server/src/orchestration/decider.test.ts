@@ -13,6 +13,7 @@ import {
 	SessionId,
 	SessionMetaUpdateCommand,
 	SessionUnarchiveCommand,
+	TokenAppendCommand,
 	TurnCancelCommand,
 	TurnId
 } from "@acepe/contracts"
@@ -425,6 +426,64 @@ Vitest.describe("decide", () => {
 					}
 				}
 			])
+		})
+	)
+
+	Vitest.it.effect("emits TokenAppended for a live session", () =>
+		Effect.gen(function*() {
+			const events = yield* decide(
+				sessionReadModel,
+				TokenAppendCommand.make({
+					type: "token.append",
+					commandId,
+					sessionId,
+					messageId,
+					token: "Hello"
+				}),
+				identity
+			)
+			Vitest.assert.deepStrictEqual(events, [
+				{
+					sequence: 3,
+					eventId,
+					aggregateKind: "session",
+					aggregateId: sessionId,
+					occurredAt,
+					commandId,
+					causationEventId: null,
+					correlationId: commandId,
+					metadata: {},
+					type: "TokenAppended",
+					payload: {
+						sessionId,
+						messageId,
+						token: "Hello"
+					}
+				}
+			])
+		})
+	)
+
+	Vitest.it.effect("rejects token.append when the session is archived", () =>
+		Effect.gen(function*() {
+			const error = yield* Effect.flip(
+				decide(
+					archivedSessionReadModel,
+					TokenAppendCommand.make({
+						type: "token.append",
+						commandId,
+						sessionId,
+						messageId,
+						token: "Hello"
+					}),
+					identity
+				)
+			)
+			Vitest.assert.strictEqual(error._tag, "OrchestrationCommandInvariantError")
+			Vitest.assert.strictEqual(
+				error.detail,
+				"Session 'session-1' is already archived and cannot handle command 'token.append'."
+			)
 		})
 	)
 

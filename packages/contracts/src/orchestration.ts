@@ -1,7 +1,7 @@
 import * as Match from "effect/Match"
 import * as Schema from "effect/Schema"
 
-import { TrimmedNonEmptyString } from "./baseSchemas.ts"
+import { StreamToken, TrimmedNonEmptyString } from "./baseSchemas.ts"
 import { CommandId, MessageId, ProjectId, SessionId, TurnId } from "./ids.ts"
 
 export const OrchestrationAggregateKind = Schema.Literals(["project", "session"])
@@ -89,6 +89,15 @@ export const MessageSendCommand = Schema.Struct({
 })
 export type MessageSendCommand = typeof MessageSendCommand.Type
 
+export const TokenAppendCommand = Schema.Struct({
+	type: Schema.Literal("token.append"),
+	commandId: CommandId,
+	sessionId: SessionId,
+	messageId: MessageId,
+	token: StreamToken,
+})
+export type TokenAppendCommand = typeof TokenAppendCommand.Type
+
 export const TurnCancelCommand = Schema.Struct({
 	type: Schema.Literal("turn.cancel"),
 	commandId: CommandId,
@@ -107,6 +116,7 @@ export const OrchestrationCommand = Schema.Union([
 	SessionUnarchiveCommand,
 	SessionDeleteCommand,
 	MessageSendCommand,
+	TokenAppendCommand,
 	TurnCancelCommand,
 ])
 export type OrchestrationCommand = typeof OrchestrationCommand.Type
@@ -132,6 +142,7 @@ export const commandToAggregateRef = Match.type<OrchestrationCommand>().pipe(
 		"session.unarchive": (command) => sessionRef(command.sessionId),
 		"session.delete": (command) => sessionRef(command.sessionId),
 		"message.send": (command) => sessionRef(command.sessionId),
+		"token.append": (command) => sessionRef(command.sessionId),
 		"turn.cancel": (command) => sessionRef(command.sessionId),
 	}),
 )

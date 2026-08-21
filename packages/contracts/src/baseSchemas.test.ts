@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 
-import { IsoDateTime, JsonObject, Sequence, TrimmedNonEmptyString } from "./baseSchemas.ts"
+import { IsoDateTime, JsonObject, Sequence, StreamToken, TrimmedNonEmptyString } from "./baseSchemas.ts"
 
 describe("TrimmedNonEmptyString", () => {
 	it("decodes a non-empty string", () => {
@@ -19,6 +19,16 @@ describe("TrimmedNonEmptyString", () => {
 
 	it("rejects an empty string", () => {
 		expect(Option.isNone(Schema.decodeUnknownOption(TrimmedNonEmptyString)(""))).toBe(true)
+	})
+})
+
+describe("StreamToken", () => {
+	it("keeps a leading space so streamed tokens can concatenate", () => {
+		expect(Option.getOrUndefined(Schema.decodeUnknownOption(StreamToken)(" from"))).toBe(" from")
+	})
+
+	it("rejects an empty string", () => {
+		expect(Option.isNone(Schema.decodeUnknownOption(StreamToken)(""))).toBe(true)
 	})
 })
 

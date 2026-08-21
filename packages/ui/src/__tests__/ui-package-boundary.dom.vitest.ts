@@ -2,6 +2,7 @@ import { cleanup, render } from "@testing-library/svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import CheckpointCard from "../components/checkpoint/checkpoint-card.svelte";
+import TracerTranscript from "../components/tracer-transcript/tracer-transcript.svelte";
 import UiPackageBoundarySidebarFixture from "./fixtures/ui-package-boundary-sidebar-fixture.svelte";
 import type { CheckpointData } from "../components/checkpoint/types.js";
 
@@ -50,5 +51,17 @@ describe("ui package boundary render smoke", () => {
 
 		expect(view.getByText("v0.0.0-test")).toBeTruthy();
 		expect(view.getByTestId("boundary-session-list")).toBeTruthy();
+	});
+
+	it("renders TracerTranscript from row props without store or Tauri", () => {
+		const view = render(TracerTranscript, {
+			props: {
+				rows: [{ key: "user", role: "user", text: "Ping" }],
+				emptyLabel: "No messages",
+			},
+		});
+
+		expect(view.getByTestId("tracer-transcript")).toBeTruthy();
+		expect(view.getByText("Ping")).toBeTruthy();
 	});
 });

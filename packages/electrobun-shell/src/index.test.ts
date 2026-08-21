@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 
-import { pingRequestHandler, startShell } from "./index.ts"
+import { pingRequestHandler, startAcepeShell, startShell } from "./index.ts"
 
 test("package entry exposes the webview to bun round trip", () => {
 	const opened = startShell({
@@ -9,4 +9,5 @@ test("package entry exposes the webview to bun round trip", () => {
 	})
 	expect(opened.rpc.ping({ message: "from index" })).toEqual({ echo: "from index" })
 	expect(pingRequestHandler({ message: "from index" })).toEqual({ echo: "from index" })
+	expect(typeof startAcepeShell).toBe("function")
 })

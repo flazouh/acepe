@@ -22,6 +22,7 @@ import {
 	SessionDeletedPayload,
 	SessionMetaUpdatedPayload,
 	SessionUnarchivedPayload,
+	TokenAppendedPayload,
 	TurnCancelledPayload
 } from "./Schemas.ts"
 
@@ -257,6 +258,43 @@ const projectMessageSent = (
 		)
 	)
 
+const concatenatedText = (
+	current: OrchestrationSessionMessage,
+	token: string
+): OrchestrationSessionMessage => ({
+	id: current.id,
+	text: `${current.text}${token}`,
+	createdAt: current.createdAt
+})
+
+const projectTokenAppended = (
+	model: OrchestrationReadModel,
+	event: Extract<OrchestrationEvent, { readonly type: "TokenAppended" }>
+): Effect.Effect<OrchestrationReadModel, OrchestrationProjectorDecodeError> =>
+	decodePayload(TokenAppendedPayload, event.payload, event.type, "payload").pipe(
+		Effect.map((payload) =>
+			updateSession(model, payload.sessionId, (session) => {
+				const existing = Arr.findFirst(
+					session.messages,
+					(message) => message.id === payload.messageId
+				)
+				const message: OrchestrationSessionMessage = Option.match(existing, {
+					onNone: () => ({
+						id: payload.messageId,
+						text: payload.token,
+						createdAt: event.occurredAt
+					}),
+					onSome: (current) => concatenatedText(current, payload.token)
+				})
+				return {
+					...session,
+					updatedAt: event.occurredAt,
+					messages: upsertMessage(session.messages, message)
+				}
+			})
+		)
+	)
+
 const projectTurnCancelled = (
 	model: OrchestrationReadModel,
 	event: Extract<OrchestrationEvent, { readonly type: "TurnCancelled" }>
@@ -286,6 +324,7 @@ export const projectEvent = (
 			SessionUnarchived: (unarchived) => projectSessionUnarchived(model, unarchived),
 			SessionDeleted: (deleted) => projectSessionDeleted(model, deleted),
 			MessageSent: (sent) => projectMessageSent(model, sent),
+			TokenAppended: (appended) => projectTokenAppended(model, appended),
 			TurnCancelled: (cancelled) => projectTurnCancelled(model, cancelled)
 		})
 	)(event)

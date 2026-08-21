@@ -18,6 +18,8 @@ import {
 	RecordedExchange,
 	REFERENCE_FIXTURE_FILE_NAME,
 	referenceFixturePath,
+	TRACER_BULLET_FIXTURE_FILE_NAME,
+	tracerBulletFixturePath,
 } from "./fixture.ts"
 
 const Platform = Layer.mergeAll(BunFileSystem.layer, BunPath.layer)
@@ -90,6 +92,22 @@ Vitest.layer(Platform)("reference fixture", (it) => {
 			Vitest.assert.isTrue(joined.includes("permissionRequest"))
 			Vitest.assert.isTrue(joined.includes("compactionEvent"))
 			Vitest.assert.isFalse(joined.includes("sk-live-secret"))
+		}),
+	)
+})
+
+Vitest.layer(Platform)("tracer bullet fixture", (it) => {
+	it.effect("points at the tracer-bullet reference ndjson", () =>
+		Effect.gen(function* () {
+			const fs = yield* FileSystem.FileSystem
+			const fixturePath = yield* tracerBulletFixturePath()
+			Vitest.assert.isTrue(fixturePath.endsWith(TRACER_BULLET_FIXTURE_FILE_NAME))
+			const body = yield* fs.readFileString(fixturePath)
+			const lines = yield* Stream.make(body).pipe(Stream.splitLines, Stream.runCollect)
+			const exchanges = yield* Effect.forEach(lines, decodeExchangeLine)
+			Vitest.assert.strictEqual(exchanges.length, 3)
+			const commands = Arr.map(exchanges, (exchange) => exchange.command)
+			Vitest.assert.deepStrictEqual(commands, ["dispatch", "dispatch", "dispatch"])
 		}),
 	)
 })

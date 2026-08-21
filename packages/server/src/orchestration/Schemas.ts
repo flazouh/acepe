@@ -17,6 +17,7 @@ export {
 	ProjectCreatedPayload,
 	ProjectDeletedPayload,
 	ProjectMetaUpdatedPayload,
+	TokenAppendedPayload,
 	SessionArchivedPayload,
 	SessionCreatedPayload,
 	SessionDeletedPayload,

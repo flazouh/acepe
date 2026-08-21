@@ -179,6 +179,7 @@ export const rowFromEvent = (
 						text: sent.payload.text
 					})
 				),
+			TokenAppended: ignoreEvent,
 			ProjectCreated: ignoreEvent,
 			ProjectMetaUpdated: ignoreEvent,
 			ProjectDeleted: ignoreEvent,
@@ -190,6 +191,32 @@ export const rowFromEvent = (
 			TurnCancelled: ignoreEvent
 		})
 	)(event)
+
+export const nextAssistantFromToken = Effect.fn("nextAssistantFromToken")(function*(
+	event: Extract<OrchestrationEvent, { readonly type: "TokenAppended" }>,
+	current: Option.Option<ProjectionSessionMessage>
+) {
+	if (Option.isSome(current) && current.value.rowType === "assistant") {
+		const text = yield* Schema.decodeUnknownEffect(TrimmedNonEmptyString)(
+			`${current.value.content.text}${event.payload.token}`
+		)
+		return assistantMessageRow({
+			sessionId: current.value.sessionId,
+			sequence: current.value.sequence,
+			messageId: current.value.messageId,
+			turnId: current.value.turnId,
+			text
+		})
+	}
+	const text = yield* Schema.decodeUnknownEffect(TrimmedNonEmptyString)(event.payload.token)
+	return assistantMessageRow({
+		sessionId: event.payload.sessionId,
+		sequence: event.sequence,
+		messageId: event.payload.messageId,
+		turnId: null,
+		text
+	})
+})
 
 export const encodeContentJson = Effect.fn("encodeContentJson")(
 	(message: ProjectionSessionMessage): Effect.Effect<string, Schema.SchemaError> =>

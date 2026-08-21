@@ -8,6 +8,7 @@ import {
 	MessageSentPayload,
 	OrchestrationEvent,
 	ProjectCreatedPayload,
+	TokenAppendedPayload,
 	ProjectDeletedPayload,
 	ProjectMetaUpdatedPayload,
 	SessionArchivedPayload,
@@ -29,6 +30,7 @@ const v1EventTypes = [
 	"SessionUnarchived",
 	"SessionDeleted",
 	"MessageSent",
+	"TokenAppended",
 	"TurnCancelled",
 ] as const
 
@@ -164,6 +166,14 @@ const memberCases = [
 			sessionId,
 			messageId,
 			text: "Ship the lifecycle slice",
+		}),
+	},
+	{
+		payloadSchema: TokenAppendedPayload,
+		event: sessionEvent("TokenAppended", {
+			sessionId,
+			messageId,
+			token: "Hello",
 		}),
 	},
 	{

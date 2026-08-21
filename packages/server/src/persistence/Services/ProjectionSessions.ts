@@ -9,6 +9,7 @@ import {
 	SessionId,
 	SessionMetaUpdatedPayload,
 	SessionUnarchivedPayload,
+	TokenAppendedPayload,
 	TrimmedNonEmptyString,
 	TurnCancelledPayload
 } from "@acepe/contracts"
@@ -279,6 +280,14 @@ const projectMessageSent = (
 		)
 	)
 
+const projectTokenAppended = (
+	current: Option.Option<ProjectedSession>,
+	event: Extract<OrchestrationEvent, { readonly type: "TokenAppended" }>
+): Effect.Effect<Option.Option<ProjectedSession>, Schema.SchemaError> =>
+	decodePayload(TokenAppendedPayload, event.payload).pipe(
+		Effect.map(() => mapExisting(current, (session) => touch(session, event.occurredAt)))
+	)
+
 const projectTurnCancelled = (
 	current: Option.Option<ProjectedSession>,
 	event: Extract<OrchestrationEvent, { readonly type: "TurnCancelled" }>
@@ -302,6 +311,7 @@ export const evolveProjectedSession = (
 			SessionUnarchived: (unarchived) => projectSessionUnarchived(current, unarchived),
 			SessionDeleted: (deleted) => projectSessionDeleted(current, deleted),
 			MessageSent: (sent) => projectMessageSent(current, sent),
+			TokenAppended: (appended) => projectTokenAppended(current, appended),
 			TurnCancelled: (cancelled) => projectTurnCancelled(current, cancelled)
 		})
 	)(event)

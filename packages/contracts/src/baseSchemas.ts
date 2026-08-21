@@ -5,6 +5,9 @@ import * as Schema from "effect/Schema"
 export const TrimmedNonEmptyString = Schema.Trim.check(Schema.isNonEmpty())
 export type TrimmedNonEmptyString = typeof TrimmedNonEmptyString.Type
 
+export const StreamToken = Schema.String.check(Schema.isNonEmpty())
+export type StreamToken = typeof StreamToken.Type
+
 export const IsoDateTime = Schema.String.check(
 	Schema.makeFilter((value: string) => Option.isSome(DateTime.make(value)), {
 		expected: "an ISO-8601 date-time string",

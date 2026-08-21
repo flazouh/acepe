@@ -152,6 +152,50 @@ Vitest.layer(isolatedMessages())("apply ignores non-transcript events", (it) => 
 	)
 })
 
+Vitest.layer(isolatedMessages())("apply TokenAppended", (it) => {
+	it.effect("concatenates tokens into one assistant row keyed by first sequence", () =>
+		Effect.gen(function*() {
+			const sql = yield* SqlClient.SqlClient
+			const messages = yield* ProjectionSessionMessages
+			const assistantId = MessageId.make("message-assistant")
+			const tokenEvent = (
+				sequence: number,
+				token: string
+			): OrchestrationEvent => ({
+				sequence,
+				eventId: EventId.make(`event-${sequence}`),
+				aggregateKind: "session",
+				aggregateId: sessionId,
+				occurredAt: "2026-08-20T12:00:00.000Z",
+				commandId,
+				causationEventId: null,
+				correlationId: commandId,
+				metadata: {},
+				type: "TokenAppended",
+				payload: {
+					sessionId,
+					messageId: assistantId,
+					token
+				}
+			})
+			yield* messages.apply(messageSent(3, "Ping", "2026-08-20T12:00:00.000Z"), sql)
+			yield* messages.apply(tokenEvent(4, "Hello"), sql)
+			yield* messages.apply(tokenEvent(5, " from"), sql)
+			yield* messages.apply(tokenEvent(6, " Acepe."), sql)
+			const listed = yield* messages.listBySession(sessionId)
+			Vitest.assert.deepStrictEqual(
+				listed.map((row) => row.rowType),
+				["user", "assistant"]
+			)
+			Vitest.assert.deepStrictEqual(
+				listed.map((row) => row.sequence),
+				[3, 4]
+			)
+			Vitest.assert.deepStrictEqual(listed[1]?.content, { text: "Hello from Acepe." })
+		})
+	)
+})
+
 Vitest.layer(isolatedMessages())("shuffled arrival", (it) => {
 	it.effect("lists rows in sequence order after a shuffled apply batch", () =>
 		Effect.gen(function*() {

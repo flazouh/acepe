@@ -28,20 +28,27 @@
 		"./persistence/Layers/ProjectionSessions": "./src/persistence/Layers/ProjectionSessions.ts",
 		"./persistence/Services/ProjectionSessions": "./src/persistence/Services/ProjectionSessions.ts",
 		"./persistence/Migrations": "./src/persistence/Migrations.ts",
-		"./rpc/handlers": "./src/rpc/handlers.ts"
+		"./rpc/handlers": "./src/rpc/handlers.ts",
+		"./rpc/encodedBoundary": "./src/rpc/encodedBoundary.ts",
+		"./rpc/stdio": "./src/rpc/stdio.ts",
+		"./bootstrap": "./src/bootstrap.ts",
+		"./provider/HardcodedProvider": "./src/provider/HardcodedProvider.ts"
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit -p tsconfig.json",
 		"lint:effect": "effect-language-service diagnostics --project tsconfig.json --strict --format pretty",
-		"test": "bun --bun vitest run"
+		"test": "bun --bun vitest run",
+		"stdio": "bun src/bootstrap.ts --stdio"
 	},
 	"dependencies": {
 		"@acepe/contracts": "workspace:*",
+		"@acepe/sidecar": "workspace:*",
 		"@effect/platform-bun": "catalog:",
 		"@effect/sql-sqlite-bun": "catalog:",
 		"effect": "catalog:"
 	},
 	"devDependencies": {
+		"@acepe/harness": "workspace:*",
 		"@effect/language-service": "catalog:",
 		"@effect/vitest": "catalog:",
 		"typescript": "5.9.3",
