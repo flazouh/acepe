@@ -57,7 +57,9 @@
 		"./provider/Services/AgentInstaller": "./src/provider/Services/AgentInstaller.ts",
 		"./provider/agentJson": "./src/provider/agentJson.ts",
 		"./provider/claudeVersion": "./src/provider/claudeVersion.ts",
-		"./provider/localOverrides": "./src/provider/localOverrides.ts"
+		"./provider/localOverrides": "./src/provider/localOverrides.ts",
+		"./checkpoint/Layers/CheckpointService": "./src/checkpoint/Layers/CheckpointService.ts",
+		"./checkpoint/Services/CheckpointService": "./src/checkpoint/Services/CheckpointService.ts"
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit -p tsconfig.json",
