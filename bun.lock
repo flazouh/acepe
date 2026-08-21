@@ -35,6 +35,7 @@
       "name": "acepe-tauri",
       "version": "0.1.0",
       "dependencies": {
+        "@acepe/contracts": "workspace:*",
         "@acepe/effect-result": "workspace:*",
         "@acepe/electrobun-shell": "workspace:*",
         "@acepe/ui": "workspace:*",

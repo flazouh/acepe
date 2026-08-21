@@ -45,6 +45,7 @@
 		"directory": "packages/desktop"
 	},
 	"dependencies": {
+		"@acepe/contracts": "workspace:*",
 		"@acepe/effect-result": "workspace:*",
 		"@acepe/electrobun-shell": "workspace:*",
 		"@acepe/ui": "workspace:*",
