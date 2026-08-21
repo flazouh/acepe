@@ -18,6 +18,7 @@ import { ProjectionPipelineLive } from "./orchestration/Layers/ProjectionPipelin
 import { ProjectionSnapshotQueryLive } from "./orchestration/Layers/ProjectionSnapshotQuery.ts"
 import { OrchestrationCommandReceiptsLive } from "./persistence/Layers/OrchestrationCommandReceipts.ts"
 import { OrchestrationEventStoreLive } from "./persistence/Layers/OrchestrationEventStore.ts"
+import { ProjectionSessionActivitiesLive } from "./persistence/Layers/ProjectionSessionActivities.ts"
 import { ProjectionSessionMessagesLive } from "./persistence/Layers/ProjectionSessionMessages.ts"
 import { ProjectionSessionsLive } from "./persistence/Layers/ProjectionSessions.ts"
 import { ProjectionStateLive } from "./persistence/Layers/ProjectionState.ts"
@@ -28,6 +29,7 @@ import {
 	PROJECTION_SESSION_MESSAGES_NAME,
 	ProjectionSessionMessages
 } from "./persistence/Services/ProjectionSessionMessages.ts"
+import { ProjectionSessionActivities } from "./persistence/Services/ProjectionSessionActivities.ts"
 import { ProjectionSessions } from "./persistence/Services/ProjectionSessions.ts"
 import { ProjectionTurns } from "./persistence/Services/ProjectionTurns.ts"
 import { HardcodedProviderLive } from "./provider/HardcodedProvider.ts"
@@ -50,7 +52,8 @@ const persistenceAt = (filename: string) => {
 		ProjectionStateLive,
 		ProjectionSessionsLive,
 		ProjectionSessionMessagesLive,
-		ProjectionTurnsLive
+		ProjectionTurnsLive,
+		ProjectionSessionActivitiesLive
 	).pipe(Layer.provideMerge(migrated))
 }
 
@@ -64,6 +67,7 @@ const pipelineLayer = Layer.unwrap(
 		const sessions = yield* ProjectionSessions
 		const messages = yield* ProjectionSessionMessages
 		const turns = yield* ProjectionTurns
+		const activities = yield* ProjectionSessionActivities
 		const messagesName = yield* decodeProjectorName(PROJECTION_SESSION_MESSAGES_NAME)
 		return ProjectionPipelineLive([
 			{
@@ -80,6 +84,11 @@ const pipelineLayer = Layer.unwrap(
 				name: turns.name,
 				apply: turns.apply,
 				truncate: turns.truncate
+			},
+			{
+				name: activities.name,
+				apply: activities.apply,
+				truncate: activities.truncate
 			}
 		])
 	})
