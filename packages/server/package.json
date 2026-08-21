@@ -47,6 +47,8 @@
 		"./provider/Services/ProviderRegistry": "./src/provider/Services/ProviderRegistry.ts",
 		"./provider/Layers/ClaudeAdapter": "./src/provider/Layers/ClaudeAdapter.ts",
 		"./provider/Layers/ClaudeProvider": "./src/provider/Layers/ClaudeProvider.ts",
+		"./provider/Layers/CodexAdapter": "./src/provider/Layers/CodexAdapter.ts",
+		"./provider/Layers/CodexProvider": "./src/provider/Layers/CodexProvider.ts",
 		"./provider/Layers/ProviderAdapterRegistry": "./src/provider/Layers/ProviderAdapterRegistry.ts",
 		"./provider/Layers/ProviderRegistry": "./src/provider/Layers/ProviderRegistry.ts",
 		"./history/Layers/ClaudeHistory": "./src/history/Layers/ClaudeHistory.ts",
