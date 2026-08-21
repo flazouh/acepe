@@ -67,7 +67,11 @@
 		"./git/Errors": "./src/git/Errors.ts",
 		"./git/Schemas": "./src/git/Schemas.ts",
 		"./git/Layers/GitService": "./src/git/Layers/GitService.ts",
-		"./git/Services/GitService": "./src/git/Services/GitService.ts"
+		"./git/Services/GitService": "./src/git/Services/GitService.ts",
+		"./terminal/Layers/NodePtyAdapter": "./src/terminal/Layers/NodePtyAdapter.ts",
+		"./terminal/Layers/TerminalService": "./src/terminal/Layers/TerminalService.ts",
+		"./terminal/Services/PtyAdapter": "./src/terminal/Services/PtyAdapter.ts",
+		"./terminal/Services/TerminalService": "./src/terminal/Services/TerminalService.ts"
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit -p tsconfig.json",
@@ -81,7 +85,8 @@
 		"@anthropic-ai/claude-agent-sdk": "0.3.170",
 		"@effect/platform-bun": "catalog:",
 		"@effect/sql-sqlite-bun": "catalog:",
-		"effect": "catalog:"
+		"effect": "catalog:",
+		"node-pty": "^1.1.0"
 	},
 	"devDependencies": {
 		"@acepe/harness": "workspace:*",
