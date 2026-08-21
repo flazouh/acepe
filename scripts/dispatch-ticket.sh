@@ -31,6 +31,7 @@ Hard rules:
 2. Every new package must have its own tsconfig.json extending ../../tsconfig.base.json, and a lint:effect script running: effect-language-service diagnostics --project tsconfig.json --strict --format pretty
 3. All 77 Effect lint rules are errors. No async functions, no new Promise, no new Date, no console.*, no process.env, no node: builtin imports, no barrel imports from effect. Use Effect APIs for all of it.
 4. Colocate a .test.ts beside every new source file.
+4c. If your ticket's acceptance criteria mention grading against a recorded fixture or the harness, you MUST use packages/harness (bun run harness) against packages/harness/fixtures, not a fixture you write yourself. Writing your own fixture and asserting against it proves nothing about parity with the Rust implementation. If no suitable recorded fixture exists, say so explicitly in your report instead of substituting one.
 4b. If you add a SQL migration, its number is ASSIGNED to you: ${ASSIGNED_MIGRATION:-none assigned, use the next free number}. Use exactly that number. Other lanes are running concurrently and hold the numbers around it. The migrator skips any id below the highest already applied, silently, so numbering is load-bearing and the integrator may renumber your migration at merge time.
 5. Do not stage or commit. Do not touch packages/desktop/src/lib/services.
 
