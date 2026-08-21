@@ -57,7 +57,9 @@
 		"./provider/Services/AgentInstaller": "./src/provider/Services/AgentInstaller.ts",
 		"./provider/agentJson": "./src/provider/agentJson.ts",
 		"./provider/claudeVersion": "./src/provider/claudeVersion.ts",
-		"./provider/localOverrides": "./src/provider/localOverrides.ts"
+		"./provider/localOverrides": "./src/provider/localOverrides.ts",
+		"./fileIndex/Layers/FileIndexService": "./src/fileIndex/Layers/FileIndexService.ts",
+		"./fileIndex/Services/FileIndexService": "./src/fileIndex/Services/FileIndexService.ts"
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit -p tsconfig.json",
