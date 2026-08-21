@@ -1,6 +1,11 @@
 import { IsoDateTime, Sequence, TrimmedNonEmptyString } from "./baseSchemas.ts"
 import { OrchestrationEvent } from "./events.ts"
 import {
+	GetProjectIndexRequest,
+	InvalidateProjectIndexRequest,
+	ProjectIndex,
+} from "./fileIndex.ts"
+import {
 	ActivityId,
 	ApprovalRequestId,
 	CommandId,
@@ -24,7 +29,13 @@ import * as Rpc from "effect/unstable/rpc/Rpc"
 import * as RpcGroup from "effect/unstable/rpc/RpcGroup"
 import * as RpcSchema from "effect/unstable/rpc/RpcSchema"
 
-export const RPC_PRIMITIVE_TAGS = ["dispatch", "snapshot", "events"] as const
+export const RPC_PRIMITIVE_TAGS = [
+	"dispatch",
+	"snapshot",
+	"events",
+	"getProjectIndex",
+	"invalidateProjectIndex",
+] as const
 export type RpcPrimitiveTag = (typeof RPC_PRIMITIVE_TAGS)[number]
 
 export class RpcCommandInvariantError extends Schema.TaggedError<RpcCommandInvariantError>()(
@@ -65,6 +76,20 @@ export class RpcSchemaError extends Schema.TaggedError<RpcSchemaError>()("Schema
 	issue: Schema.String,
 }) {}
 
+export class RpcFileIndexRootNotFoundError extends Schema.TaggedError<RpcFileIndexRootNotFoundError>()(
+	"FileIndexRootNotFoundError",
+	{
+		path: Schema.String,
+	},
+) {}
+
+export class RpcFileIndexNotADirectoryError extends Schema.TaggedError<RpcFileIndexNotADirectoryError>()(
+	"FileIndexNotADirectoryError",
+	{
+		path: Schema.String,
+	},
+) {}
+
 export class RpcTransportError extends Schema.TaggedError<RpcTransportError>()("RpcTransportError", {
 	reason: Schema.String,
 }) {}
@@ -84,6 +109,8 @@ export const RpcServerError = Schema.Union([
 	RpcEngineShutdownError,
 	RpcSqlError,
 	RpcSchemaError,
+	RpcFileIndexRootNotFoundError,
+	RpcFileIndexNotADirectoryError,
 ])
 export type RpcServerError = typeof RpcServerError.Type
 
@@ -229,7 +256,25 @@ export class Events extends Rpc.make("events", {
 	stream: true,
 }) {}
 
-export const AcepeRpc = RpcGroup.make(Dispatch, Snapshot, Events)
+export class GetProjectIndex extends Rpc.make("getProjectIndex", {
+	payload: GetProjectIndexRequest,
+	success: ProjectIndex,
+	error: RpcServerError,
+}) {}
+
+export class InvalidateProjectIndex extends Rpc.make("invalidateProjectIndex", {
+	payload: InvalidateProjectIndexRequest,
+	success: Schema.Void,
+	error: RpcServerError,
+}) {}
+
+export const AcepeRpc = RpcGroup.make(
+	Dispatch,
+	Snapshot,
+	Events,
+	GetProjectIndex,
+	InvalidateProjectIndex,
+)
 
 type GroupTag = Rpc.Tag<RpcGroup.Rpcs<typeof AcepeRpc>>
 const _threePrimitives: [RpcPrimitiveTag] extends [GroupTag]
@@ -241,6 +286,8 @@ void _threePrimitives
 
 export const DispatchExit = Rpc.exitSchema(Dispatch)
 export const SnapshotExit = Rpc.exitSchema(Snapshot)
+export const GetProjectIndexExit = Rpc.exitSchema(GetProjectIndex)
+export const InvalidateProjectIndexExit = Rpc.exitSchema(InvalidateProjectIndex)
 
 export type ElectrobunRequestSpec = {
 	readonly params: Schema.Top
@@ -319,6 +366,14 @@ export type AcepeElectrobunRpcSchema = {
 				readonly params: typeof EventsRequest.Encoded
 				readonly response: void
 			}
+			readonly getProjectIndex: {
+				readonly params: typeof GetProjectIndexRequest.Encoded
+				readonly response: typeof GetProjectIndexExit.Encoded
+			}
+			readonly invalidateProjectIndex: {
+				readonly params: typeof InvalidateProjectIndexRequest.Encoded
+				readonly response: typeof InvalidateProjectIndexExit.Encoded
+			}
 		}
 		readonly messages: Record<string, never>
 	}
@@ -332,10 +387,22 @@ export type AcepeElectrobunRpcSchema = {
 
 export const decodeDispatchExit = Schema.decodeUnknownEffect(DispatchExit)
 export const decodeSnapshotExit = Schema.decodeUnknownEffect(SnapshotExit)
+export const decodeGetProjectIndexExit = Schema.decodeUnknownEffect(GetProjectIndexExit)
+export const decodeInvalidateProjectIndexExit = Schema.decodeUnknownEffect(
+	InvalidateProjectIndexExit,
+)
 export const encodeDispatchExit = Schema.encodeUnknownEffect(DispatchExit)
 export const encodeSnapshotExit = Schema.encodeUnknownEffect(SnapshotExit)
+export const encodeGetProjectIndexExit = Schema.encodeUnknownEffect(GetProjectIndexExit)
+export const encodeInvalidateProjectIndexExit = Schema.encodeUnknownEffect(
+	InvalidateProjectIndexExit,
+)
 export const decodeEventsRequest = Schema.decodeUnknownEffect(EventsRequest)
 export const decodeSnapshotRequest = Schema.decodeUnknownEffect(SnapshotRequest)
+export const decodeGetProjectIndexRequest = Schema.decodeUnknownEffect(GetProjectIndexRequest)
+export const decodeInvalidateProjectIndexRequest = Schema.decodeUnknownEffect(
+	InvalidateProjectIndexRequest,
+)
 export const decodeOrchestrationCommand = Schema.decodeUnknownEffect(OrchestrationCommand)
 export const encodeOrchestrationCommand = Schema.encodeUnknownEffect(OrchestrationCommand)
 export const encodeOrchestrationEvent = Schema.encodeUnknownEffect(OrchestrationEvent)
@@ -359,6 +426,12 @@ export type RpcTransport<R = never> = {
 	readonly events: (
 		fromSequence: Sequence,
 	) => Stream.Stream<OrchestrationEvent, RpcClientError, R>
+	readonly getProjectIndex: (
+		projectPath: TrimmedNonEmptyString,
+	) => Effect.Effect<ProjectIndex, RpcClientError, R>
+	readonly invalidateProjectIndex: (
+		projectPath: TrimmedNonEmptyString,
+	) => Effect.Effect<void, RpcClientError, R>
 }
 
 export type RpcClient<R = never> = RpcTransport<R>
@@ -424,6 +497,8 @@ const resumeEvents = <R>(
 export const makeResumingRpcClient = <R>(transport: RpcTransport<R>): RpcClient<R> => ({
 	dispatch: transport.dispatch,
 	snapshot: transport.snapshot,
+	getProjectIndex: transport.getProjectIndex,
+	invalidateProjectIndex: transport.invalidateProjectIndex,
 	events: (fromSequence) =>
 		Stream.unwrap(
 			Ref.make(fromSequence).pipe(Effect.map((cursor) => resumeEvents(transport, cursor))),

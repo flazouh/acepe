@@ -23,11 +23,15 @@ const isBridge = (value: unknown): value is ElectrobunRpcBridge => {
 		readonly dispatch?: unknown;
 		readonly snapshot?: unknown;
 		readonly events?: unknown;
+		readonly getProjectIndex?: unknown;
+		readonly invalidateProjectIndex?: unknown;
 	};
 	return (
 		Predicate.isFunction(request.dispatch) &&
 		Predicate.isFunction(request.snapshot) &&
 		Predicate.isFunction(request.events) &&
+		Predicate.isFunction(request.getProjectIndex) &&
+		Predicate.isFunction(request.invalidateProjectIndex) &&
 		Predicate.isFunction(record.addMessageListener) &&
 		Predicate.isFunction(record.removeMessageListener)
 	);

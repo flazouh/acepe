@@ -1,6 +1,12 @@
 import { startAcepeShell } from "@acepe/electrobun-shell";
 import { makeAcepeLive } from "@acepe/server/bootstrap";
-import { encodedDispatch, encodedSnapshot, pushEvents } from "@acepe/server/rpc/encodedBoundary";
+import {
+	encodedDispatch,
+	encodedGetProjectIndex,
+	encodedInvalidateProjectIndex,
+	encodedSnapshot,
+	pushEvents,
+} from "@acepe/server/rpc/encodedBoundary";
 import * as Duration from "effect/Duration";
 import * as ManagedRuntime from "effect/ManagedRuntime";
 import { BrowserView, BrowserWindow } from "electrobun/bun";
@@ -40,6 +46,8 @@ startAcepeShell(
 	{
 		dispatch: (params) => runtime.runPromise(encodedDispatch(params)),
 		snapshot: (params) => runtime.runPromise(encodedSnapshot(params)),
+		getProjectIndex: (params) => runtime.runPromise(encodedGetProjectIndex(params)),
+		invalidateProjectIndex: (params) => runtime.runPromise(encodedInvalidateProjectIndex(params)),
 		events: (params) => {
 			runtime.runFork(
 				pushEvents(params, (payload) => {

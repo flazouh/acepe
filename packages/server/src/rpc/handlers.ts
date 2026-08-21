@@ -5,6 +5,8 @@ import {
 	RpcCommandInvariantError,
 	RpcCommandPreviouslyRejectedError,
 	RpcEngineShutdownError,
+	RpcFileIndexNotADirectoryError,
+	RpcFileIndexRootNotFoundError,
 	RpcProjectorDecodeError,
 	RpcSchemaError,
 	type RpcServerError,
@@ -24,6 +26,8 @@ import { OrchestrationCommandPreviouslyRejectedError } from "../persistence/Serv
 import { OrchestrationEventStore } from "../persistence/Services/OrchestrationEventStore.ts"
 import { OrchestrationCommandInvariantError } from "../orchestration/Errors.ts"
 import { OrchestrationProjectorDecodeError } from "../orchestration/Schemas.ts"
+import { FileIndexNotADirectoryError, FileIndexRootNotFoundError } from "../fileIndex/Errors.ts"
+import { type FileIndexError, FileIndexService } from "../fileIndex/Services/FileIndexService.ts"
 import {
 	type OrchestrationDispatchError,
 	type OrchestrationEngineShape,
@@ -73,6 +77,16 @@ export const toRpcError = (
 	}
 	if (Schema.is(SqlError)(error)) {
 		return new RpcSqlError({ reason: error.message })
+	}
+	return new RpcSchemaError({ issue: error.message })
+}
+
+export const toFileIndexRpcError = (error: FileIndexError): RpcServerError => {
+	if (Schema.is(FileIndexRootNotFoundError)(error)) {
+		return new RpcFileIndexRootNotFoundError({ path: error.path })
+	}
+	if (Schema.is(FileIndexNotADirectoryError)(error)) {
+		return new RpcFileIndexNotADirectoryError({ path: error.path })
 	}
 	return new RpcSchemaError({ issue: error.message })
 }
@@ -133,6 +147,7 @@ export const RpcHandlersLive = AcepeRpc.toLayer(
 		const engine = yield* OrchestrationEngine
 		const snapshots = yield* ProjectionSnapshotQuery
 		const store = yield* OrchestrationEventStore
+		const fileIndex = yield* FileIndexService
 		return {
 			dispatch: (command) => engine.dispatch(command).pipe(Effect.mapError(toRpcError)),
 			snapshot: (request) =>
@@ -141,7 +156,10 @@ export const RpcHandlersLive = AcepeRpc.toLayer(
 					Effect.flatMap(decodeRpcSessionSnapshot),
 					Effect.mapError(toRpcError)
 				),
-			events: (request) => eventsFromSequence(store, engine, request.fromSequence)
+			events: (request) => eventsFromSequence(store, engine, request.fromSequence),
+			getProjectIndex: (request) =>
+				fileIndex.getProjectIndex(request.projectPath).pipe(Effect.mapError(toFileIndexRpcError)),
+			invalidateProjectIndex: (request) => fileIndex.invalidate(request.projectPath)
 		}
 	})
 )

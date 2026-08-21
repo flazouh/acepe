@@ -13,6 +13,8 @@ const fakeBridge = (): ElectrobunRpcBridge => ({
 		dispatch: () => Promise.resolve(undefined),
 		snapshot: () => Promise.resolve(undefined),
 		events: () => Promise.resolve(undefined),
+		getProjectIndex: () => Promise.resolve(undefined),
+		invalidateProjectIndex: () => Promise.resolve(undefined),
 	},
 	addMessageListener: () => undefined,
 	removeMessageListener: () => undefined,

@@ -7,12 +7,16 @@ export type AcepeShellRpcHandlers = {
 	readonly dispatch: (params: unknown) => unknown
 	readonly snapshot: (params: unknown) => unknown
 	readonly events: (params: unknown) => unknown
+	readonly getProjectIndex: (params: unknown) => unknown
+	readonly invalidateProjectIndex: (params: unknown) => unknown
 }
 
 export type AcepeRpcWork = {
 	readonly dispatch: (params: unknown) => unknown
 	readonly snapshot: (params: unknown) => unknown
 	readonly events: (params: unknown) => unknown
+	readonly getProjectIndex: (params: unknown) => unknown
+	readonly invalidateProjectIndex: (params: unknown) => unknown
 }
 
 export type AcepeShellHost<Rpc> = {
@@ -28,7 +32,9 @@ export const startAcepeShell = <Rpc>(
 		ping: pingRequestHandler,
 		dispatch: work.dispatch,
 		snapshot: work.snapshot,
-		events: work.events
+		events: work.events,
+		getProjectIndex: work.getProjectIndex,
+		invalidateProjectIndex: work.invalidateProjectIndex
 	})
 	return host.openWindow({
 		title: acepeWindowSpec.title,

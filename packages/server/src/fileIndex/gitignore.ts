@@ -43,6 +43,14 @@ export const isGitInternalPath = (relativePath: string): boolean => {
 	return false
 }
 
+export const isGitignoreName = (relativePath: string): boolean => {
+	const posix = toPosixPath(relativePath)
+	if (posix === ".gitignore") {
+		return true
+	}
+	return posix.endsWith("/.gitignore") === true && isGitInternalPath(posix) === false
+}
+
 export const scanDepth = (relativePath: string): number => {
 	const posix = toPosixPath(relativePath)
 	if (posix.length === 0) {

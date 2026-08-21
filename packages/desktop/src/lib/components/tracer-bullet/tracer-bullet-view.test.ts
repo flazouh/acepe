@@ -75,6 +75,15 @@ describe("tracer bullet controller mapping", () => {
 							activities: [],
 							pendingApprovals: [],
 						}),
+					getProjectIndex: () =>
+						Effect.succeed({
+							projectPath: "/tmp/acepe",
+							files: [],
+							gitStatus: [],
+							totalFiles: 0,
+							totalLines: 0,
+						}),
+					invalidateProjectIndex: () => Effect.void,
 					events: () => Stream.make(token),
 				};
 				const registry = AtomRegistry.make();

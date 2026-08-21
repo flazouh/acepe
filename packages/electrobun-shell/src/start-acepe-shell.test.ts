@@ -13,7 +13,9 @@ test("startAcepeShell opens the svelte bundle and exposes dispatch snapshot even
 		{
 			dispatch: (params) => ({ dispatched: params }),
 			snapshot: (params) => ({ snapshotted: params }),
-			events: (params) => ({ streamed: params })
+			events: (params) => ({ streamed: params }),
+			getProjectIndex: (params) => ({ indexed: params }),
+			invalidateProjectIndex: (params) => ({ invalidated: params })
 		}
 	)
 	expect(opened.url).toBe(acepeWindowSpec.url)
@@ -32,5 +34,11 @@ test("startAcepeShell opens the svelte bundle and exposes dispatch snapshot even
 	})
 	expect(opened.rpc.events({ fromSequence: 0 })).toEqual({
 		streamed: { fromSequence: 0 }
+	})
+	expect(opened.rpc.getProjectIndex({ projectPath: "/tmp/acepe" })).toEqual({
+		indexed: { projectPath: "/tmp/acepe" }
+	})
+	expect(opened.rpc.invalidateProjectIndex({ projectPath: "/tmp/acepe" })).toEqual({
+		invalidated: { projectPath: "/tmp/acepe" }
 	})
 })

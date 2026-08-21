@@ -1,5 +1,7 @@
 import {
 	decodeDispatchExit,
+	decodeGetProjectIndexExit,
+	decodeInvalidateProjectIndexExit,
 	decodeOrchestrationEvent,
 	decodeSnapshotExit,
 	encodeOrchestrationCommand,
@@ -25,6 +27,8 @@ export type ElectrobunRpcBridge = {
 		readonly dispatch: (params: unknown) => Promise<unknown>;
 		readonly snapshot: (params: unknown) => Promise<unknown>;
 		readonly events: (params: unknown) => Promise<unknown>;
+		readonly getProjectIndex: (params: unknown) => Promise<unknown>;
+		readonly invalidateProjectIndex: (params: unknown) => Promise<unknown>;
 	};
 	readonly addMessageListener: (message: "events", listener: (payload: unknown) => void) => void;
 	readonly removeMessageListener: (message: "events", listener: (payload: unknown) => void) => void;
@@ -72,6 +76,30 @@ const requestSnapshot = Effect.fn("requestSnapshot")(function* (
 	return yield* exitToEffect(exit);
 });
 
+const requestGetProjectIndex = Effect.fn("requestGetProjectIndex")(function* (
+	bridge: ElectrobunRpcBridge,
+	projectPath: string
+) {
+	const encoded = yield* Effect.tryPromise({
+		try: () => bridge.request.getProjectIndex({ projectPath }),
+		catch: transportErrorFrom,
+	});
+	const exit = yield* decodeGetProjectIndexExit(encoded);
+	return yield* exitToEffect(exit);
+});
+
+const requestInvalidateProjectIndex = Effect.fn("requestInvalidateProjectIndex")(function* (
+	bridge: ElectrobunRpcBridge,
+	projectPath: string
+) {
+	const encoded = yield* Effect.tryPromise({
+		try: () => bridge.request.invalidateProjectIndex({ projectPath }),
+		catch: transportErrorFrom,
+	});
+	const exit = yield* decodeInvalidateProjectIndexExit(encoded);
+	return yield* exitToEffect(exit);
+});
+
 const listenForEvents = (
 	bridge: ElectrobunRpcBridge,
 	fromSequence: Sequence
@@ -108,5 +136,9 @@ export const makeElectrobunRpcTransport = (bridge: ElectrobunRpcBridge): RpcTran
 	dispatch: (command) => requestDispatch(bridge, command).pipe(Effect.mapError(toRpcClientError)),
 	snapshot: (sessionId) =>
 		requestSnapshot(bridge, sessionId).pipe(Effect.mapError(toRpcClientError)),
+	getProjectIndex: (projectPath) =>
+		requestGetProjectIndex(bridge, projectPath).pipe(Effect.mapError(toRpcClientError)),
+	invalidateProjectIndex: (projectPath) =>
+		requestInvalidateProjectIndex(bridge, projectPath).pipe(Effect.mapError(toRpcClientError)),
 	events: (fromSequence) => listenForEvents(bridge, fromSequence),
 });

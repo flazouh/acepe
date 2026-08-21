@@ -12,6 +12,8 @@ declare module "electrobun/view" {
 				readonly dispatch: (params: unknown) => Promise<unknown>;
 				readonly snapshot: (params: unknown) => Promise<unknown>;
 				readonly events: (params: unknown) => Promise<unknown>;
+				readonly getProjectIndex: (params: unknown) => Promise<unknown>;
+				readonly invalidateProjectIndex: (params: unknown) => Promise<unknown>;
 			};
 			readonly addMessageListener: (
 				message: "events",

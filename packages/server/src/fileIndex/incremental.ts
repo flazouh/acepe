@@ -5,7 +5,7 @@ import * as Order from "effect/Order"
 import * as Schema from "effect/Schema"
 import * as Str from "effect/String"
 import { type GitignoreRule, isGitInternalPath, isIgnoredPath, toPosixPath } from "./gitignore.ts"
-import { indexedFileFromRelativePath } from "./scanner.ts"
+import { makeIndexedFile } from "./makeIndexedFile.ts"
 import {
 	type FileGitStatus,
 	type FileIndexUpdate,
@@ -51,19 +51,18 @@ const removePath = (
 	relativePath: string
 ): ReadonlyArray<IndexedFile> => Arr.filter(files, (file) => file.path !== relativePath)
 
-const applyOneUpdate = (ignoreRules: ReadonlyArray<GitignoreRule>) =>
-	(files: ReadonlyArray<IndexedFile>, update: FileIndexUpdate) => {
+const applyOneUpdate =
+	(ignoreRules: ReadonlyArray<GitignoreRule>) =>
+	(files: ReadonlyArray<IndexedFile>, update: FileIndexUpdate): ReadonlyArray<IndexedFile> => {
 		const relativePath = toPosixPath(update.relativePath)
 		if (
 			update.type === "remove" ||
 			isGitInternalPath(relativePath) === true ||
 			isIgnoredPath(ignoreRules, relativePath) === true
 		) {
-			return Effect.succeed(removePath(files, relativePath))
+			return removePath(files, relativePath)
 		}
-		return indexedFileFromRelativePath(relativePath).pipe(
-			Effect.map((next) => Arr.append(removePath(files, relativePath), next))
-		)
+		return Arr.append(removePath(files, relativePath), makeIndexedFile(relativePath))
 	}
 
 export const applyFileIndexUpdates = Effect.fn("applyFileIndexUpdates")(function*(
@@ -71,6 +70,6 @@ export const applyFileIndexUpdates = Effect.fn("applyFileIndexUpdates")(function
 	updates: ReadonlyArray<FileIndexUpdate>,
 	ignoreRules: ReadonlyArray<GitignoreRule>
 ) {
-	const files = yield* Effect.reduce(updates, () => index.files, applyOneUpdate(ignoreRules))
+	const files = Arr.reduce(updates, index.files, applyOneUpdate(ignoreRules))
 	return yield* buildProjectIndex(index.projectPath, files, index.gitStatus)
 })

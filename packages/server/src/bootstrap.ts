@@ -1,4 +1,5 @@
 import { TrimmedNonEmptyString } from "@acepe/contracts"
+import * as BunChildProcessSpawner from "@effect/platform-bun/BunChildProcessSpawner"
 import * as BunCrypto from "@effect/platform-bun/BunCrypto"
 import * as BunFileSystem from "@effect/platform-bun/BunFileSystem"
 import * as BunPath from "@effect/platform-bun/BunPath"
@@ -126,14 +127,23 @@ const pipelineLayer = Layer.unwrap(
 export const makeAcepeLive = (input: AcepeLiveInput) => {
 	const engine = engineAt(input.filename)
 	const snapshots = ProjectionSnapshotQueryLive
-	const rpc = RpcHandlersLive.pipe(Layer.provideMerge(snapshots))
-	const fileIndex = FileIndexWarmOnImportLive.pipe(Layer.provideMerge(FileIndexServiceLive))
+	const bunPlatform = Layer.mergeAll(
+		BunFileSystem.layer,
+		BunPath.layer,
+		BunChildProcessSpawner.layer.pipe(
+			Layer.provideMerge(Layer.mergeAll(BunFileSystem.layer, BunPath.layer))
+		)
+	)
+	const fileIndex = FileIndexWarmOnImportLive.pipe(
+		Layer.provideMerge(FileIndexServiceLive),
+		Layer.provide(bunPlatform)
+	)
+	const rpc = RpcHandlersLive.pipe(Layer.provideMerge(snapshots), Layer.provideMerge(fileIndex))
 	return Layer.mergeAll(
 		rpc,
 		HardcodedProviderLive(input.tokenDelay),
 		pipelineLayer,
-		snapshots,
-		fileIndex
+		snapshots
 	).pipe(Layer.provideMerge(engine))
 }
 
@@ -148,7 +158,17 @@ export const acepeTestLive = (tokenDelay: Duration.Duration) =>
 				tokenDelay
 			})
 		})
-	).pipe(Layer.provide(Layer.mergeAll(BunFileSystem.layer, BunPath.layer)))
+	).pipe(
+		Layer.provideMerge(
+			Layer.mergeAll(
+				BunFileSystem.layer,
+				BunPath.layer,
+				BunChildProcessSpawner.layer.pipe(
+					Layer.provideMerge(Layer.mergeAll(BunFileSystem.layer, BunPath.layer))
+				)
+			)
+		)
+	)
 
 const stdioFilename = Effect.gen(function*() {
 	const fs = yield* FileSystem.FileSystem
