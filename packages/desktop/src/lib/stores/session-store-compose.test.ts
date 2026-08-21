@@ -97,6 +97,9 @@ const clientOf = (input: {
 }): RpcClient => ({
 	dispatch: input.dispatch ?? (() => Effect.succeed({ sequence: 1 })),
 	snapshot: () => Effect.succeed(input.snapshot),
+	getProjectIndex: () =>
+		Effect.succeed({ projectPath: "/tmp/p", totalFiles: 0, files: [], scannedAt: 0 }) as never,
+	invalidateProjectIndex: () => Effect.void,
 	events: () => Stream.fromArray(input.events),
 });
 

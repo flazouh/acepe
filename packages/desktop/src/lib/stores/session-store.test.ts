@@ -172,6 +172,8 @@ describe("createSessionStore", () => {
 					client: {
 						dispatch: () => Effect.succeed({ sequence: 1 }),
 						snapshot: () => Effect.succeed(snapshotWithUser),
+						getProjectIndex: () => Effect.succeed(unusedProjectIndex),
+						invalidateProjectIndex: () => Effect.void,
 						events: () =>
 							Stream.fromArray([
 								sessionCreated,
@@ -221,6 +223,8 @@ describe("createSessionStore", () => {
 							return Effect.succeed({ sequence: 4 });
 						},
 						snapshot: () => Effect.succeed(snapshotWithUser),
+						getProjectIndex: () => Effect.succeed(unusedProjectIndex),
+						invalidateProjectIndex: () => Effect.void,
 						events: () => Stream.fromArray([]),
 					},
 					registry,
