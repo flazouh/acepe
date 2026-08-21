@@ -23,6 +23,7 @@ Wave 5  Projections      AC-030 .. AC-034    fully parallel
 Wave 6  Services         AC-035 .. AC-040    fully parallel
 Wave 7  Frontend         AC-041 .. AC-044    AC-044 is a wide refactor
 Wave 8  Cutover          AC-045 .. AC-047    serial
+QA      Live app QA      AC-050              after AC-022 and AC-045
 ```
 
 ## Start-now tickets (no blockers)
