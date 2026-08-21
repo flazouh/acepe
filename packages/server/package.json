@@ -45,6 +45,8 @@
 		"./provider/Services/FakeProviderAdapter": "./src/provider/Services/FakeProviderAdapter.ts",
 		"./provider/Services/ProviderAdapterRegistry": "./src/provider/Services/ProviderAdapterRegistry.ts",
 		"./provider/Services/ProviderRegistry": "./src/provider/Services/ProviderRegistry.ts",
+		"./provider/Layers/ClaudeAdapter": "./src/provider/Layers/ClaudeAdapter.ts",
+		"./provider/Layers/ClaudeProvider": "./src/provider/Layers/ClaudeProvider.ts",
 		"./provider/Layers/ProviderAdapterRegistry": "./src/provider/Layers/ProviderAdapterRegistry.ts",
 		"./provider/Layers/ProviderRegistry": "./src/provider/Layers/ProviderRegistry.ts",
 		"./history/Layers/ClaudeHistory": "./src/history/Layers/ClaudeHistory.ts",
@@ -68,6 +70,7 @@
 	"dependencies": {
 		"@acepe/contracts": "workspace:*",
 		"@acepe/sidecar": "workspace:*",
+		"@anthropic-ai/claude-agent-sdk": "0.3.170",
 		"@effect/platform-bun": "catalog:",
 		"@effect/sql-sqlite-bun": "catalog:",
 		"effect": "catalog:"
