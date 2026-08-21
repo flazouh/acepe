@@ -10,6 +10,7 @@
 		"sourceMap": true,
 		"strict": true,
 		"moduleResolution": "bundler",
+		"allowImportingTsExtensions": true,
 		"customConditions": ["svelte"],
 		"types": ["bun-types", "vitest/globals", "@testing-library/jest-dom"],
 		"strictNullChecks": true,

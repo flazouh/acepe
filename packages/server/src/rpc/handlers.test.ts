@@ -1,0 +1,250 @@
+import {
+	AcepeRpc,
+	CommandId,
+	ProjectCreateCommand,
+	ProjectId,
+	SessionCreateCommand,
+	SessionId
+} from "@acepe/contracts"
+import * as BunCrypto from "@effect/platform-bun/BunCrypto"
+import * as BunFileSystem from "@effect/platform-bun/BunFileSystem"
+import * as BunPath from "@effect/platform-bun/BunPath"
+import * as Vitest from "@effect/vitest"
+import * as Duration from "effect/Duration"
+import * as Effect from "effect/Effect"
+import * as Fiber from "effect/Fiber"
+import * as FileSystem from "effect/FileSystem"
+import * as Layer from "effect/Layer"
+import * as Path from "effect/Path"
+import * as Stream from "effect/Stream"
+import * as TestClock from "effect/testing/TestClock"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
+import * as RpcTest from "effect/unstable/rpc/RpcTest"
+import { OrchestrationCommandReceiptsLive } from "../persistence/Layers/OrchestrationCommandReceipts.ts"
+import { OrchestrationEventStoreLive } from "../persistence/Layers/OrchestrationEventStore.ts"
+import { makeSqliteLayer } from "../persistence/Layers/Sqlite.ts"
+import { runMigrations } from "../persistence/Migrations.ts"
+import {
+	encodeContentJson,
+	userMessageRow
+} from "../persistence/Services/ProjectionSessionMessages.ts"
+import { OrchestrationEngineLive } from "../orchestration/Layers/OrchestrationEngine.ts"
+import { ProjectionSnapshotQueryLive } from "../orchestration/Layers/ProjectionSnapshotQuery.ts"
+import { RpcHandlersLive } from "./handlers.ts"
+
+const sessionId = SessionId.make("session-1")
+const projectId = ProjectId.make("project-1")
+const NOW = "2026-08-20T12:00:00.000Z"
+
+const createProject = ProjectCreateCommand.make({
+	type: "project.create",
+	commandId: CommandId.make("cmd-1"),
+	projectId,
+	title: "Acepe",
+	workspaceRoot: "/tmp/acepe"
+})
+
+const createSession = SessionCreateCommand.make({
+	type: "session.create",
+	commandId: CommandId.make("cmd-session"),
+	sessionId,
+	projectId,
+	title: "First session"
+})
+
+const TempSqlite = Layer.unwrap(
+	Effect.gen(function*() {
+		const fs = yield* FileSystem.FileSystem
+		const path = yield* Path.Path
+		const dir = yield* fs.makeTempDirectoryScoped()
+		return makeSqliteLayer({
+			filename: path.join(dir, "acepe-test.db"),
+			readonly: false
+		})
+	})
+).pipe(Layer.provide(Layer.mergeAll(BunFileSystem.layer, BunPath.layer)))
+
+const MigratedSqlite = Layer.effectDiscard(runMigrations).pipe(Layer.provideMerge(TempSqlite))
+
+const PersistenceLive = Layer.mergeAll(
+	OrchestrationEventStoreLive,
+	OrchestrationCommandReceiptsLive
+).pipe(Layer.provideMerge(MigratedSqlite))
+
+const EngineAndStore = OrchestrationEngineLive.pipe(
+	Layer.provideMerge(PersistenceLive),
+	Layer.provide(BunCrypto.layer)
+)
+
+const TestLive = RpcHandlersLive.pipe(
+	Layer.provideMerge(ProjectionSnapshotQueryLive),
+	Layer.provideMerge(EngineAndStore)
+)
+
+const isolatedRpc = () => Layer.fresh(TestLive)
+
+const insertSession = Effect.fn("insertSession")(function*() {
+	const sql = yield* SqlClient.SqlClient
+	yield* sql`
+		INSERT INTO projection_sessions (
+			session_id,
+			project_id,
+			title,
+			provider,
+			created_at,
+			updated_at,
+			last_activity_at,
+			archived_at,
+			deleted_at
+		) VALUES (
+			${sessionId},
+			${projectId},
+			${"Ship the slice"},
+			NULL,
+			${NOW},
+			${NOW},
+			${NOW},
+			NULL,
+			NULL
+		)
+	`.withoutTransform.pipe(Effect.asVoid)
+})
+
+const insertUserMessage = Effect.fn("insertUserMessage")(function*() {
+	const sql = yield* SqlClient.SqlClient
+	const row = userMessageRow({
+		sessionId,
+		sequence: 2,
+		messageId: "message-2",
+		turnId: null,
+		text: "Ship the slice"
+	})
+	const content = yield* encodeContentJson(row)
+	yield* sql`
+		INSERT INTO projection_session_messages (
+			session_id,
+			sequence,
+			message_id,
+			turn_id,
+			row_type,
+			content
+		) VALUES (
+			${row.sessionId},
+			${row.sequence},
+			${row.messageId},
+			${row.turnId},
+			${row.rowType},
+			${content}
+		)
+	`.withoutTransform.pipe(Effect.asVoid)
+})
+
+const checkpoint = Effect.fn("checkpoint")(function*(name: string, sequence: number) {
+	const sql = yield* SqlClient.SqlClient
+	yield* sql`
+		INSERT INTO projection_state (name, last_applied_sequence)
+		VALUES (${name}, ${sequence})
+		ON CONFLICT(name) DO UPDATE SET
+			last_applied_sequence = excluded.last_applied_sequence
+	`.withoutTransform.pipe(Effect.asVoid)
+})
+
+Vitest.layer(isolatedRpc())("accepted dispatch", (it) => {
+	it.effect("returns the committed sequence", () =>
+		Effect.gen(function*() {
+			const client = yield* RpcTest.makeClient(AcepeRpc)
+			const result = yield* client.dispatch(createProject)
+			Vitest.assert.strictEqual(result.sequence, 1)
+		})
+	)
+})
+
+Vitest.layer(isolatedRpc())("invariant failure", (it) => {
+	it.effect("preserves OrchestrationCommandInvariantError tag", () =>
+		Effect.gen(function*() {
+			const client = yield* RpcTest.makeClient(AcepeRpc)
+			const error = yield* Effect.flip(client.dispatch(createSession))
+			Vitest.assert.strictEqual(error._tag, "OrchestrationCommandInvariantError")
+		})
+	)
+})
+
+Vitest.layer(isolatedRpc())("previously rejected command", (it) => {
+	it.effect("preserves OrchestrationCommandPreviouslyRejectedError tag", () =>
+		Effect.gen(function*() {
+			const client = yield* RpcTest.makeClient(AcepeRpc)
+			yield* Effect.flip(client.dispatch(createSession))
+			const error = yield* Effect.flip(client.dispatch(createSession))
+			Vitest.assert.strictEqual(error._tag, "OrchestrationCommandPreviouslyRejectedError")
+		})
+	)
+})
+
+Vitest.layer(isolatedRpc())("empty snapshot", (it) => {
+	it.effect("returns an empty projection when the session is missing", () =>
+		Effect.gen(function*() {
+			const client = yield* RpcTest.makeClient(AcepeRpc)
+			const snapshot = yield* client.snapshot({ sessionId })
+			Vitest.assert.strictEqual(snapshot.snapshotSequence, 0)
+			Vitest.assert.strictEqual(snapshot.session, null)
+			Vitest.assert.deepStrictEqual(snapshot.messages, [])
+			Vitest.assert.deepStrictEqual(snapshot.turns, [])
+			Vitest.assert.deepStrictEqual(snapshot.activities, [])
+			Vitest.assert.deepStrictEqual(snapshot.pendingApprovals, [])
+		})
+	)
+})
+
+Vitest.layer(isolatedRpc())("projected snapshot", (it) => {
+	it.effect("maps a stored session and user message onto the contract snapshot", () =>
+		Effect.gen(function*() {
+			const client = yield* RpcTest.makeClient(AcepeRpc)
+			yield* insertSession()
+			yield* insertUserMessage()
+			yield* checkpoint("projection.sessions", 4)
+			yield* checkpoint("projection.session-messages", 4)
+			yield* checkpoint("projection.turns", 4)
+			yield* checkpoint("projection.session-activities", 4)
+			yield* checkpoint("projection.pending-approvals", 4)
+			const snapshot = yield* client.snapshot({ sessionId })
+			Vitest.assert.strictEqual(snapshot.snapshotSequence, 4)
+			Vitest.assert.strictEqual(snapshot.session?.sessionId, sessionId)
+			const message = snapshot.messages[0]
+			Vitest.assert.strictEqual(message?.rowType, "user")
+			if (message?.rowType === "user") {
+				Vitest.assert.strictEqual(message.content.text, "Ship the slice")
+			}
+		})
+	)
+})
+
+Vitest.layer(isolatedRpc())("event replay", (it) => {
+	it.effect("replays committed events after the requested sequence", () =>
+		Effect.gen(function*() {
+			const client = yield* RpcTest.makeClient(AcepeRpc)
+			yield* client.dispatch(createProject)
+			const events = yield* Stream.take(client.events({ fromSequence: 0 }), 1).pipe(
+				Stream.runCollect
+			)
+			Vitest.assert.strictEqual(events[0]?.type, "ProjectCreated")
+			Vitest.assert.strictEqual(events[0]?.sequence, 1)
+		})
+	)
+})
+
+Vitest.layer(isolatedRpc())("live events", (it) => {
+	it.effect("emits live events after subscribe", () =>
+		Effect.gen(function*() {
+			const client = yield* RpcTest.makeClient(AcepeRpc)
+			const fiber = yield* Stream.take(client.events({ fromSequence: 0 }), 1).pipe(
+				Stream.runCollect,
+				Effect.forkScoped
+			)
+			yield* TestClock.adjust(Duration.millis(50))
+			yield* client.dispatch(createProject)
+			const events = yield* Fiber.join(fiber)
+			Vitest.assert.strictEqual(events[0]?.type, "ProjectCreated")
+			Vitest.assert.strictEqual(events[0]?.sequence, 1)
+		})
+	)
+})
