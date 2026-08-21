@@ -52,7 +52,12 @@
 		"./history/Layers/OpenCodeHistory": "./src/history/Layers/OpenCodeHistory.ts",
 		"./history/Services/ClaudeHistory": "./src/history/Services/ClaudeHistory.ts",
 		"./history/Services/CursorHistory": "./src/history/Services/CursorHistory.ts",
-		"./history/Services/OpenCodeHistory": "./src/history/Services/OpenCodeHistory.ts"
+		"./history/Services/OpenCodeHistory": "./src/history/Services/OpenCodeHistory.ts",
+		"./provider/Layers/AgentInstaller": "./src/provider/Layers/AgentInstaller.ts",
+		"./provider/Services/AgentInstaller": "./src/provider/Services/AgentInstaller.ts",
+		"./provider/agentJson": "./src/provider/agentJson.ts",
+		"./provider/claudeVersion": "./src/provider/claudeVersion.ts",
+		"./provider/localOverrides": "./src/provider/localOverrides.ts"
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit -p tsconfig.json",
