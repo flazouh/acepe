@@ -11,6 +11,8 @@ test("startShell opens one window on the svelte bundle", () => {
 	})
 	expect(opened.url).toBe(acepeWindowSpec.url)
 	expect(opened.title).toBe("Acepe")
+	expect(opened.activate).toBe(true)
+	expect(opened.hidden).toBe(false)
 })
 
 test("webview to bun round trip asserts on the returned value", () => {

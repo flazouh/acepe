@@ -40,6 +40,8 @@ export const startAcepeShell = <Rpc>(
 		title: acepeWindowSpec.title,
 		url: acepeWindowSpec.url,
 		frame: acepeWindowSpec.frame,
+		activate: acepeWindowSpec.activate,
+		hidden: acepeWindowSpec.hidden,
 		rpc
 	})
 }
