@@ -8,7 +8,7 @@ Vitest.describe("PtySpawnError", () => {
 		Effect.gen(function*() {
 			const error = yield* Effect.flip(
 				new PtySpawnError({
-					adapter: "node-pty",
+					adapter: "bun",
 					shell: "/bin/zsh",
 					detail: "ENOENT"
 				})
@@ -17,7 +17,7 @@ Vitest.describe("PtySpawnError", () => {
 			Vitest.assert.isTrue(Schema.is(PtySpawnError)(error))
 			Vitest.assert.strictEqual(
 				error.message,
-				"Failed to spawn PTY process '/bin/zsh' with node-pty: ENOENT"
+				"Failed to spawn PTY process '/bin/zsh' with bun: ENOENT"
 			)
 		})
 	)

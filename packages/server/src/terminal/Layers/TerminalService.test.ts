@@ -31,7 +31,7 @@ import {
 	TerminalSessionLookupError
 } from "../Services/TerminalService.ts"
 import { DEFAULT_TERM } from "../shellEnv.ts"
-import { NodePtyAdapterLive } from "./NodePtyAdapter.ts"
+import { BunPtyAdapterLive } from "./BunPtyAdapter.ts"
 import { TerminalServiceLive } from "./TerminalService.ts"
 
 const sessionId = SessionId.make("session-1")
@@ -373,7 +373,7 @@ const LiveTerminal = TerminalServiceLive({
 	defaultShellOverride: Option.some("/bin/sh"),
 	loginEnvCaptureTimeout: Duration.seconds(5)
 }).pipe(
-	Layer.provide(NodePtyAdapterLive),
+	Layer.provide(BunPtyAdapterLive),
 	Layer.provideMerge(PlatformLive),
 	Layer.provide(
 		ConfigProvider.layer(

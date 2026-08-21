@@ -7,10 +7,13 @@ import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
+import * as Stream from "effect/Stream"
+import * as ChildProcess from "effect/unstable/process/ChildProcess"
+import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner"
 import { PtyAdapter } from "../Services/PtyAdapter.ts"
-import { NodePtyAdapterLive } from "./NodePtyAdapter.ts"
+import { BUN_PTY_ADAPTER, BunPtyAdapterLive } from "./BunPtyAdapter.ts"
 
-const AdapterLive = NodePtyAdapterLive.pipe(
+const AdapterLive = BunPtyAdapterLive.pipe(
 	Layer.provideMerge(
 		Layer.mergeAll(
 			BunFileSystem.layer,
@@ -28,8 +31,20 @@ const provideAdapter = <A, E, R>(program: Effect.Effect<A, E, R>) =>
 		Effect.provide(AdapterLive)
 	)
 
+const processCommandName = Effect.fn("processCommandName")(function*(pid: number) {
+	const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+	const handle = yield* spawner.spawn(
+		ChildProcess.make("ps", ["-p", String(pid), "-o", "comm="], {
+			extendEnv: true,
+			detached: false
+		})
+	)
+	const out = yield* handle.stdout.pipe(Stream.decodeText, Stream.mkString)
+	return out.trim()
+})
+
 Vitest.it.live(
-	"NodePtyAdapterLive spawns /bin/sh -c echo, streams output, and reports exit",
+	"BunPtyAdapterLive spawns /bin/sh -c echo, streams output, and reports exit",
 	() =>
 		provideAdapter(
 			Effect.gen(function*() {
@@ -68,7 +83,7 @@ Vitest.it.live(
 )
 
 Vitest.it.live(
-	"NodePtyAdapterLive fails spawn for a missing shell",
+	"BunPtyAdapterLive fails spawn for a missing shell",
 	() =>
 		provideAdapter(
 			Effect.gen(function*() {
@@ -84,9 +99,44 @@ Vitest.it.live(
 					})
 				)
 				Vitest.assert.strictEqual(error._tag, "PtySpawnError")
-				Vitest.assert.strictEqual(error.adapter, "node-pty")
+				Vitest.assert.strictEqual(error.adapter, BUN_PTY_ADAPTER)
 				Vitest.assert.strictEqual(error.shell, "/no/such/acepe-shell")
 			})
 		),
 	10_000
+)
+
+Vitest.it.live(
+	"BunPtyAdapterLive opens a PTY whose OS process is not node",
+	() =>
+		provideAdapter(
+			Effect.gen(function*() {
+				const fs = yield* FileSystem.FileSystem
+				const cwd = yield* fs.makeTempDirectoryScoped()
+				const adapter = yield* PtyAdapter
+				const exited = yield* Deferred.make<{
+					readonly exitCode: number
+					readonly signal: number | null
+				}>()
+				const proc = yield* adapter.spawn({
+					shell: "/bin/sh",
+					args: ["-c", "sleep 5"],
+					cwd,
+					cols: 80,
+					rows: 24,
+					env: {
+						PATH: "/bin:/usr/bin:/usr/sbin",
+						TERM: "xterm-256color"
+					}
+				})
+				const comm = yield* processCommandName(proc.pid)
+				Vitest.assert.strictEqual(comm.includes("node"), false)
+				proc.onExit((event) => {
+					Deferred.doneUnsafe(exited, Effect.succeed(event))
+				})
+				proc.kill("SIGKILL")
+				yield* Deferred.await(exited).pipe(Effect.timeout(Duration.seconds(5)))
+			})
+		),
+	15_000
 )
