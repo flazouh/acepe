@@ -32,7 +32,13 @@
 		"./rpc/encodedBoundary": "./src/rpc/encodedBoundary.ts",
 		"./rpc/stdio": "./src/rpc/stdio.ts",
 		"./bootstrap": "./src/bootstrap.ts",
-		"./provider/HardcodedProvider": "./src/provider/HardcodedProvider.ts"
+		"./provider/HardcodedProvider": "./src/provider/HardcodedProvider.ts",
+		"./history/Layers/ClaudeHistory": "./src/history/Layers/ClaudeHistory.ts",
+		"./history/Layers/CursorHistory": "./src/history/Layers/CursorHistory.ts",
+		"./history/Layers/OpenCodeHistory": "./src/history/Layers/OpenCodeHistory.ts",
+		"./history/Services/ClaudeHistory": "./src/history/Services/ClaudeHistory.ts",
+		"./history/Services/CursorHistory": "./src/history/Services/CursorHistory.ts",
+		"./history/Services/OpenCodeHistory": "./src/history/Services/OpenCodeHistory.ts"
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit -p tsconfig.json",
