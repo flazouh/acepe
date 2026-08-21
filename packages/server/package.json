@@ -63,7 +63,11 @@
 		"./fileIndex/Layers/FileIndexService": "./src/fileIndex/Layers/FileIndexService.ts",
 		"./fileIndex/Services/FileIndexService": "./src/fileIndex/Services/FileIndexService.ts",
 		"./checkpoint/Layers/CheckpointService": "./src/checkpoint/Layers/CheckpointService.ts",
-		"./checkpoint/Services/CheckpointService": "./src/checkpoint/Services/CheckpointService.ts"
+		"./checkpoint/Services/CheckpointService": "./src/checkpoint/Services/CheckpointService.ts",
+		"./git/Errors": "./src/git/Errors.ts",
+		"./git/Schemas": "./src/git/Schemas.ts",
+		"./git/Layers/GitService": "./src/git/Layers/GitService.ts",
+		"./git/Services/GitService": "./src/git/Services/GitService.ts"
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit -p tsconfig.json",
