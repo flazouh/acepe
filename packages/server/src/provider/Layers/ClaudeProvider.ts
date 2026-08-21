@@ -5,6 +5,7 @@ import * as FileSystem from "effect/FileSystem"
 import * as Option from "effect/Option"
 import * as Path from "effect/Path"
 import * as Str from "effect/String"
+import type { ConfigOptionData } from "../configOptions.ts"
 import {
 	isCapabilityEnabled,
 	ProviderCapabilities,
@@ -16,6 +17,51 @@ import {
 export const CLAUDE_PROVIDER_ID: ProviderId = ProviderId.make("claude-code")
 
 export const CLAUDE_DEFERRED_SESSION_CREATION = true
+
+export const CLAUDE_REASONING_CONFIG_ID = "reasoning_effort"
+export const CLAUDE_REASONING_AUTO_VALUE = "auto"
+export const CLAUDE_REASONING_PRESENTATION = "compactReasoning"
+
+export const CLAUDE_REASONING_OPTIONS = [
+	{ value: "auto", name: "Auto" },
+	{ value: "low", name: "Low" },
+	{ value: "medium", name: "Medium" },
+	{ value: "high", name: "High" },
+	{ value: "xhigh", name: "Extra High" },
+	{ value: "max", name: "Max" }
+] as const
+
+export type ClaudeReasoningEffort = (typeof CLAUDE_REASONING_OPTIONS)[number]["value"]
+
+export type ClaudeReasoningConfigState = {
+	readonly effort: Option.Option<ClaudeReasoningEffort>
+}
+
+export const defaultClaudeReasoningConfigState = (): ClaudeReasoningConfigState => ({
+	effort: Option.none()
+})
+
+export const buildClaudeReasoningConfigOptions = (
+	state: ClaudeReasoningConfigState
+): ReadonlyArray<ConfigOptionData> => {
+	const currentValue = Option.getOrElse(state.effort, () => CLAUDE_REASONING_AUTO_VALUE)
+	return Arr.of({
+		id: CLAUDE_REASONING_CONFIG_ID,
+		name: "Reasoning Effort",
+		category: CLAUDE_REASONING_CONFIG_ID,
+		type: "select",
+		description: "Controls Claude reasoning depth.",
+		currentValue,
+		options: Arr.map(CLAUDE_REASONING_OPTIONS, (row) => ({
+			name: row.name,
+			value: row.value
+		})),
+		presentation: CLAUDE_REASONING_PRESENTATION
+	})
+}
+
+export const claudePreconnectionConfigOptions = (): ReadonlyArray<ConfigOptionData> =>
+	buildClaudeReasoningConfigOptions(defaultClaudeReasoningConfigState())
 
 export const CLAUDE_CAPABILITIES: ProviderCapabilities = ProviderCapabilities.make({
 	enabled: Arr.fromIterable(PROVIDER_CAPABILITY_NAMES)
