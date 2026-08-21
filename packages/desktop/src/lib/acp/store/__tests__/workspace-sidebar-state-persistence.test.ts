@@ -1,5 +1,5 @@
+import * as Effect from "effect/Effect";
 import { beforeEach, describe, expect, it, mock } from "bun:test";
-import { okAsync } from "neverthrow";
 import { SvelteMap } from "svelte/reactivity";
 
 import type { Panel, WorkspacePanel } from "../types.js";
@@ -33,9 +33,9 @@ type BrowserPanelStub = {
 
 const saveWorkspaceStateMock = mock(
 	(_state: Record<string, boolean | number | object | string | null | undefined>) =>
-		okAsync(undefined)
+		Effect.succeed(undefined)
 );
-const loadWorkspaceStateMock = mock(() => okAsync(null));
+const loadWorkspaceStateMock = mock(() => Effect.succeed(null));
 
 mock.module("../api.js", () => ({
 	api: {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import * as Result from "effect/Result";
 
 import {
 	hasAutocompleteTrigger,
@@ -10,111 +11,111 @@ import {
 describe("parseFilePickerTrigger", () => {
 	it("should return null when no @ found", () => {
 		const result = parseFilePickerTrigger("Hello world", 11);
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 
-		if (result.isOk()) {
-			expect(result.value).toBe(null);
+		if (Result.isSuccess(result)) {
+			expect(result.success).toBe(null);
 		}
 	});
 
 	it("should return null when @ is in the middle of a word", () => {
 		const result = parseFilePickerTrigger("Hello@world", 11);
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value).toBe(null);
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success).toBe(null);
 		}
 	});
 
 	it("should return trigger when @ is at start", () => {
 		const result = parseFilePickerTrigger("@file", 5);
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value).not.toBe(null);
-			if (result.value) {
-				expect(result.value.startIndex).toBe(0);
-				expect(result.value.query).toBe("file");
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success).not.toBe(null);
+			if (result.success) {
+				expect(result.success.startIndex).toBe(0);
+				expect(result.success.query).toBe("file");
 			}
 		}
 	});
 
 	it("should return trigger when @ is after space", () => {
 		const result = parseFilePickerTrigger("Hello @file", 11);
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value).not.toBe(null);
-			if (result.value) {
-				expect(result.value.startIndex).toBe(6);
-				expect(result.value.query).toBe("file");
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success).not.toBe(null);
+			if (result.success) {
+				expect(result.success.startIndex).toBe(6);
+				expect(result.success.query).toBe("file");
 			}
 		}
 	});
 
 	it("should return trigger when @ is after newline", () => {
 		const result = parseFilePickerTrigger("Hello\n@file", 11);
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value).not.toBe(null);
-			if (result.value) {
-				expect(result.value.startIndex).toBe(6);
-				expect(result.value.query).toBe("file");
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success).not.toBe(null);
+			if (result.success) {
+				expect(result.success.startIndex).toBe(6);
+				expect(result.success.query).toBe("file");
 			}
 		}
 	});
 
 	it("should return null when space after @", () => {
 		const result = parseFilePickerTrigger("Hello @ file", 12);
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value).toBe(null);
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success).toBe(null);
 		}
 	});
 
 	it("should return null when @ is followed by space immediately", () => {
 		const result = parseFilePickerTrigger("Hello @ ", 8);
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value).toBe(null);
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success).toBe(null);
 		}
 	});
 
 	it("should return error for invalid cursor position (negative)", () => {
 		const result = parseFilePickerTrigger("Hello", -1);
-		expect(result.isErr()).toBe(true);
+		expect(Result.isFailure(result)).toBe(true);
 	});
 
 	it("should return error for invalid cursor position (beyond length)", () => {
 		const result = parseFilePickerTrigger("Hello", 10);
-		expect(result.isErr()).toBe(true);
+		expect(Result.isFailure(result)).toBe(true);
 	});
 
 	it("should handle empty query", () => {
 		const result = parseFilePickerTrigger("Hello @", 7);
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value).not.toBe(null);
-			if (result.value) {
-				expect(result.value.query).toBe("");
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success).not.toBe(null);
+			if (result.success) {
+				expect(result.success.query).toBe("");
 			}
 		}
 	});
 
 	it("should handle multiple @ symbols and use the last one", () => {
 		const result = parseFilePickerTrigger("Hello @old @new", 15);
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value).not.toBe(null);
-			if (result.value) {
-				expect(result.value.startIndex).toBe(11);
-				expect(result.value.query).toBe("new");
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success).not.toBe(null);
+			if (result.success) {
+				expect(result.success.startIndex).toBe(11);
+				expect(result.success.query).toBe("new");
 			}
 		}
 	});
 
 	it("should ignore @ inside inline artefact token", () => {
 		const result = parseFilePickerTrigger("Use @[text_ref:abc-123]", 22);
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value).toBe(null);
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success).toBe(null);
 		}
 	});
 });
@@ -145,28 +146,28 @@ describe("hasAutocompleteTrigger", () => {
 describe("parseSlashCommandTrigger", () => {
 	it("should return null when no / found", () => {
 		const result = parseSlashCommandTrigger("Hello world", 11);
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value).toBe(null);
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success).toBe(null);
 		}
 	});
 
 	it("should return null when / is in the middle of a word", () => {
 		const result = parseSlashCommandTrigger("Hello/world", 11);
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value).toBe(null);
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success).toBe(null);
 		}
 	});
 
 	it("should return trigger when / is at start", () => {
 		const result = parseSlashCommandTrigger("/cmd", 4);
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value).not.toBe(null);
-			if (result.value) {
-				expect(result.value.startIndex).toBe(0);
-				expect(result.value.query).toBe("cmd");
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success).not.toBe(null);
+			if (result.success) {
+				expect(result.success.startIndex).toBe(0);
+				expect(result.success.query).toBe("cmd");
 			}
 		}
 	});
@@ -197,82 +198,82 @@ describe("parseSlashCommandTrigger", () => {
 
 	it("should return trigger when / is after space", () => {
 		const result = parseSlashCommandTrigger("Hello /cmd", 10);
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value).not.toBe(null);
-			if (result.value) {
-				expect(result.value.startIndex).toBe(6);
-				expect(result.value.query).toBe("cmd");
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success).not.toBe(null);
+			if (result.success) {
+				expect(result.success.startIndex).toBe(6);
+				expect(result.success.query).toBe("cmd");
 			}
 		}
 	});
 
 	it("should return trigger when / is after newline", () => {
 		const result = parseSlashCommandTrigger("Hello\n/cmd", 10);
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value).not.toBe(null);
-			if (result.value) {
-				expect(result.value.startIndex).toBe(6);
-				expect(result.value.query).toBe("cmd");
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success).not.toBe(null);
+			if (result.success) {
+				expect(result.success.startIndex).toBe(6);
+				expect(result.success.query).toBe("cmd");
 			}
 		}
 	});
 
 	it("should return null when space after /", () => {
 		const result = parseSlashCommandTrigger("Hello / cmd", 11);
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value).toBe(null);
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success).toBe(null);
 		}
 	});
 
 	it("should return null when / is followed by space immediately", () => {
 		const result = parseSlashCommandTrigger("Hello / ", 8);
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value).toBe(null);
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success).toBe(null);
 		}
 	});
 
 	it("should return error for invalid cursor position (negative)", () => {
 		const result = parseSlashCommandTrigger("Hello", -1);
-		expect(result.isErr()).toBe(true);
+		expect(Result.isFailure(result)).toBe(true);
 	});
 
 	it("should return error for invalid cursor position (beyond length)", () => {
 		const result = parseSlashCommandTrigger("Hello", 10);
-		expect(result.isErr()).toBe(true);
+		expect(Result.isFailure(result)).toBe(true);
 	});
 
 	it("should handle empty query", () => {
 		const result = parseSlashCommandTrigger("Hello /", 7);
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value).not.toBe(null);
-			if (result.value) {
-				expect(result.value.query).toBe("");
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success).not.toBe(null);
+			if (result.success) {
+				expect(result.success.query).toBe("");
 			}
 		}
 	});
 
 	it("should handle multiple / symbols and use the last one", () => {
 		const result = parseSlashCommandTrigger("Hello /old /new", 15);
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value).not.toBe(null);
-			if (result.value) {
-				expect(result.value.startIndex).toBe(11);
-				expect(result.value.query).toBe("new");
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success).not.toBe(null);
+			if (result.success) {
+				expect(result.success.startIndex).toBe(11);
+				expect(result.success.query).toBe("new");
 			}
 		}
 	});
 
 	it("should ignore / inside inline artefact token", () => {
 		const result = parseSlashCommandTrigger("Run @[command:/review-commit]", 28);
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value).toBe(null);
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success).toBe(null);
 		}
 	});
 });

@@ -4,8 +4,9 @@
  * Uses Tauri's webview API to control zoom and persists the level to the database.
  */
 
+import { fromPromise } from "@acepe/effect-result/fromPromise";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { okAsync, ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import { toast } from "svelte-sonner";
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
 import { settings } from "$lib/utils/tauri-client/settings.js";
@@ -82,21 +83,23 @@ export class ZoomService {
 	 * Initializes the zoom service by loading the persisted zoom level.
 	 * Should be called during app startup.
 	 */
-	initialize(): ResultAsync<void, Error> {
+	initialize(): Effect.Effect<void, Error> {
 		const cachedLevel = this.loadCachedZoomLevel();
 		if (cachedLevel !== null) {
-			return this.applyZoomIfChanged(cachedLevel).map(() => {
-				this.reconcilePersistedZoomInBackground();
-			});
+			return this.applyZoomIfChanged(cachedLevel).pipe(
+				Effect.map(() => {
+					this.reconcilePersistedZoomInBackground();
+				})
+			);
 		}
 
-		return this.loadZoomLevel().andThen((level) => this.applyZoomIfChanged(level));
+		return this.loadZoomLevel().pipe(Effect.flatMap((level) => this.applyZoomIfChanged(level)));
 	}
 
 	/**
 	 * Zooms in by one step.
 	 */
-	zoomIn(): ResultAsync<void, Error> {
+	zoomIn(): Effect.Effect<void, Error> {
 		const newLevel = Math.min(this.currentZoom + ZOOM_CONFIG.STEP, ZOOM_CONFIG.MAX);
 		return this.setZoom(newLevel);
 	}
@@ -104,7 +107,7 @@ export class ZoomService {
 	/**
 	 * Zooms out by one step.
 	 */
-	zoomOut(): ResultAsync<void, Error> {
+	zoomOut(): Effect.Effect<void, Error> {
 		const newLevel = Math.max(this.currentZoom - ZOOM_CONFIG.STEP, ZOOM_CONFIG.MIN);
 		return this.setZoom(newLevel);
 	}
@@ -112,43 +115,44 @@ export class ZoomService {
 	/**
 	 * Resets zoom to default level (100%).
 	 */
-	resetZoom(): ResultAsync<void, Error> {
+	resetZoom(): Effect.Effect<void, Error> {
 		return this.setZoom(ZOOM_CONFIG.DEFAULT);
 	}
 
 	/**
 	 * Sets the zoom to a specific level.
 	 */
-	setZoom(level: number): ResultAsync<void, Error> {
+	setZoom(level: number): Effect.Effect<void, Error> {
 		const clampedLevel = Math.max(ZOOM_CONFIG.MIN, Math.min(level, ZOOM_CONFIG.MAX));
 		const previousLevel = this.currentZoom;
-		return this.applyZoom(clampedLevel)
-			.andThen(() => this.saveZoomLevel(clampedLevel))
-			.map(() => {
+		return this.applyZoom(clampedLevel).pipe(
+			Effect.flatMap(() => this.saveZoomLevel(clampedLevel)),
+			Effect.map(() => {
 				if (clampedLevel !== previousLevel) {
 					this.showZoomToast(clampedLevel);
 				}
-			});
+			})
+		);
 	}
 
 	/**
 	 * Applies the zoom level to the webview.
 	 */
-	private applyZoom(level: number): ResultAsync<void, Error> {
-		return ResultAsync.fromPromise(
-			(async () => {
+	private applyZoom(level: number): Effect.Effect<void, Error> {
+		return fromPromise(
+			async () => {
 				const webview = getCurrentWebview();
 				await webview.setZoom(level);
 				this.currentZoom = level;
-			})(),
+			},
 			(error) => new Error(`Failed to apply zoom: ${String(error)}`)
 		);
 	}
 
-	private applyZoomIfChanged(level: number): ResultAsync<void, Error> {
+	private applyZoomIfChanged(level: number): Effect.Effect<void, Error> {
 		if (Math.abs(level - this.currentZoom) <= ZOOM_EQUALITY_EPSILON) {
 			this.currentZoom = level;
-			return okAsync(undefined);
+			return Effect.succeed(undefined);
 		}
 		return this.applyZoom(level);
 	}
@@ -156,13 +160,12 @@ export class ZoomService {
 	/**
 	 * Loads the zoom level from the database.
 	 */
-	private loadZoomLevel(): ResultAsync<number, Error> {
-		return settings
-			.getRaw(ZOOM_LEVEL_KEY)
-			.mapErr((error) => {
+	private loadZoomLevel(): Effect.Effect<number, Error> {
+		return settings.getRaw(ZOOM_LEVEL_KEY).pipe(
+			Effect.mapError((error) => {
 				return new Error(`Failed to load zoom level: ${String(error)}`);
-			})
-			.map((value) => {
+			}),
+			Effect.map((value) => {
 				let level = ZOOM_CONFIG.DEFAULT;
 				if (value === null) {
 					this.saveCachedZoomLevel(level);
@@ -174,7 +177,8 @@ export class ZoomService {
 				}
 				this.saveCachedZoomLevel(level);
 				return level;
-			});
+			})
+		);
 	}
 
 	private loadCachedZoomLevel(): number | null {
@@ -204,24 +208,30 @@ export class ZoomService {
 
 	private reconcilePersistedZoomInBackground(): void {
 		scheduleZoomReconciliation(() => {
-			void this.loadZoomLevel()
-				.andThen((level) => this.applyZoomIfChanged(level))
-				.mapErr(() => undefined);
+			void Effect.runPromise(
+				this.loadZoomLevel().pipe(
+					Effect.flatMap((level) => this.applyZoomIfChanged(level)),
+					Effect.match({
+						onSuccess: () => undefined,
+						onFailure: () => undefined,
+					})
+				)
+			);
 		});
 	}
 
 	/**
 	 * Saves the zoom level to the database.
 	 */
-	private saveZoomLevel(level: number): ResultAsync<void, Error> {
-		return settings
-			.setRaw(ZOOM_LEVEL_KEY, level.toString())
-			.map(() => {
+	private saveZoomLevel(level: number): Effect.Effect<void, Error> {
+		return settings.setRaw(ZOOM_LEVEL_KEY, level.toString()).pipe(
+			Effect.map(() => {
 				this.saveCachedZoomLevel(level);
-			})
-			.mapErr((error) => {
+			}),
+			Effect.mapError((error) => {
 				return new Error(`Failed to save zoom level: ${String(error)}`);
-			});
+			})
+		);
 	}
 }
 

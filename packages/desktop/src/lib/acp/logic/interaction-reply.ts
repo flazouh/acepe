@@ -1,4 +1,4 @@
-import type { ResultAsync } from "neverthrow";
+import type * as Effect from "effect/Effect";
 
 import type { AppError } from "../errors/app-error.js";
 import { api } from "../store/api.js";
@@ -109,43 +109,43 @@ export function replyToPermissionRequest(
 	permission: PermissionRequest,
 	reply: PermissionReply,
 	optionId: string
-): ResultAsync<void, AppError> {
+): Effect.Effect<void, AppError> {
 	return api.replyInteraction(
 		createInteractionReplyRequest(permission, {
 			kind: "permission",
 			reply,
 			optionId,
 		})
-	);
+	) as Effect.Effect<void, AppError>;
 }
 
 export function replyToQuestionRequest(
 	question: QuestionRequest,
 	answers: QuestionAnswer[],
 	answerMap: Record<string, string | string[]>
-): ResultAsync<void, AppError> {
+): Effect.Effect<void, AppError> {
 	return api.replyInteraction(
 		createInteractionReplyRequest(question, {
 			kind: "question",
 			answers,
 			answerMap,
 		})
-	);
+	) as Effect.Effect<void, AppError>;
 }
 
-export function cancelQuestionRequest(question: QuestionRequest): ResultAsync<void, AppError> {
+export function cancelQuestionRequest(question: QuestionRequest): Effect.Effect<void, AppError> {
 	return api.replyInteraction(
 		createInteractionReplyRequest(question, {
 			kind: "question_cancel",
 		})
-	);
+	) as Effect.Effect<void, AppError>;
 }
 
 export function replyToPlanApprovalRequest(
 	targetOrSessionId: PlanApprovalReplyTarget | string,
 	jsonRpcRequestIdOrApproved: number | boolean,
 	approved: boolean
-): ResultAsync<void, AppError> {
+): Effect.Effect<void, AppError> {
 	const target: PlanApprovalReplyTarget =
 		typeof targetOrSessionId === "string"
 			? {
@@ -161,14 +161,14 @@ export function replyToPlanApprovalRequest(
 			kind: "plan_approval",
 			approved: resolvedApproved,
 		})
-	);
+	) as Effect.Effect<void, AppError>;
 }
 
 export function replyToComputerPermissionRequest(
 	permission: ComputerPermissionInteraction,
 	accepted: boolean,
 	scope: ComputerPermissionApprovalScope = "once"
-): ResultAsync<void, AppError> {
+): Effect.Effect<void, AppError> {
 	return api.replyInteraction(
 		createInteractionReplyRequest(
 			{
@@ -181,5 +181,5 @@ export function replyToComputerPermissionRequest(
 				scope,
 			}
 		)
-	);
+	) as Effect.Effect<void, AppError>;
 }

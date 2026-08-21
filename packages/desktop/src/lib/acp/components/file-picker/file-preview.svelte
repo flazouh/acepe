@@ -1,5 +1,6 @@
 <script lang="ts">
 import { DiffPill } from "@acepe/ui";
+import * as Effect from "effect/Effect";
 import { FileDiff, File as PierreFile } from "@pierre/diffs";
 import { onDestroy } from "svelte";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
@@ -157,32 +158,36 @@ async function loadAndRender(): Promise<void> {
 
 	// If file has git status, load diff
 	if (shouldRenderFilePreviewDiff(file)) {
-		const result = await fileContentCache.getFileDiff(file.path, projectPath);
-
-		result.match(
-			(diff) => {
-				renderFileDiff(diff.oldContent, diff.newContent, diff.fileName);
-				isLoading = false;
-			},
-			(error) => {
-				errorMessage = error.message;
-				isLoading = false;
-			}
+		await Effect.runPromise(
+			fileContentCache.getFileDiff(file.path, projectPath).pipe(
+				Effect.match({
+					onSuccess: (diff) => {
+						renderFileDiff(diff.oldContent, diff.newContent, diff.fileName);
+						isLoading = false;
+					},
+					onFailure: (error) => {
+						errorMessage = error.message;
+						isLoading = false;
+					},
+				})
+			)
 		);
 	} else {
 		// No git status, just load file content
-		const result = await fileContentCache.getFileContent(file.path, projectPath);
-
-		result.match(
-			(content) => {
-				const fileName = getFilePreviewName(file.path);
-				renderFileContent(content, fileName);
-				isLoading = false;
-			},
-			(error) => {
-				errorMessage = error.message;
-				isLoading = false;
-			}
+		await Effect.runPromise(
+			fileContentCache.getFileContent(file.path, projectPath).pipe(
+				Effect.match({
+					onSuccess: (content) => {
+						const fileName = getFilePreviewName(file.path);
+						renderFileContent(content, fileName);
+						isLoading = false;
+					},
+					onFailure: (error) => {
+						errorMessage = error.message;
+						isLoading = false;
+					},
+				})
+			)
 		);
 	}
 }

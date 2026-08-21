@@ -8,6 +8,8 @@
  * Follows the ReviewPreferenceStore pattern: persisted via tauriClient.settings.
  */
 
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { getContext, setContext } from "svelte";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
@@ -40,16 +42,18 @@ export class NotificationPreferencesStore {
 		if (this.initialized) return;
 		this.initialized = true;
 
-		const result = await tauriClient.settings.get<PersistedPreferences>(SETTINGS_KEY);
-		if (result.isOk() && result.value) {
+		const result = await Effect.runPromise(
+			Effect.result(tauriClient.settings.get<PersistedPreferences>(SETTINGS_KEY))
+		);
+		if (Result.isSuccess(result) && result.success) {
 			this.questionsEnabled =
-				result.value.questionsEnabled === undefined
+				result.success.questionsEnabled === undefined
 					? DEFAULTS.questionsEnabled
-					: result.value.questionsEnabled;
+					: result.success.questionsEnabled;
 			this.completionsEnabled =
-				result.value.completionsEnabled === undefined
+				result.success.completionsEnabled === undefined
 					? DEFAULTS.completionsEnabled
-					: result.value.completionsEnabled;
+					: result.success.completionsEnabled;
 		}
 	}
 
@@ -68,9 +72,16 @@ export class NotificationPreferencesStore {
 			questionsEnabled: this.questionsEnabled,
 			completionsEnabled: this.completionsEnabled,
 		};
-		tauriClient.settings.set(SETTINGS_KEY, prefs).mapErr((err) => {
-			logger.error("Failed to persist notification preferences", { error: err });
-		});
+		void Effect.runPromise(
+			tauriClient.settings.set(SETTINGS_KEY, prefs).pipe(
+				Effect.match({
+					onSuccess: () => undefined,
+					onFailure: (err) => {
+						logger.error("Failed to persist notification preferences", { error: err });
+					},
+				})
+			)
+		);
 	}
 }
 

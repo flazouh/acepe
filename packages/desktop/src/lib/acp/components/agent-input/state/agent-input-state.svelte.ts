@@ -1,4 +1,5 @@
-import { errAsync, okAsync, type ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { SvelteMap } from "svelte/reactivity";
 
 import { getZoomService } from "$lib/services/zoom.svelte.js";
@@ -60,7 +61,7 @@ interface FilePickerDropdownInstance {
  * This class only handles:
  * - Local UI state (message, dropdowns, refs)
  * - Event handlers that modify local state
- * - Async operations returning ResultAsync
+ * - Async operations returning Effect
  *
  * @example
  * ```ts
@@ -341,12 +342,12 @@ export class AgentInputState {
 	 *
 	 * @param projectPath - Path to the project
 	 * @param options - Loading options
-	 * @returns ResultAsync containing void on success
+	 * @returns Effect containing void on success
 	 */
 	loadProjectFiles(
 		projectPath: string,
 		options?: { refresh?: boolean }
-	): ResultAsync<void, FileLoadError> {
+	): Effect.Effect<void, FileLoadError> {
 		const refresh = Boolean(options?.refresh);
 		const reuseLoadedFiles = this.filesLoaded && this.loadedProjectPath === projectPath && !refresh;
 
@@ -362,7 +363,7 @@ export class AgentInputState {
 			this.logger.debug(
 				"[loadProjectFiles] Skipping - no path, already loaded for this root, or loading"
 			);
-			return okAsync(undefined);
+			return Effect.succeed(undefined);
 		}
 
 		if (refresh || this.loadedProjectPath !== projectPath) {
@@ -374,31 +375,31 @@ export class AgentInputState {
 		this.loadedProjectPath = projectPath;
 
 		const invalidateCachedFiles = refresh
-			? fileIndex
-					.invalidateProjectFiles(projectPath)
-					.mapErr(
+			? fileIndex.invalidateProjectFiles(projectPath).pipe(
+					Effect.mapError(
 						(err) =>
 							new FileLoadError(projectPath, err instanceof Error ? err : new Error(String(err)))
-					)
-					.orElse((error) => {
+					),
+					Effect.catch((error) => {
 						this.logger.warn("[loadProjectFiles] Failed to invalidate cached project files", {
 							projectPath,
 							error,
 						});
-						return okAsync(undefined);
+						return Effect.succeed(undefined);
 					})
-			: okAsync(undefined);
+				)
+			: Effect.succeed(undefined);
 
-		return invalidateCachedFiles
-			.andThen(() =>
-				fileIndex
-					.getProjectFiles(projectPath)
-					.mapErr(
+		return invalidateCachedFiles.pipe(
+			Effect.flatMap(() =>
+				fileIndex.getProjectFiles(projectPath).pipe(
+					Effect.mapError(
 						(err) =>
 							new FileLoadError(projectPath, err instanceof Error ? err : new Error(String(err)))
 					)
-			)
-			.map((index) => {
+				)
+			),
+			Effect.map((index) => {
 				// Files arrive pre-sorted from Rust (modified files first, then alphabetically)
 				// with gitStatus already merged into each file object
 				this.availableFiles = index.files.map((file) => ({
@@ -415,15 +416,16 @@ export class AgentInputState {
 					filesCount: this.availableFiles.length,
 					projectPath,
 				});
-			})
-			.mapErr((err) => {
+			}),
+			Effect.mapError((err) => {
 				this.filesLoading = false;
 				this.logger.error("[loadProjectFiles] Failed to load files", {
 					projectPath,
 					error: err.message,
 				});
 				return err;
-			});
+			})
+		);
 	}
 
 	// ============================================
@@ -448,7 +450,7 @@ export class AgentInputState {
 		worktreePath?: string | null;
 		launchToken?: string | null;
 		imageAttachments?: readonly Attachment[];
-	}): ResultAsync<void, SessionCreationError | MessageSendError> {
+	}): Effect.Effect<void, SessionCreationError | MessageSendError> {
 		const {
 			content,
 			panelId,
@@ -467,14 +469,16 @@ export class AgentInputState {
 		// Use existing session or create new one
 		const sendT0 = performance.now();
 		if (sessionId) {
-			return sendMessage(this.store, sessionId, content, imageAttachments).map(() => {
-				this.logger.info("[PERF] sendMessage: fast-path resolved", {
-					sessionId,
-					elapsed_ms: Math.round(performance.now() - sendT0),
-				});
-				onSessionCreated?.(sessionId, panelId ?? null);
-				this.focusInput();
-			});
+			return sendMessage(this.store, sessionId, content, imageAttachments).pipe(
+				Effect.map(() => {
+					this.logger.info("[PERF] sendMessage: fast-path resolved", {
+						sessionId,
+						elapsed_ms: Math.round(performance.now() - sendT0),
+					});
+					onSessionCreated?.(sessionId, panelId ?? null);
+					this.focusInput();
+				})
+			);
 		}
 
 		// Validate project and agent are set before session creation.
@@ -482,7 +486,7 @@ export class AgentInputState {
 			if (panelId) {
 				this.panelStore.clearPendingUserEntry(panelId);
 			}
-			return errAsync(
+			return Effect.fail(
 				new SessionCreationError(
 					selectedAgentId ?? "unknown",
 					"unknown",
@@ -496,7 +500,7 @@ export class AgentInputState {
 			if (panelId) {
 				this.panelStore.clearPendingUserEntry(panelId);
 			}
-			return errAsync(
+			return Effect.fail(
 				new SessionCreationError(
 					"unknown",
 					effectiveProjectPath,
@@ -537,38 +541,40 @@ export class AgentInputState {
 			title: initialSessionTitle,
 			worktreePath: worktreePath ?? undefined,
 			launchToken: launchToken ?? undefined,
-		})
-			.andThen((createdSession) => {
+		}).pipe(
+			Effect.flatMap((createdSession) => {
 				const newSessionId = createdSession.sessionId;
 				this.logger.info("[PERF] sendMessage: session created", {
 					newSessionId,
 					deferredCreation: createdSession.deferredCreation,
 					elapsed_ms: Math.round(performance.now() - sendT0),
 				});
-				return sendMessage(this.store, newSessionId, content, imageAttachments)
-					.map(() => {
+				return sendMessage(this.store, newSessionId, content, imageAttachments).pipe(
+					Effect.map(() => {
 						// The first prompt is part of pre-session activation. Promote the panel
 						// only after the backend accepted it, so failed first sends restore the
 						// composer instead of binding the panel to an empty failed session.
 						onSessionCreated?.(newSessionId, panelId ?? null);
-					})
-					.mapErr(
+					}),
+					Effect.mapError(
 						(error) =>
 							new SessionCreationError(selectedAgentId, effectiveProjectPath, error.cause ?? error)
-					);
-			})
-			.map(() => {
+					)
+				);
+			}),
+			Effect.map(() => {
 				if (panelId) this.panelStore.clearPendingUserEntry(panelId);
 				this.logger.info("[PERF] sendMessage: slow-path resolved", {
 					elapsed_ms: Math.round(performance.now() - sendT0),
 				});
 				this.focusInput();
-			})
-			.mapErr((error) => {
+			}),
+			Effect.mapError((error) => {
 				// Rollback: remove optimistic pending entry on session creation or send failure
 				if (panelId) this.panelStore.clearPendingUserEntry(panelId);
 				return error;
-			});
+			})
+		);
 	}
 
 	// ============================================
@@ -598,23 +604,23 @@ export class AgentInputState {
 		// Check for file picker trigger
 		const fileTriggerResult = parseFilePickerTrigger(this.message, cursorPos);
 
-		if (fileTriggerResult.isOk() && fileTriggerResult.value) {
-			const trigger = fileTriggerResult.value;
+		if (Result.isSuccess(fileTriggerResult) && fileTriggerResult.success) {
+			const trigger = fileTriggerResult.success;
 			const positionResult = calculateDropdownPosition(this.textareaRef, trigger.startIndex);
 
-			if (positionResult.isOk()) {
+			if (Result.isSuccess(positionResult)) {
 				if (this.projectPath) {
-					this.loadProjectFiles(this.projectPath, {
-						refresh: !this.showFileDropdown,
-					}).mapErr(() => {
-						// Error is logged in loadProjectFiles
-					});
+					void Effect.runPromise(
+						this.loadProjectFiles(this.projectPath, {
+							refresh: !this.showFileDropdown,
+						}).pipe(Effect.catch(() => Effect.succeed(undefined)))
+					);
 				}
 
 				this.showFileDropdown = true;
 				this.fileStartIndex = trigger.startIndex;
 				this.fileQuery = trigger.query;
-				this.filePosition = positionResult.value;
+				this.filePosition = positionResult.success;
 				// Close slash dropdown if open
 				this.showSlashDropdown = false;
 				this.slashQuery = "";
@@ -628,15 +634,15 @@ export class AgentInputState {
 		// Check for slash command trigger
 		const slashTriggerResult = parseSlashCommandTrigger(this.message, cursorPos);
 
-		if (slashTriggerResult.isOk() && slashTriggerResult.value) {
-			const trigger = slashTriggerResult.value;
+		if (Result.isSuccess(slashTriggerResult) && slashTriggerResult.success) {
+			const trigger = slashTriggerResult.success;
 			const positionResult = calculateDropdownPosition(this.textareaRef, trigger.startIndex);
 
-			if (positionResult.isOk()) {
+			if (Result.isSuccess(positionResult)) {
 				this.showSlashDropdown = true;
 				this.slashStartIndex = trigger.startIndex;
 				this.slashQuery = trigger.query;
-				this.slashPosition = positionResult.value;
+				this.slashPosition = positionResult.success;
 				return;
 			}
 		}
@@ -887,11 +893,11 @@ export class AgentInputState {
 		const cursorPos = this.textareaRef.selectionStart;
 		const positionResult = calculateDropdownPosition(this.textareaRef, cursorPos);
 
-		if (positionResult.isOk()) {
+		if (Result.isSuccess(positionResult)) {
 			this.showSlashDropdown = true;
 			this.slashStartIndex = cursorPos;
 			this.slashQuery = "";
-			this.slashPosition = positionResult.value;
+			this.slashPosition = positionResult.success;
 			// Close file dropdown if open
 			this.showFileDropdown = false;
 			this.fileQuery = "";
@@ -907,19 +913,21 @@ export class AgentInputState {
 		}
 
 		if (this.projectPath) {
-			this.loadProjectFiles(this.projectPath, { refresh: true }).mapErr(() => {
-				// Error is logged in loadProjectFiles
-			});
+			void Effect.runPromise(
+				this.loadProjectFiles(this.projectPath, { refresh: true }).pipe(
+					Effect.catch(() => Effect.succeed(undefined))
+				)
+			);
 		}
 
 		const cursorPos = this.textareaRef.selectionStart;
 		const positionResult = calculateDropdownPosition(this.textareaRef, cursorPos);
 
-		if (positionResult.isOk()) {
+		if (Result.isSuccess(positionResult)) {
 			this.showFileDropdown = true;
 			this.fileStartIndex = cursorPos;
 			this.fileQuery = "";
-			this.filePosition = positionResult.value;
+			this.filePosition = positionResult.success;
 			// Close slash dropdown if open
 			this.showSlashDropdown = false;
 			this.slashQuery = "";
@@ -1068,9 +1076,9 @@ export class AgentInputState {
 			if (!isImageMimeType(file.type)) {
 				continue;
 			}
-			const result = await createImageAttachment(file, file.type);
-			if (result.isOk()) {
-				const attachment = result.value;
+			const result = await Effect.runPromise(Effect.result(createImageAttachment(file, file.type)));
+			if (Result.isSuccess(result)) {
+				const attachment = result.success;
 				const token = this.createInlineImageReferenceToken({
 					displayName: attachment.displayName,
 					extension: attachment.extension,
@@ -1091,9 +1099,11 @@ export class AgentInputState {
 				if (!file) {
 					continue;
 				}
-				const result = await createImageAttachment(file, item.type);
-				if (result.isOk()) {
-					const attachment = result.value;
+				const result = await Effect.runPromise(
+					Effect.result(createImageAttachment(file, item.type))
+				);
+				if (Result.isSuccess(result)) {
+					const attachment = result.success;
 					const token = this.createInlineImageReferenceToken({
 						displayName: attachment.displayName,
 						extension: attachment.extension,

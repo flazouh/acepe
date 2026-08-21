@@ -12,7 +12,7 @@
  * and responses are sent via HTTP endpoints.
  */
 
-import { errAsync, okAsync, ResultAsync, type ResultAsync as ResultAsyncType } from "neverthrow";
+import * as Effect from "effect/Effect";
 import { getContext, setContext } from "svelte";
 import { SvelteMap } from "svelte/reactivity";
 import type { AppError } from "../errors/app-error.js";
@@ -381,15 +381,15 @@ export class PermissionStore {
 	 *
 	 * The shared interaction reply layer resolves the correct transport.
 	 */
-	reply(permissionId: string, reply: PermissionReplyChoice): ResultAsync<void, AppError> {
+	reply(permissionId: string, reply: PermissionReplyChoice): Effect.Effect<void, AppError> {
 		const permission = this.pending.get(permissionId);
 		if (!permission) {
-			return errAsync(
+			return Effect.fail(
 				new AgentError("replyPermission", new Error(`Permission not found: ${permissionId}`))
 			);
 		}
 		if (this.repliesInFlight.has(permissionId)) {
-			return okAsync(undefined);
+			return Effect.succeed(undefined);
 		}
 
 		const totalBeforeReply = this.sessionBatchTotals.get(permission.sessionId);
@@ -411,46 +411,20 @@ export class PermissionStore {
 			})
 		);
 
-		return ResultAsync.fromPromise(
-			(async () => {
-				for (let index = 0; index < replyRequests.length; index += 1) {
-					const replyRequest = replyRequests[index];
-					const optionId = this.resolveOptionId(replyRequest, reply);
-					const result = await replyToPermissionRequest(replyRequest, reply, optionId);
-					if (result.isErr()) {
-						throw {
-							error: result.error,
-							failedRequests: replyRequests.slice(index),
-						};
-					}
-				}
-			})(),
-			(error) => {
-				if (
-					typeof error === "object" &&
-					error !== null &&
-					"error" in error &&
-					"failedRequests" in error
-				) {
-					return error as {
-						error: AppError;
-						failedRequests: PermissionRequest[];
-					};
-				}
-
-				return {
-					error:
-						error instanceof AgentError
-							? error
-							: new AgentError(
-									"replyPermission",
-									error instanceof Error ? error : new Error(String(error))
-								),
-					failedRequests: replyRequests,
-				};
+		const store = this;
+		return Effect.gen(function* () {
+			for (let index = 0; index < replyRequests.length; index += 1) {
+				const replyRequest = replyRequests[index];
+				const optionId = store.resolveOptionId(replyRequest, reply);
+				yield* replyToPermissionRequest(replyRequest, reply, optionId).pipe(
+					Effect.mapError((error) => ({
+						error,
+						failedRequests: replyRequests.slice(index),
+					}))
+				);
 			}
-		)
-			.map(() => {
+		}).pipe(
+			Effect.map(() => {
 				this.deleteDirectPending(permissionId, permission);
 				this.repliesInFlight.delete(permissionId);
 				this.answeredByPermissionId.set(permissionId, {
@@ -463,8 +437,8 @@ export class PermissionStore {
 					reply,
 					replyCount: replyRequests.length,
 				});
-			})
-			.mapErr((error) => {
+			}),
+			Effect.mapError((error) => {
 				this.repliesInFlight.delete(permissionId);
 				const failedRequests = error.failedRequests;
 				if (failedRequests.length > 0) {
@@ -487,22 +461,23 @@ export class PermissionStore {
 					);
 				}
 				return error.error;
-			});
+			})
+		);
 	}
 
-	drainPendingForSession(sessionId: string): ResultAsyncType<void, AppError> {
+	drainPendingForSession(sessionId: string): Effect.Effect<void, AppError> {
 		const pendingPermissions = this.getForSession(sessionId);
 		if (pendingPermissions.length === 0) {
-			return okAsync(undefined);
+			return Effect.succeed(undefined);
 		}
 
-		return ResultAsync.combine(
+		return Effect.all(
 			pendingPermissions.map((permission) => {
 				if (!this.pending.has(permission.id)) {
-					return okAsync(undefined);
+					return Effect.succeed(undefined);
 				}
 				if (isExitPlanPermission(permission)) {
-					return okAsync(undefined);
+					return Effect.succeed(undefined);
 				}
 
 				logger.info("Draining autonomous permission", {
@@ -513,19 +488,19 @@ export class PermissionStore {
 				});
 				return this.reply(permission.id, "once");
 			})
-		).map(() => undefined);
+		).pipe(Effect.map(() => undefined));
 	}
 
-	cancelForSession(sessionId: string): ResultAsyncType<void, AppError> {
+	cancelForSession(sessionId: string): Effect.Effect<void, AppError> {
 		const pendingPermissions = this.getForSession(sessionId);
 		if (pendingPermissions.length === 0) {
-			return okAsync(undefined);
+			return Effect.succeed(undefined);
 		}
 
-		return ResultAsync.combine(
+		return Effect.all(
 			pendingPermissions.map((permission) => {
 				if (!this.pending.has(permission.id)) {
-					return okAsync(undefined);
+					return Effect.succeed(undefined);
 				}
 
 				logger.info("Cancelling pending permission for interrupted turn", {
@@ -535,7 +510,7 @@ export class PermissionStore {
 				});
 				return this.reply(permission.id, "reject");
 			})
-		).map(() => undefined);
+		).pipe(Effect.map(() => undefined));
 	}
 }
 

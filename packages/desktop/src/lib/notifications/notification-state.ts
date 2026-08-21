@@ -5,7 +5,10 @@
  * The .svelte.ts wrapper subscribes to changes and mirrors into $state.
  */
 
-import { okAsync, Result, ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import { fromThrowable } from "@acepe/effect-result/fromThrowable";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { SoundEffect } from "$lib/acp/types/sounds.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { playSound } from "$lib/acp/utils/sound.js";
@@ -64,7 +67,7 @@ interface NotificationRuntime {
 	readonly isMacOs: () => boolean;
 	readonly getPermission: () => Promise<boolean>;
 	readonly requestPermission: () => Promise<NativeNotificationPermissionState>;
-	readonly send: (payload: { title: string; body: string }) => ResultAsync<void, Error>;
+	readonly send: (payload: { title: string; body: string }) => Effect.Effect<void, Error>;
 }
 
 type NativeNotificationPermission = "unknown" | "granted" | "denied";
@@ -149,21 +152,23 @@ export function handleNotificationAction(id: string, actionId: PopupActionId): v
 	const notif = notifications.find((n) => n.id === id);
 	if (!notif) return;
 
-	Result.fromThrowable(
-		() => {
-			notif.onAction(actionId);
-		},
-		() => new Error("notification action callback failed")
-	)().match(
-		() => {},
-		(error) => {
-			logger.error("Notification action callback failed", {
-				notificationId: id,
-				actionId,
-				error,
-			});
-		}
+	const actionResult = Effect.runSync(
+		Effect.result(
+			fromThrowable(
+				() => {
+					notif.onAction(actionId);
+				},
+				() => new Error("notification action callback failed")
+			)()
+		)
 	);
+	if (Result.isFailure(actionResult)) {
+		logger.error("Notification action callback failed", {
+			notificationId: id,
+			actionId,
+			error: actionResult.failure,
+		});
+	}
 }
 
 /**
@@ -205,51 +210,62 @@ function maybeSendNativeNotification(
 	payload: NotificationPayload,
 	onAction: (actionId: PopupActionId) => void
 ): void {
-	ensureNativeNotificationPermission()
-		.andThen((permissionGranted) => {
-			if (!permissionGranted) return okAsync(undefined);
+	void Effect.runPromise(
+		ensureNativeNotificationPermission().pipe(
+			Effect.flatMap((permissionGranted) => {
+				if (!permissionGranted) return Effect.succeed(undefined);
 
-			return notificationRuntime
-				.send({
-					title: payload.title,
-					body: payload.body,
-				})
-				.mapErr((error) => new Error(`Failed to send native notification: ${error.message}`));
-		})
-		.match(
-			() => {},
-			(error) => {
-				logger.error("Failed to send native notification", {
-					notificationId: payload.id,
-					error,
-				});
-				addInAppNotification(payload, onAction);
-			}
-		);
+				return notificationRuntime
+					.send({
+						title: payload.title,
+						body: payload.body,
+					})
+					.pipe(
+						Effect.mapError(
+							(error) => new Error(`Failed to send native notification: ${error.message}`)
+						)
+					);
+			}),
+			Effect.match({
+				onSuccess: () => undefined,
+				onFailure: (error) => {
+					logger.error("Failed to send native notification", {
+						notificationId: payload.id,
+						error,
+					});
+					addInAppNotification(payload, onAction);
+				},
+			})
+		)
+	);
 }
 
-function ensureNativeNotificationPermission(): ResultAsync<boolean, Error> {
-	if (nativeNotificationPermission === "granted") return okAsync(true);
-	if (nativeNotificationPermission === "denied") return okAsync(false);
+function ensureNativeNotificationPermission(): Effect.Effect<boolean, Error> {
+	if (nativeNotificationPermission === "granted") return Effect.succeed(true);
+	if (nativeNotificationPermission === "denied") return Effect.succeed(false);
 
-	return ResultAsync.fromPromise(
-		notificationRuntime.getPermission(),
+	return fromPromise(
+		() => notificationRuntime.getPermission(),
 		(error) => new Error(`Failed to read native notification permission: ${error}`)
-	).andThen((alreadyGranted) => {
-		if (alreadyGranted) {
-			nativeNotificationPermission = "granted";
-			return okAsync(true);
-		}
+	).pipe(
+		Effect.flatMap((alreadyGranted) => {
+			if (alreadyGranted) {
+				nativeNotificationPermission = "granted";
+				return Effect.succeed(true);
+			}
 
-		return ResultAsync.fromPromise(
-			notificationRuntime.requestPermission(),
-			(error) => new Error(`Failed to request native notification permission: ${error}`)
-		).map((permission) => {
-			const granted = permission === "granted";
-			nativeNotificationPermission = granted ? "granted" : "denied";
-			return granted;
-		});
-	});
+			return fromPromise(
+				() => notificationRuntime.requestPermission(),
+				(error) => new Error(`Failed to request native notification permission: ${error}`)
+			).pipe(
+				Effect.map((permission) => {
+					const granted = permission === "granted";
+					nativeNotificationPermission = granted ? "granted" : "denied";
+					return granted;
+				})
+			);
+		})
+	);
 }
 
 function maybePlaySound(): void {

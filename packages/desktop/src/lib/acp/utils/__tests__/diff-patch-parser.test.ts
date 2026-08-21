@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import * as Result from "effect/Result";
 
 import { parsePatchToBeforeAfter } from "../diff-patch-parser.js";
 
@@ -14,14 +15,14 @@ describe("diff-patch-parser", () => {
  const z = 4;`;
 
 			const result = parsePatchToBeforeAfter(patch, "modified");
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 
-			if (result.isOk()) {
-				expect(result.value.before).toContain("const y = 2;");
-				expect(result.value.after).toContain("const y = 3;");
-				expect(result.value.hunks.length).toBe(1);
-				expect(result.value.hunks[0].oldStart).toBe(1);
-				expect(result.value.hunks[0].newStart).toBe(1);
+			if (Result.isSuccess(result)) {
+				expect(result.success.before).toContain("const y = 2;");
+				expect(result.success.after).toContain("const y = 3;");
+				expect(result.success.hunks.length).toBe(1);
+				expect(result.success.hunks[0].oldStart).toBe(1);
+				expect(result.success.hunks[0].newStart).toBe(1);
 			}
 		});
 
@@ -40,12 +41,12 @@ describe("diff-patch-parser", () => {
  line 12`;
 
 			const result = parsePatchToBeforeAfter(patch, "modified");
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 
-			if (result.isOk()) {
-				expect(result.value.hunks.length).toBe(2);
-				expect(result.value.hunks[0].oldStart).toBe(1);
-				expect(result.value.hunks[1].oldStart).toBe(10);
+			if (Result.isSuccess(result)) {
+				expect(result.success.hunks.length).toBe(2);
+				expect(result.success.hunks[0].oldStart).toBe(1);
+				expect(result.success.hunks[1].oldStart).toBe(10);
 			}
 		});
 	});
@@ -60,13 +61,13 @@ describe("diff-patch-parser", () => {
 +}`;
 
 			const result = parsePatchToBeforeAfter(patch, "added");
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 
-			if (result.isOk()) {
-				expect(result.value.before).toBe("");
-				expect(result.value.after).toContain("function hello()");
-				expect(result.value.after).toContain("console.log");
-				expect(result.value.hunks.length).toBe(1);
+			if (Result.isSuccess(result)) {
+				expect(result.success.before).toBe("");
+				expect(result.success.after).toContain("function hello()");
+				expect(result.success.after).toContain("console.log");
+				expect(result.success.hunks.length).toBe(1);
 			}
 		});
 	});
@@ -81,12 +82,12 @@ describe("diff-patch-parser", () => {
 -}`;
 
 			const result = parsePatchToBeforeAfter(patch, "deleted");
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 
-			if (result.isOk()) {
-				expect(result.value.before).toContain("function goodbye()");
-				expect(result.value.after).toBe("");
-				expect(result.value.hunks.length).toBe(1);
+			if (Result.isSuccess(result)) {
+				expect(result.success.before).toContain("function goodbye()");
+				expect(result.success.after).toBe("");
+				expect(result.success.hunks.length).toBe(1);
 			}
 		});
 	});
@@ -97,12 +98,12 @@ describe("diff-patch-parser", () => {
 +++ b/script.sh`;
 
 			const result = parsePatchToBeforeAfter(patch, "modified");
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 
-			if (result.isOk()) {
-				expect(result.value.before).toBe("");
-				expect(result.value.after).toBe("");
-				expect(result.value.hunks.length).toBe(0);
+			if (Result.isSuccess(result)) {
+				expect(result.success.before).toBe("");
+				expect(result.success.after).toBe("");
+				expect(result.success.hunks.length).toBe(0);
 			}
 		});
 
@@ -110,10 +111,10 @@ describe("diff-patch-parser", () => {
 			const patch = `Binary files a/image.png and b/image.png differ`;
 
 			const result = parsePatchToBeforeAfter(patch, "modified");
-			expect(result.isErr()).toBe(true);
+			expect(Result.isFailure(result)).toBe(true);
 
-			if (result.isErr()) {
-				expect(result.error.type).toBe("binary_file");
+			if (Result.isFailure(result)) {
+				expect(result.failure.type).toBe("binary_file");
 			}
 		});
 
@@ -127,11 +128,11 @@ describe("diff-patch-parser", () => {
  // more comment`;
 
 			const result = parsePatchToBeforeAfter(patch, "modified");
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 
-			if (result.isOk()) {
-				expect(result.value.before).toContain('const x = "- string";');
-				expect(result.value.after).toContain('const x = "- new string";');
+			if (Result.isSuccess(result)) {
+				expect(result.success.before).toContain('const x = "- string";');
+				expect(result.success.after).toContain('const x = "- new string";');
 			}
 		});
 
@@ -143,11 +144,11 @@ describe("diff-patch-parser", () => {
 +new`;
 
 			const result = parsePatchToBeforeAfter(patch, "modified");
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 
-			if (result.isOk()) {
-				expect(result.value.before).toContain("old");
-				expect(result.value.after).toContain("new");
+			if (Result.isSuccess(result)) {
+				expect(result.success.before).toContain("old");
+				expect(result.success.after).toContain("new");
 			}
 		});
 
@@ -160,12 +161,12 @@ describe("diff-patch-parser", () => {
 +added line 3`;
 
 			const result = parsePatchToBeforeAfter(patch, "modified");
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 
-			if (result.isOk()) {
-				expect(result.value.after).toContain("added line 1");
-				expect(result.value.hunks[0].oldCount).toBe(0);
-				expect(result.value.hunks[0].newCount).toBe(3);
+			if (Result.isSuccess(result)) {
+				expect(result.success.after).toContain("added line 1");
+				expect(result.success.hunks[0].oldCount).toBe(0);
+				expect(result.success.hunks[0].newCount).toBe(3);
 			}
 		});
 
@@ -178,12 +179,12 @@ describe("diff-patch-parser", () => {
 -deleted line 3`;
 
 			const result = parsePatchToBeforeAfter(patch, "modified");
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 
-			if (result.isOk()) {
-				expect(result.value.before).toContain("deleted line 1");
-				expect(result.value.hunks[0].oldCount).toBe(3);
-				expect(result.value.hunks[0].newCount).toBe(0);
+			if (Result.isSuccess(result)) {
+				expect(result.success.before).toContain("deleted line 1");
+				expect(result.success.hunks[0].oldCount).toBe(3);
+				expect(result.success.hunks[0].newCount).toBe(0);
 			}
 		});
 
@@ -199,12 +200,12 @@ describe("diff-patch-parser", () => {
  }`;
 
 			const result = parsePatchToBeforeAfter(patch, "modified");
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 
-			if (result.isOk()) {
-				expect(result.value.before).toContain("function test()");
-				expect(result.value.before).toContain("const y = 2;");
-				expect(result.value.after).toContain("console.log(x + 1);");
+			if (Result.isSuccess(result)) {
+				expect(result.success.before).toContain("function test()");
+				expect(result.success.before).toContain("const y = 2;");
+				expect(result.success.after).toContain("console.log(x + 1);");
 			}
 		});
 	});
@@ -229,11 +230,11 @@ describe("diff-patch-parser", () => {
  }`;
 
 			const result = parsePatchToBeforeAfter(patch, "modified");
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 
-			if (result.isOk()) {
-				expect(result.value.before).toContain("export function subtract");
-				expect(result.value.after).toContain("TODO: implement");
+			if (Result.isSuccess(result)) {
+				expect(result.success.before).toContain("export function subtract");
+				expect(result.success.after).toContain("TODO: implement");
 			}
 		});
 
@@ -250,12 +251,12 @@ describe("diff-patch-parser", () => {
  }`;
 
 			const result = parsePatchToBeforeAfter(patch, "modified");
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 
-			if (result.isOk()) {
-				expect(result.value.before).toContain('"version": "1.0.0"');
-				expect(result.value.after).toContain('"version": "2.0.0"');
-				expect(result.value.after).toContain('"updated": true');
+			if (Result.isSuccess(result)) {
+				expect(result.success.before).toContain('"version": "1.0.0"');
+				expect(result.success.after).toContain('"version": "2.0.0"');
+				expect(result.success.after).toContain('"updated": true');
 			}
 		});
 	});
@@ -269,13 +270,13 @@ describe("diff-patch-parser", () => {
 +new`;
 
 			const result = parsePatchToBeforeAfter(patch, "modified");
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 
-			if (result.isOk()) {
-				expect(result.value.hunks[0].oldStart).toBe(5);
-				expect(result.value.hunks[0].oldCount).toBe(1);
-				expect(result.value.hunks[0].newStart).toBe(5);
-				expect(result.value.hunks[0].newCount).toBe(1);
+			if (Result.isSuccess(result)) {
+				expect(result.success.hunks[0].oldStart).toBe(5);
+				expect(result.success.hunks[0].oldCount).toBe(1);
+				expect(result.success.hunks[0].newStart).toBe(5);
+				expect(result.success.hunks[0].newCount).toBe(1);
 			}
 		});
 
@@ -292,13 +293,13 @@ describe("diff-patch-parser", () => {
  line 14`;
 
 			const result = parsePatchToBeforeAfter(patch, "modified");
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 
-			if (result.isOk()) {
-				expect(result.value.hunks[0].oldStart).toBe(10);
-				expect(result.value.hunks[0].oldCount).toBe(5);
-				expect(result.value.hunks[0].newStart).toBe(10);
-				expect(result.value.hunks[0].newCount).toBe(6);
+			if (Result.isSuccess(result)) {
+				expect(result.success.hunks[0].oldStart).toBe(10);
+				expect(result.success.hunks[0].oldCount).toBe(5);
+				expect(result.success.hunks[0].newStart).toBe(10);
+				expect(result.success.hunks[0].newCount).toBe(6);
 			}
 		});
 	});

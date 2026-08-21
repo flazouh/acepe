@@ -1,6 +1,7 @@
-import { okAsync, type ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
 
-import type { AppError } from "../../acp/errors/app-error.js";
+import { AgentError, AppError } from "../../acp/errors/app-error.js";
 import type { AgentInfo } from "../../acp/store/api.js";
 import type { ResumeSessionResult } from "../../acp/store/types.js";
 import type { InteractionReplyRequest } from "../../acp/types/interaction-reply-request.js";
@@ -29,41 +30,53 @@ interface SessionConnectionReadiness {
 }
 
 let cachedEventBridgeInfo: EventBridgeInfo | null = null;
-let pendingEventBridgeInfo: ResultAsync<EventBridgeInfo, AppError> | null = null;
+let pendingEventBridgeInfo: Promise<EventBridgeInfo> | null = null;
 
-function getCachedEventBridgeInfo(): ResultAsync<EventBridgeInfo, AppError> {
+function toEventBridgeError(error: unknown): AppError {
+	if (error instanceof AppError) {
+		return error;
+	}
+	return new AgentError(
+		"get_event_bridge_info",
+		error instanceof Error ? error : new Error(String(error))
+	);
+}
+
+function getCachedEventBridgeInfo(): Effect.Effect<EventBridgeInfo, AppError> {
 	if (cachedEventBridgeInfo !== null) {
-		return okAsync(cachedEventBridgeInfo);
+		return Effect.succeed(cachedEventBridgeInfo);
 	}
 	if (pendingEventBridgeInfo !== null) {
-		return pendingEventBridgeInfo;
+		return fromPromise(() => pendingEventBridgeInfo as Promise<EventBridgeInfo>, toEventBridgeError);
 	}
 
-	pendingEventBridgeInfo = acpCommands.get_event_bridge_info
-		.invoke<EventBridgeInfo>()
-		.map((info) => {
+	pendingEventBridgeInfo = Effect.runPromise(
+		acpCommands.get_event_bridge_info.invoke<EventBridgeInfo>()
+	).then(
+		(info) => {
 			cachedEventBridgeInfo = info;
 			pendingEventBridgeInfo = null;
 			return info;
-		})
-		.mapErr((error) => {
+		},
+		(error: unknown) => {
 			pendingEventBridgeInfo = null;
-			return error;
-		});
+			throw error;
+		}
+	);
 
-	return pendingEventBridgeInfo;
+	return fromPromise(() => pendingEventBridgeInfo as Promise<EventBridgeInfo>, toEventBridgeError);
 }
 
 export const acp = {
-	initialize: (): ResultAsync<unknown, AppError> => {
+	initialize: (): Effect.Effect<unknown, AppError> => {
 		return acpCommands.initialize.invoke<unknown>();
 	},
 
-	authenticateAgent: (agentId: string): ResultAsync<void, AppError> => {
+	authenticateAgent: (agentId: string): Effect.Effect<void, AppError> => {
 		return acpCommands.authenticate_agent.invoke<void>({ agentId });
 	},
 
-	cancelAgentAuthentication: (agentId: string): ResultAsync<void, AppError> => {
+	cancelAgentAuthentication: (agentId: string): Effect.Effect<void, AppError> => {
 		return acpCommands.cancel_agent_authentication.invoke<void>({ agentId });
 	},
 
@@ -73,7 +86,7 @@ export const acp = {
 		launchToken?: string,
 		initialModelId?: string,
 		initialModeId?: string
-	): ResultAsync<ResumeSessionResult, AppError> => {
+	): Effect.Effect<ResumeSessionResult, AppError> => {
 		return acpCommands.new_session.invoke<ResumeSessionResult>({
 			cwd,
 			agentId,
@@ -86,7 +99,7 @@ export const acp = {
 	listPreconnectionCommands: (
 		cwd: string,
 		agentId: string
-	): ResultAsync<
+	): Effect.Effect<
 		Array<{ name: string; description: string; input?: { hint: string } | null }>,
 		AppError
 	> => {
@@ -98,18 +111,18 @@ export const acp = {
 	listPreconnectionCapabilities: (
 		cwd: string,
 		agentId: string
-	): ResultAsync<ResolvedCapabilities, AppError> => {
+	): Effect.Effect<ResolvedCapabilities, AppError> => {
 		return invokeAsync(`${ACP_PREFIX}list_preconnection_capabilities`, {
 			cwd,
 			agentId,
-		}) as ResultAsync<ResolvedCapabilities, AppError>;
+		}) as Effect.Effect<ResolvedCapabilities, AppError>;
 	},
 
 	getComposerMcpCatalog: (
 		cwd: string,
 		agentId: string,
 		sessionId: string | null
-	): ResultAsync<ComposerMcpCatalog, AppError> => {
+	): Effect.Effect<ComposerMcpCatalog, AppError> => {
 		return acpCommands.get_composer_mcp_catalog.invoke<ComposerMcpCatalog>({
 			cwd,
 			agentId,
@@ -124,7 +137,7 @@ export const acp = {
 		agentId?: string,
 		launchModeId?: string,
 		openToken?: string
-	): ResultAsync<void, AppError> => {
+	): Effect.Effect<void, AppError> => {
 		return acpCommands.resume_session.invoke<void>({
 			sessionId,
 			cwd,
@@ -135,7 +148,7 @@ export const acp = {
 		});
 	},
 
-	unarchiveSession: (sessionId: string): ResultAsync<void, AppError> => {
+	unarchiveSession: (sessionId: string): Effect.Effect<void, AppError> => {
 		return acpCommands.unarchive_session.invoke<void>({ sessionId });
 	},
 
@@ -143,19 +156,19 @@ export const acp = {
 		sessionId: string,
 		cwd: string,
 		agentId?: string
-	): ResultAsync<ResumeSessionResult, AppError> => {
+	): Effect.Effect<ResumeSessionResult, AppError> => {
 		return acpCommands.fork_session.invoke<ResumeSessionResult>({ sessionId, cwd, agentId });
 	},
 
-	setModel: (sessionId: string, modelId: string): ResultAsync<void, AppError> => {
+	setModel: (sessionId: string, modelId: string): Effect.Effect<void, AppError> => {
 		return acpCommands.set_model.invoke<void>({ sessionId, modelId });
 	},
 
-	setMode: (sessionId: string, modeId: string): ResultAsync<void, AppError> => {
+	setMode: (sessionId: string, modeId: string): Effect.Effect<void, AppError> => {
 		return acpCommands.set_mode.invoke<void>({ sessionId, modeId });
 	},
 
-	setSessionAutonomous: (sessionId: string, enabled: boolean): ResultAsync<void, AppError> => {
+	setSessionAutonomous: (sessionId: string, enabled: boolean): Effect.Effect<void, AppError> => {
 		return acpCommands.set_session_autonomous.invoke<void>({ sessionId, enabled });
 	},
 
@@ -163,7 +176,7 @@ export const acp = {
 		sessionId: string,
 		configId: string,
 		value: string
-	): ResultAsync<unknown, AppError> => {
+	): Effect.Effect<unknown, AppError> => {
 		return acpCommands.set_config_option.invoke<unknown>({ sessionId, configId, value });
 	},
 
@@ -171,15 +184,15 @@ export const acp = {
 		sessionId: string,
 		request: ReadonlyArray<Record<string, unknown> & { type: string }>,
 		attemptId?: string
-	): ResultAsync<void, AppError> => {
+	): Effect.Effect<void, AppError> => {
 		return acpCommands.send_prompt.invoke<void>({ sessionId, request, attemptId });
 	},
 
-	cancel: (sessionId: string): ResultAsync<void, AppError> => {
+	cancel: (sessionId: string): Effect.Effect<void, AppError> => {
 		return acpCommands.cancel.invoke<void>({ sessionId });
 	},
 
-	replyInteraction: (request: InteractionReplyRequest): ResultAsync<void, AppError> => {
+	replyInteraction: (request: InteractionReplyRequest): Effect.Effect<void, AppError> => {
 		return acpCommands.reply_interaction.invoke<void>({
 			request: {
 				sessionId: request.sessionId,
@@ -194,47 +207,47 @@ export const acp = {
 		sessionId: string,
 		requestId: number,
 		result: unknown
-	): ResultAsync<void, AppError> => {
+	): Effect.Effect<void, AppError> => {
 		return acpCommands.respond_inbound_request.invoke<void>({ sessionId, requestId, result });
 	},
 
-	listAgents: (): ResultAsync<AgentInfo[], AppError> => {
+	listAgents: (): Effect.Effect<AgentInfo[], AppError> => {
 		return acpCommands.list_agents.invoke<AgentInfo[]>();
 	},
 
-	installAgent: (agentId: string): ResultAsync<void, AppError> => {
+	installAgent: (agentId: string): Effect.Effect<void, AppError> => {
 		return acpCommands.install_agent.invoke<void>({ agentId });
 	},
 
-	uninstallAgent: (agentId: string): ResultAsync<void, AppError> => {
+	uninstallAgent: (agentId: string): Effect.Effect<void, AppError> => {
 		return acpCommands.uninstall_agent.invoke<void>({ agentId });
 	},
 
-	closeSession: (sessionId: string): ResultAsync<void, AppError> => {
+	closeSession: (sessionId: string): Effect.Effect<void, AppError> => {
 		return acpCommands.close_session.invoke<void>({ sessionId });
 	},
 
-	registerCustomAgent: (config: CustomAgentConfig): ResultAsync<void, AppError> => {
+	registerCustomAgent: (config: CustomAgentConfig): Effect.Effect<void, AppError> => {
 		return acpCommands.register_custom_agent.invoke<void>({ config });
 	},
 
-	getEventBridgeInfo: (): ResultAsync<EventBridgeInfo, AppError> => {
+	getEventBridgeInfo: (): Effect.Effect<EventBridgeInfo, AppError> => {
 		return getCachedEventBridgeInfo();
 	},
 
-	getSessionState: (sessionId: string): ResultAsync<SessionStateEnvelope, AppError> => {
+	getSessionState: (sessionId: string): Effect.Effect<SessionStateEnvelope, AppError> => {
 		return acpCommands.get_session_state.invoke<SessionStateEnvelope>({ sessionId });
 	},
 
 	getSessionConnectionReadiness: (
 		sessionId: string
-	): ResultAsync<SessionConnectionReadiness, AppError> => {
+	): Effect.Effect<SessionConnectionReadiness, AppError> => {
 		return acpCommands.get_session_connection_readiness.invoke<SessionConnectionReadiness>({
 			sessionId,
 		});
 	},
 
-	rpcCall(method: string, params: Record<string, unknown>): ResultAsync<unknown, AppError> {
+	rpcCall(method: string, params: Record<string, unknown>): Effect.Effect<unknown, AppError> {
 		const command = `${ACP_PREFIX}${method.replace("/", "_")}`;
 		return invokeAsync(command, params);
 	},

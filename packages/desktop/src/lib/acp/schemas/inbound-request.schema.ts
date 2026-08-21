@@ -5,82 +5,118 @@
  * Used by inbound-request-handler to parse unknown payloads without type assertions.
  */
 
-import { err, ok, type Result } from "neverthrow";
-import { z } from "zod";
+import { decodeUnknown } from "@acepe/effect-result/decodeUnknown";
+import * as Result from "effect/Result";
+import * as Schema from "effect/Schema";
 
 import type { JsonValue, ToolArguments } from "../../services/converted-session-types.js";
 import type { AcpError } from "../errors/index.js";
 import { ProtocolError } from "../errors/index.js";
 
-/**
- * Maps a Zod parse error to ProtocolError for neverthrow Result types.
- */
-export function zodErrorToProtocolError(zodError: z.ZodError, context?: string): ProtocolError {
-	const message = context ? `${context}: ${zodError.message}` : zodError.message;
-	return new ProtocolError(message, zodError);
+function schemaErrorToProtocolError(error: { readonly message: string }, context?: string): ProtocolError {
+	const message = context ? `${context}: ${error.message}` : error.message;
+	return new ProtocolError(message, error);
 }
 
 /**
  * JSON-RPC 2.0 request envelope from the ACP subprocess.
  */
-export const JsonRpcRequestSchema = z.object({
-	id: z.number(),
-	jsonrpc: z.string().default("2.0"),
-	method: z.string(),
-	params: z.unknown(),
-});
-export type JsonRpcRequest = z.infer<typeof JsonRpcRequestSchema>;
-
-const PermissionOptionSchema = z.object({
-	kind: z.string(),
-	name: z.string(),
-	optionId: z.string(),
+const JsonRpcRequestFieldsSchema = Schema.Struct({
+	id: Schema.Number,
+	jsonrpc: Schema.optionalKey(Schema.String),
+	method: Schema.String,
+	params: Schema.Unknown,
 });
 
-const SparseToolCallSchema = z.object({
-	toolCallId: z.string().optional(),
-	rawInput: z.custom<JsonValue>().optional(),
+export type JsonRpcRequest = {
+	readonly id: number;
+	readonly jsonrpc: string;
+	readonly method: string;
+	readonly params: unknown;
+};
+
+const PermissionOptionSchema = Schema.Struct({
+	kind: Schema.String,
+	name: Schema.String,
+	optionId: Schema.String,
+});
+
+const SparseToolCallSchema = Schema.Struct({
+	toolCallId: Schema.optionalKey(Schema.String),
+	rawInput: Schema.optionalKey(Schema.Unknown),
 	/** Rust-parsed ToolArguments from rawInput — agent-agnostic. */
-	parsedArguments: z.custom<ToolArguments>().optional(),
-	title: z.string().optional(),
-	name: z.string().optional(),
+	parsedArguments: Schema.optionalKey(Schema.Unknown),
+	title: Schema.optionalKey(Schema.String),
+	name: Schema.optionalKey(Schema.String),
 });
 
-const ToolCallSchema = SparseToolCallSchema.optional().transform((toolCall) => ({
-	toolCallId: toolCall?.toolCallId,
-	rawInput: toolCall?.rawInput ?? {},
-	parsedArguments: toolCall?.parsedArguments,
-	title: toolCall?.title,
-	name: toolCall?.name,
-}));
+type SparseToolCall = typeof SparseToolCallSchema.Type;
 
-/**
- * Parameters for client/requestPermission method.
- */
-export const RequestPermissionParamsSchema = z
-	.object({
-		sessionId: z.string(),
-		options: z.array(PermissionOptionSchema).optional().default([]),
-		toolCall: ToolCallSchema,
-	})
-	.passthrough();
-export type RequestPermissionParams = z.infer<typeof RequestPermissionParamsSchema>;
+export type RequestPermissionParams = {
+	readonly sessionId: string;
+	readonly options: ReadonlyArray<typeof PermissionOptionSchema.Type>;
+	readonly toolCall: {
+		readonly toolCallId: string | undefined;
+		readonly rawInput: JsonValue;
+		readonly parsedArguments: ToolArguments | undefined;
+		readonly title: string | undefined;
+		readonly name: string | undefined;
+	};
+};
+
+const RequestPermissionParamsFieldsSchema = Schema.Struct({
+	sessionId: Schema.String,
+	options: Schema.optionalKey(Schema.Array(PermissionOptionSchema)),
+	toolCall: Schema.optionalKey(SparseToolCallSchema),
+});
 
 /**
  * Minimal schema for sendErrorResponse - only need sessionId from params.
  */
-export const ErrorResponseParamsSchema = z.object({
-	sessionId: z.string().optional(),
+export const ErrorResponseParamsSchema = Schema.Struct({
+	sessionId: Schema.optionalKey(Schema.String),
 });
+
+export type ErrorResponseParams = typeof ErrorResponseParamsSchema.Type;
+
+const decodeJsonRpcRequestFields = decodeUnknown(JsonRpcRequestFieldsSchema, (error) =>
+	schemaErrorToProtocolError(error, "Invalid JSON-RPC request")
+);
+
+const decodeRequestPermissionParamsFields = decodeUnknown(
+	RequestPermissionParamsFieldsSchema,
+	(error) => schemaErrorToProtocolError(error, "Invalid requestPermission params")
+);
+
+const decodeErrorResponseParams = decodeUnknown(ErrorResponseParamsSchema, (error) =>
+	schemaErrorToProtocolError(error)
+);
+
+function normalizeToolCall(toolCall: SparseToolCall | undefined): RequestPermissionParams["toolCall"] {
+	return {
+		toolCallId: toolCall?.toolCallId,
+		rawInput: (toolCall?.rawInput ?? {}) as JsonValue,
+		parsedArguments: toolCall?.parsedArguments as ToolArguments | undefined,
+		title: toolCall?.title,
+		name: toolCall?.name,
+	};
+}
 
 /**
  * Parses unknown payload into a validated JSON-RPC request.
  */
-export function parseInboundRequest(payload: unknown): Result<JsonRpcRequest, AcpError> {
-	const result = JsonRpcRequestSchema.safeParse(payload);
-	return result.success
-		? ok(result.data)
-		: err(zodErrorToProtocolError(result.error, "Invalid JSON-RPC request"));
+export function parseInboundRequest(payload: unknown): Result.Result<JsonRpcRequest, AcpError> {
+	const decoded = decodeJsonRpcRequestFields(payload);
+	if (Result.isFailure(decoded)) {
+		return Result.fail(decoded.failure);
+	}
+
+	return Result.succeed({
+		id: decoded.success.id,
+		jsonrpc: decoded.success.jsonrpc ?? "2.0",
+		method: decoded.success.method,
+		params: decoded.success.params,
+	});
 }
 
 /**
@@ -88,9 +124,23 @@ export function parseInboundRequest(payload: unknown): Result<JsonRpcRequest, Ac
  */
 export function parseRequestPermissionParams(
 	params: unknown
-): Result<RequestPermissionParams, AcpError> {
-	const result = RequestPermissionParamsSchema.safeParse(params);
-	return result.success
-		? ok(result.data)
-		: err(zodErrorToProtocolError(result.error, "Invalid requestPermission params"));
+): Result.Result<RequestPermissionParams, AcpError> {
+	const decoded = decodeRequestPermissionParamsFields(params);
+	if (Result.isFailure(decoded)) {
+		return Result.fail(decoded.failure);
+	}
+
+	return Result.succeed({
+		sessionId: decoded.success.sessionId,
+		options: decoded.success.options ?? [],
+		toolCall: normalizeToolCall(decoded.success.toolCall),
+	});
+}
+
+export function parseErrorResponseParams(params: unknown): ErrorResponseParams | undefined {
+	const decoded = decodeErrorResponseParams(params);
+	if (Result.isFailure(decoded)) {
+		return undefined;
+	}
+	return decoded.success;
 }

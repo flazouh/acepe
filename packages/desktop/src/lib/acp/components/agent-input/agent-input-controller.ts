@@ -1,4 +1,6 @@
 import { toast } from "svelte-sonner";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { shouldClearPersistedDraftBeforeAsyncSend } from "$lib/components/main-app-view/components/content/logic/empty-state-send-state.js";
 import { findErrorReference } from "$lib/errors/error-reference.js";
 import { replyToQuestionRequest } from "../../logic/interaction-reply.js";
@@ -154,7 +156,7 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 			inputState.attachments,
 			inputState.inlineImageMap
 		);
-		if (result.isErr()) return null;
+		if (Result.isFailure(result)) return null;
 		const messageLength = inputState.message.length;
 		const attachmentCount = inputState.attachments.length;
 
@@ -178,7 +180,7 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 			});
 		});
 
-		return result.value;
+		return result.success;
 	}
 
 	async function handleSend() {
@@ -215,14 +217,18 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 				if (prepared === null) {
 					return;
 				}
-				const result = await replyToQuestionRequest(
-					pendingQuestion,
-					pendingQuestionReply.answers,
-					pendingQuestionReply.answerMap
+				const result = await Effect.runPromise(
+					Effect.result(
+						replyToQuestionRequest(
+							pendingQuestion,
+							pendingQuestionReply.answers,
+							pendingQuestionReply.answerMap
+						)
+					)
 				);
-				if (result.isErr()) {
+				if (Result.isFailure(result)) {
 					applyComposerRestoreSnapshot(restoreSnapshot);
-					toast.error(`Failed to answer question: ${result.error.message}`);
+					toast.error(`Failed to answer question: ${result.failure.message}`);
 					return;
 				}
 				clearDraft();
@@ -235,11 +241,11 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 				inputState.attachments,
 				inputState.inlineImageMap
 			);
-			if (result.isErr()) return;
+			if (Result.isFailure(result)) return;
 			const accepted = host.messageQueueStore.enqueue(
 				props.sessionId,
-				result.value.content,
-				result.value.imageAttachments
+				result.success.content,
+				result.success.imageAttachments
 			);
 			if (!accepted) return;
 			inputState.message = "";
@@ -448,75 +454,74 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 			// synchronously, so the panel-local click row can hand off in this task.
 			host.panelStore.clearPendingUserEntry(effectivePanelId);
 		}
-		sendResult
-			.map(() => {
-				host.logger.info("handleSend: sendMessage resolved", {
-					elapsed_ms: Math.round(performance.now() - t0),
-				});
-				if (props.panelId) {
-					clearDraft();
-				}
-			})
-			.mapErr((error) => {
-				if (effectivePanelId && immediatePendingEntry !== null) {
-					const currentPendingEntry =
-						host.panelStore.getHotState(effectivePanelId).pendingUserEntry;
-					if (currentPendingEntry?.id === immediatePendingEntry.id) {
-						host.panelStore.clearPendingUserEntry(effectivePanelId);
-					}
-				}
-				if (effectivePanelId) {
-					host.panelStore.clearPendingWorktreeSetup(effectivePanelId);
-				}
-				if (effectivePanelId && isPreSessionSend && error instanceof SessionCreationError) {
-					host.panelStore.setPendingComposerRestore(effectivePanelId, restoreSnapshot);
-					host.panelStore.setMessageDraft(effectivePanelId, restoreSnapshot.draft);
-					host.setLastDraftValue(restoreSnapshot.draft);
-					// Authentication-required is NOT a failure: it's an expected,
-					// recoverable precondition. Surface it as a neutral sign-in
-					// signal (rendered as a card above the composer) instead of
-					// routing into the connection-error scene, and keep the
-					// composer usable so the user can retry after signing in.
-					const signInRequirement = findAuthenticationRequirement(error);
-					if (signInRequirement !== null) {
-						host.panelStore.clearPendingUserEntry(effectivePanelId);
-						host.panelStore.setSignInRequirement(effectivePanelId, signInRequirement);
-						props.onSendError?.(effectivePanelId);
-						return error;
-					}
-					const failureMessage = formatPreSessionSendFailure(error);
-					const errorReference = findErrorReference(error);
-					// Carry the canonical classification so the panel renders the
-					// curated, lifecycle-driven card (e.g. the sign-in CTA for
-					// `authenticationRequired`) instead of the raw creation message.
-					const failureReason = findCreationFailureReason(error);
-					host.connectionStore.send(effectivePanelId, {
-						type: PanelConnectionEvent.CONNECTION_ERROR,
-						error: {
-							message: failureMessage,
-							referenceId: errorReference?.referenceId,
-							referenceSearchable: errorReference?.searchable,
-							failureReason,
-						},
+		void Effect.runPromise(
+			sendResult.pipe(
+				Effect.map(() => {
+					host.logger.info("handleSend: sendMessage resolved", {
+						elapsed_ms: Math.round(performance.now() - t0),
 					});
-					if (props.worktreePending && preparedWorktreeLaunch) {
-						props.onWorktreeCreateFailed?.(failureMessage);
+					if (props.panelId) {
+						clearDraft();
 					}
-					props.onSendError?.(effectivePanelId);
-				} else if (shouldClearDraftEarly && props.panelId) {
-					host.panelStore.setMessageDraft(props.panelId, prepared.content);
-				}
-				return error;
-			})
-			.match(
-				() => undefined,
-				() => undefined
+				}),
+				Effect.mapError((error) => {
+					if (effectivePanelId && immediatePendingEntry !== null) {
+						const currentPendingEntry =
+							host.panelStore.getHotState(effectivePanelId).pendingUserEntry;
+						if (currentPendingEntry?.id === immediatePendingEntry.id) {
+							host.panelStore.clearPendingUserEntry(effectivePanelId);
+						}
+					}
+					if (effectivePanelId) {
+						host.panelStore.clearPendingWorktreeSetup(effectivePanelId);
+					}
+					if (effectivePanelId && isPreSessionSend && error instanceof SessionCreationError) {
+						host.panelStore.setPendingComposerRestore(effectivePanelId, restoreSnapshot);
+						host.panelStore.setMessageDraft(effectivePanelId, restoreSnapshot.draft);
+						host.setLastDraftValue(restoreSnapshot.draft);
+						// Authentication-required is NOT a failure: it's an expected,
+						// recoverable precondition. Surface it as a neutral sign-in
+						// signal (rendered as a card above the composer) instead of
+						// routing into the connection-error scene, and keep the
+						// composer usable so the user can retry after signing in.
+						const signInRequirement = findAuthenticationRequirement(error);
+						if (signInRequirement !== null) {
+							host.panelStore.clearPendingUserEntry(effectivePanelId);
+							host.panelStore.setSignInRequirement(effectivePanelId, signInRequirement);
+							props.onSendError?.(effectivePanelId);
+							return error;
+						}
+						const failureMessage = formatPreSessionSendFailure(error);
+						const errorReference = findErrorReference(error);
+						// Carry the canonical classification so the panel renders the
+						// curated, lifecycle-driven card (e.g. the sign-in CTA for
+						// `authenticationRequired`) instead of the raw creation message.
+						const failureReason = findCreationFailureReason(error);
+						host.connectionStore.send(effectivePanelId, {
+							type: PanelConnectionEvent.CONNECTION_ERROR,
+							error: {
+								message: failureMessage,
+								referenceId: errorReference?.referenceId,
+								referenceSearchable: errorReference?.searchable,
+								failureReason,
+							},
+						});
+						if (props.worktreePending && preparedWorktreeLaunch) {
+							props.onWorktreeCreateFailed?.(failureMessage);
+						}
+						props.onSendError?.(effectivePanelId);
+					} else if (shouldClearDraftEarly && props.panelId) {
+						host.panelStore.setMessageDraft(props.panelId, prepared.content);
+					}
+					return error;
+				}),
+				Effect.catch(() => Effect.succeed(undefined))
 			)
-			.finally(() => {
-				if (sessionIdForDispatch) {
-					host.sessionStore.composer.endDispatch(sessionIdForDispatch);
-				}
-			});
+		).finally(() => {
+			if (sessionIdForDispatch) {
+				host.sessionStore.composer.endDispatch(sessionIdForDispatch);
+			}
+		});
 	}
 
 	function handleSteer() {
@@ -535,26 +540,24 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 		clearDraft();
 
 		host.sessionStore.composer.beginDispatch(sessionId);
-		host.sessionStore.connection
-			.cancelStreaming(sessionId)
-			.andThen(() =>
-				host.sessionStore.connection.sendMessage(
-					sessionId,
-					prepared.content,
-					prepared.imageAttachments
-				)
+		void Effect.runPromise(
+			host.sessionStore.connection.cancelStreaming(sessionId).pipe(
+				Effect.flatMap(() =>
+					host.sessionStore.connection.sendMessage(
+						sessionId,
+						prepared.content,
+						prepared.imageAttachments
+					)
+				),
+				Effect.mapError((error) => {
+					console.error("Steer failed:", error);
+					return error;
+				}),
+				Effect.catch(() => Effect.succeed(undefined))
 			)
-			.mapErr((error) => {
-				console.error("Steer failed:", error);
-				return error;
-			})
-			.match(
-				() => undefined,
-				() => undefined
-			)
-			.finally(() => {
-				host.sessionStore.composer.endDispatch(sessionId);
-			});
+		).finally(() => {
+			host.sessionStore.composer.endDispatch(sessionId);
+		});
 	}
 
 	function handlePrimaryButtonClick(): void {

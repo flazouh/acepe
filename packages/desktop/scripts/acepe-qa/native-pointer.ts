@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { err, okAsync, type ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import { type CommandRunner, runCommand, type TauriMcpFailure } from "./tauri-mcp";
 
 export type ScreenPoint = {
@@ -7,23 +7,23 @@ export type ScreenPoint = {
 	readonly y: number;
 };
 
-export type NativePointerMover = (point: ScreenPoint) => ResultAsync<null, TauriMcpFailure>;
+export type NativePointerMover = (point: ScreenPoint) => Effect.Effect<null, TauriMcpFailure>;
 
 export function moveNativePointer(
 	point: ScreenPoint,
 	runner: CommandRunner = runCommand
-): ResultAsync<null, TauriMcpFailure> {
+): Effect.Effect<null, TauriMcpFailure> {
 	if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) {
-		return err({
+		return Effect.fail({
 			code: "native_pointer_invalid_point",
 			message: "Native pointer coordinates must be finite numbers.",
 		});
 	}
 	const helperPath = join(import.meta.dir, "native-pointer.swift");
-	return runner(["/usr/bin/swift", helperPath, point.x.toString(), point.y.toString()]).andThen(
-		(execution) => {
+	return runner(["/usr/bin/swift", helperPath, point.x.toString(), point.y.toString()]).pipe(
+		Effect.flatMap((execution) => {
 			if (execution.code !== 0) {
-				return err({
+				return Effect.fail({
 					code: "native_pointer_move_failed",
 					message:
 						execution.stderr.trim() ||
@@ -31,7 +31,7 @@ export function moveNativePointer(
 						"The macOS pointer helper failed.",
 				});
 			}
-			return okAsync(null);
-		}
+			return Effect.succeed(null);
+		})
 	);
 }

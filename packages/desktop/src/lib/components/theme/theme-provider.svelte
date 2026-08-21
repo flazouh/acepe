@@ -1,5 +1,5 @@
 <script lang="ts">
-import { ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import { onMount } from "svelte";
 import type { HTMLAttributes } from "svelte/elements";
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
@@ -25,27 +25,24 @@ function isValidTheme(value: unknown): value is Theme {
 }
 
 async function loadStoredTheme(): Promise<Theme | null> {
-	const result = await settings
-		.getRaw(USER_THEME_KEY)
-		.map((stored) => {
-			if (stored !== null && isValidTheme(stored)) {
-				return stored;
-			}
-			return null;
-		})
-		.mapErr(() => {
-			// ignore errors
-			return null;
-		});
-
-	return result.isOk() ? result.value : null;
+	return Effect.runPromise(
+		settings.getRaw(USER_THEME_KEY).pipe(
+			Effect.map((stored) => {
+				if (stored !== null && isValidTheme(stored)) {
+					return stored;
+				}
+				return null;
+			}),
+			Effect.catch(() => Effect.succeed(null))
+		)
+	);
 }
 
 function saveStoredTheme(value: Theme) {
 	// Fire-and-forget - don't block on save
-	settings.setRaw(USER_THEME_KEY, value).mapErr(() => {
-		// ignore save errors
-	});
+	void Effect.runPromise(
+		settings.setRaw(USER_THEME_KEY, value).pipe(Effect.catch(() => Effect.void))
+	);
 }
 
 function applyTheme(themeValue: Theme) {

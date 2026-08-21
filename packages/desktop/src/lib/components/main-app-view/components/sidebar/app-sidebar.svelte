@@ -1,6 +1,8 @@
 <script lang="ts">
 import { AppSidebarLayout } from "@acepe/ui/app-layout";
 import { Button, HugeiconsIcon } from "@acepe/ui";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { toast } from "svelte-sonner";
 import { copyTextToClipboard } from "$lib/acp/components/agent-panel/logic/clipboard-manager.js";
 import { SessionList } from "$lib/acp/components/index.js";
@@ -101,9 +103,11 @@ const attentionBySessionId = $derived.by(() => {
 
 function handleSelectSession(sessionId: string, sessionInfo?: SessionListItem) {
 	const attention = attentionBySessionId.get(sessionId);
-	appState.handleSelectSession(sessionId, sessionInfo).mapErr(() => {
-		// Error handling is done in the handler
-	});
+	void Effect.runPromise(
+		appState.handleSelectSession(sessionId, sessionInfo).pipe(
+			Effect.catch(() => Effect.succeed(undefined))
+		)
+	);
 	if (attention !== undefined) {
 		applyCompletionAttentionAction(unseenStore, attention.panelId, {
 			kind: "explicit-reveal",
@@ -128,16 +132,20 @@ function handleCreateSession(projectPath: string, agentId?: string) {
 				agentId
 			);
 
-			void agentPreferencesStore.setSelectedAgentIds(nextSelectedAgentIds).match(
-				() => undefined,
-				(error) => {
-					toast.error(error.message);
-					logger.error("[ProjectHeaderAgents] Failed to persist selected agents", {
-						agentId,
-						error,
-						projectPath,
-					});
-				}
+			void Effect.runPromise(
+				agentPreferencesStore.setSelectedAgentIds(nextSelectedAgentIds).pipe(
+					Effect.match({
+						onSuccess: () => undefined,
+						onFailure: (error) => {
+							toast.error(error.message);
+							logger.error("[ProjectHeaderAgents] Failed to persist selected agents", {
+								agentId,
+								error,
+								projectPath,
+							});
+						},
+					})
+				)
 			);
 		}
 	}
@@ -146,47 +154,64 @@ function handleCreateSession(projectPath: string, agentId?: string) {
 }
 
 function handleProjectColorChange(projectPath: string, color: string) {
-	projectManager.updateProjectColor(projectPath, color).mapErr((error) => {
-		toast.error(`Failed to update project color: ${error.message}`);
-		logger.error("[ProjectColor] Failed to update", { projectPath, color, error });
-	});
+	void Effect.runPromise(
+		projectManager.updateProjectColor(projectPath, color).pipe(
+			Effect.catch((error) => {
+				toast.error(`Failed to update project color: ${error.message}`);
+				logger.error("[ProjectColor] Failed to update", { projectPath, color, error });
+				return Effect.void;
+			})
+		)
+	);
 }
 
 function handleToggleShowExternalCliSessions(
 	projectPath: string,
 	showExternalCliSessions: boolean
 ) {
-	projectManager
-		.updateProjectShowExternalCliSessions(projectPath, showExternalCliSessions)
-		.mapErr((error) => {
-			toast.error(`Failed to update session visibility: ${error.message}`);
-			logger.error("[ProjectVisibility] Failed to update external CLI visibility", {
-				projectPath,
-				showExternalCliSessions,
-				error,
-			});
-		});
+	void Effect.runPromise(
+		projectManager.updateProjectShowExternalCliSessions(projectPath, showExternalCliSessions).pipe(
+			Effect.catch((error) => {
+				toast.error(`Failed to update session visibility: ${error.message}`);
+				logger.error("[ProjectVisibility] Failed to update external CLI visibility", {
+					projectPath,
+					showExternalCliSessions,
+					error,
+				});
+				return Effect.void;
+			})
+		)
+	);
 }
 
 function handleChangeProjectIcon(projectPath: string) {
-	void projectManager.listProjectImages(projectPath).match(
-		(images) => {
-			iconPickerProjectPath = projectPath;
-			iconPickerImages = images;
-			iconPickerOpen = true;
-		},
-		(error) => {
-			toast.error(`Failed to load project images: ${error.message}`);
-			logger.error("[ProjectIcon] Failed to list project images", { projectPath, error });
-		}
+	void Effect.runPromise(
+		projectManager.listProjectImages(projectPath).pipe(
+			Effect.match({
+				onSuccess: (images) => {
+					iconPickerProjectPath = projectPath;
+					iconPickerImages = images;
+					iconPickerOpen = true;
+				},
+				onFailure: (error) => {
+					toast.error(`Failed to load project images: ${error.message}`);
+					logger.error("[ProjectIcon] Failed to list project images", { projectPath, error });
+				},
+			})
+		)
 	);
 }
 
 function handleResetProjectIcon(projectPath: string) {
-	projectManager.updateProjectIcon(projectPath, null).mapErr((error) => {
-		toast.error(`Failed to reset project icon: ${error.message}`);
-		logger.error("[ProjectIcon] Failed to reset", { projectPath, error });
-	});
+	void Effect.runPromise(
+		projectManager.updateProjectIcon(projectPath, null).pipe(
+			Effect.catch((error) => {
+				toast.error(`Failed to reset project icon: ${error.message}`);
+				logger.error("[ProjectIcon] Failed to reset", { projectPath, error });
+				return Effect.void;
+			})
+		)
+	);
 }
 
 function handleRemoveProject(projectPath: string) {
@@ -206,10 +231,15 @@ function handleRemoveProject(projectPath: string) {
 	}
 	panelStore.removeWorkspacePanelsForProject(projectPath);
 
-	projectManager.removeProject(projectPath).mapErr((error) => {
-		toast.error(`Failed to remove project: ${error.message}`);
-		logger.error("[RemoveProject] Failed to remove", { projectPath, error });
-	});
+	void Effect.runPromise(
+		projectManager.removeProject(projectPath).pipe(
+			Effect.catch((error) => {
+				toast.error(`Failed to remove project: ${error.message}`);
+				logger.error("[RemoveProject] Failed to remove", { projectPath, error });
+				return Effect.void;
+			})
+		)
+	);
 }
 
 function handleSelectFile(filePath: string, projectPath: string) {
@@ -266,72 +296,92 @@ async function handleOpenTranscriptInAcepe(session: SessionDisplayItem) {
 		return;
 	}
 
-	await tauriClient.shell.getSessionFilePath(session.id, session.projectPath).match(
-		(path) => openTranscriptFileDialog(path),
-		(error) => toast.error(`Failed to open transcript in Acepe: ${error.message}`)
+	await Effect.runPromise(
+		tauriClient.shell.getSessionFilePath(session.id, session.projectPath).pipe(
+			Effect.match({
+				onSuccess: (path) => openTranscriptFileDialog(path),
+				onFailure: (error) => toast.error(`Failed to open transcript in Acepe: ${error.message}`),
+			})
+		)
 	);
 }
 
 function handleRenameSession(sessionInfo: SessionListItem, title: string) {
-	void sessionStore.write.renameSession(sessionInfo.id, title).match(
-		() => undefined,
-		(error) => {
-			toast.error(`Failed to rename session: ${error.message}`);
-			logger.error("[RenameSession] Failed", {
-				sessionId: sessionInfo.id,
-				projectPath: sessionInfo.projectPath,
-				title,
-				error,
-			});
-		}
+	void Effect.runPromise(
+		sessionStore.write.renameSession(sessionInfo.id, title).pipe(
+			Effect.match({
+				onSuccess: () => undefined,
+				onFailure: (error) => {
+					toast.error(`Failed to rename session: ${error.message}`);
+					logger.error("[RenameSession] Failed", {
+						sessionId: sessionInfo.id,
+						projectPath: sessionInfo.projectPath,
+						title,
+						error,
+					});
+				},
+			})
+		)
 	);
 }
 
 function handleCopyTranscriptMarkdown(sessionId: string) {
-	sessionStore.read.getSessionMarkdownExportContent(sessionId).match(
-		(markdown) => {
-			void copyTextToClipboard(markdown).match(
-				() => toast.success("Copied to clipboard"),
-				(err) => {
-					toast.error(`Failed to copy transcript: ${err.message}`);
-					logger.error("[CopyTranscriptMarkdown] Failed", { sessionId, error: err });
-				}
+	Result.match(sessionStore.read.getSessionMarkdownExportContent(sessionId), {
+		onSuccess: (markdown) => {
+			void Effect.runPromise(
+				copyTextToClipboard(markdown).pipe(
+					Effect.match({
+						onSuccess: () => toast.success("Copied to clipboard"),
+						onFailure: (err) => {
+							toast.error(`Failed to copy transcript: ${err.message}`);
+							logger.error("[CopyTranscriptMarkdown] Failed", { sessionId, error: err });
+						},
+					})
+				)
 			);
 		},
-		(error) => toast.error(`Failed to copy transcript: ${error.message}`)
-	);
+		onFailure: (error) => toast.error(`Failed to copy transcript: ${error.message}`),
+	});
 }
 
 function handleCopyTranscriptJson(sessionId: string) {
-	sessionStore.read.getSessionJsonExportContent(sessionId).match(
-		(content) => {
-			void copyTextToClipboard(content).match(
-				() => toast.success("Copied to clipboard"),
-				(err) => {
-					toast.error(`Failed to copy transcript: ${err.message}`);
-					logger.error("[CopyTranscriptJson] Failed", { sessionId, error: err });
-				}
+	Result.match(sessionStore.read.getSessionJsonExportContent(sessionId), {
+		onSuccess: (content) => {
+			void Effect.runPromise(
+				copyTextToClipboard(content).pipe(
+					Effect.match({
+						onSuccess: () => toast.success("Copied to clipboard"),
+						onFailure: (err) => {
+							toast.error(`Failed to copy transcript: ${err.message}`);
+							logger.error("[CopyTranscriptJson] Failed", { sessionId, error: err });
+						},
+					})
+				)
 			);
 		},
-		(error) => toast.error(`Failed to copy transcript: ${error.message}`)
-	);
+		onFailure: (error) => toast.error(`Failed to copy transcript: ${error.message}`),
+	});
 }
 
 async function handleArchiveSession(session: SessionDisplayItem) {
-	await archiveStore
-		.archive({
-			sessionId: session.id,
-			projectPath: session.projectPath,
-			agentId: session.agentId,
-		})
-		.match(
-			() => {
-				toast.success("Session archived");
-			},
-			(error) => {
-				toast.error(`Failed to archive session: ${error.message}`);
-			}
-		);
+	await Effect.runPromise(
+		archiveStore
+			.archive({
+				sessionId: session.id,
+				projectPath: session.projectPath,
+				agentId: session.agentId,
+			})
+			.pipe(
+				Effect.match({
+					onSuccess: () => {
+						toast.success("Session archived");
+					},
+					onFailure: (error) => {
+						toast.error(`Failed to archive session: ${error.message}`);
+					},
+				})
+			)
+	);
 }
 
 // Agent dropdown data for session creation
@@ -472,24 +522,26 @@ function handleReorderProjects(orderedPaths: string[]) {
 	reorderInFlight = true;
 	projectManager.projects = buildOptimisticProjectOrder(previousProjects, orderedPaths);
 
-	void projectManager
-		.updateProjectOrder(orderedPaths)
-		.mapErr((error) => {
-			projectManager.projects = restoreProjectSortOrders(previousProjects, previousSortOrders);
-			logger.error("[ProjectReorder] Failed to persist project order", {
-				error,
-				orderedPaths,
-			});
-			return error;
-		})
-		.match(
-			() => {
-				reorderInFlight = false;
-			},
-			() => {
-				reorderInFlight = false;
-			}
-		);
+	void Effect.runPromise(
+		projectManager.updateProjectOrder(orderedPaths).pipe(
+			Effect.catch((error) => {
+				projectManager.projects = restoreProjectSortOrders(previousProjects, previousSortOrders);
+				logger.error("[ProjectReorder] Failed to persist project order", {
+					error,
+					orderedPaths,
+				});
+				return Effect.fail(error);
+			}),
+			Effect.match({
+				onSuccess: () => {
+					reorderInFlight = false;
+				},
+				onFailure: () => {
+					reorderInFlight = false;
+				},
+			})
+		)
+	);
 }
 
 function handleSelectProjectIcon(iconPath: string) {
@@ -498,12 +550,16 @@ function handleSelectProjectIcon(iconPath: string) {
 		return;
 	}
 
-	void projectManager.updateProjectIcon(projectPath, iconPath).match(
-		() => undefined,
-		(error) => {
-			toast.error(`Failed to update project icon: ${error.message}`);
-			logger.error("[ProjectIcon] Failed to change", { projectPath, error });
-		}
+	void Effect.runPromise(
+		projectManager.updateProjectIcon(projectPath, iconPath).pipe(
+			Effect.match({
+				onSuccess: () => undefined,
+				onFailure: (error) => {
+					toast.error(`Failed to update project icon: ${error.message}`);
+					logger.error("[ProjectIcon] Failed to change", { projectPath, error });
+				},
+			})
+		)
 	);
 }
 
@@ -514,10 +570,15 @@ function handleBrowseProjectIcon() {
 		return;
 	}
 
-	projectManager.browseAndSetProjectIcon(projectPath).mapErr((error) => {
-		toast.error(`Failed to update project icon: ${error.message}`);
-		logger.error("[ProjectIcon] Failed to change", { projectPath, error });
-	});
+	void Effect.runPromise(
+		projectManager.browseAndSetProjectIcon(projectPath).pipe(
+			Effect.catch((error) => {
+				toast.error(`Failed to update project icon: ${error.message}`);
+				logger.error("[ProjectIcon] Failed to change", { projectPath, error });
+				return Effect.void;
+			})
+		)
+	);
 }
 
 // Performance: Only read canonical projection summary state here.

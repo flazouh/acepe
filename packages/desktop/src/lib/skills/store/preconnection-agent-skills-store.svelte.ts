@@ -1,4 +1,4 @@
-import { okAsync, ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import { getContext, setContext } from "svelte";
 import { SvelteMap } from "svelte/reactivity";
 import type { AppError } from "$lib/acp/errors/app-error.js";
@@ -21,7 +21,7 @@ interface WarmablePreconnectionAgent {
 type FetchPreconnectionCommands = (
 	cwd: string,
 	agentId: string
-) => ResultAsync<AvailableCommand[], AppError>;
+) => Effect.Effect<AvailableCommand[], AppError>;
 
 export function normalizePreconnectionCommands(
 	commands: ReadonlyArray<AvailableCommand>,
@@ -67,25 +67,25 @@ export class PreconnectionAgentSkillsStore {
 			: tauriClient.acp.listPreconnectionCommands;
 	}
 
-	initialize(agents: ReadonlyArray<WarmablePreconnectionAgent>): ResultAsync<void, AppError> {
+	initialize(agents: ReadonlyArray<WarmablePreconnectionAgent>): Effect.Effect<void, AppError> {
 		if (this.loading || this.loaded) {
-			return okAsync(undefined);
+			return Effect.succeed(undefined);
 		}
 
 		return this.refresh(agents);
 	}
 
-	ensureLoaded(agents: ReadonlyArray<WarmablePreconnectionAgent>): ResultAsync<void, AppError> {
+	ensureLoaded(agents: ReadonlyArray<WarmablePreconnectionAgent>): Effect.Effect<void, AppError> {
 		if (this.loading || this.loaded) {
-			return okAsync(undefined);
+			return Effect.succeed(undefined);
 		}
 
 		return this.refresh(agents);
 	}
 
-	refresh(agents: ReadonlyArray<WarmablePreconnectionAgent>): ResultAsync<void, AppError> {
+	refresh(agents: ReadonlyArray<WarmablePreconnectionAgent>): Effect.Effect<void, AppError> {
 		if (this.loading) {
-			return okAsync(undefined);
+			return Effect.succeed(undefined);
 		}
 
 		this.loading = true;
@@ -96,29 +96,32 @@ export class PreconnectionAgentSkillsStore {
 			this.commandsByAgent.clear();
 			this.loading = false;
 			this.loaded = true;
-			return okAsync(undefined);
+			return Effect.succeed(undefined);
 		}
 
-		return ResultAsync.combine(
+		return Effect.all(
 			warmableAgents.map((agent) =>
-				this.fetchPreconnectionCommands("", agent.id).map((commands) => ({
-					agentId: agent.id,
-					commands: normalizePreconnectionCommands(commands, agent.id),
-				}))
+				this.fetchPreconnectionCommands("", agent.id).pipe(
+					Effect.map((commands) => ({
+						agentId: agent.id,
+						commands: normalizePreconnectionCommands(commands, agent.id),
+					}))
+				)
 			)
-		)
-			.map((commandsByAgent) => {
+		).pipe(
+			Effect.map((commandsByAgent) => {
 				this.replaceCommands(commandsByAgent);
 				this.loading = false;
 				this.loaded = true;
-			})
-			.mapErr((error) => {
+			}),
+			Effect.mapError((error) => {
 				this.commandsByAgent.clear();
 				this.loading = false;
 				this.loaded = false;
 				this.error = error.message;
 				return error;
-			});
+			})
+		);
 	}
 
 	getCommandsForAgent(agentId: string | null | undefined): AvailableCommand[] {

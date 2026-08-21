@@ -1,4 +1,5 @@
-import { ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
 import { createHighlighter } from "shiki";
 
 import { getCursorThemeName, loadCursorLightTheme, loadCursorTheme } from "./shiki-theme.js";
@@ -36,47 +37,55 @@ function cachedHighlight(cacheKey: string, compute: () => string): string {
 }
 
 // Start initialization eagerly on module import
-loadCursorTheme()
-	.andThen((dark) => {
-		darkThemeName = getCursorThemeName(dark);
-		return loadCursorLightTheme().map((light) => {
-			lightThemeName = getCursorThemeName(light);
-			return { dark, light };
-		});
-	})
-	.andThen(({ dark, light }) =>
-		ResultAsync.fromPromise(
-			createHighlighter({
-				themes: [dark, light],
-				langs: [
-					"bash",
-					"log",
-					"typescript",
-					"javascript",
-					"tsx",
-					"jsx",
-					"svelte",
-					"json",
-					"css",
-					"scss",
-					"html",
-					"markdown",
-					"rust",
-					"python",
-					"yaml",
-					"toml",
-				],
-			}),
-			(e) => (e instanceof Error ? e : new Error(String(e)))
-		)
+void Effect.runPromise(
+	loadCursorTheme().pipe(
+		Effect.flatMap((dark) => {
+			darkThemeName = getCursorThemeName(dark);
+			return loadCursorLightTheme().pipe(
+				Effect.map((light) => {
+					lightThemeName = getCursorThemeName(light);
+					return { dark, light };
+				})
+			);
+		}),
+		Effect.flatMap(({ dark, light }) =>
+			fromPromise(
+				() =>
+					createHighlighter({
+						themes: [dark, light],
+						langs: [
+							"bash",
+							"log",
+							"typescript",
+							"javascript",
+							"tsx",
+							"jsx",
+							"svelte",
+							"json",
+							"css",
+							"scss",
+							"html",
+							"markdown",
+							"rust",
+							"python",
+							"yaml",
+							"toml",
+						],
+					}),
+				(e) => (e instanceof Error ? e : new Error(String(e)))
+			)
+		),
+		Effect.match({
+			onSuccess: (h) => {
+				highlighter = h;
+				ready = true;
+			},
+			onFailure: (e) => {
+				console.error("[bash-highlighter] init failed:", e);
+			},
+		})
 	)
-	.map((h) => {
-		highlighter = h;
-		ready = true;
-	})
-	.mapErr((e) => {
-		console.error("[bash-highlighter] init failed:", e);
-	});
+);
 
 /**
  * Reactive Shiki bash highlighter singleton.

@@ -1,5 +1,6 @@
 <script lang="ts">
 import { HugeiconsIcon } from "@acepe/ui";
+import * as Effect from "effect/Effect";
 import { AGENT_IDS } from "$lib/acp/types/agent-id.js";
 import { Button } from "$lib/components/ui/button/index.js";
 import { CodeMirrorEditor } from "$lib/components/ui/codemirror-editor/index.js";
@@ -20,14 +21,18 @@ function handleKeyDown(event: KeyboardEvent) {
 	if ((event.metaKey || event.ctrlKey) && event.key === "s") {
 		event.preventDefault();
 		if (store.isDirty && !store.isPluginSkillSelected) {
-			store.saveSkill();
+			void Effect.runPromise(Effect.result(store.saveSkill()));
 		}
 	}
 }
 
 function handleCopyToClaudeCode() {
 	if (store.selectedPluginSkill) {
-		store.copyPluginSkillToAgent(store.selectedPluginSkill.id, AGENT_IDS.CLAUDE_CODE);
+		void Effect.runPromise(
+			Effect.result(
+				store.copyPluginSkillToAgent(store.selectedPluginSkill.id, AGENT_IDS.CLAUDE_CODE)
+			)
+		);
 	}
 }
 </script>

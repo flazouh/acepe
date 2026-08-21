@@ -1,7 +1,7 @@
 /**
  * SessionWriteFacade — namespaced write surface for the session store (ADR-0002).
  */
-import { errAsync, okAsync, type ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import type { SessionOpenFound } from "../../services/acp-types.js";
 import type { AppError } from "../errors/app-error.js";
 import { SessionNotFoundError } from "../errors/app-error.js";
@@ -64,26 +64,28 @@ export class SessionWriteFacade implements ISessionStateWriter {
 		this.#deps.listState.removeScanningProjects(paths);
 	}
 
-	renameSession(sessionId: string, title: string): ResultAsync<void, AppError> {
+	renameSession(sessionId: string, title: string): Effect.Effect<void, AppError> {
 		const sessionMetadata = this.#deps.getSessionMetadata(sessionId);
 		if (!sessionMetadata) {
-			return errAsync(new SessionNotFoundError(sessionId));
+			return Effect.fail(new SessionNotFoundError(sessionId));
 		}
 
 		const trimmedTitle = title.trim();
 		if (trimmedTitle === "" || trimmedTitle === sessionMetadata.title) {
-			return okAsync(undefined);
+			return Effect.succeed(undefined);
 		}
 
-		return api.setSessionTitle(sessionId, trimmedTitle).map(() => {
-			this.updateSession(
-				sessionId,
-				{
-					title: trimmedTitle,
-				},
-				{ touchUpdatedAt: false }
-			);
-			return undefined;
-		});
+		return api.setSessionTitle(sessionId, trimmedTitle).pipe(
+			Effect.map(() => {
+				this.updateSession(
+					sessionId,
+					{
+						title: trimmedTitle,
+					},
+					{ touchUpdatedAt: false }
+				);
+				return undefined;
+			})
+		);
 	}
 }

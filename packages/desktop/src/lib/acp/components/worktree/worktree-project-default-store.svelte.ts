@@ -3,9 +3,7 @@
  * Loads once from SQLite; all consumers read the same reactive map.
  */
 
-import type { ResultAsync } from "neverthrow";
-
-import { okAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 
 import type { AppError } from "../../errors/app-error.js";
 
@@ -42,33 +40,40 @@ export class WorktreeProjectDefaultStore {
 	 * Load from SQLite (no-op after first successful load).
 	 * Migrates legacy global default to per-project map when needed.
 	 */
-	load(options: WorktreeProjectDefaultStoreLoadOptions): ResultAsync<void, AppError> {
+	load(options: WorktreeProjectDefaultStoreLoadOptions): Effect.Effect<void, AppError> {
 		if (this.#loaded) {
-			return okAsync(undefined);
+			return Effect.succeed(undefined);
 		}
 
-		return loadWorktreeProjectDefaults().andThen((loadedMap) =>
-			loadWorktreeDefault().andThen((legacyGlobalEnabled) => {
-				const migratedMap = migrateWorktreeProjectDefaultsFromGlobal(
-					loadedMap,
-					legacyGlobalEnabled,
-					options.getProjectPaths()
-				);
+		return loadWorktreeProjectDefaults().pipe(
+			Effect.flatMap((loadedMap) =>
+				loadWorktreeDefault().pipe(
+					Effect.flatMap((legacyGlobalEnabled) => {
+						const migratedMap = migrateWorktreeProjectDefaultsFromGlobal(
+							loadedMap,
+							legacyGlobalEnabled,
+							options.getProjectPaths()
+						);
 
-				const needsSave =
-					isWorktreeProjectDefaultsEmpty(loadedMap) && !isWorktreeProjectDefaultsEmpty(migratedMap);
+						const needsSave =
+							isWorktreeProjectDefaultsEmpty(loadedMap) &&
+							!isWorktreeProjectDefaultsEmpty(migratedMap);
 
-				if (needsSave) {
-					return saveWorktreeProjectDefaults(migratedMap).map(() => {
+						if (needsSave) {
+							return saveWorktreeProjectDefaults(migratedMap).pipe(
+								Effect.map(() => {
+									this.#loaded = true;
+									this.#defaults = migratedMap;
+								})
+							);
+						}
+
 						this.#loaded = true;
 						this.#defaults = migratedMap;
-					});
-				}
-
-				this.#loaded = true;
-				this.#defaults = migratedMap;
-				return okAsync(undefined);
-			})
+						return Effect.succeed(undefined);
+					})
+				)
+			)
 		);
 	}
 
@@ -82,11 +87,13 @@ export class WorktreeProjectDefaultStore {
 	/**
 	 * Save and update local state so all consumers see the new value.
 	 */
-	set(projectPath: string, enabled: boolean): ResultAsync<void, AppError> {
+	set(projectPath: string, enabled: boolean): Effect.Effect<void, AppError> {
 		const next = setProjectWorktreeEnabled(projectPath, enabled, this.#defaults);
-		return saveWorktreeProjectDefaults(next).map(() => {
-			this.#defaults = next;
-		});
+		return saveWorktreeProjectDefaults(next).pipe(
+			Effect.map(() => {
+				this.#defaults = next;
+			})
+		);
 	}
 }
 

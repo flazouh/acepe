@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
 import type { QaStatus } from "./schemas";
 
 export type UiQaEvidenceInput = {
@@ -27,7 +28,7 @@ export function uiQaEvidencePath(checkoutRoot: string): string {
 
 export function writeUiQaEvidence(
 	input: UiQaEvidenceInput
-): ResultAsync<string, UiQaEvidenceFailure> {
+): Effect.Effect<string, UiQaEvidenceFailure> {
 	const path = uiQaEvidencePath(input.checkoutRoot);
 	const directory = join(input.checkoutRoot, ".codex", "state");
 	const payload = {
@@ -37,10 +38,11 @@ export function writeUiQaEvidence(
 		artifactPath: input.artifactPath ?? null,
 		verifiedAt: input.nowIso ?? new Date().toISOString(),
 	};
-	return ResultAsync.fromPromise(
-		mkdir(directory, { recursive: true }).then(() =>
-			Bun.write(path, `${JSON.stringify(payload, null, 2)}\n`)
-		),
+	return fromPromise(
+		() =>
+			mkdir(directory, { recursive: true }).then(() =>
+				Bun.write(path, `${JSON.stringify(payload, null, 2)}\n`)
+			),
 		(error) => {
 			const normalized =
 				error instanceof Error ? error : new Error("Unable to write UI QA evidence.");
@@ -49,5 +51,5 @@ export function writeUiQaEvidence(
 				message: errorMessage(normalized),
 			} satisfies UiQaEvidenceFailure;
 		}
-	).map(() => path);
+	).pipe(Effect.map(() => path));
 }

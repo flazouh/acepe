@@ -1,4 +1,5 @@
-import { okAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 
 import type { JsonValue } from "../../../services/converted-session-types.js";
@@ -22,12 +23,7 @@ vi.mock("../acp-event-bridge.js", () => ({
 // Mock the API
 vi.mock("../../store/api.js", () => ({
 	api: {
-		respondInboundRequest: vi.fn(() => ({
-			match: vi.fn((onOk: () => void) => onOk()),
-			mapErr: vi.fn(() => ({
-				match: vi.fn((onOk: () => void) => onOk()),
-			})),
-		})),
+		respondInboundRequest: vi.fn(() => Effect.succeed(undefined)),
 	},
 }));
 
@@ -55,7 +51,7 @@ describe("InboundRequestHandler", () => {
 						droppable: false,
 						emittedAtMs: Date.now(),
 					});
-				return okAsync(mockUnlisten);
+				return Effect.succeed(mockUnlisten);
 			}
 		);
 	});
@@ -66,14 +62,14 @@ describe("InboundRequestHandler", () => {
 
 	describe("start", () => {
 		it("should register event listener on start", async () => {
-			const result = await handler.start(permissionCallback);
+			const result = await Effect.runPromise(Effect.result(handler.start(permissionCallback)));
 
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 			expect(eventCallback).not.toBeNull();
 		});
 
 		it("should call unlisten on stop", async () => {
-			await handler.start(permissionCallback);
+			await Effect.runPromise(handler.start(permissionCallback));
 			handler.stop();
 
 			expect(mockUnlisten).toHaveBeenCalled();
@@ -82,7 +78,7 @@ describe("InboundRequestHandler", () => {
 
 	describe("parseRequest", () => {
 		it("should parse valid JSON-RPC request", async () => {
-			await handler.start(permissionCallback);
+			await Effect.runPromise(handler.start(permissionCallback));
 
 			const validRequest = {
 				id: 123,
@@ -119,7 +115,7 @@ describe("InboundRequestHandler", () => {
 		});
 
 		it("should reject request without id", async () => {
-			await handler.start(permissionCallback);
+			await Effect.runPromise(handler.start(permissionCallback));
 
 			const invalidRequest = {
 				jsonrpc: "2.0",
@@ -133,7 +129,7 @@ describe("InboundRequestHandler", () => {
 		});
 
 		it("should reject request without method", async () => {
-			await handler.start(permissionCallback);
+			await Effect.runPromise(handler.start(permissionCallback));
 
 			const invalidRequest = {
 				id: 123,
@@ -147,7 +143,7 @@ describe("InboundRequestHandler", () => {
 		});
 
 		it("should reject non-object payload", async () => {
-			await handler.start(permissionCallback);
+			await Effect.runPromise(handler.start(permissionCallback));
 
 			eventCallback?.({ payload: "not an object" });
 
@@ -155,7 +151,7 @@ describe("InboundRequestHandler", () => {
 		});
 
 		it("should reject null payload", async () => {
-			await handler.start(permissionCallback);
+			await Effect.runPromise(handler.start(permissionCallback));
 
 			eventCallback?.({ payload: null });
 
@@ -165,7 +161,7 @@ describe("InboundRequestHandler", () => {
 
 	describe("handlePermissionRequest", () => {
 		it("should extract always options correctly", async () => {
-			await handler.start(permissionCallback);
+			await Effect.runPromise(handler.start(permissionCallback));
 
 			const request = {
 				id: 1,
@@ -194,7 +190,7 @@ describe("InboundRequestHandler", () => {
 		});
 
 		it("should use name as fallback when title is missing", async () => {
-			await handler.start(permissionCallback);
+			await Effect.runPromise(handler.start(permissionCallback));
 
 			const request = {
 				id: 1,
@@ -218,7 +214,7 @@ describe("InboundRequestHandler", () => {
 		});
 
 		it("should use default message when both title and name are missing", async () => {
-			await handler.start(permissionCallback);
+			await Effect.runPromise(handler.start(permissionCallback));
 
 			const request = {
 				id: 1,
@@ -241,7 +237,7 @@ describe("InboundRequestHandler", () => {
 		});
 
 		it("stores transport rawInput as diagnostic metadata", async () => {
-			await handler.start(permissionCallback);
+			await Effect.runPromise(handler.start(permissionCallback));
 
 			const rawInput = { command: "rm -rf /", dangerous: true };
 			const request = {
@@ -268,7 +264,7 @@ describe("InboundRequestHandler", () => {
 
 	describe("unknown methods", () => {
 		it("should not call permission callback for unknown methods", async () => {
-			await handler.start(permissionCallback);
+			await Effect.runPromise(handler.start(permissionCallback));
 
 			const request = {
 				id: 1,
@@ -285,7 +281,7 @@ describe("InboundRequestHandler", () => {
 
 	describe("legacy question-shaped permissions", () => {
 		it("keeps AskUserQuestion fallback events in the legacy permission path", async () => {
-			await handler.start(permissionCallback);
+			await Effect.runPromise(handler.start(permissionCallback));
 
 			const request = {
 				id: 1,
@@ -335,7 +331,7 @@ describe("respondToPermission", () => {
 	it("should send correct response for allow", async () => {
 		const { api } = await import("../../store/api.js");
 
-		await respondToPermission("session-1", 123, true, "allow");
+		await Effect.runPromise(respondToPermission("session-1", 123, true, "allow"));
 
 		expect(api.respondInboundRequest).toHaveBeenCalledWith("session-1", 123, {
 			outcome: {
@@ -348,7 +344,7 @@ describe("respondToPermission", () => {
 	it("should send correct response for allow_always", async () => {
 		const { api } = await import("../../store/api.js");
 
-		await respondToPermission("session-1", 456, true, "allow_always");
+		await Effect.runPromise(respondToPermission("session-1", 456, true, "allow_always"));
 
 		expect(api.respondInboundRequest).toHaveBeenCalledWith("session-1", 456, {
 			outcome: {
@@ -361,7 +357,7 @@ describe("respondToPermission", () => {
 	it("should send correct response for reject", async () => {
 		const { api } = await import("../../store/api.js");
 
-		await respondToPermission("session-1", 789, false, "reject");
+		await Effect.runPromise(respondToPermission("session-1", 789, false, "reject"));
 
 		expect(api.respondInboundRequest).toHaveBeenCalledWith("session-1", 789, {
 			outcome: {
@@ -374,7 +370,7 @@ describe("respondToPermission", () => {
 	it("should use default optionId based on allowed flag", async () => {
 		const { api } = await import("../../store/api.js");
 
-		await respondToPermission("session-2", 100, true);
+		await Effect.runPromise(respondToPermission("session-2", 100, true));
 
 		expect(api.respondInboundRequest).toHaveBeenCalledWith("session-2", 100, {
 			outcome: {
@@ -383,7 +379,7 @@ describe("respondToPermission", () => {
 			},
 		});
 
-		await respondToPermission("session-2", 101, false);
+		await Effect.runPromise(respondToPermission("session-2", 101, false));
 
 		expect(api.respondInboundRequest).toHaveBeenCalledWith("session-2", 101, {
 			outcome: {
@@ -406,7 +402,7 @@ describe("respondToQuestion", () => {
 			"Which framework do you prefer?": "Svelte",
 		};
 
-		await respondToQuestion("session-1", 123, answers);
+		await Effect.runPromise(respondToQuestion("session-1", 123, answers));
 
 		expect(api.respondInboundRequest).toHaveBeenCalledWith("session-1", 123, {
 			outcome: {
@@ -428,7 +424,7 @@ describe("respondToQuestion", () => {
 			"Select features:": ["TypeScript", "ESLint", "Prettier"],
 		};
 
-		await respondToQuestion("session-2", 456, answers);
+		await Effect.runPromise(respondToQuestion("session-2", 456, answers));
 
 		expect(api.respondInboundRequest).toHaveBeenCalledWith("session-2", 456, {
 			outcome: {
@@ -451,7 +447,7 @@ describe("respondToQuestion", () => {
 			"Multi choice question?": ["Option B", "Option C"],
 		};
 
-		await respondToQuestion("session-3", 789, answers);
+		await Effect.runPromise(respondToQuestion("session-3", 789, answers));
 
 		expect(api.respondInboundRequest).toHaveBeenCalledWith("session-3", 789, {
 			outcome: {
@@ -473,7 +469,7 @@ describe("cancelQuestion", () => {
 	it("should send cancellation response", async () => {
 		const { api } = await import("../../store/api.js");
 
-		await cancelQuestion("session-1", 100);
+		await Effect.runPromise(cancelQuestion("session-1", 100));
 
 		expect(api.respondInboundRequest).toHaveBeenCalledWith("session-1", 100, {
 			outcome: {

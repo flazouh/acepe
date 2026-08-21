@@ -10,6 +10,7 @@ import {
 } from "@acepe/ui";
 import { SvelteSet } from "svelte/reactivity";
 import { toast } from "svelte-sonner";
+import * as Effect from "effect/Effect";
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import { createReviewFileRevisionKey } from "../../review/review-file-revision.js";
@@ -184,9 +185,16 @@ function handlePointerUp() {
 				onFileRevert={(index) => {
 					const file = files[index];
 					if (!file) return;
-					tauriClient.git.discardChanges(projectPath, [file.filePath]).match(
-						() => toast.success(`Discarded changes in ${file.fileName ?? file.filePath.split("/").pop()}`),
-						(err) => toast.error(`Failed to discard: ${err.message}`)
+					void Effect.runPromise(
+						tauriClient.git.discardChanges(projectPath, [file.filePath]).pipe(
+							Effect.match({
+								onSuccess: () =>
+									toast.success(
+										`Discarded changes in ${file.fileName ?? file.filePath.split("/").pop()}`
+									),
+								onFailure: (err) => toast.error(`Failed to discard: ${err.message}`),
+							})
+						)
 					);
 				}}
 			/>

@@ -9,6 +9,8 @@
  *   UI scale.
  */
 
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { toast } from "svelte-sonner";
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
 import { settings } from "$lib/utils/tauri-client/settings.js";
@@ -63,21 +65,21 @@ class FontSizeSettingsStore {
 		this.initialized = true;
 
 		const [uiResult, codeResult] = await Promise.all([
-			settings.getRaw(UI_FONT_SIZE_KEY),
-			settings.getRaw(CODE_FONT_SIZE_KEY),
+			Effect.runPromise(Effect.result(settings.getRaw(UI_FONT_SIZE_KEY))),
+			Effect.runPromise(Effect.result(settings.getRaw(CODE_FONT_SIZE_KEY))),
 		]);
 
-		if (uiResult.isOk()) {
+		if (Result.isSuccess(uiResult)) {
 			this.applyUiFontSize(
-				parsePx(uiResult.value, UI_FONT_SIZE.DEFAULT, UI_FONT_SIZE.MIN, UI_FONT_SIZE.MAX)
+				parsePx(uiResult.success, UI_FONT_SIZE.DEFAULT, UI_FONT_SIZE.MIN, UI_FONT_SIZE.MAX)
 			);
 		} else {
 			this.applyUiFontSize(UI_FONT_SIZE.DEFAULT);
 		}
 
-		if (codeResult.isOk()) {
+		if (Result.isSuccess(codeResult)) {
 			this.applyCodeFontSize(
-				parsePx(codeResult.value, CODE_FONT_SIZE.DEFAULT, CODE_FONT_SIZE.MIN, CODE_FONT_SIZE.MAX)
+				parsePx(codeResult.success, CODE_FONT_SIZE.DEFAULT, CODE_FONT_SIZE.MIN, CODE_FONT_SIZE.MAX)
 			);
 		} else {
 			this.applyCodeFontSize(CODE_FONT_SIZE.DEFAULT);
@@ -91,9 +93,11 @@ class FontSizeSettingsStore {
 		}
 		this.applyUiFontSize(clamped);
 
-		const result = await settings.setRaw(UI_FONT_SIZE_KEY, String(clamped));
-		if (result.isErr()) {
-			toast.error(`Failed to save interface font size: ${result.error.message}`);
+		const result = await Effect.runPromise(
+			Effect.result(settings.setRaw(UI_FONT_SIZE_KEY, String(clamped)))
+		);
+		if (Result.isFailure(result)) {
+			toast.error(`Failed to save interface font size: ${result.failure.message}`);
 		}
 	}
 
@@ -104,9 +108,11 @@ class FontSizeSettingsStore {
 		}
 		this.applyCodeFontSize(clamped);
 
-		const result = await settings.setRaw(CODE_FONT_SIZE_KEY, String(clamped));
-		if (result.isErr()) {
-			toast.error(`Failed to save code font size: ${result.error.message}`);
+		const result = await Effect.runPromise(
+			Effect.result(settings.setRaw(CODE_FONT_SIZE_KEY, String(clamped)))
+		);
+		if (Result.isFailure(result)) {
+			toast.error(`Failed to save code font size: ${result.failure.message}`);
 		}
 	}
 

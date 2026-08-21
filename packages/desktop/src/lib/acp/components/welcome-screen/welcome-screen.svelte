@@ -1,6 +1,7 @@
 <script lang="ts">
 import { BrandSurface, HugeiconsIcon } from "@acepe/ui";
-import { ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { onDestroy, onMount } from "svelte";
 import { toast } from "svelte-sonner";
 import AgentErrorCard from "$lib/acp/components/agent-panel/components/agent-error-card.svelte";
@@ -191,14 +192,17 @@ function toggleOnboardingAgent(agentId: string): void {
 }
 
 async function loadExistingProjects() {
-	const result = await tauriClient.projects.getProjects();
-	result.match(
-		(existingProjects) => {
-			onboardingAddedPaths = new Set(existingProjects.map((p) => p.path));
-		},
-		(error) => {
-			console.warn("Failed to load existing projects:", error);
-		}
+	await Effect.runPromise(
+		tauriClient.projects.getProjects().pipe(
+			Effect.match({
+				onSuccess: (existingProjects) => {
+					onboardingAddedPaths = new Set(existingProjects.map((p) => p.path));
+				},
+				onFailure: (error) => {
+					console.warn("Failed to load existing projects:", error);
+				},
+			})
+		)
 	);
 }
 
@@ -207,17 +211,19 @@ async function handleOnboardingImport(path: string, name: string) {
 		return;
 	}
 
-	const result = await tauriClient.projects.importProject(path, name);
+	const result = await Effect.runPromise(
+		Effect.result(tauriClient.projects.importProject(path, name))
+	);
 
-	result.match(
-		() => {
+	Result.match(result, {
+		onSuccess: () => {
 			onboardingImportError = null;
 			onboardingImportProjectPath = null;
 			onboardingImportProjectName = null;
 			onboardingAddedPaths = new Set([...onboardingAddedPaths, path]);
 			toast.success(`${name} added to repositories`);
 		},
-		(error) => {
+		onFailure: (error) => {
 			if (!isUnexpectedOnboardingImportError(error)) {
 				onboardingImportError = null;
 				onboardingImportProjectPath = null;
@@ -237,10 +243,10 @@ async function handleOnboardingImport(path: string, name: string) {
 				referenceId: errorReference.referenceId,
 				referenceSearchable: errorReference.searchable,
 			};
-		}
-	);
+		},
+	});
 
-	if (result.isOk()) {
+	if (Result.isSuccess(result)) {
 		onProjectImported(path, name);
 	}
 }
@@ -251,16 +257,20 @@ async function handleOnboardingUndoImport(path: string, name: string) {
 	}
 
 	const result = await tauriClient.projects.removeProject(path);
-	result.match(
-		() => {
-			const nextAddedPaths = new Set(onboardingAddedPaths);
-			nextAddedPaths.delete(path);
-			onboardingAddedPaths = nextAddedPaths;
-			toast.success(`${name} removed from repositories`);
-		},
-		(error) => {
-			toast.error(error.message);
-		}
+	await Effect.runPromise(
+		result.pipe(
+			Effect.match({
+				onSuccess: () => {
+					const nextAddedPaths = new Set(onboardingAddedPaths);
+					nextAddedPaths.delete(path);
+					onboardingAddedPaths = nextAddedPaths;
+					toast.success(`${name} removed from repositories`);
+				},
+				onFailure: (error) => {
+					toast.error(error.message);
+				},
+			})
+		)
 	);
 }
 
@@ -270,13 +280,17 @@ async function copyOnboardingImportReferenceId() {
 		return;
 	}
 
-	await copyTextToClipboard(referenceId).match(
-		() => {
-			toast.success("Reference ID copied");
-		},
-		(error) => {
-			toast.error(error.message);
-		}
+	await Effect.runPromise(
+		copyTextToClipboard(referenceId).pipe(
+			Effect.match({
+				onSuccess: () => {
+					toast.success("Reference ID copied");
+				},
+				onFailure: (error) => {
+					toast.error(error.message);
+				},
+			})
+		)
 	);
 }
 
@@ -324,10 +338,12 @@ async function loadOnboardingProjects(): Promise<void> {
 	onboardingProjectsLoading = true;
 	onboardingProjects = [];
 
-	const pathsResult = await tauriClient.history.listAllProjectPaths();
+	const pathsResult = await Effect.runPromise(
+		Effect.result(tauriClient.history.listAllProjectPaths())
+	);
 
-	pathsResult.match(
-		(projectInfos) => {
+	Result.match(pathsResult, {
+		onSuccess: (projectInfos) => {
 			const deduped = new Map<string, ProjectWithSessions>();
 			const discoverableProjectInfos = projectInfos.filter(shouldShowDiscoveredProject);
 			for (const info of discoverableProjectInfos) {
@@ -344,46 +360,53 @@ async function loadOnboardingProjects(): Promise<void> {
 			onboardingProjectsLoading = false;
 
 			for (const path of deduped.keys()) {
-				void tauriClient.history.countSessionsForProject(path).match(
-					(counts) => {
-						const total = Object.values(counts.counts).reduce((sum, count) => sum + count, 0);
-						onboardingProjects = sortProjectsBySessionCount(
-							onboardingProjects.map((project) =>
-								project.path === path
-									? {
-											path: project.path,
-											name: project.name,
-											agentCounts: new Map(
-												Object.entries(counts.counts).map(([agentId, count]) => [agentId, count])
-											),
-											totalSessions: total,
-										}
-									: project
-							)
-						);
-					},
-					() => {
-						onboardingProjects = sortProjectsBySessionCount(
-							onboardingProjects.map((project) =>
-								project.path === path
-									? {
-											path: project.path,
-											name: project.name,
-											agentCounts: project.agentCounts,
-											totalSessions: "error",
-										}
-									: project
-							)
-						);
-					}
+				void Effect.runPromise(
+					tauriClient.history.countSessionsForProject(path).pipe(
+						Effect.match({
+							onSuccess: (counts) => {
+								const total = Object.values(counts.counts).reduce((sum, count) => sum + count, 0);
+								onboardingProjects = sortProjectsBySessionCount(
+									onboardingProjects.map((project) =>
+										project.path === path
+											? {
+													path: project.path,
+													name: project.name,
+													agentCounts: new Map(
+														Object.entries(counts.counts).map(([agentId, count]) => [
+															agentId,
+															count,
+														])
+													),
+													totalSessions: total,
+												}
+											: project
+									)
+								);
+							},
+							onFailure: () => {
+								onboardingProjects = sortProjectsBySessionCount(
+									onboardingProjects.map((project) =>
+										project.path === path
+											? {
+													path: project.path,
+													name: project.name,
+													agentCounts: project.agentCounts,
+													totalSessions: "error",
+												}
+											: project
+									)
+								);
+							},
+						})
+					)
 				);
 			}
 		},
-		(error) => {
+		onFailure: (error) => {
 			onboardingProjectsLoading = false;
 			toast.error(error.message);
-		}
-	);
+		},
+	});
 }
 
 onMount(() => {
@@ -410,14 +433,16 @@ async function finishOnboarding(): Promise<void> {
 	onboardingStep = "scanning";
 	onboardingBusyMessage = "Completing onboarding...";
 
-	const completionResult = await agentPreferencesStore.completeOnboarding(onboardingSelectedAgents);
-	completionResult.match(
-		() => onDismiss(),
-		(error) => {
+	const completionResult = await Effect.runPromise(
+		Effect.result(agentPreferencesStore.completeOnboarding(onboardingSelectedAgents))
+	);
+	Result.match(completionResult, {
+		onSuccess: () => onDismiss(),
+		onFailure: (error) => {
 			toast.error(error.message);
 			onboardingStep = "projects";
-		}
-	);
+		},
+	});
 }
 </script>
 

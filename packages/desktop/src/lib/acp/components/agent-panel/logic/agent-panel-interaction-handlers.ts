@@ -11,6 +11,7 @@ import type {
 	AgentPanelQuestionSelectEvent,
 	AgentToolFileSelectEvent,
 } from "@acepe/ui/agent-panel";
+import * as Effect from "effect/Effect";
 import { toast } from "svelte-sonner";
 import { api } from "../../../store/api.js";
 import type { PanelStore } from "../../../store/panel-store.svelte.js";
@@ -69,23 +70,27 @@ export function createAgentPanelInteractionHandlers(deps: AgentPanelInteractionH
 		const answerMap: Record<string, string | string[]> = {};
 		answerMap[question.question] = question.multiSelect ? [event.label] : event.label;
 
-		void api
-			.replyInteraction({
-				sessionId: interaction.session_id,
-				interactionId: interaction.id,
-				replyHandler,
-				payload: {
-					kind: "question",
-					answers,
-					answerMap,
-				},
-			})
-			.match(
-				() => {},
-				(error) => {
-					toast.error(`Failed to answer question: ${error.message}`);
-				}
-			);
+		void Effect.runPromise(
+			api
+				.replyInteraction({
+					sessionId: interaction.session_id,
+					interactionId: interaction.id,
+					replyHandler,
+					payload: {
+						kind: "question",
+						answers,
+						answerMap,
+					},
+				})
+				.pipe(
+					Effect.match({
+						onSuccess: () => {},
+						onFailure: (error) => {
+							toast.error(`Failed to answer question: ${error.message}`);
+						},
+					})
+				)
+		);
 	}
 
 	function handleToolFileSelect(event: AgentToolFileSelectEvent): void {
@@ -124,11 +129,15 @@ export function createAgentPanelInteractionHandlers(deps: AgentPanelInteractionH
 			return;
 		}
 
-		void deps.permissionStore.reply(permission.id, reply).match(
-			() => {},
-			(error) => {
-				toast.error(`Failed to answer plan approval: ${error.message}`);
-			}
+		void Effect.runPromise(
+			deps.permissionStore.reply(permission.id, reply).pipe(
+				Effect.match({
+					onSuccess: () => {},
+					onFailure: (error) => {
+						toast.error(`Failed to answer plan approval: ${error.message}`);
+					},
+				})
+			)
 		);
 	}
 

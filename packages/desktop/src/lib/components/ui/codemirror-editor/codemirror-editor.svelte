@@ -11,6 +11,7 @@ import {
 	lineNumbers,
 } from "@codemirror/view";
 import { onDestroy, onMount } from "svelte";
+import * as Effect from "effect/Effect";
 import { createLogger } from "../../../acp/utils/logger.js";
 import { getCursorThemeExtension } from "./cursor-theme.js";
 import { type GitGutterInput, gitGutterExtension } from "./git-gutter.js";
@@ -155,15 +156,19 @@ $effect(() => {
 $effect(() => {
 	if (!view) return;
 
-	loadLanguageByName(language).match(
-		(langSupport) => {
-			view?.dispatch({
-				effects: languageCompartment.reconfigure(langSupport ? [langSupport] : []),
-			});
-		},
-		(error) => {
-			console.error("Failed to load language:", error.message);
-		}
+	void Effect.runPromise(
+		loadLanguageByName(language).pipe(
+			Effect.match({
+				onSuccess: (langSupport) => {
+					view?.dispatch({
+						effects: languageCompartment.reconfigure(langSupport ? [langSupport] : []),
+					});
+				},
+				onFailure: (error) => {
+					console.error("Failed to load language:", error.message);
+				},
+			})
+		)
 	);
 });
 

@@ -1,6 +1,6 @@
 import { resolveProjectColor } from "@acepe/ui/colors";
 import { computeProjectBadgeLabels } from "@acepe/ui/project-letter-badge";
-import { okAsync, type ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import { SvelteDate, SvelteMap } from "svelte/reactivity";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import { ProjectClient } from "./project-client.js";
@@ -175,7 +175,7 @@ export class ProjectManager {
 
 	private loadProjectsFromStorage(
 		options: ProjectStorageLoadOptions
-	): ResultAsync<void, ProjectError> {
+	): Effect.Effect<void, ProjectError> {
 		if (options.showLoading) {
 			this.isLoading = true;
 			this.error = null;
@@ -188,12 +188,12 @@ export class ProjectManager {
 			? this.client.getRecentProjects(50, options.preferredPaths, 0)
 			: this.client.getProjects();
 
-		return projectsRequest
-			.map((projects) => ({
+		return projectsRequest.pipe(
+			Effect.map((projects) => ({
 				projects,
 				durationMs: performance.now() - projectsStartedAtMs,
-			}))
-			.map((projectsResult) => {
+			})),
+			Effect.map((projectsResult) => {
 				if (options.firstPageOnly) {
 					const preferred = new Set(options.preferredPaths);
 					this.nextProjectPageOffset = projectsResult.projects.filter(
@@ -210,14 +210,15 @@ export class ProjectManager {
 				if (options.showLoading) {
 					this.isLoading = false;
 				}
-			})
-			.mapErr((error) => {
+			}),
+			Effect.mapError((error) => {
 				if (options.showLoading) {
 					this.error = error;
 					this.isLoading = false;
 				}
 				return error;
-			});
+			})
+		);
 	}
 
 	private writeCurrentProjectsToCache(): void {
@@ -225,17 +226,21 @@ export class ProjectManager {
 	}
 
 	private loadRemainingProjectPages(offset: number): void {
-		void this.client.getRecentProjects(50, [], offset).match(
-			(projects) => {
-				if (projects.length === 0) return;
-				const knownPaths = new Set(this.projects.map((project) => project.path));
-				const additions = projects.filter((project) => !knownPaths.has(project.path));
-				this.projects = this.projects.concat(additions);
-				this.projectCount = this.projects.length;
-				this.writeCurrentProjectsToCache();
-				if (projects.length === 50) this.loadRemainingProjectPages(offset + 50);
-			},
-			(error) => console.warn("Later project page failed:", error)
+		void Effect.runPromise(
+			this.client.getRecentProjects(50, [], offset).pipe(
+				Effect.match({
+					onSuccess: (projects) => {
+						if (projects.length === 0) return;
+						const knownPaths = new Set(this.projects.map((project) => project.path));
+						const additions = projects.filter((project) => !knownPaths.has(project.path));
+						this.projects = this.projects.concat(additions);
+						this.projectCount = this.projects.length;
+						this.writeCurrentProjectsToCache();
+						if (projects.length === 50) this.loadRemainingProjectPages(offset + 50);
+					},
+					onFailure: (error) => console.warn("Later project page failed:", error),
+				})
+			)
 		);
 	}
 
@@ -257,9 +262,9 @@ export class ProjectManager {
 	 * Load projects from database.
 	 * Uses the hot cache first, then refreshes from storage after first paint.
 	 *
-	 * @returns ResultAsync containing void on success
+	 * @returns Effect containing void on success
 	 */
-	loadProjects(preferredPaths: string[] = []): ResultAsync<void, ProjectError> {
+	loadProjects(preferredPaths: string[] = []): Effect.Effect<void, ProjectError> {
 		this.error = null;
 		const totalStartedAtMs = performance.now();
 
@@ -278,14 +283,15 @@ export class ProjectManager {
 				recordTrace: false,
 				firstPageOnly: true,
 				preferredPaths,
-			})
-				.map(() => {
+			}).pipe(
+				Effect.map(() => {
 					this.loadRemainingProjectPages(this.nextProjectPageOffset);
-				})
-				.orElse((error) => {
+				}),
+				Effect.catch((error) => {
 					console.warn("Preferred project page refresh failed:", error);
-					return okAsync(undefined);
-				});
+					return Effect.succeed(undefined);
+				})
+			);
 		}
 
 		return this.loadProjectsFromStorage({
@@ -293,9 +299,11 @@ export class ProjectManager {
 			recordTrace: true,
 			firstPageOnly: true,
 			preferredPaths,
-		}).map(() => {
-			this.loadRemainingProjectPages(this.nextProjectPageOffset);
-		});
+		}).pipe(
+			Effect.map(() => {
+				this.loadRemainingProjectPages(this.nextProjectPageOffset);
+			})
+		);
 	}
 
 	getLastLoadPerformanceTrace(): ProjectLoadPerformanceTrace | null {
@@ -306,72 +314,93 @@ export class ProjectManager {
 	 * Import a project (browse for it, add to workspace, trigger scanning).
 	 * Opens native file picker, adds project to workspace, and triggers session scanning.
 	 *
-	 * @returns ResultAsync containing the imported project, or null if cancelled
+	 * @returns Effect containing the imported project, or null if cancelled
 	 */
-	importProject(): ResultAsync<Project | null, ProjectError> {
-		return this.client.browseProject().andThen((project) => {
-			if (!project) {
-				// User cancelled the file picker
-				return okAsync(null);
-			}
-
-			// Import on backend (adds to DB, auto-detects icon)
-			return this.client.importProject(project).map((importedProject) => {
-				// Check if this is a new project
-				const existingIndex = this.projects.findIndex((p) => p.path === importedProject.path);
-				const isNew = existingIndex < 0;
-
-				// Update projects list with the backend result (carries detected icon_path)
-				if (isNew) {
-					const shiftedProjects = this.projects.map((existingProject) => ({
-						path: existingProject.path,
-						name: existingProject.name,
-						lastOpened: existingProject.lastOpened,
-						createdAt: existingProject.createdAt,
-						color: existingProject.color,
-						sortOrder: existingProject.sortOrder !== undefined ? existingProject.sortOrder + 1 : 1,
-						iconPath: existingProject.iconPath ?? null,
-						showExternalCliSessions: existingProject.showExternalCliSessions,
-					}));
-					this.projects = [importedProject, ...shiftedProjects];
-					// Update count only for new projects
-					if (this.projectCount !== null) {
-						this.projectCount = this.projectCount + 1;
-					}
-				} else {
-					this.projects = this.projects.map((p, i) => (i === existingIndex ? importedProject : p));
-				}
-				this.writeCurrentProjectsToCache();
-				this.projectStorageFresh = true;
-
-				// Trigger session scan for the imported project (fire and forget)
-				if (this.sessionStore) {
-					this.sessionStore.loading.scanSessions([importedProject.path]).mapErr((error) => {
-						console.warn("Session scan failed:", error);
-					});
+	importProject(): Effect.Effect<Project | null, ProjectError> {
+		return this.client.browseProject().pipe(
+			Effect.flatMap((project) => {
+				if (!project) {
+					// User cancelled the file picker
+					return Effect.succeed(null);
 				}
 
-				return importedProject;
-			});
-		});
+				// Import on backend (adds to DB, auto-detects icon)
+				return this.client.importProject(project).pipe(
+					Effect.map((importedProject) => {
+						// Check if this is a new project
+						const existingIndex = this.projects.findIndex((p) => p.path === importedProject.path);
+						const isNew = existingIndex < 0;
+
+						// Update projects list with the backend result (carries detected icon_path)
+						if (isNew) {
+							const shiftedProjects = this.projects.map((existingProject) => ({
+								path: existingProject.path,
+								name: existingProject.name,
+								lastOpened: existingProject.lastOpened,
+								createdAt: existingProject.createdAt,
+								color: existingProject.color,
+								sortOrder:
+									existingProject.sortOrder !== undefined ? existingProject.sortOrder + 1 : 1,
+								iconPath: existingProject.iconPath ?? null,
+								showExternalCliSessions: existingProject.showExternalCliSessions,
+							}));
+							this.projects = [importedProject, ...shiftedProjects];
+							// Update count only for new projects
+							if (this.projectCount !== null) {
+								this.projectCount = this.projectCount + 1;
+							}
+						} else {
+							this.projects = this.projects.map((p, i) =>
+								i === existingIndex ? importedProject : p
+							);
+						}
+						this.writeCurrentProjectsToCache();
+						this.projectStorageFresh = true;
+
+						// Trigger session scan for the imported project (fire and forget)
+						if (this.sessionStore) {
+							void Effect.runPromise(
+								(
+									this.sessionStore.loading.scanSessions([importedProject.path]) as Effect.Effect<
+										unknown,
+										Error
+									>
+								).pipe(
+									Effect.match({
+										onSuccess: () => undefined,
+										onFailure: (error) => {
+											console.warn("Session scan failed:", error);
+										},
+									})
+								)
+							);
+						}
+
+						return importedProject;
+					})
+				);
+			})
+		);
 	}
 
 	/**
 	 * Add a project.
 	 *
 	 * @param project - The project to add
-	 * @returns ResultAsync indicating success or error
+	 * @returns Effect indicating success or error
 	 */
-	addProject(project: Project): ResultAsync<void, ProjectError> {
-		return this.client.addProject(project).andThen(() => {
-			// Reload projects to get updated list
-			return this.loadProjectsFromStorage({
-				showLoading: true,
-				recordTrace: true,
-				firstPageOnly: false,
-				preferredPaths: [],
-			});
-		});
+	addProject(project: Project): Effect.Effect<void, ProjectError> {
+		return this.client.addProject(project).pipe(
+			Effect.flatMap(() => {
+				// Reload projects to get updated list
+				return this.loadProjectsFromStorage({
+					showLoading: true,
+					recordTrace: true,
+					firstPageOnly: false,
+					preferredPaths: [],
+				});
+			})
+		);
 	}
 
 	/**
@@ -425,44 +454,47 @@ export class ProjectManager {
 	 *
 	 * @param path - The project path
 	 * @param color - The new color (color name like "red" or hex like "#FF5D5A")
-	 * @returns ResultAsync indicating success or error
+	 * @returns Effect indicating success or error
 	 */
-	updateProjectColor(path: string, color: string): ResultAsync<void, ProjectError> {
-		return this.client.updateProjectColor(path, color).map((updatedProject) => {
-			// Update the project in the projects list
-			const existingIndex = this.projects.findIndex((p) => p.path === path);
-			if (existingIndex >= 0) {
-				this.projects = this.projects.map((p, i) => (i === existingIndex ? updatedProject : p));
-				this.projectStorageFresh = true;
-				this.writeCurrentProjectsToCache();
-			}
-		});
+	updateProjectColor(path: string, color: string): Effect.Effect<void, ProjectError> {
+		return this.client.updateProjectColor(path, color).pipe(
+			Effect.map((updatedProject) => {
+				// Update the project in the projects list
+				const existingIndex = this.projects.findIndex((p) => p.path === path);
+				if (existingIndex >= 0) {
+					this.projects = this.projects.map((p, i) => (i === existingIndex ? updatedProject : p));
+					this.projectStorageFresh = true;
+					this.writeCurrentProjectsToCache();
+				}
+			})
+		);
 	}
 
-	updateProjectIcon(path: string, iconPath: string | null): ResultAsync<void, ProjectError> {
-		return this.client.updateProjectIcon(path, iconPath).map((updatedProject) => {
-			const existingIndex = this.projects.findIndex((project) => project.path === path);
-			if (existingIndex >= 0) {
-				this.projects = this.projects.map((project, index) =>
-					index === existingIndex ? updatedProject : project
-				);
-				this.projectStorageFresh = true;
-				this.writeCurrentProjectsToCache();
-			}
-		});
+	updateProjectIcon(path: string, iconPath: string | null): Effect.Effect<void, ProjectError> {
+		return this.client.updateProjectIcon(path, iconPath).pipe(
+			Effect.map((updatedProject) => {
+				const existingIndex = this.projects.findIndex((project) => project.path === path);
+				if (existingIndex >= 0) {
+					this.projects = this.projects.map((project, index) =>
+						index === existingIndex ? updatedProject : project
+					);
+					this.projectStorageFresh = true;
+					this.writeCurrentProjectsToCache();
+				}
+			})
+		);
 	}
 
-	listProjectImages(projectPath: string): ResultAsync<string[], ProjectError> {
+	listProjectImages(projectPath: string): Effect.Effect<string[], ProjectError> {
 		return this.client.listProjectImages(projectPath);
 	}
 
 	updateProjectShowExternalCliSessions(
 		path: string,
 		value: boolean
-	): ResultAsync<void, ProjectError> {
-		return this.client
-			.updateProjectShowExternalCliSessions(path, value)
-			.map(() => {
+	): Effect.Effect<void, ProjectError> {
+		return this.client.updateProjectShowExternalCliSessions(path, value).pipe(
+			Effect.map(() => {
 				const existingIndex = this.projects.findIndex((project) => project.path === path);
 				if (existingIndex >= 0) {
 					this.projects = this.projects.map((project, index) =>
@@ -482,23 +514,27 @@ export class ProjectManager {
 					this.projectStorageFresh = true;
 					this.writeCurrentProjectsToCache();
 				}
-			})
-			.andThen(() => {
+			}),
+			Effect.flatMap(() => {
 				if (this.sessionStore === null) {
-					return okAsync(undefined);
+					return Effect.succeed(undefined);
 				}
 
-				return this.sessionStore.loading
-					.scanSessions([path])
-					.mapErr(
+				return (
+					this.sessionStore.loading.scanSessions([path]) as Effect.Effect<unknown, Error>
+				).pipe(
+					Effect.mapError(
 						(error) =>
 							new ProjectError(
 								`Failed to refresh project sessions: ${error.message}`,
 								"STORAGE_ERROR",
 								error instanceof Error ? error : undefined
 							)
-					);
-			});
+					),
+					Effect.map(() => undefined)
+				);
+			})
+		);
 	}
 
 	/**
@@ -506,24 +542,64 @@ export class ProjectManager {
 	 * Opens native file picker for images, then updates the project icon if a file was selected.
 	 *
 	 * @param projectPath - The project path to update
-	 * @returns ResultAsync containing void on success
+	 * @returns Effect containing void on success
 	 */
-	browseAndSetProjectIcon(projectPath: string): ResultAsync<void, ProjectError> {
-		return this.client.browseProjectIcon().andThen((selectedFilePath) => {
-			if (selectedFilePath === null) {
-				return okAsync(undefined);
-			}
-			return this.updateProjectIcon(projectPath, selectedFilePath);
-		});
+	browseAndSetProjectIcon(projectPath: string): Effect.Effect<void, ProjectError> {
+		return this.client.browseProjectIcon().pipe(
+			Effect.flatMap((selectedFilePath) => {
+				if (selectedFilePath === null) {
+					return Effect.succeed(undefined);
+				}
+				return this.updateProjectIcon(projectPath, selectedFilePath);
+			})
+		);
 	}
 
 	triggerProjectIconBackfill(): void {
-		void this.client
-			.backfillProjectIcons()
-			.andThen((updatedCount) => {
-				if (updatedCount === 0) {
-					return okAsync(undefined);
-				}
+		void Effect.runPromise(
+			this.client.backfillProjectIcons().pipe(
+				Effect.flatMap((updatedCount) => {
+					if (updatedCount === 0) {
+						return Effect.succeed(undefined);
+					}
+					return this.loadProjectsFromStorage({
+						showLoading: true,
+						recordTrace: true,
+						firstPageOnly: false,
+						preferredPaths: [],
+					});
+				}),
+				Effect.match({
+					onSuccess: () => undefined,
+					onFailure: (error) => {
+						console.warn("Project icon backfill failed:", error);
+					},
+				})
+			)
+		);
+	}
+
+	updateProjectOrder(orderedPaths: string[]): Effect.Effect<void, ProjectError> {
+		return this.client.updateProjectOrder(orderedPaths).pipe(
+			Effect.map((updatedProjects) => {
+				this.projects = updatedProjects;
+				this.projectCount = updatedProjects.length;
+				this.projectStorageFresh = true;
+				this.writeCurrentProjectsToCache();
+			})
+		);
+	}
+
+	/**
+	 * Remove a project.
+	 *
+	 * @param path - The project path to remove
+	 * @returns Effect indicating success or error
+	 */
+	removeProject(path: string): Effect.Effect<void, ProjectError> {
+		return this.client.removeProject(path).pipe(
+			Effect.flatMap(() => {
+				// Reload projects to get updated list
 				return this.loadProjectsFromStorage({
 					showLoading: true,
 					recordTrace: true,
@@ -531,69 +607,39 @@ export class ProjectManager {
 					preferredPaths: [],
 				});
 			})
-			.match(
-				() => undefined,
-				(error) => {
-					console.warn("Project icon backfill failed:", error);
-				}
-			);
-	}
-
-	updateProjectOrder(orderedPaths: string[]): ResultAsync<void, ProjectError> {
-		return this.client.updateProjectOrder(orderedPaths).map((updatedProjects) => {
-			this.projects = updatedProjects;
-			this.projectCount = updatedProjects.length;
-			this.projectStorageFresh = true;
-			this.writeCurrentProjectsToCache();
-		});
-	}
-
-	/**
-	 * Remove a project.
-	 *
-	 * @param path - The project path to remove
-	 * @returns ResultAsync indicating success or error
-	 */
-	removeProject(path: string): ResultAsync<void, ProjectError> {
-		return this.client.removeProject(path).andThen(() => {
-			// Reload projects to get updated list
-			return this.loadProjectsFromStorage({
-				showLoading: true,
-				recordTrace: true,
-				firstPageOnly: false,
-				preferredPaths: [],
-			});
-		});
+		);
 	}
 
 	/**
 	 * Clear all projects.
 	 *
-	 * @returns ResultAsync indicating success or error
+	 * @returns Effect indicating success or error
 	 */
-	clearProjects(): ResultAsync<void, ProjectError> {
+	clearProjects(): Effect.Effect<void, ProjectError> {
 		// Remove all projects sequentially
-		let result: ResultAsync<void, ProjectError> = okAsync(undefined);
+		let result: Effect.Effect<void, ProjectError> = Effect.succeed(undefined);
 
 		for (const project of this.projects) {
-			result = result.andThen(() => this.client.removeProject(project.path));
+			result = result.pipe(Effect.flatMap(() => this.client.removeProject(project.path)));
 		}
 
-		return result.andThen(() => {
-			this.projects = [];
-			this.projectCount = 0;
-			this.projectStorageFresh = true;
-			this.writeCurrentProjectsToCache();
-			return okAsync(undefined);
-		});
+		return result.pipe(
+			Effect.flatMap(() => {
+				this.projects = [];
+				this.projectCount = 0;
+				this.projectStorageFresh = true;
+				this.writeCurrentProjectsToCache();
+				return Effect.succeed(undefined);
+			})
+		);
 	}
 
 	/**
 	 * Browse for a project folder.
 	 *
-	 * @returns ResultAsync containing the selected project or null
+	 * @returns Effect containing the selected project or null
 	 */
-	browseProject(): ResultAsync<Project | null, ProjectError> {
+	browseProject(): Effect.Effect<Project | null, ProjectError> {
 		return this.client.browseProject();
 	}
 

@@ -1,22 +1,8 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
+import * as Effect from "effect/Effect";
 
-interface MockResult {
-	isOk: () => boolean;
-	isErr: () => boolean;
-	value: string[] | null;
-	error: Error | null;
-}
-
-function okResult(value: string[] | null): MockResult {
-	return { isOk: () => true, isErr: () => false, value, error: null };
-}
-
-function errResult(error: Error): MockResult {
-	return { isOk: () => false, isErr: () => true, value: null, error };
-}
-
-const getMock = mock(async (): Promise<MockResult> => okResult(null));
-const setMock = mock(() => ({ mapErr: () => ({}) }));
+const getMock = mock((): Effect.Effect<string[] | null, Error> => Effect.succeed(null));
+const setMock = mock((): Effect.Effect<void, Error> => Effect.succeed(undefined));
 
 mock.module("svelte", () => ({
 	getContext: mock(() => {
@@ -51,8 +37,8 @@ describe("dismissed-tips-store", () => {
 	beforeEach(() => {
 		getMock.mockReset();
 		setMock.mockClear();
-		getMock.mockResolvedValue(okResult(null));
-		setMock.mockReturnValue({ mapErr: () => ({}) });
+		getMock.mockReturnValue(Effect.succeed(null));
+		setMock.mockReturnValue(Effect.succeed(undefined));
 	});
 
 	it("returns false for unknown keys", () => {
@@ -76,7 +62,7 @@ describe("dismissed-tips-store", () => {
 	});
 
 	it("loads persisted keys", async () => {
-		getMock.mockResolvedValue(okResult(["layout.view.info", "layout.tabbar.info"]));
+		getMock.mockReturnValue(Effect.succeed(["layout.view.info", "layout.tabbar.info"]));
 
 		const store = new DismissedTipsStore();
 		await store.initialize();
@@ -86,7 +72,7 @@ describe("dismissed-tips-store", () => {
 	});
 
 	it("handles load failures gracefully", async () => {
-		getMock.mockResolvedValue(errResult(new Error("db error")));
+		getMock.mockReturnValue(Effect.fail(new Error("db error")));
 
 		const store = new DismissedTipsStore();
 		await store.initialize();

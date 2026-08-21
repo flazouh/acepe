@@ -1,5 +1,6 @@
 <script lang="ts">
 import { HugeiconsIcon, Selector } from "@acepe/ui";
+import * as Effect from "effect/Effect";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { Button } from "$lib/components/ui/button/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
@@ -20,18 +21,18 @@ const otherAgents = $derived(
 );
 
 function handleSave() {
-	store.saveSkill();
+	void Effect.runPromise(Effect.result(store.saveSkill()));
 }
 
 function handleCopyTo(agentId: string) {
 	if (store.selectedSkill) {
-		store.copySkillTo(store.selectedSkill.id, agentId);
+		void Effect.runPromise(Effect.result(store.copySkillTo(store.selectedSkill.id, agentId)));
 	}
 }
 
 function handleDelete() {
 	if (store.selectedSkill && confirm(`Delete skill "${store.selectedSkill.name}"?`)) {
-		store.deleteSkill(store.selectedSkill.id);
+		void Effect.runPromise(Effect.result(store.deleteSkill(store.selectedSkill.id)));
 	}
 }
 </script>

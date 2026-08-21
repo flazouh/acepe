@@ -6,7 +6,7 @@
  * drains the next message automatically via the onTurnComplete callback.
  */
 
-import type { ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import { getContext, setContext } from "svelte";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 
@@ -52,7 +52,7 @@ export interface MessageSender {
 		sessionId: string,
 		content: string,
 		attachments: readonly Attachment[]
-	): ResultAsync<void, AppError>;
+	): Effect.Effect<void, AppError>;
 }
 
 export interface SessionMessageQueueHost {
@@ -225,25 +225,29 @@ export function createMessageQueueStore(sender: MessageSender): MessageQueueStor
 
 		logger.debug("Draining next message", { sessionId, messageId: queuedMessageId(next) });
 
-		sender
-			.sendMessage(sessionId, next.content, next.attachments)
-			.map(() => {
-				drainingIds.delete(sessionId);
-				// Don't drain again here — next onTurnComplete will trigger
-			})
-			.mapErr((error) => {
-				// Send failed — re-insert at front and pause
-				const current = queues.get(sessionId) ?? [];
-				queues.set(sessionId, [next, ...current]);
-				bumpVersion(sessionId);
-				drainingIds.delete(sessionId);
-				pausedIds.add(sessionId);
-				logger.warn("Drain failed, re-inserted and paused", {
-					sessionId,
-					messageId: queuedMessageId(next),
-					error,
-				});
-			});
+		void Effect.runPromise(
+			sender.sendMessage(sessionId, next.content, next.attachments).pipe(
+				Effect.match({
+					onSuccess: () => {
+						drainingIds.delete(sessionId);
+						// Don't drain again here — next onTurnComplete will trigger
+					},
+					onFailure: (error) => {
+						// Send failed — re-insert at front and pause
+						const current = queues.get(sessionId) ?? [];
+						queues.set(sessionId, [next, ...current]);
+						bumpVersion(sessionId);
+						drainingIds.delete(sessionId);
+						pausedIds.add(sessionId);
+						logger.warn("Drain failed, re-inserted and paused", {
+							sessionId,
+							messageId: queuedMessageId(next),
+							error,
+						});
+					},
+				})
+			)
+		);
 	}
 
 	function sendNow(sessionId: string, messageId: QueuedMessageId): void {
@@ -268,17 +272,24 @@ export function createMessageQueueStore(sender: MessageSender): MessageQueueStor
 			messageId: queuedMessageId(target),
 		});
 
-		sender.sendMessage(sessionId, target.content, target.attachments).mapErr((error) => {
-			const current = queues.get(sessionId) ?? [];
-			queues.set(sessionId, [target, ...current]);
-			bumpVersion(sessionId);
-			pausedIds.add(sessionId);
-			logger.warn("sendNow failed, re-inserted and paused", {
-				sessionId,
-				messageId: queuedMessageId(target),
-				error,
-			});
-		});
+		void Effect.runPromise(
+			sender.sendMessage(sessionId, target.content, target.attachments).pipe(
+				Effect.match({
+					onSuccess: () => undefined,
+					onFailure: (error) => {
+						const current = queues.get(sessionId) ?? [];
+						queues.set(sessionId, [target, ...current]);
+						bumpVersion(sessionId);
+						pausedIds.add(sessionId);
+						logger.warn("sendNow failed, re-inserted and paused", {
+							sessionId,
+							messageId: queuedMessageId(target),
+							error,
+						});
+					},
+				})
+			)
+		);
 	}
 
 	function pause(sessionId: string): void {

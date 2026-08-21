@@ -11,7 +11,8 @@
  * and reduce the God class anti-pattern.
  */
 
-import { errAsync, okAsync, ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
 import type {
 	HistoryEntry,
 	StartupSessionsResponse,
@@ -201,11 +202,11 @@ export class SessionRepository {
 	loadSessions(
 		existingSessions: SessionCold[],
 		projectPaths?: string[]
-	): ResultAsync<SessionCold[], AppError> {
+	): Effect.Effect<SessionCold[], AppError> {
 		// If no project paths provided, return existing sessions as-is
 		if (!projectPaths || projectPaths.length === 0) {
 			logger.debug("No project paths provided, returning existing sessions");
-			return okAsync(existingSessions);
+			return Effect.succeed(existingSessions);
 		}
 
 		this.stateWriter.setLoading(true);
@@ -213,9 +214,8 @@ export class SessionRepository {
 			projectPathsFilter: projectPaths,
 		});
 
-		return api
-			.scanSessions(projectPaths)
-			.map((entries) => {
+		return api.scanSessions(projectPaths).pipe(
+			Effect.map((entries) => {
 				const mergedSessions = this.mergeHistoryWithExisting(entries, existingSessions);
 				this.stateWriter.setSessions(mergedSessions);
 				this.stateWriter.setLoading(false);
@@ -223,12 +223,13 @@ export class SessionRepository {
 					total: mergedSessions.length,
 				});
 				return mergedSessions;
-			})
-			.mapErr((error) => {
+			}),
+			Effect.mapError((error) => {
 				this.stateWriter.setLoading(false);
 				logger.error("Failed to load sessions", error);
 				return error;
-			});
+			})
+		);
 	}
 
 	/**
@@ -240,28 +241,28 @@ export class SessionRepository {
 	scanSessions(
 		_existingSessions: SessionCold[],
 		projectPaths: string[]
-	): ResultAsync<void, AppError> {
+	): Effect.Effect<void, AppError> {
 		if (projectPaths.length === 0) {
-			return okAsync(undefined);
+			return Effect.succeed(undefined);
 		}
 
 		logger.debug("Scanning project sessions", { projectPaths });
 		this.stateWriter.addScanningProjects(projectPaths);
 
-		return tauriClient.history
-			.scanProjectSessions(projectPaths)
-			.map((entries) => {
+		return tauriClient.history.scanProjectSessions(projectPaths).pipe(
+			Effect.map((entries) => {
 				// Read fresh sessions to avoid stale snapshot overwrites from concurrent scans
 				const freshSessions = this.stateReader.getAllSessions();
 				this.refreshSessionsFromScan(freshSessions, entries, projectPaths);
 				this.stateWriter.removeScanningProjects(projectPaths);
 				logger.debug("Scan complete", { total: entries.length });
-			})
-			.mapErr((error) => {
+			}),
+			Effect.mapError((error) => {
 				this.stateWriter.removeScanningProjects(projectPaths);
 				logger.error("Scan failed", error);
 				return error;
-			});
+			})
+		);
 	}
 
 	/**
@@ -362,9 +363,9 @@ export class SessionRepository {
 	loadStartupSessions(
 		existingSessions: SessionCold[],
 		sessionIds: string[]
-	): ResultAsync<{ missing: string[]; aliasRemaps: Record<string, string> }, AppError> {
+	): Effect.Effect<{ missing: string[]; aliasRemaps: Record<string, string> }, AppError> {
 		if (sessionIds.length === 0) {
-			return okAsync({ missing: [], aliasRemaps: {} });
+			return Effect.succeed({ missing: [], aliasRemaps: {} });
 		}
 
 		logger.debug("Loading startup sessions", { sessionIds });
@@ -374,7 +375,7 @@ export class SessionRepository {
 
 		if (sessionIdsToFetch.length === 0) {
 			logger.debug("All startup sessions already loaded");
-			return okAsync({ missing: [], aliasRemaps: {} });
+			return Effect.succeed({ missing: [], aliasRemaps: {} });
 		}
 
 		const requestChunks: string[][] = [];
@@ -389,72 +390,81 @@ export class SessionRepository {
 		}
 
 		const failedRequestIds = new Set<string>();
-		let responsesResult = okAsync<StartupSessionsResponse[], AppError>([]);
+		let responsesResult: Effect.Effect<StartupSessionsResponse[], AppError> = Effect.succeed([]);
 		for (let index = 0; index < requestChunks.length; index += 2) {
 			const batch = requestChunks.slice(index, index + 2);
-			responsesResult = responsesResult.andThen((responses) =>
-				ResultAsync.combine(
-					batch.map((chunk) =>
-						api.getStartupSessions(chunk).orElse((error) => {
-							for (const sessionId of chunk) failedRequestIds.add(sessionId);
-							logger.warn("Startup session metadata chunk failed", { chunk, error });
-							return okAsync<StartupSessionsResponse, AppError>({
-								entries: [],
-								aliasRemaps: {},
-							});
+			responsesResult = responsesResult.pipe(
+				Effect.flatMap((responses) =>
+					Effect.all(
+						batch.map((chunk) =>
+							api.getStartupSessions(chunk).pipe(
+								Effect.catch((error) => {
+									for (const sessionId of chunk) failedRequestIds.add(sessionId);
+									logger.warn("Startup session metadata chunk failed", { chunk, error });
+									return Effect.succeed<StartupSessionsResponse>({
+										entries: [],
+										aliasRemaps: {},
+									});
+								})
+							)
+						),
+						{ concurrency: "unbounded" }
+					).pipe(
+						Effect.map((batchResponses) => {
+							for (const response of batchResponses) responses.push(response);
+							return responses;
 						})
 					)
-				).map((batchResponses) => {
-					for (const response of batchResponses) responses.push(response);
-					return responses;
-				})
+				)
 			);
 		}
 
-		return responsesResult.map((responses) => {
-			const responseEntries: HistoryEntry[] = [];
-			const responseAliasRemaps: Record<string, string | null | undefined> = {};
-			for (const response of responses) {
-				for (const entry of response.entries) {
-					responseEntries.push(entry);
+		return responsesResult.pipe(
+			Effect.map((responses) => {
+				const responseEntries: HistoryEntry[] = [];
+				const responseAliasRemaps: Record<string, string | null | undefined> = {};
+				for (const response of responses) {
+					for (const entry of response.entries) {
+						responseEntries.push(entry);
+					}
+					for (const [aliasId, canonicalId] of Object.entries(response.aliasRemaps)) {
+						responseAliasRemaps[aliasId] = canonicalId;
+					}
 				}
-				for (const [aliasId, canonicalId] of Object.entries(response.aliasRemaps)) {
-					responseAliasRemaps[aliasId] = canonicalId;
+
+				// Build alias remaps from the response, filtering out null values from Partial<>.
+				const aliasRemaps: Record<string, string> = {};
+				for (const [aliasId, canonicalId] of Object.entries(responseAliasRemaps)) {
+					if (canonicalId !== undefined && canonicalId !== null) {
+						aliasRemaps[aliasId] = canonicalId;
+					}
 				}
-			}
 
-			// Build alias remaps from the response, filtering out null values from Partial<>.
-			const aliasRemaps: Record<string, string> = {};
-			for (const [aliasId, canonicalId] of Object.entries(responseAliasRemaps)) {
-				if (canonicalId !== undefined && canonicalId !== null) {
-					aliasRemaps[aliasId] = canonicalId;
+				const mergedSessions = this.reconcileAliasedStartupSessions(
+					this.mergeHistoryWithExisting(responseEntries, existingSessions),
+					existingSessions,
+					aliasRemaps
+				);
+				this.stateWriter.setSessions(mergedSessions);
+
+				const foundIds = new Set(mergedSessions.map((session) => session.id));
+				// A session matched by alias will have its canonical ID in foundIds.
+				// The original alias ID should not be reported as missing.
+				const aliasedIds = new Set(Object.keys(aliasRemaps));
+				const missing = sessionIds.filter(
+					(id) => !failedRequestIds.has(id) && !foundIds.has(id) && !aliasedIds.has(id)
+				);
+
+				if (missing.length > 0) {
+					logger.debug("Startup sessions not found (likely deleted)", { missing });
 				}
-			}
+				if (Object.keys(aliasRemaps).length > 0) {
+					logger.debug("Startup sessions matched by alias", { aliasRemaps });
+				}
 
-			const mergedSessions = this.reconcileAliasedStartupSessions(
-				this.mergeHistoryWithExisting(responseEntries, existingSessions),
-				existingSessions,
-				aliasRemaps
-			);
-			this.stateWriter.setSessions(mergedSessions);
-
-			const foundIds = new Set(mergedSessions.map((session) => session.id));
-			// A session matched by alias will have its canonical ID in foundIds.
-			// The original alias ID should not be reported as missing.
-			const aliasedIds = new Set(Object.keys(aliasRemaps));
-			const missing = sessionIds.filter(
-				(id) => !failedRequestIds.has(id) && !foundIds.has(id) && !aliasedIds.has(id)
-			);
-
-			if (missing.length > 0) {
-				logger.debug("Startup sessions not found (likely deleted)", { missing });
-			}
-			if (Object.keys(aliasRemaps).length > 0) {
-				logger.debug("Startup sessions matched by alias", { aliasRemaps });
-			}
-
-			return { missing, aliasRemaps };
-		});
+				return { missing, aliasRemaps };
+			})
+		);
 	}
 
 	/**
@@ -462,16 +472,17 @@ export class SessionRepository {
 	 */
 	preloadSessions(
 		sessionIds: string[]
-	): ResultAsync<{ loaded: SessionCold[]; missing: string[] }, AppError> {
+	): Effect.Effect<{ loaded: SessionCold[]; missing: string[] }, AppError> {
 		if (sessionIds.length === 0) {
-			return okAsync({ loaded: [], missing: [] });
+			return Effect.succeed({ loaded: [], missing: [] });
 		}
 
-		const loadPromises = sessionIds.map((id) => {
+		type PreloadOutcome = { id: string; success: boolean };
+		const loadEffects: Array<Effect.Effect<PreloadOutcome, never>> = sessionIds.map((id) => {
 			const sessionIdentity = this.stateReader.getSessionIdentity(id);
 			const sessionMetadata = this.stateReader.getSessionMetadata(id);
 			if (!sessionIdentity || !sessionMetadata) {
-				return Promise.resolve({ id, success: false as const });
+				return Effect.succeed({ id, success: false });
 			}
 
 			return api
@@ -482,50 +493,52 @@ export class SessionRepository {
 					sessionMetadata.sourcePath,
 					"backfill"
 				)
-				.andThen((openResult) => {
-					if (openResult.outcome !== "found") {
-						return okAsync({ id, success: false as const });
-					}
-					return ResultAsync.fromPromise(
-						Promise.resolve().then(() => {
-							this.stateWriter.replaceSessionOpenSnapshot(openResult);
-							const title = openResult.sessionTitle || undefined;
-							if (title && title !== sessionMetadata.title) {
-								this.stateWriter.updateSession(openResult.canonicalSessionId, { title });
-							}
-							return { id: openResult.canonicalSessionId, success: true as const };
-						}),
-						(error) =>
-							new AgentError(
-								"preloadSession",
-								error instanceof Error ? error : new Error(String(error))
-							)
-					);
-				})
-				.match(
-					(result) => result,
-					() => ({ id, success: false as const })
+				.pipe(
+					Effect.flatMap((openResult): Effect.Effect<PreloadOutcome, AgentError> => {
+						if (openResult.outcome !== "found") {
+							return Effect.succeed({ id, success: false });
+						}
+						return fromPromise(
+							() =>
+								Promise.resolve().then(() => {
+									this.stateWriter.replaceSessionOpenSnapshot(openResult);
+									const title = openResult.sessionTitle || undefined;
+									if (title && title !== sessionMetadata.title) {
+										this.stateWriter.updateSession(openResult.canonicalSessionId, { title });
+									}
+									return { id: openResult.canonicalSessionId, success: true };
+								}),
+							(error) =>
+								new AgentError(
+									"preloadSession",
+									error instanceof Error ? error : new Error(String(error))
+								)
+						);
+					}),
+					Effect.catch(() => Effect.succeed({ id, success: false }))
 				);
 		});
 
-		return ResultAsync.fromSafePromise(Promise.all(loadPromises)).map((results) => {
-			const loaded: SessionCold[] = [];
-			const missing: string[] = [];
+		return Effect.all(loadEffects, { concurrency: "unbounded" }).pipe(
+			Effect.map((results) => {
+				const loaded: SessionCold[] = [];
+				const missing: string[] = [];
 
-			for (const result of results) {
-				if (result.success) {
-					const sessionIdentity = this.stateReader.getSessionIdentity(result.id);
-					const sessionMetadata = this.stateReader.getSessionMetadata(result.id);
-					if (sessionIdentity && sessionMetadata) {
-						loaded.push(sessionColdFromSlices(sessionIdentity, sessionMetadata));
+				for (const result of results) {
+					if (result.success) {
+						const sessionIdentity = this.stateReader.getSessionIdentity(result.id);
+						const sessionMetadata = this.stateReader.getSessionMetadata(result.id);
+						if (sessionIdentity && sessionMetadata) {
+							loaded.push(sessionColdFromSlices(sessionIdentity, sessionMetadata));
+						}
+					} else {
+						missing.push(result.id);
 					}
-				} else {
-					missing.push(result.id);
 				}
-			}
 
-			return { loaded, missing };
-		});
+				return { loaded, missing };
+			})
+		);
 	}
 
 	/**
@@ -540,14 +553,14 @@ export class SessionRepository {
 		sequenceId?: number,
 		parentId?: string | null,
 		worktreePath?: string
-	): ResultAsync<SessionCold, AppError> {
+	): Effect.Effect<SessionCold, AppError> {
 		logger.debug("Loading historical session", { id, projectPath, title, agentId });
 
 		const existingIdentity = this.stateReader.getSessionIdentity(id);
 		const existingMetadata = this.stateReader.getSessionMetadata(id);
 		if (existingIdentity && existingMetadata) {
 			logger.debug("Historical session already loaded", { id });
-			return okAsync(sessionColdFromSlices(existingIdentity, existingMetadata));
+			return Effect.succeed(sessionColdFromSlices(existingIdentity, existingMetadata));
 		}
 
 		const now = new Date();
@@ -568,7 +581,7 @@ export class SessionRepository {
 		this.stateWriter.addSession(session);
 		logger.debug("Historical session loaded", { id, titleUsed: title });
 
-		return okAsync(session);
+		return Effect.succeed(session);
 	}
 
 	// ============================================

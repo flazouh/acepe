@@ -4,6 +4,7 @@
  * Handles registration of all keybindings for the main app view.
  */
 
+import * as Effect from "effect/Effect";
 import type { SelectorRegistry } from "$lib/acp/logic/selector-registry.svelte.js";
 import type { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
 import { KEYBINDING_ACTIONS } from "$lib/keybindings/constants.js";
@@ -141,7 +142,7 @@ export class KeybindingManager {
 			description: "Increase the zoom level",
 			category: "view",
 			handler: () => {
-				zoomService.zoomIn();
+				void Effect.runPromise(zoomService.zoomIn());
 			},
 		});
 
@@ -151,7 +152,7 @@ export class KeybindingManager {
 			description: "Decrease the zoom level",
 			category: "view",
 			handler: () => {
-				zoomService.zoomOut();
+				void Effect.runPromise(zoomService.zoomOut());
 			},
 		});
 
@@ -161,7 +162,7 @@ export class KeybindingManager {
 			description: "Reset zoom to 100%",
 			category: "view",
 			handler: () => {
-				zoomService.resetZoom();
+				void Effect.runPromise(zoomService.resetZoom());
 			},
 		});
 

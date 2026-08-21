@@ -7,7 +7,7 @@
  * creation-lifecycle slice; the parent delegates through verb methods.
  */
 
-import type { ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import { SvelteMap } from "svelte/reactivity";
 import type {
 	InteractionSnapshot,
@@ -20,7 +20,7 @@ import type { CreatedPendingSessionResult } from "./services/session-connection-
 import type { SessionMessagingService } from "./services/session-messaging-service.js";
 
 export type CreatedSessionHydrator = {
-	hydrateCreated(found: SessionOpenFound): ResultAsync<void, AppError>;
+	hydrateCreated(found: SessionOpenFound): Effect.Effect<void, AppError>;
 };
 
 export type LiveSessionStateGraphConsumer = {
@@ -108,7 +108,7 @@ export class SessionCreationCoordinator {
 		return this.#sessionOpenHydrator !== null;
 	}
 
-	hydrateCreatedSession(found: SessionOpenFound): ResultAsync<void, AppError> {
+	hydrateCreatedSession(found: SessionOpenFound): Effect.Effect<void, AppError> {
 		if (this.#sessionOpenHydrator === null) {
 			throw new Error("SessionCreationCoordinator: session open hydrator is not attached");
 		}

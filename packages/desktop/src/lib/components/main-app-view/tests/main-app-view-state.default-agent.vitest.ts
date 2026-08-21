@@ -1,4 +1,4 @@
-import { okAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("$lib/services/zoom.svelte.js", () => ({
@@ -88,7 +88,7 @@ function createState(options: {
 	const agentPreferencesStore = {
 		selectedAgentIds: [],
 		defaultAgentId: options.defaultAgentId,
-		setSelectedAgentIds: vi.fn(() => okAsync(undefined)),
+		setSelectedAgentIds: vi.fn(() => Effect.succeed(undefined)),
 	} as Partial<AgentPreferencesStore>;
 
 	const agentStore = {
@@ -108,7 +108,7 @@ function createState(options: {
 	const sessionOpenHydrator = {
 		beginAttempt: vi.fn(() => "request-1"),
 		clearAttempt: vi.fn(),
-		hydrateFound: vi.fn(() => okAsync(undefined)),
+		hydrateFound: vi.fn(() => Effect.succeed(undefined)),
 		isCurrentAttempt: vi.fn(() => true),
 	} as unknown as Pick<
 		SessionOpenHydrator,

@@ -1,4 +1,4 @@
-import type { ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 
 import type { SessionPrLinkMode } from "../../acp/application/dto/session-linked-pr.js";
 import type { AppError } from "../../acp/errors/app-error.js";
@@ -29,7 +29,7 @@ export const history = {
 		projectPath: string,
 		agentId: string,
 		sourcePath?: string
-	): ResultAsync<SessionLoadTiming, AppError> => {
+	): Effect.Effect<SessionLoadTiming, AppError> => {
 		return historyCommands.audit_session_load_timing.invoke<SessionLoadTiming>({
 			sessionId,
 			projectPath,
@@ -44,7 +44,7 @@ export const history = {
 		agentId: string,
 		sourcePath?: string,
 		repairPriority: "selected" | "visible" | "backfill" = "selected"
-	): ResultAsync<SessionOpenResult, AppError> => {
+	): Effect.Effect<SessionOpenResult, AppError> => {
 		return historyCommands.get_session_open_result.invoke<SessionOpenResult>({
 			sessionId,
 			projectPath,
@@ -54,17 +54,17 @@ export const history = {
 		});
 	},
 
-	awaitSessionOpenRepair: (repairTicket: string): ResultAsync<SessionOpenResult, AppError> => {
+	awaitSessionOpenRepair: (repairTicket: string): Effect.Effect<SessionOpenResult, AppError> => {
 		return historyCommands.await_session_open_repair.invoke<SessionOpenResult>({ repairTicket });
 	},
 
-	getStartupSessions: (sessionIds: string[]): ResultAsync<StartupSessionsResponse, AppError> => {
+	getStartupSessions: (sessionIds: string[]): Effect.Effect<StartupSessionsResponse, AppError> => {
 		return historyCommands.get_startup_sessions.invoke<StartupSessionsResponse>({ sessionIds });
 	},
 
 	warmRecentTranscriptRowLedgers: (
 		limit?: number
-	): ResultAsync<TranscriptRowLedgerBackfillResult, AppError> => {
+	): Effect.Effect<TranscriptRowLedgerBackfillResult, AppError> => {
 		return historyCommands.warm_recent_transcript_row_ledgers.invoke<TranscriptRowLedgerBackfillResult>(
 			{
 				limit: limit ?? null,
@@ -76,7 +76,7 @@ export const history = {
 		sessionId: string,
 		projectPath: string,
 		agentId: string
-	): ResultAsync<SessionPlanResponse | null, AppError> => {
+	): Effect.Effect<SessionPlanResponse | null, AppError> => {
 		return historyCommands.get_unified_plan.invoke<SessionPlanResponse | null>({
 			sessionId,
 			projectPath,
@@ -84,23 +84,23 @@ export const history = {
 		});
 	},
 
-	scanProjectSessions: (projectPaths: string[]): ResultAsync<HistoryEntry[], AppError> => {
+	scanProjectSessions: (projectPaths: string[]): Effect.Effect<HistoryEntry[], AppError> => {
 		return historyCommands.scan_project_sessions.invoke<HistoryEntry[]>({ projectPaths });
 	},
 
-	invalidateHistoryCache: (): ResultAsync<void, AppError> => {
+	invalidateHistoryCache: (): Effect.Effect<void, AppError> => {
 		return historyCommands.invalidate_history_cache.invoke<void>();
 	},
 
-	discoverAllProjectsWithSessions: (): ResultAsync<HistoryEntry[], AppError> => {
+	discoverAllProjectsWithSessions: (): Effect.Effect<HistoryEntry[], AppError> => {
 		return historyCommands.discover_all_projects_with_sessions.invoke<HistoryEntry[]>();
 	},
 
-	listAllProjectPaths: (): ResultAsync<ProjectInfo[], AppError> => {
+	listAllProjectPaths: (): Effect.Effect<ProjectInfo[], AppError> => {
 		return historyCommands.list_all_project_paths.invoke<ProjectInfo[]>();
 	},
 
-	countSessionsForProject: (projectPath: string): ResultAsync<ProjectSessionCounts, AppError> => {
+	countSessionsForProject: (projectPath: string): Effect.Effect<ProjectSessionCounts, AppError> => {
 		return historyCommands.count_sessions_for_project.invoke<ProjectSessionCounts>({ projectPath });
 	},
 
@@ -108,7 +108,7 @@ export const history = {
 		sessionId: string,
 		prNumber: number | null,
 		prLinkMode?: SessionPrLinkMode | null
-	): ResultAsync<void, AppError> => {
+	): Effect.Effect<void, AppError> => {
 		return historyCommands.set_session_pr_number.invoke<void>({
 			sessionId,
 			prNumber,
@@ -116,7 +116,7 @@ export const history = {
 		});
 	},
 
-	setSessionTitle: (sessionId: string, title: string): ResultAsync<void, AppError> => {
+	setSessionTitle: (sessionId: string, title: string): Effect.Effect<void, AppError> => {
 		return historyCommands.set_session_title.invoke<void>({ sessionId, title });
 	},
 
@@ -125,7 +125,7 @@ export const history = {
 		worktreePath: string,
 		projectPath?: string,
 		agentId?: string
-	): ResultAsync<void, AppError> => {
+	): Effect.Effect<void, AppError> => {
 		return historyCommands.set_session_worktree_path.invoke<void>({
 			sessionId,
 			worktreePath,

@@ -1,12 +1,13 @@
 import { describe, expect, it } from "bun:test";
-import { ok } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { parseProcessList, runDoctor } from "../process-target";
 import type { CommandExecution } from "../tauri-mcp";
 
 const checkoutRoot = "/Users/alex/Documents/acepe";
 
 function okExecution(execution: CommandExecution) {
-	return ok(execution).asyncAndThen((value) => ok(value));
+	return Effect.succeed(execution);
 }
 
 describe("acepe-qa process target parsing", () => {
@@ -110,14 +111,18 @@ describe("acepe-qa process target parsing", () => {
 			});
 		};
 
-		const result = await runDoctor({
-			checkoutRoot,
-			runner,
-		});
+		const result = await Effect.runPromise(
+			Effect.result(
+				runDoctor({
+					checkoutRoot,
+					runner,
+				})
+			)
+		);
 
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value.bridge).toEqual({
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success.bridge).toEqual({
 				port: "9224",
 				available: true,
 			});
@@ -152,20 +157,24 @@ describe("acepe-qa process target parsing", () => {
 			});
 		};
 
-		const result = await runDoctor({
-			checkoutRoot,
-			runner,
-		});
+		const result = await Effect.runPromise(
+			Effect.result(
+				runDoctor({
+					checkoutRoot,
+					runner,
+				})
+			)
+		);
 
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value.status).toBe("warn");
-			expect(result.value.binaryFreshness).toEqual({
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success.status).toBe("warn");
+			expect(result.success.binaryFreshness).toEqual({
 				status: "stale",
 				message:
 					"Rust source is newer than target/debug/acepe: packages/desktop/src-tauri/src/commands/window.rs",
 			});
-			expect(result.value.findings).toEqual([
+			expect(result.success.findings).toEqual([
 				"Rust source is newer than target/debug/acepe: packages/desktop/src-tauri/src/commands/window.rs",
 			]);
 		}
@@ -197,19 +206,23 @@ describe("acepe-qa process target parsing", () => {
 			});
 		};
 
-		const result = await runDoctor({
-			checkoutRoot,
-			runner,
-		});
+		const result = await Effect.runPromise(
+			Effect.result(
+				runDoctor({
+					checkoutRoot,
+					runner,
+				})
+			)
+		);
 
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value.status).toBe("ok");
-			expect(result.value.binaryFreshness).toEqual({
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success.status).toBe("ok");
+			expect(result.success.binaryFreshness).toEqual({
 				status: "fresh",
 				message: "target/debug/acepe is newer than all checked Rust sources.",
 			});
-			expect(result.value.findings).toEqual([]);
+			expect(result.success.findings).toEqual([]);
 		}
 	});
 
@@ -257,21 +270,25 @@ describe("acepe-qa process target parsing", () => {
 			});
 		};
 
-		const result = await runDoctor({
-			checkoutRoot,
-			runner,
-		});
+		const result = await Effect.runPromise(
+			Effect.result(
+				runDoctor({
+					checkoutRoot,
+					runner,
+				})
+			)
+		);
 
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value.status).toBe("warn");
-			expect(result.value.binaryFreshness.status).toBe("fresh");
-			expect(result.value.frontendFreshness).toEqual({
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success.status).toBe("warn");
+			expect(result.success.binaryFreshness.status).toBe("fresh");
+			expect(result.success.frontendFreshness).toEqual({
 				status: "stale",
 				message:
 					"Frontend source is newer than packages/desktop/build while WebView is not using Vite: packages/desktop/src/lib/acp/store/services/session-open-hydrator.ts",
 			});
-			expect(result.value.findings).toEqual([
+			expect(result.success.findings).toEqual([
 				"Frontend source is newer than packages/desktop/build while WebView is not using Vite: packages/desktop/src/lib/acp/store/services/session-open-hydrator.ts",
 			]);
 		}

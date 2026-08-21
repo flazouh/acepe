@@ -11,7 +11,7 @@
  * and responses are sent via HTTP endpoints.
  */
 
-import { errAsync, okAsync, ResultAsync, type ResultAsync as ResultAsyncType } from "neverthrow";
+import * as Effect from "effect/Effect";
 import { getContext, setContext } from "svelte";
 import type { SvelteMap } from "svelte/reactivity";
 import type { AppError } from "../errors/app-error.js";
@@ -142,10 +142,10 @@ export class QuestionStore {
 		questionId: string,
 		answers: Array<{ questionIndex: number; answers: string[] }>,
 		questions: QuestionItem[]
-	): ResultAsync<void, AppError> {
+	): Effect.Effect<void, AppError> {
 		const question = this.pending.get(questionId);
 		if (!question) {
-			return errAsync(
+			return Effect.fail(
 				new AgentError("replyQuestion", new Error(`Question not found: ${questionId}`))
 			);
 		}
@@ -174,9 +174,11 @@ export class QuestionStore {
 		// The user's intent is clear — don't wait for the async IPC response.
 		this.remove(questionId);
 
-		return replyToQuestionRequest(question, answers, answerMap).map(() => {
-			logger.debug("Question reply sent", { questionId });
-		});
+		return replyToQuestionRequest(question, answers, answerMap).pipe(
+			Effect.map(() => {
+				logger.debug("Question reply sent", { questionId });
+			})
+		);
 	}
 
 	/**
@@ -184,10 +186,10 @@ export class QuestionStore {
 	 *
 	 * The shared interaction reply layer resolves the correct transport.
 	 */
-	cancel(questionId: string): ResultAsync<void, AppError> {
+	cancel(questionId: string): Effect.Effect<void, AppError> {
 		const question = this.pending.get(questionId);
 		if (!question) {
-			return errAsync(
+			return Effect.fail(
 				new AgentError("cancelQuestion", new Error(`Question not found: ${questionId}`))
 			);
 		}
@@ -206,22 +208,24 @@ export class QuestionStore {
 		// Eagerly remove from pending map so the UI updates immediately.
 		this.remove(questionId);
 
-		return cancelQuestionRequest(question).map(() => {
-			logger.debug("Question cancel sent", { questionId });
-		});
+		return cancelQuestionRequest(question).pipe(
+			Effect.map(() => {
+				logger.debug("Question cancel sent", { questionId });
+			})
+		);
 	}
 
-	cancelForSession(sessionId: string): ResultAsyncType<void, AppError> {
+	cancelForSession(sessionId: string): Effect.Effect<void, AppError> {
 		const pendingQuestions = this.getForSession(sessionId);
 
 		if (pendingQuestions.length === 0) {
-			return okAsync(undefined);
+			return Effect.succeed(undefined);
 		}
 
-		return ResultAsync.combine(
+		return Effect.all(
 			pendingQuestions.map((question) => {
 				if (!this.pending.has(question.id)) {
-					return okAsync(undefined);
+					return Effect.succeed(undefined);
 				}
 
 				logger.info("Cancelling pending question for interrupted turn", {
@@ -230,7 +234,7 @@ export class QuestionStore {
 				});
 				return this.cancel(question.id);
 			})
-		).map(() => undefined);
+		).pipe(Effect.map(() => undefined));
 	}
 
 	private setDirectPending(questionId: string, question: QuestionRequest): void {

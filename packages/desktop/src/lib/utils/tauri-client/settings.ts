@@ -1,4 +1,7 @@
-import { okAsync, Result, ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import { fromThrowable } from "@acepe/effect-result/fromThrowable";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 
 import { AgentError, AppError } from "../../acp/errors/app-error.js";
 import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
@@ -33,7 +36,7 @@ interface ThreadListSettingsHotCachePayload {
 	readonly settings: ThreadListSettings;
 }
 
-const readCustomKeybindingsHotCacheItem = Result.fromThrowable(
+const readCustomKeybindingsHotCacheItem = fromThrowable(
 	(): string | null => {
 		if (typeof localStorage === "undefined") {
 			return null;
@@ -43,7 +46,7 @@ const readCustomKeybindingsHotCacheItem = Result.fromThrowable(
 	() => null
 );
 
-const writeCustomKeybindingsHotCacheItem = Result.fromThrowable(
+const writeCustomKeybindingsHotCacheItem = fromThrowable(
 	(keybindings: Record<string, string>): void => {
 		if (typeof localStorage === "undefined") {
 			return;
@@ -57,7 +60,7 @@ const writeCustomKeybindingsHotCacheItem = Result.fromThrowable(
 	() => undefined
 );
 
-const removeCustomKeybindingsHotCacheItem = Result.fromThrowable(
+const removeCustomKeybindingsHotCacheItem = fromThrowable(
 	(): void => {
 		if (typeof localStorage === "undefined") {
 			return;
@@ -80,7 +83,7 @@ function normalizeCustomKeybindings(
 	return normalized;
 }
 
-const parseCustomKeybindingsHotCache = Result.fromThrowable(
+const parseCustomKeybindingsHotCache = fromThrowable(
 	(stored: string): Record<string, string> | null => {
 		const parsed = JSON.parse(stored) as CustomKeybindingsHotCachePayload;
 		if (
@@ -98,26 +101,26 @@ const parseCustomKeybindingsHotCache = Result.fromThrowable(
 );
 
 function readCustomKeybindingsHotCache(): Record<string, string> | null {
-	const cachedItemResult = readCustomKeybindingsHotCacheItem();
-	const cachedItem = cachedItemResult.isOk() ? cachedItemResult.value : null;
+	const cachedItemResult = Effect.runSync(Effect.result(readCustomKeybindingsHotCacheItem()));
+	const cachedItem = Result.isSuccess(cachedItemResult) ? cachedItemResult.success : null;
 	if (cachedItem === null) {
 		return null;
 	}
 
-	const parsedResult = parseCustomKeybindingsHotCache(cachedItem);
-	if (parsedResult.isOk() && parsedResult.value !== null) {
-		return parsedResult.value;
+	const parsedResult = Effect.runSync(Effect.result(parseCustomKeybindingsHotCache(cachedItem)));
+	if (Result.isSuccess(parsedResult) && parsedResult.success !== null) {
+		return parsedResult.success;
 	}
 
-	removeCustomKeybindingsHotCacheItem();
+	void Effect.runSync(Effect.result(removeCustomKeybindingsHotCacheItem()));
 	return null;
 }
 
 function writeCustomKeybindingsHotCache(keybindings: Record<string, string>): void {
-	writeCustomKeybindingsHotCacheItem(keybindings);
+	void Effect.runSync(Effect.result(writeCustomKeybindingsHotCacheItem(keybindings)));
 }
 
-const readThreadListSettingsHotCacheItem = Result.fromThrowable(
+const readThreadListSettingsHotCacheItem = fromThrowable(
 	(): string | null => {
 		if (typeof localStorage === "undefined") {
 			return null;
@@ -127,7 +130,7 @@ const readThreadListSettingsHotCacheItem = Result.fromThrowable(
 	() => null
 );
 
-const writeThreadListSettingsHotCacheItem = Result.fromThrowable(
+const writeThreadListSettingsHotCacheItem = fromThrowable(
 	(settings: ThreadListSettings): void => {
 		if (typeof localStorage === "undefined") {
 			return;
@@ -141,7 +144,7 @@ const writeThreadListSettingsHotCacheItem = Result.fromThrowable(
 	() => undefined
 );
 
-const removeThreadListSettingsHotCacheItem = Result.fromThrowable(
+const removeThreadListSettingsHotCacheItem = fromThrowable(
 	(): void => {
 		if (typeof localStorage === "undefined") {
 			return;
@@ -203,7 +206,7 @@ function normalizeThreadListSettings(settings: ThreadListSettings): ThreadListSe
 	};
 }
 
-const parseThreadListSettingsHotCache = Result.fromThrowable(
+const parseThreadListSettingsHotCache = fromThrowable(
 	(stored: string): ThreadListSettings | null => {
 		const parsed = JSON.parse(stored) as ThreadListSettingsHotCachePayload;
 		if (!parsed || parsed.version !== THREAD_LIST_SETTINGS_HOT_CACHE_VERSION || !parsed.settings) {
@@ -215,23 +218,23 @@ const parseThreadListSettingsHotCache = Result.fromThrowable(
 );
 
 function readThreadListSettingsHotCache(): ThreadListSettings | null {
-	const cachedItemResult = readThreadListSettingsHotCacheItem();
-	const cachedItem = cachedItemResult.isOk() ? cachedItemResult.value : null;
+	const cachedItemResult = Effect.runSync(Effect.result(readThreadListSettingsHotCacheItem()));
+	const cachedItem = Result.isSuccess(cachedItemResult) ? cachedItemResult.success : null;
 	if (cachedItem === null) {
 		return null;
 	}
 
-	const parsedResult = parseThreadListSettingsHotCache(cachedItem);
-	if (parsedResult.isOk() && parsedResult.value !== null) {
-		return parsedResult.value;
+	const parsedResult = Effect.runSync(Effect.result(parseThreadListSettingsHotCache(cachedItem)));
+	if (Result.isSuccess(parsedResult) && parsedResult.success !== null) {
+		return parsedResult.success;
 	}
 
-	removeThreadListSettingsHotCacheItem();
+	void Effect.runSync(Effect.result(removeThreadListSettingsHotCacheItem()));
 	return null;
 }
 
 function writeThreadListSettingsHotCache(settings: ThreadListSettings): void {
-	writeThreadListSettingsHotCacheItem(settings);
+	void Effect.runSync(Effect.result(writeThreadListSettingsHotCacheItem(settings)));
 }
 
 function normalizeSettingsBatchError<TError>(error: TError): AppError {
@@ -269,115 +272,132 @@ function flushSettingsBatch(): void {
 		keys.push(request.key);
 	}
 
-	void TAURI_COMMAND_CLIENT.storage.get_user_settings.invoke<UserSettingValue[]>({ keys }).match(
-		(values) => {
-			const valuesByKey = new Map<UserSettingKey, string | null>();
-			for (const value of values) {
-				valuesByKey.set(value.key, value.value);
-			}
-			for (const request of batch) {
-				request.resolve(valuesByKey.get(request.key) ?? null);
-			}
-		},
-		(error) => {
-			for (const request of batch) {
-				request.reject(error);
-			}
-		}
+	void Effect.runPromise(
+		TAURI_COMMAND_CLIENT.storage.get_user_settings.invoke<UserSettingValue[]>({ keys }).pipe(
+			Effect.match({
+				onSuccess: (values) => {
+					const valuesByKey = new Map<UserSettingKey, string | null>();
+					for (const value of values) {
+						valuesByKey.set(value.key, value.value);
+					}
+					for (const request of batch) {
+						request.resolve(valuesByKey.get(request.key) ?? null);
+					}
+				},
+				onFailure: (error) => {
+					for (const request of batch) {
+						request.reject(error);
+					}
+				},
+			})
+		)
 	);
 }
 
-function getRawBatched(key: UserSettingKey): ResultAsync<string | null, AppError> {
-	return ResultAsync.fromPromise(
-		new Promise<string | null>((resolve, reject) => {
-			pendingSettingsBatch.push({
-				key,
-				resolve,
-				reject,
-			});
-			scheduleSettingsBatchFlush();
-		}),
+function getRawBatched(key: UserSettingKey): Effect.Effect<string | null, AppError> {
+	return fromPromise(
+		() =>
+			new Promise<string | null>((resolve, reject) => {
+				pendingSettingsBatch.push({
+					key,
+					resolve,
+					reject,
+				});
+				scheduleSettingsBatchFlush();
+			}),
 		normalizeSettingsBatchError
 	);
 }
 
 export const settings = {
-	getRaw: (key: UserSettingKey): ResultAsync<string | null, AppError> => {
+	getRaw: (key: UserSettingKey): Effect.Effect<string | null, AppError> => {
 		return getRawBatched(key);
 	},
 
-	get: <T>(key: UserSettingKey): ResultAsync<T | null, AppError> => {
-		return getRawBatched(key).map((stored) => {
-			if (stored === null) return null;
-			return JSON.parse(stored) as T;
-		});
+	get: <T>(key: UserSettingKey): Effect.Effect<T | null, AppError> => {
+		return getRawBatched(key).pipe(
+			Effect.map((stored) => {
+				if (stored === null) return null;
+				return JSON.parse(stored) as T;
+			})
+		);
 	},
 
-	set: <T>(key: UserSettingKey, value: T): ResultAsync<void, AppError> => {
+	set: <T>(key: UserSettingKey, value: T): Effect.Effect<void, AppError> => {
 		return TAURI_COMMAND_CLIENT.storage.save_user_setting.invoke<void>({
 			key,
 			value: JSON.stringify(value),
 		});
 	},
 
-	setRaw: (key: UserSettingKey, value: string): ResultAsync<void, AppError> => {
+	setRaw: (key: UserSettingKey, value: string): Effect.Effect<void, AppError> => {
 		return TAURI_COMMAND_CLIENT.storage.save_user_setting.invoke<void>({ key, value });
 	},
 
-	getCustomKeybindings: (): ResultAsync<Record<string, string>, AppError> => {
+	getCustomKeybindings: (): Effect.Effect<Record<string, string>, AppError> => {
 		const cachedKeybindings = readCustomKeybindingsHotCache();
 		if (cachedKeybindings !== null) {
-			return okAsync(cachedKeybindings);
+			return Effect.succeed(cachedKeybindings);
 		}
 
 		return TAURI_COMMAND_CLIENT.storage.get_custom_keybindings
 			.invoke<Record<string, string>>()
-			.map((keybindings) => {
-				writeCustomKeybindingsHotCache(keybindings);
-				return keybindings;
-			});
+			.pipe(
+				Effect.map((keybindings) => {
+					writeCustomKeybindingsHotCache(keybindings);
+					return keybindings;
+				})
+			);
 	},
 
-	saveCustomKeybindings: (keybindings: Record<string, string>): ResultAsync<void, AppError> => {
+	saveCustomKeybindings: (keybindings: Record<string, string>): Effect.Effect<void, AppError> => {
 		return TAURI_COMMAND_CLIENT.storage.save_custom_keybindings
 			.invoke<void>({ keybindings })
-			.map(() => {
-				writeCustomKeybindingsHotCache(keybindings);
-				return undefined;
-			});
+			.pipe(
+				Effect.map(() => {
+					writeCustomKeybindingsHotCache(keybindings);
+					return undefined;
+				})
+			);
 	},
 
-	getThreadListSettings: (): ResultAsync<ThreadListSettings, AppError> => {
+	getThreadListSettings: (): Effect.Effect<ThreadListSettings, AppError> => {
 		const cachedSettings = readThreadListSettingsHotCache();
 		if (cachedSettings !== null) {
-			return okAsync(cachedSettings);
+			return Effect.succeed(cachedSettings);
 		}
 
 		return TAURI_COMMAND_CLIENT.storage.get_thread_list_settings
 			.invoke<ThreadListSettings>()
-			.map((settings) => {
-				writeThreadListSettingsHotCache(settings);
-				return settings;
-			});
+			.pipe(
+				Effect.map((threadListSettings) => {
+					writeThreadListSettingsHotCache(threadListSettings);
+					return threadListSettings;
+				})
+			);
 	},
 
-	saveThreadListSettings: (settings: ThreadListSettings): ResultAsync<void, AppError> => {
+	saveThreadListSettings: (threadListSettings: ThreadListSettings): Effect.Effect<void, AppError> => {
 		return TAURI_COMMAND_CLIENT.storage.save_thread_list_settings
-			.invoke<void>({ settings })
-			.map(() => {
-				writeThreadListSettingsHotCache(settings);
-				return undefined;
-			});
+			.invoke<void>({ settings: threadListSettings })
+			.pipe(
+				Effect.map(() => {
+					writeThreadListSettingsHotCache(threadListSettings);
+					return undefined;
+				})
+			);
 	},
 
-	resetDatabase: (): ResultAsync<void, AppError> => {
+	resetDatabase: (): Effect.Effect<void, AppError> => {
 		return TAURI_COMMAND_CLIENT.storage.request_destructive_confirmation_token
 			.invoke<string>({
 				operation: "reset_database",
 				target: "all-data",
 			})
-			.andThen((confirmationToken) =>
-				TAURI_COMMAND_CLIENT.storage.reset_database.invoke<void>({ confirmationToken })
+			.pipe(
+				Effect.flatMap((confirmationToken) =>
+					TAURI_COMMAND_CLIENT.storage.reset_database.invoke<void>({ confirmationToken })
+				)
 			);
 	},
 };

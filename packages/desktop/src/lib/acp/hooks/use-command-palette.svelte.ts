@@ -1,4 +1,5 @@
-import { okAsync, type ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { LOGGER_IDS } from "../constants/logger-ids.js";
 import { CommandPaletteManager } from "../logic/command-palette-manager.js";
 import type { ProjectManager } from "../logic/project-manager.svelte.js";
@@ -140,19 +141,19 @@ export class UseCommandPalette {
 	 * Execute the currently selected command.
 	 * Component is responsible for closing the palette after execution.
 	 */
-	executeSelected(): ResultAsync<void, Error> {
+	executeSelected(): Effect.Effect<void, Error> {
 		const filteredCommands = this.getFilteredCommands();
 		const commandResult = this.manager.getCommandByIndex(
 			filteredCommands,
 			this._state.selectedIndex
 		);
 
-		if (commandResult.isErr()) {
-			this.logger.error("Failed to get command:", commandResult.error);
-			return okAsync();
+		if (Result.isFailure(commandResult)) {
+			this.logger.error("Failed to get command:", commandResult.failure);
+			return Effect.succeed(undefined);
 		}
 
-		const command = commandResult.value;
+		const command = commandResult.success;
 		this.logger.info("Executing command:", command.id);
 
 		if (command.id === "create-thread") {
@@ -160,7 +161,7 @@ export class UseCommandPalette {
 		}
 
 		// Unknown command
-		return okAsync();
+		return Effect.succeed(undefined);
 	}
 
 	/**
@@ -181,14 +182,14 @@ export class UseCommandPalette {
 	 * Execute the create thread command.
 	 * Delegates to external handler for full session creation logic.
 	 */
-	private executeCreateThread(): ResultAsync<void, Error> {
+	private executeCreateThread(): Effect.Effect<void, Error> {
 		if (!this.createThreadHandler) {
 			this.logger.error("No create thread handler set");
-			return okAsync();
+			return Effect.succeed(undefined);
 		}
 
 		this.createThreadHandler();
-		return okAsync();
+		return Effect.succeed(undefined);
 	}
 }
 

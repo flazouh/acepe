@@ -3,6 +3,7 @@ import { FilePanelHeader as FilePanelHeaderLayout } from "@acepe/ui/file-panel";
 import { Button, HugeiconsIcon } from "@acepe/ui";
 import { CloseAction } from "@acepe/ui/panel-header";
 import { toast } from "svelte-sonner";
+import * as Effect from "effect/Effect";
 import { FileIcon } from "$lib/components/ui/file-icon/index.js";
 import { revealInFinder, tauriClient } from "$lib/utils/tauri-client.js";
 import CopyButton from "../messages/copy-button.svelte";
@@ -59,12 +60,15 @@ let {
 const effectiveColor = $derived(getFilePanelEffectiveProjectColor(projectColor));
 
 function handleOpenInFinder() {
-	tauriClient.fileIndex
-		.resolveFilePath(filePath, projectPath)
-		.andThen(revealInFinder)
-		.mapErr(() => {
-			toast.error("Failed to open in Finder");
-		});
+	void Effect.runPromise(
+		tauriClient.fileIndex.resolveFilePath(filePath, projectPath).pipe(
+			Effect.flatMap(revealInFinder),
+			Effect.catch(() => {
+				toast.error("Failed to open in Finder");
+				return Effect.succeed(undefined);
+			})
+		)
+	);
 }
 
 const fullPath = $derived(getFilePanelFullPath({ filePath, projectPath }));

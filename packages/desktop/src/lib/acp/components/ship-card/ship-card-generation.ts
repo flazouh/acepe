@@ -10,7 +10,8 @@
  *   - `generateShipContentStreaming`  – invokes `onUpdate` after every chunk
  */
 
-import { errAsync, okAsync, ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
 import { AgentError } from "$lib/acp/errors/app-error.js";
 import { EventSubscriber } from "$lib/acp/logic/event-subscriber.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
@@ -32,11 +33,10 @@ function runGeneration(
 	onUpdate: ((data: ShipCardData) => void) | undefined,
 	agentId: string | undefined,
 	modelId: string | undefined
-): ResultAsync<ShipCardData, AgentError> {
-	return tauriClient.acp
-		.newSession(cwd, agentId)
-		.mapErr((e) => new AgentError("newSession", e))
-		.andThen((sessionResult) => {
+): Effect.Effect<ShipCardData, AgentError> {
+	return tauriClient.acp.newSession(cwd, agentId).pipe(
+		Effect.mapError((e) => new AgentError("newSession", e)),
+		Effect.flatMap((sessionResult) => {
 			const ephemeralSessionId = sessionResult.sessionId;
 			logger.info("Ship card generation: ephemeral session created", {
 				ephemeralSessionId,
@@ -46,25 +46,26 @@ function runGeneration(
 			const modelSetup = modelId
 				? tauriClient.acp
 						.setModel(ephemeralSessionId, modelId)
-						.mapErr((e) => new AgentError("setModel", e))
-				: okAsync<void, AgentError>(undefined);
+						.pipe(Effect.mapError((e) => new AgentError("setModel", e)))
+				: Effect.succeed<void>(undefined);
 
-			return modelSetup
-				.map(() => ephemeralSessionId)
-				.orElse((error) =>
-					tauriClient.acp
-						.closeSession(ephemeralSessionId)
-						.orElse(() => okAsync(undefined))
-						.andThen(() => errAsync(error))
-				);
-		})
-		.andThen((ephemeralSessionId) => {
+			return modelSetup.pipe(
+				Effect.map(() => ephemeralSessionId),
+				Effect.catch((error) =>
+					tauriClient.acp.closeSession(ephemeralSessionId).pipe(
+						Effect.catch(() => Effect.succeed(undefined)),
+						Effect.flatMap(() => Effect.fail(error))
+					)
+				)
+			);
+		}),
+		Effect.flatMap((ephemeralSessionId) => {
 			logger.info("Ship card generation: session ready, starting generation", {
 				ephemeralSessionId,
 			});
 
 			const closeEphemeral = (): void => {
-				void tauriClient.acp.closeSession(ephemeralSessionId);
+				void Effect.runPromise(tauriClient.acp.closeSession(ephemeralSessionId));
 			};
 
 			let accumulated = "";
@@ -114,14 +115,13 @@ function runGeneration(
 				}
 			};
 
-			return subscriber
-				.subscribe(handleUpdate)
-				.mapErr((e) => {
+			return subscriber.subscribe(handleUpdate).pipe(
+				Effect.mapError((e) => {
 					clearTimeout(timeoutId);
 					closeEphemeral();
 					return new AgentError("subscribe", e instanceof Error ? e : new Error(String(e)));
-				})
-				.andThen((listenerId) => {
+				}),
+				Effect.flatMap((listenerId) => {
 					const fullCleanup = (): void => {
 						clearTimeout(timeoutId);
 						subscriber.unsubscribeById(listenerId);
@@ -130,23 +130,28 @@ function runGeneration(
 
 					return tauriClient.acp
 						.sendPrompt(ephemeralSessionId, [{ type: "text", text: prompt }])
-						.mapErr((e) => new AgentError("sendPrompt", e))
-						.andThen(() =>
-							ResultAsync.fromPromise(
-								streamPromise,
-								(e) => new AgentError("stream", e instanceof Error ? e : new Error(String(e)))
-							)
-						)
-						.map((result) => {
-							fullCleanup();
-							return result;
-						})
-						.mapErr((e) => {
-							fullCleanup();
-							return e;
-						});
-				});
-		});
+						.pipe(
+							Effect.mapError((e) => new AgentError("sendPrompt", e)),
+							Effect.flatMap(() =>
+								fromPromise(
+									() => streamPromise,
+									(e) =>
+										new AgentError("stream", e instanceof Error ? e : new Error(String(e)))
+								)
+							),
+							Effect.map((result) => {
+								fullCleanup();
+								return result;
+							}),
+							Effect.mapError((e) => {
+								fullCleanup();
+								return e;
+							})
+						);
+				})
+			);
+		})
+	);
 }
 
 // ---------------------------------------------------------------------------
@@ -161,7 +166,7 @@ export function generateShipContent(
 	cwd: string,
 	agentId?: string,
 	modelId?: string
-): ResultAsync<ShipCardData, AgentError> {
+): Effect.Effect<ShipCardData, AgentError> {
 	return runGeneration(prompt, cwd, undefined, agentId, modelId);
 }
 
@@ -169,7 +174,7 @@ export function generateShipContent(
  * Generate commit message + PR content with live streaming updates.
  *
  * `onUpdate` is called after every incoming text chunk with the latest
- * incrementally-parsed {@link ShipCardData}. The returned `ResultAsync`
+ * incrementally-parsed {@link ShipCardData}. The returned Effect
  * resolves with the final complete data once the agent finishes.
  */
 export function generateShipContentStreaming(
@@ -178,6 +183,6 @@ export function generateShipContentStreaming(
 	onUpdate: (data: ShipCardData) => void,
 	agentId?: string,
 	modelId?: string
-): ResultAsync<ShipCardData, AgentError> {
+): Effect.Effect<ShipCardData, AgentError> {
 	return runGeneration(prompt, cwd, onUpdate, agentId, modelId);
 }

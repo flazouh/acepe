@@ -1,14 +1,15 @@
-import { okAsync, type ResultAsync } from "neverthrow";
-import type { AppError } from "$lib/acp/errors/app-error.js";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
+import { AgentError, AppError } from "$lib/acp/errors/app-error.js";
 import { getRelativeFilePath } from "$lib/acp/utils/file-utils.js";
 import type { FileGitStatus } from "$lib/services/converted-session-types.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 
-type FetchGitStatus = (projectPath: string) => ResultAsync<ReadonlyArray<FileGitStatus>, AppError>;
+type FetchGitStatus = (projectPath: string) => Effect.Effect<ReadonlyArray<FileGitStatus>, AppError>;
 type FetchFileGitStatus = (
 	projectPath: string,
 	filePath: string
-) => ResultAsync<FileGitStatus | null, AppError>;
+) => Effect.Effect<FileGitStatus | null, AppError>;
 
 type GitStatusCacheEntry<T = ReadonlyMap<string, FileGitStatus>> = {
 	expiresAt: number;
@@ -26,18 +27,28 @@ type CreateGitStatusCacheOptions = {
 type GitStatusCacheApi = {
 	getProjectGitStatusMap: (
 		projectPath: string
-	) => ResultAsync<ReadonlyMap<string, FileGitStatus>, AppError>;
+	) => Effect.Effect<ReadonlyMap<string, FileGitStatus>, AppError>;
 	getProjectGitStatusSummaryMap: (
 		projectPath: string
-	) => ResultAsync<ReadonlyMap<string, FileGitStatus>, AppError>;
+	) => Effect.Effect<ReadonlyMap<string, FileGitStatus>, AppError>;
 	getProjectFileGitStatusSummary: (
 		projectPath: string,
 		filePath: string
-	) => ResultAsync<FileGitStatus | null, AppError>;
+	) => Effect.Effect<FileGitStatus | null, AppError>;
 	invalidateProjectGitStatus: (projectPath: string) => void;
 };
 
 const DEFAULT_TTL_MS = 2000;
+
+function toGitStatusCacheError(error: unknown): AppError {
+	if (error instanceof AppError) {
+		return error;
+	}
+	return new AgentError(
+		"git-status-cache",
+		error instanceof Error ? error : new Error(String(error))
+	);
+}
 
 function createFileSummaryCacheKey(projectPath: string, filePath: string): string {
 	return `${projectPath}\0${filePath}`;
@@ -109,15 +120,15 @@ export function createGitStatusCache(options?: CreateGitStatusCacheOptions): Git
 	const now = options?.now ?? (() => Date.now());
 	const fetchGitStatus =
 		options?.fetchGitStatus ??
-		((projectPath: string): ResultAsync<ReadonlyArray<FileGitStatus>, AppError> =>
+		((projectPath: string): Effect.Effect<ReadonlyArray<FileGitStatus>, AppError> =>
 			tauriClient.fileIndex.getProjectGitStatus(projectPath));
 	const fetchGitStatusSummary =
 		options?.fetchGitStatusSummary ??
-		((projectPath: string): ResultAsync<ReadonlyArray<FileGitStatus>, AppError> =>
+		((projectPath: string): Effect.Effect<ReadonlyArray<FileGitStatus>, AppError> =>
 			tauriClient.fileIndex.getProjectGitStatusSummary(projectPath));
 	const fetchFileGitStatusSummary =
 		options?.fetchFileGitStatusSummary ??
-		((projectPath: string, filePath: string): ResultAsync<FileGitStatus | null, AppError> =>
+		((projectPath: string, filePath: string): Effect.Effect<FileGitStatus | null, AppError> =>
 			tauriClient.fileIndex.getFileGitStatusSummary(projectPath, filePath));
 
 	const cacheByProject = new Map<string, GitStatusCacheEntry>();
@@ -126,57 +137,55 @@ export function createGitStatusCache(options?: CreateGitStatusCacheOptions): Git
 		string,
 		GitStatusCacheEntry<FileGitStatus | null>
 	>();
-	const inflightByProject = new Map<
-		string,
-		ResultAsync<ReadonlyMap<string, FileGitStatus>, AppError>
-	>();
-	const summaryInflightByProject = new Map<
-		string,
-		ResultAsync<ReadonlyMap<string, FileGitStatus>, AppError>
-	>();
-	const fileSummaryInflightByProjectAndPath = new Map<
-		string,
-		ResultAsync<FileGitStatus | null, AppError>
-	>();
+	const inflightByProject = new Map<string, Promise<ReadonlyMap<string, FileGitStatus>>>();
+	const summaryInflightByProject = new Map<string, Promise<ReadonlyMap<string, FileGitStatus>>>();
+	const fileSummaryInflightByProjectAndPath = new Map<string, Promise<FileGitStatus | null>>();
 
 	function getCachedProjectStatusMap(
 		projectPath: string,
 		cache: Map<string, GitStatusCacheEntry>,
-		inflight: Map<string, ResultAsync<ReadonlyMap<string, FileGitStatus>, AppError>>,
+		inflight: Map<string, Promise<ReadonlyMap<string, FileGitStatus>>>,
 		fetch: FetchGitStatus
-	): ResultAsync<ReadonlyMap<string, FileGitStatus>, AppError> {
+	): Effect.Effect<ReadonlyMap<string, FileGitStatus>, AppError> {
 		const cached = cache.get(projectPath);
 		if (cached && cached.expiresAt > now()) {
-			return okAsync(cached.statusMap);
+			return Effect.succeed(cached.statusMap);
 		}
 
 		const existingRequest = inflight.get(projectPath);
 		if (existingRequest) {
-			return existingRequest;
+			return fromPromise(() => existingRequest, toGitStatusCacheError);
 		}
 
-		const request = fetch(projectPath)
-			.map((statuses) => {
-				const statusMap = buildStatusMap(statuses);
-				cache.set(projectPath, {
-					expiresAt: now() + ttlMs,
-					statusMap,
-				});
+		const pending = Effect.runPromise(
+			fetch(projectPath).pipe(
+				Effect.map((statuses) => {
+					const statusMap = buildStatusMap(statuses);
+					cache.set(projectPath, {
+						expiresAt: now() + ttlMs,
+						statusMap,
+					});
+					return statusMap;
+				})
+			)
+		).then(
+			(statusMap) => {
 				inflight.delete(projectPath);
 				return statusMap;
-			})
-			.mapErr((error) => {
+			},
+			(error: unknown) => {
 				inflight.delete(projectPath);
-				return error;
-			});
+				throw error;
+			}
+		);
 
-		inflight.set(projectPath, request);
-		return request;
+		inflight.set(projectPath, pending);
+		return fromPromise(() => pending, toGitStatusCacheError);
 	}
 
 	function getProjectGitStatusMap(
 		projectPath: string
-	): ResultAsync<ReadonlyMap<string, FileGitStatus>, AppError> {
+	): Effect.Effect<ReadonlyMap<string, FileGitStatus>, AppError> {
 		return getCachedProjectStatusMap(
 			projectPath,
 			cacheByProject,
@@ -187,7 +196,7 @@ export function createGitStatusCache(options?: CreateGitStatusCacheOptions): Git
 
 	function getProjectGitStatusSummaryMap(
 		projectPath: string
-	): ResultAsync<ReadonlyMap<string, FileGitStatus>, AppError> {
+	): Effect.Effect<ReadonlyMap<string, FileGitStatus>, AppError> {
 		return getCachedProjectStatusMap(
 			projectPath,
 			summaryCacheByProject,
@@ -199,7 +208,7 @@ export function createGitStatusCache(options?: CreateGitStatusCacheOptions): Git
 	function getProjectFileGitStatusSummary(
 		projectPath: string,
 		filePath: string
-	): ResultAsync<FileGitStatus | null, AppError> {
+	): Effect.Effect<FileGitStatus | null, AppError> {
 		const cachedSummary = summaryCacheByProject.get(projectPath);
 		if (cachedSummary && cachedSummary.expiresAt > now()) {
 			const cachedFileStatus = selectFileStatusFromSummaryMap(
@@ -208,37 +217,44 @@ export function createGitStatusCache(options?: CreateGitStatusCacheOptions): Git
 				filePath
 			);
 			if (cachedFileStatus !== null) {
-				return okAsync(cachedFileStatus);
+				return Effect.succeed(cachedFileStatus);
 			}
 		}
 
 		const cacheKey = createFileSummaryCacheKey(projectPath, filePath);
 		const cached = fileSummaryCacheByProjectAndPath.get(cacheKey);
 		if (cached && cached.expiresAt > now()) {
-			return okAsync(cached.statusMap);
+			return Effect.succeed(cached.statusMap);
 		}
 
 		const existingRequest = fileSummaryInflightByProjectAndPath.get(cacheKey);
 		if (existingRequest) {
-			return existingRequest;
+			return fromPromise(() => existingRequest, toGitStatusCacheError);
 		}
 
-		const request = fetchFileGitStatusSummary(projectPath, filePath)
-			.map((status) => {
-				fileSummaryCacheByProjectAndPath.set(cacheKey, {
-					expiresAt: now() + ttlMs,
-					statusMap: status,
-				});
+		const pending = Effect.runPromise(
+			fetchFileGitStatusSummary(projectPath, filePath).pipe(
+				Effect.map((status) => {
+					fileSummaryCacheByProjectAndPath.set(cacheKey, {
+						expiresAt: now() + ttlMs,
+						statusMap: status,
+					});
+					return status;
+				})
+			)
+		).then(
+			(status) => {
 				fileSummaryInflightByProjectAndPath.delete(cacheKey);
 				return status;
-			})
-			.mapErr((error) => {
+			},
+			(error: unknown) => {
 				fileSummaryInflightByProjectAndPath.delete(cacheKey);
-				return error;
-			});
+				throw error;
+			}
+		);
 
-		fileSummaryInflightByProjectAndPath.set(cacheKey, request);
-		return request;
+		fileSummaryInflightByProjectAndPath.set(cacheKey, pending);
+		return fromPromise(() => pending, toGitStatusCacheError);
 	}
 
 	function invalidateProjectGitStatus(projectPath: string): void {
@@ -270,20 +286,20 @@ export const gitStatusCache = createGitStatusCache();
 
 export function getProjectGitStatusMap(
 	projectPath: string
-): ResultAsync<ReadonlyMap<string, FileGitStatus>, AppError> {
+): Effect.Effect<ReadonlyMap<string, FileGitStatus>, AppError> {
 	return gitStatusCache.getProjectGitStatusMap(projectPath);
 }
 
 export function getProjectGitStatusSummaryMap(
 	projectPath: string
-): ResultAsync<ReadonlyMap<string, FileGitStatus>, AppError> {
+): Effect.Effect<ReadonlyMap<string, FileGitStatus>, AppError> {
 	return gitStatusCache.getProjectGitStatusSummaryMap(projectPath);
 }
 
 export function getProjectFileGitStatusSummary(
 	projectPath: string,
 	filePath: string
-): ResultAsync<FileGitStatus | null, AppError> {
+): Effect.Effect<FileGitStatus | null, AppError> {
 	return gitStatusCache.getProjectFileGitStatusSummary(projectPath, filePath);
 }
 

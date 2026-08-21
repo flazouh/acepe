@@ -1,4 +1,5 @@
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import * as Effect from "effect/Effect";
 import { toast } from "svelte-sonner";
 import { SoundEffect } from "$lib/acp/types/sounds.js";
 import { playSound } from "$lib/acp/utils/sound.js";
@@ -225,7 +226,11 @@ export class VoiceInputState {
 		// Best-effort cancel if in-flight
 		if (canCancelVoiceInteraction(this.phase)) {
 			log("dispose: cancelling in-flight recording");
-			tauriClient.voice.cancelRecording(this.sessionId);
+			void Effect.runPromise(
+				tauriClient.voice.cancelRecording(this.sessionId).pipe(
+					Effect.catch(() => Effect.succeed(undefined))
+				)
+			);
 		}
 	}
 
@@ -376,18 +381,22 @@ export class VoiceInputState {
 		const selectedLanguage = this.getSelectedLanguage();
 		const language = selectedLanguage === "auto" ? null : selectedLanguage;
 		log("calling tauriClient.voice.stopRecording", { sessionId: this.sessionId, language });
-		tauriClient.voice.stopRecording(this.sessionId, language).match(
-			() => {
-				log("stopRecording: success, waiting for transcription event");
-			},
-			(err: AppError) => {
-				log("stopRecording: FAILED", { error: err.message });
-				if (!this.shouldContinueFromPhase("transcribing", "stopRecording.error")) {
-					return;
-				}
-				this.clearWatchdog();
-				this.setError(err.message ?? "Failed to stop recording");
-			}
+		void Effect.runPromise(
+			tauriClient.voice.stopRecording(this.sessionId, language).pipe(
+				Effect.match({
+					onSuccess: () => {
+						log("stopRecording: success, waiting for transcription event");
+					},
+					onFailure: (err: AppError) => {
+						log("stopRecording: FAILED", { error: err.message });
+						if (!this.shouldContinueFromPhase("transcribing", "stopRecording.error")) {
+							return;
+						}
+						this.clearWatchdog();
+						this.setError(err.message ?? "Failed to stop recording");
+					},
+				})
+			)
 		);
 	}
 
@@ -403,7 +412,11 @@ export class VoiceInputState {
 		}
 		this.clearWatchdog();
 		log("calling tauriClient.voice.cancelRecording", { sessionId: this.sessionId });
-		tauriClient.voice.cancelRecording(this.sessionId);
+		void Effect.runPromise(
+			tauriClient.voice.cancelRecording(this.sessionId).pipe(
+				Effect.catch(() => Effect.succeed(undefined))
+			)
+		);
 		this.waveform.reset();
 		this.isLoadingModel = false;
 		this.isPressAndHold = false;
@@ -432,50 +445,58 @@ export class VoiceInputState {
 		this.waveform.primeStartup();
 
 		log("calling tauriClient.voice.getModelStatus", { modelId: selectedModelId });
-		tauriClient.voice.getModelStatus(selectedModelId).match(
-			(modelInfo) => {
-				log("getModelStatus: result", {
-					is_downloaded: modelInfo.is_downloaded,
-					is_loaded: modelInfo.is_loaded,
-				});
-				if (!this.shouldContinueFromPhase("checking_permission", "getModelStatus")) {
-					return;
-				}
-				if (!modelInfo.is_downloaded) {
-					this.transitionTo("downloading_model");
-					this.activeDownloadModelId = selectedModelId;
-					this.downloadPercent = 0;
-					log("calling tauriClient.voice.downloadModel", { modelId: selectedModelId });
-					tauriClient.voice.downloadModel(selectedModelId).match(
-						() => {
-							log("downloadModel: success");
-							this.activeDownloadModelId = null;
-							this.downloadPercent = 100;
-							if (!this.shouldContinueFromPhase("downloading_model", "downloadModel")) {
+		void Effect.runPromise(
+			tauriClient.voice.getModelStatus(selectedModelId).pipe(
+				Effect.match({
+					onSuccess: (modelInfo) => {
+						log("getModelStatus: result", {
+							is_downloaded: modelInfo.is_downloaded,
+							is_loaded: modelInfo.is_loaded,
+						});
+						if (!this.shouldContinueFromPhase("checking_permission", "getModelStatus")) {
+							return;
+						}
+						if (!modelInfo.is_downloaded) {
+							this.transitionTo("downloading_model");
+							this.activeDownloadModelId = selectedModelId;
+							this.downloadPercent = 0;
+							log("calling tauriClient.voice.downloadModel", { modelId: selectedModelId });
+							void Effect.runPromise(
+								tauriClient.voice.downloadModel(selectedModelId).pipe(
+									Effect.match({
+										onSuccess: () => {
+											log("downloadModel: success");
+											this.activeDownloadModelId = null;
+											this.downloadPercent = 100;
+											if (!this.shouldContinueFromPhase("downloading_model", "downloadModel")) {
+												return;
+											}
+											this.loadModelAndRecord(selectedModelId);
+										},
+										onFailure: (err: AppError) => {
+											log("downloadModel: FAILED", { error: err.message });
+											this.activeDownloadModelId = null;
+											this.setError(err.message ?? "Model download failed");
+										},
+									})
+								)
+							);
+						} else if (modelInfo.is_loaded) {
+							log("getModelStatus: model already loaded, starting recording immediately");
+							if (!this.shouldContinueFromPhase("checking_permission", "getModelStatus.is_loaded")) {
 								return;
 							}
+							this.beginRecording();
+						} else {
 							this.loadModelAndRecord(selectedModelId);
-						},
-						(err: AppError) => {
-							log("downloadModel: FAILED", { error: err.message });
-							this.activeDownloadModelId = null;
-							this.setError(err.message ?? "Model download failed");
 						}
-					);
-				} else if (modelInfo.is_loaded) {
-					log("getModelStatus: model already loaded, starting recording immediately");
-					if (!this.shouldContinueFromPhase("checking_permission", "getModelStatus.is_loaded")) {
-						return;
-					}
-					this.beginRecording();
-				} else {
-					this.loadModelAndRecord(selectedModelId);
-				}
-			},
-			(err: AppError) => {
-				log("getModelStatus: FAILED", { error: err.message });
-				this.setError(err.message ?? "Failed to check model status");
-			}
+					},
+					onFailure: (err: AppError) => {
+						log("getModelStatus: FAILED", { error: err.message });
+						this.setError(err.message ?? "Failed to check model status");
+					},
+				})
+			)
 		);
 	}
 
@@ -487,40 +508,48 @@ export class VoiceInputState {
 
 		log("calling tauriClient.voice.loadModel", { modelId });
 		const t0 = performance.now();
-		tauriClient.voice.loadModel(modelId).match(
-			() => {
-				const elapsed = Math.round(performance.now() - t0);
-				log("loadModel: success", { elapsed_ms: elapsed });
-				this.isLoadingModel = false;
-				if (this.isDisposed) {
-					log("loadModel: disposed after load, aborting");
-					return;
-				}
-				if (this.phase !== "loading_model") {
-					log("loadModel: phase changed during load, aborting", { phase: this.phase });
-					return;
-				}
-				this.beginRecording();
-			},
-			(err: AppError) => {
-				log("loadModel: FAILED", { error: err.message });
-				this.isLoadingModel = false;
-				this.setError(err.message ?? "Failed to load model");
-			}
+		void Effect.runPromise(
+			tauriClient.voice.loadModel(modelId).pipe(
+				Effect.match({
+					onSuccess: () => {
+						const elapsed = Math.round(performance.now() - t0);
+						log("loadModel: success", { elapsed_ms: elapsed });
+						this.isLoadingModel = false;
+						if (this.isDisposed) {
+							log("loadModel: disposed after load, aborting");
+							return;
+						}
+						if (this.phase !== "loading_model") {
+							log("loadModel: phase changed during load, aborting", { phase: this.phase });
+							return;
+						}
+						this.beginRecording();
+					},
+					onFailure: (err: AppError) => {
+						log("loadModel: FAILED", { error: err.message });
+						this.isLoadingModel = false;
+						this.setError(err.message ?? "Failed to load model");
+					},
+				})
+			)
 		);
 	}
 
 	private beginRecording(): void {
 		log("calling tauriClient.voice.startRecording", { sessionId: this.sessionId });
-		tauriClient.voice.startRecording(this.sessionId).match(
-			() => {
-				log("startRecording: success");
-				this.transitionTo("recording");
-			},
-			(err: AppError) => {
-				log("startRecording: FAILED", { error: err.message });
-				this.setError(err.message ?? "Failed to start recording");
-			}
+		void Effect.runPromise(
+			tauriClient.voice.startRecording(this.sessionId).pipe(
+				Effect.match({
+					onSuccess: () => {
+						log("startRecording: success");
+						this.transitionTo("recording");
+					},
+					onFailure: (err: AppError) => {
+						log("startRecording: FAILED", { error: err.message });
+						this.setError(err.message ?? "Failed to start recording");
+					},
+				})
+			)
 		);
 	}
 

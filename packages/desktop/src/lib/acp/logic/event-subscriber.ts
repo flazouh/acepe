@@ -1,4 +1,7 @@
-import { okAsync, ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import { fromThrowable } from "@acepe/effect-result/fromThrowable";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 
 import type { SessionStateEnvelope } from "../../services/acp-types.js";
 import type { JsonValue, SessionUpdate } from "../../services/converted-session-types.js";
@@ -33,11 +36,11 @@ export class EventSubscriber {
 	 * Multiple listeners are supported - they all receive updates from a single Tauri listener.
 	 *
 	 * @param listener - Callback function to receive session updates
-	 * @returns ResultAsync containing a unique listener ID that can be used to unsubscribe
+	 * @returns Effect containing a unique listener ID that can be used to unsubscribe
 	 */
 	subscribe(
 		listener: (update: SessionUpdate, envelopeSeq: number) => void
-	): ResultAsync<string, AcpError> {
+	): Effect.Effect<string, AcpError> {
 		const listenerId = `listener-${++this.listenerIdCounter}`;
 		this.listeners.set(listenerId, listener);
 		return this.ensureSubscribed(
@@ -52,7 +55,7 @@ export class EventSubscriber {
 
 	subscribeSessionState(
 		listener: (envelope: SessionStateEnvelope) => void
-	): ResultAsync<string, AcpError> {
+	): Effect.Effect<string, AcpError> {
 		const listenerId = `listener-${++this.listenerIdCounter}`;
 		this.sessionStateListeners.set(listenerId, listener);
 		return this.ensureSubscribed(
@@ -94,19 +97,21 @@ export class EventSubscriber {
 		hasListener: () => boolean,
 		removeListener: () => void,
 		description: string
-	): ResultAsync<string, AcpError> {
+	): Effect.Effect<string, AcpError> {
 		if (this.unlistenFn) {
-			return okAsync(listenerId);
+			return Effect.succeed(listenerId);
 		}
 
 		if (this.isInitializing && this.initPromise) {
-			return ResultAsync.fromPromise(
-				this.initPromise.then(() => {
-					if (!hasListener()) {
-						throw new Error("Listener was removed during subscriber initialization");
-					}
-					return listenerId;
-				}),
+			const pending = this.initPromise;
+			return fromPromise(
+				() =>
+					pending.then(() => {
+						if (!hasListener()) {
+							throw new Error("Listener was removed during subscriber initialization");
+						}
+						return listenerId;
+					}),
 				(error) => {
 					removeListener();
 					return new ProtocolError(`Failed to wait for initialization: ${error}`, error);
@@ -115,7 +120,7 @@ export class EventSubscriber {
 		}
 
 		this.isInitializing = true;
-		const listenResult = openAcpEventSource((envelope) => {
+		const program = openAcpEventSource((envelope) => {
 			if (envelope.eventName === "acp-session-update") {
 				const update = parseSessionUpdatePayload(envelope.payload);
 				if (!update) {
@@ -126,11 +131,12 @@ export class EventSubscriber {
 					return;
 				}
 				for (const [id, cb] of this.listeners.entries()) {
-					try {
-						cb(update, envelope.seq);
-					} catch (error) {
-						this.logger.error("Listener threw error", { listenerId: id, error });
-					}
+					runListenerSafely(
+						() => cb(update, envelope.seq),
+						(error) => {
+							this.logger.error("Listener threw error", { listenerId: id, error });
+						}
+					);
 				}
 				return;
 			}
@@ -147,14 +153,15 @@ export class EventSubscriber {
 				return;
 			}
 			for (const [id, cb] of this.sessionStateListeners.entries()) {
-				try {
-					cb(sessionStateEnvelope);
-				} catch (error) {
-					this.logger.error("Listener threw error", { listenerId: id, error });
-				}
+				runListenerSafely(
+					() => cb(sessionStateEnvelope),
+					(error) => {
+						this.logger.error("Listener threw error", { listenerId: id, error });
+					}
+				);
 			}
-		})
-			.map((unlisten) => {
+		}).pipe(
+			Effect.map((unlisten) => {
 				this.isInitializing = false;
 				if (this.listeners.size === 0 && this.sessionStateListeners.size === 0) {
 					unlisten();
@@ -163,27 +170,38 @@ export class EventSubscriber {
 					this.unlistenFn = unlisten;
 				}
 				return listenerId;
-			})
-			.mapErr((error) => {
+			}),
+			Effect.mapError((error) => {
 				this.isInitializing = false;
 				this.unlistenFn = null;
 				removeListener();
 				return new ProtocolError(`Failed to subscribe to ${description}: ${error}`, error);
-			});
+			})
+		);
 
-		this.initPromise = listenResult
-			.match(
-				() => undefined,
-				(error) => {
-					throw error;
-				}
-			)
+		const pending = Effect.runPromise(program)
 			.then(() => undefined)
 			.finally(() => {
 				this.initPromise = null;
 			});
+		this.initPromise = pending;
 
-		return listenResult;
+		return fromPromise(
+			() => pending.then(() => listenerId),
+			(error) => {
+				if (error instanceof ProtocolError) {
+					return error;
+				}
+				return new ProtocolError(`Failed to wait for initialization: ${error}`, error);
+			}
+		);
+	}
+}
+
+function runListenerSafely(run: () => void, onError: (error: unknown) => void): void {
+	const listenerResult = Effect.runSync(Effect.result(fromThrowable(run, (error) => error)()));
+	if (Result.isFailure(listenerResult)) {
+		onError(listenerResult.failure);
 	}
 }
 

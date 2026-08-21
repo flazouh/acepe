@@ -1,4 +1,5 @@
-import { okAsync, ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
 	SessionGraphRevision,
@@ -96,7 +97,7 @@ describe("TranscriptRowsController older-row paging", () => {
 			lastEventSeq: pageRevision.lastEventSeq,
 			rows: [row("older-row")],
 		};
-		mocks.readTranscriptRowPage.mockReturnValue(okAsync(olderPageResult));
+		mocks.readTranscriptRowPage.mockReturnValue(Effect.succeed(olderPageResult));
 		const controller = new TranscriptRowsController({
 			getGraphRevision: () => liveGraphRevision,
 			applySessionStateEnvelope: (_sessionId: string, _envelope: SessionStateEnvelope) => undefined,
@@ -123,7 +124,7 @@ describe("TranscriptRowsController older-row paging", () => {
 			resolveFreshEnvelope = resolve;
 		});
 		mocks.requestTranscriptViewportBuffer.mockReturnValue(
-			ResultAsync.fromSafePromise(freshEnvelopePromise)
+			fromPromise(() => freshEnvelopePromise, (error) => (error instanceof Error ? error : new Error(String(error))))
 		);
 		const appliedEnvelopes: SessionStateEnvelope[] = [];
 		const controller = new TranscriptRowsController({

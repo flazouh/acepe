@@ -1,4 +1,4 @@
-import type { Result } from "neverthrow";
+import type * as Result from "effect/Result";
 
 export type FilePanelFormatKind =
 	| "markdown"
@@ -65,5 +65,5 @@ export interface FormatConfig {
 		defaultMode: FilePanelDisplayMode;
 	};
 	/** Parse content to StructuredData; optional - not all formats have structured parse */
-	parseStructured?: (content: string) => Result<StructuredData, Error>;
+	parseStructured?: (content: string) => Result.Result<StructuredData, Error>;
 }

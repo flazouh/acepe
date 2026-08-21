@@ -1,4 +1,5 @@
-import { ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
 
 import type { SoundEffect } from "../types/sounds.js";
 
@@ -16,9 +17,16 @@ function warmAudioContext(ctx: AudioContext): void {
 		return;
 	}
 
-	ResultAsync.fromPromise(ctx.resume(), (e) => e as Error).match(
-		() => undefined,
-		() => undefined
+	void Effect.runPromise(
+		fromPromise(
+			() => ctx.resume(),
+			(e) => (e instanceof Error ? e : new Error(String(e)))
+		).pipe(
+			Effect.match({
+				onSuccess: () => undefined,
+				onFailure: () => undefined,
+			})
+		)
 	);
 }
 
@@ -46,18 +54,23 @@ export function preloadSound(sound: SoundEffect): void {
 		return;
 	}
 	const ctx = getAudioContext();
-	ResultAsync.fromPromise(
-		fetch(`/sounds/${sound}`)
-			.then((response) => response.arrayBuffer())
-			.then((arrayBuffer) => ctx.decodeAudioData(arrayBuffer)),
-		(e) => e as Error
-	).match(
-		(buffer) => {
-			bufferCache.set(sound, buffer);
-		},
-		() => {
-			// Silently ignore preload errors — playSound falls back to HTML Audio
-		}
+	void Effect.runPromise(
+		fromPromise(
+			() =>
+				fetch(`/sounds/${sound}`)
+					.then((response) => response.arrayBuffer())
+					.then((arrayBuffer) => ctx.decodeAudioData(arrayBuffer)),
+			(e) => (e instanceof Error ? e : new Error(String(e)))
+		).pipe(
+			Effect.match({
+				onSuccess: (buffer) => {
+					bufferCache.set(sound, buffer);
+				},
+				onFailure: () => {
+					// Silently ignore preload errors — playSound falls back to HTML Audio
+				},
+			})
+		)
 	);
 }
 
@@ -84,7 +97,17 @@ export function playSound(sound: SoundEffect): void {
 
 	// Fallback: non-preloaded sounds use HTML Audio (higher latency)
 	const audio = new Audio(`/sounds/${sound}`);
-	ResultAsync.fromPromise(audio.play(), (e) => e as Error).mapErr(() => {
-		// Silently ignore playback errors (e.g., autoplay restrictions)
-	});
+	void Effect.runPromise(
+		fromPromise(
+			() => audio.play(),
+			(e) => (e instanceof Error ? e : new Error(String(e)))
+		).pipe(
+			Effect.match({
+				onSuccess: () => undefined,
+				onFailure: () => {
+					// Silently ignore playback errors (e.g., autoplay restrictions)
+				},
+			})
+		)
+	);
 }

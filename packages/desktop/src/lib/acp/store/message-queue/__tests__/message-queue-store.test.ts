@@ -1,5 +1,5 @@
+import * as Effect from "effect/Effect";
 import { beforeEach, describe, expect, it, mock } from "bun:test";
-import { errAsync, okAsync } from "neverthrow";
 
 // Mock svelte context functions (no-op outside component lifecycle)
 mock.module("svelte", () => ({
@@ -52,7 +52,7 @@ function createMockSender(): MessageSender & {
 		calls,
 		sendMessage(sessionId: string, content: string, attachments: readonly unknown[] = []) {
 			calls.push({ sessionId, content, attachments });
-			return okAsync(undefined);
+			return Effect.succeed(undefined);
 		},
 	};
 }
@@ -60,7 +60,7 @@ function createMockSender(): MessageSender & {
 function createFailingSender(): MessageSender {
 	return {
 		sendMessage() {
-			return errAsync(new ConnectionError("Failed to send"));
+			return Effect.fail(new ConnectionError("Failed to send"));
 		},
 	};
 }
@@ -313,7 +313,7 @@ describe("MessageQueueStore", () => {
 			store.enqueue("s1", "second", []);
 			store.drainNext("s1");
 
-			// Allow the async ResultAsync to settle
+			// Allow the async Effect to settle
 			await new Promise((resolve) => setTimeout(resolve, 10));
 
 			expect(store.isPaused("s1")).toBe(true);

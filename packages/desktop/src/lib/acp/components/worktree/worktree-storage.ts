@@ -5,7 +5,7 @@
  * Legacy global default is read once for migration only.
  */
 
-import type { ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
@@ -65,21 +65,21 @@ export function migrateWorktreeProjectDefaultsFromGlobal(
 	return next;
 }
 
-export function loadWorktreeProjectDefaults(): ResultAsync<WorktreeProjectDefaultsMap, AppError> {
+export function loadWorktreeProjectDefaults(): Effect.Effect<WorktreeProjectDefaultsMap, AppError> {
 	return tauriClient.settings
 		.get<WorktreeProjectDefaultsMap>(PROJECT_DEFAULTS_KEY)
-		.map((value) => value ?? {});
+		.pipe(Effect.map((value) => value ?? {}));
 }
 
 export function saveWorktreeProjectDefaults(
 	map: WorktreeProjectDefaultsMap
-): ResultAsync<void, AppError> {
+): Effect.Effect<void, AppError> {
 	return tauriClient.settings.set(PROJECT_DEFAULTS_KEY, map);
 }
 
 /** Legacy global default — read-only for one-time migration. */
-export function loadWorktreeDefault(): ResultAsync<boolean, AppError> {
+export function loadWorktreeDefault(): Effect.Effect<boolean, AppError> {
 	return tauriClient.settings
 		.get<boolean>(LEGACY_GLOBAL_DEFAULT_KEY)
-		.map((value) => value ?? false);
+		.pipe(Effect.map((value) => value ?? false));
 }

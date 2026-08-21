@@ -1,7 +1,8 @@
 <script lang="ts">
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
-import { ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
 import { onDestroy, onMount } from "svelte";
 import { type IPty, spawn } from "tauri-pty";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
@@ -71,38 +72,43 @@ onMount(async () => {
 	fitAddon.fit();
 
 	// Spawn PTY process
-	await ResultAsync.fromPromise(
-		Promise.resolve(
-			spawn(shell, [], {
-				cols: terminal.cols,
-				rows: terminal.rows,
-				cwd: projectPath,
-				env: { TERM: "xterm-256color" },
+	await Effect.runPromise(
+		fromPromise(
+			() =>
+				Promise.resolve(
+					spawn(shell, [], {
+						cols: terminal.cols,
+						rows: terminal.rows,
+						cwd: projectPath,
+						env: { TERM: "xterm-256color" },
+					})
+				),
+			(error) => (error instanceof Error ? error.message : String(error))
+		).pipe(
+			Effect.match({
+				onSuccess: (ptyInstance: IPty) => {
+					pty = ptyInstance;
+					onPtyCreated(pty.pid);
+
+					// Wire up I/O
+					pty.onData((data: Uint8Array) => {
+						terminal?.write(data);
+					});
+
+					pty.onExit(({ exitCode }: { exitCode: number; signal?: number }) => {
+						terminal?.write(`\r\n[Process exited with code ${exitCode}]\r\n`);
+					});
+
+					terminal?.onData((data: string) => {
+						pty?.write(data);
+					});
+				},
+				onFailure: (message: string) => {
+					onPtyError(message);
+					terminal?.write(`\r\n[Failed to spawn shell: ${message}]\r\n`);
+				},
 			})
-		),
-		(error) => (error instanceof Error ? error.message : String(error))
-	).match(
-		(ptyInstance: IPty) => {
-			pty = ptyInstance;
-			onPtyCreated(pty.pid);
-
-			// Wire up I/O
-			pty.onData((data: Uint8Array) => {
-				terminal?.write(data);
-			});
-
-			pty.onExit(({ exitCode }: { exitCode: number; signal?: number }) => {
-				terminal?.write(`\r\n[Process exited with code ${exitCode}]\r\n`);
-			});
-
-			terminal?.onData((data: string) => {
-				pty?.write(data);
-			});
-		},
-		(message: string) => {
-			onPtyError(message);
-			terminal?.write(`\r\n[Failed to spawn shell: ${message}]\r\n`);
-		}
+		)
 	);
 
 	// Handle resize

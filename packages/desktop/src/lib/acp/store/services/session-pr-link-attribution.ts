@@ -1,4 +1,6 @@
-import { okAsync, type ResultAsync } from "neverthrow";
+import { fromThrowable } from "@acepe/effect-result/fromThrowable";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import type { GitStackedPrStep } from "../../../utils/tauri-client/git.js";
 import { getRepoContext } from "../../services/github-service.js";
 
@@ -9,12 +11,18 @@ type SessionPrLinkCandidate = {
 };
 
 function parseGithubPullRequestUrl(url: string): SessionPrLinkCandidate | null {
-	let parsed: URL;
-	try {
-		parsed = new URL(url);
-	} catch {
+	const parsedResult = Effect.runSync(
+		Effect.result(
+			fromThrowable(
+				(value: string) => new URL(value),
+				() => new Error("Invalid GitHub pull request URL")
+			)(url)
+		)
+	);
+	if (Result.isFailure(parsedResult)) {
 		return null;
 	}
+	const parsed = parsedResult.success;
 
 	if (parsed.hostname !== "github.com") {
 		return null;
@@ -89,14 +97,14 @@ export function resolveAutomaticSessionPrNumberFromToolCall(
 	projectPath: string,
 	command: string | null | undefined,
 	resultText: string | null | undefined
-): ResultAsync<number | null, never> {
+): Effect.Effect<number | null, never> {
 	const candidate = extractPrCandidateFromGhCreateToolCall(command, resultText);
 	if (candidate === null) {
-		return okAsync(null);
+		return Effect.succeed(null);
 	}
 
-	return getRepoContext(projectPath)
-		.map((repoContext) => {
+	return getRepoContext(projectPath).pipe(
+		Effect.map((repoContext) => {
 			if (
 				!namesMatchCaseInsensitive(repoContext.owner, candidate.owner) ||
 				!namesMatchCaseInsensitive(repoContext.repo, candidate.repo)
@@ -105,29 +113,30 @@ export function resolveAutomaticSessionPrNumberFromToolCall(
 			}
 
 			return candidate.prNumber;
-		})
-		.orElse(() => okAsync(null));
+		}),
+		Effect.catch(() => Effect.succeed(null))
+	);
 }
 
 export function resolveAutomaticSessionPrNumberFromShipWorkflow(
 	projectPath: string,
 	pr: GitStackedPrStep
-): ResultAsync<number | null, never> {
+): Effect.Effect<number | null, never> {
 	if (pr.status !== "created" && pr.status !== "opened_existing") {
-		return okAsync(null);
+		return Effect.succeed(null);
 	}
 
 	if (pr.number == null || pr.number <= 0 || pr.url == null) {
-		return okAsync(null);
+		return Effect.succeed(null);
 	}
 
 	const parsed = parseGithubPullRequestUrl(pr.url);
 	if (parsed === null || parsed.prNumber !== pr.number) {
-		return okAsync(null);
+		return Effect.succeed(null);
 	}
 
-	return getRepoContext(projectPath)
-		.map((repoContext) => {
+	return getRepoContext(projectPath).pipe(
+		Effect.map((repoContext) => {
 			if (
 				!namesMatchCaseInsensitive(repoContext.owner, parsed.owner) ||
 				!namesMatchCaseInsensitive(repoContext.repo, parsed.repo)
@@ -136,6 +145,7 @@ export function resolveAutomaticSessionPrNumberFromShipWorkflow(
 			}
 
 			return pr.number ?? null;
-		})
-		.orElse(() => okAsync(null));
+		}),
+		Effect.catch(() => Effect.succeed(null))
+	);
 }

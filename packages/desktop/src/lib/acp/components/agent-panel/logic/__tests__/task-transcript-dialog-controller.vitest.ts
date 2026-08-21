@@ -1,5 +1,5 @@
-import { okAsync } from "neverthrow";
 import { describe, expect, it, vi } from "vitest";
+import * as Effect from "effect/Effect";
 import type {
 	SessionGraphRevision,
 	TranscriptRowPageResult,
@@ -83,17 +83,18 @@ function stalePage(): TranscriptRowPageResult {
 }
 
 async function settleResultAsync(): Promise<void> {
-	await Promise.resolve();
-	await Promise.resolve();
+	for (let index = 0; index < 10; index += 1) {
+		await Promise.resolve();
+	}
 }
 
 describe("TaskTranscriptDialogController", () => {
 	it("loads and paginates ordinary operation-scoped rows in canonical order", async () => {
 		const readPage = vi.fn((input: TaskTranscriptPageInput) => {
 			if (input.startRowIndex === 0) {
-				return okAsync(currentPage(0, 3, [row("thought"), row("tool")]));
+				return Effect.succeed(currentPage(0, 3, [row("thought"), row("tool")]));
 			}
-			return okAsync(currentPage(2, 3, [row("final")]));
+			return Effect.succeed(currentPage(2, 3, [row("final")]));
 		});
 		const controller = new TaskTranscriptDialogController({ readPage });
 		const identity = taskTranscriptDialogIdentity({
@@ -143,7 +144,7 @@ describe("TaskTranscriptDialogController", () => {
 	});
 
 	it("keeps dialog state across parent row-version changes", async () => {
-		const readPage = vi.fn(() => okAsync(currentPage(0, 1, [row("thought")])));
+		const readPage = vi.fn(() => Effect.succeed(currentPage(0, 1, [row("thought")])));
 		const controller = new TaskTranscriptDialogController({ readPage });
 		const identity = taskTranscriptDialogIdentity({
 			sessionId: "session-1",
@@ -166,9 +167,9 @@ describe("TaskTranscriptDialogController", () => {
 	it("refreshes an open task transcript when the canonical session revision advances", async () => {
 		const readPage = vi
 			.fn()
-			.mockReturnValueOnce(okAsync(currentPage(0, 1, [row("thought")])))
+			.mockReturnValueOnce(Effect.succeed(currentPage(0, 1, [row("thought")])))
 			.mockReturnValueOnce(
-				okAsync(currentPageForRevision(0, 2, [row("thought"), row("live-tool")], refreshedRevision))
+				Effect.succeed(currentPageForRevision(0, 2, [row("thought"), row("live-tool")], refreshedRevision))
 			);
 		const controller = new TaskTranscriptDialogController({ readPage });
 		const identity = taskTranscriptDialogIdentity({
@@ -205,8 +206,8 @@ describe("TaskTranscriptDialogController", () => {
 	it("retries with the returned revision when a live task transcript page is stale", async () => {
 		const readPage = vi
 			.fn()
-			.mockReturnValueOnce(okAsync(stalePage()))
-			.mockReturnValueOnce(okAsync(currentPage(0, 1, [row("read-result")])));
+			.mockReturnValueOnce(Effect.succeed(stalePage()))
+			.mockReturnValueOnce(Effect.succeed(currentPage(0, 1, [row("read-result")])));
 		const controller = new TaskTranscriptDialogController({ readPage });
 		const identity = taskTranscriptDialogIdentity({
 			sessionId: "session-1",

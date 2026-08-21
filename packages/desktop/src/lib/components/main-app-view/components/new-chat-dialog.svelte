@@ -22,6 +22,7 @@ import { CanonicalModeId } from "$lib/acp/types/canonical-mode-id.js";
 import { getAgentPreferencesStore, getAgentStore, getPanelStore } from "$lib/acp/store/index.js";
 import { getWorktreeProjectDefaultStore } from "$lib/acp/components/worktree/worktree-project-default-store.svelte.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
+import * as Effect from "effect/Effect";
 import { toast } from "svelte-sonner";
 import {
 	canSendWithoutSession,
@@ -104,21 +105,29 @@ function loadBranchForProject(projectPath: string | null): void {
 	if (!projectPath) {
 		return;
 	}
-	void tauriClient.git.isRepo(projectPath).match(
-		(isRepo) => {
-			preSessionIsGitRepo = isRepo;
-		},
-		() => {
-			preSessionIsGitRepo = null;
-		}
+	void Effect.runPromise(
+		tauriClient.git.isRepo(projectPath).pipe(
+			Effect.match({
+				onSuccess: (isRepo) => {
+					preSessionIsGitRepo = isRepo;
+				},
+				onFailure: () => {
+					preSessionIsGitRepo = null;
+				},
+			})
+		)
 	);
-	void tauriClient.git.currentBranch(projectPath).match(
-		(branch) => {
-			preSessionCurrentBranch = branch ?? null;
-		},
-		() => {
-			preSessionCurrentBranch = null;
-		}
+	void Effect.runPromise(
+		tauriClient.git.currentBranch(projectPath).pipe(
+			Effect.match({
+				onSuccess: (branch) => {
+					preSessionCurrentBranch = branch ?? null;
+				},
+				onFailure: () => {
+					preSessionCurrentBranch = null;
+				},
+			})
+		)
 	);
 }
 
@@ -186,7 +195,9 @@ function handleNewSessionProjectChange(project: Project): void {
 }
 
 function handleBrowseProject(): void {
-	projectManager.importProject();
+	void Effect.runPromise(
+		projectManager.importProject().pipe(Effect.catch(() => Effect.void))
+	);
 }
 
 function persistSelectedAgent(agentId: string): void {
@@ -199,9 +210,10 @@ function persistSelectedAgent(agentId: string): void {
 		agentId
 	);
 
-	void agentPreferencesStore.setSelectedAgentIds(nextSelectedAgentIds).match(
-		() => undefined,
-		() => undefined
+	void Effect.runPromise(
+		agentPreferencesStore.setSelectedAgentIds(nextSelectedAgentIds).pipe(
+			Effect.catch(() => Effect.void)
+		)
 	);
 }
 
@@ -284,11 +296,15 @@ function handleNewSessionSendError(panelId: string | null): void {
 				if (!projectPath) {
 					return;
 				}
-				void tauriClient.git.init(projectPath).match(
-					() => loadBranchForProject(projectPath),
-					(error) => {
-						toast.error(error.cause?.message ?? error.message ?? "Failed to initialize git");
-					}
+				void Effect.runPromise(
+					tauriClient.git.init(projectPath).pipe(
+						Effect.match({
+							onSuccess: () => loadBranchForProject(projectPath),
+							onFailure: (error) => {
+								toast.error(error.cause?.message ?? error.message ?? "Failed to initialize git");
+							},
+						})
+					)
 				);
 			}}
 		/>

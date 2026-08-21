@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
-import { errAsync, okAsync, ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import type { SessionCold } from "$lib/acp/application/dto/session-cold.js";
 import { AgentError } from "$lib/acp/errors/app-error.js";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
@@ -15,9 +17,9 @@ import { KeybindingError } from "$lib/keybindings/types.js";
 const openPersistedSessionMock = mock(
 	(_options: { panelId: string; repairPriority?: "selected" | "visible" }) => {}
 );
-const zoomInitializeMock = mock((): ResultAsync<void, AgentError> => okAsync(undefined));
+const zoomInitializeMock = mock((): Effect.Effect<void, AgentError> => Effect.succeed(undefined));
 const warmRecentTranscriptRowLedgersMock = mock(() =>
-	okAsync({
+	Effect.succeed({
 		requestedLimit: 8,
 		candidateCount: 0,
 		checkedCount: 0,
@@ -31,7 +33,7 @@ const warmRecentTranscriptRowLedgersMock = mock(() =>
 	})
 );
 const listPreconnectionCapabilitiesMock = mock(() =>
-	okAsync({
+	Effect.succeed({
 		status: "resolved",
 		availableModels: [],
 		currentModelId: "",
@@ -59,9 +61,9 @@ mock.module("../logic/open-persisted-session.js", () => ({
 mock.module("$lib/services/zoom.svelte.js", () => ({
 	getZoomService: () => ({
 		initialize: zoomInitializeMock,
-		zoomIn: () => okAsync(undefined),
-		zoomOut: () => okAsync(undefined),
-		resetZoom: () => okAsync(undefined),
+		zoomIn: () => Effect.succeed(undefined),
+		zoomOut: () => Effect.succeed(undefined),
+		resetZoom: () => Effect.succeed(undefined),
 		zoomLevel: 1.0,
 		zoomPercentage: "100%",
 	}),
@@ -294,10 +296,10 @@ describe("InitializationManager", () => {
 		}
 		openPersistedSessionMock.mockReset();
 		zoomInitializeMock.mockReset();
-		zoomInitializeMock.mockImplementation(() => okAsync(undefined));
+		zoomInitializeMock.mockImplementation(() => Effect.succeed(undefined));
 		warmRecentTranscriptRowLedgersMock.mockReset();
 		warmRecentTranscriptRowLedgersMock.mockImplementation(() =>
-			okAsync({
+			Effect.succeed({
 				requestedLimit: 8,
 				candidateCount: 0,
 				checkedCount: 0,
@@ -312,7 +314,7 @@ describe("InitializationManager", () => {
 		);
 		listPreconnectionCapabilitiesMock.mockReset();
 		listPreconnectionCapabilitiesMock.mockReturnValue(
-			okAsync({
+			Effect.succeed({
 				status: "resolved",
 				availableModels: [],
 				currentModelId: "",
@@ -347,17 +349,17 @@ describe("InitializationManager", () => {
 		} as unknown as MainAppViewState;
 
 		mockSessionStore = {
-			initializeSessionUpdates: mock(() => okAsync(undefined)),
+			initializeSessionUpdates: mock(() => Effect.succeed(undefined)),
 			loading: {
-				loadSessions: mock(() => okAsync([])),
-				loadStartupSessions: mock(() => okAsync({ missing: [], aliasRemaps: {} })),
+				loadSessions: mock(() => Effect.succeed([])),
+				loadStartupSessions: mock(() => Effect.succeed({ missing: [], aliasRemaps: {} })),
 				registerSessionPlaceholder: mock(() => {}),
-				preloadSessions: mock(() => okAsync({ loaded: [], missing: [] })),
-				scanSessions: mock(() => okAsync(undefined)),
+				preloadSessions: mock(() => Effect.succeed({ loaded: [], missing: [] })),
+				scanSessions: mock(() => Effect.succeed(undefined)),
 			},
 			connection: {
 				createSession: mock((options: { agentId: string; projectPath: string; title?: string }) =>
-					okAsync({
+					Effect.succeed({
 						kind: "ready",
 						session: buildSession(
 							"session-1",
@@ -406,7 +408,7 @@ describe("InitializationManager", () => {
 
 		mockAgentStore = {
 			agents: [],
-			loadAvailableAgents: mock(() => okAsync([])),
+			loadAvailableAgents: mock(() => Effect.succeed([])),
 			getAgent: mock((agentId: string | null | undefined) => {
 				if (!agentId) {
 					return null;
@@ -435,7 +437,7 @@ describe("InitializationManager", () => {
 
 		mockWorkspaceStore = {
 			load: mock(() =>
-				okAsync({
+				Effect.succeed({
 					version: 1,
 					panels: [],
 					focusedPanelIndex: null,
@@ -451,19 +453,19 @@ describe("InitializationManager", () => {
 			projects: [],
 			projectCount: 0,
 			projectStorageFresh: true,
-			loadProjects: mock((_preferredPaths?: string[]) => okAsync(undefined)),
+			loadProjects: mock((_preferredPaths?: string[]) => Effect.succeed(undefined)),
 		} as unknown as ProjectManager;
 
 		mockAgentPreferencesStore = {
 			primeStartupDefaults: mock(() => {}),
-			initialize: mock(() => okAsync(undefined)),
+			initialize: mock(() => Effect.succeed(undefined)),
 		} as unknown as AgentPreferencesStore;
 
 		mockKeybindingsService = {
-			initialize: mock(() => ({ isOk: () => true, isErr: () => false })),
+			initialize: mock(() => Result.succeed(undefined)),
 			upsertAction: mock(() => {}),
 			install: mock(() => {}),
-			loadUserKeybindings: mock(() => okAsync(undefined)),
+			loadUserKeybindings: mock(() => Effect.succeed(undefined)),
 			reinstall: mock(() => {}),
 			uninstall: mock(() => {}),
 		} as unknown as KeybindingsService;
@@ -472,7 +474,7 @@ describe("InitializationManager", () => {
 			beginAttempt: mock(() => "request-1"),
 			clearAttempt: mock(() => {}),
 			hydrateFound: mock(() =>
-				okAsync({
+				Effect.succeed({
 					canonicalSessionId: "session-1",
 					openToken: "open-token-1",
 					applied: true,
@@ -521,28 +523,28 @@ describe("InitializationManager", () => {
 		it("should set initializationInProgress to true at start", async () => {
 			const result = manager.initialize();
 			expect(mockState.initializationInProgress).toBe(true);
-			await result;
+			await Effect.runPromise(result);
 		});
 
 		it("should set initializationComplete to true on success", async () => {
-			const result = await manager.initialize();
-			expect(result.isOk()).toBe(true);
+			const result = await Effect.runPromise(Effect.result(manager.initialize()));
+			expect(Result.isSuccess(result)).toBe(true);
 			expect(mockState.initializationComplete).toBe(true);
 			expect(mockState.initializationInProgress).toBe(false);
 		});
 
 		it("should initialize keybindings service", async () => {
-			await manager.initialize();
+			await Effect.runPromise(manager.initialize());
 			expect(mockKeybindingsService.initialize).toHaveBeenCalled();
 		});
 
 		it("should install keybindings on window", async () => {
-			await manager.initialize();
+			await Effect.runPromise(manager.initialize());
 			expect(mockKeybindingsService.install).toHaveBeenCalledWith(window);
 		});
 
 		it("should initialize session updates", async () => {
-			await manager.initialize();
+			await Effect.runPromise(manager.initialize());
 			expect(mockSessionStore.initializeSessionUpdates).not.toHaveBeenCalled();
 
 			await runPostStartupTasks();
@@ -553,7 +555,7 @@ describe("InitializationManager", () => {
 		it("warms recent transcript row ledgers only after transcript backfill work", async () => {
 			manager = createManagerWithSplitBackfillScheduler();
 
-			await manager.initialize();
+			await Effect.runPromise(manager.initialize());
 			expect(warmRecentTranscriptRowLedgersMock).not.toHaveBeenCalled();
 
 			await runPostStartupTasks();
@@ -581,7 +583,7 @@ describe("InitializationManager", () => {
 				},
 			];
 
-			await manager.initialize();
+			await Effect.runPromise(manager.initialize());
 			await runPostStartupTasks();
 			await runRestoredPanelPreloadTasks();
 
@@ -591,7 +593,7 @@ describe("InitializationManager", () => {
 		it("does not wait for session updates before completing startup", async () => {
 			const sessionUpdatesResolver: { current: (() => void) | null } = { current: null };
 			mockSessionStore.initializeSessionUpdates = mock(() =>
-				ResultAsync.fromPromise(
+				fromPromise(() => 
 					new Promise<void>((resolve) => {
 						sessionUpdatesResolver.current = resolve;
 					}),
@@ -615,7 +617,7 @@ describe("InitializationManager", () => {
 			);
 
 			const resultOrTimeout = await Promise.race([
-				manager.initialize(),
+				Effect.runPromise(Effect.result(manager.initialize())),
 				new Promise<"timeout">((resolve) => {
 					setTimeout(() => resolve("timeout"), 50);
 				}),
@@ -623,7 +625,7 @@ describe("InitializationManager", () => {
 
 			expect(resultOrTimeout).not.toBe("timeout");
 			if (resultOrTimeout !== "timeout") {
-				expect(resultOrTimeout.isOk()).toBe(true);
+				expect(Result.isSuccess(resultOrTimeout)).toBe(true);
 			}
 			expect(mockSessionStore.initializeSessionUpdates).not.toHaveBeenCalled();
 			expect(mockState.initializationComplete).toBe(true);
@@ -638,7 +640,7 @@ describe("InitializationManager", () => {
 		});
 
 		it("loads projects immediately and agents after delayed startup work", async () => {
-			await manager.initialize();
+			await Effect.runPromise(manager.initialize());
 			expect(mockProjectManager.loadProjects).not.toHaveBeenCalled();
 			expect(mockAgentStore.loadAvailableAgents).not.toHaveBeenCalled();
 			expect(mockKeybindingsService.loadUserKeybindings).not.toHaveBeenCalled();
@@ -657,7 +659,7 @@ describe("InitializationManager", () => {
 		it("does not wait for user keybindings before completing startup", async () => {
 			const userKeybindingsResolver: { current: (() => void) | null } = { current: null };
 			mockKeybindingsService.loadUserKeybindings = mock(() =>
-				ResultAsync.fromPromise(
+				fromPromise(() => 
 					new Promise<void>((resolve) => {
 						userKeybindingsResolver.current = resolve;
 					}),
@@ -681,7 +683,7 @@ describe("InitializationManager", () => {
 			);
 
 			const resultOrTimeout = await Promise.race([
-				manager.initialize(),
+				Effect.runPromise(Effect.result(manager.initialize())),
 				new Promise<"timeout">((resolve) => {
 					setTimeout(() => resolve("timeout"), 50);
 				}),
@@ -689,7 +691,7 @@ describe("InitializationManager", () => {
 
 			expect(resultOrTimeout).not.toBe("timeout");
 			if (resultOrTimeout !== "timeout") {
-				expect(resultOrTimeout.isOk()).toBe(true);
+				expect(Result.isSuccess(resultOrTimeout)).toBe(true);
 			}
 			expect(mockState.initializationComplete).toBe(true);
 			expect(mockKeybindingsService.loadUserKeybindings).not.toHaveBeenCalled();
@@ -705,7 +707,7 @@ describe("InitializationManager", () => {
 
 		it("completes startup before workspace restore finishes", async () => {
 			mockWorkspaceStore.load = mock(() =>
-				ResultAsync.fromPromise(
+				fromPromise(() => 
 					new Promise<never>(() => {}),
 					() => new AgentError("workspace", new Error("Timed out"))
 				)
@@ -728,7 +730,7 @@ describe("InitializationManager", () => {
 			);
 
 			const resultOrTimeout = await Promise.race([
-				manager.initialize(),
+				Effect.runPromise(Effect.result(manager.initialize())),
 				new Promise<"timeout">((resolve) => {
 					setTimeout(() => resolve("timeout"), 50);
 				}),
@@ -736,7 +738,7 @@ describe("InitializationManager", () => {
 
 			expect(resultOrTimeout).not.toBe("timeout");
 			if (resultOrTimeout !== "timeout") {
-				expect(resultOrTimeout.isOk()).toBe(true);
+				expect(Result.isSuccess(resultOrTimeout)).toBe(true);
 			}
 			expect(mockSessionStore.initializeSessionUpdates).not.toHaveBeenCalled();
 			expect(mockWorkspaceStore.load).not.toHaveBeenCalled();
@@ -753,7 +755,7 @@ describe("InitializationManager", () => {
 
 		it("completes initialization while agents are still loading after startup", async () => {
 			mockAgentStore.loadAvailableAgents = mock(() =>
-				ResultAsync.fromPromise(
+				fromPromise(() => 
 					new Promise<never>(() => {}),
 					() => new AgentError("loadAgents", new Error("Timed out"))
 				)
@@ -776,7 +778,7 @@ describe("InitializationManager", () => {
 			);
 
 			const resultOrTimeout = await Promise.race([
-				manager.initialize(),
+				Effect.runPromise(Effect.result(manager.initialize())),
 				new Promise<"timeout">((resolve) => {
 					setTimeout(() => resolve("timeout"), 50);
 				}),
@@ -784,7 +786,7 @@ describe("InitializationManager", () => {
 
 			expect(resultOrTimeout).not.toBe("timeout");
 			if (resultOrTimeout !== "timeout") {
-				expect(resultOrTimeout.isOk()).toBe(true);
+				expect(Result.isSuccess(resultOrTimeout)).toBe(true);
 			}
 			expect(mockSessionStore.initializeSessionUpdates).not.toHaveBeenCalled();
 			expect(mockWorkspaceStore.restore).not.toHaveBeenCalled();
@@ -802,7 +804,7 @@ describe("InitializationManager", () => {
 		});
 
 		it("primes agent preferences after loading metadata", async () => {
-			await manager.initialize();
+			await Effect.runPromise(manager.initialize());
 			expect(mockAgentPreferencesStore.primeStartupDefaults).not.toHaveBeenCalled();
 
 			await runImmediateTimers();
@@ -818,7 +820,7 @@ describe("InitializationManager", () => {
 		});
 
 		it("loads persisted agent preferences after the deferred preference lane runs", async () => {
-			await manager.initialize();
+			await Effect.runPromise(manager.initialize());
 			expect(mockAgentPreferencesStore.initialize).not.toHaveBeenCalled();
 
 			await runImmediateTimers();
@@ -836,7 +838,7 @@ describe("InitializationManager", () => {
 		it("does not wait for persisted agent preferences before completing startup", async () => {
 			const agentPreferencesResolver: { current: (() => void) | null } = { current: null };
 			mockAgentPreferencesStore.initialize = mock(() =>
-				ResultAsync.fromPromise(
+				fromPromise(() => 
 					new Promise<void>((resolve) => {
 						agentPreferencesResolver.current = resolve;
 					}),
@@ -859,9 +861,9 @@ describe("InitializationManager", () => {
 				scheduleDeferredPreferenceWork
 			);
 
-			const result = await manager.initialize();
+			const result = await Effect.runPromise(Effect.result(manager.initialize()));
 
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 			expect(mockState.initializationComplete).toBe(true);
 			expect(mockWorkspaceStore.load).not.toHaveBeenCalled();
 			expect(mockAgentPreferencesStore.initialize).not.toHaveBeenCalled();
@@ -881,7 +883,7 @@ describe("InitializationManager", () => {
 		});
 
 		it("should restore workspace state", async () => {
-			await manager.initialize();
+			await Effect.runPromise(manager.initialize());
 			expect(mockWorkspaceStore.restore).not.toHaveBeenCalled();
 
 			await runImmediateTimers();
@@ -898,7 +900,7 @@ describe("InitializationManager", () => {
 					color: "blue",
 				},
 			];
-			await manager.initialize();
+			await Effect.runPromise(manager.initialize());
 
 			expect(mockSessionStore.loading.loadSessions).not.toHaveBeenCalled();
 			expect(mockSessionStore.loading.scanSessions).not.toHaveBeenCalled();
@@ -945,17 +947,17 @@ describe("InitializationManager", () => {
 
 			mockSessionStore.loading.loadStartupSessions = mock(() => {
 				callOrder.push("startup");
-				return okAsync({ missing: [], aliasRemaps: {} });
+				return Effect.succeed({ missing: [], aliasRemaps: {} });
 			});
 			mockSessionStore.read.getSessionCold = mock((sessionId: string) =>
 				sessionId === "session-1" ? restoredSession : undefined
 			);
 			mockSessionStore.loading.scanSessions = mock((projectPaths: string[]) => {
 				callOrder.push(`scan:${projectPaths.join(",")}`);
-				return okAsync(undefined);
+				return Effect.succeed(undefined);
 			});
 
-			await manager.initialize();
+			await Effect.runPromise(manager.initialize());
 			await Promise.resolve();
 			await Promise.resolve();
 
@@ -1011,13 +1013,13 @@ describe("InitializationManager", () => {
 
 			const restoredSession = buildSession("session-1", "claude-code", "/project1", "Session 1");
 			mockSessionStore.loading.loadStartupSessions = mock(() =>
-				okAsync({ missing: [], aliasRemaps: {} })
+				Effect.succeed({ missing: [], aliasRemaps: {} })
 			);
 			mockSessionStore.read.getSessionCold = mock((sessionId: string) =>
 				sessionId === "session-1" ? restoredSession : undefined
 			);
 
-			await manager.initialize();
+			await Effect.runPromise(manager.initialize());
 			await runImmediateTimers();
 
 			expect(mockSessionStore.loading.loadStartupSessions).toHaveBeenCalledWith(["session-1"]);
@@ -1077,7 +1079,7 @@ describe("InitializationManager", () => {
 				buildSession(sessionId, "claude-code", "/project1", sessionId)
 			);
 
-			await manager.initialize();
+			await Effect.runPromise(manager.initialize());
 			await runImmediateTimers();
 
 			expect(mockSessionStore.loading.loadStartupSessions).toHaveBeenNthCalledWith(1, [
@@ -1099,7 +1101,7 @@ describe("InitializationManager", () => {
 
 		it("hydrates restored panels even when zoom metadata fails after startup", async () => {
 			zoomInitializeMock.mockImplementation(() =>
-				errAsync(new AgentError("initializeZoom", new Error("Failed")))
+				Effect.fail(new AgentError("initializeZoom", new Error("Failed")))
 			);
 			mockProjectManager.projects = [
 				{
@@ -1127,13 +1129,13 @@ describe("InitializationManager", () => {
 
 			const restoredSession = buildSession("session-1", "claude-code", "/project1", "Session 1");
 			mockSessionStore.loading.loadStartupSessions = mock(() =>
-				okAsync({ missing: [], aliasRemaps: {} })
+				Effect.succeed({ missing: [], aliasRemaps: {} })
 			);
 			mockSessionStore.read.getSessionCold = mock((sessionId: string) =>
 				sessionId === "session-1" ? restoredSession : undefined
 			);
 
-			await manager.initialize();
+			await Effect.runPromise(manager.initialize());
 			await runPostStartupTasks();
 
 			expect(zoomInitializeMock).toHaveBeenCalled();
@@ -1199,7 +1201,7 @@ describe("InitializationManager", () => {
 						: panel
 				);
 			});
-			await manager.initialize();
+			await Effect.runPromise(manager.initialize());
 
 			expect(mockSessionStore.loading.loadStartupSessions).not.toHaveBeenCalled();
 			expect(mockSessionStore.loading.loadSessions).not.toHaveBeenCalled();
@@ -1267,7 +1269,7 @@ describe("InitializationManager", () => {
 				);
 			});
 
-			await manager.initialize();
+			await Effect.runPromise(manager.initialize());
 
 			expect(mockPanelStore.updatePanelSession).not.toHaveBeenCalledWith("panel-1", null);
 		});
@@ -1298,7 +1300,7 @@ describe("InitializationManager", () => {
 				},
 			] as TestPanel[];
 
-			await manager.initialize();
+			await Effect.runPromise(manager.initialize());
 
 			expect(mockPanelStore.updatePanelSession).not.toHaveBeenCalledWith("panel-1", null);
 		});
@@ -1341,7 +1343,7 @@ describe("InitializationManager", () => {
 					: undefined
 			);
 
-			await manager.initialize();
+			await Effect.runPromise(manager.initialize());
 			await Promise.resolve();
 
 			expect(mockSessionStore.loading.loadStartupSessions).not.toHaveBeenCalled();
@@ -1405,7 +1407,7 @@ describe("InitializationManager", () => {
 					: undefined
 			);
 
-			await manager.initialize();
+			await Effect.runPromise(manager.initialize());
 			await Promise.resolve();
 
 			expect(mockSessionStore.loading.loadStartupSessions).not.toHaveBeenCalled();
@@ -1456,7 +1458,7 @@ describe("InitializationManager", () => {
 			mockSessionStore.read.getSessionCold = mock(() => undefined);
 			mockSessionStore.loading.registerSessionPlaceholder = mock(() => {});
 
-			await manager.initialize();
+			await Effect.runPromise(manager.initialize());
 			await Promise.resolve();
 
 			expect(mockSessionStore.loading.registerSessionPlaceholder).not.toHaveBeenCalled();
@@ -1528,7 +1530,7 @@ describe("InitializationManager", () => {
 					: undefined
 			);
 
-			await manager.initialize();
+			await Effect.runPromise(manager.initialize());
 			await Promise.resolve();
 
 			expect(openPersistedSessionMock).not.toHaveBeenCalled();
@@ -1627,14 +1629,14 @@ describe("InitializationManager", () => {
 
 			mockSessionStore.loading.loadSessions = mock(() => {
 				mockSessionStore.write.setSessions(storedSessions);
-				return okAsync(storedSessions);
+				return Effect.succeed(storedSessions);
 			});
 
 			mockSessionStore.read.getSessionCold = mock((sessionId: string) => {
 				return storedSessions.find((session) => session.id === sessionId);
 			});
 
-			await manager.initialize();
+			await Effect.runPromise(manager.initialize());
 			await Promise.resolve();
 
 			expect(mockSessionStore.loading.loadStartupSessions).not.toHaveBeenCalled();
@@ -1718,7 +1720,7 @@ describe("InitializationManager", () => {
 				"Aliased Session"
 			);
 			mockSessionStore.loading.loadStartupSessions = mock(() => {
-				return okAsync({
+				return Effect.succeed({
 					missing: [],
 					aliasRemaps: { "claude-session": "acepe-uuid" },
 				});
@@ -1726,7 +1728,7 @@ describe("InitializationManager", () => {
 			mockSessionStore.read.getSessionCold = mock((sessionId: string) =>
 				sessionId === "acepe-uuid" ? canonicalSession : undefined
 			);
-			await manager.initialize();
+			await Effect.runPromise(manager.initialize());
 			await Promise.resolve();
 
 			expect(mockPanelStore.updatePanelSession).not.toHaveBeenCalled();
@@ -1752,7 +1754,7 @@ describe("InitializationManager", () => {
 
 		it("continues initialization when background workspace restore fails", async () => {
 			mockWorkspaceStore.load = mock(() =>
-				errAsync(new AgentError("workspace", new Error("Failed")))
+				Effect.fail(new AgentError("workspace", new Error("Failed")))
 			) as WorkspaceStore["load"];
 
 			manager = new InitializationManager(
@@ -1770,8 +1772,8 @@ describe("InitializationManager", () => {
 				scheduleDeferredPreferenceWork
 			);
 
-			const result = await manager.initialize();
-			expect(result.isOk()).toBe(true);
+			const result = await Effect.runPromise(Effect.result(manager.initialize()));
+			expect(Result.isSuccess(result)).toBe(true);
 			expect(mockState.initializationComplete).toBe(true);
 
 			await runImmediateTimers();
@@ -1782,7 +1784,7 @@ describe("InitializationManager", () => {
 
 		it("continues initialization when background agent metadata fails", async () => {
 			mockAgentStore.loadAvailableAgents = mock(() =>
-				errAsync(new AgentError("loadAgents", new Error("Failed")))
+				Effect.fail(new AgentError("loadAgents", new Error("Failed")))
 			) as AgentStore["loadAvailableAgents"];
 
 			manager = new InitializationManager(
@@ -1800,8 +1802,8 @@ describe("InitializationManager", () => {
 				scheduleDeferredPreferenceWork
 			);
 
-			const result = await manager.initialize();
-			expect(result.isOk()).toBe(true);
+			const result = await Effect.runPromise(Effect.result(manager.initialize()));
+			expect(Result.isSuccess(result)).toBe(true);
 			expect(mockState.initializationComplete).toBe(true);
 
 			await runPostStartupTasks();
@@ -1839,7 +1841,7 @@ describe("InitializationManager", () => {
 				},
 			] as unknown as AgentStore["agents"];
 			mockAgentStore.loadAvailableAgents = mock(() =>
-				okAsync(mockAgentStore.agents)
+				Effect.succeed(mockAgentStore.agents)
 			) as AgentStore["loadAvailableAgents"];
 			mockPanelStore.panels = [
 				{
@@ -1856,7 +1858,7 @@ describe("InitializationManager", () => {
 				},
 			];
 
-			await manager.initialize();
+			await Effect.runPromise(manager.initialize());
 			await runPostStartupTasks();
 
 			expect(mockSessionStore.connection.createSession).not.toHaveBeenCalled();
@@ -1873,7 +1875,7 @@ describe("InitializationManager", () => {
 				},
 			];
 			mockAgentStore.loadAvailableAgents = mock(() =>
-				ResultAsync.fromPromise(
+				fromPromise(() => 
 					new Promise<never>(() => {}),
 					() => new AgentError("loadAgents", new Error("Timed out"))
 				)
@@ -1893,7 +1895,7 @@ describe("InitializationManager", () => {
 				},
 			];
 
-			await manager.initialize();
+			await Effect.runPromise(manager.initialize());
 
 			expect(mockSessionStore.connection.createSession).not.toHaveBeenCalled();
 			expect(mockPanelStore.updatePanelSession).not.toHaveBeenCalled();
@@ -1932,7 +1934,7 @@ describe("InitializationManager", () => {
 				},
 			] as unknown as AgentStore["agents"];
 			mockAgentStore.loadAvailableAgents = mock(() =>
-				okAsync(mockAgentStore.agents)
+				Effect.succeed(mockAgentStore.agents)
 			) as AgentStore["loadAvailableAgents"];
 			mockPanelStore.panels = [
 				{
@@ -1949,7 +1951,7 @@ describe("InitializationManager", () => {
 				},
 			];
 
-			await manager.initialize();
+			await Effect.runPromise(manager.initialize());
 			expect(mockSessionStore.connection.createSession).not.toHaveBeenCalled();
 
 			await runPostStartupTasks();
@@ -1990,7 +1992,7 @@ describe("InitializationManager", () => {
 				},
 			] as unknown as AgentStore["agents"];
 			mockAgentStore.loadAvailableAgents = mock(() =>
-				okAsync(mockAgentStore.agents)
+				Effect.succeed(mockAgentStore.agents)
 			) as AgentStore["loadAvailableAgents"];
 			mockPanelStore.panels = [
 				{
@@ -2007,7 +2009,7 @@ describe("InitializationManager", () => {
 				},
 			];
 
-			await manager.initialize();
+			await Effect.runPromise(manager.initialize());
 			await runPostStartupTasks();
 
 			expect(mockSessionStore.connection.createSession).not.toHaveBeenCalled();
@@ -2016,15 +2018,15 @@ describe("InitializationManager", () => {
 
 		it("should not initialize if already in progress", async () => {
 			mockState.initializationInProgress = true;
-			const result = await manager.initialize();
-			expect(result.isOk()).toBe(true);
+			const result = await Effect.runPromise(Effect.result(manager.initialize()));
+			expect(Result.isSuccess(result)).toBe(true);
 			expect(mockKeybindingsService.initialize).not.toHaveBeenCalled();
 		});
 
 		it("should not initialize if already complete", async () => {
 			mockState.initializationComplete = true;
-			const result = await manager.initialize();
-			expect(result.isOk()).toBe(true);
+			const result = await Effect.runPromise(Effect.result(manager.initialize()));
+			expect(Result.isSuccess(result)).toBe(true);
 			expect(mockKeybindingsService.initialize).not.toHaveBeenCalled();
 		});
 	});

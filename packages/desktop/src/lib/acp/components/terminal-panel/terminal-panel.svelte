@@ -1,5 +1,6 @@
 <script lang="ts">
 import { TerminalPanelLayout } from "@acepe/ui/terminal-panel";
+import * as Effect from "effect/Effect";
 import type { TerminalTab } from "$lib/acp/store/types.js";
 import { shell as shellClient } from "$lib/utils/tauri-client/shell.js";
 
@@ -77,13 +78,17 @@ let ptyError = $state<string | null>(null);
 // Get default shell on mount
 $effect(() => {
 	if (!detectedShell && !shell) {
-		shellClient.getDefaultShell().match(
-			(s) => {
-				detectedShell = s;
-			},
-			(e) => {
-				shellError = String(e);
-			}
+		void Effect.runPromise(
+			shellClient.getDefaultShell().pipe(
+				Effect.match({
+					onSuccess: (s) => {
+						detectedShell = s;
+					},
+					onFailure: (e) => {
+						shellError = String(e);
+					},
+				})
+			)
 		);
 	}
 });

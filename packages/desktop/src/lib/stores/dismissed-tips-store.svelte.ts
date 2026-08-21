@@ -1,3 +1,5 @@
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { getContext, setContext } from "svelte";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
@@ -22,14 +24,16 @@ export class DismissedTipsStore {
 
 		this.initialized = true;
 
-		const result = await tauriClient.settings.get<string[]>(SETTINGS_KEY);
-		if (result.isOk()) {
-			const keys = result.value ?? [];
+		const result = await Effect.runPromise(
+			Effect.result(tauriClient.settings.get<string[]>(SETTINGS_KEY))
+		);
+		if (Result.isSuccess(result)) {
+			const keys = result.success ?? [];
 			this.dismissedKeys = new Set(keys);
 			return;
 		}
 
-		logger.warn("Failed to load dismissed tips", { error: result.error });
+		logger.warn("Failed to load dismissed tips", { error: result.failure });
 	}
 
 	isDismissed(key: string): boolean {
@@ -49,9 +53,16 @@ export class DismissedTipsStore {
 
 	private persist(): void {
 		const nextKeys = Array.from(this.dismissedKeys);
-		tauriClient.settings.set(SETTINGS_KEY, nextKeys).mapErr((err) => {
-			logger.error("Failed to persist dismissed tips", { error: err });
-		});
+		void Effect.runPromise(
+			tauriClient.settings.set(SETTINGS_KEY, nextKeys).pipe(
+				Effect.match({
+					onSuccess: () => undefined,
+					onFailure: (err) => {
+						logger.error("Failed to persist dismissed tips", { error: err });
+					},
+				})
+			)
+		);
 	}
 }
 

@@ -1,4 +1,5 @@
-import { errAsync, okAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_TRANSIENT_PROJECTION } from "../../types.js";
 import type { IConnectionManager } from "../interfaces/connection-manager.js";
@@ -128,7 +129,7 @@ describe("SessionMessagingService.sendMessage", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks();
-		sendPrompt.mockReturnValue(okAsync(undefined));
+		sendPrompt.mockReturnValue(Effect.succeed(undefined));
 	});
 
 	it("passes @[text:BASE64] tokens through to ACP for decoding", async () => {
@@ -140,12 +141,12 @@ describe("SessionMessagingService.sendMessage", () => {
 			deps.connectionManager
 		);
 
-		const result = await service.sendMessage(
+		const result = await Effect.runPromise(Effect.result(service.sendMessage(
 			"session-1",
 			"@[text:aGVsbG8gd29ybGQ=]\nPlease summarize this"
-		);
+		)));
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		// Tokens pass through unchanged — ACP provider handles decoding
 		expect(sendPrompt).toHaveBeenCalledWith(
 			"session-1",
@@ -177,9 +178,9 @@ describe("SessionMessagingService.sendMessage", () => {
 			deps.connectionManager
 		);
 
-		const result = await service.sendMessage("session-1", "diagnostic ping - reply ok");
+		const result = await Effect.runPromise(Effect.result(service.sendMessage("session-1", "diagnostic ping - reply ok")));
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(sendPrompt).toHaveBeenCalledWith(
 			"session-1",
 			[{ type: "text", text: "diagnostic ping - reply ok" }],
@@ -196,9 +197,9 @@ describe("SessionMessagingService.sendMessage", () => {
 			deps.connectionManager
 		);
 
-		const result = await service.sendMessage("session-1", "hello");
+		const result = await Effect.runPromise(Effect.result(service.sendMessage("session-1", "hello")));
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(deps.transientProjectionManager.updateTransientProjection).toHaveBeenCalledWith(
 			"session-1",
 			expect.objectContaining({
@@ -234,9 +235,9 @@ describe("SessionMessagingService.sendMessage", () => {
 			deps.connectionManager
 		);
 
-		const result = await service.sendMessage("session-1", "hello");
+		const result = await Effect.runPromise(Effect.result(service.sendMessage("session-1", "hello")));
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 	});
 
 	it("fails closed when a created session lacks canonical lifecycle projection", async () => {
@@ -262,9 +263,9 @@ describe("SessionMessagingService.sendMessage", () => {
 			deps.connectionManager
 		);
 
-		const result = await service.sendMessage("session-1", "diagnostic follow-up - reply ok");
+		const result = await Effect.runPromise(Effect.result(service.sendMessage("session-1", "diagnostic follow-up - reply ok")));
 
-		expect(result.isErr()).toBe(true);
+		expect(Result.isFailure(result)).toBe(true);
 		expect(sendPrompt).not.toHaveBeenCalled();
 	});
 
@@ -292,16 +293,16 @@ describe("SessionMessagingService.sendMessage", () => {
 			deps.connectionManager
 		);
 
-		const result = await service.sendMessage("session-1", "diagnostic follow-up - reply ok");
+		const result = await Effect.runPromise(Effect.result(service.sendMessage("session-1", "diagnostic follow-up - reply ok")));
 
-		expect(result.isErr()).toBe(true);
+		expect(Result.isFailure(result)).toBe(true);
 		expect(sendPrompt).not.toHaveBeenCalled();
 	});
 
 	it("does not mark a pending creation first-send failure as a fatal session turn", async () => {
 		const deps = createMockDeps();
 		const error = new Error("transport unavailable");
-		sendPrompt.mockReturnValue(errAsync(error));
+		sendPrompt.mockReturnValue(Effect.fail(error));
 		const service = new SessionMessagingService(
 			deps.stateReader,
 			deps.transientProjectionManager,
@@ -309,9 +310,9 @@ describe("SessionMessagingService.sendMessage", () => {
 			deps.connectionManager
 		);
 
-		const result = await service.sendPendingCreationMessage("pending-session", "hello");
+		const result = await Effect.runPromise(Effect.result(service.sendPendingCreationMessage("pending-session", "hello")));
 
-		expect(result.isErr()).toBe(true);
+		expect(Result.isFailure(result)).toBe(true);
 		expect(deps.connectionManager.sendTurnFailed).not.toHaveBeenCalled();
 		expect(deps.connectionManager.sendMessageSent).toHaveBeenCalledWith("pending-session");
 		expect(deps.transientProjectionManager.updateTransientProjection).toHaveBeenNthCalledWith(

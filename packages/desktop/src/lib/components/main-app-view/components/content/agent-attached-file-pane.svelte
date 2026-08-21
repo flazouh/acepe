@@ -1,5 +1,6 @@
 <script lang="ts">
 import { untrack } from "svelte";
+import * as Effect from "effect/Effect";
 import { AgentAttachedFilePane as SharedAgentAttachedFilePane } from "@acepe/ui/agent-panel";
 import { FilePathBadge, HugeiconsIcon } from "@acepe/ui";
 import { computeProjectBadgeLabels } from "@acepe/ui/project-letter-badge";
@@ -136,27 +137,31 @@ $effect(() => {
 		if (loadedGitStatusKeys.has(filePanelStatusKey)) {
 			return;
 		}
-		gitStatusCache
-			.getProjectFileGitStatusSummary(
-				currentActiveFilePanel.projectPath,
-				currentActiveFilePanel.filePath
-			)
-			.match(
-				(fileStatus) => {
-					if (cancelled) return;
-					nextGitStatusByFilePanelKey = new Map(nextGitStatusByFilePanelKey);
-					nextGitStatusByFilePanelKey.set(filePanelStatusKey, fileStatus);
-					gitStatusByFilePanelKey = nextGitStatusByFilePanelKey;
-					loadedGitStatusKeys = new Set(loadedGitStatusKeys).add(filePanelStatusKey);
-				},
-				() => {
-					if (cancelled) return;
-					nextGitStatusByFilePanelKey = new Map(nextGitStatusByFilePanelKey);
-					nextGitStatusByFilePanelKey.set(filePanelStatusKey, null);
-					gitStatusByFilePanelKey = nextGitStatusByFilePanelKey;
-					loadedGitStatusKeys = new Set(loadedGitStatusKeys).add(filePanelStatusKey);
-				}
-			);
+		void Effect.runPromise(
+			gitStatusCache
+				.getProjectFileGitStatusSummary(
+					currentActiveFilePanel.projectPath,
+					currentActiveFilePanel.filePath
+				)
+				.pipe(
+					Effect.match({
+						onSuccess: (fileStatus) => {
+							if (cancelled) return;
+							nextGitStatusByFilePanelKey = new Map(nextGitStatusByFilePanelKey);
+							nextGitStatusByFilePanelKey.set(filePanelStatusKey, fileStatus);
+							gitStatusByFilePanelKey = nextGitStatusByFilePanelKey;
+							loadedGitStatusKeys = new Set(loadedGitStatusKeys).add(filePanelStatusKey);
+						},
+						onFailure: () => {
+							if (cancelled) return;
+							nextGitStatusByFilePanelKey = new Map(nextGitStatusByFilePanelKey);
+							nextGitStatusByFilePanelKey.set(filePanelStatusKey, null);
+							gitStatusByFilePanelKey = nextGitStatusByFilePanelKey;
+							loadedGitStatusKeys = new Set(loadedGitStatusKeys).add(filePanelStatusKey);
+						},
+					})
+				)
+		);
 	});
 
 	return () => {

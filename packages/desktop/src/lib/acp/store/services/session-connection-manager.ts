@@ -11,7 +11,8 @@
  * and reduce the God class anti-pattern.
  */
 
-import { errAsync, okAsync, ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
 import type {
 	ModelsForDisplay,
 	ProviderMetadataProjection,
@@ -23,9 +24,9 @@ import type {
 import { TauriCommandError } from "../../../utils/tauri-client/invoke.js";
 import { tauriClient } from "../../../utils/tauri-client.js";
 import { sessionColdFromSlices } from "../../application/dto/session-cold.js";
-import type { AppError } from "../../errors/app-error.js";
 import {
 	AgentError,
+	AppError,
 	AuthenticationRequiredError,
 	ConnectionError,
 	CreationFailureError,
@@ -132,21 +133,28 @@ function delay(ms: number): Promise<void> {
 	});
 }
 
+function toPendingConnectionError(sessionId: string, error: unknown): AppError {
+	if (error instanceof AppError) {
+		return error;
+	}
+	return new ConnectionError(sessionId, error instanceof Error ? error : undefined);
+}
+
 function closeCreatedSessionAfterSelectionFailure<T>(
 	sessionId: string,
 	selectionError: AppError
-): ResultAsync<T, AppError> {
-	return api
-		.closeSession(sessionId)
-		.mapErr((cleanupError) => {
+): Effect.Effect<T, AppError> {
+	return api.closeSession(sessionId).pipe(
+		Effect.mapError((cleanupError) => {
 			const selectionMessage = selectionError.cause?.message ?? selectionError.message;
 			const cleanupMessage = cleanupError.cause?.message ?? cleanupError.message;
 			return new AgentError(
 				`createSession; initial model or mode selection failed (${selectionMessage}); closing the created session also failed (${cleanupMessage})`,
 				cleanupError
 			);
-		})
-		.andThen(() => errAsync<T, AppError>(selectionError));
+		}),
+		Effect.flatMap(() => Effect.fail(selectionError))
+	);
 }
 
 function readyConnectionDataFromReadiness(
@@ -179,18 +187,22 @@ async function reconcileReadyConnection(
 	await delay(READINESS_RECONCILE_INTERVAL_MS);
 
 	while (Date.now() <= deadlineMs && !isCancelled()) {
-		const materialized = await api.fetchSessionConnectionReadiness(sessionId).match(
-			(readiness) => readyConnectionDataFromReadiness(readiness),
-			() => null
+		const materialized = await Effect.runPromise(
+			api.fetchSessionConnectionReadiness(sessionId).pipe(
+				Effect.map((readiness) => readyConnectionDataFromReadiness(readiness)),
+				Effect.catch(() => Effect.succeed(null))
+			)
 		);
 
 		if (materialized !== null) {
-			const applied = await api.fetchCanonicalSessionStateEnvelope(sessionId).match(
-				(envelope) => {
-					eventHandler.applySessionStateEnvelope(sessionId, envelope);
-					return true;
-				},
-				() => false
+			const applied = await Effect.runPromise(
+				api.fetchCanonicalSessionStateEnvelope(sessionId).pipe(
+					Effect.map((envelope) => {
+						eventHandler.applySessionStateEnvelope(sessionId, envelope);
+						return true;
+					}),
+					Effect.catch(() => Effect.succeed(false))
+				)
 			);
 
 			if (applied) {
@@ -259,9 +271,9 @@ function canonicalWireOpen(reader: ISessionStateReader, sessionId: string): bool
  * Manager for session connection lifecycle operations.
  */
 export class SessionConnectionManager {
-	// Cache in-flight connection ResultAsync per session.
-	// Concurrent callers get the same Promise — no duplicate API calls.
-	private pendingConnections = new Map<string, ResultAsync<SessionCold, AppError>>();
+	// Cache in-flight connection Promises per session.
+	// Concurrent callers share the same Promise — no duplicate API calls.
+	private pendingConnections = new Map<string, Promise<SessionCold>>();
 
 	constructor(
 		private readonly stateReader: ISessionStateReader,
@@ -282,7 +294,7 @@ export class SessionConnectionManager {
 		);
 	}
 
-	private setSessionAutonomous(sessionId: string, enabled: boolean): ResultAsync<void, AppError> {
+	private setSessionAutonomous(sessionId: string, enabled: boolean): Effect.Effect<void, AppError> {
 		return api.setSessionAutonomous(sessionId, enabled);
 	}
 
@@ -396,7 +408,7 @@ export class SessionConnectionManager {
 			launchToken?: string;
 		},
 		eventHandler: SessionEventHandler
-	): ResultAsync<CreatedSessionResult, AppError> {
+	): Effect.Effect<CreatedSessionResult, AppError> {
 		const sessionCwd = options.worktreePath ? options.worktreePath : options.projectPath;
 		logger.info("[first-send-trace] connection manager createSession", {
 			projectPath: options.projectPath,
@@ -412,20 +424,21 @@ export class SessionConnectionManager {
 				options.initialModelId,
 				options.initialModeId
 			)
-			.andThen((result) =>
-				preferencesStore
-					.ensureLoaded()
-					.orElse((error) => {
-						logger.warn("Failed to load model preferences after session creation", {
-							sessionId: result.sessionId,
-							agentId: options.agentId,
-							error,
-						});
-						return okAsync(undefined);
-					})
-					.map(() => result)
-			)
-			.andThen((result) => {
+			.pipe(
+				Effect.flatMap((result) =>
+					preferencesStore.ensureLoaded().pipe(
+						Effect.catch((error) => {
+							logger.warn("Failed to load model preferences after session creation", {
+								sessionId: result.sessionId,
+								agentId: options.agentId,
+								error,
+							});
+							return Effect.succeed(undefined);
+						}),
+						Effect.map(() => result)
+					)
+				),
+				Effect.flatMap((result): Effect.Effect<CreatedSessionResult, AppError> => {
 				const sessionId = result.sessionId;
 				if (result.deferredCreation === true) {
 					const modelState = getProviderAwareSessionModelState(result.models);
@@ -467,7 +480,7 @@ export class SessionConnectionManager {
 						sequenceId: result.sequenceId ?? null,
 						agentId: options.agentId,
 					});
-					return okAsync({
+					return Effect.succeed({
 						kind: "pending" as const,
 						sessionId,
 						creationAttemptId: result.creationAttemptId ?? null,
@@ -543,17 +556,17 @@ export class SessionConnectionManager {
 					explicitInitialMode !== null && explicitInitialMode.id !== currentMode?.id;
 				const targetModel = explicitInitialModel ?? currentModel;
 
-				const applyInitialSelection: ResultAsync<
+				const applyInitialSelection: Effect.Effect<
 					{ currentMode: Mode | null; currentModel: Model | null },
 					AppError
 				> = explicitSelectionError
-					? errAsync(explicitSelectionError)
+					? Effect.fail(explicitSelectionError)
 					: hasExplicitInitialSelection
 						? (targetModeChanged && targetMode
 								? api.setMode(sessionId, targetMode.id)
-								: okAsync(undefined)
-							)
-								.andThen(() => {
+								: Effect.succeed(undefined)
+							).pipe(
+								Effect.flatMap(() => {
 									const shouldApplyExplicitModel =
 										explicitInitialModel !== null &&
 										(targetModeChanged || explicitInitialModel.id !== currentModel?.id);
@@ -562,25 +575,26 @@ export class SessionConnectionManager {
 										return api.setModel(sessionId, targetModel.id);
 									}
 
-									return okAsync(undefined);
-								})
-								.map(() => ({
+									return Effect.succeed(undefined);
+								}),
+								Effect.map(() => ({
 									currentMode: targetMode,
 									currentModel: targetModel,
 								}))
-						: okAsync({
+							)
+						: Effect.succeed({
 								currentMode,
 								currentModel,
 							});
 
-				return applyInitialSelection
-					.orElse((error) =>
+				return applyInitialSelection.pipe(
+					Effect.catch((error) =>
 						closeCreatedSessionAfterSelectionFailure<{
 							currentMode: Mode | null;
 							currentModel: Model | null;
 						}>(sessionId, error)
-					)
-					.andThen((selection) => {
+					),
+					Effect.flatMap((selection) => {
 						currentMode = selection.currentMode;
 						currentModel = selection.currentModel;
 
@@ -590,9 +604,9 @@ export class SessionConnectionManager {
 						);
 						const applyInitialAutonomous =
 							requestedAutonomous && canEnableAutonomous
-								? this.setSessionAutonomous(sessionId, true)
-										.map(() => true)
-										.orElse((error) => {
+								? this.setSessionAutonomous(sessionId, true).pipe(
+										Effect.map(() => true),
+										Effect.catch((error) => {
 											logger.warn(
 												"Failed to sync initial autonomous policy after session creation",
 												{
@@ -601,11 +615,13 @@ export class SessionConnectionManager {
 													error,
 												}
 											);
-											return okAsync(false);
+											return Effect.succeed(false);
 										})
-								: okAsync(false);
+									)
+								: Effect.succeed(false);
 
-						return applyInitialAutonomous.map(() => {
+						return applyInitialAutonomous.pipe(
+							Effect.map(() => {
 							// Cache available models and modes for settings/optimistic display
 							if (rawModels !== undefined) {
 								preferencesStore.updateModelsCache(options.agentId, availableModels);
@@ -650,20 +666,25 @@ export class SessionConnectionManager {
 
 							// Persist worktree path to DB for restore across app restarts
 							if (options.worktreePath) {
-								tauriClient.history
-									.setSessionWorktreePath(
-										sessionId,
-										options.worktreePath,
-										options.projectPath,
-										options.agentId
-									)
-									.mapErr((error) => {
-										logger.error("Failed to persist worktree path to DB", {
+								void Effect.runPromise(
+									tauriClient.history
+										.setSessionWorktreePath(
 											sessionId,
-											worktreePath: options.worktreePath,
-											error,
-										});
-									});
+											options.worktreePath,
+											options.projectPath,
+											options.agentId
+										)
+										.pipe(
+											Effect.catch((error) => {
+												logger.error("Failed to persist worktree path to DB", {
+													sessionId,
+													worktreePath: options.worktreePath,
+													error,
+												});
+												return Effect.succeed(undefined);
+											})
+										)
+								);
 							}
 
 							// New sessions have empty content immediately, but their transport
@@ -683,43 +704,46 @@ export class SessionConnectionManager {
 								session: sessionCold,
 								sessionOpen: result.sessionOpen ?? null,
 							};
-						});
-					});
-			})
-			.mapErr((error) => {
-				logger.error("Failed to create session", { error });
-				if (
-					error instanceof TauriCommandError &&
-					error.domain?.type === "acp" &&
-					error.domain.data.type === "authentication_required"
-				) {
-					// Not a failure — a recoverable sign-in precondition. Carry the
-					// typed signal so the panel renders a neutral sign-in card.
-					const auth = error.domain.data.data;
-					return new AuthenticationRequiredError(auth.agent, auth.instructions, error);
-				}
-				if (
-					error instanceof TauriCommandError &&
-					error.domain?.type === "acp" &&
-					error.domain.data.type === "creation_failed"
-				) {
-					const failure = error.domain.data.data;
-					return new CreationFailureError(
-						failure.kind,
-						failure.message,
-						failure.sessionId,
-						failure.creationAttemptId,
-						failure.retryable,
-						failure.failureReason ?? null,
-						error
+								})
+							);
+						})
 					);
-				}
-				const message = error instanceof Error ? error.message : String(error);
-				return new ConnectionError(
-					`Failed to create session: ${message}`,
-					error instanceof Error ? error : undefined
-				);
-			});
+				}),
+				Effect.mapError((error) => {
+					logger.error("Failed to create session", { error });
+					if (
+						error instanceof TauriCommandError &&
+						error.domain?.type === "acp" &&
+						error.domain.data.type === "authentication_required"
+					) {
+						// Not a failure — a recoverable sign-in precondition. Carry the
+						// typed signal so the panel renders a neutral sign-in card.
+						const auth = error.domain.data.data;
+						return new AuthenticationRequiredError(auth.agent, auth.instructions, error);
+					}
+					if (
+						error instanceof TauriCommandError &&
+						error.domain?.type === "acp" &&
+						error.domain.data.type === "creation_failed"
+					) {
+						const failure = error.domain.data.data;
+						return new CreationFailureError(
+							failure.kind,
+							failure.message,
+							failure.sessionId,
+							failure.creationAttemptId,
+							failure.retryable,
+							failure.failureReason ?? null,
+							error
+						);
+					}
+					const message = error instanceof Error ? error.message : String(error);
+					return new ConnectionError(
+						`Failed to create session: ${message}`,
+						error instanceof Error ? error : undefined
+					);
+				})
+			);
 	}
 
 	/**
@@ -734,10 +758,10 @@ export class SessionConnectionManager {
 		sessionId: string,
 		eventHandler: SessionEventHandler,
 		options?: ConnectSessionOptions
-	): ResultAsync<SessionCold, AppError> {
+	): Effect.Effect<SessionCold, AppError> {
 		const sessionIdentity = this.stateReader.getSessionIdentity(sessionId);
 		if (!sessionIdentity) {
-			return errAsync(new SessionNotFoundError(sessionId));
+			return Effect.fail(new SessionNotFoundError(sessionId));
 		}
 		const effectiveAgentId = options?.agentOverrideId ?? sessionIdentity.agentId;
 
@@ -749,14 +773,14 @@ export class SessionConnectionManager {
 			});
 			const connectedSessionMetadata = this.stateReader.getSessionMetadata(sessionId);
 			if (!connectedSessionMetadata) {
-				return errAsync(new SessionNotFoundError(sessionId));
+				return Effect.fail(new SessionNotFoundError(sessionId));
 			}
-			return okAsync(sessionColdFromSlices(sessionIdentity, connectedSessionMetadata));
+			return Effect.succeed(sessionColdFromSlices(sessionIdentity, connectedSessionMetadata));
 		}
 		const pending = this.pendingConnections.get(sessionId);
 		if (pending) {
 			logger.debug("Connection already in flight, returning pending", { sessionId });
-			return pending;
+			return fromPromise(() => pending, (error) => toPendingConnectionError(sessionId, error));
 		}
 
 		this.connectionManager.setConnecting(sessionId, true);
@@ -778,8 +802,8 @@ export class SessionConnectionManager {
 				(error) => ({ kind: "error", error: error as AppError })
 			);
 		const awaitConnectionMaterialization = () =>
-			ResultAsync.fromPromise(
-				(() => {
+			fromPromise(
+				() => {
 					const readinessReconciler = createReadyConnectionReconciler(sessionId, eventHandler);
 					const readinessOutcome: Promise<ConnectionMaterializationOutcome> =
 						readinessReconciler.promise.then(
@@ -796,22 +820,27 @@ export class SessionConnectionManager {
 							}
 							return outcome.data;
 						});
-				})(),
-				(err) => err as AppError
+				},
+				(err) =>
+					err instanceof AppError
+						? err
+						: new AgentError(
+								"connectSession",
+								err instanceof Error ? err : new Error(String(err))
+							)
 			);
 
 		// Fire-and-forget: send resume invoke, then wait for lifecycle event
-		const connection = preferencesStore
-			.ensureLoaded()
-			.orElse((error) => {
+		const connectionProgram = preferencesStore.ensureLoaded().pipe(
+			Effect.catch((error) => {
 				logger.warn("Failed to load provider metadata before reconnect", {
 					sessionId,
 					agentId: sessionIdentity.agentId,
 					error,
 				});
-				return okAsync(undefined);
-			})
-			.andThen(() =>
+				return Effect.succeed(undefined);
+			}),
+			Effect.flatMap(() =>
 				api.resumeSession(
 					sessionId,
 					resumeCwd,
@@ -820,23 +849,20 @@ export class SessionConnectionManager {
 					undefined,
 					options?.openToken
 				)
-			)
-			.andThen(() => awaitConnectionMaterialization())
-			.andThen((data) => {
+			),
+			Effect.flatMap(() => awaitConnectionMaterialization()),
+			Effect.flatMap((data) => {
 				this.handleConnectionComplete(sessionId, effectiveAgentId, data);
 				const connectedSessionIdentity = this.stateReader.getSessionIdentity(sessionId);
 				const connectedSessionMetadata = this.stateReader.getSessionMetadata(sessionId);
 				if (!connectedSessionIdentity || !connectedSessionMetadata) {
-					return errAsync(new SessionNotFoundError(sessionId));
+					return Effect.fail(new SessionNotFoundError(sessionId));
 				}
-				return okAsync(sessionColdFromSlices(connectedSessionIdentity, connectedSessionMetadata));
-			})
-			.map((cold) => {
-				this.pendingConnections.delete(sessionId);
-				return cold;
-			})
-			.mapErr((error) => {
-				this.pendingConnections.delete(sessionId);
+				return Effect.succeed(
+					sessionColdFromSlices(connectedSessionIdentity, connectedSessionMetadata)
+				);
+			}),
+			Effect.mapError((error) => {
 				this.connectionManager.setConnecting(sessionId, false);
 				lifecycleWaiter.cancel();
 
@@ -849,10 +875,21 @@ export class SessionConnectionManager {
 
 				logger.error("Failed to connect session", { sessionId, error });
 				return new ConnectionError(sessionId, error instanceof Error ? error : undefined);
-			});
+			})
+		);
 
-		this.pendingConnections.set(sessionId, connection);
-		return connection;
+		const pendingPromise = Effect.runPromise(connectionProgram).then(
+			(cold) => {
+				this.pendingConnections.delete(sessionId);
+				return cold;
+			},
+			(error: unknown) => {
+				this.pendingConnections.delete(sessionId);
+				throw error;
+			}
+		);
+		this.pendingConnections.set(sessionId, pendingPromise);
+		return fromPromise(() => pendingPromise, (error) => toPendingConnectionError(sessionId, error));
 	}
 
 	/**
@@ -954,9 +991,18 @@ export class SessionConnectionManager {
 		// Close the session on the backend to kill the subprocess
 		// Fire-and-forget: don't block UI on subprocess cleanup
 		if (acpSessionId) {
-			api.closeSession(acpSessionId).mapErr((error) => {
-				logger.warn("Failed to close session subprocess", { sessionId, acpSessionId, error });
-			});
+			void Effect.runPromise(
+				api.closeSession(acpSessionId).pipe(
+					Effect.catch((error) => {
+						logger.warn("Failed to close session subprocess", {
+							sessionId,
+							acpSessionId,
+							error,
+						});
+						return Effect.succeed(undefined);
+					})
+				)
+			);
 		}
 
 		logger.debug("Session disconnected", { sessionId });
@@ -970,13 +1016,13 @@ export class SessionConnectionManager {
 	 * Set model for a session.
 	 * Also tracks the model choice per mode for this session.
 	 */
-	setModel(sessionId: string, modelId: string): ResultAsync<void, AppError> {
+	setModel(sessionId: string, modelId: string): Effect.Effect<void, AppError> {
 		const sessionIdentity = this.stateReader.getSessionIdentity(sessionId);
 		if (!sessionIdentity) {
-			return errAsync(new SessionNotFoundError(sessionId));
+			return Effect.fail(new SessionNotFoundError(sessionId));
 		}
 		if (!canSendFromCanonical(this.stateReader, sessionId)) {
-			return errAsync(new ConnectionError(sessionId));
+			return Effect.fail(new ConnectionError(sessionId));
 		}
 
 		logger.debug("Setting model", { sessionId, modelId });
@@ -987,16 +1033,16 @@ export class SessionConnectionManager {
 			preferencesStore.setSessionModelForMode(sessionId, currentModeId, modelId);
 		}
 
-		return api
-			.setModel(sessionIdentity.id, modelId)
-			.map(() => {
+		return api.setModel(sessionIdentity.id, modelId).pipe(
+			Effect.map(() => {
 				logger.debug("Model set successfully", { sessionId, modelId });
 				return undefined;
-			})
-			.mapErr((error) => {
+			}),
+			Effect.mapError((error) => {
 				logger.error("Failed to set model", { sessionId, modelId, error });
 				return new AgentError("setModel", error instanceof Error ? error : undefined);
-			});
+			})
+		);
 	}
 
 	/**
@@ -1010,19 +1056,19 @@ export class SessionConnectionManager {
 	 *    - If no, apply default model for this mode (if configured)
 	 * 3. Update per-mode model memory
 	 */
-	setMode(sessionId: string, modeId: string): ResultAsync<void, AppError> {
+	setMode(sessionId: string, modeId: string): Effect.Effect<void, AppError> {
 		const sessionIdentity = this.stateReader.getSessionIdentity(sessionId);
 		if (!sessionIdentity) {
-			return errAsync(new SessionNotFoundError(sessionId));
+			return Effect.fail(new SessionNotFoundError(sessionId));
 		}
 		if (!canSendFromCanonical(this.stateReader, sessionId)) {
-			return errAsync(new ConnectionError(sessionId));
+			return Effect.fail(new ConnectionError(sessionId));
 		}
 
 		const availableModes = canonicalAvailableModes(this.stateReader, sessionId);
 		const availableModels = canonicalAvailableModels(this.stateReader, sessionId);
 		if (availableModes === null || availableModels === null) {
-			return errAsync(new ConnectionError(sessionId));
+			return Effect.fail(new ConnectionError(sessionId));
 		}
 		const newMode = availableModes.find((m) => m.id === modeId) ?? null;
 		const oldAutonomousEnabled = canonicalAutonomousEnabled(this.stateReader, sessionId);
@@ -1034,20 +1080,20 @@ export class SessionConnectionManager {
 
 		const applyMode = api.setMode(sessionIdentity.id, modeId);
 
-		return applyMode
-			.andThen(() => {
+		return applyMode.pipe(
+			Effect.flatMap(() => {
 				logger.debug("Mode set successfully", { sessionId, modeId });
 
 				const syncAutonomousPolicy =
 					oldAutonomousEnabled !== nextAutonomousEnabled
 						? nextAutonomousEnabled === null
-							? okAsync(undefined)
+							? Effect.succeed(undefined)
 							: this.setSessionAutonomous(sessionIdentity.id, nextAutonomousEnabled)
-						: okAsync(undefined);
+						: Effect.succeed(undefined);
 
 				return syncAutonomousPolicy;
-			})
-			.andThen(() => {
+			}),
+			Effect.flatMap(() => {
 				logger.debug("Session autonomous policy synced for mode change", {
 					sessionId,
 					modeId,
@@ -1056,7 +1102,7 @@ export class SessionConnectionManager {
 
 				// After mode switch succeeds, handle model for new mode
 				if (!newMode) {
-					return okAsync(undefined);
+					return Effect.succeed(undefined);
 				}
 
 				// Check if user previously selected a model for this mode in this session
@@ -1090,29 +1136,30 @@ export class SessionConnectionManager {
 					return this.setModel(sessionId, defaultModelForAgent);
 				}
 
-				return okAsync(undefined);
-			})
-			.mapErr((error) => {
+				return Effect.succeed(undefined);
+			}),
+			Effect.mapError((error) => {
 				logger.error("Failed to set mode", { sessionId, modeId, error });
 				return new AgentError("setMode", error instanceof Error ? error : undefined);
-			});
+			})
+		);
 	}
 
 	setAutonomousEnabled(
 		sessionId: string,
 		enabled: boolean,
 		eventHandler?: SessionEventHandler
-	): ResultAsync<void, AppError> {
+	): Effect.Effect<void, AppError> {
 		const sessionIdentity = this.stateReader.getSessionIdentity(sessionId);
 		if (!sessionIdentity) {
-			return errAsync(new SessionNotFoundError(sessionId));
+			return Effect.fail(new SessionNotFoundError(sessionId));
 		}
 
 		const targetEnabled =
 			enabled &&
 			this.supportsAutonomousMode(canonicalCurrentModeId(this.stateReader, sessionId) ?? undefined);
 		if (this.stateReader.getSessionAutonomousTransitionBusy(sessionId)) {
-			return errAsync(
+			return Effect.fail(
 				new AgentError(
 					"setAutonomousEnabled",
 					new Error("Autonomous transition already in progress")
@@ -1138,63 +1185,65 @@ export class SessionConnectionManager {
 			autonomousTransition: targetEnabled ? "enabling" : "disabling",
 		});
 
-		return this.setSessionAutonomous(sessionId, targetEnabled).mapErr(rollbackAutonomous);
+		return this.setSessionAutonomous(sessionId, targetEnabled).pipe(
+			Effect.mapError(rollbackAutonomous)
+		);
 	}
 
 	/**
 	 * Set a configuration option for a session.
 	 */
-	setConfigOption(sessionId: string, configId: string, value: string): ResultAsync<void, AppError> {
+	setConfigOption(sessionId: string, configId: string, value: string): Effect.Effect<void, AppError> {
 		const sessionIdentity = this.stateReader.getSessionIdentity(sessionId);
 		if (!sessionIdentity) {
-			return errAsync(new SessionNotFoundError(sessionId));
+			return Effect.fail(new SessionNotFoundError(sessionId));
 		}
 		if (!canSendFromCanonical(this.stateReader, sessionId)) {
-			return errAsync(new ConnectionError(sessionId));
+			return Effect.fail(new ConnectionError(sessionId));
 		}
 
 		logger.debug("Setting config option", { sessionId, configId, value });
 
-		return api
-			.setConfigOption(sessionIdentity.id, configId, value)
-			.map(() => {
+		return api.setConfigOption(sessionIdentity.id, configId, value).pipe(
+			Effect.map(() => {
 				logger.debug("Config option set successfully", { sessionId, configId });
-			})
-			.mapErr((error) => {
+			}),
+			Effect.mapError((error) => {
 				logger.error("Failed to set config option", {
 					sessionId,
 					configId,
 					error,
 				});
 				return new AgentError("setConfigOption", error instanceof Error ? error : undefined);
-			});
+			})
+		);
 	}
 
 	/**
 	 * Cancel streaming for a session.
 	 */
-	cancelStreaming(sessionId: string): ResultAsync<void, AppError> {
+	cancelStreaming(sessionId: string): Effect.Effect<void, AppError> {
 		const sessionIdentity = this.stateReader.getSessionIdentity(sessionId);
 		if (!sessionIdentity) {
-			return errAsync(new SessionNotFoundError(sessionId));
+			return Effect.fail(new SessionNotFoundError(sessionId));
 		}
 		// Cancellation only requires an active WebSocket connection — canSend is false
 		// while streaming (lifecycle is not Ready), so we must not gate on it here.
 		if (!canonicalWireOpen(this.stateReader, sessionId)) {
-			return errAsync(new ConnectionError(sessionId));
+			return Effect.fail(new ConnectionError(sessionId));
 		}
 
-		return api
-			.stopStreaming(sessionIdentity.id)
-			.map(() => {
+		return api.stopStreaming(sessionIdentity.id).pipe(
+			Effect.map(() => {
 				// Transition machine STREAMING -> READY for machine-backed selectors.
 				this.connectionManager.sendResponseComplete(sessionId);
 				logger.debug("Streaming cancelled", { sessionId });
 				return undefined;
-			})
-			.mapErr((error) => {
+			}),
+			Effect.mapError((error) => {
 				logger.error("Failed to cancel streaming", { sessionId, error });
 				return new AgentError("cancelStreaming", error instanceof Error ? error : undefined);
-			});
+			})
+		);
 	}
 }

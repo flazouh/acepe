@@ -1,4 +1,4 @@
-import { okAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import { describe, expect, it, vi } from "vitest";
 
 const { openUrlMock } = vi.hoisted(() => ({
@@ -137,7 +137,7 @@ function createState(options?: {
 		selectedAgentIds: options?.selectedAgentIds ? options.selectedAgentIds : [],
 		setSelectedAgentIds: options?.setSelectedAgentIds
 			? options.setSelectedAgentIds
-			: vi.fn(() => okAsync(undefined)),
+			: vi.fn(() => Effect.succeed(undefined)),
 	} as Partial<AgentPreferencesStore>;
 
 	const selectorRegistry = {
@@ -148,7 +148,7 @@ function createState(options?: {
 	const sessionOpenHydrator = {
 		beginAttempt: vi.fn(() => "request-1"),
 		clearAttempt: vi.fn(),
-		hydrateFound: vi.fn(() => okAsync(undefined)),
+		hydrateFound: vi.fn(() => Effect.succeed(undefined)),
 		isCurrentAttempt: vi.fn(() => true),
 	} as unknown as Pick<
 		SessionOpenHydrator,
@@ -222,7 +222,7 @@ describe("MainAppViewState", () => {
 	});
 
 	it("persists an unselected panel agent so install-on-send agents stay visible", () => {
-		const setSelectedAgentIds = vi.fn(() => okAsync(undefined));
+		const setSelectedAgentIds = vi.fn(() => Effect.succeed(undefined));
 		const { state, panelStore } = createState({
 			selectedAgentIds: ["claude-code"],
 			setSelectedAgentIds,
@@ -235,7 +235,7 @@ describe("MainAppViewState", () => {
 	});
 
 	it("does not rewrite selected agents when the panel agent is already selected", () => {
-		const setSelectedAgentIds = vi.fn(() => okAsync(undefined));
+		const setSelectedAgentIds = vi.fn(() => Effect.succeed(undefined));
 		const { state, panelStore } = createState({
 			selectedAgentIds: ["claude-code", "cursor"],
 			setSelectedAgentIds,

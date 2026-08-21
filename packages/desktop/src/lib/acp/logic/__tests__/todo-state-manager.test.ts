@@ -1,3 +1,4 @@
+import * as Result from "effect/Result";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import type { StoredEntry, StoredThread } from "../../infrastructure/storage/ThreadStorage.js";
@@ -126,8 +127,8 @@ describe("TodoStateManager", () => {
 		it("should return null for null thread", () => {
 			const result = manager.getTodoState("thread-1", null);
 
-			expect(result.isOk()).toBe(true);
-			expect(result._unsafeUnwrap()).toBe(null);
+			expect(Result.isSuccess(result)).toBe(true);
+			expect(Result.getOrThrow(result)).toBe(null);
 		});
 
 		it("should return null for thread with no TodoWrites", () => {
@@ -158,8 +159,8 @@ describe("TodoStateManager", () => {
 
 			const result = manager.getTodoState("thread-1", thread);
 
-			expect(result.isOk()).toBe(true);
-			expect(result._unsafeUnwrap()).toBe(null);
+			expect(Result.isSuccess(result)).toBe(true);
+			expect(Result.getOrThrow(result)).toBe(null);
 		});
 
 		it("should cache computed state", () => {
@@ -203,17 +204,17 @@ describe("TodoStateManager", () => {
 
 			const metrics2 = manager.getMetrics();
 			expect(metrics2.cacheMisses).toBe(metrics1.cacheMisses + 1);
-			expect(result1.isOk()).toBe(true);
+			expect(Result.isSuccess(result1)).toBe(true);
 
 			// Second call with same thread - cache hit
 			const result2 = manager.getTodoState("thread-1", thread);
 
 			const metrics3 = manager.getMetrics();
 			expect(metrics3.cacheHits).toBe(metrics2.cacheHits + 1);
-			expect(result2.isOk()).toBe(true);
+			expect(Result.isSuccess(result2)).toBe(true);
 
 			// Results should be identical
-			expect(result1._unsafeUnwrap()).toEqual(result2._unsafeUnwrap());
+			expect(Result.getOrThrow(result1)).toEqual(Result.getOrThrow(result2));
 		});
 
 		it("should invalidate cache when signature changes", () => {
@@ -286,7 +287,7 @@ describe("TodoStateManager", () => {
 			const metrics2 = manager.getMetrics();
 
 			expect(metrics2.cacheMisses).toBe(metrics1.cacheMisses + 1);
-			expect(result1._unsafeUnwrap()).not.toEqual(result2._unsafeUnwrap());
+			expect(Result.getOrThrow(result1)).not.toEqual(Result.getOrThrow(result2));
 		});
 
 		it("should invalidate operation-backed todo cache when canonical todo payload changes", () => {
@@ -321,10 +322,10 @@ describe("TodoStateManager", () => {
 			});
 			const secondMetrics = manager.getMetrics();
 
-			expect(firstResult.isOk()).toBe(true);
-			expect(secondResult.isOk()).toBe(true);
+			expect(Result.isSuccess(firstResult)).toBe(true);
+			expect(Result.isSuccess(secondResult)).toBe(true);
 			expect(secondMetrics.cacheMisses).toBe(firstMetrics.cacheMisses + 1);
-			expect(secondResult._unsafeUnwrap()?.completedCount).toBe(1);
+			expect(Result.getOrThrow(secondResult)?.completedCount).toBe(1);
 		});
 	});
 

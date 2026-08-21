@@ -1,4 +1,7 @@
 import { spawnSync } from "node:child_process";
+import { decodeUnknown } from "@acepe/effect-result/decodeUnknown";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import {
 	agentPanelStressLabMeasurementWarnings,
 	agentPanelStressLabStatus,
@@ -492,8 +495,8 @@ export function parseOptions(args: readonly string[], checkoutRoot: string): Cli
 	const formatArg = valueArg(args, "--format", "text");
 	const format: OutputFormat = formatArg === "json" ? "json" : "text";
 	const levelCandidate = valueArg(args, "--level", "summary");
-	const levelParsed = observeLevelSchema.safeParse(levelCandidate);
-	const level = levelParsed.success ? levelParsed.data : "summary";
+	const levelParsed = decodeUnknown(observeLevelSchema, (error) => error)(levelCandidate);
+	const level = Result.isSuccess(levelParsed) ? levelParsed.success : "summary";
 	const defaultDelayMs = command === "hover" ? "350" : "300";
 	return {
 		command,
@@ -765,18 +768,22 @@ async function emitVerifiedUiResult(
 	options: CliOptions,
 	result: ReturnType<typeof buildResult>
 ): Promise<number> {
-	const evidence = await writeUiQaEvidence({
-		checkoutRoot: options.checkoutRoot,
-		command: result.command,
-		status: result.status,
-		summary: result.summary,
-		artifactPath: result.artifact?.path,
-	});
-	const output = evidence.isOk()
+	const evidence = await Effect.runPromise(
+		Effect.result(
+			writeUiQaEvidence({
+				checkoutRoot: options.checkoutRoot,
+				command: result.command,
+				status: result.status,
+				summary: result.summary,
+				artifactPath: result.artifact?.path,
+			})
+		)
+	);
+	const output = Result.isSuccess(evidence)
 		? {
 				command: result.command,
 				status: result.status,
-				summary: result.summary.concat(`ui qa evidence: ${evidence.value}`),
+				summary: result.summary.concat(`ui qa evidence: ${evidence.success}`),
 				artifact: result.artifact,
 				error: result.error,
 			}
@@ -834,42 +841,52 @@ export async function runCli(
 	}
 
 	if (options.command === "doctor") {
-		const doctor = await runDoctor({
-			checkoutRoot: options.checkoutRoot,
-			appIdentifier: options.appIdentifier,
-		});
-		if (doctor.isErr()) {
+		const doctor = await Effect.runPromise(
+			Effect.result(
+				runDoctor({
+					checkoutRoot: options.checkoutRoot,
+					appIdentifier: options.appIdentifier,
+				})
+			)
+		);
+		if (Result.isFailure(doctor)) {
 			const result = buildResult({
 				command: "doctor",
 				status: "fail",
 				summary: ["Unable to inspect the Acepe dev target."],
 				error: dependencyError(
-					doctor.error.code,
-					doctor.error.message,
+					doctor.failure.code,
+					doctor.failure.message,
 					"Check that the dev app is running, then rerun acepe-qa doctor."
 				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const artifact = await writeJsonArtifact("doctor", doctor.value);
-		const artifactPath = artifact.isOk() ? artifact.value : undefined;
+		const artifact = await Effect.runPromise(
+			Effect.result(writeJsonArtifact("doctor", doctor.success))
+		);
+		const artifactPath = Result.isSuccess(artifact) ? artifact.success : undefined;
 		const summary = [
-			`dev processes: ${doctor.value.devProcessCount.toString()}`,
-			`production processes: ${doctor.value.productionProcessCount.toString()}`,
-			`bridge ${doctor.value.bridge.available ? "ok" : "missing"} on ${doctor.value.bridge.port}`,
-			`webview ${doctor.value.webview.responsive ? "responsive" : "not responsive"}`,
-			`binary: ${doctor.value.binaryFreshness.status}`,
-			`frontend: ${doctor.value.frontendFreshness.status}`,
-		].concat(doctor.value.findings);
+			`dev processes: ${doctor.success.devProcessCount.toString()}`,
+			`production processes: ${doctor.success.productionProcessCount.toString()}`,
+			`bridge ${doctor.success.bridge.available ? "ok" : "missing"} on ${doctor.success.bridge.port}`,
+			`webview ${doctor.success.webview.responsive ? "responsive" : "not responsive"}`,
+			`binary: ${doctor.success.binaryFreshness.status}`,
+			`frontend: ${doctor.success.frontendFreshness.status}`,
+		].concat(doctor.success.findings);
 		const result = buildResult({
 			command: "doctor",
-			status: doctor.value.status,
+			status: doctor.success.status,
 			summary,
 			artifactPath,
 			artifactKind: artifactPath === undefined ? undefined : "doctor",
-			error: artifact.isErr()
-				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+			error: Result.isFailure(artifact)
+				? dependencyError(
+						artifact.failure.code,
+						artifact.failure.message,
+						"Check /tmp permissions."
+					)
 				: undefined,
 		});
 		process.stdout.write(formatCommandResult(result, options.format));
@@ -877,37 +894,51 @@ export async function runCli(
 	}
 
 	if (options.command === "focus-app") {
-		const doctor = await runDoctor({
-			checkoutRoot: options.checkoutRoot,
-			appIdentifier: options.appIdentifier,
-		});
-		const focusAppIdentifier = doctor.isOk() ? doctor.value.appIdentifier : options.appIdentifier;
-		const devProcesses = doctor.isOk() ? doctor.value.devProcesses : [];
+		const doctor = await Effect.runPromise(
+			Effect.result(
+				runDoctor({
+					checkoutRoot: options.checkoutRoot,
+					appIdentifier: options.appIdentifier,
+				})
+			)
+		);
+		const focusAppIdentifier = Result.isSuccess(doctor)
+			? doctor.success.appIdentifier
+			: options.appIdentifier;
+		const devProcesses = Result.isSuccess(doctor) ? doctor.success.devProcesses : [];
 		const targetSummary =
-			doctor.isOk() && focusAppIdentifier !== options.appIdentifier
+			Result.isSuccess(doctor) && focusAppIdentifier !== options.appIdentifier
 				? [`resolved active bridge: ${focusAppIdentifier}`]
 				: [];
-		const webviewFocus = await focusDevApp({
-			appIdentifier: focusAppIdentifier,
-			skipDriver: options.skipDriver,
-		});
-		if (webviewFocus.isOk()) {
-			if (focusAppIsForeground(webviewFocus.value)) {
+		const webviewFocus = await Effect.runPromise(
+			Effect.result(
+				focusDevApp({
+					appIdentifier: focusAppIdentifier,
+					skipDriver: options.skipDriver,
+				})
+			)
+		);
+		if (Result.isSuccess(webviewFocus)) {
+			if (focusAppIsForeground(webviewFocus.success)) {
 				const result = buildResult({
 					command: "focus-app",
 					status: "ok",
-					summary: targetSummary.concat(focusAppSummary(webviewFocus.value)),
+					summary: targetSummary.concat(focusAppSummary(webviewFocus.success)),
 				});
 				return emitVerifiedUiResult(options, result);
 			}
 			const focus = focusAcepeApp(focusAppIdentifier, devProcesses);
 			if (focus.ok) {
-				const retryWebviewFocus = await focusDevApp({
-					appIdentifier: focusAppIdentifier,
-					skipDriver: options.skipDriver,
-				});
-				if (retryWebviewFocus.isOk()) {
-					const focused = focusAppIsForeground(retryWebviewFocus.value);
+				const retryWebviewFocus = await Effect.runPromise(
+					Effect.result(
+						focusDevApp({
+							appIdentifier: focusAppIdentifier,
+							skipDriver: options.skipDriver,
+						})
+					)
+				);
+				if (Result.isSuccess(retryWebviewFocus)) {
+					const focused = focusAppIsForeground(retryWebviewFocus.success);
 					const result = buildResult({
 						command: "focus-app",
 						status: focused ? "ok" : "warn",
@@ -916,7 +947,7 @@ export async function runCli(
 								"initial webview focus was not foreground.",
 								`accessibility fallback: ${focus.message}`,
 							])
-							.concat(focusAppSummary(retryWebviewFocus.value)),
+							.concat(focusAppSummary(retryWebviewFocus.success)),
 					});
 					return emitVerifiedUiResult(options, result);
 				}
@@ -924,10 +955,10 @@ export async function runCli(
 					command: "focus-app",
 					status: "warn",
 					summary: targetSummary
-						.concat(focusAppSummary(webviewFocus.value))
+						.concat(focusAppSummary(webviewFocus.success))
 						.concat(
 							`accessibility fallback: ${focus.message}`,
-							`retry webview focus failed: ${retryWebviewFocus.error.message}`
+							`retry webview focus failed: ${retryWebviewFocus.failure.message}`
 						),
 				});
 				return emitVerifiedUiResult(options, result);
@@ -936,7 +967,7 @@ export async function runCli(
 				command: "focus-app",
 				status: "warn",
 				summary: targetSummary
-					.concat(focusAppSummary(webviewFocus.value))
+					.concat(focusAppSummary(webviewFocus.success))
 					.concat(`accessibility fallback: ${focus.message}`),
 			});
 			return emitVerifiedUiResult(options, result);
@@ -947,7 +978,7 @@ export async function runCli(
 			command: "focus-app",
 			status: focus.ok ? "ok" : "fail",
 			summary: targetSummary.concat([
-				`webview focus failed: ${webviewFocus.error.message}`,
+				`webview focus failed: ${webviewFocus.failure.message}`,
 				`accessibility fallback: ${focus.message}`,
 			]),
 			error: focus.ok
@@ -963,42 +994,52 @@ export async function runCli(
 
 	if (options.command === "frame-rate-probe" || options.command === "fps-probe") {
 		const sampleCount = Number.isFinite(options.limit) ? options.limit : 120;
-		const probe = await probeFrameRate({
-			appIdentifier: options.appIdentifier,
-			sampleCount,
-			selector: options.selector,
-			selectorIndex: options.selectorIndex,
-			collectRowChurn: options.withRowChurn,
-			collectAgentPanelProfile: options.withProfile,
-			scrollStepPx: options.scrollStepPx,
-			skipDriver: options.skipDriver,
-		});
-		if (probe.isErr()) {
+		const probe = await Effect.runPromise(
+			Effect.result(
+				probeFrameRate({
+					appIdentifier: options.appIdentifier,
+					sampleCount,
+					selector: options.selector,
+					selectorIndex: options.selectorIndex,
+					collectRowChurn: options.withRowChurn,
+					collectAgentPanelProfile: options.withProfile,
+					scrollStepPx: options.scrollStepPx,
+					skipDriver: options.skipDriver,
+				})
+			)
+		);
+		if (Result.isFailure(probe)) {
 			const result = buildResult({
 				command: "frame-rate-probe",
 				status: "fail",
 				summary: ["Unable to sample WebView frame rate."],
 				error: dependencyError(
-					probe.error.code,
-					probe.error.message,
+					probe.failure.code,
+					probe.failure.message,
 					"Run acepe-qa doctor, focus-app, then retry frame-rate-probe."
 				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const artifact = await writeJsonArtifact("frame-rate-probe", probe.value);
-		const artifactPath = artifact.isOk() ? artifact.value : undefined;
+		const artifact = await Effect.runPromise(
+			Effect.result(writeJsonArtifact("frame-rate-probe", probe.success))
+		);
+		const artifactPath = Result.isSuccess(artifact) ? artifact.success : undefined;
 		const result = buildResult({
 			command: "frame-rate-probe",
-			status: frameRateProbeTimingValid(probe.value) ? "ok" : "warn",
-			summary: summarizeFrameRateProbe(probe.value, {
+			status: frameRateProbeTimingValid(probe.success) ? "ok" : "warn",
+			summary: summarizeFrameRateProbe(probe.success, {
 				scrollStepPx: options.scrollStepPx,
 			}),
 			artifactPath,
 			artifactKind: artifactPath === undefined ? undefined : "frame-rate-probe",
-			error: artifact.isErr()
-				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+			error: Result.isFailure(artifact)
+				? dependencyError(
+						artifact.failure.code,
+						artifact.failure.message,
+						"Check /tmp permissions."
+					)
 				: undefined,
 		});
 		return emitVerifiedUiResult(options, result);
@@ -1009,30 +1050,36 @@ export async function runCli(
 			options.selector.length > 0
 				? options.selector
 				: '[data-testid="agent-panel-host"] .message-scroller__viewport';
-		const scan = await scanAgentPanelRows({
-			appIdentifier: options.appIdentifier,
-			selector,
-			selectorIndex: options.selectorIndex,
-			limit: Number.isFinite(options.limit) ? options.limit : 10,
-			skipDriver: options.skipDriver,
-		});
-		if (scan.isErr()) {
+		const scan = await Effect.runPromise(
+			Effect.result(
+				scanAgentPanelRows({
+					appIdentifier: options.appIdentifier,
+					selector,
+					selectorIndex: options.selectorIndex,
+					limit: Number.isFinite(options.limit) ? options.limit : 10,
+					skipDriver: options.skipDriver,
+				})
+			)
+		);
+		if (Result.isFailure(scan)) {
 			const result = buildResult({
 				command: "agent-panel-row-scan",
 				status: "fail",
 				summary: ["Unable to scan the active agent panel rows."],
 				error: dependencyError(
-					scan.error.code,
-					scan.error.message,
+					scan.failure.code,
+					scan.failure.message,
 					"Run acepe-qa doctor, open a session panel, then retry agent-panel-row-scan."
 				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const artifact = await writeJsonArtifact("agent-panel-row-scan", scan.value);
-		const artifactPath = artifact.isOk() ? artifact.value : undefined;
-		const rowSamples = scan.value.rows.slice(0, 5).map((row) => {
+		const artifact = await Effect.runPromise(
+			Effect.result(writeJsonArtifact("agent-panel-row-scan", scan.success))
+		);
+		const artifactPath = Result.isSuccess(artifact) ? artifact.success : undefined;
+		const rowSamples = scan.success.rows.slice(0, 5).map((row) => {
 			const rowIndex = row.rowIndex === null ? "unknown" : row.rowIndex.toString();
 			const visual =
 				row.entryType === "tool_call"
@@ -1043,28 +1090,32 @@ export async function runCli(
 		const result = buildResult({
 			command: "agent-panel-row-scan",
 			status:
-				scan.value.selectorMatched &&
-				scan.value.rowCount > 0 &&
-				scan.value.exactGenericToolRowCount === 0 &&
-				scan.value.prefixGenericToolRowCount === 0 &&
-				scan.value.rawProviderToolRowCount === 0 &&
-				scan.value.missingEntryRowCount === 0 &&
-				scan.value.degradedToolRowCount === 0 &&
-				scan.value.emptyRowCount === 0
+				scan.success.selectorMatched &&
+				scan.success.rowCount > 0 &&
+				scan.success.exactGenericToolRowCount === 0 &&
+				scan.success.prefixGenericToolRowCount === 0 &&
+				scan.success.rawProviderToolRowCount === 0 &&
+				scan.success.missingEntryRowCount === 0 &&
+				scan.success.degradedToolRowCount === 0 &&
+				scan.success.emptyRowCount === 0
 					? "ok"
 					: "warn",
 			summary: [
-				`route: ${scan.value.route ?? "unknown"}`,
-				`selector: ${scan.value.selector} index=${scan.value.selectorIndex.toString()}/${scan.value.selectorMatchCount.toString()} matched=${scan.value.selectorMatched ? "yes" : "no"}`,
-				`rows: count=${scan.value.rowCount.toString()} first=${scan.value.firstRowIndex === null ? "unknown" : scan.value.firstRowIndex.toString()} last=${scan.value.lastRowIndex === null ? "unknown" : scan.value.lastRowIndex.toString()} empty=${scan.value.emptyRowCount.toString()}`,
-				`scroll: top=${scan.value.scrollTopPx === null ? "unavailable" : scan.value.scrollTopPx.toFixed(0)} client=${scan.value.clientHeightPx === null ? "unavailable" : scan.value.clientHeightPx.toFixed(0)} height=${scan.value.scrollHeightPx === null ? "unavailable" : scan.value.scrollHeightPx.toFixed(0)} max=${scan.value.maxScrollTopPx === null ? "unavailable" : scan.value.maxScrollTopPx.toFixed(0)}`,
-				`tool label leaks: genericExact=${scan.value.exactGenericToolRowCount.toString()} genericPrefix=${scan.value.prefixGenericToolRowCount.toString()} rawProvider=${scan.value.rawProviderToolRowCount.toString()}`,
-				`visual state leaks: missing=${scan.value.missingEntryRowCount.toString()} degraded=${scan.value.degradedToolRowCount.toString()}`,
+				`route: ${scan.success.route ?? "unknown"}`,
+				`selector: ${scan.success.selector} index=${scan.success.selectorIndex.toString()}/${scan.success.selectorMatchCount.toString()} matched=${scan.success.selectorMatched ? "yes" : "no"}`,
+				`rows: count=${scan.success.rowCount.toString()} first=${scan.success.firstRowIndex === null ? "unknown" : scan.success.firstRowIndex.toString()} last=${scan.success.lastRowIndex === null ? "unknown" : scan.success.lastRowIndex.toString()} empty=${scan.success.emptyRowCount.toString()}`,
+				`scroll: top=${scan.success.scrollTopPx === null ? "unavailable" : scan.success.scrollTopPx.toFixed(0)} client=${scan.success.clientHeightPx === null ? "unavailable" : scan.success.clientHeightPx.toFixed(0)} height=${scan.success.scrollHeightPx === null ? "unavailable" : scan.success.scrollHeightPx.toFixed(0)} max=${scan.success.maxScrollTopPx === null ? "unavailable" : scan.success.maxScrollTopPx.toFixed(0)}`,
+				`tool label leaks: genericExact=${scan.success.exactGenericToolRowCount.toString()} genericPrefix=${scan.success.prefixGenericToolRowCount.toString()} rawProvider=${scan.success.rawProviderToolRowCount.toString()}`,
+				`visual state leaks: missing=${scan.success.missingEntryRowCount.toString()} degraded=${scan.success.degradedToolRowCount.toString()}`,
 			].concat(rowSamples),
 			artifactPath,
 			artifactKind: artifactPath === undefined ? undefined : "agent-panel-row-scan",
-			error: artifact.isErr()
-				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+			error: Result.isFailure(artifact)
+				? dependencyError(
+						artifact.failure.code,
+						artifact.failure.message,
+						"Check /tmp permissions."
+					)
 				: undefined,
 		});
 		return emitVerifiedUiResult(options, result);
@@ -1075,102 +1126,122 @@ export async function runCli(
 			options.selector.length > 0
 				? options.selector
 				: '[data-testid="agent-panel-host"] .message-scroller__viewport';
-		const probe = await probeAgentPanelScrollPages({
-			appIdentifier: options.appIdentifier,
-			selector,
-			selectorIndex: options.selectorIndex,
-			sampleCount: Number.isFinite(options.limit) ? options.limit : 8,
-			scrollStepPx: options.scrollStepPx,
-			settleMs: Number.isFinite(options.settleMs) ? options.settleMs : 300,
-			skipDriver: options.skipDriver,
-		});
-		if (probe.isErr()) {
+		const probe = await Effect.runPromise(
+			Effect.result(
+				probeAgentPanelScrollPages({
+					appIdentifier: options.appIdentifier,
+					selector,
+					selectorIndex: options.selectorIndex,
+					sampleCount: Number.isFinite(options.limit) ? options.limit : 8,
+					scrollStepPx: options.scrollStepPx,
+					settleMs: Number.isFinite(options.settleMs) ? options.settleMs : 300,
+					skipDriver: options.skipDriver,
+				})
+			)
+		);
+		if (Result.isFailure(probe)) {
 			const result = buildResult({
 				command: "agent-panel-scroll-page-probe",
 				status: "fail",
 				summary: ["Unable to probe agent panel scroll paging."],
 				error: dependencyError(
-					probe.error.code,
-					probe.error.message,
+					probe.failure.code,
+					probe.failure.message,
 					"Run acepe-qa doctor, open a ledger-backed session panel, then retry agent-panel-scroll-page-probe."
 				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const artifact = await writeJsonArtifact("agent-panel-scroll-page-probe", probe.value);
-		const artifactPath = artifact.isOk() ? artifact.value : undefined;
-		const sampleSummary = probe.value.samples.slice(0, 4).map((sample) => {
+		const artifact = await Effect.runPromise(
+			Effect.result(writeJsonArtifact("agent-panel-scroll-page-probe", probe.success))
+		);
+		const artifactPath = Result.isSuccess(artifact) ? artifact.success : undefined;
+		const sampleSummary = probe.success.samples.slice(0, 4).map((sample) => {
 			return `sample ${sample.stepIndex.toString()} top=${sample.scrollTopPx.toFixed(0)} rows=${sample.rowCount.toString()} buffer=${sample.bufferStartIndex === null ? "unknown" : sample.bufferStartIndex.toString()}-${sample.bufferEndIndex === null ? "unknown" : sample.bufferEndIndex.toString()} reason=${sample.bufferLastReason ?? "unknown"} first=${sample.firstRowId ?? "none"} last=${sample.lastRowId ?? "none"}`;
 		});
 		const result = buildResult({
 			command: "agent-panel-scroll-page-probe",
 			status:
-				probe.value.selectorMatched &&
-				probe.value.moved &&
-				probe.value.loadedMoreRows &&
-				!probe.value.likelyThrottled &&
-				probe.value.blankViewportSampleCount === 0 &&
-				probe.value.maxEmptyRowCount === 0 &&
-				probe.value.maxExactGenericToolRowCount === 0 &&
-				probe.value.maxPrefixGenericToolRowCount === 0 &&
-				probe.value.maxRawProviderToolRowCount === 0
+				probe.success.selectorMatched &&
+				probe.success.moved &&
+				probe.success.loadedMoreRows &&
+				!probe.success.likelyThrottled &&
+				probe.success.blankViewportSampleCount === 0 &&
+				probe.success.maxEmptyRowCount === 0 &&
+				probe.success.maxExactGenericToolRowCount === 0 &&
+				probe.success.maxPrefixGenericToolRowCount === 0 &&
+				probe.success.maxRawProviderToolRowCount === 0
 					? "ok"
 					: "warn",
 			summary: [
-				`route: ${probe.value.route ?? "unknown"}`,
-				`selector: ${probe.value.selector} index=${probe.value.selectorIndex.toString()}/${probe.value.selectorMatchCount.toString()} matched=${probe.value.selectorMatched ? "yes" : "no"}`,
-				`scroll: step=${probe.value.scrollStepPx.toFixed(0)} settle=${probe.value.settleMs.toString()}ms initialTop=${probe.value.initialScrollTopPx === null ? "unavailable" : probe.value.initialScrollTopPx.toFixed(0)} finalTop=${probe.value.finalScrollTopPx === null ? "unavailable" : probe.value.finalScrollTopPx.toFixed(0)} reachedTop=${probe.value.reachedTop ? "yes" : "no"} moved=${probe.value.moved ? "yes" : "no"}`,
-				`frame timing: samples=${probe.value.frameDeltasMs.length.toString()} missed120=${probe.value.missed120FrameCount.toString()} missed60=${probe.value.missed60FrameCount.toString()} avg=${formatOptionalMs(probe.value.averageFrameDeltaMs)} max=${formatOptionalMs(probe.value.maxFrameDeltaMs)} fps=${probe.value.estimatedFps === null ? "unavailable" : probe.value.estimatedFps.toFixed(2)} throttled=${probe.value.likelyThrottled ? "yes" : "no"}`,
-				`scroll correction: maxHeightDelta=${probe.value.maxScrollHeightDeltaPx.toFixed(0)}px maxTopCorrection=${probe.value.maxScrollTopCorrectionPx.toFixed(0)}px`,
-				`page traversal: loadedMoreRows=${probe.value.loadedMoreRows ? "yes" : "no"} distinctRows=${probe.value.distinctRowIdCount.toString()} distinctFirstRows=${probe.value.distinctFirstRowIdCount.toString()} maxSampleRows=${probe.value.maxSampleRowCount.toString()}`,
-				`blank/tool-leaks: zeroRowSamples=${probe.value.zeroRowSampleCount.toString()} blankViewportSamples=${probe.value.blankViewportSampleCount.toString()} maxEmpty=${probe.value.maxEmptyRowCount.toString()} genericExact=${probe.value.maxExactGenericToolRowCount.toString()} genericPrefix=${probe.value.maxPrefixGenericToolRowCount.toString()} rawProvider=${probe.value.maxRawProviderToolRowCount.toString()}`,
-				`scroll height: initial=${probe.value.initialScrollHeightPx === null ? "unavailable" : probe.value.initialScrollHeightPx.toFixed(0)} final=${probe.value.finalScrollHeightPx === null ? "unavailable" : probe.value.finalScrollHeightPx.toFixed(0)} client=${probe.value.clientHeightPx === null ? "unavailable" : probe.value.clientHeightPx.toFixed(0)} max=${probe.value.maxScrollTopPx === null ? "unavailable" : probe.value.maxScrollTopPx.toFixed(0)}`,
+				`route: ${probe.success.route ?? "unknown"}`,
+				`selector: ${probe.success.selector} index=${probe.success.selectorIndex.toString()}/${probe.success.selectorMatchCount.toString()} matched=${probe.success.selectorMatched ? "yes" : "no"}`,
+				`scroll: step=${probe.success.scrollStepPx.toFixed(0)} settle=${probe.success.settleMs.toString()}ms initialTop=${probe.success.initialScrollTopPx === null ? "unavailable" : probe.success.initialScrollTopPx.toFixed(0)} finalTop=${probe.success.finalScrollTopPx === null ? "unavailable" : probe.success.finalScrollTopPx.toFixed(0)} reachedTop=${probe.success.reachedTop ? "yes" : "no"} moved=${probe.success.moved ? "yes" : "no"}`,
+				`frame timing: samples=${probe.success.frameDeltasMs.length.toString()} missed120=${probe.success.missed120FrameCount.toString()} missed60=${probe.success.missed60FrameCount.toString()} avg=${formatOptionalMs(probe.success.averageFrameDeltaMs)} max=${formatOptionalMs(probe.success.maxFrameDeltaMs)} fps=${probe.success.estimatedFps === null ? "unavailable" : probe.success.estimatedFps.toFixed(2)} throttled=${probe.success.likelyThrottled ? "yes" : "no"}`,
+				`scroll correction: maxHeightDelta=${probe.success.maxScrollHeightDeltaPx.toFixed(0)}px maxTopCorrection=${probe.success.maxScrollTopCorrectionPx.toFixed(0)}px`,
+				`page traversal: loadedMoreRows=${probe.success.loadedMoreRows ? "yes" : "no"} distinctRows=${probe.success.distinctRowIdCount.toString()} distinctFirstRows=${probe.success.distinctFirstRowIdCount.toString()} maxSampleRows=${probe.success.maxSampleRowCount.toString()}`,
+				`blank/tool-leaks: zeroRowSamples=${probe.success.zeroRowSampleCount.toString()} blankViewportSamples=${probe.success.blankViewportSampleCount.toString()} maxEmpty=${probe.success.maxEmptyRowCount.toString()} genericExact=${probe.success.maxExactGenericToolRowCount.toString()} genericPrefix=${probe.success.maxPrefixGenericToolRowCount.toString()} rawProvider=${probe.success.maxRawProviderToolRowCount.toString()}`,
+				`scroll height: initial=${probe.success.initialScrollHeightPx === null ? "unavailable" : probe.success.initialScrollHeightPx.toFixed(0)} final=${probe.success.finalScrollHeightPx === null ? "unavailable" : probe.success.finalScrollHeightPx.toFixed(0)} client=${probe.success.clientHeightPx === null ? "unavailable" : probe.success.clientHeightPx.toFixed(0)} max=${probe.success.maxScrollTopPx === null ? "unavailable" : probe.success.maxScrollTopPx.toFixed(0)}`,
 			].concat(sampleSummary),
 			artifactPath,
 			artifactKind: artifactPath === undefined ? undefined : "agent-panel-scroll-page-probe",
-			error: artifact.isErr()
-				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+			error: Result.isFailure(artifact)
+				? dependencyError(
+						artifact.failure.code,
+						artifact.failure.message,
+						"Check /tmp permissions."
+					)
 				: undefined,
 		});
 		return emitVerifiedUiResult(options, result);
 	}
 
 	if (options.command === "ledger-backfill-probe") {
-		const probe = await probeLedgerBackfill({
-			appIdentifier: options.appIdentifier,
-			limit: Number.isFinite(options.limit) ? options.limit : 1,
-			skipDriver: options.skipDriver,
-		});
-		if (probe.isErr()) {
+		const probe = await Effect.runPromise(
+			Effect.result(
+				probeLedgerBackfill({
+					appIdentifier: options.appIdentifier,
+					limit: Number.isFinite(options.limit) ? options.limit : 1,
+					skipDriver: options.skipDriver,
+				})
+			)
+		);
+		if (Result.isFailure(probe)) {
 			const result = buildResult({
 				command: "ledger-backfill-probe",
 				status: "fail",
 				summary: ["Unable to invoke warm_recent_transcript_row_ledgers in the WebView."],
 				error: dependencyError(
-					probe.error.code,
-					probe.error.message,
+					probe.failure.code,
+					probe.failure.message,
 					"Run acepe-qa doctor and confirm the dev binary includes the ledger backfill command."
 				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const artifact = await writeJsonArtifact("ledger-backfill-probe", probe.value);
-		const artifactPath = artifact.isOk() ? artifact.value : undefined;
+		const artifact = await Effect.runPromise(
+			Effect.result(writeJsonArtifact("ledger-backfill-probe", probe.success))
+		);
+		const artifactPath = Result.isSuccess(artifact) ? artifact.success : undefined;
 		const result = buildResult({
 			command: "ledger-backfill-probe",
-			status: probe.value.failedCount === 0 ? "ok" : "warn",
+			status: probe.success.failedCount === 0 ? "ok" : "warn",
 			summary: [
-				`limit: requested=${probe.value.requestedLimit.toString()} candidates=${probe.value.candidateCount.toString()} checked=${probe.value.checkedCount.toString()}`,
-				`rebuilt: total=${probe.value.rebuiltCount.toString()} provider=${probe.value.rebuiltFromProviderCount.toString()}`,
-				`skipped: upToDate=${probe.value.skippedCurrentCount.toString()} noJournal=${probe.value.skippedNoJournalCount.toString()} missingFacts=${probe.value.skippedMissingFactsCount.toString()}`,
-				`failed: count=${probe.value.failedCount.toString()} ids=${probe.value.failedSessionIds.slice(0, 3).join(", ") || "none"}`,
+				`limit: requested=${probe.success.requestedLimit.toString()} candidates=${probe.success.candidateCount.toString()} checked=${probe.success.checkedCount.toString()}`,
+				`rebuilt: total=${probe.success.rebuiltCount.toString()} provider=${probe.success.rebuiltFromProviderCount.toString()}`,
+				`skipped: upToDate=${probe.success.skippedCurrentCount.toString()} noJournal=${probe.success.skippedNoJournalCount.toString()} missingFacts=${probe.success.skippedMissingFactsCount.toString()}`,
+				`failed: count=${probe.success.failedCount.toString()} ids=${probe.success.failedSessionIds.slice(0, 3).join(", ") || "none"}`,
 			],
 			artifactPath,
 			artifactKind: artifactPath === undefined ? undefined : "ledger-backfill-probe",
-			error: artifact.isErr()
-				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+			error: Result.isFailure(artifact)
+				? dependencyError(
+						artifact.failure.code,
+						artifact.failure.message,
+						"Check /tmp permissions."
+					)
 				: undefined,
 		});
 		process.stdout.write(formatCommandResult(result, options.format));
@@ -1178,77 +1249,97 @@ export async function runCli(
 	}
 
 	if (options.command === "observe") {
-		const observation = await observeApp({
-			appIdentifier: options.appIdentifier,
-			level: options.level,
-			skipDriver: options.skipDriver,
-		});
-		if (observation.isErr()) {
+		const observation = await Effect.runPromise(
+			Effect.result(
+				observeApp({
+					appIdentifier: options.appIdentifier,
+					level: options.level,
+					skipDriver: options.skipDriver,
+				})
+			)
+		);
+		if (Result.isFailure(observation)) {
 			const result = buildResult({
 				command: "observe",
 				status: "fail",
 				summary: ["Unable to observe the Acepe WebView."],
 				error: dependencyError(
-					observation.error.code,
-					observation.error.message,
+					observation.failure.code,
+					observation.failure.message,
 					"Run acepe-qa doctor, then retry observe with the reported app port."
 				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const artifact = await writeJsonArtifact("observe", observation.value);
-		const artifactPath = artifact.isOk() ? artifact.value : undefined;
+		const artifact = await Effect.runPromise(
+			Effect.result(writeJsonArtifact("observe", observation.success))
+		);
+		const artifactPath = Result.isSuccess(artifact) ? artifact.success : undefined;
 		const summary = [
-			`url: ${observation.value.url ?? "unknown"}`,
-			`panels: ${observation.value.panelCount.toString()}`,
-			`composer: ${observation.value.composer.present ? "present" : "missing"}`,
-			`sessionCanSubmit: ${observation.value.composer.sessionCanSubmit === null ? "unknown" : observation.value.composer.sessionCanSubmit.toString()}`,
-			`visible errors: ${observation.value.visibleSessionErrors.length.toString()}`,
-			`refs: ${observation.value.refs.length.toString()}`,
+			`url: ${observation.success.url ?? "unknown"}`,
+			`panels: ${observation.success.panelCount.toString()}`,
+			`composer: ${observation.success.composer.present ? "present" : "missing"}`,
+			`sessionCanSubmit: ${observation.success.composer.sessionCanSubmit === null ? "unknown" : observation.success.composer.sessionCanSubmit.toString()}`,
+			`visible errors: ${observation.success.visibleSessionErrors.length.toString()}`,
+			`refs: ${observation.success.refs.length.toString()}`,
 		];
 		const result = buildResult({
 			command: "observe",
-			status: observation.value.visibleSessionErrors.length > 0 ? "warn" : "ok",
+			status: observation.success.visibleSessionErrors.length > 0 ? "warn" : "ok",
 			summary,
 			artifactPath,
 			artifactKind: artifactPath === undefined ? undefined : "observe",
-			error: artifact.isErr()
-				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+			error: Result.isFailure(artifact)
+				? dependencyError(
+						artifact.failure.code,
+						artifact.failure.message,
+						"Check /tmp permissions."
+					)
 				: undefined,
 		});
 		return emitVerifiedUiResult(options, result);
 	}
 
 	if (options.command === "screenshot") {
-		const screenshot = await screenshotApp({
-			appIdentifier: options.appIdentifier,
-			skipDriver: options.skipDriver,
-		});
-		if (screenshot.isErr()) {
+		const screenshot = await Effect.runPromise(
+			Effect.result(
+				screenshotApp({
+					appIdentifier: options.appIdentifier,
+					skipDriver: options.skipDriver,
+				})
+			)
+		);
+		if (Result.isFailure(screenshot)) {
 			const result = buildResult({
 				command: "screenshot",
 				status: "fail",
 				summary: ["Unable to capture a WebView screenshot."],
 				error: dependencyError(
-					screenshot.error.code,
-					screenshot.error.message,
+					screenshot.failure.code,
+					screenshot.failure.message,
 					"Run acepe-qa doctor before taking screenshots."
 				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const artifact = await writeJsonArtifact("screenshot", screenshot.value);
-		const artifactPath = artifact.isOk() ? artifact.value : undefined;
+		const artifact = await Effect.runPromise(
+			Effect.result(writeJsonArtifact("screenshot", screenshot.success))
+		);
+		const artifactPath = Result.isSuccess(artifact) ? artifact.success : undefined;
 		const result = buildResult({
 			command: "screenshot",
 			status: "ok",
-			summary: [`screenshot: ${screenshot.value.path}`],
+			summary: [`screenshot: ${screenshot.success.path}`],
 			artifactPath,
 			artifactKind: artifactPath === undefined ? undefined : "screenshot",
-			error: artifact.isErr()
-				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+			error: Result.isFailure(artifact)
+				? dependencyError(
+						artifact.failure.code,
+						artifact.failure.message,
+						"Check /tmp permissions."
+					)
 				: undefined,
 		});
 		return emitVerifiedUiResult(options, result);
@@ -1269,37 +1360,47 @@ export async function runCli(
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const inspection = await inspectDom({
-			appIdentifier: options.appIdentifier,
-			selector: options.selector,
-			limit: Number.isFinite(options.limit) ? options.limit : 10,
-			skipDriver: options.skipDriver,
-		});
-		if (inspection.isErr()) {
+		const inspection = await Effect.runPromise(
+			Effect.result(
+				inspectDom({
+					appIdentifier: options.appIdentifier,
+					selector: options.selector,
+					limit: Number.isFinite(options.limit) ? options.limit : 10,
+					skipDriver: options.skipDriver,
+				})
+			)
+		);
+		if (Result.isFailure(inspection)) {
 			const result = buildResult({
 				command: "inspect",
 				status: "fail",
 				summary: ["Unable to inspect the Acepe WebView DOM."],
 				error: dependencyError(
-					inspection.error.code,
-					inspection.error.message,
+					inspection.failure.code,
+					inspection.failure.message,
 					"Run acepe-qa doctor, then retry inspect with a selector."
 				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const artifact = await writeJsonArtifact("inspect", inspection.value);
-		const artifactPath = artifact.isOk() ? artifact.value : undefined;
-		const summary = formatDomInspectionSummary(inspection.value);
+		const artifact = await Effect.runPromise(
+			Effect.result(writeJsonArtifact("inspect", inspection.success))
+		);
+		const artifactPath = Result.isSuccess(artifact) ? artifact.success : undefined;
+		const summary = formatDomInspectionSummary(inspection.success);
 		const result = buildResult({
 			command: "inspect",
 			status: "ok",
 			summary,
 			artifactPath,
 			artifactKind: artifactPath === undefined ? undefined : "inspect",
-			error: artifact.isErr()
-				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+			error: Result.isFailure(artifact)
+				? dependencyError(
+						artifact.failure.code,
+						artifact.failure.message,
+						"Check /tmp permissions."
+					)
 				: undefined,
 		});
 		return emitVerifiedUiResult(options, result);
@@ -1320,68 +1421,84 @@ export async function runCli(
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const inspection = await inspectShadowDom({
-			appIdentifier: options.appIdentifier,
-			hostSelector: options.hostSelector,
-			selector: options.selector,
-			limit: Number.isFinite(options.limit) ? options.limit : 10,
-			skipDriver: options.skipDriver,
-		});
-		if (inspection.isErr()) {
+		const inspection = await Effect.runPromise(
+			Effect.result(
+				inspectShadowDom({
+					appIdentifier: options.appIdentifier,
+					hostSelector: options.hostSelector,
+					selector: options.selector,
+					limit: Number.isFinite(options.limit) ? options.limit : 10,
+					skipDriver: options.skipDriver,
+				})
+			)
+		);
+		if (Result.isFailure(inspection)) {
 			const result = buildResult({
 				command: "inspect-shadow",
 				status: "fail",
 				summary: ["Unable to inspect the Acepe WebView shadow DOM."],
 				error: dependencyError(
-					inspection.error.code,
-					inspection.error.message,
+					inspection.failure.code,
+					inspection.failure.message,
 					"Run acepe-qa doctor, then retry inspect-shadow with host and inner selectors."
 				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const artifact = await writeJsonArtifact("inspect-shadow", inspection.value);
-		const artifactPath = artifact.isOk() ? artifact.value : undefined;
+		const artifact = await Effect.runPromise(
+			Effect.result(writeJsonArtifact("inspect-shadow", inspection.success))
+		);
+		const artifactPath = Result.isSuccess(artifact) ? artifact.success : undefined;
 		const result = buildResult({
 			command: "inspect-shadow",
 			status: "ok",
-			summary: formatDomInspectionSummary(inspection.value),
+			summary: formatDomInspectionSummary(inspection.success),
 			artifactPath,
 			artifactKind: artifactPath === undefined ? undefined : "inspect",
-			error: artifact.isErr()
-				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+			error: Result.isFailure(artifact)
+				? dependencyError(
+						artifact.failure.code,
+						artifact.failure.message,
+						"Check /tmp permissions."
+					)
 				: undefined,
 		});
 		return emitVerifiedUiResult(options, result);
 	}
 
 	if (options.command === "planning-debug") {
-		const debug = await readPlanningDebug({
-			appIdentifier: options.appIdentifier,
-			sessionId: options.sessionId.length === 0 ? null : options.sessionId,
-			skipDriver: options.skipDriver,
-		});
-		if (debug.isErr()) {
+		const debug = await Effect.runPromise(
+			Effect.result(
+				readPlanningDebug({
+					appIdentifier: options.appIdentifier,
+					sessionId: options.sessionId.length === 0 ? null : options.sessionId,
+					skipDriver: options.skipDriver,
+				})
+			)
+		);
+		if (Result.isFailure(debug)) {
 			const result = buildResult({
 				command: "planning-debug",
 				status: "fail",
 				summary: ["Unable to read planning-debug snapshots."],
 				error: dependencyError(
-					debug.error.code,
-					debug.error.message,
+					debug.failure.code,
+					debug.failure.message,
 					"Run acepe-qa doctor, then retry. The hook is installed once an agent panel mounts."
 				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const artifact = await writeJsonArtifact("planning-debug", debug.value);
-		const artifactPath = artifact.isOk() ? artifact.value : undefined;
-		const summary = debug.value.available
+		const artifact = await Effect.runPromise(
+			Effect.result(writeJsonArtifact("planning-debug", debug.success))
+		);
+		const artifactPath = Result.isSuccess(artifact) ? artifact.success : undefined;
+		const summary = debug.success.available
 			? [
-					`snapshots: ${debug.value.snapshots.length.toString()}`,
-					...debug.value.snapshots.map(
+					`snapshots: ${debug.success.snapshots.length.toString()}`,
+					...debug.success.snapshots.map(
 						(snapshot) =>
 							`- ${snapshot.sessionId ?? "null"} placeholderMode=${snapshot.localPlaceholderMode} | trailingCompletedTool=${snapshot.hasTrailingCompletedTool.toString()} optimistic=${snapshot.hasOptimisticPendingEntry} pendingSend=${snapshot.hasLocalPendingSendIntent} activity=${snapshot.activityKind ?? "null"} turn=${snapshot.turnState ?? "null"} lifecycle=${snapshot.lifecycleStatus ?? "null"} source=${snapshot.sourceKind ?? "null"} canSend=${snapshot.actionabilityCanSend === null ? "null" : snapshot.actionabilityCanSend.toString()} canSubmit=${snapshot.sessionCanSubmit.toString()} disableSend=${snapshot.disableSendForFailedFirstSend.toString()} entries=${snapshot.visibleEntryCount.toString()}`
 					),
@@ -1395,8 +1512,12 @@ export async function runCli(
 			summary,
 			artifactPath,
 			artifactKind: artifactPath === undefined ? undefined : "planning-debug",
-			error: artifact.isErr()
-				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+			error: Result.isFailure(artifact)
+				? dependencyError(
+						artifact.failure.code,
+						artifact.failure.message,
+						"Check /tmp permissions."
+					)
 				: undefined,
 		});
 		process.stdout.write(formatCommandResult(result, options.format));
@@ -1405,71 +1526,77 @@ export async function runCli(
 
 	if (options.command === "computer-probe") {
 		const sessionId = options.sessionId.length === 0 ? "acepe-computer-use-qa" : options.sessionId;
-		const probe = await probeComputerUse({
-			appIdentifier: options.appIdentifier,
-			sessionId,
-			action: options.action,
-			targetLabel: options.targetLabel,
-			text: options.text,
-			key: options.key,
-			dx: options.dx,
-			dy: options.dy,
-			skipDriver: options.skipDriver,
-		});
-		if (probe.isErr()) {
+		const probe = await Effect.runPromise(
+			Effect.result(
+				probeComputerUse({
+					appIdentifier: options.appIdentifier,
+					sessionId,
+					action: options.action,
+					targetLabel: options.targetLabel,
+					text: options.text,
+					key: options.key,
+					dx: options.dx,
+					dy: options.dy,
+					skipDriver: options.skipDriver,
+				})
+			)
+		);
+		if (Result.isFailure(probe)) {
 			const result = buildResult({
 				command: "computer-probe",
 				status: "fail",
 				summary: ["Unable to invoke the Acepe computer-use probe."],
 				error: dependencyError(
-					probe.error.code,
-					probe.error.message,
+					probe.failure.code,
+					probe.failure.message,
 					"Run acepe-qa doctor, then retry computer-probe against the dev app."
 				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const artifact = await writeJsonArtifact("computer-probe", probe.value);
-		const artifactPath = artifact.isOk() ? artifact.value : undefined;
-		const hasAction = probe.value.actionVerb !== null;
+		const artifact = await Effect.runPromise(
+			Effect.result(writeJsonArtifact("computer-probe", probe.success))
+		);
+		const artifactPath = Result.isSuccess(artifact) ? artifact.success : undefined;
+		const hasAction = probe.success.actionVerb !== null;
 		const hasObservationFacts =
-			probe.value.app !== null || probe.value.window !== null || probe.value.elementCount > 0;
+			probe.success.app !== null || probe.success.window !== null || probe.success.elementCount > 0;
 		const actionChanged =
-			probe.value.actionChangedCount !== null && probe.value.actionChangedCount > 0;
-		const actionNeedsObservedChange = probe.value.actionVerb === "type";
+			probe.success.actionChangedCount !== null && probe.success.actionChangedCount > 0;
+		const actionNeedsObservedChange = probe.success.actionVerb === "type";
 		const actionSucceeded =
-			hasAction && probe.value.actionOk === true && (!actionNeedsObservedChange || actionChanged);
+			hasAction && probe.success.actionOk === true && (!actionNeedsObservedChange || actionChanged);
 		const observationSucceeded =
 			!hasAction &&
-			((probe.value.ok && hasObservationFacts) ||
-				probe.value.errorCode === "computer_permission_required");
+			((probe.success.ok && hasObservationFacts) ||
+				probe.success.errorCode === "computer_permission_required");
 		const status = actionSucceeded || observationSucceeded ? "ok" : "warn";
 		const baseSummary = [
-			`server: ${probe.value.serverName}`,
-			`tool: ${probe.value.toolName}`,
-			`transport: ${probe.value.transport}`,
-			`session: ${probe.value.sessionId}`,
-			`ok: ${probe.value.ok ? "yes" : "no"}`,
-			`isError: ${probe.value.isError ? "yes" : "no"}`,
-			`app: ${probe.value.app ?? "none"}`,
-			`window: ${probe.value.window ?? "none"}`,
-			`elements: ${probe.value.elementCount.toString()}`,
+			`server: ${probe.success.serverName}`,
+			`tool: ${probe.success.toolName}`,
+			`transport: ${probe.success.transport}`,
+			`session: ${probe.success.sessionId}`,
+			`ok: ${probe.success.ok ? "yes" : "no"}`,
+			`isError: ${probe.success.isError ? "yes" : "no"}`,
+			`app: ${probe.success.app ?? "none"}`,
+			`window: ${probe.success.window ?? "none"}`,
+			`elements: ${probe.success.elementCount.toString()}`,
 			`observation facts: ${hasObservationFacts ? "present" : "empty"}`,
-			`error: ${probe.value.errorCode ?? "none"}`,
-			`permission: ${probe.value.permissionKind ?? "none"}`,
+			`error: ${probe.success.errorCode ?? "none"}`,
+			`permission: ${probe.success.permissionKind ?? "none"}`,
 		];
 		const actionSummary =
-			probe.value.actionVerb === null
+			probe.success.actionVerb === null
 				? []
 				: [
-						`action: ${probe.value.actionVerb}`,
-						`target label: ${probe.value.actionTargetLabel ?? "none"}`,
-						`target id: ${probe.value.actionTargetId ?? "none"}`,
-						`action ok: ${probe.value.actionOk === true ? "yes" : "no"}`,
-						`action changed: ${probe.value.actionChangedCount === null ? "unknown" : probe.value.actionChangedCount.toString()}`,
-						`action elements: ${probe.value.actionElementCount === null ? "unknown" : probe.value.actionElementCount.toString()}`,
-						`action error: ${probe.value.actionErrorCode ?? "none"}`,
+						`action: ${probe.success.actionVerb}`,
+						`target label: ${probe.success.actionTargetLabel ?? "none"}`,
+						`target id: ${probe.success.actionTargetId ?? "none"}`,
+						`action ok: ${probe.success.actionOk === true ? "yes" : "no"}`,
+						`action changed: ${probe.success.actionChangedCount === null ? "unknown" : probe.success.actionChangedCount.toString()}`,
+						`action elements: ${probe.success.actionElementCount === null ? "unknown" : probe.success.actionElementCount.toString()}`,
+						`action error: ${probe.success.actionErrorCode ?? "none"}`,
 					];
 		const result = buildResult({
 			command: "computer-probe",
@@ -1477,132 +1604,156 @@ export async function runCli(
 			summary: baseSummary.concat(actionSummary),
 			artifactPath,
 			artifactKind: artifactPath === undefined ? undefined : "computer-probe",
-			error: artifact.isErr()
-				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+			error: Result.isFailure(artifact)
+				? dependencyError(
+						artifact.failure.code,
+						artifact.failure.message,
+						"Check /tmp permissions."
+					)
 				: undefined,
 		});
 		return emitVerifiedUiResult(options, result);
 	}
 
 	if (options.command === "resize-probe") {
-		const probe = await probePanelResize({
-			appIdentifier: options.appIdentifier,
-			dx: options.dx ?? 220,
-			steps: Number.isFinite(options.limit) ? options.limit : 24,
-			stepDelayMs: Number.isFinite(options.delayMs) ? options.delayMs : 16,
-			skipDriver: options.skipDriver,
-		});
-		if (probe.isErr()) {
+		const probe = await Effect.runPromise(
+			Effect.result(
+				probePanelResize({
+					appIdentifier: options.appIdentifier,
+					dx: options.dx ?? 220,
+					steps: Number.isFinite(options.limit) ? options.limit : 24,
+					stepDelayMs: Number.isFinite(options.delayMs) ? options.delayMs : 16,
+					skipDriver: options.skipDriver,
+				})
+			)
+		);
+		if (Result.isFailure(probe)) {
 			const result = buildResult({
 				command: "resize-probe",
 				status: "fail",
 				summary: ["Unable to run the panel resize probe."],
 				error: dependencyError(
-					probe.error.code,
-					probe.error.message,
+					probe.failure.code,
+					probe.failure.message,
 					"Run acepe-qa doctor, then retry resize-probe against the dev app."
 				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const artifact = await writeJsonArtifact("resize-probe", probe.value);
-		const artifactPath = artifact.isOk() ? artifact.value : undefined;
+		const artifact = await Effect.runPromise(
+			Effect.result(writeJsonArtifact("resize-probe", probe.success))
+		);
+		const artifactPath = Result.isSuccess(artifact) ? artifact.success : undefined;
 		const observedDelta =
-			probe.value.observedDeltaBeforeRestore === null
+			probe.success.observedDeltaBeforeRestore === null
 				? "unknown"
-				: probe.value.observedDeltaBeforeRestore.toFixed(1);
+				: probe.success.observedDeltaBeforeRestore.toFixed(1);
 		const finalLag =
-			probe.value.finalLagPx === null ? "unknown" : probe.value.finalLagPx.toFixed(1);
+			probe.success.finalLagPx === null ? "unknown" : probe.success.finalLagPx.toFixed(1);
 		const frameLag =
-			probe.value.maxFrameLagPx === null ? "unknown" : probe.value.maxFrameLagPx.toFixed(1);
+			probe.success.maxFrameLagPx === null ? "unknown" : probe.success.maxFrameLagPx.toFixed(1);
 		const frameDelay =
-			probe.value.maxFrameDelayMs === null ? "unknown" : probe.value.maxFrameDelayMs.toFixed(1);
+			probe.success.maxFrameDelayMs === null ? "unknown" : probe.success.maxFrameDelayMs.toFixed(1);
 		const avgFrameDelay =
-			probe.value.avgFrameDelayMs === null ? "unknown" : probe.value.avgFrameDelayMs.toFixed(1);
+			probe.success.avgFrameDelayMs === null ? "unknown" : probe.success.avgFrameDelayMs.toFixed(1);
 		const status =
-			!probe.value.found ||
-			(probe.value.maxFrameDelayMs !== null && probe.value.maxFrameDelayMs > 32)
+			!probe.success.found ||
+			(probe.success.maxFrameDelayMs !== null && probe.success.maxFrameDelayMs > 32)
 				? "warn"
 				: "ok";
 		const result = buildResult({
 			command: "resize-probe",
 			status,
 			summary: [
-				`found: ${probe.value.found ? "yes" : "no"}`,
-				`requested dx: ${probe.value.requestedDelta.toString()}px over ${probe.value.steps.toString()} steps`,
-				`width: ${probe.value.originalWidth === null ? "unknown" : probe.value.originalWidth.toFixed(1)}px -> ${probe.value.finalWidthBeforeRestore === null ? "unknown" : probe.value.finalWidthBeforeRestore.toFixed(1)}px before restore`,
+				`found: ${probe.success.found ? "yes" : "no"}`,
+				`requested dx: ${probe.success.requestedDelta.toString()}px over ${probe.success.steps.toString()} steps`,
+				`width: ${probe.success.originalWidth === null ? "unknown" : probe.success.originalWidth.toFixed(1)}px -> ${probe.success.finalWidthBeforeRestore === null ? "unknown" : probe.success.finalWidthBeforeRestore.toFixed(1)}px before restore`,
 				`observed delta: ${observedDelta}px`,
 				`final lag: ${finalLag}px`,
 				`max frame lag: ${frameLag}px`,
 				`frame delay: avg=${avgFrameDelay}ms max=${frameDelay}ms`,
-				`transition: ${probe.value.transitionProperty ?? "unknown"} duration=${probe.value.transitionDuration ?? "unknown"}`,
-				`restored width: ${probe.value.restoredWidth === null ? "unknown" : probe.value.restoredWidth.toFixed(1)}px`,
+				`transition: ${probe.success.transitionProperty ?? "unknown"} duration=${probe.success.transitionDuration ?? "unknown"}`,
+				`restored width: ${probe.success.restoredWidth === null ? "unknown" : probe.success.restoredWidth.toFixed(1)}px`,
 			],
 			artifactPath,
 			artifactKind: artifactPath === undefined ? undefined : "resize-probe",
-			error: artifact.isErr()
-				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+			error: Result.isFailure(artifact)
+				? dependencyError(
+						artifact.failure.code,
+						artifact.failure.message,
+						"Check /tmp permissions."
+					)
 				: undefined,
 		});
 		return emitVerifiedUiResult(options, result);
 	}
 
 	if (options.command === "resize-stream-probe") {
-		const probe = await probePanelResizeStream({
-			appIdentifier: options.appIdentifier,
-			dx: options.dx ?? 220,
-			durationMs: Number.isFinite(options.timeoutMs) ? options.timeoutMs : 600,
-			moveIntervalMs: Number.isFinite(options.delayMs) ? options.delayMs : 8,
-			skipDriver: options.skipDriver,
-		});
-		if (probe.isErr()) {
+		const probe = await Effect.runPromise(
+			Effect.result(
+				probePanelResizeStream({
+					appIdentifier: options.appIdentifier,
+					dx: options.dx ?? 220,
+					durationMs: Number.isFinite(options.timeoutMs) ? options.timeoutMs : 600,
+					moveIntervalMs: Number.isFinite(options.delayMs) ? options.delayMs : 8,
+					skipDriver: options.skipDriver,
+				})
+			)
+		);
+		if (Result.isFailure(probe)) {
 			const result = buildResult({
 				command: "resize-stream-probe",
 				status: "fail",
 				summary: ["Unable to run the continuous panel resize probe."],
 				error: dependencyError(
-					probe.error.code,
-					probe.error.message,
+					probe.failure.code,
+					probe.failure.message,
 					"Run acepe-qa doctor, then retry resize-stream-probe against the dev app."
 				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const artifact = await writeJsonArtifact("resize-stream-probe", probe.value);
-		const artifactPath = artifact.isOk() ? artifact.value : undefined;
-		const maxLag = probe.value.maxLagPx === null ? "unknown" : probe.value.maxLagPx.toFixed(1);
-		const avgLag = probe.value.avgLagPx === null ? "unknown" : probe.value.avgLagPx.toFixed(1);
+		const artifact = await Effect.runPromise(
+			Effect.result(writeJsonArtifact("resize-stream-probe", probe.success))
+		);
+		const artifactPath = Result.isSuccess(artifact) ? artifact.success : undefined;
+		const maxLag = probe.success.maxLagPx === null ? "unknown" : probe.success.maxLagPx.toFixed(1);
+		const avgLag = probe.success.avgLagPx === null ? "unknown" : probe.success.avgLagPx.toFixed(1);
 		const avgFrame =
-			probe.value.avgFrameIntervalMs === null
+			probe.success.avgFrameIntervalMs === null
 				? "unknown"
-				: probe.value.avgFrameIntervalMs.toFixed(1);
+				: probe.success.avgFrameIntervalMs.toFixed(1);
 		const maxFrame =
-			probe.value.maxFrameIntervalMs === null
+			probe.success.maxFrameIntervalMs === null
 				? "unknown"
-				: probe.value.maxFrameIntervalMs.toFixed(1);
+				: probe.success.maxFrameIntervalMs.toFixed(1);
 		const status =
-			!probe.value.found || (probe.value.maxLagPx !== null && probe.value.maxLagPx > 24)
+			!probe.success.found || (probe.success.maxLagPx !== null && probe.success.maxLagPx > 24)
 				? "warn"
 				: "ok";
 		const result = buildResult({
 			command: "resize-stream-probe",
 			status,
 			summary: [
-				`found: ${probe.value.found ? "yes" : "no"}`,
-				`requested dx: ${probe.value.requestedDelta.toString()}px over ${probe.value.durationMs.toString()}ms`,
-				`moves: ${probe.value.moveCount.toString()} every ${probe.value.moveIntervalMs.toString()}ms`,
-				`frames: ${probe.value.frameCount.toString()} avg=${avgFrame}ms max=${maxFrame}ms over50=${probe.value.framesOver50Ms.toString()}`,
+				`found: ${probe.success.found ? "yes" : "no"}`,
+				`requested dx: ${probe.success.requestedDelta.toString()}px over ${probe.success.durationMs.toString()}ms`,
+				`moves: ${probe.success.moveCount.toString()} every ${probe.success.moveIntervalMs.toString()}ms`,
+				`frames: ${probe.success.frameCount.toString()} avg=${avgFrame}ms max=${maxFrame}ms over50=${probe.success.framesOver50Ms.toString()}`,
 				`lag: avg=${avgLag}px max=${maxLag}px`,
-				`width: ${probe.value.originalWidth === null ? "unknown" : probe.value.originalWidth.toFixed(1)}px -> ${probe.value.finalWidthBeforeRestore === null ? "unknown" : probe.value.finalWidthBeforeRestore.toFixed(1)}px before restore`,
-				`transition: ${probe.value.transitionProperty ?? "unknown"} duration=${probe.value.transitionDuration ?? "unknown"}`,
-				`restored width: ${probe.value.restoredWidth === null ? "unknown" : probe.value.restoredWidth.toFixed(1)}px`,
+				`width: ${probe.success.originalWidth === null ? "unknown" : probe.success.originalWidth.toFixed(1)}px -> ${probe.success.finalWidthBeforeRestore === null ? "unknown" : probe.success.finalWidthBeforeRestore.toFixed(1)}px before restore`,
+				`transition: ${probe.success.transitionProperty ?? "unknown"} duration=${probe.success.transitionDuration ?? "unknown"}`,
+				`restored width: ${probe.success.restoredWidth === null ? "unknown" : probe.success.restoredWidth.toFixed(1)}px`,
 			],
 			artifactPath,
 			artifactKind: artifactPath === undefined ? undefined : "resize-stream-probe",
-			error: artifact.isErr()
-				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+			error: Result.isFailure(artifact)
+				? dependencyError(
+						artifact.failure.code,
+						artifact.failure.message,
+						"Check /tmp permissions."
+					)
 				: undefined,
 		});
 		return emitVerifiedUiResult(options, result);
@@ -1623,48 +1774,58 @@ export async function runCli(
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const selection = await selectPanelProject({
-			appIdentifier: options.appIdentifier,
-			panelId: options.panelId,
-			projectPath: options.projectPath,
-			skipDriver: options.skipDriver,
-		});
-		if (selection.isErr()) {
+		const selection = await Effect.runPromise(
+			Effect.result(
+				selectPanelProject({
+					appIdentifier: options.appIdentifier,
+					panelId: options.panelId,
+					projectPath: options.projectPath,
+					skipDriver: options.skipDriver,
+				})
+			)
+		);
+		if (Result.isFailure(selection)) {
 			const result = buildResult({
 				command: "select-project",
 				status: "fail",
 				summary: ["Unable to select the project in the Acepe WebView."],
 				error: dependencyError(
-					selection.error.code,
-					selection.error.message,
+					selection.failure.code,
+					selection.failure.message,
 					"Run acepe-qa doctor, then retry with an exact panel id and project path."
 				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const artifact = await writeJsonArtifact("select-project", selection.value);
-		const artifactPath = artifact.isOk() ? artifact.value : undefined;
+		const artifact = await Effect.runPromise(
+			Effect.result(writeJsonArtifact("select-project", selection.success))
+		);
+		const artifactPath = Result.isSuccess(artifact) ? artifact.success : undefined;
 		const result = buildResult({
 			command: "select-project",
-			status: selection.value.selected ? "ok" : "fail",
+			status: selection.success.selected ? "ok" : "fail",
 			summary: [
-				`panel: ${selection.value.panelId}`,
-				`project path: ${selection.value.projectPath}`,
-				`project name: ${selection.value.projectName ?? "missing"}`,
-				`selected: ${selection.value.selected ? "yes" : "no"}`,
-				`selected aria label: ${selection.value.selectedAriaLabel ?? "missing"}`,
-				`error: ${selection.value.errorMessage ?? "none"}`,
+				`panel: ${selection.success.panelId}`,
+				`project path: ${selection.success.projectPath}`,
+				`project name: ${selection.success.projectName ?? "missing"}`,
+				`selected: ${selection.success.selected ? "yes" : "no"}`,
+				`selected aria label: ${selection.success.selectedAriaLabel ?? "missing"}`,
+				`error: ${selection.success.errorMessage ?? "none"}`,
 			],
 			artifactPath,
 			artifactKind: artifactPath === undefined ? undefined : "select-project",
-			error: artifact.isErr()
-				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
-				: selection.value.selected
+			error: Result.isFailure(artifact)
+				? dependencyError(
+						artifact.failure.code,
+						artifact.failure.message,
+						"Check /tmp permissions."
+					)
+				: selection.success.selected
 					? undefined
 					: dependencyError(
 							"project_selection_failed",
-							selection.value.errorMessage ??
+							selection.success.errorMessage ??
 								"The project selection was not reflected in the target panel.",
 							"Inspect the target panel project trigger and retry."
 						),
@@ -1687,44 +1848,54 @@ export async function runCli(
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const click = await clickWebview({
-			appIdentifier: options.appIdentifier,
-			selector: options.selector.length === 0 ? null : options.selector,
-			text: options.text.length === 0 ? null : options.text,
-			thenSelector: options.thenSelector.length === 0 ? null : options.thenSelector,
-			thenText: options.thenText.length === 0 ? null : options.thenText,
-			key: options.key.length === 0 ? null : options.key,
-			skipDriver: options.skipDriver,
-		});
-		if (click.isErr()) {
+		const click = await Effect.runPromise(
+			Effect.result(
+				clickWebview({
+					appIdentifier: options.appIdentifier,
+					selector: options.selector.length === 0 ? null : options.selector,
+					text: options.text.length === 0 ? null : options.text,
+					thenSelector: options.thenSelector.length === 0 ? null : options.thenSelector,
+					thenText: options.thenText.length === 0 ? null : options.thenText,
+					key: options.key.length === 0 ? null : options.key,
+					skipDriver: options.skipDriver,
+				})
+			)
+		);
+		if (Result.isFailure(click)) {
 			const result = buildResult({
 				command: "click",
 				status: "fail",
 				summary: ["Unable to click in the Acepe WebView."],
 				error: dependencyError(
-					click.error.code,
-					click.error.message,
+					click.failure.code,
+					click.failure.message,
 					"Run acepe-qa doctor, then retry click."
 				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const artifact = await writeJsonArtifact("click", click.value);
-		const artifactPath = artifact.isOk() ? artifact.value : undefined;
+		const artifact = await Effect.runPromise(
+			Effect.result(writeJsonArtifact("click", click.success))
+		);
+		const artifactPath = Result.isSuccess(artifact) ? artifact.success : undefined;
 		const result = buildResult({
 			command: "click",
-			status: click.value.clicked ? "ok" : "warn",
+			status: click.success.clicked ? "ok" : "warn",
 			summary: [
-				`clicked: ${click.value.clicked ? "yes" : "no"}`,
-				click.value.match === null
+				`clicked: ${click.success.clicked ? "yes" : "no"}`,
+				click.success.match === null
 					? "match: none"
-					: `match: ${click.value.match.tag} "${click.value.match.text.slice(0, 80)}"`,
+					: `match: ${click.success.match.tag} "${click.success.match.text.slice(0, 80)}"`,
 			],
 			artifactPath,
 			artifactKind: artifactPath === undefined ? undefined : "click",
-			error: artifact.isErr()
-				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+			error: Result.isFailure(artifact)
+				? dependencyError(
+						artifact.failure.code,
+						artifact.failure.message,
+						"Check /tmp permissions."
+					)
 				: undefined,
 		});
 		return emitVerifiedUiResult(options, result);
@@ -1745,53 +1916,63 @@ export async function runCli(
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const hover = await hoverWebview({
-			appIdentifier: options.appIdentifier,
-			selector: options.selector.length === 0 ? null : options.selector,
-			afterSelector: options.afterSelector.length === 0 ? null : options.afterSelector,
-			afterLimit: Number.isFinite(options.limit) ? options.limit : 10,
-			text: options.text.length === 0 ? null : options.text,
-			delayMs: options.delayMs,
-			skipDriver: options.skipDriver,
-		});
-		if (hover.isErr()) {
+		const hover = await Effect.runPromise(
+			Effect.result(
+				hoverWebview({
+					appIdentifier: options.appIdentifier,
+					selector: options.selector.length === 0 ? null : options.selector,
+					afterSelector: options.afterSelector.length === 0 ? null : options.afterSelector,
+					afterLimit: Number.isFinite(options.limit) ? options.limit : 10,
+					text: options.text.length === 0 ? null : options.text,
+					delayMs: options.delayMs,
+					skipDriver: options.skipDriver,
+				})
+			)
+		);
+		if (Result.isFailure(hover)) {
 			const result = buildResult({
 				command: "hover",
 				status: "fail",
 				summary: ["Unable to hover in the Acepe WebView."],
 				error: dependencyError(
-					hover.error.code,
-					hover.error.message,
+					hover.failure.code,
+					hover.failure.message,
 					"Run acepe-qa doctor, then retry hover."
 				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const artifact = await writeJsonArtifact("hover", hover.value);
-		const artifactPath = artifact.isOk() ? artifact.value : undefined;
+		const artifact = await Effect.runPromise(
+			Effect.result(writeJsonArtifact("hover", hover.success))
+		);
+		const artifactPath = Result.isSuccess(artifact) ? artifact.success : undefined;
 		const result = buildResult({
 			command: "hover",
-			status: hover.value.hovered ? "ok" : "warn",
+			status: hover.success.hovered ? "ok" : "warn",
 			summary: [
-				`hovered: ${hover.value.hovered ? "yes" : "no"}`,
-				`css :hover: ${hover.value.matchesHoverPseudoClass ? "yes" : "no"}`,
-				`native pointer: ${hover.value.pointerMoved ? "moved" : "not moved"}`,
+				`hovered: ${hover.success.hovered ? "yes" : "no"}`,
+				`css :hover: ${hover.success.matchesHoverPseudoClass ? "yes" : "no"}`,
+				`native pointer: ${hover.success.pointerMoved ? "moved" : "not moved"}`,
 				`sample delay: ${options.delayMs.toString()}ms`,
-				hover.value.screenPoint === null
+				hover.success.screenPoint === null
 					? "screen point: none"
-					: `screen point: ${hover.value.screenPoint.x.toFixed(1)}, ${hover.value.screenPoint.y.toFixed(1)}`,
-				hover.value.match === null
+					: `screen point: ${hover.success.screenPoint.x.toFixed(1)}, ${hover.success.screenPoint.y.toFixed(1)}`,
+				hover.success.match === null
 					? "match: none"
-					: `match: ${hover.value.match.tag} "${hover.value.match.text.slice(0, 80)}"`,
-				hover.value.after === undefined || hover.value.after === null
+					: `match: ${hover.success.match.tag} "${hover.success.match.text.slice(0, 80)}"`,
+				hover.success.after === undefined || hover.success.after === null
 					? "after: none"
-					: `after: ${hover.value.after.count.toString()} matches for ${hover.value.after.selector}`,
+					: `after: ${hover.success.after.count.toString()} matches for ${hover.success.after.selector}`,
 			],
 			artifactPath,
 			artifactKind: artifactPath === undefined ? undefined : "hover",
-			error: artifact.isErr()
-				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+			error: Result.isFailure(artifact)
+				? dependencyError(
+						artifact.failure.code,
+						artifact.failure.message,
+						"Check /tmp permissions."
+					)
 				: undefined,
 		});
 		return emitVerifiedUiResult(options, result);
@@ -1812,104 +1993,130 @@ export async function runCli(
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const navigation = await navigateWebview({
-			appIdentifier: options.appIdentifier,
-			path: options.path,
-			skipDriver: options.skipDriver,
-		});
-		if (navigation.isErr()) {
+		const navigation = await Effect.runPromise(
+			Effect.result(
+				navigateWebview({
+					appIdentifier: options.appIdentifier,
+					path: options.path,
+					skipDriver: options.skipDriver,
+				})
+			)
+		);
+		if (Result.isFailure(navigation)) {
 			const result = buildResult({
 				command: "navigate",
 				status: "fail",
 				summary: ["Unable to navigate the Acepe WebView."],
 				error: dependencyError(
-					navigation.error.code,
-					navigation.error.message,
+					navigation.failure.code,
+					navigation.failure.message,
 					"Run acepe-qa doctor, then retry navigate."
 				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const artifact = await writeJsonArtifact("navigate", navigation.value);
-		const artifactPath = artifact.isOk() ? artifact.value : undefined;
+		const artifact = await Effect.runPromise(
+			Effect.result(writeJsonArtifact("navigate", navigation.success))
+		);
+		const artifactPath = Result.isSuccess(artifact) ? artifact.success : undefined;
 		const result = buildResult({
 			command: "navigate",
 			status: "ok",
 			summary: [
-				`from: ${navigation.value.from}`,
-				`to: ${navigation.value.to}`,
-				`path: ${navigation.value.path}`,
+				`from: ${navigation.success.from}`,
+				`to: ${navigation.success.to}`,
+				`path: ${navigation.success.path}`,
 			],
 			artifactPath,
 			artifactKind: artifactPath === undefined ? undefined : "navigate",
-			error: artifact.isErr()
-				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+			error: Result.isFailure(artifact)
+				? dependencyError(
+						artifact.failure.code,
+						artifact.failure.message,
+						"Check /tmp permissions."
+					)
 				: undefined,
 		});
 		return emitVerifiedUiResult(options, result);
 	}
 
 	if (options.command === "reload") {
-		const reload = await reloadWebview({
-			appIdentifier: options.appIdentifier,
-			skipDriver: options.skipDriver,
-		});
-		if (reload.isErr()) {
+		const reload = await Effect.runPromise(
+			Effect.result(
+				reloadWebview({
+					appIdentifier: options.appIdentifier,
+					skipDriver: options.skipDriver,
+				})
+			)
+		);
+		if (Result.isFailure(reload)) {
 			const result = buildResult({
 				command: "reload",
 				status: "fail",
 				summary: ["Unable to reload the Acepe WebView."],
 				error: dependencyError(
-					reload.error.code,
-					reload.error.message,
+					reload.failure.code,
+					reload.failure.message,
 					"Run acepe-qa doctor, then retry reload."
 				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const artifact = await writeJsonArtifact("reload", reload.value);
-		const artifactPath = artifact.isOk() ? artifact.value : undefined;
+		const artifact = await Effect.runPromise(
+			Effect.result(writeJsonArtifact("reload", reload.success))
+		);
+		const artifactPath = Result.isSuccess(artifact) ? artifact.success : undefined;
 		const result = buildResult({
 			command: "reload",
 			status: "ok",
-			summary: [`from: ${reload.value.from}`, `path: ${reload.value.path}`],
+			summary: [`from: ${reload.success.from}`, `path: ${reload.success.path}`],
 			artifactPath,
 			artifactKind: artifactPath === undefined ? undefined : "reload",
-			error: artifact.isErr()
-				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+			error: Result.isFailure(artifact)
+				? dependencyError(
+						artifact.failure.code,
+						artifact.failure.message,
+						"Check /tmp permissions."
+					)
 				: undefined,
 		});
 		return emitVerifiedUiResult(options, result);
 	}
 
 	if (options.command === "thinking-toggle-probe") {
-		const probe = await probeThinkingToggle({
-			appIdentifier: options.appIdentifier,
-			skipDriver: options.skipDriver,
-		});
-		if (probe.isErr()) {
+		const probe = await Effect.runPromise(
+			Effect.result(
+				probeThinkingToggle({
+					appIdentifier: options.appIdentifier,
+					skipDriver: options.skipDriver,
+				})
+			)
+		);
+		if (Result.isFailure(probe)) {
 			const result = buildResult({
 				command: "thinking-toggle-probe",
 				status: "fail",
 				summary: ["Unable to probe the thinking toggle."],
 				error: dependencyError(
-					probe.error.code,
-					probe.error.message,
+					probe.failure.code,
+					probe.failure.message,
 					"Run acepe-qa doctor, then retry thinking-toggle-probe."
 				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const artifact = await writeJsonArtifact("thinking-toggle-probe", probe.value);
-		const artifactPath = artifact.isOk() ? artifact.value : undefined;
+		const artifact = await Effect.runPromise(
+			Effect.result(writeJsonArtifact("thinking-toggle-probe", probe.success))
+		);
+		const artifactPath = Result.isSuccess(artifact) ? artifact.success : undefined;
 		const summary = [
-			`found: ${probe.value.found ? "yes" : "no"}`,
-			`clicked: ${probe.value.clicked ? "yes" : "no"}`,
+			`found: ${probe.success.found ? "yes" : "no"}`,
+			`clicked: ${probe.success.clicked ? "yes" : "no"}`,
 		].concat(
-			probe.value.samples.map((sample) => {
+			probe.success.samples.map((sample) => {
 				const content =
 					sample.firstContentText === null ? "" : ` text="${sample.firstContentText.slice(0, 60)}"`;
 				return `${sample.label}: expand=${sample.expandCount.toString()} collapse=${sample.collapseCount.toString()} content=${sample.contentCount.toString()} first=${sample.firstButtonName ?? "none"}${content}`;
@@ -1917,7 +2124,7 @@ export async function runCli(
 		);
 		const result = buildResult({
 			command: "thinking-toggle-probe",
-			status: probe.value.samples.some(
+			status: probe.success.samples.some(
 				(sample) => sample.collapseCount > 0 && sample.contentCount > 0
 			)
 				? "ok"
@@ -1925,8 +2132,12 @@ export async function runCli(
 			summary,
 			artifactPath,
 			artifactKind: artifactPath === undefined ? undefined : "thinking-toggle-probe",
-			error: artifact.isErr()
-				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+			error: Result.isFailure(artifact)
+				? dependencyError(
+						artifact.failure.code,
+						artifact.failure.message,
+						"Check /tmp permissions."
+					)
 				: undefined,
 		});
 		return emitVerifiedUiResult(options, result);
@@ -1951,41 +2162,51 @@ export async function runCli(
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const probe = await probeFirstSendTimeline({
-			appIdentifier: options.appIdentifier,
-			text: options.text,
-			selector: options.selector,
-			panelId: options.panelId,
-			sessionId: options.sessionId,
-			preScrollOffsetPx: options.preScrollOffsetPx,
-			timeoutMs: Number.isFinite(options.timeoutMs) ? options.timeoutMs : 5_000,
-			skipDriver: options.skipDriver,
-		});
-		if (probe.isErr()) {
+		const probe = await Effect.runPromise(
+			Effect.result(
+				probeFirstSendTimeline({
+					appIdentifier: options.appIdentifier,
+					text: options.text,
+					selector: options.selector,
+					panelId: options.panelId,
+					sessionId: options.sessionId,
+					preScrollOffsetPx: options.preScrollOffsetPx,
+					timeoutMs: Number.isFinite(options.timeoutMs) ? options.timeoutMs : 5_000,
+					skipDriver: options.skipDriver,
+				})
+			)
+		);
+		if (Result.isFailure(probe)) {
 			const result = buildResult({
 				command: "first-send-probe",
 				status: "fail",
 				summary: ["Unable to probe first-send timing."],
 				error: dependencyError(
-					probe.error.code,
-					probe.error.message,
+					probe.failure.code,
+					probe.failure.message,
 					"Run acepe-qa doctor; ensure the target composer is visible."
 				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const artifact = await writeJsonArtifact("first-send-probe", probe.value);
-		const artifactPath = artifact.isOk() ? artifact.value : undefined;
-		const probeSummary = summarizeFirstSendProbe(probe.value);
+		const artifact = await Effect.runPromise(
+			Effect.result(writeJsonArtifact("first-send-probe", probe.success))
+		);
+		const artifactPath = Result.isSuccess(artifact) ? artifact.success : undefined;
+		const probeSummary = summarizeFirstSendProbe(probe.success);
 		const result = buildResult({
 			command: "first-send-probe",
 			status: probeSummary.status,
 			summary: probeSummary.lines,
 			artifactPath,
 			artifactKind: artifactPath === undefined ? undefined : "first-send-probe",
-			error: artifact.isErr()
-				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+			error: Result.isFailure(artifact)
+				? dependencyError(
+						artifact.failure.code,
+						artifact.failure.message,
+						"Check /tmp permissions."
+					)
 				: undefined,
 		});
 		return emitVerifiedUiResult(options, result);
@@ -2010,53 +2231,63 @@ export async function runCli(
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const probe = await probeComposerEnterSubmit({
-			appIdentifier: options.appIdentifier,
-			text: options.text,
-			panelId: options.panelId,
-			sessionId: options.sessionId,
-			skipDriver: options.skipDriver,
-		});
-		if (probe.isErr()) {
+		const probe = await Effect.runPromise(
+			Effect.result(
+				probeComposerEnterSubmit({
+					appIdentifier: options.appIdentifier,
+					text: options.text,
+					panelId: options.panelId,
+					sessionId: options.sessionId,
+					skipDriver: options.skipDriver,
+				})
+			)
+		);
+		if (Result.isFailure(probe)) {
 			const result = buildResult({
 				command: "composer-enter-probe",
 				status: "fail",
 				summary: ["Unable to probe plain Enter submission."],
 				error: dependencyError(
-					probe.error.code,
-					probe.error.message,
+					probe.failure.code,
+					probe.failure.message,
 					"Run qa doctor and confirm the exact panel remains open."
 				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const artifact = await writeJsonArtifact("composer-enter-probe", probe.value);
-		const artifactPath = artifact.isOk() ? artifact.value : undefined;
+		const artifact = await Effect.runPromise(
+			Effect.result(writeJsonArtifact("composer-enter-probe", probe.success))
+		);
+		const artifactPath = Result.isSuccess(artifact) ? artifact.success : undefined;
 		const passed =
-			probe.value.targetFound &&
-			probe.value.composerFound &&
-			probe.value.sendReadyBeforeEnter &&
-			probe.value.enterDefaultPrevented &&
-			!probe.value.newlineWouldBeInserted &&
-			probe.value.draftAfterEnter.length === 0 &&
-			probe.value.submittedUserRowFound;
+			probe.success.targetFound &&
+			probe.success.composerFound &&
+			probe.success.sendReadyBeforeEnter &&
+			probe.success.enterDefaultPrevented &&
+			!probe.success.newlineWouldBeInserted &&
+			probe.success.draftAfterEnter.length === 0 &&
+			probe.success.submittedUserRowFound;
 		const result = buildResult({
 			command: "composer-enter-probe",
 			status: passed ? "ok" : "fail",
 			summary: [
-				`target: ${probe.value.targetFound ? "found" : "missing"}`,
-				`composer: ${probe.value.composerFound ? "found" : "missing"}`,
-				`send ready before Enter: ${probe.value.sendReadyBeforeEnter ? "yes" : "no"}`,
-				`Enter default prevented: ${probe.value.enterDefaultPrevented ? "yes" : "no"}`,
-				`browser newline default: ${probe.value.newlineWouldBeInserted ? "would run" : "blocked"}`,
-				`submitted user row: ${probe.value.submittedUserRowFound ? "found" : "missing"}`,
-				`lifecycle before/after: ${probe.value.planningBefore?.lifecycleStatus ?? "unknown"} -> ${probe.value.planningAfter?.lifecycleStatus ?? "unknown"}`,
+				`target: ${probe.success.targetFound ? "found" : "missing"}`,
+				`composer: ${probe.success.composerFound ? "found" : "missing"}`,
+				`send ready before Enter: ${probe.success.sendReadyBeforeEnter ? "yes" : "no"}`,
+				`Enter default prevented: ${probe.success.enterDefaultPrevented ? "yes" : "no"}`,
+				`browser newline default: ${probe.success.newlineWouldBeInserted ? "would run" : "blocked"}`,
+				`submitted user row: ${probe.success.submittedUserRowFound ? "found" : "missing"}`,
+				`lifecycle before/after: ${probe.success.planningBefore?.lifecycleStatus ?? "unknown"} -> ${probe.success.planningAfter?.lifecycleStatus ?? "unknown"}`,
 			],
 			artifactPath,
 			artifactKind: artifactPath === undefined ? undefined : "composer-enter-probe",
-			error: artifact.isErr()
-				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+			error: Result.isFailure(artifact)
+				? dependencyError(
+						artifact.failure.code,
+						artifact.failure.message,
+						"Check /tmp permissions."
+					)
 				: undefined,
 		});
 		return emitVerifiedUiResult(options, result);
@@ -2092,150 +2323,176 @@ export async function runCli(
 			return statusExitCode(result.status);
 		}
 
-		const probe = await probeSessionOpenContent({
-			appIdentifier: options.appIdentifier,
-			sessionId: options.sessionId,
-			projectPath: options.projectPath,
-			agentId: options.agentId,
-			sourcePath: options.sourcePath.length === 0 ? null : options.sourcePath,
-			title: options.title.length === 0 ? null : options.title,
-			timeoutMs: options.timeoutMs,
-			closeAfter: !options.keepOpen,
-			skipDriver: options.skipDriver,
-		});
-		if (probe.isErr()) {
+		const probe = await Effect.runPromise(
+			Effect.result(
+				probeSessionOpenContent({
+					appIdentifier: options.appIdentifier,
+					sessionId: options.sessionId,
+					projectPath: options.projectPath,
+					agentId: options.agentId,
+					sourcePath: options.sourcePath.length === 0 ? null : options.sourcePath,
+					title: options.title.length === 0 ? null : options.title,
+					timeoutMs: options.timeoutMs,
+					closeAfter: !options.keepOpen,
+					skipDriver: options.skipDriver,
+				})
+			)
+		);
+		if (Result.isFailure(probe)) {
 			const result = buildResult({
 				command: "session-open-content-probe",
 				status: "fail",
 				summary: ["Unable to probe session content open timing."],
 				error: dependencyError(
-					probe.error.code,
-					probe.error.message,
+					probe.failure.code,
+					probe.failure.message,
 					"Run acepe-qa doctor; ensure the dev app contains the session-open QA hook."
 				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const artifact = await writeJsonArtifact("session-open-content-probe", probe.value);
-		const artifactPath = artifact.isOk() ? artifact.value : undefined;
-		const probeSummary = summarizeSessionOpenContentProbe(probe.value);
+		const artifact = await Effect.runPromise(
+			Effect.result(writeJsonArtifact("session-open-content-probe", probe.success))
+		);
+		const artifactPath = Result.isSuccess(artifact) ? artifact.success : undefined;
+		const probeSummary = summarizeSessionOpenContentProbe(probe.success);
 		const result = buildResult({
 			command: "session-open-content-probe",
 			status: probeSummary.status,
 			summary: [
-				`session: ${probe.value.sessionId} panel=${probe.value.panelId ?? "none"}`,
-				`setup: knownBefore=${probe.value.sessionKnownBeforeOpen ? "yes" : "no"} placeholder=${probe.value.placeholderRegistered ? "yes" : "no"} closedExisting=${probe.value.closedExistingPanel ? "yes" : "no"}`,
-				`foreground: start=${probe.value.documentVisibilityAtStart} focusStart=${probe.value.documentHasFocusAtStart ? "yes" : "no"} end=${probe.value.documentVisibilityAtEnd} focusEnd=${probe.value.documentHasFocusAtEnd ? "yes" : "no"} frameTiming=${probe.value.foregroundFrameTimingValid ? "valid" : "invalid"}`,
-				`timing: select=${formatOptionalMs(probe.value.selectCallMs)} panelDom=${formatOptionalMs(probe.value.panelDomReadyMs)} viewport=${formatOptionalMs(probe.value.transcriptViewportReadyMs)} firstRowDom=${formatOptionalMs(probe.value.firstRowDomReadyMs)} firstRowPaint=${formatOptionalMs(probe.value.firstRowPaintMs)}`,
-				`rows: firstPaint=${probe.value.rowCountAtFirstPaint.toString()} final=${probe.value.finalRowCount.toString()}`,
-				`end state: closeAfter=${probe.value.closeAfterRequested ? "yes" : "no"} panelStore=${probe.value.panelStillOpenAtEnd ? "open" : "closed"} panelDom=${probe.value.panelDomPresentAtEnd ? "present" : "missing"} session=${probe.value.sessionKnownAtEnd ? "known" : "unknown"} canonical=${probe.value.sessionHasCanonicalProjectionAtEnd ? "yes" : "no"} lifecycle=${probe.value.sessionLifecycleStatusAtEnd ?? "none"} canSend=${probe.value.sessionCanSendAtEnd === null ? "unknown" : probe.value.sessionCanSendAtEnd ? "yes" : "no"} messages=${probe.value.sessionMessageCountAtEnd === null ? "unknown" : probe.value.sessionMessageCountAtEnd.toString()}`,
-				`runtime errors: ${probe.value.runtimeErrors.length === 0 ? "none" : probe.value.runtimeErrors.slice(0, 3).join(" | ")}`,
-				`tauri invokes: count=${probe.value.tauriInvokeTimings.length.toString()} top=${formatSessionOpenInvokeTopList(probe.value.tauriInvokeTimings, 6)}`,
-				`pending tauri invokes: count=${probe.value.pendingTauriInvokes.length.toString()} top=${formatPendingInvokeTopList(probe.value.pendingTauriInvokes, 6)}`,
-				`open events: count=${probe.value.openEvents.length.toString()} tail=${formatSessionOpenEvents(probe.value.openEvents, 8)}`,
-				`hydration timings: count=${probe.value.hydrationTimings.length.toString()} top=${formatHydrationTimingTopList(probe.value.hydrationTimings, 3)}`,
-				`panel open marks: ${formatPanelOpenMarks(probe.value.panelOpenMarks)}`,
-				`frontend profile: samples=${probe.value.agentPanelPerformanceSamples.length.toString()} top=${formatAgentPanelPerformanceTopList(probe.value.agentPanelPerformanceSamples, 6)}`,
+				`session: ${probe.success.sessionId} panel=${probe.success.panelId ?? "none"}`,
+				`setup: knownBefore=${probe.success.sessionKnownBeforeOpen ? "yes" : "no"} placeholder=${probe.success.placeholderRegistered ? "yes" : "no"} closedExisting=${probe.success.closedExistingPanel ? "yes" : "no"}`,
+				`foreground: start=${probe.success.documentVisibilityAtStart} focusStart=${probe.success.documentHasFocusAtStart ? "yes" : "no"} end=${probe.success.documentVisibilityAtEnd} focusEnd=${probe.success.documentHasFocusAtEnd ? "yes" : "no"} frameTiming=${probe.success.foregroundFrameTimingValid ? "valid" : "invalid"}`,
+				`timing: select=${formatOptionalMs(probe.success.selectCallMs)} panelDom=${formatOptionalMs(probe.success.panelDomReadyMs)} viewport=${formatOptionalMs(probe.success.transcriptViewportReadyMs)} firstRowDom=${formatOptionalMs(probe.success.firstRowDomReadyMs)} firstRowPaint=${formatOptionalMs(probe.success.firstRowPaintMs)}`,
+				`rows: firstPaint=${probe.success.rowCountAtFirstPaint.toString()} final=${probe.success.finalRowCount.toString()}`,
+				`end state: closeAfter=${probe.success.closeAfterRequested ? "yes" : "no"} panelStore=${probe.success.panelStillOpenAtEnd ? "open" : "closed"} panelDom=${probe.success.panelDomPresentAtEnd ? "present" : "missing"} session=${probe.success.sessionKnownAtEnd ? "known" : "unknown"} canonical=${probe.success.sessionHasCanonicalProjectionAtEnd ? "yes" : "no"} lifecycle=${probe.success.sessionLifecycleStatusAtEnd ?? "none"} canSend=${probe.success.sessionCanSendAtEnd === null ? "unknown" : probe.success.sessionCanSendAtEnd ? "yes" : "no"} messages=${probe.success.sessionMessageCountAtEnd === null ? "unknown" : probe.success.sessionMessageCountAtEnd.toString()}`,
+				`runtime errors: ${probe.success.runtimeErrors.length === 0 ? "none" : probe.success.runtimeErrors.slice(0, 3).join(" | ")}`,
+				`tauri invokes: count=${probe.success.tauriInvokeTimings.length.toString()} top=${formatSessionOpenInvokeTopList(probe.success.tauriInvokeTimings, 6)}`,
+				`pending tauri invokes: count=${probe.success.pendingTauriInvokes.length.toString()} top=${formatPendingInvokeTopList(probe.success.pendingTauriInvokes, 6)}`,
+				`open events: count=${probe.success.openEvents.length.toString()} tail=${formatSessionOpenEvents(probe.success.openEvents, 8)}`,
+				`hydration timings: count=${probe.success.hydrationTimings.length.toString()} top=${formatHydrationTimingTopList(probe.success.hydrationTimings, 3)}`,
+				`panel open marks: ${formatPanelOpenMarks(probe.success.panelOpenMarks)}`,
+				`frontend profile: samples=${probe.success.agentPanelPerformanceSamples.length.toString()} top=${formatAgentPanelPerformanceTopList(probe.success.agentPanelPerformanceSamples, 6)}`,
 				probeSummary.backendLine,
 				probeSummary.targetLine,
-			].concat(probe.value.errorMessage === null ? [] : [`error: ${probe.value.errorMessage}`]),
+			].concat(probe.success.errorMessage === null ? [] : [`error: ${probe.success.errorMessage}`]),
 			artifactPath,
 			artifactKind: artifactPath === undefined ? undefined : "session-open-content-probe",
-			error: artifact.isErr()
-				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+			error: Result.isFailure(artifact)
+				? dependencyError(
+						artifact.failure.code,
+						artifact.failure.message,
+						"Check /tmp permissions."
+					)
 				: undefined,
 		});
 		return emitVerifiedUiResult(options, result);
 	}
 
 	if (options.command === "happy-path-perf") {
-		const probe = await probeHappyPathPerformance({
-			appIdentifier: options.appIdentifier,
-			timeoutMs: options.timeoutMs,
-			skipDriver: options.skipDriver,
-		});
-		if (probe.isErr()) {
+		const probe = await Effect.runPromise(
+			Effect.result(
+				probeHappyPathPerformance({
+					appIdentifier: options.appIdentifier,
+					timeoutMs: options.timeoutMs,
+					skipDriver: options.skipDriver,
+				})
+			)
+		);
+		if (Result.isFailure(probe)) {
 			const result = buildResult({
 				command: "happy-path-perf",
 				status: "fail",
 				summary: ["Unable to probe happy-path performance."],
 				error: dependencyError(
-					probe.error.code,
-					probe.error.message,
+					probe.failure.code,
+					probe.failure.message,
 					"Run acepe-qa doctor; ensure the dev app contains the happy-path QA hook."
 				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const artifact = await writeJsonArtifact("happy-path-perf", probe.value);
-		const artifactPath = artifact.isOk() ? artifact.value : undefined;
+		const artifact = await Effect.runPromise(
+			Effect.result(writeJsonArtifact("happy-path-perf", probe.success))
+		);
+		const artifactPath = Result.isSuccess(artifact) ? artifact.success : undefined;
 		const leakedPanel =
-			probe.value.app.panelCountAfter !== probe.value.app.panelCountBefore ||
-			probe.value.app.domPanelCountAfter !== probe.value.app.domPanelCountBefore;
-		const projectUnavailable = !probe.value.app.projectReady;
+			probe.success.app.panelCountAfter !== probe.success.app.panelCountBefore ||
+			probe.success.app.domPanelCountAfter !== probe.success.app.domPanelCountBefore;
+		const projectUnavailable = !probe.success.app.projectReady;
 		const result = buildResult({
 			command: "happy-path-perf",
-			status: probe.value.hookAvailable && !leakedPanel && !projectUnavailable ? "ok" : "warn",
+			status: probe.success.hookAvailable && !leakedPanel && !projectUnavailable ? "ok" : "warn",
 			summary: [
-				`hook: ${probe.value.hookAvailable ? "available" : "missing"}`,
-				`route: ${probe.value.route}`,
-				`runtime errors: ${probe.value.runtimeErrors.length === 0 ? "none" : probe.value.runtimeErrors.slice(0, 3).join(" | ")}`,
-				`timing env: ${probe.value.timingEnvironment.label}`,
-				`navigation: type=${probe.value.navigation.type ?? "unknown"} domContentLoaded=${formatOptionalMs(probe.value.navigation.domContentLoadedMs)} load=${formatOptionalMs(probe.value.navigation.loadEventEndMs)} duration=${formatOptionalMs(probe.value.navigation.durationMs)}`,
-				`shell ready: ready=${probe.value.app.shellReady ? "yes" : "no"} duration=${formatOptionalMs(probe.value.app.shellReadyDurationMs)} wait=${formatOptionalMs(probe.value.app.shellReadyWaitMs)}`,
-				`app init: complete=${probe.value.app.initializationComplete ? "yes" : "no"} duration=${formatOptionalMs(probe.value.app.initializationDurationMs)} wait=${formatOptionalMs(probe.value.app.initializationWaitMs)}`,
-				`project ready: ready=${probe.value.app.projectReady ? "yes" : "no"} wait=${formatOptionalMs(probe.value.app.projectReadyWaitMs)} projects=${probe.value.app.projectCountAtPanelCreate.toString()}`,
-				`panel open: create=${formatOptionalMs(probe.value.openClose.panelCreateMs)} dom=${formatOptionalMs(probe.value.openClose.panelDomReadyMs)} composer=${formatOptionalMs(probe.value.openClose.composerReadyAfterCreateMs)}`,
-				`panel open marked: preMark=${formatOptionalMs(probe.value.openClose.panelPreMarkDelayMs)} markedWork=${formatOptionalMs(probe.value.openClose.panelMarkedWorkMs)} domAfterMark=${formatOptionalMs(probe.value.openClose.panelDomReadyAfterLastMarkMs)} composerAfterMark=${formatOptionalMs(probe.value.openClose.composerReadyAfterLastMarkMs)}`,
-				`panel open detail: afterCreate=${probe.value.openClose.panelDomPresentAfterCreate ? "yes" : "no"} mutation=${formatOptionalMs(probe.value.openClose.panelDomMutationMs)} afterFlush=${formatOptionalMs(probe.value.openClose.panelDomAfterDomFlushMs)} afterFrame=${formatOptionalMs(probe.value.openClose.panelDomAfterFirstFrameMs)} composerMutation=${formatOptionalMs(probe.value.openClose.composerMutationMs)} composerWait=${formatOptionalMs(probe.value.openClose.composerReadyMs)}`,
-				`panel open marks: ${formatPanelOpenMarks(probe.value.openClose.panelOpenMarks)}`,
-				`panel open dom: nodes=${probe.value.openClose.panelDomNodeCount.toString()} rows=${probe.value.openClose.panelRowNodeCount.toString()} dropdownContent=${probe.value.openClose.panelDropdownContentNodeCount.toString()} resizeObservers=${formatOptionalCount(probe.value.openClose.resizeObserverConstructCount)} observe=${formatOptionalCount(probe.value.openClose.resizeObserverObserveCount)} callbacks=${formatOptionalCount(probe.value.openClose.resizeObserverCallbackCount)}`,
-				`panel close: call=${formatOptionalMs(probe.value.openClose.closeCallReturnMs)} microtask=${formatOptionalMs(probe.value.openClose.closeMicrotaskMs)} frame=${formatOptionalMs(probe.value.openClose.closeFirstFrameMs)} gone=${formatOptionalMs(probe.value.openClose.closeDomGoneMs)} total=${formatOptionalMs(probe.value.openClose.totalMs)}`,
-				`panel close dom: microtask=${probe.value.openClose.closeDomGoneAfterMicrotask ? "gone" : "present"} firstFrame=${probe.value.openClose.closeDomGoneAfterFirstFrame ? "gone" : "present"}`,
-				`panel counts: store ${probe.value.app.panelCountBefore.toString()} -> ${probe.value.app.panelCountAfter.toString()}, dom ${probe.value.app.domPanelCountBefore.toString()} -> ${probe.value.app.domPanelCountAfter.toString()}`,
+				`hook: ${probe.success.hookAvailable ? "available" : "missing"}`,
+				`route: ${probe.success.route}`,
+				`runtime errors: ${probe.success.runtimeErrors.length === 0 ? "none" : probe.success.runtimeErrors.slice(0, 3).join(" | ")}`,
+				`timing env: ${probe.success.timingEnvironment.label}`,
+				`navigation: type=${probe.success.navigation.type ?? "unknown"} domContentLoaded=${formatOptionalMs(probe.success.navigation.domContentLoadedMs)} load=${formatOptionalMs(probe.success.navigation.loadEventEndMs)} duration=${formatOptionalMs(probe.success.navigation.durationMs)}`,
+				`shell ready: ready=${probe.success.app.shellReady ? "yes" : "no"} duration=${formatOptionalMs(probe.success.app.shellReadyDurationMs)} wait=${formatOptionalMs(probe.success.app.shellReadyWaitMs)}`,
+				`app init: complete=${probe.success.app.initializationComplete ? "yes" : "no"} duration=${formatOptionalMs(probe.success.app.initializationDurationMs)} wait=${formatOptionalMs(probe.success.app.initializationWaitMs)}`,
+				`project ready: ready=${probe.success.app.projectReady ? "yes" : "no"} wait=${formatOptionalMs(probe.success.app.projectReadyWaitMs)} projects=${probe.success.app.projectCountAtPanelCreate.toString()}`,
+				`panel open: create=${formatOptionalMs(probe.success.openClose.panelCreateMs)} dom=${formatOptionalMs(probe.success.openClose.panelDomReadyMs)} composer=${formatOptionalMs(probe.success.openClose.composerReadyAfterCreateMs)}`,
+				`panel open marked: preMark=${formatOptionalMs(probe.success.openClose.panelPreMarkDelayMs)} markedWork=${formatOptionalMs(probe.success.openClose.panelMarkedWorkMs)} domAfterMark=${formatOptionalMs(probe.success.openClose.panelDomReadyAfterLastMarkMs)} composerAfterMark=${formatOptionalMs(probe.success.openClose.composerReadyAfterLastMarkMs)}`,
+				`panel open detail: afterCreate=${probe.success.openClose.panelDomPresentAfterCreate ? "yes" : "no"} mutation=${formatOptionalMs(probe.success.openClose.panelDomMutationMs)} afterFlush=${formatOptionalMs(probe.success.openClose.panelDomAfterDomFlushMs)} afterFrame=${formatOptionalMs(probe.success.openClose.panelDomAfterFirstFrameMs)} composerMutation=${formatOptionalMs(probe.success.openClose.composerMutationMs)} composerWait=${formatOptionalMs(probe.success.openClose.composerReadyMs)}`,
+				`panel open marks: ${formatPanelOpenMarks(probe.success.openClose.panelOpenMarks)}`,
+				`panel open dom: nodes=${probe.success.openClose.panelDomNodeCount.toString()} rows=${probe.success.openClose.panelRowNodeCount.toString()} dropdownContent=${probe.success.openClose.panelDropdownContentNodeCount.toString()} resizeObservers=${formatOptionalCount(probe.success.openClose.resizeObserverConstructCount)} observe=${formatOptionalCount(probe.success.openClose.resizeObserverObserveCount)} callbacks=${formatOptionalCount(probe.success.openClose.resizeObserverCallbackCount)}`,
+				`panel close: call=${formatOptionalMs(probe.success.openClose.closeCallReturnMs)} microtask=${formatOptionalMs(probe.success.openClose.closeMicrotaskMs)} frame=${formatOptionalMs(probe.success.openClose.closeFirstFrameMs)} gone=${formatOptionalMs(probe.success.openClose.closeDomGoneMs)} total=${formatOptionalMs(probe.success.openClose.totalMs)}`,
+				`panel close dom: microtask=${probe.success.openClose.closeDomGoneAfterMicrotask ? "gone" : "present"} firstFrame=${probe.success.openClose.closeDomGoneAfterFirstFrame ? "gone" : "present"}`,
+				`panel counts: store ${probe.success.app.panelCountBefore.toString()} -> ${probe.success.app.panelCountAfter.toString()}, dom ${probe.success.app.domPanelCountBefore.toString()} -> ${probe.success.app.domPanelCountAfter.toString()}`,
 			]
-				.concat(formatPanelCloseTraceSummary(probe.value))
-				.concat(formatProjectLoadTraceSummary(probe.value))
-				.concat(formatTauriInvokeSummary(probe.value))
-				.concat(formatStartupTraceSummary(probe.value)),
+				.concat(formatPanelCloseTraceSummary(probe.success))
+				.concat(formatProjectLoadTraceSummary(probe.success))
+				.concat(formatTauriInvokeSummary(probe.success))
+				.concat(formatStartupTraceSummary(probe.success)),
 			artifactPath,
 			artifactKind: artifactPath === undefined ? undefined : "happy-path-perf",
-			error: artifact.isErr()
-				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+			error: Result.isFailure(artifact)
+				? dependencyError(
+						artifact.failure.code,
+						artifact.failure.message,
+						"Check /tmp permissions."
+					)
 				: undefined,
 		});
 		return emitVerifiedUiResult(options, result);
 	}
 
 	if (options.command === "streaming-repro-lab") {
-		const lab = await openStreamingReproLab({
-			appIdentifier: options.appIdentifier,
-			delayMs: Number.isFinite(options.delayMs) ? options.delayMs : 300,
-			skipDriver: options.skipDriver,
-		});
-		if (lab.isErr()) {
+		const lab = await Effect.runPromise(
+			Effect.result(
+				openStreamingReproLab({
+					appIdentifier: options.appIdentifier,
+					delayMs: Number.isFinite(options.delayMs) ? options.delayMs : 300,
+					skipDriver: options.skipDriver,
+				})
+			)
+		);
+		if (Result.isFailure(lab)) {
 			const result = buildResult({
 				command: "streaming-repro-lab",
 				status: "fail",
 				summary: ["Unable to open the Streaming Repro Lab."],
 				error: dependencyError(
-					lab.error.code,
-					lab.error.message,
+					lab.failure.code,
+					lab.failure.message,
 					"Run acepe-qa doctor; ensure the dev app contains the streaming repro QA hook."
 				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const artifact = await writeJsonArtifact("streaming-repro-lab", lab.value);
-		const artifactPath = artifact.isOk() ? artifact.value : undefined;
+		const artifact = await Effect.runPromise(
+			Effect.result(writeJsonArtifact("streaming-repro-lab", lab.success))
+		);
+		const artifactPath = Result.isSuccess(artifact) ? artifact.success : undefined;
 		const streamingPerfLines =
-			lab.value.performance === null
+			lab.success.performance === null
 				? ["stream perf: unavailable"]
 				: (() => {
-						const steps = lab.value.performance.steps;
+						const steps = lab.success.performance.steps;
 						const slowest = steps.reduce(
 							(currentSlowest, step) =>
 								step.domFlushMs > currentSlowest.domFlushMs ? step : currentSlowest,
@@ -2252,26 +2509,31 @@ export async function runCli(
 							}
 						);
 						return [
-							`stream perf: phases=${lab.value.performance.phaseCount.toString()} total=${formatOptionalMs(lab.value.performance.totalMs)}`,
-							`stream env: ${lab.value.performance.visibilityState} focus=${lab.value.performance.documentHasFocus === null ? "unknown" : lab.value.performance.documentHasFocus ? "yes" : "no"}`,
+							`stream perf: phases=${lab.success.performance.phaseCount.toString()} total=${formatOptionalMs(lab.success.performance.totalMs)}`,
+							`stream env: ${lab.success.performance.visibilityState} focus=${lab.success.performance.documentHasFocus === null ? "unknown" : lab.success.performance.documentHasFocus ? "yes" : "no"}`,
 							`stream slowest flush: phase=${slowest.phaseId} flush=${formatOptionalMs(slowest.domFlushMs)} rows=${slowest.rowCount.toString()} chars=${slowest.assistantTextLength.toString()} animated=${slowest.animatedTokenSpans.toString()}`,
 						];
 					})();
 		const result = buildResult({
 			command: "streaming-repro-lab",
-			status: lab.value.hookAvailable && lab.value.opened && lab.value.labPresent ? "ok" : "warn",
+			status:
+				lab.success.hookAvailable && lab.success.opened && lab.success.labPresent ? "ok" : "warn",
 			summary: [
-				`hook: ${lab.value.hookAvailable ? "available" : "missing"}`,
-				`opened: ${lab.value.opened ? "yes" : "no"}`,
-				`lab: ${lab.value.labPresent ? "present" : "missing"}`,
-				`phase: ${lab.value.phaseLabel ?? "none"}`,
-				`token reveal mode: ${lab.value.tokenRevealMode ?? "none"}`,
-				`animated token spans: ${lab.value.tokenRevealAnimatedCount.toString()}`,
+				`hook: ${lab.success.hookAvailable ? "available" : "missing"}`,
+				`opened: ${lab.success.opened ? "yes" : "no"}`,
+				`lab: ${lab.success.labPresent ? "present" : "missing"}`,
+				`phase: ${lab.success.phaseLabel ?? "none"}`,
+				`token reveal mode: ${lab.success.tokenRevealMode ?? "none"}`,
+				`animated token spans: ${lab.success.tokenRevealAnimatedCount.toString()}`,
 			].concat(streamingPerfLines),
 			artifactPath,
 			artifactKind: artifactPath === undefined ? undefined : "streaming-repro-lab",
-			error: artifact.isErr()
-				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+			error: Result.isFailure(artifact)
+				? dependencyError(
+						artifact.failure.code,
+						artifact.failure.message,
+						"Check /tmp permissions."
+					)
 				: undefined,
 		});
 		return emitVerifiedUiResult(options, result);
@@ -2280,142 +2542,163 @@ export async function runCli(
 	if (options.command === "agent-panel-stress-lab" || options.command === "stress-lab") {
 		const rowCount = Number.isFinite(options.rows) ? options.rows : 1_000;
 		const seed = Number.isFinite(options.seed) ? options.seed : 1;
-		const lab = await openAgentPanelStressLab({
-			appIdentifier: options.appIdentifier,
-			rowCount,
-			preset: options.preset,
-			rendererMode: options.rendererMode,
-			seed,
-			includeStreamingTail: !options.noStreamingTail,
-			runScrollSample: !options.noScrollSample,
-			delayMs: Number.isFinite(options.delayMs) ? options.delayMs : 300,
-			timeoutMs: Number.isFinite(options.timeoutMs) ? options.timeoutMs : 20_000,
-			skipDriver: options.skipDriver,
-		});
-		if (lab.isErr()) {
+		const lab = await Effect.runPromise(
+			Effect.result(
+				openAgentPanelStressLab({
+					appIdentifier: options.appIdentifier,
+					rowCount,
+					preset: options.preset,
+					rendererMode: options.rendererMode,
+					seed,
+					includeStreamingTail: !options.noStreamingTail,
+					runScrollSample: !options.noScrollSample,
+					delayMs: Number.isFinite(options.delayMs) ? options.delayMs : 300,
+					timeoutMs: Number.isFinite(options.timeoutMs) ? options.timeoutMs : 20_000,
+					skipDriver: options.skipDriver,
+				})
+			)
+		);
+		if (Result.isFailure(lab)) {
 			const result = buildResult({
 				command: options.command,
 				status: "fail",
 				summary: ["Unable to run the Agent Panel Stress Lab."],
 				error: dependencyError(
-					lab.error.code,
-					lab.error.message,
+					lab.failure.code,
+					lab.failure.message,
 					"Run acepe-qa doctor; ensure the dev app contains the agent panel stress QA hook."
 				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const artifact = await writeJsonArtifact("agent-panel-stress-lab", lab.value);
-		const artifactPath = artifact.isOk() ? artifact.value : undefined;
-		const rowLabel = lab.value.rowCount === null ? "unknown" : lab.value.rowCount.toLocaleString();
+		const artifact = await Effect.runPromise(
+			Effect.result(writeJsonArtifact("agent-panel-stress-lab", lab.success))
+		);
+		const artifactPath = Result.isSuccess(artifact) ? artifact.success : undefined;
+		const rowLabel =
+			lab.success.rowCount === null ? "unknown" : lab.success.rowCount.toLocaleString();
 		const domRowLabel =
-			lab.value.domRowCount === null ? "unknown" : lab.value.domRowCount.toLocaleString();
-		const measurementWarningLines = agentPanelStressLabMeasurementWarnings(lab.value).map(
+			lab.success.domRowCount === null ? "unknown" : lab.success.domRowCount.toLocaleString();
+		const measurementWarningLines = agentPanelStressLabMeasurementWarnings(lab.success).map(
 			(warning) => `measurement warning: ${warning}`
 		);
 		const profilePhaseLines =
-			lab.value.dump === null
+			lab.success.dump === null
 				? ["profile: unavailable"]
-				: lab.value.dump.profileSummary.phases.slice(0, 5).map((phase) => {
+				: lab.success.dump.profileSummary.phases.slice(0, 5).map((phase) => {
 						const maxItems =
 							phase.maxItemCount === null ? "n/a" : phase.maxItemCount.toLocaleString();
 						return `profile: ${phase.phase} total=${formatOptionalMs(phase.totalDurationMs)} max=${formatOptionalMs(phase.maxDurationMs)} count=${phase.count.toString()} items=${maxItems}`;
 					});
 		const scrollUpdateLine =
-			lab.value.dump === null
+			lab.success.dump === null
 				? "scroll update: unavailable"
-				: `scroll update: samples=${lab.value.dump.summary.scrollUpdateSampleCount.toString()} avg=${formatOptionalMs(lab.value.dump.summary.averageScrollUpdateMs)} max=${formatOptionalMs(lab.value.dump.summary.maxScrollUpdateMs)} maxDomRows=${lab.value.dump.summary.maxScrollUpdateDomRowCount === null ? "unavailable" : lab.value.dump.summary.maxScrollUpdateDomRowCount.toLocaleString()}`;
+				: `scroll update: samples=${lab.success.dump.summary.scrollUpdateSampleCount.toString()} avg=${formatOptionalMs(lab.success.dump.summary.averageScrollUpdateMs)} max=${formatOptionalMs(lab.success.dump.summary.maxScrollUpdateMs)} maxDomRows=${lab.success.dump.summary.maxScrollUpdateDomRowCount === null ? "unavailable" : lab.success.dump.summary.maxScrollUpdateDomRowCount.toLocaleString()}`;
 		const scrollChurnLine =
-			lab.value.dump === null
+			lab.success.dump === null
 				? "scroll churn: unavailable"
-				: `scroll churn: maxMounted=${lab.value.dump.summary.maxScrollUpdateMountedRowCount === null ? "unavailable" : lab.value.dump.summary.maxScrollUpdateMountedRowCount.toLocaleString()} maxUnmounted=${lab.value.dump.summary.maxScrollUpdateUnmountedRowCount === null ? "unavailable" : lab.value.dump.summary.maxScrollUpdateUnmountedRowCount.toLocaleString()} maxCold=${lab.value.dump.summary.maxFrameColdRevealedRowCount === null ? "unavailable" : lab.value.dump.summary.maxFrameColdRevealedRowCount.toLocaleString()} maxStaticErr=${formatOptionalMs(lab.value.dump.summary.maxFrameStaticEstimateErrorPx)} profileMax=${formatOptionalMs(lab.value.dump.summary.maxScrollUpdateProfileDurationMs)} phase=${lab.value.dump.summary.maxScrollUpdateProfileSlowestPhase ?? "unavailable"}`;
+				: `scroll churn: maxMounted=${lab.success.dump.summary.maxScrollUpdateMountedRowCount === null ? "unavailable" : lab.success.dump.summary.maxScrollUpdateMountedRowCount.toLocaleString()} maxUnmounted=${lab.success.dump.summary.maxScrollUpdateUnmountedRowCount === null ? "unavailable" : lab.success.dump.summary.maxScrollUpdateUnmountedRowCount.toLocaleString()} maxCold=${lab.success.dump.summary.maxFrameColdRevealedRowCount === null ? "unavailable" : lab.success.dump.summary.maxFrameColdRevealedRowCount.toLocaleString()} maxStaticErr=${formatOptionalMs(lab.success.dump.summary.maxFrameStaticEstimateErrorPx)} profileMax=${formatOptionalMs(lab.success.dump.summary.maxScrollUpdateProfileDurationMs)} phase=${lab.success.dump.summary.maxScrollUpdateProfileSlowestPhase ?? "unavailable"}`;
 		const frameBudgetLine =
-			lab.value.dump === null
+			lab.success.dump === null
 				? "frame budget: unavailable"
-				: `frame budget: target=${formatOptionalMs(lab.value.dump.summary.targetFrameBudgetMs)} missed120=${lab.value.dump.summary.missed120HzFrameCount.toString()} maxOver=${formatOptionalMs(lab.value.dump.summary.maxFrameBudgetOverrunMs)}`;
+				: `frame budget: target=${formatOptionalMs(lab.success.dump.summary.targetFrameBudgetMs)} missed120=${lab.success.dump.summary.missed120HzFrameCount.toString()} maxOver=${formatOptionalMs(lab.success.dump.summary.maxFrameBudgetOverrunMs)}`;
 		const slowestFrameLine =
-			lab.value.dump === null
+			lab.success.dump === null
 				? "slowest frame: unavailable"
-				: `slowest frame: index=${lab.value.dump.summary.slowestFrameIndex === null ? "unavailable" : lab.value.dump.summary.slowestFrameIndex.toString()} delta=${formatOptionalMs(lab.value.dump.summary.slowestFrameDeltaMs)} cause=${lab.value.dump.summary.slowestFrameCause ?? "unavailable"} profile=${formatOptionalMs(lab.value.dump.summary.slowestFrameProfileDurationMs)} browser=${formatOptionalMs(lab.value.dump.summary.slowestFrameBrowserRenderMs)} prevBrowser=${formatOptionalMs(lab.value.dump.summary.slowestFramePreviousBrowserRenderMs)} preGap=${formatOptionalMs(lab.value.dump.summary.slowestFramePreFrameGapMs)} mounted=${lab.value.dump.summary.slowestFrameMountedRowCount === null ? "unavailable" : lab.value.dump.summary.slowestFrameMountedRowCount.toString()} unmounted=${lab.value.dump.summary.slowestFrameUnmountedRowCount === null ? "unavailable" : lab.value.dump.summary.slowestFrameUnmountedRowCount.toString()} cold=${lab.value.dump.summary.slowestFrameColdRevealedRowCount === null ? "unavailable" : lab.value.dump.summary.slowestFrameColdRevealedRowCount.toString()} static=${lab.value.dump.summary.slowestFrameStaticEstimateRowCount === null ? "unavailable" : lab.value.dump.summary.slowestFrameStaticEstimateRowCount.toString()} measured=${lab.value.dump.summary.slowestFrameMeasuredEstimateRowCount === null ? "unavailable" : lab.value.dump.summary.slowestFrameMeasuredEstimateRowCount.toString()} maxErr=${formatOptionalMs(lab.value.dump.summary.slowestFrameMaxStaticEstimateErrorPx)} avgErr=${formatOptionalMs(lab.value.dump.summary.slowestFrameAverageStaticEstimateErrorPx)} rows=${lab.value.dump.summary.slowestFrameDomRowCount === null ? "unavailable" : lab.value.dump.summary.slowestFrameDomRowCount.toString()}`;
+				: `slowest frame: index=${lab.success.dump.summary.slowestFrameIndex === null ? "unavailable" : lab.success.dump.summary.slowestFrameIndex.toString()} delta=${formatOptionalMs(lab.success.dump.summary.slowestFrameDeltaMs)} cause=${lab.success.dump.summary.slowestFrameCause ?? "unavailable"} profile=${formatOptionalMs(lab.success.dump.summary.slowestFrameProfileDurationMs)} browser=${formatOptionalMs(lab.success.dump.summary.slowestFrameBrowserRenderMs)} prevBrowser=${formatOptionalMs(lab.success.dump.summary.slowestFramePreviousBrowserRenderMs)} preGap=${formatOptionalMs(lab.success.dump.summary.slowestFramePreFrameGapMs)} mounted=${lab.success.dump.summary.slowestFrameMountedRowCount === null ? "unavailable" : lab.success.dump.summary.slowestFrameMountedRowCount.toString()} unmounted=${lab.success.dump.summary.slowestFrameUnmountedRowCount === null ? "unavailable" : lab.success.dump.summary.slowestFrameUnmountedRowCount.toString()} cold=${lab.success.dump.summary.slowestFrameColdRevealedRowCount === null ? "unavailable" : lab.success.dump.summary.slowestFrameColdRevealedRowCount.toString()} static=${lab.success.dump.summary.slowestFrameStaticEstimateRowCount === null ? "unavailable" : lab.success.dump.summary.slowestFrameStaticEstimateRowCount.toString()} measured=${lab.success.dump.summary.slowestFrameMeasuredEstimateRowCount === null ? "unavailable" : lab.success.dump.summary.slowestFrameMeasuredEstimateRowCount.toString()} maxErr=${formatOptionalMs(lab.success.dump.summary.slowestFrameMaxStaticEstimateErrorPx)} avgErr=${formatOptionalMs(lab.success.dump.summary.slowestFrameAverageStaticEstimateErrorPx)} rows=${lab.success.dump.summary.slowestFrameDomRowCount === null ? "unavailable" : lab.success.dump.summary.slowestFrameDomRowCount.toString()}`;
 		const result = buildResult({
 			command: options.command,
-			status: agentPanelStressLabStatus(lab.value),
+			status: agentPanelStressLabStatus(lab.success),
 			summary: [
-				`hook: ${lab.value.hookAvailable ? "available" : "missing"}`,
-				`opened: ${lab.value.opened ? "yes" : "no"}`,
-				`lab: ${lab.value.labPresent ? "present" : "missing"}`,
-				`scenario: rows=${rowLabel} preset=${lab.value.preset ?? "unknown"} renderer=${lab.value.rendererMode ?? "unknown"} seed=${lab.value.seed?.toString() ?? "unknown"}`,
+				`hook: ${lab.success.hookAvailable ? "available" : "missing"}`,
+				`opened: ${lab.success.opened ? "yes" : "no"}`,
+				`lab: ${lab.success.labPresent ? "present" : "missing"}`,
+				`scenario: rows=${rowLabel} preset=${lab.success.preset ?? "unknown"} renderer=${lab.success.rendererMode ?? "unknown"} seed=${lab.success.seed?.toString() ?? "unknown"}`,
 				`DOM rows: ${domRowLabel}`,
-				`render settle: ${formatOptionalMs(lab.value.renderSettleMs)}`,
-				`scroll: bottom=${formatOptionalMs(lab.value.scrollToBottomMs)} top=${formatOptionalMs(lab.value.scrollToTopMs)}`,
-				`frames: samples=${lab.value.frameSampleCount.toString()} jank=${lab.value.jankFrameCount.toString()} avg=${formatOptionalMs(lab.value.averageFrameDeltaMs)} max=${formatOptionalMs(lab.value.maxFrameDeltaMs)}`,
-				`frame env: ${lab.value.frameEnvironmentLabel ?? "unavailable"}`,
-				`frame throttle: ${lab.value.frameSamplingLikelyThrottled === null ? "unknown" : lab.value.frameSamplingLikelyThrottled ? "likely" : "no"}`,
-				`estimated fps: ${lab.value.estimatedFps === null ? "unavailable" : lab.value.estimatedFps.toFixed(2)}`,
+				`render settle: ${formatOptionalMs(lab.success.renderSettleMs)}`,
+				`scroll: bottom=${formatOptionalMs(lab.success.scrollToBottomMs)} top=${formatOptionalMs(lab.success.scrollToTopMs)}`,
+				`frames: samples=${lab.success.frameSampleCount.toString()} jank=${lab.success.jankFrameCount.toString()} avg=${formatOptionalMs(lab.success.averageFrameDeltaMs)} max=${formatOptionalMs(lab.success.maxFrameDeltaMs)}`,
+				`frame env: ${lab.success.frameEnvironmentLabel ?? "unavailable"}`,
+				`frame throttle: ${lab.success.frameSamplingLikelyThrottled === null ? "unknown" : lab.success.frameSamplingLikelyThrottled ? "likely" : "no"}`,
+				`estimated fps: ${lab.success.estimatedFps === null ? "unavailable" : lab.success.estimatedFps.toFixed(2)}`,
 				frameBudgetLine,
 				slowestFrameLine,
 				scrollUpdateLine,
 				scrollChurnLine,
-				`memory: ${lab.value.memoryLabel ?? "unavailable"}`,
+				`memory: ${lab.success.memoryLabel ?? "unavailable"}`,
 			]
 				.concat(measurementWarningLines)
 				.concat(profilePhaseLines),
 			artifactPath,
 			artifactKind: artifactPath === undefined ? undefined : "agent-panel-stress-lab",
-			error: artifact.isErr()
-				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+			error: Result.isFailure(artifact)
+				? dependencyError(
+						artifact.failure.code,
+						artifact.failure.message,
+						"Check /tmp permissions."
+					)
 				: undefined,
 		});
 		return emitVerifiedUiResult(options, result);
 	}
 
 	if (options.command === "planning-between-tools-probe") {
-		const probe = await probePlanningBetweenTools({
-			appIdentifier: options.appIdentifier,
-			delayMs: Number.isFinite(options.delayMs) ? options.delayMs : 300,
-			skipDriver: options.skipDriver,
-		});
-		if (probe.isErr()) {
+		const probe = await Effect.runPromise(
+			Effect.result(
+				probePlanningBetweenTools({
+					appIdentifier: options.appIdentifier,
+					delayMs: Number.isFinite(options.delayMs) ? options.delayMs : 300,
+					skipDriver: options.skipDriver,
+				})
+			)
+		);
+		if (Result.isFailure(probe)) {
 			const result = buildResult({
 				command: "planning-between-tools-probe",
 				status: "fail",
 				summary: ["Unable to run the provider-free planning-between-tools probe."],
 				error: dependencyError(
-					probe.error.code,
-					probe.error.message,
+					probe.failure.code,
+					probe.failure.message,
 					"Run acepe-qa doctor; ensure the dev app contains the planning-between-tools stress hook."
 				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const completedToolSample = probe.value.samples.find(
+		const completedToolSample = probe.success.samples.find(
 			(sample) => sample.stage === "completed_tool_tail"
 		);
-		const activeAssistantSample = probe.value.samples.find(
+		const activeAssistantSample = probe.success.samples.find(
 			(sample) => sample.stage === "active_assistant_tail"
 		);
-		const artifact = await writeJsonArtifact("planning-between-tools-probe", probe.value);
-		const artifactPath = artifact.isOk() ? artifact.value : undefined;
+		const artifact = await Effect.runPromise(
+			Effect.result(writeJsonArtifact("planning-between-tools-probe", probe.success))
+		);
+		const artifactPath = Result.isSuccess(artifact) ? artifact.success : undefined;
 		const result = buildResult({
 			command: "planning-between-tools-probe",
-			status: probe.value.passed ? "ok" : "fail",
+			status: probe.success.passed ? "ok" : "fail",
 			summary: [
-				`hook: ${probe.value.hookAvailable ? "available" : "missing"}`,
-				`opened: ${probe.value.opened ? "yes" : "no"} lab=${probe.value.labPresent ? "present" : "missing"}`,
+				`hook: ${probe.success.hookAvailable ? "available" : "missing"}`,
+				`opened: ${probe.success.opened ? "yes" : "no"} lab=${probe.success.labPresent ? "present" : "missing"}`,
 				completedToolSample === undefined
 					? "stage A: missing"
 					: `stage A: tail=${completedToolSample.trailingRowKind === null ? "none" : completedToolSample.trailingRowKind} mode=${completedToolSample.localPlaceholderMode} planning=${completedToolSample.planningRowCount.toString()} visible=${completedToolSample.planningVisible ? "yes" : "no"}`,
 				activeAssistantSample === undefined
 					? "stage B: missing"
 					: `stage B: tail=${activeAssistantSample.trailingRowKind === null ? "none" : activeAssistantSample.trailingRowKind} active=${activeAssistantSample.activeStreamingTail === null ? "none" : activeAssistantSample.activeStreamingTail} mode=${activeAssistantSample.localPlaceholderMode} planning=${activeAssistantSample.planningRowCount.toString()}`,
-				`restored completed-tool stage: ${probe.value.restoredCompletedToolStage ? "yes" : "no"}`,
+				`restored completed-tool stage: ${probe.success.restoredCompletedToolStage ? "yes" : "no"}`,
 			],
 			artifactPath,
 			artifactKind: artifactPath === undefined ? undefined : "planning-between-tools-probe",
-			error: artifact.isErr()
-				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+			error: Result.isFailure(artifact)
+				? dependencyError(
+						artifact.failure.code,
+						artifact.failure.message,
+						"Check /tmp permissions."
+					)
 				: undefined,
 		});
 		return emitVerifiedUiResult(options, result);
@@ -2425,21 +2708,25 @@ export async function runCli(
 		const rowCount = Number.isFinite(options.rows) ? options.rows : 120;
 		const preScrollOffsetPx =
 			options.preScrollOffsetPx === null ? 2_000 : options.preScrollOffsetPx;
-		const probe = await probeSendAttachStress({
-			appIdentifier: options.appIdentifier,
-			rowCount,
-			preScrollOffsetPx,
-			delayMs: Number.isFinite(options.delayMs) ? options.delayMs : 300,
-			skipDriver: options.skipDriver,
-		});
-		if (probe.isErr()) {
+		const probe = await Effect.runPromise(
+			Effect.result(
+				probeSendAttachStress({
+					appIdentifier: options.appIdentifier,
+					rowCount,
+					preScrollOffsetPx,
+					delayMs: Number.isFinite(options.delayMs) ? options.delayMs : 300,
+					skipDriver: options.skipDriver,
+				})
+			)
+		);
+		if (Result.isFailure(probe)) {
 			const result = buildResult({
 				command: "send-attach-stress-probe",
 				status: "fail",
 				summary: ["Unable to run the provider-free send attach stress probe."],
 				error: dependencyError(
-					probe.error.code,
-					probe.error.message,
+					probe.failure.code,
+					probe.failure.message,
 					"Run acepe-qa doctor; ensure the dev app contains the send attach stress hook."
 				),
 			});
@@ -2450,7 +2737,7 @@ export async function runCli(
 		let maxPlaceholderCount = 0;
 		let maxSpacerCount = 0;
 		let longRowHeightPx = 0;
-		for (const sample of probe.value.samples) {
+		for (const sample of probe.success.samples) {
 			if (sample.label !== "pre-send") {
 				maxPostSendDfbPx = Math.max(maxPostSendDfbPx, sample.distFromBottomPx);
 			}
@@ -2458,54 +2745,66 @@ export async function runCli(
 			maxSpacerCount = Math.max(maxSpacerCount, sample.spacerCount);
 			longRowHeightPx = Math.max(longRowHeightPx, sample.longMarkdownHeightPx);
 		}
-		const artifact = await writeJsonArtifact("send-attach-stress-probe", probe.value);
-		const artifactPath = artifact.isOk() ? artifact.value : undefined;
+		const artifact = await Effect.runPromise(
+			Effect.result(writeJsonArtifact("send-attach-stress-probe", probe.success))
+		);
+		const artifactPath = Result.isSuccess(artifact) ? artifact.success : undefined;
 		const result = buildResult({
 			command: "send-attach-stress-probe",
-			status: probe.value.passed ? "ok" : "fail",
+			status: probe.success.passed ? "ok" : "fail",
 			summary: [
-				`hook: ${probe.value.hookAvailable ? "available" : "missing"}`,
-				`opened: ${probe.value.opened ? "yes" : "no"} lab=${probe.value.labPresent ? "present" : "missing"}`,
-				`scenario: requestedRows=${probe.value.requestedRowCount.toString()} finalRows=${probe.value.rowCount.toString()} preScroll=${probe.value.requestedPreScrollOffsetPx.toString()}px`,
-				`precondition: ${probe.value.preconditionPassed ? "passed" : "failed"}`,
-				`post-send: maxDfb=${Math.round(maxPostSendDfbPx).toString()}px nativeClamp=${probe.value.nativeClampDetected ? "yes" : "no"}`,
-				`extent collapse: ${Math.round(probe.value.maxExtentCollapsePx).toString()}px`,
-				`stable row shell: ${probe.value.stableRowShellPreserved ? "preserved" : "replaced"}`,
+				`hook: ${probe.success.hookAvailable ? "available" : "missing"}`,
+				`opened: ${probe.success.opened ? "yes" : "no"} lab=${probe.success.labPresent ? "present" : "missing"}`,
+				`scenario: requestedRows=${probe.success.requestedRowCount.toString()} finalRows=${probe.success.rowCount.toString()} preScroll=${probe.success.requestedPreScrollOffsetPx.toString()}px`,
+				`precondition: ${probe.success.preconditionPassed ? "passed" : "failed"}`,
+				`post-send: maxDfb=${Math.round(maxPostSendDfbPx).toString()}px nativeClamp=${probe.success.nativeClampDetected ? "yes" : "no"}`,
+				`extent collapse: ${Math.round(probe.success.maxExtentCollapsePx).toString()}px`,
+				`stable row shell: ${probe.success.stableRowShellPreserved ? "preserved" : "replaced"}`,
 				`long NativeMarkdown row: ${Math.round(longRowHeightPx).toString()}px`,
 				`placeholder/spacer max: ${maxPlaceholderCount.toString()}/${maxSpacerCount.toString()}`,
 			],
 			artifactPath,
 			artifactKind: artifactPath === undefined ? undefined : "send-attach-stress-probe",
-			error: artifact.isErr()
-				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+			error: Result.isFailure(artifact)
+				? dependencyError(
+						artifact.failure.code,
+						artifact.failure.message,
+						"Check /tmp permissions."
+					)
 				: undefined,
 		});
 		return emitVerifiedUiResult(options, result);
 	}
 
 	if (options.command === "hmr-ui-probe") {
-		const probe = await probeUiPackageHmr({
-			checkoutRoot: options.checkoutRoot,
-			viteDevUrl: options.path.length > 0 ? options.path : undefined,
-			timeoutMs: Number.isFinite(options.timeoutMs) ? options.timeoutMs : 12_000,
-		});
-		if (probe.isErr()) {
+		const probe = await Effect.runPromise(
+			Effect.result(
+				probeUiPackageHmr({
+					checkoutRoot: options.checkoutRoot,
+					viteDevUrl: options.path.length > 0 ? options.path : undefined,
+					timeoutMs: Number.isFinite(options.timeoutMs) ? options.timeoutMs : 12_000,
+				})
+			)
+		);
+		if (Result.isFailure(probe)) {
 			const result = buildResult({
 				command: "hmr-ui-probe",
 				status: "fail",
 				summary: ["Unable to probe @acepe/ui HMR."],
 				error: dependencyError(
-					probe.error.code,
-					probe.error.message,
+					probe.failure.code,
+					probe.failure.message,
 					"Start bun tauri dev, restart after vite.config alias changes, then rerun bun run qa hmr-ui-probe."
 				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const artifact = await writeJsonArtifact("hmr-ui-probe", probe.value);
-		const artifactPath = artifact.isOk() ? artifact.value : undefined;
-		const value = probe.value;
+		const artifact = await Effect.runPromise(
+			Effect.result(writeJsonArtifact("hmr-ui-probe", probe.success))
+		);
+		const artifactPath = Result.isSuccess(artifact) ? artifact.success : undefined;
+		const value = probe.success;
 		const result = buildResult({
 			command: "hmr-ui-probe",
 			status:
@@ -2527,44 +2826,54 @@ export async function runCli(
 	}
 
 	if (options.command === "reset-onboarding") {
-		const reset = await resetOnboarding({
-			appIdentifier: options.appIdentifier,
-			delayMs: Number.isFinite(options.delayMs) ? options.delayMs : 300,
-			skipDriver: options.skipDriver,
-		});
-		if (reset.isErr()) {
+		const reset = await Effect.runPromise(
+			Effect.result(
+				resetOnboarding({
+					appIdentifier: options.appIdentifier,
+					delayMs: Number.isFinite(options.delayMs) ? options.delayMs : 300,
+					skipDriver: options.skipDriver,
+				})
+			)
+		);
+		if (Result.isFailure(reset)) {
 			const result = buildResult({
 				command: "reset-onboarding",
 				status: "fail",
 				summary: ["Unable to reset onboarding in the Acepe WebView."],
 				error: dependencyError(
-					reset.error.code,
-					reset.error.message,
+					reset.failure.code,
+					reset.failure.message,
 					"Run acepe-qa doctor, then retry reset-onboarding."
 				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const artifact = await writeJsonArtifact("reset-onboarding", reset.value);
-		const artifactPath = artifact.isOk() ? artifact.value : undefined;
+		const artifact = await Effect.runPromise(
+			Effect.result(writeJsonArtifact("reset-onboarding", reset.success))
+		);
+		const artifactPath = Result.isSuccess(artifact) ? artifact.success : undefined;
 		const result = buildResult({
 			command: "reset-onboarding",
 			status:
-				reset.value.clickedDevTools && reset.value.clickedReset && reset.value.hasWelcome
+				reset.success.clickedDevTools && reset.success.clickedReset && reset.success.hasWelcome
 					? "ok"
 					: "warn",
 			summary: [
-				`dev tools: ${reset.value.clickedDevTools ? "clicked" : "missing"}`,
-				`reset: ${reset.value.clickedReset ? "clicked" : "missing"}`,
-				`welcome: ${reset.value.hasWelcome ? "visible" : "missing"}`,
-				`panels: ${reset.value.panelCount.toString()}`,
-				`animated: ${reset.value.animated.length.toString()}`,
+				`dev tools: ${reset.success.clickedDevTools ? "clicked" : "missing"}`,
+				`reset: ${reset.success.clickedReset ? "clicked" : "missing"}`,
+				`welcome: ${reset.success.hasWelcome ? "visible" : "missing"}`,
+				`panels: ${reset.success.panelCount.toString()}`,
+				`animated: ${reset.success.animated.length.toString()}`,
 			],
 			artifactPath,
 			artifactKind: artifactPath === undefined ? undefined : "reset-onboarding",
-			error: artifact.isErr()
-				? dependencyError(artifact.error.code, artifact.error.message, "Check /tmp permissions.")
+			error: Result.isFailure(artifact)
+				? dependencyError(
+						artifact.failure.code,
+						artifact.failure.message,
+						"Check /tmp permissions."
+					)
 				: undefined,
 		});
 		return emitVerifiedUiResult(options, result);
@@ -2585,40 +2894,46 @@ export async function runCli(
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const send = await sendComposer({
-			appIdentifier: options.appIdentifier,
-			text: options.text,
-			selector: options.selector,
-			selectorIndex: options.selectorIndex,
-			panelId: options.panelId,
-			sessionId: options.sessionId,
-			submit: !options.noSubmit,
-			skipDriver: options.skipDriver,
-		});
-		if (send.isErr()) {
+		const send = await Effect.runPromise(
+			Effect.result(
+				sendComposer({
+					appIdentifier: options.appIdentifier,
+					text: options.text,
+					selector: options.selector,
+					selectorIndex: options.selectorIndex,
+					panelId: options.panelId,
+					sessionId: options.sessionId,
+					submit: !options.noSubmit,
+					skipDriver: options.skipDriver,
+				})
+			)
+		);
+		if (Result.isFailure(send)) {
 			const result = buildResult({
 				command: "send",
 				status: "fail",
 				summary: ["Unable to send via the composer."],
 				error: dependencyError(
-					send.error.code,
-					send.error.message,
+					send.failure.code,
+					send.failure.message,
 					"Run acepe-qa doctor; ensure a sendable session is open."
 				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const artifact = await writeJsonArtifact("send", send.value);
-		const artifactPath = artifact.isOk() ? artifact.value : undefined;
+		const artifact = await Effect.runPromise(
+			Effect.result(writeJsonArtifact("send", send.success))
+		);
+		const artifactPath = Result.isSuccess(artifact) ? artifact.success : undefined;
 		const result = buildResult({
 			command: "send",
-			status: send.value.sent ? "ok" : "warn",
+			status: send.success.sent ? "ok" : "warn",
 			summary: [
-				`composer: ${send.value.composerFound ? "found" : "missing"}`,
-				`send ready: ${send.value.sendReady ? "yes" : "no"}`,
-				`sent: ${send.value.sent ? "yes" : "no"}`,
-				`text: "${send.value.textApplied.slice(0, 60)}"`,
+				`composer: ${send.success.composerFound ? "found" : "missing"}`,
+				`send ready: ${send.success.sendReady ? "yes" : "no"}`,
+				`sent: ${send.success.sent ? "yes" : "no"}`,
+				`text: "${send.success.textApplied.slice(0, 60)}"`,
 			],
 			artifactPath,
 			artifactKind: artifactPath === undefined ? undefined : "send",
@@ -2641,41 +2956,47 @@ export async function runCli(
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const watch = await watchForVisibleText({
-			appIdentifier: options.appIdentifier,
-			text: options.text,
-			timeoutMs: Number.isFinite(options.timeoutMs) ? options.timeoutMs : 20_000,
-			skipDriver: options.skipDriver,
-		});
-		if (watch.isErr()) {
+		const watch = await Effect.runPromise(
+			Effect.result(
+				watchForVisibleText({
+					appIdentifier: options.appIdentifier,
+					text: options.text,
+					timeoutMs: Number.isFinite(options.timeoutMs) ? options.timeoutMs : 20_000,
+					skipDriver: options.skipDriver,
+				})
+			)
+		);
+		if (Result.isFailure(watch)) {
 			const result = buildResult({
 				command: "watch",
 				status: "fail",
 				summary: ["Unable to watch the Acepe WebView."],
 				error: dependencyError(
-					watch.error.code,
-					watch.error.message,
+					watch.failure.code,
+					watch.failure.message,
 					"Run acepe-qa doctor, then retry watch."
 				),
 			});
 			process.stdout.write(formatCommandResult(result, options.format));
 			return statusExitCode(result.status);
 		}
-		const artifact = await writeJsonArtifact("watch", watch.value);
-		const artifactPath = artifact.isOk() ? artifact.value : undefined;
-		const m = watch.value.matched;
+		const artifact = await Effect.runPromise(
+			Effect.result(writeJsonArtifact("watch", watch.success))
+		);
+		const artifactPath = Result.isSuccess(artifact) ? artifact.success : undefined;
+		const m = watch.success.matched;
 		const result = buildResult({
 			command: "watch",
 			// warn (not fail) when present-but-hidden: that's a real, reportable finding.
-			status: watch.value.visible ? "ok" : "warn",
+			status: watch.success.visible ? "ok" : "warn",
 			summary: [
-				`text: "${watch.value.text.slice(0, 60)}"`,
-				`present in dom: ${watch.value.presentInDom ? "yes" : "no"}`,
-				`visible: ${watch.value.visible ? "yes" : "no"}`,
-				watch.value.firstVisibleAtMs === null
+				`text: "${watch.success.text.slice(0, 60)}"`,
+				`present in dom: ${watch.success.presentInDom ? "yes" : "no"}`,
+				`visible: ${watch.success.visible ? "yes" : "no"}`,
+				watch.success.firstVisibleAtMs === null
 					? "first visible: never"
-					: `first visible: ${watch.value.firstVisibleAtMs.toString()}ms`,
-				`elapsed: ${watch.value.elapsedMs.toString()}ms${watch.value.timedOut ? " (timed out)" : ""}`,
+					: `first visible: ${watch.success.firstVisibleAtMs.toString()}ms`,
+				`elapsed: ${watch.success.elapsedMs.toString()}ms${watch.success.timedOut ? " (timed out)" : ""}`,
 				m === null
 					? "matched: none"
 					: `matched: ${m.rect.width.toFixed(0)}x${m.rect.height.toFixed(0)} display=${m.display} visibility=${m.visibility} opacity=${m.opacity} offsetParent=${m.hasOffsetParent ? "yes" : "no"}`,

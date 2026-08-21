@@ -1,5 +1,6 @@
 import { mock } from "bun:test";
-import { errAsync, okAsync, ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const listenMock = vi.fn();
@@ -54,17 +55,12 @@ function createPointerEvent(): PointerEvent {
 	} as unknown as PointerEvent;
 }
 
-function unwrapResultAsync<T>(result: ResultAsync<T, Error>): Promise<T> {
-	return result.match(
-		(value) => value,
-		(error) => {
-			throw error;
-		}
-	);
+function unwrapEffect<T>(effect: Effect.Effect<T, Error>): Promise<T> {
+	return Effect.runPromise(effect);
 }
 
-function toAgentResult<T>(operation: string, result: ResultAsync<T, Error>): ResultAsync<T, Error> {
-	return result.mapErr(() => new Error(`Agent operation failed: ${operation}`));
+function toAgentResult<T>(operation: string, result: Effect.Effect<T, Error>): Effect.Effect<T, Error> {
+	return result.pipe(Effect.mapError(() => new Error(`Agent operation failed: ${operation}`)));
 }
 
 async function flushAsync(times = 20): Promise<void> {
@@ -258,17 +254,17 @@ describe("VoiceInputState", () => {
 		const invokeMock = vi.fn((cmd: string, args?: Record<string, unknown>) => {
 			switch (cmd) {
 				case "voice_cancel_recording":
-					return unwrapResultAsync(cancelRecordingMock(args?.sessionId));
+					return unwrapEffect(cancelRecordingMock(args?.sessionId));
 				case "voice_get_model_status":
-					return unwrapResultAsync(getModelStatusMock(args?.modelId));
+					return unwrapEffect(getModelStatusMock(args?.modelId));
 				case "voice_start_recording":
-					return unwrapResultAsync(startRecordingMock(args?.sessionId));
+					return unwrapEffect(startRecordingMock(args?.sessionId));
 				case "voice_load_model":
-					return unwrapResultAsync(loadModelMock(args?.modelId));
+					return unwrapEffect(loadModelMock(args?.modelId));
 				case "voice_download_model":
-					return unwrapResultAsync(downloadModelMock(args?.modelId));
+					return unwrapEffect(downloadModelMock(args?.modelId));
 				case "voice_stop_recording":
-					return unwrapResultAsync(stopRecordingMock(args?.sessionId, args?.language ?? null));
+					return unwrapEffect(stopRecordingMock(args?.sessionId, args?.language ?? null));
 				default:
 					throw new Error(`Unexpected Tauri command: ${cmd}`);
 			}
@@ -283,11 +279,11 @@ describe("VoiceInputState", () => {
 		({ VoiceInputState } = await import("../voice-input-state.svelte.js"));
 
 		listenMock.mockResolvedValue(() => undefined);
-		cancelRecordingMock.mockReturnValue(okAsync(undefined));
-		startRecordingMock.mockReturnValue(okAsync(undefined));
-		loadModelMock.mockReturnValue(okAsync(undefined));
-		downloadModelMock.mockReturnValue(okAsync(undefined));
-		stopRecordingMock.mockReturnValue(okAsync(undefined));
+		cancelRecordingMock.mockReturnValue(Effect.succeed(undefined));
+		startRecordingMock.mockReturnValue(Effect.succeed(undefined));
+		loadModelMock.mockReturnValue(Effect.succeed(undefined));
+		downloadModelMock.mockReturnValue(Effect.succeed(undefined));
+		stopRecordingMock.mockReturnValue(Effect.succeed(undefined));
 	});
 
 	afterEach(() => {
@@ -295,7 +291,7 @@ describe("VoiceInputState", () => {
 	});
 
 	it("enters recording immediately when model is already loaded", async () => {
-		getModelStatusMock.mockReturnValue(okAsync({ is_downloaded: true, is_loaded: true }));
+		getModelStatusMock.mockReturnValue(Effect.succeed({ is_downloaded: true, is_loaded: true }));
 
 		const state = new VoiceInputState({ sessionId: "session-1" });
 		state.onMicPointerDown(createPointerEvent());
@@ -319,7 +315,7 @@ describe("VoiceInputState", () => {
 	it("handles transcription completion before stopRecording resolves", async () => {
 		const pendingStop = createPendingResult<void>();
 		stopRecordingMock.mockReturnValue(
-			ResultAsync.fromPromise(pendingStop.promise, (error) => error as Error)
+			fromPromise(() => pendingStop.promise, (error) => error as Error)
 		);
 
 		const state = new VoiceInputState({ sessionId: "session-race" });
@@ -380,7 +376,7 @@ describe("VoiceInputState", () => {
 	it("ignores late stopRecording failures after transcription already completed", async () => {
 		const pendingStop = createPendingResult<void>();
 		stopRecordingMock.mockReturnValue(
-			ResultAsync.fromPromise(pendingStop.promise, (error) => error as Error)
+			fromPromise(() => pendingStop.promise, (error) => error as Error)
 		);
 
 		const state = new VoiceInputState({ sessionId: "session-late-stop-error" });
@@ -473,7 +469,7 @@ describe("VoiceInputState", () => {
 	});
 
 	it("surfaces model status failures", async () => {
-		getModelStatusMock.mockReturnValue(errAsync(new Error("status failed")));
+		getModelStatusMock.mockReturnValue(Effect.fail(new Error("status failed")));
 
 		const state = new VoiceInputState({ sessionId: "session-4" });
 		state.onMicPointerDown(createPointerEvent());
@@ -484,7 +480,7 @@ describe("VoiceInputState", () => {
 	});
 
 	it("starts recording immediately for keyboard press-and-hold", async () => {
-		getModelStatusMock.mockReturnValue(okAsync({ is_downloaded: true, is_loaded: true }));
+		getModelStatusMock.mockReturnValue(Effect.succeed({ is_downloaded: true, is_loaded: true }));
 
 		const state = new VoiceInputState({ sessionId: "session-keyboard" });
 
@@ -508,7 +504,7 @@ describe("VoiceInputState", () => {
 			is_loaded: boolean;
 		}>();
 		getModelStatusMock.mockReturnValue(
-			ResultAsync.fromPromise(pendingModelStatus.promise, (error) => error as Error)
+			fromPromise(() => pendingModelStatus.promise, (error) => error as Error)
 		);
 
 		const state = new VoiceInputState({ sessionId: "session-keyboard-startup" });
@@ -537,7 +533,7 @@ describe("VoiceInputState", () => {
 			is_loaded: boolean;
 		}>();
 		getModelStatusMock.mockReturnValue(
-			ResultAsync.fromPromise(pendingModelStatus.promise, (error) => error as Error)
+			fromPromise(() => pendingModelStatus.promise, (error) => error as Error)
 		);
 
 		const state = new VoiceInputState({ sessionId: "session-pointer-startup" });
@@ -566,7 +562,7 @@ describe("VoiceInputState", () => {
 			is_loaded: boolean;
 		}>();
 		getModelStatusMock.mockReturnValue(
-			ResultAsync.fromPromise(pendingModelStatus.promise, (error) => error as Error)
+			fromPromise(() => pendingModelStatus.promise, (error) => error as Error)
 		);
 
 		const state = new VoiceInputState({ sessionId: "session-click-startup" });
@@ -596,7 +592,7 @@ describe("VoiceInputState", () => {
 			is_loaded: boolean;
 		}>();
 		getModelStatusMock.mockReturnValue(
-			ResultAsync.fromPromise(pendingModelStatus.promise, (error) => error as Error)
+			fromPromise(() => pendingModelStatus.promise, (error) => error as Error)
 		);
 
 		const state = new VoiceInputState({ sessionId: "session-waveform-prime" });
@@ -612,7 +608,7 @@ describe("VoiceInputState", () => {
 	});
 
 	it("plays the start sound before voice startup work begins for keyboard hold", () => {
-		getModelStatusMock.mockReturnValue(okAsync({ is_downloaded: true, is_loaded: true }));
+		getModelStatusMock.mockReturnValue(Effect.succeed({ is_downloaded: true, is_loaded: true }));
 
 		const state = new VoiceInputState({ sessionId: "session-sound-order" });
 		state.onKeyboardHoldStart();
@@ -626,7 +622,7 @@ describe("VoiceInputState", () => {
 
 	it("plays the start sound on pointer down before press-and-hold recording starts", () => {
 		const timers = installTimerHarness();
-		getModelStatusMock.mockReturnValue(okAsync({ is_downloaded: true, is_loaded: true }));
+		getModelStatusMock.mockReturnValue(Effect.succeed({ is_downloaded: true, is_loaded: true }));
 
 		const state = new VoiceInputState({ sessionId: "session-pointer-sound-order" });
 		state.onMicPointerDown(createPointerEvent());
@@ -644,7 +640,7 @@ describe("VoiceInputState", () => {
 
 	it("shows a tenths timer while recording and clears it after stop", async () => {
 		const timers = installTimerHarness();
-		getModelStatusMock.mockReturnValue(okAsync({ is_downloaded: true, is_loaded: true }));
+		getModelStatusMock.mockReturnValue(Effect.succeed({ is_downloaded: true, is_loaded: true }));
 
 		const state = new VoiceInputState({ sessionId: "session-timer" });
 		state.onMicPointerDown(createPointerEvent());
@@ -666,9 +662,9 @@ describe("VoiceInputState", () => {
 
 	it("ignores download progress for other models", async () => {
 		const pendingDownload = createPendingResult<void>();
-		getModelStatusMock.mockReturnValue(okAsync({ is_downloaded: false, is_loaded: false }));
+		getModelStatusMock.mockReturnValue(Effect.succeed({ is_downloaded: false, is_loaded: false }));
 		downloadModelMock.mockReturnValue(
-			ResultAsync.fromPromise(pendingDownload.promise, (error) => error as Error)
+			fromPromise(() => pendingDownload.promise, (error) => error as Error)
 		);
 
 		const state = new VoiceInputState({

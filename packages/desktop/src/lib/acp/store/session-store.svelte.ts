@@ -6,7 +6,7 @@
  * viewport) delegate to composed sub-stores (see docs/adr/0002).
  */
 
-import type { ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import { getContext, setContext } from "svelte";
 import type { SvelteSet } from "svelte/reactivity";
 import type {
@@ -43,7 +43,7 @@ const SESSION_STORE_KEY = Symbol("session-store");
 let currentSessionStore: SessionStore | null = null;
 
 export type CreatedSessionHydrator = {
-	hydrateCreated(found: SessionOpenFound): ResultAsync<void, AppError>;
+	hydrateCreated(found: SessionOpenFound): Effect.Effect<void, AppError>;
 };
 
 export type SessionCreationResult =
@@ -171,7 +171,7 @@ export class SessionStore implements SessionEventHandler {
 		this.#parts.envelopeApplier.applyTranscriptDelta(sessionId, delta, revision);
 	}
 
-	refreshCanonicalSessionState(sessionId: string): ResultAsync<void, AppError> {
+	refreshCanonicalSessionState(sessionId: string): Effect.Effect<void, AppError> {
 		return this.#parts.stateRefreshController.refreshCanonicalSessionState(sessionId);
 	}
 
@@ -187,7 +187,7 @@ export class SessionStore implements SessionEventHandler {
 		this.#parts.lifecycleCleanup.clearSessionEntries(sessionId);
 	}
 
-	initializeSessionUpdates(): ResultAsync<void, AppError> {
+	initializeSessionUpdates(): Effect.Effect<void, AppError> {
 		return this.#parts.eventService.initializeSessionUpdates(this);
 	}
 

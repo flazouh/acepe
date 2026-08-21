@@ -1,4 +1,4 @@
-import { err, ok, type Result } from "neverthrow";
+import * as Result from "effect/Result";
 import { CommandPaletteError } from "../errors/command-palette-error.js";
 import type { CommandPaletteCommand } from "../types/command-palette-command.js";
 import type { CommandPaletteState } from "../types/command-palette-state.js";
@@ -66,21 +66,21 @@ export class CommandPaletteManager {
 	getCommandByIndex(
 		commands: CommandPaletteCommand[],
 		index: number
-	): Result<CommandPaletteCommand, CommandPaletteError> {
+	): Result.Result<CommandPaletteCommand, CommandPaletteError> {
 		if (index < 0 || index >= commands.length) {
-			return err(
+			return Result.fail(
 				new CommandPaletteError(`Command index ${index} is out of bounds`, "INVALID_STATE")
 			);
 		}
 
 		const command = commands[index];
 		if (!command) {
-			return err(
+			return Result.fail(
 				new CommandPaletteError(`Command at index ${index} not found`, "COMMAND_NOT_FOUND")
 			);
 		}
 
-		return ok(command);
+		return Result.succeed(command);
 	}
 
 	/**

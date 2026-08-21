@@ -1,6 +1,7 @@
 <script lang="ts">
 import { AgentInputBranchSelector, HugeiconsIcon } from "@acepe/ui";
 import { Colors } from "@acepe/ui/colors";
+import * as Effect from "effect/Effect";
 import { toast } from "svelte-sonner";
 import { Button } from "$lib/components/ui/button/index.js";
 import { cn } from "$lib/utils.js";
@@ -89,19 +90,23 @@ $effect(() => {
 	loadingBranches = true;
 	branchLoadFailed = false;
 	let cancelled = false;
-	void tauriClient.git.listBranches(projectPath).match(
-		(availableBranches) => {
-			if (cancelled) return;
-			branches = availableBranches;
-			loadingBranches = false;
-		},
-		(error) => {
-			if (cancelled) return;
-			loadingBranches = false;
-			branchLoadFailed = true;
-			const message = error.cause?.message || error.message || "Failed to list branches";
-			toast.error(message);
-		}
+	void Effect.runPromise(
+		tauriClient.git.listBranches(projectPath).pipe(
+			Effect.match({
+				onSuccess: (availableBranches) => {
+					if (cancelled) return;
+					branches = availableBranches;
+					loadingBranches = false;
+				},
+				onFailure: (error) => {
+					if (cancelled) return;
+					loadingBranches = false;
+					branchLoadFailed = true;
+					const message = error.cause?.message || error.message || "Failed to list branches";
+					toast.error(message);
+				},
+			})
+		)
 	);
 	return () => {
 		cancelled = true;
@@ -115,21 +120,25 @@ function handleSwitchBranch(branch: string, create: boolean): void {
 	}
 
 	switchingBranch = true;
-	void tauriClient.git.checkoutBranch(projectPath, branch, create).match(
-		(selectedBranch) => {
-			switchingBranch = false;
-			onBranchSelected?.(selectedBranch);
-			branchPopoverOpen = false;
-			createBranchDialogOpen = false;
-		},
-		(error) => {
-			switchingBranch = false;
-			if (!create) {
-				branchPopoverOpen = true;
-			}
-			const message = error.cause?.message || error.message || "Failed to switch branch";
-			toast.error(message);
-		}
+	void Effect.runPromise(
+		tauriClient.git.checkoutBranch(projectPath, branch, create).pipe(
+			Effect.match({
+				onSuccess: (selectedBranch) => {
+					switchingBranch = false;
+					onBranchSelected?.(selectedBranch);
+					branchPopoverOpen = false;
+					createBranchDialogOpen = false;
+				},
+				onFailure: (error) => {
+					switchingBranch = false;
+					if (!create) {
+						branchPopoverOpen = true;
+					}
+					const message = error.cause?.message || error.message || "Failed to switch branch";
+					toast.error(message);
+				},
+			})
+		)
 	);
 }
 

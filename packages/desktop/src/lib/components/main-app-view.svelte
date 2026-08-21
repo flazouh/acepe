@@ -1,9 +1,11 @@
 <script lang="ts">
+import { fromPromise } from "@acepe/effect-result/fromPromise";
 import { Button } from "@acepe/ui";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type DownloadEvent } from "@tauri-apps/plugin-updater";
-import { okAsync, ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { onDestroy, onMount, tick } from "svelte";
 import { toast } from "svelte-sonner";
 import DiffViewerModal from "$lib/acp/components/diff-viewer/diff-viewer-modal.svelte";
@@ -1082,23 +1084,31 @@ function clearPendingTurnInputs(sessionId: string): void {
 function cancelPendingTurnInputs(sessionId: string): void {
 	dismissPendingTurnInputNotifications(sessionId);
 	removePlanApprovalsForSession(sessionId);
-	void questionStore.cancelForSession(sessionId).match(
-		() => {},
-		(error) => {
-			logger.error("Failed to cancel pending questions for interrupted turn", {
-				sessionId,
-				error,
-			});
-		}
+	void Effect.runPromise(
+		questionStore.cancelForSession(sessionId).pipe(
+			Effect.match({
+				onSuccess: () => {},
+				onFailure: (error) => {
+					logger.error("Failed to cancel pending questions for interrupted turn", {
+						sessionId,
+						error,
+					});
+				},
+			})
+		)
 	);
-	void permissionStore.cancelForSession(sessionId).match(
-		() => {},
-		(error) => {
-			logger.error("Failed to cancel pending permissions for interrupted turn", {
-				sessionId,
-				error,
-			});
-		}
+	void Effect.runPromise(
+		permissionStore.cancelForSession(sessionId).pipe(
+			Effect.match({
+				onSuccess: () => {},
+				onFailure: (error) => {
+					logger.error("Failed to cancel pending permissions for interrupted turn", {
+						sessionId,
+						error,
+					});
+				},
+			})
+		)
 	);
 }
 
@@ -1234,23 +1244,27 @@ const inboundRequestHandler = new InboundRequestHandler();
 
 function startLegacyInboundRequestHandler(): void {
 	logger.info("main-app-view: Starting legacy InboundRequestHandler");
-	void inboundRequestHandler
-		.start((permission) => {
-			logger.error("Legacy inbound permission request ignored; expected canonical graph patch", {
-				permissionId: permission.id,
-				sessionId: permission.sessionId,
-				jsonRpcRequestId: permission.jsonRpcRequestId,
-			});
-		})
-		.match(
-			() => {
-				logger.info("main-app-view: Legacy InboundRequestHandler started successfully");
-			},
-			(error) => {
-				logger.error("[Startup] Failed to start legacy InboundRequestHandler:", error);
-				viewState.initializationError = error;
-			}
-		);
+	void Effect.runPromise(
+		inboundRequestHandler
+			.start((permission) => {
+				logger.error("Legacy inbound permission request ignored; expected canonical graph patch", {
+					permissionId: permission.id,
+					sessionId: permission.sessionId,
+					jsonRpcRequestId: permission.jsonRpcRequestId,
+				});
+			})
+			.pipe(
+				Effect.match({
+					onSuccess: () => {
+						logger.info("main-app-view: Legacy InboundRequestHandler started successfully");
+					},
+					onFailure: (error) => {
+						logger.error("[Startup] Failed to start legacy InboundRequestHandler:", error);
+						viewState.initializationError = error;
+					},
+				})
+			)
+	);
 }
 
 // Initialize keybindings service
@@ -1426,7 +1440,9 @@ const commandPalette = useAdvancedCommandPalette({
 		},
 	},
 	onOpenSession: (sessionId) => {
-		viewState.handleSelectSession(sessionId);
+		void Effect.runPromise(
+			viewState.handleSelectSession(sessionId).pipe(Effect.catch(() => Effect.succeed(undefined)))
+		);
 	},
 	onOpenFile: (filePath, projectPath) => {
 		// Open file in file panel
@@ -1519,13 +1535,20 @@ async function checkForAppUpdate(_trigger: UpdateCheckTrigger): Promise<void> {
 	// Never block the app on update checks: check in the background, download
 	// in the background, and surface an "Update" button top-left when ready.
 	updaterState = createCheckingUpdaterState();
-	const result = await ResultAsync.fromPromise(check(), (e) => e as Error).match(
-		(update) => update,
-		(error) => {
-			logger.error("Update check failed", { error: error.message });
-			updaterState = createErrorUpdaterState(error.message);
-			return null;
-		}
+	const result = await Effect.runPromise(
+		fromPromise(
+			() => check(),
+			(e) => (e instanceof Error ? e : new Error(String(e)))
+		).pipe(
+			Effect.match({
+				onSuccess: (update) => update,
+				onFailure: (error) => {
+					logger.error("Update check failed", { error: error.message });
+					updaterState = createErrorUpdaterState(error.message);
+					return null;
+				},
+			})
+		)
 	);
 
 	if (!result) {
@@ -1549,18 +1572,22 @@ async function predownloadAvailableUpdate(): Promise<void> {
 	}
 
 	updaterState = createDownloadingUpdaterState(availableUpdate.version);
-	await predownloadUpdate(availableUpdate, (event: DownloadEvent) => {
-		updaterState = applyUpdaterDownloadEvent(updaterState, event);
-	}).match(
-		(version) => {
-			logger.info("Update download finished", { version });
-			updaterState = createAvailableUpdaterState(version);
-		},
-		(error) => {
-			availableUpdate = null;
-			updaterState = createErrorUpdaterState(error.message);
-			logger.error("Update download failed", { error: error.message });
-		}
+	await Effect.runPromise(
+		predownloadUpdate(availableUpdate, (event: DownloadEvent) => {
+			updaterState = applyUpdaterDownloadEvent(updaterState, event);
+		}).pipe(
+			Effect.match({
+				onSuccess: (version) => {
+					logger.info("Update download finished", { version });
+					updaterState = createAvailableUpdaterState(version);
+				},
+				onFailure: (error) => {
+					availableUpdate = null;
+					updaterState = createErrorUpdaterState(error.message);
+					logger.error("Update download failed", { error: error.message });
+				},
+			})
+		)
 	);
 }
 
@@ -1570,13 +1597,17 @@ async function installAvailableUpdate(): Promise<void> {
 	}
 
 	updaterState = createInstallingUpdaterState(availableUpdate.version);
-	await installDownloadedUpdate(availableUpdate, relaunch).match(
-		() => undefined,
-		(error) => {
-			availableUpdate = null;
-			updaterState = createErrorUpdaterState(error.message);
-			logger.error("Update install failed", { error: error.message });
-		}
+	await Effect.runPromise(
+		installDownloadedUpdate(availableUpdate, relaunch).pipe(
+			Effect.match({
+				onSuccess: () => undefined,
+				onFailure: (error) => {
+					availableUpdate = null;
+					updaterState = createErrorUpdaterState(error.message);
+					logger.error("Update install failed", { error: error.message });
+				},
+			})
+		)
 	);
 }
 
@@ -1587,7 +1618,7 @@ onMount(async () => {
 	installHappyPathProbeQaHook();
 
 	// Initialize the app state (handles all initialization logic including background scan)
-	const initResult = await viewState.initialize();
+	const initResult = await Effect.runPromise(Effect.result(viewState.initialize()));
 	mainAppInitializationCompleteAtMs = performance.now();
 
 	void import("@tauri-apps/api/app")
@@ -1621,9 +1652,9 @@ onMount(async () => {
 	// have safe defaults and are loaded after the shell is measurable.
 	windowFocusStore.initialize();
 
-	if (initResult.isErr()) {
-		logger.error("[Startup] Initialization failed:", initResult.error);
-		viewState.initializationError = initResult.error;
+	if (Result.isFailure(initResult)) {
+		logger.error("[Startup] Initialization failed:", initResult.failure);
+		viewState.initializationError = initResult.failure;
 	}
 	window.setTimeout(() => {
 		playSound(SoundEffect.AppStart);
@@ -1640,20 +1671,29 @@ onMount(async () => {
 		void analyticsPrefsStore.initialize();
 		void voiceSettingsStore.initialize();
 		void dismissedTipsStore.initialize();
-		void worktreeProjectDefaultStore
-			.load({
-				getProjectPaths: () => projectManager.projects.map((project) => project.path),
-			})
-			.mapErr((error) => {
-				logger.error("Failed to load worktree project default preferences", { error });
-			});
+		void Effect.runPromise(
+			worktreeProjectDefaultStore
+				.load({
+					getProjectPaths: () => projectManager.projects.map((project) => project.path),
+				})
+				.pipe(
+					Effect.catch((error) => {
+						logger.error("Failed to load worktree project default preferences", { error });
+						return Effect.void;
+					})
+				)
+		);
 	});
 	scheduleNonCriticalStartupWork(() => {
-		void agentModelPreferencesStore.loadPersistedState().match(
-			() => undefined,
-			(error) => {
-				logger.warn("Failed to load agent model preferences after startup", { error });
-			}
+		void Effect.runPromise(
+			agentModelPreferencesStore.loadPersistedState().pipe(
+				Effect.match({
+					onSuccess: () => undefined,
+					onFailure: (error) => {
+						logger.warn("Failed to load agent model preferences after startup", { error });
+					},
+				})
+			)
 		);
 	});
 	scheduleNonCriticalStartupWork(startLegacyInboundRequestHandler);
@@ -1685,31 +1725,44 @@ function handleSessionCreated(sessionId: string) {
 // Handle onboarding completion (splash → agents → projects → done)
 function handleOnboardingDismiss() {
 	writeSplashSeenHotCache(true);
-	tauriClient.settings.setRaw("has_seen_splash", "true").mapErr((error) => {
-		logger.error("Failed to save onboarding completion", { error });
-	});
+	void Effect.runPromise(
+		tauriClient.settings.setRaw("has_seen_splash", "true").pipe(
+			Effect.catch((error) => {
+				logger.error("Failed to save onboarding completion", { error });
+				return Effect.void;
+			})
+		)
+	);
 
 	// Reload projects + session history so sidebar shows imported projects
-	projectManager.loadProjects().map(() => {
-		const projectPaths = projectManager.projects.map((p) => p.path);
-		if (projectPaths.length > 0) {
-			sessionStore.loading.loadSessions(projectPaths);
-		}
-	});
+	void Effect.runPromise(
+		projectManager.loadProjects().pipe(
+			Effect.map(() => {
+				const projectPaths = projectManager.projects.map((p) => p.path);
+				if (projectPaths.length > 0) {
+					void Effect.runPromise(sessionStore.loading.loadSessions(projectPaths));
+				}
+			})
+		)
+	);
 	viewState.dismissSplash();
 	attemptStartupMaximize();
 }
 
 function handleDevResetOnboarding() {
-	void agentPreferencesStore.resetOnboardingForDev().match(
-		() => {
-			startupMaximizeTriggered = false;
-			viewState.showSplash = true;
-			toast.success("Onboarding reset");
-		},
-		(error) => {
-			toast.error(error.message);
-		}
+	void Effect.runPromise(
+		agentPreferencesStore.resetOnboardingForDev().pipe(
+			Effect.match({
+				onSuccess: () => {
+					startupMaximizeTriggered = false;
+					viewState.showSplash = true;
+					toast.success("Onboarding reset");
+				},
+				onFailure: (error) => {
+					toast.error(error.message);
+				},
+			})
+		)
 	);
 }
 

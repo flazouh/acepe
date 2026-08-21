@@ -1,4 +1,5 @@
-import { errAsync, okAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentError } from "../../errors/app-error.js";
 
@@ -64,23 +65,23 @@ describe("CheckpointStore", () => {
 					totalLinesRemoved: null,
 				},
 			];
-			vi.mocked(tauriClient.checkpoint.list).mockReturnValue(okAsync(mockCheckpoints));
+			vi.mocked(tauriClient.checkpoint.list).mockReturnValue(Effect.succeed(mockCheckpoints));
 
-			const result = await store.loadCheckpoints("s1");
+			const result = await Effect.runPromise(Effect.result(store.loadCheckpoints("s1")));
 
-			expect(result.isOk()).toBe(true);
-			expect(result._unsafeUnwrap()).toEqual(mockCheckpoints);
+			expect(Result.isSuccess(result)).toBe(true);
+			expect(Result.getOrThrow(result)).toEqual(mockCheckpoints);
 			expect(store.getCheckpoints("s1")).toEqual(mockCheckpoints);
 		});
 
 		it("should return error on failure", async () => {
 			const error = new CheckpointError("DB error", "STORAGE_ERROR");
-			vi.mocked(tauriClient.checkpoint.list).mockReturnValue(errAsync(error as any));
+			vi.mocked(tauriClient.checkpoint.list).mockReturnValue(Effect.fail(error as any));
 
-			const result = await store.loadCheckpoints("s1");
+			const result = await Effect.runPromise(Effect.result(store.loadCheckpoints("s1")));
 
-			expect(result.isErr()).toBe(true);
-			expect(result._unsafeUnwrapErr().code).toBe("STORAGE_ERROR");
+			expect(Result.isFailure(result)).toBe(true);
+			expect(Result.isFailure(result) ? result.failure.code : undefined).toBe("STORAGE_ERROR");
 		});
 	});
 
@@ -98,17 +99,17 @@ describe("CheckpointStore", () => {
 				totalLinesAdded: 15,
 				totalLinesRemoved: 3,
 			};
-			vi.mocked(tauriClient.checkpoint.create).mockReturnValue(okAsync(mockCheckpoint));
+			vi.mocked(tauriClient.checkpoint.create).mockReturnValue(Effect.succeed(mockCheckpoint));
 
-			const result = await store.createCheckpoint(
+			const result = await Effect.runPromise(Effect.result(store.createCheckpoint(
 				"s1",
 				"/project",
 				["file1.ts", "file2.ts", "file3.ts"],
 				{ name: "Manual checkpoint", isAuto: false }
-			);
+			)));
 
-			expect(result.isOk()).toBe(true);
-			expect(result._unsafeUnwrap()).toEqual(mockCheckpoint);
+			expect(Result.isSuccess(result)).toBe(true);
+			expect(Result.getOrThrow(result)).toEqual(mockCheckpoint);
 			// New checkpoint should be at the front of the list
 			expect(store.getCheckpoints("s1")[0]).toEqual(mockCheckpoint);
 		});
@@ -127,8 +128,8 @@ describe("CheckpointStore", () => {
 				totalLinesAdded: null,
 				totalLinesRemoved: null,
 			};
-			vi.mocked(tauriClient.checkpoint.list).mockReturnValue(okAsync([existingCheckpoint]));
-			await store.loadCheckpoints("s1");
+			vi.mocked(tauriClient.checkpoint.list).mockReturnValue(Effect.succeed([existingCheckpoint]));
+			await Effect.runPromise(store.loadCheckpoints("s1"));
 
 			// Create new checkpoint
 			const newCheckpoint: Checkpoint = {
@@ -143,9 +144,9 @@ describe("CheckpointStore", () => {
 				totalLinesAdded: 8,
 				totalLinesRemoved: 2,
 			};
-			vi.mocked(tauriClient.checkpoint.create).mockReturnValue(okAsync(newCheckpoint));
+			vi.mocked(tauriClient.checkpoint.create).mockReturnValue(Effect.succeed(newCheckpoint));
 
-			await store.createCheckpoint("s1", "/project", ["file.ts"], { toolCallId: "tc1" });
+			await Effect.runPromise(store.createCheckpoint("s1", "/project", ["file.ts"], { toolCallId: "tc1" }));
 
 			const checkpoints = store.getCheckpoints("s1");
 			expect(checkpoints).toHaveLength(2);
@@ -156,12 +157,15 @@ describe("CheckpointStore", () => {
 		it("should include root cause details in create checkpoint error message", async () => {
 			const rootCause = new Error("FOREIGN KEY constraint failed");
 			const tauriError = new AgentError("checkpoint_create", rootCause);
-			vi.mocked(tauriClient.checkpoint.create).mockReturnValue(errAsync(tauriError));
+			vi.mocked(tauriClient.checkpoint.create).mockReturnValue(Effect.fail(tauriError));
 
-			const result = await store.createCheckpoint("s1", "/project", ["file.ts"], { isAuto: true });
+			const result = await Effect.runPromise(Effect.result(store.createCheckpoint("s1", "/project", ["file.ts"], { isAuto: true })));
 
-			expect(result.isErr()).toBe(true);
-			const error = result._unsafeUnwrapErr();
+			expect(Result.isFailure(result)).toBe(true);
+			if (!Result.isFailure(result)) {
+				throw new Error("expected failure");
+			}
+			const error = result.failure;
 			expect(error.code).toBe("CREATE_FAILED");
 			expect(error.message).toContain("Agent operation failed: checkpoint_create");
 			expect(error.message).toContain("FOREIGN KEY constraint failed");
@@ -175,12 +179,12 @@ describe("CheckpointStore", () => {
 				revertedFiles: ["a.ts", "b.ts"],
 				failedFiles: [],
 			};
-			vi.mocked(tauriClient.checkpoint.revert).mockReturnValue(okAsync(mockResult));
+			vi.mocked(tauriClient.checkpoint.revert).mockReturnValue(Effect.succeed(mockResult));
 
-			const result = await store.revertToCheckpoint("s1", "cp1", "/project");
+			const result = await Effect.runPromise(Effect.result(store.revertToCheckpoint("s1", "cp1", "/project")));
 
-			expect(result.isOk()).toBe(true);
-			expect(result._unsafeUnwrap().revertedFiles).toHaveLength(2);
+			expect(Result.isSuccess(result)).toBe(true);
+			expect(Result.getOrThrow(result).revertedFiles).toHaveLength(2);
 		});
 
 		it("should return partial result when some files fail", async () => {
@@ -189,12 +193,12 @@ describe("CheckpointStore", () => {
 				revertedFiles: ["a.ts"],
 				failedFiles: [{ filePath: "b.ts", error: "permission denied" }],
 			};
-			vi.mocked(tauriClient.checkpoint.revert).mockReturnValue(okAsync(mockResult));
+			vi.mocked(tauriClient.checkpoint.revert).mockReturnValue(Effect.succeed(mockResult));
 
-			const result = await store.revertToCheckpoint("s1", "cp1", "/project");
+			const result = await Effect.runPromise(Effect.result(store.revertToCheckpoint("s1", "cp1", "/project")));
 
-			expect(result.isOk()).toBe(true);
-			const revertResult = result._unsafeUnwrap();
+			expect(Result.isSuccess(result)).toBe(true);
+			const revertResult = Result.getOrThrow(result);
 			expect(revertResult.success).toBe(false);
 			expect(revertResult.revertedFiles).toHaveLength(1);
 			expect(revertResult.failedFiles).toHaveLength(1);
@@ -203,23 +207,23 @@ describe("CheckpointStore", () => {
 
 	describe("revertFile", () => {
 		it("should revert single file to checkpoint state", async () => {
-			vi.mocked(tauriClient.checkpoint.revertFile).mockReturnValue(okAsync(undefined));
+			vi.mocked(tauriClient.checkpoint.revertFile).mockReturnValue(Effect.succeed(undefined));
 
-			const result = await store.revertFile("s1", "cp1", "file.ts", "/project");
+			const result = await Effect.runPromise(Effect.result(store.revertFile("s1", "cp1", "file.ts", "/project")));
 
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 		});
 	});
 
 	describe("getFileContentAtCheckpoint", () => {
 		it("should return file content", async () => {
 			const content = "const x = 1;";
-			vi.mocked(tauriClient.checkpoint.getFileContent).mockReturnValue(okAsync(content));
+			vi.mocked(tauriClient.checkpoint.getFileContent).mockReturnValue(Effect.succeed(content));
 
-			const result = await store.getFileContentAtCheckpoint("s1", "cp1", "file.ts");
+			const result = await Effect.runPromise(Effect.result(store.getFileContentAtCheckpoint("s1", "cp1", "file.ts")));
 
-			expect(result.isOk()).toBe(true);
-			expect(result._unsafeUnwrap()).toBe(content);
+			expect(Result.isSuccess(result)).toBe(true);
+			expect(Result.getOrThrow(result)).toBe(content);
 		});
 	});
 
@@ -229,12 +233,12 @@ describe("CheckpointStore", () => {
 				oldContent: "const x = 0;",
 				newContent: "const x = 1;",
 			};
-			vi.mocked(tauriClient.checkpoint.getFileDiffContent).mockReturnValue(okAsync(diffContent));
+			vi.mocked(tauriClient.checkpoint.getFileDiffContent).mockReturnValue(Effect.succeed(diffContent));
 
-			const result = await store.getFileDiffContentAtCheckpoint("s1", "cp1", "file.ts");
+			const result = await Effect.runPromise(Effect.result(store.getFileDiffContentAtCheckpoint("s1", "cp1", "file.ts")));
 
-			expect(result.isOk()).toBe(true);
-			expect(result._unsafeUnwrap()).toEqual(diffContent);
+			expect(Result.isSuccess(result)).toBe(true);
+			expect(Result.getOrThrow(result)).toEqual(diffContent);
 		});
 
 		it("should return null oldContent for new file", async () => {
@@ -242,12 +246,12 @@ describe("CheckpointStore", () => {
 				oldContent: null,
 				newContent: "const x = 1;",
 			};
-			vi.mocked(tauriClient.checkpoint.getFileDiffContent).mockReturnValue(okAsync(diffContent));
+			vi.mocked(tauriClient.checkpoint.getFileDiffContent).mockReturnValue(Effect.succeed(diffContent));
 
-			const result = await store.getFileDiffContentAtCheckpoint("s1", "cp1", "file.ts");
+			const result = await Effect.runPromise(Effect.result(store.getFileDiffContentAtCheckpoint("s1", "cp1", "file.ts")));
 
-			expect(result.isOk()).toBe(true);
-			expect(result._unsafeUnwrap()).toEqual(diffContent);
+			expect(Result.isSuccess(result)).toBe(true);
+			expect(Result.getOrThrow(result)).toEqual(diffContent);
 		});
 	});
 
@@ -272,8 +276,8 @@ describe("CheckpointStore", () => {
 				totalLinesAdded: null,
 				totalLinesRemoved: null,
 			};
-			vi.mocked(tauriClient.checkpoint.list).mockReturnValue(okAsync([checkpoint]));
-			await store.loadCheckpoints("s1");
+			vi.mocked(tauriClient.checkpoint.list).mockReturnValue(Effect.succeed([checkpoint]));
+			await Effect.runPromise(store.loadCheckpoints("s1"));
 			expect(store.getCheckpoints("s1")).toHaveLength(1);
 
 			// Clear

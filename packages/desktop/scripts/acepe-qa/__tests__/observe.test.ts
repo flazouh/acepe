@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import { okAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { observeApp } from "../observe";
 import type { CommandRunner } from "../tauri-mcp";
 
@@ -18,13 +19,13 @@ describe("acepe-qa observe", () => {
 		const runner: CommandRunner = (command) => {
 			const joined = command.join(" ");
 			if (joined.includes("driver-session")) {
-				return okAsync({
+				return Effect.succeed({
 					code: 0,
 					stdout: "",
 					stderr: "",
 				});
 			}
-			return okAsync({
+			return Effect.succeed({
 				code: 0,
 				stdout: wrapped(
 					JSON.stringify({
@@ -56,20 +57,24 @@ describe("acepe-qa observe", () => {
 			});
 		};
 
-		const result = await observeApp({
-			appIdentifier: "9223",
-			level: "summary",
-			runner,
-		});
+		const result = await Effect.runPromise(
+			Effect.result(
+				observeApp({
+					appIdentifier: "9223",
+					level: "summary",
+					runner,
+				})
+			)
+		);
 
-		expect(result.isOk()).toBe(true);
-		expect(result._unsafeUnwrap().composer).toEqual({
+		expect(Result.isSuccess(result)).toBe(true);
+		expect(Result.getOrThrow(result).composer).toEqual({
 			present: true,
 			text: "hello",
 			sendEnabled: true,
 			sessionCanSubmit: null,
 		});
-		expect(result._unsafeUnwrap().refs).toEqual([
+		expect(Result.getOrThrow(result).refs).toEqual([
 			{
 				ref: "ref-0",
 				role: "button",

@@ -1,4 +1,4 @@
-import type { ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 
 import type { AppError } from "../../acp/errors/app-error.js";
 import { CMD } from "./commands.js";
@@ -17,15 +17,15 @@ type NativeNotificationPermissionState =
 	| "prompt-with-rationale";
 
 export const notifications = {
-	send: (options: NativeNotificationOptions): ResultAsync<void, AppError> => {
+	send: (options: NativeNotificationOptions): Effect.Effect<void, AppError> => {
 		return invokeAsyncQuiet<void>(CMD.notifications.send, { options });
 	},
 
-	getPermission: (): ResultAsync<boolean | null, AppError> => {
+	getPermission: (): Effect.Effect<boolean | null, AppError> => {
 		return invokeAsync<boolean | null>(CMD.notifications.get_permission);
 	},
 
-	requestPermission: (): ResultAsync<NativeNotificationPermissionState, AppError> => {
+	requestPermission: (): Effect.Effect<NativeNotificationPermissionState, AppError> => {
 		return invokeAsync<NativeNotificationPermissionState>(CMD.notifications.request_permission);
 	},
 };

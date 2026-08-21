@@ -1,5 +1,6 @@
 import { registerCustomTheme, type ThemeRegistrationResolved } from "@pierre/diffs";
-import { err, ok, type Result } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import type { ThemeRegistration } from "shiki";
 
 import { getCursorThemeName, loadCursorTheme } from "./shiki-theme.js";
@@ -236,15 +237,15 @@ function isThemeRegistrationResolved(theme: ThemeRegistration): theme is ThemeRe
  */
 function validateAndConvertTheme(
 	theme: ThemeRegistration
-): Result<ThemeRegistrationResolved, Error> {
+): Result.Result<ThemeRegistrationResolved, Error> {
 	if (!isThemeRegistrationResolved(theme)) {
-		return err(
+		return Result.fail(
 			new Error(
 				`Theme validation failed: theme must have 'name' (string), 'colors' (object), and either 'tokenColors' or 'settings' (array)`
 			)
 		);
 	}
-	return ok(theme);
+	return Result.succeed(theme);
 }
 
 /**
@@ -259,24 +260,24 @@ export async function registerCursorThemeForPierreDiffs(): Promise<void> {
 	}
 
 	registrationPromise = (async () => {
-		const themeResult = await loadCursorTheme();
-		if (themeResult.isErr()) {
-			console.warn("Failed to load cursor theme for pierre/diffs:", themeResult.error);
+		const themeResult = await Effect.runPromise(Effect.result(loadCursorTheme()));
+		if (Result.isFailure(themeResult)) {
+			console.warn("Failed to load cursor theme for pierre/diffs:", themeResult.failure);
 			registrationPromise = null; // Reset on error to allow retry
-			throw new Error(`Failed to load cursor theme: ${themeResult.error.message}`);
+			throw new Error(`Failed to load cursor theme: ${themeResult.failure.message}`);
 		}
 
-		const theme = themeResult.value;
+		const theme = themeResult.success;
 		const themeName = getCursorThemeName(theme);
 
 		const validationResult = validateAndConvertTheme(theme);
-		if (validationResult.isErr()) {
-			console.error("Failed to process theme for pierre/diffs:", validationResult.error.message);
+		if (Result.isFailure(validationResult)) {
+			console.error("Failed to process theme for pierre/diffs:", validationResult.failure.message);
 			registrationPromise = null; // Reset on error to allow retry
-			throw validationResult.error; // Throw to reject the promise
+			throw validationResult.failure; // Throw to reject the promise
 		}
 
-		registerCustomTheme(themeName, () => Promise.resolve(validationResult.value));
+		registerCustomTheme(themeName, () => Promise.resolve(validationResult.success));
 	})();
 
 	return registrationPromise;

@@ -1,33 +1,33 @@
-import type { ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import type { AppError } from "../../acp/errors/app-error.js";
 import type { VoiceLanguageOption, VoiceModelInfo } from "../../acp/types/voice-input.js";
 import { invokeAsync } from "./invoke.js";
 
 export const voice = {
-	listModels: (): ResultAsync<VoiceModelInfo[], AppError> =>
+	listModels: (): Effect.Effect<VoiceModelInfo[], AppError> =>
 		invokeAsync<VoiceModelInfo[]>("voice_list_models"),
 
-	listLanguages: (): ResultAsync<VoiceLanguageOption[], AppError> =>
+	listLanguages: (): Effect.Effect<VoiceLanguageOption[], AppError> =>
 		invokeAsync<VoiceLanguageOption[]>("voice_list_languages"),
 
-	getModelStatus: (modelId: string): ResultAsync<VoiceModelInfo, AppError> =>
+	getModelStatus: (modelId: string): Effect.Effect<VoiceModelInfo, AppError> =>
 		invokeAsync<VoiceModelInfo>("voice_get_model_status", { modelId }),
 
-	loadModel: (modelId: string): ResultAsync<void, AppError> =>
+	loadModel: (modelId: string): Effect.Effect<void, AppError> =>
 		invokeAsync<void>("voice_load_model", { modelId }),
 
-	downloadModel: (modelId: string): ResultAsync<void, AppError> =>
+	downloadModel: (modelId: string): Effect.Effect<void, AppError> =>
 		invokeAsync<void>("voice_download_model", { modelId }),
 
-	deleteModel: (modelId: string): ResultAsync<void, AppError> =>
+	deleteModel: (modelId: string): Effect.Effect<void, AppError> =>
 		invokeAsync<void>("voice_delete_model", { modelId }),
 
-	startRecording: (sessionId: string): ResultAsync<void, AppError> =>
+	startRecording: (sessionId: string): Effect.Effect<void, AppError> =>
 		invokeAsync<void>("voice_start_recording", { sessionId }),
 
-	stopRecording: (sessionId: string, language: string | null): ResultAsync<void, AppError> =>
+	stopRecording: (sessionId: string, language: string | null): Effect.Effect<void, AppError> =>
 		invokeAsync<void>("voice_stop_recording", { sessionId, language }),
 
-	cancelRecording: (sessionId: string): ResultAsync<void, AppError> =>
+	cancelRecording: (sessionId: string): Effect.Effect<void, AppError> =>
 		invokeAsync<void>("voice_cancel_recording", { sessionId }),
 };

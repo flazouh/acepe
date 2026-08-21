@@ -1,4 +1,5 @@
-import { okAsync, ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
 import type { ThemeRegistration } from "shiki";
 
 export type { ThemeRegistration };
@@ -29,47 +30,45 @@ function loadThemeRegistration(
 	});
 }
 
+function toError(error: unknown): Error {
+	return error instanceof Error ? error : new Error(String(error));
+}
+
 /**
  * Loads the Cursor Dark theme from assets directory.
  * This should be called before initializing any highlighter.
  */
-export function loadCursorTheme(): ResultAsync<ThemeRegistration, Error> {
+export function loadCursorTheme(): Effect.Effect<ThemeRegistration, Error> {
 	if (cursorDarkTheme) {
-		return okAsync(cursorDarkTheme);
+		return Effect.succeed(cursorDarkTheme);
 	}
 
-	return ResultAsync.fromPromise(
-		(async () => {
-			cursorDarkTheme = await loadThemeRegistration(
-				CURSOR_THEME_ASSET_PATH,
-				"/themes/cursor.theme.json",
-				"Failed to load theme"
-			);
-			return cursorDarkTheme;
-		})(),
-		(error) => (error instanceof Error ? error : new Error(String(error)))
-	);
+	return fromPromise(async () => {
+		cursorDarkTheme = await loadThemeRegistration(
+			CURSOR_THEME_ASSET_PATH,
+			"/themes/cursor.theme.json",
+			"Failed to load theme"
+		);
+		return cursorDarkTheme;
+	}, toError);
 }
 
 /**
  * Loads the Cursor Light theme from assets directory.
  */
-export function loadCursorLightTheme(): ResultAsync<ThemeRegistration, Error> {
+export function loadCursorLightTheme(): Effect.Effect<ThemeRegistration, Error> {
 	if (cursorLightTheme) {
-		return okAsync(cursorLightTheme);
+		return Effect.succeed(cursorLightTheme);
 	}
 
-	return ResultAsync.fromPromise(
-		(async () => {
-			cursorLightTheme = await loadThemeRegistration(
-				CURSOR_LIGHT_THEME_ASSET_PATH,
-				"/themes/cursor-light.theme.json",
-				"Failed to load light theme"
-			);
-			return cursorLightTheme;
-		})(),
-		(error) => (error instanceof Error ? error : new Error(String(error)))
-	);
+	return fromPromise(async () => {
+		cursorLightTheme = await loadThemeRegistration(
+			CURSOR_LIGHT_THEME_ASSET_PATH,
+			"/themes/cursor-light.theme.json",
+			"Failed to load light theme"
+		);
+		return cursorLightTheme;
+	}, toError);
 }
 
 /**

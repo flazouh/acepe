@@ -1,5 +1,5 @@
+import * as Result from "effect/Result";
 import { LRUCache } from "lru-cache";
-import { ok, type Result } from "neverthrow";
 import { untrack } from "svelte";
 import type { TodoState } from "../types/todo.js";
 import type { ToolCall } from "../types/tool-call.js";
@@ -140,9 +140,9 @@ class TodoStateManager {
 	getTodoState(
 		threadId: string,
 		thread: ThreadWithEntries | null
-	): Result<TodoState | null, TodoStateError> {
+	): Result.Result<TodoState | null, TodoStateError> {
 		if (!thread) {
-			return ok(null);
+			return Result.succeed(null);
 		}
 
 		// Compute signature for cache key
@@ -157,7 +157,7 @@ class TodoStateManager {
 				this.metrics.cacheHits++;
 				this.updateMetrics();
 			});
-			return ok(cached.state);
+			return Result.succeed(cached.state);
 		}
 
 		// Cache miss - compute state
@@ -173,9 +173,9 @@ class TodoStateManager {
 			this.recordComputationTime(computationTime);
 
 			// Store in cache if successful
-			if (result.isOk()) {
+			if (Result.isSuccess(result)) {
 				this.cache.set(cacheKey, {
-					state: result.value,
+					state: result.success,
 					signature,
 					computedAt: Date.now(),
 					computationTime,
@@ -192,9 +192,9 @@ class TodoStateManager {
 	getTodoStateFromToolCalls(
 		threadId: string,
 		thread: TodoToolCallThread | null
-	): Result<TodoState | null, TodoStateError> {
+	): Result.Result<TodoState | null, TodoStateError> {
 		if (!thread) {
-			return ok(null);
+			return Result.succeed(null);
 		}
 
 		const signature = computeToolCallTodoSignature(thread.toolCalls);
@@ -205,7 +205,7 @@ class TodoStateManager {
 				this.metrics.cacheHits++;
 				this.updateMetrics();
 			});
-			return ok(cached.state);
+			return Result.succeed(cached.state);
 		}
 
 		const startTime = performance.now();
@@ -216,9 +216,9 @@ class TodoStateManager {
 			this.metrics.cacheMisses++;
 			this.recordComputationTime(computationTime);
 
-			if (result.isOk()) {
+			if (Result.isSuccess(result)) {
 				this.cache.set(cacheKey, {
-					state: result.value,
+					state: result.success,
 					signature,
 					computedAt: Date.now(),
 					computationTime,
@@ -238,7 +238,7 @@ class TodoStateManager {
 	 */
 	getTodoSnapshot(
 		toolCall: ToolCall
-	): Result<import("../types/todo.js").TodoSnapshot | null, TodoStateError> {
+	): Result.Result<import("../types/todo.js").TodoSnapshot | null, TodoStateError> {
 		return createTodoSnapshotFromToolCall(toolCall);
 	}
 

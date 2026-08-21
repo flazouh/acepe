@@ -6,7 +6,9 @@ import {
 	type AgentInputModelSelectorReasoningGroup,
 	type ProviderBrand,
 } from "@acepe/ui";
-import { ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { onDestroy, onMount } from "svelte";
 import type { DisplayableModel, ModelsForDisplay } from "../../services/acp-types.js";
 import type { ProviderMetadataProjection } from "../../services/acp-provider-metadata.js";
@@ -269,21 +271,26 @@ async function handleSharedModelChange(modelId: string): Promise<void> {
 	if (modelId !== currentModelId) {
 		logger.info("Changing model", { from: currentModelId, to: modelId });
 
-		const result = await ResultAsync.fromPromise(onModelChange(modelId), (error) => error as Error)
-			.map(() => {
-				logger.info("Model change completed", { modelId });
-				return undefined;
-			})
-			.mapErr((error) => {
-				logger.error("Model change failed", {
-					modelId,
-					error: error instanceof Error ? error.message : String(error),
-				});
-				return error;
-			});
+		const result = await Effect.runPromise(
+			Effect.result(
+				fromPromise(() => onModelChange(modelId), (error) => error as Error).pipe(
+					Effect.map(() => {
+						logger.info("Model change completed", { modelId });
+						return undefined;
+					}),
+					Effect.mapError((error) => {
+						logger.error("Model change failed", {
+							modelId,
+							error: error instanceof Error ? error.message : String(error),
+						});
+						return error;
+					})
+				)
+			)
+		);
 
-		if (result.isErr()) {
-			throw result.error;
+		if (Result.isFailure(result)) {
+			throw result.failure;
 		}
 	}
 }

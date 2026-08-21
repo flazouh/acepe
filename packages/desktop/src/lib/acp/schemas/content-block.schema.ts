@@ -1,63 +1,63 @@
-import { z } from "zod";
+import * as Schema from "effect/Schema";
 
 /**
  * Embedded resource schema per ACP protocol specification.
  *
  * @see https://agentclientprotocol.com/protocol/schema#contentblock
  */
-export const EmbeddedResourceSchema = z.object({
-	uri: z.string(),
-	text: z.string().optional(),
-	blob: z.string().optional(),
-	mimeType: z.string().optional(),
+export const EmbeddedResourceSchema = Schema.Struct({
+	uri: Schema.String,
+	text: Schema.optionalKey(Schema.String),
+	blob: Schema.optionalKey(Schema.String),
+	mimeType: Schema.optionalKey(Schema.String),
 });
 
 /**
  * Content block schema per ACP protocol specification.
  *
- * Uses discriminated union based on the 'type' field.
+ * Uses a union based on the 'type' field.
  * Matches the Rust backend enum structure exactly.
  *
  * @see https://agentclientprotocol.com/protocol/schema#contentblock
  */
-export const ContentBlockSchema = z.discriminatedUnion("type", [
-	z.object({
-		type: z.literal("text"),
-		text: z.string(),
+export const ContentBlockSchema = Schema.Union([
+	Schema.Struct({
+		type: Schema.Literal("text"),
+		text: Schema.String,
 	}),
-	z.object({
-		type: z.literal("image"),
-		data: z.string(),
-		mimeType: z.string(),
-		uri: z.string().optional(),
+	Schema.Struct({
+		type: Schema.Literal("image"),
+		data: Schema.String,
+		mimeType: Schema.String,
+		uri: Schema.optionalKey(Schema.String),
 	}),
-	z.object({
-		type: z.literal("audio"),
-		data: z.string(),
-		mimeType: z.string(),
+	Schema.Struct({
+		type: Schema.Literal("audio"),
+		data: Schema.String,
+		mimeType: Schema.String,
 	}),
-	z.object({
-		type: z.literal("resource"),
+	Schema.Struct({
+		type: Schema.Literal("resource"),
 		resource: EmbeddedResourceSchema,
 	}),
-	z.object({
-		type: z.literal("resource_link"),
-		uri: z.string(),
-		name: z.string(),
-		title: z.string().optional(),
-		description: z.string().optional(),
-		mimeType: z.string().optional(),
-		size: z.number().optional(),
+	Schema.Struct({
+		type: Schema.Literal("resource_link"),
+		uri: Schema.String,
+		name: Schema.String,
+		title: Schema.optionalKey(Schema.String),
+		description: Schema.optionalKey(Schema.String),
+		mimeType: Schema.optionalKey(Schema.String),
+		size: Schema.optionalKey(Schema.Number),
 	}),
 ]);
 
 /**
- * TypeScript type inferred from the Zod schema.
+ * TypeScript type inferred from the schema.
  * This ensures type safety at compile time and runtime validation.
  */
-export type ContentBlock = z.infer<typeof ContentBlockSchema>;
+export type ContentBlock = typeof ContentBlockSchema.Type;
 
 /**
  * Embedded resource type inferred from schema.
  */
-export type EmbeddedResource = z.infer<typeof EmbeddedResourceSchema>;
+export type EmbeddedResource = typeof EmbeddedResourceSchema.Type;

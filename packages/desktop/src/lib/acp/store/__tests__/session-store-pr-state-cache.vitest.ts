@@ -1,4 +1,5 @@
-import { okAsync, ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PrChecks, PrDetails } from "../../../utils/tauri-client/git.js";
 import type { AppError } from "../../errors/app-error.js";
@@ -6,9 +7,9 @@ import { AgentError } from "../../errors/app-error.js";
 
 const { prDetailsMock, prChecksMock } = vi.hoisted(() => {
 	const detailsMock =
-		vi.fn<(projectPath: string, prNumber: number) => ResultAsync<PrDetails, AppError>>();
+		vi.fn<(projectPath: string, prNumber: number) => Effect.Effect<PrDetails, AppError>>();
 	const checksMock =
-		vi.fn<(projectPath: string, prNumber: number) => ResultAsync<PrChecks, AppError>>();
+		vi.fn<(projectPath: string, prNumber: number) => Effect.Effect<PrChecks, AppError>>();
 	return { prDetailsMock: detailsMock, prChecksMock: checksMock };
 });
 
@@ -90,7 +91,7 @@ describe("SessionStore PR state refresh caching", () => {
 		store = new SessionStore();
 		prDetailsMock.mockReset();
 		prChecksMock.mockReset();
-		prChecksMock.mockReturnValue(okAsync(createPrChecks()));
+		prChecksMock.mockReturnValue(Effect.succeed(createPrChecks()));
 		vi.useFakeTimers();
 	});
 
@@ -100,10 +101,10 @@ describe("SessionStore PR state refresh caching", () => {
 
 	it("reuses cached PR details for repeated refreshes", async () => {
 		addSessionWithPr(store, "session-pr-1", 83);
-		prDetailsMock.mockReturnValue(okAsync(createPrDetails()));
+		prDetailsMock.mockReturnValue(Effect.succeed(createPrDetails()));
 
-		await store.connection.refreshSessionPrState("session-pr-1", "/test/path", 83);
-		await store.connection.refreshSessionPrState("session-pr-1", "/test/path", 83);
+		await Effect.runPromise(store.connection.refreshSessionPrState("session-pr-1", "/test/path", 83));
+		await Effect.runPromise(store.connection.refreshSessionPrState("session-pr-1", "/test/path", 83));
 
 		expect(prDetailsMock).toHaveBeenCalledTimes(1);
 		expect(store.read.getSessionCold("session-pr-1")?.prState).toBe("OPEN");
@@ -126,9 +127,9 @@ describe("SessionStore PR state refresh caching", () => {
 			createdAt: new Date("2026-02-28T18:00:00.000Z"),
 			parentId: null,
 		});
-		prDetailsMock.mockReturnValue(okAsync(createPrDetails({ state: "MERGED" })));
+		prDetailsMock.mockReturnValue(Effect.succeed(createPrDetails({ state: "MERGED" })));
 
-		await store.connection.refreshSessionPrState("session-pr-1", "/test/path", 83);
+		await Effect.runPromise(store.connection.refreshSessionPrState("session-pr-1", "/test/path", 83));
 
 		expect(store.read.getSessionCold("session-pr-1")?.prState).toBe("MERGED");
 		expect(store.read.getSessionCold("session-pr-1")?.updatedAt.toISOString()).toBe(
@@ -146,7 +147,7 @@ describe("SessionStore PR state refresh caching", () => {
 		});
 
 		prDetailsMock.mockReturnValue(
-			ResultAsync.fromPromise(detailsPromise, () => new AgentError("prDetails"))
+			fromPromise(() => detailsPromise, () => new AgentError("prDetails"))
 		);
 
 		const firstRequest = store.connection.refreshSessionPrState("session-pr-1", "/test/path", 83);
@@ -156,20 +157,32 @@ describe("SessionStore PR state refresh caching", () => {
 
 		resolveDetails?.(createPrDetails());
 
-		await firstRequest;
-		await secondRequest;
+		await Effect.runPromise(firstRequest);
+		await Effect.runPromise(secondRequest);
 
 		expect(store.read.getSessionCold("session-pr-1")?.prState).toBe("OPEN");
 		expect(store.read.getSessionCold("session-pr-2")?.prState).toBe("OPEN");
 	});
 
 	it("refreshes again after the cache ttl expires", async () => {
+		vi.useRealTimers();
 		addSessionWithPr(store, "session-pr-1", 83);
-		prDetailsMock.mockReturnValue(okAsync(createPrDetails()));
+		prDetailsMock.mockReturnValue(Effect.succeed(createPrDetails()));
 
-		await store.connection.refreshSessionPrState("session-pr-1", "/test/path", 83);
-		vi.advanceTimersByTime(60_001);
-		await store.connection.refreshSessionPrState("session-pr-1", "/test/path", 83);
+		const originalNow = Date.now;
+		let currentNow = 1_000_000;
+		Date.now = () => currentNow;
+		try {
+			await Effect.runPromise(
+				store.connection.refreshSessionPrState("session-pr-1", "/test/path", 83)
+			);
+			currentNow += 60_001;
+			await Effect.runPromise(
+				store.connection.refreshSessionPrState("session-pr-1", "/test/path", 83)
+			);
+		} finally {
+			Date.now = originalNow;
+		}
 
 		expect(prDetailsMock).toHaveBeenCalledTimes(2);
 	});
@@ -184,7 +197,7 @@ describe("SessionStore PR state refresh caching", () => {
 		});
 
 		prChecksMock.mockReturnValue(
-			ResultAsync.fromPromise(checksPromise, () => new AgentError("prChecks"))
+			fromPromise(() => checksPromise, () => new AgentError("prChecks"))
 		);
 
 		const firstRequest = store.connection.refreshSessionPrChecks("session-pr-1", "/test/path", 83);
@@ -194,8 +207,8 @@ describe("SessionStore PR state refresh caching", () => {
 
 		resolveChecks?.(createPrChecks({ checkRuns: [] }));
 
-		await firstRequest;
-		await secondRequest;
+		await Effect.runPromise(firstRequest);
+		await Effect.runPromise(secondRequest);
 
 		expect(store.read.getSessionCold("session-pr-1")?.linkedPr?.hasResolvedChecks).toBe(true);
 		expect(store.read.getSessionCold("session-pr-2")?.linkedPr?.checks).toEqual([]);

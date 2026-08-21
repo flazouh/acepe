@@ -1,5 +1,6 @@
+import { fromPromise } from "@acepe/effect-result/fromPromise";
 import * as Sentry from "@sentry/browser";
-import { ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import posthog from "posthog-js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
@@ -135,29 +136,37 @@ async function readAppVersion(): Promise<string | null> {
 		return appVersion;
 	}
 
-	return ResultAsync.fromPromise(
-		import("@tauri-apps/api/app").then((mod) => mod.getVersion()),
-		(error) =>
-			normalizeError(error instanceof Error ? error : undefined, "Failed to load app version")
-	).match(
-		(version) => {
-			appVersion = version;
-			return version;
-		},
-		(error) => {
-			logger.warn("Unable to resolve app version for analytics", { error });
-			return null;
-		}
+	return Effect.runPromise(
+		fromPromise(
+			() => import("@tauri-apps/api/app").then((mod) => mod.getVersion()),
+			(error) =>
+				normalizeError(error instanceof Error ? error : undefined, "Failed to load app version")
+		).pipe(
+			Effect.match({
+				onSuccess: (version) => {
+					appVersion = version;
+					return version;
+				},
+				onFailure: (error) => {
+					logger.warn("Unable to resolve app version for analytics", { error });
+					return null;
+				},
+			})
+		)
 	);
 }
 
 async function readAnalyticsEnabledPreference(): Promise<boolean> {
-	return settings.get<boolean>(ANALYTICS_OPT_OUT_KEY).match(
-		(value) => !(value ?? false),
-		(error) => {
-			logger.warn("Failed to load analytics preference", { error });
-			return true;
-		}
+	return Effect.runPromise(
+		settings.get<boolean>(ANALYTICS_OPT_OUT_KEY).pipe(
+			Effect.match({
+				onSuccess: (value) => !(value ?? false),
+				onFailure: (error) => {
+					logger.warn("Failed to load analytics preference", { error });
+					return true;
+				},
+			})
+		)
 	);
 }
 
@@ -183,28 +192,33 @@ async function initializeSentry(version: string | null): Promise<void> {
 		return;
 	}
 
-	await ResultAsync.fromPromise(
-		Promise.resolve().then(() => {
-			Sentry.init({
-				dsn,
-				defaultIntegrations: false,
-				sendDefaultPii: false,
-				tracesSampleRate: 0.1,
-				environment: import.meta.env.DEV ? "development" : "production",
-				release: version ? `acepe@${version}` : undefined,
-				beforeSend: (event) => (analyticsEnabled ? event : null),
-			});
-		}),
-		(error) =>
-			normalizeError(error instanceof Error ? error : undefined, "Failed to initialize Sentry")
-	).match(
-		() => {
-			sentryInitialized = true;
-			syncIdentity();
-		},
-		(error) => {
-			logger.warn("Sentry initialization failed", { error });
-		}
+	await Effect.runPromise(
+		fromPromise(
+			() =>
+				Promise.resolve().then(() => {
+					Sentry.init({
+						dsn,
+						defaultIntegrations: false,
+						sendDefaultPii: false,
+						tracesSampleRate: 0.1,
+						environment: import.meta.env.DEV ? "development" : "production",
+						release: version ? `acepe@${version}` : undefined,
+						beforeSend: (event) => (analyticsEnabled ? event : null),
+					});
+				}),
+			(error) =>
+				normalizeError(error instanceof Error ? error : undefined, "Failed to initialize Sentry")
+		).pipe(
+			Effect.match({
+				onSuccess: () => {
+					sentryInitialized = true;
+					syncIdentity();
+				},
+				onFailure: (error) => {
+					logger.warn("Sentry initialization failed", { error });
+				},
+			})
+		)
 	);
 }
 
@@ -218,30 +232,35 @@ async function initializePostHog(version: string | null): Promise<void> {
 		return;
 	}
 
-	await ResultAsync.fromPromise(
-		Promise.resolve().then(() => {
-			posthog.init(posthogKey, {
-				api_host: posthogApiHost(),
-				autocapture: false,
-				capture_pageview: false,
-				disable_session_recording: true,
-				persistence: "localStorage",
-				opt_out_capturing_by_default: !analyticsEnabled,
-			});
-		}),
-		(error) =>
-			normalizeError(error instanceof Error ? error : undefined, "Failed to initialize PostHog")
-	).match(
-		() => {
-			posthogInitialized = true;
-			syncIdentity();
-			if (analyticsEnabled) {
-				posthog.capture(APP_OPENED_EVENT, version ? { appVersion: version } : {});
-			}
-		},
-		(error) => {
-			logger.warn("PostHog initialization failed", { error });
-		}
+	await Effect.runPromise(
+		fromPromise(
+			() =>
+				Promise.resolve().then(() => {
+					posthog.init(posthogKey, {
+						api_host: posthogApiHost(),
+						autocapture: false,
+						capture_pageview: false,
+						disable_session_recording: true,
+						persistence: "localStorage",
+						opt_out_capturing_by_default: !analyticsEnabled,
+					});
+				}),
+			(error) =>
+				normalizeError(error instanceof Error ? error : undefined, "Failed to initialize PostHog")
+		).pipe(
+			Effect.match({
+				onSuccess: () => {
+					posthogInitialized = true;
+					syncIdentity();
+					if (analyticsEnabled) {
+						posthog.capture(APP_OPENED_EVENT, version ? { appVersion: version } : {});
+					}
+				},
+				onFailure: (error) => {
+					logger.warn("PostHog initialization failed", { error });
+				},
+			})
+		)
 	);
 }
 
@@ -386,27 +405,32 @@ export async function setAnalyticsEnabled(enabled: boolean): Promise<void> {
 		return;
 	}
 
-	await ResultAsync.fromPromise(
-		Promise.resolve().then(() => {
-			if (enabled) {
-				posthog.opt_in_capturing();
-				syncIdentity();
-				posthog.capture(APP_OPENED_EVENT, appVersion ? { appVersion } : {});
-				return;
-			}
+	await Effect.runPromise(
+		fromPromise(
+			() =>
+				Promise.resolve().then(() => {
+					if (enabled) {
+						posthog.opt_in_capturing();
+						syncIdentity();
+						posthog.capture(APP_OPENED_EVENT, appVersion ? { appVersion } : {});
+						return;
+					}
 
-			posthog.opt_out_capturing();
-		}),
-		(error) =>
-			normalizeError(
-				error instanceof Error ? error : undefined,
-				"Failed to update PostHog preference"
-			)
-	).match(
-		() => undefined,
-		(error) => {
-			logger.warn("Failed to apply analytics preference", { error, enabled });
-		}
+					posthog.opt_out_capturing();
+				}),
+			(error) =>
+				normalizeError(
+					error instanceof Error ? error : undefined,
+					"Failed to update PostHog preference"
+				)
+		).pipe(
+			Effect.match({
+				onSuccess: () => undefined,
+				onFailure: (error) => {
+					logger.warn("Failed to apply analytics preference", { error, enabled });
+				},
+			})
+		)
 	);
 }
 

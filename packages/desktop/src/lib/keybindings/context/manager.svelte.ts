@@ -12,7 +12,7 @@
  * - "inputFocused" (boolean)
  */
 
-import { ok, type Result } from "neverthrow";
+import * as Result from "effect/Result";
 import { SvelteMap } from "svelte/reactivity";
 
 import type { ContextValue, KeybindingError } from "../types.js";
@@ -130,13 +130,13 @@ export class ContextManager {
 	 * - OR: "isEditing || isCreating"
 	 * - Parentheses: "(a && b) || c"
 	 */
-	evaluate(expression: string): Result<boolean, KeybindingError> {
+	evaluate(expression: string): Result.Result<boolean, KeybindingError> {
 		if (!expression || expression.trim() === "") {
-			return ok(true);
+			return Result.succeed(true);
 		}
 
 		const result = this.evaluateExpression(expression.trim());
-		return ok(result);
+		return Result.succeed(result);
 	}
 
 	/**

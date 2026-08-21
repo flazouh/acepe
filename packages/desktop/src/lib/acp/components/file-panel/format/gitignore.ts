@@ -1,4 +1,4 @@
-import { ok, type Result } from "neverthrow";
+import * as Result from "effect/Result";
 import { parseContentToStructured } from "./parsers/gitignore.js";
 import type { FormatConfig, StructuredData } from "./types.js";
 
@@ -9,6 +9,6 @@ export const gitignoreConfig: FormatConfig = {
 		availableModes: ["structured", "raw"],
 		defaultMode: "structured",
 	},
-	parseStructured: (content: string): Result<StructuredData, Error> =>
-		ok(parseContentToStructured(content)),
+	parseStructured: (content: string): Result.Result<StructuredData, Error> =>
+		Result.succeed(parseContentToStructured(content)),
 };

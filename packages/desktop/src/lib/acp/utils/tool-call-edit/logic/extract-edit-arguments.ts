@@ -1,4 +1,4 @@
-import { err, ok, type Result } from "neverthrow";
+import * as Result from "effect/Result";
 
 import type { ToolArguments } from "../../../../services/converted-session-types.js";
 import { EDIT_TOOL_ERROR_CODES, EditToolError } from "../errors/index.js";
@@ -15,9 +15,9 @@ import type { EditArguments } from "../types/index.js";
  */
 export function extractEditArguments(
 	arguments_: ToolArguments | null | undefined
-): Result<EditArguments, EditToolError> {
+): Result.Result<EditArguments, EditToolError> {
 	if (!arguments_ || arguments_.kind !== "edit") {
-		return err(
+		return Result.fail(
 			new EditToolError(
 				"Invalid arguments: expected edit tool arguments",
 				EDIT_TOOL_ERROR_CODES.INVALID_ARGUMENTS
@@ -33,7 +33,7 @@ export function extractEditArguments(
 		newString = firstEdit.content;
 	}
 
-	return ok({
+	return Result.succeed({
 		filePath: firstEdit?.filePath ?? null,
 		oldString: firstEdit?.oldString ?? null,
 		newString,

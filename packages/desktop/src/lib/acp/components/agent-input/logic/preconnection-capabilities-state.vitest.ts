@@ -1,5 +1,8 @@
-import { okAsync, ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { AgentError, type AppError } from "$lib/acp/errors/app-error.js";
 import type { ProviderMetadataProjection, ResolvedCapabilities } from "$lib/services/acp-types.js";
 import {
 	PreconnectionCapabilitiesState,
@@ -53,6 +56,20 @@ function makeResolvedCapabilities(
 	};
 }
 
+function toAppError(error: unknown): AppError {
+	if (error instanceof AgentError) {
+		return error;
+	}
+	return new AgentError(
+		"preconnection-capabilities",
+		error instanceof Error ? error : new Error(String(error))
+	);
+}
+
+async function runToResult<A, E>(effect: Effect.Effect<A, E>): Promise<Result.Result<A, E>> {
+	return Effect.runPromise(Effect.result(effect));
+}
+
 describe("PreconnectionCapabilitiesState", () => {
 	const fetchFn = vi.fn();
 
@@ -62,17 +79,19 @@ describe("PreconnectionCapabilitiesState", () => {
 	});
 
 	it("loads startup-global capabilities before a session exists", async () => {
-		fetchFn.mockReturnValueOnce(okAsync(makeResolvedCapabilities()));
+		fetchFn.mockReturnValueOnce(Effect.succeed(makeResolvedCapabilities()));
 
 		const state = new PreconnectionCapabilitiesState(fetchFn);
-		const result = await state.ensureLoaded({
-			agentId: "claude-code",
-			hasConnectedSession: false,
-			projectPath: null,
-			preconnectionCapabilityMode: "startupGlobal",
-		});
+		const result = await runToResult(
+			state.ensureLoaded({
+				agentId: "claude-code",
+				hasConnectedSession: false,
+				projectPath: null,
+				preconnectionCapabilityMode: "startupGlobal",
+			})
+		);
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(fetchFn).toHaveBeenCalledWith("", "claude-code");
 		expect(
 			state.getCapabilities({
@@ -85,11 +104,7 @@ describe("PreconnectionCapabilitiesState", () => {
 
 	it("reuses the in-flight capability request for concurrent callers", async () => {
 		const deferred = createDeferred<ResolvedCapabilities>();
-		fetchFn.mockReturnValueOnce(
-			ResultAsync.fromPromise(deferred.promise, (error) =>
-				error instanceof Error ? error : new Error(String(error))
-			)
-		);
+		fetchFn.mockReturnValueOnce(fromPromise(() => deferred.promise, toAppError));
 
 		const first = new PreconnectionCapabilitiesState(fetchFn);
 		const second = new PreconnectionCapabilitiesState(fetchFn);
@@ -110,10 +125,10 @@ describe("PreconnectionCapabilitiesState", () => {
 		expect(fetchFn).toHaveBeenCalledTimes(1);
 		deferred.resolve(makeResolvedCapabilities());
 
-		const firstResult = await firstRequest;
-		const secondResult = await secondRequest;
-		expect(firstResult.isOk()).toBe(true);
-		expect(secondResult.isOk()).toBe(true);
+		const firstResult = await runToResult(firstRequest);
+		const secondResult = await runToResult(secondRequest);
+		expect(Result.isSuccess(firstResult)).toBe(true);
+		expect(Result.isSuccess(secondResult)).toBe(true);
 		expect(first.loadingCacheKey).toBeNull();
 		expect(second.loadingCacheKey).toBeNull();
 	});
@@ -121,27 +136,31 @@ describe("PreconnectionCapabilitiesState", () => {
 	it("force refreshes capabilities that were cached before an agent install", async () => {
 		const beforeInstall = makeResolvedCapabilities("fable", "Fable");
 		const afterInstall = makeResolvedCapabilities("claude-opus-4-8", "Claude Opus 4.8");
-		fetchFn.mockReturnValueOnce(okAsync(beforeInstall));
-		fetchFn.mockReturnValueOnce(okAsync(afterInstall));
+		fetchFn.mockReturnValueOnce(Effect.succeed(beforeInstall));
+		fetchFn.mockReturnValueOnce(Effect.succeed(afterInstall));
 
 		const state = new PreconnectionCapabilitiesState(fetchFn);
-		await state.ensureLoaded({
-			agentId: "claude-code",
-			hasConnectedSession: false,
-			projectPath: null,
-			preconnectionCapabilityMode: "startupGlobal",
-		});
-		const refreshResult = await state.ensureLoaded(
-			{
+		await runToResult(
+			state.ensureLoaded({
 				agentId: "claude-code",
 				hasConnectedSession: false,
 				projectPath: null,
 				preconnectionCapabilityMode: "startupGlobal",
-			},
-			{ force: true }
+			})
+		);
+		const refreshResult = await runToResult(
+			state.ensureLoaded(
+				{
+					agentId: "claude-code",
+					hasConnectedSession: false,
+					projectPath: null,
+					preconnectionCapabilityMode: "startupGlobal",
+				},
+				{ force: true }
+			)
 		);
 
-		expect(refreshResult.isOk()).toBe(true);
+		expect(Result.isSuccess(refreshResult)).toBe(true);
 		expect(fetchFn).toHaveBeenCalledTimes(2);
 		expect(
 			state.getCapabilities({

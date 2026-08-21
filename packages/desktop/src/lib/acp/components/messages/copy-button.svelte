@@ -1,6 +1,7 @@
 <script lang="ts">
 import { HugeiconsIcon } from "@acepe/ui";
-import { ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
 import { toastError, toastSuccess } from "$lib/components/ui/sonner/toast-bridge.js";
 import { buildCopyButtonDisplayState, type CopyButtonVariant } from "./copy-button-state.js";
 interface Props {
@@ -89,21 +90,26 @@ async function handleClick(event?: MouseEvent) {
 		return;
 	}
 
-	await ResultAsync.fromPromise(
-		navigator.clipboard.writeText(textToCopy),
-		(e) => new Error(`Failed to copy: ${String(e)}`)
-	)
-		.map(() => {
-			toastSuccess("Copied to clipboard");
-			internalCopied = true;
-			setTimeout(() => {
-				internalCopied = false;
-			}, 2000);
-		})
-		.mapErr((e) => {
-			toastError("Failed to copy");
-			console.error("Failed to copy:", e);
-		});
+	await Effect.runPromise(
+		fromPromise(
+			() => navigator.clipboard.writeText(textToCopy),
+			(e) => new Error(`Failed to copy: ${String(e)}`)
+		).pipe(
+			Effect.match({
+				onSuccess: () => {
+					toastSuccess("Copied to clipboard");
+					internalCopied = true;
+					setTimeout(() => {
+						internalCopied = false;
+					}, 2000);
+				},
+				onFailure: (e) => {
+					toastError("Failed to copy");
+					console.error("Failed to copy:", e);
+				},
+			})
+		)
+	);
 }
 </script>
 

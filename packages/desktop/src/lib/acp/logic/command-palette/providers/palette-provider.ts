@@ -1,4 +1,4 @@
-import type { ResultAsync } from "neverthrow";
+import type * as Effect from "effect/Effect";
 
 import type { PaletteItem } from "../../../types/palette-item.js";
 import type { PaletteMode } from "../../../types/palette-mode.js";
@@ -27,9 +27,9 @@ export interface PaletteProvider {
 	/**
 	 * Execute an action for the selected item.
 	 * @param item - The item to execute
-	 * @returns ResultAsync indicating success or failure
+	 * @returns Effect indicating success or failure
 	 */
-	execute(item: PaletteItem): ResultAsync<void, Error>;
+	execute(item: PaletteItem): Effect.Effect<void, Error>;
 
 	/**
 	 * Get recent items for this mode.

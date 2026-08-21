@@ -1,9 +1,10 @@
+import { fromPromise } from "@acepe/effect-result/fromPromise";
 import {
 	type WorkerInitializationRenderOptions,
 	WorkerPoolManager,
 	type WorkerPoolOptions,
 } from "@pierre/diffs/worker";
-import { ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 
 import { workerFactory } from "./worker-factory.js";
 
@@ -16,6 +17,24 @@ let initPromise: Promise<void> | null = null;
  * Missing languages are resolved per task by WorkerPoolManager.
  */
 const EAGER_WORKER_LANGS: readonly string[] = [];
+
+function reportWorkerPoolInitFailure(pending: Promise<void>): void {
+	void Effect.runPromise(
+		fromPromise(
+			() => pending,
+			(e) => (e instanceof Error ? e : new Error(String(e)))
+		).pipe(
+			Effect.match({
+				onSuccess: () => undefined,
+				onFailure: (error) => {
+					console.error("Worker pool initialization failed:", error);
+					// Pool will fall back to main thread rendering if initialization fails
+					// This is handled gracefully by FileDiff
+				},
+			})
+		)
+	);
+}
 
 /**
  * Gets the singleton worker pool instance.
@@ -45,13 +64,9 @@ export function getWorkerPool(): WorkerPoolManager {
 
 		// Start initialization immediately in background
 		// This is non-blocking - pool can be used immediately
-		initPromise = workerPool.initialize(Array.from(EAGER_WORKER_LANGS));
-		// Handle errors with neverthrow while preserving promise for awaiting
-		ResultAsync.fromPromise(initPromise, (e) => e as Error).mapErr((error) => {
-			console.error("Worker pool initialization failed:", error);
-			// Pool will fall back to main thread rendering if initialization fails
-			// This is handled gracefully by FileDiff
-		});
+		const pending = workerPool.initialize(Array.from(EAGER_WORKER_LANGS));
+		initPromise = pending;
+		reportWorkerPoolInitFailure(pending);
 	}
 	return workerPool;
 }
@@ -77,12 +92,10 @@ export function ensureWorkerPoolInitialized(): Promise<void> {
 	}
 	// If we get here, pool exists but initPromise is null (shouldn't happen)
 	// Start initialization now
-	initPromise = pool.initialize(Array.from(EAGER_WORKER_LANGS));
-	// Handle errors with neverthrow while preserving promise for awaiting
-	ResultAsync.fromPromise(initPromise, (e) => e as Error).mapErr((error) => {
-		console.error("Worker pool initialization failed:", error);
-	});
-	return initPromise;
+	const pending = pool.initialize(Array.from(EAGER_WORKER_LANGS));
+	initPromise = pending;
+	reportWorkerPoolInitFailure(pending);
+	return pending;
 }
 
 /**

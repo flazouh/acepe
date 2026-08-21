@@ -1,4 +1,6 @@
 <script lang="ts">
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { SvelteSet } from "svelte/reactivity";
 import AgentIcon from "$lib/acp/components/agent-icon.svelte";
 import { Button } from "$lib/components/ui/button/index.js";
@@ -75,33 +77,37 @@ description: "${description.trim() || "A custom skill"}"
 ${description.trim() || "Add your skill instructions here."}
 `;
 
-	const result = await store.createSkill(
-		skillName.trim(),
-		description.trim() || null,
-		content,
-		category.trim() || null
+	const result = await Effect.runPromise(
+		Effect.result(
+			store.createSkill(
+				skillName.trim(),
+				description.trim() || null,
+				content,
+				category.trim() || null
+			)
+		)
 	);
 
-	result.match(
-		async (skill) => {
-			const agentPromises = Array.from(selectedAgents).map((agentId) =>
-				store.setSyncTarget(skill.id, agentId, true)
-			);
-			await Promise.all(agentPromises);
+	if (Result.isFailure(result)) {
+		isCreating = false;
+		error = result.failure.message;
+		return;
+	}
 
-			if (selectedAgents.size > 0) {
-				await store.syncSkill(skill.id);
-			}
-
-			isCreating = false;
-			onOpenChange(false);
-			store.selectSkill(skill.id);
-		},
-		(err) => {
-			isCreating = false;
-			error = err.message;
-		}
+	const skill = result.success;
+	await Promise.all(
+		Array.from(selectedAgents).map((agentId) =>
+			Effect.runPromise(Effect.result(store.setSyncTarget(skill.id, agentId, true)))
+		)
 	);
+
+	if (selectedAgents.size > 0) {
+		await Effect.runPromise(Effect.result(store.syncSkill(skill.id)));
+	}
+
+	isCreating = false;
+	onOpenChange(false);
+	void Effect.runPromise(Effect.result(store.selectSkill(skill.id)));
 }
 
 function handleClose() {

@@ -1,4 +1,7 @@
-import { errAsync, ok, okAsync, Result, ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import { fromThrowable } from "@acepe/effect-result/fromThrowable";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 
 import type {
 	SessionOpenFound,
@@ -137,17 +140,17 @@ export class SessionOpenHydrator {
 		panelId: string,
 		requestToken: string,
 		found: SessionOpenFound
-	): ResultAsync<SessionOpenHydrationResult, AppError> {
+	): Effect.Effect<SessionOpenHydrationResult, AppError> {
 		const immediateResult = this.hydrateFoundNow(panelId, requestToken, found);
-		if (immediateResult.isErr()) {
-			return errAsync(immediateResult.error);
+		if (Result.isFailure(immediateResult)) {
+			return Effect.fail(immediateResult.failure);
 		}
-		if (immediateResult.value !== null) {
-			return okAsync(immediateResult.value);
+		if (immediateResult.success !== null) {
+			return Effect.succeed(immediateResult.success);
 		}
 		const prior = this.panelChains.get(panelId);
 		if (prior === undefined) {
-			return okAsync({
+			return Effect.succeed({
 				canonicalSessionId: found.canonicalSessionId,
 				openToken: found.openToken,
 				applied: false,
@@ -167,21 +170,30 @@ export class SessionOpenHydrator {
 				applied: false,
 			}))
 		);
-		return ResultAsync.fromPromise(queued, toAppError);
+		return fromPromise(() => queued, toAppError);
 	}
 
-	hydrateFoundNow(panelId: string, requestToken: string, found: SessionOpenFound) {
+	hydrateFoundNow(
+		panelId: string,
+		requestToken: string,
+		found: SessionOpenFound
+	): Result.Result<SessionOpenHydrationResult | null, AppError> {
 		if (this.panelChains.get(panelId) !== undefined) {
-			return ok(null);
+			return Result.succeed(null);
 		}
-		return Result.fromThrowable(() => this.applyFound(panelId, requestToken, found), toAppError)();
+		return Effect.runSync(
+			Effect.result(
+				fromThrowable(() => this.applyFound(panelId, requestToken, found), toAppError)()
+			)
+		);
 	}
 
-	hydrateCreated(found: SessionOpenFound): ResultAsync<void, AppError> {
-		return ResultAsync.fromPromise(
-			Promise.resolve().then(() => {
-				this.applySnapshot(found);
-			}),
+	hydrateCreated(found: SessionOpenFound): Effect.Effect<void, AppError> {
+		return fromPromise(
+			() =>
+				Promise.resolve().then(() => {
+					this.applySnapshot(found);
+				}),
 			toAppError
 		);
 	}

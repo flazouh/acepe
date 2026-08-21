@@ -5,7 +5,7 @@
  * and connection orchestration for opened sessions.
  */
 
-import { errAsync, okAsync, type ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import type { SessionListItem } from "$lib/acp/components/session-list/session-list-types.js";
 import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
 import type { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
@@ -62,12 +62,12 @@ export class SessionHandler {
 	 *
 	 * @param sessionId - The session ID to select
 	 * @param sessionInfo - Optional session info for loading historical sessions
-	 * @returns ResultAsync indicating success or error
+	 * @returns Effect indicating success or error
 	 */
 	selectSession(
 		sessionId: string,
 		sessionInfo?: SessionListItem
-	): ResultAsync<void, MainAppViewError> {
+	): Effect.Effect<void, MainAppViewError> {
 		// Check if session exists in memory
 		const sessionExists = this.sessionStore.read.hasSession(sessionId);
 		let finalSessionId = sessionId;
@@ -84,23 +84,25 @@ export class SessionHandler {
 					sessionInfo.sequenceId,
 					sessionInfo.worktreePath
 				)
-				.mapErr(
-					(error) =>
-						new SessionSelectionError(
-							sessionId,
-							"Failed to load historical session",
-							error instanceof Error ? error : undefined
-						)
-				)
-				.andThen((loadedSession) => {
-					finalSessionId = loadedSession.id;
-					return this.openPanelAndStartSessionOpen(finalSessionId);
-				});
+				.pipe(
+					Effect.mapError(
+						(error) =>
+							new SessionSelectionError(
+								sessionId,
+								"Failed to load historical session",
+								error instanceof Error ? error : undefined
+							)
+					),
+					Effect.flatMap((loadedSession) => {
+						finalSessionId = loadedSession.id;
+						return this.openPanelAndStartSessionOpen(finalSessionId);
+					})
+				);
 		} else if (sessionExists) {
 			finalSessionId = sessionId;
 			return this.openPanelAndStartSessionOpen(finalSessionId);
 		} else {
-			return errAsync(
+			return Effect.fail(
 				new SessionSelectionError(sessionId, "Session not found and no sessionInfo provided")
 			);
 		}
@@ -123,7 +125,7 @@ export class SessionHandler {
 		);
 	}
 
-	private openPanelAndStartSessionOpen(sessionId: string): ResultAsync<void, MainAppViewError> {
+	private openPanelAndStartSessionOpen(sessionId: string): Effect.Effect<void, MainAppViewError> {
 		const wasAlreadyOpen = this.panelStore.isSessionOpen(sessionId);
 		const openedPanel = this.panelStore.openSession(sessionId, DEFAULT_PANEL_WIDTH);
 		const panelId = openedPanel?.id ?? this.panelStore.getPanelBySessionId(sessionId)?.id;
@@ -143,34 +145,36 @@ export class SessionHandler {
 			});
 		}
 
-		return okAsync(undefined);
+		return Effect.succeed(undefined);
 	}
 
 	/**
 	 * Creates a new session.
 	 *
 	 * @param options - Session creation options
-	 * @returns ResultAsync containing the created session ID or error
+	 * @returns Effect containing the created session ID or error
 	 */
-	createSession(options: CreateSessionOptions): ResultAsync<string, MainAppViewError> {
+	createSession(options: CreateSessionOptions): Effect.Effect<string, MainAppViewError> {
 		return this.sessionStore.connection
 			.createSession({
 				agentId: options.agentId,
 				projectPath: options.projectPath,
 			})
-			.map((createdSession) => {
-				const sessionId =
-					createdSession.kind === "pending" ? createdSession.sessionId : createdSession.session.id;
-				this.panelStore.openSession(sessionId, DEFAULT_PANEL_WIDTH);
-				return sessionId;
-			})
-			.mapErr(
-				(error) =>
-					new SessionCreationError(
-						options.agentId,
-						options.projectPath,
-						error instanceof Error ? error : new Error(String(error))
-					)
+			.pipe(
+				Effect.map((createdSession) => {
+					const sessionId =
+						createdSession.kind === "pending" ? createdSession.sessionId : createdSession.session.id;
+					this.panelStore.openSession(sessionId, DEFAULT_PANEL_WIDTH);
+					return sessionId;
+				}),
+				Effect.mapError(
+					(error) =>
+						new SessionCreationError(
+							options.agentId,
+							options.projectPath,
+							error instanceof Error ? error : new Error(String(error))
+						)
+				)
 			);
 	}
 
@@ -179,18 +183,18 @@ export class SessionHandler {
 	 *
 	 * @param panelId - The panel ID
 	 * @param project - The project to create session for
-	 * @returns ResultAsync indicating success or error
+	 * @returns Effect indicating success or error
 	 */
 	createSessionForProject(
 		panelId: string,
 		project: Pick<Project, "path" | "name">
-	): ResultAsync<void, MainAppViewError> {
+	): Effect.Effect<void, MainAppViewError> {
 		const panel = this.panelStore.getTopLevelAgentPanel(panelId);
 		if (!panel) {
 			console.error("[session-handler] createSessionForProject ABORT — panel not found", {
 				panelId,
 			});
-			return errAsync(
+			return Effect.fail(
 				new SessionCreationError(
 					"",
 					project.path,
@@ -203,7 +207,7 @@ export class SessionHandler {
 			console.error("[session-handler] createSessionForProject ABORT — no agent selected", {
 				panelId,
 			});
-			return errAsync(
+			return Effect.fail(
 				new SessionCreationError("", project.path, new Error("No agent selected for this panel"))
 			);
 		}
@@ -213,6 +217,6 @@ export class SessionHandler {
 
 		// Session creation is intentionally deferred until the first user message.
 		// Selecting a project should only prepare the panel context.
-		return okAsync(undefined);
+		return Effect.succeed(undefined);
 	}
 }

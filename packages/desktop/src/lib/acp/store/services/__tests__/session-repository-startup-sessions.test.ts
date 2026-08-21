@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
-import { okAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import type {
 	HistoryEntry,
 	StartupSessionsResponse,
@@ -13,7 +14,7 @@ import type {
 } from "../interfaces/index.js";
 
 const getStartupSessionsMock = mock((_sessionIds: string[]) =>
-	okAsync({ entries: [], aliasRemaps: {} } as StartupSessionsResponse)
+	Effect.succeed({ entries: [], aliasRemaps: {} } as StartupSessionsResponse)
 );
 
 mock.module("../../api.js", () => ({
@@ -159,7 +160,7 @@ describe("SessionRepository.loadStartupSessions", () => {
 	beforeEach(() => {
 		getStartupSessionsMock.mockClear();
 		getStartupSessionsMock.mockImplementation(() =>
-			okAsync({ entries: [], aliasRemaps: {} } as StartupSessionsResponse)
+			Effect.succeed({ entries: [], aliasRemaps: {} } as StartupSessionsResponse)
 		);
 	});
 
@@ -173,18 +174,18 @@ describe("SessionRepository.loadStartupSessions", () => {
 		);
 
 		getStartupSessionsMock.mockImplementation(() =>
-			okAsync({ entries: [createHistoryEntry()], aliasRemaps: {} })
+			Effect.succeed({ entries: [createHistoryEntry()], aliasRemaps: {} })
 		);
 
-		const result = await repository.loadStartupSessions(state.sessions, [
+		const result = await Effect.runPromise(Effect.result(repository.loadStartupSessions(state.sessions, [
 			"session-123",
 			"missing-session",
-		]);
+		])));
 
 		expect(getStartupSessionsMock).toHaveBeenCalledWith(["session-123", "missing-session"]);
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value.missing).toEqual(["missing-session"]);
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success.missing).toEqual(["missing-session"]);
 		}
 		expect(state.sessions[0]?.id).toBe("session-123");
 		expect(state.sessions[0]?.projectPath).toBe("/projects/acepe");
@@ -201,7 +202,7 @@ describe("SessionRepository.loadStartupSessions", () => {
 		);
 		const sessionIds = Array.from({ length: 65 }, (_, index) => `session-${index + 1}`);
 		getStartupSessionsMock.mockImplementation((ids: string[]) =>
-			okAsync({
+			Effect.succeed({
 				entries: ids.map((id) =>
 					createHistoryEntry({
 						id,
@@ -212,9 +213,9 @@ describe("SessionRepository.loadStartupSessions", () => {
 			})
 		);
 
-		const result = await repository.loadStartupSessions(state.sessions, sessionIds);
+		const result = await Effect.runPromise(Effect.result(repository.loadStartupSessions(state.sessions, sessionIds)));
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(getStartupSessionsMock).toHaveBeenCalledTimes(3);
 		expect(getStartupSessionsMock.mock.calls.map((call) => call[0]?.length)).toEqual([32, 32, 1]);
 		expect(getStartupSessionsMock.mock.calls[0]?.[0]?.[0]).toBe("session-1");
@@ -232,12 +233,12 @@ describe("SessionRepository.loadStartupSessions", () => {
 			connectionManager
 		);
 
-		const result = await repository.loadStartupSessions(state.sessions, ["session-123"]);
+		const result = await Effect.runPromise(Effect.result(repository.loadStartupSessions(state.sessions, ["session-123"])));
 
 		expect(getStartupSessionsMock).not.toHaveBeenCalled();
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value.missing).toEqual([]);
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success.missing).toEqual([]);
 		}
 		expect(state.sessions).toHaveLength(1);
 	});
@@ -253,7 +254,7 @@ describe("SessionRepository.loadStartupSessions", () => {
 
 		// Backend returns the session under its canonical ID, with an alias remap
 		getStartupSessionsMock.mockImplementation(() =>
-			okAsync({
+			Effect.succeed({
 				entries: [
 					createHistoryEntry({
 						id: "acepe-uuid",
@@ -264,14 +265,14 @@ describe("SessionRepository.loadStartupSessions", () => {
 			})
 		);
 
-		const result = await repository.loadStartupSessions(state.sessions, ["claude-session"]);
+		const result = await Effect.runPromise(Effect.result(repository.loadStartupSessions(state.sessions, ["claude-session"])));
 
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
 			// The alias should not be reported as missing
-			expect(result.value.missing).toEqual([]);
+			expect(result.success.missing).toEqual([]);
 			// The alias remap should be passed through
-			expect(result.value.aliasRemaps).toEqual({ "claude-session": "acepe-uuid" });
+			expect(result.success.aliasRemaps).toEqual({ "claude-session": "acepe-uuid" });
 		}
 		// Session is stored under its canonical ID
 		expect(state.sessions[0]?.id).toBe("acepe-uuid");
@@ -352,7 +353,7 @@ describe("SessionRepository.loadStartupSessions", () => {
 			connectionManager
 		);
 		getStartupSessionsMock.mockReturnValueOnce(
-			okAsync({
+			Effect.succeed({
 				entries: [
 					createHistoryEntry({
 						usageStats: {
@@ -368,9 +369,9 @@ describe("SessionRepository.loadStartupSessions", () => {
 			})
 		);
 
-		const result = await repository.loadStartupSessions(state.sessions, ["new-session"]);
+		const result = await Effect.runPromise(Effect.result(repository.loadStartupSessions(state.sessions, ["new-session"])));
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(state.sessions.find((session) => session.id === "session-123")?.usageStats).toEqual({
 			totalMessages: 4,
 			userMessages: 2,
@@ -390,17 +391,17 @@ describe("SessionRepository.loadStartupSessions", () => {
 		);
 
 		getStartupSessionsMock.mockImplementation(() =>
-			okAsync({
+			Effect.succeed({
 				entries: [createHistoryEntry()],
 				aliasRemaps: {},
 			})
 		);
 
-		const result = await repository.loadStartupSessions(state.sessions, ["session-123"]);
+		const result = await Effect.runPromise(Effect.result(repository.loadStartupSessions(state.sessions, ["session-123"])));
 
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value.aliasRemaps).toEqual({});
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success.aliasRemaps).toEqual({});
 		}
 	});
 });

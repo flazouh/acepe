@@ -9,7 +9,7 @@
  * and reduce the God class anti-pattern.
  */
 
-import { errAsync, type ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import type { ContentBlock } from "../../../services/converted-session-types.js";
 import { isInlineImageAttachment } from "../../components/agent-input/logic/image-attachment.js";
 import type { Attachment } from "../../components/agent-input/types/attachment.js";
@@ -270,11 +270,11 @@ export class SessionMessagingService {
 		sessionId: string,
 		content: string,
 		attachments: readonly Attachment[] = []
-	): ResultAsync<void, AppError> {
+	): Effect.Effect<void, AppError> {
 		const sessionIdentity = this.stateReader.getSessionIdentity(sessionId);
 		const sessionMetadata = this.stateReader.getSessionMetadata(sessionId);
 		if (!sessionIdentity || !sessionMetadata) {
-			return errAsync(new SessionNotFoundError(sessionId));
+			return Effect.fail(new SessionNotFoundError(sessionId));
 		}
 		const lifecycleStatus = this.stateReader.getSessionLifecycleStatus(sessionId);
 		const canonicalCanSend = this.stateReader.getSessionCanSend(sessionId);
@@ -284,13 +284,13 @@ export class SessionMessagingService {
 		});
 		const canSend = canonicalCanSend === true;
 		if (!canSend && !canActivateFirstPrompt) {
-			return errAsync(new ConnectionError(sessionId));
+			return Effect.fail(new ConnectionError(sessionId));
 		}
 
 		const promptContent = buildPromptContentBlocks(content, attachments);
 		if (promptContent === null) {
 			logger.warn("Attempted to send empty message, ignoring", { sessionId });
-			return errAsync(new AgentError("sendMessage: cannot send empty message"));
+			return Effect.fail(new AgentError("sendMessage: cannot send empty message"));
 		}
 
 		const textContent = promptContent.textContent;
@@ -304,14 +304,13 @@ export class SessionMessagingService {
 
 		logger.debug("Sending message (optimistic)", { sessionId });
 
-		return api
-			.sendPrompt(sessionId, promptContent.contentBlocks, sendAttemptId)
-			.map(() => {
+		return api.sendPrompt(sessionId, promptContent.contentBlocks, sendAttemptId).pipe(
+			Effect.map(() => {
 				// Prompt sent successfully - response will arrive via Tauri events
 				// DO NOT call stream complete here - sendPrompt is fire-and-forget
 				logger.debug("Message sent successfully", { sessionId });
-			})
-			.mapErr((error) => {
+			}),
+			Effect.mapError((error) => {
 				// Transition XState machine to ERROR (fatal) — subprocess is dead and
 				// cannot accept messages. Canonical envelopes remain lifecycle authority.
 				this.connectionManager.sendTurnFailed(sessionId, {
@@ -327,18 +326,19 @@ export class SessionMessagingService {
 					error,
 				});
 				return error;
-			});
+			})
+		);
 	}
 
 	sendPendingCreationMessage(
 		sessionId: string,
 		content: string,
 		attachments: readonly Attachment[] = []
-	): ResultAsync<void, AppError> {
+	): Effect.Effect<void, AppError> {
 		const promptContent = buildPromptContentBlocks(content, attachments);
 		if (promptContent === null) {
 			logger.warn("Attempted to send empty pending creation message", { sessionId });
-			return errAsync(new AgentError("sendPendingCreationMessage: cannot send empty message"));
+			return Effect.fail(new AgentError("sendPendingCreationMessage: cannot send empty message"));
 		}
 
 		const sendAttemptId = crypto.randomUUID();
@@ -354,19 +354,19 @@ export class SessionMessagingService {
 			optimisticEntry
 		);
 		this.connectionManager.sendMessageSent(sessionId);
-		return api
-			.sendPrompt(sessionId, promptContent.contentBlocks, sendAttemptId)
-			.map(() => {
+		return api.sendPrompt(sessionId, promptContent.contentBlocks, sendAttemptId).pipe(
+			Effect.map(() => {
 				logger.debug("Pending creation prompt sent successfully", { sessionId });
-			})
-			.mapErr((error) => {
+			}),
+			Effect.mapError((error) => {
 				this.clearPendingSendIntent(sessionId, sendAttemptId);
 				logger.error("Failed to send pending creation message", {
 					sessionId,
 					error,
 				});
 				return error;
-			});
+			})
+		);
 	}
 
 	/**
@@ -465,34 +465,37 @@ export class SessionMessagingService {
 			projectPath: sessionIdentity.projectPath,
 		});
 
-		// Auto-checkpoint (fire-and-forget - failure logged but not propagated)
-		checkpointStore
-			.createCheckpoint(sessionId, sessionIdentity.projectPath, modifiedFilePaths, {
-				isAuto: true,
-				worktreePath: sessionIdentity.worktreePath,
-				agentId: sessionIdentity.agentId,
-			})
-			.match(
-				(checkpoint) => {
-					this.lastCheckpointEditCount.set(sessionId, modifiedFilesState.totalEditCount);
-					logger.info("Auto-checkpoint created", {
-						sessionId,
-						checkpointId: checkpoint.id,
-						checkpointNumber: checkpoint.checkpointNumber,
-					});
-				},
-				(error) => {
-					const errorDetails = getErrorCauseDetails(error);
-					logger.error("Failed to create auto-checkpoint", {
-						sessionId,
-						error: errorDetails.formatted,
-						errorChain: errorDetails.chain,
-						rootCause: errorDetails.rootCause,
-						projectPath: sessionIdentity.projectPath,
-						filePaths: modifiedFilePaths,
-					});
-				}
-			);
+		void Effect.runPromise(
+			checkpointStore
+				.createCheckpoint(sessionId, sessionIdentity.projectPath, modifiedFilePaths, {
+					isAuto: true,
+					worktreePath: sessionIdentity.worktreePath,
+					agentId: sessionIdentity.agentId,
+				})
+				.pipe(
+					Effect.match({
+						onSuccess: (checkpoint) => {
+							this.lastCheckpointEditCount.set(sessionId, modifiedFilesState.totalEditCount);
+							logger.info("Auto-checkpoint created", {
+								sessionId,
+								checkpointId: checkpoint.id,
+								checkpointNumber: checkpoint.checkpointNumber,
+							});
+						},
+						onFailure: (error) => {
+							const errorDetails = getErrorCauseDetails(error);
+							logger.error("Failed to create auto-checkpoint", {
+								sessionId,
+								error: errorDetails.formatted,
+								errorChain: errorDetails.chain,
+								rootCause: errorDetails.rootCause,
+								projectPath: sessionIdentity.projectPath,
+								filePaths: modifiedFilePaths,
+							});
+						},
+					})
+				)
+		);
 	}
 
 	/**

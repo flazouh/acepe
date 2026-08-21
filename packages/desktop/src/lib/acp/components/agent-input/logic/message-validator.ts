@@ -1,4 +1,4 @@
-import { err, ok, type Result } from "neverthrow";
+import * as Result from "effect/Result";
 
 import { ValidationError } from "../errors/agent-input-error.js";
 
@@ -11,21 +11,21 @@ import { ValidationError } from "../errors/agent-input-error.js";
  * @example
  * ```ts
  * const result = validateMessage("  Hello  ");
- * if (result.isOk()) {
- *   // Send result.value (trimmed message)
+ * if (Result.isSuccess(result)) {
+ *   // Send result.success (trimmed message)
  * }
  * ```
  */
-export function validateMessage(message: string): Result<string, ValidationError> {
+export function validateMessage(message: string): Result.Result<string, ValidationError> {
 	if (typeof message !== "string") {
-		return err(new ValidationError("Message must be a string", "message"));
+		return Result.fail(new ValidationError("Message must be a string", "message"));
 	}
 
 	const trimmed = message.trim();
 
 	if (trimmed.length === 0) {
-		return err(new ValidationError("Message cannot be empty", "message"));
+		return Result.fail(new ValidationError("Message cannot be empty", "message"));
 	}
 
-	return ok(trimmed);
+	return Result.succeed(trimmed);
 }

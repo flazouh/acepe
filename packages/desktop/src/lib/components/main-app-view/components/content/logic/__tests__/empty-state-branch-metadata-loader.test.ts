@@ -1,3 +1,4 @@
+import { fromPromise } from "@acepe/effect-result/fromPromise";
 import { describe, expect, it } from "bun:test";
 
 import {
@@ -7,22 +8,24 @@ import {
 	type EmptyStateBranchMetadataScheduler,
 } from "../empty-state-branch-metadata-loader.js";
 
-class DeferredMatch<T> {
-	private ok: ((value: T) => void) | null = null;
-	private err: ((error: unknown) => void) | null = null;
+function createDeferredEffect<T>() {
+	let resolve!: (value: T) => void;
+	let reject!: (reason?: unknown) => void;
+	const promise = new Promise<T>((nextResolve, nextReject) => {
+		resolve = nextResolve;
+		reject = nextReject;
+	});
+	return {
+		effect: fromPromise(() => promise, (error) => error),
+		resolve,
+		reject,
+	};
+}
 
-	match(onOk: (value: T) => void, onErr: (error: unknown) => void): void {
-		this.ok = onOk;
-		this.err = onErr;
-	}
-
-	resolve(value: T): void {
-		this.ok?.(value);
-	}
-
-	reject(error: unknown): void {
-		this.err?.(error);
-	}
+async function flush(): Promise<void> {
+	await new Promise<void>((resolve) => {
+		setTimeout(resolve, 0);
+	});
 }
 
 function createWriterState() {
@@ -53,15 +56,15 @@ function createWriterState() {
 }
 
 describe("empty-state branch metadata loader", () => {
-	it("loads repo, branch, and diff stats when details are requested", () => {
+	it("loads repo, branch, and diff stats when details are requested", async () => {
 		const state = createWriterState();
-		const repo = new DeferredMatch<boolean>();
-		const branch = new DeferredMatch<string | null>();
-		const stats = new DeferredMatch<EmptyStateBranchDiffStats>();
+		const repo = createDeferredEffect<boolean>();
+		const branch = createDeferredEffect<string | null>();
+		const stats = createDeferredEffect<EmptyStateBranchDiffStats>();
 		const gitClient: EmptyStateBranchMetadataGitClient = {
-			isRepo: () => repo,
-			currentBranch: () => branch,
-			diffStats: () => stats,
+			isRepo: () => repo.effect,
+			currentBranch: () => branch.effect,
+			diffStats: () => stats.effect,
 		};
 		const loader = createEmptyStateBranchMetadataLoader({
 			gitClient,
@@ -72,6 +75,7 @@ describe("empty-state branch metadata loader", () => {
 		repo.resolve(true);
 		branch.resolve("main");
 		stats.resolve({ insertions: 3, deletions: 1 });
+		await flush();
 
 		expect(state.resetCount).toBe(1);
 		expect(state.isGitRepo).toBe(true);
@@ -79,20 +83,20 @@ describe("empty-state branch metadata loader", () => {
 		expect(state.diffStats).toEqual({ insertions: 3, deletions: 1 });
 	});
 
-	it("skips branch and diff details during the default automatic refresh", () => {
+	it("skips branch and diff details during the default automatic refresh", async () => {
 		const state = createWriterState();
-		const repo = new DeferredMatch<boolean>();
+		const repo = createDeferredEffect<boolean>();
 		let branchCalls = 0;
 		let diffStatsCalls = 0;
 		const gitClient: EmptyStateBranchMetadataGitClient = {
-			isRepo: () => repo,
+			isRepo: () => repo.effect,
 			currentBranch: () => {
 				branchCalls += 1;
-				return new DeferredMatch<string | null>();
+				return createDeferredEffect<string | null>().effect;
 			},
 			diffStats: () => {
 				diffStatsCalls += 1;
-				return new DeferredMatch<EmptyStateBranchDiffStats>();
+				return createDeferredEffect<EmptyStateBranchDiffStats>().effect;
 			},
 		};
 		const loader = createEmptyStateBranchMetadataLoader({
@@ -102,6 +106,7 @@ describe("empty-state branch metadata loader", () => {
 
 		loader.refresh("/repo");
 		repo.resolve(true);
+		await flush();
 
 		expect(state.isGitRepo).toBe(true);
 		expect(state.currentBranch).toBe(null);
@@ -110,17 +115,17 @@ describe("empty-state branch metadata loader", () => {
 		expect(diffStatsCalls).toBe(0);
 	});
 
-	it("marks non-repos without loading branch details", () => {
+	it("marks non-repos without loading branch details", async () => {
 		const state = createWriterState();
 		let branchCalls = 0;
-		const repo = new DeferredMatch<boolean>();
+		const repo = createDeferredEffect<boolean>();
 		const gitClient: EmptyStateBranchMetadataGitClient = {
-			isRepo: () => repo,
+			isRepo: () => repo.effect,
 			currentBranch: () => {
 				branchCalls += 1;
-				return new DeferredMatch<string | null>();
+				return createDeferredEffect<string | null>().effect;
 			},
-			diffStats: () => new DeferredMatch<EmptyStateBranchDiffStats>(),
+			diffStats: () => createDeferredEffect<EmptyStateBranchDiffStats>().effect,
 		};
 		const loader = createEmptyStateBranchMetadataLoader({
 			gitClient,
@@ -129,25 +134,26 @@ describe("empty-state branch metadata loader", () => {
 
 		loader.refresh("/repo");
 		repo.resolve(false);
+		await flush();
 
 		expect(state.isGitRepo).toBe(false);
 		expect(branchCalls).toBe(0);
 	});
 
-	it("ignores stale responses after a newer refresh starts", () => {
+	it("ignores stale responses after a newer refresh starts", async () => {
 		const state = createWriterState();
-		const firstRepo = new DeferredMatch<boolean>();
-		const secondRepo = new DeferredMatch<boolean>();
-		const branch = new DeferredMatch<string | null>();
-		const stats = new DeferredMatch<EmptyStateBranchDiffStats>();
+		const firstRepo = createDeferredEffect<boolean>();
+		const secondRepo = createDeferredEffect<boolean>();
+		const branch = createDeferredEffect<string | null>();
+		const stats = createDeferredEffect<EmptyStateBranchDiffStats>();
 		let isRepoCalls = 0;
 		const gitClient: EmptyStateBranchMetadataGitClient = {
 			isRepo: () => {
 				isRepoCalls += 1;
-				return isRepoCalls === 1 ? firstRepo : secondRepo;
+				return isRepoCalls === 1 ? firstRepo.effect : secondRepo.effect;
 			},
-			currentBranch: () => branch,
-			diffStats: () => stats,
+			currentBranch: () => branch.effect,
+			diffStats: () => stats.effect,
 		};
 		const loader = createEmptyStateBranchMetadataLoader({
 			gitClient,
@@ -157,29 +163,31 @@ describe("empty-state branch metadata loader", () => {
 		loader.refresh("/first", { loadDetails: true });
 		loader.refresh("/second", { loadDetails: true });
 		firstRepo.resolve(true);
+		await flush();
 		expect(state.isGitRepo).toBe(null);
 
 		secondRepo.resolve(true);
 		branch.resolve("second-branch");
 		stats.resolve({ insertions: 1, deletions: 0 });
+		await flush();
 
 		expect(state.isGitRepo).toBe(true);
 		expect(state.currentBranch).toBe("second-branch");
 		expect(state.diffStats).toEqual({ insertions: 1, deletions: 0 });
 	});
 
-	it("can defer metadata loading until the scheduler runs", () => {
+	it("can defer metadata loading until the scheduler runs", async () => {
 		const state = createWriterState();
 		const scheduledCallbacks: Array<() => void> = [];
 		let isRepoCalls = 0;
-		const repo = new DeferredMatch<boolean>();
+		const repo = createDeferredEffect<boolean>();
 		const gitClient: EmptyStateBranchMetadataGitClient = {
 			isRepo: () => {
 				isRepoCalls += 1;
-				return repo;
+				return repo.effect;
 			},
-			currentBranch: () => new DeferredMatch<string | null>(),
-			diffStats: () => new DeferredMatch<EmptyStateBranchDiffStats>(),
+			currentBranch: () => createDeferredEffect<string | null>().effect,
+			diffStats: () => createDeferredEffect<EmptyStateBranchDiffStats>().effect,
 		};
 		const scheduler: EmptyStateBranchMetadataScheduler = (callback) => {
 			scheduledCallbacks.push(callback);
@@ -198,6 +206,7 @@ describe("empty-state branch metadata loader", () => {
 
 		scheduledCallbacks[0]?.();
 		repo.resolve(false);
+		await flush();
 
 		expect(isRepoCalls).toBe(1);
 		expect(state.isGitRepo).toBe(false);
@@ -211,10 +220,10 @@ describe("empty-state branch metadata loader", () => {
 		const gitClient: EmptyStateBranchMetadataGitClient = {
 			isRepo: () => {
 				isRepoCalls += 1;
-				return new DeferredMatch<boolean>();
+				return createDeferredEffect<boolean>().effect;
 			},
-			currentBranch: () => new DeferredMatch<string | null>(),
-			diffStats: () => new DeferredMatch<EmptyStateBranchDiffStats>(),
+			currentBranch: () => createDeferredEffect<string | null>().effect,
+			diffStats: () => createDeferredEffect<EmptyStateBranchDiffStats>().effect,
 		};
 		const scheduler: EmptyStateBranchMetadataScheduler = (callback) => {
 			scheduledCallbacks.push(callback);

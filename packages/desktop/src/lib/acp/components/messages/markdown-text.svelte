@@ -1,5 +1,6 @@
 <script lang="ts">
 import { untrack } from "svelte";
+import * as Effect from "effect/Effect";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { reducedMotion } from "@acepe/ui";
 import { NativeMarkdown } from "@acepe/ui/native-markdown";
@@ -148,17 +149,21 @@ function handleTogglePrLink(
 	// link and is never overridden by automatic create/open signals. Unlinking pins
 	// "no PR" rather than re-enabling automatic linking.
 	const nextPrNumber = payload.isLinked ? null : payload.prNumber;
-	void sessionStore.connection
-		.updateSessionPrLink(targetSessionId, targetProjectPath, nextPrNumber, "manual")
-		.mapErr((error) => {
-			logger.warn("Failed to toggle PR link from markdown chip", {
-				sessionId: targetSessionId,
-				prNumber: payload.prNumber,
-				isLinked: payload.isLinked,
-				error,
-			});
-			return error;
-		});
+	void Effect.runPromise(
+		sessionStore.connection
+			.updateSessionPrLink(targetSessionId, targetProjectPath, nextPrNumber, "manual")
+			.pipe(
+				Effect.catch((error) => {
+					logger.warn("Failed to toggle PR link from markdown chip", {
+						sessionId: targetSessionId,
+						prNumber: payload.prNumber,
+						isLinked: payload.isLinked,
+						error,
+					});
+					return Effect.succeed(undefined);
+				})
+			)
+	);
 }
 
 function openExternalLink(url: string) {

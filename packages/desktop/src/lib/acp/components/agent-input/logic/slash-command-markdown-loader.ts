@@ -1,3 +1,4 @@
+import * as Effect from "effect/Effect";
 import type { AgentInputSlashCommandWorkspaceMarkdownResult } from "@acepe/ui/agent-panel";
 import { skillsApi } from "$lib/skills/api/skills-api.js";
 import type { AgentSkills } from "$lib/skills/types/index.js";
@@ -40,31 +41,33 @@ export function loadSlashCommandWorkspaceMarkdown(input: {
 	}
 	const agentId = input.agentId;
 
-	return skillsApi
-		.listAgentSkills()
-		.map((agentSkills) =>
-			findSkillContentForCommand({
-				agentSkills,
-				agentId,
-				commandName: input.command.name,
+	return Effect.runPromise(
+		skillsApi.listAgentSkills().pipe(
+			Effect.map((agentSkills) =>
+				findSkillContentForCommand({
+					agentSkills,
+					agentId,
+					commandName: input.command.name,
+				})
+			),
+			Effect.match({
+				onSuccess: (markdown) => {
+					if (markdown && markdown.trim().length > 0) {
+						return {
+							status: "ready" as const,
+							markdown,
+						};
+					}
+					return {
+						status: "error" as const,
+						message: "Could not find the SKILL.md file for this skill.",
+					};
+				},
+				onFailure: (error) => ({
+					status: "error" as const,
+					message: error.message,
+				}),
 			})
 		)
-		.match(
-			(markdown) => {
-				if (markdown && markdown.trim().length > 0) {
-					return {
-						status: "ready",
-						markdown,
-					};
-				}
-				return {
-					status: "error",
-					message: "Could not find the SKILL.md file for this skill.",
-				};
-			},
-			(error) => ({
-				status: "error",
-				message: error.message,
-			})
-		);
+	);
 }

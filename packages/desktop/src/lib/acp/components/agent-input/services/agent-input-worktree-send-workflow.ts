@@ -3,6 +3,8 @@
  */
 
 import { toast } from "svelte-sonner";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import type { PreparedWorktreeLaunch } from "../../../types/worktree-info.js";
 import { createLogger } from "../../../utils/logger.js";
@@ -43,24 +45,27 @@ export async function prepareWorktreePathForPendingSend(args: {
 	}
 
 	notifyCreating();
-	const createResult = await tauriClient.git.prepareWorktreeSessionLaunch(
-		projectPath,
-		selectedAgentId
+	const createResult = await Effect.runPromise(
+		Effect.result(tauriClient.git.prepareWorktreeSessionLaunch(projectPath, selectedAgentId))
 	);
 
-	if (createResult.isOk()) {
-		const preparedLaunch = createResult.value;
-		void runWorktreeSetup({
-			projectPath,
-			worktreeCwd: preparedLaunch.worktree.directory,
-		}).match(
-			(result) => {
-				if (!result.setupSuccess) toast.warning("Setup script failed");
-			},
-			(error) => {
-				logger.warn("Worktree setup failed", { error });
-				toast.warning("Setup script failed");
-			}
+	if (Result.isSuccess(createResult)) {
+		const preparedLaunch = createResult.success;
+		void Effect.runPromise(
+			runWorktreeSetup({
+				projectPath,
+				worktreeCwd: preparedLaunch.worktree.directory,
+			}).pipe(
+				Effect.match({
+					onSuccess: (result) => {
+						if (!result.setupSuccess) toast.warning("Setup script failed");
+					},
+					onFailure: (error) => {
+						logger.warn("Worktree setup failed", { error });
+						toast.warning("Setup script failed");
+					},
+				})
+			)
 		);
 		return {
 			ok: true,
@@ -70,8 +75,8 @@ export async function prepareWorktreePathForPendingSend(args: {
 	}
 
 	const failure =
-		createResult.error instanceof Error
-			? createResult.error
+		createResult.failure instanceof Error
+			? createResult.failure
 			: new Error("Failed to create worktree. Session will run without branch isolation.");
 	return { ok: false, error: failure };
 }

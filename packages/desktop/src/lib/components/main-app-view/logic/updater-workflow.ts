@@ -1,5 +1,6 @@
+import { fromPromise } from "@acepe/effect-result/fromPromise";
 import type { DownloadEvent, Update } from "@tauri-apps/plugin-updater";
-import { ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 
 export type PreparedUpdateHandle = Pick<Update, "version" | "download" | "install">;
 
@@ -10,29 +11,33 @@ function toError(error: unknown): Error {
 export function predownloadUpdate(
 	update: PreparedUpdateHandle,
 	onEvent: (event: DownloadEvent) => void
-): ResultAsync<string, Error> {
-	return ResultAsync.fromPromise(update.download(onEvent), toError).map(() => update.version);
+): Effect.Effect<string, Error> {
+	return fromPromise(() => update.download(onEvent), toError).pipe(
+		Effect.map(() => update.version)
+	);
 }
 
 export function downloadAndInstallUpdate(
 	update: PreparedUpdateHandle,
 	onEvent: (event: DownloadEvent) => void,
 	relaunchApp: () => Promise<void>
-): ResultAsync<string, Error> {
-	return ResultAsync.fromPromise(update.download(onEvent), toError)
-		.map(() => update.version)
-		.andThen((version) =>
-			ResultAsync.fromPromise(update.install(), toError)
-				.andThen(() => ResultAsync.fromPromise(relaunchApp(), toError))
-				.map(() => version)
-		);
+): Effect.Effect<string, Error> {
+	return fromPromise(() => update.download(onEvent), toError).pipe(
+		Effect.map(() => update.version),
+		Effect.flatMap((version) =>
+			fromPromise(() => update.install(), toError).pipe(
+				Effect.flatMap(() => fromPromise(() => relaunchApp(), toError)),
+				Effect.map(() => version)
+			)
+		)
+	);
 }
 
 export function installDownloadedUpdate(
 	update: PreparedUpdateHandle,
 	relaunchApp: () => Promise<void>
-): ResultAsync<void, Error> {
-	return ResultAsync.fromPromise(update.install(), toError).andThen(() =>
-		ResultAsync.fromPromise(relaunchApp(), toError)
+): Effect.Effect<void, Error> {
+	return fromPromise(() => update.install(), toError).pipe(
+		Effect.flatMap(() => fromPromise(() => relaunchApp(), toError))
 	);
 }

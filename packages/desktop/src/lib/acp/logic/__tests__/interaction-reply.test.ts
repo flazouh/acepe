@@ -1,4 +1,4 @@
-import { okAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PermissionRequest } from "../../types/permission.js";
@@ -11,21 +11,23 @@ import {
 	replyToQuestionRequest,
 } from "../interaction-reply.js";
 
-const mockReplyInteraction = vi.fn((_request: unknown) => okAsync(undefined));
+const mockReplyInteraction = vi.fn((_request: unknown) => Effect.succeed(undefined));
 
 const mockRespondToPermission = vi.fn(
 	(_sessionId: string, _requestId: number, _allowed: boolean, _optionId: string) =>
-		okAsync(undefined)
+		Effect.succeed(undefined)
 );
 
 const mockRespondToQuestion = vi.fn(
 	(_sessionId: string, _requestId: number, _answers: Record<string, string | string[]>) =>
-		okAsync(undefined)
+		Effect.succeed(undefined)
 );
 
-const mockCancelQuestion = vi.fn((_sessionId: string, _requestId: number) => okAsync(undefined));
+const mockCancelQuestion = vi.fn((_sessionId: string, _requestId: number) =>
+	Effect.succeed(undefined)
+);
 const mockRespondToPlanApproval = vi.fn(
-	(_sessionId: string, _requestId: number, _approved: boolean) => okAsync(undefined)
+	(_sessionId: string, _requestId: number, _approved: boolean) => Effect.succeed(undefined)
 );
 
 vi.mock("../../store/api.js", () => ({
@@ -56,7 +58,7 @@ describe("interaction reply", () => {
 				},
 			};
 
-			await replyToPermissionRequest(permission, "once", "allow");
+			await Effect.runPromise(replyToPermissionRequest(permission, "once", "allow"));
 
 			expect(mockReplyInteraction).toHaveBeenCalledWith({
 				sessionId: "session-jsonrpc",
@@ -85,7 +87,7 @@ describe("interaction reply", () => {
 				always: [],
 			};
 
-			await replyToPermissionRequest(permission, "once", "allow");
+			await Effect.runPromise(replyToPermissionRequest(permission, "once", "allow"));
 
 			expect(mockReplyInteraction).toHaveBeenCalledWith({
 				sessionId: "session-jsonrpc",
@@ -113,7 +115,7 @@ describe("interaction reply", () => {
 				always: [],
 			};
 
-			await replyToPermissionRequest(permission, "reject", "reject");
+			await Effect.runPromise(replyToPermissionRequest(permission, "reject", "reject"));
 
 			expect(mockReplyInteraction).toHaveBeenCalledWith({
 				sessionId: "session-http",
@@ -149,7 +151,7 @@ describe("interaction reply", () => {
 			const answers: QuestionAnswer[] = [{ questionIndex: 0, answers: ["Bun"] }];
 			const answerMap = { Runtime: "Bun" };
 
-			await replyToQuestionRequest(question, answers, answerMap);
+			await Effect.runPromise(replyToQuestionRequest(question, answers, answerMap));
 
 			expect(mockReplyInteraction).toHaveBeenCalledWith({
 				sessionId: "session-http",
@@ -177,7 +179,7 @@ describe("interaction reply", () => {
 			const answers: QuestionAnswer[] = [{ questionIndex: 0, answers: ["Svelte"] }];
 			const answerMap = { Framework: "Svelte" };
 
-			await replyToQuestionRequest(question, answers, answerMap);
+			await Effect.runPromise(replyToQuestionRequest(question, answers, answerMap));
 
 			expect(mockReplyInteraction).toHaveBeenCalledWith({
 				sessionId: "session-jsonrpc",
@@ -204,7 +206,7 @@ describe("interaction reply", () => {
 			const answers: QuestionAnswer[] = [{ questionIndex: 0, answers: ["Bun"] }];
 			const answerMap = { Runtime: "Bun" };
 
-			await replyToQuestionRequest(question, answers, answerMap);
+			await Effect.runPromise(replyToQuestionRequest(question, answers, answerMap));
 
 			expect(mockReplyInteraction).toHaveBeenCalledWith({
 				sessionId: "session-http",
@@ -238,7 +240,7 @@ describe("interaction reply", () => {
 				},
 			};
 
-			await cancelQuestionRequest(question);
+			await Effect.runPromise(cancelQuestionRequest(question));
 
 			expect(mockReplyInteraction).toHaveBeenCalledWith({
 				sessionId: "session-http",
@@ -262,7 +264,7 @@ describe("interaction reply", () => {
 				questions: [],
 			};
 
-			await cancelQuestionRequest(question);
+			await Effect.runPromise(cancelQuestionRequest(question));
 
 			expect(mockReplyInteraction).toHaveBeenCalledWith({
 				sessionId: "session-jsonrpc",
@@ -285,7 +287,7 @@ describe("interaction reply", () => {
 				questions: [],
 			};
 
-			await cancelQuestionRequest(question);
+			await Effect.runPromise(cancelQuestionRequest(question));
 
 			expect(mockReplyInteraction).toHaveBeenCalledWith({
 				sessionId: "session-http",
@@ -304,7 +306,7 @@ describe("interaction reply", () => {
 
 	describe("replyToPlanApprovalRequest", () => {
 		it("routes plan approval replies through the canonical interaction reply command", async () => {
-			await replyToPlanApprovalRequest("session-plan", 77, true);
+			await Effect.runPromise(replyToPlanApprovalRequest("session-plan", 77, true));
 
 			expect(mockReplyInteraction).toHaveBeenCalledWith({
 				sessionId: "session-plan",
@@ -322,24 +324,26 @@ describe("interaction reply", () => {
 		});
 
 		it("routes plan approval replies through explicit reply handlers when provided", async () => {
-			await replyToPlanApprovalRequest(
-				{
-					id: "plan-http",
-					kind: "plan_approval",
-					source: "create_plan",
-					sessionId: "session-plan",
-					tool: {
-						messageID: "message-plan",
-						callID: "tool-plan",
+			await Effect.runPromise(
+				replyToPlanApprovalRequest(
+					{
+						id: "plan-http",
+						kind: "plan_approval",
+						source: "create_plan",
+						sessionId: "session-plan",
+						tool: {
+							messageID: "message-plan",
+							callID: "tool-plan",
+						},
+						replyHandler: {
+							kind: "http",
+							requestId: "plan-http-route",
+						},
+						status: "pending",
 					},
-					replyHandler: {
-						kind: "http",
-						requestId: "plan-http-route",
-					},
-					status: "pending",
-				},
-				true,
-				false
+					true,
+					false
+				)
 			);
 
 			expect(mockReplyInteraction).toHaveBeenCalledWith({
@@ -360,18 +364,20 @@ describe("interaction reply", () => {
 
 	describe("replyToComputerPermissionRequest", () => {
 		it("routes local computer permission approvals through the canonical interaction command", async () => {
-			await replyToComputerPermissionRequest(
-				{
-					id: "computer-permission-1",
-					kind: "computer_permission",
-					sessionId: "session-computer",
-					permissionKind: "app_window_scope",
-					reason: "Allow computer use for Safari / GitHub?",
-					app: "Safari",
-					window: "GitHub",
-					status: "pending",
-				},
-				true
+			await Effect.runPromise(
+				replyToComputerPermissionRequest(
+					{
+						id: "computer-permission-1",
+						kind: "computer_permission",
+						sessionId: "session-computer",
+						permissionKind: "app_window_scope",
+						reason: "Allow computer use for Safari / GitHub?",
+						app: "Safari",
+						window: "GitHub",
+						status: "pending",
+					},
+					true
+				)
 			);
 
 			expect(mockReplyInteraction).toHaveBeenCalledWith({
@@ -390,19 +396,21 @@ describe("interaction reply", () => {
 		});
 
 		it("routes persistent computer permission approvals with always scope", async () => {
-			await replyToComputerPermissionRequest(
-				{
-					id: "computer-permission-3",
-					kind: "computer_permission",
-					sessionId: "session-computer",
-					permissionKind: "app_window_scope",
-					reason: "Allow computer use for Safari / GitHub?",
-					app: "Safari",
-					window: "GitHub",
-					status: "pending",
-				},
-				true,
-				"always"
+			await Effect.runPromise(
+				replyToComputerPermissionRequest(
+					{
+						id: "computer-permission-3",
+						kind: "computer_permission",
+						sessionId: "session-computer",
+						permissionKind: "app_window_scope",
+						reason: "Allow computer use for Safari / GitHub?",
+						app: "Safari",
+						window: "GitHub",
+						status: "pending",
+					},
+					true,
+					"always"
+				)
 			);
 
 			expect(mockReplyInteraction).toHaveBeenCalledWith({
@@ -421,16 +429,18 @@ describe("interaction reply", () => {
 		});
 
 		it("routes local computer permission rejections through the canonical interaction command", async () => {
-			await replyToComputerPermissionRequest(
-				{
-					id: "computer-permission-2",
-					kind: "computer_permission",
-					sessionId: "session-computer",
-					permissionKind: "screen_recording",
-					reason: "Acepe needs Screen Recording.",
-					status: "pending",
-				},
-				false
+			await Effect.runPromise(
+				replyToComputerPermissionRequest(
+					{
+						id: "computer-permission-2",
+						kind: "computer_permission",
+						sessionId: "session-computer",
+						permissionKind: "screen_recording",
+						reason: "Acepe needs Screen Recording.",
+						status: "pending",
+					},
+					false
+				)
 			);
 
 			expect(mockReplyInteraction).toHaveBeenCalledWith({

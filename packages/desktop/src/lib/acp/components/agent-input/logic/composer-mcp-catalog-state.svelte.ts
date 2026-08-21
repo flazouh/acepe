@@ -1,4 +1,4 @@
-import { okAsync, type ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import { SvelteMap } from "svelte/reactivity";
 import type { AppError } from "$lib/acp/errors/app-error.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
@@ -15,7 +15,7 @@ type FetchComposerMcpCatalog = (
 	cwd: string,
 	agentId: string,
 	sessionId: string | null
-) => ResultAsync<ComposerMcpCatalog, AppError>;
+) => Effect.Effect<ComposerMcpCatalog, AppError>;
 
 const logger = createLogger({
 	id: "composer-mcp-catalog",
@@ -59,10 +59,10 @@ export class ComposerMcpCatalogState {
 	ensureLoaded(
 		input: EnsureLoadedInput,
 		options?: { readonly force?: boolean }
-	): ResultAsync<void, AppError> {
+	): Effect.Effect<void, AppError> {
 		const cacheKey = buildCacheKey(input);
 		if (!cacheKey) {
-			return okAsync(undefined);
+			return Effect.succeed(undefined);
 		}
 
 		if (options?.force) {
@@ -70,17 +70,17 @@ export class ComposerMcpCatalogState {
 		}
 
 		if (this.catalogByKey.has(cacheKey)) {
-			return okAsync(undefined);
+			return Effect.succeed(undefined);
 		}
 
 		if (this.loadingCacheKey === cacheKey) {
-			return okAsync(undefined);
+			return Effect.succeed(undefined);
 		}
 
 		const projectPath = input.projectPath;
 		const agentId = input.agentId;
 		if (!projectPath || !agentId) {
-			return okAsync(undefined);
+			return Effect.succeed(undefined);
 		}
 
 		this.loadingCacheKey = cacheKey;
@@ -90,14 +90,14 @@ export class ComposerMcpCatalogState {
 			sessionId: input.sessionId,
 		});
 
-		return this.fetchCatalog(projectPath, agentId, input.sessionId)
-			.map((catalog) => {
+		return this.fetchCatalog(projectPath, agentId, input.sessionId).pipe(
+			Effect.map((catalog) => {
 				this.catalogByKey.set(cacheKey, catalog);
 				if (this.loadingCacheKey === cacheKey) {
 					this.loadingCacheKey = null;
 				}
-			})
-			.mapErr((error) => {
+			}),
+			Effect.mapError((error) => {
 				logger.error("Failed to load composer MCP catalog", {
 					agentId,
 					projectPath,
@@ -111,7 +111,8 @@ export class ComposerMcpCatalogState {
 					this.loadingCacheKey = null;
 				}
 				return error;
-			});
+			})
+		);
 	}
 
 	getCatalog(input: EnsureLoadedInput): ComposerMcpCatalog | null {

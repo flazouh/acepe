@@ -5,7 +5,7 @@
  * canonical facts through injected accessor closures. GOD-safe — pure
  * canonical-graph → export-string transforms, no provider repair.
  */
-import { err, ok, type Result } from "neverthrow";
+import * as Result from "effect/Result";
 import type { SessionStateGraph } from "../../services/acp-types.js";
 import { sessionColdFromSlices } from "../application/dto/session-cold.js";
 import { sessionGraphToJsonExportContent } from "../utils/session-export.js";
@@ -25,28 +25,28 @@ export interface SessionExportDeps {
 export class SessionExportService {
 	constructor(private readonly deps: SessionExportDeps) {}
 
-	getMarkdownExportContent(sessionId: string): Result<string, SessionExportContentError> {
+	getMarkdownExportContent(sessionId: string): Result.Result<string, SessionExportContentError> {
 		const graph = this.deps.getSessionStateGraph(sessionId);
 		if (graph === null) {
-			return err(sessionExportContentError("thread_content_not_loaded"));
+			return Result.fail(sessionExportContentError("thread_content_not_loaded"));
 		}
 
-		return ok(sessionGraphToMarkdown(graph));
+		return Result.succeed(sessionGraphToMarkdown(graph));
 	}
 
-	getJsonExportContent(sessionId: string): Result<string, SessionExportContentError> {
+	getJsonExportContent(sessionId: string): Result.Result<string, SessionExportContentError> {
 		const sessionIdentity = this.deps.getSessionIdentity(sessionId);
 		const sessionMetadata = this.deps.getSessionMetadata(sessionId);
 		if (!sessionIdentity || !sessionMetadata) {
-			return err(sessionExportContentError("session_not_found"));
+			return Result.fail(sessionExportContentError("session_not_found"));
 		}
 
 		const graph = this.deps.getSessionStateGraph(sessionId);
 		if (graph === null) {
-			return err(sessionExportContentError("thread_content_not_loaded"));
+			return Result.fail(sessionExportContentError("thread_content_not_loaded"));
 		}
 
-		return ok(
+		return Result.succeed(
 			sessionGraphToJsonExportContent(
 				sessionColdFromSlices(sessionIdentity, sessionMetadata),
 				graph

@@ -1,4 +1,5 @@
-import { err, ok, type Result } from "neverthrow";
+import { decodeUnknown } from "@acepe/effect-result/decodeUnknown";
+import * as Result from "effect/Result";
 import type { AcpError } from "../errors/index.js";
 import { ProtocolError } from "../errors/index.js";
 import type { ContentBlock } from "../schemas/content-block.schema.js";
@@ -7,20 +8,19 @@ import { ContentBlockSchema } from "../schemas/content-block.schema.js";
 /**
  * Safely parse and validate a content block.
  *
- * Uses Zod's safeParse to avoid throwing exceptions.
+ * Uses Effect Schema to avoid throwing exceptions.
  * Returns a Result type for functional error handling.
  *
  * @param data - Unknown data to validate
  * @returns Result containing validated ContentBlock or error
  */
-export function validateContentBlock(data: unknown): Result<ContentBlock, AcpError> {
-	const result = ContentBlockSchema.safeParse(data);
+const decodeContentBlock = decodeUnknown(
+	ContentBlockSchema,
+	(error) => new ProtocolError(`Invalid content block: ${error.message}`, error)
+);
 
-	if (result.success) {
-		return ok(result.data);
-	}
-
-	return err(new ProtocolError(`Invalid content block: ${result.error.message}`, result.error));
+export function validateContentBlock(data: unknown): Result.Result<ContentBlock, AcpError> {
+	return decodeContentBlock(data);
 }
 
 /**
@@ -29,9 +29,9 @@ export function validateContentBlock(data: unknown): Result<ContentBlock, AcpErr
  * @param data - Unknown data to validate (should be an array)
  * @returns Result containing validated ContentBlock array or error
  */
-export function validateContentBlocks(data: unknown): Result<ContentBlock[], AcpError> {
+export function validateContentBlocks(data: unknown): Result.Result<ContentBlock[], AcpError> {
 	if (!Array.isArray(data)) {
-		return err(new ProtocolError(`Expected array of content blocks, got ${typeof data}`));
+		return Result.fail(new ProtocolError(`Expected array of content blocks, got ${typeof data}`));
 	}
 
 	const validated: ContentBlock[] = [];
@@ -39,18 +39,18 @@ export function validateContentBlocks(data: unknown): Result<ContentBlock[], Acp
 
 	for (let i = 0; i < data.length; i++) {
 		const result = validateContentBlock(data[i]);
-		if (result.isOk()) {
-			validated.push(result.value);
+		if (Result.isSuccess(result)) {
+			validated.push(result.success);
 		} else {
-			errors.push(`Block ${i}: ${result.error.message}`);
+			errors.push(`Block ${i}: ${result.failure.message}`);
 		}
 	}
 
 	if (errors.length > 0) {
-		return err(new ProtocolError(`Validation errors: ${errors.join("; ")}`));
+		return Result.fail(new ProtocolError(`Validation errors: ${errors.join("; ")}`));
 	}
 
-	return ok(validated);
+	return Result.succeed(validated);
 }
 
 /**

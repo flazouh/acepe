@@ -1,12 +1,14 @@
-import { okAsync, ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const ZOOM_LEVEL_CACHE_KEY = "acepe.zoom_level.hot_cache";
 
 const mocks = vi.hoisted(() => ({
 	setZoom: vi.fn(() => Promise.resolve()),
-	getRaw: vi.fn(() => okAsync<string | null, Error>(null)),
-	setRaw: vi.fn(() => okAsync<void, Error>(undefined)),
+	getRaw: vi.fn((): Effect.Effect<string | null, Error> => Effect.succeed(null)),
+	setRaw: vi.fn((): Effect.Effect<void, Error> => Effect.succeed(undefined)),
 	toastInfo: vi.fn(),
 }));
 
@@ -37,7 +39,7 @@ describe("ZoomService", () => {
 		mocks.getRaw.mockReset();
 		mocks.setRaw.mockClear();
 		mocks.toastInfo.mockClear();
-		mocks.getRaw.mockReturnValue(okAsync<string | null, Error>(null));
+		mocks.getRaw.mockReturnValue(Effect.succeed<string | null>(null));
 		localStorage.clear();
 	});
 
@@ -52,19 +54,19 @@ describe("ZoomService", () => {
 	it("does not call the WebView when saved zoom is already the default", async () => {
 		const service = new ZoomService();
 
-		const result = await service.initialize();
+		const result = await Effect.runPromise(Effect.result(service.initialize()));
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(mocks.setZoom).not.toHaveBeenCalled();
 	});
 
 	it("does not call the WebView when saved zoom is effectively the default", async () => {
-		mocks.getRaw.mockReturnValue(okAsync<string | null, Error>("0.9999999999999992"));
+		mocks.getRaw.mockReturnValue(Effect.succeed<string | null>("0.9999999999999992"));
 		const service = new ZoomService();
 
-		const result = await service.initialize();
+		const result = await Effect.runPromise(Effect.result(service.initialize()));
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(mocks.setZoom).not.toHaveBeenCalled();
 	});
 
@@ -72,16 +74,16 @@ describe("ZoomService", () => {
 		vi.useFakeTimers();
 		localStorage.setItem(ZOOM_LEVEL_CACHE_KEY, "0.9999999999999992");
 		mocks.getRaw.mockReturnValue(
-			ResultAsync.fromPromise(
-				new Promise<string | null>(() => {}),
+			fromPromise(
+				() => new Promise<string | null>(() => {}),
 				() => new Error("Persisted read should not block initialize")
 			)
 		);
 		const service = new ZoomService();
 
-		const result = await service.initialize();
+		const result = await Effect.runPromise(Effect.result(service.initialize()));
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(mocks.setZoom).not.toHaveBeenCalled();
 		expect(mocks.getRaw).not.toHaveBeenCalled();
 
@@ -96,16 +98,16 @@ describe("ZoomService", () => {
 		vi.useFakeTimers();
 		localStorage.setItem(ZOOM_LEVEL_CACHE_KEY, "1.2");
 		mocks.getRaw.mockReturnValue(
-			ResultAsync.fromPromise(
-				new Promise<string | null>(() => {}),
+			fromPromise(
+				() => new Promise<string | null>(() => {}),
 				() => new Error("Persisted read should not block initialize")
 			)
 		);
 		const service = new ZoomService();
 
-		const result = await service.initialize();
+		const result = await Effect.runPromise(Effect.result(service.initialize()));
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(mocks.setZoom).toHaveBeenCalledWith(1.2);
 		expect(mocks.getRaw).not.toHaveBeenCalled();
 
@@ -117,12 +119,12 @@ describe("ZoomService", () => {
 	});
 
 	it("applies a non-default saved zoom on initialize", async () => {
-		mocks.getRaw.mockReturnValue(okAsync<string | null, Error>("1.2"));
+		mocks.getRaw.mockReturnValue(Effect.succeed<string | null>("1.2"));
 		const service = new ZoomService();
 
-		const result = await service.initialize();
+		const result = await Effect.runPromise(Effect.result(service.initialize()));
 
-		expect(result.isOk()).toBe(true);
+		expect(Result.isSuccess(result)).toBe(true);
 		expect(mocks.setZoom).toHaveBeenCalledWith(1.2);
 	});
 });

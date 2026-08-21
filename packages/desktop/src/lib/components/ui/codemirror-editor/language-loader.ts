@@ -1,20 +1,21 @@
 /**
  * Dynamic language loading for CodeMirror 6 using @codemirror/language-data.
- * Uses neverthrow for type-safe error handling.
+ * Uses Effect for type-safe error handling.
  */
 
 import type { LanguageDescription, LanguageSupport } from "@codemirror/language";
 import { languages } from "@codemirror/language-data";
 import { svelte as svelteLanguageSupport } from "@replit/codemirror-lang-svelte";
-import { okAsync, ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
 
 /**
  * Load a CodeMirror language extension by name.
  * Returns null for unsupported languages (will fall back to plaintext).
  */
-export function loadLanguageByName(name: string): ResultAsync<LanguageSupport | null, Error> {
+export function loadLanguageByName(name: string): Effect.Effect<LanguageSupport | null, Error> {
 	if (!name || name === "plaintext") {
-		return okAsync(null);
+		return Effect.succeed(null);
 	}
 
 	// Map Monaco language names to CodeMirror equivalents where they differ
@@ -23,18 +24,18 @@ export function loadLanguageByName(name: string): ResultAsync<LanguageSupport | 
 	// @codemirror/language-data does not include Svelte support.
 	// Use the dedicated Svelte language package when requested.
 	if (mappedName.toLowerCase() === "svelte") {
-		return okAsync(svelteLanguageSupport());
+		return Effect.succeed(svelteLanguageSupport());
 	}
 
 	const desc = findLanguageDescription(mappedName);
 
 	if (!desc) {
 		// Language not found - return null to use plaintext fallback
-		return okAsync(null);
+		return Effect.succeed(null);
 	}
 
-	return ResultAsync.fromPromise(
-		desc.load(),
+	return fromPromise(
+		() => desc.load(),
 		(error) => new Error(`Failed to load language ${name}: ${error}`)
 	);
 }
@@ -45,7 +46,7 @@ export function loadLanguageByName(name: string): ResultAsync<LanguageSupport | 
  */
 export function loadLanguageByFilename(
 	filename: string
-): ResultAsync<LanguageSupport | null, Error> {
+): Effect.Effect<LanguageSupport | null, Error> {
 	const desc = languages.find((lang) => {
 		// Check extensions
 		if (lang.extensions?.some((ext) => filename.endsWith(ext))) {
@@ -59,11 +60,11 @@ export function loadLanguageByFilename(
 	});
 
 	if (!desc) {
-		return okAsync(null);
+		return Effect.succeed(null);
 	}
 
-	return ResultAsync.fromPromise(
-		desc.load(),
+	return fromPromise(
+		() => desc.load(),
 		(error) => new Error(`Failed to load language for ${filename}: ${error}`)
 	);
 }

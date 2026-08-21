@@ -1,4 +1,5 @@
 <script lang="ts">
+import * as Effect from "effect/Effect";
 import { onDestroy, onMount } from "svelte";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import { computeProjectBadgeLabels } from "@acepe/ui";
@@ -118,49 +119,77 @@ function ensureProjectInfoLoaded(project: Project): void {
 			markProjectSelectionMetadataFieldLoadStarted(projectPath, "gitStatus");
 		}
 
-		void tauriClient.git.isRepo(projectPath).match(
-			(isRepo) => {
-				if (!isRepo) {
-					remoteStatusMap.delete(projectPath);
-					setProjectCardData(projectPath, {
-						branch: null,
-						gitStatus: null,
-					});
-					if (shouldLoadBranch) {
-						markProjectSelectionMetadataFieldLoadFinished(projectPath, "branch", false);
-					}
-					if (shouldLoadGitStatus) {
-						markProjectSelectionMetadataFieldLoadFinished(projectPath, "gitStatus", false);
-					}
-					return;
-				}
-
-				void tauriClient.fileIndex.getProjectGitOverviewSummary(projectPath).match(
-					(overview) => {
-						updateProjectCardData(projectPath, {
-							branch: overview.branch,
-							gitStatus: overview.gitStatus,
-						});
-						if (shouldLoadBranch) {
-							markProjectSelectionMetadataFieldLoadFinished(projectPath, "branch", true);
-						}
-						if (shouldLoadGitStatus) {
-							markProjectSelectionMetadataFieldLoadFinished(projectPath, "gitStatus", true);
-						}
-						// Fetch remote status (ahead/behind) in background
-						void tauriClient.git.remoteStatus(projectPath).match(
-							(remote) => {
-								remoteStatusMap.set(projectPath, {
-									ahead: remote.ahead,
-									behind: remote.behind,
-								});
-							},
-							() => {
-								/* no remote or not a git repo — ignore */
+		void Effect.runPromise(
+			tauriClient.git.isRepo(projectPath).pipe(
+				Effect.match({
+					onSuccess: (isRepo) => {
+						if (!isRepo) {
+							remoteStatusMap.delete(projectPath);
+							setProjectCardData(projectPath, {
+								branch: null,
+								gitStatus: null,
+							});
+							if (shouldLoadBranch) {
+								markProjectSelectionMetadataFieldLoadFinished(projectPath, "branch", false);
 							}
+							if (shouldLoadGitStatus) {
+								markProjectSelectionMetadataFieldLoadFinished(projectPath, "gitStatus", false);
+							}
+							return;
+						}
+
+						void Effect.runPromise(
+							tauriClient.fileIndex.getProjectGitOverviewSummary(projectPath).pipe(
+								Effect.match({
+									onSuccess: (overview) => {
+										updateProjectCardData(projectPath, {
+											branch: overview.branch,
+											gitStatus: overview.gitStatus,
+										});
+										if (shouldLoadBranch) {
+											markProjectSelectionMetadataFieldLoadFinished(projectPath, "branch", true);
+										}
+										if (shouldLoadGitStatus) {
+											markProjectSelectionMetadataFieldLoadFinished(projectPath, "gitStatus", true);
+										}
+										// Fetch remote status (ahead/behind) in background
+										void Effect.runPromise(
+											tauriClient.git.remoteStatus(projectPath).pipe(
+												Effect.match({
+													onSuccess: (remote) => {
+														remoteStatusMap.set(projectPath, {
+															ahead: remote.ahead,
+															behind: remote.behind,
+														});
+													},
+													onFailure: () => {
+														/* no remote or not a git repo — ignore */
+													},
+												})
+											)
+										);
+									},
+									onFailure: (err) => {
+										const msg = err instanceof Error ? err.message : String(err);
+										if (
+											msg.includes("not found") ||
+											msg.includes("not a directory") ||
+											msg.includes("does not exist")
+										) {
+											missingProjectPaths.add(projectPath);
+										}
+										if (shouldLoadBranch) {
+											markProjectSelectionMetadataFieldLoadFinished(projectPath, "branch", false);
+										}
+										if (shouldLoadGitStatus) {
+											markProjectSelectionMetadataFieldLoadFinished(projectPath, "gitStatus", false);
+										}
+									},
+								})
+							)
 						);
 					},
-					(err) => {
+					onFailure: (err) => {
 						const msg = err instanceof Error ? err.message : String(err);
 						if (
 							msg.includes("not found") ||
@@ -175,25 +204,9 @@ function ensureProjectInfoLoaded(project: Project): void {
 						if (shouldLoadGitStatus) {
 							markProjectSelectionMetadataFieldLoadFinished(projectPath, "gitStatus", false);
 						}
-					}
-				);
-			},
-			(err) => {
-				const msg = err instanceof Error ? err.message : String(err);
-				if (
-					msg.includes("not found") ||
-					msg.includes("not a directory") ||
-					msg.includes("does not exist")
-				) {
-					missingProjectPaths.add(projectPath);
-				}
-				if (shouldLoadBranch) {
-					markProjectSelectionMetadataFieldLoadFinished(projectPath, "branch", false);
-				}
-				if (shouldLoadGitStatus) {
-					markProjectSelectionMetadataFieldLoadFinished(projectPath, "gitStatus", false);
-				}
-			}
+					},
+				})
+			)
 		);
 	}
 }
@@ -232,12 +245,16 @@ function refreshMissingProjectPaths(): void {
 		return;
 	}
 
-	void tauriClient.projects.getMissingProjectPaths(projectPaths).match(
-		(paths) => {
-			updateMissingProjectPaths(paths);
-			syncDisplayedProjectMetadata();
-		},
-		() => undefined
+	void Effect.runPromise(
+		tauriClient.projects.getMissingProjectPaths(projectPaths).pipe(
+			Effect.match({
+				onSuccess: (paths) => {
+					updateMissingProjectPaths(paths);
+					syncDisplayedProjectMetadata();
+				},
+				onFailure: () => undefined,
+			})
+		)
 	);
 }
 

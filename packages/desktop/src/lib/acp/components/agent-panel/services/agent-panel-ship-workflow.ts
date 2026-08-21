@@ -3,6 +3,8 @@
  */
 
 import { openUrl } from "@tauri-apps/plugin-opener";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { toast } from "svelte-sonner";
 import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
@@ -70,16 +72,18 @@ export async function runCreatePrWorkflow(args: {
 			count: filePaths.length,
 			filePaths,
 		});
-		const stageResult = await tauriClient.git.stageFiles(path, filePaths);
-		if (stageResult.isErr()) {
+		const stageResult = await Effect.runPromise(
+			Effect.result(tauriClient.git.stageFiles(path, filePaths))
+		);
+		if (Result.isFailure(stageResult)) {
 			setCreatePrRunning(false);
 			setCreatePrLabel(null);
-			const details = getErrorCauseDetails(stageResult._unsafeUnwrapErr());
+			const details = getErrorCauseDetails(stageResult.failure);
 			logger.error("runCreatePrWorkflow: staging failed", {
 				rootCause: details.rootCause,
 				formatted: details.formatted,
 			});
-			toast.error(details.rootCause ?? stageResult._unsafeUnwrapErr().message);
+			toast.error(details.rootCause ?? stageResult.failure.message);
 			return;
 		}
 	}
@@ -90,34 +94,42 @@ export async function runCreatePrWorkflow(args: {
 	let prTitle: string | undefined;
 	let prBody: string | undefined;
 
-	const shipCtxResult = await tauriClient.git.collectShipContext(
-		path,
-		config?.customPrompt ? config.customPrompt : undefined
+	const shipCtxResult = await Effect.runPromise(
+		Effect.result(
+			tauriClient.git.collectShipContext(
+				path,
+				config?.customPrompt ? config.customPrompt : undefined
+			)
+		)
 	);
-	if (shipCtxResult.isOk() && shipCtxResult.value) {
-		const ctx = shipCtxResult.value;
+	if (Result.isSuccess(shipCtxResult) && shipCtxResult.success) {
+		const ctx = shipCtxResult.success;
 		logger.info("runCreatePrWorkflow: generating commit/PR content via AI", { branch: ctx.branch });
 		const prompt = ctx.prompt;
 
 		const { generateShipContentStreaming } = await import(
 			"../../ship-card/ship-card-generation.js"
 		);
-		const genResult = await generateShipContentStreaming(
-			prompt,
-			path,
-			onStreamUpdate,
-			config?.agentId ? config.agentId : effectivePanelAgentId ? effectivePanelAgentId : undefined,
-			config?.modelId ? config.modelId : undefined
+		const genResult = await Effect.runPromise(
+			Effect.result(
+				generateShipContentStreaming(
+					prompt,
+					path,
+					onStreamUpdate,
+					config?.agentId ? config.agentId : effectivePanelAgentId ? effectivePanelAgentId : undefined,
+					config?.modelId ? config.modelId : undefined
+				)
+			)
 		);
-		if (genResult.isOk()) {
-			const gen = genResult.value;
+		if (Result.isSuccess(genResult)) {
+			const gen = genResult.success;
 			if (gen.commitMessage) commitMsg = gen.commitMessage as typeof commitMsg;
 			if (gen.prTitle) prTitle = gen.prTitle;
 			if (gen.prDescription) prBody = gen.prDescription;
 			logger.info("runCreatePrWorkflow: AI generation complete", { prTitle, hasBody: !!prBody });
 		} else {
 			logger.warn("runCreatePrWorkflow: AI generation failed, using defaults", {
-				error: genResult.error.message,
+				error: genResult.failure.message,
 			});
 			onStreamReset();
 		}
@@ -130,60 +142,59 @@ export async function runCreatePrWorkflow(args: {
 		commitMsg,
 		prTitle,
 	});
-	const result = await tauriClient.git.runStackedAction(
-		path,
-		"commit_push_pr",
-		commitMsg,
-		prTitle,
-		prBody
-	);
-	await result.match(
-		(ok) => {
-			setCreatePrRunning(false);
-			setCreatePrLabel(null);
-			onStreamReset();
-			logger.info("runCreatePrWorkflow: success", {
-				action: ok.action,
-				commitStatus: ok.commit.status,
-				pushStatus: ok.push.status,
-				prStatus: ok.pr.status,
-				prUrl: ok.pr.url,
-			});
-			switch (ok.pr.status) {
-				case "created":
-					toast.success(`Created PR #${ok.pr.number ?? ""}`);
-					break;
-				case "opened_existing":
-					toast.success(`Opened PR #${ok.pr.number ?? ""}`);
-					break;
-				case "skipped_not_requested":
-					toast.success("Pushed to branch");
-					break;
-				default: {
-					const _: never = ok.pr.status;
-					toast.success("Pushed to branch");
-				}
-			}
-			if (ok.pr.status === "created" || ok.pr.status === "opened_existing") {
-				if (sessionId) {
-					void deps.applyAutomaticSessionPrLink(sessionId, path, ok.pr);
-				}
-				if (ok.pr.url) void openUrl(ok.pr.url).catch(() => {});
-			}
-		},
-		(err) => {
-			setCreatePrRunning(false);
-			setCreatePrLabel(null);
-			onStreamReset();
-			const details = getErrorCauseDetails(err);
-			logger.error("runCreatePrWorkflow: failed", {
-				message: err.message,
-				rootCause: details.rootCause,
-				chain: details.chain,
-				formatted: details.formatted,
-			});
-			toast.error(details.rootCause ?? err.message);
-		}
+	await Effect.runPromise(
+		tauriClient.git
+			.runStackedAction(path, "commit_push_pr", commitMsg, prTitle, prBody)
+			.pipe(
+				Effect.match({
+					onSuccess: (ok) => {
+						setCreatePrRunning(false);
+						setCreatePrLabel(null);
+						onStreamReset();
+						logger.info("runCreatePrWorkflow: success", {
+							action: ok.action,
+							commitStatus: ok.commit.status,
+							pushStatus: ok.push.status,
+							prStatus: ok.pr.status,
+							prUrl: ok.pr.url,
+						});
+						switch (ok.pr.status) {
+							case "created":
+								toast.success(`Created PR #${ok.pr.number ?? ""}`);
+								break;
+							case "opened_existing":
+								toast.success(`Opened PR #${ok.pr.number ?? ""}`);
+								break;
+							case "skipped_not_requested":
+								toast.success("Pushed to branch");
+								break;
+							default: {
+								const _: never = ok.pr.status;
+								toast.success("Pushed to branch");
+							}
+						}
+						if (ok.pr.status === "created" || ok.pr.status === "opened_existing") {
+							if (sessionId) {
+								void deps.applyAutomaticSessionPrLink(sessionId, path, ok.pr);
+							}
+							if (ok.pr.url) void openUrl(ok.pr.url).catch(() => {});
+						}
+					},
+					onFailure: (err) => {
+						setCreatePrRunning(false);
+						setCreatePrLabel(null);
+						onStreamReset();
+						const details = getErrorCauseDetails(err);
+						logger.error("runCreatePrWorkflow: failed", {
+							message: err.message,
+							rootCause: details.rootCause,
+							chain: details.chain,
+							formatted: details.formatted,
+						});
+						toast.error(details.rootCause ?? err.message);
+					},
+				})
+			)
 	);
 }
 
@@ -197,15 +208,19 @@ export async function runMergePrWorkflow(args: {
 	const { path, prNum, strategy, setMergePrRunning, onMerged } = args;
 	setMergePrRunning(true);
 	try {
-		await tauriClient.git.mergePr(path, prNum, strategy).match(
-			() => {
-				toast.success("PR merged!");
-				onMerged();
-			},
-			(err) => {
-				const details = getErrorCauseDetails(err);
-				toast.error(details.rootCause ?? err.message);
-			}
+		await Effect.runPromise(
+			tauriClient.git.mergePr(path, prNum, strategy).pipe(
+				Effect.match({
+					onSuccess: () => {
+						toast.success("PR merged!");
+						onMerged();
+					},
+					onFailure: (err) => {
+						const details = getErrorCauseDetails(err);
+						toast.error(details.rootCause ?? err.message);
+					},
+				})
+			)
 		);
 	} finally {
 		setMergePrRunning(false);

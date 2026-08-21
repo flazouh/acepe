@@ -5,8 +5,10 @@
  * (Claude Code, Cursor, OpenCode, etc.) that can be used in the application.
  */
 
+import { fromPromise } from "@acepe/effect-result/fromPromise";
 import { listen } from "@tauri-apps/api/event";
-import { ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { getContext, setContext } from "svelte";
 import { toast } from "svelte-sonner";
 
@@ -72,13 +74,12 @@ export class AgentStore {
 	/**
 	 * Load available agents from the backend.
 	 */
-	loadAvailableAgents(): ResultAsync<Agent[], AppError> {
+	loadAvailableAgents(): Effect.Effect<Agent[], AppError> {
 		this.agentsLoading = true;
 		logger.debug("Loading available agents");
 
-		return api
-			.listAgents()
-			.map((agents) => {
+		return api.listAgents().pipe(
+			Effect.map((agents) => {
 				this.agents = agents.map((a) => ({
 					id: a.id,
 					name: a.name,
@@ -95,38 +96,42 @@ export class AgentStore {
 				this.agentsLoading = false;
 				logger.debug("Loaded agents", { count: this.agents.length });
 				return this.agents;
-			})
-			.mapErr((error) => {
+			}),
+			Effect.mapError((error) => {
 				this.agentsLoading = false;
 				logger.error("Failed to load agents", error);
 				return error;
-			});
+			})
+		);
 	}
 
 	/**
 	 * Install an automatically provisioned agent.
 	 */
-	installAgent(agentId: string): ResultAsync<void, AppError> {
-		return ResultAsync.fromPromise(
-			this.listenerReady,
+	installAgent(agentId: string): Effect.Effect<void, AppError> {
+		return fromPromise(
+			() => this.listenerReady,
 			() => new AgentError("register install progress listener")
-		)
-			.andThen(() => {
+		).pipe(
+			Effect.flatMap(() => {
 				logger.info("Installing agent", { agentId });
 				this.installing[agentId] = { stage: "starting", progress: 0 };
 				return api.installAgent(agentId);
-			})
-			.andThen(() =>
-				this.loadAvailableAgents().map(() => {
-					logger.info("Agent installed successfully", { agentId });
-				})
-			)
-			.mapErr((error) => {
+			}),
+			Effect.flatMap(() =>
+				this.loadAvailableAgents().pipe(
+					Effect.map(() => {
+						logger.info("Agent installed successfully", { agentId });
+					})
+				)
+			),
+			Effect.mapError((error) => {
 				logger.error("Failed to install agent", error);
 				toast.error(`Failed to install agent: ${error.message}`);
 				delete this.installing[agentId];
 				return error;
-			});
+			})
+		);
 	}
 
 	/**
@@ -135,14 +140,14 @@ export class AgentStore {
 	async uninstallAgent(agentId: string): Promise<void> {
 		logger.info("Uninstalling agent", { agentId });
 
-		const result = await api.uninstallAgent(agentId);
+		const result = await Effect.runPromise(Effect.result(api.uninstallAgent(agentId)));
 
-		if (result.isOk()) {
+		if (Result.isSuccess(result)) {
 			logger.info("Agent uninstalled", { agentId });
-			await this.loadAvailableAgents();
+			await Effect.runPromise(this.loadAvailableAgents());
 		} else {
-			logger.error("Failed to uninstall agent", result.error);
-			toast.error(`Failed to uninstall agent: ${result.error.message}`);
+			logger.error("Failed to uninstall agent", result.failure);
+			toast.error(`Failed to uninstall agent: ${result.failure.message}`);
 		}
 	}
 

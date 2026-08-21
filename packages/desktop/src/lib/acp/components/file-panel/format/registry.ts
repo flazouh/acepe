@@ -1,4 +1,4 @@
-import { ok, type Result } from "neverthrow";
+import * as Result from "effect/Result";
 import { csvConfig } from "./csv.js";
 import { diffConfig } from "./diff.js";
 import { dockerfileConfig } from "./dockerfile.js";
@@ -136,11 +136,11 @@ export function getDisplayOptionsByKind(kind: FilePanelFormatKind): FilePanelDis
 export function parseStructuredContent(
 	content: string,
 	kind: FilePanelFormatKind
-): Result<StructuredData, Error> {
+): Result.Result<StructuredData, Error> {
 	const config = FORMAT_CONFIGS.find((c) => c.kind === kind);
 	if (config?.parseStructured) {
 		return config.parseStructured(content);
 	}
 
-	return ok({ raw: content });
+	return Result.succeed({ raw: content });
 }

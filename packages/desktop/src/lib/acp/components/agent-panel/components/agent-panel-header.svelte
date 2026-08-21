@@ -8,7 +8,8 @@ import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import type { HugeiconsIconName } from "@acepe/ui/icons";
 import { CloseAction } from "@acepe/ui/panel-header";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
 import { toast } from "svelte-sonner";
 import AttachmentChip from "../../shared/attachment-chip.svelte";
 
@@ -155,13 +156,17 @@ function handleCopySessionId(): void {
 		return;
 	}
 
-	void copyTextToClipboard(content).match(
-		() => {
-			toast.success("Copied to clipboard");
-		},
-		() => {
-			toast.error("Failed to copy");
-		}
+	void Effect.runPromise(
+		copyTextToClipboard(content).pipe(
+			Effect.match({
+				onSuccess: () => {
+					toast.success("Copied to clipboard");
+				},
+				onFailure: () => {
+					toast.error("Failed to copy");
+				},
+			})
+		)
 	);
 }
 
@@ -172,13 +177,17 @@ function handleCopySessionTitle(): void {
 		return;
 	}
 
-	void copyTextToClipboard(content).match(
-		() => {
-			toast.success("Copied to clipboard");
-		},
-		() => {
-			toast.error("Failed to copy");
-		}
+	void Effect.runPromise(
+		copyTextToClipboard(content).pipe(
+			Effect.match({
+				onSuccess: () => {
+					toast.success("Copied to clipboard");
+				},
+				onFailure: () => {
+					toast.error("Failed to copy");
+				},
+			})
+		)
 	);
 }
 
@@ -188,14 +197,18 @@ function handleOpenPullRequest(): void {
 		return;
 	}
 
-	void ResultAsync.fromPromise(
-		openUrl(pullRequestUrl),
-		(error) => new Error(error instanceof Error ? error.message : String(error))
-	).match(
-		() => undefined,
-		(error) => {
-			toast.error(`Failed to open pull request: ${error.message}`);
-		}
+	void Effect.runPromise(
+		fromPromise(
+			() => openUrl(pullRequestUrl),
+			(error) => new Error(error instanceof Error ? error.message : String(error))
+		).pipe(
+			Effect.match({
+				onSuccess: () => undefined,
+				onFailure: (error) => {
+					toast.error(`Failed to open pull request: ${error.message}`);
+				},
+			})
+		)
 	);
 }
 

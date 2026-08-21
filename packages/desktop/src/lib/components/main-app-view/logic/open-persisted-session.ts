@@ -1,4 +1,5 @@
-import { errAsync, okAsync, type ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import type { AppError } from "$lib/acp/errors/app-error.js";
 import { api } from "$lib/acp/store/api.js";
 import type { SessionOpenHydrator } from "$lib/acp/store/services/session-open-hydrator.js";
@@ -97,11 +98,10 @@ function reattachLocalCreatedSession(input: {
 	readonly sessionId: string;
 	readonly sessionStore: SessionOpenStore;
 	readonly agentId: string;
-}): ResultAsync<void, AppError> {
+}): Effect.Effect<void, AppError> {
 	const { source, panelId, sessionId, sessionStore, agentId } = input;
-	return sessionStore.connection
-		.connectSession(sessionId)
-		.map(() => {
+	return sessionStore.connection.connectSession(sessionId).pipe(
+		Effect.map(() => {
 			sessionStore.loading.setLocalCreatedSessionLoaded(sessionId);
 			logger.debug("Reattached local created session", {
 				source,
@@ -110,8 +110,8 @@ function reattachLocalCreatedSession(input: {
 				agentId,
 			});
 			return undefined;
-		})
-		.orElse((error: AppError) => {
+		}),
+		Effect.catch((error: AppError) => {
 			sessionStore.loading.setSessionLoaded(sessionId);
 			logger.warn("Failed to reattach local created session", {
 				source,
@@ -120,8 +120,9 @@ function reattachLocalCreatedSession(input: {
 				agentId,
 				error,
 			});
-			return okAsync(undefined);
-		});
+			return Effect.succeed(undefined);
+		})
+	);
 }
 
 export function openPersistedSession(options: OpenPersistedSessionOptions): void {
@@ -229,7 +230,7 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 	recordDiagnostic("request-started", {
 		shouldAttemptLocalReattach,
 	});
-	const handleOpenResult = (result: SessionOpenResult): ResultAsync<void, AppError> => {
+	const handleOpenResult = (result: SessionOpenResult): Effect.Effect<void, AppError> => {
 		if (!panelStillTargetsSession()) {
 			sessionStore.loading.setSessionLoaded(sessionId);
 			recordDiagnostic("stale-panel", {
@@ -244,15 +245,15 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 				sessionId,
 				outcome: result.outcome,
 			});
-			return okAsync(undefined);
+			return Effect.succeed(undefined);
 		}
 		if (result.outcome === "preparing") {
 			recordDiagnostic("result-preparing", {
 				outcome: result.outcome,
 				shouldAttemptLocalReattach,
 			});
-			return awaitSessionOpenRepair(result.repairTicket).andThen((repairedResult) =>
-				handleOpenResult(repairedResult)
+			return awaitSessionOpenRepair(result.repairTicket).pipe(
+				Effect.flatMap((repairedResult) => handleOpenResult(repairedResult))
 			);
 		}
 
@@ -279,7 +280,7 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 				});
 			}
 			sessionStore.loading.setSessionLoaded(sessionId);
-			return okAsync(undefined);
+			return Effect.succeed(undefined);
 		}
 
 		if (result.outcome === "error") {
@@ -311,7 +312,7 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 				});
 			}
 			sessionStore.loading.setSessionLoaded(sessionId);
-			return okAsync(undefined);
+			return Effect.succeed(undefined);
 		}
 
 		const initialRowPage = result.initialTranscriptRowPage ?? null;
@@ -333,7 +334,7 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 			readonly applied: boolean;
 		}) => {
 			if (!sessionOpenHydrator.isCurrentAttempt(panelId, requestToken)) {
-				return okAsync(undefined);
+				return Effect.succeed(undefined);
 			}
 
 			if (
@@ -342,7 +343,7 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 			) {
 				sessionStore.loading.setSessionLoaded(hydration.canonicalSessionId);
 				sessionOpenHydrator.clearAttempt(panelId);
-				return okAsync(undefined);
+				return Effect.succeed(undefined);
 			}
 
 			return sessionStore.connection
@@ -350,27 +351,29 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 					openToken: hydration.openToken,
 					forceReconnect: true,
 				})
-				.map(() => {
-					sessionStore.loading.setSessionLoaded(hydration.canonicalSessionId);
-					sessionOpenHydrator.clearAttempt(panelId);
-					recordDiagnostic("hydrated", {
-						canonicalSessionId: hydration.canonicalSessionId,
-						shouldAttemptLocalReattach,
-					});
-				});
+				.pipe(
+					Effect.map(() => {
+						sessionStore.loading.setSessionLoaded(hydration.canonicalSessionId);
+						sessionOpenHydrator.clearAttempt(panelId);
+						recordDiagnostic("hydrated", {
+							canonicalSessionId: hydration.canonicalSessionId,
+							shouldAttemptLocalReattach,
+						});
+					})
+				);
 		};
 		const immediateHydration = sessionOpenHydrator.hydrateFoundNow?.(panelId, requestToken, result);
 		if (immediateHydration !== undefined) {
-			if (immediateHydration.isErr()) {
-				return errAsync(immediateHydration.error);
+			if (Result.isFailure(immediateHydration)) {
+				return Effect.fail(immediateHydration.failure);
 			}
-			if (immediateHydration.value !== null) {
-				return finishHydration(immediateHydration.value);
+			if (immediateHydration.success !== null) {
+				return finishHydration(immediateHydration.success);
 			}
 		}
 		return sessionOpenHydrator
 			.hydrateFound(panelId, requestToken, result)
-			.andThen((hydration) => finishHydration(hydration));
+			.pipe(Effect.flatMap((hydration) => finishHydration(hydration)));
 	};
 
 	const openResult = preparedOpenResult
@@ -381,11 +384,10 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 				sessionIdentity.agentId,
 				sessionMetadata.sourcePath,
 				repairPriority
-			).andThen((result) => handleOpenResult(result));
+			).pipe(Effect.flatMap((result) => handleOpenResult(result)));
 
-	const openPromise = openResult.match(
-		() => undefined,
-		(error: AppError) => {
+	const program = openResult.pipe(
+		Effect.catch((error: AppError) => {
 			recordDiagnostic("request-failed", {
 				message: error.message,
 				shouldAttemptLocalReattach,
@@ -404,10 +406,7 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 					sessionId,
 					sessionStore,
 					agentId: sessionIdentity.agentId,
-				}).match(
-					() => undefined,
-					() => undefined
-				);
+				});
 			}
 			sessionStore.loading.setSessionLoaded(sessionId);
 			logger.error("Failed to open session", {
@@ -416,10 +415,11 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 				sessionId,
 				error,
 			});
-		}
+			return Effect.succeed(undefined);
+		})
 	);
 
-	openPromise.finally(() => {
+	void Effect.runPromise(program).finally(() => {
 		if (inflightPanelSessions.get(panelId) === sessionId) {
 			inflightPanelSessions.delete(panelId);
 		}

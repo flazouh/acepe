@@ -22,6 +22,8 @@ import {
 import { GitWorkspace, type GitLogEntryFile } from "@acepe/ui/git-panel";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { onMount, untrack } from "svelte";
 import { toast } from "svelte-sonner";
 import type { CommitDiff } from "$lib/acp/types/github-integration.js";
@@ -316,19 +318,25 @@ onMount(() => {
 async function refresh() {
 	_loading = true;
 	const [statusResult, branchResult, remoteResult, worktreeResult] = await Promise.all([
-		tauriClient.git.panelStatus(projectPath),
-		tauriClient.git.currentBranch(projectPath),
-		tauriClient.git.remoteStatus(projectPath),
-		tauriClient.git.worktreeList(projectPath),
+		Effect.runPromise(Effect.result(tauriClient.git.panelStatus(projectPath))),
+		Effect.runPromise(Effect.result(tauriClient.git.currentBranch(projectPath))),
+		Effect.runPromise(Effect.result(tauriClient.git.remoteStatus(projectPath))),
+		Effect.runPromise(Effect.result(tauriClient.git.worktreeList(projectPath))),
 	]);
 
-	statusResult.map((f) => (files = f));
-	branchResult.map((b) => (branch = b));
-	remoteResult.map((r) => (remoteStatus = r));
-	worktreeResult.map((items) => {
-		worktrees = items;
-		onWorktreesLoaded?.(items);
-	});
+	if (Result.isSuccess(statusResult)) {
+		files = statusResult.success;
+	}
+	if (Result.isSuccess(branchResult)) {
+		branch = branchResult.success;
+	}
+	if (Result.isSuccess(remoteResult)) {
+		remoteStatus = remoteResult.success;
+	}
+	if (Result.isSuccess(worktreeResult)) {
+		worktrees = worktreeResult.success;
+		onWorktreesLoaded?.(worktreeResult.success);
+	}
 	selectedChangesFile = "";
 	selectedChangesDiff = null;
 	selectedChangesLoading = false;
@@ -357,13 +365,17 @@ $effect(() => {
 });
 
 async function loadStash() {
-	const result = await tauriClient.git.stashList(projectPath);
-	result.map((s) => (stashEntries = s));
+	const result = await Effect.runPromise(Effect.result(tauriClient.git.stashList(projectPath)));
+	if (Result.isSuccess(result)) {
+		stashEntries = result.success;
+	}
 }
 
 async function loadLog() {
-	const result = await tauriClient.git.log(projectPath, 50);
-	result.map((l) => (logEntries = l));
+	const result = await Effect.runPromise(Effect.result(tauriClient.git.log(projectPath, 50)));
+	if (Result.isSuccess(result)) {
+		logEntries = result.success;
+	}
 }
 
 // Load initial data on mount (deferred when opening a PR directly)
@@ -377,7 +389,7 @@ let watchHeadInitialized = false;
 function initWatchHead() {
 	if (watchHeadInitialized) return;
 	watchHeadInitialized = true;
-	void tauriClient.git.watchHead(projectPath);
+	void Effect.runPromise(Effect.result(tauriClient.git.watchHead(projectPath)));
 	void listen<{ projectPath: string; branch: string | null }>("git:head-changed", (event) => {
 		if (event.payload.projectPath === projectPath) {
 			refresh();
@@ -391,39 +403,41 @@ if (!initialTargetSnapshot?.prNumber) {
 // ─── Mutation Callbacks ──────────────────────────────────────────────
 
 async function handleStage(path: string) {
-	await tauriClient.git.stageFiles(projectPath, [path]);
+	await Effect.runPromise(Effect.result(tauriClient.git.stageFiles(projectPath, [path])));
 	await refresh();
 }
 
 async function handleUnstage(path: string) {
-	await tauriClient.git.unstageFiles(projectPath, [path]);
+	await Effect.runPromise(Effect.result(tauriClient.git.unstageFiles(projectPath, [path])));
 	await refresh();
 }
 
 async function handleStageAll() {
-	await tauriClient.git.stageAll(projectPath);
+	await Effect.runPromise(Effect.result(tauriClient.git.stageAll(projectPath)));
 	await refresh();
 }
 
 async function handleDiscard(path: string) {
-	await tauriClient.git.discardChanges(projectPath, [path]);
+	await Effect.runPromise(Effect.result(tauriClient.git.discardChanges(projectPath, [path])));
 	await refresh();
 }
 
 async function handleCommit(message: string) {
-	const result = await tauriClient.git.commit(projectPath, message);
-	result.map(() => {
+	const result = await Effect.runPromise(Effect.result(tauriClient.git.commit(projectPath, message)));
+	if (Result.isSuccess(result)) {
 		commitMessage = "";
-	});
+	}
 	await refresh();
 	// Refresh log if on history tab
 	if (activeView === "history") await loadLog();
 }
 
 async function handlePush() {
-	await tauriClient.git.push(projectPath);
-	const result = await tauriClient.git.remoteStatus(projectPath);
-	result.map((r) => (remoteStatus = r));
+	await Effect.runPromise(Effect.result(tauriClient.git.push(projectPath)));
+	const result = await Effect.runPromise(Effect.result(tauriClient.git.remoteStatus(projectPath)));
+	if (Result.isSuccess(result)) {
+		remoteStatus = result.success;
+	}
 }
 
 async function runStackedActionAndNotify(
@@ -433,34 +447,36 @@ async function runStackedActionAndNotify(
 ) {
 	stackedActionRunning = true;
 	console.info("[git-panel] runStackedAction", { projectPath, action, commitMessage });
-	const result = await tauriClient.git.runStackedAction(projectPath, action, commitMessage);
-	await result.match(
-		async (ok) => {
-			stackedActionRunning = false;
-			console.info("[git-panel] runStackedAction success", {
-				action: ok.action,
-				commitStatus: ok.commit.status,
-				pushStatus: ok.push.status,
-				prStatus: ok.pr.status,
-				prUrl: ok.pr.url,
-			});
-			toast.success(successMessage(ok));
-			if (openPrUrl) openPrUrl(ok);
-			commitMessage = "";
-			await Promise.all([refresh(), activeView === "history" ? loadLog() : Promise.resolve()]);
-		},
-		(err) => {
-			stackedActionRunning = false;
-			const details = getErrorCauseDetails(err);
-			console.error("[git-panel] runStackedAction failed", {
-				message: err.message,
-				rootCause: details.rootCause,
-				chain: details.chain,
-				formatted: details.formatted,
-			});
-			toast.error(details.rootCause ?? err.message);
-		}
+	const result = await Effect.runPromise(
+		Effect.result(tauriClient.git.runStackedAction(projectPath, action, commitMessage))
 	);
+	if (Result.isFailure(result)) {
+		stackedActionRunning = false;
+		const err = result.failure;
+		const details = getErrorCauseDetails(err);
+		console.error("[git-panel] runStackedAction failed", {
+			message: err.message,
+			rootCause: details.rootCause,
+			chain: details.chain,
+			formatted: details.formatted,
+		});
+		toast.error(details.rootCause ?? err.message);
+		return;
+	}
+
+	const ok = result.success;
+	stackedActionRunning = false;
+	console.info("[git-panel] runStackedAction success", {
+		action: ok.action,
+		commitStatus: ok.commit.status,
+		pushStatus: ok.push.status,
+		prStatus: ok.pr.status,
+		prUrl: ok.pr.url,
+	});
+	toast.success(successMessage(ok));
+	if (openPrUrl) openPrUrl(ok);
+	commitMessage = "";
+	await Promise.all([refresh(), activeView === "history" ? loadLog() : Promise.resolve()]);
 }
 
 async function handleCommitPush() {
@@ -483,33 +499,38 @@ async function handleCommitPushPr() {
 async function handleGenerate() {
 	if (!onRequestGeneration || generating) return;
 	generating = true;
-	const result = await tauriClient.git.collectShipContext(projectPath);
-	result.match(
-		(ctx) => {
-			if (!ctx) {
-				toast.warning("No staged changes to generate from");
-				generating = false;
-				return;
-			}
-			onRequestGeneration(ctx.prompt);
-			generating = false;
-		},
-		(err) => {
-			toast.error(`Generation failed: ${err.message}`);
-			generating = false;
-		}
+	await Effect.runPromise(
+		tauriClient.git.collectShipContext(projectPath).pipe(
+			Effect.match({
+				onSuccess: (ctx) => {
+					if (!ctx) {
+						toast.warning("No staged changes to generate from");
+						generating = false;
+						return;
+					}
+					onRequestGeneration(ctx.prompt);
+					generating = false;
+				},
+				onFailure: (err) => {
+					toast.error(`Generation failed: ${err.message}`);
+					generating = false;
+				},
+			})
+		)
 	);
 }
 
 async function handlePull() {
-	await tauriClient.git.pull(projectPath);
+	await Effect.runPromise(Effect.result(tauriClient.git.pull(projectPath)));
 	await refresh();
 }
 
 async function handleFetch() {
-	await tauriClient.git.fetch(projectPath);
-	const result = await tauriClient.git.remoteStatus(projectPath);
-	result.map((r) => (remoteStatus = r));
+	await Effect.runPromise(Effect.result(tauriClient.git.fetch(projectPath)));
+	const result = await Effect.runPromise(Effect.result(tauriClient.git.remoteStatus(projectPath)));
+	if (Result.isSuccess(result)) {
+		remoteStatus = result.success;
+	}
 }
 
 function handleViewChange(view: "status" | "history" | "stash") {
@@ -519,13 +540,13 @@ function handleViewChange(view: "status" | "history" | "stash") {
 }
 
 async function handleStashPop(index: number) {
-	await tauriClient.git.stashPop(projectPath, index);
+	await Effect.runPromise(Effect.result(tauriClient.git.stashPop(projectPath, index)));
 	await refresh();
 	await loadStash();
 }
 
 async function handleStashDrop(index: number) {
-	await tauriClient.git.stashDrop(projectPath, index);
+	await Effect.runPromise(Effect.result(tauriClient.git.stashDrop(projectPath, index)));
 	await loadStash();
 }
 
@@ -533,21 +554,24 @@ async function handleLogExpand(sha: string) {
 	// Skip if already loaded
 	if (expandedCommitFiles[sha]) return;
 
-	const result = await fetchCommitDiff(sha, projectPath);
-	result.match(
-		(commitDiff) => {
-			expandedCommitFiles[sha] = commitDiff.files.map((f) => ({
-				path: f.path,
-				status: f.status,
-				additions: f.additions,
-				deletions: f.deletions,
-				patch: f.patch,
-			}));
-		},
-		() => {
-			// On error, set empty array so it doesn't show loading forever
-			expandedCommitFiles[sha] = [];
-		}
+	await Effect.runPromise(
+		fetchCommitDiff(sha, projectPath).pipe(
+			Effect.match({
+				onSuccess: (commitDiff) => {
+					expandedCommitFiles[sha] = commitDiff.files.map((f) => ({
+						path: f.path,
+						status: f.status,
+						additions: f.additions,
+						deletions: f.deletions,
+						patch: f.patch,
+					}));
+				},
+				onFailure: () => {
+					// On error, set empty array so it doesn't show loading forever
+					expandedCommitFiles[sha] = [];
+				},
+			})
+		)
 	);
 }
 
@@ -571,18 +595,20 @@ function handlePointerUp() {
 }
 
 function handleRevealPath(path: string) {
-	revealInFinder(path).mapErr(() => undefined);
+	void Effect.runPromise(revealInFinder(path).pipe(Effect.catch(() => Effect.succeed(undefined))));
 }
 
 async function handleDeleteWorktree(directory: string) {
-	await tauriClient.git.worktreeRemove(directory, false);
+	await Effect.runPromise(Effect.result(tauriClient.git.worktreeRemove(directory, false)));
 	worktreeDeleteConfirm = null;
 	await refresh();
 }
 
 async function handleDeleteAllWorktrees() {
 	for (const item of worktreeItems) {
-		await tauriClient.git.worktreeRemove(item.worktree.directory, false);
+		await Effect.runPromise(
+			Effect.result(tauriClient.git.worktreeRemove(item.worktree.directory, false))
+		);
 	}
 	worktreeDeleteConfirm = null;
 	await refresh();
@@ -610,29 +636,32 @@ async function handleFileSelect(
 	selectedChangesLoading = true;
 	selectedChangesDismissed = false;
 
-	const result = await fetchWorkingFileDiff(
-		projectPath,
-		file.path,
-		staged,
-		file.status,
-		file.additions,
-		file.deletions
-	);
-	result.match(
-		(diff) => {
-			if (requestId !== selectedChangesRequestId) {
-				return;
-			}
-			selectedChangesDiff = diff;
-			selectedChangesLoading = false;
-		},
-		() => {
-			if (requestId !== selectedChangesRequestId) {
-				return;
-			}
-			selectedChangesDiff = null;
-			selectedChangesLoading = false;
-		}
+	await Effect.runPromise(
+		fetchWorkingFileDiff(
+			projectPath,
+			file.path,
+			staged,
+			file.status,
+			file.additions,
+			file.deletions
+		).pipe(
+			Effect.match({
+				onSuccess: (diff) => {
+					if (requestId !== selectedChangesRequestId) {
+						return;
+					}
+					selectedChangesDiff = diff;
+					selectedChangesLoading = false;
+				},
+				onFailure: () => {
+					if (requestId !== selectedChangesRequestId) {
+						return;
+					}
+					selectedChangesDiff = null;
+					selectedChangesLoading = false;
+				},
+			})
+		)
 	);
 }
 
@@ -701,15 +730,18 @@ async function handleOpenCommit(rawQuery: string) {
 	commitLookupError = null;
 	commitLookup = normalizedQuery;
 
-	const result = await fetchCommitDiff(normalizedQuery, projectPath);
-	result.match(
-		(diff) => {
-			selectedCommitDiff = diff;
-			commitLookup = diff.sha;
-		},
-		(error) => {
-			commitLookupError = error.message;
-		}
+	await Effect.runPromise(
+		fetchCommitDiff(normalizedQuery, projectPath).pipe(
+			Effect.match({
+				onSuccess: (diff) => {
+					selectedCommitDiff = diff;
+					commitLookup = diff.sha;
+				},
+				onFailure: (error) => {
+					commitLookupError = error.message;
+				},
+			})
+		)
 	);
 
 	commitLookupLoading = false;
@@ -726,23 +758,21 @@ async function loadPrList() {
 	prListLoading = true;
 	prListError = null;
 
-	const ctxResult = await getRepoContext(projectPath);
-	await ctxResult.match(
-		async (ctx) => {
-			cachedRepoContext = ctx;
-			const result = await listPullRequests(ctx.owner, ctx.repo, prStateFilter);
-			result.match(
-				(items) => {
+	await Effect.runPromise(
+		getRepoContext(projectPath).pipe(
+			Effect.flatMap((ctx) => {
+				cachedRepoContext = ctx;
+				return listPullRequests(ctx.owner, ctx.repo, prStateFilter);
+			}),
+			Effect.match({
+				onSuccess: (items) => {
 					prList = items;
 				},
-				(error) => {
+				onFailure: (error) => {
 					prListError = error.message;
-				}
-			);
-		},
-		(error) => {
-			prListError = error.message;
-		}
+				},
+			})
+		)
 	);
 
 	prListLoading = false;
@@ -788,23 +818,21 @@ if (initialTargetSnapshot) {
 
 async function handleOpenPr(prNumber: number) {
 	selectedPrLoading = true;
-	const ctxResult = await getRepoContext(projectPath);
-	await ctxResult.match(
-		async (ctx) => {
-			cachedRepoContext = ctx;
-			const result = await fetchPrDiff(ctx.owner, ctx.repo, prNumber);
-			result.match(
-				(diff) => {
+	await Effect.runPromise(
+		getRepoContext(projectPath).pipe(
+			Effect.flatMap((ctx) => {
+				cachedRepoContext = ctx;
+				return fetchPrDiff(ctx.owner, ctx.repo, prNumber);
+			}),
+			Effect.match({
+				onSuccess: (diff) => {
 					selectedPrDiff = diff;
 				},
-				() => {
+				onFailure: () => {
 					selectedPrDiff = null;
-				}
-			);
-		},
-		() => {
-			selectedPrDiff = null;
-		}
+				},
+			})
+		)
 	);
 	selectedPrLoading = false;
 }

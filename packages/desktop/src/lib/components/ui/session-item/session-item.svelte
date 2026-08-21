@@ -16,7 +16,9 @@ import {
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { tick } from "svelte";
 import { buildQueueItemQuestionUiState } from "$lib/acp/components/session-attention/question-ui-state.js";
 import PrStateIcon from "$lib/acp/components/pr-state-icon.svelte";
@@ -115,7 +117,7 @@ const agentIconBaseClass = AGENT_ICON_BASE_CLASS;
 
 function formatTimeAgoSafe(date: Date): string {
 	const result = formatTimeAgo(date);
-	return result.isOk() ? result.value : UNKNOWN_TIME_TEXT;
+	return Result.isSuccess(result) ? result.success : UNKNOWN_TIME_TEXT;
 }
 
 function getSessionDisplayName(item: SessionDisplayItem): string {
@@ -162,9 +164,17 @@ function handleConfirmArchive(event: MouseEvent) {
 }
 
 async function handleCopyText(text: string, description: string) {
-	await copyTextToClipboard(text).match(
-		() => toast.success("Copied to clipboard"),
-		(err) => toast.error(`Failed to copy ${description}: ${err.message}`)
+	await Effect.runPromise(
+		copyTextToClipboard(text).pipe(
+			Effect.match({
+				onSuccess: () => {
+					toast.success("Copied to clipboard");
+				},
+				onFailure: (err) => {
+					toast.error(`Failed to copy ${description}: ${err.message}`);
+				},
+			})
+		)
 	);
 }
 
@@ -191,20 +201,26 @@ async function handleOpenTranscriptInAcepe() {
 async function handleRevealRawTranscriptFile() {
 	const sourcePath = session.sourcePath?.trim();
 	if (sourcePath) {
-		await revealInFinder(sourcePath).match(
-			() => undefined,
-			(err) => toast.error(`Failed to reveal transcript: ${err.message}`)
+		await Effect.runPromise(
+			revealInFinder(sourcePath).pipe(
+				Effect.match({
+					onSuccess: () => undefined,
+					onFailure: (err) => toast.error(`Failed to reveal transcript: ${err.message}`),
+				})
+			)
 		);
 		return;
 	}
 
-	await tauriClient.shell
-		.getSessionFilePath(session.id, session.projectPath)
-		.andThen((path) => revealInFinder(path))
-		.match(
-			() => undefined,
-			(err) => toast.error(`Failed to reveal transcript: ${err.message}`)
-		);
+	await Effect.runPromise(
+		tauriClient.shell.getSessionFilePath(session.id, session.projectPath).pipe(
+			Effect.flatMap((path) => revealInFinder(path)),
+			Effect.match({
+				onSuccess: () => undefined,
+				onFailure: (err) => toast.error(`Failed to reveal transcript: ${err.message}`),
+			})
+		)
+	);
 }
 
 async function handleRevealWorktreeFolder() {
@@ -213,28 +229,40 @@ async function handleRevealWorktreeFolder() {
 		return;
 	}
 
-	await revealInFinder(worktreePath).match(
-		() => undefined,
-		(err) => toast.error(`Failed to reveal worktree: ${err.message}`)
+	await Effect.runPromise(
+		revealInFinder(worktreePath).pipe(
+			Effect.match({
+				onSuccess: () => undefined,
+				onFailure: (err) => toast.error(`Failed to reveal worktree: ${err.message}`),
+			})
+		)
 	);
 }
 
 async function handleOpenStreamingLog() {
-	await tauriClient.shell.openStreamingLog(session.id).match(
-		() => undefined,
-		(err) => toast.error(`Failed to open streaming log: ${err.message}`)
+	await Effect.runPromise(
+		tauriClient.shell.openStreamingLog(session.id).pipe(
+			Effect.match({
+				onSuccess: () => undefined,
+				onFailure: (err) => toast.error(`Failed to open streaming log: ${err.message}`),
+			})
+		)
 	);
 }
 
 async function handleOpenPullRequest() {
 	const prUrl = session.linkedPr?.url?.trim();
 	if (prUrl) {
-		await ResultAsync.fromPromise(
-			openUrl(prUrl),
-			(error) => new Error(error instanceof Error ? error.message : String(error))
-		).match(
-			() => undefined,
-			(err) => toast.error(`Failed to open pull request: ${err.message}`)
+		await Effect.runPromise(
+			fromPromise(
+				() => openUrl(prUrl),
+				(error) => new Error(error instanceof Error ? error.message : String(error))
+			).pipe(
+				Effect.match({
+					onSuccess: () => undefined,
+					onFailure: (err) => toast.error(`Failed to open pull request: ${err.message}`),
+				})
+			)
 		);
 		return;
 	}

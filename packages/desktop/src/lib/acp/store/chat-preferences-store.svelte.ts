@@ -6,6 +6,8 @@
  */
 
 import type { RevealMode } from "@acepe/ui/streaming-reveal";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { getContext, setContext } from "svelte";
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
@@ -33,14 +35,18 @@ export class ChatPreferencesStore {
 		if (this.initialized) return;
 		this.initialized = true;
 
-		const thinkingResult = await tauriClient.settings.get<boolean>(THINKING_BLOCK_COLLAPSED_KEY);
-		if (thinkingResult.isOk() && thinkingResult.value === true) {
+		const thinkingResult = await Effect.runPromise(
+			Effect.result(tauriClient.settings.get<boolean>(THINKING_BLOCK_COLLAPSED_KEY))
+		);
+		if (Result.isSuccess(thinkingResult) && thinkingResult.success === true) {
 			this.thinkingBlockCollapsedByDefault = true;
 		}
 
-		const revealModeResult = await tauriClient.settings.get<string>(STREAMING_REVEAL_MODE_KEY);
-		if (revealModeResult.isOk() && revealModeResult.value !== null) {
-			const loadedMode = revealModeResult.value;
+		const revealModeResult = await Effect.runPromise(
+			Effect.result(tauriClient.settings.get<string>(STREAMING_REVEAL_MODE_KEY))
+		);
+		if (Result.isSuccess(revealModeResult) && revealModeResult.success !== null) {
+			const loadedMode = revealModeResult.success;
 			if (VALID_REVEAL_MODES.includes(loadedMode as RevealMode)) {
 				this.streamingRevealMode = loadedMode as RevealMode;
 			}
@@ -51,16 +57,30 @@ export class ChatPreferencesStore {
 
 	async setThinkingBlockCollapsedByDefault(value: boolean): Promise<void> {
 		this.thinkingBlockCollapsedByDefault = value;
-		tauriClient.settings.set(THINKING_BLOCK_COLLAPSED_KEY, value).mapErr((err) => {
-			logger.warn("Failed to persist thinking block preference", { error: err });
-		});
+		void Effect.runPromise(
+			tauriClient.settings.set(THINKING_BLOCK_COLLAPSED_KEY, value).pipe(
+				Effect.match({
+					onSuccess: () => undefined,
+					onFailure: (err) => {
+						logger.warn("Failed to persist thinking block preference", { error: err });
+					},
+				})
+			)
+		);
 	}
 
 	setStreamingRevealMode(mode: RevealMode): void {
 		this.streamingRevealMode = mode;
-		tauriClient.settings.set(STREAMING_REVEAL_MODE_KEY, mode).mapErr((err) => {
-			logger.warn("Failed to persist streaming reveal mode preference", { error: err });
-		});
+		void Effect.runPromise(
+			tauriClient.settings.set(STREAMING_REVEAL_MODE_KEY, mode).pipe(
+				Effect.match({
+					onSuccess: () => undefined,
+					onFailure: (err) => {
+						logger.warn("Failed to persist streaming reveal mode preference", { error: err });
+					},
+				})
+			)
+		);
 	}
 }
 

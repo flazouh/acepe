@@ -1,6 +1,14 @@
 import { cleanup, render, waitFor } from "@testing-library/svelte";
-import { okAsync } from "neverthrow";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+function succeedMatch<T>(value: T) {
+	return {
+		match(onOk: (value: T) => unknown) {
+			onOk(value);
+			return Promise.resolve();
+		},
+	};
+}
 
 vi.mock("svelte", async () => {
 	const { createRequire } = await import("node:module");
@@ -109,10 +117,10 @@ describe("FilePanel", () => {
 		peekFileContentMock.mockReset();
 		peekFileContentMock.mockReturnValue(null);
 		getFileContentMock.mockReset();
-		getFileContentMock.mockReturnValue(okAsync("const answer = 42;\n"));
+		getFileContentMock.mockReturnValue(succeedMatch("const answer = 42;\n"));
 		getFileDiffMock.mockReset();
 		getFileDiffMock.mockReturnValue(
-			okAsync({
+			succeedMatch({
 				oldContent: "const answer = 41;\n",
 				newContent: "const answer = 42;\n",
 			})

@@ -8,7 +8,7 @@
  * - Permission and question request handling
  */
 
-import { okAsync, type ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import { SvelteMap } from "svelte/reactivity";
 import type {
 	SessionGraphCapabilities,
@@ -278,13 +278,13 @@ export class SessionEventService {
 	/**
 	 * Initialize session update subscription.
 	 */
-	initializeSessionUpdates(handler: SessionEventHandler): ResultAsync<void, AppError> {
+	initializeSessionUpdates(handler: SessionEventHandler): Effect.Effect<void, AppError> {
 		if (
 			this.eventSubscriber &&
 			this.sessionUpdateSubscriptionId &&
 			this.sessionStateSubscriptionId
 		) {
-			return okAsync(undefined);
+			return Effect.succeed(undefined);
 		}
 		// Recover from a partial/failed initialization attempt.
 		if (
@@ -299,38 +299,40 @@ export class SessionEventService {
 			.subscribe((update: SessionUpdate, envelopeSeq: number) => {
 				this.handleSessionUpdate(update, handler, envelopeSeq);
 			})
-			.andThen((sessionUpdateId) => {
-				this.sessionUpdateSubscriptionId = sessionUpdateId;
-				return subscriber.subscribeSessionState((envelope: SessionStateEnvelope) => {
-					this.handleSessionStateEnvelope(envelope, handler);
-				});
-			})
-			.map((sessionStateSubscriptionId) => {
-				this.eventSubscriber = subscriber;
-				this.sessionStateSubscriptionId = sessionStateSubscriptionId;
-				this.startTelemetryReporter();
-				logger.debug("Session update subscription initialized", {
-					sessionSubscriptionId: this.sessionUpdateSubscriptionId,
-					sessionStateSubscriptionId: this.sessionStateSubscriptionId,
-				});
-				return undefined;
-			})
-			.mapErr((error) => {
-				if (this.sessionUpdateSubscriptionId !== null) {
-					subscriber.unsubscribeById(this.sessionUpdateSubscriptionId);
-				}
-				if (this.sessionStateSubscriptionId !== null) {
-					subscriber.unsubscribeById(this.sessionStateSubscriptionId);
-				}
-				this.eventSubscriber = null;
-				this.sessionUpdateSubscriptionId = null;
-				this.sessionStateSubscriptionId = null;
-				logger.error("Failed to initialize session update subscription", { error });
-				return new AgentError(
-					"initializeSessionUpdates",
-					error instanceof Error ? error : new Error(String(error))
-				);
-			});
+			.pipe(
+				Effect.flatMap((sessionUpdateId) => {
+					this.sessionUpdateSubscriptionId = sessionUpdateId;
+					return subscriber.subscribeSessionState((envelope: SessionStateEnvelope) => {
+						this.handleSessionStateEnvelope(envelope, handler);
+					});
+				}),
+				Effect.map((sessionStateSubscriptionId) => {
+					this.eventSubscriber = subscriber;
+					this.sessionStateSubscriptionId = sessionStateSubscriptionId;
+					this.startTelemetryReporter();
+					logger.debug("Session update subscription initialized", {
+						sessionSubscriptionId: this.sessionUpdateSubscriptionId,
+						sessionStateSubscriptionId: this.sessionStateSubscriptionId,
+					});
+					return undefined;
+				}),
+				Effect.mapError((error) => {
+					if (this.sessionUpdateSubscriptionId !== null) {
+						subscriber.unsubscribeById(this.sessionUpdateSubscriptionId);
+					}
+					if (this.sessionStateSubscriptionId !== null) {
+						subscriber.unsubscribeById(this.sessionStateSubscriptionId);
+					}
+					this.eventSubscriber = null;
+					this.sessionUpdateSubscriptionId = null;
+					this.sessionStateSubscriptionId = null;
+					logger.error("Failed to initialize session update subscription", { error });
+					return new AgentError(
+						"initializeSessionUpdates",
+						error instanceof Error ? error : new Error(String(error))
+					);
+				})
+			);
 	}
 
 	/**

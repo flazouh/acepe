@@ -1,4 +1,5 @@
-import { okAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { QuestionRequest } from "../../types/question.js";
@@ -6,7 +7,7 @@ import type { QuestionRequest } from "../../types/question.js";
 import { OperationStore } from "../operation-store.svelte.js";
 import { QuestionStore } from "../question-store.svelte.js";
 
-const mockReplyInteraction = vi.fn((_request: Record<string, unknown>) => okAsync(undefined));
+const mockReplyInteraction = vi.fn((_request: Record<string, unknown>) => Effect.succeed(undefined));
 
 vi.mock("../api.js", () => ({
 	api: {
@@ -259,11 +260,11 @@ describe("QuestionStore", () => {
 			store.add(initialQuestion);
 			store.add(refreshedQuestion);
 
-			await store.reply(
+			await Effect.runPromise(store.reply(
 				"q-duplicate-routing",
 				[{ questionIndex: 0, answers: ["Streaming"] }],
 				initialQuestion.questions
-			);
+			));
 
 			expect(mockReplyInteraction).toHaveBeenCalledWith({
 				sessionId: "session-duplicate-routing",
@@ -299,7 +300,7 @@ describe("QuestionStore", () => {
 
 			store.add(question);
 			const answers = [{ questionIndex: 0, answers: ["A"] }];
-			await store.reply("q-http", answers, question.questions);
+			await Effect.runPromise(store.reply("q-http", answers, question.questions));
 
 			expect(mockReplyInteraction).toHaveBeenCalledWith({
 				sessionId: "session-http",
@@ -339,7 +340,7 @@ describe("QuestionStore", () => {
 
 			store.add(question);
 			const answers = [{ questionIndex: 0, answers: ["Svelte"] }];
-			await store.reply("q-jsonrpc", answers, question.questions);
+			await Effect.runPromise(store.reply("q-jsonrpc", answers, question.questions));
 
 			expect(mockReplyInteraction).toHaveBeenCalledWith({
 				sessionId: "session-jsonrpc",
@@ -380,7 +381,7 @@ describe("QuestionStore", () => {
 
 			store.add(question);
 			const answers = [{ questionIndex: 0, answers: ["TypeScript", "ESLint"] }];
-			await store.reply("q-multi", answers, question.questions);
+			await Effect.runPromise(store.reply("q-multi", answers, question.questions));
 
 			expect(mockReplyInteraction).toHaveBeenCalledWith({
 				sessionId: "session-multi",
@@ -420,7 +421,7 @@ describe("QuestionStore", () => {
 
 			store.add(question);
 			const answers = [{ questionIndex: 0, answers: ["TypeScript", "ESLint"] }];
-			await store.reply("q-multi-values", answers, question.questions);
+			await Effect.runPromise(store.reply("q-multi-values", answers, question.questions));
 
 			expect(mockReplyInteraction).toHaveBeenCalledWith({
 				sessionId: "session-multi-values",
@@ -465,7 +466,7 @@ describe("QuestionStore", () => {
 				{ questionIndex: 0, answers: ["A"] },
 				{ questionIndex: 1, answers: ["B"] },
 			];
-			await store.reply("q-multiple-qs", answers, question.questions);
+			await Effect.runPromise(store.reply("q-multiple-qs", answers, question.questions));
 
 			expect(mockReplyInteraction).toHaveBeenCalledWith({
 				sessionId: "session-multiple",
@@ -486,9 +487,9 @@ describe("QuestionStore", () => {
 		});
 
 		it("should return error for non-existent question", async () => {
-			const result = await store.reply("non-existent", [], []);
+			const result = await Effect.runPromise(Effect.result(store.reply("non-existent", [], [])));
 
-			expect(result.isErr()).toBe(true);
+			expect(Result.isFailure(result)).toBe(true);
 		});
 	});
 
@@ -502,7 +503,7 @@ describe("QuestionStore", () => {
 			};
 
 			store.add(question);
-			await store.cancel("q-cancel-jsonrpc");
+			await Effect.runPromise(store.cancel("q-cancel-jsonrpc"));
 
 			expect(mockReplyInteraction).toHaveBeenCalledWith({
 				sessionId: "session-cancel",
@@ -527,7 +528,7 @@ describe("QuestionStore", () => {
 			};
 
 			store.add(question);
-			await store.cancel("q-cancel-http");
+			await Effect.runPromise(store.cancel("q-cancel-http"));
 
 			expect(mockReplyInteraction).toHaveBeenCalledWith({
 				sessionId: "session-cancel-http",
@@ -544,9 +545,9 @@ describe("QuestionStore", () => {
 		});
 
 		it("should return error for non-existent question", async () => {
-			const result = await store.cancel("non-existent");
+			const result = await Effect.runPromise(Effect.result(store.cancel("non-existent")));
 
-			expect(result.isErr()).toBe(true);
+			expect(Result.isFailure(result)).toBe(true);
 		});
 	});
 
@@ -574,9 +575,9 @@ describe("QuestionStore", () => {
 			store.add(sessionOneSecond);
 			store.add(sessionTwoQuestion);
 
-			const result = await store.cancelForSession("session-1");
+			const result = await Effect.runPromise(Effect.result(store.cancelForSession("session-1")));
 
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 			expect(store.pending.has("q-session-1-a")).toBe(false);
 			expect(store.pending.has("q-session-1-b")).toBe(false);
 			expect(store.pending.has("q-session-2")).toBe(true);

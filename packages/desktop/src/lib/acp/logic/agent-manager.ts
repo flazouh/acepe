@@ -1,4 +1,4 @@
-import type { ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import type { ProviderMetadataProjection } from "../../services/acp-types.js";
 import { tauriClient } from "../../utils/tauri-client.js";
 import { LOGGER_IDS } from "../constants/logger-ids.js";
@@ -42,10 +42,11 @@ export interface CustomAgentConfig {
  * const manager = new AgentManager();
  *
  * // List available agents
- * const result = await manager.listAgents();
- * result
- *   .map(agents => console.log('Available agents:', agents))
- *   .mapErr(error => console.error('Error:', error));
+ * const result = await Effect.runPromise(Effect.result(manager.listAgents()));
+ * Result.match(result, {
+ *   onSuccess: (agents) => console.log("Available agents:", agents),
+ *   onFailure: (error) => console.error("Error:", error),
+ * });
  *
  * // Set active agent
  * await manager.setActiveAgent('cursor');
@@ -69,13 +70,12 @@ export class AgentManager {
 	/**
 	 * List all available agents (built-in and custom)
 	 *
-	 * @returns ResultAsync containing array of available agents or an error
+	 * @returns Effect containing array of available agents or an error
 	 */
-	listAgents(): ResultAsync<AgentInfo[], AcpError> {
+	listAgents(): Effect.Effect<AgentInfo[], AcpError> {
 		this.logger.debug("listAgents() called");
-		return tauriClient.acp
-			.listAgents()
-			.map((agents) =>
+		return tauriClient.acp.listAgents().pipe(
+			Effect.map((agents) =>
 				agents.map((a) => ({
 					id: a.id,
 					name: a.name,
@@ -88,24 +88,27 @@ export class AgentManager {
 					supports_project_discovery: a.supports_project_discovery,
 					provider_metadata: a.provider_metadata,
 				}))
-			)
-			.mapErr((error) => {
+			),
+			Effect.mapError((error) => {
 				this.logger.error("Failed to list agents:", error);
 				return new ConnectionError("Failed to list agents", error as Error);
-			});
+			})
+		);
 	}
 
 	/**
 	 * Register a custom agent
 	 *
 	 * @param config - The configuration for the custom agent
-	 * @returns ResultAsync containing void or an error
+	 * @returns Effect containing void or an error
 	 */
-	registerCustomAgent(config: CustomAgentConfig): ResultAsync<void, AcpError> {
+	registerCustomAgent(config: CustomAgentConfig): Effect.Effect<void, AcpError> {
 		this.logger.debug("registerCustomAgent() called with agentId:", config.id);
-		return tauriClient.acp.registerCustomAgent(config).mapErr((error) => {
-			this.logger.error("Failed to register custom agent:", error);
-			return new ConnectionError(`Failed to register custom agent: ${config.id}`, error as Error);
-		});
+		return tauriClient.acp.registerCustomAgent(config).pipe(
+			Effect.mapError((error) => {
+				this.logger.error("Failed to register custom agent:", error);
+				return new ConnectionError(`Failed to register custom agent: ${config.id}`, error as Error);
+			})
+		);
 	}
 }

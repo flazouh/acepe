@@ -5,6 +5,8 @@ import {
 	type LoadingIconColorId,
 	normalizeLoadingIconColorId,
 } from "@acepe/ui/icons";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { toast } from "svelte-sonner";
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
@@ -22,9 +24,11 @@ class LoadingIndicatorSettingsStore {
 			return;
 		}
 
-		const colorResult = await tauriClient.settings.get<string>(LOADING_INDICATOR_COLOR_KEY);
-		if (colorResult.isOk()) {
-			this.applyColor(normalizeLoadingIconColorId(colorResult.value));
+		const colorResult = await Effect.runPromise(
+			Effect.result(tauriClient.settings.get<string>(LOADING_INDICATOR_COLOR_KEY))
+		);
+		if (Result.isSuccess(colorResult)) {
+			this.applyColor(normalizeLoadingIconColorId(colorResult.success));
 		}
 
 		this.initialized = true;
@@ -37,9 +41,11 @@ class LoadingIndicatorSettingsStore {
 
 		this.applyColor(value);
 
-		const result = await tauriClient.settings.set(LOADING_INDICATOR_COLOR_KEY, value);
-		if (result.isErr()) {
-			toast.error(result.error.message);
+		const result = await Effect.runPromise(
+			Effect.result(tauriClient.settings.set(LOADING_INDICATOR_COLOR_KEY, value))
+		);
+		if (Result.isFailure(result)) {
+			toast.error(result.failure.message);
 		}
 	}
 

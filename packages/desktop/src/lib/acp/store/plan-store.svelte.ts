@@ -7,6 +7,7 @@
  * 2. Disk-based: Fallback for historical sessions - loads plan from disk.
  */
 
+import * as Effect from "effect/Effect";
 import { getContext, setContext } from "svelte";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 
@@ -148,19 +149,23 @@ export class PlanStore {
 		this.loading.add(sessionId);
 
 		// Single attempt to load from disk (no retry - streaming is the primary path)
-		tauriClient.history.getUnifiedPlan(sessionId, projectPath, agentId).match(
-			(plan) => {
-				this.plans.set(sessionId, plan);
-				this.clearLoading(sessionId);
-				if (plan) {
-					logger.debug("Plan loaded from disk", { sessionId, title: plan.title });
-				}
-			},
-			(error) => {
-				this.plans.set(sessionId, null);
-				this.clearLoading(sessionId);
-				logger.debug("Plan load failed", { sessionId, error: error.message });
-			}
+		void Effect.runPromise(
+			tauriClient.history.getUnifiedPlan(sessionId, projectPath, agentId).pipe(
+				Effect.match({
+					onSuccess: (plan) => {
+						this.plans.set(sessionId, plan);
+						this.clearLoading(sessionId);
+						if (plan) {
+							logger.debug("Plan loaded from disk", { sessionId, title: plan.title });
+						}
+					},
+					onFailure: (error) => {
+						this.plans.set(sessionId, null);
+						this.clearLoading(sessionId);
+						logger.debug("Plan load failed", { sessionId, error: error.message });
+					},
+				})
+			)
 		);
 	}
 

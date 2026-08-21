@@ -1,28 +1,38 @@
 #!/usr/bin/env bun
 import { join } from "node:path";
 
-import { z } from "zod";
+import { decodeUnknown } from "@acepe/effect-result/decodeUnknown";
+import { fromThrowable } from "@acepe/effect-result/fromThrowable";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
+import * as Schema from "effect/Schema";
 
-const ProbeSchema = z.object({
-	project_path: z.string(),
-	provider_model_ids: z.array(z.string()),
-	discovery_attempted_in_app: z.boolean(),
-	hydrated_model_ids: z.array(z.string()),
-	cli_probe: z
-		.object({
-			attempted: z.boolean(),
-			command: z.string(),
-			args: z.array(z.string()),
-			elapsed_ms: z.number(),
-			status_code: z.number().nullable(),
-			timed_out: z.boolean(),
-			parsed_model_ids: z.array(z.string()),
-			error: z.string().nullable(),
+const ProbeSchema = Schema.Struct({
+	project_path: Schema.String,
+	provider_model_ids: Schema.Array(Schema.String),
+	discovery_attempted_in_app: Schema.Boolean,
+	hydrated_model_ids: Schema.Array(Schema.String),
+	cli_probe: Schema.NullOr(
+		Schema.Struct({
+			attempted: Schema.Boolean,
+			command: Schema.String,
+			args: Schema.Array(Schema.String),
+			elapsed_ms: Schema.Number,
+			status_code: Schema.NullOr(Schema.Number),
+			timed_out: Schema.Boolean,
+			parsed_model_ids: Schema.Array(Schema.String),
+			error: Schema.NullOr(Schema.String),
 		})
-		.nullable(),
+	),
 });
 
-type ProbeReport = z.infer<typeof ProbeSchema>;
+type ProbeReport = typeof ProbeSchema.Type;
+
+const decodeProbe = decodeUnknown(ProbeSchema, (error) => error);
+const parseStdoutJson = fromThrowable(
+	(input: string) => JSON.parse(input) as unknown,
+	(error) => (error instanceof Error ? error : new Error("JSON parse failed."))
+);
 
 function printUsage(): void {
 	console.error(`
@@ -126,14 +136,20 @@ async function main(): Promise<void> {
 		process.exit(exitCode);
 	}
 
-	const parsed = ProbeSchema.safeParse(JSON.parse(stdoutText));
-	if (!parsed.success) {
+	const json = Effect.runSync(Effect.result(parseStdoutJson(stdoutText)));
+	if (Result.isFailure(json)) {
+		console.error("Failed to parse probe output as expected JSON.");
+		console.error(stdoutText);
+		process.exit(1);
+	}
+	const parsed = decodeProbe(json.success);
+	if (Result.isFailure(parsed)) {
 		console.error("Failed to parse probe output as expected JSON.");
 		console.error(stdoutText);
 		process.exit(1);
 	}
 
-	printReport(parsed.data);
+	printReport(parsed.success);
 }
 
 await main();

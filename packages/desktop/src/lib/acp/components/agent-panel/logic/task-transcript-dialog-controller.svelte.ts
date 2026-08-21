@@ -1,4 +1,5 @@
 import { SvelteMap } from "svelte/reactivity";
+import * as Effect from "effect/Effect";
 import type {
 	SessionGraphRevision,
 	TranscriptRowPageResult,
@@ -208,89 +209,93 @@ export class TaskTranscriptDialogController {
 		const generation = (this.#requestGenerationByKey.get(state.identity.key) ?? 0) + 1;
 		this.#requestGenerationByKey.set(state.identity.key, generation);
 
-		void this.deps
-			.readPage({
-				sessionId: state.identity.sessionId,
-				scope: state.scope,
-				startRowIndex,
-				limit: TASK_TRANSCRIPT_ROW_PAGE_SIZE,
-				expectedRevision: state.revision,
-			})
-			.match(
-				(result) => {
-					if (this.#requestGenerationByKey.get(state.identity.key) !== generation) {
-						return;
-					}
-					const current = this.getState(state.identity);
-					if (result.status !== "current") {
-						if (result.status === "stale" && staleRetryCount < MAX_STALE_PAGE_RETRIES) {
-							const refreshedState: TaskTranscriptDialogState = {
+		void Effect.runPromise(
+			this.deps
+				.readPage({
+					sessionId: state.identity.sessionId,
+					scope: state.scope,
+					startRowIndex,
+					limit: TASK_TRANSCRIPT_ROW_PAGE_SIZE,
+					expectedRevision: state.revision,
+				})
+				.pipe(
+					Effect.match({
+						onSuccess: (result) => {
+							if (this.#requestGenerationByKey.get(state.identity.key) !== generation) {
+								return;
+							}
+							const current = this.getState(state.identity);
+							if (result.status !== "current") {
+								if (result.status === "stale" && staleRetryCount < MAX_STALE_PAGE_RETRIES) {
+									const refreshedState: TaskTranscriptDialogState = {
+										identity: current.identity,
+										scope: current.scope,
+										revision: revisionFromStalePageResult(result),
+										open: current.open,
+										status: "loading",
+										rows: [],
+										totalRowCount: 0,
+										hasMore: false,
+										errorMessage: null,
+									};
+									this.#states.set(state.identity.key, refreshedState);
+									this.loadPage(refreshedState, 0, staleRetryCount + 1);
+									return;
+								}
+								this.#states.set(state.identity.key, {
+									identity: current.identity,
+									scope: current.scope,
+									revision: current.revision,
+									open: current.open,
+									status: "error",
+									rows: current.rows,
+									totalRowCount: current.totalRowCount,
+									hasMore: false,
+									errorMessage:
+										result.status === "stale"
+											? "The Task transcript changed. Close and reopen it."
+											: "The Task transcript is not available yet.",
+								});
+								return;
+							}
+
+							const rows = startRowIndex === 0 ? result.rows : current.rows.concat(result.rows);
+							this.#states.set(state.identity.key, {
 								identity: current.identity,
 								scope: current.scope,
-								revision: revisionFromStalePageResult(result),
+								revision: {
+									graphRevision: result.graphRevision,
+									transcriptRevision: result.transcriptRevision,
+									lastEventSeq: result.lastEventSeq,
+								},
 								open: current.open,
-								status: "loading",
-								rows: [],
-								totalRowCount: 0,
-								hasMore: false,
+								status: "ready",
+								rows,
+								totalRowCount: result.totalRowCount,
+								hasMore: rows.length < result.totalRowCount,
 								errorMessage: null,
-							};
-							this.#states.set(state.identity.key, refreshedState);
-							this.loadPage(refreshedState, 0, staleRetryCount + 1);
-							return;
-						}
-						this.#states.set(state.identity.key, {
-							identity: current.identity,
-							scope: current.scope,
-							revision: current.revision,
-							open: current.open,
-							status: "error",
-							rows: current.rows,
-							totalRowCount: current.totalRowCount,
-							hasMore: false,
-							errorMessage:
-								result.status === "stale"
-									? "The Task transcript changed. Close and reopen it."
-									: "The Task transcript is not available yet.",
-						});
-						return;
-					}
-
-					const rows = startRowIndex === 0 ? result.rows : current.rows.concat(result.rows);
-					this.#states.set(state.identity.key, {
-						identity: current.identity,
-						scope: current.scope,
-						revision: {
-							graphRevision: result.graphRevision,
-							transcriptRevision: result.transcriptRevision,
-							lastEventSeq: result.lastEventSeq,
+							});
 						},
-						open: current.open,
-						status: "ready",
-						rows,
-						totalRowCount: result.totalRowCount,
-						hasMore: rows.length < result.totalRowCount,
-						errorMessage: null,
-					});
-				},
-				() => {
-					if (this.#requestGenerationByKey.get(state.identity.key) !== generation) {
-						return;
-					}
-					const current = this.getState(state.identity);
-					this.#states.set(state.identity.key, {
-						identity: current.identity,
-						scope: current.scope,
-						revision: current.revision,
-						open: current.open,
-						status: "error",
-						rows: current.rows,
-						totalRowCount: current.totalRowCount,
-						hasMore: current.hasMore,
-						errorMessage: "The Task transcript could not be loaded.",
-					});
-				}
-			);
+						onFailure: () => {
+							if (this.#requestGenerationByKey.get(state.identity.key) !== generation) {
+								return;
+							}
+							const current = this.getState(state.identity);
+							this.#states.set(state.identity.key, {
+								identity: current.identity,
+								scope: current.scope,
+								revision: current.revision,
+								open: current.open,
+								status: "error",
+								rows: current.rows,
+								totalRowCount: current.totalRowCount,
+								hasMore: current.hasMore,
+								errorMessage: "The Task transcript could not be loaded.",
+							});
+						},
+					})
+				)
+		);
 	}
 }
 

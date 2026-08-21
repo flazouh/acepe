@@ -1,4 +1,4 @@
-import type { ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import type { AppError } from "$lib/acp/errors/app-error.js";
 import { notifications } from "$lib/utils/tauri-client/notifications.js";
 
@@ -8,30 +8,20 @@ export interface NativeNotificationPayload {
 }
 
 export async function getNotificationPermission(): Promise<boolean> {
-	return notifications.getPermission().match(
-		(permissionGranted) => permissionGranted ?? false,
-		(error) => {
-			throw error;
-		}
-	);
+	const permissionGranted = await Effect.runPromise(notifications.getPermission());
+	return permissionGranted ?? false;
 }
 
 export async function requestNotificationPermission(): Promise<"default" | "denied" | "granted"> {
-	return notifications.requestPermission().match(
-		(permission) => {
-			if (permission === "prompt" || permission === "prompt-with-rationale") {
-				return "default";
-			}
-			return permission;
-		},
-		(error) => {
-			throw error;
-		}
-	);
+	const permission = await Effect.runPromise(notifications.requestPermission());
+	if (permission === "prompt" || permission === "prompt-with-rationale") {
+		return "default";
+	}
+	return permission;
 }
 
 export function sendNativeNotification(
 	payload: NativeNotificationPayload
-): ResultAsync<void, AppError> {
+): Effect.Effect<void, AppError> {
 	return notifications.send(payload);
 }

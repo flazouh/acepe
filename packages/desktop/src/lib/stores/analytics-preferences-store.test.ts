@@ -1,12 +1,8 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
+import * as Effect from "effect/Effect";
 
-interface MockGetResult {
-	isOk: () => boolean;
-	value: boolean | null;
-}
-
-const getMock = mock(async (): Promise<MockGetResult> => ({ isOk: () => true, value: null }));
-const setMock = mock(async () => ({ isOk: () => true, isErr: () => false }));
+const getMock = mock((): Effect.Effect<boolean | null, Error> => Effect.succeed(null));
+const setMock = mock((): Effect.Effect<void, Error> => Effect.succeed(undefined));
 const setAnalyticsEnabledMock = mock(async () => undefined);
 
 mock.module("svelte", () => ({
@@ -47,8 +43,8 @@ describe("analytics-preferences-store", () => {
 		getMock.mockReset();
 		setMock.mockReset();
 		setAnalyticsEnabledMock.mockReset();
-		getMock.mockResolvedValue({ isOk: () => true, value: null });
-		setMock.mockResolvedValue({ isOk: () => true, isErr: () => false });
+		getMock.mockReturnValue(Effect.succeed(null));
+		setMock.mockReturnValue(Effect.succeed(undefined));
 		setAnalyticsEnabledMock.mockResolvedValue(undefined);
 	});
 
@@ -61,7 +57,7 @@ describe("analytics-preferences-store", () => {
 	});
 
 	it("loads an opted-out preference as disabled", async () => {
-		getMock.mockResolvedValue({ isOk: () => true, value: true });
+		getMock.mockReturnValue(Effect.succeed(true));
 		const store = new AnalyticsPreferencesStore();
 
 		await store.initialize();
@@ -79,7 +75,7 @@ describe("analytics-preferences-store", () => {
 	});
 
 	it("rolls back enabled on persist failure", async () => {
-		setMock.mockResolvedValue({ isOk: () => false, isErr: () => true, error: "db error" } as never);
+		setMock.mockReturnValue(Effect.fail(new Error("db error")));
 		const store = new AnalyticsPreferencesStore();
 
 		await store.setEnabled(false);

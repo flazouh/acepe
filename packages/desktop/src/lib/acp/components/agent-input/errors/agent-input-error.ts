@@ -1,7 +1,7 @@
 /**
  * Error types for the agent input component.
  *
- * These errors are used for type-safe error handling with ResultAsync
+ * These errors are used for type-safe error handling with Effect
  * and provide context for debugging and user-facing messages.
  */
 

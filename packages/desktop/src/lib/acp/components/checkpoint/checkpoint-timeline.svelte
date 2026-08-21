@@ -1,5 +1,6 @@
 <script lang="ts">
 import { HugeiconsIcon } from "@acepe/ui";
+import * as Effect from "effect/Effect";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import { toast } from "svelte-sonner";
 import { Button } from "$lib/components/ui/button/index.js";
@@ -64,10 +65,17 @@ async function loadFilesForCheckpoint(checkpointId: string) {
 	if (fileSnapshots.has(checkpointId)) return;
 
 	loadingFilesForCheckpoint = checkpointId;
-	const result = await checkpointStore.getFileSnapshotsForCheckpoint(sessionId, checkpointId);
-	result.match(
-		(snapshots) => fileSnapshots.set(checkpointId, snapshots),
-		(error) => toast.error(`Failed to load files: ${error.message}`)
+	await Effect.runPromise(
+		checkpointStore.getFileSnapshotsForCheckpoint(sessionId, checkpointId).pipe(
+			Effect.match({
+				onSuccess: (snapshots) => {
+					fileSnapshots.set(checkpointId, snapshots);
+				},
+				onFailure: (error) => {
+					toast.error(`Failed to load files: ${error.message}`);
+				},
+			})
+		)
 	);
 	loadingFilesForCheckpoint = null;
 }
@@ -91,22 +99,24 @@ const userMessagePreviews = $derived.by(() => {
 async function handleRevert(checkpoint: Checkpoint) {
 	revertingCheckpointId = checkpoint.id;
 
-	const result = await checkpointStore.revertToCheckpoint(sessionId, checkpoint.id, projectPath);
-
-	result.match(
-		(revertResult) => {
-			if (revertResult.success) {
-				toast.success(`Reverted to checkpoint #${checkpoint.checkpointNumber}`);
-			} else {
-				toast.warning(
-					`Partially reverted: ${revertResult.revertedFiles.length} succeeded, ${revertResult.failedFiles.length} failed`
-				);
-			}
-			onRevertComplete?.();
-		},
-		(error) => {
-			toast.error(`Failed to revert: ${error.message}`);
-		}
+	await Effect.runPromise(
+		checkpointStore.revertToCheckpoint(sessionId, checkpoint.id, projectPath).pipe(
+			Effect.match({
+				onSuccess: (revertResult) => {
+					if (revertResult.success) {
+						toast.success(`Reverted to checkpoint #${checkpoint.checkpointNumber}`);
+					} else {
+						toast.warning(
+							`Partially reverted: ${revertResult.revertedFiles.length} succeeded, ${revertResult.failedFiles.length} failed`
+						);
+					}
+					onRevertComplete?.();
+				},
+				onFailure: (error) => {
+					toast.error(`Failed to revert: ${error.message}`);
+				},
+			})
+		)
 	);
 
 	revertingCheckpointId = null;

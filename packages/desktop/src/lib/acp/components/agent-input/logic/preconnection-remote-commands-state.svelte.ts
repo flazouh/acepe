@@ -1,4 +1,4 @@
-import { okAsync, type ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import { SvelteMap } from "svelte/reactivity";
 import type { AppError } from "$lib/acp/errors/app-error.js";
 import type { AvailableCommand } from "$lib/acp/types/available-command.js";
@@ -23,7 +23,7 @@ interface GetCommandsInput {
 type FetchRemoteCommands = (
 	projectPath: string,
 	agentId: string
-) => ResultAsync<AvailableCommand[], AppError>;
+) => Effect.Effect<AvailableCommand[], AppError>;
 
 const logger = createLogger({
 	id: "preconnection-remote-commands",
@@ -79,7 +79,7 @@ export class PreconnectionRemoteCommandsState {
 			: tauriClient.acp.listPreconnectionCommands;
 	}
 
-	ensureLoaded(input: EnsureLoadedInput): ResultAsync<void, AppError> {
+	ensureLoaded(input: EnsureLoadedInput): Effect.Effect<void, AppError> {
 		const cacheKey = buildProjectScopedCacheKey(input.agentId, input.projectPath);
 		const alreadyLoaded = cacheKey ? this.remoteCommandsByKey.has(cacheKey) : false;
 		const alreadyLoading = cacheKey !== null && this.loadingCacheKey === cacheKey;
@@ -94,17 +94,17 @@ export class PreconnectionRemoteCommandsState {
 				alreadyLoading,
 			})
 		) {
-			return okAsync(undefined);
+			return Effect.succeed(undefined);
 		}
 
 		const projectPath = input.projectPath;
 		if (!projectPath || !cacheKey) {
-			return okAsync(undefined);
+			return Effect.succeed(undefined);
 		}
 
 		const agentId = input.agentId;
 		if (!agentId) {
-			return okAsync(undefined);
+			return Effect.succeed(undefined);
 		}
 
 		logger.info("Loading project-scoped preconnection commands", {
@@ -113,8 +113,8 @@ export class PreconnectionRemoteCommandsState {
 		});
 		this.loadingCacheKey = cacheKey;
 
-		return this.fetchRemoteCommands(projectPath, agentId)
-			.map((commands) => {
+		return this.fetchRemoteCommands(projectPath, agentId).pipe(
+			Effect.map((commands) => {
 				logger.info("Loaded project-scoped preconnection commands", {
 					agentId,
 					projectPath,
@@ -125,8 +125,8 @@ export class PreconnectionRemoteCommandsState {
 				if (this.loadingCacheKey === cacheKey) {
 					this.loadingCacheKey = null;
 				}
-			})
-			.mapErr((error) => {
+			}),
+			Effect.mapError((error) => {
 				logger.error("Failed to load project-scoped preconnection commands", {
 					agentId,
 					projectPath,
@@ -136,7 +136,8 @@ export class PreconnectionRemoteCommandsState {
 					this.loadingCacheKey = null;
 				}
 				return error;
-			});
+			})
+		);
 	}
 
 	getCommands(input: GetCommandsInput): AvailableCommand[] {

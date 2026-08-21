@@ -5,7 +5,8 @@
  * and context manager to provide a unified keybinding system.
  */
 
-import { err, errAsync, ok, type Result, type ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import type { CustomKeybindings } from "$lib/services/settings.svelte.js";
 import * as settingsService from "$lib/services/settings.svelte.js";
 import { type ActionRegistry, createActionRegistry } from "./actions/registry.js";
@@ -42,23 +43,22 @@ export class KeybindingsService {
 	/**
 	 * Initialize the keybinding system with default bindings.
 	 */
-	initialize(): Result<void, KeybindingError> {
+	initialize(): Result.Result<void, KeybindingError> {
 		// Register default keybindings
 		this.bindings.upsertMany(DEFAULT_KEYBINDINGS);
-		return ok(undefined);
+		return Result.succeed(undefined);
 	}
 
 	/**
 	 * Load user keybindings from database and merge with defaults.
 	 */
-	loadUserKeybindings(): ResultAsync<void, KeybindingError> {
-		return settingsService
-			.getCustomKeybindings()
-			.mapErr(
+	loadUserKeybindings(): Effect.Effect<void, KeybindingError> {
+		return settingsService.getCustomKeybindings().pipe(
+			Effect.mapError(
 				(e) =>
 					new KeybindingError("INSTALL_FAILED", `Failed to load user keybindings: ${e.message}`)
-			)
-			.map((customKeybindings) => {
+			),
+			Effect.map((customKeybindings) => {
 				// Filter out any invalid entries (empty keys or values)
 				const validKeybindings: Record<string, string> = {};
 				for (const [command, key] of Object.entries(customKeybindings)) {
@@ -76,15 +76,16 @@ export class KeybindingsService {
 				}));
 				// User keybindings override defaults
 				this.bindings.upsertMany(bindings);
-			});
+			})
+		);
 	}
 
 	/**
 	 * Save a user keybinding to the database and update the registry.
 	 */
-	saveUserKeybinding(binding: Keybinding): ResultAsync<void, KeybindingError> {
+	saveUserKeybinding(binding: Keybinding): Effect.Effect<void, KeybindingError> {
 		if (!isSupportedKeybindingKey(binding.key)) {
-			return errAsync(
+			return Effect.fail(
 				new KeybindingError(
 					"INVALID_KEYBINDING",
 					`Keybinding sequences are not supported: "${binding.key}"`
@@ -104,23 +105,23 @@ export class KeybindingsService {
 		// Reinstall if already installed
 		if (this.installed && this.target) {
 			const reinstallResult = this.reinstall();
-			if (reinstallResult.isErr()) {
-				return errAsync(reinstallResult.error);
+			if (Result.isFailure(reinstallResult)) {
+				return Effect.fail(reinstallResult.failure);
 			}
 		}
 
 		// Save all user keybindings to database
-		return settingsService
-			.saveCustomKeybindings(this.userKeybindings)
-			.mapErr(
+		return settingsService.saveCustomKeybindings(this.userKeybindings).pipe(
+			Effect.mapError(
 				(e) => new KeybindingError("INSTALL_FAILED", `Failed to save user keybinding: ${e.message}`)
-			);
+			)
+		);
 	}
 
 	/**
 	 * Delete a user keybinding and restore the default.
 	 */
-	deleteUserKeybinding(command: string): ResultAsync<void, KeybindingError> {
+	deleteUserKeybinding(command: string): Effect.Effect<void, KeybindingError> {
 		// Remove from local store
 		const { [command]: _, ...rest } = this.userKeybindings;
 		this.userKeybindings = rest;
@@ -135,18 +136,18 @@ export class KeybindingsService {
 		// Reinstall if already installed
 		if (this.installed && this.target) {
 			const reinstallResult = this.reinstall();
-			if (reinstallResult.isErr()) {
-				return errAsync(reinstallResult.error);
+			if (Result.isFailure(reinstallResult)) {
+				return Effect.fail(reinstallResult.failure);
 			}
 		}
 
 		// Save updated user keybindings to database
-		return settingsService
-			.saveCustomKeybindings(this.userKeybindings)
-			.mapErr(
+		return settingsService.saveCustomKeybindings(this.userKeybindings).pipe(
+			Effect.mapError(
 				(e) =>
 					new KeybindingError("INSTALL_FAILED", `Failed to delete user keybinding: ${e.message}`)
-			);
+			)
+		);
 	}
 
 	/**
@@ -167,14 +168,14 @@ export class KeybindingsService {
 	/**
 	 * Register an action.
 	 */
-	registerAction(action: Action): Result<void, KeybindingError> {
+	registerAction(action: Action): Result.Result<void, KeybindingError> {
 		return this.actions.register(action);
 	}
 
 	/**
 	 * Register multiple actions.
 	 */
-	registerActions(actions: Action[]): Result<void, KeybindingError> {
+	registerActions(actions: Action[]): Result.Result<void, KeybindingError> {
 		return this.actions.registerMany(actions);
 	}
 
@@ -195,9 +196,9 @@ export class KeybindingsService {
 	/**
 	 * Register a keybinding.
 	 */
-	registerKeybinding(binding: Keybinding): Result<void, KeybindingError> {
+	registerKeybinding(binding: Keybinding): Result.Result<void, KeybindingError> {
 		const result = this.bindings.register(binding);
-		if (result.isOk() && this.installed && this.target) {
+		if (Result.isSuccess(result) && this.installed && this.target) {
 			return this.bindings.reinstall(this.target);
 		}
 		return result;
@@ -206,9 +207,9 @@ export class KeybindingsService {
 	/**
 	 * Register multiple keybindings.
 	 */
-	registerKeybindings(bindings: Keybinding[]): Result<void, KeybindingError> {
+	registerKeybindings(bindings: Keybinding[]): Result.Result<void, KeybindingError> {
 		const result = this.bindings.registerMany(bindings);
-		if (result.isOk() && this.installed && this.target) {
+		if (Result.isSuccess(result) && this.installed && this.target) {
 			return this.bindings.reinstall(this.target);
 		}
 		return result;
@@ -256,10 +257,10 @@ export class KeybindingsService {
 	/**
 	 * Install keybindings on a target element.
 	 */
-	install(target: Window | HTMLElement): Result<void, KeybindingError> {
+	install(target: Window | HTMLElement): Result.Result<void, KeybindingError> {
 		this.target = target;
 		const result = this.bindings.install(target, this.actions, this.context);
-		if (result.isOk()) {
+		if (Result.isSuccess(result)) {
 			this.installed = true;
 		}
 		return result;
@@ -268,9 +269,9 @@ export class KeybindingsService {
 	/**
 	 * Reinstall keybindings (after changes).
 	 */
-	reinstall(): Result<void, KeybindingError> {
+	reinstall(): Result.Result<void, KeybindingError> {
 		if (!this.target) {
-			return err(new KeybindingError("INSTALL_FAILED", "Cannot reinstall - no target set"));
+			return Result.fail(new KeybindingError("INSTALL_FAILED", "Cannot reinstall - no target set"));
 		}
 		return this.bindings.reinstall(this.target);
 	}
@@ -293,7 +294,7 @@ export class KeybindingsService {
 	/**
 	 * Execute an action by ID.
 	 */
-	executeAction(actionId: string): ResultAsync<void, KeybindingError> {
+	executeAction(actionId: string): Effect.Effect<void, KeybindingError> {
 		return this.actions.execute(actionId, this.context);
 	}
 

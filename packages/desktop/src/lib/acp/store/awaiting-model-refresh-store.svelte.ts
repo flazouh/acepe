@@ -7,7 +7,7 @@
  * The parent `SessionStore` holds one instance and calls the public methods
  * from its lifecycle/disconnect paths.
  */
-import type { ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import type { SessionGraphActivity, SessionTurnState } from "../../services/acp-types.js";
 import type { AppError } from "../errors/app-error.js";
 import { createLogger } from "../utils/logger.js";
@@ -17,7 +17,7 @@ const logger = createLogger({ id: "awaiting-model-refresh", name: "AwaitingModel
 
 const AWAITING_MODEL_SNAPSHOT_REFRESH_MS = 5_000;
 
-type InflightSessionStateRefresh = ResultAsync<void, AppError>;
+type InflightSessionStateRefresh = Effect.Effect<void, AppError>;
 
 export interface AwaitingModelRefreshDeps {
 	refreshSessionStateSnapshot: (sessionId: string) => InflightSessionStateRefresh;
@@ -57,9 +57,13 @@ export class AwaitingModelRefreshStore {
 				graphRevision: projection.revision.graphRevision,
 				lastEventSeq: projection.revision.lastEventSeq,
 			});
-			void this.#deps.refreshSessionStateSnapshot(sessionId).match(
-				() => undefined,
-				() => undefined
+			void Effect.runPromise(
+				this.#deps.refreshSessionStateSnapshot(sessionId).pipe(
+					Effect.match({
+						onSuccess: () => undefined,
+						onFailure: () => undefined,
+					})
+				)
 			);
 		}, AWAITING_MODEL_SNAPSHOT_REFRESH_MS);
 		this.timerMap.set(sessionId, timerId);

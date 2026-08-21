@@ -1,4 +1,6 @@
-import { okAsync, ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ProtocolError } from "../../errors/index.js";
 import type { AcpEventEnvelope } from "../acp-event-bridge.js";
@@ -16,7 +18,7 @@ vi.mock("../acp-event-bridge.js", () => ({
 describe("EventSubscriber", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		mockOpenAcpEventSource.mockReturnValue(okAsync(() => {}));
+		mockOpenAcpEventSource.mockReturnValue(Effect.succeed(() => {}));
 	});
 
 	function createDeferred<T>() {
@@ -51,12 +53,12 @@ describe("EventSubscriber", () => {
 			const listener1 = vi.fn();
 			const listener2 = vi.fn();
 
-			const result1 = await subscriber.subscribe(listener1);
-			const result2 = await subscriber.subscribe(listener2);
+			const result1 = await Effect.runPromise(Effect.result(subscriber.subscribe(listener1)));
+			const result2 = await Effect.runPromise(Effect.result(subscriber.subscribe(listener2)));
 
-			expect(result1.isOk()).toBe(true);
-			expect(result2.isOk()).toBe(true);
-			expect(result1._unsafeUnwrap()).not.toBe(result2._unsafeUnwrap());
+			expect(Result.isSuccess(result1)).toBe(true);
+			expect(Result.isSuccess(result2)).toBe(true);
+			expect(Result.getOrThrow(result1)).not.toBe(Result.getOrThrow(result2));
 			expect(subscriber.listenerCount).toBe(2);
 		});
 
@@ -64,11 +66,11 @@ describe("EventSubscriber", () => {
 			const subscriber = new EventSubscriber();
 			const listener = vi.fn();
 
-			const result = await subscriber.subscribe(listener);
-			expect(result.isOk()).toBe(true);
+			const result = await Effect.runPromise(Effect.result(subscriber.subscribe(listener)));
+			expect(Result.isSuccess(result)).toBe(true);
 			expect(subscriber.listenerCount).toBe(1);
 
-			subscriber.unsubscribeById(result._unsafeUnwrap());
+			subscriber.unsubscribeById(Result.getOrThrow(result));
 			expect(subscriber.listenerCount).toBe(0);
 		});
 
@@ -76,20 +78,20 @@ describe("EventSubscriber", () => {
 			const subscriber = new EventSubscriber();
 			const listener = vi.fn();
 
-			const result1 = await subscriber.subscribe(listener);
-			subscriber.unsubscribeById(result1._unsafeUnwrap());
+			const result1 = await Effect.runPromise(Effect.result(subscriber.subscribe(listener)));
+			subscriber.unsubscribeById(Result.getOrThrow(result1));
 
-			const result2 = await subscriber.subscribe(listener);
+			const result2 = await Effect.runPromise(Effect.result(subscriber.subscribe(listener)));
 
-			expect(result1._unsafeUnwrap()).not.toBe(result2._unsafeUnwrap());
+			expect(Result.getOrThrow(result1)).not.toBe(Result.getOrThrow(result2));
 		});
 
 		it("cleans up native listener when unsubscribed before init resolves", async () => {
 			const deferred = createDeferred<() => void>();
 			const unlisten = vi.fn();
 			mockOpenAcpEventSource.mockReturnValueOnce(
-				ResultAsync.fromPromise(
-					deferred.promise,
+				fromPromise(
+					() => deferred.promise,
 					(error) => new ProtocolError(`Failed to open ACP event source: ${error}`, error)
 				)
 			);
@@ -101,9 +103,9 @@ describe("EventSubscriber", () => {
 			subscriber.unsubscribeById("listener-1");
 
 			deferred.resolve(unlisten);
-			const result = await firstSubscribe;
+			const result = await Effect.runPromise(Effect.result(firstSubscribe));
 
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 			expect(unlisten).toHaveBeenCalledTimes(1);
 			expect(subscriber.listenerCount).toBe(0);
 
@@ -114,8 +116,8 @@ describe("EventSubscriber", () => {
 		it("propagates init failure to waiting subscribers", async () => {
 			const deferred = createDeferred<() => void>();
 			mockOpenAcpEventSource.mockReturnValueOnce(
-				ResultAsync.fromPromise(
-					deferred.promise,
+				fromPromise(
+					() => deferred.promise,
 					(error) => new ProtocolError(`Failed to open ACP event source: ${error}`, error)
 				)
 			);
@@ -126,11 +128,11 @@ describe("EventSubscriber", () => {
 
 			deferred.reject(new Error("listen failed"));
 
-			const first = await firstSubscribe;
-			const second = await secondSubscribe;
+			const first = await Effect.runPromise(Effect.result(firstSubscribe));
+			const second = await Effect.runPromise(Effect.result(secondSubscribe));
 
-			expect(first.isErr()).toBe(true);
-			expect(second.isErr()).toBe(true);
+			expect(Result.isFailure(first)).toBe(true);
+			expect(Result.isFailure(second)).toBe(true);
 			expect(subscriber.listenerCount).toBe(0);
 		});
 
@@ -139,7 +141,7 @@ describe("EventSubscriber", () => {
 			mockOpenAcpEventSource.mockImplementationOnce(
 				(handler: (envelope: AcpEventEnvelope) => void) => {
 					onEnvelope = handler;
-					return okAsync(() => {});
+					return Effect.succeed(() => {});
 				}
 			);
 
@@ -147,8 +149,8 @@ describe("EventSubscriber", () => {
 			const sessionUpdateListener = vi.fn();
 			const sessionStateListener = vi.fn();
 
-			await subscriber.subscribe(sessionUpdateListener);
-			await subscriber.subscribeSessionState(sessionStateListener);
+			await Effect.runPromise(subscriber.subscribe(sessionUpdateListener));
+			await Effect.runPromise(subscriber.subscribeSessionState(sessionStateListener));
 
 			if (!onEnvelope) {
 				throw new Error("Expected ACP event bridge handler");

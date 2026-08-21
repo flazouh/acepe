@@ -1,4 +1,4 @@
-import type { ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import type { SessionCreationResult, SessionStore } from "../../../store/session-store.svelte.js";
 import { MessageSendError, SessionCreationError } from "../errors/agent-input-error.js";
 import type { Attachment } from "../types/attachment.js";
@@ -75,44 +75,32 @@ function sessionCreationHandle(result: SessionCreationResult): CreatedSessionHan
  *
  * @param store - The session store instance
  * @param options - Session creation options
- * @returns ResultAsync containing the session ID on success
- *
- * @example
- * ```ts
- * const result = await createSession(store, {
- *   agentId: "claude-code",
- *   projectPath: "/path/to/project",
- *   projectName: "My Project"
- * });
- * if (result.isOk()) {
- *   const sessionId = result.value;
- * }
- * ```
+ * @returns Effect containing the session ID on success
  */
 export function createSession(
 	store: SessionStore,
 	options: CreateSessionOptions
-): ResultAsync<CreatedSessionHandle, SessionCreationError> {
-	return store.connection
-		.createSession({
-			agentId: options.agentId,
-			initialAutonomousEnabled: options.initialAutonomousEnabled === true,
-			initialModeId: options.initialModeId ?? undefined,
-			initialModelId: options.initialModelId ?? undefined,
-			projectPath: options.projectPath,
-			title: options.title ?? undefined,
-			worktreePath: options.worktreePath,
-			launchToken: options.launchToken,
-		})
-		.map(sessionCreationHandle)
-		.mapErr(
+): Effect.Effect<CreatedSessionHandle, SessionCreationError> {
+	return store.connection.createSession({
+		agentId: options.agentId,
+		initialAutonomousEnabled: options.initialAutonomousEnabled === true,
+		initialModeId: options.initialModeId ?? undefined,
+		initialModelId: options.initialModelId ?? undefined,
+		projectPath: options.projectPath,
+		title: options.title ?? undefined,
+		worktreePath: options.worktreePath,
+		launchToken: options.launchToken,
+	}).pipe(
+		Effect.map(sessionCreationHandle),
+		Effect.mapError(
 			(error) =>
 				new SessionCreationError(
 					options.agentId,
 					options.projectPath,
 					error instanceof Error ? error : new Error(String(error))
 				)
-		);
+		)
+	);
 }
 
 /**
@@ -121,30 +109,22 @@ export function createSession(
  * @param store - The session store instance
  * @param sessionId - The session ID to send the message to
  * @param message - The message text to send
- * @returns ResultAsync containing void on success
- *
- * @example
- * ```ts
- * const result = await sendMessage(store, "session-123", "Hello");
- * if (result.isErr()) {
- *   // Handle error
- * }
- * ```
+ * @returns Effect containing void on success
  */
 export function sendMessage(
 	store: SessionStore,
 	sessionId: string,
 	message: string,
 	attachments: readonly Attachment[] = []
-): ResultAsync<void, MessageSendError> {
-	return store.connection
-		.sendMessage(sessionId, message, attachments)
-		.mapErr(
+): Effect.Effect<void, MessageSendError> {
+	return store.connection.sendMessage(sessionId, message, attachments).pipe(
+		Effect.mapError(
 			(error) =>
 				new MessageSendError(
 					sessionId,
 					message,
 					error instanceof Error ? error : new Error(String(error))
 				)
-		);
+		)
+	);
 }

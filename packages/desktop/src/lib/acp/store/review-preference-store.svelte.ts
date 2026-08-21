@@ -5,6 +5,8 @@
  * When false, Review opens the inline panel review.
  */
 
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import { getContext, setContext } from "svelte";
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
@@ -22,15 +24,24 @@ export class ReviewPreferenceStore {
 		if (this.initialized) return;
 		this.initialized = true;
 
-		const result = await tauriClient.settings.get<boolean>(REVIEW_PREFER_FULLSCREEN_KEY);
-		if (result.isOk() && result.value === true) {
+		const result = await Effect.runPromise(
+			Effect.result(tauriClient.settings.get<boolean>(REVIEW_PREFER_FULLSCREEN_KEY))
+		);
+		if (Result.isSuccess(result) && result.success === true) {
 			this.preferFullscreen = true;
 		}
 	}
 
 	async setPreferFullscreen(value: boolean): Promise<void> {
 		this.preferFullscreen = value;
-		tauriClient.settings.set(REVIEW_PREFER_FULLSCREEN_KEY, value).mapErr(() => {});
+		void Effect.runPromise(
+			tauriClient.settings.set(REVIEW_PREFER_FULLSCREEN_KEY, value).pipe(
+				Effect.match({
+					onSuccess: () => undefined,
+					onFailure: () => undefined,
+				})
+			)
+		);
 	}
 }
 

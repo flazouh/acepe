@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import * as Result from "effect/Result";
 
 import { parseToolResultOutput, parseToolResultWithExitCode } from "../parse-tool-result.js";
 
@@ -6,9 +7,9 @@ describe("parseToolResultOutput", () => {
 	it("should return plain string result", () => {
 		const result = parseToolResultOutput("Hello, world!");
 
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value).toBe("Hello, world!");
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success).toBe("Hello, world!");
 		}
 	});
 
@@ -16,36 +17,36 @@ describe("parseToolResultOutput", () => {
 		const jsonString = JSON.stringify("Parsed string");
 		const result = parseToolResultOutput(jsonString);
 
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value).toBe("Parsed string");
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success).toBe("Parsed string");
 		}
 	});
 
 	it("should extract output from object with output field", () => {
 		const result = parseToolResultOutput({ output: "Command output" });
 
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value).toBe("Command output");
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success).toBe("Command output");
 		}
 	});
 
 	it("should extract stdout from object with stdout field", () => {
 		const result = parseToolResultOutput({ stdout: "Standard output" });
 
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value).toBe("Standard output");
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success).toBe("Standard output");
 		}
 	});
 
 	it("should extract stderr from object with stderr field", () => {
 		const result = parseToolResultOutput({ stderr: "Error output" });
 
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value).toBe("Error output");
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success).toBe("Error output");
 		}
 	});
 
@@ -56,9 +57,9 @@ describe("parseToolResultOutput", () => {
 			stderr: "Stderr",
 		});
 
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value).toBe("Output");
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success).toBe("Output");
 		}
 	});
 
@@ -68,9 +69,9 @@ describe("parseToolResultOutput", () => {
 			stderr: "Stderr",
 		});
 
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value).toBe("Stdout");
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success).toBe("Stdout");
 		}
 	});
 
@@ -78,9 +79,9 @@ describe("parseToolResultOutput", () => {
 		const nestedOutput = JSON.stringify("Nested string");
 		const result = parseToolResultOutput({ output: nestedOutput });
 
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value).toBe("Nested string");
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success).toBe("Nested string");
 		}
 	});
 
@@ -88,54 +89,54 @@ describe("parseToolResultOutput", () => {
 		const invalidJson = "not valid json {";
 		const result = parseToolResultOutput(invalidJson);
 
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value).toBe(invalidJson);
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success).toBe(invalidJson);
 		}
 	});
 
 	it("should return null for null input", () => {
 		const result = parseToolResultOutput(null);
 
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value).toBeNull();
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success).toBeNull();
 		}
 	});
 
 	it("should return null for undefined input", () => {
 		const result = parseToolResultOutput(undefined);
 
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value).toBeNull();
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success).toBeNull();
 		}
 	});
 
 	it("should return null for empty string", () => {
 		const result = parseToolResultOutput("");
 
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value).toBe("");
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success).toBe("");
 		}
 	});
 
 	it("should return null for object with no output fields", () => {
 		const result = parseToolResultOutput({ other: "value" });
 
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value).toBeNull();
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success).toBeNull();
 		}
 	});
 
 	it("should return null for empty object", () => {
 		const result = parseToolResultOutput({});
 
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value).toBeNull();
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success).toBeNull();
 		}
 	});
 
@@ -146,9 +147,9 @@ describe("parseToolResultOutput", () => {
 			stderr: "",
 		});
 
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value).toBe("");
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success).toBe("");
 		}
 	});
 
@@ -157,11 +158,11 @@ describe("parseToolResultOutput", () => {
 		const result = parseToolResultOutput(jsonString);
 
 		// JSON-stringified object should return as-is (not a string result)
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
 			// The schema will match it as a string, so it returns the JSON string
 			// Then the logic should try to parse it
-			expect(typeof result.value).toBe("string");
+			expect(typeof result.success).toBe("string");
 		}
 	});
 
@@ -169,10 +170,10 @@ describe("parseToolResultOutput", () => {
 		const complexOutput = JSON.stringify({ nested: { value: "test" } });
 		const result = parseToolResultOutput({ output: complexOutput });
 
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
 			// Should return the JSON string, then try to parse it
-			expect(result.value).toBe(complexOutput);
+			expect(result.success).toBe(complexOutput);
 		}
 	});
 
@@ -188,9 +189,9 @@ describe("parseToolResultOutput", () => {
 			].join("\n")
 		);
 
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value).toBe("1:# Acepe");
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success).toBe("1:# Acepe");
 		}
 	});
 
@@ -200,9 +201,9 @@ describe("parseToolResultOutput", () => {
 			detailedContent: "/Users/alex/Documents/acepe\n<exited with exit code 0>",
 		});
 
-		expect(result.isOk()).toBe(true);
-		if (result.isOk()) {
-			expect(result.value).toBe("/Users/alex/Documents/acepe");
+		expect(Result.isSuccess(result)).toBe(true);
+		if (Result.isSuccess(result)) {
+			expect(result.success).toBe("/Users/alex/Documents/acepe");
 		}
 	});
 });

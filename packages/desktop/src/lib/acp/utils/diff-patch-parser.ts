@@ -1,4 +1,6 @@
-import { err, ok } from "neverthrow";
+import { fromThrowable } from "@acepe/effect-result/fromThrowable";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 
 /**
  * Represents a single line in a hunk.
@@ -64,73 +66,80 @@ export interface ParseError {
 export function parsePatchToBeforeAfter(
 	patch: string,
 	fileStatus: "added" | "modified" | "deleted" | "renamed"
-) {
-	try {
-		// Check for binary file marker
-		if (patch.includes("Binary files")) {
-			return err({
-				type: "binary_file",
-				message: "Binary files cannot be displayed in diff view",
-			});
-		}
+): Result.Result<PatchParseResult, ParseError> {
+	const parseFn = fromThrowable(
+		(): Result.Result<PatchParseResult, ParseError> => {
+			// Check for binary file marker
+			if (patch.includes("Binary files")) {
+				return Result.fail({
+					type: "binary_file",
+					message: "Binary files cannot be displayed in diff view",
+				});
+			}
 
-		const lines = patch.split("\n");
-		const hunks: Hunk[] = [];
-		let beforeContent = "";
-		let afterContent = "";
+			const lines = patch.split("\n");
+			const hunks: Hunk[] = [];
+			let beforeContent = "";
+			let afterContent = "";
 
-		let i = 0;
+			let i = 0;
 
-		// Skip file headers (---, +++)
-		while (i < lines.length && (lines[i]?.startsWith("---") || lines[i]?.startsWith("+++"))) {
-			i++;
-		}
-
-		// Parse hunks
-		while (i < lines.length) {
-			const line = lines[i];
-
-			// Check for hunk header
-			if (line?.startsWith("@@")) {
-				const hunkResult = parseHunk(lines, i);
-				if (!hunkResult) {
-					return err({
-						type: "malformed_hunk",
-						message: `Failed to parse hunk at line ${i}`,
-					});
-				}
-
-				const { hunk, endIndex, before, after } = hunkResult;
-				hunks.push(hunk);
-				beforeContent += before;
-				afterContent += after;
-				i = endIndex;
-			} else {
+			// Skip file headers (---, +++)
+			while (i < lines.length && (lines[i]?.startsWith("---") || lines[i]?.startsWith("+++"))) {
 				i++;
 			}
-		}
 
-		// Handle added files (no before content)
-		if (fileStatus === "added" && beforeContent === "") {
-			beforeContent = "";
-		}
+			// Parse hunks
+			while (i < lines.length) {
+				const line = lines[i];
 
-		// Handle deleted files (no after content)
-		if (fileStatus === "deleted" && afterContent === "") {
-			afterContent = "";
-		}
+				// Check for hunk header
+				if (line?.startsWith("@@")) {
+					const hunkResult = parseHunk(lines, i);
+					if (!hunkResult) {
+						return Result.fail({
+							type: "malformed_hunk",
+							message: `Failed to parse hunk at line ${i}`,
+						});
+					}
 
-		return ok({
-			before: beforeContent,
-			after: afterContent,
-			hunks,
-		});
-	} catch (error) {
-		return err({
+					const { hunk, endIndex, before, after } = hunkResult;
+					hunks.push(hunk);
+					beforeContent += before;
+					afterContent += after;
+					i = endIndex;
+				} else {
+					i++;
+				}
+			}
+
+			// Handle added files (no before content)
+			if (fileStatus === "added" && beforeContent === "") {
+				beforeContent = "";
+			}
+
+			// Handle deleted files (no after content)
+			if (fileStatus === "deleted" && afterContent === "") {
+				afterContent = "";
+			}
+
+			return Result.succeed({
+				before: beforeContent,
+				after: afterContent,
+				hunks,
+			});
+		},
+		(error): ParseError => ({
 			type: "unknown",
 			message: `Failed to parse patch: ${error instanceof Error ? error.message : String(error)}`,
-		});
+		})
+	);
+
+	const wrapped = Effect.runSync(Effect.result(parseFn()));
+	if (Result.isFailure(wrapped)) {
+		return Result.fail(wrapped.failure);
 	}
+	return wrapped.success;
 }
 
 /**

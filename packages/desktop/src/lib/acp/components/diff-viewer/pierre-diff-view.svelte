@@ -5,6 +5,7 @@
  * and renders with syntax highlighting and word-level diffs.
  */
 import { type FileContents, FileDiff, parseDiffFromFile } from "@pierre/diffs";
+import * as Result from "effect/Result";
 import { onDestroy, untrack } from "svelte";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
 
@@ -33,11 +34,11 @@ const effectiveTheme = $derived(themeState.effectiveTheme);
 
 const diffData = $derived.by(() => {
 	const parseResult = parsePatchToBeforeAfter(diff.patch, diff.status);
-	if (parseResult.isErr()) {
+	if (Result.isFailure(parseResult)) {
 		return null;
 	}
 
-	const { before, after } = parseResult.value;
+	const { before, after } = parseResult.success;
 
 	const oldFile: FileContents = {
 		name: diff.path,

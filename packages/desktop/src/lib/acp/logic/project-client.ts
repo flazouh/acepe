@@ -1,6 +1,8 @@
+import { fromThrowable } from "@acepe/effect-result/fromThrowable";
 import { resolveProjectColor } from "@acepe/ui/colors";
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { Result, type ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import type { ProjectAcepeConfig, ProjectData } from "../../utils/tauri-client/types.js";
 import { tauriClient } from "../../utils/tauri-client.js";
 import type { Project } from "./project-manager.svelte.js";
@@ -39,7 +41,7 @@ export function normalizeProjectIconUpdatePath(iconPath: string | null): string 
 	return iconPath === "" ? null : iconPath;
 }
 
-const readProjectsHotCacheItem = Result.fromThrowable(
+const readProjectsHotCacheItem = fromThrowable(
 	(): string | null => {
 		if (typeof localStorage === "undefined") {
 			return null;
@@ -49,7 +51,7 @@ const readProjectsHotCacheItem = Result.fromThrowable(
 	() => null
 );
 
-const writeProjectsHotCacheItem = Result.fromThrowable(
+const writeProjectsHotCacheItem = fromThrowable(
 	(projects: readonly ProjectData[]): void => {
 		if (typeof localStorage === "undefined") {
 			return;
@@ -63,7 +65,7 @@ const writeProjectsHotCacheItem = Result.fromThrowable(
 	() => undefined
 );
 
-const removeProjectsHotCacheItem = Result.fromThrowable(
+const removeProjectsHotCacheItem = fromThrowable(
 	(): void => {
 		if (typeof localStorage === "undefined") {
 			return;
@@ -123,7 +125,7 @@ function normalizeCachedProjects(projects: readonly ProjectData[]): ProjectData[
 	return normalizedProjects;
 }
 
-const parseProjectsHotCache = Result.fromThrowable(
+const parseProjectsHotCache = fromThrowable(
 	(stored: string): ProjectData[] | null => {
 		const parsed = JSON.parse(stored) as ProjectsHotCachePayload;
 		if (
@@ -139,23 +141,23 @@ const parseProjectsHotCache = Result.fromThrowable(
 );
 
 function readProjectsHotCache(): ProjectData[] | null {
-	const cachedItemResult = readProjectsHotCacheItem();
-	const cachedItem = cachedItemResult.isOk() ? cachedItemResult.value : null;
+	const cachedItemResult = Effect.runSync(Effect.result(readProjectsHotCacheItem()));
+	const cachedItem = Result.isSuccess(cachedItemResult) ? cachedItemResult.success : null;
 	if (cachedItem === null) {
 		return null;
 	}
 
-	const parsedResult = parseProjectsHotCache(cachedItem);
-	if (parsedResult.isOk() && parsedResult.value !== null) {
-		return parsedResult.value;
+	const parsedResult = Effect.runSync(Effect.result(parseProjectsHotCache(cachedItem)));
+	if (Result.isSuccess(parsedResult) && parsedResult.success !== null) {
+		return parsedResult.success;
 	}
 
-	removeProjectsHotCacheItem();
+	void Effect.runSync(Effect.result(removeProjectsHotCacheItem()));
 	return null;
 }
 
 function writeProjectsHotCache(projects: readonly ProjectData[]): void {
-	writeProjectsHotCacheItem(projects);
+	void Effect.runSync(Effect.result(writeProjectsHotCacheItem(projects)));
 }
 
 function projectDateToStorageString(date: Date): string {
@@ -175,7 +177,7 @@ function projectToCachedProjectData(project: Project): ProjectData {
 	};
 }
 
-const buildProjectsHotCacheData = Result.fromThrowable(
+const buildProjectsHotCacheData = fromThrowable(
 	(projects: readonly Project[]): ProjectData[] =>
 		projects.map((project) => projectToCachedProjectData(project)),
 	() => null
@@ -184,7 +186,7 @@ const buildProjectsHotCacheData = Result.fromThrowable(
 /**
  * Client for communicating with Tauri backend for project operations.
  *
- * All methods use neverthrow ResultAsync for type-safe error handling.
+ * All methods use Effect for type-safe error handling.
  */
 export class ProjectClient {
 	private mapProject(project: ProjectData): Project {
@@ -203,20 +205,20 @@ export class ProjectClient {
 	/**
 	 * Get all projects.
 	 *
-	 * @returns ResultAsync containing array of projects
+	 * @returns Effect containing array of projects
 	 */
-	getProjects(): ResultAsync<Project[], ProjectError> {
-		return tauriClient.projects
-			.getProjects()
-			.mapErr(
+	getProjects(): Effect.Effect<Project[], ProjectError> {
+		return tauriClient.projects.getProjects().pipe(
+			Effect.mapError(
 				(error) =>
 					new ProjectError(
 						`Failed to get projects: ${error.message}`,
 						"STORAGE_ERROR",
 						error instanceof Error ? error : undefined
 					)
-			)
-			.map((projects) => projects.map((project) => this.mapProject(project)));
+			),
+			Effect.map((projects) => projects.map((project) => this.mapProject(project)))
+		);
 	}
 
 	getCachedProjects(): Project[] | null {
@@ -228,52 +230,54 @@ export class ProjectClient {
 	}
 
 	writeCachedProjects(projects: readonly Project[]): void {
-		const cachedProjectsResult = buildProjectsHotCacheData(projects);
-		if (cachedProjectsResult.isErr()) {
+		const cachedProjectsResult = Effect.runSync(Effect.result(buildProjectsHotCacheData(projects)));
+		if (Result.isFailure(cachedProjectsResult)) {
 			return;
 		}
-		writeProjectsHotCache(cachedProjectsResult.value);
+		writeProjectsHotCache(cachedProjectsResult.success);
 	}
 
 	/**
 	 * Get recent projects.
 	 *
 	 * @param limit - Maximum number of projects to return (default: 100)
-	 * @returns ResultAsync containing array of projects
+	 * @returns Effect containing array of projects
 	 */
 	getRecentProjects(
 		limit = 50,
 		preferredPaths: string[] = [],
 		offset = 0
-	): ResultAsync<Project[], ProjectError> {
-		return tauriClient.projects
-			.getRecentProjects(limit, preferredPaths, offset)
-			.mapErr(
+	): Effect.Effect<Project[], ProjectError> {
+		return tauriClient.projects.getRecentProjects(limit, preferredPaths, offset).pipe(
+			Effect.mapError(
 				(error) =>
 					new ProjectError(
 						`Failed to get recent projects: ${error.message}`,
 						"STORAGE_ERROR",
 						error instanceof Error ? error : undefined
 					)
-			)
-			.map((projects) => projects.map((project) => this.mapProject(project)));
+			),
+			Effect.map((projects) => projects.map((project) => this.mapProject(project)))
+		);
 	}
 
 	/**
 	 * Get the total count of projects.
 	 *
-	 * @returns ResultAsync containing the project count
+	 * @returns Effect containing the project count
 	 */
-	getProjectCount(): ResultAsync<number, ProjectError> {
+	getProjectCount(): Effect.Effect<number, ProjectError> {
 		return tauriClient.projects
 			.getProjectCount()
-			.mapErr(
-				(error) =>
-					new ProjectError(
-						`Failed to get project count: ${error.message}`,
-						"STORAGE_ERROR",
-						error instanceof Error ? error : undefined
-					)
+			.pipe(
+				Effect.mapError(
+					(error) =>
+						new ProjectError(
+							`Failed to get project count: ${error.message}`,
+							"STORAGE_ERROR",
+							error instanceof Error ? error : undefined
+						)
+				)
 			);
 	}
 
@@ -281,20 +285,20 @@ export class ProjectClient {
 	 * Import a project (add to workspace and trigger scanning).
 	 *
 	 * @param project - The project to import
-	 * @returns ResultAsync containing the imported project on success
+	 * @returns Effect containing the imported project on success
 	 */
-	importProject(project: Project): ResultAsync<Project, ProjectError> {
-		return tauriClient.projects
-			.importProject(project.path, project.name)
-			.mapErr(
+	importProject(project: Project): Effect.Effect<Project, ProjectError> {
+		return tauriClient.projects.importProject(project.path, project.name).pipe(
+			Effect.mapError(
 				(error) =>
 					new ProjectError(
 						`Failed to import project: ${error.message}`,
 						"STORAGE_ERROR",
 						error instanceof Error ? error : undefined
 					)
-			)
-			.map((importedProject) => this.mapProject(importedProject));
+			),
+			Effect.map((importedProject) => this.mapProject(importedProject))
+		);
 	}
 
 	/**
@@ -302,135 +306,147 @@ export class ProjectClient {
 	 *
 	 * @param path - The project path
 	 * @param color - The new color (color name like "red" or hex like "#FF5D5A")
-	 * @returns ResultAsync containing the updated project
+	 * @returns Effect containing the updated project
 	 */
-	updateProjectColor(path: string, color: string): ResultAsync<Project, ProjectError> {
-		return tauriClient.projects
-			.updateProjectColor(path, color)
-			.mapErr(
+	updateProjectColor(path: string, color: string): Effect.Effect<Project, ProjectError> {
+		return tauriClient.projects.updateProjectColor(path, color).pipe(
+			Effect.mapError(
 				(error) =>
 					new ProjectError(
 						`Failed to update project color: ${error.message}`,
 						"STORAGE_ERROR",
 						error instanceof Error ? error : undefined
 					)
-			)
-			.map((project) => this.mapProject(project));
+			),
+			Effect.map((project) => this.mapProject(project))
+		);
 	}
 
-	updateProjectIcon(path: string, iconPath: string | null): ResultAsync<Project, ProjectError> {
+	updateProjectIcon(path: string, iconPath: string | null): Effect.Effect<Project, ProjectError> {
 		const normalizedIconPath = normalizeProjectIconUpdatePath(iconPath);
-		return tauriClient.projects
-			.updateProjectIcon(path, normalizedIconPath)
-			.mapErr(
+		return tauriClient.projects.updateProjectIcon(path, normalizedIconPath).pipe(
+			Effect.mapError(
 				(error) =>
 					new ProjectError(
 						`Failed to update project icon: ${error.message}`,
 						"STORAGE_ERROR",
 						error instanceof Error ? error : undefined
 					)
-			)
-			.map((project) => this.mapProject(project));
+			),
+			Effect.map((project) => this.mapProject(project))
+		);
 	}
 
-	getProjectAcepeConfig(path: string): ResultAsync<ProjectAcepeConfig, ProjectError> {
+	getProjectAcepeConfig(path: string): Effect.Effect<ProjectAcepeConfig, ProjectError> {
 		return tauriClient.projects
 			.getProjectAcepeConfig(path)
-			.mapErr(
-				(error) =>
-					new ProjectError(
-						`Failed to load project config: ${error.message}`,
-						"STORAGE_ERROR",
-						error instanceof Error ? error : undefined
-					)
+			.pipe(
+				Effect.mapError(
+					(error) =>
+						new ProjectError(
+							`Failed to load project config: ${error.message}`,
+							"STORAGE_ERROR",
+							error instanceof Error ? error : undefined
+						)
+				)
 			);
 	}
 
 	saveProjectAcepeConfig(
 		path: string,
 		config: ProjectAcepeConfig
-	): ResultAsync<ProjectAcepeConfig, ProjectError> {
+	): Effect.Effect<ProjectAcepeConfig, ProjectError> {
 		return tauriClient.projects
 			.saveProjectAcepeConfig(path, config)
-			.mapErr(
-				(error) =>
-					new ProjectError(
-						`Failed to save project config: ${error.message}`,
-						"STORAGE_ERROR",
-						error instanceof Error ? error : undefined
-					)
+			.pipe(
+				Effect.mapError(
+					(error) =>
+						new ProjectError(
+							`Failed to save project config: ${error.message}`,
+							"STORAGE_ERROR",
+							error instanceof Error ? error : undefined
+						)
+				)
 			);
 	}
 
 	updateProjectShowExternalCliSessions(
 		path: string,
 		value: boolean
-	): ResultAsync<ProjectAcepeConfig, ProjectError> {
-		return this.getProjectAcepeConfig(path).andThen((config) =>
-			this.saveProjectAcepeConfig(path, {
-				setupScript: config.setupScript,
-				runScript: config.runScript,
-				showExternalCliSessions: value,
-			})
+	): Effect.Effect<ProjectAcepeConfig, ProjectError> {
+		return this.getProjectAcepeConfig(path).pipe(
+			Effect.flatMap((config) =>
+				this.saveProjectAcepeConfig(path, {
+					setupScript: config.setupScript,
+					runScript: config.runScript,
+					showExternalCliSessions: value,
+				})
+			)
 		);
 	}
 
-	listProjectImages(projectPath: string): ResultAsync<string[], ProjectError> {
+	listProjectImages(projectPath: string): Effect.Effect<string[], ProjectError> {
 		return tauriClient.projects
 			.listProjectImages(projectPath)
-			.mapErr(
-				(error) =>
-					new ProjectError(
-						`Failed to list project images: ${error.message}`,
-						"STORAGE_ERROR",
-						error instanceof Error ? error : undefined
-					)
+			.pipe(
+				Effect.mapError(
+					(error) =>
+						new ProjectError(
+							`Failed to list project images: ${error.message}`,
+							"STORAGE_ERROR",
+							error instanceof Error ? error : undefined
+						)
+				)
 			);
 	}
 
-	updateProjectOrder(orderedPaths: string[]): ResultAsync<Project[], ProjectError> {
-		return tauriClient.projects
-			.updateProjectOrder(orderedPaths)
-			.mapErr(
+	updateProjectOrder(orderedPaths: string[]): Effect.Effect<Project[], ProjectError> {
+		return tauriClient.projects.updateProjectOrder(orderedPaths).pipe(
+			Effect.mapError(
 				(error) =>
 					new ProjectError(
 						`Failed to update project order: ${error.message}`,
 						"STORAGE_ERROR",
 						error instanceof Error ? error : undefined
 					)
-			)
-			.map((projects) => projects.map((project) => this.mapProject(project)));
+			),
+			Effect.map((projects) => projects.map((project) => this.mapProject(project)))
+		);
 	}
 
 	/**
 	 * Add a project to recent projects.
 	 *
 	 * @param project - The project to add
-	 * @returns ResultAsync containing void on success
+	 * @returns Effect containing void on success
 	 */
-	addProject(project: Project): ResultAsync<void, ProjectError> {
+	addProject(project: Project): Effect.Effect<void, ProjectError> {
 		return tauriClient.projects
 			.addProject(project.path, project.name)
-			.mapErr(
-				(error) =>
-					new ProjectError(
-						`Failed to add project: ${error.message}`,
-						"STORAGE_ERROR",
-						error instanceof Error ? error : undefined
-					)
+			.pipe(
+				Effect.mapError(
+					(error) =>
+						new ProjectError(
+							`Failed to add project: ${error.message}`,
+							"STORAGE_ERROR",
+							error instanceof Error ? error : undefined
+						)
+				)
 			);
 	}
 
-	backfillProjectIcons(): ResultAsync<number, ProjectError> {
+	backfillProjectIcons(): Effect.Effect<number, ProjectError> {
 		return tauriClient.projects
 			.backfillProjectIcons()
-			.mapErr(
-				(error) =>
-					new ProjectError(
-						`Failed to backfill project icons: ${error.message}`,
-						"STORAGE_ERROR",
-						error instanceof Error ? error : undefined
-					)
+			.pipe(
+				Effect.mapError(
+					(error) =>
+						new ProjectError(
+							`Failed to backfill project icons: ${error.message}`,
+							"STORAGE_ERROR",
+							error instanceof Error ? error : undefined
+						)
+				)
 			);
 	}
 
@@ -438,55 +454,59 @@ export class ProjectClient {
 	 * Remove a project.
 	 *
 	 * @param path - The project path to remove
-	 * @returns ResultAsync containing void on success
+	 * @returns Effect containing void on success
 	 */
-	removeProject(path: string): ResultAsync<void, ProjectError> {
+	removeProject(path: string): Effect.Effect<void, ProjectError> {
 		return tauriClient.projects
 			.removeProject(path)
-			.mapErr(
-				(error) =>
-					new ProjectError(
-						`Failed to remove project: ${error.message}`,
-						"STORAGE_ERROR",
-						error instanceof Error ? error : undefined
-					)
+			.pipe(
+				Effect.mapError(
+					(error) =>
+						new ProjectError(
+							`Failed to remove project: ${error.message}`,
+							"STORAGE_ERROR",
+							error instanceof Error ? error : undefined
+						)
+				)
 			);
 	}
 
 	/**
 	 * Browse for a project icon image file.
 	 *
-	 * @returns ResultAsync containing the selected file path or null if cancelled
+	 * @returns Effect containing the selected file path or null if cancelled
 	 */
-	browseProjectIcon(): ResultAsync<string | null, ProjectError> {
+	browseProjectIcon(): Effect.Effect<string | null, ProjectError> {
 		return tauriClient.projects
 			.browseProjectIcon()
-			.mapErr(
-				(error) =>
-					new ProjectError(
-						`Failed to browse project icon: ${error.message}`,
-						"STORAGE_ERROR",
-						error instanceof Error ? error : undefined
-					)
+			.pipe(
+				Effect.mapError(
+					(error) =>
+						new ProjectError(
+							`Failed to browse project icon: ${error.message}`,
+							"STORAGE_ERROR",
+							error instanceof Error ? error : undefined
+						)
+				)
 			);
 	}
 
 	/**
 	 * Browse for a project folder.
 	 *
-	 * @returns ResultAsync containing the selected project or null
+	 * @returns Effect containing the selected project or null
 	 */
-	browseProject(): ResultAsync<Project | null, ProjectError> {
-		return tauriClient.projects
-			.browseProject()
-			.mapErr(
+	browseProject(): Effect.Effect<Project | null, ProjectError> {
+		return tauriClient.projects.browseProject().pipe(
+			Effect.mapError(
 				(error) =>
 					new ProjectError(
 						`Failed to browse project: ${error.message}`,
 						"STORAGE_ERROR",
 						error instanceof Error ? error : undefined
 					)
-			)
-			.map((project) => (project ? this.mapProject(project) : null));
+			),
+			Effect.map((project) => (project ? this.mapProject(project) : null))
+		);
 	}
 }

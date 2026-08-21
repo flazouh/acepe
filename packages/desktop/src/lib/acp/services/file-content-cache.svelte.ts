@@ -11,7 +11,8 @@
  * - Separate caches for file content and diff content
  */
 
-import { okAsync, type ResultAsync } from "neverthrow";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import * as Effect from "effect/Effect";
 import { fileIndex } from "$lib/utils/tauri-client/file-index.js";
 
 import { FileContentCacheError } from "../errors/file-content-cache-error.js";
@@ -36,17 +37,26 @@ interface FileDiffResult {
 	fileName: string;
 }
 
-type FetchFileContent = (filePath: string, projectPath: string) => ResultAsync<string, unknown>;
+type FetchFileContent = (filePath: string, projectPath: string) => Effect.Effect<string, unknown>;
 
 type FetchFileDiff = (
 	filePath: string,
 	projectPath: string
-) => ResultAsync<FileDiffResult, unknown>;
+) => Effect.Effect<FileDiffResult, unknown>;
 
 type FileContentCacheOptions = {
 	readonly fetchFileContent?: FetchFileContent;
 	readonly fetchFileDiff?: FetchFileDiff;
 };
+
+function toFileContentCacheError(prefix: string, code: string) {
+	return (error: unknown): FileContentCacheError => {
+		if (error instanceof FileContentCacheError) {
+			return error;
+		}
+		return new FileContentCacheError(`${prefix}${error}`, code);
+	};
+}
 
 /**
  * LRU Cache implementation with TTL support.
@@ -114,14 +124,8 @@ class LRUCache<T> {
 class FileContentCache {
 	private readonly contentCache: LRUCache<string>;
 	private readonly diffCache: LRUCache<FileDiffResult>;
-	private readonly contentInflightByKey = new Map<
-		string,
-		ResultAsync<string, FileContentCacheError>
-	>();
-	private readonly diffInflightByKey = new Map<
-		string,
-		ResultAsync<FileDiffResult, FileContentCacheError>
-	>();
+	private readonly contentInflightByKey = new Map<string, Promise<string>>();
+	private readonly diffInflightByKey = new Map<string, Promise<FileDiffResult>>();
 	private readonly fetchFileContent: FetchFileContent;
 	private readonly fetchFileDiff: FetchFileDiff;
 
@@ -143,31 +147,38 @@ class FileContentCache {
 	getFileContent(
 		filePath: string,
 		projectPath: string
-	): ResultAsync<string, FileContentCacheError> {
+	): Effect.Effect<string, FileContentCacheError> {
 		const cacheKey = `${projectPath}:${filePath}`;
 		const cached = this.contentCache.get(cacheKey);
 
 		if (cached !== null) {
-			return okAsync(cached);
+			return Effect.succeed(cached);
 		}
 
 		const existingRequest = this.contentInflightByKey.get(cacheKey);
 		if (existingRequest !== undefined) {
-			return existingRequest;
+			return fromPromise(
+				() => existingRequest,
+				toFileContentCacheError(`Failed to read file ${filePath}: `, "READ_ERROR")
+			);
 		}
 
-		const request = this.fetchFileContent(filePath, projectPath)
-			.mapErr((error) => {
-				this.contentInflightByKey.delete(cacheKey);
-				return new FileContentCacheError(`Failed to read file ${filePath}: ${error}`, "READ_ERROR");
-			})
-			.map((content) => {
+		const pending = Effect.runPromise(this.fetchFileContent(filePath, projectPath)).then(
+			(content) => {
 				this.contentCache.set(cacheKey, content);
 				this.contentInflightByKey.delete(cacheKey);
 				return content;
-			});
-		this.contentInflightByKey.set(cacheKey, request);
-		return request;
+			},
+			(error: unknown) => {
+				this.contentInflightByKey.delete(cacheKey);
+				throw error;
+			}
+		);
+		this.contentInflightByKey.set(cacheKey, pending);
+		return fromPromise(
+			() => pending,
+			toFileContentCacheError(`Failed to read file ${filePath}: `, "READ_ERROR")
+		);
 	}
 
 	peekFileContent(filePath: string, projectPath: string): string | null {
@@ -181,7 +192,7 @@ class FileContentCache {
 	getFileDiff(
 		filePath: string,
 		projectPath: string
-	): ResultAsync<FileDiffResult, FileContentCacheError> {
+	): Effect.Effect<FileDiffResult, FileContentCacheError> {
 		const cacheKey = `diff:${projectPath}:${filePath}`;
 		const cached = this.diffCache.get(cacheKey);
 
@@ -193,12 +204,15 @@ class FileContentCache {
 				oldLength: cached.oldContent?.length ?? 0,
 				newLength: cached.newContent.length,
 			});
-			return okAsync(cached);
+			return Effect.succeed(cached);
 		}
 
 		const existingRequest = this.diffInflightByKey.get(cacheKey);
 		if (existingRequest !== undefined) {
-			return existingRequest;
+			return fromPromise(
+				() => existingRequest,
+				toFileContentCacheError(`Failed to get diff for ${filePath}: `, "DIFF_ERROR")
+			);
 		}
 
 		logger.info("Diff cache miss, invoking get_file_diff", {
@@ -206,15 +220,8 @@ class FileContentCache {
 			projectPath,
 		});
 
-		const request = this.fetchFileDiff(filePath, projectPath)
-			.mapErr((error) => {
-				this.diffInflightByKey.delete(cacheKey);
-				return new FileContentCacheError(
-					`Failed to get diff for ${filePath}: ${error}`,
-					"DIFF_ERROR"
-				);
-			})
-			.map((diff) => {
+		const pending = Effect.runPromise(this.fetchFileDiff(filePath, projectPath)).then(
+			(diff) => {
 				logger.info("Diff loaded from backend", {
 					filePath,
 					projectPath,
@@ -225,9 +232,17 @@ class FileContentCache {
 				this.diffCache.set(cacheKey, diff);
 				this.diffInflightByKey.delete(cacheKey);
 				return diff;
-			});
-		this.diffInflightByKey.set(cacheKey, request);
-		return request;
+			},
+			(error: unknown) => {
+				this.diffInflightByKey.delete(cacheKey);
+				throw error;
+			}
+		);
+		this.diffInflightByKey.set(cacheKey, pending);
+		return fromPromise(
+			() => pending,
+			toFileContentCacheError(`Failed to get diff for ${filePath}: `, "DIFF_ERROR")
+		);
 	}
 
 	/**
@@ -238,19 +253,16 @@ class FileContentCache {
 		filePath: string,
 		projectPath: string,
 		content: string
-	): ResultAsync<void, FileContentCacheError> {
-		return fileIndex
-			.revertFileContent(filePath, projectPath, content)
-			.mapErr((error) => {
-				return new FileContentCacheError(
-					`Failed to revert file ${filePath}: ${error}`,
-					"WRITE_ERROR"
-				);
-			})
-			.map(() => {
+	): Effect.Effect<void, FileContentCacheError> {
+		return fileIndex.revertFileContent(filePath, projectPath, content).pipe(
+			Effect.mapError(
+				toFileContentCacheError(`Failed to revert file ${filePath}: `, "WRITE_ERROR")
+			),
+			Effect.map(() => {
 				// Invalidate caches for this file after reverting
 				this.invalidateFile(filePath, projectPath);
-			});
+			})
+		);
 	}
 
 	/**

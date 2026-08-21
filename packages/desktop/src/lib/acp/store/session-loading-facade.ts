@@ -1,7 +1,7 @@
 /**
  * SessionLoadingFacade — session load/scan/preload surface (ADR-0002).
  */
-import { okAsync, type ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import type { HistoryEntry } from "../../services/claude-history-types.js";
 import type { AppError } from "../errors/app-error.js";
 import type { PrLinkStateStore } from "./pr-link-state-store.svelte.js";
@@ -47,21 +47,23 @@ export class SessionLoadingFacade {
 		this.setSessionLoaded(sessionId);
 	}
 
-	loadSessions(projectPaths?: string[]): ResultAsync<SessionCold[], AppError> {
+	loadSessions(projectPaths?: string[]): Effect.Effect<SessionCold[], AppError> {
 		return this.#deps.repository
 			.loadSessions(this.#deps.listState.sessions, projectPaths)
-			.map((sessions) => {
-				this.#deps.prLinkState.refreshAllPrStates();
-				return sessions;
-			});
+			.pipe(
+				Effect.map((sessions) => {
+					this.#deps.prLinkState.refreshAllPrStates();
+					return sessions;
+				})
+			);
 	}
 
-	scanSessions(projectPaths: string[]): ResultAsync<void, AppError> {
-		return this.#deps.repository
-			.scanSessions(this.#deps.listState.sessions, projectPaths)
-			.map(() => {
+	scanSessions(projectPaths: string[]): Effect.Effect<void, AppError> {
+		return this.#deps.repository.scanSessions(this.#deps.listState.sessions, projectPaths).pipe(
+			Effect.map(() => {
 				this.#deps.prLinkState.refreshAllPrStates();
-			});
+			})
+		);
 	}
 
 	refreshSessionsFromScan(entries: HistoryEntry[]): void {
@@ -70,13 +72,13 @@ export class SessionLoadingFacade {
 
 	loadStartupSessions(
 		sessionIds: string[]
-	): ResultAsync<{ missing: string[]; aliasRemaps: Record<string, string> }, AppError> {
+	): Effect.Effect<{ missing: string[]; aliasRemaps: Record<string, string> }, AppError> {
 		return this.#deps.repository.loadStartupSessions(this.#deps.listState.sessions, sessionIds);
 	}
 
 	preloadSessions(
 		sessionIds: string[]
-	): ResultAsync<{ loaded: SessionCold[]; missing: string[] }, AppError> {
+	): Effect.Effect<{ loaded: SessionCold[]; missing: string[] }, AppError> {
 		return this.#deps.repository.preloadSessions(sessionIds);
 	}
 
@@ -116,7 +118,7 @@ export class SessionLoadingFacade {
 		sourcePath?: string,
 		sequenceId?: number,
 		worktreePath?: string
-	): ResultAsync<SessionCold, AppError> {
+	): Effect.Effect<SessionCold, AppError> {
 		return this.#deps.repository.loadHistoricalSession(
 			id,
 			projectPath,

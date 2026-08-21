@@ -1,7 +1,7 @@
-import { err, ok, type Result } from "neverthrow";
+import * as Result from "effect/Result";
 import { safeJsonParse } from "../../../../logic/json-utils.js";
 import { EXECUTE_TOOL_ERROR_CODES, ExecuteToolError } from "../errors/execute-tool-error.js";
-import { ToolResultOutputSchema } from "../schemas/tool-result-output.schema.js";
+import { parseToolResultOutputValue } from "../schemas/tool-result-output.schema.js";
 
 /**
  * Parsed result with stdout, stderr, and exit code (like 1code).
@@ -56,11 +56,11 @@ function normalizeExecEnvelope(raw: string): NormalizedExecEnvelope {
 export function parseToolResultWithExitCode(result: unknown): ParsedToolResult {
 	function fallbackStdout(value: unknown): string | null {
 		const fallbackResult = parseToolResultOutput(value);
-		if (fallbackResult.isErr()) {
+		if (Result.isFailure(fallbackResult)) {
 			return null;
 		}
 
-		return fallbackResult.value;
+		return fallbackResult.success;
 	}
 
 	// Handle null/undefined early
@@ -146,57 +146,51 @@ export function parseToolResultWithExitCode(result: unknown): ParsedToolResult {
  * - Objects with output/stdout/stderr fields
  * - Nested JSON-stringified values
  *
- * Uses Zod schemas and safeJsonParse to avoid try-catch blocks.
+ * Uses Effect Schema and safeJsonParse to avoid try-catch blocks.
  *
  * @param result - Unknown tool result to parse
  * @returns Result containing parsed string output or null, or an error
  */
-export function parseToolResultOutput(result: unknown): Result<string | null, ExecuteToolError> {
-	// Handle null/undefined early
+export function parseToolResultOutput(
+	result: unknown
+): Result.Result<string | null, ExecuteToolError> {
 	if (result === null || result === undefined) {
-		return ok(null);
+		return Result.succeed(null);
 	}
 
-	// Use Zod schema to validate and extract structure
-	const schemaResult = ToolResultOutputSchema.safeParse(result);
+	const schemaResult = parseToolResultOutputValue(result);
 
-	if (!schemaResult.success) {
-		return err(
+	if (Result.isFailure(schemaResult)) {
+		return Result.fail(
 			new ExecuteToolError(
-				`Failed to parse tool result: ${schemaResult.error.message}`,
+				`Failed to parse tool result: ${schemaResult.failure.message}`,
 				EXECUTE_TOOL_ERROR_CODES.PARSE_RESULT_FAILED,
-				schemaResult.error
+				schemaResult.failure
 			)
 		);
 	}
 
-	const parsed = schemaResult.data;
+	const parsed = schemaResult.success;
 
-	// If result is null (from object with no output fields), return null
 	if (parsed === null) {
-		return ok(null);
+		return Result.succeed(null);
 	}
 
-	// If result is a string, try to parse it as JSON
 	if (typeof parsed === "string") {
 		const normalized = normalizeExecEnvelope(parsed);
 		const normalizedOutput = normalized.output;
 
-		// Try to parse as JSON-stringified string
 		const jsonParseResult = safeJsonParse<unknown>(normalizedOutput);
 
-		if (jsonParseResult.isOk()) {
-			const parsedValue = jsonParseResult.value;
-			// If successfully parsed and result is a string, return it
+		if (Result.isSuccess(jsonParseResult)) {
+			const parsedValue = jsonParseResult.success;
 			if (typeof parsedValue === "string") {
-				return ok(parsedValue);
+				return Result.succeed(parsedValue);
 			}
 		}
 
-		// If JSON parsing failed or result is not a string, return original
-		return ok(normalizedOutput);
+		return Result.succeed(normalizedOutput);
 	}
 
-	// This should not happen based on schema, but handle it
-	return ok(null);
+	return Result.succeed(null);
 }

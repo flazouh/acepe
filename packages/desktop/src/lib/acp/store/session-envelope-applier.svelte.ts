@@ -9,7 +9,7 @@
  * `canonical ?? hot` fallback.
  */
 
-import type { ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import type {
 	InteractionSnapshot,
 	OperationSnapshot,
@@ -56,7 +56,7 @@ type SessionTransientProjectionUpdates = {
 	-readonly [K in keyof SessionTransientProjection]?: SessionTransientProjection[K];
 };
 
-type InflightSessionStateRefresh = ResultAsync<void, AppError>;
+type InflightSessionStateRefresh = Effect.Effect<void, AppError>;
 
 export type SessionEnvelopeApplierCallbacks = {
 	readonly onPlanUpdate?: (sessionId: string, plan: PlanData) => void;
@@ -329,9 +329,13 @@ export class SessionEnvelopeApplier {
 							toRevision: patch.warnContext.toRevision,
 						});
 					}
-					void this.#deps.refreshSessionStateSnapshot(patch.sessionId).match(
-						() => undefined,
-						() => undefined
+					void Effect.runPromise(
+						this.#deps.refreshSessionStateSnapshot(patch.sessionId).pipe(
+							Effect.match({
+								onSuccess: () => undefined,
+								onFailure: () => undefined,
+							})
+						)
 					);
 					break;
 				case "warnMissingCanonicalProjection":
@@ -474,9 +478,13 @@ export class SessionEnvelopeApplier {
 				input.lastTerminalTurnId ?? undefined
 			);
 			callbacks.onTurnComplete?.(input.sessionId);
-			void this.#deps.refreshSessionStateSnapshot(input.sessionId).match(
-				() => undefined,
-				() => undefined
+			void Effect.runPromise(
+				this.#deps.refreshSessionStateSnapshot(input.sessionId).pipe(
+					Effect.match({
+						onSuccess: () => undefined,
+						onFailure: () => undefined,
+					})
+				)
 			);
 		}
 

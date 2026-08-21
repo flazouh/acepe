@@ -1,4 +1,4 @@
-import type { ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 
 import type {
 	SessionHistoryService,
@@ -19,10 +19,6 @@ import { PlanLoadError } from "../errors";
  * @example
  * ```ts
  * loadSessionPlan(service, "session-123", "/path/to/project")
- *   .match(
- *     (plan) => console.log("Plan loaded:", plan),
- *     (error) => console.error("Failed:", error)
- *   );
  * ```
  */
 export function loadSessionPlan(
@@ -30,14 +26,16 @@ export function loadSessionPlan(
 	sessionId: string,
 	projectPath: string,
 	agentId: string
-): ResultAsync<SessionPlanResponse | null, PlanLoadError> {
-	return service.getUnifiedPlan(sessionId, projectPath, agentId).mapErr(
-		(err) =>
-			new PlanLoadError("Failed to load session plan", {
-				sessionId,
-				projectPath,
-				agentId,
-				originalError: err.message,
-			})
+): Effect.Effect<SessionPlanResponse | null, PlanLoadError> {
+	return service.getUnifiedPlan(sessionId, projectPath, agentId).pipe(
+		Effect.mapError(
+			(err) =>
+				new PlanLoadError("Failed to load session plan", {
+					sessionId,
+					projectPath,
+					agentId,
+					originalError: err.message,
+				})
+		)
 	);
 }

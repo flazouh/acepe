@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import * as Result from "effect/Result";
 
 import { createKeybindingsService } from "../service.svelte.js";
 import { createContextManager } from "./manager.svelte.js";
@@ -29,14 +30,18 @@ describe("ContextManager computed providers (pull model)", () => {
 		// Mirrors a real binding guard: "threadActive && !modalOpen"
 		manager.registerProvider("threadActive", () => true);
 
-		expect(manager.evaluate("threadActive && !modalOpen").unwrapOr(false)).toBe(true);
+		expect(Result.getOrElse(manager.evaluate("threadActive && !modalOpen"), () => false)).toBe(
+			true
+		);
 
 		fileExplorerVisible = true;
-		expect(manager.evaluate("threadActive && !modalOpen").unwrapOr(false)).toBe(false);
+		expect(Result.getOrElse(manager.evaluate("threadActive && !modalOpen"), () => false)).toBe(
+			false
+		);
 
 		fileExplorerVisible = false;
 		settingsModalOpen = true;
-		expect(manager.evaluate("!settingsOpen").unwrapOr(true)).toBe(false);
+		expect(Result.getOrElse(manager.evaluate("!settingsOpen"), () => true)).toBe(false);
 	});
 
 	it("has() reports true for provider-backed keys", () => {
@@ -61,7 +66,7 @@ describe("ContextManager computed providers (pull model)", () => {
 		const manager = createContextManager();
 		manager.set("inputFocused", true);
 		expect(manager.get("inputFocused")).toBe(true);
-		expect(manager.evaluate("inputFocused").unwrapOr(false)).toBe(true);
+		expect(Result.getOrElse(manager.evaluate("inputFocused"), () => false)).toBe(true);
 	});
 });
 

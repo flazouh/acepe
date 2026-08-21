@@ -1,5 +1,6 @@
 <script lang="ts">
 import { HugeiconsIcon, Selector } from "@acepe/ui";
+import * as Effect from "effect/Effect";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import AgentIcon from "$lib/acp/components/agent-icon.svelte";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
@@ -12,7 +13,7 @@ const store = getLibraryStore();
 
 function handleSync() {
 	if (store.selectedSkill) {
-		store.syncSkill(store.selectedSkill.skill.id);
+		void Effect.runPromise(Effect.result(store.syncSkill(store.selectedSkill.skill.id)));
 	}
 }
 
@@ -20,7 +21,9 @@ function handleToggleAgent(e: Event, agentId: string, enabled: boolean) {
 	e.preventDefault();
 	e.stopPropagation();
 	if (store.selectedSkill) {
-		store.setSyncTarget(store.selectedSkill.skill.id, agentId, enabled);
+		void Effect.runPromise(
+			Effect.result(store.setSyncTarget(store.selectedSkill.skill.id, agentId, enabled))
+		);
 	}
 }
 
@@ -28,12 +31,18 @@ function handleOpenFolder(e: Event, agentId: string) {
 	e.preventDefault();
 	e.stopPropagation();
 	if (store.selectedSkill) {
-		libraryApi.getSkillFolderPath(agentId, store.selectedSkill.skill.name).map((path) => {
-			if (path) {
-				revealInFinder(path);
-			}
-			return path;
-		});
+		void Effect.runPromise(
+			Effect.result(
+				libraryApi.getSkillFolderPath(agentId, store.selectedSkill.skill.name).pipe(
+					Effect.map((path) => {
+						if (path) {
+							revealInFinder(path);
+						}
+						return path;
+					})
+				)
+			)
+		);
 	}
 }
 

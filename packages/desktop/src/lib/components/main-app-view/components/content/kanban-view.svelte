@@ -40,6 +40,7 @@ import type { PermissionRequest } from "$lib/acp/types/permission.js";
 import type { QuestionRequest } from "$lib/acp/types/question.js";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
 import { HugeiconsIcon } from "@acepe/ui";
+import * as Effect from "effect/Effect";
 import { toast } from "svelte-sonner";
 import { replyToPlanApprovalRequest } from "$lib/acp/logic/interaction-reply.js";
 
@@ -400,9 +401,13 @@ const {
 } = createKanbanExportHandlers({ sessionStore, panelStore });
 
 async function handleCopyValue(value: string): Promise<void> {
-	await copyTextToClipboard(value).match(
-		() => undefined,
-		() => toast.error("Failed to copy path")
+	await Effect.runPromise(
+		copyTextToClipboard(value).pipe(
+			Effect.match({
+				onSuccess: () => undefined,
+				onFailure: () => toast.error("Failed to copy path"),
+			})
+		)
 	);
 }
 
@@ -689,11 +694,15 @@ function handleApprovePlanApproval(sessionId: string): void {
 	if (!approval) return;
 	interactionStore.setPlanApprovalStatus(approval.id, "approved");
 
-	void replyToPlanApprovalRequest(approval, true, false).match(
-		() => undefined,
-		() => {
-			interactionStore.setPlanApprovalStatus(approval.id, "pending");
-		}
+	void Effect.runPromise(
+		replyToPlanApprovalRequest(approval, true, false).pipe(
+			Effect.match({
+				onSuccess: () => undefined,
+				onFailure: () => {
+					interactionStore.setPlanApprovalStatus(approval.id, "pending");
+				},
+			})
+		)
 	);
 }
 
@@ -703,11 +712,15 @@ function handleRejectPlanApproval(sessionId: string): void {
 	if (!approval) return;
 	interactionStore.setPlanApprovalStatus(approval.id, "rejected");
 
-	void replyToPlanApprovalRequest(approval, false, false).match(
-		() => undefined,
-		() => {
-			interactionStore.setPlanApprovalStatus(approval.id, "pending");
-		}
+	void Effect.runPromise(
+		replyToPlanApprovalRequest(approval, false, false).pipe(
+			Effect.match({
+				onSuccess: () => undefined,
+				onFailure: () => {
+					interactionStore.setPlanApprovalStatus(approval.id, "pending");
+				},
+			})
+		)
 	);
 }
 </script>

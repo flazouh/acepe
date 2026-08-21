@@ -3,10 +3,10 @@
  * Provides access to file search across all projects.
  */
 
-import { okAsync, ResultAsync as RA, type ResultAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
 import { fileIndex } from "$lib/utils/tauri-client/file-index.js";
 
-import type { IndexedFile, ProjectIndex } from "../../../../services/converted-session-types.js";
+import type { IndexedFile } from "../../../../services/converted-session-types.js";
 import type { PaletteItem, PaletteItemMetadata } from "../../../types/palette-item.js";
 import { fuzzyMatchFiles } from "../../../utils/fuzzy-match.js";
 import { createLogger } from "../../../utils/logger.js";
@@ -79,26 +79,25 @@ export class FilesProvider implements PaletteProvider {
 	/**
 	 * Load files for a project (lazy loading).
 	 */
-	loadProjectFiles(projectPath: string): ResultAsync<IndexedFile[], Error> {
+	loadProjectFiles(projectPath: string): Effect.Effect<IndexedFile[], Error> {
 		// Check cache
 		const cached = this.fileCache.get(projectPath);
 		const now = Date.now();
 		if (cached && now - cached.loadedAt < CACHE_DURATION_MS) {
-			return okAsync(cached.files);
+			return Effect.succeed(cached.files);
 		}
 
 		// Check if already loading
 		if (this.loadingProjects.has(projectPath)) {
 			// Return empty for now, will be populated when load completes
-			return okAsync([]);
+			return Effect.succeed([]);
 		}
 
 		this.loadingProjects.add(projectPath);
 
-		return fileIndex
-			.getProjectFiles(projectPath)
-			.mapErr((error) => new Error(`Failed to load files for ${projectPath}: ${error}`))
-			.map((index) => {
+		return fileIndex.getProjectFiles(projectPath).pipe(
+			Effect.mapError((error) => new Error(`Failed to load files for ${projectPath}: ${error}`)),
+			Effect.map((index) => {
 				this.fileCache.set(projectPath, {
 					projectPath,
 					files: index.files,
@@ -106,12 +105,13 @@ export class FilesProvider implements PaletteProvider {
 				});
 				this.loadingProjects.delete(projectPath);
 				return index.files;
-			})
-			.mapErr((error) => {
+			}),
+			Effect.mapError((error) => {
 				this.loadingProjects.delete(projectPath);
 				logger.error("Failed to load project files:", error);
 				return error;
-			});
+			})
+		);
 	}
 
 	/**
@@ -119,9 +119,13 @@ export class FilesProvider implements PaletteProvider {
 	 */
 	preloadAllProjects(): void {
 		for (const project of this.config.projectManager.projects) {
-			this.loadProjectFiles(project.path).match(
-				() => {},
-				(error) => logger.warn(`Failed to preload ${project.path}:`, error)
+			void Effect.runPromise(
+				this.loadProjectFiles(project.path).pipe(
+					Effect.match({
+						onSuccess: () => {},
+						onFailure: (error) => logger.warn(`Failed to preload ${project.path}:`, error),
+					})
+				)
 			);
 		}
 	}
@@ -191,7 +195,7 @@ export class FilesProvider implements PaletteProvider {
 	/**
 	 * Execute: open the file.
 	 */
-	execute(item: PaletteItem): ResultAsync<void, Error> {
+	execute(item: PaletteItem): Effect.Effect<void, Error> {
 		// Add to recent
 		this.addToRecent(item);
 
@@ -206,7 +210,7 @@ export class FilesProvider implements PaletteProvider {
 			this.config.onOpenFile(item.id, item.metadata.projectPath ?? "");
 		}
 
-		return okAsync(undefined);
+		return Effect.succeed(undefined);
 	}
 
 	/**

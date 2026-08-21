@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
-import { okAsync } from "neverthrow";
-import { z } from "zod";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
+import * as Schema from "effect/Schema";
 import {
 	type CommandRunner,
 	captureWebviewScreenshot,
@@ -23,8 +24,8 @@ describe("acepe-qa tauri mcp helpers", () => {
 	it("unwraps text from tauri mcp content wrappers", () => {
 		const result = unwrapTauriText(wrapped('{"ok":true}'));
 
-		expect(result.isOk()).toBe(true);
-		expect(result._unsafeUnwrap()).toBe('{"ok":true}');
+		expect(Result.isSuccess(result)).toBe(true);
+		expect(Result.getOrThrow(result)).toBe('{"ok":true}');
 	});
 
 	it("extracts the first json object from noisy output", () => {
@@ -34,26 +35,30 @@ describe("acepe-qa tauri mcp helpers", () => {
 
 	it("executes webview js and validates schema", async () => {
 		const runner: CommandRunner = () =>
-			okAsync({
+			Effect.succeed({
 				code: 0,
 				stdout: wrapped('{"url":"http://localhost:1420/","title":"Acepe"}'),
 				stderr: "",
 			});
 
-		const result = await executeWebviewJson(
-			{
-				appIdentifier: "9223",
-				script: "(() => ({}))()",
-				schema: z.object({
-					url: z.string(),
-					title: z.string(),
-				}),
-			},
-			runner
+		const result = await Effect.runPromise(
+			Effect.result(
+				executeWebviewJson(
+					{
+						appIdentifier: "9223",
+						script: "(() => ({}))()",
+						schema: Schema.Struct({
+							url: Schema.String,
+							title: Schema.String,
+						}),
+					},
+					runner
+				)
+			)
 		);
 
-		expect(result.isOk()).toBe(true);
-		expect(result._unsafeUnwrap()).toEqual({
+		expect(Result.isSuccess(result)).toBe(true);
+		expect(Result.getOrThrow(result)).toEqual({
 			url: "http://localhost:1420/",
 			title: "Acepe",
 		});
@@ -61,7 +66,7 @@ describe("acepe-qa tauri mcp helpers", () => {
 
 	it("extracts screenshot file paths from mixed content wrappers", async () => {
 		const runner: CommandRunner = () =>
-			okAsync({
+			Effect.succeed({
 				code: 0,
 				stdout: JSON.stringify({
 					text: "Screenshot captured",
@@ -86,9 +91,9 @@ describe("acepe-qa tauri mcp helpers", () => {
 				stderr: "",
 			});
 
-		const result = await captureWebviewScreenshot("9223", runner);
+		const result = await Effect.runPromise(Effect.result(captureWebviewScreenshot("9223", runner)));
 
-		expect(result.isOk()).toBe(true);
-		expect(result._unsafeUnwrap()).toBe("/tmp/acepe-shot.jpg");
+		expect(Result.isSuccess(result)).toBe(true);
+		expect(Result.getOrThrow(result)).toBe("/tmp/acepe-shot.jpg");
 	});
 });

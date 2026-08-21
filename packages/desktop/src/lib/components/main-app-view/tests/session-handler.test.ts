@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
-import { errAsync, okAsync } from "neverthrow";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import type { SessionListItem } from "$lib/acp/components/session-list/session-list-types.js";
 import { ConnectionError, SessionNotFoundError } from "$lib/acp/errors/app-error.js";
 import type { ConnectionStore } from "$lib/acp/store/connection-store.svelte.js";
@@ -84,15 +85,15 @@ describe("SessionHandler", () => {
 				loadHistoricalSession: mock((sessionId: string) => {
 					const session = { id: sessionId };
 					mockSessionsArray.push(session);
-					return okAsync(session as import("$lib/acp/store/types.js").SessionCold);
+					return Effect.succeed(session as import("$lib/acp/store/types.js").SessionCold);
 				}),
 				setSessionLoading: mock(() => {}),
 				setSessionLoaded: mock(() => {}),
 			},
 			connection: {
-				connectSession: mock(() => okAsync({} as Record<string, never>)),
+				connectSession: mock(() => Effect.succeed({} as Record<string, never>)),
 				createSession: mock(() =>
-					okAsync({
+					Effect.succeed({
 						kind: "ready",
 						session: { id: "acp-session-id" },
 					} as import("$lib/acp/store/session-store.svelte.js").SessionCreationResult)
@@ -142,7 +143,7 @@ describe("SessionHandler", () => {
 			beginAttempt: mock(() => "request-1"),
 			clearAttempt: mock(() => {}),
 			hydrateFound: mock(() =>
-				okAsync({
+				Effect.succeed({
 					canonicalSessionId: "session-1",
 					openToken: "open-token-1",
 					applied: true,
@@ -171,9 +172,9 @@ describe("SessionHandler", () => {
 			};
 			mockSessionsArray.push(session as any);
 
-			const result = await handler.selectSession("session-1");
+			const result = await Effect.runPromise(Effect.result(handler.selectSession("session-1")));
 
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 			expect(mockPanelStore.openSession).toHaveBeenCalledWith("session-1", DEFAULT_PANEL_WIDTH);
 		});
 
@@ -197,9 +198,9 @@ describe("SessionHandler", () => {
 				parentId: null,
 			};
 
-			const result = await handler.selectSession("session-1", sessionInfo);
+			const result = await Effect.runPromise(Effect.result(handler.selectSession("session-1", sessionInfo)));
 
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 			expect(mockSessionStore.loading.loadHistoricalSession).toHaveBeenCalledWith(
 				"session-1",
 				"/test",
@@ -219,9 +220,9 @@ describe("SessionHandler", () => {
 				sourcePath: "/tmp/session-1.store.db",
 			} as any);
 
-			const result = await handler.selectSession("session-1");
+			const result = await Effect.runPromise(Effect.result(handler.selectSession("session-1")));
 
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 			expect(openPersistedSessionMock).toHaveBeenCalledWith({
 				panelId: "panel-1",
 				sessionId: "session-1",
@@ -241,9 +242,9 @@ describe("SessionHandler", () => {
 				sourcePath: "/tmp/session-1.store.db",
 			} as any);
 
-			const result = await handler.selectSession("session-1");
+			const result = await Effect.runPromise(Effect.result(handler.selectSession("session-1")));
 
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 			expect(mockPanelStore.openSession).toHaveBeenCalledWith("session-1", DEFAULT_PANEL_WIDTH);
 			expect(openPersistedSessionMock).toHaveBeenCalledWith({
 				panelId: "panel-1",
@@ -274,9 +275,9 @@ describe("SessionHandler", () => {
 				sourcePath: "/tmp/session-1.store.db",
 			} as any);
 
-			const result = await delayedHandler.selectSession("session-1");
+			const result = await Effect.runPromise(Effect.result(delayedHandler.selectSession("session-1")));
 
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 			expect(mockPanelStore.openSession).toHaveBeenCalledWith("session-1", DEFAULT_PANEL_WIDTH);
 			expect(openPersistedSessionMock).not.toHaveBeenCalled();
 			expect(scheduledCallbacks).toHaveLength(1);
@@ -318,9 +319,9 @@ describe("SessionHandler", () => {
 				agentId: "claude-code",
 			} as any);
 
-			const result = await handler.selectSession("session-1");
+			const result = await Effect.runPromise(Effect.result(handler.selectSession("session-1")));
 
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 			expect(mockPanelStore.openSession).toHaveBeenCalledWith("session-1", DEFAULT_PANEL_WIDTH);
 			expect(openPersistedSessionMock).not.toHaveBeenCalled();
 		});
@@ -349,9 +350,9 @@ describe("SessionHandler", () => {
 				agentId: "claude-code",
 			} as any);
 
-			const result = await handler.selectSession("session-1");
+			const result = await Effect.runPromise(Effect.result(handler.selectSession("session-1")));
 
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 			expect(openPersistedSessionMock).toHaveBeenCalledWith({
 				panelId: "existing-panel",
 				sessionId: "session-1",
@@ -388,9 +389,9 @@ describe("SessionHandler", () => {
 				agentId: "claude-code",
 			} as any);
 
-			const result = await handler.selectSession("session-1");
+			const result = await Effect.runPromise(Effect.result(handler.selectSession("session-1")));
 
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 			expect(openPersistedSessionMock).toHaveBeenCalledWith({
 				panelId: "existing-panel",
 				sessionId: "session-1",
@@ -427,9 +428,9 @@ describe("SessionHandler", () => {
 				agentId: "claude-code",
 			} as any);
 
-			const result = await handler.selectSession("session-1");
+			const result = await Effect.runPromise(Effect.result(handler.selectSession("session-1")));
 
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 			expect(openPersistedSessionMock).not.toHaveBeenCalled();
 		});
 
@@ -440,9 +441,9 @@ describe("SessionHandler", () => {
 				agentId: "claude-code",
 			} as any);
 
-			const result = await handler.selectSession("session-1");
+			const result = await Effect.runPromise(Effect.result(handler.selectSession("session-1")));
 
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 			expect(mockSessionStore.connection.connectSession).not.toHaveBeenCalled();
 		});
 
@@ -453,18 +454,18 @@ describe("SessionHandler", () => {
 				agentId: "codex",
 			} as any);
 
-			const result = await handler.selectSession("session-codex");
+			const result = await Effect.runPromise(Effect.result(handler.selectSession("session-codex")));
 
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 			expect(mockPanelStore.closePanelBySessionId).not.toHaveBeenCalled();
 		});
 
 		it("should return error if session not found and no sessionInfo", async () => {
-			const result = await handler.selectSession("unknown-session");
+			const result = await Effect.runPromise(Effect.result(handler.selectSession("unknown-session")));
 
-			expect(result.isErr()).toBe(true);
-			if (result.isErr()) {
-				expect(result.error).toBeInstanceOf(SessionSelectionError);
+			expect(Result.isFailure(result)).toBe(true);
+			if (Result.isFailure(result)) {
+				expect(result.failure).toBeInstanceOf(SessionSelectionError);
 			}
 		});
 
@@ -475,9 +476,9 @@ describe("SessionHandler", () => {
 				agentId: "claude-code",
 			} as any);
 
-			const result = await handler.selectSession("session-1");
+			const result = await Effect.runPromise(Effect.result(handler.selectSession("session-1")));
 
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 			expect(openPersistedSessionMock).toHaveBeenLastCalledWith({
 				panelId: "panel-1",
 				sessionId: "session-1",
@@ -509,12 +510,12 @@ describe("SessionHandler", () => {
 				parentId: null,
 			};
 			mockSessionStore.loading.loadHistoricalSession = mock(() =>
-				errAsync(new SessionNotFoundError("session-1"))
+				Effect.fail(new SessionNotFoundError("session-1"))
 			);
 
-			const result = await handler.selectSession("session-1", sessionInfo);
+			const result = await Effect.runPromise(Effect.result(handler.selectSession("session-1", sessionInfo)));
 
-			expect(result.isErr()).toBe(true);
+			expect(Result.isFailure(result)).toBe(true);
 		});
 	});
 
@@ -526,9 +527,9 @@ describe("SessionHandler", () => {
 				projectName: "Test Project",
 			};
 
-			const result = await handler.createSession(options);
+			const result = await Effect.runPromise(Effect.result(handler.createSession(options)));
 
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 			expect(mockSessionStore.connection.createSession).toHaveBeenCalledWith({
 				agentId: "agent-1",
 				projectPath: "/test",
@@ -541,15 +542,15 @@ describe("SessionHandler", () => {
 
 		it("should return error if createSession fails", async () => {
 			mockSessionStore.connection.createSession = mock(() =>
-				errAsync(new ConnectionError("new-session", new Error("Create failed")))
+				Effect.fail(new ConnectionError("new-session", new Error("Create failed")))
 			);
 
-			const result = await handler.createSession({
+			const result = await Effect.runPromise(Effect.result(handler.createSession({
 				agentId: "agent-1",
 				projectPath: "/test",
-			});
+			})));
 
-			expect(result.isErr()).toBe(true);
+			expect(Result.isFailure(result)).toBe(true);
 		});
 	});
 
@@ -557,9 +558,9 @@ describe("SessionHandler", () => {
 		it("should defer session creation until first message and only update panel project", async () => {
 			const project = { path: "/test", name: "Test Project" };
 
-			const result = await handler.createSessionForProject("panel-1", project);
+			const result = await Effect.runPromise(Effect.result(handler.createSessionForProject("panel-1", project)));
 
-			expect(result.isOk()).toBe(true);
+			expect(Result.isSuccess(result)).toBe(true);
 			expect(mockPanelStore.setPanelProjectPath).toHaveBeenCalledWith("panel-1", "/test");
 			expect(mockConnectionStore.send).not.toHaveBeenCalled();
 			expect(mockSessionStore.connection.createSession).not.toHaveBeenCalled();
@@ -582,23 +583,23 @@ describe("SessionHandler", () => {
 				},
 			];
 
-			const result = await handler.createSessionForProject("panel-1", {
+			const result = await Effect.runPromise(Effect.result(handler.createSessionForProject("panel-1", {
 				path: "/test",
 				name: "Test",
-			});
+			})));
 
-			expect(result.isErr()).toBe(true);
+			expect(Result.isFailure(result)).toBe(true);
 		});
 
 		it("should return error if the panel does not exist", async () => {
 			mockPanelStore.panels = [];
 
-			const result = await handler.createSessionForProject("missing-panel", {
+			const result = await Effect.runPromise(Effect.result(handler.createSessionForProject("missing-panel", {
 				path: "/test",
 				name: "Test",
-			});
+			})));
 
-			expect(result.isErr()).toBe(true);
+			expect(Result.isFailure(result)).toBe(true);
 		});
 	});
 });

@@ -2,7 +2,7 @@
  * Consolidated application error types for the unified store.
  *
  * These errors are designed for:
- * 1. Type-safe error handling with ResultAsync
+ * 1. Type-safe error handling with Effect
  * 2. Telemetry and monitoring (each has a unique code)
  * 3. User-facing error messages
  *
@@ -134,19 +134,15 @@ export class AgentError extends AppError {
 
 /**
  * Validation error for invalid input data.
- * Can optionally hold a ZodError for schema validation failures.
  */
 export class ValidationError extends AppError {
 	readonly code = "VALIDATION_ERROR" as const;
-	readonly zodError: import("zod").ZodError | undefined;
 
 	constructor(
 		message: string,
-		readonly field?: string,
-		zodError?: import("zod").ZodError
+		readonly field?: string
 	) {
 		super(message);
-		this.zodError = zodError;
 	}
 }
 
