@@ -10,6 +10,7 @@ import projectionSessionActivities from "./Migrations/0008_projection_session_ac
 import projectionCheckpoints from "./Migrations/0009_projection_checkpoints.ts"
 import projectionPendingApprovals from "./Migrations/0010_projection_pending_approvals.ts"
 import projectionProjects from "./Migrations/0011_projection_projects.ts"
+import checkpointSnapshots from "./Migrations/0012_checkpoint_snapshots.ts"
 
 const MIGRATIONS_TABLE = "_migrations"
 
@@ -24,7 +25,8 @@ const loader = SqliteMigrator.fromRecord({
 	"0008_projection_session_activities": projectionSessionActivities,
 	"0009_projection_checkpoints": projectionCheckpoints,
 	"0010_projection_pending_approvals": projectionPendingApprovals,
-	"0011_projection_projects": projectionProjects
+	"0011_projection_projects": projectionProjects,
+	"0012_checkpoint_snapshots": checkpointSnapshots
 })
 
 export const runMigrations = SqliteMigrator.run({

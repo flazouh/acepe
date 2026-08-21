@@ -61,7 +61,9 @@
 		"./provider/claudeVersion": "./src/provider/claudeVersion.ts",
 		"./provider/localOverrides": "./src/provider/localOverrides.ts",
 		"./fileIndex/Layers/FileIndexService": "./src/fileIndex/Layers/FileIndexService.ts",
-		"./fileIndex/Services/FileIndexService": "./src/fileIndex/Services/FileIndexService.ts"
+		"./fileIndex/Services/FileIndexService": "./src/fileIndex/Services/FileIndexService.ts",
+		"./checkpoint/Layers/CheckpointService": "./src/checkpoint/Layers/CheckpointService.ts",
+		"./checkpoint/Services/CheckpointService": "./src/checkpoint/Services/CheckpointService.ts"
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit -p tsconfig.json",
