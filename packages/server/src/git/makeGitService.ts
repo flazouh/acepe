@@ -6,16 +6,17 @@ import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Encoding from "effect/Encoding"
 import * as FileSystem from "effect/FileSystem"
+import * as Filter from "effect/Filter"
 import * as HashMap from "effect/HashMap"
 import * as Option from "effect/Option"
 import * as Path from "effect/Path"
 import * as Random from "effect/Random"
 import * as Ref from "effect/Ref"
 import * as Result from "effect/Result"
-import * as Schedule from "effect/Schedule"
 import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
 import * as Str from "effect/String"
+import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner"
 import {
 	GitAlreadyRepositoryError,
 	GitBranchNotMergedError,
@@ -43,9 +44,10 @@ import {
 	capitalizeName,
 	isCloneUrl,
 	lookupNumstat,
-	truncateContext
+	truncateContext,
+	type Numstat
 } from "./parse.ts"
-import { runCommand, runGit } from "./runGit.ts"
+import { runCommandUsing, runGitUsing } from "./runGit.ts"
 import {
 	parseCiJob,
 	parseGithubJobUrl,
@@ -87,6 +89,9 @@ export const makeGitService = Effect.fn("GitService.make")(function*(
 	const fs = yield* FileSystem.FileSystem
 	const path = yield* Path.Path
 	const crypto = yield* Crypto.Crypto
+	const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+	yield* fs.makeDirectory(options.worktreesRoot, { recursive: true })
+	const worktreesRoot = yield* fs.realPath(options.worktreesRoot)
 	const launches = yield* Ref.make(HashMap.empty<string, string>())
 	const sequence = yield* Ref.make(0)
 
@@ -95,7 +100,7 @@ export const makeGitService = Effect.fn("GitService.make")(function*(
 		args: ReadonlyArray<string>,
 		allowExitCodes: ReadonlyArray<number>
 	) {
-		return yield* runGit({
+		return yield* runGitUsing(spawner, {
 			gitBin: options.gitBin,
 			args,
 			cwd,
@@ -109,7 +114,7 @@ export const makeGitService = Effect.fn("GitService.make")(function*(
 		args: ReadonlyArray<string>,
 		allowExitCodes: ReadonlyArray<number>
 	) {
-		return yield* runCommand({
+		return yield* runCommandUsing(spawner, {
 			bin: options.gitBin,
 			args,
 			cwd,
@@ -119,7 +124,7 @@ export const makeGitService = Effect.fn("GitService.make")(function*(
 	})
 
 	const ghCmd = Effect.fn("GitService.gh")(function*(cwd: string, args: ReadonlyArray<string>) {
-		return yield* runCommand({
+		return yield* runCommandUsing(spawner, {
 			bin: options.ghBin,
 			args,
 			cwd,
@@ -244,8 +249,11 @@ export const makeGitService = Effect.fn("GitService.make")(function*(
 			)
 		)
 		const untrackedStats = HashMap.fromIterable(untrackedPairs)
-		return Arr.filterMap(entries, (entry) =>
-			toPanelStatus(entry, indexStats, worktreeStats, untrackedStats)
+		return Arr.filterMap(
+			entries,
+			Filter.fromPredicateOption((entry) =>
+				toPanelStatus(entry, indexStats, worktreeStats, untrackedStats)
+			)
 		)
 	})
 
@@ -259,7 +267,7 @@ export const makeGitService = Effect.fn("GitService.make")(function*(
 			return Arr.empty()
 		}
 		const entries = yield* porcelain(projectPath, untracked)
-		const stats = includeDiffStats === true ? yield* numstat(projectPath, false) : HashMap.empty()
+		const stats = includeDiffStats === true ? yield* numstat(projectPath, false) : HashMap.empty<string, Numstat>()
 		return Arr.map(entries, (entry) => toFileGitStatus(entry, stats, includeDiffStats))
 	})
 
@@ -277,7 +285,9 @@ export const makeGitService = Effect.fn("GitService.make")(function*(
 			noAllow
 		)
 		const entries = parsePorcelain(output)
-		return Option.map(Arr.head(entries), (entry) => toFileGitStatus(entry, HashMap.empty(), false))
+		return Option.map(Arr.head(entries), (entry) =>
+			toFileGitStatus(entry, HashMap.empty<string, Numstat>(), false)
+		)
 	})
 
 	const projectGitOverview = Effect.fn("GitService.projectGitOverview")(function*(
@@ -377,12 +387,15 @@ export const makeGitService = Effect.fn("GitService.make")(function*(
 		const worktrees = parseWorktreePorcelain(
 			yield* git(projectPath, Arr.fromIterable(["worktree", "list", "--porcelain"]), noAllow)
 		)
-		const other = Arr.filterMap(worktrees, (wt) => {
-			if (wt.directory === projectPath) {
-				return Option.none()
-			}
-			return wt.branch
-		})
+		const other = Arr.filterMap(
+			worktrees,
+			Filter.fromPredicateOption((wt) => {
+				if (wt.directory === projectPath) {
+					return Option.none()
+				}
+				return wt.branch
+			})
+		)
 		const output = yield* git(
 			projectPath,
 			Arr.fromIterable(["for-each-ref", "--format=%(refname:short)", "refs/heads"]),
@@ -483,8 +496,11 @@ export const makeGitService = Effect.fn("GitService.make")(function*(
 		yield* ensureRepo(projectPath)
 		const entries = yield* porcelain(projectPath, "all")
 		const untracked = HashMap.fromIterable(
-			Arr.filterMap(entries, (entry) =>
-				entry.worktreeChar === "?" ? Option.some([entry.path, true] as const) : Option.none()
+			Arr.filterMap(
+				entries,
+				Filter.fromPredicateOption((entry) =>
+					entry.worktreeChar === "?" ? Option.some([entry.path, true] as const) : Option.none()
+				)
 			)
 		)
 		const tracked = Arr.filter(files, (file) => HashMap.has(untracked, file) === false)
@@ -675,7 +691,7 @@ export const makeGitService = Effect.fn("GitService.make")(function*(
 	const worktreeCreate = Effect.fn("GitService.worktreeCreate")(function*(projectPath: string) {
 		yield* ensureRepo(projectPath)
 		const id = yield* projectId(projectPath)
-		const root = path.join(options.worktreesRoot, id)
+		const root = path.join(worktreesRoot, id)
 		yield* fs.makeDirectory(root, { recursive: true })
 		const name = yield* nextWorktreeName(root)
 		const directory = path.join(root, name)
@@ -698,20 +714,23 @@ export const makeGitService = Effect.fn("GitService.make")(function*(
 		const parsed = parseWorktreePorcelain(
 			yield* git(projectPath, Arr.fromIterable(["worktree", "list", "--porcelain"]), noAllow)
 		)
-		return Arr.filterMap(parsed, (wt) => {
-			if (wt.bare === true) {
-				return Option.none()
-			}
-			const name = path.basename(wt.directory)
-			const branch = Option.getOrElse(wt.branch, () => name)
-			const origin = wt.directory.startsWith(options.worktreesRoot) ? "acepe" : "external"
-			return Option.some({
-				name,
-				branch,
-				directory: wt.directory,
-				origin
-			} satisfies WorktreeInfo)
-		})
+		return Arr.filterMap(
+			parsed,
+			Filter.fromPredicateOption((wt) => {
+				if (wt.bare === true) {
+					return Option.none()
+				}
+				const name = path.basename(wt.directory)
+				const branch = Option.getOrElse(wt.branch, () => name)
+				const origin = wt.directory.startsWith(worktreesRoot) ? "acepe" : "external"
+				return Option.some({
+					name,
+					branch,
+					directory: wt.directory,
+					origin
+				} satisfies WorktreeInfo)
+			})
+		)
 	})
 
 	const worktreeRemove = Effect.fn("GitService.worktreeRemove")(function*(
@@ -736,7 +755,7 @@ export const makeGitService = Effect.fn("GitService.make")(function*(
 			name: newName,
 			branch: newName,
 			directory: destination,
-			origin: destination.startsWith(options.worktreesRoot) ? "acepe" : "external"
+			origin: destination.startsWith(worktreesRoot) ? "acepe" : "external"
 		} satisfies WorktreeInfo
 	})
 
@@ -822,7 +841,15 @@ export const makeGitService = Effect.fn("GitService.make")(function*(
 			worktree: {
 				setupCommands
 			}
-		})
+		}).pipe(
+			Effect.mapError(
+				(error) =>
+					new GitConfigError({
+						path: file,
+						reason: error.message
+					})
+			)
+		)
 		yield* fs.writeFileString(file, text)
 	})
 
@@ -837,13 +864,22 @@ export const makeGitService = Effect.fn("GitService.make")(function*(
 		})
 		let outputs: ReadonlyArray<CommandOutput> = Arr.empty()
 		for (const command of commands) {
-			const result = yield* runCommand({
+			const result = yield* runCommandUsing(spawner, {
 				bin: "sh",
 				args: Arr.fromIterable(["-c", command]),
 				cwd: worktreePath,
 				allowExitCodes: Arr.fromIterable([0, 1]),
 				env: noneEnv
-			}).pipe(Effect.timeout(Duration.seconds(300)))
+			}).pipe(
+				Effect.timeout(Duration.seconds(300)),
+				Effect.catchTag("TimeoutError", () =>
+					Effect.succeed({
+						stdout: "",
+						stderr: "setup command timed out",
+						exitCode: 124
+					})
+				)
+			)
 			outputs = Arr.append(outputs, {
 				command,
 				stdout: result.stdout,
@@ -962,13 +998,14 @@ export const makeGitService = Effect.fn("GitService.make")(function*(
 				branch = created
 			}
 		}
+		const commitSubject = input.commitMessage.split("\n")[0] ?? input.commitMessage
 		const commitStep =
 			staged === true
 				? yield* commit(input.projectPath, input.commitMessage).pipe(
 						Effect.map((result) => ({
 							status: "created" as const,
 							commitSha: result.sha,
-							subject: input.commitMessage.split("\n")[0]
+							subject: commitSubject
 						}))
 					)
 				: {
@@ -1110,7 +1147,7 @@ export const makeGitService = Effect.fn("GitService.make")(function*(
 	})
 
 	const watchHead = (projectPath: string) =>
-		Stream.repeat(Effect.void, Schedule.spaced(Duration.millis(300))).pipe(
+		Stream.tick(Duration.millis(300)).pipe(
 			Stream.mapEffect(() =>
 				currentBranchOption(projectPath).pipe(
 					Effect.map((branch) => ({

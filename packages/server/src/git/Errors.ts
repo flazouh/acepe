@@ -1,3 +1,4 @@
+import type { PlatformError } from "effect/PlatformError"
 import * as Schema from "effect/Schema"
 
 export class GitCommandError extends Schema.TaggedError<GitCommandError>()("GitCommandError", {
@@ -143,3 +144,5 @@ export type GitServiceError =
 	| GitInvalidStackedActionError
 	| GitNotARepositoryError
 	| GitPathNotFoundError
+	| PlatformError
+	| Schema.SchemaError

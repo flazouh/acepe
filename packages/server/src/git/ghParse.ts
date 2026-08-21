@@ -1,4 +1,5 @@
 import * as Arr from "effect/Array"
+import * as Filter from "effect/Filter"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import {
@@ -11,6 +12,13 @@ import {
 	PrState
 } from "./Schemas.ts"
 
+const RawPrCommit = Schema.Struct({
+	oid: Schema.optionalKey(Schema.String),
+	messageHeadline: Schema.optionalKey(Schema.String),
+	additions: Schema.optionalKey(Schema.Int),
+	deletions: Schema.optionalKey(Schema.Int)
+})
+
 const RawPrDetails = Schema.Struct({
 	number: Schema.optionalKey(Schema.Int),
 	title: Schema.optionalKey(Schema.String),
@@ -20,17 +28,8 @@ const RawPrDetails = Schema.Struct({
 	isDraft: Schema.optionalKey(Schema.Boolean),
 	additions: Schema.optionalKey(Schema.Int),
 	deletions: Schema.optionalKey(Schema.Int),
-	commits: Schema.optionalKey(
-		Schema.Array(
-			Schema.Struct({
-				oid: Schema.optionalKey(Schema.String),
-				messageHeadline: Schema.optionalKey(Schema.String),
-				additions: Schema.optionalKey(Schema.Int),
-				deletions: Schema.optionalKey(Schema.Int)
-			})
-		)
-	),
-	mergedAt: Schema.optionalKey(Schema.NullOr(Schema.String))
+	commits: RawPrCommit.pipe(Schema.Array, Schema.optionalKey),
+	mergedAt: Schema.String.pipe(Schema.NullOr, Schema.optionalKey)
 })
 
 const RawOpenPr = Schema.Struct({
@@ -43,7 +42,7 @@ const RawCheckEntry = Schema.Struct({
 	__typename: Schema.optionalKey(Schema.String),
 	name: Schema.optionalKey(Schema.String),
 	status: Schema.optionalKey(Schema.String),
-	conclusion: Schema.optionalKey(Schema.NullOr(Schema.String)),
+	conclusion: Schema.String.pipe(Schema.NullOr, Schema.optionalKey),
 	detailsUrl: Schema.optionalKey(Schema.String),
 	startedAt: Schema.optionalKey(Schema.String),
 	completedAt: Schema.optionalKey(Schema.String),
@@ -52,22 +51,22 @@ const RawCheckEntry = Schema.Struct({
 
 const RawPrChecks = Schema.Struct({
 	headRefOid: Schema.optionalKey(Schema.String),
-	statusCheckRollup: Schema.optionalKey(Schema.NullOr(Schema.Array(RawCheckEntry)))
+	statusCheckRollup: RawCheckEntry.pipe(Schema.Array, Schema.NullOr, Schema.optionalKey)
 })
 
 const RawCiJobStep = Schema.Struct({
 	number: Schema.Int,
 	name: Schema.String,
 	status: Schema.String,
-	conclusion: Schema.optionalKey(Schema.NullOr(Schema.String))
+	conclusion: Schema.String.pipe(Schema.NullOr, Schema.optionalKey)
 })
 
 const RawCiJob = Schema.Struct({
 	id: Schema.Int,
 	name: Schema.String,
 	status: Schema.String,
-	conclusion: Schema.optionalKey(Schema.NullOr(Schema.String)),
-	steps: Schema.optionalKey(Schema.Array(RawCiJobStep))
+	conclusion: Schema.String.pipe(Schema.NullOr, Schema.optionalKey),
+	steps: RawCiJobStep.pipe(Schema.Array, Schema.optionalKey)
 })
 
 const decodeRawPrDetails = Schema.decodeUnknownSync(Schema.fromJsonString(RawPrDetails))
@@ -171,20 +170,23 @@ export const parsePrChecks = (output: string, prNumber: number): PrChecks => {
 	const raw = decodeRawPrChecks(output)
 	const rollup = raw.statusCheckRollup
 	const entries = rollup === undefined || rollup === null ? Arr.empty() : rollup
-	const checkRuns = Arr.filterMap(entries, (entry) => {
-		if (entry.__typename !== "CheckRun") {
-			return Option.none()
-		}
-		return Option.some({
-			name: entry.name ?? "",
-			status: toCheckStatus(entry.status),
-			conclusion: toCheckConclusion(entry.conclusion),
-			detailsUrl: nonEmpty(entry.detailsUrl),
-			startedAt: nonEmpty(entry.startedAt),
-			completedAt: nonEmpty(entry.completedAt),
-			workflowName: nonEmpty(entry.workflowName)
+	const checkRuns = Arr.filterMap(
+		entries,
+		Filter.fromPredicateOption((entry) => {
+			if (entry.__typename !== "CheckRun") {
+				return Option.none()
+			}
+			return Option.some({
+				name: entry.name ?? "",
+				status: toCheckStatus(entry.status),
+				conclusion: toCheckConclusion(entry.conclusion),
+				detailsUrl: nonEmpty(entry.detailsUrl),
+				startedAt: nonEmpty(entry.startedAt),
+				completedAt: nonEmpty(entry.completedAt),
+				workflowName: nonEmpty(entry.workflowName)
+			})
 		})
-	})
+	)
 	return {
 		prNumber,
 		headSha: raw.headRefOid ?? "",
@@ -246,7 +248,7 @@ export const parseStepLogs = (
 	let currentLines: ReadonlyArray<string> = Arr.empty()
 	const flush = (): void => {
 		if (currentStep !== undefined) {
-			result.set(currentStep, Arr.join(currentLines, "\n"))
+			result.set(currentStep, Arr.join(currentLines, "\n").trimEnd())
 		}
 	}
 	for (const rawLine of logText.split("\n")) {

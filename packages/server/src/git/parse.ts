@@ -1,4 +1,5 @@
 import * as Arr from "effect/Array"
+import * as Filter from "effect/Filter"
 import * as HashMap from "effect/HashMap"
 import * as Option from "effect/Option"
 import type { FileGitStatus, GitBlameLine, GitLogEntry, GitPanelFileStatus, GitStashEntry } from "./Schemas.ts"
@@ -86,24 +87,27 @@ const splitRename = (pathField: string): { readonly path: string; readonly origP
 
 export const parsePorcelain = (output: string): ReadonlyArray<PorcelainEntry> => {
 	const lines = Arr.filter(output.split("\n"), (line) => line !== "")
-	return Arr.filterMap(lines, (line) => {
-		if (line.length < 4) {
-			return Option.none()
-		}
-		const indexChar = line.slice(0, 1)
-		const worktreeChar = line.slice(1, 2)
-		const pathField = line.slice(3)
-		if (pathField === "") {
-			return Option.none()
-		}
-		const renamed = splitRename(pathField)
-		return Option.some({
-			indexChar,
-			worktreeChar,
-			path: renamed.path,
-			origPath: renamed.origPath
+	return Arr.filterMap(
+		lines,
+		Filter.fromPredicateOption((line) => {
+			if (line.length < 4) {
+				return Option.none()
+			}
+			const indexChar = line.slice(0, 1)
+			const worktreeChar = line.slice(1, 2)
+			const pathField = line.slice(3)
+			if (pathField === "") {
+				return Option.none()
+			}
+			const renamed = splitRename(pathField)
+			return Option.some({
+				indexChar,
+				worktreeChar,
+				path: renamed.path,
+				origPath: renamed.origPath
+			})
 		})
-	})
+	)
 }
 
 export const parseNumstat = (output: string): HashMap.HashMap<string, Numstat> => {
@@ -237,57 +241,63 @@ export const toFileGitStatus = (
 
 export const parseLog = (output: string, nowSeconds: number): ReadonlyArray<GitLogEntry> => {
 	const lines = Arr.filter(output.split("\n"), (line) => line !== "")
-	return Arr.filterMap(lines, (line) => {
-		const parts = line.split("\t")
-		const sha = parts[0]
-		const shortSha = parts[1]
-		const message = parts[2]
-		const author = parts[3]
-		const timestampRaw = parts[4]
-		if (
-			sha === undefined ||
-			shortSha === undefined ||
-			message === undefined ||
-			author === undefined ||
-			timestampRaw === undefined
-		) {
-			return Option.none()
-		}
-		const thenSeconds = Number.parseInt(timestampRaw, 10)
-		if (Number.isNaN(thenSeconds)) {
-			return Option.none()
-		}
-		return Option.some({
-			sha,
-			shortSha,
-			message,
-			author,
-			date: formatRelativeTime(nowSeconds, thenSeconds)
+	return Arr.filterMap(
+		lines,
+		Filter.fromPredicateOption((line) => {
+			const parts = line.split("\t")
+			const sha = parts[0]
+			const shortSha = parts[1]
+			const message = parts[2]
+			const author = parts[3]
+			const timestampRaw = parts[4]
+			if (
+				sha === undefined ||
+				shortSha === undefined ||
+				message === undefined ||
+				author === undefined ||
+				timestampRaw === undefined
+			) {
+				return Option.none()
+			}
+			const thenSeconds = Number.parseInt(timestampRaw, 10)
+			if (Number.isNaN(thenSeconds)) {
+				return Option.none()
+			}
+			return Option.some({
+				sha,
+				shortSha,
+				message,
+				author,
+				date: formatRelativeTime(nowSeconds, thenSeconds)
+			})
 		})
-	})
+	)
 }
 
 export const parseStashList = (output: string): ReadonlyArray<GitStashEntry> => {
 	const lines = Arr.filter(output.split("\n"), (line) => line !== "")
-	return Arr.filterMap(lines, (line) => {
-		const parts = line.split("\t")
-		const ref = parts[0]
-		const message = parts[1]
-		const date = parts[2]
-		if (ref === undefined || message === undefined || date === undefined) {
-			return Option.none()
-		}
-		const indexRaw = ref.replace("stash@{", "").replace("}", "")
-		const index = Number.parseInt(indexRaw, 10)
-		if (Number.isNaN(index)) {
-			return Option.none()
-		}
-		return Option.some({
-			index,
-			message,
-			date
+	return Arr.filterMap(
+		lines,
+		Filter.fromPredicateOption((line) => {
+			const parts = line.split("\t")
+			const ref = parts[0]
+			const message = parts[1]
+			const date = parts[2]
+			if (ref === undefined || message === undefined || date === undefined) {
+				return Option.none()
+			}
+			const indexRaw = ref.replace("stash@{", "").replace("}", "")
+			const index = Number.parseInt(indexRaw, 10)
+			if (Number.isNaN(index)) {
+				return Option.none()
+			}
+			return Option.some({
+				index,
+				message,
+				date
+			})
 		})
-	})
+	)
 }
 
 export const parseBlame = (output: string): ReadonlyArray<GitBlameLine> => {
@@ -350,35 +360,38 @@ export const parseWorktreePorcelain = (
 	output: string
 ): ReadonlyArray<{ readonly directory: string; readonly branch: Option.Option<string>; readonly bare: boolean }> => {
 	const blocks = output.split("\n\n")
-	return Arr.filterMap(blocks, (block) => {
-		const lines = Arr.filter(block.split("\n"), (line) => line !== "")
-		if (Arr.isReadonlyArrayNonEmpty(lines) === false) {
-			return Option.none()
-		}
-		let directory = ""
-		let branch: Option.Option<string> = Option.none()
-		let bare = false
-		for (const line of lines) {
-			if (line.startsWith("worktree ")) {
-				directory = line.slice("worktree ".length)
+	return Arr.filterMap(
+		blocks,
+		Filter.fromPredicateOption((block) => {
+			const lines = Arr.filter(block.split("\n"), (line) => line !== "")
+			if (Arr.isReadonlyArrayNonEmpty(lines) === false) {
+				return Option.none()
 			}
-			if (line.startsWith("branch ")) {
-				const ref = line.slice("branch ".length)
-				branch = Option.some(ref.replace("refs/heads/", ""))
+			let directory = ""
+			let branch: Option.Option<string> = Option.none()
+			let bare = false
+			for (const line of lines) {
+				if (line.startsWith("worktree ")) {
+					directory = line.slice("worktree ".length)
+				}
+				if (line.startsWith("branch ")) {
+					const ref = line.slice("branch ".length)
+					branch = Option.some(ref.replace("refs/heads/", ""))
+				}
+				if (line === "bare") {
+					bare = true
+				}
 			}
-			if (line === "bare") {
-				bare = true
+			if (directory === "") {
+				return Option.none()
 			}
-		}
-		if (directory === "") {
-			return Option.none()
-		}
-		return Option.some({
-			directory,
-			branch,
-			bare
+			return Option.some({
+				directory,
+				branch,
+				bare
+			})
 		})
-	})
+	)
 }
 
 export const parseGitDiffFiles = (

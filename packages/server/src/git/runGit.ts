@@ -24,8 +24,8 @@ const collectOutput = Effect.fn("collectOutput")(function*(
 	handle: ChildProcessSpawner.ChildProcessHandle
 ) {
 	const [stdout, stderr] = yield* Effect.zip(
-		Stream.mkString(Stream.decodeText(handle.stdout)),
-		Stream.mkString(Stream.decodeText(handle.stderr)),
+		handle.stdout.pipe(Stream.decodeText, Stream.mkString),
+		handle.stderr.pipe(Stream.decodeText, Stream.mkString),
 		{ concurrent: true }
 	)
 	const branded = yield* handle.exitCode
@@ -36,8 +36,10 @@ const collectOutput = Effect.fn("collectOutput")(function*(
 	} satisfies RunCommandResult
 })
 
-export const runCommand = Effect.fn("runCommand")(function*(input: RunCommandInput) {
-	const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+export const runCommandUsing = Effect.fn("runCommandUsing")(function*(
+	spawner: ChildProcessSpawner.ChildProcessSpawner["Service"],
+	input: RunCommandInput
+) {
 	const base = ChildProcess.make(input.bin, Arr.fromIterable(input.args), {
 		cwd: input.cwd
 	})
@@ -45,9 +47,7 @@ export const runCommand = Effect.fn("runCommand")(function*(input: RunCommandInp
 		onNone: () => base,
 		onSome: (env) => ChildProcess.setEnv(base, env)
 	})
-	const result = yield* Effect.scoped(
-		spawner.spawn(command).pipe(Effect.flatMap(collectOutput))
-	)
+	const result = yield* Effect.scoped(spawner.spawn(command).pipe(Effect.flatMap(collectOutput)))
 	const allowed =
 		result.exitCode === 0 || Arr.contains(input.allowExitCodes, result.exitCode) === true
 	if (allowed === false) {
@@ -62,14 +62,22 @@ export const runCommand = Effect.fn("runCommand")(function*(input: RunCommandInp
 	return result
 })
 
-export const runGit = Effect.fn("runGit")(function*(input: {
-	readonly gitBin: string
-	readonly args: ReadonlyArray<string>
-	readonly cwd: string
-	readonly allowExitCodes: ReadonlyArray<number>
-	readonly env: Option.Option<Readonly<Record<string, string>>>
-}) {
-	const result = yield* runCommand({
+export const runCommand = Effect.fn("runCommand")(function*(input: RunCommandInput) {
+	const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+	return yield* runCommandUsing(spawner, input)
+})
+
+export const runGitUsing = Effect.fn("runGitUsing")(function*(
+	spawner: ChildProcessSpawner.ChildProcessSpawner["Service"],
+	input: {
+		readonly gitBin: string
+		readonly args: ReadonlyArray<string>
+		readonly cwd: string
+		readonly allowExitCodes: ReadonlyArray<number>
+		readonly env: Option.Option<Readonly<Record<string, string>>>
+	}
+) {
+	const result = yield* runCommandUsing(spawner, {
 		bin: input.gitBin,
 		args: input.args,
 		cwd: input.cwd,
@@ -77,4 +85,15 @@ export const runGit = Effect.fn("runGit")(function*(input: {
 		env: input.env
 	})
 	return result.stdout
+})
+
+export const runGit = Effect.fn("runGit")(function*(input: {
+	readonly gitBin: string
+	readonly args: ReadonlyArray<string>
+	readonly cwd: string
+	readonly allowExitCodes: ReadonlyArray<number>
+	readonly env: Option.Option<Readonly<Record<string, string>>>
+}) {
+	const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+	return yield* runGitUsing(spawner, input)
 })

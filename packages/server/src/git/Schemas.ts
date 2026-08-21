@@ -422,7 +422,7 @@ export type GitCiJobInput = typeof GitCiJobInput.Type
 export const AcepeConfigFile = Schema.Struct({
 	worktree: Schema.optionalKey(
 		Schema.Struct({
-			setupCommands: Schema.optionalKey(Schema.Array(Schema.String))
+			setupCommands: Schema.Array(Schema.String).pipe(Schema.optionalKey)
 		})
 	)
 })

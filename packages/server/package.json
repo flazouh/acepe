@@ -57,7 +57,11 @@
 		"./provider/Services/AgentInstaller": "./src/provider/Services/AgentInstaller.ts",
 		"./provider/agentJson": "./src/provider/agentJson.ts",
 		"./provider/claudeVersion": "./src/provider/claudeVersion.ts",
-		"./provider/localOverrides": "./src/provider/localOverrides.ts"
+		"./provider/localOverrides": "./src/provider/localOverrides.ts",
+		"./git/Errors": "./src/git/Errors.ts",
+		"./git/Schemas": "./src/git/Schemas.ts",
+		"./git/Layers/GitService": "./src/git/Layers/GitService.ts",
+		"./git/Services/GitService": "./src/git/Services/GitService.ts"
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit -p tsconfig.json",
