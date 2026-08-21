@@ -13,6 +13,7 @@ fi
 
 TICKET="${1:?ticket id required}"
 BASE="${2:-HEAD}"
+ASSIGNED_MIGRATION="${3:-}"
 REPO="/Users/alex/Documents/acepe"
 WT="/Users/alex/Documents/acepe-lanes/${TICKET}"
 BRANCH="feat/$(echo "$TICKET" | tr "[:upper:]" "[:lower:]")"
@@ -30,7 +31,7 @@ Hard rules:
 2. Every new package must have its own tsconfig.json extending ../../tsconfig.base.json, and a lint:effect script running: effect-language-service diagnostics --project tsconfig.json --strict --format pretty
 3. All 77 Effect lint rules are errors. No async functions, no new Promise, no new Date, no console.*, no process.env, no node: builtin imports, no barrel imports from effect. Use Effect APIs for all of it.
 4. Colocate a .test.ts beside every new source file.
-4b. If you add a SQL migration, use the next free number after the highest one already in packages/server/src/persistence/Migrations.ts, and say in your report which number you took. The migrator skips any id below the highest already applied, silently, so numbering is load-bearing and the integrator may renumber your migration at merge time.
+4b. If you add a SQL migration, its number is ASSIGNED to you: ${ASSIGNED_MIGRATION:-none assigned, use the next free number}. Use exactly that number. Other lanes are running concurrently and hold the numbers around it. The migrator skips any id below the highest already applied, silently, so numbering is load-bearing and the integrator may renumber your migration at merge time.
 5. Do not stage or commit. Do not touch packages/desktop/src/lib/services.
 
 When done, run your package typecheck and lint:effect, and report pass or fail for each." 2>&1 | tee /tmp/lane-${TICKET}.log
