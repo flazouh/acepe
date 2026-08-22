@@ -7,13 +7,15 @@ import * as Match from "effect/Match"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
+import { ProjectionSessionsLive } from "../../persistence/Layers/ProjectionSessions.ts"
 import {
 	decodeProjectedMessage,
 	decodeProjectionSessionMessageStoredRows
 } from "../../persistence/Services/ProjectionSessionMessages.ts"
 import {
 	decodeStoredProjectedSession,
-	type ProjectedSession
+	type ProjectedSession,
+	ProjectionSessions
 } from "../../persistence/Services/ProjectionSessions.ts"
 import {
 	decodeStoredProjectedCheckpoints,
@@ -57,6 +59,7 @@ const decodeOptionalTableNameRows = Schema.decodeUnknownEffect(Schema.Array(Opti
 export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)(
 	Effect.gen(function*() {
 		const sql = yield* SqlClient.SqlClient
+		const projectedSessions = yield* ProjectionSessions
 
 		const readSnapshotSequence = Effect.fn("ProjectionSnapshotQuery.readSnapshotSequence")(
 			function*() {
@@ -289,42 +292,10 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 			if ((yield* tableExists(PROJECTION_SESSIONS_TABLE)) === false) {
 				return Arr.empty<ProjectedSession>()
 			}
-			const sessionRows =
-				projectId === null
-					? yield* sql`
-						SELECT
-							session_id,
-							project_id,
-							title,
-							provider,
-							created_at,
-							updated_at,
-							last_activity_at,
-							archived_at,
-							deleted_at,
-							pr_number,
-							pr_link_mode
-						FROM projection_sessions
-						ORDER BY last_activity_at DESC, session_id ASC
-					`.withoutTransform
-					: yield* sql`
-						SELECT
-							session_id,
-							project_id,
-							title,
-							provider,
-							created_at,
-							updated_at,
-							last_activity_at,
-							archived_at,
-							deleted_at,
-							pr_number,
-							pr_link_mode
-						FROM projection_sessions
-						WHERE project_id = ${projectId}
-						ORDER BY last_activity_at DESC, session_id ASC
-					`.withoutTransform
-			return yield* Effect.forEach(sessionRows, decodeStoredProjectedSession)
+			if (projectId === null) {
+				return yield* projectedSessions.list()
+			}
+			return yield* projectedSessions.listForProject(projectId)
 		})
 
 		const readLibrarySnapshot = Effect.fn("ProjectionSnapshotQuery.readLibrarySnapshot")(
@@ -390,4 +361,4 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 			listProjects
 		})
 	})
-)
+).pipe(Layer.provide(ProjectionSessionsLive))

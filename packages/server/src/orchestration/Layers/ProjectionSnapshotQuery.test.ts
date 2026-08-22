@@ -33,6 +33,8 @@ const otherSessionId = SessionId.make("session-2")
 const archivedSessionId = SessionId.make("session-archived")
 const deletedSessionId = SessionId.make("session-deleted")
 const projectId = ProjectId.make("project-1")
+const otherProjectId = ProjectId.make("project-2")
+const otherProjectSessionId = SessionId.make("session-other-project")
 
 const TempSqlite = Layer.unwrap(
 	Effect.gen(function*() {
@@ -56,7 +58,8 @@ const insertSession = Effect.fn("insertSession")(function*(
 	id: SessionId,
 	title: string,
 	archivedAt: string | null = null,
-	deletedAt: string | null = null
+	deletedAt: string | null = null,
+	ownerProjectId: ProjectId = projectId
 ) {
 	const sql = yield* SqlClient.SqlClient
 	yield* sql`
@@ -72,7 +75,7 @@ const insertSession = Effect.fn("insertSession")(function*(
 			deleted_at
 		) VALUES (
 			${id},
-			${projectId},
+			${ownerProjectId},
 			${title},
 			NULL,
 			${NOW},
@@ -84,7 +87,12 @@ const insertSession = Effect.fn("insertSession")(function*(
 	`.withoutTransform.pipe(Effect.asVoid)
 })
 
-const insertProject = Effect.fn("insertProject")(function*() {
+const insertProject = Effect.fn("insertProject")(function*(
+	id: ProjectId = projectId,
+	title: string = "Acepe",
+	root: string = "/tmp/acepe",
+	sessionCount: number = 3
+) {
 	const sql = yield* SqlClient.SqlClient
 	yield* sql`
 		INSERT INTO projection_projects (
@@ -97,13 +105,13 @@ const insertProject = Effect.fn("insertProject")(function*() {
 			session_count,
 			scan_warmed_at
 		) VALUES (
-			${projectId},
-			${"Acepe"},
-			${"/tmp/acepe"},
+			${id},
+			${title},
+			${root},
 			${NOW},
 			${NOW},
 			NULL,
-			${3},
+			${sessionCount},
 			${NOW}
 		)
 	`.withoutTransform.pipe(Effect.asVoid)
@@ -230,9 +238,47 @@ Vitest.layer(isolatedQuery())("library snapshot", (it) => {
 			const deleted = snapshot.sessions.find((row) => row.sessionId === deletedSessionId)
 			Vitest.assert.strictEqual(archived?.archivedAt, LATER)
 			Vitest.assert.strictEqual(deleted?.deletedAt, LATER)
-			const projectSnap = yield* query.forRequest(projectSnapshotRequest(projectId))
-			Vitest.assert.strictEqual(projectSnap.projects[0]?.projectId, projectId)
-			Vitest.assert.strictEqual(projectSnap.sessions.length, 3)
+		})
+	)
+})
+
+Vitest.layer(isolatedQuery())("project snapshot", (it) => {
+	it.effect("returns only that project's sessions, including archived and deleted", () =>
+		Effect.gen(function*() {
+			const query = yield* ProjectionSnapshotQuery
+			yield* insertProject()
+			yield* insertProject(otherProjectId, "Other", "/tmp/other", 1)
+			yield* insertSession(sessionId, "Ship the slice")
+			yield* insertSession(archivedSessionId, "Archived thread", LATER, null)
+			yield* insertSession(deletedSessionId, "Deleted thread", null, LATER)
+			yield* insertSession(
+				otherProjectSessionId,
+				"Other project session",
+				null,
+				null,
+				otherProjectId
+			)
+			yield* checkpoint("projection.sessions", 8)
+			yield* checkpoint("projection.projects", 8)
+			const snapshot = yield* query.forRequest(projectSnapshotRequest(projectId))
+			Vitest.assert.strictEqual(snapshot.session, null)
+			Vitest.assert.strictEqual(snapshot.projects.length, 1)
+			Vitest.assert.strictEqual(snapshot.projects[0]?.projectId, projectId)
+			Vitest.assert.strictEqual(snapshot.sessions.length, 3)
+			const ids = snapshot.sessions.map((row) => row.sessionId)
+			Vitest.assert.isTrue(ids.includes(sessionId))
+			Vitest.assert.isTrue(ids.includes(archivedSessionId))
+			Vitest.assert.isTrue(ids.includes(deletedSessionId))
+			Vitest.assert.isFalse(ids.includes(otherProjectSessionId))
+			const archived = snapshot.sessions.find((row) => row.sessionId === archivedSessionId)
+			const deleted = snapshot.sessions.find((row) => row.sessionId === deletedSessionId)
+			Vitest.assert.strictEqual(archived?.archivedAt, LATER)
+			Vitest.assert.strictEqual(archived?.deletedAt, null)
+			Vitest.assert.strictEqual(deleted?.deletedAt, LATER)
+			const otherSnap = yield* query.forRequest(projectSnapshotRequest(otherProjectId))
+			Vitest.assert.strictEqual(otherSnap.projects[0]?.projectId, otherProjectId)
+			Vitest.assert.strictEqual(otherSnap.sessions.length, 1)
+			Vitest.assert.strictEqual(otherSnap.sessions[0]?.sessionId, otherProjectSessionId)
 		})
 	)
 })

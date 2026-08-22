@@ -79,6 +79,9 @@ export interface ProjectionSessionsShape {
 		ReadonlyArray<ProjectedSession>,
 		SqlError | Schema.SchemaError
 	>
+	readonly listForProject: (
+		projectId: ProjectId
+	) => Effect.Effect<ReadonlyArray<ProjectedSession>, SqlError | Schema.SchemaError>
 	readonly get: (
 		sessionId: SessionId
 	) => Effect.Effect<Option.Option<ProjectedSession>, SqlError | Schema.SchemaError>
