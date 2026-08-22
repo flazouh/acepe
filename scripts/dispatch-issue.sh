@@ -20,6 +20,14 @@ BRANCH="feat/issue-${ISSUE}"
 MODEL="cursor-grok-4.6-xhigh"
 
 cd "$REPO"
+# A lane that branches from a stale base collides with every sibling merged
+# since. Issue #259 branched three domains back and came home with 37
+# conflicted files, which is a rewrite, not a merge. Always branch from the
+# current tip of the integration branch.
+if [ "$BASE" != "$(/usr/bin/git rev-parse --short HEAD)" ]; then
+  echo "NOTE: base $BASE is not current HEAD; using HEAD instead to avoid a stale-base merge."
+  BASE="$(/usr/bin/git rev-parse --short HEAD)"
+fi
 TITLE="$(gh issue view "$ISSUE" --json title --jq .title)"
 /usr/bin/git worktree add -q -b "$BRANCH" "$WT" "$BASE"
 cd "$WT"
