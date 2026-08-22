@@ -119,6 +119,7 @@ const snapshot: RpcSessionSnapshot = {
 			updatedAt: "2026-08-20T12:00:00.000Z",
 			deletedAt: null,
 			sessionCount: 1,
+			gitStatus: [],
 		},
 	],
 	sessions: [
@@ -232,6 +233,47 @@ describe("Schema-encoded boundary", () => {
 		expect(decoded.messages[0]?.rowType).toBe("user")
 		expect(decoded.projects[0]?.title).toBe("Acepe")
 		expect(decoded.sessions[0]?.title).toBe("Ship the slice")
+	})
+
+	it("round-trips git status on a projected project", () => {
+		const withGit: RpcSessionSnapshot = {
+			snapshotSequence: 4,
+			session: null,
+			messages: [],
+			turns: [],
+			activities: [],
+			pendingApprovals: [],
+			projects: [
+				{
+					projectId,
+					title: "Acepe",
+					workspaceRoot: "/tmp/acepe",
+					createdAt: "2026-08-20T12:00:00.000Z",
+					updatedAt: "2026-08-20T12:00:00.000Z",
+					deletedAt: null,
+					sessionCount: 1,
+					gitStatus: [
+						{
+							path: "src/main.ts",
+							status: "M",
+							insertions: 4,
+							deletions: 1,
+						},
+					],
+				},
+			],
+			sessions: [],
+		}
+		const encoded = Effect.runSync(Schema.encodeUnknownEffect(RpcSessionSnapshot)(withGit))
+		const decoded = Effect.runSync(Schema.decodeUnknownEffect(RpcSessionSnapshot)(encoded))
+		expect(decoded.projects[0]?.gitStatus).toEqual([
+			{
+				path: "src/main.ts",
+				status: "M",
+				insertions: 4,
+				deletions: 1,
+			},
+		])
 	})
 
 	it("round-trips a library snapshot Exit across JSON IPC", () => {

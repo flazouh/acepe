@@ -4,6 +4,7 @@ import {
 	librarySnapshotRequest,
 	ProjectCreateCommand,
 	ProjectId,
+	projectSnapshotRequest,
 	SessionCreateCommand,
 	SessionId
 } from "@acepe/contracts"
@@ -18,6 +19,7 @@ import * as Effect from "effect/Effect"
 import * as Fiber from "effect/Fiber"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
+import * as Option from "effect/Option"
 import * as Path from "effect/Path"
 import * as Stream from "effect/Stream"
 import * as TestClock from "effect/testing/TestClock"
@@ -32,6 +34,8 @@ import {
 	userMessageRow
 } from "../persistence/Services/ProjectionSessionMessages.ts"
 import { FileIndexServiceLive } from "../fileIndex/Layers/FileIndexService.ts"
+import { GitServiceLive } from "../git/Layers/GitService.ts"
+import { runGit } from "../git/runGit.ts"
 import { OrchestrationEngineLive } from "../orchestration/Layers/OrchestrationEngine.ts"
 import { ProjectionSnapshotQueryLive } from "../orchestration/Layers/ProjectionSnapshotQuery.ts"
 import { RpcHandlersLive } from "./handlers.ts"
@@ -88,10 +92,24 @@ const FileIndexPlatform = Layer.mergeAll(
 	)
 )
 
+const GitLive = Layer.unwrap(
+	Effect.gen(function*() {
+		const fs = yield* FileSystem.FileSystem
+		const path = yield* Path.Path
+		const dir = yield* fs.makeTempDirectoryScoped()
+		return GitServiceLive({
+			worktreesRoot: path.join(dir, "worktrees"),
+			gitBin: "git",
+			ghBin: "gh"
+		})
+	})
+).pipe(Layer.provide(FileIndexPlatform), Layer.provide(BunCrypto.layer))
+
 const TestLive = RpcHandlersLive.pipe(
 	Layer.provideMerge(ProjectionSnapshotQueryLive),
 	Layer.provideMerge(EngineAndStore),
 	Layer.provideMerge(FileIndexServiceLive),
+	Layer.provideMerge(GitLive),
 	Layer.provideMerge(FileIndexPlatform)
 )
 
@@ -171,6 +189,57 @@ const insertLibraryRows = Effect.fn("insertLibraryRows")(function*() {
 			NULL
 		)
 	`.withoutTransform.pipe(Effect.asVoid)
+})
+
+const noneEnv = Option.none<Readonly<Record<string, string>>>()
+const noAllow = Arr.empty<number>()
+
+const gitIn = Effect.fn("gitIn")(function*(dir: string, args: ReadonlyArray<string>) {
+	yield* runGit({
+		gitBin: "git",
+		args: Arr.fromIterable(args),
+		cwd: dir,
+		allowExitCodes: noAllow,
+		env: noneEnv
+	})
+})
+
+const insertProjectAt = Effect.fn("insertProjectAt")(function*(workspaceRoot: string) {
+	const sql = yield* SqlClient.SqlClient
+	yield* sql`
+		INSERT INTO projection_projects (
+			project_id,
+			title,
+			workspace_root,
+			created_at,
+			updated_at,
+			deleted_at,
+			session_count,
+			scan_warmed_at
+		) VALUES (
+			${projectId},
+			${"Acepe"},
+			${workspaceRoot},
+			${NOW},
+			${NOW},
+			NULL,
+			${0},
+			${NOW}
+		)
+	`.withoutTransform.pipe(Effect.asVoid)
+})
+
+const initDirtyRepo = Effect.fn("initDirtyRepo")(function*(dir: string) {
+	const fs = yield* FileSystem.FileSystem
+	const path = yield* Path.Path
+	yield* gitIn(dir, Arr.fromIterable(["init"]))
+	yield* gitIn(dir, Arr.fromIterable(["config", "user.name", "Test User"]))
+	yield* gitIn(dir, Arr.fromIterable(["config", "user.email", "test@example.com"]))
+	yield* gitIn(dir, Arr.fromIterable(["config", "commit.gpgsign", "false"]))
+	yield* fs.writeFileString(path.join(dir, "tracked.txt"), "one\n")
+	yield* gitIn(dir, Arr.fromIterable(["add", "tracked.txt"]))
+	yield* gitIn(dir, Arr.fromIterable(["commit", "-m", "initial tracked file"]))
+	yield* fs.writeFileString(path.join(dir, "tracked.txt"), "one\ntwo\n")
 })
 
 const insertUserMessage = Effect.fn("insertUserMessage")(function*() {
@@ -351,6 +420,64 @@ Vitest.layer(isolatedRpc())("file index rpc", (it) => {
 				client.getProjectIndex({ projectPath: "/missing/acepe-file-index-rpc" })
 			)
 			Vitest.assert.strictEqual(error._tag, "FileIndexRootNotFoundError")
+		})
+	)
+})
+
+Vitest.layer(isolatedRpc())("project snapshot git status", (it) => {
+	it.effect("returns live git status for a project-scoped snapshot request", () =>
+		Effect.gen(function*() {
+			const fs = yield* FileSystem.FileSystem
+			const client = yield* RpcTest.makeClient(AcepeRpc)
+			const dir = yield* fs.makeTempDirectoryScoped()
+			yield* initDirtyRepo(dir)
+			yield* insertProjectAt(dir)
+			const snapshot = yield* client.snapshot(projectSnapshotRequest(projectId))
+			const project = snapshot.projects[0]
+			Vitest.assert.isDefined(project)
+			// null would mean git failed; this test asserts git ran and saw the change.
+			Vitest.assert.isNotNull(project.gitStatus)
+			const rows = project.gitStatus ?? Arr.empty()
+			const tracked = Arr.findFirst(rows, (row) => row.path === "tracked.txt")
+			Vitest.assert.strictEqual(Option.isSome(tracked), true)
+			if (Option.isSome(tracked)) {
+				Vitest.assert.strictEqual(tracked.value.status, "M")
+				Vitest.assert.strictEqual(tracked.value.insertions, 1)
+				Vitest.assert.strictEqual(tracked.value.deletions, 0)
+			}
+		})
+	)
+})
+
+Vitest.layer(isolatedRpc())("library snapshot git status", (it) => {
+	it.effect("returns an empty git status list for a library snapshot", () =>
+		Effect.gen(function*() {
+			const fs = yield* FileSystem.FileSystem
+			const client = yield* RpcTest.makeClient(AcepeRpc)
+			const dir = yield* fs.makeTempDirectoryScoped()
+			yield* initDirtyRepo(dir)
+			yield* insertProjectAt(dir)
+			const snapshot = yield* client.snapshot(librarySnapshotRequest())
+			// A library snapshot does not run git per project, so status is
+			// "not read" (null), not "read and clean" ([]).
+			Vitest.assert.strictEqual(snapshot.projects[0]?.gitStatus, null)
+		})
+	)
+})
+
+Vitest.layer(isolatedRpc())("missing workspace git status", (it) => {
+	it.effect("keeps the project when the workspace path is missing", () =>
+		Effect.gen(function*() {
+			const client = yield* RpcTest.makeClient(AcepeRpc)
+			yield* insertProjectAt("/missing/acepe-git-status-workspace")
+			const snapshot = yield* client.snapshot(projectSnapshotRequest(projectId))
+			Vitest.assert.strictEqual(
+				snapshot.projects[0]?.workspaceRoot,
+				"/missing/acepe-git-status-workspace"
+			)
+			// The workspace does not exist, so git could not run. That is null,
+			// not an empty list: the review panel must not read this as "clean".
+			Vitest.assert.strictEqual(snapshot.projects[0]?.gitStatus, null)
 		})
 	)
 })

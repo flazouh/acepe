@@ -23,8 +23,7 @@ import { FileIndexNotADirectoryError, FileIndexRootNotFoundError } from "../file
 import { FileIndexService } from "../fileIndex/Services/FileIndexService.ts"
 import { OrchestrationEventStore } from "../persistence/Services/OrchestrationEventStore.ts"
 import { OrchestrationEngine } from "../orchestration/Services/OrchestrationEngine.ts"
-import { ProjectionSnapshotQuery } from "../orchestration/Services/ProjectionSnapshotQuery.ts"
-import { eventsFromSequence, toFileIndexRpcError, toRpcError, toRpcSnapshot } from "./handlers.ts"
+import { eventsFromSequence, rpcSnapshotForRequest, toFileIndexRpcError, toRpcError } from "./handlers.ts"
 
 const toEncodedFileIndexError = (error: { readonly message: string }): RpcServerError => {
 	if (Schema.is(FileIndexRootNotFoundError)(error)) {
@@ -50,12 +49,8 @@ export const encodedDispatch = Effect.fn("encodedDispatch")(function*(params: un
 })
 
 export const encodedSnapshot = Effect.fn("encodedSnapshot")(function*(params: unknown) {
-	const snapshots = yield* ProjectionSnapshotQuery
 	const outcome = yield* Effect.result(
-		decodeSnapshotRequest(params).pipe(
-			Effect.flatMap((request) => snapshots.forRequest(request)),
-			Effect.map(toRpcSnapshot)
-		)
+		decodeSnapshotRequest(params).pipe(Effect.flatMap(rpcSnapshotForRequest))
 	)
 	if (Result.isFailure(outcome)) {
 		const rpcError = toRpcError(outcome.failure)

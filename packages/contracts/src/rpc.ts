@@ -1,6 +1,7 @@
 import { IsoDateTime, Sequence, TrimmedNonEmptyString } from "./baseSchemas.ts"
 import { OrchestrationEvent } from "./events.ts"
 import {
+	FileGitStatus,
 	GetProjectIndexRequest,
 	InvalidateProjectIndexRequest,
 	ProjectIndex,
@@ -147,6 +148,10 @@ export const RpcProjectedProject = Schema.Struct({
 	updatedAt: IsoDateTime,
 	deletedAt: Schema.NullOr(IsoDateTime),
 	sessionCount: NonNegativeInt,
+	// null means git could not be read at all: no binary, no permission, or a
+	// schema mismatch. An empty array means git ran and the tree is clean. A
+	// review panel must not show "no changes" when git actually failed.
+	gitStatus: Schema.NullOr(Schema.Array(FileGitStatus)),
 })
 export type RpcProjectedProject = typeof RpcProjectedProject.Type
 

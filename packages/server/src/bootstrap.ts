@@ -42,6 +42,7 @@ import { ProjectionProjects } from "./persistence/Services/ProjectionProjects.ts
 import { HardcodedProviderLive } from "./provider/HardcodedProvider.ts"
 import { FileIndexServiceLive } from "./fileIndex/Layers/FileIndexService.ts"
 import { FileIndexWarmOnImportLive } from "./fileIndex/Layers/FileIndexWarmOnImport.ts"
+import { GitServiceLive } from "./git/Layers/GitService.ts"
 import { RpcHandlersLive } from "./rpc/handlers.ts"
 import { runStdioServer } from "./rpc/stdio.ts"
 
@@ -138,7 +139,21 @@ export const makeAcepeLive = (input: AcepeLiveInput) => {
 		Layer.provideMerge(FileIndexServiceLive),
 		Layer.provide(bunPlatform)
 	)
-	const rpc = RpcHandlersLive.pipe(Layer.provideMerge(snapshots), Layer.provideMerge(fileIndex))
+	const git = Layer.unwrap(
+		Effect.gen(function*() {
+			const path = yield* Path.Path
+			return GitServiceLive({
+				worktreesRoot: path.join(path.dirname(input.filename), "worktrees"),
+				gitBin: "git",
+				ghBin: "gh"
+			})
+		})
+	).pipe(Layer.provide(bunPlatform), Layer.provide(BunCrypto.layer))
+	const rpc = RpcHandlersLive.pipe(
+		Layer.provideMerge(snapshots),
+		Layer.provideMerge(fileIndex),
+		Layer.provideMerge(git)
+	)
 	return Layer.mergeAll(
 		rpc,
 		HardcodedProviderLive(input.tokenDelay),
