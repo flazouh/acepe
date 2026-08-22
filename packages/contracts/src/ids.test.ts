@@ -17,6 +17,7 @@ import {
 	decodeProjectId,
 	decodeProviderSessionId,
 	decodeSessionId,
+	decodeSettingsId,
 	decodeToolCallId,
 	decodeTurnId,
 	EventId,
@@ -24,6 +25,7 @@ import {
 	ProjectId,
 	ProviderSessionId,
 	SessionId,
+	SettingsId,
 	ToolCallId,
 	TurnId,
 } from "./ids.ts"
@@ -44,6 +46,7 @@ const brandedIds: ReadonlyArray<IdCase> = [
 	{ name: "ActivityId", make: ActivityId.make, decode: decodeActivityId },
 	{ name: "ToolCallId", make: ToolCallId.make, decode: decodeToolCallId },
 	{ name: "CheckpointId", make: CheckpointId.make, decode: decodeCheckpointId },
+	{ name: "SettingsId", make: SettingsId.make, decode: decodeSettingsId },
 	{ name: "ApprovalRequestId", make: ApprovalRequestId.make, decode: decodeApprovalRequestId },
 	{ name: "EventId", make: EventId.make, decode: decodeEventId },
 	{ name: "CommandId", make: CommandId.make, decode: decodeCommandId },

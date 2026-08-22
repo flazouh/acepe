@@ -59,7 +59,8 @@ export const toRpcSnapshot = (snapshot: SessionProjectionSnapshot): RpcSessionSn
 	activities: snapshot.activities,
 	pendingApprovals: snapshot.pendingApprovals,
 	projects: Arr.map(snapshot.projects, toRpcProject),
-	sessions: snapshot.sessions
+	sessions: snapshot.sessions,
+	settings: snapshot.settings
 })
 
 export const toRpcError = (

@@ -63,6 +63,7 @@ const snapshot: RpcSessionSnapshot = {
 			prLinkMode: null,
 		},
 	],
+	settings: [],
 };
 
 describe("library sidebar controller mapping", () => {

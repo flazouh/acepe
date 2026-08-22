@@ -27,6 +27,7 @@ import { ProjectionCheckpointsLive } from "./persistence/Layers/ProjectionCheckp
 import { ProjectionStateLive } from "./persistence/Layers/ProjectionState.ts"
 import { ProjectionTurnsLive } from "./persistence/Layers/ProjectionTurns.ts"
 import { ProjectionProjectsLive } from "./persistence/Layers/ProjectionProjects.ts"
+import { ProjectionSettingsLive } from "./persistence/Layers/ProjectionSettings.ts"
 import { makeSqliteLayer } from "./persistence/Layers/Sqlite.ts"
 import { runMigrations } from "./persistence/Migrations.ts"
 import {
@@ -39,6 +40,7 @@ import { ProjectionSessions } from "./persistence/Services/ProjectionSessions.ts
 import { ProjectionTurns } from "./persistence/Services/ProjectionTurns.ts"
 import { ProjectionCheckpoints } from "./persistence/Services/ProjectionCheckpoints.ts"
 import { ProjectionProjects } from "./persistence/Services/ProjectionProjects.ts"
+import { ProjectionSettings } from "./persistence/Services/ProjectionSettings.ts"
 import { HardcodedProviderLive } from "./provider/HardcodedProvider.ts"
 import { FileIndexServiceLive } from "./fileIndex/Layers/FileIndexService.ts"
 import { FileIndexWarmOnImportLive } from "./fileIndex/Layers/FileIndexWarmOnImport.ts"
@@ -65,7 +67,8 @@ const persistenceAt = (filename: string) => {
 		ProjectionSessionActivitiesLive,
 		ProjectionCheckpointsLive,
 		ProjectionPendingApprovalsLive,
-		ProjectionProjectsLive
+		ProjectionProjectsLive,
+		ProjectionSettingsLive
 	).pipe(Layer.provideMerge(migrated))
 }
 
@@ -83,6 +86,7 @@ const pipelineLayer = Layer.unwrap(
 		const checkpoints = yield* ProjectionCheckpoints
 		const projectionPendingApprovals = yield* ProjectionPendingApprovals
 		const projects = yield* ProjectionProjects
+		const settings = yield* ProjectionSettings
 		const messagesName = yield* decodeProjectorName(PROJECTION_SESSION_MESSAGES_NAME)
 		return ProjectionPipelineLive([
 			{
@@ -119,6 +123,11 @@ const pipelineLayer = Layer.unwrap(
 				name: projects.name,
 				apply: projects.apply,
 				truncate: projects.truncate
+			},
+			{
+				name: settings.name,
+				apply: settings.apply,
+				truncate: settings.truncate
 			}
 		])
 	})

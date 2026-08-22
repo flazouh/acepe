@@ -19,6 +19,10 @@ import {
 	PROJECTION_CHECKPOINTS_TABLE,
 	ProjectedCheckpoint
 } from "../../persistence/Services/ProjectionCheckpoints.ts"
+import {
+	PROJECTION_SETTINGS_TABLE,
+	ProjectedSetting
+} from "../../persistence/Services/ProjectionSettings.ts"
 
 export const SNAPSHOT_PROJECTOR_NAMES = [
 	"projection.sessions",
@@ -27,7 +31,8 @@ export const SNAPSHOT_PROJECTOR_NAMES = [
 	"projection.session-activities",
 	"projection.pending-approvals",
 	"projection.checkpoints",
-	"projection.projects"
+	"projection.projects",
+	"projection.settings"
 ] as const
 
 export const PROJECTION_TURNS_TABLE = "projection_turns"
@@ -38,7 +43,8 @@ export const SNAPSHOT_OPTIONAL_TABLES = [
 	PROJECTION_TURNS_TABLE,
 	PROJECTION_SESSION_ACTIVITIES_TABLE,
 	PROJECTION_PENDING_APPROVALS_TABLE,
-	PROJECTION_CHECKPOINTS_TABLE
+	PROJECTION_CHECKPOINTS_TABLE,
+	PROJECTION_SETTINGS_TABLE
 ] as const
 
 export const ProjectedTurn = Schema.Struct({
@@ -71,7 +77,8 @@ export const SessionProjectionSnapshot = Schema.Struct({
 	pendingApprovals: Schema.Array(ProjectedPendingApproval),
 	checkpoints: Schema.Array(ProjectedCheckpoint),
 	projects: Schema.Array(ProjectedProject),
-	sessions: Schema.Array(ProjectedSession)
+	sessions: Schema.Array(ProjectedSession),
+	settings: Schema.Array(ProjectedSetting)
 })
 export type SessionProjectionSnapshot = typeof SessionProjectionSnapshot.Type
 
@@ -152,6 +159,11 @@ export {
 	decodeStoredProjectedCheckpoint,
 	decodeStoredProjectedCheckpoints
 } from "../../persistence/Services/ProjectionCheckpoints.ts"
+
+export {
+	decodeStoredProjectedSetting,
+	decodeStoredProjectedSettings
+} from "../../persistence/Services/ProjectionSettings.ts"
 
 export interface ProjectionSnapshotQueryShape {
 	readonly snapshot: (

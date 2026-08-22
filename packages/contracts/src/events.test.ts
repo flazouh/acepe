@@ -19,9 +19,11 @@ import {
 	SessionDeletedPayload,
 	SessionMetaUpdatedPayload,
 	SessionUnarchivedPayload,
+	SettingsUpdatedPayload,
 	TurnCancelledPayload,
 } from "./events.ts"
 import { CheckpointId, CommandId, EventId, MessageId, ProjectId, SessionId, ToolCallId, TurnId } from "./ids.ts"
+import { APP_SETTINGS_ID } from "./settings.ts"
 
 const v1EventTypes = [
 	"ProjectCreated",
@@ -38,12 +40,14 @@ const v1EventTypes = [
 	"CheckpointCreated",
 	"CheckpointReadinessChanged",
 	"CheckpointReverted",
+	"SettingsUpdated",
 ] as const
 
 type V1EventType = (typeof v1EventTypes)[number]
 type EventType = OrchestrationEvent["type"]
 type ProjectEventType = Extract<EventType, "ProjectCreated" | "ProjectMetaUpdated" | "ProjectDeleted">
-type SessionEventType = Exclude<EventType, ProjectEventType>
+type SettingsEventType = Extract<EventType, "SettingsUpdated">
+type SessionEventType = Exclude<EventType, ProjectEventType | SettingsEventType>
 const _v1EventTypesMatchUnion: [EventType] extends [V1EventType]
 	? [V1EventType] extends [EventType]
 		? true
@@ -104,6 +108,23 @@ const sessionEvent = <const Type extends SessionEventType, Payload>(
 	eventId,
 	aggregateKind: "session" as const,
 	aggregateId: sessionId,
+	occurredAt,
+	commandId,
+	causationEventId: null,
+	correlationId: commandId,
+	metadata: {},
+	type,
+	payload,
+})
+
+const settingsEvent = <const Type extends SettingsEventType, Payload>(
+	type: Type,
+	payload: Payload,
+) => ({
+	sequence: 3,
+	eventId,
+	aggregateKind: "settings" as const,
+	aggregateId: APP_SETTINGS_ID,
 	occurredAt,
 	commandId,
 	causationEventId: null,
@@ -216,6 +237,13 @@ const memberCases = [
 		event: sessionEvent("CheckpointReverted", {
 			sessionId,
 			checkpointId,
+		}),
+	},
+	{
+		payloadSchema: SettingsUpdatedPayload,
+		event: settingsEvent("SettingsUpdated", {
+			key: "ui_font_size" as const,
+			value: "14",
 		}),
 	},
 ] as const

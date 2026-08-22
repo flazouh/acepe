@@ -112,6 +112,7 @@ describe("librarySidebarViewModel", () => {
 						deletedAt: null,
 					}),
 				],
+				settings: snapshot.settings,
 			},
 			selectedProjectId: projectId,
 		});

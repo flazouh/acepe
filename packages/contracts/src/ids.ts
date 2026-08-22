@@ -31,6 +31,10 @@ export const CheckpointId = entityId("CheckpointId")
 export type CheckpointId = typeof CheckpointId.Type
 export const decodeCheckpointId = Schema.decodeUnknownEffect(CheckpointId)
 
+export const SettingsId = entityId("SettingsId")
+export type SettingsId = typeof SettingsId.Type
+export const decodeSettingsId = Schema.decodeUnknownEffect(SettingsId)
+
 export const ApprovalRequestId = entityId("ApprovalRequestId")
 export type ApprovalRequestId = typeof ApprovalRequestId.Type
 export const decodeApprovalRequestId = Schema.decodeUnknownEffect(ApprovalRequestId)

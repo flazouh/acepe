@@ -53,6 +53,7 @@ const librarySnapshot: RpcSessionSnapshot = {
 			prLinkMode: null,
 		},
 	],
+	settings: [],
 };
 
 describe("isLibraryProjectionEvent", () => {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test"
 
 import { EventId } from "./ids.ts"
 import { CommandId, MessageId, ProjectId, SessionId } from "./ids.ts"
+import { APP_SETTINGS_ID } from "./settings.ts"
 import {
 	applyEventToRpcSessionSnapshot,
 	emptyRpcSessionSnapshot,
@@ -187,5 +188,61 @@ describe("applyEventToRpcSessionSnapshot", () => {
 		})
 		expect(other.messages).toEqual([])
 		expect(other.snapshotSequence).toBe(3)
+	})
+
+	it("upserts settings by key and keeps last write", () => {
+		const first = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), {
+			sequence: 1,
+			eventId: EventId.make("event-1"),
+			aggregateKind: "settings",
+			aggregateId: APP_SETTINGS_ID,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: {},
+			type: "SettingsUpdated",
+			payload: {
+				key: "ui_font_size",
+				value: "14",
+			},
+		})
+		const second = applyEventToRpcSessionSnapshot(first, {
+			sequence: 2,
+			eventId: EventId.make("event-2"),
+			aggregateKind: "settings",
+			aggregateId: APP_SETTINGS_ID,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: {},
+			type: "SettingsUpdated",
+			payload: {
+				key: "code_font_size",
+				value: "13",
+			},
+		})
+		const third = applyEventToRpcSessionSnapshot(second, {
+			sequence: 3,
+			eventId: EventId.make("event-3"),
+			aggregateKind: "settings",
+			aggregateId: APP_SETTINGS_ID,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: {},
+			type: "SettingsUpdated",
+			payload: {
+				key: "ui_font_size",
+				value: "18",
+			},
+		})
+		expect(third.settings).toEqual([
+			{ key: "code_font_size", value: "13", sequence: 2 },
+			{ key: "ui_font_size", value: "18", sequence: 3 },
+		])
+		expect(third.snapshotSequence).toBe(3)
 	})
 })

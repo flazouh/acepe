@@ -174,7 +174,8 @@ const loadSlice = Effect.fn("ProjectionProjects.loadSlice")(function*(
 			TurnCancelled: ignoreEvent,
 			CheckpointCreated: ignoreEvent,
 			CheckpointReadinessChanged: ignoreEvent,
-			CheckpointReverted: ignoreEvent
+			CheckpointReverted: ignoreEvent,
+			SettingsUpdated: ignoreEvent
 		})
 	)(event)
 })

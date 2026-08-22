@@ -203,7 +203,8 @@ export const evolveProjectedCheckpoint = (
 			CheckpointCreated: (created) => projectCheckpointCreated(created),
 			CheckpointReadinessChanged: (changed) =>
 				projectCheckpointReadinessChanged(current, changed),
-			CheckpointReverted: (reverted) => projectCheckpointReverted(current, reverted)
+			CheckpointReverted: (reverted) => projectCheckpointReverted(current, reverted),
+			SettingsUpdated: () => ignoreEvent(current)
 		})
 	)(event)
 
@@ -223,6 +224,7 @@ export const checkpointIdFromEvent = (event: OrchestrationEvent): Option.Option<
 			TurnCancelled: () => Option.none(),
 			CheckpointCreated: (created) => Option.some(created.payload.checkpointId),
 			CheckpointReadinessChanged: (changed) => Option.some(changed.payload.checkpointId),
-			CheckpointReverted: (reverted) => Option.some(reverted.payload.checkpointId)
+			CheckpointReverted: (reverted) => Option.some(reverted.payload.checkpointId),
+			SettingsUpdated: () => Option.none()
 		})
 	)(event)

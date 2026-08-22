@@ -1,41 +1,44 @@
-import type {
-	CheckpointCreateCommand,
-	CheckpointCreatedEvent,
-	CheckpointReportReadinessCommand,
-	CheckpointReadinessChangedEvent,
-	CheckpointRevertCommand,
-	CheckpointRevertedEvent,
-	EventId,
-	IsoDateTime,
-	JsonObject,
-	MessageSendCommand,
-	MessageSentEvent,
-	OrchestrationCommand,
-	OrchestrationEvent,
-	ProjectCreateCommand,
-	ProjectCreatedEvent,
-	ProjectDeleteCommand,
-	ProjectDeletedEvent,
-	ProjectMetaUpdateCommand,
-	ProjectMetaUpdatedEvent,
-	ProjectMetaUpdatedPayload,
-	Sequence,
-	SessionArchiveCommand,
-	SessionArchivedEvent,
-	SessionCreateCommand,
-	SessionCreatedEvent,
-	SessionDeleteCommand,
-	SessionDeletedEvent,
-	SessionMetaUpdateCommand,
-	SessionMetaUpdatedEvent,
-	SessionMetaUpdatedPayload,
-	SessionUnarchiveCommand,
-	SessionUnarchivedEvent,
-	TokenAppendCommand,
-	TokenAppendedEvent,
-	TurnCancelCommand,
-	TurnCancelledEvent,
-	TurnCancelledPayload
+import {
+	type CheckpointCreateCommand,
+	type CheckpointCreatedEvent,
+	type CheckpointReportReadinessCommand,
+	type CheckpointReadinessChangedEvent,
+	type CheckpointRevertCommand,
+	type CheckpointRevertedEvent,
+	type EventId,
+	type IsoDateTime,
+	type JsonObject,
+	type MessageSendCommand,
+	type MessageSentEvent,
+	type OrchestrationCommand,
+	type OrchestrationEvent,
+	type ProjectCreateCommand,
+	type ProjectCreatedEvent,
+	type ProjectDeleteCommand,
+	type ProjectDeletedEvent,
+	type ProjectMetaUpdateCommand,
+	type ProjectMetaUpdatedEvent,
+	type ProjectMetaUpdatedPayload,
+	type Sequence,
+	type SessionArchiveCommand,
+	type SessionArchivedEvent,
+	type SessionCreateCommand,
+	type SessionCreatedEvent,
+	type SessionDeleteCommand,
+	type SessionDeletedEvent,
+	type SessionMetaUpdateCommand,
+	type SessionMetaUpdatedEvent,
+	type SessionMetaUpdatedPayload,
+	type SessionUnarchiveCommand,
+	type SessionUnarchivedEvent,
+	type SettingsSetCommand,
+	type SettingsUpdatedEvent,
+	type TokenAppendCommand,
+	type TokenAppendedEvent,
+	type TurnCancelCommand,
+	type TurnCancelledEvent,
+	type TurnCancelledPayload,
+	APP_SETTINGS_ID
 } from "@acepe/contracts"
 import * as Effect from "effect/Effect"
 import {
@@ -444,6 +447,26 @@ const checkpointRevertedEvent = (
 	}
 })
 
+const settingsUpdatedEvent = (
+	command: SettingsSetCommand,
+	identity: DecideIdentity,
+	sequence: Sequence
+): SettingsUpdatedEvent => ({
+	...withEnvelope({
+		sequence,
+		eventId: identity.eventId,
+		aggregateKind: "settings",
+		aggregateId: APP_SETTINGS_ID,
+		occurredAt: identity.occurredAt,
+		commandId: command.commandId
+	}),
+	type: "SettingsUpdated",
+	payload: {
+		key: command.key,
+		value: command.value
+	}
+})
+
 const decideProjectCreate = Effect.fn("decideProjectCreate")(function*(
 	readModel: OrchestrationReadModel,
 	command: ProjectCreateCommand,
@@ -633,6 +656,14 @@ const decideCheckpointRevert = Effect.fn("decideCheckpointRevert")(function*(
 	return [checkpointRevertedEvent(command, identity, nextSequence(readModel.snapshotSequence))]
 })
 
+const decideSettingsSet = Effect.fn("decideSettingsSet")(function*(
+	readModel: OrchestrationReadModel,
+	command: SettingsSetCommand,
+	identity: DecideIdentity
+) {
+	return [settingsUpdatedEvent(command, identity, nextSequence(readModel.snapshotSequence))]
+})
+
 export const decide = Effect.fn("decide")(function*(
 	readModel: OrchestrationReadModel,
 	command: OrchestrationCommand,
@@ -667,5 +698,7 @@ export const decide = Effect.fn("decide")(function*(
 			return yield* decideCheckpointReportReadiness(readModel, command, identity)
 		case "checkpoint.revert":
 			return yield* decideCheckpointRevert(readModel, command, identity)
+		case "settings.set":
+			return yield* decideSettingsSet(readModel, command, identity)
 	}
 })

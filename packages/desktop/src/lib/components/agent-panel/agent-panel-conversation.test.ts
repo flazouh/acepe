@@ -85,6 +85,7 @@ describe("conversationFromSnapshot", () => {
 				pendingApprovals: [],
 				projects: [],
 				sessions: [],
+				settings: [],
 			},
 			activities: [
 				{
@@ -150,6 +151,7 @@ describe("conversationFromSnapshot", () => {
 				pendingApprovals: [],
 				projects: [],
 				sessions: [],
+				settings: [],
 			},
 		});
 
@@ -185,6 +187,7 @@ describe("conversationFromSnapshot", () => {
 				pendingApprovals: [],
 				projects: [],
 				sessions: [],
+				settings: [],
 			},
 		});
 

@@ -5,6 +5,7 @@ import {
 	ProjectId,
 	projectSnapshotRequest,
 	SessionId,
+	settingsSnapshotRequest,
 	TurnId
 } from "@acepe/contracts"
 import * as BunFileSystem from "@effect/platform-bun/BunFileSystem"
@@ -109,6 +110,25 @@ const insertProject = Effect.fn("insertProject")(function*() {
 	`.withoutTransform.pipe(Effect.asVoid)
 })
 
+const insertSetting = Effect.fn("insertSetting")(function*(
+	key: string,
+	value: string,
+	sequence: number
+) {
+	const sql = yield* SqlClient.SqlClient
+	yield* sql`
+		INSERT INTO projection_settings (
+			setting_key,
+			setting_value,
+			sequence
+		) VALUES (
+			${key},
+			${value},
+			${sequence}
+		)
+	`.withoutTransform.pipe(Effect.asVoid)
+})
+
 const insertMessage = Effect.fn("insertMessage")(function*(
 	id: SessionId,
 	sequence: number,
@@ -191,7 +211,8 @@ Vitest.layer(isolatedQuery())("missing session", (it) => {
 				pendingApprovals: [],
 				checkpoints: [],
 				projects: [],
-				sessions: []
+				sessions: [],
+				settings: []
 			})
 		})
 	)
@@ -233,6 +254,23 @@ Vitest.layer(isolatedQuery())("library snapshot", (it) => {
 			const projectSnap = yield* query.forRequest(projectSnapshotRequest(projectId))
 			Vitest.assert.strictEqual(projectSnap.projects[0]?.projectId, projectId)
 			Vitest.assert.strictEqual(projectSnap.sessions.length, 3)
+		})
+	)
+})
+
+Vitest.layer(isolatedQuery())("settings snapshot", (it) => {
+	it.effect("returns projected settings through the settings snapshot request", () =>
+		Effect.gen(function*() {
+			const query = yield* ProjectionSnapshotQuery
+			yield* insertSetting("ui_font_size", "14", 1)
+			yield* insertSetting("code_font_size", "13", 2)
+			yield* checkpoint("projection.settings", 2)
+			const snapshot = yield* query.forRequest(settingsSnapshotRequest())
+			Vitest.assert.strictEqual(snapshot.session, null)
+			Vitest.assert.deepStrictEqual(snapshot.settings, [
+				{ key: "code_font_size", value: "13", sequence: 2 },
+				{ key: "ui_font_size", value: "14", sequence: 1 }
+			])
 		})
 	)
 })
@@ -374,6 +412,7 @@ Vitest.layer(isolatedQuery())("optional tables absent", (it) => {
 			Vitest.assert.deepStrictEqual(snapshot.activities, [])
 			Vitest.assert.deepStrictEqual(snapshot.pendingApprovals, [])
 			Vitest.assert.deepStrictEqual(snapshot.checkpoints, [])
+			Vitest.assert.deepStrictEqual(snapshot.settings, [])
 		})
 	)
 })

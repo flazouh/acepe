@@ -63,6 +63,7 @@ describe("transcriptRowsFromSnapshot", () => {
 			pendingApprovals: [],
 			projects: [],
 			sessions: [],
+			settings: [],
 		});
 		expect(rows.map((row) => row.role)).toEqual(["user", "assistant"]);
 		expect(rows.map((row) => row.text)).toEqual(["Ping", "Hello from Acepe."]);

@@ -76,6 +76,7 @@ describe("tracer bullet controller mapping", () => {
 							pendingApprovals: [],
 							projects: [],
 							sessions: [],
+							settings: [],
 						}),
 					getProjectIndex: () =>
 						Effect.succeed({

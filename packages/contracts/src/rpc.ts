@@ -14,6 +14,7 @@ import {
 	TurnId,
 } from "./ids.ts"
 import { OrchestrationCommand, SessionPrLinkMode, SessionPrNumber } from "./orchestration.ts"
+import { UserSettingKey, SettingsValue } from "./settings.ts"
 import * as Arr from "effect/Array"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
@@ -223,6 +224,13 @@ export const RpcProjectedPendingApproval = Schema.Struct({
 })
 export type RpcProjectedPendingApproval = typeof RpcProjectedPendingApproval.Type
 
+export const RpcProjectedSetting = Schema.Struct({
+	key: UserSettingKey,
+	value: SettingsValue,
+	sequence: Sequence,
+})
+export type RpcProjectedSetting = typeof RpcProjectedSetting.Type
+
 export const RpcSessionSnapshot = Schema.Struct({
 	snapshotSequence: Sequence,
 	session: Schema.NullOr(RpcProjectedSession),
@@ -232,6 +240,7 @@ export const RpcSessionSnapshot = Schema.Struct({
 	pendingApprovals: Schema.Array(RpcProjectedPendingApproval),
 	projects: Schema.Array(RpcProjectedProject),
 	sessions: Schema.Array(RpcProjectedSession),
+	settings: Schema.Array(RpcProjectedSetting),
 })
 export type RpcSessionSnapshot = typeof RpcSessionSnapshot.Type
 
@@ -244,6 +253,11 @@ export const LibrarySnapshotRequest = Schema.Struct({
 	kind: Schema.Literal("library"),
 })
 export type LibrarySnapshotRequest = typeof LibrarySnapshotRequest.Type
+
+export const SettingsSnapshotRequest = Schema.Struct({
+	kind: Schema.Literal("settings"),
+})
+export type SettingsSnapshotRequest = typeof SettingsSnapshotRequest.Type
 
 export const ProjectSnapshotRequest = Schema.Struct({
 	kind: Schema.Literal("project"),
@@ -264,6 +278,7 @@ export type LegacySessionSnapshotRequest = typeof LegacySessionSnapshotRequest.T
 
 export const SnapshotRequest = Schema.Union([
 	LibrarySnapshotRequest,
+	SettingsSnapshotRequest,
 	ProjectSnapshotRequest,
 	SessionSnapshotRequest,
 	LegacySessionSnapshotRequest,
@@ -273,6 +288,9 @@ export type SnapshotRequest = typeof SnapshotRequest.Type
 export type SnapshotScope =
 	| {
 			readonly kind: "library"
+	  }
+	| {
+			readonly kind: "settings"
 	  }
 	| {
 			readonly kind: "project"
@@ -285,6 +303,10 @@ export type SnapshotScope =
 
 export const librarySnapshotRequest = (): LibrarySnapshotRequest => ({
 	kind: "library",
+})
+
+export const settingsSnapshotRequest = (): SettingsSnapshotRequest => ({
+	kind: "settings",
 })
 
 export const projectSnapshotRequest = (projectId: ProjectId): ProjectSnapshotRequest => ({
@@ -300,6 +322,9 @@ export const sessionSnapshotRequest = (sessionId: SessionId): SessionSnapshotReq
 export const snapshotScope = (request: SnapshotRequest): SnapshotScope => {
 	if (Schema.is(LibrarySnapshotRequest)(request)) {
 		return { kind: "library" }
+	}
+	if (Schema.is(SettingsSnapshotRequest)(request)) {
+		return { kind: "settings" }
 	}
 	if (Schema.is(ProjectSnapshotRequest)(request)) {
 		return { kind: "project", projectId: request.projectId }
