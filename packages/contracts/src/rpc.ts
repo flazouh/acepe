@@ -151,7 +151,7 @@ export const RpcProjectedProject = Schema.Struct({
 	// null means git could not be read at all: no binary, no permission, or a
 	// schema mismatch. An empty array means git ran and the tree is clean. A
 	// review panel must not show "no changes" when git actually failed.
-	gitStatus: Schema.NullOr(Schema.Array(FileGitStatus)),
+	gitStatus: FileGitStatus.pipe(Schema.Array, Schema.NullOr),
 })
 export type RpcProjectedProject = typeof RpcProjectedProject.Type
 
