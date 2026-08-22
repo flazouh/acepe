@@ -27,6 +27,7 @@ const librarySnapshot: RpcSessionSnapshot = {
 	turns: [],
 	activities: [],
 	pendingApprovals: [],
+	checkpoints: [],
 	projects: [
 		{
 			projectId,

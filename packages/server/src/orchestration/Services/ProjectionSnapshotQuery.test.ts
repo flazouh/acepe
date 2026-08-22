@@ -28,6 +28,7 @@ Vitest.describe("ProjectionSnapshotQuery", () => {
 		)
 		Vitest.assert.isTrue(SNAPSHOT_PROJECTOR_NAMES.includes("projection.projects"))
 		Vitest.assert.isTrue(SNAPSHOT_PROJECTOR_NAMES.includes("projection.settings"))
+		Vitest.assert.isTrue(SNAPSHOT_PROJECTOR_NAMES.includes("projection.checkpoints"))
 	})
 })
 

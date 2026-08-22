@@ -65,6 +65,7 @@ describe("shouldDispatchPrLinkToggle", () => {
 		turns: snapshot.turns,
 		activities: snapshot.activities,
 		pendingApprovals: snapshot.pendingApprovals,
+		checkpoints: snapshot.checkpoints,
 		projects: snapshot.projects,
 		sessions: snapshot.sessions,
 		settings: snapshot.settings,

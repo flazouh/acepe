@@ -1,7 +1,6 @@
 import { describe, expect, it } from "bun:test"
 
-import { EventId } from "./ids.ts"
-import { CommandId, MessageId, ProjectId, SessionId } from "./ids.ts"
+import { CheckpointId, CommandId, EventId, MessageId, ProjectId, SessionId } from "./ids.ts"
 import { APP_SETTINGS_ID } from "./settings.ts"
 import {
 	applyEventToRpcSessionSnapshot,
@@ -244,5 +243,111 @@ describe("applyEventToRpcSessionSnapshot", () => {
 			{ key: "ui_font_size", value: "18", sequence: 3 },
 		])
 		expect(third.snapshotSequence).toBe(3)
+	})
+
+	it("projects checkpoint create, readiness, and revert onto the snapshot", () => {
+		const checkpointId = CheckpointId.make("checkpoint-1")
+		const afterSession = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), sessionCreated)
+		const created = applyEventToRpcSessionSnapshot(afterSession, {
+			sequence: 3,
+			eventId: EventId.make("event-3"),
+			aggregateKind: "session",
+			aggregateId: sessionId,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: {},
+			type: "CheckpointCreated",
+			payload: {
+				sessionId,
+				checkpointId,
+				checkpointNumber: 1,
+				name: "After edit",
+				isAuto: true,
+				toolCallId: null,
+				fileCount: 2,
+			},
+		})
+		expect(created.checkpoints).toEqual([
+			{
+				checkpointId,
+				sessionId,
+				sequence: 3,
+				checkpointNumber: 1,
+				name: "After edit",
+				isAuto: true,
+				toolCallId: null,
+				fileCount: 2,
+				status: "missing",
+				createdAt: occurredAt,
+				lastRevertedAt: null,
+			},
+		])
+		const ready = applyEventToRpcSessionSnapshot(created, {
+			sequence: 4,
+			eventId: EventId.make("event-4"),
+			aggregateKind: "session",
+			aggregateId: sessionId,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: {},
+			type: "CheckpointReadinessChanged",
+			payload: {
+				sessionId,
+				checkpointId,
+				status: "ready",
+			},
+		})
+		expect(ready.checkpoints[0]?.status).toBe("ready")
+		expect(ready.checkpoints[0]?.sequence).toBe(4)
+		const reverted = applyEventToRpcSessionSnapshot(ready, {
+			sequence: 5,
+			eventId: EventId.make("event-5"),
+			aggregateKind: "session",
+			aggregateId: sessionId,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: {},
+			type: "CheckpointReverted",
+			payload: {
+				sessionId,
+				checkpointId,
+			},
+		})
+		expect(reverted.checkpoints[0]?.status).toBe("ready")
+		expect(reverted.checkpoints[0]?.lastRevertedAt).toBe(occurredAt)
+		expect(reverted.snapshotSequence).toBe(5)
+	})
+
+	it("ignores checkpoint events from another session", () => {
+		const afterSession = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), sessionCreated)
+		const other = applyEventToRpcSessionSnapshot(afterSession, {
+			sequence: 3,
+			eventId: EventId.make("event-3"),
+			aggregateKind: "session",
+			aggregateId: otherSessionId,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: {},
+			type: "CheckpointCreated",
+			payload: {
+				sessionId: otherSessionId,
+				checkpointId: CheckpointId.make("checkpoint-other"),
+				checkpointNumber: 1,
+				name: null,
+				isAuto: false,
+				toolCallId: null,
+				fileCount: 1,
+			},
+		})
+		expect(other.checkpoints).toEqual([])
+		expect(other.snapshotSequence).toBe(3)
 	})
 })

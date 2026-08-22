@@ -8,7 +8,7 @@ import * as Stream from "effect/Stream"
 import * as FastCheck from "effect/testing/FastCheck"
 
 import { OrchestrationEvent } from "./events.ts"
-import { CommandId, EventId, ProjectId, SessionId } from "./ids.ts"
+import { CheckpointId, CommandId, EventId, ProjectId, SessionId } from "./ids.ts"
 import { OrchestrationCommand, ProjectCreateCommand } from "./orchestration.ts"
 import {
 	AcepeRpc,
@@ -77,6 +77,7 @@ const emptySnapshot: RpcSessionSnapshot = {
 	turns: [],
 	activities: [],
 	pendingApprovals: [],
+	checkpoints: [],
 	projects: [],
 	sessions: [],
 	settings: [],
@@ -112,6 +113,7 @@ const snapshot: RpcSessionSnapshot = {
 	turns: [],
 	activities: [],
 	pendingApprovals: [],
+	checkpoints: [],
 	projects: [
 		{
 			projectId,
@@ -237,6 +239,7 @@ describe("Schema-encoded boundary", () => {
 		expect(decoded.projects[0]?.title).toBe("Acepe")
 		expect(decoded.sessions[0]?.title).toBe("Ship the slice")
 		expect(decoded.settings).toEqual([])
+		expect(decoded.checkpoints).toEqual([])
 	})
 
 	it("round-trips git status on a projected project", () => {
@@ -247,6 +250,7 @@ describe("Schema-encoded boundary", () => {
 			turns: [],
 			activities: [],
 			pendingApprovals: [],
+			checkpoints: [],
 			projects: [
 				{
 					projectId,
@@ -279,6 +283,39 @@ describe("Schema-encoded boundary", () => {
 				deletions: 1,
 			},
 		])
+	})
+
+	it("round-trips projected checkpoints on a session snapshot", () => {
+		const checkpointId = CheckpointId.make("checkpoint-1")
+		const withCheckpoint: RpcSessionSnapshot = {
+			snapshotSequence: 5,
+			session: null,
+			messages: [],
+			turns: [],
+			activities: [],
+			pendingApprovals: [],
+			checkpoints: [
+				{
+					checkpointId,
+					sessionId,
+					sequence: 5,
+					checkpointNumber: 1,
+					name: "After edit",
+					isAuto: true,
+					toolCallId: null,
+					fileCount: 2,
+					status: "ready",
+					createdAt: "2026-08-20T12:00:00.000Z",
+					lastRevertedAt: null,
+				},
+			],
+			projects: [],
+			sessions: [],
+			settings: [],
+		}
+		const encoded = Effect.runSync(Schema.encodeUnknownEffect(RpcSessionSnapshot)(withCheckpoint))
+		const decoded = Effect.runSync(Schema.decodeUnknownEffect(RpcSessionSnapshot)(encoded))
+		expect(decoded.checkpoints).toEqual(withCheckpoint.checkpoints)
 	})
 
 	it("round-trips a library snapshot Exit across JSON IPC", () => {

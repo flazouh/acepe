@@ -62,6 +62,7 @@ describe("agent panel controller mapping", () => {
 				turns: [],
 				activities: [],
 				pendingApprovals: [],
+				checkpoints: [],
 				projects: [],
 				sessions: [],
 				settings: [],

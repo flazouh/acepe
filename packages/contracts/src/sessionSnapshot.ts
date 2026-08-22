@@ -8,6 +8,7 @@ import { type Sequence, TrimmedNonEmptyString } from "./baseSchemas.ts"
 import type { OrchestrationEvent } from "./events.ts"
 import type { SessionId } from "./ids.ts"
 import {
+	type RpcProjectedCheckpoint,
 	type RpcProjectedMessage,
 	type RpcProjectedSession,
 	type RpcProjectedSetting,
@@ -24,6 +25,7 @@ export const emptyRpcSessionSnapshot = (snapshotSequence: Sequence): RpcSessionS
 	turns: Arr.empty(),
 	activities: Arr.empty(),
 	pendingApprovals: Arr.empty(),
+	checkpoints: Arr.empty(),
 	projects: Arr.empty(),
 	sessions: Arr.empty(),
 	settings: Arr.empty(),
@@ -215,6 +217,111 @@ const applySettingsUpdated = (
 	}
 }
 
+const MAX_RPC_SESSION_CHECKPOINTS = 500
+
+const checkpointNumberOrder = Order.mapInput(
+	Order.Number,
+	(row: RpcProjectedCheckpoint) => row.checkpointNumber,
+)
+
+const retainNewestCheckpoints = (
+	rows: ReadonlyArray<RpcProjectedCheckpoint>,
+): ReadonlyArray<RpcProjectedCheckpoint> =>
+	Arr.takeRight(Arr.sort(rows, checkpointNumberOrder), MAX_RPC_SESSION_CHECKPOINTS)
+
+const replaceCheckpoints = (
+	snapshot: RpcSessionSnapshot,
+	sequence: Sequence,
+	checkpoints: ReadonlyArray<RpcProjectedCheckpoint>,
+): RpcSessionSnapshot => ({
+	...snapshot,
+	snapshotSequence: watermark(snapshot, sequence),
+	checkpoints: retainNewestCheckpoints(checkpoints),
+})
+
+const applyCheckpointCreated = (
+	snapshot: RpcSessionSnapshot,
+	event: Extract<OrchestrationEvent, { readonly type: "CheckpointCreated" }>,
+): RpcSessionSnapshot => {
+	if (!isThisSession(snapshot, event.payload.sessionId)) {
+		return withSequence(snapshot, event.sequence)
+	}
+	const next: RpcProjectedCheckpoint = {
+		checkpointId: event.payload.checkpointId,
+		sessionId: event.payload.sessionId,
+		sequence: event.sequence,
+		checkpointNumber: event.payload.checkpointNumber,
+		name: event.payload.name,
+		isAuto: event.payload.isAuto,
+		toolCallId: event.payload.toolCallId,
+		fileCount: event.payload.fileCount,
+		status: "missing",
+		createdAt: event.occurredAt,
+		lastRevertedAt: null,
+	}
+	const without = Arr.filter(
+		snapshot.checkpoints,
+		(row) => row.checkpointId !== next.checkpointId,
+	)
+	return replaceCheckpoints(snapshot, event.sequence, Arr.append(without, next))
+}
+
+const applyCheckpointReadinessChanged = (
+	snapshot: RpcSessionSnapshot,
+	event: Extract<OrchestrationEvent, { readonly type: "CheckpointReadinessChanged" }>,
+): RpcSessionSnapshot => {
+	if (!isThisSession(snapshot, event.payload.sessionId)) {
+		return withSequence(snapshot, event.sequence)
+	}
+	const checkpoints = Arr.map(snapshot.checkpoints, (row) => {
+		if (row.checkpointId !== event.payload.checkpointId) {
+			return row
+		}
+		return {
+			checkpointId: row.checkpointId,
+			sessionId: row.sessionId,
+			sequence: event.sequence,
+			checkpointNumber: row.checkpointNumber,
+			name: row.name,
+			isAuto: row.isAuto,
+			toolCallId: row.toolCallId,
+			fileCount: row.fileCount,
+			status: event.payload.status,
+			createdAt: row.createdAt,
+			lastRevertedAt: row.lastRevertedAt,
+		}
+	})
+	return replaceCheckpoints(snapshot, event.sequence, checkpoints)
+}
+
+const applyCheckpointReverted = (
+	snapshot: RpcSessionSnapshot,
+	event: Extract<OrchestrationEvent, { readonly type: "CheckpointReverted" }>,
+): RpcSessionSnapshot => {
+	if (!isThisSession(snapshot, event.payload.sessionId)) {
+		return withSequence(snapshot, event.sequence)
+	}
+	const checkpoints = Arr.map(snapshot.checkpoints, (row) => {
+		if (row.checkpointId !== event.payload.checkpointId) {
+			return row
+		}
+		return {
+			checkpointId: row.checkpointId,
+			sessionId: row.sessionId,
+			sequence: event.sequence,
+			checkpointNumber: row.checkpointNumber,
+			name: row.name,
+			isAuto: row.isAuto,
+			toolCallId: row.toolCallId,
+			fileCount: row.fileCount,
+			status: row.status,
+			createdAt: row.createdAt,
+			lastRevertedAt: event.occurredAt,
+		}
+	})
+	return replaceCheckpoints(snapshot, event.sequence, checkpoints)
+}
+
 export const applyEventToRpcSessionSnapshot = (
 	snapshot: RpcSessionSnapshot,
 	event: OrchestrationEvent,
@@ -251,6 +358,12 @@ export const applyEventToRpcSessionSnapshot = (
 		}
 		case "SettingsUpdated":
 			return applySettingsUpdated(snapshot, event)
+		case "CheckpointCreated":
+			return applyCheckpointCreated(snapshot, event)
+		case "CheckpointReadinessChanged":
+			return applyCheckpointReadinessChanged(snapshot, event)
+		case "CheckpointReverted":
+			return applyCheckpointReverted(snapshot, event)
 		default:
 			return withSequence(snapshot, event.sequence)
 	}
