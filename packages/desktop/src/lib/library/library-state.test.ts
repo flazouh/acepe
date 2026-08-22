@@ -116,6 +116,7 @@ describe("librarySidebarViewModel", () => {
 				],
 				settings: snapshot.settings,
 				skillsCatalog: snapshot.skillsCatalog,
+				voice: snapshot.voice,
 			},
 			selectedProjectId: projectId,
 		});

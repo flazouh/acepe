@@ -14,6 +14,7 @@ import checkpointSnapshots from "./Migrations/0012_checkpoint_snapshots.ts"
 import projectionSessionsPrLink from "./Migrations/0013_projection_sessions_pr_link.ts"
 import projectionSettings from "./Migrations/0014_projection_settings.ts"
 import projectionSkills from "./Migrations/0015_projection_skills.ts"
+import projectionVoice from "./Migrations/0016_projection_voice.ts"
 
 const MIGRATIONS_TABLE = "_migrations"
 
@@ -32,7 +33,8 @@ const loader = SqliteMigrator.fromRecord({
 	"0012_checkpoint_snapshots": checkpointSnapshots,
 	"0013_projection_sessions_pr_link": projectionSessionsPrLink,
 	"0014_projection_settings": projectionSettings,
-	"0015_projection_skills": projectionSkills
+	"0015_projection_skills": projectionSkills,
+	"0016_projection_voice": projectionVoice
 })
 
 export const runMigrations = SqliteMigrator.run({

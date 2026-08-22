@@ -2,6 +2,7 @@ import {
 	ActivityId,
 	ApprovalRequestId,
 	ProjectedSkillsCatalog,
+	ProjectedVoice,
 	ProjectId,
 	Sequence,
 	SessionId,
@@ -25,6 +26,7 @@ import {
 	ProjectedSetting
 } from "../../persistence/Services/ProjectionSettings.ts"
 import { PROJECTION_SKILLS_TABLE } from "../../persistence/Services/ProjectionSkills.ts"
+import { PROJECTION_VOICE_TABLE } from "../../persistence/Services/ProjectionVoice.ts"
 
 export const SNAPSHOT_PROJECTOR_NAMES = [
 	"projection.sessions",
@@ -35,7 +37,8 @@ export const SNAPSHOT_PROJECTOR_NAMES = [
 	"projection.checkpoints",
 	"projection.projects",
 	"projection.settings",
-	"projection.skills"
+	"projection.skills",
+	"projection.voice"
 ] as const
 
 export const PROJECTION_TURNS_TABLE = "projection_turns"
@@ -48,7 +51,8 @@ export const SNAPSHOT_OPTIONAL_TABLES = [
 	PROJECTION_PENDING_APPROVALS_TABLE,
 	PROJECTION_CHECKPOINTS_TABLE,
 	PROJECTION_SETTINGS_TABLE,
-	PROJECTION_SKILLS_TABLE
+	PROJECTION_SKILLS_TABLE,
+	PROJECTION_VOICE_TABLE
 ] as const
 
 export const ProjectedTurn = Schema.Struct({
@@ -83,7 +87,8 @@ export const SessionProjectionSnapshot = Schema.Struct({
 	projects: Schema.Array(ProjectedProject),
 	sessions: Schema.Array(ProjectedSession),
 	settings: Schema.Array(ProjectedSetting),
-	skillsCatalog: Schema.NullOr(ProjectedSkillsCatalog)
+	skillsCatalog: Schema.NullOr(ProjectedSkillsCatalog),
+	voice: Schema.NullOr(ProjectedVoice)
 })
 export type SessionProjectionSnapshot = typeof SessionProjectionSnapshot.Type
 
@@ -171,6 +176,8 @@ export {
 } from "../../persistence/Services/ProjectionSettings.ts"
 
 export { decodeStoredProjectedSkillsCatalog } from "../../persistence/Services/ProjectionSkills.ts"
+
+export { decodeStoredProjectedVoice } from "../../persistence/Services/ProjectionVoice.ts"
 
 export interface ProjectionSnapshotQueryShape {
 	readonly snapshot: (

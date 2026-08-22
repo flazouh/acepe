@@ -205,7 +205,16 @@ export const evolveProjectedCheckpoint = (
 				projectCheckpointReadinessChanged(current, changed),
 			CheckpointReverted: (reverted) => projectCheckpointReverted(current, reverted),
 			SettingsUpdated: () => ignoreEvent(current),
-			SkillsDiscovered: () => ignoreEvent(current)
+			SkillsDiscovered: () => ignoreEvent(current),
+			VoiceModelsListed: () => ignoreEvent(current),
+			VoiceLanguagesListed: () => ignoreEvent(current),
+			VoiceModelStatusReported: () => ignoreEvent(current),
+			VoiceModelDownloaded: () => ignoreEvent(current),
+			VoiceModelDeleted: () => ignoreEvent(current),
+			VoiceModelLoaded: () => ignoreEvent(current),
+			VoiceRecordingStarted: () => ignoreEvent(current),
+			VoiceRecordingStopped: () => ignoreEvent(current),
+			VoiceRecordingCancelled: () => ignoreEvent(current)
 		})
 	)(event)
 
@@ -227,6 +236,15 @@ export const checkpointIdFromEvent = (event: OrchestrationEvent): Option.Option<
 			CheckpointReadinessChanged: (changed) => Option.some(changed.payload.checkpointId),
 			CheckpointReverted: (reverted) => Option.some(reverted.payload.checkpointId),
 			SettingsUpdated: () => Option.none(),
-			SkillsDiscovered: () => Option.none()
+			SkillsDiscovered: () => Option.none(),
+			VoiceModelsListed: () => Option.none(),
+			VoiceLanguagesListed: () => Option.none(),
+			VoiceModelStatusReported: () => Option.none(),
+			VoiceModelDownloaded: () => Option.none(),
+			VoiceModelDeleted: () => Option.none(),
+			VoiceModelLoaded: () => Option.none(),
+			VoiceRecordingStarted: () => Option.none(),
+			VoiceRecordingStopped: () => Option.none(),
+			VoiceRecordingCancelled: () => Option.none()
 		})
 	)(event)

@@ -5,12 +5,17 @@ import {
 	CommandId,
 	type OrchestrationCommand,
 	emptySkillsCatalog,
+	emptyVoiceLanguages,
+	emptyVoiceModels,
+	placeholderVoiceModel,
 	ProjectId,
 	ProjectMetaUpdateCommand,
 	SessionArchiveCommand,
 	SessionCreateCommand,
 	SessionId,
-	SkillsDiscoverCommand
+	SkillsDiscoverCommand,
+	VoiceLanguagesListCommand,
+	VoiceModelsListCommand
 } from "@acepe/contracts"
 import * as Vitest from "@effect/vitest"
 import * as Effect from "effect/Effect"
@@ -23,6 +28,8 @@ import {
 	requireSessionArchived,
 	requireSessionNotArchived,
 	requireUniqueSkillIds,
+	requireUniqueVoiceLanguageCodes,
+	requireUniqueVoiceModelIds,
 	requireCheckpoint,
 	requireCheckpointAbsent
 } from "./commandInvariants.ts"
@@ -409,6 +416,70 @@ Vitest.describe("requireUniqueSkillIds", () => {
 			Vitest.assert.strictEqual(
 				error.detail,
 				"Duplicate skill id 'claude-code::review' in skills.discover."
+			)
+		})
+	)
+})
+
+const emptyModelsList = VoiceModelsListCommand.make({
+	type: "voice.models.list",
+	commandId,
+	models: emptyVoiceModels
+})
+
+const emptyLanguagesList = VoiceLanguagesListCommand.make({
+	type: "voice.languages.list",
+	commandId,
+	languages: emptyVoiceLanguages
+})
+
+Vitest.describe("requireUniqueVoiceModelIds", () => {
+	Vitest.it.effect("succeeds for an empty model list", () =>
+		requireUniqueVoiceModelIds(emptyModelsList)
+	)
+
+	Vitest.it.effect("fails when two models share an id", () =>
+		Effect.gen(function*() {
+			const model = placeholderVoiceModel("external")
+			const error = yield* Effect.flip(
+				requireUniqueVoiceModelIds(
+					VoiceModelsListCommand.make({
+						type: "voice.models.list",
+						commandId,
+						models: [model, model]
+					})
+				)
+			)
+			Vitest.assert.strictEqual(error._tag, "OrchestrationCommandInvariantError")
+			Vitest.assert.strictEqual(
+				error.detail,
+				"Duplicate voice model id 'external' in voice.models.list."
+			)
+		})
+	)
+})
+
+Vitest.describe("requireUniqueVoiceLanguageCodes", () => {
+	Vitest.it.effect("succeeds for an empty language list", () =>
+		requireUniqueVoiceLanguageCodes(emptyLanguagesList)
+	)
+
+	Vitest.it.effect("fails when two languages share a code", () =>
+		Effect.gen(function*() {
+			const language = { code: "en", name: "English" }
+			const error = yield* Effect.flip(
+				requireUniqueVoiceLanguageCodes(
+					VoiceLanguagesListCommand.make({
+						type: "voice.languages.list",
+						commandId,
+						languages: [language, language]
+					})
+				)
+			)
+			Vitest.assert.strictEqual(error._tag, "OrchestrationCommandInvariantError")
+			Vitest.assert.strictEqual(
+				error.detail,
+				"Duplicate voice language code 'en' in voice.languages.list."
 			)
 		})
 	)

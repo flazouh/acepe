@@ -2,13 +2,15 @@ import {
 	AcepeRpc,
 	CommandId,
 	emptySkillsCatalog,
+	emptyVoiceModels,
 	librarySnapshotRequest,
 	ProjectCreateCommand,
 	ProjectId,
 	projectSnapshotRequest,
 	SessionCreateCommand,
 	SessionId,
-	SkillsDiscoverCommand
+	SkillsDiscoverCommand,
+	VoiceModelsListCommand
 } from "@acepe/contracts"
 import * as BunChildProcessSpawner from "@effect/platform-bun/BunChildProcessSpawner"
 import * as BunCrypto from "@effect/platform-bun/BunCrypto"
@@ -16,6 +18,7 @@ import * as BunFileSystem from "@effect/platform-bun/BunFileSystem"
 import * as BunPath from "@effect/platform-bun/BunPath"
 import * as Vitest from "@effect/vitest"
 import * as Arr from "effect/Array"
+import * as ConfigProvider from "effect/ConfigProvider"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Fiber from "effect/Fiber"
@@ -41,6 +44,8 @@ import { runGit } from "../git/runGit.ts"
 import { OrchestrationEngineLive } from "../orchestration/Layers/OrchestrationEngine.ts"
 import { ProjectionSnapshotQueryLive } from "../orchestration/Layers/ProjectionSnapshotQuery.ts"
 import { SkillsServiceLive } from "../skills/Layers/SkillsService.ts"
+import { VoiceRuntimeLive } from "../voice/Layers/VoiceRuntime.ts"
+import { EXTERNAL_BACKEND_ID } from "../voice/Schemas.ts"
 import { RpcHandlersLive } from "./handlers.ts"
 
 const sessionId = SessionId.make("session-1")
@@ -116,12 +121,18 @@ const SkillsLive = Layer.unwrap(
 	})
 ).pipe(Layer.provide(FileIndexPlatform))
 
+const VoiceLive = VoiceRuntimeLive.pipe(
+	Layer.provide(FileIndexPlatform),
+	Layer.provide(ConfigProvider.layer(ConfigProvider.fromEnv({ env: {} })))
+)
+
 const TestLive = RpcHandlersLive.pipe(
 	Layer.provideMerge(ProjectionSnapshotQueryLive),
 	Layer.provideMerge(EngineAndStore),
 	Layer.provideMerge(FileIndexServiceLive),
 	Layer.provideMerge(GitLive),
 	Layer.provideMerge(SkillsLive),
+	Layer.provideMerge(VoiceLive),
 	Layer.provideMerge(FileIndexPlatform)
 )
 
@@ -398,6 +409,28 @@ Vitest.layer(isolatedRpc())("skills discover", (it) => {
 			Vitest.assert.strictEqual(events[0]?.type, "SkillsDiscovered")
 			if (events[0]?.type === "SkillsDiscovered") {
 				Vitest.assert.strictEqual(events[0].payload.agents.length, 4)
+			}
+		})
+	)
+})
+
+Vitest.layer(isolatedRpc())("voice models list", (it) => {
+	it.effect("fills models from the voice service before dispatch", () =>
+		Effect.gen(function*() {
+			const client = yield* RpcTest.makeClient(AcepeRpc)
+			yield* client.dispatch(
+				VoiceModelsListCommand.make({
+					type: "voice.models.list",
+					commandId: CommandId.make("cmd-voice"),
+					models: emptyVoiceModels
+				})
+			)
+			const events = yield* Stream.take(client.events({ fromSequence: 0 }), 1).pipe(
+				Stream.runCollect
+			)
+			Vitest.assert.strictEqual(events[0]?.type, "VoiceModelsListed")
+			if (events[0]?.type === "VoiceModelsListed") {
+				Vitest.assert.strictEqual(events[0].payload.models[0]?.id, EXTERNAL_BACKEND_ID)
 			}
 		})
 	)

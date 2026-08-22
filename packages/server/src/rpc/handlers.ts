@@ -45,6 +45,7 @@ import {
 	ProjectionSnapshotQuery
 } from "../orchestration/Services/ProjectionSnapshotQuery.ts"
 import { fillSkillsDiscoverCommand } from "../skills/discoverCatalog.ts"
+import { fillVoiceCommand } from "../voice/fillCommand.ts"
 
 const EVENT_PAGE_SIZE = 1_000
 
@@ -84,7 +85,8 @@ export const toRpcSnapshot = (snapshot: SessionProjectionSnapshot): RpcSessionSn
 	projects: Arr.map(snapshot.projects, toRpcProject),
 	sessions: snapshot.sessions,
 	settings: snapshot.settings,
-	skillsCatalog: snapshot.skillsCatalog
+	skillsCatalog: snapshot.skillsCatalog,
+	voice: snapshot.voice
 })
 
 const decodeRpcFileGitStatuses = Schema.decodeUnknownEffect(Schema.Array(FileGitStatus))
@@ -146,7 +148,8 @@ const withProjectGitStatus = Effect.fn("withProjectGitStatus")(function*(
 		projects,
 		sessions: snapshot.sessions,
 		settings: snapshot.settings,
-		skillsCatalog: snapshot.skillsCatalog
+		skillsCatalog: snapshot.skillsCatalog,
+		voice: snapshot.voice
 	} satisfies RpcSessionSnapshot
 })
 
@@ -255,7 +258,8 @@ export const dispatchOrchestrationCommand = Effect.fn("dispatchOrchestrationComm
 	command: OrchestrationCommand
 ) {
 	const engine = yield* OrchestrationEngine
-	const filled = yield* fillSkillsDiscoverCommand(command)
+	const filledSkills = yield* fillSkillsDiscoverCommand(command)
+	const filled = yield* fillVoiceCommand(filledSkills)
 	return yield* engine.dispatch(filled)
 })
 

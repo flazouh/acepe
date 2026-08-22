@@ -7,6 +7,7 @@ import {
 	SessionId,
 	settingsSnapshotRequest,
 	skillsSnapshotRequest,
+	voiceSnapshotRequest,
 	TurnId
 } from "@acepe/contracts"
 import * as BunFileSystem from "@effect/platform-bun/BunFileSystem"
@@ -222,7 +223,8 @@ Vitest.layer(isolatedQuery())("missing session", (it) => {
 				projects: [],
 				sessions: [],
 				settings: [],
-				skillsCatalog: null
+				skillsCatalog: null,
+				voice: null
 			})
 		})
 	)
@@ -362,6 +364,46 @@ Vitest.layer(isolatedQuery())("skills snapshot", (it) => {
 			}
 			const settingsSnap = yield* query.forRequest(settingsSnapshotRequest())
 			Vitest.assert.deepStrictEqual(settingsSnap.skillsCatalog, snapshot.skillsCatalog)
+		})
+	)
+})
+
+const insertVoice = Effect.fn("insertVoice")(function*(sequence: number) {
+	const sql = yield* SqlClient.SqlClient
+	yield* sql`
+		INSERT INTO projection_voice (
+			voice_id,
+			models_json,
+			languages_json,
+			recording_json,
+			last_transcription_json,
+			sequence
+		) VALUES (
+			${"app"},
+			${"[]"},
+			${"[]"},
+			${"null"},
+			${"null"},
+			${sequence}
+		)
+	`.withoutTransform.pipe(Effect.asVoid)
+})
+
+Vitest.layer(isolatedQuery())("voice snapshot", (it) => {
+	it.effect("returns the projected voice catalog through the voice snapshot request", () =>
+		Effect.gen(function*() {
+			const query = yield* ProjectionSnapshotQuery
+			yield* insertVoice(1)
+			yield* checkpoint("projection.voice", 1)
+			const snapshot = yield* query.forRequest(voiceSnapshotRequest())
+			Vitest.assert.strictEqual(snapshot.session, null)
+			Vitest.assert.isNotNull(snapshot.voice)
+			if (snapshot.voice !== null) {
+				Vitest.assert.strictEqual(snapshot.voice.sequence, 1)
+				Vitest.assert.deepStrictEqual(snapshot.voice.models, [])
+			}
+			const settingsSnap = yield* query.forRequest(settingsSnapshotRequest())
+			Vitest.assert.deepStrictEqual(settingsSnap.voice, snapshot.voice)
 		})
 	)
 })

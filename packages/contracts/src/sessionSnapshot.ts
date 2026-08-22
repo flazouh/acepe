@@ -14,6 +14,7 @@ import {
 	type RpcProjectedSetting,
 	type RpcSessionSnapshot,
 } from "./rpc.ts"
+import { emptyProjectedVoice, type ProjectedVoice, type VoiceModelInfo } from "./voice.ts"
 
 const asTranscriptText = (value: string): typeof TrimmedNonEmptyString.Type =>
 	Schema.decodeUnknownSync(TrimmedNonEmptyString)(value)
@@ -30,6 +31,7 @@ export const emptyRpcSessionSnapshot = (snapshotSequence: Sequence): RpcSessionS
 	sessions: Arr.empty(),
 	settings: Arr.empty(),
 	skillsCatalog: null,
+	voice: null,
 })
 
 const watermark = (snapshot: RpcSessionSnapshot, sequence: Sequence): Sequence =>
@@ -223,6 +225,7 @@ const applySettingsUpdated = (
 		settings: Arr.sort(Arr.append(without, next), settingKeyOrder),
 		checkpoints: snapshot.checkpoints,
 		skillsCatalog: snapshot.skillsCatalog,
+		voice: snapshot.voice,
 	}
 }
 
@@ -353,7 +356,223 @@ const applySkillsDiscovered = (
 		pluginSkills: event.payload.pluginSkills,
 		tree: event.payload.tree,
 	},
+	voice: snapshot.voice,
 })
+
+const upsertVoiceModel = (
+	models: ReadonlyArray<VoiceModelInfo>,
+	next: VoiceModelInfo,
+): ReadonlyArray<VoiceModelInfo> => {
+	const existing = Arr.findFirst(models, (row) => row.id === next.id)
+	if (Option.isNone(existing)) {
+		return Arr.append(models, next)
+	}
+	return Arr.map(models, (row) => (row.id === next.id ? next : row))
+}
+
+const markModelDeleted = (
+	models: ReadonlyArray<VoiceModelInfo>,
+	modelId: string,
+): ReadonlyArray<VoiceModelInfo> =>
+	Arr.map(models, (row) => {
+		if (row.id !== modelId) {
+			return row
+		}
+		return {
+			id: row.id,
+			name: row.name,
+			sizeBytes: row.sizeBytes,
+			isEnglishOnly: row.isEnglishOnly,
+			isDownloaded: false,
+			isLoaded: false,
+			downloadUrl: row.downloadUrl,
+		}
+	})
+
+const markModelDownloaded = (
+	models: ReadonlyArray<VoiceModelInfo>,
+	modelId: string,
+): ReadonlyArray<VoiceModelInfo> =>
+	Arr.map(models, (row) => {
+		if (row.id !== modelId) {
+			return row
+		}
+		return {
+			id: row.id,
+			name: row.name,
+			sizeBytes: row.sizeBytes,
+			isEnglishOnly: row.isEnglishOnly,
+			isDownloaded: true,
+			isLoaded: row.isLoaded,
+			downloadUrl: row.downloadUrl,
+		}
+	})
+
+const currentVoice = (snapshot: RpcSessionSnapshot, sequence: Sequence): ProjectedVoice => {
+	if (snapshot.voice === null) {
+		return emptyProjectedVoice(sequence)
+	}
+	return snapshot.voice
+}
+
+const replaceVoice = (
+	snapshot: RpcSessionSnapshot,
+	sequence: Sequence,
+	voice: ProjectedVoice,
+): RpcSessionSnapshot => ({
+	snapshotSequence: watermark(snapshot, sequence),
+	session: snapshot.session,
+	messages: snapshot.messages,
+	turns: snapshot.turns,
+	activities: snapshot.activities,
+	pendingApprovals: snapshot.pendingApprovals,
+	projects: snapshot.projects,
+	sessions: snapshot.sessions,
+	settings: snapshot.settings,
+	checkpoints: snapshot.checkpoints,
+	skillsCatalog: snapshot.skillsCatalog,
+	voice: {
+		sequence,
+		models: voice.models,
+		languages: voice.languages,
+		recording: voice.recording,
+		lastTranscription: voice.lastTranscription,
+	},
+})
+
+const applyVoiceModelsListed = (
+	snapshot: RpcSessionSnapshot,
+	event: Extract<OrchestrationEvent, { readonly type: "VoiceModelsListed" }>,
+): RpcSessionSnapshot => {
+	const voice = currentVoice(snapshot, event.sequence)
+	return replaceVoice(snapshot, event.sequence, {
+		sequence: event.sequence,
+		models: event.payload.models,
+		languages: voice.languages,
+		recording: voice.recording,
+		lastTranscription: voice.lastTranscription,
+	})
+}
+
+const applyVoiceLanguagesListed = (
+	snapshot: RpcSessionSnapshot,
+	event: Extract<OrchestrationEvent, { readonly type: "VoiceLanguagesListed" }>,
+): RpcSessionSnapshot => {
+	const voice = currentVoice(snapshot, event.sequence)
+	return replaceVoice(snapshot, event.sequence, {
+		sequence: event.sequence,
+		models: voice.models,
+		languages: event.payload.languages,
+		recording: voice.recording,
+		lastTranscription: voice.lastTranscription,
+	})
+}
+
+const applyVoiceModelStatusReported = (
+	snapshot: RpcSessionSnapshot,
+	event: Extract<OrchestrationEvent, { readonly type: "VoiceModelStatusReported" }>,
+): RpcSessionSnapshot => {
+	const voice = currentVoice(snapshot, event.sequence)
+	return replaceVoice(snapshot, event.sequence, {
+		sequence: event.sequence,
+		models: upsertVoiceModel(voice.models, event.payload.model),
+		languages: voice.languages,
+		recording: voice.recording,
+		lastTranscription: voice.lastTranscription,
+	})
+}
+
+const applyVoiceModelDownloaded = (
+	snapshot: RpcSessionSnapshot,
+	event: Extract<OrchestrationEvent, { readonly type: "VoiceModelDownloaded" }>,
+): RpcSessionSnapshot => {
+	const voice = currentVoice(snapshot, event.sequence)
+	return replaceVoice(snapshot, event.sequence, {
+		sequence: event.sequence,
+		models: markModelDownloaded(voice.models, event.payload.modelId),
+		languages: voice.languages,
+		recording: voice.recording,
+		lastTranscription: voice.lastTranscription,
+	})
+}
+
+const applyVoiceModelDeleted = (
+	snapshot: RpcSessionSnapshot,
+	event: Extract<OrchestrationEvent, { readonly type: "VoiceModelDeleted" }>,
+): RpcSessionSnapshot => {
+	const voice = currentVoice(snapshot, event.sequence)
+	return replaceVoice(snapshot, event.sequence, {
+		sequence: event.sequence,
+		models: markModelDeleted(voice.models, event.payload.modelId),
+		languages: voice.languages,
+		recording: voice.recording,
+		lastTranscription: voice.lastTranscription,
+	})
+}
+
+const applyVoiceModelLoaded = (
+	snapshot: RpcSessionSnapshot,
+	event: Extract<OrchestrationEvent, { readonly type: "VoiceModelLoaded" }>,
+): RpcSessionSnapshot => {
+	const voice = currentVoice(snapshot, event.sequence)
+	return replaceVoice(snapshot, event.sequence, {
+		sequence: event.sequence,
+		models: upsertVoiceModel(voice.models, event.payload.model),
+		languages: voice.languages,
+		recording: voice.recording,
+		lastTranscription: voice.lastTranscription,
+	})
+}
+
+const applyVoiceRecordingStarted = (
+	snapshot: RpcSessionSnapshot,
+	event: Extract<OrchestrationEvent, { readonly type: "VoiceRecordingStarted" }>,
+): RpcSessionSnapshot => {
+	const voice = currentVoice(snapshot, event.sequence)
+	return replaceVoice(snapshot, event.sequence, {
+		sequence: event.sequence,
+		models: voice.models,
+		languages: voice.languages,
+		recording: {
+			sessionId: event.payload.sessionId,
+			phase: "recording",
+		},
+		lastTranscription: voice.lastTranscription,
+	})
+}
+
+const applyVoiceRecordingStopped = (
+	snapshot: RpcSessionSnapshot,
+	event: Extract<OrchestrationEvent, { readonly type: "VoiceRecordingStopped" }>,
+): RpcSessionSnapshot => {
+	const voice = currentVoice(snapshot, event.sequence)
+	return replaceVoice(snapshot, event.sequence, {
+		sequence: event.sequence,
+		models: voice.models,
+		languages: voice.languages,
+		recording: null,
+		lastTranscription: {
+			sessionId: event.payload.sessionId,
+			text: event.payload.result.text,
+			language: event.payload.result.language,
+			durationMs: event.payload.result.durationMs,
+		},
+	})
+}
+
+const applyVoiceRecordingCancelled = (
+	snapshot: RpcSessionSnapshot,
+	event: Extract<OrchestrationEvent, { readonly type: "VoiceRecordingCancelled" }>,
+): RpcSessionSnapshot => {
+	const voice = currentVoice(snapshot, event.sequence)
+	return replaceVoice(snapshot, event.sequence, {
+		sequence: event.sequence,
+		models: voice.models,
+		languages: voice.languages,
+		recording: null,
+		lastTranscription: voice.lastTranscription,
+	})
+}
 
 export const applyEventToRpcSessionSnapshot = (
 	snapshot: RpcSessionSnapshot,
@@ -400,6 +619,24 @@ export const applyEventToRpcSessionSnapshot = (
 
 		case "SkillsDiscovered":
 			return applySkillsDiscovered(snapshot, event)
+		case "VoiceModelsListed":
+			return applyVoiceModelsListed(snapshot, event)
+		case "VoiceLanguagesListed":
+			return applyVoiceLanguagesListed(snapshot, event)
+		case "VoiceModelStatusReported":
+			return applyVoiceModelStatusReported(snapshot, event)
+		case "VoiceModelDownloaded":
+			return applyVoiceModelDownloaded(snapshot, event)
+		case "VoiceModelDeleted":
+			return applyVoiceModelDeleted(snapshot, event)
+		case "VoiceModelLoaded":
+			return applyVoiceModelLoaded(snapshot, event)
+		case "VoiceRecordingStarted":
+			return applyVoiceRecordingStarted(snapshot, event)
+		case "VoiceRecordingStopped":
+			return applyVoiceRecordingStopped(snapshot, event)
+		case "VoiceRecordingCancelled":
+			return applyVoiceRecordingCancelled(snapshot, event)
 		default:
 			return withSequence(snapshot, event.sequence)
 	}

@@ -322,6 +322,15 @@ export const evolveProjectedTurns = (
 			CheckpointReadinessChanged: () => Effect.succeed(current),
 			CheckpointReverted: () => Effect.succeed(current),
 			SettingsUpdated: () => Effect.succeed(current),
-			SkillsDiscovered: () => Effect.succeed(current)
+			SkillsDiscovered: () => Effect.succeed(current),
+			VoiceModelsListed: () => Effect.succeed(current),
+			VoiceLanguagesListed: () => Effect.succeed(current),
+			VoiceModelStatusReported: () => Effect.succeed(current),
+			VoiceModelDownloaded: () => Effect.succeed(current),
+			VoiceModelDeleted: () => Effect.succeed(current),
+			VoiceModelLoaded: () => Effect.succeed(current),
+			VoiceRecordingStarted: () => Effect.succeed(current),
+			VoiceRecordingStopped: () => Effect.succeed(current),
+			VoiceRecordingCancelled: () => Effect.succeed(current)
 		})
 	)(event)

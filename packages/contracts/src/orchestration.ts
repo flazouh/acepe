@@ -2,11 +2,17 @@ import * as Match from "effect/Match"
 import * as Schema from "effect/Schema"
 
 import { CheckpointFileCount, CheckpointNumber, CheckpointStatus, StreamToken, TrimmedNonEmptyString } from "./baseSchemas.ts"
-import { CheckpointId, CommandId, MessageId, ProjectId, SessionId, SettingsId, SkillsId, ToolCallId, TurnId } from "./ids.ts"
+import { CheckpointId, CommandId, MessageId, ProjectId, SessionId, SettingsId, SkillsId, ToolCallId, TurnId, VoiceId } from "./ids.ts"
 import { APP_SETTINGS_ID, SettingsValue, UserSettingKey } from "./settings.ts"
 import { APP_SKILLS_ID, SkillsCatalog } from "./skills.ts"
+import {
+	VoiceLanguageOption,
+	VoiceModelInfo,
+	VoiceTranscriptionResult,
+	APP_VOICE_ID,
+} from "./voice.ts"
 
-export const OrchestrationAggregateKind = Schema.Literals(["project", "session", "settings", "skills"])
+export const OrchestrationAggregateKind = Schema.Literals(["project", "session", "settings", "skills", "voice"])
 export type OrchestrationAggregateKind = typeof OrchestrationAggregateKind.Type
 
 export type OrchestrationAggregateRef =
@@ -25,6 +31,10 @@ export type OrchestrationAggregateRef =
 	| {
 			readonly aggregateKind: "skills"
 			readonly aggregateId: SkillsId
+	  }
+	| {
+			readonly aggregateKind: "voice"
+			readonly aggregateId: VoiceId
 	  }
 
 export const ProjectCreateCommand = Schema.Struct({
@@ -169,6 +179,73 @@ export const SkillsDiscoverCommand = Schema.Struct({
 })
 export type SkillsDiscoverCommand = typeof SkillsDiscoverCommand.Type
 
+export const VoiceModelsListCommand = Schema.Struct({
+	type: Schema.Literal("voice.models.list"),
+	commandId: CommandId,
+	models: Schema.Array(VoiceModelInfo),
+})
+export type VoiceModelsListCommand = typeof VoiceModelsListCommand.Type
+
+export const VoiceLanguagesListCommand = Schema.Struct({
+	type: Schema.Literal("voice.languages.list"),
+	commandId: CommandId,
+	languages: Schema.Array(VoiceLanguageOption),
+})
+export type VoiceLanguagesListCommand = typeof VoiceLanguagesListCommand.Type
+
+export const VoiceModelStatusCommand = Schema.Struct({
+	type: Schema.Literal("voice.model.status"),
+	commandId: CommandId,
+	modelId: TrimmedNonEmptyString,
+	model: VoiceModelInfo,
+})
+export type VoiceModelStatusCommand = typeof VoiceModelStatusCommand.Type
+
+export const VoiceModelDownloadCommand = Schema.Struct({
+	type: Schema.Literal("voice.model.download"),
+	commandId: CommandId,
+	modelId: TrimmedNonEmptyString,
+})
+export type VoiceModelDownloadCommand = typeof VoiceModelDownloadCommand.Type
+
+export const VoiceModelDeleteCommand = Schema.Struct({
+	type: Schema.Literal("voice.model.delete"),
+	commandId: CommandId,
+	modelId: TrimmedNonEmptyString,
+})
+export type VoiceModelDeleteCommand = typeof VoiceModelDeleteCommand.Type
+
+export const VoiceModelLoadCommand = Schema.Struct({
+	type: Schema.Literal("voice.model.load"),
+	commandId: CommandId,
+	modelId: TrimmedNonEmptyString,
+	model: VoiceModelInfo,
+})
+export type VoiceModelLoadCommand = typeof VoiceModelLoadCommand.Type
+
+export const VoiceRecordingStartCommand = Schema.Struct({
+	type: Schema.Literal("voice.recording.start"),
+	commandId: CommandId,
+	sessionId: SessionId,
+})
+export type VoiceRecordingStartCommand = typeof VoiceRecordingStartCommand.Type
+
+export const VoiceRecordingStopCommand = Schema.Struct({
+	type: Schema.Literal("voice.recording.stop"),
+	commandId: CommandId,
+	sessionId: SessionId,
+	language: Schema.NullOr(Schema.String),
+	result: VoiceTranscriptionResult,
+})
+export type VoiceRecordingStopCommand = typeof VoiceRecordingStopCommand.Type
+
+export const VoiceRecordingCancelCommand = Schema.Struct({
+	type: Schema.Literal("voice.recording.cancel"),
+	commandId: CommandId,
+	sessionId: SessionId,
+})
+export type VoiceRecordingCancelCommand = typeof VoiceRecordingCancelCommand.Type
+
 export const OrchestrationCommand = Schema.Union([
 	ProjectCreateCommand,
 	ProjectMetaUpdateCommand,
@@ -186,6 +263,15 @@ export const OrchestrationCommand = Schema.Union([
 	CheckpointRevertCommand,
 	SettingsSetCommand,
 	SkillsDiscoverCommand,
+	VoiceModelsListCommand,
+	VoiceLanguagesListCommand,
+	VoiceModelStatusCommand,
+	VoiceModelDownloadCommand,
+	VoiceModelDeleteCommand,
+	VoiceModelLoadCommand,
+	VoiceRecordingStartCommand,
+	VoiceRecordingStopCommand,
+	VoiceRecordingCancelCommand,
 ])
 export type OrchestrationCommand = typeof OrchestrationCommand.Type
 
@@ -209,6 +295,11 @@ const skillsRef = (): OrchestrationAggregateRef => ({
 	aggregateId: APP_SKILLS_ID,
 })
 
+const voiceRef = (): OrchestrationAggregateRef => ({
+	aggregateKind: "voice",
+	aggregateId: APP_VOICE_ID,
+})
+
 export const commandToAggregateRef = Match.type<OrchestrationCommand>().pipe(
 	Match.discriminatorsExhaustive("type")({
 		"project.create": (command) => projectRef(command.projectId),
@@ -227,5 +318,14 @@ export const commandToAggregateRef = Match.type<OrchestrationCommand>().pipe(
 		"checkpoint.revert": (command) => sessionRef(command.sessionId),
 		"settings.set": () => settingsRef(),
 		"skills.discover": () => skillsRef(),
+		"voice.models.list": () => voiceRef(),
+		"voice.languages.list": () => voiceRef(),
+		"voice.model.status": () => voiceRef(),
+		"voice.model.download": () => voiceRef(),
+		"voice.model.delete": () => voiceRef(),
+		"voice.model.load": () => voiceRef(),
+		"voice.recording.start": () => voiceRef(),
+		"voice.recording.stop": () => voiceRef(),
+		"voice.recording.cancel": () => voiceRef(),
 	}),
 )

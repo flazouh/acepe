@@ -35,6 +35,7 @@ import {
 	settingsSnapshotRequest,
 	skillsSnapshotRequest,
 	snapshotScope,
+	voiceSnapshotRequest,
 	type RpcTransport,
 } from "./rpc.ts"
 
@@ -83,6 +84,7 @@ const emptySnapshot: RpcSessionSnapshot = {
 	sessions: [],
 	settings: [],
 	skillsCatalog: null,
+	voice: null,
 }
 
 const snapshot: RpcSessionSnapshot = {
@@ -145,6 +147,7 @@ const snapshot: RpcSessionSnapshot = {
 	],
 	settings: [],
 	skillsCatalog: null,
+	voice: null,
 }
 
 const unusedDispatch: RpcTransport["dispatch"] = (_command) => Effect.succeed({ sequence: 0 })
@@ -276,6 +279,7 @@ describe("Schema-encoded boundary", () => {
 			sessions: [],
 			settings: [],
 			skillsCatalog: null,
+			voice: null,
 		}
 		const encoded = Effect.runSync(Schema.encodeUnknownEffect(RpcSessionSnapshot)(withGit))
 		const decoded = Effect.runSync(Schema.decodeUnknownEffect(RpcSessionSnapshot)(encoded))
@@ -317,6 +321,7 @@ describe("Schema-encoded boundary", () => {
 			sessions: [],
 			settings: [],
 			skillsCatalog: null,
+			voice: null,
 		}
 		const encoded = Effect.runSync(Schema.encodeUnknownEffect(RpcSessionSnapshot)(withCheckpoint))
 		const decoded = Effect.runSync(Schema.decodeUnknownEffect(RpcSessionSnapshot)(encoded))
@@ -333,7 +338,7 @@ describe("Schema-encoded boundary", () => {
 		}
 	})
 
-	it("decodes library, settings, skills, project, session, and legacy snapshot requests", () => {
+	it("decodes library, settings, skills, voice, project, session, and legacy snapshot requests", () => {
 		expect(Effect.runSync(decodeSnapshotRequest({ kind: "library" }))).toEqual(
 			librarySnapshotRequest(),
 		)
@@ -342,6 +347,9 @@ describe("Schema-encoded boundary", () => {
 		)
 		expect(Effect.runSync(decodeSnapshotRequest({ kind: "skills" }))).toEqual(
 			skillsSnapshotRequest(),
+		)
+		expect(Effect.runSync(decodeSnapshotRequest({ kind: "voice" }))).toEqual(
+			voiceSnapshotRequest(),
 		)
 		expect(
 			Effect.runSync(decodeSnapshotRequest({ kind: "project", projectId })),
@@ -352,10 +360,11 @@ describe("Schema-encoded boundary", () => {
 		expect(Effect.runSync(decodeSnapshotRequest({ sessionId }))).toEqual({ sessionId })
 	})
 
-	it("maps snapshot requests onto library, settings, skills, project, or session scope", () => {
+	it("maps snapshot requests onto library, settings, skills, voice, project, or session scope", () => {
 		expect(snapshotScope(librarySnapshotRequest())).toEqual({ kind: "library" })
 		expect(snapshotScope(settingsSnapshotRequest())).toEqual({ kind: "settings" })
 		expect(snapshotScope(skillsSnapshotRequest())).toEqual({ kind: "skills" })
+		expect(snapshotScope(voiceSnapshotRequest())).toEqual({ kind: "voice" })
 		expect(snapshotScope(projectSnapshotRequest(projectId))).toEqual({
 			kind: "project",
 			projectId,

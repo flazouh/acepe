@@ -33,6 +33,7 @@ describe("messagesFromSessionSnapshot", () => {
 			sessions: [],
 			settings: [],
 			skillsCatalog: null,
+			voice: null,
 		};
 		expect(messagesFromSessionSnapshot(snapshot)).toBe(snapshot.messages);
 		expect(transcriptRowsFromSessionSnapshot(snapshot)[0]?.rowId).toBe("message-user");

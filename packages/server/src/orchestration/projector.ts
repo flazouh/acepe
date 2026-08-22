@@ -351,7 +351,16 @@ export const projectEvent = (
 			CheckpointReadinessChanged: () => Effect.succeed(model),
 			CheckpointReverted: () => Effect.succeed(model),
 			SettingsUpdated: () => Effect.succeed(model),
-			SkillsDiscovered: () => Effect.succeed(model)
+			SkillsDiscovered: () => Effect.succeed(model),
+			VoiceModelsListed: () => Effect.succeed(model),
+			VoiceLanguagesListed: () => Effect.succeed(model),
+			VoiceModelStatusReported: () => Effect.succeed(model),
+			VoiceModelDownloaded: () => Effect.succeed(model),
+			VoiceModelDeleted: () => Effect.succeed(model),
+			VoiceModelLoaded: () => Effect.succeed(model),
+			VoiceRecordingStarted: () => Effect.succeed(model),
+			VoiceRecordingStopped: () => Effect.succeed(model),
+			VoiceRecordingCancelled: () => Effect.succeed(model)
 		})
 	)(event)
 }
