@@ -139,3 +139,40 @@ describe("composeLibraryStore", () => {
 			}),
 		));
 });
+
+describe("openProject", () => {
+	it("loads that project's sessions, not just its id", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				const requested: Array<unknown> = [];
+				const client: RpcClient = {
+					dispatch: () => Effect.succeed({ sequence: 1 }),
+					snapshot: (request) => {
+						requested.push(request);
+						return Effect.succeed({
+							...librarySnapshot,
+							sessions: [
+								{ ...librarySnapshot.sessions[0]!, title: "First session" },
+								{ ...librarySnapshot.sessions[0]!, title: "Second session" },
+							],
+						});
+					},
+					getProjectIndex: () =>
+						Effect.succeed({
+							projectPath: "/tmp/acepe",
+							files: [],
+							gitStatus: [],
+							totalFiles: 0,
+							totalLines: 0,
+						}),
+					invalidateProjectIndex: () => Effect.void,
+					events: () => Stream.empty,
+				};
+				const registry = AtomRegistry.make();
+				const store = composeLibraryStore({ client, registry });
+				const snap = yield* store.openProject(projectId);
+				expect(snap.sessions.length).toBe(2);
+				expect(registry.get(store.selectedProjectIdAtom)).toBe(projectId);
+			}),
+		));
+});

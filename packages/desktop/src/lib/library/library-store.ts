@@ -66,9 +66,17 @@ export const composeLibraryStore = (input: {
 		snapshotAtom,
 		selectedProjectIdAtom,
 		openLibrary,
+		// Selecting a project must also load its sessions. Setting the id alone
+		// leaves the sidebar showing the previous project's sessions.
 		selectProject: (projectId: ProjectId) => {
 			input.registry.set(selectedProjectIdAtom, projectId);
 		},
+		openProject: Effect.fn("openProject")(function* (projectId: ProjectId) {
+			input.registry.set(selectedProjectIdAtom, projectId);
+			const snap = yield* input.client.snapshot({ kind: "project", projectId });
+			input.registry.set(snapshotAtom, snap);
+			return snap;
+		}),
 		readSnapshot,
 	};
 };

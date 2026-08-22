@@ -46,7 +46,8 @@
 	{model}
 	onSelectProject={(projectId) => {
 		const next = ProjectId.make(projectId);
-		store.selectProject(next);
 		selectedProjectId = next;
+		// Loads that project's sessions, not just its id.
+		Effect.runFork(store.openProject(next));
 	}}
 />
