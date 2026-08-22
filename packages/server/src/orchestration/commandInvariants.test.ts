@@ -1,4 +1,7 @@
 import {
+	CheckpointCreateCommand,
+	CheckpointId,
+	CheckpointRevertCommand,
 	CommandId,
 	type OrchestrationCommand,
 	ProjectId,
@@ -16,7 +19,9 @@ import {
 	requireSession,
 	requireSessionAbsent,
 	requireSessionArchived,
-	requireSessionNotArchived
+	requireSessionNotArchived,
+	requireCheckpoint,
+	requireCheckpointAbsent
 } from "./commandInvariants.ts"
 
 const occurredAt = "2026-08-20T12:00:00.000Z"
@@ -26,6 +31,7 @@ const missingProjectId = ProjectId.make("project-missing")
 const sessionId = SessionId.make("session-1")
 const missingSessionId = SessionId.make("session-missing")
 const archivedSessionId = SessionId.make("session-archived")
+const checkpointId = CheckpointId.make("checkpoint-1")
 
 const emptyReadModel: OrchestrationReadModel = {
 	snapshotSequence: 0,
@@ -40,12 +46,14 @@ const populatedReadModel: OrchestrationReadModel = {
 		{
 			id: sessionId,
 			projectId,
-			archivedAt: null
+			archivedAt: null,
+			checkpoints: []
 		},
 		{
 			id: archivedSessionId,
 			projectId,
-			archivedAt: occurredAt
+			archivedAt: occurredAt,
+			checkpoints: []
 		}
 	]
 }
@@ -69,6 +77,25 @@ const sessionArchiveCommand: OrchestrationCommand = SessionArchiveCommand.make({
 	type: "session.archive",
 	commandId,
 	sessionId
+})
+
+const checkpointRevertCommand = CheckpointRevertCommand.make({
+	type: "checkpoint.revert",
+	commandId,
+	sessionId,
+	checkpointId
+})
+
+const checkpointCreateCommand = CheckpointCreateCommand.make({
+	type: "checkpoint.create",
+	commandId,
+	sessionId,
+	checkpointId,
+	checkpointNumber: 1,
+	name: "After edit",
+	isAuto: false,
+	toolCallId: null,
+	fileCount: 1
 })
 
 Vitest.describe("requireProject", () => {
@@ -244,6 +271,89 @@ Vitest.describe("requireSessionArchived", () => {
 			Vitest.assert.strictEqual(
 				error.detail,
 				"Session 'session-1' is not archived for command 'session.archive'."
+			)
+		})
+	)
+})
+
+Vitest.describe("requireCheckpoint", () => {
+	Vitest.it.effect("fails when the checkpoint is missing", () =>
+		Effect.gen(function*() {
+			const error = yield* Effect.flip(
+				requireCheckpoint({
+					readModel: populatedReadModel,
+					command: checkpointRevertCommand,
+					sessionId,
+					checkpointId
+				})
+			)
+			Vitest.assert.strictEqual(error._tag, "OrchestrationCommandInvariantError")
+			Vitest.assert.strictEqual(
+				error.detail,
+				"Checkpoint 'checkpoint-1' does not exist on session 'session-1' for command 'checkpoint.revert'."
+			)
+		})
+	)
+
+	Vitest.it.effect("returns the checkpoint when it exists", () =>
+		Effect.gen(function*() {
+			const checkpoint = yield* requireCheckpoint({
+				readModel: {
+					snapshotSequence: 5,
+					projects: [{ id: projectId }],
+					sessions: [
+						{
+							id: sessionId,
+							projectId,
+							archivedAt: null,
+							checkpoints: [{ id: checkpointId }]
+						}
+					]
+				},
+				command: checkpointRevertCommand,
+				sessionId,
+				checkpointId
+			})
+			Vitest.assert.strictEqual(checkpoint.id, checkpointId)
+		})
+	)
+})
+
+Vitest.describe("requireCheckpointAbsent", () => {
+	Vitest.it.effect("succeeds when the checkpoint is missing", () =>
+		requireCheckpointAbsent({
+			readModel: populatedReadModel,
+			command: checkpointCreateCommand,
+			sessionId,
+			checkpointId
+		})
+	)
+
+	Vitest.it.effect("fails when the checkpoint already exists", () =>
+		Effect.gen(function*() {
+			const error = yield* Effect.flip(
+				requireCheckpointAbsent({
+					readModel: {
+						snapshotSequence: 5,
+						projects: [{ id: projectId }],
+						sessions: [
+							{
+								id: sessionId,
+								projectId,
+								archivedAt: null,
+								checkpoints: [{ id: checkpointId }]
+							}
+						]
+					},
+					command: checkpointCreateCommand,
+					sessionId,
+					checkpointId
+				})
+			)
+			Vitest.assert.strictEqual(error._tag, "OrchestrationCommandInvariantError")
+			Vitest.assert.strictEqual(
+				error.detail,
+				"Checkpoint 'checkpoint-1' already exists on session 'session-1' and cannot be created twice."
 			)
 		})
 	)

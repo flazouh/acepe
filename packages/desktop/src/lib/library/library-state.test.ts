@@ -71,6 +71,7 @@ describe("librarySidebarViewModel", () => {
 				turns: snapshot.turns,
 				activities: snapshot.activities,
 				pendingApprovals: snapshot.pendingApprovals,
+				checkpoints: snapshot.checkpoints,
 				projects: [
 					{
 						projectId,

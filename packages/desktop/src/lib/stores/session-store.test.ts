@@ -108,6 +108,7 @@ const snapshotWithUser: RpcSessionSnapshot = {
 	turns: [],
 	activities: [],
 	pendingApprovals: [],
+	checkpoints: [],
 	projects: [],
 	sessions: [],
 	settings: [],

@@ -24,6 +24,7 @@ const snapshot: RpcSessionSnapshot = {
 	turns: [],
 	activities: [],
 	pendingApprovals: [],
+	checkpoints: [],
 	projects: [
 		{
 			projectId,

@@ -48,7 +48,9 @@ import {
 	requireSession,
 	requireSessionAbsent,
 	requireSessionArchived,
-	requireSessionNotArchived
+	requireSessionNotArchived,
+	requireCheckpoint,
+	requireCheckpointAbsent
 } from "./commandInvariants.ts"
 import type { OrchestrationCommandInvariantError } from "./Errors.ts"
 
@@ -620,10 +622,11 @@ const decideCheckpointCreate = Effect.fn("decideCheckpointCreate")(function*(
 	command: CheckpointCreateCommand,
 	identity: DecideIdentity
 ) {
-	yield* requireSessionNotArchived({
+	yield* requireCheckpointAbsent({
 		readModel,
 		command,
-		sessionId: command.sessionId
+		sessionId: command.sessionId,
+		checkpointId: command.checkpointId
 	})
 	return [checkpointCreatedEvent(command, identity, nextSequence(readModel.snapshotSequence))]
 })
@@ -633,10 +636,11 @@ const decideCheckpointReportReadiness = Effect.fn("decideCheckpointReportReadine
 	command: CheckpointReportReadinessCommand,
 	identity: DecideIdentity
 ) {
-	yield* requireSessionNotArchived({
+	yield* requireCheckpoint({
 		readModel,
 		command,
-		sessionId: command.sessionId
+		sessionId: command.sessionId,
+		checkpointId: command.checkpointId
 	})
 	return [
 		checkpointReadinessChangedEvent(command, identity, nextSequence(readModel.snapshotSequence))
@@ -648,10 +652,11 @@ const decideCheckpointRevert = Effect.fn("decideCheckpointRevert")(function*(
 	command: CheckpointRevertCommand,
 	identity: DecideIdentity
 ) {
-	yield* requireSessionNotArchived({
+	yield* requireCheckpoint({
 		readModel,
 		command,
-		sessionId: command.sessionId
+		sessionId: command.sessionId,
+		checkpointId: command.checkpointId
 	})
 	return [checkpointRevertedEvent(command, identity, nextSequence(readModel.snapshotSequence))]
 })

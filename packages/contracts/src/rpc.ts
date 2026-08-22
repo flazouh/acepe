@@ -1,4 +1,11 @@
-import { IsoDateTime, Sequence, TrimmedNonEmptyString } from "./baseSchemas.ts"
+import {
+	CheckpointFileCount,
+	CheckpointNumber,
+	CheckpointStatus,
+	IsoDateTime,
+	Sequence,
+	TrimmedNonEmptyString,
+} from "./baseSchemas.ts"
 import { OrchestrationEvent } from "./events.ts"
 import {
 	FileGitStatus,
@@ -9,9 +16,11 @@ import {
 import {
 	ActivityId,
 	ApprovalRequestId,
+	CheckpointId,
 	CommandId,
 	ProjectId,
 	SessionId,
+	ToolCallId,
 	TurnId,
 } from "./ids.ts"
 import { OrchestrationCommand, SessionPrLinkMode, SessionPrNumber } from "./orchestration.ts"
@@ -229,6 +238,21 @@ export const RpcProjectedPendingApproval = Schema.Struct({
 })
 export type RpcProjectedPendingApproval = typeof RpcProjectedPendingApproval.Type
 
+export const RpcProjectedCheckpoint = Schema.Struct({
+	checkpointId: CheckpointId,
+	sessionId: SessionId,
+	sequence: Sequence,
+	checkpointNumber: CheckpointNumber,
+	name: Schema.NullOr(TrimmedNonEmptyString),
+	isAuto: Schema.Boolean,
+	toolCallId: Schema.NullOr(ToolCallId),
+	fileCount: CheckpointFileCount,
+	status: CheckpointStatus,
+	createdAt: IsoDateTime,
+	lastRevertedAt: Schema.NullOr(IsoDateTime),
+})
+export type RpcProjectedCheckpoint = typeof RpcProjectedCheckpoint.Type
+
 export const RpcProjectedSetting = Schema.Struct({
 	key: UserSettingKey,
 	value: SettingsValue,
@@ -243,6 +267,7 @@ export const RpcSessionSnapshot = Schema.Struct({
 	turns: Schema.Array(RpcProjectedTurn),
 	activities: Schema.Array(RpcProjectedSessionActivity),
 	pendingApprovals: Schema.Array(RpcProjectedPendingApproval),
+	checkpoints: Schema.Array(RpcProjectedCheckpoint),
 	projects: Schema.Array(RpcProjectedProject),
 	sessions: Schema.Array(RpcProjectedSession),
 	settings: Schema.Array(RpcProjectedSetting),

@@ -65,7 +65,8 @@ const sessionReadModel: OrchestrationReadModel = {
 		{
 			id: sessionId,
 			projectId,
-			archivedAt: null
+			archivedAt: null,
+			checkpoints: []
 		}
 	]
 }
@@ -77,7 +78,21 @@ const archivedSessionReadModel: OrchestrationReadModel = {
 		{
 			id: sessionId,
 			projectId,
-			archivedAt: occurredAt
+			archivedAt: occurredAt,
+			checkpoints: []
+		}
+	]
+}
+
+const checkpointReadModel: OrchestrationReadModel = {
+	snapshotSequence: 3,
+	projects: [{ id: projectId }],
+	sessions: [
+		{
+			id: sessionId,
+			projectId,
+			archivedAt: null,
+			checkpoints: [{ id: checkpointId }]
 		}
 	]
 }
@@ -661,7 +676,7 @@ Vitest.describe("decide", () => {
 	Vitest.it.effect("emits CheckpointReadinessChanged from checkpoint.report-readiness", () =>
 		Effect.gen(function*() {
 			const events = yield* decide(
-				sessionReadModel,
+				checkpointReadModel,
 				CheckpointReportReadinessCommand.make({
 					type: "checkpoint.report-readiness",
 					commandId,
@@ -681,7 +696,7 @@ Vitest.describe("decide", () => {
 	Vitest.it.effect("emits CheckpointReverted from checkpoint.revert", () =>
 		Effect.gen(function*() {
 			const events = yield* decide(
-				sessionReadModel,
+				checkpointReadModel,
 				CheckpointRevertCommand.make({
 					type: "checkpoint.revert",
 					commandId,
@@ -694,6 +709,55 @@ Vitest.describe("decide", () => {
 			if (events[0]?.type === "CheckpointReverted") {
 				Vitest.assert.strictEqual(events[0].payload.checkpointId, checkpointId)
 			}
+		})
+	)
+
+	Vitest.it.effect("rejects checkpoint.revert when the checkpoint is missing", () =>
+		Effect.gen(function*() {
+			const error = yield* Effect.flip(
+				decide(
+					sessionReadModel,
+					CheckpointRevertCommand.make({
+						type: "checkpoint.revert",
+						commandId,
+						sessionId,
+						checkpointId
+					}),
+					identity
+				)
+			)
+			Vitest.assert.strictEqual(error._tag, "OrchestrationCommandInvariantError")
+			Vitest.assert.strictEqual(
+				error.detail,
+				"Checkpoint 'checkpoint-1' does not exist on session 'session-1' for command 'checkpoint.revert'."
+			)
+		})
+	)
+
+	Vitest.it.effect("rejects checkpoint.create when the checkpoint id already exists", () =>
+		Effect.gen(function*() {
+			const error = yield* Effect.flip(
+				decide(
+					checkpointReadModel,
+					CheckpointCreateCommand.make({
+						type: "checkpoint.create",
+						commandId,
+						sessionId,
+						checkpointId,
+						checkpointNumber: 1,
+						name: "After edit",
+						isAuto: true,
+						toolCallId,
+						fileCount: 2
+					}),
+					identity
+				)
+			)
+			Vitest.assert.strictEqual(error._tag, "OrchestrationCommandInvariantError")
+			Vitest.assert.strictEqual(
+				error.detail,
+				"Checkpoint 'checkpoint-1' already exists on session 'session-1' and cannot be created twice."
+			)
 		})
 	)
 

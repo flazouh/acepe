@@ -28,6 +28,7 @@ describe("messagesFromSessionSnapshot", () => {
 			turns: [],
 			activities: [],
 			pendingApprovals: [],
+			checkpoints: [],
 			projects: [],
 			sessions: [],
 			settings: [],

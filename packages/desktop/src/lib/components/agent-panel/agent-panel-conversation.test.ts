@@ -32,6 +32,7 @@ const snapshotBase = {
 	},
 	turns: [],
 	pendingApprovals: [],
+	checkpoints: [],
 } as const;
 
 describe("conversationFromSnapshot", () => {
@@ -83,6 +84,7 @@ describe("conversationFromSnapshot", () => {
 					},
 				],
 				pendingApprovals: [],
+				checkpoints: [],
 				projects: [],
 				sessions: [],
 				settings: [],
@@ -149,6 +151,7 @@ describe("conversationFromSnapshot", () => {
 				turns: [],
 				activities: [],
 				pendingApprovals: [],
+				checkpoints: [],
 				projects: [],
 				sessions: [],
 				settings: [],
@@ -185,6 +188,7 @@ describe("conversationFromSnapshot", () => {
 					},
 				],
 				pendingApprovals: [],
+				checkpoints: [],
 				projects: [],
 				sessions: [],
 				settings: [],

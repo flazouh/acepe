@@ -1,4 +1,4 @@
-import type { IsoDateTime, OrchestrationCommand, ProjectId, Sequence, SessionId } from "@acepe/contracts"
+import type { CheckpointId, IsoDateTime, OrchestrationCommand, ProjectId, Sequence, SessionId } from "@acepe/contracts"
 import * as Array from "effect/Array"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
@@ -8,10 +8,15 @@ export type OrchestrationProject = {
 	readonly id: ProjectId
 }
 
+export type OrchestrationCheckpoint = {
+	readonly id: CheckpointId
+}
+
 export type OrchestrationSession = {
 	readonly id: SessionId
 	readonly projectId: ProjectId
 	readonly archivedAt: IsoDateTime | null
+	readonly checkpoints: ReadonlyArray<OrchestrationCheckpoint>
 }
 
 export type OrchestrationReadModel = {
@@ -30,6 +35,13 @@ export type SessionInvariantInput = {
 	readonly readModel: OrchestrationReadModel
 	readonly command: OrchestrationCommand
 	readonly sessionId: SessionId
+}
+
+export type CheckpointInvariantInput = {
+	readonly readModel: OrchestrationReadModel
+	readonly command: OrchestrationCommand
+	readonly sessionId: SessionId
+	readonly checkpointId: CheckpointId
 }
 
 const findProjectById = (
@@ -111,6 +123,40 @@ export const requireSessionArchived = Effect.fn("requireSessionArchived")(functi
 		return yield* new OrchestrationCommandInvariantError({
 			commandType: input.command.type,
 			detail: `Session '${input.sessionId}' is not archived for command '${input.command.type}'.`
+		})
+	}
+	return session
+})
+
+export const requireCheckpoint = Effect.fn("requireCheckpoint")(function*(
+	input: CheckpointInvariantInput
+) {
+	const session = yield* requireSessionNotArchived(input)
+	const checkpoint = Array.findFirst(
+		session.checkpoints,
+		(row) => row.id === input.checkpointId
+	)
+	if (Option.isNone(checkpoint)) {
+		return yield* new OrchestrationCommandInvariantError({
+			commandType: input.command.type,
+			detail: `Checkpoint '${input.checkpointId}' does not exist on session '${input.sessionId}' for command '${input.command.type}'.`
+		})
+	}
+	return checkpoint.value
+})
+
+export const requireCheckpointAbsent = Effect.fn("requireCheckpointAbsent")(function*(
+	input: CheckpointInvariantInput
+) {
+	const session = yield* requireSessionNotArchived(input)
+	const checkpoint = Array.findFirst(
+		session.checkpoints,
+		(row) => row.id === input.checkpointId
+	)
+	if (Option.isSome(checkpoint)) {
+		return yield* new OrchestrationCommandInvariantError({
+			commandType: input.command.type,
+			detail: `Checkpoint '${input.checkpointId}' already exists on session '${input.sessionId}' and cannot be created twice.`
 		})
 	}
 	return session

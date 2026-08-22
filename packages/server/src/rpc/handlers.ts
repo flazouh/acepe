@@ -57,6 +57,20 @@ export const toRpcProject = (project: SessionProjectionSnapshot["projects"][numb
 	gitStatus: null
 })
 
+export const toRpcCheckpoint = (checkpoint: SessionProjectionSnapshot["checkpoints"][number]) => ({
+	checkpointId: checkpoint.checkpointId,
+	sessionId: checkpoint.sessionId,
+	sequence: checkpoint.sequence,
+	checkpointNumber: checkpoint.checkpointNumber,
+	name: checkpoint.name,
+	isAuto: checkpoint.isAuto,
+	toolCallId: checkpoint.toolCallId,
+	fileCount: checkpoint.fileCount,
+	status: checkpoint.status,
+	createdAt: checkpoint.createdAt,
+	lastRevertedAt: checkpoint.lastRevertedAt
+})
+
 export const toRpcSnapshot = (snapshot: SessionProjectionSnapshot): RpcSessionSnapshot => ({
 	snapshotSequence: snapshot.snapshotSequence,
 	session: snapshot.session,
@@ -64,6 +78,7 @@ export const toRpcSnapshot = (snapshot: SessionProjectionSnapshot): RpcSessionSn
 	turns: snapshot.turns,
 	activities: snapshot.activities,
 	pendingApprovals: snapshot.pendingApprovals,
+	checkpoints: Arr.map(snapshot.checkpoints, toRpcCheckpoint),
 	projects: Arr.map(snapshot.projects, toRpcProject),
 	sessions: snapshot.sessions,
 	settings: snapshot.settings
@@ -124,6 +139,7 @@ const withProjectGitStatus = Effect.fn("withProjectGitStatus")(function*(
 		turns: snapshot.turns,
 		activities: snapshot.activities,
 		pendingApprovals: snapshot.pendingApprovals,
+		checkpoints: snapshot.checkpoints,
 		projects,
 		sessions: snapshot.sessions,
 		settings: snapshot.settings

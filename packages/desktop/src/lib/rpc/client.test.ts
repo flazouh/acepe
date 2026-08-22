@@ -54,6 +54,7 @@ const emptySnapshot = {
 	turns: [],
 	activities: [],
 	pendingApprovals: [],
+	checkpoints: [],
 	projects: [],
 	sessions: [],
 	settings: [],

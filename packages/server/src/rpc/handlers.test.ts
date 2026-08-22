@@ -323,6 +323,7 @@ Vitest.layer(isolatedRpc())("empty snapshot", (it) => {
 			Vitest.assert.deepStrictEqual(snapshot.turns, [])
 			Vitest.assert.deepStrictEqual(snapshot.activities, [])
 			Vitest.assert.deepStrictEqual(snapshot.pendingApprovals, [])
+			Vitest.assert.deepStrictEqual(snapshot.checkpoints, [])
 			Vitest.assert.deepStrictEqual(snapshot.projects, [])
 			Vitest.assert.deepStrictEqual(snapshot.sessions, [])
 		})
