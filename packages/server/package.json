@@ -84,7 +84,15 @@
 		"./terminal/Layers/BunPtyAdapter": "./src/terminal/Layers/BunPtyAdapter.ts",
 		"./terminal/Layers/TerminalService": "./src/terminal/Layers/TerminalService.ts",
 		"./terminal/Services/PtyAdapter": "./src/terminal/Services/PtyAdapter.ts",
-		"./terminal/Services/TerminalService": "./src/terminal/Services/TerminalService.ts"
+		"./terminal/Services/TerminalService": "./src/terminal/Services/TerminalService.ts",
+		"./voice/Errors": "./src/voice/Errors.ts",
+		"./voice/Schemas": "./src/voice/Schemas.ts",
+		"./voice/Layers/VoiceService": "./src/voice/Layers/VoiceService.ts",
+		"./voice/Layers/ExternalCommandEngine": "./src/voice/Layers/ExternalCommandEngine.ts",
+		"./voice/Layers/StubEngine": "./src/voice/Layers/StubEngine.ts",
+		"./voice/Services/VoiceService": "./src/voice/Services/VoiceService.ts",
+		"./voice/Services/TranscriptionEngine": "./src/voice/Services/TranscriptionEngine.ts",
+		"./voice/Services/MicrophoneCapture": "./src/voice/Services/MicrophoneCapture.ts"
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit -p tsconfig.json",
