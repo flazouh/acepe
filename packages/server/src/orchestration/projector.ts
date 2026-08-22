@@ -349,7 +349,8 @@ export const projectEvent = (
 			TurnCancelled: (cancelled) => projectTurnCancelled(model, cancelled),
 			CheckpointCreated: (created) => projectCheckpointCreated(model, created),
 			CheckpointReadinessChanged: () => Effect.succeed(model),
-			CheckpointReverted: () => Effect.succeed(model)
+			CheckpointReverted: () => Effect.succeed(model),
+			SettingsUpdated: () => Effect.succeed(model)
 		})
 	)(event)
 }

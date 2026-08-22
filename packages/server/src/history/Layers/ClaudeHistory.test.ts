@@ -68,7 +68,8 @@ const oracle = {
 	pendingApprovals: [],
 	checkpoints: [],
 	projects: [],
-	sessions: []
+	sessions: [],
+	settings: []
 }
 
 Vitest.layer(isolated())("ClaudeHistoryLive", (it) => {

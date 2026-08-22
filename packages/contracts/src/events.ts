@@ -8,9 +8,11 @@ import {
 	MessageId,
 	ProjectId,
 	SessionId,
+	SettingsId,
 	ToolCallId,
 	TurnId,
 } from "./ids.ts"
+import { SettingsValue, UserSettingKey } from "./settings.ts"
 import {
 	type OrchestrationAggregateKind,
 	SessionPrLinkMode,
@@ -35,6 +37,7 @@ export const OrchestrationEventType = Schema.Literals([
 	"CheckpointCreated",
 	"CheckpointReadinessChanged",
 	"CheckpointReverted",
+	"SettingsUpdated",
 ])
 export type OrchestrationEventType = typeof OrchestrationEventType.Type
 
@@ -130,6 +133,12 @@ export const CheckpointRevertedPayload = Schema.Struct({
 	checkpointId: CheckpointId,
 })
 export type CheckpointRevertedPayload = typeof CheckpointRevertedPayload.Type
+
+export const SettingsUpdatedPayload = Schema.Struct({
+	key: UserSettingKey,
+	value: SettingsValue,
+})
+export type SettingsUpdatedPayload = typeof SettingsUpdatedPayload.Type
 
 const defineOrchestrationEvent = <
 	const EventType extends OrchestrationEventType,
@@ -268,6 +277,14 @@ export const CheckpointRevertedEvent = defineOrchestrationEvent({
 })
 export type CheckpointRevertedEvent = typeof CheckpointRevertedEvent.Type
 
+export const SettingsUpdatedEvent = defineOrchestrationEvent({
+	type: "SettingsUpdated",
+	payload: SettingsUpdatedPayload,
+	aggregateKind: "settings",
+	aggregateId: SettingsId,
+})
+export type SettingsUpdatedEvent = typeof SettingsUpdatedEvent.Type
+
 export const OrchestrationEvent = Schema.Union([
 	ProjectCreatedEvent,
 	ProjectMetaUpdatedEvent,
@@ -283,5 +300,6 @@ export const OrchestrationEvent = Schema.Union([
 	CheckpointCreatedEvent,
 	CheckpointReadinessChangedEvent,
 	CheckpointRevertedEvent,
+	SettingsUpdatedEvent,
 ])
 export type OrchestrationEvent = typeof OrchestrationEvent.Type

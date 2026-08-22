@@ -28,6 +28,11 @@ import {
 	type ProjectedProject
 } from "../../persistence/Services/ProjectionProjects.ts"
 import {
+	decodeStoredProjectedSettings,
+	PROJECTION_SETTINGS_TABLE,
+	type ProjectedSetting
+} from "../../persistence/Services/ProjectionSettings.ts"
+import {
 	decodeProjectedPendingApprovals,
 	decodeProjectedSessionActivities,
 	decodeProjectedTurns,
@@ -217,6 +222,22 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 			return yield* decodeStoredProjectedCheckpoints(rows)
 		})
 
+		const readSettings = Effect.fn("ProjectionSnapshotQuery.readSettings")(function*(
+			snapshotSequence: Sequence,
+			present: HashSet.HashSet<string>
+		) {
+			if (!HashSet.has(present, PROJECTION_SETTINGS_TABLE)) {
+				return Arr.empty<ProjectedSetting>()
+			}
+			const rows = yield* sql`
+				SELECT setting_key, setting_value, sequence
+				FROM projection_settings
+				WHERE sequence <= ${snapshotSequence}
+				ORDER BY setting_key ASC
+			`.withoutTransform
+			return yield* decodeStoredProjectedSettings(rows)
+		})
+
 		const readSnapshot = Effect.fn("ProjectionSnapshotQuery.readSnapshot")(function*(
 			sessionId: SessionId
 		) {
@@ -232,6 +253,7 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 				present
 			)
 			const checkpoints = yield* readCheckpoints(sessionId, snapshotSequence, present)
+			const settings = yield* readSettings(snapshotSequence, present)
 			return {
 				snapshotSequence,
 				session,
@@ -241,7 +263,8 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 				pendingApprovals,
 				checkpoints,
 				projects: Arr.empty<ProjectedProject>(),
-				sessions: Arr.empty<ProjectedSession>()
+				sessions: Arr.empty<ProjectedSession>(),
+				settings
 			} satisfies SessionProjectionSnapshot
 		})
 
@@ -301,8 +324,10 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 		const readLibrarySnapshot = Effect.fn("ProjectionSnapshotQuery.readLibrarySnapshot")(
 			function*() {
 				const snapshotSequence = yield* readSnapshotSequence()
+				const present = yield* readPresentOptionalTables()
 				const projects = yield* readProjects()
 				const sessions = yield* readSessions(null)
+				const settings = yield* readSettings(snapshotSequence, present)
 				return {
 					snapshotSequence,
 					session: null,
@@ -312,7 +337,8 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 					pendingApprovals: Arr.empty(),
 					checkpoints: Arr.empty(),
 					projects,
-					sessions
+					sessions,
+					settings
 				} satisfies SessionProjectionSnapshot
 			}
 		)
@@ -320,9 +346,11 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 		const readProjectSnapshot = Effect.fn("ProjectionSnapshotQuery.readProjectSnapshot")(
 			function*(projectId: ProjectId) {
 				const snapshotSequence = yield* readSnapshotSequence()
+				const present = yield* readPresentOptionalTables()
 				const projects = yield* readProjects()
 				const matching = Arr.filter(projects, (project) => project.projectId === projectId)
 				const sessions = yield* readSessions(projectId)
+				const settings = yield* readSettings(snapshotSequence, present)
 				return {
 					snapshotSequence,
 					session: null,
@@ -332,7 +360,28 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 					pendingApprovals: Arr.empty(),
 					checkpoints: Arr.empty(),
 					projects: matching,
-					sessions
+					sessions,
+					settings
+				} satisfies SessionProjectionSnapshot
+			}
+		)
+
+		const readSettingsSnapshot = Effect.fn("ProjectionSnapshotQuery.readSettingsSnapshot")(
+			function*() {
+				const snapshotSequence = yield* readSnapshotSequence()
+				const present = yield* readPresentOptionalTables()
+				const settings = yield* readSettings(snapshotSequence, present)
+				return {
+					snapshotSequence,
+					session: null,
+					messages: Arr.empty(),
+					turns: Arr.empty(),
+					activities: Arr.empty(),
+					pendingApprovals: Arr.empty(),
+					checkpoints: Arr.empty(),
+					projects: Arr.empty<ProjectedProject>(),
+					sessions: Arr.empty<ProjectedSession>(),
+					settings
 				} satisfies SessionProjectionSnapshot
 			}
 		)
@@ -344,6 +393,7 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 			return yield* Match.value(scope).pipe(
 				Match.discriminatorsExhaustive("kind")({
 					library: () => sql.withTransaction(readLibrarySnapshot()),
+					settings: () => sql.withTransaction(readSettingsSnapshot()),
 					project: (projectRequest) =>
 						sql.withTransaction(readProjectSnapshot(projectRequest.projectId)),
 					session: (sessionRequest) => snapshot(sessionRequest.sessionId)

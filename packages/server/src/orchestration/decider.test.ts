@@ -20,7 +20,9 @@ import {
 	CheckpointId,
 	CheckpointReportReadinessCommand,
 	CheckpointRevertCommand,
-	ToolCallId
+	SettingsSetCommand,
+	ToolCallId,
+	APP_SETTINGS_ID
 } from "@acepe/contracts"
 import * as Vitest from "@effect/vitest"
 import * as Effect from "effect/Effect"
@@ -692,6 +694,39 @@ Vitest.describe("decide", () => {
 			if (events[0]?.type === "CheckpointReverted") {
 				Vitest.assert.strictEqual(events[0].payload.checkpointId, checkpointId)
 			}
+		})
+	)
+
+	Vitest.it.effect("emits SettingsUpdated without a project or session", () =>
+		Effect.gen(function*() {
+			const events = yield* decide(
+				emptyReadModel,
+				SettingsSetCommand.make({
+					type: "settings.set",
+					commandId,
+					key: "ui_font_size",
+					value: "14"
+				}),
+				identity
+			)
+			Vitest.assert.deepStrictEqual(events, [
+				{
+					sequence: 1,
+					eventId,
+					aggregateKind: "settings",
+					aggregateId: APP_SETTINGS_ID,
+					occurredAt,
+					commandId,
+					causationEventId: null,
+					correlationId: commandId,
+					metadata: {},
+					type: "SettingsUpdated",
+					payload: {
+						key: "ui_font_size",
+						value: "14"
+					}
+				}
+			])
 		})
 	)
 })

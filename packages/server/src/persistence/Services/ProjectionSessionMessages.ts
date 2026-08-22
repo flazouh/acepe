@@ -191,7 +191,8 @@ export const rowFromEvent = (
 			TurnCancelled: ignoreEvent,
 			CheckpointCreated: ignoreEvent,
 			CheckpointReadinessChanged: ignoreEvent,
-			CheckpointReverted: ignoreEvent
+			CheckpointReverted: ignoreEvent,
+			SettingsUpdated: ignoreEvent
 		})
 	)(event)
 

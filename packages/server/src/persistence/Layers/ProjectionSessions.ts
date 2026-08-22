@@ -49,7 +49,7 @@ const readCurrent = Effect.fn("ProjectionSessions.readCurrent")(function*(
 	tx: SqlClient.SqlClient,
 	event: OrchestrationEvent
 ) {
-	if (event.aggregateKind === "project") {
+	if (event.aggregateKind !== "session") {
 		return Option.none()
 	}
 	return yield* readById(tx, event.aggregateId)

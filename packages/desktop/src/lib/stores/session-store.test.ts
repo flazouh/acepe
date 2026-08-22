@@ -110,6 +110,7 @@ const snapshotWithUser: RpcSessionSnapshot = {
 	pendingApprovals: [],
 	projects: [],
 	sessions: [],
+	settings: [],
 };
 
 const unusedProjectIndex = {

@@ -22,8 +22,10 @@ import {
 	SessionDeleteCommand,
 	SessionMetaUpdateCommand,
 	SessionUnarchiveCommand,
+	SettingsSetCommand,
 	TurnCancelCommand,
 } from "./orchestration.ts"
+import { APP_SETTINGS_ID } from "./settings.ts"
 
 const v1CommandTypes = [
 	"project.create",
@@ -40,6 +42,7 @@ const v1CommandTypes = [
 	"checkpoint.create",
 	"checkpoint.report-readiness",
 	"checkpoint.revert",
+	"settings.set",
 ] as const
 
 type V1CommandType = (typeof v1CommandTypes)[number]
@@ -248,6 +251,19 @@ const memberCases = [
 			commandId,
 			sessionId,
 			checkpointId,
+		}),
+	},
+	{
+		schema: SettingsSetCommand,
+		aggregate: {
+			aggregateKind: "settings",
+			aggregateId: APP_SETTINGS_ID,
+		} satisfies OrchestrationAggregateRef,
+		command: SettingsSetCommand.make({
+			type: "settings.set",
+			commandId,
+			key: "ui_font_size",
+			value: "14",
 		}),
 	},
 ] as const

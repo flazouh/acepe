@@ -27,6 +27,7 @@ Vitest.describe("ProjectionSnapshotQuery", () => {
 			"@acepe/server/orchestration/Services/ProjectionSnapshotQuery"
 		)
 		Vitest.assert.isTrue(SNAPSHOT_PROJECTOR_NAMES.includes("projection.projects"))
+		Vitest.assert.isTrue(SNAPSHOT_PROJECTOR_NAMES.includes("projection.settings"))
 	})
 })
 
@@ -83,7 +84,8 @@ Vitest.describe("SessionProjectionSnapshot", () => {
 				],
 				checkpoints: [],
 				projects: [],
-				sessions: []
+				sessions: [],
+				settings: []
 			})
 			Vitest.assert.strictEqual(snapshot.snapshotSequence, 4)
 			Vitest.assert.strictEqual(snapshot.session?.title, "Ship the slice")

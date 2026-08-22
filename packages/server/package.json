@@ -35,6 +35,8 @@
 		"./persistence/Services/ProjectionCheckpoints": "./src/persistence/Services/ProjectionCheckpoints.ts",
 		"./persistence/Layers/ProjectionProjects": "./src/persistence/Layers/ProjectionProjects.ts",
 		"./persistence/Services/ProjectionProjects": "./src/persistence/Services/ProjectionProjects.ts",
+		"./persistence/Layers/ProjectionSettings": "./src/persistence/Layers/ProjectionSettings.ts",
+		"./persistence/Services/ProjectionSettings": "./src/persistence/Services/ProjectionSettings.ts",
 		"./persistence/Migrations": "./src/persistence/Migrations.ts",
 		"./rpc/handlers": "./src/rpc/handlers.ts",
 		"./rpc/encodedBoundary": "./src/rpc/encodedBoundary.ts",

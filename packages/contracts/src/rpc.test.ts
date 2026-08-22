@@ -32,6 +32,7 @@ import {
 	RpcSessionSnapshot,
 	RpcTransportError,
 	sessionSnapshotRequest,
+	settingsSnapshotRequest,
 	snapshotScope,
 	type RpcTransport,
 } from "./rpc.ts"
@@ -78,6 +79,7 @@ const emptySnapshot: RpcSessionSnapshot = {
 	pendingApprovals: [],
 	projects: [],
 	sessions: [],
+	settings: [],
 }
 
 const snapshot: RpcSessionSnapshot = {
@@ -137,6 +139,7 @@ const snapshot: RpcSessionSnapshot = {
 			prLinkMode: null,
 		},
 	],
+	settings: [],
 }
 
 const unusedDispatch: RpcTransport["dispatch"] = (_command) => Effect.succeed({ sequence: 0 })
@@ -233,6 +236,7 @@ describe("Schema-encoded boundary", () => {
 		expect(decoded.messages[0]?.rowType).toBe("user")
 		expect(decoded.projects[0]?.title).toBe("Acepe")
 		expect(decoded.sessions[0]?.title).toBe("Ship the slice")
+		expect(decoded.settings).toEqual([])
 	})
 
 	it("round-trips git status on a projected project", () => {
@@ -286,9 +290,12 @@ describe("Schema-encoded boundary", () => {
 		}
 	})
 
-	it("decodes library, project, session, and legacy snapshot requests", () => {
+	it("decodes library, settings, project, session, and legacy snapshot requests", () => {
 		expect(Effect.runSync(decodeSnapshotRequest({ kind: "library" }))).toEqual(
 			librarySnapshotRequest(),
+		)
+		expect(Effect.runSync(decodeSnapshotRequest({ kind: "settings" }))).toEqual(
+			settingsSnapshotRequest(),
 		)
 		expect(
 			Effect.runSync(decodeSnapshotRequest({ kind: "project", projectId })),
@@ -299,8 +306,9 @@ describe("Schema-encoded boundary", () => {
 		expect(Effect.runSync(decodeSnapshotRequest({ sessionId }))).toEqual({ sessionId })
 	})
 
-	it("maps snapshot requests onto library, project, or session scope", () => {
+	it("maps snapshot requests onto library, settings, project, or session scope", () => {
 		expect(snapshotScope(librarySnapshotRequest())).toEqual({ kind: "library" })
+		expect(snapshotScope(settingsSnapshotRequest())).toEqual({ kind: "settings" })
 		expect(snapshotScope(projectSnapshotRequest(projectId))).toEqual({
 			kind: "project",
 			projectId,

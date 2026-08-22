@@ -2,9 +2,10 @@ import * as Match from "effect/Match"
 import * as Schema from "effect/Schema"
 
 import { CheckpointFileCount, CheckpointNumber, CheckpointStatus, StreamToken, TrimmedNonEmptyString } from "./baseSchemas.ts"
-import { CheckpointId, CommandId, MessageId, ProjectId, SessionId, ToolCallId, TurnId } from "./ids.ts"
+import { CheckpointId, CommandId, MessageId, ProjectId, SessionId, SettingsId, ToolCallId, TurnId } from "./ids.ts"
+import { APP_SETTINGS_ID, SettingsValue, UserSettingKey } from "./settings.ts"
 
-export const OrchestrationAggregateKind = Schema.Literals(["project", "session"])
+export const OrchestrationAggregateKind = Schema.Literals(["project", "session", "settings"])
 export type OrchestrationAggregateKind = typeof OrchestrationAggregateKind.Type
 
 export type OrchestrationAggregateRef =
@@ -15,6 +16,10 @@ export type OrchestrationAggregateRef =
 	| {
 			readonly aggregateKind: "session"
 			readonly aggregateId: SessionId
+	  }
+	| {
+			readonly aggregateKind: "settings"
+			readonly aggregateId: SettingsId
 	  }
 
 export const ProjectCreateCommand = Schema.Struct({
@@ -144,6 +149,14 @@ export const CheckpointRevertCommand = Schema.Struct({
 })
 export type CheckpointRevertCommand = typeof CheckpointRevertCommand.Type
 
+export const SettingsSetCommand = Schema.Struct({
+	type: Schema.Literal("settings.set"),
+	commandId: CommandId,
+	key: UserSettingKey,
+	value: SettingsValue,
+})
+export type SettingsSetCommand = typeof SettingsSetCommand.Type
+
 export const OrchestrationCommand = Schema.Union([
 	ProjectCreateCommand,
 	ProjectMetaUpdateCommand,
@@ -159,6 +172,7 @@ export const OrchestrationCommand = Schema.Union([
 	CheckpointCreateCommand,
 	CheckpointReportReadinessCommand,
 	CheckpointRevertCommand,
+	SettingsSetCommand,
 ])
 export type OrchestrationCommand = typeof OrchestrationCommand.Type
 
@@ -170,6 +184,11 @@ const projectRef = (projectId: ProjectId): OrchestrationAggregateRef => ({
 const sessionRef = (sessionId: SessionId): OrchestrationAggregateRef => ({
 	aggregateKind: "session",
 	aggregateId: sessionId,
+})
+
+const settingsRef = (): OrchestrationAggregateRef => ({
+	aggregateKind: "settings",
+	aggregateId: APP_SETTINGS_ID,
 })
 
 export const commandToAggregateRef = Match.type<OrchestrationCommand>().pipe(
@@ -188,5 +207,6 @@ export const commandToAggregateRef = Match.type<OrchestrationCommand>().pipe(
 		"checkpoint.create": (command) => sessionRef(command.sessionId),
 		"checkpoint.report-readiness": (command) => sessionRef(command.sessionId),
 		"checkpoint.revert": (command) => sessionRef(command.sessionId),
+		"settings.set": () => settingsRef(),
 	}),
 )

@@ -56,6 +56,7 @@ const emptySnapshot = {
 	pendingApprovals: [],
 	projects: [],
 	sessions: [],
+	settings: [],
 };
 
 const makeBridge = (input: {

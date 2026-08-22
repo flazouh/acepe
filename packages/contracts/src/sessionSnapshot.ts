@@ -1,6 +1,8 @@
 import * as Arr from "effect/Array"
 import * as Option from "effect/Option"
+import * as Order from "effect/Order"
 import * as Schema from "effect/Schema"
+import * as Str from "effect/String"
 
 import { type Sequence, TrimmedNonEmptyString } from "./baseSchemas.ts"
 import type { OrchestrationEvent } from "./events.ts"
@@ -8,6 +10,7 @@ import type { SessionId } from "./ids.ts"
 import {
 	type RpcProjectedMessage,
 	type RpcProjectedSession,
+	type RpcProjectedSetting,
 	type RpcSessionSnapshot,
 } from "./rpc.ts"
 
@@ -23,6 +26,7 @@ export const emptyRpcSessionSnapshot = (snapshotSequence: Sequence): RpcSessionS
 	pendingApprovals: Arr.empty(),
 	projects: Arr.empty(),
 	sessions: Arr.empty(),
+	settings: Arr.empty(),
 })
 
 const watermark = (snapshot: RpcSessionSnapshot, sequence: Sequence): Sequence =>
@@ -189,6 +193,28 @@ const applySessionMetaUpdated = (
 	return replaceMessages(snapshot, event.sequence, snapshot.messages, session)
 }
 
+const settingKeyOrder = Order.mapInput(
+	Str.Order,
+	(row: RpcProjectedSetting) => row.key,
+)
+
+const applySettingsUpdated = (
+	snapshot: RpcSessionSnapshot,
+	event: Extract<OrchestrationEvent, { readonly type: "SettingsUpdated" }>,
+): RpcSessionSnapshot => {
+	const next: RpcProjectedSetting = {
+		key: event.payload.key,
+		value: event.payload.value,
+		sequence: event.sequence,
+	}
+	const without = Arr.filter(snapshot.settings, (row) => row.key !== next.key)
+	return {
+		...snapshot,
+		snapshotSequence: watermark(snapshot, event.sequence),
+		settings: Arr.sort(Arr.append(without, next), settingKeyOrder),
+	}
+}
+
 export const applyEventToRpcSessionSnapshot = (
 	snapshot: RpcSessionSnapshot,
 	event: OrchestrationEvent,
@@ -223,6 +249,8 @@ export const applyEventToRpcSessionSnapshot = (
 				touchSession(snapshot.session, event.occurredAt),
 			)
 		}
+		case "SettingsUpdated":
+			return applySettingsUpdated(snapshot, event)
 		default:
 			return withSequence(snapshot, event.sequence)
 	}

@@ -102,6 +102,7 @@ describe("rowsFromProjectedMessages", () => {
 			pendingApprovals: [],
 			projects: [],
 			sessions: [],
+			settings: [],
 		}
 		const rows = rowsFromProjectedMessages(snapshot.messages)
 		expect(rows.length).toBe(1)
