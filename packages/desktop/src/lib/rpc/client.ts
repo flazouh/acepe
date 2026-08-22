@@ -14,7 +14,7 @@ import {
 	type RpcTransport,
 	RpcTransportError,
 	type Sequence,
-	type SessionId,
+	type SnapshotRequest,
 } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 import * as Predicate from "effect/Predicate";
@@ -67,10 +67,10 @@ const requestDispatch = Effect.fn("requestDispatch")(function* (
 
 const requestSnapshot = Effect.fn("requestSnapshot")(function* (
 	bridge: ElectrobunRpcBridge,
-	sessionId: SessionId
+	request: SnapshotRequest
 ) {
 	const encoded = yield* Effect.tryPromise({
-		try: () => bridge.request.snapshot({ sessionId }),
+		try: () => bridge.request.snapshot(request),
 		catch: transportErrorFrom,
 	});
 	const exit = yield* decodeSnapshotExit(encoded);
@@ -135,8 +135,8 @@ const listenForEvents = (
 
 export const makeElectrobunRpcTransport = (bridge: ElectrobunRpcBridge): RpcTransport => ({
 	dispatch: (command) => requestDispatch(bridge, command).pipe(Effect.mapError(toRpcClientError)),
-	snapshot: (sessionId) =>
-		requestSnapshot(bridge, sessionId).pipe(Effect.mapError(toRpcClientError)),
+	snapshot: (request) =>
+		requestSnapshot(bridge, request).pipe(Effect.mapError(toRpcClientError)),
 	getProjectIndex: (projectPath) =>
 		requestGetProjectIndex(bridge, projectPath).pipe(Effect.mapError(toRpcClientError)),
 	invalidateProjectIndex: (projectPath) =>

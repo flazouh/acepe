@@ -53,7 +53,7 @@ export const encodedSnapshot = Effect.fn("encodedSnapshot")(function*(params: un
 	const snapshots = yield* ProjectionSnapshotQuery
 	const outcome = yield* Effect.result(
 		decodeSnapshotRequest(params).pipe(
-			Effect.flatMap((request) => snapshots.snapshot(request.sessionId)),
+			Effect.flatMap((request) => snapshots.forRequest(request)),
 			Effect.map(toRpcSnapshot)
 		)
 	)

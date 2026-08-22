@@ -139,6 +139,17 @@ export const RpcCompactionSeamContent = Schema.Struct({
 })
 export type RpcCompactionSeamContent = typeof RpcCompactionSeamContent.Type
 
+export const RpcProjectedProject = Schema.Struct({
+	projectId: ProjectId,
+	title: TrimmedNonEmptyString,
+	workspaceRoot: TrimmedNonEmptyString,
+	createdAt: IsoDateTime,
+	updatedAt: IsoDateTime,
+	deletedAt: Schema.NullOr(IsoDateTime),
+	sessionCount: NonNegativeInt,
+})
+export type RpcProjectedProject = typeof RpcProjectedProject.Type
+
 export const RpcProjectedSession = Schema.Struct({
 	sessionId: SessionId,
 	projectId: ProjectId,
@@ -219,6 +230,8 @@ export const RpcSessionSnapshot = Schema.Struct({
 	turns: Schema.Array(RpcProjectedTurn),
 	activities: Schema.Array(RpcProjectedSessionActivity),
 	pendingApprovals: Schema.Array(RpcProjectedPendingApproval),
+	projects: Schema.Array(RpcProjectedProject),
+	sessions: Schema.Array(RpcProjectedSession),
 })
 export type RpcSessionSnapshot = typeof RpcSessionSnapshot.Type
 
@@ -227,10 +240,75 @@ export const RpcDispatchResult = Schema.Struct({
 })
 export type RpcDispatchResult = typeof RpcDispatchResult.Type
 
-export const SnapshotRequest = Schema.Struct({
+export const LibrarySnapshotRequest = Schema.Struct({
+	kind: Schema.Literal("library"),
+})
+export type LibrarySnapshotRequest = typeof LibrarySnapshotRequest.Type
+
+export const ProjectSnapshotRequest = Schema.Struct({
+	kind: Schema.Literal("project"),
+	projectId: ProjectId,
+})
+export type ProjectSnapshotRequest = typeof ProjectSnapshotRequest.Type
+
+export const SessionSnapshotRequest = Schema.Struct({
+	kind: Schema.Literal("session"),
 	sessionId: SessionId,
 })
+export type SessionSnapshotRequest = typeof SessionSnapshotRequest.Type
+
+export const LegacySessionSnapshotRequest = Schema.Struct({
+	sessionId: SessionId,
+})
+export type LegacySessionSnapshotRequest = typeof LegacySessionSnapshotRequest.Type
+
+export const SnapshotRequest = Schema.Union([
+	LibrarySnapshotRequest,
+	ProjectSnapshotRequest,
+	SessionSnapshotRequest,
+	LegacySessionSnapshotRequest,
+])
 export type SnapshotRequest = typeof SnapshotRequest.Type
+
+export type SnapshotScope =
+	| {
+			readonly kind: "library"
+	  }
+	| {
+			readonly kind: "project"
+			readonly projectId: ProjectId
+	  }
+	| {
+			readonly kind: "session"
+			readonly sessionId: SessionId
+	  }
+
+export const librarySnapshotRequest = (): LibrarySnapshotRequest => ({
+	kind: "library",
+})
+
+export const projectSnapshotRequest = (projectId: ProjectId): ProjectSnapshotRequest => ({
+	kind: "project",
+	projectId,
+})
+
+export const sessionSnapshotRequest = (sessionId: SessionId): SessionSnapshotRequest => ({
+	kind: "session",
+	sessionId,
+})
+
+export const snapshotScope = (request: SnapshotRequest): SnapshotScope => {
+	if (Schema.is(LibrarySnapshotRequest)(request)) {
+		return { kind: "library" }
+	}
+	if (Schema.is(ProjectSnapshotRequest)(request)) {
+		return { kind: "project", projectId: request.projectId }
+	}
+	if (Schema.is(SessionSnapshotRequest)(request)) {
+		return { kind: "session", sessionId: request.sessionId }
+	}
+	return { kind: "session", sessionId: request.sessionId }
+}
 
 export const EventsRequest = Schema.Struct({
 	fromSequence: Sequence,
@@ -385,17 +463,22 @@ export type AcepeElectrobunRpcSchema = {
 	}
 }
 
-export const decodeDispatchExit = Schema.decodeUnknownEffect(DispatchExit)
-export const decodeSnapshotExit = Schema.decodeUnknownEffect(SnapshotExit)
-export const decodeGetProjectIndexExit = Schema.decodeUnknownEffect(GetProjectIndexExit)
+const dispatchExitJson = Schema.toCodecJson(DispatchExit)
+const snapshotExitJson = Schema.toCodecJson(SnapshotExit)
+const getProjectIndexExitJson = Schema.toCodecJson(GetProjectIndexExit)
+const invalidateProjectIndexExitJson = Schema.toCodecJson(InvalidateProjectIndexExit)
+
+export const decodeDispatchExit = Schema.decodeUnknownEffect(dispatchExitJson)
+export const decodeSnapshotExit = Schema.decodeUnknownEffect(snapshotExitJson)
+export const decodeGetProjectIndexExit = Schema.decodeUnknownEffect(getProjectIndexExitJson)
 export const decodeInvalidateProjectIndexExit = Schema.decodeUnknownEffect(
-	InvalidateProjectIndexExit,
+	invalidateProjectIndexExitJson,
 )
-export const encodeDispatchExit = Schema.encodeUnknownEffect(DispatchExit)
-export const encodeSnapshotExit = Schema.encodeUnknownEffect(SnapshotExit)
-export const encodeGetProjectIndexExit = Schema.encodeUnknownEffect(GetProjectIndexExit)
+export const encodeDispatchExit = Schema.encodeUnknownEffect(dispatchExitJson)
+export const encodeSnapshotExit = Schema.encodeUnknownEffect(snapshotExitJson)
+export const encodeGetProjectIndexExit = Schema.encodeUnknownEffect(getProjectIndexExitJson)
 export const encodeInvalidateProjectIndexExit = Schema.encodeUnknownEffect(
-	InvalidateProjectIndexExit,
+	invalidateProjectIndexExitJson,
 )
 export const decodeEventsRequest = Schema.decodeUnknownEffect(EventsRequest)
 export const decodeSnapshotRequest = Schema.decodeUnknownEffect(SnapshotRequest)
@@ -421,7 +504,7 @@ export type RpcTransport<R = never> = {
 		command: OrchestrationCommand,
 	) => Effect.Effect<RpcDispatchResult, RpcClientError, R>
 	readonly snapshot: (
-		sessionId: SessionId,
+		request: SnapshotRequest,
 	) => Effect.Effect<RpcSessionSnapshot, RpcClientError, R>
 	readonly events: (
 		fromSequence: Sequence,

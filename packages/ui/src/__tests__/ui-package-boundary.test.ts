@@ -9,6 +9,7 @@ import {
 } from "../components/app-layout/index.js";
 import { KanbanSceneBoard } from "../components/kanban/index.js";
 import { TracerTranscript } from "../components/tracer-transcript/index.js";
+import { LibrarySidebar } from "../components/library-sidebar/index.js";
 
 describe("ui package boundary exports", () => {
 	test("canonical MVC pattern Views are exported", () => {
@@ -19,6 +20,7 @@ describe("ui package boundary exports", () => {
 		expect(ProjectHeaderOverflowMenu).toBeDefined();
 		expect(KanbanSceneBoard).toBeDefined();
 		expect(TracerTranscript).toBeDefined();
+		expect(LibrarySidebar).toBeDefined();
 	});
 
 });

@@ -28,6 +28,8 @@ describe("messagesFromSessionSnapshot", () => {
 			turns: [],
 			activities: [],
 			pendingApprovals: [],
+			projects: [],
+			sessions: [],
 		};
 		expect(messagesFromSessionSnapshot(snapshot)).toBe(snapshot.messages);
 		expect(transcriptRowsFromSessionSnapshot(snapshot)[0]?.rowId).toBe("message-user");

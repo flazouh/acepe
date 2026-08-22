@@ -83,6 +83,8 @@ describe("conversationFromSnapshot", () => {
 					},
 				],
 				pendingApprovals: [],
+				projects: [],
+				sessions: [],
 			},
 			activities: [
 				{
@@ -146,6 +148,8 @@ describe("conversationFromSnapshot", () => {
 				turns: [],
 				activities: [],
 				pendingApprovals: [],
+				projects: [],
+				sessions: [],
 			},
 		});
 
@@ -179,6 +183,8 @@ describe("conversationFromSnapshot", () => {
 					},
 				],
 				pendingApprovals: [],
+				projects: [],
+				sessions: [],
 			},
 		});
 

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 
-import { isElectrobunShellWindow } from "./electrobun-shell-window.ts";
+import { desktopShellKind, isElectrobunShellWindow } from "./electrobun-shell-window.ts";
 
 test("isElectrobunShellWindow is true for the views scheme", () => {
 	expect(
@@ -40,4 +40,28 @@ test("isElectrobunShellWindow is false for the Tauri desktop page", () => {
 			hasElectrobunGlobal: false,
 		}),
 	).toBe(false);
+});
+
+test("desktopShellKind stays pending until window facts exist", () => {
+	expect(desktopShellKind(null)).toBe("pending");
+});
+
+test("desktopShellKind is electrobun for the views scheme", () => {
+	expect(
+		desktopShellKind({
+			protocol: "views:",
+			search: "",
+			hasElectrobunGlobal: false,
+		}),
+	).toBe("electrobun");
+});
+
+test("desktopShellKind is tauri for the shipping desktop page", () => {
+	expect(
+		desktopShellKind({
+			protocol: "https:",
+			search: "",
+			hasElectrobunGlobal: false,
+		}),
+	).toBe("tauri");
 });

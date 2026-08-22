@@ -1,8 +1,9 @@
-import { Sequence, SessionId } from "@acepe/contracts"
+import { ProjectId, Sequence, SessionId, type SnapshotRequest, snapshotScope } from "@acepe/contracts"
 import * as Arr from "effect/Array"
 import * as Effect from "effect/Effect"
 import * as HashSet from "effect/HashSet"
 import * as Layer from "effect/Layer"
+import * as Match from "effect/Match"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
@@ -10,7 +11,10 @@ import {
 	decodeProjectedMessage,
 	decodeProjectionSessionMessageStoredRows
 } from "../../persistence/Services/ProjectionSessionMessages.ts"
-import { decodeStoredProjectedSession } from "../../persistence/Services/ProjectionSessions.ts"
+import {
+	decodeStoredProjectedSession,
+	type ProjectedSession
+} from "../../persistence/Services/ProjectionSessions.ts"
 import {
 	decodeStoredProjectedCheckpoints,
 	PROJECTION_CHECKPOINTS_TABLE,
@@ -32,9 +36,12 @@ import {
 	type ProjectedSessionActivity,
 	type ProjectedTurn,
 	ProjectionSnapshotQuery,
+	type SessionProjectionSnapshot,
 	SNAPSHOT_OPTIONAL_TABLES,
 	SNAPSHOT_PROJECTOR_NAMES
 } from "../Services/ProjectionSnapshotQuery.ts"
+
+const PROJECTION_SESSIONS_TABLE = "projection_sessions"
 
 const SnapshotSequenceRow = Schema.Struct({
 	snapshot_sequence: Sequence
@@ -229,8 +236,10 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 				turns,
 				activities,
 				pendingApprovals,
-				checkpoints
-			}
+				checkpoints,
+				projects: Arr.empty<ProjectedProject>(),
+				sessions: Arr.empty<ProjectedSession>()
+			} satisfies SessionProjectionSnapshot
 		})
 
 		const snapshot = Effect.fn("ProjectionSnapshotQuery.snapshot")(function*(
@@ -242,14 +251,20 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 			return yield* sql.withTransaction(readSnapshot(sessionId))
 		})
 
-		const readProjects = Effect.fn("ProjectionSnapshotQuery.readProjects")(function*() {
+		const tableExists = Effect.fn("ProjectionSnapshotQuery.tableExists")(function*(
+			name: string
+		) {
 			const rows = yield* sql`
 				SELECT name
 				FROM sqlite_master
 				WHERE type = 'table'
-					AND name = ${PROJECTION_PROJECTS_TABLE}
+					AND name = ${name}
 			`.withoutTransform
-			if (Arr.isReadonlyArrayNonEmpty(rows) === false) {
+			return Arr.isReadonlyArrayNonEmpty(rows)
+		})
+
+		const readProjects = Effect.fn("ProjectionSnapshotQuery.readProjects")(function*() {
+			if ((yield* tableExists(PROJECTION_PROJECTS_TABLE)) === false) {
 				return Arr.empty<ProjectedProject>()
 			}
 			const projectRows = yield* sql`
@@ -268,12 +283,110 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 			return yield* Effect.forEach(projectRows, decodeStoredProjectedProject)
 		})
 
+		const readSessions = Effect.fn("ProjectionSnapshotQuery.readSessions")(function*(
+			projectId: ProjectId | null
+		) {
+			if ((yield* tableExists(PROJECTION_SESSIONS_TABLE)) === false) {
+				return Arr.empty<ProjectedSession>()
+			}
+			const sessionRows =
+				projectId === null
+					? yield* sql`
+						SELECT
+							session_id,
+							project_id,
+							title,
+							provider,
+							created_at,
+							updated_at,
+							last_activity_at,
+							archived_at,
+							deleted_at,
+							pr_number,
+							pr_link_mode
+						FROM projection_sessions
+						ORDER BY last_activity_at DESC, session_id ASC
+					`.withoutTransform
+					: yield* sql`
+						SELECT
+							session_id,
+							project_id,
+							title,
+							provider,
+							created_at,
+							updated_at,
+							last_activity_at,
+							archived_at,
+							deleted_at,
+							pr_number,
+							pr_link_mode
+						FROM projection_sessions
+						WHERE project_id = ${projectId}
+						ORDER BY last_activity_at DESC, session_id ASC
+					`.withoutTransform
+			return yield* Effect.forEach(sessionRows, decodeStoredProjectedSession)
+		})
+
+		const readLibrarySnapshot = Effect.fn("ProjectionSnapshotQuery.readLibrarySnapshot")(
+			function*() {
+				const snapshotSequence = yield* readSnapshotSequence()
+				const projects = yield* readProjects()
+				const sessions = yield* readSessions(null)
+				return {
+					snapshotSequence,
+					session: null,
+					messages: Arr.empty(),
+					turns: Arr.empty(),
+					activities: Arr.empty(),
+					pendingApprovals: Arr.empty(),
+					checkpoints: Arr.empty(),
+					projects,
+					sessions
+				} satisfies SessionProjectionSnapshot
+			}
+		)
+
+		const readProjectSnapshot = Effect.fn("ProjectionSnapshotQuery.readProjectSnapshot")(
+			function*(projectId: ProjectId) {
+				const snapshotSequence = yield* readSnapshotSequence()
+				const projects = yield* readProjects()
+				const matching = Arr.filter(projects, (project) => project.projectId === projectId)
+				const sessions = yield* readSessions(projectId)
+				return {
+					snapshotSequence,
+					session: null,
+					messages: Arr.empty(),
+					turns: Arr.empty(),
+					activities: Arr.empty(),
+					pendingApprovals: Arr.empty(),
+					checkpoints: Arr.empty(),
+					projects: matching,
+					sessions
+				} satisfies SessionProjectionSnapshot
+			}
+		)
+
+		const forRequest = Effect.fn("ProjectionSnapshotQuery.forRequest")(function*(
+			request: SnapshotRequest
+		) {
+			const scope = snapshotScope(request)
+			return yield* Match.value(scope).pipe(
+				Match.discriminatorsExhaustive("kind")({
+					library: () => sql.withTransaction(readLibrarySnapshot()),
+					project: (projectRequest) =>
+						sql.withTransaction(readProjectSnapshot(projectRequest.projectId)),
+					session: (sessionRequest) => snapshot(sessionRequest.sessionId)
+				})
+			)
+		})
+
 		const listProjects = Effect.fn("ProjectionSnapshotQuery.listProjects")(function*() {
 			return yield* sql.withTransaction(readProjects())
 		})
 
 		return ProjectionSnapshotQuery.of({
 			snapshot,
+			forRequest,
 			listProjects
 		})
 	})

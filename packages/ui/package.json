@@ -153,6 +153,10 @@
       "svelte": "./src/components/app-layout/index.ts",
       "default": "./src/components/app-layout/index.ts"
     },
+    "./library-sidebar": {
+      "svelte": "./src/components/library-sidebar/index.ts",
+      "default": "./src/components/library-sidebar/index.ts"
+    },
     "./project-card": {
       "svelte": "./src/components/project-card/index.ts",
       "default": "./src/components/project-card/index.ts"

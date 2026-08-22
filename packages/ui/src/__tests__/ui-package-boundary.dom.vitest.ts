@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import CheckpointCard from "../components/checkpoint/checkpoint-card.svelte";
 import TracerTranscript from "../components/tracer-transcript/tracer-transcript.svelte";
+import LibrarySidebar from "../components/library-sidebar/library-sidebar.svelte";
+import type { LibrarySidebarViewModel } from "../components/library-sidebar/library-sidebar-state.js";
 import UiPackageBoundarySidebarFixture from "./fixtures/ui-package-boundary-sidebar-fixture.svelte";
 import type { CheckpointData } from "../components/checkpoint/types.js";
 
@@ -63,5 +65,41 @@ describe("ui package boundary render smoke", () => {
 
 		expect(view.getByTestId("tracer-transcript")).toBeTruthy();
 		expect(view.getByText("Ping")).toBeTruthy();
+	});
+
+	it("renders LibrarySidebar from projection props without store or Tauri", () => {
+		const model: LibrarySidebarViewModel = {
+			projectsHeading: "Projects",
+			sessionsHeading: "Sessions",
+			emptyProjectsLabel: "No projects",
+			emptySessionsLabel: "Select a project",
+			selectedProjectId: "project-1",
+			projects: [
+				{
+					id: "project-1",
+					title: "Acepe",
+					deleted: false,
+					deletedLabel: null,
+				},
+			],
+			sessions: [
+				{
+					id: "session-1",
+					title: "Fix the auth bug",
+					lifecycle: "active",
+					lifecycleLabel: null,
+				},
+			],
+		};
+		const view = render(LibrarySidebar, {
+			props: {
+				model,
+				onSelectProject: () => undefined,
+			},
+		});
+
+		expect(view.getByTestId("library-sidebar")).toBeTruthy();
+		expect(view.getByText("Acepe")).toBeTruthy();
+		expect(view.getByText("Fix the auth bug")).toBeTruthy();
 	});
 });

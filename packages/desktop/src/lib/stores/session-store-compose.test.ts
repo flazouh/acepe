@@ -52,6 +52,8 @@ const snapshotWithUser: RpcSessionSnapshot = {
 	turns: [],
 	activities: [],
 	pendingApprovals: [],
+	projects: [],
+	sessions: [],
 };
 
 const tokenAt = (sequence: number, token: string): OrchestrationEvent => ({
@@ -228,6 +230,8 @@ describe("composeSessionStore", () => {
 					turns: snapshotWithUser.turns,
 					activities: snapshotWithUser.activities,
 					pendingApprovals: snapshotWithUser.pendingApprovals,
+					projects: snapshotWithUser.projects,
+					sessions: snapshotWithUser.sessions,
 				};
 				const store = composeSessionStore({
 					client: clientOf({ snapshot: deferred, events: [] }),
@@ -268,6 +272,8 @@ describe("composeSessionStore", () => {
 					turns: snapshotWithUser.turns,
 					activities: snapshotWithUser.activities,
 					pendingApprovals: snapshotWithUser.pendingApprovals,
+					projects: snapshotWithUser.projects,
+					sessions: snapshotWithUser.sessions,
 				};
 				const store = composeSessionStore({
 					client: clientOf({

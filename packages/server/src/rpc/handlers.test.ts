@@ -1,6 +1,7 @@
 import {
 	AcepeRpc,
 	CommandId,
+	librarySnapshotRequest,
 	ProjectCreateCommand,
 	ProjectId,
 	SessionCreateCommand,
@@ -123,6 +124,55 @@ const insertSession = Effect.fn("insertSession")(function*() {
 	`.withoutTransform.pipe(Effect.asVoid)
 })
 
+const insertLibraryRows = Effect.fn("insertLibraryRows")(function*() {
+	const sql = yield* SqlClient.SqlClient
+	yield* sql`
+		INSERT INTO projection_projects (
+			project_id,
+			title,
+			workspace_root,
+			created_at,
+			updated_at,
+			deleted_at,
+			session_count,
+			scan_warmed_at
+		) VALUES (
+			${projectId},
+			${"Acepe"},
+			${"/tmp/acepe"},
+			${NOW},
+			${NOW},
+			NULL,
+			${2},
+			${NOW}
+		)
+	`.withoutTransform.pipe(Effect.asVoid)
+	yield* insertSession()
+	yield* sql`
+		INSERT INTO projection_sessions (
+			session_id,
+			project_id,
+			title,
+			provider,
+			created_at,
+			updated_at,
+			last_activity_at,
+			archived_at,
+			deleted_at
+		) VALUES (
+			${SessionId.make("session-archived")},
+			${projectId},
+			${"Archived thread"},
+			NULL,
+			${NOW},
+			${NOW},
+			${NOW},
+			${NOW},
+			NULL
+		)
+	`.withoutTransform.pipe(Effect.asVoid)
+})
+
 const insertUserMessage = Effect.fn("insertUserMessage")(function*() {
 	const sql = yield* SqlClient.SqlClient
 	const row = userMessageRow({
@@ -204,6 +254,24 @@ Vitest.layer(isolatedRpc())("empty snapshot", (it) => {
 			Vitest.assert.deepStrictEqual(snapshot.turns, [])
 			Vitest.assert.deepStrictEqual(snapshot.activities, [])
 			Vitest.assert.deepStrictEqual(snapshot.pendingApprovals, [])
+			Vitest.assert.deepStrictEqual(snapshot.projects, [])
+			Vitest.assert.deepStrictEqual(snapshot.sessions, [])
+		})
+	)
+})
+
+Vitest.layer(isolatedRpc())("library snapshot", (it) => {
+	it.effect("returns projects and sessions from the projection", () =>
+		Effect.gen(function*() {
+			const client = yield* RpcTest.makeClient(AcepeRpc)
+			yield* insertLibraryRows()
+			const snapshot = yield* client.snapshot(librarySnapshotRequest())
+			Vitest.assert.strictEqual(snapshot.session, null)
+			Vitest.assert.strictEqual(snapshot.projects[0]?.title, "Acepe")
+			Vitest.assert.strictEqual(snapshot.sessions.length, 2)
+			const archived = snapshot.sessions.find((row) => row.title === "Archived thread")
+			Vitest.assert.strictEqual(archived?.archivedAt, NOW)
+			Vitest.assert.strictEqual(archived?.deletedAt, null)
 		})
 	)
 })

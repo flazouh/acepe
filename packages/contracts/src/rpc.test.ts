@@ -15,17 +15,24 @@ import {
 	decodeDispatchExit,
 	decodeGetProjectIndexExit,
 	decodeOrchestrationEvent,
+	decodeSnapshotExit,
+	decodeSnapshotRequest,
 	encodeDispatchExit,
 	encodeGetProjectIndexExit,
 	encodeOrchestrationEvent,
+	encodeSnapshotExit,
 	exitToEffect,
 	generateElectrobunRpcSchema,
+	librarySnapshotRequest,
 	makeResumingRpcClient,
+	projectSnapshotRequest,
 	RPC_PRIMITIVE_TAGS,
 	RpcCommandInvariantError,
 	RpcDispatchResult,
 	RpcSessionSnapshot,
 	RpcTransportError,
+	sessionSnapshotRequest,
+	snapshotScope,
 	type RpcTransport,
 } from "./rpc.ts"
 
@@ -69,6 +76,8 @@ const emptySnapshot: RpcSessionSnapshot = {
 	turns: [],
 	activities: [],
 	pendingApprovals: [],
+	projects: [],
+	sessions: [],
 }
 
 const snapshot: RpcSessionSnapshot = {
@@ -101,10 +110,36 @@ const snapshot: RpcSessionSnapshot = {
 	turns: [],
 	activities: [],
 	pendingApprovals: [],
+	projects: [
+		{
+			projectId,
+			title: "Acepe",
+			workspaceRoot: "/tmp/acepe",
+			createdAt: "2026-08-20T12:00:00.000Z",
+			updatedAt: "2026-08-20T12:00:00.000Z",
+			deletedAt: null,
+			sessionCount: 1,
+		},
+	],
+	sessions: [
+		{
+			sessionId,
+			projectId,
+			title: "Ship the slice",
+			provider: null,
+			createdAt: "2026-08-20T12:00:00.000Z",
+			updatedAt: "2026-08-20T12:00:00.000Z",
+			lastActivityAt: "2026-08-20T12:00:00.000Z",
+			archivedAt: null,
+			deletedAt: null,
+			prNumber: null,
+			prLinkMode: null,
+		},
+	],
 }
 
 const unusedDispatch: RpcTransport["dispatch"] = (_command) => Effect.succeed({ sequence: 0 })
-const unusedSnapshot: RpcTransport["snapshot"] = (_sessionId) => Effect.succeed(emptySnapshot)
+const unusedSnapshot: RpcTransport["snapshot"] = (_request) => Effect.succeed(emptySnapshot)
 const unusedGetProjectIndex: RpcTransport["getProjectIndex"] = (_projectPath) =>
 	Effect.succeed({
 		projectPath: "/tmp/acepe",
@@ -145,7 +180,7 @@ describe("Schema-encoded boundary", () => {
 			encodeDispatchExit,
 			Effect.runSync,
 		)
-		const decoded = encoded.pipe(decodeDispatchExit, Effect.runSync)
+		const decoded = decodeDispatchExit(encoded).pipe(Effect.runSync)
 		expect(Exit.isSuccess(decoded)).toBe(true)
 		if (Exit.isSuccess(decoded)) {
 			expect(decoded.value.sequence).toBe(3)
@@ -158,7 +193,7 @@ describe("Schema-encoded boundary", () => {
 			detail: "Project does not exist.",
 		})
 		const encoded = Exit.fail(error).pipe(encodeDispatchExit, Effect.runSync)
-		const decoded = encoded.pipe(decodeDispatchExit, Effect.runSync)
+		const decoded = decodeDispatchExit(encoded).pipe(Effect.runSync)
 		const recovered = decoded.pipe(exitToEffect, Effect.flip, Effect.runSync)
 		expect(recovered._tag).toBe("OrchestrationCommandInvariantError")
 		if (recovered._tag === "OrchestrationCommandInvariantError") {
@@ -181,7 +216,7 @@ describe("Schema-encoded boundary", () => {
 			totalFiles: 0,
 			totalLines: 0,
 		}).pipe(encodeGetProjectIndexExit, Effect.runSync)
-		const decoded = encoded.pipe(decodeGetProjectIndexExit, Effect.runSync)
+		const decoded = decodeGetProjectIndexExit(encoded).pipe(Effect.runSync)
 		expect(Exit.isSuccess(decoded)).toBe(true)
 		if (Exit.isSuccess(decoded)) {
 			expect(decoded.value.projectPath).toBe("/tmp/acepe")
@@ -195,6 +230,44 @@ describe("Schema-encoded boundary", () => {
 		expect(decoded.snapshotSequence).toBe(4)
 		expect(decoded.session?.sessionId).toBe(sessionId)
 		expect(decoded.messages[0]?.rowType).toBe("user")
+		expect(decoded.projects[0]?.title).toBe("Acepe")
+		expect(decoded.sessions[0]?.title).toBe("Ship the slice")
+	})
+
+	it("round-trips a library snapshot Exit across JSON IPC", () => {
+		const encoded = Exit.succeed(snapshot).pipe(encodeSnapshotExit, Effect.runSync)
+		const decoded = decodeSnapshotExit(JSON.parse(JSON.stringify(encoded))).pipe(Effect.runSync)
+		expect(Exit.isSuccess(decoded)).toBe(true)
+		if (Exit.isSuccess(decoded)) {
+			expect(decoded.value.projects[0]?.title).toBe("Acepe")
+			expect(decoded.value.sessions[0]?.title).toBe("Ship the slice")
+		}
+	})
+
+	it("decodes library, project, session, and legacy snapshot requests", () => {
+		expect(Effect.runSync(decodeSnapshotRequest({ kind: "library" }))).toEqual(
+			librarySnapshotRequest(),
+		)
+		expect(
+			Effect.runSync(decodeSnapshotRequest({ kind: "project", projectId })),
+		).toEqual(projectSnapshotRequest(projectId))
+		expect(
+			Effect.runSync(decodeSnapshotRequest({ kind: "session", sessionId })),
+		).toEqual(sessionSnapshotRequest(sessionId))
+		expect(Effect.runSync(decodeSnapshotRequest({ sessionId }))).toEqual({ sessionId })
+	})
+
+	it("maps snapshot requests onto library, project, or session scope", () => {
+		expect(snapshotScope(librarySnapshotRequest())).toEqual({ kind: "library" })
+		expect(snapshotScope(projectSnapshotRequest(projectId))).toEqual({
+			kind: "project",
+			projectId,
+		})
+		expect(snapshotScope(sessionSnapshotRequest(sessionId))).toEqual({
+			kind: "session",
+			sessionId,
+		})
+		expect(snapshotScope({ sessionId })).toEqual({ kind: "session", sessionId })
 	})
 
 	it("round-trips generated events", () => {

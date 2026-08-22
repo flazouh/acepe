@@ -41,13 +41,25 @@ import {
 
 const EVENT_PAGE_SIZE = 1_000
 
+export const toRpcProject = (project: SessionProjectionSnapshot["projects"][number]) => ({
+	projectId: project.projectId,
+	title: project.title,
+	workspaceRoot: project.workspaceRoot,
+	createdAt: project.createdAt,
+	updatedAt: project.updatedAt,
+	deletedAt: project.deletedAt,
+	sessionCount: project.sessionCount
+})
+
 export const toRpcSnapshot = (snapshot: SessionProjectionSnapshot): RpcSessionSnapshot => ({
 	snapshotSequence: snapshot.snapshotSequence,
 	session: snapshot.session,
 	messages: snapshot.messages,
 	turns: snapshot.turns,
 	activities: snapshot.activities,
-	pendingApprovals: snapshot.pendingApprovals
+	pendingApprovals: snapshot.pendingApprovals,
+	projects: Arr.map(snapshot.projects, toRpcProject),
+	sessions: snapshot.sessions
 })
 
 export const toRpcError = (
@@ -151,7 +163,7 @@ export const RpcHandlersLive = AcepeRpc.toLayer(
 		return {
 			dispatch: (command) => engine.dispatch(command).pipe(Effect.mapError(toRpcError)),
 			snapshot: (request) =>
-				snapshots.snapshot(request.sessionId).pipe(
+				snapshots.forRequest(request).pipe(
 					Effect.map(toRpcSnapshot),
 					Effect.flatMap(decodeRpcSessionSnapshot),
 					Effect.mapError(toRpcError)
