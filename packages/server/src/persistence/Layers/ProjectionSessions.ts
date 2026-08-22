@@ -1,5 +1,6 @@
 import {
 	type OrchestrationEvent,
+	ProjectId,
 	SessionId,
 	TrimmedNonEmptyString
 } from "@acepe/contracts"
@@ -119,24 +120,55 @@ export const ProjectionSessionsLive = Layer.effect(ProjectionSessions)(
 			yield* tx`DELETE FROM projection_sessions`.withoutTransform.pipe(Effect.asVoid)
 		})
 
-		const list = Effect.fn("ProjectionSessions.list")(function*() {
-			const rows = yield* sql`
-				SELECT
-					session_id,
-					project_id,
-					title,
-					provider,
-					created_at,
-					updated_at,
-					last_activity_at,
-					archived_at,
-					deleted_at,
-					pr_number,
-					pr_link_mode
-				FROM projection_sessions
-				ORDER BY last_activity_at DESC, session_id ASC
-			`.withoutTransform
+		const readListed = Effect.fn("ProjectionSessions.readListed")(function*(
+			projectId: ProjectId | null
+		) {
+			const rows =
+				projectId === null
+					? yield* sql`
+						SELECT
+							session_id,
+							project_id,
+							title,
+							provider,
+							created_at,
+							updated_at,
+							last_activity_at,
+							archived_at,
+							deleted_at,
+							pr_number,
+							pr_link_mode
+						FROM projection_sessions
+						ORDER BY last_activity_at DESC, session_id ASC
+					`.withoutTransform
+					: yield* sql`
+						SELECT
+							session_id,
+							project_id,
+							title,
+							provider,
+							created_at,
+							updated_at,
+							last_activity_at,
+							archived_at,
+							deleted_at,
+							pr_number,
+							pr_link_mode
+						FROM projection_sessions
+						WHERE project_id = ${projectId}
+						ORDER BY last_activity_at DESC, session_id ASC
+					`.withoutTransform
 			return yield* Effect.forEach(rows, decodeStoredProjectedSession)
+		})
+
+		const list = Effect.fn("ProjectionSessions.list")(function*() {
+			return yield* readListed(null)
+		})
+
+		const listForProject = Effect.fn("ProjectionSessions.listForProject")(function*(
+			projectId: ProjectId
+		) {
+			return yield* readListed(projectId)
 		})
 
 		const get = Effect.fn("ProjectionSessions.get")(function*(sessionId: SessionId) {
@@ -148,6 +180,7 @@ export const ProjectionSessionsLive = Layer.effect(ProjectionSessions)(
 			apply,
 			truncate,
 			list,
+			listForProject,
 			get
 		})
 	})

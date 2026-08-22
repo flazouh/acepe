@@ -40,6 +40,7 @@ const NOW = "2026-08-20T12:00:00.000Z"
 const LATER = "2026-08-20T12:00:01.000Z"
 const commandId = CommandId.make("cmd-1")
 const projectId = ProjectId.make("project-1")
+const otherProjectId = ProjectId.make("project-2")
 const sessionId = SessionId.make("session-1")
 const sessionTwoId = SessionId.make("session-2")
 const messageId = MessageId.make("message-1")
@@ -368,6 +369,51 @@ Vitest.layer(isolatedSessions())("session title rules", (it) => {
 				onSome: (value) => value
 			})
 			Vitest.assert.strictEqual(session.title, "Implement auth flow")
+		})
+	)
+})
+
+Vitest.layer(isolatedSessions())("listForProject", (it) => {
+	it.effect("returns only the selected project's sessions, including archived and deleted", () =>
+		Effect.gen(function*() {
+			const sql = yield* SqlClient.SqlClient
+			const sessions = yield* ProjectionSessions
+			yield* sessions.apply(
+				sessionEvent(1, "SessionCreated", NOW, {
+					sessionId,
+					projectId,
+					title: "First session"
+				}),
+				sql
+			)
+			yield* sessions.apply(
+				sessionEvent(2, "SessionArchived", LATER, {
+					sessionId
+				}),
+				sql
+			)
+			yield* sessions.apply(
+				sessionEvent(
+					3,
+					"SessionCreated",
+					NOW,
+					{
+						sessionId: sessionTwoId,
+						projectId: otherProjectId,
+						title: "Other project session"
+					},
+					sessionTwoId
+				),
+				sql
+			)
+			const listed = yield* sessions.listForProject(projectId)
+			Vitest.assert.strictEqual(listed.length, 1)
+			Vitest.assert.strictEqual(listed[0]?.sessionId, sessionId)
+			Vitest.assert.strictEqual(listed[0]?.archivedAt, LATER)
+			Vitest.assert.strictEqual(listed[0]?.deletedAt, null)
+			const otherListed = yield* sessions.listForProject(otherProjectId)
+			Vitest.assert.strictEqual(otherListed.length, 1)
+			Vitest.assert.strictEqual(otherListed[0]?.sessionId, sessionTwoId)
 		})
 	)
 })
