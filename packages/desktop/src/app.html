@@ -63,6 +63,16 @@
 		</script>
 
 	</head>
+	<script>
+		// Electrobun loads the bundle at views://mainview/index.html, so the
+		// pathname is "/index.html". SvelteKit routes on pathname and matches no
+		// route, rendering its own 404. Normalise before the router boots.
+		(function __acepeNormalisePath() {
+			if (location.pathname.endsWith("/index.html")) {
+				history.replaceState(null, "", location.pathname.slice(0, -"index.html".length));
+			}
+		})();
+	</script>
 	<body data-sveltekit-preload-data="hover">
 		<div style="display: contents">%sveltekit.body%</div>
 	</body>
