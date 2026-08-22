@@ -36,7 +36,8 @@
 		"lint:fix": "biome check --fix . && bun run check:diagnostic-import-boundary",
 		"storage:prune": "bash scripts/prune-storage.sh",
 		"audit:session-timing": "bun run scripts/audit-session-timing.ts",
-		"lint:effect:report": "effect-language-service diagnostics --project tsconfig.json --strict --format pretty"
+		"lint:effect:report": "effect-language-service diagnostics --project tsconfig.json --strict --format pretty",
+		"check:tauri-importers": "bun run scripts/check-tauri-client-importers.ts"
 	},
 	"license": "MIT",
 	"repository": {
