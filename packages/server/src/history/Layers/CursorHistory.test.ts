@@ -69,7 +69,8 @@ const oracle = {
 	checkpoints: [],
 	projects: [],
 	sessions: [],
-	settings: []
+	settings: [],
+	skillsCatalog: null
 }
 
 Vitest.layer(isolated())("CursorHistoryLive", (it) => {

@@ -9,10 +9,12 @@ import {
 	ProjectId,
 	SessionId,
 	SettingsId,
+	SkillsId,
 	ToolCallId,
 	TurnId,
 } from "./ids.ts"
 import { SettingsValue, UserSettingKey } from "./settings.ts"
+import { SkillsCatalog } from "./skills.ts"
 import {
 	type OrchestrationAggregateKind,
 	SessionPrLinkMode,
@@ -38,6 +40,7 @@ export const OrchestrationEventType = Schema.Literals([
 	"CheckpointReadinessChanged",
 	"CheckpointReverted",
 	"SettingsUpdated",
+	"SkillsDiscovered",
 ])
 export type OrchestrationEventType = typeof OrchestrationEventType.Type
 
@@ -139,6 +142,9 @@ export const SettingsUpdatedPayload = Schema.Struct({
 	value: SettingsValue,
 })
 export type SettingsUpdatedPayload = typeof SettingsUpdatedPayload.Type
+
+export const SkillsDiscoveredPayload = SkillsCatalog
+export type SkillsDiscoveredPayload = typeof SkillsDiscoveredPayload.Type
 
 const defineOrchestrationEvent = <
 	const EventType extends OrchestrationEventType,
@@ -285,6 +291,14 @@ export const SettingsUpdatedEvent = defineOrchestrationEvent({
 })
 export type SettingsUpdatedEvent = typeof SettingsUpdatedEvent.Type
 
+export const SkillsDiscoveredEvent = defineOrchestrationEvent({
+	type: "SkillsDiscovered",
+	payload: SkillsDiscoveredPayload,
+	aggregateKind: "skills",
+	aggregateId: SkillsId,
+})
+export type SkillsDiscoveredEvent = typeof SkillsDiscoveredEvent.Type
+
 export const OrchestrationEvent = Schema.Union([
 	ProjectCreatedEvent,
 	ProjectMetaUpdatedEvent,
@@ -301,5 +315,6 @@ export const OrchestrationEvent = Schema.Union([
 	CheckpointReadinessChangedEvent,
 	CheckpointRevertedEvent,
 	SettingsUpdatedEvent,
+	SkillsDiscoveredEvent,
 ])
 export type OrchestrationEvent = typeof OrchestrationEvent.Type

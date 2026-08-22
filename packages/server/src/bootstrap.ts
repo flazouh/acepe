@@ -5,6 +5,7 @@ import * as BunFileSystem from "@effect/platform-bun/BunFileSystem"
 import * as BunPath from "@effect/platform-bun/BunPath"
 import * as BunRuntime from "@effect/platform-bun/BunRuntime"
 import * as BunServices from "@effect/platform-bun/BunServices"
+import * as Config from "effect/Config"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
@@ -28,6 +29,7 @@ import { ProjectionStateLive } from "./persistence/Layers/ProjectionState.ts"
 import { ProjectionTurnsLive } from "./persistence/Layers/ProjectionTurns.ts"
 import { ProjectionProjectsLive } from "./persistence/Layers/ProjectionProjects.ts"
 import { ProjectionSettingsLive } from "./persistence/Layers/ProjectionSettings.ts"
+import { ProjectionSkillsLive } from "./persistence/Layers/ProjectionSkills.ts"
 import { makeSqliteLayer } from "./persistence/Layers/Sqlite.ts"
 import { runMigrations } from "./persistence/Migrations.ts"
 import {
@@ -41,18 +43,21 @@ import { ProjectionTurns } from "./persistence/Services/ProjectionTurns.ts"
 import { ProjectionCheckpoints } from "./persistence/Services/ProjectionCheckpoints.ts"
 import { ProjectionProjects } from "./persistence/Services/ProjectionProjects.ts"
 import { ProjectionSettings } from "./persistence/Services/ProjectionSettings.ts"
+import { ProjectionSkills } from "./persistence/Services/ProjectionSkills.ts"
 import { HardcodedProviderLive } from "./provider/HardcodedProvider.ts"
 import { FileIndexServiceLive } from "./fileIndex/Layers/FileIndexService.ts"
 import { FileIndexWarmOnImportLive } from "./fileIndex/Layers/FileIndexWarmOnImport.ts"
 import { GitServiceLive } from "./git/Layers/GitService.ts"
 import { RpcHandlersLive } from "./rpc/handlers.ts"
 import { runStdioServer } from "./rpc/stdio.ts"
+import { SkillsServiceLive } from "./skills/Layers/SkillsService.ts"
 
 const decodeProjectorName = Schema.decodeUnknownEffect(TrimmedNonEmptyString)
 
 export type AcepeLiveInput = {
 	readonly filename: string
 	readonly tokenDelay: Duration.Duration
+	readonly skillsHomeDir?: string
 }
 
 const persistenceAt = (filename: string) => {
@@ -69,7 +74,8 @@ const persistenceAt = (filename: string) => {
 		ProjectionCheckpointsLive,
 		ProjectionPendingApprovalsLive,
 		ProjectionProjectsLive,
-		ProjectionSettingsLive
+		ProjectionSettingsLive,
+		ProjectionSkillsLive
 	).pipe(Layer.provideMerge(migrated))
 }
 
@@ -88,6 +94,7 @@ const pipelineLayer = Layer.unwrap(
 		const projectionPendingApprovals = yield* ProjectionPendingApprovals
 		const projects = yield* ProjectionProjects
 		const settings = yield* ProjectionSettings
+		const skills = yield* ProjectionSkills
 		const messagesName = yield* decodeProjectorName(PROJECTION_SESSION_MESSAGES_NAME)
 		return ProjectionPipelineLive([
 			{
@@ -129,6 +136,11 @@ const pipelineLayer = Layer.unwrap(
 				name: settings.name,
 				apply: settings.apply,
 				truncate: settings.truncate
+			},
+			{
+				name: skills.name,
+				apply: skills.apply,
+				truncate: skills.truncate
 			}
 		])
 	})
@@ -158,10 +170,22 @@ export const makeAcepeLive = (input: AcepeLiveInput) => {
 			})
 		})
 	).pipe(Layer.provide(bunPlatform), Layer.provide(BunCrypto.layer))
+	const skills = Layer.unwrap(
+		Effect.gen(function*() {
+			if (input.skillsHomeDir !== undefined) {
+				return SkillsServiceLive({ homeDir: input.skillsHomeDir })
+			}
+			const homeDir = yield* Config.string("HOME").pipe(
+				Config.orElse(() => Config.string("USERPROFILE"))
+			)
+			return SkillsServiceLive({ homeDir })
+		})
+	).pipe(Layer.provide(bunPlatform))
 	const rpc = RpcHandlersLive.pipe(
 		Layer.provideMerge(snapshots),
 		Layer.provideMerge(fileIndex),
-		Layer.provideMerge(git)
+		Layer.provideMerge(git),
+		Layer.provideMerge(skills)
 	)
 	return Layer.mergeAll(
 		rpc,
@@ -179,7 +203,8 @@ export const acepeTestLive = (tokenDelay: Duration.Duration) =>
 			const dir = yield* fs.makeTempDirectoryScoped()
 			return makeAcepeLive({
 				filename: path.join(dir, "acepe-test.db"),
-				tokenDelay
+				tokenDelay,
+				skillsHomeDir: path.join(dir, "skills-home")
 			})
 		})
 	).pipe(

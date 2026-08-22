@@ -4,6 +4,7 @@ import {
 	decodeGetProjectIndexExit,
 	decodeInvalidateProjectIndexExit,
 	decodeSnapshotExit,
+	emptySkillsCatalog,
 	exitToEffect,
 	MessageId,
 	MessageSendCommand,
@@ -11,7 +12,9 @@ import {
 	ProjectId,
 	projectSnapshotRequest,
 	SessionCreateCommand,
-	SessionId
+	SessionId,
+	SkillsDiscoverCommand,
+	skillsSnapshotRequest
 } from "@acepe/contracts"
 import * as Vitest from "@effect/vitest"
 import * as Arr from "effect/Array"
@@ -22,6 +25,7 @@ import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Path from "effect/Path"
+import * as TestClock from "effect/testing/TestClock"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { acepeTestLive } from "../bootstrap.ts"
 import { runGit } from "../git/runGit.ts"
@@ -80,6 +84,32 @@ Vitest.layer(isolated())("encoded Electrobun boundary", (it) => {
 			if (Exit.isSuccess(decoded)) {
 				Vitest.assert.strictEqual(decoded.value.sequence, 3)
 			}
+		})
+	)
+
+	it.effect("fills skills.discover from disk and projects the catalog", () =>
+		Effect.gen(function*() {
+			const dispatched = yield* encodedDispatch(
+				SkillsDiscoverCommand.make({
+					type: "skills.discover",
+					commandId: CommandId.make("cmd-skills"),
+					catalog: emptySkillsCatalog
+				})
+			)
+			const dispatchDecoded = yield* decodeDispatchExit(dispatched)
+			Vitest.assert.isTrue(Exit.isSuccess(dispatchDecoded))
+			let catalogLength = 0
+			for (const _step of Arr.range(0, 199)) {
+				const encoded = yield* encodedSnapshot(skillsSnapshotRequest())
+				const decoded = yield* decodeSnapshotExit(encoded)
+				if (Exit.isSuccess(decoded) && decoded.value.skillsCatalog !== null) {
+					catalogLength = decoded.value.skillsCatalog.agents.length
+					break
+				}
+				yield* TestClock.adjust(Duration.millis(1))
+				yield* Effect.yieldNow
+			}
+			Vitest.assert.strictEqual(catalogLength, 4)
 		})
 	)
 

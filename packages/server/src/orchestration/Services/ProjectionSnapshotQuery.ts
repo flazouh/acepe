@@ -1,6 +1,7 @@
 import {
 	ActivityId,
 	ApprovalRequestId,
+	ProjectedSkillsCatalog,
 	ProjectId,
 	Sequence,
 	SessionId,
@@ -23,6 +24,7 @@ import {
 	PROJECTION_SETTINGS_TABLE,
 	ProjectedSetting
 } from "../../persistence/Services/ProjectionSettings.ts"
+import { PROJECTION_SKILLS_TABLE } from "../../persistence/Services/ProjectionSkills.ts"
 
 export const SNAPSHOT_PROJECTOR_NAMES = [
 	"projection.sessions",
@@ -32,7 +34,8 @@ export const SNAPSHOT_PROJECTOR_NAMES = [
 	"projection.pending-approvals",
 	"projection.checkpoints",
 	"projection.projects",
-	"projection.settings"
+	"projection.settings",
+	"projection.skills"
 ] as const
 
 export const PROJECTION_TURNS_TABLE = "projection_turns"
@@ -44,7 +47,8 @@ export const SNAPSHOT_OPTIONAL_TABLES = [
 	PROJECTION_SESSION_ACTIVITIES_TABLE,
 	PROJECTION_PENDING_APPROVALS_TABLE,
 	PROJECTION_CHECKPOINTS_TABLE,
-	PROJECTION_SETTINGS_TABLE
+	PROJECTION_SETTINGS_TABLE,
+	PROJECTION_SKILLS_TABLE
 ] as const
 
 export const ProjectedTurn = Schema.Struct({
@@ -78,7 +82,8 @@ export const SessionProjectionSnapshot = Schema.Struct({
 	checkpoints: Schema.Array(ProjectedCheckpoint),
 	projects: Schema.Array(ProjectedProject),
 	sessions: Schema.Array(ProjectedSession),
-	settings: Schema.Array(ProjectedSetting)
+	settings: Schema.Array(ProjectedSetting),
+	skillsCatalog: Schema.NullOr(ProjectedSkillsCatalog)
 })
 export type SessionProjectionSnapshot = typeof SessionProjectionSnapshot.Type
 
@@ -164,6 +169,8 @@ export {
 	decodeStoredProjectedSetting,
 	decodeStoredProjectedSettings
 } from "../../persistence/Services/ProjectionSettings.ts"
+
+export { decodeStoredProjectedSkillsCatalog } from "../../persistence/Services/ProjectionSkills.ts"
 
 export interface ProjectionSnapshotQueryShape {
 	readonly snapshot: (

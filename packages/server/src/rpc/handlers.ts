@@ -2,6 +2,7 @@ import {
 	AcepeRpc,
 	decodeRpcSessionSnapshot,
 	FileGitStatus,
+	type OrchestrationCommand,
 	type OrchestrationEvent,
 	type RpcProjectedProject,
 	RpcCommandInvariantError,
@@ -43,6 +44,7 @@ import {
 	type SessionProjectionSnapshot,
 	ProjectionSnapshotQuery
 } from "../orchestration/Services/ProjectionSnapshotQuery.ts"
+import { fillSkillsDiscoverCommand } from "../skills/discoverCatalog.ts"
 
 const EVENT_PAGE_SIZE = 1_000
 
@@ -66,7 +68,8 @@ export const toRpcSnapshot = (snapshot: SessionProjectionSnapshot): RpcSessionSn
 	pendingApprovals: snapshot.pendingApprovals,
 	projects: Arr.map(snapshot.projects, toRpcProject),
 	sessions: snapshot.sessions,
-	settings: snapshot.settings
+	settings: snapshot.settings,
+	skillsCatalog: snapshot.skillsCatalog
 })
 
 const decodeRpcFileGitStatuses = Schema.decodeUnknownEffect(Schema.Array(FileGitStatus))
@@ -126,7 +129,8 @@ const withProjectGitStatus = Effect.fn("withProjectGitStatus")(function*(
 		pendingApprovals: snapshot.pendingApprovals,
 		projects,
 		sessions: snapshot.sessions,
-		settings: snapshot.settings
+		settings: snapshot.settings,
+		skillsCatalog: snapshot.skillsCatalog
 	} satisfies RpcSessionSnapshot
 })
 
@@ -231,13 +235,22 @@ export const eventsFromSequence = (
 		})
 	)
 
+export const dispatchOrchestrationCommand = Effect.fn("dispatchOrchestrationCommand")(function*(
+	command: OrchestrationCommand
+) {
+	const engine = yield* OrchestrationEngine
+	const filled = yield* fillSkillsDiscoverCommand(command)
+	return yield* engine.dispatch(filled)
+})
+
 export const RpcHandlersLive = AcepeRpc.toLayer(
 	Effect.gen(function*() {
 		const engine = yield* OrchestrationEngine
 		const store = yield* OrchestrationEventStore
 		const fileIndex = yield* FileIndexService
 		return {
-			dispatch: (command) => engine.dispatch(command).pipe(Effect.mapError(toRpcError)),
+			dispatch: (command) =>
+				dispatchOrchestrationCommand(command).pipe(Effect.mapError(toRpcError)),
 			snapshot: (request) =>
 				rpcSnapshotForRequest(request).pipe(
 					Effect.flatMap(decodeRpcSessionSnapshot),

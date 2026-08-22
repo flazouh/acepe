@@ -321,6 +321,7 @@ export const evolveProjectedTurns = (
 			CheckpointCreated: () => Effect.succeed(current),
 			CheckpointReadinessChanged: () => Effect.succeed(current),
 			CheckpointReverted: () => Effect.succeed(current),
-			SettingsUpdated: () => Effect.succeed(current)
+			SettingsUpdated: () => Effect.succeed(current),
+			SkillsDiscovered: () => Effect.succeed(current)
 		})
 	)(event)

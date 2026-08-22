@@ -35,7 +35,10 @@ type ProjectEventType = Extract<
 	OrchestrationEvent["type"],
 	"ProjectCreated" | "ProjectMetaUpdated" | "ProjectDeleted"
 >
-type SessionEventType = Exclude<OrchestrationEvent["type"], ProjectEventType | "SettingsUpdated">
+type SessionEventType = Exclude<
+	OrchestrationEvent["type"],
+	ProjectEventType | "SettingsUpdated" | "SkillsDiscovered"
+>
 
 const projectEventEnvelope = <const Type extends ProjectEventType, Payload>(
 	sequence: number,

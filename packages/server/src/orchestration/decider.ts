@@ -33,12 +33,15 @@ import {
 	type SessionUnarchivedEvent,
 	type SettingsSetCommand,
 	type SettingsUpdatedEvent,
+	type SkillsDiscoverCommand,
+	type SkillsDiscoveredEvent,
 	type TokenAppendCommand,
 	type TokenAppendedEvent,
 	type TurnCancelCommand,
 	type TurnCancelledEvent,
 	type TurnCancelledPayload,
-	APP_SETTINGS_ID
+	APP_SETTINGS_ID,
+	APP_SKILLS_ID
 } from "@acepe/contracts"
 import * as Effect from "effect/Effect"
 import {
@@ -48,7 +51,8 @@ import {
 	requireSession,
 	requireSessionAbsent,
 	requireSessionArchived,
-	requireSessionNotArchived
+	requireSessionNotArchived,
+	requireUniqueSkillIds
 } from "./commandInvariants.ts"
 import type { OrchestrationCommandInvariantError } from "./Errors.ts"
 
@@ -467,6 +471,23 @@ const settingsUpdatedEvent = (
 	}
 })
 
+const skillsDiscoveredEvent = (
+	command: SkillsDiscoverCommand,
+	identity: DecideIdentity,
+	sequence: Sequence
+): SkillsDiscoveredEvent => ({
+	...withEnvelope({
+		sequence,
+		eventId: identity.eventId,
+		aggregateKind: "skills",
+		aggregateId: APP_SKILLS_ID,
+		occurredAt: identity.occurredAt,
+		commandId: command.commandId
+	}),
+	type: "SkillsDiscovered",
+	payload: command.catalog
+})
+
 const decideProjectCreate = Effect.fn("decideProjectCreate")(function*(
 	readModel: OrchestrationReadModel,
 	command: ProjectCreateCommand,
@@ -664,6 +685,15 @@ const decideSettingsSet = Effect.fn("decideSettingsSet")(function*(
 	return [settingsUpdatedEvent(command, identity, nextSequence(readModel.snapshotSequence))]
 })
 
+const decideSkillsDiscover = Effect.fn("decideSkillsDiscover")(function*(
+	readModel: OrchestrationReadModel,
+	command: SkillsDiscoverCommand,
+	identity: DecideIdentity
+) {
+	yield* requireUniqueSkillIds(command)
+	return [skillsDiscoveredEvent(command, identity, nextSequence(readModel.snapshotSequence))]
+})
+
 export const decide = Effect.fn("decide")(function*(
 	readModel: OrchestrationReadModel,
 	command: OrchestrationCommand,
@@ -700,5 +730,7 @@ export const decide = Effect.fn("decide")(function*(
 			return yield* decideCheckpointRevert(readModel, command, identity)
 		case "settings.set":
 			return yield* decideSettingsSet(readModel, command, identity)
+		case "skills.discover":
+			return yield* decideSkillsDiscover(readModel, command, identity)
 	}
 })

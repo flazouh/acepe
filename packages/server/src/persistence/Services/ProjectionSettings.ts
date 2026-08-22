@@ -118,7 +118,8 @@ export const evolveProjectedSetting = (
 			CheckpointCreated: () => ignoreEvent(current),
 			CheckpointReadinessChanged: () => ignoreEvent(current),
 			CheckpointReverted: () => ignoreEvent(current),
-			SettingsUpdated: (updated) => projectSettingsUpdated(updated)
+			SettingsUpdated: (updated) => projectSettingsUpdated(updated),
+			SkillsDiscovered: () => ignoreEvent(current)
 		})
 	)(event)
 
@@ -139,6 +140,7 @@ export const settingKeyFromEvent = (event: OrchestrationEvent): Option.Option<Us
 			CheckpointCreated: () => Option.none(),
 			CheckpointReadinessChanged: () => Option.none(),
 			CheckpointReverted: () => Option.none(),
-			SettingsUpdated: (updated) => Option.some(updated.payload.key)
+			SettingsUpdated: (updated) => Option.some(updated.payload.key),
+			SkillsDiscovered: () => Option.none()
 		})
 	)(event)

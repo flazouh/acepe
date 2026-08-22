@@ -20,10 +20,12 @@ import {
 	SessionMetaUpdatedPayload,
 	SessionUnarchivedPayload,
 	SettingsUpdatedPayload,
+	SkillsDiscoveredPayload,
 	TurnCancelledPayload,
 } from "./events.ts"
 import { CheckpointId, CommandId, EventId, MessageId, ProjectId, SessionId, ToolCallId, TurnId } from "./ids.ts"
 import { APP_SETTINGS_ID } from "./settings.ts"
+import { APP_SKILLS_ID, emptySkillsCatalog } from "./skills.ts"
 
 const v1EventTypes = [
 	"ProjectCreated",
@@ -41,13 +43,15 @@ const v1EventTypes = [
 	"CheckpointReadinessChanged",
 	"CheckpointReverted",
 	"SettingsUpdated",
+	"SkillsDiscovered",
 ] as const
 
 type V1EventType = (typeof v1EventTypes)[number]
 type EventType = OrchestrationEvent["type"]
 type ProjectEventType = Extract<EventType, "ProjectCreated" | "ProjectMetaUpdated" | "ProjectDeleted">
 type SettingsEventType = Extract<EventType, "SettingsUpdated">
-type SessionEventType = Exclude<EventType, ProjectEventType | SettingsEventType>
+type SkillsEventType = Extract<EventType, "SkillsDiscovered">
+type SessionEventType = Exclude<EventType, ProjectEventType | SettingsEventType | SkillsEventType>
 const _v1EventTypesMatchUnion: [EventType] extends [V1EventType]
 	? [V1EventType] extends [EventType]
 		? true
@@ -125,6 +129,23 @@ const settingsEvent = <const Type extends SettingsEventType, Payload>(
 	eventId,
 	aggregateKind: "settings" as const,
 	aggregateId: APP_SETTINGS_ID,
+	occurredAt,
+	commandId,
+	causationEventId: null,
+	correlationId: commandId,
+	metadata: {},
+	type,
+	payload,
+})
+
+const skillsEvent = <const Type extends SkillsEventType, Payload>(
+	type: Type,
+	payload: Payload,
+) => ({
+	sequence: 4,
+	eventId,
+	aggregateKind: "skills" as const,
+	aggregateId: APP_SKILLS_ID,
 	occurredAt,
 	commandId,
 	causationEventId: null,
@@ -245,6 +266,10 @@ const memberCases = [
 			key: "ui_font_size" as const,
 			value: "14",
 		}),
+	},
+	{
+		payloadSchema: SkillsDiscoveredPayload,
+		event: skillsEvent("SkillsDiscovered", emptySkillsCatalog),
 	},
 ] as const
 

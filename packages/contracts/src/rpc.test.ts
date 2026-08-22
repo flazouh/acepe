@@ -33,6 +33,7 @@ import {
 	RpcTransportError,
 	sessionSnapshotRequest,
 	settingsSnapshotRequest,
+	skillsSnapshotRequest,
 	snapshotScope,
 	type RpcTransport,
 } from "./rpc.ts"
@@ -80,6 +81,7 @@ const emptySnapshot: RpcSessionSnapshot = {
 	projects: [],
 	sessions: [],
 	settings: [],
+	skillsCatalog: null,
 }
 
 const snapshot: RpcSessionSnapshot = {
@@ -140,6 +142,7 @@ const snapshot: RpcSessionSnapshot = {
 		},
 	],
 	settings: [],
+	skillsCatalog: null,
 }
 
 const unusedDispatch: RpcTransport["dispatch"] = (_command) => Effect.succeed({ sequence: 0 })
@@ -268,6 +271,7 @@ describe("Schema-encoded boundary", () => {
 			],
 			sessions: [],
 			settings: [],
+			skillsCatalog: null,
 		}
 		const encoded = Effect.runSync(Schema.encodeUnknownEffect(RpcSessionSnapshot)(withGit))
 		const decoded = Effect.runSync(Schema.decodeUnknownEffect(RpcSessionSnapshot)(encoded))
@@ -291,12 +295,15 @@ describe("Schema-encoded boundary", () => {
 		}
 	})
 
-	it("decodes library, settings, project, session, and legacy snapshot requests", () => {
+	it("decodes library, settings, skills, project, session, and legacy snapshot requests", () => {
 		expect(Effect.runSync(decodeSnapshotRequest({ kind: "library" }))).toEqual(
 			librarySnapshotRequest(),
 		)
 		expect(Effect.runSync(decodeSnapshotRequest({ kind: "settings" }))).toEqual(
 			settingsSnapshotRequest(),
+		)
+		expect(Effect.runSync(decodeSnapshotRequest({ kind: "skills" }))).toEqual(
+			skillsSnapshotRequest(),
 		)
 		expect(
 			Effect.runSync(decodeSnapshotRequest({ kind: "project", projectId })),
@@ -307,9 +314,10 @@ describe("Schema-encoded boundary", () => {
 		expect(Effect.runSync(decodeSnapshotRequest({ sessionId }))).toEqual({ sessionId })
 	})
 
-	it("maps snapshot requests onto library, settings, project, or session scope", () => {
+	it("maps snapshot requests onto library, settings, skills, project, or session scope", () => {
 		expect(snapshotScope(librarySnapshotRequest())).toEqual({ kind: "library" })
 		expect(snapshotScope(settingsSnapshotRequest())).toEqual({ kind: "settings" })
+		expect(snapshotScope(skillsSnapshotRequest())).toEqual({ kind: "skills" })
 		expect(snapshotScope(projectSnapshotRequest(projectId))).toEqual({
 			kind: "project",
 			projectId,

@@ -3,6 +3,7 @@ import { describe, expect, it } from "bun:test"
 import { EventId } from "./ids.ts"
 import { CommandId, MessageId, ProjectId, SessionId } from "./ids.ts"
 import { APP_SETTINGS_ID } from "./settings.ts"
+import { APP_SKILLS_ID, emptySkillsCatalog } from "./skills.ts"
 import {
 	applyEventToRpcSessionSnapshot,
 	emptyRpcSessionSnapshot,
@@ -244,5 +245,30 @@ describe("applyEventToRpcSessionSnapshot", () => {
 			{ key: "ui_font_size", value: "18", sequence: 3 },
 		])
 		expect(third.snapshotSequence).toBe(3)
+	})
+
+	it("replaces the skills catalog on SkillsDiscovered", () => {
+		const first = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), {
+			sequence: 1,
+			eventId: EventId.make("event-1"),
+			aggregateKind: "skills",
+			aggregateId: APP_SKILLS_ID,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: {},
+			type: "SkillsDiscovered",
+			payload: emptySkillsCatalog,
+		})
+		expect(first.skillsCatalog).toEqual({
+			sequence: 1,
+			agents: [],
+			agentSkills: [],
+			plugins: [],
+			pluginSkills: [],
+			tree: [],
+		})
+		expect(first.snapshotSequence).toBe(1)
 	})
 })

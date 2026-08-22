@@ -65,6 +65,7 @@ const snapshot: RpcSessionSnapshot = {
 		},
 	],
 	settings: [],
+	skillsCatalog: null,
 };
 
 describe("library sidebar controller mapping", () => {

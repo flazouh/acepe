@@ -1,12 +1,14 @@
 import {
 	AcepeRpc,
 	CommandId,
+	emptySkillsCatalog,
 	librarySnapshotRequest,
 	ProjectCreateCommand,
 	ProjectId,
 	projectSnapshotRequest,
 	SessionCreateCommand,
-	SessionId
+	SessionId,
+	SkillsDiscoverCommand
 } from "@acepe/contracts"
 import * as BunChildProcessSpawner from "@effect/platform-bun/BunChildProcessSpawner"
 import * as BunCrypto from "@effect/platform-bun/BunCrypto"
@@ -38,6 +40,7 @@ import { GitServiceLive } from "../git/Layers/GitService.ts"
 import { runGit } from "../git/runGit.ts"
 import { OrchestrationEngineLive } from "../orchestration/Layers/OrchestrationEngine.ts"
 import { ProjectionSnapshotQueryLive } from "../orchestration/Layers/ProjectionSnapshotQuery.ts"
+import { SkillsServiceLive } from "../skills/Layers/SkillsService.ts"
 import { RpcHandlersLive } from "./handlers.ts"
 
 const sessionId = SessionId.make("session-1")
@@ -105,11 +108,20 @@ const GitLive = Layer.unwrap(
 	})
 ).pipe(Layer.provide(FileIndexPlatform), Layer.provide(BunCrypto.layer))
 
+const SkillsLive = Layer.unwrap(
+	Effect.gen(function*() {
+		const fs = yield* FileSystem.FileSystem
+		const dir = yield* fs.makeTempDirectoryScoped()
+		return SkillsServiceLive({ homeDir: dir })
+	})
+).pipe(Layer.provide(FileIndexPlatform))
+
 const TestLive = RpcHandlersLive.pipe(
 	Layer.provideMerge(ProjectionSnapshotQueryLive),
 	Layer.provideMerge(EngineAndStore),
 	Layer.provideMerge(FileIndexServiceLive),
 	Layer.provideMerge(GitLive),
+	Layer.provideMerge(SkillsLive),
 	Layer.provideMerge(FileIndexPlatform)
 )
 
@@ -363,6 +375,28 @@ Vitest.layer(isolatedRpc())("projected snapshot", (it) => {
 			Vitest.assert.strictEqual(message?.rowType, "user")
 			if (message?.rowType === "user") {
 				Vitest.assert.strictEqual(message.content.text, "Ship the slice")
+			}
+		})
+	)
+})
+
+Vitest.layer(isolatedRpc())("skills discover", (it) => {
+	it.effect("fills the catalog from disk before dispatch", () =>
+		Effect.gen(function*() {
+			const client = yield* RpcTest.makeClient(AcepeRpc)
+			yield* client.dispatch(
+				SkillsDiscoverCommand.make({
+					type: "skills.discover",
+					commandId: CommandId.make("cmd-skills"),
+					catalog: emptySkillsCatalog
+				})
+			)
+			const events = yield* Stream.take(client.events({ fromSequence: 0 }), 1).pipe(
+				Stream.runCollect
+			)
+			Vitest.assert.strictEqual(events[0]?.type, "SkillsDiscovered")
+			if (events[0]?.type === "SkillsDiscovered") {
+				Vitest.assert.strictEqual(events[0].payload.agents.length, 4)
 			}
 		})
 	)

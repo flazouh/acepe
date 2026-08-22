@@ -55,6 +55,7 @@ const librarySnapshot: RpcSessionSnapshot = {
 		},
 	],
 	settings: [],
+	skillsCatalog: null,
 };
 
 describe("isLibraryProjectionEvent", () => {

@@ -2,10 +2,11 @@ import * as Match from "effect/Match"
 import * as Schema from "effect/Schema"
 
 import { CheckpointFileCount, CheckpointNumber, CheckpointStatus, StreamToken, TrimmedNonEmptyString } from "./baseSchemas.ts"
-import { CheckpointId, CommandId, MessageId, ProjectId, SessionId, SettingsId, ToolCallId, TurnId } from "./ids.ts"
+import { CheckpointId, CommandId, MessageId, ProjectId, SessionId, SettingsId, SkillsId, ToolCallId, TurnId } from "./ids.ts"
 import { APP_SETTINGS_ID, SettingsValue, UserSettingKey } from "./settings.ts"
+import { APP_SKILLS_ID, SkillsCatalog } from "./skills.ts"
 
-export const OrchestrationAggregateKind = Schema.Literals(["project", "session", "settings"])
+export const OrchestrationAggregateKind = Schema.Literals(["project", "session", "settings", "skills"])
 export type OrchestrationAggregateKind = typeof OrchestrationAggregateKind.Type
 
 export type OrchestrationAggregateRef =
@@ -20,6 +21,10 @@ export type OrchestrationAggregateRef =
 	| {
 			readonly aggregateKind: "settings"
 			readonly aggregateId: SettingsId
+	  }
+	| {
+			readonly aggregateKind: "skills"
+			readonly aggregateId: SkillsId
 	  }
 
 export const ProjectCreateCommand = Schema.Struct({
@@ -157,6 +162,13 @@ export const SettingsSetCommand = Schema.Struct({
 })
 export type SettingsSetCommand = typeof SettingsSetCommand.Type
 
+export const SkillsDiscoverCommand = Schema.Struct({
+	type: Schema.Literal("skills.discover"),
+	commandId: CommandId,
+	catalog: SkillsCatalog,
+})
+export type SkillsDiscoverCommand = typeof SkillsDiscoverCommand.Type
+
 export const OrchestrationCommand = Schema.Union([
 	ProjectCreateCommand,
 	ProjectMetaUpdateCommand,
@@ -173,6 +185,7 @@ export const OrchestrationCommand = Schema.Union([
 	CheckpointReportReadinessCommand,
 	CheckpointRevertCommand,
 	SettingsSetCommand,
+	SkillsDiscoverCommand,
 ])
 export type OrchestrationCommand = typeof OrchestrationCommand.Type
 
@@ -189,6 +202,11 @@ const sessionRef = (sessionId: SessionId): OrchestrationAggregateRef => ({
 const settingsRef = (): OrchestrationAggregateRef => ({
 	aggregateKind: "settings",
 	aggregateId: APP_SETTINGS_ID,
+})
+
+const skillsRef = (): OrchestrationAggregateRef => ({
+	aggregateKind: "skills",
+	aggregateId: APP_SKILLS_ID,
 })
 
 export const commandToAggregateRef = Match.type<OrchestrationCommand>().pipe(
@@ -208,5 +226,6 @@ export const commandToAggregateRef = Match.type<OrchestrationCommand>().pipe(
 		"checkpoint.report-readiness": (command) => sessionRef(command.sessionId),
 		"checkpoint.revert": (command) => sessionRef(command.sessionId),
 		"settings.set": () => settingsRef(),
+		"skills.discover": () => skillsRef(),
 	}),
 )

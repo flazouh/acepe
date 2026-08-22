@@ -55,6 +55,7 @@ const snapshotWithUser: RpcSessionSnapshot = {
 	projects: [],
 	sessions: [],
 	settings: [],
+	skillsCatalog: null,
 };
 
 const tokenAt = (sequence: number, token: string): OrchestrationEvent => ({

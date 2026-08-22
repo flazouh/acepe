@@ -23,7 +23,7 @@ import { FileIndexNotADirectoryError, FileIndexRootNotFoundError } from "../file
 import { FileIndexService } from "../fileIndex/Services/FileIndexService.ts"
 import { OrchestrationEventStore } from "../persistence/Services/OrchestrationEventStore.ts"
 import { OrchestrationEngine } from "../orchestration/Services/OrchestrationEngine.ts"
-import { eventsFromSequence, rpcSnapshotForRequest, toFileIndexRpcError, toRpcError } from "./handlers.ts"
+import { dispatchOrchestrationCommand, eventsFromSequence, rpcSnapshotForRequest, toFileIndexRpcError, toRpcError } from "./handlers.ts"
 
 const toEncodedFileIndexError = (error: { readonly message: string }): RpcServerError => {
 	if (Schema.is(FileIndexRootNotFoundError)(error)) {
@@ -36,9 +36,8 @@ const toEncodedFileIndexError = (error: { readonly message: string }): RpcServer
 }
 
 export const encodedDispatch = Effect.fn("encodedDispatch")(function*(params: unknown) {
-	const engine = yield* OrchestrationEngine
 	const outcome = yield* Effect.result(
-		decodeOrchestrationCommand(params).pipe(Effect.flatMap((command) => engine.dispatch(command)))
+		decodeOrchestrationCommand(params).pipe(Effect.flatMap(dispatchOrchestrationCommand))
 	)
 	if (Result.isFailure(outcome)) {
 		const rpcError = toRpcError(outcome.failure)

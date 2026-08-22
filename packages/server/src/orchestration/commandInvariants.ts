@@ -1,6 +1,7 @@
-import type { IsoDateTime, OrchestrationCommand, ProjectId, Sequence, SessionId } from "@acepe/contracts"
+import type { IsoDateTime, OrchestrationCommand, ProjectId, Sequence, SessionId, SkillsDiscoverCommand } from "@acepe/contracts"
 import * as Array from "effect/Array"
 import * as Effect from "effect/Effect"
+import * as HashSet from "effect/HashSet"
 import * as Option from "effect/Option"
 import { OrchestrationCommandInvariantError } from "./Errors.ts"
 
@@ -114,4 +115,24 @@ export const requireSessionArchived = Effect.fn("requireSessionArchived")(functi
 		})
 	}
 	return session
+})
+
+export const requireUniqueSkillIds = Effect.fn("requireUniqueSkillIds")(function*(
+	command: SkillsDiscoverCommand
+) {
+	const agentIds = Array.flatMap(command.catalog.agentSkills, (group) =>
+		Array.map(group.skills, (skill) => skill.id)
+	)
+	const pluginIds = Array.map(command.catalog.pluginSkills, (skill) => skill.id)
+	const ids = Array.appendAll(agentIds, pluginIds)
+	let seen = HashSet.empty<string>()
+	for (const id of ids) {
+		if (HashSet.has(seen, id)) {
+			return yield* new OrchestrationCommandInvariantError({
+				commandType: command.type,
+				detail: `Duplicate skill id '${id}' in skills.discover.`
+			})
+		}
+		seen = HashSet.add(seen, id)
+	}
 })
