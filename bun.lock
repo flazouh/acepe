@@ -66,6 +66,7 @@
         "clsx": "^2.1.1",
         "codemirror": "^6.0.2",
         "effect": "catalog:",
+        "electrobun-qa": "workspace:*",
         "lru-cache": "^11.2.4",
         "mermaid": "^11.15.0",
         "posthog-js": "^1.386.8",

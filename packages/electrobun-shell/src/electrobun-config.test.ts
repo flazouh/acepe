@@ -2,7 +2,7 @@ import { expect, test } from "bun:test"
 import * as ConfigProvider from "effect/ConfigProvider"
 import * as Effect from "effect/Effect"
 
-import { makeElectrobunConfig, loadElectrobunConfig, electrobunReleaseChannel, electrobunCliBuildArgs } from "./electrobun-config.ts"
+import { makeElectrobunConfig, loadElectrobunConfig, electrobunReleaseChannel, electrobunCliBuildArgs, qaSurfaceEnabled } from "./electrobun-config.ts"
 
 test("config opens a bun process and copies the svelte bundle", () => {
 	const config = makeElectrobunConfig({
@@ -82,4 +82,24 @@ test("loadElectrobunConfig notarises when ACEPE_SIGN and Apple ID credentials ar
 test("release builds use the stable electrobun channel", () => {
 	expect(electrobunReleaseChannel).toBe("stable")
 	expect(electrobunCliBuildArgs).toEqual(["build", `--env=${electrobunReleaseChannel}`])
+})
+
+test("qa surface is enabled on an unsigned config", () => {
+	const config = makeElectrobunConfig({
+		version: "2026.3.33",
+		codesign: false,
+		notarize: false,
+		baseUrl: "https://example.com",
+	})
+	expect(qaSurfaceEnabled(config)).toBe(true)
+})
+
+test("qa surface is disabled on a signed config", () => {
+	const config = makeElectrobunConfig({
+		version: "2026.3.33",
+		codesign: true,
+		notarize: true,
+		baseUrl: "https://example.com",
+	})
+	expect(qaSurfaceEnabled(config)).toBe(false)
 })
