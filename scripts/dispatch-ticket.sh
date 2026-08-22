@@ -38,6 +38,8 @@ fi
 /usr/bin/git worktree prune
 /usr/bin/git worktree add -q -b "$BRANCH" "$WT" "$BASE"
 cd "$WT"
+touch "$WT/.lane-active"
+trap 'rm -f "$WT/.lane-active"' EXIT
 bun install --silent >/dev/null 2>&1 || bun install >/dev/null 2>&1 || true
 
 cursor-agent --print --force --model "$MODEL" --output-format text "Implement ticket ${TICKET}. Read docs/plans/electrobun-rebuild/${TICKET}.md first: its acceptance criteria are the complete spec.

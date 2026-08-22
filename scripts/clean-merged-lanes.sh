@@ -18,14 +18,11 @@ for dir in /Users/alex/Documents/acepe-lanes/*/; do
   branch="feat/$(echo "$ticket" | tr '[:upper:]' '[:lower:]')"
 
   # A lane that has not written anything YET looks exactly like a finished,
-  # merged one. Refuse to touch a worktree that a cursor-agent is live in.
-  # This script once deleted four lanes seconds after they were dispatched.
-  if ps -Ao args= | grep -v grep | grep -q "$dir"; then
-    echo "KEEP $ticket — an agent is running in it."
-    continue
-  fi
-  if lsof +D "$dir" >/dev/null 2>&1; then
-    echo "KEEP $ticket — files are open in it."
+  # merged one, and its branch still points at the merged base. The dispatcher
+  # writes .lane-active for the lane's lifetime; that is the only signal that
+  # cannot be wrong. Process-argv checks were tried and deleted live lanes twice.
+  if [ -e "$dir/.lane-active" ]; then
+    echo "KEEP $ticket — a lane is active in it."
     continue
   fi
 
