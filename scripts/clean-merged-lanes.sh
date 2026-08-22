@@ -17,6 +17,18 @@ for dir in /Users/alex/Documents/acepe-lanes/*/; do
   ticket="$(basename "$dir")"
   branch="feat/$(echo "$ticket" | tr '[:upper:]' '[:lower:]')"
 
+  # A lane that has not written anything YET looks exactly like a finished,
+  # merged one. Refuse to touch a worktree that a cursor-agent is live in.
+  # This script once deleted four lanes seconds after they were dispatched.
+  if ps -Ao args= | grep -v grep | grep -q "$dir"; then
+    echo "KEEP $ticket — an agent is running in it."
+    continue
+  fi
+  if lsof +D "$dir" >/dev/null 2>&1; then
+    echo "KEEP $ticket — files are open in it."
+    continue
+  fi
+
   dirty="$(cd "$dir" && /usr/bin/git status --porcelain 2>/dev/null | grep -v 'lib/services' | wc -l | tr -d ' ')"
   if [ "$dirty" != "0" ]; then
     echo "KEEP $ticket — $dirty uncommitted files. Commit or discard them deliberately."
