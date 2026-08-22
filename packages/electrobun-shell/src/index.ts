@@ -2,6 +2,7 @@ export {
 	resolveElectrobunConfig,
 	loadElectrobunConfig,
 	makeElectrobunConfig,
+	qaSurfaceEnabled,
 	electrobunReleaseChannel,
 	electrobunCliBuildArgs,
 } from "./electrobun-config.ts"
@@ -46,6 +47,7 @@ export {
 	startElectrobunAcepeApp,
 } from "./open-native-window.ts"
 export type {
+	ElectrobunAcepeAppOptions,
 	ElectrobunBunBindings,
 	ElectrobunWindowHandle,
 	ElectrobunWindowOptions,

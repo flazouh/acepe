@@ -81,9 +81,14 @@ export type LaunchedElectrobunAcepe<Rpc> = LaunchedAcepeShell<Rpc> & {
 	readonly executeJavascript: (js: string) => void
 }
 
+export type ElectrobunAcepeAppOptions = {
+	readonly preload: string | null
+}
+
 export const startElectrobunAcepeApp = <Rpc>(
 	bindings: ElectrobunBunBindings<Rpc>,
 	io: ShellIo,
+	appOptions?: ElectrobunAcepeAppOptions,
 ): LaunchedElectrobunAcepe<Rpc> => {
 	let sendEvents: (payload: unknown) => void = () => undefined
 	let executeJavascript: (js: string) => void = () => undefined
@@ -109,17 +114,26 @@ export const startElectrobunAcepeApp = <Rpc>(
 					},
 				}),
 			openWindow: (input) => {
-				const win = new bindings.BrowserWindow(electrobunWindowOptions(input))
-				realizeAcepeNativeWindow(win, input)
+				const opened = {
+					title: input.title,
+					url: input.url,
+					frame: input.frame,
+					activate: input.activate,
+					hidden: input.hidden,
+					preload: appOptions === undefined ? input.preload : appOptions.preload,
+					rpc: input.rpc,
+				}
+				const win = new bindings.BrowserWindow(electrobunWindowOptions(opened))
+				realizeAcepeNativeWindow(win, opened)
 				bindings.setDockIconVisible(true)
-				io.writeError(formatWindowOpenedLine(input.title))
+				io.writeError(formatWindowOpenedLine(opened.title))
 				sendEvents = (payload) => {
 					win.webview.rpc.send.events(payload)
 				}
 				executeJavascript = (js) => {
 					win.webview.executeJavascript(js)
 				}
-				return input
+				return opened
 			},
 		},
 		io,

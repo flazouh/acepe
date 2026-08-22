@@ -94,3 +94,6 @@ export const loadElectrobunConfig = Effect.all({
 )
 
 export const resolveElectrobunConfig = (): AcepeElectrobunConfig => Effect.runSync(loadElectrobunConfig)
+
+export const qaSurfaceEnabled = (config: AcepeElectrobunConfig): boolean =>
+	config.build.mac.codesign === false

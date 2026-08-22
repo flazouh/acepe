@@ -1,12 +1,15 @@
+import { appendFileSync, existsSync, writeFileSync } from "node:fs";
 import {
+	acepeShellPingScript,
 	applyNativeWrapperCwdOrExit,
 	joinPathSegments,
-	startElectrobunAcepeApp,
-	RPC_ROUNDTRIP_PREFIX,
-	SHELL_STARTUP_FAILED_PREFIX,
-	SHELL_PROOF_LOG_PATH,
-	acepeShellPingScript,
+	qaSurfaceEnabled,
 	RPC_ROUNDTRIP_MESSAGE,
+	RPC_ROUNDTRIP_PREFIX,
+	resolveElectrobunConfig,
+	SHELL_PROOF_LOG_PATH,
+	SHELL_STARTUP_FAILED_PREFIX,
+	startElectrobunAcepeApp,
 } from "@acepe/electrobun-shell";
 import { makeAcepeLive } from "@acepe/server/bootstrap";
 import {
@@ -17,8 +20,10 @@ import {
 	pushEvents,
 } from "@acepe/server/rpc/encodedBoundary";
 import * as Duration from "effect/Duration";
+import * as Effect from "effect/Effect";
 import * as ManagedRuntime from "effect/ManagedRuntime";
-import { appendFileSync, existsSync, writeFileSync } from "node:fs";
+import { loadQaSocketPath, qaPreloadScript } from "electrobun-qa";
+import { keepQaHost, qaInternalMessageMap, qaWindowPreload } from "./qa-host.ts";
 
 const PROOF_LOG = SHELL_PROOF_LOG_PATH;
 const RPC_ROUNDTRIP_WAIT_MS = 20_000;
@@ -45,15 +50,19 @@ applyNativeWrapperCwdOrExit({
 });
 
 const electrobun = await import("electrobun/bun");
+const electrobunNative = await import("../../node_modules/electrobun/dist/api/bun/proc/native.ts");
 
 const runtime = ManagedRuntime.make(
 	makeAcepeLive({
 		filename: "acepe-tracer.sqlite",
 		tokenDelay: Duration.millis(40),
-	}),
+	})
 );
 
 let sawRpcRoundtrip = false;
+
+const qaConfig = resolveElectrobunConfig();
+const qaEnabled = qaSurfaceEnabled(qaConfig);
 
 const launched = startElectrobunAcepeApp(
 	{
@@ -77,23 +86,40 @@ const launched = startElectrobunAcepeApp(
 		},
 		exit: (code) => process.exit(code),
 	},
+	{ preload: qaWindowPreload(qaEnabled, qaPreloadScript) }
 );
 
 launched.attach({
 	dispatch: (params) => runtime.runPromise(encodedDispatch(params)),
 	snapshot: (params) => runtime.runPromise(encodedSnapshot(params)),
 	getProjectIndex: (params) => runtime.runPromise(encodedGetProjectIndex(params)),
-	invalidateProjectIndex: (params) =>
-		runtime.runPromise(encodedInvalidateProjectIndex(params)),
+	invalidateProjectIndex: (params) => runtime.runPromise(encodedInvalidateProjectIndex(params)),
 	events: (params) => {
 		runtime.runFork(
 			pushEvents(params, (payload) => {
 				launched.sendEvents(payload);
-			}),
+			})
 		);
 		return undefined;
 	},
 });
+
+if (qaEnabled === true) {
+	const qaSocket = Effect.runSync(loadQaSocketPath());
+	writeLine(`acepe-qa-host: ${qaSocket}`);
+	Effect.runFork(
+		keepQaHost({
+			signed: qaConfig.build.mac.codesign,
+			path: qaSocket,
+			title: launched.opened.title,
+			url: launched.opened.url,
+			sender: {
+				executeJavascript: launched.executeJavascript,
+			},
+			message: qaInternalMessageMap(electrobunNative.internalRpcHandlers.message),
+		}).pipe(Effect.scoped)
+	);
+}
 
 setTimeout(() => {
 	launched.executeJavascript(acepeShellPingScript(RPC_ROUNDTRIP_MESSAGE));

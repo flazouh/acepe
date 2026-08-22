@@ -144,4 +144,45 @@ test("startElectrobunAcepeApp opens an activated window and proves the ping echo
 		"acepe-shell-window-opened: Acepe",
 		"acepe-shell-rpc-roundtrip: desktop round trip",
 	])
+	expect(launched.opened.preload).toBeNull()
+})
+
+test("startElectrobunAcepeApp forwards a QA preload into the native window", () => {
+	const created: Array<string | null> = []
+	const launched = startElectrobunAcepeApp(
+		{
+			defineRPC: (input) => input.handlers.requests,
+			BrowserWindow: class {
+				ptr = 1
+				id = 1
+				webview = {
+					rpc: {
+						send: {
+							events: () => undefined,
+						},
+					},
+					executeJavascript: () => undefined,
+				}
+				constructor(options: { readonly preload: string | null }) {
+					created.push(options.preload)
+				}
+				show(): void {
+					return undefined
+				}
+				activate(): void {
+					return undefined
+				}
+			},
+			setDockIconVisible: () => undefined,
+		},
+		{
+			writeError: () => undefined,
+			exit: (code) => {
+				throw new ShellExitCalled({ code })
+			},
+		},
+		{ preload: "window.__electrobunQa = {};" },
+	)
+	expect(created).toEqual(["window.__electrobunQa = {};"])
+	expect(launched.opened.preload).toBe("window.__electrobunQa = {};")
 })
