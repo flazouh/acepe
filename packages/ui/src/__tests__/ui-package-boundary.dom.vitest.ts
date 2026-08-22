@@ -5,6 +5,8 @@ import CheckpointCard from "../components/checkpoint/checkpoint-card.svelte";
 import TracerTranscript from "../components/tracer-transcript/tracer-transcript.svelte";
 import LibrarySidebar from "../components/library-sidebar/library-sidebar.svelte";
 import type { LibrarySidebarViewModel } from "../components/library-sidebar/library-sidebar-state.js";
+import SettingsModal from "../components/settings-modal/settings-modal.svelte";
+import type { SettingsModalViewModel } from "../components/settings-modal/settings-modal-state.js";
 import UiPackageBoundarySidebarFixture from "./fixtures/ui-package-boundary-sidebar-fixture.svelte";
 import type { CheckpointData } from "../components/checkpoint/types.js";
 
@@ -101,5 +103,43 @@ describe("ui package boundary render smoke", () => {
 		expect(view.getByTestId("library-sidebar")).toBeTruthy();
 		expect(view.getByText("Acepe")).toBeTruthy();
 		expect(view.getByText("Fix the auth bug")).toBeTruthy();
+	});
+
+	it("renders SettingsModal from projection props without store or Tauri", () => {
+		const model: SettingsModalViewModel = {
+			openLabel: "Settings",
+			closeLabel: "Close",
+			title: "Appearance",
+			uiFontLabel: "Interface font size",
+			uiFontDescription: "Scales the review modal.",
+			codeFontLabel: "Code font size",
+			codeFontDescription: "Scales diffs.",
+			reviewPreviewLabel: "Review modal",
+			reviewPreviewText: "Review this change",
+			diffPreviewLabel: "Diff",
+			diffPreviewText: "+ persisted setting",
+			open: true,
+			uiFontSize: 16,
+			codeFontSize: 13,
+			uiMin: 12,
+			uiMax: 20,
+			codeMin: 10,
+			codeMax: 18,
+		};
+		const view = render(SettingsModal, {
+			props: {
+				model,
+				onOpen: () => undefined,
+				onClose: () => undefined,
+				onDecreaseUiFont: () => undefined,
+				onIncreaseUiFont: () => undefined,
+				onDecreaseCodeFont: () => undefined,
+				onIncreaseCodeFont: () => undefined,
+			},
+		});
+
+		expect(view.getByTestId("settings-modal")).toBeTruthy();
+		expect(view.getByTestId("review-modal-preview")).toBeTruthy();
+		expect(view.getByTestId("diff-preview").className).toContain("app-code-font");
 	});
 });
