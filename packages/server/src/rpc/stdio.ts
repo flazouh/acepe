@@ -28,9 +28,8 @@ import * as Str from "effect/String"
 import type { SqlError } from "effect/unstable/sql/SqlError"
 import { OrchestrationEventStore } from "../persistence/Services/OrchestrationEventStore.ts"
 import { OrchestrationEngine } from "../orchestration/Services/OrchestrationEngine.ts"
-import { ProjectionSnapshotQuery } from "../orchestration/Services/ProjectionSnapshotQuery.ts"
 import { HardcodedProvider } from "../provider/HardcodedProvider.ts"
-import { toRpcSnapshot } from "./handlers.ts"
+import { rpcSnapshotForRequest } from "./handlers.ts"
 
 const EVENT_PAGE_SIZE = 1_000
 const METHOD_NOT_FOUND = -32601
@@ -148,10 +147,9 @@ export const handleStdioLine = Effect.fn("handleStdioLine")(function*(line: stri
 	if (request.method === "snapshot") {
 		const snapshotted = yield* Effect.result(
 			Effect.gen(function*() {
-				const snapshots = yield* ProjectionSnapshotQuery
 				const decoded = yield* decodeSnapshotRequest(request.params)
-				const snapshot = yield* snapshots.forRequest(decoded)
-				const encoded = yield* encodeRpcSessionSnapshot(toRpcSnapshot(snapshot))
+				const snapshot = yield* rpcSnapshotForRequest(decoded)
+				const encoded = yield* encodeRpcSessionSnapshot(snapshot)
 				return yield* successLine(request.id, encoded)
 			})
 		)

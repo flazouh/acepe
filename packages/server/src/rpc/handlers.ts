@@ -1,7 +1,9 @@
 import {
 	AcepeRpc,
 	decodeRpcSessionSnapshot,
+	FileGitStatus,
 	type OrchestrationEvent,
+	type RpcProjectedProject,
 	RpcCommandInvariantError,
 	RpcCommandPreviouslyRejectedError,
 	RpcEngineShutdownError,
@@ -12,7 +14,9 @@ import {
 	type RpcServerError,
 	type RpcSessionSnapshot,
 	RpcSqlError,
-	type Sequence
+	type Sequence,
+	type SnapshotRequest,
+	snapshotScope
 } from "@acepe/contracts"
 import * as Arr from "effect/Array"
 import * as Cause from "effect/Cause"
@@ -28,6 +32,7 @@ import { OrchestrationCommandInvariantError } from "../orchestration/Errors.ts"
 import { OrchestrationProjectorDecodeError } from "../orchestration/Schemas.ts"
 import { FileIndexNotADirectoryError, FileIndexRootNotFoundError } from "../fileIndex/Errors.ts"
 import { type FileIndexError, FileIndexService } from "../fileIndex/Services/FileIndexService.ts"
+import { GitService, type GitServiceShape } from "../git/Services/GitService.ts"
 import {
 	type OrchestrationDispatchError,
 	type OrchestrationEngineShape,
@@ -48,7 +53,8 @@ export const toRpcProject = (project: SessionProjectionSnapshot["projects"][numb
 	createdAt: project.createdAt,
 	updatedAt: project.updatedAt,
 	deletedAt: project.deletedAt,
-	sessionCount: project.sessionCount
+	sessionCount: project.sessionCount,
+	gitStatus: null
 })
 
 export const toRpcSnapshot = (snapshot: SessionProjectionSnapshot): RpcSessionSnapshot => ({
@@ -60,6 +66,75 @@ export const toRpcSnapshot = (snapshot: SessionProjectionSnapshot): RpcSessionSn
 	pendingApprovals: snapshot.pendingApprovals,
 	projects: Arr.map(snapshot.projects, toRpcProject),
 	sessions: snapshot.sessions
+})
+
+const decodeRpcFileGitStatuses = Schema.decodeUnknownEffect(Schema.Array(FileGitStatus))
+
+const liveProjectGitStatus = Effect.fn("liveProjectGitStatus")(function*(
+	git: GitServiceShape,
+	workspaceRoot: string
+) {
+	return yield* git.projectGitStatus(workspaceRoot).pipe(
+		Effect.flatMap((rows) => decodeRpcFileGitStatuses(rows)),
+		// Do not collapse a failure into an empty list: the UI cannot tell
+		// "clean tree" from "git is broken". Log the cause and return null so
+		// the snapshot still succeeds while the failure stays visible.
+		Effect.tapCause((cause) => Effect.logWarning(`project git status unavailable: ${Cause.pretty(cause)}`)),
+		Effect.orElseSucceed(() => null)
+	)
+})
+
+const fillRpcProjectGitStatus = Effect.fn("fillRpcProjectGitStatus")(function*(
+	git: GitServiceShape,
+	project: RpcProjectedProject
+) {
+	const gitStatus = yield* liveProjectGitStatus(git, project.workspaceRoot)
+	return {
+		projectId: project.projectId,
+		title: project.title,
+		workspaceRoot: project.workspaceRoot,
+		createdAt: project.createdAt,
+		updatedAt: project.updatedAt,
+		deletedAt: project.deletedAt,
+		sessionCount: project.sessionCount,
+		gitStatus
+	} satisfies RpcProjectedProject
+})
+
+const withProjectGitStatus = Effect.fn("withProjectGitStatus")(function*(
+	git: GitServiceShape,
+	snapshot: RpcSessionSnapshot,
+	request: SnapshotRequest
+) {
+	const scope = snapshotScope(request)
+	if (scope.kind !== "project") {
+		return snapshot
+	}
+	const projects = yield* Effect.forEach(snapshot.projects, (project) => {
+		if (project.projectId !== scope.projectId) {
+			return Effect.succeed(project)
+		}
+		return fillRpcProjectGitStatus(git, project)
+	})
+	return {
+		snapshotSequence: snapshot.snapshotSequence,
+		session: snapshot.session,
+		messages: snapshot.messages,
+		turns: snapshot.turns,
+		activities: snapshot.activities,
+		pendingApprovals: snapshot.pendingApprovals,
+		projects,
+		sessions: snapshot.sessions
+	} satisfies RpcSessionSnapshot
+})
+
+export const rpcSnapshotForRequest = Effect.fn("rpcSnapshotForRequest")(function*(
+	request: SnapshotRequest
+) {
+	const snapshots = yield* ProjectionSnapshotQuery
+	const git = yield* GitService
+	const snap = yield* snapshots.forRequest(request)
+	return yield* withProjectGitStatus(git, toRpcSnapshot(snap), request)
 })
 
 export const toRpcError = (
@@ -157,14 +232,12 @@ export const eventsFromSequence = (
 export const RpcHandlersLive = AcepeRpc.toLayer(
 	Effect.gen(function*() {
 		const engine = yield* OrchestrationEngine
-		const snapshots = yield* ProjectionSnapshotQuery
 		const store = yield* OrchestrationEventStore
 		const fileIndex = yield* FileIndexService
 		return {
 			dispatch: (command) => engine.dispatch(command).pipe(Effect.mapError(toRpcError)),
 			snapshot: (request) =>
-				snapshots.forRequest(request).pipe(
-					Effect.map(toRpcSnapshot),
+				rpcSnapshotForRequest(request).pipe(
 					Effect.flatMap(decodeRpcSessionSnapshot),
 					Effect.mapError(toRpcError)
 				),

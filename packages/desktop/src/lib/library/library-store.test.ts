@@ -36,6 +36,7 @@ const librarySnapshot: RpcSessionSnapshot = {
 			updatedAt: occurredAt,
 			deletedAt: null,
 			sessionCount: 1,
+			gitStatus: [],
 		},
 	],
 	sessions: [

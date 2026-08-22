@@ -80,6 +80,7 @@ describe("librarySidebarViewModel", () => {
 						updatedAt: occurredAt,
 						deletedAt: null,
 						sessionCount: 3,
+						gitStatus: [],
 					},
 				],
 				sessions: [
