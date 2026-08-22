@@ -35,6 +35,10 @@ export const SettingsId = entityId("SettingsId")
 export type SettingsId = typeof SettingsId.Type
 export const decodeSettingsId = Schema.decodeUnknownEffect(SettingsId)
 
+export const SkillsId = entityId("SkillsId")
+export type SkillsId = typeof SkillsId.Type
+export const decodeSkillsId = Schema.decodeUnknownEffect(SkillsId)
+
 export const ApprovalRequestId = entityId("ApprovalRequestId")
 export type ApprovalRequestId = typeof ApprovalRequestId.Type
 export const decodeApprovalRequestId = Schema.decodeUnknownEffect(ApprovalRequestId)

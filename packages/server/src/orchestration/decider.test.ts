@@ -21,8 +21,11 @@ import {
 	CheckpointReportReadinessCommand,
 	CheckpointRevertCommand,
 	SettingsSetCommand,
+	SkillsDiscoverCommand,
 	ToolCallId,
-	APP_SETTINGS_ID
+	APP_SETTINGS_ID,
+	APP_SKILLS_ID,
+	emptySkillsCatalog
 } from "@acepe/contracts"
 import * as Vitest from "@effect/vitest"
 import * as Effect from "effect/Effect"
@@ -789,6 +792,35 @@ Vitest.describe("decide", () => {
 						key: "ui_font_size",
 						value: "14"
 					}
+				}
+			])
+		})
+	)
+
+	Vitest.it.effect("emits SkillsDiscovered without a project or session", () =>
+		Effect.gen(function*() {
+			const events = yield* decide(
+				emptyReadModel,
+				SkillsDiscoverCommand.make({
+					type: "skills.discover",
+					commandId,
+					catalog: emptySkillsCatalog
+				}),
+				identity
+			)
+			Vitest.assert.deepStrictEqual(events, [
+				{
+					sequence: 1,
+					eventId,
+					aggregateKind: "skills",
+					aggregateId: APP_SKILLS_ID,
+					occurredAt,
+					commandId,
+					causationEventId: null,
+					correlationId: commandId,
+					metadata: {},
+					type: "SkillsDiscovered",
+					payload: emptySkillsCatalog
 				}
 			])
 		})

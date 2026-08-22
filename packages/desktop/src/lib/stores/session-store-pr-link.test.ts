@@ -69,6 +69,7 @@ describe("shouldDispatchPrLinkToggle", () => {
 		projects: snapshot.projects,
 		sessions: snapshot.sessions,
 		settings: snapshot.settings,
+		skillsCatalog: snapshot.skillsCatalog,
 	};
 
 	it("dispatches a manual override", () => {

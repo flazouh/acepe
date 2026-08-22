@@ -25,6 +25,7 @@ import {
 } from "./ids.ts"
 import { OrchestrationCommand, SessionPrLinkMode, SessionPrNumber } from "./orchestration.ts"
 import { UserSettingKey, SettingsValue } from "./settings.ts"
+import { ProjectedSkillsCatalog } from "./skills.ts"
 import * as Arr from "effect/Array"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
@@ -260,6 +261,9 @@ export const RpcProjectedSetting = Schema.Struct({
 })
 export type RpcProjectedSetting = typeof RpcProjectedSetting.Type
 
+export const RpcSkillsCatalog = ProjectedSkillsCatalog
+export type RpcSkillsCatalog = typeof RpcSkillsCatalog.Type
+
 export const RpcSessionSnapshot = Schema.Struct({
 	snapshotSequence: Sequence,
 	session: Schema.NullOr(RpcProjectedSession),
@@ -271,6 +275,7 @@ export const RpcSessionSnapshot = Schema.Struct({
 	projects: Schema.Array(RpcProjectedProject),
 	sessions: Schema.Array(RpcProjectedSession),
 	settings: Schema.Array(RpcProjectedSetting),
+	skillsCatalog: Schema.NullOr(RpcSkillsCatalog),
 })
 export type RpcSessionSnapshot = typeof RpcSessionSnapshot.Type
 
@@ -288,6 +293,11 @@ export const SettingsSnapshotRequest = Schema.Struct({
 	kind: Schema.Literal("settings"),
 })
 export type SettingsSnapshotRequest = typeof SettingsSnapshotRequest.Type
+
+export const SkillsSnapshotRequest = Schema.Struct({
+	kind: Schema.Literal("skills"),
+})
+export type SkillsSnapshotRequest = typeof SkillsSnapshotRequest.Type
 
 export const ProjectSnapshotRequest = Schema.Struct({
 	kind: Schema.Literal("project"),
@@ -309,6 +319,7 @@ export type LegacySessionSnapshotRequest = typeof LegacySessionSnapshotRequest.T
 export const SnapshotRequest = Schema.Union([
 	LibrarySnapshotRequest,
 	SettingsSnapshotRequest,
+	SkillsSnapshotRequest,
 	ProjectSnapshotRequest,
 	SessionSnapshotRequest,
 	LegacySessionSnapshotRequest,
@@ -321,6 +332,9 @@ export type SnapshotScope =
 	  }
 	| {
 			readonly kind: "settings"
+	  }
+	| {
+			readonly kind: "skills"
 	  }
 	| {
 			readonly kind: "project"
@@ -339,6 +353,10 @@ export const settingsSnapshotRequest = (): SettingsSnapshotRequest => ({
 	kind: "settings",
 })
 
+export const skillsSnapshotRequest = (): SkillsSnapshotRequest => ({
+	kind: "skills",
+})
+
 export const projectSnapshotRequest = (projectId: ProjectId): ProjectSnapshotRequest => ({
 	kind: "project",
 	projectId,
@@ -355,6 +373,9 @@ export const snapshotScope = (request: SnapshotRequest): SnapshotScope => {
 	}
 	if (Schema.is(SettingsSnapshotRequest)(request)) {
 		return { kind: "settings" }
+	}
+	if (Schema.is(SkillsSnapshotRequest)(request)) {
+		return { kind: "skills" }
 	}
 	if (Schema.is(ProjectSnapshotRequest)(request)) {
 		return { kind: "project", projectId: request.projectId }

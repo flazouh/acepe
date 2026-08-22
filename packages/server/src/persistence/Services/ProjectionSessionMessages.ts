@@ -192,7 +192,8 @@ export const rowFromEvent = (
 			CheckpointCreated: ignoreEvent,
 			CheckpointReadinessChanged: ignoreEvent,
 			CheckpointReverted: ignoreEvent,
-			SettingsUpdated: ignoreEvent
+			SettingsUpdated: ignoreEvent,
+			SkillsDiscovered: ignoreEvent
 		})
 	)(event)
 

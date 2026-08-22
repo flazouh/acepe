@@ -4,11 +4,13 @@ import {
 	CheckpointRevertCommand,
 	CommandId,
 	type OrchestrationCommand,
+	emptySkillsCatalog,
 	ProjectId,
 	ProjectMetaUpdateCommand,
 	SessionArchiveCommand,
 	SessionCreateCommand,
-	SessionId
+	SessionId,
+	SkillsDiscoverCommand
 } from "@acepe/contracts"
 import * as Vitest from "@effect/vitest"
 import * as Effect from "effect/Effect"
@@ -20,6 +22,7 @@ import {
 	requireSessionAbsent,
 	requireSessionArchived,
 	requireSessionNotArchived,
+	requireUniqueSkillIds,
 	requireCheckpoint,
 	requireCheckpointAbsent
 } from "./commandInvariants.ts"
@@ -354,6 +357,58 @@ Vitest.describe("requireCheckpointAbsent", () => {
 			Vitest.assert.strictEqual(
 				error.detail,
 				"Checkpoint 'checkpoint-1' already exists on session 'session-1' and cannot be created twice."
+			)
+		})
+	)
+})
+
+
+const emptyDiscover = SkillsDiscoverCommand.make({
+	type: "skills.discover",
+	commandId,
+	catalog: emptySkillsCatalog
+})
+
+const duplicateSkill = {
+	id: "claude-code::review",
+	agentId: "claude-code" as const,
+	folderName: "review",
+	path: "/tmp/review/SKILL.md",
+	name: "review",
+	description: "",
+	content: "body",
+	modifiedAt: 0
+}
+
+Vitest.describe("requireUniqueSkillIds", () => {
+	Vitest.it.effect("succeeds for an empty catalog", () => requireUniqueSkillIds(emptyDiscover))
+
+	Vitest.it.effect("fails when two agent skills share an id", () =>
+		Effect.gen(function*() {
+			const error = yield* Effect.flip(
+				requireUniqueSkillIds(
+					SkillsDiscoverCommand.make({
+						type: "skills.discover",
+						commandId,
+						catalog: {
+							agents: [],
+							agentSkills: [
+								{
+									agentId: "claude-code",
+									skills: [duplicateSkill, duplicateSkill]
+								}
+							],
+							plugins: [],
+							pluginSkills: [],
+							tree: []
+						}
+					})
+				)
+			)
+			Vitest.assert.strictEqual(error._tag, "OrchestrationCommandInvariantError")
+			Vitest.assert.strictEqual(
+				error.detail,
+				"Duplicate skill id 'claude-code::review' in skills.discover."
 			)
 		})
 	)

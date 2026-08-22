@@ -29,7 +29,7 @@ import type { SqlError } from "effect/unstable/sql/SqlError"
 import { OrchestrationEventStore } from "../persistence/Services/OrchestrationEventStore.ts"
 import { OrchestrationEngine } from "../orchestration/Services/OrchestrationEngine.ts"
 import { HardcodedProvider } from "../provider/HardcodedProvider.ts"
-import { rpcSnapshotForRequest } from "./handlers.ts"
+import { dispatchOrchestrationCommand, rpcSnapshotForRequest } from "./handlers.ts"
 
 const EVENT_PAGE_SIZE = 1_000
 const METHOD_NOT_FOUND = -32601
@@ -114,7 +114,7 @@ const dispatchCommand = Effect.fn("stdio.dispatchCommand")(function*(
 	const store = yield* OrchestrationEventStore
 	const provider = yield* HardcodedProvider
 	const before = yield* engine.latestSequence
-	const result = yield* engine.dispatch(command)
+	const result = yield* dispatchOrchestrationCommand(command)
 	if (command.type === "message.send") {
 		yield* provider.waitForReply(command.messageId)
 	}

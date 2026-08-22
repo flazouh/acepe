@@ -33,6 +33,10 @@ import {
 	type ProjectedSetting
 } from "../../persistence/Services/ProjectionSettings.ts"
 import {
+	decodeStoredProjectedSkillsCatalog,
+	PROJECTION_SKILLS_TABLE
+} from "../../persistence/Services/ProjectionSkills.ts"
+import {
 	decodeProjectedPendingApprovals,
 	decodeProjectedSessionActivities,
 	decodeProjectedTurns,
@@ -238,6 +242,32 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 			return yield* decodeStoredProjectedSettings(rows)
 		})
 
+		const readSkillsCatalog = Effect.fn("ProjectionSnapshotQuery.readSkillsCatalog")(function*(
+			snapshotSequence: Sequence,
+			present: HashSet.HashSet<string>
+		) {
+			if (!HashSet.has(present, PROJECTION_SKILLS_TABLE)) {
+				return null
+			}
+			const rows = yield* sql`
+				SELECT
+					catalog_id,
+					agents_json,
+					agent_skills_json,
+					plugins_json,
+					plugin_skills_json,
+					tree_json,
+					sequence
+				FROM projection_skills_catalog
+				WHERE catalog_id = 'app'
+					AND sequence <= ${snapshotSequence}
+			`.withoutTransform
+			return yield* Option.match(Arr.head(rows), {
+				onNone: () => Effect.succeed(null),
+				onSome: decodeStoredProjectedSkillsCatalog
+			})
+		})
+
 		const readSnapshot = Effect.fn("ProjectionSnapshotQuery.readSnapshot")(function*(
 			sessionId: SessionId
 		) {
@@ -254,6 +284,7 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 			)
 			const checkpoints = yield* readCheckpoints(sessionId, snapshotSequence, present)
 			const settings = yield* readSettings(snapshotSequence, present)
+			const skillsCatalog = yield* readSkillsCatalog(snapshotSequence, present)
 			return {
 				snapshotSequence,
 				session,
@@ -264,7 +295,8 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 				checkpoints,
 				projects: Arr.empty<ProjectedProject>(),
 				sessions: Arr.empty<ProjectedSession>(),
-				settings
+				settings,
+				skillsCatalog
 			} satisfies SessionProjectionSnapshot
 		})
 
@@ -328,6 +360,7 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 				const projects = yield* readProjects()
 				const sessions = yield* readSessions(null)
 				const settings = yield* readSettings(snapshotSequence, present)
+				const skillsCatalog = yield* readSkillsCatalog(snapshotSequence, present)
 				return {
 					snapshotSequence,
 					session: null,
@@ -338,7 +371,8 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 					checkpoints: Arr.empty(),
 					projects,
 					sessions,
-					settings
+					settings,
+					skillsCatalog
 				} satisfies SessionProjectionSnapshot
 			}
 		)
@@ -351,6 +385,7 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 				const matching = Arr.filter(projects, (project) => project.projectId === projectId)
 				const sessions = yield* readSessions(projectId)
 				const settings = yield* readSettings(snapshotSequence, present)
+				const skillsCatalog = yield* readSkillsCatalog(snapshotSequence, present)
 				return {
 					snapshotSequence,
 					session: null,
@@ -361,16 +396,18 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 					checkpoints: Arr.empty(),
 					projects: matching,
 					sessions,
-					settings
+					settings,
+					skillsCatalog
 				} satisfies SessionProjectionSnapshot
 			}
 		)
 
-		const readSettingsSnapshot = Effect.fn("ProjectionSnapshotQuery.readSettingsSnapshot")(
+		const readAppScopedSnapshot = Effect.fn("ProjectionSnapshotQuery.readAppScopedSnapshot")(
 			function*() {
 				const snapshotSequence = yield* readSnapshotSequence()
 				const present = yield* readPresentOptionalTables()
 				const settings = yield* readSettings(snapshotSequence, present)
+				const skillsCatalog = yield* readSkillsCatalog(snapshotSequence, present)
 				return {
 					snapshotSequence,
 					session: null,
@@ -381,7 +418,8 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 					checkpoints: Arr.empty(),
 					projects: Arr.empty<ProjectedProject>(),
 					sessions: Arr.empty<ProjectedSession>(),
-					settings
+					settings,
+					skillsCatalog
 				} satisfies SessionProjectionSnapshot
 			}
 		)
@@ -393,7 +431,8 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 			return yield* Match.value(scope).pipe(
 				Match.discriminatorsExhaustive("kind")({
 					library: () => sql.withTransaction(readLibrarySnapshot()),
-					settings: () => sql.withTransaction(readSettingsSnapshot()),
+					settings: () => sql.withTransaction(readAppScopedSnapshot()),
+					skills: () => sql.withTransaction(readAppScopedSnapshot()),
 					project: (projectRequest) =>
 						sql.withTransaction(readProjectSnapshot(projectRequest.projectId)),
 					session: (sessionRequest) => snapshot(sessionRequest.sessionId)

@@ -23,9 +23,11 @@ import {
 	SessionMetaUpdateCommand,
 	SessionUnarchiveCommand,
 	SettingsSetCommand,
+	SkillsDiscoverCommand,
 	TurnCancelCommand,
 } from "./orchestration.ts"
 import { APP_SETTINGS_ID } from "./settings.ts"
+import { APP_SKILLS_ID, emptySkillsCatalog } from "./skills.ts"
 
 const v1CommandTypes = [
 	"project.create",
@@ -43,6 +45,7 @@ const v1CommandTypes = [
 	"checkpoint.report-readiness",
 	"checkpoint.revert",
 	"settings.set",
+	"skills.discover",
 ] as const
 
 type V1CommandType = (typeof v1CommandTypes)[number]
@@ -264,6 +267,18 @@ const memberCases = [
 			commandId,
 			key: "ui_font_size",
 			value: "14",
+		}),
+	},
+	{
+		schema: SkillsDiscoverCommand,
+		aggregate: {
+			aggregateKind: "skills",
+			aggregateId: APP_SKILLS_ID,
+		} satisfies OrchestrationAggregateRef,
+		command: SkillsDiscoverCommand.make({
+			type: "skills.discover",
+			commandId,
+			catalog: emptySkillsCatalog,
 		}),
 	},
 ] as const

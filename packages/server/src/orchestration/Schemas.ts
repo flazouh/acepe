@@ -27,6 +27,7 @@ export {
 	SessionMetaUpdatedPayload,
 	SessionUnarchivedPayload,
 	SettingsUpdatedPayload,
+	SkillsDiscoveredPayload,
 	TurnCancelledPayload
 } from "@acepe/contracts"
 

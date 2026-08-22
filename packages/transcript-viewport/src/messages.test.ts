@@ -104,6 +104,7 @@ describe("rowsFromProjectedMessages", () => {
 			projects: [],
 			sessions: [],
 			settings: [],
+			skillsCatalog: null,
 		}
 		const rows = rowsFromProjectedMessages(snapshot.messages)
 		expect(rows.length).toBe(1)

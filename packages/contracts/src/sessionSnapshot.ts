@@ -29,6 +29,7 @@ export const emptyRpcSessionSnapshot = (snapshotSequence: Sequence): RpcSessionS
 	projects: Arr.empty(),
 	sessions: Arr.empty(),
 	settings: Arr.empty(),
+	skillsCatalog: null,
 })
 
 const watermark = (snapshot: RpcSessionSnapshot, sequence: Sequence): Sequence =>
@@ -211,9 +212,17 @@ const applySettingsUpdated = (
 	}
 	const without = Arr.filter(snapshot.settings, (row) => row.key !== next.key)
 	return {
-		...snapshot,
 		snapshotSequence: watermark(snapshot, event.sequence),
+		session: snapshot.session,
+		messages: snapshot.messages,
+		turns: snapshot.turns,
+		activities: snapshot.activities,
+		pendingApprovals: snapshot.pendingApprovals,
+		projects: snapshot.projects,
+		sessions: snapshot.sessions,
 		settings: Arr.sort(Arr.append(without, next), settingKeyOrder),
+		checkpoints: snapshot.checkpoints,
+		skillsCatalog: snapshot.skillsCatalog,
 	}
 }
 
@@ -322,6 +331,30 @@ const applyCheckpointReverted = (
 	return replaceCheckpoints(snapshot, event.sequence, checkpoints)
 }
 
+const applySkillsDiscovered = (
+	snapshot: RpcSessionSnapshot,
+	event: Extract<OrchestrationEvent, { readonly type: "SkillsDiscovered" }>,
+): RpcSessionSnapshot => ({
+	snapshotSequence: watermark(snapshot, event.sequence),
+	session: snapshot.session,
+	messages: snapshot.messages,
+	turns: snapshot.turns,
+	activities: snapshot.activities,
+	pendingApprovals: snapshot.pendingApprovals,
+	projects: snapshot.projects,
+	sessions: snapshot.sessions,
+	settings: snapshot.settings,
+	checkpoints: snapshot.checkpoints,
+	skillsCatalog: {
+		sequence: event.sequence,
+		agents: event.payload.agents,
+		agentSkills: event.payload.agentSkills,
+		plugins: event.payload.plugins,
+		pluginSkills: event.payload.pluginSkills,
+		tree: event.payload.tree,
+	},
+})
+
 export const applyEventToRpcSessionSnapshot = (
 	snapshot: RpcSessionSnapshot,
 	event: OrchestrationEvent,
@@ -364,6 +397,9 @@ export const applyEventToRpcSessionSnapshot = (
 			return applyCheckpointReadinessChanged(snapshot, event)
 		case "CheckpointReverted":
 			return applyCheckpointReverted(snapshot, event)
+
+		case "SkillsDiscovered":
+			return applySkillsDiscovered(snapshot, event)
 		default:
 			return withSequence(snapshot, event.sequence)
 	}

@@ -7,6 +7,7 @@ import {
 	emptyRpcSessionSnapshot,
 } from "./sessionSnapshot.ts"
 import { TRACER_REPLY_TEXT, TRACER_REPLY_TOKENS } from "./tracerBullet.ts"
+import { APP_SKILLS_ID, emptySkillsCatalog } from "./skills.ts"
 
 const commandId = CommandId.make("cmd-1")
 const projectId = ProjectId.make("project-1")
@@ -349,5 +350,30 @@ describe("applyEventToRpcSessionSnapshot", () => {
 		})
 		expect(other.checkpoints).toEqual([])
 		expect(other.snapshotSequence).toBe(3)
+	})
+
+	it("replaces the skills catalog on SkillsDiscovered", () => {
+		const first = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), {
+			sequence: 1,
+			eventId: EventId.make("event-1"),
+			aggregateKind: "skills",
+			aggregateId: APP_SKILLS_ID,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: {},
+			type: "SkillsDiscovered",
+			payload: emptySkillsCatalog,
+		})
+		expect(first.skillsCatalog).toEqual({
+			sequence: 1,
+			agents: [],
+			agentSkills: [],
+			plugins: [],
+			pluginSkills: [],
+			tree: [],
+		})
+		expect(first.snapshotSequence).toBe(1)
 	})
 })

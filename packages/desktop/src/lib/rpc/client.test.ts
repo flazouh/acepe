@@ -58,6 +58,7 @@ const emptySnapshot = {
 	projects: [],
 	sessions: [],
 	settings: [],
+	skillsCatalog: null,
 };
 
 const makeBridge = (input: {
