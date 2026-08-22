@@ -157,6 +157,10 @@
       "svelte": "./src/components/library-sidebar/index.ts",
       "default": "./src/components/library-sidebar/index.ts"
     },
+    "./settings-modal": {
+      "svelte": "./src/components/settings-modal/index.ts",
+      "default": "./src/components/settings-modal/index.ts"
+    },
     "./project-card": {
       "svelte": "./src/components/project-card/index.ts",
       "default": "./src/components/project-card/index.ts"

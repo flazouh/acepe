@@ -10,6 +10,7 @@ import {
 import { KanbanSceneBoard } from "../components/kanban/index.js";
 import { TracerTranscript } from "../components/tracer-transcript/index.js";
 import { LibrarySidebar } from "../components/library-sidebar/index.js";
+import { SettingsModal } from "../components/settings-modal/index.js";
 
 describe("ui package boundary exports", () => {
 	test("canonical MVC pattern Views are exported", () => {
@@ -21,6 +22,7 @@ describe("ui package boundary exports", () => {
 		expect(KanbanSceneBoard).toBeDefined();
 		expect(TracerTranscript).toBeDefined();
 		expect(LibrarySidebar).toBeDefined();
+		expect(SettingsModal).toBeDefined();
 	});
 
 });
