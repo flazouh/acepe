@@ -3,6 +3,7 @@ import {
 	type CommandId,
 	emptyRpcSessionSnapshot,
 	type OrchestrationEvent,
+	type ProjectId,
 	type RpcClient,
 	type SessionId,
 	type SessionPrLinkMode,
@@ -37,6 +38,14 @@ export const composeSessionStore = (input: {
 	// different scope — no fourth RPC primitive.
 	const openLibrary = Effect.fn("openLibrary")(function* () {
 		const snap = yield* input.client.snapshot({ kind: "library" })
+		input.registry.set(snapshotAtom, snap)
+		return snap
+	})
+
+	// Project scope returns that project's sessions without opening one of them,
+	// so the sidebar can list them before a selection is made.
+	const openProject = Effect.fn("openProject")(function* (projectId: ProjectId) {
+		const snap = yield* input.client.snapshot({ kind: "project", projectId })
 		input.registry.set(snapshotAtom, snap)
 		return snap
 	})
@@ -77,6 +86,7 @@ export const composeSessionStore = (input: {
 		snapshotAtom,
 		sendMomentAtom,
 		openLibrary,
+		openProject,
 		openSession,
 		dispatch: input.client.dispatch,
 		recordSendMoment: (moment: SessionSendMoment) => {

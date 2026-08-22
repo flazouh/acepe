@@ -330,3 +330,28 @@ it("openLibrary reads projects without opening a session", () =>
 			expect(snap.session).toBe(null);
 		}),
 	));
+
+it("openProject lists that project's sessions without opening one", () =>
+	Effect.runPromise(
+		Effect.gen(function* () {
+			const registry = AtomRegistry.make();
+			const parts = composeSessionStore({
+				client: clientOf({
+					snapshot: {
+						...snapshotWithUser,
+						session: null,
+						sessions: [
+							{ ...snapshotWithUser.session!, title: "First session" },
+							{ ...snapshotWithUser.session!, title: "Archived one" },
+						],
+					},
+					events: [],
+				}),
+				registry,
+			});
+			const snap = yield* parts.openProject(projectId);
+			expect(snap.sessions.length).toBe(2);
+			expect(snap.sessions[0]?.title).toBe("First session");
+			expect(snap.session).toBe(null);
+		}),
+	));
