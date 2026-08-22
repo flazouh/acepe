@@ -5,6 +5,7 @@ import {
 	decodeInvalidateProjectIndexExit,
 	decodeSnapshotExit,
 	emptySkillsCatalog,
+	emptyVoiceModels,
 	exitToEffect,
 	MessageId,
 	MessageSendCommand,
@@ -14,7 +15,9 @@ import {
 	SessionCreateCommand,
 	SessionId,
 	SkillsDiscoverCommand,
-	skillsSnapshotRequest
+	skillsSnapshotRequest,
+	VoiceModelsListCommand,
+	voiceSnapshotRequest
 } from "@acepe/contracts"
 import * as Vitest from "@effect/vitest"
 import * as Arr from "effect/Array"
@@ -110,6 +113,32 @@ Vitest.layer(isolated())("encoded Electrobun boundary", (it) => {
 				yield* Effect.yieldNow
 			}
 			Vitest.assert.strictEqual(catalogLength, 4)
+		})
+	)
+
+	it.effect("fills voice.models.list from the voice service and projects voice", () =>
+		Effect.gen(function*() {
+			const dispatched = yield* encodedDispatch(
+				VoiceModelsListCommand.make({
+					type: "voice.models.list",
+					commandId: CommandId.make("cmd-voice"),
+					models: emptyVoiceModels
+				})
+			)
+			const dispatchDecoded = yield* decodeDispatchExit(dispatched)
+			Vitest.assert.isTrue(Exit.isSuccess(dispatchDecoded))
+			let modelId = ""
+			for (const _step of Arr.range(0, 199)) {
+				const encoded = yield* encodedSnapshot(voiceSnapshotRequest())
+				const decoded = yield* decodeSnapshotExit(encoded)
+				if (Exit.isSuccess(decoded) && decoded.value.voice !== null) {
+					modelId = decoded.value.voice.models[0]?.id ?? ""
+					break
+				}
+				yield* TestClock.adjust(Duration.millis(1))
+				yield* Effect.yieldNow
+			}
+			Vitest.assert.strictEqual(modelId, "external")
 		})
 	)
 

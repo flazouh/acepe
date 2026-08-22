@@ -26,6 +26,7 @@ import {
 import { OrchestrationCommand, SessionPrLinkMode, SessionPrNumber } from "./orchestration.ts"
 import { UserSettingKey, SettingsValue } from "./settings.ts"
 import { ProjectedSkillsCatalog } from "./skills.ts"
+import { ProjectedVoice } from "./voice.ts"
 import * as Arr from "effect/Array"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
@@ -264,6 +265,9 @@ export type RpcProjectedSetting = typeof RpcProjectedSetting.Type
 export const RpcSkillsCatalog = ProjectedSkillsCatalog
 export type RpcSkillsCatalog = typeof RpcSkillsCatalog.Type
 
+export const RpcProjectedVoice = ProjectedVoice
+export type RpcProjectedVoice = typeof RpcProjectedVoice.Type
+
 export const RpcSessionSnapshot = Schema.Struct({
 	snapshotSequence: Sequence,
 	session: Schema.NullOr(RpcProjectedSession),
@@ -276,6 +280,7 @@ export const RpcSessionSnapshot = Schema.Struct({
 	sessions: Schema.Array(RpcProjectedSession),
 	settings: Schema.Array(RpcProjectedSetting),
 	skillsCatalog: Schema.NullOr(RpcSkillsCatalog),
+	voice: Schema.NullOr(RpcProjectedVoice),
 })
 export type RpcSessionSnapshot = typeof RpcSessionSnapshot.Type
 
@@ -299,6 +304,11 @@ export const SkillsSnapshotRequest = Schema.Struct({
 })
 export type SkillsSnapshotRequest = typeof SkillsSnapshotRequest.Type
 
+export const VoiceSnapshotRequest = Schema.Struct({
+	kind: Schema.Literal("voice"),
+})
+export type VoiceSnapshotRequest = typeof VoiceSnapshotRequest.Type
+
 export const ProjectSnapshotRequest = Schema.Struct({
 	kind: Schema.Literal("project"),
 	projectId: ProjectId,
@@ -320,6 +330,7 @@ export const SnapshotRequest = Schema.Union([
 	LibrarySnapshotRequest,
 	SettingsSnapshotRequest,
 	SkillsSnapshotRequest,
+	VoiceSnapshotRequest,
 	ProjectSnapshotRequest,
 	SessionSnapshotRequest,
 	LegacySessionSnapshotRequest,
@@ -335,6 +346,9 @@ export type SnapshotScope =
 	  }
 	| {
 			readonly kind: "skills"
+	  }
+	| {
+			readonly kind: "voice"
 	  }
 	| {
 			readonly kind: "project"
@@ -357,6 +371,10 @@ export const skillsSnapshotRequest = (): SkillsSnapshotRequest => ({
 	kind: "skills",
 })
 
+export const voiceSnapshotRequest = (): VoiceSnapshotRequest => ({
+	kind: "voice",
+})
+
 export const projectSnapshotRequest = (projectId: ProjectId): ProjectSnapshotRequest => ({
 	kind: "project",
 	projectId,
@@ -376,6 +394,9 @@ export const snapshotScope = (request: SnapshotRequest): SnapshotScope => {
 	}
 	if (Schema.is(SkillsSnapshotRequest)(request)) {
 		return { kind: "skills" }
+	}
+	if (Schema.is(VoiceSnapshotRequest)(request)) {
+		return { kind: "voice" }
 	}
 	if (Schema.is(ProjectSnapshotRequest)(request)) {
 		return { kind: "project", projectId: request.projectId }

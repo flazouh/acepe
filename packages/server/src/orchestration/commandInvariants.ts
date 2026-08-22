@@ -5,7 +5,9 @@ import type {
 	ProjectId,
 	Sequence,
 	SessionId,
-	SkillsDiscoverCommand
+	SkillsDiscoverCommand,
+	VoiceLanguagesListCommand,
+	VoiceModelsListCommand
 } from "@acepe/contracts"
 import * as Array from "effect/Array"
 import * as Effect from "effect/Effect"
@@ -190,3 +192,33 @@ export const requireUniqueSkillIds = Effect.fn("requireUniqueSkillIds")(function
 		seen = HashSet.add(seen, id)
 	}
 })
+
+export const requireUniqueVoiceModelIds = Effect.fn("requireUniqueVoiceModelIds")(function*(
+	command: VoiceModelsListCommand
+) {
+	let seen = HashSet.empty<string>()
+	for (const model of command.models) {
+		if (HashSet.has(seen, model.id)) {
+			return yield* new OrchestrationCommandInvariantError({
+				commandType: command.type,
+				detail: `Duplicate voice model id '${model.id}' in voice.models.list.`
+			})
+		}
+		seen = HashSet.add(seen, model.id)
+	}
+})
+
+export const requireUniqueVoiceLanguageCodes = Effect.fn("requireUniqueVoiceLanguageCodes")(
+	function*(command: VoiceLanguagesListCommand) {
+		let seen = HashSet.empty<string>()
+		for (const language of command.languages) {
+			if (HashSet.has(seen, language.code)) {
+				return yield* new OrchestrationCommandInvariantError({
+					commandType: command.type,
+					detail: `Duplicate voice language code '${language.code}' in voice.languages.list.`
+				})
+			}
+			seen = HashSet.add(seen, language.code)
+		}
+	}
+)

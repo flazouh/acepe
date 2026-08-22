@@ -37,7 +37,18 @@ type ProjectEventType = Extract<
 >
 type SessionEventType = Exclude<
 	OrchestrationEvent["type"],
-	ProjectEventType | "SettingsUpdated" | "SkillsDiscovered"
+	| ProjectEventType
+	| "SettingsUpdated"
+	| "SkillsDiscovered"
+	| "VoiceModelsListed"
+	| "VoiceLanguagesListed"
+	| "VoiceModelStatusReported"
+	| "VoiceModelDownloaded"
+	| "VoiceModelDeleted"
+	| "VoiceModelLoaded"
+	| "VoiceRecordingStarted"
+	| "VoiceRecordingStopped"
+	| "VoiceRecordingCancelled"
 >
 
 const projectEventEnvelope = <const Type extends ProjectEventType, Payload>(

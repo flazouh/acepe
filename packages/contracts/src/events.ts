@@ -12,9 +12,15 @@ import {
 	SkillsId,
 	ToolCallId,
 	TurnId,
+	VoiceId,
 } from "./ids.ts"
 import { SettingsValue, UserSettingKey } from "./settings.ts"
 import { SkillsCatalog } from "./skills.ts"
+import {
+	VoiceLanguageOption,
+	VoiceModelInfo,
+	VoiceTranscriptionResult,
+} from "./voice.ts"
 import {
 	type OrchestrationAggregateKind,
 	SessionPrLinkMode,
@@ -41,6 +47,15 @@ export const OrchestrationEventType = Schema.Literals([
 	"CheckpointReverted",
 	"SettingsUpdated",
 	"SkillsDiscovered",
+	"VoiceModelsListed",
+	"VoiceLanguagesListed",
+	"VoiceModelStatusReported",
+	"VoiceModelDownloaded",
+	"VoiceModelDeleted",
+	"VoiceModelLoaded",
+	"VoiceRecordingStarted",
+	"VoiceRecordingStopped",
+	"VoiceRecordingCancelled",
 ])
 export type OrchestrationEventType = typeof OrchestrationEventType.Type
 
@@ -145,6 +160,55 @@ export type SettingsUpdatedPayload = typeof SettingsUpdatedPayload.Type
 
 export const SkillsDiscoveredPayload = SkillsCatalog
 export type SkillsDiscoveredPayload = typeof SkillsDiscoveredPayload.Type
+
+export const VoiceModelsListedPayload = Schema.Struct({
+	models: Schema.Array(VoiceModelInfo),
+})
+export type VoiceModelsListedPayload = typeof VoiceModelsListedPayload.Type
+
+export const VoiceLanguagesListedPayload = Schema.Struct({
+	languages: Schema.Array(VoiceLanguageOption),
+})
+export type VoiceLanguagesListedPayload = typeof VoiceLanguagesListedPayload.Type
+
+export const VoiceModelStatusReportedPayload = Schema.Struct({
+	modelId: TrimmedNonEmptyString,
+	model: VoiceModelInfo,
+})
+export type VoiceModelStatusReportedPayload = typeof VoiceModelStatusReportedPayload.Type
+
+export const VoiceModelDownloadedPayload = Schema.Struct({
+	modelId: TrimmedNonEmptyString,
+})
+export type VoiceModelDownloadedPayload = typeof VoiceModelDownloadedPayload.Type
+
+export const VoiceModelDeletedPayload = Schema.Struct({
+	modelId: TrimmedNonEmptyString,
+})
+export type VoiceModelDeletedPayload = typeof VoiceModelDeletedPayload.Type
+
+export const VoiceModelLoadedPayload = Schema.Struct({
+	modelId: TrimmedNonEmptyString,
+	model: VoiceModelInfo,
+})
+export type VoiceModelLoadedPayload = typeof VoiceModelLoadedPayload.Type
+
+export const VoiceRecordingStartedPayload = Schema.Struct({
+	sessionId: SessionId,
+})
+export type VoiceRecordingStartedPayload = typeof VoiceRecordingStartedPayload.Type
+
+export const VoiceRecordingStoppedPayload = Schema.Struct({
+	sessionId: SessionId,
+	language: Schema.NullOr(Schema.String),
+	result: VoiceTranscriptionResult,
+})
+export type VoiceRecordingStoppedPayload = typeof VoiceRecordingStoppedPayload.Type
+
+export const VoiceRecordingCancelledPayload = Schema.Struct({
+	sessionId: SessionId,
+})
+export type VoiceRecordingCancelledPayload = typeof VoiceRecordingCancelledPayload.Type
 
 const defineOrchestrationEvent = <
 	const EventType extends OrchestrationEventType,
@@ -299,6 +363,78 @@ export const SkillsDiscoveredEvent = defineOrchestrationEvent({
 })
 export type SkillsDiscoveredEvent = typeof SkillsDiscoveredEvent.Type
 
+export const VoiceModelsListedEvent = defineOrchestrationEvent({
+	type: "VoiceModelsListed",
+	payload: VoiceModelsListedPayload,
+	aggregateKind: "voice",
+	aggregateId: VoiceId,
+})
+export type VoiceModelsListedEvent = typeof VoiceModelsListedEvent.Type
+
+export const VoiceLanguagesListedEvent = defineOrchestrationEvent({
+	type: "VoiceLanguagesListed",
+	payload: VoiceLanguagesListedPayload,
+	aggregateKind: "voice",
+	aggregateId: VoiceId,
+})
+export type VoiceLanguagesListedEvent = typeof VoiceLanguagesListedEvent.Type
+
+export const VoiceModelStatusReportedEvent = defineOrchestrationEvent({
+	type: "VoiceModelStatusReported",
+	payload: VoiceModelStatusReportedPayload,
+	aggregateKind: "voice",
+	aggregateId: VoiceId,
+})
+export type VoiceModelStatusReportedEvent = typeof VoiceModelStatusReportedEvent.Type
+
+export const VoiceModelDownloadedEvent = defineOrchestrationEvent({
+	type: "VoiceModelDownloaded",
+	payload: VoiceModelDownloadedPayload,
+	aggregateKind: "voice",
+	aggregateId: VoiceId,
+})
+export type VoiceModelDownloadedEvent = typeof VoiceModelDownloadedEvent.Type
+
+export const VoiceModelDeletedEvent = defineOrchestrationEvent({
+	type: "VoiceModelDeleted",
+	payload: VoiceModelDeletedPayload,
+	aggregateKind: "voice",
+	aggregateId: VoiceId,
+})
+export type VoiceModelDeletedEvent = typeof VoiceModelDeletedEvent.Type
+
+export const VoiceModelLoadedEvent = defineOrchestrationEvent({
+	type: "VoiceModelLoaded",
+	payload: VoiceModelLoadedPayload,
+	aggregateKind: "voice",
+	aggregateId: VoiceId,
+})
+export type VoiceModelLoadedEvent = typeof VoiceModelLoadedEvent.Type
+
+export const VoiceRecordingStartedEvent = defineOrchestrationEvent({
+	type: "VoiceRecordingStarted",
+	payload: VoiceRecordingStartedPayload,
+	aggregateKind: "voice",
+	aggregateId: VoiceId,
+})
+export type VoiceRecordingStartedEvent = typeof VoiceRecordingStartedEvent.Type
+
+export const VoiceRecordingStoppedEvent = defineOrchestrationEvent({
+	type: "VoiceRecordingStopped",
+	payload: VoiceRecordingStoppedPayload,
+	aggregateKind: "voice",
+	aggregateId: VoiceId,
+})
+export type VoiceRecordingStoppedEvent = typeof VoiceRecordingStoppedEvent.Type
+
+export const VoiceRecordingCancelledEvent = defineOrchestrationEvent({
+	type: "VoiceRecordingCancelled",
+	payload: VoiceRecordingCancelledPayload,
+	aggregateKind: "voice",
+	aggregateId: VoiceId,
+})
+export type VoiceRecordingCancelledEvent = typeof VoiceRecordingCancelledEvent.Type
+
 export const OrchestrationEvent = Schema.Union([
 	ProjectCreatedEvent,
 	ProjectMetaUpdatedEvent,
@@ -316,5 +452,14 @@ export const OrchestrationEvent = Schema.Union([
 	CheckpointRevertedEvent,
 	SettingsUpdatedEvent,
 	SkillsDiscoveredEvent,
+	VoiceModelsListedEvent,
+	VoiceLanguagesListedEvent,
+	VoiceModelStatusReportedEvent,
+	VoiceModelDownloadedEvent,
+	VoiceModelDeletedEvent,
+	VoiceModelLoadedEvent,
+	VoiceRecordingStartedEvent,
+	VoiceRecordingStoppedEvent,
+	VoiceRecordingCancelledEvent,
 ])
 export type OrchestrationEvent = typeof OrchestrationEvent.Type

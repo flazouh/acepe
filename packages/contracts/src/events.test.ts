@@ -22,10 +22,26 @@ import {
 	SettingsUpdatedPayload,
 	SkillsDiscoveredPayload,
 	TurnCancelledPayload,
+	VoiceLanguagesListedPayload,
+	VoiceModelDeletedPayload,
+	VoiceModelDownloadedPayload,
+	VoiceModelLoadedPayload,
+	VoiceModelStatusReportedPayload,
+	VoiceModelsListedPayload,
+	VoiceRecordingCancelledPayload,
+	VoiceRecordingStartedPayload,
+	VoiceRecordingStoppedPayload,
 } from "./events.ts"
 import { CheckpointId, CommandId, EventId, MessageId, ProjectId, SessionId, ToolCallId, TurnId } from "./ids.ts"
 import { APP_SETTINGS_ID } from "./settings.ts"
 import { APP_SKILLS_ID, emptySkillsCatalog } from "./skills.ts"
+import {
+	APP_VOICE_ID,
+	emptyVoiceLanguages,
+	emptyVoiceModels,
+	emptyVoiceTranscriptionResult,
+	placeholderVoiceModel,
+} from "./voice.ts"
 
 const v1EventTypes = [
 	"ProjectCreated",
@@ -44,6 +60,15 @@ const v1EventTypes = [
 	"CheckpointReverted",
 	"SettingsUpdated",
 	"SkillsDiscovered",
+	"VoiceModelsListed",
+	"VoiceLanguagesListed",
+	"VoiceModelStatusReported",
+	"VoiceModelDownloaded",
+	"VoiceModelDeleted",
+	"VoiceModelLoaded",
+	"VoiceRecordingStarted",
+	"VoiceRecordingStopped",
+	"VoiceRecordingCancelled",
 ] as const
 
 type V1EventType = (typeof v1EventTypes)[number]
@@ -51,7 +76,22 @@ type EventType = OrchestrationEvent["type"]
 type ProjectEventType = Extract<EventType, "ProjectCreated" | "ProjectMetaUpdated" | "ProjectDeleted">
 type SettingsEventType = Extract<EventType, "SettingsUpdated">
 type SkillsEventType = Extract<EventType, "SkillsDiscovered">
-type SessionEventType = Exclude<EventType, ProjectEventType | SettingsEventType | SkillsEventType>
+type VoiceEventType = Extract<
+	EventType,
+	| "VoiceModelsListed"
+	| "VoiceLanguagesListed"
+	| "VoiceModelStatusReported"
+	| "VoiceModelDownloaded"
+	| "VoiceModelDeleted"
+	| "VoiceModelLoaded"
+	| "VoiceRecordingStarted"
+	| "VoiceRecordingStopped"
+	| "VoiceRecordingCancelled"
+>
+type SessionEventType = Exclude<
+	EventType,
+	ProjectEventType | SettingsEventType | SkillsEventType | VoiceEventType
+>
 const _v1EventTypesMatchUnion: [EventType] extends [V1EventType]
 	? [V1EventType] extends [EventType]
 		? true
@@ -146,6 +186,23 @@ const skillsEvent = <const Type extends SkillsEventType, Payload>(
 	eventId,
 	aggregateKind: "skills" as const,
 	aggregateId: APP_SKILLS_ID,
+	occurredAt,
+	commandId,
+	causationEventId: null,
+	correlationId: commandId,
+	metadata: {},
+	type,
+	payload,
+})
+
+const voiceEvent = <const Type extends VoiceEventType, Payload>(
+	type: Type,
+	payload: Payload,
+) => ({
+	sequence: 5,
+	eventId,
+	aggregateKind: "voice" as const,
+	aggregateId: APP_VOICE_ID,
 	occurredAt,
 	commandId,
 	causationEventId: null,
@@ -270,6 +327,64 @@ const memberCases = [
 	{
 		payloadSchema: SkillsDiscoveredPayload,
 		event: skillsEvent("SkillsDiscovered", emptySkillsCatalog),
+	},
+	{
+		payloadSchema: VoiceModelsListedPayload,
+		event: voiceEvent("VoiceModelsListed", {
+			models: emptyVoiceModels,
+		}),
+	},
+	{
+		payloadSchema: VoiceLanguagesListedPayload,
+		event: voiceEvent("VoiceLanguagesListed", {
+			languages: emptyVoiceLanguages,
+		}),
+	},
+	{
+		payloadSchema: VoiceModelStatusReportedPayload,
+		event: voiceEvent("VoiceModelStatusReported", {
+			modelId: "external",
+			model: placeholderVoiceModel("external"),
+		}),
+	},
+	{
+		payloadSchema: VoiceModelDownloadedPayload,
+		event: voiceEvent("VoiceModelDownloaded", {
+			modelId: "external",
+		}),
+	},
+	{
+		payloadSchema: VoiceModelDeletedPayload,
+		event: voiceEvent("VoiceModelDeleted", {
+			modelId: "external",
+		}),
+	},
+	{
+		payloadSchema: VoiceModelLoadedPayload,
+		event: voiceEvent("VoiceModelLoaded", {
+			modelId: "external",
+			model: placeholderVoiceModel("external"),
+		}),
+	},
+	{
+		payloadSchema: VoiceRecordingStartedPayload,
+		event: voiceEvent("VoiceRecordingStarted", {
+			sessionId,
+		}),
+	},
+	{
+		payloadSchema: VoiceRecordingStoppedPayload,
+		event: voiceEvent("VoiceRecordingStopped", {
+			sessionId,
+			language: null,
+			result: emptyVoiceTranscriptionResult,
+		}),
+	},
+	{
+		payloadSchema: VoiceRecordingCancelledPayload,
+		event: voiceEvent("VoiceRecordingCancelled", {
+			sessionId,
+		}),
 	},
 ] as const
 

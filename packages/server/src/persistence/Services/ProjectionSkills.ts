@@ -149,6 +149,15 @@ export const evolveProjectedSkillsCatalog = (
 			CheckpointReadinessChanged: () => ignoreEvent(current),
 			CheckpointReverted: () => ignoreEvent(current),
 			SettingsUpdated: () => ignoreEvent(current),
-			SkillsDiscovered: (discovered) => projectSkillsDiscovered(discovered)
+			SkillsDiscovered: (discovered) => projectSkillsDiscovered(discovered),
+			VoiceModelsListed: () => ignoreEvent(current),
+			VoiceLanguagesListed: () => ignoreEvent(current),
+			VoiceModelStatusReported: () => ignoreEvent(current),
+			VoiceModelDownloaded: () => ignoreEvent(current),
+			VoiceModelDeleted: () => ignoreEvent(current),
+			VoiceModelLoaded: () => ignoreEvent(current),
+			VoiceRecordingStarted: () => ignoreEvent(current),
+			VoiceRecordingStopped: () => ignoreEvent(current),
+			VoiceRecordingCancelled: () => ignoreEvent(current)
 		})
 	)(event)

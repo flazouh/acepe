@@ -57,6 +57,7 @@ import {
 	requireUniqueSkillIds
 } from "./commandInvariants.ts"
 import type { OrchestrationCommandInvariantError } from "./Errors.ts"
+import { decideVoice } from "./voiceDecide.ts"
 
 export type DecideIdentity = {
 	readonly eventId: EventId
@@ -737,5 +738,15 @@ export const decide = Effect.fn("decide")(function*(
 			return yield* decideSettingsSet(readModel, command, identity)
 		case "skills.discover":
 			return yield* decideSkillsDiscover(readModel, command, identity)
+		case "voice.models.list":
+		case "voice.languages.list":
+		case "voice.model.status":
+		case "voice.model.download":
+		case "voice.model.delete":
+		case "voice.model.load":
+		case "voice.recording.start":
+		case "voice.recording.stop":
+		case "voice.recording.cancel":
+			return yield* decideVoice(readModel, command, identity)
 	}
 })

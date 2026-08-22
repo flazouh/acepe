@@ -31,7 +31,9 @@ Vitest.describe("ProjectionSnapshotQuery", () => {
 		Vitest.assert.isTrue(SNAPSHOT_PROJECTOR_NAMES.includes("projection.settings"))
 		Vitest.assert.isTrue(SNAPSHOT_PROJECTOR_NAMES.includes("projection.checkpoints"))
 		Vitest.assert.isTrue(SNAPSHOT_PROJECTOR_NAMES.includes("projection.skills"))
+		Vitest.assert.isTrue(SNAPSHOT_PROJECTOR_NAMES.includes("projection.voice"))
 		Vitest.assert.isTrue(SNAPSHOT_OPTIONAL_TABLES.includes("projection_skills_catalog"))
+		Vitest.assert.isTrue(SNAPSHOT_OPTIONAL_TABLES.includes("projection_voice"))
 	})
 })
 
@@ -90,7 +92,8 @@ Vitest.describe("SessionProjectionSnapshot", () => {
 				projects: [],
 				sessions: [],
 				settings: [],
-				skillsCatalog: null
+				skillsCatalog: null,
+				voice: null
 			})
 			Vitest.assert.strictEqual(snapshot.snapshotSequence, 4)
 			Vitest.assert.strictEqual(snapshot.session?.title, "Ship the slice")

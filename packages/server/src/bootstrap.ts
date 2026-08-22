@@ -30,6 +30,7 @@ import { ProjectionTurnsLive } from "./persistence/Layers/ProjectionTurns.ts"
 import { ProjectionProjectsLive } from "./persistence/Layers/ProjectionProjects.ts"
 import { ProjectionSettingsLive } from "./persistence/Layers/ProjectionSettings.ts"
 import { ProjectionSkillsLive } from "./persistence/Layers/ProjectionSkills.ts"
+import { ProjectionVoiceLive } from "./persistence/Layers/ProjectionVoice.ts"
 import { makeSqliteLayer } from "./persistence/Layers/Sqlite.ts"
 import { runMigrations } from "./persistence/Migrations.ts"
 import {
@@ -44,6 +45,7 @@ import { ProjectionCheckpoints } from "./persistence/Services/ProjectionCheckpoi
 import { ProjectionProjects } from "./persistence/Services/ProjectionProjects.ts"
 import { ProjectionSettings } from "./persistence/Services/ProjectionSettings.ts"
 import { ProjectionSkills } from "./persistence/Services/ProjectionSkills.ts"
+import { ProjectionVoice } from "./persistence/Services/ProjectionVoice.ts"
 import { HardcodedProviderLive } from "./provider/HardcodedProvider.ts"
 import { FileIndexServiceLive } from "./fileIndex/Layers/FileIndexService.ts"
 import { FileIndexWarmOnImportLive } from "./fileIndex/Layers/FileIndexWarmOnImport.ts"
@@ -51,6 +53,7 @@ import { GitServiceLive } from "./git/Layers/GitService.ts"
 import { RpcHandlersLive } from "./rpc/handlers.ts"
 import { runStdioServer } from "./rpc/stdio.ts"
 import { SkillsServiceLive } from "./skills/Layers/SkillsService.ts"
+import { VoiceRuntimeLive } from "./voice/Layers/VoiceRuntime.ts"
 
 const decodeProjectorName = Schema.decodeUnknownEffect(TrimmedNonEmptyString)
 
@@ -75,7 +78,8 @@ const persistenceAt = (filename: string) => {
 		ProjectionPendingApprovalsLive,
 		ProjectionProjectsLive,
 		ProjectionSettingsLive,
-		ProjectionSkillsLive
+		ProjectionSkillsLive,
+		ProjectionVoiceLive
 	).pipe(Layer.provideMerge(migrated))
 }
 
@@ -95,6 +99,7 @@ const pipelineLayer = Layer.unwrap(
 		const projects = yield* ProjectionProjects
 		const settings = yield* ProjectionSettings
 		const skills = yield* ProjectionSkills
+		const voice = yield* ProjectionVoice
 		const messagesName = yield* decodeProjectorName(PROJECTION_SESSION_MESSAGES_NAME)
 		return ProjectionPipelineLive([
 			{
@@ -141,6 +146,11 @@ const pipelineLayer = Layer.unwrap(
 				name: skills.name,
 				apply: skills.apply,
 				truncate: skills.truncate
+			},
+			{
+				name: voice.name,
+				apply: voice.apply,
+				truncate: voice.truncate
 			}
 		])
 	})
@@ -181,11 +191,13 @@ export const makeAcepeLive = (input: AcepeLiveInput) => {
 			return SkillsServiceLive({ homeDir })
 		})
 	).pipe(Layer.provide(bunPlatform))
+	const voice = VoiceRuntimeLive.pipe(Layer.provide(bunPlatform))
 	const rpc = RpcHandlersLive.pipe(
 		Layer.provideMerge(snapshots),
 		Layer.provideMerge(fileIndex),
 		Layer.provideMerge(git),
-		Layer.provideMerge(skills)
+		Layer.provideMerge(skills),
+		Layer.provideMerge(voice)
 	)
 	return Layer.mergeAll(
 		rpc,

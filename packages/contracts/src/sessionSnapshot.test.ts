@@ -8,6 +8,7 @@ import {
 } from "./sessionSnapshot.ts"
 import { TRACER_REPLY_TEXT, TRACER_REPLY_TOKENS } from "./tracerBullet.ts"
 import { APP_SKILLS_ID, emptySkillsCatalog } from "./skills.ts"
+import { APP_VOICE_ID, placeholderVoiceModel } from "./voice.ts"
 
 const commandId = CommandId.make("cmd-1")
 const projectId = ProjectId.make("project-1")
@@ -373,6 +374,32 @@ describe("applyEventToRpcSessionSnapshot", () => {
 			plugins: [],
 			pluginSkills: [],
 			tree: [],
+		})
+		expect(first.snapshotSequence).toBe(1)
+	})
+
+	it("projects VoiceModelsListed onto the snapshot voice field", () => {
+		const first = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), {
+			sequence: 1,
+			eventId: EventId.make("event-voice-1"),
+			aggregateKind: "voice",
+			aggregateId: APP_VOICE_ID,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: {},
+			type: "VoiceModelsListed",
+			payload: {
+				models: [placeholderVoiceModel("external")],
+			},
+		})
+		expect(first.voice).toEqual({
+			sequence: 1,
+			models: [placeholderVoiceModel("external")],
+			languages: [],
+			recording: null,
+			lastTranscription: null,
 		})
 		expect(first.snapshotSequence).toBe(1)
 	})

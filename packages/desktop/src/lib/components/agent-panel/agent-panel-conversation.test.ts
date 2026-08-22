@@ -89,6 +89,7 @@ describe("conversationFromSnapshot", () => {
 				sessions: [],
 				settings: [],
 				skillsCatalog: null,
+				voice: null,
 			},
 			activities: [
 				{
@@ -157,6 +158,7 @@ describe("conversationFromSnapshot", () => {
 				sessions: [],
 				settings: [],
 				skillsCatalog: null,
+				voice: null,
 			},
 		});
 
@@ -195,6 +197,7 @@ describe("conversationFromSnapshot", () => {
 				sessions: [],
 				settings: [],
 				skillsCatalog: null,
+				voice: null,
 			},
 		});
 

@@ -25,9 +25,25 @@ import {
 	SettingsSetCommand,
 	SkillsDiscoverCommand,
 	TurnCancelCommand,
+	VoiceLanguagesListCommand,
+	VoiceModelDeleteCommand,
+	VoiceModelDownloadCommand,
+	VoiceModelLoadCommand,
+	VoiceModelStatusCommand,
+	VoiceModelsListCommand,
+	VoiceRecordingCancelCommand,
+	VoiceRecordingStartCommand,
+	VoiceRecordingStopCommand,
 } from "./orchestration.ts"
 import { APP_SETTINGS_ID } from "./settings.ts"
 import { APP_SKILLS_ID, emptySkillsCatalog } from "./skills.ts"
+import {
+	APP_VOICE_ID,
+	emptyVoiceLanguages,
+	emptyVoiceModels,
+	emptyVoiceTranscriptionResult,
+	placeholderVoiceModel,
+} from "./voice.ts"
 
 const v1CommandTypes = [
 	"project.create",
@@ -46,6 +62,15 @@ const v1CommandTypes = [
 	"checkpoint.revert",
 	"settings.set",
 	"skills.discover",
+	"voice.models.list",
+	"voice.languages.list",
+	"voice.model.status",
+	"voice.model.download",
+	"voice.model.delete",
+	"voice.model.load",
+	"voice.recording.start",
+	"voice.recording.stop",
+	"voice.recording.cancel",
 ] as const
 
 type V1CommandType = (typeof v1CommandTypes)[number]
@@ -279,6 +304,118 @@ const memberCases = [
 			type: "skills.discover",
 			commandId,
 			catalog: emptySkillsCatalog,
+		}),
+	},
+	{
+		schema: VoiceModelsListCommand,
+		aggregate: {
+			aggregateKind: "voice",
+			aggregateId: APP_VOICE_ID,
+		} satisfies OrchestrationAggregateRef,
+		command: VoiceModelsListCommand.make({
+			type: "voice.models.list",
+			commandId,
+			models: emptyVoiceModels,
+		}),
+	},
+	{
+		schema: VoiceLanguagesListCommand,
+		aggregate: {
+			aggregateKind: "voice",
+			aggregateId: APP_VOICE_ID,
+		} satisfies OrchestrationAggregateRef,
+		command: VoiceLanguagesListCommand.make({
+			type: "voice.languages.list",
+			commandId,
+			languages: emptyVoiceLanguages,
+		}),
+	},
+	{
+		schema: VoiceModelStatusCommand,
+		aggregate: {
+			aggregateKind: "voice",
+			aggregateId: APP_VOICE_ID,
+		} satisfies OrchestrationAggregateRef,
+		command: VoiceModelStatusCommand.make({
+			type: "voice.model.status",
+			commandId,
+			modelId: "external",
+			model: placeholderVoiceModel("external"),
+		}),
+	},
+	{
+		schema: VoiceModelDownloadCommand,
+		aggregate: {
+			aggregateKind: "voice",
+			aggregateId: APP_VOICE_ID,
+		} satisfies OrchestrationAggregateRef,
+		command: VoiceModelDownloadCommand.make({
+			type: "voice.model.download",
+			commandId,
+			modelId: "external",
+		}),
+	},
+	{
+		schema: VoiceModelDeleteCommand,
+		aggregate: {
+			aggregateKind: "voice",
+			aggregateId: APP_VOICE_ID,
+		} satisfies OrchestrationAggregateRef,
+		command: VoiceModelDeleteCommand.make({
+			type: "voice.model.delete",
+			commandId,
+			modelId: "external",
+		}),
+	},
+	{
+		schema: VoiceModelLoadCommand,
+		aggregate: {
+			aggregateKind: "voice",
+			aggregateId: APP_VOICE_ID,
+		} satisfies OrchestrationAggregateRef,
+		command: VoiceModelLoadCommand.make({
+			type: "voice.model.load",
+			commandId,
+			modelId: "external",
+			model: placeholderVoiceModel("external"),
+		}),
+	},
+	{
+		schema: VoiceRecordingStartCommand,
+		aggregate: {
+			aggregateKind: "voice",
+			aggregateId: APP_VOICE_ID,
+		} satisfies OrchestrationAggregateRef,
+		command: VoiceRecordingStartCommand.make({
+			type: "voice.recording.start",
+			commandId,
+			sessionId,
+		}),
+	},
+	{
+		schema: VoiceRecordingStopCommand,
+		aggregate: {
+			aggregateKind: "voice",
+			aggregateId: APP_VOICE_ID,
+		} satisfies OrchestrationAggregateRef,
+		command: VoiceRecordingStopCommand.make({
+			type: "voice.recording.stop",
+			commandId,
+			sessionId,
+			language: null,
+			result: emptyVoiceTranscriptionResult,
+		}),
+	},
+	{
+		schema: VoiceRecordingCancelCommand,
+		aggregate: {
+			aggregateKind: "voice",
+			aggregateId: APP_VOICE_ID,
+		} satisfies OrchestrationAggregateRef,
+		command: VoiceRecordingCancelCommand.make({
+			type: "voice.recording.cancel",
+			commandId,
+			sessionId,
 		}),
 	},
 ] as const

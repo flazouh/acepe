@@ -113,6 +113,7 @@ const snapshotWithUser: RpcSessionSnapshot = {
 	sessions: [],
 	settings: [],
 	skillsCatalog: null,
+	voice: null,
 };
 
 const unusedProjectIndex = {

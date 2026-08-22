@@ -23,9 +23,12 @@ import {
 	SettingsSetCommand,
 	SkillsDiscoverCommand,
 	ToolCallId,
+	VoiceModelsListCommand,
 	APP_SETTINGS_ID,
 	APP_SKILLS_ID,
-	emptySkillsCatalog
+	APP_VOICE_ID,
+	emptySkillsCatalog,
+	emptyVoiceModels
 } from "@acepe/contracts"
 import * as Vitest from "@effect/vitest"
 import * as Effect from "effect/Effect"
@@ -821,6 +824,37 @@ Vitest.describe("decide", () => {
 					metadata: {},
 					type: "SkillsDiscovered",
 					payload: emptySkillsCatalog
+				}
+			])
+		})
+	)
+
+	Vitest.it.effect("emits VoiceModelsListed without a project or session", () =>
+		Effect.gen(function*() {
+			const events = yield* decide(
+				emptyReadModel,
+				VoiceModelsListCommand.make({
+					type: "voice.models.list",
+					commandId,
+					models: emptyVoiceModels
+				}),
+				identity
+			)
+			Vitest.assert.deepStrictEqual(events, [
+				{
+					sequence: 1,
+					eventId,
+					aggregateKind: "voice",
+					aggregateId: APP_VOICE_ID,
+					occurredAt,
+					commandId,
+					causationEventId: null,
+					correlationId: commandId,
+					metadata: {},
+					type: "VoiceModelsListed",
+					payload: {
+						models: emptyVoiceModels
+					}
 				}
 			])
 		})

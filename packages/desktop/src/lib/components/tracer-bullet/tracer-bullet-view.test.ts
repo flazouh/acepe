@@ -79,6 +79,7 @@ describe("tracer bullet controller mapping", () => {
 							sessions: [],
 							settings: [],
 							skillsCatalog: null,
+							voice: null,
 						}),
 					getProjectIndex: () =>
 						Effect.succeed({

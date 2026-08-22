@@ -21,6 +21,7 @@ import {
 	decodeSkillsId,
 	decodeToolCallId,
 	decodeTurnId,
+	decodeVoiceId,
 	EventId,
 	MessageId,
 	ProjectId,
@@ -30,6 +31,7 @@ import {
 	SkillsId,
 	ToolCallId,
 	TurnId,
+	VoiceId,
 } from "./ids.ts"
 
 type IdDecoder = (input: unknown) => Effect.Effect<string, Schema.SchemaError>
@@ -50,6 +52,7 @@ const brandedIds: ReadonlyArray<IdCase> = [
 	{ name: "CheckpointId", make: CheckpointId.make, decode: decodeCheckpointId },
 	{ name: "SettingsId", make: SettingsId.make, decode: decodeSettingsId },
 	{ name: "SkillsId", make: SkillsId.make, decode: decodeSkillsId },
+	{ name: "VoiceId", make: VoiceId.make, decode: decodeVoiceId },
 	{ name: "ApprovalRequestId", make: ApprovalRequestId.make, decode: decodeApprovalRequestId },
 	{ name: "EventId", make: EventId.make, decode: decodeEventId },
 	{ name: "CommandId", make: CommandId.make, decode: decodeCommandId },

@@ -176,7 +176,16 @@ const loadSlice = Effect.fn("ProjectionProjects.loadSlice")(function*(
 			CheckpointReadinessChanged: ignoreEvent,
 			CheckpointReverted: ignoreEvent,
 			SettingsUpdated: ignoreEvent,
-			SkillsDiscovered: ignoreEvent
+			SkillsDiscovered: ignoreEvent,
+			VoiceModelsListed: ignoreEvent,
+			VoiceLanguagesListed: ignoreEvent,
+			VoiceModelStatusReported: ignoreEvent,
+			VoiceModelDownloaded: ignoreEvent,
+			VoiceModelDeleted: ignoreEvent,
+			VoiceModelLoaded: ignoreEvent,
+			VoiceRecordingStarted: ignoreEvent,
+			VoiceRecordingStopped: ignoreEvent,
+			VoiceRecordingCancelled: ignoreEvent
 		})
 	)(event)
 })

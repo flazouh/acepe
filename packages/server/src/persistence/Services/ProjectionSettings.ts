@@ -119,7 +119,16 @@ export const evolveProjectedSetting = (
 			CheckpointReadinessChanged: () => ignoreEvent(current),
 			CheckpointReverted: () => ignoreEvent(current),
 			SettingsUpdated: (updated) => projectSettingsUpdated(updated),
-			SkillsDiscovered: () => ignoreEvent(current)
+			SkillsDiscovered: () => ignoreEvent(current),
+			VoiceModelsListed: () => ignoreEvent(current),
+			VoiceLanguagesListed: () => ignoreEvent(current),
+			VoiceModelStatusReported: () => ignoreEvent(current),
+			VoiceModelDownloaded: () => ignoreEvent(current),
+			VoiceModelDeleted: () => ignoreEvent(current),
+			VoiceModelLoaded: () => ignoreEvent(current),
+			VoiceRecordingStarted: () => ignoreEvent(current),
+			VoiceRecordingStopped: () => ignoreEvent(current),
+			VoiceRecordingCancelled: () => ignoreEvent(current)
 		})
 	)(event)
 
@@ -141,6 +150,15 @@ export const settingKeyFromEvent = (event: OrchestrationEvent): Option.Option<Us
 			CheckpointReadinessChanged: () => Option.none(),
 			CheckpointReverted: () => Option.none(),
 			SettingsUpdated: (updated) => Option.some(updated.payload.key),
-			SkillsDiscovered: () => Option.none()
+			SkillsDiscovered: () => Option.none(),
+			VoiceModelsListed: () => Option.none(),
+			VoiceLanguagesListed: () => Option.none(),
+			VoiceModelStatusReported: () => Option.none(),
+			VoiceModelDownloaded: () => Option.none(),
+			VoiceModelDeleted: () => Option.none(),
+			VoiceModelLoaded: () => Option.none(),
+			VoiceRecordingStarted: () => Option.none(),
+			VoiceRecordingStopped: () => Option.none(),
+			VoiceRecordingCancelled: () => Option.none()
 		})
 	)(event)

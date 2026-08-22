@@ -70,7 +70,8 @@ const oracle = {
 	projects: [],
 	sessions: [],
 	settings: [],
-	skillsCatalog: null
+	skillsCatalog: null,
+	voice: null
 }
 
 Vitest.layer(isolated())("ClaudeHistoryLive", (it) => {
