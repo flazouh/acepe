@@ -298,3 +298,35 @@ describe("composeSessionStore", () => {
 			})
 		));
 });
+
+it("openLibrary reads projects without opening a session", () =>
+	Effect.runPromise(
+		Effect.gen(function* () {
+			const registry = AtomRegistry.make();
+			const parts = composeSessionStore({
+				client: clientOf({
+					snapshot: {
+						...snapshotWithUser,
+						session: null,
+						projects: [
+							{
+								projectId,
+								title: "Acepe",
+								workspaceRoot: "/Users/alex/Documents/acepe",
+								createdAt: "2026-08-22T00:00:00.000Z",
+								updatedAt: "2026-08-22T00:00:00.000Z",
+								deletedAt: null,
+								sessionCount: 3,
+							},
+						],
+					},
+					events: [],
+				}),
+				registry,
+			});
+			const snap = yield* parts.openLibrary();
+			expect(snap.projects.length).toBe(1);
+			expect(snap.projects[0]?.title).toBe("Acepe");
+			expect(snap.session).toBe(null);
+		}),
+	));

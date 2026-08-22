@@ -16,6 +16,7 @@ export const createSessionStore = (input: {
 	return {
 		snapshot,
 		snapshotAtom: parts.snapshotAtom,
+		openLibrary: parts.openLibrary,
 		openSession: parts.openSession,
 		dispatch: parts.dispatch,
 		recordSendMoment: parts.recordSendMoment,

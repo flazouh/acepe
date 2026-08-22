@@ -32,6 +32,15 @@ export const composeSessionStore = (input: {
 		input.registry.set(snapshotAtom, applyEventToRpcSessionSnapshot(readSnapshot(), event));
 	};
 
+	// The library scope reads projects without opening any session, so the
+	// sidebar can render before a session is selected. Same snapshot primitive,
+	// different scope — no fourth RPC primitive.
+	const openLibrary = Effect.fn("openLibrary")(function* () {
+		const snap = yield* input.client.snapshot({ kind: "library" })
+		input.registry.set(snapshotAtom, snap)
+		return snap
+	})
+
 	const openSession = Effect.fn("openSession")(function* (sessionId: SessionId) {
 		const snap = yield* input.client.snapshot({ sessionId });
 		input.registry.set(snapshotAtom, snap);
@@ -67,6 +76,7 @@ export const composeSessionStore = (input: {
 	return {
 		snapshotAtom,
 		sendMomentAtom,
+		openLibrary,
 		openSession,
 		dispatch: input.client.dispatch,
 		recordSendMoment: (moment: SessionSendMoment) => {
