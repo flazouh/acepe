@@ -317,6 +317,7 @@ it("openLibrary reads projects without opening a session", () =>
 								updatedAt: "2026-08-22T00:00:00.000Z",
 								deletedAt: null,
 								sessionCount: 3,
+								gitStatus: null,
 							},
 						],
 					},
