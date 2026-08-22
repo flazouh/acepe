@@ -125,7 +125,8 @@ const withProjectGitStatus = Effect.fn("withProjectGitStatus")(function*(
 		activities: snapshot.activities,
 		pendingApprovals: snapshot.pendingApprovals,
 		projects,
-		sessions: snapshot.sessions
+		sessions: snapshot.sessions,
+		settings: snapshot.settings
 	} satisfies RpcSessionSnapshot
 })
 

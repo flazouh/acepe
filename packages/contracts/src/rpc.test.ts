@@ -267,6 +267,7 @@ describe("Schema-encoded boundary", () => {
 				},
 			],
 			sessions: [],
+			settings: [],
 		}
 		const encoded = Effect.runSync(Schema.encodeUnknownEffect(RpcSessionSnapshot)(withGit))
 		const decoded = Effect.runSync(Schema.decodeUnknownEffect(RpcSessionSnapshot)(encoded))
