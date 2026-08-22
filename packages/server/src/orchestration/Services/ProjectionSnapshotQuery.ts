@@ -1,16 +1,18 @@
 import {
 	ActivityId,
 	ApprovalRequestId,
+	ProjectId,
 	Sequence,
 	SessionId,
-	TurnId
+	TurnId,
+	type SnapshotRequest
 } from "@acepe/contracts"
 import * as Arr from "effect/Array"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import type { SqlError } from "effect/unstable/sql/SqlError"
-import { type ProjectedProject } from "../../persistence/Services/ProjectionProjects.ts"
+import { ProjectedProject } from "../../persistence/Services/ProjectionProjects.ts"
 import { ProjectedSession } from "../../persistence/Services/ProjectionSessions.ts"
 import { ProjectionSessionMessage } from "../../persistence/Services/ProjectionSessionMessages.ts"
 import {
@@ -67,7 +69,9 @@ export const SessionProjectionSnapshot = Schema.Struct({
 	turns: Schema.Array(ProjectedTurn),
 	activities: Schema.Array(ProjectedSessionActivity),
 	pendingApprovals: Schema.Array(ProjectedPendingApproval),
-	checkpoints: Schema.Array(ProjectedCheckpoint)
+	checkpoints: Schema.Array(ProjectedCheckpoint),
+	projects: Schema.Array(ProjectedProject),
+	sessions: Schema.Array(ProjectedSession)
 })
 export type SessionProjectionSnapshot = typeof SessionProjectionSnapshot.Type
 
@@ -152,6 +156,9 @@ export {
 export interface ProjectionSnapshotQueryShape {
 	readonly snapshot: (
 		sessionId: SessionId
+	) => Effect.Effect<SessionProjectionSnapshot, SqlError | Schema.SchemaError>
+	readonly forRequest: (
+		request: SnapshotRequest
 	) => Effect.Effect<SessionProjectionSnapshot, SqlError | Schema.SchemaError>
 	readonly listProjects: () => Effect.Effect<
 		ReadonlyArray<ProjectedProject>,

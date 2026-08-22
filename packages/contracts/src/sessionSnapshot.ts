@@ -21,6 +21,8 @@ export const emptyRpcSessionSnapshot = (snapshotSequence: Sequence): RpcSessionS
 	turns: Arr.empty(),
 	activities: Arr.empty(),
 	pendingApprovals: Arr.empty(),
+	projects: Arr.empty(),
+	sessions: Arr.empty(),
 })
 
 const watermark = (snapshot: RpcSessionSnapshot, sequence: Sequence): Sequence =>
@@ -30,12 +32,8 @@ const withSequence = (
 	snapshot: RpcSessionSnapshot,
 	sequence: Sequence,
 ): RpcSessionSnapshot => ({
+	...snapshot,
 	snapshotSequence: watermark(snapshot, sequence),
-	session: snapshot.session,
-	messages: snapshot.messages,
-	turns: snapshot.turns,
-	activities: snapshot.activities,
-	pendingApprovals: snapshot.pendingApprovals,
 })
 
 const isThisSession = (snapshot: RpcSessionSnapshot, sessionId: SessionId): boolean =>
@@ -47,12 +45,10 @@ const replaceMessages = (
 	messages: ReadonlyArray<RpcProjectedMessage>,
 	session: RpcProjectedSession | null,
 ): RpcSessionSnapshot => ({
+	...snapshot,
 	snapshotSequence: watermark(snapshot, sequence),
 	session,
 	messages,
-	turns: snapshot.turns,
-	activities: snapshot.activities,
-	pendingApprovals: snapshot.pendingApprovals,
 })
 
 const touchSession = (

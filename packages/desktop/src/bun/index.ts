@@ -12,6 +12,7 @@ import {
 	startElectrobunAcepeApp,
 } from "@acepe/electrobun-shell";
 import { makeAcepeLive } from "@acepe/server/bootstrap";
+import { seedLibrary } from "@acepe/server/library/seedLibrary";
 import {
 	encodedDispatch,
 	encodedGetProjectIndex,
@@ -58,6 +59,8 @@ const runtime = ManagedRuntime.make(
 		tokenDelay: Duration.millis(40),
 	})
 );
+
+await runtime.runPromise(seedLibrary());
 
 let sawRpcRoundtrip = false;
 

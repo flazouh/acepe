@@ -1,48 +1,65 @@
 <script lang="ts">
 	import { makeResumingRpcClient, type RpcClient } from "@acepe/contracts";
-	import { RPC_ROUNDTRIP_MESSAGE } from "@acepe/electrobun-shell";
 	import * as Effect from "effect/Effect";
 	import { onMount } from "svelte";
 	import MainAppView from "$lib/components/main-app-view.svelte";
-	import TracerBulletView from "$lib/components/tracer-bullet/tracer-bullet-view.svelte";
+	import LibrarySidebarView from "$lib/components/library/library-sidebar-view.svelte";
 	import { makeElectrobunRpcTransport } from "$lib/rpc/client.ts";
 	import { installElectrobunWebviewRpc } from "$lib/rpc/electrobun-bridge.ts";
-	import { isElectrobunShellWindow } from "$lib/rpc/electrobun-shell-window.ts";
+	import {
+		desktopShellKind,
+		type DesktopShellKind,
+	} from "$lib/rpc/electrobun-shell-window.ts";
 
-	let tracerClient = $state<RpcClient | null>(null);
+	let rpcClient = $state<RpcClient | null>(null);
+	let shell = $state<DesktopShellKind>("pending");
+	let bootError = $state<string | null>(null);
 
 	onMount(() => {
-		if (
-			isElectrobunShellWindow({
-				protocol: window.location.protocol,
-				search: window.location.search,
-				hasElectrobunGlobal: "__electrobun" in window,
-			}) === false
-		) {
+		const next = desktopShellKind({
+			protocol: window.location.protocol,
+			search: window.location.search,
+			hasElectrobunGlobal: "__electrobun" in window,
+		});
+		shell = next;
+		if (next !== "electrobun") {
 			return;
 		}
 		Effect.runFork(
 			installElectrobunWebviewRpc().pipe(
-				Effect.flatMap((bridge) =>
-					Effect.tryPromise({
-						try: () => bridge.request.ping({ message: RPC_ROUNDTRIP_MESSAGE }),
-						catch: () => new Error("acepe ping failed"),
-					}).pipe(Effect.as(bridge)),
-				),
 				Effect.map((bridge) => makeResumingRpcClient(makeElectrobunRpcTransport(bridge))),
-				Effect.tap((client) =>
-					Effect.sync(() => {
-						tracerClient = client;
-					}),
-				),
-				Effect.ignore,
+				Effect.matchEffect({
+					onFailure: (error) =>
+						Effect.sync(() => {
+							const message =
+								"message" in error ? String(error.message) : "electrobun rpc failed";
+							setTimeout(() => {
+								bootError = message;
+							}, 0);
+						}),
+					onSuccess: (client) =>
+						Effect.sync(() => {
+							setTimeout(() => {
+								rpcClient = client;
+							}, 0);
+						}),
+				}),
 			),
 		);
 	});
 </script>
 
-{#if tracerClient !== null}
-	<TracerBulletView client={tracerClient} />
-{:else}
+{#if shell === "electrobun" && rpcClient !== null}
+	<div class="flex h-screen bg-background text-foreground">
+		<LibrarySidebarView client={rpcClient} />
+	</div>
+{:else if shell === "tauri"}
 	<MainAppView />
+{:else}
+	<div
+		data-testid="library-shell-pending"
+		data-shell={shell}
+		data-boot-error={bootError ?? ""}
+		class="flex h-screen bg-background text-foreground"
+	></div>
 {/if}

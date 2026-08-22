@@ -33,7 +33,7 @@ export const composeSessionStore = (input: {
 	};
 
 	const openSession = Effect.fn("openSession")(function* (sessionId: SessionId) {
-		const snap = yield* input.client.snapshot(sessionId);
+		const snap = yield* input.client.snapshot({ sessionId });
 		input.registry.set(snapshotAtom, snap);
 		yield* input.client
 			.events(snap.snapshotSequence)

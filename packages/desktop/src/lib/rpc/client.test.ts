@@ -54,6 +54,8 @@ const emptySnapshot = {
 	turns: [],
 	activities: [],
 	pendingApprovals: [],
+	projects: [],
+	sessions: [],
 };
 
 const makeBridge = (input: {
@@ -139,10 +141,10 @@ describe("makeElectrobunRpcTransport", () => {
 			Effect.gen(function* () {
 				const encoded = yield* encodeSnapshotExit(Exit.succeed(emptySnapshot));
 				const bridge = makeBridge({
-					snapshot: () => Promise.resolve(encoded),
+					snapshot: () => Promise.resolve(JSON.parse(JSON.stringify(encoded))),
 				});
 				const transport = makeElectrobunRpcTransport(bridge);
-				const snapshot = yield* transport.snapshot(sessionId);
+				const snapshot = yield* transport.snapshot({ sessionId });
 				expect(snapshot.session).toBe(null);
 				expect(snapshot.snapshotSequence).toBe(0);
 			})

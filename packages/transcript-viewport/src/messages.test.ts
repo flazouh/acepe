@@ -100,6 +100,8 @@ describe("rowsFromProjectedMessages", () => {
 			turns: [],
 			activities: [],
 			pendingApprovals: [],
+			projects: [],
+			sessions: [],
 		}
 		const rows = rowsFromProjectedMessages(snapshot.messages)
 		expect(rows.length).toBe(1)

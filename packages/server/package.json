@@ -40,6 +40,7 @@
 		"./rpc/encodedBoundary": "./src/rpc/encodedBoundary.ts",
 		"./rpc/stdio": "./src/rpc/stdio.ts",
 		"./bootstrap": "./src/bootstrap.ts",
+		"./library/seedLibrary": "./src/library/seedLibrary.ts",
 		"./provider/HardcodedProvider": "./src/provider/HardcodedProvider.ts",
 		"./provider/Services/ProviderAdapter": "./src/provider/Services/ProviderAdapter.ts",
 		"./provider/Services/FakeProviderAdapter": "./src/provider/Services/FakeProviderAdapter.ts",

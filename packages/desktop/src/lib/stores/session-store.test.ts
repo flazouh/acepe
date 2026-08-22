@@ -108,6 +108,8 @@ const snapshotWithUser: RpcSessionSnapshot = {
 	turns: [],
 	activities: [],
 	pendingApprovals: [],
+	projects: [],
+	sessions: [],
 };
 
 const unusedProjectIndex = {

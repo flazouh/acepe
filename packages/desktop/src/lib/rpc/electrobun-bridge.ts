@@ -1,13 +1,19 @@
 import type { ElectrobunRpcBridge } from "./client.ts";
 import { RpcTransportError } from "@acepe/contracts";
+import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Predicate from "effect/Predicate";
 
 const HOLDER = globalThis as {
 	__acepeElectrobunRpc?: ElectrobunRpcBridge;
+	__acepeElectrobunBoot?: string;
 };
 
-const isBridge = (value: unknown): value is ElectrobunRpcBridge => {
+const markBoot = (step: string): void => {
+	HOLDER.__acepeElectrobunBoot = step;
+};
+
+export const isElectrobunRpcBridge = (value: unknown): value is ElectrobunRpcBridge => {
 	if (Predicate.isObject(value) === false) {
 		return false;
 	}
@@ -16,10 +22,14 @@ const isBridge = (value: unknown): value is ElectrobunRpcBridge => {
 		readonly addMessageListener?: unknown;
 		readonly removeMessageListener?: unknown;
 	};
-	if (Predicate.isObject(record.request) === false) {
+	const requestHolder = record.request;
+	if (
+		Predicate.isObject(requestHolder) === false &&
+		Predicate.isFunction(requestHolder) === false
+	) {
 		return false;
 	}
-	const request = record.request as {
+	const request = requestHolder as {
 		readonly ping?: unknown;
 		readonly dispatch?: unknown;
 		readonly snapshot?: unknown;
@@ -67,23 +77,41 @@ export const installElectrobunWebviewRpc = (): Effect.Effect<
 		if (existing !== null) {
 			return existing;
 		}
+		markBoot("install");
 		const loaded = yield* Effect.tryPromise({
-			try: () =>
-				import("electrobun/view").then((mod) => {
+			try: () => {
+				markBoot("importing");
+				return import("electrobun/view").then((mod) => {
+					markBoot("imported");
 					const rpc = mod.Electroview.defineRPC({
 						handlers: {
 							requests: {},
 							messages: {},
 						},
 					});
+					markBoot("defined");
 					const view = new mod.Electroview({ rpc });
+					markBoot("constructed");
 					return view.rpc;
-				}),
+				});
+			},
 			catch: transportErrorFrom,
-		});
-		if (isBridge(loaded) === false) {
+		}).pipe(
+			Effect.timeoutOrElse({
+				duration: Duration.seconds(2),
+				orElse: () =>
+					Effect.fail(
+						new RpcTransportError({
+							reason: `electrobun rpc install timed out at ${HOLDER.__acepeElectrobunBoot ?? "unknown"}`,
+						}),
+					),
+			}),
+		);
+		if (isElectrobunRpcBridge(loaded) === false) {
+			markBoot("mismatch");
 			return yield* new RpcTransportError({ reason: "electrobun webview rpc shape mismatch" });
 		}
 		bindElectrobunBridge(loaded);
+		markBoot("bound");
 		return loaded;
 	});

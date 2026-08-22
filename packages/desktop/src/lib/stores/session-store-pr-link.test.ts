@@ -65,6 +65,8 @@ describe("shouldDispatchPrLinkToggle", () => {
 		turns: snapshot.turns,
 		activities: snapshot.activities,
 		pendingApprovals: snapshot.pendingApprovals,
+		projects: snapshot.projects,
+		sessions: snapshot.sessions,
 	};
 
 	it("dispatches a manual override", () => {

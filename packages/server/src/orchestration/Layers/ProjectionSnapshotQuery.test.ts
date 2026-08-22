@@ -1,7 +1,9 @@
 import {
 	ActivityId,
 	ApprovalRequestId,
+	librarySnapshotRequest,
 	ProjectId,
+	projectSnapshotRequest,
 	SessionId,
 	TurnId
 } from "@acepe/contracts"
@@ -28,6 +30,8 @@ const NOW = "2026-08-20T12:00:00.000Z"
 const LATER = "2026-08-20T12:00:01.000Z"
 const sessionId = SessionId.make("session-1")
 const otherSessionId = SessionId.make("session-2")
+const archivedSessionId = SessionId.make("session-archived")
+const deletedSessionId = SessionId.make("session-deleted")
 const projectId = ProjectId.make("project-1")
 
 const TempSqlite = Layer.unwrap(
@@ -50,7 +54,9 @@ const isolatedQuery = () => Layer.fresh(TestLive)
 
 const insertSession = Effect.fn("insertSession")(function*(
 	id: SessionId,
-	title: string
+	title: string,
+	archivedAt: string | null = null,
+	deletedAt: string | null = null
 ) {
 	const sql = yield* SqlClient.SqlClient
 	yield* sql`
@@ -72,8 +78,33 @@ const insertSession = Effect.fn("insertSession")(function*(
 			${NOW},
 			${NOW},
 			${NOW},
+			${archivedAt},
+			${deletedAt}
+		)
+	`.withoutTransform.pipe(Effect.asVoid)
+})
+
+const insertProject = Effect.fn("insertProject")(function*() {
+	const sql = yield* SqlClient.SqlClient
+	yield* sql`
+		INSERT INTO projection_projects (
+			project_id,
+			title,
+			workspace_root,
+			created_at,
+			updated_at,
+			deleted_at,
+			session_count,
+			scan_warmed_at
+		) VALUES (
+			${projectId},
+			${"Acepe"},
+			${"/tmp/acepe"},
+			${NOW},
+			${NOW},
 			NULL,
-			NULL
+			${3},
+			${NOW}
 		)
 	`.withoutTransform.pipe(Effect.asVoid)
 })
@@ -158,7 +189,9 @@ Vitest.layer(isolatedQuery())("missing session", (it) => {
 				turns: [],
 				activities: [],
 				pendingApprovals: [],
-				checkpoints: []
+				checkpoints: [],
+				projects: [],
+				sessions: []
 			})
 		})
 	)
@@ -170,6 +203,36 @@ Vitest.layer(isolatedQuery())("listProjects", (it) => {
 			const query = yield* ProjectionSnapshotQuery
 			const listed = yield* query.listProjects()
 			Vitest.assert.deepStrictEqual(listed, [])
+		})
+	)
+})
+
+Vitest.layer(isolatedQuery())("library snapshot", (it) => {
+	it.effect("returns projects and sessions including archived and deleted", () =>
+		Effect.gen(function*() {
+			const query = yield* ProjectionSnapshotQuery
+			yield* insertProject()
+			yield* insertSession(sessionId, "Ship the slice")
+			yield* insertSession(archivedSessionId, "Archived thread", LATER, null)
+			yield* insertSession(deletedSessionId, "Deleted thread", null, LATER)
+			yield* checkpoint("projection.sessions", 6)
+			yield* checkpoint("projection.projects", 6)
+			const snapshot = yield* query.forRequest(librarySnapshotRequest())
+			Vitest.assert.strictEqual(snapshot.session, null)
+			Vitest.assert.strictEqual(snapshot.projects.length, 1)
+			Vitest.assert.strictEqual(snapshot.projects[0]?.title, "Acepe")
+			Vitest.assert.strictEqual(snapshot.sessions.length, 3)
+			const titles = snapshot.sessions.map((row) => row.title)
+			Vitest.assert.isTrue(titles.includes("Ship the slice"))
+			Vitest.assert.isTrue(titles.includes("Archived thread"))
+			Vitest.assert.isTrue(titles.includes("Deleted thread"))
+			const archived = snapshot.sessions.find((row) => row.sessionId === archivedSessionId)
+			const deleted = snapshot.sessions.find((row) => row.sessionId === deletedSessionId)
+			Vitest.assert.strictEqual(archived?.archivedAt, LATER)
+			Vitest.assert.strictEqual(deleted?.deletedAt, LATER)
+			const projectSnap = yield* query.forRequest(projectSnapshotRequest(projectId))
+			Vitest.assert.strictEqual(projectSnap.projects[0]?.projectId, projectId)
+			Vitest.assert.strictEqual(projectSnap.sessions.length, 3)
 		})
 	)
 })
