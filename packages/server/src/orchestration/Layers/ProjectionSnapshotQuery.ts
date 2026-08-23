@@ -176,7 +176,7 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 				return Arr.empty<ProjectedSessionActivity>()
 			}
 			const rows = yield* sql`
-				SELECT activity_id, session_id, sequence
+				SELECT activity_id, session_id, sequence, kind, status, title, path, tool_call_id
 				FROM projection_session_activities
 				WHERE session_id = ${sessionId}
 					AND sequence <= ${snapshotSequence}

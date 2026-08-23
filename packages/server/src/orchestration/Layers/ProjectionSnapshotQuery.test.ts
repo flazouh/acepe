@@ -458,7 +458,12 @@ Vitest.layer(isolatedQuery())("one transaction snapshot", (it) => {
 				{
 					activityId: ActivityId.make("activity-1"),
 					sessionId,
-					sequence: 4
+					sequence: 4,
+					kind: "tool",
+					status: "pending",
+					title: "activity",
+					path: null,
+					toolCallId: null
 				}
 			])
 			Vitest.assert.deepStrictEqual(snapshot.pendingApprovals, [

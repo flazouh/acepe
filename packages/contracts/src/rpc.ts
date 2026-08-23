@@ -231,6 +231,11 @@ export const RpcProjectedSessionActivity = Schema.Struct({
 	activityId: ActivityId,
 	sessionId: SessionId,
 	sequence: Sequence,
+	kind: Schema.optionalKey(Schema.String),
+	status: Schema.optionalKey(Schema.String),
+	title: Schema.optionalKey(TrimmedNonEmptyString),
+	path: Schema.optionalKey(Schema.NullOr(TrimmedNonEmptyString)),
+	toolCallId: Schema.optionalKey(Schema.NullOr(ToolCallId)),
 })
 export type RpcProjectedSessionActivity = typeof RpcProjectedSessionActivity.Type
 
@@ -238,6 +243,7 @@ export const RpcProjectedPendingApproval = Schema.Struct({
 	approvalRequestId: ApprovalRequestId,
 	sessionId: SessionId,
 	sequence: Sequence,
+	title: Schema.optionalKey(TrimmedNonEmptyString),
 })
 export type RpcProjectedPendingApproval = typeof RpcProjectedPendingApproval.Type
 

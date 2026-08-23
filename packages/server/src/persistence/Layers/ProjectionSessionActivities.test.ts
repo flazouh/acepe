@@ -130,7 +130,8 @@ const toolObserved = (
 		toolCallId,
 		operationId: null,
 		status,
-		title
+		title,
+		path: null
 	}
 })
 
@@ -426,7 +427,8 @@ const eventFromToolCallNotification = (
 			toolCallId: payload.toolCallId,
 			operationId: null,
 			status: payload.status,
-			title: payload.title
+			title: payload.title,
+			path: null
 		}
 	}
 }
@@ -611,27 +613,49 @@ Vitest.layer(isolatedGrade())("reference fixture through ProjectionSnapshotQuery
 			Vitest.assert.isDefined(first)
 			Vitest.assert.isDefined(second)
 			const listed = yield* activities.listBySession(first.payload.sessionId)
+			const firstListed = listed[0]
+			const secondListed = listed[1]
 			Vitest.assert.strictEqual(listed.length, 2)
-			Vitest.assert.strictEqual(listed[0]?.kind, "file")
-			Vitest.assert.strictEqual(listed[0]?.status, "completed")
-			Vitest.assert.strictEqual(listed[0]?.operationId, null)
-			Vitest.assert.isTrue(listed[0]?.path !== null)
-			Vitest.assert.strictEqual(listed[1]?.kind, "tool")
-			Vitest.assert.strictEqual(listed[1]?.status, "pending")
-			Vitest.assert.strictEqual(listed[1]?.operationId, null)
-			Vitest.assert.strictEqual(listed[1]?.title, "Bash")
+			Vitest.assert.isDefined(firstListed)
+			Vitest.assert.isDefined(secondListed)
+			Vitest.assert.strictEqual(firstListed.kind, "file")
+			Vitest.assert.strictEqual(firstListed.status, "completed")
+			Vitest.assert.strictEqual(firstListed.operationId, null)
+			Vitest.assert.isTrue(firstListed.path !== null)
+			Vitest.assert.strictEqual(secondListed.kind, "tool")
+			Vitest.assert.strictEqual(secondListed.status, "pending")
+			Vitest.assert.strictEqual(secondListed.operationId, null)
+			Vitest.assert.strictEqual(secondListed.title, "Bash")
+			Vitest.assert.strictEqual(first.type, "FileOperationObserved")
+			Vitest.assert.strictEqual(second.type, "ToolCallObserved")
+			if (first.type !== "FileOperationObserved") {
+				return
+			}
+			if (second.type !== "ToolCallObserved") {
+				return
+			}
 			const snapshot = yield* query.snapshot(first.payload.sessionId)
 			Vitest.assert.strictEqual(snapshot.snapshotSequence, lastSequence)
 			Vitest.assert.deepStrictEqual(snapshot.activities, [
 				{
 					activityId: first.payload.activityId,
 					sessionId: first.payload.sessionId,
-					sequence: first.sequence
+					sequence: first.sequence,
+					kind: "file",
+					status: first.payload.status,
+					title: first.payload.title,
+					path: first.payload.path,
+					toolCallId: first.payload.toolCallId
 				},
 				{
 					activityId: second.payload.activityId,
 					sessionId: second.payload.sessionId,
-					sequence: second.sequence
+					sequence: second.sequence,
+					kind: "tool",
+					status: second.payload.status,
+					title: second.payload.title,
+					path: second.payload.path,
+					toolCallId: second.payload.toolCallId
 				}
 			])
 		})

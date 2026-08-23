@@ -37,7 +37,37 @@ import {
 	GitHunkRejectedPayload,
 	GitStatusRefreshedPayload,
 } from "./events.ts"
-import { CheckpointId, CommandId, EventId, MessageId, ProjectId, SessionId, ToolCallId, TurnId } from "./ids.ts"
+import {
+	AgentAuthenticatedPayload,
+	AgentAuthenticationCancelledPayload,
+	AgentCustomRegisteredPayload,
+	AgentInitializedPayload,
+	AgentInstalledPayload,
+	AgentUninstalledPayload,
+	AgentsListedPayload,
+	ApprovalRequestedPayload,
+	ComposerMcpCatalogLoadedPayload,
+	ComputerUseProbedPayload,
+	EventBridgeRefreshedPayload,
+	InboundRespondedPayload,
+	InteractionRepliedPayload,
+	PreconnectionCapabilitiesListedPayload,
+	PreconnectionCommandsListedPayload,
+	SessionAutonomousSetPayload,
+	SessionClosedPayload,
+	SessionConfigOptionSetPayload,
+	SessionConnectionRefreshedPayload,
+	SessionForkedPayload,
+	SessionModelSetPayload,
+	SessionModeSetPayload,
+	SessionResumedPayload,
+	SessionStateRefreshedPayload,
+	ToolCallObservedPayload,
+	TranscriptPageReadPayload,
+	TranscriptViewportRequestedPayload,
+	APP_AGENTS_ID,
+} from "./acp.ts"
+import { ActivityId, ApprovalRequestId, CheckpointId, CommandId, EventId, MessageId, ProjectId, SessionId, ToolCallId, TurnId } from "./ids.ts"
 import { APP_SETTINGS_ID } from "./settings.ts"
 import { APP_SKILLS_ID, emptySkillsCatalog } from "./skills.ts"
 import {
@@ -79,6 +109,33 @@ const v1EventTypes = [
 	"GitBlameLoaded",
 	"GitHunkAccepted",
 	"GitHunkRejected",
+	"SessionResumed",
+	"SessionForked",
+	"SessionClosed",
+	"SessionModelSet",
+	"SessionModeSet",
+	"SessionAutonomousSet",
+	"SessionConfigOptionSet",
+	"InteractionReplied",
+	"InboundResponded",
+	"AgentInitialized",
+	"AgentInstalled",
+	"AgentUninstalled",
+	"AgentAuthenticated",
+	"AgentAuthenticationCancelled",
+	"AgentCustomRegistered",
+	"AgentsListed",
+	"SessionConnectionRefreshed",
+	"SessionStateRefreshed",
+	"TranscriptPageRead",
+	"TranscriptViewportRequested",
+	"PreconnectionCapabilitiesListed",
+	"PreconnectionCommandsListed",
+	"ComposerMcpCatalogLoaded",
+	"ComputerUseProbed",
+	"EventBridgeRefreshed",
+	"ToolCallObserved",
+	"ApprovalRequested",
 ] as const
 
 type V1EventType = (typeof v1EventTypes)[number]
@@ -106,9 +163,24 @@ type GitEventType = Extract<
 	| "GitHunkAccepted"
 	| "GitHunkRejected"
 >
+type AgentEventType = Extract<
+	EventType,
+	| "AgentInitialized"
+	| "AgentInstalled"
+	| "AgentUninstalled"
+	| "AgentAuthenticated"
+	| "AgentAuthenticationCancelled"
+	| "AgentCustomRegistered"
+	| "AgentsListed"
+	| "PreconnectionCapabilitiesListed"
+	| "PreconnectionCommandsListed"
+	| "ComposerMcpCatalogLoaded"
+	| "ComputerUseProbed"
+	| "EventBridgeRefreshed"
+>
 type SessionEventType = Exclude<
 	EventType,
-	ProjectEventType | SettingsEventType | SkillsEventType | VoiceEventType | GitEventType
+	ProjectEventType | SettingsEventType | SkillsEventType | VoiceEventType | GitEventType | AgentEventType
 >
 const _v1EventTypesMatchUnion: [EventType] extends [V1EventType]
 	? [V1EventType] extends [EventType]
@@ -143,9 +215,12 @@ const messageId = MessageId.make("message-1")
 const turnId = TurnId.make("turn-1")
 const checkpointId = CheckpointId.make("checkpoint-1")
 const toolCallId = ToolCallId.make("tool-1")
+const activityId = ActivityId.make("activity-1")
+const approvalRequestId = ApprovalRequestId.make("approval-1")
+const forkedSessionId = SessionId.make("session-2")
 const occurredAt = "2026-08-20T12:00:00.000Z"
 
-const projectEvent = <const Type extends ProjectEventType, Payload>(
+const projectEvent = <const Type extends ProjectEventType, const Payload>(
 	type: Type,
 	payload: Payload,
 ) => ({
@@ -162,7 +237,7 @@ const projectEvent = <const Type extends ProjectEventType, Payload>(
 	payload,
 })
 
-const sessionEvent = <const Type extends SessionEventType, Payload>(
+const sessionEvent = <const Type extends SessionEventType, const Payload>(
 	type: Type,
 	payload: Payload,
 ) => ({
@@ -179,7 +254,7 @@ const sessionEvent = <const Type extends SessionEventType, Payload>(
 	payload,
 })
 
-const settingsEvent = <const Type extends SettingsEventType, Payload>(
+const settingsEvent = <const Type extends SettingsEventType, const Payload>(
 	type: Type,
 	payload: Payload,
 ) => ({
@@ -196,7 +271,7 @@ const settingsEvent = <const Type extends SettingsEventType, Payload>(
 	payload,
 })
 
-const skillsEvent = <const Type extends SkillsEventType, Payload>(
+const skillsEvent = <const Type extends SkillsEventType, const Payload>(
 	type: Type,
 	payload: Payload,
 ) => ({
@@ -213,7 +288,7 @@ const skillsEvent = <const Type extends SkillsEventType, Payload>(
 	payload,
 })
 
-const voiceEvent = <const Type extends VoiceEventType, Payload>(
+const voiceEvent = <const Type extends VoiceEventType, const Payload>(
 	type: Type,
 	payload: Payload,
 ) => ({
@@ -230,7 +305,7 @@ const voiceEvent = <const Type extends VoiceEventType, Payload>(
 	payload,
 })
 
-const gitEvent = <const Type extends GitEventType, Payload>(
+const gitEvent = <const Type extends GitEventType, const Payload>(
 	type: Type,
 	payload: Payload,
 ) => ({
@@ -238,6 +313,23 @@ const gitEvent = <const Type extends GitEventType, Payload>(
 	eventId,
 	aggregateKind: "git" as const,
 	aggregateId: projectId,
+	occurredAt,
+	commandId,
+	causationEventId: null,
+	correlationId: commandId,
+	metadata: {},
+	type,
+	payload,
+})
+
+const agentEvent = <const Type extends AgentEventType, const Payload>(
+	type: Type,
+	payload: Payload,
+) => ({
+	sequence: 7,
+	eventId,
+	aggregateKind: "agent" as const,
+	aggregateId: APP_AGENTS_ID,
 	occurredAt,
 	commandId,
 	causationEventId: null,
@@ -471,6 +563,146 @@ const memberCases = [
 			filePath: "notes.md",
 			hunkIndex: 1,
 			newContent: "alpha\n",
+		}),
+	},
+	{
+		payloadSchema: SessionResumedPayload,
+		event: sessionEvent("SessionResumed", { sessionId }),
+	},
+	{
+		payloadSchema: SessionForkedPayload,
+		event: sessionEvent("SessionForked", { sessionId, newSessionId: forkedSessionId }),
+	},
+	{
+		payloadSchema: SessionClosedPayload,
+		event: sessionEvent("SessionClosed", { sessionId }),
+	},
+	{
+		payloadSchema: SessionModelSetPayload,
+		event: sessionEvent("SessionModelSet", { sessionId, modelId: "claude-opus-4" }),
+	},
+	{
+		payloadSchema: SessionModeSetPayload,
+		event: sessionEvent("SessionModeSet", { sessionId, modeId: "code" }),
+	},
+	{
+		payloadSchema: SessionAutonomousSetPayload,
+		event: sessionEvent("SessionAutonomousSet", { sessionId, autonomous: true }),
+	},
+	{
+		payloadSchema: SessionConfigOptionSetPayload,
+		event: sessionEvent("SessionConfigOptionSet", {
+			sessionId,
+			key: "effort",
+			value: "high",
+		}),
+	},
+	{
+		payloadSchema: InteractionRepliedPayload,
+		event: sessionEvent("InteractionReplied", {
+			sessionId,
+			approvalRequestId,
+			decision: "allow" as const,
+		}),
+	},
+	{
+		payloadSchema: InboundRespondedPayload,
+		event: sessionEvent("InboundResponded", {
+			sessionId,
+			requestId: "inbound-1",
+			body: "yes",
+		}),
+	},
+	{
+		payloadSchema: AgentInitializedPayload,
+		event: agentEvent("AgentInitialized", { agentId: "claude" }),
+	},
+	{
+		payloadSchema: AgentInstalledPayload,
+		event: agentEvent("AgentInstalled", { agentId: "claude" }),
+	},
+	{
+		payloadSchema: AgentUninstalledPayload,
+		event: agentEvent("AgentUninstalled", { agentId: "claude" }),
+	},
+	{
+		payloadSchema: AgentAuthenticatedPayload,
+		event: agentEvent("AgentAuthenticated", { agentId: "claude" }),
+	},
+	{
+		payloadSchema: AgentAuthenticationCancelledPayload,
+		event: agentEvent("AgentAuthenticationCancelled", { agentId: "claude" }),
+	},
+	{
+		payloadSchema: AgentCustomRegisteredPayload,
+		event: agentEvent("AgentCustomRegistered", { agentId: "custom-1", label: "Local agent" }),
+	},
+	{
+		payloadSchema: AgentsListedPayload,
+		event: agentEvent("AgentsListed", {
+			agents: [{ agentId: "claude", installed: true, authenticated: true }],
+		}),
+	},
+	{
+		payloadSchema: SessionConnectionRefreshedPayload,
+		event: sessionEvent("SessionConnectionRefreshed", { sessionId, ready: true }),
+	},
+	{
+		payloadSchema: SessionStateRefreshedPayload,
+		event: sessionEvent("SessionStateRefreshed", { sessionId, state: "idle" }),
+	},
+	{
+		payloadSchema: TranscriptPageReadPayload,
+		event: sessionEvent("TranscriptPageRead", { sessionId, cursor: "0" }),
+	},
+	{
+		payloadSchema: TranscriptViewportRequestedPayload,
+		event: sessionEvent("TranscriptViewportRequested", { sessionId, anchor: "bottom" }),
+	},
+	{
+		payloadSchema: PreconnectionCapabilitiesListedPayload,
+		event: agentEvent("PreconnectionCapabilitiesListed", {
+			agentId: "claude",
+			capabilities: ["models"],
+		}),
+	},
+	{
+		payloadSchema: PreconnectionCommandsListedPayload,
+		event: agentEvent("PreconnectionCommandsListed", {
+			agentId: "claude",
+			commands: ["compact"],
+		}),
+	},
+	{
+		payloadSchema: ComposerMcpCatalogLoadedPayload,
+		event: agentEvent("ComposerMcpCatalogLoaded", { entries: ["fs"] }),
+	},
+	{
+		payloadSchema: ComputerUseProbedPayload,
+		event: agentEvent("ComputerUseProbed", { available: false }),
+	},
+	{
+		payloadSchema: EventBridgeRefreshedPayload,
+		event: agentEvent("EventBridgeRefreshed", { connected: true }),
+	},
+	{
+		payloadSchema: ToolCallObservedPayload,
+		event: sessionEvent("ToolCallObserved", {
+			sessionId,
+			activityId,
+			toolCallId,
+			operationId: null,
+			status: "in_progress",
+			title: "Read",
+			path: null,
+		}),
+	},
+	{
+		payloadSchema: ApprovalRequestedPayload,
+		event: sessionEvent("ApprovalRequested", {
+			sessionId,
+			approvalRequestId,
+			title: "Permission",
 		}),
 	},
 ] as const

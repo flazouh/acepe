@@ -44,6 +44,7 @@ import {
 	type SessionProjectionSnapshot,
 	ProjectionSnapshotQuery
 } from "../orchestration/Services/ProjectionSnapshotQuery.ts"
+import { fillAcpCommand } from "../acp/fillCommand.ts"
 import { fillSkillsDiscoverCommand } from "../skills/discoverCatalog.ts"
 import { fillGitCommand } from "../git/fillCommand.ts"
 import { fillVoiceCommand } from "../voice/fillCommand.ts"
@@ -263,7 +264,8 @@ export const dispatchOrchestrationCommand = Effect.fn("dispatchOrchestrationComm
 	const engine = yield* OrchestrationEngine
 	const filledSkills = yield* fillSkillsDiscoverCommand(command)
 	const filledVoice = yield* fillVoiceCommand(filledSkills)
-	const filled = yield* fillGitCommand(filledVoice)
+	const filledGit = yield* fillGitCommand(filledVoice)
+	const filled = yield* fillAcpCommand(filledGit)
 	return yield* engine.dispatch(filled)
 })
 
