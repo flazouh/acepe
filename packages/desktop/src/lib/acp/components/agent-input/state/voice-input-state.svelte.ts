@@ -1,18 +1,10 @@
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import * as Effect from "effect/Effect";
 import { toast } from "svelte-sonner";
 import { SoundEffect } from "$lib/acp/types/sounds.js";
 import { playSound } from "$lib/acp/utils/sound.js";
-import { tauriClient } from "../../../../utils/tauri-client.js";
+import { tauriClient } from "$lib/utils/tauri-client.js";
 import type { AppError } from "../../../errors/app-error.js";
-import type {
-	AmplitudePayload,
-	RecordingErrorPayload,
-	TranscriptionCompletePayload,
-	TranscriptionErrorPayload,
-	VoiceInputPhase,
-	VoiceModelDownloadProgress,
-} from "../../../types/voice-input.js";
+import type { VoiceInputPhase } from "../../../types/voice-input.js";
 import { createLogger } from "../../../utils/logger.js";
 import { canCancelVoiceInteraction, shouldShowVoiceOverlay } from "../logic/voice-ui-state.js";
 import { transition } from "./voice-transitions.js";
@@ -76,7 +68,6 @@ export class VoiceInputState {
 			: `${(this.recordingElapsedTenthsDisplay / 10).toFixed(1)}s`
 	);
 
-	private readonly unlisteners: UnlistenFn[] = [];
 	private pressTimer: ReturnType<typeof setTimeout> | null = null;
 	private errorResetTimer: ReturnType<typeof setTimeout> | null = null;
 	private recordingElapsedTimer: ReturnType<typeof setInterval> | null = null;
@@ -109,112 +100,15 @@ export class VoiceInputState {
 		log("VoiceInputState created", { sessionId: this.sessionId });
 	}
 
-	/** Register Tauri event listeners. Call once from onMount. */
+	/** Voice amplitude and transcription now arrive through dispatch/snapshot. */
 	async registerListeners(): Promise<void> {
-		log("Registering Tauri event listeners...");
-		const [
-			amplitudeUnlisten,
-			recErrUnlisten,
-			transcCompleteUnlisten,
-			transcErrUnlisten,
-			dlProgressUnlisten,
-		] = await Promise.all([
-			listen<AmplitudePayload>("voice://amplitude", (event) => {
-				if (this.isDisposed) return;
-				if (event.payload.session_id !== this.sessionId) {
-					log("amplitude event: session_id mismatch", {
-						expected: this.sessionId,
-						got: event.payload.session_id,
-					});
-					return;
-				}
-				if (this.phase !== "recording") {
-					log("amplitude event: ignored (not recording)", { phase: this.phase });
-					return;
-				}
-				this.waveform.pushBatch(event.payload.values);
-			}),
-			listen<RecordingErrorPayload>("voice://recording_error", (event) => {
-				if (this.isDisposed) return;
-				if (event.payload.session_id !== this.sessionId) return;
-				log("recording_error event", { message: event.payload.message, phase: this.phase });
-				this.setError(event.payload.message);
-			}),
-			listen<TranscriptionCompletePayload>("voice://transcription_complete", (event) => {
-				if (this.isDisposed) return;
-				if (event.payload.session_id !== this.sessionId) return;
-				const text = event.payload.text.trim();
-				log("transcription_complete event", {
-					textLength: event.payload.text.length,
-					trimmedTextLength: text.length,
-					textPreview: previewText(event.payload.text),
-					language: event.payload.language,
-					duration_ms: event.payload.duration_ms,
-					phase: this.phase,
-				});
-				this.clearWatchdog();
-				if (text) {
-					this.onTranscriptionReady?.(text);
-				} else {
-					toast.info("No speech detected");
-				}
-				this.transitionTo("complete");
-				// Auto-advance complete → idle (no timer needed — fire immediately)
-				this.transitionTo("idle");
-			}),
-			listen<TranscriptionErrorPayload>("voice://transcription_error", (event) => {
-				if (this.isDisposed) return;
-				if (event.payload.session_id !== this.sessionId) return;
-				log("transcription_error event", { message: event.payload.message, phase: this.phase });
-				this.clearWatchdog();
-				this.setError(event.payload.message);
-			}),
-			listen<VoiceModelDownloadProgress>("voice://model_download_progress", (event) => {
-				if (this.isDisposed) return;
-				if (this.phase !== "downloading_model") return;
-				if (this.activeDownloadModelId === null) return;
-				if (event.payload.model_id !== this.activeDownloadModelId) {
-					log("download_progress: ignored (model_id mismatch)", {
-						expected: this.activeDownloadModelId,
-						got: event.payload.model_id,
-					});
-					return;
-				}
-				const prevPercent = this.downloadPercent;
-				this.downloadPercent = event.payload.percent;
-				// Log at 0%, 25%, 50%, 75%, 100% to avoid spam
-				if (
-					Math.floor(event.payload.percent / 25) !== Math.floor(prevPercent / 25) ||
-					event.payload.percent >= 100
-				) {
-					log("download_progress", {
-						percent: event.payload.percent,
-						downloaded: event.payload.downloaded_bytes,
-						total: event.payload.total_bytes,
-						phase: this.phase,
-					});
-				}
-			}),
-		]);
-
-		this.unlisteners.push(
-			amplitudeUnlisten,
-			recErrUnlisten,
-			transcCompleteUnlisten,
-			transcErrUnlisten,
-			dlProgressUnlisten
-		);
-		log("Event listeners registered");
+		log("Voice listeners skipped; transcription completes on stopRecording");
 	}
 
 	/** Unregister listeners and cancel any timers. Call from onDestroy. */
 	dispose(): void {
 		log("dispose()", { phase: this.phase, isDisposed: this.isDisposed });
 		this.isDisposed = true;
-		for (const unlisten of this.unlisteners) {
-			this.runUnlisten(unlisten);
-		}
-		this.unlisteners.length = 0;
 		this.clearPressTimer();
 		this.clearWatchdog();
 		this.stopRecordingElapsedTimer();
@@ -234,19 +128,6 @@ export class VoiceInputState {
 		}
 	}
 
-	private runUnlisten(unlisten: UnlistenFn): void {
-		void Promise.resolve()
-			.then(() => unlisten())
-			.catch((rawError) => {
-				const error = rawError instanceof Error ? rawError : new Error(String(rawError));
-				if (error.message.includes("listeners[eventId].handlerId")) {
-					logger.debug("Voice listener already removed during teardown", { error });
-					return;
-				}
-				logger.warn("Failed to unregister voice listener", { error });
-			});
-	}
-
 	// ── Press-and-hold interaction ───────────────────────────────────────────────
 
 	/** Called on pointerdown on the mic button. */
@@ -256,7 +137,9 @@ export class VoiceInputState {
 			log("onMicPointerDown: ignored (not idle)");
 			return;
 		}
-		(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+		if (event.isTrusted === true) {
+			(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+		}
 		playSound(SoundEffect.DictationStart);
 		this.startPressAndHoldTimer();
 	}
@@ -384,8 +267,16 @@ export class VoiceInputState {
 		void Effect.runPromise(
 			tauriClient.voice.stopRecording(this.sessionId, language).pipe(
 				Effect.match({
-					onSuccess: () => {
-						log("stopRecording: success, waiting for transcription event");
+					onSuccess: (result) => {
+						log("stopRecording: success", {
+							textPreview: previewText(result.text),
+							language: result.language,
+							duration_ms: result.duration_ms,
+						});
+						if (!this.shouldContinueFromPhase("transcribing", "stopRecording.success")) {
+							return;
+						}
+						this.finishTranscription(result.text);
 					},
 					onFailure: (err: AppError) => {
 						log("stopRecording: FAILED", { error: err.message });
@@ -551,6 +442,18 @@ export class VoiceInputState {
 				})
 			)
 		);
+	}
+
+	private finishTranscription(text: string): void {
+		this.clearWatchdog();
+		const trimmed = text.trim();
+		if (trimmed.length > 0) {
+			this.onTranscriptionReady?.(trimmed);
+		} else {
+			toast.info("No speech detected");
+		}
+		this.transitionTo("complete");
+		this.transitionTo("idle");
 	}
 
 	private transitionTo(next: VoiceInputPhase): void {

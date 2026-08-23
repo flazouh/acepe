@@ -7,11 +7,15 @@ import {
 	type RpcSessionSnapshot,
 	type SessionId,
 } from "@acepe/contracts";
+import { AgentInputMicButton, getMicButtonVisualState } from "@acepe/ui";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
 import { onMount } from "svelte";
 
+import { handleVoiceMicKeyDown } from "$lib/acp/components/agent-input/logic/voice-mic-keyboard.js";
+import { resolveVoiceMicTooltip } from "$lib/acp/components/agent-input/logic/voice-mic-labels.js";
+import { VoiceInputState } from "$lib/acp/components/agent-input/state/voice-input-state.svelte.js";
 import { composeSessionStore } from "$lib/stores/session-store-compose.ts";
 import AgentPanelView from "./agent-panel-view.svelte";
 import { sendComposerMessage } from "./agent-panel-send.ts";
@@ -20,6 +24,29 @@ let { client, sessionId }: { client: RpcClient; sessionId: SessionId } = $props(
 
 let snapshot = $state.raw<RpcSessionSnapshot>(emptyRpcSessionSnapshot(0));
 let lastSendError = $state<string | null>(null);
+let composerInput = $state<HTMLInputElement | null>(null);
+
+const voiceMicTooltipLabels = {
+	downloadingModel: "Downloading speech model…",
+	loadingModel: "Loading model...",
+	checkingPermission: "Checking...",
+	transcribing: "Transcribing…",
+	stopRecording: "Stop recording",
+	startRecording: "Start voice recording",
+} as const;
+
+const voiceState = new VoiceInputState({
+	sessionId,
+	onTranscriptionReady: (text) => {
+		if (composerInput === null) {
+			return;
+		}
+		const current = composerInput.value;
+		composerInput.value = current.length === 0 ? text : `${current} ${text}`;
+	},
+});
+
+const micTitle = $derived(resolveVoiceMicTooltip(voiceState.phase, voiceMicTooltipLabels));
 
 const registry = AtomRegistry.make();
 const store = composeSessionStore({
@@ -99,6 +126,7 @@ const onComposerSubmit = (event: SubmitEvent) => {
 onMount(() => {
 	const fiber = Effect.runFork(store.openSession(sessionId));
 	return () => {
+		voiceState.dispose();
 		Effect.runFork(Fiber.interrupt(fiber));
 	};
 });
@@ -110,15 +138,36 @@ onMount(() => {
 	data-qa-snapshot-rows={snapshot.messages.length}
 	data-qa-snapshot-seq={snapshot.snapshotSequence}
 	data-qa-send-error={lastSendError ?? ""}
+	data-voice-phase={voiceState.phase}
+	data-voice-error={voiceState.errorMessage ?? ""}
 >
 	<AgentPanelView {snapshot} />
-	<form class="m-3 shrink-0" onsubmit={onComposerSubmit}>
+	<form class="m-3 flex shrink-0 items-center gap-2" onsubmit={onComposerSubmit}>
 		<input
+			bind:this={composerInput}
 			type="text"
 			data-qa="composer-input"
 			onkeydown={onComposerKeydown}
 			aria-label="Message"
-			class="w-full rounded-lg border border-border/60 bg-background px-3 py-2 text-sm"
+			class="min-w-0 flex-1 rounded-lg border border-border/60 bg-background px-3 py-2 text-sm"
+		/>
+		<AgentInputMicButton
+			visualState={getMicButtonVisualState(voiceState.phase)}
+			downloadPercent={voiceState.downloadPercent}
+			title={micTitle}
+			ariaLabel={micTitle}
+			onpointerdown={(event) => {
+				voiceState.onMicPointerDown(event);
+			}}
+			onpointerup={() => {
+				voiceState.onMicPointerUp();
+			}}
+			onpointercancel={() => {
+				voiceState.onMicPointerCancel();
+			}}
+			onkeydown={(event) => {
+				handleVoiceMicKeyDown(event, voiceState);
+			}}
 		/>
 	</form>
 </section>

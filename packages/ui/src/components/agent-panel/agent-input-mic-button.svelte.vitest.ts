@@ -32,6 +32,7 @@ describe("AgentInputMicButton", () => {
 		const button = view.getByRole("button", { name: "Start voice recording" });
 		const icon = view.getByTestId("agent-input-mic-icon");
 
+		expect(button.getAttribute("data-testid")).toBe("agent-input-mic");
 		expect(button.getAttribute("data-slot")).toBe("button");
 		expect(button.className).toContain("h-7");
 		expect(button.className).toContain("w-6");

@@ -1,11 +1,9 @@
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import { getContext, setContext } from "svelte";
 import { toast } from "svelte-sonner";
 import type {
 	VoiceLanguageOption,
-	VoiceModelDownloadProgress,
 	VoiceModelInfo,
 } from "$lib/acp/types/voice-input.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
@@ -39,15 +37,6 @@ function normalizeLanguageForModel(model: VoiceModelInfo | null, value: string):
 	return "auto";
 }
 
-interface VoiceDownloadCompletePayload {
-	model_id: string;
-}
-
-interface VoiceDownloadErrorPayload {
-	model_id: string;
-	message: string;
-}
-
 export class VoiceSettingsStore {
 	enabled = $state(true);
 	selectedModelId = $state(DEFAULT_MODEL_ID);
@@ -64,7 +53,6 @@ export class VoiceSettingsStore {
 
 	private initialized = false;
 	private listenersRegistered = false;
-	private readonly unlisteners: UnlistenFn[] = [];
 
 	async initialize(): Promise<void> {
 		if (this.initialized) {
@@ -83,9 +71,6 @@ export class VoiceSettingsStore {
 	}
 
 	dispose(): void {
-		for (const unlisten of this.unlisteners.splice(0)) {
-			unlisten();
-		}
 		this.initialized = false;
 		this.listenersRegistered = false;
 	}
@@ -208,7 +193,12 @@ export class VoiceSettingsStore {
 				this.downloadProgressModelId = null;
 				this.downloadPercent = 0;
 			}
+			return;
 		}
+
+		this.downloadProgressModelId = null;
+		this.downloadPercent = 0;
+		await this.refreshModels();
 	}
 
 	async deleteModel(modelId: string): Promise<void> {
@@ -379,32 +369,6 @@ export class VoiceSettingsStore {
 			return;
 		}
 		this.listenersRegistered = true;
-
-		const [progressUnlisten, completeUnlisten, errorUnlisten] = await Promise.all([
-			listen<VoiceModelDownloadProgress>("voice://model_download_progress", (event) => {
-				this.downloadProgressModelId = event.payload.model_id;
-				this.downloadPercent = event.payload.percent;
-			}),
-			listen<VoiceDownloadCompletePayload>("voice://model_download_complete", (event) => {
-				if (this.downloadProgressModelId === event.payload.model_id) {
-					this.downloadProgressModelId = null;
-					this.downloadPercent = 0;
-				}
-				void this.refreshModels();
-			}),
-			listen<VoiceDownloadErrorPayload>("voice://model_download_error", (event) => {
-				logger.error("Voice model download failed", {
-					message: event.payload.message,
-					modelId: event.payload.model_id,
-				});
-				if (this.downloadProgressModelId === event.payload.model_id) {
-					this.downloadProgressModelId = null;
-					this.downloadPercent = 0;
-				}
-			}),
-		]);
-
-		this.unlisteners.push(progressUnlisten, completeUnlisten, errorUnlisten);
 	}
 }
 
