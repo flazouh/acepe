@@ -1,6 +1,8 @@
+import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Predicate from "effect/Predicate"
+import * as Result from "effect/Result"
 import {
 	PtyAdapter,
 	type PtyExitEvent,
@@ -9,7 +11,18 @@ import {
 	PtySpawnError,
 	type PtySpawnInput
 } from "../Services/PtyAdapter.ts"
-import { DEFAULT_TERM } from "../shellEnv.ts"
+import {
+	closeFd,
+	EAGAIN,
+	EINTR,
+	lastErrno,
+	openPtyPair,
+	PtyFfiError,
+	readFd,
+	setNonblock,
+	setWinsizeSync,
+	writeFd
+} from "../ptyFfi.ts"
 
 export const BUN_PTY_ADAPTER = "bun"
 
@@ -20,24 +33,6 @@ const causeMessage = (cause: {}): string => {
 	return "unknown failure"
 }
 
-const SIGNAL_BY_NAME: { readonly [key: string]: number } = {
-	SIGHUP: 1,
-	SIGINT: 2,
-	SIGKILL: 9,
-	SIGTERM: 15
-}
-
-const signalFromName = (name: string | null): number | null => {
-	if (name === null) {
-		return null
-	}
-	const mapped = SIGNAL_BY_NAME[name]
-	if (mapped === undefined) {
-		return null
-	}
-	return mapped
-}
-
 const commandLine = (input: PtySpawnInput): Array<string> => {
 	const cmd: Array<string> = [input.shell]
 	for (const arg of input.args) {
@@ -46,12 +41,77 @@ const commandLine = (input: PtySpawnInput): Array<string> => {
 	return cmd
 }
 
-const openBunPty = (input: PtySpawnInput): PtyProcess => {
+const toSpawnError = (input: PtySpawnInput, error: PtyFfiError): PtySpawnError =>
+	new PtySpawnError({
+		adapter: BUN_PTY_ADAPTER,
+		shell: input.shell,
+		detail: error.message
+	})
+
+const writeAll = (fd: number, bytes: Uint8Array): void => {
+	let offset = 0
+	while (offset < bytes.byteLength) {
+		const n = writeFd(fd, bytes.subarray(offset))
+		if (n < 0) {
+			const err = lastErrno()
+			if (err === EINTR) {
+				continue
+			}
+			throw new Error(`PTY write failed (errno ${err})`)
+		}
+		if (n === 0) {
+			throw new Error("PTY write returned 0")
+		}
+		offset = offset + n
+	}
+}
+
+const pumpMaster = Effect.fn("BunPtyAdapter.pump")(function*(
+	master: number,
+	emitData: (data: string) => void,
+	closeMaster: () => void,
+	isOpen: () => boolean
+) {
 	const decoder = new TextDecoder()
+	const buffer = new Uint8Array(4096)
+	while (isOpen() === true) {
+		const n = readFd(master, buffer)
+		if (n > 0) {
+			emitData(decoder.decode(buffer.subarray(0, n), { stream: true }))
+			continue
+		}
+		if (n === 0) {
+			closeMaster()
+			return
+		}
+		const err = lastErrno()
+		if (err === EAGAIN || err === EINTR) {
+			yield* Effect.sleep(Duration.millis(8))
+			continue
+		}
+		closeMaster()
+		return
+	}
+})
+
+const spawnPty = Effect.fn("BunPtyAdapter.spawn")(function*(input: PtySpawnInput) {
+	const pair = yield* openPtyPair({
+		cols: input.cols,
+		rows: input.rows
+	}).pipe(Effect.mapError((error) => toSpawnError(input, error)))
+	const nonblock = yield* Effect.result(
+		setNonblock(pair.master).pipe(Effect.mapError((error) => toSpawnError(input, error)))
+	)
+	if (Result.isFailure(nonblock) === true) {
+		closeFd(pair.master)
+		closeFd(pair.slave)
+		return yield* nonblock.failure
+	}
 	let dataCb: ((data: string) => void) | undefined
 	let exitCb: ((event: PtyExitEvent) => void) | undefined
 	const pendingData: Array<string> = []
 	let pendingExit: PtyExitEvent | undefined
+	let masterOpen = true
 	const emitData = (data: string): void => {
 		if (dataCb !== undefined) {
 			dataCb(data)
@@ -66,41 +126,55 @@ const openBunPty = (input: PtySpawnInput): PtyProcess => {
 		}
 		pendingExit = event
 	}
-	const proc = Bun.spawn({
-		cmd: commandLine(input),
-		cwd: input.cwd,
-		env: input.env,
-		terminal: {
-			cols: input.cols,
-			rows: input.rows,
-			name: DEFAULT_TERM,
-			data: (_terminal, chunk) => {
-				emitData(decoder.decode(chunk, { stream: true }))
-			}
-		},
-		onExit: (subprocess, exitCode) => {
-			const term = subprocess.terminal
-			if (term !== undefined && term.closed === false) {
-				term.close()
-			}
-			emitExit({
-				exitCode: exitCode === null ? 0 : exitCode,
-				signal: signalFromName(subprocess.signalCode)
+	const closeMaster = (): void => {
+		if (masterOpen === false) {
+			return
+		}
+		masterOpen = false
+		closeFd(pair.master)
+	}
+	const proc = yield* Effect.try({
+		try: () =>
+			Bun.spawn({
+				cmd: commandLine(input),
+				cwd: input.cwd,
+				env: input.env,
+				stdin: pair.slave,
+				stdout: pair.slave,
+				stderr: pair.slave,
+				detached: true,
+				onExit: (_subprocess, exitCode, signalCode) => {
+					emitExit({
+						exitCode: exitCode === null ? 0 : exitCode,
+						signal: signalCode
+					})
+				}
+			}),
+		catch: (cause) => {
+			closeFd(pair.master)
+			closeFd(pair.slave)
+			return new PtySpawnError({
+				adapter: BUN_PTY_ADAPTER,
+				shell: input.shell,
+				detail: Predicate.isObject(cause) === true ? causeMessage(cause) : "unknown failure"
 			})
 		}
 	})
-	const terminal = proc.terminal
-	if (terminal === undefined) {
-		proc.kill("SIGKILL")
-		throw new Error("Bun.spawn did not attach a PTY")
-	}
+	closeFd(pair.slave)
+	yield* pumpMaster(pair.master, emitData, closeMaster, () => masterOpen === true).pipe(
+		Effect.forkDetach({ startImmediately: true })
+	)
+	const encoder = new TextEncoder()
 	return {
 		pid: proc.pid,
 		write: (data: string) => {
-			terminal.write(data)
+			writeAll(pair.master, encoder.encode(data))
 		},
 		resize: (cols: number, rows: number) => {
-			terminal.resize(cols, rows)
+			const rc = setWinsizeSync(pair.master, { cols, rows })
+			if (rc !== 0) {
+				throw new Error(`TIOCSWINSZ failed (errno ${lastErrno()})`)
+			}
 		},
 		kill: (signal?: PtySignal) => {
 			if (signal === undefined) {
@@ -129,20 +203,8 @@ const openBunPty = (input: PtySpawnInput): PtyProcess => {
 				exitCb = undefined
 			}
 		}
-	}
-}
-
-const spawnPty = Effect.fn("BunPtyAdapter.spawn")((input: PtySpawnInput) =>
-	Effect.try({
-		try: () => openBunPty(input),
-		catch: (cause) =>
-			new PtySpawnError({
-				adapter: BUN_PTY_ADAPTER,
-				shell: input.shell,
-				detail: Predicate.isObject(cause) === true ? causeMessage(cause) : "unknown failure"
-			})
-	})
-)
+	} satisfies PtyProcess
+})
 
 export const BunPtyAdapterLive = Layer.succeed(
 	PtyAdapter,

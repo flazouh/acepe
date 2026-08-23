@@ -140,3 +140,80 @@ Vitest.it.live(
 		),
 	15_000
 )
+
+Vitest.it.live(
+	"BunPtyAdapterLive applies openpty winsize so stty size matches cols and rows",
+	() =>
+		provideAdapter(
+			Effect.gen(function*() {
+				const fs = yield* FileSystem.FileSystem
+				const cwd = yield* fs.makeTempDirectoryScoped()
+				const adapter = yield* PtyAdapter
+				const exited = yield* Deferred.make<{
+					readonly exitCode: number
+					readonly signal: number | null
+				}>()
+				const chunks: Array<string> = []
+				const proc = yield* adapter.spawn({
+					shell: "/bin/sh",
+					args: ["-c", "stty size"],
+					cwd,
+					cols: 60,
+					rows: 20,
+					env: {
+						PATH: "/usr/bin:/bin",
+						TERM: "xterm-256color"
+					}
+				})
+				proc.onData((chunk) => {
+					chunks.push(chunk)
+				})
+				proc.onExit((event) => {
+					Deferred.doneUnsafe(exited, Effect.succeed(event))
+				})
+				const status = yield* Deferred.await(exited).pipe(Effect.timeout(Duration.seconds(5)))
+				Vitest.assert.strictEqual(status.exitCode, 0)
+				Vitest.assert.isTrue(chunks.join("").includes("20 60"))
+			})
+		),
+	15_000
+)
+
+Vitest.it.live(
+	"BunPtyAdapterLive resize uses TIOCSWINSZ so a later stty size matches",
+	() =>
+		provideAdapter(
+			Effect.gen(function*() {
+				const fs = yield* FileSystem.FileSystem
+				const cwd = yield* fs.makeTempDirectoryScoped()
+				const adapter = yield* PtyAdapter
+				const exited = yield* Deferred.make<{
+					readonly exitCode: number
+					readonly signal: number | null
+				}>()
+				const chunks: Array<string> = []
+				const proc = yield* adapter.spawn({
+					shell: "/bin/sh",
+					args: ["-c", "sleep 0.2; stty size"],
+					cwd,
+					cols: 80,
+					rows: 24,
+					env: {
+						PATH: "/usr/bin:/bin",
+						TERM: "xterm-256color"
+					}
+				})
+				proc.onData((chunk) => {
+					chunks.push(chunk)
+				})
+				proc.onExit((event) => {
+					Deferred.doneUnsafe(exited, Effect.succeed(event))
+				})
+				proc.resize(40, 12)
+				const status = yield* Deferred.await(exited).pipe(Effect.timeout(Duration.seconds(5)))
+				Vitest.assert.strictEqual(status.exitCode, 0)
+				Vitest.assert.isTrue(chunks.join("").includes("12 40"))
+			})
+		),
+	15_000
+)
