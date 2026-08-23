@@ -237,7 +237,10 @@ export const rowFromEvent = (
 			ToolCallObserved: ignoreEvent,
 			ApprovalRequested: ignoreEvent,
 			McpCatalogResolved: ignoreEvent,
-			PreconnectionOptionsLoaded: ignoreEvent
+			PreconnectionOptionsLoaded: ignoreEvent,
+			TerminalOpened: ignoreEvent,
+			TerminalOutputAppended: ignoreEvent,
+			TerminalClosed: ignoreEvent
 		})
 	)(event)
 

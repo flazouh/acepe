@@ -1,4 +1,12 @@
-import { APP_VOICE_ID, ProjectId, Sequence, SessionId, type SnapshotRequest, snapshotScope } from "@acepe/contracts"
+import {
+	APP_VOICE_ID,
+	ProjectId,
+	Sequence,
+	SessionId,
+	TerminalId,
+	type SnapshotRequest,
+	snapshotScope
+} from "@acepe/contracts"
 import * as Arr from "effect/Array"
 import * as Effect from "effect/Effect"
 import * as HashSet from "effect/HashSet"
@@ -48,6 +56,10 @@ import {
 	decodeStoredProjectedMcpState,
 	PROJECTION_MCP_TABLE
 } from "../../persistence/Services/ProjectionMcp.ts"
+import {
+	decodeStoredProjectedTerminal,
+	PROJECTION_TERMINAL_TABLE
+} from "../../persistence/Services/ProjectionTerminal.ts"
 import {
 	decodeProjectedPendingApprovals,
 	decodeProjectedSessionActivities,
@@ -361,6 +373,26 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 			})
 		})
 
+		const readTerminal = Effect.fn("ProjectionSnapshotQuery.readTerminal")(function*(
+			terminalId: TerminalId,
+			snapshotSequence: Sequence,
+			present: HashSet.HashSet<string>
+		) {
+			if (HashSet.has(present, PROJECTION_TERMINAL_TABLE) === false) {
+				return null
+			}
+			const rows = yield* sql`
+				SELECT terminal_id, session_id, cwd, cols, rows, output, closed, sequence
+				FROM projection_terminal
+				WHERE terminal_id = ${terminalId}
+					AND sequence <= ${snapshotSequence}
+			`.withoutTransform
+			return yield* Option.match(Arr.head(rows), {
+				onNone: () => Effect.succeed(null),
+				onSome: decodeStoredProjectedTerminal
+			})
+		})
+
 		const readSnapshot = Effect.fn("ProjectionSnapshotQuery.readSnapshot")(function*(
 			sessionId: SessionId
 		) {
@@ -394,7 +426,8 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 				voice,
 				gitReview: null,
 				mcpCatalog: null,
-				preconnectionOptions: null
+				preconnectionOptions: null,
+				terminal: null
 			} satisfies SessionProjectionSnapshot
 		})
 
@@ -475,7 +508,8 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 					voice,
 					gitReview: null,
 					mcpCatalog: null,
-					preconnectionOptions: null
+					preconnectionOptions: null,
+					terminal: null
 				} satisfies SessionProjectionSnapshot
 			}
 		)
@@ -507,7 +541,8 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 					voice,
 					gitReview,
 					mcpCatalog: mcpState.mcpCatalog,
-					preconnectionOptions: mcpState.preconnectionOptions
+					preconnectionOptions: mcpState.preconnectionOptions,
+					terminal: null
 				} satisfies SessionProjectionSnapshot
 			}
 		)
@@ -534,10 +569,37 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 					voice,
 					gitReview: null,
 					mcpCatalog: null,
-					preconnectionOptions: null
+					preconnectionOptions: null,
+					terminal: null
 				} satisfies SessionProjectionSnapshot
 			}
 		)
+
+		const readTerminalScopedSnapshot = Effect.fn(
+			"ProjectionSnapshotQuery.readTerminalScopedSnapshot"
+		)(function*(terminalId: TerminalId) {
+			const snapshotSequence = yield* readSnapshotSequence()
+			const present = yield* readPresentOptionalTables()
+			const terminal = yield* readTerminal(terminalId, snapshotSequence, present)
+			return {
+				snapshotSequence,
+				session: null,
+				messages: Arr.empty(),
+				turns: Arr.empty(),
+				activities: Arr.empty(),
+				pendingApprovals: Arr.empty(),
+				checkpoints: Arr.empty(),
+				projects: Arr.empty<ProjectedProject>(),
+				sessions: Arr.empty<ProjectedSession>(),
+				settings: Arr.empty(),
+				skillsCatalog: null,
+				voice: null,
+				gitReview: null,
+				mcpCatalog: null,
+				preconnectionOptions: null,
+				terminal
+			} satisfies SessionProjectionSnapshot
+		})
 
 		const forRequest = Effect.fn("ProjectionSnapshotQuery.forRequest")(function*(
 			request: SnapshotRequest
@@ -553,6 +615,8 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 						sql.withTransaction(readProjectSnapshot(gitRequest.projectId)),
 					mcp: (mcpRequest) =>
 						sql.withTransaction(readProjectSnapshot(mcpRequest.projectId)),
+					terminal: (terminalRequest) =>
+						sql.withTransaction(readTerminalScopedSnapshot(terminalRequest.terminalId)),
 					project: (projectRequest) =>
 						sql.withTransaction(readProjectSnapshot(projectRequest.projectId)),
 					session: (sessionRequest) => snapshot(sessionRequest.sessionId)

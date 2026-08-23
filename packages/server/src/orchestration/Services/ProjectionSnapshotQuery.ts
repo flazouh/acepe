@@ -6,6 +6,7 @@ import {
 	ProjectedGitReview,
 	ProjectedMcpCatalog,
 	ProjectedPreconnectionOptions,
+	ProjectedTerminal,
 	ProjectId,
 	Sequence,
 	SessionId,
@@ -34,6 +35,7 @@ import { PROJECTION_SKILLS_TABLE } from "../../persistence/Services/ProjectionSk
 import { PROJECTION_VOICE_TABLE } from "../../persistence/Services/ProjectionVoice.ts"
 import { PROJECTION_GIT_TABLE } from "../../persistence/Services/ProjectionGit.ts"
 import { PROJECTION_MCP_TABLE } from "../../persistence/Services/ProjectionMcp.ts"
+import { PROJECTION_TERMINAL_TABLE } from "../../persistence/Services/ProjectionTerminal.ts"
 
 export const SNAPSHOT_PROJECTOR_NAMES = [
 	"projection.sessions",
@@ -47,7 +49,8 @@ export const SNAPSHOT_PROJECTOR_NAMES = [
 	"projection.skills",
 	"projection.voice",
 	"projection.git",
-	"projection.mcp"
+	"projection.mcp",
+	"projection.terminal"
 ] as const
 
 export const PROJECTION_TURNS_TABLE = "projection_turns"
@@ -63,7 +66,8 @@ export const SNAPSHOT_OPTIONAL_TABLES = [
 	PROJECTION_SKILLS_TABLE,
 	PROJECTION_VOICE_TABLE,
 	PROJECTION_GIT_TABLE,
-	PROJECTION_MCP_TABLE
+	PROJECTION_MCP_TABLE,
+	PROJECTION_TERMINAL_TABLE
 ] as const
 
 export const ProjectedTurn = Schema.Struct({
@@ -108,7 +112,8 @@ export const SessionProjectionSnapshot = Schema.Struct({
 	voice: Schema.NullOr(ProjectedVoice),
 	gitReview: Schema.NullOr(ProjectedGitReview),
 	mcpCatalog: Schema.NullOr(ProjectedMcpCatalog),
-	preconnectionOptions: Schema.NullOr(ProjectedPreconnectionOptions)
+	preconnectionOptions: Schema.NullOr(ProjectedPreconnectionOptions),
+	terminal: Schema.NullOr(ProjectedTerminal)
 })
 export type SessionProjectionSnapshot = typeof SessionProjectionSnapshot.Type
 

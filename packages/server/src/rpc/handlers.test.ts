@@ -47,6 +47,9 @@ import { ProjectionSnapshotQueryLive } from "../orchestration/Layers/ProjectionS
 import { ProjectionGitLive } from "../persistence/Layers/ProjectionGit.ts"
 import { McpCatalogLive } from "../mcp/Layers/McpCatalog.ts"
 import { SkillsServiceLive } from "../skills/Layers/SkillsService.ts"
+import { BunPtyAdapterLive } from "../terminal/Layers/BunPtyAdapter.ts"
+import { defaultTerminalServiceOptions, TerminalServiceLive } from "../terminal/Layers/TerminalService.ts"
+import { TerminalRegistryLive } from "../terminal/Layers/TerminalRegistry.ts"
 import { VoiceRuntimeLive } from "../voice/Layers/VoiceRuntime.ts"
 import { EXTERNAL_BACKEND_ID } from "../voice/Schemas.ts"
 import { RpcHandlersLive } from "./handlers.ts"
@@ -144,6 +147,12 @@ const VoiceLive = VoiceRuntimeLive.pipe(
 	Layer.provide(ConfigProvider.layer(ConfigProvider.fromEnv({ env: {} })))
 )
 
+const TerminalLive = TerminalServiceLive(defaultTerminalServiceOptions).pipe(
+	Layer.provide(BunPtyAdapterLive),
+	Layer.provide(FileIndexPlatform),
+	Layer.provide(BunCrypto.layer)
+)
+
 const TestLive = RpcHandlersLive.pipe(
 	Layer.provideMerge(ProjectionSnapshotQueryLive),
 	Layer.provideMerge(EngineAndStore),
@@ -153,6 +162,8 @@ const TestLive = RpcHandlersLive.pipe(
 	Layer.provideMerge(SkillsLive),
 	Layer.provideMerge(McpLive),
 	Layer.provideMerge(VoiceLive),
+	Layer.provideMerge(TerminalLive),
+	Layer.provideMerge(TerminalRegistryLive),
 	Layer.provideMerge(FileIndexPlatform),
 	Layer.provideMerge(BunCrypto.layer)
 )

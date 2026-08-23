@@ -220,7 +220,10 @@ const loadSlice = Effect.fn("ProjectionProjects.loadSlice")(function*(
 			ToolCallObserved: ignoreEvent,
 			ApprovalRequested: ignoreEvent,
 			McpCatalogResolved: ignoreEvent,
-			PreconnectionOptionsLoaded: ignoreEvent
+			PreconnectionOptionsLoaded: ignoreEvent,
+			TerminalOpened: ignoreEvent,
+			TerminalOutputAppended: ignoreEvent,
+			TerminalClosed: ignoreEvent
 		})
 	)(event)
 })

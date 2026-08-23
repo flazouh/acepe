@@ -321,6 +321,9 @@ export const evolveProjectedGitReview = (
 			ToolCallObserved: () => ignoreEvent(current),
 			ApprovalRequested: () => ignoreEvent(current),
 			McpCatalogResolved: () => ignoreEvent(current),
-			PreconnectionOptionsLoaded: () => ignoreEvent(current)
+			PreconnectionOptionsLoaded: () => ignoreEvent(current),
+			TerminalOpened: () => ignoreEvent(current),
+			TerminalOutputAppended: () => ignoreEvent(current),
+			TerminalClosed: () => ignoreEvent(current)
 		})
 	)(event)

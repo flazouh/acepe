@@ -48,6 +48,7 @@ import { fillAcpCommand } from "../acp/fillCommand.ts"
 import { fillSkillsDiscoverCommand } from "../skills/discoverCatalog.ts"
 import { fillGitCommand } from "../git/fillCommand.ts"
 import { fillMcpCommand } from "../mcp/fillCommand.ts"
+import { fillTerminalCommand } from "../terminal/fillCommand.ts"
 import { fillVoiceCommand } from "../voice/fillCommand.ts"
 import { fillCheckpointCommand } from "../checkpoint/fillCommand.ts"
 import { CheckpointNotFoundError, CheckpointService } from "../checkpoint/Services/CheckpointService.ts"
@@ -95,7 +96,8 @@ export const toRpcSnapshot = (snapshot: SessionProjectionSnapshot): RpcSessionSn
 	voice: snapshot.voice,
 	gitReview: snapshot.gitReview,
 	mcpCatalog: snapshot.mcpCatalog,
-	preconnectionOptions: snapshot.preconnectionOptions
+	preconnectionOptions: snapshot.preconnectionOptions,
+	terminal: snapshot.terminal
 })
 
 const decodeRpcFileGitStatuses = Schema.decodeUnknownEffect(Schema.Array(FileGitStatus))
@@ -161,7 +163,8 @@ const withProjectGitStatus = Effect.fn("withProjectGitStatus")(function*(
 		voice: snapshot.voice,
 		gitReview: snapshot.gitReview,
 		mcpCatalog: snapshot.mcpCatalog,
-		preconnectionOptions: snapshot.preconnectionOptions
+		preconnectionOptions: snapshot.preconnectionOptions,
+		terminal: snapshot.terminal
 	} satisfies RpcSessionSnapshot
 })
 
@@ -226,7 +229,8 @@ const withCheckpointFiles = Effect.fn("withCheckpointFiles")(function*(
 		voice: snapshot.voice,
 		gitReview: snapshot.gitReview,
 		mcpCatalog: snapshot.mcpCatalog,
-		preconnectionOptions: snapshot.preconnectionOptions
+		preconnectionOptions: snapshot.preconnectionOptions,
+		terminal: snapshot.terminal
 	} satisfies RpcSessionSnapshot
 })
 
@@ -342,7 +346,8 @@ export const dispatchOrchestrationCommand = Effect.fn("dispatchOrchestrationComm
 	const filledGit = yield* fillGitCommand(filledVoice)
 	const filledAcp = yield* fillAcpCommand(filledGit)
 	const filledMcp = yield* fillMcpCommand(filledAcp)
-	const filled = yield* fillCheckpointCommand(filledMcp)
+	const filledTerminal = yield* fillTerminalCommand(filledMcp)
+	const filled = yield* fillCheckpointCommand(filledTerminal)
 	return yield* engine.dispatch(filled)
 })
 
