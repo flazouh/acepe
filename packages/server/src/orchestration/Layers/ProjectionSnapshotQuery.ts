@@ -41,6 +41,10 @@ import {
 	PROJECTION_VOICE_TABLE
 } from "../../persistence/Services/ProjectionVoice.ts"
 import {
+	decodeStoredProjectedGitReview,
+	PROJECTION_GIT_TABLE
+} from "../../persistence/Services/ProjectionGit.ts"
+import {
 	decodeProjectedPendingApprovals,
 	decodeProjectedSessionActivities,
 	decodeProjectedTurns,
@@ -297,6 +301,30 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 			})
 		})
 
+		const readGitReview = Effect.fn("ProjectionSnapshotQuery.readGitReview")(function*(
+			projectId: ProjectId,
+			snapshotSequence: Sequence,
+			present: HashSet.HashSet<string>
+		) {
+			if (!HashSet.has(present, PROJECTION_GIT_TABLE)) {
+				return null
+			}
+			const rows = yield* sql`
+				SELECT
+					project_id,
+					status_json,
+					files_json,
+					sequence
+				FROM projection_git_review
+				WHERE project_id = ${projectId}
+					AND sequence <= ${snapshotSequence}
+			`.withoutTransform
+			return yield* Option.match(Arr.head(rows), {
+				onNone: () => Effect.succeed(null),
+				onSome: decodeStoredProjectedGitReview
+			})
+		})
+
 		const readSnapshot = Effect.fn("ProjectionSnapshotQuery.readSnapshot")(function*(
 			sessionId: SessionId
 		) {
@@ -327,7 +355,8 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 				sessions: Arr.empty<ProjectedSession>(),
 				settings,
 				skillsCatalog,
-				voice
+				voice,
+				gitReview: null
 			} satisfies SessionProjectionSnapshot
 		})
 
@@ -405,7 +434,8 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 					sessions,
 					settings,
 					skillsCatalog,
-					voice
+					voice,
+					gitReview: null
 				} satisfies SessionProjectionSnapshot
 			}
 		)
@@ -420,6 +450,7 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 				const settings = yield* readSettings(snapshotSequence, present)
 				const skillsCatalog = yield* readSkillsCatalog(snapshotSequence, present)
 				const voice = yield* readVoice(snapshotSequence, present)
+				const gitReview = yield* readGitReview(projectId, snapshotSequence, present)
 				return {
 					snapshotSequence,
 					session: null,
@@ -432,7 +463,8 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 					sessions,
 					settings,
 					skillsCatalog,
-					voice
+					voice,
+					gitReview
 				} satisfies SessionProjectionSnapshot
 			}
 		)
@@ -456,7 +488,8 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 					sessions: Arr.empty<ProjectedSession>(),
 					settings,
 					skillsCatalog,
-					voice
+					voice,
+					gitReview: null
 				} satisfies SessionProjectionSnapshot
 			}
 		)
@@ -471,6 +504,8 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 					settings: () => sql.withTransaction(readAppScopedSnapshot()),
 					skills: () => sql.withTransaction(readAppScopedSnapshot()),
 					voice: () => sql.withTransaction(readAppScopedSnapshot()),
+					git: (gitRequest) =>
+						sql.withTransaction(readProjectSnapshot(gitRequest.projectId)),
 					project: (projectRequest) =>
 						sql.withTransaction(readProjectSnapshot(projectRequest.projectId)),
 					session: (sessionRequest) => snapshot(sessionRequest.sessionId)

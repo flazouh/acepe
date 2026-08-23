@@ -214,7 +214,12 @@ export const evolveProjectedCheckpoint = (
 			VoiceModelLoaded: () => ignoreEvent(current),
 			VoiceRecordingStarted: () => ignoreEvent(current),
 			VoiceRecordingStopped: () => ignoreEvent(current),
-			VoiceRecordingCancelled: () => ignoreEvent(current)
+			VoiceRecordingCancelled: () => ignoreEvent(current),
+			GitStatusRefreshed: () => ignoreEvent(current),
+			GitDiffLoaded: () => ignoreEvent(current),
+			GitBlameLoaded: () => ignoreEvent(current),
+			GitHunkAccepted: () => ignoreEvent(current),
+			GitHunkRejected: () => ignoreEvent(current)
 		})
 	)(event)
 
@@ -245,6 +250,11 @@ export const checkpointIdFromEvent = (event: OrchestrationEvent): Option.Option<
 			VoiceModelLoaded: () => Option.none(),
 			VoiceRecordingStarted: () => Option.none(),
 			VoiceRecordingStopped: () => Option.none(),
-			VoiceRecordingCancelled: () => Option.none()
+			VoiceRecordingCancelled: () => Option.none(),
+			GitStatusRefreshed: () => Option.none(),
+			GitDiffLoaded: () => Option.none(),
+			GitBlameLoaded: () => Option.none(),
+			GitHunkAccepted: () => Option.none(),
+			GitHunkRejected: () => Option.none()
 		})
 	)(event)

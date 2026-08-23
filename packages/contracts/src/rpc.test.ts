@@ -23,6 +23,7 @@ import {
 	encodeSnapshotExit,
 	exitToEffect,
 	generateElectrobunRpcSchema,
+	gitSnapshotRequest,
 	librarySnapshotRequest,
 	makeResumingRpcClient,
 	projectSnapshotRequest,
@@ -85,6 +86,7 @@ const emptySnapshot: RpcSessionSnapshot = {
 	settings: [],
 	skillsCatalog: null,
 	voice: null,
+	gitReview: null,
 }
 
 const snapshot: RpcSessionSnapshot = {
@@ -148,6 +150,7 @@ const snapshot: RpcSessionSnapshot = {
 	settings: [],
 	skillsCatalog: null,
 	voice: null,
+	gitReview: null,
 }
 
 const unusedDispatch: RpcTransport["dispatch"] = (_command) => Effect.succeed({ sequence: 0 })
@@ -280,6 +283,7 @@ describe("Schema-encoded boundary", () => {
 			settings: [],
 			skillsCatalog: null,
 			voice: null,
+			gitReview: null,
 		}
 		const encoded = Effect.runSync(Schema.encodeUnknownEffect(RpcSessionSnapshot)(withGit))
 		const decoded = Effect.runSync(Schema.decodeUnknownEffect(RpcSessionSnapshot)(encoded))
@@ -322,6 +326,7 @@ describe("Schema-encoded boundary", () => {
 			settings: [],
 			skillsCatalog: null,
 			voice: null,
+			gitReview: null,
 		}
 		const encoded = Effect.runSync(Schema.encodeUnknownEffect(RpcSessionSnapshot)(withCheckpoint))
 		const decoded = Effect.runSync(Schema.decodeUnknownEffect(RpcSessionSnapshot)(encoded))
@@ -338,7 +343,7 @@ describe("Schema-encoded boundary", () => {
 		}
 	})
 
-	it("decodes library, settings, skills, voice, project, session, and legacy snapshot requests", () => {
+	it("decodes library, settings, skills, voice, git, project, session, and legacy snapshot requests", () => {
 		expect(Effect.runSync(decodeSnapshotRequest({ kind: "library" }))).toEqual(
 			librarySnapshotRequest(),
 		)
@@ -352,6 +357,9 @@ describe("Schema-encoded boundary", () => {
 			voiceSnapshotRequest(),
 		)
 		expect(
+			Effect.runSync(decodeSnapshotRequest({ kind: "git", projectId })),
+		).toEqual(gitSnapshotRequest(projectId))
+		expect(
 			Effect.runSync(decodeSnapshotRequest({ kind: "project", projectId })),
 		).toEqual(projectSnapshotRequest(projectId))
 		expect(
@@ -360,11 +368,15 @@ describe("Schema-encoded boundary", () => {
 		expect(Effect.runSync(decodeSnapshotRequest({ sessionId }))).toEqual({ sessionId })
 	})
 
-	it("maps snapshot requests onto library, settings, skills, voice, project, or session scope", () => {
+	it("maps snapshot requests onto library, settings, skills, voice, git, project, or session scope", () => {
 		expect(snapshotScope(librarySnapshotRequest())).toEqual({ kind: "library" })
 		expect(snapshotScope(settingsSnapshotRequest())).toEqual({ kind: "settings" })
 		expect(snapshotScope(skillsSnapshotRequest())).toEqual({ kind: "skills" })
 		expect(snapshotScope(voiceSnapshotRequest())).toEqual({ kind: "voice" })
+		expect(snapshotScope(gitSnapshotRequest(projectId))).toEqual({
+			kind: "git",
+			projectId,
+		})
 		expect(snapshotScope(projectSnapshotRequest(projectId))).toEqual({
 			kind: "project",
 			projectId,

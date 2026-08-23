@@ -332,6 +332,11 @@ export const evolveProjectedProjects = (
 			VoiceModelLoaded: () => Effect.succeed(current),
 			VoiceRecordingStarted: () => Effect.succeed(current),
 			VoiceRecordingStopped: () => Effect.succeed(current),
-			VoiceRecordingCancelled: () => Effect.succeed(current)
+			VoiceRecordingCancelled: () => Effect.succeed(current),
+			GitStatusRefreshed: () => Effect.succeed(current),
+			GitDiffLoaded: () => Effect.succeed(current),
+			GitBlameLoaded: () => Effect.succeed(current),
+			GitHunkAccepted: () => Effect.succeed(current),
+			GitHunkRejected: () => Effect.succeed(current)
 		})
 	)(event)

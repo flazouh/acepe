@@ -202,7 +202,12 @@ export const rowFromEvent = (
 			VoiceModelLoaded: ignoreEvent,
 			VoiceRecordingStarted: ignoreEvent,
 			VoiceRecordingStopped: ignoreEvent,
-			VoiceRecordingCancelled: ignoreEvent
+			VoiceRecordingCancelled: ignoreEvent,
+			GitStatusRefreshed: ignoreEvent,
+			GitDiffLoaded: ignoreEvent,
+			GitBlameLoaded: ignoreEvent,
+			GitHunkAccepted: ignoreEvent,
+			GitHunkRejected: ignoreEvent
 		})
 	)(event)
 

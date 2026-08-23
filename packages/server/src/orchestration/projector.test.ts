@@ -49,6 +49,11 @@ type SessionEventType = Exclude<
 	| "VoiceRecordingStarted"
 	| "VoiceRecordingStopped"
 	| "VoiceRecordingCancelled"
+	| "GitStatusRefreshed"
+	| "GitDiffLoaded"
+	| "GitBlameLoaded"
+	| "GitHunkAccepted"
+	| "GitHunkRejected"
 >
 
 const projectEventEnvelope = <const Type extends ProjectEventType, Payload>(

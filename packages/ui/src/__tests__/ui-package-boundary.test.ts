@@ -10,6 +10,7 @@ import {
 import { KanbanSceneBoard } from "../components/kanban/index.js";
 import { TracerTranscript } from "../components/tracer-transcript/index.js";
 import { LibrarySidebar } from "../components/library-sidebar/index.js";
+import { ReviewModal } from "../components/review-modal/index.js";
 import { SettingsModal } from "../components/settings-modal/index.js";
 
 describe("ui package boundary exports", () => {
@@ -22,6 +23,7 @@ describe("ui package boundary exports", () => {
 		expect(KanbanSceneBoard).toBeDefined();
 		expect(TracerTranscript).toBeDefined();
 		expect(LibrarySidebar).toBeDefined();
+		expect(ReviewModal).toBeDefined();
 		expect(SettingsModal).toBeDefined();
 	});
 

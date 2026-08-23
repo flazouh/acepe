@@ -114,6 +114,7 @@ const snapshotWithUser: RpcSessionSnapshot = {
 	settings: [],
 	skillsCatalog: null,
 	voice: null,
+	gitReview: null,
 };
 
 const unusedProjectIndex = {

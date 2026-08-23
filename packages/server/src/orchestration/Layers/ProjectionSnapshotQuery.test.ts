@@ -224,7 +224,8 @@ Vitest.layer(isolatedQuery())("missing session", (it) => {
 				sessions: [],
 				settings: [],
 				skillsCatalog: null,
-				voice: null
+				voice: null,
+				gitReview: null,
 			})
 		})
 	)

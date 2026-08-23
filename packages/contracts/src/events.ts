@@ -1,6 +1,8 @@
 import * as Schema from "effect/Schema"
 
 import { CheckpointFileCount, CheckpointNumber, CheckpointStatus, IsoDateTime, JsonObject, Sequence, StreamToken, TrimmedNonEmptyString } from "./baseSchemas.ts"
+import { FileGitStatus } from "./fileIndex.ts"
+import { GitBlameLine, GitFileDiff, GitHunkIndex } from "./git.ts"
 import {
 	CheckpointId,
 	CommandId,
@@ -56,6 +58,11 @@ export const OrchestrationEventType = Schema.Literals([
 	"VoiceRecordingStarted",
 	"VoiceRecordingStopped",
 	"VoiceRecordingCancelled",
+	"GitStatusRefreshed",
+	"GitDiffLoaded",
+	"GitBlameLoaded",
+	"GitHunkAccepted",
+	"GitHunkRejected",
 ])
 export type OrchestrationEventType = typeof OrchestrationEventType.Type
 
@@ -209,6 +216,42 @@ export const VoiceRecordingCancelledPayload = Schema.Struct({
 	sessionId: SessionId,
 })
 export type VoiceRecordingCancelledPayload = typeof VoiceRecordingCancelledPayload.Type
+
+export const GitStatusRefreshedPayload = Schema.Struct({
+	projectId: ProjectId,
+	status: FileGitStatus.pipe(Schema.Array, Schema.NullOr),
+})
+export type GitStatusRefreshedPayload = typeof GitStatusRefreshedPayload.Type
+
+export const GitDiffLoadedPayload = Schema.Struct({
+	projectId: ProjectId,
+	filePath: TrimmedNonEmptyString,
+	diff: GitFileDiff,
+	patch: Schema.String,
+})
+export type GitDiffLoadedPayload = typeof GitDiffLoadedPayload.Type
+
+export const GitBlameLoadedPayload = Schema.Struct({
+	projectId: ProjectId,
+	filePath: TrimmedNonEmptyString,
+	blame: Schema.Array(GitBlameLine),
+})
+export type GitBlameLoadedPayload = typeof GitBlameLoadedPayload.Type
+
+export const GitHunkAcceptedPayload = Schema.Struct({
+	projectId: ProjectId,
+	filePath: TrimmedNonEmptyString,
+	hunkIndex: GitHunkIndex,
+})
+export type GitHunkAcceptedPayload = typeof GitHunkAcceptedPayload.Type
+
+export const GitHunkRejectedPayload = Schema.Struct({
+	projectId: ProjectId,
+	filePath: TrimmedNonEmptyString,
+	hunkIndex: GitHunkIndex,
+	newContent: Schema.String,
+})
+export type GitHunkRejectedPayload = typeof GitHunkRejectedPayload.Type
 
 const defineOrchestrationEvent = <
 	const EventType extends OrchestrationEventType,
@@ -435,6 +478,46 @@ export const VoiceRecordingCancelledEvent = defineOrchestrationEvent({
 })
 export type VoiceRecordingCancelledEvent = typeof VoiceRecordingCancelledEvent.Type
 
+export const GitStatusRefreshedEvent = defineOrchestrationEvent({
+	type: "GitStatusRefreshed",
+	payload: GitStatusRefreshedPayload,
+	aggregateKind: "git",
+	aggregateId: ProjectId,
+})
+export type GitStatusRefreshedEvent = typeof GitStatusRefreshedEvent.Type
+
+export const GitDiffLoadedEvent = defineOrchestrationEvent({
+	type: "GitDiffLoaded",
+	payload: GitDiffLoadedPayload,
+	aggregateKind: "git",
+	aggregateId: ProjectId,
+})
+export type GitDiffLoadedEvent = typeof GitDiffLoadedEvent.Type
+
+export const GitBlameLoadedEvent = defineOrchestrationEvent({
+	type: "GitBlameLoaded",
+	payload: GitBlameLoadedPayload,
+	aggregateKind: "git",
+	aggregateId: ProjectId,
+})
+export type GitBlameLoadedEvent = typeof GitBlameLoadedEvent.Type
+
+export const GitHunkAcceptedEvent = defineOrchestrationEvent({
+	type: "GitHunkAccepted",
+	payload: GitHunkAcceptedPayload,
+	aggregateKind: "git",
+	aggregateId: ProjectId,
+})
+export type GitHunkAcceptedEvent = typeof GitHunkAcceptedEvent.Type
+
+export const GitHunkRejectedEvent = defineOrchestrationEvent({
+	type: "GitHunkRejected",
+	payload: GitHunkRejectedPayload,
+	aggregateKind: "git",
+	aggregateId: ProjectId,
+})
+export type GitHunkRejectedEvent = typeof GitHunkRejectedEvent.Type
+
 export const OrchestrationEvent = Schema.Union([
 	ProjectCreatedEvent,
 	ProjectMetaUpdatedEvent,
@@ -461,5 +544,10 @@ export const OrchestrationEvent = Schema.Union([
 	VoiceRecordingStartedEvent,
 	VoiceRecordingStoppedEvent,
 	VoiceRecordingCancelledEvent,
+	GitStatusRefreshedEvent,
+	GitDiffLoadedEvent,
+	GitBlameLoadedEvent,
+	GitHunkAcceptedEvent,
+	GitHunkRejectedEvent,
 ])
 export type OrchestrationEvent = typeof OrchestrationEvent.Type

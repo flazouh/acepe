@@ -157,6 +157,10 @@
       "svelte": "./src/components/library-sidebar/index.ts",
       "default": "./src/components/library-sidebar/index.ts"
     },
+    "./review-modal": {
+      "svelte": "./src/components/review-modal/index.ts",
+      "default": "./src/components/review-modal/index.ts"
+    },
     "./settings-modal": {
       "svelte": "./src/components/settings-modal/index.ts",
       "default": "./src/components/settings-modal/index.ts"

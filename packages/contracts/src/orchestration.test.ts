@@ -34,6 +34,11 @@ import {
 	VoiceRecordingCancelCommand,
 	VoiceRecordingStartCommand,
 	VoiceRecordingStopCommand,
+	GitBlameLoadCommand,
+	GitDiffLoadCommand,
+	GitHunkAcceptCommand,
+	GitHunkRejectCommand,
+	GitStatusRefreshCommand,
 } from "./orchestration.ts"
 import { APP_SETTINGS_ID } from "./settings.ts"
 import { APP_SKILLS_ID, emptySkillsCatalog } from "./skills.ts"
@@ -71,6 +76,11 @@ const v1CommandTypes = [
 	"voice.recording.start",
 	"voice.recording.stop",
 	"voice.recording.cancel",
+	"git.status.refresh",
+	"git.diff.load",
+	"git.blame.load",
+	"git.hunk.accept",
+	"git.hunk.reject",
 ] as const
 
 type V1CommandType = (typeof v1CommandTypes)[number]
@@ -416,6 +426,93 @@ const memberCases = [
 			type: "voice.recording.cancel",
 			commandId,
 			sessionId,
+		}),
+	},
+	{
+		schema: GitStatusRefreshCommand,
+		aggregate: {
+			aggregateKind: "git",
+			aggregateId: projectId,
+		} satisfies OrchestrationAggregateRef,
+		command: GitStatusRefreshCommand.make({
+			type: "git.status.refresh",
+			commandId,
+			projectId,
+			workspaceRoot: "/tmp/acepe",
+			status: null,
+		}),
+	},
+	{
+		schema: GitDiffLoadCommand,
+		aggregate: {
+			aggregateKind: "git",
+			aggregateId: projectId,
+		} satisfies OrchestrationAggregateRef,
+		command: GitDiffLoadCommand.make({
+			type: "git.diff.load",
+			commandId,
+			projectId,
+			workspaceRoot: "/tmp/acepe",
+			filePath: "notes.md",
+			diff: {
+				oldContent: "alpha\n",
+				newContent: "alpha\nbeta\n",
+				fileName: "notes.md",
+			},
+			patch: "@@ -1,1 +1,2 @@\n alpha\n+beta\n",
+		}),
+	},
+	{
+		schema: GitBlameLoadCommand,
+		aggregate: {
+			aggregateKind: "git",
+			aggregateId: projectId,
+		} satisfies OrchestrationAggregateRef,
+		command: GitBlameLoadCommand.make({
+			type: "git.blame.load",
+			commandId,
+			projectId,
+			workspaceRoot: "/tmp/acepe",
+			filePath: "notes.md",
+			blame: [
+				{
+					line: 1,
+					commit: "abc1234",
+					author: "Test User",
+					summary: "Seed",
+				},
+			],
+		}),
+	},
+	{
+		schema: GitHunkAcceptCommand,
+		aggregate: {
+			aggregateKind: "git",
+			aggregateId: projectId,
+		} satisfies OrchestrationAggregateRef,
+		command: GitHunkAcceptCommand.make({
+			type: "git.hunk.accept",
+			commandId,
+			projectId,
+			workspaceRoot: "/tmp/acepe",
+			filePath: "notes.md",
+			hunkIndex: 0,
+		}),
+	},
+	{
+		schema: GitHunkRejectCommand,
+		aggregate: {
+			aggregateKind: "git",
+			aggregateId: projectId,
+		} satisfies OrchestrationAggregateRef,
+		command: GitHunkRejectCommand.make({
+			type: "git.hunk.reject",
+			commandId,
+			projectId,
+			workspaceRoot: "/tmp/acepe",
+			filePath: "notes.md",
+			hunkIndex: 1,
+			newContent: "alpha\n",
 		}),
 	},
 ] as const

@@ -2,6 +2,12 @@ import * as Match from "effect/Match"
 import * as Schema from "effect/Schema"
 
 import { CheckpointFileCount, CheckpointNumber, CheckpointStatus, StreamToken, TrimmedNonEmptyString } from "./baseSchemas.ts"
+import { FileGitStatus } from "./fileIndex.ts"
+import {
+	GitBlameLine,
+	GitFileDiff,
+	GitHunkIndex,
+} from "./git.ts"
 import { CheckpointId, CommandId, MessageId, ProjectId, SessionId, SettingsId, SkillsId, ToolCallId, TurnId, VoiceId } from "./ids.ts"
 import { APP_SETTINGS_ID, SettingsValue, UserSettingKey } from "./settings.ts"
 import { APP_SKILLS_ID, SkillsCatalog } from "./skills.ts"
@@ -12,7 +18,14 @@ import {
 	APP_VOICE_ID,
 } from "./voice.ts"
 
-export const OrchestrationAggregateKind = Schema.Literals(["project", "session", "settings", "skills", "voice"])
+export const OrchestrationAggregateKind = Schema.Literals([
+	"project",
+	"session",
+	"settings",
+	"skills",
+	"voice",
+	"git",
+])
 export type OrchestrationAggregateKind = typeof OrchestrationAggregateKind.Type
 
 export type OrchestrationAggregateRef =
@@ -35,6 +48,10 @@ export type OrchestrationAggregateRef =
 	| {
 			readonly aggregateKind: "voice"
 			readonly aggregateId: VoiceId
+	  }
+	| {
+			readonly aggregateKind: "git"
+			readonly aggregateId: ProjectId
 	  }
 
 export const ProjectCreateCommand = Schema.Struct({
@@ -246,6 +263,57 @@ export const VoiceRecordingCancelCommand = Schema.Struct({
 })
 export type VoiceRecordingCancelCommand = typeof VoiceRecordingCancelCommand.Type
 
+export const GitStatusRefreshCommand = Schema.Struct({
+	type: Schema.Literal("git.status.refresh"),
+	commandId: CommandId,
+	projectId: ProjectId,
+	workspaceRoot: TrimmedNonEmptyString,
+	status: FileGitStatus.pipe(Schema.Array, Schema.NullOr),
+})
+export type GitStatusRefreshCommand = typeof GitStatusRefreshCommand.Type
+
+export const GitDiffLoadCommand = Schema.Struct({
+	type: Schema.Literal("git.diff.load"),
+	commandId: CommandId,
+	projectId: ProjectId,
+	workspaceRoot: TrimmedNonEmptyString,
+	filePath: TrimmedNonEmptyString,
+	diff: GitFileDiff,
+	patch: Schema.String,
+})
+export type GitDiffLoadCommand = typeof GitDiffLoadCommand.Type
+
+export const GitBlameLoadCommand = Schema.Struct({
+	type: Schema.Literal("git.blame.load"),
+	commandId: CommandId,
+	projectId: ProjectId,
+	workspaceRoot: TrimmedNonEmptyString,
+	filePath: TrimmedNonEmptyString,
+	blame: Schema.Array(GitBlameLine),
+})
+export type GitBlameLoadCommand = typeof GitBlameLoadCommand.Type
+
+export const GitHunkAcceptCommand = Schema.Struct({
+	type: Schema.Literal("git.hunk.accept"),
+	commandId: CommandId,
+	projectId: ProjectId,
+	workspaceRoot: TrimmedNonEmptyString,
+	filePath: TrimmedNonEmptyString,
+	hunkIndex: GitHunkIndex,
+})
+export type GitHunkAcceptCommand = typeof GitHunkAcceptCommand.Type
+
+export const GitHunkRejectCommand = Schema.Struct({
+	type: Schema.Literal("git.hunk.reject"),
+	commandId: CommandId,
+	projectId: ProjectId,
+	workspaceRoot: TrimmedNonEmptyString,
+	filePath: TrimmedNonEmptyString,
+	hunkIndex: GitHunkIndex,
+	newContent: Schema.String,
+})
+export type GitHunkRejectCommand = typeof GitHunkRejectCommand.Type
+
 export const OrchestrationCommand = Schema.Union([
 	ProjectCreateCommand,
 	ProjectMetaUpdateCommand,
@@ -272,6 +340,11 @@ export const OrchestrationCommand = Schema.Union([
 	VoiceRecordingStartCommand,
 	VoiceRecordingStopCommand,
 	VoiceRecordingCancelCommand,
+	GitStatusRefreshCommand,
+	GitDiffLoadCommand,
+	GitBlameLoadCommand,
+	GitHunkAcceptCommand,
+	GitHunkRejectCommand,
 ])
 export type OrchestrationCommand = typeof OrchestrationCommand.Type
 
@@ -298,6 +371,11 @@ const skillsRef = (): OrchestrationAggregateRef => ({
 const voiceRef = (): OrchestrationAggregateRef => ({
 	aggregateKind: "voice",
 	aggregateId: APP_VOICE_ID,
+})
+
+const gitRef = (projectId: ProjectId): OrchestrationAggregateRef => ({
+	aggregateKind: "git",
+	aggregateId: projectId,
 })
 
 export const commandToAggregateRef = Match.type<OrchestrationCommand>().pipe(
@@ -327,5 +405,10 @@ export const commandToAggregateRef = Match.type<OrchestrationCommand>().pipe(
 		"voice.recording.start": () => voiceRef(),
 		"voice.recording.stop": () => voiceRef(),
 		"voice.recording.cancel": () => voiceRef(),
+		"git.status.refresh": (command) => gitRef(command.projectId),
+		"git.diff.load": (command) => gitRef(command.projectId),
+		"git.blame.load": (command) => gitRef(command.projectId),
+		"git.hunk.accept": (command) => gitRef(command.projectId),
+		"git.hunk.reject": (command) => gitRef(command.projectId),
 	}),
 )

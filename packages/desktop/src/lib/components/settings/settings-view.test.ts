@@ -27,6 +27,7 @@ const snapshot: RpcSessionSnapshot = {
 	],
 	skillsCatalog: null,
 	voice: null,
+	gitReview: null,
 };
 
 describe("settings view controller mapping", () => {

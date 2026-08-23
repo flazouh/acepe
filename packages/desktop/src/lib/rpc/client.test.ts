@@ -60,6 +60,7 @@ const emptySnapshot = {
 	settings: [],
 	skillsCatalog: null,
 	voice: null,
+	gitReview: null,
 };
 
 const makeBridge = (input: {

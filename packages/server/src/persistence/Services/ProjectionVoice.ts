@@ -373,6 +373,11 @@ export const evolveProjectedVoice = (
 			VoiceModelLoaded: (loaded) => projectModelLoaded(current, loaded),
 			VoiceRecordingStarted: (started) => projectRecordingStarted(current, started),
 			VoiceRecordingStopped: (stopped) => projectRecordingStopped(current, stopped),
-			VoiceRecordingCancelled: (cancelled) => projectRecordingCancelled(current, cancelled)
+			VoiceRecordingCancelled: (cancelled) => projectRecordingCancelled(current, cancelled),
+			GitStatusRefreshed: () => ignoreEvent(current),
+			GitDiffLoaded: () => ignoreEvent(current),
+			GitBlameLoaded: () => ignoreEvent(current),
+			GitHunkAccepted: () => ignoreEvent(current),
+			GitHunkRejected: () => ignoreEvent(current)
 		})
 	)(event)

@@ -158,6 +158,11 @@ export const evolveProjectedSkillsCatalog = (
 			VoiceModelLoaded: () => ignoreEvent(current),
 			VoiceRecordingStarted: () => ignoreEvent(current),
 			VoiceRecordingStopped: () => ignoreEvent(current),
-			VoiceRecordingCancelled: () => ignoreEvent(current)
+			VoiceRecordingCancelled: () => ignoreEvent(current),
+			GitStatusRefreshed: () => ignoreEvent(current),
+			GitDiffLoaded: () => ignoreEvent(current),
+			GitBlameLoaded: () => ignoreEvent(current),
+			GitHunkAccepted: () => ignoreEvent(current),
+			GitHunkRejected: () => ignoreEvent(current)
 		})
 	)(event)

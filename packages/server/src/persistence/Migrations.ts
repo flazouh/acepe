@@ -15,6 +15,7 @@ import projectionSessionsPrLink from "./Migrations/0013_projection_sessions_pr_l
 import projectionSettings from "./Migrations/0014_projection_settings.ts"
 import projectionSkills from "./Migrations/0015_projection_skills.ts"
 import projectionVoice from "./Migrations/0016_projection_voice.ts"
+import projectionGitReview from "./Migrations/0017_projection_git_review.ts"
 
 const MIGRATIONS_TABLE = "_migrations"
 
@@ -34,7 +35,8 @@ const loader = SqliteMigrator.fromRecord({
 	"0013_projection_sessions_pr_link": projectionSessionsPrLink,
 	"0014_projection_settings": projectionSettings,
 	"0015_projection_skills": projectionSkills,
-	"0016_projection_voice": projectionVoice
+	"0016_projection_voice": projectionVoice,
+	"0017_projection_git_review": projectionGitReview
 })
 
 export const runMigrations = SqliteMigrator.run({

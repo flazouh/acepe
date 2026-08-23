@@ -43,6 +43,7 @@ import { GitServiceLive } from "../git/Layers/GitService.ts"
 import { runGit } from "../git/runGit.ts"
 import { OrchestrationEngineLive } from "../orchestration/Layers/OrchestrationEngine.ts"
 import { ProjectionSnapshotQueryLive } from "../orchestration/Layers/ProjectionSnapshotQuery.ts"
+import { ProjectionGitLive } from "../persistence/Layers/ProjectionGit.ts"
 import { SkillsServiceLive } from "../skills/Layers/SkillsService.ts"
 import { VoiceRuntimeLive } from "../voice/Layers/VoiceRuntime.ts"
 import { EXTERNAL_BACKEND_ID } from "../voice/Schemas.ts"
@@ -84,7 +85,8 @@ const MigratedSqlite = Layer.effectDiscard(runMigrations).pipe(Layer.provideMerg
 
 const PersistenceLive = Layer.mergeAll(
 	OrchestrationEventStoreLive,
-	OrchestrationCommandReceiptsLive
+	OrchestrationCommandReceiptsLive,
+	ProjectionGitLive
 ).pipe(Layer.provideMerge(MigratedSqlite))
 
 const EngineAndStore = OrchestrationEngineLive.pipe(

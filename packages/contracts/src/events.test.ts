@@ -31,6 +31,11 @@ import {
 	VoiceRecordingCancelledPayload,
 	VoiceRecordingStartedPayload,
 	VoiceRecordingStoppedPayload,
+	GitBlameLoadedPayload,
+	GitDiffLoadedPayload,
+	GitHunkAcceptedPayload,
+	GitHunkRejectedPayload,
+	GitStatusRefreshedPayload,
 } from "./events.ts"
 import { CheckpointId, CommandId, EventId, MessageId, ProjectId, SessionId, ToolCallId, TurnId } from "./ids.ts"
 import { APP_SETTINGS_ID } from "./settings.ts"
@@ -69,6 +74,11 @@ const v1EventTypes = [
 	"VoiceRecordingStarted",
 	"VoiceRecordingStopped",
 	"VoiceRecordingCancelled",
+	"GitStatusRefreshed",
+	"GitDiffLoaded",
+	"GitBlameLoaded",
+	"GitHunkAccepted",
+	"GitHunkRejected",
 ] as const
 
 type V1EventType = (typeof v1EventTypes)[number]
@@ -88,9 +98,17 @@ type VoiceEventType = Extract<
 	| "VoiceRecordingStopped"
 	| "VoiceRecordingCancelled"
 >
+type GitEventType = Extract<
+	EventType,
+	| "GitStatusRefreshed"
+	| "GitDiffLoaded"
+	| "GitBlameLoaded"
+	| "GitHunkAccepted"
+	| "GitHunkRejected"
+>
 type SessionEventType = Exclude<
 	EventType,
-	ProjectEventType | SettingsEventType | SkillsEventType | VoiceEventType
+	ProjectEventType | SettingsEventType | SkillsEventType | VoiceEventType | GitEventType
 >
 const _v1EventTypesMatchUnion: [EventType] extends [V1EventType]
 	? [V1EventType] extends [EventType]
@@ -203,6 +221,23 @@ const voiceEvent = <const Type extends VoiceEventType, Payload>(
 	eventId,
 	aggregateKind: "voice" as const,
 	aggregateId: APP_VOICE_ID,
+	occurredAt,
+	commandId,
+	causationEventId: null,
+	correlationId: commandId,
+	metadata: {},
+	type,
+	payload,
+})
+
+const gitEvent = <const Type extends GitEventType, Payload>(
+	type: Type,
+	payload: Payload,
+) => ({
+	sequence: 6,
+	eventId,
+	aggregateKind: "git" as const,
+	aggregateId: projectId,
 	occurredAt,
 	commandId,
 	causationEventId: null,
@@ -384,6 +419,58 @@ const memberCases = [
 		payloadSchema: VoiceRecordingCancelledPayload,
 		event: voiceEvent("VoiceRecordingCancelled", {
 			sessionId,
+		}),
+	},
+	{
+		payloadSchema: GitStatusRefreshedPayload,
+		event: gitEvent("GitStatusRefreshed", {
+			projectId,
+			status: null,
+		}),
+	},
+	{
+		payloadSchema: GitDiffLoadedPayload,
+		event: gitEvent("GitDiffLoaded", {
+			projectId,
+			filePath: "notes.md",
+			diff: {
+				oldContent: "alpha\n",
+				newContent: "alpha\nbeta\n",
+				fileName: "notes.md",
+			},
+			patch: "@@ -1,1 +1,2 @@\n alpha\n+beta\n",
+		}),
+	},
+	{
+		payloadSchema: GitBlameLoadedPayload,
+		event: gitEvent("GitBlameLoaded", {
+			projectId,
+			filePath: "notes.md",
+			blame: [
+				{
+					line: 1,
+					commit: "abc1234",
+					author: "Test User",
+					summary: "Seed",
+				},
+			],
+		}),
+	},
+	{
+		payloadSchema: GitHunkAcceptedPayload,
+		event: gitEvent("GitHunkAccepted", {
+			projectId,
+			filePath: "notes.md",
+			hunkIndex: 0,
+		}),
+	},
+	{
+		payloadSchema: GitHunkRejectedPayload,
+		event: gitEvent("GitHunkRejected", {
+			projectId,
+			filePath: "notes.md",
+			hunkIndex: 1,
+			newContent: "alpha\n",
 		}),
 	},
 ] as const

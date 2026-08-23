@@ -6,6 +6,13 @@ import * as Str from "effect/String"
 
 import { type Sequence, TrimmedNonEmptyString } from "./baseSchemas.ts"
 import type { OrchestrationEvent } from "./events.ts"
+import {
+	emptyGitFileReview,
+	emptyProjectedGitReview,
+	type GitFileReview,
+	type GitHunkDecision,
+	type ProjectedGitReview,
+} from "./git.ts"
 import type { SessionId } from "./ids.ts"
 import {
 	type RpcProjectedCheckpoint,
@@ -32,6 +39,7 @@ export const emptyRpcSessionSnapshot = (snapshotSequence: Sequence): RpcSessionS
 	settings: Arr.empty(),
 	skillsCatalog: null,
 	voice: null,
+	gitReview: null,
 })
 
 const watermark = (snapshot: RpcSessionSnapshot, sequence: Sequence): Sequence =>
@@ -226,6 +234,7 @@ const applySettingsUpdated = (
 		checkpoints: snapshot.checkpoints,
 		skillsCatalog: snapshot.skillsCatalog,
 		voice: snapshot.voice,
+		gitReview: snapshot.gitReview,
 	}
 }
 
@@ -357,6 +366,7 @@ const applySkillsDiscovered = (
 		tree: event.payload.tree,
 	},
 	voice: snapshot.voice,
+	gitReview: snapshot.gitReview,
 })
 
 const upsertVoiceModel = (
@@ -438,6 +448,7 @@ const replaceVoice = (
 		recording: voice.recording,
 		lastTranscription: voice.lastTranscription,
 	},
+	gitReview: snapshot.gitReview,
 })
 
 const applyVoiceModelsListed = (
@@ -574,6 +585,168 @@ const applyVoiceRecordingCancelled = (
 	})
 }
 
+const currentGitReview = (
+	snapshot: RpcSessionSnapshot,
+	projectId: ProjectedGitReview["projectId"],
+	sequence: Sequence,
+): ProjectedGitReview => {
+	if (snapshot.gitReview === null || snapshot.gitReview.projectId !== projectId) {
+		return emptyProjectedGitReview(projectId, sequence)
+	}
+	return snapshot.gitReview
+}
+
+const replaceGitReview = (
+	snapshot: RpcSessionSnapshot,
+	sequence: Sequence,
+	gitReview: ProjectedGitReview,
+): RpcSessionSnapshot => ({
+	snapshotSequence: watermark(snapshot, sequence),
+	session: snapshot.session,
+	messages: snapshot.messages,
+	turns: snapshot.turns,
+	activities: snapshot.activities,
+	pendingApprovals: snapshot.pendingApprovals,
+	projects: snapshot.projects,
+	sessions: snapshot.sessions,
+	settings: snapshot.settings,
+	checkpoints: snapshot.checkpoints,
+	skillsCatalog: snapshot.skillsCatalog,
+	voice: snapshot.voice,
+	gitReview: {
+		sequence,
+		projectId: gitReview.projectId,
+		status: gitReview.status,
+		files: gitReview.files,
+	},
+})
+
+const upsertGitFile = (
+	files: ReadonlyArray<GitFileReview>,
+	path: GitFileReview["path"],
+	update: (current: GitFileReview) => GitFileReview,
+): ReadonlyArray<GitFileReview> => {
+	const existing = Arr.findFirst(files, (file) => file.path === path)
+	const next = update(Option.getOrElse(existing, () => emptyGitFileReview(path)))
+	if (Option.isNone(existing)) {
+		return Arr.append(files, next)
+	}
+	return Arr.map(files, (file) => (file.path === path ? next : file))
+}
+
+const upsertHunkDecision = (
+	decisions: ReadonlyArray<GitHunkDecision>,
+	next: GitHunkDecision,
+): ReadonlyArray<GitHunkDecision> => {
+	const existing = Arr.findFirst(decisions, (row) => row.hunkIndex === next.hunkIndex)
+	if (Option.isNone(existing)) {
+		return Arr.append(decisions, next)
+	}
+	return Arr.map(decisions, (row) => (row.hunkIndex === next.hunkIndex ? next : row))
+}
+
+const applyGitStatusRefreshed = (
+	snapshot: RpcSessionSnapshot,
+	event: Extract<OrchestrationEvent, { readonly type: "GitStatusRefreshed" }>,
+): RpcSessionSnapshot => {
+	const review = currentGitReview(snapshot, event.payload.projectId, event.sequence)
+	return replaceGitReview(snapshot, event.sequence, {
+		sequence: event.sequence,
+		projectId: event.payload.projectId,
+		status: event.payload.status,
+		files: review.files,
+	})
+}
+
+const applyGitDiffLoaded = (
+	snapshot: RpcSessionSnapshot,
+	event: Extract<OrchestrationEvent, { readonly type: "GitDiffLoaded" }>,
+): RpcSessionSnapshot => {
+	const review = currentGitReview(snapshot, event.payload.projectId, event.sequence)
+	return replaceGitReview(snapshot, event.sequence, {
+		sequence: event.sequence,
+		projectId: event.payload.projectId,
+		status: review.status,
+		files: upsertGitFile(review.files, event.payload.filePath, (file) => ({
+			path: file.path,
+			diff: event.payload.diff,
+			patch: event.payload.patch,
+			blame: file.blame,
+			hunkDecisions: file.hunkDecisions,
+		})),
+	})
+}
+
+const applyGitBlameLoaded = (
+	snapshot: RpcSessionSnapshot,
+	event: Extract<OrchestrationEvent, { readonly type: "GitBlameLoaded" }>,
+): RpcSessionSnapshot => {
+	const review = currentGitReview(snapshot, event.payload.projectId, event.sequence)
+	return replaceGitReview(snapshot, event.sequence, {
+		sequence: event.sequence,
+		projectId: event.payload.projectId,
+		status: review.status,
+		files: upsertGitFile(review.files, event.payload.filePath, (file) => ({
+			path: file.path,
+			diff: file.diff,
+			patch: file.patch,
+			blame: event.payload.blame,
+			hunkDecisions: file.hunkDecisions,
+		})),
+	})
+}
+
+const applyGitHunkAccepted = (
+	snapshot: RpcSessionSnapshot,
+	event: Extract<OrchestrationEvent, { readonly type: "GitHunkAccepted" }>,
+): RpcSessionSnapshot => {
+	const review = currentGitReview(snapshot, event.payload.projectId, event.sequence)
+	return replaceGitReview(snapshot, event.sequence, {
+		sequence: event.sequence,
+		projectId: event.payload.projectId,
+		status: review.status,
+		files: upsertGitFile(review.files, event.payload.filePath, (file) => ({
+			path: file.path,
+			diff: file.diff,
+			patch: file.patch,
+			blame: file.blame,
+			hunkDecisions: upsertHunkDecision(file.hunkDecisions, {
+				hunkIndex: event.payload.hunkIndex,
+				action: "accepted",
+			}),
+		})),
+	})
+}
+
+const applyGitHunkRejected = (
+	snapshot: RpcSessionSnapshot,
+	event: Extract<OrchestrationEvent, { readonly type: "GitHunkRejected" }>,
+): RpcSessionSnapshot => {
+	const review = currentGitReview(snapshot, event.payload.projectId, event.sequence)
+	return replaceGitReview(snapshot, event.sequence, {
+		sequence: event.sequence,
+		projectId: event.payload.projectId,
+		status: review.status,
+		files: upsertGitFile(review.files, event.payload.filePath, (file) => ({
+			path: file.path,
+			diff:
+				file.diff === null
+					? null
+					: {
+							oldContent: file.diff.oldContent,
+							newContent: event.payload.newContent,
+							fileName: file.diff.fileName,
+						},
+			patch: file.patch,
+			blame: file.blame,
+			hunkDecisions: upsertHunkDecision(file.hunkDecisions, {
+				hunkIndex: event.payload.hunkIndex,
+				action: "rejected",
+			}),
+		})),
+	})
+}
+
 export const applyEventToRpcSessionSnapshot = (
 	snapshot: RpcSessionSnapshot,
 	event: OrchestrationEvent,
@@ -637,6 +810,16 @@ export const applyEventToRpcSessionSnapshot = (
 			return applyVoiceRecordingStopped(snapshot, event)
 		case "VoiceRecordingCancelled":
 			return applyVoiceRecordingCancelled(snapshot, event)
+		case "GitStatusRefreshed":
+			return applyGitStatusRefreshed(snapshot, event)
+		case "GitDiffLoaded":
+			return applyGitDiffLoaded(snapshot, event)
+		case "GitBlameLoaded":
+			return applyGitBlameLoaded(snapshot, event)
+		case "GitHunkAccepted":
+			return applyGitHunkAccepted(snapshot, event)
+		case "GitHunkRejected":
+			return applyGitHunkRejected(snapshot, event)
 		default:
 			return withSequence(snapshot, event.sequence)
 	}
