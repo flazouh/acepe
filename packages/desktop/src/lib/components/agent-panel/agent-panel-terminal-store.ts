@@ -13,6 +13,18 @@ import {
 } from "@acepe/contracts";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
+
+/**
+ * Server-issued output can be genuinely bursty, and a single "RpcTransportError:
+ * RPC request timed out" is common under load — that alone must not kill the
+ * poll fiber and freeze the view while the server keeps appending output. This
+ * caps how many *consecutive* failures are swallowed before followTerminal
+ * gives up and surfaces the error: a genuinely dead server still fails, it
+ * just gets a few retries first instead of dying on the first hiccup.
+ */
+export const DEFAULT_TERMINAL_POLL_MAX_CONSECUTIVE_FAILURES = 5;
+const DEFAULT_TERMINAL_POLL_INTERVAL_MILLIS = 350;
 
 const randomToken = (): string =>
 	`${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -83,16 +95,38 @@ export const followTerminal = Effect.fn("followTerminal")(function* (input: {
 	readonly terminalId: TerminalId;
 	readonly isActive: () => boolean;
 	readonly onSnapshot: (terminal: ProjectedTerminal | null) => void;
+	readonly pollIntervalMillis?: number;
+	readonly maxConsecutiveFailures?: number;
 }) {
+	const pollIntervalMillis = input.pollIntervalMillis ?? DEFAULT_TERMINAL_POLL_INTERVAL_MILLIS;
+	const maxConsecutiveFailures =
+		input.maxConsecutiveFailures ?? DEFAULT_TERMINAL_POLL_MAX_CONSECUTIVE_FAILURES;
+	let consecutiveFailures = 0;
+
 	while (input.isActive()) {
-		yield* Effect.sleep(Duration.millis(350));
+		yield* Effect.sleep(Duration.millis(pollIntervalMillis));
 		if (!input.isActive()) {
 			return;
 		}
-		const snap = yield* input.client.snapshot({
-			kind: "terminal",
-			terminalId: input.terminalId,
-		});
-		input.onSnapshot(snap.terminal);
+		const result = yield* Effect.result(
+			input.client.snapshot({
+				kind: "terminal",
+				terminalId: input.terminalId,
+			})
+		);
+		if (Result.isSuccess(result)) {
+			consecutiveFailures = 0;
+			input.onSnapshot(result.success.terminal);
+			continue;
+		}
+		consecutiveFailures += 1;
+		if (consecutiveFailures >= maxConsecutiveFailures) {
+			// A run of transient hiccups is one thing; this many in a row means
+			// the server (or connection) is actually gone, so let it surface.
+			return yield* Effect.fail(result.failure);
+		}
+		// Swallow the transient failure and keep polling — a dropped RPC must
+		// not permanently freeze the terminal view while the server is still
+		// alive and appending output.
 	}
 });
