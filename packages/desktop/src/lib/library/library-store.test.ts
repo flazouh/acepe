@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import {
 	CommandId,
-	emptyRpcSessionSnapshot,
 	EventId,
+	emptyRpcSessionSnapshot,
 	librarySnapshotRequest,
 	MessageId,
 	ProjectId,
@@ -80,7 +80,7 @@ describe("isLibraryProjectionEvent", () => {
 				payload: {
 					sessionId,
 				},
-			}),
+			})
 		).toBe(true);
 		expect(
 			isLibraryProjectionEvent({
@@ -99,7 +99,7 @@ describe("isLibraryProjectionEvent", () => {
 					messageId: MessageId.make("message-1"),
 					token: "x",
 				},
-			}),
+			})
 		).toBe(false);
 	});
 });
@@ -142,7 +142,7 @@ describe("composeLibraryStore", () => {
 				expect(seen).toEqual(["Acepe"]);
 				store.selectProject(projectId);
 				expect(registry.get(store.selectedProjectIdAtom)).toBe(projectId);
-			}),
+			})
 		));
 });
 
@@ -175,10 +175,18 @@ describe("openProject", () => {
 					events: () => Stream.empty,
 				};
 				const registry = AtomRegistry.make();
-				const store = composeLibraryStore({ client, registry });
+				const seen: Array<number> = [];
+				const store = composeLibraryStore({
+					client,
+					registry,
+					onSnapshot: (snapshot) => {
+						seen.push(snapshot.sessions.length);
+					},
+				});
 				const snap = yield* store.openProject(projectId);
 				expect(snap.sessions.length).toBe(2);
 				expect(registry.get(store.selectedProjectIdAtom)).toBe(projectId);
-			}),
+				expect(seen).toEqual([2]);
+			})
 		));
 });

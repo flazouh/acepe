@@ -1,4 +1,10 @@
-import type { ActivityId, Sequence, SessionId, ToolCallId } from "@acepe/contracts";
+import type {
+	ActivityId,
+	RpcProjectedPendingApproval,
+	Sequence,
+	SessionId,
+	ToolCallId,
+} from "@acepe/contracts";
 import type { AgentToolEntry, AgentToolStatus } from "@acepe/ui/agent-panel/types";
 
 export type AgentPanelActivityKind = "tool" | "file";
@@ -52,4 +58,20 @@ export const toolRowFromActivityProjection = (
 		entry.filePath = activity.path;
 	}
 	return entry;
+};
+
+export const PERMISSION_PROMPT_TITLE = "Permission required";
+
+export const toolRowFromPendingApproval = (
+	approval: RpcProjectedPendingApproval
+): AgentToolEntry => {
+	const title = approval.title === undefined ? PERMISSION_PROMPT_TITLE : approval.title;
+	return {
+		id: approval.approvalRequestId,
+		type: "tool_call",
+		kind: "unclassified",
+		title,
+		status: "blocked",
+		presentationState: "pending_operation",
+	};
 };

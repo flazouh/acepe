@@ -19,6 +19,7 @@ export const createSessionStore = (input: {
 		openLibrary: parts.openLibrary,
 		openProject: parts.openProject,
 		openSession: parts.openSession,
+		refreshSession: parts.refreshSession,
 		dispatch: parts.dispatch,
 		recordSendMoment: parts.recordSendMoment,
 		togglePrLink: parts.togglePrLink,

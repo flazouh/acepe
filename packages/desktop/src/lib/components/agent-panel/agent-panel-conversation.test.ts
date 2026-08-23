@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import {
 	ActivityId,
+	ApprovalRequestId,
 	EventId,
 	emptyRpcSessionSnapshot,
 	MessageId,
@@ -91,8 +92,8 @@ describe("conversationFromSnapshot", () => {
 				skillsCatalog: null,
 				voice: null,
 				gitReview: null,
-			mcpCatalog: null,
-			preconnectionOptions: null,
+				mcpCatalog: null,
+				preconnectionOptions: null,
 			},
 			activities: [
 				{
@@ -163,8 +164,8 @@ describe("conversationFromSnapshot", () => {
 				skillsCatalog: null,
 				voice: null,
 				gitReview: null,
-			mcpCatalog: null,
-			preconnectionOptions: null,
+				mcpCatalog: null,
+				preconnectionOptions: null,
 			},
 		});
 
@@ -205,8 +206,8 @@ describe("conversationFromSnapshot", () => {
 				skillsCatalog: null,
 				voice: null,
 				gitReview: null,
-			mcpCatalog: null,
-			preconnectionOptions: null,
+				mcpCatalog: null,
+				preconnectionOptions: null,
 			},
 		});
 
@@ -218,6 +219,55 @@ describe("conversationFromSnapshot", () => {
 			kind: "unclassified",
 			title: "activity",
 			status: "pending",
+			presentationState: "pending_operation",
+		});
+	});
+
+	it("renders pending approvals as blocked permission rows in sequence order", () => {
+		const conversation = conversationFromSnapshot({
+			snapshot: {
+				snapshotSequence: 6,
+				session: snapshotBase.session,
+				messages: [
+					{
+						sessionId,
+						sequence: 2,
+						messageId: MessageId.make("event-user-1"),
+						turnId: null,
+						rowType: "user",
+						content: { text: "Ship the slice" },
+					},
+				],
+				turns: [],
+				activities: [],
+				pendingApprovals: [
+					{
+						approvalRequestId: ApprovalRequestId.make("event-approval-1"),
+						sessionId,
+						sequence: 4,
+						title: "Edit src/app.ts",
+					},
+				],
+				checkpoints: [],
+				projects: [],
+				sessions: [],
+				settings: [],
+				skillsCatalog: null,
+				voice: null,
+				gitReview: null,
+				mcpCatalog: null,
+				preconnectionOptions: null,
+			},
+		});
+
+		expect(conversation.rows.map((row) => row.entry.type)).toEqual(["user", "tool_call"]);
+		expect(conversation.rows[1]?.eachKey).toBe(EventId.make("event-approval-1"));
+		expect(conversation.rows[1]?.entry).toEqual({
+			id: "event-approval-1",
+			type: "tool_call",
+			kind: "unclassified",
+			title: "Edit src/app.ts",
+			status: "blocked",
 			presentationState: "pending_operation",
 		});
 	});

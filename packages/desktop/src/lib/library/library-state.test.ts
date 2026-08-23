@@ -134,5 +134,6 @@ describe("librarySidebarViewModel", () => {
 			"archived",
 			"deleted",
 		]);
+		expect(model.selectedSessionId).toBeNull();
 	});
 });

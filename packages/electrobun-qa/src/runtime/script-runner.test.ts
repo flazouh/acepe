@@ -42,4 +42,17 @@ cliLog(await snapshotText())`,
 			expect(logs).toEqual(["Acepe\n  Toggle\n  Opened"])
 		}),
 	)
+
+	it.effect("accepts the issue-241 heredoc helper shapes", () =>
+		Effect.gen(function* () {
+			const logs = yield* runUserScript(
+				`await fillInput({ selector: "#toggle", value: "hello from qa" })
+await pressKey({ key: "Enter" })
+await waitForText("hello from qa", { timeoutMs: 10000 })
+cliLog(await snapshotText({ selector: "#toggle" }))`,
+				toggleSession(),
+			)
+			expect(logs).toEqual(["hello from qa"])
+		}),
+	)
 })

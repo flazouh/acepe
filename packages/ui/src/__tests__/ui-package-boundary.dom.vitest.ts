@@ -2,13 +2,13 @@ import { cleanup, render } from "@testing-library/svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import CheckpointCard from "../components/checkpoint/checkpoint-card.svelte";
-import TracerTranscript from "../components/tracer-transcript/tracer-transcript.svelte";
+import type { CheckpointData } from "../components/checkpoint/types.js";
 import LibrarySidebar from "../components/library-sidebar/library-sidebar.svelte";
 import type { LibrarySidebarViewModel } from "../components/library-sidebar/library-sidebar-state.js";
 import SettingsModal from "../components/settings-modal/settings-modal.svelte";
 import type { SettingsModalViewModel } from "../components/settings-modal/settings-modal-state.js";
+import TracerTranscript from "../components/tracer-transcript/tracer-transcript.svelte";
 import UiPackageBoundarySidebarFixture from "./fixtures/ui-package-boundary-sidebar-fixture.svelte";
-import type { CheckpointData } from "../components/checkpoint/types.js";
 
 vi.mock("svelte", async () => {
 	const { createRequire } = await import("node:module");
@@ -16,7 +16,7 @@ vi.mock("svelte", async () => {
 	const require = createRequire(import.meta.url);
 	const svelteClientPath = join(
 		dirname(require.resolve("svelte/package.json")),
-		"src/index-client.js"
+		"src/index-client.js",
 	);
 
 	return import(/* @vite-ignore */ svelteClientPath);
@@ -76,6 +76,7 @@ describe("ui package boundary render smoke", () => {
 			emptyProjectsLabel: "No projects",
 			emptySessionsLabel: "Select a project",
 			selectedProjectId: "project-1",
+			selectedSessionId: null,
 			projects: [
 				{
 					id: "project-1",
@@ -140,6 +141,8 @@ describe("ui package boundary render smoke", () => {
 
 		expect(view.getByTestId("settings-modal")).toBeTruthy();
 		expect(view.getByTestId("review-modal-preview")).toBeTruthy();
-		expect(view.getByTestId("diff-preview").className).toContain("app-code-font");
+		expect(view.getByTestId("diff-preview").className).toContain(
+			"app-code-font",
+		);
 	});
 });

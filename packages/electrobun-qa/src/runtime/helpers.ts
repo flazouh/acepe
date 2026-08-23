@@ -37,7 +37,7 @@ export type HelperName = (typeof HELPER_NAMES)[number]
 
 export const helperHelp = (name: HelperName): string => {
 	if (name === "snapshotText") {
-		return "snapshotText(): accessibility-shaped text tree of the current window"
+		return "snapshotText({ selector }?): accessibility-shaped text tree of the window or a subtree"
 	}
 	if (name === "click") {
 		return "click({ text } | { selector }): click an element by visible text or CSS selector"
@@ -98,8 +98,8 @@ const pollUntil = Effect.fn("pollUntil")(function* (
 })
 
 export const makeRuntimeHelpers = (session: QaSession, logs: Array<string>) => {
-	const snapshotText = Effect.fn("snapshotText")(function* () {
-		return yield* session.call("qa:snapshotText", {})
+	const snapshotText = Effect.fn("snapshotText")(function* (target?: QaQuery) {
+		return yield* session.call("qa:snapshotText", target === undefined ? {} : target)
 	})
 	const snapshotDom = Effect.fn("snapshotDom")(function* () {
 		return yield* session.call("qa:snapshotDom", {})
@@ -125,9 +125,13 @@ export const makeRuntimeHelpers = (session: QaSession, logs: Array<string>) => {
 	})
 	const fillInput = Effect.fn("fillInput")(function* (target: QaQuery & { readonly text: string }) {
 		if (target.selector !== undefined) {
-			return yield* session.call("qa:type", { text: target.text, selector: target.selector })
+			return yield* session.call("qa:type", {
+				text: target.text,
+				selector: target.selector,
+				replace: true,
+			})
 		}
-		return yield* session.call("qa:type", { text: target.text })
+		return yield* session.call("qa:type", { text: target.text, replace: true })
 	})
 	const pressKey = Effect.fn("pressKey")(function* (key: string) {
 		return yield* session.call("qa:key", { key })
@@ -135,14 +139,14 @@ export const makeRuntimeHelpers = (session: QaSession, logs: Array<string>) => {
 	const scrollBy = Effect.fn("scrollBy")(function* (x: number, y: number) {
 		return yield* session.call("qa:scroll", { x, y })
 	})
-	const waitForText = Effect.fn("waitForText")(function* (text: string) {
+	const waitForText = Effect.fn("waitForText")(function* (text: string, timeoutMs?: number) {
 		return yield* pollUntil(
 			"waitForText",
 			session.call("qa:waitFor", { text }).pipe(
 				Effect.map((found) => found === true),
 				Effect.orElseSucceed(() => false),
 			),
-			DEFAULT_HELPER_DEADLINE,
+			timeoutMs === undefined ? DEFAULT_HELPER_DEADLINE : Duration.millis(timeoutMs),
 		)
 	})
 	const waitForSelector = Effect.fn("waitForSelector")(function* (selector: string) {

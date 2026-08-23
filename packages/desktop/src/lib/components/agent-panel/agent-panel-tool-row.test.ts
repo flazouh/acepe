@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
-import { ActivityId, SessionId, ToolCallId } from "@acepe/contracts";
+import { ActivityId, ApprovalRequestId, SessionId, ToolCallId } from "@acepe/contracts";
 
-import { toolRowFromActivityProjection } from "./agent-panel-tool-row.ts";
+import { toolRowFromActivityProjection, toolRowFromPendingApproval } from "./agent-panel-tool-row.ts";
 
 const sessionId = SessionId.make("session-1");
 
@@ -55,6 +55,23 @@ describe("toolRowFromActivityProjection", () => {
 			filePath: "src/lib/panel.ts",
 			status: "done",
 			presentationState: "resolved",
+		});
+	});
+
+	it("maps a pending approval to a blocked permission row", () => {
+		const entry = toolRowFromPendingApproval({
+			approvalRequestId: ApprovalRequestId.make("event-approval-1"),
+			sessionId,
+			sequence: 4,
+			title: "Edit src/app.ts",
+		});
+		expect(entry).toEqual({
+			id: "event-approval-1",
+			type: "tool_call",
+			kind: "unclassified",
+			title: "Edit src/app.ts",
+			status: "blocked",
+			presentationState: "pending_operation",
 		});
 	});
 

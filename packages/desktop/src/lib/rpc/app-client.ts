@@ -28,10 +28,12 @@ export const appRpcClient = (): Effect.Effect<RpcClient, never> =>
 					client = made;
 					return made;
 				}),
-				Effect.orDie,
+				Effect.orDie
 			);
 
-/** Test seam: swap the client without touching the webview bridge. */
-export const setAppRpcClientForTest = (next: RpcClient | null): void => {
+export const provideAppRpcClient = (next: RpcClient | null): void => {
 	client = next;
 };
+
+/** Test seam: swap the client without touching the webview bridge. */
+export const setAppRpcClientForTest = provideAppRpcClient;

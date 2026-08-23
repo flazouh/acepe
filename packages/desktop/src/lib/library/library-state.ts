@@ -1,8 +1,9 @@
-import {
-	type ProjectId,
-	type RpcProjectedProject,
-	type RpcProjectedSession,
-	type RpcSessionSnapshot,
+import type {
+	ProjectId,
+	RpcProjectedProject,
+	RpcProjectedSession,
+	RpcSessionSnapshot,
+	SessionId,
 } from "@acepe/contracts";
 import type {
 	LibrarySessionLifecycle,
@@ -31,9 +32,7 @@ export const sessionLifecycle = (session: RpcProjectedSession): LibrarySessionLi
 	return "active";
 };
 
-export const sessionLifecycleLabel = (
-	lifecycle: LibrarySessionLifecycle,
-): string | null => {
+export const sessionLifecycleLabel = (lifecycle: LibrarySessionLifecycle): string | null => {
 	if (lifecycle === "archived") {
 		return LIBRARY_SIDEBAR_COPY.archivedLabel;
 	}
@@ -66,21 +65,21 @@ export const sessionFromProjection = (session: RpcProjectedSession): LibrarySide
 export const librarySidebarViewModel = (input: {
 	readonly snapshot: RpcSessionSnapshot;
 	readonly selectedProjectId: ProjectId | null;
+	readonly selectedSessionId?: SessionId | null;
 }): LibrarySidebarViewModel => {
 	const selectedProjectId = input.selectedProjectId;
+	const selectedSessionId = input.selectedSessionId ?? null;
 	const matching =
 		selectedProjectId === null
 			? Arr.empty<RpcProjectedSession>()
-			: Arr.filter(
-					input.snapshot.sessions,
-					(session) => session.projectId === selectedProjectId,
-				);
+			: Arr.filter(input.snapshot.sessions, (session) => session.projectId === selectedProjectId);
 	return {
 		projectsHeading: LIBRARY_SIDEBAR_COPY.projectsHeading,
 		sessionsHeading: LIBRARY_SIDEBAR_COPY.sessionsHeading,
 		emptyProjectsLabel: LIBRARY_SIDEBAR_COPY.emptyProjectsLabel,
 		emptySessionsLabel: LIBRARY_SIDEBAR_COPY.emptySessionsLabel,
 		selectedProjectId,
+		selectedSessionId,
 		projects: Arr.map(input.snapshot.projects, projectFromProjection),
 		sessions: Arr.map(matching, sessionFromProjection),
 	};

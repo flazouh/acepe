@@ -1,4 +1,4 @@
-import * as Schema from "effect/Schema"
+import * as Schema from "effect/Schema";
 
 import {
 	QA_PRELOAD_METHODS,
@@ -8,170 +8,207 @@ import {
 	QaScrollPayload,
 	QaTypePayload,
 	QaWaitForPayload,
-} from "../host/protocol.ts"
+} from "../host/protocol.ts";
 
-export { QA_PRELOAD_METHODS }
-export type { QaPreloadMethod } from "../host/protocol.ts"
+export type { QaPreloadMethod } from "../host/protocol.ts";
+export { QA_PRELOAD_METHODS };
 
 export type MemoryNode = {
-	readonly id: string
-	readonly tag: string
-	text: string
-	hidden: boolean
-	value: string
-	readonly children: Array<MemoryNode>
-	onClick: (() => void) | null
-}
+	readonly id: string;
+	readonly tag: string;
+	text: string;
+	hidden: boolean;
+	value: string;
+	readonly children: Array<MemoryNode>;
+	onClick: (() => void) | null;
+};
 
 export type MemoryPage = {
-	readonly title: string
-	readonly url: string
-	readonly root: MemoryNode
-	focused: MemoryNode | null
-}
+	readonly title: string;
+	readonly url: string;
+	readonly root: MemoryNode;
+	focused: MemoryNode | null;
+};
 
-const visibleText = (node: MemoryNode): string => node.text.replace(/\s+/g, " ").trim()
+const visibleText = (node: MemoryNode): string =>
+	node.text.replace(/\s+/g, " ").trim();
 
 const nodeMatchesText = (node: MemoryNode, text: string): boolean =>
-	visibleText(node).includes(text) === true
+	visibleText(node).includes(text) === true;
 
 const nodeMatchesSelector = (node: MemoryNode, selector: string): boolean => {
 	if (selector.startsWith("#") === true) {
-		return node.id === selector.slice(1)
+		return node.id === selector.slice(1);
 	}
 	if (selector.startsWith(".") === true) {
-		return false
+		return false;
 	}
-	return node.tag === selector.toLowerCase()
-}
+	return node.tag === selector.toLowerCase();
+};
 
 const collectVisible = (node: MemoryNode, acc: Array<MemoryNode>): void => {
 	if (node.hidden === true) {
-		return
+		return;
 	}
-	acc.push(node)
+	acc.push(node);
 	for (const child of node.children) {
-		collectVisible(child, acc)
+		collectVisible(child, acc);
 	}
-}
+};
 
-export const snapshotTextFromPage = (page: MemoryPage): string => {
-	const lines: Array<string> = []
+export type QaQuery = {
+	readonly selector?: string;
+	readonly text?: string;
+};
+
+const findNode = (page: MemoryPage, target: QaQuery): MemoryNode | null => {
+	const visible: Array<MemoryNode> = [];
+	collectVisible(page.root, visible);
+	const selector = target.selector;
+	if (selector !== undefined) {
+		for (const node of visible) {
+			if (nodeMatchesSelector(node, selector) === true) {
+				return node;
+			}
+		}
+		return null;
+	}
+	const text = target.text;
+	if (text !== undefined) {
+		for (const node of visible) {
+			if (nodeMatchesText(node, text) === true) {
+				return node;
+			}
+		}
+	}
+	return null;
+};
+
+const textTreeFromNode = (root: MemoryNode): string => {
+	const lines: Array<string> = [];
 	const walk = (node: MemoryNode, depth: number): void => {
 		if (node.hidden === true) {
-			return
+			return;
 		}
-		const indent = "  ".repeat(depth)
-		const text = visibleText(node)
+		const indent = "  ".repeat(depth);
+		const text = visibleText(node);
 		if (text.length > 0) {
-			lines.push(`${indent}${text}`)
+			lines.push(`${indent}${text}`);
 		}
-		const nextDepth = text.length > 0 ? depth + 1 : depth
+		const nextDepth = text.length > 0 ? depth + 1 : depth;
 		for (const child of node.children) {
-			walk(child, nextDepth)
+			walk(child, nextDepth);
 		}
+	};
+	walk(root, 0);
+	return lines.join("\n");
+};
+
+export const snapshotTextFromPage = (
+	page: MemoryPage,
+	target?: QaQuery,
+): string => {
+	if (
+		target !== undefined &&
+		(target.selector !== undefined || target.text !== undefined)
+	) {
+		const node = findNode(page, target);
+		if (node === null) {
+			return "";
+		}
+		return textTreeFromNode(node);
 	}
-	walk(page.root, 0)
-	return lines.join("\n")
-}
+	return textTreeFromNode(page.root);
+};
 
 export const snapshotDomFromPage = (page: MemoryPage): string => {
 	const walk = (node: MemoryNode): string => {
 		if (node.hidden === true) {
-			return ""
+			return "";
 		}
-		const inner = node.children.map((child) => walk(child)).join("")
-		return `<${node.tag} id="${node.id}">${visibleText(node)}${inner}</${node.tag}>`
-	}
-	return walk(page.root)
-}
-
-export type QaQuery = {
-	readonly selector?: string
-	readonly text?: string
-}
-
-const findNode = (page: MemoryPage, target: QaQuery): MemoryNode | null => {
-	const visible: Array<MemoryNode> = []
-	collectVisible(page.root, visible)
-	const selector = target.selector
-	if (selector !== undefined) {
-		for (const node of visible) {
-			if (nodeMatchesSelector(node, selector) === true) {
-				return node
-			}
-		}
-		return null
-	}
-	const text = target.text
-	if (text !== undefined) {
-		for (const node of visible) {
-			if (nodeMatchesText(node, text) === true) {
-				return node
-			}
-		}
-	}
-	return null
-}
+		const inner = node.children.map((child) => walk(child)).join("");
+		return `<${node.tag} id="${node.id}">${visibleText(node)}${inner}</${node.tag}>`;
+	};
+	return walk(page.root);
+};
 
 export const clickOnPage = (page: MemoryPage, target: QaQuery): boolean => {
-	const node = findNode(page, target)
+	const node = findNode(page, target);
 	if (node === null) {
-		return false
+		return false;
 	}
-	page.focused = node
+	page.focused = node;
 	if (node.onClick !== null) {
-		node.onClick()
+		node.onClick();
 	}
-	return true
-}
+	return true;
+};
 
-export const typeOnPage = (page: MemoryPage, payload: QaTypePayload): boolean => {
+export const typeOnPage = (
+	page: MemoryPage,
+	payload: QaTypePayload,
+): boolean => {
 	const node =
 		payload.selector === undefined
 			? page.focused
-			: findNode(page, { selector: payload.selector })
+			: findNode(page, { selector: payload.selector });
 	if (node === null) {
-		return false
+		return false;
 	}
-	node.value = `${node.value}${payload.text}`
-	node.text = node.value
-	return true
-}
+	if (payload.replace === true) {
+		node.value = payload.text;
+	} else {
+		node.value = `${node.value}${payload.text}`;
+	}
+	node.text = node.value;
+	page.focused = node;
+	return true;
+};
 
 export const keyOnPage = (page: MemoryPage, payload: QaKeyPayload): boolean => {
 	if (page.focused === null) {
-		return false
+		return false;
 	}
 	if (payload.key === "Backspace") {
-		page.focused.value = page.focused.value.slice(0, -1)
-		page.focused.text = page.focused.value
+		page.focused.value = page.focused.value.slice(0, -1);
+		page.focused.text = page.focused.value;
 	}
-	return true
-}
+	return true;
+};
 
-export const scrollOnPage = (page: MemoryPage, payload: QaScrollPayload): boolean => {
-	page.root.text = `${page.root.text} scrolled:${String(payload.x)},${String(payload.y)}`
-	return true
-}
+export const scrollOnPage = (
+	page: MemoryPage,
+	payload: QaScrollPayload,
+): boolean => {
+	page.root.text = `${page.root.text} scrolled:${String(payload.x)},${String(payload.y)}`;
+	return true;
+};
 
 export const waitForOnPage = (page: MemoryPage, payload: QaQuery): boolean =>
-	findNode(page, payload) !== null
+	findNode(page, payload) !== null;
 
-export const pageInfoFromPage = (page: MemoryPage): { readonly title: string; readonly url: string } => ({
+export const pageInfoFromPage = (
+	page: MemoryPage,
+): { readonly title: string; readonly url: string } => ({
 	title: page.title,
 	url: page.url,
-})
+});
 
-export const evalOnPage = (page: MemoryPage, payload: QaEvalPayload): string => {
+export const evalOnPage = (
+	page: MemoryPage,
+	payload: QaEvalPayload,
+): string => {
 	if (payload.source.includes("document.title") === true) {
-		return page.title
+		return page.title;
 	}
-	if (payload.source.includes("location.href") === true || payload.source.includes("document.URL") === true) {
-		return page.url
+	if (
+		payload.source.includes("location.href") === true ||
+		payload.source.includes("document.URL") === true
+	) {
+		return page.url;
 	}
-	return payload.source
-}
+	return payload.source;
+};
 
 export const handleQaMethod = (
 	page: MemoryPage,
@@ -179,34 +216,37 @@ export const handleQaMethod = (
 	params: unknown,
 ): unknown => {
 	if (method === "qa:snapshotText") {
-		return snapshotTextFromPage(page)
+		if (Schema.is(QaClickTarget)(params) === true) {
+			return snapshotTextFromPage(page, params);
+		}
+		return snapshotTextFromPage(page);
 	}
 	if (method === "qa:snapshotDom") {
-		return snapshotDomFromPage(page)
+		return snapshotDomFromPage(page);
 	}
 	if (method === "qa:pageInfo") {
-		return pageInfoFromPage(page)
+		return pageInfoFromPage(page);
 	}
 	if (method === "qa:click" && Schema.is(QaClickTarget)(params) === true) {
-		return clickOnPage(page, params)
+		return clickOnPage(page, params);
 	}
 	if (method === "qa:type" && Schema.is(QaTypePayload)(params) === true) {
-		return typeOnPage(page, params)
+		return typeOnPage(page, params);
 	}
 	if (method === "qa:key" && Schema.is(QaKeyPayload)(params) === true) {
-		return keyOnPage(page, params)
+		return keyOnPage(page, params);
 	}
 	if (method === "qa:scroll" && Schema.is(QaScrollPayload)(params) === true) {
-		return scrollOnPage(page, params)
+		return scrollOnPage(page, params);
 	}
 	if (method === "qa:waitFor" && Schema.is(QaWaitForPayload)(params) === true) {
-		return waitForOnPage(page, params)
+		return waitForOnPage(page, params);
 	}
 	if (method === "qa:eval" && Schema.is(QaEvalPayload)(params) === true) {
-		return evalOnPage(page, params)
+		return evalOnPage(page, params);
 	}
-	return null
-}
+	return null;
+};
 
 export const createTogglePage = (): MemoryPage => {
 	const status: MemoryNode = {
@@ -217,7 +257,7 @@ export const createTogglePage = (): MemoryPage => {
 		value: "",
 		children: [],
 		onClick: null,
-	}
+	};
 	const button: MemoryNode = {
 		id: "toggle",
 		tag: "button",
@@ -226,9 +266,9 @@ export const createTogglePage = (): MemoryPage => {
 		value: "",
 		children: [],
 		onClick: () => {
-			status.text = "Opened"
+			status.text = "Opened";
 		},
-	}
+	};
 	return {
 		title: "Acepe",
 		url: "views://mainview/index.html",
@@ -242,15 +282,17 @@ export const createTogglePage = (): MemoryPage => {
 			onClick: null,
 		},
 		focused: null,
-	}
-}
+	};
+};
 
-export const QA_RESULT_MESSAGE_ID = "qa:result"
+export const QA_RESULT_MESSAGE_ID = "qa:result";
 
 export const qaDispatchJavascript = (encodedRequest: string): string =>
-	`window.__electrobunQa.dispatch(${encodedRequest})`
+	`window.__electrobunQa.dispatch(${encodedRequest})`;
 
-const preloadMethodsLiteral = QA_PRELOAD_METHODS.map((method) => `"${method}"`).join(",")
+const preloadMethodsLiteral = QA_PRELOAD_METHODS.map(
+	(method) => `"${method}"`,
+).join(",");
 
 export const qaPreloadScript = `(function(){
   var METHODS = [${preloadMethodsLiteral}];
@@ -290,8 +332,13 @@ export const qaPreloadScript = `(function(){
     var next = text.length > 0 ? depth + 1 : depth;
     for (var j = 0; j < kids.length; j++) walkText(kids[j], next, lines);
   }
-  function snapshotText() {
+  function snapshotText(params) {
     var root = document.body || document.documentElement;
+    if (params && params.selector) {
+      var found = document.querySelector(params.selector);
+      if (!found) return "";
+      root = found;
+    }
     var lines = [];
     walkText(root, 0, lines);
     return lines.join("\\n");
@@ -339,16 +386,32 @@ export const qaPreloadScript = `(function(){
   function typeInto(params) {
     var el = params && params.selector ? document.querySelector(params.selector) : document.activeElement;
     if (!el) return false;
-    var next = String((el.value || "") + (params && params.text || ""));
+    if (typeof el.focus === "function") el.focus();
+    var incoming = String((params && (params.text || params.value)) || "");
+    var next = params && params.replace ? incoming : String((el.value || "") + incoming);
     el.value = next;
     if (el.setAttribute) el.setAttribute("value", next);
+    if (typeof el.dispatchEvent === "function") {
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+    }
     return true;
   }
   function pressKey(params) {
     var el = document.activeElement;
     if (!el) return false;
-    if (params && params.key === "Backspace" && typeof el.value === "string") {
+    var key = params && params.key ? String(params.key) : "";
+    if (key === "Backspace" && typeof el.value === "string") {
       el.value = el.value.slice(0, -1);
+    }
+    if (typeof el.dispatchEvent === "function") {
+      var opts = { key: key, code: key, bubbles: true, cancelable: true };
+      el.dispatchEvent(new KeyboardEvent("keydown", opts));
+      el.dispatchEvent(new KeyboardEvent("keypress", opts));
+      el.dispatchEvent(new KeyboardEvent("keyup", opts));
+    }
+    if (key === "Enter" && el.form && typeof el.form.requestSubmit === "function") {
+      el.form.requestSubmit();
     }
     return true;
   }
@@ -373,7 +436,7 @@ export const qaPreloadScript = `(function(){
   }
   var handlers = {
     "qa:eval": evalSource,
-    "qa:snapshotText": function () { return snapshotText(); },
+    "qa:snapshotText": snapshotText,
     "qa:snapshotDom": function () { return snapshotDom(); },
     "qa:click": click,
     "qa:type": typeInto,
@@ -416,4 +479,4 @@ export const qaPreloadScript = `(function(){
     if (typeof previous === "function") previous(msg);
   };
 })();
-`
+`;

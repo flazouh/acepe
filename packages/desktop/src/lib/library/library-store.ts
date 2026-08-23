@@ -58,7 +58,7 @@ export const composeLibraryStore = (input: {
 					return Effect.void;
 				}
 				return refreshLibrary().pipe(Effect.asVoid);
-			}),
+			})
 		);
 	});
 
@@ -74,7 +74,7 @@ export const composeLibraryStore = (input: {
 		openProject: Effect.fn("openProject")(function* (projectId: ProjectId) {
 			input.registry.set(selectedProjectIdAtom, projectId);
 			const snap = yield* input.client.snapshot({ kind: "project", projectId });
-			input.registry.set(snapshotAtom, snap);
+			replaceSnapshot(snap);
 			return snap;
 		}),
 		readSnapshot,

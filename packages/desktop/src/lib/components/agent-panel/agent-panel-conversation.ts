@@ -1,6 +1,7 @@
 import {
 	EventId,
 	type RpcProjectedMessage,
+	type RpcProjectedPendingApproval,
 	type RpcProjectedSessionActivity,
 	type RpcSessionSnapshot,
 	type Sequence,
@@ -18,6 +19,7 @@ import { compactionEntryFromProjectedMessage } from "./agent-panel-compaction.ts
 import {
 	type AgentPanelActivityProjection,
 	toolRowFromActivityProjection,
+	toolRowFromPendingApproval,
 } from "./agent-panel-tool-row.ts";
 
 export type { AgentPanelActivityProjection } from "./agent-panel-tool-row.ts";
@@ -140,13 +142,32 @@ const pendingFromActivities = (
 		entry: toolRowFromActivityProjection(activity),
 	}));
 
+const pendingFromApprovals = (
+	approvals: ReadonlyArray<RpcProjectedPendingApproval>,
+	orderOffset: number
+): ReadonlyArray<PendingRow> =>
+	Arr.map(approvals, (approval, index) => ({
+		sequence: approval.sequence,
+		order: orderOffset + index,
+		brandedId: approval.approvalRequestId,
+		entry: toolRowFromPendingApproval(approval),
+	}));
+
 export const conversationFromProjections = (input: {
 	readonly messages: ReadonlyArray<RpcProjectedMessage>;
 	readonly activities: ReadonlyArray<AgentPanelActivityProjection>;
+	readonly pendingApprovals?: ReadonlyArray<RpcProjectedPendingApproval>;
 }): AgentPanelConversation => {
 	const messageRows = pendingFromMessages(input.messages);
 	const activityRows = pendingFromActivities(input.activities, messageRows.length);
-	const merged = Arr.sort(Arr.appendAll(messageRows, activityRows), pendingRowOrder);
+	const approvalRows = pendingFromApprovals(
+		input.pendingApprovals === undefined ? Arr.empty() : input.pendingApprovals,
+		messageRows.length + activityRows.length
+	);
+	const merged = Arr.sort(
+		Arr.appendAll(Arr.appendAll(messageRows, activityRows), approvalRows),
+		pendingRowOrder
+	);
 	const rows = assignEachKeys(merged);
 	return {
 		rows,
@@ -168,5 +189,6 @@ export const conversationFromSnapshot = (input: {
 	return conversationFromProjections({
 		messages: input.snapshot.messages,
 		activities,
+		pendingApprovals: input.snapshot.pendingApprovals,
 	});
 };
