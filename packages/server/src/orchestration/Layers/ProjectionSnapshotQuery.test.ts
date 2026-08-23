@@ -228,6 +228,7 @@ Vitest.layer(isolatedQuery())("missing session", (it) => {
 				gitReview: null,
 			mcpCatalog: null,
 			preconnectionOptions: null,
+			terminal: null,
 			})
 		})
 	)

@@ -71,6 +71,7 @@ describe("agent panel controller mapping", () => {
 				gitReview: null,
 			mcpCatalog: null,
 			preconnectionOptions: null,
+			terminal: null,
 			},
 			activities: [
 				{

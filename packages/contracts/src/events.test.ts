@@ -39,6 +39,9 @@ import {
 	GitStatusRefreshedPayload,
 	McpCatalogResolvedPayload,
 	PreconnectionOptionsLoadedPayload,
+	TerminalClosedPayload,
+	TerminalOpenedPayload,
+	TerminalOutputAppendedPayload,
 } from "./events.ts"
 import {
 	AgentAuthenticatedPayload,
@@ -70,7 +73,7 @@ import {
 	TranscriptViewportRequestedPayload,
 	APP_AGENTS_ID,
 } from "./acp.ts"
-import { ActivityId, ApprovalRequestId, CheckpointId, CommandId, EventId, MessageId, ProjectId, SessionId, ToolCallId, TurnId } from "./ids.ts"
+import { ActivityId, ApprovalRequestId, CheckpointId, CommandId, EventId, MessageId, ProjectId, SessionId, TerminalId, ToolCallId, TurnId } from "./ids.ts"
 import { APP_SETTINGS_ID } from "./settings.ts"
 import { emptyComposerMcpCatalog } from "./mcp.ts"
 import { APP_SKILLS_ID, emptySkillsCatalog } from "./skills.ts"
@@ -143,6 +146,9 @@ const v1EventTypes = [
 	"ApprovalRequested",
 	"McpCatalogResolved",
 	"PreconnectionOptionsLoaded",
+	"TerminalOpened",
+	"TerminalOutputAppended",
+	"TerminalClosed",
 ] as const
 
 type V1EventType = (typeof v1EventTypes)[number]
@@ -186,9 +192,20 @@ type AgentEventType = Extract<
 	| "EventBridgeRefreshed"
 >
 type McpEventType = Extract<EventType, "McpCatalogResolved" | "PreconnectionOptionsLoaded">
+type TerminalEventType = Extract<
+	EventType,
+	"TerminalOpened" | "TerminalOutputAppended" | "TerminalClosed"
+>
 type SessionEventType = Exclude<
 	EventType,
-	ProjectEventType | SettingsEventType | SkillsEventType | VoiceEventType | GitEventType | AgentEventType | McpEventType
+	| ProjectEventType
+	| SettingsEventType
+	| SkillsEventType
+	| VoiceEventType
+	| GitEventType
+	| AgentEventType
+	| McpEventType
+	| TerminalEventType
 >
 const _v1EventTypesMatchUnion: [EventType] extends [V1EventType]
 	? [V1EventType] extends [EventType]
@@ -219,6 +236,7 @@ const commandId = CommandId.make("cmd-1")
 const eventId = EventId.make("event-1")
 const projectId = ProjectId.make("project-1")
 const sessionId = SessionId.make("session-1")
+const terminalId = TerminalId.make("term-1")
 const messageId = MessageId.make("message-1")
 const turnId = TurnId.make("turn-1")
 const checkpointId = CheckpointId.make("checkpoint-1")
@@ -321,6 +339,23 @@ const mcpEvent = <const Type extends McpEventType, Payload>(
 	eventId,
 	aggregateKind: "mcp" as const,
 	aggregateId: projectId,
+	occurredAt,
+	commandId,
+	causationEventId: null,
+	correlationId: commandId,
+	metadata: {},
+	type,
+	payload,
+})
+
+const terminalEvent = <const Type extends TerminalEventType, Payload>(
+	type: Type,
+	payload: Payload,
+) => ({
+	sequence: 8,
+	eventId,
+	aggregateKind: "terminal" as const,
+	aggregateId: terminalId,
 	occurredAt,
 	commandId,
 	causationEventId: null,
@@ -751,6 +786,42 @@ const memberCases = [
 			projectId,
 			providerId: "claude-code",
 			options: [],
+		}),
+	},
+	{
+		payloadSchema: TerminalOpenedPayload,
+		event: terminalEvent("TerminalOpened", {
+			terminalId,
+			sessionId,
+			cwd: "/tmp",
+			cols: 80,
+			rows: 24,
+			output: "",
+			closed: false,
+		}),
+	},
+	{
+		payloadSchema: TerminalOutputAppendedPayload,
+		event: terminalEvent("TerminalOutputAppended", {
+			terminalId,
+			sessionId,
+			cwd: "/tmp",
+			cols: 80,
+			rows: 24,
+			output: "ready",
+			closed: false,
+		}),
+	},
+	{
+		payloadSchema: TerminalClosedPayload,
+		event: terminalEvent("TerminalClosed", {
+			terminalId,
+			sessionId,
+			cwd: "/tmp",
+			cols: 80,
+			rows: 24,
+			output: "ready\nbye",
+			closed: true,
 		}),
 	},
 ] as const

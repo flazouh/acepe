@@ -3,6 +3,7 @@ import * as Schema from "effect/Schema"
 import { CheckpointFileCount, CheckpointNumber, CheckpointStatus, IsoDateTime, JsonObject, Sequence, StreamToken, TrimmedNonEmptyString } from "./baseSchemas.ts"
 import { FileGitStatus } from "./fileIndex.ts"
 import { GitBlameLine, GitFileDiff, GitHunkIndex } from "./git.ts"
+import { TerminalCols, TerminalRows } from "./terminal.ts"
 import {
 	AgentsId,
 	CheckpointId,
@@ -13,6 +14,7 @@ import {
 	SessionId,
 	SettingsId,
 	SkillsId,
+	TerminalId,
 	ToolCallId,
 	TurnId,
 	VoiceId,
@@ -125,6 +127,9 @@ export const OrchestrationEventType = Schema.Literals([
 	"ApprovalRequested",
 	"McpCatalogResolved",
 	"PreconnectionOptionsLoaded",
+	"TerminalOpened",
+	"TerminalOutputAppended",
+	"TerminalClosed",
 ])
 export type OrchestrationEventType = typeof OrchestrationEventType.Type
 
@@ -334,6 +339,26 @@ export const PreconnectionOptionsLoadedPayload = Schema.Struct({
 	options: Schema.Array(ConfigOptionData),
 })
 export type PreconnectionOptionsLoadedPayload = typeof PreconnectionOptionsLoadedPayload.Type
+
+export const TerminalOutputAppendedPayload = Schema.Struct({
+	terminalId: TerminalId,
+	sessionId: SessionId,
+	cwd: TrimmedNonEmptyString,
+	cols: TerminalCols,
+	rows: TerminalRows,
+	output: Schema.String,
+	closed: Schema.Boolean,
+})
+export type TerminalOutputAppendedPayload = typeof TerminalOutputAppendedPayload.Type
+
+// Opened and Closed carry the same full-snapshot shape as OutputAppended: every
+// terminal event replaces the projected terminal wholesale (see sessionSnapshot.ts),
+// so all three lifecycle events share one payload shape.
+export const TerminalOpenedPayload = TerminalOutputAppendedPayload
+export type TerminalOpenedPayload = typeof TerminalOpenedPayload.Type
+
+export const TerminalClosedPayload = TerminalOutputAppendedPayload
+export type TerminalClosedPayload = typeof TerminalClosedPayload.Type
 
 const defineOrchestrationEvent = <
 	const EventType extends OrchestrationEventType,
@@ -839,6 +864,30 @@ export const PreconnectionOptionsLoadedEvent = defineOrchestrationEvent({
 })
 export type PreconnectionOptionsLoadedEvent = typeof PreconnectionOptionsLoadedEvent.Type
 
+export const TerminalOpenedEvent = defineOrchestrationEvent({
+	type: "TerminalOpened",
+	payload: TerminalOpenedPayload,
+	aggregateKind: "terminal",
+	aggregateId: TerminalId,
+})
+export type TerminalOpenedEvent = typeof TerminalOpenedEvent.Type
+
+export const TerminalOutputAppendedEvent = defineOrchestrationEvent({
+	type: "TerminalOutputAppended",
+	payload: TerminalOutputAppendedPayload,
+	aggregateKind: "terminal",
+	aggregateId: TerminalId,
+})
+export type TerminalOutputAppendedEvent = typeof TerminalOutputAppendedEvent.Type
+
+export const TerminalClosedEvent = defineOrchestrationEvent({
+	type: "TerminalClosed",
+	payload: TerminalClosedPayload,
+	aggregateKind: "terminal",
+	aggregateId: TerminalId,
+})
+export type TerminalClosedEvent = typeof TerminalClosedEvent.Type
+
 export const OrchestrationEvent = Schema.Union([
 	ProjectCreatedEvent,
 	ProjectMetaUpdatedEvent,
@@ -900,5 +949,8 @@ export const OrchestrationEvent = Schema.Union([
 	ApprovalRequestedEvent,
 	McpCatalogResolvedEvent,
 	PreconnectionOptionsLoadedEvent,
+	TerminalOpenedEvent,
+	TerminalOutputAppendedEvent,
+	TerminalClosedEvent,
 ])
 export type OrchestrationEvent = typeof OrchestrationEvent.Type

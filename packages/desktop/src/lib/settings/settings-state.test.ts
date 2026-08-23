@@ -26,6 +26,7 @@ describe("settingsModalViewModel", () => {
 				gitReview: empty.gitReview,
 				mcpCatalog: empty.mcpCatalog,
 				preconnectionOptions: empty.preconnectionOptions,
+				terminal: empty.terminal,
 			},
 			open: true,
 		});

@@ -17,6 +17,7 @@ import { GetDefaultShellRequest, ReadTextFileRequest, WriteTextFileRequest } fro
 import { ProjectedGitReview } from "./git.ts"
 import { ProjectedMcpCatalog } from "./mcp.ts"
 import { ProjectedPreconnectionOptions } from "./preconnection.ts"
+import { ProjectedTerminal } from "./terminal.ts"
 import {
 	ActivityId,
 	ApprovalRequestId,
@@ -24,6 +25,7 @@ import {
 	CommandId,
 	ProjectId,
 	SessionId,
+	TerminalId,
 	ToolCallId,
 	TurnId,
 } from "./ids.ts"
@@ -343,6 +345,9 @@ export type RpcProjectedVoice = typeof RpcProjectedVoice.Type
 export const RpcProjectedGitReview = ProjectedGitReview
 export type RpcProjectedGitReview = typeof RpcProjectedGitReview.Type
 
+export const RpcProjectedTerminal = ProjectedTerminal
+export type RpcProjectedTerminal = typeof RpcProjectedTerminal.Type
+
 export const RpcProjectedMcpCatalog = ProjectedMcpCatalog
 export type RpcProjectedMcpCatalog = typeof RpcProjectedMcpCatalog.Type
 
@@ -365,6 +370,7 @@ export const RpcSessionSnapshot = Schema.Struct({
 	gitReview: Schema.NullOr(RpcProjectedGitReview),
 	mcpCatalog: Schema.NullOr(RpcProjectedMcpCatalog),
 	preconnectionOptions: Schema.NullOr(RpcProjectedPreconnectionOptions),
+	terminal: Schema.NullOr(RpcProjectedTerminal),
 })
 export type RpcSessionSnapshot = typeof RpcSessionSnapshot.Type
 
@@ -405,6 +411,12 @@ export const McpSnapshotRequest = Schema.Struct({
 })
 export type McpSnapshotRequest = typeof McpSnapshotRequest.Type
 
+export const TerminalSnapshotRequest = Schema.Struct({
+	kind: Schema.Literal("terminal"),
+	terminalId: TerminalId,
+})
+export type TerminalSnapshotRequest = typeof TerminalSnapshotRequest.Type
+
 export const ProjectSnapshotRequest = Schema.Struct({
 	kind: Schema.Literal("project"),
 	projectId: ProjectId,
@@ -429,6 +441,7 @@ export const SnapshotRequest = Schema.Union([
 	VoiceSnapshotRequest,
 	GitSnapshotRequest,
 	McpSnapshotRequest,
+	TerminalSnapshotRequest,
 	ProjectSnapshotRequest,
 	SessionSnapshotRequest,
 	LegacySessionSnapshotRequest,
@@ -455,6 +468,10 @@ export type SnapshotScope =
 	| {
 			readonly kind: "mcp"
 			readonly projectId: ProjectId
+	  }
+	| {
+			readonly kind: "terminal"
+			readonly terminalId: TerminalId
 	  }
 	| {
 			readonly kind: "project"
@@ -491,6 +508,11 @@ export const mcpSnapshotRequest = (projectId: ProjectId): McpSnapshotRequest => 
 	projectId,
 })
 
+export const terminalSnapshotRequest = (terminalId: TerminalId): TerminalSnapshotRequest => ({
+	kind: "terminal",
+	terminalId,
+})
+
 export const projectSnapshotRequest = (projectId: ProjectId): ProjectSnapshotRequest => ({
 	kind: "project",
 	projectId,
@@ -519,6 +541,9 @@ export const snapshotScope = (request: SnapshotRequest): SnapshotScope => {
 	}
 	if (Schema.is(McpSnapshotRequest)(request)) {
 		return { kind: "mcp", projectId: request.projectId }
+	}
+	if (Schema.is(TerminalSnapshotRequest)(request)) {
+		return { kind: "terminal", terminalId: request.terminalId }
 	}
 	if (Schema.is(ProjectSnapshotRequest)(request)) {
 		return { kind: "project", projectId: request.projectId }

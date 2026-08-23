@@ -107,6 +107,7 @@ describe("composeSetupBarStore", () => {
 										options: [],
 									}
 								: null,
+						terminal: null,
 					});
 				},
 				events: () => Stream.empty,

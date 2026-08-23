@@ -163,7 +163,10 @@ export const evolveProjectedSetting = (
 			ToolCallObserved: () => ignoreEvent(current),
 			ApprovalRequested: () => ignoreEvent(current),
 			McpCatalogResolved: () => ignoreEvent(current),
-			PreconnectionOptionsLoaded: () => ignoreEvent(current)
+			PreconnectionOptionsLoaded: () => ignoreEvent(current),
+			TerminalOpened: () => ignoreEvent(current),
+			TerminalOutputAppended: () => ignoreEvent(current),
+			TerminalClosed: () => ignoreEvent(current)
 		})
 	)(event)
 
@@ -229,6 +232,9 @@ export const settingKeyFromEvent = (event: OrchestrationEvent): Option.Option<Us
 			ToolCallObserved: () => Option.none(),
 			ApprovalRequested: () => Option.none(),
 			McpCatalogResolved: () => Option.none(),
-			PreconnectionOptionsLoaded: () => Option.none()
+			PreconnectionOptionsLoaded: () => Option.none(),
+			TerminalOpened: () => Option.none(),
+			TerminalOutputAppended: () => Option.none(),
+			TerminalClosed: () => Option.none()
 		})
 	)(event)

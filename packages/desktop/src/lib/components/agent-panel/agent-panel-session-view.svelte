@@ -21,6 +21,7 @@ import { handleVoiceMicKeyDown } from "$lib/acp/components/agent-input/logic/voi
 import { resolveVoiceMicTooltip } from "$lib/acp/components/agent-input/logic/voice-mic-labels.js";
 import { VoiceInputState } from "$lib/acp/components/agent-input/state/voice-input-state.svelte.js";
 import { composeSessionStore } from "$lib/stores/session-store-compose.ts";
+import AgentPanelTerminalView from "./agent-panel-terminal-view.svelte";
 import AgentPanelView from "./agent-panel-view.svelte";
 import { sendComposerMessage } from "./agent-panel-send.ts";
 
@@ -29,6 +30,7 @@ let { client, sessionId }: { client: RpcClient; sessionId: SessionId } = $props(
 let snapshot = $state.raw<RpcSessionSnapshot>(emptyRpcSessionSnapshot(0));
 let lastSendError = $state<string | null>(null);
 let composerInput = $state<HTMLInputElement | null>(null);
+let terminalOpen = $state(false);
 
 const voiceMicTooltipLabels = {
 	downloadingModel: "Downloading speech model…",
@@ -146,7 +148,26 @@ onMount(() => {
 	data-voice-error={voiceState.errorMessage ?? ""}
 >
 	<AgentPanelView {snapshot} />
+	{#if terminalOpen}
+		<div class="m-3 h-64 shrink-0 overflow-hidden rounded-lg border border-border/60">
+			{#key sessionId}
+				<AgentPanelTerminalView {client} {sessionId} />
+			{/key}
+		</div>
+	{/if}
 	<form class="m-3 flex shrink-0 items-center gap-2" onsubmit={onComposerSubmit}>
+		<button
+			type="button"
+			data-qa="terminal-toggle"
+			aria-pressed={terminalOpen}
+			title={terminalOpen ? "Hide terminal" : "Show terminal"}
+			onclick={() => {
+				terminalOpen = !terminalOpen;
+			}}
+			class="shrink-0 rounded-lg border border-border/60 bg-background px-3 py-2 text-sm"
+		>
+			{terminalOpen ? "Hide terminal" : "Terminal"}
+		</button>
 		<input
 			bind:this={composerInput}
 			type="text"

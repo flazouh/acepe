@@ -5,6 +5,7 @@ import {
 	QaClickTarget,
 	QaEvalPayload,
 	QaKeyPayload,
+	QaPastePayload,
 	QaScrollPayload,
 	QaTypePayload,
 	QaWaitForPayload,
@@ -165,6 +166,20 @@ export const typeOnPage = (
 	return true;
 };
 
+export const pasteOnPage = (page: MemoryPage, payload: QaPastePayload): boolean => {
+	const node =
+		payload.selector === undefined
+			? page.focused
+			: findNode(page, { selector: payload.selector });
+	if (node === null) {
+		return false;
+	}
+	node.value = `${node.value}${payload.text}`;
+	node.text = node.value;
+	page.focused = node;
+	return true;
+};
+
 export const keyOnPage = (page: MemoryPage, payload: QaKeyPayload): boolean => {
 	if (page.focused === null) {
 		return false;
@@ -235,6 +250,9 @@ export const handleQaMethod = (
 	}
 	if (method === "qa:key" && Schema.is(QaKeyPayload)(params) === true) {
 		return keyOnPage(page, params);
+	}
+	if (method === "qa:paste" && Schema.is(QaPastePayload)(params) === true) {
+		return pasteOnPage(page, params);
 	}
 	if (method === "qa:scroll" && Schema.is(QaScrollPayload)(params) === true) {
 		return scrollOnPage(page, params);
@@ -383,19 +401,59 @@ export const qaPreloadScript = `(function(){
     if (typeof el.click === "function") el.click();
     return true;
   }
-  function typeInto(params) {
-    var el = params && params.selector ? document.querySelector(params.selector) : document.activeElement;
-    if (!el) return false;
-    if (typeof el.focus === "function") el.focus();
-    var incoming = String((params && (params.text || params.value)) || "");
-    var next = params && params.replace ? incoming : String((el.value || "") + incoming);
+  function setValueAndDispatchInputChange(el, next) {
     el.value = next;
     if (el.setAttribute) el.setAttribute("value", next);
     if (typeof el.dispatchEvent === "function") {
       el.dispatchEvent(new Event("input", { bubbles: true }));
       el.dispatchEvent(new Event("change", { bubbles: true }));
     }
+  }
+  function typeInto(params) {
+    var el = params && params.selector ? document.querySelector(params.selector) : document.activeElement;
+    if (!el) return false;
+    if (typeof el.focus === "function") el.focus();
+    var incoming = String((params && (params.text || params.value)) || "");
+    var next = params && params.replace ? incoming : String((el.value || "") + incoming);
+    setValueAndDispatchInputChange(el, next);
     return true;
+  }
+  var NAMED_KEY_CODES = {
+    Enter: 13, Backspace: 8, Tab: 9, Escape: 27, " ": 32, Space: 32,
+    ArrowUp: 38, ArrowDown: 40, ArrowLeft: 37, ArrowRight: 39, Delete: 46, Home: 36, End: 35,
+    "-": 189, "_": 189, "=": 187, "+": 187, ".": 190, ",": 188, "/": 191, "?": 191,
+    ";": 186, ":": 186, "'": 222, '"': 222, "[": 219, "]": 221, "\\\\": 220, "|": 220,
+    "\`": 192, "~": 192
+  };
+  function keyCodeFor(key) {
+    if (key.length === 1) {
+      var upper = key.toUpperCase();
+      var code = upper.charCodeAt(0);
+      if (code >= 48 && code <= 57) return code;
+      if (code >= 65 && code <= 90) return code;
+    }
+    if (Object.prototype.hasOwnProperty.call(NAMED_KEY_CODES, key)) return NAMED_KEY_CODES[key];
+    return 0;
+  }
+  function keyboardEventWithLegacyCode(type, key, code) {
+    var ev = new KeyboardEvent(type, { key: key, code: key, bubbles: true, cancelable: true });
+    // The KeyboardEvent constructor does not accept keyCode/which in its init
+    // dict (they are legacy getters), but real WebViews still read them -
+    // xterm.js key handling in particular branches on ev.keyCode and never
+    // reaches its ev.key fallback when keyCode is 0, so a synthetic event
+    // with only key set is silently ignored. Shadow the getters with own
+    // properties so both the modern and legacy readers agree. keydown alone
+    // covers xterm's input path; also firing keypress double-emits (its
+    // legacy charCode-based path fires independently of the keydown path
+    // for the same character), so only keydown/keyup are dispatched here.
+    try {
+      Object.defineProperty(ev, "keyCode", { get: function () { return code; } });
+      Object.defineProperty(ev, "which", { get: function () { return code; } });
+    } catch (e) {
+      // Some engines make these non-configurable; the event still carries
+      // key/code, which covers listeners that only read the modern API.
+    }
+    return ev;
   }
   function pressKey(params) {
     var el = document.activeElement;
@@ -405,13 +463,36 @@ export const qaPreloadScript = `(function(){
       el.value = el.value.slice(0, -1);
     }
     if (typeof el.dispatchEvent === "function") {
-      var opts = { key: key, code: key, bubbles: true, cancelable: true };
-      el.dispatchEvent(new KeyboardEvent("keydown", opts));
-      el.dispatchEvent(new KeyboardEvent("keypress", opts));
-      el.dispatchEvent(new KeyboardEvent("keyup", opts));
+      var code = keyCodeFor(key);
+      el.dispatchEvent(keyboardEventWithLegacyCode("keydown", key, code));
+      el.dispatchEvent(keyboardEventWithLegacyCode("keyup", key, code));
     }
     if (key === "Enter" && el.form && typeof el.form.requestSubmit === "function") {
       el.form.requestSubmit();
+    }
+    return true;
+  }
+  function pasteInto(params) {
+    var el = params && params.selector ? document.querySelector(params.selector) : document.activeElement;
+    if (!el) return false;
+    if (typeof el.focus === "function") el.focus();
+    var text = String((params && params.text) || "");
+    var ok = true;
+    if (typeof ClipboardEvent === "function" && typeof DataTransfer === "function") {
+      try {
+        var data = new DataTransfer();
+        data.setData("text/plain", text);
+        var ev = new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: data });
+        ok = el.dispatchEvent(ev);
+      } catch (e) {
+        ok = true;
+      }
+    }
+    // Widgets that don't listen for paste (a plain <input>/<textarea> with no
+    // custom handler) still need the text to land, so fall back to the same
+    // value-set path typeInto uses whenever paste wasn't handled/cancelled.
+    if (ok !== false && typeof el.value === "string") {
+      setValueAndDispatchInputChange(el, String(el.value || "") + text);
     }
     return true;
   }
@@ -441,6 +522,7 @@ export const qaPreloadScript = `(function(){
     "qa:click": click,
     "qa:type": typeInto,
     "qa:key": pressKey,
+    "qa:paste": pasteInto,
     "qa:scroll": scrollBy,
     "qa:waitFor": waitFor,
     "qa:pageInfo": function () { return pageInfo(); }

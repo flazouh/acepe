@@ -63,6 +63,7 @@ describe("review modal controller mapping", () => {
 						},
 						mcpCatalog: null,
 						preconnectionOptions: null,
+						terminal: null,
 					}),
 				events: () => Stream.empty,
 				getProjectIndex: () =>

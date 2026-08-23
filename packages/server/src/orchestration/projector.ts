@@ -395,7 +395,10 @@ export const projectEvent = (
 			ToolCallObserved: () => Effect.succeed(model),
 			ApprovalRequested: () => Effect.succeed(model),
 			McpCatalogResolved: () => Effect.succeed(model),
-			PreconnectionOptionsLoaded: () => Effect.succeed(model)
+			PreconnectionOptionsLoaded: () => Effect.succeed(model),
+			TerminalOpened: () => Effect.succeed(model),
+			TerminalOutputAppended: () => Effect.succeed(model),
+			TerminalClosed: () => Effect.succeed(model)
 		})
 	)(event)
 }

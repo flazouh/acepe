@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test"
 
-import { CheckpointId, CommandId, EventId, MessageId, ProjectId, SessionId } from "./ids.ts"
+import { CheckpointId, CommandId, EventId, MessageId, ProjectId, SessionId, TerminalId } from "./ids.ts"
 import { APP_SETTINGS_ID } from "./settings.ts"
 import {
 	applyEventToRpcSessionSnapshot,
@@ -10,10 +10,12 @@ import { TRACER_REPLY_TEXT, TRACER_REPLY_TOKENS } from "./tracerBullet.ts"
 import { emptyComposerMcpCatalog } from "./mcp.ts"
 import { APP_SKILLS_ID, emptySkillsCatalog } from "./skills.ts"
 import { APP_VOICE_ID, placeholderVoiceModel } from "./voice.ts"
+import { TERMINAL_OUTPUT_CAP } from "./terminal.ts"
 
 const commandId = CommandId.make("cmd-1")
 const projectId = ProjectId.make("project-1")
 const sessionId = SessionId.make("session-1")
+const terminalId = TerminalId.make("term-1")
 const otherSessionId = SessionId.make("session-2")
 const userMessageId = MessageId.make("message-user")
 const assistantMessageId = MessageId.make("message-assistant")
@@ -583,6 +585,33 @@ describe("applyEventToRpcSessionSnapshot", () => {
 		})
 		expect(afterOptions.preconnectionOptions?.options[0]?.id).toBe("reasoning_effort")
 		expect(afterOptions.mcpCatalog?.catalog.servers[0]?.id).toBe("github")
+	})
+
+	it("writes capped terminal output onto the snapshot", () => {
+		const loaded = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), {
+			sequence: 3,
+			eventId: EventId.make("event-term-1"),
+			aggregateKind: "terminal",
+			aggregateId: terminalId,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: {},
+			type: "TerminalOutputAppended",
+			payload: {
+				terminalId,
+				sessionId,
+				cwd: "/tmp",
+				cols: 80,
+				rows: 24,
+				output: `DROP${"K".repeat(TERMINAL_OUTPUT_CAP)}`,
+				closed: false,
+			},
+		})
+		expect(loaded.terminal?.output).toBe("K".repeat(TERMINAL_OUTPUT_CAP))
+		expect(loaded.terminal?.closed).toBe(false)
+		expect(loaded.terminal?.cwd).toBe("/tmp")
 	})
 
 })

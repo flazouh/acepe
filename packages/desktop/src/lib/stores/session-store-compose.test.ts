@@ -61,6 +61,7 @@ const snapshotWithUser: RpcSessionSnapshot = {
 	gitReview: null,
 			mcpCatalog: null,
 			preconnectionOptions: null,
+			terminal: null,
 };
 
 const tokenAt = (sequence: number, token: string): OrchestrationEvent => ({
@@ -264,6 +265,7 @@ describe("composeSessionStore", () => {
 					gitReview: null,
 			mcpCatalog: null,
 			preconnectionOptions: null,
+			terminal: null,
 				};
 				const store = composeSessionStore({
 					client: clientOf({ snapshot: deferred, events: [] }),
@@ -313,6 +315,7 @@ describe("composeSessionStore", () => {
 					gitReview: null,
 			mcpCatalog: null,
 			preconnectionOptions: null,
+			terminal: null,
 				};
 				const store = composeSessionStore({
 					client: clientOf({

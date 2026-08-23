@@ -61,6 +61,7 @@ const librarySnapshot: RpcSessionSnapshot = {
 	gitReview: null,
 			mcpCatalog: null,
 			preconnectionOptions: null,
+			terminal: null,
 };
 
 describe("isLibraryProjectionEvent", () => {

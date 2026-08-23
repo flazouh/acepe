@@ -44,12 +44,14 @@ Three things follow:
 |---|---|
 | Windows | `listWindows`, `firstWindow`, `useWindow`, `windowInfo` |
 | Observation | `snapshotText`, `snapshotDom`, `pageInfo`, `captureScreenshot` |
-| Interaction | `click`, `doubleClick`, `hover`, `typeText`, `fillInput`, `pressKey`, `scrollBy` |
+| Interaction | `click`, `doubleClick`, `hover`, `typeText`, `fillInput`, `pressKey`, `pasteText`, `scrollBy` |
 | Waiting | `waitForText`, `waitForSelector`, `waitForIdle`, `wait` |
 | Evaluation | `js`, `queryAll` |
 | Output | `cliLog`, `help` |
 
 `click` and friends accept `{ selector }` or `{ text }`. Text matching is what you reach for first and what survives markup churn.
+
+`pressKey` dispatches a synthetic `KeyboardEvent` per character, which most inputs handle fine but some rich widgets don't: browsers only populate legacy `keyCode`/`which` for trusted hardware events, and code that still branches on those (xterm.js's key handling does, for its primary input path) can silently drop synthetic keystrokes even with `key` set correctly. `pasteText(text, { selector }?)` dispatches a single clipboard `paste` event instead — the same event real paste produces, and the path most such widgets already support — so prefer it over a `pressKey` loop for terminal emulators and other custom text surfaces.
 
 ## Setup
 

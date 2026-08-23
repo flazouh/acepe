@@ -17,7 +17,7 @@ describe("index", () => {
 			expect(qaSurfaceEnabled({ signed: true })).toBe(false)
 			expect(qaArtifactsForBuild({ signed: true }).preload).toBeNull()
 			expect(qaArtifactsForBuild({ signed: false }).preload).toBe(qaPreloadScript)
-			expect(QA_PRELOAD_METHODS.length).toBe(9)
+			expect(QA_PRELOAD_METHODS.length).toBe(10)
 		}),
 	)
 })

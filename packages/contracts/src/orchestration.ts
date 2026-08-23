@@ -8,7 +8,7 @@ import {
 	GitFileDiff,
 	GitHunkIndex,
 } from "./git.ts"
-import { AgentsId, CheckpointId, CommandId, MessageId, ProjectId, SessionId, SettingsId, SkillsId, ToolCallId, TurnId, VoiceId } from "./ids.ts"
+import { AgentsId, CheckpointId, CommandId, MessageId, ProjectId, SessionId, SettingsId, SkillsId, TerminalId, ToolCallId, TurnId, VoiceId } from "./ids.ts"
 import {
 	AgentAuthenticateCommand,
 	AgentCancelAuthenticationCommand,
@@ -44,6 +44,10 @@ import { ComposerMcpCatalog } from "./mcp.ts"
 import { ConfigOptionData } from "./preconnection.ts"
 import { APP_SKILLS_ID, SkillsCatalog } from "./skills.ts"
 import {
+	TerminalCols,
+	TerminalRows,
+} from "./terminal.ts"
+import {
 	VoiceLanguageOption,
 	VoiceModelInfo,
 	VoiceTranscriptionResult,
@@ -59,6 +63,7 @@ export const OrchestrationAggregateKind = Schema.Literals([
 	"git",
 	"agent",
 	"mcp",
+	"terminal",
 ])
 export type OrchestrationAggregateKind = typeof OrchestrationAggregateKind.Type
 
@@ -94,6 +99,10 @@ export type OrchestrationAggregateRef =
 	| {
 			readonly aggregateKind: "mcp"
 			readonly aggregateId: ProjectId
+	  }
+	| {
+			readonly aggregateKind: "terminal"
+			readonly aggregateId: TerminalId
 	  }
 
 export const ProjectCreateCommand = Schema.Struct({
@@ -390,6 +399,64 @@ export const PreconnectionOptionsLoadCommand = Schema.Struct({
 })
 export type PreconnectionOptionsLoadCommand = typeof PreconnectionOptionsLoadCommand.Type
 
+// Every terminal command optionally carries the fields below (sessionId, cwd,
+// cols, rows, output, closed): the client only sends what it knows, and the
+// server's fillTerminalCommand step (packages/server/src/terminal/fillCommand.ts)
+// fills in the rest by calling the live TerminalService before the pure decider
+// (terminalDecide.ts) turns the filled command into a full-snapshot event.
+export const TerminalOpenCommand = Schema.Struct({
+	type: Schema.Literal("terminal.open"),
+	commandId: CommandId,
+	terminalId: TerminalId,
+	sessionId: SessionId,
+	cwd: TrimmedNonEmptyString,
+	cols: Schema.optionalKey(TerminalCols),
+	rows: Schema.optionalKey(TerminalRows),
+	output: Schema.optionalKey(Schema.String),
+	closed: Schema.optionalKey(Schema.Boolean),
+})
+export type TerminalOpenCommand = typeof TerminalOpenCommand.Type
+
+export const TerminalInputCommand = Schema.Struct({
+	type: Schema.Literal("terminal.input"),
+	commandId: CommandId,
+	terminalId: TerminalId,
+	data: Schema.String,
+	sessionId: Schema.optionalKey(SessionId),
+	cwd: Schema.optionalKey(TrimmedNonEmptyString),
+	cols: Schema.optionalKey(TerminalCols),
+	rows: Schema.optionalKey(TerminalRows),
+	output: Schema.optionalKey(Schema.String),
+	closed: Schema.optionalKey(Schema.Boolean),
+})
+export type TerminalInputCommand = typeof TerminalInputCommand.Type
+
+export const TerminalResizeCommand = Schema.Struct({
+	type: Schema.Literal("terminal.resize"),
+	commandId: CommandId,
+	terminalId: TerminalId,
+	cols: TerminalCols,
+	rows: TerminalRows,
+	sessionId: Schema.optionalKey(SessionId),
+	cwd: Schema.optionalKey(TrimmedNonEmptyString),
+	output: Schema.optionalKey(Schema.String),
+	closed: Schema.optionalKey(Schema.Boolean),
+})
+export type TerminalResizeCommand = typeof TerminalResizeCommand.Type
+
+export const TerminalCloseCommand = Schema.Struct({
+	type: Schema.Literal("terminal.close"),
+	commandId: CommandId,
+	terminalId: TerminalId,
+	sessionId: Schema.optionalKey(SessionId),
+	cwd: Schema.optionalKey(TrimmedNonEmptyString),
+	cols: Schema.optionalKey(TerminalCols),
+	rows: Schema.optionalKey(TerminalRows),
+	output: Schema.optionalKey(Schema.String),
+	closed: Schema.optionalKey(Schema.Boolean),
+})
+export type TerminalCloseCommand = typeof TerminalCloseCommand.Type
+
 export const OrchestrationCommand = Schema.Union([
 	ProjectCreateCommand,
 	ProjectMetaUpdateCommand,
@@ -451,6 +518,10 @@ export const OrchestrationCommand = Schema.Union([
 	ApprovalRequestCommand,
 	McpCatalogResolveCommand,
 	PreconnectionOptionsLoadCommand,
+	TerminalOpenCommand,
+	TerminalInputCommand,
+	TerminalResizeCommand,
+	TerminalCloseCommand,
 ])
 export type OrchestrationCommand = typeof OrchestrationCommand.Type
 
@@ -492,6 +563,11 @@ const agentRef = (): OrchestrationAggregateRef => ({
 const mcpRef = (projectId: ProjectId): OrchestrationAggregateRef => ({
 	aggregateKind: "mcp",
 	aggregateId: projectId,
+})
+
+const terminalRef = (terminalId: TerminalId): OrchestrationAggregateRef => ({
+	aggregateKind: "terminal",
+	aggregateId: terminalId,
 })
 
 export const commandToAggregateRef = Match.type<OrchestrationCommand>().pipe(
@@ -556,5 +632,9 @@ export const commandToAggregateRef = Match.type<OrchestrationCommand>().pipe(
 		"approval.request": (command) => sessionRef(command.sessionId),
 		"mcp.catalog.resolve": (command) => mcpRef(command.projectId),
 		"preconnection.options.load": (command) => mcpRef(command.projectId),
+		"terminal.open": (command) => terminalRef(command.terminalId),
+		"terminal.input": (command) => terminalRef(command.terminalId),
+		"terminal.resize": (command) => terminalRef(command.terminalId),
+		"terminal.close": (command) => terminalRef(command.terminalId),
 	}),
 )

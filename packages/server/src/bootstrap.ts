@@ -33,6 +33,7 @@ import { ProjectionSkillsLive } from "./persistence/Layers/ProjectionSkills.ts"
 import { ProjectionVoiceLive } from "./persistence/Layers/ProjectionVoice.ts"
 import { ProjectionGitLive } from "./persistence/Layers/ProjectionGit.ts"
 import { ProjectionMcpLive } from "./persistence/Layers/ProjectionMcp.ts"
+import { ProjectionTerminalLive } from "./persistence/Layers/ProjectionTerminal.ts"
 import { makeSqliteLayer } from "./persistence/Layers/Sqlite.ts"
 import { runMigrations } from "./persistence/Migrations.ts"
 import {
@@ -50,6 +51,7 @@ import { ProjectionSkills } from "./persistence/Services/ProjectionSkills.ts"
 import { ProjectionVoice } from "./persistence/Services/ProjectionVoice.ts"
 import { ProjectionGit } from "./persistence/Services/ProjectionGit.ts"
 import { ProjectionMcp } from "./persistence/Services/ProjectionMcp.ts"
+import { ProjectionTerminal } from "./persistence/Services/ProjectionTerminal.ts"
 import { HardcodedProviderLive } from "./provider/HardcodedProvider.ts"
 import { FileIndexServiceLive } from "./fileIndex/Layers/FileIndexService.ts"
 import { FileIndexWarmOnImportLive } from "./fileIndex/Layers/FileIndexWarmOnImport.ts"
@@ -60,6 +62,9 @@ import { AppDataDir } from "./rpc/fsPathGuard.ts"
 import { RpcHandlersLive } from "./rpc/handlers.ts"
 import { runStdioServer } from "./rpc/stdio.ts"
 import { SkillsServiceLive } from "./skills/Layers/SkillsService.ts"
+import { BunPtyAdapterLive } from "./terminal/Layers/BunPtyAdapter.ts"
+import { defaultTerminalServiceOptions, TerminalServiceLive } from "./terminal/Layers/TerminalService.ts"
+import { TerminalRegistryLive } from "./terminal/Layers/TerminalRegistry.ts"
 import { makeVoiceRuntimeLive } from "./voice/Layers/VoiceRuntime.ts"
 
 const decodeProjectorName = Schema.decodeUnknownEffect(TrimmedNonEmptyString)
@@ -94,7 +99,8 @@ const persistenceAt = (filename: string) => {
 		ProjectionSkillsLive,
 		ProjectionVoiceLive,
 		ProjectionGitLive,
-		ProjectionMcpLive
+		ProjectionMcpLive,
+		ProjectionTerminalLive
 	).pipe(Layer.provideMerge(migrated))
 }
 
@@ -117,6 +123,7 @@ const pipelineLayer = Layer.unwrap(
 		const voice = yield* ProjectionVoice
 		const gitReview = yield* ProjectionGit
 		const mcp = yield* ProjectionMcp
+		const terminal = yield* ProjectionTerminal
 		const messagesName = yield* decodeProjectorName(PROJECTION_SESSION_MESSAGES_NAME)
 		return ProjectionPipelineLive([
 			{
@@ -178,6 +185,11 @@ const pipelineLayer = Layer.unwrap(
 				name: mcp.name,
 				apply: mcp.apply,
 				truncate: mcp.truncate
+			},
+			{
+				name: terminal.name,
+				apply: terminal.apply,
+				truncate: terminal.truncate
 			}
 		])
 	})
@@ -246,6 +258,11 @@ export const makeAcepeLive = (input: AcepeLiveInput) => {
 			return Layer.succeed(AppDataDir, AppDataDir.of({ path: path.dirname(path.resolve(input.filename)) }))
 		})
 	).pipe(Layer.provide(bunPlatform))
+	const terminal = TerminalServiceLive(defaultTerminalServiceOptions).pipe(
+		Layer.provide(BunPtyAdapterLive),
+		Layer.provide(bunPlatform),
+		Layer.provide(BunCrypto.layer)
+	)
 	const rpc = RpcHandlersLive.pipe(
 		Layer.provideMerge(snapshots),
 		Layer.provideMerge(fileIndex),
@@ -255,6 +272,8 @@ export const makeAcepeLive = (input: AcepeLiveInput) => {
 		Layer.provideMerge(mcpCatalog),
 		Layer.provideMerge(voice),
 		Layer.provideMerge(appDataDir),
+		Layer.provideMerge(terminal),
+		Layer.provideMerge(TerminalRegistryLive),
 		Layer.provideMerge(bunPlatform)
 	)
 	return Layer.mergeAll(

@@ -385,6 +385,9 @@ export const evolveProjectedSession = (
 			ToolCallObserved: () => Effect.succeed(current),
 			ApprovalRequested: () => Effect.succeed(current),
 			McpCatalogResolved: () => Effect.succeed(current),
-			PreconnectionOptionsLoaded: () => Effect.succeed(current)
+			PreconnectionOptionsLoaded: () => Effect.succeed(current),
+			TerminalOpened: () => Effect.succeed(current),
+			TerminalOutputAppended: () => Effect.succeed(current),
+			TerminalClosed: () => Effect.succeed(current)
 		})
 	)(event)

@@ -241,7 +241,10 @@ export const evolveProjectedMcpState = (
 			ToolCallObserved: () => ignoreEvent(current),
 			ApprovalRequested: () => ignoreEvent(current),
 			McpCatalogResolved: (resolved) => projectCatalogResolved(current, resolved),
-			PreconnectionOptionsLoaded: (loaded) => projectOptionsLoaded(current, loaded)
+			PreconnectionOptionsLoaded: (loaded) => projectOptionsLoaded(current, loaded),
+			TerminalOpened: () => ignoreEvent(current),
+			TerminalOutputAppended: () => ignoreEvent(current),
+			TerminalClosed: () => ignoreEvent(current)
 
 		})
 	)(event)
