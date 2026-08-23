@@ -26,6 +26,20 @@ import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as ManagedRuntime from "effect/ManagedRuntime";
 import { loadQaSocketPath, qaPreloadScript } from "electrobun-qa";
+import * as Config from "effect/Config";
+
+// One instance key scopes the QA socket, the seed fixtures and this DB, so
+// parallel app instances never share state.
+const loadTracerDbFilename = Effect.fn("loadTracerDbFilename")(function* () {
+	const instance = yield* Config.string("APP_ID").pipe(
+		Config.nested("ELECTROBUN_QA"),
+		Config.withDefault(""),
+	);
+	if (instance === "") {
+		return "acepe-tracer.sqlite";
+	}
+	return `acepe-tracer-${instance.replace(/[^a-zA-Z0-9.-]/g, "-")}.sqlite`;
+});
 import { keepQaHost, qaInternalMessageMap, qaWindowPreload } from "./qa-host.ts";
 
 const PROOF_LOG = SHELL_PROOF_LOG_PATH;
@@ -57,7 +71,7 @@ const electrobunNative = await import("../../node_modules/electrobun/dist/api/bu
 
 const runtime = ManagedRuntime.make(
 	makeAcepeLive({
-		filename: "acepe-tracer.sqlite",
+		filename: Effect.runSync(loadTracerDbFilename()),
 		tokenDelay: Duration.millis(40),
 		skillsHomeDir: SKILLS_MCP_SEED_HOME,
 	})

@@ -7,6 +7,7 @@ import {
 	SkillsDiscoverCommand
 } from "@acepe/contracts"
 import * as Effect from "effect/Effect"
+import { instancedPath } from "./instancePaths.ts"
 import * as FileSystem from "effect/FileSystem"
 import * as Path from "effect/Path"
 import { fillMcpCommand } from "../mcp/fillCommand.ts"
@@ -50,7 +51,8 @@ const prepareMcpConfig = Effect.fn("prepareMcpConfig")(function*(projectRoot: st
 
 export const seedSkillsMcp = Effect.fn("seedSkillsMcp")(function*() {
 	const engine = yield* OrchestrationEngine
-	yield* prepareSkillHome(SKILLS_MCP_SEED_HOME)
+	const seedHome = yield* instancedPath(SKILLS_MCP_SEED_HOME)
+	yield* prepareSkillHome(seedHome)
 	yield* prepareMcpConfig(SKILLS_MCP_SEED_PROJECT_ROOT)
 	const filledSkills = yield* fillSkillsDiscoverCommand(
 		SkillsDiscoverCommand.make({

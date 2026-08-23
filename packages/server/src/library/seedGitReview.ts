@@ -9,6 +9,7 @@ import {
 } from "@acepe/contracts"
 import * as Arr from "effect/Array"
 import * as Effect from "effect/Effect"
+import { instancedPath } from "./instancePaths.ts"
 import * as FileSystem from "effect/FileSystem"
 import * as Option from "effect/Option"
 import * as Path from "effect/Path"
@@ -19,6 +20,7 @@ import { OrchestrationEngine } from "../orchestration/Services/OrchestrationEngi
 
 export const GIT_REVIEW_SEED_PROJECT_ID = ProjectId.make("git-review-project-1")
 export const GIT_REVIEW_SEED_ROOT = "/tmp/acepe-git-review-242"
+
 export const GIT_REVIEW_SEED_FILE = "notes.md"
 
 const OLD_NOTES =
@@ -99,14 +101,15 @@ const prepareFixture = Effect.fn("prepareGitReviewFixture")(function*(root: stri
 
 export const seedGitReview = Effect.fn("seedGitReview")(function*() {
 	const engine = yield* OrchestrationEngine
-	yield* prepareFixture(GIT_REVIEW_SEED_ROOT)
+	const seedRoot = yield* instancedPath(GIT_REVIEW_SEED_ROOT)
+	yield* prepareFixture(seedRoot)
 	yield* engine.dispatch(
 		ProjectCreateCommand.make({
 			type: "project.create",
 			commandId: CommandId.make("seed-git-review-project"),
 			projectId: GIT_REVIEW_SEED_PROJECT_ID,
 			title: "Git review",
-			workspaceRoot: GIT_REVIEW_SEED_ROOT
+			workspaceRoot: seedRoot
 		})
 	)
 	const filledStatus = yield* fillGitCommand(
@@ -114,7 +117,7 @@ export const seedGitReview = Effect.fn("seedGitReview")(function*() {
 			type: "git.status.refresh",
 			commandId: CommandId.make("seed-git-review-status"),
 			projectId: GIT_REVIEW_SEED_PROJECT_ID,
-			workspaceRoot: GIT_REVIEW_SEED_ROOT,
+			workspaceRoot: seedRoot,
 			status: null
 		})
 	)
@@ -124,7 +127,7 @@ export const seedGitReview = Effect.fn("seedGitReview")(function*() {
 			type: "git.diff.load",
 			commandId: CommandId.make("seed-git-review-diff"),
 			projectId: GIT_REVIEW_SEED_PROJECT_ID,
-			workspaceRoot: GIT_REVIEW_SEED_ROOT,
+			workspaceRoot: seedRoot,
 			filePath: GIT_REVIEW_SEED_FILE,
 			diff: emptyGitFileDiff,
 			patch: ""
@@ -136,7 +139,7 @@ export const seedGitReview = Effect.fn("seedGitReview")(function*() {
 			type: "git.blame.load",
 			commandId: CommandId.make("seed-git-review-blame"),
 			projectId: GIT_REVIEW_SEED_PROJECT_ID,
-			workspaceRoot: GIT_REVIEW_SEED_ROOT,
+			workspaceRoot: seedRoot,
 			filePath: GIT_REVIEW_SEED_FILE,
 			blame: []
 		})
