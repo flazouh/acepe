@@ -1,6 +1,9 @@
 import * as Schema from "effect/Schema"
 
 export class QaAppNotRunning extends Schema.TaggedError<QaAppNotRunning>()("QaAppNotRunning", {
+	// True when a connection had opened and then broke: worth one retry.
+	// False when nothing listens at all: fail fast.
+	retriable: Schema.optionalKey(Schema.Boolean),
 	path: Schema.String,
 }) {
 	override get message(): string {

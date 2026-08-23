@@ -1,5 +1,6 @@
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
+import * as Schedule from "effect/Schedule"
 import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
 
@@ -135,6 +136,15 @@ export const startQaHostUnsafe = (input: StartQaHostInput): StartedQaHost => {
 					)
 				}
 			},
+			// A client that dies mid-script must not wedge the listener: drop
+			// its buffer and keep accepting. Without these, one dead client left
+			// the socket answering doctor but refusing run.
+			error: (socket) => {
+				buffers.delete(socket)
+			},
+			close: (socket) => {
+				buffers.delete(socket)
+			},
 		},
 	})
 	return {
@@ -186,9 +196,10 @@ export const sendSocketRequest = Effect.fn("sendSocketRequest")(function* (
 	)
 })
 
-const writeAndReadUnix = (path: string, line: string): Effect.Effect<string, QaAppNotRunning> =>
+const writeAndReadUnixOnce = (path: string, line: string): Effect.Effect<string, QaAppNotRunning> =>
 	Effect.callback<string, QaAppNotRunning>((resume) => {
 		let settled = false
+		let opened = false
 		let buffer = ""
 		const finish = (effect: Effect.Effect<string, QaAppNotRunning>): void => {
 			if (settled === true) {
@@ -201,6 +212,7 @@ const writeAndReadUnix = (path: string, line: string): Effect.Effect<string, QaA
 			unix: path,
 			socket: {
 				open: (socket) => {
+					opened = true
 					socket.write(`${line}\n`)
 				},
 				data: (socket, data) => {
@@ -212,14 +224,14 @@ const writeAndReadUnix = (path: string, line: string): Effect.Effect<string, QaA
 					}
 				},
 				error: () => {
-					finish(new QaAppNotRunning({ path }))
+					finish(new QaAppNotRunning({ path, retriable: opened }))
 				},
 				connectError: () => {
 					finish(new QaAppNotRunning({ path }))
 				},
 				close: () => {
 					if (buffer.length === 0) {
-						finish(new QaAppNotRunning({ path }))
+						finish(new QaAppNotRunning({ path, retriable: opened }))
 					}
 				},
 			},
@@ -231,6 +243,17 @@ const writeAndReadUnix = (path: string, line: string): Effect.Effect<string, QaA
 			},
 		)
 	})
+
+// One transient socket error must not fail a whole script: a client that
+// reconnects immediately succeeds, so retry briefly before giving up.
+const writeAndReadUnix = (path: string, line: string): Effect.Effect<string, QaAppNotRunning> =>
+	writeAndReadUnixOnce(path, line).pipe(
+		Effect.retry({
+			times: 2,
+			schedule: Schedule.spaced(Duration.millis(300)),
+			while: (failure) => failure.retriable === true,
+		}),
+	)
 
 export const makeRemoteSession = (path: string): QaSession => {
 	let token = 0
