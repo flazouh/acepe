@@ -148,6 +148,7 @@ export const evolveProjectedSkillsCatalog = (
 			CheckpointCreated: () => ignoreEvent(current),
 			CheckpointReadinessChanged: () => ignoreEvent(current),
 			CheckpointReverted: () => ignoreEvent(current),
+			CheckpointFileReverted: () => ignoreEvent(current),
 			SettingsUpdated: () => ignoreEvent(current),
 			SkillsDiscovered: (discovered) => projectSkillsDiscovered(discovered),
 			VoiceModelsListed: () => ignoreEvent(current),

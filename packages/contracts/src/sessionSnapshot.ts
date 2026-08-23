@@ -283,6 +283,7 @@ const applyCheckpointCreated = (
 		status: "missing",
 		createdAt: event.occurredAt,
 		lastRevertedAt: null,
+		files: Arr.empty(),
 	}
 	const without = Arr.filter(
 		snapshot.checkpoints,
@@ -314,6 +315,7 @@ const applyCheckpointReadinessChanged = (
 			status: event.payload.status,
 			createdAt: row.createdAt,
 			lastRevertedAt: row.lastRevertedAt,
+			files: row.files,
 		}
 	})
 	return replaceCheckpoints(snapshot, event.sequence, checkpoints)
@@ -342,6 +344,7 @@ const applyCheckpointReverted = (
 			status: row.status,
 			createdAt: row.createdAt,
 			lastRevertedAt: event.occurredAt,
+			files: row.files,
 		}
 	})
 	return replaceCheckpoints(snapshot, event.sequence, checkpoints)
@@ -851,6 +854,8 @@ export const applyEventToRpcSessionSnapshot = (
 			return applyCheckpointReadinessChanged(snapshot, event)
 		case "CheckpointReverted":
 			return applyCheckpointReverted(snapshot, event)
+		case "CheckpointFileReverted":
+			return withSequence(snapshot, event.sequence)
 
 		case "SkillsDiscovered":
 			return applySkillsDiscovered(snapshot, event)

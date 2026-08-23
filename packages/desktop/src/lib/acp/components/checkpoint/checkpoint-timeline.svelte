@@ -7,7 +7,7 @@ import { Button } from "$lib/components/ui/button/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import { checkpointStore } from "../../store/checkpoint-store.svelte.js";
 import { getSessionStore } from "../../store/session-store.svelte.js";
-import type { Checkpoint, FileSnapshot } from "../../types/checkpoint.js";
+import type { Checkpoint } from "../../types/checkpoint.js";
 import CheckpointCard from "./checkpoint-card.svelte";
 import { deriveCheckpointUserMessagePreviews } from "./checkpoint-message-preview.js";
 
@@ -31,61 +31,11 @@ let {
 
 const sessionStore = getSessionStore();
 
-// Filter out checkpoints with no modified files
 const visibleCheckpoints = $derived(checkpoints.filter((cp) => cp.fileCount > 0));
 
 let revertingCheckpointId = $state<string | null>(null);
-// All checkpoints expanded by default - track which ones are collapsed
 let collapsedCheckpointIds = new SvelteSet<string>();
-// Use SvelteMap for granular reactivity without full Map recreation
-let fileSnapshots = new SvelteMap<string, FileSnapshot[]>();
-let loadingFilesForCheckpoint = $state<string | null>(null);
 
-// Clear local state when session changes to prevent memory leaks
-$effect(() => {
-	// Track sessionId - when it changes, reset local state
-	void sessionId;
-	return () => {
-		fileSnapshots.clear();
-		collapsedCheckpointIds = new SvelteSet();
-		loadingFilesForCheckpoint = null;
-	};
-});
-
-// Load file snapshots for all visible checkpoints on mount (since expanded by default)
-$effect(() => {
-	for (const checkpoint of visibleCheckpoints) {
-		if (!fileSnapshots.has(checkpoint.id) && !collapsedCheckpointIds.has(checkpoint.id)) {
-			loadFilesForCheckpoint(checkpoint.id);
-		}
-	}
-});
-
-async function loadFilesForCheckpoint(checkpointId: string) {
-	if (fileSnapshots.has(checkpointId)) return;
-
-	loadingFilesForCheckpoint = checkpointId;
-	await Effect.runPromise(
-		checkpointStore.getFileSnapshotsForCheckpoint(sessionId, checkpointId).pipe(
-			Effect.match({
-				onSuccess: (snapshots) => {
-					fileSnapshots.set(checkpointId, snapshots);
-				},
-				onFailure: (error) => {
-					toast.error(`Failed to load files: ${error.message}`);
-				},
-			})
-		)
-	);
-	loadingFilesForCheckpoint = null;
-}
-
-/**
- * Compute user message previews for all checkpoints in a single pass.
- * This is more efficient than computing per-card because:
- * 1. We only iterate canonical transcript entries once (O(n)) instead of per checkpoint (O(n*m))
- * 2. Reactive updates only trigger one recomputation, not m recomputations
- */
 const userMessagePreviews = $derived.by(() => {
 	const transcriptEntries = sessionStore.read.getSessionTranscriptEntries(sessionId);
 	const previews = deriveCheckpointUserMessagePreviews({
@@ -126,8 +76,6 @@ function toggleExpanded(checkpointId: string) {
 	const newSet = new SvelteSet(collapsedCheckpointIds);
 	if (newSet.has(checkpointId)) {
 		newSet.delete(checkpointId);
-		// Load files when expanding
-		loadFilesForCheckpoint(checkpointId);
 	} else {
 		newSet.add(checkpointId);
 	}
@@ -139,8 +87,7 @@ function isExpanded(checkpointId: string): boolean {
 }
 </script>
 
-<div class="flex flex-col h-full">
-	<!-- Header - back button -->
+<div class="flex flex-col h-full" data-testid="checkpoint-timeline">
 	{#if onClose}
 		<div class="flex items-center px-3 py-2">
 			<Button
@@ -155,7 +102,6 @@ function isExpanded(checkpointId: string): boolean {
 		</div>
 	{/if}
 
-	<!-- Content - scrollable list, centered like main content -->
 	<div class="flex-1 overflow-y-auto flex justify-center">
 		<div class="w-full max-w-4xl">
 			{#if isLoading}
@@ -168,7 +114,6 @@ function isExpanded(checkpointId: string): boolean {
 					{"No checkpoints yet"}
 				</div>
 			{:else}
-				<!-- Simple list with gap - reversed so oldest (first) is at top -->
 				<div class="p-2 space-y-1">
 					{#each Array.from(visibleCheckpoints).reverse() as checkpoint (checkpoint.id)}
 						<CheckpointCard
@@ -176,8 +121,8 @@ function isExpanded(checkpointId: string): boolean {
 							{projectPath}
 							userMessagePreview={userMessagePreviews?.get(checkpoint.id) ?? null}
 							isExpanded={isExpanded(checkpoint.id)}
-							fileSnapshots={fileSnapshots.get(checkpoint.id) ?? []}
-							isLoadingFiles={loadingFilesForCheckpoint === checkpoint.id}
+							fileSnapshots={checkpoint.files ?? []}
+							isLoadingFiles={false}
 							isReverting={revertingCheckpointId === checkpoint.id}
 							onToggleExpand={() => toggleExpanded(checkpoint.id)}
 							onRevert={() => handleRevert(checkpoint)}

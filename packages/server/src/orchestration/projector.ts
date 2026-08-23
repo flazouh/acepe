@@ -350,6 +350,7 @@ export const projectEvent = (
 			CheckpointCreated: (created) => projectCheckpointCreated(model, created),
 			CheckpointReadinessChanged: () => Effect.succeed(model),
 			CheckpointReverted: () => Effect.succeed(model),
+			CheckpointFileReverted: () => Effect.succeed(model),
 			SettingsUpdated: () => Effect.succeed(model),
 			SkillsDiscovered: () => Effect.succeed(model),
 			VoiceModelsListed: () => Effect.succeed(model),

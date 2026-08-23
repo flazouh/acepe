@@ -37,6 +37,7 @@ function makeFileSnapshot(input: Partial<FileSnapshot> & Pick<FileSnapshot, "id"
 		fileSize: input.fileSize ?? 100,
 		linesAdded: input.linesAdded ?? 0,
 		linesRemoved: input.linesRemoved ?? 0,
+		content: input.content ?? "",
 	};
 }
 

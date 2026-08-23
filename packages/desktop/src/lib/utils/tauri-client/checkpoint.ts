@@ -92,7 +92,7 @@ const findMappedCheckpoint = (
 export const checkpoint = {
 	create: Effect.fn("checkpoint.create")(function* (
 		sessionId: string,
-		_projectPath: string,
+		projectPath: string,
 		modifiedFiles: string[],
 		options?: {
 			toolCallId?: string;
@@ -134,6 +134,9 @@ export const checkpoint = {
 				isAuto: options?.isAuto ?? true,
 				toolCallId,
 				fileCount,
+				projectPath,
+				worktreePath: options?.worktreePath ?? null,
+				modifiedFiles,
 			})
 		);
 		const readinessCommandId = yield* nextCommandId("checkpoint-ready");
@@ -177,8 +180,8 @@ export const checkpoint = {
 	revert: Effect.fn("checkpoint.revert")(function* (
 		sessionId: string,
 		checkpointId: string,
-		_projectPath: string,
-		_worktreePath?: string
+		projectPath: string,
+		worktreePath?: string
 	) {
 		const decodedSessionId = yield* decodeEffect("checkpoint.revert", decodeSessionId)(
 			sessionId
@@ -193,6 +196,8 @@ export const checkpoint = {
 				commandId,
 				sessionId: decodedSessionId,
 				checkpointId: decodedCheckpointId,
+				projectPath,
+				worktreePath: worktreePath ?? null,
 			})
 		);
 		const result: RevertResult = {

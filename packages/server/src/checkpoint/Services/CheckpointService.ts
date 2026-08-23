@@ -11,7 +11,6 @@ import type * as Effect from "effect/Effect"
 import type { PlatformError } from "effect/PlatformError"
 import * as Schema from "effect/Schema"
 import type { SqlError } from "effect/unstable/sql/SqlError"
-import type { OrchestrationDispatchError } from "../../orchestration/Services/OrchestrationEngine.ts"
 
 export class CheckpointEmptyError extends Schema.TaggedError<CheckpointEmptyError>()(
 	"CheckpointEmptyError",
@@ -114,7 +113,8 @@ export const FileSnapshot = Schema.Struct({
 	contentHash: TrimmedNonEmptyString,
 	fileSize: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
 	linesAdded: Schema.NullOr(Schema.Int),
-	linesRemoved: Schema.NullOr(Schema.Int)
+	linesRemoved: Schema.NullOr(Schema.Int),
+	content: Schema.String
 })
 export type FileSnapshot = typeof FileSnapshot.Type
 
@@ -147,11 +147,13 @@ export type RevertError = typeof RevertError.Type
 export const RevertResult = Schema.Struct({
 	success: Schema.Boolean,
 	revertedFiles: Schema.Array(Schema.String),
-	failedFiles: Schema.Array(RevertError)
+	failedFiles: Schema.Array(RevertError),
+	safetyCheckpoint: Schema.NullOr(CheckpointRecord)
 })
 export type RevertResult = typeof RevertResult.Type
 
 export const CreateCheckpointInput = Schema.Struct({
+	checkpointId: CheckpointId,
 	sessionId: SessionId,
 	projectPath: TrimmedNonEmptyString,
 	worktreePath: Schema.NullOr(TrimmedNonEmptyString),
@@ -188,7 +190,6 @@ export type CheckpointServiceError =
 	| CheckpointRevertFailedError
 	| CheckpointFileMissingError
 	| CheckpointTimestampError
-	| OrchestrationDispatchError
 	| PlatformError
 	| Schema.SchemaError
 	| SqlError

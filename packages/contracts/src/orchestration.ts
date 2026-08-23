@@ -203,6 +203,9 @@ export const CheckpointCreateCommand = Schema.Struct({
 	isAuto: Schema.Boolean,
 	toolCallId: Schema.NullOr(ToolCallId),
 	fileCount: CheckpointFileCount,
+	projectPath: Schema.NullOr(TrimmedNonEmptyString),
+	worktreePath: Schema.NullOr(TrimmedNonEmptyString),
+	modifiedFiles: Schema.Array(Schema.String),
 })
 export type CheckpointCreateCommand = typeof CheckpointCreateCommand.Type
 
@@ -220,8 +223,21 @@ export const CheckpointRevertCommand = Schema.Struct({
 	commandId: CommandId,
 	sessionId: SessionId,
 	checkpointId: CheckpointId,
+	projectPath: Schema.NullOr(TrimmedNonEmptyString),
+	worktreePath: Schema.NullOr(TrimmedNonEmptyString),
 })
 export type CheckpointRevertCommand = typeof CheckpointRevertCommand.Type
+
+export const CheckpointRevertFileCommand = Schema.Struct({
+	type: Schema.Literal("checkpoint.revert-file"),
+	commandId: CommandId,
+	sessionId: SessionId,
+	checkpointId: CheckpointId,
+	filePath: TrimmedNonEmptyString,
+	projectPath: Schema.NullOr(TrimmedNonEmptyString),
+	worktreePath: Schema.NullOr(TrimmedNonEmptyString),
+})
+export type CheckpointRevertFileCommand = typeof CheckpointRevertFileCommand.Type
 
 export const SettingsSetCommand = Schema.Struct({
 	type: Schema.Literal("settings.set"),
@@ -389,6 +405,7 @@ export const OrchestrationCommand = Schema.Union([
 	CheckpointCreateCommand,
 	CheckpointReportReadinessCommand,
 	CheckpointRevertCommand,
+	CheckpointRevertFileCommand,
 	SettingsSetCommand,
 	SkillsDiscoverCommand,
 	VoiceModelsListCommand,
@@ -493,6 +510,7 @@ export const commandToAggregateRef = Match.type<OrchestrationCommand>().pipe(
 		"checkpoint.create": (command) => sessionRef(command.sessionId),
 		"checkpoint.report-readiness": (command) => sessionRef(command.sessionId),
 		"checkpoint.revert": (command) => sessionRef(command.sessionId),
+		"checkpoint.revert-file": (command) => sessionRef(command.sessionId),
 		"settings.set": () => settingsRef(),
 		"skills.discover": () => skillsRef(),
 		"voice.models.list": () => voiceRef(),

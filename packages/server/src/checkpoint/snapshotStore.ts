@@ -158,7 +158,8 @@ const snapshotFromRow = (row: FileSnapshotRow): FileSnapshot => ({
 	contentHash: row.content_hash,
 	fileSize: toNumber(row.file_size),
 	linesAdded: toNullNumber(row.lines_added),
-	linesRemoved: toNullNumber(row.lines_removed)
+	linesRemoved: toNullNumber(row.lines_removed),
+	content: row.content
 })
 
 const statsMapFromRows = (

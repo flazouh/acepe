@@ -38,6 +38,7 @@ const projected = {
 	status: "ready" as const,
 	createdAt: "2026-08-23T09:00:00.000Z",
 	lastRevertedAt: null,
+	files: [],
 };
 
 const withCheckpoints = (
@@ -118,6 +119,7 @@ describe("checkpoint rpc facade", () => {
 										status: "ready",
 										createdAt: "2026-08-23T09:00:00.000Z",
 										lastRevertedAt: null,
+										files: [],
 									},
 								])
 							),

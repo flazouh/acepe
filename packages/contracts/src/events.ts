@@ -79,6 +79,7 @@ export const OrchestrationEventType = Schema.Literals([
 	"CheckpointCreated",
 	"CheckpointReadinessChanged",
 	"CheckpointReverted",
+	"CheckpointFileReverted",
 	"SettingsUpdated",
 	"SkillsDiscovered",
 	"VoiceModelsListed",
@@ -219,6 +220,13 @@ export const CheckpointRevertedPayload = Schema.Struct({
 	checkpointId: CheckpointId,
 })
 export type CheckpointRevertedPayload = typeof CheckpointRevertedPayload.Type
+
+export const CheckpointFileRevertedPayload = Schema.Struct({
+	sessionId: SessionId,
+	checkpointId: CheckpointId,
+	filePath: TrimmedNonEmptyString,
+})
+export type CheckpointFileRevertedPayload = typeof CheckpointFileRevertedPayload.Type
 
 export const SettingsUpdatedPayload = Schema.Struct({
 	key: UserSettingKey,
@@ -463,6 +471,14 @@ export const CheckpointRevertedEvent = defineOrchestrationEvent({
 	aggregateId: SessionId,
 })
 export type CheckpointRevertedEvent = typeof CheckpointRevertedEvent.Type
+
+export const CheckpointFileRevertedEvent = defineOrchestrationEvent({
+	type: "CheckpointFileReverted",
+	payload: CheckpointFileRevertedPayload,
+	aggregateKind: "session",
+	aggregateId: SessionId,
+})
+export type CheckpointFileRevertedEvent = typeof CheckpointFileRevertedEvent.Type
 
 export const SettingsUpdatedEvent = defineOrchestrationEvent({
 	type: "SettingsUpdated",
@@ -838,6 +854,7 @@ export const OrchestrationEvent = Schema.Union([
 	CheckpointCreatedEvent,
 	CheckpointReadinessChangedEvent,
 	CheckpointRevertedEvent,
+	CheckpointFileRevertedEvent,
 	SettingsUpdatedEvent,
 	SkillsDiscoveredEvent,
 	VoiceModelsListedEvent,

@@ -40,6 +40,7 @@ import {
 } from "../persistence/Services/ProjectionSessionMessages.ts"
 import { FileIndexServiceLive } from "../fileIndex/Layers/FileIndexService.ts"
 import { GitServiceLive } from "../git/Layers/GitService.ts"
+import { CheckpointServiceLive } from "../checkpoint/Layers/CheckpointService.ts"
 import { runGit } from "../git/runGit.ts"
 import { OrchestrationEngineLive } from "../orchestration/Layers/OrchestrationEngine.ts"
 import { ProjectionSnapshotQueryLive } from "../orchestration/Layers/ProjectionSnapshotQuery.ts"
@@ -116,6 +117,12 @@ const GitLive = Layer.unwrap(
 	})
 ).pipe(Layer.provide(FileIndexPlatform), Layer.provide(BunCrypto.layer))
 
+const CheckpointLive = CheckpointServiceLive.pipe(
+	Layer.provideMerge(EngineAndStore),
+	Layer.provide(FileIndexPlatform),
+	Layer.provide(BunCrypto.layer)
+)
+
 const SkillsLive = Layer.unwrap(
 	Effect.gen(function*() {
 		const fs = yield* FileSystem.FileSystem
@@ -142,10 +149,12 @@ const TestLive = RpcHandlersLive.pipe(
 	Layer.provideMerge(EngineAndStore),
 	Layer.provideMerge(FileIndexServiceLive),
 	Layer.provideMerge(GitLive),
+	Layer.provideMerge(CheckpointLive),
 	Layer.provideMerge(SkillsLive),
 	Layer.provideMerge(McpLive),
 	Layer.provideMerge(VoiceLive),
-	Layer.provideMerge(FileIndexPlatform)
+	Layer.provideMerge(FileIndexPlatform),
+	Layer.provideMerge(BunCrypto.layer)
 )
 
 const isolatedRpc = () => Layer.fresh(TestLive)

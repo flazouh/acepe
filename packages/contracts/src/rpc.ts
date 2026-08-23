@@ -249,6 +249,16 @@ export const RpcProjectedPendingApproval = Schema.Struct({
 })
 export type RpcProjectedPendingApproval = typeof RpcProjectedPendingApproval.Type
 
+export const RpcCheckpointFile = Schema.Struct({
+	path: TrimmedNonEmptyString,
+	contentHash: TrimmedNonEmptyString,
+	fileSize: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+	linesAdded: Schema.NullOr(Schema.Int),
+	linesRemoved: Schema.NullOr(Schema.Int),
+	content: Schema.String,
+})
+export type RpcCheckpointFile = typeof RpcCheckpointFile.Type
+
 export const RpcProjectedCheckpoint = Schema.Struct({
 	checkpointId: CheckpointId,
 	sessionId: SessionId,
@@ -261,6 +271,7 @@ export const RpcProjectedCheckpoint = Schema.Struct({
 	status: CheckpointStatus,
 	createdAt: IsoDateTime,
 	lastRevertedAt: Schema.NullOr(IsoDateTime),
+	files: Schema.Array(RpcCheckpointFile),
 })
 export type RpcProjectedCheckpoint = typeof RpcProjectedCheckpoint.Type
 

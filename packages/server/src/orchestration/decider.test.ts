@@ -649,7 +649,10 @@ Vitest.describe("decide", () => {
 					name: "After edit",
 					isAuto: true,
 					toolCallId,
-					fileCount: 2
+					fileCount: 2,
+					projectPath: null,
+					worktreePath: null,
+					modifiedFiles: []
 				}),
 				identity
 			)
@@ -707,7 +710,9 @@ Vitest.describe("decide", () => {
 					type: "checkpoint.revert",
 					commandId,
 					sessionId,
-					checkpointId
+					checkpointId,
+					projectPath: null,
+					worktreePath: null
 				}),
 				identity
 			)
@@ -727,7 +732,9 @@ Vitest.describe("decide", () => {
 						type: "checkpoint.revert",
 						commandId,
 						sessionId,
-						checkpointId
+						checkpointId,
+						projectPath: null,
+						worktreePath: null
 					}),
 					identity
 				)
@@ -754,7 +761,10 @@ Vitest.describe("decide", () => {
 						name: "After edit",
 						isAuto: true,
 						toolCallId,
-						fileCount: 2
+						fileCount: 2,
+						projectPath: null,
+						worktreePath: null,
+						modifiedFiles: []
 					}),
 					identity
 				)

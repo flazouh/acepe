@@ -8,6 +8,7 @@ import {
 	CheckpointCreatedPayload,
 	CheckpointReadinessChangedPayload,
 	CheckpointRevertedPayload,
+	CheckpointFileRevertedPayload,
 	MessageSentPayload,
 	OrchestrationEvent,
 	ProjectCreatedPayload,
@@ -96,6 +97,7 @@ const v1EventTypes = [
 	"CheckpointCreated",
 	"CheckpointReadinessChanged",
 	"CheckpointReverted",
+	"CheckpointFileReverted",
 	"SettingsUpdated",
 	"SkillsDiscovered",
 	"VoiceModelsListed",
@@ -465,6 +467,14 @@ const memberCases = [
 		event: sessionEvent("CheckpointReverted", {
 			sessionId,
 			checkpointId,
+		}),
+	},
+	{
+		payloadSchema: CheckpointFileRevertedPayload,
+		event: sessionEvent("CheckpointFileReverted", {
+			sessionId,
+			checkpointId,
+			filePath: "src/main.ts",
 		}),
 	},
 	{
