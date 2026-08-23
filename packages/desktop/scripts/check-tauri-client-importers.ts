@@ -10,7 +10,7 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-const BASELINE = 19;
+const BASELINE = 13;
 const ROOT = join(import.meta.dir, "..", "src");
 
 const importers: Array<string> = [];

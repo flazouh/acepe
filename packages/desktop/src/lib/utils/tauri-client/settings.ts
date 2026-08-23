@@ -1,26 +1,25 @@
-import { fromPromise } from "@acepe/effect-result/fromPromise";
 import { fromThrowable } from "@acepe/effect-result/fromThrowable";
+import {
+	type RpcSessionSnapshot,
+	settingsSnapshotRequest,
+	UserSettingKey as ContractUserSettingKey,
+} from "@acepe/contracts";
+import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
+import * as Ref from "effect/Ref";
 import * as Result from "effect/Result";
+import * as Schema from "effect/Schema";
 
-import { AgentError, AppError } from "../../acp/errors/app-error.js";
-import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
+import { AgentError, type AppError } from "../../acp/errors/app-error.js";
 import type { UserSettingKey } from "../../services/user-settings-types.js";
+import {
+	decodeEffect,
+	nextCommandId,
+	unsupportedOnContract,
+	withRpcClient,
+} from "./rpc-bridge.ts";
 import type { ArchivedSessionRef, ThreadListSettings } from "./types.js";
 
-interface UserSettingValue {
-	readonly key: UserSettingKey;
-	readonly value: string | null;
-}
-
-interface PendingSettingsBatchRequest {
-	readonly key: UserSettingKey;
-	readonly resolve: (value: string | null) => void;
-	readonly reject: (error: AppError) => void;
-}
-
-const pendingSettingsBatch: PendingSettingsBatchRequest[] = [];
-let settingsBatchFlushScheduled = false;
 const CUSTOM_KEYBINDINGS_HOT_CACHE_KEY = "acepe.custom_keybindings.hot_cache";
 const CUSTOM_KEYBINDINGS_HOT_CACHE_VERSION = 1;
 const THREAD_LIST_SETTINGS_HOT_CACHE_KEY = "acepe.thread_list_settings.hot_cache";
@@ -35,6 +34,10 @@ interface ThreadListSettingsHotCachePayload {
 	readonly version: number;
 	readonly settings: ThreadListSettings;
 }
+
+const inflightSettingsSnapshot = Effect.runSync(
+	Ref.make<Deferred.Deferred<RpcSessionSnapshot, AppError> | null>(null)
+);
 
 const readCustomKeybindingsHotCacheItem = fromThrowable(
 	(): string | null => {
@@ -70,9 +73,9 @@ const removeCustomKeybindingsHotCacheItem = fromThrowable(
 	() => undefined
 );
 
-function normalizeCustomKeybindings(
+const normalizeCustomKeybindings = (
 	keybindings: Record<string, string>
-): Record<string, string> | null {
+): Record<string, string> | null => {
 	const normalized: Record<string, string> = {};
 	for (const [command, key] of Object.entries(keybindings)) {
 		if (typeof command !== "string" || typeof key !== "string") {
@@ -81,7 +84,7 @@ function normalizeCustomKeybindings(
 		normalized[command] = key;
 	}
 	return normalized;
-}
+};
 
 const parseCustomKeybindingsHotCache = fromThrowable(
 	(stored: string): Record<string, string> | null => {
@@ -100,7 +103,7 @@ const parseCustomKeybindingsHotCache = fromThrowable(
 	() => null
 );
 
-function readCustomKeybindingsHotCache(): Record<string, string> | null {
+const readCustomKeybindingsHotCache = (): Record<string, string> | null => {
 	const cachedItemResult = Effect.runSync(Effect.result(readCustomKeybindingsHotCacheItem()));
 	const cachedItem = Result.isSuccess(cachedItemResult) ? cachedItemResult.success : null;
 	if (cachedItem === null) {
@@ -114,11 +117,11 @@ function readCustomKeybindingsHotCache(): Record<string, string> | null {
 
 	void Effect.runSync(Effect.result(removeCustomKeybindingsHotCacheItem()));
 	return null;
-}
+};
 
-function writeCustomKeybindingsHotCache(keybindings: Record<string, string>): void {
+const writeCustomKeybindingsHotCache = (keybindings: Record<string, string>): void => {
 	void Effect.runSync(Effect.result(writeCustomKeybindingsHotCacheItem(keybindings)));
-}
+};
 
 const readThreadListSettingsHotCacheItem = fromThrowable(
 	(): string | null => {
@@ -154,9 +157,9 @@ const removeThreadListSettingsHotCacheItem = fromThrowable(
 	() => undefined
 );
 
-function normalizeArchivedSessionRefs(
+const normalizeArchivedSessionRefs = (
 	refs: readonly ArchivedSessionRef[] | undefined
-): ArchivedSessionRef[] | undefined {
+): ArchivedSessionRef[] | undefined => {
 	if (refs === undefined) {
 		return undefined;
 	}
@@ -180,9 +183,9 @@ function normalizeArchivedSessionRefs(
 		});
 	}
 	return normalized;
-}
+};
 
-function normalizeThreadListSettings(settings: ThreadListSettings): ThreadListSettings | null {
+const normalizeThreadListSettings = (settings: ThreadListSettings): ThreadListSettings | null => {
 	if (!Array.isArray(settings.hiddenProjects)) {
 		return null;
 	}
@@ -204,7 +207,7 @@ function normalizeThreadListSettings(settings: ThreadListSettings): ThreadListSe
 		hiddenProjects,
 		archivedSessions,
 	};
-}
+};
 
 const parseThreadListSettingsHotCache = fromThrowable(
 	(stored: string): ThreadListSettings | null => {
@@ -217,7 +220,7 @@ const parseThreadListSettingsHotCache = fromThrowable(
 	() => null
 );
 
-function readThreadListSettingsHotCache(): ThreadListSettings | null {
+const readThreadListSettingsHotCache = (): ThreadListSettings | null => {
 	const cachedItemResult = Effect.runSync(Effect.result(readThreadListSettingsHotCacheItem()));
 	const cachedItem = Result.isSuccess(cachedItemResult) ? cachedItemResult.success : null;
 	if (cachedItem === null) {
@@ -231,173 +234,150 @@ function readThreadListSettingsHotCache(): ThreadListSettings | null {
 
 	void Effect.runSync(Effect.result(removeThreadListSettingsHotCacheItem()));
 	return null;
-}
+};
 
-function writeThreadListSettingsHotCache(settings: ThreadListSettings): void {
+const writeThreadListSettingsHotCache = (settings: ThreadListSettings): void => {
 	void Effect.runSync(Effect.result(writeThreadListSettingsHotCacheItem(settings)));
-}
+};
 
-function normalizeSettingsBatchError<TError>(error: TError): AppError {
-	if (error instanceof AppError) {
-		return error;
-	}
-	if (error instanceof Error) {
-		return new AgentError("get_user_settings", error);
-	}
-	return new AgentError("get_user_settings", new Error(String(error)));
-}
-
-function scheduleSettingsBatchFlush(): void {
-	if (settingsBatchFlushScheduled) {
-		return;
-	}
-	settingsBatchFlushScheduled = true;
-	queueMicrotask(flushSettingsBatch);
-}
-
-function flushSettingsBatch(): void {
-	const batch = pendingSettingsBatch.splice(0, pendingSettingsBatch.length);
-	settingsBatchFlushScheduled = false;
-	if (batch.length === 0) {
-		return;
-	}
-
-	const seenKeys = new Set<UserSettingKey>();
-	const keys: UserSettingKey[] = [];
-	for (const request of batch) {
-		if (seenKeys.has(request.key)) {
-			continue;
+const loadSettingsSnapshot = Effect.fn("loadSettingsSnapshot")(function* () {
+	const created = yield* Deferred.make<RpcSessionSnapshot, AppError>();
+	const selected = yield* Ref.modify(inflightSettingsSnapshot, (current) => {
+		if (current !== null) {
+			return [current, current] as const;
 		}
-		seenKeys.add(request.key);
-		keys.push(request.key);
+		return [created, created] as const;
+	});
+	if (selected !== created) {
+		return yield* Deferred.await(selected);
 	}
-
-	void Effect.runPromise(
-		TAURI_COMMAND_CLIENT.storage.get_user_settings.invoke<UserSettingValue[]>({ keys }).pipe(
-			Effect.match({
-				onSuccess: (values) => {
-					const valuesByKey = new Map<UserSettingKey, string | null>();
-					for (const value of values) {
-						valuesByKey.set(value.key, value.value);
-					}
-					for (const request of batch) {
-						request.resolve(valuesByKey.get(request.key) ?? null);
-					}
-				},
-				onFailure: (error) => {
-					for (const request of batch) {
-						request.reject(error);
-					}
-				},
-			})
-		)
+	yield* Effect.yieldNow;
+	const result = yield* Effect.result(
+		withRpcClient("settings.snapshot", (client) => client.snapshot(settingsSnapshotRequest()))
 	);
-}
+	yield* Ref.set(inflightSettingsSnapshot, null);
+	if (Result.isFailure(result)) {
+		yield* Deferred.fail(created, result.failure);
+		return yield* Effect.fail(result.failure);
+	}
+	yield* Deferred.succeed(created, result.success);
+	return result.success;
+});
 
-function getRawBatched(key: UserSettingKey): Effect.Effect<string | null, AppError> {
-	return fromPromise(
-		() =>
-			new Promise<string | null>((resolve, reject) => {
-				pendingSettingsBatch.push({
-					key,
-					resolve,
-					reject,
-				});
-				scheduleSettingsBatchFlush();
-			}),
-		normalizeSettingsBatchError
+const valueForKey = (snapshot: RpcSessionSnapshot, key: UserSettingKey): string | null => {
+	for (const row of snapshot.settings) {
+		if (row.key === key) {
+			return row.value;
+		}
+	}
+	return null;
+};
+
+const parseJsonValue = <T>(stored: string): Effect.Effect<T, AppError> =>
+	Effect.try({
+		try: () => JSON.parse(stored) as T,
+		catch: (cause) =>
+			new AgentError(
+				"settings.get",
+				cause instanceof Error ? cause : new Error("settings.get")
+			),
+	});
+
+const dispatchSettingsSet = Effect.fn("dispatchSettingsSet")(function* (
+	key: UserSettingKey,
+	value: string
+) {
+	const commandId = yield* nextCommandId("settings-set");
+	const decodedKey = yield* decodeEffect(
+		"settings.set",
+		Schema.decodeUnknownEffect(ContractUserSettingKey)
+	)(key);
+	yield* withRpcClient("settings.set", (client) =>
+		client.dispatch({
+			type: "settings.set",
+			commandId,
+			key: decodedKey,
+			value,
+		})
 	);
-}
+});
 
 export const settings = {
-	getRaw: (key: UserSettingKey): Effect.Effect<string | null, AppError> => {
-		return getRawBatched(key);
-	},
+	getRaw: (key: UserSettingKey): Effect.Effect<string | null, AppError> =>
+		loadSettingsSnapshot().pipe(Effect.map((snapshot) => valueForKey(snapshot, key))),
 
-	get: <T>(key: UserSettingKey): Effect.Effect<T | null, AppError> => {
-		return getRawBatched(key).pipe(
-			Effect.map((stored) => {
-				if (stored === null) return null;
-				return JSON.parse(stored) as T;
+	get: <T>(key: UserSettingKey): Effect.Effect<T | null, AppError> =>
+		loadSettingsSnapshot().pipe(
+			Effect.flatMap((snapshot) => {
+				const stored = valueForKey(snapshot, key);
+				if (stored === null) {
+					return Effect.succeed(null);
+				}
+				return parseJsonValue<T>(stored);
 			})
-		);
-	},
+		),
 
-	set: <T>(key: UserSettingKey, value: T): Effect.Effect<void, AppError> => {
-		return TAURI_COMMAND_CLIENT.storage.save_user_setting.invoke<void>({
-			key,
-			value: JSON.stringify(value),
-		});
-	},
+	set: <T>(key: UserSettingKey, value: T): Effect.Effect<void, AppError> =>
+		dispatchSettingsSet(key, JSON.stringify(value)),
 
-	setRaw: (key: UserSettingKey, value: string): Effect.Effect<void, AppError> => {
-		return TAURI_COMMAND_CLIENT.storage.save_user_setting.invoke<void>({ key, value });
-	},
+	setRaw: (key: UserSettingKey, value: string): Effect.Effect<void, AppError> =>
+		dispatchSettingsSet(key, value),
 
 	getCustomKeybindings: (): Effect.Effect<Record<string, string>, AppError> => {
 		const cachedKeybindings = readCustomKeybindingsHotCache();
 		if (cachedKeybindings !== null) {
 			return Effect.succeed(cachedKeybindings);
 		}
-
-		return TAURI_COMMAND_CLIENT.storage.get_custom_keybindings
-			.invoke<Record<string, string>>()
-			.pipe(
-				Effect.map((keybindings) => {
-					writeCustomKeybindingsHotCache(keybindings);
-					return keybindings;
-				})
-			);
+		return loadSettingsSnapshot().pipe(
+			Effect.map((snapshot) => {
+				const stored = valueForKey(snapshot, "custom_keybindings");
+				if (stored === null) {
+					return {};
+				}
+				const parsedResult = Effect.runSync(
+					Effect.result(parseJsonValue<Record<string, string>>(stored))
+				);
+				if (Result.isFailure(parsedResult)) {
+					return {};
+				}
+				const normalized = normalizeCustomKeybindings(parsedResult.success);
+				if (normalized === null) {
+					return {};
+				}
+				writeCustomKeybindingsHotCache(normalized);
+				return normalized;
+			})
+		);
 	},
 
-	saveCustomKeybindings: (keybindings: Record<string, string>): Effect.Effect<void, AppError> => {
-		return TAURI_COMMAND_CLIENT.storage.save_custom_keybindings
-			.invoke<void>({ keybindings })
-			.pipe(
-				Effect.map(() => {
-					writeCustomKeybindingsHotCache(keybindings);
-					return undefined;
-				})
-			);
-	},
+	saveCustomKeybindings: (
+		keybindings: Record<string, string>
+	): Effect.Effect<void, AppError> =>
+		dispatchSettingsSet("custom_keybindings", JSON.stringify(keybindings)).pipe(
+			Effect.map(() => {
+				writeCustomKeybindingsHotCache(keybindings);
+				return undefined;
+			})
+		),
 
 	getThreadListSettings: (): Effect.Effect<ThreadListSettings, AppError> => {
 		const cachedSettings = readThreadListSettingsHotCache();
 		if (cachedSettings !== null) {
 			return Effect.succeed(cachedSettings);
 		}
-
-		return TAURI_COMMAND_CLIENT.storage.get_thread_list_settings
-			.invoke<ThreadListSettings>()
-			.pipe(
-				Effect.map((threadListSettings) => {
-					writeThreadListSettingsHotCache(threadListSettings);
-					return threadListSettings;
-				})
-			);
+		return Effect.succeed({
+			hiddenProjects: [],
+			archivedSessions: [],
+		});
 	},
 
-	saveThreadListSettings: (threadListSettings: ThreadListSettings): Effect.Effect<void, AppError> => {
-		return TAURI_COMMAND_CLIENT.storage.save_thread_list_settings
-			.invoke<void>({ settings: threadListSettings })
-			.pipe(
-				Effect.map(() => {
-					writeThreadListSettingsHotCache(threadListSettings);
-					return undefined;
-				})
-			);
+	saveThreadListSettings: (
+		threadListSettings: ThreadListSettings
+	): Effect.Effect<void, AppError> => {
+		writeThreadListSettingsHotCache(threadListSettings);
+		return Effect.void;
 	},
 
-	resetDatabase: (): Effect.Effect<void, AppError> => {
-		return TAURI_COMMAND_CLIENT.storage.request_destructive_confirmation_token
-			.invoke<string>({
-				operation: "reset_database",
-				target: "all-data",
-			})
-			.pipe(
-				Effect.flatMap((confirmationToken) =>
-					TAURI_COMMAND_CLIENT.storage.reset_database.invoke<void>({ confirmationToken })
-				)
-			);
-	},
+	resetDatabase: (): Effect.Effect<void, AppError> =>
+		unsupportedOnContract("storage.reset_database"),
 };

@@ -1,3 +1,7 @@
+import type {
+	FileGitStatus as ContractFileGitStatus,
+	ProjectIndex as ContractProjectIndex,
+} from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 
 import type { AppError } from "../../acp/errors/app-error.js";
@@ -6,121 +10,152 @@ import type {
 	FileGitStatus,
 	ProjectIndex,
 } from "../../services/converted-session-types.js";
-import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
+import {
+	decodeTrimmed,
+	unsupportedOnContract,
+	withRpcClient,
+} from "./rpc-bridge.ts";
 
-const fileIndexCommands = TAURI_COMMAND_CLIENT.file_index;
+const mapGitStatus = (row: ContractFileGitStatus): FileGitStatus => ({
+	path: row.path,
+	status: row.status,
+	insertions: row.insertions,
+	deletions: row.deletions,
+});
+
+const mapProjectIndex = (index: ContractProjectIndex): ProjectIndex => {
+	const files: ProjectIndex["files"] = [];
+	for (const file of index.files) {
+		files.push({
+			path: file.path,
+			extension: file.extension,
+			lineCount: file.lineCount,
+			gitStatus: file.gitStatus === null ? null : mapGitStatus(file.gitStatus),
+		});
+	}
+	const gitStatus: FileGitStatus[] = [];
+	for (const row of index.gitStatus) {
+		gitStatus.push(mapGitStatus(row));
+	}
+	return {
+		projectPath: index.projectPath,
+		files,
+		gitStatus,
+		totalFiles: index.totalFiles,
+		totalLines: index.totalLines,
+	};
+};
+
+const loadProjectIndex = Effect.fn("loadProjectIndex")(function* (projectPath: string) {
+	const decodedPath = yield* decodeTrimmed("fileIndex.getProjectIndex", projectPath);
+	const index = yield* withRpcClient("fileIndex.getProjectIndex", (client) =>
+		client.getProjectIndex(decodedPath)
+	);
+	return mapProjectIndex(index);
+});
 
 export const fileIndex = {
-	getProjectGitStatus: (projectPath: string): Effect.Effect<FileGitStatus[], AppError> => {
-		return fileIndexCommands.get_project_git_status.invoke<FileGitStatus[]>({ projectPath });
-	},
+	getProjectGitStatus: (projectPath: string): Effect.Effect<FileGitStatus[], AppError> =>
+		loadProjectIndex(projectPath).pipe(Effect.map((index) => index.gitStatus)),
 
-	getProjectGitStatusSummary: (projectPath: string): Effect.Effect<FileGitStatus[], AppError> => {
-		return fileIndexCommands.get_project_git_status_summary.invoke<FileGitStatus[]>({
-			projectPath,
-		});
-	},
+	getProjectGitStatusSummary: (
+		projectPath: string
+	): Effect.Effect<FileGitStatus[], AppError> =>
+		loadProjectIndex(projectPath).pipe(Effect.map((index) => index.gitStatus)),
 
 	getFileGitStatusSummary: (
 		projectPath: string,
 		filePath: string
-	): Effect.Effect<FileGitStatus | null, AppError> => {
-		return fileIndexCommands.get_file_git_status_summary.invoke<FileGitStatus | null>({
-			projectPath,
-			filePath,
-		});
-	},
+	): Effect.Effect<FileGitStatus | null, AppError> =>
+		loadProjectIndex(projectPath).pipe(
+			Effect.map((index) => {
+				for (const row of index.gitStatus) {
+					if (row.path === filePath) {
+						return row;
+					}
+				}
+				return null;
+			})
+		),
 
 	getProjectGitOverviewSummary: (
 		projectPath: string
-	): Effect.Effect<{ branch: string | null; gitStatus: FileGitStatus[] }, AppError> => {
-		return fileIndexCommands.get_project_git_overview_summary.invoke<{
-			branch: string | null;
-			gitStatus: FileGitStatus[];
-		}>({ projectPath });
-	},
+	): Effect.Effect<{ branch: string | null; gitStatus: FileGitStatus[] }, AppError> =>
+		loadProjectIndex(projectPath).pipe(
+			Effect.map((index) => ({
+				branch: null,
+				gitStatus: index.gitStatus,
+			}))
+		),
 
-	getProjectFiles: (projectPath: string): Effect.Effect<ProjectIndex, AppError> => {
-		return fileIndexCommands.get_project_files.invoke<ProjectIndex>({ projectPath });
-	},
+	getProjectFiles: (projectPath: string): Effect.Effect<ProjectIndex, AppError> =>
+		loadProjectIndex(projectPath),
 
-	invalidateProjectFiles: (projectPath: string): Effect.Effect<void, AppError> => {
-		return fileIndexCommands.invalidate_project_files.invoke<void>({ projectPath });
-	},
+	invalidateProjectFiles: (projectPath: string): Effect.Effect<void, AppError> =>
+		decodeTrimmed("fileIndex.invalidateProjectIndex", projectPath).pipe(
+			Effect.flatMap((decodedPath) =>
+				withRpcClient("fileIndex.invalidateProjectIndex", (client) =>
+					client.invalidateProjectIndex(decodedPath)
+				)
+			)
+		),
 
-	readFileContent: (filePath: string, projectPath: string): Effect.Effect<string, AppError> => {
-		return fileIndexCommands.read_file_content.invoke<string>({ filePath, projectPath });
-	},
+	readFileContent: (
+		_filePath: string,
+		_projectPath: string
+	): Effect.Effect<string, AppError> => unsupportedOnContract("fileIndex.readFileContent"),
 
-	resolveFilePath: (filePath: string, projectPath: string): Effect.Effect<string, AppError> => {
-		return fileIndexCommands.resolve_file_path.invoke<string>({ filePath, projectPath });
-	},
+	resolveFilePath: (
+		_filePath: string,
+		_projectPath: string
+	): Effect.Effect<string, AppError> => unsupportedOnContract("fileIndex.resolveFilePath"),
 
 	getFileDiff: (
-		filePath: string,
-		projectPath: string
-	): Effect.Effect<{ oldContent: string | null; newContent: string; fileName: string }, AppError> => {
-		return fileIndexCommands.get_file_diff.invoke<{
-			oldContent: string | null;
-			newContent: string;
-			fileName: string;
-		}>({ filePath, projectPath });
-	},
+		_filePath: string,
+		_projectPath: string
+	): Effect.Effect<
+		{ oldContent: string | null; newContent: string; fileName: string },
+		AppError
+	> => unsupportedOnContract("fileIndex.getFileDiff"),
 
 	revertFileContent: (
-		filePath: string,
-		projectPath: string,
-		content: string
-	): Effect.Effect<void, AppError> => {
-		return fileIndexCommands.revert_file_content.invoke<void>({
-			filePath,
-			projectPath,
-			content,
-		});
-	},
+		_filePath: string,
+		_projectPath: string,
+		_content: string
+	): Effect.Effect<void, AppError> => unsupportedOnContract("fileIndex.revertFileContent"),
 
-	readImageAsBase64: (filePath: string): Effect.Effect<string, AppError> => {
-		return fileIndexCommands.read_image_as_base64.invoke<string>({ filePath });
-	},
+	readImageAsBase64: (_filePath: string): Effect.Effect<string, AppError> =>
+		unsupportedOnContract("fileIndex.readImageAsBase64"),
 
-	deletePath: (projectPath: string, relativePath: string): Effect.Effect<void, AppError> => {
-		return fileIndexCommands.delete_path.invoke<void>({ projectPath, relativePath });
-	},
+	deletePath: (
+		_projectPath: string,
+		_relativePath: string
+	): Effect.Effect<void, AppError> => unsupportedOnContract("fileIndex.deletePath"),
 
 	renamePath: (
-		projectPath: string,
-		fromRelative: string,
-		toRelative: string
-	): Effect.Effect<void, AppError> => {
-		return fileIndexCommands.rename_path.invoke<void>({
-			projectPath,
-			fromRelative,
-			toRelative,
-		});
-	},
+		_projectPath: string,
+		_fromRelative: string,
+		_toRelative: string
+	): Effect.Effect<void, AppError> => unsupportedOnContract("fileIndex.renamePath"),
 
-	copyFile: (projectPath: string, relativePath: string): Effect.Effect<string, AppError> => {
-		return fileIndexCommands.copy_file.invoke<string>({ projectPath, relativePath });
-	},
+	copyFile: (
+		_projectPath: string,
+		_relativePath: string
+	): Effect.Effect<string, AppError> => unsupportedOnContract("fileIndex.copyFile"),
 
-	createFile: (projectPath: string, relativePath: string): Effect.Effect<void, AppError> => {
-		return fileIndexCommands.create_file.invoke<void>({ projectPath, relativePath });
-	},
+	createFile: (
+		_projectPath: string,
+		_relativePath: string
+	): Effect.Effect<void, AppError> => unsupportedOnContract("fileIndex.createFile"),
 
-	createDirectory: (projectPath: string, relativePath: string): Effect.Effect<void, AppError> => {
-		return fileIndexCommands.create_directory.invoke<void>({
-			projectPath,
-			relativePath,
-		});
-	},
+	createDirectory: (
+		_projectPath: string,
+		_relativePath: string
+	): Effect.Effect<void, AppError> => unsupportedOnContract("fileIndex.createDirectory"),
 
 	getFileExplorerPreview: (
-		projectPath: string,
-		filePath: string
-	): Effect.Effect<FileExplorerPreviewResponse, AppError> => {
-		return fileIndexCommands.get_file_explorer_preview.invoke<FileExplorerPreviewResponse>({
-			projectPath,
-			filePath,
-		});
-	},
+		_projectPath: string,
+		_filePath: string
+	): Effect.Effect<FileExplorerPreviewResponse, AppError> =>
+		unsupportedOnContract("fileIndex.getFileExplorerPreview"),
 };
