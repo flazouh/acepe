@@ -68,6 +68,7 @@
 <button
 	class={buttonClass}
 	data-slot={embeddedInGroup ? "button" : undefined}
+	data-testid="agent-input-mic"
 	aria-label={ariaLabel}
 	aria-pressed={isRecording}
 	{disabled}

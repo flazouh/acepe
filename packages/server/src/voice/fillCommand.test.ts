@@ -153,8 +153,8 @@ Vitest.layer(isolatedVoice())("fillVoiceCommand", (it) => {
 			Vitest.assert.strictEqual(filled.type, "voice.model.load")
 			if (filled.type === "voice.model.load") {
 				Vitest.assert.strictEqual(filled.model.id, EXTERNAL_BACKEND_ID)
-				Vitest.assert.strictEqual(filled.model.isDownloaded, false)
-				Vitest.assert.strictEqual(filled.model.isLoaded, false)
+				Vitest.assert.strictEqual(filled.model.isDownloaded, true)
+				Vitest.assert.strictEqual(filled.model.isLoaded, true)
 			}
 		})
 	)

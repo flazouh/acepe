@@ -1,10 +1,8 @@
 import * as Arr from "effect/Array"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
-import * as Config from "effect/Config"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
-import * as FileSystem from "effect/FileSystem"
 import * as HashSet from "effect/HashSet"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
@@ -13,7 +11,6 @@ import * as Ref from "effect/Ref"
 import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
-import * as Str from "effect/String"
 import * as SynchronizedRef from "effect/SynchronizedRef"
 import {
 	VoiceAlreadyRecordingError,
@@ -85,31 +82,19 @@ const appendSamples = (target: Array<number>, chunk: ReadonlyArray<number>): voi
 }
 
 export const makeVoiceService = Effect.fn("VoiceService.make")(function*() {
-	const fs = yield* FileSystem.FileSystem
 	const engine = yield* TranscriptionEngine
 	const microphone = yield* MicrophoneCapture
 	const workerState = yield* SynchronizedRef.make<WorkerState>(idleState)
 	const loadedModelPath = yield* Ref.make(Option.none<string>())
 	const downloading = yield* Ref.make(HashSet.empty<string>())
 	const eventPubSub = yield* PubSub.unbounded<VoiceEvent>()
-	const sttCommand = yield* Config.option(Config.string(EXTERNAL_STT_COMMAND_ENV)).pipe(
-		Effect.orElseSucceed(() => Option.none<string>())
-	)
-
-	const sttCommandConfigured = Effect.fn("VoiceService.sttCommandConfigured")(function*() {
-		if (Option.isNone(sttCommand) || Str.trim(sttCommand.value).length === 0) {
-			return false
-		}
-		return yield* fs.exists(sttCommand.value)
-	})
 
 	const publish = Effect.fn("VoiceService.publish")(function*(event: VoiceEvent) {
 		yield* PubSub.publish(eventPubSub, event)
 	})
 
 	const listModels = Effect.fn("VoiceService.listModels")(function*() {
-		const isDownloaded = yield* sttCommandConfigured()
-		const row = makeExternalModelInfo(isDownloaded, false)
+		const row = makeExternalModelInfo(true, false)
 		return yield* decodeModels([row])
 	})
 
@@ -122,15 +107,13 @@ export const makeVoiceService = Effect.fn("VoiceService.make")(function*() {
 		if (Result.isFailure(validated)) {
 			return yield* validated.failure
 		}
-		const isDownloaded = yield* sttCommandConfigured()
 		const path = modelPathFor(modelId)
 		if (Option.isNone(path)) {
 			return yield* new VoiceUnknownModelError({ modelId })
 		}
 		const loaded = yield* Ref.get(loadedModelPath)
-		const isLoaded =
-			isDownloaded === true && Option.isSome(loaded) && loaded.value === path.value
-		return yield* decodeModel(makeExternalModelInfo(isDownloaded, isLoaded))
+		const isLoaded = Option.isSome(loaded) && loaded.value === path.value
+		return yield* decodeModel(makeExternalModelInfo(true, isLoaded))
 	})
 
 	const downloadModel = Effect.fn("VoiceService.downloadModel")(function*(modelId: string) {
