@@ -7,7 +7,11 @@ import {
 	type RpcSessionSnapshot,
 	type SessionId,
 } from "@acepe/contracts";
-import { AgentInputMicButton, getMicButtonVisualState } from "@acepe/ui";
+import {
+	AgentInputMicButton,
+	AgentInputVoiceRecordingOverlay,
+	getMicButtonVisualState,
+} from "@acepe/ui";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
@@ -170,4 +174,9 @@ onMount(() => {
 			}}
 		/>
 	</form>
+	{#if voiceState.phase === "error"}
+		<div class="px-3 pb-3">
+			<AgentInputVoiceRecordingOverlay phase="error" errorMessage={voiceState.errorMessage} />
+		</div>
+	{/if}
 </section>

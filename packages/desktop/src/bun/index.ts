@@ -69,11 +69,15 @@ applyNativeWrapperCwdOrExit({
 const electrobun = await import("electrobun/bun");
 const electrobunNative = await import("../../node_modules/electrobun/dist/api/bun/proc/native.ts");
 
+const qaConfig = resolveElectrobunConfig();
+const qaEnabled = qaSurfaceEnabled(qaConfig);
+
 const runtime = ManagedRuntime.make(
 	makeAcepeLive({
 		filename: Effect.runSync(loadTracerDbFilename()),
 		tokenDelay: Duration.millis(40),
 		skillsHomeDir: SKILLS_MCP_SEED_HOME,
+		voiceQaSurfaceEnabled: qaEnabled,
 	})
 );
 
@@ -82,9 +86,6 @@ await runtime.runPromise(seedGitReview());
 await runtime.runPromise(seedSkillsMcp());
 
 let sawRpcRoundtrip = false;
-
-const qaConfig = resolveElectrobunConfig();
-const qaEnabled = qaSurfaceEnabled(qaConfig);
 
 const launched = startElectrobunAcepeApp(
 	{
