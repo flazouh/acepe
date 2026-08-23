@@ -90,6 +90,7 @@ describe("conversationFromSnapshot", () => {
 				settings: [],
 				skillsCatalog: null,
 				voice: null,
+				gitReview: null,
 			},
 			activities: [
 				{
@@ -159,6 +160,7 @@ describe("conversationFromSnapshot", () => {
 				settings: [],
 				skillsCatalog: null,
 				voice: null,
+				gitReview: null,
 			},
 		});
 
@@ -198,6 +200,7 @@ describe("conversationFromSnapshot", () => {
 				settings: [],
 				skillsCatalog: null,
 				voice: null,
+				gitReview: null,
 			},
 		});
 

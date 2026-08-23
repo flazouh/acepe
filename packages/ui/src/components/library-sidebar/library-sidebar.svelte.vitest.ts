@@ -94,4 +94,30 @@ describe("LibrarySidebar", () => {
 		await fireEvent.click(view.getByTestId("library-project"))
 		expect(onSelectProject).toHaveBeenCalledWith("project-1")
 	})
+
+	it("calls onOpenReview from the review button when a project is selected", async () => {
+		const onSelectProject = vi.fn()
+		const onOpenReview = vi.fn()
+		const view = render(LibrarySidebar, {
+			props: {
+				model,
+				onSelectProject,
+				onOpenReview,
+				reviewButtonLabel: "Review changes",
+			},
+		})
+		expect(view.getByTestId("git-review-open").textContent).toBe("Review changes")
+		await fireEvent.click(view.getByTestId("git-review-open"))
+		expect(onOpenReview).toHaveBeenCalledTimes(1)
+	})
+
+	it("hides the review button when onOpenReview is omitted", () => {
+		const view = render(LibrarySidebar, {
+			props: {
+				model,
+				onSelectProject: vi.fn(),
+			},
+		})
+		expect(view.queryByTestId("git-review-open")).toBeNull()
+	})
 })

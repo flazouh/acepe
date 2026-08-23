@@ -57,6 +57,7 @@ import {
 	requireUniqueSkillIds
 } from "./commandInvariants.ts"
 import type { OrchestrationCommandInvariantError } from "./Errors.ts"
+import { decideGit } from "./gitDecide.ts"
 import { decideVoice } from "./voiceDecide.ts"
 
 export type DecideIdentity = {
@@ -748,5 +749,11 @@ export const decide = Effect.fn("decide")(function*(
 		case "voice.recording.stop":
 		case "voice.recording.cancel":
 			return yield* decideVoice(readModel, command, identity)
+		case "git.status.refresh":
+		case "git.diff.load":
+		case "git.blame.load":
+		case "git.hunk.accept":
+		case "git.hunk.reject":
+			return yield* decideGit(readModel, command, identity)
 	}
 })

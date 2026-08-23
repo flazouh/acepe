@@ -3,6 +3,7 @@ import {
 	ApprovalRequestId,
 	ProjectedSkillsCatalog,
 	ProjectedVoice,
+	ProjectedGitReview,
 	ProjectId,
 	Sequence,
 	SessionId,
@@ -27,6 +28,7 @@ import {
 } from "../../persistence/Services/ProjectionSettings.ts"
 import { PROJECTION_SKILLS_TABLE } from "../../persistence/Services/ProjectionSkills.ts"
 import { PROJECTION_VOICE_TABLE } from "../../persistence/Services/ProjectionVoice.ts"
+import { PROJECTION_GIT_TABLE } from "../../persistence/Services/ProjectionGit.ts"
 
 export const SNAPSHOT_PROJECTOR_NAMES = [
 	"projection.sessions",
@@ -38,7 +40,8 @@ export const SNAPSHOT_PROJECTOR_NAMES = [
 	"projection.projects",
 	"projection.settings",
 	"projection.skills",
-	"projection.voice"
+	"projection.voice",
+	"projection.git"
 ] as const
 
 export const PROJECTION_TURNS_TABLE = "projection_turns"
@@ -52,7 +55,8 @@ export const SNAPSHOT_OPTIONAL_TABLES = [
 	PROJECTION_CHECKPOINTS_TABLE,
 	PROJECTION_SETTINGS_TABLE,
 	PROJECTION_SKILLS_TABLE,
-	PROJECTION_VOICE_TABLE
+	PROJECTION_VOICE_TABLE,
+	PROJECTION_GIT_TABLE
 ] as const
 
 export const ProjectedTurn = Schema.Struct({
@@ -88,7 +92,8 @@ export const SessionProjectionSnapshot = Schema.Struct({
 	sessions: Schema.Array(ProjectedSession),
 	settings: Schema.Array(ProjectedSetting),
 	skillsCatalog: Schema.NullOr(ProjectedSkillsCatalog),
-	voice: Schema.NullOr(ProjectedVoice)
+	voice: Schema.NullOr(ProjectedVoice),
+	gitReview: Schema.NullOr(ProjectedGitReview)
 })
 export type SessionProjectionSnapshot = typeof SessionProjectionSnapshot.Type
 

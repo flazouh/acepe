@@ -37,6 +37,7 @@ const settingsSnapshot: RpcSessionSnapshot = {
 	],
 	skillsCatalog: null,
 	voice: null,
+	gitReview: null,
 };
 
 describe("isSettingsProjectionEvent", () => {
@@ -279,6 +280,7 @@ describe("composeSettingsStore", () => {
 							settings: [{ key: "ui_font_size", value: "16", sequence: 2 }],
 							skillsCatalog: null,
 							voice: null,
+							gitReview: null,
 						});
 					},
 					getProjectIndex: () =>

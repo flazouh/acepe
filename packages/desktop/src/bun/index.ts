@@ -13,6 +13,7 @@ import {
 } from "@acepe/electrobun-shell";
 import { makeAcepeLive } from "@acepe/server/bootstrap";
 import { seedLibrary } from "@acepe/server/library/seedLibrary";
+import { seedGitReview } from "@acepe/server/library/seedGitReview";
 import {
 	encodedDispatch,
 	encodedGetProjectIndex,
@@ -61,6 +62,7 @@ const runtime = ManagedRuntime.make(
 );
 
 await runtime.runPromise(seedLibrary());
+await runtime.runPromise(seedGitReview());
 
 let sawRpcRoundtrip = false;
 

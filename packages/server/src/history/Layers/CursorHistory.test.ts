@@ -71,7 +71,8 @@ const oracle = {
 	sessions: [],
 	settings: [],
 	skillsCatalog: null,
-	voice: null
+	voice: null,
+	gitReview: null,
 }
 
 Vitest.layer(isolated())("CursorHistoryLive", (it) => {

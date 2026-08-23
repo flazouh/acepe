@@ -72,4 +72,19 @@ Vitest.layer(PlatformLive)("runGit", (it) => {
 			Vitest.assert.strictEqual(stdout.includes("+two"), true)
 		})
 	)
+
+	it.effect("forces --no-pager so git show and git diff cannot hang on a tty", () =>
+		Effect.gen(function*() {
+			const fs = yield* FileSystem.FileSystem
+			const dir = yield* fs.makeTempDirectoryScoped()
+			const stdout = yield* runGit({
+				gitBin: "git",
+				args: Arr.fromIterable(["-c", "core.pager=less", "--version"]),
+				cwd: dir,
+				allowExitCodes: Arr.empty(),
+				env: Option.none()
+			})
+			Vitest.assert.strictEqual(stdout.startsWith("git version"), true)
+		})
+	)
 })

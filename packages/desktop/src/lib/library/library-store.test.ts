@@ -58,6 +58,7 @@ const librarySnapshot: RpcSessionSnapshot = {
 	settings: [],
 	skillsCatalog: null,
 	voice: null,
+	gitReview: null,
 };
 
 describe("isLibraryProjectionEvent", () => {

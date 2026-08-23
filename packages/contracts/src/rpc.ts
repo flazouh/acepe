@@ -13,6 +13,7 @@ import {
 	InvalidateProjectIndexRequest,
 	ProjectIndex,
 } from "./fileIndex.ts"
+import { ProjectedGitReview } from "./git.ts"
 import {
 	ActivityId,
 	ApprovalRequestId,
@@ -268,6 +269,9 @@ export type RpcSkillsCatalog = typeof RpcSkillsCatalog.Type
 export const RpcProjectedVoice = ProjectedVoice
 export type RpcProjectedVoice = typeof RpcProjectedVoice.Type
 
+export const RpcProjectedGitReview = ProjectedGitReview
+export type RpcProjectedGitReview = typeof RpcProjectedGitReview.Type
+
 export const RpcSessionSnapshot = Schema.Struct({
 	snapshotSequence: Sequence,
 	session: Schema.NullOr(RpcProjectedSession),
@@ -281,6 +285,7 @@ export const RpcSessionSnapshot = Schema.Struct({
 	settings: Schema.Array(RpcProjectedSetting),
 	skillsCatalog: Schema.NullOr(RpcSkillsCatalog),
 	voice: Schema.NullOr(RpcProjectedVoice),
+	gitReview: Schema.NullOr(RpcProjectedGitReview),
 })
 export type RpcSessionSnapshot = typeof RpcSessionSnapshot.Type
 
@@ -309,6 +314,12 @@ export const VoiceSnapshotRequest = Schema.Struct({
 })
 export type VoiceSnapshotRequest = typeof VoiceSnapshotRequest.Type
 
+export const GitSnapshotRequest = Schema.Struct({
+	kind: Schema.Literal("git"),
+	projectId: ProjectId,
+})
+export type GitSnapshotRequest = typeof GitSnapshotRequest.Type
+
 export const ProjectSnapshotRequest = Schema.Struct({
 	kind: Schema.Literal("project"),
 	projectId: ProjectId,
@@ -331,6 +342,7 @@ export const SnapshotRequest = Schema.Union([
 	SettingsSnapshotRequest,
 	SkillsSnapshotRequest,
 	VoiceSnapshotRequest,
+	GitSnapshotRequest,
 	ProjectSnapshotRequest,
 	SessionSnapshotRequest,
 	LegacySessionSnapshotRequest,
@@ -349,6 +361,10 @@ export type SnapshotScope =
 	  }
 	| {
 			readonly kind: "voice"
+	  }
+	| {
+			readonly kind: "git"
+			readonly projectId: ProjectId
 	  }
 	| {
 			readonly kind: "project"
@@ -375,6 +391,11 @@ export const voiceSnapshotRequest = (): VoiceSnapshotRequest => ({
 	kind: "voice",
 })
 
+export const gitSnapshotRequest = (projectId: ProjectId): GitSnapshotRequest => ({
+	kind: "git",
+	projectId,
+})
+
 export const projectSnapshotRequest = (projectId: ProjectId): ProjectSnapshotRequest => ({
 	kind: "project",
 	projectId,
@@ -397,6 +418,9 @@ export const snapshotScope = (request: SnapshotRequest): SnapshotScope => {
 	}
 	if (Schema.is(VoiceSnapshotRequest)(request)) {
 		return { kind: "voice" }
+	}
+	if (Schema.is(GitSnapshotRequest)(request)) {
+		return { kind: "git", projectId: request.projectId }
 	}
 	if (Schema.is(ProjectSnapshotRequest)(request)) {
 		return { kind: "project", projectId: request.projectId }

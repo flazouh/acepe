@@ -23,6 +23,7 @@ describe("settingsModalViewModel", () => {
 				],
 				skillsCatalog: empty.skillsCatalog,
 				voice: empty.voice,
+				gitReview: empty.gitReview,
 			},
 			open: true,
 		});

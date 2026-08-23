@@ -7,9 +7,13 @@
 	let {
 		model,
 		onSelectProject,
+		onOpenReview,
+		reviewButtonLabel = "Review changes",
 	}: {
 		model: LibrarySidebarViewModel;
 		onSelectProject: (projectId: string) => void;
+		onOpenReview?: () => void;
+		reviewButtonLabel?: string;
 	} = $props();
 
 	const selectedProject = $derived(
@@ -56,6 +60,17 @@
 			</ul>
 		{/if}
 	</section>
+
+	{#if model.selectedProjectId !== null && onOpenReview !== undefined}
+		<button
+			type="button"
+			data-testid="git-review-open"
+			class="rounded-md px-2 py-1.5 text-left text-xs font-medium hover:bg-accent/50"
+			onclick={() => onOpenReview()}
+		>
+			{reviewButtonLabel}
+		</button>
+	{/if}
 
 	<section class="flex min-h-0 flex-1 flex-col gap-1" data-testid="library-sessions">
 		<h2 class="text-xs font-medium text-muted-foreground">

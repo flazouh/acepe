@@ -360,7 +360,12 @@ export const projectEvent = (
 			VoiceModelLoaded: () => Effect.succeed(model),
 			VoiceRecordingStarted: () => Effect.succeed(model),
 			VoiceRecordingStopped: () => Effect.succeed(model),
-			VoiceRecordingCancelled: () => Effect.succeed(model)
+			VoiceRecordingCancelled: () => Effect.succeed(model),
+			GitStatusRefreshed: () => Effect.succeed(model),
+			GitDiffLoaded: () => Effect.succeed(model),
+			GitBlameLoaded: () => Effect.succeed(model),
+			GitHunkAccepted: () => Effect.succeed(model),
+			GitHunkRejected: () => Effect.succeed(model)
 		})
 	)(event)
 }

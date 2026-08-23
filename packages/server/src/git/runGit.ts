@@ -79,7 +79,7 @@ export const runGitUsing = Effect.fn("runGitUsing")(function*(
 ) {
 	const result = yield* runCommandUsing(spawner, {
 		bin: input.gitBin,
-		args: input.args,
+		args: Arr.appendAll(Arr.of("--no-pager"), input.args),
 		cwd: input.cwd,
 		allowExitCodes: input.allowExitCodes,
 		env: input.env

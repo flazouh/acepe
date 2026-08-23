@@ -68,6 +68,7 @@ describe("agent panel controller mapping", () => {
 				settings: [],
 				skillsCatalog: null,
 				voice: null,
+				gitReview: null,
 			},
 			activities: [
 				{

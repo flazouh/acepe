@@ -106,6 +106,7 @@ describe("rowsFromProjectedMessages", () => {
 			settings: [],
 			skillsCatalog: null,
 			voice: null,
+			gitReview: null,
 		}
 		const rows = rowsFromProjectedMessages(snapshot.messages)
 		expect(rows.length).toBe(1)

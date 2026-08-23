@@ -403,4 +403,123 @@ describe("applyEventToRpcSessionSnapshot", () => {
 		})
 		expect(first.snapshotSequence).toBe(1)
 	})
+
+	it("projects git status, diff, blame, accept, and reject onto gitReview", () => {
+		const afterStatus = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), {
+			sequence: 1,
+			eventId: EventId.make("event-git-1"),
+			aggregateKind: "git",
+			aggregateId: projectId,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: {},
+			type: "GitStatusRefreshed",
+			payload: {
+				projectId,
+				status: [
+					{
+						path: "notes.md",
+						status: "M",
+						insertions: 2,
+						deletions: 2,
+					},
+				],
+			},
+		})
+		expect(afterStatus.gitReview?.status?.[0]?.path).toBe("notes.md")
+		const afterDiff = applyEventToRpcSessionSnapshot(afterStatus, {
+			sequence: 2,
+			eventId: EventId.make("event-git-2"),
+			aggregateKind: "git",
+			aggregateId: projectId,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: {},
+			type: "GitDiffLoaded",
+			payload: {
+				projectId,
+				filePath: "notes.md",
+				diff: {
+					oldContent: "alpha\n",
+					newContent: "alpha\nbeta\n",
+					fileName: "notes.md",
+				},
+				patch: "@@ -1,1 +1,2 @@\n alpha\n+beta\n",
+			},
+		})
+		expect(afterDiff.gitReview?.files[0]?.diff?.fileName).toBe("notes.md")
+		const afterBlame = applyEventToRpcSessionSnapshot(afterDiff, {
+			sequence: 3,
+			eventId: EventId.make("event-git-3"),
+			aggregateKind: "git",
+			aggregateId: projectId,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: {},
+			type: "GitBlameLoaded",
+			payload: {
+				projectId,
+				filePath: "notes.md",
+				blame: [
+					{
+						line: 1,
+						commit: "abc1234",
+						author: "Test User",
+						summary: "Seed",
+					},
+				],
+			},
+		})
+		expect(afterBlame.gitReview?.files[0]?.blame[0]?.author).toBe("Test User")
+		const afterAccept = applyEventToRpcSessionSnapshot(afterBlame, {
+			sequence: 4,
+			eventId: EventId.make("event-git-4"),
+			aggregateKind: "git",
+			aggregateId: projectId,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: {},
+			type: "GitHunkAccepted",
+			payload: {
+				projectId,
+				filePath: "notes.md",
+				hunkIndex: 0,
+			},
+		})
+		expect(afterAccept.gitReview?.files[0]?.hunkDecisions).toEqual([
+			{ hunkIndex: 0, action: "accepted" },
+		])
+		expect(afterAccept.gitReview?.files[0]?.diff?.newContent).toBe("alpha\nbeta\n")
+		const afterReject = applyEventToRpcSessionSnapshot(afterAccept, {
+			sequence: 5,
+			eventId: EventId.make("event-git-5"),
+			aggregateKind: "git",
+			aggregateId: projectId,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: {},
+			type: "GitHunkRejected",
+			payload: {
+				projectId,
+				filePath: "notes.md",
+				hunkIndex: 1,
+				newContent: "alpha\n",
+			},
+		})
+		expect(afterReject.gitReview?.files[0]?.hunkDecisions).toEqual([
+			{ hunkIndex: 0, action: "accepted" },
+			{ hunkIndex: 1, action: "rejected" },
+		])
+		expect(afterReject.gitReview?.files[0]?.diff?.newContent).toBe("alpha\n")
+	})
 })

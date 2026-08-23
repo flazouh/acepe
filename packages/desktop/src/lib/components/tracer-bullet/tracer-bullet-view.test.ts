@@ -80,6 +80,7 @@ describe("tracer bullet controller mapping", () => {
 							settings: [],
 							skillsCatalog: null,
 							voice: null,
+							gitReview: null,
 						}),
 					getProjectIndex: () =>
 						Effect.succeed({

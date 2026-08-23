@@ -31,6 +31,7 @@ import { ProjectionProjectsLive } from "./persistence/Layers/ProjectionProjects.
 import { ProjectionSettingsLive } from "./persistence/Layers/ProjectionSettings.ts"
 import { ProjectionSkillsLive } from "./persistence/Layers/ProjectionSkills.ts"
 import { ProjectionVoiceLive } from "./persistence/Layers/ProjectionVoice.ts"
+import { ProjectionGitLive } from "./persistence/Layers/ProjectionGit.ts"
 import { makeSqliteLayer } from "./persistence/Layers/Sqlite.ts"
 import { runMigrations } from "./persistence/Migrations.ts"
 import {
@@ -46,6 +47,7 @@ import { ProjectionProjects } from "./persistence/Services/ProjectionProjects.ts
 import { ProjectionSettings } from "./persistence/Services/ProjectionSettings.ts"
 import { ProjectionSkills } from "./persistence/Services/ProjectionSkills.ts"
 import { ProjectionVoice } from "./persistence/Services/ProjectionVoice.ts"
+import { ProjectionGit } from "./persistence/Services/ProjectionGit.ts"
 import { HardcodedProviderLive } from "./provider/HardcodedProvider.ts"
 import { FileIndexServiceLive } from "./fileIndex/Layers/FileIndexService.ts"
 import { FileIndexWarmOnImportLive } from "./fileIndex/Layers/FileIndexWarmOnImport.ts"
@@ -79,7 +81,8 @@ const persistenceAt = (filename: string) => {
 		ProjectionProjectsLive,
 		ProjectionSettingsLive,
 		ProjectionSkillsLive,
-		ProjectionVoiceLive
+		ProjectionVoiceLive,
+		ProjectionGitLive
 	).pipe(Layer.provideMerge(migrated))
 }
 
@@ -100,6 +103,7 @@ const pipelineLayer = Layer.unwrap(
 		const settings = yield* ProjectionSettings
 		const skills = yield* ProjectionSkills
 		const voice = yield* ProjectionVoice
+		const gitReview = yield* ProjectionGit
 		const messagesName = yield* decodeProjectorName(PROJECTION_SESSION_MESSAGES_NAME)
 		return ProjectionPipelineLive([
 			{
@@ -151,6 +155,11 @@ const pipelineLayer = Layer.unwrap(
 				name: voice.name,
 				apply: voice.apply,
 				truncate: voice.truncate
+			},
+			{
+				name: gitReview.name,
+				apply: gitReview.apply,
+				truncate: gitReview.truncate
 			}
 		])
 	})
@@ -197,7 +206,8 @@ export const makeAcepeLive = (input: AcepeLiveInput) => {
 		Layer.provideMerge(fileIndex),
 		Layer.provideMerge(git),
 		Layer.provideMerge(skills),
-		Layer.provideMerge(voice)
+		Layer.provideMerge(voice),
+		Layer.provideMerge(bunPlatform)
 	)
 	return Layer.mergeAll(
 		rpc,
