@@ -6,7 +6,7 @@ import {
 } from "@acepe/contracts"
 import * as Effect from "effect/Effect"
 import { OrchestrationCommandInvariantError } from "../orchestration/Errors.ts"
-import { TerminalRegistry } from "./Services/TerminalRegistry.ts"
+import { TerminalRegistry, type TerminalRegistryEntry } from "./Services/TerminalRegistry.ts"
 import { TerminalService, type TerminalError } from "./Services/TerminalService.ts"
 import type { TerminalRegistryLookupError } from "./Services/TerminalRegistry.ts"
 
@@ -16,6 +16,33 @@ const asTerminalInvariant = (commandType: string) => (error: TerminalError | Ter
 		detail: error.message
 	})
 
+const runTerminal = <A>(
+	commandType: string,
+	program: Effect.Effect<A, TerminalError | TerminalRegistryLookupError>
+) => program.pipe(Effect.mapError(asTerminalInvariant(commandType)))
+
+// Every filled terminal command reports the entry's live size/output snapshot
+// back onto the command (see orchestration.ts's comment on the terminal
+// command schemas); `cols`/`rows` differ only for terminal.resize, which is
+// filling in the size the client asked for rather than the registry's
+// current one.
+const filledOutputFields = Effect.fn("filledTerminalOutputFields")(function*(
+	commandType: string,
+	entry: TerminalRegistryEntry,
+	size: { readonly cols: number; readonly rows: number }
+) {
+	const terminalService = yield* TerminalService
+	const output = yield* runTerminal(commandType, terminalService.output(entry.serverTerminalId))
+	return {
+		sessionId: entry.sessionId,
+		cwd: entry.cwd,
+		cols: size.cols,
+		rows: size.rows,
+		output: capTerminalOutput(output.output),
+		closed: output.exitStatus !== null
+	}
+})
+
 const fillOpen = Effect.fn("fillTerminalOpen")(function*(
 	command: Extract<OrchestrationCommand, { readonly type: "terminal.open" }>
 ) {
@@ -23,34 +50,24 @@ const fillOpen = Effect.fn("fillTerminalOpen")(function*(
 	const registry = yield* TerminalRegistry
 	const cols = command.cols ?? DEFAULT_TERMINAL_COLS
 	const rows = command.rows ?? DEFAULT_TERMINAL_ROWS
-	const handle = yield* terminalService
-		.open({
-			sessionId: command.sessionId,
-			cwd: command.cwd,
-			cols,
-			rows
-		})
-		.pipe(Effect.mapError(asTerminalInvariant(command.type)))
-	yield* registry.register(command.terminalId, {
+	const handle = yield* runTerminal(
+		command.type,
+		terminalService.open({ sessionId: command.sessionId, cwd: command.cwd, cols, rows })
+	)
+	const entry: TerminalRegistryEntry = {
 		serverTerminalId: handle.terminalId,
 		sessionId: command.sessionId,
 		cwd: command.cwd,
 		cols,
 		rows
-	})
-	const output = yield* terminalService
-		.output(handle.terminalId)
-		.pipe(Effect.mapError(asTerminalInvariant(command.type)))
+	}
+	yield* registry.register(command.terminalId, entry)
+	const fields = yield* filledOutputFields(command.type, entry, entry)
 	return {
 		type: command.type,
 		commandId: command.commandId,
 		terminalId: command.terminalId,
-		sessionId: command.sessionId,
-		cwd: command.cwd,
-		cols,
-		rows,
-		output: capTerminalOutput(output.output),
-		closed: output.exitStatus !== null
+		...fields
 	} satisfies OrchestrationCommand
 })
 
@@ -59,24 +76,15 @@ const fillInput = Effect.fn("fillTerminalInput")(function*(
 ) {
 	const terminalService = yield* TerminalService
 	const registry = yield* TerminalRegistry
-	const entry = yield* registry.require(command.terminalId).pipe(Effect.mapError(asTerminalInvariant(command.type)))
-	yield* terminalService
-		.write(entry.serverTerminalId, command.data)
-		.pipe(Effect.mapError(asTerminalInvariant(command.type)))
-	const output = yield* terminalService
-		.output(entry.serverTerminalId)
-		.pipe(Effect.mapError(asTerminalInvariant(command.type)))
+	const entry = yield* runTerminal(command.type, registry.require(command.terminalId))
+	yield* runTerminal(command.type, terminalService.write(entry.serverTerminalId, command.data))
+	const fields = yield* filledOutputFields(command.type, entry, entry)
 	return {
 		type: command.type,
 		commandId: command.commandId,
 		terminalId: command.terminalId,
 		data: command.data,
-		sessionId: entry.sessionId,
-		cwd: entry.cwd,
-		cols: entry.cols,
-		rows: entry.rows,
-		output: capTerminalOutput(output.output),
-		closed: output.exitStatus !== null
+		...fields
 	} satisfies OrchestrationCommand
 })
 
@@ -85,26 +93,16 @@ const fillResize = Effect.fn("fillTerminalResize")(function*(
 ) {
 	const terminalService = yield* TerminalService
 	const registry = yield* TerminalRegistry
-	const entry = yield* registry.require(command.terminalId).pipe(Effect.mapError(asTerminalInvariant(command.type)))
-	yield* terminalService
-		.resize(entry.serverTerminalId, command.cols, command.rows)
-		.pipe(Effect.mapError(asTerminalInvariant(command.type)))
-	yield* registry.updateSize(command.terminalId, command.cols, command.rows).pipe(
-		Effect.mapError(asTerminalInvariant(command.type))
-	)
-	const output = yield* terminalService
-		.output(entry.serverTerminalId)
-		.pipe(Effect.mapError(asTerminalInvariant(command.type)))
+	const entry = yield* runTerminal(command.type, registry.require(command.terminalId))
+	const size = { cols: command.cols, rows: command.rows }
+	yield* runTerminal(command.type, terminalService.resize(entry.serverTerminalId, size.cols, size.rows))
+	yield* runTerminal(command.type, registry.updateSize(command.terminalId, size.cols, size.rows))
+	const fields = yield* filledOutputFields(command.type, entry, size)
 	return {
 		type: command.type,
 		commandId: command.commandId,
 		terminalId: command.terminalId,
-		cols: command.cols,
-		rows: command.rows,
-		sessionId: entry.sessionId,
-		cwd: entry.cwd,
-		output: capTerminalOutput(output.output),
-		closed: output.exitStatus !== null
+		...fields
 	} satisfies OrchestrationCommand
 })
 
@@ -113,13 +111,9 @@ const fillClose = Effect.fn("fillTerminalClose")(function*(
 ) {
 	const terminalService = yield* TerminalService
 	const registry = yield* TerminalRegistry
-	const entry = yield* registry.require(command.terminalId).pipe(Effect.mapError(asTerminalInvariant(command.type)))
-	const output = yield* terminalService
-		.output(entry.serverTerminalId)
-		.pipe(Effect.mapError(asTerminalInvariant(command.type)))
-	yield* terminalService
-		.kill(entry.serverTerminalId)
-		.pipe(Effect.mapError(asTerminalInvariant(command.type)))
+	const entry = yield* runTerminal(command.type, registry.require(command.terminalId))
+	const fields = yield* filledOutputFields(command.type, entry, entry)
+	yield* runTerminal(command.type, terminalService.kill(entry.serverTerminalId))
 	yield* terminalService
 		.release(entry.serverTerminalId)
 		.pipe(Effect.catchTag("TerminalSessionLookupError", () => Effect.void))
@@ -128,11 +122,7 @@ const fillClose = Effect.fn("fillTerminalClose")(function*(
 		type: command.type,
 		commandId: command.commandId,
 		terminalId: command.terminalId,
-		sessionId: entry.sessionId,
-		cwd: entry.cwd,
-		cols: entry.cols,
-		rows: entry.rows,
-		output: capTerminalOutput(output.output),
+		...fields,
 		closed: true
 	} satisfies OrchestrationCommand
 })

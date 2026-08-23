@@ -4,7 +4,11 @@ import {
 	type JsonObject,
 	type OrchestrationCommand,
 	type OrchestrationEvent,
-	type Sequence
+	type Sequence,
+	type TerminalClosedEvent,
+	type TerminalClosedPayload,
+	type TerminalOpenedEvent,
+	type TerminalOutputAppendedEvent
 } from "@acepe/contracts"
 import * as Effect from "effect/Effect"
 import { requireSessionNotArchived, type OrchestrationReadModel } from "./commandInvariants.ts"
@@ -22,11 +26,62 @@ export type TerminalCommand = Extract<
 	}
 >
 
-type TerminalEventType = "TerminalOpened" | "TerminalOutputAppended" | "TerminalClosed"
-
 const EMPTY_METADATA: JsonObject = {}
 
 const nextSequence = (snapshotSequence: Sequence): Sequence => snapshotSequence + 1
+
+// TerminalOpened/TerminalOutputAppended/TerminalClosed share one payload
+// shape (see events.ts: every terminal event replaces the projected terminal
+// wholesale), so one envelope builder plus three thin, explicitly-typed
+// constructors covers all three without a cast to the OrchestrationEvent
+// union at the call site.
+const terminalEnvelope = (
+	command: TerminalCommand,
+	identity: TerminalDecideIdentity,
+	sequence: Sequence,
+	payload: TerminalClosedPayload
+) => ({
+	sequence,
+	eventId: identity.eventId,
+	aggregateKind: "terminal" as const,
+	aggregateId: command.terminalId,
+	occurredAt: identity.occurredAt,
+	commandId: command.commandId,
+	causationEventId: null,
+	correlationId: command.commandId,
+	metadata: EMPTY_METADATA,
+	payload
+})
+
+const terminalOpenedEvent = (
+	command: TerminalCommand,
+	identity: TerminalDecideIdentity,
+	sequence: Sequence,
+	payload: TerminalClosedPayload
+): TerminalOpenedEvent => ({
+	...terminalEnvelope(command, identity, sequence, payload),
+	type: "TerminalOpened"
+})
+
+const terminalOutputAppendedEvent = (
+	command: TerminalCommand,
+	identity: TerminalDecideIdentity,
+	sequence: Sequence,
+	payload: TerminalClosedPayload
+): TerminalOutputAppendedEvent => ({
+	...terminalEnvelope(command, identity, sequence, payload),
+	type: "TerminalOutputAppended"
+})
+
+const terminalClosedEvent = (
+	command: TerminalCommand,
+	identity: TerminalDecideIdentity,
+	sequence: Sequence,
+	payload: TerminalClosedPayload
+): TerminalClosedEvent => ({
+	...terminalEnvelope(command, identity, sequence, payload),
+	type: "TerminalClosed"
+})
 
 // terminal.open/input/resize/close all reach here through fillTerminalCommand
 // (packages/server/src/terminal/fillCommand.ts), which calls the live
@@ -50,18 +105,6 @@ const requireFilled = <A>(
 	return Effect.succeed(value)
 }
 
-const terminalEventType = (commandType: TerminalCommand["type"]): TerminalEventType => {
-	switch (commandType) {
-		case "terminal.open":
-			return "TerminalOpened"
-		case "terminal.close":
-			return "TerminalClosed"
-		case "terminal.input":
-		case "terminal.resize":
-			return "TerminalOutputAppended"
-	}
-}
-
 export const decideTerminal = Effect.fn("decideTerminal")(function*(
 	readModel: OrchestrationReadModel,
 	command: TerminalCommand,
@@ -77,26 +120,23 @@ export const decideTerminal = Effect.fn("decideTerminal")(function*(
 	}
 
 	const sequence = nextSequence(readModel.snapshotSequence)
-	const event = {
-		sequence,
-		eventId: identity.eventId,
-		aggregateKind: "terminal",
-		aggregateId: command.terminalId,
-		occurredAt: identity.occurredAt,
-		commandId: command.commandId,
-		causationEventId: null,
-		correlationId: command.commandId,
-		metadata: EMPTY_METADATA,
-		type: terminalEventType(command.type),
-		payload: {
-			terminalId: command.terminalId,
-			sessionId,
-			cwd,
-			cols,
-			rows,
-			output: command.output ?? "",
-			closed: command.closed ?? false
-		}
-	} as OrchestrationEvent
-	return [event]
+	const payload: TerminalClosedPayload = {
+		terminalId: command.terminalId,
+		sessionId,
+		cwd,
+		cols,
+		rows,
+		output: command.output ?? "",
+		closed: command.closed ?? false
+	}
+
+	switch (command.type) {
+		case "terminal.open":
+			return [terminalOpenedEvent(command, identity, sequence, payload)]
+		case "terminal.close":
+			return [terminalClosedEvent(command, identity, sequence, payload)]
+		case "terminal.input":
+		case "terminal.resize":
+			return [terminalOutputAppendedEvent(command, identity, sequence, payload)]
+	}
 })

@@ -43,6 +43,7 @@ let active = true;
 let renderedLength = 0;
 let lastOutputText = $state("");
 let closed = $state(false);
+let lastError = $state<string | null>(null);
 
 const terminalTheme = $derived.by(() => {
 	const mode = themeState.effectiveTheme === "dark" ? "dark" : "light";
@@ -82,6 +83,10 @@ const renderSnapshot = (snap: ProjectedTerminal | null) => {
 	}
 };
 
+const reportError = (cause: unknown) => {
+	lastError = String(cause).slice(0, 300);
+};
+
 const dispatchResize = (cols: number, rows: number) => {
 	Effect.runFork(client.dispatch(resizeTerminalCommand(terminalId, cols, rows)));
 };
@@ -111,11 +116,11 @@ onMount(() => {
 		if (command === null) {
 			return;
 		}
-		Effect.runFork(client.dispatch(command));
+		Effect.runFork(
+			client.dispatch(command).pipe(Effect.tapCause((cause) => Effect.sync(() => reportError(cause))))
+		);
 	});
 
-	const cols = terminal.cols;
-	const rows = terminal.rows;
 	pollFiber = Effect.runFork(
 		client.dispatch(openTerminalCommand({ terminalId, sessionId, cwd })).pipe(
 			Effect.andThen(
@@ -125,7 +130,8 @@ onMount(() => {
 					isActive: () => active,
 					onSnapshot: renderSnapshot,
 				})
-			)
+			),
+			Effect.tapCause((cause) => Effect.sync(() => reportError(cause)))
 		)
 	);
 
@@ -139,10 +145,6 @@ onMount(() => {
 		});
 	});
 	resizeObserver.observe(containerEl);
-	// Suppress "declared but its value is never read" for the initial size:
-	// the resize observer above re-fits on mount, this is only for lint.
-	void cols;
-	void rows;
 });
 
 onDestroy(() => {
@@ -161,6 +163,7 @@ onDestroy(() => {
 	data-testid="terminal-view"
 	data-qa-terminal-id={terminalId}
 	data-qa-terminal-closed={closed}
+	data-qa-terminal-error={lastError ?? ""}
 >
 	<div bind:this={containerEl} class="h-full w-full"></div>
 	<!-- Plain-text mirror of the same output xterm renders, kept in the DOM
