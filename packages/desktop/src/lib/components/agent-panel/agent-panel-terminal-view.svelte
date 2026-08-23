@@ -17,6 +17,7 @@ import {
 	openTerminalCommand,
 	resizeTerminalCommand,
 } from "./agent-panel-terminal-store.ts";
+import { TerminalViewController } from "./agent-panel-terminal-view-controller.svelte.ts";
 
 interface Props {
 	client: RpcClient;
@@ -40,10 +41,8 @@ let fitAddon: FitAddon | undefined;
 let resizeObserver: ResizeObserver | undefined;
 let pollFiber: Fiber.Fiber<void, never> | undefined;
 let active = true;
-let renderedLength = 0;
-let lastOutputText = $state("");
-let closed = $state(false);
-let lastError = $state<string | null>(null);
+
+const controller = new TerminalViewController();
 
 const terminalTheme = $derived.by(() => {
 	const mode = themeState.effectiveTheme === "dark" ? "dark" : "light";
@@ -63,32 +62,44 @@ $effect(() => {
 });
 
 const renderSnapshot = (snap: ProjectedTerminal | null) => {
-	if (snap === null || terminal === undefined) {
+	const instruction = controller.applySnapshot(snap);
+	if (instruction === null || terminal === undefined) {
 		return;
 	}
-	lastOutputText = snap.output;
-	closed = snap.closed;
-	if (snap.output.length < renderedLength) {
-		// The server-side ring buffer dropped the front (TERMINAL_OUTPUT_CAP):
-		// there is no valid delta, so redraw from scratch.
+	if (instruction.kind === "reset") {
 		terminal.reset();
-		terminal.write(snap.output);
-		renderedLength = snap.output.length;
-		return;
 	}
-	const delta = snap.output.slice(renderedLength);
-	if (delta.length > 0) {
-		terminal.write(delta);
-		renderedLength = snap.output.length;
-	}
-};
-
-const reportError = (cause: unknown) => {
-	lastError = String(cause).slice(0, 300);
+	terminal.write(instruction.text);
 };
 
 const dispatchResize = (cols: number, rows: number) => {
 	Effect.runFork(client.dispatch(resizeTerminalCommand(terminalId, cols, rows)));
+};
+
+// Dispatches one or more raw input payloads to the server in order, tapping
+// success to clear a stale error (defect 3) and failure to report a new one.
+// Used both for direct keystrokes and for flushing input buffered while
+// `terminal.open` was still in flight (defect 1).
+const dispatchInputData = (payloads: readonly string[]) => {
+	if (payloads.length === 0) {
+		return;
+	}
+	Effect.runFork(
+		Effect.forEach(
+			payloads,
+			(data) => {
+				const command = inputTerminalCommand(terminalId, data);
+				if (command === null) {
+					return Effect.void;
+				}
+				return client.dispatch(command).pipe(
+					Effect.tap(() => Effect.sync(() => controller.markInputSucceeded())),
+					Effect.tapCause((cause) => Effect.sync(() => controller.reportError(cause)))
+				);
+			},
+			{ discard: true }
+		)
+	);
 };
 
 onMount(() => {
@@ -112,17 +123,14 @@ onMount(() => {
 	});
 
 	terminal.onData((data: string) => {
-		const command = inputTerminalCommand(terminalId, data);
-		if (command === null) {
-			return;
-		}
-		Effect.runFork(
-			client.dispatch(command).pipe(Effect.tapCause((cause) => Effect.sync(() => reportError(cause))))
-		);
+		dispatchInputData(controller.submitInput(data));
 	});
 
 	pollFiber = Effect.runFork(
 		client.dispatch(openTerminalCommand({ terminalId, sessionId, cwd })).pipe(
+			// Once open has round-tripped, flush anything buffered while it was
+			// in flight (defect 1) before treating later keystrokes as immediate.
+			Effect.tap(() => Effect.sync(() => dispatchInputData(controller.markOpenReady()))),
 			Effect.andThen(
 				followTerminal({
 					client,
@@ -131,7 +139,7 @@ onMount(() => {
 					onSnapshot: renderSnapshot,
 				})
 			),
-			Effect.tapCause((cause) => Effect.sync(() => reportError(cause)))
+			Effect.tapCause((cause) => Effect.sync(() => controller.reportError(cause)))
 		)
 	);
 
@@ -162,13 +170,13 @@ onDestroy(() => {
 	class="h-full w-full terminal-container"
 	data-testid="terminal-view"
 	data-qa-terminal-id={terminalId}
-	data-qa-terminal-closed={closed}
-	data-qa-terminal-error={lastError ?? ""}
+	data-qa-terminal-closed={controller.closed}
+	data-qa-terminal-error={controller.lastError ?? ""}
 >
 	<div bind:this={containerEl} class="h-full w-full"></div>
 	<!-- Plain-text mirror of the same output xterm renders, kept in the DOM
 	     for automation that greps text rather than reading the xterm canvas. -->
-	<pre data-qa="terminal-output-text" class="sr-only">{lastOutputText}</pre>
+	<pre data-qa="terminal-output-text" class="sr-only">{controller.lastOutputText}</pre>
 </div>
 
 <style>
