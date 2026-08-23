@@ -24,6 +24,7 @@ export type QaClickTarget = typeof QaClickTarget.Type
 export const QaTypePayload = Schema.Struct({
 	text: Schema.String,
 	selector: Schema.optionalKey(Schema.String),
+	replace: Schema.optionalKey(Schema.Boolean),
 })
 export type QaTypePayload = typeof QaTypePayload.Type
 

@@ -11,10 +11,10 @@
 		}
 	},
 	"bin": {
-		"electrobun-qa": "./src/cli.ts"
+		"electrobun-qa": "./src/bin.ts"
 	},
 	"scripts": {
-		"cli": "bun src/cli.ts",
+		"cli": "bun src/bin.ts",
 		"typecheck": "tsc --noEmit -p tsconfig.json",
 		"lint:effect": "effect-language-service diagnostics --project tsconfig.json --strict --format pretty",
 		"test": "bun --bun vitest run"

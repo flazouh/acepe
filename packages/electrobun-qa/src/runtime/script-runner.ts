@@ -17,7 +17,8 @@ export const makePromiseHelpers = (session: QaSession, logs: Array<string>) => {
 		firstWindow: () => runHelper(helpers.firstWindow()),
 		useWindow: (windowId: string) => runHelper(helpers.useWindow(windowId)),
 		windowInfo: () => runHelper(helpers.windowInfo()),
-		snapshotText: () => runHelper(helpers.snapshotText()),
+		snapshotText: (target?: { readonly selector?: string; readonly text?: string }) =>
+			runHelper(helpers.snapshotText(target)),
 		snapshotDom: () => runHelper(helpers.snapshotDom()),
 		pageInfo: () => runHelper(helpers.pageInfo()),
 		captureScreenshot: () => runHelper(helpers.captureScreenshot()),
@@ -28,11 +29,36 @@ export const makePromiseHelpers = (session: QaSession, logs: Array<string>) => {
 		hover: (target: { readonly selector?: string; readonly text?: string }) =>
 			runHelper(helpers.hover(target)),
 		typeText: (text: string) => runHelper(helpers.typeText(text)),
-		fillInput: (target: { readonly text: string; readonly selector?: string }) =>
-			runHelper(helpers.fillInput(target)),
-		pressKey: (key: string) => runHelper(helpers.pressKey(key)),
+		fillInput: (target: {
+			readonly text?: string
+			readonly value?: string
+			readonly selector?: string
+		}) => {
+			const text = target.text === undefined ? target.value : target.text
+			const filled = text === undefined ? "" : text
+			if (target.selector === undefined) {
+				return runHelper(helpers.fillInput({ text: filled }))
+			}
+			return runHelper(
+				helpers.fillInput({
+					text: filled,
+					selector: target.selector,
+				}),
+			)
+		},
+		pressKey: (key: string | { readonly key: string }) => {
+			if (typeof key === "string") {
+				return runHelper(helpers.pressKey(key))
+			}
+			return runHelper(helpers.pressKey(key.key))
+		},
 		scrollBy: (x: number, y: number) => runHelper(helpers.scrollBy(x, y)),
-		waitForText: (text: string) => runHelper(helpers.waitForText(text)),
+		waitForText: (text: string, options?: { readonly timeoutMs?: number }) => {
+			if (options === undefined || options.timeoutMs === undefined) {
+				return runHelper(helpers.waitForText(text))
+			}
+			return runHelper(helpers.waitForText(text, options.timeoutMs))
+		},
 		waitForSelector: (selector: string) => runHelper(helpers.waitForSelector(selector)),
 		waitForIdle: () => runHelper(helpers.waitForIdle()),
 		wait: (ms: number) => runHelper(helpers.wait(ms)),

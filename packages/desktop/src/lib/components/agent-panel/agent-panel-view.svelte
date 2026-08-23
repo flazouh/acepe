@@ -25,7 +25,7 @@ const conversation = $derived.by(() => {
 });
 </script>
 
-<div class="flex min-h-0 flex-1 flex-col" data-testid="agent-panel">
+<div class="flex min-h-0 flex-1 flex-col overflow-auto" data-testid="agent-panel" data-qa="transcript">
 	{#each conversation.rows as row (row.eachKey)}
 		<div class="px-3 py-1.5" data-testid="agent-panel-row" data-each-key={row.eachKey}>
 			{#if row.entry.type === "session_activity"}

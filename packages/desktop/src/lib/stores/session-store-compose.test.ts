@@ -121,6 +121,21 @@ describe("composeSessionStore", () => {
 		expect(registry.get(store.sendMomentAtom)).toBeNull();
 	});
 
+	it("refreshSession loads the session snapshot onto the atom", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				const registry = AtomRegistry.make();
+				const store = composeSessionStore({
+					client: clientOf({ snapshot: snapshotWithUser, events: [] }),
+					registry,
+				});
+				expect(registry.get(store.snapshotAtom)).toEqual(emptyRpcSessionSnapshot(0));
+				const snap = yield* store.refreshSession(sessionId);
+				expect(snap.messages).toHaveLength(1);
+				expect(registry.get(store.snapshotAtom)).toEqual(snapshotWithUser);
+			})
+		));
+
 	it("discards live events at or below snapshotSequence", () =>
 		Effect.runPromise(
 			Effect.gen(function* () {
@@ -344,7 +359,7 @@ it("openLibrary reads projects without opening a session", () =>
 			expect(snap.projects.length).toBe(1);
 			expect(snap.projects[0]?.title).toBe("Acepe");
 			expect(snap.session).toBe(null);
-		}),
+		})
 	));
 
 it("openProject lists that project's sessions without opening one", () =>
@@ -369,5 +384,5 @@ it("openProject lists that project's sessions without opening one", () =>
 			expect(snap.sessions.length).toBe(2);
 			expect(snap.sessions[0]?.title).toBe("First session");
 			expect(snap.session).toBe(null);
-		}),
+		})
 	));

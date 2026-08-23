@@ -1,29 +1,32 @@
 <script lang="ts">
-	import {
-		isSelectedProject,
-		type LibrarySidebarViewModel,
-	} from "./library-sidebar-state.js";
+import {
+	isSelectedProject,
+	isSelectedSession,
+	type LibrarySidebarViewModel,
+} from "./library-sidebar-state.js";
 
-	let {
-		model,
-		onSelectProject,
-		onOpenReview,
-		reviewButtonLabel = "Review changes",
-	}: {
-		model: LibrarySidebarViewModel;
-		onSelectProject: (projectId: string) => void;
-		onOpenReview?: () => void;
-		reviewButtonLabel?: string;
-	} = $props();
+let {
+	model,
+	onSelectProject,
+	onSelectSession,
+	onOpenReview,
+	reviewButtonLabel = "Review changes",
+}: {
+	model: LibrarySidebarViewModel;
+	onSelectProject: (projectId: string) => void;
+	onSelectSession?: (sessionId: string) => void;
+	onOpenReview?: () => void;
+	reviewButtonLabel?: string;
+} = $props();
 
-	const selectedProject = $derived(
-		model.projects.find((project) =>
-			isSelectedProject({
-				projectId: project.id,
-				selectedProjectId: model.selectedProjectId,
-			}),
-		),
-	);
+const selectedProject = $derived(
+	model.projects.find((project) =>
+		isSelectedProject({
+			projectId: project.id,
+			selectedProjectId: model.selectedProjectId,
+		}),
+	),
+);
 </script>
 
 <nav data-testid="library-sidebar" aria-label={model.projectsHeading} class="flex h-full min-h-0 w-[280px] flex-col gap-3 p-3">
@@ -82,17 +85,26 @@
 			<ul class="flex flex-col gap-0.5 overflow-auto">
 				{#each model.sessions as session (session.id)}
 					<li>
-						<div
+						<button
+							type="button"
 							data-testid="library-session"
 							data-session-id={session.id}
 							data-session-state={session.lifecycle}
-							class="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-xs"
+							class="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-xs transition-colors hover:bg-accent/50 {isSelectedSession(
+								{
+									sessionId: session.id,
+									selectedSessionId: model.selectedSessionId,
+								},
+							)
+								? 'bg-accent/20'
+								: ''}"
+							onclick={() => onSelectSession?.(session.id)}
 						>
 							<span class="truncate font-medium">{session.title}</span>
 							{#if session.lifecycleLabel !== null}
 								<span class="shrink-0 text-[10px] text-muted-foreground">{session.lifecycleLabel}</span>
 							{/if}
-						</div>
+						</button>
 					</li>
 				{/each}
 			</ul>

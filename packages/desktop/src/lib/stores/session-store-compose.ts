@@ -5,6 +5,7 @@ import {
 	type OrchestrationEvent,
 	type ProjectId,
 	type RpcClient,
+	type RpcSessionSnapshot,
 	type SessionId,
 	type SessionPrLinkMode,
 	type SessionPrNumber,
@@ -22,6 +23,7 @@ export type { SessionSendMoment };
 export const composeSessionStore = (input: {
 	readonly client: RpcClient;
 	readonly registry: AtomRegistry.AtomRegistry;
+	readonly onSnapshot?: (snapshot: RpcSessionSnapshot) => void;
 }) => {
 	const snapshotAtom = Atom.make(emptyRpcSessionSnapshot(0));
 	const sendMomentAtom = Atom.make<SessionSendMoment | null>(null);
@@ -29,33 +31,46 @@ export const composeSessionStore = (input: {
 	const readSnapshot = () => input.registry.get(snapshotAtom);
 	const readSendMoment = () => input.registry.get(sendMomentAtom);
 
+	const replaceSnapshot = (snapshot: RpcSessionSnapshot) => {
+		input.registry.set(snapshotAtom, snapshot);
+		if (input.onSnapshot !== undefined) {
+			input.onSnapshot(snapshot);
+		}
+	};
+
 	const applyLiveEvent = (event: OrchestrationEvent) => {
-		input.registry.set(snapshotAtom, applyEventToRpcSessionSnapshot(readSnapshot(), event));
+		replaceSnapshot(applyEventToRpcSessionSnapshot(readSnapshot(), event));
 	};
 
 	// The library scope reads projects without opening any session, so the
 	// sidebar can render before a session is selected. Same snapshot primitive,
 	// different scope — no fourth RPC primitive.
 	const openLibrary = Effect.fn("openLibrary")(function* () {
-		const snap = yield* input.client.snapshot({ kind: "library" })
-		input.registry.set(snapshotAtom, snap)
-		return snap
-	})
+		const snap = yield* input.client.snapshot({ kind: "library" });
+		replaceSnapshot(snap);
+		return snap;
+	});
 
 	// Project scope returns that project's sessions without opening one of them,
 	// so the sidebar can list them before a selection is made.
 	const openProject = Effect.fn("openProject")(function* (projectId: ProjectId) {
-		const snap = yield* input.client.snapshot({ kind: "project", projectId })
-		input.registry.set(snapshotAtom, snap)
-		return snap
-	})
+		const snap = yield* input.client.snapshot({ kind: "project", projectId });
+		replaceSnapshot(snap);
+		return snap;
+	});
 
 	const openSession = Effect.fn("openSession")(function* (sessionId: SessionId) {
 		const snap = yield* input.client.snapshot({ sessionId });
-		input.registry.set(snapshotAtom, snap);
+		replaceSnapshot(snap);
 		yield* input.client
 			.events(snap.snapshotSequence)
 			.pipe(Stream.runForEach((event) => Effect.sync(() => applyLiveEvent(event))));
+	});
+
+	const refreshSession = Effect.fn("refreshSession")(function* (sessionId: SessionId) {
+		const snap = yield* input.client.snapshot({ sessionId });
+		replaceSnapshot(snap);
+		return snap;
 	});
 
 	const togglePrLink = Effect.fn("togglePrLink")(function* (commandInput: {
@@ -88,6 +103,7 @@ export const composeSessionStore = (input: {
 		openLibrary,
 		openProject,
 		openSession,
+		refreshSession,
 		dispatch: input.client.dispatch,
 		recordSendMoment: (moment: SessionSendMoment) => {
 			input.registry.set(sendMomentAtom, moment);
