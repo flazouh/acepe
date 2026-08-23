@@ -395,3 +395,104 @@ it("openProject lists that project's sessions without opening one", () =>
 			expect(snap.session).toBe(null);
 		})
 	));
+
+it("openProject keeps every other library project in the sidebar snapshot", () =>
+	Effect.runPromise(
+		Effect.gen(function* () {
+			const otherProjectId = ProjectId.make("project-2");
+			const projectRow = (id: ProjectId, title: string) => ({
+				projectId: id,
+				title,
+				workspaceRoot: `/Users/alex/Documents/${title}`,
+				createdAt: "2026-08-22T00:00:00.000Z",
+				updatedAt: "2026-08-22T00:00:00.000Z",
+				deletedAt: null,
+				sessionCount: 1,
+				gitStatus: null,
+			});
+			const librarySnapshot: RpcSessionSnapshot = {
+				...snapshotWithUser,
+				session: null,
+				projects: [projectRow(projectId, "Acepe"), projectRow(otherProjectId, "Git review")],
+				sessions: [],
+			};
+			// The server scopes a project snapshot to just the requested project,
+			// on purpose — the sidebar model must not lose the others because of it.
+			const scopedProjectSnapshot: RpcSessionSnapshot = {
+				...snapshotWithUser,
+				session: null,
+				projects: [projectRow(projectId, "Acepe")],
+				sessions: [{ ...snapshotWithUser.session!, title: "First session" }],
+			};
+			const registry = AtomRegistry.make();
+			const client: RpcClient = {
+				dispatch: () => Effect.succeed({ sequence: 1 }),
+				snapshot: (request) =>
+					Effect.succeed(
+						"kind" in request && request.kind === "library" ? librarySnapshot : scopedProjectSnapshot
+					),
+				getProjectIndex: () =>
+					Effect.succeed({ projectPath: "/tmp/p", totalFiles: 0, files: [], scannedAt: 0 }) as never,
+				invalidateProjectIndex: () => Effect.void,
+				readTextFile: () => Effect.succeed(""),
+				writeTextFile: () => Effect.void,
+				getDefaultShell: () => Effect.succeed("/bin/zsh"),
+				events: () => Stream.fromArray([]),
+			};
+			const parts = composeSessionStore({ client, registry });
+			yield* parts.openLibrary();
+			const snap = yield* parts.openProject(projectId);
+			const projectTitles = snap.projects.map((project) => project.title).sort();
+			expect(projectTitles).toEqual(["Acepe", "Git review"]);
+			expect(registry.get(parts.snapshotAtom).projects.map((project) => project.title).sort()).toEqual(
+				["Acepe", "Git review"]
+			);
+		})
+	));
+
+it("openSession also keeps every library project in the sidebar snapshot", () =>
+	Effect.runPromise(
+		Effect.gen(function* () {
+			const otherProjectId = ProjectId.make("project-2");
+			const projectRow = (id: ProjectId, title: string) => ({
+				projectId: id,
+				title,
+				workspaceRoot: `/Users/alex/Documents/${title}`,
+				createdAt: "2026-08-22T00:00:00.000Z",
+				updatedAt: "2026-08-22T00:00:00.000Z",
+				deletedAt: null,
+				sessionCount: 1,
+				gitStatus: null,
+			});
+			const librarySnapshot: RpcSessionSnapshot = {
+				...snapshotWithUser,
+				session: null,
+				projects: [projectRow(projectId, "Acepe"), projectRow(otherProjectId, "Git review")],
+				sessions: [],
+			};
+			// A session-scoped snapshot request (the legacy `{ sessionId }` shape used
+			// by openSession) reports no projects/sessions at all — the sidebar model
+			// must keep the ones it already knew about.
+			const registry = AtomRegistry.make();
+			const client: RpcClient = {
+				dispatch: () => Effect.succeed({ sequence: 1 }),
+				snapshot: (request) =>
+					Effect.succeed("kind" in request && request.kind === "library" ? librarySnapshot : snapshotWithUser),
+				getProjectIndex: () =>
+					Effect.succeed({ projectPath: "/tmp/p", totalFiles: 0, files: [], scannedAt: 0 }) as never,
+				invalidateProjectIndex: () => Effect.void,
+				readTextFile: () => Effect.succeed(""),
+				writeTextFile: () => Effect.void,
+				getDefaultShell: () => Effect.succeed("/bin/zsh"),
+				events: () => Stream.fromArray([]),
+			};
+			const parts = composeSessionStore({ client, registry });
+			yield* parts.openLibrary();
+			yield* parts.openSession(sessionId);
+			const projectTitles = registry
+				.get(parts.snapshotAtom)
+				.projects.map((project) => project.title)
+				.sort();
+			expect(projectTitles).toEqual(["Acepe", "Git review"]);
+		})
+	));
