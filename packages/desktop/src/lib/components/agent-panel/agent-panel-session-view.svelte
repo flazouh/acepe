@@ -51,7 +51,7 @@ const submitFromInput = (input: HTMLInputElement) => {
 			commandId: nextCommandId(),
 			messageId: nextMessageId(),
 		}).pipe(
-			Effect.andThen(store.refreshSession(sessionId)),
+			Effect.andThen(store.followSession(sessionId)),
 			// A send that fails after the engine persisted looks like "nothing
 			// happened" in the UI. Surface the cause where QA can read it.
 			Effect.tapCause((cause) =>

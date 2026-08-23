@@ -10,6 +10,7 @@ import {
 	type SessionPrLinkMode,
 	type SessionPrNumber,
 } from "@acepe/contracts";
+import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import * as Atom from "effect/unstable/reactivity/Atom";
@@ -73,6 +74,23 @@ export const composeSessionStore = (input: {
 		return snap;
 	});
 
+	// Live push from bun to the webview is broken in the Electrobun message
+	// transport (pushes leave bun, receiveMessageFromBun never fires), so a
+	// send follows up with short polls until the stream settles: stop after
+	// three ticks with no sequence progress, cap at 25 ticks.
+	const followSession = Effect.fn("followSession")(function* (sessionId: SessionId) {
+		let last = -1;
+		let quiet = 0;
+		let ticks = 0;
+		while (quiet < 3 && ticks < 25) {
+			yield* Effect.sleep(Duration.millis(400));
+			const snap = yield* refreshSession(sessionId);
+			quiet = snap.snapshotSequence === last ? quiet + 1 : 0;
+			last = snap.snapshotSequence;
+			ticks += 1;
+		}
+	});
+
 	const togglePrLink = Effect.fn("togglePrLink")(function* (commandInput: {
 		readonly commandId: CommandId;
 		readonly sessionId: SessionId;
@@ -104,6 +122,7 @@ export const composeSessionStore = (input: {
 		openProject,
 		openSession,
 		refreshSession,
+		followSession,
 		dispatch: input.client.dispatch,
 		recordSendMoment: (moment: SessionSendMoment) => {
 			input.registry.set(sendMomentAtom, moment);

@@ -103,8 +103,10 @@ launched.attach({
 	getProjectIndex: (params) => runtime.runPromise(encodedGetProjectIndex(params)),
 	invalidateProjectIndex: (params) => runtime.runPromise(encodedInvalidateProjectIndex(params)),
 	events: (params) => {
+		writeLine(`acepe-events-stream: requested ${JSON.stringify(params).slice(0, 80)}`);
 		runtime.runFork(
 			pushEvents(params, (payload) => {
+				writeLine("acepe-events-stream: push");
 				launched.sendEvents(payload);
 			})
 		);
