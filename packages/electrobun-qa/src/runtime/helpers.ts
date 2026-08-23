@@ -40,6 +40,9 @@ export const helperHelp = (name: HelperName): string => {
 	if (name === "snapshotText") {
 		return "snapshotText({ selector }?): accessibility-shaped text tree of the window or a subtree"
 	}
+	if (name === "snapshotDom") {
+		return "snapshotDom({ selector }?): serialized HTML of the window or a subtree"
+	}
 	if (name === "click") {
 		return "click({ text } | { selector }): click an element by visible text or CSS selector"
 	}
@@ -105,8 +108,8 @@ export const makeRuntimeHelpers = (session: QaSession, logs: Array<string>) => {
 	const snapshotText = Effect.fn("snapshotText")(function* (target?: QaQuery) {
 		return yield* session.call("qa:snapshotText", target === undefined ? {} : target)
 	})
-	const snapshotDom = Effect.fn("snapshotDom")(function* () {
-		return yield* session.call("qa:snapshotDom", {})
+	const snapshotDom = Effect.fn("snapshotDom")(function* (target?: QaQuery) {
+		return yield* session.call("qa:snapshotDom", target === undefined ? {} : target)
 	})
 	const pageInfo = Effect.fn("pageInfo")(function* () {
 		return yield* session.call("qa:pageInfo", {})

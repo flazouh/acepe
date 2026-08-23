@@ -51,6 +51,8 @@ Three things follow:
 
 `click` and friends accept `{ selector }` or `{ text }`. Text matching is what you reach for first and what survives markup churn.
 
+`snapshotText({ selector }?)` and `snapshotDom({ selector }?)` scope to a subtree instead of the whole window when given a target — pass a bare string (`snapshotText('[data-qa=result]')`) as shorthand for `{ selector }`. A scoped call that matches nothing fails with `QaElementNotFound` rather than silently falling back to the whole page.
+
 `pressKey` dispatches a synthetic `KeyboardEvent` per character, which most inputs handle fine but some rich widgets don't: browsers only populate legacy `keyCode`/`which` for trusted hardware events, and code that still branches on those (xterm.js's key handling does, for its primary input path) can silently drop synthetic keystrokes even with `key` set correctly. `pasteText(text, { selector }?)` dispatches a single clipboard `paste` event instead — the same event real paste produces, and the path most such widgets already support — so prefer it over a `pressKey` loop for terminal emulators and other custom text surfaces.
 
 ## Setup
@@ -103,7 +105,8 @@ Each key gets its own unix socket (`/tmp/electrobun-qa/<id>.sock`). Your app can
 ## Resilience contract
 
 - A client that dies mid-script cannot wedge the host: the listener drops that client's buffer and keeps accepting.
-- A transient socket error retries twice at 300ms — but only when a connection had actually opened. Nothing listening fails fast with `QaAppNotRunning`.
+- A transient socket error retries twice at 300ms — but only when a connection had actually opened and then broke. Nothing listening fails fast with `QaAppNotRunning`.
+- A connection that opened but ran past its deadline is a different failure: `QaResponseTimeout`, not `QaAppNotRunning`. The app answered the connect, so the likely cause is a slow or large response (a big `snapshotDom` with a heavy DOM mounted has hit this), not a missing listener. This case is **never retried** — the request may already have run on the host, and a retry could re-execute it (a retried `click` would double-click). Only a failed connect gets the retry above.
 - Every helper has a deadline and fails with a named error (`QaEvalTimeout: webview did not answer token qa-3`). No hangs.
 
 ## Field notes that shaped the design
@@ -111,3 +114,4 @@ Each key gets its own unix socket (`/tmp/electrobun-qa/<id>.sock`). Your app can
 - **DOM facts beat screenshots.** A screenshot proved a window existed but could not say whether a 404 came from the framework or the app router. `snapshotText` could.
 - **Deterministic selectors beat text matching** for flows: `click({ text })` picks the first visible match and can hit a non-interactive ancestor. Prefer `click({ selector })` against `data-testid`/`data-qa` hooks for anything that must not flake.
 - **Signed builds carry none of this.** The preload and host compile out unless the QA surface is explicitly enabled; an eval channel in a shipped app is remote code execution.
+- **A slow response is not a dead app.** A `snapshotDom` against a heavy DOM (an xterm-mounted window, in the case that found this) used to time out and get reported as `QaAppNotRunning`, sending debugging down a dead end while a parallel `pageInfo` call proved the app was fine. The deadline firing after a connection opened is now `QaResponseTimeout`, a distinct error, and it is never retried automatically.

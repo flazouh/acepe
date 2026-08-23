@@ -10,6 +10,21 @@ const isQaError = (cause: unknown): cause is QaError =>
 
 const runHelper = <A, E>(effect: Effect.Effect<A, E>): Promise<A> => Effect.runPromise(effect)
 
+// A heredoc script is untyped JS: a caller may pass a bare string as a
+// shorthand for { selector }, e.g. snapshotText('[data-qa=...]'). Treat that
+// as the selector rather than dropping it - a dropped selector used to
+// silently scope to the whole page instead of failing loudly or narrowing.
+type QaQueryLike = { readonly selector?: string; readonly text?: string } | string
+
+const normalizeQaQuery = (
+	target: QaQueryLike | undefined,
+): { readonly selector?: string; readonly text?: string } | undefined => {
+	if (typeof target === "string") {
+		return { selector: target }
+	}
+	return target
+}
+
 export const makePromiseHelpers = (session: QaSession, logs: Array<string>) => {
 	const helpers = makeRuntimeHelpers(session, logs)
 	return {
@@ -17,9 +32,8 @@ export const makePromiseHelpers = (session: QaSession, logs: Array<string>) => {
 		firstWindow: () => runHelper(helpers.firstWindow()),
 		useWindow: (windowId: string) => runHelper(helpers.useWindow(windowId)),
 		windowInfo: () => runHelper(helpers.windowInfo()),
-		snapshotText: (target?: { readonly selector?: string; readonly text?: string }) =>
-			runHelper(helpers.snapshotText(target)),
-		snapshotDom: () => runHelper(helpers.snapshotDom()),
+		snapshotText: (target?: QaQueryLike) => runHelper(helpers.snapshotText(normalizeQaQuery(target))),
+		snapshotDom: (target?: QaQueryLike) => runHelper(helpers.snapshotDom(normalizeQaQuery(target))),
 		pageInfo: () => runHelper(helpers.pageInfo()),
 		captureScreenshot: () => runHelper(helpers.captureScreenshot()),
 		click: (target: { readonly selector?: string; readonly text?: string }) =>

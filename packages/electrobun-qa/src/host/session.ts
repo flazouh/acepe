@@ -6,6 +6,7 @@ import {
 	type QaEvalFailed,
 	type QaEvalTimeout,
 	QaElementNotFound,
+	type QaResponseTimeout,
 	type QaSocketError,
 	QaUnknownCommand,
 	QaWindowNotFound,
@@ -14,7 +15,7 @@ import { handleQaMethod, type MemoryPage } from "../preload/qa-preload.ts"
 import { type QaBridgeClientShape } from "./bridge-client.ts"
 import { formatDoctorOk, QaSocketRequest, QaWindowInfo } from "./protocol.ts"
 
-export type QaTransportError = QaAppNotRunning | QaSocketError
+export type QaTransportError = QaAppNotRunning | QaResponseTimeout | QaSocketError
 
 export type QaCallError = QaWindowNotFound | QaElementNotFound | QaEvalTimeout | QaEvalFailed | QaTransportError
 
@@ -41,6 +42,17 @@ export type QaSessionInput = {
 	readonly client: QaBridgeClientShape
 	readonly memoryPage?: MemoryPage
 }
+
+// A scoped call (selector or text) that finds nothing answers with false,
+// the shared not-found sentinel these methods use instead of a per-method
+// error - this set is the single place that maps the sentinel to
+// QaElementNotFound.
+const METHODS_WHERE_FALSE_MEANS_NOT_FOUND: ReadonlySet<string> = new Set([
+	"qa:click",
+	"qa:waitFor",
+	"qa:snapshotText",
+	"qa:snapshotDom",
+])
 
 const SOCKET_TO_QA: Record<string, string> = {
 	snapshotText: "qa:snapshotText",
@@ -147,7 +159,7 @@ export const makeQaSession = (input: QaSessionInput): QaSession => {
 			input.memoryPage === undefined
 				? yield* requestThroughClient(input.client, method, params, deadline)
 				: handleQaMethod(input.memoryPage, method, params)
-		if ((method === "qa:click" || method === "qa:waitFor") && result === false) {
+		if (METHODS_WHERE_FALSE_MEANS_NOT_FOUND.has(method) === true && result === false) {
 			return yield* new QaElementNotFound({ query: queryLabel(params) })
 		}
 		return result
