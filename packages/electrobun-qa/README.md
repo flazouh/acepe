@@ -81,3 +81,31 @@ Vendored and proven against a real app first. Intended for upstream as `@electro
 ## License
 
 MIT
+
+## Parallel instances
+
+One env key isolates everything an instance owns, so N agents can drive N apps concurrently:
+
+```bash
+ELECTROBUN_QA_APP_ID=com.myapp.lane1 ./MyApp.app/Contents/MacOS/launcher &
+ELECTROBUN_QA_APP_ID=com.myapp.lane2 ./MyApp.app/Contents/MacOS/launcher &
+
+ELECTROBUN_QA_APP_ID=com.myapp.lane1 electrobun-qa doctor
+ELECTROBUN_QA_APP_ID=com.myapp.lane2 electrobun-qa run <<'EOF'
+cliLog(await snapshotText())
+EOF
+```
+
+Each key gets its own unix socket (`/tmp/electrobun-qa/<id>.sock`). Your app can reuse the same key to namespace its own per-instance state — Acepe scopes its database and seed fixtures with it. Without distinct keys, two instances race one socket and the second silently serves nobody.
+
+## Resilience contract
+
+- A client that dies mid-script cannot wedge the host: the listener drops that client's buffer and keeps accepting.
+- A transient socket error retries twice at 300ms — but only when a connection had actually opened. Nothing listening fails fast with `QaAppNotRunning`.
+- Every helper has a deadline and fails with a named error (`QaEvalTimeout: webview did not answer token qa-3`). No hangs.
+
+## Field notes that shaped the design
+
+- **DOM facts beat screenshots.** A screenshot proved a window existed but could not say whether a 404 came from the framework or the app router. `snapshotText` could.
+- **Deterministic selectors beat text matching** for flows: `click({ text })` picks the first visible match and can hit a non-interactive ancestor. Prefer `click({ selector })` against `data-testid`/`data-qa` hooks for anything that must not flake.
+- **Signed builds carry none of this.** The preload and host compile out unless the QA surface is explicitly enabled; an eval channel in a shipped app is remote code execution.
