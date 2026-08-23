@@ -13,6 +13,7 @@ import {
 	InvalidateProjectIndexRequest,
 	ProjectIndex,
 } from "./fileIndex.ts"
+import { GetDefaultShellRequest, ReadTextFileRequest, WriteTextFileRequest } from "./fsUtil.ts"
 import { ProjectedGitReview } from "./git.ts"
 import { ProjectedMcpCatalog } from "./mcp.ts"
 import { ProjectedPreconnectionOptions } from "./preconnection.ts"
@@ -51,6 +52,9 @@ export const RPC_PRIMITIVE_TAGS = [
 	"events",
 	"getProjectIndex",
 	"invalidateProjectIndex",
+	"readTextFile",
+	"writeTextFile",
+	"getDefaultShell",
 ] as const
 export type RpcPrimitiveTag = (typeof RPC_PRIMITIVE_TAGS)[number]
 
@@ -521,12 +525,33 @@ export class InvalidateProjectIndex extends Rpc.make("invalidateProjectIndex", {
 	error: RpcServerError,
 }) {}
 
+export class ReadTextFile extends Rpc.make("readTextFile", {
+	payload: ReadTextFileRequest,
+	success: Schema.String,
+	error: RpcServerError,
+}) {}
+
+export class WriteTextFile extends Rpc.make("writeTextFile", {
+	payload: WriteTextFileRequest,
+	success: Schema.Void,
+	error: RpcServerError,
+}) {}
+
+export class GetDefaultShell extends Rpc.make("getDefaultShell", {
+	payload: GetDefaultShellRequest,
+	success: Schema.String,
+	error: RpcServerError,
+}) {}
+
 export const AcepeRpc = RpcGroup.make(
 	Dispatch,
 	Snapshot,
 	Events,
 	GetProjectIndex,
 	InvalidateProjectIndex,
+	ReadTextFile,
+	WriteTextFile,
+	GetDefaultShell,
 )
 
 type GroupTag = Rpc.Tag<RpcGroup.Rpcs<typeof AcepeRpc>>
@@ -541,6 +566,9 @@ export const DispatchExit = Rpc.exitSchema(Dispatch)
 export const SnapshotExit = Rpc.exitSchema(Snapshot)
 export const GetProjectIndexExit = Rpc.exitSchema(GetProjectIndex)
 export const InvalidateProjectIndexExit = Rpc.exitSchema(InvalidateProjectIndex)
+export const ReadTextFileExit = Rpc.exitSchema(ReadTextFile)
+export const WriteTextFileExit = Rpc.exitSchema(WriteTextFile)
+export const GetDefaultShellExit = Rpc.exitSchema(GetDefaultShell)
 
 export type ElectrobunRequestSpec = {
 	readonly params: Schema.Top
@@ -627,6 +655,18 @@ export type AcepeElectrobunRpcSchema = {
 				readonly params: typeof InvalidateProjectIndexRequest.Encoded
 				readonly response: typeof InvalidateProjectIndexExit.Encoded
 			}
+			readonly readTextFile: {
+				readonly params: typeof ReadTextFileRequest.Encoded
+				readonly response: typeof ReadTextFileExit.Encoded
+			}
+			readonly writeTextFile: {
+				readonly params: typeof WriteTextFileRequest.Encoded
+				readonly response: typeof WriteTextFileExit.Encoded
+			}
+			readonly getDefaultShell: {
+				readonly params: typeof GetDefaultShellRequest.Encoded
+				readonly response: typeof GetDefaultShellExit.Encoded
+			}
 		}
 		readonly messages: Record<string, never>
 	}
@@ -642,6 +682,9 @@ const dispatchExitJson = Schema.toCodecJson(DispatchExit)
 const snapshotExitJson = Schema.toCodecJson(SnapshotExit)
 const getProjectIndexExitJson = Schema.toCodecJson(GetProjectIndexExit)
 const invalidateProjectIndexExitJson = Schema.toCodecJson(InvalidateProjectIndexExit)
+const readTextFileExitJson = Schema.toCodecJson(ReadTextFileExit)
+const writeTextFileExitJson = Schema.toCodecJson(WriteTextFileExit)
+const getDefaultShellExitJson = Schema.toCodecJson(GetDefaultShellExit)
 
 export const decodeDispatchExit = Schema.decodeUnknownEffect(dispatchExitJson)
 export const decodeSnapshotExit = Schema.decodeUnknownEffect(snapshotExitJson)
@@ -649,18 +692,27 @@ export const decodeGetProjectIndexExit = Schema.decodeUnknownEffect(getProjectIn
 export const decodeInvalidateProjectIndexExit = Schema.decodeUnknownEffect(
 	invalidateProjectIndexExitJson,
 )
+export const decodeReadTextFileExit = Schema.decodeUnknownEffect(readTextFileExitJson)
+export const decodeWriteTextFileExit = Schema.decodeUnknownEffect(writeTextFileExitJson)
+export const decodeGetDefaultShellExit = Schema.decodeUnknownEffect(getDefaultShellExitJson)
 export const encodeDispatchExit = Schema.encodeUnknownEffect(dispatchExitJson)
 export const encodeSnapshotExit = Schema.encodeUnknownEffect(snapshotExitJson)
 export const encodeGetProjectIndexExit = Schema.encodeUnknownEffect(getProjectIndexExitJson)
 export const encodeInvalidateProjectIndexExit = Schema.encodeUnknownEffect(
 	invalidateProjectIndexExitJson,
 )
+export const encodeReadTextFileExit = Schema.encodeUnknownEffect(readTextFileExitJson)
+export const encodeWriteTextFileExit = Schema.encodeUnknownEffect(writeTextFileExitJson)
+export const encodeGetDefaultShellExit = Schema.encodeUnknownEffect(getDefaultShellExitJson)
 export const decodeEventsRequest = Schema.decodeUnknownEffect(EventsRequest)
 export const decodeSnapshotRequest = Schema.decodeUnknownEffect(SnapshotRequest)
 export const decodeGetProjectIndexRequest = Schema.decodeUnknownEffect(GetProjectIndexRequest)
 export const decodeInvalidateProjectIndexRequest = Schema.decodeUnknownEffect(
 	InvalidateProjectIndexRequest,
 )
+export const decodeReadTextFileRequest = Schema.decodeUnknownEffect(ReadTextFileRequest)
+export const decodeWriteTextFileRequest = Schema.decodeUnknownEffect(WriteTextFileRequest)
+export const decodeGetDefaultShellRequest = Schema.decodeUnknownEffect(GetDefaultShellRequest)
 export const decodeOrchestrationCommand = Schema.decodeUnknownEffect(OrchestrationCommand)
 export const encodeOrchestrationCommand = Schema.encodeUnknownEffect(OrchestrationCommand)
 export const encodeOrchestrationEvent = Schema.encodeUnknownEffect(OrchestrationEvent)
@@ -690,6 +742,13 @@ export type RpcTransport<R = never> = {
 	readonly invalidateProjectIndex: (
 		projectPath: TrimmedNonEmptyString,
 	) => Effect.Effect<void, RpcClientError, R>
+	readonly readTextFile: (
+		request: ReadTextFileRequest,
+	) => Effect.Effect<string, RpcClientError, R>
+	readonly writeTextFile: (
+		request: WriteTextFileRequest,
+	) => Effect.Effect<void, RpcClientError, R>
+	readonly getDefaultShell: () => Effect.Effect<string, RpcClientError, R>
 }
 
 export type RpcClient<R = never> = RpcTransport<R>
@@ -757,6 +816,9 @@ export const makeResumingRpcClient = <R>(transport: RpcTransport<R>): RpcClient<
 	snapshot: transport.snapshot,
 	getProjectIndex: transport.getProjectIndex,
 	invalidateProjectIndex: transport.invalidateProjectIndex,
+	readTextFile: transport.readTextFile,
+	writeTextFile: transport.writeTextFile,
+	getDefaultShell: transport.getDefaultShell,
 	events: (fromSequence) =>
 		Stream.unwrap(
 			Ref.make(fromSequence).pipe(Effect.map((cursor) => resumeEvents(transport, cursor))),

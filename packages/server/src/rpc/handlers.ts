@@ -22,7 +22,9 @@ import {
 import * as Arr from "effect/Array"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
 import * as Option from "effect/Option"
+import * as Path from "effect/Path"
 import * as Queue from "effect/Queue"
 import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
@@ -33,6 +35,11 @@ import { OrchestrationCommandInvariantError } from "../orchestration/Errors.ts"
 import { OrchestrationProjectorDecodeError } from "../orchestration/Schemas.ts"
 import { FileIndexNotADirectoryError, FileIndexRootNotFoundError } from "../fileIndex/Errors.ts"
 import { type FileIndexError, FileIndexService } from "../fileIndex/Services/FileIndexService.ts"
+import {
+	getDefaultShell as getDefaultShellUtil,
+	readTextFile as readTextFileUtil,
+	writeTextFile as writeTextFileUtil
+} from "../fsUtil/readWriteText.ts"
 import { GitService, type GitServiceShape } from "../git/Services/GitService.ts"
 import {
 	type OrchestrationDispatchError,
@@ -351,6 +358,8 @@ export const RpcHandlersLive = AcepeRpc.toLayer(
 		const engine = yield* OrchestrationEngine
 		const store = yield* OrchestrationEventStore
 		const fileIndex = yield* FileIndexService
+		const fs = yield* FileSystem.FileSystem
+		const path = yield* Path.Path
 		return {
 			dispatch: (command) =>
 				dispatchOrchestrationCommand(command).pipe(Effect.mapError(toRpcError)),
@@ -362,7 +371,10 @@ export const RpcHandlersLive = AcepeRpc.toLayer(
 			events: (request) => eventsFromSequence(store, engine, request.fromSequence),
 			getProjectIndex: (request) =>
 				fileIndex.getProjectIndex(request.projectPath).pipe(Effect.mapError(toFileIndexRpcError)),
-			invalidateProjectIndex: (request) => fileIndex.invalidate(request.projectPath)
+			invalidateProjectIndex: (request) => fileIndex.invalidate(request.projectPath),
+			readTextFile: (request) => readTextFileUtil(fs, path, request),
+			writeTextFile: (request) => writeTextFileUtil(fs, path, request),
+			getDefaultShell: () => getDefaultShellUtil()
 		}
 	})
 )

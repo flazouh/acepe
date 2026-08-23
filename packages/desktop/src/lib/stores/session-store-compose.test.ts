@@ -109,6 +109,9 @@ const clientOf = (input: {
 	getProjectIndex: () =>
 		Effect.succeed({ projectPath: "/tmp/p", totalFiles: 0, files: [], scannedAt: 0 }) as never,
 	invalidateProjectIndex: () => Effect.void,
+	readTextFile: () => Effect.succeed(""),
+	writeTextFile: () => Effect.void,
+	getDefaultShell: () => Effect.succeed("/bin/zsh"),
 	events: () => Stream.fromArray(input.events),
 });
 

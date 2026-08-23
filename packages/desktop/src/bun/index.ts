@@ -12,34 +12,38 @@ import {
 	startElectrobunAcepeApp,
 } from "@acepe/electrobun-shell";
 import { makeAcepeLive } from "@acepe/server/bootstrap";
-import { seedLibrary } from "@acepe/server/library/seedLibrary";
 import { seedGitReview } from "@acepe/server/library/seedGitReview";
-import { seedSkillsMcp, SKILLS_MCP_SEED_HOME } from "@acepe/server/library/seedSkillsMcp";
+import { seedLibrary } from "@acepe/server/library/seedLibrary";
+import { SKILLS_MCP_SEED_HOME, seedSkillsMcp } from "@acepe/server/library/seedSkillsMcp";
 import {
 	encodedDispatch,
+	encodedGetDefaultShell,
 	encodedGetProjectIndex,
 	encodedInvalidateProjectIndex,
+	encodedReadTextFile,
 	encodedSnapshot,
+	encodedWriteTextFile,
 	pushEvents,
 } from "@acepe/server/rpc/encodedBoundary";
+import * as Config from "effect/Config";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as ManagedRuntime from "effect/ManagedRuntime";
 import { loadQaSocketPath, qaPreloadScript } from "electrobun-qa";
-import * as Config from "effect/Config";
 
 // One instance key scopes the QA socket, the seed fixtures and this DB, so
 // parallel app instances never share state.
 const loadTracerDbFilename = Effect.fn("loadTracerDbFilename")(function* () {
 	const instance = yield* Config.string("APP_ID").pipe(
 		Config.nested("ELECTROBUN_QA"),
-		Config.withDefault(""),
+		Config.withDefault("")
 	);
 	if (instance === "") {
 		return "acepe-tracer.sqlite";
 	}
 	return `acepe-tracer-${instance.replace(/[^a-zA-Z0-9.-]/g, "-")}.sqlite`;
 });
+
 import { keepQaHost, qaInternalMessageMap, qaWindowPreload } from "./qa-host.ts";
 
 const PROOF_LOG = SHELL_PROOF_LOG_PATH;
@@ -117,6 +121,9 @@ launched.attach({
 	snapshot: (params) => runtime.runPromise(encodedSnapshot(params)),
 	getProjectIndex: (params) => runtime.runPromise(encodedGetProjectIndex(params)),
 	invalidateProjectIndex: (params) => runtime.runPromise(encodedInvalidateProjectIndex(params)),
+	readTextFile: (params) => runtime.runPromise(encodedReadTextFile(params)),
+	writeTextFile: (params) => runtime.runPromise(encodedWriteTextFile(params)),
+	getDefaultShell: (params) => runtime.runPromise(encodedGetDefaultShell(params)),
 	events: (params) => {
 		writeLine(`acepe-events-stream: requested ${JSON.stringify(params).slice(0, 80)}`);
 		runtime.runFork(

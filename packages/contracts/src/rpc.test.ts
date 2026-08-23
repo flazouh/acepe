@@ -13,14 +13,20 @@ import { OrchestrationCommand, ProjectCreateCommand } from "./orchestration.ts"
 import {
 	AcepeRpc,
 	decodeDispatchExit,
+	decodeGetDefaultShellExit,
 	decodeGetProjectIndexExit,
 	decodeOrchestrationEvent,
+	decodeReadTextFileExit,
 	decodeSnapshotExit,
 	decodeSnapshotRequest,
+	decodeWriteTextFileExit,
 	encodeDispatchExit,
+	encodeGetDefaultShellExit,
 	encodeGetProjectIndexExit,
 	encodeOrchestrationEvent,
+	encodeReadTextFileExit,
 	encodeSnapshotExit,
+	encodeWriteTextFileExit,
 	exitToEffect,
 	generateElectrobunRpcSchema,
 	gitSnapshotRequest,
@@ -170,16 +176,22 @@ const unusedGetProjectIndex: RpcTransport["getProjectIndex"] = (_projectPath) =>
 	})
 const unusedInvalidateProjectIndex: RpcTransport["invalidateProjectIndex"] = (_projectPath) =>
 	Effect.void
+const unusedReadTextFile: RpcTransport["readTextFile"] = (_request) => Effect.succeed("")
+const unusedWriteTextFile: RpcTransport["writeTextFile"] = (_request) => Effect.void
+const unusedGetDefaultShell: RpcTransport["getDefaultShell"] = () => Effect.succeed("/bin/zsh")
 
 describe("AcepeRpc primitives", () => {
-	it("exposes dispatch, snapshot, events, and file index", () => {
+	it("exposes dispatch, snapshot, events, file index, and fs util primitives", () => {
 		expect(groupTags).toEqual(primitiveTags)
 		expect(groupTags).toEqual([
 			"dispatch",
 			"events",
+			"getDefaultShell",
 			"getProjectIndex",
 			"invalidateProjectIndex",
+			"readTextFile",
 			"snapshot",
+			"writeTextFile",
 		])
 	})
 })
@@ -241,6 +253,30 @@ describe("Schema-encoded boundary", () => {
 		if (Exit.isSuccess(decoded)) {
 			expect(decoded.value.projectPath).toBe("/tmp/acepe")
 			expect(decoded.value.totalFiles).toBe(0)
+		}
+	})
+
+	it("round-trips a read text file result through Exit", () => {
+		const encoded = Exit.succeed("line one\nline two").pipe(encodeReadTextFileExit, Effect.runSync)
+		const decoded = decodeReadTextFileExit(encoded).pipe(Effect.runSync)
+		expect(Exit.isSuccess(decoded)).toBe(true)
+		if (Exit.isSuccess(decoded)) {
+			expect(decoded.value).toBe("line one\nline two")
+		}
+	})
+
+	it("round-trips a write text file void result through Exit", () => {
+		const encoded = Exit.void.pipe(encodeWriteTextFileExit, Effect.runSync)
+		const decoded = decodeWriteTextFileExit(encoded).pipe(Effect.runSync)
+		expect(Exit.isSuccess(decoded)).toBe(true)
+	})
+
+	it("round-trips a default shell result through Exit", () => {
+		const encoded = Exit.succeed("/bin/zsh").pipe(encodeGetDefaultShellExit, Effect.runSync)
+		const decoded = decodeGetDefaultShellExit(encoded).pipe(Effect.runSync)
+		expect(Exit.isSuccess(decoded)).toBe(true)
+		if (Exit.isSuccess(decoded)) {
+			expect(decoded.value).toBe("/bin/zsh")
 		}
 	})
 
@@ -428,6 +464,9 @@ const failingAfter = (
 	snapshot: unusedSnapshot,
 	getProjectIndex: unusedGetProjectIndex,
 	invalidateProjectIndex: unusedInvalidateProjectIndex,
+	readTextFile: unusedReadTextFile,
+	writeTextFile: unusedWriteTextFile,
+	getDefaultShell: unusedGetDefaultShell,
 	events: (fromSequence) =>
 		Stream.unwrap(
 			Ref.updateAndGet(calls, (count) => count + 1).pipe(
@@ -467,6 +506,9 @@ describe("makeResumingRpcClient", () => {
 			snapshot: unusedSnapshot,
 			getProjectIndex: unusedGetProjectIndex,
 			invalidateProjectIndex: unusedInvalidateProjectIndex,
+			readTextFile: unusedReadTextFile,
+			writeTextFile: unusedWriteTextFile,
+			getDefaultShell: unusedGetDefaultShell,
 			events: (_fromSequence) =>
 				Stream.fromArray([eventAt(1), eventAt(2), eventAt(2), eventAt(3)]),
 		})
@@ -486,6 +528,9 @@ describe("makeResumingRpcClient", () => {
 			snapshot: unusedSnapshot,
 			getProjectIndex: unusedGetProjectIndex,
 			invalidateProjectIndex: unusedInvalidateProjectIndex,
+			readTextFile: unusedReadTextFile,
+			writeTextFile: unusedWriteTextFile,
+			getDefaultShell: unusedGetDefaultShell,
 			events: (_fromSequence) => Stream.fromArray([eventAt(1), eventAt(3)]),
 		})
 			.events(0)

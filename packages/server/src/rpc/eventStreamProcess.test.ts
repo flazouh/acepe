@@ -68,11 +68,20 @@ Vitest.it.live(
 				Effect.fail(new RpcTransportError({ reason: "unused getProjectIndex" }))
 			const unusedInvalidateProjectIndex: RpcTransport["invalidateProjectIndex"] = () =>
 				Effect.fail(new RpcTransportError({ reason: "unused invalidateProjectIndex" }))
+			const unusedReadTextFile: RpcTransport["readTextFile"] = () =>
+				Effect.fail(new RpcTransportError({ reason: "unused readTextFile" }))
+			const unusedWriteTextFile: RpcTransport["writeTextFile"] = () =>
+				Effect.fail(new RpcTransportError({ reason: "unused writeTextFile" }))
+			const unusedGetDefaultShell: RpcTransport["getDefaultShell"] = () =>
+				Effect.fail(new RpcTransportError({ reason: "unused getDefaultShell" }))
 			const transport = {
 				dispatch: unusedDispatch,
 				snapshot: unusedSnapshot,
 				getProjectIndex: unusedGetProjectIndex,
 				invalidateProjectIndex: unusedInvalidateProjectIndex,
+				readTextFile: unusedReadTextFile,
+				writeTextFile: unusedWriteTextFile,
+				getDefaultShell: unusedGetDefaultShell,
 				events: (fromSequence: Parameters<RpcTransport["events"]>[0]) =>
 					Stream.unwrap(
 						Effect.gen(function*() {

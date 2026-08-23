@@ -1,20 +1,39 @@
+import { SessionId } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
 
 import type { AppError } from "../../acp/errors/app-error.js";
-import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
+import { decodeEffect, withRpcClient } from "./rpc-bridge.ts";
 
-const fsCommands = TAURI_COMMAND_CLIENT.fs;
+const readTextFilePayload = (
+	path: string,
+	line: number | undefined,
+	limit: number | undefined
+) => ({
+	path,
+	...(line !== undefined ? { line } : {}),
+	...(limit !== undefined ? { limit } : {}),
+});
 
 export const fs = {
-	readTextFile: (path: string, line?: number, limit?: number): Effect.Effect<string, AppError> => {
-		return fsCommands.read_text_file.invoke<string>({ path, line, limit });
-	},
+	readTextFile: (path: string, line?: number, limit?: number): Effect.Effect<string, AppError> =>
+		withRpcClient("fs.readTextFile", (client) =>
+			client.readTextFile(readTextFilePayload(path, line, limit))
+		),
 
 	writeTextFile: (
 		path: string,
 		content: string,
 		sessionId: string
-	): Effect.Effect<void, AppError> => {
-		return fsCommands.write_text_file.invoke<void>({ path, content, sessionId });
-	},
+	): Effect.Effect<void, AppError> =>
+		decodeEffect(
+			"fs.writeTextFile",
+			Schema.decodeUnknownEffect(SessionId)
+		)(sessionId).pipe(
+			Effect.flatMap((decodedSessionId) =>
+				withRpcClient("fs.writeTextFile", (client) =>
+					client.writeTextFile({ path, content, sessionId: decodedSessionId })
+				)
+			)
+		),
 };

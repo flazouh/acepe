@@ -3,9 +3,12 @@ import {
 	CommandId,
 	EventId,
 	encodeDispatchExit,
+	encodeGetDefaultShellExit,
 	encodeGetProjectIndexExit,
 	encodeOrchestrationEvent,
+	encodeReadTextFileExit,
 	encodeSnapshotExit,
+	encodeWriteTextFileExit,
 	ProjectCreateCommand,
 	ProjectId,
 	RpcCommandInvariantError,
@@ -61,8 +64,8 @@ const emptySnapshot = {
 	skillsCatalog: null,
 	voice: null,
 	gitReview: null,
-			mcpCatalog: null,
-			preconnectionOptions: null,
+	mcpCatalog: null,
+	preconnectionOptions: null,
 };
 
 const makeBridge = (input: {
@@ -71,6 +74,9 @@ const makeBridge = (input: {
 	readonly events?: (params: unknown) => Promise<unknown>;
 	readonly getProjectIndex?: (params: unknown) => Promise<unknown>;
 	readonly invalidateProjectIndex?: (params: unknown) => Promise<unknown>;
+	readonly readTextFile?: (params: unknown) => Promise<unknown>;
+	readonly writeTextFile?: (params: unknown) => Promise<unknown>;
+	readonly getDefaultShell?: (params: unknown) => Promise<unknown>;
 }): ElectrobunRpcBridge & { readonly emitEvents: (payload: unknown) => void } => {
 	const listeners: Array<(payload: unknown) => void> = [];
 	return {
@@ -94,6 +100,18 @@ const makeBridge = (input: {
 				input.invalidateProjectIndex === undefined
 					? Promise.reject(new Error("unused invalidateProjectIndex"))
 					: input.invalidateProjectIndex(params),
+			readTextFile: (params) =>
+				input.readTextFile === undefined
+					? Promise.reject(new Error("unused readTextFile"))
+					: input.readTextFile(params),
+			writeTextFile: (params) =>
+				input.writeTextFile === undefined
+					? Promise.reject(new Error("unused writeTextFile"))
+					: input.writeTextFile(params),
+			getDefaultShell: (params) =>
+				input.getDefaultShell === undefined
+					? Promise.reject(new Error("unused getDefaultShell"))
+					: input.getDefaultShell(params),
 		},
 		addMessageListener: (_message, listener) => {
 			listeners.push(listener);
@@ -176,6 +194,44 @@ describe("makeElectrobunRpcTransport", () => {
 				const index = yield* transport.getProjectIndex("/tmp/acepe");
 				expect(index.totalFiles).toBe(0);
 				expect(index.projectPath).toBe("/tmp/acepe");
+			})
+		));
+
+	it("decodes a readTextFile Exit", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				const encoded = yield* encodeReadTextFileExit(Exit.succeed("hello world"));
+				const bridge = makeBridge({
+					readTextFile: () => Promise.resolve(encoded),
+				});
+				const transport = makeElectrobunRpcTransport(bridge);
+				const content = yield* transport.readTextFile({ path: "/tmp/acepe/file.ts" });
+				expect(content).toBe("hello world");
+			})
+		));
+
+	it("decodes a writeTextFile Exit", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				const encoded = yield* encodeWriteTextFileExit(Exit.void);
+				const bridge = makeBridge({
+					writeTextFile: () => Promise.resolve(encoded),
+				});
+				const transport = makeElectrobunRpcTransport(bridge);
+				yield* transport.writeTextFile({ path: "/tmp/acepe/file.ts", content: "x", sessionId });
+			})
+		));
+
+	it("decodes a getDefaultShell Exit", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				const encoded = yield* encodeGetDefaultShellExit(Exit.succeed("/bin/zsh"));
+				const bridge = makeBridge({
+					getDefaultShell: () => Promise.resolve(encoded),
+				});
+				const transport = makeElectrobunRpcTransport(bridge);
+				const shell = yield* transport.getDefaultShell();
+				expect(shell).toBe("/bin/zsh");
 			})
 		));
 

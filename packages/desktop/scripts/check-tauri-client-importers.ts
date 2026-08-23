@@ -7,10 +7,10 @@
  * importer fails. When the count reaches zero, #250 deletes the client and
  * flips ALLOW_ANY to false so it cannot come back.
  */
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-const BASELINE = 13;
+const BASELINE = 9;
 const ROOT = join(import.meta.dir, "..", "src");
 
 const importers: Array<string> = [];

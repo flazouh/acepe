@@ -1,14 +1,20 @@
 import {
 	decodeEventsRequest,
+	decodeGetDefaultShellRequest,
 	decodeGetProjectIndexRequest,
 	decodeInvalidateProjectIndexRequest,
 	decodeOrchestrationCommand,
+	decodeReadTextFileRequest,
 	decodeSnapshotRequest,
+	decodeWriteTextFileRequest,
 	encodeDispatchExit,
+	encodeGetDefaultShellExit,
 	encodeGetProjectIndexExit,
 	encodeInvalidateProjectIndexExit,
 	encodeOrchestrationEvent,
+	encodeReadTextFileExit,
 	encodeSnapshotExit,
+	encodeWriteTextFileExit,
 	RpcSchemaError,
 	type RpcDispatchResult,
 	type RpcServerError,
@@ -16,14 +22,28 @@ import {
 } from "@acepe/contracts"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
+import * as FileSystem from "effect/FileSystem"
+import * as Path from "effect/Path"
 import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
 import { FileIndexNotADirectoryError, FileIndexRootNotFoundError } from "../fileIndex/Errors.ts"
 import { FileIndexService } from "../fileIndex/Services/FileIndexService.ts"
+import {
+	getDefaultShell as getDefaultShellUtil,
+	readTextFile as readTextFileUtil,
+	writeTextFile as writeTextFileUtil
+} from "../fsUtil/readWriteText.ts"
 import { OrchestrationEventStore } from "../persistence/Services/OrchestrationEventStore.ts"
 import { OrchestrationEngine } from "../orchestration/Services/OrchestrationEngine.ts"
 import { dispatchOrchestrationCommand, eventsFromSequence, rpcSnapshotForRequest, toFileIndexRpcError, toRpcError } from "./handlers.ts"
+
+const toEncodedFsUtilError = (error: RpcServerError | Schema.SchemaError): RpcServerError => {
+	if (Schema.is(RpcSchemaError)(error)) {
+		return error
+	}
+	return new RpcSchemaError({ issue: error.message })
+}
 
 const toEncodedFileIndexError = (error: { readonly message: string }): RpcServerError => {
 	if (Schema.is(FileIndexRootNotFoundError)(error)) {
@@ -89,6 +109,47 @@ export const encodedInvalidateProjectIndex = Effect.fn("encodedInvalidateProject
 		return yield* rpcError.pipe(Exit.fail, encodeInvalidateProjectIndexExit)
 	}
 	return yield* encodeInvalidateProjectIndexExit(Exit.void)
+})
+
+export const encodedReadTextFile = Effect.fn("encodedReadTextFile")(function*(params: unknown) {
+	const fs = yield* FileSystem.FileSystem
+	const path = yield* Path.Path
+	const outcome = yield* Effect.result(
+		decodeReadTextFileRequest(params).pipe(
+			Effect.flatMap((request) => readTextFileUtil(fs, path, request))
+		)
+	)
+	if (Result.isFailure(outcome)) {
+		const rpcError = toEncodedFsUtilError(outcome.failure)
+		return yield* rpcError.pipe(Exit.fail, encodeReadTextFileExit)
+	}
+	return yield* encodeReadTextFileExit(Exit.succeed(outcome.success))
+})
+
+export const encodedWriteTextFile = Effect.fn("encodedWriteTextFile")(function*(params: unknown) {
+	const fs = yield* FileSystem.FileSystem
+	const path = yield* Path.Path
+	const outcome = yield* Effect.result(
+		decodeWriteTextFileRequest(params).pipe(
+			Effect.flatMap((request) => writeTextFileUtil(fs, path, request))
+		)
+	)
+	if (Result.isFailure(outcome)) {
+		const rpcError = toEncodedFsUtilError(outcome.failure)
+		return yield* rpcError.pipe(Exit.fail, encodeWriteTextFileExit)
+	}
+	return yield* encodeWriteTextFileExit(Exit.void)
+})
+
+export const encodedGetDefaultShell = Effect.fn("encodedGetDefaultShell")(function*(params: unknown) {
+	const outcome = yield* Effect.result(
+		decodeGetDefaultShellRequest(params).pipe(Effect.flatMap(() => getDefaultShellUtil()))
+	)
+	if (Result.isFailure(outcome)) {
+		const rpcError = toEncodedFsUtilError(outcome.failure)
+		return yield* rpcError.pipe(Exit.fail, encodeGetDefaultShellExit)
+	}
+	return yield* encodeGetDefaultShellExit(Exit.succeed(outcome.success))
 })
 
 export const pushEvents = Effect.fn("pushEvents")(function*(

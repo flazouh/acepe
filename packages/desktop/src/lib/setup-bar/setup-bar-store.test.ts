@@ -119,6 +119,9 @@ describe("composeSetupBarStore", () => {
 						totalLines: 0,
 					}),
 				invalidateProjectIndex: () => Effect.void,
+				readTextFile: () => Effect.succeed(""),
+				writeTextFile: () => Effect.void,
+				getDefaultShell: () => Effect.succeed("/bin/zsh"),
 			},
 			registry,
 		});

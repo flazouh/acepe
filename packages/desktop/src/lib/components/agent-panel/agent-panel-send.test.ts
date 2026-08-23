@@ -22,6 +22,9 @@ const unusedClient = (): RpcClient => ({
 	snapshot: () => Effect.die("unused"),
 	getProjectIndex: () => Effect.die("unused"),
 	invalidateProjectIndex: () => Effect.void,
+	readTextFile: () => Effect.succeed(""),
+	writeTextFile: () => Effect.void,
+	getDefaultShell: () => Effect.succeed("/bin/zsh"),
 	events: () => Stream.empty,
 });
 
@@ -33,7 +36,7 @@ describe("composerSendCommand", () => {
 				text: "  hello from qa  ",
 				commandId,
 				messageId,
-			}),
+			})
 		).toEqual(
 			MessageSendCommand.make({
 				type: "message.send",
@@ -41,7 +44,7 @@ describe("composerSendCommand", () => {
 				sessionId,
 				messageId,
 				text: "hello from qa",
-			}),
+			})
 		);
 	});
 
@@ -52,7 +55,7 @@ describe("composerSendCommand", () => {
 				text: "   ",
 				commandId,
 				messageId,
-			}),
+			})
 		).toBeNull();
 	});
 });
@@ -71,6 +74,9 @@ describe("sendComposerMessage", () => {
 					snapshot: client.snapshot,
 					getProjectIndex: client.getProjectIndex,
 					invalidateProjectIndex: client.invalidateProjectIndex,
+					readTextFile: client.readTextFile,
+					writeTextFile: client.writeTextFile,
+					getDefaultShell: client.getDefaultShell,
 					events: client.events,
 				});
 				yield* sendComposerMessage({
@@ -89,7 +95,7 @@ describe("sendComposerMessage", () => {
 					}),
 				]);
 				setAppRpcClientForTest(null);
-			}),
+			})
 		));
 
 	it("does not dispatch blank composer text", () =>
@@ -105,6 +111,9 @@ describe("sendComposerMessage", () => {
 					snapshot: client.snapshot,
 					getProjectIndex: client.getProjectIndex,
 					invalidateProjectIndex: client.invalidateProjectIndex,
+					readTextFile: client.readTextFile,
+					writeTextFile: client.writeTextFile,
+					getDefaultShell: client.getDefaultShell,
 					events: client.events,
 				});
 				yield* sendComposerMessage({
@@ -115,6 +124,6 @@ describe("sendComposerMessage", () => {
 				});
 				expect(dispatched).toEqual([]);
 				setAppRpcClientForTest(null);
-			}),
+			})
 		));
 });

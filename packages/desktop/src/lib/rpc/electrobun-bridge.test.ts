@@ -1,13 +1,12 @@
 import { describe, expect, it } from "bun:test";
 import * as Effect from "effect/Effect";
-
+import type { ElectrobunRpcBridge } from "./client.ts";
 import {
 	bindElectrobunBridge,
 	installElectrobunWebviewRpc,
 	isElectrobunRpcBridge,
 	readElectrobunBridge,
 } from "./electrobun-bridge.ts";
-import type { ElectrobunRpcBridge } from "./client.ts";
 
 const fakeBridge = (): ElectrobunRpcBridge => ({
 	request: {
@@ -17,6 +16,9 @@ const fakeBridge = (): ElectrobunRpcBridge => ({
 		events: () => Promise.resolve(undefined),
 		getProjectIndex: () => Promise.resolve(undefined),
 		invalidateProjectIndex: () => Promise.resolve(undefined),
+		readTextFile: () => Promise.resolve(undefined),
+		writeTextFile: () => Promise.resolve(undefined),
+		getDefaultShell: () => Promise.resolve(undefined),
 	},
 	addMessageListener: () => undefined,
 	removeMessageListener: () => undefined,
@@ -37,13 +39,16 @@ describe("electrobun-bridge", () => {
 			events: () => Promise.resolve(undefined),
 			getProjectIndex: () => Promise.resolve(undefined),
 			invalidateProjectIndex: () => Promise.resolve(undefined),
+			readTextFile: () => Promise.resolve(undefined),
+			writeTextFile: () => Promise.resolve(undefined),
+			getDefaultShell: () => Promise.resolve(undefined),
 		});
 		expect(
 			isElectrobunRpcBridge({
 				request,
 				addMessageListener: () => undefined,
 				removeMessageListener: () => undefined,
-			}),
+			})
 		).toBe(true);
 	});
 
@@ -54,6 +59,6 @@ describe("electrobun-bridge", () => {
 				bindElectrobunBridge(bridge);
 				const installed = yield* installElectrobunWebviewRpc();
 				expect(installed).toBe(bridge);
-			}),
+			})
 		));
 });

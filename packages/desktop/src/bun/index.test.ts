@@ -13,7 +13,10 @@ test("bun entry ping handler returns the echoed value", () => {
 			events: (params) => params,
 			getProjectIndex: (params) => params,
 			invalidateProjectIndex: (params) => params,
-		},
+			readTextFile: (params) => params,
+			writeTextFile: (params) => params,
+			getDefaultShell: (params) => params,
+		}
 	);
 	expect(opened.rpc.ping({ message: "desktop round trip" })).toEqual({
 		echo: "desktop round trip",
@@ -32,7 +35,10 @@ test("bun entry window loads the svelte bundle and exposes acepe rpc", () => {
 			events: () => undefined,
 			getProjectIndex: () => ({ totalFiles: 0 }),
 			invalidateProjectIndex: () => undefined,
-		},
+			readTextFile: () => "",
+			writeTextFile: () => undefined,
+			getDefaultShell: () => "/bin/zsh",
+		}
 	);
 	expect(opened.url).toBe("views://mainview/index.html");
 	expect(opened.title).toBe("Acepe");
