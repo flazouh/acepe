@@ -16,8 +16,8 @@ import {
 	encodeSnapshotExit,
 	encodeWriteTextFileExit,
 	RpcSchemaError,
+	RpcServerError,
 	type RpcDispatchResult,
-	type RpcServerError,
 	type RpcSessionSnapshot
 } from "@acepe/contracts"
 import * as Effect from "effect/Effect"
@@ -29,17 +29,14 @@ import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
 import { FileIndexNotADirectoryError, FileIndexRootNotFoundError } from "../fileIndex/Errors.ts"
 import { FileIndexService } from "../fileIndex/Services/FileIndexService.ts"
-import {
-	getDefaultShell as getDefaultShellUtil,
-	readTextFile as readTextFileUtil,
-	writeTextFile as writeTextFileUtil
-} from "../fsUtil/readWriteText.ts"
+import { getDefaultShell as getDefaultShellUtil } from "../fsUtil/readWriteText.ts"
 import { OrchestrationEventStore } from "../persistence/Services/OrchestrationEventStore.ts"
 import { OrchestrationEngine } from "../orchestration/Services/OrchestrationEngine.ts"
 import { dispatchOrchestrationCommand, eventsFromSequence, rpcSnapshotForRequest, toFileIndexRpcError, toRpcError } from "./handlers.ts"
+import { guardedReadTextFile, guardedWriteTextFile } from "./fsPathGuard.ts"
 
 const toEncodedFsUtilError = (error: RpcServerError | Schema.SchemaError): RpcServerError => {
-	if (Schema.is(RpcSchemaError)(error)) {
+	if (Schema.is(RpcServerError)(error)) {
 		return error
 	}
 	return new RpcSchemaError({ issue: error.message })
@@ -116,7 +113,7 @@ export const encodedReadTextFile = Effect.fn("encodedReadTextFile")(function*(pa
 	const path = yield* Path.Path
 	const outcome = yield* Effect.result(
 		decodeReadTextFileRequest(params).pipe(
-			Effect.flatMap((request) => readTextFileUtil(fs, path, request))
+			Effect.flatMap((request) => guardedReadTextFile(fs, path, request))
 		)
 	)
 	if (Result.isFailure(outcome)) {
@@ -131,7 +128,7 @@ export const encodedWriteTextFile = Effect.fn("encodedWriteTextFile")(function*(
 	const path = yield* Path.Path
 	const outcome = yield* Effect.result(
 		decodeWriteTextFileRequest(params).pipe(
-			Effect.flatMap((request) => writeTextFileUtil(fs, path, request))
+			Effect.flatMap((request) => guardedWriteTextFile(fs, path, request))
 		)
 	)
 	if (Result.isFailure(outcome)) {

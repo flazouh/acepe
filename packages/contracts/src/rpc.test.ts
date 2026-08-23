@@ -36,8 +36,16 @@ import {
 	projectSnapshotRequest,
 	RPC_PRIMITIVE_TAGS,
 	RpcCommandInvariantError,
+	RpcCommandPreviouslyRejectedError,
 	RpcDispatchResult,
+	RpcEventSequenceGapError,
+	RpcFileIndexNotADirectoryError,
+	RpcFileIndexRootNotFoundError,
+	RpcFsPathDeniedError,
+	RpcProjectorDecodeError,
+	RpcSchemaError,
 	RpcSessionSnapshot,
+	RpcSqlError,
 	RpcTransportError,
 	sessionSnapshotRequest,
 	settingsSnapshotRequest,
@@ -542,4 +550,62 @@ describe("makeResumingRpcClient", () => {
 				}),
 				Effect.runPromise,
 			))
+})
+
+describe("RpcServerError message getters", () => {
+	it("RpcCommandPreviouslyRejectedError.message carries the reason", () => {
+		const error = new RpcCommandPreviouslyRejectedError({
+			commandId,
+			reason: "duplicate submission",
+		})
+		expect(error.message.length).toBeGreaterThan(0)
+		expect(error.message).toContain("duplicate submission")
+	})
+
+	it("RpcProjectorDecodeError.message carries the issue", () => {
+		const error = new RpcProjectorDecodeError({
+			eventType: "ProjectCreated",
+			field: "workspaceRoot",
+			issue: "expected a non-empty string",
+		})
+		expect(error.message.length).toBeGreaterThan(0)
+		expect(error.message).toContain("expected a non-empty string")
+	})
+
+	it("RpcSqlError.message carries the reason", () => {
+		const error = new RpcSqlError({ reason: "database is locked" })
+		expect(error.message.length).toBeGreaterThan(0)
+		expect(error.message).toContain("database is locked")
+	})
+
+	it("RpcSchemaError.message carries the issue", () => {
+		const error = new RpcSchemaError({ issue: "path must be absolute" })
+		expect(error.message.length).toBeGreaterThan(0)
+		expect(error.message).toContain("path must be absolute")
+	})
+
+	it("RpcFileIndexRootNotFoundError.message carries the path", () => {
+		const error = new RpcFileIndexRootNotFoundError({ path: "/missing/project" })
+		expect(error.message.length).toBeGreaterThan(0)
+		expect(error.message).toContain("/missing/project")
+	})
+
+	it("RpcFileIndexNotADirectoryError.message carries the path", () => {
+		const error = new RpcFileIndexNotADirectoryError({ path: "/tmp/acepe/file.txt" })
+		expect(error.message.length).toBeGreaterThan(0)
+		expect(error.message).toContain("/tmp/acepe/file.txt")
+	})
+
+	it("RpcEventSequenceGapError.message carries both sequences", () => {
+		const error = new RpcEventSequenceGapError({ last: 4, received: 9 })
+		expect(error.message.length).toBeGreaterThan(0)
+		expect(error.message).toContain("4")
+		expect(error.message).toContain("9")
+	})
+
+	it("RpcFsPathDeniedError.message carries the offending path", () => {
+		const error = new RpcFsPathDeniedError({ path: "/Users/x/.ssh/authorized_keys" })
+		expect(error.message.length).toBeGreaterThan(0)
+		expect(error.message).toContain("/Users/x/.ssh/authorized_keys")
+	})
 })

@@ -45,10 +45,12 @@ import { runGit } from "../git/runGit.ts"
 import { OrchestrationEngineLive } from "../orchestration/Layers/OrchestrationEngine.ts"
 import { ProjectionSnapshotQueryLive } from "../orchestration/Layers/ProjectionSnapshotQuery.ts"
 import { ProjectionGitLive } from "../persistence/Layers/ProjectionGit.ts"
+import { ProjectionProjectsLive } from "../persistence/Layers/ProjectionProjects.ts"
 import { McpCatalogLive } from "../mcp/Layers/McpCatalog.ts"
 import { SkillsServiceLive } from "../skills/Layers/SkillsService.ts"
 import { VoiceRuntimeLive } from "../voice/Layers/VoiceRuntime.ts"
 import { EXTERNAL_BACKEND_ID } from "../voice/Schemas.ts"
+import { AppDataDir } from "./fsPathGuard.ts"
 import { RpcHandlersLive } from "./handlers.ts"
 
 const sessionId = SessionId.make("session-1")
@@ -88,7 +90,8 @@ const MigratedSqlite = Layer.effectDiscard(runMigrations).pipe(Layer.provideMerg
 const PersistenceLive = Layer.mergeAll(
 	OrchestrationEventStoreLive,
 	OrchestrationCommandReceiptsLive,
-	ProjectionGitLive
+	ProjectionGitLive,
+	ProjectionProjectsLive
 ).pipe(Layer.provideMerge(MigratedSqlite))
 
 const EngineAndStore = OrchestrationEngineLive.pipe(
@@ -144,6 +147,14 @@ const VoiceLive = VoiceRuntimeLive.pipe(
 	Layer.provide(ConfigProvider.layer(ConfigProvider.fromEnv({ env: {} })))
 )
 
+const AppDataDirLive = Layer.unwrap(
+	Effect.gen(function*() {
+		const fs = yield* FileSystem.FileSystem
+		const dir = yield* fs.makeTempDirectoryScoped()
+		return Layer.succeed(AppDataDir, AppDataDir.of({ path: dir }))
+	})
+).pipe(Layer.provide(FileIndexPlatform))
+
 const TestLive = RpcHandlersLive.pipe(
 	Layer.provideMerge(ProjectionSnapshotQueryLive),
 	Layer.provideMerge(EngineAndStore),
@@ -153,6 +164,7 @@ const TestLive = RpcHandlersLive.pipe(
 	Layer.provideMerge(SkillsLive),
 	Layer.provideMerge(McpLive),
 	Layer.provideMerge(VoiceLive),
+	Layer.provideMerge(AppDataDirLive),
 	Layer.provideMerge(FileIndexPlatform),
 	Layer.provideMerge(BunCrypto.layer)
 )
@@ -567,6 +579,40 @@ Vitest.layer(isolatedRpc())("missing workspace git status", (it) => {
 			// The workspace does not exist, so git could not run. That is null,
 			// not an empty list: the review panel must not read this as "clean".
 			Vitest.assert.strictEqual(snapshot.projects[0]?.gitStatus, null)
+		})
+	)
+})
+
+Vitest.layer(isolatedRpc())("fs path confinement rpc", (it) => {
+	it.effect("allows a write and read inside a known project root", () =>
+		Effect.gen(function*() {
+			const fs = yield* FileSystem.FileSystem
+			const path = yield* Path.Path
+			const client = yield* RpcTest.makeClient(AcepeRpc)
+			const dir = yield* fs.makeTempDirectoryScoped()
+			yield* insertProjectAt(dir)
+			const target = path.join(dir, "notes.txt")
+			yield* client.writeTextFile({
+				path: target,
+				content: "hi from the project",
+				sessionId
+			})
+			const content = yield* client.readTextFile({ path: target })
+			Vitest.assert.strictEqual(content, "hi from the project")
+		})
+	)
+
+	it.effect("denies a write outside every known project root", () =>
+		Effect.gen(function*() {
+			const fs = yield* FileSystem.FileSystem
+			const path = yield* Path.Path
+			const client = yield* RpcTest.makeClient(AcepeRpc)
+			const outside = yield* fs.makeTempDirectoryScoped()
+			const target = path.join(outside, "authorized_keys")
+			const error = yield* Effect.flip(
+				client.writeTextFile({ path: target, content: "attacker key", sessionId })
+			)
+			Vitest.assert.strictEqual(error._tag, "RpcFsPathDeniedError")
 		})
 	)
 })

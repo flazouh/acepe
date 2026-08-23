@@ -35,11 +35,7 @@ import { OrchestrationCommandInvariantError } from "../orchestration/Errors.ts"
 import { OrchestrationProjectorDecodeError } from "../orchestration/Schemas.ts"
 import { FileIndexNotADirectoryError, FileIndexRootNotFoundError } from "../fileIndex/Errors.ts"
 import { type FileIndexError, FileIndexService } from "../fileIndex/Services/FileIndexService.ts"
-import {
-	getDefaultShell as getDefaultShellUtil,
-	readTextFile as readTextFileUtil,
-	writeTextFile as writeTextFileUtil
-} from "../fsUtil/readWriteText.ts"
+import { getDefaultShell as getDefaultShellUtil } from "../fsUtil/readWriteText.ts"
 import { GitService, type GitServiceShape } from "../git/Services/GitService.ts"
 import {
 	type OrchestrationDispatchError,
@@ -58,6 +54,7 @@ import { fillMcpCommand } from "../mcp/fillCommand.ts"
 import { fillVoiceCommand } from "../voice/fillCommand.ts"
 import { fillCheckpointCommand } from "../checkpoint/fillCommand.ts"
 import { CheckpointNotFoundError, CheckpointService } from "../checkpoint/Services/CheckpointService.ts"
+import { guardedReadTextFile, guardedWriteTextFile } from "./fsPathGuard.ts"
 
 const EVENT_PAGE_SIZE = 1_000
 
@@ -372,8 +369,8 @@ export const RpcHandlersLive = AcepeRpc.toLayer(
 			getProjectIndex: (request) =>
 				fileIndex.getProjectIndex(request.projectPath).pipe(Effect.mapError(toFileIndexRpcError)),
 			invalidateProjectIndex: (request) => fileIndex.invalidate(request.projectPath),
-			readTextFile: (request) => readTextFileUtil(fs, path, request),
-			writeTextFile: (request) => writeTextFileUtil(fs, path, request),
+			readTextFile: (request) => guardedReadTextFile(fs, path, request),
+			writeTextFile: (request) => guardedWriteTextFile(fs, path, request),
 			getDefaultShell: () => getDefaultShellUtil()
 		}
 	})
