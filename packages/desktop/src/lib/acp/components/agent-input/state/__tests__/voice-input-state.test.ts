@@ -231,7 +231,7 @@ describe("VoiceInputState", () => {
 		mock.module("$lib/acp/utils/sound.js", () => ({
 			playSound: playSoundMock,
 		}));
-		mock.module("$lib/utils/tauri-client.js", () => ({
+		const tauriClientVoiceMock = {
 			openFileInEditor: mock(() => undefined),
 			revealInFinder: mock(() => undefined),
 			tauriClient: {
@@ -249,6 +249,20 @@ describe("VoiceInputState", () => {
 						toAgentResult("voice_stop_recording", stopRecordingMock(sessionId, language)),
 				},
 			},
+		};
+		const tauriClientSpecifiers = [
+			"$lib/utils/tauri-client.js",
+			"../../../../utils/tauri-client.js",
+			`${import.meta.dir}/../../../../../utils/tauri-client.ts`,
+			`${import.meta.dir}/../../../../../utils/tauri-client.js`,
+			`${import.meta.dir}/../../../../../utils/tauri-client/index.ts`,
+			`${import.meta.dir}/../../../../../utils/tauri-client/index.js`,
+		];
+		for (const specifier of tauriClientSpecifiers) {
+			mock.module(specifier, () => tauriClientVoiceMock);
+		}
+		mock.module("$lib/services/command-names.js", () => ({
+			COMMANDS: {},
 		}));
 
 		const invokeMock = vi.fn((cmd: string, args?: Record<string, unknown>) => {
@@ -283,7 +297,9 @@ describe("VoiceInputState", () => {
 		startRecordingMock.mockReturnValue(Effect.succeed(undefined));
 		loadModelMock.mockReturnValue(Effect.succeed(undefined));
 		downloadModelMock.mockReturnValue(Effect.succeed(undefined));
-		stopRecordingMock.mockReturnValue(Effect.succeed(undefined));
+		stopRecordingMock.mockReturnValue(
+			Effect.succeed({ text: "", language: null, duration_ms: 0 })
+		);
 	});
 
 	afterEach(() => {
@@ -301,7 +317,40 @@ describe("VoiceInputState", () => {
 		expect(state.phase).toBe("recording");
 	});
 
+	it("skips pointer capture on untrusted events so QA can start recording", async () => {
+		getModelStatusMock.mockReturnValue(Effect.succeed({ is_downloaded: true, is_loaded: true }));
+
+		const setPointerCapture = vi.fn(() => {
+			throw new Error("InvalidStateError: pointer is not active");
+		});
+		const state = new VoiceInputState({ sessionId: "session-untrusted" });
+		const event = {
+			pointerId: 1,
+			isTrusted: false,
+			currentTarget: { setPointerCapture },
+		} as unknown as PointerEvent;
+
+		expect(() => {
+			state.onMicPointerDown(event);
+		}).not.toThrow();
+		expect(setPointerCapture).not.toHaveBeenCalled();
+
+		state.onMicPointerUp();
+		await flushAsync();
+
+		expect(state.phase).toBe("recording");
+	});
+
 	it("stops recording on pointer up while already recording", async () => {
+		const pendingStop = createPendingResult<{
+			text: string;
+			language: string | null;
+			duration_ms: number;
+		}>();
+		stopRecordingMock.mockReturnValue(
+			fromPromise(() => pendingStop.promise, (error) => error as Error)
+		);
+
 		const state = new VoiceInputState({ sessionId: "session-2" });
 		state.phase = "recording";
 
@@ -310,116 +359,52 @@ describe("VoiceInputState", () => {
 
 		expect(stopRecordingMock).toHaveBeenCalledWith("session-2", null);
 		expect(state.phase).toBe("transcribing");
+
+		pendingStop.resolve({ text: "", language: null, duration_ms: 0 });
+		await flushAsync();
 	});
 
-	it("handles transcription completion before stopRecording resolves", async () => {
-		const pendingStop = createPendingResult<void>();
+	it("applies transcription text when stopRecording succeeds", async () => {
+		const onTranscriptionReady = vi.fn();
 		stopRecordingMock.mockReturnValue(
-			fromPromise(() => pendingStop.promise, (error) => error as Error)
+			Effect.succeed({ text: "hello world", language: null, duration_ms: 1000 })
 		);
 
-		const state = new VoiceInputState({ sessionId: "session-race" });
-		await state.registerListeners();
+		const state = new VoiceInputState({
+			sessionId: "session-race",
+			onTranscriptionReady,
+		});
 		state.phase = "recording";
 
 		state.stopRecording();
-		expect(state.phase).toBe("transcribing");
-
-		const transcriptionListener = listenMock.mock.calls.find(
-			([eventName]) => eventName === "voice://transcription_complete"
-		)?.[1] as
-			| ((event: {
-					payload: {
-						session_id: string;
-						text: string;
-						language: string | null;
-						duration_ms: number;
-					};
-			  }) => void)
-			| undefined;
-
-		if (!transcriptionListener) {
-			throw new Error("expected transcription_complete listener");
-		}
-
-		transcriptionListener({
-			payload: {
-				session_id: "session-race",
-				text: "hello world",
-				language: null,
-				duration_ms: 1000,
-			},
-		});
+		await flushAsync();
 
 		expect(toastInfoMock).not.toHaveBeenCalled();
+		expect(onTranscriptionReady).toHaveBeenCalledWith("hello world");
 		expect(state.phase).toBe("idle");
-
-		pendingStop.resolve(undefined);
-		await Promise.resolve();
 	});
 
-	it("does not throw when Tauri listener cleanup reports an already removed listener", async () => {
-		const staleUnlisten = vi.fn(() => {
-			throw new Error("undefined is not an object (evaluating 'listeners[eventId].handlerId')");
-		});
-		listenMock.mockResolvedValue(staleUnlisten);
-
+	it("does not throw when dispose runs with no Tauri listeners", async () => {
 		const state = new VoiceInputState({ sessionId: "session-stale-listener" });
 		await state.registerListeners();
 
 		expect(() => state.dispose()).not.toThrow();
 		await flushAsync();
-
-		expect(staleUnlisten).toHaveBeenCalledTimes(5);
 	});
 
-	it("ignores late stopRecording failures after transcription already completed", async () => {
-		const pendingStop = createPendingResult<void>();
+	it("surfaces stopRecording failures while still transcribing", async () => {
 		stopRecordingMock.mockReturnValue(
-			fromPromise(() => pendingStop.promise, (error) => error as Error)
+			Effect.fail(new Error("Agent operation failed: voice_stop_recording"))
 		);
 
 		const state = new VoiceInputState({ sessionId: "session-late-stop-error" });
-		await state.registerListeners();
 		state.phase = "recording";
 
 		state.stopRecording();
-		expect(state.phase).toBe("transcribing");
-
-		const transcriptionListener = listenMock.mock.calls.find(
-			([eventName]) => eventName === "voice://transcription_complete"
-		)?.[1] as
-			| ((event: {
-					payload: {
-						session_id: string;
-						text: string;
-						language: string | null;
-						duration_ms: number;
-					};
-			  }) => void)
-			| undefined;
-
-		if (!transcriptionListener) {
-			throw new Error("expected transcription_complete listener");
-		}
-
-		transcriptionListener({
-			payload: {
-				session_id: "session-late-stop-error",
-				text: "hello world",
-				language: null,
-				duration_ms: 1000,
-			},
-		});
-
-		expect(state.phase).toBe("idle");
-		expect(state.errorMessage).toBeNull();
-
-		pendingStop.reject(new Error("Agent operation failed: voice_stop_recording"));
 		await flushAsync();
 
-		expect(state.phase).toBe("idle");
-		expect(state.errorMessage).toBeNull();
+		expect(state.phase).toBe("error");
+		expect(state.errorMessage).toBe("Agent operation failed: voice_stop_recording");
 	});
 
 	it("does not allow cancelling while transcribing", async () => {
@@ -434,35 +419,14 @@ describe("VoiceInputState", () => {
 	});
 
 	it("shows no speech toast and returns to idle on empty transcription", async () => {
+		stopRecordingMock.mockReturnValue(
+			Effect.succeed({ text: "   ", language: null, duration_ms: 1000 })
+		);
+
 		const state = new VoiceInputState({ sessionId: "session-3" });
-		await state.registerListeners();
-
-		const transcriptionListener = listenMock.mock.calls.find(
-			([eventName]) => eventName === "voice://transcription_complete"
-		)?.[1] as
-			| ((event: {
-					payload: {
-						session_id: string;
-						text: string;
-						language: string | null;
-						duration_ms: number;
-					};
-			  }) => void)
-			| undefined;
-
-		if (!transcriptionListener) {
-			throw new Error("expected transcription_complete listener");
-		}
-
-		state.phase = "transcribing";
-		transcriptionListener({
-			payload: {
-				session_id: "session-3",
-				text: "   ",
-				language: null,
-				duration_ms: 1000,
-			},
-		});
+		state.phase = "recording";
+		state.stopRecording();
+		await flushAsync();
 
 		expect(toastInfoMock).toHaveBeenCalledTimes(1);
 		expect(state.phase).toBe("idle");
@@ -481,6 +445,14 @@ describe("VoiceInputState", () => {
 
 	it("starts recording immediately for keyboard press-and-hold", async () => {
 		getModelStatusMock.mockReturnValue(Effect.succeed({ is_downloaded: true, is_loaded: true }));
+		const pendingStop = createPendingResult<{
+			text: string;
+			language: string | null;
+			duration_ms: number;
+		}>();
+		stopRecordingMock.mockReturnValue(
+			fromPromise(() => pendingStop.promise, (error) => error as Error)
+		);
 
 		const state = new VoiceInputState({ sessionId: "session-keyboard" });
 
@@ -496,6 +468,9 @@ describe("VoiceInputState", () => {
 		expect(playSoundMock).toHaveBeenCalledTimes(2);
 		expect(stopRecordingMock).toHaveBeenCalledWith("session-keyboard", null);
 		expect(state.phase).toBe("transcribing");
+
+		pendingStop.resolve({ text: "", language: null, duration_ms: 0 });
+		await flushAsync();
 	});
 
 	it("cancels keyboard press-and-hold if released during startup", async () => {
@@ -641,6 +616,14 @@ describe("VoiceInputState", () => {
 	it("shows a tenths timer while recording and clears it after stop", async () => {
 		const timers = installTimerHarness();
 		getModelStatusMock.mockReturnValue(Effect.succeed({ is_downloaded: true, is_loaded: true }));
+		const pendingStop = createPendingResult<{
+			text: string;
+			language: string | null;
+			duration_ms: number;
+		}>();
+		stopRecordingMock.mockReturnValue(
+			fromPromise(() => pendingStop.promise, (error) => error as Error)
+		);
 
 		const state = new VoiceInputState({ sessionId: "session-timer" });
 		state.onMicPointerDown(createPointerEvent());
@@ -654,13 +637,16 @@ describe("VoiceInputState", () => {
 		expect(state.recordingElapsedLabel).toBe("0.1s");
 
 		state.onMicPointerUp();
-		await flushAsync();
+		await Promise.resolve();
 
 		expect(state.phase).toBe("transcribing");
 		expect(state.recordingElapsedLabel).toBeNull();
+
+		pendingStop.resolve({ text: "", language: null, duration_ms: 0 });
+		await flushAsync();
 	});
 
-	it("ignores download progress for other models", async () => {
+	it("does not stream download percent because voice progress is not on the contract", async () => {
 		const pendingDownload = createPendingResult<void>();
 		getModelStatusMock.mockReturnValue(Effect.succeed({ is_downloaded: false, is_loaded: false }));
 		downloadModelMock.mockReturnValue(
@@ -678,45 +664,7 @@ describe("VoiceInputState", () => {
 		await flushAsync();
 
 		expect(state.phase).toBe("downloading_model");
-
-		const progressListener = listenMock.mock.calls.find(
-			([eventName]) => eventName === "voice://model_download_progress"
-		)?.[1] as
-			| ((event: {
-					payload: {
-						model_id: string;
-						downloaded_bytes: number;
-						total_bytes: number;
-						percent: number;
-					};
-			  }) => void)
-			| undefined;
-
-		if (!progressListener) {
-			throw new Error("expected model_download_progress listener");
-		}
-
-		progressListener({
-			payload: {
-				model_id: "medium",
-				downloaded_bytes: 50,
-				total_bytes: 100,
-				percent: 50,
-			},
-		});
-
 		expect(state.downloadPercent).toBe(0);
-
-		progressListener({
-			payload: {
-				model_id: "small.en",
-				downloaded_bytes: 75,
-				total_bytes: 100,
-				percent: 75,
-			},
-		});
-
-		expect(state.downloadPercent).toBe(75);
 
 		pendingDownload.resolve(undefined);
 		await flushAsync();

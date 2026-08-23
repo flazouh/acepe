@@ -112,7 +112,7 @@ Vitest.layer(PlatformLive)("VoiceServiceLive", (it) => {
 					Vitest.assert.strictEqual(models.length, 1)
 					Vitest.assert.strictEqual(models[0]?.id, EXTERNAL_BACKEND_ID)
 					Vitest.assert.strictEqual(models[0]?.name, EXTERNAL_BACKEND_NAME)
-					Vitest.assert.strictEqual(models[0]?.isDownloaded, false)
+					Vitest.assert.strictEqual(models[0]?.isDownloaded, true)
 					Vitest.assert.strictEqual(models[0]?.isLoaded, false)
 				})
 			)

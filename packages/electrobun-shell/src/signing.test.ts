@@ -118,3 +118,9 @@ test("mac entitlements include bun jit hardened-runtime keys", () => {
 	expect(macEntitlements["com.apple.security.cs.allow-unsigned-executable-memory"]).toBe(true)
 	expect(macEntitlements["com.apple.security.cs.disable-library-validation"]).toBe(true)
 })
+
+test("mac entitlements include microphone audio input", () => {
+	expect(macEntitlements["com.apple.security.device.audio-input"]).toBe(
+		"Acepe records microphone input for voice features.",
+	)
+})

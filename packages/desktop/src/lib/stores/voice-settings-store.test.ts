@@ -105,6 +105,14 @@ describe("VoiceSettingsStore", () => {
 				}
 			),
 		}));
+		mock.module("$lib/acp/utils/logger.js", () => ({
+			createLogger: () => ({
+				debug: () => {},
+				info: () => {},
+				warn: () => {},
+				error: () => {},
+			}),
+		}));
 		mock.module("$lib/utils/tauri-client.js", () => ({
 			openFileInEditor: mock(() => undefined),
 			revealInFinder: mock(() => undefined),
@@ -222,35 +230,21 @@ describe("VoiceSettingsStore", () => {
 		expect(loadModelMock).toHaveBeenCalledWith("small.en");
 	});
 
-	it("retries initialization after a startup failure", async () => {
+	it("initialize succeeds without Tauri event listeners", async () => {
 		getSettingMock.mockReturnValue(Effect.succeed(null));
-		listenMock
-			.mockRejectedValueOnce(new Error("listener setup failed"))
-			.mockResolvedValue(() => undefined);
 
 		const store = new VoiceSettingsStore();
-		await expect(store.initialize()).rejects.toThrow("listener setup failed");
 		await expect(store.initialize()).resolves.toBeUndefined();
 		expect(store.models).toHaveLength(3);
+		expect(listenMock).not.toHaveBeenCalled();
 	});
 
-	it("disposes registered event listeners", async () => {
+	it("dispose does not throw when no Tauri listeners were registered", async () => {
 		getSettingMock.mockReturnValue(Effect.succeed(null));
-		const unlistenA = vi.fn();
-		const unlistenB = vi.fn();
-		const unlistenC = vi.fn();
-		listenMock
-			.mockResolvedValueOnce(unlistenA)
-			.mockResolvedValueOnce(unlistenB)
-			.mockResolvedValueOnce(unlistenC);
 
 		const store = new VoiceSettingsStore();
 		await store.initialize();
-		store.dispose();
-
-		expect(unlistenA).toHaveBeenCalledTimes(1);
-		expect(unlistenB).toHaveBeenCalledTimes(1);
-		expect(unlistenC).toHaveBeenCalledTimes(1);
+		expect(() => store.dispose()).not.toThrow();
 	});
 
 	it("rolls back the selected model when loading the new model fails", async () => {
