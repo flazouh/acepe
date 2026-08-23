@@ -234,8 +234,8 @@ export const RpcProjectedSessionActivity = Schema.Struct({
 	kind: Schema.optionalKey(Schema.String),
 	status: Schema.optionalKey(Schema.String),
 	title: Schema.optionalKey(TrimmedNonEmptyString),
-	path: Schema.optionalKey(Schema.NullOr(TrimmedNonEmptyString)),
-	toolCallId: Schema.optionalKey(Schema.NullOr(ToolCallId)),
+	path: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey),
+	toolCallId: ToolCallId.pipe(Schema.NullOr, Schema.optionalKey),
 })
 export type RpcProjectedSessionActivity = typeof RpcProjectedSessionActivity.Type
 
