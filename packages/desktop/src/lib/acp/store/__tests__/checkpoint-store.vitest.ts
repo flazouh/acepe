@@ -5,14 +5,14 @@ import {
 	type RpcSessionSnapshot,
 	RpcTransportError,
 	SessionId,
-	ToolCallId
+	ToolCallId,
 } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import * as Stream from "effect/Stream";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { CheckpointError } from "../../errors/checkpoint-error.js";
 import { setAppRpcClientForTest } from "../../../rpc/app-client.js";
+import { CheckpointError } from "../../errors/checkpoint-error.js";
 import { CheckpointStore } from "../checkpoint-store.svelte.js";
 
 const CREATED_AT = "2026-01-15T12:00:00.000Z";
@@ -27,7 +27,7 @@ const rpcFile = (path: string, content: string, linesAdded: number, linesRemoved
 	fileSize: content.length,
 	linesAdded,
 	linesRemoved,
-	content
+	content,
 });
 
 const rpcCheckpoint = (input: {
@@ -50,7 +50,7 @@ const rpcCheckpoint = (input: {
 	status: "ready",
 	createdAt: CREATED_AT,
 	lastRevertedAt: null,
-	files: input.files
+	files: input.files,
 });
 
 const rpcSnapshot = (checkpoints: ReadonlyArray<RpcProjectedCheckpoint>): RpcSessionSnapshot => ({
@@ -68,7 +68,7 @@ const rpcSnapshot = (checkpoints: ReadonlyArray<RpcProjectedCheckpoint>): RpcSes
 	voice: null,
 	gitReview: null,
 	mcpCatalog: null,
-	preconnectionOptions: null
+	preconnectionOptions: null,
 });
 
 const installClient = (input: {
@@ -92,9 +92,9 @@ const installClient = (input: {
 						name: command.name,
 						isAuto: command.isAuto,
 						toolCallId: command.toolCallId,
-						files: command.modifiedFiles.map((path) => rpcFile(path, "const x = 1;", 1, 0))
+						files: command.modifiedFiles.map((path) => rpcFile(path, "const x = 1;", 1, 0)),
 					}),
-					...snapshot.checkpoints
+					...snapshot.checkpoints,
 				]);
 			}
 			return Effect.succeed({ sequence: 1 });
@@ -102,7 +102,10 @@ const installClient = (input: {
 		snapshot: () => Effect.succeed(snapshot),
 		events: () => Stream.empty,
 		getProjectIndex: unusedIndex,
-		invalidateProjectIndex: () => Effect.void
+		invalidateProjectIndex: () => Effect.void,
+		readTextFile: () => Effect.succeed(""),
+		writeTextFile: () => Effect.void,
+		getDefaultShell: () => Effect.succeed("/bin/zsh"),
 	});
 	return { dispatched };
 };
@@ -129,10 +132,7 @@ describe("CheckpointStore", () => {
 						name: "After edit",
 						isAuto: true,
 						toolCallId: "tc1",
-						files: [
-							rpcFile("a.ts", "a", 10, 5),
-							rpcFile("b.ts", "b", 0, 0)
-						]
+						files: [rpcFile("a.ts", "a", 10, 5), rpcFile("b.ts", "b", 0, 0)],
 					}),
 					rpcCheckpoint({
 						checkpointId: "cp0",
@@ -141,9 +141,9 @@ describe("CheckpointStore", () => {
 						name: null,
 						isAuto: true,
 						toolCallId: null,
-						files: [rpcFile("a.ts", "old", 1, 0)]
-					})
-				])
+						files: [rpcFile("a.ts", "old", 1, 0)],
+					}),
+				]),
 			});
 
 			const result = await Effect.runPromise(Effect.result(store.loadCheckpoints("s1")));
@@ -160,14 +160,17 @@ describe("CheckpointStore", () => {
 		it("should return error on failure", async () => {
 			installClient({
 				snapshot: rpcSnapshot([]),
-				dispatch: () => Effect.succeed({ sequence: 1 })
+				dispatch: () => Effect.succeed({ sequence: 1 }),
 			});
 			setAppRpcClientForTest({
 				dispatch: () => Effect.succeed({ sequence: 1 }),
 				snapshot: () => Effect.fail(new RpcTransportError({ reason: "DB error" })),
 				events: () => Stream.empty,
 				getProjectIndex: unusedIndex,
-				invalidateProjectIndex: () => Effect.void
+				invalidateProjectIndex: () => Effect.void,
+				readTextFile: () => Effect.succeed(""),
+				writeTextFile: () => Effect.void,
+				getDefaultShell: () => Effect.succeed("/bin/zsh"),
 			});
 
 			const result = await Effect.runPromise(Effect.result(store.loadCheckpoints("s1")));
@@ -185,7 +188,7 @@ describe("CheckpointStore", () => {
 				Effect.result(
 					store.createCheckpoint("s1", "/project", ["file1.ts", "file2.ts", "file3.ts"], {
 						name: "Manual checkpoint",
-						isAuto: false
+						isAuto: false,
 					})
 				)
 			);
@@ -208,9 +211,9 @@ describe("CheckpointStore", () => {
 						name: null,
 						isAuto: true,
 						toolCallId: null,
-						files: [rpcFile("old.ts", "old", 1, 0)]
-					})
-				])
+						files: [rpcFile("old.ts", "old", 1, 0)],
+					}),
+				]),
 			});
 			await Effect.runPromise(store.loadCheckpoints("s1"));
 
@@ -228,7 +231,7 @@ describe("CheckpointStore", () => {
 			installClient({
 				snapshot: rpcSnapshot([]),
 				dispatch: () =>
-					Effect.fail(new RpcTransportError({ reason: "FOREIGN KEY constraint failed" }))
+					Effect.fail(new RpcTransportError({ reason: "FOREIGN KEY constraint failed" })),
 			});
 
 			const result = await Effect.runPromise(
@@ -257,9 +260,9 @@ describe("CheckpointStore", () => {
 						name: null,
 						isAuto: true,
 						toolCallId: null,
-						files: [rpcFile("a.ts", "a", 1, 0), rpcFile("b.ts", "b", 1, 0)]
-					})
-				])
+						files: [rpcFile("a.ts", "a", 1, 0), rpcFile("b.ts", "b", 1, 0)],
+					}),
+				]),
 			});
 			await Effect.runPromise(store.loadCheckpoints("s1"));
 
@@ -295,9 +298,9 @@ describe("CheckpointStore", () => {
 						name: null,
 						isAuto: true,
 						toolCallId: null,
-						files: [rpcFile("file.ts", "const x = 1;", 1, 0)]
-					})
-				])
+						files: [rpcFile("file.ts", "const x = 1;", 1, 0)],
+					}),
+				]),
 			});
 			await Effect.runPromise(store.loadCheckpoints("s1"));
 
@@ -321,7 +324,7 @@ describe("CheckpointStore", () => {
 						name: null,
 						isAuto: true,
 						toolCallId: null,
-						files: [rpcFile("file.ts", "const x = 1;", 1, 0)]
+						files: [rpcFile("file.ts", "const x = 1;", 1, 0)],
 					}),
 					rpcCheckpoint({
 						checkpointId: "cp0",
@@ -330,9 +333,9 @@ describe("CheckpointStore", () => {
 						name: null,
 						isAuto: true,
 						toolCallId: null,
-						files: [rpcFile("file.ts", "const x = 0;", 1, 0)]
-					})
-				])
+						files: [rpcFile("file.ts", "const x = 0;", 1, 0)],
+					}),
+				]),
 			});
 			await Effect.runPromise(store.loadCheckpoints("s1"));
 
@@ -343,7 +346,7 @@ describe("CheckpointStore", () => {
 			expect(Result.isSuccess(result)).toBe(true);
 			expect(Result.getOrThrow(result)).toEqual({
 				oldContent: "const x = 0;",
-				newContent: "const x = 1;"
+				newContent: "const x = 1;",
 			});
 		});
 
@@ -357,9 +360,9 @@ describe("CheckpointStore", () => {
 						name: null,
 						isAuto: true,
 						toolCallId: null,
-						files: [rpcFile("file.ts", "const x = 1;", 1, 0)]
-					})
-				])
+						files: [rpcFile("file.ts", "const x = 1;", 1, 0)],
+					}),
+				]),
 			});
 			await Effect.runPromise(store.loadCheckpoints("s1"));
 
@@ -370,7 +373,7 @@ describe("CheckpointStore", () => {
 			expect(Result.isSuccess(result)).toBe(true);
 			expect(Result.getOrThrow(result)).toEqual({
 				oldContent: null,
-				newContent: "const x = 1;"
+				newContent: "const x = 1;",
 			});
 		});
 	});
@@ -392,9 +395,9 @@ describe("CheckpointStore", () => {
 						name: null,
 						isAuto: true,
 						toolCallId: null,
-						files: [rpcFile("a.ts", "a", 1, 0)]
-					})
-				])
+						files: [rpcFile("a.ts", "a", 1, 0)],
+					}),
+				]),
 			});
 			await Effect.runPromise(store.loadCheckpoints("s1"));
 			expect(store.getCheckpoints("s1")).toHaveLength(1);

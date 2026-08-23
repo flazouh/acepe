@@ -40,6 +40,9 @@ const makeClient = (overrides: Partial<RpcClient>): RpcClient => ({
 	snapshot: () => Effect.succeed(emptyRpcSessionSnapshot(0)),
 	getProjectIndex: () => Effect.succeed(projectIndex),
 	invalidateProjectIndex: () => Effect.void,
+	readTextFile: () => Effect.succeed(""),
+	writeTextFile: () => Effect.void,
+	getDefaultShell: () => Effect.succeed("/bin/zsh"),
 	events: () => Stream.empty,
 	...overrides,
 });

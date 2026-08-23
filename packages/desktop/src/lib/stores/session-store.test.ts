@@ -132,6 +132,9 @@ const fakeClient = (events: ReadonlyArray<OrchestrationEvent>): RpcClient => ({
 	snapshot: () => Effect.succeed(snapshotWithUser),
 	getProjectIndex: () => Effect.succeed(unusedProjectIndex),
 	invalidateProjectIndex: () => Effect.void,
+	readTextFile: () => Effect.succeed(""),
+	writeTextFile: () => Effect.void,
+	getDefaultShell: () => Effect.succeed("/bin/zsh"),
 	events: (fromSequence) =>
 		Stream.fromArray(events.filter((event) => event.sequence > fromSequence)),
 });
@@ -183,6 +186,9 @@ describe("createSessionStore", () => {
 						snapshot: () => Effect.succeed(snapshotWithUser),
 						getProjectIndex: () => Effect.succeed(unusedProjectIndex),
 						invalidateProjectIndex: () => Effect.void,
+						readTextFile: () => Effect.succeed(""),
+						writeTextFile: () => Effect.void,
+						getDefaultShell: () => Effect.succeed("/bin/zsh"),
 						events: () =>
 							Stream.fromArray([
 								sessionCreated,
@@ -234,6 +240,9 @@ describe("createSessionStore", () => {
 						snapshot: () => Effect.succeed(snapshotWithUser),
 						getProjectIndex: () => Effect.succeed(unusedProjectIndex),
 						invalidateProjectIndex: () => Effect.void,
+						readTextFile: () => Effect.succeed(""),
+						writeTextFile: () => Effect.void,
+						getDefaultShell: () => Effect.succeed("/bin/zsh"),
 						events: () => Stream.fromArray([]),
 					},
 					registry,

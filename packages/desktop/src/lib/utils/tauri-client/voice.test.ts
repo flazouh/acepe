@@ -79,6 +79,9 @@ const makeClient = (overrides: Partial<RpcClient>): RpcClient => ({
 	snapshot: () => Effect.succeed(voiceSnapshot()),
 	getProjectIndex: () => Effect.succeed(unusedIndex),
 	invalidateProjectIndex: () => Effect.void,
+	readTextFile: () => Effect.succeed(""),
+	writeTextFile: () => Effect.void,
+	getDefaultShell: () => Effect.succeed("/bin/zsh"),
 	events: () => Stream.empty,
 	...overrides,
 });

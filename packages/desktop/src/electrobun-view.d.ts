@@ -15,14 +15,17 @@ declare module "electrobun/view" {
 				readonly events: (params: unknown) => Promise<unknown>;
 				readonly getProjectIndex: (params: unknown) => Promise<unknown>;
 				readonly invalidateProjectIndex: (params: unknown) => Promise<unknown>;
+				readonly readTextFile: (params: unknown) => Promise<unknown>;
+				readonly writeTextFile: (params: unknown) => Promise<unknown>;
+				readonly getDefaultShell: (params: unknown) => Promise<unknown>;
 			};
 			readonly addMessageListener: (
 				message: "events",
-				listener: (payload: unknown) => void,
+				listener: (payload: unknown) => void
 			) => void;
 			readonly removeMessageListener: (
 				message: "events",
-				listener: (payload: unknown) => void,
+				listener: (payload: unknown) => void
 			) => void;
 		};
 	}

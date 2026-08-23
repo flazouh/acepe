@@ -93,6 +93,9 @@ describe("tracer bullet controller mapping", () => {
 							totalLines: 0,
 						}),
 					invalidateProjectIndex: () => Effect.void,
+					readTextFile: () => Effect.succeed(""),
+					writeTextFile: () => Effect.void,
+					getDefaultShell: () => Effect.succeed("/bin/zsh"),
 					events: () => Stream.make(token),
 				};
 				const registry = AtomRegistry.make();

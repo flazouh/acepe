@@ -1,29 +1,27 @@
-import * as Effect from "effect/Effect";
+import type * as Effect from "effect/Effect";
 
 import type { AppError } from "../../acp/errors/app-error.js";
-import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
-
-const storageCommands = TAURI_COMMAND_CLIENT.storage;
-const terminalCommands = TAURI_COMMAND_CLIENT.terminal;
+import { unsupportedOnContract, withRpcClient } from "./rpc-bridge.ts";
 
 export const shell = {
-	openInFinder: (sessionId: string, projectPath: string): Effect.Effect<void, AppError> => {
-		return storageCommands.open_in_finder.invoke<void>({ sessionId, projectPath });
-	},
+	// Debug-only affordance to reveal a session's raw jsonl transcript in the
+	// file manager. Has no live caller today (see #249 batch 2) and depends on
+	// jsonl-root/slug resolution that has not been ported to the server yet.
+	openInFinder: (_sessionId: string, _projectPath: string): Effect.Effect<void, AppError> =>
+		unsupportedOnContract("shell.openInFinder"),
 
-	openStreamingLog: (sessionId: string): Effect.Effect<void, AppError> => {
-		return storageCommands.open_streaming_log.invoke<void>({ sessionId });
-	},
+	// Dev-only streaming log inspection tooling from the Tauri build; the
+	// Electrobun/Effect server has no equivalent concept yet and this has no
+	// live caller today.
+	openStreamingLog: (_sessionId: string): Effect.Effect<void, AppError> =>
+		unsupportedOnContract("shell.openStreamingLog"),
 
-	getStreamingLogPath: (sessionId: string): Effect.Effect<string, AppError> => {
-		return storageCommands.get_streaming_log_path.invoke<string>({ sessionId });
-	},
+	getStreamingLogPath: (_sessionId: string): Effect.Effect<string, AppError> =>
+		unsupportedOnContract("shell.getStreamingLogPath"),
 
-	getSessionFilePath: (sessionId: string, projectPath: string): Effect.Effect<string, AppError> => {
-		return storageCommands.get_session_file_path.invoke<string>({ sessionId, projectPath });
-	},
+	getSessionFilePath: (_sessionId: string, _projectPath: string): Effect.Effect<string, AppError> =>
+		unsupportedOnContract("shell.getSessionFilePath"),
 
-	getDefaultShell: (): Effect.Effect<string, AppError> => {
-		return terminalCommands.get_default_shell.invoke<string>();
-	},
+	getDefaultShell: (): Effect.Effect<string, AppError> =>
+		withRpcClient("shell.getDefaultShell", (client) => client.getDefaultShell()),
 };

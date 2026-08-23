@@ -10,6 +10,9 @@ const fake: RpcClient = {
 	snapshot: () => Effect.die("unused"),
 	getProjectIndex: () => Effect.die("unused"),
 	invalidateProjectIndex: () => Effect.void,
+	readTextFile: () => Effect.succeed(""),
+	writeTextFile: () => Effect.void,
+	getDefaultShell: () => Effect.succeed("/bin/zsh"),
 	events: () => Stream.empty,
 };
 

@@ -1,13 +1,18 @@
 import {
 	decodeDispatchExit,
+	decodeGetDefaultShellExit,
 	decodeGetProjectIndexExit,
 	decodeInvalidateProjectIndexExit,
 	decodeOrchestrationEvent,
+	decodeReadTextFileExit,
 	decodeSnapshotExit,
+	decodeWriteTextFileExit,
 	encodeOrchestrationCommand,
 	exitToEffect,
+	type GetDefaultShellRequest,
 	type OrchestrationCommand,
 	type OrchestrationEvent,
+	type ReadTextFileRequest,
 	type RpcClientError,
 	RpcSchemaError,
 	RpcServerError,
@@ -15,6 +20,7 @@ import {
 	RpcTransportError,
 	type Sequence,
 	type SnapshotRequest,
+	type WriteTextFileRequest,
 } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 import * as Predicate from "effect/Predicate";
@@ -30,6 +36,9 @@ export type ElectrobunRpcBridge = {
 		readonly events: (params: unknown) => Promise<unknown>;
 		readonly getProjectIndex: (params: unknown) => Promise<unknown>;
 		readonly invalidateProjectIndex: (params: unknown) => Promise<unknown>;
+		readonly readTextFile: (params: unknown) => Promise<unknown>;
+		readonly writeTextFile: (params: unknown) => Promise<unknown>;
+		readonly getDefaultShell: (params: unknown) => Promise<unknown>;
 	};
 	readonly addMessageListener: (message: "events", listener: (payload: unknown) => void) => void;
 	readonly removeMessageListener: (message: "events", listener: (payload: unknown) => void) => void;
@@ -101,6 +110,42 @@ const requestInvalidateProjectIndex = Effect.fn("requestInvalidateProjectIndex")
 	return yield* exitToEffect(exit);
 });
 
+const requestReadTextFile = Effect.fn("requestReadTextFile")(function* (
+	bridge: ElectrobunRpcBridge,
+	request: ReadTextFileRequest
+) {
+	const encoded = yield* Effect.tryPromise({
+		try: () => bridge.request.readTextFile(request),
+		catch: transportErrorFrom,
+	});
+	const exit = yield* decodeReadTextFileExit(encoded);
+	return yield* exitToEffect(exit);
+});
+
+const requestWriteTextFile = Effect.fn("requestWriteTextFile")(function* (
+	bridge: ElectrobunRpcBridge,
+	request: WriteTextFileRequest
+) {
+	const encoded = yield* Effect.tryPromise({
+		try: () => bridge.request.writeTextFile(request),
+		catch: transportErrorFrom,
+	});
+	const exit = yield* decodeWriteTextFileExit(encoded);
+	return yield* exitToEffect(exit);
+});
+
+const requestGetDefaultShell = Effect.fn("requestGetDefaultShell")(function* (
+	bridge: ElectrobunRpcBridge,
+	request: GetDefaultShellRequest
+) {
+	const encoded = yield* Effect.tryPromise({
+		try: () => bridge.request.getDefaultShell(request),
+		catch: transportErrorFrom,
+	});
+	const exit = yield* decodeGetDefaultShellExit(encoded);
+	return yield* exitToEffect(exit);
+});
+
 const listenForEvents = (
 	bridge: ElectrobunRpcBridge,
 	fromSequence: Sequence
@@ -135,11 +180,15 @@ const listenForEvents = (
 
 export const makeElectrobunRpcTransport = (bridge: ElectrobunRpcBridge): RpcTransport => ({
 	dispatch: (command) => requestDispatch(bridge, command).pipe(Effect.mapError(toRpcClientError)),
-	snapshot: (request) =>
-		requestSnapshot(bridge, request).pipe(Effect.mapError(toRpcClientError)),
+	snapshot: (request) => requestSnapshot(bridge, request).pipe(Effect.mapError(toRpcClientError)),
 	getProjectIndex: (projectPath) =>
 		requestGetProjectIndex(bridge, projectPath).pipe(Effect.mapError(toRpcClientError)),
 	invalidateProjectIndex: (projectPath) =>
 		requestInvalidateProjectIndex(bridge, projectPath).pipe(Effect.mapError(toRpcClientError)),
+	readTextFile: (request) =>
+		requestReadTextFile(bridge, request).pipe(Effect.mapError(toRpcClientError)),
+	writeTextFile: (request) =>
+		requestWriteTextFile(bridge, request).pipe(Effect.mapError(toRpcClientError)),
+	getDefaultShell: () => requestGetDefaultShell(bridge, {}).pipe(Effect.mapError(toRpcClientError)),
 	events: (fromSequence) => listenForEvents(bridge, fromSequence),
 });

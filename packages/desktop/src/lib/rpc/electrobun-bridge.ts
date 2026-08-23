@@ -1,8 +1,8 @@
-import type { ElectrobunRpcBridge } from "./client.ts";
 import { RpcTransportError } from "@acepe/contracts";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Predicate from "effect/Predicate";
+import type { ElectrobunRpcBridge } from "./client.ts";
 
 const HOLDER = globalThis as {
 	__acepeElectrobunRpc?: ElectrobunRpcBridge;
@@ -36,6 +36,9 @@ export const isElectrobunRpcBridge = (value: unknown): value is ElectrobunRpcBri
 		readonly events?: unknown;
 		readonly getProjectIndex?: unknown;
 		readonly invalidateProjectIndex?: unknown;
+		readonly readTextFile?: unknown;
+		readonly writeTextFile?: unknown;
+		readonly getDefaultShell?: unknown;
 	};
 	return (
 		Predicate.isFunction(request.ping) &&
@@ -44,6 +47,9 @@ export const isElectrobunRpcBridge = (value: unknown): value is ElectrobunRpcBri
 		Predicate.isFunction(request.events) &&
 		Predicate.isFunction(request.getProjectIndex) &&
 		Predicate.isFunction(request.invalidateProjectIndex) &&
+		Predicate.isFunction(request.readTextFile) &&
+		Predicate.isFunction(request.writeTextFile) &&
+		Predicate.isFunction(request.getDefaultShell) &&
 		Predicate.isFunction(record.addMessageListener) &&
 		Predicate.isFunction(record.removeMessageListener)
 	);
@@ -103,9 +109,9 @@ export const installElectrobunWebviewRpc = (): Effect.Effect<
 					Effect.fail(
 						new RpcTransportError({
 							reason: `electrobun rpc install timed out at ${HOLDER.__acepeElectrobunBoot ?? "unknown"}`,
-						}),
+						})
 					),
-			}),
+			})
 		);
 		if (isElectrobunRpcBridge(loaded) === false) {
 			markBoot("mismatch");

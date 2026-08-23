@@ -108,6 +108,9 @@ describe("composeSettingsStore", () => {
 							totalLines: 0,
 						}),
 					invalidateProjectIndex: () => Effect.void,
+					readTextFile: () => Effect.succeed(""),
+					writeTextFile: () => Effect.void,
+					getDefaultShell: () => Effect.succeed("/bin/zsh"),
 					events: () => Stream.empty,
 				};
 				const seen: Array<number> = [];
@@ -151,6 +154,9 @@ describe("composeSettingsStore", () => {
 							totalLines: 0,
 						}),
 					invalidateProjectIndex: () => Effect.void,
+					readTextFile: () => Effect.succeed(""),
+					writeTextFile: () => Effect.void,
+					getDefaultShell: () => Effect.succeed("/bin/zsh"),
 					events: () =>
 						Stream.make({
 							sequence: 5,
@@ -198,6 +204,9 @@ describe("composeSettingsStore", () => {
 							totalLines: 0,
 						}),
 					invalidateProjectIndex: () => Effect.void,
+					readTextFile: () => Effect.succeed(""),
+					writeTextFile: () => Effect.void,
+					getDefaultShell: () => Effect.succeed("/bin/zsh"),
 					events: () => Stream.empty,
 				};
 				const store = composeSettingsStore({
@@ -245,6 +254,9 @@ describe("composeSettingsStore", () => {
 							totalLines: 0,
 						}),
 					invalidateProjectIndex: () => Effect.void,
+					readTextFile: () => Effect.succeed(""),
+					writeTextFile: () => Effect.void,
+					getDefaultShell: () => Effect.succeed("/bin/zsh"),
 					events: () => Stream.empty,
 				};
 				const store = composeSettingsStore({
@@ -296,6 +308,9 @@ describe("composeSettingsStore", () => {
 							totalLines: 0,
 						}),
 					invalidateProjectIndex: () => Effect.void,
+					readTextFile: () => Effect.succeed(""),
+					writeTextFile: () => Effect.void,
+					getDefaultShell: () => Effect.succeed("/bin/zsh"),
 					events: () =>
 						Stream.make({
 							sequence: 5,
@@ -346,6 +361,9 @@ describe("composeSettingsStore", () => {
 							totalLines: 0,
 						}),
 					invalidateProjectIndex: () => Effect.void,
+					readTextFile: () => Effect.succeed(""),
+					writeTextFile: () => Effect.void,
+					getDefaultShell: () => Effect.succeed("/bin/zsh"),
 					events: () => Stream.empty,
 				};
 				const store = composeSettingsStore({ client });

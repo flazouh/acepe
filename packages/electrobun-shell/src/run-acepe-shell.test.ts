@@ -23,6 +23,9 @@ const idleWork: AcepeRpcWork = {
 	events: (params) => params,
 	getProjectIndex: (params) => params,
 	invalidateProjectIndex: (params) => params,
+	readTextFile: (params) => params,
+	writeTextFile: (params) => params,
+	getDefaultShell: (params) => params,
 }
 
 const recordingHost = (): AcepeShellHost<AcepeShellRpcHandlers> => ({
@@ -122,6 +125,9 @@ test("attach after launch enables dispatch", () => {
 		events: () => undefined,
 		getProjectIndex: () => ({ totalFiles: 0 }),
 		invalidateProjectIndex: () => undefined,
+		readTextFile: () => "",
+		writeTextFile: () => undefined,
+		getDefaultShell: () => "/bin/zsh",
 	})
 	expect(launched.opened.rpc.dispatch({ type: "project.create" })).toEqual({
 		sequence: 1,

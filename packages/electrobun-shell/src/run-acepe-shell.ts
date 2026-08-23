@@ -57,6 +57,9 @@ export const makeDeferredRpcWork = (): {
 			getProjectIndex: (params) => requireAttached(live).getProjectIndex(params),
 			invalidateProjectIndex: (params) =>
 				requireAttached(live).invalidateProjectIndex(params),
+			readTextFile: (params) => requireAttached(live).readTextFile(params),
+			writeTextFile: (params) => requireAttached(live).writeTextFile(params),
+			getDefaultShell: (params) => requireAttached(live).getDefaultShell(params),
 		},
 		attach: (next) => {
 			live = next

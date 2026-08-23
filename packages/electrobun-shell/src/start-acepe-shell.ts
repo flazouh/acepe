@@ -9,6 +9,9 @@ export type AcepeShellRpcHandlers = {
 	readonly events: (params: unknown) => unknown
 	readonly getProjectIndex: (params: unknown) => unknown
 	readonly invalidateProjectIndex: (params: unknown) => unknown
+	readonly readTextFile: (params: unknown) => unknown
+	readonly writeTextFile: (params: unknown) => unknown
+	readonly getDefaultShell: (params: unknown) => unknown
 }
 
 export type AcepeRpcWork = {
@@ -17,6 +20,9 @@ export type AcepeRpcWork = {
 	readonly events: (params: unknown) => unknown
 	readonly getProjectIndex: (params: unknown) => unknown
 	readonly invalidateProjectIndex: (params: unknown) => unknown
+	readonly readTextFile: (params: unknown) => unknown
+	readonly writeTextFile: (params: unknown) => unknown
+	readonly getDefaultShell: (params: unknown) => unknown
 }
 
 export type AcepeShellHost<Rpc> = {
@@ -34,7 +40,10 @@ export const startAcepeShell = <Rpc>(
 		snapshot: work.snapshot,
 		events: work.events,
 		getProjectIndex: work.getProjectIndex,
-		invalidateProjectIndex: work.invalidateProjectIndex
+		invalidateProjectIndex: work.invalidateProjectIndex,
+		readTextFile: work.readTextFile,
+		writeTextFile: work.writeTextFile,
+		getDefaultShell: work.getDefaultShell
 	})
 	return host.openWindow({
 		title: acepeWindowSpec.title,

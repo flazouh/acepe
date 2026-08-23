@@ -1,26 +1,39 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { emptyRpcSessionSnapshot, type RpcClient, type RpcSessionSnapshot } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
+import * as Stream from "effect/Stream";
 import type { PersistedWorkspaceState } from "../../acp/store/types.js";
+import { setAppRpcClientForTest } from "../../rpc/app-client.ts";
+import { workspace } from "./workspace.ts";
 
-const getUserSettingInvoke = mock(() => Effect.succeed(null as string | null));
-const saveUserSettingInvoke = mock(() => Effect.succeed(undefined));
+const unusedIndex = {
+	projectPath: "/tmp/p",
+	files: [],
+	gitStatus: [],
+	totalFiles: 0,
+	totalLines: 0,
+};
 
-mock.module("../../services/tauri-command-client.js", () => ({
-	TAURI_COMMAND_CLIENT: {
-		storage: {
-			get_user_setting: {
-				invoke: getUserSettingInvoke,
-			},
-			save_user_setting: {
-				invoke: saveUserSettingInvoke,
-			},
-		},
-	},
-}));
+const withSettings = (
+	snapshot: RpcSessionSnapshot,
+	settingsRows: RpcSessionSnapshot["settings"]
+): RpcSessionSnapshot => ({
+	...snapshot,
+	settings: settingsRows,
+});
 
-const workspaceModulePath = "./workspace.js?hot-cache-test" as string;
-const { workspace } = (await import(workspaceModulePath)) as typeof import("./workspace.js");
+const makeClient = (overrides: Partial<RpcClient>): RpcClient => ({
+	dispatch: () => Effect.succeed({ sequence: 1 }),
+	snapshot: () => Effect.succeed(emptyRpcSessionSnapshot(0)),
+	getProjectIndex: () => Effect.succeed(unusedIndex),
+	invalidateProjectIndex: () => Effect.void,
+	readTextFile: () => Effect.succeed(""),
+	writeTextFile: () => Effect.void,
+	getDefaultShell: () => Effect.succeed("/bin/zsh"),
+	events: () => Stream.empty,
+	...overrides,
+});
 
 const originalLocalStorageDescriptor = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
 let localStorageValues: Map<string, string>;
@@ -44,22 +57,19 @@ describe("workspace tauri client", () => {
 		Object.defineProperty(globalThis, "localStorage", {
 			configurable: true,
 			value: {
-				getItem: mock((key: string) => localStorageValues.get(key) ?? null),
-				setItem: mock((key: string, value: string) => {
+				getItem: (key: string) => localStorageValues.get(key) ?? null,
+				setItem: (key: string, value: string) => {
 					localStorageValues.set(key, value);
-				}),
-				removeItem: mock((key: string) => {
+				},
+				removeItem: (key: string) => {
 					localStorageValues.delete(key);
-				}),
+				},
 			} satisfies Pick<Storage, "getItem" | "setItem" | "removeItem">,
 		});
-		getUserSettingInvoke.mockReset();
-		getUserSettingInvoke.mockImplementation(() => Effect.succeed(null as string | null));
-		saveUserSettingInvoke.mockReset();
-		saveUserSettingInvoke.mockImplementation(() => Effect.succeed(undefined));
 	});
 
 	afterEach(() => {
+		setAppRpcClientForTest(null);
 		if (originalLocalStorageDescriptor === undefined) {
 			Reflect.deleteProperty(globalThis, "localStorage");
 			return;
@@ -67,42 +77,71 @@ describe("workspace tauri client", () => {
 		Object.defineProperty(globalThis, "localStorage", originalLocalStorageDescriptor);
 	});
 
-	it("loads workspace state from the hot cache without invoking Tauri", async () => {
+	it("loads workspace state from the hot cache without invoking the contract", async () => {
 		const cached = buildWorkspaceState(12);
 		localStorageValues.set("acepe.workspace_state.hot_cache", JSON.stringify(cached));
+		let snapshotCalls = 0;
+		setAppRpcClientForTest(
+			makeClient({
+				snapshot: () => {
+					snapshotCalls += 1;
+					return Effect.succeed(emptyRpcSessionSnapshot(0));
+				},
+			})
+		);
 
 		const loaded = await Effect.runPromise(Effect.result(workspace.loadWorkspaceState()));
 
 		expect(Result.isSuccess(loaded)).toBe(true);
 		expect(Result.getOrThrow(loaded)?.version).toBe(12);
-		expect(getUserSettingInvoke).not.toHaveBeenCalled();
+		expect(snapshotCalls).toBe(0);
 	});
 
-	it("mirrors saved workspace state into the hot cache", async () => {
+	it("mirrors saved workspace state into the hot cache and dispatches settings.set", async () => {
 		const state = buildWorkspaceState(13);
+		let dispatched: unknown = null;
+		setAppRpcClientForTest(
+			makeClient({
+				dispatch: (command) => {
+					dispatched = command;
+					return Effect.succeed({ sequence: 2 });
+				},
+			})
+		);
 
 		const result = await Effect.runPromise(Effect.result(workspace.saveWorkspaceState(state)));
 
 		expect(Result.isSuccess(result)).toBe(true);
-		expect(saveUserSettingInvoke).toHaveBeenCalledWith({
+		expect(dispatched).toMatchObject({
+			type: "settings.set",
 			key: "workspace_state",
 			value: JSON.stringify(state),
 		});
 		expect(localStorageValues.get("acepe.workspace_state.hot_cache")).toBe(JSON.stringify(state));
 	});
 
-	it("falls back to Tauri and refreshes the hot cache when the cache is malformed", async () => {
+	it("falls back to the contract and refreshes the hot cache when the cache is malformed", async () => {
 		const persisted = buildWorkspaceState(14);
 		localStorageValues.set("acepe.workspace_state.hot_cache", "{not json");
-		getUserSettingInvoke.mockImplementation(() => Effect.succeed(JSON.stringify(persisted)));
+		let requestedSnapshot = false;
+		setAppRpcClientForTest(
+			makeClient({
+				snapshot: () => {
+					requestedSnapshot = true;
+					return Effect.succeed(
+						withSettings(emptyRpcSessionSnapshot(0), [
+							{ key: "workspace_state", value: JSON.stringify(persisted), sequence: 1 },
+						])
+					);
+				},
+			})
+		);
 
 		const loaded = await Effect.runPromise(Effect.result(workspace.loadWorkspaceState()));
 
 		expect(Result.isSuccess(loaded)).toBe(true);
 		expect(Result.getOrThrow(loaded)?.version).toBe(14);
-		expect(getUserSettingInvoke).toHaveBeenCalledWith({
-			key: "workspace_state",
-		});
+		expect(requestedSnapshot).toBe(true);
 		expect(localStorageValues.get("acepe.workspace_state.hot_cache")).toBe(
 			JSON.stringify(persisted)
 		);

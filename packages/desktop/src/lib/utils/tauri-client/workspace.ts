@@ -4,12 +4,11 @@ import * as Result from "effect/Result";
 
 import type { AppError } from "../../acp/errors/app-error.js";
 import type { PersistedWorkspaceState } from "../../acp/store/types.js";
-import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
 import type { UserSettingKey } from "../../services/user-settings-types.js";
+import { settings } from "./settings.ts";
 
 const WORKSPACE_STATE_KEY: UserSettingKey = "workspace_state";
 const WORKSPACE_HOT_CACHE_KEY = "acepe.workspace_state.hot_cache";
-const storageCommands = TAURI_COMMAND_CLIENT.storage;
 
 const parseWorkspaceState = fromThrowable(
 	(stored: string): PersistedWorkspaceState | null => {
@@ -67,10 +66,7 @@ function writeWorkspaceHotCache(state: PersistedWorkspaceState): void {
 export const workspace = {
 	saveWorkspaceState: (state: PersistedWorkspaceState): Effect.Effect<void, AppError> => {
 		writeWorkspaceHotCache(state);
-		return storageCommands.save_user_setting.invoke<void>({
-			key: WORKSPACE_STATE_KEY,
-			value: JSON.stringify(state),
-		});
+		return settings.setRaw(WORKSPACE_STATE_KEY, JSON.stringify(state));
 	},
 
 	loadWorkspaceState: (): Effect.Effect<PersistedWorkspaceState | null, AppError> => {
@@ -79,22 +75,18 @@ export const workspace = {
 			return Effect.succeed(hotCacheState);
 		}
 
-		return storageCommands.get_user_setting
-			.invoke<string | null>({
-				key: WORKSPACE_STATE_KEY,
-			})
-			.pipe(
-				Effect.map((stored) => {
-					if (stored === null) {
-						return null;
-					}
-					const parsedResult = Effect.runSync(Effect.result(parseWorkspaceState(stored)));
-					if (Result.isSuccess(parsedResult) && parsedResult.success !== null) {
-						writeWorkspaceHotCache(parsedResult.success);
-						return parsedResult.success;
-					}
+		return settings.getRaw(WORKSPACE_STATE_KEY).pipe(
+			Effect.map((stored) => {
+				if (stored === null) {
 					return null;
-				})
-			);
+				}
+				const parsedResult = Effect.runSync(Effect.result(parseWorkspaceState(stored)));
+				if (Result.isSuccess(parsedResult) && parsedResult.success !== null) {
+					writeWorkspaceHotCache(parsedResult.success);
+					return parsedResult.success;
+				}
+				return null;
+			})
+		);
 	},
 };
