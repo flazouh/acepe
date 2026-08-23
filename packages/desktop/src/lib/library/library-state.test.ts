@@ -120,6 +120,7 @@ describe("librarySidebarViewModel", () => {
 				gitReview: snapshot.gitReview,
 				mcpCatalog: snapshot.mcpCatalog,
 				preconnectionOptions: snapshot.preconnectionOptions,
+				terminal: snapshot.terminal,
 			},
 			selectedProjectId: projectId,
 		});

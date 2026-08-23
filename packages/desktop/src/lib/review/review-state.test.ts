@@ -188,6 +188,7 @@ describe("selectedProjectWorkspaceRoot", () => {
 			gitReview: null,
 			mcpCatalog: null,
 			preconnectionOptions: null,
+			terminal: null,
 		}
 		expect(selectedProjectWorkspaceRoot(snapshot, null)).toBeNull()
 		expect(selectedProjectWorkspaceRoot(snapshot, "missing")).toBeNull()

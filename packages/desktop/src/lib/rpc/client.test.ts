@@ -63,6 +63,7 @@ const emptySnapshot = {
 	gitReview: null,
 			mcpCatalog: null,
 			preconnectionOptions: null,
+			terminal: null,
 };
 
 const makeBridge = (input: {

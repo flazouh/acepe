@@ -74,6 +74,7 @@ describe("shouldDispatchPrLinkToggle", () => {
 		gitReview: snapshot.gitReview,
 		mcpCatalog: snapshot.mcpCatalog,
 		preconnectionOptions: snapshot.preconnectionOptions,
+		terminal: snapshot.terminal,
 	};
 
 	it("dispatches a manual override", () => {

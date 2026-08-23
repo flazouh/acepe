@@ -94,6 +94,7 @@ describe("conversationFromSnapshot", () => {
 				gitReview: null,
 				mcpCatalog: null,
 				preconnectionOptions: null,
+				terminal: null,
 			},
 			activities: [
 				{
@@ -166,6 +167,7 @@ describe("conversationFromSnapshot", () => {
 				gitReview: null,
 				mcpCatalog: null,
 				preconnectionOptions: null,
+				terminal: null,
 			},
 		});
 
@@ -208,6 +210,7 @@ describe("conversationFromSnapshot", () => {
 				gitReview: null,
 				mcpCatalog: null,
 				preconnectionOptions: null,
+				terminal: null,
 			},
 		});
 
@@ -257,6 +260,7 @@ describe("conversationFromSnapshot", () => {
 				gitReview: null,
 				mcpCatalog: null,
 				preconnectionOptions: null,
+				terminal: null,
 			},
 		});
 

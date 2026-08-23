@@ -145,5 +145,6 @@ export const mergeSetupBarSnapshots = (
 		gitReview: mcpSnap.gitReview,
 		mcpCatalog: mcpSnap.mcpCatalog,
 		preconnectionOptions: mcpSnap.preconnectionOptions,
+		terminal: mcpSnap.terminal,
 	};
 };

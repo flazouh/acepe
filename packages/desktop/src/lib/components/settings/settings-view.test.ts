@@ -30,6 +30,7 @@ const snapshot: RpcSessionSnapshot = {
 	gitReview: null,
 			mcpCatalog: null,
 			preconnectionOptions: null,
+			terminal: null,
 };
 
 describe("settings view controller mapping", () => {

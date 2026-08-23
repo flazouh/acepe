@@ -68,7 +68,8 @@ const rpcSnapshot = (checkpoints: ReadonlyArray<RpcProjectedCheckpoint>): RpcSes
 	voice: null,
 	gitReview: null,
 	mcpCatalog: null,
-	preconnectionOptions: null
+	preconnectionOptions: null,
+	terminal: null,
 });
 
 const installClient = (input: {
