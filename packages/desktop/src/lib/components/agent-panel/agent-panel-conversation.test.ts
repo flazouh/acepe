@@ -91,6 +91,8 @@ describe("conversationFromSnapshot", () => {
 				skillsCatalog: null,
 				voice: null,
 				gitReview: null,
+			mcpCatalog: null,
+			preconnectionOptions: null,
 			},
 			activities: [
 				{
@@ -161,6 +163,8 @@ describe("conversationFromSnapshot", () => {
 				skillsCatalog: null,
 				voice: null,
 				gitReview: null,
+			mcpCatalog: null,
+			preconnectionOptions: null,
 			},
 		});
 
@@ -201,6 +205,8 @@ describe("conversationFromSnapshot", () => {
 				skillsCatalog: null,
 				voice: null,
 				gitReview: null,
+			mcpCatalog: null,
+			preconnectionOptions: null,
 			},
 		});
 

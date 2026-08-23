@@ -61,6 +61,8 @@ const emptySnapshot = {
 	skillsCatalog: null,
 	voice: null,
 	gitReview: null,
+			mcpCatalog: null,
+			preconnectionOptions: null,
 };
 
 const makeBridge = (input: {

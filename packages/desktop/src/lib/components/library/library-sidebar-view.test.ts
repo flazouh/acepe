@@ -69,6 +69,8 @@ const snapshot: RpcSessionSnapshot = {
 	skillsCatalog: null,
 	voice: null,
 	gitReview: null,
+			mcpCatalog: null,
+			preconnectionOptions: null,
 };
 
 describe("library sidebar controller mapping", () => {

@@ -5,6 +5,8 @@ import type {
 	ProjectId,
 	Sequence,
 	SessionId,
+	McpCatalogResolveCommand,
+	PreconnectionOptionsLoadCommand,
 	SkillsDiscoverCommand,
 	VoiceLanguagesListCommand,
 	VoiceModelsListCommand
@@ -222,3 +224,33 @@ export const requireUniqueVoiceLanguageCodes = Effect.fn("requireUniqueVoiceLang
 		}
 	}
 )
+
+export const requireUniqueMcpServerIds = Effect.fn("requireUniqueMcpServerIds")(function*(
+	command: McpCatalogResolveCommand
+) {
+	let seen = HashSet.empty<string>()
+	for (const server of command.catalog.servers) {
+		if (HashSet.has(seen, server.id)) {
+			return yield* new OrchestrationCommandInvariantError({
+				commandType: command.type,
+				detail: `Duplicate MCP server id '${server.id}' in mcp.catalog.resolve.`
+			})
+		}
+		seen = HashSet.add(seen, server.id)
+	}
+})
+
+export const requireUniqueConfigOptionIds = Effect.fn("requireUniqueConfigOptionIds")(function*(
+	command: PreconnectionOptionsLoadCommand
+) {
+	let seen = HashSet.empty<string>()
+	for (const option of command.options) {
+		if (HashSet.has(seen, option.id)) {
+			return yield* new OrchestrationCommandInvariantError({
+				commandType: command.type,
+				detail: `Duplicate config option id '${option.id}' in preconnection.options.load.`
+			})
+		}
+		seen = HashSet.add(seen, option.id)
+	}
+})

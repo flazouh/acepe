@@ -54,6 +54,8 @@ type SessionEventType = Exclude<
 	| "GitBlameLoaded"
 	| "GitHunkAccepted"
 	| "GitHunkRejected"
+	| "McpCatalogResolved"
+	| "PreconnectionOptionsLoaded"
 >
 
 const projectEventEnvelope = <const Type extends ProjectEventType, Payload>(

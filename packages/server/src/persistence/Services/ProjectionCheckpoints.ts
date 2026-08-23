@@ -246,7 +246,9 @@ export const evolveProjectedCheckpoint = (
 			ComputerUseProbed: () => ignoreEvent(current),
 			EventBridgeRefreshed: () => ignoreEvent(current),
 			ToolCallObserved: () => ignoreEvent(current),
-			ApprovalRequested: () => ignoreEvent(current)
+			ApprovalRequested: () => ignoreEvent(current),
+			McpCatalogResolved: () => ignoreEvent(current),
+			PreconnectionOptionsLoaded: () => ignoreEvent(current)
 		})
 	)(event)
 
@@ -309,6 +311,8 @@ export const checkpointIdFromEvent = (event: OrchestrationEvent): Option.Option<
 			ComputerUseProbed: () => Option.none(),
 			EventBridgeRefreshed: () => Option.none(),
 			ToolCallObserved: () => Option.none(),
-			ApprovalRequested: () => Option.none()
+			ApprovalRequested: () => Option.none(),
+			McpCatalogResolved: () => Option.none(),
+			PreconnectionOptionsLoaded: () => Option.none()
 		})
 	)(event)

@@ -32,6 +32,7 @@ import { ProjectionSettingsLive } from "./persistence/Layers/ProjectionSettings.
 import { ProjectionSkillsLive } from "./persistence/Layers/ProjectionSkills.ts"
 import { ProjectionVoiceLive } from "./persistence/Layers/ProjectionVoice.ts"
 import { ProjectionGitLive } from "./persistence/Layers/ProjectionGit.ts"
+import { ProjectionMcpLive } from "./persistence/Layers/ProjectionMcp.ts"
 import { makeSqliteLayer } from "./persistence/Layers/Sqlite.ts"
 import { runMigrations } from "./persistence/Migrations.ts"
 import {
@@ -48,10 +49,12 @@ import { ProjectionSettings } from "./persistence/Services/ProjectionSettings.ts
 import { ProjectionSkills } from "./persistence/Services/ProjectionSkills.ts"
 import { ProjectionVoice } from "./persistence/Services/ProjectionVoice.ts"
 import { ProjectionGit } from "./persistence/Services/ProjectionGit.ts"
+import { ProjectionMcp } from "./persistence/Services/ProjectionMcp.ts"
 import { HardcodedProviderLive } from "./provider/HardcodedProvider.ts"
 import { FileIndexServiceLive } from "./fileIndex/Layers/FileIndexService.ts"
 import { FileIndexWarmOnImportLive } from "./fileIndex/Layers/FileIndexWarmOnImport.ts"
 import { GitServiceLive } from "./git/Layers/GitService.ts"
+import { McpCatalogLive } from "./mcp/Layers/McpCatalog.ts"
 import { RpcHandlersLive } from "./rpc/handlers.ts"
 import { runStdioServer } from "./rpc/stdio.ts"
 import { SkillsServiceLive } from "./skills/Layers/SkillsService.ts"
@@ -82,7 +85,8 @@ const persistenceAt = (filename: string) => {
 		ProjectionSettingsLive,
 		ProjectionSkillsLive,
 		ProjectionVoiceLive,
-		ProjectionGitLive
+		ProjectionGitLive,
+		ProjectionMcpLive
 	).pipe(Layer.provideMerge(migrated))
 }
 
@@ -104,6 +108,7 @@ const pipelineLayer = Layer.unwrap(
 		const skills = yield* ProjectionSkills
 		const voice = yield* ProjectionVoice
 		const gitReview = yield* ProjectionGit
+		const mcp = yield* ProjectionMcp
 		const messagesName = yield* decodeProjectorName(PROJECTION_SESSION_MESSAGES_NAME)
 		return ProjectionPipelineLive([
 			{
@@ -160,6 +165,11 @@ const pipelineLayer = Layer.unwrap(
 				name: gitReview.name,
 				apply: gitReview.apply,
 				truncate: gitReview.truncate
+			},
+			{
+				name: mcp.name,
+				apply: mcp.apply,
+				truncate: mcp.truncate
 			}
 		])
 	})
@@ -200,12 +210,24 @@ export const makeAcepeLive = (input: AcepeLiveInput) => {
 			return SkillsServiceLive({ homeDir })
 		})
 	).pipe(Layer.provide(bunPlatform))
+	const mcpCatalog = Layer.unwrap(
+		Effect.gen(function*() {
+			if (input.skillsHomeDir !== undefined) {
+				return McpCatalogLive({ homeDir: input.skillsHomeDir })
+			}
+			const homeDir = yield* Config.string("HOME").pipe(
+				Config.orElse(() => Config.string("USERPROFILE"))
+			)
+			return McpCatalogLive({ homeDir })
+		})
+	).pipe(Layer.provide(bunPlatform))
 	const voice = VoiceRuntimeLive.pipe(Layer.provide(bunPlatform))
 	const rpc = RpcHandlersLive.pipe(
 		Layer.provideMerge(snapshots),
 		Layer.provideMerge(fileIndex),
 		Layer.provideMerge(git),
 		Layer.provideMerge(skills),
+		Layer.provideMerge(mcpCatalog),
 		Layer.provideMerge(voice),
 		Layer.provideMerge(bunPlatform)
 	)

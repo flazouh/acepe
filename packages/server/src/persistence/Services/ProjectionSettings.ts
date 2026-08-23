@@ -160,7 +160,9 @@ export const evolveProjectedSetting = (
 			ComputerUseProbed: () => ignoreEvent(current),
 			EventBridgeRefreshed: () => ignoreEvent(current),
 			ToolCallObserved: () => ignoreEvent(current),
-			ApprovalRequested: () => ignoreEvent(current)
+			ApprovalRequested: () => ignoreEvent(current),
+			McpCatalogResolved: () => ignoreEvent(current),
+			PreconnectionOptionsLoaded: () => ignoreEvent(current)
 		})
 	)(event)
 
@@ -223,6 +225,8 @@ export const settingKeyFromEvent = (event: OrchestrationEvent): Option.Option<Us
 			ComputerUseProbed: () => Option.none(),
 			EventBridgeRefreshed: () => Option.none(),
 			ToolCallObserved: () => Option.none(),
-			ApprovalRequested: () => Option.none()
+			ApprovalRequested: () => Option.none(),
+			McpCatalogResolved: () => Option.none(),
+			PreconnectionOptionsLoaded: () => Option.none()
 		})
 	)(event)

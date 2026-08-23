@@ -364,6 +364,8 @@ export const evolveProjectedProjects = (
 			ComputerUseProbed: () => Effect.succeed(current),
 			EventBridgeRefreshed: () => Effect.succeed(current),
 			ToolCallObserved: () => Effect.succeed(current),
-			ApprovalRequested: () => Effect.succeed(current)
+			ApprovalRequested: () => Effect.succeed(current),
+			McpCatalogResolved: () => Effect.succeed(current),
+			PreconnectionOptionsLoaded: () => Effect.succeed(current)
 		})
 	)(event)

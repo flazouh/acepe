@@ -68,6 +68,8 @@ describe("transcriptRowsFromSnapshot", () => {
 			skillsCatalog: null,
 			voice: null,
 			gitReview: null,
+			mcpCatalog: null,
+			preconnectionOptions: null,
 		});
 		expect(rows.map((row) => row.role)).toEqual(["user", "assistant"]);
 		expect(rows.map((row) => row.text)).toEqual(["Ping", "Hello from Acepe."]);

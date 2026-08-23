@@ -69,9 +69,12 @@ import {
 	GitHunkAcceptCommand,
 	GitHunkRejectCommand,
 	GitStatusRefreshCommand,
+	McpCatalogResolveCommand,
+	PreconnectionOptionsLoadCommand,
 } from "./orchestration.ts"
 import { APP_SETTINGS_ID } from "./settings.ts"
 import { APP_SKILLS_ID, emptySkillsCatalog } from "./skills.ts"
+import { emptyComposerMcpCatalog } from "./mcp.ts"
 import {
 	APP_VOICE_ID,
 	emptyVoiceLanguages,
@@ -138,6 +141,8 @@ const v1CommandTypes = [
 	"agent.event-bridge.refresh",
 	"tool.call.observe",
 	"approval.request",
+	"mcp.catalog.resolve",
+	"preconnection.options.load",
 ] as const
 
 type V1CommandType = (typeof v1CommandTypes)[number]
@@ -922,6 +927,34 @@ const memberCases = [
 			sessionId,
 			approvalRequestId,
 			title: "Permission",
+		}),
+	},
+	{
+		schema: McpCatalogResolveCommand,
+		aggregate: {
+			aggregateKind: "mcp",
+			aggregateId: projectId,
+		} satisfies OrchestrationAggregateRef,
+		command: McpCatalogResolveCommand.make({
+			type: "mcp.catalog.resolve",
+			commandId,
+			projectId,
+			projectRoot: "/tmp/acepe",
+			catalog: emptyComposerMcpCatalog,
+		}),
+	},
+	{
+		schema: PreconnectionOptionsLoadCommand,
+		aggregate: {
+			aggregateKind: "mcp",
+			aggregateId: projectId,
+		} satisfies OrchestrationAggregateRef,
+		command: PreconnectionOptionsLoadCommand.make({
+			type: "preconnection.options.load",
+			commandId,
+			projectId,
+			providerId: "claude-code",
+			options: [],
 		}),
 	},
 ] as const

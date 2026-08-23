@@ -107,6 +107,8 @@ describe("rowsFromProjectedMessages", () => {
 			skillsCatalog: null,
 			voice: null,
 			gitReview: null,
+			mcpCatalog: null,
+			preconnectionOptions: null,
 		}
 		const rows = rowsFromProjectedMessages(snapshot.messages)
 		expect(rows.length).toBe(1)

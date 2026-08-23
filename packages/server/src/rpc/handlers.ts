@@ -47,6 +47,7 @@ import {
 import { fillAcpCommand } from "../acp/fillCommand.ts"
 import { fillSkillsDiscoverCommand } from "../skills/discoverCatalog.ts"
 import { fillGitCommand } from "../git/fillCommand.ts"
+import { fillMcpCommand } from "../mcp/fillCommand.ts"
 import { fillVoiceCommand } from "../voice/fillCommand.ts"
 
 const EVENT_PAGE_SIZE = 1_000
@@ -89,7 +90,9 @@ export const toRpcSnapshot = (snapshot: SessionProjectionSnapshot): RpcSessionSn
 	settings: snapshot.settings,
 	skillsCatalog: snapshot.skillsCatalog,
 	voice: snapshot.voice,
-	gitReview: snapshot.gitReview
+	gitReview: snapshot.gitReview,
+	mcpCatalog: snapshot.mcpCatalog,
+	preconnectionOptions: snapshot.preconnectionOptions
 })
 
 const decodeRpcFileGitStatuses = Schema.decodeUnknownEffect(Schema.Array(FileGitStatus))
@@ -153,7 +156,9 @@ const withProjectGitStatus = Effect.fn("withProjectGitStatus")(function*(
 		settings: snapshot.settings,
 		skillsCatalog: snapshot.skillsCatalog,
 		voice: snapshot.voice,
-		gitReview: snapshot.gitReview
+		gitReview: snapshot.gitReview,
+		mcpCatalog: snapshot.mcpCatalog,
+		preconnectionOptions: snapshot.preconnectionOptions
 	} satisfies RpcSessionSnapshot
 })
 
@@ -265,7 +270,8 @@ export const dispatchOrchestrationCommand = Effect.fn("dispatchOrchestrationComm
 	const filledSkills = yield* fillSkillsDiscoverCommand(command)
 	const filledVoice = yield* fillVoiceCommand(filledSkills)
 	const filledGit = yield* fillGitCommand(filledVoice)
-	const filled = yield* fillAcpCommand(filledGit)
+	const filledAcp = yield* fillAcpCommand(filledGit)
+	const filled = yield* fillMcpCommand(filledAcp)
 	return yield* engine.dispatch(filled)
 })
 

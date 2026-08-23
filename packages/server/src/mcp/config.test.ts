@@ -56,4 +56,20 @@ Vitest.layer(PlatformLive)("mcp config paths", (it) => {
 			Vitest.assert.deepStrictEqual(names, [])
 		})
 	)
+
+	it.effect("drops servers without command or url and keeps valid ones", () =>
+		Effect.gen(function*() {
+			const fs = yield* FileSystem.FileSystem
+			const path = yield* Path.Path
+			const project = yield* fs.makeTempDirectoryScoped()
+			const home = yield* fs.makeTempDirectoryScoped()
+			yield* fs.makeDirectory(path.join(project, ".cursor"), { recursive: true })
+			yield* fs.writeFileString(
+				path.join(project, ".cursor", "mcp.json"),
+				'{"mcpServers":{"github":{"command":"npx"},"broken":{"args":[]},"remote":{"url":"https://example.com"}}}'
+			)
+			const names = yield* loadConfiguredMcpServerNames(fs, path, project, home)
+			Vitest.assert.deepStrictEqual(names, ["github", "remote"])
+		})
+	)
 })

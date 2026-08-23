@@ -79,6 +79,8 @@ describe("composeReviewStore", () => {
 							status: [],
 							files: [],
 						},
+						mcpCatalog: null,
+						preconnectionOptions: null,
 					}),
 				events: () => Stream.empty,
 				getProjectIndex: () =>
@@ -142,6 +144,8 @@ describe("composeReviewStore", () => {
 							],
 							files: [],
 						},
+						mcpCatalog: null,
+						preconnectionOptions: null,
 					}),
 				events: () => Stream.empty,
 				getProjectIndex: () =>
@@ -218,6 +222,8 @@ describe("composeReviewStore", () => {
 								},
 							],
 						},
+						mcpCatalog: null,
+						preconnectionOptions: null,
 					}),
 				events: () => Stream.empty,
 				getProjectIndex: () =>

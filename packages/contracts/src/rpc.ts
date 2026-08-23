@@ -14,6 +14,8 @@ import {
 	ProjectIndex,
 } from "./fileIndex.ts"
 import { ProjectedGitReview } from "./git.ts"
+import { ProjectedMcpCatalog } from "./mcp.ts"
+import { ProjectedPreconnectionOptions } from "./preconnection.ts"
 import {
 	ActivityId,
 	ApprovalRequestId,
@@ -278,6 +280,12 @@ export type RpcProjectedVoice = typeof RpcProjectedVoice.Type
 export const RpcProjectedGitReview = ProjectedGitReview
 export type RpcProjectedGitReview = typeof RpcProjectedGitReview.Type
 
+export const RpcProjectedMcpCatalog = ProjectedMcpCatalog
+export type RpcProjectedMcpCatalog = typeof RpcProjectedMcpCatalog.Type
+
+export const RpcProjectedPreconnectionOptions = ProjectedPreconnectionOptions
+export type RpcProjectedPreconnectionOptions = typeof RpcProjectedPreconnectionOptions.Type
+
 export const RpcSessionSnapshot = Schema.Struct({
 	snapshotSequence: Sequence,
 	session: Schema.NullOr(RpcProjectedSession),
@@ -292,6 +300,8 @@ export const RpcSessionSnapshot = Schema.Struct({
 	skillsCatalog: Schema.NullOr(RpcSkillsCatalog),
 	voice: Schema.NullOr(RpcProjectedVoice),
 	gitReview: Schema.NullOr(RpcProjectedGitReview),
+	mcpCatalog: Schema.NullOr(RpcProjectedMcpCatalog),
+	preconnectionOptions: Schema.NullOr(RpcProjectedPreconnectionOptions),
 })
 export type RpcSessionSnapshot = typeof RpcSessionSnapshot.Type
 
@@ -326,6 +336,12 @@ export const GitSnapshotRequest = Schema.Struct({
 })
 export type GitSnapshotRequest = typeof GitSnapshotRequest.Type
 
+export const McpSnapshotRequest = Schema.Struct({
+	kind: Schema.Literal("mcp"),
+	projectId: ProjectId,
+})
+export type McpSnapshotRequest = typeof McpSnapshotRequest.Type
+
 export const ProjectSnapshotRequest = Schema.Struct({
 	kind: Schema.Literal("project"),
 	projectId: ProjectId,
@@ -349,6 +365,7 @@ export const SnapshotRequest = Schema.Union([
 	SkillsSnapshotRequest,
 	VoiceSnapshotRequest,
 	GitSnapshotRequest,
+	McpSnapshotRequest,
 	ProjectSnapshotRequest,
 	SessionSnapshotRequest,
 	LegacySessionSnapshotRequest,
@@ -370,6 +387,10 @@ export type SnapshotScope =
 	  }
 	| {
 			readonly kind: "git"
+			readonly projectId: ProjectId
+	  }
+	| {
+			readonly kind: "mcp"
 			readonly projectId: ProjectId
 	  }
 	| {
@@ -402,6 +423,11 @@ export const gitSnapshotRequest = (projectId: ProjectId): GitSnapshotRequest => 
 	projectId,
 })
 
+export const mcpSnapshotRequest = (projectId: ProjectId): McpSnapshotRequest => ({
+	kind: "mcp",
+	projectId,
+})
+
 export const projectSnapshotRequest = (projectId: ProjectId): ProjectSnapshotRequest => ({
 	kind: "project",
 	projectId,
@@ -427,6 +453,9 @@ export const snapshotScope = (request: SnapshotRequest): SnapshotScope => {
 	}
 	if (Schema.is(GitSnapshotRequest)(request)) {
 		return { kind: "git", projectId: request.projectId }
+	}
+	if (Schema.is(McpSnapshotRequest)(request)) {
+		return { kind: "mcp", projectId: request.projectId }
 	}
 	if (Schema.is(ProjectSnapshotRequest)(request)) {
 		return { kind: "project", projectId: request.projectId }

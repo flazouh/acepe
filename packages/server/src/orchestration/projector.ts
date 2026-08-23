@@ -392,7 +392,9 @@ export const projectEvent = (
 			ComputerUseProbed: () => Effect.succeed(model),
 			EventBridgeRefreshed: () => Effect.succeed(model),
 			ToolCallObserved: () => Effect.succeed(model),
-			ApprovalRequested: () => Effect.succeed(model)
+			ApprovalRequested: () => Effect.succeed(model),
+			McpCatalogResolved: () => Effect.succeed(model),
+			PreconnectionOptionsLoaded: () => Effect.succeed(model)
 		})
 	)(event)
 }

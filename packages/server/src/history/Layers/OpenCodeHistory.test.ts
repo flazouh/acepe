@@ -73,6 +73,8 @@ const oracle = {
 	skillsCatalog: null,
 	voice: null,
 	gitReview: null,
+			mcpCatalog: null,
+			preconnectionOptions: null,
 }
 
 Vitest.layer(isolated())("OpenCodeHistoryLive", (it) => {

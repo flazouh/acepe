@@ -64,6 +64,12 @@ export { default as AgentInputModeIcon } from "./agent-input-mode-icon.svelte";
 export { default as AgentInputModePill } from "./agent-input-mode-pill.svelte";
 export { default as AgentInputModeSelector } from "./agent-input-mode-selector.svelte";
 export { default as AgentInputNewThreadOptions } from "./agent-input-new-thread-options.svelte";
+export { default as ComposerSetupBar } from "./composer-setup-bar.svelte";
+export {
+	composerSetupBarIsEmpty,
+	type ComposerSetupBarServer,
+	type ComposerSetupBarSkill,
+} from "./composer-setup-bar-state.js";
 export {
 	getModeDropdownOptions,
 	getSelectedModeOption,

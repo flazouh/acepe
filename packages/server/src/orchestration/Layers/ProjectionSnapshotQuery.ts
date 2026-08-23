@@ -45,6 +45,10 @@ import {
 	PROJECTION_GIT_TABLE
 } from "../../persistence/Services/ProjectionGit.ts"
 import {
+	decodeStoredProjectedMcpState,
+	PROJECTION_MCP_TABLE
+} from "../../persistence/Services/ProjectionMcp.ts"
+import {
 	decodeProjectedPendingApprovals,
 	decodeProjectedSessionActivities,
 	decodeProjectedTurns,
@@ -325,6 +329,38 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 			})
 		})
 
+		const readMcpState = Effect.fn("ProjectionSnapshotQuery.readMcpState")(function*(
+			projectId: ProjectId,
+			snapshotSequence: Sequence,
+			present: HashSet.HashSet<string>
+		) {
+			if (HashSet.has(present, PROJECTION_MCP_TABLE) === false) {
+				return { mcpCatalog: null, preconnectionOptions: null }
+			}
+			const rows = yield* sql`
+				SELECT
+					project_id,
+					catalog_json,
+					provider_id,
+					options_json,
+					sequence
+				FROM projection_mcp
+				WHERE project_id = ${projectId}
+					AND sequence <= ${snapshotSequence}
+			`.withoutTransform
+			return yield* Option.match(Arr.head(rows), {
+				onNone: () =>
+					Effect.succeed({ mcpCatalog: null, preconnectionOptions: null }),
+				onSome: (row) =>
+					decodeStoredProjectedMcpState(row).pipe(
+						Effect.map((state) => ({
+							mcpCatalog: state.mcpCatalog,
+							preconnectionOptions: state.preconnectionOptions
+						}))
+					)
+			})
+		})
+
 		const readSnapshot = Effect.fn("ProjectionSnapshotQuery.readSnapshot")(function*(
 			sessionId: SessionId
 		) {
@@ -356,7 +392,9 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 				settings,
 				skillsCatalog,
 				voice,
-				gitReview: null
+				gitReview: null,
+				mcpCatalog: null,
+				preconnectionOptions: null
 			} satisfies SessionProjectionSnapshot
 		})
 
@@ -435,7 +473,9 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 					settings,
 					skillsCatalog,
 					voice,
-					gitReview: null
+					gitReview: null,
+					mcpCatalog: null,
+					preconnectionOptions: null
 				} satisfies SessionProjectionSnapshot
 			}
 		)
@@ -451,6 +491,7 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 				const skillsCatalog = yield* readSkillsCatalog(snapshotSequence, present)
 				const voice = yield* readVoice(snapshotSequence, present)
 				const gitReview = yield* readGitReview(projectId, snapshotSequence, present)
+				const mcpState = yield* readMcpState(projectId, snapshotSequence, present)
 				return {
 					snapshotSequence,
 					session: null,
@@ -464,7 +505,9 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 					settings,
 					skillsCatalog,
 					voice,
-					gitReview
+					gitReview,
+					mcpCatalog: mcpState.mcpCatalog,
+					preconnectionOptions: mcpState.preconnectionOptions
 				} satisfies SessionProjectionSnapshot
 			}
 		)
@@ -489,7 +532,9 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 					settings,
 					skillsCatalog,
 					voice,
-					gitReview: null
+					gitReview: null,
+					mcpCatalog: null,
+					preconnectionOptions: null
 				} satisfies SessionProjectionSnapshot
 			}
 		)
@@ -506,6 +551,8 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 					voice: () => sql.withTransaction(readAppScopedSnapshot()),
 					git: (gitRequest) =>
 						sql.withTransaction(readProjectSnapshot(gitRequest.projectId)),
+					mcp: (mcpRequest) =>
+						sql.withTransaction(readProjectSnapshot(mcpRequest.projectId)),
 					project: (projectRequest) =>
 						sql.withTransaction(readProjectSnapshot(projectRequest.projectId)),
 					session: (sessionRequest) => snapshot(sessionRequest.sessionId)

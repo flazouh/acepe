@@ -44,6 +44,7 @@ import { runGit } from "../git/runGit.ts"
 import { OrchestrationEngineLive } from "../orchestration/Layers/OrchestrationEngine.ts"
 import { ProjectionSnapshotQueryLive } from "../orchestration/Layers/ProjectionSnapshotQuery.ts"
 import { ProjectionGitLive } from "../persistence/Layers/ProjectionGit.ts"
+import { McpCatalogLive } from "../mcp/Layers/McpCatalog.ts"
 import { SkillsServiceLive } from "../skills/Layers/SkillsService.ts"
 import { VoiceRuntimeLive } from "../voice/Layers/VoiceRuntime.ts"
 import { EXTERNAL_BACKEND_ID } from "../voice/Schemas.ts"
@@ -123,6 +124,14 @@ const SkillsLive = Layer.unwrap(
 	})
 ).pipe(Layer.provide(FileIndexPlatform))
 
+const McpLive = Layer.unwrap(
+	Effect.gen(function*() {
+		const fs = yield* FileSystem.FileSystem
+		const dir = yield* fs.makeTempDirectoryScoped()
+		return McpCatalogLive({ homeDir: dir })
+	})
+).pipe(Layer.provide(FileIndexPlatform))
+
 const VoiceLive = VoiceRuntimeLive.pipe(
 	Layer.provide(FileIndexPlatform),
 	Layer.provide(ConfigProvider.layer(ConfigProvider.fromEnv({ env: {} })))
@@ -134,6 +143,7 @@ const TestLive = RpcHandlersLive.pipe(
 	Layer.provideMerge(FileIndexServiceLive),
 	Layer.provideMerge(GitLive),
 	Layer.provideMerge(SkillsLive),
+	Layer.provideMerge(McpLive),
 	Layer.provideMerge(VoiceLive),
 	Layer.provideMerge(FileIndexPlatform)
 )
