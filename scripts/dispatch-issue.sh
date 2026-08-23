@@ -35,6 +35,9 @@ cd "$WT"
 # tried and failed: cursor-agent's argv does not contain the worktree path,
 # only its cwd does, so a grep over args never matched and live lanes were
 # deleted twice.
+# Every lane gets its own app instance: socket, tracer DB and seed fixtures
+# are all scoped by this key, so parallel lanes can DOM-verify concurrently.
+export ELECTROBUN_QA_APP_ID="com.acepe.app.issue-${ISSUE}"
 touch "$WT/.lane-active"
 trap 'rm -f "$WT/.lane-active"' EXIT
 bun install --silent >/dev/null 2>&1 || bun install >/dev/null 2>&1 || true
