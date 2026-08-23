@@ -1,73 +1,58 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+import {
+	emptyRpcSessionSnapshot,
+	type RpcClient,
+	type RpcSessionSnapshot,
+} from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
+import * as Stream from "effect/Stream";
 
-const getUserSettingsInvoke = mock((args: { keys: string[] }) =>
-	Effect.succeed(
-		args.keys.map((key) => ({
-			key,
-			value: key === "has_seen_splash" ? "true" : null,
-		}))
-	)
-);
-const getCustomKeybindingsInvoke = mock(() => Effect.succeed({ "app.open": "$mod+o" }));
-const saveCustomKeybindingsInvoke = mock((_args: { keybindings: Record<string, string> }) =>
-	Effect.succeed(undefined)
-);
-type TestThreadListSettings = {
-	hiddenProjects: string[];
-	archivedSessions?: Array<{
-		sessionId: string;
-		projectPath: string;
-		agentId: string;
-	}>;
+import { AgentError } from "../../acp/errors/app-error.js";
+import { setAppRpcClientForTest } from "../../rpc/app-client.ts";
+import { settings } from "./settings.ts";
+
+const unusedIndex = {
+	projectPath: "/tmp/p",
+	files: [],
+	gitStatus: [],
+	totalFiles: 0,
+	totalLines: 0,
 };
-const getThreadListSettingsInvoke = mock(() =>
-	Effect.succeed({
-		hiddenProjects: ["/repo/hidden"],
-		archivedSessions: [],
-	})
+
+const makeClient = (overrides: Partial<RpcClient>): RpcClient => ({
+	dispatch: () => Effect.succeed({ sequence: 1 }),
+	snapshot: () => Effect.succeed(emptyRpcSessionSnapshot(0)),
+	getProjectIndex: () => Effect.succeed(unusedIndex),
+	invalidateProjectIndex: () => Effect.void,
+	events: () => Stream.empty,
+	...overrides,
+});
+
+const withSettings = (
+	snapshot: RpcSessionSnapshot,
+	settingsRows: RpcSessionSnapshot["settings"]
+): RpcSessionSnapshot => ({
+	...snapshot,
+	settings: settingsRows,
+});
+
+const originalLocalStorageDescriptor = Object.getOwnPropertyDescriptor(
+	globalThis,
+	"localStorage"
 );
-const saveThreadListSettingsInvoke = mock((_args: { settings: TestThreadListSettings }) =>
-	Effect.succeed(undefined)
-);
-const requestDestructiveConfirmationTokenInvoke = mock(() => Effect.succeed("confirmation-token-1"));
-const resetDatabaseInvoke = mock(() => Effect.succeed(undefined));
-
-mock.module("../../services/tauri-command-client.js", () => ({
-	TAURI_COMMAND_CLIENT: {
-		storage: {
-			get_user_settings: {
-				invoke: getUserSettingsInvoke,
-			},
-			get_custom_keybindings: {
-				invoke: getCustomKeybindingsInvoke,
-			},
-			save_custom_keybindings: {
-				invoke: saveCustomKeybindingsInvoke,
-			},
-			get_thread_list_settings: {
-				invoke: getThreadListSettingsInvoke,
-			},
-			save_thread_list_settings: {
-				invoke: saveThreadListSettingsInvoke,
-			},
-			request_destructive_confirmation_token: {
-				invoke: requestDestructiveConfirmationTokenInvoke,
-			},
-			reset_database: {
-				invoke: resetDatabaseInvoke,
-			},
-		},
-	},
-}));
-
-const { settings } = await import("./settings.js");
-
-const originalLocalStorageDescriptor = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
 let localStorageValues: Map<string, string>;
 
-describe("settings tauri client", () => {
+afterEach(() => {
+	setAppRpcClientForTest(null);
+	if (originalLocalStorageDescriptor === undefined) {
+		Reflect.deleteProperty(globalThis, "localStorage");
+		return;
+	}
+	Object.defineProperty(globalThis, "localStorage", originalLocalStorageDescriptor);
+});
+
+describe("settings rpc facade", () => {
 	beforeEach(() => {
 		localStorageValues = new Map<string, string>();
 		Object.defineProperty(globalThis, "localStorage", {
@@ -82,137 +67,151 @@ describe("settings tauri client", () => {
 				}),
 			} satisfies Pick<Storage, "getItem" | "setItem" | "removeItem">,
 		});
-		getUserSettingsInvoke.mockReset();
-		getUserSettingsInvoke.mockImplementation((args: { keys: string[] }) =>
-			Effect.succeed(
-				args.keys.map((key) => ({
-					key,
-					value: key === "has_seen_splash" ? "true" : null,
-				}))
-			)
-		);
-		getCustomKeybindingsInvoke.mockReset();
-		getCustomKeybindingsInvoke.mockImplementation(() => Effect.succeed({ "app.open": "$mod+o" }));
-		saveCustomKeybindingsInvoke.mockReset();
-		saveCustomKeybindingsInvoke.mockImplementation(
-			(_args: { keybindings: Record<string, string> }) => Effect.succeed(undefined)
-		);
-		getThreadListSettingsInvoke.mockReset();
-		getThreadListSettingsInvoke.mockImplementation(() =>
-			Effect.succeed({
-				hiddenProjects: ["/repo/hidden"],
-				archivedSessions: [],
+	});
+
+	it("batches same-tick raw reads into one snapshot", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				let snapshotCount = 0;
+				setAppRpcClientForTest(
+					makeClient({
+						snapshot: () => {
+							snapshotCount += 1;
+							return Effect.succeed(
+								withSettings(emptyRpcSessionSnapshot(0), [
+									{
+										key: "has_seen_splash",
+										value: "true",
+										sequence: 1,
+									},
+								])
+							);
+						},
+					})
+				);
+				const [splash, defaultAgent] = yield* Effect.all(
+					[
+						settings.getRaw("has_seen_splash"),
+						settings.getRaw("default_agent_id"),
+					],
+					{ concurrency: "unbounded" }
+				);
+				expect(splash).toBe("true");
+				expect(defaultAgent).toBeNull();
+				expect(snapshotCount).toBe(1);
 			})
-		);
-		saveThreadListSettingsInvoke.mockReset();
-		saveThreadListSettingsInvoke.mockImplementation((_args: { settings: TestThreadListSettings }) =>
-			Effect.succeed(undefined)
-		);
-		requestDestructiveConfirmationTokenInvoke.mockReset();
-		requestDestructiveConfirmationTokenInvoke.mockImplementation(() =>
-			Effect.succeed("confirmation-token-1")
-		);
-		resetDatabaseInvoke.mockReset();
-		resetDatabaseInvoke.mockImplementation(() => Effect.succeed(undefined));
-	});
+		));
 
-	afterEach(() => {
-		if (originalLocalStorageDescriptor === undefined) {
-			Reflect.deleteProperty(globalThis, "localStorage");
-			return;
-		}
-		Object.defineProperty(globalThis, "localStorage", originalLocalStorageDescriptor);
-	});
-
-	it("batches same-tick user setting reads into one command", async () => {
-		const splash = Effect.runPromise(settings.getRaw("has_seen_splash"));
-		const defaultAgent = Effect.runPromise(settings.getRaw("default_agent_id"));
-
-		await expect(Promise.all([splash, defaultAgent])).resolves.toEqual(["true", null]);
-		expect(getUserSettingsInvoke).toHaveBeenCalledTimes(1);
-		expect(getUserSettingsInvoke).toHaveBeenCalledWith({
-			keys: ["has_seen_splash", "default_agent_id"],
-		});
-	});
-
-	it("loads custom keybindings from the hot cache without invoking Tauri", async () => {
-		localStorageValues.set(
-			"acepe.custom_keybindings.hot_cache",
-			JSON.stringify({
-				version: 1,
-				keybindings: {
+	it("loads custom keybindings from the hot cache without snapshot", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				let snapshotCount = 0;
+				localStorageValues.set(
+					"acepe.custom_keybindings.hot_cache",
+					JSON.stringify({
+						version: 1,
+						keybindings: {
+							"app.cached": "$mod+k",
+						},
+					})
+				);
+				setAppRpcClientForTest(
+					makeClient({
+						snapshot: () => {
+							snapshotCount += 1;
+							return Effect.succeed(emptyRpcSessionSnapshot(0));
+						},
+					})
+				);
+				const keybindings = yield* settings.getCustomKeybindings();
+				expect(keybindings).toEqual({
 					"app.cached": "$mod+k",
-				},
+				});
+				expect(snapshotCount).toBe(0);
 			})
-		);
+		));
 
-		const keybindings = await Effect.runPromise(settings.getCustomKeybindings());
-
-		expect(keybindings).toEqual({
-			"app.cached": "$mod+k",
-		});
-		expect(getCustomKeybindingsInvoke).not.toHaveBeenCalled();
-	});
-
-	it("falls back to Tauri and refreshes the custom keybindings hot cache", async () => {
-		const keybindings = await Effect.runPromise(settings.getCustomKeybindings());
-
-		expect(keybindings).toEqual({
-			"app.open": "$mod+o",
-		});
-		expect(getCustomKeybindingsInvoke).toHaveBeenCalledTimes(1);
-		expect(localStorageValues.get("acepe.custom_keybindings.hot_cache")).toBe(
-			JSON.stringify({
-				version: 1,
-				keybindings: {
+	it("falls back to the settings snapshot for custom keybindings", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				setAppRpcClientForTest(
+					makeClient({
+						snapshot: () =>
+							Effect.succeed(
+								withSettings(emptyRpcSessionSnapshot(0), [
+									{
+										key: "custom_keybindings",
+										value: JSON.stringify({ "app.open": "$mod+o" }),
+										sequence: 1,
+									},
+								])
+							),
+					})
+				);
+				const keybindings = yield* settings.getCustomKeybindings();
+				expect(keybindings).toEqual({
 					"app.open": "$mod+o",
-				},
+				});
+				expect(localStorageValues.get("acepe.custom_keybindings.hot_cache")).toBe(
+					JSON.stringify({
+						version: 1,
+						keybindings: {
+							"app.open": "$mod+o",
+						},
+					})
+				);
 			})
-		);
-	});
+		));
 
-	it("drops malformed custom keybindings hot cache before loading from Tauri", async () => {
-		localStorageValues.set("acepe.custom_keybindings.hot_cache", "{not json");
-
-		const keybindings = await Effect.runPromise(settings.getCustomKeybindings());
-
-		expect(keybindings).toEqual({
-			"app.open": "$mod+o",
-		});
-		expect(getCustomKeybindingsInvoke).toHaveBeenCalledTimes(1);
-		expect(localStorageValues.get("acepe.custom_keybindings.hot_cache")).toBe(
-			JSON.stringify({
-				version: 1,
-				keybindings: {
-					"app.open": "$mod+o",
-				},
+	it("writes custom keybindings through settings.set", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				const dispatched: string[] = [];
+				setAppRpcClientForTest(
+					makeClient({
+						dispatch: (command) => {
+							dispatched.push(command.type);
+							return Effect.succeed({ sequence: 1 });
+						},
+					})
+				);
+				const keybindings = {
+					"app.save": "$mod+s",
+				};
+				const result = yield* Effect.result(settings.saveCustomKeybindings(keybindings));
+				expect(Result.isSuccess(result)).toBe(true);
+				expect(dispatched).toEqual(["settings.set"]);
+				expect(localStorageValues.get("acepe.custom_keybindings.hot_cache")).toBe(
+					JSON.stringify({
+						version: 1,
+						keybindings,
+					})
+				);
 			})
-		);
-	});
+		));
 
-	it("mirrors saved custom keybindings into the hot cache after the save succeeds", async () => {
-		const keybindings = {
-			"app.save": "$mod+s",
-		};
-
-		const result = await Effect.runPromise(Effect.result(settings.saveCustomKeybindings(keybindings)));
-
-		expect(Result.isSuccess(result)).toBe(true);
-		expect(saveCustomKeybindingsInvoke).toHaveBeenCalledWith({ keybindings });
-		expect(localStorageValues.get("acepe.custom_keybindings.hot_cache")).toBe(
-			JSON.stringify({
-				version: 1,
-				keybindings,
-			})
-		);
-	});
-
-	it("loads thread list settings from the hot cache without invoking Tauri", async () => {
-		localStorageValues.set(
-			"acepe.thread_list_settings.hot_cache",
-			JSON.stringify({
-				version: 1,
-				settings: {
+	it("loads thread list settings from the hot cache", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				localStorageValues.set(
+					"acepe.thread_list_settings.hot_cache",
+					JSON.stringify({
+						version: 1,
+						settings: {
+							hiddenProjects: ["/repo/cached"],
+							archivedSessions: [
+								{
+									sessionId: "session-1",
+									projectPath: "/repo/cached",
+									agentId: "claude-code",
+								},
+							],
+						},
+					})
+				);
+				setAppRpcClientForTest(makeClient({}));
+				const loaded = yield* settings.getThreadListSettings();
+				expect(loaded).toEqual({
 					hiddenProjects: ["/repo/cached"],
 					archivedSessions: [
 						{
@@ -221,73 +220,52 @@ describe("settings tauri client", () => {
 							agentId: "claude-code",
 						},
 					],
-				},
+				});
 			})
-		);
+		));
 
-		const settingsResult = await Effect.runPromise(settings.getThreadListSettings());
-
-		expect(settingsResult).toEqual({
-			hiddenProjects: ["/repo/cached"],
-			archivedSessions: [
-				{
-					sessionId: "session-1",
-					projectPath: "/repo/cached",
-					agentId: "claude-code",
-				},
-			],
-		});
-		expect(getThreadListSettingsInvoke).not.toHaveBeenCalled();
-	});
-
-	it("falls back to Tauri and refreshes the thread list settings hot cache", async () => {
-		const settingsResult = await Effect.runPromise(settings.getThreadListSettings());
-
-		expect(settingsResult).toEqual({
-			hiddenProjects: ["/repo/hidden"],
-			archivedSessions: [],
-		});
-		expect(getThreadListSettingsInvoke).toHaveBeenCalledTimes(1);
-		expect(localStorageValues.get("acepe.thread_list_settings.hot_cache")).toBe(
-			JSON.stringify({
-				version: 1,
-				settings: {
-					hiddenProjects: ["/repo/hidden"],
+	it("returns empty thread list settings when no cache exists", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				setAppRpcClientForTest(makeClient({}));
+				const loaded = yield* settings.getThreadListSettings();
+				expect(loaded).toEqual({
+					hiddenProjects: [],
 					archivedSessions: [],
-				},
+				});
 			})
-		);
-	});
+		));
 
-	it("mirrors saved thread list settings into the hot cache after the save succeeds", async () => {
-		const threadListSettings = {
-			hiddenProjects: ["/repo/new-hidden"],
-			archivedSessions: [],
-		};
-
-		const result = await Effect.runPromise(
-			Effect.result(settings.saveThreadListSettings(threadListSettings))
-		);
-
-		expect(Result.isSuccess(result)).toBe(true);
-		expect(saveThreadListSettingsInvoke).toHaveBeenCalledWith({ settings: threadListSettings });
-		expect(localStorageValues.get("acepe.thread_list_settings.hot_cache")).toBe(
-			JSON.stringify({
-				version: 1,
-				settings: threadListSettings,
+	it("mirrors saved thread list settings into the hot cache", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				setAppRpcClientForTest(makeClient({}));
+				const threadListSettings = {
+					hiddenProjects: ["/repo/new-hidden"],
+					archivedSessions: [],
+				};
+				const result = yield* Effect.result(
+					settings.saveThreadListSettings(threadListSettings)
+				);
+				expect(Result.isSuccess(result)).toBe(true);
+				expect(localStorageValues.get("acepe.thread_list_settings.hot_cache")).toBe(
+					JSON.stringify({
+						version: 1,
+						settings: threadListSettings,
+					})
+				);
 			})
-		);
-	});
+		));
 
-	it("requests a scoped destructive confirmation token before resetting the database", async () => {
-		await Effect.runPromise(settings.resetDatabase());
-
-		expect(requestDestructiveConfirmationTokenInvoke).toHaveBeenCalledWith({
-			operation: "reset_database",
-			target: "all-data",
-		});
-		expect(resetDatabaseInvoke).toHaveBeenCalledWith({
-			confirmationToken: "confirmation-token-1",
-		});
-	});
+	it("fails resetDatabase because it is not on the contract", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				setAppRpcClientForTest(makeClient({}));
+				const result = yield* Effect.result(settings.resetDatabase());
+				expect(Result.isFailure(result)).toBe(true);
+				if (Result.isFailure(result) && result.failure instanceof AgentError) {
+					expect(result.failure.operation).toBe("storage.reset_database");
+				}
+			})
+		));
 });

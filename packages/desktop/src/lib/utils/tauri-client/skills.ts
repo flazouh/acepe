@@ -1,7 +1,15 @@
+import {
+	emptySkillsCatalog,
+	type PluginInfo as ContractPluginInfo,
+	type PluginSkill as ContractPluginSkill,
+	type Skill as ContractSkill,
+	type SkillTreeNode as ContractSkillTreeNode,
+	skillsSnapshotRequest,
+	type SkillsCatalog,
+} from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 
-import type { AppError } from "../../acp/errors/app-error.js";
-import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
+import { AgentError, type AppError } from "../../acp/errors/app-error.js";
 import type {
 	AgentSkills,
 	LibrarySkill,
@@ -14,177 +22,284 @@ import type {
 	SyncResult,
 	SyncTarget,
 } from "../../skills/types/index.js";
+import {
+	nextCommandId,
+	unsupportedOnContract,
+	withRpcClient,
+} from "./rpc-bridge.ts";
 
-const skillCommands = TAURI_COMMAND_CLIENT.skills;
+const TREE_NODE_TYPES = [
+	"agent",
+	"skill",
+	"plugins-section",
+	"plugin",
+	"plugin-skill",
+] as const;
+
+type TreeNodeType = (typeof TREE_NODE_TYPES)[number];
+
+const toTreeNodeType = (value: string): TreeNodeType => {
+	for (const nodeType of TREE_NODE_TYPES) {
+		if (nodeType === value) {
+			return nodeType;
+		}
+	}
+	return "skill";
+};
+
+const mapSkill = (skill: ContractSkill): Skill => ({
+	id: skill.id,
+	agentId: skill.agentId,
+	folderName: skill.folderName,
+	path: skill.path,
+	name: skill.name,
+	description: skill.description,
+	content: skill.content,
+	modifiedAt: skill.modifiedAt,
+});
+
+const mapPluginSkill = (skill: ContractPluginSkill): PluginSkill => ({
+	id: skill.id,
+	pluginId: skill.pluginId,
+	folderName: skill.folderName,
+	path: skill.path,
+	name: skill.name,
+	description: skill.description,
+	content: skill.content,
+	modifiedAt: skill.modifiedAt,
+});
+
+const mapPluginInfo = (plugin: ContractPluginInfo): PluginInfo => ({
+	id: plugin.id,
+	marketplace: plugin.marketplace,
+	name: plugin.name,
+	version: plugin.version,
+	skillsDir: plugin.skillsDir,
+	skillCount: plugin.skillCount,
+});
+
+const mapTreeNode = (node: ContractSkillTreeNode): SkillTreeNode => {
+	const children: SkillTreeNode[] = [];
+	for (const child of node.children) {
+		children.push(mapTreeNode(child));
+	}
+	return {
+		id: node.id,
+		label: node.label,
+		nodeType: toTreeNodeType(node.nodeType),
+		agentId: node.agentId,
+		children,
+		isExpandable: node.isExpandable,
+	};
+};
+
+const loadSkillsCatalog = Effect.fn("loadSkillsCatalog")(function* () {
+	const commandId = yield* nextCommandId("skills-discover");
+	yield* withRpcClient("skills.discover", (client) =>
+		client.dispatch({
+			type: "skills.discover",
+			commandId,
+			catalog: emptySkillsCatalog,
+		})
+	);
+	const snapshot = yield* withRpcClient("skills.snapshot", (client) =>
+		client.snapshot(skillsSnapshotRequest())
+	);
+	if (snapshot.skillsCatalog === null) {
+		return emptySkillsCatalog;
+	}
+	return snapshot.skillsCatalog;
+});
+
+const findSkill = (catalog: SkillsCatalog, skillId: string): Skill | null => {
+	for (const group of catalog.agentSkills) {
+		for (const skill of group.skills) {
+			if (skill.id === skillId) {
+				return mapSkill(skill);
+			}
+		}
+	}
+	return null;
+};
+
+const findPluginSkill = (catalog: SkillsCatalog, skillId: string): PluginSkill | null => {
+	for (const skill of catalog.pluginSkills) {
+		if (skill.id === skillId) {
+			return mapPluginSkill(skill);
+		}
+	}
+	return null;
+};
 
 export const skills = {
-	listTree: (): Effect.Effect<SkillTreeNode[], AppError> => {
-		return skillCommands.list_tree.invoke<SkillTreeNode[]>();
-	},
+	listTree: (): Effect.Effect<SkillTreeNode[], AppError> =>
+		loadSkillsCatalog().pipe(
+			Effect.map((catalog) => {
+				const tree: SkillTreeNode[] = [];
+				for (const node of catalog.tree) {
+					tree.push(mapTreeNode(node));
+				}
+				return tree;
+			})
+		),
 
-	listAgentSkills: (): Effect.Effect<AgentSkills[], AppError> => {
-		return skillCommands.list_agent_skills.invoke<AgentSkills[]>();
-	},
+	listAgentSkills: (): Effect.Effect<AgentSkills[], AppError> =>
+		loadSkillsCatalog().pipe(
+			Effect.map((catalog) => {
+				const groups: AgentSkills[] = [];
+				for (const group of catalog.agentSkills) {
+					const mappedSkills: Skill[] = [];
+					for (const skill of group.skills) {
+						mappedSkills.push(mapSkill(skill));
+					}
+					groups.push({
+						agentId: group.agentId,
+						skills: mappedSkills,
+					});
+				}
+				return groups;
+			})
+		),
 
-	get: (skillId: string): Effect.Effect<Skill, AppError> => {
-		return skillCommands.get.invoke<Skill>({ skillId });
-	},
+	get: (skillId: string): Effect.Effect<Skill, AppError> =>
+		loadSkillsCatalog().pipe(
+			Effect.flatMap((catalog) => {
+				const found = findSkill(catalog, skillId);
+				if (found === null) {
+					return Effect.fail(
+						new AgentError("skills.get", new Error(`skill not found: ${skillId}`))
+					);
+				}
+				return Effect.succeed(found);
+			})
+		),
 
 	create: (
-		agentId: string,
-		folderName: string,
-		name: string,
-		description: string
-	): Effect.Effect<Skill, AppError> => {
-		return skillCommands.create.invoke<Skill>({
-			agentId,
-			folderName,
-			name,
-			description,
-		});
-	},
+		_agentId: string,
+		_folderName: string,
+		_name: string,
+		_description: string
+	): Effect.Effect<Skill, AppError> => unsupportedOnContract("skills.create"),
 
-	update: (skillId: string, content: string): Effect.Effect<Skill, AppError> => {
-		return skillCommands.update.invoke<Skill>({ skillId, content });
-	},
+	update: (_skillId: string, _content: string): Effect.Effect<Skill, AppError> =>
+		unsupportedOnContract("skills.update"),
 
-	delete: (skillId: string): Effect.Effect<void, AppError> => {
-		return skillCommands.delete.invoke<void>({ skillId });
-	},
+	delete: (_skillId: string): Effect.Effect<void, AppError> =>
+		unsupportedOnContract("skills.delete"),
 
 	copyTo: (
-		skillId: string,
-		targetAgentId: string,
-		newFolderName?: string
-	): Effect.Effect<Skill, AppError> => {
-		return skillCommands.copy_to.invoke<Skill>({ skillId, targetAgentId, newFolderName });
-	},
+		_skillId: string,
+		_targetAgentId: string,
+		_newFolderName?: string
+	): Effect.Effect<Skill, AppError> => unsupportedOnContract("skills.copyTo"),
 
-	startWatching: (): Effect.Effect<void, AppError> => {
-		return skillCommands.start_watching.invoke<void>();
-	},
+	startWatching: (): Effect.Effect<void, AppError> => Effect.void,
 
-	stopWatching: (): Effect.Effect<void, AppError> => {
-		return skillCommands.stop_watching.invoke<void>();
-	},
+	stopWatching: (): Effect.Effect<void, AppError> => Effect.void,
 
-	listPlugins: (): Effect.Effect<PluginInfo[], AppError> => {
-		return skillCommands.list_plugins.invoke<PluginInfo[]>();
-	},
+	listPlugins: (): Effect.Effect<PluginInfo[], AppError> =>
+		loadSkillsCatalog().pipe(
+			Effect.map((catalog) => {
+				const plugins: PluginInfo[] = [];
+				for (const plugin of catalog.plugins) {
+					plugins.push(mapPluginInfo(plugin));
+				}
+				return plugins;
+			})
+		),
 
-	listPluginSkills: (pluginId: string): Effect.Effect<PluginSkill[], AppError> => {
-		return skillCommands.list_plugin_skills.invoke<PluginSkill[]>({ pluginId });
-	},
+	listPluginSkills: (pluginId: string): Effect.Effect<PluginSkill[], AppError> =>
+		loadSkillsCatalog().pipe(
+			Effect.map((catalog) => {
+				const skillsForPlugin: PluginSkill[] = [];
+				for (const skill of catalog.pluginSkills) {
+					if (skill.pluginId === pluginId) {
+						skillsForPlugin.push(mapPluginSkill(skill));
+					}
+				}
+				return skillsForPlugin;
+			})
+		),
 
-	getPluginSkill: (skillId: string): Effect.Effect<PluginSkill, AppError> => {
-		return skillCommands.get_plugin_skill.invoke<PluginSkill>({ skillId });
-	},
+	getPluginSkill: (skillId: string): Effect.Effect<PluginSkill, AppError> =>
+		loadSkillsCatalog().pipe(
+			Effect.flatMap((catalog) => {
+				const found = findPluginSkill(catalog, skillId);
+				if (found === null) {
+					return Effect.fail(
+						new AgentError(
+							"skills.getPluginSkill",
+							new Error(`plugin skill not found: ${skillId}`)
+						)
+					);
+				}
+				return Effect.succeed(found);
+			})
+		),
 
 	copyPluginSkillToAgent: (
-		skillId: string,
-		targetAgentId: string
-	): Effect.Effect<Skill, AppError> => {
-		return skillCommands.copy_plugin_skill_to_agent.invoke<Skill>({
-			skillId,
-			targetAgentId,
-		});
-	},
+		_skillId: string,
+		_targetAgentId: string
+	): Effect.Effect<Skill, AppError> =>
+		unsupportedOnContract("skills.copyPluginSkillToAgent"),
 
-	libraryListSkills: (): Effect.Effect<LibrarySkill[], AppError> => {
-		return skillCommands.library_list_skills.invoke<LibrarySkill[]>();
-	},
+	libraryListSkills: (): Effect.Effect<LibrarySkill[], AppError> => Effect.succeed([]),
 
-	libraryListSkillsWithSync: (): Effect.Effect<LibrarySkillWithSync[], AppError> => {
-		return skillCommands.library_list_skills_with_sync.invoke<LibrarySkillWithSync[]>();
-	},
+	libraryListSkillsWithSync: (): Effect.Effect<LibrarySkillWithSync[], AppError> =>
+		Effect.succeed([]),
 
-	libraryGetSkill: (skillId: string): Effect.Effect<LibrarySkillWithSync, AppError> => {
-		return skillCommands.library_get_skill.invoke<LibrarySkillWithSync>({ skillId });
-	},
+	libraryGetSkill: (_skillId: string): Effect.Effect<LibrarySkillWithSync, AppError> =>
+		unsupportedOnContract("skills.libraryGetSkill"),
 
 	libraryCreateSkill: (
-		name: string,
-		description: string | null,
-		content: string,
-		category: string | null
-	): Effect.Effect<LibrarySkill, AppError> => {
-		return skillCommands.library_create_skill.invoke<LibrarySkill>({
-			name,
-			description,
-			content,
-			category,
-		});
-	},
+		_name: string,
+		_description: string | null,
+		_content: string,
+		_category: string | null
+	): Effect.Effect<LibrarySkill, AppError> =>
+		unsupportedOnContract("skills.libraryCreateSkill"),
 
 	libraryUpdateSkill: (
-		skillId: string,
-		name?: string,
-		description?: string | null,
-		content?: string,
-		category?: string | null
-	): Effect.Effect<LibrarySkill, AppError> => {
-		return skillCommands.library_update_skill.invoke<LibrarySkill>({
-			skillId,
-			name,
-			description,
-			content,
-			category,
-		});
-	},
+		_skillId: string,
+		_name?: string,
+		_description?: string | null,
+		_content?: string,
+		_category?: string | null
+	): Effect.Effect<LibrarySkill, AppError> =>
+		unsupportedOnContract("skills.libraryUpdateSkill"),
 
-	libraryDeleteSkill: (skillId: string): Effect.Effect<void, AppError> => {
-		return skillCommands.library_delete_skill.invoke<void>({ skillId });
-	},
+	libraryDeleteSkill: (_skillId: string): Effect.Effect<void, AppError> =>
+		unsupportedOnContract("skills.libraryDeleteSkill"),
 
-	libraryGetSyncTargets: (skillId: string): Effect.Effect<SyncTarget[], AppError> => {
-		return skillCommands.library_get_sync_targets.invoke<SyncTarget[]>({ skillId });
-	},
+	libraryGetSyncTargets: (_skillId: string): Effect.Effect<SyncTarget[], AppError> =>
+		unsupportedOnContract("skills.libraryGetSyncTargets"),
 
 	librarySetSyncTarget: (
-		skillId: string,
-		agentId: string,
-		enabled: boolean
-	): Effect.Effect<void, AppError> => {
-		return skillCommands.library_set_sync_target.invoke<void>({
-			skillId,
-			agentId,
-			enabled,
-		});
-	},
+		_skillId: string,
+		_agentId: string,
+		_enabled: boolean
+	): Effect.Effect<void, AppError> =>
+		unsupportedOnContract("skills.librarySetSyncTarget"),
 
-	librarySyncSkill: (skillId: string): Effect.Effect<SkillSyncResult[], AppError> => {
-		return skillCommands.library_sync_skill.invoke<SkillSyncResult[]>({ skillId });
-	},
+	librarySyncSkill: (_skillId: string): Effect.Effect<SkillSyncResult[], AppError> =>
+		unsupportedOnContract("skills.librarySyncSkill"),
 
-	librarySyncAll: (): Effect.Effect<SyncResult, AppError> => {
-		return skillCommands.library_sync_all.invoke<SyncResult>();
-	},
+	librarySyncAll: (): Effect.Effect<SyncResult, AppError> =>
+		unsupportedOnContract("skills.librarySyncAll"),
 
-	libraryIsEmpty: (): Effect.Effect<boolean, AppError> => {
-		return skillCommands.library_is_empty.invoke<boolean>();
-	},
+	libraryIsEmpty: (): Effect.Effect<boolean, AppError> => Effect.succeed(true),
 
-	libraryImportExisting: (): Effect.Effect<LibrarySkill[], AppError> => {
-		return skillCommands.library_import_existing.invoke<LibrarySkill[]>();
-	},
+	libraryImportExisting: (): Effect.Effect<LibrarySkill[], AppError> =>
+		unsupportedOnContract("skills.libraryImportExisting"),
 
 	libraryGetSkillFolderPath: (
-		agentId: string,
-		skillName: string
-	): Effect.Effect<string | null, AppError> => {
-		return skillCommands.library_get_skill_folder_path.invoke<string | null>({
-			agentId,
-			skillName,
-		});
-	},
+		_agentId: string,
+		_skillName: string
+	): Effect.Effect<string | null, AppError> => Effect.succeed(null),
 
 	libraryDeleteSkillFromAgents: (
-		skillName: string,
-		agentIds: string[]
-	): Effect.Effect<SkillSyncResult[], AppError> => {
-		return skillCommands.library_delete_skill_from_agents.invoke<SkillSyncResult[]>({
-			skillName,
-			agentIds,
-		});
-	},
+		_skillName: string,
+		_agentIds: string[]
+	): Effect.Effect<SkillSyncResult[], AppError> =>
+		unsupportedOnContract("skills.libraryDeleteSkillFromAgents"),
 };
