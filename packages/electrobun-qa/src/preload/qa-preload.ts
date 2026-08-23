@@ -105,32 +105,46 @@ const textTreeFromNode = (root: MemoryNode): string => {
 	return lines.join("\n");
 };
 
+// An unscoped call (no selector/text) walks the whole page; a scoped call
+// resolves to the matched node, or to `false` - the same not-found sentinel
+// click/waitFor already use - when nothing matches. The caller
+// (handleQaMethod -> session.call) turns that sentinel into
+// QaElementNotFound instead of silently falling back to the whole page.
+const resolveScopedNode = (page: MemoryPage, target?: QaQuery): MemoryNode | false => {
+	if (target === undefined || (target.selector === undefined && target.text === undefined)) {
+		return page.root;
+	}
+	return findNode(page, target) ?? false;
+};
+
 export const snapshotTextFromPage = (
 	page: MemoryPage,
 	target?: QaQuery,
-): string => {
-	if (
-		target !== undefined &&
-		(target.selector !== undefined || target.text !== undefined)
-	) {
-		const node = findNode(page, target);
-		if (node === null) {
-			return "";
-		}
-		return textTreeFromNode(node);
+): string | false => {
+	const node = resolveScopedNode(page, target);
+	if (node === false) {
+		return false;
 	}
-	return textTreeFromNode(page.root);
+	return textTreeFromNode(node);
 };
 
-export const snapshotDomFromPage = (page: MemoryPage): string => {
-	const walk = (node: MemoryNode): string => {
-		if (node.hidden === true) {
-			return "";
-		}
-		const inner = node.children.map((child) => walk(child)).join("");
-		return `<${node.tag} id="${node.id}">${visibleText(node)}${inner}</${node.tag}>`;
-	};
-	return walk(page.root);
+const domTreeFromNode = (node: MemoryNode): string => {
+	if (node.hidden === true) {
+		return "";
+	}
+	const inner = node.children.map((child) => domTreeFromNode(child)).join("");
+	return `<${node.tag} id="${node.id}">${visibleText(node)}${inner}</${node.tag}>`;
+};
+
+export const snapshotDomFromPage = (
+	page: MemoryPage,
+	target?: QaQuery,
+): string | false => {
+	const node = resolveScopedNode(page, target);
+	if (node === false) {
+		return false;
+	}
+	return domTreeFromNode(node);
 };
 
 export const clickOnPage = (page: MemoryPage, target: QaQuery): boolean => {
@@ -237,6 +251,9 @@ export const handleQaMethod = (
 		return snapshotTextFromPage(page);
 	}
 	if (method === "qa:snapshotDom") {
+		if (Schema.is(QaClickTarget)(params) === true) {
+			return snapshotDomFromPage(page, params);
+		}
 		return snapshotDomFromPage(page);
 	}
 	if (method === "qa:pageInfo") {
@@ -350,20 +367,23 @@ export const qaPreloadScript = `(function(){
     var next = text.length > 0 ? depth + 1 : depth;
     for (var j = 0; j < kids.length; j++) walkText(kids[j], next, lines);
   }
-  function snapshotText(params) {
-    var root = document.body || document.documentElement;
-    if (params && params.selector) {
-      var found = document.querySelector(params.selector);
-      if (!found) return "";
-      root = found;
+  function scopedRoot(params) {
+    if (!params || (!params.selector && !params.text)) {
+      return document.body || document.documentElement;
     }
+    return findTarget(params);
+  }
+  function snapshotText(params) {
+    var root = scopedRoot(params);
+    if (!root) return false;
     var lines = [];
     walkText(root, 0, lines);
     return lines.join("\\n");
   }
-  function snapshotDom() {
-    var root = document.body || document.documentElement;
-    return root && root.innerHTML ? String(root.innerHTML) : "";
+  function snapshotDom(params) {
+    var root = scopedRoot(params);
+    if (!root) return false;
+    return root.innerHTML ? String(root.innerHTML) : "";
   }
   function pageInfo() {
     var loc = document.location;
@@ -518,7 +538,7 @@ export const qaPreloadScript = `(function(){
   var handlers = {
     "qa:eval": evalSource,
     "qa:snapshotText": snapshotText,
-    "qa:snapshotDom": function () { return snapshotDom(); },
+    "qa:snapshotDom": snapshotDom,
     "qa:click": click,
     "qa:type": typeInto,
     "qa:key": pressKey,

@@ -8,6 +8,35 @@ import { QaSocketRequest, QaSocketRequestLine, QaWindowInfo } from "./protocol.t
 import { makeQaSession } from "./session.ts"
 import { handleSocketLine, sendSocketRequest, startQaHost } from "./socket-server.ts"
 
+// A host that opens the connection but never answers: this is the "large
+// snapshotDom, xterm mounted" shape that previously misreported as
+// QaAppNotRunning. It never writes a response line, so a caller's deadline
+// is what ends the request, not the host.
+const startSlowHost = (path: string): { readonly linesReceived: () => number; readonly stop: () => void } => {
+	let received = 0
+	const server = Bun.listen({
+		unix: path,
+		socket: {
+			data: (_socket, data) => {
+				const text = typeof data === "string" ? data : new TextDecoder().decode(data)
+				if (text.includes("\n") === true) {
+					received += 1
+				}
+				// Deliberately never respond.
+			},
+			error: () => undefined,
+			close: () => undefined,
+		},
+	})
+	return {
+		linesReceived: () => received,
+		stop: () => {
+			server.stop(true)
+			Bun.spawnSync(["rm", "-f", path])
+		},
+	}
+}
+
 const memorySession = () =>
 	makeQaSession({
 		windows: [
@@ -88,5 +117,38 @@ describe("socket-server", () => {
 			)
 			expect(error._tag).toBe("QaAppNotRunning")
 		}),
+	)
+
+	// it.live, not it.effect: this test depends on a real unix-socket connection
+	// actually opening and a real deadline elapsing while nothing answers, so it
+	// needs the live Clock, not the virtual TestClock other timeout tests step
+	// by hand.
+	it.live(
+		"fails with QaResponseTimeout, not QaAppNotRunning, when the app is connected but slow",
+		() =>
+			Effect.gen(function* () {
+				const path = "/tmp/electrobun-qa/slow-ac-qa-snapshot-errors.sock"
+				Bun.spawnSync(["mkdir", "-p", "/tmp/electrobun-qa"])
+				Bun.spawnSync(["rm", "-f", path])
+				const slow = startSlowHost(path)
+				const error = yield* Effect.flip(
+					sendSocketRequest(
+						path,
+						QaSocketRequest.make({ id: "1", method: "snapshotDom" }),
+						Duration.millis(100),
+					),
+				)
+				expect(error._tag).toBe("QaResponseTimeout")
+				if (error._tag === "QaResponseTimeout") {
+					expect(error.path).toBe(path)
+					expect(error.method).toBe("snapshotDom")
+				}
+				// A response timeout must not be retried: the connect-level retry
+				// in writeAndReadUnix only fires for a broken-after-open connection,
+				// and sendSocketRequest adds no retry of its own around the
+				// deadline. Exactly one request line should have reached the host.
+				expect(slow.linesReceived()).toBe(1)
+				slow.stop()
+			}),
 	)
 })

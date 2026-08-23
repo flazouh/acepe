@@ -7,6 +7,7 @@ export {
 	QaEvalFailed,
 	QaEvalTimeout,
 	QaHelperTimeout,
+	QaResponseTimeout,
 	QaScreenshotDisabled,
 	QaSignedBuild,
 	QaSocketError,

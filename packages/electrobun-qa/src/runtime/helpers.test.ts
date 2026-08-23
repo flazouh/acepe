@@ -44,6 +44,16 @@ describe("helpers", () => {
 		}),
 	)
 
+	it.effect("snapshotDom accepts a target and scopes to it", () =>
+		Effect.gen(function* () {
+			const helpers = makeRuntimeHelpers(sessionWithPage(), [])
+			const whole = yield* helpers.snapshotDom()
+			const scoped = yield* helpers.snapshotDom({ selector: "#toggle" })
+			expect(scoped).toBe('<button id="toggle">Toggle</button>')
+			expect(scoped).not.toBe(whole)
+		}),
+	)
+
 	it.effect("every helper name has help text", () =>
 		Effect.sync(() => {
 			const logs: Array<string> = []

@@ -6,6 +6,7 @@ import {
 	QaEvalFailed,
 	QaEvalTimeout,
 	QaHelperTimeout,
+	QaResponseTimeout,
 	QaScreenshotDisabled,
 	QaSignedBuild,
 	QaSocketError,
@@ -81,6 +82,22 @@ describe("errors", () => {
 		Effect.gen(function* () {
 			const error = yield* Effect.flip(new QaEvalFailed({ reason: "x is not defined" }))
 			expect(error.message).toBe("QaEvalFailed: x is not defined")
+		}),
+	)
+
+	it.effect("names a response timeout with method and deadline, distinct from QaAppNotRunning", () =>
+		Effect.gen(function* () {
+			const error = yield* Effect.flip(
+				new QaResponseTimeout({
+					path: "/tmp/electrobun-qa/com.acepe.app.sock",
+					method: "snapshotDom",
+					deadlineMs: 5_000,
+				}),
+			)
+			expect(error._tag).toBe("QaResponseTimeout")
+			expect(error._tag).not.toBe("QaAppNotRunning")
+			expect(error.message).toContain("snapshotDom")
+			expect(error.message).toContain("5000")
 		}),
 	)
 

@@ -6,6 +6,7 @@ import * as Schema from "effect/Schema"
 
 import {
 	QaAppNotRunning,
+	QaResponseTimeout,
 	QaSignedBuild,
 	QaSocketError,
 } from "../errors.ts"
@@ -177,6 +178,12 @@ export const startQaHost = Effect.fn("startQaHost")(function* (input: StartQaHos
 const asSocketError = (error: { readonly message: string }): QaSocketError =>
 	new QaSocketError({ reason: error.message })
 
+// Shared with the connect attempt below so the outer deadline can tell a
+// slow-to-answer app (connection opened) apart from a genuinely absent one
+// (connection never opened). Reset at the start of each connect attempt, so
+// a retried attempt reports its own state, not a stale one.
+type ConnectionState = { opened: boolean }
+
 export const sendSocketRequest = Effect.fn("sendSocketRequest")(function* (
 	path: string,
 	request: QaSocketRequest,
@@ -185,10 +192,25 @@ export const sendSocketRequest = Effect.fn("sendSocketRequest")(function* (
 	const line = yield* Schema.encodeUnknownEffect(QaSocketRequestLine)(request).pipe(
 		Effect.mapError(asSocketError),
 	)
-	const responseLine = yield* writeAndReadUnix(path, line).pipe(
+	const state: ConnectionState = { opened: false }
+	// The deadline firing while the connection is open means the app is there
+	// and slow, not absent - a response timeout, not QaAppNotRunning. This is
+	// a single attempt with no retry: the request may already have run on the
+	// host, and retrying here could re-execute it (e.g. double-click).
+	const onDeadline = (): Effect.Effect<never, QaAppNotRunning | QaResponseTimeout> =>
+		state.opened === true
+			? Effect.fail(
+					new QaResponseTimeout({
+						path,
+						method: request.method,
+						deadlineMs: Duration.toMillis(deadline),
+					}),
+				)
+			: Effect.fail(new QaAppNotRunning({ path }))
+	const responseLine = yield* writeAndReadUnix(path, line, state).pipe(
 		Effect.timeoutOrElse({
 			duration: deadline,
-			orElse: () => new QaAppNotRunning({ path }),
+			orElse: onDeadline,
 		}),
 	)
 	return yield* Schema.decodeUnknownEffect(QaSocketResponseLine)(responseLine).pipe(
@@ -196,11 +218,15 @@ export const sendSocketRequest = Effect.fn("sendSocketRequest")(function* (
 	)
 })
 
-const writeAndReadUnixOnce = (path: string, line: string): Effect.Effect<string, QaAppNotRunning> =>
+const writeAndReadUnixOnce = (
+	path: string,
+	line: string,
+	state: ConnectionState,
+): Effect.Effect<string, QaAppNotRunning> =>
 	Effect.callback<string, QaAppNotRunning>((resume) => {
 		let settled = false
-		let opened = false
 		let buffer = ""
+		state.opened = false
 		const finish = (effect: Effect.Effect<string, QaAppNotRunning>): void => {
 			if (settled === true) {
 				return
@@ -212,7 +238,7 @@ const writeAndReadUnixOnce = (path: string, line: string): Effect.Effect<string,
 			unix: path,
 			socket: {
 				open: (socket) => {
-					opened = true
+					state.opened = true
 					socket.write(`${line}\n`)
 				},
 				data: (socket, data) => {
@@ -224,14 +250,14 @@ const writeAndReadUnixOnce = (path: string, line: string): Effect.Effect<string,
 					}
 				},
 				error: () => {
-					finish(new QaAppNotRunning({ path, retriable: opened }))
+					finish(new QaAppNotRunning({ path, retriable: state.opened }))
 				},
 				connectError: () => {
 					finish(new QaAppNotRunning({ path }))
 				},
 				close: () => {
 					if (buffer.length === 0) {
-						finish(new QaAppNotRunning({ path, retriable: opened }))
+						finish(new QaAppNotRunning({ path, retriable: state.opened }))
 					}
 				},
 			},
@@ -245,9 +271,17 @@ const writeAndReadUnixOnce = (path: string, line: string): Effect.Effect<string,
 	})
 
 // One transient socket error must not fail a whole script: a client that
-// reconnects immediately succeeds, so retry briefly before giving up.
-const writeAndReadUnix = (path: string, line: string): Effect.Effect<string, QaAppNotRunning> =>
-	writeAndReadUnixOnce(path, line).pipe(
+// reconnects immediately succeeds, so retry briefly before giving up. This
+// retry only ever sees a connect-level QaAppNotRunning (opened then broke)
+// from a completed attempt - the outer deadline in sendSocketRequest races
+// this whole thing from the outside and is never subject to this retry, so
+// a QaResponseTimeout is never retried here either.
+const writeAndReadUnix = (
+	path: string,
+	line: string,
+	state: ConnectionState,
+): Effect.Effect<string, QaAppNotRunning> =>
+	writeAndReadUnixOnce(path, line, state).pipe(
 		Effect.retry({
 			times: 2,
 			schedule: Schedule.spaced(Duration.millis(300)),

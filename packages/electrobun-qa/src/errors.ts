@@ -11,6 +11,22 @@ export class QaAppNotRunning extends Schema.TaggedError<QaAppNotRunning>()("QaAp
 	}
 }
 
+// A connection that opened and then ran past its deadline. This is not
+// QaAppNotRunning: the app answered the connect, so a large or slow
+// response (e.g. a big snapshotDom with xterm mounted) is the likely cause,
+// not a missing listener. The request may already have executed on the
+// host side, so callers must not retry this blindly - a retried click could
+// double-click.
+export class QaResponseTimeout extends Schema.TaggedError<QaResponseTimeout>()("QaResponseTimeout", {
+	path: Schema.String,
+	method: Schema.String,
+	deadlineMs: Schema.Number,
+}) {
+	override get message(): string {
+		return `QaResponseTimeout: ${this.method} exceeded its ${String(this.deadlineMs)}ms deadline at ${this.path} (connection was open, so this is not retried)`
+	}
+}
+
 export class QaEvalTimeout extends Schema.TaggedError<QaEvalTimeout>()("QaEvalTimeout", {
 	token: Schema.String,
 }) {
@@ -86,6 +102,7 @@ export class QaScreenshotDisabled extends Schema.TaggedError<QaScreenshotDisable
 
 export type QaError =
 	| QaAppNotRunning
+	| QaResponseTimeout
 	| QaEvalTimeout
 	| QaHelperTimeout
 	| QaElementNotFound

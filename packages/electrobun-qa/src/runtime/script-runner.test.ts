@@ -55,4 +55,56 @@ cliLog(await snapshotText({ selector: "#toggle" }))`,
 			expect(logs).toEqual(["hello from qa"])
 		}),
 	)
+
+	it.effect("snapshotDom scopes to a selector instead of returning the whole page", () =>
+		Effect.gen(function* () {
+			const logs = yield* runUserScript(
+				`cliLog(await snapshotDom({ selector: "#toggle" }))`,
+				toggleSession(),
+			)
+			expect(logs).toEqual(['<button id="toggle">Toggle</button>'])
+		}),
+	)
+
+	it.effect(
+		"snapshotText accepts a plain-string selector instead of silently returning the whole page",
+		() =>
+			Effect.gen(function* () {
+				const logs = yield* runUserScript(
+					`cliLog(await snapshotText("#toggle"))`,
+					toggleSession(),
+				)
+				expect(logs).toEqual(["Toggle"])
+			}),
+	)
+
+	it.effect(
+		"snapshotDom accepts a plain-string selector instead of silently returning the whole page",
+		() =>
+			Effect.gen(function* () {
+				const logs = yield* runUserScript(
+					`cliLog(await snapshotDom("#toggle"))`,
+					toggleSession(),
+				)
+				expect(logs).toEqual(['<button id="toggle">Toggle</button>'])
+			}),
+	)
+
+	it.effect("snapshotDom fails loudly with QaElementNotFound when scoped to nothing", () =>
+		Effect.gen(function* () {
+			const error = yield* Effect.flip(
+				runUserScript(`await snapshotDom({ selector: "#missing" })`, toggleSession()),
+			)
+			expect(error._tag).toBe("QaElementNotFound")
+		}),
+	)
+
+	it.effect("snapshotText fails loudly with QaElementNotFound when scoped to nothing", () =>
+		Effect.gen(function* () {
+			const error = yield* Effect.flip(
+				runUserScript(`await snapshotText({ selector: "#missing" })`, toggleSession()),
+			)
+			expect(error._tag).toBe("QaElementNotFound")
+		}),
+	)
 })

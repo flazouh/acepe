@@ -15,6 +15,7 @@ import {
 	QA_RESULT_MESSAGE_ID,
 	qaDispatchJavascript,
 	qaPreloadScript,
+	snapshotDomFromPage,
 	snapshotTextFromPage,
 } from "./qa-preload.ts";
 
@@ -33,6 +34,52 @@ describe("qa-preload", () => {
 				const page = createTogglePage();
 				expect(clickOnPage(page, { text: "Toggle" })).toBe(true);
 				expect(snapshotTextFromPage(page)).toBe("Acepe\n  Toggle\n  Opened");
+			}),
+	);
+
+	it.effect("snapshotDom walks the whole page when unscoped", () =>
+		Effect.sync(() => {
+			const page = createTogglePage();
+			expect(snapshotDomFromPage(page)).toBe(
+				'<body id="root">Acepe<button id="toggle">Toggle</button><div id="status">Closed</div></body>',
+			);
+		}),
+	);
+
+	it.effect("snapshotDom honors a selector instead of returning the whole page", () =>
+		Effect.sync(() => {
+			const page = createTogglePage();
+			expect(snapshotDomFromPage(page, { selector: "#toggle" })).toBe(
+				'<button id="toggle">Toggle</button>',
+			);
+		}),
+	);
+
+	it.effect("snapshotDom with an unmatched selector fails false, not the whole page", () =>
+		Effect.sync(() => {
+			const page = createTogglePage();
+			expect(snapshotDomFromPage(page, { selector: "#missing" })).toBe(false);
+		}),
+	);
+
+	it.effect("snapshotText with an unmatched selector fails false, not empty text", () =>
+		Effect.sync(() => {
+			const page = createTogglePage();
+			expect(snapshotTextFromPage(page, { selector: "#missing" })).toBe(false);
+		}),
+	);
+
+	it.effect(
+		"handleQaMethod honors a snapshotDom selector instead of dropping it",
+		() =>
+			Effect.sync(() => {
+				const page = createTogglePage();
+				expect(
+					handleQaMethod(page, "qa:snapshotDom", { selector: "#toggle" }),
+				).toBe('<button id="toggle">Toggle</button>');
+				expect(
+					handleQaMethod(page, "qa:snapshotDom", { selector: "#missing" }),
+				).toBe(false);
 			}),
 	);
 
@@ -207,6 +254,95 @@ describe("qa-preload", () => {
 			expect(packet.id).toBe(QA_RESULT_MESSAGE_ID);
 			expect(packet.payload.success).toBe(true);
 		}),
+	);
+
+	it.effect(
+		"preload snapshotDom honors a selector instead of serializing the whole page",
+		() =>
+			Effect.gen(function* () {
+				const posted: Array<string> = [];
+				const button = {
+					nodeType: 1,
+					tagName: "BUTTON",
+					hidden: false,
+					childNodes: [{ nodeType: 3, textContent: "Toggle" }],
+					children: [] as Array<never>,
+					textContent: "Toggle",
+					getAttribute: () => null,
+					querySelectorAll: () => [] as Array<never>,
+					innerHTML: "Toggle",
+				};
+				const body = {
+					nodeType: 1,
+					tagName: "BODY",
+					hidden: false,
+					childNodes: [{ nodeType: 3, textContent: "Acepe" }],
+					children: [button],
+					textContent: "Acepe Toggle",
+					getAttribute: () => null,
+					querySelectorAll: () => [] as Array<never>,
+					querySelector: (selector: string) =>
+						selector === "#toggle-button" ? button : null,
+					innerHTML: "<button>Toggle</button>",
+				};
+				const window = {
+					__electrobunInternalBridge: {
+						postMessage: (message: string) => {
+							posted.push(message);
+						},
+					},
+					__electrobunQa: undefined as
+						| { readonly dispatch: (request: unknown) => void }
+						| undefined,
+					__electrobun: {
+						receiveInternalMessageFromBun: () => undefined,
+					},
+					document: {
+						body,
+						documentElement: body,
+						title: "Acepe",
+						location: { href: "views://mainview/index.html" },
+						querySelector: (selector: string) => body.querySelector(selector),
+						activeElement: button,
+					},
+				};
+				const run = new Function(
+					"window",
+					"document",
+					`${qaPreloadScript}\nreturn window.__electrobunQa;`,
+				);
+				const qa = run(window, window.document);
+				expect(qa !== null && typeof qa === "object").toBe(true);
+				if (qa === null || typeof qa !== "object" || "dispatch" in qa === false) {
+					return;
+				}
+				const dispatch = qa.dispatch;
+				if (typeof dispatch !== "function") {
+					return;
+				}
+				dispatch({
+					type: "request",
+					method: "qa:snapshotDom",
+					id: "qa-1",
+					params: { selector: "#toggle-button" },
+				});
+				expect(posted.length).toBe(1);
+				const first = posted[0];
+				if (first === undefined) {
+					return;
+				}
+				const batch =
+					yield* Schema.decodeUnknownEffect(QaInternalBatchJson)(first);
+				const packetLine = batch[0];
+				if (packetLine === undefined) {
+					return;
+				}
+				const packet = yield* Schema.decodeUnknownEffect(QaInternalMessageJson)(
+					packetLine,
+				);
+				expect(packet.payload.success).toBe(true);
+				expect(packet.payload.payload).toBe("Toggle");
+			}),
 	);
 
 	it.effect("accepts a click target with only text", () =>
