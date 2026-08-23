@@ -59,7 +59,7 @@ import { CheckpointServiceLive } from "./checkpoint/Layers/CheckpointService.ts"
 import { RpcHandlersLive } from "./rpc/handlers.ts"
 import { runStdioServer } from "./rpc/stdio.ts"
 import { SkillsServiceLive } from "./skills/Layers/SkillsService.ts"
-import { VoiceRuntimeLive } from "./voice/Layers/VoiceRuntime.ts"
+import { makeVoiceRuntimeLive } from "./voice/Layers/VoiceRuntime.ts"
 
 const decodeProjectorName = Schema.decodeUnknownEffect(TrimmedNonEmptyString)
 
@@ -67,6 +67,12 @@ export type AcepeLiveInput = {
 	readonly filename: string
 	readonly tokenDelay: Duration.Duration
 	readonly skillsHomeDir?: string
+	/**
+	 * Whether the electrobun QA surface is compiled into this build (unsigned
+	 * builds only). Gates the injectable fake voice audio source — see
+	 * `voice/Layers/VoiceRuntime.ts`. Defaults to `false` (production).
+	 */
+	readonly voiceQaSurfaceEnabled?: boolean
 }
 
 const persistenceAt = (filename: string) => {
@@ -222,7 +228,9 @@ export const makeAcepeLive = (input: AcepeLiveInput) => {
 			return McpCatalogLive({ homeDir })
 		})
 	).pipe(Layer.provide(bunPlatform))
-	const voice = VoiceRuntimeLive.pipe(Layer.provide(bunPlatform))
+	const voice = makeVoiceRuntimeLive({
+		qaSurfaceEnabled: input.voiceQaSurfaceEnabled ?? false
+	}).pipe(Layer.provide(bunPlatform))
 	const checkpoint = CheckpointServiceLive.pipe(
 		Layer.provide(engine),
 		Layer.provide(bunPlatform),

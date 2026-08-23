@@ -6,6 +6,7 @@ import { tauriClient } from "$lib/utils/tauri-client.js";
 import type { AppError } from "../../../errors/app-error.js";
 import type { VoiceInputPhase } from "../../../types/voice-input.js";
 import { createLogger } from "../../../utils/logger.js";
+import { resolveVoiceFailureMessage } from "../logic/voice-error-message.js";
 import { canCancelVoiceInteraction, shouldShowVoiceOverlay } from "../logic/voice-ui-state.js";
 import { transition } from "./voice-transitions.js";
 import { WaveformState } from "./waveform-state.svelte.js";
@@ -284,7 +285,7 @@ export class VoiceInputState {
 							return;
 						}
 						this.clearWatchdog();
-						this.setError(err.message ?? "Failed to stop recording");
+						this.setError(resolveVoiceFailureMessage(err, "Failed to stop recording"));
 					},
 				})
 			)
@@ -367,7 +368,7 @@ export class VoiceInputState {
 										onFailure: (err: AppError) => {
 											log("downloadModel: FAILED", { error: err.message });
 											this.activeDownloadModelId = null;
-											this.setError(err.message ?? "Model download failed");
+											this.setError(resolveVoiceFailureMessage(err, "Model download failed"));
 										},
 									})
 								)
@@ -384,7 +385,7 @@ export class VoiceInputState {
 					},
 					onFailure: (err: AppError) => {
 						log("getModelStatus: FAILED", { error: err.message });
-						this.setError(err.message ?? "Failed to check model status");
+						this.setError(resolveVoiceFailureMessage(err, "Failed to check model status"));
 					},
 				})
 			)
@@ -419,7 +420,7 @@ export class VoiceInputState {
 					onFailure: (err: AppError) => {
 						log("loadModel: FAILED", { error: err.message });
 						this.isLoadingModel = false;
-						this.setError(err.message ?? "Failed to load model");
+						this.setError(resolveVoiceFailureMessage(err, "Failed to load model"));
 					},
 				})
 			)
@@ -437,7 +438,7 @@ export class VoiceInputState {
 					},
 					onFailure: (err: AppError) => {
 						log("startRecording: FAILED", { error: err.message });
-						this.setError(err.message ?? "Failed to start recording");
+						this.setError(resolveVoiceFailureMessage(err, "Failed to start recording"));
 					},
 				})
 			)

@@ -27,6 +27,7 @@
 			class="voice-error-card flex max-w-[280px] items-center justify-center text-center"
 			role="alert"
 			aria-live="assertive"
+			data-qa="voice-error"
 		>
 			<p class="text-[12px] leading-normal text-muted-foreground">
 				{errorMessage ? errorMessage : defaultErrorMessage}

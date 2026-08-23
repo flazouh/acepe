@@ -60,7 +60,11 @@ export class RpcCommandInvariantError extends Schema.TaggedError<RpcCommandInvar
 		commandType: Schema.String,
 		detail: Schema.String,
 	},
-) {}
+) {
+	override get message(): string {
+		return this.detail
+	}
+}
 
 export class RpcCommandPreviouslyRejectedError extends Schema.TaggedError<RpcCommandPreviouslyRejectedError>()(
 	"OrchestrationCommandPreviouslyRejectedError",
@@ -108,7 +112,11 @@ export class RpcFileIndexNotADirectoryError extends Schema.TaggedError<RpcFileIn
 
 export class RpcTransportError extends Schema.TaggedError<RpcTransportError>()("RpcTransportError", {
 	reason: Schema.String,
-}) {}
+}) {
+	override get message(): string {
+		return `RPC transport error: ${this.reason}`
+	}
+}
 
 export class RpcEventSequenceGapError extends Schema.TaggedError<RpcEventSequenceGapError>()(
 	"RpcEventSequenceGapError",

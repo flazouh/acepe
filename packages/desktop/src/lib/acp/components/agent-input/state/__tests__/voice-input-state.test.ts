@@ -60,7 +60,16 @@ function unwrapEffect<T>(effect: Effect.Effect<T, Error>): Promise<T> {
 }
 
 function toAgentResult<T>(operation: string, result: Effect.Effect<T, Error>): Effect.Effect<T, Error> {
-	return result.pipe(Effect.mapError(() => new Error(`Agent operation failed: ${operation}`)));
+	// Mirrors AgentError: wraps the real failure in a generic "Agent operation
+	// failed: <op>" message but keeps the original error reachable via
+	// `.cause`, exactly like the production tauri-client boundary does.
+	return result.pipe(
+		Effect.mapError((cause) => {
+			const wrapped = new Error(`Agent operation failed: ${operation}`);
+			(wrapped as Error & { cause?: Error }).cause = cause;
+			return wrapped;
+		})
+	);
 }
 
 async function flushAsync(times = 20): Promise<void> {
@@ -440,7 +449,50 @@ describe("VoiceInputState", () => {
 		state.onMicPointerUp();
 		await flushAsync();
 
-		expect(state.errorMessage).toBe("Agent operation failed: voice_get_model_status");
+		// The real cause ("status failed") lands in errorMessage, not the
+		// opaque "Agent operation failed: <op>" wrapper — see
+		// resolveVoiceFailureMessage.
+		expect(state.errorMessage).toBe("status failed");
+	});
+
+	it("surfaces distinct, human-readable messages for distinct failure kinds", async () => {
+		getModelStatusMock.mockReturnValue(
+			Effect.fail(
+				new Error(
+					"Microphone permission denied. Check System Settings → Privacy & Security → Microphone."
+				)
+			)
+		);
+
+		const permissionState = new VoiceInputState({ sessionId: "session-permission" });
+		permissionState.onMicPointerDown(createPointerEvent());
+		permissionState.onMicPointerUp();
+		await flushAsync();
+
+		expect(permissionState.errorMessage).toBe(
+			"Microphone permission denied. Check System Settings → Privacy & Security → Microphone."
+		);
+
+		getModelStatusMock.mockReturnValue(
+			Effect.fail(
+				new Error(
+					"No audio input device available. On macOS, check System Settings → Privacy & Security → Microphone."
+				)
+			)
+		);
+
+		const noDeviceState = new VoiceInputState({ sessionId: "session-no-device" });
+		noDeviceState.onMicPointerDown(createPointerEvent());
+		noDeviceState.onMicPointerUp();
+		await flushAsync();
+
+		expect(noDeviceState.errorMessage).toBe(
+			"No audio input device available. On macOS, check System Settings → Privacy & Security → Microphone."
+		);
+
+		expect(noDeviceState.errorMessage).not.toBe(permissionState.errorMessage);
+		expect(noDeviceState.errorMessage).not.toBeNull();
+		expect(permissionState.errorMessage).not.toBeNull();
 	});
 
 	it("starts recording immediately for keyboard press-and-hold", async () => {
