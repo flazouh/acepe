@@ -399,6 +399,11 @@ export const PreconnectionOptionsLoadCommand = Schema.Struct({
 })
 export type PreconnectionOptionsLoadCommand = typeof PreconnectionOptionsLoadCommand.Type
 
+// Every terminal command optionally carries the fields below (sessionId, cwd,
+// cols, rows, output, closed): the client only sends what it knows, and the
+// server's fillTerminalCommand step (packages/server/src/terminal/fillCommand.ts)
+// fills in the rest by calling the live TerminalService before the pure decider
+// (terminalDecide.ts) turns the filled command into a full-snapshot event.
 export const TerminalOpenCommand = Schema.Struct({
 	type: Schema.Literal("terminal.open"),
 	commandId: CommandId,
@@ -408,6 +413,7 @@ export const TerminalOpenCommand = Schema.Struct({
 	cols: Schema.optionalKey(TerminalCols),
 	rows: Schema.optionalKey(TerminalRows),
 	output: Schema.optionalKey(Schema.String),
+	closed: Schema.optionalKey(Schema.Boolean),
 })
 export type TerminalOpenCommand = typeof TerminalOpenCommand.Type
 
@@ -416,7 +422,12 @@ export const TerminalInputCommand = Schema.Struct({
 	commandId: CommandId,
 	terminalId: TerminalId,
 	data: Schema.String,
+	sessionId: Schema.optionalKey(SessionId),
+	cwd: Schema.optionalKey(TrimmedNonEmptyString),
+	cols: Schema.optionalKey(TerminalCols),
+	rows: Schema.optionalKey(TerminalRows),
 	output: Schema.optionalKey(Schema.String),
+	closed: Schema.optionalKey(Schema.Boolean),
 })
 export type TerminalInputCommand = typeof TerminalInputCommand.Type
 
@@ -426,7 +437,10 @@ export const TerminalResizeCommand = Schema.Struct({
 	terminalId: TerminalId,
 	cols: TerminalCols,
 	rows: TerminalRows,
+	sessionId: Schema.optionalKey(SessionId),
+	cwd: Schema.optionalKey(TrimmedNonEmptyString),
 	output: Schema.optionalKey(Schema.String),
+	closed: Schema.optionalKey(Schema.Boolean),
 })
 export type TerminalResizeCommand = typeof TerminalResizeCommand.Type
 
@@ -434,7 +448,12 @@ export const TerminalCloseCommand = Schema.Struct({
 	type: Schema.Literal("terminal.close"),
 	commandId: CommandId,
 	terminalId: TerminalId,
+	sessionId: Schema.optionalKey(SessionId),
+	cwd: Schema.optionalKey(TrimmedNonEmptyString),
+	cols: Schema.optionalKey(TerminalCols),
+	rows: Schema.optionalKey(TerminalRows),
 	output: Schema.optionalKey(Schema.String),
+	closed: Schema.optionalKey(Schema.Boolean),
 })
 export type TerminalCloseCommand = typeof TerminalCloseCommand.Type
 

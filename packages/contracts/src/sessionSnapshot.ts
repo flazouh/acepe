@@ -820,9 +820,12 @@ const applyPreconnectionOptionsLoaded = (
 	terminal: snapshot.terminal,
 })
 
-const applyTerminalOutputAppended = (
+const applyTerminalSnapshot = (
 	snapshot: RpcSessionSnapshot,
-	event: Extract<OrchestrationEvent, { readonly type: "TerminalOutputAppended" }>,
+	event: Extract<
+		OrchestrationEvent,
+		{ readonly type: "TerminalOpened" | "TerminalOutputAppended" | "TerminalClosed" }
+	>,
 ): RpcSessionSnapshot => {
 	const terminal: ProjectedTerminal = {
 		sequence: event.sequence,
@@ -990,8 +993,10 @@ export const applyEventToRpcSessionSnapshot = (
 			return applyMcpCatalogResolved(snapshot, event)
 		case "PreconnectionOptionsLoaded":
 			return applyPreconnectionOptionsLoaded(snapshot, event)
+		case "TerminalOpened":
 		case "TerminalOutputAppended":
-			return applyTerminalOutputAppended(snapshot, event)
+		case "TerminalClosed":
+			return applyTerminalSnapshot(snapshot, event)
 		default:
 			return withSequence(snapshot, event.sequence)
 	}

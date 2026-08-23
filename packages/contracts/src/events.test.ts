@@ -39,6 +39,8 @@ import {
 	GitStatusRefreshedPayload,
 	McpCatalogResolvedPayload,
 	PreconnectionOptionsLoadedPayload,
+	TerminalClosedPayload,
+	TerminalOpenedPayload,
 	TerminalOutputAppendedPayload,
 } from "./events.ts"
 import {
@@ -144,7 +146,9 @@ const v1EventTypes = [
 	"ApprovalRequested",
 	"McpCatalogResolved",
 	"PreconnectionOptionsLoaded",
+	"TerminalOpened",
 	"TerminalOutputAppended",
+	"TerminalClosed",
 ] as const
 
 type V1EventType = (typeof v1EventTypes)[number]
@@ -188,7 +192,10 @@ type AgentEventType = Extract<
 	| "EventBridgeRefreshed"
 >
 type McpEventType = Extract<EventType, "McpCatalogResolved" | "PreconnectionOptionsLoaded">
-type TerminalEventType = Extract<EventType, "TerminalOutputAppended">
+type TerminalEventType = Extract<
+	EventType,
+	"TerminalOpened" | "TerminalOutputAppended" | "TerminalClosed"
+>
 type SessionEventType = Exclude<
 	EventType,
 	| ProjectEventType
@@ -782,6 +789,18 @@ const memberCases = [
 		}),
 	},
 	{
+		payloadSchema: TerminalOpenedPayload,
+		event: terminalEvent("TerminalOpened", {
+			terminalId,
+			sessionId,
+			cwd: "/tmp",
+			cols: 80,
+			rows: 24,
+			output: "",
+			closed: false,
+		}),
+	},
+	{
 		payloadSchema: TerminalOutputAppendedPayload,
 		event: terminalEvent("TerminalOutputAppended", {
 			terminalId,
@@ -791,6 +810,18 @@ const memberCases = [
 			rows: 24,
 			output: "ready",
 			closed: false,
+		}),
+	},
+	{
+		payloadSchema: TerminalClosedPayload,
+		event: terminalEvent("TerminalClosed", {
+			terminalId,
+			sessionId,
+			cwd: "/tmp",
+			cols: 80,
+			rows: 24,
+			output: "ready\nbye",
+			closed: true,
 		}),
 	},
 ] as const
