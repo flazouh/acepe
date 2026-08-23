@@ -19,6 +19,7 @@ import { sendComposerMessage } from "./agent-panel-send.ts";
 let { client, sessionId }: { client: RpcClient; sessionId: SessionId } = $props();
 
 let snapshot = $state.raw<RpcSessionSnapshot>(emptyRpcSessionSnapshot(0));
+let lastSendError = $state<string | null>(null);
 
 const registry = AtomRegistry.make();
 const store = composeSessionStore({
@@ -49,7 +50,16 @@ const submitFromInput = (input: HTMLInputElement) => {
 			text,
 			commandId: nextCommandId(),
 			messageId: nextMessageId(),
-		}).pipe(Effect.andThen(store.refreshSession(sessionId)))
+		}).pipe(
+			Effect.andThen(store.refreshSession(sessionId)),
+			// A send that fails after the engine persisted looks like "nothing
+			// happened" in the UI. Surface the cause where QA can read it.
+			Effect.tapCause((cause) =>
+				Effect.sync(() => {
+					lastSendError = String(cause).slice(0, 300);
+				}),
+			),
+		)
 	);
 	input.value = "";
 };
@@ -94,7 +104,13 @@ onMount(() => {
 });
 </script>
 
-<section class="flex min-h-0 flex-1 flex-col" data-testid="agent-panel-session">
+<section
+	class="flex min-h-0 flex-1 flex-col"
+	data-testid="agent-panel-session"
+	data-qa-snapshot-rows={snapshot.messages.length}
+	data-qa-snapshot-seq={snapshot.snapshotSequence}
+	data-qa-send-error={lastSendError ?? ""}
+>
 	<AgentPanelView {snapshot} />
 	<form class="m-3 shrink-0" onsubmit={onComposerSubmit}>
 		<input
