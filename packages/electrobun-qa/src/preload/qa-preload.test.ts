@@ -61,6 +61,9 @@ describe("qa-preload", () => {
 				handleQaMethod(page, "qa:type", { text: "hello", selector: "#toggle" }),
 			).toBe(true);
 			expect(handleQaMethod(page, "qa:key", { key: "Enter" })).toBe(true);
+			expect(
+				handleQaMethod(page, "qa:paste", { text: "pasted", selector: "#toggle" }),
+			).toBe(true);
 			expect(handleQaMethod(page, "qa:scroll", { x: 0, y: 40 })).toBe(true);
 			expect(
 				handleQaMethod(page, "qa:eval", { source: "document.title" }),

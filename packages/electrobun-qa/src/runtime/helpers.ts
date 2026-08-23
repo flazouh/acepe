@@ -22,6 +22,7 @@ export const HELPER_NAMES = [
 	"typeText",
 	"fillInput",
 	"pressKey",
+	"pasteText",
 	"scrollBy",
 	"waitForText",
 	"waitForSelector",
@@ -41,6 +42,9 @@ export const helperHelp = (name: HelperName): string => {
 	}
 	if (name === "click") {
 		return "click({ text } | { selector }): click an element by visible text or CSS selector"
+	}
+	if (name === "pasteText") {
+		return "pasteText(text, { selector }?): dispatch a clipboard paste, for widgets (e.g. terminal emulators) that don't fully process synthetic per-key events"
 	}
 	if (name === "cliLog") {
 		return "cliLog(value): the only output path inside a heredoc script"
@@ -136,6 +140,12 @@ export const makeRuntimeHelpers = (session: QaSession, logs: Array<string>) => {
 	const pressKey = Effect.fn("pressKey")(function* (key: string) {
 		return yield* session.call("qa:key", { key })
 	})
+	const pasteText = Effect.fn("pasteText")(function* (text: string, target?: QaQuery) {
+		if (target?.selector !== undefined) {
+			return yield* session.call("qa:paste", { text, selector: target.selector })
+		}
+		return yield* session.call("qa:paste", { text })
+	})
 	const scrollBy = Effect.fn("scrollBy")(function* (x: number, y: number) {
 		return yield* session.call("qa:scroll", { x, y })
 	})
@@ -211,6 +221,7 @@ export const makeRuntimeHelpers = (session: QaSession, logs: Array<string>) => {
 		typeText,
 		fillInput,
 		pressKey,
+		pasteText,
 		scrollBy,
 		waitForText,
 		waitForSelector,

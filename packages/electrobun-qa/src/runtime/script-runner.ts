@@ -52,6 +52,8 @@ export const makePromiseHelpers = (session: QaSession, logs: Array<string>) => {
 			}
 			return runHelper(helpers.pressKey(key.key))
 		},
+		pasteText: (text: string, target?: { readonly selector?: string }) =>
+			runHelper(helpers.pasteText(text, target)),
 		scrollBy: (x: number, y: number) => runHelper(helpers.scrollBy(x, y)),
 		waitForText: (text: string, options?: { readonly timeoutMs?: number }) => {
 			if (options === undefined || options.timeoutMs === undefined) {
@@ -96,6 +98,7 @@ export const runUserScript = Effect.fn("runUserScript")(function* (
 		"typeText",
 		"fillInput",
 		"pressKey",
+		"pasteText",
 		"scrollBy",
 		"waitForText",
 		"waitForSelector",

@@ -7,6 +7,7 @@ export const QA_PRELOAD_METHODS = [
 	"qa:click",
 	"qa:type",
 	"qa:key",
+	"qa:paste",
 	"qa:scroll",
 	"qa:waitFor",
 	"qa:pageInfo",
@@ -32,6 +33,20 @@ export const QaKeyPayload = Schema.Struct({
 	key: Schema.String,
 })
 export type QaKeyPayload = typeof QaKeyPayload.Type
+
+// A clipboard-paste event, not a keystroke. Some rich inputs (xterm.js's
+// terminal in particular) never fully process synthetic per-character
+// KeyboardEvents the way a trusted keystroke would: browsers only compute
+// legacy keyCode/which for real hardware events, and terminal emulators that
+// gate on those (xterm.js does, for the SEND_KEY path in its keydown
+// handler) silently drop characters typed via dispatchEvent alone. A paste
+// event carries the whole string in one well-defined, keystroke-independent
+// path, which is what most such widgets already support for real paste.
+export const QaPastePayload = Schema.Struct({
+	text: Schema.String,
+	selector: Schema.optionalKey(Schema.String),
+})
+export type QaPastePayload = typeof QaPastePayload.Type
 
 export const QaScrollPayload = Schema.Struct({
 	x: Schema.Number,
