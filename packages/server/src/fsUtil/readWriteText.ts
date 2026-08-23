@@ -54,11 +54,11 @@ export const readTextFile = Effect.fn("fsUtil.readTextFile")(function*(
 	return applyLinePagination(content, request.line, request.limit)
 })
 
-// No session-scoped write boundary here: the desktop fs facade this backs has
-// no live caller today (see #249 batch 2), so the client-supplied sessionId is
-// kept for correlation/logging only. Revisit with real path-safety scoping
-// (mirroring packages/server/src/checkpoint/paths.ts) once a caller depends on
-// it staying inside a session's project/worktree root.
+// Path confinement (project root or app data dir) is enforced by the RPC
+// handler layer before this runs — see packages/server/src/rpc/fsPathGuard.ts,
+// wired in packages/server/src/rpc/handlers.ts and
+// packages/server/src/rpc/encodedBoundary.ts. The client-supplied sessionId
+// here is kept for correlation/logging only, not as a write boundary.
 export const writeTextFile = Effect.fn("fsUtil.writeTextFile")(function*(
 	fs: FileSystem.FileSystem,
 	path: Path.Path,

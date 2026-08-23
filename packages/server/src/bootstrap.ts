@@ -56,6 +56,7 @@ import { FileIndexWarmOnImportLive } from "./fileIndex/Layers/FileIndexWarmOnImp
 import { GitServiceLive } from "./git/Layers/GitService.ts"
 import { McpCatalogLive } from "./mcp/Layers/McpCatalog.ts"
 import { CheckpointServiceLive } from "./checkpoint/Layers/CheckpointService.ts"
+import { AppDataDir } from "./rpc/fsPathGuard.ts"
 import { RpcHandlersLive } from "./rpc/handlers.ts"
 import { runStdioServer } from "./rpc/stdio.ts"
 import { SkillsServiceLive } from "./skills/Layers/SkillsService.ts"
@@ -236,6 +237,15 @@ export const makeAcepeLive = (input: AcepeLiveInput) => {
 		Layer.provide(bunPlatform),
 		Layer.provide(BunCrypto.layer)
 	)
+	// The fs-path confinement guard's "app data dir" root is this instance's
+	// own sqlite directory, not re-derived from env vars — see
+	// rpc/fsPathGuard.ts.
+	const appDataDir = Layer.unwrap(
+		Effect.gen(function*() {
+			const path = yield* Path.Path
+			return Layer.succeed(AppDataDir, AppDataDir.of({ path: path.dirname(path.resolve(input.filename)) }))
+		})
+	).pipe(Layer.provide(bunPlatform))
 	const rpc = RpcHandlersLive.pipe(
 		Layer.provideMerge(snapshots),
 		Layer.provideMerge(fileIndex),
@@ -244,6 +254,7 @@ export const makeAcepeLive = (input: AcepeLiveInput) => {
 		Layer.provideMerge(skills),
 		Layer.provideMerge(mcpCatalog),
 		Layer.provideMerge(voice),
+		Layer.provideMerge(appDataDir),
 		Layer.provideMerge(bunPlatform)
 	)
 	return Layer.mergeAll(

@@ -76,7 +76,11 @@ export class RpcCommandPreviouslyRejectedError extends Schema.TaggedError<RpcCom
 		commandId: CommandId,
 		reason: TrimmedNonEmptyString,
 	},
-) {}
+) {
+	override get message(): string {
+		return `Command ${this.commandId} was previously rejected: ${this.reason}`
+	}
+}
 
 export class RpcProjectorDecodeError extends Schema.TaggedError<RpcProjectorDecodeError>()(
 	"OrchestrationProjectorDecodeError",
@@ -85,7 +89,11 @@ export class RpcProjectorDecodeError extends Schema.TaggedError<RpcProjectorDeco
 		field: Schema.String,
 		issue: Schema.String,
 	},
-) {}
+) {
+	override get message(): string {
+		return `Failed to decode field '${this.field}' of ${this.eventType}: ${this.issue}`
+	}
+}
 
 export class RpcEngineShutdownError extends Schema.TaggedError<RpcEngineShutdownError>()(
 	"OrchestrationEngineShutdownError",
@@ -94,25 +102,41 @@ export class RpcEngineShutdownError extends Schema.TaggedError<RpcEngineShutdown
 
 export class RpcSqlError extends Schema.TaggedError<RpcSqlError>()("SqlError", {
 	reason: Schema.String,
-}) {}
+}) {
+	override get message(): string {
+		return `SQL error: ${this.reason}`
+	}
+}
 
 export class RpcSchemaError extends Schema.TaggedError<RpcSchemaError>()("SchemaError", {
 	issue: Schema.String,
-}) {}
+}) {
+	override get message(): string {
+		return `Schema error: ${this.issue}`
+	}
+}
 
 export class RpcFileIndexRootNotFoundError extends Schema.TaggedError<RpcFileIndexRootNotFoundError>()(
 	"FileIndexRootNotFoundError",
 	{
 		path: Schema.String,
 	},
-) {}
+) {
+	override get message(): string {
+		return `File index root not found: ${this.path}`
+	}
+}
 
 export class RpcFileIndexNotADirectoryError extends Schema.TaggedError<RpcFileIndexNotADirectoryError>()(
 	"FileIndexNotADirectoryError",
 	{
 		path: Schema.String,
 	},
-) {}
+) {
+	override get message(): string {
+		return `Not a directory: ${this.path}`
+	}
+}
 
 export class RpcTransportError extends Schema.TaggedError<RpcTransportError>()("RpcTransportError", {
 	reason: Schema.String,
@@ -128,7 +152,22 @@ export class RpcEventSequenceGapError extends Schema.TaggedError<RpcEventSequenc
 		last: Sequence,
 		received: Sequence,
 	},
-) {}
+) {
+	override get message(): string {
+		return `Event sequence gap: last seen ${this.last}, received ${this.received}`
+	}
+}
+
+export class RpcFsPathDeniedError extends Schema.TaggedError<RpcFsPathDeniedError>()(
+	"RpcFsPathDeniedError",
+	{
+		path: Schema.String,
+	},
+) {
+	override get message(): string {
+		return `Path is outside the allowed roots: ${this.path}`
+	}
+}
 
 export const RpcServerError = Schema.Union([
 	RpcCommandInvariantError,
@@ -139,6 +178,7 @@ export const RpcServerError = Schema.Union([
 	RpcSchemaError,
 	RpcFileIndexRootNotFoundError,
 	RpcFileIndexNotADirectoryError,
+	RpcFsPathDeniedError,
 ])
 export type RpcServerError = typeof RpcServerError.Type
 

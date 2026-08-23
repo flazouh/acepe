@@ -3,7 +3,9 @@ import {
 	decodeDispatchExit,
 	decodeGetProjectIndexExit,
 	decodeInvalidateProjectIndexExit,
+	decodeReadTextFileExit,
 	decodeSnapshotExit,
+	decodeWriteTextFileExit,
 	emptySkillsCatalog,
 	emptyVoiceModels,
 	exitToEffect,
@@ -36,8 +38,11 @@ import {
 	encodedDispatch,
 	encodedGetProjectIndex,
 	encodedInvalidateProjectIndex,
-	encodedSnapshot
+	encodedReadTextFile,
+	encodedSnapshot,
+	encodedWriteTextFile
 } from "./encodedBoundary.ts"
+import { AppDataDir } from "./fsPathGuard.ts"
 
 const isolated = () => acepeTestLive(Duration.zero).pipe(Layer.fresh)
 
@@ -256,6 +261,89 @@ Vitest.layer(isolated())("encoded project snapshot git status", (it) => {
 					Vitest.assert.strictEqual(tracked.value.deletions, 0)
 				}
 			}
+		})
+	)
+})
+
+Vitest.layer(isolated())("fs path confinement over the encoded boundary", (it) => {
+	it.effect("writes and reads back a file inside a known project root", () =>
+		Effect.gen(function*() {
+			const fs = yield* FileSystem.FileSystem
+			const path = yield* Path.Path
+			const dir = yield* fs.makeTempDirectoryScoped()
+			const projectId = ProjectId.make("project-fs-confined")
+			yield* insertProjectAt(projectId, dir)
+			const target = path.join(dir, "notes.txt")
+			const writeExit = yield* encodedWriteTextFile({
+				path: target,
+				content: "hello from inside the project",
+				sessionId: SessionId.make("session-fs-confined")
+			})
+			const writeDecoded = yield* decodeWriteTextFileExit(writeExit)
+			Vitest.assert.isTrue(Exit.isSuccess(writeDecoded))
+			const readExit = yield* encodedReadTextFile({ path: target })
+			const readDecoded = yield* decodeReadTextFileExit(readExit)
+			Vitest.assert.isTrue(Exit.isSuccess(readDecoded))
+			if (Exit.isSuccess(readDecoded)) {
+				Vitest.assert.strictEqual(readDecoded.value, "hello from inside the project")
+			}
+		})
+	)
+
+	it.effect("writes and reads back a file inside the app data directory", () =>
+		Effect.gen(function*() {
+			const path = yield* Path.Path
+			const appDataDir = yield* AppDataDir
+			const target = path.join(appDataDir.path, "app-settings.json")
+			const writeExit = yield* encodedWriteTextFile({
+				path: target,
+				content: "{}",
+				sessionId: SessionId.make("session-fs-appdata")
+			})
+			const writeDecoded = yield* decodeWriteTextFileExit(writeExit)
+			Vitest.assert.isTrue(Exit.isSuccess(writeDecoded))
+			const readExit = yield* encodedReadTextFile({ path: target })
+			const readDecoded = yield* decodeReadTextFileExit(readExit)
+			Vitest.assert.isTrue(Exit.isSuccess(readDecoded))
+			if (Exit.isSuccess(readDecoded)) {
+				Vitest.assert.strictEqual(readDecoded.value, "{}")
+			}
+		})
+	)
+
+	it.effect("denies a write outside every known project root and the app data dir", () =>
+		Effect.gen(function*() {
+			const fs = yield* FileSystem.FileSystem
+			const path = yield* Path.Path
+			const outside = yield* fs.makeTempDirectoryScoped()
+			const target = path.join(outside, "authorized_keys")
+			const writeExit = yield* encodedWriteTextFile({
+				path: target,
+				content: "ssh-ed25519 attacker-key",
+				sessionId: SessionId.make("session-fs-outside")
+			})
+			const decoded = yield* decodeWriteTextFileExit(writeExit)
+			const error = yield* exitToEffect(decoded).pipe(Effect.flip)
+			Vitest.assert.strictEqual(error._tag, "RpcFsPathDeniedError")
+		})
+	)
+
+	it.effect("denies a traversal path that lexically escapes a project root", () =>
+		Effect.gen(function*() {
+			const fs = yield* FileSystem.FileSystem
+			const path = yield* Path.Path
+			const dir = yield* fs.makeTempDirectoryScoped()
+			const projectId = ProjectId.make("project-fs-traversal")
+			yield* insertProjectAt(projectId, dir)
+			const target = path.join(dir, "..", "..", "etc", "passwd")
+			const writeExit = yield* encodedWriteTextFile({
+				path: target,
+				content: "root:x:0:0::/root:/bin/sh",
+				sessionId: SessionId.make("session-fs-traversal")
+			})
+			const decoded = yield* decodeWriteTextFileExit(writeExit)
+			const error = yield* exitToEffect(decoded).pipe(Effect.flip)
+			Vitest.assert.strictEqual(error._tag, "RpcFsPathDeniedError")
 		})
 	)
 })
