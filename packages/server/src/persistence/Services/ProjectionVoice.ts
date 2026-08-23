@@ -363,6 +363,7 @@ export const evolveProjectedVoice = (
 			CheckpointCreated: () => ignoreEvent(current),
 			CheckpointReadinessChanged: () => ignoreEvent(current),
 			CheckpointReverted: () => ignoreEvent(current),
+			CheckpointFileReverted: () => ignoreEvent(current),
 			SettingsUpdated: () => ignoreEvent(current),
 			SkillsDiscovered: () => ignoreEvent(current),
 			VoiceModelsListed: (listed) => projectModelsListed(current, listed),

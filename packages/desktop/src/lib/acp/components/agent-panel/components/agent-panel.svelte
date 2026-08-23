@@ -1768,14 +1768,16 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 		{@const _contentSnippetMark = recordPanelOpenPerformanceMark(panelId, "agent-panel:content-snippet")}
 		<div class="flex h-full min-h-0 flex-col">
 			{#if checkpointTimeline.isOpen && sessionController.sessionProjectPath && sessionId}
-				<CheckpointTimeline
-					{sessionId}
-					projectPath={sessionController.sessionProjectPath}
-					checkpoints={checkpointTimeline.checkpoints}
-					isLoading={checkpointTimeline.isLoading}
-					onClose={() => checkpointTimeline.close()}
-					onRevertComplete={handleCheckpointRevertComplete}
-				/>
+				{#key sessionId}
+					<CheckpointTimeline
+						{sessionId}
+						projectPath={sessionController.sessionProjectPath}
+						checkpoints={checkpointTimeline.checkpoints}
+						isLoading={checkpointTimeline.isLoading}
+						onClose={() => checkpointTimeline.close()}
+						onRevertComplete={handleCheckpointRevertComplete}
+					/>
+				{/key}
 			{:else}
 				<div class="flex-1 min-h-0 mb-2">
 					<AgentPanelContent
@@ -2032,6 +2034,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 										variant="ghost"
 										size="icon"
 										data-header-control
+										data-testid="checkpoint-timeline-toggle"
 										active={checkpointTimeline.isOpen}
 										title="View checkpoints"
 										aria-label="View checkpoints"

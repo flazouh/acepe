@@ -140,7 +140,7 @@
 							</PillButton>
 						</div>
 					{:else}
-						<PillButton variant="invert" size="xs" onclick={onRevertClick}>
+						<PillButton variant="invert" size="xs" data-testid="checkpoint-revert" onclick={onRevertClick}>
 							{#snippet trailingIcon()}
 								<RevertIcon size="xs" />
 							{/snippet}

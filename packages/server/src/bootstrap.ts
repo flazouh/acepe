@@ -55,6 +55,7 @@ import { FileIndexServiceLive } from "./fileIndex/Layers/FileIndexService.ts"
 import { FileIndexWarmOnImportLive } from "./fileIndex/Layers/FileIndexWarmOnImport.ts"
 import { GitServiceLive } from "./git/Layers/GitService.ts"
 import { McpCatalogLive } from "./mcp/Layers/McpCatalog.ts"
+import { CheckpointServiceLive } from "./checkpoint/Layers/CheckpointService.ts"
 import { RpcHandlersLive } from "./rpc/handlers.ts"
 import { runStdioServer } from "./rpc/stdio.ts"
 import { SkillsServiceLive } from "./skills/Layers/SkillsService.ts"
@@ -222,10 +223,16 @@ export const makeAcepeLive = (input: AcepeLiveInput) => {
 		})
 	).pipe(Layer.provide(bunPlatform))
 	const voice = VoiceRuntimeLive.pipe(Layer.provide(bunPlatform))
+	const checkpoint = CheckpointServiceLive.pipe(
+		Layer.provide(engine),
+		Layer.provide(bunPlatform),
+		Layer.provide(BunCrypto.layer)
+	)
 	const rpc = RpcHandlersLive.pipe(
 		Layer.provideMerge(snapshots),
 		Layer.provideMerge(fileIndex),
 		Layer.provideMerge(git),
+		Layer.provideMerge(checkpoint),
 		Layer.provideMerge(skills),
 		Layer.provideMerge(mcpCatalog),
 		Layer.provideMerge(voice),

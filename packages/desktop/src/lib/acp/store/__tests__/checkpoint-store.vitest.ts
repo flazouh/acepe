@@ -1,82 +1,174 @@
+import {
+	CheckpointId,
+	type RpcClient,
+	type RpcProjectedCheckpoint,
+	type RpcSessionSnapshot,
+	RpcTransportError,
+	SessionId,
+	ToolCallId
+} from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { AgentError } from "../../errors/app-error.js";
-
+import * as Stream from "effect/Stream";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { CheckpointError } from "../../errors/checkpoint-error.js";
-import type { Checkpoint, RevertResult } from "../../types/checkpoint.js";
-
-// Mock the tauri-client module
-vi.mock("../../../utils/tauri-client.js", () => ({
-	openFileInEditor: vi.fn(),
-	revealInFinder: vi.fn(),
-	tauriClient: {
-		checkpoint: {
-			create: vi.fn(),
-			list: vi.fn(),
-			getFileContent: vi.fn(),
-			getFileDiffContent: vi.fn(),
-			revert: vi.fn(),
-			revertFile: vi.fn(),
-			getFileSnapshots: vi.fn(),
-		},
-	},
-}));
-
-import { tauriClient } from "../../../utils/tauri-client.js";
+import { setAppRpcClientForTest } from "../../../rpc/app-client.js";
 import { CheckpointStore } from "../checkpoint-store.svelte.js";
+
+const CREATED_AT = "2026-01-15T12:00:00.000Z";
+const CREATED_AT_MS = Date.parse(CREATED_AT);
+
+const unusedIndex = () =>
+	Effect.fail(new RpcTransportError({ reason: "project index unused in checkpoint tests" }));
+
+const rpcFile = (path: string, content: string, linesAdded: number, linesRemoved: number) => ({
+	path,
+	contentHash: `hash-${path}`,
+	fileSize: content.length,
+	linesAdded,
+	linesRemoved,
+	content
+});
+
+const rpcCheckpoint = (input: {
+	readonly checkpointId: string;
+	readonly sessionId: string;
+	readonly checkpointNumber: number;
+	readonly name: string | null;
+	readonly isAuto: boolean;
+	readonly toolCallId: string | null;
+	readonly files: RpcProjectedCheckpoint["files"];
+}): RpcProjectedCheckpoint => ({
+	checkpointId: CheckpointId.make(input.checkpointId),
+	sessionId: SessionId.make(input.sessionId),
+	sequence: 1,
+	checkpointNumber: input.checkpointNumber,
+	name: input.name,
+	isAuto: input.isAuto,
+	toolCallId: input.toolCallId === null ? null : ToolCallId.make(input.toolCallId),
+	fileCount: input.files.length,
+	status: "ready",
+	createdAt: CREATED_AT,
+	lastRevertedAt: null,
+	files: input.files
+});
+
+const rpcSnapshot = (checkpoints: ReadonlyArray<RpcProjectedCheckpoint>): RpcSessionSnapshot => ({
+	snapshotSequence: 1,
+	session: null,
+	messages: [],
+	turns: [],
+	activities: [],
+	pendingApprovals: [],
+	checkpoints,
+	projects: [],
+	sessions: [],
+	settings: [],
+	skillsCatalog: null,
+	voice: null,
+	gitReview: null,
+	mcpCatalog: null,
+	preconnectionOptions: null
+});
+
+const installClient = (input: {
+	readonly snapshot: RpcSessionSnapshot;
+	readonly dispatch?: RpcClient["dispatch"];
+}): { readonly dispatched: Array<string> } => {
+	const dispatched: Array<string> = [];
+	let snapshot = input.snapshot;
+	setAppRpcClientForTest({
+		dispatch: (command) => {
+			dispatched.push(command.type);
+			if (input.dispatch !== undefined) {
+				return input.dispatch(command);
+			}
+			if (command.type === "checkpoint.create") {
+				snapshot = rpcSnapshot([
+					rpcCheckpoint({
+						checkpointId: command.checkpointId,
+						sessionId: command.sessionId,
+						checkpointNumber: command.checkpointNumber,
+						name: command.name,
+						isAuto: command.isAuto,
+						toolCallId: command.toolCallId,
+						files: command.modifiedFiles.map((path) => rpcFile(path, "const x = 1;", 1, 0))
+					}),
+					...snapshot.checkpoints
+				]);
+			}
+			return Effect.succeed({ sequence: 1 });
+		},
+		snapshot: () => Effect.succeed(snapshot),
+		events: () => Stream.empty,
+		getProjectIndex: unusedIndex,
+		invalidateProjectIndex: () => Effect.void
+	});
+	return { dispatched };
+};
 
 describe("CheckpointStore", () => {
 	let store: CheckpointStore;
 
 	beforeEach(() => {
-		// Reset all mocks
-		vi.clearAllMocks();
-
-		// Create fresh store for each test
 		store = new CheckpointStore();
+	});
+
+	afterEach(() => {
+		setAppRpcClientForTest(null);
 	});
 
 	describe("loadCheckpoints", () => {
 		it("should load checkpoints for a session", async () => {
-			const mockCheckpoints: Checkpoint[] = [
-				{
-					id: "cp1",
-					sessionId: "s1",
-					checkpointNumber: 2,
-					name: "After edit",
-					createdAt: Date.now(),
-					toolCallId: "tc1",
-					isAuto: true,
-					fileCount: 2,
-					totalLinesAdded: 10,
-					totalLinesRemoved: 5,
-				},
-				{
-					id: "cp0",
-					sessionId: "s1",
-					checkpointNumber: 1,
-					name: null,
-					createdAt: Date.now() - 1000,
-					toolCallId: null,
-					isAuto: true,
-					fileCount: 1,
-					totalLinesAdded: null,
-					totalLinesRemoved: null,
-				},
-			];
-			vi.mocked(tauriClient.checkpoint.list).mockReturnValue(Effect.succeed(mockCheckpoints));
+			installClient({
+				snapshot: rpcSnapshot([
+					rpcCheckpoint({
+						checkpointId: "cp1",
+						sessionId: "s1",
+						checkpointNumber: 2,
+						name: "After edit",
+						isAuto: true,
+						toolCallId: "tc1",
+						files: [
+							rpcFile("a.ts", "a", 10, 5),
+							rpcFile("b.ts", "b", 0, 0)
+						]
+					}),
+					rpcCheckpoint({
+						checkpointId: "cp0",
+						sessionId: "s1",
+						checkpointNumber: 1,
+						name: null,
+						isAuto: true,
+						toolCallId: null,
+						files: [rpcFile("a.ts", "old", 1, 0)]
+					})
+				])
+			});
 
 			const result = await Effect.runPromise(Effect.result(store.loadCheckpoints("s1")));
 
 			expect(Result.isSuccess(result)).toBe(true);
-			expect(Result.getOrThrow(result)).toEqual(mockCheckpoints);
-			expect(store.getCheckpoints("s1")).toEqual(mockCheckpoints);
+			const loaded = Result.getOrThrow(result);
+			expect(loaded.map((row) => row.id)).toEqual(["cp1", "cp0"]);
+			expect(loaded[0]?.createdAt).toBe(CREATED_AT_MS);
+			expect(loaded[0]?.totalLinesAdded).toBe(10);
+			expect(loaded[0]?.totalLinesRemoved).toBe(5);
+			expect(store.getCheckpoints("s1").map((row) => row.id)).toEqual(["cp1", "cp0"]);
 		});
 
 		it("should return error on failure", async () => {
-			const error = new CheckpointError("DB error", "STORAGE_ERROR");
-			vi.mocked(tauriClient.checkpoint.list).mockReturnValue(Effect.fail(error as any));
+			installClient({
+				snapshot: rpcSnapshot([]),
+				dispatch: () => Effect.succeed({ sequence: 1 })
+			});
+			setAppRpcClientForTest({
+				dispatch: () => Effect.succeed({ sequence: 1 }),
+				snapshot: () => Effect.fail(new RpcTransportError({ reason: "DB error" })),
+				events: () => Stream.empty,
+				getProjectIndex: unusedIndex,
+				invalidateProjectIndex: () => Effect.void
+			});
 
 			const result = await Effect.runPromise(Effect.result(store.loadCheckpoints("s1")));
 
@@ -87,79 +179,61 @@ describe("CheckpointStore", () => {
 
 	describe("createCheckpoint", () => {
 		it("should create checkpoint and update local state", async () => {
-			const mockCheckpoint: Checkpoint = {
-				id: "cp1",
-				sessionId: "s1",
-				checkpointNumber: 1,
-				name: "Manual checkpoint",
-				createdAt: Date.now(),
-				toolCallId: null,
-				isAuto: false,
-				fileCount: 3,
-				totalLinesAdded: 15,
-				totalLinesRemoved: 3,
-			};
-			vi.mocked(tauriClient.checkpoint.create).mockReturnValue(Effect.succeed(mockCheckpoint));
+			const { dispatched } = installClient({ snapshot: rpcSnapshot([]) });
 
-			const result = await Effect.runPromise(Effect.result(store.createCheckpoint(
-				"s1",
-				"/project",
-				["file1.ts", "file2.ts", "file3.ts"],
-				{ name: "Manual checkpoint", isAuto: false }
-			)));
+			const result = await Effect.runPromise(
+				Effect.result(
+					store.createCheckpoint("s1", "/project", ["file1.ts", "file2.ts", "file3.ts"], {
+						name: "Manual checkpoint",
+						isAuto: false
+					})
+				)
+			);
 
 			expect(Result.isSuccess(result)).toBe(true);
-			expect(Result.getOrThrow(result)).toEqual(mockCheckpoint);
-			// New checkpoint should be at the front of the list
-			expect(store.getCheckpoints("s1")[0]).toEqual(mockCheckpoint);
+			const created = Result.getOrThrow(result);
+			expect(created.name).toBe("Manual checkpoint");
+			expect(created.fileCount).toBe(3);
+			expect(store.getCheckpoints("s1")[0]?.id).toBe(created.id);
+			expect(dispatched).toEqual(["checkpoint.create", "checkpoint.report-readiness"]);
 		});
 
 		it("should prepend new checkpoint to existing list", async () => {
-			// Setup existing checkpoints
-			const existingCheckpoint: Checkpoint = {
-				id: "cp0",
-				sessionId: "s1",
-				checkpointNumber: 1,
-				name: null,
-				createdAt: Date.now() - 1000,
-				toolCallId: null,
-				isAuto: true,
-				fileCount: 1,
-				totalLinesAdded: null,
-				totalLinesRemoved: null,
-			};
-			vi.mocked(tauriClient.checkpoint.list).mockReturnValue(Effect.succeed([existingCheckpoint]));
+			installClient({
+				snapshot: rpcSnapshot([
+					rpcCheckpoint({
+						checkpointId: "cp0",
+						sessionId: "s1",
+						checkpointNumber: 1,
+						name: null,
+						isAuto: true,
+						toolCallId: null,
+						files: [rpcFile("old.ts", "old", 1, 0)]
+					})
+				])
+			});
 			await Effect.runPromise(store.loadCheckpoints("s1"));
 
-			// Create new checkpoint
-			const newCheckpoint: Checkpoint = {
-				id: "cp1",
-				sessionId: "s1",
-				checkpointNumber: 2,
-				name: null,
-				createdAt: Date.now(),
-				toolCallId: "tc1",
-				isAuto: true,
-				fileCount: 2,
-				totalLinesAdded: 8,
-				totalLinesRemoved: 2,
-			};
-			vi.mocked(tauriClient.checkpoint.create).mockReturnValue(Effect.succeed(newCheckpoint));
-
-			await Effect.runPromise(store.createCheckpoint("s1", "/project", ["file.ts"], { toolCallId: "tc1" }));
+			await Effect.runPromise(
+				store.createCheckpoint("s1", "/project", ["file.ts"], { toolCallId: "tc1" })
+			);
 
 			const checkpoints = store.getCheckpoints("s1");
 			expect(checkpoints).toHaveLength(2);
-			expect(checkpoints[0]).toEqual(newCheckpoint);
-			expect(checkpoints[1]).toEqual(existingCheckpoint);
+			expect(checkpoints[0]?.toolCallId).toBe("tc1");
+			expect(checkpoints[1]?.id).toBe("cp0");
 		});
 
 		it("should include root cause details in create checkpoint error message", async () => {
-			const rootCause = new Error("FOREIGN KEY constraint failed");
-			const tauriError = new AgentError("checkpoint_create", rootCause);
-			vi.mocked(tauriClient.checkpoint.create).mockReturnValue(Effect.fail(tauriError));
+			installClient({
+				snapshot: rpcSnapshot([]),
+				dispatch: () =>
+					Effect.fail(new RpcTransportError({ reason: "FOREIGN KEY constraint failed" }))
+			});
 
-			const result = await Effect.runPromise(Effect.result(store.createCheckpoint("s1", "/project", ["file.ts"], { isAuto: true })));
+			const result = await Effect.runPromise(
+				Effect.result(store.createCheckpoint("s1", "/project", ["file.ts"], { isAuto: true }))
+			);
 
 			expect(Result.isFailure(result)).toBe(true);
 			if (!Result.isFailure(result)) {
@@ -167,49 +241,44 @@ describe("CheckpointStore", () => {
 			}
 			const error = result.failure;
 			expect(error.code).toBe("CREATE_FAILED");
-			expect(error.message).toContain("Agent operation failed: checkpoint_create");
+			expect(error.message).toContain("Failed to create checkpoint");
 			expect(error.message).toContain("FOREIGN KEY constraint failed");
 		});
 	});
 
 	describe("revertToCheckpoint", () => {
 		it("should revert all files in checkpoint", async () => {
-			const mockResult: RevertResult = {
-				success: true,
-				revertedFiles: ["a.ts", "b.ts"],
-				failedFiles: [],
-			};
-			vi.mocked(tauriClient.checkpoint.revert).mockReturnValue(Effect.succeed(mockResult));
+			installClient({
+				snapshot: rpcSnapshot([
+					rpcCheckpoint({
+						checkpointId: "cp1",
+						sessionId: "s1",
+						checkpointNumber: 1,
+						name: null,
+						isAuto: true,
+						toolCallId: null,
+						files: [rpcFile("a.ts", "a", 1, 0), rpcFile("b.ts", "b", 1, 0)]
+					})
+				])
+			});
+			await Effect.runPromise(store.loadCheckpoints("s1"));
 
-			const result = await Effect.runPromise(Effect.result(store.revertToCheckpoint("s1", "cp1", "/project")));
+			const result = await Effect.runPromise(
+				Effect.result(store.revertToCheckpoint("s1", "cp1", "/project"))
+			);
 
 			expect(Result.isSuccess(result)).toBe(true);
 			expect(Result.getOrThrow(result).revertedFiles).toHaveLength(2);
-		});
-
-		it("should return partial result when some files fail", async () => {
-			const mockResult: RevertResult = {
-				success: false,
-				revertedFiles: ["a.ts"],
-				failedFiles: [{ filePath: "b.ts", error: "permission denied" }],
-			};
-			vi.mocked(tauriClient.checkpoint.revert).mockReturnValue(Effect.succeed(mockResult));
-
-			const result = await Effect.runPromise(Effect.result(store.revertToCheckpoint("s1", "cp1", "/project")));
-
-			expect(Result.isSuccess(result)).toBe(true);
-			const revertResult = Result.getOrThrow(result);
-			expect(revertResult.success).toBe(false);
-			expect(revertResult.revertedFiles).toHaveLength(1);
-			expect(revertResult.failedFiles).toHaveLength(1);
 		});
 	});
 
 	describe("revertFile", () => {
 		it("should revert single file to checkpoint state", async () => {
-			vi.mocked(tauriClient.checkpoint.revertFile).mockReturnValue(Effect.succeed(undefined));
+			installClient({ snapshot: rpcSnapshot([]) });
 
-			const result = await Effect.runPromise(Effect.result(store.revertFile("s1", "cp1", "file.ts", "/project")));
+			const result = await Effect.runPromise(
+				Effect.result(store.revertFile("s1", "cp1", "file.ts", "/project"))
+			);
 
 			expect(Result.isSuccess(result)).toBe(true);
 		});
@@ -217,41 +286,92 @@ describe("CheckpointStore", () => {
 
 	describe("getFileContentAtCheckpoint", () => {
 		it("should return file content", async () => {
-			const content = "const x = 1;";
-			vi.mocked(tauriClient.checkpoint.getFileContent).mockReturnValue(Effect.succeed(content));
+			installClient({
+				snapshot: rpcSnapshot([
+					rpcCheckpoint({
+						checkpointId: "cp1",
+						sessionId: "s1",
+						checkpointNumber: 1,
+						name: null,
+						isAuto: true,
+						toolCallId: null,
+						files: [rpcFile("file.ts", "const x = 1;", 1, 0)]
+					})
+				])
+			});
+			await Effect.runPromise(store.loadCheckpoints("s1"));
 
-			const result = await Effect.runPromise(Effect.result(store.getFileContentAtCheckpoint("s1", "cp1", "file.ts")));
+			const result = await Effect.runPromise(
+				Effect.result(store.getFileContentAtCheckpoint("s1", "cp1", "file.ts"))
+			);
 
 			expect(Result.isSuccess(result)).toBe(true);
-			expect(Result.getOrThrow(result)).toBe(content);
+			expect(Result.getOrThrow(result)).toBe("const x = 1;");
 		});
 	});
 
 	describe("getFileDiffContentAtCheckpoint", () => {
 		it("should return old and new content", async () => {
-			const diffContent = {
-				oldContent: "const x = 0;",
-				newContent: "const x = 1;",
-			};
-			vi.mocked(tauriClient.checkpoint.getFileDiffContent).mockReturnValue(Effect.succeed(diffContent));
+			installClient({
+				snapshot: rpcSnapshot([
+					rpcCheckpoint({
+						checkpointId: "cp1",
+						sessionId: "s1",
+						checkpointNumber: 2,
+						name: null,
+						isAuto: true,
+						toolCallId: null,
+						files: [rpcFile("file.ts", "const x = 1;", 1, 0)]
+					}),
+					rpcCheckpoint({
+						checkpointId: "cp0",
+						sessionId: "s1",
+						checkpointNumber: 1,
+						name: null,
+						isAuto: true,
+						toolCallId: null,
+						files: [rpcFile("file.ts", "const x = 0;", 1, 0)]
+					})
+				])
+			});
+			await Effect.runPromise(store.loadCheckpoints("s1"));
 
-			const result = await Effect.runPromise(Effect.result(store.getFileDiffContentAtCheckpoint("s1", "cp1", "file.ts")));
+			const result = await Effect.runPromise(
+				Effect.result(store.getFileDiffContentAtCheckpoint("s1", "cp1", "file.ts"))
+			);
 
 			expect(Result.isSuccess(result)).toBe(true);
-			expect(Result.getOrThrow(result)).toEqual(diffContent);
+			expect(Result.getOrThrow(result)).toEqual({
+				oldContent: "const x = 0;",
+				newContent: "const x = 1;"
+			});
 		});
 
 		it("should return null oldContent for new file", async () => {
-			const diffContent = {
-				oldContent: null,
-				newContent: "const x = 1;",
-			};
-			vi.mocked(tauriClient.checkpoint.getFileDiffContent).mockReturnValue(Effect.succeed(diffContent));
+			installClient({
+				snapshot: rpcSnapshot([
+					rpcCheckpoint({
+						checkpointId: "cp1",
+						sessionId: "s1",
+						checkpointNumber: 1,
+						name: null,
+						isAuto: true,
+						toolCallId: null,
+						files: [rpcFile("file.ts", "const x = 1;", 1, 0)]
+					})
+				])
+			});
+			await Effect.runPromise(store.loadCheckpoints("s1"));
 
-			const result = await Effect.runPromise(Effect.result(store.getFileDiffContentAtCheckpoint("s1", "cp1", "file.ts")));
+			const result = await Effect.runPromise(
+				Effect.result(store.getFileDiffContentAtCheckpoint("s1", "cp1", "file.ts"))
+			);
 
 			expect(Result.isSuccess(result)).toBe(true);
-			expect(Result.getOrThrow(result)).toEqual(diffContent);
+			expect(Result.getOrThrow(result)).toEqual({
+				oldContent: null,
+				newContent: "const x = 1;"
+			});
 		});
 	});
 
@@ -263,24 +383,22 @@ describe("CheckpointStore", () => {
 
 	describe("clearCheckpoints", () => {
 		it("should clear checkpoints for a session", async () => {
-			// Setup existing checkpoints
-			const checkpoint: Checkpoint = {
-				id: "cp0",
-				sessionId: "s1",
-				checkpointNumber: 1,
-				name: null,
-				createdAt: Date.now(),
-				toolCallId: null,
-				isAuto: true,
-				fileCount: 1,
-				totalLinesAdded: null,
-				totalLinesRemoved: null,
-			};
-			vi.mocked(tauriClient.checkpoint.list).mockReturnValue(Effect.succeed([checkpoint]));
+			installClient({
+				snapshot: rpcSnapshot([
+					rpcCheckpoint({
+						checkpointId: "cp0",
+						sessionId: "s1",
+						checkpointNumber: 1,
+						name: null,
+						isAuto: true,
+						toolCallId: null,
+						files: [rpcFile("a.ts", "a", 1, 0)]
+					})
+				])
+			});
 			await Effect.runPromise(store.loadCheckpoints("s1"));
 			expect(store.getCheckpoints("s1")).toHaveLength(1);
 
-			// Clear
 			store.clearCheckpoints("s1");
 
 			expect(store.getCheckpoints("s1")).toEqual([]);

@@ -49,6 +49,8 @@ import { fillSkillsDiscoverCommand } from "../skills/discoverCatalog.ts"
 import { fillGitCommand } from "../git/fillCommand.ts"
 import { fillMcpCommand } from "../mcp/fillCommand.ts"
 import { fillVoiceCommand } from "../voice/fillCommand.ts"
+import { fillCheckpointCommand } from "../checkpoint/fillCommand.ts"
+import { CheckpointNotFoundError, CheckpointService } from "../checkpoint/Services/CheckpointService.ts"
 
 const EVENT_PAGE_SIZE = 1_000
 
@@ -74,7 +76,8 @@ export const toRpcCheckpoint = (checkpoint: SessionProjectionSnapshot["checkpoin
 	fileCount: checkpoint.fileCount,
 	status: checkpoint.status,
 	createdAt: checkpoint.createdAt,
-	lastRevertedAt: checkpoint.lastRevertedAt
+	lastRevertedAt: checkpoint.lastRevertedAt,
+	files: Arr.empty()
 })
 
 export const toRpcSnapshot = (snapshot: SessionProjectionSnapshot): RpcSessionSnapshot => ({
@@ -162,13 +165,80 @@ const withProjectGitStatus = Effect.fn("withProjectGitStatus")(function*(
 	} satisfies RpcSessionSnapshot
 })
 
+const rpcCheckpointWithFiles = (
+	row: RpcSessionSnapshot["checkpoints"][number],
+	files: RpcSessionSnapshot["checkpoints"][number]["files"]
+) => ({
+	checkpointId: row.checkpointId,
+	sessionId: row.sessionId,
+	sequence: row.sequence,
+	checkpointNumber: row.checkpointNumber,
+	name: row.name,
+	isAuto: row.isAuto,
+	toolCallId: row.toolCallId,
+	fileCount: row.fileCount,
+	status: row.status,
+	createdAt: row.createdAt,
+	lastRevertedAt: row.lastRevertedAt,
+	files
+})
+
+const withCheckpointFiles = Effect.fn("withCheckpointFiles")(function*(
+	snapshot: RpcSessionSnapshot
+) {
+	const checkpoints = yield* CheckpointService
+	const rows = yield* Effect.forEach(snapshot.checkpoints, (row) =>
+		checkpoints.getFileSnapshots(row.sessionId, row.checkpointId).pipe(
+			Effect.map((snaps) =>
+				rpcCheckpointWithFiles(
+					row,
+					Arr.map(snaps, (snap) => ({
+						path: snap.filePath,
+						contentHash: snap.contentHash,
+						fileSize: snap.fileSize,
+						linesAdded: snap.linesAdded,
+						linesRemoved: snap.linesRemoved,
+						content: snap.content
+					}))
+				)
+			),
+			Effect.catchTag("CheckpointNotFoundError", () =>
+				Effect.succeed(rpcCheckpointWithFiles(row, Arr.empty()))
+			),
+			Effect.tapCause((cause) =>
+				Effect.logWarning(`checkpoint files unavailable: ${Cause.pretty(cause)}`)
+			),
+			Effect.orElseSucceed(() => rpcCheckpointWithFiles(row, Arr.empty()))
+		)
+	)
+	return {
+		snapshotSequence: snapshot.snapshotSequence,
+		session: snapshot.session,
+		messages: snapshot.messages,
+		turns: snapshot.turns,
+		activities: snapshot.activities,
+		pendingApprovals: snapshot.pendingApprovals,
+		checkpoints: rows,
+		projects: snapshot.projects,
+		sessions: snapshot.sessions,
+		settings: snapshot.settings,
+		skillsCatalog: snapshot.skillsCatalog,
+		voice: snapshot.voice,
+		gitReview: snapshot.gitReview,
+		mcpCatalog: snapshot.mcpCatalog,
+		preconnectionOptions: snapshot.preconnectionOptions
+	} satisfies RpcSessionSnapshot
+})
+
 export const rpcSnapshotForRequest = Effect.fn("rpcSnapshotForRequest")(function*(
 	request: SnapshotRequest
 ) {
 	const snapshots = yield* ProjectionSnapshotQuery
 	const git = yield* GitService
 	const snap = yield* snapshots.forRequest(request)
-	return yield* withProjectGitStatus(git, toRpcSnapshot(snap), request)
+	return yield* withCheckpointFiles(
+		yield* withProjectGitStatus(git, toRpcSnapshot(snap), request)
+	)
 })
 
 export const toRpcError = (
@@ -271,7 +341,8 @@ export const dispatchOrchestrationCommand = Effect.fn("dispatchOrchestrationComm
 	const filledVoice = yield* fillVoiceCommand(filledSkills)
 	const filledGit = yield* fillGitCommand(filledVoice)
 	const filledAcp = yield* fillAcpCommand(filledGit)
-	const filled = yield* fillMcpCommand(filledAcp)
+	const filledMcp = yield* fillMcpCommand(filledAcp)
+	const filled = yield* fillCheckpointCommand(filledMcp)
 	return yield* engine.dispatch(filled)
 })
 

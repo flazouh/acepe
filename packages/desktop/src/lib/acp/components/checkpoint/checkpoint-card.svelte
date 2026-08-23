@@ -148,6 +148,7 @@ async function handleToggleFileDiff(fileId: string) {
 }
 </script>
 
+<div class="contents" data-testid="checkpoint-card" data-checkpoint-id={checkpoint.id}>
 <BaseCheckpointCard
 	checkpoint={checkpointData}
 	{files}
@@ -184,3 +185,4 @@ async function handleToggleFileDiff(fileId: string) {
 		<CheckpointDiffPreview {diff} />
 	{/snippet}
 </BaseCheckpointCard>
+</div>

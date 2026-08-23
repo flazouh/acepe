@@ -93,7 +93,9 @@ const checkpointRevertCommand = CheckpointRevertCommand.make({
 	type: "checkpoint.revert",
 	commandId,
 	sessionId,
-	checkpointId
+	checkpointId,
+	projectPath: null,
+	worktreePath: null
 })
 
 const checkpointCreateCommand = CheckpointCreateCommand.make({
@@ -105,7 +107,10 @@ const checkpointCreateCommand = CheckpointCreateCommand.make({
 	name: "After edit",
 	isAuto: false,
 	toolCallId: null,
-	fileCount: 1
+	fileCount: 1,
+	projectPath: null,
+	worktreePath: null,
+	modifiedFiles: []
 })
 
 Vitest.describe("requireProject", () => {

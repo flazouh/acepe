@@ -285,6 +285,7 @@ describe("applyEventToRpcSessionSnapshot", () => {
 				status: "missing",
 				createdAt: occurredAt,
 				lastRevertedAt: null,
+				files: [],
 			},
 		])
 		const ready = applyEventToRpcSessionSnapshot(created, {

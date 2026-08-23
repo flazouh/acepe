@@ -28,6 +28,8 @@ export interface Checkpoint {
 	totalLinesAdded: number | null;
 	/** Total lines removed across all files (null if not computed) */
 	totalLinesRemoved: number | null;
+	/** File snapshots joined from the session snapshot */
+	files?: FileSnapshot[];
 }
 
 /**
@@ -48,6 +50,8 @@ export interface FileSnapshot {
 	linesAdded: number | null;
 	/** Lines removed compared to previous checkpoint (null for old checkpoints) */
 	linesRemoved: number | null;
+	/** File bytes at this checkpoint */
+	content: string;
 }
 
 /**

@@ -5,6 +5,8 @@ import {
 	type CheckpointReadinessChangedEvent,
 	type CheckpointRevertCommand,
 	type CheckpointRevertedEvent,
+	type CheckpointRevertFileCommand,
+	type CheckpointFileRevertedEvent,
 	type EventId,
 	type IsoDateTime,
 	type JsonObject,
@@ -457,6 +459,27 @@ const checkpointRevertedEvent = (
 	}
 })
 
+const checkpointFileRevertedEvent = (
+	command: CheckpointRevertFileCommand,
+	identity: DecideIdentity,
+	sequence: Sequence
+): CheckpointFileRevertedEvent => ({
+	...withEnvelope({
+		sequence,
+		eventId: identity.eventId,
+		aggregateKind: "session",
+		aggregateId: command.sessionId,
+		occurredAt: identity.occurredAt,
+		commandId: command.commandId
+	}),
+	type: "CheckpointFileReverted",
+	payload: {
+		sessionId: command.sessionId,
+		checkpointId: command.checkpointId,
+		filePath: command.filePath
+	}
+})
+
 const settingsUpdatedEvent = (
 	command: SettingsSetCommand,
 	identity: DecideIdentity,
@@ -686,6 +709,20 @@ const decideCheckpointRevert = Effect.fn("decideCheckpointRevert")(function*(
 	return [checkpointRevertedEvent(command, identity, nextSequence(readModel.snapshotSequence))]
 })
 
+const decideCheckpointRevertFile = Effect.fn("decideCheckpointRevertFile")(function*(
+	readModel: OrchestrationReadModel,
+	command: CheckpointRevertFileCommand,
+	identity: DecideIdentity
+) {
+	yield* requireCheckpoint({
+		readModel,
+		command,
+		sessionId: command.sessionId,
+		checkpointId: command.checkpointId
+	})
+	return [checkpointFileRevertedEvent(command, identity, nextSequence(readModel.snapshotSequence))]
+})
+
 const decideSettingsSet = Effect.fn("decideSettingsSet")(function*(
 	readModel: OrchestrationReadModel,
 	command: SettingsSetCommand,
@@ -737,6 +774,8 @@ export const decide = Effect.fn("decide")(function*(
 			return yield* decideCheckpointReportReadiness(readModel, command, identity)
 		case "checkpoint.revert":
 			return yield* decideCheckpointRevert(readModel, command, identity)
+		case "checkpoint.revert-file":
+			return yield* decideCheckpointRevertFile(readModel, command, identity)
 		case "settings.set":
 			return yield* decideSettingsSet(readModel, command, identity)
 		case "skills.discover":

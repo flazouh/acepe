@@ -1,9 +1,5 @@
 import {
-	CheckpointCreateCommand,
 	CheckpointId,
-	CheckpointReportReadinessCommand,
-	CheckpointRevertCommand,
-	CommandId,
 	type SessionId,
 	TrimmedNonEmptyString
 } from "@acepe/contracts"
@@ -19,7 +15,6 @@ import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { SqlError } from "effect/unstable/sql/SqlError"
-import { OrchestrationEngine } from "../../orchestration/Services/OrchestrationEngine.ts"
 import { sha256Hex, utf8Bytes } from "../contentHash.ts"
 import { computeDiffStats } from "../diffStats.ts"
 import { toRelativeModifiedPath, validateRelativePath } from "../paths.ts"
@@ -72,7 +67,6 @@ export const makeCheckpointService = Effect.fn("CheckpointService.make")(functio
 	const path = yield* Path.Path
 	const crypto = yield* Crypto.Crypto
 	const sql = yield* SqlClient.SqlClient
-	const engine = yield* OrchestrationEngine
 	const requireOwned = Effect.fn("CheckpointService.requireOwned")(function*(
 		sessionId: SessionId,
 		checkpointId: CheckpointId
@@ -82,51 +76,6 @@ export const makeCheckpointService = Effect.fn("CheckpointService.make")(functio
 			return yield* new CheckpointSessionMismatchError({ checkpointId, sessionId })
 		}
 		return checkpoint
-	})
-
-	const dispatchCreated = Effect.fn("CheckpointService.dispatchCreated")(function*(
-		record: CheckpointRecord
-	) {
-		yield* engine.dispatch(
-			CheckpointCreateCommand.make({
-				type: "checkpoint.create",
-				commandId: CommandId.make(yield* crypto.randomUUIDv4),
-				sessionId: record.sessionId,
-				checkpointId: record.id,
-				checkpointNumber: record.checkpointNumber,
-				name: record.name,
-				isAuto: record.isAuto,
-				toolCallId: record.toolCallId,
-				fileCount: record.fileCount
-			})
-		)
-	})
-
-	const dispatchReady = Effect.fn("CheckpointService.dispatchReady")(function*(
-		record: CheckpointRecord
-	) {
-		yield* engine.dispatch(
-			CheckpointReportReadinessCommand.make({
-				type: "checkpoint.report-readiness",
-				commandId: CommandId.make(yield* crypto.randomUUIDv4),
-				sessionId: record.sessionId,
-				checkpointId: record.id,
-				status: "ready"
-			})
-		)
-	})
-
-	const dispatchReverted = Effect.fn("CheckpointService.dispatchReverted")(function*(
-		record: CheckpointRecord
-	) {
-		yield* engine.dispatch(
-			CheckpointRevertCommand.make({
-				type: "checkpoint.revert",
-				commandId: CommandId.make(yield* crypto.randomUUIDv4),
-				sessionId: record.sessionId,
-				checkpointId: record.id
-			})
-		)
 	})
 
 	const readOneFile = Effect.fn("CheckpointService.readOneFile")(function*(
@@ -206,7 +155,7 @@ export const makeCheckpointService = Effect.fn("CheckpointService.make")(functio
 			}
 			const now = yield* DateTime.now
 			const inserted = yield* insertCheckpoint(sql, {
-				checkpointId: CheckpointId.make(yield* crypto.randomUUIDv4),
+				checkpointId: input.checkpointId,
 				sessionId: input.sessionId,
 				checkpointNumber,
 				name: input.name,
@@ -219,6 +168,12 @@ export const makeCheckpointService = Effect.fn("CheckpointService.make")(functio
 				return inserted.success
 			}
 			if (Schema.is(SqlError)(inserted.failure) && isUniqueConstraintError(inserted.failure)) {
+				const existing = yield* getStoredCheckpoint(sql, input.checkpointId).pipe(
+					Effect.catchTag("CheckpointNotFoundError", () => Effect.succeed(null))
+				)
+				if (existing !== null) {
+					return yield* new CheckpointConflictError({ sessionId: input.sessionId })
+				}
 				attempt = attempt + 1
 				checkpointNumber = yield* nextCheckpointNumber(sql, input.sessionId)
 				continue
@@ -235,8 +190,6 @@ export const makeCheckpointService = Effect.fn("CheckpointService.make")(functio
 			return yield* new CheckpointEmptyError({ sessionId: decoded.sessionId })
 		}
 		const record = yield* persistCheckpoint(decoded, files)
-		yield* dispatchCreated(record)
-		yield* dispatchReady(record)
 		return record
 	})
 
@@ -252,11 +205,13 @@ export const makeCheckpointService = Effect.fn("CheckpointService.make")(functio
 		const checkpoint = yield* requireOwned(input.sessionId, input.checkpointId)
 		const snapshots = yield* getStoredFileSnapshots(sql, checkpoint.id)
 		const effectivePath = input.worktreePath === null ? input.projectPath : input.worktreePath
+		let safetyCheckpoint: CheckpointRecord | null = null
 		if (Arr.isReadonlyArrayNonEmpty(snapshots)) {
 			const safetyName = yield* decodeSafetyName(
 				`Before revert to checkpoint #${checkpoint.checkpointNumber}`
 			)
-			yield* create({
+			const safety = yield* create({
+				checkpointId: CheckpointId.make(yield* crypto.randomUUIDv4),
 				sessionId: checkpoint.sessionId,
 				projectPath: effectivePath,
 				worktreePath: null,
@@ -265,13 +220,16 @@ export const makeCheckpointService = Effect.fn("CheckpointService.make")(functio
 				name: safetyName,
 				isAuto: true
 			}).pipe(Effect.option)
+			if (Option.isSome(safety)) {
+				safetyCheckpoint = safety.value
+			}
 		}
 		if (Arr.isReadonlyArrayNonEmpty(snapshots) === false) {
-			yield* dispatchReverted(checkpoint)
 			return {
 				success: true,
 				revertedFiles: Arr.empty<string>(),
-				failedFiles: Arr.empty<RevertError>()
+				failedFiles: Arr.empty<RevertError>(),
+				safetyCheckpoint
 			}
 		}
 		const tempDir = yield* fs.makeTempDirectory()
@@ -320,7 +278,8 @@ export const makeCheckpointService = Effect.fn("CheckpointService.make")(functio
 			return {
 				success: false,
 				revertedFiles: Arr.empty<string>(),
-				failedFiles
+				failedFiles,
+				safetyCheckpoint
 			}
 		}
 		const revertedFiles: Array<string> = []
@@ -340,12 +299,9 @@ export const makeCheckpointService = Effect.fn("CheckpointService.make")(functio
 		const result: RevertResult = {
 			success: failedFiles.length === 0,
 			revertedFiles,
-			failedFiles
+			failedFiles,
+			safetyCheckpoint
 		}
-		if (result.success === false) {
-			return result
-		}
-		yield* dispatchReverted(checkpoint)
 		return result
 	})
 
