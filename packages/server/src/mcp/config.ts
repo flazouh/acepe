@@ -3,6 +3,7 @@ import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import type * as FileSystem from "effect/FileSystem"
 import * as Option from "effect/Option"
+import * as Predicate from "effect/Predicate"
 import type * as Path from "effect/Path"
 import * as Rec from "effect/Record"
 import * as Schema from "effect/Schema"
@@ -17,10 +18,26 @@ const McpConfigFile = Schema.Struct({
 
 const decodeMcpConfigFile = Schema.decodeUnknownExit(Schema.fromJsonString(McpConfigFile))
 
+const serverHasLaunchTarget = (spec: unknown): boolean => {
+	const decoded = Schema.decodeUnknownExit(Schema.Record(Schema.String, Schema.Unknown))(spec)
+	if (Exit.isSuccess(decoded) === false) {
+		return false
+	}
+	const command = decoded.value.command
+	const url = decoded.value.url
+	const hasCommand = Predicate.isString(command) && Str.trim(command) !== ""
+	const hasUrl = Predicate.isString(url) && Str.trim(url) !== ""
+	return hasCommand || hasUrl
+}
+
 const namesFromMap = (servers: Option.Option<typeof McpServersMap.Type>): ReadonlyArray<string> =>
 	Option.match(servers, {
 		onNone: () => Arr.empty<string>(),
-		onSome: (value) => Arr.sort(Rec.keys(value), Str.Order)
+		onSome: (value) =>
+			Arr.sort(
+				Arr.filter(Rec.keys(value), (name) => serverHasLaunchTarget(value[name])),
+				Str.Order
+			)
 	})
 
 const parseMcpServerNames = (content: string): ReadonlyArray<string> => {

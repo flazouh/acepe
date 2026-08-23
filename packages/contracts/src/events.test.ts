@@ -36,6 +36,8 @@ import {
 	GitHunkAcceptedPayload,
 	GitHunkRejectedPayload,
 	GitStatusRefreshedPayload,
+	McpCatalogResolvedPayload,
+	PreconnectionOptionsLoadedPayload,
 } from "./events.ts"
 import {
 	AgentAuthenticatedPayload,
@@ -69,6 +71,7 @@ import {
 } from "./acp.ts"
 import { ActivityId, ApprovalRequestId, CheckpointId, CommandId, EventId, MessageId, ProjectId, SessionId, ToolCallId, TurnId } from "./ids.ts"
 import { APP_SETTINGS_ID } from "./settings.ts"
+import { emptyComposerMcpCatalog } from "./mcp.ts"
 import { APP_SKILLS_ID, emptySkillsCatalog } from "./skills.ts"
 import {
 	APP_VOICE_ID,
@@ -136,6 +139,8 @@ const v1EventTypes = [
 	"EventBridgeRefreshed",
 	"ToolCallObserved",
 	"ApprovalRequested",
+	"McpCatalogResolved",
+	"PreconnectionOptionsLoaded",
 ] as const
 
 type V1EventType = (typeof v1EventTypes)[number]
@@ -178,9 +183,10 @@ type AgentEventType = Extract<
 	| "ComputerUseProbed"
 	| "EventBridgeRefreshed"
 >
+type McpEventType = Extract<EventType, "McpCatalogResolved" | "PreconnectionOptionsLoaded">
 type SessionEventType = Exclude<
 	EventType,
-	ProjectEventType | SettingsEventType | SkillsEventType | VoiceEventType | GitEventType | AgentEventType
+	ProjectEventType | SettingsEventType | SkillsEventType | VoiceEventType | GitEventType | AgentEventType | McpEventType
 >
 const _v1EventTypesMatchUnion: [EventType] extends [V1EventType]
 	? [V1EventType] extends [EventType]
@@ -296,6 +302,23 @@ const voiceEvent = <const Type extends VoiceEventType, const Payload>(
 	eventId,
 	aggregateKind: "voice" as const,
 	aggregateId: APP_VOICE_ID,
+	occurredAt,
+	commandId,
+	causationEventId: null,
+	correlationId: commandId,
+	metadata: {},
+	type,
+	payload,
+})
+
+const mcpEvent = <const Type extends McpEventType, Payload>(
+	type: Type,
+	payload: Payload,
+) => ({
+	sequence: 7,
+	eventId,
+	aggregateKind: "mcp" as const,
+	aggregateId: projectId,
 	occurredAt,
 	commandId,
 	causationEventId: null,
@@ -703,6 +726,21 @@ const memberCases = [
 			sessionId,
 			approvalRequestId,
 			title: "Permission",
+		}),
+	},
+	{
+		payloadSchema: McpCatalogResolvedPayload,
+		event: mcpEvent("McpCatalogResolved", {
+			projectId,
+			catalog: emptyComposerMcpCatalog,
+		}),
+	},
+	{
+		payloadSchema: PreconnectionOptionsLoadedPayload,
+		event: mcpEvent("PreconnectionOptionsLoaded", {
+			projectId,
+			providerId: "claude-code",
+			options: [],
 		}),
 	},
 ] as const

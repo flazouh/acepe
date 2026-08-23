@@ -40,6 +40,8 @@ import {
 	TranscriptViewportRequestCommand,
 } from "./acp.ts"
 import { APP_SETTINGS_ID, SettingsValue, UserSettingKey } from "./settings.ts"
+import { ComposerMcpCatalog } from "./mcp.ts"
+import { ConfigOptionData } from "./preconnection.ts"
 import { APP_SKILLS_ID, SkillsCatalog } from "./skills.ts"
 import {
 	VoiceLanguageOption,
@@ -56,6 +58,7 @@ export const OrchestrationAggregateKind = Schema.Literals([
 	"voice",
 	"git",
 	"agent",
+	"mcp",
 ])
 export type OrchestrationAggregateKind = typeof OrchestrationAggregateKind.Type
 
@@ -87,6 +90,10 @@ export type OrchestrationAggregateRef =
 	| {
 			readonly aggregateKind: "agent"
 			readonly aggregateId: AgentsId
+	  }
+	| {
+			readonly aggregateKind: "mcp"
+			readonly aggregateId: ProjectId
 	  }
 
 export const ProjectCreateCommand = Schema.Struct({
@@ -349,6 +356,24 @@ export const GitHunkRejectCommand = Schema.Struct({
 })
 export type GitHunkRejectCommand = typeof GitHunkRejectCommand.Type
 
+export const McpCatalogResolveCommand = Schema.Struct({
+	type: Schema.Literal("mcp.catalog.resolve"),
+	commandId: CommandId,
+	projectId: ProjectId,
+	projectRoot: TrimmedNonEmptyString,
+	catalog: ComposerMcpCatalog,
+})
+export type McpCatalogResolveCommand = typeof McpCatalogResolveCommand.Type
+
+export const PreconnectionOptionsLoadCommand = Schema.Struct({
+	type: Schema.Literal("preconnection.options.load"),
+	commandId: CommandId,
+	projectId: ProjectId,
+	providerId: TrimmedNonEmptyString,
+	options: Schema.Array(ConfigOptionData),
+})
+export type PreconnectionOptionsLoadCommand = typeof PreconnectionOptionsLoadCommand.Type
+
 export const OrchestrationCommand = Schema.Union([
 	ProjectCreateCommand,
 	ProjectMetaUpdateCommand,
@@ -407,6 +432,8 @@ export const OrchestrationCommand = Schema.Union([
 	AgentEventBridgeRefreshCommand,
 	ToolCallObserveCommand,
 	ApprovalRequestCommand,
+	McpCatalogResolveCommand,
+	PreconnectionOptionsLoadCommand,
 ])
 export type OrchestrationCommand = typeof OrchestrationCommand.Type
 
@@ -443,6 +470,11 @@ const gitRef = (projectId: ProjectId): OrchestrationAggregateRef => ({
 const agentRef = (): OrchestrationAggregateRef => ({
 	aggregateKind: "agent",
 	aggregateId: APP_AGENTS_ID,
+})
+
+const mcpRef = (projectId: ProjectId): OrchestrationAggregateRef => ({
+	aggregateKind: "mcp",
+	aggregateId: projectId,
 })
 
 export const commandToAggregateRef = Match.type<OrchestrationCommand>().pipe(
@@ -504,5 +536,7 @@ export const commandToAggregateRef = Match.type<OrchestrationCommand>().pipe(
 		"agent.event-bridge.refresh": () => agentRef(),
 		"tool.call.observe": (command) => sessionRef(command.sessionId),
 		"approval.request": (command) => sessionRef(command.sessionId),
+		"mcp.catalog.resolve": (command) => mcpRef(command.projectId),
+		"preconnection.options.load": (command) => mcpRef(command.projectId),
 	}),
 )

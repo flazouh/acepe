@@ -47,6 +47,8 @@ import {
 	TranscriptViewportRequestedPayload,
 } from "./acp.ts"
 import { SettingsValue, UserSettingKey } from "./settings.ts"
+import { ComposerMcpCatalog } from "./mcp.ts"
+import { ConfigOptionData } from "./preconnection.ts"
 import { SkillsCatalog } from "./skills.ts"
 import {
 	VoiceLanguageOption,
@@ -120,6 +122,8 @@ export const OrchestrationEventType = Schema.Literals([
 	"EventBridgeRefreshed",
 	"ToolCallObserved",
 	"ApprovalRequested",
+	"McpCatalogResolved",
+	"PreconnectionOptionsLoaded",
 ])
 export type OrchestrationEventType = typeof OrchestrationEventType.Type
 
@@ -309,6 +313,19 @@ export const GitHunkRejectedPayload = Schema.Struct({
 	newContent: Schema.String,
 })
 export type GitHunkRejectedPayload = typeof GitHunkRejectedPayload.Type
+
+export const McpCatalogResolvedPayload = Schema.Struct({
+	projectId: ProjectId,
+	catalog: ComposerMcpCatalog,
+})
+export type McpCatalogResolvedPayload = typeof McpCatalogResolvedPayload.Type
+
+export const PreconnectionOptionsLoadedPayload = Schema.Struct({
+	projectId: ProjectId,
+	providerId: TrimmedNonEmptyString,
+	options: Schema.Array(ConfigOptionData),
+})
+export type PreconnectionOptionsLoadedPayload = typeof PreconnectionOptionsLoadedPayload.Type
 
 const defineOrchestrationEvent = <
 	const EventType extends OrchestrationEventType,
@@ -790,6 +807,21 @@ export const ApprovalRequestedEvent = defineOrchestrationEvent({
 	aggregateId: SessionId,
 })
 export type ApprovalRequestedEvent = typeof ApprovalRequestedEvent.Type
+export const McpCatalogResolvedEvent = defineOrchestrationEvent({
+	type: "McpCatalogResolved",
+	payload: McpCatalogResolvedPayload,
+	aggregateKind: "mcp",
+	aggregateId: ProjectId,
+})
+export type McpCatalogResolvedEvent = typeof McpCatalogResolvedEvent.Type
+
+export const PreconnectionOptionsLoadedEvent = defineOrchestrationEvent({
+	type: "PreconnectionOptionsLoaded",
+	payload: PreconnectionOptionsLoadedPayload,
+	aggregateKind: "mcp",
+	aggregateId: ProjectId,
+})
+export type PreconnectionOptionsLoadedEvent = typeof PreconnectionOptionsLoadedEvent.Type
 
 export const OrchestrationEvent = Schema.Union([
 	ProjectCreatedEvent,
@@ -849,5 +881,7 @@ export const OrchestrationEvent = Schema.Union([
 	EventBridgeRefreshedEvent,
 	ToolCallObservedEvent,
 	ApprovalRequestedEvent,
+	McpCatalogResolvedEvent,
+	PreconnectionOptionsLoadedEvent,
 ])
 export type OrchestrationEvent = typeof OrchestrationEvent.Type

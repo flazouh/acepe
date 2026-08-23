@@ -46,12 +46,13 @@ function getCachedEventBridgeInfo(): Effect.Effect<EventBridgeInfo, AppError> {
 	if (cachedEventBridgeInfo !== null) {
 		return Effect.succeed(cachedEventBridgeInfo);
 	}
-	if (pendingEventBridgeInfo !== null) {
-		return fromPromise(() => pendingEventBridgeInfo as Promise<EventBridgeInfo>, toEventBridgeError);
+	const existingPending = pendingEventBridgeInfo;
+	if (existingPending !== null) {
+		return fromPromise(() => existingPending, toEventBridgeError);
 	}
 
-	pendingEventBridgeInfo = Effect.runPromise(
-		acpCommands.get_event_bridge_info.invoke<EventBridgeInfo>()
+	const pending = Effect.runPromise(
+		acpCommands.get_event_bridge_info.invoke<EventBridgeInfo>(),
 	).then(
 		(info) => {
 			cachedEventBridgeInfo = info;
@@ -61,10 +62,11 @@ function getCachedEventBridgeInfo(): Effect.Effect<EventBridgeInfo, AppError> {
 		(error: unknown) => {
 			pendingEventBridgeInfo = null;
 			throw error;
-		}
+		},
 	);
+	pendingEventBridgeInfo = pending;
 
-	return fromPromise(() => pendingEventBridgeInfo as Promise<EventBridgeInfo>, toEventBridgeError);
+	return fromPromise(() => pending, toEventBridgeError);
 }
 
 export const acp = {

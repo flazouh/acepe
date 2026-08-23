@@ -59,6 +59,7 @@ import {
 import type { OrchestrationCommandInvariantError } from "./Errors.ts"
 import { decideAcp } from "./acpDecide.ts"
 import { decideGit } from "./gitDecide.ts"
+import { decideMcp } from "./mcpDecide.ts"
 import { decideVoice } from "./voiceDecide.ts"
 
 export type DecideIdentity = {
@@ -784,5 +785,8 @@ export const decide = Effect.fn("decide")(function*(
 		case "tool.call.observe":
 		case "approval.request":
 			return yield* decideAcp(readModel, command, identity)
+		case "mcp.catalog.resolve":
+		case "preconnection.options.load":
+			return yield* decideMcp(readModel, command, identity)
 	}
 })

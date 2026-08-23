@@ -190,6 +190,8 @@ export const evolveProjectedSkillsCatalog = (
 			ComputerUseProbed: () => ignoreEvent(current),
 			EventBridgeRefreshed: () => ignoreEvent(current),
 			ToolCallObserved: () => ignoreEvent(current),
-			ApprovalRequested: () => ignoreEvent(current)
+			ApprovalRequested: () => ignoreEvent(current),
+			McpCatalogResolved: () => ignoreEvent(current),
+			PreconnectionOptionsLoaded: () => ignoreEvent(current)
 		})
 	)(event)

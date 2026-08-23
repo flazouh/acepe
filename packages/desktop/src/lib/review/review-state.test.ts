@@ -186,6 +186,8 @@ describe("selectedProjectWorkspaceRoot", () => {
 			skillsCatalog: null,
 			voice: null,
 			gitReview: null,
+			mcpCatalog: null,
+			preconnectionOptions: null,
 		}
 		expect(selectedProjectWorkspaceRoot(snapshot, null)).toBeNull()
 		expect(selectedProjectWorkspaceRoot(snapshot, "missing")).toBeNull()

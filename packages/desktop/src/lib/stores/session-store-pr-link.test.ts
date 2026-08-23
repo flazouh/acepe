@@ -72,6 +72,8 @@ describe("shouldDispatchPrLinkToggle", () => {
 		skillsCatalog: snapshot.skillsCatalog,
 		voice: snapshot.voice,
 		gitReview: snapshot.gitReview,
+		mcpCatalog: snapshot.mcpCatalog,
+		preconnectionOptions: snapshot.preconnectionOptions,
 	};
 
 	it("dispatches a manual override", () => {

@@ -35,6 +35,8 @@ describe("messagesFromSessionSnapshot", () => {
 			skillsCatalog: null,
 			voice: null,
 			gitReview: null,
+			mcpCatalog: null,
+			preconnectionOptions: null,
 		};
 		expect(messagesFromSessionSnapshot(snapshot)).toBe(snapshot.messages);
 		expect(transcriptRowsFromSessionSnapshot(snapshot)[0]?.rowId).toBe("message-user");

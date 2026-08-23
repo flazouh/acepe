@@ -38,6 +38,8 @@ const settingsSnapshot: RpcSessionSnapshot = {
 	skillsCatalog: null,
 	voice: null,
 	gitReview: null,
+			mcpCatalog: null,
+			preconnectionOptions: null,
 };
 
 describe("isSettingsProjectionEvent", () => {
@@ -281,6 +283,8 @@ describe("composeSettingsStore", () => {
 							skillsCatalog: null,
 							voice: null,
 							gitReview: null,
+			mcpCatalog: null,
+			preconnectionOptions: null,
 						});
 					},
 					getProjectIndex: () =>

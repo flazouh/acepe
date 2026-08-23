@@ -7,6 +7,7 @@ import {
 	emptyRpcSessionSnapshot,
 } from "./sessionSnapshot.ts"
 import { TRACER_REPLY_TEXT, TRACER_REPLY_TOKENS } from "./tracerBullet.ts"
+import { emptyComposerMcpCatalog } from "./mcp.ts"
 import { APP_SKILLS_ID, emptySkillsCatalog } from "./skills.ts"
 import { APP_VOICE_ID, placeholderVoiceModel } from "./voice.ts"
 
@@ -522,4 +523,65 @@ describe("applyEventToRpcSessionSnapshot", () => {
 		])
 		expect(afterReject.gitReview?.files[0]?.diff?.newContent).toBe("alpha\n")
 	})
+
+	it("projects MCP catalog and preconnection options onto the snapshot", () => {
+		const afterMcp = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), {
+			sequence: 1,
+			eventId: EventId.make("event-mcp-1"),
+			aggregateKind: "mcp",
+			aggregateId: projectId,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: {},
+			type: "McpCatalogResolved",
+			payload: {
+				projectId,
+				catalog: {
+					source: "preconnectionConfig",
+					servers: [
+						{
+							id: "github",
+							name: "github",
+							status: "unknown",
+							error: null,
+							tools: [],
+							slashCommands: [],
+						},
+					],
+				},
+			},
+		})
+		expect(afterMcp.mcpCatalog?.catalog.servers[0]?.id).toBe("github")
+		const afterOptions = applyEventToRpcSessionSnapshot(afterMcp, {
+			sequence: 2,
+			eventId: EventId.make("event-mcp-2"),
+			aggregateKind: "mcp",
+			aggregateId: projectId,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: {},
+			type: "PreconnectionOptionsLoaded",
+			payload: {
+				projectId,
+				providerId: "claude-code",
+				options: [
+					{
+						id: "reasoning_effort",
+						name: "Reasoning Effort",
+						category: "reasoning_effort",
+						type: "select",
+						currentValue: "auto",
+						presentation: "compactReasoning",
+					},
+				],
+			},
+		})
+		expect(afterOptions.preconnectionOptions?.options[0]?.id).toBe("reasoning_effort")
+		expect(afterOptions.mcpCatalog?.catalog.servers[0]?.id).toBe("github")
+	})
+
 })

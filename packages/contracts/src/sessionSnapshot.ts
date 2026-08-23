@@ -40,6 +40,8 @@ export const emptyRpcSessionSnapshot = (snapshotSequence: Sequence): RpcSessionS
 	skillsCatalog: null,
 	voice: null,
 	gitReview: null,
+	mcpCatalog: null,
+	preconnectionOptions: null,
 })
 
 const watermark = (snapshot: RpcSessionSnapshot, sequence: Sequence): Sequence =>
@@ -235,6 +237,8 @@ const applySettingsUpdated = (
 		skillsCatalog: snapshot.skillsCatalog,
 		voice: snapshot.voice,
 		gitReview: snapshot.gitReview,
+	mcpCatalog: snapshot.mcpCatalog,
+	preconnectionOptions: snapshot.preconnectionOptions,
 	}
 }
 
@@ -367,6 +371,8 @@ const applySkillsDiscovered = (
 	},
 	voice: snapshot.voice,
 	gitReview: snapshot.gitReview,
+	mcpCatalog: snapshot.mcpCatalog,
+	preconnectionOptions: snapshot.preconnectionOptions,
 })
 
 const upsertVoiceModel = (
@@ -449,6 +455,8 @@ const replaceVoice = (
 		lastTranscription: voice.lastTranscription,
 	},
 	gitReview: snapshot.gitReview,
+	mcpCatalog: snapshot.mcpCatalog,
+	preconnectionOptions: snapshot.preconnectionOptions,
 })
 
 const applyVoiceModelsListed = (
@@ -619,6 +627,8 @@ const replaceGitReview = (
 		status: gitReview.status,
 		files: gitReview.files,
 	},
+	mcpCatalog: snapshot.mcpCatalog,
+	preconnectionOptions: snapshot.preconnectionOptions,
 })
 
 const upsertGitFile = (
@@ -746,6 +756,58 @@ const applyGitHunkRejected = (
 		})),
 	})
 }
+
+
+const applyMcpCatalogResolved = (
+	snapshot: RpcSessionSnapshot,
+	event: Extract<OrchestrationEvent, { readonly type: "McpCatalogResolved" }>,
+): RpcSessionSnapshot => ({
+	snapshotSequence: watermark(snapshot, event.sequence),
+	session: snapshot.session,
+	messages: snapshot.messages,
+	turns: snapshot.turns,
+	activities: snapshot.activities,
+	pendingApprovals: snapshot.pendingApprovals,
+	checkpoints: snapshot.checkpoints,
+	projects: snapshot.projects,
+	sessions: snapshot.sessions,
+	settings: snapshot.settings,
+	skillsCatalog: snapshot.skillsCatalog,
+	voice: snapshot.voice,
+	gitReview: snapshot.gitReview,
+	mcpCatalog: {
+		sequence: event.sequence,
+		projectId: event.payload.projectId,
+		catalog: event.payload.catalog,
+	},
+	preconnectionOptions: snapshot.preconnectionOptions,
+})
+
+const applyPreconnectionOptionsLoaded = (
+	snapshot: RpcSessionSnapshot,
+	event: Extract<OrchestrationEvent, { readonly type: "PreconnectionOptionsLoaded" }>,
+): RpcSessionSnapshot => ({
+	snapshotSequence: watermark(snapshot, event.sequence),
+	session: snapshot.session,
+	messages: snapshot.messages,
+	turns: snapshot.turns,
+	activities: snapshot.activities,
+	pendingApprovals: snapshot.pendingApprovals,
+	checkpoints: snapshot.checkpoints,
+	projects: snapshot.projects,
+	sessions: snapshot.sessions,
+	settings: snapshot.settings,
+	skillsCatalog: snapshot.skillsCatalog,
+	voice: snapshot.voice,
+	gitReview: snapshot.gitReview,
+	mcpCatalog: snapshot.mcpCatalog,
+	preconnectionOptions: {
+		sequence: event.sequence,
+		projectId: event.payload.projectId,
+		providerId: event.payload.providerId,
+		options: event.payload.options,
+	},
+})
 
 export const applyEventToRpcSessionSnapshot = (
 	snapshot: RpcSessionSnapshot,
@@ -877,6 +939,10 @@ export const applyEventToRpcSessionSnapshot = (
 				),
 			}
 		}
+		case "McpCatalogResolved":
+			return applyMcpCatalogResolved(snapshot, event)
+		case "PreconnectionOptionsLoaded":
+			return applyPreconnectionOptionsLoaded(snapshot, event)
 		default:
 			return withSequence(snapshot, event.sequence)
 	}

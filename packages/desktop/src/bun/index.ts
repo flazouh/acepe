@@ -14,6 +14,7 @@ import {
 import { makeAcepeLive } from "@acepe/server/bootstrap";
 import { seedLibrary } from "@acepe/server/library/seedLibrary";
 import { seedGitReview } from "@acepe/server/library/seedGitReview";
+import { seedSkillsMcp, SKILLS_MCP_SEED_HOME } from "@acepe/server/library/seedSkillsMcp";
 import {
 	encodedDispatch,
 	encodedGetProjectIndex,
@@ -58,11 +59,13 @@ const runtime = ManagedRuntime.make(
 	makeAcepeLive({
 		filename: "acepe-tracer.sqlite",
 		tokenDelay: Duration.millis(40),
+		skillsHomeDir: SKILLS_MCP_SEED_HOME,
 	})
 );
 
 await runtime.runPromise(seedLibrary());
 await runtime.runPromise(seedGitReview());
+await runtime.runPromise(seedSkillsMcp());
 
 let sawRpcRoundtrip = false;
 

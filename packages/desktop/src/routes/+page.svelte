@@ -5,6 +5,7 @@
 	import MainAppView from "$lib/components/main-app-view.svelte";
 	import LibrarySidebarView from "$lib/components/library/library-sidebar-view.svelte";
 	import SettingsView from "$lib/components/settings/settings-view.svelte";
+	import SetupBarView from "$lib/components/setup-bar/setup-bar-view.svelte";
 	import { makeElectrobunRpcTransport } from "$lib/rpc/client.ts";
 	import { installElectrobunWebviewRpc } from "$lib/rpc/electrobun-bridge.ts";
 	import {
@@ -51,9 +52,12 @@
 </script>
 
 {#if shell === "electrobun" && rpcClient !== null}
-	<div class="flex h-screen bg-background text-foreground">
-		<LibrarySidebarView client={rpcClient} />
-		<SettingsView client={rpcClient} />
+	<div class="flex h-screen flex-col bg-background text-foreground">
+		<SetupBarView client={rpcClient} />
+		<div class="flex min-h-0 flex-1">
+			<LibrarySidebarView client={rpcClient} />
+			<SettingsView client={rpcClient} />
+		</div>
 	</div>
 {:else if shell === "tauri"}
 	<MainAppView />

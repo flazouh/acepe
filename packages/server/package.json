@@ -50,6 +50,7 @@
 		"./bootstrap": "./src/bootstrap.ts",
 		"./library/seedLibrary": "./src/library/seedLibrary.ts",
 		"./library/seedGitReview": "./src/library/seedGitReview.ts",
+		"./library/seedSkillsMcp": "./src/library/seedSkillsMcp.ts",
 		"./provider/HardcodedProvider": "./src/provider/HardcodedProvider.ts",
 		"./provider/Services/ProviderAdapter": "./src/provider/Services/ProviderAdapter.ts",
 		"./provider/Services/FakeProviderAdapter": "./src/provider/Services/FakeProviderAdapter.ts",

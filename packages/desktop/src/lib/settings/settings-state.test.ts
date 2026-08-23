@@ -24,6 +24,8 @@ describe("settingsModalViewModel", () => {
 				skillsCatalog: empty.skillsCatalog,
 				voice: empty.voice,
 				gitReview: empty.gitReview,
+				mcpCatalog: empty.mcpCatalog,
+				preconnectionOptions: empty.preconnectionOptions,
 			},
 			open: true,
 		});

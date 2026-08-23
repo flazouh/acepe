@@ -118,6 +118,8 @@ describe("librarySidebarViewModel", () => {
 				skillsCatalog: snapshot.skillsCatalog,
 				voice: snapshot.voice,
 				gitReview: snapshot.gitReview,
+				mcpCatalog: snapshot.mcpCatalog,
+				preconnectionOptions: snapshot.preconnectionOptions,
 			},
 			selectedProjectId: projectId,
 		});
