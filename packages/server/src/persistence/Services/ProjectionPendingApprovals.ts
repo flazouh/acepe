@@ -134,6 +134,21 @@ const forThisSession = (
 const pendingApprovalFactFromEvent = Effect.fn("pendingApprovalFactFromEvent")(function*(
 	event: OrchestrationEvent
 ) {
+	if (event.type === "ApprovalRequested") {
+		return Option.some({
+			type: "ApprovalRequested" as const,
+			approvalRequestId: event.payload.approvalRequestId,
+			sessionId: event.payload.sessionId
+		})
+	}
+	if (event.type === "InteractionReplied") {
+		return Option.some({
+			type: "ApprovalAnswered" as const,
+			approvalRequestId: event.payload.approvalRequestId,
+			sessionId: event.payload.sessionId,
+			decision: event.payload.decision
+		})
+	}
 	const value = event.metadata[PENDING_APPROVAL_METADATA_KEY]
 	if (value === undefined) {
 		return Option.none()

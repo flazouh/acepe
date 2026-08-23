@@ -4,6 +4,7 @@ import { CheckpointFileCount, CheckpointNumber, CheckpointStatus, IsoDateTime, J
 import { FileGitStatus } from "./fileIndex.ts"
 import { GitBlameLine, GitFileDiff, GitHunkIndex } from "./git.ts"
 import {
+	AgentsId,
 	CheckpointId,
 	CommandId,
 	EventId,
@@ -16,6 +17,35 @@ import {
 	TurnId,
 	VoiceId,
 } from "./ids.ts"
+import {
+	AgentAuthenticatedPayload,
+	AgentAuthenticationCancelledPayload,
+	AgentCustomRegisteredPayload,
+	AgentInitializedPayload,
+	AgentInstalledPayload,
+	AgentUninstalledPayload,
+	AgentsListedPayload,
+	ApprovalRequestedPayload,
+	ComposerMcpCatalogLoadedPayload,
+	ComputerUseProbedPayload,
+	EventBridgeRefreshedPayload,
+	InboundRespondedPayload,
+	InteractionRepliedPayload,
+	PreconnectionCapabilitiesListedPayload,
+	PreconnectionCommandsListedPayload,
+	SessionAutonomousSetPayload,
+	SessionClosedPayload,
+	SessionConfigOptionSetPayload,
+	SessionConnectionRefreshedPayload,
+	SessionForkedPayload,
+	SessionModelSetPayload,
+	SessionModeSetPayload,
+	SessionResumedPayload,
+	SessionStateRefreshedPayload,
+	ToolCallObservedPayload,
+	TranscriptPageReadPayload,
+	TranscriptViewportRequestedPayload,
+} from "./acp.ts"
 import { SettingsValue, UserSettingKey } from "./settings.ts"
 import { SkillsCatalog } from "./skills.ts"
 import {
@@ -63,6 +93,33 @@ export const OrchestrationEventType = Schema.Literals([
 	"GitBlameLoaded",
 	"GitHunkAccepted",
 	"GitHunkRejected",
+	"SessionResumed",
+	"SessionForked",
+	"SessionClosed",
+	"SessionModelSet",
+	"SessionModeSet",
+	"SessionAutonomousSet",
+	"SessionConfigOptionSet",
+	"InteractionReplied",
+	"InboundResponded",
+	"AgentInitialized",
+	"AgentInstalled",
+	"AgentUninstalled",
+	"AgentAuthenticated",
+	"AgentAuthenticationCancelled",
+	"AgentCustomRegistered",
+	"AgentsListed",
+	"SessionConnectionRefreshed",
+	"SessionStateRefreshed",
+	"TranscriptPageRead",
+	"TranscriptViewportRequested",
+	"PreconnectionCapabilitiesListed",
+	"PreconnectionCommandsListed",
+	"ComposerMcpCatalogLoaded",
+	"ComputerUseProbed",
+	"EventBridgeRefreshed",
+	"ToolCallObserved",
+	"ApprovalRequested",
 ])
 export type OrchestrationEventType = typeof OrchestrationEventType.Type
 
@@ -518,6 +575,222 @@ export const GitHunkRejectedEvent = defineOrchestrationEvent({
 })
 export type GitHunkRejectedEvent = typeof GitHunkRejectedEvent.Type
 
+export const SessionResumedEvent = defineOrchestrationEvent({
+	type: "SessionResumed",
+	payload: SessionResumedPayload,
+	aggregateKind: "session",
+	aggregateId: SessionId,
+})
+export type SessionResumedEvent = typeof SessionResumedEvent.Type
+
+export const SessionForkedEvent = defineOrchestrationEvent({
+	type: "SessionForked",
+	payload: SessionForkedPayload,
+	aggregateKind: "session",
+	aggregateId: SessionId,
+})
+export type SessionForkedEvent = typeof SessionForkedEvent.Type
+
+export const SessionClosedEvent = defineOrchestrationEvent({
+	type: "SessionClosed",
+	payload: SessionClosedPayload,
+	aggregateKind: "session",
+	aggregateId: SessionId,
+})
+export type SessionClosedEvent = typeof SessionClosedEvent.Type
+
+export const SessionModelSetEvent = defineOrchestrationEvent({
+	type: "SessionModelSet",
+	payload: SessionModelSetPayload,
+	aggregateKind: "session",
+	aggregateId: SessionId,
+})
+export type SessionModelSetEvent = typeof SessionModelSetEvent.Type
+
+export const SessionModeSetEvent = defineOrchestrationEvent({
+	type: "SessionModeSet",
+	payload: SessionModeSetPayload,
+	aggregateKind: "session",
+	aggregateId: SessionId,
+})
+export type SessionModeSetEvent = typeof SessionModeSetEvent.Type
+
+export const SessionAutonomousSetEvent = defineOrchestrationEvent({
+	type: "SessionAutonomousSet",
+	payload: SessionAutonomousSetPayload,
+	aggregateKind: "session",
+	aggregateId: SessionId,
+})
+export type SessionAutonomousSetEvent = typeof SessionAutonomousSetEvent.Type
+
+export const SessionConfigOptionSetEvent = defineOrchestrationEvent({
+	type: "SessionConfigOptionSet",
+	payload: SessionConfigOptionSetPayload,
+	aggregateKind: "session",
+	aggregateId: SessionId,
+})
+export type SessionConfigOptionSetEvent = typeof SessionConfigOptionSetEvent.Type
+
+export const InteractionRepliedEvent = defineOrchestrationEvent({
+	type: "InteractionReplied",
+	payload: InteractionRepliedPayload,
+	aggregateKind: "session",
+	aggregateId: SessionId,
+})
+export type InteractionRepliedEvent = typeof InteractionRepliedEvent.Type
+
+export const InboundRespondedEvent = defineOrchestrationEvent({
+	type: "InboundResponded",
+	payload: InboundRespondedPayload,
+	aggregateKind: "session",
+	aggregateId: SessionId,
+})
+export type InboundRespondedEvent = typeof InboundRespondedEvent.Type
+
+export const AgentInitializedEvent = defineOrchestrationEvent({
+	type: "AgentInitialized",
+	payload: AgentInitializedPayload,
+	aggregateKind: "agent",
+	aggregateId: AgentsId,
+})
+export type AgentInitializedEvent = typeof AgentInitializedEvent.Type
+
+export const AgentInstalledEvent = defineOrchestrationEvent({
+	type: "AgentInstalled",
+	payload: AgentInstalledPayload,
+	aggregateKind: "agent",
+	aggregateId: AgentsId,
+})
+export type AgentInstalledEvent = typeof AgentInstalledEvent.Type
+
+export const AgentUninstalledEvent = defineOrchestrationEvent({
+	type: "AgentUninstalled",
+	payload: AgentUninstalledPayload,
+	aggregateKind: "agent",
+	aggregateId: AgentsId,
+})
+export type AgentUninstalledEvent = typeof AgentUninstalledEvent.Type
+
+export const AgentAuthenticatedEvent = defineOrchestrationEvent({
+	type: "AgentAuthenticated",
+	payload: AgentAuthenticatedPayload,
+	aggregateKind: "agent",
+	aggregateId: AgentsId,
+})
+export type AgentAuthenticatedEvent = typeof AgentAuthenticatedEvent.Type
+
+export const AgentAuthenticationCancelledEvent = defineOrchestrationEvent({
+	type: "AgentAuthenticationCancelled",
+	payload: AgentAuthenticationCancelledPayload,
+	aggregateKind: "agent",
+	aggregateId: AgentsId,
+})
+export type AgentAuthenticationCancelledEvent = typeof AgentAuthenticationCancelledEvent.Type
+
+export const AgentCustomRegisteredEvent = defineOrchestrationEvent({
+	type: "AgentCustomRegistered",
+	payload: AgentCustomRegisteredPayload,
+	aggregateKind: "agent",
+	aggregateId: AgentsId,
+})
+export type AgentCustomRegisteredEvent = typeof AgentCustomRegisteredEvent.Type
+
+export const AgentsListedEvent = defineOrchestrationEvent({
+	type: "AgentsListed",
+	payload: AgentsListedPayload,
+	aggregateKind: "agent",
+	aggregateId: AgentsId,
+})
+export type AgentsListedEvent = typeof AgentsListedEvent.Type
+
+export const SessionConnectionRefreshedEvent = defineOrchestrationEvent({
+	type: "SessionConnectionRefreshed",
+	payload: SessionConnectionRefreshedPayload,
+	aggregateKind: "session",
+	aggregateId: SessionId,
+})
+export type SessionConnectionRefreshedEvent = typeof SessionConnectionRefreshedEvent.Type
+
+export const SessionStateRefreshedEvent = defineOrchestrationEvent({
+	type: "SessionStateRefreshed",
+	payload: SessionStateRefreshedPayload,
+	aggregateKind: "session",
+	aggregateId: SessionId,
+})
+export type SessionStateRefreshedEvent = typeof SessionStateRefreshedEvent.Type
+
+export const TranscriptPageReadEvent = defineOrchestrationEvent({
+	type: "TranscriptPageRead",
+	payload: TranscriptPageReadPayload,
+	aggregateKind: "session",
+	aggregateId: SessionId,
+})
+export type TranscriptPageReadEvent = typeof TranscriptPageReadEvent.Type
+
+export const TranscriptViewportRequestedEvent = defineOrchestrationEvent({
+	type: "TranscriptViewportRequested",
+	payload: TranscriptViewportRequestedPayload,
+	aggregateKind: "session",
+	aggregateId: SessionId,
+})
+export type TranscriptViewportRequestedEvent = typeof TranscriptViewportRequestedEvent.Type
+
+export const PreconnectionCapabilitiesListedEvent = defineOrchestrationEvent({
+	type: "PreconnectionCapabilitiesListed",
+	payload: PreconnectionCapabilitiesListedPayload,
+	aggregateKind: "agent",
+	aggregateId: AgentsId,
+})
+export type PreconnectionCapabilitiesListedEvent = typeof PreconnectionCapabilitiesListedEvent.Type
+
+export const PreconnectionCommandsListedEvent = defineOrchestrationEvent({
+	type: "PreconnectionCommandsListed",
+	payload: PreconnectionCommandsListedPayload,
+	aggregateKind: "agent",
+	aggregateId: AgentsId,
+})
+export type PreconnectionCommandsListedEvent = typeof PreconnectionCommandsListedEvent.Type
+
+export const ComposerMcpCatalogLoadedEvent = defineOrchestrationEvent({
+	type: "ComposerMcpCatalogLoaded",
+	payload: ComposerMcpCatalogLoadedPayload,
+	aggregateKind: "agent",
+	aggregateId: AgentsId,
+})
+export type ComposerMcpCatalogLoadedEvent = typeof ComposerMcpCatalogLoadedEvent.Type
+
+export const ComputerUseProbedEvent = defineOrchestrationEvent({
+	type: "ComputerUseProbed",
+	payload: ComputerUseProbedPayload,
+	aggregateKind: "agent",
+	aggregateId: AgentsId,
+})
+export type ComputerUseProbedEvent = typeof ComputerUseProbedEvent.Type
+
+export const EventBridgeRefreshedEvent = defineOrchestrationEvent({
+	type: "EventBridgeRefreshed",
+	payload: EventBridgeRefreshedPayload,
+	aggregateKind: "agent",
+	aggregateId: AgentsId,
+})
+export type EventBridgeRefreshedEvent = typeof EventBridgeRefreshedEvent.Type
+
+export const ToolCallObservedEvent = defineOrchestrationEvent({
+	type: "ToolCallObserved",
+	payload: ToolCallObservedPayload,
+	aggregateKind: "session",
+	aggregateId: SessionId,
+})
+export type ToolCallObservedEvent = typeof ToolCallObservedEvent.Type
+
+export const ApprovalRequestedEvent = defineOrchestrationEvent({
+	type: "ApprovalRequested",
+	payload: ApprovalRequestedPayload,
+	aggregateKind: "session",
+	aggregateId: SessionId,
+})
+export type ApprovalRequestedEvent = typeof ApprovalRequestedEvent.Type
+
 export const OrchestrationEvent = Schema.Union([
 	ProjectCreatedEvent,
 	ProjectMetaUpdatedEvent,
@@ -549,5 +822,32 @@ export const OrchestrationEvent = Schema.Union([
 	GitBlameLoadedEvent,
 	GitHunkAcceptedEvent,
 	GitHunkRejectedEvent,
+	SessionResumedEvent,
+	SessionForkedEvent,
+	SessionClosedEvent,
+	SessionModelSetEvent,
+	SessionModeSetEvent,
+	SessionAutonomousSetEvent,
+	SessionConfigOptionSetEvent,
+	InteractionRepliedEvent,
+	InboundRespondedEvent,
+	AgentInitializedEvent,
+	AgentInstalledEvent,
+	AgentUninstalledEvent,
+	AgentAuthenticatedEvent,
+	AgentAuthenticationCancelledEvent,
+	AgentCustomRegisteredEvent,
+	AgentsListedEvent,
+	SessionConnectionRefreshedEvent,
+	SessionStateRefreshedEvent,
+	TranscriptPageReadEvent,
+	TranscriptViewportRequestedEvent,
+	PreconnectionCapabilitiesListedEvent,
+	PreconnectionCommandsListedEvent,
+	ComposerMcpCatalogLoadedEvent,
+	ComputerUseProbedEvent,
+	EventBridgeRefreshedEvent,
+	ToolCallObservedEvent,
+	ApprovalRequestedEvent,
 ])
 export type OrchestrationEvent = typeof OrchestrationEvent.Type

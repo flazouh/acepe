@@ -3,10 +3,19 @@ import {
 	type MessageSentEvent,
 	type OrchestrationEvent,
 	type Sequence,
+	ApprovalRequestCommand,
 	TokenAppendCommand,
+	ToolCallObserveCommand,
+	TRACER_APPROVAL_TITLE,
+	TRACER_REPLY_TOKENS,
+	TRACER_TOOL_TITLE,
+	tracerActivityId,
+	tracerApprovalCommandId,
+	tracerApprovalRequestId,
 	tracerAssistantMessageId,
 	tracerTokenCommandId,
-	TRACER_REPLY_TOKENS
+	tracerToolCallId,
+	tracerToolCommandId
 } from "@acepe/contracts"
 import * as Arr from "effect/Array"
 import * as Cause from "effect/Cause"
@@ -99,36 +108,84 @@ export const makeHardcodedProvider = Effect.fn("makeHardcodedProvider")(function
 	const replyTo = Effect.fn("HardcodedProvider.replyTo")(function*(sent: MessageSentEvent) {
 		yield* Ref.update(inFlight, (count) => count + 1)
 		const assistantMessageId = tracerAssistantMessageId(sent.payload.messageId)
-		yield* Effect.forEach(
-			TRACER_REPLY_TOKENS,
-			(token, index) =>
-				afterDelay(
-					engine.dispatch(
-						TokenAppendCommand.make({
-							type: "token.append",
-							commandId: tracerTokenCommandId(
-								sent.payload.sessionId,
-								assistantMessageId,
-								index
-							),
-							sessionId: sent.payload.sessionId,
-							messageId: assistantMessageId,
-							token
-						})
-					)
-				).pipe(
-					Effect.catchCause((cause) =>
-						Effect.logError(cause.pipe(Cause.pretty)).pipe(
-							Effect.annotateLogs({
+		yield* Effect.gen(function*() {
+			yield* Effect.forEach(
+				TRACER_REPLY_TOKENS,
+				(token, index) =>
+					afterDelay(
+						engine.dispatch(
+							TokenAppendCommand.make({
+								type: "token.append",
+								commandId: tracerTokenCommandId(
+									sent.payload.sessionId,
+									assistantMessageId,
+									index
+								),
 								sessionId: sent.payload.sessionId,
 								messageId: assistantMessageId,
-								tokenIndex: index
+								token
 							})
 						)
+					).pipe(
+						Effect.catchCause((cause) =>
+							Effect.logError(cause.pipe(Cause.pretty)).pipe(
+								Effect.annotateLogs({
+									sessionId: sent.payload.sessionId,
+									messageId: assistantMessageId,
+									tokenIndex: index
+								})
+							)
+						)
+					),
+				{ discard: true }
+			)
+			yield* afterDelay(
+				engine.dispatch(
+					ToolCallObserveCommand.make({
+						type: "tool.call.observe",
+						commandId: tracerToolCommandId(sent.payload.sessionId, assistantMessageId),
+						sessionId: sent.payload.sessionId,
+						activityId: tracerActivityId(assistantMessageId),
+						toolCallId: tracerToolCallId(assistantMessageId),
+						operationId: null,
+						status: "in_progress",
+						title: TRACER_TOOL_TITLE,
+						path: null
+					})
+				)
+			).pipe(
+				Effect.catchCause((cause) =>
+					Effect.logError(cause.pipe(Cause.pretty)).pipe(
+						Effect.annotateLogs({
+							sessionId: sent.payload.sessionId,
+							messageId: assistantMessageId,
+							stage: "tool"
+						})
 					)
-				),
-			{ discard: true }
-		).pipe(Effect.ensuring(Ref.update(inFlight, (count) => count - 1)))
+				)
+			)
+			yield* afterDelay(
+				engine.dispatch(
+					ApprovalRequestCommand.make({
+						type: "approval.request",
+						commandId: tracerApprovalCommandId(sent.payload.sessionId, assistantMessageId),
+						sessionId: sent.payload.sessionId,
+						approvalRequestId: tracerApprovalRequestId(assistantMessageId),
+						title: TRACER_APPROVAL_TITLE
+					})
+				)
+			).pipe(
+				Effect.catchCause((cause) =>
+					Effect.logError(cause.pipe(Cause.pretty)).pipe(
+						Effect.annotateLogs({
+							sessionId: sent.payload.sessionId,
+							messageId: assistantMessageId,
+							stage: "approval"
+						})
+					)
+				)
+			)
+		}).pipe(Effect.ensuring(Ref.update(inFlight, (count) => count - 1)))
 	})
 
 	const isReplyToken = (userMessageId: MessageId, event: OrchestrationEvent): boolean =>

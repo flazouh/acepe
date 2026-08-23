@@ -83,7 +83,8 @@ export const ToolCallObservedPayload = Schema.Struct({
 	toolCallId: ToolCallId,
 	operationId: Schema.NullOr(OperationId),
 	status: SessionActivityStatus,
-	title: TrimmedNonEmptyString
+	title: TrimmedNonEmptyString,
+	path: Schema.NullOr(TrimmedNonEmptyString)
 })
 export type ToolCallObservedPayload = typeof ToolCallObservedPayload.Type
 
@@ -283,7 +284,7 @@ const decodePayload = <S extends Schema.Top>(schema: S, value: unknown) =>
 	Schema.decodeUnknownEffect(schema)(value)
 
 const observedToolRow = (
-	event: ToolCallObservedEvent,
+	event: { readonly sequence: Sequence },
 	payload: ToolCallObservedPayload
 ): ProjectedSessionActivityRow => ({
 	activityId: payload.activityId,
@@ -295,7 +296,7 @@ const observedToolRow = (
 	operationId: payload.operationId,
 	status: payload.status,
 	title: payload.title,
-	path: null
+	path: payload.path
 })
 
 const observedFileRow = (
@@ -348,7 +349,7 @@ const linkedRow = (
 
 const projectToolCallObserved = (
 	current: Option.Option<ProjectedSessionActivityRow>,
-	event: ToolCallObservedEvent
+	event: { readonly sequence: Sequence; readonly payload: unknown }
 ): Effect.Effect<Option.Option<ProjectedSessionActivityRow>, Schema.SchemaError> =>
 	decodePayload(ToolCallObservedPayload, event.payload).pipe(
 		Effect.map((payload) => Option.some(mergeActivityRow(current, observedToolRow(event, payload))))

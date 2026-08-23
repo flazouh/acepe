@@ -4,7 +4,37 @@ import * as Exit from "effect/Exit"
 import * as Schema from "effect/Schema"
 import * as FastCheck from "effect/testing/FastCheck"
 
-import { CheckpointId, CommandId, MessageId, ProjectId, SessionId, ToolCallId, TurnId } from "./ids.ts"
+import { ActivityId, ApprovalRequestId, CheckpointId, CommandId, MessageId, ProjectId, SessionId, ToolCallId, TurnId } from "./ids.ts"
+import {
+	AgentAuthenticateCommand,
+	AgentCancelAuthenticationCommand,
+	AgentComputerUseProbeCommand,
+	AgentEventBridgeRefreshCommand,
+	AgentInitializeCommand,
+	AgentInstallCommand,
+	AgentListCommand,
+	AgentPreconnectionCapabilitiesCommand,
+	AgentPreconnectionCommandsCommand,
+	AgentRegisterCustomCommand,
+	AgentUninstallCommand,
+	APP_AGENTS_ID,
+	ApprovalRequestCommand,
+	ComposerMcpCatalogCommand,
+	InboundRespondCommand,
+	InteractionReplyCommand,
+	SessionCloseCommand,
+	SessionConnectionRefreshCommand,
+	SessionForkCommand,
+	SessionResumeCommand,
+	SessionSetAutonomousCommand,
+	SessionSetConfigOptionCommand,
+	SessionSetModeCommand,
+	SessionSetModelCommand,
+	SessionStateRefreshCommand,
+	ToolCallObserveCommand,
+	TranscriptPageReadCommand,
+	TranscriptViewportRequestCommand,
+} from "./acp.ts"
 import {
 	commandToAggregateRef,
 	CheckpointCreateCommand,
@@ -81,6 +111,33 @@ const v1CommandTypes = [
 	"git.blame.load",
 	"git.hunk.accept",
 	"git.hunk.reject",
+	"session.resume",
+	"session.fork",
+	"session.close",
+	"session.set-model",
+	"session.set-mode",
+	"session.set-autonomous",
+	"session.set-config-option",
+	"interaction.reply",
+	"inbound.respond",
+	"agent.initialize",
+	"agent.install",
+	"agent.uninstall",
+	"agent.authenticate",
+	"agent.cancel-authentication",
+	"agent.register-custom",
+	"agent.list",
+	"session.connection.refresh",
+	"session.state.refresh",
+	"transcript.page.read",
+	"transcript.viewport.request",
+	"agent.preconnection.capabilities",
+	"agent.preconnection.commands",
+	"composer.mcp.catalog",
+	"agent.computer-use.probe",
+	"agent.event-bridge.refresh",
+	"tool.call.observe",
+	"approval.request",
 ] as const
 
 type V1CommandType = (typeof v1CommandTypes)[number]
@@ -101,6 +158,9 @@ const messageId = MessageId.make("message-1")
 const turnId = TurnId.make("turn-1")
 const checkpointId = CheckpointId.make("checkpoint-1")
 const toolCallId = ToolCallId.make("tool-1")
+const activityId = ActivityId.make("activity-1")
+const approvalRequestId = ApprovalRequestId.make("approval-1")
+const forkedSessionId = SessionId.make("session-2")
 
 const memberCases = [
 	{
@@ -513,6 +573,355 @@ const memberCases = [
 			filePath: "notes.md",
 			hunkIndex: 1,
 			newContent: "alpha\n",
+		}),
+	},
+	{
+		schema: SessionResumeCommand,
+		aggregate: {
+			aggregateKind: "session",
+			aggregateId: sessionId,
+		} satisfies OrchestrationAggregateRef,
+		command: SessionResumeCommand.make({
+			type: "session.resume",
+			commandId,
+			sessionId,
+		}),
+	},
+	{
+		schema: SessionForkCommand,
+		aggregate: {
+			aggregateKind: "session",
+			aggregateId: sessionId,
+		} satisfies OrchestrationAggregateRef,
+		command: SessionForkCommand.make({
+			type: "session.fork",
+			commandId,
+			sessionId,
+			newSessionId: forkedSessionId,
+		}),
+	},
+	{
+		schema: SessionCloseCommand,
+		aggregate: {
+			aggregateKind: "session",
+			aggregateId: sessionId,
+		} satisfies OrchestrationAggregateRef,
+		command: SessionCloseCommand.make({
+			type: "session.close",
+			commandId,
+			sessionId,
+		}),
+	},
+	{
+		schema: SessionSetModelCommand,
+		aggregate: {
+			aggregateKind: "session",
+			aggregateId: sessionId,
+		} satisfies OrchestrationAggregateRef,
+		command: SessionSetModelCommand.make({
+			type: "session.set-model",
+			commandId,
+			sessionId,
+			modelId: "claude-opus-4",
+		}),
+	},
+	{
+		schema: SessionSetModeCommand,
+		aggregate: {
+			aggregateKind: "session",
+			aggregateId: sessionId,
+		} satisfies OrchestrationAggregateRef,
+		command: SessionSetModeCommand.make({
+			type: "session.set-mode",
+			commandId,
+			sessionId,
+			modeId: "code",
+		}),
+	},
+	{
+		schema: SessionSetAutonomousCommand,
+		aggregate: {
+			aggregateKind: "session",
+			aggregateId: sessionId,
+		} satisfies OrchestrationAggregateRef,
+		command: SessionSetAutonomousCommand.make({
+			type: "session.set-autonomous",
+			commandId,
+			sessionId,
+			autonomous: true,
+		}),
+	},
+	{
+		schema: SessionSetConfigOptionCommand,
+		aggregate: {
+			aggregateKind: "session",
+			aggregateId: sessionId,
+		} satisfies OrchestrationAggregateRef,
+		command: SessionSetConfigOptionCommand.make({
+			type: "session.set-config-option",
+			commandId,
+			sessionId,
+			key: "effort",
+			value: "high",
+		}),
+	},
+	{
+		schema: InteractionReplyCommand,
+		aggregate: {
+			aggregateKind: "session",
+			aggregateId: sessionId,
+		} satisfies OrchestrationAggregateRef,
+		command: InteractionReplyCommand.make({
+			type: "interaction.reply",
+			commandId,
+			sessionId,
+			approvalRequestId,
+			decision: "allow",
+		}),
+	},
+	{
+		schema: InboundRespondCommand,
+		aggregate: {
+			aggregateKind: "session",
+			aggregateId: sessionId,
+		} satisfies OrchestrationAggregateRef,
+		command: InboundRespondCommand.make({
+			type: "inbound.respond",
+			commandId,
+			sessionId,
+			requestId: "inbound-1",
+			body: "yes",
+		}),
+	},
+	{
+		schema: AgentInitializeCommand,
+		aggregate: {
+			aggregateKind: "agent",
+			aggregateId: APP_AGENTS_ID,
+		} satisfies OrchestrationAggregateRef,
+		command: AgentInitializeCommand.make({
+			type: "agent.initialize",
+			commandId,
+			agentId: "claude",
+		}),
+	},
+	{
+		schema: AgentInstallCommand,
+		aggregate: {
+			aggregateKind: "agent",
+			aggregateId: APP_AGENTS_ID,
+		} satisfies OrchestrationAggregateRef,
+		command: AgentInstallCommand.make({
+			type: "agent.install",
+			commandId,
+			agentId: "claude",
+		}),
+	},
+	{
+		schema: AgentUninstallCommand,
+		aggregate: {
+			aggregateKind: "agent",
+			aggregateId: APP_AGENTS_ID,
+		} satisfies OrchestrationAggregateRef,
+		command: AgentUninstallCommand.make({
+			type: "agent.uninstall",
+			commandId,
+			agentId: "claude",
+		}),
+	},
+	{
+		schema: AgentAuthenticateCommand,
+		aggregate: {
+			aggregateKind: "agent",
+			aggregateId: APP_AGENTS_ID,
+		} satisfies OrchestrationAggregateRef,
+		command: AgentAuthenticateCommand.make({
+			type: "agent.authenticate",
+			commandId,
+			agentId: "claude",
+		}),
+	},
+	{
+		schema: AgentCancelAuthenticationCommand,
+		aggregate: {
+			aggregateKind: "agent",
+			aggregateId: APP_AGENTS_ID,
+		} satisfies OrchestrationAggregateRef,
+		command: AgentCancelAuthenticationCommand.make({
+			type: "agent.cancel-authentication",
+			commandId,
+			agentId: "claude",
+		}),
+	},
+	{
+		schema: AgentRegisterCustomCommand,
+		aggregate: {
+			aggregateKind: "agent",
+			aggregateId: APP_AGENTS_ID,
+		} satisfies OrchestrationAggregateRef,
+		command: AgentRegisterCustomCommand.make({
+			type: "agent.register-custom",
+			commandId,
+			agentId: "custom-1",
+			label: "Local agent",
+		}),
+	},
+	{
+		schema: AgentListCommand,
+		aggregate: {
+			aggregateKind: "agent",
+			aggregateId: APP_AGENTS_ID,
+		} satisfies OrchestrationAggregateRef,
+		command: AgentListCommand.make({
+			type: "agent.list",
+			commandId,
+			agents: [{ agentId: "claude", installed: true, authenticated: true }],
+		}),
+	},
+	{
+		schema: SessionConnectionRefreshCommand,
+		aggregate: {
+			aggregateKind: "session",
+			aggregateId: sessionId,
+		} satisfies OrchestrationAggregateRef,
+		command: SessionConnectionRefreshCommand.make({
+			type: "session.connection.refresh",
+			commandId,
+			sessionId,
+			ready: true,
+		}),
+	},
+	{
+		schema: SessionStateRefreshCommand,
+		aggregate: {
+			aggregateKind: "session",
+			aggregateId: sessionId,
+		} satisfies OrchestrationAggregateRef,
+		command: SessionStateRefreshCommand.make({
+			type: "session.state.refresh",
+			commandId,
+			sessionId,
+			state: "idle",
+		}),
+	},
+	{
+		schema: TranscriptPageReadCommand,
+		aggregate: {
+			aggregateKind: "session",
+			aggregateId: sessionId,
+		} satisfies OrchestrationAggregateRef,
+		command: TranscriptPageReadCommand.make({
+			type: "transcript.page.read",
+			commandId,
+			sessionId,
+			cursor: "0",
+		}),
+	},
+	{
+		schema: TranscriptViewportRequestCommand,
+		aggregate: {
+			aggregateKind: "session",
+			aggregateId: sessionId,
+		} satisfies OrchestrationAggregateRef,
+		command: TranscriptViewportRequestCommand.make({
+			type: "transcript.viewport.request",
+			commandId,
+			sessionId,
+			anchor: "bottom",
+		}),
+	},
+	{
+		schema: AgentPreconnectionCapabilitiesCommand,
+		aggregate: {
+			aggregateKind: "agent",
+			aggregateId: APP_AGENTS_ID,
+		} satisfies OrchestrationAggregateRef,
+		command: AgentPreconnectionCapabilitiesCommand.make({
+			type: "agent.preconnection.capabilities",
+			commandId,
+			agentId: "claude",
+			capabilities: ["models"],
+		}),
+	},
+	{
+		schema: AgentPreconnectionCommandsCommand,
+		aggregate: {
+			aggregateKind: "agent",
+			aggregateId: APP_AGENTS_ID,
+		} satisfies OrchestrationAggregateRef,
+		command: AgentPreconnectionCommandsCommand.make({
+			type: "agent.preconnection.commands",
+			commandId,
+			agentId: "claude",
+			commands: ["compact"],
+		}),
+	},
+	{
+		schema: ComposerMcpCatalogCommand,
+		aggregate: {
+			aggregateKind: "agent",
+			aggregateId: APP_AGENTS_ID,
+		} satisfies OrchestrationAggregateRef,
+		command: ComposerMcpCatalogCommand.make({
+			type: "composer.mcp.catalog",
+			commandId,
+			entries: ["fs"],
+		}),
+	},
+	{
+		schema: AgentComputerUseProbeCommand,
+		aggregate: {
+			aggregateKind: "agent",
+			aggregateId: APP_AGENTS_ID,
+		} satisfies OrchestrationAggregateRef,
+		command: AgentComputerUseProbeCommand.make({
+			type: "agent.computer-use.probe",
+			commandId,
+			available: false,
+		}),
+	},
+	{
+		schema: AgentEventBridgeRefreshCommand,
+		aggregate: {
+			aggregateKind: "agent",
+			aggregateId: APP_AGENTS_ID,
+		} satisfies OrchestrationAggregateRef,
+		command: AgentEventBridgeRefreshCommand.make({
+			type: "agent.event-bridge.refresh",
+			commandId,
+			connected: true,
+		}),
+	},
+	{
+		schema: ToolCallObserveCommand,
+		aggregate: {
+			aggregateKind: "session",
+			aggregateId: sessionId,
+		} satisfies OrchestrationAggregateRef,
+		command: ToolCallObserveCommand.make({
+			type: "tool.call.observe",
+			commandId,
+			sessionId,
+			activityId,
+			toolCallId,
+			operationId: null,
+			status: "in_progress",
+			title: "Read",
+			path: null,
+		}),
+	},
+	{
+		schema: ApprovalRequestCommand,
+		aggregate: {
+			aggregateKind: "session",
+			aggregateId: sessionId,
+		} satisfies OrchestrationAggregateRef,
+		command: ApprovalRequestCommand.make({
+			type: "approval.request",
+			commandId,
+			sessionId,
+			approvalRequestId,
+			title: "Permission",
 		}),
 	},
 ] as const

@@ -7,6 +7,8 @@ import {
 	ProjectId,
 	Sequence,
 	SessionId,
+	ToolCallId,
+	TrimmedNonEmptyString,
 	TurnId,
 	type SnapshotRequest
 } from "@acepe/contracts"
@@ -69,14 +71,20 @@ export type ProjectedTurn = typeof ProjectedTurn.Type
 export const ProjectedSessionActivity = Schema.Struct({
 	activityId: ActivityId,
 	sessionId: SessionId,
-	sequence: Sequence
+	sequence: Sequence,
+	kind: Schema.optionalKey(Schema.String),
+	status: Schema.optionalKey(Schema.String),
+	title: Schema.optionalKey(TrimmedNonEmptyString),
+	path: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey),
+	toolCallId: ToolCallId.pipe(Schema.NullOr, Schema.optionalKey)
 })
 export type ProjectedSessionActivity = typeof ProjectedSessionActivity.Type
 
 export const ProjectedPendingApproval = Schema.Struct({
 	approvalRequestId: ApprovalRequestId,
 	sessionId: SessionId,
-	sequence: Sequence
+	sequence: Sequence,
+	title: Schema.optionalKey(TrimmedNonEmptyString)
 })
 export type ProjectedPendingApproval = typeof ProjectedPendingApproval.Type
 
@@ -107,7 +115,12 @@ export type ProjectedTurnStoredRow = typeof ProjectedTurnStoredRow.Type
 export const ProjectedSessionActivityStoredRow = Schema.Struct({
 	activity_id: ActivityId,
 	session_id: SessionId,
-	sequence: Sequence
+	sequence: Sequence,
+	kind: Schema.optionalKey(Schema.String),
+	status: Schema.optionalKey(Schema.String),
+	title: Schema.optionalKey(TrimmedNonEmptyString),
+	path: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey),
+	tool_call_id: ToolCallId.pipe(Schema.NullOr, Schema.optionalKey)
 })
 export type ProjectedSessionActivityStoredRow = typeof ProjectedSessionActivityStoredRow.Type
 
@@ -137,11 +150,31 @@ const projectedTurnFromRow = (row: ProjectedTurnStoredRow): ProjectedTurn => ({
 
 const projectedSessionActivityFromRow = (
 	row: ProjectedSessionActivityStoredRow
-): ProjectedSessionActivity => ({
-	activityId: row.activity_id,
-	sessionId: row.session_id,
-	sequence: row.sequence
-})
+): ProjectedSessionActivity => {
+	if (
+		row.kind !== undefined &&
+		row.status !== undefined &&
+		row.title !== undefined &&
+		row.path !== undefined &&
+		row.tool_call_id !== undefined
+	) {
+		return {
+			activityId: row.activity_id,
+			sessionId: row.session_id,
+			sequence: row.sequence,
+			kind: row.kind,
+			status: row.status,
+			title: row.title,
+			path: row.path,
+			toolCallId: row.tool_call_id
+		}
+	}
+	return {
+		activityId: row.activity_id,
+		sessionId: row.session_id,
+		sequence: row.sequence
+	}
+}
 
 const projectedPendingApprovalFromRow = (
 	row: ProjectedPendingApprovalStoredRow

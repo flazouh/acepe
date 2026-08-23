@@ -820,6 +820,63 @@ export const applyEventToRpcSessionSnapshot = (
 			return applyGitHunkAccepted(snapshot, event)
 		case "GitHunkRejected":
 			return applyGitHunkRejected(snapshot, event)
+		case "ToolCallObserved": {
+			if (!isThisSession(snapshot, event.payload.sessionId)) {
+				return withSequence(snapshot, event.sequence)
+			}
+			const nextActivity = {
+				activityId: event.payload.activityId,
+				sessionId: event.payload.sessionId,
+				sequence: event.sequence,
+				kind: "tool",
+				status: event.payload.status,
+				title: event.payload.title,
+				path: event.payload.path,
+				toolCallId: event.payload.toolCallId,
+			}
+			const without = Arr.filter(
+				snapshot.activities,
+				(row) => row.activityId !== event.payload.activityId,
+			)
+			return {
+				...withSequence(snapshot, event.sequence),
+				session: touchSession(snapshot.session, event.occurredAt),
+				activities: Arr.append(without, nextActivity),
+			}
+		}
+		case "ApprovalRequested": {
+			if (!isThisSession(snapshot, event.payload.sessionId)) {
+				return withSequence(snapshot, event.sequence)
+			}
+			const nextApproval = {
+				approvalRequestId: event.payload.approvalRequestId,
+				sessionId: event.payload.sessionId,
+				sequence: event.sequence,
+				title: event.payload.title,
+			}
+			const without = Arr.filter(
+				snapshot.pendingApprovals,
+				(row) => row.approvalRequestId !== event.payload.approvalRequestId,
+			)
+			return {
+				...withSequence(snapshot, event.sequence),
+				session: touchSession(snapshot.session, event.occurredAt),
+				pendingApprovals: Arr.append(without, nextApproval),
+			}
+		}
+		case "InteractionReplied": {
+			if (!isThisSession(snapshot, event.payload.sessionId)) {
+				return withSequence(snapshot, event.sequence)
+			}
+			return {
+				...withSequence(snapshot, event.sequence),
+				session: touchSession(snapshot.session, event.occurredAt),
+				pendingApprovals: Arr.filter(
+					snapshot.pendingApprovals,
+					(row) => row.approvalRequestId !== event.payload.approvalRequestId,
+				),
+			}
+		}
 		default:
 			return withSequence(snapshot, event.sequence)
 	}

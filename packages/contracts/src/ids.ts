@@ -43,6 +43,10 @@ export const VoiceId = entityId("VoiceId")
 export type VoiceId = typeof VoiceId.Type
 export const decodeVoiceId = Schema.decodeUnknownEffect(VoiceId)
 
+export const AgentsId = entityId("AgentsId")
+export type AgentsId = typeof AgentsId.Type
+export const decodeAgentsId = Schema.decodeUnknownEffect(AgentsId)
+
 export const ApprovalRequestId = entityId("ApprovalRequestId")
 export type ApprovalRequestId = typeof ApprovalRequestId.Type
 export const decodeApprovalRequestId = Schema.decodeUnknownEffect(ApprovalRequestId)

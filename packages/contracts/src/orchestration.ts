@@ -8,7 +8,37 @@ import {
 	GitFileDiff,
 	GitHunkIndex,
 } from "./git.ts"
-import { CheckpointId, CommandId, MessageId, ProjectId, SessionId, SettingsId, SkillsId, ToolCallId, TurnId, VoiceId } from "./ids.ts"
+import { AgentsId, CheckpointId, CommandId, MessageId, ProjectId, SessionId, SettingsId, SkillsId, ToolCallId, TurnId, VoiceId } from "./ids.ts"
+import {
+	AgentAuthenticateCommand,
+	AgentCancelAuthenticationCommand,
+	AgentComputerUseProbeCommand,
+	AgentEventBridgeRefreshCommand,
+	AgentInitializeCommand,
+	AgentInstallCommand,
+	AgentListCommand,
+	AgentPreconnectionCapabilitiesCommand,
+	AgentPreconnectionCommandsCommand,
+	AgentRegisterCustomCommand,
+	AgentUninstallCommand,
+	ApprovalRequestCommand,
+	APP_AGENTS_ID,
+	ComposerMcpCatalogCommand,
+	InboundRespondCommand,
+	InteractionReplyCommand,
+	SessionCloseCommand,
+	SessionConnectionRefreshCommand,
+	SessionForkCommand,
+	SessionResumeCommand,
+	SessionSetAutonomousCommand,
+	SessionSetConfigOptionCommand,
+	SessionSetModeCommand,
+	SessionSetModelCommand,
+	SessionStateRefreshCommand,
+	ToolCallObserveCommand,
+	TranscriptPageReadCommand,
+	TranscriptViewportRequestCommand,
+} from "./acp.ts"
 import { APP_SETTINGS_ID, SettingsValue, UserSettingKey } from "./settings.ts"
 import { APP_SKILLS_ID, SkillsCatalog } from "./skills.ts"
 import {
@@ -25,6 +55,7 @@ export const OrchestrationAggregateKind = Schema.Literals([
 	"skills",
 	"voice",
 	"git",
+	"agent",
 ])
 export type OrchestrationAggregateKind = typeof OrchestrationAggregateKind.Type
 
@@ -52,6 +83,10 @@ export type OrchestrationAggregateRef =
 	| {
 			readonly aggregateKind: "git"
 			readonly aggregateId: ProjectId
+	  }
+	| {
+			readonly aggregateKind: "agent"
+			readonly aggregateId: AgentsId
 	  }
 
 export const ProjectCreateCommand = Schema.Struct({
@@ -345,6 +380,33 @@ export const OrchestrationCommand = Schema.Union([
 	GitBlameLoadCommand,
 	GitHunkAcceptCommand,
 	GitHunkRejectCommand,
+	SessionResumeCommand,
+	SessionForkCommand,
+	SessionCloseCommand,
+	SessionSetModelCommand,
+	SessionSetModeCommand,
+	SessionSetAutonomousCommand,
+	SessionSetConfigOptionCommand,
+	InteractionReplyCommand,
+	InboundRespondCommand,
+	AgentInitializeCommand,
+	AgentInstallCommand,
+	AgentUninstallCommand,
+	AgentAuthenticateCommand,
+	AgentCancelAuthenticationCommand,
+	AgentRegisterCustomCommand,
+	AgentListCommand,
+	SessionConnectionRefreshCommand,
+	SessionStateRefreshCommand,
+	TranscriptPageReadCommand,
+	TranscriptViewportRequestCommand,
+	AgentPreconnectionCapabilitiesCommand,
+	AgentPreconnectionCommandsCommand,
+	ComposerMcpCatalogCommand,
+	AgentComputerUseProbeCommand,
+	AgentEventBridgeRefreshCommand,
+	ToolCallObserveCommand,
+	ApprovalRequestCommand,
 ])
 export type OrchestrationCommand = typeof OrchestrationCommand.Type
 
@@ -376,6 +438,11 @@ const voiceRef = (): OrchestrationAggregateRef => ({
 const gitRef = (projectId: ProjectId): OrchestrationAggregateRef => ({
 	aggregateKind: "git",
 	aggregateId: projectId,
+})
+
+const agentRef = (): OrchestrationAggregateRef => ({
+	aggregateKind: "agent",
+	aggregateId: APP_AGENTS_ID,
 })
 
 export const commandToAggregateRef = Match.type<OrchestrationCommand>().pipe(
@@ -410,5 +477,32 @@ export const commandToAggregateRef = Match.type<OrchestrationCommand>().pipe(
 		"git.blame.load": (command) => gitRef(command.projectId),
 		"git.hunk.accept": (command) => gitRef(command.projectId),
 		"git.hunk.reject": (command) => gitRef(command.projectId),
+		"session.resume": (command) => sessionRef(command.sessionId),
+		"session.fork": (command) => sessionRef(command.sessionId),
+		"session.close": (command) => sessionRef(command.sessionId),
+		"session.set-model": (command) => sessionRef(command.sessionId),
+		"session.set-mode": (command) => sessionRef(command.sessionId),
+		"session.set-autonomous": (command) => sessionRef(command.sessionId),
+		"session.set-config-option": (command) => sessionRef(command.sessionId),
+		"interaction.reply": (command) => sessionRef(command.sessionId),
+		"inbound.respond": (command) => sessionRef(command.sessionId),
+		"agent.initialize": () => agentRef(),
+		"agent.install": () => agentRef(),
+		"agent.uninstall": () => agentRef(),
+		"agent.authenticate": () => agentRef(),
+		"agent.cancel-authentication": () => agentRef(),
+		"agent.register-custom": () => agentRef(),
+		"agent.list": () => agentRef(),
+		"session.connection.refresh": (command) => sessionRef(command.sessionId),
+		"session.state.refresh": (command) => sessionRef(command.sessionId),
+		"transcript.page.read": (command) => sessionRef(command.sessionId),
+		"transcript.viewport.request": (command) => sessionRef(command.sessionId),
+		"agent.preconnection.capabilities": () => agentRef(),
+		"agent.preconnection.commands": () => agentRef(),
+		"composer.mcp.catalog": () => agentRef(),
+		"agent.computer-use.probe": () => agentRef(),
+		"agent.event-bridge.refresh": () => agentRef(),
+		"tool.call.observe": (command) => sessionRef(command.sessionId),
+		"approval.request": (command) => sessionRef(command.sessionId),
 	}),
 )

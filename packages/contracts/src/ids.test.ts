@@ -5,10 +5,12 @@ import * as Schema from "effect/Schema"
 
 import {
 	ActivityId,
+	AgentsId,
 	ApprovalRequestId,
 	CheckpointId,
 	CommandId,
 	decodeActivityId,
+	decodeAgentsId,
 	decodeApprovalRequestId,
 	decodeCheckpointId,
 	decodeCommandId,
@@ -53,6 +55,7 @@ const brandedIds: ReadonlyArray<IdCase> = [
 	{ name: "SettingsId", make: SettingsId.make, decode: decodeSettingsId },
 	{ name: "SkillsId", make: SkillsId.make, decode: decodeSkillsId },
 	{ name: "VoiceId", make: VoiceId.make, decode: decodeVoiceId },
+	{ name: "AgentsId", make: AgentsId.make, decode: decodeAgentsId },
 	{ name: "ApprovalRequestId", make: ApprovalRequestId.make, decode: decodeApprovalRequestId },
 	{ name: "EventId", make: EventId.make, decode: decodeEventId },
 	{ name: "CommandId", make: CommandId.make, decode: decodeCommandId },

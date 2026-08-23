@@ -1,11 +1,18 @@
 import { describe, expect, it } from "bun:test"
 
-import { CommandId, MessageId, SessionId } from "./ids.ts"
+import { ActivityId, ApprovalRequestId, CommandId, MessageId, SessionId, ToolCallId } from "./ids.ts"
 import {
+	TRACER_APPROVAL_TITLE,
 	TRACER_REPLY_TEXT,
 	TRACER_REPLY_TOKENS,
+	TRACER_TOOL_TITLE,
+	tracerActivityId,
+	tracerApprovalCommandId,
+	tracerApprovalRequestId,
 	tracerAssistantMessageId,
 	tracerTokenCommandId,
+	tracerToolCallId,
+	tracerToolCommandId,
 } from "./tracerBullet.ts"
 
 describe("tracer reply", () => {
@@ -21,5 +28,20 @@ describe("tracer reply", () => {
 		expect(tracerTokenCommandId(sessionId, assistantMessageId, 0)).toBe(
 			CommandId.make("token:session-1:message-user:assistant:0"),
 		)
+		expect(tracerToolCommandId(sessionId, assistantMessageId)).toBe(
+			CommandId.make("tool:session-1:message-user:assistant"),
+		)
+		expect(tracerApprovalCommandId(sessionId, assistantMessageId)).toBe(
+			CommandId.make("approval:session-1:message-user:assistant"),
+		)
+		expect(tracerToolCallId(assistantMessageId)).toBe(ToolCallId.make("message-user:assistant:tool"))
+		expect(tracerActivityId(assistantMessageId)).toBe(
+			ActivityId.make("message-user:assistant:activity"),
+		)
+		expect(tracerApprovalRequestId(assistantMessageId)).toBe(
+			ApprovalRequestId.make("message-user:assistant:approval"),
+		)
+		expect(TRACER_TOOL_TITLE).toBe("Read")
+		expect(TRACER_APPROVAL_TITLE).toBe("Permission")
 	})
 })

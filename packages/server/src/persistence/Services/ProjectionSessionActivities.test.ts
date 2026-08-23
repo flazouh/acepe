@@ -53,7 +53,8 @@ const toolObserved = (
 		toolCallId,
 		operationId: linked,
 		status,
-		title: "Bash"
+		title: "Bash",
+		path: null
 	}
 })
 
@@ -277,7 +278,8 @@ Vitest.describe("evolveSessionActivity", () => {
 					toolCallId,
 					operationId: null,
 					status: "pending",
-					title: "Bash"
+					title: "Bash",
+					path: null
 				}
 			}
 			const earlierClock: SessionActivityEvent = {

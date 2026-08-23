@@ -57,6 +57,7 @@ import {
 	requireUniqueSkillIds
 } from "./commandInvariants.ts"
 import type { OrchestrationCommandInvariantError } from "./Errors.ts"
+import { decideAcp } from "./acpDecide.ts"
 import { decideGit } from "./gitDecide.ts"
 import { decideVoice } from "./voiceDecide.ts"
 
@@ -755,5 +756,33 @@ export const decide = Effect.fn("decide")(function*(
 		case "git.hunk.accept":
 		case "git.hunk.reject":
 			return yield* decideGit(readModel, command, identity)
+		case "session.resume":
+		case "session.fork":
+		case "session.close":
+		case "session.set-model":
+		case "session.set-mode":
+		case "session.set-autonomous":
+		case "session.set-config-option":
+		case "interaction.reply":
+		case "inbound.respond":
+		case "agent.initialize":
+		case "agent.install":
+		case "agent.uninstall":
+		case "agent.authenticate":
+		case "agent.cancel-authentication":
+		case "agent.register-custom":
+		case "agent.list":
+		case "session.connection.refresh":
+		case "session.state.refresh":
+		case "transcript.page.read":
+		case "transcript.viewport.request":
+		case "agent.preconnection.capabilities":
+		case "agent.preconnection.commands":
+		case "composer.mcp.catalog":
+		case "agent.computer-use.probe":
+		case "agent.event-bridge.refresh":
+		case "tool.call.observe":
+		case "approval.request":
+			return yield* decideAcp(readModel, command, identity)
 	}
 })
