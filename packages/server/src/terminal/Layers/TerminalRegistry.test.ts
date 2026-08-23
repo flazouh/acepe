@@ -26,8 +26,12 @@ Vitest.layer(TerminalRegistryLive)("TerminalRegistry", (it) => {
 
 	it.effect("fails with a lookup error for an unknown terminal", () =>
 		Effect.gen(function*() {
+			// Layer state is shared across `it.effect` cases in this block (see
+			// TerminalService.test.ts for the same convention), so this uses a
+			// terminal id no other case registers.
 			const registry = yield* TerminalRegistry
-			const error = yield* registry.require(terminalId).pipe(Effect.flip)
+			const neverRegistered = TerminalId.make("term-never-registered")
+			const error = yield* registry.require(neverRegistered).pipe(Effect.flip)
 			Vitest.assert.strictEqual(error._tag, "TerminalRegistryLookupError")
 		})
 	)

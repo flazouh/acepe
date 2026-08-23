@@ -75,6 +75,7 @@ const oracle = {
 	gitReview: null,
 			mcpCatalog: null,
 			preconnectionOptions: null,
+			terminal: null,
 }
 
 Vitest.layer(isolated())("ClaudeHistoryLive", (it) => {
