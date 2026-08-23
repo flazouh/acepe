@@ -5,6 +5,8 @@ import {
 	type OrchestrationEvent,
 	type ProjectId,
 	type RpcClient,
+	type RpcProjectedProject,
+	type RpcProjectedSession,
 	type RpcSessionSnapshot,
 	type SessionId,
 	type SessionPrLinkMode,
@@ -21,6 +23,53 @@ import { prLinkToggleCommand, shouldDispatchPrLinkToggle } from "./session-store
 
 export type { SessionSendMoment };
 
+// A scoped snapshot request (project or session) narrows `projects`/`sessions`
+// to what that scope needs — server-side, on purpose. Replacing the store
+// wholesale with a narrowed snapshot would make every OTHER project vanish
+// from the sidebar, since the sidebar model reads those two arrays directly
+// off the stored snapshot. Merge instead: keep every previously known row,
+// let the incoming snapshot's rows win for the ids it actually reports on.
+const mergeRowsById = <Row, Key>(
+	previousRows: ReadonlyArray<Row>,
+	incomingRows: ReadonlyArray<Row>,
+	keyOf: (row: Row) => Key,
+): ReadonlyArray<Row> => {
+	if (incomingRows.length === 0) {
+		return previousRows;
+	}
+	const incomingByKey = new Map(incomingRows.map((row) => [keyOf(row), row]));
+	const carriedOver = previousRows.map((row) => incomingByKey.get(keyOf(row)) ?? row);
+	const previousKeys = new Set(previousRows.map(keyOf));
+	const additions = incomingRows.filter((row) => !previousKeys.has(keyOf(row)));
+	return [...carriedOver, ...additions];
+};
+
+const mergeLibraryLists = (
+	previous: RpcSessionSnapshot,
+	incoming: RpcSessionSnapshot,
+): RpcSessionSnapshot => {
+	// Live-event folding (applyEventToRpcSessionSnapshot) always carries
+	// `projects`/`sessions` forward by reference — no event mutates them. That
+	// makes this the hot path (one call per streamed token): skip the merge
+	// entirely when both arrays are untouched instead of re-scanning them.
+	if (incoming.projects === previous.projects && incoming.sessions === previous.sessions) {
+		return incoming;
+	}
+	return {
+		...incoming,
+		projects: mergeRowsById(
+			previous.projects,
+			incoming.projects,
+			(project: RpcProjectedProject) => project.projectId,
+		),
+		sessions: mergeRowsById(
+			previous.sessions,
+			incoming.sessions,
+			(session: RpcProjectedSession) => session.sessionId,
+		),
+	};
+};
+
 export const composeSessionStore = (input: {
 	readonly client: RpcClient;
 	readonly registry: AtomRegistry.AtomRegistry;
@@ -33,9 +82,10 @@ export const composeSessionStore = (input: {
 	const readSendMoment = () => input.registry.get(sendMomentAtom);
 
 	const replaceSnapshot = (snapshot: RpcSessionSnapshot) => {
-		input.registry.set(snapshotAtom, snapshot);
+		const merged = mergeLibraryLists(readSnapshot(), snapshot);
+		input.registry.set(snapshotAtom, merged);
 		if (input.onSnapshot !== undefined) {
-			input.onSnapshot(snapshot);
+			input.onSnapshot(merged);
 		}
 	};
 
@@ -49,15 +99,18 @@ export const composeSessionStore = (input: {
 	const openLibrary = Effect.fn("openLibrary")(function* () {
 		const snap = yield* input.client.snapshot({ kind: "library" });
 		replaceSnapshot(snap);
-		return snap;
+		return readSnapshot();
 	});
 
 	// Project scope returns that project's sessions without opening one of them,
-	// so the sidebar can list them before a selection is made.
+	// so the sidebar can list them before a selection is made. The response is
+	// scoped to that one project (server-side, on purpose) — replaceSnapshot
+	// merges it onto the library-level lists already held, so every other
+	// project stays visible in the sidebar.
 	const openProject = Effect.fn("openProject")(function* (projectId: ProjectId) {
 		const snap = yield* input.client.snapshot({ kind: "project", projectId });
 		replaceSnapshot(snap);
-		return snap;
+		return readSnapshot();
 	});
 
 	const openSession = Effect.fn("openSession")(function* (sessionId: SessionId) {
@@ -71,7 +124,7 @@ export const composeSessionStore = (input: {
 	const refreshSession = Effect.fn("refreshSession")(function* (sessionId: SessionId) {
 		const snap = yield* input.client.snapshot({ sessionId });
 		replaceSnapshot(snap);
-		return snap;
+		return readSnapshot();
 	});
 
 	// Live push from bun to the webview is broken in the Electrobun message
