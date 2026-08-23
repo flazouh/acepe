@@ -1,4 +1,4 @@
-import * as Effect from "effect/Effect";
+import type * as Effect from "effect/Effect";
 
 import type { AppError } from "../../acp/errors/app-error.js";
 import type {
@@ -7,31 +7,38 @@ import type {
 	TerminalOutputResult,
 	WaitForExitResult,
 } from "../../acp/types/index.js";
-import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
+import { unsupportedOnContract } from "./rpc-bridge.ts";
 
-const terminalCommands = TAURI_COMMAND_CLIENT.terminal;
-
+// This facade wraps the ACP protocol's terminal/create, terminal/output,
+// terminal/wait_for_exit, terminal/kill and terminal/release methods (see
+// ACP_METHODS.TERMINAL_CREATE and friends in
+// ../../acp/constants/acp-methods.ts): an agent-initiated request to run a
+// command and capture its output, distinct from the interactive PTY terminal
+// in the session panel (which rides the contract's terminal.open/input/
+// resize/close commands and the "terminal" snapshot kind today, see
+// agent-panel-terminal-store.ts). No ACP method dispatch table in this
+// codebase routes those method names anywhere, so every export here has zero
+// live callers (verified by grep across packages/desktop/src). The contract
+// has no equivalent "run and capture" terminal concept yet, so these stay on
+// unsupportedOnContract rather than being half-wired onto the PTY primitives,
+// which model a different capability (#249 batch 2).
 export const terminal = {
-	create: (request: CreateTerminalParams): Effect.Effect<CreateTerminalResult, AppError> => {
-		return terminalCommands.create.invoke<CreateTerminalResult>({ request });
-	},
+	create: (_request: CreateTerminalParams): Effect.Effect<CreateTerminalResult, AppError> =>
+		unsupportedOnContract("terminal.create"),
 
-	output: (sessionId: string, terminalId: string): Effect.Effect<TerminalOutputResult, AppError> => {
-		return terminalCommands.output.invoke<TerminalOutputResult>({ sessionId, terminalId });
-	},
+	output: (
+		_sessionId: string,
+		_terminalId: string
+	): Effect.Effect<TerminalOutputResult, AppError> => unsupportedOnContract("terminal.output"),
 
 	waitForExit: (
-		sessionId: string,
-		terminalId: string
-	): Effect.Effect<WaitForExitResult, AppError> => {
-		return terminalCommands.wait_for_exit.invoke<WaitForExitResult>({ sessionId, terminalId });
-	},
+		_sessionId: string,
+		_terminalId: string
+	): Effect.Effect<WaitForExitResult, AppError> => unsupportedOnContract("terminal.waitForExit"),
 
-	kill: (sessionId: string, terminalId: string): Effect.Effect<void, AppError> => {
-		return terminalCommands.kill.invoke<void>({ sessionId, terminalId });
-	},
+	kill: (_sessionId: string, _terminalId: string): Effect.Effect<void, AppError> =>
+		unsupportedOnContract("terminal.kill"),
 
-	release: (sessionId: string, terminalId: string): Effect.Effect<void, AppError> => {
-		return terminalCommands.release.invoke<void>({ sessionId, terminalId });
-	},
+	release: (_sessionId: string, _terminalId: string): Effect.Effect<void, AppError> =>
+		unsupportedOnContract("terminal.release"),
 };
