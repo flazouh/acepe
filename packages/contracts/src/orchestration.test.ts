@@ -4,7 +4,7 @@ import * as Exit from "effect/Exit"
 import * as Schema from "effect/Schema"
 import * as FastCheck from "effect/testing/FastCheck"
 
-import { ActivityId, ApprovalRequestId, CheckpointId, CommandId, MessageId, ProjectId, SessionId, ToolCallId, TurnId } from "./ids.ts"
+import { ActivityId, ApprovalRequestId, CheckpointId, CommandId, MessageId, ProjectId, SessionId, TerminalId, ToolCallId, TurnId } from "./ids.ts"
 import {
 	AgentAuthenticateCommand,
 	AgentCancelAuthenticationCommand,
@@ -72,6 +72,10 @@ import {
 	GitStatusRefreshCommand,
 	McpCatalogResolveCommand,
 	PreconnectionOptionsLoadCommand,
+	TerminalCloseCommand,
+	TerminalInputCommand,
+	TerminalOpenCommand,
+	TerminalResizeCommand,
 } from "./orchestration.ts"
 import { APP_SETTINGS_ID } from "./settings.ts"
 import { APP_SKILLS_ID, emptySkillsCatalog } from "./skills.ts"
@@ -145,6 +149,10 @@ const v1CommandTypes = [
 	"approval.request",
 	"mcp.catalog.resolve",
 	"preconnection.options.load",
+	"terminal.open",
+	"terminal.input",
+	"terminal.resize",
+	"terminal.close",
 ] as const
 
 type V1CommandType = (typeof v1CommandTypes)[number]
@@ -161,6 +169,7 @@ const encodeCommand = Schema.encodeEffect(OrchestrationCommand)
 const commandId = CommandId.make("cmd-1")
 const projectId = ProjectId.make("project-1")
 const sessionId = SessionId.make("session-1")
+const terminalId = TerminalId.make("term-1")
 const messageId = MessageId.make("message-1")
 const turnId = TurnId.make("turn-1")
 const checkpointId = CheckpointId.make("checkpoint-1")
@@ -978,6 +987,59 @@ const memberCases = [
 			projectId,
 			providerId: "claude-code",
 			options: [],
+		}),
+	},
+	{
+		schema: TerminalOpenCommand,
+		aggregate: {
+			aggregateKind: "terminal",
+			aggregateId: terminalId,
+		} satisfies OrchestrationAggregateRef,
+		command: TerminalOpenCommand.make({
+			type: "terminal.open",
+			commandId,
+			terminalId,
+			sessionId,
+			cwd: "/tmp",
+		}),
+	},
+	{
+		schema: TerminalInputCommand,
+		aggregate: {
+			aggregateKind: "terminal",
+			aggregateId: terminalId,
+		} satisfies OrchestrationAggregateRef,
+		command: TerminalInputCommand.make({
+			type: "terminal.input",
+			commandId,
+			terminalId,
+			data: "echo hi\n",
+		}),
+	},
+	{
+		schema: TerminalResizeCommand,
+		aggregate: {
+			aggregateKind: "terminal",
+			aggregateId: terminalId,
+		} satisfies OrchestrationAggregateRef,
+		command: TerminalResizeCommand.make({
+			type: "terminal.resize",
+			commandId,
+			terminalId,
+			cols: 80,
+			rows: 24,
+		}),
+	},
+	{
+		schema: TerminalCloseCommand,
+		aggregate: {
+			aggregateKind: "terminal",
+			aggregateId: terminalId,
+		} satisfies OrchestrationAggregateRef,
+		command: TerminalCloseCommand.make({
+			type: "terminal.close",
+			commandId,
+			terminalId,
 		}),
 	},
 ] as const

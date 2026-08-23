@@ -3,6 +3,7 @@ import * as Schema from "effect/Schema"
 import { CheckpointFileCount, CheckpointNumber, CheckpointStatus, IsoDateTime, JsonObject, Sequence, StreamToken, TrimmedNonEmptyString } from "./baseSchemas.ts"
 import { FileGitStatus } from "./fileIndex.ts"
 import { GitBlameLine, GitFileDiff, GitHunkIndex } from "./git.ts"
+import { TerminalCols, TerminalRows } from "./terminal.ts"
 import {
 	AgentsId,
 	CheckpointId,
@@ -13,6 +14,7 @@ import {
 	SessionId,
 	SettingsId,
 	SkillsId,
+	TerminalId,
 	ToolCallId,
 	TurnId,
 	VoiceId,
@@ -125,6 +127,7 @@ export const OrchestrationEventType = Schema.Literals([
 	"ApprovalRequested",
 	"McpCatalogResolved",
 	"PreconnectionOptionsLoaded",
+	"TerminalOutputAppended",
 ])
 export type OrchestrationEventType = typeof OrchestrationEventType.Type
 
@@ -334,6 +337,17 @@ export const PreconnectionOptionsLoadedPayload = Schema.Struct({
 	options: Schema.Array(ConfigOptionData),
 })
 export type PreconnectionOptionsLoadedPayload = typeof PreconnectionOptionsLoadedPayload.Type
+
+export const TerminalOutputAppendedPayload = Schema.Struct({
+	terminalId: TerminalId,
+	sessionId: SessionId,
+	cwd: TrimmedNonEmptyString,
+	cols: TerminalCols,
+	rows: TerminalRows,
+	output: Schema.String,
+	closed: Schema.Boolean,
+})
+export type TerminalOutputAppendedPayload = typeof TerminalOutputAppendedPayload.Type
 
 const defineOrchestrationEvent = <
 	const EventType extends OrchestrationEventType,
@@ -839,6 +853,14 @@ export const PreconnectionOptionsLoadedEvent = defineOrchestrationEvent({
 })
 export type PreconnectionOptionsLoadedEvent = typeof PreconnectionOptionsLoadedEvent.Type
 
+export const TerminalOutputAppendedEvent = defineOrchestrationEvent({
+	type: "TerminalOutputAppended",
+	payload: TerminalOutputAppendedPayload,
+	aggregateKind: "terminal",
+	aggregateId: TerminalId,
+})
+export type TerminalOutputAppendedEvent = typeof TerminalOutputAppendedEvent.Type
+
 export const OrchestrationEvent = Schema.Union([
 	ProjectCreatedEvent,
 	ProjectMetaUpdatedEvent,
@@ -900,5 +922,6 @@ export const OrchestrationEvent = Schema.Union([
 	ApprovalRequestedEvent,
 	McpCatalogResolvedEvent,
 	PreconnectionOptionsLoadedEvent,
+	TerminalOutputAppendedEvent,
 ])
 export type OrchestrationEvent = typeof OrchestrationEvent.Type

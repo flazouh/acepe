@@ -22,6 +22,7 @@ import {
 	type RpcSessionSnapshot,
 } from "./rpc.ts"
 import { emptyProjectedVoice, type ProjectedVoice, type VoiceModelInfo } from "./voice.ts"
+import { capTerminalOutput, type ProjectedTerminal } from "./terminal.ts"
 
 const asTranscriptText = (value: string): typeof TrimmedNonEmptyString.Type =>
 	Schema.decodeUnknownSync(TrimmedNonEmptyString)(value)
@@ -42,6 +43,7 @@ export const emptyRpcSessionSnapshot = (snapshotSequence: Sequence): RpcSessionS
 	gitReview: null,
 	mcpCatalog: null,
 	preconnectionOptions: null,
+	terminal: null,
 })
 
 const watermark = (snapshot: RpcSessionSnapshot, sequence: Sequence): Sequence =>
@@ -239,6 +241,7 @@ const applySettingsUpdated = (
 		gitReview: snapshot.gitReview,
 	mcpCatalog: snapshot.mcpCatalog,
 	preconnectionOptions: snapshot.preconnectionOptions,
+	terminal: snapshot.terminal,
 	}
 }
 
@@ -376,6 +379,7 @@ const applySkillsDiscovered = (
 	gitReview: snapshot.gitReview,
 	mcpCatalog: snapshot.mcpCatalog,
 	preconnectionOptions: snapshot.preconnectionOptions,
+	terminal: snapshot.terminal,
 })
 
 const upsertVoiceModel = (
@@ -460,6 +464,7 @@ const replaceVoice = (
 	gitReview: snapshot.gitReview,
 	mcpCatalog: snapshot.mcpCatalog,
 	preconnectionOptions: snapshot.preconnectionOptions,
+	terminal: snapshot.terminal,
 })
 
 const applyVoiceModelsListed = (
@@ -632,6 +637,7 @@ const replaceGitReview = (
 	},
 	mcpCatalog: snapshot.mcpCatalog,
 	preconnectionOptions: snapshot.preconnectionOptions,
+	terminal: snapshot.terminal,
 })
 
 const upsertGitFile = (
@@ -784,6 +790,7 @@ const applyMcpCatalogResolved = (
 		catalog: event.payload.catalog,
 	},
 	preconnectionOptions: snapshot.preconnectionOptions,
+	terminal: snapshot.terminal,
 })
 
 const applyPreconnectionOptionsLoaded = (
@@ -810,7 +817,42 @@ const applyPreconnectionOptionsLoaded = (
 		providerId: event.payload.providerId,
 		options: event.payload.options,
 	},
+	terminal: snapshot.terminal,
 })
+
+const applyTerminalOutputAppended = (
+	snapshot: RpcSessionSnapshot,
+	event: Extract<OrchestrationEvent, { readonly type: "TerminalOutputAppended" }>,
+): RpcSessionSnapshot => {
+	const terminal: ProjectedTerminal = {
+		sequence: event.sequence,
+		terminalId: event.payload.terminalId,
+		sessionId: event.payload.sessionId,
+		cwd: event.payload.cwd,
+		cols: event.payload.cols,
+		rows: event.payload.rows,
+		output: capTerminalOutput(event.payload.output),
+		closed: event.payload.closed,
+	}
+	return {
+		snapshotSequence: watermark(snapshot, event.sequence),
+		session: snapshot.session,
+		messages: snapshot.messages,
+		turns: snapshot.turns,
+		activities: snapshot.activities,
+		pendingApprovals: snapshot.pendingApprovals,
+		checkpoints: snapshot.checkpoints,
+		projects: snapshot.projects,
+		sessions: snapshot.sessions,
+		settings: snapshot.settings,
+		skillsCatalog: snapshot.skillsCatalog,
+		voice: snapshot.voice,
+		gitReview: snapshot.gitReview,
+		mcpCatalog: snapshot.mcpCatalog,
+		preconnectionOptions: snapshot.preconnectionOptions,
+		terminal,
+	}
+}
 
 export const applyEventToRpcSessionSnapshot = (
 	snapshot: RpcSessionSnapshot,
@@ -948,6 +990,8 @@ export const applyEventToRpcSessionSnapshot = (
 			return applyMcpCatalogResolved(snapshot, event)
 		case "PreconnectionOptionsLoaded":
 			return applyPreconnectionOptionsLoaded(snapshot, event)
+		case "TerminalOutputAppended":
+			return applyTerminalOutputAppended(snapshot, event)
 		default:
 			return withSequence(snapshot, event.sequence)
 	}

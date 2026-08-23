@@ -8,7 +8,7 @@ import * as Stream from "effect/Stream"
 import * as FastCheck from "effect/testing/FastCheck"
 
 import { OrchestrationEvent } from "./events.ts"
-import { CheckpointId, CommandId, EventId, ProjectId, SessionId } from "./ids.ts"
+import { CheckpointId, CommandId, EventId, ProjectId, SessionId, TerminalId } from "./ids.ts"
 import { OrchestrationCommand, ProjectCreateCommand } from "./orchestration.ts"
 import {
 	AcepeRpc,
@@ -37,6 +37,7 @@ import {
 	settingsSnapshotRequest,
 	skillsSnapshotRequest,
 	snapshotScope,
+	terminalSnapshotRequest,
 	voiceSnapshotRequest,
 	type RpcTransport,
 } from "./rpc.ts"
@@ -47,6 +48,7 @@ const primitiveTags = Arr.fromIterable(RPC_PRIMITIVE_TAGS).sort()
 const commandId = CommandId.make("cmd-1")
 const projectId = ProjectId.make("project-1")
 const sessionId = SessionId.make("session-1")
+const terminalId = TerminalId.make("term-1")
 
 const createProject = ProjectCreateCommand.make({
 	type: "project.create",
@@ -90,6 +92,7 @@ const emptySnapshot: RpcSessionSnapshot = {
 	gitReview: null,
 	mcpCatalog: null,
 	preconnectionOptions: null,
+	terminal: null,
 }
 
 const snapshot: RpcSessionSnapshot = {
@@ -156,6 +159,7 @@ const snapshot: RpcSessionSnapshot = {
 	gitReview: null,
 	mcpCatalog: null,
 	preconnectionOptions: null,
+	terminal: null,
 }
 
 const unusedDispatch: RpcTransport["dispatch"] = (_command) => Effect.succeed({ sequence: 0 })
@@ -291,6 +295,7 @@ describe("Schema-encoded boundary", () => {
 			gitReview: null,
 	mcpCatalog: null,
 	preconnectionOptions: null,
+	terminal: null,
 		}
 		const encoded = Effect.runSync(Schema.encodeUnknownEffect(RpcSessionSnapshot)(withGit))
 		const decoded = Effect.runSync(Schema.decodeUnknownEffect(RpcSessionSnapshot)(encoded))
@@ -337,6 +342,7 @@ describe("Schema-encoded boundary", () => {
 			gitReview: null,
 	mcpCatalog: null,
 	preconnectionOptions: null,
+	terminal: null,
 		}
 		const encoded = Effect.runSync(Schema.encodeUnknownEffect(RpcSessionSnapshot)(withCheckpoint))
 		const decoded = Effect.runSync(Schema.decodeUnknownEffect(RpcSessionSnapshot)(encoded))
@@ -373,6 +379,9 @@ describe("Schema-encoded boundary", () => {
 			Effect.runSync(decodeSnapshotRequest({ kind: "mcp", projectId })),
 		).toEqual(mcpSnapshotRequest(projectId))
 		expect(
+			Effect.runSync(decodeSnapshotRequest({ kind: "terminal", terminalId })),
+		).toEqual(terminalSnapshotRequest(terminalId))
+		expect(
 			Effect.runSync(decodeSnapshotRequest({ kind: "project", projectId })),
 		).toEqual(projectSnapshotRequest(projectId))
 		expect(
@@ -393,6 +402,10 @@ describe("Schema-encoded boundary", () => {
 		expect(snapshotScope(mcpSnapshotRequest(projectId))).toEqual({
 			kind: "mcp",
 			projectId,
+		})
+		expect(snapshotScope(terminalSnapshotRequest(terminalId))).toEqual({
+			kind: "terminal",
+			terminalId,
 		})
 		expect(snapshotScope(projectSnapshotRequest(projectId))).toEqual({
 			kind: "project",
