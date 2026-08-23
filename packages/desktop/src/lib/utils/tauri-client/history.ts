@@ -1,4 +1,4 @@
-import * as Effect from "effect/Effect";
+import type * as Effect from "effect/Effect";
 
 import type { SessionPrLinkMode } from "../../acp/application/dto/session-linked-pr.js";
 import type { AppError } from "../../acp/errors/app-error.js";
@@ -6,6 +6,7 @@ import type { SessionOpenResult } from "../../services/acp-types.js";
 import type { HistoryEntry, StartupSessionsResponse } from "../../services/claude-history-types.js";
 import type { SessionPlanResponse } from "../../services/converted-session-types.js";
 import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
+import { unsupportedOnContract } from "./rpc-bridge.ts";
 import type { ProjectInfo, ProjectSessionCounts, SessionLoadTiming } from "./types.js";
 
 const historyCommands = TAURI_COMMAND_CLIENT.history;
@@ -23,19 +24,34 @@ export interface TranscriptRowLedgerBackfillResult {
 	readonly failedSessionIds: string[];
 }
 
+// getSessionOpenResult/getStartupSessions/scanProjectSessions/
+// listAllProjectPaths/countSessionsForProject/getUnifiedPlan/
+// warmRecentTranscriptRowLedgers/invalidateHistoryCache and the
+// setSessionPrNumber/setSessionTitle/setSessionWorktreePath writers below all
+// stay on TAURI_COMMAND_CLIENT: they read from and write to the Rust history
+// backend's own SQLite index (multi-provider project discovery, session-open
+// hydration+repair, the transcript-row-ledger cache), none of which has a
+// TS/RPC counterpart yet. #249 batch 2's AC-040 importer only parses provider
+// jsonl into the orchestration event store at import time — it does not walk
+// provider directories at read time or serve session-open hydration. Moving
+// only the writers onto the session.meta.update dispatch command (which
+// already exists and would write the TS server's own ProjectionSessions
+// table instead) would split the two stores: title/PR-link/worktree edits
+// would stop showing up in the sidebar scan and in session-open hydration
+// for anyone still on the Rust-backed readers. The whole read+write surface
+// has to move together, which needs the provider-discovery and
+// session-open/repair work this slice does not have budget for — see the
+// #249 issue thread for the follow-up slice.
 export const history = {
+	// Diagnostic-only timing probe for the Rust session-load path; no live
+	// caller today (see #249 batch 2 map).
 	auditSessionLoadTiming: (
-		sessionId: string,
-		projectPath: string,
-		agentId: string,
-		sourcePath?: string
+		_sessionId: string,
+		_projectPath: string,
+		_agentId: string,
+		_sourcePath?: string
 	): Effect.Effect<SessionLoadTiming, AppError> => {
-		return historyCommands.audit_session_load_timing.invoke<SessionLoadTiming>({
-			sessionId,
-			projectPath,
-			agentId,
-			sourcePath,
-		});
+		return unsupportedOnContract("history.auditSessionLoadTiming");
 	},
 
 	getSessionOpenResult: (
@@ -92,8 +108,11 @@ export const history = {
 		return historyCommands.invalidate_history_cache.invoke<void>();
 	},
 
+	// Whole-machine provider-directory discovery; no live caller today (see
+	// #249 batch 2 map). listAllProjectPaths/scanProjectSessions cover the
+	// callers this facade actually has.
 	discoverAllProjectsWithSessions: (): Effect.Effect<HistoryEntry[], AppError> => {
-		return historyCommands.discover_all_projects_with_sessions.invoke<HistoryEntry[]>();
+		return unsupportedOnContract("history.discoverAllProjectsWithSessions");
 	},
 
 	listAllProjectPaths: (): Effect.Effect<ProjectInfo[], AppError> => {
