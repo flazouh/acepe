@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import { composerSetupBarIsEmpty } from "./composer-setup-bar-state.ts";
+import { composerSetupBarIsEmpty } from "./composer-setup-bar-state.js";
 
 describe("composerSetupBarIsEmpty", () => {
 	it("is true only when skills, servers, and options are all absent", () => {
