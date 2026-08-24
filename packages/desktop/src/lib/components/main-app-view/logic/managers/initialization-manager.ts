@@ -666,13 +666,26 @@ export class InitializationManager {
 		);
 	}
 
+	// Runs the orchestration-projection union before the on-disk history
+	// scan (see SessionRepository.scanSessionProjections) so a
+	// dispatch-created session with no provider history on disk yet is
+	// present in the sidebar from the first paint, and survives the disk
+	// scan's per-project pruning (it's seeded with sessionLifecycleState
+	// "created", which refreshSessionsFromScan always preserves). Runs on
+	// every call site of scanStartupSessionHistory, including the
+	// history-index-changed reconciliation, not just first boot.
 	private scanStartupSessionHistory(): Effect.Effect<void, MainAppViewError> {
 		const projectPaths = this.getKnownProjectPaths();
 		if (projectPaths.length === 0) {
 			return Effect.succeed(undefined);
 		}
 
-		return this.sessionStore.loading.scanSessions(projectPaths).pipe(
+		return this.sessionStore.loading.scanSessionProjections().pipe(
+			Effect.catch((error) => {
+				logger.warn("Failed to merge library session projections at startup", { error });
+				return Effect.void;
+			}),
+			Effect.flatMap(() => this.sessionStore.loading.scanSessions(projectPaths)),
 			Effect.mapError(
 				(error) =>
 					new InitializationError(

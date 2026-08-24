@@ -356,6 +356,7 @@ describe("InitializationManager", () => {
 				registerSessionPlaceholder: mock(() => {}),
 				preloadSessions: mock(() => Effect.succeed({ loaded: [], missing: [] })),
 				scanSessions: mock(() => Effect.succeed(undefined)),
+				scanSessionProjections: mock(() => Effect.succeed(undefined)),
 			},
 			connection: {
 				createSession: mock((options: { agentId: string; projectPath: string; title?: string }) =>

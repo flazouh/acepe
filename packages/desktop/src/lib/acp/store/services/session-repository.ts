@@ -30,6 +30,7 @@ import { canonicalAgentIdToString } from "../../types/agent-id.js";
 import { createLogger } from "../../utils/logger.js";
 import { api } from "../api.js";
 import { isFallbackSessionTitle, stripArtifactsFromTitle } from "../session-title-policy.js";
+import { mergeProjectionSessions } from "./session-projection-merge.js";
 import type { SessionCold, SessionMutableColdUpdates } from "../types.js";
 import type {
 	IConnectionManager,
@@ -350,6 +351,31 @@ export class SessionRepository {
 
 		this.stateWriter.setSessions(mergedSessions);
 		logger.debug("Sessions refreshed from scan", { count: mergedSessions.length });
+	}
+
+	/**
+	 * Union the orchestration-projected session list (every session Acepe's
+	 * event store knows about, snapshot kind "library") into the store.
+	 *
+	 * Unlike scanSessions/refreshSessionsFromScan (provider-owned on-disk
+	 * history -- only ever finds sessions the provider has already
+	 * persisted), this finds a session dispatched via session.create the
+	 * instant it exists in the event store, even before any provider
+	 * adapter has written history to disk. Without this union such a
+	 * session is only visible for the life of the running app (via the
+	 * optimistic registerSessionPlaceholder insert on the composer's send
+	 * path) and disappears from the sidebar on restart, because the
+	 * in-memory session list starts empty and only the disk scan
+	 * repopulates it.
+	 */
+	scanSessionProjections(existingSessions: SessionCold[]): Effect.Effect<void, AppError> {
+		return api.getLibrarySessionsSnapshot().pipe(
+			Effect.map(({ sessions: projectedSessions, projects }) => {
+				const merged = mergeProjectionSessions(existingSessions, projectedSessions, projects);
+				this.stateWriter.setSessions(merged);
+				logger.debug("Sessions merged from library projection", { count: merged.length });
+			})
+		);
 	}
 
 	/**

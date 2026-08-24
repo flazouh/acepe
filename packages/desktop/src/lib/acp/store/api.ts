@@ -5,6 +5,7 @@
  * All commands are type-checked at compile time.
  */
 
+import type { RpcProjectedProject, RpcProjectedSession } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 import type {
 	ProviderMetadataProjection,
@@ -189,6 +190,20 @@ export function scanSessions(projectPaths: string[]): Effect.Effect<HistoryEntry
 }
 
 /**
+ * Read the orchestration-projected session list (every project, every
+ * session), independent of provider-owned on-disk history. Sessions
+ * dispatched via session.create show up here immediately, even before a
+ * provider adapter has written anything to disk -- unlike scanSessions,
+ * which only ever finds sessions the provider has already persisted.
+ */
+export function getLibrarySessionsSnapshot(): Effect.Effect<
+	{ sessions: readonly RpcProjectedSession[]; projects: readonly RpcProjectedProject[] },
+	AppError
+> {
+	return tauriClient.acp.getLibrarySessionsSnapshot();
+}
+
+/**
  * Load only the metadata for specific restored session IDs.
  * Used on startup to hydrate open panels without blocking on a full sidebar scan.
  *
@@ -313,6 +328,7 @@ export const api = {
 
 	// History
 	scanSessions,
+	getLibrarySessionsSnapshot,
 	getStartupSessions,
 	getSessionOpenResult,
 	awaitSessionOpenRepair,

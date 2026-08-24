@@ -5,6 +5,7 @@ import {
 	decodeSessionId,
 	librarySnapshotRequest,
 	type RpcProjectedProject,
+	type RpcProjectedSession,
 	sessionSnapshotRequest,
 	TrimmedNonEmptyString,
 } from "@acepe/contracts";
@@ -158,6 +159,25 @@ export const acp = {
 	// so this is now a genuine no-op rather than a Tauri invoke into a command
 	// that no longer exists.
 	initialize: (): Effect.Effect<unknown, AppError> => Effect.succeed(undefined),
+
+	// Sidebar visibility fix: sessions that exist only in the orchestration
+	// projections (dispatched via session.create, no on-disk provider history
+	// yet) need a source the session-list scan can union with the disk scan.
+	// This is the same library snapshot resolveOrCreateProject already reads
+	// (kind "library" -- every project, every session), reused here for its
+	// `sessions` array rather than its `projects` array.
+	getLibrarySessionsSnapshot: Effect.fn("acp.getLibrarySessionsSnapshot")(function* () {
+		const snapshot = yield* withRpcClient("acp.getLibrarySessionsSnapshot", (client) =>
+			client.snapshot(librarySnapshotRequest())
+		);
+		return {
+			sessions: snapshot.sessions,
+			projects: snapshot.projects,
+		} satisfies {
+			sessions: readonly RpcProjectedSession[];
+			projects: readonly RpcProjectedProject[];
+		};
+	}),
 
 	authenticateAgent: (_agentId: string): Effect.Effect<void, AppError> =>
 		unsupportedOnContract("acp.authenticateAgent"),
