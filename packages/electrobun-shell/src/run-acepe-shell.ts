@@ -60,6 +60,7 @@ export const makeDeferredRpcWork = (): {
 			readTextFile: (params) => requireAttached(live).readTextFile(params),
 			writeTextFile: (params) => requireAttached(live).writeTextFile(params),
 			getDefaultShell: (params) => requireAttached(live).getDefaultShell(params),
+			gitCall: (params) => requireAttached(live).gitCall(params),
 		},
 		attach: (next) => {
 			live = next
