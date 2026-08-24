@@ -102,6 +102,7 @@ describe("library sidebar controller mapping", () => {
 					getProviderAccountUsage: () => Effect.succeed([]),
 					listProviderSessions: () => Effect.succeed([]),
 					listProviderProjects: () => Effect.succeed([]),
+					importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 					events: () => Stream.empty,
 				};
 				const registry = AtomRegistry.make();

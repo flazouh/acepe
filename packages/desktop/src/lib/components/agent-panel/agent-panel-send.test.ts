@@ -29,6 +29,7 @@ const unusedClient = (): RpcClient => ({
 	getProviderAccountUsage: () => Effect.succeed([]),
 	listProviderSessions: () => Effect.succeed([]),
 	listProviderProjects: () => Effect.succeed([]),
+	importProviderSession: () => Effect.succeed({ sessionId, imported: false }),
 	events: () => Stream.empty,
 });
 
@@ -85,6 +86,7 @@ describe("sendComposerMessage", () => {
 					getProviderAccountUsage: client.getProviderAccountUsage,
 					listProviderSessions: client.listProviderSessions,
 					listProviderProjects: client.listProviderProjects,
+					importProviderSession: client.importProviderSession,
 					events: client.events,
 				});
 				yield* sendComposerMessage({
@@ -126,6 +128,7 @@ describe("sendComposerMessage", () => {
 					getProviderAccountUsage: client.getProviderAccountUsage,
 					listProviderSessions: client.listProviderSessions,
 					listProviderProjects: client.listProviderProjects,
+					importProviderSession: client.importProviderSession,
 					events: client.events,
 				});
 				yield* sendComposerMessage({

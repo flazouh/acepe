@@ -1,4 +1,5 @@
-import { CommandId, emptyRpcSessionSnapshot, EventId, ProjectId } from "@acepe/contracts";
+import {
+	SessionId, CommandId, emptyRpcSessionSnapshot, EventId, ProjectId } from "@acepe/contracts";
 import { describe, expect, it } from "bun:test";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
@@ -101,6 +102,7 @@ describe("composeReviewStore", () => {
 				getProviderAccountUsage: () => Effect.succeed([]),
 				listProviderSessions: () => Effect.succeed([]),
 				listProviderProjects: () => Effect.succeed([]),
+				importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 			},
 			registry,
 			onSnapshot: (snapshot) => {
@@ -175,6 +177,7 @@ describe("composeReviewStore", () => {
 				getProviderAccountUsage: () => Effect.succeed([]),
 				listProviderSessions: () => Effect.succeed([]),
 				listProviderProjects: () => Effect.succeed([]),
+				importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 			},
 			registry,
 		});
@@ -262,6 +265,7 @@ describe("composeReviewStore", () => {
 				getProviderAccountUsage: () => Effect.succeed([]),
 				listProviderSessions: () => Effect.succeed([]),
 				listProviderProjects: () => Effect.succeed([]),
+				importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 			},
 			registry,
 		});

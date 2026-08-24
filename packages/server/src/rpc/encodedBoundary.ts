@@ -4,6 +4,7 @@ import {
 	decodeGetProjectIndexRequest,
 	decodeGetProviderAccountUsageRequest,
 	decodeGitCallRequest,
+	decodeImportProviderSessionRequest,
 	decodeInvalidateProjectIndexRequest,
 	decodeListProviderProjectsRequest,
 	decodeListProviderSessionsRequest,
@@ -16,6 +17,7 @@ import {
 	encodeGetProjectIndexExit,
 	encodeGetProviderAccountUsageExit,
 	encodeGitCallExit,
+	encodeImportProviderSessionExit,
 	encodeInvalidateProjectIndexExit,
 	encodeListProviderProjectsExit,
 	encodeListProviderSessionsExit,
@@ -40,14 +42,18 @@ import { FileIndexService } from "../fileIndex/Services/FileIndexService.ts"
 import { getDefaultShell as getDefaultShellUtil } from "../fsUtil/readWriteText.ts"
 import { routeGitCall } from "../git/gitCallHandler.ts"
 import { ProviderSessionDiscovery } from "../history/discovery/ProviderSessionDiscovery.ts"
+import { ClaudeHistory } from "../history/Services/ClaudeHistory.ts"
 import { OrchestrationEventStore } from "../persistence/Services/OrchestrationEventStore.ts"
+import { ProjectionProjects } from "../persistence/Services/ProjectionProjects.ts"
 import { ProviderUsageService } from "../providerUsage/Services/ProviderUsageService.ts"
 import { OrchestrationEngine } from "../orchestration/Services/OrchestrationEngine.ts"
 import {
 	dispatchOrchestrationCommand,
 	eventsFromSequence,
+	importProviderSessionHandler,
 	rpcSnapshotForRequest,
 	toFileIndexRpcError,
+	toHistoryImportRpcError,
 	toRpcError
 } from "./handlers.ts"
 import { guardedReadTextFile, guardedWriteTextFile } from "./fsPathGuard.ts"
@@ -224,6 +230,26 @@ export const encodedListProviderProjects = Effect.fn("encodedListProviderProject
 		return yield* rpcError.pipe(Exit.fail, encodeListProviderProjectsExit)
 	}
 	return yield* encodeListProviderProjectsExit(Exit.succeed(outcome.success))
+})
+
+export const encodedImportProviderSession = Effect.fn("encodedImportProviderSession")(function*(
+	params: unknown
+) {
+	const discovery = yield* ProviderSessionDiscovery
+	const claudeHistory = yield* ClaudeHistory
+	const projects = yield* ProjectionProjects
+	const outcome = yield* Effect.result(
+		decodeImportProviderSessionRequest(params).pipe(
+			Effect.flatMap((request) =>
+				importProviderSessionHandler(discovery, claudeHistory, projects, request)
+			)
+		)
+	)
+	if (Result.isFailure(outcome)) {
+		const rpcError = toHistoryImportRpcError(outcome.failure)
+		return yield* rpcError.pipe(Exit.fail, encodeImportProviderSessionExit)
+	}
+	return yield* encodeImportProviderSessionExit(Exit.succeed(outcome.success))
 })
 
 export const pushEvents = Effect.fn("pushEvents")(function*(

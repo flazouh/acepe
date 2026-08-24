@@ -84,6 +84,7 @@ const makeBridge = (input: {
 	readonly getProviderAccountUsage?: (params: unknown) => Promise<unknown>;
 	readonly listProviderSessions?: (params: unknown) => Promise<unknown>;
 	readonly listProviderProjects?: (params: unknown) => Promise<unknown>;
+	readonly importProviderSession?: (params: unknown) => Promise<unknown>;
 }): ElectrobunRpcBridge & { readonly emitEvents: (payload: unknown) => void } => {
 	const listeners: Array<(payload: unknown) => void> = [];
 	return {
@@ -135,6 +136,10 @@ const makeBridge = (input: {
 				input.listProviderProjects === undefined
 					? Promise.reject(new Error("unused listProviderProjects"))
 					: input.listProviderProjects(params),
+			importProviderSession: (params) =>
+				input.importProviderSession === undefined
+					? Promise.reject(new Error("unused importProviderSession"))
+					: input.importProviderSession(params),
 		},
 		addMessageListener: (_message, listener) => {
 			listeners.push(listener);

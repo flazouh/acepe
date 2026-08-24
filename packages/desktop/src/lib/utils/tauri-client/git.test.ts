@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import {
+	SessionId,
 	emptyRpcSessionSnapshot,
 	type GitCallRequest,
 	type GitCallResult,
@@ -37,6 +38,7 @@ const makeClient = (
 	getProviderAccountUsage: () => Effect.succeed([]),
 	listProviderSessions: () => Effect.succeed([]),
 	listProviderProjects: () => Effect.succeed([]),
+	importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 	events: () => Stream.empty,
 });
 

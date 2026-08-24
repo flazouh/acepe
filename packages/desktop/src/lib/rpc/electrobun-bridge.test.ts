@@ -23,6 +23,7 @@ const fakeBridge = (): ElectrobunRpcBridge => ({
 		getProviderAccountUsage: () => Promise.resolve(undefined),
 		listProviderSessions: () => Promise.resolve(undefined),
 		listProviderProjects: () => Promise.resolve(undefined),
+		importProviderSession: () => Promise.resolve(undefined),
 	},
 	addMessageListener: () => undefined,
 	removeMessageListener: () => undefined,
@@ -50,6 +51,7 @@ describe("electrobun-bridge", () => {
 		getProviderAccountUsage: () => Promise.resolve(undefined),
 		listProviderSessions: () => Promise.resolve(undefined),
 		listProviderProjects: () => Promise.resolve(undefined),
+		importProviderSession: () => Promise.resolve(undefined),
 		});
 		expect(
 			isElectrobunRpcBridge({

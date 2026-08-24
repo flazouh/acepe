@@ -116,6 +116,7 @@ export const startElectrobunAcepeApp = <Rpc>(
 							getProviderAccountUsage: handlers.getProviderAccountUsage,
 							listProviderSessions: handlers.listProviderSessions,
 							listProviderProjects: handlers.listProviderProjects,
+							importProviderSession: handlers.importProviderSession,
 						},
 						messages: {},
 					},

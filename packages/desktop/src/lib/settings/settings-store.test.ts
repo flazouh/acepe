@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import {
+	SessionId,
 	APP_SETTINGS_ID,
 	CommandId,
 	emptyRpcSessionSnapshot,
@@ -117,6 +118,7 @@ describe("composeSettingsStore", () => {
 					getProviderAccountUsage: () => Effect.succeed([]),
 					listProviderSessions: () => Effect.succeed([]),
 					listProviderProjects: () => Effect.succeed([]),
+					importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 					events: () => Stream.empty,
 				};
 				const seen: Array<number> = [];
@@ -167,6 +169,7 @@ describe("composeSettingsStore", () => {
 					getProviderAccountUsage: () => Effect.succeed([]),
 					listProviderSessions: () => Effect.succeed([]),
 					listProviderProjects: () => Effect.succeed([]),
+					importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 					events: () =>
 						Stream.make({
 							sequence: 5,
@@ -221,6 +224,7 @@ describe("composeSettingsStore", () => {
 					getProviderAccountUsage: () => Effect.succeed([]),
 					listProviderSessions: () => Effect.succeed([]),
 					listProviderProjects: () => Effect.succeed([]),
+					importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 					events: () => Stream.empty,
 				};
 				const store = composeSettingsStore({
@@ -275,6 +279,7 @@ describe("composeSettingsStore", () => {
 					getProviderAccountUsage: () => Effect.succeed([]),
 					listProviderSessions: () => Effect.succeed([]),
 					listProviderProjects: () => Effect.succeed([]),
+					importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 					events: () => Stream.empty,
 				};
 				const store = composeSettingsStore({
@@ -335,6 +340,7 @@ describe("composeSettingsStore", () => {
 					getProviderAccountUsage: () => Effect.succeed([]),
 					listProviderSessions: () => Effect.succeed([]),
 					listProviderProjects: () => Effect.succeed([]),
+					importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 					events: () =>
 						Stream.make({
 							sequence: 5,
@@ -392,6 +398,7 @@ describe("composeSettingsStore", () => {
 					getProviderAccountUsage: () => Effect.succeed([]),
 					listProviderSessions: () => Effect.succeed([]),
 					listProviderProjects: () => Effect.succeed([]),
+					importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 					events: () => Stream.empty,
 				};
 				const store = composeSettingsStore({ client });

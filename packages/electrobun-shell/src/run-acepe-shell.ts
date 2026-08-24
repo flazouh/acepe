@@ -64,6 +64,7 @@ export const makeDeferredRpcWork = (): {
 			getProviderAccountUsage: (params) => requireAttached(live).getProviderAccountUsage(params),
 			listProviderSessions: (params) => requireAttached(live).listProviderSessions(params),
 			listProviderProjects: (params) => requireAttached(live).listProviderProjects(params),
+			importProviderSession: (params) => requireAttached(live).importProviderSession(params),
 		},
 		attach: (next) => {
 			live = next

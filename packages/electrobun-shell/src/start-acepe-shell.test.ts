@@ -22,7 +22,8 @@ test("startAcepeShell opens the svelte bundle and exposes dispatch snapshot even
 			gitCall: (params) => ({ called: params }),
 			getProviderAccountUsage: (params) => ({ usage: params }),
 			listProviderSessions: (params) => ({ sessionsFor: params }),
-			listProviderProjects: (params) => ({ projects: params })
+			listProviderProjects: (params) => ({ projects: params }),
+			importProviderSession: (params) => ({ imports: params })
 		}
 	)
 	expect(opened.url).toBe(acepeWindowSpec.url)

@@ -30,6 +30,7 @@ const idleWork: AcepeRpcWork = {
 	getProviderAccountUsage: (params) => params,
 	listProviderSessions: (params) => params,
 	listProviderProjects: (params) => params,
+	importProviderSession: (params) => params,
 }
 
 const recordingHost = (): AcepeShellHost<AcepeShellRpcHandlers> => ({
@@ -136,6 +137,7 @@ test("attach after launch enables dispatch", () => {
 		getProviderAccountUsage: () => [],
 		listProviderSessions: () => [],
 		listProviderProjects: () => [],
+		importProviderSession: () => ({ sessionId: "session-1", imported: false }),
 	})
 	expect(launched.opened.rpc.dispatch({ type: "project.create" })).toEqual({
 		sequence: 1,

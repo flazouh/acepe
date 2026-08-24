@@ -102,6 +102,7 @@ describe("tracer bullet controller mapping", () => {
 					getProviderAccountUsage: () => Effect.succeed([]),
 					listProviderSessions: () => Effect.succeed([]),
 					listProviderProjects: () => Effect.succeed([]),
+					importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 					events: () => Stream.make(token),
 				};
 				const registry = AtomRegistry.make();

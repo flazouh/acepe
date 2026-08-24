@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import {
+	SessionId,
 	emptyRpcSessionSnapshot,
 	type RpcClient,
 	RpcTransportError,
@@ -38,6 +39,7 @@ const makeClient = (overrides: Partial<RpcClient>): RpcClient => ({
 	getProviderAccountUsage: () => Effect.succeed([]),
 	listProviderSessions: () => Effect.succeed([]),
 	listProviderProjects: () => Effect.succeed([]),
+	importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 	events: () => Stream.empty,
 	...overrides,
 });

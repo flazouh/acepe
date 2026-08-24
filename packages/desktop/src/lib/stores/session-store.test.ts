@@ -141,6 +141,7 @@ const fakeClient = (events: ReadonlyArray<OrchestrationEvent>): RpcClient => ({
 	getProviderAccountUsage: () => Effect.succeed([]),
 	listProviderSessions: () => Effect.succeed([]),
 	listProviderProjects: () => Effect.succeed([]),
+	importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 	events: (fromSequence) =>
 		Stream.fromArray(events.filter((event) => event.sequence > fromSequence)),
 });
@@ -199,6 +200,7 @@ describe("createSessionStore", () => {
 						getProviderAccountUsage: () => Effect.succeed([]),
 						listProviderSessions: () => Effect.succeed([]),
 						listProviderProjects: () => Effect.succeed([]),
+						importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 						events: () =>
 							Stream.fromArray([
 								sessionCreated,
@@ -257,6 +259,7 @@ describe("createSessionStore", () => {
 						getProviderAccountUsage: () => Effect.succeed([]),
 						listProviderSessions: () => Effect.succeed([]),
 						listProviderProjects: () => Effect.succeed([]),
+						importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 						events: () => Stream.fromArray([]),
 					},
 					registry,

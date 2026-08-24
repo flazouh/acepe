@@ -13,7 +13,7 @@
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 
-const BASELINE = 6612;
+const BASELINE = 6611;
 const PACKAGE_ROOT = resolve(import.meta.dir, "..");
 
 // The pretty formatter (the default, and what lint:effect:report uses) always
