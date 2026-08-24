@@ -168,7 +168,8 @@ export const evolveProjectedSetting = (
 			TerminalOutputAppended: () => ignoreEvent(current),
 			TerminalClosed: () => ignoreEvent(current),
 			SessionReviewFileMarked: () => ignoreEvent(current),
-			SessionReviewStateCleared: () => ignoreEvent(current)
+			SessionReviewStateCleared: () => ignoreEvent(current),
+			ProviderSessionFailed: () => ignoreEvent(current)
 		})
 	)(event)
 
@@ -239,6 +240,7 @@ export const settingKeyFromEvent = (event: OrchestrationEvent): Option.Option<Us
 			TerminalOutputAppended: () => Option.none(),
 			TerminalClosed: () => Option.none(),
 			SessionReviewFileMarked: () => Option.none(),
-			SessionReviewStateCleared: () => Option.none()
+			SessionReviewStateCleared: () => Option.none(),
+			ProviderSessionFailed: () => Option.none()
 		})
 	)(event)

@@ -1,0 +1,406 @@
+import {
+	CommandId,
+	EventId,
+	MessageId,
+	MessageSendCommand,
+	MessageSentEvent,
+	ProjectCreateCommand,
+	ProjectId,
+	SessionCreateCommand,
+	SessionId,
+	TokenAppendedEvent,
+	TRACER_REPLY_TEXT,
+	TurnCancelCommand
+} from "@acepe/contracts"
+import * as BunCrypto from "@effect/platform-bun/BunCrypto"
+import * as BunFileSystem from "@effect/platform-bun/BunFileSystem"
+import * as BunPath from "@effect/platform-bun/BunPath"
+import * as Vitest from "@effect/vitest"
+import type { Done } from "effect/Cause"
+import * as Duration from "effect/Duration"
+import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
+import * as Layer from "effect/Layer"
+import * as Path from "effect/Path"
+import * as Queue from "effect/Queue"
+import * as Ref from "effect/Ref"
+import * as Stream from "effect/Stream"
+import { OrchestrationCommandReceiptsLive } from "../../persistence/Layers/OrchestrationCommandReceipts.ts"
+import { OrchestrationEventStoreLive } from "../../persistence/Layers/OrchestrationEventStore.ts"
+import { makeSqliteLayer } from "../../persistence/Layers/Sqlite.ts"
+import { runMigrations } from "../../persistence/Migrations.ts"
+import { OrchestrationEventStore } from "../../persistence/Services/OrchestrationEventStore.ts"
+import { OrchestrationEngineLive } from "../../orchestration/Layers/OrchestrationEngine.ts"
+import { OrchestrationEngine } from "../../orchestration/Services/OrchestrationEngine.ts"
+import { HardcodedProvider, HardcodedProviderLive } from "../HardcodedProvider.ts"
+import {
+	type ProviderAdapter,
+	ProviderCapabilities,
+	ProviderId,
+	ProviderAdapterError
+} from "../Services/ProviderAdapter.ts"
+import { ProviderAdapterRegistryLive } from "./ProviderAdapterRegistry.ts"
+import { ProviderBridgeLive } from "./ProviderBridge.ts"
+
+const projectId = ProjectId.make("project-1")
+const sessionId = SessionId.make("session-real")
+const tracerSessionId = SessionId.make("session-tracer")
+const userMessageId = MessageId.make("message-user")
+const tracerMessageId = MessageId.make("message-tracer")
+const fakeProviderId = ProviderId.make("fake-provider")
+
+const TempSqlite = Layer.unwrap(
+	Effect.gen(function*() {
+		const fs = yield* FileSystem.FileSystem
+		const path = yield* Path.Path
+		const dir = yield* fs.makeTempDirectoryScoped()
+		return makeSqliteLayer({
+			filename: path.join(dir, "acepe-test.db"),
+			readonly: false
+		})
+	})
+).pipe(Layer.provide(Layer.mergeAll(BunFileSystem.layer, BunPath.layer)))
+
+const MigratedSqlite = Layer.effectDiscard(runMigrations).pipe(Layer.provideMerge(TempSqlite))
+
+const PersistenceLive = Layer.mergeAll(
+	OrchestrationEventStoreLive,
+	OrchestrationCommandReceiptsLive
+).pipe(Layer.provideMerge(MigratedSqlite))
+
+const EngineLive = OrchestrationEngineLive.pipe(
+	Layer.provideMerge(PersistenceLive),
+	Layer.provide(BunCrypto.layer)
+)
+
+// ProviderBridge has no public Service/waitFor hook (unlike HardcodedProvider
+// — it is a fire-and-forget engine-driven Layer, see ProviderBridge.ts), so
+// tests poll the store for the expected shape instead of a fixed sleep: this
+// resolves as soon as the bridge's fibers have caught up, and still bounds
+// worst-case wait time if a reaction never fires.
+const waitUntil = <A, E, R>(
+	effect: Effect.Effect<A, E, R>,
+	predicate: (value: A) => boolean,
+	attempts = 200
+): Effect.Effect<A, E, R> =>
+	Effect.gen(function*() {
+		let last = yield* effect
+		let remaining = attempts
+		while (!predicate(last) && remaining > 0) {
+			yield* Effect.sleep(Duration.millis(10))
+			last = yield* effect
+			remaining -= 1
+		}
+		return last
+	})
+
+// A scripted ProviderAdapter: startSession's stream is backed by a queue the
+// test drives directly (push events, or fail it, whenever it wants), and
+// cancelTurn/sendPrompt calls are observable via refs. This is what the task
+// calls a "FAKE ProviderAdapter (scripted event streams)".
+const makeScriptedAdapter = Effect.fn("makeScriptedAdapter")(function*(providerId: ProviderId) {
+	const startEvents = yield* Queue.unbounded<
+		import("@acepe/contracts").OrchestrationEvent,
+		Done
+	>()
+	const cancelCount = yield* Ref.make(0)
+	const sendPromptCount = yield* Ref.make(0)
+	const startSessionCount = yield* Ref.make(0)
+
+	const adapter: ProviderAdapter = {
+		providerId,
+		capabilities: ProviderCapabilities.make({ enabled: [] }),
+		presence: Effect.succeed({ providerId, installed: true, authenticated: true }),
+		startSession: () =>
+			Stream.unwrap(
+				Ref.update(startSessionCount, (count) => count + 1).pipe(
+					Effect.as(Stream.fromQueue(startEvents))
+				)
+			),
+		sendPrompt: (request) =>
+			Stream.fromEffect(
+				Ref.update(sendPromptCount, (count) => count + 1).pipe(
+					Effect.as(
+						MessageSentEvent.make({
+							sequence: 0,
+							eventId: EventId.make(`fake:${request.messageId}`),
+							aggregateKind: "session",
+							aggregateId: request.sessionId,
+							occurredAt: "2026-08-24T00:00:00.000Z",
+							commandId: CommandId.make(`fake:${request.messageId}`),
+							causationEventId: null,
+							correlationId: CommandId.make(`fake:${request.messageId}`),
+							metadata: {},
+							type: "MessageSent",
+							payload: {
+								sessionId: request.sessionId,
+								messageId: request.messageId,
+								text: request.text
+							}
+						})
+					)
+				)
+			),
+		cancelTurn: () => Ref.update(cancelCount, (count) => count + 1).pipe(Effect.asVoid)
+	}
+
+	return { adapter, startEvents, cancelCount, sendPromptCount, startSessionCount }
+})
+
+const scriptedToken = (index: number, text: string) =>
+	TokenAppendedEvent.make({
+		sequence: 0,
+		eventId: EventId.make(`fake-token-${index}`),
+		aggregateKind: "session",
+		aggregateId: sessionId,
+		occurredAt: "2026-08-24T00:00:00.000Z",
+		commandId: CommandId.make(`fake-token-${index}`),
+		causationEventId: null,
+		correlationId: CommandId.make(`fake-token-${index}`),
+		metadata: {},
+		type: "TokenAppended",
+		payload: {
+			sessionId,
+			messageId: MessageId.make(`${sessionId}:assistant`),
+			token: text
+		}
+	})
+
+Vitest.describe("ProviderBridge", () => {
+	Vitest.it.live("forwards a scripted adapter's events into the store in order", () =>
+		makeScriptedAdapter(fakeProviderId).pipe(
+			Effect.flatMap(({ adapter, startEvents, startSessionCount }) => {
+				const TestLive = ProviderBridgeLive.pipe(
+					Layer.provideMerge(ProviderAdapterRegistryLive([adapter])),
+					Layer.provideMerge(EngineLive)
+				)
+				return Effect.gen(function*() {
+					const engine = yield* OrchestrationEngine
+					const store = yield* OrchestrationEventStore
+					yield* engine.dispatch(
+						ProjectCreateCommand.make({
+							type: "project.create",
+							commandId: CommandId.make("cmd-project"),
+							projectId,
+							title: "Acepe",
+							workspaceRoot: "/tmp/acepe"
+						})
+					)
+					yield* engine.dispatch(
+						SessionCreateCommand.make({
+							type: "session.create",
+							commandId: CommandId.make("cmd-session"),
+							sessionId,
+							projectId,
+							title: "Real provider session",
+							providerId: fakeProviderId
+						})
+					)
+					const startedCount = yield* waitUntil(Ref.get(startSessionCount), (value) => value >= 1)
+					Vitest.assert.strictEqual(startedCount, 1)
+					yield* engine.dispatch(
+						MessageSendCommand.make({
+							type: "message.send",
+							commandId: CommandId.make("cmd-message"),
+							sessionId,
+							messageId: userMessageId,
+							text: "Ping"
+						})
+					)
+					// Queue.offer buffers regardless of whether the bridge's forwarding
+					// fiber has started consuming yet, so these can be pushed right
+					// away — no need to wait for startSession/sendPrompt first.
+					yield* Queue.offer(startEvents, scriptedToken(0, "Hello"))
+					yield* Queue.offer(startEvents, scriptedToken(1, " world"))
+
+					const events = yield* waitUntil(
+						Stream.runCollect(store.readFrom(0, 50)),
+						(collected) => collected.filter((event) => event.type === "TokenAppended").length >= 2
+					)
+					const tokens = events.filter((event) => event.type === "TokenAppended")
+					Vitest.assert.strictEqual(tokens.length, 2)
+					Vitest.assert.deepStrictEqual(
+						tokens.map((event) => (event.type === "TokenAppended" ? event.payload.token : "")),
+						["Hello", " world"]
+					)
+					// Sequences must be strictly increasing (real, store-assigned
+					// sequences — not the caller-local placeholder of 0).
+					Vitest.assert.isTrue(tokens[0]!.sequence > 0)
+					Vitest.assert.isTrue(tokens[1]!.sequence > tokens[0]!.sequence)
+
+					// The adapter's own echoed MessageSent (from sendPrompt) must
+					// be filtered — only the command-derived MessageSent exists.
+					const messageSent = events.filter((event) => event.type === "MessageSent")
+					Vitest.assert.strictEqual(messageSent.length, 1)
+				}).pipe(
+					// @effect-diagnostics-next-line strictEffectProvide:off
+					Effect.provide(TestLive)
+				)
+			})
+		)
+	)
+
+	Vitest.it.live("routes turn.cancel to the adapter's cancelTurn", () =>
+		makeScriptedAdapter(fakeProviderId).pipe(
+			Effect.flatMap(({ adapter, cancelCount }) => {
+				const TestLive = ProviderBridgeLive.pipe(
+					Layer.provideMerge(ProviderAdapterRegistryLive([adapter])),
+					Layer.provideMerge(EngineLive)
+				)
+				return Effect.gen(function*() {
+					const engine = yield* OrchestrationEngine
+					yield* engine.dispatch(
+						ProjectCreateCommand.make({
+							type: "project.create",
+							commandId: CommandId.make("cmd-project"),
+							projectId,
+							title: "Acepe",
+							workspaceRoot: "/tmp/acepe"
+						})
+					)
+					yield* engine.dispatch(
+						SessionCreateCommand.make({
+							type: "session.create",
+							commandId: CommandId.make("cmd-session"),
+							sessionId,
+							projectId,
+							title: "Real provider session",
+							providerId: fakeProviderId
+						})
+					)
+					yield* engine.dispatch(
+						TurnCancelCommand.make({
+							type: "turn.cancel",
+							commandId: CommandId.make("cmd-cancel"),
+							sessionId
+						})
+					)
+					const count = yield* waitUntil(Ref.get(cancelCount), (value) => value >= 1)
+					Vitest.assert.strictEqual(count, 1)
+				}).pipe(
+					// @effect-diagnostics-next-line strictEffectProvide:off
+					Effect.provide(TestLive)
+				)
+			})
+		)
+	)
+
+	Vitest.it.live("surfaces a dead adapter stream as ProviderSessionFailed", () => {
+		const failingAdapter: ProviderAdapter = {
+			providerId: fakeProviderId,
+			capabilities: ProviderCapabilities.make({ enabled: [] }),
+			presence: Effect.succeed({ providerId: fakeProviderId, installed: true, authenticated: true }),
+			startSession: () =>
+				Stream.fail(
+					new ProviderAdapterError({
+						providerId: fakeProviderId,
+						operation: "startSession",
+						detail: "subprocess crashed"
+					})
+				),
+			sendPrompt: () => Stream.empty,
+			cancelTurn: () => Effect.void
+		}
+		const TestLive = ProviderBridgeLive.pipe(
+			Layer.provideMerge(ProviderAdapterRegistryLive([failingAdapter])),
+			Layer.provideMerge(EngineLive)
+		)
+		return Effect.gen(function*() {
+			const engine = yield* OrchestrationEngine
+			const store = yield* OrchestrationEventStore
+			yield* engine.dispatch(
+				ProjectCreateCommand.make({
+					type: "project.create",
+					commandId: CommandId.make("cmd-project"),
+					projectId,
+					title: "Acepe",
+					workspaceRoot: "/tmp/acepe"
+				})
+			)
+			yield* engine.dispatch(
+				SessionCreateCommand.make({
+					type: "session.create",
+					commandId: CommandId.make("cmd-session"),
+					sessionId,
+					projectId,
+					title: "Doomed session",
+					providerId: fakeProviderId
+				})
+			)
+			const events = yield* waitUntil(
+				Stream.runCollect(store.readFrom(0, 50)),
+				(collected) => collected.some((event) => event.type === "ProviderSessionFailed")
+			)
+			const failed = events.filter((event) => event.type === "ProviderSessionFailed")
+			Vitest.assert.strictEqual(failed.length, 1)
+			if (failed[0]?.type === "ProviderSessionFailed") {
+				Vitest.assert.strictEqual(failed[0].payload.sessionId, sessionId)
+				Vitest.assert.strictEqual(failed[0].payload.providerId, fakeProviderId)
+				Vitest.assert.strictEqual(failed[0].payload.operation, "startSession")
+			}
+		}).pipe(
+			// @effect-diagnostics-next-line strictEffectProvide:off
+			Effect.provide(TestLive)
+		)
+	})
+
+	Vitest.it.live("leaves sessions with no providerId to HardcodedProvider", () =>
+		makeScriptedAdapter(fakeProviderId).pipe(
+			Effect.flatMap(({ adapter, sendPromptCount }) => {
+				const TestLive = Layer.mergeAll(
+					ProviderBridgeLive,
+					HardcodedProviderLive(Duration.zero)
+				).pipe(
+					Layer.provideMerge(ProviderAdapterRegistryLive([adapter])),
+					Layer.provideMerge(EngineLive)
+				)
+				return Effect.gen(function*() {
+					const engine = yield* OrchestrationEngine
+					const hardcoded = yield* HardcodedProvider
+					const store = yield* OrchestrationEventStore
+					yield* engine.dispatch(
+						ProjectCreateCommand.make({
+							type: "project.create",
+							commandId: CommandId.make("cmd-project"),
+							projectId,
+							title: "Acepe",
+							workspaceRoot: "/tmp/acepe"
+						})
+					)
+					yield* engine.dispatch(
+						SessionCreateCommand.make({
+							type: "session.create",
+							commandId: CommandId.make("cmd-session-tracer"),
+							sessionId: tracerSessionId,
+							projectId,
+							title: "Tracer session"
+						})
+					)
+					yield* engine.dispatch(
+						MessageSendCommand.make({
+							type: "message.send",
+							commandId: CommandId.make("cmd-message-tracer"),
+							sessionId: tracerSessionId,
+							messageId: tracerMessageId,
+							text: "Ping"
+						})
+					)
+					yield* hardcoded.waitForReply(tracerMessageId)
+
+					const events = yield* Stream.runCollect(store.readFrom(0, 50))
+					const tokens = events.filter((event) => event.type === "TokenAppended")
+					Vitest.assert.strictEqual(
+						tokens.map((event) => (event.type === "TokenAppended" ? event.payload.token : "")).join(""),
+						TRACER_REPLY_TEXT
+					)
+					// The fake adapter must never have been touched.
+					const prompts = yield* Ref.get(sendPromptCount)
+					Vitest.assert.strictEqual(prompts, 0)
+				}).pipe(
+					// @effect-diagnostics-next-line strictEffectProvide:off
+					Effect.provide(TestLive)
+				)
+			})
+		)
+	)
+})

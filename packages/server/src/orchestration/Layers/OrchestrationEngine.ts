@@ -49,10 +49,23 @@ const isPreviouslyRejectedError = Schema.is(OrchestrationCommandPreviouslyReject
 const isShutdownError = Schema.is(OrchestrationEngineShutdownError)
 
 type CommandEnvelope = {
+	readonly kind: "command"
 	readonly command: OrchestrationCommand
 	readonly result: Deferred.Deferred<OrchestrationDispatchResult, OrchestrationDispatchError>
 	readonly startedAtMs: number
 }
+
+// EventsEnvelope carries already-decided events (see appendEvents on
+// OrchestrationEngineShape) through the SAME single-writer queue as
+// commands, so there is only ever one place committing to the event store.
+type EventsEnvelope = {
+	readonly kind: "events"
+	readonly events: Arr.NonEmptyReadonlyArray<OrchestrationEvent>
+	readonly result: Deferred.Deferred<OrchestrationDispatchResult, OrchestrationDispatchError>
+	readonly startedAtMs: number
+}
+
+type WriteEnvelope = CommandEnvelope | EventsEnvelope
 
 const assignCommittedSequences = (
 	events: Arr.NonEmptyReadonlyArray<OrchestrationEvent>,
@@ -116,11 +129,12 @@ const makeOrchestrationEngine = Effect.gen(function*() {
 		Effect.flatMap(hydrateReadModel)
 	)
 
-	const commandQueue = yield* Queue.unbounded<CommandEnvelope, Cause.Done>()
+	const commandQueue = yield* Queue.unbounded<WriteEnvelope, Cause.Done>()
 	const eventPubSub = yield* PubSub.unbounded<OrchestrationEvent>()
 
 	const publishCommitted = Effect.fn("OrchestrationEngine.publishCommitted")(function*(
-		envelope: CommandEnvelope,
+		commandType: string,
+		startedAtMs: number,
 		events: Arr.NonEmptyReadonlyArray<OrchestrationEvent>
 	) {
 		const first = Arr.headNonEmpty(events)
@@ -128,9 +142,9 @@ const makeOrchestrationEngine = Effect.gen(function*() {
 		const nowMs = yield* Clock.currentTimeMillis
 		yield* Metric.update(
 			Metric.withAttributes(orchestrationCommandAckDuration, {
-				commandType: envelope.command.type
+				commandType
 			}),
-			Duration.millis(Math.max(0, nowMs - envelope.startedAtMs))
+			Duration.millis(Math.max(0, nowMs - startedAtMs))
 		)
 		yield* Effect.forEach(Arr.drop(events, 1), (event) => PubSub.publish(eventPubSub, event), {
 			discard: true
@@ -163,12 +177,11 @@ const makeOrchestrationEngine = Effect.gen(function*() {
 	})
 
 	const recordMetrics = Effect.fn("OrchestrationEngine.recordMetrics")(function*(
-		envelope: CommandEnvelope,
+		commandType: string,
 		processingStartedAtMs: number,
 		exit: Exit.Exit<OrchestrationDispatchResult, OrchestrationDispatchError>
 	) {
 		const nowMs = yield* Clock.currentTimeMillis
-		const commandType = envelope.command.type
 		yield* Metric.update(
 			Metric.withAttributes(orchestrationCommandDuration, { commandType }),
 			Duration.millis(Math.max(0, nowMs - processingStartedAtMs))
@@ -226,6 +239,31 @@ const makeOrchestrationEngine = Effect.gen(function*() {
 		)
 	})
 
+	// appendEvents' commit path: same append -> reassign sequence -> project
+	// shape as commitAccepted above, minus the command-receipt bookkeeping
+	// (there is no OrchestrationCommand here — the caller authored its own
+	// events instead of going through decide()). Kept as its own transaction
+	// rather than folded into commitAccepted so the command path's atomicity
+	// with receipts.record is untouched.
+	const commitProviderEvents = Effect.fn("OrchestrationEngine.commitProviderEvents")(function*(
+		events: Arr.NonEmptyReadonlyArray<OrchestrationEvent>
+	) {
+		return yield* Effect.uninterruptible(
+			sql.withTransaction(
+				Effect.gen(function*() {
+					const lastSequence = yield* eventStore.append(events)
+					const committedEvents = assignCommittedSequences(events, lastSequence)
+					const nextCommandReadModel = yield* projectEvents(commandReadModel, committedEvents)
+					return {
+						committedEvents,
+						lastSequence,
+						nextCommandReadModel
+					} as const
+				})
+			)
+		)
+	})
+
 	const processCommand = Effect.fn("OrchestrationEngine.processCommand")(function*(
 		envelope: CommandEnvelope
 	) {
@@ -247,12 +285,21 @@ const makeOrchestrationEngine = Effect.gen(function*() {
 		}
 		const committed = yield* commitAccepted(envelope.command, decided)
 		commandReadModel = committed.nextCommandReadModel
-		yield* publishCommitted(envelope, committed.committedEvents)
+		yield* publishCommitted(envelope.command.type, envelope.startedAtMs, committed.committedEvents)
+		return { sequence: committed.lastSequence }
+	})
+
+	const processEvents = Effect.fn("OrchestrationEngine.processEvents")(function*(
+		envelope: EventsEnvelope
+	) {
+		const committed = yield* commitProviderEvents(envelope.events)
+		commandReadModel = committed.nextCommandReadModel
+		yield* publishCommitted("provider.appendEvents", envelope.startedAtMs, committed.committedEvents)
 		return { sequence: committed.lastSequence }
 	})
 
 	const handleFailureEffects = Effect.fn("OrchestrationEngine.handleFailureEffects")(function*(
-		envelope: CommandEnvelope,
+		envelope: WriteEnvelope,
 		startSequence: Sequence,
 		exit: Exit.Exit<OrchestrationDispatchResult, OrchestrationDispatchError>
 	) {
@@ -266,17 +313,20 @@ const makeOrchestrationEngine = Effect.gen(function*() {
 		if (shouldReconcile(error)) {
 			yield* reconcileAfterFailure(startSequence).pipe(Effect.ignore)
 		}
-		if (Option.isSome(error) && isInvariantError(error.value)) {
+		if (envelope.kind === "command" && Option.isSome(error) && isInvariantError(error.value)) {
 			yield* recordRejection(envelope.command, error.value).pipe(Effect.ignore)
 		}
 	})
 
-	const processEnvelope = (envelope: CommandEnvelope) =>
+	const processEnvelope = (envelope: WriteEnvelope) =>
 		Effect.gen(function*() {
 			const startSequence = commandReadModel.snapshotSequence
 			const processingStartedAtMs = yield* Clock.currentTimeMillis
-			const exit = yield* Effect.exit(processCommand(envelope))
-			yield* recordMetrics(envelope, processingStartedAtMs, exit).pipe(Effect.ignore)
+			const exit = yield* Effect.exit(
+				envelope.kind === "command" ? processCommand(envelope) : processEvents(envelope)
+			)
+			const commandType = envelope.kind === "command" ? envelope.command.type : "provider.appendEvents"
+			yield* recordMetrics(commandType, processingStartedAtMs, exit).pipe(Effect.ignore)
 			yield* handleFailureEffects(envelope, startSequence, exit).pipe(Effect.ignore)
 			yield* Deferred.done(envelope.result, exit)
 		})
@@ -296,7 +346,24 @@ const makeOrchestrationEngine = Effect.gen(function*() {
 	const dispatch = Effect.fn("OrchestrationEngine.dispatch")(function*(command: OrchestrationCommand) {
 		const result = yield* Deferred.make<OrchestrationDispatchResult, OrchestrationDispatchError>()
 		const offered = yield* Queue.offer(commandQueue, {
+			kind: "command",
 			command,
+			result,
+			startedAtMs: yield* Clock.currentTimeMillis
+		})
+		if (offered === false) {
+			return yield* new OrchestrationEngineShutdownError({})
+		}
+		return yield* Deferred.await(result)
+	})
+
+	const appendEvents = Effect.fn("OrchestrationEngine.appendEvents")(function*(
+		events: Arr.NonEmptyReadonlyArray<OrchestrationEvent>
+	) {
+		const result = yield* Deferred.make<OrchestrationDispatchResult, OrchestrationDispatchError>()
+		const offered = yield* Queue.offer(commandQueue, {
+			kind: "events",
+			events,
 			result,
 			startedAtMs: yield* Clock.currentTimeMillis
 		})
@@ -308,6 +375,7 @@ const makeOrchestrationEngine = Effect.gen(function*() {
 
 	return OrchestrationEngine.of({
 		dispatch,
+		appendEvents,
 		latestSequence: Effect.sync(() => commandReadModel.snapshotSequence),
 		get streamDomainEvents() {
 			return Stream.fromPubSub(eventPubSub)

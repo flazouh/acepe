@@ -413,6 +413,7 @@ export const evolveProjectedVoice = (
 			TerminalOutputAppended: () => ignoreEvent(current),
 			TerminalClosed: () => ignoreEvent(current),
 			SessionReviewFileMarked: () => ignoreEvent(current),
-			SessionReviewStateCleared: () => ignoreEvent(current)
+			SessionReviewStateCleared: () => ignoreEvent(current),
+			ProviderSessionFailed: () => ignoreEvent(current)
 		})
 	)(event)

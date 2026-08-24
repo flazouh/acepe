@@ -132,6 +132,7 @@ export const OrchestrationEventType = Schema.Literals([
 	"TerminalClosed",
 	"SessionReviewFileMarked",
 	"SessionReviewStateCleared",
+	"ProviderSessionFailed",
 ])
 export type OrchestrationEventType = typeof OrchestrationEventType.Type
 
@@ -158,6 +159,7 @@ export const SessionCreatedPayload = Schema.Struct({
 	sessionId: SessionId,
 	projectId: ProjectId,
 	title: TrimmedNonEmptyString,
+	providerId: Schema.optionalKey(TrimmedNonEmptyString),
 })
 export type SessionCreatedPayload = typeof SessionCreatedPayload.Type
 
@@ -374,6 +376,17 @@ export const SessionReviewStateClearedPayload = Schema.Struct({
 	sessionId: SessionId,
 })
 export type SessionReviewStateClearedPayload = typeof SessionReviewStateClearedPayload.Type
+
+// Emitted by ProviderBridge.ts when a real provider adapter's event stream
+// dies (the SDK/subprocess/ACP transport failed) instead of letting the
+// session stall silently with no further transcript activity.
+export const ProviderSessionFailedPayload = Schema.Struct({
+	sessionId: SessionId,
+	providerId: TrimmedNonEmptyString,
+	operation: Schema.Literals(["startSession", "sendPrompt", "cancelTurn"]),
+	detail: TrimmedNonEmptyString,
+})
+export type ProviderSessionFailedPayload = typeof ProviderSessionFailedPayload.Type
 
 const defineOrchestrationEvent = <
 	const EventType extends OrchestrationEventType,
@@ -919,6 +932,14 @@ export const SessionReviewStateClearedEvent = defineOrchestrationEvent({
 })
 export type SessionReviewStateClearedEvent = typeof SessionReviewStateClearedEvent.Type
 
+export const ProviderSessionFailedEvent = defineOrchestrationEvent({
+	type: "ProviderSessionFailed",
+	payload: ProviderSessionFailedPayload,
+	aggregateKind: "session",
+	aggregateId: SessionId,
+})
+export type ProviderSessionFailedEvent = typeof ProviderSessionFailedEvent.Type
+
 export const OrchestrationEvent = Schema.Union([
 	ProjectCreatedEvent,
 	ProjectMetaUpdatedEvent,
@@ -985,5 +1006,6 @@ export const OrchestrationEvent = Schema.Union([
 	TerminalClosedEvent,
 	SessionReviewFileMarkedEvent,
 	SessionReviewStateClearedEvent,
+	ProviderSessionFailedEvent,
 ])
 export type OrchestrationEvent = typeof OrchestrationEvent.Type

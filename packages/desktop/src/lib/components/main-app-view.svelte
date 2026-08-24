@@ -20,6 +20,7 @@ import {
 	type ProjectLoadPerformanceTrace,
 } from "$lib/acp/logic/project-manager.svelte.js";
 import { setSelectorRegistryContext } from "$lib/acp/logic/selector-registry.svelte.js";
+import { installQaDispatchHook } from "$lib/rpc/qa-dispatch-hook.ts";
 import {
 	agentModelPreferencesStore,
 	createAgentPreferencesStore,
@@ -1616,6 +1617,9 @@ onMount(async () => {
 	mainAppMountStartedAtMs = performance.now();
 	mainAppInvokeTimingBaselineIndex = getTauriInvokeTimings().length;
 	installHappyPathProbeQaHook();
+	if (QA_HOOKS_ENABLED) {
+		installQaDispatchHook();
+	}
 
 	// Initialize the app state (handles all initialization logic including background scan)
 	const initResult = await Effect.runPromise(Effect.result(viewState.initialize()));

@@ -400,7 +400,8 @@ export const projectEvent = (
 			TerminalOutputAppended: () => Effect.succeed(model),
 			TerminalClosed: () => Effect.succeed(model),
 			SessionReviewFileMarked: () => Effect.succeed(model),
-			SessionReviewStateCleared: () => Effect.succeed(model)
+			SessionReviewStateCleared: () => Effect.succeed(model),
+			ProviderSessionFailed: () => Effect.succeed(model)
 		})
 	)(event)
 }

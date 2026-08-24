@@ -1,4 +1,5 @@
 import type { OrchestrationCommand, OrchestrationEvent, Sequence } from "@acepe/contracts"
+import type * as Arr from "effect/Array"
 import * as Context from "effect/Context"
 import type * as Effect from "effect/Effect"
 import * as Metric from "effect/Metric"
@@ -46,6 +47,21 @@ export const orchestrationCommandAckDuration = Metric.timer("acepe_orchestration
 export interface OrchestrationEngineShape {
 	readonly dispatch: (
 		command: OrchestrationCommand
+	) => Effect.Effect<OrchestrationDispatchResult, OrchestrationDispatchError>
+	// appendEvents is the ONLY other write path into the event store besides
+	// dispatch(command). It exists for services that author their own
+	// contract events instead of going through decide() — today just
+	// ProviderBridge.ts, which forwards a real provider adapter's own
+	// already-shaped OrchestrationEvent stream (TokenAppended,
+	// SessionMetaUpdated, ...). Events flow through the SAME single-writer
+	// queue as commands (see OrchestrationEngine.ts Layer), so there is
+	// still exactly one place that calls OrchestrationEventStore.append.
+	// The `sequence` on each input event is a caller-local placeholder
+	// (mirrors what decide() does internally) and gets overwritten with the
+	// real committed sequence before the read model is projected and the
+	// events are published.
+	readonly appendEvents: (
+		events: Arr.NonEmptyReadonlyArray<OrchestrationEvent>
 	) => Effect.Effect<OrchestrationDispatchResult, OrchestrationDispatchError>
 	readonly streamDomainEvents: Stream.Stream<OrchestrationEvent>
 	readonly latestSequence: Effect.Effect<Sequence>

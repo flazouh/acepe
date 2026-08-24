@@ -35,7 +35,8 @@ import {
 import {
 	CLAUDE_CAPABILITIES,
 	CLAUDE_PROVIDER_ID,
-	probeClaudePresence
+	probeClaudePresence,
+	resolveClaudeExecutablePath
 } from "./ClaudeProvider.ts"
 import {
 	type ClaudeContractFact,
@@ -332,7 +333,14 @@ const bindCanUseTool = (
 			})
 		)
 
-export const liveCreateQuery = (
+// pathToClaudeCodeExecutable, when given, points query() at a system claude
+// binary instead of the SDK's own bundled native CLI (an optional platform
+// dependency a bundler's static analysis can't see and drops) — see
+// resolveClaudeExecutablePath in ClaudeProvider.ts for why this exists.
+export const makeLiveCreateQuery = (
+	pathToClaudeCodeExecutable: Option.Option<string>
+) =>
+(
 	input: ClaudeQueryInput
 ): Effect.Effect<ClaudeQueryHandle, ProviderAdapterError> =>
 	Effect.try({
@@ -342,6 +350,9 @@ export const liveCreateQuery = (
 				options: {
 					cwd: input.cwd,
 					includePartialMessages: true,
+					...(Option.isSome(pathToClaudeCodeExecutable)
+						? { pathToClaudeCodeExecutable: pathToClaudeCodeExecutable.value }
+						: {}),
 					canUseTool: (toolName, toolInput, options) =>
 						input.canUseTool(toolName, jsonObjectFromValue(toolInput), {
 							toolUseID: options.toolUseID
@@ -522,8 +533,9 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 
 export const makeLiveClaudeAdapter = Effect.fn("makeLiveClaudeAdapter")(function*() {
 	const presenceValue = yield* probeClaudePresence()
+	const executablePath = yield* resolveClaudeExecutablePath()
 	return yield* makeClaudeAdapter({
-		createQuery: liveCreateQuery,
+		createQuery: makeLiveCreateQuery(executablePath),
 		presence: Effect.succeed(presenceValue)
 	})
 })

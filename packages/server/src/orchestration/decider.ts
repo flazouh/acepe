@@ -261,7 +261,8 @@ const sessionCreatedEvent = (
 	payload: {
 		sessionId: command.sessionId,
 		projectId: command.projectId,
-		title: command.title
+		title: command.title,
+		...(command.providerId === undefined ? {} : { providerId: command.providerId })
 	}
 })
 

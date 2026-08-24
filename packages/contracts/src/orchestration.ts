@@ -130,12 +130,18 @@ export const ProjectDeleteCommand = Schema.Struct({
 })
 export type ProjectDeleteCommand = typeof ProjectDeleteCommand.Type
 
+// providerId picks which provider adapter drives this session (e.g.
+// "claude-code", "codex"). Optional and omitted by every pre-existing
+// caller/fixture, which keeps the tracer HardcodedProvider driving the
+// session exactly as before — see ProviderBridge.ts, which only claims
+// sessions carrying a providerId it can resolve in the adapter registry.
 export const SessionCreateCommand = Schema.Struct({
 	type: Schema.Literal("session.create"),
 	commandId: CommandId,
 	sessionId: SessionId,
 	projectId: ProjectId,
 	title: TrimmedNonEmptyString,
+	providerId: Schema.optionalKey(TrimmedNonEmptyString),
 })
 export type SessionCreateCommand = typeof SessionCreateCommand.Type
 

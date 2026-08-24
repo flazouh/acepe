@@ -79,6 +79,13 @@ const asMessageSent = (event: OrchestrationEvent): Option.Option<MessageSentEven
 	return Option.some(event)
 }
 
+const realProviderSessionIdOf = (event: OrchestrationEvent): Option.Option<string> => {
+	if (event.type !== "SessionCreated" || event.payload.providerId === undefined) {
+		return Option.none()
+	}
+	return Option.some(event.payload.sessionId)
+}
+
 export const makeHardcodedProvider = Effect.fn("makeHardcodedProvider")(function*(
 	tokenDelay: Duration.Duration
 ) {
@@ -87,6 +94,12 @@ export const makeHardcodedProvider = Effect.fn("makeHardcodedProvider")(function
 	const layerScope = yield* Effect.scope
 	const inFlight = yield* Ref.make(0)
 	const handled = yield* Ref.make(HashSet.empty<string>())
+	// Sessions whose session.create carried a providerId belong to
+	// ProviderBridge.ts's real adapters, not the tracer — otherwise this
+	// provider's canned reply races the real adapter's actual reply on every
+	// MessageSent (both react to the same event with no coordination), and
+	// the tracer, having no network latency, usually wins.
+	const realProviderSessions = yield* Ref.make(HashSet.empty<string>())
 
 	const idle = Effect.gen(function*() {
 		while (true) {
@@ -229,8 +242,17 @@ export const makeHardcodedProvider = Effect.fn("makeHardcodedProvider")(function
 	})
 
 	const consider = Effect.fn("HardcodedProvider.consider")(function*(event: OrchestrationEvent) {
+		const realProviderSessionId = realProviderSessionIdOf(event)
+		if (Option.isSome(realProviderSessionId)) {
+			yield* Ref.update(realProviderSessions, (set) => HashSet.add(set, realProviderSessionId.value))
+			return
+		}
 		const sent = asMessageSent(event)
 		if (Option.isNone(sent)) {
+			return
+		}
+		const sessions = yield* Ref.get(realProviderSessions)
+		if (HashSet.has(sessions, sent.value.payload.sessionId)) {
 			return
 		}
 		const claimed = yield* Ref.modify(handled, (set) => {
