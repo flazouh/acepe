@@ -20,6 +20,7 @@ import * as Exit from "effect/Exit"
 import * as Filter from "effect/Filter"
 import * as HashMap from "effect/HashMap"
 import * as Option from "effect/Option"
+import * as Path from "effect/Path"
 import * as Queue from "effect/Queue"
 import * as Rec from "effect/Record"
 import * as Ref from "effect/Ref"
@@ -66,12 +67,14 @@ import {
 	OPENCODE_ALLOWED_ENV_KEYS,
 	OPENCODE_CAPABILITIES,
 	OPENCODE_DEFAULT_MODE,
+	OPENCODE_ISOLATED_CONFIG_ENV_KEY,
 	OPENCODE_PLACEHOLDER_BINARY,
 	OPENCODE_PROVIDER_ID,
 	openCodeServeArgs,
 	parseServeUrl,
 	probeOpenCodeBinary,
-	probeOpenCodePresence
+	probeOpenCodePresence,
+	resolveOpenCodeIsolatedConfigDir
 } from "./OpenCodeProvider.ts"
 
 type Json = typeof Schema.Json.Type
@@ -812,12 +815,25 @@ export const makeLiveOpenCodeAdapter = Effect.fn("makeLiveOpenCodeAdapter")(func
 	const command = Option.getOrElse(binary, () => OPENCODE_PLACEHOLDER_BINARY)
 	const http = yield* HttpClient.HttpClient
 	const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+	const path = yield* Path.Path
 	const envPairs = yield* Effect.forEach(OPENCODE_ALLOWED_ENV_KEYS, (key) =>
 		Config.option(Config.string(key)).pipe(
 			Effect.map((value) => Option.map(value, (text) => [key, text] as const))
 		)
 	)
-	const env = Object.fromEntries(Arr.getSomes(envPairs))
+	// Isolation: override XDG_CONFIG_HOME so the spawned `opencode serve`
+	// resolves its global config to an app-owned, empty-by-default directory
+	// instead of the operator's ~/.config/opencode (which carries personal
+	// MCP servers, agents, and plugins) — see OPENCODE_ISOLATED_CONFIG_ENV_KEY
+	// in OpenCodeProvider.ts for the empirical evidence. TMPDIR falls back to
+	// "/tmp" when unset, matching the POSIX default.
+	const tmpDir = yield* Config.option(Config.string("TMPDIR")).pipe(
+		Effect.map((value) => Option.getOrElse(value, () => "/tmp"))
+	)
+	const env = {
+		...Object.fromEntries(Arr.getSomes(envPairs)),
+		[OPENCODE_ISOLATED_CONFIG_ENV_KEY]: resolveOpenCodeIsolatedConfigDir(path, tmpDir)
+	}
 	return yield* makeOpenCodeAdapter({
 		presence: Effect.succeed(presenceValue),
 		createTransport: (input) =>

@@ -26,7 +26,41 @@ export const CODEX_PROVIDER_ID: ProviderId = ProviderId.make("codex")
 
 export const CODEX_DEFERRED_SESSION_CREATION = false
 
-export const CODEX_APP_SERVER_ARGS = ["app-server"] as const
+// Isolation audit (companion to CLAUDE_ISOLATED_SETTING_SOURCES in
+// ClaudeProvider.ts): the codex CLI, like claude, silently loads the
+// operator's *user*-scoped ~/.codex config by default — ~/.codex/config.toml
+// (mcp_servers, model/sandbox prefs) and ~/.codex/hooks.json (personal
+// hooks), spawned as children of the app-server process. Verified
+// empirically against the real codex CLI (v0.147.0):
+//   - `codex exec` with no overrides inherits config.toml's mcp_servers and
+//     prints "loading hooks from ... hooks.json and config.toml".
+//   - `codex exec -c 'mcp_servers={}'` blocks the mcp_servers inheritance
+//     (no personal MCP server child spawns) while keeping auth intact.
+//   - `codex exec --disable hooks` (equivalent to `-c features.hooks=false`)
+//     suppresses the hooks.json load — the warning disappears entirely.
+//   - Project-level AGENTS.md in the session's cwd still loads and is
+//     honored with both overrides applied — legitimate task context stays.
+//   - `--ignore-user-config` (skips config.toml wholesale) exists on `codex
+//     exec`/the interactive CLI but is NOT exposed on `codex app-server`
+//     (checked its --help; only `-c`/`--enable`/`--disable` are available),
+//     so it can't be used here. A fully separate CODEX_HOME was tried and
+//     rejected: with no ~/.codex/auth.json present it hung indefinitely
+//     waiting on stdin for an onboarding/login flow — worse than the
+//     original bug, and the "do not hack fake homes" guidance applies.
+// `-c mcp_servers={}` + `--disable hooks` is therefore the isolation
+// CodexAdapter.ts actually gets: it stops the MCP-server child-process
+// inheritance (the reported bug's mechanism) and the hooks.json load, using
+// only officially documented app-server flags. Acepe's own config.toml
+// reads (resolveCodexNativeConfigState below) already extract model/
+// reasoning-effort continuity on the Effect side rather than relying on the
+// app-server loading the raw file, so this doesn't regress that.
+export const CODEX_APP_SERVER_ARGS = [
+	"app-server",
+	"-c",
+	"mcp_servers={}",
+	"--disable",
+	"hooks"
+] as const
 
 export const CODEX_PLACEHOLDER_COMMAND = "codex"
 
