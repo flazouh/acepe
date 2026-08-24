@@ -5,8 +5,8 @@
  * All functions return Effect for consistent error handling.
  */
 
-import { listen } from "@tauri-apps/api/event";
-import * as Effect from "effect/Effect";
+import type * as Effect from "effect/Effect";
+import { listenIfTauri } from "$lib/utils/electrobun-window-shims.js";
 import type { AppError } from "../../acp/errors/app-error.js";
 import { tauriClient } from "../../utils/tauri-client.js";
 import type {
@@ -101,7 +101,7 @@ export function stopWatching(): Effect.Effect<void, AppError> {
 export function onSkillsChanged(
 	callback: (event: SkillsChangedEvent) => void
 ): Promise<() => void> {
-	return listen<SkillsChangedEvent>("skills:changed", (event) => {
+	return listenIfTauri<SkillsChangedEvent>("skills:changed", (event) => {
 		callback(event.payload);
 	});
 }

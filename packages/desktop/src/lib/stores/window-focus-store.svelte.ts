@@ -6,11 +6,12 @@
  */
 
 import { fromPromise } from "@acepe/effect-result/fromPromise";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import type { getCurrentWindow } from "@tauri-apps/api/window";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import { getContext, setContext } from "svelte";
 import { createLogger } from "$lib/acp/utils/logger.js";
+import { runningUnderElectrobun } from "$lib/utils/electrobun-window-shims.js";
 
 const WINDOW_FOCUS_KEY = Symbol("window-focus");
 const logger = createLogger({ id: "window-focus-store", name: "WindowFocusStore" });
@@ -20,7 +21,20 @@ export class WindowFocusStore {
 	private unlisten: (() => void)[] = [];
 
 	async initialize(): Promise<void> {
-		const win = getCurrentWindow();
+		// No Electrobun-side window-focus primitive exists yet. Degrade
+		// gracefully: isFocused keeps its default (true), so the popup
+		// notification gate this store exists for never wrongly suppresses a
+		// notification, and getCurrentWindow() -- which throws synchronously on
+		// a missing window.__TAURI_INTERNALS__.metadata -- is never called.
+		if (runningUnderElectrobun()) {
+			logger.info(
+				"WindowFocusStore.initialize is a no-op under Electrobun (no focus API wired yet)"
+			);
+			return;
+		}
+		const win: ReturnType<typeof getCurrentWindow> = (
+			await import("@tauri-apps/api/window")
+		).getCurrentWindow();
 
 		const focused = await Effect.runPromise(
 			Effect.result(

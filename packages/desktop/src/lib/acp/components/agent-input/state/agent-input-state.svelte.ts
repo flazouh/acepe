@@ -3,6 +3,7 @@ import * as Result from "effect/Result";
 import { SvelteMap } from "svelte/reactivity";
 
 import { getZoomService } from "$lib/services/zoom.svelte.js";
+import { listenIfTauri } from "$lib/utils/electrobun-window-shims.js";
 import { fileIndex } from "$lib/utils/tauri-client/file-index.js";
 import { LOGGER_IDS } from "../../../constants/logger-ids.js";
 import type { PanelStore } from "../../../store/panel-store.svelte.js";
@@ -233,6 +234,11 @@ export class AgentInputState {
 		this.panelStore = panelStore;
 		this.projectPathGetter = projectPathGetter;
 		this.dragDropController = new TauriDragDropController({
+			// No Electrobun-side drag-drop event bridge exists yet -- listenIfTauri
+			// degrades to "never fires" there instead of throwing on
+			// window.__TAURI_INTERNALS__.transformCallback (see
+			// electrobun-window-shims.ts).
+			listen: listenIfTauri,
 			callbacks: {
 				onDragOver: (position) => {
 					this.isDragActive = true;
@@ -392,12 +398,14 @@ export class AgentInputState {
 
 		return invalidateCachedFiles.pipe(
 			Effect.flatMap(() =>
-				fileIndex.getProjectFiles(projectPath).pipe(
-					Effect.mapError(
-						(err) =>
-							new FileLoadError(projectPath, err instanceof Error ? err : new Error(String(err)))
+				fileIndex
+					.getProjectFiles(projectPath)
+					.pipe(
+						Effect.mapError(
+							(err) =>
+								new FileLoadError(projectPath, err instanceof Error ? err : new Error(String(err)))
+						)
 					)
-				)
 			),
 			Effect.map((index) => {
 				// Files arrive pre-sorted from Rust (modified files first, then alphabetically)

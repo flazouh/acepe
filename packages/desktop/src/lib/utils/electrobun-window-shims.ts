@@ -8,6 +8,7 @@
 // and either delegate to the real Tauri plugin (Tauri shell) or no-op with
 // an honest log line (Electrobun shell). No behaviour regression for Tauri;
 // no silent failure for Electrobun.
+import type { listen as tauriListen, UnlistenFn } from "@tauri-apps/api/event";
 import type { DownloadEvent, Update } from "@tauri-apps/plugin-updater";
 import { LOGGER_IDS } from "../acp/constants/logger-ids.js";
 import { createLogger } from "../acp/utils/logger.js";
@@ -18,7 +19,12 @@ const logger = createLogger({
 	name: "Electrobun Window Shims",
 });
 
-function runningUnderElectrobun(): boolean {
+// Exported so other Tauri-only call sites (e.g. window-focus-store.svelte.ts,
+// which calls the real getCurrentWindow() synchronously and has no return
+// value to route through one of the wrappers below) can skip the Tauri API
+// entirely under Electrobun instead of routing every last call through this
+// file.
+export function runningUnderElectrobun(): boolean {
 	return isElectrobunShellWindow({
 		protocol: window.location.protocol,
 		search: window.location.search,
@@ -65,6 +71,28 @@ export function getAppVersion(): Promise<string | null> {
 		return Promise.resolve(null);
 	}
 	return import("@tauri-apps/api/app").then((mod) => mod.getVersion());
+}
+
+// Tauri's real listen() calls window.__TAURI_INTERNALS__.transformCallback
+// synchronously to register the event channel, which throws under Electrobun.
+// A drag-drop (or any other) listener that routes through this wrapper
+// degrades to "never fires" instead of crashing the component that owns it.
+export function listenIfTauri<T>(
+	event: string,
+	handler: (event: { payload: T }) => void
+): Promise<UnlistenFn> {
+	if (runningUnderElectrobun()) {
+		logger.info(
+			"listenIfTauri is a no-op under Electrobun (no event bridge for this channel yet)",
+			{
+				event,
+			}
+		);
+		return Promise.resolve(() => undefined);
+	}
+	return import("@tauri-apps/api/event").then((mod) =>
+		(mod.listen as typeof tauriListen)(event, handler)
+	);
 }
 
 export type { DownloadEvent };

@@ -6,12 +6,12 @@
  */
 
 import { fromPromise } from "@acepe/effect-result/fromPromise";
-import { listen } from "@tauri-apps/api/event";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import { getContext, setContext } from "svelte";
 import { toast } from "svelte-sonner";
 
+import { listenIfTauri } from "$lib/utils/electrobun-window-shims.js";
 import { AgentError, type AppError } from "../errors/app-error.js";
 import { createLogger } from "../utils/logger.js";
 import { api } from "./api.js";
@@ -53,7 +53,12 @@ export class AgentStore {
 	}
 
 	private async listenToProgressEvents(): Promise<void> {
-		const unlisten = await listen<AgentInstallProgress>(INSTALL_PROGRESS_EVENT, (event) => {
+		// No Electrobun-side agent-install progress channel exists yet
+		// (listenIfTauri degrades to "never fires" there instead of throwing on
+		// window.__TAURI_INTERNALS__.transformCallback -- see
+		// electrobun-window-shims.ts). installing/installationReadiness simply
+		// never update under Electrobun today.
+		const unlisten = await listenIfTauri<AgentInstallProgress>(INSTALL_PROGRESS_EVENT, (event) => {
 			const { agent_id, stage, progress, message } = event.payload;
 			logger.debug("Install progress", { agent_id, stage, progress, message });
 
