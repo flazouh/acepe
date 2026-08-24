@@ -42,12 +42,16 @@ import {
 import { FileIndexServiceLive } from "../fileIndex/Layers/FileIndexService.ts"
 import { GitServiceLive } from "../git/Layers/GitService.ts"
 import { ProviderSessionDiscoveryLive } from "../history/discovery/ProviderSessionDiscovery.ts"
+import { ClaudeHistoryLive } from "../history/Layers/ClaudeHistory.ts"
 import { CheckpointServiceLive } from "../checkpoint/Layers/CheckpointService.ts"
 import { runGit } from "../git/runGit.ts"
 import { OrchestrationEngineLive } from "../orchestration/Layers/OrchestrationEngine.ts"
 import { ProjectionSnapshotQueryLive } from "../orchestration/Layers/ProjectionSnapshotQuery.ts"
 import { ProjectionGitLive } from "../persistence/Layers/ProjectionGit.ts"
 import { ProjectionProjectsLive } from "../persistence/Layers/ProjectionProjects.ts"
+import { ProjectionSessionMessagesLive } from "../persistence/Layers/ProjectionSessionMessages.ts"
+import { ProjectionSessionsLive } from "../persistence/Layers/ProjectionSessions.ts"
+import { ProjectionStateLive } from "../persistence/Layers/ProjectionState.ts"
 import { McpCatalogLive } from "../mcp/Layers/McpCatalog.ts"
 import { ProviderUsageServiceLive } from "../providerUsage/Layers/ProviderUsageService.ts"
 import { SecurityKeychainLive } from "../providerUsage/Layers/SecurityKeychain.ts"
@@ -105,6 +109,17 @@ const EngineAndStore = OrchestrationEngineLive.pipe(
 	Layer.provideMerge(PersistenceLive),
 	Layer.provide(BunCrypto.layer)
 )
+
+// ClaudeHistoryLive additionally needs the projector services its own
+// importDirectory/importSessionFile write through (RpcHandlersLive's other
+// handlers only read via ProjectionSnapshotQuery, so PersistenceLive above
+// does not otherwise carry these) -- same MigratedSqlite instance as
+// PersistenceLive so both write to the one test database.
+const ClaudeHistoryProjectionsLive = Layer.mergeAll(
+	ProjectionSessionsLive,
+	ProjectionSessionMessagesLive,
+	ProjectionStateLive
+).pipe(Layer.provideMerge(MigratedSqlite))
 
 const FileIndexPlatform = Layer.mergeAll(
 	BunFileSystem.layer,
@@ -186,6 +201,14 @@ const TestLive = RpcHandlersLive.pipe(
 	Layer.provideMerge(EngineAndStore),
 	Layer.provideMerge(FileIndexServiceLive),
 	Layer.provideMerge(ProviderSessionDiscoveryLive.pipe(Layer.provide(FileIndexPlatform))),
+	Layer.provideMerge(
+		ClaudeHistoryLive.pipe(
+			Layer.provide(FileIndexPlatform),
+			Layer.provide(ProjectionSnapshotQueryLive),
+			Layer.provide(EngineAndStore),
+			Layer.provide(ClaudeHistoryProjectionsLive)
+		)
+	),
 	Layer.provideMerge(GitLive),
 	Layer.provideMerge(CheckpointLive),
 	Layer.provideMerge(SkillsLive),

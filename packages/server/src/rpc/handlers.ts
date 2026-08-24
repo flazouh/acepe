@@ -1,7 +1,10 @@
 import {
 	AcepeRpc,
 	decodeRpcSessionSnapshot,
+	decodeProjectId,
+	decodeSessionId,
 	FileGitStatus,
+	type ImportProviderSessionRequest,
 	type OrchestrationCommand,
 	type OrchestrationEvent,
 	type RpcProjectedProject,
@@ -17,7 +20,8 @@ import {
 	RpcSqlError,
 	type Sequence,
 	type SnapshotRequest,
-	snapshotScope
+	snapshotScope,
+	type TrimmedNonEmptyString
 } from "@acepe/contracts"
 import * as Arr from "effect/Array"
 import * as Cause from "effect/Cause"
@@ -38,7 +42,14 @@ import { FileIndexNotADirectoryError, FileIndexRootNotFoundError } from "../file
 import { type FileIndexError, FileIndexService } from "../fileIndex/Services/FileIndexService.ts"
 import { getDefaultShell as getDefaultShellUtil } from "../fsUtil/readWriteText.ts"
 import { GitService, type GitServiceShape } from "../git/Services/GitService.ts"
-import { ProviderSessionDiscovery } from "../history/discovery/ProviderSessionDiscovery.ts"
+import { pathToSlug } from "../history/discovery/Roots.ts"
+import {
+	ProviderSessionDiscovery,
+	type ProviderSessionDiscoveryShape
+} from "../history/discovery/ProviderSessionDiscovery.ts"
+import type { HistoryImportError, HistoryImporterShape } from "../history/importer.ts"
+import { ClaudeHistory } from "../history/Services/ClaudeHistory.ts"
+import type { HistoryDirectoryNotFoundError } from "../history/Errors.ts"
 import {
 	type OrchestrationDispatchError,
 	type OrchestrationEngineShape,
@@ -49,6 +60,10 @@ import {
 	type SessionProjectionSnapshot,
 	ProjectionSnapshotQuery
 } from "../orchestration/Services/ProjectionSnapshotQuery.ts"
+import {
+	ProjectionProjects,
+	type ProjectionProjectsShape
+} from "../persistence/Services/ProjectionProjects.ts"
 import { fillAcpCommand } from "../acp/fillCommand.ts"
 import { fillSkillsDiscoverCommand } from "../skills/discoverCatalog.ts"
 import { fillGitCommand } from "../git/fillCommand.ts"
@@ -304,6 +319,66 @@ export const toFileIndexRpcError = (error: FileIndexError): RpcServerError => {
 export const toProviderDiscoveryRpcError = (error: PlatformError): RpcServerError =>
 	new RpcSchemaError({ issue: error.message })
 
+// importProviderSession's error channel is HistoryImportError, a superset of
+// what toRpcError already handles (OrchestrationDispatchError |
+// Schema.SchemaError | SqlError) plus PlatformError (raw disk I/O, same
+// fallback as provider discovery above) and HistoryDirectoryNotFoundError
+// (unreachable here in practice -- importSessionFile never calls
+// listJsonlFiles -- but part of the shared error union).
+export const toHistoryImportRpcError = (error: HistoryImportError): RpcServerError => {
+	if (error._tag === "PlatformError" || error._tag === "HistoryDirectoryNotFoundError") {
+		return new RpcSchemaError({ issue: error.message })
+	}
+	return toRpcError(error)
+}
+
+// Finds the existing project for a workspace root (so importing a session
+// under a project the user already added reuses that project's id and does
+// not fork a second row), or mints a deterministic id from the path when no
+// such project exists yet -- deterministic so two concurrent imports of
+// sessions under the same not-yet-registered project race onto the same
+// project.create commandId instead of creating duplicates.
+export const resolveHistoryImportProjectId = Effect.fn("resolveHistoryImportProjectId")(function*(
+	projects: ProjectionProjectsShape,
+	workspaceRoot: TrimmedNonEmptyString
+) {
+	const existing = yield* projects.list()
+	const found = Arr.findFirst(
+		existing,
+		(project) => project.workspaceRoot === workspaceRoot && project.deletedAt === null
+	)
+	if (Option.isSome(found)) {
+		return found.value.projectId
+	}
+	return yield* decodeProjectId(`history-claude-${pathToSlug(workspaceRoot)}`)
+})
+
+export const importProviderSessionHandler = Effect.fn("importProviderSessionHandler")(function*(
+	discovery: ProviderSessionDiscoveryShape,
+	claudeHistory: HistoryImporterShape,
+	projects: ProjectionProjectsShape,
+	request: ImportProviderSessionRequest
+) {
+	// The webview never names a raw file path -- the actual source file
+	// always comes back through the same discovery scan
+	// `listProviderSessions` uses, confined to the provider's own roots.
+	const fallbackSessionId = yield* decodeSessionId(request.sessionId)
+	const sessions = yield* discovery.listSessionsForProject(request.projectPath)
+	const found = Arr.findFirst(sessions, (session) => session.id === request.sessionId)
+	if (Option.isNone(found)) {
+		return { sessionId: fallbackSessionId, imported: false }
+	}
+	const projectId = yield* resolveHistoryImportProjectId(projects, request.projectPath)
+	const result = yield* claudeHistory.importSessionFile(
+		{ root: request.projectPath, projectId, workspaceRoot: request.projectPath },
+		found.value.sourcePath
+	)
+	return {
+		sessionId: Option.getOrElse(result.sessionId, () => fallbackSessionId),
+		imported: Option.isSome(result.sessionId)
+	}
+})
+
 type EventStoreShape = {
 	readonly readFrom: (
 		sequence: Sequence,
@@ -375,6 +450,8 @@ export const RpcHandlersLive = AcepeRpc.toLayer(
 		const store = yield* OrchestrationEventStore
 		const fileIndex = yield* FileIndexService
 		const providerDiscovery = yield* ProviderSessionDiscovery
+		const claudeHistory = yield* ClaudeHistory
+		const projects = yield* ProjectionProjects
 		const fs = yield* FileSystem.FileSystem
 		const path = yield* Path.Path
 		const providerUsage = yield* ProviderUsageService
@@ -400,7 +477,11 @@ export const RpcHandlersLive = AcepeRpc.toLayer(
 					.listSessionsForProject(request.projectPath)
 					.pipe(Effect.mapError(toProviderDiscoveryRpcError)),
 			listProviderProjects: () =>
-				providerDiscovery.listProjects().pipe(Effect.mapError(toProviderDiscoveryRpcError))
+				providerDiscovery.listProjects().pipe(Effect.mapError(toProviderDiscoveryRpcError)),
+			importProviderSession: (request) =>
+				importProviderSessionHandler(providerDiscovery, claudeHistory, projects, request).pipe(
+					Effect.mapError(toHistoryImportRpcError)
+				)
 		}
 	})
 )

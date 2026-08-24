@@ -74,10 +74,25 @@ export type HistoryImportError =
 	| Schema.SchemaError
 	| SqlError
 
+export type HistoryImportFileResult = {
+	readonly sessionId: Option.Option<SessionId>
+	readonly warnings: ReadonlyArray<HistoryMalformedLineWarning>
+}
+
 export type HistoryImporterShape = {
 	readonly importDirectory: (
 		input: HistoryImportInput
 	) => Effect.Effect<HistoryImportResult, HistoryImportError>
+	// Imports one already-located session file (#249 batch 3 -- backs
+	// `importProviderSession`). Unlike `importDirectory`, the caller has
+	// already resolved `filePath` (from a discovery scan), so this skips the
+	// directory walk but still ensures the parent project exists and applies
+	// the newly-dispatched events to the read-side projections before
+	// returning, exactly like `importDirectory` does for its whole batch.
+	readonly importSessionFile: (
+		input: HistoryImportInput,
+		filePath: string
+	) => Effect.Effect<HistoryImportFileResult, HistoryImportError>
 }
 
 export type HistoryProviderKind = "claude" | "cursor" | "opencode"
@@ -278,6 +293,18 @@ export const makeHistoryImporter = <A>(config: HistoryLineDecoder<A>) =>
 			}
 		})
 
+		const importSessionFile = Effect.fn("HistoryImporter.importSessionFile")(function*(
+			input: HistoryImportInput,
+			filePath: string
+		) {
+			yield* ensureProject(input)
+			const before = yield* engine.latestSequence
+			const imported = yield* importFile(input, filePath)
+			const after = yield* engine.latestSequence
+			yield* applyImportedEvents(before, after)
+			return imported
+		})
+
 		const importDirectory = Effect.fn("HistoryImporter.importDirectory")(function*(
 			input: HistoryImportInput
 		) {
@@ -306,6 +333,7 @@ export const makeHistoryImporter = <A>(config: HistoryLineDecoder<A>) =>
 		})
 
 		return {
-			importDirectory
+			importDirectory,
+			importSessionFile
 		} satisfies HistoryImporterShape
 	})

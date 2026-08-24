@@ -60,6 +60,7 @@ import { FileIndexServiceLive } from "./fileIndex/Layers/FileIndexService.ts"
 import { FileIndexWarmOnImportLive } from "./fileIndex/Layers/FileIndexWarmOnImport.ts"
 import { GitServiceLive } from "./git/Layers/GitService.ts"
 import { ProviderSessionDiscoveryLive } from "./history/discovery/ProviderSessionDiscovery.ts"
+import { ClaudeHistoryLive } from "./history/Layers/ClaudeHistory.ts"
 import { McpCatalogLive } from "./mcp/Layers/McpCatalog.ts"
 import { CheckpointServiceLive } from "./checkpoint/Layers/CheckpointService.ts"
 import { ProviderUsageServiceLive } from "./providerUsage/Layers/ProviderUsageService.ts"
@@ -223,6 +224,12 @@ export const makeAcepeLive = (input: AcepeLiveInput) => {
 		Layer.provide(bunPlatform)
 	)
 	const providerDiscovery = ProviderSessionDiscoveryLive.pipe(Layer.provide(bunPlatform))
+	// ClaudeHistoryLive needs ProjectionSnapshotQuery too (importDirectory
+	// snapshots the sessions it just imported) -- provide the same
+	// `snapshots` instance directly rather than relying on `rpc`'s merge
+	// order, since a later `Layer.provideMerge` in that chain does not feed
+	// an earlier one's output back into it.
+	const claudeHistory = ClaudeHistoryLive.pipe(Layer.provide(bunPlatform), Layer.provide(snapshots))
 	const git = Layer.unwrap(
 		Effect.gen(function*() {
 			const path = yield* Path.Path
@@ -287,6 +294,7 @@ export const makeAcepeLive = (input: AcepeLiveInput) => {
 		Layer.provideMerge(snapshots),
 		Layer.provideMerge(fileIndex),
 		Layer.provideMerge(providerDiscovery),
+		Layer.provideMerge(claudeHistory),
 		Layer.provideMerge(git),
 		Layer.provideMerge(checkpoint),
 		Layer.provideMerge(skills),
