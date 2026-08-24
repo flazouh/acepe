@@ -98,6 +98,32 @@ export const claudePresence = (
 const pathEntries = (pathVar: string): ReadonlyArray<string> =>
 	Arr.filter(Str.split(pathVar, ":"), (part) => Str.isNonEmpty(part))
 
+// The claude-agent-sdk ships its own native CLI binary as an optional
+// platform dependency (@anthropic-ai/claude-agent-sdk-<platform>), resolved
+// dynamically at runtime — invisible to a bundler's static analysis, so a
+// packaged build (Electrobun's `bun build` step) drops it and query() fails
+// with "Native CLI binary ... not found". Resolving the system `claude` on
+// PATH and passing it as query()'s pathToClaudeCodeExecutable sidesteps that
+// bundled binary entirely; see makeLiveClaudeAdapter in ClaudeAdapter.ts.
+export const resolveClaudeExecutablePath = Effect.fn("resolveClaudeExecutablePath")(function*() {
+	const fs = yield* FileSystem.FileSystem
+	const path = yield* Path.Path
+	const pathVar = yield* Config.option(Config.string("PATH"))
+	const directories = Option.match(pathVar, {
+		onNone: () => Arr.empty<string>(),
+		onSome: pathEntries
+	})
+	return yield* Effect.reduce(directories, () => Option.none<string>(), (found, directory) => {
+		if (Option.isSome(found)) {
+			return Effect.succeed(found)
+		}
+		const candidate = path.join(directory, "claude")
+		return fs.exists(candidate).pipe(
+			Effect.map((exists) => (exists ? Option.some(candidate) : Option.none<string>()))
+		)
+	})
+})
+
 export const probeClaudePresence = Effect.fn("probeClaudePresence")(function*() {
 	const fs = yield* FileSystem.FileSystem
 	const path = yield* Path.Path
