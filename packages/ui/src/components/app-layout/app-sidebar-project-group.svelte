@@ -36,11 +36,10 @@ const accessibleName = $derived(projectName ?? group?.name ?? "Project");
 </script>
 
 <!--
-	Workspace container: one full-width surface per project. Separation comes from
-	a quiet fill + shape, never borders, shadows, or large color fills. It reuses
-	the quiet input-surface family (bg-input wash) so the shell reads with the same
-	recessed fill language as tool cards, distinct from selected-row accent tint.
-	The header is the top band; session content is inset within the same surface.
+	Workspace container: one project's header and sessions, flush on the sidebar
+	surface. No card background, border, or rounded shape — separation comes from
+	row hover/selected states and spacing rhythm alone (Notion/Linear style).
+	The header is the top band; session content is inset within the same region.
 	Collapsed groups render an empty content region that adds no height, so they
 	stay compact.
 -->
@@ -49,7 +48,7 @@ const accessibleName = $derived(projectName ?? group?.name ?? "Project");
 	aria-label={accessibleName}
 	data-sidebar-project-surface
 	class={cn(
-		"flex flex-col overflow-hidden rounded-md bg-input/30",
+		"flex flex-col overflow-hidden",
 		className
 	)}
 	{style}

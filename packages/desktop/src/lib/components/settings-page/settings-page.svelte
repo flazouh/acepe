@@ -42,9 +42,9 @@ function handleSectionChange(section: SettingsSectionId) {
 }
 </script>
 
-<!-- Left nav panel (floating card, matches the app sidebar) -->
+<!-- Left nav panel: borderless Notion-like shell, elevation carries the separation. -->
 <aside
-	class="flex h-full w-[240px] shrink-0 flex-col overflow-hidden rounded-lg border border-border/50 bg-card/75"
+	class="settings-panel-shell flex h-full w-[240px] shrink-0 flex-col overflow-hidden rounded-lg bg-card/75"
 >
 	<!-- Header band: same height/padding/border as the app sidebar header -->
 	<div class="flex h-7 shrink-0 items-center gap-0.5 border-b border-border/50 px-1">
@@ -65,9 +65,9 @@ function handleSectionChange(section: SettingsSectionId) {
 	</div>
 </aside>
 
-<!-- Content panel (floating card, matches the agent panel) -->
+<!-- Content panel: borderless Notion-like shell, elevation carries the separation. -->
 <main
-	class="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border/50 bg-card/75"
+	class="settings-panel-shell flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg bg-card/75"
 >
 	<SettingsPageHeader
 		title={activeSectionDefinition.label}
@@ -121,3 +121,24 @@ function handleSectionChange(section: SettingsSectionId) {
 		</div>
 	</div>
 </main>
+
+<style>
+	/*
+	 * Borderless Notion-like shell: elevation (shadow), not a border, separates
+	 * the settings panels from the app background behind them. The default
+	 * app-wide shadow tokens (--shadow-lg etc, app.css) are tuned for light
+	 * surfaces and stay too faint to read against the dark background, so this
+	 * is scoped to the settings shell rather than bumped globally.
+	 */
+	.settings-panel-shell {
+		box-shadow:
+			0px 8px 24px -4px hsl(0 0% 5% / 0.12),
+			0px 2px 8px -2px hsl(0 0% 5% / 0.1);
+	}
+
+	:global(.dark) .settings-panel-shell {
+		box-shadow:
+			0px 8px 24px -4px hsl(0 0% 0% / 0.45),
+			0px 2px 8px -2px hsl(0 0% 0% / 0.35);
+	}
+</style>
