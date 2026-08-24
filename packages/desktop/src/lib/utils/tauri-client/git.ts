@@ -1,3 +1,4 @@
+import type { GitCallResult } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 
 import type { AppError } from "../../acp/errors/app-error.js";
@@ -5,44 +6,51 @@ import type { CloneResult } from "../../acp/types/index.js";
 import type { SetupResult, WorktreeConfig } from "../../acp/types/worktree-config.js";
 import type { PreparedWorktreeLaunch, WorktreeInfo } from "../../acp/types/worktree-info.js";
 import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
-import { unsupportedOnContract } from "./rpc-bridge.ts";
+import { unsupportedOnContract, withRpcClient } from "./rpc-bridge.ts";
 
 const gitCommands = TAURI_COMMAND_CLIENT.git;
+
+// The gitCall result union echoes the request's `op` discriminant (see
+// packages/contracts/src/gitCall.ts), but TypeScript can't statically tie a
+// gitCall() call's request op to its response type -- this narrows it at
+// runtime. A mismatch here means the server routed the request to the wrong
+// branch, which is a wiring bug, not a request the caller can recover from,
+// so it's a defect rather than a typed AppError.
+const unwrapGitCallResult = <Tag extends GitCallResult["op"]>(
+	tag: Tag,
+	result: GitCallResult
+): Effect.Effect<Extract<GitCallResult, { op: Tag }>, AppError> =>
+	result.op === tag
+		? Effect.succeed(result as Extract<GitCallResult, { op: Tag }>)
+		: Effect.die(new Error(`gitCall: expected op '${tag}', got '${result.op}'`));
 
 // clone/browseDestination/worktreeCreate/worktreeReset/worktreeRename/
 // worktreeDiskSize/diffStats/stashSave/createBranch/deleteBranch/
 // getOpenPrForBranch have no live caller today (see #249 batch 2 map); each
 // moves to unsupportedOnContract below with its own note.
 //
-// The other 33 methods (init through saveWorktreeConfig) all have live
-// callers -- git-panel.svelte, agent-panel-ship-workflow.ts,
-// branch-picker.svelte, project-selection-panel.svelte,
-// worktree-setup-orchestrator.ts, and others -- and stay on
-// TAURI_COMMAND_CLIENT this slice. packages/server/src/git/makeGitService.ts's
-// GitService already implements almost all of that logic server-side
-// (isRepo/init/branches/worktrees/stage/commit/push/pull/fetch/stash/log/PR/
-// CI/ship-context): it already backs the git.status.refresh/diff.load/
-// blame.load/hunk.accept/hunk.reject dispatch commands the review workspace
-// uses to build its event-sourced gitReview snapshot. But these 33 methods
-// are one-shot request/response calls -- git-panel.svelte reads a direct
-// return value, e.g. `const result = await ... git.commit(...)` -- not state
-// that belongs projected into gitReview. Routing them through the
-// dispatch/decider/event pipeline would mean rewriting every call site to
-// poll a snapshot instead of awaiting a value, which breaks the
-// "component call sites untouched" rule batch 1 established. The right fit
-// is the utility-RPC pattern (getProjectIndex/readTextFile/writeTextFile/
-// getDefaultShell): a named Rpc.make primitive per operation, hand-wired
-// through RPC_PRIMITIVE_TAGS, AcepeRpc's RpcGroup.make, and the exhaustive
-// per-primitive Exit/electrobun-schema blocks in
-// packages/contracts/src/rpc.ts, plus the server handlers and the electrobun
-// bridge. That machinery is intentionally small today (3 primitives added
-// across 2 prior slices); porting all 33 live git.ts methods means ~33 new
-// primitives across that hand-enumerated wiring, which is out of scope for
-// one slice. A follow-up should split this by sub-domain rather than one
-// big-bang: branch/checkout, stage/commit, push/pull/fetch/remote-status,
-// stash, worktree lifecycle (create/remove/list/rename/reset/disk-size/
-// prepare-launch), worktree-config/setup, and ship/PR/CI. See the #249 issue
-// thread.
+// init/isRepo/currentBranch/listBranches/checkoutBranch/
+// hasUncommittedChanges (branch/checkout) and panelStatus/stageFiles/
+// unstageFiles/stageAll/discardChanges/commit/log (stage/commit) ride the
+// gitCall utility RPC (packages/contracts/src/gitCall.ts) -- a tagged-union
+// request/response pair routed server-side onto GitService
+// (packages/server/src/git/gitCallHandler.ts), per the #249 issue thread's
+// DESIGN DECISION. Growing that union by sub-domain adds zero new RPC
+// primitives after the first.
+//
+// The remaining 20 methods (prepareWorktreeSessionLaunch through
+// saveWorktreeConfig) still have live callers -- git-panel.svelte,
+// agent-panel-ship-workflow.ts, branch-picker.svelte,
+// project-selection-panel.svelte, worktree-setup-orchestrator.ts, and
+// others -- and stay on TAURI_COMMAND_CLIENT this slice: push/pull/fetch/
+// remote-status, stash, worktree lifecycle (create/remove/list/rename/
+// reset/disk-size/prepare-launch), worktree-config/setup, and ship/PR/CI.
+// packages/server/src/git/makeGitService.ts's GitService already implements
+// almost all of that logic server-side too; the same one-shot
+// request/response shape that motivated the gitCall utility-RPC pattern for
+// branch/checkout and stage/commit applies to these sub-domains, and a
+// follow-up slice should grow the gitCall union to carry them. See the #249
+// issue thread.
 export const git = {
 	// No live caller today (see #249 batch 2 map); the clone-a-new-project
 	// flow that used this is dormant. GitService.clone already exists
@@ -62,19 +70,36 @@ export const git = {
 	},
 
 	init: (projectPath: string): Effect.Effect<void, AppError> => {
-		return gitCommands.init.invoke<void>({ projectPath });
+		return withRpcClient("git.init", (client) =>
+			client.gitCall({ op: "git.init", projectPath })
+		).pipe(Effect.asVoid);
 	},
 
 	isRepo: (projectPath: string): Effect.Effect<boolean, AppError> => {
-		return gitCommands.is_repo.invoke<boolean>({ projectPath });
+		return withRpcClient("git.isRepo", (client) =>
+			client.gitCall({ op: "git.isRepo", projectPath })
+		).pipe(
+			Effect.flatMap((result) => unwrapGitCallResult("git.isRepo", result)),
+			Effect.map((result) => result.isRepo)
+		);
 	},
 
 	currentBranch: (projectPath: string): Effect.Effect<string, AppError> => {
-		return gitCommands.current_branch.invoke<string>({ projectPath });
+		return withRpcClient("git.currentBranch", (client) =>
+			client.gitCall({ op: "git.currentBranch", projectPath })
+		).pipe(
+			Effect.flatMap((result) => unwrapGitCallResult("git.currentBranch", result)),
+			Effect.map((result) => result.branch)
+		);
 	},
 
 	listBranches: (projectPath: string): Effect.Effect<string[], AppError> => {
-		return gitCommands.list_branches.invoke<string[]>({ projectPath });
+		return withRpcClient("git.listBranches", (client) =>
+			client.gitCall({ op: "git.listBranches", projectPath })
+		).pipe(
+			Effect.flatMap((result) => unwrapGitCallResult("git.listBranches", result)),
+			Effect.map((result) => [...result.branches])
+		);
 	},
 
 	checkoutBranch: (
@@ -82,11 +107,21 @@ export const git = {
 		branch: string,
 		create = false
 	): Effect.Effect<string, AppError> => {
-		return gitCommands.checkout_branch.invoke<string>({ projectPath, branch, create });
+		return withRpcClient("git.checkoutBranch", (client) =>
+			client.gitCall({ op: "git.checkoutBranch", projectPath, branch, create })
+		).pipe(
+			Effect.flatMap((result) => unwrapGitCallResult("git.checkoutBranch", result)),
+			Effect.map((result) => result.branch)
+		);
 	},
 
 	hasUncommittedChanges: (projectPath: string): Effect.Effect<boolean, AppError> => {
-		return gitCommands.has_uncommitted_changes.invoke<boolean>({ projectPath });
+		return withRpcClient("git.hasUncommittedChanges", (client) =>
+			client.gitCall({ op: "git.hasUncommittedChanges", projectPath })
+		).pipe(
+			Effect.flatMap((result) => unwrapGitCallResult("git.hasUncommittedChanges", result)),
+			Effect.map((result) => result.hasUncommittedChanges)
+		);
 	},
 
 	// No live caller today (see #249 batch 2 map); worktree creation goes
@@ -150,7 +185,12 @@ export const git = {
 	// ─── Git Panel Operations ───────────────────────────────────────────
 
 	panelStatus: (projectPath: string): Effect.Effect<GitPanelFileStatus[], AppError> => {
-		return gitCommands.panel_status.invoke<GitPanelFileStatus[]>({ projectPath });
+		return withRpcClient("git.panelStatus", (client) =>
+			client.gitCall({ op: "git.panelStatus", projectPath })
+		).pipe(
+			Effect.flatMap((result) => unwrapGitCallResult("git.panelStatus", result)),
+			Effect.map((result) => [...result.files])
+		);
 	},
 
 	// No live caller today (see #249 batch 2 map); git-panel.svelte derives its
@@ -160,23 +200,36 @@ export const git = {
 	},
 
 	stageFiles: (projectPath: string, files: string[]): Effect.Effect<void, AppError> => {
-		return gitCommands.stage_files.invoke<void>({ projectPath, files });
+		return withRpcClient("git.stageFiles", (client) =>
+			client.gitCall({ op: "git.stageFiles", projectPath, files })
+		).pipe(Effect.asVoid);
 	},
 
 	unstageFiles: (projectPath: string, files: string[]): Effect.Effect<void, AppError> => {
-		return gitCommands.unstage_files.invoke<void>({ projectPath, files });
+		return withRpcClient("git.unstageFiles", (client) =>
+			client.gitCall({ op: "git.unstageFiles", projectPath, files })
+		).pipe(Effect.asVoid);
 	},
 
 	stageAll: (projectPath: string): Effect.Effect<void, AppError> => {
-		return gitCommands.stage_all.invoke<void>({ projectPath });
+		return withRpcClient("git.stageAll", (client) =>
+			client.gitCall({ op: "git.stageAll", projectPath })
+		).pipe(Effect.asVoid);
 	},
 
 	discardChanges: (projectPath: string, files: string[]): Effect.Effect<void, AppError> => {
-		return gitCommands.discard_changes.invoke<void>({ projectPath, files });
+		return withRpcClient("git.discardChanges", (client) =>
+			client.gitCall({ op: "git.discardChanges", projectPath, files })
+		).pipe(Effect.asVoid);
 	},
 
 	commit: (projectPath: string, message: string): Effect.Effect<GitCommitResult, AppError> => {
-		return gitCommands.commit.invoke<GitCommitResult>({ projectPath, message });
+		return withRpcClient("git.commit", (client) =>
+			client.gitCall({ op: "git.commit", projectPath, message })
+		).pipe(
+			Effect.flatMap((result) => unwrapGitCallResult("git.commit", result)),
+			Effect.map((result) => ({ sha: result.sha, shortSha: result.shortSha }))
+		);
 	},
 
 	push: (projectPath: string): Effect.Effect<void, AppError> => {
@@ -214,7 +267,12 @@ export const git = {
 	},
 
 	log: (projectPath: string, limit = 50): Effect.Effect<GitLogEntry[], AppError> => {
-		return gitCommands.log.invoke<GitLogEntry[]>({ projectPath, limit });
+		return withRpcClient("git.log", (client) =>
+			client.gitCall({ op: "git.log", projectPath, limit })
+		).pipe(
+			Effect.flatMap((result) => unwrapGitCallResult("git.log", result)),
+			Effect.map((result) => [...result.entries])
+		);
 	},
 
 	// No live caller today (see #249 batch 2 map); branch-picker.svelte creates

@@ -73,7 +73,8 @@ const makeClient = (overrides: Partial<RpcClient>): RpcClient => ({
 	readTextFile: () => Effect.succeed(""),
 	writeTextFile: () => Effect.void,
 	getDefaultShell: () => Effect.succeed("/bin/zsh"),
-	gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),	events: () => Stream.empty,
+	gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
+	events: () => Stream.empty,
 	...overrides,
 });
 

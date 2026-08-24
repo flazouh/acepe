@@ -13,7 +13,8 @@ const fake: RpcClient = {
 	readTextFile: () => Effect.succeed(""),
 	writeTextFile: () => Effect.void,
 	getDefaultShell: () => Effect.succeed("/bin/zsh"),
-	gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),	events: () => Stream.empty,
+	gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
+	events: () => Stream.empty,
 };
 
 it("returns the injected client and memoises it", () =>

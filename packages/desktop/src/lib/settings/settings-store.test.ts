@@ -112,7 +112,8 @@ describe("composeSettingsStore", () => {
 					readTextFile: () => Effect.succeed(""),
 					writeTextFile: () => Effect.void,
 					getDefaultShell: () => Effect.succeed("/bin/zsh"),
-					gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),					events: () => Stream.empty,
+					gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
+					events: () => Stream.empty,
 				};
 				const seen: Array<number> = [];
 				const store = composeSettingsStore({
@@ -158,7 +159,8 @@ describe("composeSettingsStore", () => {
 					readTextFile: () => Effect.succeed(""),
 					writeTextFile: () => Effect.void,
 					getDefaultShell: () => Effect.succeed("/bin/zsh"),
-					gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),					events: () =>
+					gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
+					events: () =>
 						Stream.make({
 							sequence: 5,
 							eventId: EventId.make("event-5"),
@@ -208,7 +210,8 @@ describe("composeSettingsStore", () => {
 					readTextFile: () => Effect.succeed(""),
 					writeTextFile: () => Effect.void,
 					getDefaultShell: () => Effect.succeed("/bin/zsh"),
-					gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),					events: () => Stream.empty,
+					gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
+					events: () => Stream.empty,
 				};
 				const store = composeSettingsStore({
 					client,
@@ -258,7 +261,8 @@ describe("composeSettingsStore", () => {
 					readTextFile: () => Effect.succeed(""),
 					writeTextFile: () => Effect.void,
 					getDefaultShell: () => Effect.succeed("/bin/zsh"),
-					gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),					events: () => Stream.empty,
+					gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
+					events: () => Stream.empty,
 				};
 				const store = composeSettingsStore({
 					client,
@@ -313,7 +317,8 @@ describe("composeSettingsStore", () => {
 					readTextFile: () => Effect.succeed(""),
 					writeTextFile: () => Effect.void,
 					getDefaultShell: () => Effect.succeed("/bin/zsh"),
-					gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),					events: () =>
+					gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
+					events: () =>
 						Stream.make({
 							sequence: 5,
 							eventId: EventId.make("event-5"),
@@ -366,7 +371,8 @@ describe("composeSettingsStore", () => {
 					readTextFile: () => Effect.succeed(""),
 					writeTextFile: () => Effect.void,
 					getDefaultShell: () => Effect.succeed("/bin/zsh"),
-					gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),					events: () => Stream.empty,
+					gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
+					events: () => Stream.empty,
 				};
 				const store = composeSettingsStore({ client });
 				yield* store.openSettings();
