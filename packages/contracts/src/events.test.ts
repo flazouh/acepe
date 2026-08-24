@@ -44,6 +44,7 @@ import {
 	TerminalOutputAppendedPayload,
 	SessionReviewFileMarkedPayload,
 	SessionReviewStateClearedPayload,
+	ProviderSessionFailedPayload,
 } from "./events.ts"
 import {
 	AgentAuthenticatedPayload,
@@ -153,6 +154,7 @@ const v1EventTypes = [
 	"TerminalClosed",
 	"SessionReviewFileMarked",
 	"SessionReviewStateCleared",
+	"ProviderSessionFailed",
 ] as const
 
 type V1EventType = (typeof v1EventTypes)[number]
@@ -841,6 +843,15 @@ const memberCases = [
 		payloadSchema: SessionReviewStateClearedPayload,
 		event: sessionEvent("SessionReviewStateCleared", {
 			sessionId,
+		}),
+	},
+	{
+		payloadSchema: ProviderSessionFailedPayload,
+		event: sessionEvent("ProviderSessionFailed", {
+			sessionId,
+			providerId: "claude-code",
+			operation: "startSession",
+			detail: "Claude query stream failed",
 		}),
 	},
 ] as const

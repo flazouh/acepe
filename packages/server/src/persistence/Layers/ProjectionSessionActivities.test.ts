@@ -271,6 +271,7 @@ const IdleEngine = Layer.succeed(
 	OrchestrationEngine,
 	OrchestrationEngine.of({
 		dispatch: () => Effect.fail(new OrchestrationEngineShutdownError()),
+		appendEvents: () => Effect.fail(new OrchestrationEngineShutdownError()),
 		streamDomainEvents: Stream.empty,
 		latestSequence: Effect.succeed(0)
 	})

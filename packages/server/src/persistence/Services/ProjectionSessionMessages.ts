@@ -242,7 +242,8 @@ export const rowFromEvent = (
 			TerminalOutputAppended: ignoreEvent,
 			TerminalClosed: ignoreEvent,
 			SessionReviewFileMarked: ignoreEvent,
-			SessionReviewStateCleared: ignoreEvent
+			SessionReviewStateCleared: ignoreEvent,
+			ProviderSessionFailed: ignoreEvent
 		})
 	)(event)
 

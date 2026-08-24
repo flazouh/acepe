@@ -56,6 +56,7 @@ const StubEngine = Layer.succeed(
 				dispatched.push(command.type)
 				return { sequence: 1 }
 			}),
+		appendEvents: () => Effect.sync(() => ({ sequence: 1 })),
 		streamDomainEvents: Stream.empty,
 		latestSequence: Effect.succeed(0)
 	})

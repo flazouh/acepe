@@ -175,7 +175,7 @@ const applySessionCreated = (
 		sessionId: event.payload.sessionId,
 		projectId: event.payload.projectId,
 		title: event.payload.title,
-		provider: null,
+		provider: event.payload.providerId ?? null,
 		createdAt: event.occurredAt,
 		updatedAt: event.occurredAt,
 		lastActivityAt: event.occurredAt,
