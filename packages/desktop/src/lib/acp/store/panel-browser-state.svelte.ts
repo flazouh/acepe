@@ -5,6 +5,7 @@
  * flows through accessor-closure dependencies; the parent `PanelStore` holds one instance
  * and delegates its browser-domain reads/writes here.
  */
+import * as Effect from "effect/Effect";
 import { SvelteMap } from "svelte/reactivity";
 import { browserWebview } from "../../utils/tauri-client/browser-webview.js";
 import { createLogger } from "../utils/logger.js";
@@ -15,6 +16,22 @@ import type { TopLevelPanelCloseState } from "./panel-terminal-state.svelte.js";
 import type { BrowserWorkspacePanel, WorkspacePanel, WorkspacePanelKind } from "./types.js";
 
 const logger = createLogger({ id: "panel-browser-state", name: "PanelBrowserState" });
+
+// Fires the close request and forgets it: the panel is already gone from
+// local state by the time this settles, so there's nothing to react to on
+// success. On failure we still want it surfaced instead of silently dropped.
+const closeBrowserWebview = (label: string): void => {
+	void Effect.runPromise(
+		browserWebview.close(label).pipe(
+			Effect.match({
+				onSuccess: () => undefined,
+				onFailure: (error) => {
+					logger.warn("Failed to close browser webview", { label, error });
+				},
+			})
+		)
+	);
+};
 
 export interface PanelBrowserStateDeps {
 	getWorkspacePanels: () => WorkspacePanel[];
@@ -87,7 +104,7 @@ export class PanelBrowserState {
 
 	clearAllBrowserPanels(): void {
 		for (const panel of this.browserPanels) {
-			browserWebview.close(`browser-${panel.id}`);
+			closeBrowserWebview(`browser-${panel.id}`);
 		}
 		this.browserPanels = [];
 	}
@@ -125,7 +142,7 @@ export class PanelBrowserState {
 
 	closeBrowserPanel(panelId: string): void {
 		const closeState = this.deps.captureTopLevelPanelCloseState(panelId);
-		browserWebview.close(`browser-${panelId}`);
+		closeBrowserWebview(`browser-${panelId}`);
 		this.browserPanels = this.browserPanels.filter((panel) => panel.id !== panelId);
 		this.deps.applyTopLevelPanelCloseState(closeState);
 		this.deps.onPersist();

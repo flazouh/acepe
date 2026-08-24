@@ -123,7 +123,7 @@ export const followTerminal = Effect.fn("followTerminal")(function* (input: {
 		if (consecutiveFailures >= maxConsecutiveFailures) {
 			// A run of transient hiccups is one thing; this many in a row means
 			// the server (or connection) is actually gone, so let it surface.
-			return yield* Effect.fail(result.failure);
+			return yield* result.failure;
 		}
 		// Swallow the transient failure and keep polling — a dropped RPC must
 		// not permanently freeze the terminal view while the server is still
