@@ -48,6 +48,7 @@ import {
 import { taskTranscriptDialogPresentation } from "../logic/task-transcript-dialog-presentation.js";
 import { createSyntheticReviewEntry } from "../logic/synthetic-review-entry.js";
 import { recordPanelOpenPerformanceMark } from "../logic/panel-open-performance-mark.js";
+import { shouldBootstrapTranscriptRows } from "../logic/transcript-rows-bootstrap-gate.js";
 import { useTheme } from "../../../../components/theme/context.svelte.js";
 
 const SEND_REVEAL_PEEK_PX = 72;
@@ -502,8 +503,32 @@ $effect(() => {
 
 // Bootstrap the ordered rows once per session. Rust owns row order and identity;
 // this component owns only DOM scroll behavior.
+//
+// A freshly-created session gets its sessionId before Rust emits the first
+// SessionStateGraph envelope for it (deferred-creation providers such as
+// Claude Code resolve the id, then canonical state, over separate round
+// trips). Dispatching the bootstrap request before that canonical revision
+// exists is a silent no-op in TranscriptRowsController, so this effect must
+// not mark the session "bootstrapped" until the revision is actually
+// present — otherwise the request never fires again and the panel stays
+// empty even after canonical state arrives moments later. Reading the
+// revision here (a SvelteMap-backed canonical read) makes the effect
+// re-run and retry as soon as it materializes.
 $effect(() => {
-	if (skipRowsBootstrap || sessionId === null || sessionId === bootstrappedSessionId) {
+	const hasCanonicalGraphRevision =
+		sessionId !== null && sessionStore.read.getSessionGraphRevision(sessionId) !== null;
+	if (
+		// `sessionId === null` is redundant with shouldBootstrapTranscriptRows'
+		// own check — kept here so TypeScript narrows sessionId to `string`
+		// below (it can't see through the opaque function call).
+		sessionId === null ||
+		!shouldBootstrapTranscriptRows({
+			skipRowsBootstrap,
+			sessionId,
+			bootstrappedSessionId,
+			hasCanonicalGraphRevision,
+		})
+	) {
 		return;
 	}
 	bootstrappedSessionId = sessionId;

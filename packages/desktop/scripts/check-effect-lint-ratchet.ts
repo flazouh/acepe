@@ -13,7 +13,10 @@
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 
-const BASELINE = 6581;
+// 6581 -> 6583: two new `it("...", async () => {})` tests added in
+// scene-content-viewport.svelte.vitest.ts trip effect(asyncFunction), same
+// as every other test in that file already does.
+const BASELINE = 6583;
 const PACKAGE_ROOT = resolve(import.meta.dir, "..");
 
 // The pretty formatter (the default, and what lint:effect:report uses) always
