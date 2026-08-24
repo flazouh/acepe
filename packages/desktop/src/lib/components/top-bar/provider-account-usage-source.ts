@@ -55,6 +55,27 @@ const PROVIDERS: ReadonlyArray<ProviderIdentity> = [
 	},
 ];
 
+// loadProviderAccountUsageAccounts is #249's usage slice and stays on
+// TAURI_COMMAND_CLIENT. The one command it calls (provider_account_usage.get,
+// see packages/desktop/src-tauri/src/provider_account_usage/mod.rs) has a
+// live caller (top-bar.svelte's polling widget) but produces its numbers
+// from infrastructure only the Rust process has:
+//   - Codex: walks ~/.codex/sessions and parses Codex's own rollout-*.jsonl
+//     files -- a different provider's on-disk format, not Acepe's session
+//     store the TS server owns.
+//   - Claude Code: reads the macOS Keychain (`security` CLI) for the OAuth
+//     token, or falls back to decrypting the Claude desktop app's Chromium
+//     cookie DB (AES-128-CBC via a Keychain-held key) for a session cookie,
+//     then calls the live api.anthropic.com/claude.ai usage APIs over HTTPS.
+//   - Cursor: always reports unavailable pending a Cursor account API.
+// None of that -- OS keychain access, another app's cookie store, outbound
+// calls to a third-party usage endpoint -- is session/JSONL data the TS
+// server owns or file content within fsPathGuard's confinement; porting it
+// would mean re-implementing OS credential-store access and third-party API
+// clients server-side. Per the #249 history-slice precedent, faking or
+// dropping this rather than serving real numbers would make the usage
+// widget lie, which is worse than it staying on the Tauri command. Revisit
+// once a slice gives the TS server its own credential/cookie access story.
 export function loadProviderAccountUsageAccounts() {
 	return TAURI_COMMAND_CLIENT.provider_account_usage.get
 		.invoke<ProviderAccountUsage[]>()
