@@ -21,6 +21,9 @@ function loadThemeRegistration(
 		return Bun.file(new URL(assetPath, import.meta.url)).json();
 	}
 
+	// Loading a static webview-bundled asset, not a general HTTP call; wiring
+	// an HttpClient Layer through this module-scope loader isn't worth it.
+	// @effect-diagnostics-next-line globalFetch:off
 	return fetch(publicPath).then(async (response) => {
 		if (!response.ok) {
 			throw new Error(`${errorPrefix}: ${response.statusText}`);
