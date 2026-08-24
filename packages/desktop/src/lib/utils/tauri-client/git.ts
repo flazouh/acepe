@@ -32,27 +32,31 @@ const unwrapGitCallResult = <Tag extends GitCallResult["op"]>(
 // init/isRepo/currentBranch/listBranches/checkoutBranch/
 // hasUncommittedChanges (branch/checkout), panelStatus/stageFiles/
 // unstageFiles/stageAll/discardChanges/commit/log (stage/commit),
-// push/pull/fetch/remoteStatus (push/pull/remote), and stashList/stashPop/
-// stashDrop (stash) ride the gitCall utility RPC
+// push/pull/fetch/remoteStatus (push/pull/remote), stashList/stashPop/
+// stashDrop (stash), and prepareWorktreeSessionLaunch/
+// discardPreparedWorktreeSessionLaunch/worktreeRemove/worktreeList/
+// loadWorktreeConfig/saveWorktreeConfig/runWorktreeSetup (worktree
+// lifecycle/config) ride the gitCall utility RPC
 // (packages/contracts/src/gitCall.ts) -- a tagged-union request/response
 // pair routed server-side onto GitService
 // (packages/server/src/git/gitCallHandler.ts), per the #249 issue thread's
 // DESIGN DECISION. Growing that union by sub-domain adds zero new RPC
 // primitives after the first.
 //
-// The remaining 13 methods (prepareWorktreeSessionLaunch through
-// saveWorktreeConfig, minus push/pull/fetch/remoteStatus/stashList/
-// stashPop/stashDrop above) still have live callers -- git-panel.svelte,
-// agent-panel-ship-workflow.ts, branch-picker.svelte,
-// project-selection-panel.svelte, worktree-setup-orchestrator.ts, and
-// others -- and stay on TAURI_COMMAND_CLIENT this slice: worktree lifecycle
-// (create/remove/list/rename/reset/disk-size/prepare-launch),
-// worktree-config/setup, and ship/PR/CI. packages/server/src/git/
-// makeGitService.ts's GitService already implements almost all of that
-// logic server-side too; the same one-shot request/response shape that
-// motivated the gitCall utility-RPC pattern for branch/checkout and
-// stage/commit applies to these sub-domains, and a follow-up slice should
-// grow the gitCall union to carry them. See the #249 issue thread.
+// The remaining 6 methods (runStackedAction, collectShipContext, prDetails,
+// prChecks, mergePr, ciJobDetails -- the ship/PR/CI sub-domain) plus
+// watchHead still have live callers -- agent-panel-ship-workflow.ts,
+// agent-panel.svelte, modified-files-header.svelte, pr-link-state-
+// store.svelte.ts, and others -- and stay on TAURI_COMMAND_CLIENT.
+// packages/server/src/git/makeGitService.ts's GitService already
+// implements almost all of the ship/PR/CI logic server-side too; a
+// follow-up slice should grow the gitCall union to carry it. watchHead is
+// different in kind, not just remaining scope: it is a Stream (GitService.
+// watchHead returns Stream.Stream, polling for HEAD changes), and gitCall
+// is a plain one-shot request/response RPC (see rpc.ts's GitCall, which has
+// no `stream: true`), so it cannot ride this union without a second RPC
+// primitive -- out of scope for the gitCall-union slices per the #249
+// issue thread's DESIGN DECISION.
 export const git = {
 	// No live caller today (see #249 batch 2 map); the clone-a-new-project
 	// flow that used this is dormant. GitService.clone already exists
@@ -136,27 +140,31 @@ export const git = {
 		projectPath: string,
 		agentId: string
 	): Effect.Effect<PreparedWorktreeLaunch, AppError> => {
-		return gitCommands.prepare_worktree_session_launch.invoke<PreparedWorktreeLaunch>({
-			projectPath,
-			agentId,
-		});
+		return withRpcClient("git.prepareWorktreeSessionLaunch", (client) =>
+			client.gitCall({ op: "git.prepareWorktreeSessionLaunch", projectPath, agentId })
+		).pipe(
+			Effect.flatMap((result) => unwrapGitCallResult("git.prepareWorktreeSessionLaunch", result)),
+			Effect.map((result) => result.launch)
+		);
 	},
 
 	discardPreparedWorktreeSessionLaunch: (
 		launchToken: string,
 		removeWorktree = false
 	): Effect.Effect<void, AppError> => {
-		return gitCommands.discard_prepared_worktree_session_launch.invoke<void>({
-			launchToken,
-			removeWorktree,
-		});
+		return withRpcClient("git.discardPreparedWorktreeSessionLaunch", (client) =>
+			client.gitCall({
+				op: "git.discardPreparedWorktreeSessionLaunch",
+				launchToken,
+				removeWorktree,
+			})
+		).pipe(Effect.asVoid);
 	},
 
 	worktreeRemove: (worktreePath: string, force?: boolean): Effect.Effect<void, AppError> => {
-		return gitCommands.worktree_remove.invoke<void>({
-			worktreePath,
-			force: force ?? false,
-		});
+		return withRpcClient("git.worktreeRemove", (client) =>
+			client.gitCall({ op: "git.worktreeRemove", worktreePath, force: force ?? false })
+		).pipe(Effect.asVoid);
 	},
 
 	// No live caller today (see #249 batch 2 map); worktree reset has no UI
@@ -166,7 +174,12 @@ export const git = {
 	},
 
 	worktreeList: (projectPath: string): Effect.Effect<WorktreeInfo[], AppError> => {
-		return gitCommands.worktree_list.invoke<WorktreeInfo[]>({ projectPath });
+		return withRpcClient("git.worktreeList", (client) =>
+			client.gitCall({ op: "git.worktreeList", projectPath })
+		).pipe(
+			Effect.flatMap((result) => unwrapGitCallResult("git.worktreeList", result)),
+			Effect.map((result) => [...result.worktrees])
+		);
 	},
 
 	// No live caller today (see #249 batch 2 map); worktree rename has no UI
@@ -394,21 +407,52 @@ export const git = {
 	},
 
 	loadWorktreeConfig: (projectPath: string): Effect.Effect<WorktreeConfig | null, AppError> => {
-		return gitCommands.load_worktree_config.invoke<WorktreeConfig | null>({ projectPath });
+		return withRpcClient("git.loadWorktreeConfig", (client) =>
+			client.gitCall({ op: "git.loadWorktreeConfig", projectPath })
+		).pipe(
+			Effect.flatMap((result) => unwrapGitCallResult("git.loadWorktreeConfig", result)),
+			Effect.map((result) =>
+				result.config === null ? null : { setupCommands: [...result.config.setupCommands] }
+			)
+		);
 	},
 
+	// gitCall's git.runWorktreeSetup result mirrors GitService's SetupResult
+	// shape (outputs/success/error), which differs from this facade's
+	// long-standing SetupResult type (commandsRun/output, and a per-command
+	// success flag) -- worktree-setup-orchestrator.ts reads commandsRun/
+	// success/error off the return value, so this maps shapes rather than
+	// changing the facade's signature.
 	runWorktreeSetup: (
 		worktreePath: string,
 		projectPath: string
 	): Effect.Effect<SetupResult, AppError> => {
-		return gitCommands.run_worktree_setup.invoke<SetupResult>({ worktreePath, projectPath });
+		return withRpcClient("git.runWorktreeSetup", (client) =>
+			client.gitCall({ op: "git.runWorktreeSetup", worktreePath, projectPath })
+		).pipe(
+			Effect.flatMap((result) => unwrapGitCallResult("git.runWorktreeSetup", result)),
+			Effect.map(({ result }) => ({
+				success: result.success,
+				commandsRun: result.outputs.length,
+				error: result.error,
+				output: result.outputs.map((entry) => ({
+					command: entry.command,
+					success: entry.exitCode === 0,
+					stdout: entry.stdout,
+					stderr: entry.stderr,
+					exitCode: entry.exitCode,
+				})),
+			}))
+		);
 	},
 
 	saveWorktreeConfig: (
 		projectPath: string,
 		setupCommands: string[]
 	): Effect.Effect<void, AppError> => {
-		return gitCommands.save_worktree_config.invoke<void>({ projectPath, setupCommands });
+		return withRpcClient("git.saveWorktreeConfig", (client) =>
+			client.gitCall({ op: "git.saveWorktreeConfig", projectPath, setupCommands })
+		).pipe(Effect.asVoid);
 	},
 };
 

@@ -1,6 +1,7 @@
 import { type GitCallRequest, type GitCallResult, RpcGitCallError } from "@acepe/contracts"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
+import * as Option from "effect/Option"
 import * as Path from "effect/Path"
 import type * as Schema from "effect/Schema"
 import { guardFsPath } from "../rpc/fsPathGuard.ts"
@@ -10,9 +11,9 @@ import { GitService } from "./Services/GitService.ts"
 // Routes the gitCall utility RPC's tagged-union request onto the existing
 // GitService (makeGitService.ts already implements nearly all of this
 // logic). This slice carries the branch/checkout, stage/commit,
-// push/pull/remote-status, and stash sub-domains -- see gitCall.ts's header
-// comment and the #249 issue thread's DESIGN DECISION for the full
-// sub-domain roadmap.
+// push/pull/remote-status, stash, and worktree lifecycle/config
+// sub-domains -- see gitCall.ts's header comment and the #249 issue
+// thread's DESIGN DECISION for the full sub-domain roadmap.
 //
 // Every filesystem path a request carries (projectPath, and sub-domain-
 // specific paths like worktreePath) is confined to a known project root or
@@ -174,6 +175,73 @@ export const routeGitCall = Effect.fn("routeGitCall")(function*(request: GitCall
 				Effect.mapError(toRpcGitCallError(request.op))
 			)
 			return { op: "git.stashDrop" } as const satisfies GitCallResult
+		}
+		case "git.worktreeRemove": {
+			yield* guard(request.worktreePath)
+			yield* git.worktreeRemove({
+				worktreePath: request.worktreePath,
+				...(request.force === undefined ? {} : { force: request.force })
+			}).pipe(Effect.mapError(toRpcGitCallError(request.op)))
+			return { op: "git.worktreeRemove" } as const satisfies GitCallResult
+		}
+		case "git.worktreeList": {
+			yield* guard(request.projectPath)
+			const worktrees = yield* git.worktreeList(request.projectPath).pipe(
+				Effect.mapError(toRpcGitCallError(request.op))
+			)
+			return {
+				op: "git.worktreeList",
+				worktrees: Array.from(worktrees)
+			} as const satisfies GitCallResult
+		}
+		case "git.prepareWorktreeSessionLaunch": {
+			yield* guard(request.projectPath)
+			const launch = yield* git.prepareWorktreeSessionLaunch({
+				projectPath: request.projectPath,
+				agentId: request.agentId
+			}).pipe(Effect.mapError(toRpcGitCallError(request.op)))
+			return { op: "git.prepareWorktreeSessionLaunch", launch } as const satisfies GitCallResult
+		}
+		case "git.discardPreparedWorktreeSessionLaunch": {
+			// No path field to guard: the worktree directory this discards is
+			// resolved server-side from the launchToken (see makeGitService.ts's
+			// `launches` Ref, populated only by a prior, already-guarded
+			// prepareWorktreeSessionLaunch call), not from caller-supplied input.
+			yield* git.discardPreparedWorktreeSessionLaunch({
+				launchToken: request.launchToken,
+				...(request.removeWorktree === undefined ? {} : { removeWorktree: request.removeWorktree })
+			}).pipe(Effect.mapError(toRpcGitCallError(request.op)))
+			return { op: "git.discardPreparedWorktreeSessionLaunch" } as const satisfies GitCallResult
+		}
+		case "git.loadWorktreeConfig": {
+			yield* guard(request.projectPath)
+			const config = yield* git.loadWorktreeConfig(request.projectPath).pipe(
+				Effect.mapError(toRpcGitCallError(request.op))
+			)
+			return {
+				op: "git.loadWorktreeConfig",
+				config: Option.isSome(config) ? config.value : null
+			} as const satisfies GitCallResult
+		}
+		case "git.saveWorktreeConfig": {
+			yield* guard(request.projectPath)
+			yield* git.saveWorktreeConfig({
+				projectPath: request.projectPath,
+				setupCommands: request.setupCommands
+			}).pipe(Effect.mapError(toRpcGitCallError(request.op)))
+			return { op: "git.saveWorktreeConfig" } as const satisfies GitCallResult
+		}
+		case "git.runWorktreeSetup": {
+			yield* guard(request.worktreePath)
+			yield* guard(request.projectPath)
+			const result = yield* git.runWorktreeSetup({
+				worktreePath: request.worktreePath,
+				projectPath: request.projectPath
+			}).pipe(Effect.mapError(toRpcGitCallError(request.op)))
+			return {
+				op: "git.runWorktreeSetup",
+				result: { success: result.success, outputs: Array.from(result.outputs), error: result.error }
+			} as const satisfies GitCallResult
 		}
 	}
 })

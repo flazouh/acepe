@@ -359,6 +359,182 @@ describe("git tauri client", () => {
 		expect(requested).toEqual({ op: "git.stashDrop", projectPath: "/tmp/acepe", index: 1 });
 	});
 
+	it("prepareWorktreeSessionLaunch sends the agentId and returns the launch", async () => {
+		let requested: unknown = null;
+		const launch = {
+			launchToken: "token-1",
+			sequenceId: 1,
+			worktree: {
+				name: "clever-falcon",
+				branch: "clever-falcon",
+				directory: "/tmp/acepe-wt/clever-falcon",
+				origin: "acepe" as const,
+			},
+		};
+		setAppRpcClientForTest(
+			makeClient((request) => {
+				requested = request;
+				return Effect.succeed({ op: "git.prepareWorktreeSessionLaunch", launch });
+			})
+		);
+
+		const result = await Effect.runPromise(
+			Effect.result(git.prepareWorktreeSessionLaunch("/tmp/acepe", "agent-1"))
+		);
+
+		expect(Result.getOrThrow(result)).toEqual(launch);
+		expect(requested).toEqual({
+			op: "git.prepareWorktreeSessionLaunch",
+			projectPath: "/tmp/acepe",
+			agentId: "agent-1",
+		});
+	});
+
+	it("discardPreparedWorktreeSessionLaunch sends the launchToken and removeWorktree flag", async () => {
+		let requested: unknown = null;
+		setAppRpcClientForTest(
+			makeClient((request) => {
+				requested = request;
+				return Effect.succeed({ op: "git.discardPreparedWorktreeSessionLaunch" });
+			})
+		);
+
+		const result = await Effect.runPromise(
+			Effect.result(git.discardPreparedWorktreeSessionLaunch("token-1", true))
+		);
+
+		expect(Result.isSuccess(result)).toBe(true);
+		expect(requested).toEqual({
+			op: "git.discardPreparedWorktreeSessionLaunch",
+			launchToken: "token-1",
+			removeWorktree: true,
+		});
+	});
+
+	it("worktreeRemove sends the worktreePath and force flag", async () => {
+		let requested: unknown = null;
+		setAppRpcClientForTest(
+			makeClient((request) => {
+				requested = request;
+				return Effect.succeed({ op: "git.worktreeRemove" });
+			})
+		);
+
+		const result = await Effect.runPromise(
+			Effect.result(git.worktreeRemove("/tmp/acepe-wt/clever-falcon", true))
+		);
+
+		expect(Result.isSuccess(result)).toBe(true);
+		expect(requested).toEqual({
+			op: "git.worktreeRemove",
+			worktreePath: "/tmp/acepe-wt/clever-falcon",
+			force: true,
+		});
+	});
+
+	it("worktreeList returns the worktree array", async () => {
+		const worktrees = [
+			{
+				name: "clever-falcon",
+				branch: "clever-falcon",
+				directory: "/tmp/acepe-wt/clever-falcon",
+				origin: "acepe" as const,
+			},
+		];
+		setAppRpcClientForTest(
+			makeClient(() => Effect.succeed({ op: "git.worktreeList", worktrees }))
+		);
+
+		const result = await Effect.runPromise(Effect.result(git.worktreeList("/tmp/acepe")));
+
+		expect(Result.getOrThrow(result)).toEqual(worktrees);
+	});
+
+	it("loadWorktreeConfig returns null when the server has no config", async () => {
+		setAppRpcClientForTest(
+			makeClient(() => Effect.succeed({ op: "git.loadWorktreeConfig", config: null }))
+		);
+
+		const result = await Effect.runPromise(Effect.result(git.loadWorktreeConfig("/tmp/acepe")));
+
+		expect(Result.getOrThrow(result)).toBeNull();
+	});
+
+	it("loadWorktreeConfig returns the setupCommands when the server has a config", async () => {
+		setAppRpcClientForTest(
+			makeClient(() =>
+				Effect.succeed({
+					op: "git.loadWorktreeConfig",
+					config: { setupCommands: ["bun install"] },
+				})
+			)
+		);
+
+		const result = await Effect.runPromise(Effect.result(git.loadWorktreeConfig("/tmp/acepe")));
+
+		expect(Result.getOrThrow(result)).toEqual({ setupCommands: ["bun install"] });
+	});
+
+	it("saveWorktreeConfig sends the projectPath and setupCommands", async () => {
+		let requested: unknown = null;
+		setAppRpcClientForTest(
+			makeClient((request) => {
+				requested = request;
+				return Effect.succeed({ op: "git.saveWorktreeConfig" });
+			})
+		);
+
+		const result = await Effect.runPromise(
+			Effect.result(git.saveWorktreeConfig("/tmp/acepe", ["bun install"]))
+		);
+
+		expect(Result.isSuccess(result)).toBe(true);
+		expect(requested).toEqual({
+			op: "git.saveWorktreeConfig",
+			projectPath: "/tmp/acepe",
+			setupCommands: ["bun install"],
+		});
+	});
+
+	it("runWorktreeSetup maps GitService's SetupResult shape onto the facade's own shape", async () => {
+		let requested: unknown = null;
+		setAppRpcClientForTest(
+			makeClient((request) => {
+				requested = request;
+				return Effect.succeed({
+					op: "git.runWorktreeSetup",
+					result: {
+						success: false,
+						outputs: [
+							{ command: "bun install", stdout: "installed\n", stderr: "", exitCode: 0 },
+							{ command: "bun test", stdout: "", stderr: "boom", exitCode: 1 },
+						],
+						error: "Command failed: bun test",
+					},
+				});
+			})
+		);
+
+		const result = await Effect.runPromise(
+			Effect.result(git.runWorktreeSetup("/tmp/acepe-wt/clever-falcon", "/tmp/acepe"))
+		);
+
+		expect(Result.getOrThrow(result)).toEqual({
+			success: false,
+			commandsRun: 2,
+			error: "Command failed: bun test",
+			output: [
+				{ command: "bun install", success: true, stdout: "installed\n", stderr: "", exitCode: 0 },
+				{ command: "bun test", success: false, stdout: "", stderr: "boom", exitCode: 1 },
+			],
+		});
+		expect(requested).toEqual({
+			op: "git.runWorktreeSetup",
+			worktreePath: "/tmp/acepe-wt/clever-falcon",
+			projectPath: "/tmp/acepe",
+		});
+	});
+
 	it("dies when the server routes to the wrong op", async () => {
 		setAppRpcClientForTest(
 			// The server would never legitimately answer a git.isRepo request with

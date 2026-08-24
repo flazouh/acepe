@@ -424,6 +424,114 @@ Vitest.layer(Layer.mergeAll(TestLive, PlatformLive))("gitCallHandler", (it) => {
 		})
 	)
 
+	it.effect(
+		"git.prepareWorktreeSessionLaunch, git.worktreeList, and git.worktreeRemove drive an acepe worktree's lifecycle",
+		() =>
+			Effect.gen(function*() {
+				const dir = yield* freshRepoDir("worktree-lifecycle")
+				yield* initRepoWithCommit(dir)
+
+				const prepared = yield* routeGitCall({
+					op: "git.prepareWorktreeSessionLaunch",
+					projectPath: dir,
+					agentId: "agent-1"
+				})
+				if (prepared.op !== "git.prepareWorktreeSessionLaunch") {
+					return yield* Effect.die("expected git.prepareWorktreeSessionLaunch result")
+				}
+				Vitest.assert.strictEqual(prepared.launch.worktree.origin, "acepe")
+				Vitest.assert.strictEqual(prepared.launch.launchToken.length > 0, true)
+
+				const listed = yield* routeGitCall({ op: "git.worktreeList", projectPath: dir })
+				if (listed.op !== "git.worktreeList") {
+					return yield* Effect.die("expected git.worktreeList result")
+				}
+				Vitest.assert.strictEqual(
+					listed.worktrees.some((wt) => wt.name === prepared.launch.worktree.name),
+					true
+				)
+
+				const discarded = yield* routeGitCall({
+					op: "git.discardPreparedWorktreeSessionLaunch",
+					launchToken: prepared.launch.launchToken,
+					removeWorktree: true
+				})
+				Vitest.assert.deepStrictEqual(discarded, {
+					op: "git.discardPreparedWorktreeSessionLaunch"
+				})
+
+				const afterDiscard = yield* routeGitCall({ op: "git.worktreeList", projectPath: dir })
+				if (afterDiscard.op !== "git.worktreeList") {
+					return yield* Effect.die("expected git.worktreeList result")
+				}
+				Vitest.assert.strictEqual(
+					afterDiscard.worktrees.some((wt) => wt.name === prepared.launch.worktree.name),
+					false
+				)
+			})
+	)
+
+	it.effect(
+		"git.worktreeRemove removes a worktree created outside prepareWorktreeSessionLaunch",
+		() =>
+			Effect.gen(function*() {
+				const git = yield* GitService
+				const dir = yield* freshRepoDir("worktree-remove")
+				yield* initRepoWithCommit(dir)
+				const created = yield* git.worktreeCreate(dir)
+
+				const removed = yield* routeGitCall({
+					op: "git.worktreeRemove",
+					worktreePath: created.directory,
+					force: true
+				})
+				Vitest.assert.deepStrictEqual(removed, { op: "git.worktreeRemove" })
+
+				const listed = yield* routeGitCall({ op: "git.worktreeList", projectPath: dir })
+				if (listed.op !== "git.worktreeList") {
+					return yield* Effect.die("expected git.worktreeList result")
+				}
+				Vitest.assert.strictEqual(listed.worktrees.some((wt) => wt.name === created.name), false)
+			})
+	)
+
+	it.effect(
+		"git.saveWorktreeConfig, git.loadWorktreeConfig, and git.runWorktreeSetup round-trip a .acepe.json",
+		() =>
+			Effect.gen(function*() {
+				const dir = yield* freshRepoDir("worktree-config")
+				yield* initRepoWithCommit(dir)
+
+				const beforeSave = yield* routeGitCall({ op: "git.loadWorktreeConfig", projectPath: dir })
+				Vitest.assert.deepStrictEqual(beforeSave, { op: "git.loadWorktreeConfig", config: null })
+
+				const saved = yield* routeGitCall({
+					op: "git.saveWorktreeConfig",
+					projectPath: dir,
+					setupCommands: ["echo one", "echo two"]
+				})
+				Vitest.assert.deepStrictEqual(saved, { op: "git.saveWorktreeConfig" })
+
+				const loaded = yield* routeGitCall({ op: "git.loadWorktreeConfig", projectPath: dir })
+				Vitest.assert.deepStrictEqual(loaded, {
+					op: "git.loadWorktreeConfig",
+					config: { setupCommands: ["echo one", "echo two"] }
+				})
+
+				const setup = yield* routeGitCall({
+					op: "git.runWorktreeSetup",
+					worktreePath: dir,
+					projectPath: dir
+				})
+				if (setup.op !== "git.runWorktreeSetup") {
+					return yield* Effect.die("expected git.runWorktreeSetup result")
+				}
+				Vitest.assert.strictEqual(setup.result.success, true)
+				Vitest.assert.strictEqual(setup.result.outputs.length, 2)
+				Vitest.assert.strictEqual(setup.result.outputs[0]?.stdout.trim(), "one")
+			})
+	)
+
 	it.effect("denies a projectPath outside every known root", () =>
 		Effect.gen(function*() {
 			const fs = yield* FileSystem.FileSystem

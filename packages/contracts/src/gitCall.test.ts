@@ -78,6 +78,51 @@ describe("GitCallRequest", () => {
 		expect(decoded).toEqual({ op: "git.stashPop", projectPath: "/tmp/acepe", index: 0 })
 	})
 
+	it("decodes a worktree lifecycle op with its own path field", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(GitCallRequest)({
+				op: "git.worktreeRemove",
+				worktreePath: "/tmp/acepe-wt/clever-falcon",
+				force: true,
+			}),
+		)
+		expect(decoded).toEqual({
+			op: "git.worktreeRemove",
+			worktreePath: "/tmp/acepe-wt/clever-falcon",
+			force: true,
+		})
+	})
+
+	it("decodes a runWorktreeSetup request with two distinct path fields", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(GitCallRequest)({
+				op: "git.runWorktreeSetup",
+				worktreePath: "/tmp/acepe-wt/clever-falcon",
+				projectPath: "/tmp/acepe",
+			}),
+		)
+		expect(decoded).toEqual({
+			op: "git.runWorktreeSetup",
+			worktreePath: "/tmp/acepe-wt/clever-falcon",
+			projectPath: "/tmp/acepe",
+		})
+	})
+
+	it("decodes a discardPreparedWorktreeSessionLaunch request with no path field", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(GitCallRequest)({
+				op: "git.discardPreparedWorktreeSessionLaunch",
+				launchToken: "token-1",
+				removeWorktree: true,
+			}),
+		)
+		expect(decoded).toEqual({
+			op: "git.discardPreparedWorktreeSessionLaunch",
+			launchToken: "token-1",
+			removeWorktree: true,
+		})
+	})
+
 	it("rejects a blank projectPath", () => {
 		const decoded = Effect.runSyncExit(
 			Schema.decodeUnknownEffect(GitCallRequest)({
@@ -172,5 +217,45 @@ describe("GitCallResult", () => {
 			op: "git.stashList",
 			entries: [{ index: 0, message: "WIP on main", date: "2 hours ago" }],
 		})
+	})
+
+	it("decodes a prepareWorktreeSessionLaunch result's nested worktree info", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(GitCallResult)({
+				op: "git.prepareWorktreeSessionLaunch",
+				launch: {
+					launchToken: "token-1",
+					sequenceId: 1,
+					worktree: {
+						name: "clever-falcon",
+						branch: "clever-falcon",
+						directory: "/tmp/acepe-wt/clever-falcon",
+						origin: "acepe",
+					},
+				},
+			}),
+		)
+		expect(decoded.op).toBe("git.prepareWorktreeSessionLaunch")
+		if (decoded.op === "git.prepareWorktreeSessionLaunch") {
+			expect(decoded.launch.worktree.origin).toBe("acepe")
+		}
+	})
+
+	it("decodes a runWorktreeSetup result's per-command outputs", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(GitCallResult)({
+				op: "git.runWorktreeSetup",
+				result: {
+					success: false,
+					outputs: [{ command: "bun install", stdout: "", stderr: "boom", exitCode: 1 }],
+					error: "Command failed: bun install",
+				},
+			}),
+		)
+		expect(decoded.op).toBe("git.runWorktreeSetup")
+		if (decoded.op === "git.runWorktreeSetup") {
+			expect(decoded.result.success).toBe(false)
+			expect(decoded.result.outputs[0]?.exitCode).toBe(1)
+		}
 	})
 })
