@@ -1,9 +1,7 @@
 <script lang="ts">
 import { fromPromise } from "@acepe/effect-result/fromPromise";
 import { Button } from "@acepe/ui";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { relaunch } from "@tauri-apps/plugin-process";
-import { check, type DownloadEvent } from "@tauri-apps/plugin-updater";
+import type { DownloadEvent, Update } from "@tauri-apps/plugin-updater";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import { onDestroy, onMount, tick } from "svelte";
@@ -75,6 +73,12 @@ import {
 	getTauriInvokeTimings,
 	type TauriInvokeTimingRecord,
 } from "$lib/utils/tauri-client/invoke.js";
+import {
+	checkForUpdate,
+	getAppVersion,
+	maximizeCurrentWindow,
+	relaunchApp,
+} from "$lib/utils/electrobun-window-shims.js";
 import { playSound, preloadSound } from "$lib/acp/utils/sound.js";
 import { SoundEffect } from "$lib/acp/types/sounds.js";
 import ProjectFileSystemDialog from "$lib/acp/components/file-explorer-modal/project-file-system-dialog.svelte";
@@ -1309,9 +1313,7 @@ function maximizeWindow(): void {
 	}
 
 	startupMaximizeTriggered = true;
-	void getCurrentWindow()
-		.maximize()
-		.catch((error) => {
+	void maximizeCurrentWindow().catch((error) => {
 			startupMaximizeTriggered = false;
 			logger.error("Failed to maximize startup window", {
 				error: error instanceof Error ? error.message : String(error),
@@ -1331,7 +1333,7 @@ function attemptStartupMaximize(): void {
 // Start with null - will be set to "checking" when update check runs (only in production)
 let appVersion = $state<string | null>(null);
 let updaterState = $state<UpdaterBannerState>(createIdleUpdaterState());
-let availableUpdate = $state<Awaited<ReturnType<typeof check>> | null>(null);
+let availableUpdate = $state<Update | null>(null);
 let updatePollTimer = $state<ReturnType<typeof setInterval> | null>(null);
 let devUpdateStartTimer = $state<ReturnType<typeof setTimeout> | null>(null);
 let devUpdateStepTimer = $state<ReturnType<typeof setInterval> | null>(null);
@@ -1538,7 +1540,7 @@ async function checkForAppUpdate(_trigger: UpdateCheckTrigger): Promise<void> {
 	updaterState = createCheckingUpdaterState();
 	const result = await Effect.runPromise(
 		fromPromise(
-			() => check(),
+			() => checkForUpdate(),
 			(e) => (e instanceof Error ? e : new Error(String(e)))
 		).pipe(
 			Effect.match({
@@ -1599,7 +1601,7 @@ async function installAvailableUpdate(): Promise<void> {
 
 	updaterState = createInstallingUpdaterState(availableUpdate.version);
 	await Effect.runPromise(
-		installDownloadedUpdate(availableUpdate, relaunch).pipe(
+		installDownloadedUpdate(availableUpdate, relaunchApp).pipe(
 			Effect.match({
 				onSuccess: () => undefined,
 				onFailure: (error) => {
@@ -1625,11 +1627,9 @@ onMount(async () => {
 	const initResult = await Effect.runPromise(Effect.result(viewState.initialize()));
 	mainAppInitializationCompleteAtMs = performance.now();
 
-	void import("@tauri-apps/api/app")
-		.then((mod) => mod.getVersion())
-		.then((version) => {
-			appVersion = version;
-		});
+	void getAppVersion().then((version) => {
+		appVersion = version;
+	});
 
 	if (import.meta.env.DEV) {
 		installStreamingReproQaHook();

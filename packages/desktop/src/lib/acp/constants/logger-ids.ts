@@ -41,6 +41,7 @@ export const LOGGER_IDS = {
 	TODO_STATE: "todo-state",
 	USE_PLAN: "use-plan",
 	SESSION_STORE: "session-store",
+	ELECTROBUN_SHIMS: "electrobun-shims",
 } as const;
 
 export type LoggerId = (typeof LOGGER_IDS)[keyof typeof LOGGER_IDS];
