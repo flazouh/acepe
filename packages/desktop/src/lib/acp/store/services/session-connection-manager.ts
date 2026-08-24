@@ -537,18 +537,35 @@ export class SessionConnectionManager {
 				const explicitInitialModel = options.initialModelId
 					? (availableModels.find((model) => model.id === options.initialModelId) ?? null)
 					: null;
+				if (options.initialModeId && explicitInitialMode === null) {
+					// A requested mode id the live agent doesn't report is not a user
+					// mistake to fail loudly on: the desktop's canonical mode ids
+					// (CanonicalModeId.BUILD = "build") don't line up with this
+					// provider's raw mode ids (Claude Code reports "default", not
+					// "build" -- see ClaudeProvider.ts's CLAUDE_MODES). There is no
+					// server-side normalization between the two today (found live:
+					// every Claude Code session.create failed here, closing the
+					// just-created session). Until that normalization exists,
+					// degrade to the session's own live default mode instead of
+					// aborting session creation -- the live default is the
+					// provider's actual starting mode, which is what "build" means
+					// for a provider with no distinct build/plan mode split anyway.
+					logger.warn(
+						"Requested initial mode is not available for this agent; keeping the session's live default mode instead of failing session creation",
+						{
+							sessionId,
+							requestedModeId: options.initialModeId,
+							availableModeIds: availableModes.map((mode) => mode.id),
+						}
+					);
+				}
 				const explicitSelectionError =
-					options.initialModeId && explicitInitialMode === null
+					options.initialModelId && explicitInitialModel === null
 						? new AgentError(
-								"setMode",
-								new Error(`Requested mode '${options.initialModeId}' is not available`)
+								"setModel",
+								new Error(`Requested model '${options.initialModelId}' is not available`)
 							)
-						: options.initialModelId && explicitInitialModel === null
-							? new AgentError(
-									"setModel",
-									new Error(`Requested model '${options.initialModelId}' is not available`)
-								)
-							: null;
+						: null;
 				const hasExplicitInitialSelection =
 					explicitInitialMode !== null || explicitInitialModel !== null;
 				const targetMode = explicitInitialMode ? explicitInitialMode : currentMode;
