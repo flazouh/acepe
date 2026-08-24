@@ -29,6 +29,7 @@ export {
 	resolveCanonicalAgentPanelSessionSource,
 	resolveCanonicalAgentPanelTurnState,
 } from "./session-status-mapper";
+export { shouldBootstrapTranscriptRows } from "./transcript-rows-bootstrap-gate.js";
 export {
 	createWorktreeCreationState,
 	createWorktreeSetupMatchContext,

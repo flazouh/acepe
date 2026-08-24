@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render } from "@testing-library/svelte";
-import { tick } from "svelte";
+import { flushSync, tick } from "svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TranscriptViewportRow } from "../../../../services/acp-types.js";
 import type { TranscriptRowsState } from "../../../store/transcript-rows-store.js";
@@ -38,15 +38,23 @@ vi.mock("@acepe/ui/agent-panel", async () => ({
 	},
 }));
 
-vi.mock("../../../store/session-store.svelte.js", () => ({
-	getSessionStore: () => ({
-		viewport: {
-			ensureRowsBootstrap: mocks.ensureRowsBootstrap,
-			requestOlderRows: mocks.requestOlderRows,
-			getRowsDiagnostics: () => null,
-		},
-	}),
-}));
+vi.mock("../../../store/session-store.svelte.js", async () => {
+	const { getGraphRevisionFixture } = await import(
+		"./__tests__/fixtures/graph-revision-store.svelte.js"
+	);
+	return {
+		getSessionStore: () => ({
+			read: {
+				getSessionGraphRevision: (sessionId: string) => getGraphRevisionFixture(sessionId),
+			},
+			viewport: {
+				ensureRowsBootstrap: mocks.ensureRowsBootstrap,
+				requestOlderRows: mocks.requestOlderRows,
+				getRowsDiagnostics: () => null,
+			},
+		}),
+	};
+});
 
 vi.mock("../../../store/permission-store.svelte.js", () => ({
 	getPermissionStore: () => ({
@@ -78,6 +86,10 @@ vi.mock("./transcript-viewport-row-renderer.svelte", async () => ({
 }));
 
 import SceneContentViewport from "./scene-content-viewport.svelte";
+import {
+	resetGraphRevisionFixture,
+	setGraphRevisionFixture,
+} from "./__tests__/fixtures/graph-revision-store.svelte.js";
 
 function createRowsProjection(
 	sessionId: string,
@@ -164,11 +176,14 @@ describe("SceneContentViewport row bootstrap", () => {
 		cleanup();
 		mocks.ensureRowsBootstrap.mockReset();
 		mocks.requestOlderRows.mockReset();
+		resetGraphRevisionFixture();
 		vi.useRealTimers();
 		vi.unstubAllGlobals();
 	});
 
-	it("bootstraps rows for real sessions", async () => {
+	it("bootstraps rows for real sessions once canonical graph revision is present", async () => {
+		setGraphRevisionFixture("session-1", { graphRevision: 1 });
+
 		renderViewport({
 			sessionId: "session-1",
 			rowsProjection: null,
@@ -178,6 +193,30 @@ describe("SceneContentViewport row bootstrap", () => {
 		await tick();
 
 		expect(mocks.ensureRowsBootstrap).toHaveBeenCalledWith("session-1");
+	});
+
+	it("withholds bootstrap for a freshly-created session with no canonical graph revision yet, then retries once it materializes", async () => {
+		// Reproduces the fresh-session-transcript bug: sessionId is assigned the
+		// instant a new session is created, well before Rust emits the first
+		// SessionStateGraph envelope. Bootstrapping against that missing
+		// revision is a silent no-op in TranscriptRowsController, so the panel
+		// must not give up permanently — it must retry once canonical state
+		// (the graph revision) actually materializes for this same session.
+		renderViewport({
+			sessionId: "session-fresh",
+			rowsProjection: null,
+			skipRowsBootstrap: false,
+		});
+
+		await tick();
+		expect(mocks.ensureRowsBootstrap).not.toHaveBeenCalled();
+
+		setGraphRevisionFixture("session-fresh", { graphRevision: 1 });
+		flushSync();
+		await tick();
+
+		expect(mocks.ensureRowsBootstrap).toHaveBeenCalledWith("session-fresh");
+		expect(mocks.ensureRowsBootstrap).toHaveBeenCalledTimes(1);
 	});
 
 	it("does not bootstrap rows when synthetic overrides are active", async () => {
