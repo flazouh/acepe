@@ -5,20 +5,60 @@ import type { CloneResult } from "../../acp/types/index.js";
 import type { SetupResult, WorktreeConfig } from "../../acp/types/worktree-config.js";
 import type { PreparedWorktreeLaunch, WorktreeInfo } from "../../acp/types/worktree-info.js";
 import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
+import { unsupportedOnContract } from "./rpc-bridge.ts";
 
 const gitCommands = TAURI_COMMAND_CLIENT.git;
 
+// clone/browseDestination/worktreeCreate/worktreeReset/worktreeRename/
+// worktreeDiskSize/diffStats/stashSave/createBranch/deleteBranch/
+// getOpenPrForBranch have no live caller today (see #249 batch 2 map); each
+// moves to unsupportedOnContract below with its own note.
+//
+// The other 33 methods (init through saveWorktreeConfig) all have live
+// callers -- git-panel.svelte, agent-panel-ship-workflow.ts,
+// branch-picker.svelte, project-selection-panel.svelte,
+// worktree-setup-orchestrator.ts, and others -- and stay on
+// TAURI_COMMAND_CLIENT this slice. packages/server/src/git/makeGitService.ts's
+// GitService already implements almost all of that logic server-side
+// (isRepo/init/branches/worktrees/stage/commit/push/pull/fetch/stash/log/PR/
+// CI/ship-context): it already backs the git.status.refresh/diff.load/
+// blame.load/hunk.accept/hunk.reject dispatch commands the review workspace
+// uses to build its event-sourced gitReview snapshot. But these 33 methods
+// are one-shot request/response calls -- git-panel.svelte reads a direct
+// return value, e.g. `const result = await ... git.commit(...)` -- not state
+// that belongs projected into gitReview. Routing them through the
+// dispatch/decider/event pipeline would mean rewriting every call site to
+// poll a snapshot instead of awaiting a value, which breaks the
+// "component call sites untouched" rule batch 1 established. The right fit
+// is the utility-RPC pattern (getProjectIndex/readTextFile/writeTextFile/
+// getDefaultShell): a named Rpc.make primitive per operation, hand-wired
+// through RPC_PRIMITIVE_TAGS, AcepeRpc's RpcGroup.make, and the exhaustive
+// per-primitive Exit/electrobun-schema blocks in
+// packages/contracts/src/rpc.ts, plus the server handlers and the electrobun
+// bridge. That machinery is intentionally small today (3 primitives added
+// across 2 prior slices); porting all 33 live git.ts methods means ~33 new
+// primitives across that hand-enumerated wiring, which is out of scope for
+// one slice. A follow-up should split this by sub-domain rather than one
+// big-bang: branch/checkout, stage/commit, push/pull/fetch/remote-status,
+// stash, worktree lifecycle (create/remove/list/rename/reset/disk-size/
+// prepare-launch), worktree-config/setup, and ship/PR/CI. See the #249 issue
+// thread.
 export const git = {
+	// No live caller today (see #249 batch 2 map); the clone-a-new-project
+	// flow that used this is dormant. GitService.clone already exists
+	// server-side (makeGitService.ts) but has no RPC wiring yet.
 	clone: (
-		url: string,
-		destination: string,
-		branch?: string
+		_url: string,
+		_destination: string,
+		_branch?: string
 	): Effect.Effect<CloneResult, AppError> => {
-		return gitCommands.clone.invoke<CloneResult>({ url, destination, branch });
+		return unsupportedOnContract("git.clone");
 	},
 
+	// Native OS "choose a folder" dialog for the dormant clone flow above; no
+	// live caller and no TS/RPC concept of a file-system picker dialog today.
 	browseDestination: (): Effect.Effect<string | null, AppError> => {
-		return gitCommands.browse_destination.invoke<string | null>();
+		return unsupportedOnContract("git.browseDestination");
 	},
 
 	init: (projectPath: string): Effect.Effect<void, AppError> => {
@@ -49,8 +89,10 @@ export const git = {
 		return gitCommands.has_uncommitted_changes.invoke<boolean>({ projectPath });
 	},
 
-	worktreeCreate: (projectPath: string): Effect.Effect<WorktreeInfo, AppError> => {
-		return gitCommands.worktree_create.invoke<WorktreeInfo>({ projectPath });
+	// No live caller today (see #249 batch 2 map); worktree creation goes
+	// through prepareWorktreeSessionLaunch below instead.
+	worktreeCreate: (_projectPath: string): Effect.Effect<WorktreeInfo, AppError> => {
+		return unsupportedOnContract("git.worktreeCreate");
 	},
 
 	prepareWorktreeSessionLaunch: (
@@ -80,20 +122,29 @@ export const git = {
 		});
 	},
 
-	worktreeReset: (worktreePath: string): Effect.Effect<void, AppError> => {
-		return gitCommands.worktree_reset.invoke<void>({ worktreePath });
+	// No live caller today (see #249 batch 2 map); worktree reset has no UI
+	// affordance wired up.
+	worktreeReset: (_worktreePath: string): Effect.Effect<void, AppError> => {
+		return unsupportedOnContract("git.worktreeReset");
 	},
 
 	worktreeList: (projectPath: string): Effect.Effect<WorktreeInfo[], AppError> => {
 		return gitCommands.worktree_list.invoke<WorktreeInfo[]>({ projectPath });
 	},
 
-	worktreeRename: (worktreePath: string, newName: string): Effect.Effect<WorktreeInfo, AppError> => {
-		return gitCommands.worktree_rename.invoke<WorktreeInfo>({ worktreePath, newName });
+	// No live caller today (see #249 batch 2 map); worktree rename has no UI
+	// affordance wired up.
+	worktreeRename: (
+		_worktreePath: string,
+		_newName: string
+	): Effect.Effect<WorktreeInfo, AppError> => {
+		return unsupportedOnContract("git.worktreeRename");
 	},
 
-	worktreeDiskSize: (path: string): Effect.Effect<number, AppError> => {
-		return gitCommands.worktree_disk_size.invoke<number>({ path });
+	// No live caller today (see #249 batch 2 map); disk-size display has no UI
+	// affordance wired up.
+	worktreeDiskSize: (_path: string): Effect.Effect<number, AppError> => {
+		return unsupportedOnContract("git.worktreeDiskSize");
 	},
 
 	// ─── Git Panel Operations ───────────────────────────────────────────
@@ -102,8 +153,10 @@ export const git = {
 		return gitCommands.panel_status.invoke<GitPanelFileStatus[]>({ projectPath });
 	},
 
-	diffStats: (projectPath: string): Effect.Effect<GitDiffStats, AppError> => {
-		return gitCommands.diff_stats.invoke<GitDiffStats>({ projectPath });
+	// No live caller today (see #249 batch 2 map); git-panel.svelte derives its
+	// insertion/deletion totals from panelStatus's per-file counts instead.
+	diffStats: (_projectPath: string): Effect.Effect<GitDiffStats, AppError> => {
+		return unsupportedOnContract("git.diffStats");
 	},
 
 	stageFiles: (projectPath: string, files: string[]): Effect.Effect<void, AppError> => {
@@ -154,24 +207,34 @@ export const git = {
 		return gitCommands.stash_drop.invoke<void>({ projectPath, index });
 	},
 
-	stashSave: (projectPath: string, message?: string): Effect.Effect<void, AppError> => {
-		return gitCommands.stash_save.invoke<void>({ projectPath, message });
+	// No live caller today (see #249 batch 2 map); git-panel.svelte only
+	// lists/pops/drops stashes, it never creates one.
+	stashSave: (_projectPath: string, _message?: string): Effect.Effect<void, AppError> => {
+		return unsupportedOnContract("git.stashSave");
 	},
 
 	log: (projectPath: string, limit = 50): Effect.Effect<GitLogEntry[], AppError> => {
 		return gitCommands.log.invoke<GitLogEntry[]>({ projectPath, limit });
 	},
 
+	// No live caller today (see #249 batch 2 map); branch-picker.svelte creates
+	// branches through checkoutBranch's create flag instead.
 	createBranch: (
-		projectPath: string,
-		name: string,
-		startPoint?: string
+		_projectPath: string,
+		_name: string,
+		_startPoint?: string
 	): Effect.Effect<string, AppError> => {
-		return gitCommands.create_branch.invoke<string>({ projectPath, name, startPoint });
+		return unsupportedOnContract("git.createBranch");
 	},
 
-	deleteBranch: (projectPath: string, name: string, force = false): Effect.Effect<void, AppError> => {
-		return gitCommands.delete_branch.invoke<void>({ projectPath, name, force });
+	// No live caller today (see #249 batch 2 map); branch deletion has no UI
+	// affordance wired up.
+	deleteBranch: (
+		_projectPath: string,
+		_name: string,
+		_force = false
+	): Effect.Effect<void, AppError> => {
+		return unsupportedOnContract("git.deleteBranch");
 	},
 
 	/**
@@ -229,8 +292,10 @@ export const git = {
 		return gitCommands.merge_pr.invoke<void>({ projectPath, prNumber, strategy });
 	},
 
-	getOpenPrForBranch: (projectPath: string): Effect.Effect<OpenPrInfo | null, AppError> => {
-		return gitCommands.get_open_pr_for_branch.invoke<OpenPrInfo | null>({ projectPath });
+	// No live caller today (see #249 batch 2 map); pr-link-state-store gets its
+	// open-PR info from prDetails/prChecks once a PR is linked instead.
+	getOpenPrForBranch: (_projectPath: string): Effect.Effect<OpenPrInfo | null, AppError> => {
+		return unsupportedOnContract("git.getOpenPrForBranch");
 	},
 
 	ciJobDetails: (projectPath: string, detailsUrl: string): Effect.Effect<CiJobDetails, AppError> => {
