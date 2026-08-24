@@ -252,6 +252,8 @@ jobs:
             run_bg "cd packages/desktop && bun run check"
             run_bg "cd packages/desktop && bun run check:svelte"
             run_bg "cd packages/desktop && bun run test"
+            run_bg "cd packages/desktop && bun scripts/check-tauri-client-importers.ts"
+            run_bg "cd packages/desktop && bun run lint:effect:ratchet"
           fi
 
           if [ "$RUN_WEBSITE" = "true" ]; then
