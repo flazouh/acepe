@@ -535,6 +535,137 @@ describe("git tauri client", () => {
 		});
 	});
 
+	it("runStackedAction sends the optional prTitle/prBody and returns the nested result", async () => {
+		let requested: unknown = null;
+		const stackedResult = {
+			action: "commit_push_pr" as const,
+			commit: { status: "created" as const, commitSha: "abc123", subject: "fix: thing" },
+			push: { status: "pushed" as const, branch: "feature/x", upstreamBranch: "feature/x" },
+			pr: {
+				status: "created" as const,
+				url: "https://github.com/flazouh/acepe/pull/1",
+				number: 1,
+				title: "Fix thing",
+				baseBranch: "main",
+				headBranch: "feature/x",
+			},
+		};
+		setAppRpcClientForTest(
+			makeClient((request) => {
+				requested = request;
+				return Effect.succeed({ op: "git.runStackedAction", result: stackedResult });
+			})
+		);
+
+		const result = await Effect.runPromise(
+			Effect.result(
+				git.runStackedAction("/tmp/acepe", "commit_push_pr", "fix: thing", "Fix thing")
+			)
+		);
+
+		expect(Result.getOrThrow(result)).toEqual(stackedResult);
+		expect(requested).toEqual({
+			op: "git.runStackedAction",
+			projectPath: "/tmp/acepe",
+			action: "commit_push_pr",
+			commitMessage: "fix: thing",
+			prTitle: "Fix thing",
+		});
+	});
+
+	it("collectShipContext returns null when the server has no staged diff", async () => {
+		setAppRpcClientForTest(
+			makeClient(() => Effect.succeed({ op: "git.collectShipContext", context: null }))
+		);
+
+		const result = await Effect.runPromise(Effect.result(git.collectShipContext("/tmp/acepe")));
+
+		expect(Result.getOrThrow(result)).toBeNull();
+	});
+
+	it("prDetails returns the details with a mutable commits array", async () => {
+		const details = {
+			number: 235,
+			title: "fix(website): remove landing announcement banner",
+			body: "",
+			state: "MERGED" as const,
+			url: "https://github.com/flazouh/acepe/pull/235",
+			isDraft: false,
+			additions: 1,
+			deletions: 1,
+			commits: [{ oid: "abc", messageHeadline: "fix it", additions: 1, deletions: 1 }],
+		};
+		setAppRpcClientForTest(makeClient(() => Effect.succeed({ op: "git.prDetails", details })));
+
+		const result = await Effect.runPromise(Effect.result(git.prDetails("/tmp/acepe", 235)));
+
+		expect(Result.getOrThrow(result)).toEqual(details);
+	});
+
+	it("prChecks returns the checks with a mutable checkRuns array", async () => {
+		const checks = {
+			prNumber: 235,
+			headSha: "abc123",
+			checkRuns: [
+				{
+					name: "build",
+					status: "COMPLETED" as const,
+					conclusion: "SUCCESS" as const,
+					detailsUrl: null,
+					startedAt: null,
+					completedAt: null,
+					workflowName: null,
+				},
+			],
+		};
+		setAppRpcClientForTest(makeClient(() => Effect.succeed({ op: "git.prChecks", checks })));
+
+		const result = await Effect.runPromise(Effect.result(git.prChecks("/tmp/acepe", 235)));
+
+		expect(Result.getOrThrow(result)).toEqual(checks);
+	});
+
+	it("mergePr sends the projectPath, prNumber, and strategy", async () => {
+		let requested: unknown = null;
+		setAppRpcClientForTest(
+			makeClient((request) => {
+				requested = request;
+				return Effect.succeed({ op: "git.mergePr" });
+			})
+		);
+
+		const result = await Effect.runPromise(
+			Effect.result(git.mergePr("/tmp/acepe", 235, "squash"))
+		);
+
+		expect(Result.isSuccess(result)).toBe(true);
+		expect(requested).toEqual({
+			op: "git.mergePr",
+			projectPath: "/tmp/acepe",
+			prNumber: 235,
+			strategy: "squash",
+		});
+	});
+
+	it("ciJobDetails returns the details with a mutable steps array", async () => {
+		const details = {
+			id: 1,
+			name: "build",
+			status: "completed",
+			conclusion: "success",
+			steps: [{ number: 1, name: "checkout", status: "completed", conclusion: "success", log: "" }],
+		};
+		setAppRpcClientForTest(
+			makeClient(() => Effect.succeed({ op: "git.ciJobDetails", details }))
+		);
+
+		const result = await Effect.runPromise(
+			Effect.result(git.ciJobDetails("/tmp/acepe", "https://github.com/flazouh/acepe/actions/runs/1"))
+		);
+
+		expect(Result.getOrThrow(result)).toEqual(details);
+	});
+
 	it("dies when the server routes to the wrong op", async () => {
 		setAppRpcClientForTest(
 			// The server would never legitimately answer a git.isRepo request with

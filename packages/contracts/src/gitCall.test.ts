@@ -123,6 +123,42 @@ describe("GitCallRequest", () => {
 		})
 	})
 
+	it("decodes a runStackedAction op with its optional pr title/body", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(GitCallRequest)({
+				op: "git.runStackedAction",
+				projectPath: "/tmp/acepe",
+				action: "commit_push_pr",
+				commitMessage: "fix: thing",
+				prTitle: "Fix thing",
+			}),
+		)
+		expect(decoded).toEqual({
+			op: "git.runStackedAction",
+			projectPath: "/tmp/acepe",
+			action: "commit_push_pr",
+			commitMessage: "fix: thing",
+			prTitle: "Fix thing",
+		})
+	})
+
+	it("decodes a prDetails/prChecks/mergePr op with its prNumber", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(GitCallRequest)({
+				op: "git.mergePr",
+				projectPath: "/tmp/acepe",
+				prNumber: 42,
+				strategy: "squash",
+			}),
+		)
+		expect(decoded).toEqual({
+			op: "git.mergePr",
+			projectPath: "/tmp/acepe",
+			prNumber: 42,
+			strategy: "squash",
+		})
+	})
+
 	it("rejects a blank projectPath", () => {
 		const decoded = Effect.runSyncExit(
 			Schema.decodeUnknownEffect(GitCallRequest)({
@@ -256,6 +292,75 @@ describe("GitCallResult", () => {
 		if (decoded.op === "git.runWorktreeSetup") {
 			expect(decoded.result.success).toBe(false)
 			expect(decoded.result.outputs[0]?.exitCode).toBe(1)
+		}
+	})
+
+	it("decodes a runStackedAction result's nested commit/push/pr steps", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(GitCallResult)({
+				op: "git.runStackedAction",
+				result: {
+					action: "commit_push_pr",
+					commit: { status: "created", commitSha: "abc123", subject: "fix: thing" },
+					push: { status: "pushed", branch: "feature/x", upstreamBranch: "feature/x" },
+					pr: {
+						status: "created",
+						url: "https://github.com/flazouh/acepe/pull/1",
+						number: 1,
+						title: "Fix thing",
+						baseBranch: "main",
+						headBranch: "feature/x",
+					},
+				},
+			}),
+		)
+		expect(decoded.op).toBe("git.runStackedAction")
+		if (decoded.op === "git.runStackedAction") {
+			expect(decoded.result.pr.status).toBe("created")
+			expect(decoded.result.pr.number).toBe(1)
+		}
+	})
+
+	it("decodes a prDetails result's nested commits", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(GitCallResult)({
+				op: "git.prDetails",
+				details: {
+					number: 235,
+					title: "fix(website): remove landing announcement banner",
+					body: "",
+					state: "MERGED",
+					url: "https://github.com/flazouh/acepe/pull/235",
+					isDraft: false,
+					additions: 1,
+					deletions: 1,
+					commits: [{ oid: "abc", messageHeadline: "fix it", additions: 1, deletions: 1 }],
+				},
+			}),
+		)
+		expect(decoded.op).toBe("git.prDetails")
+		if (decoded.op === "git.prDetails") {
+			expect(decoded.details.state).toBe("MERGED")
+			expect(decoded.details.commits).toHaveLength(1)
+		}
+	})
+
+	it("decodes a ciJobDetails result's nested steps", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(GitCallResult)({
+				op: "git.ciJobDetails",
+				details: {
+					id: 1,
+					name: "build",
+					status: "completed",
+					conclusion: "success",
+					steps: [{ number: 1, name: "checkout", status: "completed", conclusion: "success", log: "" }],
+				},
+			}),
+		)
+		expect(decoded.op).toBe("git.ciJobDetails")
+		if (decoded.op === "git.ciJobDetails") {
+			expect(decoded.details.steps).toHaveLength(1)
 		}
 	})
 })

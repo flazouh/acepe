@@ -10,10 +10,10 @@ import { GitService } from "./Services/GitService.ts"
 
 // Routes the gitCall utility RPC's tagged-union request onto the existing
 // GitService (makeGitService.ts already implements nearly all of this
-// logic). This slice carries the branch/checkout, stage/commit,
-// push/pull/remote-status, stash, and worktree lifecycle/config
-// sub-domains -- see gitCall.ts's header comment and the #249 issue
-// thread's DESIGN DECISION for the full sub-domain roadmap.
+// logic, including the ship/PR/CI ops' `gh` shell-outs). This carries every
+// live-caller sub-domain: branch/checkout, stage/commit, push/pull/
+// remote-status, stash, worktree lifecycle/config, and ship/PR/CI -- see
+// gitCall.ts's header comment and the #249 issue thread's DESIGN DECISION.
 //
 // Every filesystem path a request carries (projectPath, and sub-domain-
 // specific paths like worktreePath) is confined to a known project root or
@@ -242,6 +242,61 @@ export const routeGitCall = Effect.fn("routeGitCall")(function*(request: GitCall
 				op: "git.runWorktreeSetup",
 				result: { success: result.success, outputs: Array.from(result.outputs), error: result.error }
 			} as const satisfies GitCallResult
+		}
+		case "git.runStackedAction": {
+			yield* guard(request.projectPath)
+			const result = yield* git.runStackedAction({
+				projectPath: request.projectPath,
+				action: request.action,
+				commitMessage: request.commitMessage,
+				...(request.prTitle === undefined ? {} : { prTitle: request.prTitle }),
+				...(request.prBody === undefined ? {} : { prBody: request.prBody })
+			}).pipe(Effect.mapError(toRpcGitCallError(request.op)))
+			return { op: "git.runStackedAction", result } as const satisfies GitCallResult
+		}
+		case "git.collectShipContext": {
+			yield* guard(request.projectPath)
+			const context = yield* git.collectShipContext({
+				projectPath: request.projectPath,
+				...(request.customInstructions === undefined ? {} : { customInstructions: request.customInstructions })
+			}).pipe(Effect.mapError(toRpcGitCallError(request.op)))
+			return {
+				op: "git.collectShipContext",
+				context: Option.isSome(context) ? context.value : null
+			} as const satisfies GitCallResult
+		}
+		case "git.prDetails": {
+			yield* guard(request.projectPath)
+			const details = yield* git.prDetails({
+				projectPath: request.projectPath,
+				prNumber: request.prNumber
+			}).pipe(Effect.mapError(toRpcGitCallError(request.op)))
+			return { op: "git.prDetails", details } as const satisfies GitCallResult
+		}
+		case "git.prChecks": {
+			yield* guard(request.projectPath)
+			const checks = yield* git.prChecks({
+				projectPath: request.projectPath,
+				prNumber: request.prNumber
+			}).pipe(Effect.mapError(toRpcGitCallError(request.op)))
+			return { op: "git.prChecks", checks } as const satisfies GitCallResult
+		}
+		case "git.mergePr": {
+			yield* guard(request.projectPath)
+			yield* git.mergePr({
+				projectPath: request.projectPath,
+				prNumber: request.prNumber,
+				strategy: request.strategy
+			}).pipe(Effect.mapError(toRpcGitCallError(request.op)))
+			return { op: "git.mergePr" } as const satisfies GitCallResult
+		}
+		case "git.ciJobDetails": {
+			yield* guard(request.projectPath)
+			const details = yield* git.ciJobDetails({
+				projectPath: request.projectPath,
+				detailsUrl: request.detailsUrl
+			}).pipe(Effect.mapError(toRpcGitCallError(request.op)))
+			return { op: "git.ciJobDetails", details } as const satisfies GitCallResult
 		}
 	}
 })

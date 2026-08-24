@@ -10,11 +10,12 @@ import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Path from "effect/Path"
+import * as Result from "effect/Result"
 import { type ProjectedProject, ProjectionProjects } from "../persistence/Services/ProjectionProjects.ts"
 import { AppDataDir } from "../rpc/fsPathGuard.ts"
 import { routeGitCall } from "./gitCallHandler.ts"
 import { makeGitService } from "./makeGitService.ts"
-import { runGit } from "./runGit.ts"
+import { runCommand, runGit } from "./runGit.ts"
 import { GitService } from "./Services/GitService.ts"
 
 const PlatformLive = Layer.mergeAll(
@@ -119,6 +120,44 @@ const freshRepoDir = Effect.fn("freshRepoDir")(function*(label: string) {
 	const dir = path.join(project.workspaceRoot, label)
 	yield* fs.makeDirectory(dir, { recursive: true })
 	return dir
+})
+
+// The ship/PR/CI ops that shell out to `gh` (prDetails/prChecks/mergePr) are
+// exercised against the real flazouh/acepe GitHub repo -- gh resolves owner/
+// repo from a plain `origin` remote, no clone or fetch needed (verified: a
+// bare `git init` plus `git remote add origin <url>` is enough). These
+// tests skip cleanly (assert nothing, fail nothing) when `gh` isn't
+// installed/authenticated, rather than faking a response.
+const ghAvailable = Effect.fn("ghAvailable")(function*() {
+	const result = yield* Effect.result(
+		runCommand({
+			bin: "gh",
+			args: Arr.fromIterable(["auth", "status"]),
+			cwd: ".",
+			allowExitCodes: noAllow,
+			env: noneEnv
+		})
+	)
+	return Result.isSuccess(result)
+})
+
+// gh resolves the target owner/repo from the cwd's git remote, so this only
+// needs an initialized repo with the remote configured -- no clone/fetch.
+const addAcepeRemote = Effect.fn("addAcepeRemote")(function*(dir: string) {
+	yield* runGit({
+		gitBin: "git",
+		args: Arr.fromIterable(["init"]),
+		cwd: dir,
+		allowExitCodes: noAllow,
+		env: noneEnv
+	})
+	yield* runGit({
+		gitBin: "git",
+		args: Arr.fromIterable(["remote", "add", "origin", "https://github.com/flazouh/acepe.git"]),
+		cwd: dir,
+		allowExitCodes: noAllow,
+		env: noneEnv
+	})
 })
 
 const initRepoWithCommit = Effect.fn("initRepoWithCommit")(function*(dir: string) {
@@ -529,6 +568,124 @@ Vitest.layer(Layer.mergeAll(TestLive, PlatformLive))("gitCallHandler", (it) => {
 				Vitest.assert.strictEqual(setup.result.success, true)
 				Vitest.assert.strictEqual(setup.result.outputs.length, 2)
 				Vitest.assert.strictEqual(setup.result.outputs[0]?.stdout.trim(), "one")
+			})
+	)
+
+	it.effect("git.runStackedAction commits without pushing when action is 'commit'", () =>
+		Effect.gen(function*() {
+			const fs = yield* FileSystem.FileSystem
+			const path = yield* Path.Path
+			const dir = yield* freshRepoDir("stacked-commit")
+			yield* initRepoWithCommit(dir)
+			yield* fs.writeFileString(path.join(dir, "readme.txt"), "hello\nchanged\n")
+			yield* routeGitCall({ op: "git.stageAll", projectPath: dir })
+
+			const stacked = yield* routeGitCall({
+				op: "git.runStackedAction",
+				projectPath: dir,
+				action: "commit",
+				commitMessage: "stacked commit"
+			})
+			if (stacked.op !== "git.runStackedAction") {
+				return yield* Effect.die("expected git.runStackedAction result")
+			}
+			Vitest.assert.strictEqual(stacked.result.action, "commit")
+			Vitest.assert.strictEqual(stacked.result.commit.status, "created")
+			Vitest.assert.strictEqual(stacked.result.push.status, "skipped_not_requested")
+			Vitest.assert.strictEqual(stacked.result.pr.status, "skipped_not_requested")
+		})
+	)
+
+	it.effect("git.collectShipContext returns null with nothing staged, a prompt once something is", () =>
+		Effect.gen(function*() {
+			const fs = yield* FileSystem.FileSystem
+			const path = yield* Path.Path
+			const dir = yield* freshRepoDir("ship-context")
+			yield* initRepoWithCommit(dir)
+
+			const empty = yield* routeGitCall({ op: "git.collectShipContext", projectPath: dir })
+			Vitest.assert.deepStrictEqual(empty, { op: "git.collectShipContext", context: null })
+
+			yield* fs.writeFileString(path.join(dir, "readme.txt"), "hello\nstaged\n")
+			yield* routeGitCall({ op: "git.stageAll", projectPath: dir })
+
+			const withDiff = yield* routeGitCall({ op: "git.collectShipContext", projectPath: dir })
+			if (withDiff.op !== "git.collectShipContext" || withDiff.context === null) {
+				return yield* Effect.die("expected a non-null git.collectShipContext context")
+			}
+			Vitest.assert.strictEqual(withDiff.context.prompt.length > 0, true)
+			Vitest.assert.strictEqual(withDiff.context.stagedSummary.includes("readme.txt"), true)
+		})
+	)
+
+	it.effect("git.ciJobDetails wraps a non-GitHub detailsUrl into a typed RpcGitCallError", () =>
+		Effect.gen(function*() {
+			const dir = yield* freshRepoDir("ci-job-bad-url")
+			yield* initRepoWithCommit(dir)
+
+			const error = yield* Effect.flip(
+				routeGitCall({
+					op: "git.ciJobDetails",
+					projectPath: dir,
+					detailsUrl: "https://example.com/not-a-github-job"
+				})
+			)
+			Vitest.assert.strictEqual(error._tag, "RpcGitCallError")
+			if (error._tag === "RpcGitCallError") {
+				Vitest.assert.strictEqual(error.op, "git.ciJobDetails")
+			}
+		})
+	)
+
+	it.effect("git.prDetails and git.prChecks read a real, stable merged PR (skips without gh)", () =>
+		Effect.gen(function*() {
+			if ((yield* ghAvailable()) === false) {
+				return
+			}
+			const dir = yield* freshRepoDir("pr-details-checks")
+			yield* addAcepeRemote(dir)
+
+			const details = yield* routeGitCall({ op: "git.prDetails", projectPath: dir, prNumber: 235 })
+			if (details.op !== "git.prDetails") {
+				return yield* Effect.die("expected git.prDetails result")
+			}
+			Vitest.assert.strictEqual(details.details.number, 235)
+			Vitest.assert.strictEqual(details.details.state, "MERGED")
+
+			const checks = yield* routeGitCall({ op: "git.prChecks", projectPath: dir, prNumber: 235 })
+			if (checks.op !== "git.prChecks") {
+				return yield* Effect.die("expected git.prChecks result")
+			}
+			Vitest.assert.strictEqual(checks.checks.prNumber, 235)
+			Vitest.assert.strictEqual(checks.checks.headSha.length > 0, true)
+		})
+	)
+
+	it.effect(
+		"git.mergePr routes a real gh failure into a typed RpcGitCallError, no PR touched (skips without gh)",
+		() =>
+			Effect.gen(function*() {
+				if ((yield* ghAvailable()) === false) {
+					return
+				}
+				const dir = yield* freshRepoDir("merge-pr-not-found")
+				yield* addAcepeRemote(dir)
+
+				// A PR number nobody will ever create: gh fails safely with no side
+				// effects, exercising the routing + error-mapping path without
+				// merging anything real.
+				const error = yield* Effect.flip(
+					routeGitCall({
+						op: "git.mergePr",
+						projectPath: dir,
+						prNumber: 999_999,
+						strategy: "squash"
+					})
+				)
+				Vitest.assert.strictEqual(error._tag, "RpcGitCallError")
+				if (error._tag === "RpcGitCallError") {
+					Vitest.assert.strictEqual(error.op, "git.mergePr")
+				}
 			})
 	)
 

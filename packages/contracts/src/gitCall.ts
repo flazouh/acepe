@@ -8,10 +8,12 @@ import * as Schema from "effect/Schema"
 // comment) adds zero new RPC primitives after this one -- only new members
 // of these two unions plus a routing branch on the server.
 //
-// This slice carries the branch/checkout, stage/commit, push/pull/
-// remote-status, stash, and worktree lifecycle/config sub-domains of
-// tauri-client/git.ts's 33 live methods. The ship/PR/CI sub-domain stays on
-// TAURI_COMMAND_CLIENT and will grow this union in a later slice.
+// This slice carries every live-caller sub-domain of tauri-client/git.ts's
+// 33 methods: branch/checkout, stage/commit, push/pull/remote-status,
+// stash, worktree lifecycle/config, and ship/PR/CI. watchHead (a Stream,
+// not a one-shot request/response) and the handful of methods with no live
+// caller today stay on TAURI_COMMAND_CLIENT -- see tauri-client/git.ts's
+// header comment.
 
 const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
 
@@ -423,6 +425,211 @@ export const GitCallRunWorktreeSetupResult = Schema.Struct({
 })
 export type GitCallRunWorktreeSetupResult = typeof GitCallRunWorktreeSetupResult.Type
 
+// ─── ship/PR/CI ─────────────────────────────────────────────────────────
+
+export const GitCallStackedAction = Schema.Literals(["commit", "commit_push", "commit_push_pr"])
+export type GitCallStackedAction = typeof GitCallStackedAction.Type
+
+export const GitCallStackedCommitStep = Schema.Struct({
+	status: Schema.Literals(["created", "skipped_no_changes"]),
+	commitSha: Schema.optionalKey(Schema.String),
+	subject: Schema.optionalKey(Schema.String),
+})
+export type GitCallStackedCommitStep = typeof GitCallStackedCommitStep.Type
+
+export const GitCallStackedPushStep = Schema.Struct({
+	status: Schema.Literals(["pushed", "skipped_not_requested"]),
+	branch: Schema.optionalKey(Schema.String),
+	upstreamBranch: Schema.optionalKey(Schema.String),
+})
+export type GitCallStackedPushStep = typeof GitCallStackedPushStep.Type
+
+export const GitCallStackedPrStep = Schema.Struct({
+	status: Schema.Literals(["created", "opened_existing", "skipped_not_requested"]),
+	url: Schema.optionalKey(Schema.String),
+	number: Schema.optionalKey(Schema.Int),
+	title: Schema.optionalKey(Schema.String),
+	baseBranch: Schema.optionalKey(Schema.String),
+	headBranch: Schema.optionalKey(Schema.String),
+})
+export type GitCallStackedPrStep = typeof GitCallStackedPrStep.Type
+
+export const GitCallStackedActionResult = Schema.Struct({
+	action: GitCallStackedAction,
+	commit: GitCallStackedCommitStep,
+	push: GitCallStackedPushStep,
+	pr: GitCallStackedPrStep,
+})
+export type GitCallStackedActionResult = typeof GitCallStackedActionResult.Type
+
+export const GitCallRunStackedActionRequest = Schema.Struct({
+	op: Schema.Literal("git.runStackedAction"),
+	projectPath: TrimmedNonEmptyString,
+	action: GitCallStackedAction,
+	commitMessage: Schema.String,
+	prTitle: Schema.optionalKey(Schema.String),
+	prBody: Schema.optionalKey(Schema.String),
+})
+export type GitCallRunStackedActionRequest = typeof GitCallRunStackedActionRequest.Type
+
+export const GitCallRunStackedActionResult = Schema.Struct({
+	op: Schema.Literal("git.runStackedAction"),
+	result: GitCallStackedActionResult,
+})
+export type GitCallRunStackedActionResult = typeof GitCallRunStackedActionResult.Type
+
+export const GitCallShipContext = Schema.Struct({
+	prompt: Schema.String,
+	branch: Schema.String,
+	stagedSummary: Schema.String,
+})
+export type GitCallShipContext = typeof GitCallShipContext.Type
+
+export const GitCallCollectShipContextRequest = Schema.Struct({
+	op: Schema.Literal("git.collectShipContext"),
+	projectPath: TrimmedNonEmptyString,
+	customInstructions: Schema.optionalKey(Schema.String),
+})
+export type GitCallCollectShipContextRequest = typeof GitCallCollectShipContextRequest.Type
+
+export const GitCallCollectShipContextResult = Schema.Struct({
+	op: Schema.Literal("git.collectShipContext"),
+	context: Schema.NullOr(GitCallShipContext),
+})
+export type GitCallCollectShipContextResult = typeof GitCallCollectShipContextResult.Type
+
+export const GitCallPrState = Schema.Literals(["OPEN", "CLOSED", "MERGED"])
+export type GitCallPrState = typeof GitCallPrState.Type
+
+export const GitCallPrCommit = Schema.Struct({
+	oid: Schema.String,
+	messageHeadline: Schema.String,
+	additions: Schema.Int,
+	deletions: Schema.Int,
+})
+export type GitCallPrCommit = typeof GitCallPrCommit.Type
+
+export const GitCallPrDetails = Schema.Struct({
+	number: Schema.Int,
+	title: Schema.String,
+	body: Schema.String,
+	state: GitCallPrState,
+	url: Schema.String,
+	isDraft: Schema.Boolean,
+	additions: Schema.Int,
+	deletions: Schema.Int,
+	commits: Schema.Array(GitCallPrCommit),
+})
+export type GitCallPrDetails = typeof GitCallPrDetails.Type
+
+export const GitCallPrDetailsRequest = Schema.Struct({
+	op: Schema.Literal("git.prDetails"),
+	projectPath: TrimmedNonEmptyString,
+	prNumber: Schema.Int,
+})
+export type GitCallPrDetailsRequest = typeof GitCallPrDetailsRequest.Type
+
+export const GitCallPrDetailsResult = Schema.Struct({
+	op: Schema.Literal("git.prDetails"),
+	details: GitCallPrDetails,
+})
+export type GitCallPrDetailsResult = typeof GitCallPrDetailsResult.Type
+
+export const GitCallPrCheckStatus = Schema.Literals(["QUEUED", "IN_PROGRESS", "COMPLETED", "UNKNOWN"])
+export type GitCallPrCheckStatus = typeof GitCallPrCheckStatus.Type
+
+export const GitCallPrCheckConclusion = Schema.Literals([
+	"SUCCESS",
+	"FAILURE",
+	"NEUTRAL",
+	"CANCELLED",
+	"SKIPPED",
+	"TIMED_OUT",
+	"ACTION_REQUIRED",
+	"STALE",
+	"STARTUP_FAILURE",
+	"UNKNOWN",
+])
+export type GitCallPrCheckConclusion = typeof GitCallPrCheckConclusion.Type
+
+export const GitCallPrCheckRun = Schema.Struct({
+	name: Schema.String,
+	status: GitCallPrCheckStatus,
+	conclusion: Schema.NullOr(GitCallPrCheckConclusion),
+	detailsUrl: Schema.NullOr(Schema.String),
+	startedAt: Schema.NullOr(Schema.String),
+	completedAt: Schema.NullOr(Schema.String),
+	workflowName: Schema.NullOr(Schema.String),
+})
+export type GitCallPrCheckRun = typeof GitCallPrCheckRun.Type
+
+export const GitCallPrChecks = Schema.Struct({
+	prNumber: Schema.Int,
+	headSha: Schema.String,
+	checkRuns: Schema.Array(GitCallPrCheckRun),
+})
+export type GitCallPrChecks = typeof GitCallPrChecks.Type
+
+export const GitCallPrChecksRequest = Schema.Struct({
+	op: Schema.Literal("git.prChecks"),
+	projectPath: TrimmedNonEmptyString,
+	prNumber: Schema.Int,
+})
+export type GitCallPrChecksRequest = typeof GitCallPrChecksRequest.Type
+
+export const GitCallPrChecksResult = Schema.Struct({
+	op: Schema.Literal("git.prChecks"),
+	checks: GitCallPrChecks,
+})
+export type GitCallPrChecksResult = typeof GitCallPrChecksResult.Type
+
+export const GitCallMergeStrategy = Schema.Literals(["squash", "merge", "rebase"])
+export type GitCallMergeStrategy = typeof GitCallMergeStrategy.Type
+
+export const GitCallMergePrRequest = Schema.Struct({
+	op: Schema.Literal("git.mergePr"),
+	projectPath: TrimmedNonEmptyString,
+	prNumber: Schema.Int,
+	strategy: GitCallMergeStrategy,
+})
+export type GitCallMergePrRequest = typeof GitCallMergePrRequest.Type
+
+export const GitCallMergePrResult = Schema.Struct({
+	op: Schema.Literal("git.mergePr"),
+})
+export type GitCallMergePrResult = typeof GitCallMergePrResult.Type
+
+export const GitCallCiJobStep = Schema.Struct({
+	number: Schema.Int,
+	name: Schema.String,
+	status: Schema.String,
+	conclusion: Schema.NullOr(Schema.String),
+	log: Schema.String,
+})
+export type GitCallCiJobStep = typeof GitCallCiJobStep.Type
+
+export const GitCallCiJobDetails = Schema.Struct({
+	id: Schema.Int,
+	name: Schema.String,
+	status: Schema.String,
+	conclusion: Schema.NullOr(Schema.String),
+	steps: Schema.Array(GitCallCiJobStep),
+})
+export type GitCallCiJobDetails = typeof GitCallCiJobDetails.Type
+
+export const GitCallCiJobDetailsRequest = Schema.Struct({
+	op: Schema.Literal("git.ciJobDetails"),
+	projectPath: TrimmedNonEmptyString,
+	detailsUrl: TrimmedNonEmptyString,
+})
+export type GitCallCiJobDetailsRequest = typeof GitCallCiJobDetailsRequest.Type
+
+export const GitCallCiJobDetailsResult = Schema.Struct({
+	op: Schema.Literal("git.ciJobDetails"),
+	details: GitCallCiJobDetails,
+})
+export type GitCallCiJobDetailsResult = typeof GitCallCiJobDetailsResult.Type
+
 // ─── unions ───────────────────────────────────────────────────────────────
 
 export const GitCallRequest = Schema.Union([
@@ -453,6 +660,12 @@ export const GitCallRequest = Schema.Union([
 	GitCallLoadWorktreeConfigRequest,
 	GitCallSaveWorktreeConfigRequest,
 	GitCallRunWorktreeSetupRequest,
+	GitCallRunStackedActionRequest,
+	GitCallCollectShipContextRequest,
+	GitCallPrDetailsRequest,
+	GitCallPrChecksRequest,
+	GitCallMergePrRequest,
+	GitCallCiJobDetailsRequest,
 ])
 export type GitCallRequest = typeof GitCallRequest.Type
 
@@ -484,5 +697,11 @@ export const GitCallResult = Schema.Union([
 	GitCallLoadWorktreeConfigResult,
 	GitCallSaveWorktreeConfigResult,
 	GitCallRunWorktreeSetupResult,
+	GitCallRunStackedActionResult,
+	GitCallCollectShipContextResult,
+	GitCallPrDetailsResult,
+	GitCallPrChecksResult,
+	GitCallMergePrResult,
+	GitCallCiJobDetailsResult,
 ])
 export type GitCallResult = typeof GitCallResult.Type

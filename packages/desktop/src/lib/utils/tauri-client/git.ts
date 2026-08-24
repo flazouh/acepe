@@ -33,30 +33,25 @@ const unwrapGitCallResult = <Tag extends GitCallResult["op"]>(
 // hasUncommittedChanges (branch/checkout), panelStatus/stageFiles/
 // unstageFiles/stageAll/discardChanges/commit/log (stage/commit),
 // push/pull/fetch/remoteStatus (push/pull/remote), stashList/stashPop/
-// stashDrop (stash), and prepareWorktreeSessionLaunch/
+// stashDrop (stash), prepareWorktreeSessionLaunch/
 // discardPreparedWorktreeSessionLaunch/worktreeRemove/worktreeList/
 // loadWorktreeConfig/saveWorktreeConfig/runWorktreeSetup (worktree
-// lifecycle/config) ride the gitCall utility RPC
+// lifecycle/config), and runStackedAction/collectShipContext/prDetails/
+// prChecks/mergePr/ciJobDetails (ship/PR/CI) ride the gitCall utility RPC
 // (packages/contracts/src/gitCall.ts) -- a tagged-union request/response
 // pair routed server-side onto GitService
 // (packages/server/src/git/gitCallHandler.ts), per the #249 issue thread's
-// DESIGN DECISION. Growing that union by sub-domain adds zero new RPC
-// primitives after the first.
+// DESIGN DECISION. That's every live-caller method in this file.
 //
-// The remaining 6 methods (runStackedAction, collectShipContext, prDetails,
-// prChecks, mergePr, ciJobDetails -- the ship/PR/CI sub-domain) plus
-// watchHead still have live callers -- agent-panel-ship-workflow.ts,
-// agent-panel.svelte, modified-files-header.svelte, pr-link-state-
-// store.svelte.ts, and others -- and stay on TAURI_COMMAND_CLIENT.
-// packages/server/src/git/makeGitService.ts's GitService already
-// implements almost all of the ship/PR/CI logic server-side too; a
-// follow-up slice should grow the gitCall union to carry it. watchHead is
-// different in kind, not just remaining scope: it is a Stream (GitService.
-// watchHead returns Stream.Stream, polling for HEAD changes), and gitCall
-// is a plain one-shot request/response RPC (see rpc.ts's GitCall, which has
-// no `stream: true`), so it cannot ride this union without a second RPC
-// primitive -- out of scope for the gitCall-union slices per the #249
-// issue thread's DESIGN DECISION.
+// watchHead is the one live caller left on TAURI_COMMAND_CLIENT, and it's
+// different in kind, not just unmigrated scope: it is a Stream
+// (GitService.watchHead returns Stream.Stream, polling for HEAD changes),
+// and gitCall is a plain one-shot request/response RPC (see rpc.ts's
+// GitCall, which has no `stream: true`), so it cannot ride this union
+// without a second RPC primitive -- out of scope for the gitCall-union
+// slices per the #249 issue thread's DESIGN DECISION. Because of it, this
+// file is not yet off TAURI_COMMAND_CLIENT and check-tauri-client-
+// importers.ts's BASELINE stays where it is.
 export const git = {
 	// No live caller today (see #249 batch 2 map); the clone-a-new-project
 	// flow that used this is dormant. GitService.clone already exists
@@ -351,13 +346,19 @@ export const git = {
 		prTitle?: string,
 		prBody?: string
 	): Effect.Effect<GitStackedActionResult, AppError> => {
-		return gitCommands.run_stacked_action.invoke<GitStackedActionResult>({
-			projectPath,
-			action,
-			commitMessage,
-			prTitle,
-			prBody,
-		});
+		return withRpcClient("git.runStackedAction", (client) =>
+			client.gitCall({
+				op: "git.runStackedAction",
+				projectPath,
+				action,
+				commitMessage,
+				...(prTitle === undefined ? {} : { prTitle }),
+				...(prBody === undefined ? {} : { prBody }),
+			})
+		).pipe(
+			Effect.flatMap((result) => unwrapGitCallResult("git.runStackedAction", result)),
+			Effect.map((result) => result.result)
+		);
 	},
 
 	/**
@@ -368,18 +369,34 @@ export const git = {
 		projectPath: string,
 		customInstructions?: string
 	): Effect.Effect<ShipContext | null, AppError> => {
-		return gitCommands.collect_ship_context.invoke<ShipContext | null>({
-			projectPath,
-			customInstructions,
-		});
+		return withRpcClient("git.collectShipContext", (client) =>
+			client.gitCall({
+				op: "git.collectShipContext",
+				projectPath,
+				...(customInstructions === undefined ? {} : { customInstructions }),
+			})
+		).pipe(
+			Effect.flatMap((result) => unwrapGitCallResult("git.collectShipContext", result)),
+			Effect.map((result) => result.context)
+		);
 	},
 
 	prDetails: (projectPath: string, prNumber: number): Effect.Effect<PrDetails, AppError> => {
-		return gitCommands.pr_details.invoke<PrDetails>({ projectPath, prNumber });
+		return withRpcClient("git.prDetails", (client) =>
+			client.gitCall({ op: "git.prDetails", projectPath, prNumber })
+		).pipe(
+			Effect.flatMap((result) => unwrapGitCallResult("git.prDetails", result)),
+			Effect.map((result) => ({ ...result.details, commits: [...result.details.commits] }))
+		);
 	},
 
 	prChecks: (projectPath: string, prNumber: number): Effect.Effect<PrChecks, AppError> => {
-		return gitCommands.pr_checks.invoke<PrChecks>({ projectPath, prNumber });
+		return withRpcClient("git.prChecks", (client) =>
+			client.gitCall({ op: "git.prChecks", projectPath, prNumber })
+		).pipe(
+			Effect.flatMap((result) => unwrapGitCallResult("git.prChecks", result)),
+			Effect.map((result) => ({ ...result.checks, checkRuns: [...result.checks.checkRuns] }))
+		);
 	},
 
 	mergePr: (
@@ -387,7 +404,9 @@ export const git = {
 		prNumber: number,
 		strategy: MergeStrategy
 	): Effect.Effect<void, AppError> => {
-		return gitCommands.merge_pr.invoke<void>({ projectPath, prNumber, strategy });
+		return withRpcClient("git.mergePr", (client) =>
+			client.gitCall({ op: "git.mergePr", projectPath, prNumber, strategy })
+		).pipe(Effect.asVoid);
 	},
 
 	// No live caller today (see #249 batch 2 map); pr-link-state-store gets its
@@ -397,7 +416,12 @@ export const git = {
 	},
 
 	ciJobDetails: (projectPath: string, detailsUrl: string): Effect.Effect<CiJobDetails, AppError> => {
-		return gitCommands.ci_job_details.invoke<CiJobDetails>({ projectPath, detailsUrl });
+		return withRpcClient("git.ciJobDetails", (client) =>
+			client.gitCall({ op: "git.ciJobDetails", projectPath, detailsUrl })
+		).pipe(
+			Effect.flatMap((result) => unwrapGitCallResult("git.ciJobDetails", result)),
+			Effect.map((result) => ({ ...result.details, steps: [...result.details.steps] }))
+		);
 	},
 
 	// ─── Git HEAD Watcher ──────────────────────────────────────────────
