@@ -18,6 +18,7 @@ import { ProjectedGitReview } from "./git.ts"
 import { GitCallRequest, GitCallResult } from "./gitCall.ts"
 import { ProjectedMcpCatalog } from "./mcp.ts"
 import { ProjectedPreconnectionOptions } from "./preconnection.ts"
+import { GetProviderAccountUsageRequest, GetProviderAccountUsageResponse } from "./providerUsage.ts"
 import { ProjectedSessionReviewState } from "./sessionReview.ts"
 import { ProjectedTerminal } from "./terminal.ts"
 import {
@@ -60,6 +61,7 @@ export const RPC_PRIMITIVE_TAGS = [
 	"writeTextFile",
 	"getDefaultShell",
 	"gitCall",
+	"getProviderAccountUsage",
 ] as const
 export type RpcPrimitiveTag = (typeof RPC_PRIMITIVE_TAGS)[number]
 
@@ -186,6 +188,25 @@ export class RpcGitCallError extends Schema.TaggedError<RpcGitCallError>()(
 	}
 }
 
+// Carries which provider's usage fetch failed and why. In practice
+// getProviderAccountUsage's handler catches this per-provider (see
+// packages/server/src/providerUsage) and folds it into that provider's
+// ProviderAccountUsage.connection: "unavailable" entry rather than failing
+// the whole request -- the RPC-level union member exists for the rare case
+// an unexpected defect needs a typed shape on the wire (e.g. a request
+// schema mismatch upstream of per-provider handling).
+export class RpcProviderUsageError extends Schema.TaggedError<RpcProviderUsageError>()(
+	"RpcProviderUsageError",
+	{
+		provider: Schema.String,
+		detail: Schema.String,
+	},
+) {
+	override get message(): string {
+		return `Provider account usage for '${this.provider}' failed: ${this.detail}`
+	}
+}
+
 export const RpcServerError = Schema.Union([
 	RpcCommandInvariantError,
 	RpcCommandPreviouslyRejectedError,
@@ -197,6 +218,7 @@ export const RpcServerError = Schema.Union([
 	RpcFileIndexNotADirectoryError,
 	RpcFsPathDeniedError,
 	RpcGitCallError,
+	RpcProviderUsageError,
 ])
 export type RpcServerError = typeof RpcServerError.Type
 
@@ -634,6 +656,12 @@ export class GitCall extends Rpc.make("gitCall", {
 	error: RpcServerError,
 }) {}
 
+export class GetProviderAccountUsage extends Rpc.make("getProviderAccountUsage", {
+	payload: GetProviderAccountUsageRequest,
+	success: GetProviderAccountUsageResponse,
+	error: RpcServerError,
+}) {}
+
 export const AcepeRpc = RpcGroup.make(
 	Dispatch,
 	Snapshot,
@@ -644,6 +672,7 @@ export const AcepeRpc = RpcGroup.make(
 	WriteTextFile,
 	GetDefaultShell,
 	GitCall,
+	GetProviderAccountUsage,
 )
 
 type GroupTag = Rpc.Tag<RpcGroup.Rpcs<typeof AcepeRpc>>
@@ -662,6 +691,7 @@ export const ReadTextFileExit = Rpc.exitSchema(ReadTextFile)
 export const WriteTextFileExit = Rpc.exitSchema(WriteTextFile)
 export const GetDefaultShellExit = Rpc.exitSchema(GetDefaultShell)
 export const GitCallExit = Rpc.exitSchema(GitCall)
+export const GetProviderAccountUsageExit = Rpc.exitSchema(GetProviderAccountUsage)
 
 export type ElectrobunRequestSpec = {
 	readonly params: Schema.Top
@@ -764,6 +794,10 @@ export type AcepeElectrobunRpcSchema = {
 				readonly params: typeof GitCallRequest.Encoded
 				readonly response: typeof GitCallExit.Encoded
 			}
+			readonly getProviderAccountUsage: {
+				readonly params: typeof GetProviderAccountUsageRequest.Encoded
+				readonly response: typeof GetProviderAccountUsageExit.Encoded
+			}
 		}
 		readonly messages: Record<string, never>
 	}
@@ -783,6 +817,7 @@ const readTextFileExitJson = Schema.toCodecJson(ReadTextFileExit)
 const writeTextFileExitJson = Schema.toCodecJson(WriteTextFileExit)
 const getDefaultShellExitJson = Schema.toCodecJson(GetDefaultShellExit)
 const gitCallExitJson = Schema.toCodecJson(GitCallExit)
+const getProviderAccountUsageExitJson = Schema.toCodecJson(GetProviderAccountUsageExit)
 
 export const decodeDispatchExit = Schema.decodeUnknownEffect(dispatchExitJson)
 export const decodeSnapshotExit = Schema.decodeUnknownEffect(snapshotExitJson)
@@ -794,6 +829,9 @@ export const decodeReadTextFileExit = Schema.decodeUnknownEffect(readTextFileExi
 export const decodeWriteTextFileExit = Schema.decodeUnknownEffect(writeTextFileExitJson)
 export const decodeGetDefaultShellExit = Schema.decodeUnknownEffect(getDefaultShellExitJson)
 export const decodeGitCallExit = Schema.decodeUnknownEffect(gitCallExitJson)
+export const decodeGetProviderAccountUsageExit = Schema.decodeUnknownEffect(
+	getProviderAccountUsageExitJson,
+)
 export const encodeDispatchExit = Schema.encodeUnknownEffect(dispatchExitJson)
 export const encodeSnapshotExit = Schema.encodeUnknownEffect(snapshotExitJson)
 export const encodeGetProjectIndexExit = Schema.encodeUnknownEffect(getProjectIndexExitJson)
@@ -804,6 +842,9 @@ export const encodeReadTextFileExit = Schema.encodeUnknownEffect(readTextFileExi
 export const encodeWriteTextFileExit = Schema.encodeUnknownEffect(writeTextFileExitJson)
 export const encodeGetDefaultShellExit = Schema.encodeUnknownEffect(getDefaultShellExitJson)
 export const encodeGitCallExit = Schema.encodeUnknownEffect(gitCallExitJson)
+export const encodeGetProviderAccountUsageExit = Schema.encodeUnknownEffect(
+	getProviderAccountUsageExitJson,
+)
 export const decodeEventsRequest = Schema.decodeUnknownEffect(EventsRequest)
 export const decodeSnapshotRequest = Schema.decodeUnknownEffect(SnapshotRequest)
 export const decodeGetProjectIndexRequest = Schema.decodeUnknownEffect(GetProjectIndexRequest)
@@ -814,6 +855,9 @@ export const decodeReadTextFileRequest = Schema.decodeUnknownEffect(ReadTextFile
 export const decodeWriteTextFileRequest = Schema.decodeUnknownEffect(WriteTextFileRequest)
 export const decodeGetDefaultShellRequest = Schema.decodeUnknownEffect(GetDefaultShellRequest)
 export const decodeGitCallRequest = Schema.decodeUnknownEffect(GitCallRequest)
+export const decodeGetProviderAccountUsageRequest = Schema.decodeUnknownEffect(
+	GetProviderAccountUsageRequest,
+)
 export const decodeOrchestrationCommand = Schema.decodeUnknownEffect(OrchestrationCommand)
 export const encodeOrchestrationCommand = Schema.encodeUnknownEffect(OrchestrationCommand)
 export const encodeOrchestrationEvent = Schema.encodeUnknownEffect(OrchestrationEvent)
@@ -851,6 +895,9 @@ export type RpcTransport<R = never> = {
 	) => Effect.Effect<void, RpcClientError, R>
 	readonly getDefaultShell: () => Effect.Effect<string, RpcClientError, R>
 	readonly gitCall: (request: GitCallRequest) => Effect.Effect<GitCallResult, RpcClientError, R>
+	readonly getProviderAccountUsage: (
+		request: GetProviderAccountUsageRequest,
+	) => Effect.Effect<GetProviderAccountUsageResponse, RpcClientError, R>
 }
 
 export type RpcClient<R = never> = RpcTransport<R>
@@ -922,6 +969,7 @@ export const makeResumingRpcClient = <R>(transport: RpcTransport<R>): RpcClient<
 	writeTextFile: transport.writeTextFile,
 	getDefaultShell: transport.getDefaultShell,
 	gitCall: transport.gitCall,
+	getProviderAccountUsage: transport.getProviderAccountUsage,
 	events: (fromSequence) =>
 		Stream.unwrap(
 			Ref.make(fromSequence).pipe(Effect.map((cursor) => resumeEvents(transport, cursor))),

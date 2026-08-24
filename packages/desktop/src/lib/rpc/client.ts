@@ -2,6 +2,7 @@ import {
 	decodeDispatchExit,
 	decodeGetDefaultShellExit,
 	decodeGetProjectIndexExit,
+	decodeGetProviderAccountUsageExit,
 	decodeGitCallExit,
 	decodeInvalidateProjectIndexExit,
 	decodeOrchestrationEvent,
@@ -11,6 +12,7 @@ import {
 	encodeOrchestrationCommand,
 	exitToEffect,
 	type GetDefaultShellRequest,
+	type GetProviderAccountUsageRequest,
 	type GitCallRequest,
 	type OrchestrationCommand,
 	type OrchestrationEvent,
@@ -42,6 +44,7 @@ export type ElectrobunRpcBridge = {
 		readonly writeTextFile: (params: unknown) => Promise<unknown>;
 		readonly getDefaultShell: (params: unknown) => Promise<unknown>;
 		readonly gitCall: (params: unknown) => Promise<unknown>;
+		readonly getProviderAccountUsage: (params: unknown) => Promise<unknown>;
 	};
 	readonly addMessageListener: (message: "events", listener: (payload: unknown) => void) => void;
 	readonly removeMessageListener: (message: "events", listener: (payload: unknown) => void) => void;
@@ -161,6 +164,18 @@ const requestGitCall = Effect.fn("requestGitCall")(function* (
 	return yield* exitToEffect(exit);
 });
 
+const requestGetProviderAccountUsage = Effect.fn("requestGetProviderAccountUsage")(function* (
+	bridge: ElectrobunRpcBridge,
+	request: GetProviderAccountUsageRequest
+) {
+	const encoded = yield* Effect.tryPromise({
+		try: () => bridge.request.getProviderAccountUsage(request),
+		catch: transportErrorFrom,
+	});
+	const exit = yield* decodeGetProviderAccountUsageExit(encoded);
+	return yield* exitToEffect(exit);
+});
+
 const listenForEvents = (
 	bridge: ElectrobunRpcBridge,
 	fromSequence: Sequence
@@ -206,5 +221,7 @@ export const makeElectrobunRpcTransport = (bridge: ElectrobunRpcBridge): RpcTran
 		requestWriteTextFile(bridge, request).pipe(Effect.mapError(toRpcClientError)),
 	getDefaultShell: () => requestGetDefaultShell(bridge, {}).pipe(Effect.mapError(toRpcClientError)),
 	gitCall: (request) => requestGitCall(bridge, request).pipe(Effect.mapError(toRpcClientError)),
+	getProviderAccountUsage: (request) =>
+		requestGetProviderAccountUsage(bridge, request).pipe(Effect.mapError(toRpcClientError)),
 	events: (fromSequence) => listenForEvents(bridge, fromSequence),
 });

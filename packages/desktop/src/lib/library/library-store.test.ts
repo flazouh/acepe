@@ -130,6 +130,7 @@ describe("composeLibraryStore", () => {
 					writeTextFile: () => Effect.void,
 					getDefaultShell: () => Effect.succeed("/bin/zsh"),
 					gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
+					getProviderAccountUsage: () => Effect.succeed([]),
 					events: () => Stream.empty,
 				};
 				const registry = AtomRegistry.make();
@@ -182,6 +183,7 @@ describe("openProject", () => {
 					writeTextFile: () => Effect.void,
 					getDefaultShell: () => Effect.succeed("/bin/zsh"),
 					gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
+					getProviderAccountUsage: () => Effect.succeed([]),
 					events: () => Stream.empty,
 				};
 				const registry = AtomRegistry.make();

@@ -114,6 +114,7 @@ describe("composeSettingsStore", () => {
 					writeTextFile: () => Effect.void,
 					getDefaultShell: () => Effect.succeed("/bin/zsh"),
 					gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
+					getProviderAccountUsage: () => Effect.succeed([]),
 					events: () => Stream.empty,
 				};
 				const seen: Array<number> = [];
@@ -161,6 +162,7 @@ describe("composeSettingsStore", () => {
 					writeTextFile: () => Effect.void,
 					getDefaultShell: () => Effect.succeed("/bin/zsh"),
 					gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
+					getProviderAccountUsage: () => Effect.succeed([]),
 					events: () =>
 						Stream.make({
 							sequence: 5,
@@ -212,6 +214,7 @@ describe("composeSettingsStore", () => {
 					writeTextFile: () => Effect.void,
 					getDefaultShell: () => Effect.succeed("/bin/zsh"),
 					gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
+					getProviderAccountUsage: () => Effect.succeed([]),
 					events: () => Stream.empty,
 				};
 				const store = composeSettingsStore({
@@ -263,6 +266,7 @@ describe("composeSettingsStore", () => {
 					writeTextFile: () => Effect.void,
 					getDefaultShell: () => Effect.succeed("/bin/zsh"),
 					gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
+					getProviderAccountUsage: () => Effect.succeed([]),
 					events: () => Stream.empty,
 				};
 				const store = composeSettingsStore({
@@ -320,6 +324,7 @@ describe("composeSettingsStore", () => {
 					writeTextFile: () => Effect.void,
 					getDefaultShell: () => Effect.succeed("/bin/zsh"),
 					gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
+					getProviderAccountUsage: () => Effect.succeed([]),
 					events: () =>
 						Stream.make({
 							sequence: 5,
@@ -374,6 +379,7 @@ describe("composeSettingsStore", () => {
 					writeTextFile: () => Effect.void,
 					getDefaultShell: () => Effect.succeed("/bin/zsh"),
 					gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
+					getProviderAccountUsage: () => Effect.succeed([]),
 					events: () => Stream.empty,
 				};
 				const store = composeSettingsStore({ client });
