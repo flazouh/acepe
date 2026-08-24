@@ -73,6 +73,7 @@ import { fillVoiceCommand } from "../voice/fillCommand.ts"
 import { fillCheckpointCommand } from "../checkpoint/fillCommand.ts"
 import { CheckpointNotFoundError, CheckpointService } from "../checkpoint/Services/CheckpointService.ts"
 import { routeGitCall } from "../git/gitCallHandler.ts"
+import { routeAgentCall } from "../provider/agentCallHandler.ts"
 import { ProviderUsageService } from "../providerUsage/Services/ProviderUsageService.ts"
 import { guardedReadTextFile, guardedWriteTextFile } from "./fsPathGuard.ts"
 
@@ -471,6 +472,7 @@ export const RpcHandlersLive = AcepeRpc.toLayer(
 			writeTextFile: (request) => guardedWriteTextFile(fs, path, request),
 			getDefaultShell: () => getDefaultShellUtil(),
 			gitCall: (request) => routeGitCall(request),
+			agentCall: (request) => routeAgentCall(request),
 			getProviderAccountUsage: (request) => providerUsage.getUsage(request),
 			listProviderSessions: (request) =>
 				providerDiscovery

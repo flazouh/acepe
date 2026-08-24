@@ -61,6 +61,7 @@ import { makeLiveCodexAdapter } from "./provider/Layers/CodexAdapter.ts"
 import { makeLiveOpenCodeAdapter } from "./provider/Layers/OpenCodeAdapter.ts"
 import { ProviderAdapterRegistryLive } from "./provider/Layers/ProviderAdapterRegistry.ts"
 import { ProviderBridgeLive } from "./provider/Layers/ProviderBridge.ts"
+import { ProviderRegistryLive } from "./provider/Layers/ProviderRegistry.ts"
 import { FileIndexServiceLive } from "./fileIndex/Layers/FileIndexService.ts"
 import { FileIndexWarmOnImportLive } from "./fileIndex/Layers/FileIndexWarmOnImport.ts"
 import { GitServiceLive } from "./git/Layers/GitService.ts"
@@ -295,22 +296,6 @@ export const makeAcepeLive = (input: AcepeLiveInput) => {
 		Layer.provide(appDataDir),
 		Layer.provide(bunPlatform)
 	)
-	const rpc = RpcHandlersLive.pipe(
-		Layer.provideMerge(snapshots),
-		Layer.provideMerge(fileIndex),
-		Layer.provideMerge(providerDiscovery),
-		Layer.provideMerge(claudeHistory),
-		Layer.provideMerge(git),
-		Layer.provideMerge(checkpoint),
-		Layer.provideMerge(skills),
-		Layer.provideMerge(mcpCatalog),
-		Layer.provideMerge(voice),
-		Layer.provideMerge(appDataDir),
-		Layer.provideMerge(terminal),
-		Layer.provideMerge(TerminalRegistryLive),
-		Layer.provideMerge(providerUsage),
-		Layer.provideMerge(bunPlatform)
-	)
 	// Real provider adapters, alongside the tracer HardcodedProviderLive.
 	// Sessions pick one or the other by whether session.create carried a
 	// providerId (see ProviderBridge.ts / decider.ts's session.create case) —
@@ -328,6 +313,12 @@ export const makeAcepeLive = (input: AcepeLiveInput) => {
 	// constructor built yet (unlike the other four, its live ACP-over-stdio
 	// transport was never written) — both are follow-up work for another
 	// lane, not gaps in this wiring.
+	//
+	// Defined before `rpc` (moved up from its original position after `rpc`)
+	// so the agentCall utility RPC's routeAgentCall (rpc/handlers.ts's
+	// agentCall field) can read live adapter presence off the same
+	// ProviderRegistry instance ProviderBridge resolves adapters from --
+	// one registry, two consumers, not two independently-probed registries.
 	const providerAdapters = Layer.unwrap(
 		Effect.gen(function*() {
 			const claude = yield* makeLiveClaudeAdapter()
@@ -341,6 +332,24 @@ export const makeAcepeLive = (input: AcepeLiveInput) => {
 			return ProviderAdapterRegistryLive([claude, codex, opencode])
 		})
 	).pipe(Layer.provide(BunHttpClient.layer), Layer.provide(bunPlatform))
+	const providerRegistry = ProviderRegistryLive.pipe(Layer.provide(providerAdapters))
+	const rpc = RpcHandlersLive.pipe(
+		Layer.provideMerge(snapshots),
+		Layer.provideMerge(fileIndex),
+		Layer.provideMerge(providerDiscovery),
+		Layer.provideMerge(claudeHistory),
+		Layer.provideMerge(git),
+		Layer.provideMerge(checkpoint),
+		Layer.provideMerge(skills),
+		Layer.provideMerge(mcpCatalog),
+		Layer.provideMerge(voice),
+		Layer.provideMerge(appDataDir),
+		Layer.provideMerge(terminal),
+		Layer.provideMerge(TerminalRegistryLive),
+		Layer.provideMerge(providerUsage),
+		Layer.provideMerge(providerRegistry),
+		Layer.provideMerge(bunPlatform)
+	)
 	const providerBridge = ProviderBridgeLive.pipe(Layer.provideMerge(providerAdapters))
 	return Layer.mergeAll(
 		rpc,
