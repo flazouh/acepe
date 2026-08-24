@@ -27,6 +27,7 @@ describe("settingsModalViewModel", () => {
 				mcpCatalog: empty.mcpCatalog,
 				preconnectionOptions: empty.preconnectionOptions,
 				terminal: empty.terminal,
+				sessionReviewState: empty.sessionReviewState,
 			},
 			open: true,
 		});

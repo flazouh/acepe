@@ -146,5 +146,6 @@ export const mergeSetupBarSnapshots = (
 		mcpCatalog: mcpSnap.mcpCatalog,
 		preconnectionOptions: mcpSnap.preconnectionOptions,
 		terminal: mcpSnap.terminal,
+		sessionReviewState: mcpSnap.sessionReviewState,
 	};
 };

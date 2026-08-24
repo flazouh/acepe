@@ -31,6 +31,7 @@ const snapshot: RpcSessionSnapshot = {
 			mcpCatalog: null,
 			preconnectionOptions: null,
 			terminal: null,
+			sessionReviewState: null,
 };
 
 describe("settings view controller mapping", () => {

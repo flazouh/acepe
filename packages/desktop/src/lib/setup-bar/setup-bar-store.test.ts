@@ -108,6 +108,7 @@ describe("composeSetupBarStore", () => {
 									}
 								: null,
 						terminal: null,
+						sessionReviewState: null,
 					});
 				},
 				events: () => Stream.empty,

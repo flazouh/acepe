@@ -95,6 +95,7 @@ describe("conversationFromSnapshot", () => {
 				mcpCatalog: null,
 				preconnectionOptions: null,
 				terminal: null,
+				sessionReviewState: null,
 			},
 			activities: [
 				{
@@ -168,6 +169,7 @@ describe("conversationFromSnapshot", () => {
 				mcpCatalog: null,
 				preconnectionOptions: null,
 				terminal: null,
+				sessionReviewState: null,
 			},
 		});
 
@@ -211,6 +213,7 @@ describe("conversationFromSnapshot", () => {
 				mcpCatalog: null,
 				preconnectionOptions: null,
 				terminal: null,
+				sessionReviewState: null,
 			},
 		});
 
@@ -261,6 +264,7 @@ describe("conversationFromSnapshot", () => {
 				mcpCatalog: null,
 				preconnectionOptions: null,
 				terminal: null,
+				sessionReviewState: null,
 			},
 		});
 

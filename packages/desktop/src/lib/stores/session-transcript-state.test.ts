@@ -71,6 +71,7 @@ describe("transcriptRowsFromSnapshot", () => {
 			mcpCatalog: null,
 			preconnectionOptions: null,
 			terminal: null,
+			sessionReviewState: null,
 		});
 		expect(rows.map((row) => row.role)).toEqual(["user", "assistant"]);
 		expect(rows.map((row) => row.text)).toEqual(["Ping", "Hello from Acepe."]);

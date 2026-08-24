@@ -38,6 +38,7 @@ describe("messagesFromSessionSnapshot", () => {
 			mcpCatalog: null,
 			preconnectionOptions: null,
 			terminal: null,
+			sessionReviewState: null,
 		};
 		expect(messagesFromSessionSnapshot(snapshot)).toBe(snapshot.messages);
 		expect(transcriptRowsFromSessionSnapshot(snapshot)[0]?.rowId).toBe("message-user");

@@ -70,6 +70,7 @@ const rpcSnapshot = (checkpoints: ReadonlyArray<RpcProjectedCheckpoint>): RpcSes
 	mcpCatalog: null,
 	preconnectionOptions: null,
 	terminal: null,
+	sessionReviewState: null,
 });
 
 const installClient = (input: {

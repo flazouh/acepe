@@ -52,6 +52,7 @@ describe("setup bar mapping", () => {
 			mcpCatalog: skillsSnap.mcpCatalog,
 			preconnectionOptions: skillsSnap.preconnectionOptions,
 			terminal: skillsSnap.terminal,
+			sessionReviewState: skillsSnap.sessionReviewState,
 		};
 		const mcpSnap = emptyRpcSessionSnapshot(3);
 		const withMcp = {
@@ -101,6 +102,7 @@ describe("setup bar mapping", () => {
 				],
 			},
 			terminal: mcpSnap.terminal,
+			sessionReviewState: mcpSnap.sessionReviewState,
 		};
 		const merged = mergeSetupBarSnapshots(withSkills, withMcp);
 		expect(mapSkillsToSetupBarRows(merged.skillsCatalog).map((row) => row.name)).toEqual([

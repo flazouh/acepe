@@ -41,6 +41,7 @@ const settingsSnapshot: RpcSessionSnapshot = {
 			mcpCatalog: null,
 			preconnectionOptions: null,
 			terminal: null,
+			sessionReviewState: null,
 };
 
 describe("isSettingsProjectionEvent", () => {
@@ -299,6 +300,7 @@ describe("composeSettingsStore", () => {
 			mcpCatalog: null,
 			preconnectionOptions: null,
 			terminal: null,
+			sessionReviewState: null,
 						});
 					},
 					getProjectIndex: () =>

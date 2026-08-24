@@ -75,6 +75,7 @@ describe("shouldDispatchPrLinkToggle", () => {
 		mcpCatalog: snapshot.mcpCatalog,
 		preconnectionOptions: snapshot.preconnectionOptions,
 		terminal: snapshot.terminal,
+		sessionReviewState: snapshot.sessionReviewState,
 	};
 
 	it("dispatches a manual override", () => {

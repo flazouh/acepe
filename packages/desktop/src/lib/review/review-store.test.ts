@@ -82,6 +82,7 @@ describe("composeReviewStore", () => {
 						mcpCatalog: null,
 						preconnectionOptions: null,
 						terminal: null,
+						sessionReviewState: null,
 					}),
 				events: () => Stream.empty,
 				getProjectIndex: () =>
@@ -151,6 +152,7 @@ describe("composeReviewStore", () => {
 						mcpCatalog: null,
 						preconnectionOptions: null,
 						terminal: null,
+						sessionReviewState: null,
 					}),
 				events: () => Stream.empty,
 				getProjectIndex: () =>
@@ -233,6 +235,7 @@ describe("composeReviewStore", () => {
 						mcpCatalog: null,
 						preconnectionOptions: null,
 						terminal: null,
+						sessionReviewState: null,
 					}),
 				events: () => Stream.empty,
 				getProjectIndex: () =>
