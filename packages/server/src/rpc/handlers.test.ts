@@ -40,6 +40,7 @@ import {
 } from "../persistence/Services/ProjectionSessionMessages.ts"
 import { FileIndexServiceLive } from "../fileIndex/Layers/FileIndexService.ts"
 import { GitServiceLive } from "../git/Layers/GitService.ts"
+import { ProviderSessionDiscoveryLive } from "../history/discovery/ProviderSessionDiscovery.ts"
 import { CheckpointServiceLive } from "../checkpoint/Layers/CheckpointService.ts"
 import { runGit } from "../git/runGit.ts"
 import { OrchestrationEngineLive } from "../orchestration/Layers/OrchestrationEngine.ts"
@@ -168,6 +169,7 @@ const TestLive = RpcHandlersLive.pipe(
 	Layer.provideMerge(ProjectionSnapshotQueryLive),
 	Layer.provideMerge(EngineAndStore),
 	Layer.provideMerge(FileIndexServiceLive),
+	Layer.provideMerge(ProviderSessionDiscoveryLive.pipe(Layer.provide(FileIndexPlatform))),
 	Layer.provideMerge(GitLive),
 	Layer.provideMerge(CheckpointLive),
 	Layer.provideMerge(SkillsLive),
@@ -532,6 +534,26 @@ Vitest.layer(isolatedRpc())("file index rpc", (it) => {
 				client.getProjectIndex({ projectPath: "/missing/acepe-file-index-rpc" })
 			)
 			Vitest.assert.strictEqual(error._tag, "FileIndexRootNotFoundError")
+		})
+	)
+})
+
+Vitest.layer(isolatedRpc())("provider discovery rpc", (it) => {
+	it.effect("returns an empty list over listProviderSessions for a project with no history", () =>
+		Effect.gen(function*() {
+			const client = yield* RpcTest.makeClient(AcepeRpc)
+			const sessions = yield* client.listProviderSessions({
+				projectPath: "/tmp/acepe-provider-discovery-rpc-unknown-project"
+			})
+			Vitest.assert.deepStrictEqual(sessions, [])
+		})
+	)
+
+	it.effect("returns an array over listProviderProjects without erroring", () =>
+		Effect.gen(function*() {
+			const client = yield* RpcTest.makeClient(AcepeRpc)
+			const projects = yield* client.listProviderProjects({})
+			Vitest.assert.isTrue(Array.isArray(projects))
 		})
 	)
 })
