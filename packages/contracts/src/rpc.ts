@@ -1,3 +1,4 @@
+import { AgentCallRequest, AgentCallResult } from "./agentCall.ts"
 import {
 	CheckpointFileCount,
 	CheckpointNumber,
@@ -69,6 +70,7 @@ export const RPC_PRIMITIVE_TAGS = [
 	"writeTextFile",
 	"getDefaultShell",
 	"gitCall",
+	"agentCall",
 	"getProviderAccountUsage",
 	"listProviderSessions",
 	"listProviderProjects",
@@ -667,6 +669,12 @@ export class GitCall extends Rpc.make("gitCall", {
 	error: RpcServerError,
 }) {}
 
+export class AgentCall extends Rpc.make("agentCall", {
+	payload: AgentCallRequest,
+	success: AgentCallResult,
+	error: RpcServerError,
+}) {}
+
 export class GetProviderAccountUsage extends Rpc.make("getProviderAccountUsage", {
 	payload: GetProviderAccountUsageRequest,
 	success: GetProviderAccountUsageResponse,
@@ -708,6 +716,7 @@ export const AcepeRpc = RpcGroup.make(
 	WriteTextFile,
 	GetDefaultShell,
 	GitCall,
+	AgentCall,
 	GetProviderAccountUsage,
 	ListProviderSessions,
 	ListProviderProjects,
@@ -730,6 +739,7 @@ export const ReadTextFileExit = Rpc.exitSchema(ReadTextFile)
 export const WriteTextFileExit = Rpc.exitSchema(WriteTextFile)
 export const GetDefaultShellExit = Rpc.exitSchema(GetDefaultShell)
 export const GitCallExit = Rpc.exitSchema(GitCall)
+export const AgentCallExit = Rpc.exitSchema(AgentCall)
 export const GetProviderAccountUsageExit = Rpc.exitSchema(GetProviderAccountUsage)
 export const ListProviderSessionsExit = Rpc.exitSchema(ListProviderSessions)
 export const ListProviderProjectsExit = Rpc.exitSchema(ListProviderProjects)
@@ -836,6 +846,10 @@ export type AcepeElectrobunRpcSchema = {
 				readonly params: typeof GitCallRequest.Encoded
 				readonly response: typeof GitCallExit.Encoded
 			}
+			readonly agentCall: {
+				readonly params: typeof AgentCallRequest.Encoded
+				readonly response: typeof AgentCallExit.Encoded
+			}
 			readonly getProviderAccountUsage: {
 				readonly params: typeof GetProviderAccountUsageRequest.Encoded
 				readonly response: typeof GetProviderAccountUsageExit.Encoded
@@ -871,6 +885,7 @@ const readTextFileExitJson = Schema.toCodecJson(ReadTextFileExit)
 const writeTextFileExitJson = Schema.toCodecJson(WriteTextFileExit)
 const getDefaultShellExitJson = Schema.toCodecJson(GetDefaultShellExit)
 const gitCallExitJson = Schema.toCodecJson(GitCallExit)
+const agentCallExitJson = Schema.toCodecJson(AgentCallExit)
 const getProviderAccountUsageExitJson = Schema.toCodecJson(GetProviderAccountUsageExit)
 const listProviderSessionsExitJson = Schema.toCodecJson(ListProviderSessionsExit)
 const listProviderProjectsExitJson = Schema.toCodecJson(ListProviderProjectsExit)
@@ -886,6 +901,7 @@ export const decodeReadTextFileExit = Schema.decodeUnknownEffect(readTextFileExi
 export const decodeWriteTextFileExit = Schema.decodeUnknownEffect(writeTextFileExitJson)
 export const decodeGetDefaultShellExit = Schema.decodeUnknownEffect(getDefaultShellExitJson)
 export const decodeGitCallExit = Schema.decodeUnknownEffect(gitCallExitJson)
+export const decodeAgentCallExit = Schema.decodeUnknownEffect(agentCallExitJson)
 export const decodeGetProviderAccountUsageExit = Schema.decodeUnknownEffect(
 	getProviderAccountUsageExitJson,
 )
@@ -902,6 +918,7 @@ export const encodeReadTextFileExit = Schema.encodeUnknownEffect(readTextFileExi
 export const encodeWriteTextFileExit = Schema.encodeUnknownEffect(writeTextFileExitJson)
 export const encodeGetDefaultShellExit = Schema.encodeUnknownEffect(getDefaultShellExitJson)
 export const encodeGitCallExit = Schema.encodeUnknownEffect(gitCallExitJson)
+export const encodeAgentCallExit = Schema.encodeUnknownEffect(agentCallExitJson)
 export const encodeGetProviderAccountUsageExit = Schema.encodeUnknownEffect(
 	getProviderAccountUsageExitJson,
 )
@@ -918,6 +935,7 @@ export const decodeReadTextFileRequest = Schema.decodeUnknownEffect(ReadTextFile
 export const decodeWriteTextFileRequest = Schema.decodeUnknownEffect(WriteTextFileRequest)
 export const decodeGetDefaultShellRequest = Schema.decodeUnknownEffect(GetDefaultShellRequest)
 export const decodeGitCallRequest = Schema.decodeUnknownEffect(GitCallRequest)
+export const decodeAgentCallRequest = Schema.decodeUnknownEffect(AgentCallRequest)
 export const decodeGetProviderAccountUsageRequest = Schema.decodeUnknownEffect(
 	GetProviderAccountUsageRequest,
 )
@@ -963,6 +981,9 @@ export type RpcTransport<R = never> = {
 	) => Effect.Effect<void, RpcClientError, R>
 	readonly getDefaultShell: () => Effect.Effect<string, RpcClientError, R>
 	readonly gitCall: (request: GitCallRequest) => Effect.Effect<GitCallResult, RpcClientError, R>
+	readonly agentCall: (
+		request: AgentCallRequest,
+	) => Effect.Effect<AgentCallResult, RpcClientError, R>
 	readonly getProviderAccountUsage: (
 		request: GetProviderAccountUsageRequest,
 	) => Effect.Effect<GetProviderAccountUsageResponse, RpcClientError, R>
@@ -1048,6 +1069,7 @@ export const makeResumingRpcClient = <R>(transport: RpcTransport<R>): RpcClient<
 	writeTextFile: transport.writeTextFile,
 	getDefaultShell: transport.getDefaultShell,
 	gitCall: transport.gitCall,
+	agentCall: transport.agentCall,
 	getProviderAccountUsage: transport.getProviderAccountUsage,
 	listProviderSessions: transport.listProviderSessions,
 	listProviderProjects: transport.listProviderProjects,

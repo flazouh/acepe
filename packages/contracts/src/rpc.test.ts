@@ -195,6 +195,8 @@ const unusedWriteTextFile: RpcTransport["writeTextFile"] = (_request) => Effect.
 const unusedGetDefaultShell: RpcTransport["getDefaultShell"] = () => Effect.succeed("/bin/zsh")
 const unusedGitCall: RpcTransport["gitCall"] = (_request) =>
 	Effect.succeed({ op: "git.isRepo", isRepo: false })
+const unusedAgentCall: RpcTransport["agentCall"] = (_request) =>
+	Effect.succeed({ op: "agent.list", agents: [] })
 const unusedGetProviderAccountUsage: RpcTransport["getProviderAccountUsage"] = (_request) =>
 	Effect.succeed([])
 const unusedListProviderSessions: RpcTransport["listProviderSessions"] = (_projectPath) =>
@@ -204,9 +206,10 @@ const unusedImportProviderSession: RpcTransport["importProviderSession"] = (_req
 	Effect.succeed({ sessionId, imported: false })
 
 describe("AcepeRpc primitives", () => {
-	it("exposes dispatch, snapshot, events, file index, fs util, git call, provider usage, and provider discovery primitives", () => {
+	it("exposes dispatch, snapshot, events, file index, fs util, git call, agent call, provider usage, and provider discovery primitives", () => {
 		expect(groupTags).toEqual(primitiveTags)
 		expect(groupTags).toEqual([
+			"agentCall",
 			"dispatch",
 			"events",
 			"getDefaultShell",
@@ -507,6 +510,7 @@ const failingAfter = (
 	writeTextFile: unusedWriteTextFile,
 	getDefaultShell: unusedGetDefaultShell,
 	gitCall: unusedGitCall,
+	agentCall: unusedAgentCall,
 	getProviderAccountUsage: unusedGetProviderAccountUsage,
 	listProviderSessions: unusedListProviderSessions,
 	listProviderProjects: unusedListProviderProjects,
@@ -554,6 +558,7 @@ describe("makeResumingRpcClient", () => {
 			writeTextFile: unusedWriteTextFile,
 			getDefaultShell: unusedGetDefaultShell,
 			gitCall: unusedGitCall,
+			agentCall: unusedAgentCall,
 			getProviderAccountUsage: unusedGetProviderAccountUsage,
 	listProviderSessions: unusedListProviderSessions,
 	listProviderProjects: unusedListProviderProjects,
@@ -581,6 +586,7 @@ describe("makeResumingRpcClient", () => {
 			writeTextFile: unusedWriteTextFile,
 			getDefaultShell: unusedGetDefaultShell,
 			gitCall: unusedGitCall,
+			agentCall: unusedAgentCall,
 			getProviderAccountUsage: unusedGetProviderAccountUsage,
 	listProviderSessions: unusedListProviderSessions,
 	listProviderProjects: unusedListProviderProjects,
