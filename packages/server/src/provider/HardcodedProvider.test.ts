@@ -6,6 +6,7 @@ import {
 	ProjectId,
 	SessionCreateCommand,
 	SessionId,
+	tracerAssistantMessageId,
 	TRACER_REPLY_TEXT
 } from "@acepe/contracts"
 import * as BunCrypto from "@effect/platform-bun/BunCrypto"
@@ -30,6 +31,10 @@ import { HardcodedProvider, HardcodedProviderLive } from "./HardcodedProvider.ts
 const projectId = ProjectId.make("project-1")
 const sessionId = SessionId.make("session-1")
 const userMessageId = MessageId.make("message-user")
+const realProviderSessionId = SessionId.make("session-real")
+const realProviderMessageId = MessageId.make("message-real")
+const tracerSessionId = SessionId.make("session-tracer")
+const tracerMessageId = MessageId.make("message-tracer")
 
 const TempSqlite = Layer.unwrap(
 	Effect.gen(function*() {
@@ -106,6 +111,87 @@ Vitest.layer(isolated())("hard-coded provider", (it) => {
 					.join(""),
 				TRACER_REPLY_TEXT
 			)
+		})
+	)
+
+	// Regression: HardcodedProvider used to react to every MessageSent event
+	// with no regard for providerId, so a real-provider session's own reply
+	// (from ProviderBridge.ts, a real adapter) raced the tracer's canned one
+	// and the tracer sometimes won — a real Claude session showing "Hello
+	// from Acepe." instead of the model's actual reply. HardcodedProvider
+	// must now skip any session whose SessionCreated carried a providerId.
+	it.effect("does not reply to a session created with a real providerId", () =>
+		Effect.gen(function*() {
+			const engine = yield* OrchestrationEngine
+			const provider = yield* HardcodedProvider
+			const store = yield* OrchestrationEventStore
+			const secondProjectId = ProjectId.make("project-2")
+			yield* engine.dispatch(
+				ProjectCreateCommand.make({
+					type: "project.create",
+					commandId: CommandId.make("cmd-project-2"),
+					projectId: secondProjectId,
+					title: "Acepe",
+					workspaceRoot: "/tmp/acepe"
+				})
+			)
+			yield* engine.dispatch(
+				SessionCreateCommand.make({
+					type: "session.create",
+					commandId: CommandId.make("cmd-session-real"),
+					sessionId: realProviderSessionId,
+					projectId: secondProjectId,
+					title: "Real provider session",
+					providerId: "claude-code"
+				})
+			)
+			yield* engine.dispatch(
+				MessageSendCommand.make({
+					type: "message.send",
+					commandId: CommandId.make("cmd-message-real"),
+					sessionId: realProviderSessionId,
+					messageId: realProviderMessageId,
+					text: "Ping"
+				})
+			)
+			// Give the tracer a normal session to reply to and wait for THAT
+			// reply: consider() processes events strictly in order, on one
+			// fiber, so by the time this resolves the tracer has already
+			// either claimed or skipped the real-provider session's message
+			// above — no sleep-based polling needed.
+			yield* engine.dispatch(
+				SessionCreateCommand.make({
+					type: "session.create",
+					commandId: CommandId.make("cmd-session-tracer"),
+					sessionId: tracerSessionId,
+					projectId,
+					title: "Tracer session"
+				})
+			)
+			yield* engine.dispatch(
+				MessageSendCommand.make({
+					type: "message.send",
+					commandId: CommandId.make("cmd-message-tracer"),
+					sessionId: tracerSessionId,
+					messageId: tracerMessageId,
+					text: "Ping"
+				})
+			)
+			yield* provider.waitForReply(tracerMessageId)
+
+			const events = yield* Stream.runCollect(store.readFrom(0, 50))
+			const realProviderAssistantId = tracerAssistantMessageId(realProviderMessageId)
+			const realProviderTokens = events.filter(
+				(event) => event.type === "TokenAppended" && event.payload.messageId === realProviderAssistantId
+			)
+			Vitest.assert.strictEqual(realProviderTokens.length, 0)
+
+			const tracerTokens = events.filter(
+				(event) =>
+					event.type === "TokenAppended" &&
+					event.payload.messageId === tracerAssistantMessageId(tracerMessageId)
+			)
+			Vitest.assert.strictEqual(tracerTokens.length, 3)
 		})
 	)
 })
