@@ -1,5 +1,10 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, mock } from "bun:test";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 
+import type { Session } from "../../../../../../acp/application/dto/session.js";
+import { createSession } from "../../../../../../acp/components/agent-input/logic/session-manager.js";
+import type { SessionStore } from "../../../../../../acp/store/session-store.svelte.js";
 import {
 	canSendWithoutSession,
 	resolveEmptyStateAgentId,
@@ -211,4 +216,75 @@ describe("empty-state send state", () => {
 			})
 		).toBe(true);
 	});
+});
+
+// GAP2 regression: the New-chat composer's selected agent must reach
+// session-manager.createSession's agentId, all the way from the live
+// agent list (agentStore.agents, sourced from the agentCall RPC's
+// agent.list op -- see acp/store/agent-store.svelte.ts's
+// loadAvailableAgents). Before that RPC had a real backend, listAgents
+// resolved to an empty array forever, so resolveEmptyStateAgentId had
+// nothing to select and createSession never saw an agentId at all -- a
+// panel could be spawned and sent with no agent (found live, in a
+// QA-spawned panel). This closes the loop end to end at the store/
+// controller seam: given the same shape agentStore.agents holds once
+// listAgents succeeds, the resolved id is exactly what createSession
+// dispatches with.
+// Only `id` is read (sessionCreationHandle reads result.session.id) -- the
+// rest of Session's fields are irrelevant to this seam, so the mock is cast
+// rather than filled in field by field.
+const fakeSession = { id: "session-1" } as unknown as Session;
+
+describe("agent selection propagation from the live agent list to createSession (GAP2)", () => {
+	it("reproduces the live bug: an empty agent list resolves no agent, and createSession never sees one", () => {
+		// The exact shape agentStore.agents holds before listAgents ever
+		// resolves (or when it was unsupportedOnContract, as it was before
+		// GAP1): no agents to offer.
+		const availableAgentIds: readonly string[] = [];
+		const resolvedAgentId = resolveEmptyStateAgentId({
+			selectedAgentId: null,
+			defaultAgentId: null,
+			availableAgentIds,
+		});
+		expect(resolvedAgentId).toBeNull();
+		expect(canSendWithoutSession({ projectPath: "/repo", selectedAgentId: resolvedAgentId })).toBe(
+			false
+		);
+	});
+
+	it("propagates the live agent list's first agent through to createSession's agentId", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				// The shape agentStore.agents holds once listAgents succeeds
+				// (GAP1): at least the always-real claude-code adapter.
+				const availableAgentIds = ["claude-code"];
+				const resolvedAgentId = resolveEmptyStateAgentId({
+					selectedAgentId: null,
+					defaultAgentId: null,
+					availableAgentIds,
+				});
+				expect(resolvedAgentId).toBe("claude-code");
+				expect(
+					canSendWithoutSession({ projectPath: "/repo", selectedAgentId: resolvedAgentId })
+				).toBe(true);
+
+				const createSessionMock = mock(() =>
+					Effect.succeed({ kind: "ready" as const, session: fakeSession })
+				);
+				const mockStore = {
+					connection: { createSession: createSessionMock },
+				} as unknown as SessionStore;
+
+				expect(resolvedAgentId).not.toBeNull();
+				const result = yield* createSession(mockStore, {
+					agentId: resolvedAgentId as string,
+					projectPath: "/repo",
+					projectName: "Repo",
+				}).pipe(Effect.result);
+				expect(Result.isSuccess(result)).toBe(true);
+				expect(createSessionMock).toHaveBeenCalledWith(
+					expect.objectContaining({ agentId: "claude-code", projectPath: "/repo" })
+				);
+			})
+		));
 });

@@ -16,6 +16,7 @@ import { seedGitReview } from "@acepe/server/library/seedGitReview";
 import { seedLibrary } from "@acepe/server/library/seedLibrary";
 import { SKILLS_MCP_SEED_HOME, seedSkillsMcp } from "@acepe/server/library/seedSkillsMcp";
 import {
+	encodedAgentCall,
 	encodedDispatch,
 	encodedGetDefaultShell,
 	encodedGetProjectIndex,
@@ -130,6 +131,7 @@ launched.attach({
 	writeTextFile: (params) => runtime.runPromise(encodedWriteTextFile(params)),
 	getDefaultShell: (params) => runtime.runPromise(encodedGetDefaultShell(params)),
 	gitCall: (params) => runtime.runPromise(encodedGitCall(params)),
+	agentCall: (params) => runtime.runPromise(encodedAgentCall(params)),
 	getProviderAccountUsage: (params) => runtime.runPromise(encodedGetProviderAccountUsage(params)),
 	listProviderSessions: (params) => runtime.runPromise(encodedListProviderSessions(params)),
 	listProviderProjects: (params) => runtime.runPromise(encodedListProviderProjects(params)),

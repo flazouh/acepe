@@ -2230,6 +2230,59 @@ describe("SessionConnectionManager.createSession", () => {
 		expect(stateWriter.addSession).not.toHaveBeenCalled();
 	});
 
+	// Regression: caught live via electrobun-qa. new-chat-dialog.svelte
+	// defaults every new session's initialModeId to CanonicalModeId.BUILD
+	// ("build"), but Claude Code's real ACP modes are "default"/
+	// "acceptEdits"/"plan"/"bypassPermissions" (ClaudeProvider.ts's
+	// CLAUDE_MODES) -- there is no "build" mode, and no server-side
+	// normalization maps one onto the other today. Every real Claude Code
+	// session.create used to fail here and close the session it had just
+	// created, unlike the requested-model-absent case above, which is a
+	// genuine user-facing selection this file already (correctly) fails
+	// loudly on.
+	it("keeps the session's live default mode instead of failing session creation when the requested mode is absent", () => {
+		newSession.mockReturnValue(
+			Effect.succeed({
+				sessionId,
+				modes: {
+					currentModeId: "default",
+					availableModes: [
+						{ id: "default", name: "Default", description: null },
+						{ id: "acceptEdits", name: "Accept edits", description: null },
+						{ id: "plan", name: "Plan", description: null },
+						{ id: "bypassPermissions", name: "Bypass permissions", description: null },
+					],
+				},
+				models: null,
+				availableCommands: [],
+			})
+		);
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			transientProjection,
+			capabilities,
+			entryManager,
+			connectionManager,
+		});
+
+		return runToResult(manager.createSession(
+			{
+				projectPath,
+				agentId,
+				initialModeId: "build",
+			},
+			createMockEventHandler()
+		)).then((result) => {
+			Result.getOrThrow(result);
+			expect(setMode).not.toHaveBeenCalled();
+			expect(closeSession).not.toHaveBeenCalled();
+			expect(stateWriter.addSession).toHaveBeenCalledWith(
+				expect.objectContaining({ id: sessionId })
+			);
+		});
+	});
+
 	it("keeps both the selection and compensating cleanup failures visible", async () => {
 		setMode.mockReturnValue(Effect.fail(new AgentError("setMode", new Error("selection failed"))));
 		closeSession.mockReturnValue(

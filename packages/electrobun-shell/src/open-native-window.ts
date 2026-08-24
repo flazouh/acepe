@@ -113,6 +113,7 @@ export const startElectrobunAcepeApp = <Rpc>(
 							writeTextFile: handlers.writeTextFile,
 							getDefaultShell: handlers.getDefaultShell,
 							gitCall: handlers.gitCall,
+							agentCall: handlers.agentCall,
 							getProviderAccountUsage: handlers.getProviderAccountUsage,
 							listProviderSessions: handlers.listProviderSessions,
 							listProviderProjects: handlers.listProviderProjects,

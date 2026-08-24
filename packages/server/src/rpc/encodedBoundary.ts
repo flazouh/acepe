@@ -1,4 +1,5 @@
 import {
+	decodeAgentCallRequest,
 	decodeEventsRequest,
 	decodeGetDefaultShellRequest,
 	decodeGetProjectIndexRequest,
@@ -12,6 +13,7 @@ import {
 	decodeReadTextFileRequest,
 	decodeSnapshotRequest,
 	decodeWriteTextFileRequest,
+	encodeAgentCallExit,
 	encodeDispatchExit,
 	encodeGetDefaultShellExit,
 	encodeGetProjectIndexExit,
@@ -41,6 +43,7 @@ import { FileIndexNotADirectoryError, FileIndexRootNotFoundError } from "../file
 import { FileIndexService } from "../fileIndex/Services/FileIndexService.ts"
 import { getDefaultShell as getDefaultShellUtil } from "../fsUtil/readWriteText.ts"
 import { routeGitCall } from "../git/gitCallHandler.ts"
+import { routeAgentCall } from "../provider/agentCallHandler.ts"
 import { ProviderSessionDiscovery } from "../history/discovery/ProviderSessionDiscovery.ts"
 import { ClaudeHistory } from "../history/Services/ClaudeHistory.ts"
 import { OrchestrationEventStore } from "../persistence/Services/OrchestrationEventStore.ts"
@@ -184,6 +187,17 @@ export const encodedGitCall = Effect.fn("encodedGitCall")(function*(params: unkn
 		return yield* rpcError.pipe(Exit.fail, encodeGitCallExit)
 	}
 	return yield* encodeGitCallExit(Exit.succeed(outcome.success))
+})
+
+export const encodedAgentCall = Effect.fn("encodedAgentCall")(function*(params: unknown) {
+	const outcome = yield* Effect.result(
+		decodeAgentCallRequest(params).pipe(Effect.flatMap(routeAgentCall))
+	)
+	if (Result.isFailure(outcome)) {
+		const rpcError = toEncodedFsUtilError(outcome.failure)
+		return yield* rpcError.pipe(Exit.fail, encodeAgentCallExit)
+	}
+	return yield* encodeAgentCallExit(Exit.succeed(outcome.success))
 })
 
 export const encodedGetProviderAccountUsage = Effect.fn("encodedGetProviderAccountUsage")(function*(

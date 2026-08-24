@@ -70,6 +70,11 @@ export class SessionLoadingFacade {
 		this.#deps.repository.refreshSessionsFromScan(this.#deps.listState.sessions, entries);
 	}
 
+	/** See SessionRepository.scanSessionProjections. */
+	scanSessionProjections(): Effect.Effect<void, AppError> {
+		return this.#deps.repository.scanSessionProjections(this.#deps.listState.sessions);
+	}
+
 	loadStartupSessions(
 		sessionIds: string[]
 	): Effect.Effect<{ missing: string[]; aliasRemaps: Record<string, string> }, AppError> {

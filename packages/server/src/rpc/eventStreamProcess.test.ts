@@ -76,6 +76,8 @@ Vitest.it.live(
 				Effect.fail(new RpcTransportError({ reason: "unused getDefaultShell" }))
 			const unusedGitCall: RpcTransport["gitCall"] = () =>
 				Effect.fail(new RpcTransportError({ reason: "unused gitCall" }))
+			const unusedAgentCall: RpcTransport["agentCall"] = () =>
+				Effect.fail(new RpcTransportError({ reason: "unused agentCall" }))
 			const unusedGetProviderAccountUsage: RpcTransport["getProviderAccountUsage"] = () =>
 				Effect.fail(new RpcTransportError({ reason: "unused getProviderAccountUsage" }))
 			const unusedListProviderSessions: RpcTransport["listProviderSessions"] = () =>
@@ -93,6 +95,7 @@ Vitest.it.live(
 				writeTextFile: unusedWriteTextFile,
 				getDefaultShell: unusedGetDefaultShell,
 				gitCall: unusedGitCall,
+				agentCall: unusedAgentCall,
 				getProviderAccountUsage: unusedGetProviderAccountUsage,
 				listProviderSessions: unusedListProviderSessions,
 				listProviderProjects: unusedListProviderProjects,

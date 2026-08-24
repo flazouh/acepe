@@ -53,6 +53,10 @@ import { ProjectionSessionMessagesLive } from "../persistence/Layers/ProjectionS
 import { ProjectionSessionsLive } from "../persistence/Layers/ProjectionSessions.ts"
 import { ProjectionStateLive } from "../persistence/Layers/ProjectionState.ts"
 import { McpCatalogLive } from "../mcp/Layers/McpCatalog.ts"
+import { ProviderAdapterRegistryLive } from "../provider/Layers/ProviderAdapterRegistry.ts"
+import { ProviderRegistryLive } from "../provider/Layers/ProviderRegistry.ts"
+import { makeFakeProviderAdapter } from "../provider/Services/FakeProviderAdapter.ts"
+import { ProviderCapabilities, ProviderId } from "../provider/Services/ProviderAdapter.ts"
 import { ProviderUsageServiceLive } from "../providerUsage/Layers/ProviderUsageService.ts"
 import { SecurityKeychainLive } from "../providerUsage/Layers/SecurityKeychain.ts"
 import { SkillsServiceLive } from "../skills/Layers/SkillsService.ts"
@@ -196,7 +200,20 @@ const TerminalLive = TerminalServiceLive(defaultTerminalServiceOptions).pipe(
 	Layer.provide(BunCrypto.layer)
 )
 
+const fakeClaudeAgent = makeFakeProviderAdapter({
+	providerId: ProviderId.make("claude-code"),
+	capabilities: ProviderCapabilities.make({ enabled: ["models"] }),
+	installed: true,
+	authenticated: true,
+	updates: []
+})
+
+const ProviderRegistryTestLive = ProviderRegistryLive.pipe(
+	Layer.provide(ProviderAdapterRegistryLive([fakeClaudeAgent]))
+)
+
 const TestLive = RpcHandlersLive.pipe(
+	Layer.provideMerge(ProviderRegistryTestLive),
 	Layer.provideMerge(ProjectionSnapshotQueryLive),
 	Layer.provideMerge(EngineAndStore),
 	Layer.provideMerge(FileIndexServiceLive),
@@ -396,6 +413,25 @@ Vitest.layer(isolatedRpc())("accepted dispatch", (it) => {
 			const client = yield* RpcTest.makeClient(AcepeRpc)
 			const result = yield* client.dispatch(createProject)
 			Vitest.assert.strictEqual(result.sequence, 1)
+		})
+	)
+})
+
+Vitest.layer(isolatedRpc())("agentCall agent.list", (it) => {
+	it.effect("lists the registered provider adapters as agents", () =>
+		Effect.gen(function*() {
+			const client = yield* RpcTest.makeClient(AcepeRpc)
+			const result = yield* client.agentCall({ op: "agent.list" })
+			Vitest.assert.deepStrictEqual(result, {
+				op: "agent.list",
+				agents: [
+					{
+						id: "claude-code",
+						name: "Claude Code",
+						availabilityKind: { kind: "installable", installed: true }
+					}
+				]
+			})
 		})
 	)
 })
