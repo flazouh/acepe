@@ -93,7 +93,10 @@ const observedStatusToToolCallStatus = (
 	status: "pending" | "in_progress" | "completed" | "failed"
 ): ToolCallStatus => status;
 
-function nextRevision(current: SessionGraphRevision, transcriptAdvanced: boolean): SessionGraphRevision {
+function nextRevision(
+	current: SessionGraphRevision,
+	transcriptAdvanced: boolean
+): SessionGraphRevision {
 	return {
 		graphRevision: current.graphRevision + 1,
 		transcriptRevision: transcriptAdvanced
@@ -129,24 +132,38 @@ function envelopeForDelta(
 export class OrchestrationCanonicalBridge {
 	private readonly sessions = new Map<string, SessionCanonicalState>();
 
-	constructor(private readonly resolveProjectPath: (projectId: string) => Effect.Effect<string, never>) {}
+	constructor(
+		private readonly resolveProjectPath: (projectId: string) => Effect.Effect<string, never>
+	) {}
 
 	translate(event: OrchestrationEvent): Effect.Effect<AcpEventEnvelope[], never> {
 		switch (event.type) {
 			case "SessionCreated":
-				return this.onSessionCreated(event.payload.sessionId, event.payload.projectId, event.payload.providerId);
+				return this.onSessionCreated(
+					event.payload.sessionId,
+					event.payload.projectId,
+					event.payload.providerId
+				);
 			case "MessageSent":
-				return Effect.succeed(this.onMessageSent(event.payload.sessionId, event.payload.messageId, event.payload.text));
+				return Effect.succeed(
+					this.onMessageSent(event.payload.sessionId, event.payload.messageId, event.payload.text)
+				);
 			case "TokenAppended":
 				return Effect.succeed(
-					this.onTokenAppended(event.payload.sessionId, event.payload.messageId, event.payload.token)
+					this.onTokenAppended(
+						event.payload.sessionId,
+						event.payload.messageId,
+						event.payload.token
+					)
 				);
 			case "ToolCallObserved":
 				return Effect.succeed(this.onToolCallObserved(event.payload));
 			case "ApprovalRequested":
 				return Effect.succeed(this.onApprovalRequested(event.payload));
 			case "TurnCancelled":
-				return Effect.succeed(this.onTurnCancelled(event.payload.sessionId, event.payload.turnId ?? null));
+				return Effect.succeed(
+					this.onTurnCancelled(event.payload.sessionId, event.payload.turnId ?? null)
+				);
 			default:
 				// Every other OrchestrationEventType (git/voice/checkpoint/settings/
 				// agent-management/...) is outside this bridge's scope -- log-and-
@@ -162,7 +179,11 @@ export class OrchestrationCanonicalBridge {
 	): Effect.Effect<AcpEventEnvelope[], never> {
 		return this.resolveProjectPath(projectId).pipe(
 			Effect.map((projectPath) => {
-				const revision: SessionGraphRevision = { graphRevision: 0, transcriptRevision: 0, lastEventSeq: 0 };
+				const revision: SessionGraphRevision = {
+					graphRevision: 0,
+					transcriptRevision: 0,
+					lastEventSeq: 0,
+				};
 				this.sessions.set(sessionId, {
 					revision,
 					turnState: "Idle",
@@ -326,12 +347,20 @@ export class OrchestrationCanonicalBridge {
 			child_operation_ids: [],
 			operation_state: observedStatusToOperationState(payload.status),
 			awaiting_plan_approval: false,
-			source_link: { kind: "synthetic", reason: "orchestration-canonical-bridge:tool-call-observed" },
+			source_link: {
+				kind: "synthetic",
+				reason: "orchestration-canonical-bridge:tool-call-observed",
+			},
 		};
 		const activity: SessionGraphActivity =
 			payload.status === "completed" || payload.status === "failed"
 				? awaitingModelActivity
-				: { kind: "running_operation", activeOperationCount: 1, activeSubagentCount: 0, dominantOperationId: operation.id };
+				: {
+						kind: "running_operation",
+						activeOperationCount: 1,
+						activeSubagentCount: 0,
+						dominantOperationId: operation.id,
+					};
 		const delta: SessionStateDelta = {
 			fromRevision: state.revision,
 			toRevision,
@@ -454,8 +483,14 @@ export function makeProjectPathResolver(
 	return (projectId: string) =>
 		Effect.gen(function* () {
 			if (cache === null) {
-				const snapshot = yield* client.snapshot(librarySnapshotRequest()).pipe(Effect.orElseSucceed(() => ({ projects: [] as ReadonlyArray<{ projectId: string; workspaceRoot: string }> })));
-				cache = new Map(snapshot.projects.map((project) => [project.projectId, project.workspaceRoot]));
+				const snapshot = yield* client.snapshot(librarySnapshotRequest()).pipe(
+					Effect.orElseSucceed(() => ({
+						projects: [] as ReadonlyArray<{ projectId: string; workspaceRoot: string }>,
+					}))
+				);
+				cache = new Map(
+					snapshot.projects.map((project) => [project.projectId, project.workspaceRoot])
+				);
 			}
 			return cache.get(projectId) ?? "";
 		});

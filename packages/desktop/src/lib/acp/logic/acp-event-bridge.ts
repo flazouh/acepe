@@ -7,7 +7,10 @@ import type { JsonValue } from "$lib/services/converted-session-types.js";
 import { LOGGER_IDS } from "../constants/logger-ids.js";
 import type { AcpError } from "../errors/index.js";
 import { createLogger } from "../utils/logger.js";
-import { makeProjectPathResolver, OrchestrationCanonicalBridge } from "./orchestration-canonical-bridge.js";
+import {
+	makeProjectPathResolver,
+	OrchestrationCanonicalBridge,
+} from "./orchestration-canonical-bridge.js";
 
 const logger = createLogger({
 	id: LOGGER_IDS.EVENT_SUBSCRIBER,

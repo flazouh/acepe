@@ -52,7 +52,12 @@ describe("OrchestrationCanonicalBridge", () => {
 		const bridge = makeBridge("/tmp/my-project");
 		const envelopes = runTranslate(
 			bridge,
-			makeEvent("SessionCreated", { sessionId, projectId, title: "First session", providerId: "claude-code" })
+			makeEvent("SessionCreated", {
+				sessionId,
+				projectId,
+				title: "First session",
+				providerId: "claude-code",
+			})
 		);
 
 		expect(envelopes).toHaveLength(1);
@@ -103,7 +108,11 @@ describe("OrchestrationCanonicalBridge", () => {
 			expect(op?.kind).toBe("appendEntry");
 			if (op?.kind === "appendEntry") {
 				expect(op.entry.role).toBe("user");
-				expect(op.entry.segments[0]).toEqual({ kind: "text", segmentId: "seg-user-1", text: "hi there" });
+				expect(op.entry.segments[0]).toEqual({
+					kind: "text",
+					segmentId: "seg-user-1",
+					text: "hi there",
+				});
 			}
 		}
 	});
@@ -153,7 +162,10 @@ describe("OrchestrationCanonicalBridge", () => {
 	it("keeps revisions contiguous across a mixed run of tool calls and approvals", () => {
 		const bridge = makeBridge();
 		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
-		runTranslate(bridge, makeEvent("MessageSent", { sessionId, messageId: MessageId.make("u1"), text: "go" }));
+		runTranslate(
+			bridge,
+			makeEvent("MessageSent", { sessionId, messageId: MessageId.make("u1"), text: "go" })
+		);
 
 		const toolCall = runTranslate(
 			bridge,
@@ -169,7 +181,11 @@ describe("OrchestrationCanonicalBridge", () => {
 		);
 		const approval = runTranslate(
 			bridge,
-			makeEvent("ApprovalRequested", { sessionId, approvalRequestId: "approval-1", title: "Run command" })
+			makeEvent("ApprovalRequested", {
+				sessionId,
+				approvalRequestId: "approval-1",
+				title: "Run command",
+			})
 		);
 
 		const toolPayload = toolCall[0]?.payload as SessionStateEnvelope;
@@ -199,7 +215,10 @@ describe("OrchestrationCanonicalBridge", () => {
 	it("skips event types outside its scope without throwing", () => {
 		const bridge = makeBridge();
 		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
-		const envelopes = runTranslate(bridge, makeEvent("SettingsUpdated", { key: "theme", value: "dark" }));
+		const envelopes = runTranslate(
+			bridge,
+			makeEvent("SettingsUpdated", { key: "theme", value: "dark" })
+		);
 		expect(envelopes).toHaveLength(0);
 	});
 });

@@ -23,8 +23,15 @@ let rpcClient = $state<RpcClient | null>(null);
 let shell = $state<DesktopShellKind>("pending");
 let bootError = $state<string | null>(null);
 let selectedSessionId = $state<SessionId | null>(null);
+// #249: MainAppView (the real agent panel) is now what mounts under
+// Electrobun. The scaffold (SetupBarView/LibrarySidebarView/
+// AgentPanelSessionView/SettingsView driven straight off the raw RpcClient)
+// stays reachable behind ?scaffold=1 for QA that wants to exercise the
+// contract without the full app shell.
+let useScaffold = $state(false);
 
 onMount(() => {
+	useScaffold = new URLSearchParams(window.location.search).get("scaffold") === "1";
 	const next = desktopShellKind({
 		protocol: window.location.protocol,
 		search: window.location.search,
@@ -50,7 +57,10 @@ onMount(() => {
 						setTimeout(() => {
 							provideAppRpcClient(client);
 							rpcClient = client;
-							if (QA_HOOKS_ENABLED) {
+							// MainAppView installs its own QA dispatch hook in onMount
+							// (main-app-view.svelte); only the scaffold path needs it
+							// installed here, before it renders.
+							if (useScaffold && QA_HOOKS_ENABLED) {
 								installQaDispatchHook();
 							}
 						}, 0);
@@ -61,7 +71,7 @@ onMount(() => {
 });
 </script>
 
-{#if shell === "electrobun" && rpcClient !== null}
+{#if shell === "electrobun" && rpcClient !== null && useScaffold}
 	<div class="flex h-screen flex-col bg-background text-foreground">
 		<SetupBarView client={rpcClient} />
 		<div class="flex min-h-0 flex-1">
@@ -84,7 +94,7 @@ onMount(() => {
 		</div>
 		</div>
 	</div>
-{:else if shell === "tauri"}
+{:else if (shell === "electrobun" && rpcClient !== null) || shell === "tauri"}
 	<MainAppView />
 {:else}
 	<div

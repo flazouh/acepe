@@ -1314,11 +1314,11 @@ function maximizeWindow(): void {
 
 	startupMaximizeTriggered = true;
 	void maximizeCurrentWindow().catch((error) => {
-			startupMaximizeTriggered = false;
-			logger.error("Failed to maximize startup window", {
-				error: error instanceof Error ? error.message : String(error),
-			});
+		startupMaximizeTriggered = false;
+		logger.error("Failed to maximize startup window", {
+			error: error instanceof Error ? error.message : String(error),
 		});
+	});
 }
 
 function attemptStartupMaximize(): void {
