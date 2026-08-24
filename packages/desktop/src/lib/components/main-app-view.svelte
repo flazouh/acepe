@@ -171,6 +171,15 @@ type MainAppQaWindow = Window & {
 		options?: MainAppHappyPathProbeCleanupOptions
 	) => MainAppHappyPathProbeCleanupResult;
 	__acepeRuntimeErrors?: AcepeRuntimeErrorRecord[];
+	// #249 QA-only: there is no agent picker in the composer yet (see
+	// tauri-client/acp.ts's header comment -- listAgents etc. are honestly
+	// unsupportedOnContract), so a freshly spawned panel has no
+	// selectedAgentId and the real send flow refuses with "No agent selected
+	// for this panel". This hook spawns a panel with selectedAgentId already
+	// set, so a QA script can drive the REAL composer/createSession/
+	// ProviderBridge path end to end without a picker existing yet. Returns
+	// the new panel's id.
+	__acepeQaSpawnAgentPanel?: (projectPath: string, agentId: string) => string;
 };
 
 type MainAppHappyPathNavigationTiming = {
@@ -875,6 +884,25 @@ function uninstallHappyPathProbeQaHook(): void {
 	}
 	if (qaWindow.__acepeCleanupHappyPathProbePanels === cleanupHappyPathProbePanels) {
 		delete qaWindow.__acepeCleanupHappyPathProbePanels;
+	}
+}
+
+function qaSpawnAgentPanel(projectPath: string, agentId: string): string {
+	const panel = panelStore.spawnPanel({ projectPath, selectedAgentId: agentId });
+	return panel.id;
+}
+
+function installQaSpawnAgentPanelHook(): void {
+	if (!QA_HOOKS_ENABLED) {
+		return;
+	}
+	(window as MainAppQaWindow).__acepeQaSpawnAgentPanel = qaSpawnAgentPanel;
+}
+
+function uninstallQaSpawnAgentPanelHook(): void {
+	const qaWindow = window as MainAppQaWindow;
+	if (qaWindow.__acepeQaSpawnAgentPanel === qaSpawnAgentPanel) {
+		delete qaWindow.__acepeQaSpawnAgentPanel;
 	}
 }
 
@@ -1619,6 +1647,7 @@ onMount(async () => {
 	mainAppMountStartedAtMs = performance.now();
 	mainAppInvokeTimingBaselineIndex = getTauriInvokeTimings().length;
 	installHappyPathProbeQaHook();
+	installQaSpawnAgentPanelHook();
 	if (QA_HOOKS_ENABLED) {
 		installQaDispatchHook();
 	}
@@ -1806,6 +1835,7 @@ const showTabBarStrip = $derived(
 // Cleanup on destroy
 onDestroy(() => {
 	uninstallHappyPathProbeQaHook();
+	uninstallQaSpawnAgentPanelHook();
 	// Disconnect all sessions to kill their subprocesses
 	// This prevents orphaned Claude processes when the app closes
 	if (shouldDisconnectSessionsOnMainAppDestroy({ hmrTeardownActive })) {

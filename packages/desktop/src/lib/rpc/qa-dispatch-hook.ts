@@ -1,10 +1,18 @@
-import type { OrchestrationCommand, RpcDispatchResult } from "@acepe/contracts"
-import * as Effect from "effect/Effect"
-import { appRpcClient } from "./app-client.ts"
+import type {
+	OrchestrationCommand,
+	RpcDispatchResult,
+	RpcSessionSnapshot,
+	SessionId,
+} from "@acepe/contracts";
+import { librarySnapshotRequest, sessionSnapshotRequest } from "@acepe/contracts";
+import * as Effect from "effect/Effect";
+import { appRpcClient } from "./app-client.ts";
 
 declare global {
 	interface Window {
-		__acepeQaDispatch?: (command: OrchestrationCommand) => Promise<RpcDispatchResult>
+		__acepeQaDispatch?: (command: OrchestrationCommand) => Promise<RpcDispatchResult>;
+		__acepeQaSessionSnapshot?: (sessionId: string) => Promise<RpcSessionSnapshot>;
+		__acepeQaLibrarySnapshot?: () => Promise<RpcSessionSnapshot>;
 	}
 }
 
@@ -18,7 +26,22 @@ declare global {
 // driving the UI pixel by pixel.
 export const installQaDispatchHook = (): void => {
 	window.__acepeQaDispatch = (command) =>
+		Effect.runPromise(Effect.flatMap(appRpcClient(), (client) => client.dispatch(command)));
+	// QA-only read counterpart: a direct query.snapshot round trip so a QA
+	// script can verify a session's real projected messages (server-side
+	// truth, independent of whatever the UI has rendered) without reaching
+	// into component internals.
+	window.__acepeQaSessionSnapshot = (sessionId) =>
 		Effect.runPromise(
-			Effect.flatMap(appRpcClient(), (client) => client.dispatch(command))
-		)
-}
+			Effect.flatMap(appRpcClient(), (client) =>
+				client.snapshot(sessionSnapshotRequest(sessionId as SessionId))
+			)
+		);
+	// QA-only read counterpart: the library-scoped snapshot (every known
+	// project + session row), so a QA script can find a real projectId
+	// without guessing or reaching into ProjectManager's UI-side cache.
+	window.__acepeQaLibrarySnapshot = () =>
+		Effect.runPromise(
+			Effect.flatMap(appRpcClient(), (client) => client.snapshot(librarySnapshotRequest()))
+		);
+};
