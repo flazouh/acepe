@@ -1,14 +1,14 @@
 import type { GitCallResult } from "@acepe/contracts";
+import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
+import * as Schedule from "effect/Schedule";
+import * as Stream from "effect/Stream";
 
 import type { AppError } from "../../acp/errors/app-error.js";
 import type { CloneResult } from "../../acp/types/index.js";
 import type { SetupResult, WorktreeConfig } from "../../acp/types/worktree-config.js";
 import type { PreparedWorktreeLaunch, WorktreeInfo } from "../../acp/types/worktree-info.js";
-import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
 import { unsupportedOnContract, withRpcClient } from "./rpc-bridge.ts";
-
-const gitCommands = TAURI_COMMAND_CLIENT.git;
 
 // The gitCall result union echoes the request's `op` discriminant (see
 // packages/contracts/src/gitCall.ts), but TypeScript can't statically tie a
@@ -41,17 +41,75 @@ const unwrapGitCallResult = <Tag extends GitCallResult["op"]>(
 // (packages/contracts/src/gitCall.ts) -- a tagged-union request/response
 // pair routed server-side onto GitService
 // (packages/server/src/git/gitCallHandler.ts), per the #249 issue thread's
-// DESIGN DECISION. That's every live-caller method in this file.
+// DESIGN DECISION.
 //
-// watchHead is the one live caller left on TAURI_COMMAND_CLIENT, and it's
-// different in kind, not just unmigrated scope: it is a Stream
-// (GitService.watchHead returns Stream.Stream, polling for HEAD changes),
-// and gitCall is a plain one-shot request/response RPC (see rpc.ts's
-// GitCall, which has no `stream: true`), so it cannot ride this union
-// without a second RPC primitive -- out of scope for the gitCall-union
-// slices per the #249 issue thread's DESIGN DECISION. Because of it, this
-// file is not yet off TAURI_COMMAND_CLIENT and check-tauri-client-
-// importers.ts's BASELINE stays where it is.
+// watchHead is different in kind, not just scope: GitService.watchHead is a
+// Stream (polling for HEAD changes server-side), and gitCall is a plain
+// one-shot request/response RPC (see rpc.ts's GitCall, which has no
+// `stream: true`), so it can't ride that union as a single op (issue #261).
+// Instead this file builds the Stream itself: poll git.currentBranch and
+// git.headSha (both one-shot gitCall ops) on an interval and turn the
+// samples into a Stream below -- see watchHead's own comment. That's the
+// last thing this file needed TAURI_COMMAND_CLIENT for; it's off the
+// barrel now (see check-tauri-client-importers.ts).
+
+/** Mirrors GitService's GitHeadChangedPayload (packages/server/src/git/Schemas.ts). */
+export interface GitHeadChangedPayload {
+	projectPath: string;
+	branch: string | null;
+}
+
+// One head-state sample: branch name (null when detached or unreadable)
+// plus HEAD sha (null when unborn or unreadable). currentBranch alone can't
+// detect a same-branch commit -- the sha moves, the branch name doesn't --
+// so watchHead's poll below samples both and compares the pair.
+interface HeadSample {
+	readonly branch: string | null;
+	readonly sha: string | null;
+}
+
+// A handful of retries with backoff absorbs a transient gitCall hiccup
+// within one poll tick; if the repo/path is persistently unreadable (e.g.
+// the project was deleted), the sample degrades to null rather than
+// failing the Stream -- the same "never surface an error to the frontend,
+// just log and keep going" contract the old Rust `.git/HEAD` file watcher
+// had (see git/watcher.rs's read_branch_from_repo, which returns None
+// rather than propagating an error).
+const POLL_RETRY_OPTIONS = {
+	schedule: Schedule.exponential(Duration.millis(100)),
+	times: 3,
+} as const;
+
+const sampleBranch = (projectPath: string): Effect.Effect<string | null> =>
+	withRpcClient("git.currentBranch", (client) =>
+		client.gitCall({ op: "git.currentBranch", projectPath })
+	).pipe(
+		Effect.flatMap((result) => unwrapGitCallResult("git.currentBranch", result)),
+		Effect.map((result) => result.branch),
+		Effect.retry(POLL_RETRY_OPTIONS),
+		Effect.tapError((error) => Effect.logWarning("watchHead: currentBranch poll failed", error)),
+		Effect.orElseSucceed(() => null)
+	);
+
+const sampleHeadSha = (projectPath: string): Effect.Effect<string | null> =>
+	withRpcClient("git.headSha", (client) => client.gitCall({ op: "git.headSha", projectPath })).pipe(
+		Effect.flatMap((result) => unwrapGitCallResult("git.headSha", result)),
+		Effect.map((result) => result.sha),
+		Effect.retry(POLL_RETRY_OPTIONS),
+		Effect.tapError((error) => Effect.logWarning("watchHead: headSha poll failed", error)),
+		Effect.orElseSucceed(() => null)
+	);
+
+const sampleHead = (projectPath: string): Effect.Effect<HeadSample> =>
+	Effect.zip(sampleBranch(projectPath), sampleHeadSha(projectPath)).pipe(
+		Effect.map(([branch, sha]) => ({ branch, sha }))
+	);
+
+const sameHead = (a: HeadSample, b: HeadSample): boolean =>
+	a.branch === b.branch && a.sha === b.sha;
+
+const DEFAULT_WATCH_HEAD_INTERVAL = Duration.seconds(1);
+
 export const git = {
 	// No live caller today (see #249 batch 2 map); the clone-a-new-project
 	// flow that used this is dormant. GitService.clone already exists
@@ -426,8 +484,23 @@ export const git = {
 
 	// ─── Git HEAD Watcher ──────────────────────────────────────────────
 
-	watchHead: (projectPath: string): Effect.Effect<void, AppError> => {
-		return gitCommands.watch_head.invoke<void>({ projectPath });
+	// Polls git.currentBranch + git.headSha every `pollInterval` (default
+	// 1s) and emits only when the pair changes (Stream.changesWith) --
+	// gitCall is one-shot, so this is how the facade rides it for something
+	// that's inherently a Stream server-side (see this file's header
+	// comment and issue #261). The first sample is dropped so, like the old
+	// `.git/HEAD` file watcher, nothing is emitted until an actual external
+	// change happens -- callers already fetch initial state themselves.
+	watchHead: (
+		projectPath: string,
+		pollInterval: Duration.Input = DEFAULT_WATCH_HEAD_INTERVAL
+	): Stream.Stream<GitHeadChangedPayload, AppError> => {
+		return Stream.fromEffect(sampleHead(projectPath)).pipe(
+			Stream.repeat(Schedule.spaced(pollInterval)),
+			Stream.changesWith(sameHead),
+			Stream.drop(1),
+			Stream.map(({ branch }) => ({ projectPath, branch }))
+		);
 	},
 
 	loadWorktreeConfig: (projectPath: string): Effect.Effect<WorktreeConfig | null, AppError> => {

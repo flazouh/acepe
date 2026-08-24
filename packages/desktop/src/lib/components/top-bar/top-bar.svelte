@@ -9,7 +9,6 @@ import {
 import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { AppTopBar } from "@acepe/ui/app-layout";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import * as Effect from "effect/Effect";
 import { onMount, type Snippet } from "svelte";
@@ -55,7 +54,6 @@ const USAGE_REFRESH_INTERVAL_MS = 60_000;
 const USAGE_EVENT_REFRESH_DEBOUNCE_MS = 250;
 const USAGE_STARTUP_READY_POLL_MS = 50;
 const USAGE_INITIAL_REFRESH_DELAY_MS = 250;
-const PROVIDER_ACCOUNT_USAGE_UPDATED_EVENT = "provider-account-usage://updated";
 let providerUsageAccounts = $state.raw<ReadonlyArray<UsageProviderAccount>>(
 	buildProviderUsageCheckingAccounts()
 );
@@ -168,8 +166,9 @@ function refreshProviderUsageAccounts(): void {
 }
 
 onMount(() => {
-	let disposed = false;
-	let quotaUpdateUnlisten: UnlistenFn | null = null;
+	// Usage now comes from the RPC (getProviderAccountUsage), not a Tauri
+	// event -- this scheduler's setInterval/setTimeout polling is the only
+	// refresh mechanism left (see provider-usage-refresh-scheduler.ts).
 	const providerUsageScheduler = createProviderUsageRefreshScheduler({
 		isStartupReady: () => viewState.initializationComplete,
 		refresh: refreshProviderUsageAccounts,
@@ -184,22 +183,9 @@ onMount(() => {
 	});
 
 	providerUsageScheduler.start();
-	void listen(PROVIDER_ACCOUNT_USAGE_UPDATED_EVENT, () => {
-		providerUsageScheduler.notifyUsageUpdated();
-	}).then((unlisten) => {
-		if (disposed) {
-			void unlisten();
-			return;
-		}
-		quotaUpdateUnlisten = unlisten;
-	});
 
 	return () => {
-		disposed = true;
 		providerUsageScheduler.dispose();
-		if (quotaUpdateUnlisten !== null) {
-			quotaUpdateUnlisten();
-		}
 	};
 });
 </script>

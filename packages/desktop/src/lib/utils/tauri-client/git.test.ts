@@ -5,6 +5,7 @@ import {
 	type GitCallResult,
 	type RpcClient,
 	type RpcClientError,
+	RpcGitCallError,
 } from "@acepe/contracts";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
@@ -795,4 +796,127 @@ describe("git tauri client", () => {
 				}
 			})
 		));
+
+	describe("watchHead", () => {
+		// gitCall is one-shot, so watchHead polls git.currentBranch + git.headSha
+		// on an interval and turns the samples into a Stream itself (see git.ts's
+		// header comment and issue #261). A short pollInterval keeps these tests
+		// fast without needing a TestClock.
+		const POLL_INTERVAL_MS = 5;
+
+		it("emits when currentBranch changes across polls", () =>
+			Effect.runPromise(
+				Effect.gen(function* () {
+					let branchCalls = 0;
+					setAppRpcClientForTest(
+						makeClient((request) => {
+							if (request.op === "git.currentBranch") {
+								branchCalls += 1;
+								return Effect.succeed({
+									op: "git.currentBranch",
+									branch: branchCalls === 1 ? "main" : "feature",
+								});
+							}
+							if (request.op === "git.headSha") {
+								return Effect.succeed({ op: "git.headSha", sha: "aaa" });
+							}
+							return Effect.die(new Error(`unexpected op ${request.op}`));
+						})
+					);
+
+					const emitted = yield* git
+						.watchHead("/tmp/acepe", POLL_INTERVAL_MS)
+						.pipe(Stream.take(1), Stream.runCollect);
+
+					expect(Array.from(emitted)).toEqual([{ projectPath: "/tmp/acepe", branch: "feature" }]);
+				})
+			));
+
+		it("emits on a same-branch commit -- headSha moving is a change even when the branch isn't", () =>
+			Effect.runPromise(
+				Effect.gen(function* () {
+					let shaCalls = 0;
+					setAppRpcClientForTest(
+						makeClient((request) => {
+							if (request.op === "git.currentBranch") {
+								return Effect.succeed({ op: "git.currentBranch", branch: "main" });
+							}
+							if (request.op === "git.headSha") {
+								shaCalls += 1;
+								return Effect.succeed({ op: "git.headSha", sha: shaCalls === 1 ? "aaa" : "bbb" });
+							}
+							return Effect.die(new Error(`unexpected op ${request.op}`));
+						})
+					);
+
+					const emitted = yield* git
+						.watchHead("/tmp/acepe", POLL_INTERVAL_MS)
+						.pipe(Stream.take(1), Stream.runCollect);
+
+					expect(Array.from(emitted)).toEqual([{ projectPath: "/tmp/acepe", branch: "main" }]);
+				})
+			));
+
+		it("emits nothing while the branch and headSha stay the same", () =>
+			Effect.runPromise(
+				Effect.gen(function* () {
+					setAppRpcClientForTest(
+						makeClient((request) => {
+							if (request.op === "git.currentBranch") {
+								return Effect.succeed({ op: "git.currentBranch", branch: "main" });
+							}
+							if (request.op === "git.headSha") {
+								return Effect.succeed({ op: "git.headSha", sha: "aaa" });
+							}
+							return Effect.die(new Error(`unexpected op ${request.op}`));
+						})
+					);
+
+					// Several polls' worth of silence, then the stream ends on its own
+					// (Stream.timeout, not a failure) so the test doesn't hang forever.
+					const emitted = yield* git
+						.watchHead("/tmp/acepe", POLL_INTERVAL_MS)
+						.pipe(Stream.timeout(POLL_INTERVAL_MS * 10), Stream.runCollect);
+
+					expect(Array.from(emitted)).toEqual([]);
+				})
+			));
+
+		it("survives a transient gitCall failure -- retries with backoff instead of killing the stream", () =>
+			Effect.runPromise(
+				Effect.gen(function* () {
+					let branchCalls = 0;
+					setAppRpcClientForTest(
+						makeClient((request) => {
+							if (request.op === "git.currentBranch") {
+								branchCalls += 1;
+								// Call 1: the initial sample (dropped). Call 2: the second
+								// poll's first attempt, fails transiently. Call 3: that same
+								// poll's retry, succeeds -- proving the failed tick didn't
+								// kill the stream.
+								if (branchCalls === 2) {
+									return Effect.fail(
+										new RpcGitCallError({ op: "git.currentBranch", detail: "transient" })
+									);
+								}
+								return Effect.succeed({
+									op: "git.currentBranch",
+									branch: branchCalls === 1 ? "main" : "feature",
+								});
+							}
+							if (request.op === "git.headSha") {
+								return Effect.succeed({ op: "git.headSha", sha: "aaa" });
+							}
+							return Effect.die(new Error(`unexpected op ${request.op}`));
+						})
+					);
+
+					const emitted = yield* git
+						.watchHead("/tmp/acepe", POLL_INTERVAL_MS)
+						.pipe(Stream.take(1), Stream.runCollect);
+
+					expect(Array.from(emitted)).toEqual([{ projectPath: "/tmp/acepe", branch: "feature" }]);
+				})
+			));
+	});
 });

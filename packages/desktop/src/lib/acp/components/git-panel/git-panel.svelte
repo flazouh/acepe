@@ -20,11 +20,12 @@ import {
 	getMicButtonVisualState,
 } from "@acepe/ui";
 import { GitWorkspace, type GitLogEntryFile } from "@acepe/ui/git-panel";
-import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
 import * as Result from "effect/Result";
-import { onMount, untrack } from "svelte";
+import * as Stream from "effect/Stream";
+import { onDestroy, onMount, untrack } from "svelte";
 import { toast } from "svelte-sonner";
 import type { CommitDiff } from "$lib/acp/types/github-integration.js";
 import type { WorktreeInfo } from "$lib/acp/types/worktree-info.js";
@@ -383,22 +384,31 @@ if (!initialTargetSnapshot?.prNumber) {
 	void refresh();
 }
 
-// Watch for external branch changes via .git/HEAD file watcher
+// Watch for external branch changes (e.g. a terminal `git checkout`) via
+// tauriClient.git.watchHead's poll -- a Stream, so it's run as a fiber and
+// interrupted on unmount rather than fired-and-forgotten.
 // Deferred when opening a specific PR to avoid competing for the thread pool.
 let watchHeadInitialized = false;
+let watchHeadFiber: Fiber.Fiber<void, never> | null = null;
 function initWatchHead() {
 	if (watchHeadInitialized) return;
 	watchHeadInitialized = true;
-	void Effect.runPromise(Effect.result(tauriClient.git.watchHead(projectPath)));
-	void listen<{ projectPath: string; branch: string | null }>("git:head-changed", (event) => {
-		if (event.payload.projectPath === projectPath) {
-			refresh();
-		}
-	});
+	watchHeadFiber = Effect.runFork(
+		tauriClient.git.watchHead(projectPath).pipe(
+			Stream.runForEach(() => Effect.sync(() => refresh())),
+			Effect.orDie
+		)
+	);
 }
 if (!initialTargetSnapshot?.prNumber) {
 	initWatchHead();
 }
+
+onDestroy(() => {
+	if (watchHeadFiber) {
+		Effect.runFork(Fiber.interrupt(watchHeadFiber));
+	}
+});
 
 // ─── Mutation Callbacks ──────────────────────────────────────────────
 

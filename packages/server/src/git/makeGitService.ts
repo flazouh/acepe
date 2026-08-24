@@ -189,6 +189,19 @@ export const makeGitService = Effect.fn("GitService.make")(function*(
 		return yield* new GitNotARepositoryError({ path: projectPath })
 	})
 
+	// missingAllow (exit 128) tolerates unborn HEAD -- a freshly-init'd repo
+	// with no commits yet, where `rev-parse HEAD` fails rather than
+	// returning an empty sha.
+	const headSha = Effect.fn("GitService.headSha")(function*(projectPath: string) {
+		yield* ensureRepo(projectPath)
+		const result = yield* gitCmd(projectPath, Arr.fromIterable(["rev-parse", "HEAD"]), missingAllow)
+		if (result.exitCode !== 0) {
+			return Option.none()
+		}
+		const sha = result.stdout.trim()
+		return sha === "" ? Option.none() : Option.some(sha)
+	})
+
 	const currentBranchOption = Effect.fn("GitService.currentBranchOption")(function*(
 		projectPath: string
 	) {
@@ -1171,6 +1184,7 @@ export const makeGitService = Effect.fn("GitService.make")(function*(
 				branch: Option.fromNullishOr(input.branch)
 			}),
 		currentBranch,
+		headSha,
 		listBranches,
 		checkoutBranch: (input) =>
 			checkoutBranch({

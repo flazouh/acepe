@@ -10,10 +10,17 @@ import * as Schema from "effect/Schema"
 //
 // This slice carries every live-caller sub-domain of tauri-client/git.ts's
 // 33 methods: branch/checkout, stage/commit, push/pull/remote-status,
-// stash, worktree lifecycle/config, and ship/PR/CI. watchHead (a Stream,
-// not a one-shot request/response) and the handful of methods with no live
-// caller today stay on TAURI_COMMAND_CLIENT -- see tauri-client/git.ts's
-// header comment.
+// stash, worktree lifecycle/config, and ship/PR/CI. The handful of methods
+// with no live caller today stay on TAURI_COMMAND_CLIENT -- see
+// tauri-client/git.ts's header comment.
+//
+// git.headSha is the one exception to "every op has a live TS caller
+// directly": it exists so the facade's watchHead can poll (issue #261 --
+// gitCall is one-shot request/response, so a Stream like GitService's
+// watchHead can't ride it as a single op; the facade instead polls
+// currentBranch + headSha on an interval and turns the samples into a
+// Stream itself). currentBranch alone can't detect a same-branch commit
+// (the sha moves, the branch name doesn't), so the poll needs both.
 
 const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
 
@@ -73,6 +80,20 @@ export const GitCallCurrentBranchResult = Schema.Struct({
 	branch: Schema.String,
 })
 export type GitCallCurrentBranchResult = typeof GitCallCurrentBranchResult.Type
+
+export const GitCallHeadShaRequest = Schema.Struct({
+	op: Schema.Literal("git.headSha"),
+	projectPath: TrimmedNonEmptyString,
+})
+export type GitCallHeadShaRequest = typeof GitCallHeadShaRequest.Type
+
+// null when HEAD is unborn (a freshly-init'd repo with no commits yet) or
+// the path isn't a readable repo.
+export const GitCallHeadShaResult = Schema.Struct({
+	op: Schema.Literal("git.headSha"),
+	sha: Schema.NullOr(Schema.String),
+})
+export type GitCallHeadShaResult = typeof GitCallHeadShaResult.Type
 
 export const GitCallListBranchesRequest = Schema.Struct({
 	op: Schema.Literal("git.listBranches"),
@@ -636,6 +657,7 @@ export const GitCallRequest = Schema.Union([
 	GitCallInitRequest,
 	GitCallIsRepoRequest,
 	GitCallCurrentBranchRequest,
+	GitCallHeadShaRequest,
 	GitCallListBranchesRequest,
 	GitCallCheckoutBranchRequest,
 	GitCallHasUncommittedChangesRequest,
@@ -673,6 +695,7 @@ export const GitCallResult = Schema.Union([
 	GitCallInitResult,
 	GitCallIsRepoResult,
 	GitCallCurrentBranchResult,
+	GitCallHeadShaResult,
 	GitCallListBranchesResult,
 	GitCallCheckoutBranchResult,
 	GitCallHasUncommittedChangesResult,
