@@ -39,6 +39,7 @@ const makeClient = (overrides: Partial<RpcClient>): RpcClient => ({
 	writeTextFile: () => Effect.void,
 	getDefaultShell: () => Effect.succeed("/bin/zsh"),
 	gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
+	agentCall: () => Effect.succeed({ op: "agent.list" as const, agents: [] }),
 	getProviderAccountUsage: () => Effect.succeed([]),
 	listProviderSessions: () => Effect.succeed([]),
 	listProviderProjects: () => Effect.succeed([]),
@@ -351,18 +352,56 @@ describe("acp tauri client", () => {
 			})
 		));
 
-	it("forkSession, rpcCall, and the agent-management methods are honestly unsupported", () =>
+	it("forkSession, rpcCall, and getEventBridgeInfo are honestly unsupported", () =>
 		Effect.runPromise(
 			Effect.gen(function* () {
 				setAppRpcClientForTest(makeClient({}));
 				const forkResult = yield* Effect.result(acp.forkSession("session-1", "/tmp"));
 				const rpcCallResult = yield* Effect.result(acp.rpcCall("session/foo", {}));
-				const listAgentsResult = yield* Effect.result(acp.listAgents());
 				const eventBridgeResult = yield* Effect.result(acp.getEventBridgeInfo());
 				expect(Result.isFailure(forkResult)).toBe(true);
 				expect(Result.isFailure(rpcCallResult)).toBe(true);
-				expect(Result.isFailure(listAgentsResult)).toBe(true);
 				expect(Result.isFailure(eventBridgeResult)).toBe(true);
+			})
+		));
+
+	it("installAgent and uninstallAgent are honestly unsupported", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				setAppRpcClientForTest(makeClient({}));
+				const installResult = yield* Effect.result(acp.installAgent("claude-code"));
+				const uninstallResult = yield* Effect.result(acp.uninstallAgent("claude-code"));
+				expect(Result.isFailure(installResult)).toBe(true);
+				expect(Result.isFailure(uninstallResult)).toBe(true);
+			})
+		));
+
+	it("listAgents maps agentCall's agent.list result onto AgentInfo", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				setAppRpcClientForTest(
+					makeClient({
+						agentCall: () =>
+							Effect.succeed({
+								op: "agent.list",
+								agents: [
+									{
+										id: "claude-code",
+										name: "Claude Code",
+										availabilityKind: { kind: "installable", installed: true },
+									},
+								],
+							}),
+					})
+				);
+				const agents = yield* acp.listAgents();
+				expect(agents).toEqual([
+					{
+						id: "claude-code",
+						name: "Claude Code",
+						availability_kind: { kind: "installable", installed: true },
+					},
+				]);
 			})
 		));
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import {
 	CommandId,
 	EventId,
+	encodeAgentCallExit,
 	encodeDispatchExit,
 	encodeGetDefaultShellExit,
 	encodeGetProjectIndexExit,
@@ -81,6 +82,7 @@ const makeBridge = (input: {
 	readonly writeTextFile?: (params: unknown) => Promise<unknown>;
 	readonly getDefaultShell?: (params: unknown) => Promise<unknown>;
 	readonly gitCall?: (params: unknown) => Promise<unknown>;
+	readonly agentCall?: (params: unknown) => Promise<unknown>;
 	readonly getProviderAccountUsage?: (params: unknown) => Promise<unknown>;
 	readonly listProviderSessions?: (params: unknown) => Promise<unknown>;
 	readonly listProviderProjects?: (params: unknown) => Promise<unknown>;
@@ -124,6 +126,10 @@ const makeBridge = (input: {
 				input.gitCall === undefined
 					? Promise.reject(new Error("unused gitCall"))
 					: input.gitCall(params),
+			agentCall: (params) =>
+				input.agentCall === undefined
+					? Promise.reject(new Error("unused agentCall"))
+					: input.agentCall(params),
 			getProviderAccountUsage: (params) =>
 				input.getProviderAccountUsage === undefined
 					? Promise.reject(new Error("unused getProviderAccountUsage"))
@@ -273,6 +279,39 @@ describe("makeElectrobunRpcTransport", () => {
 				const transport = makeElectrobunRpcTransport(bridge);
 				const result = yield* transport.gitCall({ op: "git.isRepo", projectPath: "/tmp/acepe" });
 				expect(result).toEqual({ op: "git.isRepo", isRepo: true });
+			})
+		));
+
+	it("decodes an agentCall Exit", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				const encoded = yield* encodeAgentCallExit(
+					Exit.succeed({
+						op: "agent.list",
+						agents: [
+							{
+								id: "claude-code",
+								name: "Claude Code",
+								availabilityKind: { kind: "installable", installed: true },
+							},
+						],
+					})
+				);
+				const bridge = makeBridge({
+					agentCall: () => Promise.resolve(encoded),
+				});
+				const transport = makeElectrobunRpcTransport(bridge);
+				const result = yield* transport.agentCall({ op: "agent.list" });
+				expect(result).toEqual({
+					op: "agent.list",
+					agents: [
+						{
+							id: "claude-code",
+							name: "Claude Code",
+							availabilityKind: { kind: "installable", installed: true },
+						},
+					],
+				});
 			})
 		));
 

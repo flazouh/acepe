@@ -59,6 +59,7 @@ describe("settings view controller mapping", () => {
 					writeTextFile: () => Effect.void,
 					getDefaultShell: () => Effect.succeed("/bin/zsh"),
 					gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
+					agentCall: () => Effect.succeed({ op: "agent.list" as const, agents: [] }),
 					getProviderAccountUsage: () => Effect.succeed([]),
 					listProviderSessions: () => Effect.succeed([]),
 					listProviderProjects: () => Effect.succeed([]),

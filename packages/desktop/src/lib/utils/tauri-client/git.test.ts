@@ -36,6 +36,7 @@ const makeClient = (
 	writeTextFile: () => Effect.void,
 	getDefaultShell: () => Effect.succeed("/bin/zsh"),
 	gitCall: gitCallImpl,
+	agentCall: () => Effect.succeed({ op: "agent.list", agents: [] }),
 	getProviderAccountUsage: () => Effect.succeed([]),
 	listProviderSessions: () => Effect.succeed([]),
 	listProviderProjects: () => Effect.succeed([]),

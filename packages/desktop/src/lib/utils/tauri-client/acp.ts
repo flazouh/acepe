@@ -34,13 +34,13 @@ import type { CustomAgentConfig } from "./types.js";
 // already-existing orchestration command / reads the session or library
 // snapshot (real, verified end to end for the prompt-core path -- see
 // ProviderBridge.ts, which forwards message.send/turn.cancel/
-// interaction.reply to the real provider adapter), or is honestly
-// unsupportedOnContract.
+// interaction.reply to the real provider adapter), rides the agentCall
+// utility RPC (listAgents), or is honestly unsupportedOnContract.
 //
-// The unsupportedOnContract methods below (agent management, preconnection
-// discovery, the event bridge) are not behaviour regressions: none of them
-// has ever had a working Electrobun backend. There is no
-// list_agents/install_agent/uninstall_agent/register_custom_agent/
+// The unsupportedOnContract methods below (agent install/uninstall,
+// preconnection discovery, the event bridge) are not behaviour
+// regressions: none of them has ever had a working Electrobun backend.
+// There is no install_agent/uninstall_agent/register_custom_agent/
 // authenticate_agent/cancel_agent_authentication/
 // list_preconnection_commands/list_preconnection_capabilities/
 // get_composer_mcp_catalog/get_event_bridge_info handler anywhere in
@@ -49,11 +49,13 @@ import type { CustomAgentConfig } from "./types.js";
 // them unsupportedOnContract turns that into a typed, honest failure instead
 // of a silent hang, with zero change in what the app can actually do.
 //
-// Real follow-up work (not done here, scope was already large): a gitCall-
-// style `agentCall` utility RPC routing list/install/uninstall onto the
-// server's ProviderRegistry + AgentInstaller (packages/server/src/provider),
-// and a real preconnection-discovery RPC. The agent.* orchestration commands
-// in orchestration.ts (agent.install, agent.list, ...) are NOT a substitute:
+// listAgents is the exception: it rides the agentCall utility RPC (packages/
+// contracts/src/agentCall.ts), a gitCall-style tagged-union request routed
+// server-side onto ProviderRegistry.list (packages/server/src/provider/
+// agentCallHandler.ts). install/uninstall stay unsupportedOnContract until
+// agentCall grows an AgentInstaller-backed op -- real follow-up work, not
+// done here. The agent.* orchestration commands in orchestration.ts
+// (agent.install, agent.list, ...) are NOT a substitute for that follow-up:
 // they are echo commands whose payload is precomputed by the caller (e.g.
 // AgentListCommand takes `agents: AgentListing[]` as input), so dispatching
 // them would record a false "installed"/"listed" fact without any adapter
@@ -437,11 +439,25 @@ export const acp = {
 		);
 	}),
 
-	// No working Electrobun backend today -- see this file's header comment.
-	// A real agentCall utility RPC (mirroring gitCall) onto
-	// packages/server/src/provider's ProviderRegistry + AgentInstaller is the
-	// right follow-up shape, but is out of scope for this slice.
-	listAgents: (): Effect.Effect<AgentInfo[], AppError> => unsupportedOnContract("acp.listAgents"),
+	// Rides the agentCall utility RPC's agent.list op (packages/contracts/src/
+	// agentCall.ts), routed server-side onto ProviderRegistry.list (packages/
+	// server/src/provider/agentCallHandler.ts) -- the same registry
+	// ProviderBridge resolves real adapters from for session.create, so this
+	// only ever offers an agent Acepe can actually start a session with.
+	// install/uninstall stay unsupportedOnContract below: there is no
+	// AgentInstaller wiring on the agentCall contract yet.
+	listAgents: Effect.fn("acp.listAgents")(function* () {
+		const result = yield* withRpcClient("acp.listAgents", (client) =>
+			client.agentCall({ op: "agent.list" })
+		);
+		return result.agents.map(
+			(agent): AgentInfo => ({
+				id: agent.id,
+				name: agent.name,
+				availability_kind: agent.availabilityKind,
+			})
+		);
+	}),
 
 	installAgent: (_agentId: string): Effect.Effect<void, AppError> =>
 		unsupportedOnContract("acp.installAgent"),
