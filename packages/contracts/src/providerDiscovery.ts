@@ -1,4 +1,5 @@
 import { TrimmedNonEmptyString } from "./baseSchemas.ts"
+import { SessionId } from "./ids.ts"
 import * as Schema from "effect/Schema"
 
 const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
@@ -37,3 +38,31 @@ export type ListProviderSessionsRequest = typeof ListProviderSessionsRequest.Typ
 
 export const ListProviderProjectsRequest = Schema.Struct({})
 export type ListProviderProjectsRequest = typeof ListProviderProjectsRequest.Type
+
+/**
+ * Utility RPC (#249 batch 3, precedent: `invalidateProjectIndex`): imports
+ * one discovered provider session into the orchestration event store, on
+ * demand -- opening a session, or renaming/re-linking one that has not been
+ * imported yet, both need this before they can dispatch further commands
+ * against it. `projectPath`+`sessionId` (rather than a raw file path) so the
+ * server resolves the source file itself through the same discovery scan
+ * `listProviderSessions` uses: the webview never gets to name an arbitrary
+ * path on disk.
+ */
+export const ImportProviderSessionRequest = Schema.Struct({
+	provider: ProviderKind,
+	projectPath: TrimmedNonEmptyString,
+	sessionId: TrimmedNonEmptyString,
+})
+export type ImportProviderSessionRequest = typeof ImportProviderSessionRequest.Type
+
+export const ImportProviderSessionResult = Schema.Struct({
+	sessionId: SessionId,
+	// True when this call performed the import; false when discovery found
+	// no such session (idempotent no-op). A second import of an
+	// already-imported session also reports `true` here -- the underlying
+	// dispatch is idempotent via deterministic commandIds, so re-running it
+	// is cheap and always safe to call speculatively.
+	imported: Schema.Boolean,
+})
+export type ImportProviderSessionResult = typeof ImportProviderSessionResult.Type

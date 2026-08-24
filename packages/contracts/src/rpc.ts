@@ -22,6 +22,8 @@ import { GetProviderAccountUsageRequest, GetProviderAccountUsageResponse } from 
 import {
 	DiscoveredProviderProject,
 	DiscoveredProviderSession,
+	ImportProviderSessionRequest,
+	ImportProviderSessionResult,
 	ListProviderProjectsRequest,
 	ListProviderSessionsRequest,
 } from "./providerDiscovery.ts"
@@ -70,6 +72,7 @@ export const RPC_PRIMITIVE_TAGS = [
 	"getProviderAccountUsage",
 	"listProviderSessions",
 	"listProviderProjects",
+	"importProviderSession",
 ] as const
 export type RpcPrimitiveTag = (typeof RPC_PRIMITIVE_TAGS)[number]
 
@@ -685,6 +688,16 @@ export class ListProviderProjects extends Rpc.make("listProviderProjects", {
 	error: RpcServerError,
 }) {}
 
+// Utility RPC (precedent: InvalidateProjectIndex): imports one discovered
+// provider session into the orchestration event store on demand. See
+// providerDiscovery.ts for why the payload names a project+session rather
+// than a raw file path.
+export class ImportProviderSession extends Rpc.make("importProviderSession", {
+	payload: ImportProviderSessionRequest,
+	success: ImportProviderSessionResult,
+	error: RpcServerError,
+}) {}
+
 export const AcepeRpc = RpcGroup.make(
 	Dispatch,
 	Snapshot,
@@ -698,6 +711,7 @@ export const AcepeRpc = RpcGroup.make(
 	GetProviderAccountUsage,
 	ListProviderSessions,
 	ListProviderProjects,
+	ImportProviderSession,
 )
 
 type GroupTag = Rpc.Tag<RpcGroup.Rpcs<typeof AcepeRpc>>
@@ -719,6 +733,7 @@ export const GitCallExit = Rpc.exitSchema(GitCall)
 export const GetProviderAccountUsageExit = Rpc.exitSchema(GetProviderAccountUsage)
 export const ListProviderSessionsExit = Rpc.exitSchema(ListProviderSessions)
 export const ListProviderProjectsExit = Rpc.exitSchema(ListProviderProjects)
+export const ImportProviderSessionExit = Rpc.exitSchema(ImportProviderSession)
 
 export type ElectrobunRequestSpec = {
 	readonly params: Schema.Top
@@ -833,6 +848,10 @@ export type AcepeElectrobunRpcSchema = {
 				readonly params: typeof ListProviderProjectsRequest.Encoded
 				readonly response: typeof ListProviderProjectsExit.Encoded
 			}
+			readonly importProviderSession: {
+				readonly params: typeof ImportProviderSessionRequest.Encoded
+				readonly response: typeof ImportProviderSessionExit.Encoded
+			}
 		}
 		readonly messages: Record<string, never>
 	}
@@ -855,6 +874,7 @@ const gitCallExitJson = Schema.toCodecJson(GitCallExit)
 const getProviderAccountUsageExitJson = Schema.toCodecJson(GetProviderAccountUsageExit)
 const listProviderSessionsExitJson = Schema.toCodecJson(ListProviderSessionsExit)
 const listProviderProjectsExitJson = Schema.toCodecJson(ListProviderProjectsExit)
+const importProviderSessionExitJson = Schema.toCodecJson(ImportProviderSessionExit)
 
 export const decodeDispatchExit = Schema.decodeUnknownEffect(dispatchExitJson)
 export const decodeSnapshotExit = Schema.decodeUnknownEffect(snapshotExitJson)
@@ -871,6 +891,7 @@ export const decodeGetProviderAccountUsageExit = Schema.decodeUnknownEffect(
 )
 export const decodeListProviderSessionsExit = Schema.decodeUnknownEffect(listProviderSessionsExitJson)
 export const decodeListProviderProjectsExit = Schema.decodeUnknownEffect(listProviderProjectsExitJson)
+export const decodeImportProviderSessionExit = Schema.decodeUnknownEffect(importProviderSessionExitJson)
 export const encodeDispatchExit = Schema.encodeUnknownEffect(dispatchExitJson)
 export const encodeSnapshotExit = Schema.encodeUnknownEffect(snapshotExitJson)
 export const encodeGetProjectIndexExit = Schema.encodeUnknownEffect(getProjectIndexExitJson)
@@ -886,6 +907,7 @@ export const encodeGetProviderAccountUsageExit = Schema.encodeUnknownEffect(
 )
 export const encodeListProviderSessionsExit = Schema.encodeUnknownEffect(listProviderSessionsExitJson)
 export const encodeListProviderProjectsExit = Schema.encodeUnknownEffect(listProviderProjectsExitJson)
+export const encodeImportProviderSessionExit = Schema.encodeUnknownEffect(importProviderSessionExitJson)
 export const decodeEventsRequest = Schema.decodeUnknownEffect(EventsRequest)
 export const decodeSnapshotRequest = Schema.decodeUnknownEffect(SnapshotRequest)
 export const decodeGetProjectIndexRequest = Schema.decodeUnknownEffect(GetProjectIndexRequest)
@@ -901,6 +923,9 @@ export const decodeGetProviderAccountUsageRequest = Schema.decodeUnknownEffect(
 )
 export const decodeListProviderSessionsRequest = Schema.decodeUnknownEffect(ListProviderSessionsRequest)
 export const decodeListProviderProjectsRequest = Schema.decodeUnknownEffect(ListProviderProjectsRequest)
+export const decodeImportProviderSessionRequest = Schema.decodeUnknownEffect(
+	ImportProviderSessionRequest,
+)
 export const decodeOrchestrationCommand = Schema.decodeUnknownEffect(OrchestrationCommand)
 export const encodeOrchestrationCommand = Schema.encodeUnknownEffect(OrchestrationCommand)
 export const encodeOrchestrationEvent = Schema.encodeUnknownEffect(OrchestrationEvent)
@@ -949,6 +974,9 @@ export type RpcTransport<R = never> = {
 		RpcClientError,
 		R
 	>
+	readonly importProviderSession: (
+		request: ImportProviderSessionRequest,
+	) => Effect.Effect<ImportProviderSessionResult, RpcClientError, R>
 }
 
 export type RpcClient<R = never> = RpcTransport<R>
@@ -1023,6 +1051,7 @@ export const makeResumingRpcClient = <R>(transport: RpcTransport<R>): RpcClient<
 	getProviderAccountUsage: transport.getProviderAccountUsage,
 	listProviderSessions: transport.listProviderSessions,
 	listProviderProjects: transport.listProviderProjects,
+	importProviderSession: transport.importProviderSession,
 	events: (fromSequence) =>
 		Stream.unwrap(
 			Ref.make(fromSequence).pipe(Effect.map((cursor) => resumeEvents(transport, cursor))),
