@@ -57,6 +57,16 @@ describe("GitCallRequest", () => {
 		expect(decoded.limit).toBe(10)
 	})
 
+	it("decodes a push/pull/remote op by its op discriminant", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(GitCallRequest)({
+				op: "git.push",
+				projectPath: "/tmp/acepe",
+			}),
+		)
+		expect(decoded).toEqual({ op: "git.push", projectPath: "/tmp/acepe" })
+	})
+
 	it("rejects a blank projectPath", () => {
 		const decoded = Effect.runSyncExit(
 			Schema.decodeUnknownEffect(GitCallRequest)({
@@ -119,5 +129,24 @@ describe("GitCallResult", () => {
 			}),
 		)
 		expect(decoded).toEqual({ op: "git.isRepo", isRepo: true })
+	})
+
+	it("decodes a remoteStatus result", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(GitCallResult)({
+				op: "git.remoteStatus",
+				ahead: 1,
+				behind: 2,
+				remote: "origin",
+				trackingBranch: "origin/main",
+			}),
+		)
+		expect(decoded).toEqual({
+			op: "git.remoteStatus",
+			ahead: 1,
+			behind: 2,
+			remote: "origin",
+			trackingBranch: "origin/main",
+		})
 	})
 })

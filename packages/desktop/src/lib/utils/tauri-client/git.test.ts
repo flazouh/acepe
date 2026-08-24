@@ -252,6 +252,74 @@ describe("git tauri client", () => {
 		expect(requested).toEqual({ op: "git.log", projectPath: "/tmp/acepe", limit: 10 });
 	});
 
+	it("push sends the projectPath and resolves to void", async () => {
+		let requested: unknown = null;
+		setAppRpcClientForTest(
+			makeClient((request) => {
+				requested = request;
+				return Effect.succeed({ op: "git.push" });
+			})
+		);
+
+		const result = await Effect.runPromise(Effect.result(git.push("/tmp/acepe")));
+
+		expect(Result.isSuccess(result)).toBe(true);
+		expect(requested).toEqual({ op: "git.push", projectPath: "/tmp/acepe" });
+	});
+
+	it("pull sends the projectPath and resolves to void", async () => {
+		let requested: unknown = null;
+		setAppRpcClientForTest(
+			makeClient((request) => {
+				requested = request;
+				return Effect.succeed({ op: "git.pull" });
+			})
+		);
+
+		const result = await Effect.runPromise(Effect.result(git.pull("/tmp/acepe")));
+
+		expect(Result.isSuccess(result)).toBe(true);
+		expect(requested).toEqual({ op: "git.pull", projectPath: "/tmp/acepe" });
+	});
+
+	it("fetch sends the projectPath and resolves to void", async () => {
+		let requested: unknown = null;
+		setAppRpcClientForTest(
+			makeClient((request) => {
+				requested = request;
+				return Effect.succeed({ op: "git.fetch" });
+			})
+		);
+
+		const result = await Effect.runPromise(Effect.result(git.fetch("/tmp/acepe")));
+
+		expect(Result.isSuccess(result)).toBe(true);
+		expect(requested).toEqual({ op: "git.fetch", projectPath: "/tmp/acepe" });
+	});
+
+	it("remoteStatus returns the ahead/behind/remote/trackingBranch fields", async () => {
+		setAppRpcClientForTest(
+			makeClient(() =>
+				Effect.succeed({
+					op: "git.remoteStatus",
+					ahead: 2,
+					behind: 1,
+					remote: "origin",
+					trackingBranch: "origin/main",
+				})
+			)
+		);
+
+		const result = await Effect.runPromise(Effect.result(git.remoteStatus("/tmp/acepe")));
+
+		expect(Result.getOrThrow(result)).toEqual({
+			ahead: 2,
+			behind: 1,
+			remote: "origin",
+			trackingBranch: "origin/main",
+		});
+	});
+
 	it("dies when the server routes to the wrong op", async () => {
 		setAppRpcClientForTest(
 			// The server would never legitimately answer a git.isRepo request with

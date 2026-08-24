@@ -258,6 +258,130 @@ Vitest.layer(Layer.mergeAll(TestLive, PlatformLive))("gitCallHandler", (it) => {
 		})
 	)
 
+	it.effect(
+		"git.push, git.fetch, git.pull, and git.remoteStatus round-trip against a local bare remote",
+		() =>
+			Effect.gen(function*() {
+				const fs = yield* FileSystem.FileSystem
+				const path = yield* Path.Path
+				const dir = yield* freshRepoDir("push-pull-remote")
+				yield* initRepoWithCommit(dir)
+				const branch = (
+					yield* runGit({
+						gitBin: "git",
+						args: Arr.fromIterable(["branch", "--show-current"]),
+						cwd: dir,
+						allowExitCodes: noAllow,
+						env: noneEnv
+					})
+				).trim()
+
+				// A bare repo on the local filesystem stands in for a real remote --
+				// no network access needed, and `git remote add`/`push`/`fetch`/`pull`
+				// against a local path exercise the exact same code paths as a real
+				// origin would.
+				const remoteDir = yield* fs.makeTempDirectoryScoped()
+				yield* runGit({
+					gitBin: "git",
+					args: Arr.fromIterable(["init", "--bare"]),
+					cwd: remoteDir,
+					allowExitCodes: noAllow,
+					env: noneEnv
+				})
+				yield* runGit({
+					gitBin: "git",
+					args: Arr.fromIterable(["remote", "add", "origin", remoteDir]),
+					cwd: dir,
+					allowExitCodes: noAllow,
+					env: noneEnv
+				})
+				yield* runGit({
+					gitBin: "git",
+					args: Arr.fromIterable(["push", "--set-upstream", "origin", branch]),
+					cwd: dir,
+					allowExitCodes: noAllow,
+					env: noneEnv
+				})
+
+				const clean = yield* routeGitCall({ op: "git.remoteStatus", projectPath: dir })
+				if (clean.op !== "git.remoteStatus") {
+					return yield* Effect.die("expected git.remoteStatus result")
+				}
+				Vitest.assert.strictEqual(clean.ahead, 0)
+				Vitest.assert.strictEqual(clean.behind, 0)
+
+				// A local commit puts us ahead; git.push (routed) should clear it.
+				yield* fs.writeFileString(path.join(dir, "pushed.txt"), "pushed\n")
+				yield* routeGitCall({ op: "git.stageAll", projectPath: dir })
+				yield* routeGitCall({ op: "git.commit", projectPath: dir, message: "add pushed.txt" })
+
+				const ahead = yield* routeGitCall({ op: "git.remoteStatus", projectPath: dir })
+				if (ahead.op !== "git.remoteStatus") {
+					return yield* Effect.die("expected git.remoteStatus result")
+				}
+				Vitest.assert.strictEqual(ahead.ahead, 1)
+
+				const pushed = yield* routeGitCall({ op: "git.push", projectPath: dir })
+				Vitest.assert.deepStrictEqual(pushed, { op: "git.push" })
+
+				const afterPush = yield* routeGitCall({ op: "git.remoteStatus", projectPath: dir })
+				if (afterPush.op !== "git.remoteStatus") {
+					return yield* Effect.die("expected git.remoteStatus result")
+				}
+				Vitest.assert.strictEqual(afterPush.ahead, 0)
+
+				// A collaborator clone pushes a commit the local repo doesn't have
+				// yet; git.fetch (routed) should surface it as "behind", and
+				// git.pull (routed) should bring the file down.
+				const collaborator = yield* fs.makeTempDirectoryScoped()
+				yield* runGit({
+					gitBin: "git",
+					args: Arr.fromIterable(["clone", remoteDir, collaborator]),
+					cwd: remoteDir,
+					allowExitCodes: noAllow,
+					env: noneEnv
+				})
+				yield* configureRepo(collaborator)
+				yield* fs.writeFileString(path.join(collaborator, "from-collaborator.txt"), "hi\n")
+				yield* runGit({
+					gitBin: "git",
+					args: Arr.fromIterable(["add", "-A"]),
+					cwd: collaborator,
+					allowExitCodes: noAllow,
+					env: noneEnv
+				})
+				yield* runGit({
+					gitBin: "git",
+					args: Arr.fromIterable(["commit", "-m", "collaborator commit"]),
+					cwd: collaborator,
+					allowExitCodes: noAllow,
+					env: noneEnv
+				})
+				yield* runGit({
+					gitBin: "git",
+					args: Arr.fromIterable(["push"]),
+					cwd: collaborator,
+					allowExitCodes: noAllow,
+					env: noneEnv
+				})
+
+				const fetched = yield* routeGitCall({ op: "git.fetch", projectPath: dir })
+				Vitest.assert.deepStrictEqual(fetched, { op: "git.fetch" })
+
+				const behind = yield* routeGitCall({ op: "git.remoteStatus", projectPath: dir })
+				if (behind.op !== "git.remoteStatus") {
+					return yield* Effect.die("expected git.remoteStatus result")
+				}
+				Vitest.assert.strictEqual(behind.behind, 1)
+
+				const pulled = yield* routeGitCall({ op: "git.pull", projectPath: dir })
+				Vitest.assert.deepStrictEqual(pulled, { op: "git.pull" })
+
+				const gotFile = yield* fs.exists(path.join(dir, "from-collaborator.txt"))
+				Vitest.assert.strictEqual(gotFile, true)
+			})
+	)
+
 	it.effect("denies a projectPath outside every known root", () =>
 		Effect.gen(function*() {
 			const fs = yield* FileSystem.FileSystem

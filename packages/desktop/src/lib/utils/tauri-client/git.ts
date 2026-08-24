@@ -30,27 +30,28 @@ const unwrapGitCallResult = <Tag extends GitCallResult["op"]>(
 // moves to unsupportedOnContract below with its own note.
 //
 // init/isRepo/currentBranch/listBranches/checkoutBranch/
-// hasUncommittedChanges (branch/checkout) and panelStatus/stageFiles/
-// unstageFiles/stageAll/discardChanges/commit/log (stage/commit) ride the
-// gitCall utility RPC (packages/contracts/src/gitCall.ts) -- a tagged-union
-// request/response pair routed server-side onto GitService
+// hasUncommittedChanges (branch/checkout), panelStatus/stageFiles/
+// unstageFiles/stageAll/discardChanges/commit/log (stage/commit), and
+// push/pull/fetch/remoteStatus (push/pull/remote) ride the gitCall utility
+// RPC (packages/contracts/src/gitCall.ts) -- a tagged-union request/response
+// pair routed server-side onto GitService
 // (packages/server/src/git/gitCallHandler.ts), per the #249 issue thread's
 // DESIGN DECISION. Growing that union by sub-domain adds zero new RPC
 // primitives after the first.
 //
-// The remaining 20 methods (prepareWorktreeSessionLaunch through
-// saveWorktreeConfig) still have live callers -- git-panel.svelte,
-// agent-panel-ship-workflow.ts, branch-picker.svelte,
-// project-selection-panel.svelte, worktree-setup-orchestrator.ts, and
-// others -- and stay on TAURI_COMMAND_CLIENT this slice: push/pull/fetch/
-// remote-status, stash, worktree lifecycle (create/remove/list/rename/
-// reset/disk-size/prepare-launch), worktree-config/setup, and ship/PR/CI.
-// packages/server/src/git/makeGitService.ts's GitService already implements
-// almost all of that logic server-side too; the same one-shot
-// request/response shape that motivated the gitCall utility-RPC pattern for
-// branch/checkout and stage/commit applies to these sub-domains, and a
-// follow-up slice should grow the gitCall union to carry them. See the #249
-// issue thread.
+// The remaining 16 methods (prepareWorktreeSessionLaunch through
+// saveWorktreeConfig, minus push/pull/fetch/remoteStatus above) still have
+// live callers -- git-panel.svelte, agent-panel-ship-workflow.ts,
+// branch-picker.svelte, project-selection-panel.svelte,
+// worktree-setup-orchestrator.ts, and others -- and stay on
+// TAURI_COMMAND_CLIENT this slice: stash, worktree lifecycle
+// (create/remove/list/rename/reset/disk-size/prepare-launch),
+// worktree-config/setup, and ship/PR/CI. packages/server/src/git/
+// makeGitService.ts's GitService already implements almost all of that
+// logic server-side too; the same one-shot request/response shape that
+// motivated the gitCall utility-RPC pattern for branch/checkout and
+// stage/commit applies to these sub-domains, and a follow-up slice should
+// grow the gitCall union to carry them. See the #249 issue thread.
 export const git = {
 	// No live caller today (see #249 batch 2 map); the clone-a-new-project
 	// flow that used this is dormant. GitService.clone already exists
@@ -233,19 +234,35 @@ export const git = {
 	},
 
 	push: (projectPath: string): Effect.Effect<void, AppError> => {
-		return gitCommands.push.invoke<void>({ projectPath });
+		return withRpcClient("git.push", (client) =>
+			client.gitCall({ op: "git.push", projectPath })
+		).pipe(Effect.asVoid);
 	},
 
 	pull: (projectPath: string): Effect.Effect<void, AppError> => {
-		return gitCommands.pull.invoke<void>({ projectPath });
+		return withRpcClient("git.pull", (client) =>
+			client.gitCall({ op: "git.pull", projectPath })
+		).pipe(Effect.asVoid);
 	},
 
 	fetch: (projectPath: string): Effect.Effect<void, AppError> => {
-		return gitCommands.fetch.invoke<void>({ projectPath });
+		return withRpcClient("git.fetch", (client) =>
+			client.gitCall({ op: "git.fetch", projectPath })
+		).pipe(Effect.asVoid);
 	},
 
 	remoteStatus: (projectPath: string): Effect.Effect<GitRemoteStatus, AppError> => {
-		return gitCommands.remote_status.invoke<GitRemoteStatus>({ projectPath });
+		return withRpcClient("git.remoteStatus", (client) =>
+			client.gitCall({ op: "git.remoteStatus", projectPath })
+		).pipe(
+			Effect.flatMap((result) => unwrapGitCallResult("git.remoteStatus", result)),
+			Effect.map((result) => ({
+				ahead: result.ahead,
+				behind: result.behind,
+				remote: result.remote,
+				trackingBranch: result.trackingBranch
+			}))
+		);
 	},
 
 	stashList: (projectPath: string): Effect.Effect<GitStashEntry[], AppError> => {

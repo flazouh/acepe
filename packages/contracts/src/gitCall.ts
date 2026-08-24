@@ -8,9 +8,9 @@ import * as Schema from "effect/Schema"
 // comment) adds zero new RPC primitives after this one -- only new members
 // of these two unions plus a routing branch on the server.
 //
-// This slice carries the branch/checkout and stage/commit sub-domains of
-// tauri-client/git.ts's 33 live methods. Other sub-domains (push/pull/
-// remote, stash, worktree lifecycle/config, ship/PR/CI) stay on
+// This slice carries the branch/checkout, stage/commit, and push/pull/
+// remote-status sub-domains of tauri-client/git.ts's 33 live methods. Other
+// sub-domains (stash, worktree lifecycle/config, ship/PR/CI) stay on
 // TAURI_COMMAND_CLIENT and will grow this union in later slices.
 
 const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
@@ -198,6 +198,56 @@ export const GitCallLogResult = Schema.Struct({
 })
 export type GitCallLogResult = typeof GitCallLogResult.Type
 
+// ─── push/pull/remote ─────────────────────────────────────────────────────
+
+export const GitCallPushRequest = Schema.Struct({
+	op: Schema.Literal("git.push"),
+	projectPath: TrimmedNonEmptyString,
+})
+export type GitCallPushRequest = typeof GitCallPushRequest.Type
+
+export const GitCallPushResult = Schema.Struct({
+	op: Schema.Literal("git.push"),
+})
+export type GitCallPushResult = typeof GitCallPushResult.Type
+
+export const GitCallPullRequest = Schema.Struct({
+	op: Schema.Literal("git.pull"),
+	projectPath: TrimmedNonEmptyString,
+})
+export type GitCallPullRequest = typeof GitCallPullRequest.Type
+
+export const GitCallPullResult = Schema.Struct({
+	op: Schema.Literal("git.pull"),
+})
+export type GitCallPullResult = typeof GitCallPullResult.Type
+
+export const GitCallFetchRequest = Schema.Struct({
+	op: Schema.Literal("git.fetch"),
+	projectPath: TrimmedNonEmptyString,
+})
+export type GitCallFetchRequest = typeof GitCallFetchRequest.Type
+
+export const GitCallFetchResult = Schema.Struct({
+	op: Schema.Literal("git.fetch"),
+})
+export type GitCallFetchResult = typeof GitCallFetchResult.Type
+
+export const GitCallRemoteStatusRequest = Schema.Struct({
+	op: Schema.Literal("git.remoteStatus"),
+	projectPath: TrimmedNonEmptyString,
+})
+export type GitCallRemoteStatusRequest = typeof GitCallRemoteStatusRequest.Type
+
+export const GitCallRemoteStatusResult = Schema.Struct({
+	op: Schema.Literal("git.remoteStatus"),
+	ahead: NonNegativeInt,
+	behind: NonNegativeInt,
+	remote: Schema.String,
+	trackingBranch: Schema.String,
+})
+export type GitCallRemoteStatusResult = typeof GitCallRemoteStatusResult.Type
+
 // ─── unions ───────────────────────────────────────────────────────────────
 
 export const GitCallRequest = Schema.Union([
@@ -214,6 +264,10 @@ export const GitCallRequest = Schema.Union([
 	GitCallDiscardChangesRequest,
 	GitCallCommitRequest,
 	GitCallLogRequest,
+	GitCallPushRequest,
+	GitCallPullRequest,
+	GitCallFetchRequest,
+	GitCallRemoteStatusRequest,
 ])
 export type GitCallRequest = typeof GitCallRequest.Type
 
@@ -231,5 +285,9 @@ export const GitCallResult = Schema.Union([
 	GitCallDiscardChangesResult,
 	GitCallCommitResult,
 	GitCallLogResult,
+	GitCallPushResult,
+	GitCallPullResult,
+	GitCallFetchResult,
+	GitCallRemoteStatusResult,
 ])
 export type GitCallResult = typeof GitCallResult.Type
