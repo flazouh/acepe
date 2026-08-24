@@ -109,7 +109,7 @@ describe("EventSubscriber", () => {
 			expect(unlisten).toHaveBeenCalledTimes(1);
 			expect(subscriber.listenerCount).toBe(0);
 
-			await subscriber.subscribe(vi.fn());
+			await Effect.runPromise(subscriber.subscribe(vi.fn()));
 			expect(mockOpenAcpEventSource).toHaveBeenCalledTimes(2);
 		});
 

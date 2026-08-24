@@ -198,7 +198,7 @@ const listenForEvents = (
 				try: () => bridge.request.events({ fromSequence }),
 				catch: transportErrorFrom,
 			});
-			yield* Effect.never;
+			return yield* Effect.never;
 		})
 	).pipe(
 		Stream.mapEffect((payload) =>

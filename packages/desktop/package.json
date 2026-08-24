@@ -37,6 +37,7 @@
 		"storage:prune": "bash scripts/prune-storage.sh",
 		"audit:session-timing": "bun run scripts/audit-session-timing.ts",
 		"lint:effect:report": "effect-language-service diagnostics --project tsconfig.json --strict --format pretty",
+		"lint:effect:ratchet": "bun run scripts/check-effect-lint-ratchet.ts",
 		"check:tauri-importers": "bun run scripts/check-tauri-client-importers.ts"
 	},
 	"license": "MIT",

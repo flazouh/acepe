@@ -56,6 +56,9 @@ export function preloadSound(sound: SoundEffect): void {
 	const ctx = getAudioContext();
 	void Effect.runPromise(
 		fromPromise(
+			// Loading a static webview-bundled asset, not a general HTTP call;
+			// wiring an HttpClient Layer through this callback isn't worth it.
+			// @effect-diagnostics-next-line globalFetch:off
 			() =>
 				fetch(`/sounds/${sound}`)
 					.then((response) => response.arrayBuffer())
