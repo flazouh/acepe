@@ -15,6 +15,7 @@ import {
 } from "./fileIndex.ts"
 import { GetDefaultShellRequest, ReadTextFileRequest, WriteTextFileRequest } from "./fsUtil.ts"
 import { ProjectedGitReview } from "./git.ts"
+import { GitCallRequest, GitCallResult } from "./gitCall.ts"
 import { ProjectedMcpCatalog } from "./mcp.ts"
 import { ProjectedPreconnectionOptions } from "./preconnection.ts"
 import { ProjectedTerminal } from "./terminal.ts"
@@ -57,6 +58,7 @@ export const RPC_PRIMITIVE_TAGS = [
 	"readTextFile",
 	"writeTextFile",
 	"getDefaultShell",
+	"gitCall",
 ] as const
 export type RpcPrimitiveTag = (typeof RPC_PRIMITIVE_TAGS)[number]
 
@@ -171,6 +173,18 @@ export class RpcFsPathDeniedError extends Schema.TaggedError<RpcFsPathDeniedErro
 	}
 }
 
+export class RpcGitCallError extends Schema.TaggedError<RpcGitCallError>()(
+	"RpcGitCallError",
+	{
+		op: Schema.String,
+		detail: Schema.String,
+	},
+) {
+	override get message(): string {
+		return `git ${this.op} failed: ${this.detail}`
+	}
+}
+
 export const RpcServerError = Schema.Union([
 	RpcCommandInvariantError,
 	RpcCommandPreviouslyRejectedError,
@@ -181,6 +195,7 @@ export const RpcServerError = Schema.Union([
 	RpcFileIndexRootNotFoundError,
 	RpcFileIndexNotADirectoryError,
 	RpcFsPathDeniedError,
+	RpcGitCallError,
 ])
 export type RpcServerError = typeof RpcServerError.Type
 
@@ -608,6 +623,12 @@ export class GetDefaultShell extends Rpc.make("getDefaultShell", {
 	error: RpcServerError,
 }) {}
 
+export class GitCall extends Rpc.make("gitCall", {
+	payload: GitCallRequest,
+	success: GitCallResult,
+	error: RpcServerError,
+}) {}
+
 export const AcepeRpc = RpcGroup.make(
 	Dispatch,
 	Snapshot,
@@ -617,6 +638,7 @@ export const AcepeRpc = RpcGroup.make(
 	ReadTextFile,
 	WriteTextFile,
 	GetDefaultShell,
+	GitCall,
 )
 
 type GroupTag = Rpc.Tag<RpcGroup.Rpcs<typeof AcepeRpc>>
@@ -634,6 +656,7 @@ export const InvalidateProjectIndexExit = Rpc.exitSchema(InvalidateProjectIndex)
 export const ReadTextFileExit = Rpc.exitSchema(ReadTextFile)
 export const WriteTextFileExit = Rpc.exitSchema(WriteTextFile)
 export const GetDefaultShellExit = Rpc.exitSchema(GetDefaultShell)
+export const GitCallExit = Rpc.exitSchema(GitCall)
 
 export type ElectrobunRequestSpec = {
 	readonly params: Schema.Top
@@ -732,6 +755,10 @@ export type AcepeElectrobunRpcSchema = {
 				readonly params: typeof GetDefaultShellRequest.Encoded
 				readonly response: typeof GetDefaultShellExit.Encoded
 			}
+			readonly gitCall: {
+				readonly params: typeof GitCallRequest.Encoded
+				readonly response: typeof GitCallExit.Encoded
+			}
 		}
 		readonly messages: Record<string, never>
 	}
@@ -750,6 +777,7 @@ const invalidateProjectIndexExitJson = Schema.toCodecJson(InvalidateProjectIndex
 const readTextFileExitJson = Schema.toCodecJson(ReadTextFileExit)
 const writeTextFileExitJson = Schema.toCodecJson(WriteTextFileExit)
 const getDefaultShellExitJson = Schema.toCodecJson(GetDefaultShellExit)
+const gitCallExitJson = Schema.toCodecJson(GitCallExit)
 
 export const decodeDispatchExit = Schema.decodeUnknownEffect(dispatchExitJson)
 export const decodeSnapshotExit = Schema.decodeUnknownEffect(snapshotExitJson)
@@ -760,6 +788,7 @@ export const decodeInvalidateProjectIndexExit = Schema.decodeUnknownEffect(
 export const decodeReadTextFileExit = Schema.decodeUnknownEffect(readTextFileExitJson)
 export const decodeWriteTextFileExit = Schema.decodeUnknownEffect(writeTextFileExitJson)
 export const decodeGetDefaultShellExit = Schema.decodeUnknownEffect(getDefaultShellExitJson)
+export const decodeGitCallExit = Schema.decodeUnknownEffect(gitCallExitJson)
 export const encodeDispatchExit = Schema.encodeUnknownEffect(dispatchExitJson)
 export const encodeSnapshotExit = Schema.encodeUnknownEffect(snapshotExitJson)
 export const encodeGetProjectIndexExit = Schema.encodeUnknownEffect(getProjectIndexExitJson)
@@ -769,6 +798,7 @@ export const encodeInvalidateProjectIndexExit = Schema.encodeUnknownEffect(
 export const encodeReadTextFileExit = Schema.encodeUnknownEffect(readTextFileExitJson)
 export const encodeWriteTextFileExit = Schema.encodeUnknownEffect(writeTextFileExitJson)
 export const encodeGetDefaultShellExit = Schema.encodeUnknownEffect(getDefaultShellExitJson)
+export const encodeGitCallExit = Schema.encodeUnknownEffect(gitCallExitJson)
 export const decodeEventsRequest = Schema.decodeUnknownEffect(EventsRequest)
 export const decodeSnapshotRequest = Schema.decodeUnknownEffect(SnapshotRequest)
 export const decodeGetProjectIndexRequest = Schema.decodeUnknownEffect(GetProjectIndexRequest)
@@ -778,6 +808,7 @@ export const decodeInvalidateProjectIndexRequest = Schema.decodeUnknownEffect(
 export const decodeReadTextFileRequest = Schema.decodeUnknownEffect(ReadTextFileRequest)
 export const decodeWriteTextFileRequest = Schema.decodeUnknownEffect(WriteTextFileRequest)
 export const decodeGetDefaultShellRequest = Schema.decodeUnknownEffect(GetDefaultShellRequest)
+export const decodeGitCallRequest = Schema.decodeUnknownEffect(GitCallRequest)
 export const decodeOrchestrationCommand = Schema.decodeUnknownEffect(OrchestrationCommand)
 export const encodeOrchestrationCommand = Schema.encodeUnknownEffect(OrchestrationCommand)
 export const encodeOrchestrationEvent = Schema.encodeUnknownEffect(OrchestrationEvent)
@@ -814,6 +845,7 @@ export type RpcTransport<R = never> = {
 		request: WriteTextFileRequest,
 	) => Effect.Effect<void, RpcClientError, R>
 	readonly getDefaultShell: () => Effect.Effect<string, RpcClientError, R>
+	readonly gitCall: (request: GitCallRequest) => Effect.Effect<GitCallResult, RpcClientError, R>
 }
 
 export type RpcClient<R = never> = RpcTransport<R>
@@ -884,6 +916,7 @@ export const makeResumingRpcClient = <R>(transport: RpcTransport<R>): RpcClient<
 	readTextFile: transport.readTextFile,
 	writeTextFile: transport.writeTextFile,
 	getDefaultShell: transport.getDefaultShell,
+	gitCall: transport.gitCall,
 	events: (fromSequence) =>
 		Stream.unwrap(
 			Ref.make(fromSequence).pipe(Effect.map((cursor) => resumeEvents(transport, cursor))),
