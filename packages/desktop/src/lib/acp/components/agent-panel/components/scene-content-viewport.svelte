@@ -518,6 +518,10 @@ $effect(() => {
 	const hasCanonicalGraphRevision =
 		sessionId !== null && sessionStore.read.getSessionGraphRevision(sessionId) !== null;
 	if (
+		// `sessionId === null` is redundant with shouldBootstrapTranscriptRows'
+		// own check — kept here so TypeScript narrows sessionId to `string`
+		// below (it can't see through the opaque function call).
+		sessionId === null ||
 		!shouldBootstrapTranscriptRows({
 			skipRowsBootstrap,
 			sessionId,
