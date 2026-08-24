@@ -16,6 +16,7 @@ test("bun entry ping handler returns the echoed value", () => {
 			readTextFile: (params) => params,
 			writeTextFile: (params) => params,
 			getDefaultShell: (params) => params,
+			gitCall: (params) => params,
 		}
 	);
 	expect(opened.rpc.ping({ message: "desktop round trip" })).toEqual({
@@ -38,6 +39,7 @@ test("bun entry window loads the svelte bundle and exposes acepe rpc", () => {
 			readTextFile: () => "",
 			writeTextFile: () => undefined,
 			getDefaultShell: () => "/bin/zsh",
+			gitCall: () => ({ op: "git.isRepo", isRepo: false }),
 		}
 	);
 	expect(opened.url).toBe("views://mainview/index.html");

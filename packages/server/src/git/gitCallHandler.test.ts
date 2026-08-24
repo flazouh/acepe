@@ -1,0 +1,283 @@
+import { ProjectId } from "@acepe/contracts"
+import * as BunChildProcessSpawner from "@effect/platform-bun/BunChildProcessSpawner"
+import * as BunCrypto from "@effect/platform-bun/BunCrypto"
+import * as BunFileSystem from "@effect/platform-bun/BunFileSystem"
+import * as BunPath from "@effect/platform-bun/BunPath"
+import * as Vitest from "@effect/vitest"
+import * as Arr from "effect/Array"
+import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
+import * as Layer from "effect/Layer"
+import * as Option from "effect/Option"
+import * as Path from "effect/Path"
+import { type ProjectedProject, ProjectionProjects } from "../persistence/Services/ProjectionProjects.ts"
+import { AppDataDir } from "../rpc/fsPathGuard.ts"
+import { routeGitCall } from "./gitCallHandler.ts"
+import { makeGitService } from "./makeGitService.ts"
+import { runGit } from "./runGit.ts"
+import { GitService } from "./Services/GitService.ts"
+
+const PlatformLive = Layer.mergeAll(
+	BunCrypto.layer,
+	BunFileSystem.layer,
+	BunPath.layer,
+	BunChildProcessSpawner.layer.pipe(
+		Layer.provideMerge(Layer.mergeAll(BunFileSystem.layer, BunPath.layer))
+	)
+)
+
+const noneEnv = Option.none<Readonly<Record<string, string>>>()
+const noAllow = Arr.empty<number>()
+
+const NOW = "2026-08-20T12:00:00.000Z"
+
+const fakeProject = (workspaceRoot: string): ProjectedProject => ({
+	projectId: ProjectId.make("project-1"),
+	title: "Acepe",
+	workspaceRoot,
+	createdAt: NOW,
+	updatedAt: NOW,
+	deletedAt: null,
+	sessionCount: 0,
+	scanWarmedAt: NOW
+})
+
+const ProjectionProjectsFake = (projects: ReadonlyArray<ProjectedProject>) =>
+	Layer.succeed(ProjectionProjects, {
+		name: "projection.projects",
+		apply: () => Effect.void,
+		truncate: () => Effect.void,
+		list: () => Effect.succeed(projects),
+		get: () => Effect.succeed(Option.none())
+	})
+
+const configureRepo = (dir: string) =>
+	Effect.gen(function*() {
+		yield* runGit({
+			gitBin: "git",
+			args: Arr.fromIterable(["config", "user.name", "Test User"]),
+			cwd: dir,
+			allowExitCodes: noAllow,
+			env: noneEnv
+		})
+		yield* runGit({
+			gitBin: "git",
+			args: Arr.fromIterable(["config", "user.email", "test@example.com"]),
+			cwd: dir,
+			allowExitCodes: noAllow,
+			env: noneEnv
+		})
+		yield* runGit({
+			gitBin: "git",
+			args: Arr.fromIterable(["config", "commit.gpgsign", "false"]),
+			cwd: dir,
+			allowExitCodes: noAllow,
+			env: noneEnv
+		})
+	})
+
+// One project root (registered with ProjectionProjects, so guardFsPath
+// allows it and everything nested under it) and one app data dir (its
+// worktrees subdirectory is where makeGitService puts acepe-managed
+// worktrees, mirroring bootstrap.ts) are shared across every test below --
+// each test gets its own fresh subdirectory of the project root via
+// freshRepoDir so tests never see each other's git state.
+const TestLive = Layer.unwrap(
+	Effect.gen(function*() {
+		const fs = yield* FileSystem.FileSystem
+		// realPath: on macOS, makeTempDirectoryScoped returns a /var/... path
+		// that is itself a symlink to /private/var/...; git worktree list
+		// reports the resolved form, so an unresolved projectPath would look
+		// like a *different* worktree than itself and get filtered out of
+		// listBranches's result.
+		const project = yield* fs.makeTempDirectoryScoped().pipe(Effect.flatMap((dir) => fs.realPath(dir)))
+		const appData = yield* fs.makeTempDirectoryScoped().pipe(Effect.flatMap((dir) => fs.realPath(dir)))
+		return Layer.mergeAll(
+			ProjectionProjectsFake([fakeProject(project)]),
+			Layer.succeed(AppDataDir, AppDataDir.of({ path: appData })),
+			Layer.effect(
+				GitService,
+				makeGitService({
+					worktreesRoot: appData,
+					gitBin: "git",
+					ghBin: "gh"
+				})
+			)
+		)
+	})
+).pipe(Layer.provide(PlatformLive))
+
+const freshRepoDir = Effect.fn("freshRepoDir")(function*(label: string) {
+	const fs = yield* FileSystem.FileSystem
+	const path = yield* Path.Path
+	const projects = yield* ProjectionProjects
+	const list = yield* projects.list()
+	const project = list[0]
+	if (project === undefined) {
+		return yield* Effect.die("no fake project registered")
+	}
+	const dir = path.join(project.workspaceRoot, label)
+	yield* fs.makeDirectory(dir, { recursive: true })
+	return dir
+})
+
+const initRepoWithCommit = Effect.fn("initRepoWithCommit")(function*(dir: string) {
+	const fs = yield* FileSystem.FileSystem
+	const path = yield* Path.Path
+	const git = yield* GitService
+	yield* git.init(dir)
+	yield* configureRepo(dir)
+	yield* fs.writeFileString(path.join(dir, "readme.txt"), "hello\n")
+	yield* git.stageAll(dir)
+	yield* git.commit({ projectPath: dir, message: "Initial commit" })
+})
+
+Vitest.layer(Layer.mergeAll(TestLive, PlatformLive))("gitCallHandler", (it) => {
+	it.effect("git.init creates a repo at an allowed subdirectory", () =>
+		Effect.gen(function*() {
+			const dir = yield* freshRepoDir("init")
+			const result = yield* routeGitCall({ op: "git.init", projectPath: dir })
+			Vitest.assert.deepStrictEqual(result, { op: "git.init" })
+			const isRepo = yield* routeGitCall({ op: "git.isRepo", projectPath: dir })
+			Vitest.assert.deepStrictEqual(isRepo, { op: "git.isRepo", isRepo: true })
+		})
+	)
+
+	it.effect("git.isRepo reports false before init", () =>
+		Effect.gen(function*() {
+			const dir = yield* freshRepoDir("not-a-repo-yet")
+			const result = yield* routeGitCall({ op: "git.isRepo", projectPath: dir })
+			Vitest.assert.deepStrictEqual(result, { op: "git.isRepo", isRepo: false })
+		})
+	)
+
+	it.effect("git.currentBranch, git.listBranches, and git.checkoutBranch drive branch state", () =>
+		Effect.gen(function*() {
+			const dir = yield* freshRepoDir("branches")
+			yield* initRepoWithCommit(dir)
+			const current = yield* routeGitCall({ op: "git.currentBranch", projectPath: dir })
+			Vitest.assert.strictEqual(current.op, "git.currentBranch")
+
+			const created = yield* routeGitCall({
+				op: "git.checkoutBranch",
+				projectPath: dir,
+				branch: "feature/one",
+				create: true
+			})
+			Vitest.assert.deepStrictEqual(created, { op: "git.checkoutBranch", branch: "feature/one" })
+
+			const branches = yield* routeGitCall({ op: "git.listBranches", projectPath: dir })
+			if (branches.op !== "git.listBranches") {
+				return yield* Effect.die("expected git.listBranches result")
+			}
+			Vitest.assert.strictEqual(branches.branches.includes("feature/one"), true)
+
+			const backToCurrent = yield* routeGitCall({ op: "git.currentBranch", projectPath: dir })
+			if (backToCurrent.op !== "git.currentBranch") {
+				return yield* Effect.die("expected git.currentBranch result")
+			}
+			Vitest.assert.strictEqual(backToCurrent.branch, "feature/one")
+		})
+	)
+
+	it.effect("git.hasUncommittedChanges flips true after a file changes", () =>
+		Effect.gen(function*() {
+			const fs = yield* FileSystem.FileSystem
+			const path = yield* Path.Path
+			const dir = yield* freshRepoDir("uncommitted")
+			yield* initRepoWithCommit(dir)
+			const clean = yield* routeGitCall({ op: "git.hasUncommittedChanges", projectPath: dir })
+			Vitest.assert.deepStrictEqual(clean, { op: "git.hasUncommittedChanges", hasUncommittedChanges: false })
+			yield* fs.writeFileString(path.join(dir, "readme.txt"), "hello again\n")
+			const dirty = yield* routeGitCall({ op: "git.hasUncommittedChanges", projectPath: dir })
+			Vitest.assert.deepStrictEqual(dirty, { op: "git.hasUncommittedChanges", hasUncommittedChanges: true })
+		})
+	)
+
+	it.effect("git.stageFiles, git.panelStatus, git.commit, and git.log round-trip a new file", () =>
+		Effect.gen(function*() {
+			const fs = yield* FileSystem.FileSystem
+			const path = yield* Path.Path
+			const dir = yield* freshRepoDir("stage-commit-log")
+			yield* initRepoWithCommit(dir)
+			yield* fs.writeFileString(path.join(dir, "new.txt"), "new file\n")
+
+			const beforeStage = yield* routeGitCall({ op: "git.panelStatus", projectPath: dir })
+			if (beforeStage.op !== "git.panelStatus") {
+				return yield* Effect.die("expected git.panelStatus result")
+			}
+			Vitest.assert.strictEqual(
+				beforeStage.files.some((file) => file.path === "new.txt"),
+				true
+			)
+
+			yield* routeGitCall({ op: "git.stageFiles", projectPath: dir, files: ["new.txt"] })
+			const commitResult = yield* routeGitCall({
+				op: "git.commit",
+				projectPath: dir,
+				message: "Add new.txt"
+			})
+			if (commitResult.op !== "git.commit") {
+				return yield* Effect.die("expected git.commit result")
+			}
+			Vitest.assert.strictEqual(commitResult.sha.length > 0, true)
+
+			const log = yield* routeGitCall({ op: "git.log", projectPath: dir, limit: 5 })
+			if (log.op !== "git.log") {
+				return yield* Effect.die("expected git.log result")
+			}
+			Vitest.assert.strictEqual(log.entries[0]?.message, "Add new.txt")
+		})
+	)
+
+	it.effect("git.unstageFiles and git.discardChanges reverse a staged/unstaged edit", () =>
+		Effect.gen(function*() {
+			const fs = yield* FileSystem.FileSystem
+			const path = yield* Path.Path
+			const dir = yield* freshRepoDir("unstage-discard")
+			yield* initRepoWithCommit(dir)
+			yield* fs.writeFileString(path.join(dir, "readme.txt"), "edited\n")
+			yield* routeGitCall({ op: "git.stageAll", projectPath: dir })
+
+			const staged = yield* routeGitCall({ op: "git.panelStatus", projectPath: dir })
+			if (staged.op !== "git.panelStatus") {
+				return yield* Effect.die("expected git.panelStatus result")
+			}
+			Vitest.assert.strictEqual(staged.files[0]?.indexStatus, "modified")
+
+			yield* routeGitCall({ op: "git.unstageFiles", projectPath: dir, files: ["readme.txt"] })
+			const unstaged = yield* routeGitCall({ op: "git.panelStatus", projectPath: dir })
+			if (unstaged.op !== "git.panelStatus") {
+				return yield* Effect.die("expected git.panelStatus result")
+			}
+			Vitest.assert.strictEqual(unstaged.files[0]?.indexStatus, null)
+
+			yield* routeGitCall({ op: "git.discardChanges", projectPath: dir, files: ["readme.txt"] })
+			const content = yield* fs.readFileString(path.join(dir, "readme.txt"))
+			Vitest.assert.strictEqual(content, "hello\n")
+		})
+	)
+
+	it.effect("denies a projectPath outside every known root", () =>
+		Effect.gen(function*() {
+			const fs = yield* FileSystem.FileSystem
+			const outside = yield* fs.makeTempDirectoryScoped()
+			const error = yield* Effect.flip(routeGitCall({ op: "git.isRepo", projectPath: outside }))
+			Vitest.assert.strictEqual(error._tag, "RpcFsPathDeniedError")
+		})
+	)
+
+	it.effect("wraps a real git failure into a typed RpcGitCallError carrying the op", () =>
+		Effect.gen(function*() {
+			const dir = yield* freshRepoDir("git-failure")
+			// No repo at dir yet: currentBranch must fail through real git,
+			// not succeed with an empty/placeholder value.
+			const error = yield* Effect.flip(routeGitCall({ op: "git.currentBranch", projectPath: dir }))
+			Vitest.assert.strictEqual(error._tag, "RpcGitCallError")
+			if (error._tag === "RpcGitCallError") {
+				Vitest.assert.strictEqual(error.op, "git.currentBranch")
+				Vitest.assert.strictEqual(error.detail.length > 0, true)
+			}
+		})
+	)
+})

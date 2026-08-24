@@ -193,15 +193,18 @@ const unusedInvalidateProjectIndex: RpcTransport["invalidateProjectIndex"] = (_p
 const unusedReadTextFile: RpcTransport["readTextFile"] = (_request) => Effect.succeed("")
 const unusedWriteTextFile: RpcTransport["writeTextFile"] = (_request) => Effect.void
 const unusedGetDefaultShell: RpcTransport["getDefaultShell"] = () => Effect.succeed("/bin/zsh")
+const unusedGitCall: RpcTransport["gitCall"] = (_request) =>
+	Effect.succeed({ op: "git.isRepo", isRepo: false })
 
 describe("AcepeRpc primitives", () => {
-	it("exposes dispatch, snapshot, events, file index, and fs util primitives", () => {
+	it("exposes dispatch, snapshot, events, file index, fs util, and git call primitives", () => {
 		expect(groupTags).toEqual(primitiveTags)
 		expect(groupTags).toEqual([
 			"dispatch",
 			"events",
 			"getDefaultShell",
 			"getProjectIndex",
+			"gitCall",
 			"invalidateProjectIndex",
 			"readTextFile",
 			"snapshot",
@@ -492,6 +495,7 @@ const failingAfter = (
 	readTextFile: unusedReadTextFile,
 	writeTextFile: unusedWriteTextFile,
 	getDefaultShell: unusedGetDefaultShell,
+	gitCall: unusedGitCall,
 	events: (fromSequence) =>
 		Stream.unwrap(
 			Ref.updateAndGet(calls, (count) => count + 1).pipe(
@@ -534,6 +538,7 @@ describe("makeResumingRpcClient", () => {
 			readTextFile: unusedReadTextFile,
 			writeTextFile: unusedWriteTextFile,
 			getDefaultShell: unusedGetDefaultShell,
+			gitCall: unusedGitCall,
 			events: (_fromSequence) =>
 				Stream.fromArray([eventAt(1), eventAt(2), eventAt(2), eventAt(3)]),
 		})
@@ -556,6 +561,7 @@ describe("makeResumingRpcClient", () => {
 			readTextFile: unusedReadTextFile,
 			writeTextFile: unusedWriteTextFile,
 			getDefaultShell: unusedGetDefaultShell,
+			gitCall: unusedGitCall,
 			events: (_fromSequence) => Stream.fromArray([eventAt(1), eventAt(3)]),
 		})
 			.events(0)

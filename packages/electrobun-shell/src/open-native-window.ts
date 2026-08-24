@@ -112,6 +112,7 @@ export const startElectrobunAcepeApp = <Rpc>(
 							readTextFile: handlers.readTextFile,
 							writeTextFile: handlers.writeTextFile,
 							getDefaultShell: handlers.getDefaultShell,
+							gitCall: handlers.gitCall,
 						},
 						messages: {},
 					},

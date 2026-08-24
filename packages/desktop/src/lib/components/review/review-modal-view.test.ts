@@ -79,7 +79,7 @@ describe("review modal controller mapping", () => {
 				readTextFile: () => Effect.succeed(""),
 				writeTextFile: () => Effect.void,
 				getDefaultShell: () => Effect.succeed("/bin/zsh"),
-			},
+				gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),			},
 			registry,
 		});
 		const snap = Effect.runSync(

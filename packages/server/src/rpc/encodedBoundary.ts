@@ -2,6 +2,7 @@ import {
 	decodeEventsRequest,
 	decodeGetDefaultShellRequest,
 	decodeGetProjectIndexRequest,
+	decodeGitCallRequest,
 	decodeInvalidateProjectIndexRequest,
 	decodeOrchestrationCommand,
 	decodeReadTextFileRequest,
@@ -10,6 +11,7 @@ import {
 	encodeDispatchExit,
 	encodeGetDefaultShellExit,
 	encodeGetProjectIndexExit,
+	encodeGitCallExit,
 	encodeInvalidateProjectIndexExit,
 	encodeOrchestrationEvent,
 	encodeReadTextFileExit,
@@ -30,6 +32,7 @@ import * as Stream from "effect/Stream"
 import { FileIndexNotADirectoryError, FileIndexRootNotFoundError } from "../fileIndex/Errors.ts"
 import { FileIndexService } from "../fileIndex/Services/FileIndexService.ts"
 import { getDefaultShell as getDefaultShellUtil } from "../fsUtil/readWriteText.ts"
+import { routeGitCall } from "../git/gitCallHandler.ts"
 import { OrchestrationEventStore } from "../persistence/Services/OrchestrationEventStore.ts"
 import { OrchestrationEngine } from "../orchestration/Services/OrchestrationEngine.ts"
 import { dispatchOrchestrationCommand, eventsFromSequence, rpcSnapshotForRequest, toFileIndexRpcError, toRpcError } from "./handlers.ts"
@@ -147,6 +150,17 @@ export const encodedGetDefaultShell = Effect.fn("encodedGetDefaultShell")(functi
 		return yield* rpcError.pipe(Exit.fail, encodeGetDefaultShellExit)
 	}
 	return yield* encodeGetDefaultShellExit(Exit.succeed(outcome.success))
+})
+
+export const encodedGitCall = Effect.fn("encodedGitCall")(function*(params: unknown) {
+	const outcome = yield* Effect.result(
+		decodeGitCallRequest(params).pipe(Effect.flatMap(routeGitCall))
+	)
+	if (Result.isFailure(outcome)) {
+		const rpcError = toEncodedFsUtilError(outcome.failure)
+		return yield* rpcError.pipe(Exit.fail, encodeGitCallExit)
+	}
+	return yield* encodeGitCallExit(Exit.succeed(outcome.success))
 })
 
 export const pushEvents = Effect.fn("pushEvents")(function*(

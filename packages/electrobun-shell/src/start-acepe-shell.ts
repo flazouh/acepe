@@ -12,6 +12,7 @@ export type AcepeShellRpcHandlers = {
 	readonly readTextFile: (params: unknown) => unknown
 	readonly writeTextFile: (params: unknown) => unknown
 	readonly getDefaultShell: (params: unknown) => unknown
+	readonly gitCall: (params: unknown) => unknown
 }
 
 export type AcepeRpcWork = {
@@ -23,6 +24,7 @@ export type AcepeRpcWork = {
 	readonly readTextFile: (params: unknown) => unknown
 	readonly writeTextFile: (params: unknown) => unknown
 	readonly getDefaultShell: (params: unknown) => unknown
+	readonly gitCall: (params: unknown) => unknown
 }
 
 export type AcepeShellHost<Rpc> = {
@@ -43,7 +45,8 @@ export const startAcepeShell = <Rpc>(
 		invalidateProjectIndex: work.invalidateProjectIndex,
 		readTextFile: work.readTextFile,
 		writeTextFile: work.writeTextFile,
-		getDefaultShell: work.getDefaultShell
+		getDefaultShell: work.getDefaultShell,
+		gitCall: work.gitCall
 	})
 	return host.openWindow({
 		title: acepeWindowSpec.title,

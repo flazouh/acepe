@@ -26,6 +26,7 @@ const idleWork: AcepeRpcWork = {
 	readTextFile: (params) => params,
 	writeTextFile: (params) => params,
 	getDefaultShell: (params) => params,
+	gitCall: (params) => params,
 }
 
 const recordingHost = (): AcepeShellHost<AcepeShellRpcHandlers> => ({
@@ -128,6 +129,7 @@ test("attach after launch enables dispatch", () => {
 		readTextFile: () => "",
 		writeTextFile: () => undefined,
 		getDefaultShell: () => "/bin/zsh",
+		gitCall: () => ({ op: "git.isRepo", isRepo: false }),
 	})
 	expect(launched.opened.rpc.dispatch({ type: "project.create" })).toEqual({
 		sequence: 1,

@@ -137,6 +137,7 @@ const fakeClient = (events: ReadonlyArray<OrchestrationEvent>): RpcClient => ({
 	readTextFile: () => Effect.succeed(""),
 	writeTextFile: () => Effect.void,
 	getDefaultShell: () => Effect.succeed("/bin/zsh"),
+	gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
 	events: (fromSequence) =>
 		Stream.fromArray(events.filter((event) => event.sequence > fromSequence)),
 });
@@ -191,6 +192,7 @@ describe("createSessionStore", () => {
 						readTextFile: () => Effect.succeed(""),
 						writeTextFile: () => Effect.void,
 						getDefaultShell: () => Effect.succeed("/bin/zsh"),
+						gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
 						events: () =>
 							Stream.fromArray([
 								sessionCreated,
@@ -245,6 +247,7 @@ describe("createSessionStore", () => {
 						readTextFile: () => Effect.succeed(""),
 						writeTextFile: () => Effect.void,
 						getDefaultShell: () => Effect.succeed("/bin/zsh"),
+						gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
 						events: () => Stream.fromArray([]),
 					},
 					registry,

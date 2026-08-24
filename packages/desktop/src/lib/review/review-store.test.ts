@@ -97,7 +97,7 @@ describe("composeReviewStore", () => {
 				readTextFile: () => Effect.succeed(""),
 				writeTextFile: () => Effect.void,
 				getDefaultShell: () => Effect.succeed("/bin/zsh"),
-			},
+				gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),			},
 			registry,
 			onSnapshot: (snapshot) => {
 				latest = snapshot;
@@ -167,7 +167,7 @@ describe("composeReviewStore", () => {
 				readTextFile: () => Effect.succeed(""),
 				writeTextFile: () => Effect.void,
 				getDefaultShell: () => Effect.succeed("/bin/zsh"),
-			},
+				gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),			},
 			registry,
 		});
 		Effect.runSync(
@@ -250,7 +250,7 @@ describe("composeReviewStore", () => {
 				readTextFile: () => Effect.succeed(""),
 				writeTextFile: () => Effect.void,
 				getDefaultShell: () => Effect.succeed("/bin/zsh"),
-			},
+				gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),			},
 			registry,
 		});
 		Effect.runSync(

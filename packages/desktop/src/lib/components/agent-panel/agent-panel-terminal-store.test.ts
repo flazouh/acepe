@@ -60,6 +60,7 @@ const fakeFlakyClient = (input: {
 		readTextFile: () => Effect.succeed(""),
 		writeTextFile: () => Effect.void,
 		getDefaultShell: () => Effect.succeed("/bin/zsh"),
+		gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
 		events: () => {
 			throw new Error("not used by followTerminal");
 		},

@@ -18,6 +18,7 @@ declare module "electrobun/view" {
 				readonly readTextFile: (params: unknown) => Promise<unknown>;
 				readonly writeTextFile: (params: unknown) => Promise<unknown>;
 				readonly getDefaultShell: (params: unknown) => Promise<unknown>;
+				readonly gitCall: (params: unknown) => Promise<unknown>;
 			};
 			readonly addMessageListener: (
 				message: "events",
