@@ -1,19 +1,18 @@
-import { fromThrowable } from "@acepe/effect-result/fromThrowable";
+import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
-import * as Result from "effect/Result";
+import * as Fiber from "effect/Fiber";
+import * as Stream from "effect/Stream";
+import { appRpcClient } from "$lib/rpc/app-client.js";
 import type { JsonValue } from "$lib/services/converted-session-types.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
 import { LOGGER_IDS } from "../constants/logger-ids.js";
 import type { AcpError } from "../errors/index.js";
-import { ProtocolError } from "../errors/index.js";
 import { createLogger } from "../utils/logger.js";
+import { makeProjectPathResolver, OrchestrationCanonicalBridge } from "./orchestration-canonical-bridge.js";
 
 const logger = createLogger({
 	id: LOGGER_IDS.EVENT_SUBSCRIBER,
 	name: "ACP Event Bridge",
 });
-
-type JsonObject = { [key: string]: JsonValue };
 
 export interface AcpEventEnvelope {
 	seq: number;
@@ -24,16 +23,6 @@ export interface AcpEventEnvelope {
 	droppable: boolean;
 	emittedAtMs: number;
 }
-
-const parseJsonValue = fromThrowable(
-	(raw: string): JsonValue => JSON.parse(raw) as JsonValue,
-	(error) => new ProtocolError(`Failed to parse ACP event payload: ${String(error)}`, error)
-);
-
-const createEventSource = fromThrowable(
-	(url: string): EventSource => new EventSource(url),
-	(error) => new ProtocolError(`Failed to create EventSource: ${String(error)}`, error)
-);
 
 export type AcpEventDrainScheduler = (callback: () => void) => void;
 
@@ -97,153 +86,44 @@ export function createAcpEventDrain(
 	};
 }
 
-function isJsonObject(value: JsonValue): value is JsonObject {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function asJsonObject(value: JsonValue): Result.Result<JsonObject, ProtocolError> {
-	if (!isJsonObject(value)) {
-		return Result.fail(new ProtocolError("ACP event envelope must be a JSON object"));
-	}
-	return Result.succeed(value);
-}
-
-function readNumberField(object: JsonObject, field: string): Result.Result<number, ProtocolError> {
-	const value = object[field];
-	if (typeof value !== "number" || !Number.isFinite(value)) {
-		return Result.fail(new ProtocolError(`ACP event envelope.${field} must be a finite number`));
-	}
-	return Result.succeed(value);
-}
-
-function readStringField(object: JsonObject, field: string): Result.Result<string, ProtocolError> {
-	const value = object[field];
-	if (typeof value !== "string") {
-		return Result.fail(new ProtocolError(`ACP event envelope.${field} must be a string`));
-	}
-	return Result.succeed(value);
-}
-
-function readOptionalStringField(
-	object: JsonObject,
-	field: string
-): Result.Result<string | null, ProtocolError> {
-	const value = object[field];
-	if (value === null || value === undefined) {
-		return Result.succeed(null);
-	}
-	if (typeof value !== "string") {
-		return Result.fail(new ProtocolError(`ACP event envelope.${field} must be a string or null`));
-	}
-	return Result.succeed(value);
-}
-
-function readBooleanField(
-	object: JsonObject,
-	field: string
-): Result.Result<boolean, ProtocolError> {
-	const value = object[field];
-	if (typeof value !== "boolean") {
-		return Result.fail(new ProtocolError(`ACP event envelope.${field} must be a boolean`));
-	}
-	return Result.succeed(value);
-}
-
-export function parseAcpEventEnvelope(raw: string): Result.Result<AcpEventEnvelope, ProtocolError> {
-	return Effect.runSync(Effect.result(parseJsonValue(raw))).pipe(
-		Result.andThen(asJsonObject),
-		Result.andThen((object) =>
-			readNumberField(object, "seq").pipe(
-				Result.andThen((seq) =>
-					readStringField(object, "eventName").pipe(
-						Result.andThen((eventName) =>
-							readOptionalStringField(object, "sessionId").pipe(
-								Result.andThen((sessionId) =>
-									readStringField(object, "priority").pipe(
-										Result.andThen((priority) =>
-											readBooleanField(object, "droppable").pipe(
-												Result.andThen((droppable) =>
-													readNumberField(object, "emittedAtMs").pipe(
-														Result.map((emittedAtMs) => {
-															const payload = object.payload ?? null;
-															return {
-																seq,
-																eventName,
-																sessionId,
-																payload,
-																priority,
-																droppable,
-																emittedAtMs,
-															};
-														})
-													)
-												)
-											)
-										)
-									)
-								)
-							)
-						)
-					)
-				)
-			)
-		)
-	);
-}
-
+// Electrobun has no eventsUrl to hand out (acp.getEventBridgeInfo is
+// honestly unsupportedOnContract -- see tauri-client/acp.ts's header
+// comment): there is no Rust-side SSE bridge any more. Session updates ride
+// the contract's own `events` RPC stream instead. OrchestrationCanonicalBridge
+// (orchestration-canonical-bridge.ts) does the actual translation from
+// OrchestrationEvent into the SessionStateEnvelope traffic the store
+// consumes; this function's job is just standing the stream up and handing
+// translated envelopes to the same onEnvelope callback the (now retired)
+// SSE path used, so EventSubscriber.ts needs no changes at all.
 export function openAcpEventSource(
 	onEnvelope: (envelope: AcpEventEnvelope) => void
 ): Effect.Effect<() => void, AcpError> {
-	return tauriClient.acp.getEventBridgeInfo().pipe(
-		Effect.flatMap((bridgeInfo) => {
-			const sourceResult = Effect.runSync(Effect.result(createEventSource(bridgeInfo.eventsUrl)));
-			if (Result.isFailure(sourceResult)) {
-				return Effect.fail(sourceResult.failure);
-			}
-
-			const source = sourceResult.success;
-			let sseEventCount = 0;
-			let sseLastReportTime = Date.now();
+	return appRpcClient().pipe(
+		Effect.flatMap((client) => {
+			const bridge = new OrchestrationCanonicalBridge(makeProjectPathResolver(client));
 			const enqueueEnvelope = createAcpEventDrain(onEnvelope);
-			source.onmessage = (event: MessageEvent<string>) => {
-				// DEBUG: Track SSE event rate to detect floods
-				sseEventCount++;
-				const now = Date.now();
-				if (now - sseLastReportTime > 1000) {
-					if (sseEventCount > 50) {
-						console.warn(`[SSE_FLOOD] ${sseEventCount} events in ${now - sseLastReportTime}ms`);
-					}
-					sseEventCount = 0;
-					sseLastReportTime = now;
-				}
-
-				const t0 = performance.now();
-				const envelopeResult = parseAcpEventEnvelope(event.data);
-				if (Result.isFailure(envelopeResult)) {
-					logger.warn("Discarding malformed ACP bridge event", { error: envelopeResult.failure });
-					return;
-				}
-				enqueueEnvelope(envelopeResult.success);
-				const dt = performance.now() - t0;
-				if (dt > 50) {
-					console.warn(`[SSE_SLOW] Event processing took ${dt.toFixed(1)}ms`, {
-						eventName: envelopeResult.success.eventName,
-						sessionId: envelopeResult.success.sessionId,
-						seq: envelopeResult.success.seq,
-					});
-				}
-			};
-			source.onerror = () => {
-				logger.warn("ACP bridge EventSource reported an error");
-			};
-
-			const cleanup = () => {
-				source.onmessage = null;
-				source.onerror = null;
-				source.close();
-			};
-
-			return Effect.succeed(cleanup);
+			const consume = client.events(0).pipe(
+				Stream.runForEach((event) =>
+					bridge.translate(event).pipe(
+						Effect.map((envelopes) => {
+							for (const envelope of envelopes) {
+								enqueueEnvelope(envelope);
+							}
+						})
+					)
+				),
+				Effect.catchCause((cause) =>
+					Effect.sync(() => {
+						logger.warn("Orchestration events stream ended", { error: Cause.pretty(cause) });
+					})
+				)
+			);
+			return consume.pipe(
+				Effect.forkDetach,
+				Effect.map((fiber) => () => {
+					Effect.runFork(Fiber.interrupt(fiber));
+				})
+			);
 		})
 	);
 }
