@@ -13,6 +13,7 @@ export type AcepeShellRpcHandlers = {
 	readonly writeTextFile: (params: unknown) => unknown
 	readonly getDefaultShell: (params: unknown) => unknown
 	readonly gitCall: (params: unknown) => unknown
+	readonly agentCall: (params: unknown) => unknown
 	readonly getProviderAccountUsage: (params: unknown) => unknown
 	readonly listProviderSessions: (params: unknown) => unknown
 	readonly listProviderProjects: (params: unknown) => unknown
@@ -29,6 +30,7 @@ export type AcepeRpcWork = {
 	readonly writeTextFile: (params: unknown) => unknown
 	readonly getDefaultShell: (params: unknown) => unknown
 	readonly gitCall: (params: unknown) => unknown
+	readonly agentCall: (params: unknown) => unknown
 	readonly getProviderAccountUsage: (params: unknown) => unknown
 	readonly listProviderSessions: (params: unknown) => unknown
 	readonly listProviderProjects: (params: unknown) => unknown
@@ -55,6 +57,7 @@ export const startAcepeShell = <Rpc>(
 		writeTextFile: work.writeTextFile,
 		getDefaultShell: work.getDefaultShell,
 		gitCall: work.gitCall,
+		agentCall: work.agentCall,
 		getProviderAccountUsage: work.getProviderAccountUsage,
 		listProviderSessions: work.listProviderSessions,
 		listProviderProjects: work.listProviderProjects,
