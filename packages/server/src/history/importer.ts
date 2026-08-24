@@ -33,6 +33,7 @@ import {
 	ProjectionSnapshotQuery,
 	SessionProjectionSnapshot
 } from "../orchestration/Services/ProjectionSnapshotQuery.ts"
+import { OrchestrationCommandPreviouslyRejectedError } from "../persistence/Services/OrchestrationCommandReceipts.ts"
 import { OrchestrationEventStore } from "../persistence/Services/OrchestrationEventStore.ts"
 import {
 	PROJECTION_SESSION_MESSAGES_NAME,
@@ -50,6 +51,16 @@ const EVENT_PAGE_SIZE = 1_000
 
 const decodeProjectorName = Schema.decodeUnknownEffect(TrimmedNonEmptyString)
 const isInvariantError = Schema.is(OrchestrationCommandInvariantError)
+// A prior ensureProject call for this same deterministic commandId can have
+// been invariant-rejected (the project already existed under a different
+// commandId -- e.g. #249 batch 3's importProviderSession resolves and
+// reuses an existing project's id by workspaceRoot). OrchestrationEngine
+// then answers every later dispatch of that exact commandId from
+// OrchestrationCommandReceipts as "previously rejected" rather than
+// re-running the invariant check, so this must be swallowed the same way
+// as a fresh invariant error or ensureProject would fail on every call
+// after the first for that project.
+const isPreviouslyRejectedError = Schema.is(OrchestrationCommandPreviouslyRejectedError)
 const sessionIdOrder = Order.mapInput(Str.Order, (sessionId: SessionId): string => sessionId)
 
 export const HistoryImportInput = Schema.Struct({
@@ -180,7 +191,11 @@ export const makeHistoryImporter = <A>(config: HistoryLineDecoder<A>) =>
 					})
 				)
 			)
-			if (Result.isFailure(outcome) && isInvariantError(outcome.failure) === false) {
+			if (
+				Result.isFailure(outcome) &&
+				isInvariantError(outcome.failure) === false &&
+				isPreviouslyRejectedError(outcome.failure) === false
+			) {
 				return yield* outcome.failure
 			}
 		})
