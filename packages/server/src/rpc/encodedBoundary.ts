@@ -2,6 +2,7 @@ import {
 	decodeEventsRequest,
 	decodeGetDefaultShellRequest,
 	decodeGetProjectIndexRequest,
+	decodeGetProviderAccountUsageRequest,
 	decodeGitCallRequest,
 	decodeInvalidateProjectIndexRequest,
 	decodeOrchestrationCommand,
@@ -11,6 +12,7 @@ import {
 	encodeDispatchExit,
 	encodeGetDefaultShellExit,
 	encodeGetProjectIndexExit,
+	encodeGetProviderAccountUsageExit,
 	encodeGitCallExit,
 	encodeInvalidateProjectIndexExit,
 	encodeOrchestrationEvent,
@@ -34,6 +36,7 @@ import { FileIndexService } from "../fileIndex/Services/FileIndexService.ts"
 import { getDefaultShell as getDefaultShellUtil } from "../fsUtil/readWriteText.ts"
 import { routeGitCall } from "../git/gitCallHandler.ts"
 import { OrchestrationEventStore } from "../persistence/Services/OrchestrationEventStore.ts"
+import { ProviderUsageService } from "../providerUsage/Services/ProviderUsageService.ts"
 import { OrchestrationEngine } from "../orchestration/Services/OrchestrationEngine.ts"
 import { dispatchOrchestrationCommand, eventsFromSequence, rpcSnapshotForRequest, toFileIndexRpcError, toRpcError } from "./handlers.ts"
 import { guardedReadTextFile, guardedWriteTextFile } from "./fsPathGuard.ts"
@@ -161,6 +164,22 @@ export const encodedGitCall = Effect.fn("encodedGitCall")(function*(params: unkn
 		return yield* rpcError.pipe(Exit.fail, encodeGitCallExit)
 	}
 	return yield* encodeGitCallExit(Exit.succeed(outcome.success))
+})
+
+export const encodedGetProviderAccountUsage = Effect.fn("encodedGetProviderAccountUsage")(function*(
+	params: unknown
+) {
+	const providerUsage = yield* ProviderUsageService
+	const outcome = yield* Effect.result(
+		decodeGetProviderAccountUsageRequest(params).pipe(
+			Effect.flatMap((request) => providerUsage.getUsage(request))
+		)
+	)
+	if (Result.isFailure(outcome)) {
+		const rpcError = toEncodedFsUtilError(outcome.failure)
+		return yield* rpcError.pipe(Exit.fail, encodeGetProviderAccountUsageExit)
+	}
+	return yield* encodeGetProviderAccountUsageExit(Exit.succeed(outcome.success))
 })
 
 export const pushEvents = Effect.fn("pushEvents")(function*(

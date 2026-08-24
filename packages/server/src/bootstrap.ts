@@ -2,6 +2,7 @@ import { TrimmedNonEmptyString } from "@acepe/contracts"
 import * as BunChildProcessSpawner from "@effect/platform-bun/BunChildProcessSpawner"
 import * as BunCrypto from "@effect/platform-bun/BunCrypto"
 import * as BunFileSystem from "@effect/platform-bun/BunFileSystem"
+import * as BunHttpClient from "@effect/platform-bun/BunHttpClient"
 import * as BunPath from "@effect/platform-bun/BunPath"
 import * as BunRuntime from "@effect/platform-bun/BunRuntime"
 import * as BunServices from "@effect/platform-bun/BunServices"
@@ -60,6 +61,8 @@ import { FileIndexWarmOnImportLive } from "./fileIndex/Layers/FileIndexWarmOnImp
 import { GitServiceLive } from "./git/Layers/GitService.ts"
 import { McpCatalogLive } from "./mcp/Layers/McpCatalog.ts"
 import { CheckpointServiceLive } from "./checkpoint/Layers/CheckpointService.ts"
+import { ProviderUsageServiceLive } from "./providerUsage/Layers/ProviderUsageService.ts"
+import { SecurityKeychainLive } from "./providerUsage/Layers/SecurityKeychain.ts"
 import { AppDataDir } from "./rpc/fsPathGuard.ts"
 import { RpcHandlersLive } from "./rpc/handlers.ts"
 import { runStdioServer } from "./rpc/stdio.ts"
@@ -272,6 +275,12 @@ export const makeAcepeLive = (input: AcepeLiveInput) => {
 		Layer.provide(bunPlatform),
 		Layer.provide(BunCrypto.layer)
 	)
+	const providerUsage = ProviderUsageServiceLive().pipe(
+		Layer.provide(SecurityKeychainLive.pipe(Layer.provide(bunPlatform))),
+		Layer.provide(BunHttpClient.layer),
+		Layer.provide(appDataDir),
+		Layer.provide(bunPlatform)
+	)
 	const rpc = RpcHandlersLive.pipe(
 		Layer.provideMerge(snapshots),
 		Layer.provideMerge(fileIndex),
@@ -283,6 +292,7 @@ export const makeAcepeLive = (input: AcepeLiveInput) => {
 		Layer.provideMerge(appDataDir),
 		Layer.provideMerge(terminal),
 		Layer.provideMerge(TerminalRegistryLive),
+		Layer.provideMerge(providerUsage),
 		Layer.provideMerge(bunPlatform)
 	)
 	return Layer.mergeAll(

@@ -15,6 +15,7 @@ import {
 import * as BunChildProcessSpawner from "@effect/platform-bun/BunChildProcessSpawner"
 import * as BunCrypto from "@effect/platform-bun/BunCrypto"
 import * as BunFileSystem from "@effect/platform-bun/BunFileSystem"
+import * as BunHttpClient from "@effect/platform-bun/BunHttpClient"
 import * as BunPath from "@effect/platform-bun/BunPath"
 import * as Vitest from "@effect/vitest"
 import * as Arr from "effect/Array"
@@ -47,6 +48,8 @@ import { ProjectionSnapshotQueryLive } from "../orchestration/Layers/ProjectionS
 import { ProjectionGitLive } from "../persistence/Layers/ProjectionGit.ts"
 import { ProjectionProjectsLive } from "../persistence/Layers/ProjectionProjects.ts"
 import { McpCatalogLive } from "../mcp/Layers/McpCatalog.ts"
+import { ProviderUsageServiceLive } from "../providerUsage/Layers/ProviderUsageService.ts"
+import { SecurityKeychainLive } from "../providerUsage/Layers/SecurityKeychain.ts"
 import { SkillsServiceLive } from "../skills/Layers/SkillsService.ts"
 import { BunPtyAdapterLive } from "../terminal/Layers/BunPtyAdapter.ts"
 import { defaultTerminalServiceOptions, TerminalServiceLive } from "../terminal/Layers/TerminalService.ts"
@@ -158,6 +161,19 @@ const AppDataDirLive = Layer.unwrap(
 	})
 ).pipe(Layer.provide(FileIndexPlatform))
 
+const ProviderUsageLive = Layer.unwrap(
+	Effect.gen(function*() {
+		const fs = yield* FileSystem.FileSystem
+		const homeDir = yield* fs.makeTempDirectoryScoped()
+		return ProviderUsageServiceLive({ homeDir })
+	})
+).pipe(
+	Layer.provide(SecurityKeychainLive.pipe(Layer.provide(FileIndexPlatform))),
+	Layer.provide(BunHttpClient.layer),
+	Layer.provide(AppDataDirLive),
+	Layer.provide(FileIndexPlatform)
+)
+
 const TerminalLive = TerminalServiceLive(defaultTerminalServiceOptions).pipe(
 	Layer.provide(BunPtyAdapterLive),
 	Layer.provide(FileIndexPlatform),
@@ -176,6 +192,7 @@ const TestLive = RpcHandlersLive.pipe(
 	Layer.provideMerge(AppDataDirLive),
 	Layer.provideMerge(TerminalLive),
 	Layer.provideMerge(TerminalRegistryLive),
+	Layer.provideMerge(ProviderUsageLive),
 	Layer.provideMerge(FileIndexPlatform),
 	Layer.provideMerge(BunCrypto.layer)
 )
