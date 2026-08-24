@@ -1,9 +1,7 @@
 <script lang="ts">
 import { fromPromise } from "@acepe/effect-result/fromPromise";
 import { Button } from "@acepe/ui";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { relaunch } from "@tauri-apps/plugin-process";
-import { check, type DownloadEvent } from "@tauri-apps/plugin-updater";
+import type { DownloadEvent, Update } from "@tauri-apps/plugin-updater";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import { onDestroy, onMount, tick } from "svelte";
@@ -75,6 +73,12 @@ import {
 	getTauriInvokeTimings,
 	type TauriInvokeTimingRecord,
 } from "$lib/utils/tauri-client/invoke.js";
+import {
+	checkForUpdate,
+	getAppVersion,
+	maximizeCurrentWindow,
+	relaunchApp,
+} from "$lib/utils/electrobun-window-shims.js";
 import { playSound, preloadSound } from "$lib/acp/utils/sound.js";
 import { SoundEffect } from "$lib/acp/types/sounds.js";
 import ProjectFileSystemDialog from "$lib/acp/components/file-explorer-modal/project-file-system-dialog.svelte";
@@ -167,6 +171,15 @@ type MainAppQaWindow = Window & {
 		options?: MainAppHappyPathProbeCleanupOptions
 	) => MainAppHappyPathProbeCleanupResult;
 	__acepeRuntimeErrors?: AcepeRuntimeErrorRecord[];
+	// #249 QA-only: there is no agent picker in the composer yet (see
+	// tauri-client/acp.ts's header comment -- listAgents etc. are honestly
+	// unsupportedOnContract), so a freshly spawned panel has no
+	// selectedAgentId and the real send flow refuses with "No agent selected
+	// for this panel". This hook spawns a panel with selectedAgentId already
+	// set, so a QA script can drive the REAL composer/createSession/
+	// ProviderBridge path end to end without a picker existing yet. Returns
+	// the new panel's id.
+	__acepeQaSpawnAgentPanel?: (projectPath: string, agentId: string) => string;
 };
 
 type MainAppHappyPathNavigationTiming = {
@@ -874,6 +887,25 @@ function uninstallHappyPathProbeQaHook(): void {
 	}
 }
 
+function qaSpawnAgentPanel(projectPath: string, agentId: string): string {
+	const panel = panelStore.spawnPanel({ projectPath, selectedAgentId: agentId });
+	return panel.id;
+}
+
+function installQaSpawnAgentPanelHook(): void {
+	if (!QA_HOOKS_ENABLED) {
+		return;
+	}
+	(window as MainAppQaWindow).__acepeQaSpawnAgentPanel = qaSpawnAgentPanel;
+}
+
+function uninstallQaSpawnAgentPanelHook(): void {
+	const qaWindow = window as MainAppQaWindow;
+	if (qaWindow.__acepeQaSpawnAgentPanel === qaSpawnAgentPanel) {
+		delete qaWindow.__acepeQaSpawnAgentPanel;
+	}
+}
+
 // Create selector registry context BEFORE app state so components can use it
 // This enables focused panel dispatch for model/mode keybindings
 const selectorRegistry = setSelectorRegistryContext();
@@ -1309,14 +1341,12 @@ function maximizeWindow(): void {
 	}
 
 	startupMaximizeTriggered = true;
-	void getCurrentWindow()
-		.maximize()
-		.catch((error) => {
-			startupMaximizeTriggered = false;
-			logger.error("Failed to maximize startup window", {
-				error: error instanceof Error ? error.message : String(error),
-			});
+	void maximizeCurrentWindow().catch((error) => {
+		startupMaximizeTriggered = false;
+		logger.error("Failed to maximize startup window", {
+			error: error instanceof Error ? error.message : String(error),
 		});
+	});
 }
 
 function attemptStartupMaximize(): void {
@@ -1331,7 +1361,7 @@ function attemptStartupMaximize(): void {
 // Start with null - will be set to "checking" when update check runs (only in production)
 let appVersion = $state<string | null>(null);
 let updaterState = $state<UpdaterBannerState>(createIdleUpdaterState());
-let availableUpdate = $state<Awaited<ReturnType<typeof check>> | null>(null);
+let availableUpdate = $state<Update | null>(null);
 let updatePollTimer = $state<ReturnType<typeof setInterval> | null>(null);
 let devUpdateStartTimer = $state<ReturnType<typeof setTimeout> | null>(null);
 let devUpdateStepTimer = $state<ReturnType<typeof setInterval> | null>(null);
@@ -1538,7 +1568,7 @@ async function checkForAppUpdate(_trigger: UpdateCheckTrigger): Promise<void> {
 	updaterState = createCheckingUpdaterState();
 	const result = await Effect.runPromise(
 		fromPromise(
-			() => check(),
+			() => checkForUpdate(),
 			(e) => (e instanceof Error ? e : new Error(String(e)))
 		).pipe(
 			Effect.match({
@@ -1599,7 +1629,7 @@ async function installAvailableUpdate(): Promise<void> {
 
 	updaterState = createInstallingUpdaterState(availableUpdate.version);
 	await Effect.runPromise(
-		installDownloadedUpdate(availableUpdate, relaunch).pipe(
+		installDownloadedUpdate(availableUpdate, relaunchApp).pipe(
 			Effect.match({
 				onSuccess: () => undefined,
 				onFailure: (error) => {
@@ -1617,6 +1647,7 @@ onMount(async () => {
 	mainAppMountStartedAtMs = performance.now();
 	mainAppInvokeTimingBaselineIndex = getTauriInvokeTimings().length;
 	installHappyPathProbeQaHook();
+	installQaSpawnAgentPanelHook();
 	if (QA_HOOKS_ENABLED) {
 		installQaDispatchHook();
 	}
@@ -1625,11 +1656,9 @@ onMount(async () => {
 	const initResult = await Effect.runPromise(Effect.result(viewState.initialize()));
 	mainAppInitializationCompleteAtMs = performance.now();
 
-	void import("@tauri-apps/api/app")
-		.then((mod) => mod.getVersion())
-		.then((version) => {
-			appVersion = version;
-		});
+	void getAppVersion().then((version) => {
+		appVersion = version;
+	});
 
 	if (import.meta.env.DEV) {
 		installStreamingReproQaHook();
@@ -1806,6 +1835,7 @@ const showTabBarStrip = $derived(
 // Cleanup on destroy
 onDestroy(() => {
 	uninstallHappyPathProbeQaHook();
+	uninstallQaSpawnAgentPanelHook();
 	// Disconnect all sessions to kill their subprocesses
 	// This prevents orphaned Claude processes when the app closes
 	if (shouldDisconnectSessionsOnMainAppDestroy({ hmrTeardownActive })) {
