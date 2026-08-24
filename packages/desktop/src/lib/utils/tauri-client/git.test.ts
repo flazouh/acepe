@@ -320,6 +320,45 @@ describe("git tauri client", () => {
 		});
 	});
 
+	it("stashList returns the stash entries", async () => {
+		const entries = [{ index: 0, message: "WIP on main", date: "2 hours ago" }];
+		setAppRpcClientForTest(makeClient(() => Effect.succeed({ op: "git.stashList", entries })));
+
+		const result = await Effect.runPromise(Effect.result(git.stashList("/tmp/acepe")));
+
+		expect(Result.getOrThrow(result)).toEqual(entries);
+	});
+
+	it("stashPop sends the projectPath and index", async () => {
+		let requested: unknown = null;
+		setAppRpcClientForTest(
+			makeClient((request) => {
+				requested = request;
+				return Effect.succeed({ op: "git.stashPop" });
+			})
+		);
+
+		const result = await Effect.runPromise(Effect.result(git.stashPop("/tmp/acepe", 2)));
+
+		expect(Result.isSuccess(result)).toBe(true);
+		expect(requested).toEqual({ op: "git.stashPop", projectPath: "/tmp/acepe", index: 2 });
+	});
+
+	it("stashDrop sends the projectPath and index", async () => {
+		let requested: unknown = null;
+		setAppRpcClientForTest(
+			makeClient((request) => {
+				requested = request;
+				return Effect.succeed({ op: "git.stashDrop" });
+			})
+		);
+
+		const result = await Effect.runPromise(Effect.result(git.stashDrop("/tmp/acepe", 1)));
+
+		expect(Result.isSuccess(result)).toBe(true);
+		expect(requested).toEqual({ op: "git.stashDrop", projectPath: "/tmp/acepe", index: 1 });
+	});
+
 	it("dies when the server routes to the wrong op", async () => {
 		setAppRpcClientForTest(
 			// The server would never legitimately answer a git.isRepo request with

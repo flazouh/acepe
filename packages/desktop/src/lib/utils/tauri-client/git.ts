@@ -31,20 +31,21 @@ const unwrapGitCallResult = <Tag extends GitCallResult["op"]>(
 //
 // init/isRepo/currentBranch/listBranches/checkoutBranch/
 // hasUncommittedChanges (branch/checkout), panelStatus/stageFiles/
-// unstageFiles/stageAll/discardChanges/commit/log (stage/commit), and
-// push/pull/fetch/remoteStatus (push/pull/remote) ride the gitCall utility
-// RPC (packages/contracts/src/gitCall.ts) -- a tagged-union request/response
+// unstageFiles/stageAll/discardChanges/commit/log (stage/commit),
+// push/pull/fetch/remoteStatus (push/pull/remote), and stashList/stashPop/
+// stashDrop (stash) ride the gitCall utility RPC
+// (packages/contracts/src/gitCall.ts) -- a tagged-union request/response
 // pair routed server-side onto GitService
 // (packages/server/src/git/gitCallHandler.ts), per the #249 issue thread's
 // DESIGN DECISION. Growing that union by sub-domain adds zero new RPC
 // primitives after the first.
 //
-// The remaining 16 methods (prepareWorktreeSessionLaunch through
-// saveWorktreeConfig, minus push/pull/fetch/remoteStatus above) still have
-// live callers -- git-panel.svelte, agent-panel-ship-workflow.ts,
-// branch-picker.svelte, project-selection-panel.svelte,
-// worktree-setup-orchestrator.ts, and others -- and stay on
-// TAURI_COMMAND_CLIENT this slice: stash, worktree lifecycle
+// The remaining 13 methods (prepareWorktreeSessionLaunch through
+// saveWorktreeConfig, minus push/pull/fetch/remoteStatus/stashList/
+// stashPop/stashDrop above) still have live callers -- git-panel.svelte,
+// agent-panel-ship-workflow.ts, branch-picker.svelte,
+// project-selection-panel.svelte, worktree-setup-orchestrator.ts, and
+// others -- and stay on TAURI_COMMAND_CLIENT this slice: worktree lifecycle
 // (create/remove/list/rename/reset/disk-size/prepare-launch),
 // worktree-config/setup, and ship/PR/CI. packages/server/src/git/
 // makeGitService.ts's GitService already implements almost all of that
@@ -266,15 +267,24 @@ export const git = {
 	},
 
 	stashList: (projectPath: string): Effect.Effect<GitStashEntry[], AppError> => {
-		return gitCommands.stash_list.invoke<GitStashEntry[]>({ projectPath });
+		return withRpcClient("git.stashList", (client) =>
+			client.gitCall({ op: "git.stashList", projectPath })
+		).pipe(
+			Effect.flatMap((result) => unwrapGitCallResult("git.stashList", result)),
+			Effect.map((result) => [...result.entries])
+		);
 	},
 
 	stashPop: (projectPath: string, index: number): Effect.Effect<void, AppError> => {
-		return gitCommands.stash_pop.invoke<void>({ projectPath, index });
+		return withRpcClient("git.stashPop", (client) =>
+			client.gitCall({ op: "git.stashPop", projectPath, index })
+		).pipe(Effect.asVoid);
 	},
 
 	stashDrop: (projectPath: string, index: number): Effect.Effect<void, AppError> => {
-		return gitCommands.stash_drop.invoke<void>({ projectPath, index });
+		return withRpcClient("git.stashDrop", (client) =>
+			client.gitCall({ op: "git.stashDrop", projectPath, index })
+		).pipe(Effect.asVoid);
 	},
 
 	// No live caller today (see #249 batch 2 map); git-panel.svelte only

@@ -9,10 +9,10 @@ import { GitService } from "./Services/GitService.ts"
 
 // Routes the gitCall utility RPC's tagged-union request onto the existing
 // GitService (makeGitService.ts already implements nearly all of this
-// logic). This slice carries the branch/checkout, stage/commit, and
-// push/pull/remote-status sub-domains -- see gitCall.ts's header comment
-// and the #249 issue thread's DESIGN DECISION for the full sub-domain
-// roadmap.
+// logic). This slice carries the branch/checkout, stage/commit,
+// push/pull/remote-status, and stash sub-domains -- see gitCall.ts's header
+// comment and the #249 issue thread's DESIGN DECISION for the full
+// sub-domain roadmap.
 //
 // Every filesystem path a request carries (projectPath, and sub-domain-
 // specific paths like worktreePath) is confined to a known project root or
@@ -153,6 +153,27 @@ export const routeGitCall = Effect.fn("routeGitCall")(function*(request: GitCall
 				remote: status.remote,
 				trackingBranch: status.trackingBranch
 			} as const satisfies GitCallResult
+		}
+		case "git.stashList": {
+			yield* guard(request.projectPath)
+			const entries = yield* git.stashList(request.projectPath).pipe(
+				Effect.mapError(toRpcGitCallError(request.op))
+			)
+			return { op: "git.stashList", entries: Array.from(entries) } as const satisfies GitCallResult
+		}
+		case "git.stashPop": {
+			yield* guard(request.projectPath)
+			yield* git.stashPop({ projectPath: request.projectPath, index: request.index }).pipe(
+				Effect.mapError(toRpcGitCallError(request.op))
+			)
+			return { op: "git.stashPop" } as const satisfies GitCallResult
+		}
+		case "git.stashDrop": {
+			yield* guard(request.projectPath)
+			yield* git.stashDrop({ projectPath: request.projectPath, index: request.index }).pipe(
+				Effect.mapError(toRpcGitCallError(request.op))
+			)
+			return { op: "git.stashDrop" } as const satisfies GitCallResult
 		}
 	}
 })

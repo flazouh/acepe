@@ -382,6 +382,48 @@ Vitest.layer(Layer.mergeAll(TestLive, PlatformLive))("gitCallHandler", (it) => {
 			})
 	)
 
+	it.effect("git.stashList, git.stashPop, and git.stashDrop round-trip a stashed edit", () =>
+		Effect.gen(function*() {
+			const fs = yield* FileSystem.FileSystem
+			const path = yield* Path.Path
+			const git = yield* GitService
+			const dir = yield* freshRepoDir("stash")
+			yield* initRepoWithCommit(dir)
+			yield* fs.writeFileString(path.join(dir, "readme.txt"), "hello\nstashed\n")
+
+			// GitService has no stashSave gitCall op (stashSave has no live caller
+			// per tauri-client/git.ts's header comment) -- stash it directly
+			// through GitService so the test can drive git.stashList/Pop/Drop.
+			yield* git.stashSave({ projectPath: dir, message: "wip" })
+
+			const listed = yield* routeGitCall({ op: "git.stashList", projectPath: dir })
+			if (listed.op !== "git.stashList") {
+				return yield* Effect.die("expected git.stashList result")
+			}
+			Vitest.assert.strictEqual(listed.entries.length, 1)
+			Vitest.assert.strictEqual(listed.entries[0]?.index, 0)
+
+			const clean = yield* fs.readFileString(path.join(dir, "readme.txt"))
+			Vitest.assert.strictEqual(clean, "hello\n")
+
+			const popped = yield* routeGitCall({ op: "git.stashPop", projectPath: dir, index: 0 })
+			Vitest.assert.deepStrictEqual(popped, { op: "git.stashPop" })
+
+			const restored = yield* fs.readFileString(path.join(dir, "readme.txt"))
+			Vitest.assert.strictEqual(restored, "hello\nstashed\n")
+
+			yield* git.stashSave({ projectPath: dir, message: "wip again" })
+			const dropped = yield* routeGitCall({ op: "git.stashDrop", projectPath: dir, index: 0 })
+			Vitest.assert.deepStrictEqual(dropped, { op: "git.stashDrop" })
+
+			const afterDrop = yield* routeGitCall({ op: "git.stashList", projectPath: dir })
+			if (afterDrop.op !== "git.stashList") {
+				return yield* Effect.die("expected git.stashList result")
+			}
+			Vitest.assert.strictEqual(afterDrop.entries.length, 0)
+		})
+	)
+
 	it.effect("denies a projectPath outside every known root", () =>
 		Effect.gen(function*() {
 			const fs = yield* FileSystem.FileSystem

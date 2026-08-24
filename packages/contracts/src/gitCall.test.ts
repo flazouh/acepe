@@ -67,6 +67,17 @@ describe("GitCallRequest", () => {
 		expect(decoded).toEqual({ op: "git.push", projectPath: "/tmp/acepe" })
 	})
 
+	it("decodes a stash op with its index", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(GitCallRequest)({
+				op: "git.stashPop",
+				projectPath: "/tmp/acepe",
+				index: 0,
+			}),
+		)
+		expect(decoded).toEqual({ op: "git.stashPop", projectPath: "/tmp/acepe", index: 0 })
+	})
+
 	it("rejects a blank projectPath", () => {
 		const decoded = Effect.runSyncExit(
 			Schema.decodeUnknownEffect(GitCallRequest)({
@@ -147,6 +158,19 @@ describe("GitCallResult", () => {
 			behind: 2,
 			remote: "origin",
 			trackingBranch: "origin/main",
+		})
+	})
+
+	it("decodes a stashList result's entries", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(GitCallResult)({
+				op: "git.stashList",
+				entries: [{ index: 0, message: "WIP on main", date: "2 hours ago" }],
+			}),
+		)
+		expect(decoded).toEqual({
+			op: "git.stashList",
+			entries: [{ index: 0, message: "WIP on main", date: "2 hours ago" }],
 		})
 	})
 })

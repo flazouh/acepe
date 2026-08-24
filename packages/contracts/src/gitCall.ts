@@ -8,10 +8,10 @@ import * as Schema from "effect/Schema"
 // comment) adds zero new RPC primitives after this one -- only new members
 // of these two unions plus a routing branch on the server.
 //
-// This slice carries the branch/checkout, stage/commit, and push/pull/
-// remote-status sub-domains of tauri-client/git.ts's 33 live methods. Other
-// sub-domains (stash, worktree lifecycle/config, ship/PR/CI) stay on
-// TAURI_COMMAND_CLIENT and will grow this union in later slices.
+// This slice carries the branch/checkout, stage/commit, push/pull/
+// remote-status, and stash sub-domains of tauri-client/git.ts's 33 live
+// methods. Other sub-domains (worktree lifecycle/config, ship/PR/CI) stay
+// on TAURI_COMMAND_CLIENT and will grow this union in later slices.
 
 const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
 
@@ -248,6 +248,51 @@ export const GitCallRemoteStatusResult = Schema.Struct({
 })
 export type GitCallRemoteStatusResult = typeof GitCallRemoteStatusResult.Type
 
+// ─── stash ────────────────────────────────────────────────────────────────
+
+export const GitCallStashEntry = Schema.Struct({
+	index: NonNegativeInt,
+	message: Schema.String,
+	date: Schema.String,
+})
+export type GitCallStashEntry = typeof GitCallStashEntry.Type
+
+export const GitCallStashListRequest = Schema.Struct({
+	op: Schema.Literal("git.stashList"),
+	projectPath: TrimmedNonEmptyString,
+})
+export type GitCallStashListRequest = typeof GitCallStashListRequest.Type
+
+export const GitCallStashListResult = Schema.Struct({
+	op: Schema.Literal("git.stashList"),
+	entries: Schema.Array(GitCallStashEntry),
+})
+export type GitCallStashListResult = typeof GitCallStashListResult.Type
+
+export const GitCallStashPopRequest = Schema.Struct({
+	op: Schema.Literal("git.stashPop"),
+	projectPath: TrimmedNonEmptyString,
+	index: NonNegativeInt,
+})
+export type GitCallStashPopRequest = typeof GitCallStashPopRequest.Type
+
+export const GitCallStashPopResult = Schema.Struct({
+	op: Schema.Literal("git.stashPop"),
+})
+export type GitCallStashPopResult = typeof GitCallStashPopResult.Type
+
+export const GitCallStashDropRequest = Schema.Struct({
+	op: Schema.Literal("git.stashDrop"),
+	projectPath: TrimmedNonEmptyString,
+	index: NonNegativeInt,
+})
+export type GitCallStashDropRequest = typeof GitCallStashDropRequest.Type
+
+export const GitCallStashDropResult = Schema.Struct({
+	op: Schema.Literal("git.stashDrop"),
+})
+export type GitCallStashDropResult = typeof GitCallStashDropResult.Type
+
 // ─── unions ───────────────────────────────────────────────────────────────
 
 export const GitCallRequest = Schema.Union([
@@ -268,6 +313,9 @@ export const GitCallRequest = Schema.Union([
 	GitCallPullRequest,
 	GitCallFetchRequest,
 	GitCallRemoteStatusRequest,
+	GitCallStashListRequest,
+	GitCallStashPopRequest,
+	GitCallStashDropRequest,
 ])
 export type GitCallRequest = typeof GitCallRequest.Type
 
@@ -289,5 +337,8 @@ export const GitCallResult = Schema.Union([
 	GitCallPullResult,
 	GitCallFetchResult,
 	GitCallRemoteStatusResult,
+	GitCallStashListResult,
+	GitCallStashPopResult,
+	GitCallStashDropResult,
 ])
 export type GitCallResult = typeof GitCallResult.Type
