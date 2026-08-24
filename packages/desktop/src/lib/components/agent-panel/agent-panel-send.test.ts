@@ -25,6 +25,7 @@ const unusedClient = (): RpcClient => ({
 	readTextFile: () => Effect.succeed(""),
 	writeTextFile: () => Effect.void,
 	getDefaultShell: () => Effect.succeed("/bin/zsh"),
+	gitCall: () => Effect.succeed({ op: "git.isRepo", isRepo: false }),
 	events: () => Stream.empty,
 });
 
@@ -77,6 +78,7 @@ describe("sendComposerMessage", () => {
 					readTextFile: client.readTextFile,
 					writeTextFile: client.writeTextFile,
 					getDefaultShell: client.getDefaultShell,
+					gitCall: client.gitCall,
 					events: client.events,
 				});
 				yield* sendComposerMessage({
@@ -114,6 +116,7 @@ describe("sendComposerMessage", () => {
 					readTextFile: client.readTextFile,
 					writeTextFile: client.writeTextFile,
 					getDefaultShell: client.getDefaultShell,
+					gitCall: client.gitCall,
 					events: client.events,
 				});
 				yield* sendComposerMessage({

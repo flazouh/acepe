@@ -5,6 +5,7 @@ import {
 	encodeDispatchExit,
 	encodeGetDefaultShellExit,
 	encodeGetProjectIndexExit,
+	encodeGitCallExit,
 	encodeOrchestrationEvent,
 	encodeReadTextFileExit,
 	encodeSnapshotExit,
@@ -78,6 +79,7 @@ const makeBridge = (input: {
 	readonly readTextFile?: (params: unknown) => Promise<unknown>;
 	readonly writeTextFile?: (params: unknown) => Promise<unknown>;
 	readonly getDefaultShell?: (params: unknown) => Promise<unknown>;
+	readonly gitCall?: (params: unknown) => Promise<unknown>;
 }): ElectrobunRpcBridge & { readonly emitEvents: (payload: unknown) => void } => {
 	const listeners: Array<(payload: unknown) => void> = [];
 	return {
@@ -113,6 +115,10 @@ const makeBridge = (input: {
 				input.getDefaultShell === undefined
 					? Promise.reject(new Error("unused getDefaultShell"))
 					: input.getDefaultShell(params),
+			gitCall: (params) =>
+				input.gitCall === undefined
+					? Promise.reject(new Error("unused gitCall"))
+					: input.gitCall(params),
 		},
 		addMessageListener: (_message, listener) => {
 			listeners.push(listener);
@@ -233,6 +239,19 @@ describe("makeElectrobunRpcTransport", () => {
 				const transport = makeElectrobunRpcTransport(bridge);
 				const shell = yield* transport.getDefaultShell();
 				expect(shell).toBe("/bin/zsh");
+			})
+		));
+
+	it("decodes a gitCall Exit", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				const encoded = yield* encodeGitCallExit(Exit.succeed({ op: "git.isRepo", isRepo: true }));
+				const bridge = makeBridge({
+					gitCall: () => Promise.resolve(encoded),
+				});
+				const transport = makeElectrobunRpcTransport(bridge);
+				const result = yield* transport.gitCall({ op: "git.isRepo", projectPath: "/tmp/acepe" });
+				expect(result).toEqual({ op: "git.isRepo", isRepo: true });
 			})
 		));
 

@@ -39,6 +39,7 @@ export const isElectrobunRpcBridge = (value: unknown): value is ElectrobunRpcBri
 		readonly readTextFile?: unknown;
 		readonly writeTextFile?: unknown;
 		readonly getDefaultShell?: unknown;
+		readonly gitCall?: unknown;
 	};
 	return (
 		Predicate.isFunction(request.ping) &&
@@ -50,6 +51,7 @@ export const isElectrobunRpcBridge = (value: unknown): value is ElectrobunRpcBri
 		Predicate.isFunction(request.readTextFile) &&
 		Predicate.isFunction(request.writeTextFile) &&
 		Predicate.isFunction(request.getDefaultShell) &&
+		Predicate.isFunction(request.gitCall) &&
 		Predicate.isFunction(record.addMessageListener) &&
 		Predicate.isFunction(record.removeMessageListener)
 	);

@@ -97,7 +97,7 @@ describe("library sidebar controller mapping", () => {
 					readTextFile: () => Effect.succeed(""),
 					writeTextFile: () => Effect.void,
 					getDefaultShell: () => Effect.succeed("/bin/zsh"),
-					events: () => Stream.empty,
+					gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),					events: () => Stream.empty,
 				};
 				const registry = AtomRegistry.make();
 				const store = composeLibraryStore({ client, registry });

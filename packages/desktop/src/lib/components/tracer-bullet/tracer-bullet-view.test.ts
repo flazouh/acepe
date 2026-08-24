@@ -97,7 +97,7 @@ describe("tracer bullet controller mapping", () => {
 					readTextFile: () => Effect.succeed(""),
 					writeTextFile: () => Effect.void,
 					getDefaultShell: () => Effect.succeed("/bin/zsh"),
-					events: () => Stream.make(token),
+					gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),					events: () => Stream.make(token),
 				};
 				const registry = AtomRegistry.make();
 				const store = createSessionStore({ client, registry });

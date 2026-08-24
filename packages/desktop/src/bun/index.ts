@@ -19,6 +19,7 @@ import {
 	encodedDispatch,
 	encodedGetDefaultShell,
 	encodedGetProjectIndex,
+	encodedGitCall,
 	encodedInvalidateProjectIndex,
 	encodedReadTextFile,
 	encodedSnapshot,
@@ -124,6 +125,7 @@ launched.attach({
 	readTextFile: (params) => runtime.runPromise(encodedReadTextFile(params)),
 	writeTextFile: (params) => runtime.runPromise(encodedWriteTextFile(params)),
 	getDefaultShell: (params) => runtime.runPromise(encodedGetDefaultShell(params)),
+	gitCall: (params) => runtime.runPromise(encodedGitCall(params)),
 	events: (params) => {
 		writeLine(`acepe-events-stream: requested ${JSON.stringify(params).slice(0, 80)}`);
 		runtime.runFork(

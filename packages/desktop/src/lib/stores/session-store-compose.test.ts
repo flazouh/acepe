@@ -113,7 +113,7 @@ const clientOf = (input: {
 	readTextFile: () => Effect.succeed(""),
 	writeTextFile: () => Effect.void,
 	getDefaultShell: () => Effect.succeed("/bin/zsh"),
-	events: () => Stream.fromArray(input.events),
+	gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),	events: () => Stream.fromArray(input.events),
 });
 
 describe("composeSessionStore", () => {
@@ -440,7 +440,7 @@ it("openProject keeps every other library project in the sidebar snapshot", () =
 				readTextFile: () => Effect.succeed(""),
 				writeTextFile: () => Effect.void,
 				getDefaultShell: () => Effect.succeed("/bin/zsh"),
-				events: () => Stream.fromArray([]),
+				gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),				events: () => Stream.fromArray([]),
 			};
 			const parts = composeSessionStore({ client, registry });
 			yield* parts.openLibrary();
@@ -487,7 +487,7 @@ it("openSession also keeps every library project in the sidebar snapshot", () =>
 				readTextFile: () => Effect.succeed(""),
 				writeTextFile: () => Effect.void,
 				getDefaultShell: () => Effect.succeed("/bin/zsh"),
-				events: () => Stream.fromArray([]),
+				gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),				events: () => Stream.fromArray([]),
 			};
 			const parts = composeSessionStore({ client, registry });
 			yield* parts.openLibrary();

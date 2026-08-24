@@ -107,7 +107,7 @@ const installClient = (input: {
 		readTextFile: () => Effect.succeed(""),
 		writeTextFile: () => Effect.void,
 		getDefaultShell: () => Effect.succeed("/bin/zsh"),
-	});
+		gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),	});
 	return { dispatched };
 };
 
@@ -172,7 +172,7 @@ describe("CheckpointStore", () => {
 				readTextFile: () => Effect.succeed(""),
 				writeTextFile: () => Effect.void,
 				getDefaultShell: () => Effect.succeed("/bin/zsh"),
-			});
+				gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),			});
 
 			const result = await Effect.runPromise(Effect.result(store.loadCheckpoints("s1")));
 

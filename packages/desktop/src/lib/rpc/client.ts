@@ -2,6 +2,7 @@ import {
 	decodeDispatchExit,
 	decodeGetDefaultShellExit,
 	decodeGetProjectIndexExit,
+	decodeGitCallExit,
 	decodeInvalidateProjectIndexExit,
 	decodeOrchestrationEvent,
 	decodeReadTextFileExit,
@@ -10,6 +11,7 @@ import {
 	encodeOrchestrationCommand,
 	exitToEffect,
 	type GetDefaultShellRequest,
+	type GitCallRequest,
 	type OrchestrationCommand,
 	type OrchestrationEvent,
 	type ReadTextFileRequest,
@@ -39,6 +41,7 @@ export type ElectrobunRpcBridge = {
 		readonly readTextFile: (params: unknown) => Promise<unknown>;
 		readonly writeTextFile: (params: unknown) => Promise<unknown>;
 		readonly getDefaultShell: (params: unknown) => Promise<unknown>;
+		readonly gitCall: (params: unknown) => Promise<unknown>;
 	};
 	readonly addMessageListener: (message: "events", listener: (payload: unknown) => void) => void;
 	readonly removeMessageListener: (message: "events", listener: (payload: unknown) => void) => void;
@@ -146,6 +149,18 @@ const requestGetDefaultShell = Effect.fn("requestGetDefaultShell")(function* (
 	return yield* exitToEffect(exit);
 });
 
+const requestGitCall = Effect.fn("requestGitCall")(function* (
+	bridge: ElectrobunRpcBridge,
+	request: GitCallRequest
+) {
+	const encoded = yield* Effect.tryPromise({
+		try: () => bridge.request.gitCall(request),
+		catch: transportErrorFrom,
+	});
+	const exit = yield* decodeGitCallExit(encoded);
+	return yield* exitToEffect(exit);
+});
+
 const listenForEvents = (
 	bridge: ElectrobunRpcBridge,
 	fromSequence: Sequence
@@ -190,5 +205,6 @@ export const makeElectrobunRpcTransport = (bridge: ElectrobunRpcBridge): RpcTran
 	writeTextFile: (request) =>
 		requestWriteTextFile(bridge, request).pipe(Effect.mapError(toRpcClientError)),
 	getDefaultShell: () => requestGetDefaultShell(bridge, {}).pipe(Effect.mapError(toRpcClientError)),
+	gitCall: (request) => requestGitCall(bridge, request).pipe(Effect.mapError(toRpcClientError)),
 	events: (fromSequence) => listenForEvents(bridge, fromSequence),
 });
