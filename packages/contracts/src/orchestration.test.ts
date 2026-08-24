@@ -76,6 +76,8 @@ import {
 	TerminalInputCommand,
 	TerminalOpenCommand,
 	TerminalResizeCommand,
+	ReviewFileMarkReviewedCommand,
+	ReviewSessionClearCommand,
 } from "./orchestration.ts"
 import { APP_SETTINGS_ID } from "./settings.ts"
 import { APP_SKILLS_ID, emptySkillsCatalog } from "./skills.ts"
@@ -153,6 +155,8 @@ const v1CommandTypes = [
 	"terminal.input",
 	"terminal.resize",
 	"terminal.close",
+	"review.file.markReviewed",
+	"review.session.clear",
 ] as const
 
 type V1CommandType = (typeof v1CommandTypes)[number]
@@ -1040,6 +1044,33 @@ const memberCases = [
 			type: "terminal.close",
 			commandId,
 			terminalId,
+		}),
+	},
+	{
+		schema: ReviewFileMarkReviewedCommand,
+		aggregate: {
+			aggregateKind: "session",
+			aggregateId: sessionId,
+		} satisfies OrchestrationAggregateRef,
+		command: ReviewFileMarkReviewedCommand.make({
+			type: "review.file.markReviewed",
+			commandId,
+			sessionId,
+			revisionKey: "src/index.ts:abc123",
+			filePath: "src/index.ts",
+			reviewed: true,
+		}),
+	},
+	{
+		schema: ReviewSessionClearCommand,
+		aggregate: {
+			aggregateKind: "session",
+			aggregateId: sessionId,
+		} satisfies OrchestrationAggregateRef,
+		command: ReviewSessionClearCommand.make({
+			type: "review.session.clear",
+			commandId,
+			sessionId,
 		}),
 	},
 ] as const

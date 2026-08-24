@@ -102,6 +102,7 @@ Vitest.describe("SessionProjectionSnapshot", () => {
 			mcpCatalog: null,
 			preconnectionOptions: null,
 			terminal: null,
+			sessionReviewState: null,
 			})
 			Vitest.assert.strictEqual(snapshot.snapshotSequence, 4)
 			Vitest.assert.strictEqual(snapshot.session?.title, "Ship the slice")

@@ -223,7 +223,9 @@ const loadSlice = Effect.fn("ProjectionProjects.loadSlice")(function*(
 			PreconnectionOptionsLoaded: ignoreEvent,
 			TerminalOpened: ignoreEvent,
 			TerminalOutputAppended: ignoreEvent,
-			TerminalClosed: ignoreEvent
+			TerminalClosed: ignoreEvent,
+			SessionReviewFileMarked: ignoreEvent,
+			SessionReviewStateCleared: ignoreEvent
 		})
 	)(event)
 })

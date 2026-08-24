@@ -17,6 +17,7 @@ import { GetDefaultShellRequest, ReadTextFileRequest, WriteTextFileRequest } fro
 import { ProjectedGitReview } from "./git.ts"
 import { ProjectedMcpCatalog } from "./mcp.ts"
 import { ProjectedPreconnectionOptions } from "./preconnection.ts"
+import { ProjectedSessionReviewState } from "./sessionReview.ts"
 import { ProjectedTerminal } from "./terminal.ts"
 import {
 	ActivityId,
@@ -348,6 +349,9 @@ export type RpcProjectedGitReview = typeof RpcProjectedGitReview.Type
 export const RpcProjectedTerminal = ProjectedTerminal
 export type RpcProjectedTerminal = typeof RpcProjectedTerminal.Type
 
+export const RpcProjectedSessionReviewState = ProjectedSessionReviewState
+export type RpcProjectedSessionReviewState = typeof RpcProjectedSessionReviewState.Type
+
 export const RpcProjectedMcpCatalog = ProjectedMcpCatalog
 export type RpcProjectedMcpCatalog = typeof RpcProjectedMcpCatalog.Type
 
@@ -371,6 +375,7 @@ export const RpcSessionSnapshot = Schema.Struct({
 	mcpCatalog: Schema.NullOr(RpcProjectedMcpCatalog),
 	preconnectionOptions: Schema.NullOr(RpcProjectedPreconnectionOptions),
 	terminal: Schema.NullOr(RpcProjectedTerminal),
+	sessionReviewState: Schema.NullOr(RpcProjectedSessionReviewState),
 })
 export type RpcSessionSnapshot = typeof RpcSessionSnapshot.Type
 

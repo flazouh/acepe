@@ -118,6 +118,7 @@ const snapshotWithUser: RpcSessionSnapshot = {
 			mcpCatalog: null,
 			preconnectionOptions: null,
 			terminal: null,
+			sessionReviewState: null,
 };
 
 const unusedProjectIndex = {

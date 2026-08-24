@@ -21,7 +21,11 @@ import {
 	type ProjectMetaUpdateCommand,
 	type ProjectMetaUpdatedEvent,
 	type ProjectMetaUpdatedPayload,
+	type ReviewFileMarkReviewedCommand,
+	type ReviewSessionClearCommand,
 	type Sequence,
+	type SessionReviewFileMarkedEvent,
+	type SessionReviewStateClearedEvent,
 	type SessionArchiveCommand,
 	type SessionArchivedEvent,
 	type SessionCreateCommand,
@@ -501,6 +505,47 @@ const settingsUpdatedEvent = (
 	}
 })
 
+const sessionReviewFileMarkedEvent = (
+	command: ReviewFileMarkReviewedCommand,
+	identity: DecideIdentity,
+	sequence: Sequence
+): SessionReviewFileMarkedEvent => ({
+	...withEnvelope({
+		sequence,
+		eventId: identity.eventId,
+		aggregateKind: "session",
+		aggregateId: command.sessionId,
+		occurredAt: identity.occurredAt,
+		commandId: command.commandId
+	}),
+	type: "SessionReviewFileMarked",
+	payload: {
+		sessionId: command.sessionId,
+		revisionKey: command.revisionKey,
+		filePath: command.filePath,
+		reviewed: command.reviewed
+	}
+})
+
+const sessionReviewStateClearedEvent = (
+	command: ReviewSessionClearCommand,
+	identity: DecideIdentity,
+	sequence: Sequence
+): SessionReviewStateClearedEvent => ({
+	...withEnvelope({
+		sequence,
+		eventId: identity.eventId,
+		aggregateKind: "session",
+		aggregateId: command.sessionId,
+		occurredAt: identity.occurredAt,
+		commandId: command.commandId
+	}),
+	type: "SessionReviewStateCleared",
+	payload: {
+		sessionId: command.sessionId
+	}
+})
+
 const skillsDiscoveredEvent = (
 	command: SkillsDiscoverCommand,
 	identity: DecideIdentity,
@@ -741,6 +786,32 @@ const decideSkillsDiscover = Effect.fn("decideSkillsDiscover")(function*(
 	return [skillsDiscoveredEvent(command, identity, nextSequence(readModel.snapshotSequence))]
 })
 
+const decideReviewFileMarkReviewed = Effect.fn("decideReviewFileMarkReviewed")(function*(
+	readModel: OrchestrationReadModel,
+	command: ReviewFileMarkReviewedCommand,
+	identity: DecideIdentity
+) {
+	yield* requireSessionNotArchived({
+		readModel,
+		command,
+		sessionId: command.sessionId
+	})
+	return [sessionReviewFileMarkedEvent(command, identity, nextSequence(readModel.snapshotSequence))]
+})
+
+const decideReviewSessionClear = Effect.fn("decideReviewSessionClear")(function*(
+	readModel: OrchestrationReadModel,
+	command: ReviewSessionClearCommand,
+	identity: DecideIdentity
+) {
+	yield* requireSessionNotArchived({
+		readModel,
+		command,
+		sessionId: command.sessionId
+	})
+	return [sessionReviewStateClearedEvent(command, identity, nextSequence(readModel.snapshotSequence))]
+})
+
 export const decide = Effect.fn("decide")(function*(
 	readModel: OrchestrationReadModel,
 	command: OrchestrationCommand,
@@ -833,5 +904,9 @@ export const decide = Effect.fn("decide")(function*(
 		case "terminal.resize":
 		case "terminal.close":
 			return yield* decideTerminal(readModel, command, identity)
+		case "review.file.markReviewed":
+			return yield* decideReviewFileMarkReviewed(readModel, command, identity)
+		case "review.session.clear":
+			return yield* decideReviewSessionClear(readModel, command, identity)
 	}
 })

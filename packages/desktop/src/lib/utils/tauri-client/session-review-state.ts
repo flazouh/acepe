@@ -1,47 +1,139 @@
+import { decodeUnknown } from "@acepe/effect-result/decodeUnknown";
+import { fromThrowable } from "@acepe/effect-result/fromThrowable";
+import { decodeSessionId, sessionSnapshotRequest } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
+import * as Schema from "effect/Schema";
 
-import type { AppError } from "../../acp/errors/app-error.js";
-import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
+import { AgentError } from "../../acp/errors/app-error.js";
+import { decodeEffect, decodeTrimmed, nextCommandId, withRpcClient } from "./rpc-bridge.ts";
 
-const storageCommands = TAURI_COMMAND_CLIENT.storage;
-
-// save/get/delete all stay on TAURI_COMMAND_CLIENT: they read from and write
-// to the Rust-owned session_review_state SQLite table (FK'd to the Rust-owned
-// session_metadata table), and all three have live callers through
-// SessionReviewStateStore (packages/desktop/src/lib/acp/store/
-// session-review-state-store.svelte.ts). There is no zero-caller method here
-// to retire to unsupportedOnContract.
+// save/get/delete now ride the orchestration contract: review.file.markReviewed
+// and review.session.clear commands (packages/contracts/src/orchestration.ts),
+// projected into projection_session_review_state (packages/server/src/
+// persistence/Migrations/0020_projection_session_review_state.ts) and read back
+// through the session snapshot's `sessionReviewState` field. Signatures are
+// unchanged, so SessionReviewStateStore (packages/desktop/src/lib/acp/store/
+// session-review-state-store.svelte.ts) needed no changes.
 //
-// This is a different domain from the contract's existing git review surface
-// (ProjectedGitReview / projection_git_review, packages/contracts/src/git.ts),
-// not an overlapping one a new field could bridge:
-//   - scope: git review is keyed by projectId, one row per project. Session
-//     review state is keyed by sessionId, one row per session.
-//   - grain: git review's hunkDecisions track accept/reject per hunk within a
-//     file's diff. Session review state tracks a single reviewed/unreviewed
-//     boolean per whole file, keyed by a revisionKey (file path + content
-//     hash) so a file re-marks itself unreviewed when it changes.
-// Moving this onto the contract would mean designing a new session-scoped
-// projection (table + dispatch command(s) + snapshot field + reducer), not
-// extending the git review projection with a missing field. session.meta.update
-// (packages/contracts/src/orchestration.ts) is a fixed-shape command (title/
-// prNumber/prLinkMode) and not a generic per-session KV store either, so there
-// is no existing command this can ride without a schema change of its own.
-// That is a real slice of new infrastructure, out of this batch's budget; see
-// the #249 issue thread (batch 2 map) for the follow-up slice.
+// The old Rust-backed facade treated `save` as a whole-document overwrite: one
+// JSON blob replaces the session's entire review state every call. The
+// per-file command surface has no bulk-replace primitive, so `save` mirrors
+// that overwrite semantics itself: dispatch review.session.clear first, then
+// review.file.markReviewed for every entry in the incoming blob. This keeps a
+// stale revisionKey (a file the store already pruned client-side) from
+// lingering in the projection forever, which a diff-based approach would risk
+// getting wrong.
+
+const persistedFileReviewProgressSchema = Schema.Struct({
+	filePath: Schema.NonEmptyString,
+	reviewed: Schema.Boolean,
+});
+
+const sessionReviewStateSchema = Schema.Struct({
+	version: Schema.Literal(2),
+	filesByRevisionKey: Schema.Record(Schema.String, persistedFileReviewProgressSchema),
+});
+
+type PersistedSessionReviewState = typeof sessionReviewStateSchema.Type;
+
+const parseJson = fromThrowable(
+	(value: string): unknown => JSON.parse(value),
+	(error) =>
+		error instanceof Error
+			? error
+			: new Error(`Failed to parse review state JSON: ${String(error)}`)
+);
+
+const decodeStateJson = (
+	operation: string,
+	stateJson: string
+): Effect.Effect<PersistedSessionReviewState, AgentError> =>
+	parseJson(stateJson).pipe(
+		Effect.mapError((error) => new AgentError(operation, error)),
+		Effect.flatMap((parsed) => {
+			const validation = decodeUnknown(
+				sessionReviewStateSchema,
+				(error) => new Error(`Invalid review state: ${error.message}`)
+			)(parsed);
+			if (Result.isSuccess(validation)) {
+				return Effect.succeed(validation.success);
+			}
+			return Effect.fail(new AgentError(operation, validation.failure));
+		})
+	);
+
 export const sessionReviewState = {
-	save: (sessionId: string, stateJson: string): Effect.Effect<void, AppError> => {
-		return storageCommands.save_session_review_state.invoke<void>({
-			sessionId,
-			stateJson,
-		});
-	},
+	save: Effect.fn("sessionReviewState.save")(function* (sessionId: string, stateJson: string) {
+		const decodedSessionId = yield* decodeEffect(
+			"sessionReviewState.save",
+			decodeSessionId
+		)(sessionId);
+		const state = yield* decodeStateJson("sessionReviewState.save", stateJson);
 
-	get: (sessionId: string): Effect.Effect<string | null, AppError> => {
-		return storageCommands.get_session_review_state.invoke<string | null>({ sessionId });
-	},
+		const clearCommandId = yield* nextCommandId("review-clear");
+		yield* withRpcClient("sessionReviewState.save", (client) =>
+			client.dispatch({
+				type: "review.session.clear",
+				commandId: clearCommandId,
+				sessionId: decodedSessionId,
+			})
+		);
 
-	delete: (sessionId: string): Effect.Effect<void, AppError> => {
-		return storageCommands.delete_session_review_state.invoke<void>({ sessionId });
-	},
+		for (const [revisionKey, progress] of Object.entries(state.filesByRevisionKey)) {
+			const decodedRevisionKey = yield* decodeTrimmed("sessionReviewState.save", revisionKey);
+			const decodedFilePath = yield* decodeTrimmed(
+				"sessionReviewState.save",
+				progress.filePath
+			);
+			const markCommandId = yield* nextCommandId("review-mark");
+			yield* withRpcClient("sessionReviewState.save", (client) =>
+				client.dispatch({
+					type: "review.file.markReviewed",
+					commandId: markCommandId,
+					sessionId: decodedSessionId,
+					revisionKey: decodedRevisionKey,
+					filePath: decodedFilePath,
+					reviewed: progress.reviewed,
+				})
+			);
+		}
+	}),
+
+	get: Effect.fn("sessionReviewState.get")(function* (sessionId: string) {
+		const decodedSessionId = yield* decodeEffect(
+			"sessionReviewState.get",
+			decodeSessionId
+		)(sessionId);
+		const snapshot = yield* withRpcClient("sessionReviewState.get", (client) =>
+			client.snapshot(sessionSnapshotRequest(decodedSessionId))
+		);
+		const files = snapshot.sessionReviewState?.files ?? [];
+		if (files.length === 0) {
+			return null;
+		}
+		const filesByRevisionKey: Record<string, { filePath: string; reviewed: boolean }> = {};
+		for (const file of files) {
+			filesByRevisionKey[file.revisionKey] = {
+				filePath: file.filePath,
+				reviewed: file.reviewed,
+			};
+		}
+		return JSON.stringify({ version: 2, filesByRevisionKey });
+	}),
+
+	delete: Effect.fn("sessionReviewState.delete")(function* (sessionId: string) {
+		const decodedSessionId = yield* decodeEffect(
+			"sessionReviewState.delete",
+			decodeSessionId
+		)(sessionId);
+		const commandId = yield* nextCommandId("review-clear");
+		yield* withRpcClient("sessionReviewState.delete", (client) =>
+			client.dispatch({
+				type: "review.session.clear",
+				commandId,
+				sessionId: decodedSessionId,
+			})
+		);
+	}),
 };

@@ -84,6 +84,7 @@ describe("tracer bullet controller mapping", () => {
 			mcpCatalog: null,
 			preconnectionOptions: null,
 			terminal: null,
+			sessionReviewState: null,
 						}),
 					getProjectIndex: () =>
 						Effect.succeed({

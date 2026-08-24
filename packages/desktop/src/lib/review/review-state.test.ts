@@ -189,6 +189,7 @@ describe("selectedProjectWorkspaceRoot", () => {
 			mcpCatalog: null,
 			preconnectionOptions: null,
 			terminal: null,
+			sessionReviewState: null,
 		}
 		expect(selectedProjectWorkspaceRoot(snapshot, null)).toBeNull()
 		expect(selectedProjectWorkspaceRoot(snapshot, "missing")).toBeNull()

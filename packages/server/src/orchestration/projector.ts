@@ -398,7 +398,9 @@ export const projectEvent = (
 			PreconnectionOptionsLoaded: () => Effect.succeed(model),
 			TerminalOpened: () => Effect.succeed(model),
 			TerminalOutputAppended: () => Effect.succeed(model),
-			TerminalClosed: () => Effect.succeed(model)
+			TerminalClosed: () => Effect.succeed(model),
+			SessionReviewFileMarked: () => Effect.succeed(model),
+			SessionReviewStateCleared: () => Effect.succeed(model)
 		})
 	)(event)
 }

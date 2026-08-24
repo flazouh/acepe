@@ -121,6 +121,7 @@ describe("librarySidebarViewModel", () => {
 				mcpCatalog: snapshot.mcpCatalog,
 				preconnectionOptions: snapshot.preconnectionOptions,
 				terminal: snapshot.terminal,
+				sessionReviewState: snapshot.sessionReviewState,
 			},
 			selectedProjectId: projectId,
 		});

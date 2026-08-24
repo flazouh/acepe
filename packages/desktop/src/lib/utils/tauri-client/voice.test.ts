@@ -72,6 +72,7 @@ const voiceSnapshot = (): RpcSessionSnapshot => {
 		mcpCatalog: empty.mcpCatalog,
 		preconnectionOptions: empty.preconnectionOptions,
 		terminal: empty.terminal,
+		sessionReviewState: empty.sessionReviewState,
 	};
 };
 

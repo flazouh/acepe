@@ -101,7 +101,8 @@ export const toRpcSnapshot = (snapshot: SessionProjectionSnapshot): RpcSessionSn
 	gitReview: snapshot.gitReview,
 	mcpCatalog: snapshot.mcpCatalog,
 	preconnectionOptions: snapshot.preconnectionOptions,
-	terminal: snapshot.terminal
+	terminal: snapshot.terminal,
+	sessionReviewState: snapshot.sessionReviewState
 })
 
 const decodeRpcFileGitStatuses = Schema.decodeUnknownEffect(Schema.Array(FileGitStatus))
@@ -168,7 +169,8 @@ const withProjectGitStatus = Effect.fn("withProjectGitStatus")(function*(
 		gitReview: snapshot.gitReview,
 		mcpCatalog: snapshot.mcpCatalog,
 		preconnectionOptions: snapshot.preconnectionOptions,
-		terminal: snapshot.terminal
+		terminal: snapshot.terminal,
+		sessionReviewState: snapshot.sessionReviewState
 	} satisfies RpcSessionSnapshot
 })
 
@@ -234,7 +236,8 @@ const withCheckpointFiles = Effect.fn("withCheckpointFiles")(function*(
 		gitReview: snapshot.gitReview,
 		mcpCatalog: snapshot.mcpCatalog,
 		preconnectionOptions: snapshot.preconnectionOptions,
-		terminal: snapshot.terminal
+		terminal: snapshot.terminal,
+		sessionReviewState: snapshot.sessionReviewState
 	} satisfies RpcSessionSnapshot
 })
 

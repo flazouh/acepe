@@ -614,4 +614,133 @@ describe("applyEventToRpcSessionSnapshot", () => {
 		expect(loaded.terminal?.cwd).toBe("/tmp")
 	})
 
+	it("upserts a file's reviewed state onto the snapshot", () => {
+		const afterSession = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), sessionCreated)
+		const marked = applyEventToRpcSessionSnapshot(afterSession, {
+			sequence: 3,
+			eventId: EventId.make("event-review-1"),
+			aggregateKind: "session",
+			aggregateId: sessionId,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: {},
+			type: "SessionReviewFileMarked",
+			payload: {
+				sessionId,
+				revisionKey: "src/index.ts:abc123",
+				filePath: "src/index.ts",
+				reviewed: true,
+			},
+		})
+		expect(marked.sessionReviewState?.files).toEqual([
+			{ revisionKey: "src/index.ts:abc123", filePath: "src/index.ts", reviewed: true },
+		])
+	})
+
+	it("re-marking the same revisionKey replaces the existing entry instead of duplicating it", () => {
+		const afterSession = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), sessionCreated)
+		const firstMark = applyEventToRpcSessionSnapshot(afterSession, {
+			sequence: 3,
+			eventId: EventId.make("event-review-1"),
+			aggregateKind: "session",
+			aggregateId: sessionId,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: {},
+			type: "SessionReviewFileMarked",
+			payload: {
+				sessionId,
+				revisionKey: "src/index.ts:abc123",
+				filePath: "src/index.ts",
+				reviewed: true,
+			},
+		})
+		const unmarked = applyEventToRpcSessionSnapshot(firstMark, {
+			sequence: 4,
+			eventId: EventId.make("event-review-2"),
+			aggregateKind: "session",
+			aggregateId: sessionId,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: {},
+			type: "SessionReviewFileMarked",
+			payload: {
+				sessionId,
+				revisionKey: "src/index.ts:abc123",
+				filePath: "src/index.ts",
+				reviewed: false,
+			},
+		})
+		expect(unmarked.sessionReviewState?.files).toEqual([
+			{ revisionKey: "src/index.ts:abc123", filePath: "src/index.ts", reviewed: false },
+		])
+	})
+
+	it("ignores a review event for a different session already loaded into the snapshot", () => {
+		const afterSession = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), sessionCreated)
+		const untouched = applyEventToRpcSessionSnapshot(afterSession, {
+			sequence: 3,
+			eventId: EventId.make("event-review-1"),
+			aggregateKind: "session",
+			aggregateId: otherSessionId,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: {},
+			type: "SessionReviewFileMarked",
+			payload: {
+				sessionId: otherSessionId,
+				revisionKey: "src/index.ts:abc123",
+				filePath: "src/index.ts",
+				reviewed: true,
+			},
+		})
+		expect(untouched.sessionReviewState).toBeNull()
+	})
+
+	it("clears every tracked file for the session on SessionReviewStateCleared", () => {
+		const afterSession = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), sessionCreated)
+		const marked = applyEventToRpcSessionSnapshot(afterSession, {
+			sequence: 3,
+			eventId: EventId.make("event-review-1"),
+			aggregateKind: "session",
+			aggregateId: sessionId,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: {},
+			type: "SessionReviewFileMarked",
+			payload: {
+				sessionId,
+				revisionKey: "src/index.ts:abc123",
+				filePath: "src/index.ts",
+				reviewed: true,
+			},
+		})
+		const cleared = applyEventToRpcSessionSnapshot(marked, {
+			sequence: 4,
+			eventId: EventId.make("event-review-2"),
+			aggregateKind: "session",
+			aggregateId: sessionId,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: {},
+			type: "SessionReviewStateCleared",
+			payload: {
+				sessionId,
+			},
+		})
+		expect(cleared.sessionReviewState?.files).toEqual([])
+	})
+
 })

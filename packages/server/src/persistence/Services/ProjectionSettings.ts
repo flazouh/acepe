@@ -166,7 +166,9 @@ export const evolveProjectedSetting = (
 			PreconnectionOptionsLoaded: () => ignoreEvent(current),
 			TerminalOpened: () => ignoreEvent(current),
 			TerminalOutputAppended: () => ignoreEvent(current),
-			TerminalClosed: () => ignoreEvent(current)
+			TerminalClosed: () => ignoreEvent(current),
+			SessionReviewFileMarked: () => ignoreEvent(current),
+			SessionReviewStateCleared: () => ignoreEvent(current)
 		})
 	)(event)
 
@@ -235,6 +237,8 @@ export const settingKeyFromEvent = (event: OrchestrationEvent): Option.Option<Us
 			PreconnectionOptionsLoaded: () => Option.none(),
 			TerminalOpened: () => Option.none(),
 			TerminalOutputAppended: () => Option.none(),
-			TerminalClosed: () => Option.none()
+			TerminalClosed: () => Option.none(),
+			SessionReviewFileMarked: () => Option.none(),
+			SessionReviewStateCleared: () => Option.none()
 		})
 	)(event)

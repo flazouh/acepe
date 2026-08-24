@@ -324,6 +324,8 @@ export const evolveProjectedGitReview = (
 			PreconnectionOptionsLoaded: () => ignoreEvent(current),
 			TerminalOpened: () => ignoreEvent(current),
 			TerminalOutputAppended: () => ignoreEvent(current),
-			TerminalClosed: () => ignoreEvent(current)
+			TerminalClosed: () => ignoreEvent(current),
+			SessionReviewFileMarked: () => ignoreEvent(current),
+			SessionReviewStateCleared: () => ignoreEvent(current)
 		})
 	)(event)

@@ -61,6 +61,10 @@ import {
 	PROJECTION_TERMINAL_TABLE
 } from "../../persistence/Services/ProjectionTerminal.ts"
 import {
+	decodeStoredSessionReviewFiles,
+	PROJECTION_SESSION_REVIEW_STATE_TABLE
+} from "../../persistence/Services/ProjectionSessionReviewState.ts"
+import {
 	decodeProjectedPendingApprovals,
 	decodeProjectedSessionActivities,
 	decodeProjectedTurns,
@@ -393,6 +397,30 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 			})
 		})
 
+		const readSessionReviewState = Effect.fn("ProjectionSnapshotQuery.readSessionReviewState")(
+			function*(
+				sessionId: SessionId,
+				snapshotSequence: Sequence,
+				present: HashSet.HashSet<string>
+			) {
+				if (HashSet.has(present, PROJECTION_SESSION_REVIEW_STATE_TABLE) === false) {
+					return null
+				}
+				const rows = yield* sql`
+					SELECT session_id, revision_key, file_path, reviewed, sequence
+					FROM projection_session_review_state
+					WHERE session_id = ${sessionId}
+						AND sequence <= ${snapshotSequence}
+					ORDER BY revision_key ASC
+				`.withoutTransform
+				const files = yield* decodeStoredSessionReviewFiles(rows)
+				if (files.length === 0) {
+					return null
+				}
+				return { sequence: snapshotSequence, sessionId, files }
+			}
+		)
+
 		const readSnapshot = Effect.fn("ProjectionSnapshotQuery.readSnapshot")(function*(
 			sessionId: SessionId
 		) {
@@ -411,6 +439,7 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 			const settings = yield* readSettings(snapshotSequence, present)
 			const skillsCatalog = yield* readSkillsCatalog(snapshotSequence, present)
 			const voice = yield* readVoice(snapshotSequence, present)
+			const sessionReviewState = yield* readSessionReviewState(sessionId, snapshotSequence, present)
 			return {
 				snapshotSequence,
 				session,
@@ -427,7 +456,8 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 				gitReview: null,
 				mcpCatalog: null,
 				preconnectionOptions: null,
-				terminal: null
+				terminal: null,
+				sessionReviewState
 			} satisfies SessionProjectionSnapshot
 		})
 
@@ -509,7 +539,8 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 					gitReview: null,
 					mcpCatalog: null,
 					preconnectionOptions: null,
-					terminal: null
+					terminal: null,
+					sessionReviewState: null
 				} satisfies SessionProjectionSnapshot
 			}
 		)
@@ -542,7 +573,8 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 					gitReview,
 					mcpCatalog: mcpState.mcpCatalog,
 					preconnectionOptions: mcpState.preconnectionOptions,
-					terminal: null
+					terminal: null,
+					sessionReviewState: null
 				} satisfies SessionProjectionSnapshot
 			}
 		)
@@ -570,7 +602,8 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 					gitReview: null,
 					mcpCatalog: null,
 					preconnectionOptions: null,
-					terminal: null
+					terminal: null,
+					sessionReviewState: null
 				} satisfies SessionProjectionSnapshot
 			}
 		)
@@ -597,7 +630,8 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 				gitReview: null,
 				mcpCatalog: null,
 				preconnectionOptions: null,
-				terminal
+				terminal,
+				sessionReviewState: null
 			} satisfies SessionProjectionSnapshot
 		})
 

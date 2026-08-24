@@ -76,6 +76,7 @@ const oracle = {
 			mcpCatalog: null,
 			preconnectionOptions: null,
 			terminal: null,
+			sessionReviewState: null,
 }
 
 Vitest.layer(isolated())("CursorHistoryLive", (it) => {

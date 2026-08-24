@@ -34,6 +34,7 @@ import { ProjectionVoiceLive } from "./persistence/Layers/ProjectionVoice.ts"
 import { ProjectionGitLive } from "./persistence/Layers/ProjectionGit.ts"
 import { ProjectionMcpLive } from "./persistence/Layers/ProjectionMcp.ts"
 import { ProjectionTerminalLive } from "./persistence/Layers/ProjectionTerminal.ts"
+import { ProjectionSessionReviewStateLive } from "./persistence/Layers/ProjectionSessionReviewState.ts"
 import { makeSqliteLayer } from "./persistence/Layers/Sqlite.ts"
 import { runMigrations } from "./persistence/Migrations.ts"
 import {
@@ -52,6 +53,7 @@ import { ProjectionVoice } from "./persistence/Services/ProjectionVoice.ts"
 import { ProjectionGit } from "./persistence/Services/ProjectionGit.ts"
 import { ProjectionMcp } from "./persistence/Services/ProjectionMcp.ts"
 import { ProjectionTerminal } from "./persistence/Services/ProjectionTerminal.ts"
+import { ProjectionSessionReviewState } from "./persistence/Services/ProjectionSessionReviewState.ts"
 import { HardcodedProviderLive } from "./provider/HardcodedProvider.ts"
 import { FileIndexServiceLive } from "./fileIndex/Layers/FileIndexService.ts"
 import { FileIndexWarmOnImportLive } from "./fileIndex/Layers/FileIndexWarmOnImport.ts"
@@ -100,7 +102,8 @@ const persistenceAt = (filename: string) => {
 		ProjectionVoiceLive,
 		ProjectionGitLive,
 		ProjectionMcpLive,
-		ProjectionTerminalLive
+		ProjectionTerminalLive,
+		ProjectionSessionReviewStateLive
 	).pipe(Layer.provideMerge(migrated))
 }
 
@@ -124,6 +127,7 @@ const pipelineLayer = Layer.unwrap(
 		const gitReview = yield* ProjectionGit
 		const mcp = yield* ProjectionMcp
 		const terminal = yield* ProjectionTerminal
+		const sessionReviewState = yield* ProjectionSessionReviewState
 		const messagesName = yield* decodeProjectorName(PROJECTION_SESSION_MESSAGES_NAME)
 		return ProjectionPipelineLive([
 			{
@@ -190,6 +194,11 @@ const pipelineLayer = Layer.unwrap(
 				name: terminal.name,
 				apply: terminal.apply,
 				truncate: terminal.truncate
+			},
+			{
+				name: sessionReviewState.name,
+				apply: sessionReviewState.apply,
+				truncate: sessionReviewState.truncate
 			}
 		])
 	})

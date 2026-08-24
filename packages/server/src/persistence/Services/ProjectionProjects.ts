@@ -370,6 +370,8 @@ export const evolveProjectedProjects = (
 			PreconnectionOptionsLoaded: () => Effect.succeed(current),
 			TerminalOpened: () => Effect.succeed(current),
 			TerminalOutputAppended: () => Effect.succeed(current),
-			TerminalClosed: () => Effect.succeed(current)
+			TerminalClosed: () => Effect.succeed(current),
+			SessionReviewFileMarked: () => Effect.succeed(current),
+			SessionReviewStateCleared: () => Effect.succeed(current)
 		})
 	)(event)

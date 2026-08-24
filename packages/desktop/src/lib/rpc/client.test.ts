@@ -67,6 +67,7 @@ const emptySnapshot = {
 	mcpCatalog: null,
 	preconnectionOptions: null,
 	terminal: null,
+	sessionReviewState: null,
 };
 
 const makeBridge = (input: {

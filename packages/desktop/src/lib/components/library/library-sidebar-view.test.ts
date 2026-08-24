@@ -72,6 +72,7 @@ const snapshot: RpcSessionSnapshot = {
 			mcpCatalog: null,
 			preconnectionOptions: null,
 			terminal: null,
+			sessionReviewState: null,
 };
 
 describe("library sidebar controller mapping", () => {
