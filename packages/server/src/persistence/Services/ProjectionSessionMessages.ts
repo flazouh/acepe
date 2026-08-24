@@ -240,7 +240,9 @@ export const rowFromEvent = (
 			PreconnectionOptionsLoaded: ignoreEvent,
 			TerminalOpened: ignoreEvent,
 			TerminalOutputAppended: ignoreEvent,
-			TerminalClosed: ignoreEvent
+			TerminalClosed: ignoreEvent,
+			SessionReviewFileMarked: ignoreEvent,
+			SessionReviewStateCleared: ignoreEvent
 		})
 	)(event)
 

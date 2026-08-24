@@ -23,6 +23,11 @@ import {
 } from "./rpc.ts"
 import { emptyProjectedVoice, type ProjectedVoice, type VoiceModelInfo } from "./voice.ts"
 import { capTerminalOutput, type ProjectedTerminal } from "./terminal.ts"
+import {
+	emptyProjectedSessionReviewState,
+	type ProjectedSessionReviewState,
+	type SessionReviewFile,
+} from "./sessionReview.ts"
 
 const asTranscriptText = (value: string): typeof TrimmedNonEmptyString.Type =>
 	Schema.decodeUnknownSync(TrimmedNonEmptyString)(value)
@@ -44,6 +49,7 @@ export const emptyRpcSessionSnapshot = (snapshotSequence: Sequence): RpcSessionS
 	mcpCatalog: null,
 	preconnectionOptions: null,
 	terminal: null,
+	sessionReviewState: null,
 })
 
 const watermark = (snapshot: RpcSessionSnapshot, sequence: Sequence): Sequence =>
@@ -242,6 +248,7 @@ const applySettingsUpdated = (
 	mcpCatalog: snapshot.mcpCatalog,
 	preconnectionOptions: snapshot.preconnectionOptions,
 	terminal: snapshot.terminal,
+	sessionReviewState: snapshot.sessionReviewState,
 	}
 }
 
@@ -380,6 +387,7 @@ const applySkillsDiscovered = (
 	mcpCatalog: snapshot.mcpCatalog,
 	preconnectionOptions: snapshot.preconnectionOptions,
 	terminal: snapshot.terminal,
+	sessionReviewState: snapshot.sessionReviewState,
 })
 
 const upsertVoiceModel = (
@@ -465,6 +473,7 @@ const replaceVoice = (
 	mcpCatalog: snapshot.mcpCatalog,
 	preconnectionOptions: snapshot.preconnectionOptions,
 	terminal: snapshot.terminal,
+	sessionReviewState: snapshot.sessionReviewState,
 })
 
 const applyVoiceModelsListed = (
@@ -638,6 +647,7 @@ const replaceGitReview = (
 	mcpCatalog: snapshot.mcpCatalog,
 	preconnectionOptions: snapshot.preconnectionOptions,
 	terminal: snapshot.terminal,
+	sessionReviewState: snapshot.sessionReviewState,
 })
 
 const upsertGitFile = (
@@ -791,6 +801,7 @@ const applyMcpCatalogResolved = (
 	},
 	preconnectionOptions: snapshot.preconnectionOptions,
 	terminal: snapshot.terminal,
+	sessionReviewState: snapshot.sessionReviewState,
 })
 
 const applyPreconnectionOptionsLoaded = (
@@ -818,6 +829,7 @@ const applyPreconnectionOptionsLoaded = (
 		options: event.payload.options,
 	},
 	terminal: snapshot.terminal,
+	sessionReviewState: snapshot.sessionReviewState,
 })
 
 const applyTerminalSnapshot = (
@@ -854,7 +866,91 @@ const applyTerminalSnapshot = (
 		mcpCatalog: snapshot.mcpCatalog,
 		preconnectionOptions: snapshot.preconnectionOptions,
 		terminal,
+		sessionReviewState: snapshot.sessionReviewState,
 	}
+}
+
+const currentSessionReviewState = (
+	snapshot: RpcSessionSnapshot,
+	sessionId: SessionId,
+	sequence: Sequence,
+): ProjectedSessionReviewState => {
+	if (snapshot.sessionReviewState === null || snapshot.sessionReviewState.sessionId !== sessionId) {
+		return emptyProjectedSessionReviewState(sessionId, sequence)
+	}
+	return snapshot.sessionReviewState
+}
+
+const replaceSessionReviewState = (
+	snapshot: RpcSessionSnapshot,
+	sequence: Sequence,
+	sessionReviewState: ProjectedSessionReviewState,
+): RpcSessionSnapshot => ({
+	snapshotSequence: watermark(snapshot, sequence),
+	session: snapshot.session,
+	messages: snapshot.messages,
+	turns: snapshot.turns,
+	activities: snapshot.activities,
+	pendingApprovals: snapshot.pendingApprovals,
+	projects: snapshot.projects,
+	sessions: snapshot.sessions,
+	settings: snapshot.settings,
+	checkpoints: snapshot.checkpoints,
+	skillsCatalog: snapshot.skillsCatalog,
+	voice: snapshot.voice,
+	gitReview: snapshot.gitReview,
+	mcpCatalog: snapshot.mcpCatalog,
+	preconnectionOptions: snapshot.preconnectionOptions,
+	terminal: snapshot.terminal,
+	sessionReviewState: {
+		sequence,
+		sessionId: sessionReviewState.sessionId,
+		files: sessionReviewState.files,
+	},
+})
+
+const upsertSessionReviewFile = (
+	files: ReadonlyArray<SessionReviewFile>,
+	next: SessionReviewFile,
+): ReadonlyArray<SessionReviewFile> => {
+	const existing = Arr.findFirst(files, (file) => file.revisionKey === next.revisionKey)
+	if (Option.isNone(existing)) {
+		return Arr.append(files, next)
+	}
+	return Arr.map(files, (file) => (file.revisionKey === next.revisionKey ? next : file))
+}
+
+const applySessionReviewFileMarked = (
+	snapshot: RpcSessionSnapshot,
+	event: Extract<OrchestrationEvent, { readonly type: "SessionReviewFileMarked" }>,
+): RpcSessionSnapshot => {
+	if (!isThisSession(snapshot, event.payload.sessionId)) {
+		return withSequence(snapshot, event.sequence)
+	}
+	const current = currentSessionReviewState(snapshot, event.payload.sessionId, event.sequence)
+	return replaceSessionReviewState(snapshot, event.sequence, {
+		sequence: event.sequence,
+		sessionId: current.sessionId,
+		files: upsertSessionReviewFile(current.files, {
+			revisionKey: event.payload.revisionKey,
+			filePath: event.payload.filePath,
+			reviewed: event.payload.reviewed,
+		}),
+	})
+}
+
+const applySessionReviewStateCleared = (
+	snapshot: RpcSessionSnapshot,
+	event: Extract<OrchestrationEvent, { readonly type: "SessionReviewStateCleared" }>,
+): RpcSessionSnapshot => {
+	if (!isThisSession(snapshot, event.payload.sessionId)) {
+		return withSequence(snapshot, event.sequence)
+	}
+	return replaceSessionReviewState(
+		snapshot,
+		event.sequence,
+		emptyProjectedSessionReviewState(event.payload.sessionId, event.sequence),
+	)
 }
 
 export const applyEventToRpcSessionSnapshot = (
@@ -997,6 +1093,10 @@ export const applyEventToRpcSessionSnapshot = (
 		case "TerminalOutputAppended":
 		case "TerminalClosed":
 			return applyTerminalSnapshot(snapshot, event)
+		case "SessionReviewFileMarked":
+			return applySessionReviewFileMarked(snapshot, event)
+		case "SessionReviewStateCleared":
+			return applySessionReviewStateCleared(snapshot, event)
 		default:
 			return withSequence(snapshot, event.sequence)
 	}

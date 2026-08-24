@@ -42,6 +42,8 @@ import {
 	TerminalClosedPayload,
 	TerminalOpenedPayload,
 	TerminalOutputAppendedPayload,
+	SessionReviewFileMarkedPayload,
+	SessionReviewStateClearedPayload,
 } from "./events.ts"
 import {
 	AgentAuthenticatedPayload,
@@ -149,6 +151,8 @@ const v1EventTypes = [
 	"TerminalOpened",
 	"TerminalOutputAppended",
 	"TerminalClosed",
+	"SessionReviewFileMarked",
+	"SessionReviewStateCleared",
 ] as const
 
 type V1EventType = (typeof v1EventTypes)[number]
@@ -822,6 +826,21 @@ const memberCases = [
 			rows: 24,
 			output: "ready\nbye",
 			closed: true,
+		}),
+	},
+	{
+		payloadSchema: SessionReviewFileMarkedPayload,
+		event: sessionEvent("SessionReviewFileMarked", {
+			sessionId,
+			revisionKey: "src/index.ts:abc123",
+			filePath: "src/index.ts",
+			reviewed: true,
+		}),
+	},
+	{
+		payloadSchema: SessionReviewStateClearedPayload,
+		event: sessionEvent("SessionReviewStateCleared", {
+			sessionId,
 		}),
 	},
 ] as const

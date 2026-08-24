@@ -164,6 +164,8 @@ export const evolveProjectedTerminal = (
 			PreconnectionOptionsLoaded: () => ignoreEvent(current),
 			TerminalOpened: (opened) => fromSnapshotPayload(opened),
 			TerminalOutputAppended: (appended) => fromSnapshotPayload(appended),
-			TerminalClosed: (closed) => fromSnapshotPayload(closed)
+			TerminalClosed: (closed) => fromSnapshotPayload(closed),
+			SessionReviewFileMarked: () => ignoreEvent(current),
+			SessionReviewStateCleared: () => ignoreEvent(current)
 		})
 	)(event)

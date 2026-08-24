@@ -7,6 +7,8 @@ import {
 	ProjectDeleteCommand,
 	ProjectId,
 	ProjectMetaUpdateCommand,
+	ReviewFileMarkReviewedCommand,
+	ReviewSessionClearCommand,
 	SessionArchiveCommand,
 	SessionCreateCommand,
 	SessionDeleteCommand,
@@ -867,6 +869,162 @@ Vitest.describe("decide", () => {
 					}
 				}
 			])
+		})
+	)
+
+	Vitest.it.effect("emits SessionReviewFileMarked from the command fields", () =>
+		Effect.gen(function*() {
+			const events = yield* decide(
+				sessionReadModel,
+				ReviewFileMarkReviewedCommand.make({
+					type: "review.file.markReviewed",
+					commandId,
+					sessionId,
+					revisionKey: "src/index.ts:abc123",
+					filePath: "src/index.ts",
+					reviewed: true
+				}),
+				identity
+			)
+			Vitest.assert.deepStrictEqual(events, [
+				{
+					sequence: 3,
+					eventId,
+					aggregateKind: "session",
+					aggregateId: sessionId,
+					occurredAt,
+					commandId,
+					causationEventId: null,
+					correlationId: commandId,
+					metadata: {},
+					type: "SessionReviewFileMarked",
+					payload: {
+						sessionId,
+						revisionKey: "src/index.ts:abc123",
+						filePath: "src/index.ts",
+						reviewed: true
+					}
+				}
+			])
+		})
+	)
+
+	Vitest.it.effect("rejects review.file.markReviewed when the session does not exist", () =>
+		Effect.gen(function*() {
+			const error = yield* Effect.flip(
+				decide(
+					emptyReadModel,
+					ReviewFileMarkReviewedCommand.make({
+						type: "review.file.markReviewed",
+						commandId,
+						sessionId,
+						revisionKey: "src/index.ts:abc123",
+						filePath: "src/index.ts",
+						reviewed: true
+					}),
+					identity
+				)
+			)
+			Vitest.assert.strictEqual(error._tag, "OrchestrationCommandInvariantError")
+			Vitest.assert.strictEqual(
+				error.detail,
+				"Session 'session-1' does not exist for command 'review.file.markReviewed'."
+			)
+		})
+	)
+
+	Vitest.it.effect("rejects review.file.markReviewed when the session is archived", () =>
+		Effect.gen(function*() {
+			const error = yield* Effect.flip(
+				decide(
+					archivedSessionReadModel,
+					ReviewFileMarkReviewedCommand.make({
+						type: "review.file.markReviewed",
+						commandId,
+						sessionId,
+						revisionKey: "src/index.ts:abc123",
+						filePath: "src/index.ts",
+						reviewed: true
+					}),
+					identity
+				)
+			)
+			Vitest.assert.strictEqual(error._tag, "OrchestrationCommandInvariantError")
+			Vitest.assert.strictEqual(
+				error.detail,
+				"Session 'session-1' is already archived and cannot handle command 'review.file.markReviewed'."
+			)
+		})
+	)
+
+	Vitest.it.effect("emits SessionReviewStateCleared from the command fields", () =>
+		Effect.gen(function*() {
+			const events = yield* decide(
+				sessionReadModel,
+				ReviewSessionClearCommand.make({
+					type: "review.session.clear",
+					commandId,
+					sessionId
+				}),
+				identity
+			)
+			Vitest.assert.deepStrictEqual(events, [
+				{
+					sequence: 3,
+					eventId,
+					aggregateKind: "session",
+					aggregateId: sessionId,
+					occurredAt,
+					commandId,
+					causationEventId: null,
+					correlationId: commandId,
+					metadata: {},
+					type: "SessionReviewStateCleared",
+					payload: { sessionId }
+				}
+			])
+		})
+	)
+
+	Vitest.it.effect("rejects review.session.clear when the session does not exist", () =>
+		Effect.gen(function*() {
+			const error = yield* Effect.flip(
+				decide(
+					emptyReadModel,
+					ReviewSessionClearCommand.make({
+						type: "review.session.clear",
+						commandId,
+						sessionId
+					}),
+					identity
+				)
+			)
+			Vitest.assert.strictEqual(error._tag, "OrchestrationCommandInvariantError")
+			Vitest.assert.strictEqual(
+				error.detail,
+				"Session 'session-1' does not exist for command 'review.session.clear'."
+			)
+		})
+	)
+
+	Vitest.it.effect("rejects review.session.clear when the session is archived", () =>
+		Effect.gen(function*() {
+			const error = yield* Effect.flip(
+				decide(
+					archivedSessionReadModel,
+					ReviewSessionClearCommand.make({
+						type: "review.session.clear",
+						commandId,
+						sessionId
+					}),
+					identity
+				)
+			)
+			Vitest.assert.strictEqual(error._tag, "OrchestrationCommandInvariantError")
+			Vitest.assert.strictEqual(
+				error.detail,
+				"Session 'session-1' is already archived and cannot handle command 'review.session.clear'."
+			)
 		})
 	)
 })

@@ -130,6 +130,8 @@ export const OrchestrationEventType = Schema.Literals([
 	"TerminalOpened",
 	"TerminalOutputAppended",
 	"TerminalClosed",
+	"SessionReviewFileMarked",
+	"SessionReviewStateCleared",
 ])
 export type OrchestrationEventType = typeof OrchestrationEventType.Type
 
@@ -359,6 +361,19 @@ export type TerminalOpenedPayload = typeof TerminalOpenedPayload.Type
 
 export const TerminalClosedPayload = TerminalOutputAppendedPayload
 export type TerminalClosedPayload = typeof TerminalClosedPayload.Type
+
+export const SessionReviewFileMarkedPayload = Schema.Struct({
+	sessionId: SessionId,
+	revisionKey: TrimmedNonEmptyString,
+	filePath: TrimmedNonEmptyString,
+	reviewed: Schema.Boolean,
+})
+export type SessionReviewFileMarkedPayload = typeof SessionReviewFileMarkedPayload.Type
+
+export const SessionReviewStateClearedPayload = Schema.Struct({
+	sessionId: SessionId,
+})
+export type SessionReviewStateClearedPayload = typeof SessionReviewStateClearedPayload.Type
 
 const defineOrchestrationEvent = <
 	const EventType extends OrchestrationEventType,
@@ -888,6 +903,22 @@ export const TerminalClosedEvent = defineOrchestrationEvent({
 })
 export type TerminalClosedEvent = typeof TerminalClosedEvent.Type
 
+export const SessionReviewFileMarkedEvent = defineOrchestrationEvent({
+	type: "SessionReviewFileMarked",
+	payload: SessionReviewFileMarkedPayload,
+	aggregateKind: "session",
+	aggregateId: SessionId,
+})
+export type SessionReviewFileMarkedEvent = typeof SessionReviewFileMarkedEvent.Type
+
+export const SessionReviewStateClearedEvent = defineOrchestrationEvent({
+	type: "SessionReviewStateCleared",
+	payload: SessionReviewStateClearedPayload,
+	aggregateKind: "session",
+	aggregateId: SessionId,
+})
+export type SessionReviewStateClearedEvent = typeof SessionReviewStateClearedEvent.Type
+
 export const OrchestrationEvent = Schema.Union([
 	ProjectCreatedEvent,
 	ProjectMetaUpdatedEvent,
@@ -952,5 +983,7 @@ export const OrchestrationEvent = Schema.Union([
 	TerminalOpenedEvent,
 	TerminalOutputAppendedEvent,
 	TerminalClosedEvent,
+	SessionReviewFileMarkedEvent,
+	SessionReviewStateClearedEvent,
 ])
 export type OrchestrationEvent = typeof OrchestrationEvent.Type

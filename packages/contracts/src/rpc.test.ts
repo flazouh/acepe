@@ -107,6 +107,7 @@ const emptySnapshot: RpcSessionSnapshot = {
 	mcpCatalog: null,
 	preconnectionOptions: null,
 	terminal: null,
+	sessionReviewState: null,
 }
 
 const snapshot: RpcSessionSnapshot = {
@@ -174,6 +175,7 @@ const snapshot: RpcSessionSnapshot = {
 	mcpCatalog: null,
 	preconnectionOptions: null,
 	terminal: null,
+	sessionReviewState: null,
 }
 
 const unusedDispatch: RpcTransport["dispatch"] = (_command) => Effect.succeed({ sequence: 0 })
@@ -340,6 +342,7 @@ describe("Schema-encoded boundary", () => {
 	mcpCatalog: null,
 	preconnectionOptions: null,
 	terminal: null,
+	sessionReviewState: null,
 		}
 		const encoded = Effect.runSync(Schema.encodeUnknownEffect(RpcSessionSnapshot)(withGit))
 		const decoded = Effect.runSync(Schema.decodeUnknownEffect(RpcSessionSnapshot)(encoded))
@@ -387,6 +390,7 @@ describe("Schema-encoded boundary", () => {
 	mcpCatalog: null,
 	preconnectionOptions: null,
 	terminal: null,
+	sessionReviewState: null,
 		}
 		const encoded = Effect.runSync(Schema.encodeUnknownEffect(RpcSessionSnapshot)(withCheckpoint))
 		const decoded = Effect.runSync(Schema.decodeUnknownEffect(RpcSessionSnapshot)(encoded))

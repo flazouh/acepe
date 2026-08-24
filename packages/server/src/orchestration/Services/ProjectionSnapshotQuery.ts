@@ -6,6 +6,7 @@ import {
 	ProjectedGitReview,
 	ProjectedMcpCatalog,
 	ProjectedPreconnectionOptions,
+	ProjectedSessionReviewState,
 	ProjectedTerminal,
 	ProjectId,
 	Sequence,
@@ -36,6 +37,7 @@ import { PROJECTION_VOICE_TABLE } from "../../persistence/Services/ProjectionVoi
 import { PROJECTION_GIT_TABLE } from "../../persistence/Services/ProjectionGit.ts"
 import { PROJECTION_MCP_TABLE } from "../../persistence/Services/ProjectionMcp.ts"
 import { PROJECTION_TERMINAL_TABLE } from "../../persistence/Services/ProjectionTerminal.ts"
+import { PROJECTION_SESSION_REVIEW_STATE_TABLE } from "../../persistence/Services/ProjectionSessionReviewState.ts"
 
 export const SNAPSHOT_PROJECTOR_NAMES = [
 	"projection.sessions",
@@ -50,7 +52,8 @@ export const SNAPSHOT_PROJECTOR_NAMES = [
 	"projection.voice",
 	"projection.git",
 	"projection.mcp",
-	"projection.terminal"
+	"projection.terminal",
+	"projection.session-review-state"
 ] as const
 
 export const PROJECTION_TURNS_TABLE = "projection_turns"
@@ -67,7 +70,8 @@ export const SNAPSHOT_OPTIONAL_TABLES = [
 	PROJECTION_VOICE_TABLE,
 	PROJECTION_GIT_TABLE,
 	PROJECTION_MCP_TABLE,
-	PROJECTION_TERMINAL_TABLE
+	PROJECTION_TERMINAL_TABLE,
+	PROJECTION_SESSION_REVIEW_STATE_TABLE
 ] as const
 
 export const ProjectedTurn = Schema.Struct({
@@ -113,7 +117,8 @@ export const SessionProjectionSnapshot = Schema.Struct({
 	gitReview: Schema.NullOr(ProjectedGitReview),
 	mcpCatalog: Schema.NullOr(ProjectedMcpCatalog),
 	preconnectionOptions: Schema.NullOr(ProjectedPreconnectionOptions),
-	terminal: Schema.NullOr(ProjectedTerminal)
+	terminal: Schema.NullOr(ProjectedTerminal),
+	sessionReviewState: Schema.NullOr(ProjectedSessionReviewState)
 })
 export type SessionProjectionSnapshot = typeof SessionProjectionSnapshot.Type
 
@@ -228,6 +233,8 @@ export {
 export { decodeStoredProjectedSkillsCatalog } from "../../persistence/Services/ProjectionSkills.ts"
 
 export { decodeStoredProjectedVoice } from "../../persistence/Services/ProjectionVoice.ts"
+
+export { decodeStoredSessionReviewFiles } from "../../persistence/Services/ProjectionSessionReviewState.ts"
 
 export interface ProjectionSnapshotQueryShape {
 	readonly snapshot: (

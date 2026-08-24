@@ -457,6 +457,27 @@ export const TerminalCloseCommand = Schema.Struct({
 })
 export type TerminalCloseCommand = typeof TerminalCloseCommand.Type
 
+// review.file.markReviewed sets/clears one file's reviewed state within a
+// session (reviewed: true to set, false to clear). review.session.clear
+// wipes every tracked file for the session (backs the review-state facade's
+// `delete`, called on session teardown by SessionReviewStateStore).
+export const ReviewFileMarkReviewedCommand = Schema.Struct({
+	type: Schema.Literal("review.file.markReviewed"),
+	commandId: CommandId,
+	sessionId: SessionId,
+	revisionKey: TrimmedNonEmptyString,
+	filePath: TrimmedNonEmptyString,
+	reviewed: Schema.Boolean,
+})
+export type ReviewFileMarkReviewedCommand = typeof ReviewFileMarkReviewedCommand.Type
+
+export const ReviewSessionClearCommand = Schema.Struct({
+	type: Schema.Literal("review.session.clear"),
+	commandId: CommandId,
+	sessionId: SessionId,
+})
+export type ReviewSessionClearCommand = typeof ReviewSessionClearCommand.Type
+
 export const OrchestrationCommand = Schema.Union([
 	ProjectCreateCommand,
 	ProjectMetaUpdateCommand,
@@ -522,6 +543,8 @@ export const OrchestrationCommand = Schema.Union([
 	TerminalInputCommand,
 	TerminalResizeCommand,
 	TerminalCloseCommand,
+	ReviewFileMarkReviewedCommand,
+	ReviewSessionClearCommand,
 ])
 export type OrchestrationCommand = typeof OrchestrationCommand.Type
 
@@ -636,5 +659,7 @@ export const commandToAggregateRef = Match.type<OrchestrationCommand>().pipe(
 		"terminal.input": (command) => terminalRef(command.terminalId),
 		"terminal.resize": (command) => terminalRef(command.terminalId),
 		"terminal.close": (command) => terminalRef(command.terminalId),
+		"review.file.markReviewed": (command) => sessionRef(command.sessionId),
+		"review.session.clear": (command) => sessionRef(command.sessionId),
 	}),
 )
