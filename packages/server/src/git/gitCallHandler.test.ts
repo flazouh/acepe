@@ -219,6 +219,53 @@ Vitest.layer(Layer.mergeAll(TestLive, PlatformLive))("gitCallHandler", (it) => {
 		})
 	)
 
+	it.effect(
+		"git.headSha is null on an unborn HEAD and moves across commits without changing the branch",
+		() =>
+			Effect.gen(function*() {
+				const fs = yield* FileSystem.FileSystem
+				const path = yield* Path.Path
+				const dir = yield* freshRepoDir("head-sha")
+				yield* routeGitCall({ op: "git.init", projectPath: dir })
+
+				const unborn = yield* routeGitCall({ op: "git.headSha", projectPath: dir })
+				Vitest.assert.deepStrictEqual(unborn, { op: "git.headSha", sha: null })
+
+				yield* configureRepo(dir)
+				yield* fs.writeFileString(path.join(dir, "readme.txt"), "hello\n")
+				yield* routeGitCall({ op: "git.stageAll", projectPath: dir })
+				yield* routeGitCall({ op: "git.commit", projectPath: dir, message: "Initial commit" })
+				const afterFirstCommit = yield* routeGitCall({ op: "git.headSha", projectPath: dir })
+				if (afterFirstCommit.op !== "git.headSha" || afterFirstCommit.sha === null) {
+					return yield* Effect.die("expected a non-null sha after the first commit")
+				}
+
+				const branchBefore = yield* routeGitCall({ op: "git.currentBranch", projectPath: dir })
+				if (branchBefore.op !== "git.currentBranch") {
+					return yield* Effect.die("expected git.currentBranch result")
+				}
+
+				// Same branch, new commit -- headSha must move even though the
+				// branch name doesn't, which is exactly why watchHead's poll
+				// samples both.
+				yield* fs.writeFileString(path.join(dir, "second.txt"), "second\n")
+				yield* routeGitCall({ op: "git.stageFiles", projectPath: dir, files: ["second.txt"] })
+				yield* routeGitCall({ op: "git.commit", projectPath: dir, message: "Add second.txt" })
+
+				const afterSecondCommit = yield* routeGitCall({ op: "git.headSha", projectPath: dir })
+				if (afterSecondCommit.op !== "git.headSha" || afterSecondCommit.sha === null) {
+					return yield* Effect.die("expected a non-null sha after the second commit")
+				}
+				Vitest.assert.notStrictEqual(afterSecondCommit.sha, afterFirstCommit.sha)
+
+				const branchAfter = yield* routeGitCall({ op: "git.currentBranch", projectPath: dir })
+				if (branchAfter.op !== "git.currentBranch") {
+					return yield* Effect.die("expected git.currentBranch result")
+				}
+				Vitest.assert.strictEqual(branchAfter.branch, branchBefore.branch)
+			})
+	)
+
 	it.effect("git.hasUncommittedChanges flips true after a file changes", () =>
 		Effect.gen(function*() {
 			const fs = yield* FileSystem.FileSystem

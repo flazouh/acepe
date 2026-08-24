@@ -55,6 +55,16 @@ export const routeGitCall = Effect.fn("routeGitCall")(function*(request: GitCall
 			)
 			return { op: "git.currentBranch", branch } as const satisfies GitCallResult
 		}
+		case "git.headSha": {
+			yield* guard(request.projectPath)
+			const sha = yield* git.headSha(request.projectPath).pipe(
+				Effect.mapError(toRpcGitCallError(request.op))
+			)
+			return {
+				op: "git.headSha",
+				sha: Option.isSome(sha) ? sha.value : null
+			} as const satisfies GitCallResult
+		}
 		case "git.listBranches": {
 			yield* guard(request.projectPath)
 			const branches = yield* git.listBranches(request.projectPath).pipe(

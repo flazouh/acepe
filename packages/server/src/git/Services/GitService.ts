@@ -57,6 +57,11 @@ export interface GitServiceShape {
 	readonly init: (projectPath: string) => Effect.Effect<void, GitServiceError>
 	readonly clone: (input: GitCloneInput) => Effect.Effect<CloneResult, GitServiceError>
 	readonly currentBranch: (projectPath: string) => Effect.Effect<string, GitServiceError>
+	// None when HEAD is unborn (a freshly-init'd repo with no commits yet).
+	// Cheap on purpose -- git.ts's watchHead poll calls this alongside
+	// currentBranch on every tick, since currentBranch alone can't detect a
+	// same-branch commit (the sha moves, the branch name doesn't).
+	readonly headSha: (projectPath: string) => Effect.Effect<Option.Option<string>, GitServiceError>
 	readonly listBranches: (
 		projectPath: string
 	) => Effect.Effect<ReadonlyArray<string>, GitServiceError>
