@@ -20,6 +20,7 @@ import {
 	type ProjectLoadPerformanceTrace,
 } from "$lib/acp/logic/project-manager.svelte.js";
 import { setSelectorRegistryContext } from "$lib/acp/logic/selector-registry.svelte.js";
+import { installQaDispatchHook } from "$lib/rpc/qa-dispatch-hook.ts";
 import {
 	agentModelPreferencesStore,
 	createAgentPreferencesStore,
@@ -1629,6 +1630,7 @@ onMount(async () => {
 
 	if (import.meta.env.DEV) {
 		installStreamingReproQaHook();
+		installQaDispatchHook();
 		updaterState = createAvailableUpdaterState(DEV_UPDATE_VERSION);
 	} else {
 		void checkForAppUpdate("startup");
