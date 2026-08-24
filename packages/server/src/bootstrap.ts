@@ -56,6 +56,11 @@ import { ProjectionMcp } from "./persistence/Services/ProjectionMcp.ts"
 import { ProjectionTerminal } from "./persistence/Services/ProjectionTerminal.ts"
 import { ProjectionSessionReviewState } from "./persistence/Services/ProjectionSessionReviewState.ts"
 import { HardcodedProviderLive } from "./provider/HardcodedProvider.ts"
+import { makeLiveClaudeAdapter } from "./provider/Layers/ClaudeAdapter.ts"
+import { makeLiveCodexAdapter } from "./provider/Layers/CodexAdapter.ts"
+import { makeLiveOpenCodeAdapter } from "./provider/Layers/OpenCodeAdapter.ts"
+import { ProviderAdapterRegistryLive } from "./provider/Layers/ProviderAdapterRegistry.ts"
+import { ProviderBridgeLive } from "./provider/Layers/ProviderBridge.ts"
 import { FileIndexServiceLive } from "./fileIndex/Layers/FileIndexService.ts"
 import { FileIndexWarmOnImportLive } from "./fileIndex/Layers/FileIndexWarmOnImport.ts"
 import { GitServiceLive } from "./git/Layers/GitService.ts"
@@ -298,9 +303,41 @@ export const makeAcepeLive = (input: AcepeLiveInput) => {
 		Layer.provideMerge(providerUsage),
 		Layer.provideMerge(bunPlatform)
 	)
+	// Real provider adapters, alongside the tracer HardcodedProviderLive.
+	// Sessions pick one or the other by whether session.create carried a
+	// providerId (see ProviderBridge.ts / decider.ts's session.create case) —
+	// HardcodedProvider keeps driving every session it always has.
+	//
+	// makeLive*Adapter() below only ever probes presence / resolves spawn
+	// config at construction (fs.exists-style checks); none of them spawn a
+	// subprocess or call out to a provider SDK until a session actually uses
+	// that provider (openSession/sendPrompt on the adapter), so building this
+	// registry eagerly at bootstrap stays lazy in the sense that matters.
+	//
+	// CursorAdapter and CopilotAdapter are NOT wired here: Cursor needs
+	// AgentInstaller (itself needing a PlatformKey the codebase has no
+	// current Effect-native detection for), and Copilot has no makeLive*
+	// constructor built yet (unlike the other four, its live ACP-over-stdio
+	// transport was never written) — both are follow-up work for another
+	// lane, not gaps in this wiring.
+	const providerAdapters = Layer.unwrap(
+		Effect.gen(function*() {
+			const claude = yield* makeLiveClaudeAdapter()
+			const codex = yield* makeLiveCodexAdapter({
+				cacheDir: Option.none(),
+				command: Option.none(),
+				args: Option.none(),
+				config: Option.none()
+			})
+			const opencode = yield* makeLiveOpenCodeAdapter()
+			return ProviderAdapterRegistryLive([claude, codex, opencode])
+		})
+	).pipe(Layer.provide(BunHttpClient.layer), Layer.provide(bunPlatform))
+	const providerBridge = ProviderBridgeLive.pipe(Layer.provideMerge(providerAdapters))
 	return Layer.mergeAll(
 		rpc,
 		HardcodedProviderLive(input.tokenDelay),
+		providerBridge,
 		pipelineLayer,
 		snapshots
 	).pipe(Layer.provideMerge(engine))
