@@ -10,12 +10,25 @@ const mocks = vi.hoisted(() => ({
 	getRaw: vi.fn((): Effect.Effect<string | null, Error> => Effect.succeed(null)),
 	setRaw: vi.fn((): Effect.Effect<void, Error> => Effect.succeed(undefined)),
 	toastInfo: vi.fn(),
+	runningUnderElectrobun: vi.fn(() => false),
 }));
 
+// getCurrentWebview() throws synchronously in a real Electrobun WebView --
+// there is no window.__TAURI_INTERNALS__.metadata for it to read. This
+// mock reproduces that instead of a benign stub whenever the test is
+// simulating Electrobun, so a missing Electrobun guard in applyZoom shows
+// up as a real test failure (see the live-QA crash this regression test
+// documents: "Failed to apply zoom: TypeError: undefined is not an object
+// (evaluating 'window.__TAURI_INTERNALS__.metadata')").
 vi.mock("@tauri-apps/api/webview", () => ({
-	getCurrentWebview: () => ({
-		setZoom: mocks.setZoom,
-	}),
+	getCurrentWebview: () => {
+		if (mocks.runningUnderElectrobun() === true) {
+			throw new TypeError(
+				"undefined is not an object (evaluating 'window.__TAURI_INTERNALS__.metadata')"
+			);
+		}
+		return { setZoom: mocks.setZoom };
+	},
 }));
 
 vi.mock("svelte-sonner", () => ({
@@ -31,6 +44,10 @@ vi.mock("$lib/utils/tauri-client/settings.js", () => ({
 	},
 }));
 
+vi.mock("../utils/electrobun-window-shims.js", () => ({
+	runningUnderElectrobun: mocks.runningUnderElectrobun,
+}));
+
 import { ZoomService } from "./zoom.svelte.js";
 
 describe("ZoomService", () => {
@@ -39,6 +56,7 @@ describe("ZoomService", () => {
 		mocks.getRaw.mockReset();
 		mocks.setRaw.mockClear();
 		mocks.toastInfo.mockClear();
+		mocks.runningUnderElectrobun.mockReturnValue(false);
 		mocks.getRaw.mockReturnValue(Effect.succeed<string | null>(null));
 		localStorage.clear();
 	});
@@ -126,5 +144,44 @@ describe("ZoomService", () => {
 
 		expect(Result.isSuccess(result)).toBe(true);
 		expect(mocks.setZoom).toHaveBeenCalledWith(1.2);
+	});
+
+	// Regression: caught live under Electrobun via electrobun-qa. Zoom
+	// reconciliation is a delayed background step (initialize() schedules
+	// reconcilePersistedZoomInBackground on a 2s idle timer), so it fires
+	// well after startup and crashed the app into a global error boundary
+	// mid-session -- "Failed to apply zoom: TypeError: undefined is not an
+	// object (evaluating 'window.__TAURI_INTERNALS__.metadata')". There is
+	// no Electrobun-side webview zoom primitive yet; applyZoom must degrade
+	// the same honest way the other Tauri-only call sites in
+	// electrobun-window-shims.ts do, not throw.
+	it("does not call the Tauri WebView API under Electrobun, even for a non-default zoom", () => {
+		mocks.runningUnderElectrobun.mockReturnValue(true);
+		mocks.getRaw.mockReturnValue(Effect.succeed<string | null>("1.2"));
+		const service = new ZoomService();
+
+		return service.initialize().pipe(
+			Effect.result,
+			Effect.map((result) => {
+				expect(Result.isSuccess(result)).toBe(true);
+				expect(mocks.setZoom).not.toHaveBeenCalled();
+			}),
+			Effect.runPromise
+		);
+	});
+
+	it("resolves setZoom under Electrobun without throwing, tracking the requested level", () => {
+		mocks.runningUnderElectrobun.mockReturnValue(true);
+		const service = new ZoomService();
+
+		return service.setZoom(1.3).pipe(
+			Effect.result,
+			Effect.map((result) => {
+				expect(Result.isSuccess(result)).toBe(true);
+				expect(mocks.setZoom).not.toHaveBeenCalled();
+				expect(service.zoomLevel).toBe(1.3);
+			}),
+			Effect.runPromise
+		);
 	});
 });
