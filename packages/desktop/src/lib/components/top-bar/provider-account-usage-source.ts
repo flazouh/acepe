@@ -1,6 +1,12 @@
+import type {
+	ProviderAccountConnection,
+	ProviderAccountUsage,
+	ProviderUsageWindow,
+	ProviderUsageWindowRole,
+} from "@acepe/contracts";
 import type { ProviderBrand } from "@acepe/ui";
 import * as Effect from "effect/Effect";
-import { TAURI_COMMAND_CLIENT } from "$lib/services/tauri-command-client.js";
+import { withRpcClient } from "$lib/utils/tauri-client/rpc-bridge.ts";
 import type {
 	UsageAccountConnectionState,
 	UsageProviderAccount,
@@ -8,28 +14,6 @@ import type {
 	UsageQuotaMetricRole,
 	UsageTextMetric,
 } from "./usage-widget-model.js";
-
-type ProviderAccountConnection = "connected" | "notConnected" | "unavailable";
-type ProviderUsageWindowRole = "primaryShort" | "weekly" | "overage" | "other";
-
-type ProviderUsageWindow = {
-	readonly id: string;
-	readonly label: string;
-	readonly role: ProviderUsageWindowRole;
-	readonly usedFraction: number;
-	readonly windowMinutes: number;
-	readonly resetsAtMs: number | null;
-};
-
-type ProviderAccountUsage = {
-	readonly providerId: string;
-	readonly displayName: string;
-	readonly plan: string | null;
-	readonly capturedAtMs: number;
-	readonly connection: ProviderAccountConnection;
-	readonly windows: ReadonlyArray<ProviderUsageWindow>;
-	readonly message: string | null;
-};
 
 type ProviderIdentity = {
 	readonly providerId: string;
@@ -55,31 +39,23 @@ const PROVIDERS: ReadonlyArray<ProviderIdentity> = [
 	},
 ];
 
-// loadProviderAccountUsageAccounts is #249's usage slice and stays on
-// TAURI_COMMAND_CLIENT. The one command it calls (provider_account_usage.get,
-// see packages/desktop/src-tauri/src/provider_account_usage/mod.rs) has a
-// live caller (top-bar.svelte's polling widget) but produces its numbers
-// from infrastructure only the Rust process has:
+// getProviderAccountUsage is a utility RPC (see packages/contracts/src/
+// providerUsage.ts and packages/server/src/providerUsage) that ported the
+// Rust provider_account_usage command's behavior onto the TS/bun server:
 //   - Codex: walks ~/.codex/sessions and parses Codex's own rollout-*.jsonl
-//     files -- a different provider's on-disk format, not Acepe's session
-//     store the TS server owns.
+//     files.
 //   - Claude Code: reads the macOS Keychain (`security` CLI) for the OAuth
 //     token, or falls back to decrypting the Claude desktop app's Chromium
 //     cookie DB (AES-128-CBC via a Keychain-held key) for a session cookie,
 //     then calls the live api.anthropic.com/claude.ai usage APIs over HTTPS.
 //   - Cursor: always reports unavailable pending a Cursor account API.
-// None of that -- OS keychain access, another app's cookie store, outbound
-// calls to a third-party usage endpoint -- is session/JSONL data the TS
-// server owns or file content within fsPathGuard's confinement; porting it
-// would mean re-implementing OS credential-store access and third-party API
-// clients server-side. Per the #249 history-slice precedent, faking or
-// dropping this rather than serving real numbers would make the usage
-// widget lie, which is worse than it staying on the Tauri command. Revisit
-// once a slice gives the TS server its own credential/cookie access story.
+// The response shape is unchanged from the Rust command, so everything
+// below this function (the mapping to UsageProviderAccount) did not need to
+// change -- only the transport did.
 export function loadProviderAccountUsageAccounts() {
-	return TAURI_COMMAND_CLIENT.provider_account_usage.get
-		.invoke<ProviderAccountUsage[]>()
-		.pipe(Effect.map(mapProviderAccountUsageToAccounts));
+	return withRpcClient("providerUsage.get", (client) => client.getProviderAccountUsage({})).pipe(
+		Effect.map(mapProviderAccountUsageToAccounts)
+	);
 }
 
 export function buildProviderUsageCheckingAccounts(): ReadonlyArray<UsageProviderAccount> {

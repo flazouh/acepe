@@ -19,6 +19,7 @@ import {
 	encodedDispatch,
 	encodedGetDefaultShell,
 	encodedGetProjectIndex,
+	encodedGetProviderAccountUsage,
 	encodedGitCall,
 	encodedInvalidateProjectIndex,
 	encodedReadTextFile,
@@ -126,6 +127,7 @@ launched.attach({
 	writeTextFile: (params) => runtime.runPromise(encodedWriteTextFile(params)),
 	getDefaultShell: (params) => runtime.runPromise(encodedGetDefaultShell(params)),
 	gitCall: (params) => runtime.runPromise(encodedGitCall(params)),
+	getProviderAccountUsage: (params) => runtime.runPromise(encodedGetProviderAccountUsage(params)),
 	events: (params) => {
 		writeLine(`acepe-events-stream: requested ${JSON.stringify(params).slice(0, 80)}`);
 		runtime.runFork(
