@@ -20,6 +20,8 @@ const fakeBridge = (): ElectrobunRpcBridge => ({
 		writeTextFile: () => Promise.resolve(undefined),
 		getDefaultShell: () => Promise.resolve(undefined),
 		gitCall: () => Promise.resolve(undefined),
+		listProviderSessions: () => Promise.resolve(undefined),
+		listProviderProjects: () => Promise.resolve(undefined),
 	},
 	addMessageListener: () => undefined,
 	removeMessageListener: () => undefined,
@@ -44,6 +46,8 @@ describe("electrobun-bridge", () => {
 			writeTextFile: () => Promise.resolve(undefined),
 			getDefaultShell: () => Promise.resolve(undefined),
 		gitCall: () => Promise.resolve(undefined),
+		listProviderSessions: () => Promise.resolve(undefined),
+		listProviderProjects: () => Promise.resolve(undefined),
 		});
 		expect(
 			isElectrobunRpcBridge({

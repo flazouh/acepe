@@ -14,6 +14,8 @@ const fake: RpcClient = {
 	writeTextFile: () => Effect.void,
 	getDefaultShell: () => Effect.succeed("/bin/zsh"),
 	gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
+	listProviderSessions: () => Effect.succeed([]),
+	listProviderProjects: () => Effect.succeed([]),
 	events: () => Stream.empty,
 };
 

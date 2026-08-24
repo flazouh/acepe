@@ -109,6 +109,8 @@ const installClient = (input: {
 		writeTextFile: () => Effect.void,
 		getDefaultShell: () => Effect.succeed("/bin/zsh"),
 		gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
+		listProviderSessions: () => Effect.succeed([]),
+		listProviderProjects: () => Effect.succeed([]),
 	});
 	return { dispatched };
 };
@@ -175,6 +177,8 @@ describe("CheckpointStore", () => {
 				writeTextFile: () => Effect.void,
 				getDefaultShell: () => Effect.succeed("/bin/zsh"),
 				gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
+				listProviderSessions: () => Effect.succeed([]),
+				listProviderProjects: () => Effect.succeed([]),
 			});
 
 			const result = await Effect.runPromise(Effect.result(store.loadCheckpoints("s1")));

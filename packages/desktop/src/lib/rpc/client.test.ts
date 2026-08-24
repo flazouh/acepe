@@ -81,6 +81,8 @@ const makeBridge = (input: {
 	readonly writeTextFile?: (params: unknown) => Promise<unknown>;
 	readonly getDefaultShell?: (params: unknown) => Promise<unknown>;
 	readonly gitCall?: (params: unknown) => Promise<unknown>;
+	readonly listProviderSessions?: (params: unknown) => Promise<unknown>;
+	readonly listProviderProjects?: (params: unknown) => Promise<unknown>;
 }): ElectrobunRpcBridge & { readonly emitEvents: (payload: unknown) => void } => {
 	const listeners: Array<(payload: unknown) => void> = [];
 	return {
@@ -120,6 +122,14 @@ const makeBridge = (input: {
 				input.gitCall === undefined
 					? Promise.reject(new Error("unused gitCall"))
 					: input.gitCall(params),
+			listProviderSessions: (params) =>
+				input.listProviderSessions === undefined
+					? Promise.reject(new Error("unused listProviderSessions"))
+					: input.listProviderSessions(params),
+			listProviderProjects: (params) =>
+				input.listProviderProjects === undefined
+					? Promise.reject(new Error("unused listProviderProjects"))
+					: input.listProviderProjects(params),
 		},
 		addMessageListener: (_message, listener) => {
 			listeners.push(listener);

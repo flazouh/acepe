@@ -34,6 +34,8 @@ const makeClient = (
 	writeTextFile: () => Effect.void,
 	getDefaultShell: () => Effect.succeed("/bin/zsh"),
 	gitCall: gitCallImpl,
+	listProviderSessions: () => Effect.succeed([]),
+	listProviderProjects: () => Effect.succeed([]),
 	events: () => Stream.empty,
 });
 
