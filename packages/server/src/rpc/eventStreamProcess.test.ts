@@ -74,6 +74,8 @@ Vitest.it.live(
 				Effect.fail(new RpcTransportError({ reason: "unused writeTextFile" }))
 			const unusedGetDefaultShell: RpcTransport["getDefaultShell"] = () =>
 				Effect.fail(new RpcTransportError({ reason: "unused getDefaultShell" }))
+			const unusedGitCall: RpcTransport["gitCall"] = () =>
+				Effect.fail(new RpcTransportError({ reason: "unused gitCall" }))
 			const transport = {
 				dispatch: unusedDispatch,
 				snapshot: unusedSnapshot,
@@ -82,6 +84,7 @@ Vitest.it.live(
 				readTextFile: unusedReadTextFile,
 				writeTextFile: unusedWriteTextFile,
 				getDefaultShell: unusedGetDefaultShell,
+				gitCall: unusedGitCall,
 				events: (fromSequence: Parameters<RpcTransport["events"]>[0]) =>
 					Stream.unwrap(
 						Effect.gen(function*() {

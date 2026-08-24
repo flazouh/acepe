@@ -55,6 +55,7 @@ import { fillTerminalCommand } from "../terminal/fillCommand.ts"
 import { fillVoiceCommand } from "../voice/fillCommand.ts"
 import { fillCheckpointCommand } from "../checkpoint/fillCommand.ts"
 import { CheckpointNotFoundError, CheckpointService } from "../checkpoint/Services/CheckpointService.ts"
+import { routeGitCall } from "../git/gitCallHandler.ts"
 import { guardedReadTextFile, guardedWriteTextFile } from "./fsPathGuard.ts"
 
 const EVENT_PAGE_SIZE = 1_000
@@ -376,7 +377,8 @@ export const RpcHandlersLive = AcepeRpc.toLayer(
 			invalidateProjectIndex: (request) => fileIndex.invalidate(request.projectPath),
 			readTextFile: (request) => guardedReadTextFile(fs, path, request),
 			writeTextFile: (request) => guardedWriteTextFile(fs, path, request),
-			getDefaultShell: () => getDefaultShellUtil()
+			getDefaultShell: () => getDefaultShellUtil(),
+			gitCall: (request) => routeGitCall(request)
 		}
 	})
 )
