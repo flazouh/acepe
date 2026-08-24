@@ -22,6 +22,7 @@ import * as HashSet from "effect/HashSet"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Ref from "effect/Ref"
+import type * as Scope from "effect/Scope"
 import * as Stream from "effect/Stream"
 import { OrchestrationEngine } from "../../orchestration/Services/OrchestrationEngine.ts"
 import { OrchestrationEventStore } from "../../persistence/Services/OrchestrationEventStore.ts"
@@ -95,6 +96,12 @@ type BridgeState = {
 	// purpose, rather than reaching for Date.now()/Math.random() (banned by
 	// the Effect lint ratchet) or a fresh Crypto call for a rare failure path.
 	readonly failureSeq: Ref.Ref<number>
+	// Per-session forwarding fibers are forked into the SAME long-lived scope
+	// as the bridge's own main listener (not Effect.forkChild off whatever
+	// transient fiber happens to be processing the triggering event) so they
+	// keep running for the session's whole lifetime, independent of the
+	// per-event call stack that started them.
+	readonly layerScope: Scope.Scope
 }
 
 const EVENT_PAGE_SIZE = 1_000
@@ -237,7 +244,7 @@ const openSession = Effect.fn("ProviderBridge.openSession")(function*(
 			projectId,
 			workspaceRoot: workspaceRoot.value
 		})
-	).pipe(Effect.forkChild({ startImmediately: true }))
+	).pipe(Effect.forkIn(state.layerScope, { startImmediately: true }))
 	yield* Ref.update(state.sessionFibers, (current) => HashMap.set(current, sessionId, fiber))
 })
 
@@ -411,7 +418,8 @@ export const makeProviderBridge = Effect.fn("makeProviderBridge")(function*() {
 		claimedMessages: yield* Ref.make(HashSet.empty<string>()),
 		claimedCancellations: yield* Ref.make(HashSet.empty<string>()),
 		claimedReplies: yield* Ref.make(HashSet.empty<string>()),
-		failureSeq: yield* Ref.make(0)
+		failureSeq: yield* Ref.make(0),
+		layerScope
 	}
 
 	yield* Effect.forkIn(
