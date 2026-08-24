@@ -215,6 +215,18 @@ const forwardAdapterEvents = (
 		)
 	)
 
+// KNOWN RACE (documented, not fixed in this lane): openSession forks the
+// forwarding fiber and returns immediately without waiting for the adapter
+// to finish its own internal "session open" bookkeeping (e.g. ClaudeAdapter
+// only registers a session once its startSession stream actually starts
+// running). A message.send dispatched immediately after session.create —
+// before that fiber gets scheduled — could theoretically race sendPrompt
+// against the adapter and fail with a "no such session" ProviderAdapterError
+// (surfaced as ProviderSessionFailed, not a silent stall). A prior attempt
+// to close this with a Deferred the caller awaits deadlocked under this
+// Effect version's fiber scheduler in tests and was reverted rather than
+// land unproven; the natural latency between a user seeing "session
+// created" and typing a message makes this unlikely to bite in practice.
 const openSession = Effect.fn("ProviderBridge.openSession")(function*(
 	state: BridgeState,
 	sessionId: SessionId,
