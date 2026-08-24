@@ -116,6 +116,8 @@ const clientOf = (input: {
 	getDefaultShell: () => Effect.succeed("/bin/zsh"),
 	gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
 	getProviderAccountUsage: () => Effect.succeed([]),
+	listProviderSessions: () => Effect.succeed([]),
+	listProviderProjects: () => Effect.succeed([]),
 	events: () => Stream.fromArray(input.events),
 });
 
@@ -447,6 +449,8 @@ it("openProject keeps every other library project in the sidebar snapshot", () =
 				getDefaultShell: () => Effect.succeed("/bin/zsh"),
 				gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
 				getProviderAccountUsage: () => Effect.succeed([]),
+				listProviderSessions: () => Effect.succeed([]),
+				listProviderProjects: () => Effect.succeed([]),
 				events: () => Stream.fromArray([]),
 			};
 			const parts = composeSessionStore({ client, registry });
@@ -496,6 +500,8 @@ it("openSession also keeps every library project in the sidebar snapshot", () =>
 				getDefaultShell: () => Effect.succeed("/bin/zsh"),
 				gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
 				getProviderAccountUsage: () => Effect.succeed([]),
+				listProviderSessions: () => Effect.succeed([]),
+				listProviderProjects: () => Effect.succeed([]),
 				events: () => Stream.fromArray([]),
 			};
 			const parts = composeSessionStore({ client, registry });

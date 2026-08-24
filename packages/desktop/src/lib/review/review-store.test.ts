@@ -98,7 +98,10 @@ describe("composeReviewStore", () => {
 				writeTextFile: () => Effect.void,
 				getDefaultShell: () => Effect.succeed("/bin/zsh"),
 				gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
-				getProviderAccountUsage: () => Effect.succeed([]),			},
+				getProviderAccountUsage: () => Effect.succeed([]),
+				listProviderSessions: () => Effect.succeed([]),
+				listProviderProjects: () => Effect.succeed([]),
+			},
 			registry,
 			onSnapshot: (snapshot) => {
 				latest = snapshot;
@@ -169,7 +172,10 @@ describe("composeReviewStore", () => {
 				writeTextFile: () => Effect.void,
 				getDefaultShell: () => Effect.succeed("/bin/zsh"),
 				gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
-				getProviderAccountUsage: () => Effect.succeed([]),			},
+				getProviderAccountUsage: () => Effect.succeed([]),
+				listProviderSessions: () => Effect.succeed([]),
+				listProviderProjects: () => Effect.succeed([]),
+			},
 			registry,
 		});
 		Effect.runSync(
@@ -253,7 +259,10 @@ describe("composeReviewStore", () => {
 				writeTextFile: () => Effect.void,
 				getDefaultShell: () => Effect.succeed("/bin/zsh"),
 				gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
-				getProviderAccountUsage: () => Effect.succeed([]),			},
+				getProviderAccountUsage: () => Effect.succeed([]),
+				listProviderSessions: () => Effect.succeed([]),
+				listProviderProjects: () => Effect.succeed([]),
+			},
 			registry,
 		});
 		Effect.runSync(

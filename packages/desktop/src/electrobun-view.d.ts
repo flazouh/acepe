@@ -20,6 +20,8 @@ declare module "electrobun/view" {
 				readonly getDefaultShell: (params: unknown) => Promise<unknown>;
 				readonly gitCall: (params: unknown) => Promise<unknown>;
 				readonly getProviderAccountUsage: (params: unknown) => Promise<unknown>;
+				readonly listProviderSessions: (params: unknown) => Promise<unknown>;
+				readonly listProviderProjects: (params: unknown) => Promise<unknown>;
 			};
 			readonly addMessageListener: (
 				message: "events",

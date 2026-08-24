@@ -3,6 +3,8 @@ import {
 	decodeDispatchExit,
 	decodeGetProjectIndexExit,
 	decodeInvalidateProjectIndexExit,
+	decodeListProviderProjectsExit,
+	decodeListProviderSessionsExit,
 	decodeReadTextFileExit,
 	decodeSnapshotExit,
 	decodeWriteTextFileExit,
@@ -38,6 +40,8 @@ import {
 	encodedDispatch,
 	encodedGetProjectIndex,
 	encodedInvalidateProjectIndex,
+	encodedListProviderProjects,
+	encodedListProviderSessions,
 	encodedReadTextFile,
 	encodedSnapshot,
 	encodedWriteTextFile
@@ -182,6 +186,30 @@ Vitest.layer(isolated())("encoded Electrobun boundary", (it) => {
 			const encoded = yield* encodedInvalidateProjectIndex({ projectPath: "/tmp/acepe" })
 			const decoded = yield* decodeInvalidateProjectIndexExit(encoded)
 			Vitest.assert.isTrue(Exit.isSuccess(decoded))
+		})
+	)
+
+	it.effect("encodes an empty listProviderSessions Exit for a project with no history", () =>
+		Effect.gen(function*() {
+			const encoded = yield* encodedListProviderSessions({
+				projectPath: "/tmp/acepe-encoded-boundary-unknown-project"
+			})
+			const decoded = yield* decodeListProviderSessionsExit(encoded)
+			Vitest.assert.isTrue(Exit.isSuccess(decoded))
+			if (Exit.isSuccess(decoded)) {
+				Vitest.assert.deepStrictEqual(decoded.value, [])
+			}
+		})
+	)
+
+	it.effect("encodes a listProviderProjects Exit", () =>
+		Effect.gen(function*() {
+			const encoded = yield* encodedListProviderProjects({})
+			const decoded = yield* decodeListProviderProjectsExit(encoded)
+			Vitest.assert.isTrue(Exit.isSuccess(decoded))
+			if (Exit.isSuccess(decoded)) {
+				Vitest.assert.isTrue(Array.isArray(decoded.value))
+			}
 		})
 	)
 })

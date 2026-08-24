@@ -59,6 +59,7 @@ import { HardcodedProviderLive } from "./provider/HardcodedProvider.ts"
 import { FileIndexServiceLive } from "./fileIndex/Layers/FileIndexService.ts"
 import { FileIndexWarmOnImportLive } from "./fileIndex/Layers/FileIndexWarmOnImport.ts"
 import { GitServiceLive } from "./git/Layers/GitService.ts"
+import { ProviderSessionDiscoveryLive } from "./history/discovery/ProviderSessionDiscovery.ts"
 import { McpCatalogLive } from "./mcp/Layers/McpCatalog.ts"
 import { CheckpointServiceLive } from "./checkpoint/Layers/CheckpointService.ts"
 import { ProviderUsageServiceLive } from "./providerUsage/Layers/ProviderUsageService.ts"
@@ -221,6 +222,7 @@ export const makeAcepeLive = (input: AcepeLiveInput) => {
 		Layer.provideMerge(FileIndexServiceLive),
 		Layer.provide(bunPlatform)
 	)
+	const providerDiscovery = ProviderSessionDiscoveryLive.pipe(Layer.provide(bunPlatform))
 	const git = Layer.unwrap(
 		Effect.gen(function*() {
 			const path = yield* Path.Path
@@ -284,6 +286,7 @@ export const makeAcepeLive = (input: AcepeLiveInput) => {
 	const rpc = RpcHandlersLive.pipe(
 		Layer.provideMerge(snapshots),
 		Layer.provideMerge(fileIndex),
+		Layer.provideMerge(providerDiscovery),
 		Layer.provideMerge(git),
 		Layer.provideMerge(checkpoint),
 		Layer.provideMerge(skills),

@@ -22,6 +22,8 @@ import {
 	encodedGetProviderAccountUsage,
 	encodedGitCall,
 	encodedInvalidateProjectIndex,
+	encodedListProviderProjects,
+	encodedListProviderSessions,
 	encodedReadTextFile,
 	encodedSnapshot,
 	encodedWriteTextFile,
@@ -128,6 +130,8 @@ launched.attach({
 	getDefaultShell: (params) => runtime.runPromise(encodedGetDefaultShell(params)),
 	gitCall: (params) => runtime.runPromise(encodedGitCall(params)),
 	getProviderAccountUsage: (params) => runtime.runPromise(encodedGetProviderAccountUsage(params)),
+	listProviderSessions: (params) => runtime.runPromise(encodedListProviderSessions(params)),
+	listProviderProjects: (params) => runtime.runPromise(encodedListProviderProjects(params)),
 	events: (params) => {
 		writeLine(`acepe-events-stream: requested ${JSON.stringify(params).slice(0, 80)}`);
 		runtime.runFork(

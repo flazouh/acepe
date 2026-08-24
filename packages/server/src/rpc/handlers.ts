@@ -25,6 +25,7 @@ import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Option from "effect/Option"
 import * as Path from "effect/Path"
+import type { PlatformError } from "effect/PlatformError"
 import * as Queue from "effect/Queue"
 import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
@@ -37,6 +38,7 @@ import { FileIndexNotADirectoryError, FileIndexRootNotFoundError } from "../file
 import { type FileIndexError, FileIndexService } from "../fileIndex/Services/FileIndexService.ts"
 import { getDefaultShell as getDefaultShellUtil } from "../fsUtil/readWriteText.ts"
 import { GitService, type GitServiceShape } from "../git/Services/GitService.ts"
+import { ProviderSessionDiscovery } from "../history/discovery/ProviderSessionDiscovery.ts"
 import {
 	type OrchestrationDispatchError,
 	type OrchestrationEngineShape,
@@ -295,6 +297,13 @@ export const toFileIndexRpcError = (error: FileIndexError): RpcServerError => {
 	return new RpcSchemaError({ issue: error.message })
 }
 
+// Provider discovery only fails on real disk I/O trouble (permissions, a
+// path that turned out not to be a directory mid-scan); there is no
+// invariant to report separately, so this folds straight into the generic
+// schema-error shape RpcServerError already has for "something unexpected".
+export const toProviderDiscoveryRpcError = (error: PlatformError): RpcServerError =>
+	new RpcSchemaError({ issue: error.message })
+
 type EventStoreShape = {
 	readonly readFrom: (
 		sequence: Sequence,
@@ -365,6 +374,7 @@ export const RpcHandlersLive = AcepeRpc.toLayer(
 		const engine = yield* OrchestrationEngine
 		const store = yield* OrchestrationEventStore
 		const fileIndex = yield* FileIndexService
+		const providerDiscovery = yield* ProviderSessionDiscovery
 		const fs = yield* FileSystem.FileSystem
 		const path = yield* Path.Path
 		const providerUsage = yield* ProviderUsageService
@@ -384,7 +394,13 @@ export const RpcHandlersLive = AcepeRpc.toLayer(
 			writeTextFile: (request) => guardedWriteTextFile(fs, path, request),
 			getDefaultShell: () => getDefaultShellUtil(),
 			gitCall: (request) => routeGitCall(request),
-			getProviderAccountUsage: (request) => providerUsage.getUsage(request)
+			getProviderAccountUsage: (request) => providerUsage.getUsage(request),
+			listProviderSessions: (request) =>
+				providerDiscovery
+					.listSessionsForProject(request.projectPath)
+					.pipe(Effect.mapError(toProviderDiscoveryRpcError)),
+			listProviderProjects: () =>
+				providerDiscovery.listProjects().pipe(Effect.mapError(toProviderDiscoveryRpcError))
 		}
 	})
 )

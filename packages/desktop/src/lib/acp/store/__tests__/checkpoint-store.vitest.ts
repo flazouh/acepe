@@ -110,6 +110,8 @@ const installClient = (input: {
 		getDefaultShell: () => Effect.succeed("/bin/zsh"),
 		gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
 		getProviderAccountUsage: () => Effect.succeed([]),
+		listProviderSessions: () => Effect.succeed([]),
+		listProviderProjects: () => Effect.succeed([]),
 	});
 	return { dispatched };
 };
@@ -177,6 +179,8 @@ describe("CheckpointStore", () => {
 				getDefaultShell: () => Effect.succeed("/bin/zsh"),
 				gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
 				getProviderAccountUsage: () => Effect.succeed([]),
+				listProviderSessions: () => Effect.succeed([]),
+				listProviderProjects: () => Effect.succeed([]),
 			});
 
 			const result = await Effect.runPromise(Effect.result(store.loadCheckpoints("s1")));

@@ -41,6 +41,8 @@ export const isElectrobunRpcBridge = (value: unknown): value is ElectrobunRpcBri
 		readonly getDefaultShell?: unknown;
 		readonly gitCall?: unknown;
 		readonly getProviderAccountUsage?: unknown;
+		readonly listProviderSessions?: unknown;
+		readonly listProviderProjects?: unknown;
 	};
 	return (
 		Predicate.isFunction(request.ping) &&
@@ -54,6 +56,8 @@ export const isElectrobunRpcBridge = (value: unknown): value is ElectrobunRpcBri
 		Predicate.isFunction(request.getDefaultShell) &&
 		Predicate.isFunction(request.gitCall) &&
 		Predicate.isFunction(request.getProviderAccountUsage) &&
+		Predicate.isFunction(request.listProviderSessions) &&
+		Predicate.isFunction(request.listProviderProjects) &&
 		Predicate.isFunction(record.addMessageListener) &&
 		Predicate.isFunction(record.removeMessageListener)
 	);

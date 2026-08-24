@@ -35,6 +35,8 @@ const makeClient = (
 	getDefaultShell: () => Effect.succeed("/bin/zsh"),
 	gitCall: gitCallImpl,
 	getProviderAccountUsage: () => Effect.succeed([]),
+	listProviderSessions: () => Effect.succeed([]),
+	listProviderProjects: () => Effect.succeed([]),
 	events: () => Stream.empty,
 });
 

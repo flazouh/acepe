@@ -139,6 +139,8 @@ const fakeClient = (events: ReadonlyArray<OrchestrationEvent>): RpcClient => ({
 	getDefaultShell: () => Effect.succeed("/bin/zsh"),
 	gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
 	getProviderAccountUsage: () => Effect.succeed([]),
+	listProviderSessions: () => Effect.succeed([]),
+	listProviderProjects: () => Effect.succeed([]),
 	events: (fromSequence) =>
 		Stream.fromArray(events.filter((event) => event.sequence > fromSequence)),
 });
@@ -195,6 +197,8 @@ describe("createSessionStore", () => {
 						getDefaultShell: () => Effect.succeed("/bin/zsh"),
 						gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
 						getProviderAccountUsage: () => Effect.succeed([]),
+						listProviderSessions: () => Effect.succeed([]),
+						listProviderProjects: () => Effect.succeed([]),
 						events: () =>
 							Stream.fromArray([
 								sessionCreated,
@@ -251,6 +255,8 @@ describe("createSessionStore", () => {
 						getDefaultShell: () => Effect.succeed("/bin/zsh"),
 						gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
 						getProviderAccountUsage: () => Effect.succeed([]),
+						listProviderSessions: () => Effect.succeed([]),
+						listProviderProjects: () => Effect.succeed([]),
 						events: () => Stream.fromArray([]),
 					},
 					registry,

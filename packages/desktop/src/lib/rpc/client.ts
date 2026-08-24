@@ -5,6 +5,8 @@ import {
 	decodeGetProviderAccountUsageExit,
 	decodeGitCallExit,
 	decodeInvalidateProjectIndexExit,
+	decodeListProviderProjectsExit,
+	decodeListProviderSessionsExit,
 	decodeOrchestrationEvent,
 	decodeReadTextFileExit,
 	decodeSnapshotExit,
@@ -24,6 +26,7 @@ import {
 	RpcTransportError,
 	type Sequence,
 	type SnapshotRequest,
+	type TrimmedNonEmptyString,
 	type WriteTextFileRequest,
 } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
@@ -45,6 +48,8 @@ export type ElectrobunRpcBridge = {
 		readonly getDefaultShell: (params: unknown) => Promise<unknown>;
 		readonly gitCall: (params: unknown) => Promise<unknown>;
 		readonly getProviderAccountUsage: (params: unknown) => Promise<unknown>;
+		readonly listProviderSessions: (params: unknown) => Promise<unknown>;
+		readonly listProviderProjects: (params: unknown) => Promise<unknown>;
 	};
 	readonly addMessageListener: (message: "events", listener: (payload: unknown) => void) => void;
 	readonly removeMessageListener: (message: "events", listener: (payload: unknown) => void) => void;
@@ -176,6 +181,29 @@ const requestGetProviderAccountUsage = Effect.fn("requestGetProviderAccountUsage
 	return yield* exitToEffect(exit);
 });
 
+const requestListProviderSessions = Effect.fn("requestListProviderSessions")(function* (
+	bridge: ElectrobunRpcBridge,
+	projectPath: TrimmedNonEmptyString
+) {
+	const encoded = yield* Effect.tryPromise({
+		try: () => bridge.request.listProviderSessions({ projectPath }),
+		catch: transportErrorFrom,
+	});
+	const exit = yield* decodeListProviderSessionsExit(encoded);
+	return yield* exitToEffect(exit);
+});
+
+const requestListProviderProjects = Effect.fn("requestListProviderProjects")(function* (
+	bridge: ElectrobunRpcBridge
+) {
+	const encoded = yield* Effect.tryPromise({
+		try: () => bridge.request.listProviderProjects({}),
+		catch: transportErrorFrom,
+	});
+	const exit = yield* decodeListProviderProjectsExit(encoded);
+	return yield* exitToEffect(exit);
+});
+
 const listenForEvents = (
 	bridge: ElectrobunRpcBridge,
 	fromSequence: Sequence
@@ -223,5 +251,9 @@ export const makeElectrobunRpcTransport = (bridge: ElectrobunRpcBridge): RpcTran
 	gitCall: (request) => requestGitCall(bridge, request).pipe(Effect.mapError(toRpcClientError)),
 	getProviderAccountUsage: (request) =>
 		requestGetProviderAccountUsage(bridge, request).pipe(Effect.mapError(toRpcClientError)),
+	listProviderSessions: (projectPath) =>
+		requestListProviderSessions(bridge, projectPath).pipe(Effect.mapError(toRpcClientError)),
+	listProviderProjects: () =>
+		requestListProviderProjects(bridge).pipe(Effect.mapError(toRpcClientError)),
 	events: (fromSequence) => listenForEvents(bridge, fromSequence),
 });

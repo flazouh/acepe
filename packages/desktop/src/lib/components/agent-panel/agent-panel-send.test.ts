@@ -27,6 +27,8 @@ const unusedClient = (): RpcClient => ({
 	getDefaultShell: () => Effect.succeed("/bin/zsh"),
 	gitCall: () => Effect.succeed({ op: "git.isRepo", isRepo: false }),
 	getProviderAccountUsage: () => Effect.succeed([]),
+	listProviderSessions: () => Effect.succeed([]),
+	listProviderProjects: () => Effect.succeed([]),
 	events: () => Stream.empty,
 });
 
@@ -81,6 +83,8 @@ describe("sendComposerMessage", () => {
 					getDefaultShell: client.getDefaultShell,
 					gitCall: client.gitCall,
 					getProviderAccountUsage: client.getProviderAccountUsage,
+					listProviderSessions: client.listProviderSessions,
+					listProviderProjects: client.listProviderProjects,
 					events: client.events,
 				});
 				yield* sendComposerMessage({
@@ -120,6 +124,8 @@ describe("sendComposerMessage", () => {
 					getDefaultShell: client.getDefaultShell,
 					gitCall: client.gitCall,
 					getProviderAccountUsage: client.getProviderAccountUsage,
+					listProviderSessions: client.listProviderSessions,
+					listProviderProjects: client.listProviderProjects,
 					events: client.events,
 				});
 				yield* sendComposerMessage({

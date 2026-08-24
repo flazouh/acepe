@@ -59,6 +59,8 @@ const makeClient = (overrides: Partial<RpcClient>): RpcClient => ({
 	getDefaultShell: () => Effect.succeed("/bin/zsh"),
 	gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
 	getProviderAccountUsage: () => Effect.succeed([]),
+	listProviderSessions: () => Effect.succeed([]),
+	listProviderProjects: () => Effect.succeed([]),
 	events: () => Stream.empty,
 	...overrides,
 });

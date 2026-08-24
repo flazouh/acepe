@@ -62,6 +62,8 @@ const fakeFlakyClient = (input: {
 		getDefaultShell: () => Effect.succeed("/bin/zsh"),
 		gitCall: () => Effect.succeed({ op: "git.isRepo" as const, isRepo: false }),
 		getProviderAccountUsage: () => Effect.succeed([]),
+		listProviderSessions: () => Effect.succeed([]),
+		listProviderProjects: () => Effect.succeed([]),
 		events: () => {
 			throw new Error("not used by followTerminal");
 		},

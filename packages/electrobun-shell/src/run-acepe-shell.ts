@@ -62,6 +62,8 @@ export const makeDeferredRpcWork = (): {
 			getDefaultShell: (params) => requireAttached(live).getDefaultShell(params),
 			gitCall: (params) => requireAttached(live).gitCall(params),
 			getProviderAccountUsage: (params) => requireAttached(live).getProviderAccountUsage(params),
+			listProviderSessions: (params) => requireAttached(live).listProviderSessions(params),
+			listProviderProjects: (params) => requireAttached(live).listProviderProjects(params),
 		},
 		attach: (next) => {
 			live = next

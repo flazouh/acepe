@@ -78,6 +78,10 @@ Vitest.it.live(
 				Effect.fail(new RpcTransportError({ reason: "unused gitCall" }))
 			const unusedGetProviderAccountUsage: RpcTransport["getProviderAccountUsage"] = () =>
 				Effect.fail(new RpcTransportError({ reason: "unused getProviderAccountUsage" }))
+			const unusedListProviderSessions: RpcTransport["listProviderSessions"] = () =>
+				Effect.fail(new RpcTransportError({ reason: "unused listProviderSessions" }))
+			const unusedListProviderProjects: RpcTransport["listProviderProjects"] = () =>
+				Effect.fail(new RpcTransportError({ reason: "unused listProviderProjects" }))
 			const transport = {
 				dispatch: unusedDispatch,
 				snapshot: unusedSnapshot,
@@ -88,6 +92,8 @@ Vitest.it.live(
 				getDefaultShell: unusedGetDefaultShell,
 				gitCall: unusedGitCall,
 				getProviderAccountUsage: unusedGetProviderAccountUsage,
+				listProviderSessions: unusedListProviderSessions,
+				listProviderProjects: unusedListProviderProjects,
 				events: (fromSequence: Parameters<RpcTransport["events"]>[0]) =>
 					Stream.unwrap(
 						Effect.gen(function*() {

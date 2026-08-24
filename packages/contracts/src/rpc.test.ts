@@ -197,9 +197,12 @@ const unusedGitCall: RpcTransport["gitCall"] = (_request) =>
 	Effect.succeed({ op: "git.isRepo", isRepo: false })
 const unusedGetProviderAccountUsage: RpcTransport["getProviderAccountUsage"] = (_request) =>
 	Effect.succeed([])
+const unusedListProviderSessions: RpcTransport["listProviderSessions"] = (_projectPath) =>
+	Effect.succeed([])
+const unusedListProviderProjects: RpcTransport["listProviderProjects"] = () => Effect.succeed([])
 
 describe("AcepeRpc primitives", () => {
-	it("exposes dispatch, snapshot, events, file index, fs util, git call, and provider usage primitives", () => {
+	it("exposes dispatch, snapshot, events, file index, fs util, git call, provider usage, and provider discovery primitives", () => {
 		expect(groupTags).toEqual(primitiveTags)
 		expect(groupTags).toEqual([
 			"dispatch",
@@ -209,6 +212,8 @@ describe("AcepeRpc primitives", () => {
 			"getProviderAccountUsage",
 			"gitCall",
 			"invalidateProjectIndex",
+			"listProviderProjects",
+			"listProviderSessions",
 			"readTextFile",
 			"snapshot",
 			"writeTextFile",
@@ -500,6 +505,8 @@ const failingAfter = (
 	getDefaultShell: unusedGetDefaultShell,
 	gitCall: unusedGitCall,
 	getProviderAccountUsage: unusedGetProviderAccountUsage,
+	listProviderSessions: unusedListProviderSessions,
+	listProviderProjects: unusedListProviderProjects,
 	events: (fromSequence) =>
 		Stream.unwrap(
 			Ref.updateAndGet(calls, (count) => count + 1).pipe(
@@ -544,6 +551,8 @@ describe("makeResumingRpcClient", () => {
 			getDefaultShell: unusedGetDefaultShell,
 			gitCall: unusedGitCall,
 			getProviderAccountUsage: unusedGetProviderAccountUsage,
+	listProviderSessions: unusedListProviderSessions,
+	listProviderProjects: unusedListProviderProjects,
 			events: (_fromSequence) =>
 				Stream.fromArray([eventAt(1), eventAt(2), eventAt(2), eventAt(3)]),
 		})
@@ -568,6 +577,8 @@ describe("makeResumingRpcClient", () => {
 			getDefaultShell: unusedGetDefaultShell,
 			gitCall: unusedGitCall,
 			getProviderAccountUsage: unusedGetProviderAccountUsage,
+	listProviderSessions: unusedListProviderSessions,
+	listProviderProjects: unusedListProviderProjects,
 			events: (_fromSequence) => Stream.fromArray([eventAt(1), eventAt(3)]),
 		})
 			.events(0)

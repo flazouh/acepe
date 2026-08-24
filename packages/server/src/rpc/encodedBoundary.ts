@@ -5,6 +5,8 @@ import {
 	decodeGetProviderAccountUsageRequest,
 	decodeGitCallRequest,
 	decodeInvalidateProjectIndexRequest,
+	decodeListProviderProjectsRequest,
+	decodeListProviderSessionsRequest,
 	decodeOrchestrationCommand,
 	decodeReadTextFileRequest,
 	decodeSnapshotRequest,
@@ -15,6 +17,8 @@ import {
 	encodeGetProviderAccountUsageExit,
 	encodeGitCallExit,
 	encodeInvalidateProjectIndexExit,
+	encodeListProviderProjectsExit,
+	encodeListProviderSessionsExit,
 	encodeOrchestrationEvent,
 	encodeReadTextFileExit,
 	encodeSnapshotExit,
@@ -35,10 +39,17 @@ import { FileIndexNotADirectoryError, FileIndexRootNotFoundError } from "../file
 import { FileIndexService } from "../fileIndex/Services/FileIndexService.ts"
 import { getDefaultShell as getDefaultShellUtil } from "../fsUtil/readWriteText.ts"
 import { routeGitCall } from "../git/gitCallHandler.ts"
+import { ProviderSessionDiscovery } from "../history/discovery/ProviderSessionDiscovery.ts"
 import { OrchestrationEventStore } from "../persistence/Services/OrchestrationEventStore.ts"
 import { ProviderUsageService } from "../providerUsage/Services/ProviderUsageService.ts"
 import { OrchestrationEngine } from "../orchestration/Services/OrchestrationEngine.ts"
-import { dispatchOrchestrationCommand, eventsFromSequence, rpcSnapshotForRequest, toFileIndexRpcError, toRpcError } from "./handlers.ts"
+import {
+	dispatchOrchestrationCommand,
+	eventsFromSequence,
+	rpcSnapshotForRequest,
+	toFileIndexRpcError,
+	toRpcError
+} from "./handlers.ts"
 import { guardedReadTextFile, guardedWriteTextFile } from "./fsPathGuard.ts"
 
 const toEncodedFsUtilError = (error: RpcServerError | Schema.SchemaError): RpcServerError => {
@@ -47,6 +58,9 @@ const toEncodedFsUtilError = (error: RpcServerError | Schema.SchemaError): RpcSe
 	}
 	return new RpcSchemaError({ issue: error.message })
 }
+
+const toEncodedProviderDiscoveryError = (error: { readonly message: string }): RpcServerError =>
+	new RpcSchemaError({ issue: error.message })
 
 const toEncodedFileIndexError = (error: { readonly message: string }): RpcServerError => {
 	if (Schema.is(FileIndexRootNotFoundError)(error)) {
@@ -180,6 +194,36 @@ export const encodedGetProviderAccountUsage = Effect.fn("encodedGetProviderAccou
 		return yield* rpcError.pipe(Exit.fail, encodeGetProviderAccountUsageExit)
 	}
 	return yield* encodeGetProviderAccountUsageExit(Exit.succeed(outcome.success))
+})
+
+export const encodedListProviderSessions = Effect.fn("encodedListProviderSessions")(function*(
+	params: unknown
+) {
+	const discovery = yield* ProviderSessionDiscovery
+	const outcome = yield* Effect.result(
+		decodeListProviderSessionsRequest(params).pipe(
+			Effect.flatMap((request) => discovery.listSessionsForProject(request.projectPath))
+		)
+	)
+	if (Result.isFailure(outcome)) {
+		const rpcError = toEncodedProviderDiscoveryError(outcome.failure)
+		return yield* rpcError.pipe(Exit.fail, encodeListProviderSessionsExit)
+	}
+	return yield* encodeListProviderSessionsExit(Exit.succeed(outcome.success))
+})
+
+export const encodedListProviderProjects = Effect.fn("encodedListProviderProjects")(function*(
+	params: unknown
+) {
+	const discovery = yield* ProviderSessionDiscovery
+	const outcome = yield* Effect.result(
+		decodeListProviderProjectsRequest(params).pipe(Effect.flatMap(() => discovery.listProjects()))
+	)
+	if (Result.isFailure(outcome)) {
+		const rpcError = toEncodedProviderDiscoveryError(outcome.failure)
+		return yield* rpcError.pipe(Exit.fail, encodeListProviderProjectsExit)
+	}
+	return yield* encodeListProviderProjectsExit(Exit.succeed(outcome.success))
 })
 
 export const pushEvents = Effect.fn("pushEvents")(function*(
