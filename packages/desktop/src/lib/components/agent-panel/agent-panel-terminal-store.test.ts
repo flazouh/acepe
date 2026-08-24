@@ -64,6 +64,7 @@ const fakeFlakyClient = (input: {
 		getProviderAccountUsage: () => Effect.succeed([]),
 		listProviderSessions: () => Effect.succeed([]),
 		listProviderProjects: () => Effect.succeed([]),
+		importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 		events: () => {
 			throw new Error("not used by followTerminal");
 		},

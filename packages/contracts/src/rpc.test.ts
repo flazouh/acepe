@@ -200,6 +200,8 @@ const unusedGetProviderAccountUsage: RpcTransport["getProviderAccountUsage"] = (
 const unusedListProviderSessions: RpcTransport["listProviderSessions"] = (_projectPath) =>
 	Effect.succeed([])
 const unusedListProviderProjects: RpcTransport["listProviderProjects"] = () => Effect.succeed([])
+const unusedImportProviderSession: RpcTransport["importProviderSession"] = (_request) =>
+	Effect.succeed({ sessionId, imported: false })
 
 describe("AcepeRpc primitives", () => {
 	it("exposes dispatch, snapshot, events, file index, fs util, git call, provider usage, and provider discovery primitives", () => {
@@ -211,6 +213,7 @@ describe("AcepeRpc primitives", () => {
 			"getProjectIndex",
 			"getProviderAccountUsage",
 			"gitCall",
+			"importProviderSession",
 			"invalidateProjectIndex",
 			"listProviderProjects",
 			"listProviderSessions",
@@ -507,6 +510,7 @@ const failingAfter = (
 	getProviderAccountUsage: unusedGetProviderAccountUsage,
 	listProviderSessions: unusedListProviderSessions,
 	listProviderProjects: unusedListProviderProjects,
+	importProviderSession: unusedImportProviderSession,
 	events: (fromSequence) =>
 		Stream.unwrap(
 			Ref.updateAndGet(calls, (count) => count + 1).pipe(
@@ -553,6 +557,7 @@ describe("makeResumingRpcClient", () => {
 			getProviderAccountUsage: unusedGetProviderAccountUsage,
 	listProviderSessions: unusedListProviderSessions,
 	listProviderProjects: unusedListProviderProjects,
+	importProviderSession: unusedImportProviderSession,
 			events: (_fromSequence) =>
 				Stream.fromArray([eventAt(1), eventAt(2), eventAt(2), eventAt(3)]),
 		})
@@ -579,6 +584,7 @@ describe("makeResumingRpcClient", () => {
 			getProviderAccountUsage: unusedGetProviderAccountUsage,
 	listProviderSessions: unusedListProviderSessions,
 	listProviderProjects: unusedListProviderProjects,
+	importProviderSession: unusedImportProviderSession,
 			events: (_fromSequence) => Stream.fromArray([eventAt(1), eventAt(3)]),
 		})
 			.events(0)

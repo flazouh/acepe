@@ -4,6 +4,7 @@ import {
 	decodeGetProjectIndexExit,
 	decodeGetProviderAccountUsageExit,
 	decodeGitCallExit,
+	decodeImportProviderSessionExit,
 	decodeInvalidateProjectIndexExit,
 	decodeListProviderProjectsExit,
 	decodeListProviderSessionsExit,
@@ -16,6 +17,7 @@ import {
 	type GetDefaultShellRequest,
 	type GetProviderAccountUsageRequest,
 	type GitCallRequest,
+	type ImportProviderSessionRequest,
 	type OrchestrationCommand,
 	type OrchestrationEvent,
 	type ReadTextFileRequest,
@@ -50,6 +52,7 @@ export type ElectrobunRpcBridge = {
 		readonly getProviderAccountUsage: (params: unknown) => Promise<unknown>;
 		readonly listProviderSessions: (params: unknown) => Promise<unknown>;
 		readonly listProviderProjects: (params: unknown) => Promise<unknown>;
+		readonly importProviderSession: (params: unknown) => Promise<unknown>;
 	};
 	readonly addMessageListener: (message: "events", listener: (payload: unknown) => void) => void;
 	readonly removeMessageListener: (message: "events", listener: (payload: unknown) => void) => void;
@@ -204,6 +207,18 @@ const requestListProviderProjects = Effect.fn("requestListProviderProjects")(fun
 	return yield* exitToEffect(exit);
 });
 
+const requestImportProviderSession = Effect.fn("requestImportProviderSession")(function* (
+	bridge: ElectrobunRpcBridge,
+	request: ImportProviderSessionRequest
+) {
+	const encoded = yield* Effect.tryPromise({
+		try: () => bridge.request.importProviderSession(request),
+		catch: transportErrorFrom,
+	});
+	const exit = yield* decodeImportProviderSessionExit(encoded);
+	return yield* exitToEffect(exit);
+});
+
 const listenForEvents = (
 	bridge: ElectrobunRpcBridge,
 	fromSequence: Sequence
@@ -255,5 +270,7 @@ export const makeElectrobunRpcTransport = (bridge: ElectrobunRpcBridge): RpcTran
 		requestListProviderSessions(bridge, projectPath).pipe(Effect.mapError(toRpcClientError)),
 	listProviderProjects: () =>
 		requestListProviderProjects(bridge).pipe(Effect.mapError(toRpcClientError)),
+	importProviderSession: (request) =>
+		requestImportProviderSession(bridge, request).pipe(Effect.mapError(toRpcClientError)),
 	events: (fromSequence) => listenForEvents(bridge, fromSequence),
 });

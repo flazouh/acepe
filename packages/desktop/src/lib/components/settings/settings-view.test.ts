@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import {
+	SessionId,
 	emptyRpcSessionSnapshot,
 	settingsSnapshotRequest,
 	type RpcClient,
@@ -61,6 +62,7 @@ describe("settings view controller mapping", () => {
 					getProviderAccountUsage: () => Effect.succeed([]),
 					listProviderSessions: () => Effect.succeed([]),
 					listProviderProjects: () => Effect.succeed([]),
+					importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 					events: () => Stream.empty,
 				};
 				const store = composeSettingsStore({ client });

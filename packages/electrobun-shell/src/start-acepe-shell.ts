@@ -16,6 +16,7 @@ export type AcepeShellRpcHandlers = {
 	readonly getProviderAccountUsage: (params: unknown) => unknown
 	readonly listProviderSessions: (params: unknown) => unknown
 	readonly listProviderProjects: (params: unknown) => unknown
+	readonly importProviderSession: (params: unknown) => unknown
 }
 
 export type AcepeRpcWork = {
@@ -31,6 +32,7 @@ export type AcepeRpcWork = {
 	readonly getProviderAccountUsage: (params: unknown) => unknown
 	readonly listProviderSessions: (params: unknown) => unknown
 	readonly listProviderProjects: (params: unknown) => unknown
+	readonly importProviderSession: (params: unknown) => unknown
 }
 
 export type AcepeShellHost<Rpc> = {
@@ -55,7 +57,8 @@ export const startAcepeShell = <Rpc>(
 		gitCall: work.gitCall,
 		getProviderAccountUsage: work.getProviderAccountUsage,
 		listProviderSessions: work.listProviderSessions,
-		listProviderProjects: work.listProviderProjects
+		listProviderProjects: work.listProviderProjects,
+		importProviderSession: work.importProviderSession
 	})
 	return host.openWindow({
 		title: acepeWindowSpec.title,

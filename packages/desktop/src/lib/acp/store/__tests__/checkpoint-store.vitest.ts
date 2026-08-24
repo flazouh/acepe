@@ -112,6 +112,7 @@ const installClient = (input: {
 		getProviderAccountUsage: () => Effect.succeed([]),
 		listProviderSessions: () => Effect.succeed([]),
 		listProviderProjects: () => Effect.succeed([]),
+		importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 	});
 	return { dispatched };
 };
@@ -181,6 +182,7 @@ describe("CheckpointStore", () => {
 				getProviderAccountUsage: () => Effect.succeed([]),
 				listProviderSessions: () => Effect.succeed([]),
 				listProviderProjects: () => Effect.succeed([]),
+				importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 			});
 
 			const result = await Effect.runPromise(Effect.result(store.loadCheckpoints("s1")));

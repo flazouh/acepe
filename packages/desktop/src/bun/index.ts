@@ -21,6 +21,7 @@ import {
 	encodedGetProjectIndex,
 	encodedGetProviderAccountUsage,
 	encodedGitCall,
+	encodedImportProviderSession,
 	encodedInvalidateProjectIndex,
 	encodedListProviderProjects,
 	encodedListProviderSessions,
@@ -132,6 +133,7 @@ launched.attach({
 	getProviderAccountUsage: (params) => runtime.runPromise(encodedGetProviderAccountUsage(params)),
 	listProviderSessions: (params) => runtime.runPromise(encodedListProviderSessions(params)),
 	listProviderProjects: (params) => runtime.runPromise(encodedListProviderProjects(params)),
+	importProviderSession: (params) => runtime.runPromise(encodedImportProviderSession(params)),
 	events: (params) => {
 		writeLine(`acepe-events-stream: requested ${JSON.stringify(params).slice(0, 80)}`);
 		runtime.runFork(

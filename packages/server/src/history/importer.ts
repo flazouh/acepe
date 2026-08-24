@@ -33,6 +33,7 @@ import {
 	ProjectionSnapshotQuery,
 	SessionProjectionSnapshot
 } from "../orchestration/Services/ProjectionSnapshotQuery.ts"
+import { OrchestrationCommandPreviouslyRejectedError } from "../persistence/Services/OrchestrationCommandReceipts.ts"
 import { OrchestrationEventStore } from "../persistence/Services/OrchestrationEventStore.ts"
 import {
 	PROJECTION_SESSION_MESSAGES_NAME,
@@ -50,6 +51,16 @@ const EVENT_PAGE_SIZE = 1_000
 
 const decodeProjectorName = Schema.decodeUnknownEffect(TrimmedNonEmptyString)
 const isInvariantError = Schema.is(OrchestrationCommandInvariantError)
+// A prior ensureProject call for this same deterministic commandId can have
+// been invariant-rejected (the project already existed under a different
+// commandId -- e.g. #249 batch 3's importProviderSession resolves and
+// reuses an existing project's id by workspaceRoot). OrchestrationEngine
+// then answers every later dispatch of that exact commandId from
+// OrchestrationCommandReceipts as "previously rejected" rather than
+// re-running the invariant check, so this must be swallowed the same way
+// as a fresh invariant error or ensureProject would fail on every call
+// after the first for that project.
+const isPreviouslyRejectedError = Schema.is(OrchestrationCommandPreviouslyRejectedError)
 const sessionIdOrder = Order.mapInput(Str.Order, (sessionId: SessionId): string => sessionId)
 
 export const HistoryImportInput = Schema.Struct({
@@ -74,10 +85,25 @@ export type HistoryImportError =
 	| Schema.SchemaError
 	| SqlError
 
+export type HistoryImportFileResult = {
+	readonly sessionId: Option.Option<SessionId>
+	readonly warnings: ReadonlyArray<HistoryMalformedLineWarning>
+}
+
 export type HistoryImporterShape = {
 	readonly importDirectory: (
 		input: HistoryImportInput
 	) => Effect.Effect<HistoryImportResult, HistoryImportError>
+	// Imports one already-located session file (#249 batch 3 -- backs
+	// `importProviderSession`). Unlike `importDirectory`, the caller has
+	// already resolved `filePath` (from a discovery scan), so this skips the
+	// directory walk but still ensures the parent project exists and applies
+	// the newly-dispatched events to the read-side projections before
+	// returning, exactly like `importDirectory` does for its whole batch.
+	readonly importSessionFile: (
+		input: HistoryImportInput,
+		filePath: string
+	) => Effect.Effect<HistoryImportFileResult, HistoryImportError>
 }
 
 export type HistoryProviderKind = "claude" | "cursor" | "opencode"
@@ -165,7 +191,11 @@ export const makeHistoryImporter = <A>(config: HistoryLineDecoder<A>) =>
 					})
 				)
 			)
-			if (Result.isFailure(outcome) && isInvariantError(outcome.failure) === false) {
+			if (
+				Result.isFailure(outcome) &&
+				isInvariantError(outcome.failure) === false &&
+				isPreviouslyRejectedError(outcome.failure) === false
+			) {
 				return yield* outcome.failure
 			}
 		})
@@ -278,6 +308,18 @@ export const makeHistoryImporter = <A>(config: HistoryLineDecoder<A>) =>
 			}
 		})
 
+		const importSessionFile = Effect.fn("HistoryImporter.importSessionFile")(function*(
+			input: HistoryImportInput,
+			filePath: string
+		) {
+			yield* ensureProject(input)
+			const before = yield* engine.latestSequence
+			const imported = yield* importFile(input, filePath)
+			const after = yield* engine.latestSequence
+			yield* applyImportedEvents(before, after)
+			return imported
+		})
+
 		const importDirectory = Effect.fn("HistoryImporter.importDirectory")(function*(
 			input: HistoryImportInput
 		) {
@@ -306,6 +348,7 @@ export const makeHistoryImporter = <A>(config: HistoryLineDecoder<A>) =>
 		})
 
 		return {
-			importDirectory
+			importDirectory,
+			importSessionFile
 		} satisfies HistoryImporterShape
 	})

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import { emptyRpcSessionSnapshot, ProjectId } from "@acepe/contracts";
+import {
+	SessionId, emptyRpcSessionSnapshot, ProjectId } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
@@ -83,6 +84,7 @@ describe("review modal controller mapping", () => {
 				getProviderAccountUsage: () => Effect.succeed([]),
 				listProviderSessions: () => Effect.succeed([]),
 				listProviderProjects: () => Effect.succeed([]),
+				importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 			},
 			registry,
 		});

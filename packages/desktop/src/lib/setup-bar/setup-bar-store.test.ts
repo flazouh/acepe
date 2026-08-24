@@ -1,4 +1,5 @@
-import { CommandId, EventId, ProjectId } from "@acepe/contracts";
+import {
+	SessionId, CommandId, EventId, ProjectId } from "@acepe/contracts";
 import { describe, expect, it } from "bun:test";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
@@ -128,6 +129,7 @@ describe("composeSetupBarStore", () => {
 				getProviderAccountUsage: () => Effect.succeed([]),
 				listProviderSessions: () => Effect.succeed([]),
 				listProviderProjects: () => Effect.succeed([]),
+				importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 			},
 			registry,
 		});
