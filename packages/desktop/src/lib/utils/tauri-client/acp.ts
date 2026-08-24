@@ -1,7 +1,16 @@
-import { fromPromise } from "@acepe/effect-result/fromPromise";
+import {
+	decodeApprovalRequestId,
+	decodeMessageId,
+	decodeProjectId,
+	decodeSessionId,
+	librarySnapshotRequest,
+	type RpcProjectedProject,
+	sessionSnapshotRequest,
+	TrimmedNonEmptyString,
+} from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 
-import { AgentError, AppError } from "../../acp/errors/app-error.js";
+import { AgentError, type AppError } from "../../acp/errors/app-error.js";
 import type { AgentInfo } from "../../acp/store/api.js";
 import type { ResumeSessionResult } from "../../acp/store/types.js";
 import type { InteractionReplyRequest } from "../../acp/types/interaction-reply-request.js";
@@ -12,288 +21,504 @@ import type {
 	SessionGraphLifecycle,
 	SessionStateEnvelope,
 } from "../../services/acp-types.js";
-import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
-import { ACP_PREFIX } from "./commands.js";
-import { invokeAsync } from "./invoke.js";
+import {
+	decodeEffect,
+	decodeTrimmed,
+	nextCommandId,
+	unsupportedOnContract,
+	withRpcClient,
+} from "./rpc-bridge.ts";
 import type { CustomAgentConfig } from "./types.js";
 
-const acpCommands = TAURI_COMMAND_CLIENT.acp;
+// #249 final facade slice. Every method below either dispatches an
+// already-existing orchestration command / reads the session or library
+// snapshot (real, verified end to end for the prompt-core path -- see
+// ProviderBridge.ts, which forwards message.send/turn.cancel/
+// interaction.reply to the real provider adapter), or is honestly
+// unsupportedOnContract.
+//
+// The unsupportedOnContract methods below (agent management, preconnection
+// discovery, the event bridge) are not behaviour regressions: none of them
+// has ever had a working Electrobun backend. There is no
+// list_agents/install_agent/uninstall_agent/register_custom_agent/
+// authenticate_agent/cancel_agent_authentication/
+// list_preconnection_commands/list_preconnection_capabilities/
+// get_composer_mcp_catalog/get_event_bridge_info handler anywhere in
+// packages/electrobun-shell or packages/server -- every one of these calls
+// already fails today (an unresolved Tauri invoke with no receiver). Marking
+// them unsupportedOnContract turns that into a typed, honest failure instead
+// of a silent hang, with zero change in what the app can actually do.
+//
+// Real follow-up work (not done here, scope was already large): a gitCall-
+// style `agentCall` utility RPC routing list/install/uninstall onto the
+// server's ProviderRegistry + AgentInstaller (packages/server/src/provider),
+// and a real preconnection-discovery RPC. The agent.* orchestration commands
+// in orchestration.ts (agent.install, agent.list, ...) are NOT a substitute:
+// they are echo commands whose payload is precomputed by the caller (e.g.
+// AgentListCommand takes `agents: AgentListing[]` as input), so dispatching
+// them would record a false "installed"/"listed" fact without any adapter
+// actually doing the work.
 
-interface EventBridgeInfo {
-	readonly eventsUrl: string;
-}
+const emptySessionLifecycle = (status: SessionGraphLifecycle["status"]): SessionGraphLifecycle => ({
+	status,
+	actionability: {
+		canSend: status === "ready",
+		canResume: status === "detached" || status === "archived",
+		canRetry: status === "failed",
+		canArchive: status === "ready",
+		canConfigure: status === "ready",
+		recommendedAction: "none",
+		recoveryPhase: "none",
+		compactStatus: status,
+	},
+});
 
-interface SessionConnectionReadiness {
-	readonly graphRevision: number;
-	readonly lifecycle: SessionGraphLifecycle;
-	readonly capabilities: SessionGraphCapabilities;
-}
-
-let cachedEventBridgeInfo: EventBridgeInfo | null = null;
-let pendingEventBridgeInfo: Promise<EventBridgeInfo> | null = null;
-
-function toEventBridgeError(error: unknown): AppError {
-	if (error instanceof AppError) {
-		return error;
-	}
-	return new AgentError(
-		"get_event_bridge_info",
-		error instanceof Error ? error : new Error(String(error))
+const lifecycleForSession = Effect.fn("acp.lifecycleForSession")(function* (sessionId: string) {
+	const decodedSessionId = yield* decodeEffect("acp.lifecycleForSession", decodeSessionId)(sessionId);
+	const snapshot = yield* withRpcClient("acp.lifecycleForSession", (client) =>
+		client.snapshot(sessionSnapshotRequest(decodedSessionId))
 	);
-}
-
-function getCachedEventBridgeInfo(): Effect.Effect<EventBridgeInfo, AppError> {
-	if (cachedEventBridgeInfo !== null) {
-		return Effect.succeed(cachedEventBridgeInfo);
+	if (snapshot.session === null) {
+		return emptySessionLifecycle("reserved");
 	}
-	const existingPending = pendingEventBridgeInfo;
-	if (existingPending !== null) {
-		return fromPromise(() => existingPending, toEventBridgeError);
+	if (snapshot.session.deletedAt !== null) {
+		return emptySessionLifecycle("failed");
 	}
+	if (snapshot.session.archivedAt !== null) {
+		return emptySessionLifecycle("archived");
+	}
+	return emptySessionLifecycle("ready");
+});
 
-	const pending = Effect.runPromise(
-		acpCommands.get_event_bridge_info.invoke<EventBridgeInfo>(),
-	).then(
-		(info) => {
-			cachedEventBridgeInfo = info;
-			pendingEventBridgeInfo = null;
-			return info;
-		},
-		(error: unknown) => {
-			pendingEventBridgeInfo = null;
-			throw error;
-		},
+const findProjectByWorkspaceRoot = (
+	rows: readonly RpcProjectedProject[],
+	workspaceRoot: string
+): RpcProjectedProject | null => {
+	for (const row of rows) {
+		if (row.deletedAt === null && row.workspaceRoot === workspaceRoot) {
+			return row;
+		}
+	}
+	return null;
+};
+
+const lastPathSegment = (path: string): string => {
+	const trimmed = path.replace(/\/+$/, "");
+	const segments = trimmed.split("/");
+	const last = segments[segments.length - 1];
+	return last === undefined || last.length === 0 ? "session" : last;
+};
+
+// newSession's callers never had a project-creation step of their own on the
+// Tauri side (the Rust backend resolved/created the project implicitly from
+// the cwd). Mirror that here: reuse an existing project at this workspace
+// root, or create one on the fly so session.create always has a valid
+// projectId.
+const resolveOrCreateProject = Effect.fn("acp.resolveOrCreateProject")(function* (
+	workspaceRoot: typeof TrimmedNonEmptyString.Type
+) {
+	const snapshot = yield* withRpcClient("acp.newSession", (client) =>
+		client.snapshot(librarySnapshotRequest())
 	);
-	pendingEventBridgeInfo = pending;
+	const existing = findProjectByWorkspaceRoot(snapshot.projects, workspaceRoot);
+	if (existing !== null) {
+		return existing.projectId;
+	}
+	const commandId = yield* nextCommandId("project-create");
+	const projectId = yield* decodeEffect("acp.newSession", decodeProjectId)(`project-${String(commandId)}`);
+	const title = yield* decodeTrimmed("acp.newSession", lastPathSegment(workspaceRoot));
+	yield* withRpcClient("acp.newSession", (client) =>
+		client.dispatch({
+			type: "project.create",
+			commandId,
+			projectId,
+			title,
+			workspaceRoot: workspaceRoot,
+		})
+	);
+	return projectId;
+});
 
-	return fromPromise(() => pending, toEventBridgeError);
-}
+const extractPromptText = (
+	request: ReadonlyArray<Record<string, unknown> & { type: string }>
+): string =>
+	request
+		.filter((block): block is { type: string; text: string } => {
+			return block.type === "text" && typeof block.text === "string";
+		})
+		.map((block) => block.text)
+		.join("\n");
 
 export const acp = {
-	initialize: (): Effect.Effect<unknown, AppError> => {
-		return acpCommands.initialize.invoke<unknown>();
-	},
+	// The Rust-side ACP service needed an explicit bootstrap call before its
+	// first use. The Effect server has no equivalent per-call setup step (the
+	// engine and ProviderBridge are always-on Layers started at server boot),
+	// so this is now a genuine no-op rather than a Tauri invoke into a command
+	// that no longer exists.
+	initialize: (): Effect.Effect<unknown, AppError> => Effect.succeed(undefined),
 
-	authenticateAgent: (agentId: string): Effect.Effect<void, AppError> => {
-		return acpCommands.authenticate_agent.invoke<void>({ agentId });
-	},
+	authenticateAgent: (_agentId: string): Effect.Effect<void, AppError> =>
+		unsupportedOnContract("acp.authenticateAgent"),
 
-	cancelAgentAuthentication: (agentId: string): Effect.Effect<void, AppError> => {
-		return acpCommands.cancel_agent_authentication.invoke<void>({ agentId });
-	},
+	cancelAgentAuthentication: (_agentId: string): Effect.Effect<void, AppError> =>
+		unsupportedOnContract("acp.cancelAgentAuthentication"),
 
-	newSession: (
+	newSession: Effect.fn("acp.newSession")(function* (
 		cwd: string,
 		agentId?: string,
-		launchToken?: string,
-		initialModelId?: string,
-		initialModeId?: string
-	): Effect.Effect<ResumeSessionResult, AppError> => {
-		return acpCommands.new_session.invoke<ResumeSessionResult>({
-			cwd,
-			agentId,
-			launchToken,
-			initialModelId,
-			initialModeId,
-		});
-	},
+		// launchToken/initialModelId/initialModeId have no field on
+		// session.create today (already silently dropped by every current
+		// caller -- session-connection-manager.createSession never forwarded
+		// title either). Preserved in the signature for callers, documented as
+		// dropped rather than fabricated.
+		_launchToken?: string,
+		_initialModelId?: string,
+		_initialModeId?: string
+	) {
+		const workspaceRoot = yield* decodeTrimmed("acp.newSession", cwd);
+		const projectId = yield* resolveOrCreateProject(workspaceRoot);
+		const commandId = yield* nextCommandId("session-create");
+		const sessionId = yield* decodeEffect("acp.newSession", decodeSessionId)(
+			`session-${String(commandId)}`
+		);
+		const title = yield* decodeTrimmed("acp.newSession", "New session");
+		const providerId =
+			agentId === undefined ? undefined : yield* decodeTrimmed("acp.newSession", agentId);
+		yield* withRpcClient("acp.newSession", (client) =>
+			client.dispatch({
+				type: "session.create",
+				commandId,
+				sessionId,
+				projectId,
+				title,
+				...(providerId === undefined ? {} : { providerId }),
+			})
+		);
+		const result: ResumeSessionResult = {
+			sessionId: String(sessionId),
+			creationAttemptId: null,
+			deferredCreation: false,
+		};
+		return result;
+	}),
 
 	listPreconnectionCommands: (
-		cwd: string,
-		agentId: string
+		_cwd: string,
+		_agentId: string
 	): Effect.Effect<
 		Array<{ name: string; description: string; input?: { hint: string } | null }>,
 		AppError
-	> => {
-		return acpCommands.list_preconnection_commands.invoke<
-			Array<{ name: string; description: string; input?: { hint: string } | null }>
-		>({ cwd, agentId });
-	},
+	> => unsupportedOnContract("acp.listPreconnectionCommands"),
 
 	listPreconnectionCapabilities: (
-		cwd: string,
-		agentId: string
-	): Effect.Effect<ResolvedCapabilities, AppError> => {
-		return invokeAsync(`${ACP_PREFIX}list_preconnection_capabilities`, {
-			cwd,
-			agentId,
-		}) as Effect.Effect<ResolvedCapabilities, AppError>;
-	},
+		_cwd: string,
+		_agentId: string
+	): Effect.Effect<ResolvedCapabilities, AppError> =>
+		unsupportedOnContract("acp.listPreconnectionCapabilities"),
 
 	getComposerMcpCatalog: (
-		cwd: string,
-		agentId: string,
-		sessionId: string | null
-	): Effect.Effect<ComposerMcpCatalog, AppError> => {
-		return acpCommands.get_composer_mcp_catalog.invoke<ComposerMcpCatalog>({
-			cwd,
-			agentId,
-			sessionId,
-		});
-	},
+		_cwd: string,
+		_agentId: string,
+		_sessionId: string | null
+	): Effect.Effect<ComposerMcpCatalog, AppError> =>
+		unsupportedOnContract("acp.getComposerMcpCatalog"),
 
-	resumeSession: (
+	// Fire-and-forget, matching the old contract: validates/dispatches and
+	// returns without waiting for reconnection. Best-effort imports the
+	// session from provider discovery first (a session opened from the
+	// sidebar's discovered-but-not-yet-imported list has no orchestration
+	// aggregate yet), then dispatches session.resume so the resume is durably
+	// recorded. NOTE: unlike session.create, ProviderBridge does not react to
+	// SessionResumed today, so a real adapter is not automatically
+	// reconnected by this call alone -- that reconnection wiring is a
+	// follow-up, tracked honestly rather than silently assumed.
+	resumeSession: Effect.fn("acp.resumeSession")(function* (
 		sessionId: string,
-		cwd: string,
-		attemptId: number,
-		agentId?: string,
-		launchModeId?: string,
-		openToken?: string
-	): Effect.Effect<void, AppError> => {
-		return acpCommands.resume_session.invoke<void>({
-			sessionId,
-			cwd,
-			attemptId,
-			agentId,
-			launchModeId,
-			openToken,
-		});
-	},
+		_cwd: string,
+		_attemptId: number,
+		_agentId?: string,
+		_launchModeId?: string,
+		_openToken?: string
+	) {
+		const decodedSessionId = yield* decodeEffect("acp.resumeSession", decodeSessionId)(sessionId);
+		const commandId = yield* nextCommandId("session-resume");
+		yield* withRpcClient("acp.resumeSession", (client) =>
+			client.dispatch({
+				type: "session.resume",
+				commandId,
+				sessionId: decodedSessionId,
+			})
+		);
+	}),
 
-	unarchiveSession: (sessionId: string): Effect.Effect<void, AppError> => {
-		return acpCommands.unarchive_session.invoke<void>({ sessionId });
-	},
+	unarchiveSession: Effect.fn("acp.unarchiveSession")(function* (sessionId: string) {
+		const decodedSessionId = yield* decodeEffect("acp.unarchiveSession", decodeSessionId)(sessionId);
+		const commandId = yield* nextCommandId("session-unarchive");
+		yield* withRpcClient("acp.unarchiveSession", (client) =>
+			client.dispatch({
+				type: "session.unarchive",
+				commandId,
+				sessionId: decodedSessionId,
+			})
+		);
+	}),
 
+	// No live caller today (see #249 issue thread's batch map + acp.ts's own
+	// prior header comment); the contract has no session.fork command with
+	// full result-shape support either. Fork-from-message affordances in the
+	// UI, if any land later, need their own slice.
 	forkSession: (
+		_sessionId: string,
+		_cwd: string,
+		_agentId?: string
+	): Effect.Effect<ResumeSessionResult, AppError> => unsupportedOnContract("acp.forkSession"),
+
+	setModel: Effect.fn("acp.setModel")(function* (sessionId: string, modelId: string) {
+		const decodedSessionId = yield* decodeEffect("acp.setModel", decodeSessionId)(sessionId);
+		const decodedModelId = yield* decodeTrimmed("acp.setModel", modelId);
+		const commandId = yield* nextCommandId("session-set-model");
+		yield* withRpcClient("acp.setModel", (client) =>
+			client.dispatch({
+				type: "session.set-model",
+				commandId,
+				sessionId: decodedSessionId,
+				modelId: decodedModelId,
+			})
+		);
+	}),
+
+	setMode: Effect.fn("acp.setMode")(function* (sessionId: string, modeId: string) {
+		const decodedSessionId = yield* decodeEffect("acp.setMode", decodeSessionId)(sessionId);
+		const decodedModeId = yield* decodeTrimmed("acp.setMode", modeId);
+		const commandId = yield* nextCommandId("session-set-mode");
+		yield* withRpcClient("acp.setMode", (client) =>
+			client.dispatch({
+				type: "session.set-mode",
+				commandId,
+				sessionId: decodedSessionId,
+				modeId: decodedModeId,
+			})
+		);
+	}),
+
+	setSessionAutonomous: Effect.fn("acp.setSessionAutonomous")(function* (
 		sessionId: string,
-		cwd: string,
-		agentId?: string
-	): Effect.Effect<ResumeSessionResult, AppError> => {
-		return acpCommands.fork_session.invoke<ResumeSessionResult>({ sessionId, cwd, agentId });
-	},
-
-	setModel: (sessionId: string, modelId: string): Effect.Effect<void, AppError> => {
-		return acpCommands.set_model.invoke<void>({ sessionId, modelId });
-	},
-
-	setMode: (sessionId: string, modeId: string): Effect.Effect<void, AppError> => {
-		return acpCommands.set_mode.invoke<void>({ sessionId, modeId });
-	},
-
-	setSessionAutonomous: (sessionId: string, enabled: boolean): Effect.Effect<void, AppError> => {
-		return acpCommands.set_session_autonomous.invoke<void>({ sessionId, enabled });
-	},
+		enabled: boolean
+	) {
+		const decodedSessionId = yield* decodeEffect("acp.setSessionAutonomous", decodeSessionId)(
+			sessionId
+		);
+		const commandId = yield* nextCommandId("session-set-autonomous");
+		yield* withRpcClient("acp.setSessionAutonomous", (client) =>
+			client.dispatch({
+				type: "session.set-autonomous",
+				commandId,
+				sessionId: decodedSessionId,
+				autonomous: enabled,
+			})
+		);
+	}),
 
 	setConfigOption: (
 		sessionId: string,
 		configId: string,
 		value: string
-	): Effect.Effect<unknown, AppError> => {
-		return acpCommands.set_config_option.invoke<unknown>({ sessionId, configId, value });
-	},
+	): Effect.Effect<unknown, AppError> =>
+		Effect.gen(function* () {
+			const decodedSessionId = yield* decodeEffect("acp.setConfigOption", decodeSessionId)(sessionId);
+			const decodedKey = yield* decodeTrimmed("acp.setConfigOption", configId);
+			const decodedValue = yield* decodeTrimmed("acp.setConfigOption", value);
+			const commandId = yield* nextCommandId("session-set-config-option");
+			yield* withRpcClient("acp.setConfigOption", (client) =>
+				client.dispatch({
+					type: "session.set-config-option",
+					commandId,
+					sessionId: decodedSessionId,
+					key: decodedKey,
+					value: decodedValue,
+				})
+			);
+			return undefined;
+		}),
 
-	sendPrompt: (
+	sendPrompt: Effect.fn("acp.sendPrompt")(function* (
 		sessionId: string,
 		request: ReadonlyArray<Record<string, unknown> & { type: string }>,
-		attemptId?: string
-	): Effect.Effect<void, AppError> => {
-		return acpCommands.send_prompt.invoke<void>({ sessionId, request, attemptId });
-	},
+		_attemptId?: string
+	) {
+		const decodedSessionId = yield* decodeEffect("acp.sendPrompt", decodeSessionId)(sessionId);
+		// Only text blocks are deliverable end to end today: ProviderBridge's
+		// message.send reaction forwards a single `text` field to the adapter
+		// (see considerMessageSent in ProviderBridge.ts). Non-text blocks
+		// (images, files, ...) have no wire representation yet and are
+		// dropped, not silently corrupted.
+		const text = yield* decodeTrimmed("acp.sendPrompt", extractPromptText(request));
+		const commandId = yield* nextCommandId("message-send");
+		const messageId = yield* decodeEffect("acp.sendPrompt", decodeMessageId)(`message-${String(commandId)}`);
+		yield* withRpcClient("acp.sendPrompt", (client) =>
+			client.dispatch({
+				type: "message.send",
+				commandId,
+				sessionId: decodedSessionId,
+				messageId,
+				text,
+			})
+		);
+	}),
 
-	cancel: (sessionId: string): Effect.Effect<void, AppError> => {
-		return acpCommands.cancel.invoke<void>({ sessionId });
-	},
+	cancel: Effect.fn("acp.cancel")(function* (sessionId: string) {
+		const decodedSessionId = yield* decodeEffect("acp.cancel", decodeSessionId)(sessionId);
+		const commandId = yield* nextCommandId("turn-cancel");
+		yield* withRpcClient("acp.cancel", (client) =>
+			client.dispatch({
+				type: "turn.cancel",
+				commandId,
+				sessionId: decodedSessionId,
+			})
+		);
+	}),
 
-	replyInteraction: (request: InteractionReplyRequest): Effect.Effect<void, AppError> => {
-		return acpCommands.reply_interaction.invoke<void>({
-			request: {
-				sessionId: request.sessionId,
-				interactionId: request.interactionId,
-				replyHandler: serializeInteractionReplyHandler(request.replyHandler),
-				payload: serializeInteractionReplyPayload(request.payload),
-			},
-		});
-	},
+	replyInteraction: Effect.fn("acp.replyInteraction")(function* (request: InteractionReplyRequest) {
+		const decodedSessionId = yield* decodeEffect("acp.replyInteraction", decodeSessionId)(
+			request.sessionId
+		);
+		const decision = interactionReplyDecision(request.payload);
+		if (decision === null) {
+			// question / question_cancel replies carry a structured answer
+			// (free text, multi-select) that interaction.reply's allow/deny
+			// decision cannot represent, and no adapter today (ClaudeAdapter's
+			// respondToPermission is the only wired reaction, permission-only)
+			// consumes anything richer -- see ProviderBridge.considerInteractionReplied.
+			return yield* unsupportedOnContract("acp.replyInteraction.question");
+		}
+		if (request.interactionId === undefined) {
+			return yield* Effect.fail(
+				new AgentError("acp.replyInteraction", new Error("interactionId is required to reply"))
+			);
+		}
+		const approvalRequestId = yield* decodeEffect(
+			"acp.replyInteraction",
+			decodeApprovalRequestId
+		)(request.interactionId);
+		const commandId = yield* nextCommandId("interaction-reply");
+		yield* withRpcClient("acp.replyInteraction", (client) =>
+			client.dispatch({
+				type: "interaction.reply",
+				commandId,
+				sessionId: decodedSessionId,
+				approvalRequestId,
+				decision,
+			})
+		);
+	}),
 
-	respondInboundRequest: (
+	respondInboundRequest: Effect.fn("acp.respondInboundRequest")(function* (
 		sessionId: string,
 		requestId: number,
 		result: unknown
-	): Effect.Effect<void, AppError> => {
-		return acpCommands.respond_inbound_request.invoke<void>({ sessionId, requestId, result });
-	},
+	) {
+		const decodedSessionId = yield* decodeEffect("acp.respondInboundRequest", decodeSessionId)(
+			sessionId
+		);
+		const decodedRequestId = yield* decodeTrimmed("acp.respondInboundRequest", String(requestId));
+		const body = yield* decodeTrimmed(
+			"acp.respondInboundRequest",
+			result === undefined ? "null" : JSON.stringify(result)
+		);
+		const commandId = yield* nextCommandId("inbound-respond");
+		yield* withRpcClient("acp.respondInboundRequest", (client) =>
+			client.dispatch({
+				type: "inbound.respond",
+				commandId,
+				sessionId: decodedSessionId,
+				requestId: decodedRequestId,
+				body,
+			})
+		);
+	}),
 
-	listAgents: (): Effect.Effect<AgentInfo[], AppError> => {
-		return acpCommands.list_agents.invoke<AgentInfo[]>();
-	},
+	// No working Electrobun backend today -- see this file's header comment.
+	// A real agentCall utility RPC (mirroring gitCall) onto
+	// packages/server/src/provider's ProviderRegistry + AgentInstaller is the
+	// right follow-up shape, but is out of scope for this slice.
+	listAgents: (): Effect.Effect<AgentInfo[], AppError> => unsupportedOnContract("acp.listAgents"),
 
-	installAgent: (agentId: string): Effect.Effect<void, AppError> => {
-		return acpCommands.install_agent.invoke<void>({ agentId });
-	},
+	installAgent: (_agentId: string): Effect.Effect<void, AppError> =>
+		unsupportedOnContract("acp.installAgent"),
 
-	uninstallAgent: (agentId: string): Effect.Effect<void, AppError> => {
-		return acpCommands.uninstall_agent.invoke<void>({ agentId });
-	},
+	uninstallAgent: (_agentId: string): Effect.Effect<void, AppError> =>
+		unsupportedOnContract("acp.uninstallAgent"),
 
-	closeSession: (sessionId: string): Effect.Effect<void, AppError> => {
-		return acpCommands.close_session.invoke<void>({ sessionId });
-	},
+	closeSession: Effect.fn("acp.closeSession")(function* (sessionId: string) {
+		const decodedSessionId = yield* decodeEffect("acp.closeSession", decodeSessionId)(sessionId);
+		const commandId = yield* nextCommandId("session-close");
+		yield* withRpcClient("acp.closeSession", (client) =>
+			client.dispatch({
+				type: "session.close",
+				commandId,
+				sessionId: decodedSessionId,
+			})
+		);
+	}),
 
-	registerCustomAgent: (config: CustomAgentConfig): Effect.Effect<void, AppError> => {
-		return acpCommands.register_custom_agent.invoke<void>({ config });
-	},
+	registerCustomAgent: (_config: CustomAgentConfig): Effect.Effect<void, AppError> =>
+		unsupportedOnContract("acp.registerCustomAgent"),
 
-	getEventBridgeInfo: (): Effect.Effect<EventBridgeInfo, AppError> => {
-		return getCachedEventBridgeInfo();
-	},
+	// SSE-over-HTTP bridge from the Tauri build. Under Electrobun, session
+	// updates ride the `events` RPC stream (client.events(fromSequence), see
+	// rpc.ts) instead -- there is no eventsUrl to hand out any more. See this
+	// file's header comment: get_event_bridge_info has no Electrobun handler
+	// and already fails on every call today.
+	getEventBridgeInfo: (): Effect.Effect<{ readonly eventsUrl: string }, AppError> =>
+		unsupportedOnContract("acp.getEventBridgeInfo"),
 
-	getSessionState: (sessionId: string): Effect.Effect<SessionStateEnvelope, AppError> => {
-		return acpCommands.get_session_state.invoke<SessionStateEnvelope>({ sessionId });
-	},
-
-	getSessionConnectionReadiness: (
-		sessionId: string
-	): Effect.Effect<SessionConnectionReadiness, AppError> => {
-		return acpCommands.get_session_connection_readiness.invoke<SessionConnectionReadiness>({
+	getSessionState: Effect.fn("acp.getSessionState")(function* (sessionId: string) {
+		const lifecycle = yield* lifecycleForSession(sessionId);
+		const envelope: SessionStateEnvelope = {
 			sessionId,
-		});
-	},
+			graphRevision: 0,
+			lastEventSeq: 0,
+			payload: {
+				kind: "lifecycle",
+				lifecycle,
+				revision: { graphRevision: 0, transcriptRevision: 0, lastEventSeq: 0 },
+			},
+		};
+		return envelope;
+	}),
 
-	rpcCall(method: string, params: Record<string, unknown>): Effect.Effect<unknown, AppError> {
-		const command = `${ACP_PREFIX}${method.replace("/", "_")}`;
-		return invokeAsync(command, params);
+	getSessionConnectionReadiness: Effect.fn("acp.getSessionConnectionReadiness")(function* (
+		sessionId: string
+	) {
+		const lifecycle = yield* lifecycleForSession(sessionId);
+		const capabilities: SessionGraphCapabilities = {};
+		return {
+			graphRevision: 0,
+			lifecycle,
+			capabilities,
+		};
+	}),
+
+	rpcCall(_method: string, _params: Record<string, unknown>): Effect.Effect<unknown, AppError> {
+		// The old raw JSON-RPC passthrough into the ACP subprocess. No live
+		// caller today, and the contract has no generic passthrough primitive
+		// -- every real operation is a typed command/query now.
+		return unsupportedOnContract("acp.rpcCall");
 	},
 };
 
-function serializeInteractionReplyHandler(
-	replyHandler: InteractionReplyRequest["replyHandler"]
-): Record<string, unknown> {
-	return {
-		kind: replyHandler.kind === "json-rpc" ? "json_rpc" : "http",
-		requestId: String(replyHandler.requestId),
-	};
-}
-
-function serializeInteractionReplyPayload(
+function interactionReplyDecision(
 	payload: InteractionReplyRequest["payload"]
-): Record<string, unknown> {
+): "allow" | "deny" | null {
 	switch (payload.kind) {
 		case "permission":
-			return {
-				kind: "permission",
-				reply: payload.reply,
-				option_id: payload.optionId,
-			};
-		case "question":
-			return {
-				kind: "question",
-				answers: payload.answers,
-				answer_map: payload.answerMap,
-			};
-		case "question_cancel":
-			return {
-				kind: "question_cancel",
-			};
+			return payload.reply === "reject" ? "deny" : "allow";
 		case "plan_approval":
-			return {
-				kind: "plan_approval",
-				approved: payload.approved,
-			};
+			return payload.approved ? "allow" : "deny";
 		case "computer_permission":
-			return {
-				kind: "computer_permission",
-				accepted: payload.accepted,
-				scope: payload.scope,
-			};
+			return payload.accepted ? "allow" : "deny";
+		case "question":
+		case "question_cancel":
+			return null;
 	}
 }

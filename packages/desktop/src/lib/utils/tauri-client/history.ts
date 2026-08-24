@@ -15,11 +15,8 @@ import type { AppError } from "../../acp/errors/app-error.js";
 import type { SessionOpenResult } from "../../services/acp-types.js";
 import type { HistoryEntry, StartupSessionsResponse } from "../../services/claude-history-types.js";
 import type { SessionPlanResponse } from "../../services/converted-session-types.js";
-import { TAURI_COMMAND_CLIENT } from "../../services/tauri-command-client.js";
 import { decodeTrimmed, decodeEffect, nextCommandId, unsupportedOnContract, withRpcClient } from "./rpc-bridge.ts";
 import type { ProjectInfo, ProjectSessionCounts, SessionLoadTiming } from "./types.js";
-
-const historyCommands = TAURI_COMMAND_CLIENT.history;
 
 export interface TranscriptRowLedgerBackfillResult {
 	readonly requestedLimit: number;
@@ -46,10 +43,26 @@ export interface TranscriptRowLedgerBackfillResult {
 //
 // getSessionOpenResult/awaitSessionOpenRepair/getUnifiedPlan/
 // warmRecentTranscriptRowLedgers/invalidateHistoryCache/
-// setSessionWorktreePath stay on TAURI_COMMAND_CLIENT: full session-content
-// hydration+repair and worktree-path tracking have no TS/RPC counterpart yet
-// (worktreePath is not a field the orchestration model tracks per-session).
-// See the #249 issue thread for the follow-up slice.
+// setSessionWorktreePath are now honestly unsupportedOnContract rather than
+// routed through TAURI_COMMAND_CLIENT. This is not a behaviour regression:
+// verified there is no get_session_open_result/await_session_open_repair/
+// get_unified_plan/warm_recent_transcript_row_ledgers/
+// invalidate_history_cache/set_session_worktree_path handler anywhere in
+// packages/electrobun-shell or packages/server, so every one of these calls
+// already failed on every invocation under the current Electrobun app --
+// this makes that failure typed and explicit instead of an unresolved Tauri
+// invoke with no receiver.
+//
+// Real follow-up work, out of scope for this slice (each is its own sized
+// piece): getSessionOpenResult/awaitSessionOpenRepair need the full
+// session-content hydration+repair payload (transcript, operations,
+// interactions, turn state, capabilities -- see SessionOpenResult in
+// acp-types.ts) mapped from the orchestration session snapshot, which the
+// projector does not carry today (see the projector.ts no-ops for
+// SessionModelSet/SessionModeSet/etc -- the same gap this method would need
+// closed first). setSessionWorktreePath needs a worktreePath field added to
+// session.meta.update (contract + decider + projector + a migration), not
+// just a facade change. See the #249 issue thread.
 export const history = {
 	// Diagnostic-only timing probe for the Rust session-load path; no live
 	// caller today (see #249 batch 2 map).
@@ -63,23 +76,17 @@ export const history = {
 	},
 
 	getSessionOpenResult: (
-		sessionId: string,
-		projectPath: string,
-		agentId: string,
-		sourcePath?: string,
-		repairPriority: "selected" | "visible" | "backfill" = "selected"
+		_sessionId: string,
+		_projectPath: string,
+		_agentId: string,
+		_sourcePath?: string,
+		_repairPriority: "selected" | "visible" | "backfill" = "selected"
 	): Effect.Effect<SessionOpenResult, AppError> => {
-		return historyCommands.get_session_open_result.invoke<SessionOpenResult>({
-			sessionId,
-			projectPath,
-			agentId,
-			sourcePath,
-			repairPriority,
-		});
+		return unsupportedOnContract("history.getSessionOpenResult");
 	},
 
-	awaitSessionOpenRepair: (repairTicket: string): Effect.Effect<SessionOpenResult, AppError> => {
-		return historyCommands.await_session_open_repair.invoke<SessionOpenResult>({ repairTicket });
+	awaitSessionOpenRepair: (_repairTicket: string): Effect.Effect<SessionOpenResult, AppError> => {
+		return unsupportedOnContract("history.awaitSessionOpenRepair");
 	},
 
 	getStartupSessions: (sessionIds: string[]): Effect.Effect<StartupSessionsResponse, AppError> => {
@@ -102,25 +109,17 @@ export const history = {
 	},
 
 	warmRecentTranscriptRowLedgers: (
-		limit?: number
+		_limit?: number
 	): Effect.Effect<TranscriptRowLedgerBackfillResult, AppError> => {
-		return historyCommands.warm_recent_transcript_row_ledgers.invoke<TranscriptRowLedgerBackfillResult>(
-			{
-				limit: limit ?? null,
-			}
-		);
+		return unsupportedOnContract("history.warmRecentTranscriptRowLedgers");
 	},
 
 	getUnifiedPlan: (
-		sessionId: string,
-		projectPath: string,
-		agentId: string
+		_sessionId: string,
+		_projectPath: string,
+		_agentId: string
 	): Effect.Effect<SessionPlanResponse | null, AppError> => {
-		return historyCommands.get_unified_plan.invoke<SessionPlanResponse | null>({
-			sessionId,
-			projectPath,
-			agentId,
-		});
+		return unsupportedOnContract("history.getUnifiedPlan");
 	},
 
 	scanProjectSessions: (projectPaths: string[]): Effect.Effect<HistoryEntry[], AppError> => {
@@ -139,7 +138,7 @@ export const history = {
 	},
 
 	invalidateHistoryCache: (): Effect.Effect<void, AppError> => {
-		return historyCommands.invalidate_history_cache.invoke<void>();
+		return unsupportedOnContract("history.invalidateHistoryCache");
 	},
 
 	// Whole-machine provider-directory discovery; no live caller today (see
@@ -191,17 +190,12 @@ export const history = {
 	},
 
 	setSessionWorktreePath: (
-		sessionId: string,
-		worktreePath: string,
-		projectPath?: string,
-		agentId?: string
+		_sessionId: string,
+		_worktreePath: string,
+		_projectPath?: string,
+		_agentId?: string
 	): Effect.Effect<void, AppError> => {
-		return historyCommands.set_session_worktree_path.invoke<void>({
-			sessionId,
-			worktreePath,
-			projectPath,
-			agentId,
-		});
+		return unsupportedOnContract("history.setSessionWorktreePath");
 	},
 };
 
