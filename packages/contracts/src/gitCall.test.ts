@@ -57,6 +57,108 @@ describe("GitCallRequest", () => {
 		expect(decoded.limit).toBe(10)
 	})
 
+	it("decodes a push/pull/remote op by its op discriminant", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(GitCallRequest)({
+				op: "git.push",
+				projectPath: "/tmp/acepe",
+			}),
+		)
+		expect(decoded).toEqual({ op: "git.push", projectPath: "/tmp/acepe" })
+	})
+
+	it("decodes a stash op with its index", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(GitCallRequest)({
+				op: "git.stashPop",
+				projectPath: "/tmp/acepe",
+				index: 0,
+			}),
+		)
+		expect(decoded).toEqual({ op: "git.stashPop", projectPath: "/tmp/acepe", index: 0 })
+	})
+
+	it("decodes a worktree lifecycle op with its own path field", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(GitCallRequest)({
+				op: "git.worktreeRemove",
+				worktreePath: "/tmp/acepe-wt/clever-falcon",
+				force: true,
+			}),
+		)
+		expect(decoded).toEqual({
+			op: "git.worktreeRemove",
+			worktreePath: "/tmp/acepe-wt/clever-falcon",
+			force: true,
+		})
+	})
+
+	it("decodes a runWorktreeSetup request with two distinct path fields", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(GitCallRequest)({
+				op: "git.runWorktreeSetup",
+				worktreePath: "/tmp/acepe-wt/clever-falcon",
+				projectPath: "/tmp/acepe",
+			}),
+		)
+		expect(decoded).toEqual({
+			op: "git.runWorktreeSetup",
+			worktreePath: "/tmp/acepe-wt/clever-falcon",
+			projectPath: "/tmp/acepe",
+		})
+	})
+
+	it("decodes a discardPreparedWorktreeSessionLaunch request with no path field", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(GitCallRequest)({
+				op: "git.discardPreparedWorktreeSessionLaunch",
+				launchToken: "token-1",
+				removeWorktree: true,
+			}),
+		)
+		expect(decoded).toEqual({
+			op: "git.discardPreparedWorktreeSessionLaunch",
+			launchToken: "token-1",
+			removeWorktree: true,
+		})
+	})
+
+	it("decodes a runStackedAction op with its optional pr title/body", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(GitCallRequest)({
+				op: "git.runStackedAction",
+				projectPath: "/tmp/acepe",
+				action: "commit_push_pr",
+				commitMessage: "fix: thing",
+				prTitle: "Fix thing",
+			}),
+		)
+		expect(decoded).toEqual({
+			op: "git.runStackedAction",
+			projectPath: "/tmp/acepe",
+			action: "commit_push_pr",
+			commitMessage: "fix: thing",
+			prTitle: "Fix thing",
+		})
+	})
+
+	it("decodes a prDetails/prChecks/mergePr op with its prNumber", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(GitCallRequest)({
+				op: "git.mergePr",
+				projectPath: "/tmp/acepe",
+				prNumber: 42,
+				strategy: "squash",
+			}),
+		)
+		expect(decoded).toEqual({
+			op: "git.mergePr",
+			projectPath: "/tmp/acepe",
+			prNumber: 42,
+			strategy: "squash",
+		})
+	})
+
 	it("rejects a blank projectPath", () => {
 		const decoded = Effect.runSyncExit(
 			Schema.decodeUnknownEffect(GitCallRequest)({
@@ -119,5 +221,146 @@ describe("GitCallResult", () => {
 			}),
 		)
 		expect(decoded).toEqual({ op: "git.isRepo", isRepo: true })
+	})
+
+	it("decodes a remoteStatus result", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(GitCallResult)({
+				op: "git.remoteStatus",
+				ahead: 1,
+				behind: 2,
+				remote: "origin",
+				trackingBranch: "origin/main",
+			}),
+		)
+		expect(decoded).toEqual({
+			op: "git.remoteStatus",
+			ahead: 1,
+			behind: 2,
+			remote: "origin",
+			trackingBranch: "origin/main",
+		})
+	})
+
+	it("decodes a stashList result's entries", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(GitCallResult)({
+				op: "git.stashList",
+				entries: [{ index: 0, message: "WIP on main", date: "2 hours ago" }],
+			}),
+		)
+		expect(decoded).toEqual({
+			op: "git.stashList",
+			entries: [{ index: 0, message: "WIP on main", date: "2 hours ago" }],
+		})
+	})
+
+	it("decodes a prepareWorktreeSessionLaunch result's nested worktree info", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(GitCallResult)({
+				op: "git.prepareWorktreeSessionLaunch",
+				launch: {
+					launchToken: "token-1",
+					sequenceId: 1,
+					worktree: {
+						name: "clever-falcon",
+						branch: "clever-falcon",
+						directory: "/tmp/acepe-wt/clever-falcon",
+						origin: "acepe",
+					},
+				},
+			}),
+		)
+		expect(decoded.op).toBe("git.prepareWorktreeSessionLaunch")
+		if (decoded.op === "git.prepareWorktreeSessionLaunch") {
+			expect(decoded.launch.worktree.origin).toBe("acepe")
+		}
+	})
+
+	it("decodes a runWorktreeSetup result's per-command outputs", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(GitCallResult)({
+				op: "git.runWorktreeSetup",
+				result: {
+					success: false,
+					outputs: [{ command: "bun install", stdout: "", stderr: "boom", exitCode: 1 }],
+					error: "Command failed: bun install",
+				},
+			}),
+		)
+		expect(decoded.op).toBe("git.runWorktreeSetup")
+		if (decoded.op === "git.runWorktreeSetup") {
+			expect(decoded.result.success).toBe(false)
+			expect(decoded.result.outputs[0]?.exitCode).toBe(1)
+		}
+	})
+
+	it("decodes a runStackedAction result's nested commit/push/pr steps", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(GitCallResult)({
+				op: "git.runStackedAction",
+				result: {
+					action: "commit_push_pr",
+					commit: { status: "created", commitSha: "abc123", subject: "fix: thing" },
+					push: { status: "pushed", branch: "feature/x", upstreamBranch: "feature/x" },
+					pr: {
+						status: "created",
+						url: "https://github.com/flazouh/acepe/pull/1",
+						number: 1,
+						title: "Fix thing",
+						baseBranch: "main",
+						headBranch: "feature/x",
+					},
+				},
+			}),
+		)
+		expect(decoded.op).toBe("git.runStackedAction")
+		if (decoded.op === "git.runStackedAction") {
+			expect(decoded.result.pr.status).toBe("created")
+			expect(decoded.result.pr.number).toBe(1)
+		}
+	})
+
+	it("decodes a prDetails result's nested commits", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(GitCallResult)({
+				op: "git.prDetails",
+				details: {
+					number: 235,
+					title: "fix(website): remove landing announcement banner",
+					body: "",
+					state: "MERGED",
+					url: "https://github.com/flazouh/acepe/pull/235",
+					isDraft: false,
+					additions: 1,
+					deletions: 1,
+					commits: [{ oid: "abc", messageHeadline: "fix it", additions: 1, deletions: 1 }],
+				},
+			}),
+		)
+		expect(decoded.op).toBe("git.prDetails")
+		if (decoded.op === "git.prDetails") {
+			expect(decoded.details.state).toBe("MERGED")
+			expect(decoded.details.commits).toHaveLength(1)
+		}
+	})
+
+	it("decodes a ciJobDetails result's nested steps", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(GitCallResult)({
+				op: "git.ciJobDetails",
+				details: {
+					id: 1,
+					name: "build",
+					status: "completed",
+					conclusion: "success",
+					steps: [{ number: 1, name: "checkout", status: "completed", conclusion: "success", log: "" }],
+				},
+			}),
+		)
+		expect(decoded.op).toBe("git.ciJobDetails")
+		if (decoded.op === "git.ciJobDetails") {
+			expect(decoded.details.steps).toHaveLength(1)
+		}
 	})
 })

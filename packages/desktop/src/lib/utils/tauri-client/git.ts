@@ -30,27 +30,28 @@ const unwrapGitCallResult = <Tag extends GitCallResult["op"]>(
 // moves to unsupportedOnContract below with its own note.
 //
 // init/isRepo/currentBranch/listBranches/checkoutBranch/
-// hasUncommittedChanges (branch/checkout) and panelStatus/stageFiles/
-// unstageFiles/stageAll/discardChanges/commit/log (stage/commit) ride the
-// gitCall utility RPC (packages/contracts/src/gitCall.ts) -- a tagged-union
-// request/response pair routed server-side onto GitService
+// hasUncommittedChanges (branch/checkout), panelStatus/stageFiles/
+// unstageFiles/stageAll/discardChanges/commit/log (stage/commit),
+// push/pull/fetch/remoteStatus (push/pull/remote), stashList/stashPop/
+// stashDrop (stash), prepareWorktreeSessionLaunch/
+// discardPreparedWorktreeSessionLaunch/worktreeRemove/worktreeList/
+// loadWorktreeConfig/saveWorktreeConfig/runWorktreeSetup (worktree
+// lifecycle/config), and runStackedAction/collectShipContext/prDetails/
+// prChecks/mergePr/ciJobDetails (ship/PR/CI) ride the gitCall utility RPC
+// (packages/contracts/src/gitCall.ts) -- a tagged-union request/response
+// pair routed server-side onto GitService
 // (packages/server/src/git/gitCallHandler.ts), per the #249 issue thread's
-// DESIGN DECISION. Growing that union by sub-domain adds zero new RPC
-// primitives after the first.
+// DESIGN DECISION. That's every live-caller method in this file.
 //
-// The remaining 20 methods (prepareWorktreeSessionLaunch through
-// saveWorktreeConfig) still have live callers -- git-panel.svelte,
-// agent-panel-ship-workflow.ts, branch-picker.svelte,
-// project-selection-panel.svelte, worktree-setup-orchestrator.ts, and
-// others -- and stay on TAURI_COMMAND_CLIENT this slice: push/pull/fetch/
-// remote-status, stash, worktree lifecycle (create/remove/list/rename/
-// reset/disk-size/prepare-launch), worktree-config/setup, and ship/PR/CI.
-// packages/server/src/git/makeGitService.ts's GitService already implements
-// almost all of that logic server-side too; the same one-shot
-// request/response shape that motivated the gitCall utility-RPC pattern for
-// branch/checkout and stage/commit applies to these sub-domains, and a
-// follow-up slice should grow the gitCall union to carry them. See the #249
-// issue thread.
+// watchHead is the one live caller left on TAURI_COMMAND_CLIENT, and it's
+// different in kind, not just unmigrated scope: it is a Stream
+// (GitService.watchHead returns Stream.Stream, polling for HEAD changes),
+// and gitCall is a plain one-shot request/response RPC (see rpc.ts's
+// GitCall, which has no `stream: true`), so it cannot ride this union
+// without a second RPC primitive -- out of scope for the gitCall-union
+// slices per the #249 issue thread's DESIGN DECISION. Because of it, this
+// file is not yet off TAURI_COMMAND_CLIENT and check-tauri-client-
+// importers.ts's BASELINE stays where it is.
 export const git = {
 	// No live caller today (see #249 batch 2 map); the clone-a-new-project
 	// flow that used this is dormant. GitService.clone already exists
@@ -134,27 +135,31 @@ export const git = {
 		projectPath: string,
 		agentId: string
 	): Effect.Effect<PreparedWorktreeLaunch, AppError> => {
-		return gitCommands.prepare_worktree_session_launch.invoke<PreparedWorktreeLaunch>({
-			projectPath,
-			agentId,
-		});
+		return withRpcClient("git.prepareWorktreeSessionLaunch", (client) =>
+			client.gitCall({ op: "git.prepareWorktreeSessionLaunch", projectPath, agentId })
+		).pipe(
+			Effect.flatMap((result) => unwrapGitCallResult("git.prepareWorktreeSessionLaunch", result)),
+			Effect.map((result) => result.launch)
+		);
 	},
 
 	discardPreparedWorktreeSessionLaunch: (
 		launchToken: string,
 		removeWorktree = false
 	): Effect.Effect<void, AppError> => {
-		return gitCommands.discard_prepared_worktree_session_launch.invoke<void>({
-			launchToken,
-			removeWorktree,
-		});
+		return withRpcClient("git.discardPreparedWorktreeSessionLaunch", (client) =>
+			client.gitCall({
+				op: "git.discardPreparedWorktreeSessionLaunch",
+				launchToken,
+				removeWorktree,
+			})
+		).pipe(Effect.asVoid);
 	},
 
 	worktreeRemove: (worktreePath: string, force?: boolean): Effect.Effect<void, AppError> => {
-		return gitCommands.worktree_remove.invoke<void>({
-			worktreePath,
-			force: force ?? false,
-		});
+		return withRpcClient("git.worktreeRemove", (client) =>
+			client.gitCall({ op: "git.worktreeRemove", worktreePath, force: force ?? false })
+		).pipe(Effect.asVoid);
 	},
 
 	// No live caller today (see #249 batch 2 map); worktree reset has no UI
@@ -164,7 +169,12 @@ export const git = {
 	},
 
 	worktreeList: (projectPath: string): Effect.Effect<WorktreeInfo[], AppError> => {
-		return gitCommands.worktree_list.invoke<WorktreeInfo[]>({ projectPath });
+		return withRpcClient("git.worktreeList", (client) =>
+			client.gitCall({ op: "git.worktreeList", projectPath })
+		).pipe(
+			Effect.flatMap((result) => unwrapGitCallResult("git.worktreeList", result)),
+			Effect.map((result) => [...result.worktrees])
+		);
 	},
 
 	// No live caller today (see #249 batch 2 map); worktree rename has no UI
@@ -233,31 +243,56 @@ export const git = {
 	},
 
 	push: (projectPath: string): Effect.Effect<void, AppError> => {
-		return gitCommands.push.invoke<void>({ projectPath });
+		return withRpcClient("git.push", (client) =>
+			client.gitCall({ op: "git.push", projectPath })
+		).pipe(Effect.asVoid);
 	},
 
 	pull: (projectPath: string): Effect.Effect<void, AppError> => {
-		return gitCommands.pull.invoke<void>({ projectPath });
+		return withRpcClient("git.pull", (client) =>
+			client.gitCall({ op: "git.pull", projectPath })
+		).pipe(Effect.asVoid);
 	},
 
 	fetch: (projectPath: string): Effect.Effect<void, AppError> => {
-		return gitCommands.fetch.invoke<void>({ projectPath });
+		return withRpcClient("git.fetch", (client) =>
+			client.gitCall({ op: "git.fetch", projectPath })
+		).pipe(Effect.asVoid);
 	},
 
 	remoteStatus: (projectPath: string): Effect.Effect<GitRemoteStatus, AppError> => {
-		return gitCommands.remote_status.invoke<GitRemoteStatus>({ projectPath });
+		return withRpcClient("git.remoteStatus", (client) =>
+			client.gitCall({ op: "git.remoteStatus", projectPath })
+		).pipe(
+			Effect.flatMap((result) => unwrapGitCallResult("git.remoteStatus", result)),
+			Effect.map((result) => ({
+				ahead: result.ahead,
+				behind: result.behind,
+				remote: result.remote,
+				trackingBranch: result.trackingBranch
+			}))
+		);
 	},
 
 	stashList: (projectPath: string): Effect.Effect<GitStashEntry[], AppError> => {
-		return gitCommands.stash_list.invoke<GitStashEntry[]>({ projectPath });
+		return withRpcClient("git.stashList", (client) =>
+			client.gitCall({ op: "git.stashList", projectPath })
+		).pipe(
+			Effect.flatMap((result) => unwrapGitCallResult("git.stashList", result)),
+			Effect.map((result) => [...result.entries])
+		);
 	},
 
 	stashPop: (projectPath: string, index: number): Effect.Effect<void, AppError> => {
-		return gitCommands.stash_pop.invoke<void>({ projectPath, index });
+		return withRpcClient("git.stashPop", (client) =>
+			client.gitCall({ op: "git.stashPop", projectPath, index })
+		).pipe(Effect.asVoid);
 	},
 
 	stashDrop: (projectPath: string, index: number): Effect.Effect<void, AppError> => {
-		return gitCommands.stash_drop.invoke<void>({ projectPath, index });
+		return withRpcClient("git.stashDrop", (client) =>
+			client.gitCall({ op: "git.stashDrop", projectPath, index })
+		).pipe(Effect.asVoid);
 	},
 
 	// No live caller today (see #249 batch 2 map); git-panel.svelte only
@@ -311,13 +346,19 @@ export const git = {
 		prTitle?: string,
 		prBody?: string
 	): Effect.Effect<GitStackedActionResult, AppError> => {
-		return gitCommands.run_stacked_action.invoke<GitStackedActionResult>({
-			projectPath,
-			action,
-			commitMessage,
-			prTitle,
-			prBody,
-		});
+		return withRpcClient("git.runStackedAction", (client) =>
+			client.gitCall({
+				op: "git.runStackedAction",
+				projectPath,
+				action,
+				commitMessage,
+				...(prTitle === undefined ? {} : { prTitle }),
+				...(prBody === undefined ? {} : { prBody }),
+			})
+		).pipe(
+			Effect.flatMap((result) => unwrapGitCallResult("git.runStackedAction", result)),
+			Effect.map((result) => result.result)
+		);
 	},
 
 	/**
@@ -328,18 +369,34 @@ export const git = {
 		projectPath: string,
 		customInstructions?: string
 	): Effect.Effect<ShipContext | null, AppError> => {
-		return gitCommands.collect_ship_context.invoke<ShipContext | null>({
-			projectPath,
-			customInstructions,
-		});
+		return withRpcClient("git.collectShipContext", (client) =>
+			client.gitCall({
+				op: "git.collectShipContext",
+				projectPath,
+				...(customInstructions === undefined ? {} : { customInstructions }),
+			})
+		).pipe(
+			Effect.flatMap((result) => unwrapGitCallResult("git.collectShipContext", result)),
+			Effect.map((result) => result.context)
+		);
 	},
 
 	prDetails: (projectPath: string, prNumber: number): Effect.Effect<PrDetails, AppError> => {
-		return gitCommands.pr_details.invoke<PrDetails>({ projectPath, prNumber });
+		return withRpcClient("git.prDetails", (client) =>
+			client.gitCall({ op: "git.prDetails", projectPath, prNumber })
+		).pipe(
+			Effect.flatMap((result) => unwrapGitCallResult("git.prDetails", result)),
+			Effect.map((result) => ({ ...result.details, commits: [...result.details.commits] }))
+		);
 	},
 
 	prChecks: (projectPath: string, prNumber: number): Effect.Effect<PrChecks, AppError> => {
-		return gitCommands.pr_checks.invoke<PrChecks>({ projectPath, prNumber });
+		return withRpcClient("git.prChecks", (client) =>
+			client.gitCall({ op: "git.prChecks", projectPath, prNumber })
+		).pipe(
+			Effect.flatMap((result) => unwrapGitCallResult("git.prChecks", result)),
+			Effect.map((result) => ({ ...result.checks, checkRuns: [...result.checks.checkRuns] }))
+		);
 	},
 
 	mergePr: (
@@ -347,7 +404,9 @@ export const git = {
 		prNumber: number,
 		strategy: MergeStrategy
 	): Effect.Effect<void, AppError> => {
-		return gitCommands.merge_pr.invoke<void>({ projectPath, prNumber, strategy });
+		return withRpcClient("git.mergePr", (client) =>
+			client.gitCall({ op: "git.mergePr", projectPath, prNumber, strategy })
+		).pipe(Effect.asVoid);
 	},
 
 	// No live caller today (see #249 batch 2 map); pr-link-state-store gets its
@@ -357,7 +416,12 @@ export const git = {
 	},
 
 	ciJobDetails: (projectPath: string, detailsUrl: string): Effect.Effect<CiJobDetails, AppError> => {
-		return gitCommands.ci_job_details.invoke<CiJobDetails>({ projectPath, detailsUrl });
+		return withRpcClient("git.ciJobDetails", (client) =>
+			client.gitCall({ op: "git.ciJobDetails", projectPath, detailsUrl })
+		).pipe(
+			Effect.flatMap((result) => unwrapGitCallResult("git.ciJobDetails", result)),
+			Effect.map((result) => ({ ...result.details, steps: [...result.details.steps] }))
+		);
 	},
 
 	// ─── Git HEAD Watcher ──────────────────────────────────────────────
@@ -367,21 +431,52 @@ export const git = {
 	},
 
 	loadWorktreeConfig: (projectPath: string): Effect.Effect<WorktreeConfig | null, AppError> => {
-		return gitCommands.load_worktree_config.invoke<WorktreeConfig | null>({ projectPath });
+		return withRpcClient("git.loadWorktreeConfig", (client) =>
+			client.gitCall({ op: "git.loadWorktreeConfig", projectPath })
+		).pipe(
+			Effect.flatMap((result) => unwrapGitCallResult("git.loadWorktreeConfig", result)),
+			Effect.map((result) =>
+				result.config === null ? null : { setupCommands: [...result.config.setupCommands] }
+			)
+		);
 	},
 
+	// gitCall's git.runWorktreeSetup result mirrors GitService's SetupResult
+	// shape (outputs/success/error), which differs from this facade's
+	// long-standing SetupResult type (commandsRun/output, and a per-command
+	// success flag) -- worktree-setup-orchestrator.ts reads commandsRun/
+	// success/error off the return value, so this maps shapes rather than
+	// changing the facade's signature.
 	runWorktreeSetup: (
 		worktreePath: string,
 		projectPath: string
 	): Effect.Effect<SetupResult, AppError> => {
-		return gitCommands.run_worktree_setup.invoke<SetupResult>({ worktreePath, projectPath });
+		return withRpcClient("git.runWorktreeSetup", (client) =>
+			client.gitCall({ op: "git.runWorktreeSetup", worktreePath, projectPath })
+		).pipe(
+			Effect.flatMap((result) => unwrapGitCallResult("git.runWorktreeSetup", result)),
+			Effect.map(({ result }) => ({
+				success: result.success,
+				commandsRun: result.outputs.length,
+				error: result.error,
+				output: result.outputs.map((entry) => ({
+					command: entry.command,
+					success: entry.exitCode === 0,
+					stdout: entry.stdout,
+					stderr: entry.stderr,
+					exitCode: entry.exitCode,
+				})),
+			}))
+		);
 	},
 
 	saveWorktreeConfig: (
 		projectPath: string,
 		setupCommands: string[]
 	): Effect.Effect<void, AppError> => {
-		return gitCommands.save_worktree_config.invoke<void>({ projectPath, setupCommands });
+		return withRpcClient("git.saveWorktreeConfig", (client) =>
+			client.gitCall({ op: "git.saveWorktreeConfig", projectPath, setupCommands })
+		).pipe(Effect.asVoid);
 	},
 };
 
