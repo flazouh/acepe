@@ -11,6 +11,13 @@ import { makeElectrobunRpcTransport } from "$lib/rpc/client.ts";
 import { provideAppRpcClient } from "$lib/rpc/app-client.ts";
 import { installElectrobunWebviewRpc } from "$lib/rpc/electrobun-bridge.ts";
 import { desktopShellKind, type DesktopShellKind } from "$lib/rpc/electrobun-shell-window.ts";
+import { installQaDispatchHook } from "$lib/rpc/qa-dispatch-hook.ts";
+
+// Same QA-hooks gate as main-app-view.svelte's QA_HOOKS_ENABLED /
+// panel-open-performance-mark.ts: import.meta.env.DEV is false in the
+// electrobun production build QA runs against, so VITE_ENABLE_QA_HOOKS=1
+// is how a QA build opts back in.
+const QA_HOOKS_ENABLED = import.meta.env.DEV || import.meta.env.VITE_ENABLE_QA_HOOKS === "1";
 
 let rpcClient = $state<RpcClient | null>(null);
 let shell = $state<DesktopShellKind>("pending");
@@ -43,6 +50,9 @@ onMount(() => {
 						setTimeout(() => {
 							provideAppRpcClient(client);
 							rpcClient = client;
+							if (QA_HOOKS_ENABLED) {
+								installQaDispatchHook();
+							}
 						}, 0);
 					}),
 			})

@@ -1617,6 +1617,9 @@ onMount(async () => {
 	mainAppMountStartedAtMs = performance.now();
 	mainAppInvokeTimingBaselineIndex = getTauriInvokeTimings().length;
 	installHappyPathProbeQaHook();
+	if (QA_HOOKS_ENABLED) {
+		installQaDispatchHook();
+	}
 
 	// Initialize the app state (handles all initialization logic including background scan)
 	const initResult = await Effect.runPromise(Effect.result(viewState.initialize()));
@@ -1630,7 +1633,6 @@ onMount(async () => {
 
 	if (import.meta.env.DEV) {
 		installStreamingReproQaHook();
-		installQaDispatchHook();
 		updaterState = createAvailableUpdaterState(DEV_UPDATE_VERSION);
 	} else {
 		void checkForAppUpdate("startup");
