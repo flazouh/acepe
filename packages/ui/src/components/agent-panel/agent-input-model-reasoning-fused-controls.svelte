@@ -24,7 +24,7 @@
 	}: Props = $props();
 </script>
 
-<div class="model-reasoning-controls flex shrink-0 items-end">
+<div class="model-reasoning-controls flex min-w-0 items-end">
 	{#snippet modelPrimary()}
 		{@render modelSelector()}
 	{/snippet}

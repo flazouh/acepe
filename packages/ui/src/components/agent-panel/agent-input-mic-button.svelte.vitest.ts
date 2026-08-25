@@ -25,6 +25,7 @@ describe("AgentInputMicButton", () => {
 			props: {
 				title: "Start voice recording",
 				ariaLabel: "Start voice recording",
+				shortcut: ["⌥"],
 				embeddedInGroup: true,
 			},
 		});
@@ -35,10 +36,30 @@ describe("AgentInputMicButton", () => {
 		expect(button.getAttribute("data-testid")).toBe("agent-input-mic");
 		expect(button.getAttribute("data-slot")).toBe("button");
 		expect(button.className).toContain("h-7");
-		expect(button.className).toContain("w-6");
 		expect(icon.tagName.toLowerCase()).toBe("svg");
 		expect(icon.getAttribute("viewBox")).toBe("0 0 24 24");
+		expect(icon.getAttribute("width")).toBe("14");
 		expect(icon.querySelectorAll("path").length).toBeGreaterThan(0);
 		expect(icon.querySelector("path")?.getAttribute("stroke")).toBe("currentColor");
+		expect(view.getByText("Start voice recording ⌥")).toBeTruthy();
+		expect(button.querySelector('[data-slot="kbd"]')).toBeNull();
+		expect(button.className).not.toContain("w-auto");
+	});
+
+	it("keeps the chip button shell when it stands alone outside a fused group", () => {
+		const view = render(AgentInputMicButton, {
+			props: {
+				title: "Start voice recording",
+				ariaLabel: "Start voice recording",
+				embeddedInGroup: false,
+			},
+		});
+
+		const button = view.getByRole("button", { name: "Start voice recording" });
+		const icon = view.getByTestId("agent-input-mic-icon");
+
+		expect(button.className).toContain("bg-secondary");
+		expect(button.className).toContain("h-7");
+		expect(icon.getAttribute("width")).toBe("14");
 	});
 });
