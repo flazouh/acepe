@@ -10,7 +10,8 @@ import {
 	SessionId,
 	TokenAppendedEvent,
 	TRACER_REPLY_TEXT,
-	TurnCancelCommand
+	TurnCancelCommand,
+	TurnCompletedEvent
 } from "@acepe/contracts"
 import * as BunCrypto from "@effect/platform-bun/BunCrypto"
 import * as BunFileSystem from "@effect/platform-bun/BunFileSystem"
@@ -166,6 +167,23 @@ const scriptedToken = (index: number, text: string) =>
 		}
 	})
 
+const scriptedTurnCompleted = () =>
+	TurnCompletedEvent.make({
+		sequence: 0,
+		eventId: EventId.make("fake-turn-complete"),
+		aggregateKind: "session",
+		aggregateId: sessionId,
+		occurredAt: "2026-08-24T00:00:00.000Z",
+		commandId: CommandId.make("fake-turn-complete"),
+		causationEventId: null,
+		correlationId: CommandId.make("fake-turn-complete"),
+		metadata: {},
+		type: "TurnCompleted",
+		payload: {
+			sessionId
+		}
+	})
+
 Vitest.describe("ProviderBridge", () => {
 	Vitest.it.live("forwards a scripted adapter's events into the store in order", () =>
 		makeScriptedAdapter(fakeProviderId).pipe(
@@ -232,6 +250,68 @@ Vitest.describe("ProviderBridge", () => {
 					// be filtered — only the command-derived MessageSent exists.
 					const messageSent = events.filter((event) => event.type === "MessageSent")
 					Vitest.assert.strictEqual(messageSent.length, 1)
+				}).pipe(
+					// @effect-diagnostics-next-line strictEffectProvide:off
+					Effect.provide(TestLive)
+				)
+			})
+		)
+	)
+
+	// Locks in that ProviderBridge's MessageSent/TurnCancelled de-dup filter
+	// (forwardAdapterEvents in ProviderBridge.ts) does NOT also catch
+	// TurnCompleted — a real adapter's own turn-end signal (ClaudeAdapter.ts's
+	// makeCompleted, etc.) must reach the store, or projection_turns can never
+	// close a turn no matter what the adapter emits.
+	Vitest.it.live("forwards the adapter's own TurnCompleted into the store", () =>
+		makeScriptedAdapter(fakeProviderId).pipe(
+			Effect.flatMap(({ adapter, startEvents, startSessionCount }) => {
+				const TestLive = ProviderBridgeLive.pipe(
+					Layer.provideMerge(ProviderAdapterRegistryLive([adapter])),
+					Layer.provideMerge(EngineLive)
+				)
+				return Effect.gen(function*() {
+					const engine = yield* OrchestrationEngine
+					const store = yield* OrchestrationEventStore
+					yield* engine.dispatch(
+						ProjectCreateCommand.make({
+							type: "project.create",
+							commandId: CommandId.make("cmd-project"),
+							projectId,
+							title: "Acepe",
+							workspaceRoot: "/tmp/acepe"
+						})
+					)
+					yield* engine.dispatch(
+						SessionCreateCommand.make({
+							type: "session.create",
+							commandId: CommandId.make("cmd-session"),
+							sessionId,
+							projectId,
+							title: "Real provider session",
+							providerId: fakeProviderId
+						})
+					)
+					yield* waitUntil(Ref.get(startSessionCount), (value) => value >= 1)
+					yield* engine.dispatch(
+						MessageSendCommand.make({
+							type: "message.send",
+							commandId: CommandId.make("cmd-message"),
+							sessionId,
+							messageId: userMessageId,
+							text: "Reply with exactly: TURN_42"
+						})
+					)
+					yield* Queue.offer(startEvents, scriptedToken(0, "TURN_42"))
+					yield* Queue.offer(startEvents, scriptedTurnCompleted())
+
+					const events = yield* waitUntil(
+						Stream.runCollect(store.readFrom(0, 50)),
+						(collected) => collected.some((event) => event.type === "TurnCompleted")
+					)
+					const completed = events.filter((event) => event.type === "TurnCompleted")
+					Vitest.assert.strictEqual(completed.length, 1)
+					Vitest.assert.isTrue(completed[0]!.sequence > 0)
 				}).pipe(
 					// @effect-diagnostics-next-line strictEffectProvide:off
 					Effect.provide(TestLive)
