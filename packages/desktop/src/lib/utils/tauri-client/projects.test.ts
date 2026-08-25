@@ -1,16 +1,16 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import {
-	SessionId,
 	emptyRpcSessionSnapshot,
 	ProjectId,
 	type RpcClient,
 	type RpcSessionSnapshot,
+	SessionId,
 } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import * as Stream from "effect/Stream";
 
-import { UI } from "../../acp/constants/ui.js";
+import { generateFallbackProjectColor } from "../../acp/utils/project-utils.js";
 import { setAppRpcClientForTest } from "../../rpc/app-client.ts";
 import { projects } from "./projects.ts";
 
@@ -56,7 +56,8 @@ const makeClient = (overrides: Partial<RpcClient>): RpcClient => ({
 	getProviderAccountUsage: () => Effect.succeed([]),
 	listProviderSessions: () => Effect.succeed([]),
 	listProviderProjects: () => Effect.succeed([]),
-	importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
+	importProviderSession: () =>
+		Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 	events: () => Stream.empty,
 	...overrides,
 });
@@ -77,11 +78,40 @@ describe("projects rpc facade", () => {
 						name: "Acepe",
 						last_opened: "2026-08-23T10:00:00.000Z",
 						created_at: "2026-08-23T09:00:00.000Z",
-						color: UI.DEFAULT_PROJECT_COLOR,
+						color: generateFallbackProjectColor("/repo/acepe"),
 						sort_order: 0,
 						icon_path: null,
 					},
 				]);
+			})
+		));
+
+	it("gives two checkouts of the same repository distinct colors", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				setAppRpcClientForTest(
+					makeClient({
+						snapshot: () =>
+							Effect.succeed(
+								withProjects(emptyRpcSessionSnapshot(0), [
+									projected,
+									{
+										projectId: ProjectId.make("project-2"),
+										title: "Acepe",
+										workspaceRoot: "/worktrees/acepe",
+										createdAt: "2026-08-23T09:00:00.000Z",
+										updatedAt: "2026-08-23T10:00:00.000Z",
+										deletedAt: null,
+										sessionCount: 0,
+										gitStatus: [],
+									},
+								])
+							),
+					})
+				);
+				const listed = yield* projects.getProjects();
+				expect(listed).toHaveLength(2);
+				expect(listed[0]?.color).not.toBe(listed[1]?.color);
 			})
 		));
 
@@ -125,9 +155,7 @@ describe("projects rpc facade", () => {
 		Effect.runPromise(
 			Effect.gen(function* () {
 				setAppRpcClientForTest(makeClient({}));
-				const result = yield* Effect.result(
-					projects.updateProjectColor("/repo/acepe", "#fff")
-				);
+				const result = yield* Effect.result(projects.updateProjectColor("/repo/acepe", "#fff"));
 				expect(Result.isFailure(result)).toBe(true);
 			})
 		));

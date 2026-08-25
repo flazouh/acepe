@@ -10,9 +10,6 @@ export const UI = {
 	/** Threshold for virtualizing large lists in edit diffs */
 	VIRTUALIZATION_THRESHOLD: 100,
 
-	/** Default hardcoded color for project icons (gray-500) */
-	DEFAULT_PROJECT_COLOR: "#6B7280",
-
 	/** Color for open/active thread indicators */
 	ACTIVE_THREAD_COLOR: "#fb923c",
 

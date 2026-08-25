@@ -32,9 +32,9 @@ describe("ProjectHeader", () => {
 		const badge = view.getByTestId("project-header-badge");
 		const chevron = view.getByTestId("project-header-chevron");
 
-		expect(leading.className).toContain("size-4");
-		expect(badge.className).toContain("absolute");
-		expect(badge.className).toContain("inset-0");
+		expect(leading.className).toContain("h-4");
+		expect(leading.className).toContain("min-w-4");
+		expect(badge.className).not.toContain("absolute");
 		expect(chevron.className).toContain("absolute");
 		expect(chevron.className).toContain("inset-0");
 		expect(chevron.className).toContain("opacity-0");

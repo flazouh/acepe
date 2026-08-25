@@ -39,14 +39,18 @@
 	class="group shrink-0 flex items-center {SIDEBAR_PROJECT_HEADER_PADDING_X_CLASS} transition-colors hover:bg-accent/30 {className}"
 	data-testid="project-header"
 >
-	<!-- Fixed badge-sized surface: icon and expand chevron share the same 16×16 slot. -->
+	<!--
+		Badge-sized surface: the badge stays in flow so a two-character label
+		widens the slot instead of painting over the project name, and the expand
+		chevron overlays that same surface.
+	-->
 	<div
-		class="relative inline-flex size-4 shrink-0 items-center justify-center"
+		class="relative inline-flex h-4 min-w-4 shrink-0 items-center justify-center"
 		data-testid="project-header-leading"
 		aria-hidden="true"
 	>
 		<span
-			class="absolute inset-0 flex items-center justify-center transition-opacity duration-150 group-hover:opacity-0 group-focus-within:opacity-0"
+			class="flex items-center justify-center transition-opacity duration-150 group-hover:opacity-0 group-focus-within:opacity-0"
 			data-testid="project-header-badge"
 		>
 			<ProjectLetterBadge

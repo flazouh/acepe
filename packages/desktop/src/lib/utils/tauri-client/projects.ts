@@ -6,7 +6,7 @@ import {
 import * as Effect from "effect/Effect";
 
 import { AgentError, type AppError } from "../../acp/errors/app-error.js";
-import { UI } from "../../acp/constants/ui.js";
+import { generateFallbackProjectColor } from "../../acp/utils/project-utils.js";
 import {
 	decodeEffect,
 	decodeTrimmed,
@@ -16,12 +16,16 @@ import {
 } from "./rpc-bridge.ts";
 import type { ProjectAcepeConfig, ProjectData } from "./types.js";
 
+// The library projection carries no color yet, so every project derives one
+// deterministically from its workspace root. This matches the fallback the
+// session, tab, and queue surfaces already use, and it keeps two checkouts of
+// the same repository visually distinct.
 const mapProject = (row: RpcProjectedProject): ProjectData => ({
 	path: row.workspaceRoot,
 	name: row.title,
 	last_opened: row.updatedAt,
 	created_at: row.createdAt,
-	color: UI.DEFAULT_PROJECT_COLOR,
+	color: generateFallbackProjectColor(row.workspaceRoot),
 	sort_order: 0,
 	icon_path: null,
 });
@@ -58,9 +62,10 @@ const dispatchProjectCreate = Effect.fn("dispatchProjectCreate")(function* (
 	const workspaceRoot = yield* decodeTrimmed("project.create", path);
 	const title = yield* decodeTrimmed("project.create", name);
 	const commandId = yield* nextCommandId("project-create");
-	const projectId = yield* decodeEffect("project.create", decodeProjectId)(
-		`project-${String(commandId)}`
-	);
+	const projectId = yield* decodeEffect(
+		"project.create",
+		decodeProjectId
+	)(`project-${String(commandId)}`);
 	yield* withRpcClient("project.create", (client) =>
 		client.dispatch({
 			type: "project.create",
@@ -130,10 +135,8 @@ export const projects = {
 		return mapProject(created);
 	}),
 
-	updateProjectColor: (
-		_path: string,
-		_color: string
-	): Effect.Effect<ProjectData, AppError> => unsupportedOnContract("projects.updateProjectColor"),
+	updateProjectColor: (_path: string, _color: string): Effect.Effect<ProjectData, AppError> =>
+		unsupportedOnContract("projects.updateProjectColor"),
 
 	updateProjectIcon: (
 		_path: string,
@@ -162,9 +165,7 @@ export const projects = {
 		const loaded = yield* loadVisibleProjects();
 		const existing = findProjectedByPath(loaded.snapshot.projects, path);
 		if (existing === null) {
-			return yield* Effect.fail(
-				new AgentError("project.delete", new Error("project not found"))
-			);
+			return yield* Effect.fail(new AgentError("project.delete", new Error("project not found")));
 		}
 		const commandId = yield* nextCommandId("project-delete");
 		yield* withRpcClient("project.delete", (client) =>
