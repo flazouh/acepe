@@ -33,7 +33,15 @@ import { resolve } from "node:path";
 // 6593 -> 6597: four new `it("...", async () => {})` tests added in
 // reopened-session-hydrator.test.ts trip effect(asyncFunction), same
 // as every other test in that file already does.
-const BASELINE = 6597;
+// 6597 -> 6600: sidebar-restart fix (union library-projected projects into
+// ProjectManager, closing the gap where scanSessionProjections widened the
+// session list but never the project list it's filtered against). One new
+// `it("...", async () => {})` regression test in initialization-manager.test.ts
+// trips effect(asyncFunction), plus its `new Date()` project fixture trips
+// effect(globalDate) (same pattern as the 6584 -> 6586 bump above); one new
+// `new Date(iso)` expectation fixture in project-manager.test.ts trips
+// effect(globalDate) too. All three are test-file style, not production code.
+const BASELINE = 6600;
 const PACKAGE_ROOT = resolve(import.meta.dir, "..");
 
 // The pretty formatter (the default, and what lint:effect:report uses) always

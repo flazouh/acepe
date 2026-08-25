@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
+import { ProjectId } from "@acepe/contracts";
 import { fromPromise } from "@acepe/effect-result/fromPromise";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
@@ -356,7 +357,7 @@ describe("InitializationManager", () => {
 				registerSessionPlaceholder: mock(() => {}),
 				preloadSessions: mock(() => Effect.succeed({ loaded: [], missing: [] })),
 				scanSessions: mock(() => Effect.succeed(undefined)),
-				scanSessionProjections: mock(() => Effect.void),
+				scanSessionProjections: mock(() => Effect.succeed([])),
 			},
 			connection: {
 				createSession: mock((options: { agentId: string; projectPath: string; title?: string }) =>
@@ -455,6 +456,7 @@ describe("InitializationManager", () => {
 			projectCount: 0,
 			projectStorageFresh: true,
 			loadProjects: mock((_preferredPaths?: string[]) => Effect.succeed(undefined)),
+			mergeLibraryProjects: mock(() => {}),
 		} as unknown as ProjectManager;
 
 		mockAgentPreferencesStore = {
@@ -910,6 +912,42 @@ describe("InitializationManager", () => {
 
 			expect(mockSessionStore.loading.loadSessions).not.toHaveBeenCalled();
 			expect(mockSessionStore.loading.scanSessions).toHaveBeenCalledWith(["/project1"]);
+		});
+
+		it("unions the library snapshot's projects into the project list on startup", async () => {
+			// Regression: scanSessionProjections widens the session list from
+			// the library snapshot, but a session for a project with no
+			// on-disk directory has a projectPath that never appears in
+			// recentProjects unless the snapshot's own `projects` array is
+			// also unioned in -- otherwise session-list.svelte's
+			// projectPaths.has(s.projectPath) filter silently drops the
+			// session from the sidebar even though it is present in the store.
+			mockProjectManager.projects = [
+				{
+					path: "/project1",
+					name: "Project 1",
+					createdAt: new Date(),
+					color: "blue",
+				},
+			];
+			const libraryProjects = [
+				{
+					projectId: ProjectId.make("project-2"),
+					title: "No disk project",
+					workspaceRoot: "/tmp/acepe-no-disk",
+					createdAt: "2026-08-20T12:00:00.000Z",
+					updatedAt: "2026-08-20T12:00:00.000Z",
+					deletedAt: null,
+					sessionCount: 1,
+					gitStatus: [],
+				},
+			];
+			mockSessionStore.loading.scanSessionProjections = mock(() => Effect.succeed(libraryProjects));
+
+			await Effect.runPromise(manager.initialize());
+			await runImmediateTimers();
+
+			expect(mockProjectManager.mergeLibraryProjects).toHaveBeenCalledWith(libraryProjects);
 		});
 
 		it("still scans on-disk session history when the projection union dies with a defect", async () => {

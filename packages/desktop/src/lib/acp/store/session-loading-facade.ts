@@ -1,6 +1,7 @@
 /**
  * SessionLoadingFacade — session load/scan/preload surface (ADR-0002).
  */
+import type { RpcProjectedProject } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 import type { HistoryEntry } from "../../services/claude-history-types.js";
 import type { AppError } from "../errors/app-error.js";
@@ -71,7 +72,7 @@ export class SessionLoadingFacade {
 	}
 
 	/** See SessionRepository.scanSessionProjections. */
-	scanSessionProjections(): Effect.Effect<void, AppError> {
+	scanSessionProjections(): Effect.Effect<readonly RpcProjectedProject[], AppError> {
 		return this.#deps.repository.scanSessionProjections(this.#deps.listState.sessions);
 	}
 

@@ -30,7 +30,7 @@ export const isoToDate = (iso: string): Date =>
 // session into a library snapshot alongside dozens of good ones must not
 // blank every project's projection-only sessions just because isoToDate
 // throws partway through the loop below.
-const tryIsoToDate = (iso: string): Date | null => {
+export const tryIsoToDate = (iso: string): Date | null => {
 	try {
 		return isoToDate(iso);
 	} catch {

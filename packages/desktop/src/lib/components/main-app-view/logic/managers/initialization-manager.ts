@@ -178,7 +178,7 @@ type TauriWindow = Window & {
 
 type ProjectManagerLike = Pick<
 	ProjectManager,
-	"loadProjects" | "projectCount" | "projects" | "projectStorageFresh"
+	"loadProjects" | "projectCount" | "projects" | "projectStorageFresh" | "mergeLibraryProjects"
 > & {
 	triggerProjectIconBackfill?: () => void;
 };
@@ -700,6 +700,18 @@ export class InitializationManager {
 		}
 
 		return this.sessionStore.loading.scanSessionProjections().pipe(
+			// The library snapshot's own `projects` array is "every project", not
+			// just the ones already known locally (see ProjectManager.
+			// mergeLibraryProjects). A session unioned above for a project with
+			// no on-disk presence has a projectPath that session-list.svelte's
+			// recentProjects filter would otherwise never match, silently
+			// dropping it from the sidebar even though the session itself is
+			// now in the store -- union the project too so it has a home.
+			Effect.tap((projects) =>
+				Effect.sync(() => {
+					this.projectManager.mergeLibraryProjects(projects);
+				})
+			),
 			Effect.catchCause((cause) => {
 				logger.error("Failed to merge library session projections at startup", {
 					error: Cause.pretty(cause),

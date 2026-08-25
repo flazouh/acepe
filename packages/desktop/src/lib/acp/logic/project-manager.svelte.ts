@@ -1,7 +1,9 @@
+import type { RpcProjectedProject } from "@acepe/contracts";
 import { resolveProjectColor } from "@acepe/ui/colors";
 import { computeProjectBadgeLabels } from "@acepe/ui/project-letter-badge";
 import * as Effect from "effect/Effect";
 import { SvelteDate, SvelteMap } from "svelte/reactivity";
+import { tryIsoToDate } from "$lib/acp/store/services/session-projection-merge.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import { ProjectClient } from "./project-client.js";
 
@@ -49,6 +51,71 @@ export function isUnexpectedProjectError(error: ProjectError): boolean {
 
 function roundProjectLoadPerformanceMs(value: number): number {
 	return Math.round(value * 100) / 100;
+}
+
+/**
+ * Computes the local `Project` rows to add for library (orchestration
+ * projection) projects that have no entry in `existingProjects` yet.
+ *
+ * Sessions dispatched via session.create are unioned into the sidebar's
+ * session list from the same library snapshot (see
+ * SessionRepository.scanSessionProjections / mergeProjectionSessions), but
+ * that union only ever widened the session list, never the project list it
+ * is filtered against. A session whose project was never separately added
+ * through the normal "add project" flow (no on-disk directory, so nothing
+ * ever imported it) has a `projectPath` that never appears in
+ * `recentProjects` -- session-list.svelte's `projectPaths.has(s.projectPath)`
+ * filter then silently drops it from the sidebar, even though the session
+ * itself is present in the store. This closes that gap by unioning the same
+ * library snapshot's `projects` array into local project state, mirroring
+ * mergeProjectionSessions' own dedupe rule: an existing project (by path)
+ * always wins, and a deleted library row is skipped -- there is no local
+ * chrome (color, sort order, icon) to invent for it.
+ *
+ * Additions are appended after the existing projects (increasing sortOrder)
+ * rather than inserted at the front, so a passive background reconciliation
+ * never reorders a project the user placed deliberately.
+ */
+export function computeMissingLibraryProjects(
+	existingProjects: readonly Project[],
+	libraryProjects: readonly RpcProjectedProject[]
+): Project[] {
+	const knownPaths = new Set(existingProjects.map((project) => project.path));
+	let nextSortOrder =
+		existingProjects.reduce(
+			(max, project) =>
+				project.sortOrder !== undefined && project.sortOrder > max ? project.sortOrder : max,
+			-1
+		) + 1;
+
+	const additions: Project[] = [];
+	for (const libraryProject of libraryProjects) {
+		if (libraryProject.deletedAt !== null) {
+			continue;
+		}
+		if (knownPaths.has(libraryProject.workspaceRoot)) {
+			continue;
+		}
+		// A malformed row (a schema-boundary bug upstream, per tryIsoToDate's
+		// contract) must drop only that row, not the whole batch -- same
+		// defensive rule mergeProjectionSessions applies to the sibling
+		// session union.
+		const createdAt = tryIsoToDate(libraryProject.createdAt);
+		if (createdAt === null) {
+			continue;
+		}
+		knownPaths.add(libraryProject.workspaceRoot);
+		additions.push({
+			path: libraryProject.workspaceRoot,
+			name: libraryProject.title,
+			color: resolveProjectColor("cyan"),
+			createdAt,
+			sortOrder: nextSortOrder,
+			iconPath: null,
+		});
+		nextSortOrder += 1;
+	}
+	return additions;
 }
 
 type ProjectClientPort = Pick<
@@ -401,6 +468,25 @@ export class ProjectManager {
 				});
 			})
 		);
+	}
+
+	/**
+	 * Union library (orchestration projection) projects into local project
+	 * state so a session dispatched for a project with no on-disk presence
+	 * still has a home in `recentProjects` -- see
+	 * computeMissingLibraryProjects for the "why". A no-op when every library
+	 * project is already known, so a routine startup reconciliation with
+	 * nothing new to add never touches `projects` and never triggers a
+	 * downstream re-render.
+	 */
+	mergeLibraryProjects(libraryProjects: readonly RpcProjectedProject[]): void {
+		const additions = computeMissingLibraryProjects(this.projects, libraryProjects);
+		if (additions.length === 0) {
+			return;
+		}
+		this.projects = [...this.projects, ...additions];
+		this.projectCount = this.projects.length;
+		this.writeCurrentProjectsToCache();
 	}
 
 	/**

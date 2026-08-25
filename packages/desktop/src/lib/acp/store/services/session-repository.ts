@@ -11,6 +11,7 @@
  * and reduce the God class anti-pattern.
  */
 
+import type { RpcProjectedProject } from "@acepe/contracts";
 import { fromPromise } from "@acepe/effect-result/fromPromise";
 import * as Effect from "effect/Effect";
 import type {
@@ -368,12 +369,15 @@ export class SessionRepository {
 	 * in-memory session list starts empty and only the disk scan
 	 * repopulates it.
 	 */
-	scanSessionProjections(existingSessions: SessionCold[]): Effect.Effect<void, AppError> {
+	scanSessionProjections(
+		existingSessions: SessionCold[]
+	): Effect.Effect<readonly RpcProjectedProject[], AppError> {
 		return api.getLibrarySessionsSnapshot().pipe(
 			Effect.map(({ sessions: projectedSessions, projects }) => {
 				const merged = mergeProjectionSessions(existingSessions, projectedSessions, projects);
 				this.stateWriter.setSessions(merged);
 				logger.debug("Sessions merged from library projection", { count: merged.length });
+				return projects;
 			})
 		);
 	}
