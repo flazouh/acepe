@@ -371,6 +371,7 @@ describe("AgentPanelContent", () => {
 		const viewportController = new TranscriptRowsController({
 			getGraphRevision: () => undefined,
 			applySessionStateEnvelope: () => undefined,
+			getTranscriptEntries: () => null,
 		});
 		globalThis.__agentPanelContentSessionStoreState.viewportController = viewportController;
 

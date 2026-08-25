@@ -5,6 +5,7 @@ import type {
 	SessionGraphRevision,
 	SessionOpenTranscriptRowPage,
 	SessionStateEnvelope,
+	TranscriptEntry,
 	TranscriptRowPageResult,
 	TranscriptViewportRow,
 	ViewportBufferPush,
@@ -13,11 +14,16 @@ import type {
 const mocks = vi.hoisted(() => ({
 	readTranscriptRowPage: vi.fn(),
 	requestTranscriptViewportBuffer: vi.fn(),
+	runningUnderElectrobun: vi.fn(),
 }));
 
 vi.mock("../../session-state/session-state-viewport-command-service.js", () => ({
 	readTranscriptRowPage: mocks.readTranscriptRowPage,
 	requestTranscriptViewportBuffer: mocks.requestTranscriptViewportBuffer,
+}));
+
+vi.mock("../../../utils/electrobun-window-shims.js", () => ({
+	runningUnderElectrobun: mocks.runningUnderElectrobun,
 }));
 
 import { TranscriptRowsController } from "../transcript-rows-controller.svelte.js";
@@ -81,6 +87,7 @@ describe("TranscriptRowsController older-row paging", () => {
 	beforeEach(() => {
 		mocks.readTranscriptRowPage.mockReset();
 		mocks.requestTranscriptViewportBuffer.mockReset();
+		mocks.runningUnderElectrobun.mockReturnValue(false);
 	});
 
 	it("uses the displayed row-page revision when requesting older restored rows", () => {
@@ -100,6 +107,7 @@ describe("TranscriptRowsController older-row paging", () => {
 		mocks.readTranscriptRowPage.mockReturnValue(Effect.succeed(olderPageResult));
 		const controller = new TranscriptRowsController({
 			getGraphRevision: () => liveGraphRevision,
+			getTranscriptEntries: () => null,
 			applySessionStateEnvelope: (_sessionId: string, _envelope: SessionStateEnvelope) => undefined,
 		});
 
@@ -129,6 +137,7 @@ describe("TranscriptRowsController older-row paging", () => {
 		const appliedEnvelopes: SessionStateEnvelope[] = [];
 		const controller = new TranscriptRowsController({
 			getGraphRevision: () => liveGraphRevision,
+			getTranscriptEntries: () => null,
 			applySessionStateEnvelope: (_sessionId: string, envelope: SessionStateEnvelope) => {
 				appliedEnvelopes.push(envelope);
 			},
@@ -156,6 +165,7 @@ describe("TranscriptRowsController older-row paging", () => {
 		const liveGraphRevision = revision(99, 88, 77);
 		const controller = new TranscriptRowsController({
 			getGraphRevision: () => liveGraphRevision,
+			getTranscriptEntries: () => null,
 			applySessionStateEnvelope: (_sessionId: string, _envelope: SessionStateEnvelope) => undefined,
 		});
 		const emptyFreshPush: ViewportBufferPush = {
@@ -188,6 +198,7 @@ describe("TranscriptRowsController older-row paging", () => {
 		const liveGraphRevision = revision(99, 88, 77);
 		const controller = new TranscriptRowsController({
 			getGraphRevision: () => liveGraphRevision,
+			getTranscriptEntries: () => null,
 			applySessionStateEnvelope: (_sessionId: string, _envelope: SessionStateEnvelope) => undefined,
 		});
 		const emptyLivePush: ViewportBufferPush = {
@@ -213,5 +224,50 @@ describe("TranscriptRowsController older-row paging", () => {
 			requestGeneration: null,
 			reason: "empty-live-push-after-ledger-page:initial",
 		});
+	});
+});
+
+describe("TranscriptRowsController under Electrobun (no viewport-buffer command backend)", () => {
+	beforeEach(() => {
+		mocks.readTranscriptRowPage.mockReset();
+		mocks.requestTranscriptViewportBuffer.mockReset();
+		mocks.runningUnderElectrobun.mockReturnValue(true);
+	});
+
+	it("derives rows locally from canonical transcript entries instead of calling the RPC", () => {
+		const liveGraphRevision = revision(1, 1, 3);
+		const entries: TranscriptEntry[] = [
+			{
+				entryId: "entry-1",
+				role: "user",
+				segments: [{ kind: "text", segmentId: "seg-1", text: "hi" }],
+			},
+		];
+		const controller = new TranscriptRowsController({
+			getGraphRevision: () => liveGraphRevision,
+			applySessionStateEnvelope: () => undefined,
+			getTranscriptEntries: () => entries,
+		});
+
+		controller.ensureRowsBootstrap("session-1");
+
+		expect(mocks.requestTranscriptViewportBuffer).not.toHaveBeenCalled();
+		expect(controller.getRowsProjection("session-1")?.rows.map((value) => value.rowId)).toEqual([
+			"entry-1",
+		]);
+	});
+
+	it("renders an empty transcript rather than erroring when no canonical entries exist yet", () => {
+		const liveGraphRevision = revision(1, 1, 3);
+		const controller = new TranscriptRowsController({
+			getGraphRevision: () => liveGraphRevision,
+			applySessionStateEnvelope: () => undefined,
+			getTranscriptEntries: () => null,
+		});
+
+		controller.ensureRowsBootstrap("session-1");
+
+		expect(mocks.requestTranscriptViewportBuffer).not.toHaveBeenCalled();
+		expect(controller.getRowsProjection("session-1")?.rows).toEqual([]);
 	});
 });
