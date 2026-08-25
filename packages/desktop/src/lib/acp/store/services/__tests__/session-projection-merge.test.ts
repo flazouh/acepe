@@ -17,6 +17,21 @@ const fakeProject: RpcProjectedProject = {
 	gitStatus: [],
 };
 
+// A project with no on-disk provider history at all -- e.g. every session in
+// it was dispatched via session.create and never had a real CLI adapter
+// write a transcript file. Its sidebar section has no other route to
+// populate its sessions than this union.
+const diskFreeProject: RpcProjectedProject = {
+	projectId: otherProjectId,
+	title: "Git review",
+	workspaceRoot: "/tmp/acepe-git-review",
+	createdAt: "2026-08-20T12:00:00.000Z",
+	updatedAt: "2026-08-20T12:00:00.000Z",
+	deletedAt: null,
+	sessionCount: 1,
+	gitStatus: [],
+};
+
 function projectedSession(overrides: Partial<RpcProjectedSession> = {}): RpcProjectedSession {
 	return {
 		sessionId: SessionId.make("session-1"),
@@ -129,5 +144,64 @@ describe("mergeProjectionSessions", () => {
 		expect(merged.find((session) => session.id === "session-other")?.title).toBe(
 			"Unrelated session"
 		);
+	});
+
+	it("lists a project's session when that project has no on-disk history at all, alongside a project restored from disk", () => {
+		// existingSessions mimics what a disk-only scan already restored for
+		// project-1 (e.g. the real repo, which has real provider history on
+		// disk). project-2 has no entry here because no provider ever wrote
+		// history for it -- its only source of truth is the projection.
+		const diskRestoredSession = cold({ id: "disk-session", title: "Restored from disk" });
+		const gitReviewSession = projectedSession({
+			sessionId: SessionId.make("git-review-session"),
+			projectId: otherProjectId,
+			title: "Review the notes diff",
+		});
+
+		const merged = mergeProjectionSessions(
+			[diskRestoredSession],
+			[gitReviewSession],
+			[fakeProject, diskFreeProject]
+		);
+
+		expect(merged).toHaveLength(2);
+		const listed = merged.find((session) => session.id === "git-review-session");
+		expect(listed).toMatchObject({
+			projectPath: "/tmp/acepe-git-review",
+			title: "Review the notes diff",
+			sessionLifecycleState: "created",
+		});
+	});
+
+	it("skips a row with an unparseable timestamp instead of throwing, and still adds a good row for another project", () => {
+		const malformedRow = projectedSession({
+			sessionId: SessionId.make("malformed-session"),
+			createdAt: "not-a-real-date",
+		});
+		const goodRow = projectedSession({
+			sessionId: SessionId.make("git-review-session"),
+			projectId: otherProjectId,
+			title: "Review the notes diff",
+		});
+
+		let merged: SessionCold[] = [];
+		expect(() => {
+			merged = mergeProjectionSessions([], [malformedRow, goodRow], [fakeProject, diskFreeProject]);
+		}).not.toThrow();
+
+		expect(merged).toHaveLength(1);
+		expect(merged[0]?.id).toBe("git-review-session");
+	});
+
+	it("skips an existing session's title/updatedAt refresh when the projection row's updatedAt is unparseable, without dropping the session", () => {
+		const existing = [cold({ title: "Existing title" })];
+		const merged = mergeProjectionSessions(
+			existing,
+			[projectedSession({ title: "Would-be new title", updatedAt: "not-a-real-date" })],
+			[fakeProject]
+		);
+
+		expect(merged).toHaveLength(1);
+		expect(merged[0]?.title).toBe("Existing title");
 	});
 });
