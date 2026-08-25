@@ -1,8 +1,27 @@
+import { ProjectId, type RpcProjectedProject } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { type Project, ProjectManager } from "../project-manager.svelte.js";
+import {
+	computeMissingLibraryProjects,
+	type Project,
+	ProjectManager,
+} from "../project-manager.svelte.js";
+
+function libraryProject(overrides: Partial<RpcProjectedProject> = {}): RpcProjectedProject {
+	return {
+		projectId: ProjectId.make("project-1"),
+		title: "Acepe",
+		workspaceRoot: "/tmp/acepe",
+		createdAt: "2026-08-20T12:00:00.000Z",
+		updatedAt: "2026-08-20T12:00:00.000Z",
+		deletedAt: null,
+		sessionCount: 1,
+		gitStatus: [],
+		...overrides,
+	};
+}
 
 type ProjectManagerClient = NonNullable<ConstructorParameters<typeof ProjectManager>[0]>;
 
@@ -118,5 +137,92 @@ describe("ProjectManager", () => {
 		expect(manager.getLastLoadPerformanceTrace()?.getProjectCountMs).toBe(0);
 		expect(manager.getLastLoadPerformanceTrace()?.projectCount).toBe(2);
 		expect(projectClient.writeCachedProjects).toHaveBeenCalledWith([firstProject, secondProject]);
+	});
+});
+
+describe("computeMissingLibraryProjects", () => {
+	// Regression: a session dispatched via session.create for a project with
+	// no on-disk directory (so nothing ever imported it through the normal
+	// "add project" flow) is unioned into the sidebar's session list by
+	// SessionRepository.scanSessionProjections, but that union never touched
+	// the project list session-list.svelte filters against -- the session
+	// silently vanished from the sidebar on restart even though it was
+	// present in the store. This closes that gap.
+	it("adds a library project with no local entry", () => {
+		const additions = computeMissingLibraryProjects([], [libraryProject()]);
+
+		expect(additions).toEqual([
+			{
+				path: "/tmp/acepe",
+				name: "Acepe",
+				color: expect.any(String),
+				createdAt: new Date("2026-08-20T12:00:00.000Z"),
+				sortOrder: 0,
+				iconPath: null,
+			},
+		]);
+	});
+
+	it("does not add a project that already exists locally, by path", () => {
+		const existing = createProject("/tmp/acepe", "Acepe (local)");
+
+		const additions = computeMissingLibraryProjects([existing], [libraryProject()]);
+
+		expect(additions).toEqual([]);
+	});
+
+	it("skips a deleted library project", () => {
+		const additions = computeMissingLibraryProjects(
+			[],
+			[libraryProject({ deletedAt: "2026-08-21T00:00:00.000Z" })]
+		);
+
+		expect(additions).toEqual([]);
+	});
+
+	it("appends after existing projects instead of reordering them", () => {
+		const existing = createProject("/repo/one", "One");
+		existing.sortOrder = 5;
+
+		const additions = computeMissingLibraryProjects(
+			[existing],
+			[libraryProject({ workspaceRoot: "/tmp/acepe" })]
+		);
+
+		expect(additions).toHaveLength(1);
+		expect(additions[0]?.sortOrder).toBe(6);
+	});
+
+	it("dedupes multiple library projects at the same path", () => {
+		const additions = computeMissingLibraryProjects(
+			[],
+			[libraryProject(), libraryProject({ title: "Acepe (dup)" })]
+		);
+
+		expect(additions).toHaveLength(1);
+	});
+});
+
+describe("ProjectManager.mergeLibraryProjects", () => {
+	it("unions a library-only project into recentProjects", () => {
+		const manager = new ProjectManager();
+		manager.projects = [createProject("/repo/one", "One")];
+
+		manager.mergeLibraryProjects([libraryProject()]);
+
+		expect(manager.projects.map((p) => p.path)).toEqual(["/repo/one", "/tmp/acepe"]);
+		expect(manager.projectCount).toBe(2);
+	});
+
+	it("is a no-op when every library project is already known", () => {
+		const manager = new ProjectManager();
+		const existing = createProject("/tmp/acepe", "Acepe");
+		manager.projects = [existing];
+		manager.projectCount = 1;
+
+		manager.mergeLibraryProjects([libraryProject()]);
+
+		expect(manager.projects).toEqual([existing]);
+		expect(manager.projectCount).toBe(1);
 	});
 });

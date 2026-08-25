@@ -132,18 +132,6 @@ const projectShowExternalCliSessions = $derived(
 const projectPaths = $derived(new Set(recentProjects.map((p) => p.path)));
 const projectSessions = $derived(sessions.filter((s) => projectPaths.has(s.projectPath)));
 
-// TEMP DEBUG - remove before commit
-$effect(() => {
-	if (typeof window !== "undefined") {
-		(window as unknown as { __qaSessionListFilter?: unknown }).__qaSessionListFilter = {
-			recentProjectPaths: Array.from(projectPaths),
-			allSessionIds: sessions.map((s) => s.id),
-			allSessionProjectPaths: sessions.map((s) => ({ id: s.id, projectPath: s.projectPath })),
-			projectSessionIds: projectSessions.map((s) => s.id),
-		};
-	}
-});
-
 const displayItems = $derived(
 	logic.createDisplayItems(
 		projectSessions,
