@@ -1,20 +1,26 @@
+import * as BunPath from "@effect/platform-bun/BunPath"
 import * as Vitest from "@effect/vitest"
 import * as Arr from "effect/Array"
+import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
+import * as Path from "effect/Path"
 import { isCapabilityEnabled } from "../Services/ProviderAdapter.ts"
 import {
 	isOpenCodePlanCapabilityEnabled,
 	normalizeOpenCodeServeArgs,
+	OPENCODE_ALLOWED_ENV_KEYS,
 	OPENCODE_CAPABILITIES,
 	OPENCODE_COMMUNICATION_MODE,
 	OPENCODE_DEFAULT_MODE,
 	OPENCODE_DEFERRED_SESSION_CREATION,
+	OPENCODE_ISOLATED_CONFIG_ENV_KEY,
 	OPENCODE_MODES,
 	OPENCODE_PROVIDER_ID,
 	openCodeBaseUrl,
 	openCodePresence,
 	openCodeServeArgs,
-	parseServeUrl
+	parseServeUrl,
+	resolveOpenCodeIsolatedConfigDir
 } from "./OpenCodeProvider.ts"
 
 Vitest.describe("OpenCodeProvider", () => {
@@ -79,4 +85,28 @@ Vitest.describe("OpenCodeProvider", () => {
 			false
 		)
 	})
+
+	// Pins the isolation fix's mechanism: see OPENCODE_ISOLATED_CONFIG_ENV_KEY's
+	// doc comment for the empirical evidence (opencode's real HTTP /agent and
+	// /config endpoints, baseline vs XDG_CONFIG_HOME-overridden) that this
+	// override is what stops ~/.config/opencode's personal MCP servers,
+	// agents, and plugins from loading into a spawned `opencode serve`.
+	Vitest.it("isolates opencode's config root via XDG_CONFIG_HOME, not the operator's HOME", () => {
+		Vitest.assert.strictEqual(OPENCODE_ISOLATED_CONFIG_ENV_KEY, "XDG_CONFIG_HOME")
+		// HOME stays in the passthrough allowlist (needed for auth under
+		// $XDG_DATA_HOME's default, and for shell/PATH resolution) — isolation
+		// works by overriding XDG_CONFIG_HOME on top of it, not by removing HOME.
+		Vitest.assert.isTrue(Arr.contains(OPENCODE_ALLOWED_ENV_KEYS, "HOME"))
+	})
+
+	Vitest.it.effect("resolves the isolated config dir under the given tmp root", () =>
+		Effect.gen(function*() {
+			const path = yield* Path.Path
+			const resolved = resolveOpenCodeIsolatedConfigDir(path, "/tmp")
+			Vitest.assert.strictEqual(resolved, "/tmp/acepe-opencode-isolated-config")
+		}).pipe(
+			// @effect-diagnostics-next-line strictEffectProvide:off
+			Effect.provide(BunPath.layer)
+		)
+	)
 })

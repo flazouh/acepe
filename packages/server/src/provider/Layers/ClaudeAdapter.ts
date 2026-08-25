@@ -1,4 +1,4 @@
-import { query } from "@anthropic-ai/claude-agent-sdk"
+import { query, type McpServerConfig, type Options as ClaudeSdkOptions } from "@anthropic-ai/claude-agent-sdk"
 import {
 	CommandId,
 	EventId,
@@ -34,7 +34,10 @@ import {
 } from "../Services/ProviderAdapter.ts"
 import {
 	CLAUDE_CAPABILITIES,
+	CLAUDE_ISOLATED_SETTING_SOURCES,
 	CLAUDE_PROVIDER_ID,
+	CLAUDE_SESSION_MCP_SERVERS,
+	CLAUDE_STRICT_MCP_CONFIG,
 	probeClaudePresence,
 	resolveClaudeExecutablePath
 } from "./ClaudeProvider.ts"
@@ -333,12 +336,53 @@ const bindCanUseTool = (
 			})
 		)
 
-// pathToClaudeCodeExecutable, when given, points query() at a system claude
-// binary instead of the SDK's own bundled native CLI (an optional platform
-// dependency a bundler's static analysis can't see and drops) — see
-// resolveClaudeExecutablePath in ClaudeProvider.ts for why this exists.
+export type ClaudeQueryIsolation = {
+	// When given, points query() at a system claude binary instead of the
+	// SDK's own bundled native CLI (an optional platform dependency a
+	// bundler's static analysis can't see and drops) — see
+	// resolveClaudeExecutablePath in ClaudeProvider.ts for why this exists.
+	readonly pathToClaudeCodeExecutable: Option.Option<string>
+	// MCP servers Acepe itself wires in for this session, distinct from (and
+	// never merged with) the operator's personal ~/.claude.json servers —
+	// see CLAUDE_SESSION_MCP_SERVERS in ClaudeProvider.ts.
+	readonly mcpServers: Record<string, McpServerConfig>
+}
+
+// Builds the exact options object passed to the SDK's query(). Pulled out as
+// a pure function (no SDK call, no process spawn) so the isolation settings
+// can be unit-tested directly instead of only through a live spawn.
+//
+// settingSources excludes the operator's 'user'-scoped config
+// (~/.claude/settings.json — hooks) while keeping 'project'/'local' (the
+// target repo's own CLAUDE.md / .claude/settings.json, legitimate task
+// context). strictMcpConfig + the explicit mcpServers below stop the
+// operator's ~/.claude.json personal MCP servers (a railway server, a
+// personal-memory venv server, ...) from being inherited. Both settings were
+// verified empirically against the real SDK: the defaults (neither set)
+// spawn the operator's personal MCP server child processes on the first
+// turn; either setting alone, and the combination, block that spawn while
+// still returning a real reply. See CLAUDE_ISOLATED_SETTING_SOURCES and
+// CLAUDE_STRICT_MCP_CONFIG in ClaudeProvider.ts for the fuller rationale.
+export const buildClaudeQueryOptions = (
+	input: { readonly cwd: string; readonly canUseTool: ClaudeCanUseTool },
+	isolation: ClaudeQueryIsolation
+): ClaudeSdkOptions => ({
+	cwd: input.cwd,
+	includePartialMessages: true,
+	settingSources: [...CLAUDE_ISOLATED_SETTING_SOURCES],
+	strictMcpConfig: CLAUDE_STRICT_MCP_CONFIG,
+	mcpServers: isolation.mcpServers,
+	...(Option.isSome(isolation.pathToClaudeCodeExecutable)
+		? { pathToClaudeCodeExecutable: isolation.pathToClaudeCodeExecutable.value }
+		: {}),
+	canUseTool: (toolName, toolInput, options) =>
+		input.canUseTool(toolName, jsonObjectFromValue(toolInput), {
+			toolUseID: options.toolUseID
+		})
+})
+
 export const makeLiveCreateQuery = (
-	pathToClaudeCodeExecutable: Option.Option<string>
+	isolation: ClaudeQueryIsolation
 ) =>
 (
 	input: ClaudeQueryInput
@@ -347,17 +391,7 @@ export const makeLiveCreateQuery = (
 		try: () => {
 			const runtime = query({
 				prompt: input.prompt,
-				options: {
-					cwd: input.cwd,
-					includePartialMessages: true,
-					...(Option.isSome(pathToClaudeCodeExecutable)
-						? { pathToClaudeCodeExecutable: pathToClaudeCodeExecutable.value }
-						: {}),
-					canUseTool: (toolName, toolInput, options) =>
-						input.canUseTool(toolName, jsonObjectFromValue(toolInput), {
-							toolUseID: options.toolUseID
-						})
-				}
+				options: buildClaudeQueryOptions(input, isolation)
 			})
 			return {
 				messages: Stream.fromAsyncIterable(runtime, (cause) =>
@@ -535,7 +569,10 @@ export const makeLiveClaudeAdapter = Effect.fn("makeLiveClaudeAdapter")(function
 	const presenceValue = yield* probeClaudePresence()
 	const executablePath = yield* resolveClaudeExecutablePath()
 	return yield* makeClaudeAdapter({
-		createQuery: makeLiveCreateQuery(executablePath),
+		createQuery: makeLiveCreateQuery({
+			pathToClaudeCodeExecutable: executablePath,
+			mcpServers: CLAUDE_SESSION_MCP_SERVERS
+		}),
 		presence: Effect.succeed(presenceValue)
 	})
 })

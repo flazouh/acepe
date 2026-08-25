@@ -83,6 +83,23 @@ Vitest.describe("CodexProvider", () => {
 		Vitest.assert.deepStrictEqual(spawn.args, Arr.fromIterable(CODEX_APP_SERVER_ARGS))
 	})
 
+	// Pinned literally (not just re-compared against CODEX_APP_SERVER_ARGS
+	// itself) so a future edit that drops the isolation flags fails this
+	// test by name. See CODEX_APP_SERVER_ARGS' doc comment for the empirical
+	// evidence: `-c mcp_servers={}` blocks the operator's personal MCP
+	// servers from spawning as app-server children, `--disable hooks` stops
+	// ~/.codex/hooks.json from loading, and codex app-server has no
+	// `--ignore-user-config` equivalent to isolate more wholesale.
+	Vitest.it("spawns codex app-server with the operator's personal MCP servers and hooks blocked", () => {
+		Vitest.assert.deepStrictEqual(Arr.fromIterable(CODEX_APP_SERVER_ARGS), [
+			"app-server",
+			"-c",
+			"mcp_servers={}",
+			"--disable",
+			"hooks"
+		])
+	})
+
 	Vitest.it("normalizes empty model ids to the default", () => {
 		Vitest.assert.strictEqual(normalizeCodexModelId("  gpt-5.4  "), "gpt-5.4")
 		Vitest.assert.strictEqual(normalizeCodexModelId("   "), "gpt-5.3-codex")

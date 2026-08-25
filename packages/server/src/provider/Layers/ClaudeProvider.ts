@@ -1,3 +1,4 @@
+import type { McpServerConfig, SettingSource } from "@anthropic-ai/claude-agent-sdk"
 import * as Arr from "effect/Array"
 import * as Config from "effect/Config"
 import * as Effect from "effect/Effect"
@@ -66,6 +67,36 @@ export const claudePreconnectionConfigOptions = (): ReadonlyArray<ConfigOptionDa
 export const CLAUDE_CAPABILITIES: ProviderCapabilities = ProviderCapabilities.make({
 	enabled: Arr.fromIterable(PROVIDER_CAPABILITY_NAMES)
 })
+
+// Acepe spawns `claude` as an embedded child of its own app, not as a stand-in
+// for the operator running the CLI themselves. Loading the operator's
+// *user*-scoped config — ~/.claude/settings.json (hooks) and ~/.claude.json
+// (personal MCP servers such as a railway server or a personal-memory venv
+// server) — silently runs the operator's entire personal automation stack
+// inside every Acepe agent turn. Empirically verified live: with the SDK's
+// query() defaults (no settingSources/strictMcpConfig override), the first
+// turn of a session spawns the operator's personal MCP server child
+// processes and blocks on them, while `claude -p "..."` on its own replies in
+// seconds. Excluding the 'user' setting source (but keeping 'project' and
+// 'local') stops that inheritance while still loading the *target repo's*
+// own CLAUDE.md / .claude/settings.json — legitimate task context, not the
+// operator's personal automation. See ClaudeAdapter.ts's makeLiveCreateQuery.
+export const CLAUDE_ISOLATED_SETTING_SOURCES: ReadonlyArray<SettingSource> = ["project", "local"]
+
+// Belt-and-suspenders alongside CLAUDE_ISOLATED_SETTING_SOURCES: per the SDK
+// docs, strictMcpConfig ignores MCP servers from project .mcp.json, user
+// settings, plugins, and on-disk agent frontmatter, using only what's passed
+// via `mcpServers` below. Verified empirically to independently block the
+// operator's personal MCP servers too.
+export const CLAUDE_STRICT_MCP_CONFIG = true
+
+// MCP servers Acepe itself wires into a Claude session (as opposed to the
+// operator's personal ~/.claude.json servers, which are deliberately
+// excluded above). Acepe has its own MCP catalog (packages/server/src/mcp)
+// but nothing resolves it into a session's query() options yet, so this
+// stays empty — the seam is typed and threaded through so a future session-
+// or agent-config-driven catalog resolution has somewhere to plug in.
+export const CLAUDE_SESSION_MCP_SERVERS: Record<string, McpServerConfig> = {}
 
 export const CLAUDE_MODES = ["default", "acceptEdits", "plan", "bypassPermissions"] as const
 export type ClaudeMode = (typeof CLAUDE_MODES)[number]

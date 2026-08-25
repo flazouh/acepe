@@ -50,6 +50,44 @@ export const OPENCODE_ALLOWED_ENV_KEYS = [
 	"OPENCODE_API_KEY"
 ] as const
 
+// Isolation audit (companion to CLAUDE_ISOLATED_SETTING_SOURCES in
+// ClaudeProvider.ts and CODEX_APP_SERVER_ARGS in CodexProvider.ts): the
+// opencode CLI resolves its global config at $XDG_CONFIG_HOME/opencode (XDG
+// default: $HOME/.config), and HOME is in OPENCODE_ALLOWED_ENV_KEYS above,
+// so the spawned `opencode serve` inherits the operator's
+// ~/.config/opencode/opencode.json wholesale — personal MCP servers
+// (verified: a railway/blender/pencil/context7 set), dozens of personal
+// agents, and plugins. Verified empirically against the real opencode CLI
+// (v1.18.21) by querying its own HTTP `/agent` and `/config` endpoints:
+//   - baseline (no override): `/agent` lists every personal agent from
+//     ~/.config/opencode/agents/*.md, `/config`'s `mcp` key lists the
+//     operator's personal MCP servers.
+//   - with XDG_CONFIG_HOME pointed at an isolated, empty (or nonexistent —
+//     opencode creates the `opencode/` subdir on demand) directory: `/agent`
+//     lists only opencode's 7 built-ins, `/config` has no `mcp` key at all.
+//   - auth stays intact under the override (no re-login prompt, no hang):
+//     opencode keeps auth.json under $XDG_DATA_HOME (default
+//     $HOME/.local/share), a separate XDG variable this override doesn't
+//     touch — unlike Codex's CODEX_HOME, which conflates config and auth
+//     into one directory (see CodexProvider.ts's CODEX_APP_SERVER_ARGS doc
+//     comment for why a from-scratch CODEX_HOME was rejected).
+//   - project-level context still loads: a project-root opencode.json's
+//     agents/config show up in `/agent` / `/config` unaffected by the
+//     override, since that resolution is cwd-relative, not XDG-relative.
+// See resolveOpenCodeIsolatedConfigDir below for where the override value
+// comes from.
+export const OPENCODE_ISOLATED_CONFIG_ENV_KEY = "XDG_CONFIG_HOME"
+export const OPENCODE_ISOLATED_CONFIG_DIRNAME = "acepe-opencode-isolated-config"
+
+// Deliberately anchored at a tmp-style root (see callers) rather than an
+// existing ~/.config-adjacent path: opencode auto-creates whatever it's
+// pointed at (verified above), and nothing seeds this directory today, so
+// there's no persistence requirement yet — see the "today likely empty"
+// mcpServers seam note on CLAUDE_SESSION_MCP_SERVERS in ClaudeProvider.ts
+// for the analogous pattern.
+export const resolveOpenCodeIsolatedConfigDir = (path: Path.Path, tmpDir: string): string =>
+	path.join(tmpDir, OPENCODE_ISOLATED_CONFIG_DIRNAME)
+
 export const OPENCODE_PLACEHOLDER_BINARY = "__acepe_missing_opencode_binary__"
 
 const SERVE_URL_PATTERN = /https?:\/\/[^:\s]+:(?<port>\d+)(?<path>\/[^\s"']*)?/
