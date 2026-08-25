@@ -2,7 +2,7 @@ import { invoke as tauriInvoke } from "@tauri-apps/api/core";
 
 /**
  * Generic Tauri invoke for the small number of callsites that still need raw access.
- * Registry-backed app code should prefer TAURI_COMMAND_CLIENT or wrapper modules.
+ * Registry-backed app code should prefer the contract facades in utils/tauri-client.
  */
 export async function invoke<
 	TResult,
@@ -16,4 +16,3 @@ export async function invoke<
 
 export type { Commands as GeneratedCommands } from "../services/command-names.js";
 export { COMMANDS as Commands } from "../services/command-names.js";
-export { TAURI_COMMAND_CLIENT } from "../services/tauri-command-client.js";

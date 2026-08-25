@@ -8,11 +8,8 @@ import { installElectrobunWebviewRpc } from "./electrobun-bridge.ts";
 /**
  * The one app-level RpcClient.
  *
- * This is the expand step of the Tauri migration: components reach the
- * contract through this accessor while tauri-command-client.ts still exists
- * untouched beside it. Batches then move call sites over one directory at a
- * time, and the contract step deletes the Tauri client once no importer
- * remains.
+ * Every facade now reaches the contract through this accessor; the legacy
+ * generated Tauri client has no importers left and awaits deletion (#250).
  *
  * Memoised because the webview bridge must only be installed once; a second
  * Electroview would register a second RPC schema against the same window.
