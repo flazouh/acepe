@@ -28,7 +28,8 @@ export {
 	SessionUnarchivedPayload,
 	SettingsUpdatedPayload,
 	SkillsDiscoveredPayload,
-	TurnCancelledPayload
+	TurnCancelledPayload,
+	TurnCompletedPayload
 } from "@acepe/contracts"
 
 export class OrchestrationProjectorDecodeError extends Schema.TaggedError<OrchestrationProjectorDecodeError>()(

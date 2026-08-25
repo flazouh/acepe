@@ -23,6 +23,7 @@ import {
 	SettingsUpdatedPayload,
 	SkillsDiscoveredPayload,
 	TurnCancelledPayload,
+	TurnCompletedPayload,
 	VoiceLanguagesListedPayload,
 	VoiceModelDeletedPayload,
 	VoiceModelDownloadedPayload,
@@ -100,6 +101,7 @@ const v1EventTypes = [
 	"MessageSent",
 	"TokenAppended",
 	"TurnCancelled",
+	"TurnCompleted",
 	"CheckpointCreated",
 	"CheckpointReadinessChanged",
 	"CheckpointReverted",
@@ -479,6 +481,13 @@ const memberCases = [
 	{
 		payloadSchema: TurnCancelledPayload,
 		event: sessionEvent("TurnCancelled", {
+			sessionId,
+			turnId,
+		}),
+	},
+	{
+		payloadSchema: TurnCompletedPayload,
+		event: sessionEvent("TurnCompleted", {
 			sessionId,
 			turnId,
 		}),
@@ -915,6 +924,14 @@ describe("OrchestrationEvent", () => {
 	it("round-trips TurnCancelled when turnId is absent", () => {
 		roundTrip(
 			sessionEvent("TurnCancelled", {
+				sessionId,
+			}),
+		)
+	})
+
+	it("round-trips TurnCompleted when turnId is absent", () => {
+		roundTrip(
+			sessionEvent("TurnCompleted", {
 				sessionId,
 			}),
 		)

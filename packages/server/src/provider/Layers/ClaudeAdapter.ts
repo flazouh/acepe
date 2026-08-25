@@ -9,6 +9,8 @@ import {
 	SessionMetaUpdatedEvent,
 	TokenAppendedEvent,
 	TurnCancelledEvent,
+	TurnCompletedEvent,
+	TurnId,
 	tracerAssistantMessageId
 } from "@acepe/contracts"
 import type { Done } from "effect/Cause"
@@ -278,12 +280,50 @@ const makeCancelled = Effect.fn("ClaudeAdapter.makeCancelled")(function*(runtime
 	})
 })
 
+// The SDK's own turn-end signal is its `result` message, which
+// ClaudeSdkMap.mapSdkMessage already turns into a turn_complete (or
+// turn_error) fact. That fact is the ONLY thing that closes an open
+// projection_turns row absent a follow-up TurnCancelled or the next
+// MessageSent starting a new turn — see ProjectionTurns.ts's
+// evolveProjectedTurns. turn_error still closes the turn (rather than
+// leaving it "running" forever): projection_turns has no separate "failed"
+// status yet, so an errored turn is recorded as completed. Distinguishing
+// success from failure in the projection is a follow-up, not something this
+// fix invents room for.
+const makeCompleted = Effect.fn("ClaudeAdapter.makeCompleted")(function*(runtime: SessionRuntime) {
+	const header = yield* stamp(runtime)
+	const lastUser = yield* Ref.get(runtime.lastUserMessageId)
+	return TurnCompletedEvent.make({
+		sequence: header.sequence,
+		eventId: header.eventId,
+		aggregateKind: "session",
+		aggregateId: runtime.sessionId,
+		occurredAt: header.occurredAt,
+		commandId: header.commandId,
+		causationEventId: null,
+		correlationId: header.commandId,
+		metadata: EMPTY_JSON_OBJECT,
+		type: "TurnCompleted",
+		payload: Option.match(lastUser, {
+			onNone: () => ({ sessionId: runtime.sessionId }),
+			onSome: (userMessageId) => ({
+				sessionId: runtime.sessionId,
+				turnId: TurnId.make(userMessageId)
+			})
+		})
+	})
+})
+
 const publishFact = Effect.fn("ClaudeAdapter.publishFact")(function*(
 	runtime: SessionRuntime,
 	fact: ClaudeContractFact
 ) {
 	if (fact.contractKind === "text_delta") {
 		const event = yield* makeTokenEvent(runtime, fact.token)
+		return yield* offerOutbound(runtime, event)
+	}
+	if (fact.contractKind === "turn_complete" || fact.contractKind === "turn_error") {
+		const event = yield* makeCompleted(runtime)
 		return yield* offerOutbound(runtime, event)
 	}
 	const event = yield* makeMetaEvent(runtime, fact)

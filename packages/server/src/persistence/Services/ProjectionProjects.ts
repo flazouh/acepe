@@ -319,6 +319,7 @@ export const evolveProjectedProjects = (
 			TokenAppended: () => Effect.succeed(current),
 
 			TurnCancelled: () => Effect.succeed(current),
+			TurnCompleted: () => Effect.succeed(current),
 			CheckpointCreated: () => Effect.succeed(current),
 			CheckpointReadinessChanged: () => Effect.succeed(current),
 			CheckpointReverted: () => Effect.succeed(current),

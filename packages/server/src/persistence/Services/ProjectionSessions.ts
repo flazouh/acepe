@@ -13,7 +13,8 @@ import {
 	SessionUnarchivedPayload,
 	TokenAppendedPayload,
 	TrimmedNonEmptyString,
-	TurnCancelledPayload
+	TurnCancelledPayload,
+	TurnCompletedPayload
 } from "@acepe/contracts"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
@@ -320,6 +321,14 @@ const projectTurnCancelled = (
 		Effect.map(() => mapExisting(current, (session) => touch(session, event.occurredAt)))
 	)
 
+const projectTurnCompleted = (
+	current: Option.Option<ProjectedSession>,
+	event: Extract<OrchestrationEvent, { readonly type: "TurnCompleted" }>
+): Effect.Effect<Option.Option<ProjectedSession>, Schema.SchemaError> =>
+	decodePayload(TurnCompletedPayload, event.payload).pipe(
+		Effect.map(() => mapExisting(current, (session) => touch(session, event.occurredAt)))
+	)
+
 export const evolveProjectedSession = (
 	current: Option.Option<ProjectedSession>,
 	event: OrchestrationEvent
@@ -337,6 +346,7 @@ export const evolveProjectedSession = (
 			MessageSent: (sent) => projectMessageSent(current, sent),
 			TokenAppended: (appended) => projectTokenAppended(current, appended),
 			TurnCancelled: (cancelled) => projectTurnCancelled(current, cancelled),
+			TurnCompleted: (completed) => projectTurnCompleted(current, completed),
 			CheckpointCreated: () => Effect.succeed(current),
 			CheckpointReadinessChanged: () => Effect.succeed(current),
 			CheckpointReverted: () => Effect.succeed(current),

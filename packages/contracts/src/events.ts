@@ -78,6 +78,7 @@ export const OrchestrationEventType = Schema.Literals([
 	"MessageSent",
 	"TokenAppended",
 	"TurnCancelled",
+	"TurnCompleted",
 	"CheckpointCreated",
 	"CheckpointReadinessChanged",
 	"CheckpointReverted",
@@ -205,6 +206,21 @@ export const TurnCancelledPayload = Schema.Struct({
 	turnId: Schema.optionalKey(TurnId),
 })
 export type TurnCancelledPayload = typeof TurnCancelledPayload.Type
+
+// Emitted by a provider adapter (ClaudeAdapter.ts, CodexAdapter.ts,
+// OpenCodeAdapter.ts) when the underlying SDK/CLI's own turn-end signal
+// arrives (Claude's `result` message, Codex's TaskComplete, OpenCode's
+// session-idle) — the only signal that closes an open projection_turns row
+// absent a follow-up TurnCancelled or the next MessageSent starting a new
+// turn. turnId is optional for the same reason TurnCancelledPayload's is: an
+// adapter may not know the turn id and instead relies on
+// ProjectionTurns.evolveProjectedTurns closing the session's current open
+// turn by sequence.
+export const TurnCompletedPayload = Schema.Struct({
+	sessionId: SessionId,
+	turnId: Schema.optionalKey(TurnId),
+})
+export type TurnCompletedPayload = typeof TurnCompletedPayload.Type
 
 export const CheckpointCreatedPayload = Schema.Struct({
 	sessionId: SessionId,
@@ -500,6 +516,14 @@ export const TurnCancelledEvent = defineOrchestrationEvent({
 	aggregateId: SessionId,
 })
 export type TurnCancelledEvent = typeof TurnCancelledEvent.Type
+
+export const TurnCompletedEvent = defineOrchestrationEvent({
+	type: "TurnCompleted",
+	payload: TurnCompletedPayload,
+	aggregateKind: "session",
+	aggregateId: SessionId,
+})
+export type TurnCompletedEvent = typeof TurnCompletedEvent.Type
 
 export const CheckpointCreatedEvent = defineOrchestrationEvent({
 	type: "CheckpointCreated",
@@ -952,6 +976,7 @@ export const OrchestrationEvent = Schema.Union([
 	MessageSentEvent,
 	TokenAppendedEvent,
 	TurnCancelledEvent,
+	TurnCompletedEvent,
 	CheckpointCreatedEvent,
 	CheckpointReadinessChangedEvent,
 	CheckpointRevertedEvent,
