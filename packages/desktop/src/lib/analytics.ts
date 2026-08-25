@@ -4,6 +4,7 @@ import * as Effect from "effect/Effect";
 import posthog from "posthog-js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
+import { getAppVersion } from "$lib/utils/electrobun-window-shims.js";
 import { settings } from "$lib/utils/tauri-client/settings.js";
 
 const ANALYTICS_OPT_OUT_KEY: UserSettingKey = "analytics_opt_out";
@@ -136,24 +137,10 @@ async function readAppVersion(): Promise<string | null> {
 		return appVersion;
 	}
 
-	return Effect.runPromise(
-		fromPromise(
-			() => import("@tauri-apps/api/app").then((mod) => mod.getVersion()),
-			(error) =>
-				normalizeError(error instanceof Error ? error : undefined, "Failed to load app version")
-		).pipe(
-			Effect.match({
-				onSuccess: (version) => {
-					appVersion = version;
-					return version;
-				},
-				onFailure: (error) => {
-					logger.warn("Unable to resolve app version for analytics", { error });
-					return null;
-				},
-			})
-		)
-	);
+	return getAppVersion().then((version) => {
+		appVersion = version;
+		return version;
+	});
 }
 
 async function readAnalyticsEnabledPreference(): Promise<boolean> {

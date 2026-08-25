@@ -1,5 +1,6 @@
 <script lang="ts">
 import { Button, HugeiconsIcon } from "@acepe/ui";
+import { getAppVersion } from "$lib/utils/electrobun-window-shims.js";
 import { openUrl } from "$lib/utils/open-url.js";
 import { onMount } from "svelte";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
@@ -38,14 +39,9 @@ function handleUpdateButtonClick(): void {
 let appVersion = $state<string | null>(null);
 
 onMount(() => {
-	void import("@tauri-apps/api/app")
-		.then((mod) => mod.getVersion())
-		.then((v) => {
-			appVersion = v;
-		})
-		.catch(() => {
-			appVersion = null;
-		});
+	void getAppVersion().then((v) => {
+		appVersion = v;
+	});
 });
 
 const releaseUrl = $derived(

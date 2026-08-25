@@ -1,10 +1,7 @@
 <script lang="ts">
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
-import { fromPromise } from "@acepe/effect-result/fromPromise";
-import * as Effect from "effect/Effect";
 import { onDestroy, onMount } from "svelte";
-import { type IPty, spawn } from "tauri-pty";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
 import "xterm/css/xterm.css";
 import { Terminal } from "xterm";
@@ -18,14 +15,13 @@ interface Props {
 	onPtyError: (error: string) => void;
 }
 
-let { projectPath, shell, onPtyCreated, onPtyError }: Props = $props();
+let { projectPath, shell, onPtyCreated: _onPtyCreated, onPtyError }: Props = $props();
 
 const themeState = useTheme();
 
 let terminalContainer: HTMLDivElement | undefined = $state();
 let terminal: Terminal | undefined = $state();
 let fitAddon: FitAddon | undefined;
-let pty: IPty | undefined;
 let resizeObserver: ResizeObserver | undefined;
 
 function readCssVariable(name: string): string | null {
@@ -71,55 +67,14 @@ onMount(async () => {
 	await new Promise((resolve) => requestAnimationFrame(resolve));
 	fitAddon.fit();
 
-	// Spawn PTY process
-	await Effect.runPromise(
-		fromPromise(
-			() =>
-				Promise.resolve(
-					spawn(shell, [], {
-						cols: terminal.cols,
-						rows: terminal.rows,
-						cwd: projectPath,
-						env: { TERM: "xterm-256color" },
-					})
-				),
-			(error) => (error instanceof Error ? error.message : String(error))
-		).pipe(
-			Effect.match({
-				onSuccess: (ptyInstance: IPty) => {
-					pty = ptyInstance;
-					onPtyCreated(pty.pid);
+	const message = `PTY is not available in Electrobun yet (${shell} in ${projectPath}).`;
+	onPtyError(message);
+	terminal.write(`\r\n[${message}]\r\n`);
 
-					// Wire up I/O
-					pty.onData((data: Uint8Array) => {
-						terminal?.write(data);
-					});
-
-					pty.onExit(({ exitCode }: { exitCode: number; signal?: number }) => {
-						terminal?.write(`\r\n[Process exited with code ${exitCode}]\r\n`);
-					});
-
-					terminal?.onData((data: string) => {
-						pty?.write(data);
-					});
-				},
-				onFailure: (message: string) => {
-					onPtyError(message);
-					terminal?.write(`\r\n[Failed to spawn shell: ${message}]\r\n`);
-				},
-			})
-		)
-	);
-
-	// Handle resize
 	resizeObserver = new ResizeObserver(() => {
-		// Debounce resize to avoid excessive calls
 		requestAnimationFrame(() => {
 			if (fitAddon && terminal) {
 				fitAddon.fit();
-				if (pty) {
-					pty.resize(terminal.cols, terminal.rows);
-				}
 			}
 		});
 	});
@@ -128,7 +83,6 @@ onMount(async () => {
 
 onDestroy(() => {
 	resizeObserver?.disconnect();
-	pty?.kill();
 	terminal?.dispose();
 });
 </script>
