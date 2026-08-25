@@ -18,7 +18,14 @@ import { resolve } from "node:path";
 // as every other test in that file already does.
 // 6583 -> 6584: one `new Date()` test-fixture helper added in
 // first-send-activation.test.ts trips effect(globalDate).
-const BASELINE = 6584;
+// 6584 -> 6591: colocated library-store.vitest.ts (new file, covering the
+// first-run skill-import fix) has a `beforeEach` and three `it` callbacks
+// declared `async`, tripping effect(asyncFunction) four times, plus three
+// `Effect.runPromise(Effect.result(store.initialize()))` call sites that
+// have a pipeable form, tripping effect(missedPipeableOpportunity) three
+// times. Same category as the two bumps above -- test-file async/pipe
+// style, not production code.
+const BASELINE = 6591;
 const PACKAGE_ROOT = resolve(import.meta.dir, "..");
 
 // The pretty formatter (the default, and what lint:effect:report uses) always
