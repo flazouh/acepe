@@ -252,6 +252,7 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 			projectionCore.canonicalCapabilitiesMaterialized.set(sessionId, materialized);
 		},
 		getCanonicalProjection,
+		getSessionStateGraph: (sessionId) => projectionCore.getSessionStateGraph(sessionId),
 		sendContentLoad: (sessionId) => connectionService.sendContentLoad(sessionId),
 		sendContentLoaded: (sessionId) => connectionService.sendContentLoaded(sessionId),
 		recordAliasRelationship: (requestedSessionId, canonicalSessionId) =>

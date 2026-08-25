@@ -13,6 +13,7 @@ import { canonicalAgentIdToString } from "../types/agent-id.js";
 import { sanitizeCanonicalCapabilities } from "./canonical-config-sanitize.js";
 import type { CanonicalSessionProjection } from "./canonical-session-projection.js";
 import { deriveCapabilityPreviewState } from "./capability-projection.js";
+import { isNewerGraphRevision } from "./envelope-reducer/graph-revision-order.js";
 import { mapProjectionTurnFailure } from "./envelope-reducer/projection-turn-failure.js";
 import type { SessionCreationCoordinator } from "./session-creation-coordinator.svelte.js";
 import type { SessionListState } from "./session-list-state.svelte.js";
@@ -106,6 +107,7 @@ export type SessionOpenSnapshotApplierDeps = {
 	) => void;
 	readonly setCapabilitiesMaterialized: (sessionId: string, materialized: boolean) => void;
 	readonly getCanonicalProjection: (sessionId: string) => CanonicalSessionProjection | null;
+	readonly getSessionStateGraph: (sessionId: string) => SessionStateGraph | null;
 	readonly sendContentLoad: (sessionId: string) => void;
 	readonly sendContentLoaded: (sessionId: string) => void;
 	readonly recordAliasRelationship: (
@@ -182,31 +184,61 @@ export class SessionOpenSnapshotApplier {
 			this.#deps.addSession(snapshotSession);
 		}
 
-		this.#deps.replaceSessionOperations(canonicalSessionId, snapshot.operations);
-		this.#deps.replaceTranscriptSnapshot(canonicalSessionId, snapshot.transcriptSnapshot, now);
 		this.#deps.initializeTransientProjection(canonicalSessionId);
+
+		// GOD: this open-snapshot write shares the canonical transcript/graph
+		// authority with the envelope reducer's `replaceGraph` command
+		// (reduce-command.ts's reduceReplaceGraph), which never applies a
+		// snapshot older than what's already live. This call site must hold
+		// the same invariant. Without it, a `SessionOpenFound` payload that
+		// resolves late -- e.g. the session-creation RPC round trip finishing
+		// after OrchestrationCanonicalBridge (Electrobun's synthetic
+		// SessionStateEnvelope producer, see orchestration-canonical-bridge.ts)
+		// has already streamed real transcript deltas for the same session --
+		// would silently stomp the live graph back to the empty/stale
+		// transcript the open snapshot was captured with. That is the
+		// "rows apply, then get wiped seconds later" bug: real rows render,
+		// then this write reverts `sessionStateGraphs` to a transcript-less
+		// snapshot and the viewport re-derives empty.
 		const graph = materializeSnapshotFromOpenFound(snapshot).graph;
-		seedTranscriptEntryIndex(graph.transcriptSnapshot.entries);
-		this.#deps.setSessionStateGraph(canonicalSessionId, graph);
-		const canonicalCapabilities = sanitizeCanonicalCapabilities(graph.capabilities);
-		this.#deps.setCapabilitiesMaterialized(canonicalSessionId, true);
-		this.#deps.updateTransientProjection(canonicalSessionId, {
-			statusChangedAt: Date.now(),
-			capabilityMutationState: {
-				pendingMutationId: null,
-				previewState: deriveCapabilityPreviewState(canonicalCapabilities),
-			},
-		});
-		this.#deps.setCanonicalProjection(canonicalSessionId, {
-			lifecycle: graph.lifecycle,
-			activity: graph.activity,
-			turnState: snapshot.turnState,
-			activeTurnFailure: mapProjectionTurnFailure(snapshot.activeTurnFailure ?? null),
-			lastTerminalTurnId: snapshot.lastTerminalTurnId ?? null,
-			activeStreamingTail: graph.activeStreamingTail ?? null,
-			capabilities: canonicalCapabilities,
-			revision: graph.revision,
-		});
+		const previousProjection = this.#deps.getCanonicalProjection(canonicalSessionId);
+		const previousGraph = this.#deps.getSessionStateGraph(canonicalSessionId);
+		const previousRevision = previousProjection?.revision ?? previousGraph?.revision ?? null;
+		const previousLifecycleStatus =
+			previousProjection?.lifecycle.status ?? previousGraph?.lifecycle.status ?? null;
+		const isReadySnapshotRecovery =
+			graph.lifecycle.status === "ready" &&
+			(previousLifecycleStatus === "reserved" ||
+				previousLifecycleStatus === "activating" ||
+				previousLifecycleStatus === "reconnecting");
+		const shouldApplyCanonicalGraph =
+			isNewerGraphRevision(previousRevision, graph.revision) || isReadySnapshotRecovery;
+
+		if (shouldApplyCanonicalGraph) {
+			this.#deps.replaceSessionOperations(canonicalSessionId, snapshot.operations);
+			this.#deps.replaceTranscriptSnapshot(canonicalSessionId, snapshot.transcriptSnapshot, now);
+			seedTranscriptEntryIndex(graph.transcriptSnapshot.entries);
+			this.#deps.setSessionStateGraph(canonicalSessionId, graph);
+			const canonicalCapabilities = sanitizeCanonicalCapabilities(graph.capabilities);
+			this.#deps.setCapabilitiesMaterialized(canonicalSessionId, true);
+			this.#deps.updateTransientProjection(canonicalSessionId, {
+				statusChangedAt: Date.now(),
+				capabilityMutationState: {
+					pendingMutationId: null,
+					previewState: deriveCapabilityPreviewState(canonicalCapabilities),
+				},
+			});
+			this.#deps.setCanonicalProjection(canonicalSessionId, {
+				lifecycle: graph.lifecycle,
+				activity: graph.activity,
+				turnState: snapshot.turnState,
+				activeTurnFailure: mapProjectionTurnFailure(snapshot.activeTurnFailure ?? null),
+				lastTerminalTurnId: snapshot.lastTerminalTurnId ?? null,
+				activeStreamingTail: graph.activeStreamingTail ?? null,
+				capabilities: canonicalCapabilities,
+				revision: graph.revision,
+			});
+		}
 		this.#deps.sendContentLoad(canonicalSessionId);
 		this.#deps.sendContentLoaded(canonicalSessionId);
 	}
