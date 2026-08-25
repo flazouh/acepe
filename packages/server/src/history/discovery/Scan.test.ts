@@ -114,6 +114,55 @@ Vitest.layer(Platform)("listClaudeSessionsForProject / listClaudeProjects", (it)
 			}
 		}))
 
+	it.effect(
+		"matches a symlink-registered project against history written under its realpath",
+		() =>
+			Effect.gen(function*() {
+				const fs = yield* FileSystem.FileSystem
+				const path = yield* Path.Path
+				const root = yield* fs.makeTempDirectoryScoped()
+				const projectsRoot = path.join(root, "projects")
+
+				// Mirrors macOS's /tmp -> /private/tmp: the project is
+				// registered under a symlinked path, but the (fake) Claude
+				// CLI wrote its history keyed by the slug of the realpath.
+				const real = path.join(root, "private", "tmp")
+				const realProjectPath = path.join(real, "acepe")
+				yield* fs.makeDirectory(realProjectPath, { recursive: true })
+				const link = path.join(root, "tmp")
+				yield* fs.symlink(real, link)
+				const registeredProjectPath = path.join(link, "acepe")
+
+				// The fake Claude CLI's own slug comes from ITS realpath too
+				// (root itself may sit under another symlink, e.g. macOS's
+				// /var -> /private/var) -- resolve the same way `claudeProjectSlug`
+				// does so this test isolates the `link -> real` symlink under
+				// test instead of also depending on root's own symlink status.
+				const realSlug = pathToSlug(yield* fs.realPath(realProjectPath))
+				const projectDir = path.join(projectsRoot, realSlug)
+				yield* writeSession(fs, path, projectDir, "session-a.jsonl", [
+					{
+						type: "user",
+						sessionId: "session-a",
+						timestamp: "2026-08-20T10:00:00.000Z",
+						message: { role: "user", content: "First session" }
+					}
+				])
+
+				const sessions = yield* listClaudeSessionsForProject(
+					fs,
+					path,
+					projectsRoot,
+					registeredProjectPath
+				)
+				Vitest.assert.strictEqual(sessions.length, 1)
+				Vitest.assert.strictEqual(sessions[0]?.id, "session-a")
+				// The returned session still carries the path as registered,
+				// not the realpath -- only the disk lookup normalizes.
+				Vitest.assert.strictEqual(sessions[0]?.projectPath, registeredProjectPath)
+			})
+	)
+
 	it.effect("returns an empty list, not an error, when the project has no Claude history", () =>
 		Effect.gen(function*() {
 			const fs = yield* FileSystem.FileSystem

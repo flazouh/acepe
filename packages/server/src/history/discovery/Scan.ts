@@ -14,7 +14,7 @@ import { modifiedAtMillis } from "../../skills/fsWalk.ts"
 import { ClaudeJsonlLine, claudeFactFromLine, claudeSessionIdFromLine } from "../claude.ts"
 import { decodeJsonl } from "../jsonl.ts"
 import { sessionTitleFromUserText } from "../text.ts"
-import { pathToSlug, slugToPath } from "./Roots.ts"
+import { claudeProjectSlug, slugToPath } from "./Roots.ts"
 import { DiscoveredProject, DiscoveredSession } from "./Types.ts"
 
 /**
@@ -137,7 +137,7 @@ export const projectDirectorySignature = Effect.fn("projectDirectorySignature")(
 	projectsRoot: string,
 	projectPath: string
 ) {
-	const slug = pathToSlug(projectPath)
+	const slug = yield* claudeProjectSlug(fs, projectPath)
 	const projectDir = path.join(projectsRoot, slug)
 	const jsonlNames = yield* jsonlNamesIn(fs, projectDir)
 	const sorted = Arr.sort(jsonlNames, Str.Order)
@@ -183,7 +183,7 @@ export const listClaudeSessionsForProject = Effect.fn("listClaudeSessionsForProj
 	projectsRoot: string,
 	projectPath: string
 ) {
-	const slug = pathToSlug(projectPath)
+	const slug = yield* claudeProjectSlug(fs, projectPath)
 	const projectDir = path.join(projectsRoot, slug)
 	const jsonlNames = yield* jsonlNamesIn(fs, projectDir)
 	const withMtime = yield* Effect.forEach(jsonlNames, (name) =>
