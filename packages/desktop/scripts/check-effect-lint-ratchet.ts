@@ -18,7 +18,12 @@ import { resolve } from "node:path";
 // as every other test in that file already does.
 // 6583 -> 6584: one `new Date()` test-fixture helper added in
 // first-send-activation.test.ts trips effect(globalDate).
-const BASELINE = 6584;
+// 6584 -> 6586: one new `it("...", async () => {})` regression test added in
+// initialization-manager.test.ts (scanStartupSessionHistory defect
+// resilience) trips effect(asyncFunction), plus its `new Date()` project
+// fixture trips effect(globalDate) -- same pattern every other test in that
+// describe block already has.
+const BASELINE = 6586;
 const PACKAGE_ROOT = resolve(import.meta.dir, "..");
 
 // The pretty formatter (the default, and what lint:effect:report uses) always

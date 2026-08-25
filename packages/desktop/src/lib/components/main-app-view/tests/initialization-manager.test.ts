@@ -912,6 +912,35 @@ describe("InitializationManager", () => {
 			expect(mockSessionStore.loading.scanSessions).toHaveBeenCalledWith(["/project1"]);
 		});
 
+		it("still scans on-disk session history when the projection union dies with a defect", async () => {
+			// A defect (an unexpected throw, not a typed AppError) escaping
+			// scanSessionProjections must not abort the whole startup scan
+			// chain: scanSessions is the independent, disk-backed source for
+			// every project that has provider history on disk, and it must
+			// still run so those projects don't render blank alongside
+			// whatever the projection union failed to merge. Regression for
+			// a plain `Effect.catch` here, which only recovers the typed
+			// error channel and lets a defect (e.g. mergeProjectionSessions
+			// throwing on a malformed row) kill this entire Effect chain
+			// before scanSessions is ever reached.
+			mockProjectManager.projects = [
+				{
+					path: "/project1",
+					name: "Project 1",
+					createdAt: new Date(),
+					color: "blue",
+				},
+			];
+			mockSessionStore.loading.scanSessionProjections = mock(() =>
+				Effect.die(new Error("boom: unexpected defect from the projection union"))
+			);
+
+			await Effect.runPromise(manager.initialize());
+			await runImmediateTimers();
+
+			expect(mockSessionStore.loading.scanSessions).toHaveBeenCalledWith(["/project1"]);
+		});
+
 		it("hydrates restored panels before scanning the sidebar metadata", async () => {
 			mockProjectManager.projects = [
 				{

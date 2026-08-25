@@ -44,6 +44,7 @@
  */
 
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import type { AppError } from "$lib/acp/errors/app-error.js";
@@ -674,6 +675,17 @@ export class InitializationManager {
 	// "created", which refreshSessionsFromScan always preserves). Runs on
 	// every call site of scanStartupSessionHistory, including the
 	// history-index-changed reconciliation, not just first boot.
+	//
+	// Uses catchCause (not catch): a plain `catch` only recovers the typed
+	// error channel, so an unexpected defect thrown out of the projection
+	// union (e.g. a malformed row surviving mergeProjectionSessions, or an
+	// RPC-layer throw) would abort this whole Effect chain BEFORE the
+	// flatMap below ever runs scanSessions -- silently blanking every
+	// project's session list on restart, not just the projection-only ones,
+	// because the disk scan that would otherwise repopulate them never
+	// fires. catchCause recovers from both the typed error and any defect,
+	// so a failed union never prevents the (independent) disk scan from
+	// still populating whatever it can.
 	private scanStartupSessionHistory(): Effect.Effect<void, MainAppViewError> {
 		const projectPaths = this.getKnownProjectPaths();
 		if (projectPaths.length === 0) {
@@ -681,8 +693,10 @@ export class InitializationManager {
 		}
 
 		return this.sessionStore.loading.scanSessionProjections().pipe(
-			Effect.catch((error) => {
-				logger.warn("Failed to merge library session projections at startup", { error });
+			Effect.catchCause((cause) => {
+				logger.error("Failed to merge library session projections at startup", {
+					error: Cause.pretty(cause),
+				});
 				return Effect.void;
 			}),
 			Effect.flatMap(() => this.sessionStore.loading.scanSessions(projectPaths)),
