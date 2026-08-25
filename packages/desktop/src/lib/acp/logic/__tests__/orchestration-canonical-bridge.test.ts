@@ -212,6 +212,48 @@ describe("OrchestrationCanonicalBridge", () => {
 		}
 	});
 
+	// Reproduces the live bug this bridge's own header comment documented:
+	// "turn completion has no orchestration event yet ... so turnState never
+	// leaves 'Running' after the first reply starts". Now that TurnCompleted
+	// exists on the contract, a real Claude reply with no follow-up message
+	// must resolve turnState to "Completed" and drop the composer out of its
+	// busy/Interrupt state instead of staying stuck open forever.
+	it("resolves turnState to Completed and clears activity on TurnCompleted", () => {
+		const bridge = makeBridge();
+		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
+		runTranslate(
+			bridge,
+			makeEvent("MessageSent", { sessionId, messageId: MessageId.make("u1"), text: "go" })
+		);
+		runTranslate(
+			bridge,
+			makeEvent("TokenAppended", {
+				sessionId,
+				messageId: MessageId.make("u1:assistant"),
+				token: "TURN_42",
+			})
+		);
+
+		const envelopes = runTranslate(bridge, makeEvent("TurnCompleted", { sessionId }));
+
+		expect(envelopes).toHaveLength(1);
+		const payload = envelopes[0]?.payload as SessionStateEnvelope;
+		expect(payload.payload.kind).toBe("delta");
+		if (payload.payload.kind === "delta") {
+			const delta: SessionStateDelta = payload.payload.delta;
+			expect(delta.turnState).toBe("Completed");
+			expect(delta.activity.kind).toBe("idle");
+			expect(delta.changedFields).toContain("turnState");
+			expect(delta.changedFields).toContain("activity");
+		}
+	});
+
+	it("ignores TurnCompleted for a session it never saw created", () => {
+		const bridge = makeBridge();
+		const envelopes = runTranslate(bridge, makeEvent("TurnCompleted", { sessionId }));
+		expect(envelopes).toHaveLength(0);
+	});
+
 	it("skips event types outside its scope without throwing", () => {
 		const bridge = makeBridge();
 		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));

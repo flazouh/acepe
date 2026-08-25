@@ -11,12 +11,11 @@
 // just enough SessionStateEnvelope traffic (an initial "snapshot", then
 // contiguous "delta"s) for a session CREATED LIVE in this app run to show
 // its real streamed reply, tool calls, and approval requests in the real
-// agent panel. It is not the full canonical graph: turn completion has no
-// orchestration event yet (TurnCancelled is the only terminal signal on the
-// contract today), so turnState never leaves "Running" after the first
-// reply starts -- documented here rather than faked. Resumed/historical
+// agent panel. It is not the full canonical graph -- e.g. resumed/historical
 // sessions are out of scope (they depend on history.getSessionOpenResult,
-// itself unsupportedOnContract for the same reason).
+// itself unsupportedOnContract for the same reason) -- but turn completion
+// (TurnCompleted, alongside TurnCancelled) IS a real terminal signal on the
+// contract, handled below.
 import type { OrchestrationEvent, SessionId } from "@acepe/contracts";
 import { librarySnapshotRequest, type RpcClient } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
@@ -163,6 +162,10 @@ export class OrchestrationCanonicalBridge {
 			case "TurnCancelled":
 				return Effect.succeed(
 					this.onTurnCancelled(event.payload.sessionId, event.payload.turnId ?? null)
+				);
+			case "TurnCompleted":
+				return Effect.succeed(
+					this.onTurnCompleted(event.payload.sessionId, event.payload.turnId ?? null)
 				);
 			default:
 				// Every other OrchestrationEventType (git/voice/checkpoint/settings/
@@ -450,6 +453,30 @@ export class OrchestrationCanonicalBridge {
 		};
 		state.revision = toRevision;
 		state.turnState = "Cancelled";
+		state.activity = idleActivity;
+		state.assistantEntryId = null;
+		return [toSessionStateAcpEnvelope(envelopeForDelta(sessionId, toRevision, delta))];
+	}
+
+	private onTurnCompleted(sessionId: string, _turnId: string | null): AcpEventEnvelope[] {
+		const state = this.sessions.get(sessionId);
+		if (state === undefined) {
+			return [];
+		}
+		const toRevision = nextRevision(state.revision, false);
+		const delta: SessionStateDelta = {
+			fromRevision: state.revision,
+			toRevision,
+			activity: idleActivity,
+			turnState: "Completed",
+			activeStreamingTail: null,
+			transcriptOperations: [],
+			operationPatches: [],
+			interactionPatches: [],
+			changedFields: ["turnState", "activity"],
+		};
+		state.revision = toRevision;
+		state.turnState = "Completed";
 		state.activity = idleActivity;
 		state.assistantEntryId = null;
 		return [toSessionStateAcpEnvelope(envelopeForDelta(sessionId, toRevision, delta))];
