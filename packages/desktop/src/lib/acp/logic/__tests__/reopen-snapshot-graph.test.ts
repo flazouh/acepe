@@ -67,7 +67,7 @@ describe("graphFromReopenSnapshot", () => {
 				sessionId: SESSION_ID,
 				sequence: 2,
 				messageId: "msg-assistant-1",
-				turnId: "turn-1",
+				turnId: TURN_ID,
 				rowType: "assistant",
 				content: { text: "REOPEN_42" },
 			},
@@ -141,7 +141,7 @@ describe("graphFromReopenSnapshot", () => {
 			...withMessages(4, []),
 			pendingApprovals: [
 				{
-					approvalRequestId: "approval-1",
+					approvalRequestId: APPROVAL_REQUEST_ID,
 					sessionId: SESSION_ID,
 					sequence: 4,
 					title: "Run rm -rf",

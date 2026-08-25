@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import type { RpcProjectedMessage, RpcSessionSnapshot } from "@acepe/contracts";
-import { emptyRpcSessionSnapshot } from "@acepe/contracts";
+import { emptyRpcSessionSnapshot, ProjectId, SessionId } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 
 import type { SessionStateEnvelope } from "../../../../services/acp-types.js";
@@ -10,7 +10,8 @@ import {
 	type ReopenedSessionHydratorDeps,
 } from "../reopened-session-hydrator.js";
 
-const SESSION_ID = "session-reopen-1";
+const SESSION_ID = SessionId.make("session-reopen-1");
+const PROJECT_ID = ProjectId.make("project-1");
 
 function baseInput() {
 	return {
@@ -23,12 +24,12 @@ function baseInput() {
 	};
 }
 
-function withSession(snapshot: RpcSessionSnapshot, sessionId: string): RpcSessionSnapshot {
+function withSession(snapshot: RpcSessionSnapshot, sessionId: SessionId): RpcSessionSnapshot {
 	return {
 		...snapshot,
 		session: {
 			sessionId,
-			projectId: "project-1",
+			projectId: PROJECT_ID,
 			title: "Reopened session",
 			provider: "claude-code",
 			createdAt: "2026-08-01T00:00:00.000Z",
