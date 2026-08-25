@@ -66,3 +66,14 @@ Five provider adapters ported, **none graded**. `packages/harness/fixtures` hold
 ## Honest scale
 
 The spine took this session. Steps 1 to 4 are larger than the spine, because 230 commands and 138 components is more surface than the event-sourcing core ever was. The difference is that they are mechanical and independently verifiable, where the spine was neither.
+
+---
+
+## Status update 2026-08-25 (post deep-QA sweep)
+
+The ordered plan above is substantially executed:
+
+- Step 2 (contract by domain): DONE at the facade level — the tauri-command-client importer ratchet is 0; every desktop facade rides dispatch/snapshot/events plus the utility RPCs (gitCall, agentCall, importProviderSession, getProviderAccountUsage, readTextFile/writeTextFile confined by fsPathGuard, getDefaultShell, getProjectIndex). Domains landed: git (gitCall union incl. headSha poll), acp core (prompting, approvals, session config), history/discovery (import-on-open), session review state projection (migration 0020), terminal (PTY via bun:ffi, migration 0019), usage (bun-side Keychain/cookie/API port), workspace/settings/skills/mcp/checkpoints.
+- Step 3 (voice): DONE incl. QA fake-audio source gated to unsigned builds.
+- Step 4 (UI): the REAL MainAppView mounts under Electrobun (scaffold behind ?scaffold=1). Real provider sessions work end to end: ProviderBridge routes Claude (agent-sdk, config-isolated via settingSources+strictMcpConfig), Codex, OpenCode; TurnCompleted event closes turns; transcripts render from canonical entries and stay stable; first-message send fixed; adapter spawns isolated from the operator config. Deep QA (2 agents, full matrices) drove the fix list; remaining open lanes: adapter turn robustness, reopen hydration, provider persistence + realpath roots, usage-widget/skills/composer gaps; terminal drawer wiring paused by Alex.
+- Step 1 (record fixtures) still needs Alex; step 5 (AC-046/AC-047) gated on it plus #250 sign-off (deleting the generated client + Rust).
