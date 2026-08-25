@@ -240,10 +240,21 @@ describe("SessionMessagingService.sendMessage", () => {
 		expect(Result.isSuccess(result)).toBe(true);
 	});
 
-	it("fails closed when a created session lacks canonical lifecycle projection", async () => {
+	// A created, source-less session with no canonical lifecycle projection
+	// yet (lifecycleStatus === null) is the ordinary state of a fresh
+	// deferred-creation session: its SessionStateGraph hasn't landed on the
+	// client yet (the first live envelope for such a session commonly has no
+	// prior graph-revision baseline to apply against, so the router degrades
+	// it to a refreshSnapshot no-op instead of setting a real lifecycle --
+	// see first-send-activation.test.ts and canActivateCreatedSessionWithFirstPrompt).
+	// It is, by construction, no further along than "reserved", so it must
+	// stay first-send activatable through that gap -- see the live repro in
+	// first-send-activation.ts's changelog. Fail-closed still applies once a
+	// REAL, established lifecycle says the session cannot be first-sent to.
+	it("fails closed when a created session's canonical lifecycle is an established non-reserved status", async () => {
 		const deps = createMockDeps();
 		deps.stateReader.getSessionCanSend = vi.fn().mockReturnValue(false);
-		deps.stateReader.getSessionLifecycleStatus = vi.fn().mockReturnValue(null);
+		deps.stateReader.getSessionLifecycleStatus = vi.fn().mockReturnValue("failed");
 		(deps.stateReader.getSessionIdentity as ReturnType<typeof vi.fn>).mockReturnValue({
 			id: "session-1",
 			projectPath: "/tmp/project",

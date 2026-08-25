@@ -16,7 +16,9 @@ import { resolve } from "node:path";
 // 6581 -> 6583: two new `it("...", async () => {})` tests added in
 // scene-content-viewport.svelte.vitest.ts trip effect(asyncFunction), same
 // as every other test in that file already does.
-const BASELINE = 6583;
+// 6583 -> 6584: one `new Date()` test-fixture helper added in
+// first-send-activation.test.ts trips effect(globalDate).
+const BASELINE = 6584;
 const PACKAGE_ROOT = resolve(import.meta.dir, "..");
 
 // The pretty formatter (the default, and what lint:effect:report uses) always
