@@ -10,13 +10,16 @@ import type {
 	SessionGraphRevision,
 	SessionOpenTranscriptRowPage,
 	SessionStateEnvelope,
+	TranscriptEntry,
 	ViewportBufferDelta,
 	ViewportBufferPush,
 } from "../../services/acp-types.js";
+import { runningUnderElectrobun } from "../../utils/electrobun-window-shims.js";
 import {
 	readTranscriptRowPage,
 	requestTranscriptViewportBuffer,
 } from "../session-state/session-state-viewport-command-service.js";
+import { transcriptViewportRowsFromEntries } from "../session-state/transcript-viewport-rows-from-entries.js";
 import { createLogger } from "../utils/logger.js";
 import type { TranscriptRowsState } from "./transcript-rows-store.js";
 import { TranscriptRowsStore } from "./transcript-rows-store.svelte.js";
@@ -31,6 +34,14 @@ const logger = createLogger({
 export interface TranscriptRowsControllerDeps {
 	readonly getGraphRevision: (sessionId: string) => SessionGraphRevision | undefined;
 	readonly applySessionStateEnvelope: (sessionId: string, envelope: SessionStateEnvelope) => void;
+	/**
+	 * Canonical transcript entries for a session (real data, already correct
+	 * under Electrobun for a live-created session -- see
+	 * orchestration-canonical-bridge.ts). Used to derive rows locally instead
+	 * of calling the Tauri-only viewport-buffer command; `null` means no
+	 * canonical graph exists yet for this session.
+	 */
+	readonly getTranscriptEntries: (sessionId: string) => ReadonlyArray<TranscriptEntry> | null;
 }
 
 export type TranscriptRowsControllerDiagnostic = {
@@ -322,6 +333,25 @@ export class TranscriptRowsController {
 			requestGeneration,
 			reason,
 		});
+		// Electrobun has no `acp_request_transcript_viewport_buffer` backend
+		// (see session-state-viewport-command-service.ts). Root-scope rows are
+		// derivable locally, with real data, from the canonical transcript
+		// entries this session's graph already carries -- so build and apply
+		// them synchronously instead of round-tripping a Tauri-only command
+		// that would just report "unavailable". Tool-call rows are not
+		// included; see transcript-viewport-rows-from-entries.ts for why.
+		if (runningUnderElectrobun()) {
+			const entries = this.deps.getTranscriptEntries(sessionId) ?? [];
+			this.applyBufferPush({
+				sessionId,
+				graphRevision: revision,
+				emissionSeq: revision.lastEventSeq,
+				rows: transcriptViewportRowsFromEntries(entries),
+				requestGeneration,
+				diagnostics: [],
+			});
+			return;
+		}
 		this.#freshRowsRequestInFlight.add(sessionId);
 		void Effect.runPromise(
 			requestTranscriptViewportBuffer({ sessionId, revision, requestGeneration }).pipe(
