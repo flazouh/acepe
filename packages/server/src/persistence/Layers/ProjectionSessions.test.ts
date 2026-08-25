@@ -510,6 +510,65 @@ Vitest.layer(isolatedSessions())("truncate", (it) => {
 	)
 })
 
+Vitest.layer(isolatedEngine())("providerId from the event log", (it) => {
+	it.effect("carries a SessionCreated providerId into the projected row and library list", () =>
+		Effect.gen(function*() {
+			const store = yield* OrchestrationEventStore
+			const sessions = yield* ProjectionSessions
+			yield* store.append([
+				{
+					eventId: EventId.make("event-1"),
+					aggregateKind: "project",
+					aggregateId: projectId,
+					occurredAt: NOW,
+					commandId,
+					causationEventId: null,
+					correlationId: commandId,
+					metadata: {},
+					type: "ProjectCreated",
+					payload: {
+						projectId,
+						title: "Acepe",
+						workspaceRoot: "/tmp/acepe"
+					}
+				},
+				{
+					eventId: EventId.make("event-2"),
+					aggregateKind: "session",
+					aggregateId: sessionId,
+					occurredAt: NOW,
+					commandId,
+					causationEventId: null,
+					correlationId: commandId,
+					metadata: {},
+					type: "SessionCreated",
+					payload: {
+						sessionId,
+						projectId,
+						title: "First session",
+						providerId: "claude-code"
+					}
+				}
+			])
+			yield* withPipeline(
+				[projectorOf(sessions)],
+				waitForSequence(sessions.name, 2)
+			)
+			const row = yield* sessions.get(sessionId)
+			const session = Option.match(row, {
+				onNone: () => {
+					Vitest.assert.fail("expected a projected session")
+					return undefined as never
+				},
+				onSome: (value) => value
+			})
+			Vitest.assert.strictEqual(session.provider, "claude-code")
+			const listed = yield* sessions.list()
+			Vitest.assert.strictEqual(listed.find((entry) => entry.sessionId === sessionId)?.provider, "claude-code")
+		})
+	)
+})
+
 Vitest.layer(isolatedEngine())("rebuild projection.sessions", (it) => {
 	it.effect("reproduces the table byte-identically from the same event log", () =>
 		Effect.gen(function*() {

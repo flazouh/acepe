@@ -264,6 +264,43 @@ Vitest.describe("decide", () => {
 		})
 	)
 
+	Vitest.it.effect("carries providerId into the SessionCreated payload", () =>
+		Effect.gen(function*() {
+			const events = yield* decide(
+				projectReadModel,
+				SessionCreateCommand.make({
+					type: "session.create",
+					commandId,
+					sessionId,
+					projectId,
+					title: "First session",
+					providerId: "claude-code"
+				}),
+				identity
+			)
+			Vitest.assert.deepStrictEqual(events, [
+				{
+					sequence: 2,
+					eventId,
+					aggregateKind: "session",
+					aggregateId: sessionId,
+					occurredAt,
+					commandId,
+					causationEventId: null,
+					correlationId: commandId,
+					metadata: {},
+					type: "SessionCreated",
+					payload: {
+						sessionId,
+						projectId,
+						title: "First session",
+						providerId: "claude-code"
+					}
+				}
+			])
+		})
+	)
+
 	Vitest.it.effect("rejects session.create when the project is missing", () =>
 		Effect.gen(function*() {
 			const error = yield* Effect.flip(
