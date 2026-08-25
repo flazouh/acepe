@@ -5,4 +5,4 @@
  * containers, so both have to declare the same gap for the row to read as one
  * evenly spaced strip.
  */
-export const AGENT_INPUT_CONTROL_GAP_CLASS = "gap-1";
+export const AGENT_INPUT_CONTROL_GAP_CLASS = "gap-0.5";
