@@ -950,6 +950,91 @@ describe("InitializationManager", () => {
 			expect(mockProjectManager.mergeLibraryProjects).toHaveBeenCalledWith(libraryProjects);
 		});
 
+		it("scans the paths the library union just added, not the stale pre-union list", async () => {
+			// Regression: scanStartupSessionHistory snapshotted
+			// getKnownProjectPaths() BEFORE the projection union ran, so a
+			// project that exists only via discovery (a real repository whose
+			// sessions live in ~/.claude but which was never separately added
+			// to project storage) was unioned into the sidebar and then never
+			// scanned -- rendering "No sessions found" while the discovery
+			// RPC returned its full history.
+			mockProjectManager.projects = [
+				{
+					path: "/project1",
+					name: "Project 1",
+					createdAt: new Date(),
+					color: "blue",
+				},
+			];
+			const libraryProjects = [
+				{
+					projectId: ProjectId.make("project-disc"),
+					title: "Discovery-only repo",
+					workspaceRoot: "/real/repo",
+					createdAt: "2026-08-20T12:00:00.000Z",
+					updatedAt: "2026-08-20T12:00:00.000Z",
+					deletedAt: null,
+					sessionCount: 2,
+					gitStatus: [],
+				},
+			];
+			mockSessionStore.loading.scanSessionProjections = mock(() => Effect.succeed(libraryProjects));
+			mockProjectManager.mergeLibraryProjects = mock(() => {
+				mockProjectManager.projects = [
+					...mockProjectManager.projects,
+					{
+						path: "/real/repo",
+						name: "Discovery-only repo",
+						createdAt: new Date(),
+						color: "blue",
+					},
+				];
+			});
+
+			await Effect.runPromise(manager.initialize());
+			await runImmediateTimers();
+
+			expect(mockSessionStore.loading.scanSessions).toHaveBeenCalledWith([
+				"/project1",
+				"/real/repo",
+			]);
+		});
+
+		it("scans union-added paths even when no project was known before the union", async () => {
+			// A fresh instance has zero storage-backed projects; the early
+			// return on an empty path list must not skip the union, or a
+			// first launch never scans anything.
+			mockProjectManager.projects = [];
+			const libraryProjects = [
+				{
+					projectId: ProjectId.make("project-only"),
+					title: "Only repo",
+					workspaceRoot: "/real/only",
+					createdAt: "2026-08-20T12:00:00.000Z",
+					updatedAt: "2026-08-20T12:00:00.000Z",
+					deletedAt: null,
+					sessionCount: 1,
+					gitStatus: [],
+				},
+			];
+			mockSessionStore.loading.scanSessionProjections = mock(() => Effect.succeed(libraryProjects));
+			mockProjectManager.mergeLibraryProjects = mock(() => {
+				mockProjectManager.projects = [
+					{
+						path: "/real/only",
+						name: "Only repo",
+						createdAt: new Date(),
+						color: "blue",
+					},
+				];
+			});
+
+			await Effect.runPromise(manager.initialize());
+			await runImmediateTimers();
+
+			expect(mockSessionStore.loading.scanSessions).toHaveBeenCalledWith(["/real/only"]);
+		});
+
 		it("still scans on-disk session history when the projection union dies with a defect", async () => {
 			// A defect (an unexpected throw, not a typed AppError) escaping
 			// scanSessionProjections must not abort the whole startup scan

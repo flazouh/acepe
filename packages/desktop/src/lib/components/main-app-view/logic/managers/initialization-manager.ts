@@ -694,11 +694,6 @@ export class InitializationManager {
 	// so a failed union never prevents the (independent) disk scan from
 	// still populating whatever it can.
 	private scanStartupSessionHistory(): Effect.Effect<void, MainAppViewError> {
-		const projectPaths = this.getKnownProjectPaths();
-		if (projectPaths.length === 0) {
-			return Effect.succeed(undefined);
-		}
-
 		return this.sessionStore.loading.scanSessionProjections().pipe(
 			// The library snapshot's own `projects` array is "every project", not
 			// just the ones already known locally (see ProjectManager.
@@ -718,7 +713,18 @@ export class InitializationManager {
 				});
 				return Effect.void;
 			}),
-			Effect.flatMap(() => this.sessionStore.loading.scanSessions(projectPaths)),
+			// Compute the scan list AFTER the union: a project that exists only
+			// via discovery (real repo with ~/.claude history but no storage
+			// entry) is added by mergeLibraryProjects above and must be
+			// scanned in the same pass, or it renders "No sessions found"
+			// while the discovery RPC holds its full history.
+			Effect.flatMap(() => {
+				const projectPaths = this.getKnownProjectPaths();
+				if (projectPaths.length === 0) {
+					return Effect.succeed(undefined);
+				}
+				return this.sessionStore.loading.scanSessions(projectPaths);
+			}),
 			Effect.mapError(
 				(error) =>
 					new InitializationError(
