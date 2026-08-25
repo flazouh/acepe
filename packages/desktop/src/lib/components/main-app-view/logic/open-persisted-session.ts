@@ -1,7 +1,10 @@
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
+import type { SessionIdentity } from "$lib/acp/application/dto/session-identity.js";
+import type { SessionMetadata } from "$lib/acp/application/dto/session-metadata.js";
 import type { AppError } from "$lib/acp/errors/app-error.js";
 import { api } from "$lib/acp/store/api.js";
+import { hydrateReopenedSessionSnapshot } from "$lib/acp/store/services/reopened-session-hydrator.js";
 import type { SessionOpenHydrator } from "$lib/acp/store/services/session-open-hydrator.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
@@ -49,7 +52,10 @@ type OpenPersistedSessionDiagnosticRecorder = (event: OpenPersistedSessionDiagno
 
 let diagnosticRecorder: OpenPersistedSessionDiagnosticRecorder | null = null;
 
-type SessionOpenStore = Pick<SessionStore, "read" | "loading" | "connection">;
+type SessionOpenStore = Pick<
+	SessionStore,
+	"read" | "loading" | "connection" | "applySessionStateEnvelope"
+>;
 
 type SessionOpenHydratorLike = Pick<
 	SessionOpenHydrator,
@@ -121,6 +127,53 @@ function reattachLocalCreatedSession(input: {
 				error,
 			});
 			return Effect.succeed(undefined);
+		})
+	);
+}
+
+/**
+ * The gap getSessionOpenResult's own header comment (see history.ts)
+ * acknowledges: it is unsupportedOnContract under Electrobun, so a
+ * provider-history-backed session (one this app run did not itself create
+ * live) reaches this function's catch branch on every open/reopen. Without
+ * it, that catch branch only marked the session loaded -- nothing ever
+ * seeded transcriptSnapshot.entries for a reopened session. See
+ * reopened-session-hydrator.ts for the guarded (never-stomps-a-newer-live-
+ * graph) hydration this delegates to.
+ */
+function hydrateProviderBackedSessionOnOpen(input: {
+	readonly source: OpenPersistedSessionOptions["source"];
+	readonly panelId: string;
+	readonly sessionId: string;
+	readonly sessionStore: SessionOpenStore;
+	readonly sessionIdentity: SessionIdentity;
+	readonly sessionMetadata: SessionMetadata;
+}): Effect.Effect<void, never> {
+	const { source, panelId, sessionId, sessionStore, sessionIdentity, sessionMetadata } = input;
+	return hydrateReopenedSessionSnapshot(
+		{
+			sessionId,
+			agentId: sessionIdentity.agentId,
+			projectPath: sessionIdentity.projectPath,
+			worktreePath: sessionIdentity.worktreePath ?? null,
+			sourcePath: sessionMetadata.sourcePath ?? null,
+			sequenceId: sessionMetadata.sequenceId ?? null,
+		},
+		{
+			getSessionSnapshot: api.getSessionSnapshot,
+			ensureProviderSessionImported: api.ensureProviderSessionImported,
+			applySessionStateEnvelope: (targetSessionId, envelope) =>
+				sessionStore.applySessionStateEnvelope(targetSessionId, envelope),
+		}
+	).pipe(
+		Effect.map((result) => {
+			sessionStore.loading.setSessionLoaded(sessionId);
+			logger.debug("Hydrated reopened session from contract snapshot", {
+				source,
+				panelId,
+				sessionId,
+				applied: result.applied,
+			});
 		})
 	);
 }
@@ -408,14 +461,20 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 					agentId: sessionIdentity.agentId,
 				});
 			}
-			sessionStore.loading.setSessionLoaded(sessionId);
-			logger.error("Failed to open session", {
+			logger.warn("Session open request failed; hydrating from the contract snapshot instead", {
 				source,
 				panelId,
 				sessionId,
 				error,
 			});
-			return Effect.succeed(undefined);
+			return hydrateProviderBackedSessionOnOpen({
+				source,
+				panelId,
+				sessionId,
+				sessionStore,
+				sessionIdentity,
+				sessionMetadata,
+			});
 		})
 	);
 

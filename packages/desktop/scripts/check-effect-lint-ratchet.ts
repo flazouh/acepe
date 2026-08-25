@@ -30,7 +30,10 @@ import { resolve } from "node:path";
 // have a pipeable form, tripping effect(missedPipeableOpportunity) three
 // times. Same category as the bumps above -- test-file async/pipe style,
 // not production code.
-const BASELINE = 6593;
+// 6593 -> 6597: four new `it("...", async () => {})` tests added in
+// reopened-session-hydrator.test.ts trip effect(asyncFunction), same
+// as every other test in that file already does.
+const BASELINE = 6597;
 const PACKAGE_ROOT = resolve(import.meta.dir, "..");
 
 // The pretty formatter (the default, and what lint:effect:report uses) always

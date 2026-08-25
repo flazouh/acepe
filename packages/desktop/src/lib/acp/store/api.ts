@@ -5,7 +5,11 @@
  * All commands are type-checked at compile time.
  */
 
-import type { RpcProjectedProject, RpcProjectedSession } from "@acepe/contracts";
+import type {
+	RpcProjectedProject,
+	RpcProjectedSession,
+	RpcSessionSnapshot,
+} from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 import type {
 	ProviderMetadataProjection,
@@ -17,6 +21,7 @@ import type {
 import type { HistoryEntry, StartupSessionsResponse } from "../../services/claude-history-types";
 import type { ConfigOptionData } from "../../services/converted-session-types.js";
 import { tauriClient } from "../../utils/tauri-client";
+import { ensureProviderSessionImported as tauriClientEnsureProviderSessionImported } from "../../utils/tauri-client/history.js";
 import type { AppError } from "../errors/app-error";
 import type { InteractionReplyRequest } from "../types/interaction-reply-request.js";
 import type {
@@ -242,6 +247,30 @@ export function setSessionTitle(sessionId: string, title: string): Effect.Effect
 	return tauriClient.history.setSessionTitle(sessionId, title);
 }
 
+/**
+ * The `{sessionId}` contract snapshot: `session` plus the full ordered
+ * `messages`/`turns`/`activities`/`pendingApprovals`. Used to hydrate a
+ * reopened session's canonical transcript (see reopen-snapshot-graph.ts and
+ * reopened-session-hydrator.ts) -- `getSessionOpenResult` above is
+ * unsupportedOnContract under Electrobun, so this is the real source of
+ * historical transcript content for a session this app run did not itself
+ * create.
+ */
+export function getSessionSnapshot(sessionId: string): Effect.Effect<RpcSessionSnapshot, AppError> {
+	return tauriClient.acp.getSessionSnapshot(sessionId);
+}
+
+/**
+ * Idempotent best-effort import of a disk-discovered (~/.claude) session
+ * into the orchestration event store, keyed by scanning discovered projects
+ * for the session id -- reused as-is from history.ts's rename-triggers-import
+ * path (setSessionTitle/setSessionPrNumber already call it before writing).
+ * A no-op when the session is already imported.
+ */
+export function ensureProviderSessionImported(sessionId: string): Effect.Effect<void, AppError> {
+	return tauriClientEnsureProviderSessionImported(sessionId);
+}
+
 // ============================================
 // WORKSPACE PERSISTENCE API
 // ============================================
@@ -257,7 +286,10 @@ export function saveWorkspaceState(state: PersistedWorkspaceState): Effect.Effec
 /**
  * Load workspace state from database.
  */
-export function loadWorkspaceState(): Effect.Effect<PersistedWorkspaceRestoreState | null, AppError> {
+export function loadWorkspaceState(): Effect.Effect<
+	PersistedWorkspaceRestoreState | null,
+	AppError
+> {
 	return tauriClient.workspace.loadWorkspaceState();
 }
 
@@ -333,6 +365,8 @@ export const api = {
 	getSessionOpenResult,
 	awaitSessionOpenRepair,
 	setSessionTitle,
+	getSessionSnapshot,
+	ensureProviderSessionImported,
 
 	// Workspace
 	saveWorkspaceState,

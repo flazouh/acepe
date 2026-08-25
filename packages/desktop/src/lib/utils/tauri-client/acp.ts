@@ -7,7 +7,7 @@ import {
 	type RpcProjectedProject,
 	type RpcProjectedSession,
 	sessionSnapshotRequest,
-	TrimmedNonEmptyString,
+	type TrimmedNonEmptyString,
 } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 
@@ -77,7 +77,10 @@ const emptySessionLifecycle = (status: SessionGraphLifecycle["status"]): Session
 });
 
 const lifecycleForSession = Effect.fn("acp.lifecycleForSession")(function* (sessionId: string) {
-	const decodedSessionId = yield* decodeEffect("acp.lifecycleForSession", decodeSessionId)(sessionId);
+	const decodedSessionId = yield* decodeEffect(
+		"acp.lifecycleForSession",
+		decodeSessionId
+	)(sessionId);
 	const snapshot = yield* withRpcClient("acp.lifecycleForSession", (client) =>
 		client.snapshot(sessionSnapshotRequest(decodedSessionId))
 	);
@@ -128,7 +131,10 @@ const resolveOrCreateProject = Effect.fn("acp.resolveOrCreateProject")(function*
 		return existing.projectId;
 	}
 	const commandId = yield* nextCommandId("project-create");
-	const projectId = yield* decodeEffect("acp.newSession", decodeProjectId)(`project-${String(commandId)}`);
+	const projectId = yield* decodeEffect(
+		"acp.newSession",
+		decodeProjectId
+	)(`project-${String(commandId)}`);
 	const title = yield* decodeTrimmed("acp.newSession", lastPathSegment(workspaceRoot));
 	yield* withRpcClient("acp.newSession", (client) =>
 		client.dispatch({
@@ -200,9 +206,10 @@ export const acp = {
 		const workspaceRoot = yield* decodeTrimmed("acp.newSession", cwd);
 		const projectId = yield* resolveOrCreateProject(workspaceRoot);
 		const commandId = yield* nextCommandId("session-create");
-		const sessionId = yield* decodeEffect("acp.newSession", decodeSessionId)(
-			`session-${String(commandId)}`
-		);
+		const sessionId = yield* decodeEffect(
+			"acp.newSession",
+			decodeSessionId
+		)(`session-${String(commandId)}`);
 		const title = yield* decodeTrimmed("acp.newSession", "New session");
 		const providerId =
 			agentId === undefined ? undefined : yield* decodeTrimmed("acp.newSession", agentId);
@@ -274,7 +281,10 @@ export const acp = {
 	}),
 
 	unarchiveSession: Effect.fn("acp.unarchiveSession")(function* (sessionId: string) {
-		const decodedSessionId = yield* decodeEffect("acp.unarchiveSession", decodeSessionId)(sessionId);
+		const decodedSessionId = yield* decodeEffect(
+			"acp.unarchiveSession",
+			decodeSessionId
+		)(sessionId);
 		const commandId = yield* nextCommandId("session-unarchive");
 		yield* withRpcClient("acp.unarchiveSession", (client) =>
 			client.dispatch({
@@ -327,9 +337,10 @@ export const acp = {
 		sessionId: string,
 		enabled: boolean
 	) {
-		const decodedSessionId = yield* decodeEffect("acp.setSessionAutonomous", decodeSessionId)(
-			sessionId
-		);
+		const decodedSessionId = yield* decodeEffect(
+			"acp.setSessionAutonomous",
+			decodeSessionId
+		)(sessionId);
 		const commandId = yield* nextCommandId("session-set-autonomous");
 		yield* withRpcClient("acp.setSessionAutonomous", (client) =>
 			client.dispatch({
@@ -347,7 +358,10 @@ export const acp = {
 		value: string
 	): Effect.Effect<unknown, AppError> =>
 		Effect.gen(function* () {
-			const decodedSessionId = yield* decodeEffect("acp.setConfigOption", decodeSessionId)(sessionId);
+			const decodedSessionId = yield* decodeEffect(
+				"acp.setConfigOption",
+				decodeSessionId
+			)(sessionId);
 			const decodedKey = yield* decodeTrimmed("acp.setConfigOption", configId);
 			const decodedValue = yield* decodeTrimmed("acp.setConfigOption", value);
 			const commandId = yield* nextCommandId("session-set-config-option");
@@ -376,7 +390,10 @@ export const acp = {
 		// dropped, not silently corrupted.
 		const text = yield* decodeTrimmed("acp.sendPrompt", extractPromptText(request));
 		const commandId = yield* nextCommandId("message-send");
-		const messageId = yield* decodeEffect("acp.sendPrompt", decodeMessageId)(`message-${String(commandId)}`);
+		const messageId = yield* decodeEffect(
+			"acp.sendPrompt",
+			decodeMessageId
+		)(`message-${String(commandId)}`);
 		yield* withRpcClient("acp.sendPrompt", (client) =>
 			client.dispatch({
 				type: "message.send",
@@ -401,9 +418,10 @@ export const acp = {
 	}),
 
 	replyInteraction: Effect.fn("acp.replyInteraction")(function* (request: InteractionReplyRequest) {
-		const decodedSessionId = yield* decodeEffect("acp.replyInteraction", decodeSessionId)(
-			request.sessionId
-		);
+		const decodedSessionId = yield* decodeEffect(
+			"acp.replyInteraction",
+			decodeSessionId
+		)(request.sessionId);
 		const decision = interactionReplyDecision(request.payload);
 		if (decision === null) {
 			// question / question_cancel replies carry a structured answer
@@ -439,9 +457,10 @@ export const acp = {
 		requestId: number,
 		result: unknown
 	) {
-		const decodedSessionId = yield* decodeEffect("acp.respondInboundRequest", decodeSessionId)(
-			sessionId
-		);
+		const decodedSessionId = yield* decodeEffect(
+			"acp.respondInboundRequest",
+			decodeSessionId
+		)(sessionId);
 		const decodedRequestId = yield* decodeTrimmed("acp.respondInboundRequest", String(requestId));
 		const body = yield* decodeTrimmed(
 			"acp.respondInboundRequest",
@@ -533,6 +552,22 @@ export const acp = {
 			lifecycle,
 			capabilities,
 		};
+	}),
+
+	// Reopen-session transcript hydration (see reopen-snapshot-graph.ts's
+	// header comment): the `{sessionId}` contract snapshot carries the full
+	// ordered `messages`/`turns`/`activities`/`pendingApprovals` a reopened
+	// session needs to rebuild its canonical transcript, so hand callers the
+	// raw snapshot rather than duplicating `lifecycleForSession`'s narrower
+	// lifecycle-only projection of the same fetch.
+	getSessionSnapshot: Effect.fn("acp.getSessionSnapshot")(function* (sessionId: string) {
+		const decodedSessionId = yield* decodeEffect(
+			"acp.getSessionSnapshot",
+			decodeSessionId
+		)(sessionId);
+		return yield* withRpcClient("acp.getSessionSnapshot", (client) =>
+			client.snapshot(sessionSnapshotRequest(decodedSessionId))
+		);
 	}),
 
 	rpcCall(_method: string, _params: Record<string, unknown>): Effect.Effect<unknown, AppError> {

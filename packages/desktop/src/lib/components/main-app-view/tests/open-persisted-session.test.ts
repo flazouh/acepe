@@ -19,7 +19,7 @@ let setOpenPersistedSessionDiagnosticRecorder: typeof import("../logic/open-pers
 
 type SessionOpenStore = Pick<
 	SessionStore,
-	"read" | "loading" | "connection" | "clearSessionEntries"
+	"read" | "loading" | "connection" | "clearSessionEntries" | "applySessionStateEnvelope"
 >;
 
 type SessionOpenHydratorLike = Pick<
@@ -105,6 +105,7 @@ describe("openPersistedSession", () => {
 				connectSession: mock(() => Effect.succeed({} as ExistingSession)),
 			},
 			clearSessionEntries: mock(() => {}),
+			applySessionStateEnvelope: mock(() => {}),
 		} as unknown as SessionOpenStore;
 		setSessionLookup({
 			id: "session-1",
