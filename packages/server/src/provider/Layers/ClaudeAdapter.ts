@@ -148,6 +148,12 @@ const DEFAULT_WATCHDOG_POLL_INTERVAL = Duration.seconds(5)
 type SessionRuntime = {
 	readonly sessionId: SessionId
 	readonly workspaceRoot: string
+	// Epoch-ms captured ONCE when openSession builds this runtime -- see
+	// stamp()'s use of it below for why. Deliberately NOT reset by attachQuery
+	// (cancel/watchdog recovery reuse the SAME runtime and its sequence
+	// counter keeps incrementing correctly); it only differs across a genuine
+	// process restart, which is exactly the case that matters.
+	readonly openEpochMs: number
 	readonly outbound: Queue.Queue<OrchestrationEvent, Done>
 	readonly streamState: Ref.Ref<ClaudeStreamState>
 	readonly lastUserMessageId: Ref.Ref<Option.Option<MessageId>>
@@ -244,13 +250,28 @@ const assistantMessageId = (
 const nextSequence = (runtime: SessionRuntime) =>
 	Ref.updateAndGet(runtime.sequence, (current) => current + 1)
 
+// eventId/commandId are stamped as sessionId:openEpochMs:sequence, NOT bare
+// sessionId:sequence -- DEFECT D (reproduced live): a session lazily reopened
+// after a real app restart gets a BRAND NEW SessionRuntime whose `sequence`
+// Ref starts over at 0 (see openSession below), so a bare sessionId:sequence
+// scheme re-derives the SAME eventIds the PRIOR process already committed
+// for that session's real conversation history, and the store's
+// UNIQUE(event_id) constraint rejects the append -- surfacing as
+// ProviderSessionFailed and leaving the session's ClaudeAdapter-side runtime
+// registered but un-forwarded, i.e. silently poisoned: every later
+// sendPrompt on it just hangs (MessageSent commits, nothing else ever does).
+// openEpochMs is real wall-clock time captured once when the runtime is
+// built, so a genuine restart (which takes measurable time) can never
+// collide with the epoch a prior process used for the same session, while a
+// cancel/watchdog recovery (attachQuery reusing the SAME runtime, sequence
+// still incrementing) is unaffected -- it never changes epoch mid-runtime.
 const stamp = Effect.fn("ClaudeAdapter.stamp")(function*(runtime: SessionRuntime) {
 	const sequence = yield* nextSequence(runtime)
 	const occurredAt = yield* DateTime.now.pipe(Effect.map(DateTime.formatIso))
-	const commandId = CommandId.make(`${runtime.sessionId}:cmd:${sequence}`)
+	const commandId = CommandId.make(`${runtime.sessionId}:${runtime.openEpochMs}:cmd:${sequence}`)
 	return {
 		sequence,
-		eventId: EventId.make(`${runtime.sessionId}:${sequence}`),
+		eventId: EventId.make(`${runtime.sessionId}:${runtime.openEpochMs}:${sequence}`),
 		occurredAt,
 		commandId
 	}
@@ -717,6 +738,10 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 		const streamState = yield* Ref.make(emptyClaudeStreamState)
 		const lastUserMessageId = yield* Ref.make(Option.none<MessageId>())
 		const sequence = yield* Ref.make(0)
+		// See SessionRuntime's own doc and stamp()'s: real wall-clock time,
+		// captured once here so it can never collide with whatever epoch a
+		// PRIOR process used for this same sessionId (DEFECT D).
+		const openEpochMs = yield* Clock.currentTimeMillis
 		const pendingPermissions = yield* Ref.make(
 			HashMap.empty<string, Deferred.Deferred<ClaudePermissionDecision>>()
 		)
@@ -725,6 +750,7 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 		const runtime: SessionRuntime = {
 			sessionId: request.sessionId,
 			workspaceRoot: request.workspaceRoot,
+			openEpochMs,
 			outbound,
 			streamState,
 			lastUserMessageId,

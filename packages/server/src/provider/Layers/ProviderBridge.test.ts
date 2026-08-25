@@ -25,6 +25,7 @@ import * as Layer from "effect/Layer"
 import * as Path from "effect/Path"
 import * as Queue from "effect/Queue"
 import * as Ref from "effect/Ref"
+import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
 import { OrchestrationCommandReceiptsLive } from "../../persistence/Layers/OrchestrationCommandReceipts.ts"
 import { OrchestrationEventStoreLive } from "../../persistence/Layers/OrchestrationEventStore.ts"
@@ -40,8 +41,12 @@ import {
 	ProviderId,
 	ProviderAdapterError
 } from "../Services/ProviderAdapter.ts"
+import { makeClaudeAdapter, type ClaudeQueryHandle } from "./ClaudeAdapter.ts"
+import { claudePresence } from "./ClaudeProvider.ts"
 import { ProviderAdapterRegistryLive } from "./ProviderAdapterRegistry.ts"
 import { ProviderBridgeLive } from "./ProviderBridge.ts"
+
+type Json = typeof Schema.Json.Type
 
 const projectId = ProjectId.make("project-1")
 const sessionId = SessionId.make("session-real")
@@ -719,5 +724,207 @@ Vitest.describe("ProviderBridge", () => {
 					"a failing adapter's shutdown must still be attempted, not skipped"
 				)
 			})
+	)
+
+	// Reproduces DEFECT D's RESIDUAL bug, found live: the boot-replay fix
+	// (ea0ab5705) stops eager re-spawn on every historical SessionCreated, but
+	// a session's FIRST *lazy* reopen after a genuine app restart still built a
+	// brand new ClaudeAdapter SessionRuntime whose own `sequence` counter (see
+	// ClaudeAdapter.ts's stamp()) restarted at 0 -- re-deriving the SAME
+	// eventIds (sessionId:1, sessionId:2, ...) the PRIOR process already
+	// committed for that session's real conversation. That still trips the
+	// store's UNIQUE(event_id) constraint on the very first post-restart
+	// event, appends a ProviderSessionFailed, AND -- this is the part the
+	// scripted-adapter D test above cannot see, because its fake adapter's
+	// eventIds are message-scoped and can't collide -- leaves the session
+	// silently poisoned: a SECOND follow-up right after the failure produced a
+	// live MessageSent with no ProviderSessionFailed, no TokenAppended, no
+	// TurnCompleted, ever. This drives two REAL ClaudeAdapter instances
+	// (openSession never eagerly re-spawns; the second is what a genuine
+	// process restart looks like) against the same on-disk store, with a
+	// scripted `createQuery` standing in for the real SDK.
+	Vitest.it.live(
+		"a real ClaudeAdapter's lazy reopen after restart does not collide with its own prior eventIds",
+		() =>
+			Effect.gen(function*() {
+				const fs = yield* FileSystem.FileSystem
+				const path = yield* Path.Path
+				const dir = yield* fs.makeTempDirectoryScoped()
+				const dbFile = path.join(dir, "acepe-claude-reboot-test.db")
+				const claudeSessionId = SessionId.make("session-claude-reboot")
+				const claudeProviderId = ProviderId.make("claude-code")
+
+				const SqliteAt = makeSqliteLayer({ filename: dbFile, readonly: false })
+				const MigratedAt = Layer.effectDiscard(runMigrations).pipe(Layer.provideMerge(SqliteAt))
+				const PersistenceAt = Layer.mergeAll(
+					OrchestrationEventStoreLive,
+					OrchestrationCommandReceiptsLive
+				).pipe(Layer.provideMerge(MigratedAt))
+				const EngineAt = OrchestrationEngineLive.pipe(
+					Layer.provideMerge(PersistenceAt),
+					Layer.provide(BunCrypto.layer)
+				)
+
+				// A minimal scripted createQuery: fresh inbound queue per call (like
+				// the real SDK's query()), immediately streams one token then a
+				// result message so the turn actually completes without the test
+				// needing to drive it token-by-token.
+				const makeScriptedCreateQuery = (token: string) =>
+					(_input: unknown) =>
+						Effect.gen(function*() {
+							const inbound = yield* Queue.unbounded<Json, Done>()
+							yield* Queue.offer(inbound, {
+								type: "stream_event",
+								session_id: "sdk-claude-reboot",
+								event: {
+									type: "content_block_delta",
+									delta: { type: "text_delta", text: token }
+								}
+							})
+							yield* Queue.offer(inbound, {
+								type: "result",
+								session_id: "sdk-claude-reboot",
+								is_error: false,
+								usage: { input_tokens: 1, output_tokens: 1 }
+							})
+							return {
+								messages: Stream.fromQueue(inbound),
+								interrupt: Effect.void,
+								close: Queue.end(inbound).pipe(Effect.asVoid)
+							} satisfies ClaudeQueryHandle
+						})
+
+				// PHASE 1 ("first boot"): a real ClaudeAdapter, a real turn, real
+				// ClaudeAdapter-stamped eventIds committed to the on-disk store.
+				const adapter1 = yield* makeClaudeAdapter({
+					presence: Effect.succeed(claudePresence(true, true)),
+					createQuery: makeScriptedCreateQuery("BEFORE_RESTART")
+				})
+				const Phase1Live = ProviderBridgeLive.pipe(
+					Layer.provideMerge(ProviderAdapterRegistryLive([adapter1])),
+					Layer.provideMerge(EngineAt)
+				)
+				yield* Effect.gen(function*() {
+					const engine = yield* OrchestrationEngine
+					const store = yield* OrchestrationEventStore
+					yield* engine.dispatch(
+						ProjectCreateCommand.make({
+							type: "project.create",
+							commandId: CommandId.make("cmd-project-claude-reboot"),
+							projectId,
+							title: "Acepe",
+							workspaceRoot: "/tmp/acepe"
+						})
+					)
+					yield* engine.dispatch(
+						SessionCreateCommand.make({
+							type: "session.create",
+							commandId: CommandId.make("cmd-session-claude-reboot"),
+							sessionId: claudeSessionId,
+							projectId,
+							title: "Real Claude session",
+							providerId: claudeProviderId
+						})
+					)
+					yield* engine.dispatch(
+						MessageSendCommand.make({
+							type: "message.send",
+							commandId: CommandId.make("cmd-message-claude-reboot-1"),
+							sessionId: claudeSessionId,
+							messageId: userMessageId,
+							text: "First turn before restart"
+						})
+					)
+					yield* waitUntil(
+						Stream.runCollect(store.readFrom(0, 200)),
+						(collected) => collected.some((event) => event.type === "TurnCompleted")
+					)
+				}).pipe(
+					// @effect-diagnostics-next-line strictEffectProvide:off
+					Effect.provide(Phase1Live),
+					Effect.scoped
+				)
+
+				// A real restart takes measurable wall-clock time; a small sleep
+				// keeps this deterministic rather than relying on incidental test
+				// overhead to separate the two ClaudeAdapter instances' openEpochMs.
+				yield* Effect.sleep(Duration.millis(5))
+
+				// PHASE 2 ("reboot"): a BRAND NEW ClaudeAdapter instance (fresh
+				// `sessions` map, fresh per-runtime sequence counters) -- exactly
+				// what a real process restart produces -- reused against the SAME
+				// on-disk store. The lazy reopen this triggers must not collide with
+				// phase 1's already-committed eventIds, and the session must not be
+				// left poisoned: a SECOND follow-up must also complete.
+				const adapter2 = yield* makeClaudeAdapter({
+					presence: Effect.succeed(claudePresence(true, true)),
+					createQuery: makeScriptedCreateQuery("AFTER_RESTART")
+				})
+				const Phase2Live = ProviderBridgeLive.pipe(
+					Layer.provideMerge(ProviderAdapterRegistryLive([adapter2])),
+					Layer.provideMerge(EngineAt)
+				)
+				yield* Effect.gen(function*() {
+					const engine = yield* OrchestrationEngine
+					const store = yield* OrchestrationEventStore
+
+					const followUpMessageId = MessageId.make("message-claude-reboot-followup")
+					yield* engine.dispatch(
+						MessageSendCommand.make({
+							type: "message.send",
+							commandId: CommandId.make("cmd-message-claude-reboot-2"),
+							sessionId: claudeSessionId,
+							messageId: followUpMessageId,
+							text: "Follow-up after restart"
+						})
+					)
+
+					const afterFirstFollowUp = yield* waitUntil(
+						Stream.runCollect(store.readFrom(0, 200)),
+						(collected) =>
+							collected.some((event) => event.type === "TurnCompleted") ||
+							collected.some((event) => event.type === "ProviderSessionFailed")
+					)
+					Vitest.assert.isFalse(
+						afterFirstFollowUp.some((event) => event.type === "ProviderSessionFailed"),
+						"a lazy reopen after restart must not collide with the prior process's own eventIds"
+					)
+					Vitest.assert.isTrue(
+						afterFirstFollowUp.some((event) => event.type === "TurnCompleted"),
+						"the post-restart follow-up must actually complete"
+					)
+
+					// The session must not be left poisoned by any residual bad state
+					// -- a SECOND follow-up on the same lazily-reopened runtime must
+					// also complete cleanly.
+					const secondFollowUpMessageId = MessageId.make("message-claude-reboot-followup-2")
+					yield* engine.dispatch(
+						MessageSendCommand.make({
+							type: "message.send",
+							commandId: CommandId.make("cmd-message-claude-reboot-3"),
+							sessionId: claudeSessionId,
+							messageId: secondFollowUpMessageId,
+							text: "Second follow-up after restart"
+						})
+					)
+					const afterSecondFollowUp = yield* waitUntil(
+						Stream.runCollect(store.readFrom(0, 200)),
+						(collected) =>
+							collected.filter((event) => event.type === "TurnCompleted").length >= 2
+					)
+					Vitest.assert.isFalse(
+						afterSecondFollowUp.some((event) => event.type === "ProviderSessionFailed"),
+						"a second follow-up on the reopened session must not fail either"
+					)
+				}).pipe(
+					// @effect-diagnostics-next-line strictEffectProvide:off
+					Effect.provide(Phase2Live),
+					Effect.scoped
+				)
+			}).pipe(
+				// @effect-diagnostics-next-line strictEffectProvide:off
+				Effect.provide(Layer.mergeAll(BunFileSystem.layer, BunPath.layer))
+			),
+		{ timeout: 20_000 }
 	)
 })
