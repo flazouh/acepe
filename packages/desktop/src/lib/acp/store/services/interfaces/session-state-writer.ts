@@ -35,7 +35,7 @@ export interface ISessionStateWriter {
 	/**
 	 * Set sessions array (for bulk operations like loadSessions).
 	 */
-	setSessions(sessions: SessionCold[]): void;
+	setSessions(sessions: SessionCold[], qaWriterTag?: string): void;
 
 	/**
 	 * Set loading state.

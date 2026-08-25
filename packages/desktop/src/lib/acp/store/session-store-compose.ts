@@ -175,7 +175,7 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 	});
 
 	const listWriter: ISessionStateWriter = {
-		setSessions: (sessions) => listState.setSessions(sessions),
+		setSessions: (sessions, qaWriterTag) => listState.setSessions(sessions, qaWriterTag),
 		setLoading: input.setLoading,
 		addSession: (session) => listState.addSession(session),
 		updateSession: (id, updates) => listState.updateSession(id, updates),

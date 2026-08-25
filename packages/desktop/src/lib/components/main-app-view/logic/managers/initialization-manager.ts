@@ -44,8 +44,11 @@
  */
 
 import * as Cause from "effect/Cause";
+import * as Data from "effect/Data";
+import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
+import * as Schedule from "effect/Schedule";
 import type { AppError } from "$lib/acp/errors/app-error.js";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import type { AgentPreferencesStore } from "$lib/acp/store/agent-preferences-store.svelte.js";
@@ -81,6 +84,9 @@ const PERSISTED_AGENT_PREFERENCES_IDLE_WORK_TIMEOUT_MS = 10_000;
 const TRANSCRIPT_ROW_LEDGER_BACKFILL_LIMIT = 8;
 
 import { InitializationError, type MainAppViewError } from "../../errors/main-app-view-error.js";
+
+// Local retry signal for the startup-scan boot race; never leaves this module.
+class StartupScanNotReadyError extends Data.TaggedError("StartupScanNotReadyError") {}
 
 export type StartupPerformanceTraceStatus = "pending" | "ok" | "error";
 export type PostStartupWorkScheduler = (callback: () => void) => void;
@@ -694,6 +700,33 @@ export class InitializationManager {
 	// so a failed union never prevents the (independent) disk scan from
 	// still populating whatever it can.
 	private scanStartupSessionHistory(): Effect.Effect<void, MainAppViewError> {
+		// The first pass can race the server's own boot: an empty library
+		// snapshot plus zero known projects at ~1s uptime looks identical to
+		// a genuinely empty install, and a single "successful" empty pass
+		// used to leave the sidebar blank until the next full app restart.
+		// Retry the whole pass on that ambiguous outcome, bounded so a truly
+		// empty install settles quietly after a few cheap RPCs.
+		return this.scanStartupSessionHistoryOnce().pipe(
+			Effect.flatMap((outcome) =>
+				outcome === "possibly-early"
+					? Effect.fail(new StartupScanNotReadyError())
+					: Effect.succeed(undefined)
+			),
+			Effect.retry({
+				schedule: Schedule.spaced(Duration.millis(1500)),
+				times: 8,
+				while: (error) => error instanceof StartupScanNotReadyError,
+			}),
+			Effect.catch((error) =>
+				error instanceof StartupScanNotReadyError ? Effect.succeed(undefined) : Effect.fail(error)
+			)
+		);
+	}
+
+	private scanStartupSessionHistoryOnce(): Effect.Effect<
+		"scanned" | "possibly-early",
+		MainAppViewError
+	> {
 		return this.sessionStore.loading.scanSessionProjections().pipe(
 			// The library snapshot's own `projects` array is "every project", not
 			// just the ones already known locally (see ProjectManager.
@@ -721,9 +754,11 @@ export class InitializationManager {
 			Effect.flatMap(() => {
 				const projectPaths = this.getKnownProjectPaths();
 				if (projectPaths.length === 0) {
-					return Effect.succeed(undefined);
+					return Effect.succeed("possibly-early" as const);
 				}
-				return this.sessionStore.loading.scanSessions(projectPaths);
+				return this.sessionStore.loading
+					.scanSessions(projectPaths)
+					.pipe(Effect.map(() => "scanned" as const));
 			}),
 			Effect.mapError(
 				(error) =>

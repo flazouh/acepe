@@ -174,7 +174,7 @@ export class SessionRepository {
 	removeSession(sessionId: string): void {
 		const allSessions = this.stateReader.getAllSessions();
 		const filteredSessions = allSessions.filter((s) => s.id !== sessionId);
-		this.stateWriter.setSessions(filteredSessions);
+		this.stateWriter.setSessions(filteredSessions, "removeSession");
 
 		this.connectionManager.setConnecting(sessionId, false);
 		this.connectionManager.removeMachine(sessionId);
@@ -218,8 +218,15 @@ export class SessionRepository {
 
 		return api.scanSessions(projectPaths).pipe(
 			Effect.map((entries) => {
-				const mergedSessions = this.mergeHistoryWithExisting(entries, existingSessions);
-				this.stateWriter.setSessions(mergedSessions);
+				// Read fresh at merge time: the scan RPC can take a second+ and
+				// a concurrent writer's sessions would be stomped by a merge
+				// built on the stale pre-RPC capture (same fix as
+				// refreshSessionsFromScan / scanSessionProjections).
+				const mergedSessions = this.mergeHistoryWithExisting(
+					entries,
+					this.stateReader.getAllSessions()
+				);
+				this.stateWriter.setSessions(mergedSessions, "loadSessions");
 				this.stateWriter.setLoading(false);
 				logger.debug("Loaded sessions from all agents", {
 					total: mergedSessions.length,
@@ -350,7 +357,7 @@ export class SessionRepository {
 		// Sort by updatedAt DESC
 		mergedSessions.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
 
-		this.stateWriter.setSessions(mergedSessions);
+		this.stateWriter.setSessions(mergedSessions, "refreshSessionsFromScan");
 		logger.debug("Sessions refreshed from scan", { count: mergedSessions.length });
 	}
 
@@ -370,12 +377,19 @@ export class SessionRepository {
 	 * repopulates it.
 	 */
 	scanSessionProjections(
-		existingSessions: SessionCold[]
+		_existingSessionsAtCallTime: SessionCold[]
 	): Effect.Effect<readonly RpcProjectedProject[], AppError> {
 		return api.getLibrarySessionsSnapshot().pipe(
 			Effect.map(({ sessions: projectedSessions, projects }) => {
-				const merged = mergeProjectionSessions(existingSessions, projectedSessions, projects);
-				this.stateWriter.setSessions(merged);
+				// Read fresh at MERGE time, not call time: the snapshot RPC can
+				// take a second+ during boot, and a disk scan completing in that
+				// window would otherwise be stomped by a merge built on the
+				// stale pre-RPC capture (same lesson as refreshSessionsFromScan
+				// above). The call-time parameter stays for signature
+				// compatibility but is deliberately unused.
+				const freshSessions = this.stateReader.getAllSessions();
+				const merged = mergeProjectionSessions(freshSessions, projectedSessions, projects);
+				this.stateWriter.setSessions(merged, "scanSessionProjections");
 				logger.debug("Sessions merged from library projection", { count: merged.length });
 				return projects;
 			})
@@ -470,12 +484,17 @@ export class SessionRepository {
 					}
 				}
 
+				// Read fresh at merge time (same stale-capture fix as
+				// loadSessions above): this call's RPC races the startup disk
+				// scan, and merging over the pre-RPC capture erased the scan's
+				// result — live-diagnosed as the startup sidebar-blanking bug.
+				const freshSessions = this.stateReader.getAllSessions();
 				const mergedSessions = this.reconcileAliasedStartupSessions(
-					this.mergeHistoryWithExisting(responseEntries, existingSessions),
-					existingSessions,
+					this.mergeHistoryWithExisting(responseEntries, freshSessions),
+					freshSessions,
 					aliasRemaps
 				);
-				this.stateWriter.setSessions(mergedSessions);
+				this.stateWriter.setSessions(mergedSessions, "loadStartupSessions");
 
 				const foundIds = new Set(mergedSessions.map((session) => session.id));
 				// A session matched by alias will have its canonical ID in foundIds.

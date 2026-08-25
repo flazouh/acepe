@@ -28,8 +28,8 @@ export class SessionWriteFacade implements ISessionStateWriter {
 		this.#deps = deps;
 	}
 
-	setSessions(sessions: SessionCold[]): void {
-		this.#deps.listState.setSessions(sessions);
+	setSessions(sessions: SessionCold[], qaWriterTag?: string): void {
+		this.#deps.listState.setSessions(sessions, qaWriterTag);
 	}
 
 	setLoading(_loading: boolean): void {

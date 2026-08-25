@@ -2,6 +2,7 @@
 import { fromPromise } from "@acepe/effect-result/fromPromise";
 import { Button } from "@acepe/ui";
 import type { DownloadEvent, Update } from "$lib/utils/updater-types.js";
+import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import { onDestroy, onMount, tick } from "svelte";
@@ -899,6 +900,72 @@ function installQaSpawnAgentPanelHook(): void {
 	(window as MainAppQaWindow).__acepeQaSpawnAgentPanel = qaSpawnAgentPanel;
 }
 
+// QA-only introspection: the session-list pipeline (scan → repository merge →
+// sessionListState → sidebar filter) has no DOM-visible intermediate state, so
+// a session dropped between the RPC and the render is undiagnosable from
+// outside. Expose a read-only snapshot of both sides of the sidebar filter.
+function qaSessionListSnapshot(): {
+	readonly sessions: ReadonlyArray<{
+		readonly id: string;
+		readonly projectPath: string;
+		readonly lifecycle: string | null;
+	}>;
+	readonly projectPaths: ReadonlyArray<string>;
+} {
+	return {
+		sessions: sessionStore.read.getAllSessions().map((session) => ({
+			id: session.id,
+			projectPath: session.projectPath,
+			lifecycle: session.sessionLifecycleState ?? null,
+		})),
+		projectPaths: projectManager.projects.map((project) => project.path),
+	};
+}
+
+function installQaSessionListSnapshotHook(): void {
+	if (!QA_HOOKS_ENABLED) {
+		return;
+	}
+	(window as MainAppQaWindow & { __acepeQaSessionListSnapshot?: typeof qaSessionListSnapshot })
+		.__acepeQaSessionListSnapshot = qaSessionListSnapshot;
+}
+
+// QA-only: run the disk-history scan for the given paths and surface the
+// FULL failure cause. The production path swallows scan failures into an
+// invisible webview-console warning, which made a total scan failure look
+// identical to "no sessions on disk" from outside.
+function qaScanProbe(projectPaths: string[]): Promise<string> {
+	return Effect.runPromise(
+		sessionStore.loading.scanSessions(projectPaths).pipe(
+			Effect.map(() => "scan-ok"),
+			Effect.catchCause((cause) => Effect.succeed(`scan-failed: ${Cause.pretty(cause)}`))
+		)
+	);
+}
+
+function installQaScanProbeHook(): void {
+	if (!QA_HOOKS_ENABLED) {
+		return;
+	}
+	(window as MainAppQaWindow & { __acepeQaScanProbe?: typeof qaScanProbe }).__acepeQaScanProbe =
+		qaScanProbe;
+}
+
+// QA-only: startup step outcomes. The failure path for background startup
+// steps logs to the webview console, which is invisible from outside the
+// app — the trace entries carry each step's status and error message.
+function qaStartupTrace(): ReturnType<typeof viewState.getStartupPerformanceTrace> {
+	return viewState.getStartupPerformanceTrace();
+}
+
+function installQaStartupTraceHook(): void {
+	if (!QA_HOOKS_ENABLED) {
+		return;
+	}
+	(window as MainAppQaWindow & { __acepeQaStartupTrace?: typeof qaStartupTrace })
+		.__acepeQaStartupTrace = qaStartupTrace;
+}
+
 function uninstallQaSpawnAgentPanelHook(): void {
 	const qaWindow = window as MainAppQaWindow;
 	if (qaWindow.__acepeQaSpawnAgentPanel === qaSpawnAgentPanel) {
@@ -1648,6 +1715,9 @@ onMount(async () => {
 	mainAppInvokeTimingBaselineIndex = getTauriInvokeTimings().length;
 	installHappyPathProbeQaHook();
 	installQaSpawnAgentPanelHook();
+	installQaSessionListSnapshotHook();
+	installQaScanProbeHook();
+	installQaStartupTraceHook();
 	if (QA_HOOKS_ENABLED) {
 		installQaDispatchHook();
 	}

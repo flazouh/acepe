@@ -41,6 +41,34 @@ import type {
 
 const logger = createLogger({ id: "session-list-state", name: "SessionListState" });
 
+// QA-only write timeline: every wholesale sessions replacement is recorded on
+// window so an outside QA driver can see WHO last rewrote the list and when.
+// The failure mode this exists for: a later writer stomping a successful
+// scan's result, which is invisible from the DOM (both states just render).
+// Gated at read time by the hook consumer; recording is a bounded ring.
+const QA_WRITE_LOG_LIMIT = 60;
+const QA_WRITE_LOG_ENABLED =
+	import.meta.env.DEV || import.meta.env.VITE_ENABLE_QA_HOOKS === "1";
+function recordSessionListWriteForQa(count: number, tag: string): void {
+	if (!QA_WRITE_LOG_ENABLED || typeof window === "undefined") {
+		return;
+	}
+	const qaWindow = window as {
+		__acepeQaSessionListWrites?: Array<{ atMs: number; count: number; tag: string; stack: string }>;
+	};
+	const writes = qaWindow.__acepeQaSessionListWrites ?? [];
+	if (writes.length >= QA_WRITE_LOG_LIMIT) {
+		return;
+	}
+	writes.push({
+		atMs: Math.round(performance.now()),
+		count,
+		tag,
+		stack: new Error("trace").stack?.split("\n").slice(2, 12).join(" | ") ?? "",
+	});
+	qaWindow.__acepeQaSessionListWrites = writes;
+}
+
 export type SessionListStateReadDeps = {
 	readonly entryStore: SessionEntryStore;
 	readonly hasSessionCanonicalProjection: (sessionId: string) => boolean;
@@ -182,7 +210,8 @@ export class SessionListState {
 	}
 
 	/** Set sessions array (for bulk operations). */
-	setSessions(sessions: SessionCold[]): void {
+	setSessions(sessions: SessionCold[], qaWriterTag?: string): void {
+		recordSessionListWriteForQa(sessions.length, qaWriterTag ?? "untagged");
 		this.sessions = sessions;
 		rebuildSessionByIdIndex(this.sessionById, sessions);
 		rebuildSessionsByProjectIndex(this.sessionsByProject, sessions);
