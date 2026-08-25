@@ -81,7 +81,7 @@ export function transcriptRowPageResultFromWire(
 // transcript-viewport-rows-from-entries.ts); this guard is what
 // `TaskTranscriptDialogController`'s operation-scoped reads (and any other
 // caller) fall back to.
-export function requestTranscriptViewportBuffer(input: {
+export function requestTranscriptViewportBuffer(_input: {
 	readonly sessionId: string;
 	readonly revision: SessionGraphRevision | ViewportCommandRevisionInput;
 	readonly requestGeneration?: number | null;
@@ -89,7 +89,7 @@ export function requestTranscriptViewportBuffer(input: {
 	return Effect.succeed(null);
 }
 
-export function readTranscriptRowPage(input: {
+export function readTranscriptRowPage(_input: {
 	readonly sessionId: string;
 	readonly scope: TranscriptScope;
 	readonly startRowIndex: number;
