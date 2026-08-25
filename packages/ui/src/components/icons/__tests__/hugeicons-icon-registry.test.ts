@@ -66,6 +66,11 @@ describe("hugeicons icon registry", () => {
 		expect(new Set(resolvedIcons).size).toBe(resolvedIcons.length);
 	});
 
+	it("registers ArrowUp02 separately from the chevron arrow-up", () => {
+		expect(isHugeiconsIconName("arrow-up-02")).toBe(true);
+		expect(resolveHugeiconsIcon("arrow-up-02")).not.toBe(resolveHugeiconsIcon("arrow-up"));
+	});
+
 	it("uses a visible Hugeicons fallback only for truly unknown names", () => {
 		expect(isHugeiconsIconName("missing-icon")).toBe(false);
 		expect(resolveHugeiconsIcon("missing-icon").length).toBeGreaterThan(0);

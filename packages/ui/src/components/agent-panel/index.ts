@@ -49,7 +49,6 @@ export type {
 	AgentInputBranchSelectorVariant,
 } from "./agent-input-branch-selector-types.js";
 export { default as AgentInputComposerRow } from "./agent-input-composer-row.svelte";
-export type { AgentInputEnterBehavior } from "./agent-input-enter-behavior.js";
 export { default as AgentInputComposerToolbar } from "./agent-input-composer-toolbar.svelte";
 export { default as AgentInputModelReasoningFusedControls } from "./agent-input-model-reasoning-fused-controls.svelte";
 export { default as AgentInputComposerTrailingControls } from "./agent-input-composer-trailing-controls.svelte";
@@ -57,6 +56,7 @@ export { default as AgentInputConfigOptionSelector } from "./agent-input-config-
 export type { AgentInputConfigOption } from "./agent-input-config-option-types.js";
 export { default as AgentInputDivider } from "./agent-input-divider.svelte";
 export { default as AgentInputEditor } from "./agent-input-editor.svelte";
+export type { AgentInputSubmitIntent } from "./agent-input-submit-button-state.js";
 export { default as AgentInputFilePickerDropdown } from "./agent-input-file-picker-dropdown.svelte";
 export { default as AgentInputMetricsChip } from "./agent-input-metrics-chip.svelte";
 export { default as AgentInputMicButton } from "./agent-input-mic-button.svelte";

@@ -51,7 +51,6 @@ type ComposerLogger = ReturnType<typeof createLogger>;
 export type ComposerViewControllerDeps = {
 	readonly getProps: () => AgentInputProps;
 	readonly getInputState: () => AgentInputState;
-	readonly getIsShiftPressed: () => boolean;
 	readonly sessionStore: SessionStore;
 	readonly panelStore: PanelStore;
 	readonly agentStore: AgentStore;
@@ -626,7 +625,6 @@ export class ComposerViewController {
 			hasSessionId: Boolean(this.#deps.getProps().sessionId),
 			isAgentBusy: this.isAgentBusy,
 			isStreaming: this.isStreaming,
-			isShiftPressed: this.#deps.getIsShiftPressed(),
 			isSubmitDisabled: this.isSubmitDisabled,
 			hasBlockingComposerConfig: hasBlocking,
 			isComposerDispatching: isDispatching,

@@ -1,6 +1,5 @@
-export type SubmitIntent = "none" | "send" | "steer" | "cancel";
+export type SubmitIntent = "none" | "send" | "queue" | "steer" | "cancel";
 export type DefaultSubmitAction = "none" | "send" | "queue" | "steer";
-export type BusyEnterBehavior = "queue" | "steer";
 
 interface EnterKeyIntentInput {
 	hasDraftInput: boolean;
@@ -14,15 +13,12 @@ interface EnterKeyIntentInput {
 	isComposerDispatching?: boolean;
 	/** Canonical runtime/host submit disabled (session cannot submit). */
 	isSubmitDisabled?: boolean;
-	/** Plain Enter behavior while an agent turn is already running. */
-	busyEnterBehavior?: BusyEnterBehavior;
 }
 
 interface PrimaryButtonIntentInput {
 	hasDraftInput: boolean;
 	isAgentBusy: boolean;
 	isStreaming: boolean;
-	isShiftPressed: boolean;
 }
 
 interface DefaultSubmitActionInput {
@@ -54,14 +50,14 @@ export function resolveEnterKeyIntent(input: EnterKeyIntentInput): SubmitIntent 
 	}
 
 	if ((input.metaKey || input.ctrlKey) && !input.shiftKey) {
-		return "steer";
+		return input.isAgentBusy ? "queue" : "send";
 	}
 
 	if (input.shiftKey) {
 		return input.isAgentBusy ? "steer" : "none";
 	}
 
-	if (input.isAgentBusy && input.busyEnterBehavior === "steer") {
+	if (input.isAgentBusy) {
 		return "steer";
 	}
 
@@ -81,7 +77,7 @@ export function resolvePrimaryButtonIntent(input: PrimaryButtonIntentInput): Sub
 		return "none";
 	}
 
-	if (input.isAgentBusy && input.isShiftPressed) {
+	if (input.isAgentBusy) {
 		return "steer";
 	}
 
@@ -98,7 +94,7 @@ export function resolveDefaultSubmitAction(input: DefaultSubmitActionInput): Def
 	}
 
 	if (input.hasSessionId && input.isAgentBusy) {
-		return "queue";
+		return "steer";
 	}
 
 	if (input.hasSessionId && input.isStreaming) {

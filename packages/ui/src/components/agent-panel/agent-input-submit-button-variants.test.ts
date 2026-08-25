@@ -1,17 +1,13 @@
 import { describe, expect, it } from "bun:test";
 
-import {
-	agentInputSubmitMenuSegmentClass,
-	agentInputSubmitSegmentBase,
-} from "./agent-input-submit-button-variants.js";
+import { agentInputSubmitButtonClass } from "./agent-input-submit-button-variants.js";
 
 describe("agentInputSubmitButtonVariants", () => {
-	it("keeps the enter-behavior menu segment on the same foreground surface as submit", () => {
-		expect(agentInputSubmitSegmentBase).toContain("bg-foreground");
-		expect(agentInputSubmitMenuSegmentClass).toContain("bg-foreground");
-		expect(agentInputSubmitMenuSegmentClass).toContain("dark:bg-foreground");
-		expect(agentInputSubmitMenuSegmentClass).toContain("hover:bg-foreground/85");
-		expect(agentInputSubmitMenuSegmentClass).toContain("dark:hover:bg-foreground/85");
-		expect(agentInputSubmitMenuSegmentClass).not.toContain("dark:bg-input");
+	it("keeps submit on the foreground surface without a split menu segment", () => {
+		expect(agentInputSubmitButtonClass).toContain("bg-foreground");
+		expect(agentInputSubmitButtonClass).toContain("rounded-lg");
+		expect(agentInputSubmitButtonClass).toContain("disabled:opacity-50");
+		expect(agentInputSubmitButtonClass).not.toContain("rounded-l-lg");
+		expect(agentInputSubmitButtonClass).not.toContain("rounded-r-none");
 	});
 });

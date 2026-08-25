@@ -7,7 +7,6 @@ import { getKeybindingsService, isMac } from "$lib/keybindings/index.js";
 import { getPreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
 import { getVoiceSettingsStore } from "$lib/stores/voice-settings-store.svelte.js";
 import type {
-	AgentInputEnterBehavior,
 	AgentInputSlashCommand,
 	AgentInputSlashCommandWorkspaceMarkdownResult,
 	AttachMenuCommandItem,
@@ -118,14 +117,11 @@ const preconnectionCapabilitiesState = new PreconnectionCapabilitiesState();
 const preconnectionRemoteCommandsState = new PreconnectionRemoteCommandsState();
 const effectiveVoiceSessionId = $derived(props.voiceSessionId ?? props.sessionId ?? null);
 
-let isShiftPressed = $state(false);
-let enterBehavior = $state<AgentInputEnterBehavior>("queue");
 let inputState!: AgentInputState;
 
 const composerView = new ComposerViewController({
 	getProps: () => props,
 	getInputState: () => inputState,
-	getIsShiftPressed: () => isShiftPressed,
 	sessionStore,
 	panelStore,
 	agentStore,
@@ -425,6 +421,7 @@ const {
 	createComposerRestoreSnapshot,
 	applyComposerRestoreSnapshot,
 	handleSend,
+	handleQueue,
 	handleSteer,
 	handlePrimaryButtonClick,
 } = agentInputController;
@@ -614,9 +611,6 @@ onMount(() => {
 	}
 	const container = inputState.containerRef;
 	const handleWindowKeyDown = (event: KeyboardEvent) => {
-		if (event.key === "Shift") {
-			isShiftPressed = true;
-		}
 		if (
 			voiceReady &&
 			voiceState &&
@@ -635,10 +629,6 @@ onMount(() => {
 		}
 	};
 	const handleWindowKeyUp = (event: KeyboardEvent) => {
-		if (event.key === "Shift") {
-			isShiftPressed = false;
-		}
-
 		if (voiceState && shouldStopVoiceHold(event, voiceState.isPressAndHold)) {
 			event.preventDefault();
 			voiceState.onKeyboardHoldEnd();
@@ -1104,7 +1094,6 @@ function handleEditorKeyDown(event: KeyboardEvent): void {
 			hasBlockingComposerConfig: composerView.storeComposerState?.isBlocked ?? false,
 			isComposerDispatching: composerView.storeComposerState?.isDispatching ?? false,
 			isSubmitDisabled: composerView.isSubmitDisabled,
-			busyEnterBehavior: enterBehavior,
 		},
 		event
 	);
@@ -1112,6 +1101,12 @@ function handleEditorKeyDown(event: KeyboardEvent): void {
 	if (event.key === "Enter" && submitIntent === "steer") {
 		event.preventDefault();
 		handleSteer();
+		return;
+	}
+
+	if (event.key === "Enter" && submitIntent === "queue") {
+		event.preventDefault();
+		void handleQueue();
 		return;
 	}
 
@@ -1767,7 +1762,6 @@ $effect(() => {
 					composerInteraction={composerView.composerInteraction}
 					isStreaming={composerView.isStreaming}
 					hasDraftInput={composerView.hasDraftInput}
-					isAgentBusy={composerView.isAgentBusy}
 					slashPaletteSections={composerView.slashPaletteSections}
 					isSlashDropdownVisible={composerView.isSlashDropdownVisible}
 					filePickerProjectPath={composerView.filePickerProjectPath}
@@ -1797,18 +1791,14 @@ $effect(() => {
 					placeholderLabel={composerView.composerPlaceholderLabel}
 					voiceOverlayPhase={voiceRecordingOverlayPhase}
 					voiceDefaultErrorMessage={"Microphone permission denied"}
-					primarySrQueue={"Queue"}
 					primarySrSend={"Send message"}
 					primarySrInterrupt={"Interrupt"}
-					{enterBehavior}
-					enterBehaviorMenuLabel={"Enter behavior"}
 					enterQueueLabel={"Queue"}
 					enterQueueDescription={"Runs after the agent finishes its current turn."}
+					enterQueueShortcut={isMac() ? "⌘Enter" : "Ctrl+Enter"}
 					enterSteerLabel={"Steer"}
 					enterSteerDescription={"Interrupts now and redirects the agent immediately."}
-					onEnterBehaviorChange={(behavior) => {
-						enterBehavior = behavior;
-					}}
+					enterSteerShortcut={"Enter"}
 				>
 						{#snippet leadingControls()}
 							{#if secondaryComposerChromeReady}

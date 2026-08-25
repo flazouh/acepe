@@ -5,7 +5,7 @@
 
 import type { SnapshotFrom } from "xstate";
 import type { composerMachine } from "./composer-machine.js";
-import type { BusyEnterBehavior, DefaultSubmitAction } from "./submit-intent.js";
+import type { DefaultSubmitAction } from "./submit-intent.js";
 import {
 	isPrimaryButtonDisabled,
 	resolveDefaultSubmitAction,
@@ -83,7 +83,6 @@ export interface ComposerInteractionInput {
 	readonly hasSessionId: boolean;
 	readonly isAgentBusy: boolean;
 	readonly isStreaming: boolean;
-	readonly isShiftPressed: boolean;
 	/** Canonical submit disabled from lifecycle + host (matches agent-input `isSubmitDisabled`). */
 	readonly isSubmitDisabled: boolean;
 	readonly hasBlockingComposerConfig: boolean;
@@ -103,7 +102,6 @@ export function deriveComposerInteractionState(
 		hasDraftInput: input.hasDraftInput,
 		isAgentBusy: input.isAgentBusy,
 		isStreaming: input.isStreaming,
-		isShiftPressed: input.isShiftPressed,
 	});
 
 	const defaultSubmitAction = resolveDefaultSubmitAction({
@@ -141,9 +139,7 @@ export function resolveComposerEnterKeyIntent(
 		| "hasBlockingComposerConfig"
 		| "isComposerDispatching"
 		| "isSubmitDisabled"
-	> & {
-		readonly busyEnterBehavior?: BusyEnterBehavior;
-	},
+	>,
 	key: Pick<KeyboardEvent, "shiftKey" | "metaKey" | "ctrlKey">
 ): SubmitIntent {
 	return resolveEnterKeyIntent({
@@ -155,6 +151,5 @@ export function resolveComposerEnterKeyIntent(
 		hasBlockingComposerConfig: policy.hasBlockingComposerConfig,
 		isComposerDispatching: policy.isComposerDispatching,
 		isSubmitDisabled: policy.isSubmitDisabled,
-		busyEnterBehavior: policy.busyEnterBehavior,
 	});
 }

@@ -6,7 +6,6 @@ import {
 	AgentInputPastedTextOverlay,
 	AgentInputSlashCommandDropdown,
 	AgentInputVoiceRecordingOverlay,
-	type AgentInputEnterBehavior,
 	type AgentInputSlashCommand,
 	type AgentInputSlashCommandWorkspaceMarkdownResult,
 	type SlashPaletteItem,
@@ -30,7 +29,6 @@ let {
 	composerInteraction,
 	isStreaming,
 	hasDraftInput,
-	isAgentBusy,
 	slashPaletteSections,
 	isSlashDropdownVisible,
 	filePickerProjectPath,
@@ -57,16 +55,14 @@ let {
 	placeholderLabel,
 	voiceOverlayPhase,
 	voiceDefaultErrorMessage,
-	primarySrQueue,
 	primarySrSend,
 	primarySrInterrupt,
-	enterBehavior,
-	enterBehaviorMenuLabel,
 	enterQueueLabel,
 	enterQueueDescription,
+	enterQueueShortcut,
 	enterSteerLabel,
 	enterSteerDescription,
-	onEnterBehaviorChange,
+	enterSteerShortcut,
 	leadingControls,
 	trailingControls,
 }: {
@@ -81,7 +77,6 @@ let {
 	composerInteraction: ComposerInteractionState;
 	isStreaming: boolean;
 	hasDraftInput: boolean;
-	isAgentBusy: boolean;
 	slashPaletteSections: readonly SlashPaletteSection[];
 	isSlashDropdownVisible: boolean;
 	filePickerProjectPath: string | null;
@@ -111,35 +106,37 @@ let {
 	placeholderLabel: string;
 	voiceOverlayPhase: "checking_permission" | "recording" | "error";
 	voiceDefaultErrorMessage: string;
-	primarySrQueue: string;
 	primarySrSend: string;
 	primarySrInterrupt: string;
-	enterBehavior: AgentInputEnterBehavior;
-	enterBehaviorMenuLabel: string;
 	enterQueueLabel: string;
 	enterQueueDescription: string;
+	enterQueueShortcut: string;
 	enterSteerLabel: string;
 	enterSteerDescription: string;
-	onEnterBehaviorChange: (behavior: AgentInputEnterBehavior) => void;
+	enterSteerShortcut: string;
 	leadingControls?: Snippet;
 	trailingControls?: Snippet;
 } = $props();
 
-const submitIntent = $derived(
-	composerInteraction.primaryButtonIntent === "steer" || (isStreaming && !hasDraftInput)
-		? "steer"
-		: composerInteraction.primaryButtonIntent === "cancel"
-			? "stop"
-			: "send"
-);
+const submitIntent = $derived.by((): "send" | "steer" | "stop" => {
+	if (composerInteraction.primaryButtonIntent === "cancel" || (isStreaming && !hasDraftInput)) {
+		return "stop";
+	}
+	if (composerInteraction.primaryButtonIntent === "steer") {
+		return "steer";
+	}
+	return "send";
+});
 
-const submitAriaLabel = $derived(
-	composerInteraction.primaryButtonIntent === "steer" || (isStreaming && !hasDraftInput)
-		? primarySrInterrupt
-		: isAgentBusy
-			? primarySrQueue
-			: primarySrSend
-);
+const submitAriaLabel = $derived.by((): string => {
+	if (submitIntent === "stop") {
+		return primarySrInterrupt;
+	}
+	if (submitIntent === "steer") {
+		return enterSteerLabel;
+	}
+	return primarySrSend;
+});
 </script>
 
 {#if inputReady}
@@ -152,13 +149,13 @@ const submitAriaLabel = $derived(
 		submitDisabled={composerInteraction.primaryButtonDisabled}
 		submitAriaLabel={submitAriaLabel}
 		onSubmit={onPrimaryButtonClick}
-		{enterBehavior}
-		{enterBehaviorMenuLabel}
 		{enterQueueLabel}
 		{enterQueueDescription}
+		{enterQueueShortcut}
 		{enterSteerLabel}
 		{enterSteerDescription}
-		{onEnterBehaviorChange}
+		{enterSteerShortcut}
+		stopLabel={primarySrInterrupt}
 		onbeforeinput={onEditorBeforeInput}
 		oninput={() => onEditorInput()}
 		onkeydown={onEditorKeyDown}

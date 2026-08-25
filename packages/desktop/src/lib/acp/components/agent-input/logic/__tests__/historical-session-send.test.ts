@@ -28,7 +28,6 @@ describe("historical session send policy", () => {
 			hasSessionId: true,
 			isAgentBusy: false,
 			isStreaming: false,
-			isShiftPressed: false,
 			isSubmitDisabled: false,
 			hasBlockingComposerConfig: false,
 			isComposerDispatching: false,

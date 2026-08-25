@@ -11,8 +11,7 @@
 
 	import { Button } from "../button/index.js";
 	import { HugeiconsIcon } from "../icons/index.js";
-
-	export type AgentInputSubmitIntent = "send" | "steer" | "stop";
+	import type { AgentInputSubmitIntent } from "./agent-input-submit-button-state.js";
 
 	interface Props {
 		editorRef?: HTMLDivElement | null;

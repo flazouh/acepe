@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/svelte";
+import { cleanup, render, screen } from "@testing-library/svelte";
 import { createRawSnippet } from "svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -57,8 +57,8 @@ describe("AgentInputComposerRow", () => {
 
 		const button = screen.getByRole("button", { name: "Send message" });
 		const contextWidget = screen.getByTestId("context-window-widget");
-		const cluster = button.parentElement;
-		const toolbarRow = cluster?.parentElement;
+		const cluster = button.closest('[data-qa="agent-input-submit-cluster"]');
+		const toolbarRow = button.closest('[data-qa="agent-input-toolbar-row"]');
 		const glyph = button.querySelector("svg");
 		const glyphClass = glyph?.getAttribute("class");
 
@@ -118,93 +118,45 @@ describe("AgentInputComposerRow", () => {
 		expect(onSubmit).not.toHaveBeenCalled();
 	});
 
-	it("shows a split menu for choosing busy Enter behavior", async () => {
-		const onEnterBehaviorChange = vi.fn();
+	it("does not render a busy Enter-behavior dropdown", () => {
 		render(AgentInputComposerRow, {
 			props: {
 				placeholder: "Ask the agent",
 				submitAriaLabel: "Send message",
-				submitDisabled: true,
-				isEmpty: true,
-				enterBehavior: "queue",
-				enterBehaviorMenuLabel: "Enter behavior",
-				enterQueueLabel: "Queue",
-				enterQueueDescription: "Runs after the agent finishes its current turn.",
 				enterSteerLabel: "Steer",
 				enterSteerDescription: "Interrupts now and redirects the agent immediately.",
-				onEnterBehaviorChange,
+				enterQueueLabel: "Queue",
+				enterQueueDescription: "Runs after the agent finishes its current turn.",
+				enterSteerShortcut: "Enter",
+				enterQueueShortcut: "⌘Enter",
 			},
 		});
 
-		const menuButton = screen.getByRole("button", { name: "Enter behavior" });
-		const submitButton = screen.getByRole("button", { name: "Send message" });
-		const buttonGroup = submitButton.closest('[data-slot="button-group"]');
-
-		expect(buttonGroup?.className).toContain("h-7");
-		expect(buttonGroup?.className).toContain("!rounded-lg");
-		expect(buttonGroup?.className).toContain("opacity-50");
-		expect(submitButton.className).toContain("rounded-l-lg");
-		expect(submitButton.className).not.toContain("opacity-50");
-		expect(menuButton.className).toContain("rounded-r-lg");
-		expect(menuButton.className).toContain("bg-foreground");
-		expect(menuButton.className).toContain("dark:bg-foreground");
-		expect(menuButton.className).not.toContain("dark:bg-input/30");
-		expect(menuButton.className.split(/\s+/)).not.toContain("opacity-50");
-		expect(menuButton.hasAttribute("disabled")).toBe(false);
-
-		await fireEvent.click(menuButton);
-		const queueItem = await screen.findByRole("menuitemradio", { name: /Queue/ });
-		const steerItem = await screen.findByRole("menuitemradio", { name: /Steer/ });
-
-		expect(screen.getByText("Runs after the agent finishes its current turn.")).toBeTruthy();
-		expect(screen.getByText("Interrupts now and redirects the agent immediately.")).toBeTruthy();
-		expect(queueItem.querySelector(".size-2.rounded-full")).toBeNull();
-
-		await fireEvent.click(steerItem);
-
-		expect(onEnterBehaviorChange).toHaveBeenCalledWith("steer");
+		expect(screen.queryByRole("button", { name: "Enter behavior" })).toBeNull();
+		expect(screen.queryByRole("menuitemradio")).toBeNull();
+		expect(screen.getByRole("button", { name: "Send message" })).toBeTruthy();
 	});
 
-	it("fades the split submit group when disabled even with draft text", () => {
+	it("explains steer versus queue on the submit button", () => {
 		render(AgentInputComposerRow, {
 			props: {
 				placeholder: "Ask the agent",
 				submitAriaLabel: "Send message",
-				submitDisabled: true,
-				isEmpty: false,
-				enterBehaviorMenuLabel: "Enter behavior",
-				onEnterBehaviorChange: vi.fn(),
+				enterSteerLabel: "Steer",
+				enterSteerDescription: "Interrupts now and redirects the agent immediately.",
+				enterQueueLabel: "Queue",
+				enterQueueDescription: "Runs after the agent finishes its current turn.",
+				enterSteerShortcut: "Enter",
+				enterQueueShortcut: "⌘Enter",
 			},
 		});
 
-		const menuButton = screen.getByRole("button", { name: "Enter behavior" });
-		const submitButton = screen.getByRole("button", { name: "Send message" });
-		const buttonGroup = submitButton.closest('[data-slot="button-group"]');
-
-		expect(buttonGroup?.className).toContain("opacity-50");
-		expect(menuButton.className.split(/\s+/)).not.toContain("opacity-50");
-		expect(menuButton.hasAttribute("disabled")).toBe(false);
-	});
-
-	it("keeps the split submit group full opacity when submit is enabled without draft", () => {
-		render(AgentInputComposerRow, {
-			props: {
-				placeholder: "Ask the agent",
-				submitAriaLabel: "Stop agent",
-				submitIntent: "stop",
-				submitDisabled: false,
-				isEmpty: true,
-				enterBehaviorMenuLabel: "Enter behavior",
-				onEnterBehaviorChange: vi.fn(),
-			},
-		});
-
-		const menuButton = screen.getByRole("button", { name: "Enter behavior" });
-		const submitButton = screen.getByRole("button", { name: "Stop agent" });
-		const buttonGroup = submitButton.closest('[data-slot="button-group"]');
-
-		expect(buttonGroup?.className.split(/\s+/)).not.toContain("opacity-50");
-		expect(menuButton.className.split(/\s+/)).not.toContain("opacity-50");
-		expect(menuButton.hasAttribute("disabled")).toBe(false);
+		const button = screen.getByRole("button", { name: "Send message" });
+		expect(button.textContent).toContain("Steer:");
+		expect(button.textContent).toContain("Interrupts now and redirects the agent immediately.");
+		expect(button.textContent).toContain("Enter");
+		expect(button.textContent).toContain("Queue:");
+		expect(button.textContent).toContain("Runs after the agent finishes its current turn.");
+		expect(button.textContent).toContain("⌘Enter");
 	});
 });

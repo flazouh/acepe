@@ -1,36 +1,26 @@
 <script lang="ts">
-import type { AgentInputSubmitIntent } from "./agent-input-editor.svelte";
-import type { AgentInputEnterBehavior } from "./agent-input-enter-behavior.js";
 import {
-	agentInputSubmitGroupDisabledVariants,
-	agentInputSubmitMenuSegmentClass,
-	agentInputSubmitPrimarySegmentVariants,
-	agentInputSubmitStandaloneDisabledClass,
-} from "./agent-input-submit-button-variants.js";
-import { ButtonGroup } from "../button-group/index.js";
-import * as DropdownMenu from "../dropdown-menu/index.js";
+	getSubmitButtonAccessibleDescription,
+	getSubmitButtonIconName,
+	getSubmitButtonTooltipRows,
+	type AgentInputSubmitIntent,
+} from "./agent-input-submit-button-state.js";
+import { agentInputSubmitButtonClass } from "./agent-input-submit-button-variants.js";
 import { HugeiconsIcon } from "../icons/index.js";
-import { Selector } from "../selector/index.js";
-import { cn } from "../../lib/utils.js";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../tooltip/index.js";
 
 interface Props {
 	intent?: AgentInputSubmitIntent;
 	disabled?: boolean;
 	ariaLabel?: string;
 	onSubmit?: () => void;
-	enterBehavior?: AgentInputEnterBehavior;
-	enterBehaviorMenuLabel?: string;
+	stopLabel?: string;
 	enterQueueLabel?: string;
 	enterQueueDescription?: string;
+	enterQueueShortcut?: string;
 	enterSteerLabel?: string;
 	enterSteerDescription?: string;
-	onEnterBehaviorChange?: (behavior: AgentInputEnterBehavior) => void;
-}
-
-interface EnterBehaviorOption {
-	value: AgentInputEnterBehavior;
-	label: string;
-	description: string;
+	enterSteerShortcut?: string;
 }
 
 let {
@@ -38,112 +28,88 @@ let {
 	disabled = false,
 	ariaLabel = "Send message",
 	onSubmit,
-	enterBehavior = "queue",
-	enterBehaviorMenuLabel = "Enter behavior",
+	stopLabel = "Stop",
 	enterQueueLabel = "Queue",
 	enterQueueDescription = "Runs after the agent finishes its current turn.",
+	enterQueueShortcut = "⌘Enter",
 	enterSteerLabel = "Steer",
 	enterSteerDescription = "Interrupts now and redirects the agent immediately.",
-	onEnterBehaviorChange,
+	enterSteerShortcut = "Enter",
 }: Props = $props();
 
-const showStop = $derived(intent === "stop" || intent === "steer");
-const showEnterBehaviorMenu = $derived(onEnterBehaviorChange !== undefined);
-const behaviorOptions = $derived<EnterBehaviorOption[]>([
-	{
-		value: "queue",
-		label: enterQueueLabel,
-		description: enterQueueDescription,
-	},
-	{
-		value: "steer",
-		label: enterSteerLabel,
-		description: enterSteerDescription,
-	},
-]);
-const submitButtonClass = $derived(
-	cn(
-		agentInputSubmitPrimarySegmentVariants({ split: showEnterBehaviorMenu }),
-		showEnterBehaviorMenu ? undefined : agentInputSubmitStandaloneDisabledClass
-	)
+const iconName = $derived(getSubmitButtonIconName(intent));
+const tooltipRows = $derived(
+	getSubmitButtonTooltipRows(intent, {
+		stopLabel,
+		steerLabel: enterSteerLabel,
+		steerDescription: enterSteerDescription,
+		steerShortcut: enterSteerShortcut,
+		queueLabel: enterQueueLabel,
+		queueDescription: enterQueueDescription,
+		queueShortcut: enterQueueShortcut,
+	})
 );
-const buttonGroupClass = $derived(
-	cn(
-		"h-7 !rounded-lg [&>[data-slot=button]:first-child]:!rounded-l-lg [&>:first-child_[data-slot=button]]:!rounded-l-lg",
-		agentInputSubmitGroupDisabledVariants({ disabled })
-	)
-);
-
-function handleEnterBehaviorChange(value: string): void {
-	if (value === "queue" || value === "steer") {
-		onEnterBehaviorChange?.(value);
-	}
-}
+const tooltipDescription = $derived(getSubmitButtonAccessibleDescription(tooltipRows));
 </script>
 
-{#snippet submitIcon()}
-	{#if showStop}
-		<HugeiconsIcon name="stop" class="h-4 w-4 shrink-0" />
-	{:else}
-		<HugeiconsIcon name="arrow-up" class="h-4 w-4 shrink-0" />
-	{/if}
-	<span class="sr-only">{ariaLabel}</span>
+{#snippet submitGlyph()}
+	<HugeiconsIcon name={iconName} class="h-4 w-4 shrink-0" />
+	<span class="sr-only">{ariaLabel}. {tooltipDescription}</span>
 {/snippet}
 
-{#snippet submitButton()}
-	<button
-		data-slot="button"
-		data-variant="default"
-		data-size="icon"
-		type="button"
-		onclick={onSubmit}
-		{disabled}
-		aria-label={ariaLabel}
-		class={submitButtonClass}
-	>
-		{@render submitIcon()}
-	</button>
-{/snippet}
-
-{#if showEnterBehaviorMenu}
-	<ButtonGroup class={buttonGroupClass}>
-		{@render submitButton()}
-		<Selector
-			variant="ghost"
-			align="end"
-			side="top"
-			sideOffset={8}
-			showChevron={false}
-			embeddedInGroup={true}
-			triggerIcon="dots"
-			triggerAriaLabel={enterBehaviorMenuLabel}
-			triggerClass={agentInputSubmitMenuSegmentClass}
-			contentClass="w-64 p-1"
-		>
-			{#snippet renderButton()}{/snippet}
-			<DropdownMenu.RadioGroup value={enterBehavior} onValueChange={handleEnterBehaviorChange}>
-				{#each behaviorOptions as option (option.value)}
-					<DropdownMenu.RadioItem
-						value={option.value}
-						hideIndicator={true}
-						class="flex-col items-stretch gap-0.5 !ps-2 py-1.5 pe-2 text-left data-[state=checked]:bg-accent data-[state=checked]:text-accent-foreground"
+<Tooltip>
+	<TooltipTrigger>
+		{#snippet child({ props: triggerProps })}
+			{#if disabled}
+				<span {...triggerProps} class="inline-flex">
+					<button
+						data-slot="button"
+						data-variant="default"
+						data-size="icon"
+						data-qa="agent-input-submit"
+						type="button"
+						onclick={onSubmit}
+						disabled={true}
+						aria-label={ariaLabel}
+						class={agentInputSubmitButtonClass}
 					>
-						{#snippet children({ checked })}
-							<div class="flex min-w-0 items-center justify-between gap-2">
-								<span class="truncate text-xs font-medium">{option.label}</span>
-								<span class="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
-									{#if checked}
-										<HugeiconsIcon name="check" class="h-3.5 w-3.5" />
-									{/if}
-								</span>
-							</div>
-							<span class="text-[11px] leading-snug text-muted-foreground">{option.description}</span>
-						{/snippet}
-					</DropdownMenu.RadioItem>
-				{/each}
-			</DropdownMenu.RadioGroup>
-		</Selector>
-	</ButtonGroup>
-{:else}
-	{@render submitButton()}
-{/if}
+						{@render submitGlyph()}
+					</button>
+				</span>
+			{:else}
+				<button
+					{...triggerProps}
+					data-slot="button"
+					data-variant="default"
+					data-size="icon"
+					data-qa="agent-input-submit"
+					type="button"
+					onclick={onSubmit}
+					aria-label={ariaLabel}
+					class={agentInputSubmitButtonClass}
+				>
+					{@render submitGlyph()}
+				</button>
+			{/if}
+		{/snippet}
+	</TooltipTrigger>
+	<TooltipContent side="top" class="max-w-xs">
+		<div class="flex flex-col gap-1.5">
+			{#each tooltipRows as row (row.label)}
+				<div class="flex flex-col gap-0.5">
+					<div class="flex items-center justify-between gap-3">
+						<span class="font-medium">{row.label}</span>
+						{#if row.shortcut}
+							<span class="text-[11px] font-normal text-muted-foreground">{row.shortcut}</span>
+						{/if}
+					</div>
+					{#if row.description}
+						<span class="text-[11px] font-normal leading-snug text-muted-foreground">
+							{row.description}
+						</span>
+					{/if}
+				</div>
+			{/each}
+		</div>
+	</TooltipContent>
+</Tooltip>

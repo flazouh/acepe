@@ -8,7 +8,7 @@ import {
 } from "../submit-intent.js";
 
 describe("submit intent", () => {
-	it("queues on Enter while agent is busy", () => {
+	it("steers on Enter while agent is busy", () => {
 		expect(
 			resolveEnterKeyIntent({
 				hasDraftInput: true,
@@ -16,24 +16,11 @@ describe("submit intent", () => {
 				shiftKey: false,
 				metaKey: false,
 				ctrlKey: false,
-			})
-		).toBe("send");
-	});
-
-	it("steers on plain Enter while agent is busy when configured", () => {
-		expect(
-			resolveEnterKeyIntent({
-				hasDraftInput: true,
-				isAgentBusy: true,
-				shiftKey: false,
-				metaKey: false,
-				ctrlKey: false,
-				busyEnterBehavior: "steer",
 			})
 		).toBe("steer");
 	});
 
-	it("queues on Enter while agent is busy even when direct submit is disabled", () => {
+	it("steers on Enter while agent is busy even when direct submit is disabled", () => {
 		expect(
 			resolveEnterKeyIntent({
 				hasDraftInput: true,
@@ -42,6 +29,42 @@ describe("submit intent", () => {
 				metaKey: false,
 				ctrlKey: false,
 				isSubmitDisabled: true,
+			})
+		).toBe("steer");
+	});
+
+	it("queues on Cmd+Enter while agent is busy", () => {
+		expect(
+			resolveEnterKeyIntent({
+				hasDraftInput: true,
+				isAgentBusy: true,
+				shiftKey: false,
+				metaKey: true,
+				ctrlKey: false,
+			})
+		).toBe("queue");
+	});
+
+	it("queues on Ctrl+Enter while agent is busy", () => {
+		expect(
+			resolveEnterKeyIntent({
+				hasDraftInput: true,
+				isAgentBusy: true,
+				shiftKey: false,
+				metaKey: false,
+				ctrlKey: true,
+			})
+		).toBe("queue");
+	});
+
+	it("sends on Cmd+Enter while agent is idle", () => {
+		expect(
+			resolveEnterKeyIntent({
+				hasDraftInput: true,
+				isAgentBusy: false,
+				shiftKey: false,
+				metaKey: true,
+				ctrlKey: false,
 			})
 		).toBe("send");
 	});
@@ -96,15 +119,14 @@ describe("submit intent", () => {
 		).toBe("none");
 	});
 
-	it("shows queue button by default while busy with draft", () => {
+	it("shows steer button by default while busy with draft", () => {
 		expect(
 			resolvePrimaryButtonIntent({
 				hasDraftInput: true,
 				isAgentBusy: true,
 				isStreaming: true,
-				isShiftPressed: false,
 			})
-		).toBe("send");
+		).toBe("steer");
 	});
 
 	it("uses cancel when streaming without a draft", () => {
@@ -113,23 +135,11 @@ describe("submit intent", () => {
 				hasDraftInput: false,
 				isAgentBusy: true,
 				isStreaming: true,
-				isShiftPressed: false,
 			})
 		).toBe("cancel");
 	});
 
-	it("switches button to steer while Shift is held", () => {
-		expect(
-			resolvePrimaryButtonIntent({
-				hasDraftInput: true,
-				isAgentBusy: true,
-				isStreaming: true,
-				isShiftPressed: true,
-			})
-		).toBe("steer");
-	});
-
-	it("queues by default while streaming and busy", () => {
+	it("steers by default while streaming and busy", () => {
 		expect(
 			resolveDefaultSubmitAction({
 				hasDraftInput: true,
@@ -138,7 +148,7 @@ describe("submit intent", () => {
 				isStreaming: true,
 				isSubmitDisabled: true,
 			})
-		).toBe("queue");
+		).toBe("steer");
 	});
 
 	it("steers only when streaming without a running turn", () => {
@@ -153,14 +163,14 @@ describe("submit intent", () => {
 		).toBe("steer");
 	});
 
-	it("keeps the queue button enabled while busy", () => {
+	it("keeps the steer button enabled while busy", () => {
 		expect(
 			isPrimaryButtonDisabled({
 				hasDraftInput: true,
 				isComposerDispatching: false,
 				isAgentBusy: true,
 				isSubmitDisabled: true,
-				primaryButtonIntent: "send",
+				primaryButtonIntent: "steer",
 			})
 		).toBe(false);
 	});

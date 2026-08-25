@@ -5,8 +5,7 @@
 import type { Snippet } from "svelte";
 
 import AgentInputSubmitButton from "./agent-input-submit-button.svelte";
-import type { AgentInputEnterBehavior } from "./agent-input-enter-behavior.js";
-import type { AgentInputSubmitIntent } from "./agent-input-editor.svelte";
+import type { AgentInputSubmitIntent } from "./agent-input-submit-button-state.js";
 
 interface Props {
 	editorRef?: HTMLDivElement | null;
@@ -17,13 +16,13 @@ interface Props {
 	submitDisabled?: boolean;
 	submitAriaLabel?: string;
 	onSubmit?: () => void;
-	enterBehavior?: AgentInputEnterBehavior;
-	enterBehaviorMenuLabel?: string;
 	enterQueueLabel?: string;
 	enterQueueDescription?: string;
+	enterQueueShortcut?: string;
 	enterSteerLabel?: string;
 	enterSteerDescription?: string;
-	onEnterBehaviorChange?: (behavior: AgentInputEnterBehavior) => void;
+	enterSteerShortcut?: string;
+	stopLabel?: string;
 	onbeforeinput?: (event: InputEvent) => void;
 	oninput?: (event: Event) => void;
 	onkeydown?: (event: KeyboardEvent) => void;
@@ -49,13 +48,13 @@ let {
 	submitDisabled = false,
 	submitAriaLabel = "Send message",
 	onSubmit,
-	enterBehavior = "queue",
-	enterBehaviorMenuLabel = "Enter behavior",
 	enterQueueLabel = "Queue",
 	enterQueueDescription = "Runs after the agent finishes its current turn.",
+	enterQueueShortcut = "⌘Enter",
 	enterSteerLabel = "Steer",
 	enterSteerDescription = "Interrupts now and redirects the agent immediately.",
-	onEnterBehaviorChange,
+	enterSteerShortcut = "Enter",
+	stopLabel = "Stop",
 	onbeforeinput,
 	oninput,
 	onkeydown,
@@ -128,13 +127,13 @@ let {
 				disabled={submitDisabled}
 				ariaLabel={submitAriaLabel}
 				onSubmit={onSubmit}
-				{enterBehavior}
-				{enterBehaviorMenuLabel}
 				{enterQueueLabel}
 				{enterQueueDescription}
+				{enterQueueShortcut}
 				{enterSteerLabel}
 				{enterSteerDescription}
-				{onEnterBehaviorChange}
+				{enterSteerShortcut}
+				{stopLabel}
 			/>
 		</div>
 	</div>

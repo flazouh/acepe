@@ -4,6 +4,7 @@ import * as Result from "effect/Result";
 import { shouldClearPersistedDraftBeforeAsyncSend } from "$lib/components/main-app-view/components/content/logic/empty-state-send-state.js";
 import { findErrorReference } from "$lib/errors/error-reference.js";
 import { replyToQuestionRequest } from "../../logic/interaction-reply.js";
+import type { DefaultSubmitAction } from "../../logic/submit-intent.js";
 import { PanelConnectionEvent } from "../../types/panel-connection-state.js";
 import type { AgentInputControllerHost } from "./agent-input-controller-host.js";
 import {
@@ -50,6 +51,7 @@ export interface AgentInputController {
 	createComposerRestoreSnapshot(): ComposerRestoreSnapshot;
 	applyComposerRestoreSnapshot(snapshot: ComposerRestoreSnapshot): void;
 	handleSend(): Promise<void>;
+	handleQueue(): Promise<void>;
 	handleSteer(): void;
 	handlePrimaryButtonClick(): void;
 	retrySend(): void;
@@ -183,15 +185,14 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 		return result.success;
 	}
 
-	async function handleSend() {
+	async function handleSend(forceAction?: DefaultSubmitAction) {
 		const t0 = performance.now();
 		const props = host.getProps();
 		const composerInteraction = host.getComposerInteraction();
-		const defaultSubmitAction = composerInteraction.defaultSubmitAction;
-
-		if (defaultSubmitAction === "none") {
+		if (composerInteraction.defaultSubmitAction === "none") {
 			return;
 		}
+		const defaultSubmitAction = forceAction ?? composerInteraction.defaultSubmitAction;
 
 		if (defaultSubmitAction === "steer") {
 			handleSteer();
@@ -524,6 +525,10 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 		});
 	}
 
+	function handleQueue(): Promise<void> {
+		return handleSend("queue");
+	}
+
 	function handleSteer() {
 		const props = host.getProps();
 		const sessionId = props.sessionId;
@@ -603,6 +608,7 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 		createComposerRestoreSnapshot,
 		applyComposerRestoreSnapshot,
 		handleSend,
+		handleQueue,
 		handleSteer,
 		handlePrimaryButtonClick,
 		retrySend,
