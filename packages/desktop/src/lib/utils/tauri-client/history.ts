@@ -1,6 +1,6 @@
 import {
-	decodeSessionId,
 	type DiscoveredProviderSession,
+	decodeSessionId,
 	SessionMetaUpdateCommand,
 	SessionPrNumber,
 	type TrimmedNonEmptyString,
@@ -15,7 +15,13 @@ import type { AppError } from "../../acp/errors/app-error.js";
 import type { SessionOpenResult } from "../../services/acp-types.js";
 import type { HistoryEntry, StartupSessionsResponse } from "../../services/claude-history-types.js";
 import type { SessionPlanResponse } from "../../services/converted-session-types.js";
-import { decodeTrimmed, decodeEffect, nextCommandId, unsupportedOnContract, withRpcClient } from "./rpc-bridge.ts";
+import {
+	decodeEffect,
+	decodeTrimmed,
+	nextCommandId,
+	unsupportedOnContract,
+	withRpcClient,
+} from "./rpc-bridge.ts";
 import type { ProjectInfo, ProjectSessionCounts, SessionLoadTiming } from "./types.js";
 
 export interface TranscriptRowLedgerBackfillResult {
@@ -149,7 +155,9 @@ export const history = {
 	},
 
 	listAllProjectPaths: (): Effect.Effect<ProjectInfo[], AppError> => {
-		return withRpcClient("history.listAllProjectPaths", (client) => client.listProviderProjects()).pipe(
+		return withRpcClient("history.listAllProjectPaths", (client) =>
+			client.listProviderProjects()
+		).pipe(
 			Effect.map((projects) =>
 				projects.map((project) => ({
 					path: project.projectPath,
@@ -219,7 +227,10 @@ const discoveredSessionToHistoryEntry = (session: DiscoveredProviderSession): Hi
 // scan caches per-directory by mtime signature, so repeat calls are cheap;
 // this is still an O(projects) RPC fan-out per call, acceptable for the
 // startup-hydration and rename-time lookups that use it (not a hot path).
-const allDiscoveredSessions = (): Effect.Effect<ReadonlyArray<DiscoveredProviderSession>, AppError> =>
+const allDiscoveredSessions = (): Effect.Effect<
+	ReadonlyArray<DiscoveredProviderSession>,
+	AppError
+> =>
 	withRpcClient("history.allDiscoveredSessions", (client) => client.listProviderProjects()).pipe(
 		Effect.flatMap((projects) =>
 			Effect.forEach(
@@ -241,7 +252,9 @@ const allDiscoveredSessions = (): Effect.Effect<ReadonlyArray<DiscoveredProvider
 const findProviderSessionProjectPath = (
 	sessionId: TrimmedNonEmptyString
 ): Effect.Effect<Option.Option<TrimmedNonEmptyString>, AppError> =>
-	withRpcClient("history.findProviderSessionProjectPath", (client) => client.listProviderProjects()).pipe(
+	withRpcClient("history.findProviderSessionProjectPath", (client) =>
+		client.listProviderProjects()
+	).pipe(
 		Effect.flatMap((projects) =>
 			Effect.forEach(
 				projects,
@@ -249,10 +262,11 @@ const findProviderSessionProjectPath = (
 					withRpcClient("history.findProviderSessionProjectPath", (client) =>
 						client.listProviderSessions(project.projectPath)
 					).pipe(
-						Effect.map((sessions): Option.Option<TrimmedNonEmptyString> =>
-							sessions.some((session) => session.id === sessionId)
-								? Option.some(project.projectPath)
-								: Option.none()
+						Effect.map(
+							(sessions): Option.Option<TrimmedNonEmptyString> =>
+								sessions.some((session) => session.id === sessionId)
+									? Option.some(project.projectPath)
+									: Option.none()
 						)
 					),
 				{ concurrency: "unbounded" }
@@ -265,30 +279,40 @@ const findProviderSessionProjectPath = (
 // imported must create it first (idempotent no-op via deterministic
 // commandIds when it is already imported -- see importProviderSessionHandler
 // in packages/server/src/rpc/handlers.ts) so the session.meta.update below
-// has a session to update.
-const ensureProviderSessionImported = Effect.fn("history.ensureProviderSessionImported")(function* (
-	sessionId: string
-) {
-	const decodedSessionId = yield* decodeTrimmed("history.ensureProviderSessionImported", sessionId);
-	const projectPath = yield* findProviderSessionProjectPath(decodedSessionId);
-	if (Option.isNone(projectPath)) {
-		return;
+// has a session to update. Exported so reopen-session hydration
+// (reopened-session-hydrator.ts) can reuse the same idempotent
+// discover-project-then-import step for a session that was scanned from
+// disk (~/.claude) but never opened/renamed/PR-linked in this app run yet,
+// instead of re-deriving its own project-path lookup.
+export const ensureProviderSessionImported = Effect.fn("history.ensureProviderSessionImported")(
+	function* (sessionId: string) {
+		const decodedSessionId = yield* decodeTrimmed(
+			"history.ensureProviderSessionImported",
+			sessionId
+		);
+		const projectPath = yield* findProviderSessionProjectPath(decodedSessionId);
+		if (Option.isNone(projectPath)) {
+			return;
+		}
+		yield* withRpcClient("history.ensureProviderSessionImported", (client) =>
+			client.importProviderSession({
+				provider: "claude",
+				projectPath: projectPath.value,
+				sessionId: decodedSessionId,
+			})
+		);
 	}
-	yield* withRpcClient("history.ensureProviderSessionImported", (client) =>
-		client.importProviderSession({
-			provider: "claude",
-			projectPath: projectPath.value,
-			sessionId: decodedSessionId,
-		})
-	);
-});
+);
 
 const setSessionTitleEffect = Effect.fn("history.setSessionTitle")(function* (
 	sessionId: string,
 	title: string
 ) {
 	yield* ensureProviderSessionImported(sessionId);
-	const decodedSessionId = yield* decodeEffect("history.setSessionTitle", decodeSessionId)(sessionId);
+	const decodedSessionId = yield* decodeEffect(
+		"history.setSessionTitle",
+		decodeSessionId
+	)(sessionId);
 	const decodedTitle = yield* decodeTrimmed("history.setSessionTitle", title);
 	const commandId = yield* nextCommandId("session-meta-update-title");
 	yield* withRpcClient("history.setSessionTitle", (client) =>
@@ -311,7 +335,10 @@ const setSessionPrNumberEffect = Effect.fn("history.setSessionPrNumber")(functio
 	prLinkMode?: SessionPrLinkMode | null
 ) {
 	yield* ensureProviderSessionImported(sessionId);
-	const decodedSessionId = yield* decodeEffect("history.setSessionPrNumber", decodeSessionId)(sessionId);
+	const decodedSessionId = yield* decodeEffect(
+		"history.setSessionPrNumber",
+		decodeSessionId
+	)(sessionId);
 	const decodedPrNumber =
 		prNumber === null
 			? null
