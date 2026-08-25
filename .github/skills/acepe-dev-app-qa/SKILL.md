@@ -8,54 +8,54 @@ argument-hint: "[optional: screen, session id, or bug description]"
 
 Use this skill before any visual QA or app inspection for Acepe.
 
-The normal path is **repo QA wrapper first**. The wrapper talks to the real
-Electrobun WebView while hiding raw MCP ceremony, keeping QA fast, compact, and
-consistent. It can inspect DOM, screenshots, route, app state, and
-Electrobun-specific behavior in the same runtime the user sees.
+The normal path is **`bun run qa` first**. It wraps the `electrobun-qa` CLI in
+`packages/electrobun-qa`, which reaches the real Electrobun WebView over a unix
+socket at `/tmp/electrobun-qa/<app-id>.sock`. Unsigned builds open that socket
+through a preload; signed builds carry none of it. There is no debugging port
+and no Tauri bridge.
 
-## Wrapper-First Recipes (read first)
-
-Use `packages/desktop/scripts/acepe-qa.ts` through the package script:
+## Recipes (read first)
 
 ```bash
 cd packages/desktop
-bun run qa doctor
-bun run qa observe
-bun run qa reset-onboarding
-bun run qa inspect --selector=.onboarding-preview-panel --limit=3
-bun run qa click --selector=.theme-toggle
-bun run qa screenshot
+bun run qa doctor   # window title, url, count
+bun run qa help     # every helper and its signature
+
+bun run qa run <<'EOF'
+cliLog(await snapshotText('[data-sidebar-project-surface]'))
+await click({ selector: '[data-testid="project-header"]' })
+await waitForText('Untitled session')
+cliLog(await pageInfo())
+EOF
 ```
 
-The wrapper handles driver startup, MCP wrapper unwrapping, compact summaries,
-schema validation, and JSON artifacts under `/tmp`. It is the preferred path for
-common actions: validating the dev target, resetting onboarding, inspecting DOM
-selectors, clicking by selector/text, and taking screenshots.
-Successful UI QA commands also update `.codex/state/ui-qa-evidence.json`; this
-is the evidence stamp used by the Codex Stop hook to enforce that UI changes
-were verified after the latest code edit.
+`run` executes a heredoc script with the helpers already in scope, so one round
+trip gives you real control flow and structured values instead of a chain of
+one-shot verb commands.
 
-Do not use direct Hypothesi/Electrobun QA CLI commands as the normal QA interface.
-If the wrapper lacks a primitive, add a small command or helper under
-`packages/desktop/scripts/acepe-qa/` and use that wrapper command for the QA
-pass. This keeps driver startup, output unwrapping, evidence stamps, schema
-validation, and target guardrails in one maintained path.
+A successful `bun run qa run` writes `.codex/state/ui-qa-evidence.json`, the
+stamp the Codex Stop hook checks to enforce that UI changes were verified after
+the latest code edit. `doctor` does not stamp, because it proves only that a
+window exists.
 
-Common wrapper commands:
+Helper groups:
 
-| Need | Command |
+| Group | Helpers |
 |---|---|
-| Confirm dev target and bridge | `bun run qa doctor` |
-| Summarize current app state | `bun run qa observe` |
-| Inspect DOM facts | `bun run qa inspect --selector=<selector> --limit=3` |
-| Click by selector or text | `bun run qa click --selector=<selector>` / `bun run qa click --text=<text>` |
-| Type/send composer text | `bun run qa send --text=<message>` |
-| Wait for visible text | `bun run qa watch --text=<text>` |
-| Capture screenshot | `bun run qa screenshot` |
-| Reset onboarding | `bun run qa reset-onboarding` |
+| Windows | `listWindows`, `firstWindow`, `useWindow`, `windowInfo` |
+| Observation | `snapshotText`, `snapshotDom`, `pageInfo` |
+| Interaction | `click`, `doubleClick`, `hover`, `typeText`, `fillInput`, `pressKey`, `pasteText`, `scrollBy` |
+| Waiting | `waitForText`, `waitForSelector`, `waitForIdle`, `wait` |
+| Evaluation | `js`, `queryAll` |
 
-If an interaction needs more detail than these commands expose, improve the
-wrapper first. Repeated ad hoc raw MCP snippets are a workflow bug.
+Two things worth knowing before you write a script. `pressKey` dispatches
+synthetic key events that terminal emulators drop, so use `pasteText` for
+xterm.js and other rich text surfaces. `captureScreenshot` is disabled on
+purpose: DOM facts are the evidence, and a picture cannot tell you whether a
+404 came from the framework or the router.
+
+If a helper is missing, add it to `packages/electrobun-qa`. Repeated ad hoc
+snippets around the CLI are a workflow bug.
 
 In a multi-panel workspace, generic `send` and `watch` calls are insufficient
 unless their selectors are scoped beneath a previously proven panel root.
@@ -71,29 +71,30 @@ dev WebView.
 Minimum pass from `packages/desktop`:
 
 1. `bun run qa doctor`
-2. `bun run qa observe` (or navigate to the affected screen first)
-3. **`bun run qa inspect --selector=<selector>`** — pick a selector that proves the
-   change; cite the returned DOM facts in your summary
-4. `bun run qa screenshot` when the change is visual or layout-related
+2. `bun run qa run` with a script that reaches the affected screen and reads the
+   element or region proving the change; cite the returned DOM facts in your
+   summary
 
 The QA action must prove the behavior that changed:
 
-- Static visual/style changes may pass with inspect + screenshot.
-- Interaction bugs must run the interaction through `click`, `send`, `watch`, or
-  a dedicated QA command, then inspect the resulting DOM/app state.
+- Static visual/style changes may pass with a `snapshotText`, `snapshotDom`, or
+  `js` read of the changed element, including computed styles and rects.
+- Interaction bugs must drive the interaction with `click`, `typeText`,
+  `pasteText`, or `waitForText` in the same script, then read the resulting DOM.
 - Timing, scroll, streaming, animation, and layout-transition bugs must run a
-  probe that samples the transition after the code change. A static `inspect` or
-  screenshot is not enough.
+  script that samples the transition after the code change. A single static read
+  is not enough.
 - Horizontal containment bugs must be checked at the narrowest supported panel
-  width. Inspect stable container and control hooks and prove every visible
+  width. Read stable container and control hooks and prove every visible
   control stays within the container (`child.left >= container.left` and
-  `child.right <= container.right`); a screenshot alone is not sufficient.
+  `child.right <= container.right`).
 - If a plan names a QA probe, that probe is mandatory completion evidence.
 - If the needed app/session state is unavailable, report behavioral QA as
   blocked and say what static evidence was collected. Do not call static DOM
   inspection a pass for the behavior.
 
-Record evidence via the wrapper (`.codex/state/ui-qa-evidence.json`).
+A successful `bun run qa run` records the evidence stamp
+(`.codex/state/ui-qa-evidence.json`).
 
 ## Evidence Integrity: Prove The Exact Target
 
@@ -115,9 +116,9 @@ Hard evidence rules:
 - Never treat keyboard focus, visual position, "first composer", or a selector
   index as provider/session identity. Panel order changes during open, close,
   fullscreen, hydration, and HMR.
-- Never use a global `watch --text` result as proof in a multi-panel workspace.
-  The same text may exist in another panel, the sidebar, the submitted user
-  prompt, or stale history.
+- Never use an unscoped `waitForText` result as proof in a multi-panel
+  workspace. The same text may exist in another panel, the sidebar, the
+  submitted user prompt, or stale history.
 - Do not put the exact expected response in the prompt. Use a construction such
   as `Return the word formed by S U C C E S S without spaces`, then assert the
   contiguous response only inside the target transcript.
@@ -125,12 +126,12 @@ Hard evidence rules:
   user row and the distinct agent response row belong to the same session.
 - Inspect errors inside the same target panel. `visible errors: 0` globally is
   supporting evidence only, not target-scoped proof.
-- For provider-specific QA, the final screenshot must show enough identity and
-  result together to connect them: provider icon/name or session header plus the
-  resulting transcript/error state.
-- If the wrapper cannot target a panel by stable session/provider identity,
-  improve the wrapper first. Do not substitute `--selector-index`, focus, or
-  manual visual guessing and call the result verified.
+- For provider-specific QA, the final read must show enough identity and result
+  together to connect them: provider icon/name or session header plus the
+  resulting transcript/error state, all inside the same panel subtree.
+- If you cannot target a panel by stable session/provider identity, add the hook
+  the script needs. Do not substitute a nth-of-type index, focus, or manual
+  visual guessing and call the result verified.
 - If target identity cannot be proven, report QA as blocked or invalid. Tests
   may still pass, but do not describe live app behavior as verified.
 - If the user identifies the wrong target, immediately invalidate the earlier
@@ -142,8 +143,8 @@ Minimum session/provider evidence chain:
 identify exact panel (session id + provider)
   -> target its composer by stable panel identity
   -> perform the action
-  -> inspect response/error inside the same panel subtree
-  -> capture screenshot showing target identity and result together
+  -> read response/error inside the same panel subtree
+  -> report the panel identity and the result from that same subtree
 ```
 
 Do not open or inspect `/Applications/Acepe.app` for dev QA.
@@ -190,43 +191,35 @@ QA is only valid against a build that actually contains the code under test.
 
 Acepe has no Rust binary. Do not look under `src-tauri`.
 
-### 2. Use The QA Wrapper
+### 2. Use `bun run qa`
 
-Before trying Computer Use or a normal browser, use the repo QA wrapper from
+Before trying Computer Use or a normal browser, run `bun run qa` from
 `packages/desktop`. It is the maintained interface to the real Electrobun
-WebView and should be extended when a new QA primitive is needed.
+WebView. Extend `packages/electrobun-qa` when a helper is missing.
 
 Minimum useful QA pass (required after UI-affecting changes):
 
-1. `bun run qa doctor` to prove the dev app, bridge, WebView, and binary
-   freshness.
-2. `bun run qa observe` to capture compact route, panel, composer, and visible
-   error facts.
-3. **`bun run qa inspect --selector=<selector>`** — mandatory DOM verification;
-   choose a selector that proves the change landed; include key facts in your
-   report.
-4. `bun run qa screenshot` for final visual evidence when the change is visual.
+1. `bun run qa doctor` to prove the app answers on its QA socket.
+2. `bun run qa run` with a script that reaches the affected screen and reads the
+   element proving the change. Include the returned facts in your report.
 
-Evidence must match the bug. For interaction-driven bugs, run `click`, `send`,
-`watch`, or a dedicated scenario probe and report which user action was
-performed, what changed in the DOM/app state, and where the artifact is. For
-timing, scroll, streaming, animation, or layout-transition bugs, a static DOM
-snapshot is not sufficient; run a transition-sampling probe after the code
-change. If that probe is blocked by app/session state, report it as blocked
-instead of downgrading to static DOM evidence.
+Evidence must match the bug. For interaction-driven bugs, drive the interaction
+inside the script and report which user action ran and what changed in the DOM.
+For timing, scroll, streaming, animation, or layout-transition bugs, a single
+static read is not sufficient; sample the transition after the code change. If
+that sampling is blocked by app/session state, report it as blocked instead of
+downgrading to static DOM evidence.
 
-This wrapper-backed path is the best evidence because Acepe is an Electrobun app. A
-browser at `localhost:1420` does not include the real Electrobun WebView runtime or
+This path is the best evidence because Acepe is an Electrobun app. A browser at
+`localhost:1420` does not include the real Electrobun WebView runtime or
 Electrobun APIs.
 
-If the wrapper cannot perform the needed action, improve
-`packages/desktop/scripts/acepe-qa/` before repeating the same raw interaction.
-Document the new wrapper primitive in this skill when it becomes part of normal
-QA.
+If a helper is missing, add it to `packages/electrobun-qa` before repeating the
+same raw interaction, and document it here when it becomes part of normal QA.
 
 ### 3. Use Computer Use Only As Fallback
 
-Use Computer Use only after the repo QA wrapper is unavailable or blocked.
+Use Computer Use only after `bun run qa` is unavailable or blocked.
 
 Before interacting, confirm the target window belongs to the dev binary.
 
@@ -243,16 +236,16 @@ Acepe is an Electrobun desktop app. A normal browser at `localhost:1420` does no
 inside the real Electrobun WebView and does not prove Electrobun APIs, app shell behavior,
 desktop routing, runtime state, permissions, or session display.
 
-If both the repo QA wrapper and safe dev-window Computer Use are unavailable, visual QA is
-blocked. Report it as blocked instead of trying localhost.
+If both `bun run qa` and safe dev-window Computer Use are unavailable, visual QA
+is blocked. Report it as blocked instead of trying localhost.
 
 ## What To Capture
 
 For every visual QA pass, capture enough evidence to prove what the user sees:
 
-- target identity: dev binary path or QA wrapper target
-- whether the QA wrapper was used; if not, why not
-- screenshot or DOM summary of the affected screen
+- target identity: dev binary path or QA socket
+- whether `bun run qa` was used; if not, why not
+- DOM summary of the affected screen
 - console errors, if any
 - current route or active session id, if relevant
 - provider id and stable panel identity for session/provider QA
@@ -273,11 +266,11 @@ For agent panel, transcript, session list, or tool-call display bugs:
 Use this shape in the final answer:
 
 ```text
-Dev app target: <path or QA wrapper target>
-QA wrapper: <used / unavailable, with reason>
+Dev app target: <path or QA socket>
+QA CLI: <used / unavailable, with reason>
 Visual QA: <what was seen>
 Target proof: <session id + provider id + stable panel selector/header>
 Scoped evidence: <action and assertion inside that target>
 Verified: <commands/tests>
-Blocked: <only if the dev app or QA wrapper was unavailable>
+Blocked: <only if the dev app or the QA socket was unavailable>
 ```

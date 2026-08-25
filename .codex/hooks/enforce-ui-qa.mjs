@@ -62,7 +62,7 @@ if (uiFiles.length === 0) {
 const evidencePath = join(root, ".codex", "state", "ui-qa-evidence.json");
 if (!existsSync(evidencePath)) {
 	block(
-		`UI files changed but no Acepe QA evidence exists. Run a real UI QA command from packages/desktop, for example: bun run qa inspect --selector=<changed-area> --limit=1, bun run qa screenshot, or bun run qa observe. Changed UI files: ${uiFiles.slice(0, 8).join(", ")}`
+		`UI files changed but no Acepe QA evidence exists. Verify the change against the running app from packages/desktop with a script that reads the changed area, for example: bun run qa run <<'EOF' / cliLog(await snapshotText('<changed-area-selector>')) / EOF. Changed UI files: ${uiFiles.slice(0, 8).join(", ")}`
 	);
 	process.exit(0);
 }
