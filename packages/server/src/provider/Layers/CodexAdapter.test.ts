@@ -182,6 +182,10 @@ Vitest.describe("CodexAdapter", () => {
 					tracerAssistantMessageId(messageId)
 				)
 			}
+			// Reproduces the live bug: turn/completed used to fold into a generic
+			// SessionMetaUpdated that nothing reacted to, so projection_turns never
+			// closed the turn absent a follow-up message. It must now surface as
+			// its own TurnCompleted contract event.
 			yield* Queue.offer(inbound, {
 				method: "turn/completed",
 				params: {
@@ -189,10 +193,10 @@ Vitest.describe("CodexAdapter", () => {
 				}
 			})
 			const complete = yield* Queue.take(events)
-			Vitest.assert.strictEqual(complete.type, "SessionMetaUpdated")
-			const completeFact = decodeContractFact(complete.metadata)
-			if (Option.isSome(completeFact)) {
-				Vitest.assert.strictEqual(completeFact.value.contractKind, "turn_complete")
+			Vitest.assert.strictEqual(complete.type, "TurnCompleted")
+			if (complete.type === "TurnCompleted") {
+				Vitest.assert.strictEqual(complete.payload.sessionId, sessionId)
+				Vitest.assert.strictEqual(complete.payload.turnId, "turn-1")
 			}
 			yield* Queue.end(inbound)
 		})

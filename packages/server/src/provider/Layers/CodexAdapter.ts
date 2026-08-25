@@ -8,6 +8,7 @@ import {
 	SessionMetaUpdatedEvent,
 	TokenAppendedEvent,
 	TurnCancelledEvent,
+	TurnCompletedEvent,
 	TurnId,
 	tracerAssistantMessageId
 } from "@acepe/contracts"
@@ -299,6 +300,43 @@ const makeCancelled = Effect.fn("CodexAdapter.makeCancelled")(function*(
 	})
 })
 
+// Codex's own turn-end signal is the app-server's `turn/completed`
+// notification (mapCodexServerMessage in CodexNativeMap.ts already turns it
+// into a turn_complete or turn_error fact). That fact is the ONLY thing that
+// closes an open projection_turns row absent a follow-up TurnCancelled or the
+// next MessageSent starting a new turn — see ProjectionTurns.ts's
+// evolveProjectedTurns. turn_error still closes the turn (rather than
+// leaving it "running" forever): projection_turns has no separate "failed"
+// status yet, so an errored turn is recorded as completed.
+const makeCompleted = Effect.fn("CodexAdapter.makeCompleted")(function*(
+	runtime: SessionRuntime,
+	turnId: Option.Option<string>
+) {
+	const header = yield* stamp(runtime)
+	const payload =
+		Option.isNone(turnId)
+			? {
+					sessionId: runtime.sessionId
+				}
+			: {
+					sessionId: runtime.sessionId,
+					turnId: TurnId.make(turnId.value)
+				}
+	return TurnCompletedEvent.make({
+		sequence: header.sequence,
+		eventId: header.eventId,
+		aggregateKind: "session",
+		aggregateId: runtime.sessionId,
+		occurredAt: header.occurredAt,
+		commandId: header.commandId,
+		causationEventId: null,
+		correlationId: header.commandId,
+		metadata: EMPTY_JSON_OBJECT,
+		type: "TurnCompleted",
+		payload
+	})
+})
+
 const rememberQuestionIds = Effect.fn("CodexAdapter.rememberQuestionIds")(function*(
 	runtime: SessionRuntime,
 	fact: CodexContractFact
@@ -317,6 +355,13 @@ const publishFact = Effect.fn("CodexAdapter.publishFact")(function*(
 	yield* rememberQuestionIds(runtime, fact)
 	if (fact.contractKind === "text_delta") {
 		const event = yield* makeTokenEvent(runtime, fact.token)
+		return yield* offerOutbound(runtime, event)
+	}
+	if (fact.contractKind === "turn_complete" || fact.contractKind === "turn_error") {
+		const currentTurnId = yield* Ref.get(runtime.currentTurnId)
+		const turnId = fact.turnId !== undefined ? Option.some(fact.turnId) : currentTurnId
+		yield* Ref.set(runtime.currentTurnId, Option.none())
+		const event = yield* makeCompleted(runtime, turnId)
 		return yield* offerOutbound(runtime, event)
 	}
 	const event = yield* makeMetaEvent(runtime, fact)
