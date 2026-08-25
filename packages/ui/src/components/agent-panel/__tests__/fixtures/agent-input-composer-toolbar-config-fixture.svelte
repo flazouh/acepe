@@ -39,16 +39,6 @@
 	composerIsDispatching={false}
 	getMicButtonTitle={() => ""}
 	onVoiceMicKeyDown={() => {}}
-	voiceModels={[]}
-	voiceSelectedModelId={null}
-	voiceModelsLoading={false}
-	voiceDownloadingModelId={null}
-	voiceDownloadPercent={0}
-	voiceMenuLabel="Voice model"
-	voiceModelsLoadingLabel="Loading voice models"
-	onVoiceSelectModel={() => {}}
-	onVoiceDownloadModel={() => {}}
-	onVoiceUninstallModel={() => {}}
 	voiceCloseLabel="Close"
 >
 	{#snippet modelSelector()}

@@ -5,6 +5,7 @@
 import type { Snippet } from "svelte";
 
 import AgentInputSubmitButton from "./agent-input-submit-button.svelte";
+import { AGENT_INPUT_CONTROL_GAP_CLASS } from "./agent-input-composer-spacing.js";
 import type { AgentInputSubmitIntent } from "./agent-input-submit-button-state.js";
 
 interface Props {
@@ -112,7 +113,7 @@ let {
 			{/if}
 		</div>
 		<div
-			class="flex min-w-0 max-w-full items-end justify-end gap-0.5"
+			class="flex min-w-0 max-w-full items-end justify-end {AGENT_INPUT_CONTROL_GAP_CLASS}"
 			data-qa="agent-input-submit-cluster"
 		>
 			{#if trailing}

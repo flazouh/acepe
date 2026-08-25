@@ -14,7 +14,7 @@
 		class?: string;
 		leading?: Snippet;
 		primary: Snippet;
-		overflow: Snippet;
+		overflow?: Snippet;
 	}
 
 	let { class: className, leading, primary, overflow }: Props = $props();
@@ -32,5 +32,7 @@
 		</div>
 	{/if}
 	{@render primary()}
-	{@render overflow()}
+	{#if overflow}
+		{@render overflow()}
+	{/if}
 </ButtonGroup>

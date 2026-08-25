@@ -850,16 +850,6 @@ let { bare = false }: Props = $props();
 										composerIsDispatching={false}
 										getMicButtonTitle={() => panel.micTitle}
 										onVoiceMicKeyDown={() => undefined}
-										voiceModels={[]}
-										voiceSelectedModelId={null}
-										voiceModelsLoading={false}
-										voiceDownloadingModelId={null}
-										voiceDownloadPercent={0}
-										voiceMenuLabel="Voice model"
-										voiceModelsLoadingLabel="Loading voice models…"
-										onVoiceSelectModel={() => undefined}
-										onVoiceDownloadModel={() => undefined}
-										onVoiceUninstallModel={() => undefined}
 										voiceCloseLabel="Close"
 									>
 										{#snippet modelSelector()}

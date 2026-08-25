@@ -44,6 +44,8 @@ export default {
 				"com.apple.security.cs.disable-library-validation": true,
 				"com.apple.security.device.audio-input":
 					"Acepe records microphone input for voice features.",
+				"com.apple.security.personal-information.speech-recognition":
+					"Acepe turns your speech into composer text.",
 				"com.apple.security.network.client": true,
 				"com.apple.security.network.server": true,
 				"com.apple.security.files.user-selected.read-write":

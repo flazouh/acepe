@@ -17,6 +17,7 @@ const requiredProductIconNames = [
 	"flask",
 	"chart-line",
 	"paper-plane",
+	"volume",
 	"unselected",
 	"avatar",
 	"sidebar-closed",

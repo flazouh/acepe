@@ -124,3 +124,9 @@ test("mac entitlements include microphone audio input", () => {
 		"Acepe records microphone input for voice features.",
 	)
 })
+
+test("mac entitlements include speech recognition", () => {
+	expect(macEntitlements["com.apple.security.personal-information.speech-recognition"]).toBe(
+		"Acepe turns your speech into composer text.",
+	)
+})

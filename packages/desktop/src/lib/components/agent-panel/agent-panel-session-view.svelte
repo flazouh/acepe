@@ -17,8 +17,12 @@ import * as Fiber from "effect/Fiber";
 import * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
 import { onMount } from "svelte";
 
+import { formatKeyStringToArray } from "$lib/keybindings/index.js";
 import { handleVoiceMicKeyDown } from "$lib/acp/components/agent-input/logic/voice-mic-keyboard.js";
-import { resolveVoiceMicTooltip } from "$lib/acp/components/agent-input/logic/voice-mic-labels.js";
+import {
+	resolveVoiceMicShortcut,
+	resolveVoiceMicTooltip,
+} from "$lib/acp/components/agent-input/logic/voice-mic-labels.js";
 import { VoiceInputState } from "$lib/acp/components/agent-input/state/voice-input-state.svelte.js";
 import { composeSessionStore } from "$lib/stores/session-store-compose.ts";
 import AgentPanelTerminalView from "./agent-panel-terminal-view.svelte";
@@ -52,7 +56,9 @@ const voiceState = new VoiceInputState({
 	},
 });
 
+const voiceHoldShortcut = formatKeyStringToArray("AltRight");
 const micTitle = $derived(resolveVoiceMicTooltip(voiceState.phase, voiceMicTooltipLabels));
+const micShortcut = $derived(resolveVoiceMicShortcut(voiceState.phase, voiceHoldShortcut));
 
 const registry = AtomRegistry.make();
 const store = composeSessionStore({
@@ -90,8 +96,8 @@ const submitFromInput = (input: HTMLInputElement) => {
 			Effect.tapCause((cause) =>
 				Effect.sync(() => {
 					lastSendError = String(cause).slice(0, 300);
-				}),
-			),
+				})
+			)
 		)
 	);
 	input.value = "";
@@ -181,6 +187,7 @@ onMount(() => {
 			downloadPercent={voiceState.downloadPercent}
 			title={micTitle}
 			ariaLabel={micTitle}
+			shortcut={micShortcut}
 			onpointerdown={(event) => {
 				voiceState.onMicPointerDown(event);
 			}}

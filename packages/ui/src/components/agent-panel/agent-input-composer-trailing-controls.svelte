@@ -6,13 +6,13 @@
 	import type { Snippet } from "svelte";
 
 	import AgentInputConfigOptionSelector from "./agent-input-config-option-selector.svelte";
+	import { AGENT_INPUT_CONTROL_GAP_CLASS } from "./agent-input-composer-spacing.js";
 	import AgentInputModelReasoningFusedControls from "./agent-input-model-reasoning-fused-controls.svelte";
 	import AgentInputVoiceFusedControls from "./agent-input-voice-fused-controls.svelte";
 	import { isReasoningConfigOption } from "./agent-input-config-option-selector-state.js";
 	import { isVoiceActive } from "./agent-input-composer-toolbar-state.js";
 	import type { AgentInputConfigOption } from "./agent-input-config-option-types.js";
 	import type { AgentComposerToolbarVoiceBinding } from "./agent-input-toolbar-voice.js";
-	import type { AgentInputVoiceModel } from "./agent-input-voice-model-menu-state.js";
 
 	let {
 		inputReady,
@@ -23,17 +23,8 @@
 		voiceEnabled,
 		composerIsDispatching,
 		getMicButtonTitle,
+		micShortcut = [],
 		onVoiceMicKeyDown,
-		voiceModels,
-		voiceSelectedModelId,
-		voiceModelsLoading,
-		voiceDownloadingModelId,
-		voiceDownloadPercent,
-		voiceMenuLabel,
-		voiceModelsLoadingLabel,
-		onVoiceSelectModel,
-		onVoiceDownloadModel,
-		onVoiceUninstallModel,
 		voiceCloseLabel,
 		toolbarConfigOptions = [],
 		onConfigOptionChange,
@@ -48,17 +39,8 @@
 		voiceEnabled: boolean;
 		composerIsDispatching: boolean;
 		getMicButtonTitle: (voice: AgentComposerToolbarVoiceBinding) => string;
+		micShortcut?: readonly string[];
 		onVoiceMicKeyDown: (event: KeyboardEvent, voice: AgentComposerToolbarVoiceBinding) => void;
-		voiceModels: readonly AgentInputVoiceModel[];
-		voiceSelectedModelId: string | null;
-		voiceModelsLoading: boolean;
-		voiceDownloadingModelId: string | null;
-		voiceDownloadPercent: number;
-		voiceMenuLabel: string;
-		voiceModelsLoadingLabel: string;
-		onVoiceSelectModel: (modelId: string) => void;
-		onVoiceDownloadModel: (modelId: string) => void;
-		onVoiceUninstallModel: (modelId: string) => void;
 		voiceCloseLabel: string;
 		toolbarConfigOptions?: readonly AgentInputConfigOption[];
 		onConfigOptionChange?: (configId: string, value: string) => void | Promise<void>;
@@ -83,7 +65,7 @@
 
 {#if inputReady}
 	<div
-		class="flex min-w-0 max-w-full items-end justify-end gap-0.5"
+		class="flex min-w-0 max-w-full items-end justify-end {AGENT_INPUT_CONTROL_GAP_CLASS}"
 		data-qa="agent-input-trailing-controls"
 	>
 		{#if agentProjectPicker}
@@ -132,23 +114,12 @@
 			{voiceEnabled}
 			{composerIsDispatching}
 			{getMicButtonTitle}
+			{micShortcut}
 			{onVoiceMicKeyDown}
-			{voiceModels}
-			{voiceSelectedModelId}
-			{voiceModelsLoading}
-			{voiceDownloadingModelId}
-			{voiceDownloadPercent}
-			{voiceMenuLabel}
-			{voiceModelsLoadingLabel}
-			{onVoiceSelectModel}
-			{onVoiceDownloadModel}
-			{onVoiceUninstallModel}
 			{voiceCloseLabel}
 		/>
 		{#if metricsChip}
-			<div class="shrink-0" data-qa="agent-input-metrics-chip">
-				{@render metricsChip()}
-			</div>
+			<div class="shrink-0 empty:hidden" data-qa="agent-input-metrics-chip">{@render metricsChip()}</div>
 		{/if}
 	</div>
 {/if}

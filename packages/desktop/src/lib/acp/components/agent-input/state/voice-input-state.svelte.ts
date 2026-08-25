@@ -5,7 +5,10 @@ import { playSound } from "$lib/acp/utils/sound.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import type { AppError } from "../../../errors/app-error.js";
 import type { VoiceInputPhase } from "../../../types/voice-input.js";
-import { createLogger } from "../../../utils/logger.js";
+import {
+	type LiveSpeechSession,
+	readWindowLiveSpeechSession,
+} from "../logic/live-speech-recognition.js";
 import { resolveVoiceFailureMessage } from "../logic/voice-error-message.js";
 import { canCancelVoiceInteraction, shouldShowVoiceOverlay } from "../logic/voice-ui-state.js";
 import { transition } from "./voice-transitions.js";
@@ -13,7 +16,6 @@ import { WaveformState } from "./waveform-state.svelte.js";
 
 const ERROR_RESET_DELAY_MS = 8000;
 const TRANSCRIBING_WATCHDOG_MS = 30_000;
-const logger = createLogger({ id: "voice-input-state", name: "VoiceInputState" });
 
 function log(_msg: string, _data?: Record<string, unknown>): void {}
 
@@ -80,6 +82,8 @@ export class VoiceInputState {
 	private readonly onOverlayDeactivated: (() => void) | null;
 	private readonly getSelectedLanguage: () => string;
 	private readonly getSelectedModelId: () => string;
+	private readonly createLiveSpeechSession: () => LiveSpeechSession | null;
+	private activeLiveSpeech: LiveSpeechSession | null = null;
 	private isDisposed = false;
 
 	constructor(options: {
@@ -88,6 +92,7 @@ export class VoiceInputState {
 		onOverlayDeactivated?: () => void;
 		getSelectedLanguage?: () => string;
 		getSelectedModelId?: () => string;
+		createLiveSpeechSession?: () => LiveSpeechSession | null;
 	}) {
 		this.sessionId = options.sessionId;
 		this.onTranscriptionReady =
@@ -98,6 +103,10 @@ export class VoiceInputState {
 			options.getSelectedLanguage !== undefined ? options.getSelectedLanguage : () => "auto";
 		this.getSelectedModelId =
 			options.getSelectedModelId !== undefined ? options.getSelectedModelId : () => "small.en";
+		this.createLiveSpeechSession =
+			options.createLiveSpeechSession !== undefined
+				? options.createLiveSpeechSession
+				: readWindowLiveSpeechSession;
 		log("VoiceInputState created", { sessionId: this.sessionId });
 	}
 
@@ -110,6 +119,7 @@ export class VoiceInputState {
 	dispose(): void {
 		log("dispose()", { phase: this.phase, isDisposed: this.isDisposed });
 		this.isDisposed = true;
+		this.abortLiveSpeech();
 		this.clearPressTimer();
 		this.clearWatchdog();
 		this.stopRecordingElapsedTimer();
@@ -122,9 +132,9 @@ export class VoiceInputState {
 		if (canCancelVoiceInteraction(this.phase)) {
 			log("dispose: cancelling in-flight recording");
 			void Effect.runPromise(
-				tauriClient.voice.cancelRecording(this.sessionId).pipe(
-					Effect.catch(() => Effect.succeed(undefined))
-				)
+				tauriClient.voice
+					.cancelRecording(this.sessionId)
+					.pipe(Effect.catch(() => Effect.succeed(undefined)))
 			);
 		}
 	}
@@ -262,6 +272,9 @@ export class VoiceInputState {
 		this.waveform.reset();
 		this.transitionTo("transcribing");
 		this.startWatchdog();
+		if (this.stopLiveSpeechRecording()) {
+			return;
+		}
 		const selectedLanguage = this.getSelectedLanguage();
 		const language = selectedLanguage === "auto" ? null : selectedLanguage;
 		log("calling tauriClient.voice.stopRecording", { sessionId: this.sessionId, language });
@@ -303,11 +316,12 @@ export class VoiceInputState {
 			return;
 		}
 		this.clearWatchdog();
+		this.abortLiveSpeech();
 		log("calling tauriClient.voice.cancelRecording", { sessionId: this.sessionId });
 		void Effect.runPromise(
-			tauriClient.voice.cancelRecording(this.sessionId).pipe(
-				Effect.catch(() => Effect.succeed(undefined))
-			)
+			tauriClient.voice
+				.cancelRecording(this.sessionId)
+				.pipe(Effect.catch(() => Effect.succeed(undefined)))
 		);
 		this.waveform.reset();
 		this.isLoadingModel = false;
@@ -330,11 +344,85 @@ export class VoiceInputState {
 
 	// ── Private helpers ──────────────────────────────────────────────────────────
 
+	private resolveLiveSpeechLanguage(): string | null {
+		const selectedLanguage = this.getSelectedLanguage();
+		if (selectedLanguage === "auto") {
+			return null;
+		}
+		return selectedLanguage;
+	}
+
+	private beginLiveSpeechRecording(): boolean {
+		const session = this.createLiveSpeechSession();
+		if (session === null) {
+			return false;
+		}
+		const started = session.start(this.resolveLiveSpeechLanguage(), {
+			onFailure: (message) => {
+				this.abortLiveSpeech();
+				if (this.phase === "recording" || this.phase === "checking_permission") {
+					this.setError(message);
+				}
+			},
+		});
+		if (started === "failed") {
+			this.setError("Could not start speech recognition");
+			return true;
+		}
+		this.activeLiveSpeech = session;
+		this.transitionTo("recording");
+		return true;
+	}
+
+	private stopLiveSpeechRecording(): boolean {
+		const session = this.activeLiveSpeech;
+		if (session === null) {
+			return false;
+		}
+		this.activeLiveSpeech = null;
+		void Effect.runPromise(
+			Effect.tryPromise({
+				try: () => session.stop(),
+				catch: (cause) =>
+					cause instanceof Error ? cause : new Error("Failed to stop speech recognition"),
+			}).pipe(
+				Effect.match({
+					onSuccess: (text) => {
+						if (!this.shouldContinueFromPhase("transcribing", "liveSpeech.stop")) {
+							return;
+						}
+						this.finishTranscription(text);
+					},
+					onFailure: (err) => {
+						if (!this.shouldContinueFromPhase("transcribing", "liveSpeech.stop.error")) {
+							return;
+						}
+						this.clearWatchdog();
+						this.setError(err.message.trim().length > 0 ? err.message : "Failed to stop recording");
+					},
+				})
+			)
+		);
+		return true;
+	}
+
+	private abortLiveSpeech(): void {
+		if (this.activeLiveSpeech === null) {
+			return;
+		}
+		this.activeLiveSpeech.abort();
+		this.activeLiveSpeech = null;
+	}
+
 	private startRecording(): void {
 		const selectedModelId = this.getSelectedModelId();
 		log("startRecording()", { selectedModelId, sessionId: this.sessionId });
 		this.transitionTo("checking_permission");
 		this.waveform.primeStartup();
+
+		if (this.beginLiveSpeechRecording()) {
+			return;
+		}
 
 		log("calling tauriClient.voice.getModelStatus", { modelId: selectedModelId });
 		void Effect.runPromise(
@@ -375,7 +463,9 @@ export class VoiceInputState {
 							);
 						} else if (modelInfo.is_loaded) {
 							log("getModelStatus: model already loaded, starting recording immediately");
-							if (!this.shouldContinueFromPhase("checking_permission", "getModelStatus.is_loaded")) {
+							if (
+								!this.shouldContinueFromPhase("checking_permission", "getModelStatus.is_loaded")
+							) {
 								return;
 							}
 							this.beginRecording();

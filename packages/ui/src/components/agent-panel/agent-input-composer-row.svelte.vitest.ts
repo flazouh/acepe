@@ -3,6 +3,7 @@ import { createRawSnippet } from "svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import AgentInputComposerRow from "./agent-input-composer-row.svelte";
+import { AGENT_INPUT_CONTROL_GAP_CLASS } from "./agent-input-composer-spacing.js";
 
 vi.mock("svelte", async () => {
 	const { createRequire } = await import("node:module");
@@ -82,6 +83,7 @@ describe("AgentInputComposerRow", () => {
 		expect(cluster?.className).toContain("max-w-full");
 		expect(cluster?.className).not.toContain("flex-1");
 		expect(cluster?.className).not.toContain("shrink-0");
+		expect(cluster?.className).toContain(AGENT_INPUT_CONTROL_GAP_CLASS);
 		expect(
 			contextWidget.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING,
 		).toBeTruthy();

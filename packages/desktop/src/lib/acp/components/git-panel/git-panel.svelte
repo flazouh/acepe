@@ -29,8 +29,12 @@ import { onDestroy, onMount, untrack } from "svelte";
 import { toast } from "svelte-sonner";
 import type { CommitDiff } from "$lib/acp/types/github-integration.js";
 import type { WorktreeInfo } from "$lib/acp/types/worktree-info.js";
+import { formatKeyStringToArray } from "$lib/keybindings/index.js";
 import { handleVoiceMicKeyDown } from "../agent-input/logic/voice-mic-keyboard.js";
-import { resolveVoiceMicTooltip } from "../agent-input/logic/voice-mic-labels.js";
+import {
+	resolveVoiceMicShortcut,
+	resolveVoiceMicTooltip,
+} from "../agent-input/logic/voice-mic-labels.js";
 import { normalizeVoiceInputText } from "../agent-input/logic/voice-input-text.js";
 import {
 	canCancelVoiceInteraction,
@@ -278,6 +282,7 @@ const voiceMicTooltipLabels = {
 	stopRecording: "Stop recording",
 	startRecording: "Start voice recording",
 } as const;
+const voiceHoldShortcut = formatKeyStringToArray("AltRight");
 
 onMount(() => {
 	if (!voiceEnabled || !voiceSessionId) {
@@ -909,6 +914,7 @@ async function handleOpenPr(prNumber: number) {
 				disabled={commitMicDisabled}
 				title={micTitle}
 				ariaLabel={micTitle}
+				shortcut={resolveVoiceMicShortcut(currentVoiceState.phase, voiceHoldShortcut)}
 				onpointerdown={(event) => {
 					if (commitMicDisabled) {
 						return;

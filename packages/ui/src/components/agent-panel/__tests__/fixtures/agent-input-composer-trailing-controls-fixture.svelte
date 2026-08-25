@@ -4,17 +4,10 @@
 
 	interface Props {
 		voiceActive?: boolean;
+		showMetrics?: boolean;
 	}
 
-	let { voiceActive = false }: Props = $props();
-
-	const voiceModels: readonly {
-		id: string;
-		name: string;
-		sizeBytes: number;
-		isDownloaded: boolean;
-		isDownloadable: boolean;
-	}[] = [];
+	let { voiceActive = false, showMetrics = true }: Props = $props();
 
 	const voiceState = $derived.by((): AgentComposerToolbarVoiceBinding | null => {
 		if (!voiceActive) {
@@ -39,7 +32,9 @@
 {/snippet}
 
 {#snippet metricsChip()}
-	<span>42%</span>
+	{#if showMetrics}
+		<span>42%</span>
+	{/if}
 {/snippet}
 
 <AgentInputComposerTrailingControls
@@ -51,15 +46,5 @@
 	composerIsDispatching={false}
 	getMicButtonTitle={() => ""}
 	onVoiceMicKeyDown={() => undefined}
-	{voiceModels}
-	voiceSelectedModelId={null}
-	voiceModelsLoading={false}
-	voiceDownloadingModelId={null}
-	voiceDownloadPercent={0}
-	voiceMenuLabel="Voice model"
-	voiceModelsLoadingLabel="Loading voice models"
-	onVoiceSelectModel={() => undefined}
-	onVoiceDownloadModel={() => undefined}
-	onVoiceUninstallModel={() => undefined}
 	voiceCloseLabel="Close"
 />

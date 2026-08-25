@@ -117,7 +117,6 @@ export {
 	canStartVoiceInteraction,
 	getMicButtonVisualState,
 } from "./agent-input-toolbar-voice.js";
-export { default as AgentInputVoiceModelMenu } from "./agent-input-voice-model-menu.svelte";
 export { default as AgentInputVoiceRecordingOverlay } from "./agent-input-voice-recording-overlay.svelte";
 export { default as AgentPanelInstallCard } from "./agent-install-card.svelte";
 export { default as AgentPanel } from "./agent-panel.svelte";
@@ -177,6 +176,7 @@ export type { CommandChipModel } from "../command-chip/index.js";
 export { default as AgentPanelBrowserPanel } from "./browser-panel.svelte";
 export { default as AgentCompactToolDisplay } from "./compact-tool-display.svelte";
 export { default as AgentCopyButton } from "./agent-copy-button.svelte";
+export { default as AgentSpeakButton } from "./agent-speak-button.svelte";
 export { default as AgentPanelCreatePrButton } from "./create-pr-button.svelte";
 export { default as AgentPanelMergeButton } from "./merge-button.svelte";
 export { default as AgentPanelModifiedFilesHeader } from "./modified-files-header.svelte";

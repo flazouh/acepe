@@ -64,6 +64,7 @@ import {
 	resolveDefaultModeId,
 	resolveInitialModelIdForNewSession,
 	resolveModeMenuAction,
+	resolveVoiceMicShortcut,
 	resolveVoiceMicTooltip,
 	sanitizeInlineComposerText,
 	scrubInlineComposerControlCharacters,
@@ -100,6 +101,7 @@ const enterSteerShortcut = $derived(formatKeyStringToArray("Enter"));
 const enterQueueShortcut = $derived(
 	kb.getShortcutArray("input.submit") ?? formatKeyStringToArray("$mod+Enter")
 );
+const voiceHoldShortcut = $derived(formatKeyStringToArray("AltRight"));
 
 function isAgentInputTraceEnabled(): boolean {
 	return (
@@ -1852,6 +1854,9 @@ $effect(() => {
 									composerIsDispatching={composerView.storeComposerState?.isDispatching ?? false}
 									getMicButtonTitle={(_voice) =>
 										voiceState ? resolveVoiceMicTooltip(voiceState.phase, voiceMicTooltipLabels) : ""}
+									micShortcut={voiceState
+										? resolveVoiceMicShortcut(voiceState.phase, voiceHoldShortcut)
+										: []}
 									onVoiceMicKeyDown={(event, _binding) => {
 										if (voiceReady && voiceState) {
 											if (voiceState.phase === "idle") {
@@ -1861,28 +1866,6 @@ $effect(() => {
 											}
 											handleVoiceMicKeyDownFromModule(event, voiceState);
 										}
-									}}
-									voiceModels={voiceSettingsStore.models.map((model) => ({
-										id: model.id,
-										name: model.name,
-										sizeBytes: model.size_bytes,
-										isDownloaded: model.is_downloaded,
-										isDownloadable: model.download_url.trim().length > 0,
-									}))}
-									voiceSelectedModelId={voiceSettingsStore.selectedModelId}
-									voiceModelsLoading={voiceSettingsStore.modelsLoading}
-									voiceDownloadingModelId={voiceSettingsStore.downloadProgressModelId}
-									voiceDownloadPercent={voiceSettingsStore.downloadPercent}
-									voiceMenuLabel={"Voice model"}
-									voiceModelsLoadingLabel={"Loading voice models…"}
-									onVoiceSelectModel={(modelId) => {
-										void voiceSettingsStore.setSelectedModelId(modelId);
-									}}
-									onVoiceDownloadModel={(modelId) => {
-										void voiceSettingsStore.downloadModel(modelId);
-									}}
-									onVoiceUninstallModel={(modelId) => {
-										void voiceSettingsStore.deleteModel(modelId);
 									}}
 									voiceCloseLabel={"Close"}
 								>

@@ -97,7 +97,7 @@ export {
 	shouldSyncPanelFocusOnEditorFocus,
 } from "./logic/voice-keyboard.js";
 export { handleVoiceMicKeyDown } from "./logic/voice-mic-keyboard.js";
-export { resolveVoiceMicTooltip } from "./logic/voice-mic-labels.js";
+export { resolveVoiceMicShortcut, resolveVoiceMicTooltip } from "./logic/voice-mic-labels.js";
 export { toVoiceToolbarBinding } from "./logic/voice-toolbar-binding.js";
 export { canStartVoiceInteraction, shouldShowVoiceOverlay } from "./logic/voice-ui-state.js";
 export {

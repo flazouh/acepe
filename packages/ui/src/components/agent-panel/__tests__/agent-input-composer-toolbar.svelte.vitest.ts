@@ -38,11 +38,6 @@ vi.mock("../agent-input-mode-pill.svelte", async () => {
 	return { default: module.default };
 });
 
-vi.mock("../agent-input-voice-model-menu.svelte", async () => {
-	const module = await import("./fixtures/mock-toolbar-control.svelte");
-	return { default: module.default };
-});
-
 vi.mock("svelte", async () => {
 	const { createRequire } = await import("node:module");
 	const { dirname, join } = await import("node:path");

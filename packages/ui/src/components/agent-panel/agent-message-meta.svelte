@@ -1,7 +1,9 @@
 <script lang="ts">
 	import AgentCopyButton from "./agent-copy-button.svelte";
+	import AgentSpeakButton from "./agent-speak-button.svelte";
 	import { ButtonGroup } from "../button-group/index.js";
 	import { cn } from "../../lib/utils.js";
+	import { prepareSpokenReplyText } from "./speak-reply-text.js";
 
 	interface Props {
 		text: string;
@@ -11,9 +13,18 @@
 		model?: string;
 		/** Whether the chip renders its own copy button. Defaults to true. */
 		showCopy?: boolean;
+		/** Whether the chip renders a speak control. Defaults to true on assistant chips. */
+		showSpeak?: boolean;
 	}
 
-	let { text, timestampMs, variant, model, showCopy = true }: Props = $props();
+	let {
+		text,
+		timestampMs,
+		variant,
+		model,
+		showCopy = true,
+		showSpeak = true,
+	}: Props = $props();
 
 	const isAssistant = $derived(variant === "assistant");
 	const timestampDate = $derived.by(() => {
@@ -34,8 +45,11 @@
 	});
 
 	const showModel = $derived(isAssistant && model != null && model.length > 0);
+	const canSpeak = $derived(
+		isAssistant && showSpeak && prepareSpokenReplyText(text) !== null
+	);
 
-	const textToneClass = $derived(isAssistant ? "text-muted-foreground" : "text-muted-foreground/70");
+	const textToneClass = "text-muted-foreground";
 
 	// Fused chip-style meta row — secondary shell with hairline segment dividers.
 	const dividerClass = "border-l border-border/30";
@@ -55,10 +69,16 @@
 			{timestampLabel}
 		</span>
 	{/if}
+	{#if canSpeak}
+		<AgentSpeakButton
+			{text}
+			class={cn(textToneClass, (showModel || timestampLabel) && dividerClass)}
+		/>
+	{/if}
 	{#if showCopy}
 		<AgentCopyButton
 			{text}
-			class={cn(textToneClass, (showModel || timestampLabel) && dividerClass)}
+			class={cn(textToneClass, (showModel || timestampLabel || canSpeak) && dividerClass)}
 		/>
 	{/if}
 </ButtonGroup>

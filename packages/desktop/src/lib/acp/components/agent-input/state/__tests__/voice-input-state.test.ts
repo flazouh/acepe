@@ -59,7 +59,10 @@ function unwrapEffect<T>(effect: Effect.Effect<T, Error>): Promise<T> {
 	return Effect.runPromise(effect);
 }
 
-function toAgentResult<T>(operation: string, result: Effect.Effect<T, Error>): Effect.Effect<T, Error> {
+function toAgentResult<T>(
+	operation: string,
+	result: Effect.Effect<T, Error>
+): Effect.Effect<T, Error> {
 	// Mirrors AgentError: wraps the real failure in a generic "Agent operation
 	// failed: <op>" message but keeps the original error reachable via
 	// `.cause`, exactly like the production tauri-client boundary does.
@@ -306,9 +309,7 @@ describe("VoiceInputState", () => {
 		startRecordingMock.mockReturnValue(Effect.succeed(undefined));
 		loadModelMock.mockReturnValue(Effect.succeed(undefined));
 		downloadModelMock.mockReturnValue(Effect.succeed(undefined));
-		stopRecordingMock.mockReturnValue(
-			Effect.succeed({ text: "", language: null, duration_ms: 0 })
-		);
+		stopRecordingMock.mockReturnValue(Effect.succeed({ text: "", language: null, duration_ms: 0 }));
 	});
 
 	afterEach(() => {
@@ -357,7 +358,10 @@ describe("VoiceInputState", () => {
 			duration_ms: number;
 		}>();
 		stopRecordingMock.mockReturnValue(
-			fromPromise(() => pendingStop.promise, (error) => error as Error)
+			fromPromise(
+				() => pendingStop.promise,
+				(error) => error as Error
+			)
 		);
 
 		const state = new VoiceInputState({ sessionId: "session-2" });
@@ -503,7 +507,10 @@ describe("VoiceInputState", () => {
 			duration_ms: number;
 		}>();
 		stopRecordingMock.mockReturnValue(
-			fromPromise(() => pendingStop.promise, (error) => error as Error)
+			fromPromise(
+				() => pendingStop.promise,
+				(error) => error as Error
+			)
 		);
 
 		const state = new VoiceInputState({ sessionId: "session-keyboard" });
@@ -531,7 +538,10 @@ describe("VoiceInputState", () => {
 			is_loaded: boolean;
 		}>();
 		getModelStatusMock.mockReturnValue(
-			fromPromise(() => pendingModelStatus.promise, (error) => error as Error)
+			fromPromise(
+				() => pendingModelStatus.promise,
+				(error) => error as Error
+			)
 		);
 
 		const state = new VoiceInputState({ sessionId: "session-keyboard-startup" });
@@ -560,7 +570,10 @@ describe("VoiceInputState", () => {
 			is_loaded: boolean;
 		}>();
 		getModelStatusMock.mockReturnValue(
-			fromPromise(() => pendingModelStatus.promise, (error) => error as Error)
+			fromPromise(
+				() => pendingModelStatus.promise,
+				(error) => error as Error
+			)
 		);
 
 		const state = new VoiceInputState({ sessionId: "session-pointer-startup" });
@@ -589,7 +602,10 @@ describe("VoiceInputState", () => {
 			is_loaded: boolean;
 		}>();
 		getModelStatusMock.mockReturnValue(
-			fromPromise(() => pendingModelStatus.promise, (error) => error as Error)
+			fromPromise(
+				() => pendingModelStatus.promise,
+				(error) => error as Error
+			)
 		);
 
 		const state = new VoiceInputState({ sessionId: "session-click-startup" });
@@ -619,7 +635,10 @@ describe("VoiceInputState", () => {
 			is_loaded: boolean;
 		}>();
 		getModelStatusMock.mockReturnValue(
-			fromPromise(() => pendingModelStatus.promise, (error) => error as Error)
+			fromPromise(
+				() => pendingModelStatus.promise,
+				(error) => error as Error
+			)
 		);
 
 		const state = new VoiceInputState({ sessionId: "session-waveform-prime" });
@@ -674,7 +693,10 @@ describe("VoiceInputState", () => {
 			duration_ms: number;
 		}>();
 		stopRecordingMock.mockReturnValue(
-			fromPromise(() => pendingStop.promise, (error) => error as Error)
+			fromPromise(
+				() => pendingStop.promise,
+				(error) => error as Error
+			)
 		);
 
 		const state = new VoiceInputState({ sessionId: "session-timer" });
@@ -702,7 +724,10 @@ describe("VoiceInputState", () => {
 		const pendingDownload = createPendingResult<void>();
 		getModelStatusMock.mockReturnValue(Effect.succeed({ is_downloaded: false, is_loaded: false }));
 		downloadModelMock.mockReturnValue(
-			fromPromise(() => pendingDownload.promise, (error) => error as Error)
+			fromPromise(
+				() => pendingDownload.promise,
+				(error) => error as Error
+			)
 		);
 
 		const state = new VoiceInputState({
@@ -720,5 +745,34 @@ describe("VoiceInputState", () => {
 
 		pendingDownload.resolve(undefined);
 		await flushAsync();
+	});
+
+	it("uses live speech recognition instead of the model RPC path", async () => {
+		const onTranscriptionReady = vi.fn();
+		const session = {
+			start: vi.fn(() => "started" as const),
+			stop: vi.fn(async () => "hello from mic"),
+			abort: vi.fn(),
+		};
+
+		const state = new VoiceInputState({
+			sessionId: "session-live-speech",
+			onTranscriptionReady,
+			createLiveSpeechSession: () => session,
+		});
+		state.onMicPointerDown(createPointerEvent());
+		state.onMicPointerUp();
+		await flushAsync();
+
+		expect(getModelStatusMock).not.toHaveBeenCalled();
+		expect(state.phase).toBe("recording");
+		expect(session.start).toHaveBeenCalled();
+
+		state.stopRecording();
+		await flushAsync();
+
+		expect(stopRecordingMock).not.toHaveBeenCalled();
+		expect(onTranscriptionReady).toHaveBeenCalledWith("hello from mic");
+		expect(state.phase).toBe("idle");
 	});
 });

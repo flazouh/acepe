@@ -16,7 +16,6 @@
 	} from "./agent-input-composer-toolbar-state.js";
 	import type { AgentInputConfigOption } from "./agent-input-config-option-types.js";
 	import type { AgentComposerToolbarVoiceBinding } from "./agent-input-toolbar-voice.js";
-	import type { AgentInputVoiceModel } from "./agent-input-voice-model-menu-state.js";
 
 	let {
 		inputReady,
@@ -41,17 +40,8 @@
 		voiceEnabled,
 		composerIsDispatching,
 		getMicButtonTitle,
+		micShortcut = [],
 		onVoiceMicKeyDown,
-		voiceModels,
-		voiceSelectedModelId,
-		voiceModelsLoading,
-		voiceDownloadingModelId,
-		voiceDownloadPercent,
-		voiceMenuLabel,
-		voiceModelsLoadingLabel,
-		onVoiceSelectModel,
-		onVoiceDownloadModel,
-		onVoiceUninstallModel,
 		voiceCloseLabel,
 	}: {
 		inputReady: boolean;
@@ -82,17 +72,8 @@
 		voiceEnabled: boolean;
 		composerIsDispatching: boolean;
 		getMicButtonTitle: (voice: AgentComposerToolbarVoiceBinding) => string;
+		micShortcut?: readonly string[];
 		onVoiceMicKeyDown: (event: KeyboardEvent, voice: AgentComposerToolbarVoiceBinding) => void;
-		voiceModels: readonly AgentInputVoiceModel[];
-		voiceSelectedModelId: string | null;
-		voiceModelsLoading: boolean;
-		voiceDownloadingModelId: string | null;
-		voiceDownloadPercent: number;
-		voiceMenuLabel: string;
-		voiceModelsLoadingLabel: string;
-		onVoiceSelectModel: (modelId: string) => void;
-		onVoiceDownloadModel: (modelId: string) => void;
-		onVoiceUninstallModel: (modelId: string) => void;
 		voiceCloseLabel: string;
 	} = $props();
 </script>
@@ -172,17 +153,8 @@
 			{voiceEnabled}
 			{composerIsDispatching}
 			{getMicButtonTitle}
+			{micShortcut}
 			{onVoiceMicKeyDown}
-			{voiceModels}
-			{voiceSelectedModelId}
-			{voiceModelsLoading}
-			{voiceDownloadingModelId}
-			{voiceDownloadPercent}
-			{voiceMenuLabel}
-			{voiceModelsLoadingLabel}
-			{onVoiceSelectModel}
-			{onVoiceDownloadModel}
-			{onVoiceUninstallModel}
 			{voiceCloseLabel}
 		/>
 	</div>

@@ -31,3 +31,13 @@ export function resolveVoiceMicTooltip(
 	}
 	return labels.startRecording;
 }
+
+export function resolveVoiceMicShortcut(
+	phase: VoiceInputPhase,
+	shortcut: readonly string[]
+): readonly string[] {
+	if (phase === "idle" || phase === "recording") {
+		return shortcut;
+	}
+	return [];
+}

@@ -1,9 +1,8 @@
 <!--
-  AgentInputVoiceFusedControls - Mic/stop + optional recording timer + voice model overflow menu.
+  AgentInputVoiceFusedControls - Mic/stop + optional recording timer.
 -->
 <script lang="ts">
 	import AgentInputMicButton from "./agent-input-mic-button.svelte";
-	import AgentInputVoiceModelMenu from "./agent-input-voice-model-menu.svelte";
 	import AgentInputVoiceRecordingLeading from "./agent-input-voice-recording-leading.svelte";
 	import { FusedPrimaryOverflowGroup } from "../panel-header/index.js";
 	import {
@@ -16,41 +15,22 @@
 		getMicButtonVisualState,
 		type AgentComposerToolbarVoiceBinding,
 	} from "./agent-input-toolbar-voice.js";
-	import type { AgentInputVoiceModel } from "./agent-input-voice-model-menu-state.js";
 
 	let {
 		voiceState,
 		voiceEnabled,
 		composerIsDispatching,
 		getMicButtonTitle,
+		micShortcut = [],
 		onVoiceMicKeyDown,
-		voiceModels,
-		voiceSelectedModelId,
-		voiceModelsLoading,
-		voiceDownloadingModelId,
-		voiceDownloadPercent,
-		voiceMenuLabel,
-		voiceModelsLoadingLabel,
-		onVoiceSelectModel,
-		onVoiceDownloadModel,
-		onVoiceUninstallModel,
 		voiceCloseLabel,
 	}: {
 		voiceState: AgentComposerToolbarVoiceBinding | null;
 		voiceEnabled: boolean;
 		composerIsDispatching: boolean;
 		getMicButtonTitle: (voice: AgentComposerToolbarVoiceBinding) => string;
+		micShortcut?: readonly string[];
 		onVoiceMicKeyDown: (event: KeyboardEvent, voice: AgentComposerToolbarVoiceBinding) => void;
-		voiceModels: readonly AgentInputVoiceModel[];
-		voiceSelectedModelId: string | null;
-		voiceModelsLoading: boolean;
-		voiceDownloadingModelId: string | null;
-		voiceDownloadPercent: number;
-		voiceMenuLabel: string;
-		voiceModelsLoadingLabel: string;
-		onVoiceSelectModel: (modelId: string) => void;
-		onVoiceDownloadModel: (modelId: string) => void;
-		onVoiceUninstallModel: (modelId: string) => void;
 		voiceCloseLabel: string;
 	} = $props();
 
@@ -81,11 +61,12 @@
 		{/snippet}
 		{#snippet micPrimary()}
 			<AgentInputMicButton
-				embeddedInGroup
+				embeddedInGroup={recordingUi}
 				visualState={getMicButtonVisualState(currentVoiceState.phase)}
 				downloadPercent={currentVoiceState.downloadPercent}
 				title={getMicButtonTitle(currentVoiceState)}
 				ariaLabel={getMicButtonTitle(currentVoiceState)}
+				shortcut={micShortcut}
 				disabled={isMicButtonDisabled({ voiceState: currentVoiceState, composerIsDispatching })}
 				onpointerdown={(event) => currentVoiceState.onMicPointerDown(event)}
 				onpointerup={() => currentVoiceState.onMicPointerUp()}
@@ -93,25 +74,10 @@
 				onkeydown={(event) => onVoiceMicKeyDown(event, currentVoiceState)}
 			/>
 		{/snippet}
-		{#snippet voiceOverflow()}
-			<AgentInputVoiceModelMenu
-				embeddedInGroup
-				models={voiceModels}
-				selectedModelId={voiceSelectedModelId}
-				modelsLoading={voiceModelsLoading}
-				downloadingModelId={voiceDownloadingModelId}
-				downloadPercent={voiceDownloadPercent}
-				menuLabel={voiceMenuLabel}
-				loadingLabel={voiceModelsLoadingLabel}
-				onSelectModel={onVoiceSelectModel}
-				onDownloadModel={onVoiceDownloadModel}
-				onUninstallModel={onVoiceUninstallModel}
-			/>
-		{/snippet}
-		<FusedPrimaryOverflowGroup
-			leading={recordingUi ? recordingLeading : undefined}
-			primary={micPrimary}
-			overflow={voiceOverflow}
-		/>
+		{#if recordingUi}
+			<FusedPrimaryOverflowGroup leading={recordingLeading} primary={micPrimary} />
+		{:else}
+			{@render micPrimary()}
+		{/if}
 	</div>
 {/if}
