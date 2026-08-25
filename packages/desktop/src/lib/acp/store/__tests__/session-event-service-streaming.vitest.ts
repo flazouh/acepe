@@ -663,6 +663,47 @@ describe("SessionEventService streaming delta handling", () => {
 		);
 	});
 
+	// "capabilities" (and, by the same reduce-command.ts pattern, "telemetry"
+	// and "plan") only pushes its setCanonicalProjection patch when a
+	// previousProjection already exists -- for a session's first-ever envelope
+	// there is none, so lifecycle silently never gets set even though this
+	// kind (unlike "delta") does not require a graph-revision baseline to
+	// apply at all. Same trap, same fix: buffer rather than materialize.
+	it("buffers a first capabilities envelope for a session with an active pending-creation grace window", () => {
+		const pendingHandler = createMockHandler();
+		(pendingHandler.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
+		(pendingHandler.getSessionIdentity as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
+		pendingHandler.hasPendingCreationSession = vi.fn().mockReturnValue(true);
+		pendingHandler.materializePendingCreationSession = vi.fn().mockReturnValue(true);
+		const capabilitiesEnvelope: SessionStateEnvelope = {
+			sessionId: "session-pending-creation-3",
+			graphRevision: 1,
+			lastEventSeq: 1,
+			payload: {
+				kind: "capabilities",
+				capabilities: {
+					models: null,
+					modes: null,
+					availableCommands: [],
+					configOptions: [],
+					autonomousEnabled: true,
+				},
+				revision: {
+					graphRevision: 1,
+					transcriptRevision: 0,
+					lastEventSeq: 1,
+				},
+				pending_mutation_id: null,
+				preview_state: "canonical",
+			},
+		};
+
+		service.handleSessionStateEnvelope(capabilitiesEnvelope, pendingHandler);
+
+		expect(pendingHandler.materializePendingCreationSession).not.toHaveBeenCalled();
+		expect(pendingHandler.applySessionStateEnvelope).not.toHaveBeenCalled();
+	});
+
 	it("still materializes a first delta envelope when there is no active pending-creation grace window", () => {
 		// Distinguishes the buffering above from the ordinary "unknown/foreign
 		// session with no local pending-creation memory" case (e.g. a restored
