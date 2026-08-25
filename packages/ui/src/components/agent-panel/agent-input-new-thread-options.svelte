@@ -13,6 +13,7 @@
 	import * as Tooltip from "../tooltip/index.js";
 	import { cn } from "../../lib/utils.js";
 	import { HugeiconsIcon } from "../icons/index.js";
+	import { getNewThreadChipClass } from "./agent-input-new-thread-chip-state.js";
 
 	interface Props {
 		worktreeLabel?: string;
@@ -42,6 +43,7 @@
 	}: Props = $props();
 
 	const rowAlignClass = $derived(align === "start" ? "justify-start" : "mx-auto justify-center");
+	const chipClass = getNewThreadChipClass();
 
 	const worktreeTriggerClass = $derived(
 		cn(
@@ -65,45 +67,53 @@
 	data-testid="new-thread-options"
 	class="flex max-w-full flex-wrap items-center gap-0.5 text-xs {rowAlignClass}"
 >
-	{@render project()}
-	{@render agent()}
+	<span data-slot="new-thread-chip" class={chipClass}>
+		{@render project()}
+	</span>
+	<span data-slot="new-thread-chip" class={chipClass}>
+		{@render agent()}
+	</span>
 	{#if branch}
-		{@render branch()}
+		<span data-slot="new-thread-chip" class={chipClass}>
+			{@render branch()}
+		</span>
 	{/if}
 
 	{#if showWorktree}
-		<Tooltip.Root>
-			<Tooltip.Trigger>
-				{#snippet child({ props })}
-					<button
-						{...props}
-						data-slot="button"
-						type="button"
-						role="checkbox"
-						aria-label={worktreeLabel}
-						aria-checked={worktreeOn}
-						disabled={worktreeDisabled}
-						onclick={() => onWorktreeToggle(!worktreeOn)}
-						class={worktreeTriggerClass}
-					>
-						<span aria-hidden="true" class={worktreeCheckboxClass}>
-							{#if worktreeOn}
-								<HugeiconsIcon name="check" class="size-2.5" />
-							{/if}
-						</span>
-						<span>{worktreeLabel}</span>
-					</button>
-				{/snippet}
-			</Tooltip.Trigger>
-			<Tooltip.Content side="top" class="max-w-[17rem] leading-relaxed">
-				<span class="font-semibold">{worktreeLabel}</span>
-				<span class="mt-1 block font-normal">
-					Run this thread in an isolated Git worktree: a separate working copy on its own
-					branch. The agent's file edits, commits, and commands stay off your current checkout,
-					so your branch is untouched until you review and merge. When off, the agent works
-					directly in your current working tree.
-				</span>
-			</Tooltip.Content>
-		</Tooltip.Root>
+		<span data-slot="new-thread-chip" class={chipClass}>
+			<Tooltip.Root>
+				<Tooltip.Trigger>
+					{#snippet child({ props })}
+						<button
+							{...props}
+							data-slot="button"
+							type="button"
+							role="checkbox"
+							aria-label={worktreeLabel}
+							aria-checked={worktreeOn}
+							disabled={worktreeDisabled}
+							onclick={() => onWorktreeToggle(!worktreeOn)}
+							class={worktreeTriggerClass}
+						>
+							<span aria-hidden="true" class={worktreeCheckboxClass}>
+								{#if worktreeOn}
+									<HugeiconsIcon name="check" class="size-2.5" />
+								{/if}
+							</span>
+							<span>{worktreeLabel}</span>
+						</button>
+					{/snippet}
+				</Tooltip.Trigger>
+				<Tooltip.Content side="top" class="max-w-[17rem] leading-relaxed">
+					<span class="font-semibold">{worktreeLabel}</span>
+					<span class="mt-1 block font-normal">
+						Run this thread in an isolated Git worktree: a separate working copy on its own
+						branch. The agent's file edits, commits, and commands stay off your current checkout,
+						so your branch is untouched until you review and merge. When off, the agent works
+						directly in your current working tree.
+					</span>
+				</Tooltip.Content>
+			</Tooltip.Root>
+		</span>
 	{/if}
 </div>
