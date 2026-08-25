@@ -3,8 +3,6 @@ import * as Effect from "effect/Effect";
 
 import type { SoundEffect } from "../types/sounds.js";
 
-const APP_START_SOUND_FILE = "app-start.wav";
-
 /**
  * Pre-decoded audio buffer cache.
  * Buffers are fetched + decoded once, then replayed instantly via Web Audio API.
@@ -36,13 +34,6 @@ function getAudioContext(): AudioContext {
 	}
 	warmAudioContext(audioContext);
 	return audioContext;
-}
-
-export function shouldPlaySound(
-	sound: SoundEffect,
-	isDevMode: boolean = import.meta.env.DEV
-): boolean {
-	return !(isDevMode && sound === APP_START_SOUND_FILE);
 }
 
 /**
@@ -84,10 +75,6 @@ export function preloadSound(sound: SoundEffect): void {
  * Sound files are located in /static/sounds/
  */
 export function playSound(sound: SoundEffect): void {
-	if (!shouldPlaySound(sound)) {
-		return;
-	}
-
 	const cached = bufferCache.get(sound);
 	if (cached) {
 		const ctx = getAudioContext();

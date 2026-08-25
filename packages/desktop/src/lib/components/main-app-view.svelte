@@ -79,7 +79,7 @@ import {
 	maximizeCurrentWindow,
 	relaunchApp,
 } from "$lib/utils/electrobun-window-shims.js";
-import { playSound, preloadSound } from "$lib/acp/utils/sound.js";
+import { preloadSound } from "$lib/acp/utils/sound.js";
 import { SoundEffect } from "$lib/acp/types/sounds.js";
 import ProjectFileSystemDialog from "$lib/acp/components/file-explorer-modal/project-file-system-dialog.svelte";
 import EmptyStates from "./main-app-view/components/content/empty-states.svelte";
@@ -1690,7 +1690,6 @@ onMount(async () => {
 		viewState.initializationError = initResult.failure;
 	}
 	window.setTimeout(() => {
-		playSound(SoundEffect.AppStart);
 		preloadSound(SoundEffect.DictationStart);
 		preloadSound(SoundEffect.DictationStop);
 		preloadSound(SoundEffect.Notification);
