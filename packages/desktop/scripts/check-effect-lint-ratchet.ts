@@ -23,7 +23,14 @@ import { resolve } from "node:path";
 // resilience) trips effect(asyncFunction), plus its `new Date()` project
 // fixture trips effect(globalDate) -- same pattern every other test in that
 // describe block already has.
-const BASELINE = 6586;
+// 6586 -> 6593: colocated library-store.vitest.ts (new file, covering the
+// first-run skill-import fix) has a `beforeEach` and three `it` callbacks
+// declared `async`, tripping effect(asyncFunction) four times, plus three
+// `Effect.runPromise(Effect.result(store.initialize()))` call sites that
+// have a pipeable form, tripping effect(missedPipeableOpportunity) three
+// times. Same category as the bumps above -- test-file async/pipe style,
+// not production code.
+const BASELINE = 6593;
 const PACKAGE_ROOT = resolve(import.meta.dir, "..");
 
 // The pretty formatter (the default, and what lint:effect:report uses) always

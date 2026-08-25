@@ -17,6 +17,7 @@ import type { AppError } from "../../acp/errors/app-error.js";
 import { AgentError } from "../../acp/errors/app-error.js";
 import { formatTimeAgo } from "../../acp/logic/thread-list-date-utils.js";
 import { createLogger } from "../../acp/utils/logger.js";
+import { isUnsupportedOnContract } from "../../utils/tauri-client/rpc-bridge.js";
 import { libraryApi, pluginSkillsApi } from "../api/skills-api.js";
 import type {
 	LibrarySkill,
@@ -140,7 +141,9 @@ export class LibraryStore {
 			Effect.flatMap((isEmpty) => {
 				if (isEmpty) {
 					logger.debug("First run detected - auto-importing skills from agent directories");
-					return this.importExisting().pipe(Effect.flatMap(() => this.loadSkills()));
+					return this.autoImportExistingOnFirstRun().pipe(
+						Effect.flatMap(() => this.loadSkills())
+					);
 				}
 
 				this.isFirstRun = false;
@@ -151,6 +154,33 @@ export class LibraryStore {
 				this.error = err.message;
 				logger.error("Failed to initialize library", err);
 				return err;
+			})
+		);
+	}
+
+	/**
+	 * Best-effort import of existing skills on first run. When the
+	 * orchestration contract doesn't support this operation yet (no
+	 * server-side implementation), there's nothing to import from -- this is
+	 * not a real failure, so it degrades quietly instead of surfacing an
+	 * error toast on every first launch. A genuine failure (server reachable
+	 * but the import itself broke) still propagates.
+	 */
+	private autoImportExistingOnFirstRun(): Effect.Effect<void, AppError> {
+		return libraryApi.importExisting().pipe(
+			Effect.map(() => {
+				this.isFirstRun = false;
+			}),
+			Effect.catch((err) => {
+				if (isUnsupportedOnContract(err)) {
+					logger.debug("Skipping first-run skill import: not supported on this contract", {
+						operation: err instanceof AgentError ? err.operation : undefined,
+					});
+					this.isFirstRun = true;
+					return Effect.void;
+				}
+
+				return Effect.fail(err);
 			})
 		);
 	}
