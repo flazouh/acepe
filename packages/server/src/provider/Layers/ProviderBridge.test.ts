@@ -632,4 +632,92 @@ Vitest.describe("ProviderBridge", () => {
 			),
 		{ timeout: 20_000 }
 	)
+
+	// Reproduces DEFECT C (minor): a spawned `claude` subprocess survived app
+	// quit because nothing ever called the adapter's teardown path. The bridge
+	// registers a finalizer on its own layerScope (shutdownAllAdapters) that
+	// calls `shutdown` on every registered adapter that structurally exposes
+	// one -- this locks in that the finalizer actually fires when the
+	// bridge's layer scope closes, that an adapter with no shutdown is simply
+	// skipped (HardcodedProvider-shaped adapters never had one), and that one
+	// adapter's shutdown throwing does not stop another adapter's shutdown
+	// from still running -- appendFailure's own "never wedge the caller"
+	// contract, applied to teardown instead of event append.
+	Vitest.it.live(
+		"closing the bridge's scope calls shutdown on every adapter that exposes one, tolerating a failure",
+		() =>
+			Effect.gen(function*() {
+				const shutdownCalls = yield* Ref.make(0)
+				const shutdownAdapter: ProviderAdapter & { readonly shutdown: Effect.Effect<void> } = {
+					providerId: fakeProviderId,
+					capabilities: ProviderCapabilities.make({ enabled: [] }),
+					presence: Effect.succeed({ providerId: fakeProviderId, installed: true, authenticated: true }),
+					startSession: () => Stream.empty,
+					sendPrompt: () => Stream.empty,
+					cancelTurn: () => Effect.void,
+					shutdown: Ref.update(shutdownCalls, (count) => count + 1).pipe(Effect.asVoid)
+				}
+				const failingProviderId = ProviderId.make("fake-provider-failing-shutdown")
+				const failingShutdownCalls = yield* Ref.make(0)
+				const failingShutdownAdapter: ProviderAdapter & { readonly shutdown: Effect.Effect<void> } = {
+					providerId: failingProviderId,
+					capabilities: ProviderCapabilities.make({ enabled: [] }),
+					presence: Effect.succeed({
+						providerId: failingProviderId,
+						installed: true,
+						authenticated: true
+					}),
+					startSession: () => Stream.empty,
+					sendPrompt: () => Stream.empty,
+					cancelTurn: () => Effect.void,
+					shutdown: Ref.update(failingShutdownCalls, (count) => count + 1).pipe(
+						Effect.andThen(Effect.die("shutdown boom"))
+					)
+				}
+				// makeScriptedAdapter's own adapter has no `shutdown` at all --
+				// exactly like HardcodedProvider's adapters today -- so it doubles
+				// as proof that supportsShutdown's structural check skips it
+				// cleanly instead of erroring on a missing method.
+				const noShutdown = yield* makeScriptedAdapter(ProviderId.make("fake-provider-no-shutdown"))
+
+				const TestLive = ProviderBridgeLive.pipe(
+					Layer.provideMerge(
+						ProviderAdapterRegistryLive([shutdownAdapter, failingShutdownAdapter, noShutdown.adapter])
+					),
+					Layer.provideMerge(EngineLive)
+				)
+				yield* Effect.gen(function*() {
+					const engine = yield* OrchestrationEngine
+					// Touching the engine is enough to prove the bridge itself is up
+					// and running before its scope closes -- shutdownAllAdapters
+					// walks every REGISTERED adapter regardless of whether any
+					// session ever used it, so no session.create is needed here.
+					yield* engine.dispatch(
+						ProjectCreateCommand.make({
+							type: "project.create",
+							commandId: CommandId.make("cmd-project-shutdown"),
+							projectId,
+							title: "Acepe",
+							workspaceRoot: "/tmp/acepe"
+						})
+					)
+					Vitest.assert.strictEqual(yield* Ref.get(shutdownCalls), 0)
+				}).pipe(
+					// @effect-diagnostics-next-line strictEffectProvide:off
+					Effect.provide(TestLive),
+					Effect.scoped
+				)
+
+				Vitest.assert.strictEqual(
+					yield* Ref.get(shutdownCalls),
+					1,
+					"the healthy adapter's shutdown must run when the bridge's scope closes"
+				)
+				Vitest.assert.strictEqual(
+					yield* Ref.get(failingShutdownCalls),
+					1,
+					"a failing adapter's shutdown must still be attempted, not skipped"
+				)
+			})
+	)
 })

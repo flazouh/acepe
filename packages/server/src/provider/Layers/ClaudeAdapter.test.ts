@@ -451,6 +451,71 @@ Vitest.describe("ClaudeAdapter", () => {
 			})
 	)
 
+	// Reproduces DEFECT C (minor): a spawned `claude` subprocess survived app
+	// quit -- nothing ever called the adapter's teardown path, so a session
+	// that neither cancelled nor errored just kept its query (and the real SDK
+	// process behind it) alive forever. `shutdown` must forcefully tear down
+	// EVERY live session's query (interrupt, then close -- see teardownQuery)
+	// regardless of whether a turn is even open, and must not depend on any
+	// caller-provided timeout: ProviderBridge.ts is the one that bounds it
+	// (shutdownAllAdapters), shutdown itself just needs to actually run.
+	Vitest.it.live(
+		"shutdown interrupts and closes every live session's query",
+		() =>
+			Effect.gen(function*() {
+				const sdk = yield* makeScriptedClaudeSdk()
+				const adapter = yield* makeClaudeAdapter({
+					presence: Effect.succeed(claudePresence(true, true)),
+					createQuery: sdk.createQuery
+				})
+				const sessionIdTwo = SessionId.make("session-2")
+
+				const eventsOne = yield* Queue.unbounded<OrchestrationEvent, Done>()
+				yield* adapter
+					.startSession({ sessionId, projectId, workspaceRoot: "/tmp/acepe" })
+					.pipe(
+						Stream.runForEach((event) => Queue.offer(eventsOne, event).pipe(Effect.asVoid)),
+						Effect.forkChild({ startImmediately: true })
+					)
+				yield* Queue.take(eventsOne) // deferred_open
+
+				const eventsTwo = yield* Queue.unbounded<OrchestrationEvent, Done>()
+				yield* adapter
+					.startSession({ sessionId: sessionIdTwo, projectId, workspaceRoot: "/tmp/acepe" })
+					.pipe(
+						Stream.runForEach((event) => Queue.offer(eventsTwo, event).pipe(Effect.asVoid)),
+						Effect.forkChild({ startImmediately: true })
+					)
+				yield* Queue.take(eventsTwo) // deferred_open
+
+				const beforeShutdown = yield* Ref.get(sdk.attemptsRef)
+				Vitest.assert.strictEqual(beforeShutdown.length, 2, "both sessions must have attached a query")
+				for (const attempt of beforeShutdown) {
+					Vitest.assert.isFalse(yield* Ref.get(attempt.interrupted))
+					Vitest.assert.isFalse(yield* Ref.get(attempt.closed))
+				}
+
+				yield* adapter.shutdown
+
+				const allClosed = yield* waitUntil(
+					Effect.forEach(beforeShutdown, (attempt) => Ref.get(attempt.closed)),
+					(closedFlags) => closedFlags.every((closed) => closed)
+				)
+				Vitest.assert.isTrue(allClosed.every((closed) => closed), "shutdown must close every live query")
+				for (const attempt of beforeShutdown) {
+					Vitest.assert.isTrue(
+						yield* Ref.get(attempt.interrupted),
+						"shutdown must interrupt every live query before closing it"
+					)
+				}
+
+				// No new attempt must have been spawned -- shutdown tears down what's
+				// live, it must never itself start a fresh subprocess.
+				const afterShutdown = yield* Ref.get(sdk.attemptsRef)
+				Vitest.assert.strictEqual(afterShutdown.length, 2)
+			})
+	)
+
 	// These pin down the isolation fix's actual mechanism: the SDK's query()
 	// options constructed for a live session must exclude the operator's
 	// personal ~/.claude config while keeping the target repo's own project
