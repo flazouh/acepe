@@ -41,7 +41,10 @@ import { resolve } from "node:path";
 // effect(globalDate) (same pattern as the 6584 -> 6586 bump above); one new
 // `new Date(iso)` expectation fixture in project-manager.test.ts trips
 // effect(globalDate) too. All three are test-file style, not production code.
-const BASELINE = 6600;
+// 6600 -> 6579: the Tauri/Rust removal (3ba1a1639..986b03cd4) deleted
+// desktop files that carried violations. NOTE: the count includes svelte-kit
+// generated files, so run after `svelte-kit sync`/a build for a stable read.
+const BASELINE = 6579;
 const PACKAGE_ROOT = resolve(import.meta.dir, "..");
 
 // The pretty formatter (the default, and what lint:effect:report uses) always
