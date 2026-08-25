@@ -59,10 +59,10 @@ const snapshotWithUser: RpcSessionSnapshot = {
 	skillsCatalog: null,
 	voice: null,
 	gitReview: null,
-			mcpCatalog: null,
-			preconnectionOptions: null,
-			terminal: null,
-			sessionReviewState: null,
+	mcpCatalog: null,
+	preconnectionOptions: null,
+	terminal: null,
+	sessionReviewState: null,
 };
 
 const tokenAt = (sequence: number, token: string): OrchestrationEvent => ({
@@ -119,7 +119,8 @@ const clientOf = (input: {
 	getProviderAccountUsage: () => Effect.succeed([]),
 	listProviderSessions: () => Effect.succeed([]),
 	listProviderProjects: () => Effect.succeed([]),
-	importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
+	importProviderSession: () =>
+		Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 	events: () => Stream.fromArray(input.events),
 });
 
@@ -270,10 +271,10 @@ describe("composeSessionStore", () => {
 					skillsCatalog: null,
 					voice: null,
 					gitReview: null,
-			mcpCatalog: null,
-			preconnectionOptions: null,
-			terminal: null,
-			sessionReviewState: null,
+					mcpCatalog: null,
+					preconnectionOptions: null,
+					terminal: null,
+					sessionReviewState: null,
 				};
 				const store = composeSessionStore({
 					client: clientOf({ snapshot: deferred, events: [] }),
@@ -321,10 +322,10 @@ describe("composeSessionStore", () => {
 					skillsCatalog: null,
 					voice: null,
 					gitReview: null,
-			mcpCatalog: null,
-			preconnectionOptions: null,
-			terminal: null,
-			sessionReviewState: null,
+					mcpCatalog: null,
+					preconnectionOptions: null,
+					terminal: null,
+					sessionReviewState: null,
 				};
 				const store = composeSessionStore({
 					client: clientOf({
@@ -368,6 +369,7 @@ it("openLibrary reads projects without opening a session", () =>
 								updatedAt: "2026-08-22T00:00:00.000Z",
 								deletedAt: null,
 								sessionCount: 3,
+								color: "cyan" as const,
 								gitStatus: null,
 							},
 						],
@@ -420,6 +422,7 @@ it("openProject keeps every other library project in the sidebar snapshot", () =
 				updatedAt: "2026-08-22T00:00:00.000Z",
 				deletedAt: null,
 				sessionCount: 1,
+				color: "cyan" as const,
 				gitStatus: null,
 			});
 			const librarySnapshot: RpcSessionSnapshot = {
@@ -441,10 +444,17 @@ it("openProject keeps every other library project in the sidebar snapshot", () =
 				dispatch: () => Effect.succeed({ sequence: 1 }),
 				snapshot: (request) =>
 					Effect.succeed(
-						"kind" in request && request.kind === "library" ? librarySnapshot : scopedProjectSnapshot
+						"kind" in request && request.kind === "library"
+							? librarySnapshot
+							: scopedProjectSnapshot
 					),
 				getProjectIndex: () =>
-					Effect.succeed({ projectPath: "/tmp/p", totalFiles: 0, files: [], scannedAt: 0 }) as never,
+					Effect.succeed({
+						projectPath: "/tmp/p",
+						totalFiles: 0,
+						files: [],
+						scannedAt: 0,
+					}) as never,
 				invalidateProjectIndex: () => Effect.void,
 				readTextFile: () => Effect.succeed(""),
 				writeTextFile: () => Effect.void,
@@ -454,7 +464,8 @@ it("openProject keeps every other library project in the sidebar snapshot", () =
 				getProviderAccountUsage: () => Effect.succeed([]),
 				listProviderSessions: () => Effect.succeed([]),
 				listProviderProjects: () => Effect.succeed([]),
-				importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
+				importProviderSession: () =>
+					Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 				events: () => Stream.fromArray([]),
 			};
 			const parts = composeSessionStore({ client, registry });
@@ -462,9 +473,12 @@ it("openProject keeps every other library project in the sidebar snapshot", () =
 			const snap = yield* parts.openProject(projectId);
 			const projectTitles = snap.projects.map((project) => project.title).sort();
 			expect(projectTitles).toEqual(["Acepe", "Git review"]);
-			expect(registry.get(parts.snapshotAtom).projects.map((project) => project.title).sort()).toEqual(
-				["Acepe", "Git review"]
-			);
+			expect(
+				registry
+					.get(parts.snapshotAtom)
+					.projects.map((project) => project.title)
+					.sort()
+			).toEqual(["Acepe", "Git review"]);
 		})
 	));
 
@@ -480,6 +494,7 @@ it("openSession also keeps every library project in the sidebar snapshot", () =>
 				updatedAt: "2026-08-22T00:00:00.000Z",
 				deletedAt: null,
 				sessionCount: 1,
+				color: "cyan" as const,
 				gitStatus: null,
 			});
 			const librarySnapshot: RpcSessionSnapshot = {
@@ -495,9 +510,16 @@ it("openSession also keeps every library project in the sidebar snapshot", () =>
 			const client: RpcClient = {
 				dispatch: () => Effect.succeed({ sequence: 1 }),
 				snapshot: (request) =>
-					Effect.succeed("kind" in request && request.kind === "library" ? librarySnapshot : snapshotWithUser),
+					Effect.succeed(
+						"kind" in request && request.kind === "library" ? librarySnapshot : snapshotWithUser
+					),
 				getProjectIndex: () =>
-					Effect.succeed({ projectPath: "/tmp/p", totalFiles: 0, files: [], scannedAt: 0 }) as never,
+					Effect.succeed({
+						projectPath: "/tmp/p",
+						totalFiles: 0,
+						files: [],
+						scannedAt: 0,
+					}) as never,
 				invalidateProjectIndex: () => Effect.void,
 				readTextFile: () => Effect.succeed(""),
 				writeTextFile: () => Effect.void,
@@ -507,7 +529,8 @@ it("openSession also keeps every library project in the sidebar snapshot", () =>
 				getProviderAccountUsage: () => Effect.succeed([]),
 				listProviderSessions: () => Effect.succeed([]),
 				listProviderProjects: () => Effect.succeed([]),
-				importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
+				importProviderSession: () =>
+					Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 				events: () => Stream.fromArray([]),
 			};
 			const parts = composeSessionStore({ client, registry });

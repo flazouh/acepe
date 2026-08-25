@@ -1,5 +1,6 @@
 import {
 	CommandId,
+	defaultProjectColor,
 	EventId,
 	MessageId,
 	type OrchestrationEvent,
@@ -573,6 +574,7 @@ Vitest.layer(isolatedSnapshot())("ProjectionSnapshotQuery grades projects", (it)
 					updatedAt: NOW,
 					deletedAt: null,
 					sessionCount: 1,
+					color: defaultProjectColor("/tmp/acepe"),
 					scanWarmedAt: NOW
 				}
 			])

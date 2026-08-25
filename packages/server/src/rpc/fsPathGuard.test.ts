@@ -1,4 +1,4 @@
-import { ProjectId } from "@acepe/contracts"
+import { defaultProjectColor, ProjectId } from "@acepe/contracts"
 import * as BunFileSystem from "@effect/platform-bun/BunFileSystem"
 import * as BunPath from "@effect/platform-bun/BunPath"
 import * as Vitest from "@effect/vitest"
@@ -20,6 +20,7 @@ const fakeProject = (workspaceRoot: string): ProjectedProject => ({
 	updatedAt: NOW,
 	deletedAt: null,
 	sessionCount: 0,
+	color: defaultProjectColor(workspaceRoot),
 	scanWarmedAt: NOW
 })
 

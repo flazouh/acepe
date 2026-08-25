@@ -3,6 +3,7 @@ import * as Schema from "effect/Schema"
 import { CheckpointFileCount, CheckpointNumber, CheckpointStatus, IsoDateTime, JsonObject, Sequence, StreamToken, TrimmedNonEmptyString } from "./baseSchemas.ts"
 import { FileGitStatus } from "./fileIndex.ts"
 import { GitBlameLine, GitFileDiff, GitHunkIndex } from "./git.ts"
+import { ProjectColor } from "./projectColor.ts"
 import { TerminalCols, TerminalRows } from "./terminal.ts"
 import {
 	AgentsId,
@@ -148,6 +149,7 @@ export const ProjectMetaUpdatedPayload = Schema.Struct({
 	projectId: ProjectId,
 	title: Schema.optionalKey(TrimmedNonEmptyString),
 	workspaceRoot: Schema.optionalKey(TrimmedNonEmptyString),
+	color: Schema.optionalKey(ProjectColor),
 })
 export type ProjectMetaUpdatedPayload = typeof ProjectMetaUpdatedPayload.Type
 

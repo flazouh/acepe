@@ -1,4 +1,4 @@
-import { ProjectId } from "@acepe/contracts"
+import { defaultProjectColor, ProjectId } from "@acepe/contracts"
 import * as BunChildProcessSpawner from "@effect/platform-bun/BunChildProcessSpawner"
 import * as BunCrypto from "@effect/platform-bun/BunCrypto"
 import * as BunFileSystem from "@effect/platform-bun/BunFileSystem"
@@ -40,6 +40,7 @@ const fakeProject = (workspaceRoot: string): ProjectedProject => ({
 	updatedAt: NOW,
 	deletedAt: null,
 	sessionCount: 0,
+	color: defaultProjectColor(workspaceRoot),
 	scanWarmedAt: NOW
 })
 

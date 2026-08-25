@@ -1,5 +1,6 @@
 import {
 	CommandId,
+	defaultProjectColor,
 	EventId,
 	MessageId,
 	type OrchestrationEvent,
@@ -129,6 +130,7 @@ Vitest.describe("evolveProjectedProjects", () => {
 				updatedAt: NOW,
 				deletedAt: null,
 				sessionCount: 0,
+				color: defaultProjectColor("/tmp/acepe"),
 				scanWarmedAt: NOW
 			})
 			Vitest.assert.isTrue(isScanWarmed(project))
@@ -155,6 +157,48 @@ Vitest.describe("evolveProjectedProjects", () => {
 			Vitest.assert.strictEqual(project.updatedAt, LATER)
 			Vitest.assert.strictEqual(project.scanWarmedAt, NOW)
 			Vitest.assert.strictEqual(project.sessionCount, 0)
+		})
+	)
+
+	Vitest.it.effect("stores the picked color from ProjectMetaUpdated", () =>
+		Effect.gen(function*() {
+			const state = yield* fold([
+				projectEvent(1, "ProjectCreated", NOW, {
+					projectId,
+					title: "Acepe",
+					workspaceRoot: "/tmp/acepe"
+				}),
+				projectEvent(2, "ProjectMetaUpdated", LATER, {
+					projectId,
+					color: "pink"
+				})
+			])
+			const project = requireProject(state, projectId)
+			Vitest.assert.strictEqual(project.color, "pink")
+			Vitest.assert.strictEqual(project.title, "Acepe")
+		})
+	)
+
+	Vitest.it.effect("keeps the picked color when a later update renames the project", () =>
+		Effect.gen(function*() {
+			const state = yield* fold([
+				projectEvent(1, "ProjectCreated", NOW, {
+					projectId,
+					title: "Acepe",
+					workspaceRoot: "/tmp/acepe"
+				}),
+				projectEvent(2, "ProjectMetaUpdated", LATER, {
+					projectId,
+					color: "pink"
+				}),
+				projectEvent(3, "ProjectMetaUpdated", END, {
+					projectId,
+					title: "Acepe Desktop"
+				})
+			])
+			const project = requireProject(state, projectId)
+			Vitest.assert.strictEqual(project.color, "pink")
+			Vitest.assert.strictEqual(project.title, "Acepe Desktop")
 		})
 	)
 

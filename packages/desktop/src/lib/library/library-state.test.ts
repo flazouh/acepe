@@ -41,8 +41,8 @@ describe("sessionLifecycle", () => {
 					title: "Deleted thread",
 					archivedAt: occurredAt,
 					deletedAt: occurredAt,
-				}),
-			),
+				})
+			)
 		).toBe("deleted");
 		expect(
 			sessionLifecycleLabel(
@@ -53,9 +53,9 @@ describe("sessionLifecycle", () => {
 						title: "Archived thread",
 						archivedAt: occurredAt,
 						deletedAt: null,
-					}),
-				),
-			),
+					})
+				)
+			)
 		).toBe("Archived");
 	});
 });
@@ -81,6 +81,7 @@ describe("librarySidebarViewModel", () => {
 						updatedAt: occurredAt,
 						deletedAt: null,
 						sessionCount: 3,
+						color: "cyan",
 						gitStatus: [],
 					},
 				],
@@ -131,11 +132,7 @@ describe("librarySidebarViewModel", () => {
 			"Archived thread",
 			"Deleted thread",
 		]);
-		expect(model.sessions.map((row) => row.lifecycle)).toEqual([
-			"active",
-			"archived",
-			"deleted",
-		]);
+		expect(model.sessions.map((row) => row.lifecycle)).toEqual(["active", "archived", "deleted"]);
 		expect(model.selectedSessionId).toBeNull();
 	});
 });

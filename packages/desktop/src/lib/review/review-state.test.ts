@@ -1,15 +1,20 @@
-import { describe, expect, it } from "bun:test"
-import { ProjectId } from "@acepe/contracts"
+import { describe, expect, it } from "bun:test";
+import { ProjectId } from "@acepe/contracts";
 
-import { reviewModalViewModel, selectedProjectWorkspaceRoot, gitReviewSnapshotIsNewer, gitReviewFileIsReady } from "./review-state.ts"
+import {
+	gitReviewFileIsReady,
+	gitReviewSnapshotIsNewer,
+	reviewModalViewModel,
+	selectedProjectWorkspaceRoot,
+} from "./review-state.ts";
 
 describe("reviewModalViewModel", () => {
 	it("keeps null status distinct from an empty clean tree", () => {
 		const empty = reviewModalViewModel({
 			gitReview: null,
 			selectedPath: null,
-		})
-		expect(empty.status).toBeNull()
+		});
+		expect(empty.status).toBeNull();
 		const failed = reviewModalViewModel({
 			gitReview: {
 				sequence: 1,
@@ -18,8 +23,8 @@ describe("reviewModalViewModel", () => {
 				files: [],
 			},
 			selectedPath: null,
-		})
-		expect(failed.status).toBeNull()
+		});
+		expect(failed.status).toBeNull();
 		const clean = reviewModalViewModel({
 			gitReview: {
 				sequence: 1,
@@ -28,9 +33,9 @@ describe("reviewModalViewModel", () => {
 				files: [],
 			},
 			selectedPath: null,
-		})
-		expect(clean.status).toEqual([])
-	})
+		});
+		expect(clean.status).toEqual([]);
+	});
 
 	it("maps unified patch hunks and pierre file contents from the projection", () => {
 		const model = reviewModalViewModel({
@@ -67,13 +72,13 @@ describe("reviewModalViewModel", () => {
 				],
 			},
 			selectedPath: "notes.md",
-		})
-		expect(model.files[0]?.oldContent).toBe("alpha\n")
-		expect(model.files[0]?.newContent).toBe("alpha\nbeta\n")
-		expect(model.files[0]?.fileName).toBe("notes.md")
-		expect(model.files[0]?.hunks).toEqual([{ index: 0, action: "accepted" }])
-		expect(model.files[0]?.blame[0]?.author).toBe("Test User")
-	})
+		});
+		expect(model.files[0]?.oldContent).toBe("alpha\n");
+		expect(model.files[0]?.newContent).toBe("alpha\nbeta\n");
+		expect(model.files[0]?.fileName).toBe("notes.md");
+		expect(model.files[0]?.hunks).toEqual([{ index: 0, action: "accepted" }]);
+		expect(model.files[0]?.blame[0]?.author).toBe("Test User");
+	});
 
 	it("selects the first status path when the controller has not picked a file yet", () => {
 		const model = reviewModalViewModel({
@@ -103,15 +108,15 @@ describe("reviewModalViewModel", () => {
 				],
 			},
 			selectedPath: null,
-		})
-		expect(model.selectedPath).toBe("notes.md")
-	})
+		});
+		expect(model.selectedPath).toBe("notes.md");
+	});
 
 	it("keeps a newer git snapshot when an older refresh arrives late", () => {
-		expect(gitReviewSnapshotIsNewer(12, 10)).toBe(false)
-		expect(gitReviewSnapshotIsNewer(12, 12)).toBe(true)
-		expect(gitReviewSnapshotIsNewer(12, 13)).toBe(true)
-	})
+		expect(gitReviewSnapshotIsNewer(12, 10)).toBe(false);
+		expect(gitReviewSnapshotIsNewer(12, 12)).toBe(true);
+		expect(gitReviewSnapshotIsNewer(12, 13)).toBe(true);
+	});
 
 	it("treats a file as ready when the projection already has pierre contents and a patch", () => {
 		expect(
@@ -134,9 +139,9 @@ describe("reviewModalViewModel", () => {
 						},
 					],
 				},
-				"notes.md",
-			),
-		).toBe(true)
+				"notes.md"
+			)
+		).toBe(true);
 		expect(
 			gitReviewFileIsReady(
 				{
@@ -153,11 +158,11 @@ describe("reviewModalViewModel", () => {
 						},
 					],
 				},
-				"notes.md",
-			),
-		).toBe(false)
-	})
-})
+				"notes.md"
+			)
+		).toBe(false);
+	});
+});
 
 describe("selectedProjectWorkspaceRoot", () => {
 	it("reads the workspace root of the selected project from the library snapshot", () => {
@@ -178,6 +183,7 @@ describe("selectedProjectWorkspaceRoot", () => {
 					updatedAt: "2026-08-20T12:00:00.000Z",
 					deletedAt: null,
 					sessionCount: 0,
+					color: "cyan" as const,
 					gitStatus: [],
 				},
 			],
@@ -190,11 +196,9 @@ describe("selectedProjectWorkspaceRoot", () => {
 			preconnectionOptions: null,
 			terminal: null,
 			sessionReviewState: null,
-		}
-		expect(selectedProjectWorkspaceRoot(snapshot, null)).toBeNull()
-		expect(selectedProjectWorkspaceRoot(snapshot, "missing")).toBeNull()
-		expect(selectedProjectWorkspaceRoot(snapshot, "project-1")).toBe(
-			"/tmp/acepe-git-review-242",
-		)
-	})
-})
+		};
+		expect(selectedProjectWorkspaceRoot(snapshot, null)).toBeNull();
+		expect(selectedProjectWorkspaceRoot(snapshot, "missing")).toBeNull();
+		expect(selectedProjectWorkspaceRoot(snapshot, "project-1")).toBe("/tmp/acepe-git-review-242");
+	});
+});

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "bun:test";
-import { ProjectId, type RpcProjectedProject, type RpcProjectedSession, SessionId } from "@acepe/contracts";
+import {
+	ProjectId,
+	type RpcProjectedProject,
+	type RpcProjectedSession,
+	SessionId,
+} from "@acepe/contracts";
 import type { SessionCold } from "../../types.js";
 import { isoToDate, mergeProjectionSessions } from "../session-projection-merge.js";
 
@@ -14,6 +19,7 @@ const fakeProject: RpcProjectedProject = {
 	updatedAt: "2026-08-20T12:00:00.000Z",
 	deletedAt: null,
 	sessionCount: 1,
+	color: "cyan",
 	gitStatus: [],
 };
 
@@ -29,6 +35,7 @@ const diskFreeProject: RpcProjectedProject = {
 	updatedAt: "2026-08-20T12:00:00.000Z",
 	deletedAt: null,
 	sessionCount: 1,
+	color: "cyan",
 	gitStatus: [],
 };
 
@@ -87,7 +94,12 @@ describe("mergeProjectionSessions", () => {
 		];
 		const merged = mergeProjectionSessions(
 			existing,
-			[projectedSession({ title: "Stale projection title", updatedAt: "2026-08-20T12:00:00.000Z" })],
+			[
+				projectedSession({
+					title: "Stale projection title",
+					updatedAt: "2026-08-20T12:00:00.000Z",
+				}),
+			],
 			[fakeProject]
 		);
 		expect(merged[0]?.title).toBe("Existing title");
@@ -99,7 +111,12 @@ describe("mergeProjectionSessions", () => {
 		];
 		const merged = mergeProjectionSessions(
 			existing,
-			[projectedSession({ title: "Renamed by another client", updatedAt: "2026-08-20T14:00:00.000Z" })],
+			[
+				projectedSession({
+					title: "Renamed by another client",
+					updatedAt: "2026-08-20T14:00:00.000Z",
+				}),
+			],
 			[fakeProject]
 		);
 		expect(merged[0]?.title).toBe("Renamed by another client");
@@ -124,7 +141,11 @@ describe("mergeProjectionSessions", () => {
 	});
 
 	it("skips a projection row with no resolved provider", () => {
-		const merged = mergeProjectionSessions([], [projectedSession({ provider: null })], [fakeProject]);
+		const merged = mergeProjectionSessions(
+			[],
+			[projectedSession({ provider: null })],
+			[fakeProject]
+		);
 		expect(merged).toHaveLength(0);
 	});
 

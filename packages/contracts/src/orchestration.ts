@@ -3,6 +3,7 @@ import * as Schema from "effect/Schema"
 
 import { CheckpointFileCount, CheckpointNumber, CheckpointStatus, StreamToken, TrimmedNonEmptyString } from "./baseSchemas.ts"
 import { FileGitStatus } from "./fileIndex.ts"
+import { ProjectColor } from "./projectColor.ts"
 import {
 	GitBlameLine,
 	GitFileDiff,
@@ -120,6 +121,7 @@ export const ProjectMetaUpdateCommand = Schema.Struct({
 	projectId: ProjectId,
 	title: Schema.optionalKey(TrimmedNonEmptyString),
 	workspaceRoot: Schema.optionalKey(TrimmedNonEmptyString),
+	color: Schema.optionalKey(ProjectColor),
 })
 export type ProjectMetaUpdateCommand = typeof ProjectMetaUpdateCommand.Type
 

@@ -34,6 +34,7 @@ const snapshot: RpcSessionSnapshot = {
 			updatedAt: occurredAt,
 			deletedAt: null,
 			sessionCount: 2,
+			color: "cyan",
 			gitStatus: [],
 		},
 	],
@@ -69,10 +70,10 @@ const snapshot: RpcSessionSnapshot = {
 	skillsCatalog: null,
 	voice: null,
 	gitReview: null,
-			mcpCatalog: null,
-			preconnectionOptions: null,
-			terminal: null,
-			sessionReviewState: null,
+	mcpCatalog: null,
+	preconnectionOptions: null,
+	terminal: null,
+	sessionReviewState: null,
 };
 
 describe("library sidebar controller mapping", () => {
@@ -103,7 +104,8 @@ describe("library sidebar controller mapping", () => {
 					getProviderAccountUsage: () => Effect.succeed([]),
 					listProviderSessions: () => Effect.succeed([]),
 					listProviderProjects: () => Effect.succeed([]),
-					importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
+					importProviderSession: () =>
+						Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 					events: () => Stream.empty,
 				};
 				const registry = AtomRegistry.make();
@@ -122,6 +124,6 @@ describe("library sidebar controller mapping", () => {
 				]);
 				expect(model.sessions[1]?.lifecycle).toBe("archived");
 				expect(emptyRpcSessionSnapshot(0).projects).toEqual([]);
-			}),
+			})
 		));
 });

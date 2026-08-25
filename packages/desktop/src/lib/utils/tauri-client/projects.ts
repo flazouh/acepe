@@ -1,12 +1,14 @@
 import {
 	decodeProjectId,
 	librarySnapshotRequest,
+	ProjectColor,
+	ProjectMetaUpdateCommand,
 	type RpcProjectedProject,
 } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
 
 import { AgentError, type AppError } from "../../acp/errors/app-error.js";
-import { generateFallbackProjectColor } from "../../acp/utils/project-utils.js";
 import {
 	decodeEffect,
 	decodeTrimmed,
@@ -16,16 +18,17 @@ import {
 } from "./rpc-bridge.ts";
 import type { ProjectAcepeConfig, ProjectData } from "./types.js";
 
-// The library projection carries no color yet, so every project derives one
-// deterministically from its workspace root. This matches the fallback the
-// session, tab, and queue surfaces already use, and it keeps two checkouts of
-// the same repository visually distinct.
+const decodeProjectColor = Schema.decodeUnknownEffect(ProjectColor);
+
+// color is a canonical color name owned by the projection, never a local
+// guess: the projection assigns a deterministic default until someone picks
+// one, so the sidebar shows the same color the backend stores.
 const mapProject = (row: RpcProjectedProject): ProjectData => ({
 	path: row.workspaceRoot,
 	name: row.title,
 	last_opened: row.updatedAt,
 	created_at: row.createdAt,
-	color: generateFallbackProjectColor(row.workspaceRoot),
+	color: row.color,
 	sort_order: 0,
 	icon_path: null,
 });
@@ -135,8 +138,43 @@ export const projects = {
 		return mapProject(created);
 	}),
 
-	updateProjectColor: (_path: string, _color: string): Effect.Effect<ProjectData, AppError> =>
-		unsupportedOnContract("projects.updateProjectColor"),
+	updateProjectColor: Effect.fn("projects.updateProjectColor")(function* (
+		path: string,
+		color: string
+	) {
+		const decodedColor = yield* decodeEffect(
+			"project.meta.update",
+			decodeProjectColor
+		)(color.toLowerCase().trim());
+		const loaded = yield* loadVisibleProjects();
+		const existing = findProjectedByPath(loaded.snapshot.projects, path);
+		if (existing === null) {
+			return yield* Effect.fail(
+				new AgentError("project.meta.update", new Error("project not found"))
+			);
+		}
+		const commandId = yield* nextCommandId("project-meta-update-color");
+		yield* withRpcClient("project.meta.update", (client) =>
+			client.dispatch(
+				ProjectMetaUpdateCommand.make({
+					type: "project.meta.update",
+					commandId,
+					projectId: existing.projectId,
+					color: decodedColor,
+				})
+			)
+		);
+		const updated = yield* withRpcClient("projects.snapshot", (client) =>
+			client.snapshot(librarySnapshotRequest())
+		);
+		const recolored = findProjectedByPath(updated.projects, path);
+		if (recolored === null) {
+			return yield* Effect.fail(
+				new AgentError("project.meta.update", new Error("recolored project missing from snapshot"))
+			);
+		}
+		return mapProject(recolored);
+	}),
 
 	updateProjectIcon: (
 		_path: string,

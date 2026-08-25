@@ -1,6 +1,8 @@
 import {
 	IsoDateTime,
 	type OrchestrationEvent,
+	defaultProjectColor,
+	ProjectColor,
 	ProjectCreatedPayload,
 	ProjectDeletedPayload,
 	ProjectId,
@@ -32,6 +34,9 @@ export const ProjectedProject = Schema.Struct({
 	updatedAt: IsoDateTime,
 	deletedAt: Schema.NullOr(IsoDateTime),
 	sessionCount: NonNegativeInt,
+	// Never null downstream: a project that predates the color column, or that
+	// nobody has recolored, still projects the deterministic default.
+	color: ProjectColor,
 	scanWarmedAt: IsoDateTime
 })
 export type ProjectedProject = typeof ProjectedProject.Type
@@ -56,6 +61,7 @@ const ProjectionProjectRow = Schema.Struct({
 	updated_at: IsoDateTime,
 	deleted_at: Schema.NullOr(IsoDateTime),
 	session_count: NonNegativeInt,
+	color: Schema.NullOr(ProjectColor),
 	scan_warmed_at: IsoDateTime
 })
 
@@ -96,6 +102,7 @@ const projectedProjectFromRow = (row: typeof ProjectionProjectRow.Type): Project
 	updatedAt: row.updated_at,
 	deletedAt: row.deleted_at,
 	sessionCount: row.session_count,
+	color: row.color ?? defaultProjectColor(row.workspace_root),
 	scanWarmedAt: row.scan_warmed_at
 })
 
@@ -175,6 +182,10 @@ const projectProjectCreated = (
 				onNone: () => countActiveSessions(state.sessions, payload.projectId),
 				onSome: (project) => project.sessionCount
 			})
+			const color = Option.match(current, {
+				onNone: () => defaultProjectColor(payload.workspaceRoot),
+				onSome: (project) => project.color
+			})
 			return putProject(state, {
 				projectId: payload.projectId,
 				title: payload.title,
@@ -183,6 +194,7 @@ const projectProjectCreated = (
 				updatedAt: event.occurredAt,
 				deletedAt: null,
 				sessionCount,
+				color,
 				scanWarmedAt: event.occurredAt
 			})
 		})
@@ -208,6 +220,7 @@ const projectProjectMetaUpdated = (
 						updatedAt: event.occurredAt,
 						deletedAt: project.deletedAt,
 						sessionCount: project.sessionCount,
+						color: payload.color === undefined ? project.color : payload.color,
 						scanWarmedAt: project.scanWarmedAt
 					})
 			})
@@ -231,6 +244,7 @@ const projectProjectDeleted = (
 						updatedAt: event.occurredAt,
 						deletedAt: event.occurredAt,
 						sessionCount: project.sessionCount,
+						color: project.color,
 						scanWarmedAt: project.scanWarmedAt
 					})
 			})
@@ -263,6 +277,7 @@ const projectSessionCreated = (
 						updatedAt: project.updatedAt,
 						deletedAt: project.deletedAt,
 						sessionCount: project.sessionCount + 1,
+						color: project.color,
 						scanWarmedAt: project.scanWarmedAt
 					})
 			})
@@ -295,6 +310,7 @@ const projectSessionDeleted = (
 						updatedAt: project.updatedAt,
 						deletedAt: project.deletedAt,
 						sessionCount: project.sessionCount === 0 ? 0 : project.sessionCount - 1,
+						color: project.color,
 						scanWarmedAt: project.scanWarmedAt
 					})
 			})

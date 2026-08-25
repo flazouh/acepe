@@ -596,10 +596,11 @@ describe("InitializationManager", () => {
 		it("does not wait for session updates before completing startup", async () => {
 			const sessionUpdatesResolver: { current: (() => void) | null } = { current: null };
 			mockSessionStore.initializeSessionUpdates = mock(() =>
-				fromPromise(() => 
-					new Promise<void>((resolve) => {
-						sessionUpdatesResolver.current = resolve;
-					}),
+				fromPromise(
+					() =>
+						new Promise<void>((resolve) => {
+							sessionUpdatesResolver.current = resolve;
+						}),
 					() => new AgentError("initializeSessionUpdates", new Error("Failed"))
 				)
 			) as SessionStore["initializeSessionUpdates"];
@@ -662,10 +663,11 @@ describe("InitializationManager", () => {
 		it("does not wait for user keybindings before completing startup", async () => {
 			const userKeybindingsResolver: { current: (() => void) | null } = { current: null };
 			mockKeybindingsService.loadUserKeybindings = mock(() =>
-				fromPromise(() => 
-					new Promise<void>((resolve) => {
-						userKeybindingsResolver.current = resolve;
-					}),
+				fromPromise(
+					() =>
+						new Promise<void>((resolve) => {
+							userKeybindingsResolver.current = resolve;
+						}),
 					() => new KeybindingError("INSTALL_FAILED", "Failed")
 				)
 			) as KeybindingsService["loadUserKeybindings"];
@@ -710,8 +712,8 @@ describe("InitializationManager", () => {
 
 		it("completes startup before workspace restore finishes", async () => {
 			mockWorkspaceStore.load = mock(() =>
-				fromPromise(() => 
-					new Promise<never>(() => {}),
+				fromPromise(
+					() => new Promise<never>(() => {}),
 					() => new AgentError("workspace", new Error("Timed out"))
 				)
 			) as WorkspaceStore["load"];
@@ -758,8 +760,8 @@ describe("InitializationManager", () => {
 
 		it("completes initialization while agents are still loading after startup", async () => {
 			mockAgentStore.loadAvailableAgents = mock(() =>
-				fromPromise(() => 
-					new Promise<never>(() => {}),
+				fromPromise(
+					() => new Promise<never>(() => {}),
 					() => new AgentError("loadAgents", new Error("Timed out"))
 				)
 			) as AgentStore["loadAvailableAgents"];
@@ -841,10 +843,11 @@ describe("InitializationManager", () => {
 		it("does not wait for persisted agent preferences before completing startup", async () => {
 			const agentPreferencesResolver: { current: (() => void) | null } = { current: null };
 			mockAgentPreferencesStore.initialize = mock(() =>
-				fromPromise(() => 
-					new Promise<void>((resolve) => {
-						agentPreferencesResolver.current = resolve;
-					}),
+				fromPromise(
+					() =>
+						new Promise<void>((resolve) => {
+							agentPreferencesResolver.current = resolve;
+						}),
 					() => new AgentError("agent_preferences", new Error("Failed"))
 				)
 			) as AgentPreferencesStore["initialize"];
@@ -939,6 +942,7 @@ describe("InitializationManager", () => {
 					updatedAt: "2026-08-20T12:00:00.000Z",
 					deletedAt: null,
 					sessionCount: 1,
+					color: "cyan" as const,
 					gitStatus: [],
 				},
 			];
@@ -975,6 +979,7 @@ describe("InitializationManager", () => {
 					updatedAt: "2026-08-20T12:00:00.000Z",
 					deletedAt: null,
 					sessionCount: 2,
+					color: "cyan" as const,
 					gitStatus: [],
 				},
 			];
@@ -1014,6 +1019,7 @@ describe("InitializationManager", () => {
 					updatedAt: "2026-08-20T12:00:00.000Z",
 					deletedAt: null,
 					sessionCount: 1,
+					color: "cyan" as const,
 					gitStatus: [],
 				},
 			];
@@ -2028,8 +2034,8 @@ describe("InitializationManager", () => {
 				},
 			];
 			mockAgentStore.loadAvailableAgents = mock(() =>
-				fromPromise(() => 
-					new Promise<never>(() => {}),
+				fromPromise(
+					() => new Promise<never>(() => {}),
 					() => new AgentError("loadAgents", new Error("Timed out"))
 				)
 			) as AgentStore["loadAvailableAgents"];

@@ -19,6 +19,7 @@ import { ProjectedGitReview } from "./git.ts"
 import { GitCallRequest, GitCallResult } from "./gitCall.ts"
 import { ProjectedMcpCatalog } from "./mcp.ts"
 import { ProjectedPreconnectionOptions } from "./preconnection.ts"
+import { ProjectColor } from "./projectColor.ts"
 import { GetProviderAccountUsageRequest, GetProviderAccountUsageResponse } from "./providerUsage.ts"
 import {
 	DiscoveredProviderProject,
@@ -268,6 +269,9 @@ export const RpcProjectedProject = Schema.Struct({
 	updatedAt: IsoDateTime,
 	deletedAt: Schema.NullOr(IsoDateTime),
 	sessionCount: NonNegativeInt,
+	// Always set: the projection assigns a deterministic color when nobody has
+	// picked one, so no reader has to invent a color of its own.
+	color: ProjectColor,
 	// null means git could not be read at all: no binary, no permission, or a
 	// schema mismatch. An empty array means git ran and the tree is clean. A
 	// review panel must not show "no changes" when git actually failed.

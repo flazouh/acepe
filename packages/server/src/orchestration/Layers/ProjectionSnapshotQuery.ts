@@ -495,6 +495,7 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 					updated_at,
 					deleted_at,
 					session_count,
+					color,
 					scan_warmed_at
 				FROM projection_projects
 				ORDER BY updated_at DESC, project_id ASC

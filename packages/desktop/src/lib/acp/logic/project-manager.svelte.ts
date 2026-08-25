@@ -69,8 +69,8 @@ function roundProjectLoadPerformanceMs(value: number): number {
  * itself is present in the store. This closes that gap by unioning the same
  * library snapshot's `projects` array into local project state, mirroring
  * mergeProjectionSessions' own dedupe rule: an existing project (by path)
- * always wins, and a deleted library row is skipped -- there is no local
- * chrome (color, sort order, icon) to invent for it.
+ * always wins, and a deleted library row is skipped. The color comes from the
+ * library row, which always carries one; only sort order and icon stay local.
  *
  * Additions are appended after the existing projects (increasing sortOrder)
  * rather than inserted at the front, so a passive background reconciliation
@@ -108,7 +108,7 @@ export function computeMissingLibraryProjects(
 		additions.push({
 			path: libraryProject.workspaceRoot,
 			name: libraryProject.title,
-			color: resolveProjectColor("cyan"),
+			color: libraryProject.color,
 			createdAt,
 			sortOrder: nextSortOrder,
 			iconPath: null,

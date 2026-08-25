@@ -37,6 +37,7 @@ const librarySnapshot: RpcSessionSnapshot = {
 			updatedAt: occurredAt,
 			deletedAt: null,
 			sessionCount: 1,
+			color: "cyan",
 			gitStatus: [],
 		},
 	],
@@ -59,10 +60,10 @@ const librarySnapshot: RpcSessionSnapshot = {
 	skillsCatalog: null,
 	voice: null,
 	gitReview: null,
-			mcpCatalog: null,
-			preconnectionOptions: null,
-			terminal: null,
-			sessionReviewState: null,
+	mcpCatalog: null,
+	preconnectionOptions: null,
+	terminal: null,
+	sessionReviewState: null,
 };
 
 describe("isLibraryProjectionEvent", () => {
@@ -134,7 +135,8 @@ describe("composeLibraryStore", () => {
 					getProviderAccountUsage: () => Effect.succeed([]),
 					listProviderSessions: () => Effect.succeed([]),
 					listProviderProjects: () => Effect.succeed([]),
-					importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
+					importProviderSession: () =>
+						Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 					events: () => Stream.empty,
 				};
 				const registry = AtomRegistry.make();
@@ -191,7 +193,8 @@ describe("openProject", () => {
 					getProviderAccountUsage: () => Effect.succeed([]),
 					listProviderSessions: () => Effect.succeed([]),
 					listProviderProjects: () => Effect.succeed([]),
-					importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
+					importProviderSession: () =>
+						Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 					events: () => Stream.empty,
 				};
 				const registry = AtomRegistry.make();

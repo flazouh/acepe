@@ -78,27 +78,25 @@ const EMPTY_METADATA: JsonObject = {}
 
 const nextSequence = (snapshotSequence: Sequence): Sequence => snapshotSequence + 1
 
+type ProjectMetaUpdatedDraft = {
+	-readonly [K in keyof ProjectMetaUpdatedPayload]: ProjectMetaUpdatedPayload[K]
+}
+
+// An omitted field means "leave it alone", so the payload must not carry the
+// key at all. One named assignment per field instead of one branch per
+// combination, which stops being readable past two optional fields.
 const projectMetaUpdatedPayload = (command: ProjectMetaUpdateCommand): ProjectMetaUpdatedPayload => {
-	if (command.title !== undefined && command.workspaceRoot !== undefined) {
-		return {
-			projectId: command.projectId,
-			title: command.title,
-			workspaceRoot: command.workspaceRoot
-		}
-	}
+	const draft: ProjectMetaUpdatedDraft = { projectId: command.projectId }
 	if (command.title !== undefined) {
-		return {
-			projectId: command.projectId,
-			title: command.title
-		}
+		draft.title = command.title
 	}
 	if (command.workspaceRoot !== undefined) {
-		return {
-			projectId: command.projectId,
-			workspaceRoot: command.workspaceRoot
-		}
+		draft.workspaceRoot = command.workspaceRoot
 	}
-	return { projectId: command.projectId }
+	if (command.color !== undefined) {
+		draft.color = command.color
+	}
+	return draft
 }
 
 const sessionMetaUpdatedPayload = (command: SessionMetaUpdateCommand): SessionMetaUpdatedPayload => {
