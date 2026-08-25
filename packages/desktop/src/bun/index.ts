@@ -13,9 +13,6 @@ import {
 	startElectrobunAcepeApp,
 } from "@acepe/electrobun-shell";
 import { makeAcepeLive } from "@acepe/server/bootstrap";
-import { seedGitReview } from "@acepe/server/library/seedGitReview";
-import { seedLibrary } from "@acepe/server/library/seedLibrary";
-import { SKILLS_MCP_SEED_HOME, seedSkillsMcp } from "@acepe/server/library/seedSkillsMcp";
 import {
 	encodedAgentCall,
 	encodedDispatch,
@@ -38,8 +35,8 @@ import * as Effect from "effect/Effect";
 import * as ManagedRuntime from "effect/ManagedRuntime";
 import { loadQaSocketPath, qaPreloadScript } from "electrobun-qa";
 
-// One instance key scopes the QA socket, the seed fixtures and this DB, so
-// parallel app instances never share state.
+// One instance key scopes the QA socket and this DB, so parallel app
+// instances never share state.
 const loadTracerDbFilename = Effect.fn("loadTracerDbFilename")(function* () {
 	const instance = yield* Config.string("APP_ID").pipe(
 		Config.nested("ELECTROBUN_QA"),
@@ -87,14 +84,9 @@ const runtime = ManagedRuntime.make(
 	makeAcepeLive({
 		filename: Effect.runSync(loadTracerDbFilename()),
 		tokenDelay: Duration.millis(40),
-		skillsHomeDir: SKILLS_MCP_SEED_HOME,
 		voiceQaSurfaceEnabled: qaEnabled,
 	})
 );
-
-await runtime.runPromise(seedLibrary());
-await runtime.runPromise(seedGitReview());
-await runtime.runPromise(seedSkillsMcp());
 
 let sawRpcRoundtrip = false;
 
