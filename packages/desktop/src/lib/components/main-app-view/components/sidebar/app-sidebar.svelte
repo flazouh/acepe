@@ -585,10 +585,9 @@ function handleBrowseProjectIcon() {
 // Do NOT read compatibility transcript entries here; they change every rAF during streaming,
 // marking this derived dirty on every frame and cascading to ALL SessionItem components.
 const visibleSessions = $derived.by(() => {
-	const coldSessions = agentPreferencesStore.filterItemsBySelectedAgents(
-		sessionStore.read.getAllSessions()
-	);
-	return coldSessions
+	const rawSessions = sessionStore.read.getAllSessions();
+	const coldSessions = agentPreferencesStore.filterItemsBySelectedAgents(rawSessions);
+	const result = coldSessions
 		.filter((cold) => !archiveStore.isArchived(cold))
 		.map((cold) => {
 			const listState = sessionStore.read.getSessionListState(cold.id);
@@ -598,6 +597,15 @@ const visibleSessions = $derived.by(() => {
 				entryCount: 0,
 			});
 		});
+	// TEMP DEBUG - remove before commit
+	if (typeof window !== "undefined") {
+		(window as unknown as { __qaVisibleSessions?: unknown }).__qaVisibleSessions = {
+			rawIds: rawSessions.map((s) => s.id),
+			afterAgentFilterIds: coldSessions.map((s) => s.id),
+			resultIds: result.map((s) => s.id),
+		};
+	}
+	return result;
 });
 </script>
 

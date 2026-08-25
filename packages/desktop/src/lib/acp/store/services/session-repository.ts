@@ -351,6 +351,17 @@ export class SessionRepository {
 
 		this.stateWriter.setSessions(mergedSessions);
 		logger.debug("Sessions refreshed from scan", { count: mergedSessions.length });
+		// TEMP DEBUG - remove before commit
+		if (typeof window !== "undefined") {
+			(window as unknown as { __qaRefreshFromScan?: unknown }).__qaRefreshFromScan = {
+				existingCount: existingSessions.length,
+				entriesCount: entries.length,
+				mergedCount: mergedSessions.length,
+				mergedIds: mergedSessions.map((s) => s.id),
+				mergedStates: mergedSessions.map((s) => ({ id: s.id, state: s.sessionLifecycleState })),
+				scannedProjectPaths: scannedProjectPaths ? Array.from(scannedProjectPaths) : null,
+			};
+		}
 	}
 
 	/**
@@ -374,6 +385,16 @@ export class SessionRepository {
 				const merged = mergeProjectionSessions(existingSessions, projectedSessions, projects);
 				this.stateWriter.setSessions(merged);
 				logger.debug("Sessions merged from library projection", { count: merged.length });
+				// TEMP DEBUG - remove before commit
+				if (typeof window !== "undefined") {
+					(window as unknown as { __qaScanProjections?: unknown }).__qaScanProjections = {
+						existingCount: existingSessions.length,
+						projectedCount: projectedSessions.length,
+						mergedCount: merged.length,
+						mergedIds: merged.map((s) => s.id),
+						mergedStates: merged.map((s) => ({ id: s.id, state: s.sessionLifecycleState })),
+					};
+				}
 			})
 		);
 	}
