@@ -31,13 +31,24 @@ export const withRpcClient = <A>(
 		Effect.mapError((error) => toAgentError(operation, error))
 	);
 
+const UNSUPPORTED_ON_CONTRACT_SUFFIX = "is not on the orchestration contract";
+
 export const unsupportedOnContract = (operation: string): Effect.Effect<never, AgentError> =>
 	Effect.fail(
-		new AgentError(
-			operation,
-			new Error(`${operation} is not on the orchestration contract`)
-		)
+		new AgentError(operation, new Error(`${operation} ${UNSUPPORTED_ON_CONTRACT_SUFFIX}`))
 	);
+
+/**
+ * True when `error` is the failure produced by `unsupportedOnContract` --
+ * i.e. the operation is a known stub with no server-side implementation yet,
+ * not a real runtime failure. Callers that have an optional/best-effort path
+ * (e.g. auto-importing skills on first run) can use this to degrade quietly
+ * instead of surfacing an error to the user.
+ */
+export const isUnsupportedOnContract = (error: unknown): boolean =>
+	error instanceof AgentError &&
+	error.cause instanceof Error &&
+	error.cause.message.endsWith(UNSUPPORTED_ON_CONTRACT_SUFFIX);
 
 export const decodeTrimmed = (
 	operation: string,
