@@ -635,38 +635,6 @@ export class SessionEventService {
 					return;
 				}
 			}
-			// Only "snapshot" (handled above) and "lifecycle" envelopes
-			// unconditionally establish a real SessionStateGraph lifecycle on the
-			// very first contact for a session (reduceApplyLifecycle always pushes
-			// setCanonicalProjection/setSessionStateGraph, building a fresh
-			// lifecycle-only graph via createLifecycleOnlyGraph when there is no
-			// previous one). Every other kind is a patch onto an assumed-existing
-			// projection:
-			//   - "delta" needs a known graph-revision baseline
-			//     (hasCurrentGraphRevision in session-state-command-router.ts); with
-			//     none it degrades to a refreshSnapshot request instead of applying.
-			//   - "capabilities"/"telemetry"/"plan" only push their
-			//     setCanonicalProjection patch when `previousProjection !== null`
-			//     (see reduceApplyCapabilities and friends in reduce-command.ts) --
-			//     for a session's first-ever envelope there is no previous
-			//     projection, so lifecycle is silently never set.
-			// Materializing the pending-creation record right before any of those
-			// no-ops would already have revoked the session's "first prompt is
-			// unconditionally allowed" grace window
-			// (SessionMessagingOrchestrator.hasPendingCreation), stranding the
-			// first send: hasPendingCreation() goes false and the canonical
-			// lifecycle fallback (canActivateCreatedSessionWithFirstPrompt) still
-			// reads null, so message.send is dropped instead of dispatched. Keep
-			// the grace window open and buffer instead; a snapshot or lifecycle
-			// envelope (including the one a triggered refreshSnapshot delivers)
-			// will establish a real baseline and flush it.
-			if (
-				envelope.payload.kind !== "lifecycle" &&
-				handler.hasPendingCreationSession?.(envelope.sessionId) === true
-			) {
-				this.bufferPendingSessionState(envelope.sessionId, envelope);
-				return;
-			}
 			const materialized = handler.materializePendingCreationSession?.(envelope.sessionId);
 			if (materialized === true) {
 				handler.applySessionStateEnvelope(envelope.sessionId, envelope);
