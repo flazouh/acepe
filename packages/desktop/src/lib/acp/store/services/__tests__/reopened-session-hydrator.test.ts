@@ -66,7 +66,7 @@ describe("hydrateReopenedSessionSnapshot", () => {
 			getSessionSnapshot: () => Effect.succeed(snapshot),
 			ensureProviderSessionImported: () => {
 				importCalls += 1;
-				return Effect.succeed(undefined);
+				return Effect.void;
 			},
 			applySessionStateEnvelope: (sessionId, envelope) => {
 				appliedEnvelopes.push({ sessionId, envelope });
@@ -107,7 +107,7 @@ describe("hydrateReopenedSessionSnapshot", () => {
 			},
 			ensureProviderSessionImported: () => {
 				importCalls += 1;
-				return Effect.succeed(undefined);
+				return Effect.void;
 			},
 			applySessionStateEnvelope: () => undefined,
 		};
@@ -130,7 +130,7 @@ describe("hydrateReopenedSessionSnapshot", () => {
 			getSessionSnapshot: () => Effect.succeed(emptyRpcSessionSnapshot(0)),
 			ensureProviderSessionImported: () => {
 				importCalls += 1;
-				return Effect.succeed(undefined);
+				return Effect.void;
 			},
 			applySessionStateEnvelope: () => undefined,
 		};
@@ -168,7 +168,7 @@ describe("hydrateReopenedSessionSnapshot", () => {
 		const deps: ReopenedSessionHydratorDeps = {
 			getSessionSnapshot: (): Effect.Effect<RpcSessionSnapshot, AppError> =>
 				Effect.fail(new AgentError("acp.getSessionSnapshot", new Error("network down"))),
-			ensureProviderSessionImported: () => Effect.succeed(undefined),
+			ensureProviderSessionImported: () => Effect.void,
 			applySessionStateEnvelope: () => undefined,
 		};
 

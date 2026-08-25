@@ -18,7 +18,10 @@ import { resolve } from "node:path";
 // as every other test in that file already does.
 // 6583 -> 6584: one `new Date()` test-fixture helper added in
 // first-send-activation.test.ts trips effect(globalDate).
-const BASELINE = 6584;
+// 6584 -> 6588: five new `it("...", async () => {})` tests added in
+// reopened-session-hydrator.test.ts trip effect(asyncFunction), same
+// as every other test in that file already does.
+const BASELINE = 6588;
 const PACKAGE_ROOT = resolve(import.meta.dir, "..");
 
 // The pretty formatter (the default, and what lint:effect:report uses) always
