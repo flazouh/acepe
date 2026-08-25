@@ -234,6 +234,13 @@ const requestImportProviderSession = Effect.fn("requestImportProviderSession")(f
 	return yield* exitToEffect(exit);
 });
 
+// QA-only diagnostic counter (acepe#261): proves whether the webview's
+// "events" message listener is ever invoked at all, independent of whether
+// the decoded payload later turns out to be well-formed. Read via
+// qa-dispatch-hook.ts's window.__acepeQaEventsPushReceived.
+let eventsPushReceivedCount = 0;
+export const readEventsPushReceivedCount = (): number => eventsPushReceivedCount;
+
 const listenForEvents = (
 	bridge: ElectrobunRpcBridge,
 	fromSequence: Sequence
@@ -241,6 +248,7 @@ const listenForEvents = (
 	Stream.callback<unknown, RpcClientError>((queue) =>
 		Effect.gen(function* () {
 			const listener = (payload: unknown) => {
+				eventsPushReceivedCount += 1;
 				Queue.offerUnsafe(queue, payload);
 			};
 			yield* Effect.acquireRelease(

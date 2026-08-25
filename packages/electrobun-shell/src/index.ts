@@ -79,3 +79,5 @@ export {
 	injectAcepeShellPingScript,
 	ACEPE_SHELL_INLINE_PING_ATTR,
 } from "./shell-ping-script.ts"
+export { describeJsonSafety } from "./json-safety.ts"
+export type { JsonSafety } from "./json-safety.ts"

@@ -7,12 +7,14 @@ import type {
 import { librarySnapshotRequest, sessionSnapshotRequest } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 import { appRpcClient } from "./app-client.ts";
+import { readEventsPushReceivedCount } from "./client.ts";
 
 declare global {
 	interface Window {
 		__acepeQaDispatch?: (command: OrchestrationCommand) => Promise<RpcDispatchResult>;
 		__acepeQaSessionSnapshot?: (sessionId: string) => Promise<RpcSessionSnapshot>;
 		__acepeQaLibrarySnapshot?: () => Promise<RpcSessionSnapshot>;
+		__acepeQaEventsPushReceived?: () => number;
 	}
 }
 
@@ -44,4 +46,9 @@ export const installQaDispatchHook = (): void => {
 		Effect.runPromise(
 			Effect.flatMap(appRpcClient(), (client) => client.snapshot(librarySnapshotRequest()))
 		);
+	// QA-only diagnostic (acepe#261): the number of "events" bun->webview
+	// pushes the RpcClient's listener has actually received, so a QA script
+	// can compare it against the bun-side "acepe-events-stream: push" log
+	// count to prove whether the transport delivers.
+	window.__acepeQaEventsPushReceived = () => readEventsPushReceivedCount();
 };
