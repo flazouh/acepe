@@ -49,6 +49,46 @@ type PermissionRepliableAdapter = ProviderAdapter & {
 const supportsPermissionReply = (adapter: ProviderAdapter): adapter is PermissionRepliableAdapter =>
 	"respondToPermission" in adapter
 
+// Structural, not nominal, same as respondToPermission above: any adapter can
+// opt into a forceful teardown of every live session's spawned subprocess by
+// exposing shutdown (today only ClaudeAdapter does — see its own shutdown
+// doc for why this is a SIGTERM-then-SIGKILL-equivalent, not a graceful
+// request). This is what stops a `claude` CLI child from surviving app quit:
+// nothing else ever calls an adapter's teardown path once a session neither
+// cancelled nor errored on its own.
+type ShutdownCapableAdapter = ProviderAdapter & {
+	readonly shutdown: Effect.Effect<void>
+}
+
+const supportsShutdown = (adapter: ProviderAdapter): adapter is ShutdownCapableAdapter =>
+	"shutdown" in adapter
+
+// Bounds each adapter's own shutdown so one slow or wedged adapter can never
+// hold up the app's overall teardown (or the other adapters' — they run
+// concurrently) — mirrors ClaudeAdapter's own cancelInterruptTimeout
+// reasoning: a shutdown path a caller can't bound isn't actually a shutdown
+// path.
+const SHUTDOWN_TIMEOUT = Duration.seconds(10)
+
+const shutdownAllAdapters = Effect.fn("ProviderBridge.shutdownAllAdapters")(function*(
+	state: BridgeState
+) {
+	const adapters = yield* state.registry.adapters
+	yield* Effect.forEach(
+		adapters.filter(supportsShutdown),
+		(adapter) =>
+			adapter.shutdown.pipe(
+				Effect.timeout(SHUTDOWN_TIMEOUT),
+				Effect.catchCause((cause) =>
+					Effect.logError(cause.pipe(Cause.pretty)).pipe(
+						Effect.annotateLogs({ providerId: adapter.providerId, stage: "shutdown" })
+					)
+				)
+			),
+		{ discard: true, concurrency: "unbounded" }
+	)
+})
+
 // ProviderBridge is the engine-driven counterpart to HardcodedProvider.ts for
 // SESSIONS THAT PICKED A REAL PROVIDER (session.create carried a providerId
 // the ProviderAdapterRegistry can resolve). It never touches sessions the
@@ -534,6 +574,14 @@ export const makeProviderBridge = Effect.fn("makeProviderBridge")(function*() {
 		failureSeq: yield* Ref.make(0),
 		layerScope
 	}
+
+	// Runs on app quit / the bridge's own layer scope closing — see
+	// shutdownAllAdapters and ClaudeAdapter.ts's shutdown for why this is
+	// what reaps a spawned `claude` subprocess instead of leaving it
+	// orphaned. Registered on layerScope specifically (not the ambient scope
+	// makeProviderBridge happens to run in) so it fires exactly once, when
+	// THIS bridge instance's lifetime actually ends.
+	yield* Effect.addFinalizer(() => shutdownAllAdapters(state))
 
 	yield* Effect.forkIn(
 		engine.streamDomainEvents.pipe(Stream.runForEach((event) => consider(state, event))),
