@@ -2,9 +2,10 @@
 import { Button, LayoutModeIcon, HugeiconsIcon, SegmentedToggleGroup, Selector } from "@acepe/ui";
 import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
-import { AppTopBar } from "@acepe/ui/app-layout";
+import { AppTopBar, AppTopBarActions, type AppTopBarAction } from "@acepe/ui/app-layout";
+import * as Effect from "effect/Effect";
+import { toast } from "svelte-sonner";
 import { openUrl } from "$lib/utils/open-url.js";
-import type { Snippet } from "svelte";
 import { getPanelStore } from "$lib/acp/store/index.js";
 import type { ViewMode } from "$lib/acp/store/types.js";
 import type { MainAppViewState } from "$lib/components/main-app-view/logic/main-app-view-state.svelte.js";
@@ -12,8 +13,6 @@ import { useTheme, type Theme } from "$lib/components/theme/index.js";
 import * as Tooltip from "@acepe/ui/tooltip";
 interface Props {
 	viewState: MainAppViewState;
-	/** Optional snippet for add project/repository button (e.g. dropdown). Rendered in top bar left after decorations. */
-	addProjectButton?: Snippet;
 	onDevSimulateUpdate?: () => void;
 	onDevShowStreamingReproLab?: () => void;
 	onDevResetOnboarding?: () => void;
@@ -22,7 +21,6 @@ interface Props {
 
 let {
 	viewState,
-	addProjectButton,
 	onDevSimulateUpdate,
 	onDevShowStreamingReproLab,
 	onDevResetOnboarding,
@@ -99,15 +97,61 @@ function switchLayoutFamily(nextFamily: LayoutFamily): void {
 
 	panelStore.setViewMode(activeStandardViewMode);
 }
+
+function handleAddRepository(): void {
+	void Effect.runPromise(
+		viewState.handleAddProject().pipe(
+			Effect.catch((error) => {
+				toast.error(error.message);
+				return Effect.void;
+			})
+		)
+	);
+}
+
+// Workspace-wide controls: they used to sit in a sidebar header row, so they
+// stay reachable while the sidebar is collapsed.
+const workspaceActionItems: readonly AppTopBarAction[] = [
+	{
+		id: "add-repository",
+		icon: "folder-add",
+		label: "Add repository",
+		onSelect: handleAddRepository,
+	},
+	{
+		id: "new-chat",
+		icon: "new-chat",
+		label: "New chat",
+		onSelect: () => viewState.handleNewThread(),
+	},
+	{
+		id: "search",
+		icon: "search",
+		label: "Search",
+		onSelect: () => {
+			viewState.commandPaletteOpen = true;
+		},
+	},
+	{
+		id: "file-system",
+		icon: "files",
+		label: "File system",
+		onSelect: () => viewState.openProjectFileSystem(),
+	},
+];
 </script>
+
+{#snippet workspaceActions()}
+	<AppTopBarActions actions={workspaceActionItems} />
+{/snippet}
 
 <AppTopBar
 	windowDraggable
 	showTrafficLights={false}
 	{showSidebarToggle}
 	sidebarOpen={viewState.sidebarOpen}
-	showAddProject={!!addProjectButton}
-	{addProjectButton}
+	showAddProject={false}
+	extraLeftActions={workspaceActions}
 	onToggleSidebar={() => viewState.setSidebarOpen(!viewState.sidebarOpen)}
 	onSettings={() => viewState.toggleSettings()}
 	showAvatar={false}

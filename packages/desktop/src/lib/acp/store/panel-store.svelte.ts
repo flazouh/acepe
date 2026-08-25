@@ -1460,7 +1460,7 @@ export class PanelStore {
 
 	openProjectFileSystemDialog(
 		projectPath: string,
-		filePath: string,
+		filePath: string | null,
 		options: OpenProjectFileSystemDialogOptions = {}
 	): ProjectFileSystemDialogState {
 		const dialog = {

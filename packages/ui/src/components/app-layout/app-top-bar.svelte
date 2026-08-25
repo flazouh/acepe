@@ -23,7 +23,7 @@ interface Props {
 	onSettings?: () => void;
 	/** Override the add-project button (e.g. desktop wraps in a dropdown) */
 	addProjectButton?: Snippet;
-	/** Extra actions rendered after sidebar/add-project on the left */
+	/** Extra actions rendered after sidebar/add-project, inside the same left rail */
 	extraLeftActions?: Snippet;
 	/** Extra actions rendered before settings (e.g. discord, theme toggle) */
 	extraRightActions?: Snippet;
@@ -118,12 +118,10 @@ const noDragRegionClass = $derived(windowDraggable ? NO_DRAG_REGION_CLASS : "");
 					</Button>
 				{/if}
 			{/if}
-		</div>
-		{#if extraLeftActions}
-			<div class="flex items-center {noDragRegionClass}">
+			{#if extraLeftActions}
 				{@render extraLeftActions()}
-			</div>
-		{/if}
+			{/if}
+		</div>
 	</div>
 	<div class="flex-1 flex justify-center">
 		{#if showSearch}

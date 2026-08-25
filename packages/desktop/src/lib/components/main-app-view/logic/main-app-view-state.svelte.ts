@@ -34,6 +34,7 @@ import { type IssueReportDraft, openIssueReportDraft } from "$lib/errors/issue-r
 import type { KeybindingsService } from "$lib/keybindings/service.svelte.js";
 import type { MainAppViewError } from "../errors/main-app-view-error.js";
 import type { CreateSessionOptions } from "../types/create-session-options.js";
+import { resolveCurrentProjectPath } from "./current-project-path.js";
 import {
 	InitializationManager,
 	type StartupPerformanceTraceEntry,
@@ -594,6 +595,23 @@ export class MainAppViewState {
 	 */
 	handleAddProject(): Effect.Effect<void, MainAppViewError> {
 		return this.projectHandler.addProject();
+	}
+
+	/**
+	 * Opens the project file system browser on the project the user works in.
+	 * Does nothing while no project exists.
+	 */
+	openProjectFileSystem(): void {
+		const projectPath = resolveCurrentProjectPath({
+			focusedViewProjectPath: this.panelStore.focusedViewProjectPath,
+			focusedPanelProjectPath: this.panelStore.focusedTopLevelPanel?.projectPath ?? null,
+			firstProjectPath: this.projectManager.projects[0]?.path ?? null,
+		});
+		if (projectPath === null) {
+			return;
+		}
+
+		this.panelStore.openProjectFileSystemDialog(projectPath, null);
 	}
 
 	// ============================================

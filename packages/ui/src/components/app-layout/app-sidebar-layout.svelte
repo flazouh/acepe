@@ -1,30 +1,31 @@
 <script lang="ts">
-	import type { Snippet } from "svelte";
-	import { HugeiconsIcon } from "../icons/index.js";
+import type { Snippet } from "svelte";
+import { HugeiconsIcon } from "../icons/index.js";
 
 interface Props {
-		appVersion?: string | null;
-		whatsNewLabel?: string;
-		onOpenChangelog?: () => void;
-		topNav?: Snippet;
-		sessionList: Snippet;
-		footer?: Snippet;
-	}
+	appVersion?: string | null;
+	whatsNewLabel?: string;
+	onOpenChangelog?: () => void;
+	topNav?: Snippet;
+	sessionList: Snippet;
+	footer?: Snippet;
+}
 
-	let {
-		appVersion = null,
-		whatsNewLabel = "What's New",
-		onOpenChangelog,
-		topNav,
-		sessionList,
-		footer,
-	}: Props = $props();
+let {
+	appVersion = null,
+	whatsNewLabel = "What's New",
+	onOpenChangelog,
+	topNav,
+	sessionList,
+	footer,
+}: Props = $props();
 </script>
 
 <aside
-	class="shrink-0 flex w-[280px] flex-col h-full overflow-hidden gap-0 rounded-lg border border-border/50 bg-card/75"
+	class="shrink-0 flex w-[280px] flex-col h-full overflow-hidden gap-0"
+	data-testid="app-sidebar"
 >
-	<!-- Top nav (New chat / Search) -->
+	<!-- Optional header row; the desktop shell keeps its actions in the top bar -->
 	{#if topNav}
 		<div class="shrink-0">
 			{@render topNav()}

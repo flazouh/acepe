@@ -123,6 +123,7 @@ function createState(options?: {
 		getFirstTopLevelPanel: vi.fn(() => agentPanel),
 		getPanel: vi.fn((panelId: string) => (panelId === "panel-1" ? { id: "panel-1" } : undefined)),
 		panels: [agentPanel],
+		openProjectFileSystemDialog: vi.fn(),
 	} as Partial<PanelStore>;
 
 	const projectManager = {
@@ -219,6 +220,35 @@ describe("MainAppViewState", () => {
 		expect(panelStore.focusPanel).toHaveBeenCalledWith("terminal-1");
 		expect(panelStore.setViewMode).toHaveBeenCalledWith("single");
 		expect(panelStore.viewMode).toBe("single");
+	});
+
+	it("opens the file system browser on the focused project", () => {
+		const { state, panelStore } = createState({
+			focusedViewProjectPath: "/repo/viewed",
+			projects: [createProject("/repo/first", "First")],
+		});
+
+		state.openProjectFileSystem();
+
+		expect(panelStore.openProjectFileSystemDialog).toHaveBeenCalledWith("/repo/viewed", null);
+	});
+
+	it("falls back to the first project when nothing is focused", () => {
+		const { state, panelStore } = createState({
+			projects: [createProject("/repo/first", "First")],
+		});
+
+		state.openProjectFileSystem();
+
+		expect(panelStore.openProjectFileSystemDialog).toHaveBeenCalledWith("/repo/first", null);
+	});
+
+	it("does not open the file system browser without a project", () => {
+		const { state, panelStore } = createState();
+
+		state.openProjectFileSystem();
+
+		expect(panelStore.openProjectFileSystemDialog).not.toHaveBeenCalled();
 	});
 
 	it("persists an unselected panel agent so install-on-send agents stay visible", () => {

@@ -926,8 +926,9 @@ function installQaSessionListSnapshotHook(): void {
 	if (!QA_HOOKS_ENABLED) {
 		return;
 	}
-	(window as MainAppQaWindow & { __acepeQaSessionListSnapshot?: typeof qaSessionListSnapshot })
-		.__acepeQaSessionListSnapshot = qaSessionListSnapshot;
+	(
+		window as MainAppQaWindow & { __acepeQaSessionListSnapshot?: typeof qaSessionListSnapshot }
+	).__acepeQaSessionListSnapshot = qaSessionListSnapshot;
 }
 
 // QA-only: run the disk-history scan for the given paths and surface the
@@ -962,8 +963,9 @@ function installQaStartupTraceHook(): void {
 	if (!QA_HOOKS_ENABLED) {
 		return;
 	}
-	(window as MainAppQaWindow & { __acepeQaStartupTrace?: typeof qaStartupTrace })
-		.__acepeQaStartupTrace = qaStartupTrace;
+	(
+		window as MainAppQaWindow & { __acepeQaStartupTrace?: typeof qaStartupTrace }
+	).__acepeQaStartupTrace = qaStartupTrace;
 }
 
 function uninstallQaSpawnAgentPanelHook(): void {
@@ -2103,6 +2105,10 @@ onDestroy(() => {
 				projectIconSrc={getProjectDialogIconSrc(dialogTarget)}
 				title={dialogTarget.title}
 				initialFilePath={dialogTarget.filePath}
+				recentProjects={projectManager.projects}
+				onProjectChange={(project) => {
+					panelStore.openProjectFileSystemDialog(project.path, null);
+				}}
 				onClose={() => {
 					panelStore.closeProjectFileSystemDialog();
 				}}

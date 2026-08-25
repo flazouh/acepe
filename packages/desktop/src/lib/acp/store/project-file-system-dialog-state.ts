@@ -1,7 +1,8 @@
 export type ProjectFileSystemDialogState = {
 	id: string;
 	projectPath: string;
-	filePath: string;
+	/** Null when the dialog opens on the project tree with no file selected. */
+	filePath: string | null;
 	projectName: string | null;
 	projectColor: string | null;
 	projectIconSrc: string | null;
