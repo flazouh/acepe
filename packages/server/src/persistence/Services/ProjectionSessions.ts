@@ -205,7 +205,7 @@ const projectSessionCreated = (
 				sessionId: payload.sessionId,
 				projectId: payload.projectId,
 				title: resolveStoredTitle(payload.title),
-				provider: null,
+				provider: payload.providerId ?? null,
 				createdAt: event.occurredAt,
 				updatedAt: event.occurredAt,
 				lastActivityAt: event.occurredAt,

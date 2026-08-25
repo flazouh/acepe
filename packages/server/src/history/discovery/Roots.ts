@@ -1,5 +1,6 @@
 import * as Config from "effect/Config"
 import * as Effect from "effect/Effect"
+import type * as FileSystem from "effect/FileSystem"
 import * as Option from "effect/Option"
 import * as Path from "effect/Path"
 
@@ -40,6 +41,31 @@ export const claudeProjectsRoot = Effect.fn("claudeProjectsRoot")(function*() {
  * `/Users/example/.acepe/worktrees/foo` -> `-Users-example--acepe-worktrees-foo`.
  */
 export const pathToSlug = (projectPath: string): string => projectPath.replaceAll(/[/.]/g, "-")
+
+/**
+ * Slugs a registered project path for matching against Claude Code's own
+ * on-disk project directories. Claude Code slugs the realpath it observed
+ * when a session started, not whatever path the caller passed it -- on
+ * macOS, `/tmp` is a symlink to `/private/tmp`, so a project registered as
+ * `/tmp/acepe` slugs differently from the `/private/tmp/acepe` directory
+ * Claude actually wrote history under, and a literal `pathToSlug` on the
+ * registered path never finds it.
+ *
+ * Resolves `projectPath` through `fs.realPath` first so both spellings slug
+ * identically, and falls back to the path as given when realpath fails (the
+ * workspace root was removed, permissions, no such path yet, ...) --
+ * discovery already treats a slug directory that does not exist as the
+ * normal "no history yet" case, not an error, and a path with no symlink
+ * component round-trips through realpath unchanged, so this never changes
+ * matching for the common non-symlinked case.
+ */
+export const claudeProjectSlug = Effect.fn("claudeProjectSlug")(function*(
+	fs: FileSystem.FileSystem,
+	projectPath: string
+) {
+	const resolved = yield* fs.realPath(projectPath).pipe(Effect.option)
+	return pathToSlug(Option.getOrElse(resolved, () => projectPath))
+})
 
 /**
  * Reverse of `pathToSlug`, ported from `text_utils.rs::extract_project_path`.

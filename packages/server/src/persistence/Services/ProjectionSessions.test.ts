@@ -220,6 +220,22 @@ Vitest.describe("evolveProjectedSession", () => {
 		})
 	)
 
+	Vitest.it.effect("carries the providerId from SessionCreated into the row", () =>
+		Effect.gen(function*() {
+			const row = requireSession(
+				yield* fold([
+					sessionEvent(1, "SessionCreated", NOW, {
+						sessionId,
+						projectId,
+						title: "First session",
+						providerId: "claude-code"
+					})
+				])
+			)
+			Vitest.assert.strictEqual(row.provider, "claude-code")
+		})
+	)
+
 	Vitest.it.effect("strips artifacts from the created title", () =>
 		Effect.gen(function*() {
 			const row = requireSession(
