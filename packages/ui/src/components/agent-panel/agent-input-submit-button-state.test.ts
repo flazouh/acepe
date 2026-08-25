@@ -9,11 +9,9 @@ import {
 const tooltipCopy = {
 	stopLabel: "Stop",
 	steerLabel: "Steer",
-	steerDescription: "Interrupts now and redirects the agent immediately.",
-	steerShortcut: "Enter",
+	steerShortcut: ["Enter"],
 	queueLabel: "Queue",
-	queueDescription: "Runs after the agent finishes its current turn.",
-	queueShortcut: "⌘Enter",
+	queueShortcut: ["⌘", "Enter"],
 };
 
 describe("agent input submit button state", () => {
@@ -26,17 +24,15 @@ describe("agent input submit button state", () => {
 		expect(getSubmitButtonIconName("steer")).toBe("arrow-up-02");
 	});
 
-	it("explains steer and queue shortcuts on the send tooltip", () => {
+	it("lists steer and queue labels with key tokens", () => {
 		expect(getSubmitButtonTooltipRows("send", tooltipCopy)).toEqual([
 			{
 				label: "Steer",
-				description: "Interrupts now and redirects the agent immediately.",
-				shortcut: "Enter",
+				shortcut: ["Enter"],
 			},
 			{
 				label: "Queue",
-				description: "Runs after the agent finishes its current turn.",
-				shortcut: "⌘Enter",
+				shortcut: ["⌘", "Enter"],
 			},
 		]);
 	});
@@ -45,17 +41,14 @@ describe("agent input submit button state", () => {
 		expect(getSubmitButtonTooltipRows("stop", tooltipCopy)).toEqual([
 			{
 				label: "Stop",
-				description: "",
-				shortcut: "",
+				shortcut: [],
 			},
 		]);
 	});
 
-	it("joins steer and queue copy into one accessible description", () => {
+	it("joins labels and keys into one accessible description", () => {
 		expect(
 			getSubmitButtonAccessibleDescription(getSubmitButtonTooltipRows("send", tooltipCopy))
-		).toBe(
-			"Steer: Interrupts now and redirects the agent immediately. Enter Queue: Runs after the agent finishes its current turn. ⌘Enter"
-		);
+		).toBe("Steer Enter Queue ⌘ Enter");
 	});
 });

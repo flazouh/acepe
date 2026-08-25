@@ -7,6 +7,7 @@ import {
 } from "./agent-input-submit-button-state.js";
 import { agentInputSubmitButtonClass } from "./agent-input-submit-button-variants.js";
 import { HugeiconsIcon } from "../icons/index.js";
+import { Kbd, KbdGroup } from "../kbd/index.js";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../tooltip/index.js";
 
 interface Props {
@@ -16,11 +17,9 @@ interface Props {
 	onSubmit?: () => void;
 	stopLabel?: string;
 	enterQueueLabel?: string;
-	enterQueueDescription?: string;
-	enterQueueShortcut?: string;
+	enterQueueShortcut?: readonly string[];
 	enterSteerLabel?: string;
-	enterSteerDescription?: string;
-	enterSteerShortcut?: string;
+	enterSteerShortcut?: readonly string[];
 }
 
 let {
@@ -30,11 +29,9 @@ let {
 	onSubmit,
 	stopLabel = "Stop",
 	enterQueueLabel = "Queue",
-	enterQueueDescription = "Runs after the agent finishes its current turn.",
-	enterQueueShortcut = "⌘Enter",
+	enterQueueShortcut = ["⌘", "Enter"],
 	enterSteerLabel = "Steer",
-	enterSteerDescription = "Interrupts now and redirects the agent immediately.",
-	enterSteerShortcut = "Enter",
+	enterSteerShortcut = ["Enter"],
 }: Props = $props();
 
 const iconName = $derived(getSubmitButtonIconName(intent));
@@ -42,10 +39,8 @@ const tooltipRows = $derived(
 	getSubmitButtonTooltipRows(intent, {
 		stopLabel,
 		steerLabel: enterSteerLabel,
-		steerDescription: enterSteerDescription,
 		steerShortcut: enterSteerShortcut,
 		queueLabel: enterQueueLabel,
-		queueDescription: enterQueueDescription,
 		queueShortcut: enterQueueShortcut,
 	})
 );
@@ -93,20 +88,17 @@ const tooltipDescription = $derived(getSubmitButtonAccessibleDescription(tooltip
 			{/if}
 		{/snippet}
 	</TooltipTrigger>
-	<TooltipContent side="top" class="max-w-xs">
+	<TooltipContent side="top">
 		<div class="flex flex-col gap-1.5">
 			{#each tooltipRows as row (row.label)}
-				<div class="flex flex-col gap-0.5">
-					<div class="flex items-center justify-between gap-3">
-						<span class="font-medium">{row.label}</span>
-						{#if row.shortcut}
-							<span class="text-[11px] font-normal text-muted-foreground">{row.shortcut}</span>
-						{/if}
-					</div>
-					{#if row.description}
-						<span class="text-[11px] font-normal leading-snug text-muted-foreground">
-							{row.description}
-						</span>
+				<div class="flex items-center justify-between gap-3">
+					<span class="font-medium">{row.label}</span>
+					{#if row.shortcut.length > 0}
+						<KbdGroup>
+							{#each row.shortcut as key, index (key + String(index))}
+								<Kbd>{key}</Kbd>
+							{/each}
+						</KbdGroup>
 					{/if}
 				</div>
 			{/each}

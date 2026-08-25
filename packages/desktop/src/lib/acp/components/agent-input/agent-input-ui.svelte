@@ -3,7 +3,7 @@ import { onDestroy, onMount } from "svelte";
 import { toast } from "svelte-sonner";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
-import { getKeybindingsService, isMac } from "$lib/keybindings/index.js";
+import { formatKeyStringToArray, getKeybindingsService, isMac } from "$lib/keybindings/index.js";
 import { getPreconnectionAgentSkillsStore } from "$lib/skills/store/preconnection-agent-skills-store.svelte.js";
 import { getVoiceSettingsStore } from "$lib/stores/voice-settings-store.svelte.js";
 import type {
@@ -96,6 +96,10 @@ if (props.panelId) {
 }
 const logger = createLogger({ id: "agent-input-send-trace", name: "AgentInputSendTrace" });
 const kb = getKeybindingsService();
+const enterSteerShortcut = $derived(formatKeyStringToArray("Enter"));
+const enterQueueShortcut = $derived(
+	kb.getShortcutArray("input.submit") ?? formatKeyStringToArray("$mod+Enter")
+);
 
 function isAgentInputTraceEnabled(): boolean {
 	return (
@@ -1794,11 +1798,9 @@ $effect(() => {
 					primarySrSend={"Send message"}
 					primarySrInterrupt={"Interrupt"}
 					enterQueueLabel={"Queue"}
-					enterQueueDescription={"Runs after the agent finishes its current turn."}
-					enterQueueShortcut={isMac() ? "⌘Enter" : "Ctrl+Enter"}
+					enterQueueShortcut={enterQueueShortcut}
 					enterSteerLabel={"Steer"}
-					enterSteerDescription={"Interrupts now and redirects the agent immediately."}
-					enterSteerShortcut={"Enter"}
+					enterSteerShortcut={enterSteerShortcut}
 				>
 						{#snippet leadingControls()}
 							{#if secondaryComposerChromeReady}

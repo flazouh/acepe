@@ -124,11 +124,9 @@ describe("AgentInputComposerRow", () => {
 				placeholder: "Ask the agent",
 				submitAriaLabel: "Send message",
 				enterSteerLabel: "Steer",
-				enterSteerDescription: "Interrupts now and redirects the agent immediately.",
 				enterQueueLabel: "Queue",
-				enterQueueDescription: "Runs after the agent finishes its current turn.",
-				enterSteerShortcut: "Enter",
-				enterQueueShortcut: "⌘Enter",
+				enterSteerShortcut: ["Enter"],
+				enterQueueShortcut: ["⌘", "Enter"],
 			},
 		});
 
@@ -137,26 +135,24 @@ describe("AgentInputComposerRow", () => {
 		expect(screen.getByRole("button", { name: "Send message" })).toBeTruthy();
 	});
 
-	it("explains steer versus queue on the submit button", () => {
+	it("names steer and queue on the submit button without descriptions", () => {
 		render(AgentInputComposerRow, {
 			props: {
 				placeholder: "Ask the agent",
 				submitAriaLabel: "Send message",
 				enterSteerLabel: "Steer",
-				enterSteerDescription: "Interrupts now and redirects the agent immediately.",
 				enterQueueLabel: "Queue",
-				enterQueueDescription: "Runs after the agent finishes its current turn.",
-				enterSteerShortcut: "Enter",
-				enterQueueShortcut: "⌘Enter",
+				enterSteerShortcut: ["Enter"],
+				enterQueueShortcut: ["⌘", "Enter"],
 			},
 		});
 
 		const button = screen.getByRole("button", { name: "Send message" });
-		expect(button.textContent).toContain("Steer:");
-		expect(button.textContent).toContain("Interrupts now and redirects the agent immediately.");
+		expect(button.textContent).toContain("Steer");
 		expect(button.textContent).toContain("Enter");
-		expect(button.textContent).toContain("Queue:");
-		expect(button.textContent).toContain("Runs after the agent finishes its current turn.");
-		expect(button.textContent).toContain("⌘Enter");
+		expect(button.textContent).toContain("Queue");
+		expect(button.textContent).toContain("⌘");
+		expect(button.textContent).not.toContain("Interrupts now");
+		expect(button.textContent).not.toContain("Runs after the agent");
 	});
 });

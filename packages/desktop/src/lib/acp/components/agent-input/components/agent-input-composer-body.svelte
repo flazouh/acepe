@@ -58,10 +58,8 @@ let {
 	primarySrSend,
 	primarySrInterrupt,
 	enterQueueLabel,
-	enterQueueDescription,
 	enterQueueShortcut,
 	enterSteerLabel,
-	enterSteerDescription,
 	enterSteerShortcut,
 	leadingControls,
 	trailingControls,
@@ -109,11 +107,9 @@ let {
 	primarySrSend: string;
 	primarySrInterrupt: string;
 	enterQueueLabel: string;
-	enterQueueDescription: string;
-	enterQueueShortcut: string;
+	enterQueueShortcut: readonly string[];
 	enterSteerLabel: string;
-	enterSteerDescription: string;
-	enterSteerShortcut: string;
+	enterSteerShortcut: readonly string[];
 	leadingControls?: Snippet;
 	trailingControls?: Snippet;
 } = $props();
@@ -150,10 +146,8 @@ const submitAriaLabel = $derived.by((): string => {
 		submitAriaLabel={submitAriaLabel}
 		onSubmit={onPrimaryButtonClick}
 		{enterQueueLabel}
-		{enterQueueDescription}
 		{enterQueueShortcut}
 		{enterSteerLabel}
-		{enterSteerDescription}
 		{enterSteerShortcut}
 		stopLabel={primarySrInterrupt}
 		onbeforeinput={onEditorBeforeInput}

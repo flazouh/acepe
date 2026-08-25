@@ -17,11 +17,9 @@ interface Props {
 	submitAriaLabel?: string;
 	onSubmit?: () => void;
 	enterQueueLabel?: string;
-	enterQueueDescription?: string;
-	enterQueueShortcut?: string;
+	enterQueueShortcut?: readonly string[];
 	enterSteerLabel?: string;
-	enterSteerDescription?: string;
-	enterSteerShortcut?: string;
+	enterSteerShortcut?: readonly string[];
 	stopLabel?: string;
 	onbeforeinput?: (event: InputEvent) => void;
 	oninput?: (event: Event) => void;
@@ -49,11 +47,9 @@ let {
 	submitAriaLabel = "Send message",
 	onSubmit,
 	enterQueueLabel = "Queue",
-	enterQueueDescription = "Runs after the agent finishes its current turn.",
-	enterQueueShortcut = "⌘Enter",
+	enterQueueShortcut = ["⌘", "Enter"],
 	enterSteerLabel = "Steer",
-	enterSteerDescription = "Interrupts now and redirects the agent immediately.",
-	enterSteerShortcut = "Enter",
+	enterSteerShortcut = ["Enter"],
 	stopLabel = "Stop",
 	onbeforeinput,
 	oninput,
@@ -128,10 +124,8 @@ let {
 				ariaLabel={submitAriaLabel}
 				onSubmit={onSubmit}
 				{enterQueueLabel}
-				{enterQueueDescription}
 				{enterQueueShortcut}
 				{enterSteerLabel}
-				{enterSteerDescription}
 				{enterSteerShortcut}
 				{stopLabel}
 			/>

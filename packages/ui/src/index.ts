@@ -536,6 +536,7 @@ export {
 	type SessionPrLinkPickerRepoContext,
 } from "./components/session-pr-link/index.js";
 export { TextShimmer } from "./components/text-shimmer/index.js";
+export { Kbd, KbdGroup } from "./components/kbd/index.js";
 export {
 	Tooltip,
 	TooltipContent,

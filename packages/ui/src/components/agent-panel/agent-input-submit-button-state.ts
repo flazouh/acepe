@@ -2,18 +2,15 @@ export type AgentInputSubmitIntent = "send" | "steer" | "stop";
 
 export interface AgentInputSubmitTooltipRow {
 	readonly label: string;
-	readonly description: string;
-	readonly shortcut: string;
+	readonly shortcut: readonly string[];
 }
 
 export interface AgentInputSubmitTooltipCopy {
 	readonly stopLabel: string;
 	readonly steerLabel: string;
-	readonly steerDescription: string;
-	readonly steerShortcut: string;
+	readonly steerShortcut: readonly string[];
 	readonly queueLabel: string;
-	readonly queueDescription: string;
-	readonly queueShortcut: string;
+	readonly queueShortcut: readonly string[];
 }
 
 export function getSubmitButtonIconName(
@@ -33,8 +30,7 @@ export function getSubmitButtonTooltipRows(
 		return [
 			{
 				label: copy.stopLabel,
-				description: "",
-				shortcut: "",
+				shortcut: [],
 			},
 		];
 	}
@@ -42,12 +38,10 @@ export function getSubmitButtonTooltipRows(
 	return [
 		{
 			label: copy.steerLabel,
-			description: copy.steerDescription,
 			shortcut: copy.steerShortcut,
 		},
 		{
 			label: copy.queueLabel,
-			description: copy.queueDescription,
 			shortcut: copy.queueShortcut,
 		},
 	];
@@ -58,11 +52,8 @@ export function getSubmitButtonAccessibleDescription(
 ): string {
 	return rows
 		.map((row) => {
-			if (row.shortcut.length > 0 && row.description.length > 0) {
-				return `${row.label}: ${row.description} ${row.shortcut}`;
-			}
 			if (row.shortcut.length > 0) {
-				return `${row.label} ${row.shortcut}`;
+				return `${row.label} ${row.shortcut.join(" ")}`;
 			}
 			return row.label;
 		})
