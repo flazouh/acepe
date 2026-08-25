@@ -52,8 +52,8 @@ describe("AgentUserMessage", () => {
 		expect(queryByTestId("agent-user-message-card")).toBeNull();
 	});
 
-	it("keeps plain text in a borderless tool-like shell with header timestamp and copy", () => {
-		const { getByTestId, container } = render(AgentUserMessage, {
+	it("keeps the message surface and assistant-style hover meta outside it", () => {
+		const { getByTestId, queryByTestId, container } = render(AgentUserMessage, {
 			props: {
 				text: "hello",
 				chunks: [{ kind: "text", text: "hello" }],
@@ -62,13 +62,21 @@ describe("AgentUserMessage", () => {
 		});
 
 		const surface = getByTestId("agent-user-message-card");
-		expect(surface.className).toContain("rounded-lg");
-		expect(surface.className).toContain("overflow-hidden");
+		const copyRow = getByTestId("agent-user-message-copy");
+		const meta = copyRow.querySelector('[data-slot="button-group"]');
 		expect(surface.className).toContain("bg-input/50");
-		expect(surface.className).not.toContain("border");
+		expect(surface.className).toContain("rounded-lg");
+		expect(surface.contains(copyRow)).toBe(false);
 		expect(surface.textContent).toContain("hello");
 		expect(surface.textContent).not.toContain("You");
-		expect(getByTestId("agent-user-message-timestamp")).toBeTruthy();
+		expect(queryByTestId("agent-user-message-timestamp")).toBeNull();
+		expect(copyRow.className).toContain("justify-end");
+		expect(copyRow.className).toContain("pt-1");
+		expect(copyRow.className).toContain("opacity-0");
+		expect(copyRow.className).toContain("group-hover/user-message:opacity-100");
+		expect(copyRow.className).toContain("group-focus-within/user-message:opacity-100");
+		expect(meta?.className).toContain("bg-secondary");
+		expect(meta?.className).toContain("rounded-md");
 		expect(container.querySelector("[data-testid='agent-copy-button-linear-copy-icon']")).toBeTruthy();
 		expect(container.querySelector(".agent-tool-card")).toBeNull();
 	});

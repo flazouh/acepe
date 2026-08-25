@@ -4,7 +4,7 @@
 	import { CommandChip } from "../command-chip/index.js";
 	import { RichTokenText } from "../rich-token-text/index.js";
 	import { UserMessageContainer } from "../user-message-container/index.js";
-	import AgentCopyButton from "./agent-copy-button.svelte";
+	import AgentMessageMeta from "./agent-message-meta.svelte";
 
 	interface Props {
 		text: string;
@@ -29,28 +29,14 @@
 	const hasTextChunks = $derived(textChunks.length > 0);
 	const isOnlyCommandOutput = $derived(hasCommandChunks && !hasTextChunks);
 
-	const timestampDate = $derived.by(() => {
-		if (timestampMs == null || Number.isNaN(timestampMs)) return null;
-		return new Date(timestampMs);
-	});
-	const timestampLabel = $derived.by(() => {
-		if (timestampDate == null) return null;
-		return timestampDate.toLocaleTimeString("en-US", {
-			hour: "2-digit",
-			minute: "2-digit",
-			hour12: false,
-		});
-	});
-	const timestampTitle = $derived.by(() => {
-		if (timestampDate == null) return undefined;
-		return timestampDate.toLocaleString();
-	});
 	const copyText = $derived.by(() => {
 		if (hasTextChunks) {
 			return textChunks.map((chunk) => chunk.text).join("\n");
 		}
 		return text;
 	});
+	const copyRowClass =
+		"flex justify-end pt-1 opacity-0 transition-opacity duration-150 group-hover/user-message:opacity-100 group-focus-within/user-message:opacity-100";
 </script>
 
 <div class="group/user-message flex w-full min-w-0 flex-col gap-1.5">
@@ -64,38 +50,23 @@
 
 	{#if hasTextChunks}
 		<UserMessageContainer class="w-full" dataTestid="agent-user-message-card">
-			{#snippet header()}
-				{@render messageHeader()}
-			{/snippet}
 			<div class="flex flex-col gap-1.5">
 				{#each textChunks as chunk, index (`${index}:${chunk.text}`)}
 					<RichTokenText text={chunk.text} {onTokenClick} class="text-foreground" />
 				{/each}
 			</div>
 		</UserMessageContainer>
+		{@render messageCopy()}
 	{:else if !isOnlyCommandOutput}
 		<UserMessageContainer class="w-full" dataTestid="agent-user-message-card">
-			{#snippet header()}
-				{@render messageHeader()}
-			{/snippet}
 			<RichTokenText {text} {onTokenClick} class="text-foreground" />
 		</UserMessageContainer>
+		{@render messageCopy()}
 	{/if}
 </div>
 
-{#snippet messageHeader()}
-	{#if timestampLabel}
-		<span
-			class="min-w-0 truncate font-sans text-xs tabular-nums text-muted-foreground"
-			title={timestampTitle}
-			data-testid="agent-user-message-timestamp"
-		>
-			{timestampLabel}
-		</span>
-	{:else}
-		<span class="min-w-0 flex-1"></span>
-	{/if}
-	<div class="ml-auto flex shrink-0 items-center gap-1">
-		<AgentCopyButton text={copyText} size="header" class="text-muted-foreground" />
+{#snippet messageCopy()}
+	<div class={copyRowClass} data-testid="agent-user-message-copy">
+		<AgentMessageMeta text={copyText} {timestampMs} variant="user" />
 	</div>
 {/snippet}
