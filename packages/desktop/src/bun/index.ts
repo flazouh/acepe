@@ -2,6 +2,7 @@ import { appendFileSync, existsSync, writeFileSync } from "node:fs";
 import {
 	acepeShellPingScript,
 	applyNativeWrapperCwdOrExit,
+	describeJsonSafety,
 	joinPathSegments,
 	qaSurfaceEnabled,
 	RPC_ROUNDTRIP_MESSAGE,
@@ -140,7 +141,13 @@ launched.attach({
 		writeLine(`acepe-events-stream: requested ${JSON.stringify(params).slice(0, 80)}`);
 		runtime.runFork(
 			pushEvents(params, (payload) => {
-				writeLine("acepe-events-stream: push");
+				// acepe#261 diagnostic: prove the payload handed to sendEvents is
+				// JSON-safe (both electrobun transport fallbacks silently drop
+				// anything JSON.stringify can't serialize) before it leaves bun.
+				const { jsonSafe, jsonLength } = describeJsonSafety(payload);
+				writeLine(
+					`acepe-events-stream: push type=${typeof payload} jsonSafe=${jsonSafe} jsonLength=${jsonLength}`
+				);
 				launched.sendEvents(payload);
 			})
 		);

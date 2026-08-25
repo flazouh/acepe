@@ -20,7 +20,11 @@ import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Stream from "effect/Stream";
 
-import { type ElectrobunRpcBridge, makeElectrobunRpcTransport } from "./client.js";
+import {
+	type ElectrobunRpcBridge,
+	makeElectrobunRpcTransport,
+	readEventsPushReceivedCount,
+} from "./client.js";
 
 const commandId = CommandId.make("cmd-1");
 const projectId = ProjectId.make("project-1");
@@ -334,6 +338,31 @@ describe("makeElectrobunRpcTransport", () => {
 				expect(requested).toEqual([{ fromSequence: 0 }]);
 				expect(events[0]?.type).toBe("ProjectCreated");
 				expect(events[0]?.sequence).toBe(1);
+			})
+		));
+
+	// acepe#261 diagnostic: readEventsPushReceivedCount is the QA-visible
+	// counter (window.__acepeQaEventsPushReceived) proving the webview's
+	// "events" listener actually fires. It must advance exactly once per
+	// message the bridge's addMessageListener hands to the stream's own
+	// listener callback -- the same seam a real bun push arrives through.
+	it("increments the events-push-received counter once per delivered message", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				const encodedEvent = yield* encodeOrchestrationEvent(projectCreated);
+				const bridge = makeBridge({
+					events: () => {
+						queueMicrotask(() => {
+							bridge.emitEvents(encodedEvent);
+							bridge.emitEvents(encodedEvent);
+						});
+						return Promise.resolve(undefined);
+					},
+				});
+				const transport = makeElectrobunRpcTransport(bridge);
+				const before = readEventsPushReceivedCount();
+				yield* Stream.take(transport.events(0), 2).pipe(Stream.runCollect);
+				expect(readEventsPushReceivedCount() - before).toBe(2);
 			})
 		));
 });
