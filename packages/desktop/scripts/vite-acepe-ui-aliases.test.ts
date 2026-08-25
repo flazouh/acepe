@@ -10,14 +10,14 @@ describe("buildAcepeUiResolveAliases", () => {
 	it("maps @acepe/ui and subpath exports to absolute paths under packages/ui/src", () => {
 		const aliases = buildAcepeUiResolveAliases(uiPackageRoot);
 		const rootAlias = aliases.find((entry) => entry.find === "@acepe/ui");
-		const usageWidgetAlias = aliases.find((entry) => entry.find === "@acepe/ui/usage-widget");
+		const separatorAlias = aliases.find((entry) => entry.find === "@acepe/ui/separator");
 
 		expect(rootAlias).toBeDefined();
 		expect(rootAlias?.replacement).toBe(join(uiPackageRoot, "src/index.ts"));
 
-		expect(usageWidgetAlias).toBeDefined();
-		expect(usageWidgetAlias?.replacement).toBe(
-			join(uiPackageRoot, "src/components/usage-widget/index.ts")
+		expect(separatorAlias).toBeDefined();
+		expect(separatorAlias?.replacement).toBe(
+			join(uiPackageRoot, "src/components/separator/index.ts")
 		);
 	});
 
@@ -32,11 +32,11 @@ describe("buildAcepeUiResolveAliases", () => {
 	it("sorts aliases longest-key-first so subpaths win over the root entry", () => {
 		const aliases = buildAcepeUiResolveAliases(uiPackageRoot);
 		const rootIndex = aliases.findIndex((entry) => entry.find === "@acepe/ui");
-		const usageWidgetIndex = aliases.findIndex((entry) => entry.find === "@acepe/ui/usage-widget");
+		const separatorIndex = aliases.findIndex((entry) => entry.find === "@acepe/ui/separator");
 
 		expect(rootIndex).toBeGreaterThanOrEqual(0);
-		expect(usageWidgetIndex).toBeGreaterThanOrEqual(0);
-		expect(usageWidgetIndex).toBeLessThan(rootIndex);
+		expect(separatorIndex).toBeGreaterThanOrEqual(0);
+		expect(separatorIndex).toBeLessThan(rootIndex);
 	});
 
 	it("produces one alias per package.json export key", () => {

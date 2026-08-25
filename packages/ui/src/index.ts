@@ -95,7 +95,6 @@ export {
 	AgentInputSlashCommandDropdown,
 	AgentInputPastedTextOverlay,
 	AgentInputToolbar,
-	AgentInputVoiceModelMenu,
 	AgentInputVoiceRecordingOverlay,
 	AgentPanel,
 	AgentAttachedFilePane,
@@ -229,19 +228,6 @@ export {
 	type Props as ButtonPropsAlias,
 	Root as ButtonRoot,
 } from "./components/button/index.js";
-export { UsageLimitWidget } from "./components/usage-widget/index.js";
-export type {
-	UsageBadgeLine,
-	UsageMetricLine,
-	UsageMetricTone,
-	UsageProgressLine,
-	UsageProvider,
-	UsageProviderState,
-	UsageTextLine,
-	UsageWidgetCopy,
-	UsageWidgetModel,
-	UsageWidgetSummary,
-} from "./components/usage-widget/index.js";
 export type {
 	CheckpointData,
 	CheckpointFile,

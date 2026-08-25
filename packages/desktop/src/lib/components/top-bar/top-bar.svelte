@@ -1,34 +1,15 @@
 <script lang="ts">
-import {
-	Button,
-	LayoutModeIcon,
-	HugeiconsIcon,
-	SegmentedToggleGroup,
-	Selector,
-	UsageLimitWidget,
-} from "@acepe/ui";
+import { Button, LayoutModeIcon, HugeiconsIcon, SegmentedToggleGroup, Selector } from "@acepe/ui";
 import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { AppTopBar } from "@acepe/ui/app-layout";
 import { openUrl } from "$lib/utils/open-url.js";
-import * as Effect from "effect/Effect";
-import { onMount, type Snippet } from "svelte";
-import { getPanelStore, getSessionStore } from "$lib/acp/store/index.js";
+import type { Snippet } from "svelte";
+import { getPanelStore } from "$lib/acp/store/index.js";
 import type { ViewMode } from "$lib/acp/store/types.js";
 import type { MainAppViewState } from "$lib/components/main-app-view/logic/main-app-view-state.svelte.js";
 import { useTheme, type Theme } from "$lib/components/theme/index.js";
 import * as Tooltip from "@acepe/ui/tooltip";
-import {
-	buildLiveUsageWidgetModel,
-	type UsageProviderAccount,
-	type UsageWidgetTelemetrySession,
-} from "./usage-widget-model.js";
-import {
-	buildProviderUsageCheckingAccounts,
-	buildProviderUsageErrorAccounts,
-	loadProviderAccountUsageAccounts,
-} from "./provider-account-usage-source.js";
-import { createProviderUsageRefreshScheduler } from "./provider-usage-refresh-scheduler.js";
 interface Props {
 	viewState: MainAppViewState;
 	/** Optional snippet for add project/repository button (e.g. dropdown). Rendered in top bar left after decorations. */
@@ -49,15 +30,7 @@ let {
 }: Props = $props();
 
 const panelStore = getPanelStore();
-const sessionStore = getSessionStore();
 const themeState = useTheme();
-const USAGE_REFRESH_INTERVAL_MS = 60_000;
-const USAGE_EVENT_REFRESH_DEBOUNCE_MS = 250;
-const USAGE_STARTUP_READY_POLL_MS = 50;
-const USAGE_INITIAL_REFRESH_DELAY_MS = 250;
-let providerUsageAccounts = $state.raw<ReadonlyArray<UsageProviderAccount>>(
-	buildProviderUsageCheckingAccounts()
-);
 
 type LayoutFamily = "standard" | "kanban";
 type ThemeOption = { value: Theme; label: string };
@@ -111,30 +84,6 @@ const standardViewModes: {
 
 const isKanbanView = $derived(panelStore.viewMode === "kanban");
 
-const focusedSessionId = $derived(panelStore.focusedPanel?.sessionId ?? null);
-const usageTelemetrySessions = $derived.by((): UsageWidgetTelemetrySession[] => {
-	const sessions = sessionStore.read.getAllSessions();
-	const telemetrySessions: UsageWidgetTelemetrySession[] = [];
-
-	for (const session of sessions) {
-		telemetrySessions.push({
-			session,
-			telemetry: sessionStore.read.getSessionUsageTelemetry(session.id),
-			currentModelId: sessionStore.read.getSessionCurrentModelId(session.id),
-			focused: session.id === focusedSessionId,
-		});
-	}
-
-	return telemetrySessions;
-});
-const usageWidgetModel = $derived(
-	buildLiveUsageWidgetModel({
-		sessions: usageTelemetrySessions,
-		nowMs: Date.now(),
-		accounts: providerUsageAccounts,
-	})
-);
-
 const activeStandardViewMode = $derived.by((): Exclude<ViewMode, "kanban"> => {
 	if (panelStore.viewMode === "kanban") {
 		return "multi";
@@ -150,45 +99,6 @@ function switchLayoutFamily(nextFamily: LayoutFamily): void {
 
 	panelStore.setViewMode(activeStandardViewMode);
 }
-
-function refreshProviderUsageAccounts(): void {
-	void Effect.runPromise(
-		loadProviderAccountUsageAccounts().pipe(
-			Effect.match({
-				onSuccess: (accounts) => {
-					providerUsageAccounts = accounts;
-				},
-				onFailure: () => {
-					providerUsageAccounts = buildProviderUsageErrorAccounts();
-				},
-			})
-		)
-	);
-}
-
-onMount(() => {
-	// Usage now comes from the RPC (getProviderAccountUsage), not a Tauri
-	// event -- this scheduler's setInterval/setTimeout polling is the only
-	// refresh mechanism left (see provider-usage-refresh-scheduler.ts).
-	const providerUsageScheduler = createProviderUsageRefreshScheduler({
-		isStartupReady: () => viewState.initializationComplete,
-		refresh: refreshProviderUsageAccounts,
-		setTimeout: (callback, delayMs) => window.setTimeout(callback, delayMs),
-		clearTimeout: (id) => window.clearTimeout(id),
-		setInterval: (callback, delayMs) => window.setInterval(callback, delayMs),
-		clearInterval: (id) => window.clearInterval(id),
-		startupPollMs: USAGE_STARTUP_READY_POLL_MS,
-		initialDelayMs: USAGE_INITIAL_REFRESH_DELAY_MS,
-		eventDebounceMs: USAGE_EVENT_REFRESH_DEBOUNCE_MS,
-		refreshIntervalMs: USAGE_REFRESH_INTERVAL_MS,
-	});
-
-	providerUsageScheduler.start();
-
-	return () => {
-		providerUsageScheduler.dispose();
-	};
-});
 </script>
 
 <AppTopBar
@@ -316,7 +226,6 @@ onMount(() => {
 					</div>
 			</Selector>
 		{/snippet}
-		<UsageLimitWidget model={usageWidgetModel} onRefresh={refreshProviderUsageAccounts} />
 		{@render layoutControl()}
 		<Tooltip.Root>
 			<Tooltip.Trigger>

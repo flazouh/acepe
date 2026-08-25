@@ -28,8 +28,7 @@ export type HmrUiProbeOptions = {
 	readonly timeoutMs?: number;
 };
 
-const DEFAULT_RELATIVE_UI_FILE =
-	"packages/ui/src/components/usage-widget/usage-vertical-meter.svelte";
+const DEFAULT_RELATIVE_UI_FILE = "packages/ui/src/components/kbd/kbd.svelte";
 const PROBE_ATTRIBUTE = "data-hmr-probe";
 const PROBE_ATTRIBUTE_VALUE = "acepe-ui-hmr-probe";
 
@@ -164,7 +163,7 @@ function applyProbeAttribute(source: string): {
 		const stripped = removeProbeAttribute(source);
 		return { nextSource: stripped, applied: true };
 	}
-	const marker = "data-usage-vertical-meter";
+	const marker = 'data-slot="kbd"';
 	const markerIndex = source.indexOf(marker);
 	if (markerIndex < 0) {
 		return {
