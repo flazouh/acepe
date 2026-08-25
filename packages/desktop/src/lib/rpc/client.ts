@@ -39,24 +39,32 @@ import * as Queue from "effect/Queue";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 
+/**
+ * Every shell request has the same shape, so it gets one named type. Repeating
+ * the signature inline once per request grew the structural work TypeScript
+ * does on the surrounding Effect unions until inference gave up and widened
+ * their requirement channel to `any`.
+ */
+type ElectrobunRpcRequest = (params: unknown) => Promise<unknown>;
+
 export type ElectrobunRpcBridge = {
 	readonly request: {
-		readonly ping: (params: unknown) => Promise<unknown>;
-		readonly dispatch: (params: unknown) => Promise<unknown>;
-		readonly snapshot: (params: unknown) => Promise<unknown>;
-		readonly events: (params: unknown) => Promise<unknown>;
-		readonly getProjectIndex: (params: unknown) => Promise<unknown>;
-		readonly invalidateProjectIndex: (params: unknown) => Promise<unknown>;
-		readonly readTextFile: (params: unknown) => Promise<unknown>;
-		readonly writeTextFile: (params: unknown) => Promise<unknown>;
-		readonly getDefaultShell: (params: unknown) => Promise<unknown>;
-		readonly gitCall: (params: unknown) => Promise<unknown>;
-		readonly agentCall: (params: unknown) => Promise<unknown>;
-		readonly getProviderAccountUsage: (params: unknown) => Promise<unknown>;
-		readonly listProviderSessions: (params: unknown) => Promise<unknown>;
-		readonly listProviderProjects: (params: unknown) => Promise<unknown>;
-		readonly importProviderSession: (params: unknown) => Promise<unknown>;
-		readonly setPageZoom: (params: unknown) => Promise<unknown>;
+		readonly ping: ElectrobunRpcRequest;
+		readonly dispatch: ElectrobunRpcRequest;
+		readonly snapshot: ElectrobunRpcRequest;
+		readonly events: ElectrobunRpcRequest;
+		readonly getProjectIndex: ElectrobunRpcRequest;
+		readonly invalidateProjectIndex: ElectrobunRpcRequest;
+		readonly readTextFile: ElectrobunRpcRequest;
+		readonly writeTextFile: ElectrobunRpcRequest;
+		readonly getDefaultShell: ElectrobunRpcRequest;
+		readonly gitCall: ElectrobunRpcRequest;
+		readonly agentCall: ElectrobunRpcRequest;
+		readonly getProviderAccountUsage: ElectrobunRpcRequest;
+		readonly listProviderSessions: ElectrobunRpcRequest;
+		readonly listProviderProjects: ElectrobunRpcRequest;
+		readonly importProviderSession: ElectrobunRpcRequest;
+		readonly setPageZoom: ElectrobunRpcRequest;
 	};
 	readonly addMessageListener: (message: "events", listener: (payload: unknown) => void) => void;
 	readonly removeMessageListener: (message: "events", listener: (payload: unknown) => void) => void;

@@ -23,6 +23,7 @@ test("electrobun window options forward activate hidden title url frame and rpc"
 		title: acepeWindowSpec.title,
 		url: acepeWindowSpec.url,
 		frame: acepeWindowSpec.frame,
+		titleBarStyle: acepeWindowSpec.titleBarStyle,
 		activate: acepeWindowSpec.activate,
 		hidden: acepeWindowSpec.hidden,
 		preload: acepeWindowSpec.preload,
@@ -148,6 +149,49 @@ test("startElectrobunAcepeApp opens an activated window and proves the ping echo
 		"acepe-shell-rpc-roundtrip: desktop round trip",
 	])
 	expect(launched.opened.preload).toBeNull()
+})
+
+test("startElectrobunAcepeApp opens the native window without a title bar", () => {
+	const created: Array<string> = []
+	const launched = startElectrobunAcepeApp(
+		{
+			defineRPC: (input) => input.handlers.requests,
+			BrowserWindow: class {
+				ptr = 1
+				id = 1
+				webview = {
+					rpc: {
+						send: {
+							events: () => undefined,
+						},
+					},
+					executeJavascript: () => undefined,
+				}
+				constructor(options: { readonly titleBarStyle: string }) {
+					created.push(options.titleBarStyle)
+				}
+				setPageZoom(): void {
+					return undefined
+				}
+				show(): void {
+					return undefined
+				}
+				activate(): void {
+					return undefined
+				}
+			},
+			setDockIconVisible: () => undefined,
+		},
+		{
+			writeError: () => undefined,
+			exit: (code) => {
+				throw new ShellExitCalled({ code })
+			},
+		},
+	)
+
+	expect(created).toEqual(["hiddenInset"])
+	expect(launched.opened.titleBarStyle).toBe("hiddenInset")
 })
 
 test("startElectrobunAcepeApp serves setPageZoom from the native window", () => {

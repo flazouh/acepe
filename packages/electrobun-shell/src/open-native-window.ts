@@ -4,12 +4,13 @@ import { type AcepeShellRpcHandlers } from "./start-acepe-shell.ts"
 import { launchAcepeShellWindow, type LaunchedAcepeShell, type ShellIo } from "./run-acepe-shell.ts"
 import { ShellStartupError } from "./shell-startup-error.ts"
 import { type OpenedWindow } from "./start-shell.ts"
-import { type WindowFrame } from "./window-spec.ts"
+import { type WindowFrame, type WindowTitleBarStyle } from "./window-spec.ts"
 
 export type ElectrobunWindowOptions<Rpc> = {
 	readonly title: string
 	readonly url: string
 	readonly frame: WindowFrame
+	readonly titleBarStyle: WindowTitleBarStyle
 	readonly activate: boolean
 	readonly hidden: boolean
 	readonly rpc: Rpc
@@ -53,6 +54,7 @@ export const electrobunWindowOptions = <Rpc>(
 	title: input.title,
 	url: input.url,
 	frame: input.frame,
+	titleBarStyle: input.titleBarStyle,
 	activate: input.activate,
 	hidden: input.hidden,
 	rpc: input.rpc,
@@ -151,6 +153,7 @@ export const startElectrobunAcepeApp = <Rpc>(
 					title: input.title,
 					url: input.url,
 					frame: input.frame,
+					titleBarStyle: input.titleBarStyle,
 					activate: input.activate,
 					hidden: input.hidden,
 					preload: appOptions === undefined ? input.preload : appOptions.preload,

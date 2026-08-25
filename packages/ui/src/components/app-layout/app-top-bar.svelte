@@ -4,9 +4,17 @@ import { Button } from "../button/index.js";
 import { HugeiconsIcon, type HugeiconsIconName } from "../icons/index.js";
 import AppSearchButton from "./app-search-button.svelte";
 
+/**
+ * The desktop shell hides the native title bar, so this row is the window
+ * chrome. The shell moves the window on mousedown inside a drag region and
+ * skips anything inside a no-drag region, so every control opts out.
+ */
+const DRAG_REGION_CLASS = "electrobun-webkit-app-region-drag";
+const NO_DRAG_REGION_CLASS = "electrobun-webkit-app-region-no-drag";
+
 interface Props {
 	showTrafficLights?: boolean;
-	/** When true, adds data-tauri-drag-region for desktop window dragging */
+	/** When true, the bar acts as the window drag region on desktop */
 	windowDraggable?: boolean;
 	/** Label shown in the search button */
 	searchLabel?: string;
@@ -65,19 +73,17 @@ let {
 const sidebarIconName = $derived<HugeiconsIconName>(
 	sidebarOpen ? "sidebar-open" : "sidebar-closed",
 );
+
+const dragRegionClass = $derived(windowDraggable ? DRAG_REGION_CLASS : "");
+const noDragRegionClass = $derived(windowDraggable ? NO_DRAG_REGION_CLASS : "");
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-	class="h-7 flex items-center justify-between shrink-0"
-	data-tauri-drag-region={windowDraggable || undefined}
+	class="h-7 flex items-center justify-between shrink-0 {dragRegionClass}"
+	data-testid="app-top-bar"
 >
 	<!-- Left section: traffic lights + sidebar + add project -->
-	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div
-		class="pl-[4.25rem] min-w-[4.25rem] flex items-center h-full relative"
-		data-tauri-drag-region={windowDraggable || undefined}
-	>
+	<div class="pl-[4.25rem] min-w-[4.25rem] flex items-center h-full relative">
 		{#if showTrafficLights}
 			<div class="absolute left-4 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
 				<div class="h-3 w-3 rounded-full bg-[#FF5F57]"></div>
@@ -85,7 +91,7 @@ const sidebarIconName = $derived<HugeiconsIconName>(
 				<div class="h-3 w-3 rounded-full bg-[#28CA42]"></div>
 			</div>
 		{/if}
-		<div class="flex items-center gap-1">
+		<div class="flex items-center gap-1 {noDragRegionClass}">
 			{#if showSidebarToggle}
 				<Button
 					{...chromeIconButton}
@@ -114,21 +120,21 @@ const sidebarIconName = $derived<HugeiconsIconName>(
 			{/if}
 		</div>
 		{#if extraLeftActions}
-			{@render extraLeftActions()}
+			<div class="flex items-center {noDragRegionClass}">
+				{@render extraLeftActions()}
+			</div>
 		{/if}
 	</div>
-	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div
-		class="flex-1 flex justify-center"
-		data-tauri-drag-region={windowDraggable || undefined}
-	>
+	<div class="flex-1 flex justify-center">
 		{#if showSearch}
-			<AppSearchButton label={searchLabel} onclick={onSearch} />
+			<div class={noDragRegionClass}>
+				<AppSearchButton label={searchLabel} onclick={onSearch} />
+			</div>
 		{/if}
 	</div>
 
 	<!-- Right: extra actions + settings + avatar -->
-	<div class="flex items-center gap-1 pr-2">
+	<div class="flex items-center gap-1 pr-2 {noDragRegionClass}">
 		{#if extraRightActions}
 			{@render extraRightActions()}
 		{/if}

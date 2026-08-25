@@ -17,6 +17,10 @@ test("shell window asks the host to activate a visible app window", () => {
 	expect(acepeWindowSpec.hidden).toBe(false)
 })
 
+test("shell window hides the native title bar and keeps the inset traffic lights", () => {
+	expect(acepeWindowSpec.titleBarStyle).toBe("hiddenInset")
+})
+
 test("shell window preload is null until QA injects it", () => {
 	expect(acepeWindowSpec.preload).toBeNull()
 })
