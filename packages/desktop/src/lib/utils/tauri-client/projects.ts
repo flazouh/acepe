@@ -5,6 +5,7 @@ import {
 	ProjectMetaUpdateCommand,
 	type RpcProjectedProject,
 } from "@acepe/contracts";
+import { normalizeColorName } from "@acepe/ui/colors";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
@@ -20,9 +21,7 @@ import type { ProjectAcepeConfig, ProjectData } from "./types.js";
 
 const decodeProjectColor = Schema.decodeUnknownEffect(ProjectColor);
 
-// color is a canonical color name owned by the projection, never a local
-// guess: the projection assigns a deterministic default until someone picks
-// one, so the sidebar shows the same color the backend stores.
+// color is a canonical color name owned by the projection, never a local guess.
 const mapProject = (row: RpcProjectedProject): ProjectData => ({
 	path: row.workspaceRoot,
 	name: row.title,
@@ -57,6 +56,20 @@ const findProjectedByPath = (
 	}
 	return null;
 };
+
+const requireProjectedByPath = Effect.fn("requireProjectedByPath")(function* (
+	operation: string,
+	workspaceRoot: string
+) {
+	const snapshot = yield* withRpcClient("projects.snapshot", (client) =>
+		client.snapshot(librarySnapshotRequest())
+	);
+	const row = findProjectedByPath(snapshot.projects, workspaceRoot);
+	if (row === null) {
+		return yield* Effect.fail(new AgentError(operation, new Error("project not found")));
+	}
+	return row;
+});
 
 const dispatchProjectCreate = Effect.fn("dispatchProjectCreate")(function* (
 	path: string,
@@ -126,33 +139,23 @@ export const projects = {
 
 	importProject: Effect.fn("projects.importProject")(function* (path: string, name: string) {
 		const workspaceRoot = yield* dispatchProjectCreate(path, name);
-		const snapshot = yield* withRpcClient("projects.snapshot", (client) =>
-			client.snapshot(librarySnapshotRequest())
-		);
-		const created = findProjectedByPath(snapshot.projects, workspaceRoot);
-		if (created === null) {
-			return yield* Effect.fail(
-				new AgentError("project.create", new Error("created project missing from snapshot"))
-			);
-		}
+		const created = yield* requireProjectedByPath("project.create", workspaceRoot);
 		return mapProject(created);
 	}),
 
+	// Returns the picked color rather than re-reading the snapshot: dispatch
+	// commits the event, but the SQL projection catches up on its own fiber, so
+	// an immediate read can still answer with the old color and revert the pick.
+	// The authoritative row arrives with the ProjectMetaUpdated refresh.
 	updateProjectColor: Effect.fn("projects.updateProjectColor")(function* (
 		path: string,
 		color: string
 	) {
 		const decodedColor = yield* decodeEffect(
-			"project.meta.update",
+			"projects.updateProjectColor",
 			decodeProjectColor
-		)(color.toLowerCase().trim());
-		const loaded = yield* loadVisibleProjects();
-		const existing = findProjectedByPath(loaded.snapshot.projects, path);
-		if (existing === null) {
-			return yield* Effect.fail(
-				new AgentError("project.meta.update", new Error("project not found"))
-			);
-		}
+		)(normalizeColorName(color));
+		const existing = yield* requireProjectedByPath("project.meta.update", path);
 		const commandId = yield* nextCommandId("project-meta-update-color");
 		yield* withRpcClient("project.meta.update", (client) =>
 			client.dispatch(
@@ -164,16 +167,15 @@ export const projects = {
 				})
 			)
 		);
-		const updated = yield* withRpcClient("projects.snapshot", (client) =>
-			client.snapshot(librarySnapshotRequest())
-		);
-		const recolored = findProjectedByPath(updated.projects, path);
-		if (recolored === null) {
-			return yield* Effect.fail(
-				new AgentError("project.meta.update", new Error("recolored project missing from snapshot"))
-			);
-		}
-		return mapProject(recolored);
+		return {
+			path: existing.workspaceRoot,
+			name: existing.title,
+			last_opened: existing.updatedAt,
+			created_at: existing.createdAt,
+			color: decodedColor,
+			sort_order: 0,
+			icon_path: null,
+		};
 	}),
 
 	updateProjectIcon: (
@@ -200,11 +202,7 @@ export const projects = {
 	backfillProjectIcons: (): Effect.Effect<number, AppError> => Effect.succeed(0),
 
 	removeProject: Effect.fn("projects.removeProject")(function* (path: string) {
-		const loaded = yield* loadVisibleProjects();
-		const existing = findProjectedByPath(loaded.snapshot.projects, path);
-		if (existing === null) {
-			return yield* Effect.fail(new AgentError("project.delete", new Error("project not found")));
-		}
+		const existing = yield* requireProjectedByPath("project.delete", path);
 		const commandId = yield* nextCommandId("project-delete");
 		yield* withRpcClient("project.delete", (client) =>
 			client.dispatch({

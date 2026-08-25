@@ -78,15 +78,14 @@ const EMPTY_METADATA: JsonObject = {}
 
 const nextSequence = (snapshotSequence: Sequence): Sequence => snapshotSequence + 1
 
-type ProjectMetaUpdatedDraft = {
-	-readonly [K in keyof ProjectMetaUpdatedPayload]: ProjectMetaUpdatedPayload[K]
-}
+// An omitted meta field means "leave that value alone", so the payload must not
+// carry the key at all, not carry it as undefined. Building the payload one
+// named field at a time keeps that rule readable; a branch per present/absent
+// combination does not survive a third optional field.
+type Draft<Payload> = { -readonly [K in keyof Payload]: Payload[K] }
 
-// An omitted field means "leave it alone", so the payload must not carry the
-// key at all. One named assignment per field instead of one branch per
-// combination, which stops being readable past two optional fields.
 const projectMetaUpdatedPayload = (command: ProjectMetaUpdateCommand): ProjectMetaUpdatedPayload => {
-	const draft: ProjectMetaUpdatedDraft = { projectId: command.projectId }
+	const draft: Draft<ProjectMetaUpdatedPayload> = { projectId: command.projectId }
 	if (command.title !== undefined) {
 		draft.title = command.title
 	}
@@ -100,67 +99,25 @@ const projectMetaUpdatedPayload = (command: ProjectMetaUpdateCommand): ProjectMe
 }
 
 const sessionMetaUpdatedPayload = (command: SessionMetaUpdateCommand): SessionMetaUpdatedPayload => {
-	const hasTitle = command.title !== undefined
-	const hasPrNumber = command.prNumber !== undefined
-	const hasPrLinkMode = command.prLinkMode !== undefined
-	if (hasTitle && hasPrNumber && hasPrLinkMode) {
-		return {
-			sessionId: command.sessionId,
-			title: command.title,
-			prNumber: command.prNumber,
-			prLinkMode: command.prLinkMode
-		}
+	const draft: Draft<SessionMetaUpdatedPayload> = { sessionId: command.sessionId }
+	if (command.title !== undefined) {
+		draft.title = command.title
 	}
-	if (hasTitle && hasPrNumber) {
-		return {
-			sessionId: command.sessionId,
-			title: command.title,
-			prNumber: command.prNumber
-		}
+	if (command.prNumber !== undefined) {
+		draft.prNumber = command.prNumber
 	}
-	if (hasTitle && hasPrLinkMode) {
-		return {
-			sessionId: command.sessionId,
-			title: command.title,
-			prLinkMode: command.prLinkMode
-		}
+	if (command.prLinkMode !== undefined) {
+		draft.prLinkMode = command.prLinkMode
 	}
-	if (hasPrNumber && hasPrLinkMode) {
-		return {
-			sessionId: command.sessionId,
-			prNumber: command.prNumber,
-			prLinkMode: command.prLinkMode
-		}
-	}
-	if (hasTitle) {
-		return {
-			sessionId: command.sessionId,
-			title: command.title
-		}
-	}
-	if (hasPrNumber) {
-		return {
-			sessionId: command.sessionId,
-			prNumber: command.prNumber
-		}
-	}
-	if (hasPrLinkMode) {
-		return {
-			sessionId: command.sessionId,
-			prLinkMode: command.prLinkMode
-		}
-	}
-	return { sessionId: command.sessionId }
+	return draft
 }
 
 const turnCancelledPayload = (command: TurnCancelCommand): TurnCancelledPayload => {
-	if (command.turnId === undefined) {
-		return { sessionId: command.sessionId }
+	const draft: Draft<TurnCancelledPayload> = { sessionId: command.sessionId }
+	if (command.turnId !== undefined) {
+		draft.turnId = command.turnId
 	}
-	return {
-		sessionId: command.sessionId,
-		turnId: command.turnId
-	}
+	return draft
 }
 
 const withEnvelope = <

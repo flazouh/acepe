@@ -6,7 +6,9 @@ import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as Path from "effect/Path"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
+import { defaultProjectColor } from "@acepe/contracts"
 import { makeSqliteLayer } from "../Layers/Sqlite.ts"
+import { decodeStoredProjectedProject } from "../Services/ProjectionProjects.ts"
 import projectionProjects from "./0011_projection_projects.ts"
 import projectionProjectsColor from "./0021_projection_projects_color.ts"
 
@@ -24,21 +26,52 @@ const TempSqlite = Layer.unwrap(
 
 const isolatedSqlite = () => Layer.fresh(TempSqlite)
 
-Vitest.layer(isolatedSqlite())("0021_projection_projects_color columns", (it) => {
-	it.effect("adds a nullable color column to projection_projects", () =>
+const NOW = "2026-08-20T12:00:00.000Z"
+
+Vitest.layer(isolatedSqlite())("0021_projection_projects_color", (it) => {
+	// The column is nullable so the migration can run without inventing a color
+	// for rows written before it. Those rows must still read back with one.
+	it.effect("reads a row written before the migration at its default color", () =>
 		Effect.gen(function*() {
 			const sql = yield* SqlClient.SqlClient
 			yield* projectionProjects
-			yield* projectionProjectsColor
-			const columns = yield* sql<{
-				name: string
-				notnull: number
-			}>`
-				PRAGMA table_info(projection_projects)
+			yield* sql`
+				INSERT INTO projection_projects (
+					project_id,
+					title,
+					workspace_root,
+					created_at,
+					updated_at,
+					deleted_at,
+					session_count,
+					scan_warmed_at
+				) VALUES (
+					${"project-1"},
+					${"Acepe"},
+					${"/tmp/acepe"},
+					${NOW},
+					${NOW},
+					${null},
+					${0},
+					${NOW}
+				)
 			`.withoutTransform
-			const color = columns.find((column) => column.name === "color")
-			Vitest.assert.isDefined(color)
-			Vitest.assert.strictEqual(Number(color.notnull), 0)
+			yield* projectionProjectsColor
+			const rows = yield* sql`
+				SELECT
+					project_id,
+					title,
+					workspace_root,
+					created_at,
+					updated_at,
+					deleted_at,
+					session_count,
+					color,
+					scan_warmed_at
+				FROM projection_projects
+			`.withoutTransform
+			const project = yield* decodeStoredProjectedProject(rows[0])
+			Vitest.assert.strictEqual(project.color, defaultProjectColor("/tmp/acepe"))
 		})
 	)
 })

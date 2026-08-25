@@ -108,7 +108,7 @@ export function computeMissingLibraryProjects(
 		additions.push({
 			path: libraryProject.workspaceRoot,
 			name: libraryProject.title,
-			color: libraryProject.color,
+			color: resolveProjectColor(libraryProject.color),
 			createdAt,
 			sortOrder: nextSortOrder,
 			iconPath: null,

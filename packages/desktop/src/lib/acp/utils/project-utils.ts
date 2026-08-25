@@ -2,21 +2,19 @@
  * Shared project utilities for color fallbacks and project maps.
  */
 
-import { TAG_COLORS } from "@acepe/ui/colors";
+import { defaultProjectColor } from "@acepe/contracts";
+import { resolveProjectColor } from "@acepe/ui/colors";
 
 import type { Project } from "../logic/project-manager.svelte.js";
 
 /**
  * Generate a fallback color for a project based on its path.
- * Used when actual project color is not available (e.g. before project is loaded from DB).
+ * Used by session, tab, and queue surfaces that hold a path but no project row.
+ * Delegates to the canonical derivation so a surface that never found its
+ * project still shows the color the projection would have given it.
  */
 export function generateFallbackProjectColor(projectPath: string): string {
-	let hash = 0;
-	for (let i = 0; i < projectPath.length; i++) {
-		hash = (hash << 5) - hash + projectPath.charCodeAt(i);
-		hash |= 0;
-	}
-	return TAG_COLORS[Math.abs(hash) % TAG_COLORS.length];
+	return resolveProjectColor(defaultProjectColor(projectPath));
 }
 
 /**

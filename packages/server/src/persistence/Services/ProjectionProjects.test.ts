@@ -47,7 +47,7 @@ type SessionEventType = Extract<
 	| "TurnCancelled"
 >
 
-const projectEvent = <const Type extends ProjectEventType, Payload>(
+const projectEvent = <const Type extends ProjectEventType, const Payload>(
 	sequence: number,
 	type: Type,
 	occurredAt: string,

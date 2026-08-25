@@ -1,4 +1,5 @@
 import { ProjectId, type RpcProjectedProject } from "@acepe/contracts";
+import { Colors } from "@acepe/ui/colors";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -156,12 +157,21 @@ describe("computeMissingLibraryProjects", () => {
 			{
 				path: "/tmp/acepe",
 				name: "Acepe",
-				color: expect.any(String),
+				color: Colors.cyan,
 				createdAt: new Date("2026-08-20T12:00:00.000Z"),
 				sortOrder: 0,
 				iconPath: null,
 			},
 		]);
+	});
+
+	// Project.color is a resolved hex everywhere downstream, because the badge
+	// interpolates it straight into color-mix(). A CSS keyword there would
+	// paint a different color, and "amber" would paint nothing at all.
+	it("resolves the library color name to the palette hex", () => {
+		const additions = computeMissingLibraryProjects([], [libraryProject({ color: "amber" })]);
+
+		expect(additions[0]?.color).toBe(Colors.amber);
 	});
 
 	it("does not add a project that already exists locally, by path", () => {

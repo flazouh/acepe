@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import {
 	emptyRpcSessionSnapshot,
+	type OrchestrationCommand,
 	type ProjectColor,
 	ProjectId,
 	type RpcClient,
@@ -126,29 +127,43 @@ describe("projects rpc facade", () => {
 			})
 		));
 
-	it("writes a picked color through project.meta.update and returns the stored row", () =>
+	it("writes a picked color through project.meta.update", () =>
 		Effect.runPromise(
 			Effect.gen(function* () {
-				const dispatched: string[] = [];
-				let stored: ProjectColor = "indigo";
+				const dispatched: OrchestrationCommand[] = [];
 				setAppRpcClientForTest(
 					makeClient({
 						dispatch: (command) => {
-							dispatched.push(command.type);
-							if (command.type === "project.meta.update" && command.color !== undefined) {
-								stored = command.color;
-							}
+							dispatched.push(command);
 							return Effect.succeed({ sequence: 1 });
 						},
+					})
+				);
+				yield* projects.updateProjectColor("/repo/acepe", "pink");
+				expect(dispatched).toHaveLength(1);
+				const command = dispatched[0];
+				expect(command?.type).toBe("project.meta.update");
+				expect(command?.type === "project.meta.update" ? command.color : null).toBe("pink");
+			})
+		));
+
+	// The projection catches up on its own fiber, so re-reading the snapshot
+	// here would hand back the pre-update color and revert the pick.
+	it("answers with the picked color even when the snapshot still has the old one", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				setAppRpcClientForTest(
+					makeClient({
 						snapshot: () =>
 							Effect.succeed(
-								withProjects(emptyRpcSessionSnapshot(0), [projectedWithColor(stored)])
+								withProjects(emptyRpcSessionSnapshot(0), [projectedWithColor("indigo")])
 							),
 					})
 				);
 				const updated = yield* projects.updateProjectColor("/repo/acepe", "pink");
-				expect(dispatched).toEqual(["project.meta.update"]);
 				expect(updated.color).toBe("pink");
+				expect(updated.path).toBe("/repo/acepe");
+				expect(updated.name).toBe("Acepe");
 			})
 		));
 
