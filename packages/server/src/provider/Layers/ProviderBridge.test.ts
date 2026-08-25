@@ -483,4 +483,153 @@ Vitest.describe("ProviderBridge", () => {
 			})
 		)
 	)
+
+	// Reproduces a real QA boot failure: a completed real-provider session
+	// already sits in the DB from a prior run. On the NEXT boot, the bridge's
+	// startup replay walked every historical SessionCreated event and eagerly
+	// re-called adapter.startSession -- spawning a brand-new provider session
+	// and re-running the adapter's own event-id sequence from scratch. Since
+	// an adapter's own eventIds are a deterministic function of
+	// sessionId+sequence (see ClaudeAdapter.ts's `stamp`), replaying them
+	// collided with the SAME ids already committed in the prior run, and the
+	// store's UNIQUE(event_id) constraint rejected the append -- surfacing as
+	// ProviderSessionFailed and leaving the resumed session unusable. A
+	// session that isn't actively being used must not be re-spawned at boot;
+	// it should only (re)open lazily, the next time it actually receives a
+	// live command.
+	Vitest.it.live(
+		"boot replay does not re-spawn a completed real-provider session, and a follow-up still works",
+		() =>
+			Effect.gen(function*() {
+				const fs = yield* FileSystem.FileSystem
+				const path = yield* Path.Path
+				const dir = yield* fs.makeTempDirectoryScoped()
+				const dbFile = path.join(dir, "acepe-reboot-test.db")
+
+				const SqliteAt = makeSqliteLayer({ filename: dbFile, readonly: false })
+				const MigratedAt = Layer.effectDiscard(runMigrations).pipe(Layer.provideMerge(SqliteAt))
+				const PersistenceAt = Layer.mergeAll(
+					OrchestrationEventStoreLive,
+					OrchestrationCommandReceiptsLive
+				).pipe(Layer.provideMerge(MigratedAt))
+				const EngineAt = OrchestrationEngineLive.pipe(
+					Layer.provideMerge(PersistenceAt),
+					Layer.provide(BunCrypto.layer)
+				)
+
+				// PHASE 1 ("first boot"): create the project/session, send a
+				// message, and let the adapter complete the turn -- exactly a
+				// finished real-provider session sitting in the DB.
+				const phase1 = yield* makeScriptedAdapter(fakeProviderId)
+				const Phase1Live = ProviderBridgeLive.pipe(
+					Layer.provideMerge(ProviderAdapterRegistryLive([phase1.adapter])),
+					Layer.provideMerge(EngineAt)
+				)
+				yield* Effect.gen(function*() {
+					const engine = yield* OrchestrationEngine
+					const store = yield* OrchestrationEventStore
+					yield* engine.dispatch(
+						ProjectCreateCommand.make({
+							type: "project.create",
+							commandId: CommandId.make("cmd-project-reboot"),
+							projectId,
+							title: "Acepe",
+							workspaceRoot: "/tmp/acepe"
+						})
+					)
+					yield* engine.dispatch(
+						SessionCreateCommand.make({
+							type: "session.create",
+							commandId: CommandId.make("cmd-session-reboot"),
+							sessionId,
+							projectId,
+							title: "Real provider session",
+							providerId: fakeProviderId
+						})
+					)
+					yield* waitUntil(Ref.get(phase1.startSessionCount), (value) => value >= 1)
+					yield* engine.dispatch(
+						MessageSendCommand.make({
+							type: "message.send",
+							commandId: CommandId.make("cmd-message-reboot-1"),
+							sessionId,
+							messageId: userMessageId,
+							text: "First turn"
+						})
+					)
+					yield* Queue.offer(phase1.startEvents, scriptedToken(0, "Hi"))
+					yield* Queue.offer(phase1.startEvents, scriptedTurnCompleted())
+					yield* waitUntil(
+						Stream.runCollect(store.readFrom(0, 200)),
+						(collected) => collected.some((event) => event.type === "TurnCompleted")
+					)
+				}).pipe(
+					// @effect-diagnostics-next-line strictEffectProvide:off
+					Effect.provide(Phase1Live),
+					Effect.scoped
+				)
+
+				// PHASE 2 ("reboot"): a brand-new ProviderBridge/engine layer stack
+				// (fresh in-memory state, same on-disk store) -- this is what
+				// actually re-runs the store's historical replay from sequence 0.
+				const phase2 = yield* makeScriptedAdapter(fakeProviderId)
+				const Phase2Live = ProviderBridgeLive.pipe(
+					Layer.provideMerge(ProviderAdapterRegistryLive([phase2.adapter])),
+					Layer.provideMerge(EngineAt)
+				)
+				yield* Effect.gen(function*() {
+					const engine = yield* OrchestrationEngine
+					const store = yield* OrchestrationEventStore
+
+					// Give the bridge's boot-time replay a moment to finish walking
+					// history before asserting nothing was (re)spawned from it.
+					yield* Effect.sleep(Duration.millis(100))
+					Vitest.assert.strictEqual(yield* Ref.get(phase2.startSessionCount), 0)
+					const afterBoot = yield* Stream.runCollect(store.readFrom(0, 200))
+					Vitest.assert.isFalse(
+						afterBoot.some((event) => event.type === "ProviderSessionFailed"),
+						"boot replay must not fail the resumed session with a duplicate event_id"
+					)
+
+					// The resumed session must still accept a follow-up message --
+					// lazily (re)opening the adapter session on demand.
+					const followUpMessageId = MessageId.make("message-followup")
+					yield* engine.dispatch(
+						MessageSendCommand.make({
+							type: "message.send",
+							commandId: CommandId.make("cmd-message-reboot-2"),
+							sessionId,
+							messageId: followUpMessageId,
+							text: "Follow-up after reboot"
+						})
+					)
+					const started = yield* waitUntil(
+						Ref.get(phase2.startSessionCount),
+						(value) => value >= 1
+					)
+					Vitest.assert.strictEqual(started, 1)
+					yield* Queue.offer(phase2.startEvents, scriptedToken(2, "Resumed"))
+
+					const events = yield* waitUntil(
+						Stream.runCollect(store.readFrom(0, 200)),
+						(collected) =>
+							collected.some(
+								(event) => event.type === "TokenAppended" && event.payload.token === "Resumed"
+							)
+					)
+					Vitest.assert.isFalse(
+						events.some((event) => event.type === "ProviderSessionFailed"),
+						"the follow-up must not fail with a duplicate event_id either"
+					)
+				}).pipe(
+					// @effect-diagnostics-next-line strictEffectProvide:off
+					Effect.provide(Phase2Live),
+					Effect.scoped
+				)
+			}).pipe(
+				// @effect-diagnostics-next-line strictEffectProvide:off
+				Effect.provide(Layer.mergeAll(BunFileSystem.layer, BunPath.layer))
+			),
+		{ timeout: 20_000 }
+	)
 })

@@ -15,6 +15,7 @@ import {
 import * as Arr from "effect/Array"
 import * as Cause from "effect/Cause"
 import * as DateTime from "effect/DateTime"
+import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Fiber from "effect/Fiber"
 import * as HashMap from "effect/HashMap"
@@ -22,6 +23,7 @@ import * as HashSet from "effect/HashSet"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Ref from "effect/Ref"
+import * as Schedule from "effect/Schedule"
 import type * as Scope from "effect/Scope"
 import * as Stream from "effect/Stream"
 import { OrchestrationEngine } from "../../orchestration/Services/OrchestrationEngine.ts"
@@ -85,6 +87,12 @@ type BridgeState = {
 	readonly registry: ProviderAdapterRegistry["Service"]
 	readonly sessionAdapters: Ref.Ref<HashMap.HashMap<SessionId, ProviderAdapter>>
 	readonly sessionFibers: Ref.Ref<HashMap.HashMap<SessionId, Fiber.Fiber<void>>>
+	// The projectId each known session belongs to, kept independent of
+	// whether the session's adapter pipeline has actually been opened yet —
+	// see ensureSessionOpen: a session learned about during startup replay
+	// (considerSessionCreated with phase "replay") records here without
+	// opening, so a later live command can lazily open it on demand.
+	readonly sessionProjects: Ref.Ref<HashMap.HashMap<SessionId, ProjectId>>
 	readonly projectRoots: Ref.Ref<HashMap.HashMap<ProjectId, WorkspaceRoot>>
 	readonly claimedSessions: Ref.Ref<HashSet.HashSet<string>>
 	readonly claimedMessages: Ref.Ref<HashSet.HashSet<string>>
@@ -246,6 +254,7 @@ const openSession = Effect.fn("ProviderBridge.openSession")(function*(
 		return
 	}
 	yield* Ref.update(state.sessionAdapters, (current) => HashMap.set(current, sessionId, adapter))
+	yield* Ref.update(state.sessionProjects, (current) => HashMap.set(current, sessionId, projectId))
 	const fiber = yield* forwardAdapterEvents(
 		state,
 		sessionId,
@@ -260,9 +269,69 @@ const openSession = Effect.fn("ProviderBridge.openSession")(function*(
 	yield* Ref.update(state.sessionFibers, (current) => HashMap.set(current, sessionId, fiber))
 })
 
+// Boot replay walks EVERY historical SessionCreated event, including ones for
+// sessions that finished long ago and are not actively being used. Eagerly
+// re-opening every one of them on every boot would (a) needlessly spawn a
+// real provider session — a real `claude` subprocess, in ClaudeAdapter's case
+// — for sessions nobody is looking at, and (b) restart the adapter's own
+// per-runtime sequence counter from zero, re-deriving the SAME deterministic
+// eventIds (see ClaudeAdapter.ts's `stamp`) it already committed in a prior
+// run, which the store's UNIQUE(event_id) constraint then rejects — the
+// resumed session comes back broken instead of merely idle. So a session
+// only gets ensureSessionOpen'd lazily, the next time it actually receives a
+// live command (message.send, turn.cancel, ...) — see ensureSessionOpen.
+const ensureSessionOpen = Effect.fn("ProviderBridge.ensureSessionOpen")(function*(
+	state: BridgeState,
+	sessionId: SessionId
+) {
+	const fibers = yield* Ref.get(state.sessionFibers)
+	const existing = HashMap.get(fibers, sessionId)
+	// pollUnsafe() === undefined means the fiber is still running — the
+	// common case once a session has been opened once, live or lazily. A
+	// completed fiber (Some, whichever Exit) means a prior open attempt died
+	// (e.g. its own startSession failed) and left a stale entry behind:
+	// reopening here is what stops that from permanently poisoning the
+	// session — appendFailure alone never retries.
+	if (Option.isSome(existing) && existing.value.pollUnsafe() === undefined) {
+		return false
+	}
+	const adapters = yield* Ref.get(state.sessionAdapters)
+	const adapter = HashMap.get(adapters, sessionId)
+	if (Option.isNone(adapter)) {
+		return false
+	}
+	const projects = yield* Ref.get(state.sessionProjects)
+	const projectId = HashMap.get(projects, sessionId)
+	if (Option.isNone(projectId)) {
+		return false
+	}
+	yield* openSession(state, sessionId, projectId.value, adapter.value)
+	return true
+})
+
+// openSession forks the forwarding fiber and returns immediately without
+// waiting for the adapter to finish its own internal "session open"
+// bookkeeping (e.g. ClaudeAdapter only registers a session once its
+// startSession stream actually starts running). A command dispatched right
+// after — before that fiber gets scheduled — can race the adapter and fail
+// with a "no such session" ProviderAdapterError (surfaced as
+// ProviderSessionFailed, not a silent stall). For a live session.create
+// followed by a human typing a message, the natural latency makes this
+// unlikely; for ensureSessionOpen's lazy (re)open, dispatched from the SAME
+// live command that needed the session open, there is no such latency, so
+// the very next call below retries briefly instead of surfacing a failure
+// for what is really just scheduling lag. A prior attempt to close this race
+// with a Deferred the caller awaits deadlocked under this Effect version's
+// fiber scheduler in tests and was reverted rather than land unproven; this
+// bounded retry sidesteps that without needing the same synchronization.
+const LAZY_OPEN_RETRY_SCHEDULE = Schedule.spaced(Duration.millis(20)).pipe(
+	Schedule.upTo({ times: 25 })
+)
+
 const considerSessionCreated = Effect.fn("ProviderBridge.considerSessionCreated")(function*(
 	state: BridgeState,
-	event: SessionCreatedEvent
+	event: SessionCreatedEvent,
+	phase: "live" | "replay"
 ) {
 	if (event.payload.providerId === undefined) {
 		return
@@ -286,52 +355,78 @@ const considerSessionCreated = Effect.fn("ProviderBridge.considerSessionCreated"
 		)
 		return
 	}
+	if (phase === "replay") {
+		// Record the mapping so ensureSessionOpen can lazily open this
+		// session later, without spawning anything now — see the doc above
+		// ensureSessionOpen for why replay must never eagerly open.
+		yield* Ref.update(state.sessionAdapters, (current) =>
+			HashMap.set(current, event.payload.sessionId, found.value))
+		yield* Ref.update(state.sessionProjects, (current) =>
+			HashMap.set(current, event.payload.sessionId, event.payload.projectId))
+		return
+	}
 	yield* openSession(state, event.payload.sessionId, event.payload.projectId, found.value)
 })
 
+// Historical replay must never re-dispatch a command reaction to a real
+// adapter: every one of these events already ran its adapter call, once, in
+// whatever earlier boot actually processed it live. Re-running sendPrompt/
+// cancelTurn/respondToPermission against a FRESH adapter session for a
+// message sent hours or days ago would be at best a wasted duplicate call and
+// at worst (see ensureSessionOpen's doc) exactly the kind of spawn-on-boot
+// that broke old sessions in the first place. Replay's only job for these
+// three is the same bookkeeping claim() already did for the "seen this event
+// both during replay and live" case the module doc describes — so a live
+// redelivery of a just-replayed event is still correctly deduped.
 const considerMessageSent = Effect.fn("ProviderBridge.considerMessageSent")(function*(
 	state: BridgeState,
-	event: MessageSentEvent
+	event: MessageSentEvent,
+	phase: "live" | "replay"
 ) {
+	const claimed = yield* claim(state.claimedMessages, event.payload.messageId)
+	if (!claimed || phase === "replay") {
+		return
+	}
+	const justOpened = yield* ensureSessionOpen(state, event.payload.sessionId)
 	const adapters = yield* Ref.get(state.sessionAdapters)
 	const adapter = HashMap.get(adapters, event.payload.sessionId)
 	if (Option.isNone(adapter)) {
 		return
 	}
-	const claimed = yield* claim(state.claimedMessages, event.payload.messageId)
-	if (!claimed) {
-		return
-	}
+	const dispatch = adapter.value.sendPrompt({
+		sessionId: event.payload.sessionId,
+		messageId: event.payload.messageId,
+		text: event.payload.text
+	})
 	yield* forwardAdapterEvents(
 		state,
 		event.payload.sessionId,
 		adapter.value.providerId,
 		"sendPrompt",
-		adapter.value.sendPrompt({
-			sessionId: event.payload.sessionId,
-			messageId: event.payload.messageId,
-			text: event.payload.text
-		})
+		justOpened ? Stream.retry(dispatch, LAZY_OPEN_RETRY_SCHEDULE) : dispatch
 	)
 })
 
 const considerTurnCancelled = Effect.fn("ProviderBridge.considerTurnCancelled")(function*(
 	state: BridgeState,
-	event: TurnCancelledEvent
+	event: TurnCancelledEvent,
+	phase: "live" | "replay"
 ) {
+	const claimed = yield* claim(state.claimedCancellations, event.eventId)
+	if (!claimed || phase === "replay") {
+		return
+	}
+	const justOpened = yield* ensureSessionOpen(state, event.payload.sessionId)
 	const adapters = yield* Ref.get(state.sessionAdapters)
 	const adapter = HashMap.get(adapters, event.payload.sessionId)
 	if (Option.isNone(adapter)) {
 		return
 	}
-	const claimed = yield* claim(state.claimedCancellations, event.eventId)
-	if (!claimed) {
-		return
-	}
-	yield* adapter.value.cancelTurn({
+	const dispatch = adapter.value.cancelTurn({
 		sessionId: event.payload.sessionId,
 		...(event.payload.turnId === undefined ? {} : { turnId: event.payload.turnId })
-	}).pipe(
+	})
+	yield* (justOpened ? Effect.retry(dispatch, LAZY_OPEN_RETRY_SCHEDULE) : dispatch).pipe(
 		Effect.catchCause((cause) =>
 			appendFailure(state, event.payload.sessionId, adapter.value.providerId, "cancelTurn", Cause.pretty(cause))
 		)
@@ -340,8 +435,14 @@ const considerTurnCancelled = Effect.fn("ProviderBridge.considerTurnCancelled")(
 
 const considerInteractionReplied = Effect.fn("ProviderBridge.considerInteractionReplied")(function*(
 	state: BridgeState,
-	event: InteractionRepliedEvent
+	event: InteractionRepliedEvent,
+	phase: "live" | "replay"
 ) {
+	const claimed = yield* claim(state.claimedReplies, event.eventId)
+	if (!claimed || phase === "replay") {
+		return
+	}
+	const justOpened = yield* ensureSessionOpen(state, event.payload.sessionId)
 	const adapters = yield* Ref.get(state.sessionAdapters)
 	const adapter = HashMap.get(adapters, event.payload.sessionId)
 	if (Option.isNone(adapter)) {
@@ -354,15 +455,12 @@ const considerInteractionReplied = Effect.fn("ProviderBridge.considerInteraction
 	if (!supportsPermissionReply(adapter.value)) {
 		return
 	}
-	const claimed = yield* claim(state.claimedReplies, event.eventId)
-	if (!claimed) {
-		return
-	}
-	yield* adapter.value.respondToPermission({
+	const dispatch = adapter.value.respondToPermission({
 		sessionId: event.payload.sessionId,
 		permissionId: event.payload.approvalRequestId,
 		decision: event.payload.decision
-	}).pipe(
+	})
+	yield* (justOpened ? Effect.retry(dispatch, LAZY_OPEN_RETRY_SCHEDULE) : dispatch).pipe(
 		Effect.catchCause((cause) =>
 			appendFailure(state, event.payload.sessionId, adapter.value.providerId, "sendPrompt", Cause.pretty(cause))
 		)
@@ -377,6 +475,7 @@ const considerSessionRemoved = Effect.fn("ProviderBridge.considerSessionRemoved"
 	const fiber = HashMap.get(fibers, sessionId)
 	yield* Ref.update(state.sessionFibers, (current) => HashMap.remove(current, sessionId))
 	yield* Ref.update(state.sessionAdapters, (current) => HashMap.remove(current, sessionId))
+	yield* Ref.update(state.sessionProjects, (current) => HashMap.remove(current, sessionId))
 	if (Option.isSome(fiber)) {
 		yield* Fiber.interrupt(fiber.value)
 	}
@@ -384,17 +483,18 @@ const considerSessionRemoved = Effect.fn("ProviderBridge.considerSessionRemoved"
 
 const consider = Effect.fn("ProviderBridge.consider")(function*(
 	state: BridgeState,
-	event: OrchestrationEvent
+	event: OrchestrationEvent,
+	phase: "live" | "replay" = "live"
 ) {
 	switch (event.type) {
 		case "SessionCreated":
-			return yield* considerSessionCreated(state, event)
+			return yield* considerSessionCreated(state, event, phase)
 		case "MessageSent":
-			return yield* considerMessageSent(state, event)
+			return yield* considerMessageSent(state, event, phase)
 		case "TurnCancelled":
-			return yield* considerTurnCancelled(state, event)
+			return yield* considerTurnCancelled(state, event, phase)
 		case "InteractionReplied":
-			return yield* considerInteractionReplied(state, event)
+			return yield* considerInteractionReplied(state, event, phase)
 		case "ProjectCreated":
 			return yield* Ref.update(state.projectRoots, (current) =>
 				HashMap.set(current, event.payload.projectId, event.payload.workspaceRoot))
@@ -425,6 +525,7 @@ export const makeProviderBridge = Effect.fn("makeProviderBridge")(function*() {
 		registry,
 		sessionAdapters: yield* Ref.make(HashMap.empty<SessionId, ProviderAdapter>()),
 		sessionFibers: yield* Ref.make(HashMap.empty<SessionId, Fiber.Fiber<void>>()),
+		sessionProjects: yield* Ref.make(HashMap.empty<SessionId, ProjectId>()),
 		projectRoots: yield* Ref.make(HashMap.empty<ProjectId, WorkspaceRoot>()),
 		claimedSessions: yield* Ref.make(HashSet.empty<string>()),
 		claimedMessages: yield* Ref.make(HashSet.empty<string>()),
@@ -440,7 +541,7 @@ export const makeProviderBridge = Effect.fn("makeProviderBridge")(function*() {
 		{ startImmediately: true }
 	)
 	const historical = yield* readAllFrom(store, 0)
-	yield* Effect.forEach(historical, (event) => consider(state, event), { discard: true })
+	yield* Effect.forEach(historical, (event) => consider(state, event, "replay"), { discard: true })
 })
 
 export const ProviderBridgeLive = Layer.effectDiscard(makeProviderBridge())
