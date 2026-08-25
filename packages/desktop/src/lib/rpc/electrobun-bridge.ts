@@ -69,6 +69,10 @@ export const bindElectrobunBridge = (bridge: ElectrobunRpcBridge): void => {
 	HOLDER.__acepeElectrobunRpc = bridge;
 };
 
+export const clearElectrobunBridge = (): void => {
+	HOLDER.__acepeElectrobunRpc = undefined;
+};
+
 export const readElectrobunBridge = (): ElectrobunRpcBridge | null => {
 	const bound = HOLDER.__acepeElectrobunRpc;
 	if (bound !== undefined) {

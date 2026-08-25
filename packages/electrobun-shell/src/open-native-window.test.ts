@@ -114,6 +114,9 @@ test("startElectrobunAcepeApp opens an activated window and proves the ping echo
 						hidden: options.hidden,
 					})
 				}
+				setPageZoom(): void {
+					return undefined
+				}
 				show(): void {
 					return undefined
 				}
@@ -147,6 +150,86 @@ test("startElectrobunAcepeApp opens an activated window and proves the ping echo
 	expect(launched.opened.preload).toBeNull()
 })
 
+test("startElectrobunAcepeApp serves setPageZoom from the native window", () => {
+	const zoomCalls: Array<number> = []
+	const launched = startElectrobunAcepeApp(
+		{
+			defineRPC: (input) => input.handlers.requests,
+			BrowserWindow: class {
+				ptr = 1
+				id = 1
+				webview = {
+					rpc: {
+						send: {
+							events: () => undefined,
+						},
+					},
+					executeJavascript: () => undefined,
+				}
+				setPageZoom(level: number): void {
+					zoomCalls.push(level)
+				}
+				show(): void {
+					return undefined
+				}
+				activate(): void {
+					return undefined
+				}
+			},
+			setDockIconVisible: () => undefined,
+		},
+		{
+			writeError: () => undefined,
+			exit: (code) => {
+				throw new ShellExitCalled({ code })
+			},
+		},
+	)
+
+	expect(launched.opened.rpc.setPageZoom({ level: 1.3 })).toEqual({ level: 1.3 })
+	expect(zoomCalls).toEqual([1.3])
+})
+
+test("startElectrobunAcepeApp ignores a setPageZoom request without a usable level", () => {
+	const zoomCalls: Array<number> = []
+	const launched = startElectrobunAcepeApp(
+		{
+			defineRPC: (input) => input.handlers.requests,
+			BrowserWindow: class {
+				ptr = 1
+				id = 1
+				webview = {
+					rpc: {
+						send: {
+							events: () => undefined,
+						},
+					},
+					executeJavascript: () => undefined,
+				}
+				setPageZoom(level: number): void {
+					zoomCalls.push(level)
+				}
+				show(): void {
+					return undefined
+				}
+				activate(): void {
+					return undefined
+				}
+			},
+			setDockIconVisible: () => undefined,
+		},
+		{
+			writeError: () => undefined,
+			exit: (code) => {
+				throw new ShellExitCalled({ code })
+			},
+		},
+	)
+
+	expect(launched.opened.rpc.setPageZoom({ level: "huge" })).toEqual({ level: null })
+	expect(zoomCalls).toEqual([])
+})
+
 test("startElectrobunAcepeApp forwards a QA preload into the native window", () => {
 	const created: Array<string | null> = []
 	const launched = startElectrobunAcepeApp(
@@ -165,6 +248,9 @@ test("startElectrobunAcepeApp forwards a QA preload into the native window", () 
 				}
 				constructor(options: { readonly preload: string | null }) {
 					created.push(options.preload)
+				}
+				setPageZoom(): void {
+					return undefined
 				}
 				show(): void {
 					return undefined

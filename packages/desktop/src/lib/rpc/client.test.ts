@@ -150,6 +150,7 @@ const makeBridge = (input: {
 				input.importProviderSession === undefined
 					? Promise.reject(new Error("unused importProviderSession"))
 					: input.importProviderSession(params),
+			setPageZoom: () => Promise.reject(new Error("unused setPageZoom")),
 		},
 		addMessageListener: (_message, listener) => {
 			listeners.push(listener);

@@ -56,6 +56,7 @@ export type ElectrobunRpcBridge = {
 		readonly listProviderSessions: (params: unknown) => Promise<unknown>;
 		readonly listProviderProjects: (params: unknown) => Promise<unknown>;
 		readonly importProviderSession: (params: unknown) => Promise<unknown>;
+		readonly setPageZoom: (params: unknown) => Promise<unknown>;
 	};
 	readonly addMessageListener: (message: "events", listener: (payload: unknown) => void) => void;
 	readonly removeMessageListener: (message: "events", listener: (payload: unknown) => void) => void;

@@ -1,3 +1,4 @@
+import { type PageZoomResponse, resolvePageZoomLevel } from "./page-zoom.ts"
 import { formatRpcRoundtripLine, formatWindowOpenedLine } from "./ping.ts"
 import { type AcepeShellRpcHandlers } from "./start-acepe-shell.ts"
 import { launchAcepeShellWindow, type LaunchedAcepeShell, type ShellIo } from "./run-acepe-shell.ts"
@@ -28,9 +29,23 @@ export type ElectrobunWindowHandle = {
 		}
 		readonly executeJavascript: (js: string) => void
 	}
+	readonly setPageZoom: (level: number) => void
 	readonly show: () => void
 	readonly activate: () => void
 }
+
+/**
+ * Window chrome the webview drives over RPC.
+ *
+ * Page zoom lives here rather than in AcepeShellRpcHandlers because the
+ * native window serves it, not the Acepe runtime the desktop package
+ * attaches.
+ */
+export type AcepeWindowRpcHandlers = {
+	readonly setPageZoom: (params: unknown) => PageZoomResponse
+}
+
+export type ElectrobunShellRequests = AcepeShellRpcHandlers & AcepeWindowRpcHandlers
 
 export const electrobunWindowOptions = <Rpc>(
 	input: OpenedWindow<Rpc>,
@@ -68,7 +83,7 @@ export type ElectrobunBunBindings<Rpc> = {
 	readonly defineRPC: (input: {
 		readonly maxRequestTime: number
 		readonly handlers: {
-			readonly requests: AcepeShellRpcHandlers
+			readonly requests: ElectrobunShellRequests
 			readonly messages: Record<string, never>
 		}
 	}) => Rpc
@@ -92,6 +107,7 @@ export const startElectrobunAcepeApp = <Rpc>(
 ): LaunchedElectrobunAcepe<Rpc> => {
 	let sendEvents: (payload: unknown) => void = () => undefined
 	let executeJavascript: (js: string) => void = () => undefined
+	let setPageZoom: (level: number) => void = () => undefined
 	const launched = launchAcepeShellWindow(
 		{
 			defineRpc: (handlers) =>
@@ -118,6 +134,14 @@ export const startElectrobunAcepeApp = <Rpc>(
 							listProviderSessions: handlers.listProviderSessions,
 							listProviderProjects: handlers.listProviderProjects,
 							importProviderSession: handlers.importProviderSession,
+							setPageZoom: (params) => {
+								const level = resolvePageZoomLevel(params)
+								if (level === null) {
+									return { level: null }
+								}
+								setPageZoom(level)
+								return { level }
+							},
 						},
 						messages: {},
 					},
@@ -141,6 +165,9 @@ export const startElectrobunAcepeApp = <Rpc>(
 				}
 				executeJavascript = (js) => {
 					win.webview.executeJavascript(js)
+				}
+				setPageZoom = (level) => {
+					win.setPageZoom(level)
 				}
 				return opened
 			},

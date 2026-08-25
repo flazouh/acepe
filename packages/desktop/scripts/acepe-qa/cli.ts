@@ -33,6 +33,7 @@ import {
 	probeSendAttachStress,
 	probeSessionOpenContent,
 	probeThinkingToggle,
+	probeZoomShortcut,
 	readPlanningDebug,
 	reloadWebview,
 	resetOnboarding,
@@ -802,7 +803,7 @@ export async function runCli(
 			command: "help",
 			status: "ok",
 			summary: [
-				"usage: bun run qa [doctor|focus-app|frame-rate-probe|agent-panel-row-scan|agent-panel-scroll-page-probe|ledger-backfill-probe|observe|screenshot|navigate|reload|inspect|inspect-shadow|select-project|click|hover|computer-probe|resize-probe|resize-stream-probe|thinking-toggle-probe|first-send-probe|composer-enter-probe|session-open-content-probe|happy-path-perf|streaming-repro-lab|agent-panel-stress-lab|planning-between-tools-probe|send-attach-stress-probe|hmr-ui-probe|send|watch|reset-onboarding] [--app=9223] [--format=json]",
+				"usage: bun run qa [doctor|focus-app|frame-rate-probe|agent-panel-row-scan|agent-panel-scroll-page-probe|ledger-backfill-probe|observe|screenshot|navigate|reload|inspect|inspect-shadow|select-project|click|hover|computer-probe|resize-probe|resize-stream-probe|thinking-toggle-probe|first-send-probe|composer-enter-probe|session-open-content-probe|happy-path-perf|streaming-repro-lab|agent-panel-stress-lab|planning-between-tools-probe|send-attach-stress-probe|hmr-ui-probe|send|watch|reset-onboarding|zoom-probe] [--app=9223] [--format=json]",
 				"doctor checks the real dev Tauri target before QA.",
 				"focus-app brings the Acepe desktop app to the macOS foreground.",
 				"frame-rate-probe samples requestAnimationFrame cadence; add --selector to scroll an element while sampling, --scroll-step-px for fixed per-frame scroll speed, --with-row-churn for row mount diagnostics, and --with-profile for agent-panel render phase samples.",
@@ -834,6 +835,7 @@ export async function runCli(
 				"send types --text into the composer and submits; scope multi-panel QA with --panel-id and --session-id (use --no-submit to type only).",
 				"watch polls for --text and reports whether it is actually VISIBLE (not just in the DOM), with --timeout ms.",
 				"reset-onboarding opens Dev Tools, resets onboarding, and returns onboarding facts.",
+				"zoom-probe presses Cmd+= twice, Cmd+- and Cmd+0, and reports the viewport size after each press.",
 			],
 		});
 		process.stdout.write(formatCommandResult(result, options.format));
@@ -2825,6 +2827,59 @@ export async function runCli(
 		return statusExitCode(result.status);
 	}
 
+	if (options.command === "zoom-probe") {
+		const probe = await Effect.runPromise(
+			Effect.result(
+				probeZoomShortcut({
+					appIdentifier: options.appIdentifier,
+					skipDriver: options.skipDriver,
+				})
+			)
+		);
+		if (Result.isFailure(probe)) {
+			const result = buildResult({
+				command: "zoom-probe",
+				status: "fail",
+				summary: ["Unable to probe the zoom shortcuts."],
+				error: dependencyError(
+					probe.failure.code,
+					probe.failure.message,
+					"Run acepe-qa doctor, then retry zoom-probe."
+				),
+			});
+			process.stdout.write(formatCommandResult(result, options.format));
+			return statusExitCode(result.status);
+		}
+		const artifact = await Effect.runPromise(
+			Effect.result(writeJsonArtifact("zoom-probe", probe.success))
+		);
+		const artifactPath = Result.isSuccess(artifact) ? artifact.success : undefined;
+		const samples = probe.success.samples;
+		const before = samples.at(0);
+		const zoomedIn = samples.find((sample) => sample.label === "after-zoom-in");
+		const reset = samples.find((sample) => sample.label === "after-reset");
+		const zoomChangedViewport =
+			before !== undefined && zoomedIn !== undefined && zoomedIn.innerWidth < before.innerWidth;
+		const resetRestoredViewport =
+			before !== undefined && reset !== undefined && reset.innerWidth === before.innerWidth;
+		const result = buildResult({
+			command: "zoom-probe",
+			status: zoomChangedViewport && resetRestoredViewport ? "ok" : "fail",
+			summary: samples
+				.map(
+					(sample) =>
+						`${sample.label}: innerWidth=${sample.innerWidth.toString()} innerHeight=${sample.innerHeight.toString()} cache=${sample.zoomLevelCache ?? "none"}`
+				)
+				.concat([
+					`zoom in shrank the viewport: ${zoomChangedViewport ? "yes" : "no"}`,
+					`reset restored the viewport: ${resetRestoredViewport ? "yes" : "no"}`,
+				]),
+			artifactPath,
+			artifactKind: artifactPath === undefined ? undefined : "zoom-probe",
+		});
+		return emitVerifiedUiResult(options, result);
+	}
+
 	if (options.command === "reset-onboarding") {
 		const reset = await Effect.runPromise(
 			Effect.result(
@@ -3014,7 +3069,7 @@ export async function runCli(
 		error: dependencyError(
 			"unknown_command",
 			options.command,
-			"Use doctor, focus-app, frame-rate-probe, agent-panel-row-scan, agent-panel-scroll-page-probe, observe, screenshot, navigate, inspect, click, hover, thinking-toggle-probe, first-send-probe, happy-path-perf, streaming-repro-lab, agent-panel-stress-lab, planning-between-tools-probe, hmr-ui-probe, send, watch, or reset-onboarding."
+			"Use doctor, focus-app, frame-rate-probe, agent-panel-row-scan, agent-panel-scroll-page-probe, observe, screenshot, navigate, inspect, click, hover, thinking-toggle-probe, first-send-probe, happy-path-perf, streaming-repro-lab, agent-panel-stress-lab, planning-between-tools-probe, hmr-ui-probe, send, watch, reset-onboarding, or zoom-probe."
 		),
 	});
 	process.stdout.write(formatCommandResult(result, options.format));

@@ -31,6 +31,7 @@ import type {
 	StreamingReproLabResult,
 	ThinkingToggleProbeResult,
 	WatchResult,
+	ZoomShortcutProbeResult,
 } from "./schemas";
 import {
 	agentPanelRowScanResultSchema,
@@ -60,6 +61,7 @@ import {
 	streamingReproLabResultSchema,
 	thinkingToggleProbeResultSchema,
 	watchResultSchema,
+	zoomShortcutProbeResultSchema,
 } from "./schemas";
 import {
 	type CommandRunner,
@@ -3096,6 +3098,67 @@ export function probeThinkingToggle(
 					script,
 					schema: thinkingToggleProbeResultSchema,
 					callTimeoutMs: 10_000,
+				},
+				runner
+			);
+		})
+	);
+}
+
+/**
+ * Presses the zoom shortcuts and samples the viewport around each press.
+ *
+ * Native WebKit page zoom shrinks the CSS-pixel viewport, so innerWidth is
+ * the observable that proves the keystroke reached the native window and
+ * not only the zoom toast.
+ */
+export function probeZoomShortcut(
+	options: DriverOptions
+): Effect.Effect<ZoomShortcutProbeResult, TauriMcpFailure> {
+	const runner = options.runner ?? runCommand;
+	return driverReady(options).pipe(
+		Effect.flatMap(() => {
+			const script = `
+(async () => {
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const sample = (label) => ({
+    label,
+    innerWidth: window.innerWidth,
+    innerHeight: window.innerHeight,
+    devicePixelRatio: window.devicePixelRatio,
+    zoomLevelCache: localStorage.getItem("acepe.zoom_level.hot_cache"),
+  });
+  const press = (key) => {
+    window.dispatchEvent(new KeyboardEvent("keydown", {
+      key,
+      code: key === "0" ? "Digit0" : key === "=" ? "Equal" : "Minus",
+      metaKey: true,
+      bubbles: true,
+      cancelable: true,
+    }));
+  };
+  const samples = [sample("before")];
+  press("=");
+  await sleep(600);
+  samples.push(sample("after-zoom-in"));
+  press("=");
+  await sleep(600);
+  samples.push(sample("after-second-zoom-in"));
+  press("-");
+  await sleep(600);
+  samples.push(sample("after-zoom-out"));
+  press("0");
+  await sleep(600);
+  samples.push(sample("after-reset"));
+  return { samples };
+})()
+`;
+			return executeWebviewJson(
+				{
+					appIdentifier: options.appIdentifier,
+					script,
+					schema: zoomShortcutProbeResultSchema,
+					callTimeoutMs: 15_000,
 				},
 				runner
 			);

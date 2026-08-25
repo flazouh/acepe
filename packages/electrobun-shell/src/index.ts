@@ -47,12 +47,16 @@ export {
 	startElectrobunAcepeApp,
 } from "./open-native-window.ts"
 export type {
+	AcepeWindowRpcHandlers,
 	ElectrobunAcepeAppOptions,
 	ElectrobunBunBindings,
+	ElectrobunShellRequests,
 	ElectrobunWindowHandle,
 	ElectrobunWindowOptions,
 	LaunchedElectrobunAcepe,
 } from "./open-native-window.ts"
+export { PageZoomRequest, resolvePageZoomLevel } from "./page-zoom.ts"
+export type { PageZoomResponse } from "./page-zoom.ts"
 export {
 	expandStableMacAppIfNeeded,
 	findZstFile,

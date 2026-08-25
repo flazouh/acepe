@@ -1,11 +1,13 @@
 /**
  * Zoom Service - Manages webview zoom level with persistence.
  *
- * Uses Tauri's webview API to control zoom and persists the level to the database.
+ * Asks the Electrobun shell for native WebKit page zoom and persists the
+ * level to the database.
  */
 
 import * as Effect from "effect/Effect";
 import { toast } from "svelte-sonner";
+import { setShellPageZoom } from "$lib/rpc/shell-page-zoom.js";
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
 import { settings } from "$lib/utils/tauri-client/settings.js";
 
@@ -136,23 +138,19 @@ export class ZoomService {
 	/**
 	 * Applies the zoom level to the webview.
 	 *
-	 * There is no Electrobun-side webview zoom primitive yet -- unlike the
-	 * real Tauri webview, getCurrentWebview() throws synchronously under
-	 * Electrobun (no window.__TAURI_INTERNALS__.metadata for it to read).
-	 * Degrade the same honest way the other Tauri-only call sites in
-	 * electrobun-window-shims.ts do: track the requested level so
-	 * zoomLevel/zoomPercentage and the zoom toast stay correct, but skip
-	 * the real WebView call instead of crashing the app. Caught live: a
-	 * background zoom reconciliation (initialize()'s 2s idle-scheduled
-	 * reconcilePersistedZoomInBackground) threw well after startup and
-	 * crashed the app into a global error boundary mid-session.
+	 * WebKit page zoom is native, so the Bun process owns it and the
+	 * webview asks over the shell RPC. The request never fails the effect:
+	 * a background reconciliation (initialize() schedules
+	 * reconcilePersistedZoomInBackground on a 2s idle timer) once threw
+	 * long after startup and crashed the app into a global error boundary
+	 * mid-session.
 	 */
-	private applyZoom(level: number): Effect.Effect<void, Error> {
+	private applyZoom(level: number): Effect.Effect<void> {
 		this.currentZoom = level;
-		return Effect.void;
+		return setShellPageZoom(level);
 	}
 
-	private applyZoomIfChanged(level: number): Effect.Effect<void, Error> {
+	private applyZoomIfChanged(level: number): Effect.Effect<void> {
 		if (Math.abs(level - this.currentZoom) <= ZOOM_EQUALITY_EPSILON) {
 			this.currentZoom = level;
 			return Effect.succeed(undefined);

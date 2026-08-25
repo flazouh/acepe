@@ -459,6 +459,18 @@ export const thinkingToggleProbeResultSchema = Schema.Struct({
 	),
 });
 
+export const zoomShortcutProbeResultSchema = Schema.Struct({
+	samples: Schema.Array(
+		Schema.Struct({
+			label: Schema.String,
+			innerWidth: Schema.Number,
+			innerHeight: Schema.Number,
+			devicePixelRatio: Schema.Number,
+			zoomLevelCache: Schema.NullOr(Schema.String),
+		})
+	),
+});
+
 export const resetOnboardingResultSchema = Schema.Struct({
 	clickedDevTools: Schema.Boolean,
 	clickedReset: Schema.Boolean,
@@ -1427,6 +1439,7 @@ export type ClickResult = typeof clickResultSchema.Type;
 export type PanelProjectSelectionResult = typeof panelProjectSelectionResultSchema.Type;
 export type HoverResult = typeof hoverResultSchema.Type;
 export type ThinkingToggleProbeResult = typeof thinkingToggleProbeResultSchema.Type;
+export type ZoomShortcutProbeResult = typeof zoomShortcutProbeResultSchema.Type;
 export type ResetOnboardingResult = typeof resetOnboardingResultSchema.Type;
 export type StreamingReproLabResult = typeof streamingReproLabResultSchema.Type;
 export type AgentPanelStressLabResult = typeof agentPanelStressLabResultSchema.Type;
