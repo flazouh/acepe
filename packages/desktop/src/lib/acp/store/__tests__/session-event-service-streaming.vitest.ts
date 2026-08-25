@@ -565,6 +565,147 @@ describe("SessionEventService streaming delta handling", () => {
 		);
 	});
 
+	// Live repro (2026-08-25, worktree first-message-send): the first prompt
+	// into a brand-new deferred-creation Claude Code session never dispatched
+	// message.send. Root cause: the first live envelope for such a session is
+	// a bare "delta" with no prior graph-revision baseline
+	// (routeSessionStateEnvelope can only apply a delta against a known
+	// baseline; with none it degrades to a refreshSnapshot no-op instead of
+	// setting a real lifecycle). But the branch above -- unconditionally
+	// materializing on ANY non-snapshot envelope -- already clears
+	// SessionCreationCoordinator's pending-creation grace window as a side
+	// effect of creating the cold record, before that no-op leaves anything
+	// canonical in place to fall back on. hasPendingCreation() then goes
+	// false and lifecycleStatus stays null at the same instant, and
+	// SessionMessagingOrchestrator.sendMessage hard-fails with ConnectionError
+	// -- message.send is silently dropped. When the session DOES have an
+	// active pending-creation record, a first "delta" envelope must not
+	// materialize (and must not clear that grace window); it must buffer
+	// until a snapshot/lifecycle envelope establishes a real baseline.
+	it("buffers (does not materialize) a first delta envelope for a session with an active pending-creation grace window", () => {
+		const pendingHandler = createMockHandler();
+		(pendingHandler.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
+		(pendingHandler.getSessionIdentity as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
+		pendingHandler.hasPendingCreationSession = vi.fn().mockReturnValue(true);
+		pendingHandler.materializePendingCreationSession = vi.fn().mockReturnValue(true);
+		const deltaEnvelope: SessionStateEnvelope = {
+			sessionId: "session-pending-creation-2",
+			graphRevision: 1,
+			lastEventSeq: 2,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: { graphRevision: 0, transcriptRevision: 0, lastEventSeq: 1 },
+					toRevision: { graphRevision: 1, transcriptRevision: 0, lastEventSeq: 2 },
+					activity: createIdleActivity(),
+					turnState: "Running",
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					activeStreamingTail: null,
+					transcriptOperations: [],
+					operationPatches: [],
+					interactionPatches: [],
+					changedFields: [],
+				},
+			},
+		};
+
+		service.handleSessionStateEnvelope(deltaEnvelope, pendingHandler);
+
+		// The grace window must stay open: materialization (which would clear
+		// SessionCreationCoordinator's pending-creation record) must not run
+		// for a delta envelope that cannot itself establish a real baseline.
+		expect(pendingHandler.materializePendingCreationSession).not.toHaveBeenCalled();
+		expect(pendingHandler.applySessionStateEnvelope).not.toHaveBeenCalled();
+
+		// Once a real (lifecycle-bearing) envelope arrives, materialization
+		// proceeds as normal.
+		const lifecycleEnvelope: SessionStateEnvelope = {
+			sessionId: "session-pending-creation-2",
+			graphRevision: 1,
+			lastEventSeq: 3,
+			payload: {
+				kind: "lifecycle",
+				lifecycle: createGraphLifecycle("reserved"),
+				revision: {
+					graphRevision: 1,
+					transcriptRevision: 0,
+					lastEventSeq: 3,
+				},
+			},
+		};
+
+		service.handleSessionStateEnvelope(lifecycleEnvelope, pendingHandler);
+
+		expect(pendingHandler.materializePendingCreationSession).toHaveBeenCalledWith(
+			"session-pending-creation-2"
+		);
+		expect(pendingHandler.applySessionStateEnvelope).toHaveBeenCalledWith(
+			"session-pending-creation-2",
+			lifecycleEnvelope
+		);
+
+		// Once the session is registered, flushing pending events replays the
+		// buffered delta -- it was never dropped, just held.
+		(pendingHandler.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue({
+			id: "session-pending-creation-2",
+		} as unknown as SessionCold);
+		(pendingHandler.getSessionIdentity as ReturnType<typeof vi.fn>).mockReturnValue({
+			id: "session-pending-creation-2",
+			projectPath: "/tmp/project",
+			agentId: "claude-code",
+		});
+		service.flushPendingEvents("session-pending-creation-2", pendingHandler);
+
+		expect(pendingHandler.applySessionStateEnvelope).toHaveBeenCalledWith(
+			"session-pending-creation-2",
+			deltaEnvelope
+		);
+	});
+
+	it("still materializes a first delta envelope when there is no active pending-creation grace window", () => {
+		// Distinguishes the buffering above from the ordinary "unknown/foreign
+		// session with no local pending-creation memory" case (e.g. a restored
+		// session materialized purely from provider history) -- that case must
+		// keep materializing immediately, exactly as before.
+		const pendingHandler = createMockHandler();
+		(pendingHandler.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
+		(pendingHandler.getSessionIdentity as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
+		pendingHandler.hasPendingCreationSession = vi.fn().mockReturnValue(false);
+		pendingHandler.materializePendingCreationSession = vi.fn().mockReturnValue(true);
+		const envelope: SessionStateEnvelope = {
+			sessionId: "session-no-pending-creation-1",
+			graphRevision: 7,
+			lastEventSeq: 7,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: { graphRevision: 6, transcriptRevision: 6, lastEventSeq: 6 },
+					toRevision: { graphRevision: 7, transcriptRevision: 7, lastEventSeq: 7 },
+					activity: createIdleActivity(),
+					turnState: "Running",
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					activeStreamingTail: null,
+					transcriptOperations: [],
+					operationPatches: [],
+					interactionPatches: [],
+					changedFields: ["turnState"],
+				},
+			},
+		};
+
+		service.handleSessionStateEnvelope(envelope, pendingHandler);
+
+		expect(pendingHandler.materializePendingCreationSession).toHaveBeenCalledWith(
+			"session-no-pending-creation-1"
+		);
+		expect(pendingHandler.applySessionStateEnvelope).toHaveBeenCalledWith(
+			"session-no-pending-creation-1",
+			envelope
+		);
+	});
+
 	it("materializes pending creation sessions before ignoring raw turn completion", () => {
 		const pendingHandler = createMockHandler();
 		(pendingHandler.getSessionCold as ReturnType<typeof vi.fn>).mockReturnValue(undefined);

@@ -635,6 +635,27 @@ export class SessionEventService {
 					return;
 				}
 			}
+			// A "delta" envelope can only be applied against a known graph-revision
+			// baseline (see hasCurrentGraphRevision in session-state-command-router.ts).
+			// The very first envelope for a session is never a delta the router can
+			// apply -- with no baseline it degrades to a refreshSnapshot request
+			// instead of setting real state (lifecycle included). Materializing the
+			// pending-creation record right before that no-op would already have
+			// revoked the session's "first prompt is unconditionally allowed" grace
+			// window (SessionMessagingOrchestrator.hasPendingCreation), stranding the
+			// first send: hasPendingCreation() is now false, and the canonical
+			// lifecycle fallback (canActivateCreatedSessionWithFirstPrompt) still
+			// reads null, so message.send is dropped instead of dispatched. Keep the
+			// grace window open and buffer this delta instead; a snapshot or
+			// lifecycle envelope (including the one the refreshSnapshot request
+			// triggers) will establish a real baseline and flush it.
+			if (
+				envelope.payload.kind === "delta" &&
+				handler.hasPendingCreationSession?.(envelope.sessionId) === true
+			) {
+				this.bufferPendingSessionState(envelope.sessionId, envelope);
+				return;
+			}
 			const materialized = handler.materializePendingCreationSession?.(envelope.sessionId);
 			if (materialized === true) {
 				handler.applySessionStateEnvelope(envelope.sessionId, envelope);
