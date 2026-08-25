@@ -85,7 +85,7 @@ vi.mock("svelte", async () => {
 	return import(/* @vite-ignore */ svelteClientPath);
 });
 
-vi.mock("@tauri-apps/plugin-opener", () => ({
+vi.mock("$lib/utils/open-url.js", () => ({
 	openUrl: vi.fn(),
 }));
 

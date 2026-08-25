@@ -4,13 +4,10 @@
  * Uses Tauri's webview API to control zoom and persists the level to the database.
  */
 
-import { fromPromise } from "@acepe/effect-result/fromPromise";
-import { getCurrentWebview } from "@tauri-apps/api/webview";
 import * as Effect from "effect/Effect";
 import { toast } from "svelte-sonner";
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
 import { settings } from "$lib/utils/tauri-client/settings.js";
-import { runningUnderElectrobun } from "../utils/electrobun-window-shims.js";
 
 /** Zoom configuration constants */
 const ZOOM_CONFIG = {
@@ -151,18 +148,8 @@ export class ZoomService {
 	 * crashed the app into a global error boundary mid-session.
 	 */
 	private applyZoom(level: number): Effect.Effect<void, Error> {
-		if (runningUnderElectrobun()) {
-			this.currentZoom = level;
-			return Effect.void;
-		}
-		return fromPromise(
-			async () => {
-				const webview = getCurrentWebview();
-				await webview.setZoom(level);
-				this.currentZoom = level;
-			},
-			(error) => new Error(`Failed to apply zoom: ${String(error)}`)
-		);
+		this.currentZoom = level;
+		return Effect.void;
 	}
 
 	private applyZoomIfChanged(level: number): Effect.Effect<void, Error> {

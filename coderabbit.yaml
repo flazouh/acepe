@@ -5,9 +5,10 @@ project:
   name: Acepe
   description: Desktop application providing unified interface for AI agents via Agent Client Protocol (ACP)
   tech_stack:
-    - Tauri 2 + Rust (Backend)
+    - Electrobun + Bun (Desktop shell)
     - SvelteKit 2 + Svelte 5 + TypeScript (Frontend)
     - Tailwind CSS 4 + shadcn-svelte (UI)
+    - No Rust. No Tauri.
 
 review_guidelines:
   # General Code Quality
@@ -16,20 +17,6 @@ review_guidelines:
   - Ensure code follows existing patterns and conventions
   - Look for potential security vulnerabilities
   - Check for performance issues and unnecessary allocations
-
-  # Rust-Specific Guidelines
-  rust:
-    - Always run `cargo check` or `cargo clippy` before considering code complete
-    - Fix all compilation errors before submitting changes
-    - Address warnings when possible, especially unused variables and dead code
-    - Use Rust best practices and follow existing code style
-    - Prefer explicit types when compiler cannot infer them
-    - Add appropriate error handling with `anyhow::Context` for error context
-    - Tauri commands must be async and return `Result<T, String>`
-    - Use `tokio::process::Command` for async subprocess spawning
-    - Subprocess stderr must be consumed to prevent blocking (spawn async task to drain)
-    - Service pattern: Manage resource lifecycle (spawn/stop subprocess) properly
-    - All Tauri commands must be registered in `lib.rs` in `.invoke_handler()` chain
 
   # TypeScript/Svelte-Specific Guidelines
   typescript_svelte:
@@ -52,11 +39,6 @@ review_guidelines:
 
   # Error Handling Patterns
   error_handling:
-    rust:
-      - Use `anyhow::Context` to add context to errors before converting to strings
-      - Tauri commands should return `Result<T, String>` with descriptive error messages
-      - Handle subprocess errors gracefully with proper cleanup
-    
     typescript:
       - All async methods must return `ResultAsync<T, E>`, never `Promise<Result<T, E>>`
       - Use `ResultAsync.fromPromise(promise, errorMapper)` for promise conversion
@@ -66,11 +48,11 @@ review_guidelines:
 
   # Architecture Patterns
   architecture:
-    - Frontend → Backend: Use Tauri `invoke()` for commands
+    - Frontend → Backend: Use Electrobun RPC / Bun contracts
     - Backend → ACP Agent: JSON-RPC over stdin/stdout
     - All communication uses JSON-RPC 2.0 format
     - Request IDs must be unique; responses matched to requests
-    - Strong typing with Rust (serde) and TypeScript (interfaces) for all protocol messages
+    - Strong typing with TypeScript (interfaces) for all protocol messages
 
   # Security & Performance
   security:
@@ -94,8 +76,7 @@ issues_to_flag:
   - Optional values in component props (should conditionally render instead)
   - Missing try-catch around library calls that may throw (e.g., file rendering)
   - Subprocess stderr not being consumed (can block subprocess)
-  - Missing error context in Rust error handling
-  - Tauri commands not properly registered
+  - Missing error context in Effect / neverthrow error handling
   - Type definitions not in separate files
   - Missing explicit types in function signatures
   - Use of `var` instead of `const`/`let`
@@ -107,7 +88,7 @@ focus_areas:
   - Error handling completeness
   - Type safety and explicit typing
   - Adherence to neverthrow patterns
-  - Rust best practices and clippy compliance
+  - Electrobun / Bun shell contracts
   - Svelte 5 runes usage
   - Component composition and reusability
   - Subprocess management and resource cleanup
@@ -134,21 +115,6 @@ examples:
         } catch (error) {
           return err(new Error(String(error)));
         }
-      }
-  
-  rust_error_handling:
-    good: |
-      #[tauri::command]
-      async fn my_command() -> Result<String, String> {
-        some_operation()
-          .context("Failed to perform operation")
-          .map_err(|e| e.to_string())
-      }
-    
-    bad: |
-      #[tauri::command]
-      async fn my_command() -> Result<String, String> {
-        Ok(some_operation().unwrap())
       }
   
   subprocess_stderr:

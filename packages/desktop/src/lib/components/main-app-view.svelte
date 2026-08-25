@@ -1,7 +1,7 @@
 <script lang="ts">
 import { fromPromise } from "@acepe/effect-result/fromPromise";
 import { Button } from "@acepe/ui";
-import type { DownloadEvent, Update } from "@tauri-apps/plugin-updater";
+import type { DownloadEvent, Update } from "$lib/utils/updater-types.js";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import { onDestroy, onMount, tick } from "svelte";

@@ -1,4 +1,4 @@
-import type { DownloadEvent } from "@tauri-apps/plugin-updater";
+import type { DownloadEvent } from "$lib/utils/updater-types.js";
 
 export interface UpdateDownloadProgressState {
 	downloadedBytes: number;

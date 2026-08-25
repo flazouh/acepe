@@ -5,8 +5,8 @@ set -euo pipefail
 readonly REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly INVOCATION_DIR="$PWD"
 readonly APP_NAME="Acepe.app"
-readonly BUILD_APP="$REPO_ROOT/packages/desktop/src-tauri/target/release/bundle/macos/$APP_NAME"
-readonly BUILD_LOCK_ROOT="$REPO_ROOT/packages/desktop/src-tauri/target"
+readonly BUILD_APP="$REPO_ROOT/packages/desktop/electrobun-build/stable-macos-arm64/$APP_NAME"
+readonly BUILD_LOCK_ROOT="$REPO_ROOT/packages/desktop/electrobun-build"
 readonly BUILD_LOCK="$BUILD_LOCK_ROOT/.acepe-source-build.lock"
 
 destination="/Applications"
@@ -59,15 +59,6 @@ require_supported_bun() {
 	fi
 }
 
-require_stable_rust() {
-	local rust_version
-
-	rust_version="$(rustc --version)"
-	if [[ "$rust_version" == *nightly* || "$rust_version" == *beta* ]]; then
-		die "Stable Rust is required; found $rust_version. Run 'rustup default stable'."
-	fi
-}
-
 run_privileged() {
 	if [[ -w "$destination" ]]; then
 		"$@"
@@ -111,12 +102,9 @@ fi
 [[ "$(uname -s)" == "Darwin" ]] || die "Acepe source installation currently supports macOS only."
 
 require_command bun "Install Bun 1.3 or newer from https://bun.sh/."
-require_command cargo "Install stable Rust from https://rustup.rs/."
-require_command rustc "Install stable Rust from https://rustup.rs/."
 require_command xcode-select "Install the Xcode Command Line Tools with 'xcode-select --install'."
 require_command ditto "Install the standard macOS command-line tools."
 require_supported_bun
-require_stable_rust
 
 xcode-select -p >/dev/null 2>&1 || die "Xcode Command Line Tools are not configured. Run 'xcode-select --install'."
 
@@ -196,12 +184,8 @@ echo "→ Installing locked dependencies"
 cd "$REPO_ROOT"
 bun install --frozen-lockfile
 
-echo "→ Building Acepe.app from source (this may take several minutes)"
-bun run --cwd packages/desktop bunx tauri build \
-	--bundles app \
-	--no-sign \
-	--ci \
-	--config '{"bundle":{"createUpdaterArtifacts":false}}'
+echo "→ Building Acepe.app from source with Electrobun (this may take several minutes)"
+bun run --cwd packages/desktop electrobun:build
 
 [[ -d "$BUILD_APP" ]] || die "Build completed without producing $BUILD_APP."
 

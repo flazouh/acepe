@@ -7,7 +7,7 @@ import { HugeiconsIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import type { HugeiconsIconName } from "@acepe/ui/icons";
 import { CloseAction } from "@acepe/ui/panel-header";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl } from "$lib/utils/open-url.js";
 import { fromPromise } from "@acepe/effect-result/fromPromise";
 import * as Effect from "effect/Effect";
 import { toast } from "svelte-sonner";

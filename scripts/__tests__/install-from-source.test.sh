@@ -49,24 +49,14 @@ if [[ "${1:-}" == "--version" ]]; then
 	exit 0
 fi
 echo "$*" >> "$ACEPE_TEST_COMMAND_LOG"
-if [[ "$*" == *"tauri build"* ]]; then
-	mkdir -p "$ACEPE_TEST_REPO/packages/desktop/src-tauri/target/release/bundle/macos/Acepe.app"
-	printf 'built-from-source\n' > "$ACEPE_TEST_REPO/packages/desktop/src-tauri/target/release/bundle/macos/Acepe.app/build-marker"
+if [[ "$*" == *"electrobun:build"* ]]; then
+	mkdir -p "$ACEPE_TEST_REPO/packages/desktop/electrobun-build/stable-macos-arm64/Acepe.app"
+	printf 'built-from-source\n' > "$ACEPE_TEST_REPO/packages/desktop/electrobun-build/stable-macos-arm64/Acepe.app/build-marker"
 	if [[ -n "${ACEPE_TEST_LATE_APP:-}" ]]; then
 		mkdir -p "$ACEPE_TEST_LATE_APP"
 		printf 'late-install\n' > "$ACEPE_TEST_LATE_APP/existing-marker"
 	fi
 fi
-EOF
-
-	cat > "$bin_dir/cargo" <<'EOF'
-#!/usr/bin/env bash
-exit 0
-EOF
-
-	cat > "$bin_dir/rustc" <<'EOF'
-#!/usr/bin/env bash
-echo 'rustc 1.88.0 (stable)'
 EOF
 
 	cat > "$bin_dir/xcode-select" <<'EOF'
@@ -114,7 +104,7 @@ test_builds_and_installs_the_app() {
 
 	[[ -f "$destination/Acepe.app/build-marker" ]] || fail "Acepe.app was not installed"
 	assert_contains "$(cat "$command_log")" "install --frozen-lockfile"
-	assert_contains "$(cat "$command_log")" "tauri build --bundles app --no-sign --ci"
+	assert_contains "$(cat "$command_log")" "electrobun:build"
 	assert_contains "$output" "$destination/Acepe.app"
 }
 
@@ -208,12 +198,12 @@ test_restores_existing_app_when_swap_fails() {
 }
 
 test_reports_missing_prerequisite() {
-	local fixture_root="$TEMP_ROOT/missing-rust"
+	local fixture_root="$TEMP_ROOT/missing-bun"
 	local output
 
 	create_fixture_repo "$fixture_root/repo"
 	create_fake_tools "$fixture_root"
-	rm "$fixture_root/fake-bin/rustc"
+	rm "$fixture_root/fake-bin/bun"
 
 	if output="$(
 		ACEPE_TEST_COMMAND_LOG="$fixture_root/commands.log" \
@@ -221,10 +211,10 @@ test_reports_missing_prerequisite() {
 		PATH="$fixture_root/fake-bin:/usr/bin:/bin" \
 		bash "$fixture_root/repo/scripts/install-from-source.sh" --destination "$fixture_root/Applications" 2>&1
 	)"; then
-		fail "install unexpectedly succeeded without rustc"
+		fail "install unexpectedly succeeded without bun"
 	fi
 
-	assert_contains "$output" "rustc is required"
+	assert_contains "$output" "bun is required"
 }
 
 test_rejects_an_old_bun_version() {
@@ -245,26 +235,6 @@ test_rejects_an_old_bun_version() {
 	fi
 
 	assert_contains "$output" "Bun 1.3 or newer is required"
-}
-
-test_rejects_an_unstable_rust_toolchain() {
-	local fixture_root="$TEMP_ROOT/nightly-rust"
-	local output
-
-	create_fixture_repo "$fixture_root/repo"
-	create_fake_tools "$fixture_root"
-	sed -i '' 's/rustc 1\.88\.0 (stable)/rustc 1.90.0-nightly/' "$fixture_root/fake-bin/rustc"
-
-	if output="$(
-		ACEPE_TEST_COMMAND_LOG="$fixture_root/commands.log" \
-		ACEPE_TEST_REPO="$fixture_root/repo" \
-		PATH="$fixture_root/fake-bin:/usr/bin:/bin" \
-		bash "$fixture_root/repo/scripts/install-from-source.sh" --destination "$fixture_root/Applications" 2>&1
-	)"; then
-		fail "install unexpectedly accepted nightly Rust"
-	fi
-
-	assert_contains "$output" "Stable Rust is required"
 }
 
 test_resolves_relative_destination_from_the_calling_directory() {
@@ -311,7 +281,7 @@ test_reports_how_to_clear_a_stale_install_lock() {
 
 test_blocks_a_concurrent_build_for_another_destination() {
 	local fixture_root="$TEMP_ROOT/build-lock"
-	local build_lock="$fixture_root/repo/packages/desktop/src-tauri/target/.acepe-source-build.lock"
+	local build_lock="$fixture_root/repo/packages/desktop/electrobun-build/.acepe-source-build.lock"
 	local output
 
 	create_fixture_repo "$fixture_root/repo"
@@ -339,7 +309,6 @@ test_refuses_an_app_that_appears_during_build
 test_restores_existing_app_when_swap_fails
 test_reports_missing_prerequisite
 test_rejects_an_old_bun_version
-test_rejects_an_unstable_rust_toolchain
 test_resolves_relative_destination_from_the_calling_directory
 test_reports_how_to_clear_a_stale_install_lock
 test_blocks_a_concurrent_build_for_another_destination

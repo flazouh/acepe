@@ -1,6 +1,6 @@
 import { fromPromise } from "@acepe/effect-result/fromPromise";
-import type { DownloadEvent, Update } from "@tauri-apps/plugin-updater";
 import * as Effect from "effect/Effect";
+import type { DownloadEvent, Update } from "$lib/utils/updater-types.js";
 
 export type PreparedUpdateHandle = Pick<Update, "version" | "download" | "install">;
 

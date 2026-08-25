@@ -1,6 +1,5 @@
 import { fromPromise } from "@acepe/effect-result/fromPromise";
-import { invoke } from "@tauri-apps/api/core";
-import * as Effect from "effect/Effect";
+import type * as Effect from "effect/Effect";
 
 import type { AppError } from "../../acp/errors/app-error.js";
 import { AgentError } from "../../acp/errors/app-error.js";
@@ -25,14 +24,19 @@ type PendingInvokeInfo = {
 };
 
 const pendingInvokes = new Map<string, PendingInvokeInfo>();
-type InvokeRuntime = <T>(cmd: string, args?: Parameters<typeof invoke>[1]) => Promise<T>;
+export type InvokeArgs = Record<string, unknown> | undefined;
+
+async function invoke<T>(cmd: string, _args?: InvokeArgs): Promise<T> {
+	throw new Error(`Tauri invoke is removed: ${cmd}. Use the Electrobun RPC client.`);
+}
+
+type InvokeRuntime = <T>(cmd: string, args?: InvokeArgs) => Promise<T>;
 let invokeCounter = 0;
 const debugInvoke =
 	typeof import.meta.env !== "undefined" && import.meta.env?.VITE_DEBUG_INVOKE === "true";
 const MAX_COMPLETED_INVOKE_TIMINGS = 300;
 
 type InvokeErrorValue = Error | string | number | boolean | object | null | undefined;
-export type InvokeArgs = Parameters<typeof invoke>[1];
 export type TauriInvokeTimingStatus = "ok" | "error";
 
 export interface TauriInvokeTimingRecord {
@@ -278,7 +282,7 @@ if (
 function invokeAsyncWithRuntime<T>(
 	runtime: InvokeRuntime,
 	cmd: string,
-	args?: Parameters<typeof invoke>[1],
+	args?: InvokeArgs,
 	options: InvokeOptions = DEFAULT_INVOKE_OPTIONS
 ): Effect.Effect<T, AppError> {
 	const invokeId = `invoke-${++invokeCounter}`;
@@ -352,17 +356,11 @@ function invokeAsyncWithRuntime<T>(
 /**
  * Wrap Tauri invoke with Effect for consistent error handling.
  */
-export function invokeAsync<T>(
-	cmd: string,
-	args?: Parameters<typeof invoke>[1]
-): Effect.Effect<T, AppError> {
+export function invokeAsync<T>(cmd: string, args?: InvokeArgs): Effect.Effect<T, AppError> {
 	return invokeAsyncWithRuntime(invoke, cmd, args);
 }
 
-export function invokeAsyncQuiet<T>(
-	cmd: string,
-	args?: Parameters<typeof invoke>[1]
-): Effect.Effect<T, AppError> {
+export function invokeAsyncQuiet<T>(cmd: string, args?: InvokeArgs): Effect.Effect<T, AppError> {
 	return invokeAsyncWithRuntime(invoke, cmd, args, { reportFailure: false });
 }
 

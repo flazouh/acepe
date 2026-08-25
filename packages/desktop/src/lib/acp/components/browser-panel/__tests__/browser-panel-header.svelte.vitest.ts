@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const openUrlMock = vi.fn();
 
-vi.mock("@tauri-apps/plugin-opener", () => ({
+vi.mock("$lib/utils/open-url.js", () => ({
 	openUrl: openUrlMock,
 }));
 

@@ -10,18 +10,13 @@ describe("classifyPushFiles", () => {
 		]);
 		expect(affected.website).toBe(true);
 		expect(affected.desktopFrontend).toBe(false);
-		expect(affected.desktopRust).toBe(false);
 		expect(affected.shared).toBe(false);
 	});
 
-	it("treats desktop frontend separately from src-tauri", () => {
+	it("classifies desktop frontend paths", () => {
 		const frontend = classifyPushFiles(["packages/desktop/src/lib/foo.ts"]);
 		expect(frontend.desktopFrontend).toBe(true);
-		expect(frontend.desktopRust).toBe(false);
-
-		const rust = classifyPushFiles(["packages/desktop/src-tauri/src/lib.rs"]);
-		expect(rust.desktopFrontend).toBe(false);
-		expect(rust.desktopRust).toBe(true);
+		expect(frontend.electrobunShell).toBe(false);
 	});
 
 	it("marks shared when lockfile or package.json changes", () => {

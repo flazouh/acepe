@@ -1,8 +1,8 @@
-import * as Effect from "effect/Effect";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
+import type * as Effect from "effect/Effect";
 
 import type { AppError } from "../../acp/errors/app-error.js";
-import { CMD } from "./commands.js";
-import { invokeAsync, invokeAsyncQuiet } from "./invoke.js";
+import { AgentError } from "../../acp/errors/app-error.js";
 
 interface NativeNotificationOptions {
 	readonly title: string;
@@ -16,16 +16,40 @@ type NativeNotificationPermissionState =
 	| "prompt"
 	| "prompt-with-rationale";
 
+const toAgentError =
+	(operation: string) =>
+	(error: unknown): AgentError =>
+		new AgentError(operation, error instanceof Error ? error : new Error(String(error)));
+
 export const notifications = {
 	send: (options: NativeNotificationOptions): Effect.Effect<void, AppError> => {
-		return invokeAsyncQuiet<void>(CMD.notifications.send, { options });
+		return fromPromise(async () => {
+			if (typeof Notification === "undefined") {
+				throw new Error("Web notifications are not available");
+			}
+			new Notification(options.title, { body: options.body });
+		}, toAgentError("notifications.send"));
 	},
 
 	getPermission: (): Effect.Effect<boolean | null, AppError> => {
-		return invokeAsync<boolean | null>(CMD.notifications.get_permission);
+		return fromPromise(async () => {
+			if (typeof Notification === "undefined") {
+				return null;
+			}
+			return Notification.permission === "granted";
+		}, toAgentError("notifications.getPermission"));
 	},
 
 	requestPermission: (): Effect.Effect<NativeNotificationPermissionState, AppError> => {
-		return invokeAsync<NativeNotificationPermissionState>(CMD.notifications.request_permission);
+		return fromPromise(async () => {
+			if (typeof Notification === "undefined") {
+				return "denied" as const;
+			}
+			const permission = await Notification.requestPermission();
+			if (permission === "granted" || permission === "denied" || permission === "default") {
+				return permission;
+			}
+			return "default";
+		}, toAgentError("notifications.requestPermission"));
 	},
 };

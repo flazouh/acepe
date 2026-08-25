@@ -6,18 +6,18 @@ The glossary and architectural narrative for Acepe. Skills (`improve-codebase-ar
 
 ## What Acepe is
 
-A Tauri 2 + SvelteKit 2 + Svelte 5 desktop app for driving AI coding agents via the **Agent Client Protocol**. The product goal is a production-grade Agentic Developer Environment: run, supervise, compare, and ship work from multiple agents without giving up engineering discipline.
+An Electrobun + Bun + SvelteKit 2 + Svelte 5 desktop app for driving AI coding agents via the **Agent Client Protocol**. There is no Rust and no Tauri. The product goal is a production-grade Agentic Developer Environment: run, supervise, compare, and ship work from multiple agents without giving up engineering discipline.
 
 ## How truth flows (the core narrative)
 
 ```
-Provider (Claude, etc.)  →  Rust adapters / history parsers  →  Canonical model (Rust-owned truth)
-                                                                          │
-                                                                          ▼
-                                              Scene model (pure mapper, TS)  →  View (@acepe/ui)
+Provider (Claude, etc.)  →  Electrobun/Bun adapters / history parsers  →  Canonical model (backend-owned truth)
+                                                                                          │
+                                                                                          ▼
+                                                              Scene model (pure mapper, TS)  →  View (@acepe/ui)
 ```
 
-Truth is **owned by canonical, Rust-side data**. Provider output is *input*, not product truth. Everything downstream (TypeScript, `@acepe/ui`) consumes canonical facts; it does not repair provider quirks. Bugs are fixed by **moving truth upstream**, never by patching the projection downstream. This principle is the GOD Architecture Gate (see `CLAUDE.md`).
+Truth is **owned by canonical backend data**. Provider output is *input*, not product truth. Everything downstream (TypeScript, `@acepe/ui`) consumes canonical facts; it does not repair provider quirks. Bugs are fixed by **moving truth upstream**, never by patching the projection downstream. This principle is the GOD Architecture Gate (see `CLAUDE.md`).
 
 ## Glossary
 
@@ -25,8 +25,8 @@ Truth is **owned by canonical, Rust-side data**. Provider output is *input*, not
 - **Agent** — a persistent organization-owned AI teammate identity with a role, memory, permissions, and defaults. It remains the same agent when its provider, model, session, or execution environment changes. _Avoid:_ bot, model, provider when referring to the persistent teammate.
 - **Agent Run** — one bounded execution attempt by exactly one Agent on exactly one Workroom Task, using exactly one Execution Environment. A task may have several runs because of failure, cancellation, retry, or reassignment. A run may contain a primary Session and harness-created child Sessions. Reconnecting the same Session continues the run; retrying with a new environment, harness, model, or task attempt creates a new run. Runs produce evidence, memory candidates, and Changeset Revisions. Human-owned tasks do not require a run.
 - **Agent Client Protocol (ACP)** — the protocol Acepe speaks to coding agents. Provider-specific quirks are pushed to adapters at the edges.
-- **Provider** — a concrete agent backend (e.g. Claude). Provider data is input, normalized by Rust adapters.
-- **Adapter / history parser** — Rust-side component that normalizes raw provider data into the canonical model. The only place provider weirdness is allowed to live. Each major provider has **one module home** under `acp/providers/<name>/` (`provider.rs`, optional `enrichment.rs`, `settings.rs`, `model_catalog.rs`); `mod.rs` re-exports the public type and carries an **ingress edge map** (live parse, history restore, enrichment, snapshot rehydration) with pointers to parser, converter, and reconciler entry points. Classification tables stay in `acp/reconciler/providers/` (plan 009 home) and are referenced from the edge map, not duplicated. Thin adapters (`custom.rs`, `forge.rs`) may remain single-file by size judgment. No provider-named side-files beside the directory (e.g. no `cursor_session_update_enrichment.rs` at the `providers/` root). See plan `2026-06-11-015`.
+- **Provider** — a concrete agent backend (e.g. Claude). Provider data is input, normalized by Electrobun/Bun adapters.
+- **Adapter / history parser** — backend component that normalizes raw provider data into the canonical model. The only place provider weirdness is allowed to live. Provider quirks stay in adapters and history parsers, not in TypeScript UI.
 - **Session** — one provider conversation or interaction stream belonging to exactly one Agent Run, with its own lifecycle and hot state. A harness may create child Sessions inside the same run. Session-shaped data paths are GOD-gated.
 - **Session graph runtime registry** — Rust composition root for session hot state in `acp/session_state_engine/runtime_registry.rs` (`SessionGraphRuntimeRegistry`). Holds `SessionSupervisor`, delegates to ledger/tracker sub-modules, and retains envelope orchestration. Public interface unchanged for commands, bridge, and envelope router. GOD-gated.
 - **Anchor ledger** — `AnchorLedger` in `session_state_engine/anchor_ledger.rs`. Owns per-session anchor timestamps for chunk timing (`record_chunk_timestamp`). Single mutex; no cross-map lock coupling.
@@ -34,7 +34,7 @@ Truth is **owned by canonical, Rust-side data**. Provider output is *input*, not
 - **Buffer emission tracker** — `BufferEmissionTracker` in `session_state_engine/buffer_emission_tracker.rs`. Owns buffer emission records and push/advance/repair envelope builders. **Sole dual-lock holder** in the session state engine: acquires `buffer_emissions` then calls into `ViewportLedger` — never invert. See `docs/solutions/architectural/session-state-engine-ledger-decomposition-2026-06-11.md`.
 
 ### Canonical model
-- **Canonical model** — the Rust-owned source of truth: canonical event order, identity, and tool-call mapping. The product's durable internal model, independent of any provider.
+- **Canonical model** — the backend-owned source of truth: canonical event order, identity, and tool-call mapping. The product's durable internal model, independent of any provider.
 - **Session event sequence** — the durable per-session delivery and claim watermark allocated only by the SQLite `session_event_sequence` authority. It is separate from graph revision and transcript revision and is never derived from either projection counter, retained journal rows, or an in-memory increment.
 - **Provider projection** — Acepe's canonical representation of an object owned by an external collaboration, ticket, or version-control provider, including its Acepe identity, provider connection, object kind, external identity, revision or cursor, provenance, synchronization state, and Acepe-owned relationships. The tuple `(provider connection, object kind, external identity)` is unique and makes repeated provider events idempotent. The external provider remains authoritative for provider-owned fields: an Acepe command stays visibly pending until a provider event confirms it. Acepe-owned objects require no provider projection. _Avoid:_ copied object, local mirror.
 - **Canonical transcript** — the ordered, canonical record of a session's events. Transcript **order** and **identity** are corrected here, never in the UI.
@@ -46,7 +46,7 @@ Truth is **owned by canonical, Rust-side data**. Provider output is *input*, not
 
 ### Agent panel (MVC)
 - **Agent panel** — the primary surface that renders a session. Split View–Model–Controller across packages (see `CLAUDE.md` for the enforced table).
-  - **View** — presentational components in `@acepe/ui` (`packages/ui/src/components/agent-panel/`). No Tauri, stores, or app logic.
+  - **View** — presentational components in `@acepe/ui` (`packages/ui/src/components/agent-panel/`). No Electrobun, stores, or app logic.
   - **Scene model (`AgentPanelSceneModel`)** — the contract between Model and View; defined in `@acepe/ui` (`packages/ui/src/components/agent-panel/types.ts`).
   - **Model / scene mapper** — focused modules mapping desktop domain types → scene entry/strip/card models; composed by the materializer (`agent-panel-graph-materializer.ts`). `desktop-agent-panel-scene.ts` is a re-export barrel for those modules.
   - **Controller** — `agent-panel.svelte` (desktop): reads stores, builds the model, routes actions, supplies platform-specific snippet overrides.

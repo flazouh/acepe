@@ -2,10 +2,10 @@
  * Create PR / merge PR workflows — async orchestration previously embedded in agent-panel.svelte.
  */
 
-import { openUrl } from "@tauri-apps/plugin-opener";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import { toast } from "svelte-sonner";
+import { openUrl } from "$lib/utils/open-url.js";
 import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import type { GitStackedPrStep } from "../../../../utils/tauri-client/git.js";
@@ -116,7 +116,11 @@ export async function runCreatePrWorkflow(args: {
 					prompt,
 					path,
 					onStreamUpdate,
-					config?.agentId ? config.agentId : effectivePanelAgentId ? effectivePanelAgentId : undefined,
+					config?.agentId
+						? config.agentId
+						: effectivePanelAgentId
+							? effectivePanelAgentId
+							: undefined,
 					config?.modelId ? config.modelId : undefined
 				)
 			)
@@ -143,58 +147,56 @@ export async function runCreatePrWorkflow(args: {
 		prTitle,
 	});
 	await Effect.runPromise(
-		tauriClient.git
-			.runStackedAction(path, "commit_push_pr", commitMsg, prTitle, prBody)
-			.pipe(
-				Effect.match({
-					onSuccess: (ok) => {
-						setCreatePrRunning(false);
-						setCreatePrLabel(null);
-						onStreamReset();
-						logger.info("runCreatePrWorkflow: success", {
-							action: ok.action,
-							commitStatus: ok.commit.status,
-							pushStatus: ok.push.status,
-							prStatus: ok.pr.status,
-							prUrl: ok.pr.url,
-						});
-						switch (ok.pr.status) {
-							case "created":
-								toast.success(`Created PR #${ok.pr.number ?? ""}`);
-								break;
-							case "opened_existing":
-								toast.success(`Opened PR #${ok.pr.number ?? ""}`);
-								break;
-							case "skipped_not_requested":
-								toast.success("Pushed to branch");
-								break;
-							default: {
-								const _: never = ok.pr.status;
-								toast.success("Pushed to branch");
-							}
+		tauriClient.git.runStackedAction(path, "commit_push_pr", commitMsg, prTitle, prBody).pipe(
+			Effect.match({
+				onSuccess: (ok) => {
+					setCreatePrRunning(false);
+					setCreatePrLabel(null);
+					onStreamReset();
+					logger.info("runCreatePrWorkflow: success", {
+						action: ok.action,
+						commitStatus: ok.commit.status,
+						pushStatus: ok.push.status,
+						prStatus: ok.pr.status,
+						prUrl: ok.pr.url,
+					});
+					switch (ok.pr.status) {
+						case "created":
+							toast.success(`Created PR #${ok.pr.number ?? ""}`);
+							break;
+						case "opened_existing":
+							toast.success(`Opened PR #${ok.pr.number ?? ""}`);
+							break;
+						case "skipped_not_requested":
+							toast.success("Pushed to branch");
+							break;
+						default: {
+							const _: never = ok.pr.status;
+							toast.success("Pushed to branch");
 						}
-						if (ok.pr.status === "created" || ok.pr.status === "opened_existing") {
-							if (sessionId) {
-								void deps.applyAutomaticSessionPrLink(sessionId, path, ok.pr);
-							}
-							if (ok.pr.url) void openUrl(ok.pr.url).catch(() => {});
+					}
+					if (ok.pr.status === "created" || ok.pr.status === "opened_existing") {
+						if (sessionId) {
+							void deps.applyAutomaticSessionPrLink(sessionId, path, ok.pr);
 						}
-					},
-					onFailure: (err) => {
-						setCreatePrRunning(false);
-						setCreatePrLabel(null);
-						onStreamReset();
-						const details = getErrorCauseDetails(err);
-						logger.error("runCreatePrWorkflow: failed", {
-							message: err.message,
-							rootCause: details.rootCause,
-							chain: details.chain,
-							formatted: details.formatted,
-						});
-						toast.error(details.rootCause ?? err.message);
-					},
-				})
-			)
+						if (ok.pr.url) void openUrl(ok.pr.url).catch(() => {});
+					}
+				},
+				onFailure: (err) => {
+					setCreatePrRunning(false);
+					setCreatePrLabel(null);
+					onStreamReset();
+					const details = getErrorCauseDetails(err);
+					logger.error("runCreatePrWorkflow: failed", {
+						message: err.message,
+						rootCause: details.rootCause,
+						chain: details.chain,
+						formatted: details.formatted,
+					});
+					toast.error(details.rootCause ?? err.message);
+				},
+			})
+		)
 	);
 }
 

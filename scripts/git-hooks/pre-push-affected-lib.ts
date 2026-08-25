@@ -1,12 +1,10 @@
 export type Affected = {
 	desktopFrontend: boolean;
-	desktopRust: boolean;
 	website: boolean;
 	ui: boolean;
 	agentPanelContract: boolean;
 	rootScripts: boolean;
 	shared: boolean;
-	gpuiPoc: boolean;
 	electrobunShell: boolean;
 };
 
@@ -15,13 +13,12 @@ function matchesAny(files: readonly string[], prefixes: readonly string[]): bool
 }
 
 function isDesktopFrontend(file: string): boolean {
-	return file.startsWith("packages/desktop/") && !file.startsWith("packages/desktop/src-tauri/");
+	return file.startsWith("packages/desktop/");
 }
 
 export function classifyPushFiles(files: readonly string[]): Affected {
 	return {
 		desktopFrontend: files.some(isDesktopFrontend),
-		desktopRust: matchesAny(files, ["packages/desktop/src-tauri/"]),
 		website: matchesAny(files, ["packages/website/"]),
 		ui: matchesAny(files, ["packages/ui/"]),
 		agentPanelContract: matchesAny(files, ["packages/agent-panel-contract/"]),
@@ -36,7 +33,6 @@ export function classifyPushFiles(files: readonly string[]): Affected {
 			"opencode.json",
 			"railway.json",
 		]),
-		gpuiPoc: matchesAny(files, ["packages/gpui-agent-panel-poc/"]),
 		electrobunShell: matchesAny(files, [
 			"packages/electrobun-shell/",
 			"packages/desktop/electrobun.config.ts",
@@ -50,7 +46,6 @@ export function classifyPushFiles(files: readonly string[]): Affected {
 export function shouldRunDesktop(affected: Affected): boolean {
 	return (
 		affected.desktopFrontend ||
-		affected.desktopRust ||
 		affected.ui ||
 		affected.agentPanelContract ||
 		affected.rootScripts ||
@@ -68,14 +63,6 @@ export function shouldRunUi(affected: Affected): boolean {
 
 export function shouldRunAgentPanelContract(affected: Affected): boolean {
 	return affected.agentPanelContract || affected.shared;
-}
-
-export function shouldRunTauriBackend(affected: Affected): boolean {
-	return affected.desktopRust || affected.shared;
-}
-
-export function shouldRunGpuiPoc(affected: Affected): boolean {
-	return affected.gpuiPoc;
 }
 
 export function shouldRunElectrobunShell(affected: Affected): boolean {

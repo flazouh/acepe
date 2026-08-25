@@ -1,4 +1,4 @@
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl } from "$lib/utils/open-url.js";
 
 export interface IssueReportMetadataEntry {
 	readonly label: string;

@@ -1,8 +1,8 @@
 import { fromThrowable } from "@acepe/effect-result/fromThrowable";
 import { resolveProjectColor } from "@acepe/ui/colors";
-import { convertFileSrc } from "@tauri-apps/api/core";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
+import { convertFileSrc } from "../../utils/file-src.js";
 import type { ProjectAcepeConfig, ProjectData } from "../../utils/tauri-client/types.js";
 import { tauriClient } from "../../utils/tauri-client.js";
 import type { Project } from "./project-manager.svelte.js";

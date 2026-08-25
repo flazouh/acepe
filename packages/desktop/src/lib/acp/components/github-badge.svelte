@@ -1,6 +1,6 @@
 <script lang="ts">
 import { GitHubBadge, HugeiconsIcon } from "@acepe/ui";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl } from "$lib/utils/open-url.js";
 import * as Effect from "effect/Effect";
 
 import type { GitHubReference } from "../constants/github-badge-html.js";

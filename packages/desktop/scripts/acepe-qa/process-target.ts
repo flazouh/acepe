@@ -29,21 +29,17 @@ type FrontendFreshness = TargetDoctorResult["frontendFreshness"];
 
 function classifyCommand(command: string, checkoutRoot: string): TargetProcess["kind"] {
 	const normalizedRoot = checkoutRoot.endsWith("/") ? checkoutRoot.slice(0, -1) : checkoutRoot;
-	const devBinary = `${normalizedRoot}/packages/desktop/src-tauri/target/debug/acepe`;
-	const devBundleBinary = `${normalizedRoot}/packages/desktop/src-tauri/target/debug/bundle/macos/Acepe Dev QA.app/Contents/MacOS/acepe`;
-	if (command.includes(devBinary) || command.includes("target/debug/acepe")) {
-		return "dev";
-	}
+	const electrobunApp = `${normalizedRoot}/packages/desktop/electrobun-build`;
 	if (
-		command.includes(devBundleBinary) ||
-		command.includes("target/debug/bundle/macos/Acepe Dev QA.app/Contents/MacOS/acepe")
+		command.includes(electrobunApp) ||
+		command.includes("electrobun-build/") ||
+		command.includes("bunx electrobun") ||
+		command.includes("electrobun:build") ||
+		command.includes("electrobun build")
 	) {
 		return "dev";
 	}
-	if (command.includes("bun run tauri") || command.includes("tauri dev")) {
-		return "dev";
-	}
-	if (command.includes("/Applications/Acepe.app") || command.includes("Acepe.app/Contents/MacOS")) {
+	if (command.includes("/Applications/Acepe.app")) {
 		return "production";
 	}
 	return "other";
@@ -123,51 +119,11 @@ function probeWebview(
 	);
 }
 
-function binaryFreshness(
-	checkoutRoot: string,
-	runner: CommandRunner
-): Effect.Effect<BinaryFreshness, TauriMcpFailure> {
-	const binaryPath = join(checkoutRoot, "packages/desktop/src-tauri/target/debug/acepe");
-	const sourceRoot = join(checkoutRoot, "packages/desktop/src-tauri/src");
-	return runner(["find", sourceRoot, "-name", "*.rs", "-newer", binaryPath]).pipe(
-		Effect.flatMap((execution) => {
-			if (execution.code !== 0) {
-				return Effect.fail({
-					code: "binary_freshness_failed",
-					message:
-						execution.stderr.trim() ||
-						execution.stdout.trim() ||
-						"Unable to compare Rust sources with the dev binary.",
-				});
-			}
-			const staleSources = execution.stdout
-				.split("\n")
-				.map((line) => line.trim())
-				.filter((line) => line.length > 0);
-			if (staleSources.length > 0) {
-				const firstSources = staleSources
-					.slice(0, 3)
-					.map((source) =>
-						source.startsWith(checkoutRoot) ? source.slice(checkoutRoot.length + 1) : source
-					)
-					.join(", ");
-				return Effect.succeed({
-					status: "stale",
-					message: `Rust source is newer than target/debug/acepe: ${firstSources}`,
-				} satisfies BinaryFreshness);
-			}
-			return Effect.succeed({
-				status: "fresh",
-				message: "target/debug/acepe is newer than all checked Rust sources.",
-			} satisfies BinaryFreshness);
-		}),
-		Effect.catch((failure) =>
-			Effect.succeed({
-				status: "unknown",
-				message: failure.message,
-			} satisfies BinaryFreshness)
-		)
-	);
+function binaryFreshness(): Effect.Effect<BinaryFreshness, TauriMcpFailure> {
+	return Effect.succeed({
+		status: "fresh",
+		message: "Acepe ships with Electrobun and Bun. There is no Rust binary.",
+	} satisfies BinaryFreshness);
 }
 
 function webviewUsesLiveVite(url: string | null): boolean {
@@ -342,7 +298,7 @@ export function runDoctor(
 			const productionProcesses = processes.filter((process) => process.kind === "production");
 			const port = detectPort(devProcesses, appIdentifier);
 			const appIdentifiers = appIdentifierCandidates(port);
-			return binaryFreshness(options.checkoutRoot, runner).pipe(
+			return binaryFreshness().pipe(
 				Effect.flatMap((freshness) =>
 					probeWebview(appIdentifiers, runner).pipe(
 						Effect.flatMap((probe) =>

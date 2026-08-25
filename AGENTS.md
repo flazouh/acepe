@@ -1,6 +1,6 @@
 # Acepe
 
-Tauri 2 + SvelteKit 2 + Svelte 5 desktop app for AI agent interaction via Agent Client Protocol.
+Electrobun + Bun + SvelteKit 2 + Svelte 5 desktop app for AI agent interaction via Agent Client Protocol. No Rust. No Tauri.
 
 ## Project Vision
 
@@ -19,10 +19,10 @@ Trend toward:
 
 ```bash
 cd packages/desktop
-bun run check      # TypeScript check (run after every TS change)
-bun test           # Tests
-bun run build      # Build
-cargo clippy       # Rust lint (in src-tauri/)
+bun run check            # TypeScript check (run after every TS change)
+bun test                 # Tests
+bun run build            # Frontend build
+bun run electrobun:build # Desktop app (Electrobun, no Rust)
 ```
 
 **Git hooks (Lefthook):** `bun install` runs `lefthook install`. Pre-commit = Biome on staged files + cheap forbids. Pre-push = path-aware CI mirror (`scripts/git-hooks/pre-push-affected.ts`). Override locally with `lefthook-local.yml` (gitignored).
@@ -51,7 +51,7 @@ cargo clippy       # Rust lint (in src-tauri/)
 - ALWAYS invoke Svelte skills before modifying/creating Svelte code: `svelte-runes`, `svelte-components`, `sveltekit-structure`, `sveltekit-data-flow`.
 - NEVER use `$effect`. Use `$derived` for computed values, event handlers for actions. If unavoidable, guard writes with comparison.
 - **Effect-TS vs Svelte `$effect`:** Write Effect-TS as `Effect.Effect` and import `* as Effect` from `effect/Effect`. Write the Svelte rune as `$effect`. Never name an Effect-TS program `effect`; name it `program` or a domain noun. Bind Effect atoms into Svelte with `createSubscriber` from `svelte/reactivity` (`@acepe/effect-svelte`); do not use the `$effect` rune for that.
-- ALL new UI components must be dumb/presentational in `packages/ui`. No Tauri, store, runtime, or app-specific logic — they must be reusable from `@acepe/ui`. See "UI Package MVC" below for the extraction workflow and enforcement.
+- ALL new UI components must be dumb/presentational in `packages/ui`. No Electrobun, store, runtime, or app-specific logic — they must be reusable from `@acepe/ui`. See "UI Package MVC" below for the extraction workflow and enforcement.
 
 ### Architecture
 
@@ -68,8 +68,8 @@ Acepe optimizes for two readers: the engineer and the agent. Code must be **AI-n
 #### GOD Architecture Gate
 
 - Always invoke `god-architecture-check` before changing session-shaped or transcript-shaped data paths: session lifecycle, hot state, canonical projections, transcript order, tool operations, provider history parsing, agent-panel projection, or display entry identity.
-- Keep asking during implementation: "Is this change moving truth upstream into canonical Rust-owned data, or patching symptoms downstream?" If it patches downstream, stop and use the GOD check before continuing.
-- Raw provider data is input, not product truth. Provider quirks belong in Rust adapters/history parsers; TypeScript and `packages/ui` must consume canonical facts, not repair provider-specific weirdness.
+- Keep asking during implementation: "Is this change moving truth upstream into canonical backend-owned data, or patching symptoms downstream?" If it patches downstream, stop and use the GOD check before continuing.
+- Raw provider data is input, not product truth. Provider quirks belong in Electrobun/Bun adapters and history parsers; TypeScript and `packages/ui` must consume canonical facts, not repair provider-specific weirdness.
 - For transcript bugs, never fix order in the UI. Canonical transcript order, identity, and tool-call mapping must be corrected before display projection.
 - Treat raw provider ids, such as Claude `message.id`, as metadata unless the canonical model explicitly promotes them. Use canonical event order and Acepe-owned display ids for UI identity.
 
@@ -79,9 +79,9 @@ Shared UI follows a View–Model–Controller split across packages. **Invoke `e
 
 | Layer | Package | Role |
 |-------|---------|------|
-| **View** | `@acepe/ui` (`packages/ui/`) | Presentational components. Props, callbacks, snippets. Optional view helpers (`*-state.ts`, `*-effects.ts`). No Tauri, stores, or app-specific policy. |
+| **View** | `@acepe/ui` (`packages/ui/`) | Presentational components. Props, callbacks, snippets. Optional view helpers (`*-state.ts`, `*-effects.ts`). No Electrobun, stores, or app-specific policy. |
 | **Model** | `packages/desktop` pure TS | Maps domain types to view props (`*-state.ts`, `*-logic.ts`, scene mappers). |
-| **Controller** | `packages/desktop` wrapper `.svelte` | Reads stores/Tauri, builds Model output, renders View, handles callbacks. |
+| **Controller** | `packages/desktop` wrapper `.svelte` | Reads stores, builds Model output, renders View, handles callbacks. |
 
 **Enforcement:** `scripts/forbid-ui-package-imports.ts` + `packages/ui/src/__tests__/ui-package-boundary.test.ts` (import guard + render smoke).
 
@@ -100,19 +100,19 @@ Shared UI follows a View–Model–Controller split across packages. **Invoke `e
 
 ### Visual QA
 
-- ALWAYS invoke the `acepe-dev-app-qa` skill before inspecting the Acepe desktop dev app, current dev app, Tauri WebView, session display, agent panel, or any UI-visible Acepe change.
-- **After every change that could affect what the user sees** — desktop Svelte/TS/CSS, `@acepe/ui`, or Rust on session/transcript/display paths — run **DOM verification through the repo QA CLI** before calling the work done. Unit tests and `bun run check` are not sufficient on their own.
+- ALWAYS invoke the `acepe-dev-app-qa` skill before inspecting the Acepe desktop dev app, current dev app, Electrobun WebView, session display, agent panel, or any UI-visible Acepe change.
+- **After every change that could affect what the user sees** — desktop Svelte/TS/CSS, `@acepe/ui`, or Electrobun/Bun on session/transcript/display paths — run **DOM verification through the repo QA CLI** before calling the work done. Unit tests and `bun run check` are not sufficient on their own.
 - **Required QA CLI baseline** (from `packages/desktop`): `bun run qa doctor` → open or observe the affected screen (`bun run qa observe`) → **`bun run qa inspect --selector=<selector>`** on the element or region that proves the change → `bun run qa screenshot` when the change is visual or layout-related.
 - **QA evidence must match the bug.** Static DOM inspection is enough only for static visual/style changes. Interaction bugs must run the interaction through `bun run qa click`, `send`, `watch`, or a dedicated QA command, then inspect the resulting DOM/app state. Timing, scroll, streaming, animation, and layout-transition bugs must run a probe that samples the transition after the code change; a static `inspect` or screenshot is not enough.
 - If a plan names a QA probe, that probe is mandatory completion evidence. If the needed app/session state is unavailable, report behavioral QA as blocked and say exactly what static evidence was collected; do not rename static DOM inspection as a pass for the behavior.
-- Prefer the repo QA wrapper before raw Tauri MCP. Other commands: `bun run qa reset-onboarding`, `bun run qa click --selector=<selector>`, `bun run qa send --text=<message>`, `bun run qa watch --text=<text>`.
+- Prefer the repo QA wrapper before raw Electrobun QA tools. Other commands: `bun run qa reset-onboarding`, `bun run qa click --selector=<selector>`, `bun run qa send --text=<message>`, `bun run qa watch --text=<text>`.
 - If a QA or app interaction is not extremely smooth, improve the system before repeating the friction: add a wrapper command, helper, hook, skill instruction, or documented primitive so the next pass is easier.
 - Any UI-visible code change must be verified **after** the code change, not before. The QA wrapper records `.codex/state/ui-qa-evidence.json`; Codex Stop hooks should block completion when UI files changed after the latest evidence.
-- Before interacting with a window, confirm the target is the app/build that contains the change. For dev QA, prefer the running Tauri dev app from this checkout (`target/debug/acepe` / local dev server), not the installed production bundle in `/Applications/Acepe.app`, unless the task is explicitly about the production app.
-- For desktop app QA, prefer the Tauri MCP bridge when it is available. Use it to attach to the running dev WebView, inspect the DOM/app state, read console errors, click/type, and capture screenshots inside the Tauri context. A normal browser at `localhost:1420` is not enough for Acepe desktop QA because Tauri APIs like `invoke` are missing there.
-- If Tauri MCP is unavailable, first try the running dev Tauri window via Computer Use. Only use a normal browser for routes that are known to work without Tauri APIs, and say clearly that it is browser-only evidence.
+- Before interacting with a window, confirm the target is the app/build that contains the change. For dev QA, prefer the Electrobun app from this checkout (`packages/desktop/electrobun-build/stable-macos-arm64/Acepe.app`), not the installed production bundle in `/Applications/Acepe.app`, unless the task is explicitly about the production app.
+- For desktop app QA, prefer the repo QA wrapper when it is available. Use it to attach to the running Electrobun WebView, inspect the DOM/app state, read console errors, click/type, and capture screenshots inside the desktop context. A normal browser at `localhost:1420` is not enough for Acepe desktop QA because Electrobun APIs are missing there.
+- If the QA wrapper is unavailable, first try the running Electrobun window via Computer Use. Only use a normal browser for routes that are known to work without desktop APIs, and say clearly that it is browser-only evidence.
 - Include the DOM inspection output (selector + observed facts) and screenshot when relevant in the final response.
-- If the app or dev server is not available, start it from `packages/desktop` with `bun run tauri`, then run the QA CLI pass; if still blocked, say exactly what was verified and what could not be.
+- If the app or dev server is not available, start it from `packages/desktop` with `bun run electrobun:build`, then run the QA CLI pass; if still blocked, say exactly what was verified and what could not be.
 
 ## Operational Guardrails
 
@@ -123,7 +123,6 @@ Shared UI follows a View–Model–Controller split across packages. **Invoke `e
 
 - [TypeScript Conventions](.agent-guides/typescript.md)
 - [Svelte 5 Patterns](.agent-guides/svelte.md)
-- [Rust/Tauri Development](.agent-guides/rust-tauri.md)
 - [Neverthrow Error Handling](.agent-guides/neverthrow.md)
 - [Code Quality](.agent-guides/code-quality.md)
 

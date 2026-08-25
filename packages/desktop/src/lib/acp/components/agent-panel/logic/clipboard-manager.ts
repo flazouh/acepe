@@ -1,5 +1,4 @@
 import { fromPromise } from "@acepe/effect-result/fromPromise";
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import * as Effect from "effect/Effect";
 
 import { createLogger } from "../../../utils/logger.js";
@@ -29,105 +28,56 @@ function copyTextWithExecCommand(content: string): boolean {
 }
 
 export function copyTextToClipboard(content: string): Effect.Effect<void, ClipboardError> {
-	logger.info("copyTextToClipboard: attempting Tauri clipboard write", {
+	logger.info("copyTextToClipboard: attempting clipboard write", {
 		contentLength: content.length,
 	});
 
-	return fromPromise(
-		() => writeText(content),
-		(error) =>
-			new ClipboardError("Failed to copy to clipboard", {
-				contentLength: content.length,
-				originalError: String(error),
-			})
-	).pipe(
-		Effect.map(() => {
-			logger.info("copyTextToClipboard: Tauri clipboard write succeeded", {
-				contentLength: content.length,
-			});
-		}),
-		Effect.catch((tauriError) => {
-			logger.warn("copyTextToClipboard: Tauri clipboard write failed", {
-				contentLength: content.length,
-				error: tauriError.message,
-				context: tauriError.context,
-			});
-
-			const clipboard = typeof navigator === "undefined" ? null : navigator.clipboard;
-			const clipboardWrite = clipboard ? clipboard.writeText(content) : null;
-
-			if (clipboardWrite) {
-				logger.info("copyTextToClipboard: attempting navigator clipboard write", {
-					contentLength: content.length,
-				});
-
-				return fromPromise(
-					() => clipboardWrite,
-					(error) =>
-						new ClipboardError("Failed to copy to clipboard", {
-							contentLength: content.length,
-							originalError: String(error),
-							fallback: "navigator.clipboard",
-						})
-				).pipe(
-					Effect.map(() => {
-						logger.info("copyTextToClipboard: navigator clipboard write succeeded", {
-							contentLength: content.length,
-						});
-					}),
-					Effect.catch((navigatorError) => {
-						logger.warn("copyTextToClipboard: navigator clipboard write failed", {
-							contentLength: content.length,
-							error: navigatorError.message,
-							context: navigatorError.context,
-						});
-
-						const copied = copyTextWithExecCommand(content);
-
-						if (copied) {
-							logger.info("copyTextToClipboard: execCommand fallback succeeded", {
-								contentLength: content.length,
-							});
-							return Effect.succeed(undefined);
-						}
-
-						logger.error("copyTextToClipboard: execCommand fallback failed", {
-							contentLength: content.length,
-						});
-
-						return Effect.fail(
-							new ClipboardError("Failed to copy to clipboard", {
-								contentLength: content.length,
-								fallback: "execCommand",
-							})
-						);
-					})
-				);
-			}
-
-			logger.warn("copyTextToClipboard: navigator clipboard unavailable, using execCommand", {
-				contentLength: content.length,
-			});
-
-			const copied = copyTextWithExecCommand(content);
-
-			if (copied) {
-				logger.info("copyTextToClipboard: execCommand fallback succeeded", {
-					contentLength: content.length,
-				});
-				return Effect.succeed(undefined);
-			}
-
-			logger.error("copyTextToClipboard: execCommand fallback failed", {
-				contentLength: content.length,
-			});
-
-			return Effect.fail(
+	const clipboard = typeof navigator === "undefined" ? null : navigator.clipboard;
+	if (clipboard) {
+		return fromPromise(
+			() => clipboard.writeText(content),
+			(error) =>
 				new ClipboardError("Failed to copy to clipboard", {
 					contentLength: content.length,
-					fallback: "execCommand",
+					originalError: String(error),
+					fallback: "navigator.clipboard",
 				})
-			);
+		).pipe(
+			Effect.map(() => {
+				logger.info("copyTextToClipboard: navigator clipboard write succeeded", {
+					contentLength: content.length,
+				});
+			}),
+			Effect.catch((navigatorError) => {
+				logger.warn("copyTextToClipboard: navigator clipboard write failed", {
+					contentLength: content.length,
+					error: navigatorError.message,
+					context: navigatorError.context,
+				});
+				return copyWithExecCommand(content);
+			})
+		);
+	}
+
+	return copyWithExecCommand(content);
+}
+
+function copyWithExecCommand(content: string): Effect.Effect<void, ClipboardError> {
+	const copied = copyTextWithExecCommand(content);
+	if (copied) {
+		logger.info("copyTextToClipboard: execCommand fallback succeeded", {
+			contentLength: content.length,
+		});
+		return Effect.succeed(undefined);
+	}
+
+	logger.error("copyTextToClipboard: execCommand fallback failed", {
+		contentLength: content.length,
+	});
+	return Effect.fail(
+		new ClipboardError("Failed to copy to clipboard", {
+			contentLength: content.length,
+			fallback: "execCommand",
 		})
 	);
 }

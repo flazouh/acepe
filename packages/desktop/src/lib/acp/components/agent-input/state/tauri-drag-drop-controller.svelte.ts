@@ -1,4 +1,4 @@
-import { listen as defaultTauriListen, type UnlistenFn } from "@tauri-apps/api/event";
+import { listenIfTauri, type UnlistenFn } from "$lib/utils/electrobun-window-shims.js";
 import { createLogger } from "../../../utils/logger.js";
 
 export type DragDropPosition = {
@@ -52,7 +52,7 @@ export class TauriDragDropController {
 	#isDestroyed = false;
 
 	constructor(deps: TauriDragDropControllerDeps) {
-		this.#listen = deps.listen ?? defaultTauriListen;
+		this.#listen = deps.listen ?? listenIfTauri;
 		this.#callbacks = deps.callbacks;
 	}
 

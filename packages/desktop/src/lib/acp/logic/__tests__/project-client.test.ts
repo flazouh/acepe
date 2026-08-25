@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import type { Project } from "../project-manager.svelte.js";
 
 // Mock convertFileSrc before importing the module under test
-mock.module("@tauri-apps/api/core", () => ({
+mock.module("../../../utils/file-src.js", () => ({
 	convertFileSrc: (path: string) => `asset://localhost/${encodeURIComponent(path)}`,
 }));
 

@@ -18,7 +18,7 @@ vi.mock("@acepe/ui", async () => ({
 	HugeiconsIcon: (await import("./pr-status-card/test-hugeicons-icon-stub.svelte")).default,
 }));
 
-vi.mock("@tauri-apps/plugin-opener", () => ({
+vi.mock("$lib/utils/open-url.js", () => ({
 	openUrl: vi.fn(),
 }));
 

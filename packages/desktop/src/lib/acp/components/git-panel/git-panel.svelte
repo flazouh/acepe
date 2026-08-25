@@ -20,7 +20,7 @@ import {
 	getMicButtonVisualState,
 } from "@acepe/ui";
 import { GitWorkspace, type GitLogEntryFile } from "@acepe/ui/git-panel";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl } from "$lib/utils/open-url.js";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Result from "effect/Result";
@@ -433,7 +433,9 @@ async function handleDiscard(path: string) {
 }
 
 async function handleCommit(message: string) {
-	const result = await Effect.runPromise(Effect.result(tauriClient.git.commit(projectPath, message)));
+	const result = await Effect.runPromise(
+		Effect.result(tauriClient.git.commit(projectPath, message))
+	);
 	if (Result.isSuccess(result)) {
 		commitMessage = "";
 	}

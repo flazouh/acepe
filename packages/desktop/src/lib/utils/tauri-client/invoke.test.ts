@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
-import type { InvokeArgs } from "@tauri-apps/api/core";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import { AgentError } from "../../acp/errors/app-error.js";
+import type { InvokeArgs } from "./invoke.js";
 
 const captureCommandFailureMock = mock(() => undefined);
 

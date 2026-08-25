@@ -24,7 +24,7 @@ const sessionContextState = vi.hoisted(
 	})
 );
 
-vi.mock("@tauri-apps/plugin-opener", () => ({
+vi.mock("$lib/utils/open-url.js", () => ({
 	openUrl: openUrlMock,
 }));
 

@@ -43,7 +43,6 @@
  * validateRestoredSessions handles missing/deleted session edge cases.
  */
 
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
@@ -60,6 +59,7 @@ import { createLogger } from "$lib/acp/utils/logger.js";
 import type { KeybindingsService } from "$lib/keybindings/service.svelte.js";
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
 import { getZoomService } from "$lib/services/zoom.svelte.js";
+import { listenIfTauri, type UnlistenFn } from "$lib/utils/electrobun-window-shims.js";
 import { history } from "$lib/utils/tauri-client/history.js";
 import { settings } from "$lib/utils/tauri-client/settings.js";
 import type { MainAppViewState } from "../main-app-view-state.svelte.js";
@@ -506,15 +506,17 @@ export class InitializationManager {
 	 * @returns Effect indicating success or error
 	 */
 	private initializeSessionUpdates(): Effect.Effect<void, MainAppViewError> {
-		return this.sessionStore.initializeSessionUpdates().pipe(
-			Effect.mapError(
-				(error: AppError) =>
-					new InitializationError(
-						"initializeSessionUpdates",
-						error instanceof Error ? error : new Error(String(error))
-					)
-			)
-		);
+		return this.sessionStore
+			.initializeSessionUpdates()
+			.pipe(
+				Effect.mapError(
+					(error: AppError) =>
+						new InitializationError(
+							"initializeSessionUpdates",
+							error instanceof Error ? error : new Error(String(error))
+						)
+				)
+			);
 	}
 
 	private initializeSessionUpdatesInBackground(): void {
@@ -583,18 +585,21 @@ export class InitializationManager {
 			return;
 		this.historyIndexListenerPending = true;
 		const generation = ++this.historyIndexListenerGeneration;
-		void listen<{ projectPaths: string[]; revision: number }>("history-index-changed", () => {
-			void Effect.runPromise(
-				history.invalidateHistoryCache().pipe(
-					Effect.flatMap(() => this.scanStartupSessionHistory()),
-					Effect.match({
-						onSuccess: () => undefined,
-						onFailure: (error) =>
-							logger.warn("Failed to refresh canonical session summaries", { error }),
-					})
-				)
-			);
-		})
+		void listenIfTauri<{ projectPaths: string[]; revision: number }>(
+			"history-index-changed",
+			() => {
+				void Effect.runPromise(
+					history.invalidateHistoryCache().pipe(
+						Effect.flatMap(() => this.scanStartupSessionHistory()),
+						Effect.match({
+							onSuccess: () => undefined,
+							onFailure: (error) =>
+								logger.warn("Failed to refresh canonical session summaries", { error }),
+						})
+					)
+				);
+			}
+		)
 			.then((unlisten) => {
 				this.historyIndexListenerPending = false;
 				if (generation !== this.historyIndexListenerGeneration) {
@@ -635,7 +640,9 @@ export class InitializationManager {
 		);
 	}
 
-	private loadProjectsAfterStartup(preferredPaths: string[]): Effect.Effect<void, MainAppViewError> {
+	private loadProjectsAfterStartup(
+		preferredPaths: string[]
+	): Effect.Effect<void, MainAppViewError> {
 		return this.traceStartupResult(
 			"loadProjects",
 			this.projectManager.loadProjects(preferredPaths).pipe(
@@ -820,15 +827,17 @@ export class InitializationManager {
 	private initializeAgentPreferences(
 		agents: readonly Agent[] = this.agentStore.agents
 	): Effect.Effect<void, MainAppViewError> {
-		return this.agentPreferencesStore.initialize(agents, this.projectManager.projectCount).pipe(
-			Effect.mapError(
-				(error) =>
-					new InitializationError(
-						"initializeAgentPreferences",
-						error instanceof Error ? error : new Error(String(error))
-					)
-			)
-		);
+		return this.agentPreferencesStore
+			.initialize(agents, this.projectManager.projectCount)
+			.pipe(
+				Effect.mapError(
+					(error) =>
+						new InitializationError(
+							"initializeAgentPreferences",
+							error instanceof Error ? error : new Error(String(error))
+						)
+				)
+			);
 	}
 
 	private primeAgentPreferences(agents: readonly Agent[] = this.agentStore.agents): void {

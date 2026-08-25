@@ -15,7 +15,7 @@ import {
 } from "@acepe/ui/project-letter-badge";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl } from "$lib/utils/open-url.js";
 import { fromPromise } from "@acepe/effect-result/fromPromise";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";

@@ -14,7 +14,7 @@ describe("acepe-qa process target parsing", () => {
 	it("detects dev and production Acepe processes separately", () => {
 		const processes = parseProcessList(
 			[
-				"101 /Users/alex/Documents/acepe/packages/desktop/src-tauri/target/debug/acepe --port 9223",
+				"101 /Users/alex/Documents/acepe/packages/desktop/electrobun-build/stable-macos-arm64/Acepe.app/Contents/MacOS/launcher --port 9223",
 				"202 /Applications/Acepe.app/Contents/MacOS/acepe",
 				"303 /bin/zsh",
 			].join("\n"),
@@ -25,7 +25,7 @@ describe("acepe-qa process target parsing", () => {
 			{
 				pid: 101,
 				command:
-					"/Users/alex/Documents/acepe/packages/desktop/src-tauri/target/debug/acepe --port 9223",
+					"/Users/alex/Documents/acepe/packages/desktop/electrobun-build/stable-macos-arm64/Acepe.app/Contents/MacOS/launcher --port 9223",
 				kind: "dev",
 			},
 			{
@@ -41,19 +41,16 @@ describe("acepe-qa process target parsing", () => {
 		]);
 	});
 
-	it("detects the debug app bundle as a dev process", () => {
+	it("detects the Electrobun build command as a dev process", () => {
 		const processes = parseProcessList(
-			[
-				"156 /Users/alex/Documents/acepe/packages/desktop/src-tauri/target/debug/bundle/macos/Acepe Dev QA.app/Contents/MacOS/acepe",
-			].join("\n"),
+			["156 bunx electrobun build --env=stable"].join("\n"),
 			checkoutRoot
 		);
 
 		expect(processes).toEqual([
 			{
 				pid: 156,
-				command:
-					"/Users/alex/Documents/acepe/packages/desktop/src-tauri/target/debug/bundle/macos/Acepe Dev QA.app/Contents/MacOS/acepe",
+				command: "bunx electrobun build --env=stable",
 				kind: "dev",
 			},
 		]);
@@ -61,14 +58,14 @@ describe("acepe-qa process target parsing", () => {
 
 	it("ignores malformed process lines", () => {
 		const processes = parseProcessList(
-			["bad line", "404 tauri dev", "     ", "nope"].join("\n"),
+			["bad line", "404 electrobun build", "     ", "nope"].join("\n"),
 			checkoutRoot
 		);
 
 		expect(processes).toEqual([
 			{
 				pid: 404,
-				command: "tauri dev",
+				command: "electrobun build",
 				kind: "dev",
 			},
 		]);
@@ -81,7 +78,8 @@ describe("acepe-qa process target parsing", () => {
 			if (command[0] === "ps") {
 				return okExecution({
 					code: 0,
-					stdout: "101 /Users/alex/Documents/acepe/packages/desktop/src-tauri/target/debug/acepe\n",
+					stdout:
+						"101 /Users/alex/Documents/acepe/packages/desktop/electrobun-build/stable-macos-arm64/Acepe.app/Contents/MacOS/launcher\n",
 					stderr: "",
 				});
 			}
@@ -131,62 +129,13 @@ describe("acepe-qa process target parsing", () => {
 		expect(calls.some((call) => call.includes("--app-identifier 9224"))).toBe(true);
 	});
 
-	it("reports stale when any Rust source is newer than the dev binary", async () => {
+	it("reports no Rust binary for Electrobun freshness", async () => {
 		const runner = (command: readonly string[]) => {
 			if (command[0] === "ps") {
 				return okExecution({
 					code: 0,
 					stdout:
-						"101 /Users/alex/Documents/acepe/packages/desktop/src-tauri/target/debug/acepe --port 9223\n",
-					stderr: "",
-				});
-			}
-
-			if (command[0] === "find") {
-				return okExecution({
-					code: 0,
-					stdout: "/Users/alex/Documents/acepe/packages/desktop/src-tauri/src/commands/window.rs\n",
-					stderr: "",
-				});
-			}
-
-			return okExecution({
-				code: 0,
-				stdout: JSON.stringify({ url: "http://localhost:1420/", title: "Acepe" }),
-				stderr: "",
-			});
-		};
-
-		const result = await Effect.runPromise(
-			Effect.result(
-				runDoctor({
-					checkoutRoot,
-					runner,
-				})
-			)
-		);
-
-		expect(Result.isSuccess(result)).toBe(true);
-		if (Result.isSuccess(result)) {
-			expect(result.success.status).toBe("warn");
-			expect(result.success.binaryFreshness).toEqual({
-				status: "stale",
-				message:
-					"Rust source is newer than target/debug/acepe: packages/desktop/src-tauri/src/commands/window.rs",
-			});
-			expect(result.success.findings).toEqual([
-				"Rust source is newer than target/debug/acepe: packages/desktop/src-tauri/src/commands/window.rs",
-			]);
-		}
-	});
-
-	it("reports fresh when no Rust source is newer than the dev binary", async () => {
-		const runner = (command: readonly string[]) => {
-			if (command[0] === "ps") {
-				return okExecution({
-					code: 0,
-					stdout:
-						"101 /Users/alex/Documents/acepe/packages/desktop/src-tauri/target/debug/acepe --port 9223\n",
+						"101 /Users/alex/Documents/acepe/packages/desktop/electrobun-build/stable-macos-arm64/Acepe.app/Contents/MacOS/launcher --port 9223\n",
 					stderr: "",
 				});
 			}
@@ -220,7 +169,7 @@ describe("acepe-qa process target parsing", () => {
 			expect(result.success.status).toBe("ok");
 			expect(result.success.binaryFreshness).toEqual({
 				status: "fresh",
-				message: "target/debug/acepe is newer than all checked Rust sources.",
+				message: "Acepe ships with Electrobun and Bun. There is no Rust binary.",
 			});
 			expect(result.success.findings).toEqual([]);
 		}
@@ -233,15 +182,7 @@ describe("acepe-qa process target parsing", () => {
 				return okExecution({
 					code: 0,
 					stdout:
-						"101 /Users/alex/Documents/acepe/packages/desktop/src-tauri/target/debug/bundle/macos/Acepe Dev QA.app/Contents/MacOS/acepe --port 9223\n",
-					stderr: "",
-				});
-			}
-
-			if (command[0] === "find" && joined.includes("packages/desktop/src-tauri/src")) {
-				return okExecution({
-					code: 0,
-					stdout: "",
+						"101 /Users/alex/Documents/acepe/packages/desktop/electrobun-build/stable-macos-arm64/Acepe.app/Contents/MacOS/launcher --port 9223\n",
 					stderr: "",
 				});
 			}
@@ -265,7 +206,7 @@ describe("acepe-qa process target parsing", () => {
 
 			return okExecution({
 				code: 0,
-				stdout: JSON.stringify({ url: "tauri://localhost/", title: "Acepe" }),
+				stdout: JSON.stringify({ url: "electrobun://localhost/", title: "Acepe" }),
 				stderr: "",
 			});
 		};

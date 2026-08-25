@@ -10,7 +10,7 @@ import {
 import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { AppTopBar } from "@acepe/ui/app-layout";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl } from "$lib/utils/open-url.js";
 import * as Effect from "effect/Effect";
 import { onMount, type Snippet } from "svelte";
 import { getPanelStore, getSessionStore } from "$lib/acp/store/index.js";

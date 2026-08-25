@@ -16,7 +16,7 @@
 <script lang="ts">
 import { AgentPanelPrCard as SharedAgentPanelPrCard, type AgentPanelPrCardModel } from "@acepe/ui";
 import "@acepe/ui/markdown-prose.css";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl } from "$lib/utils/open-url.js";
 import * as Effect from "effect/Effect";
 import DiffViewerModal from "../diff-viewer/diff-viewer-modal.svelte";
 import CiJobModal from "./ci-job-modal.svelte";

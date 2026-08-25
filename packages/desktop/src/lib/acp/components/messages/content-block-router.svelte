@@ -1,5 +1,5 @@
 <script lang="ts">
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { convertFileSrc } from "$lib/utils/file-src.js";
 import AudioBlock from "./acp-block-types/audio-block.svelte";
 import ImageBlock from "./acp-block-types/image-block.svelte";
 import ResourceBlock from "./acp-block-types/resource-block.svelte";

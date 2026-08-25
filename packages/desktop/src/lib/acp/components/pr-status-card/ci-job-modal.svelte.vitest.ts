@@ -25,7 +25,7 @@ vi.mock("@acepe/ui", async () => {
 	};
 });
 
-vi.mock("@tauri-apps/plugin-opener", () => ({
+vi.mock("$lib/utils/open-url.js", () => ({
 	openUrl: vi.fn(),
 }));
 

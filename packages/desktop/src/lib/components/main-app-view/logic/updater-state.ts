@@ -1,4 +1,4 @@
-import type { DownloadEvent } from "@tauri-apps/plugin-updater";
+import type { DownloadEvent } from "$lib/utils/updater-types.js";
 import { applyDownloadEventToProgress } from "./update-download-progress.js";
 
 export type UpdaterBannerState =

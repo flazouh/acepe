@@ -1,6 +1,6 @@
 <script lang="ts">
 import { Button, HugeiconsIcon } from "@acepe/ui";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl } from "$lib/utils/open-url.js";
 import { onMount } from "svelte";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import { getUpdateButtonModel, type UpdaterBannerState } from "../../logic/updater-state.js";

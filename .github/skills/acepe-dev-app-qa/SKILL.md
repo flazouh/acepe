@@ -1,6 +1,6 @@
 ---
 name: acepe-dev-app-qa
-description: "Required before visually inspecting or QAing the Acepe desktop dev app, current dev app, Tauri WebView, session display, agent panel, or any UI-visible Acepe change. Use when the user says the dev app looks wrong, asks to inspect the app, asks for visual QA, or when a change affects desktop UI."
+description: "Required before visually inspecting or QAing the Acepe desktop dev app, current dev app, Electrobun WebView, session display, agent panel, or any UI-visible Acepe change. Use when the user says the dev app looks wrong, asks to inspect the app, asks for visual QA, or when a change affects desktop UI."
 argument-hint: "[optional: screen, session id, or bug description]"
 ---
 
@@ -8,10 +8,10 @@ argument-hint: "[optional: screen, session id, or bug description]"
 
 Use this skill before any visual QA or app inspection for Acepe.
 
-The normal path is **repo QA wrapper first**. The wrapper talks to the real dev
-Tauri WebView while hiding raw MCP ceremony, keeping QA fast, compact, and
+The normal path is **repo QA wrapper first**. The wrapper talks to the real
+Electrobun WebView while hiding raw MCP ceremony, keeping QA fast, compact, and
 consistent. It can inspect DOM, screenshots, route, app state, and
-Tauri-specific behavior in the same runtime the user sees.
+Electrobun-specific behavior in the same runtime the user sees.
 
 ## Wrapper-First Recipes (read first)
 
@@ -35,7 +35,7 @@ Successful UI QA commands also update `.codex/state/ui-qa-evidence.json`; this
 is the evidence stamp used by the Codex Stop hook to enforce that UI changes
 were verified after the latest code edit.
 
-Do not use direct Hypothesi/Tauri MCP CLI commands as the normal QA interface.
+Do not use direct Hypothesi/Electrobun QA CLI commands as the normal QA interface.
 If the wrapper lacks a primitive, add a small command or helper under
 `packages/desktop/scripts/acepe-qa/` and use that wrapper command for the QA
 pass. This keeps driver startup, output unwrapping, evidence stamps, schema
@@ -152,15 +152,13 @@ That is the installed production bundle. It does not prove anything about the cu
 
 For dev QA, inspect only one of these:
 
-1. the repo QA wrapper attached to the running dev app from this checkout
-2. the running Tauri dev app from this checkout, normally `packages/desktop/src-tauri/target/debug/acepe`
-3. Computer Use attached to the dev Tauri window, only after proving it is not `/Applications/Acepe.app`
+1. the repo QA wrapper attached to the running Electrobun app from this checkout
+2. the Electrobun app from this checkout, normally `packages/desktop/electrobun-build/stable-macos-arm64/Acepe.app`
+3. Computer Use attached to that Electrobun window, only after proving it is not `/Applications/Acepe.app`
 
-If the dev app is not running, start it from `packages/desktop` with `bun run tauri`
-(or detached `bun run tauri` when you need a background session). If the
-built binary is stale relative to the Rust change you are QA-ing, stop and
-restart the dev process so the rebuild picks up your code (see Step 1b). Always
-note when you started or restarted it.
+If the app is not running, build it from `packages/desktop` with `bun run electrobun:build`
+and open the resulting `Acepe.app`. Acepe has no Rust and no Tauri. Always
+note when you started or rebuilt it.
 
 ## Required Order
 
@@ -169,96 +167,33 @@ note when you started or restarted it.
 Confirm the dev process is running from this repo:
 
 ```bash
-ps aux | rg 'packages/desktop|target/debug/acepe|tauri dev|vite dev' | rg -v rg
+ps aux | rg 'packages/desktop/electrobun-build|electrobun|vite dev' | rg -v rg
 ```
 
 Also check whether production Acepe is running, so you do not inspect the wrong app:
 
 ```bash
-ps aux | rg '/Applications/Acepe.app|com.acepe.app|target/debug/acepe|tauri dev' | rg -v rg
+ps aux | rg '/Applications/Acepe.app|com.acepe.app|electrobun-build' | rg -v rg
 ```
 
-If only `/Applications/Acepe.app` is visible, stop and tell the user dev QA is blocked because the dev Tauri window is not available.
+If only `/Applications/Acepe.app` is visible, stop and tell the user dev QA is blocked because the Electrobun app from this checkout is not available.
 
-### 1b. Verify The Built Binary Matches Your Changes (and restart if stale)
+### 1b. Verify The Built App Matches Your Changes
 
-QA is only valid against a build that actually contains the code under test. The
-two layers behave differently:
+QA is only valid against a build that actually contains the code under test.
 
-- **Frontend (`.svelte` / `.ts` under `packages/desktop/src`)** is hot-reloaded
-  by Vite (~4s). No restart needed — just wait for HMR, then QA.
-- **Rust (`packages/desktop/src-tauri/**/*.rs`)** requires a recompiled binary.
-  `tauri dev` normally rebuilds + relaunches on a Rust change, but a build can be
-  stale if the running binary predates your edit/commit, if the rebuild was never
-  triggered, or if the watcher missed the change.
+- **Frontend (`.svelte` / `.ts` under `packages/desktop/src`)** can use the Vite
+  dev server when the Electrobun window loads `localhost:1420`. Wait for HMR,
+  then QA.
+- **Electrobun shell (`packages/desktop/src/bun` and `packages/electrobun-shell`)**
+  needs `bun run electrobun:build` and a new open of the app.
 
-**Detect a stale binary** before trusting Rust-dependent QA:
-
-```bash
-BIN=packages/desktop/src-tauri/target/debug/acepe
-# Any Rust source newer than the running binary ⇒ stale.
-find packages/desktop/src-tauri/src -name '*.rs' -newer "$BIN" | head
-# Or compare directly: binary build time vs your latest Rust commit time.
-ls -l --time-style=+%s "$BIN" 2>/dev/null || stat -f '%m %N' "$BIN"
-git log -1 --format='%ct %h %s' -- packages/desktop/src-tauri
-```
-
-If the binary mtime is older than the newest relevant `.rs` source/commit, the
-running app does **not** contain your Rust change. Your QA result would be
-meaningless (you'd be testing the old producer/backend).
-
-**Restart when the binary is stale.**
-When — and only when — the binary is stale **and** your QA depends on a Rust
-change that isn't in it, you may stop the running dev process and restart it so
-the rebuild picks up your code. State clearly in your QA notes that you did this.
-
-1. Identify the dev processes (do not guess — list them):
-
-   ```bash
-   ps aux | rg 'bun run tauri dev|tauri dev|vite dev|target/debug/acepe' | rg -v rg
-   ```
-
-2. Stop them with `kill <PID>` on the **specific PIDs** — never `pkill` /
-   `killall` (forbidden, and they can hit unrelated processes). Kill the
-   top-level launcher (`bun run tauri dev`) first; it cascades to the children.
-   Kill the `acepe` binary PID too if it lingers.
-
-   ```bash
-   kill <bun-run-tauri-dev-PID> <vite-dev-PID> <acepe-binary-PID>
-   ```
-
-3. Restart from `packages/desktop` as a detached background process. In this
-   package the script already expands to `tauri dev`, so use `bun run tauri`
-   rather than `bun run tauri dev` (the latter becomes `tauri dev dev` and
-   exits immediately). Redirect output to a log:
-
-   ```bash
-   cd packages/desktop && (bun run tauri >/tmp/acepe-dev.log 2>&1 &)
-   ```
-
-4. Wait for the Rust rebuild to finish and the bridge to come back up before
-   resuming QA (a debug rebuild can take a few minutes):
-
-   ```bash
-   # Poll for the bridge port to listen again (PID changes after relaunch).
-   for i in $(seq 1 60); do
-     PID=$(pgrep -f 'target/debug/acepe' | head -1)
-     [ -n "$PID" ] && lsof -Pan -p "$PID" -iTCP 2>/dev/null | rg -q LISTEN && { echo "up: $PID"; break; }
-     sleep 5
-   done
-   tail -5 /tmp/acepe-dev.log
-   ```
-
-5. Re-confirm freshness (Step 1b detection should now report no stale sources),
-   then re-attach the driver session and continue the normal QA pass.
-
-If you are unsure whether a restart is warranted, or the rebuild fails, stop and
-tell the user rather than leaving the dev server down.
+Acepe has no Rust binary. Do not look under `src-tauri`.
 
 ### 2. Use The QA Wrapper
 
 Before trying Computer Use or a normal browser, use the repo QA wrapper from
-`packages/desktop`. It is the maintained interface to the real dev Tauri
+`packages/desktop`. It is the maintained interface to the real Electrobun
 WebView and should be extended when a new QA primitive is needed.
 
 Minimum useful QA pass (required after UI-affecting changes):
@@ -280,9 +215,9 @@ snapshot is not sufficient; run a transition-sampling probe after the code
 change. If that probe is blocked by app/session state, report it as blocked
 instead of downgrading to static DOM evidence.
 
-This wrapper-backed path is the best evidence because Acepe is a Tauri app. A
-browser at `localhost:1420` does not include the real Tauri WebView runtime or
-Tauri APIs.
+This wrapper-backed path is the best evidence because Acepe is an Electrobun app. A
+browser at `localhost:1420` does not include the real Electrobun WebView runtime or
+Electrobun APIs.
 
 If the wrapper cannot perform the needed action, improve
 `packages/desktop/scripts/acepe-qa/` before repeating the same raw interaction.
@@ -304,8 +239,8 @@ inspect the screenshot or continue the QA pass there.
 
 Do not use browser-only `localhost` evidence for Acepe desktop visual QA.
 
-Acepe is a Tauri desktop app. A normal browser at `localhost:1420` does not run
-inside the real Tauri WebView and does not prove Tauri APIs, app shell behavior,
+Acepe is an Electrobun desktop app. A normal browser at `localhost:1420` does not run
+inside the real Electrobun WebView and does not prove Electrobun APIs, app shell behavior,
 desktop routing, runtime state, permissions, or session display.
 
 If both the repo QA wrapper and safe dev-window Computer Use are unavailable, visual QA is
@@ -330,7 +265,7 @@ For agent panel, transcript, session list, or tool-call display bugs:
 
 - Invoke `god-architecture-check` before changing code.
 - Do not fix order, identity, lifecycle, tool state, or transcript rows in Svelte.
-- Create the red test at the Rust/provider/session-open/projection seam when the bug is product truth.
+- Create the red test at the provider/session-open/projection seam when the bug is product truth.
 - TypeScript may only project canonical facts to display props.
 
 ## Final Report Template

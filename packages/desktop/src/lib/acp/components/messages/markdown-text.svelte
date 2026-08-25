@@ -1,7 +1,7 @@
 <script lang="ts">
 import { untrack } from "svelte";
 import * as Effect from "effect/Effect";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl } from "$lib/utils/open-url.js";
 import { reducedMotion } from "@acepe/ui";
 import { NativeMarkdown } from "@acepe/ui/native-markdown";
 import type { TogglePrLinkPayload } from "@acepe/ui/native-markdown";

@@ -15,8 +15,6 @@ import {
 	shouldRunAgentPanelContract,
 	shouldRunDesktop,
 	shouldRunElectrobunShell,
-	shouldRunGpuiPoc,
-	shouldRunTauriBackend,
 	shouldRunUi,
 	shouldRunWebsite,
 } from "./pre-push-affected-lib.ts";
@@ -85,8 +83,6 @@ const runDesktop = shouldRunDesktop(affected);
 const runWebsite = shouldRunWebsite(affected);
 const runUi = shouldRunUi(affected);
 const runAgentPanelContract = shouldRunAgentPanelContract(affected);
-const runTauriBackend = shouldRunTauriBackend(affected);
-const runGpuiPoc = shouldRunGpuiPoc(affected);
 const runElectrobunShell = shouldRunElectrobunShell(affected);
 
 console.log("Pre-push affected sets:");
@@ -98,8 +94,6 @@ console.log(
 			runWebsite,
 			runUi,
 			runAgentPanelContract,
-			runTauriBackend,
-			runGpuiPoc,
 			runElectrobunShell,
 		},
 		null,
@@ -143,19 +137,6 @@ if (runAgentPanelContract) {
 	runShell("agent-panel-contract test", "bun test", "packages/agent-panel-contract");
 }
 
-if (runTauriBackend) {
-	runShell(
-		"tauri clippy",
-		"cargo clippy --no-default-features -- -D warnings",
-		"packages/desktop/src-tauri"
-	);
-	runShell(
-		"tauri test",
-		"cargo nextest run --no-default-features -E 'not test(claude_history::export_types)'",
-		"packages/desktop/src-tauri"
-	);
-}
-
 if (runElectrobunShell) {
 	runShell("electrobun-shell typecheck", "bun run typecheck", "packages/electrobun-shell");
 	runShell("electrobun-shell lint:effect", "bun run lint:effect", "packages/electrobun-shell");
@@ -166,22 +147,11 @@ if (runElectrobunShell) {
 	);
 }
 
-if (runGpuiPoc) {
-	runShell(
-		"gpui-agent-panel-poc clippy",
-		"cargo clippy -- -D warnings",
-		"packages/gpui-agent-panel-poc"
-	);
-	runShell("gpui-agent-panel-poc test", "cargo test", "packages/gpui-agent-panel-poc");
-}
-
 if (
 	!runDesktop &&
 	!runWebsite &&
 	!runUi &&
 	!runAgentPanelContract &&
-	!runTauriBackend &&
-	!runGpuiPoc &&
 	!runElectrobunShell &&
 	files.length > 0
 ) {

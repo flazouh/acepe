@@ -5,7 +5,7 @@ import {
 	type KanbanSceneColumnData,
 	type KanbanSceneModel,
 } from "@acepe/ui";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl } from "$lib/utils/open-url.js";
 import { Colors } from "@acepe/ui/colors";
 import { SvelteMap } from "svelte/reactivity";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";

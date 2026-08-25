@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import type { DownloadEvent } from "@tauri-apps/plugin-updater";
 import * as Effect from "effect/Effect";
+import type { DownloadEvent } from "$lib/utils/updater-types.js";
 
 import {
 	downloadAndInstallUpdate,
