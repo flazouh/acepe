@@ -7,13 +7,19 @@ import {
 } from "@acepe/contracts"
 import * as Vitest from "@effect/vitest"
 import type { Done } from "effect/Cause"
+import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
 import * as Queue from "effect/Queue"
 import * as Ref from "effect/Ref"
 import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
-import { buildClaudeQueryOptions, makeClaudeAdapter, type ClaudeQueryHandle } from "./ClaudeAdapter.ts"
+import {
+	buildClaudeQueryOptions,
+	makeClaudeAdapter,
+	type ClaudeQueryHandle,
+	type ClaudeQueryInput
+} from "./ClaudeAdapter.ts"
 import { claudePresence } from "./ClaudeProvider.ts"
 import { decodeContractFact } from "./ClaudeSdkMap.ts"
 
@@ -22,6 +28,7 @@ type Json = typeof Schema.Json.Type
 const sessionId = SessionId.make("session-1")
 const projectId = ProjectId.make("project-1")
 const messageId = MessageId.make("message-user")
+const messageId2 = MessageId.make("message-user-2")
 
 const fakeHandle = (
 	inbound: Queue.Queue<Json, Done>,
@@ -31,6 +38,56 @@ const fakeHandle = (
 	interrupt: Ref.update(interrupts, (count) => count + 1).pipe(Effect.asVoid),
 	close: Queue.end(inbound).pipe(Effect.asVoid)
 })
+
+// A scripted SDK stand-in that, unlike fakeHandle above, mints a genuinely
+// FRESH query (its own inbound queue) on every createQuery call — exactly
+// what the real @anthropic-ai/claude-agent-sdk does on every query() call.
+// This is what lets a test observe attachQuery's restart behavior: cancelling
+// or a watchdog recovery must produce a SECOND scripted attempt, not silently
+// keep feeding the first (already-ended) one.
+type ScriptedAttempt = {
+	readonly inbound: Queue.Queue<Json, Done>
+	readonly interrupted: Ref.Ref<boolean>
+	readonly closed: Ref.Ref<boolean>
+	readonly resume: Option.Option<string>
+}
+
+const makeScriptedClaudeSdk = Effect.fn("makeScriptedClaudeSdk")(function*() {
+	const attemptsRef = yield* Ref.make<ReadonlyArray<ScriptedAttempt>>([])
+	const createQuery = (input: ClaudeQueryInput) =>
+		Effect.gen(function*() {
+			const inbound = yield* Queue.unbounded<Json, Done>()
+			const interrupted = yield* Ref.make(false)
+			const closed = yield* Ref.make(false)
+			const attempt: ScriptedAttempt = { inbound, interrupted, closed, resume: input.resume }
+			yield* Ref.update(attemptsRef, (current) => [...current, attempt])
+			return {
+				messages: Stream.fromQueue(inbound),
+				interrupt: Ref.set(interrupted, true).pipe(Effect.asVoid),
+				close: Ref.set(closed, true).pipe(
+					Effect.andThen(Queue.end(inbound)),
+					Effect.asVoid
+				)
+			} satisfies ClaudeQueryHandle
+		})
+	return { createQuery, attemptsRef }
+})
+
+const waitUntil = <A, E, R>(
+	effect: Effect.Effect<A, E, R>,
+	predicate: (value: A) => boolean,
+	attempts = 200
+): Effect.Effect<A, E, R> =>
+	Effect.gen(function*() {
+		let last = yield* effect
+		let remaining = attempts
+		while (!predicate(last) && remaining > 0) {
+			yield* Effect.sleep(Duration.millis(5))
+			last = yield* effect
+			remaining -= 1
+		}
+		return last
+	})
 
 Vitest.describe("ClaudeAdapter", () => {
 	Vitest.it.effect("emits deferred_open before the SDK session id exists", () =>
@@ -225,6 +282,173 @@ Vitest.describe("ClaudeAdapter", () => {
 			Vitest.assert.strictEqual(cancelled.type, "TurnCancelled")
 			Vitest.assert.strictEqual(yield* Ref.get(interrupts), 1)
 		})
+	)
+
+	// Reproduces DEFECT A (BLOCKER): a follow-up message sent right after
+	// cancelling a turn hung forever in production -- the turn stayed
+	// "running", 0 tokens, the `claude` CLI subprocess alive but CPU-idle.
+	// Root cause: cancelTurn used to interrupt() the SAME query and then just
+	// remove the session, trusting the SDK to leave that query ready for more
+	// prompts (its own docs say interrupt() "return[s] control to the
+	// caller" on a query meant to keep accepting streamed input) -- but a
+	// wedged interrupt() promise left the whole session, and the awaiting
+	// caller, hung. cancelTurn now bounds interrupt() with a timeout and
+	// unconditionally re-attaches a fresh query afterward (attachQuery), so
+	// this must complete and the NEXT prompt must reach a NEW scripted
+	// attempt, not the abandoned first one.
+	Vitest.it.live("prompt -> cancel -> next prompt streams and completes on a fresh query", () =>
+		Effect.gen(function*() {
+			const sdk = yield* makeScriptedClaudeSdk()
+			const adapter = yield* makeClaudeAdapter({
+				presence: Effect.succeed(claudePresence(true, true)),
+				createQuery: sdk.createQuery,
+				cancelInterruptTimeout: Duration.millis(50)
+			})
+			const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
+			yield* adapter
+				.startSession({ sessionId, projectId, workspaceRoot: "/tmp/acepe" })
+				.pipe(
+					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
+					Effect.forkChild({ startImmediately: true })
+				)
+			yield* Queue.take(events) // deferred_open
+
+			yield* Stream.runCollect(
+				adapter.sendPrompt({ sessionId, messageId, text: "First turn" })
+			)
+			const firstAttempts = yield* waitUntil(Ref.get(sdk.attemptsRef), (a) => a.length >= 1)
+			Vitest.assert.strictEqual(firstAttempts.length, 1)
+
+			yield* adapter.cancelTurn({ sessionId })
+			// cancelTurn interrupts and closes the first attempt but does NOT
+			// eagerly spawn a replacement -- a cancel with no follow-up must
+			// not pay for a real subprocess nobody asked for. Only the first
+			// attempt exists until the next sendPrompt actually needs one.
+			const stillOneAttempt = yield* waitUntil(Ref.get(sdk.attemptsRef), (a) => a.length >= 1)
+			Vitest.assert.strictEqual(stillOneAttempt.length, 1)
+			Vitest.assert.isTrue(yield* Ref.get(stillOneAttempt[0]!.interrupted))
+			Vitest.assert.isTrue(yield* Ref.get(stillOneAttempt[0]!.closed))
+
+			// The next prompt must attach and reach a SECOND attempt -- the
+			// session was never removed, so sendPrompt must still resolve.
+			yield* Stream.runCollect(
+				adapter.sendPrompt({
+					sessionId,
+					messageId: messageId2,
+					text: "Reply with exactly: POSTCANCEL_42"
+				})
+			)
+			const afterCancel = yield* waitUntil(Ref.get(sdk.attemptsRef), (a) => a.length >= 2)
+			Vitest.assert.strictEqual(afterCancel.length, 2)
+			const secondAttempt = afterCancel[1]!
+			yield* Queue.offer(secondAttempt.inbound, {
+				type: "stream_event",
+				session_id: "sdk-session-2",
+				event: {
+					type: "content_block_delta",
+					delta: { type: "text_delta", text: "POSTCANCEL_42" }
+				}
+			})
+
+			let tokenEvent: OrchestrationEvent | undefined
+			for (let attempt = 0; attempt < 10 && tokenEvent === undefined; attempt++) {
+				const next = yield* Queue.take(events)
+				if (next.type === "TokenAppended") {
+					tokenEvent = next
+				}
+			}
+			if (tokenEvent === undefined || tokenEvent.type !== "TokenAppended") {
+				Vitest.assert.fail("expected a TokenAppended event from the post-cancel prompt")
+				return
+			}
+			Vitest.assert.strictEqual(tokenEvent.payload.token, "POSTCANCEL_42")
+			yield* adapter.cancelTurn({ sessionId }).pipe(Effect.ignore)
+		})
+	)
+
+	// Reproduces DEFECT B (MAJOR): turns hang the same way WITHOUT a
+	// preceding cancel -- the SDK stream simply stops emitting anything
+	// mid-turn, no error, no completion. A configurable turn-inactivity
+	// watchdog must notice (no stream item for N ms while a turn is open),
+	// surface a typed failure (turn_error, which ClaudeAdapter already folds
+	// into TurnCompleted -- see ClaudeSdkMap.ts's TurnErrorFact) so the stuck
+	// turn closes in the projection, and recover the session so the NEXT
+	// prompt still works.
+	Vitest.it.live(
+		"a stalled turn is recovered by the inactivity watchdog and the next prompt still works",
+		() =>
+			Effect.gen(function*() {
+				const sdk = yield* makeScriptedClaudeSdk()
+				const adapter = yield* makeClaudeAdapter({
+					presence: Effect.succeed(claudePresence(true, true)),
+					createQuery: sdk.createQuery,
+					turnInactivityTimeout: Duration.millis(30),
+					watchdogPollInterval: Duration.millis(10)
+				})
+				const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
+				yield* adapter
+					.startSession({ sessionId, projectId, workspaceRoot: "/tmp/acepe" })
+					.pipe(
+						Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
+						Effect.forkChild({ startImmediately: true })
+					)
+				yield* Queue.take(events) // deferred_open
+
+				yield* Stream.runCollect(
+					adapter.sendPrompt({ sessionId, messageId, text: "This turn will stall" })
+				)
+				// The scripted SDK never offers anything into the first
+				// attempt's inbound queue -- exactly a stalled turn: prompt
+				// sent, zero stream activity, no completion.
+
+				let completed: OrchestrationEvent | undefined
+				for (let attempt = 0; attempt < 40 && completed === undefined; attempt++) {
+					const next = yield* Queue.take(events)
+					if (next.type === "TurnCompleted") {
+						completed = next
+					}
+				}
+				if (completed === undefined) {
+					Vitest.assert.fail("expected the watchdog to close the stalled turn with TurnCompleted")
+					return
+				}
+
+				const afterWatchdog = yield* waitUntil(Ref.get(sdk.attemptsRef), (a) => a.length >= 2)
+				Vitest.assert.strictEqual(afterWatchdog.length, 2)
+				Vitest.assert.isTrue(yield* Ref.get(afterWatchdog[0]!.closed))
+
+				// The recovered session must still accept the next prompt.
+				yield* Stream.runCollect(
+					adapter.sendPrompt({
+						sessionId,
+						messageId: messageId2,
+						text: "Reply with exactly: RECOVERED_7"
+					})
+				)
+				const secondAttempt = afterWatchdog[1]!
+				yield* Queue.offer(secondAttempt.inbound, {
+					type: "stream_event",
+					session_id: "sdk-session-2",
+					event: {
+						type: "content_block_delta",
+						delta: { type: "text_delta", text: "RECOVERED_7" }
+					}
+				})
+
+				let tokenEvent: OrchestrationEvent | undefined
+				for (let attempt = 0; attempt < 10 && tokenEvent === undefined; attempt++) {
+					const next = yield* Queue.take(events)
+					if (next.type === "TokenAppended") {
+						tokenEvent = next
+					}
+				}
+				if (tokenEvent === undefined || tokenEvent.type !== "TokenAppended") {
+					Vitest.assert.fail("expected a TokenAppended event from the post-recovery prompt")
+					return
+				}
+				Vitest.assert.strictEqual(tokenEvent.payload.token, "RECOVERED_7")
+				yield* adapter.cancelTurn({ sessionId }).pipe(Effect.ignore)
+			})
 	)
 
 	// These pin down the isolation fix's actual mechanism: the SDK's query()

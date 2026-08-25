@@ -14,8 +14,10 @@ import {
 	tracerAssistantMessageId
 } from "@acepe/contracts"
 import type { Done } from "effect/Cause"
+import * as Clock from "effect/Clock"
 import * as DateTime from "effect/DateTime"
 import * as Deferred from "effect/Deferred"
+import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as HashMap from "effect/HashMap"
@@ -24,6 +26,7 @@ import * as Predicate from "effect/Predicate"
 import * as Queue from "effect/Queue"
 import * as Ref from "effect/Ref"
 import * as Schema from "effect/Schema"
+import * as Scope from "effect/Scope"
 import * as Stream from "effect/Stream"
 import * as Str from "effect/String"
 import {
@@ -91,6 +94,12 @@ export type ClaudeQueryInput = {
 	readonly prompt: AsyncIterable<ClaudeUserPrompt>
 	readonly cwd: string
 	readonly canUseTool: ClaudeCanUseTool
+	// The Claude SDK's OWN session id to resume, when recovering a query
+	// after a cancel or a watchdog-detected stall — see attachQuery. Absent
+	// (None) for a session's very first query, or when no provider session id
+	// has been observed yet (the stall happened before the SDK's own init
+	// message ever arrived).
+	readonly resume: Option.Option<string>
 }
 
 export type ClaudeQueryHandle = {
@@ -105,6 +114,11 @@ export type ClaudeAdapter = ProviderAdapter & {
 		readonly permissionId: string
 		readonly decision: ClaudePermissionDecision
 	}) => Effect.Effect<void, ProviderAdapterError>
+	// Forcefully tears down every live session's query (SIGTERM-then-SIGKILL-
+	// equivalent — see makeClaudeAdapter's shutdown). ProviderBridge calls
+	// this structurally, the same way it calls respondToPermission, on every
+	// registered adapter that exposes it when the bridge's own scope closes.
+	readonly shutdown: Effect.Effect<void>
 }
 
 export type ClaudeAdapterOptions = {
@@ -112,11 +126,28 @@ export type ClaudeAdapterOptions = {
 		input: ClaudeQueryInput
 	) => Effect.Effect<ClaudeQueryHandle, ProviderAdapterError>
 	readonly presence: Effect.Effect<ProviderPresence>
+	// Bounds cancelTurn's call to the SDK's own interrupt(): a hung interrupt
+	// promise must never block ProviderBridge's single shared dispatcher fiber
+	// forever (that wedges EVERY session in the app, not just this one — see
+	// the module doc above cancelTurn). Defaults to 5s.
+	readonly cancelInterruptTimeout?: Duration.Input
+	// A turn counts as wedged once this much time passes with no stream
+	// activity while it's open (a prompt was sent, no turn_complete/turn_error
+	// yet). Defaults to 60s — generous enough for a real tool-using turn's
+	// natural gaps, short enough to recover a genuinely stalled session
+	// without the operator noticing a multi-minute hang.
+	readonly turnInactivityTimeout?: Duration.Input
+	// How often the watchdog checks for a stalled turn. Defaults to 5s.
+	readonly watchdogPollInterval?: Duration.Input
 }
+
+const DEFAULT_CANCEL_INTERRUPT_TIMEOUT = Duration.seconds(5)
+const DEFAULT_TURN_INACTIVITY_TIMEOUT = Duration.seconds(60)
+const DEFAULT_WATCHDOG_POLL_INTERVAL = Duration.seconds(5)
 
 type SessionRuntime = {
 	readonly sessionId: SessionId
-	readonly promptQueue: Queue.Queue<ClaudeUserPrompt, Done>
+	readonly workspaceRoot: string
 	readonly outbound: Queue.Queue<OrchestrationEvent, Done>
 	readonly streamState: Ref.Ref<ClaudeStreamState>
 	readonly lastUserMessageId: Ref.Ref<Option.Option<MessageId>>
@@ -124,7 +155,46 @@ type SessionRuntime = {
 	readonly pendingPermissions: Ref.Ref<
 		HashMap.HashMap<string, Deferred.Deferred<ClaudePermissionDecision>>
 	>
-	readonly query: ClaudeQueryHandle
+	// The query a sendPrompt call feeds and a stream listener drains. Both are
+	// swapped together by attachQuery whenever a session recovers from a
+	// cancel or a watchdog-detected stall, so sendPrompt/cancelTurn always
+	// read the CURRENT one rather than a query that may already be dead.
+	readonly promptQueueRef: Ref.Ref<Queue.Queue<ClaudeUserPrompt, Done>>
+	readonly queryRef: Ref.Ref<ClaudeQueryHandle>
+	// Bumped by every attachQuery call. A query-listener fiber compares its
+	// OWN captured generation against this at teardown time: a mismatch means
+	// a newer query has since been attached (a deliberate restart, not a real
+	// death), so the listener must skip the "session is gone" cleanup — see
+	// attachQuery.
+	readonly generation: Ref.Ref<number>
+	// Epoch-ms when the CURRENTLY open turn started (sendPrompt), or None
+	// when no turn is open — the watchdog only ever acts while a turn is
+	// open. Cleared by publishFact on turn_complete/turn_error (including the
+	// watchdog's own synthesized one) and by cancelTurn.
+	readonly turnOpenedAtMs: Ref.Ref<Option.Option<number>>
+	// Epoch-ms of the most recent provider stream activity — reset on every
+	// raw SDK message AND whenever a prompt is sent, so the watchdog measures
+	// silence, not merely "time since the turn opened".
+	readonly lastActivityAtMs: Ref.Ref<number>
+	// Set by cancelTurn once it has torn the query down; sendPrompt checks
+	// this before offering into promptQueueRef and, if set, attaches a fresh
+	// query FIRST. cancelTurn itself deliberately does NOT reattach eagerly —
+	// a cancel with no follow-up (the user walked away, or a caller like a
+	// test only cancelling for cleanup) would otherwise spawn a real `claude`
+	// subprocess nobody asked for, exactly the kind of unconditional respawn
+	// Defect D's fix already ruled out at the ProviderBridge level. The
+	// watchdog, in contrast, DOES reattach eagerly (see watchdogLoop) — a
+	// wedged turn always needs the session usable again immediately, there is
+	// no "maybe nobody needs it" case for a stall the operator never asked
+	// for.
+	readonly needsReattach: Ref.Ref<boolean>
+	// An explicit, non-fiber-structural scope that owns every query-listener
+	// and the watchdog fiber for this session's whole lifetime, independent
+	// of which caller's fiber happens to invoke attachQuery (openSession's
+	// own fiber for the first attach, but ProviderBridge's shared dispatcher
+	// fiber for a cancel-triggered restart, or the watchdog's own fiber for a
+	// stall-triggered one) — see openSession and attachQuery.
+	readonly sessionScope: Scope.Closeable
 }
 
 const adapterError = (
@@ -323,6 +393,10 @@ const publishFact = Effect.fn("ClaudeAdapter.publishFact")(function*(
 		return yield* offerOutbound(runtime, event)
 	}
 	if (fact.contractKind === "turn_complete" || fact.contractKind === "turn_error") {
+		// Closes the watchdog's window regardless of who ended the turn — the
+		// SDK's own result message, or the watchdog itself synthesizing
+		// turn_error for a stall it just recovered from.
+		yield* Ref.set(runtime.turnOpenedAtMs, Option.none())
 		const event = yield* makeCompleted(runtime)
 		return yield* offerOutbound(runtime, event)
 	}
@@ -353,8 +427,13 @@ const requireSession = Effect.fn("ClaudeAdapter.requireSession")(function*(
 	return found.value
 })
 
+// Takes the runtime directly (not an indirection Ref) because by the time
+// attachQuery builds this closure the runtime object already exists —
+// openSession creates it BEFORE ever attaching a query, unlike the old
+// single-query design where canUseTool had to be built before the runtime it
+// would eventually belong to.
 const bindCanUseTool = (
-	runtimeHolder: Ref.Ref<Option.Option<SessionRuntime>>,
+	runtime: SessionRuntime,
 	decide: (
 		runtime: SessionRuntime,
 		toolName: string,
@@ -363,18 +442,7 @@ const bindCanUseTool = (
 	) => Effect.Effect<ClaudePermissionResult>
 ): ClaudeCanUseTool =>
 	(toolName, toolInput, toolOptions) =>
-		Effect.runPromise(
-			Effect.gen(function*() {
-				const held = yield* Ref.get(runtimeHolder)
-				if (Option.isNone(held)) {
-					return {
-						behavior: "deny" as const,
-						message: "Claude session is not ready."
-					}
-				}
-				return yield* decide(held.value, toolName, toolInput, toolOptions.toolUseID)
-			})
-		)
+		Effect.runPromise(decide(runtime, toolName, toolInput, toolOptions.toolUseID))
 
 export type ClaudeQueryIsolation = {
 	// When given, points query() at a system claude binary instead of the
@@ -404,7 +472,11 @@ export type ClaudeQueryIsolation = {
 // still returning a real reply. See CLAUDE_ISOLATED_SETTING_SOURCES and
 // CLAUDE_STRICT_MCP_CONFIG in ClaudeProvider.ts for the fuller rationale.
 export const buildClaudeQueryOptions = (
-	input: { readonly cwd: string; readonly canUseTool: ClaudeCanUseTool },
+	input: {
+		readonly cwd: string
+		readonly canUseTool: ClaudeCanUseTool
+		readonly resume?: Option.Option<string>
+	},
 	isolation: ClaudeQueryIsolation
 ): ClaudeSdkOptions => ({
 	cwd: input.cwd,
@@ -414,6 +486,9 @@ export const buildClaudeQueryOptions = (
 	mcpServers: isolation.mcpServers,
 	...(Option.isSome(isolation.pathToClaudeCodeExecutable)
 		? { pathToClaudeCodeExecutable: isolation.pathToClaudeCodeExecutable.value }
+		: {}),
+	...(input.resume !== undefined && Option.isSome(input.resume)
+		? { resume: input.resume.value }
 		: {}),
 	canUseTool: (toolName, toolInput, options) =>
 		input.canUseTool(toolName, jsonObjectFromValue(toolInput), {
@@ -458,10 +533,33 @@ export const makeLiveCreateQuery = (
 		catch: (cause) => adapterError("startSession", errorDetail(cause, "Claude query failed"))
 	})
 
+// Tears down a query BOUNDED: interrupt() is the SDK's documented way to
+// stop a running turn on a query that will keep accepting prompts, but if
+// the SDK's own interrupt promise hangs (the wedge behind the real "cancel
+// then the next message hangs forever" QA bug), it must never block the
+// caller indefinitely — cancelTurn runs inline on ProviderBridge's single
+// shared dispatcher fiber, so an unbounded hang here freezes EVERY session,
+// not just this one. close() itself is a synchronous, fire-and-forget call
+// (see makeLiveCreateQuery) that can't hang, so only interrupt() needs a
+// timeout.
+const teardownQuery = (
+	queryHandle: ClaudeQueryHandle,
+	interruptTimeout: Duration.Input
+) =>
+	queryHandle.interrupt.pipe(
+		Effect.timeout(interruptTimeout),
+		Effect.ignore,
+		Effect.andThen(queryHandle.close),
+		Effect.ignore
+	)
+
 export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 	options: ClaudeAdapterOptions
 ) {
 	const sessions = yield* Ref.make(HashMap.empty<SessionId, SessionRuntime>())
+	const cancelInterruptTimeout = options.cancelInterruptTimeout ?? DEFAULT_CANCEL_INTERRUPT_TIMEOUT
+	const turnInactivityTimeout = options.turnInactivityTimeout ?? DEFAULT_TURN_INACTIVITY_TIMEOUT
+	const watchdogPollInterval = options.watchdogPollInterval ?? DEFAULT_WATCHDOG_POLL_INTERVAL
 
 	const decidePermission = Effect.fn("ClaudeAdapter.decidePermission")(function*(
 		runtime: SessionRuntime,
@@ -492,6 +590,119 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 		}
 	})
 
+	// (Re)attaches a query to an already-registered runtime: a fresh
+	// promptQueue feeds a fresh SDK query(), a new listener fiber drains its
+	// messages, and both are published atomically via promptQueueRef/queryRef
+	// so sendPrompt/cancelTurn always see the current pair. Called once from
+	// openSession for a session's first query, and again from cancelTurn /
+	// the watchdog to recover from a cancel or a detected stall — resume
+	// carries the SDK's own session id across that recovery when known, so
+	// the recovered query continues the SAME conversation rather than
+	// starting a blank one.
+	//
+	// The listener is forked into runtime.sessionScope, not the calling
+	// fiber's own child tree: a restart can be triggered from ProviderBridge's
+	// shared dispatcher fiber (cancelTurn) or the watchdog's own fiber, and
+	// forkChild there would parent the listener to a fiber whose lifetime has
+	// nothing to do with this session. sessionScope is the one thing that
+	// actually spans the session's whole life — see openSession.
+	// myGeneration is reserved by the CALLER (Ref.updateAndGet on
+	// runtime.generation) before it tears down whatever query came before —
+	// never inside attachQuery itself. Ending the old query's inbound queue
+	// (teardownQuery's close call) can make its listener fiber's own
+	// Effect.ensuring cleanup run before this function gets a chance to run
+	// at all, cooperative scheduling gives no ordering guarantee either way —
+	// so the generation bump MUST already be visible by the time that old
+	// listener checks it, or a cancel/watchdog restart can race its own
+	// recovery: the old listener sees a stale "I'm still current" reading and
+	// tears the whole session down right as attachQuery is trying to save it.
+	const attachQuery = Effect.fn("ClaudeAdapter.attachQuery")(function*(
+		runtime: SessionRuntime,
+		resume: Option.Option<string>,
+		myGeneration: number
+	) {
+		const promptQueue = yield* Queue.unbounded<ClaudeUserPrompt, Done>()
+		const queryHandle = yield* options.createQuery({
+			prompt: Stream.toAsyncIterable(Stream.fromQueue(promptQueue)),
+			cwd: runtime.workspaceRoot,
+			canUseTool: bindCanUseTool(runtime, decidePermission),
+			resume
+		})
+		yield* Ref.set(runtime.promptQueueRef, promptQueue)
+		yield* Ref.set(runtime.queryRef, queryHandle)
+		const attachedAt = yield* Clock.currentTimeMillis
+		yield* Ref.set(runtime.lastActivityAtMs, attachedAt)
+		const dropSession = Ref.update(sessions, (current) =>
+			HashMap.remove(current, runtime.sessionId)
+		)
+		yield* queryHandle.messages.pipe(
+			Stream.runForEach((raw) =>
+				publishSdkMessage(runtime, raw).pipe(
+					Effect.andThen(
+						Clock.currentTimeMillis.pipe(
+							Effect.flatMap((now) => Ref.set(runtime.lastActivityAtMs, now))
+						)
+					)
+				)
+			),
+			Effect.ensuring(
+				Effect.gen(function*() {
+					const current = yield* Ref.get(runtime.generation)
+					if (current !== myGeneration) {
+						// Superseded by attachQuery running again (cancel or
+						// watchdog recovery) — the newer generation's listener
+						// now owns outbound/sessions, this one just exits quietly.
+						return
+					}
+					yield* Queue.end(runtime.outbound).pipe(
+						Effect.flatMap(() => dropSession),
+						Effect.asVoid
+					)
+				})
+			),
+			Effect.forkIn(runtime.sessionScope, { startImmediately: true })
+		)
+	})
+
+	// Recovers a session whose turn appears wedged: no provider stream
+	// activity for turnInactivityTimeout while a turn is open. Synthesizes a
+	// turn_error fact (the SAME contract shape a real SDK error already maps
+	// to — see ClaudeSdkMap.ts's TurnErrorFact — so this needs no new event
+	// type) to close the stuck turn in the projection, then tears down and
+	// re-attaches the query so the NEXT sendPrompt works. Forked once per
+	// session, for the session's whole lifetime, into sessionScope — so it is
+	// interrupted automatically whenever the session's outer stream ends,
+	// same as the query listener.
+	const watchdogLoop = Effect.fn("ClaudeAdapter.watchdogLoop")(function*(
+		runtime: SessionRuntime
+	) {
+		while (true) {
+			yield* Effect.sleep(watchdogPollInterval)
+			const turnOpenedAt = yield* Ref.get(runtime.turnOpenedAtMs)
+			if (Option.isNone(turnOpenedAt)) {
+				continue
+			}
+			const lastActivity = yield* Ref.get(runtime.lastActivityAtMs)
+			const now = yield* Clock.currentTimeMillis
+			const idleMs = now - lastActivity
+			if (idleMs < Duration.toMillis(turnInactivityTimeout)) {
+				continue
+			}
+			yield* Ref.set(runtime.turnOpenedAtMs, Option.none())
+			yield* publishFact(runtime, {
+				contractKind: "turn_error",
+				detail:
+					`No provider activity for ${Math.round(idleMs / 1000)}s while a turn was open; ` +
+					"the turn was recovered by the inactivity watchdog."
+			})
+			const state = yield* Ref.get(runtime.streamState)
+			const nextGeneration = yield* Ref.updateAndGet(runtime.generation, (current) => current + 1)
+			const oldQuery = yield* Ref.get(runtime.queryRef)
+			yield* teardownQuery(oldQuery, cancelInterruptTimeout)
+			yield* attachQuery(runtime, state.providerSessionId, nextGeneration)
+		}
+	})
+
 	const openSession = Effect.fn("ClaudeAdapter.openSession")(function*(
 		request: StartSessionRequest
 	) {
@@ -502,7 +713,6 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 				`Claude session '${request.sessionId}' is already open.`
 			)
 		}
-		const promptQueue = yield* Queue.unbounded<ClaudeUserPrompt, Done>()
 		const outbound = yield* Queue.unbounded<OrchestrationEvent, Done>()
 		const streamState = yield* Ref.make(emptyClaudeStreamState)
 		const lastUserMessageId = yield* Ref.make(Option.none<MessageId>())
@@ -510,37 +720,36 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 		const pendingPermissions = yield* Ref.make(
 			HashMap.empty<string, Deferred.Deferred<ClaudePermissionDecision>>()
 		)
-		const runtimeHolder = yield* Ref.make(Option.none<SessionRuntime>())
-		const queryHandle = yield* options.createQuery({
-			prompt: Stream.toAsyncIterable(Stream.fromQueue(promptQueue)),
-			cwd: request.workspaceRoot,
-			canUseTool: bindCanUseTool(runtimeHolder, decidePermission)
-		})
+		const sessionScope = yield* Scope.make()
+		const placeholderQueue = yield* Queue.unbounded<ClaudeUserPrompt, Done>()
 		const runtime: SessionRuntime = {
 			sessionId: request.sessionId,
-			promptQueue,
+			workspaceRoot: request.workspaceRoot,
 			outbound,
 			streamState,
 			lastUserMessageId,
 			sequence,
 			pendingPermissions,
-			query: queryHandle
+			promptQueueRef: yield* Ref.make(placeholderQueue),
+			// Overwritten immediately by the attachQuery call below;
+			// requireSession never observes a session without a real query
+			// because openSession doesn't register it into `sessions` until
+			// after that call returns.
+			queryRef: yield* Ref.make<ClaudeQueryHandle>({
+				messages: Stream.empty,
+				interrupt: Effect.void,
+				close: Effect.void
+			}),
+			generation: yield* Ref.make(-1),
+			turnOpenedAtMs: yield* Ref.make(Option.none<number>()),
+			lastActivityAtMs: yield* Ref.make(0),
+			needsReattach: yield* Ref.make(false),
+			sessionScope
 		}
-		yield* Ref.set(runtimeHolder, Option.some(runtime))
+		const firstGeneration = yield* Ref.updateAndGet(runtime.generation, (current) => current + 1)
+		yield* attachQuery(runtime, Option.none(), firstGeneration)
 		yield* Ref.update(sessions, (current) => HashMap.set(current, request.sessionId, runtime))
-		const dropSession = Ref.update(sessions, (current) =>
-			HashMap.remove(current, request.sessionId)
-		)
-		yield* queryHandle.messages.pipe(
-			Stream.runForEach((raw) => publishSdkMessage(runtime, raw)),
-			Effect.ensuring(
-				Queue.end(runtime.outbound).pipe(
-					Effect.flatMap(() => dropSession),
-					Effect.asVoid
-				)
-			),
-			Effect.forkChild({ startImmediately: true })
-		)
+		yield* watchdogLoop(runtime).pipe(Effect.forkIn(sessionScope, { startImmediately: true }))
 		return runtime
 	})
 
@@ -549,29 +758,78 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 			Effect.gen(function*() {
 				const runtime = yield* openSession(request)
 				const opened = yield* makeMetaEvent(runtime, deferredOpenFact)
-				return Stream.concat(Stream.make(opened), Stream.fromQueue(runtime.outbound))
+				return Stream.concat(Stream.make(opened), Stream.fromQueue(runtime.outbound)).pipe(
+					// Whether this stream's consumer (ProviderBridge's per-session
+					// forwarding fiber) ends normally (outbound got Queue.end'd —
+					// see attachQuery's final-generation cleanup) or is interrupted
+					// (session archived/deleted), sessionScope must close either
+					// way: that's what stops the watchdog and any live query
+					// listener from outliving the session.
+					Stream.ensuring(Scope.close(runtime.sessionScope, Exit.void))
+				)
 			})
 		)
 
+	// A cancel (see cancelTurn) tears the query down but deliberately leaves
+	// reattaching to whoever actually needs it next: sendPrompt checks
+	// needsReattach first and, if set, attaches a fresh query (with resume,
+	// when the SDK's own session id is known) before offering the prompt —
+	// so a follow-up right after a cancel transparently lands on a working
+	// query instead of the abandoned one.
 	const sendPrompt = (request: SendPromptRequest) =>
 		Stream.fromEffect(
 			Effect.gen(function*() {
 				const runtime = yield* requireSession(sessions, request.sessionId, "sendPrompt")
+				const reattachNeeded = yield* Ref.get(runtime.needsReattach)
+				if (reattachNeeded) {
+					const state = yield* Ref.get(runtime.streamState)
+					const nextGeneration = yield* Ref.updateAndGet(
+						runtime.generation,
+						(current) => current + 1
+					)
+					yield* attachQuery(runtime, state.providerSessionId, nextGeneration)
+					yield* Ref.set(runtime.needsReattach, false)
+				}
 				yield* Ref.set(runtime.lastUserMessageId, Option.some(request.messageId))
 				const state = yield* Ref.get(runtime.streamState)
-				yield* Queue.offer(runtime.promptQueue, userPrompt(request.text, state.providerSessionId))
+				const promptQueue = yield* Ref.get(runtime.promptQueueRef)
+				yield* Queue.offer(promptQueue, userPrompt(request.text, state.providerSessionId))
+				const now = yield* Clock.currentTimeMillis
+				yield* Ref.set(runtime.turnOpenedAtMs, Option.some(now))
+				yield* Ref.set(runtime.lastActivityAtMs, now)
 				return yield* makeMessageSent(runtime, request)
 			})
 		)
 
+	// Tears down the current query (bounded — see teardownQuery) and marks
+	// the session as needing a fresh one, WITHOUT attaching it here: per the
+	// SDK's own docs, interrupt() is meant to leave a query ready for more
+	// prompts on the same streaming session, but the real QA bug was exactly
+	// a wedged interrupt leaving the query unusable afterward, so a fresh
+	// query is unconditionally required going forward — just not spawned
+	// eagerly. A cancel with no follow-up (the user walked away, or a caller
+	// only cancelling for cleanup) must not spawn a real `claude` subprocess
+	// nobody asked for; sendPrompt attaches the replacement lazily instead,
+	// the same "don't eagerly restart what might not be used" principle
+	// ProviderBridge's boot-replay fix already applies at the session level.
 	const cancelTurn = Effect.fn("ClaudeAdapter.cancelTurn")(function*(request: CancelTurnRequest) {
 		const runtime = yield* requireSession(sessions, request.sessionId, "cancelTurn")
 		const cancelled = yield* makeCancelled(runtime)
 		yield* offerOutbound(runtime, cancelled).pipe(Effect.ignore)
-		yield* runtime.query.interrupt.pipe(Effect.ignore)
-		yield* Queue.end(runtime.outbound).pipe(Effect.asVoid)
-		yield* runtime.query.close
-		yield* Ref.update(sessions, (current) => HashMap.remove(current, request.sessionId))
+		yield* Ref.set(runtime.turnOpenedAtMs, Option.none())
+		// Bump generation BEFORE tearing the old query down (not after, and
+		// not skipped just because nothing attaches a replacement here): once
+		// its inbound queue ends, the old listener's own Effect.ensuring
+		// cleanup can run before this function's next line does — cooperative
+		// scheduling gives no ordering guarantee — so the "am I still
+		// current?" check it makes must already see a bumped generation, or
+		// it wrongly concludes it's still canonical and tears the whole
+		// session down right as cancelTurn is trying to keep it alive for
+		// sendPrompt's later lazy reattach. See attachQuery's own doc.
+		yield* Ref.update(runtime.generation, (current) => current + 1)
+		const oldQuery = yield* Ref.get(runtime.queryRef)
+		yield* teardownQuery(oldQuery, cancelInterruptTimeout)
+		yield* Ref.set(runtime.needsReattach, true)
 	})
 
 	const respondToPermission = Effect.fn("ClaudeAdapter.respondToPermission")(function*(input: {
@@ -594,6 +852,27 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 		)
 	})
 
+	// Forcefully tears down every live session's query — SIGTERM-then-
+	// SIGKILL-equivalent (per the SDK's own close() contract, see
+	// makeLiveCreateQuery) on app/layer shutdown, not just on an explicit
+	// cancel. This is what stops a spawned `claude` subprocess from
+	// outliving the app: without a caller invoking this at shutdown, nothing
+	// ever tears down a session that neither cancelled nor errored — see
+	// ProviderBridge.ts's shutdown finalizer, which calls this on every
+	// registered adapter that exposes it.
+	const shutdown = Effect.gen(function*() {
+		const current = yield* Ref.get(sessions)
+		yield* Effect.forEach(
+			HashMap.values(current),
+			(runtime) =>
+				Ref.get(runtime.queryRef).pipe(
+					Effect.flatMap((queryHandle) => teardownQuery(queryHandle, cancelInterruptTimeout)),
+					Effect.andThen(Scope.close(runtime.sessionScope, Exit.void))
+				),
+			{ discard: true, concurrency: "unbounded" }
+		)
+	}).pipe(Effect.withSpan("ClaudeAdapter.shutdown"))
+
 	return {
 		providerId: CLAUDE_PROVIDER_ID,
 		capabilities: CLAUDE_CAPABILITIES,
@@ -601,7 +880,8 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 		startSession,
 		sendPrompt,
 		cancelTurn,
-		respondToPermission
+		respondToPermission,
+		shutdown
 	} satisfies ClaudeAdapter
 })
 
