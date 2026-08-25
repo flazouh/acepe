@@ -535,6 +535,31 @@ $effect(() => {
 	sessionStore.viewport.ensureRowsBootstrap(sessionId);
 });
 
+// Electrobun-only: keep the DOM-authority rows in sync with the canonical
+// transcript as it grows. `ensureRowsBootstrap` above fires exactly once per
+// session (real `viewportBufferPush`/`viewportBufferDelta` envelopes keep
+// rows current after that on Tauri) -- but Electrobun has no such envelope
+// producer, so without this effect the one-shot bootstrap (which commonly
+// fires before the first message even exists) permanently locks the panel's
+// rows at empty. `getGraphTranscriptRevision` is the per-session
+// transcript-only revision counter (session-projection-core.svelte.ts);
+// re-run the resync whenever it changes. `resyncElectrobunTranscriptRows`
+// no-ops on Tauri and is idempotent against a stale/duplicate fire, so this
+// is safe to run unconditionally.
+$effect(() => {
+	if (sessionId === null) {
+		return;
+	}
+	const transcriptRevision = sessionStore.read.getGraphTranscriptRevision(sessionId);
+	if (transcriptRevision === undefined) {
+		return;
+	}
+	sessionStore.viewport.resyncElectrobunTranscriptRows(
+		sessionId,
+		`transcript-revision:${String(transcriptRevision)}`
+	);
+});
+
 // Open a saved/restored conversation once at the latest user turn. Send intents
 // use `onSend` below because they keep follow engaged for the streaming reply;
 // this open-position path releases follow so history reading stays stable.

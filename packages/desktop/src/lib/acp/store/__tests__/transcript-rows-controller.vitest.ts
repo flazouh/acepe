@@ -270,4 +270,104 @@ describe("TranscriptRowsController under Electrobun (no viewport-buffer command 
 		expect(mocks.requestTranscriptViewportBuffer).not.toHaveBeenCalled();
 		expect(controller.getRowsProjection("session-1")?.rows).toEqual([]);
 	});
+
+	// Live-QA-reproduced bug: `ensureRowsBootstrap` fires exactly once per
+	// session, commonly before the first message even exists (a freshly
+	// created session gets its canonical graph revision before any transcript
+	// entries do). Under Electrobun there is no `viewportBufferPush`/`Delta`
+	// envelope producer to keep rows current after that one-shot bootstrap
+	// (see requestFreshRows's own comment), so without a way to re-derive rows
+	// as entries grow, the panel's rows permanently lock at whatever the
+	// transcript looked like at bootstrap time -- usually empty. This is the
+	// literal "rows never render, or render then get stuck" bug from a real
+	// packaged-build QA session: `.message-scroller__content` stayed at
+	// childCount:0 for the entire turn even though the canonical transcript
+	// had real entries.
+	it("re-derives rows from canonical entries when the transcript grows after bootstrap", () => {
+		let entries: TranscriptEntry[] = [];
+		const liveGraphRevision = () => revision(1, 1, entries.length === 0 ? 3 : 5);
+		const controller = new TranscriptRowsController({
+			getGraphRevision: () => liveGraphRevision(),
+			applySessionStateEnvelope: () => undefined,
+			getTranscriptEntries: () => entries,
+		});
+
+		controller.ensureRowsBootstrap("session-1");
+		expect(controller.getRowsProjection("session-1")?.rows).toEqual([]);
+
+		// The user's message and the assistant's reply land on the canonical
+		// graph after bootstrap -- exactly what a live send does.
+		entries = [
+			{
+				entryId: "entry-user",
+				role: "user",
+				segments: [{ kind: "text", segmentId: "seg-user", text: "hi" }],
+			},
+			{
+				entryId: "entry-assistant",
+				role: "assistant",
+				segments: [{ kind: "text", segmentId: "seg-assistant", text: "hello" }],
+			},
+		];
+		controller.resyncElectrobunTranscriptRows("session-1", "transcript-revision:5");
+
+		expect(controller.getRowsProjection("session-1")?.rows.map((value) => value.rowId)).toEqual([
+			"entry-user",
+			"entry-assistant",
+		]);
+	});
+
+	it("does not regress rows on a stale (non-advancing) resync call", () => {
+		let entries: TranscriptEntry[] = [
+			{
+				entryId: "entry-user",
+				role: "user",
+				segments: [{ kind: "text", segmentId: "seg-user", text: "hi" }],
+			},
+		];
+		const revisionValue = revision(1, 1, 5);
+		const controller = new TranscriptRowsController({
+			getGraphRevision: () => revisionValue,
+			applySessionStateEnvelope: () => undefined,
+			getTranscriptEntries: () => entries,
+		});
+
+		controller.ensureRowsBootstrap("session-1");
+		expect(controller.getRowsProjection("session-1")?.rows.map((value) => value.rowId)).toEqual([
+			"entry-user",
+		]);
+
+		// A duplicate resync at the same revision (e.g. an effect re-running
+		// without the transcript actually advancing) must not be treated as a
+		// fresher push that could otherwise clobber the loaded window.
+		entries = [];
+		controller.resyncElectrobunTranscriptRows("session-1", "transcript-revision:5");
+
+		expect(controller.getRowsProjection("session-1")?.rows.map((value) => value.rowId)).toEqual([
+			"entry-user",
+		]);
+	});
+});
+
+describe("TranscriptRowsController.resyncElectrobunTranscriptRows on Tauri", () => {
+	beforeEach(() => {
+		mocks.readTranscriptRowPage.mockReset();
+		mocks.requestTranscriptViewportBuffer.mockReset();
+		mocks.runningUnderElectrobun.mockReturnValue(false);
+	});
+
+	it("is a no-op on Tauri, where real envelopes keep rows current", () => {
+		const liveGraphRevision = revision(1, 1, 3);
+		const getTranscriptEntries = vi.fn(() => []);
+		const controller = new TranscriptRowsController({
+			getGraphRevision: () => liveGraphRevision,
+			applySessionStateEnvelope: () => undefined,
+			getTranscriptEntries,
+		});
+
+		controller.resyncElectrobunTranscriptRows("session-1", "transcript-revision:3");
+
+		expect(getTranscriptEntries).not.toHaveBeenCalled();
+		expect(mocks.requestTranscriptViewportBuffer).not.toHaveBeenCalled();
+	});
 });

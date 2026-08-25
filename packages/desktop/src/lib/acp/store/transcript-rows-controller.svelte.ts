@@ -95,6 +95,36 @@ export class TranscriptRowsController {
 		this.requestFreshRows(sessionId, "bootstrap");
 	}
 
+	/**
+	 * Re-derive and apply this session's rows from its current canonical
+	 * transcript entries, under Electrobun only (a no-op elsewhere).
+	 *
+	 * `ensureRowsBootstrap` is deliberately one-shot per session: on Tauri,
+	 * real `viewportBufferPush`/`viewportBufferDelta` envelopes (see
+	 * `applyBufferPush`/`applyBufferDelta` above) keep rows in sync after that
+	 * first bootstrap, so re-running the bootstrap request would be redundant.
+	 * Electrobun has no such envelope producer (see this class's own
+	 * `requestFreshRows` comment and orchestration-canonical-bridge.ts) --
+	 * `getTranscriptEntries` is the only signal that new rows exist, and it
+	 * only ever gets *read*, never pushed. Without a caller invoking this
+	 * method again as entries grow, the one-shot bootstrap (typically fired
+	 * before the first message even lands, since it only needs a canonical
+	 * graph revision to exist) permanently locks the session's row store at
+	 * whatever the transcript looked like at that instant, usually empty --
+	 * rows never advance again for the rest of the session's life. Call this
+	 * whenever the session's transcript revision changes (see
+	 * scene-content-viewport.svelte's transcript-revision effect); it is
+	 * idempotent (`applyRowsPush` in transcript-rows-store.ts drops a push
+	 * whose `emissionSeq` -- here the graph's `lastEventSeq` -- does not
+	 * strictly advance), so calling it liberally is safe.
+	 */
+	resyncElectrobunTranscriptRows(sessionId: string, reason: string): void {
+		if (!runningUnderElectrobun()) {
+			return;
+		}
+		this.requestFreshRows(sessionId, reason);
+	}
+
 	applyBufferPush(push: ViewportBufferPush): void {
 		const previousState = this.#rowsBySession.get(push.sessionId)?.state ?? null;
 		const previousRowCount = previousState?.rows.length ?? null;

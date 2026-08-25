@@ -7,6 +7,7 @@ import type { TranscriptRowsState } from "../../../store/transcript-rows-store.j
 const mocks = vi.hoisted(() => ({
 	ensureRowsBootstrap: vi.fn<(sessionId: string) => void>(),
 	requestOlderRows: vi.fn<(sessionId: string) => void>(),
+	resyncElectrobunTranscriptRows: vi.fn<(sessionId: string, reason: string) => void>(),
 }));
 
 vi.mock(
@@ -46,10 +47,18 @@ vi.mock("../../../store/session-store.svelte.js", async () => {
 		getSessionStore: () => ({
 			read: {
 				getSessionGraphRevision: (sessionId: string) => getGraphRevisionFixture(sessionId),
+				// This suite covers the pre-existing bootstrap-once effect, not the
+				// Electrobun-only resync effect (see
+				// TranscriptRowsController.resyncElectrobunTranscriptRows), so
+				// `undefined` (no canonical graph yet) keeps that effect a no-op
+				// here -- matching this suite's real `getGraphRevisionFixture` not
+				// carrying a transcript-revision field.
+				getGraphTranscriptRevision: () => undefined,
 			},
 			viewport: {
 				ensureRowsBootstrap: mocks.ensureRowsBootstrap,
 				requestOlderRows: mocks.requestOlderRows,
+				resyncElectrobunTranscriptRows: mocks.resyncElectrobunTranscriptRows,
 				getRowsDiagnostics: () => null,
 			},
 		}),
