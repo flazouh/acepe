@@ -193,6 +193,7 @@ export const evolveProjectedMcpState = (
 			MessageSent: () => ignoreEvent(current),
 			TokenAppended: () => ignoreEvent(current),
 			TurnCancelled: () => ignoreEvent(current),
+			TurnCompleted: () => ignoreEvent(current),
 			CheckpointCreated: () => ignoreEvent(current),
 			CheckpointReadinessChanged: () => ignoreEvent(current),
 			CheckpointReverted: () => ignoreEvent(current),

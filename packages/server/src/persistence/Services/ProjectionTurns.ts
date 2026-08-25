@@ -8,6 +8,7 @@ import {
 	TokenAppendedPayload,
 	TrimmedNonEmptyString,
 	TurnCancelledPayload,
+	TurnCompletedPayload,
 	TurnId
 } from "@acepe/contracts"
 import * as Arr from "effect/Array"
@@ -300,6 +301,34 @@ const projectTurnCancelled = (
 		})
 	)
 
+// A provider adapter's own turn-end signal (Claude's `result` message,
+// Codex's TaskComplete, OpenCode's session-idle) is the only thing that
+// closes a turn absent a follow-up MessageSent or an explicit cancellation.
+// Without this, projection_turns.status is stuck on "running" forever for
+// any session that never sends a second message.
+const projectTurnCompleted = (
+	current: ReadonlyArray<ProjectedTurn>,
+	event: Extract<OrchestrationEvent, { readonly type: "TurnCompleted" }>
+): Effect.Effect<ReadonlyArray<ProjectedTurn>, Schema.SchemaError> =>
+	decodePayload(TurnCompletedPayload, event.payload).pipe(
+		Effect.map((payload) => {
+			if (!forThisSession(current, payload.sessionId)) {
+				return current
+			}
+			const target =
+				payload.turnId !== undefined
+					? Arr.findFirst(
+							current,
+							(turn) => turn.turnId === payload.turnId && isOpenTurn(turn)
+						)
+					: findOpenTurn(current)
+			return Option.match(target, {
+				onNone: () => current,
+				onSome: (turn) => replaceTurn(current, completeTurn(turn, event.occurredAt))
+			})
+		})
+	)
+
 export const evolveProjectedTurns = (
 	current: ReadonlyArray<ProjectedTurn>,
 	event: OrchestrationEvent
@@ -318,6 +347,7 @@ export const evolveProjectedTurns = (
 			TokenAppended: (appended) => projectTokenAppended(current, appended),
 
 			TurnCancelled: (cancelled) => projectTurnCancelled(current, cancelled),
+			TurnCompleted: (completed) => projectTurnCompleted(current, completed),
 			CheckpointCreated: () => Effect.succeed(current),
 			CheckpointReadinessChanged: () => Effect.succeed(current),
 			CheckpointReverted: () => Effect.succeed(current),

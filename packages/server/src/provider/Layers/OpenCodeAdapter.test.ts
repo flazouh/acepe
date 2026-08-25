@@ -259,6 +259,51 @@ Vitest.describe("OpenCodeAdapter", () => {
 		})
 	)
 
+	// Reproduces the live bug: OpenCode's session.idle event used to fold into
+	// a generic SessionMetaUpdated that nothing reacted to, so
+	// projection_turns never closed the turn absent a follow-up message. It
+	// must now surface as its own TurnCompleted contract event.
+	Vitest.it.effect("emits TurnCompleted when OpenCode reports session.idle", () =>
+		Effect.gen(function*() {
+			const started = yield* startAdapter(matchingSession, selectedCatalog)
+			yield* Queue.take(started.events)
+			yield* Queue.take(started.events)
+			yield* Stream.runCollect(
+				started.adapter.sendPrompt({
+					sessionId,
+					messageId,
+					text: "Reply with exactly: TURN_42"
+				})
+			)
+			yield* Queue.offer(started.inbound, {
+				type: "message.part.updated",
+				properties: {
+					part: {
+						id: "prt_123",
+						sessionID: providerSessionId,
+						messageID: "msg_456",
+						type: "text",
+						text: "TURN_42"
+					},
+					delta: "TURN_42"
+				}
+			})
+			yield* Queue.take(started.events)
+			yield* Queue.offer(started.inbound, {
+				type: "session.idle",
+				properties: {
+					sessionID: providerSessionId
+				}
+			})
+			const completed = yield* Queue.take(started.events)
+			Vitest.assert.strictEqual(completed.type, "TurnCompleted")
+			if (completed.type === "TurnCompleted") {
+				Vitest.assert.strictEqual(completed.payload.sessionId, sessionId)
+			}
+			yield* started.adapter.cancelTurn({ sessionId })
+		})
+	)
+
 	Vitest.it.effect("cancelTurn aborts the OpenCode session and emits TurnCancelled", () =>
 		Effect.gen(function*() {
 			const started = yield* startAdapter(matchingSession, selectedCatalog)

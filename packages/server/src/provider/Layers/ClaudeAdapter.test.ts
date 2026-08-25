@@ -128,6 +128,78 @@ Vitest.describe("ClaudeAdapter", () => {
 		})
 	)
 
+	// Reproduces the live bug: a real Claude turn's reply fully lands (the SDK
+	// stream delivers a `result` message once Claude finishes replying) but
+	// nothing closed projection_turns for it — no TurnCompleted event ever
+	// appended, so the turn stayed "running" forever. ClaudeSdkMap.mapSdkMessage
+	// already turns the SDK's `result` message into a `turn_complete` fact;
+	// this pins down that ClaudeAdapter publishes that fact as a TurnCompleted
+	// contract event instead of folding it into a generic SessionMetaUpdated.
+	Vitest.it.effect("emits TurnCompleted when the SDK stream delivers a result message", () =>
+		Effect.gen(function*() {
+			const inbound = yield* Queue.unbounded<Json, Done>()
+			const interrupts = yield* Ref.make(0)
+			const adapter = yield* makeClaudeAdapter({
+				presence: Effect.succeed(claudePresence(true, true)),
+				createQuery: () => Effect.succeed(fakeHandle(inbound, interrupts))
+			})
+			const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
+			yield* adapter
+				.startSession({
+					sessionId,
+					projectId,
+					workspaceRoot: "/tmp/acepe"
+				})
+				.pipe(
+					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
+					Effect.forkChild({ startImmediately: true })
+				)
+			yield* Queue.take(events)
+			yield* Stream.runCollect(
+				adapter.sendPrompt({
+					sessionId,
+					messageId,
+					text: "Reply with exactly: TURN_42"
+				})
+			)
+			yield* Queue.offer(inbound, {
+				type: "stream_event",
+				session_id: "sdk-session-1",
+				event: {
+					type: "content_block_delta",
+					delta: {
+						type: "text_delta",
+						text: "TURN_42"
+					}
+				}
+			})
+			yield* Queue.take(events)
+			yield* Queue.offer(inbound, {
+				type: "result",
+				session_id: "sdk-session-1",
+				is_error: false,
+				usage: { input_tokens: 3, output_tokens: 2 }
+			})
+			// The result message also carries usage, which still legitimately
+			// becomes a SessionMetaUpdated fact — only the terminal turn_complete
+			// fact changes destination, so drain up to a small bound of
+			// intervening events instead of asserting every event is terminal.
+			let completed: OrchestrationEvent | undefined
+			for (let attempt = 0; attempt < 5 && completed === undefined; attempt++) {
+				const next = yield* Queue.take(events)
+				if (next.type === "TurnCompleted") {
+					completed = next
+				}
+			}
+			if (completed === undefined || completed.type !== "TurnCompleted") {
+				Vitest.assert.fail("expected a TurnCompleted event after the SDK result message")
+				return
+			}
+			Vitest.assert.strictEqual(completed.payload.sessionId, sessionId)
+			yield* adapter.cancelTurn({ sessionId })
+		})
+	)
+
 	Vitest.it.effect("cancelTurn interrupts the fake transport and emits TurnCancelled", () =>
 		Effect.gen(function*() {
 			const inbound = yield* Queue.unbounded<Json, Done>()

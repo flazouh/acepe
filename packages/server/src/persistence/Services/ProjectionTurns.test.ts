@@ -34,7 +34,7 @@ const secondTurnId = TurnId.make("message-2")
 
 type SessionEventType = Extract<
 	OrchestrationEvent["type"],
-	"MessageSent" | "TokenAppended" | "TurnCancelled"
+	"MessageSent" | "TokenAppended" | "TurnCancelled" | "TurnCompleted"
 >
 
 const sessionEvent = <const Type extends SessionEventType, Payload>(
@@ -226,6 +226,68 @@ Vitest.describe("evolveProjectedTurns", () => {
 			const turn = requireTurn(turns, turnId)
 			Vitest.assert.strictEqual(turn.status, "cancelled")
 			Vitest.assert.strictEqual(turn.cancelledAt, LATER)
+		})
+	)
+
+	// Reproduces the live bug: a real Claude turn's reply fully lands
+	// (MessageSent -> TokenAppended... -> the adapter's own turn-end signal)
+	// but with no follow-up MessageSent and no cancellation, nothing ever
+	// closed projection_turns.status — it stayed "running" forever. The
+	// adapter's turn-end signal (Claude's `result` message, mapped to a
+	// TurnCompleteFact in ClaudeSdkMap.ts) must itself close the turn.
+	Vitest.it.effect("completes the open turn from TurnCompleted without a turn id", () =>
+		Effect.gen(function*() {
+			const turns = yield* fold([
+				sessionEvent(2, "MessageSent", NOW, {
+					sessionId,
+					messageId,
+					text: "Reply with exactly: TURN_42"
+				}),
+				sessionEvent(3, "TokenAppended", LATER, {
+					sessionId,
+					messageId: assistantMessageId,
+					token: "TURN_42"
+				}),
+				sessionEvent(4, "TurnCompleted", END, {
+					sessionId
+				})
+			])
+			const turn = requireTurn(turns, turnId)
+			Vitest.assert.strictEqual(turn.status, "completed")
+			Vitest.assert.strictEqual(turn.endedAt, END)
+			Vitest.assert.strictEqual(turn.cancelledAt, null)
+			Vitest.assert.strictEqual(turn.outputTokens, 1)
+			Vitest.assert.isFalse(isOpenTurn(turn))
+		})
+	)
+
+	Vitest.it.effect("completes the named turn from TurnCompleted with a turn id", () =>
+		Effect.gen(function*() {
+			const turns = yield* fold([
+				sessionEvent(2, "MessageSent", NOW, {
+					sessionId,
+					messageId,
+					text: "Ship the slice"
+				}),
+				sessionEvent(3, "TurnCompleted", LATER, {
+					sessionId,
+					turnId
+				})
+			])
+			const turn = requireTurn(turns, turnId)
+			Vitest.assert.strictEqual(turn.status, "completed")
+			Vitest.assert.strictEqual(turn.endedAt, LATER)
+		})
+	)
+
+	Vitest.it.effect("ignores TurnCompleted when there is no open turn", () =>
+		Effect.gen(function*() {
+			const turns = yield* fold([
+				sessionEvent(2, "TurnCompleted", NOW, {
+					sessionId
+				})
+			])
+			Vitest.assert.deepStrictEqual(turns, [])
 		})
 	)
 
