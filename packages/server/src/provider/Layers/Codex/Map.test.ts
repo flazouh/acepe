@@ -14,11 +14,8 @@ import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import {
 	classifyChunkAggregationHint,
-	decodeContractFact,
 	emptyCodexMapState,
-	encodeContractFact,
-	mapCodexServerMessage,
-	providerSessionFact
+	mapCodexServerMessage
 } from "./Map.ts"
 
 type Json = typeof Schema.Json.Type
@@ -569,17 +566,6 @@ Vitest.describe("mapCodexServerMessage", () => {
 				aggregationHint: "boundary_carryover"
 			}
 		])
-	})
-})
-
-Vitest.describe("Codex contract fact codec", () => {
-	Vitest.it("round-trips a provider session fact", () => {
-		const fact = providerSessionFact("thread-1")
-		const encoded = encodeContractFact(fact)
-		Vitest.assert.isTrue(Option.isSome(encoded))
-		if (Option.isSome(encoded)) {
-			Vitest.assert.deepStrictEqual(decodeContractFact(encoded.value), Option.some(fact))
-		}
 	})
 })
 

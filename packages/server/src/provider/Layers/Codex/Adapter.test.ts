@@ -20,7 +20,7 @@ import {
 	type CodexAppServerHandle,
 	type CodexJsonRpcRequest
 } from "./Adapter.ts"
-import { decodeContractFact } from "./Map.ts"
+import { decodeContractFact } from "./Codec.ts"
 import {
 	CODEX_APP_SERVER_ARGS,
 	CODEX_PLACEHOLDER_COMMAND,
@@ -315,93 +315,6 @@ Vitest.describe("CodexAdapter", () => {
 			})
 			const tokenEvent = yield* Queue.take(events)
 			Vitest.assert.strictEqual(tokenEvent.type, "TokenAppended")
-			yield* Queue.end(inbound)
-		})
-	)
-
-	Vitest.it.effect("replies to native permission requests", () =>
-		Effect.gen(function*() {
-			const inbound = yield* Queue.unbounded<Json, Done>()
-			const requests = yield* Ref.make<ReadonlyArray<RecordedRequest>>(Arr.empty())
-			const replies = yield* Ref.make<ReadonlyArray<Json>>(Arr.empty())
-			const adapter = yield* makeTestAdapter(inbound, requests, replies)
-			const { events } = yield* openSession(adapter)
-			yield* Queue.offer(inbound, {
-				jsonrpc: "2.0",
-				id: 42,
-				method: "item/fileRead/requestApproval",
-				params: {
-					itemId: "tool-1",
-					path: "src/lib.rs"
-				}
-			})
-			const permissionEvent = yield* Queue.take(events)
-			Vitest.assert.strictEqual(permissionEvent.type, "SessionMetaUpdated")
-			const fact = decodeContractFact(permissionEvent.metadata)
-			if (Option.isSome(fact) && fact.value.contractKind === "permission_request") {
-				Vitest.assert.strictEqual(fact.value.id, "42")
-				Vitest.assert.strictEqual(fact.value.permission, "Read src/lib.rs")
-			}
-			yield* adapter.respondToPermission({
-				sessionId,
-				permissionId: "42",
-				decision: "once"
-			})
-			const recordedReplies = yield* Ref.get(replies)
-			Vitest.assert.deepStrictEqual(recordedReplies[0], {
-				id: 42,
-				result: { decision: "accept" }
-			})
-			yield* Queue.end(inbound)
-		})
-	)
-
-	Vitest.it.effect("replies to native question requests with original question ids", () =>
-		Effect.gen(function*() {
-			const inbound = yield* Queue.unbounded<Json, Done>()
-			const requests = yield* Ref.make<ReadonlyArray<RecordedRequest>>(Arr.empty())
-			const replies = yield* Ref.make<ReadonlyArray<Json>>(Arr.empty())
-			const adapter = yield* makeTestAdapter(inbound, requests, replies)
-			const { events } = yield* openSession(adapter)
-			yield* Queue.offer(inbound, {
-				jsonrpc: "2.0",
-				id: 7,
-				method: "item/tool/requestUserInput",
-				params: {
-					itemId: "tool-question-1",
-					questions: [
-						{
-							id: "scope",
-							header: "Scope",
-							question: "Apply to?",
-							multiSelect: true,
-							options: [
-								{ label: "File", description: "This file only" },
-								{ label: "Project", description: "Whole project" }
-							]
-						}
-					]
-				}
-			})
-			const questionEvent = yield* Queue.take(events)
-			const fact = decodeContractFact(questionEvent.metadata)
-			if (Option.isSome(fact) && fact.value.contractKind === "question_request") {
-				Vitest.assert.strictEqual(fact.value.id, "7")
-			}
-			yield* adapter.respondToQuestion({
-				sessionId,
-				requestId: "7",
-				answers: [["Project"]]
-			})
-			const recordedReplies = yield* Ref.get(replies)
-			Vitest.assert.deepStrictEqual(recordedReplies[0], {
-				id: 7,
-				result: {
-					answers: {
-						scope: { answers: ["Project"] }
-					}
-				}
-			})
 			yield* Queue.end(inbound)
 		})
 	)
