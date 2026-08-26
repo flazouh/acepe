@@ -402,6 +402,81 @@ Vitest.describe("ClaudeAdapter", () => {
 			})
 	)
 
+	// AC-269: a real Claude usage_update message used to fold into a generic
+	// SessionMetaUpdated event -- no projector reads its metadata, so nothing
+	// downstream could show the working line's live token count (same swallow
+	// pattern the ToolCallObserved test above already proved and fixed for
+	// tool calls). Pins down that ClaudeAdapter publishes a typed
+	// TurnUsageObserved event instead, carrying the current turn's id.
+	Vitest.it.effect(
+		"emits TurnUsageObserved for a real usage_update message, not SessionMetaUpdated",
+		() =>
+			Effect.gen(function*() {
+				const inbound = yield* Queue.unbounded<Json, Done>()
+				const interrupts = yield* Ref.make(0)
+				const adapter = yield* makeClaudeAdapter({
+					presence: Effect.succeed(claudePresence(true, true)),
+					createQuery: () => Effect.succeed(fakeHandle(inbound, interrupts))
+				})
+				const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
+				yield* adapter
+					.startSession({
+						sessionId,
+						projectId,
+						workspaceRoot: "/tmp/acepe"
+					})
+					.pipe(
+						Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
+						Effect.forkChild({ startImmediately: true })
+					)
+				yield* Queue.take(events) // deferred_open
+				yield* Stream.runCollect(
+					adapter.sendPrompt({
+						sessionId,
+						messageId,
+						text: "Read package.json"
+					})
+				)
+				yield* Queue.offer(inbound, {
+					type: "system",
+					subtype: "usage_update",
+					session_id: "sdk-session-1",
+					usage: {
+						input_tokens: 120,
+						output_tokens: 48,
+						total_tokens: 168
+					},
+					total_cost_usd: 0.0123,
+					size: 200_000
+				})
+				let observed: OrchestrationEvent | undefined
+				for (let attempt = 0; attempt < 5 && observed === undefined; attempt++) {
+					const next = yield* Queue.take(events)
+					if (next.type === "SessionMetaUpdated") {
+						const fact = decodeContractFact(next.metadata)
+						if (Option.isSome(fact)) {
+							Vitest.assert.notStrictEqual(fact.value.contractKind, "usage")
+						}
+					}
+					if (next.type === "TurnUsageObserved") {
+						observed = next
+					}
+				}
+				if (observed === undefined || observed.type !== "TurnUsageObserved") {
+					Vitest.assert.fail("expected a TurnUsageObserved event for the usage_update message")
+					return
+				}
+				Vitest.assert.strictEqual(observed.payload.sessionId, sessionId)
+				Vitest.assert.strictEqual(observed.payload.turnId, messageId)
+				Vitest.assert.strictEqual(observed.payload.inputTokens, 120)
+				Vitest.assert.strictEqual(observed.payload.outputTokens, 48)
+				Vitest.assert.strictEqual(observed.payload.totalTokens, 168)
+				Vitest.assert.strictEqual(observed.payload.costUsd, 0.0123)
+				Vitest.assert.strictEqual(observed.payload.contextWindowSize, 200_000)
+				yield* adapter.cancelTurn({ sessionId })
+			})
+	)
+
 	// #268 defect 2: a real Claude permission prompt (the SDK's own canUseTool
 	// callback, invoked mid-turn when a tool needs approval) used to fold into
 	// a generic SessionMetaUpdated event whose metadata nobody reads for

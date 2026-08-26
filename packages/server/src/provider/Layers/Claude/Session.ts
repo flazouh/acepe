@@ -16,6 +16,7 @@ import {
 	TurnCancelledEvent,
 	TurnCompletedEvent,
 	TurnId,
+	TurnUsageObservedEvent,
 	tracerAssistantMessageId
 } from "@acepe/contracts"
 import type { Done } from "effect/Cause"
@@ -387,6 +388,68 @@ const publishApprovalRequested = Effect.fn("ClaudeAdapter.publishApprovalRequest
 	return yield* offerOutbound(runtime, event)
 })
 
+// AC-269: same carve-out as makeToolCallObserved/publishApprovalRequested --
+// a real Claude usage_update message must reach ProjectionTurns as a typed
+// TurnUsageObserved event, not fold into a generic SessionMetaUpdated one
+// (see TurnUsageObservedPayload's doc in acp.ts). turnId is derived the same
+// way makeCompleted derives one: the last user message this runtime has seen
+// IS the current turn's id (mirrors MessageSentPayload.messageId ->
+// TurnId.make in ProjectionTurns.ts's projectMessageSent). Absent one (a
+// usage reading that arrives before any prompt was ever sent on this
+// runtime), the event still carries the reading with no turn id --
+// ProjectionTurns falls back to whichever turn is currently open for the
+// session, exactly like TurnCompleted/TurnCancelled already do.
+const makeTurnUsageObserved = Effect.fn("ClaudeAdapter.makeTurnUsageObserved")(function*(
+	runtime: SessionRuntime,
+	fact: Extract<ClaudeContractFact, { readonly contractKind: "usage" }>
+) {
+	const header = yield* stamp(runtime)
+	const lastUser = yield* Ref.get(runtime.lastUserMessageId)
+	const turnId = Option.map(lastUser, TurnId.make)
+	// Schema.optionalKey requires the key to be ABSENT, not present with an
+	// explicit `undefined` value -- a plain `inputTokens: fact.inputTokens`
+	// spread would set the latter for any field UsageFact didn't carry (e.g.
+	// the SDK result message's usage has no cost/context-window reading),
+	// which made TurnUsageObservedEvent.make throw synchronously and killed
+	// the query-listener fiber mid Effect.forEach, silently starving every
+	// later event on the stream (including TurnCompleted) -- reproduced by
+	// Adapter.test.ts's "emits TurnCompleted when the SDK stream delivers a
+	// result message" hanging once usage stopped being swallowed into
+	// SessionMetaUpdated. Conditional spreads keep an absent field absent.
+	const basePayload = {
+		sessionId: runtime.sessionId,
+		...(fact.inputTokens !== undefined ? { inputTokens: fact.inputTokens } : {}),
+		...(fact.outputTokens !== undefined ? { outputTokens: fact.outputTokens } : {}),
+		...(fact.totalTokens !== undefined ? { totalTokens: fact.totalTokens } : {}),
+		...(fact.costUsd !== undefined ? { costUsd: fact.costUsd } : {}),
+		...(fact.contextWindowSize !== undefined ? { contextWindowSize: fact.contextWindowSize } : {})
+	}
+	return TurnUsageObservedEvent.make({
+		sequence: header.sequence,
+		eventId: header.eventId,
+		aggregateKind: "session",
+		aggregateId: runtime.sessionId,
+		occurredAt: header.occurredAt,
+		commandId: header.commandId,
+		causationEventId: null,
+		correlationId: header.commandId,
+		metadata: EMPTY_JSON_OBJECT,
+		type: "TurnUsageObserved",
+		payload: Option.match(turnId, {
+			onNone: () => basePayload,
+			onSome: (id) => ({ ...basePayload, turnId: id })
+		})
+	})
+})
+
+const publishTurnUsageObserved = Effect.fn("ClaudeAdapter.publishTurnUsageObserved")(function*(
+	runtime: SessionRuntime,
+	fact: Extract<ClaudeContractFact, { readonly contractKind: "usage" }>
+) {
+	const event = yield* makeTurnUsageObserved(runtime, fact)
+	return yield* offerOutbound(runtime, event)
+})
+
 const publishToolCallUpdated = Effect.fn("ClaudeAdapter.publishToolCallUpdated")(function*(
 	runtime: SessionRuntime,
 	fact: Extract<ClaudeContractFact, { readonly contractKind: "tool_call_update" }>
@@ -445,6 +508,12 @@ export const publishFact = Effect.fn("ClaudeAdapter.publishFact")(function*(
 	// folded into the generic makeMetaEvent branch.
 	if (fact.contractKind === "permission_request") {
 		return yield* publishApprovalRequested(runtime, fact)
+	}
+	// AC-269: same carve-out as tool_call/permission_request above -- see
+	// publishTurnUsageObserved's doc for why a usage reading cannot stay
+	// folded into the generic makeMetaEvent branch.
+	if (fact.contractKind === "usage") {
+		return yield* publishTurnUsageObserved(runtime, fact)
 	}
 	const event = yield* makeMetaEvent(runtime, fact)
 	return yield* offerOutbound(runtime, event)
