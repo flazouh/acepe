@@ -47,19 +47,37 @@
 
 {#if selectedReply === null}
 	<div class={wrapperClass}>
-		<Button variant="outline" size="xs" class={buttonClass} onclick={onDeny}>
+		<Button
+			variant="outline"
+			size="xs"
+			class={buttonClass}
+			onclick={onDeny}
+			data-testid="permission-deny"
+		>
 			<HugeiconsIcon name="x-circle" class="size-3 shrink-0" style="color: {denyIconColor}" />
 			<span>{denyLabel}</span>
 		</Button>
 
 		{#if showAlwaysAllow && onAlwaysAllow}
-			<Button variant="outline" size="xs" class={buttonClass} onclick={onAlwaysAllow}>
+			<Button
+				variant="outline"
+				size="xs"
+				class={buttonClass}
+				onclick={onAlwaysAllow}
+				data-testid="permission-always-allow"
+			>
 				<HugeiconsIcon name="shield-check" class="size-3 shrink-0" style="color: {alwaysIconColor}" />
 				<span>{alwaysAllowLabel}</span>
 			</Button>
 		{/if}
 
-		<Button variant="outline" size="xs" class={buttonClass} onclick={onAllow}>
+		<Button
+			variant="outline"
+			size="xs"
+			class={buttonClass}
+			onclick={onAllow}
+			data-testid="permission-allow"
+		>
 			<HugeiconsIcon name="check-circle" class="size-3 shrink-0" style="color: {allowIconColor}" />
 			<span>{allowLabel}</span>
 		</Button>
