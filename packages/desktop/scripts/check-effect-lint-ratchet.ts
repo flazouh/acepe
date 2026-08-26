@@ -90,7 +90,19 @@ import { resolve } from "node:path";
 // non-boolean conditions -- the same patterns those sibling test files
 // already trip. Production code (session-repository.ts alias upgrade)
 // verified clean against this batch's diff.
-const BASELINE = 6614;
+// 6614 -> 6612: issue #268 (imported-session provider + pending-approval
+// rendering + blocked-on-approval placeholder). This batch's own new test
+// assertions are all synchronous (`it("...", () => {...})`, no `new Date()`
+// fixtures), so they trip zero new violations. The net -2 comes from a
+// concurrent commit on this same branch (17821aae4, unrelated to #268):
+// extracting vite.config.js's deferred-stylesheet payload split into
+// scripts/vite-defer-stylesheet-hmr.js removed more inline
+// violation-tripping lines than its own new test file added. Verified this
+// batch's own touched files (orchestration-canonical-bridge.ts,
+// reopen-snapshot-graph.ts, session-status-mapper.ts,
+// transcript-viewport-rendered-rows.ts, local-placeholder-mode.ts, and
+// their test files) add zero new violations on their own changed lines.
+const BASELINE = 6612;
 const PACKAGE_ROOT = resolve(import.meta.dir, "..");
 
 // The pretty formatter (the default, and what lint:effect:report uses) always
