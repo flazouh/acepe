@@ -84,7 +84,13 @@ import { resolve } from "node:path";
 // effect(effectSucceedWithVoid) x2. Production code
 // (open-persisted-session.ts, main-app-view.svelte) has zero new
 // violations -- verified against this batch's actual diff.
-const BASELINE = 6608;
+// 6608 -> 6614: the alias-dedupe regression test
+// (session-repository-alias-dedupe.test.ts) copies the sibling refresh
+// harness whose fixtures use `new Date()` (effect(globalDate)) and
+// non-boolean conditions -- the same patterns those sibling test files
+// already trip. Production code (session-repository.ts alias upgrade)
+// verified clean against this batch's diff.
+const BASELINE = 6614;
 const PACKAGE_ROOT = resolve(import.meta.dir, "..");
 
 // The pretty formatter (the default, and what lint:effect:report uses) always
