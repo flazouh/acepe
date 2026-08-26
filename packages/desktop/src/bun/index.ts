@@ -1,4 +1,5 @@
-import { appendFileSync, existsSync, writeFileSync } from "node:fs";
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import {
 	acepeShellPingScript,
 	applyNativeWrapperCwdOrExit,
@@ -35,21 +36,55 @@ import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as ManagedRuntime from "effect/ManagedRuntime";
 import { loadQaSocketPath, qaPreloadScript } from "electrobun-qa";
+import { keepQaHost, qaInternalMessageMap, qaWindowPreload } from "./qa-host.ts";
+import {
+	migrateLegacyTracerDb,
+	resolveTracerDbPath,
+	TRACER_APP_ID,
+	tracerDbFilename,
+} from "./tracer-db-path.ts";
 
-// One instance key scopes the QA socket and this DB, so parallel app
-// instances never share state.
-const loadTracerDbFilename = Effect.fn("loadTracerDbFilename")(function* () {
+// AC-271: the tracer DB used to resolve to a bare filename next to the
+// launcher executable, inside the app bundle -- `electrobun:build` recreates
+// that directory on every build, silently wiping the user's real projects
+// and sessions. It now resolves under the OS app-data directory instead
+// (see tracer-db-path.ts), and migrates a pre-fix bundle-local DB into that
+// location on first run so nobody loses history to this fix itself. One
+// instance key (ELECTROBUN_QA_APP_ID) scopes the QA socket and this DB
+// filename, so parallel app instances never share a DB file.
+const loadTracerDbPath = Effect.fn("loadTracerDbPath")(function* () {
 	const instance = yield* Config.string("APP_ID").pipe(
 		Config.nested("ELECTROBUN_QA"),
 		Config.withDefault("")
 	);
-	if (instance === "") {
-		return "acepe-tracer.sqlite";
-	}
-	return `acepe-tracer-${instance.replace(/[^a-zA-Z0-9.-]/g, "-")}.sqlite`;
+	const home = yield* Config.string("HOME").pipe(
+		Config.orElse(() => Config.string("USERPROFILE")),
+		Config.withDefault("")
+	);
+	const targetPath = resolveTracerDbPath({
+		platform: process.platform,
+		home,
+		appId: TRACER_APP_ID,
+		instance,
+		appDataEnv: process.env.APPDATA,
+		xdgDataHome: process.env.XDG_DATA_HOME,
+	});
+	// The native wrapper cwd shim (applyNativeWrapperCwdOrExit, called
+	// before this runs) chdir's into the bundle's launcher directory
+	// (Contents/MacOS on macOS) -- that is exactly where the pre-fix code
+	// used to open the bare filename, so process.cwd() here reproduces that
+	// legacy path exactly, for any instance.
+	const legacyPath = `${process.cwd()}/${tracerDbFilename(instance)}`;
+	const migration = migrateLegacyTracerDb({
+		legacyPath,
+		targetPath,
+		targetDir: dirname(targetPath),
+		exists: existsSync,
+		mkdirSync: (dir) => mkdirSync(dir, { recursive: true }),
+		copyFileSync,
+	});
+	return { targetPath, legacyPath, migration };
 });
-
-import { keepQaHost, qaInternalMessageMap, qaWindowPreload } from "./qa-host.ts";
 
 const PROOF_LOG = SHELL_PROOF_LOG_PATH;
 const RPC_ROUNDTRIP_WAIT_MS = 20_000;
@@ -81,9 +116,14 @@ const electrobunNative = await import("../../node_modules/electrobun/dist/api/bu
 const qaConfig = resolveElectrobunConfig();
 const qaEnabled = qaSurfaceEnabled(qaConfig);
 
+const tracerDb = Effect.runSync(loadTracerDbPath());
+writeLine(
+	`acepe-tracer-db: path=${tracerDb.targetPath} migration=${tracerDb.migration} legacyPath=${tracerDb.legacyPath}`
+);
+
 const runtime = ManagedRuntime.make(
 	makeAcepeLive({
-		filename: Effect.runSync(loadTracerDbFilename()),
+		filename: tracerDb.targetPath,
 		tokenDelay: Duration.millis(40),
 		voiceQaSurfaceEnabled: qaEnabled,
 	})
