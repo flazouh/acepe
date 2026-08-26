@@ -29,6 +29,9 @@ import type { SqlError } from "effect/unstable/sql/SqlError"
 import { OrchestrationCommandInvariantError } from "../orchestration/Errors.ts"
 import type { OrchestrationDispatchError } from "../orchestration/Services/OrchestrationEngine.ts"
 import { OrchestrationEngine } from "../orchestration/Services/OrchestrationEngine.ts"
+import { CLAUDE_PROVIDER_ID } from "../provider/Layers/ClaudeProvider.ts"
+import { CURSOR_PROVIDER_ID } from "../provider/Layers/CursorProvider.ts"
+import { OPENCODE_PROVIDER_ID } from "../provider/Layers/OpenCodeProvider.ts"
 import {
 	ProjectionSnapshotQuery,
 	SessionProjectionSnapshot
@@ -107,6 +110,20 @@ export type HistoryImporterShape = {
 }
 
 export type HistoryProviderKind = "claude" | "cursor" | "opencode"
+
+// Maps the importer's own HistoryProviderKind (namespacing for commandIds,
+// unrelated to the adapter registry) to the ProviderId ProviderBridge.ts
+// resolves real adapters by. Every imported/discovered session must carry
+// its real providerId on session.create -- otherwise SessionCreated.payload
+// .providerId comes back undefined and HardcodedProvider.ts's tracer claims
+// the session instead of the real adapter (issue #268: a real Claude Code
+// history import answered by the tracer's canned reply). "claude" differs
+// from CLAUDE_PROVIDER_ID's "claude-code"; cursor/opencode already match.
+const HISTORY_PROVIDER_ADAPTER_ID: Record<HistoryProviderKind, string> = {
+	claude: CLAUDE_PROVIDER_ID,
+	cursor: CURSOR_PROVIDER_ID,
+	opencode: OPENCODE_PROVIDER_ID
+}
 
 export type HistoryLineDecoder<A> = {
 	readonly provider: HistoryProviderKind
@@ -254,7 +271,8 @@ export const makeHistoryImporter = <A>(config: HistoryLineDecoder<A>) =>
 					commandId: sessionCommandId,
 					sessionId,
 					projectId: input.projectId,
-					title
+					title,
+					providerId: HISTORY_PROVIDER_ADAPTER_ID[config.provider]
 				})
 			)
 			let userIndex = 0

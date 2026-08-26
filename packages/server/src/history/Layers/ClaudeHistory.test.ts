@@ -39,7 +39,10 @@ const oracle = {
 		sessionId: "sess-claude-1",
 		projectId: "project-1",
 		title: "Hello from Claude",
-		provider: null,
+		// #268 defect 1: importDirectory must carry the real providerId so
+		// HardcodedProvider's tracer never claims an imported session (see
+		// HISTORY_PROVIDER_ADAPTER_ID in importer.ts).
+		provider: "claude-code",
 		createdAt: HISTORY_TEST_NOW,
 		updatedAt: HISTORY_TEST_NOW,
 		lastActivityAt: HISTORY_TEST_NOW,
