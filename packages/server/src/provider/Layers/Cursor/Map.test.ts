@@ -1,8 +1,6 @@
 import * as Vitest from "@effect/vitest"
 import * as Option from "effect/Option"
 import {
-	decodeContractFact,
-	encodeContractFact,
 	mapAcpPermissionRequest,
 	mapAcpSessionNotification,
 	mapCursorExtensionMethod,
@@ -174,19 +172,5 @@ Vitest.describe("mapCursorExtensionMethod", () => {
 		Vitest.assert.deepStrictEqual(mapCursorExtensionMethod("cursor/update_todos"), Option.none())
 		Vitest.assert.deepStrictEqual(mapCursorExtensionMethod("cursor/task"), Option.none())
 		Vitest.assert.deepStrictEqual(mapCursorExtensionMethod("_cursor/generate_image"), Option.none())
-	})
-})
-
-Vitest.describe("contract fact codec", () => {
-	Vitest.it("round-trips a text_delta fact", () => {
-		const fact = {
-			contractKind: "text_delta" as const,
-			token: "Hello"
-		}
-		const encoded = encodeContractFact(fact)
-		Vitest.assert.isTrue(Option.isSome(encoded))
-		if (Option.isSome(encoded)) {
-			Vitest.assert.deepStrictEqual(decodeContractFact(encoded.value), Option.some(fact))
-		}
 	})
 })

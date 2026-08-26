@@ -28,8 +28,8 @@ import {
 	type CursorConnectInput,
 	type CursorLaunchConfig
 } from "./Adapter.ts"
+import { decodeContractFact } from "./Codec.ts"
 import { cursorPresence } from "./Provider.ts"
-import { decodeContractFact } from "./Map.ts"
 
 type Json = typeof Schema.Json.Type
 

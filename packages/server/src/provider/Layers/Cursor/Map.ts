@@ -5,112 +5,25 @@ import * as Option from "effect/Option"
 import * as Predicate from "effect/Predicate"
 import * as Schema from "effect/Schema"
 import * as Str from "effect/String"
+import {
+	CursorAcpToolKind,
+	type CursorContractFact,
+	type CursorToolStatus,
+	type PermissionRequestFact
+} from "./Facts.ts"
 
 type Json = typeof Schema.Json.Type
 type JsonObject = typeof Schema.JsonObject.Type
 
 const EMPTY_JSON_OBJECT: JsonObject = {}
 
-export const CURSOR_ACP_TOOL_KINDS = [
-	"read",
-	"edit",
-	"delete",
-	"move",
-	"search",
-	"execute",
-	"think",
-	"fetch",
-	"other"
-] as const
-export const CursorAcpToolKind = Schema.Literals(CURSOR_ACP_TOOL_KINDS)
-export type CursorAcpToolKind = typeof CursorAcpToolKind.Type
-
-export const CursorToolStatus = Schema.Literals(["pending", "in_progress", "completed", "failed"])
-export type CursorToolStatus = typeof CursorToolStatus.Type
-
-export const TextDeltaFact = Schema.Struct({
-	contractKind: Schema.Literal("text_delta"),
-	token: Schema.String.check(Schema.isNonEmpty())
-})
-export type TextDeltaFact = typeof TextDeltaFact.Type
-
-export const ThoughtDeltaFact = Schema.Struct({
-	contractKind: Schema.Literal("thought_delta"),
-	token: Schema.String.check(Schema.isNonEmpty())
-})
-export type ThoughtDeltaFact = typeof ThoughtDeltaFact.Type
-
-export const ToolCallFact = Schema.Struct({
-	contractKind: Schema.Literal("tool_call"),
-	toolCallId: Schema.String.check(Schema.isNonEmpty()),
-	title: Schema.String.check(Schema.isNonEmpty()),
-	kind: CursorAcpToolKind,
-	status: CursorToolStatus,
-	rawInput: Schema.JsonObject
-})
-export type ToolCallFact = typeof ToolCallFact.Type
-
-export const ToolCallUpdateFact = Schema.Struct({
-	contractKind: Schema.Literal("tool_call_update"),
-	toolCallId: Schema.String.check(Schema.isNonEmpty()),
-	status: Schema.optionalKey(CursorToolStatus)
-})
-export type ToolCallUpdateFact = typeof ToolCallUpdateFact.Type
-
-export const PermissionRequestFact = Schema.Struct({
-	contractKind: Schema.Literal("permission_request"),
-	id: Schema.String.check(Schema.isNonEmpty()),
-	sessionId: Schema.String.check(Schema.isNonEmpty()),
-	permission: Schema.String.check(Schema.isNonEmpty()),
-	toolCallId: Schema.String.check(Schema.isNonEmpty())
-})
-export type PermissionRequestFact = typeof PermissionRequestFact.Type
-
-export const PlanProposalFact = Schema.Struct({
-	contractKind: Schema.Literal("plan_proposal"),
-	planMarkdown: Schema.String.check(Schema.isNonEmpty())
-})
-export type PlanProposalFact = typeof PlanProposalFact.Type
-
-export const ProviderSessionFact = Schema.Struct({
-	contractKind: Schema.Literal("provider_session"),
-	providerSessionId: Schema.String.check(Schema.isNonEmpty())
-})
-export type ProviderSessionFact = typeof ProviderSessionFact.Type
-
-export const TurnCompleteFact = Schema.Struct({
-	contractKind: Schema.Literal("turn_complete")
-})
-export type TurnCompleteFact = typeof TurnCompleteFact.Type
-
-export const TurnErrorFact = Schema.Struct({
-	contractKind: Schema.Literal("turn_error"),
-	detail: Schema.String.check(Schema.isNonEmpty())
-})
-export type TurnErrorFact = typeof TurnErrorFact.Type
-
-export const CursorContractFact = Schema.Union([
-	TextDeltaFact,
-	ThoughtDeltaFact,
-	ToolCallFact,
-	ToolCallUpdateFact,
-	PermissionRequestFact,
-	PlanProposalFact,
-	ProviderSessionFact,
-	TurnCompleteFact,
-	TurnErrorFact
-])
-export type CursorContractFact = typeof CursorContractFact.Type
-
-const decodeFact = Schema.decodeUnknownExit(CursorContractFact)
-const encodeFact = Schema.encodeUnknownExit(CursorContractFact)
 const decodeJsonObject = Schema.decodeUnknownExit(Schema.JsonObject)
 const decodeToolKind = Schema.decodeUnknownExit(CursorAcpToolKind)
 const isJsonArray = Schema.is(Schema.Array(Schema.Json))
 
 export const permissionIdForToolCall = (toolCallId: string): string => `perm-${toolCallId}`
 
-const jsonObjectOf = (value: Json): Option.Option<JsonObject> => {
+export const jsonObjectOf = (value: Json): Option.Option<JsonObject> => {
 	const exit = decodeJsonObject(value)
 	if (Exit.isSuccess(exit)) {
 		return Option.some(exit.value)
@@ -409,29 +322,4 @@ export const mapCursorExtensionMethod = (method: string): Option.Option<CursorCo
 		return Option.none()
 	}
 	return Option.none()
-}
-
-export const encodeContractFact = (fact: CursorContractFact): Option.Option<JsonObject> => {
-	const encoded = encodeFact(fact)
-	if (Exit.isFailure(encoded)) {
-		return Option.none()
-	}
-	return jsonObjectOf(encoded.value)
-}
-
-export const decodeContractFact = (value: Json): Option.Option<CursorContractFact> => {
-	const decoded = decodeFact(value)
-	if (Exit.isFailure(decoded)) {
-		return Option.none()
-	}
-	return Option.some(decoded.value)
-}
-
-export const providerSessionFact = (providerSessionId: string): ProviderSessionFact => ({
-	contractKind: "provider_session",
-	providerSessionId
-})
-
-export const turnCompleteFact: TurnCompleteFact = {
-	contractKind: "turn_complete"
 }
