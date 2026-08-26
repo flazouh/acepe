@@ -616,7 +616,16 @@ Vitest.layer(isolatedSnapshot())("ProjectionSnapshotQuery grades turns", (it) =>
 				{
 					turnId,
 					sessionId,
-					sequence: 3
+					sequence: 3,
+					status: "running",
+					startedAt: NOW,
+					endedAt: null,
+					inputTokens: 0,
+					outputTokens: 1,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+					costUsd: 0,
+					contextWindowSize: null
 				}
 			])
 		})
