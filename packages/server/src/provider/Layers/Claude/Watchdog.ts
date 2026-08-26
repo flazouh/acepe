@@ -1,6 +1,7 @@
 import * as Clock from "effect/Clock"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
+import * as HashMap from "effect/HashMap"
 import * as Option from "effect/Option"
 import * as Ref from "effect/Ref"
 import type { ProviderAdapterError } from "../../Services/ProviderAdapter.ts"
@@ -20,6 +21,7 @@ import { publishFact, type SessionRuntime } from "./Session.ts"
 export const makeWatchdogLoop = (
 	watchdogPollInterval: Duration.Input,
 	turnInactivityTimeout: Duration.Input,
+	permissionWaitTimeout: Duration.Input,
 	cancelInterruptTimeout: Duration.Input,
 	attachQuery: (
 		runtime: SessionRuntime,
@@ -37,15 +39,27 @@ export const makeWatchdogLoop = (
 			const lastActivity = yield* Ref.get(runtime.lastActivityAtMs)
 			const now = yield* Clock.currentTimeMillis
 			const idleMs = now - lastActivity
-			if (idleMs < Duration.toMillis(turnInactivityTimeout)) {
+			// A turn blocked on a permission is not stalled — the SDK is
+			// doing exactly what it should, waiting on a human, and a human
+			// takes far longer than turnInactivityTimeout. Judging that wait
+			// by the stall bound auto-denies the approval the operator is
+			// still looking at and tears the query down under them. It still
+			// gets a bound, just a much larger one, so an approval nobody
+			// ever answers cannot pin the `claude` subprocess open forever.
+			const waiting = yield* Ref.get(runtime.pendingPermissions)
+			const blockedOnPermission = HashMap.size(waiting) > 0
+			const timeout = blockedOnPermission ? permissionWaitTimeout : turnInactivityTimeout
+			if (idleMs < Duration.toMillis(timeout)) {
 				continue
 			}
 			yield* Ref.set(runtime.turnOpenedAtMs, Option.none())
 			yield* publishFact(runtime, {
 				contractKind: "turn_error",
-				detail:
-					`No provider activity for ${Math.round(idleMs / 1000)}s while a turn was open; ` +
-					"the turn was recovered by the inactivity watchdog."
+				detail: blockedOnPermission
+					? `A permission request went unanswered for ${Math.round(idleMs / 1000)}s; ` +
+						"the turn was recovered by the inactivity watchdog and the request was denied."
+					: `No provider activity for ${Math.round(idleMs / 1000)}s while a turn was open; ` +
+						"the turn was recovered by the inactivity watchdog."
 			})
 			const state = yield* Ref.get(runtime.streamState)
 			const nextGeneration = yield* Ref.updateAndGet(runtime.generation, (current) => current + 1)

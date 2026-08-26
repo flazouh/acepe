@@ -24,7 +24,7 @@ import type { Json } from "../Json.ts"
 import { makeClaudeAdapter, type ClaudeAdapterOptions } from "./Adapter.ts"
 import { decodeContractFact } from "./Codec.ts"
 import type { ClaudeQueryHandle, ClaudeQueryInput } from "./Process.ts"
-import { claudePresence } from "./Provider.ts"
+import { claudePresence, type ClaudeMode } from "./Provider.ts"
 import type { ClaudeCanUseTool, ClaudePermissionResult } from "./Wire.ts"
 
 const sessionId = SessionId.make("session-1")
@@ -38,6 +38,7 @@ const fakeHandle = (
 ): ClaudeQueryHandle => ({
 	messages: Stream.fromQueue(inbound),
 	interrupt: Ref.update(interrupts, (count) => count + 1).pipe(Effect.asVoid),
+	setPermissionMode: () => Effect.void,
 	close: Queue.end(inbound).pipe(Effect.asVoid)
 })
 
@@ -52,6 +53,11 @@ type ScriptedAttempt = {
 	readonly interrupted: Ref.Ref<boolean>
 	readonly closed: Ref.Ref<boolean>
 	readonly resume: Option.Option<string>
+	// The mode this attempt was LAUNCHED in, and the live setPermissionMode
+	// control requests it received afterwards — the two halves of Claude's
+	// mode mechanism, both observable per attempt.
+	readonly permissionMode: ClaudeMode
+	readonly modeRequests: Ref.Ref<ReadonlyArray<ClaudeMode>>
 }
 
 const makeScriptedClaudeSdk = Effect.fn("makeScriptedClaudeSdk")(function*() {
@@ -61,11 +67,21 @@ const makeScriptedClaudeSdk = Effect.fn("makeScriptedClaudeSdk")(function*() {
 			const inbound = yield* Queue.unbounded<Json, Done>()
 			const interrupted = yield* Ref.make(false)
 			const closed = yield* Ref.make(false)
-			const attempt: ScriptedAttempt = { inbound, interrupted, closed, resume: input.resume }
+			const modeRequests = yield* Ref.make<ReadonlyArray<ClaudeMode>>([])
+			const attempt: ScriptedAttempt = {
+				inbound,
+				interrupted,
+				closed,
+				resume: input.resume,
+				permissionMode: input.permissionMode,
+				modeRequests
+			}
 			yield* Ref.update(attemptsRef, (current) => [...current, attempt])
 			return {
 				messages: Stream.fromQueue(inbound),
 				interrupt: Ref.set(interrupted, true).pipe(Effect.asVoid),
+				setPermissionMode: (mode: ClaudeMode) =>
+					Ref.update(modeRequests, (current) => [...current, mode]).pipe(Effect.asVoid),
 				close: Ref.set(closed, true).pipe(
 					Effect.andThen(Queue.end(inbound)),
 					Effect.asVoid
@@ -189,6 +205,7 @@ type TestSessionOptions = {
 	readonly prompt?: string
 	readonly cancelInterruptTimeout?: Duration.Input
 	readonly turnInactivityTimeout?: Duration.Input
+	readonly permissionWaitTimeout?: Duration.Input
 	readonly watchdogPollInterval?: Duration.Input
 }
 
@@ -204,6 +221,7 @@ const startTestSession = Effect.fn("startTestSession")(function*(
 		},
 		cancelInterruptTimeout: options.cancelInterruptTimeout ?? Duration.millis(50),
 		turnInactivityTimeout: options.turnInactivityTimeout ?? Duration.seconds(60),
+		permissionWaitTimeout: options.permissionWaitTimeout ?? Duration.minutes(30),
 		watchdogPollInterval: options.watchdogPollInterval ?? Duration.seconds(5)
 	})
 	const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
@@ -899,6 +917,7 @@ Vitest.describe("ClaudeAdapter", () => {
 							// Long enough for the detached fiber behind that promise
 							// to register its deferred before teardown finishes.
 						}).pipe(Effect.andThen(Effect.sleep(Duration.millis(30)))),
+						setPermissionMode: () => Effect.void,
 						close: Queue.end(inbound).pipe(Effect.asVoid)
 					} satisfies ClaudeQueryHandle),
 				cancelInterruptTimeout: Duration.millis(500)
@@ -939,6 +958,7 @@ Vitest.describe("ClaudeAdapter", () => {
 					Effect.succeed({
 						messages: Stream.fromQueue(inbound),
 						interrupt: Deferred.await(releaseInterrupt),
+						setPermissionMode: () => Effect.void,
 						close: Effect.void
 					} satisfies ClaudeQueryHandle),
 				cancelInterruptTimeout: Duration.seconds(10)
@@ -955,6 +975,41 @@ Vitest.describe("ClaudeAdapter", () => {
 		})
 	)
 
+	// A turn blocked on a permission is not stalled: it is waiting on a
+	// human, and a human takes longer than turnInactivityTimeout. Counting
+	// that wait as inactivity kills the turn out from under the operator —
+	// the approval is auto-denied, the query is torn down and the tool never
+	// runs — which is exactly what the live app did: ApprovalRequested, then
+	// 60s later a recovered turn and no file written.
+	Vitest.it.live("does not kill a turn that is waiting on a human permission", () =>
+		Effect.gen(function*() {
+			const sdk = yield* makeScriptedClaudeSdk()
+			const session = yield* withBlockedPermission({
+				createQuery: sdk.createQuery,
+				turnInactivityTimeout: Duration.millis(30),
+				watchdogPollInterval: Duration.millis(10)
+			})
+			// Ten poll intervals and ten inactivity timeouts' worth of wall
+			// clock: if the watchdog treats the permission wait as a stall it
+			// has fired many times over by now.
+			yield* Effect.sleep(Duration.millis(300))
+			const decision = yield* Fiber.join(session.decisionFiber).pipe(
+				Effect.timeoutOption(Duration.millis(50))
+			)
+			if (Option.isSome(decision)) {
+				return Vitest.assert.fail(
+					`the watchdog answered a pending human permission by itself (${decision.value.behavior})`
+				)
+			}
+			const attempts = yield* Ref.get(sdk.attemptsRef)
+			Vitest.assert.strictEqual(
+				attempts.length,
+				1,
+				"the watchdog tore down and re-attached the query the permission belonged to"
+			)
+		})
+	)
+
 	Vitest.it.live("the inactivity watchdog denies a permission the stalled turn was blocked on", () =>
 		Effect.gen(function*() {
 			const sdk = yield* makeScriptedClaudeSdk()
@@ -965,6 +1020,12 @@ Vitest.describe("ClaudeAdapter", () => {
 			const session = yield* withBlockedPermission({
 				createQuery: sdk.createQuery,
 				turnInactivityTimeout: Duration.millis(30),
+				// A permission wait has its OWN, much larger bound (see
+				// permissionWaitTimeout) so a human is never hurried by the
+				// stall bound; shortened here so the safety valve — an
+				// approval nobody answers must still release the query — is
+				// testable in milliseconds.
+				permissionWaitTimeout: Duration.millis(30),
 				watchdogPollInterval: Duration.millis(10)
 			})
 			yield* assertAbandonedDenial(
@@ -991,6 +1052,41 @@ Vitest.describe("ClaudeAdapter", () => {
 				session.decisionFiber,
 				"a dead query stream left the SDK's canUseTool promise pending forever"
 			)
+		})
+	)
+
+	// Claude's mode is the SDK's own permission mode, and it has to survive
+	// the query being REPLACED: cancelTurn tears the query down and the next
+	// sendPrompt attaches a fresh one, so a mode that only ever reached the
+	// live query would silently revert to "default" on the very next turn.
+	Vitest.it.live("carries a set mode onto the live query and onto its replacement", () =>
+		Effect.gen(function*() {
+			const sdk = yield* makeScriptedClaudeSdk()
+			const { adapter } = yield* openPromptedSession({ createQuery: sdk.createQuery })
+			yield* adapter.setMode({ sessionId, modeId: "plan" })
+			const opened = yield* waitUntil(Ref.get(sdk.attemptsRef), (a) => a.length >= 1)
+			const firstAttempt = opened[0]
+			if (firstAttempt === undefined) {
+				return Vitest.assert.fail("expected a first query attempt")
+			}
+			Vitest.assert.strictEqual(firstAttempt.permissionMode, "default")
+			const liveRequests = yield* Ref.get(firstAttempt.modeRequests)
+			Vitest.assert.deepStrictEqual(liveRequests, ["plan"])
+			yield* adapter.cancelTurn({ sessionId })
+			yield* Stream.runCollect(
+				adapter.sendPrompt({ sessionId, messageId: messageId2, text: "and now?" })
+			)
+			const attempts = yield* waitUntil(Ref.get(sdk.attemptsRef), (a) => a.length >= 2)
+			Vitest.assert.strictEqual(attempts[1]?.permissionMode, "plan")
+		})
+	)
+
+	Vitest.it.live("fails a mode the Claude SDK has no permission mode for", () =>
+		Effect.gen(function*() {
+			const sdk = yield* makeScriptedClaudeSdk()
+			const { adapter } = yield* openPromptedSession({ createQuery: sdk.createQuery })
+			const error = yield* adapter.setMode({ sessionId, modeId: "read-only" }).pipe(Effect.flip)
+			Vitest.assert.strictEqual(error.operation, "setMode")
 		})
 	)
 

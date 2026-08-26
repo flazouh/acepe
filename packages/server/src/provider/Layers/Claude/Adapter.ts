@@ -17,6 +17,7 @@ import type {
 	ProviderAdapterError,
 	ProviderPresence,
 	SendPromptRequest,
+	SetModeRequest,
 	StartSessionRequest
 } from "../../Services/ProviderAdapter.ts"
 import type { OpenToolCallInfo } from "../SessionEvents.ts"
@@ -39,8 +40,11 @@ import {
 	CLAUDE_CAPABILITIES,
 	CLAUDE_PROVIDER_ID,
 	CLAUDE_SESSION_MCP_SERVERS,
+	type ClaudeMode,
+	DEFAULT_CLAUDE_MODE,
 	probeClaudePresence,
-	resolveClaudeExecutablePath
+	resolveClaudeExecutablePath,
+	resolveClaudeModeId
 } from "./Provider.ts"
 import {
 	makeCancelled,
@@ -55,6 +59,10 @@ import { makeWatchdogLoop } from "./Watchdog.ts"
 import { userPrompt, type ClaudeUserPrompt } from "./Wire.ts"
 
 export type ClaudeAdapter = ProviderAdapter & {
+	// Claude's mode is the SDK's permission mode: setMode issues the live
+	// setPermissionMode control request AND records the mode so every
+	// replacement query a cancel or a stall recovery builds launches in it.
+	readonly setMode: (request: SetModeRequest) => Effect.Effect<void, ProviderAdapterError>
 	readonly respondToPermission: (input: {
 		readonly sessionId: SessionId
 		readonly permissionId: string
@@ -83,6 +91,12 @@ export type ClaudeAdapterOptions = {
 	// natural gaps, short enough to recover a genuinely stalled session
 	// without the operator noticing a multi-minute hang.
 	readonly turnInactivityTimeout?: Duration.Input
+	// How long a turn may sit on an UNANSWERED permission before the
+	// watchdog gives up on the human and recovers it. Deliberately far
+	// larger than turnInactivityTimeout: this bound exists only so an
+	// approval nobody ever answers cannot pin the subprocess open, not to
+	// hurry an operator who is reading a diff.
+	readonly permissionWaitTimeout?: Duration.Input
 	// How often the watchdog checks for a stalled turn. Defaults to 5s.
 	readonly watchdogPollInterval?: Duration.Input
 }
@@ -90,6 +104,7 @@ export type ClaudeAdapterOptions = {
 const DEFAULT_CANCEL_INTERRUPT_TIMEOUT = Duration.seconds(5)
 const DEFAULT_TURN_INACTIVITY_TIMEOUT = Duration.seconds(60)
 const DEFAULT_WATCHDOG_POLL_INTERVAL = Duration.seconds(5)
+const DEFAULT_PERMISSION_WAIT_TIMEOUT = Duration.minutes(30)
 
 export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 	options: ClaudeAdapterOptions
@@ -98,6 +113,7 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 	const cancelInterruptTimeout = options.cancelInterruptTimeout ?? DEFAULT_CANCEL_INTERRUPT_TIMEOUT
 	const turnInactivityTimeout = options.turnInactivityTimeout ?? DEFAULT_TURN_INACTIVITY_TIMEOUT
 	const watchdogPollInterval = options.watchdogPollInterval ?? DEFAULT_WATCHDOG_POLL_INTERVAL
+	const permissionWaitTimeout = options.permissionWaitTimeout ?? DEFAULT_PERMISSION_WAIT_TIMEOUT
 
 	// (Re)attaches a query to an already-registered runtime: a fresh
 	// promptQueue feeds a fresh SDK query(), a new listener fiber drains its
@@ -131,11 +147,13 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 		myGeneration: number
 	) {
 		const promptQueue = yield* Queue.unbounded<ClaudeUserPrompt, Done>()
+		const permissionMode = yield* Ref.get(runtime.modeId)
 		const queryHandle = yield* options.createQuery({
 			prompt: Stream.toAsyncIterable(Stream.fromQueue(promptQueue)),
 			cwd: runtime.workspaceRoot,
 			canUseTool: bindCanUseTool(runtime, decidePermission),
-			resume
+			resume,
+			permissionMode
 		})
 		yield* Ref.set(runtime.promptQueueRef, promptQueue)
 		yield* Ref.set(runtime.queryRef, queryHandle)
@@ -183,6 +201,7 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 	const watchdogLoop = makeWatchdogLoop(
 		watchdogPollInterval,
 		turnInactivityTimeout,
+		permissionWaitTimeout,
 		cancelInterruptTimeout,
 		attachQuery
 	)
@@ -229,8 +248,10 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 			queryRef: yield* Ref.make<ClaudeQueryHandle>({
 				messages: Stream.empty,
 				interrupt: Effect.void,
+				setPermissionMode: () => Effect.void,
 				close: Effect.void
 			}),
+			modeId: yield* Ref.make<ClaudeMode>(DEFAULT_CLAUDE_MODE),
 			generation: yield* Ref.make(-1),
 			turnOpenedAtMs: yield* Ref.make(Option.none<number>()),
 			lastActivityAtMs: yield* Ref.make(0),
@@ -345,6 +366,24 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 		yield* Ref.set(runtime.needsReattach, true)
 	})
 
+	// Claude's mode IS the SDK's permission mode. Both halves matter: the
+	// control request moves the LIVE query, and the ref makes every
+	// replacement query attachQuery builds later (cancel, watchdog recovery)
+	// launch in the same mode instead of silently reverting to "default".
+	const setMode = Effect.fn("ClaudeAdapter.setMode")(function*(request: SetModeRequest) {
+		const runtime = yield* requireSession(sessions, request.sessionId, "setMode")
+		const resolved = resolveClaudeModeId(request.modeId)
+		if (Option.isNone(resolved)) {
+			return yield* adapterError(
+				"setMode",
+				`Claude does not support mode "${request.modeId}"`
+			)
+		}
+		yield* Ref.set(runtime.modeId, resolved.value)
+		const queryHandle = yield* Ref.get(runtime.queryRef)
+		yield* queryHandle.setPermissionMode(resolved.value)
+	})
+
 	const respondToPermission = makeRespondToPermission(sessions)
 
 	// Forcefully tears down every live session's query — SIGTERM-then-
@@ -385,6 +424,7 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 		startSession,
 		sendPrompt,
 		cancelTurn,
+		setMode,
 		respondToPermission,
 		shutdown
 	} satisfies ClaudeAdapter
