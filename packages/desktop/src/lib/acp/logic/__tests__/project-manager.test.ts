@@ -8,6 +8,7 @@ import {
 	computeMissingLibraryProjects,
 	type Project,
 	ProjectManager,
+	reconcileKnownProjectRoots,
 } from "../project-manager.svelte.js";
 
 function libraryProject(overrides: Partial<RpcProjectedProject> = {}): RpcProjectedProject {
@@ -269,5 +270,86 @@ describe("ProjectManager.mergeLibraryProjects", () => {
 
 		expect(manager.projects).toEqual([existing]);
 		expect(manager.projectCount).toBe(1);
+	});
+
+	// AC-271: the hot cache (localStorage 'acepe.projects.hot_cache') is not
+	// scoped per Electrobun instance, so a corrupted or foreign entry from
+	// another instance can render on boot before the real per-instance
+	// storage load replaces it. This proves the routine startup
+	// reconciliation (this same union, run against THIS instance's own
+	// server-authoritative library snapshot) corrects a known project's
+	// root back to truth instead of leaving the cache-sourced value in
+	// place indefinitely.
+	it("corrects a known project's cached root when it disagrees with the library snapshot", () => {
+		const manager = new ProjectManager();
+		const corrupted = createProject("com-acepe-app-qa-dbpath-Users-alex-project", "Acepe");
+		corrupted.id = "project-1";
+		manager.projects = [corrupted];
+		manager.projectCount = 1;
+
+		manager.mergeLibraryProjects([libraryProject({ projectId: ProjectId.make("project-1") })]);
+
+		expect(manager.projects).toEqual([{ ...corrupted, path: "/tmp/acepe" }]);
+		expect(manager.projectCount).toBe(1);
+	});
+});
+
+describe("reconcileKnownProjectRoots", () => {
+	it("corrects a known-id project's path to the library snapshot's workspaceRoot", () => {
+		const stale = createProject("/wrong/stale-root", "Acepe");
+		stale.id = "project-1";
+
+		const corrected = reconcileKnownProjectRoots(
+			[stale],
+			[libraryProject({ projectId: ProjectId.make("project-1"), workspaceRoot: "/real/root" })]
+		);
+
+		expect(corrected).toEqual([{ ...stale, path: "/real/root" }]);
+	});
+
+	it("leaves an id-less legacy project untouched, even if a library row shares its path key coincidentally", () => {
+		const legacy = createProject("/tmp/acepe", "Acepe (local)");
+
+		const corrected = reconcileKnownProjectRoots([legacy], [libraryProject()]);
+
+		expect(corrected).toEqual([legacy]);
+		expect(corrected[0]).toBe(legacy);
+	});
+
+	it("is a referential no-op when every known root already matches", () => {
+		const existing = createProject("/tmp/acepe", "Acepe");
+		existing.id = "project-1";
+		const existingProjects = [existing];
+
+		const corrected = reconcileKnownProjectRoots(existingProjects, [libraryProject()]);
+
+		expect(corrected).toBe(existingProjects);
+	});
+
+	it("leaves a project's root alone when the library snapshot has no row for its id", () => {
+		const existing = createProject("/repo/one", "One");
+		existing.id = "project-unknown";
+
+		const corrected = reconcileKnownProjectRoots([existing], [libraryProject()]);
+
+		expect(corrected).toEqual([existing]);
+	});
+
+	it("skips a deleted library row instead of using it to correct a root", () => {
+		const existing = createProject("/tmp/acepe", "Acepe");
+		existing.id = "project-1";
+
+		const corrected = reconcileKnownProjectRoots(
+			[existing],
+			[
+				libraryProject({
+					projectId: ProjectId.make("project-1"),
+					workspaceRoot: "/deleted/root",
+					deletedAt: "2026-08-21T00:00:00.000Z",
+				}),
+			]
+		);
+
+		expect(corrected).toEqual([existing]);
 	});
 });

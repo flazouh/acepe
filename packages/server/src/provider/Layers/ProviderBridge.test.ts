@@ -56,6 +56,14 @@ const userMessageId = MessageId.make("message-user")
 const tracerMessageId = MessageId.make("message-tracer")
 const fakeProviderId = ProviderId.make("fake-provider")
 
+// AC-271: openSession now checks the project's workspaceRoot exists on disk
+// before ever calling the adapter -- see ProviderBridge.ts. Every scripted
+// project.create in this file uses "/tmp" (a real, always-present
+// directory) as its workspaceRoot rather than a fictional path, so that
+// check passes and these tests keep exercising the adapter itself. The
+// dedicated "does not exist" test below uses its own deliberately-missing
+// path instead.
+
 const TempSqlite = Layer.unwrap(
 	Effect.gen(function*() {
 		const fs = yield* FileSystem.FileSystem
@@ -207,7 +215,7 @@ Vitest.describe("ProviderBridge", () => {
 							commandId: CommandId.make("cmd-project"),
 							projectId,
 							title: "Acepe",
-							workspaceRoot: "/tmp/acepe"
+							workspaceRoot: "/tmp"
 						})
 					)
 					yield* engine.dispatch(
@@ -285,7 +293,7 @@ Vitest.describe("ProviderBridge", () => {
 							commandId: CommandId.make("cmd-project"),
 							projectId,
 							title: "Acepe",
-							workspaceRoot: "/tmp/acepe"
+							workspaceRoot: "/tmp"
 						})
 					)
 					yield* engine.dispatch(
@@ -341,7 +349,7 @@ Vitest.describe("ProviderBridge", () => {
 							commandId: CommandId.make("cmd-project"),
 							projectId,
 							title: "Acepe",
-							workspaceRoot: "/tmp/acepe"
+							workspaceRoot: "/tmp"
 						})
 					)
 					yield* engine.dispatch(
@@ -400,7 +408,7 @@ Vitest.describe("ProviderBridge", () => {
 					commandId: CommandId.make("cmd-project"),
 					projectId,
 					title: "Acepe",
-					workspaceRoot: "/tmp/acepe"
+					workspaceRoot: "/tmp"
 				})
 			)
 			yield* engine.dispatch(
@@ -430,6 +438,77 @@ Vitest.describe("ProviderBridge", () => {
 		)
 	})
 
+	// AC-271: a project's workspaceRoot can be corrupted client-side before a
+	// session ever reaches the server (cross-instance localStorage bleed
+	// corrupting the desktop app's cached project root -- see
+	// project-manager.svelte.ts's reconcileKnownProjectRoots). Spawning a
+	// provider against a root that does not exist on disk used to hang the
+	// turn forever (fixed in ead04058f to at least fail instead of hang),
+	// but it still asked the adapter to try and left the caller with
+	// whatever generic error the adapter's own spawn failure produced. This
+	// proves openSession validates the root BEFORE ever calling the
+	// adapter, so the failure is an honest, specific "does not exist"
+	// instead of an opaque spawn error, and the adapter is never invoked at
+	// all against a bogus cwd.
+	Vitest.it.live("fails startSession honestly, without invoking the adapter, when the workspace root does not exist", () =>
+		makeScriptedAdapter(fakeProviderId).pipe(
+			Effect.flatMap(({ adapter, startSessionCount }) => {
+				const TestLive = ProviderBridgeLive.pipe(
+					Layer.provideMerge(ProviderAdapterRegistryLive([adapter])),
+					Layer.provideMerge(EngineLive)
+				)
+				// A distinctive, deeply nested name that nothing else in this
+				// suite (or a normal /tmp) would ever create -- the assertion
+				// below is still a real disk check, not just an assumption.
+				const missingRoot = "/tmp/acepe-ac271-missing-workspace-root/definitely-not-here"
+				return Effect.gen(function*() {
+					const engine = yield* OrchestrationEngine
+					const store = yield* OrchestrationEventStore
+					const fs = yield* FileSystem.FileSystem
+					Vitest.assert.strictEqual(yield* fs.exists(missingRoot), false)
+					yield* engine.dispatch(
+						ProjectCreateCommand.make({
+							type: "project.create",
+							commandId: CommandId.make("cmd-project"),
+							projectId,
+							title: "Acepe",
+							workspaceRoot: missingRoot
+						})
+					)
+					yield* engine.dispatch(
+						SessionCreateCommand.make({
+							type: "session.create",
+							commandId: CommandId.make("cmd-session"),
+							sessionId,
+							projectId,
+							title: "Doomed session",
+							providerId: fakeProviderId
+						})
+					)
+					const events = yield* waitUntil(
+						Stream.runCollect(store.readFrom(0, 50)),
+						(collected) => collected.some((event) => event.type === "ProviderSessionFailed")
+					)
+					const failed = events.filter((event) => event.type === "ProviderSessionFailed")
+					Vitest.assert.strictEqual(failed.length, 1)
+					if (failed[0]?.type === "ProviderSessionFailed") {
+						Vitest.assert.strictEqual(failed[0].payload.sessionId, sessionId)
+						Vitest.assert.strictEqual(failed[0].payload.operation, "startSession")
+						Vitest.assert.isTrue(failed[0].payload.detail.includes(missingRoot))
+					}
+					Vitest.assert.strictEqual(yield* Ref.get(startSessionCount), 0)
+				}).pipe(
+					// FileSystem here is for the test body's own pre-check
+					// (fs.exists(missingRoot) above) -- ProviderBridgeLive
+					// provides FileSystem to its own internals separately and
+					// does not expose it outward (see ProviderBridge.ts).
+					// @effect-diagnostics-next-line strictEffectProvide:off
+					Effect.provide(Layer.mergeAll(TestLive, BunFileSystem.layer))
+				)
+			})
+		)
+	)
+
 	Vitest.it.live("leaves sessions with no providerId to HardcodedProvider", () =>
 		makeScriptedAdapter(fakeProviderId).pipe(
 			Effect.flatMap(({ adapter, sendPromptCount }) => {
@@ -450,7 +529,7 @@ Vitest.describe("ProviderBridge", () => {
 							commandId: CommandId.make("cmd-project"),
 							projectId,
 							title: "Acepe",
-							workspaceRoot: "/tmp/acepe"
+							workspaceRoot: "/tmp"
 						})
 					)
 					yield* engine.dispatch(
@@ -540,7 +619,7 @@ Vitest.describe("ProviderBridge", () => {
 							commandId: CommandId.make("cmd-project-reboot"),
 							projectId,
 							title: "Acepe",
-							workspaceRoot: "/tmp/acepe"
+							workspaceRoot: "/tmp"
 						})
 					)
 					yield* engine.dispatch(
@@ -704,7 +783,7 @@ Vitest.describe("ProviderBridge", () => {
 							commandId: CommandId.make("cmd-project-shutdown"),
 							projectId,
 							title: "Acepe",
-							workspaceRoot: "/tmp/acepe"
+							workspaceRoot: "/tmp"
 						})
 					)
 					Vitest.assert.strictEqual(yield* Ref.get(shutdownCalls), 0)
@@ -814,7 +893,7 @@ Vitest.describe("ProviderBridge", () => {
 							commandId: CommandId.make("cmd-project-claude-reboot"),
 							projectId,
 							title: "Acepe",
-							workspaceRoot: "/tmp/acepe"
+							workspaceRoot: "/tmp"
 						})
 					)
 					yield* engine.dispatch(

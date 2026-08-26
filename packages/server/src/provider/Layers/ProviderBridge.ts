@@ -12,12 +12,14 @@ import {
 	TrimmedNonEmptyString,
 	type TurnCancelledEvent
 } from "@acepe/contracts"
+import * as BunFileSystem from "@effect/platform-bun/BunFileSystem"
 import * as Arr from "effect/Array"
 import * as Cause from "effect/Cause"
 import * as DateTime from "effect/DateTime"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Fiber from "effect/Fiber"
+import * as FileSystem from "effect/FileSystem"
 import * as HashMap from "effect/HashMap"
 import * as HashSet from "effect/HashSet"
 import * as Layer from "effect/Layer"
@@ -290,6 +292,27 @@ const openSession = Effect.fn("ProviderBridge.openSession")(function*(
 			adapter.providerId,
 			"startSession",
 			`No known workspace root for project '${projectId}'.`
+		)
+		return
+	}
+	// AC-271: a project's root can go stale or arrive corrupted (e.g. the
+	// desktop app's cross-instance localStorage cache bleed -- see
+	// project-manager.svelte.ts's reconcileKnownProjectRoots) without this
+	// server ever hearing about it changing. Checking existence here, before
+	// ever calling the adapter, turns that into one honest
+	// ProviderSessionFailed instead of an adapter-specific spawn error (a
+	// `claude`/`codex`/etc. subprocess failing to start in a cwd that does
+	// not exist) -- ead04058f already stopped that from hanging the turn
+	// forever, this makes the failure legible instead of merely non-fatal.
+	const fs = yield* FileSystem.FileSystem
+	const rootExists = yield* fs.exists(workspaceRoot.value).pipe(Effect.orElseSucceed(() => false))
+	if (rootExists === false) {
+		yield* appendFailure(
+			state,
+			sessionId,
+			adapter.providerId,
+			"startSession",
+			`Workspace root '${workspaceRoot.value}' does not exist. The project folder may have been moved, deleted, or its path corrupted.`
 		)
 		return
 	}
@@ -592,4 +615,10 @@ export const makeProviderBridge = Effect.fn("makeProviderBridge")(function*() {
 	yield* Effect.forEach(historical, (event) => consider(state, event, "replay"), { discard: true })
 })
 
-export const ProviderBridgeLive = Layer.effectDiscard(makeProviderBridge())
+// Self-contained: provides its own FileSystem (the openSession root-exists
+// check, AC-271) rather than requiring every caller/test to thread
+// BunFileSystem.layer through -- same pattern persistence/Layers/Sqlite.ts
+// uses for its own FileSystem dependency.
+export const ProviderBridgeLive = Layer.effectDiscard(makeProviderBridge()).pipe(
+	Layer.provide(BunFileSystem.layer)
+)

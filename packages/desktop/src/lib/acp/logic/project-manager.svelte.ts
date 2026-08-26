@@ -101,9 +101,7 @@ export function computeMissingLibraryProjects(
 	// real duplicate-workspace-root case (AC #266), and hiding the second one
 	// by path alone silently lost a real project instead of representing it.
 	const knownIds = new Set(
-		existingProjects
-			.map((project) => project.id)
-			.filter((id): id is string => id !== undefined)
+		existingProjects.map((project) => project.id).filter((id): id is string => id !== undefined)
 	);
 	const knownLegacyPaths = new Set(
 		existingProjects.filter((project) => project.id === undefined).map((project) => project.path)
@@ -145,6 +143,55 @@ export function computeMissingLibraryProjects(
 		nextSortOrder += 1;
 	}
 	return additions;
+}
+
+/**
+ * Corrects a known project's local `path` back to the server-authoritative
+ * library snapshot's `workspaceRoot`, when the two disagree.
+ *
+ * AC-271: the hot cache (`acepe.projects.hot_cache` in localStorage) is not
+ * scoped per Electrobun instance, so a corrupted or foreign cache entry
+ * (observed live: hyphens where slashes belong, a wrong app-id token) can
+ * render for a project this instance's own server already knows the real
+ * root for -- computeMissingLibraryProjects only ever ADDS a project it
+ * doesn't recognize by id, it never corrects one it does. This closes that
+ * gap: for every project this instance's own library snapshot reports (by
+ * id), that snapshot's `workspaceRoot` always wins over whatever the local
+ * `path` currently says, cache-derived or not. A deleted library row is
+ * never used to correct a root -- same rule computeMissingLibraryProjects
+ * applies to additions. An id-less legacy project (predates the
+ * orchestration engine, see the `Project.id` doc) has nothing to reconcile
+ * against and is left untouched.
+ *
+ * Returns the same array reference when nothing needed correcting, so a
+ * caller can cheaply detect "no-op" the same way computeMissingLibraryProjects's
+ * empty-additions case already does.
+ */
+export function reconcileKnownProjectRoots(
+	existingProjects: readonly Project[],
+	libraryProjects: readonly RpcProjectedProject[]
+): readonly Project[] {
+	const rootById = new Map<string, string>();
+	for (const libraryProject of libraryProjects) {
+		if (libraryProject.deletedAt !== null) {
+			continue;
+		}
+		rootById.set(String(libraryProject.projectId), libraryProject.workspaceRoot);
+	}
+
+	let changed = false;
+	const corrected = existingProjects.map((project) => {
+		if (project.id === undefined) {
+			return project;
+		}
+		const authoritativeRoot = rootById.get(project.id);
+		if (authoritativeRoot === undefined || authoritativeRoot === project.path) {
+			return project;
+		}
+		changed = true;
+		return { ...project, path: authoritativeRoot };
+	});
+	return changed ? corrected : existingProjects;
 }
 
 type ProjectClientPort = Pick<
@@ -503,17 +550,21 @@ export class ProjectManager {
 	 * Union library (orchestration projection) projects into local project
 	 * state so a session dispatched for a project with no on-disk presence
 	 * still has a home in `recentProjects` -- see
-	 * computeMissingLibraryProjects for the "why". A no-op when every library
-	 * project is already known, so a routine startup reconciliation with
-	 * nothing new to add never touches `projects` and never triggers a
-	 * downstream re-render.
+	 * computeMissingLibraryProjects for the "why" -- and correct any known
+	 * project's root that has drifted from this instance's own
+	 * server-authoritative snapshot -- see reconcileKnownProjectRoots for
+	 * the "why" (AC-271 cross-instance localStorage bleed). A no-op when
+	 * every library project is already known and every known root already
+	 * matches, so a routine startup reconciliation with nothing to change
+	 * never touches `projects` and never triggers a downstream re-render.
 	 */
 	mergeLibraryProjects(libraryProjects: readonly RpcProjectedProject[]): void {
-		const additions = computeMissingLibraryProjects(this.projects, libraryProjects);
-		if (additions.length === 0) {
+		const reconciled = reconcileKnownProjectRoots(this.projects, libraryProjects);
+		const additions = computeMissingLibraryProjects(reconciled, libraryProjects);
+		if (additions.length === 0 && reconciled === this.projects) {
 			return;
 		}
-		this.projects = [...this.projects, ...additions];
+		this.projects = [...reconciled, ...additions];
 		this.projectCount = this.projects.length;
 		this.writeCurrentProjectsToCache();
 	}
