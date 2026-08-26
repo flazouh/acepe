@@ -3,6 +3,7 @@ import {
 	decodeSessionId,
 	SessionMetaUpdateCommand,
 	SessionPrNumber,
+	sessionSnapshotRequest,
 	type TrimmedNonEmptyString,
 } from "@acepe/contracts";
 import * as Arr from "effect/Array";
@@ -101,16 +102,43 @@ export const history = {
 		}
 		const wanted = new Set(sessionIds);
 		return allDiscoveredSessions().pipe(
-			Effect.map((sessions) => ({
-				entries: sessions
-					.filter((session) => wanted.has(session.id))
-					.map(discoveredSessionToHistoryEntry),
-				// Discovery's session id already is the provider's own id (no
-				// separate alias concept the way the Rust index had one for
-				// provider_session_id vs its own row id), so there is nothing
-				// to remap.
-				aliasRemaps: {},
-			}))
+			Effect.flatMap((sessions) => {
+				const direct = sessions.filter((session) => wanted.has(session.id));
+				const foundIds = new Set(direct.map((session) => session.id));
+				const unresolved = sessionIds.filter((id) => !foundIds.has(id));
+				if (unresolved.length === 0) {
+					return Effect.succeed({
+						entries: direct.map(discoveredSessionToHistoryEntry),
+						aliasRemaps: {},
+					});
+				}
+				// A requested id with no direct disk match might be the
+				// ORCHESTRATION session id of one of the sessions already
+				// discovered above -- the same session's other permanent id
+				// (see RpcProjectedSession.providerSessionId's doc). Resolve
+				// each candidate's own projection to find out.
+				return Effect.forEach(
+					unresolved,
+					(aliasId) => resolveProviderSessionAlias(aliasId, sessions),
+					{ concurrency: "unbounded" }
+				).pipe(
+					Effect.map((resolved) => {
+						const aliasRemaps: Record<string, string> = {};
+						const aliased: DiscoveredProviderSession[] = [];
+						for (const outcome of resolved) {
+							if (outcome === null) {
+								continue;
+							}
+							aliasRemaps[outcome.aliasId] = outcome.session.id;
+							aliased.push(outcome.session);
+						}
+						return {
+							entries: [...direct, ...aliased].map(discoveredSessionToHistoryEntry),
+							aliasRemaps,
+						};
+					})
+				);
+			})
 		);
 	},
 
@@ -221,6 +249,38 @@ const discoveredSessionToHistoryEntry = (session: DiscoveredProviderSession): Hi
 	// index used the same field to mean "has content on disk".
 	sessionLifecycleState: "persisted",
 });
+
+// Resolves one requested startup id that had no direct disk match: decodes
+// it as an orchestration SessionId, fetches ITS OWN session projection, and
+// checks whether the provider_session_id fact it carries (see
+// ProjectionSessions.ts server-side) names one of the sessions this app run
+// already discovered on disk. Best-effort: a decode failure or a snapshot
+// with no learned provider session id just means this id is not an alias --
+// it does not fail the whole startup batch (mirrors the chunk-level
+// catch in session-repository.ts's loadStartupSessions).
+const resolveProviderSessionAlias = (
+	aliasId: string,
+	discovered: ReadonlyArray<DiscoveredProviderSession>
+): Effect.Effect<{ aliasId: string; session: DiscoveredProviderSession } | null, never> =>
+	decodeEffect(
+		"history.getStartupSessions",
+		decodeSessionId
+	)(aliasId).pipe(
+		Effect.flatMap((decodedSessionId) =>
+			withRpcClient("history.getStartupSessions", (client) =>
+				client.snapshot(sessionSnapshotRequest(decodedSessionId))
+			)
+		),
+		Effect.map((snapshot) => {
+			const providerSessionId = snapshot.session?.providerSessionId ?? null;
+			if (providerSessionId === null) {
+				return null;
+			}
+			const match = discovered.find((session) => session.id === providerSessionId);
+			return match === undefined ? null : { aliasId, session: match };
+		}),
+		Effect.catch(() => Effect.succeed(null))
+	);
 
 // Every discovered project's sessions, fanned out across
 // listProviderProjects + listProviderSessions. The server-side discovery
