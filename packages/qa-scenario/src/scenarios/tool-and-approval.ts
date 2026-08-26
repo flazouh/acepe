@@ -9,7 +9,13 @@
 import { ActivityId, ApprovalRequestId, MessageId, SessionId, ToolCallId } from "@acepe/contracts"
 import { scenarioBuilder } from "../builder.ts"
 import type { QaScenario } from "../scenario.ts"
-import { QA_PROJECT_ID, QA_STARTED_AT, qaProject, qaSessionRow } from "./fixtures.ts"
+import {
+	QA_PROJECT_ID,
+	QA_STARTED_AT,
+	QA_WORKSPACE_ROOT,
+	qaProject,
+	qaSessionRow,
+} from "./fixtures.ts"
 
 const sessionId = SessionId.make("qa-tool-and-approval")
 const userMessageId = MessageId.make("qa-tool-and-approval:user-1")
@@ -22,6 +28,7 @@ export const toolAndApproval: QaScenario = scenarioBuilder({
 	projectId: QA_PROJECT_ID,
 	startedAt: QA_STARTED_AT,
 })
+	.shellBoot({ workspaceRoot: QA_WORKSPACE_ROOT, branch: "main" })
 	.library([qaProject], [qaSessionRow(sessionId, "Tool and approval")])
 	.sessionCreated("Tool and approval", "claude")
 	.advance(120)

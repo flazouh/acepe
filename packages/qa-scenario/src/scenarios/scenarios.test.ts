@@ -35,6 +35,18 @@ Vitest.describe("authored scenarios", () => {
 			}),
 		)
 
+		/**
+		 * The shell calls these while booting. A scenario that does not answer
+		 * them replays its transcript into an app that never finished starting.
+		 */
+		Vitest.it(`${scenario.meta.name} answers the calls the shell makes on the way up`, () => {
+			const methods = scenario.calls.map((call) => call.method)
+			Vitest.assert.include(methods, "agentCall")
+			Vitest.assert.include(methods, "listProviderProjects")
+			Vitest.assert.include(methods, "listProviderSessions")
+			Vitest.assert.include(methods, "gitCall")
+		})
+
 		Vitest.it.effect(`${scenario.meta.name} replays to completion`, () =>
 			Effect.gen(function* () {
 				const record = yield* runScenarioToCompletion(scenario)

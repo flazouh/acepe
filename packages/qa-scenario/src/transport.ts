@@ -43,9 +43,13 @@ import { callKey, snapshotRequestKey } from "./scenario.ts"
 export type ScenarioTransportRecord = {
 	/** Every command the app wrote, in order. The QA assertion surface for writes. */
 	readonly dispatched: ReadonlyArray<OrchestrationCommand>
-	/** "method requestKey" for each side-channel call the app made. */
+	/** "method requestKey" for each side-channel call the app made, including repeats. */
 	readonly observedCalls: ReadonlyArray<string>
-	/** Calls the scenario has no recording for. Feed these back into a re-capture. */
+	/**
+	 * The distinct calls the scenario has no recording for. Distinct because the
+	 * app retries a failed call: what a reader wants is which calls are missing,
+	 * not how many times each one was tried. Feed these into a re-capture.
+	 */
 	readonly missingCalls: ReadonlyArray<string>
 }
 
@@ -88,7 +92,9 @@ export const makeScenarioTransport = Effect.fn("makeScenarioTransport")(function
 			note(method, key)
 			const found = callsByKey.get(label)
 			if (found === undefined) {
-				log.missing = Arr.append(log.missing, label)
+				if (Arr.contains(log.missing, label) === false) {
+					log.missing = Arr.append(log.missing, label)
+				}
 				return Effect.fail(
 					new RpcTransportError({
 						reason: `scenario '${scenario.meta.name}' has no recorded response for ${label}`,

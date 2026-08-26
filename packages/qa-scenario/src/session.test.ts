@@ -92,6 +92,27 @@ Vitest.describe("a scenario replayed as the app's client", () => {
 		}),
 	)
 
+	/**
+	 * The app retries a failed call, so an un-deduped list grows one entry per
+	 * attempt. A keyed list in the QA overlay renders that as a crash, and a
+	 * reader wants which calls are missing, not how often each was tried.
+	 */
+	Vitest.it.effect("a call missing from the recording is reported once, not once per retry", () =>
+		Effect.gen(function* () {
+			const session = yield* makeScenarioSession(scenario, parked)
+			yield* Effect.exit(session.client.listProviderProjects())
+			yield* Effect.exit(session.client.listProviderProjects())
+			yield* Effect.exit(session.client.listProviderProjects())
+			const record = yield* session.record
+			yield* session.shutdown
+			Vitest.assert.deepStrictEqual(record.missingCalls, ["listProviderProjects "])
+			Vitest.assert.strictEqual(
+				record.observedCalls.filter((call) => call === "listProviderProjects ").length,
+				3,
+			)
+		}),
+	)
+
 	Vitest.it.effect("every command the app dispatches is kept for assertion", () =>
 		Effect.gen(function* () {
 			const session = yield* makeScenarioSession(scenario, parked)

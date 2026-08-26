@@ -31,7 +31,8 @@ import * as DateTime from "effect/DateTime"
 import * as Duration from "effect/Duration"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
-import type { QaScenario, QaScenarioStepLine } from "./scenario.ts"
+import type { QaScenario, QaScenarioCallLine, QaScenarioStepLine } from "./scenario.ts"
+import { callKey } from "./scenario.ts"
 
 export type ScenarioAuthorOptions = {
 	readonly sessionId: SessionId
@@ -63,6 +64,7 @@ export class ScenarioBuilder {
 	private readonly options: ScenarioAuthorOptions
 	private offsetMs = 0
 	private sequence = 0
+	private readonly calls: Array<QaScenarioCallLine> = []
 	private projects: ReadonlyArray<RpcProjectedProject> = []
 	private sessions: ReadonlyArray<RpcProjectedSession> = []
 
@@ -100,6 +102,54 @@ export class ScenarioBuilder {
 	 * honest: a wrong payload fails here, at author time, instead of producing
 	 * an event the real server could never have emitted.
 	 */
+	/**
+	 * What the server answers for one side-channel call. A scenario that records
+	 * none of these still replays its transcript, but the app shell stalls on
+	 * the calls it makes while booting, and the overlay lists every one.
+	 */
+	respond<A>(method: string, request: A, response: Schema.Json): this {
+		this.calls.push({
+			line: "call",
+			method,
+			requestKey: callKey(request),
+			response,
+		})
+		return this
+	}
+
+	/**
+	 * The calls the app shell makes on the way up, answered as an empty
+	 * workspace with Claude installed. Without these the shell never finishes
+	 * booting and the transcript has nothing to render into.
+	 */
+	shellBoot(input: {
+		readonly workspaceRoot: string
+		readonly branch: string
+	}): this {
+		return this.respond("agentCall", { op: "agent.list" }, {
+			op: "agent.list",
+			agents: [
+				{
+					id: "claude",
+					name: "Claude Code",
+					availabilityKind: { kind: "installable", installed: true },
+				},
+			],
+		})
+			.respond("listProviderProjects", "", [])
+			.respond("listProviderSessions", input.workspaceRoot, [])
+			.respond(
+				"gitCall",
+				{ op: "git.isRepo", projectPath: input.workspaceRoot },
+				{ op: "git.isRepo", isRepo: true },
+			)
+			.respond(
+				"gitCall",
+				{ op: "git.currentBranch", projectPath: input.workspaceRoot },
+				{ op: "git.currentBranch", branch: input.branch },
+			)
+	}
+
 	private push(envelope: EnvelopeInput, payload: OrchestrationEvent["payload"]): this {
 		this.sequence = this.sequence + 1
 		const candidate = {
@@ -221,7 +271,7 @@ export class ScenarioBuilder {
 				},
 			],
 			steps,
-			calls: [],
+			calls: this.calls,
 		}
 	}
 }

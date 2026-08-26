@@ -9,7 +9,13 @@
 import { MessageId, SessionId } from "@acepe/contracts"
 import { scenarioBuilder } from "../builder.ts"
 import type { QaScenario } from "../scenario.ts"
-import { QA_PROJECT_ID, QA_STARTED_AT, qaProject, qaSessionRow } from "./fixtures.ts"
+import {
+	QA_PROJECT_ID,
+	QA_STARTED_AT,
+	QA_WORKSPACE_ROOT,
+	qaProject,
+	qaSessionRow,
+} from "./fixtures.ts"
 
 const sessionId = SessionId.make("qa-streaming-reply")
 const userMessageId = MessageId.make("qa-streaming-reply:user-1")
@@ -27,6 +33,7 @@ export const streamingReply: QaScenario = scenarioBuilder({
 	projectId: QA_PROJECT_ID,
 	startedAt: QA_STARTED_AT,
 })
+	.shellBoot({ workspaceRoot: QA_WORKSPACE_ROOT, branch: "main" })
 	.library([qaProject], [qaSessionRow(sessionId, "Streaming reply")])
 	.sessionCreated("Streaming reply", "claude")
 	.advance(120)
