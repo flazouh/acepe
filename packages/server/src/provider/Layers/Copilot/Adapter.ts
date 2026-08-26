@@ -26,6 +26,7 @@ import {
 	type ProviderPresence,
 	type CancelTurnRequest,
 	type SendPromptRequest,
+	type SetModeRequest,
 	type StartSessionRequest
 } from "../../Services/ProviderAdapter.ts"
 import {
@@ -42,7 +43,8 @@ import {
 	adapterError,
 	COPILOT_CAPABILITIES,
 	COPILOT_PROVIDER_ID,
-	copilotSessionNewParams
+	copilotSessionNewParams,
+	copilotSetModeParams
 } from "./Provider.ts"
 import {
 	beginCopilotPrompt,
@@ -65,6 +67,13 @@ export type CopilotAcpHandle = {
 	) => Effect.Effect<Json, ProviderAdapterError>
 	readonly notify: (method: string, params: Json) => Effect.Effect<void, ProviderAdapterError>
 	readonly close: Effect.Effect<void>
+}
+
+export type CopilotAdapter = ProviderAdapter & {
+	// ACP's session/set_mode over the same JSON-RPC transport session/prompt
+	// uses — see copilotSetModeParams in Provider.ts for the mode-URI form
+	// Copilot expects.
+	readonly setMode: (request: SetModeRequest) => Effect.Effect<void, ProviderAdapterError>
 }
 
 export type CopilotAdapterOptions = {
@@ -381,6 +390,18 @@ export const makeCopilotAdapter = Effect.fn("makeCopilotAdapter")(function*(
 			})
 		)
 
+	const setMode = Effect.fn("CopilotAdapter.setMode")(function*(request: SetModeRequest) {
+		const runtime = yield* requireSession(sessions, request.sessionId, "setMode")
+		const acpSessionId = yield* Ref.get(runtime.providerSessionId)
+		if (Option.isNone(acpSessionId)) {
+			return yield* adapterError("setMode", "Copilot ACP session id is missing.")
+		}
+		yield* runtime.transport.request(
+			"session/set_mode",
+			copilotSetModeParams(acpSessionId.value, request.modeId)
+		)
+	})
+
 	const cancelTurn = Effect.fn("CopilotAdapter.cancelTurn")(function*(request: CancelTurnRequest) {
 		const runtime = yield* requireSession(sessions, request.sessionId, "cancelTurn")
 		const acpSessionId = yield* Ref.get(runtime.providerSessionId)
@@ -400,6 +421,7 @@ export const makeCopilotAdapter = Effect.fn("makeCopilotAdapter")(function*(
 		presence: options.presence,
 		startSession,
 		sendPrompt,
-		cancelTurn
-	} satisfies ProviderAdapter
+		cancelTurn,
+		setMode
+	} satisfies CopilotAdapter
 })

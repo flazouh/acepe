@@ -240,6 +240,40 @@ Vitest.describe("OpenCodeAdapter", () => {
 		})
 	)
 
+	// OpenCode picks the mode per turn, as the prompt body's `agent` field, so
+	// a set mode is only real if the NEXT prompt body carries it.
+	Vitest.it.effect("setMode makes the next prompt body run the plan agent", () =>
+		Effect.gen(function*() {
+			const started = yield* startAdapter(matchingSession, selectedCatalog)
+			yield* Queue.take(started.events)
+			yield* Queue.take(started.events)
+			yield* started.adapter.setMode({ sessionId, modeId: "plan" })
+			yield* Stream.runCollect(
+				started.adapter.sendPrompt({
+					sessionId,
+					messageId,
+					text: "Plan this out"
+				})
+			)
+			const calls = yield* Ref.get(started.calls)
+			Vitest.assert.strictEqual(calls.prompts[0]?.body.agent, "plan")
+			yield* started.adapter.cancelTurn({ sessionId })
+		})
+	)
+
+	Vitest.it.effect("setMode fails a mode OpenCode has no agent for", () =>
+		Effect.gen(function*() {
+			const started = yield* startAdapter(matchingSession, selectedCatalog)
+			yield* Queue.take(started.events)
+			yield* Queue.take(started.events)
+			const error = yield* started.adapter
+				.setMode({ sessionId, modeId: "autopilot" })
+				.pipe(Effect.flip)
+			Vitest.assert.strictEqual(error.operation, "setMode")
+			yield* started.adapter.cancelTurn({ sessionId })
+		})
+	)
+
 	Vitest.it.effect("streams TokenAppended from fake OpenCode SSE text", () =>
 		Effect.gen(function*() {
 			const started = yield* startAdapter(matchingSession, selectedCatalog)

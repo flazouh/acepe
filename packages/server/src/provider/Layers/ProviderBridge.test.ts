@@ -8,6 +8,7 @@ import {
 	ProjectId,
 	SessionCreateCommand,
 	SessionId,
+	SessionSetModeCommand,
 	TokenAppendedEvent,
 	TRACER_REPLY_TEXT,
 	TurnCancelCommand,
@@ -17,11 +18,13 @@ import * as BunCrypto from "@effect/platform-bun/BunCrypto"
 import * as BunFileSystem from "@effect/platform-bun/BunFileSystem"
 import * as BunPath from "@effect/platform-bun/BunPath"
 import * as Vitest from "@effect/vitest"
+import * as Arr from "effect/Array"
 import type { Done } from "effect/Cause"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
+import * as Option from "effect/Option"
 import * as Path from "effect/Path"
 import * as Queue from "effect/Queue"
 import * as Ref from "effect/Ref"
@@ -44,6 +47,15 @@ import {
 import { makeClaudeAdapter } from "./Claude/Adapter.ts"
 import type { ClaudeQueryHandle } from "./Claude/Process.ts"
 import { claudePresence } from "./Claude/Provider.ts"
+import { makeCodexAdapter } from "./Codex/Adapter.ts"
+import type { CodexAppServerHandle } from "./Codex/Process.ts"
+import {
+	CODEX_APP_SERVER_ARGS,
+	CODEX_PLACEHOLDER_COMMAND,
+	CODEX_PROVIDER_ID,
+	codexPresence,
+	defaultCodexNativeConfigState
+} from "./Codex/Provider.ts"
 import { ProviderAdapterRegistryLive } from "./ProviderAdapterRegistry.ts"
 import { ProviderBridgeLive } from "./ProviderBridge.ts"
 
@@ -197,6 +209,53 @@ const scriptedTurnCompleted = () =>
 			sessionId
 		}
 	})
+
+type CodexRequest = {
+	readonly method: string
+	readonly params: Json
+}
+
+// A scripted Codex app-server: every request is recorded so a test can read
+// the exact params a turn/start carried, which is what makes a mode set
+// observable at all (the mode only shows up on the NEXT turn/start).
+const codexScriptedResult = (method: string): Json => {
+	if (method === "thread/start") {
+		return { thread: { id: "thread-bridge" } }
+	}
+	if (method === "turn/start") {
+		return { turn: { id: "turn-bridge" } }
+	}
+	return {}
+}
+
+const fakeCodexAppServer = (
+	inbound: Queue.Queue<Json, Done>,
+	requests: Ref.Ref<ReadonlyArray<CodexRequest>>
+): CodexAppServerHandle => ({
+	notifications: Stream.fromQueue(inbound),
+	request: (input) =>
+		Ref.update(requests, (current) =>
+			Arr.append(current, { method: input.method, params: input.params })
+		).pipe(Effect.as(codexScriptedResult(input.method))),
+	notify: (method, params) =>
+		Ref.update(requests, (current) =>
+			Arr.append(current, { method, params: Option.getOrElse(params, () => null) })
+		).pipe(Effect.asVoid),
+	reply: () => Effect.void,
+	close: Queue.end(inbound).pipe(Effect.asVoid)
+})
+
+const collaborationModeOf = (params: Json): Option.Option<string> => {
+	if (!Schema.is(Schema.JsonObject)(params)) {
+		return Option.none()
+	}
+	const collaborationMode = params.collaborationMode
+	if (!Schema.is(Schema.JsonObject)(collaborationMode)) {
+		return Option.none()
+	}
+	const mode = collaborationMode.mode
+	return typeof mode === "string" ? Option.some(mode) : Option.none()
+}
 
 Vitest.describe("ProviderBridge", () => {
 	Vitest.it.live("forwards a scripted adapter's events into the store in order", () =>
@@ -870,6 +929,7 @@ Vitest.describe("ProviderBridge", () => {
 							return {
 								messages: Stream.fromQueue(inbound),
 								interrupt: Effect.void,
+								setPermissionMode: () => Effect.void,
 								close: Queue.end(inbound).pipe(Effect.asVoid)
 							} satisfies ClaudeQueryHandle
 						})
@@ -1006,5 +1066,92 @@ Vitest.describe("ProviderBridge", () => {
 				Effect.provide(Layer.mergeAll(BunFileSystem.layer, BunPath.layer))
 			),
 		{ timeout: 20_000 }
+	)
+
+	// Issue #272: session.set-mode decided a SessionModeSet event
+	// (orchestration/acpDecide.ts) that nothing downstream reacted to, so no
+	// provider adapter ever heard about a mode change and plan mode was
+	// unreachable for every provider. Codex is the proof: its turn/start
+	// builder has always had a plan branch (buildCodexTurnStartParams in
+	// Codex/Wire.ts), gated on a runtime modeId that was pinned to the
+	// constant "agent". This drives a real CodexAdapter through the bridge
+	// and reads the params of the turn/start that follows the mode set.
+	Vitest.it.live("routes session.set-mode to the adapter so the next turn/start carries plan params", () =>
+		Effect.gen(function*() {
+			const inbound = yield* Queue.unbounded<Json, Done>()
+			const requests = yield* Ref.make<ReadonlyArray<CodexRequest>>(Arr.empty())
+			const adapter = yield* makeCodexAdapter({
+				presence: Effect.succeed(codexPresence(true, true)),
+				spawn: {
+					command: CODEX_PLACEHOLDER_COMMAND,
+					args: Arr.fromIterable(CODEX_APP_SERVER_ARGS)
+				},
+				config: defaultCodexNativeConfigState(),
+				createAppServer: () => Effect.succeed(fakeCodexAppServer(inbound, requests))
+			})
+			const TestLive = ProviderBridgeLive.pipe(
+				Layer.provideMerge(ProviderAdapterRegistryLive([adapter])),
+				Layer.provideMerge(EngineLive)
+			)
+			yield* Effect.gen(function*() {
+				const engine = yield* OrchestrationEngine
+				yield* engine.dispatch(
+					ProjectCreateCommand.make({
+						type: "project.create",
+						commandId: CommandId.make("cmd-project-mode"),
+						projectId,
+						title: "Acepe",
+						workspaceRoot: "/tmp"
+					})
+				)
+				yield* engine.dispatch(
+					SessionCreateCommand.make({
+						type: "session.create",
+						commandId: CommandId.make("cmd-session-mode"),
+						sessionId,
+						projectId,
+						title: "Codex session",
+						providerId: CODEX_PROVIDER_ID
+					})
+				)
+				yield* waitUntil(Ref.get(requests), (recorded) =>
+					recorded.some((entry) => entry.method === "thread/start"))
+				// Committed before the message below, and the bridge consumes
+				// its event stream on a single fiber, so the mode set is
+				// processed before the prompt it must affect.
+				yield* engine.dispatch(
+					SessionSetModeCommand.make({
+						type: "session.set-mode",
+						commandId: CommandId.make("cmd-set-mode"),
+						sessionId,
+						modeId: "plan"
+					})
+				)
+				yield* engine.dispatch(
+					MessageSendCommand.make({
+						type: "message.send",
+						commandId: CommandId.make("cmd-message-mode"),
+						sessionId,
+						messageId: userMessageId,
+						text: "Plan the work"
+					})
+				)
+				const recorded = yield* waitUntil(Ref.get(requests), (entries) =>
+					entries.some((entry) => entry.method === "turn/start"))
+				const turnStart = Arr.findFirst(recorded, (entry) => entry.method === "turn/start")
+				Vitest.assert.isTrue(Option.isSome(turnStart))
+				if (Option.isSome(turnStart)) {
+					Vitest.assert.deepStrictEqual(
+						collaborationModeOf(turnStart.value.params),
+						Option.some("plan")
+					)
+				}
+				yield* Queue.end(inbound)
+			}).pipe(
+				// @effect-diagnostics-next-line strictEffectProvide:off
+				Effect.provide(TestLive),
+				Effect.scoped
+			)
+		})
 	)
 })

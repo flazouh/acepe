@@ -34,6 +34,7 @@ import type {
 	ProviderAdapterError,
 	ProviderPresence,
 	SendPromptRequest,
+	SetModeRequest,
 	StartSessionRequest
 } from "../../Services/ProviderAdapter.ts"
 import type { OpenToolCallInfo } from "../SessionEvents.ts"
@@ -75,6 +76,9 @@ export const CURSOR_ACP_SDK_MODULE = "@agentclientprotocol/sdk"
 export const CURSOR_ACP_PROTOCOL_VERSION = PROTOCOL_VERSION
 
 export type CursorAdapter = ProviderAdapter & {
+	// ACP's session/set_mode, reached through the same connection every
+	// other Cursor call uses — see setMode in Process.ts.
+	readonly setMode: (request: SetModeRequest) => Effect.Effect<void, ProviderAdapterError>
 	readonly respondToPermission: (
 		input: CursorRespondToPermissionInput
 	) => Effect.Effect<void, ProviderAdapterError>
@@ -176,6 +180,12 @@ export const makeCursorAdapter = Effect.fn("makeCursorAdapter")(function*(
 			})
 		)
 
+	const setMode = Effect.fn("CursorAdapter.setMode")(function*(request: SetModeRequest) {
+		const runtime = yield* requireSession(sessions, request.sessionId, "setMode")
+		const acpSessionId = yield* requireProviderSessionId(runtime, "setMode")
+		yield* runtime.handle.setMode(acpSessionId, request.modeId)
+	})
+
 	const cancelTurn = Effect.fn("CursorAdapter.cancelTurn")(function*(request: CancelTurnRequest) {
 		const runtime = yield* requireSession(sessions, request.sessionId, "cancelTurn")
 		const acpSessionId = yield* requireProviderSessionId(runtime, "cancelTurn")
@@ -225,6 +235,7 @@ export const makeCursorAdapter = Effect.fn("makeCursorAdapter")(function*(
 		startSession,
 		sendPrompt,
 		cancelTurn,
+		setMode,
 		respondToPermission: (input: CursorRespondToPermissionInput) =>
 			respondToPermission(sessions, input),
 		shutdown

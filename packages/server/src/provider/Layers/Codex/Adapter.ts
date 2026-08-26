@@ -23,6 +23,7 @@ import {
 	type ProviderPresence,
 	type CancelTurnRequest,
 	type SendPromptRequest,
+	type SetModeRequest,
 	type StartSessionRequest
 } from "../../Services/ProviderAdapter.ts"
 import type { Json } from "../Json.ts"
@@ -45,8 +46,10 @@ import {
 	CODEX_PROVIDER_ID,
 	CODEX_REQUEST_TIMEOUT_SECONDS,
 	type CodexNativeConfigState,
+	DEFAULT_CODEX_MODE,
 	defaultCodexNativeConfigState,
 	probeCodexPresence,
+	resolveCodexModeId,
 	resolveCodexSpawnConfig
 } from "./Provider.ts"
 import {
@@ -74,6 +77,11 @@ export type CodexAppServerInput = {
 }
 
 export type CodexAdapter = ProviderAdapter & {
+	// Codex's turn/start builder has always had a plan branch
+	// (buildCodexTurnStartParams in Wire.ts) reading the runtime's modeId.
+	// This is what finally writes that modeId; before issue #272 it was
+	// pinned to the constant "agent" and the plan branch was unreachable.
+	readonly setMode: (request: SetModeRequest) => Effect.Effect<void, ProviderAdapterError>
 	readonly respondToPermission: (input: {
 		readonly sessionId: SessionId
 		readonly permissionId: string
@@ -149,7 +157,7 @@ export const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function*(
 			questionIds: yield* Ref.make(HashMap.empty<string, ReadonlyArray<string>>()),
 			replyIds: yield* Ref.make(HashMap.empty<string, Json>()),
 			openToolCalls: yield* Ref.make(HashMap.empty<string, OpenToolCallInfo>()),
-			modeId: yield* Ref.make("agent"),
+			modeId: yield* Ref.make<string>(DEFAULT_CODEX_MODE),
 			config: options.config,
 			server
 		}
@@ -219,6 +227,20 @@ export const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function*(
 			})
 		)
 
+	// Codex has no mid-session mode request of its own: the mode travels on
+	// every turn/start as collaborationMode, so setting it means writing the
+	// runtime modeId the next turn/start reads. Resolved here, at the
+	// boundary, so an unknown mode fails loudly instead of silently
+	// degrading to "agent" inside the params builder.
+	const setMode = Effect.fn("CodexAdapter.setMode")(function*(request: SetModeRequest) {
+		const runtime = yield* requireSession(sessions, request.sessionId, "setMode")
+		const mode = resolveCodexModeId(request.modeId)
+		if (Option.isNone(mode)) {
+			return yield* adapterError("setMode", `Codex has no mode '${request.modeId}'.`)
+		}
+		yield* Ref.set(runtime.modeId, mode.value)
+	})
+
 	const cancelTurn = Effect.fn("CodexAdapter.cancelTurn")(function*(request: CancelTurnRequest) {
 		const runtime = yield* requireSession(sessions, request.sessionId, "cancelTurn")
 		const threadId = yield* Ref.get(runtime.providerThreadId)
@@ -249,6 +271,7 @@ export const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function*(
 		startSession,
 		sendPrompt,
 		cancelTurn,
+		setMode,
 		respondToPermission: (input) => respondToPermission(sessions, input),
 		respondToQuestion: (input) => respondToQuestion(sessions, input)
 	} satisfies CodexAdapter

@@ -2,7 +2,12 @@ import { type McpServerConfig, type Options as ClaudeSdkOptions } from "@anthrop
 import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"
 import { decodeJsonObject, EMPTY_JSON_OBJECT, type JsonObject } from "../Json.ts"
-import { CLAUDE_ISOLATED_SETTING_SOURCES, CLAUDE_STRICT_MCP_CONFIG } from "./Provider.ts"
+import {
+	CLAUDE_ISOLATED_SETTING_SOURCES,
+	CLAUDE_STRICT_MCP_CONFIG,
+	type ClaudeMode,
+	DEFAULT_CLAUDE_MODE
+} from "./Provider.ts"
 
 export type ClaudePermissionResult =
 	| {
@@ -83,11 +88,18 @@ export const buildClaudeQueryOptions = (
 		readonly cwd: string
 		readonly canUseTool: ClaudeCanUseTool
 		readonly resume?: Option.Option<string>
+		// The session's canonical mode, carried onto a query the moment it is
+		// created. setPermissionMode (see Process.ts) only reaches a LIVE
+		// query, and a cancel or a watchdog stall recovery builds a new one,
+		// so the mode has to be part of the launch options too or it silently
+		// reverts to the SDK's default on the next turn.
+		readonly permissionMode?: ClaudeMode
 	},
 	isolation: ClaudeQueryIsolation
 ): ClaudeSdkOptions => ({
 	cwd: input.cwd,
 	includePartialMessages: true,
+	permissionMode: input.permissionMode ?? DEFAULT_CLAUDE_MODE,
 	settingSources: [...CLAUDE_ISOLATED_SETTING_SOURCES],
 	strictMcpConfig: CLAUDE_STRICT_MCP_CONFIG,
 	mcpServers: isolation.mcpServers,

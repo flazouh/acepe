@@ -8,6 +8,7 @@ import {
 	ProviderSessionFailedEvent,
 	type SessionCreatedEvent,
 	type SessionId,
+	type SessionModeSetEvent,
 	type Sequence,
 	TrimmedNonEmptyString,
 	type TurnCancelledEvent
@@ -34,7 +35,8 @@ import {
 	decodeProviderId,
 	type ProviderAdapter,
 	type ProviderAdapterError,
-	type ProviderId
+	type ProviderId,
+	type SetModeRequest
 } from "../Services/ProviderAdapter.ts"
 import { ProviderAdapterRegistry } from "../Services/ProviderAdapterRegistry.ts"
 
@@ -50,6 +52,17 @@ type PermissionRepliableAdapter = ProviderAdapter & {
 
 const supportsPermissionReply = (adapter: ProviderAdapter): adapter is PermissionRepliableAdapter =>
 	"respondToPermission" in adapter
+
+// Structural, same as respondToPermission above: an adapter opts into
+// canonical mode switching by exposing setMode, and a provider whose
+// transport has no mode mechanism declares the capability absent by not
+// exposing it. See SetModeRequest in Services/ProviderAdapter.ts.
+type ModeSettableAdapter = ProviderAdapter & {
+	readonly setMode: (request: SetModeRequest) => Effect.Effect<void, ProviderAdapterError>
+}
+
+const supportsSetMode = (adapter: ProviderAdapter): adapter is ModeSettableAdapter =>
+	"setMode" in adapter
 
 // Structural, not nominal, same as respondToPermission above: any adapter can
 // opt into a forceful teardown of every live session's spawned subprocess by
@@ -135,11 +148,20 @@ type BridgeState = {
 	// (considerSessionCreated with phase "replay") records here without
 	// opening, so a later live command can lazily open it on demand.
 	readonly sessionProjects: Ref.Ref<HashMap.HashMap<SessionId, ProjectId>>
+	// The mode every known session last had set, read straight off the
+	// canonical SessionModeSet events (both the live ones and the startup
+	// replay's). A session opens lazily, long after the SessionModeSet that
+	// chose its mode was committed, so openSession applies whatever is
+	// recorded here to the freshly opened adapter session -- that is what
+	// makes a replayed mode survive a restart without replay itself ever
+	// opening a session. See considerSessionModeSet.
+	readonly sessionModes: Ref.Ref<HashMap.HashMap<SessionId, SetModeRequest["modeId"]>>
 	readonly projectRoots: Ref.Ref<HashMap.HashMap<ProjectId, WorkspaceRoot>>
 	readonly claimedSessions: Ref.Ref<HashSet.HashSet<string>>
 	readonly claimedMessages: Ref.Ref<HashSet.HashSet<string>>
 	readonly claimedCancellations: Ref.Ref<HashSet.HashSet<string>>
 	readonly claimedReplies: Ref.Ref<HashSet.HashSet<string>>
+	readonly claimedModeSets: Ref.Ref<HashSet.HashSet<string>>
 	// Monotonic counter for stamping the bridge's own ProviderSessionFailed
 	// events with a unique commandId/eventId — mirrors the per-runtime
 	// sequence counter Claude/Adapter.ts/Cursor/Adapter.ts use for the same
@@ -330,6 +352,18 @@ const openSession = Effect.fn("ProviderBridge.openSession")(function*(
 		})
 	).pipe(Effect.forkIn(state.layerScope, { startImmediately: true }))
 	yield* Ref.update(state.sessionFibers, (current) => HashMap.set(current, sessionId, fiber))
+	// The adapter session that just opened starts at its own default mode, so
+	// the canonical mode this session already chose has to be re-applied --
+	// otherwise a mode set before a restart, or before this session's lazy
+	// (re)open, silently reverts on the next turn. Retried for the same
+	// scheduling-lag reason sendPrompt's own lazy-open path is (see
+	// LAZY_OPEN_RETRY_SCHEDULE): the forwarding fiber above was only just
+	// forked, so the adapter may not have registered the session yet.
+	const modes = yield* Ref.get(state.sessionModes)
+	const modeId = HashMap.get(modes, sessionId)
+	if (Option.isSome(modeId) && supportsSetMode(adapter)) {
+		yield* applySetMode(state, adapter, sessionId, modeId.value, true)
+	}
 })
 
 // Boot replay walks EVERY historical SessionCreated event, including ones for
@@ -390,6 +424,21 @@ const ensureSessionOpen = Effect.fn("ProviderBridge.ensureSessionOpen")(function
 const LAZY_OPEN_RETRY_SCHEDULE = Schedule.spaced(Duration.millis(20)).pipe(
 	Schedule.upTo({ times: 25 })
 )
+
+const applySetMode = (
+	state: BridgeState,
+	adapter: ModeSettableAdapter,
+	sessionId: SessionId,
+	modeId: SetModeRequest["modeId"],
+	justOpened: boolean
+) => {
+	const dispatch = adapter.setMode({ sessionId, modeId })
+	return (justOpened ? Effect.retry(dispatch, LAZY_OPEN_RETRY_SCHEDULE) : dispatch).pipe(
+		Effect.catchCause((cause) =>
+			appendFailure(state, sessionId, adapter.providerId, "setMode", Cause.pretty(cause))
+		)
+	)
+}
 
 const considerSessionCreated = Effect.fn("ProviderBridge.considerSessionCreated")(function*(
 	state: BridgeState,
@@ -536,6 +585,51 @@ const considerInteractionReplied = Effect.fn("ProviderBridge.considerInteraction
 	)
 })
 
+// Issue #272: session.set-mode commits a SessionModeSet event that no
+// projection and no adapter ever read, so plan mode was decided, persisted,
+// and then dropped. The bridge reacts to the canonical EVENT rather than the
+// command, so the mode a session already chose is re-applied whenever its
+// adapter session (re)opens -- see state.sessionModes and openSession.
+const considerSessionModeSet = Effect.fn("ProviderBridge.considerSessionModeSet")(function*(
+	state: BridgeState,
+	event: SessionModeSetEvent,
+	phase: "live" | "replay"
+) {
+	// Recorded on BOTH phases, unlike every other reaction here: replay's job
+	// for a mode is precisely to leave the last one behind for openSession to
+	// apply later. Recording is not opening -- see ensureSessionOpen's doc for
+	// why replay must never open a session.
+	yield* Ref.update(state.sessionModes, (current) =>
+		HashMap.set(current, event.payload.sessionId, event.payload.modeId))
+	const claimed = yield* claim(state.claimedModeSets, event.eventId)
+	if (!claimed || phase === "replay") {
+		return
+	}
+	const justOpened = yield* ensureSessionOpen(state, event.payload.sessionId)
+	if (justOpened) {
+		// openSession applied the mode recorded above already.
+		return
+	}
+	const adapters = yield* Ref.get(state.sessionAdapters)
+	const adapter = HashMap.get(adapters, event.payload.sessionId)
+	if (Option.isNone(adapter)) {
+		return
+	}
+	// A provider whose transport has no mode mechanism declares the
+	// capability absent by exposing no setMode; the mode stays durably
+	// recorded as a SessionModeSet event either way.
+	if (!supportsSetMode(adapter.value)) {
+		return
+	}
+	yield* applySetMode(
+		state,
+		adapter.value,
+		event.payload.sessionId,
+		event.payload.modeId,
+		false
+	)
+})
+
 const considerSessionRemoved = Effect.fn("ProviderBridge.considerSessionRemoved")(function*(
 	state: BridgeState,
 	sessionId: SessionId
@@ -545,6 +639,7 @@ const considerSessionRemoved = Effect.fn("ProviderBridge.considerSessionRemoved"
 	yield* Ref.update(state.sessionFibers, (current) => HashMap.remove(current, sessionId))
 	yield* Ref.update(state.sessionAdapters, (current) => HashMap.remove(current, sessionId))
 	yield* Ref.update(state.sessionProjects, (current) => HashMap.remove(current, sessionId))
+	yield* Ref.update(state.sessionModes, (current) => HashMap.remove(current, sessionId))
 	if (Option.isSome(fiber)) {
 		yield* Fiber.interrupt(fiber.value)
 	}
@@ -564,6 +659,8 @@ const consider = Effect.fn("ProviderBridge.consider")(function*(
 			return yield* considerTurnCancelled(state, event, phase)
 		case "InteractionReplied":
 			return yield* considerInteractionReplied(state, event, phase)
+		case "SessionModeSet":
+			return yield* considerSessionModeSet(state, event, phase)
 		case "ProjectCreated":
 			return yield* Ref.update(state.projectRoots, (current) =>
 				HashMap.set(current, event.payload.projectId, event.payload.workspaceRoot))
@@ -595,11 +692,13 @@ export const makeProviderBridge = Effect.fn("makeProviderBridge")(function*() {
 		sessionAdapters: yield* Ref.make(HashMap.empty<SessionId, ProviderAdapter>()),
 		sessionFibers: yield* Ref.make(HashMap.empty<SessionId, Fiber.Fiber<void>>()),
 		sessionProjects: yield* Ref.make(HashMap.empty<SessionId, ProjectId>()),
+		sessionModes: yield* Ref.make(HashMap.empty<SessionId, SetModeRequest["modeId"]>()),
 		projectRoots: yield* Ref.make(HashMap.empty<ProjectId, WorkspaceRoot>()),
 		claimedSessions: yield* Ref.make(HashSet.empty<string>()),
 		claimedMessages: yield* Ref.make(HashSet.empty<string>()),
 		claimedCancellations: yield* Ref.make(HashSet.empty<string>()),
 		claimedReplies: yield* Ref.make(HashSet.empty<string>()),
+		claimedModeSets: yield* Ref.make(HashSet.empty<string>()),
 		failureSeq: yield* Ref.make(0),
 		layerScope
 	}

@@ -81,6 +81,21 @@ const withProviderSession = (
 	}
 }
 
+// OpenCode carries the mode as the `agent` field of every prompt body (see
+// buildPromptBody in Wire.ts), so setting a session's mode means writing the
+// stream state the next prompt reads.
+export const withCurrentMode = (
+	state: OpenCodeStreamState,
+	currentMode: string
+): OpenCodeStreamState => ({
+	providerSessionId: state.providerSessionId,
+	currentMode,
+	selectedModel: state.selectedModel,
+	roles: state.roles,
+	partText: state.partText,
+	partType: state.partType
+})
+
 const boundedMap = <K, V>(
 	map: HashMap.HashMap<K, V>,
 	key: K,

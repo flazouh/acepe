@@ -8,7 +8,7 @@ import * as Stream from "effect/Stream"
 import * as Str from "effect/String"
 import type { ProviderAdapterError } from "../../Services/ProviderAdapter.ts"
 import type { Json } from "../Json.ts"
-import { adapterError } from "./Provider.ts"
+import { adapterError, type ClaudeMode } from "./Provider.ts"
 import {
 	buildClaudeQueryOptions,
 	type ClaudeCanUseTool,
@@ -26,11 +26,20 @@ export type ClaudeQueryInput = {
 	// has been observed yet (the stall happened before the SDK's own init
 	// message ever arrived).
 	readonly resume: Option.Option<string>
+	// The session's canonical mode at the moment this query is created — see
+	// buildClaudeQueryOptions' own doc for why the launch options carry it
+	// alongside the live setPermissionMode control request below.
+	readonly permissionMode: ClaudeMode
 }
 
 export type ClaudeQueryHandle = {
 	readonly messages: Stream.Stream<Json, ProviderAdapterError>
 	readonly interrupt: Effect.Effect<void, ProviderAdapterError>
+	// The SDK's own mid-session mode control request. Only available in
+	// streaming input mode, which is exactly how makeLiveCreateQuery drives
+	// query() (an AsyncIterable prompt), so this is a real transport call and
+	// not a stub.
+	readonly setPermissionMode: (mode: ClaudeMode) => Effect.Effect<void, ProviderAdapterError>
 	readonly close: Effect.Effect<void>
 }
 
@@ -70,6 +79,15 @@ export const makeLiveCreateQuery = (
 					catch: (cause) =>
 						adapterError("cancelTurn", errorDetail(cause, "Claude interrupt failed"))
 				}),
+				setPermissionMode: (mode: ClaudeMode) =>
+					Effect.tryPromise({
+						try: () => runtime.setPermissionMode(mode),
+						catch: (cause) =>
+							adapterError(
+								"setMode",
+								errorDetail(cause, "Claude setPermissionMode failed")
+							)
+					}),
 				close: Effect.sync(() => {
 					runtime.close()
 				})

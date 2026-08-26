@@ -17,6 +17,7 @@ import {
 	type ProviderPresence,
 	type CancelTurnRequest,
 	type SendPromptRequest,
+	type SetModeRequest,
 	type StartSessionRequest
 } from "../../Services/ProviderAdapter.ts"
 import type { OpenToolCallInfo } from "../SessionEvents.ts"
@@ -25,7 +26,7 @@ import {
 	providerSessionFact,
 	sessionCatalogFact
 } from "./Facts.ts"
-import { emptyOpenCodeStreamState } from "./Map.ts"
+import { emptyOpenCodeStreamState, withCurrentMode } from "./Map.ts"
 import { respondToPermission, respondToQuestion } from "./Permissions.ts"
 import { liveCreateTransport, type OpenCodeTransport } from "./Process.ts"
 import {
@@ -39,7 +40,8 @@ import {
 	openCodeServeArgs,
 	probeOpenCodeBinary,
 	probeOpenCodePresence,
-	resolveOpenCodeIsolatedConfigDir
+	resolveOpenCodeIsolatedConfigDir,
+	resolveOpenCodeModeId
 } from "./Provider.ts"
 import {
 	makeCancelled,
@@ -54,6 +56,10 @@ import {
 import { buildPromptBody, parseModelSelection } from "./Wire.ts"
 
 export type OpenCodeAdapter = ProviderAdapter & {
+	// OpenCode has no mode request of its own: its HTTP API takes the mode as
+	// the prompt body's `agent` field, so setMode writes the stream state the
+	// next prompt reads. See withCurrentMode in Map.ts.
+	readonly setMode: (request: SetModeRequest) => Effect.Effect<void, ProviderAdapterError>
 	readonly respondToPermission: (input: {
 		readonly sessionId: SessionId
 		readonly permissionId: string
@@ -198,6 +204,15 @@ export const makeOpenCodeAdapter = Effect.fn("makeOpenCodeAdapter")(function*(
 			})
 		)
 
+	const setMode = Effect.fn("OpenCodeAdapter.setMode")(function*(request: SetModeRequest) {
+		const runtime = yield* requireSession(sessions, request.sessionId, "setMode")
+		const mode = resolveOpenCodeModeId(request.modeId)
+		if (Option.isNone(mode)) {
+			return yield* adapterError("setMode", `OpenCode has no mode '${request.modeId}'.`)
+		}
+		yield* Ref.update(runtime.streamState, (state) => withCurrentMode(state, mode.value))
+	})
+
 	const cancelTurn = Effect.fn("OpenCodeAdapter.cancelTurn")(function*(request: CancelTurnRequest) {
 		const runtime = yield* requireSession(sessions, request.sessionId, "cancelTurn")
 		const providerSessionId = yield* requireProviderSession(runtime, "cancelTurn")
@@ -216,6 +231,7 @@ export const makeOpenCodeAdapter = Effect.fn("makeOpenCodeAdapter")(function*(
 		startSession,
 		sendPrompt,
 		cancelTurn,
+		setMode,
 		respondToPermission: (input) => respondToPermission(sessions, input),
 		respondToQuestion: (input) => respondToQuestion(sessions, input)
 	} satisfies OpenCodeAdapter

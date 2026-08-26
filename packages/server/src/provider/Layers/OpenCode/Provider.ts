@@ -47,6 +47,20 @@ export type OpenCodeMode = (typeof OPENCODE_MODES)[number]
 
 export const OPENCODE_DEFAULT_MODE: OpenCodeMode = "build"
 
+// OpenCode names its modes after the agent that runs the turn (the prompt
+// body's `agent` field, see buildPromptBody in Wire.ts), so a mode id is
+// resolved at the adapter boundary: an unresolved one would otherwise reach
+// the HTTP API as an unknown agent and fail a turn later, far from the set.
+export const resolveOpenCodeModeId = (modeId: string): Option.Option<OpenCodeMode> => {
+	if (modeId === "plan") {
+		return Option.some("plan")
+	}
+	if (modeId === "build" || modeId === "agent" || modeId === "default") {
+		return Option.some("build")
+	}
+	return Option.none()
+}
+
 export const OPENCODE_ALLOWED_ENV_KEYS = [
 	"PATH",
 	"HOME",

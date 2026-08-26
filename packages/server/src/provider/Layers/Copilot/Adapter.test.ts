@@ -118,6 +118,49 @@ Vitest.describe("CopilotAdapter", () => {
 		})
 	)
 
+	// Copilot advertises its session modes as ACP mode URIs (see
+	// normalizeCopilotModeId), so the plain "plan" a session.set-mode carries
+	// has to leave the adapter as the URI form the agent recognises.
+	Vitest.it.effect("sends a set mode as ACP session/set_mode with Copilot's mode URI", () =>
+		Effect.gen(function*() {
+			const inbound = yield* Queue.unbounded<Json, Done>()
+			const recorded = yield* Ref.make<ReadonlyArray<CopilotAcpRequest>>(Arr.empty())
+			const promptDone = yield* Deferred.make<Json>()
+			const cancels = yield* Ref.make(0)
+			const adapter = yield* makeCopilotAdapter({
+				presence: Effect.succeed(copilotPresence(true, true)),
+				createTransport: () =>
+					Effect.succeed(fakeHandle({ inbound, recorded, promptDone, cancels }))
+			})
+			const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
+			yield* adapter
+				.startSession({
+					sessionId,
+					projectId,
+					workspaceRoot: "/tmp/acepe"
+				})
+				.pipe(
+					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
+					Effect.forkChild({ startImmediately: true })
+				)
+			yield* Queue.take(events)
+			yield* adapter.setMode({ sessionId, modeId: "plan" })
+			const requests = yield* Ref.get(recorded)
+			const setMode = Arr.findFirst(
+				requests,
+				(request) => request.method === "session/set_mode"
+			)
+			Vitest.assert.isTrue(Option.isSome(setMode))
+			if (Option.isSome(setMode)) {
+				Vitest.assert.deepStrictEqual(setMode.value.params, {
+					sessionId: "acp-copilot-1",
+					modeId: "https://agentclientprotocol.com/protocol/session-modes#plan"
+				})
+			}
+			yield* Queue.end(inbound)
+		})
+	)
+
 	Vitest.it.effect("streams TokenAppended from ACP agent_message_chunk updates", () =>
 		Effect.gen(function*() {
 			const inbound = yield* Queue.unbounded<Json, Done>()

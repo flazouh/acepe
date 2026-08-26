@@ -63,6 +63,10 @@ export type CursorAcpHandle = {
 		providerSessionId: string,
 		text: string
 	) => Effect.Effect<Option.Option<CursorStopReason>, ProviderAdapterError>
+	readonly setMode: (
+		providerSessionId: string,
+		modeId: string
+	) => Effect.Effect<void, ProviderAdapterError>
 	readonly cancel: (providerSessionId: string) => Effect.Effect<void, ProviderAdapterError>
 	readonly close: Effect.Effect<void>
 }
@@ -207,6 +211,20 @@ const acpHandleFromConnection = (
 				}),
 			catch: (cause) => adapterError("sendPrompt", errorDetail(cause, "Cursor session/prompt failed"))
 		}).pipe(Effect.map((response) => Option.some(response.stopReason))),
+	// ACP's own mid-session mode request (session/set_mode). The mode id
+	// travels through unchanged: a session's real modes come from the
+	// agent's session/new response, not from Acepe's static CURSOR_MODES
+	// list, so rewriting or filtering the id here would reject a mode the
+	// agent legitimately advertised.
+	setMode: (providerSessionId: string, modeId: string) =>
+		Effect.tryPromise({
+			try: () =>
+				connection.agent.request(methods.agent.session.setMode, {
+					sessionId: providerSessionId,
+					modeId
+				}),
+			catch: (cause) => adapterError("setMode", errorDetail(cause, "Cursor session/set_mode failed"))
+		}).pipe(Effect.asVoid),
 	cancel: (providerSessionId: string) =>
 		Effect.tryPromise({
 			try: () =>

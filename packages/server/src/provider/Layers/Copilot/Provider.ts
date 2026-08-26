@@ -94,6 +94,17 @@ export const mapOutboundCopilotModeId = (id: string): string => {
 	return id
 }
 
+// ACP session/set_mode params. Copilot speaks the mode-URI form of a mode id,
+// which mapOutboundCopilotModeId already knew how to produce -- nothing
+// called it until issue #272 gave the mode a route to the adapter.
+export const copilotSetModeParams = (
+	providerSessionId: string,
+	modeId: string
+): { readonly sessionId: string; readonly modeId: string } => ({
+	sessionId: providerSessionId,
+	modeId: mapOutboundCopilotModeId(normalizeCopilotModeId(modeId))
+})
+
 export const copilotPresence = (
 	installed: boolean,
 	authenticated: boolean

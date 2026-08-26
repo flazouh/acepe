@@ -84,6 +84,8 @@ export const CODEX_CAPABILITIES: ProviderCapabilities = ProviderCapabilities.mak
 export const CODEX_MODES = ["agent", "plan"] as const
 export type CodexMode = (typeof CODEX_MODES)[number]
 
+export const DEFAULT_CODEX_MODE: CodexMode = "agent"
+
 export const CODEX_MODELS = [
 	"gpt-5.4",
 	"gpt-5.4-mini",

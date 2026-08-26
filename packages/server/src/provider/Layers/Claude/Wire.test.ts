@@ -54,6 +54,26 @@ Vitest.describe("buildClaudeQueryOptions", () => {
 		Vitest.assert.strictEqual(options.pathToClaudeCodeExecutable, "/usr/local/bin/claude")
 	})
 
+	// The session's mode belongs in the LAUNCH options, not only in the live
+	// setPermissionMode control request: a replacement query (a cancel, a
+	// watchdog stall recovery) would otherwise start in the SDK's default
+	// mode and silently undo a set mode. See attachQuery in Adapter.ts.
+	Vitest.it("launches the query in the session's own mode", () => {
+		const options = buildClaudeQueryOptions(
+			{ cwd: "/workspace/repo", canUseTool: fakeCanUseTool, permissionMode: "plan" },
+			{ pathToClaudeCodeExecutable: Option.none(), mcpServers: {} }
+		)
+		Vitest.assert.strictEqual(options.permissionMode, "plan")
+	})
+
+	Vitest.it("launches in Claude's default mode when no mode is given", () => {
+		const options = buildClaudeQueryOptions(
+			{ cwd: "/workspace/repo", canUseTool: fakeCanUseTool },
+			{ pathToClaudeCodeExecutable: Option.none(), mcpServers: {} }
+		)
+		Vitest.assert.strictEqual(options.permissionMode, "default")
+	})
+
 	Vitest.it("keeps cwd and partial-message streaming", () => {
 		const options = buildClaudeQueryOptions(
 			{ cwd: "/workspace/repo", canUseTool: fakeCanUseTool },

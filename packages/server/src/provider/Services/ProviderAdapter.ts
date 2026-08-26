@@ -69,6 +69,19 @@ export const CancelTurnRequest = Schema.Struct({
 })
 export type CancelTurnRequest = typeof CancelTurnRequest.Type
 
+// Carries a canonical SessionModeSet through to an adapter. Deliberately NOT
+// a member of ProviderAdapter below: a provider whose transport has no mode
+// mechanism must be able to declare the capability absent by simply not
+// exposing setMode, the same way respondToPermission/shutdown work — a
+// method no transport call backs is the dead code that made mode
+// unreachable in the first place (issue #272). ProviderBridge detects it
+// structurally; see supportsSetMode there.
+export const SetModeRequest = Schema.Struct({
+	sessionId: SessionId,
+	modeId: TrimmedNonEmptyString
+})
+export type SetModeRequest = typeof SetModeRequest.Type
+
 export class ProviderAdapterError extends Schema.TaggedError<ProviderAdapterError>()(
 	"ProviderAdapterError",
 	{

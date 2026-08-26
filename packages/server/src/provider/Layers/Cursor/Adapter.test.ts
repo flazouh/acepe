@@ -80,6 +80,30 @@ const fakeHandle = (
 		),
 	prompt: () => Effect.succeed(Option.none()),
 	cancel: () => Ref.update(cancels, (count) => count + 1).pipe(Effect.asVoid),
+	setMode: () => Effect.void,
+	close: Queue.end(inbound).pipe(Effect.asVoid)
+})
+
+// fakeHandle with its ACP session/set_mode request recorded instead of
+// ignored, for the one test that asserts the mode actually leaves the
+// adapter over the wire.
+const modeRecordingHandle = (
+	inbound: Queue.Queue<Json, Done>,
+	cancels: Ref.Ref<number>,
+	cwds: Ref.Ref<ReadonlyArray<string>>,
+	modes: Ref.Ref<ReadonlyArray<{ readonly providerSessionId: string; readonly modeId: string }>>
+): CursorAcpHandle => ({
+	initialize: Effect.void,
+	newSession: (cwd: string) =>
+		Ref.update(cwds, (current) => Arr.append(current, cwd)).pipe(
+			Effect.as("acp-session-1")
+		),
+	prompt: () => Effect.succeed(Option.none()),
+	cancel: () => Ref.update(cancels, (count) => count + 1).pipe(Effect.asVoid),
+	setMode: (providerSessionId: string, modeId: string) =>
+		Ref.update(modes, (current) => Arr.append(current, { providerSessionId, modeId })).pipe(
+			Effect.asVoid
+		),
 	close: Queue.end(inbound).pipe(Effect.asVoid)
 })
 
@@ -224,6 +248,41 @@ Vitest.describe("CursorAdapter", () => {
 			Vitest.assert.deepStrictEqual(launch, Option.some(registryLaunch))
 			Vitest.assert.deepStrictEqual(yield* Ref.get(cwds), ["/tmp/acepe"])
 			yield* adapter.cancelTurn({ sessionId })
+		})
+	)
+
+	// ACP's session/set_mode, against the agent's own session id rather than
+	// Acepe's: the mode has to reach the running agent, so a set mode that
+	// only updated adapter state would leave the agent in its previous mode.
+	Vitest.it.effect("sends a set mode as ACP session/set_mode for the agent's session", () =>
+		Effect.gen(function*() {
+			const inbound = yield* Queue.unbounded<Json, Done>()
+			const cancels = yield* Ref.make(0)
+			const cwds = yield* Ref.make<ReadonlyArray<string>>(Arr.empty())
+			const modes = yield* Ref.make<
+				ReadonlyArray<{ readonly providerSessionId: string; readonly modeId: string }>
+			>(Arr.empty())
+			const adapter = yield* makeCursorAdapter({
+				presence: Effect.succeed(cursorPresence(true, true)),
+				resolveLaunch: Effect.succeed(registryLaunch),
+				connect: () => Effect.succeed(modeRecordingHandle(inbound, cancels, cwds, modes))
+			})
+			const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
+			yield* adapter
+				.startSession({
+					sessionId,
+					projectId,
+					workspaceRoot: "/tmp/acepe"
+				})
+				.pipe(
+					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
+					Effect.forkChild({ startImmediately: true })
+				)
+			yield* Queue.take(events)
+			yield* adapter.setMode({ sessionId, modeId: "plan" })
+			Vitest.assert.deepStrictEqual(yield* Ref.get(modes), [
+				{ providerSessionId: "acp-session-1", modeId: "plan" }
+			])
 		})
 	)
 

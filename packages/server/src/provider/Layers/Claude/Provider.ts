@@ -112,6 +112,27 @@ export const CLAUDE_SESSION_MCP_SERVERS: Record<string, McpServerConfig> = {}
 export const CLAUDE_MODES = ["default", "acceptEdits", "plan", "bypassPermissions"] as const
 export type ClaudeMode = (typeof CLAUDE_MODES)[number]
 
+export const DEFAULT_CLAUDE_MODE: ClaudeMode = "default"
+
+// Claude's mode IS the SDK's permission mode (query().setPermissionMode, see
+// Process.ts). Resolved at the adapter boundary so an unknown mode fails
+// loudly instead of reaching the SDK as an invalid control request.
+export const resolveClaudeModeId = (modeId: string): Option.Option<ClaudeMode> => {
+	if (modeId === "plan") {
+		return Option.some("plan")
+	}
+	if (modeId === "acceptEdits") {
+		return Option.some("acceptEdits")
+	}
+	if (modeId === "bypassPermissions") {
+		return Option.some("bypassPermissions")
+	}
+	if (modeId === "default" || modeId === "agent" || modeId === "build") {
+		return Option.some("default")
+	}
+	return Option.none()
+}
+
 export const CLAUDE_MODELS = [
 	"claude-opus-4-6",
 	"claude-sonnet-4-6",
