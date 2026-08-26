@@ -31,13 +31,9 @@ import {
 	type SendPromptRequest,
 	type StartSessionRequest
 } from "../../Services/ProviderAdapter.ts"
-import {
-	type CopilotContractFact,
-	encodeContractFact,
-	mapAcpUpdate,
-	mapPromptResult,
-	providerSessionFact
-} from "./Map.ts"
+import { encodeContractFact } from "./Codec.ts"
+import { type CopilotContractFact, providerSessionFact } from "./Facts.ts"
+import { mapAcpUpdate, mapPromptResult } from "./Map.ts"
 import {
 	COPILOT_CAPABILITIES,
 	COPILOT_PROVIDER_ID,

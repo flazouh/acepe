@@ -5,130 +5,25 @@ import * as Option from "effect/Option"
 import * as Predicate from "effect/Predicate"
 import * as Schema from "effect/Schema"
 import * as Str from "effect/String"
+import {
+	CopilotAcpToolKind,
+	type CopilotContractFact,
+	type CopilotToolStatus,
+	type PermissionRequestFact,
+	type PlanProposalFact,
+	type ToolCallUpdateFact,
+	type UsageFact
+} from "./Facts.ts"
 
 type Json = typeof Schema.Json.Type
 type JsonObject = typeof Schema.JsonObject.Type
 
 const EMPTY_JSON_OBJECT: JsonObject = {}
 
-export const COPILOT_ACP_TOOL_KINDS = [
-	"read",
-	"read_lints",
-	"edit",
-	"execute",
-	"search",
-	"glob",
-	"fetch",
-	"web_search",
-	"think",
-	"todo",
-	"question",
-	"task",
-	"skill",
-	"enter_plan_mode",
-	"exit_plan_mode",
-	"other"
-] as const
-export const CopilotAcpToolKind = Schema.Literals(COPILOT_ACP_TOOL_KINDS)
-export type CopilotAcpToolKind = typeof CopilotAcpToolKind.Type
-
-export const CopilotToolStatus = Schema.Literals(["pending", "in_progress", "completed", "failed"])
-export type CopilotToolStatus = typeof CopilotToolStatus.Type
-
-export const TextDeltaFact = Schema.Struct({
-	contractKind: Schema.Literal("text_delta"),
-	token: Schema.String.check(Schema.isNonEmpty())
-})
-export type TextDeltaFact = typeof TextDeltaFact.Type
-
-export const ThoughtDeltaFact = Schema.Struct({
-	contractKind: Schema.Literal("thought_delta"),
-	token: Schema.String.check(Schema.isNonEmpty())
-})
-export type ThoughtDeltaFact = typeof ThoughtDeltaFact.Type
-
-export const ToolCallFact = Schema.Struct({
-	contractKind: Schema.Literal("tool_call"),
-	toolCallId: Schema.String.check(Schema.isNonEmpty()),
-	title: Schema.String.check(Schema.isNonEmpty()),
-	kind: CopilotAcpToolKind,
-	status: CopilotToolStatus,
-	rawInput: Schema.JsonObject
-})
-export type ToolCallFact = typeof ToolCallFact.Type
-
-export const ToolCallUpdateFact = Schema.Struct({
-	contractKind: Schema.Literal("tool_call_update"),
-	toolCallId: Schema.String.check(Schema.isNonEmpty()),
-	status: Schema.optionalKey(CopilotToolStatus),
-	partialJson: Schema.optionalKey(Schema.String)
-})
-export type ToolCallUpdateFact = typeof ToolCallUpdateFact.Type
-
-export const PermissionRequestFact = Schema.Struct({
-	contractKind: Schema.Literal("permission_request"),
-	id: Schema.String.check(Schema.isNonEmpty()),
-	sessionId: Schema.String.check(Schema.isNonEmpty()),
-	permission: Schema.String.check(Schema.isNonEmpty()),
-	toolCallId: Schema.String.check(Schema.isNonEmpty())
-})
-export type PermissionRequestFact = typeof PermissionRequestFact.Type
-
-export const PlanProposalFact = Schema.Struct({
-	contractKind: Schema.Literal("plan_proposal"),
-	planMarkdown: Schema.String.check(Schema.isNonEmpty()),
-	toolCallId: Schema.optionalKey(Schema.String.check(Schema.isNonEmpty()))
-})
-export type PlanProposalFact = typeof PlanProposalFact.Type
-
-export const UsageFact = Schema.Struct({
-	contractKind: Schema.Literal("usage"),
-	sessionId: Schema.String.check(Schema.isNonEmpty()),
-	inputTokens: Schema.optionalKey(Schema.Number),
-	outputTokens: Schema.optionalKey(Schema.Number),
-	totalTokens: Schema.optionalKey(Schema.Number),
-	costUsd: Schema.optionalKey(Schema.Number),
-	contextWindowSize: Schema.optionalKey(Schema.Number)
-})
-export type UsageFact = typeof UsageFact.Type
-
-export const ProviderSessionFact = Schema.Struct({
-	contractKind: Schema.Literal("provider_session"),
-	providerSessionId: Schema.String.check(Schema.isNonEmpty())
-})
-export type ProviderSessionFact = typeof ProviderSessionFact.Type
-
-export const TurnCompleteFact = Schema.Struct({
-	contractKind: Schema.Literal("turn_complete")
-})
-export type TurnCompleteFact = typeof TurnCompleteFact.Type
-
-export const TurnErrorFact = Schema.Struct({
-	contractKind: Schema.Literal("turn_error"),
-	detail: Schema.String.check(Schema.isNonEmpty())
-})
-export type TurnErrorFact = typeof TurnErrorFact.Type
-
-export const CopilotContractFact = Schema.Union([
-	TextDeltaFact,
-	ThoughtDeltaFact,
-	ToolCallFact,
-	ToolCallUpdateFact,
-	PermissionRequestFact,
-	PlanProposalFact,
-	UsageFact,
-	ProviderSessionFact,
-	TurnCompleteFact,
-	TurnErrorFact
-])
-export type CopilotContractFact = typeof CopilotContractFact.Type
-
-const decodeFact = Schema.decodeUnknownExit(CopilotContractFact)
-const encodeFact = Schema.encodeUnknownExit(CopilotContractFact)
 const decodeJsonObject = Schema.decodeUnknownExit(Schema.JsonObject)
 const decodeToolKind = Schema.decodeUnknownExit(CopilotAcpToolKind)
 
-const jsonObjectOf = (value: Json): Option.Option<JsonObject> => {
+export const jsonObjectOf = (value: Json): Option.Option<JsonObject> => {
 	const exit = decodeJsonObject(value)
 	if (Exit.isSuccess(exit)) {
 		return Option.some(exit.value)
@@ -391,7 +286,7 @@ const withToolCallUpdatePartial = (
 	partialJson
 })
 
-const applyOptional = <A, T>(
+export const applyOptional = <A, T>(
 	current: A,
 	value: T | undefined,
 	apply: (next: A, present: T) => A
@@ -567,22 +462,6 @@ export const mapPromptResult = (raw: Json): CopilotContractFact => {
 	return { contractKind: "turn_complete" }
 }
 
-export const encodeContractFact = (fact: CopilotContractFact): Option.Option<JsonObject> => {
-	const encoded = encodeFact(fact)
-	if (Exit.isFailure(encoded)) {
-		return Option.none()
-	}
-	return jsonObjectOf(encoded.value)
-}
-
-export const decodeContractFact = (value: Json): Option.Option<CopilotContractFact> => {
-	const decoded = decodeFact(value)
-	if (Exit.isFailure(decoded)) {
-		return Option.none()
-	}
-	return Option.some(decoded.value)
-}
-
 export const permissionRequestFact = (input: {
 	readonly sessionId: string
 	readonly toolCallId: string
@@ -594,134 +473,3 @@ export const permissionRequestFact = (input: {
 	permission: permissionNameForToolKind(detectCopilotToolKind(input.toolName)),
 	toolCallId: input.toolCallId
 })
-
-export const providerSessionFact = (providerSessionId: string): ProviderSessionFact => ({
-	contractKind: "provider_session",
-	providerSessionId
-})
-
-const applyAcpNumber = (
-	event: JsonObject,
-	value: number | undefined,
-	apply: (current: JsonObject, next: number) => JsonObject
-): JsonObject => {
-	if (value === undefined) {
-		return event
-	}
-	return apply(event, value)
-}
-
-const usageToAcp = (fact: UsageFact): JsonObject => {
-	const base: JsonObject = {
-		type: "usage",
-		sessionId: fact.sessionId
-	}
-	return applyAcpNumber(
-		applyAcpNumber(
-			applyAcpNumber(
-				applyAcpNumber(
-					applyAcpNumber(base, fact.inputTokens, (current, value) => ({
-						...current,
-						inputTokens: value
-					})),
-					fact.outputTokens,
-					(current, value) => ({
-						...current,
-						outputTokens: value
-					})
-				),
-				fact.totalTokens,
-				(current, value) => ({
-					...current,
-					totalTokens: value
-				})
-			),
-			fact.costUsd,
-			(current, value) => ({
-				...current,
-				costUsd: value
-			})
-		),
-		fact.contextWindowSize,
-		(current, value) => ({
-			...current,
-			contextWindowSize: value
-		})
-	)
-}
-
-export const contractFactToAcpSessionUpdate = (fact: CopilotContractFact): JsonObject => {
-	if (fact.contractKind === "tool_call") {
-		return {
-			type: "tool_call",
-			toolCallId: fact.toolCallId,
-			title: fact.title,
-			kind: fact.kind,
-			status: fact.status,
-			rawInput: fact.rawInput
-		}
-	}
-	if (fact.contractKind === "permission_request") {
-		return {
-			type: "permissionRequest",
-			permissionRequest: {
-				id: fact.id,
-				sessionId: fact.sessionId,
-				permission: fact.permission,
-				toolCallId: fact.toolCallId
-			}
-		}
-	}
-	if (fact.contractKind === "text_delta") {
-		return { type: "agent_message_chunk", token: fact.token }
-	}
-	if (fact.contractKind === "thought_delta") {
-		return { type: "agent_thought_chunk", token: fact.token }
-	}
-	if (fact.contractKind === "tool_call_update") {
-		const base: JsonObject = {
-			type: "tool_call_update",
-			toolCallId: fact.toolCallId
-		}
-		return applyOptional(
-			applyOptional(base, fact.status, (current, status) => ({
-				...current,
-				status
-			})),
-			fact.partialJson,
-			(current, partialJson) => ({
-				...current,
-				partialJson
-			})
-		)
-	}
-	if (fact.contractKind === "plan_proposal") {
-		const base: JsonObject = {
-			type: "plan_proposal",
-			planMarkdown: fact.planMarkdown
-		}
-		return applyOptional(base, fact.toolCallId, (current, toolCallId) => ({
-			...current,
-			toolCallId
-		}))
-	}
-	if (fact.contractKind === "usage") {
-		return usageToAcp(fact)
-	}
-	if (fact.contractKind === "provider_session") {
-		return { type: "provider_session", providerSessionId: fact.providerSessionId }
-	}
-	if (fact.contractKind === "turn_complete") {
-		return { type: "turn_complete" }
-	}
-	return { type: "turn_error", detail: fact.detail }
-}
-
-export const acpSessionUpdateToFact = (payload: Json): Option.Option<CopilotContractFact> =>
-	Arr.head(mapAcpUpdate(payload))
-
-export const roundTripAcpSessionUpdate = (payload: Json): Option.Option<JsonObject> =>
-	Option.map(acpSessionUpdateToFact(payload), contractFactToAcpSessionUpdate)
-
-export const isTurnTerminalFact = (fact: CopilotContractFact): boolean =>
-	fact.contractKind === "turn_complete" || fact.contractKind === "turn_error"

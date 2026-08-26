@@ -15,7 +15,7 @@ import * as Queue from "effect/Queue"
 import * as Ref from "effect/Ref"
 import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
-import { decodeContractFact } from "./Map.ts"
+import { decodeContractFact } from "./Codec.ts"
 import {
 	makeCopilotAdapter,
 	type CopilotAcpHandle,
