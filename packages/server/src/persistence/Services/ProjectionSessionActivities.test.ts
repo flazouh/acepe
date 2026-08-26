@@ -35,7 +35,8 @@ const operationId = OperationId.make("op-1")
 const toolObserved = (
 	sequence: number,
 	status: ProjectedSessionActivityRow["status"],
-	linked: typeof operationId | null = null
+	linked: typeof operationId | null = null,
+	output: string | null = null
 ): SessionActivityEvent => ({
 	sequence,
 	eventId: EventId.make(`event-${sequence}`),
@@ -52,6 +53,34 @@ const toolObserved = (
 		activityId,
 		toolCallId,
 		operationId: linked,
+		status,
+		title: "Bash",
+		path: null,
+		output
+	}
+})
+
+// #273: what an event appended before ToolCallObservedPayload carried an
+// output looks like on a rebuild -- the key is simply absent.
+const toolObservedBeforeOutputExisted = (
+	sequence: number,
+	status: ProjectedSessionActivityRow["status"]
+): SessionActivityEvent => ({
+	sequence,
+	eventId: EventId.make(`event-${sequence}`),
+	aggregateKind: "session",
+	aggregateId: sessionId,
+	occurredAt,
+	commandId,
+	causationEventId: null,
+	correlationId: commandId,
+	metadata: {},
+	type: "ToolCallObserved",
+	payload: {
+		sessionId,
+		activityId,
+		toolCallId,
+		operationId: null,
 		status,
 		title: "Bash",
 		path: null
@@ -82,6 +111,8 @@ const fileObserved = (
 		path: "/tmp/file.ts"
 	}
 })
+
+const toolOutput = "file1\nfile2"
 
 const statusAdvanced = (
 	sequence: number,
@@ -215,8 +246,51 @@ Vitest.describe("evolveSessionActivity", () => {
 				operationId: null,
 				status: "pending",
 				title: "Bash",
-				path: null
+				path: null,
+				output: null
 			})
+		})
+	)
+
+	// #273: the output arrives on the completion event; the start event never
+	// carries one, so the row has to accumulate it across the two.
+	Vitest.it.effect("records the output the completion event carries", () =>
+		Effect.gen(function*() {
+			const row = yield* fold([
+				toolObserved(3, "in_progress"),
+				toolObserved(4, "completed", null, toolOutput)
+			])
+			Vitest.assert.isTrue(Option.isSome(row))
+			if (Option.isNone(row)) {
+				return
+			}
+			Vitest.assert.strictEqual(row.value.output, toolOutput)
+			Vitest.assert.strictEqual(row.value.status, "completed")
+		})
+	)
+
+	Vitest.it.effect("keeps a recorded output when a later event carries none", () =>
+		Effect.gen(function*() {
+			const row = yield* fold([
+				toolObserved(3, "completed", null, toolOutput),
+				statusAdvanced(4, "completed")
+			])
+			Vitest.assert.isTrue(Option.isSome(row))
+			if (Option.isNone(row)) {
+				return
+			}
+			Vitest.assert.strictEqual(row.value.output, toolOutput)
+		})
+	)
+
+	Vitest.it.effect("projects an event stored before the output field to a null output", () =>
+		Effect.gen(function*() {
+			const row = yield* fold([toolObservedBeforeOutputExisted(3, "completed")])
+			Vitest.assert.isTrue(Option.isSome(row))
+			if (Option.isNone(row)) {
+				return
+			}
+			Vitest.assert.strictEqual(row.value.output, null)
 		})
 	)
 
@@ -371,7 +445,8 @@ Vitest.describe("mergeActivityRow", () => {
 			operationId,
 			status: "pending",
 			title: STUB_ACTIVITY_TITLE,
-			path: null
+			path: null,
+			output: null
 		}
 		const observed: ProjectedSessionActivityRow = {
 			activityId,
@@ -383,12 +458,50 @@ Vitest.describe("mergeActivityRow", () => {
 			operationId: null,
 			status: "pending",
 			title: "Bash",
-			path: null
+			path: null,
+			output: null
 		}
 		const merged = mergeActivityRow(Option.some(stub), observed)
 		Vitest.assert.strictEqual(merged.sequence, 4)
 		Vitest.assert.strictEqual(merged.title, "Bash")
 		Vitest.assert.strictEqual(merged.toolCallId, toolCallId)
 		Vitest.assert.strictEqual(merged.operationId, operationId)
+	})
+
+	Vitest.it("takes an incoming output onto a row that has none", () => {
+		const started: ProjectedSessionActivityRow = {
+			activityId,
+			sessionId,
+			sequence: 4,
+			statusSequence: 4,
+			kind: "tool",
+			toolCallId,
+			operationId: null,
+			status: "in_progress",
+			title: "Bash",
+			path: null,
+			output: null
+		}
+		const completed: ProjectedSessionActivityRow = {
+			activityId,
+			sessionId,
+			sequence: 5,
+			statusSequence: 5,
+			kind: "tool",
+			toolCallId,
+			operationId: null,
+			status: "completed",
+			title: "Bash",
+			path: null,
+			output: toolOutput
+		}
+		Vitest.assert.strictEqual(
+			mergeActivityRow(Option.some(started), completed).output,
+			toolOutput
+		)
+		Vitest.assert.strictEqual(
+			mergeActivityRow(Option.some(completed), started).output,
+			toolOutput
+		)
 	})
 })

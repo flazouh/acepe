@@ -79,7 +79,8 @@ const DumpRow = Schema.Struct({
 	operation_id: Schema.NullOr(Schema.String),
 	status: Schema.String,
 	title: Schema.String,
-	path: Schema.NullOr(Schema.String)
+	path: Schema.NullOr(Schema.String),
+	output: Schema.NullOr(Schema.String)
 })
 const decodeDumpRows = Schema.decodeUnknownEffect(Schema.Array(DumpRow))
 
@@ -112,7 +113,8 @@ const toolObserved = (
 	sequence: number,
 	session: SessionId,
 	status: typeof SessionActivityStatus.Type,
-	title: TrimmedNonEmptyString
+	title: TrimmedNonEmptyString,
+	output: string | null = null
 ): SessionActivityEvent => ({
 	sequence,
 	eventId: EventId.make(`event-${sequence}`),
@@ -131,6 +133,31 @@ const toolObserved = (
 		operationId: null,
 		status,
 		title,
+		path: null,
+		output
+	}
+})
+
+// #273: an event appended before ToolCallObservedPayload carried an output
+// has no output key at all, and a rebuild still has to project it.
+const toolObservedBeforeOutputExisted = (sequence: number): SessionActivityEvent => ({
+	sequence,
+	eventId: EventId.make(`event-${sequence}`),
+	aggregateKind: "session",
+	aggregateId: sessionId,
+	occurredAt: NOW,
+	commandId,
+	causationEventId: null,
+	correlationId: commandId,
+	metadata: {},
+	type: "ToolCallObserved",
+	payload: {
+		sessionId,
+		activityId,
+		toolCallId,
+		operationId: null,
+		status: "completed",
+		title: "Bash",
 		path: null
 	}
 })
@@ -299,7 +326,8 @@ const dumpTable = Effect.fn("dumpProjectionSessionActivities")(function*() {
 			operation_id,
 			status,
 			title,
-			path
+			path,
+			output
 		FROM projection_session_activities
 		ORDER BY sequence ASC, activity_id ASC
 	`.withoutTransform
@@ -463,6 +491,37 @@ Vitest.layer(isolatedActivities())("apply ToolCallObserved", (it) => {
 			Vitest.assert.strictEqual(listed[0]?.operationId, null)
 			Vitest.assert.strictEqual(listed[0]?.status, "pending")
 			Vitest.assert.strictEqual(listed[0]?.title, "Bash")
+		})
+	)
+})
+
+Vitest.layer(isolatedActivities())("apply ToolCallObserved output", (it) => {
+	it.effect("stores the output the completion event carries and reads it back", () =>
+		Effect.gen(function*() {
+			const activities = yield* ProjectionSessionActivities
+			yield* applyEvent(activities, toolObserved(activityId, 3, sessionId, "in_progress", "Bash"))
+			const running = yield* activities.listBySession(sessionId)
+			Vitest.assert.strictEqual(running[0]?.output, null)
+			yield* applyEvent(
+				activities,
+				toolObserved(activityId, 4, sessionId, "completed", "Bash", "file1\nfile2")
+			)
+			const settled = yield* activities.listBySession(sessionId)
+			Vitest.assert.strictEqual(settled.length, 1)
+			Vitest.assert.strictEqual(settled[0]?.output, "file1\nfile2")
+			Vitest.assert.strictEqual(settled[0]?.status, "completed")
+		})
+	)
+})
+
+Vitest.layer(isolatedActivities())("apply ToolCallObserved without an output key", (it) => {
+	it.effect("projects an event stored before the output field to a null output", () =>
+		Effect.gen(function*() {
+			const activities = yield* ProjectionSessionActivities
+			yield* applyEvent(activities, toolObservedBeforeOutputExisted(3))
+			const listed = yield* activities.listBySession(sessionId)
+			Vitest.assert.strictEqual(listed.length, 1)
+			Vitest.assert.strictEqual(listed[0]?.output, null)
 		})
 	)
 })

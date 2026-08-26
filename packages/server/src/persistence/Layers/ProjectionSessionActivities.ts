@@ -33,7 +33,8 @@ const readById = Effect.fn("ProjectionSessionActivities.readById")(function*(
 			operation_id,
 			status,
 			title,
-			path
+			path,
+			output
 		FROM projection_session_activities
 		WHERE activity_id = ${activityId}
 		LIMIT 1
@@ -57,7 +58,8 @@ const upsert = Effect.fn("ProjectionSessionActivities.upsert")(function*(
 			operation_id,
 			status,
 			title,
-			path
+			path,
+			output
 		) VALUES (
 			${row.activityId},
 			${row.sessionId},
@@ -68,7 +70,8 @@ const upsert = Effect.fn("ProjectionSessionActivities.upsert")(function*(
 			${row.operationId},
 			${row.status},
 			${row.title},
-			${row.path}
+			${row.path},
+			${row.output}
 		)
 		ON CONFLICT(activity_id) DO UPDATE SET
 			session_id = excluded.session_id,
@@ -79,7 +82,8 @@ const upsert = Effect.fn("ProjectionSessionActivities.upsert")(function*(
 			operation_id = excluded.operation_id,
 			status = excluded.status,
 			title = excluded.title,
-			path = excluded.path
+			path = excluded.path,
+			output = excluded.output
 	`.withoutTransform.pipe(Effect.asVoid)
 })
 
@@ -123,7 +127,8 @@ export const ProjectionSessionActivitiesLive = Layer.effect(ProjectionSessionAct
 					operation_id,
 					status,
 					title,
-					path
+					path,
+					output
 				FROM projection_session_activities
 				WHERE session_id = ${sessionId}
 				ORDER BY sequence ASC, activity_id ASC

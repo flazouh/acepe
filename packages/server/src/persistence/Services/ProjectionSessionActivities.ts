@@ -55,7 +55,8 @@ export const ProjectedSessionActivityRow = Schema.Struct({
 	operationId: Schema.NullOr(OperationId),
 	status: SessionActivityStatus,
 	title: TrimmedNonEmptyString,
-	path: Schema.NullOr(TrimmedNonEmptyString)
+	path: Schema.NullOr(TrimmedNonEmptyString),
+	output: Schema.NullOr(TrimmedNonEmptyString)
 })
 export type ProjectedSessionActivityRow = typeof ProjectedSessionActivityRow.Type
 
@@ -69,7 +70,8 @@ export const ProjectionSessionActivityStoredRow = Schema.Struct({
 	operation_id: Schema.NullOr(OperationId),
 	status: SessionActivityStatus,
 	title: TrimmedNonEmptyString,
-	path: Schema.NullOr(TrimmedNonEmptyString)
+	path: Schema.NullOr(TrimmedNonEmptyString),
+	output: Schema.NullOr(TrimmedNonEmptyString)
 })
 export type ProjectionSessionActivityStoredRow = typeof ProjectionSessionActivityStoredRow.Type
 
@@ -84,7 +86,11 @@ export const ToolCallObservedPayload = Schema.Struct({
 	operationId: Schema.NullOr(OperationId),
 	status: SessionActivityStatus,
 	title: TrimmedNonEmptyString,
-	path: Schema.NullOr(TrimmedNonEmptyString)
+	path: Schema.NullOr(TrimmedNonEmptyString),
+	// Optional for the same reason as the contract's own
+	// ToolCallObservedPayload: this schema decodes every stored payload again
+	// on a rebuild, and the ones appended before #273 carry no output key.
+	output: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey)
 })
 export type ToolCallObservedPayload = typeof ToolCallObservedPayload.Type
 
@@ -199,7 +205,8 @@ export const projectedSessionActivityFromRow = (
 	operationId: row.operation_id,
 	status: row.status,
 	title: row.title,
-	path: row.path
+	path: row.path,
+	output: row.output
 })
 
 export const statusRank = (status: SessionActivityStatus): number =>
@@ -276,7 +283,12 @@ export const mergeActivityRow = (
 		operationId: row.operationId === null ? incoming.operationId : row.operationId,
 		status: takeIncomingStatus ? incoming.status : row.status,
 		title: isStubTitle(row.title) ? incoming.title : row.title,
-		path: row.path === null ? incoming.path : row.path
+		path: row.path === null ? incoming.path : row.path,
+		// #273: only the completion event carries an output, and it may arrive
+		// before or after the start event this row already holds, so first one
+		// wins the same way path does. A later status-only event carries none
+		// and must not erase it.
+		output: row.output === null ? incoming.output : row.output
 	}
 }
 
@@ -296,7 +308,8 @@ const observedToolRow = (
 	operationId: payload.operationId,
 	status: payload.status,
 	title: payload.title,
-	path: payload.path
+	path: payload.path,
+	output: payload.output ?? null
 })
 
 const observedFileRow = (
@@ -312,7 +325,8 @@ const observedFileRow = (
 	operationId: payload.operationId,
 	status: payload.status,
 	title: payload.title,
-	path: payload.path
+	path: payload.path,
+	output: null
 })
 
 const statusRow = (
@@ -328,7 +342,8 @@ const statusRow = (
 	operationId: null,
 	status: payload.status,
 	title: STUB_ACTIVITY_TITLE,
-	path: null
+	path: null,
+	output: null
 })
 
 const linkedRow = (
@@ -344,7 +359,8 @@ const linkedRow = (
 	operationId: payload.operationId,
 	status: "pending",
 	title: STUB_ACTIVITY_TITLE,
-	path: null
+	path: null,
+	output: null
 })
 
 const projectToolCallObserved = (
