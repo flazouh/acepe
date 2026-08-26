@@ -77,95 +77,110 @@ describe("history.getStartupSessions alias resolution", () => {
 		setAppRpcClientForTest(null);
 	});
 
-	it("returns a direct entry with no alias when the requested id matches a discovered session", async () => {
-		setAppRpcClientForTest(
-			makeClient({
-				listProviderProjects: () =>
-					Effect.succeed([
-						{ projectPath: "/tmp/acepe", provider: "claude", sessionCount: 1, lastActiveMs: 2_000 },
-					]),
-				listProviderSessions: () => Effect.succeed([diskSession]),
+	it("returns a direct entry with no alias when the requested id matches a discovered session", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				setAppRpcClientForTest(
+					makeClient({
+						listProviderProjects: () =>
+							Effect.succeed([
+								{
+									projectPath: "/tmp/acepe",
+									provider: "claude",
+									sessionCount: 1,
+									lastActiveMs: 2_000,
+								},
+							]),
+						listProviderSessions: () => Effect.succeed([diskSession]),
+					})
+				);
+				const response = yield* history.getStartupSessions(["claude-uuid-42"]);
+				expect(response.entries).toHaveLength(1);
+				expect(response.entries[0]?.id).toBe("claude-uuid-42");
+				expect(response.aliasRemaps).toEqual({});
 			})
-		);
-		const response = await Effect.runPromise(history.getStartupSessions(["claude-uuid-42"]));
-		expect(response.entries).toHaveLength(1);
-		expect(response.entries[0]?.id).toBe("claude-uuid-42");
-		expect(response.aliasRemaps).toEqual({});
-	});
+		));
 
-	it("resolves an orchestration session id to its disk-scanned row via providerSessionId", async () => {
-		setAppRpcClientForTest(
-			makeClient({
-				listProviderProjects: () =>
-					Effect.succeed([
-						{ projectPath: "/tmp/acepe", provider: "claude", sessionCount: 1, lastActiveMs: 2_000 },
-					]),
-				listProviderSessions: () => Effect.succeed([diskSession]),
-				snapshot: (request) => {
-					if (
-						"kind" in request &&
-						request.kind === "session" &&
-						request.sessionId === "session-orchestration-1"
-					) {
-						return Effect.succeed(
-							withSession(emptyRpcSessionSnapshot(0), {
-								sessionId: SessionId.make("session-orchestration-1"),
-								projectId: "project-1" as never,
-								title: "t" as never,
-								provider: "claude-code",
-								createdAt: "2024-01-01T00:00:00.000Z" as never,
-								updatedAt: "2024-01-01T00:00:00.000Z" as never,
-								lastActivityAt: "2024-01-01T00:00:00.000Z" as never,
-								archivedAt: null,
-								deletedAt: null,
-								prNumber: null,
-								prLinkMode: null,
-								providerSessionId: "claude-uuid-42",
-								providerSessionFailed: false,
-							})
-						);
-					}
-					return Effect.succeed(emptyRpcSessionSnapshot(0));
-				},
+	it("resolves an orchestration session id to its disk-scanned row via providerSessionId", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				setAppRpcClientForTest(
+					makeClient({
+						listProviderProjects: () =>
+							Effect.succeed([
+								{
+									projectPath: "/tmp/acepe",
+									provider: "claude",
+									sessionCount: 1,
+									lastActiveMs: 2_000,
+								},
+							]),
+						listProviderSessions: () => Effect.succeed([diskSession]),
+						snapshot: (request) => {
+							if (
+								"kind" in request &&
+								request.kind === "session" &&
+								request.sessionId === "session-orchestration-1"
+							) {
+								return Effect.succeed(
+									withSession(emptyRpcSessionSnapshot(0), {
+										sessionId: SessionId.make("session-orchestration-1"),
+										projectId: "project-1" as never,
+										title: "t" as never,
+										provider: "claude-code",
+										createdAt: "2024-01-01T00:00:00.000Z" as never,
+										updatedAt: "2024-01-01T00:00:00.000Z" as never,
+										lastActivityAt: "2024-01-01T00:00:00.000Z" as never,
+										archivedAt: null,
+										deletedAt: null,
+										prNumber: null,
+										prLinkMode: null,
+										providerSessionId: "claude-uuid-42",
+										providerSessionFailed: false,
+									})
+								);
+							}
+							return Effect.succeed(emptyRpcSessionSnapshot(0));
+						},
+					})
+				);
+				const response = yield* history.getStartupSessions(["session-orchestration-1"]);
+				expect(response.entries).toHaveLength(1);
+				expect(response.entries[0]?.id).toBe("claude-uuid-42");
+				expect(response.aliasRemaps).toEqual({ "session-orchestration-1": "claude-uuid-42" });
 			})
-		);
-		const response = await Effect.runPromise(
-			history.getStartupSessions(["session-orchestration-1"])
-		);
-		expect(response.entries).toHaveLength(1);
-		expect(response.entries[0]?.id).toBe("claude-uuid-42");
-		expect(response.aliasRemaps).toEqual({ "session-orchestration-1": "claude-uuid-42" });
-	});
+		));
 
-	it("reports no alias when the orchestration session's providerSessionId has no matching disk row", async () => {
-		setAppRpcClientForTest(
-			makeClient({
-				listProviderProjects: () => Effect.succeed([]),
-				listProviderSessions: () => Effect.succeed([]),
-				snapshot: () =>
-					Effect.succeed(
-						withSession(emptyRpcSessionSnapshot(0), {
-							sessionId: SessionId.make("session-orchestration-1"),
-							projectId: "project-1" as never,
-							title: "t" as never,
-							provider: "claude-code",
-							createdAt: "2024-01-01T00:00:00.000Z" as never,
-							updatedAt: "2024-01-01T00:00:00.000Z" as never,
-							lastActivityAt: "2024-01-01T00:00:00.000Z" as never,
-							archivedAt: null,
-							deletedAt: null,
-							prNumber: null,
-							prLinkMode: null,
-							providerSessionId: null,
-							providerSessionFailed: false,
-						})
-					),
+	it("reports no alias when the orchestration session's providerSessionId has no matching disk row", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				setAppRpcClientForTest(
+					makeClient({
+						listProviderProjects: () => Effect.succeed([]),
+						listProviderSessions: () => Effect.succeed([]),
+						snapshot: () =>
+							Effect.succeed(
+								withSession(emptyRpcSessionSnapshot(0), {
+									sessionId: SessionId.make("session-orchestration-1"),
+									projectId: "project-1" as never,
+									title: "t" as never,
+									provider: "claude-code",
+									createdAt: "2024-01-01T00:00:00.000Z" as never,
+									updatedAt: "2024-01-01T00:00:00.000Z" as never,
+									lastActivityAt: "2024-01-01T00:00:00.000Z" as never,
+									archivedAt: null,
+									deletedAt: null,
+									prNumber: null,
+									prLinkMode: null,
+									providerSessionId: null,
+									providerSessionFailed: false,
+								})
+							),
+					})
+				);
+				const response = yield* history.getStartupSessions(["session-orchestration-1"]);
+				expect(response.entries).toHaveLength(0);
+				expect(response.aliasRemaps).toEqual({});
 			})
-		);
-		const response = await Effect.runPromise(
-			history.getStartupSessions(["session-orchestration-1"])
-		);
-		expect(response.entries).toHaveLength(0);
-		expect(response.aliasRemaps).toEqual({});
-	});
+		));
 });
