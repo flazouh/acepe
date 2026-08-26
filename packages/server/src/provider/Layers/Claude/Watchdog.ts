@@ -4,6 +4,7 @@ import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
 import * as Ref from "effect/Ref"
 import type { ProviderAdapterError } from "../../Services/ProviderAdapter.ts"
+import { drainPendingPermissions } from "./Permissions.ts"
 import { teardownQuery } from "./Process.ts"
 import { publishFact, type SessionRuntime } from "./Session.ts"
 
@@ -49,6 +50,12 @@ export const makeWatchdogLoop = (
 			const state = yield* Ref.get(runtime.streamState)
 			const nextGeneration = yield* Ref.updateAndGet(runtime.generation, (current) => current + 1)
 			const oldQuery = yield* Ref.get(runtime.queryRef)
+			// A stall can be a stall ON a permission: the SDK is blocked on
+			// canUseTool, nothing streams, and the recovery below throws away
+			// the query that asked. Drained before attachQuery installs the
+			// replacement, so a permission belonging to the NEW query can
+			// never be caught by this. See drainPendingPermissions.
+			yield* drainPendingPermissions(runtime)
 			yield* teardownQuery(oldQuery, cancelInterruptTimeout)
 			yield* attachQuery(runtime, state.providerSessionId, nextGeneration)
 		}

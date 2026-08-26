@@ -57,6 +57,36 @@ export const decidePermission = Effect.fn("ClaudeAdapter.decidePermission")(func
 	}
 })
 
+// The decision an ABANDONED permission gets. Deny, never allow: the tool
+// call that asked for it is gone (its query was torn down), so allowing it
+// would run a tool nobody is watching for, on an input nobody re-confirmed.
+const ABANDONED_DECISION: ClaudePermissionDecision = "deny"
+
+// Resolves every permission this session still has in flight, and empties
+// the map. Every path that abandons the tool call behind a pending
+// permission MUST call this: decidePermission blocks on a Deferred, and the
+// SDK's own canUseTool promise is blocked on THAT (see bindCanUseTool),
+// running on a detached fiber Effect.runPromise started — so no scope
+// closing, no fiber interruption and no query teardown can ever unblock it
+// on their own. Left unresolved, the SDK waits forever: the turn never
+// ends, the spawned `claude` subprocess stays alive, and the session
+// wedges with no error anywhere. Callers today: cancelTurn, shutdown and
+// the query listener's own final cleanup (all in Adapter.ts), plus the
+// inactivity watchdog (Watchdog.ts).
+export const drainPendingPermissions = Effect.fn("ClaudeAdapter.drainPendingPermissions")(
+	function*(runtime: SessionRuntime) {
+		const abandoned = yield* Ref.getAndSet(
+			runtime.pendingPermissions,
+			HashMap.empty<string, Deferred.Deferred<ClaudePermissionDecision>>()
+		)
+		yield* Effect.forEach(
+			HashMap.values(abandoned),
+			(deferred) => Deferred.succeed(deferred, ABANDONED_DECISION),
+			{ discard: true }
+		)
+	}
+)
+
 export const makeRespondToPermission = (
 	sessions: Ref.Ref<HashMap.HashMap<SessionId, SessionRuntime>>
 ) =>

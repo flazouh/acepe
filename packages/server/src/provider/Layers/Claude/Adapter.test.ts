@@ -85,6 +85,35 @@ const waitUntil = <A, E, R>(
 		return last
 	})
 
+// Drives a session into the exact state the abandoned-permission tests
+// need: the SDK's own canUseTool callback is blocked on decidePermission's
+// Deferred (see Permissions.ts) and the matching ApprovalRequested event
+// has already been observed. The returned fiber is what a test joins to see
+// how the path that abandoned that permission resolved the SDK's promise.
+const forkBlockedPermission = Effect.fn("forkBlockedPermission")(function*(
+	canUseTool: ClaudeCanUseTool,
+	events: Queue.Queue<OrchestrationEvent, Done>
+) {
+	const decisionFiber = yield* Effect.promise(() =>
+		canUseTool("Edit", { file_path: "/tmp/acepe/a.txt" }, { toolUseID: "toolu_abandoned" })
+	).pipe(Effect.forkChild({ startImmediately: true }))
+	let requested = false
+	for (let attempt = 0; attempt < 5 && !requested; attempt++) {
+		const next = yield* Queue.take(events)
+		if (next.type === "ApprovalRequested") {
+			requested = true
+		}
+	}
+	Vitest.assert.isTrue(requested, "expected an ApprovalRequested event before abandoning it")
+	return decisionFiber
+})
+
+// Generous next to every other timing bound in this file (30-50ms): a
+// pending permission that is going to be resolved at all is resolved by the
+// abandoning path itself, synchronously, so anything past this is the
+// forever-hang the tests below exist to catch.
+const ABANDONED_DECISION_TIMEOUT = Duration.seconds(2)
+
 Vitest.describe("ClaudeAdapter", () => {
 	Vitest.it.effect("emits deferred_open before the SDK session id exists", () =>
 		Effect.gen(function*() {
@@ -711,6 +740,189 @@ Vitest.describe("ClaudeAdapter", () => {
 				const afterShutdown = yield* Ref.get(sdk.attemptsRef)
 				Vitest.assert.strictEqual(afterShutdown.length, 2)
 			})
+	)
+
+	// A pending permission blocks the SDK's own canUseTool promise on
+	// decidePermission's Deferred, and that promise runs on a detached fiber
+	// Effect.runPromise started (see bindCanUseTool) — nothing in
+	// sessionScope can interrupt it. Every path that abandons the tool call
+	// waiting on it must therefore resolve it explicitly, or the SDK waits
+	// forever and the session wedges with a `claude` subprocess still alive.
+	// The four tests below pin down the four such paths: cancel, shutdown,
+	// the inactivity watchdog, and the query stream simply dying.
+	Vitest.it.live("cancelTurn denies a permission the SDK is still blocked on", () =>
+		Effect.gen(function*() {
+			const inbound = yield* Queue.unbounded<Json, Done>()
+			const interrupts = yield* Ref.make(0)
+			let capturedCanUseTool: ClaudeCanUseTool | undefined
+			const adapter = yield* makeClaudeAdapter({
+				presence: Effect.succeed(claudePresence(true, true)),
+				createQuery: (input) => {
+					capturedCanUseTool = input.canUseTool
+					return Effect.succeed(fakeHandle(inbound, interrupts))
+				},
+				cancelInterruptTimeout: Duration.millis(50)
+			})
+			const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
+			yield* adapter
+				.startSession({ sessionId, projectId, workspaceRoot: "/tmp/acepe" })
+				.pipe(
+					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
+					Effect.forkChild({ startImmediately: true })
+				)
+			yield* Queue.take(events) // deferred_open
+			yield* Stream.runCollect(
+				adapter.sendPrompt({ sessionId, messageId, text: "Edit a file for me" })
+			)
+			if (capturedCanUseTool === undefined) {
+				Vitest.assert.fail("expected createQuery to receive a canUseTool callback")
+				return
+			}
+			const decisionFiber = yield* forkBlockedPermission(capturedCanUseTool, events)
+			yield* adapter.cancelTurn({ sessionId })
+			const decision = yield* Fiber.join(decisionFiber).pipe(
+				Effect.timeoutOption(ABANDONED_DECISION_TIMEOUT)
+			)
+			if (Option.isNone(decision)) {
+				Vitest.assert.fail("cancelTurn left the SDK's canUseTool promise pending forever")
+				return
+			}
+			Vitest.assert.strictEqual(decision.value.behavior, "deny")
+		})
+	)
+
+	Vitest.it.live("shutdown denies a permission the SDK is still blocked on", () =>
+		Effect.gen(function*() {
+			const inbound = yield* Queue.unbounded<Json, Done>()
+			const interrupts = yield* Ref.make(0)
+			let capturedCanUseTool: ClaudeCanUseTool | undefined
+			const adapter = yield* makeClaudeAdapter({
+				presence: Effect.succeed(claudePresence(true, true)),
+				createQuery: (input) => {
+					capturedCanUseTool = input.canUseTool
+					return Effect.succeed(fakeHandle(inbound, interrupts))
+				},
+				cancelInterruptTimeout: Duration.millis(50)
+			})
+			const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
+			yield* adapter
+				.startSession({ sessionId, projectId, workspaceRoot: "/tmp/acepe" })
+				.pipe(
+					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
+					Effect.forkChild({ startImmediately: true })
+				)
+			yield* Queue.take(events) // deferred_open
+			yield* Stream.runCollect(
+				adapter.sendPrompt({ sessionId, messageId, text: "Edit a file for me" })
+			)
+			if (capturedCanUseTool === undefined) {
+				Vitest.assert.fail("expected createQuery to receive a canUseTool callback")
+				return
+			}
+			const decisionFiber = yield* forkBlockedPermission(capturedCanUseTool, events)
+			yield* adapter.shutdown
+			const decision = yield* Fiber.join(decisionFiber).pipe(
+				Effect.timeoutOption(ABANDONED_DECISION_TIMEOUT)
+			)
+			if (Option.isNone(decision)) {
+				Vitest.assert.fail("shutdown left the SDK's canUseTool promise pending forever")
+				return
+			}
+			Vitest.assert.strictEqual(decision.value.behavior, "deny")
+		})
+	)
+
+	Vitest.it.live("the inactivity watchdog denies a permission the stalled turn was blocked on", () =>
+		Effect.gen(function*() {
+			const sdk = yield* makeScriptedClaudeSdk()
+			let capturedCanUseTool: ClaudeCanUseTool | undefined
+			const adapter = yield* makeClaudeAdapter({
+				presence: Effect.succeed(claudePresence(true, true)),
+				createQuery: (input) => {
+					capturedCanUseTool = input.canUseTool
+					return sdk.createQuery(input)
+				},
+				turnInactivityTimeout: Duration.millis(30),
+				watchdogPollInterval: Duration.millis(10)
+			})
+			const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
+			yield* adapter
+				.startSession({ sessionId, projectId, workspaceRoot: "/tmp/acepe" })
+				.pipe(
+					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
+					Effect.forkChild({ startImmediately: true })
+				)
+			yield* Queue.take(events) // deferred_open
+			yield* Stream.runCollect(
+				adapter.sendPrompt({ sessionId, messageId, text: "Edit a file for me" })
+			)
+			if (capturedCanUseTool === undefined) {
+				Vitest.assert.fail("expected createQuery to receive a canUseTool callback")
+				return
+			}
+			// The scripted SDK never offers anything into the attempt's inbound
+			// queue, so the turn stalls exactly as DEFECT B's test describes —
+			// except this time a permission is in flight when the watchdog
+			// tears the query down.
+			const decisionFiber = yield* forkBlockedPermission(capturedCanUseTool, events)
+			const decision = yield* Fiber.join(decisionFiber).pipe(
+				Effect.timeoutOption(ABANDONED_DECISION_TIMEOUT)
+			)
+			if (Option.isNone(decision)) {
+				Vitest.assert.fail(
+					"the watchdog left the SDK's canUseTool promise pending forever"
+				)
+				return
+			}
+			Vitest.assert.strictEqual(decision.value.behavior, "deny")
+			const afterWatchdog = yield* waitUntil(Ref.get(sdk.attemptsRef), (a) => a.length >= 2)
+			Vitest.assert.strictEqual(afterWatchdog.length, 2)
+		})
+	)
+
+	Vitest.it.live("a dead query stream denies a permission the SDK is still blocked on", () =>
+		Effect.gen(function*() {
+			const inbound = yield* Queue.unbounded<Json, Done>()
+			const interrupts = yield* Ref.make(0)
+			let capturedCanUseTool: ClaudeCanUseTool | undefined
+			const adapter = yield* makeClaudeAdapter({
+				presence: Effect.succeed(claudePresence(true, true)),
+				createQuery: (input) => {
+					capturedCanUseTool = input.canUseTool
+					return Effect.succeed(fakeHandle(inbound, interrupts))
+				}
+			})
+			const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
+			yield* adapter
+				.startSession({ sessionId, projectId, workspaceRoot: "/tmp/acepe" })
+				.pipe(
+					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
+					Effect.forkChild({ startImmediately: true })
+				)
+			yield* Queue.take(events) // deferred_open
+			yield* Stream.runCollect(
+				adapter.sendPrompt({ sessionId, messageId, text: "Edit a file for me" })
+			)
+			if (capturedCanUseTool === undefined) {
+				Vitest.assert.fail("expected createQuery to receive a canUseTool callback")
+				return
+			}
+			const decisionFiber = yield* forkBlockedPermission(capturedCanUseTool, events)
+			// The query stream simply ends — the shape ProviderBridge turns
+			// into ProviderSessionFailed, and the one path that drops the
+			// session runtime for good (see attachQuery's own cleanup).
+			yield* Queue.end(inbound)
+			const decision = yield* Fiber.join(decisionFiber).pipe(
+				Effect.timeoutOption(ABANDONED_DECISION_TIMEOUT)
+			)
+			if (Option.isNone(decision)) {
+				Vitest.assert.fail(
+					"a dead query stream left the SDK's canUseTool promise pending forever"
+				)
+				return
+			}
+			Vitest.assert.strictEqual(decision.value.behavior, "deny")
+		})
 	)
 
 })

@@ -21,7 +21,12 @@ import type {
 } from "../../Services/ProviderAdapter.ts"
 import { deferredOpenFact, type ClaudePermissionDecision } from "./Facts.ts"
 import { emptyClaudeStreamState } from "./Map.ts"
-import { bindCanUseTool, decidePermission, makeRespondToPermission } from "./Permissions.ts"
+import {
+	bindCanUseTool,
+	decidePermission,
+	drainPendingPermissions,
+	makeRespondToPermission
+} from "./Permissions.ts"
 import {
 	makeLiveCreateQuery,
 	teardownQuery,
@@ -156,8 +161,15 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 						// Superseded by attachQuery running again (cancel or
 						// watchdog recovery) — the newer generation's listener
 						// now owns outbound/sessions, this one just exits quietly.
+						// It must NOT drain pendingPermissions either: whoever
+						// restarted the query already did, and the map may
+						// already hold a permission the NEW query is waiting on.
 						return
 					}
+					// This session is over for good, so every permission it
+					// still has in flight is abandoned — see
+					// drainPendingPermissions.
+					yield* drainPendingPermissions(runtime)
 					yield* Queue.end(runtime.outbound).pipe(
 						Effect.flatMap(() => dropSession),
 						Effect.asVoid
@@ -296,6 +308,13 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 		const cancelled = yield* makeCancelled(runtime)
 		yield* offerOutbound(runtime, cancelled).pipe(Effect.ignore)
 		yield* Ref.set(runtime.turnOpenedAtMs, Option.none())
+		// The cancelled turn's tool call is abandoned with it, and the query
+		// that would have run the tool is about to be torn down — so nothing
+		// will ever answer a permission it left pending. Drained here, before
+		// the teardown, while this runtime still has no replacement query
+		// that could own a NEW pending permission. See
+		// drainPendingPermissions.
+		yield* drainPendingPermissions(runtime)
 		// Bump generation BEFORE tearing the old query down (not after, and
 		// not skipped just because nothing attaches a replacement here): once
 		// its inbound queue ends, the old listener's own Effect.ensuring
@@ -326,7 +345,12 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 		yield* Effect.forEach(
 			HashMap.values(current),
 			(runtime) =>
-				Ref.get(runtime.queryRef).pipe(
+				// Drained first, for the same reason the query is torn down at
+				// all: an app quitting must not leave the SDK's canUseTool
+				// promise pending on a session that is going away. See
+				// drainPendingPermissions.
+				drainPendingPermissions(runtime).pipe(
+					Effect.andThen(Ref.get(runtime.queryRef)),
 					Effect.flatMap((queryHandle) => teardownQuery(queryHandle, cancelInterruptTimeout)),
 					Effect.andThen(Scope.close(runtime.sessionScope, Exit.void))
 				),
