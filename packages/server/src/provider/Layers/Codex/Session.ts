@@ -338,6 +338,11 @@ const publishApprovalRequested = Effect.fn("CodexAdapter.publishApprovalRequeste
 // (see Claude/Session.ts's makeTurnUsageObserved doc). Codex's UsageFact
 // carries no cost reading at all, and reasoningTokens has no home on the
 // shared contract payload yet -- documented gaps, not wired.
+//
+// #274: eventId is the fact's own deterministic dedup key (Map.ts composes it
+// from the thread, the turn and every token figure). It rides the payload so
+// the desktop's lastTelemetryEventId check can drop a redelivered reading
+// instead of counting its cost twice.
 const makeTurnUsageObserved = Effect.fn("CodexAdapter.makeTurnUsageObserved")(function*(
 	runtime: SessionRuntime,
 	fact: Extract<CodexContractFact, { readonly contractKind: "usage" }>
@@ -347,6 +352,7 @@ const makeTurnUsageObserved = Effect.fn("CodexAdapter.makeTurnUsageObserved")(fu
 	const payload = {
 		sessionId: runtime.sessionId,
 		...(Option.isSome(currentTurnId) ? { turnId: TurnId.make(currentTurnId.value) } : {}),
+		...(fact.eventId !== undefined ? { eventId: fact.eventId } : {}),
 		...(fact.inputTokens !== undefined ? { inputTokens: fact.inputTokens } : {}),
 		...(fact.outputTokens !== undefined ? { outputTokens: fact.outputTokens } : {}),
 		...(fact.totalTokens !== undefined ? { totalTokens: fact.totalTokens } : {}),

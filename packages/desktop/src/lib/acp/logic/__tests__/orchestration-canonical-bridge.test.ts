@@ -13,8 +13,10 @@ import type {
 	SessionGraphRevision,
 	SessionStateDelta,
 	SessionStateEnvelope,
+	UsageTelemetryData,
 } from "../../../services/acp-types.js";
 import { routeSessionStateEnvelope } from "../../session-state/session-state-command-router.js";
+import { buildCanonicalUsageTelemetry } from "../../store/envelope-reducer/canonical-usage-telemetry.js";
 import type { AcpEventEnvelope } from "../acp-event-bridge.js";
 import { OrchestrationCanonicalBridge } from "../orchestration-canonical-bridge.js";
 
@@ -22,6 +24,7 @@ const commandId = CommandId.make("cmd-1");
 const projectId = ProjectId.make("project-1");
 const sessionId = SessionId.make("session-1");
 const occurredAt = "2026-08-24T12:00:00.000Z";
+const usageEventId = "codex-token-usage:thread-1:turn-1:total=168:input=120:output=48";
 
 let eventSeq = 0;
 function makeEvent<Type extends string, Payload>(type: Type, payload: Payload): OrchestrationEvent {
@@ -50,6 +53,14 @@ function runTranslate(
 	event: OrchestrationEvent
 ): ReadonlyArray<AcpEventEnvelope> {
 	return Effect.runSync(bridge.translate(event));
+}
+
+function telemetryFrom(envelopes: ReadonlyArray<AcpEventEnvelope>): UsageTelemetryData {
+	const payload = envelopes[0]?.payload as SessionStateEnvelope | undefined;
+	if (payload === undefined || payload.payload.kind !== "telemetry") {
+		throw new Error("expected a telemetry envelope");
+	}
+	return payload.payload.telemetry;
 }
 
 describe("OrchestrationCanonicalBridge", () => {
@@ -188,6 +199,71 @@ describe("OrchestrationCanonicalBridge", () => {
 			expect(payload.payload.telemetry.costUsd).toBe(0.0123);
 			expect(payload.payload.telemetry.contextWindowSize).toBe(200_000);
 		}
+	});
+
+	// #274: canonical-usage-telemetry.ts dedups a usage reading on
+	// lastTelemetryEventId, and Codex/Copilot already derive a deterministic
+	// eventId for the reading -- but the key died at this bridge, which never
+	// set one on UsageTelemetryData, so the dedup could never fire and a
+	// redelivered reading double-counted the turn's spend.
+	it("carries the usage reading's own eventId onto the telemetry envelope", () => {
+		const bridge = makeBridge();
+		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
+		const envelopes = runTranslate(
+			bridge,
+			makeEvent("TurnUsageObserved", {
+				sessionId,
+				turnId: "user-1",
+				inputTokens: 120,
+				outputTokens: 48,
+				eventId: usageEventId,
+			})
+		);
+		expect(telemetryFrom(envelopes).eventId).toBe(usageEventId);
+	});
+
+	it("applies a redelivered usage reading once, not twice", () => {
+		const bridge = makeBridge();
+		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
+		const reading = {
+			sessionId,
+			turnId: "user-1",
+			inputTokens: 120,
+			outputTokens: 48,
+			costUsd: 0.5,
+			eventId: usageEventId,
+		};
+		const first = telemetryFrom(runTranslate(bridge, makeEvent("TurnUsageObserved", reading)));
+		const second = telemetryFrom(runTranslate(bridge, makeEvent("TurnUsageObserved", reading)));
+
+		const applied = buildCanonicalUsageTelemetry(first, undefined, null, 1000);
+		expect(applied?.sessionSpendUsd).toBe(0.5);
+		expect(applied?.lastTelemetryEventId).toBe(usageEventId);
+		expect(buildCanonicalUsageTelemetry(second, applied ?? undefined, null, 2000)).toBeNull();
+	});
+
+	it("still applies a second usage reading that carries a different eventId", () => {
+		const bridge = makeBridge();
+		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
+		const first = telemetryFrom(
+			runTranslate(
+				bridge,
+				makeEvent("TurnUsageObserved", { sessionId, outputTokens: 48, eventId: usageEventId })
+			)
+		);
+		const second = telemetryFrom(
+			runTranslate(
+				bridge,
+				makeEvent("TurnUsageObserved", {
+					sessionId,
+					outputTokens: 96,
+					eventId: `${usageEventId}:2`,
+				})
+			)
+		);
+
+		const applied = buildCanonicalUsageTelemetry(first, undefined, null, 1000);
+		expect(buildCanonicalUsageTelemetry(second, applied ?? undefined, null, 2000)).not.toBeNull();
 	});
 
 	it("ignores TurnUsageObserved for a session it never saw created", () => {

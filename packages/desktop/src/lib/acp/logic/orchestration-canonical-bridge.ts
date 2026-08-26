@@ -816,6 +816,7 @@ export class OrchestrationCanonicalBridge {
 	private onTurnUsageObserved(payload: {
 		readonly sessionId: SessionId;
 		readonly turnId?: string;
+		readonly eventId?: string | null;
 		readonly inputTokens?: number;
 		readonly outputTokens?: number;
 		readonly totalTokens?: number;
@@ -842,6 +843,12 @@ export class OrchestrationCanonicalBridge {
 			payload.cacheWriteTokens !== undefined;
 		const telemetry: UsageTelemetryData = {
 			sessionId: payload.sessionId,
+			// #274: the reading's own deterministic id, so
+			// canonical-usage-telemetry.ts's lastTelemetryEventId dedup finally
+			// has a key to compare. Null when the provider minted no id, which
+			// that dedup reads as "always apply" -- the behaviour every provider
+			// had while this field was never set at all.
+			eventId: payload.eventId ?? null,
 			...(hasTokenReading
 				? {
 						tokens: {

@@ -513,6 +513,18 @@ export type ApprovalRequestedPayload = typeof ApprovalRequestedPayload.Type
 export const TurnUsageObservedPayload = Schema.Struct({
 	sessionId: SessionId,
 	turnId: Schema.optionalKey(TurnId),
+	// #274: the provider's own deterministic id for this one reading, which
+	// the desktop dedups on -- canonical-usage-telemetry.ts drops a reading
+	// whose id matches lastTelemetryEventId, so a redelivered or replayed
+	// reading stops double-counting the turn's spend. Codex derives one in its
+	// Map.ts from the thread, the turn and every token figure, and publishes it
+	// here. Copilot derives one the same way but has no usage publisher at all
+	// yet (its Adapter.ts folds every fact into SessionMetaUpdated), so its id
+	// still stops at the fact. Optional and nullable for the same replay reason as
+	// ToolCallObservedPayload's output above: events appended before this field
+	// existed carry no key. Null when a provider has no id for the reading, in
+	// which case the desktop simply applies it.
+	eventId: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey),
 	inputTokens: Schema.optionalKey(Schema.Number),
 	outputTokens: Schema.optionalKey(Schema.Number),
 	totalTokens: Schema.optionalKey(Schema.Number),
