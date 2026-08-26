@@ -52,11 +52,15 @@ export const makeWatchdogLoop = (
 			const oldQuery = yield* Ref.get(runtime.queryRef)
 			// A stall can be a stall ON a permission: the SDK is blocked on
 			// canUseTool, nothing streams, and the recovery below throws away
-			// the query that asked. Drained before attachQuery installs the
-			// replacement, so a permission belonging to the NEW query can
-			// never be caught by this. See drainPendingPermissions.
+			// the query that asked. Drained before teardownQuery because that
+			// pending canUseTool is exactly what wedges the SDK's own
+			// interrupt(), then again after it for the permission the SDK can
+			// still raise while interrupt() is in flight. Both are ahead of
+			// attachQuery, so a permission belonging to the NEW query can
+			// never be caught by either. See drainPendingPermissions.
 			yield* drainPendingPermissions(runtime)
 			yield* teardownQuery(oldQuery, cancelInterruptTimeout)
+			yield* drainPendingPermissions(runtime)
 			yield* attachQuery(runtime, state.providerSessionId, nextGeneration)
 		}
 	})

@@ -310,10 +310,15 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 		yield* Ref.set(runtime.turnOpenedAtMs, Option.none())
 		// The cancelled turn's tool call is abandoned with it, and the query
 		// that would have run the tool is about to be torn down — so nothing
-		// will ever answer a permission it left pending. Drained here, before
-		// the teardown, while this runtime still has no replacement query
-		// that could own a NEW pending permission. See
-		// drainPendingPermissions.
+		// will ever answer a permission it left pending. Drained BEFORE the
+		// teardown because teardownQuery's first step is the SDK's own
+		// interrupt(), and a wedged interrupt is exactly what a pending
+		// canUseTool produces: leaving it for after the teardown would make
+		// every cancel-on-a-permission pay the full cancelInterruptTimeout,
+		// on ProviderBridge's single shared dispatcher fiber. Drained AGAIN
+		// after the teardown, see below. The drain is idempotent: it empties
+		// the map, and a second Deferred.succeed on an already-resolved
+		// deferred does nothing. See drainPendingPermissions.
 		yield* drainPendingPermissions(runtime)
 		// Bump generation BEFORE tearing the old query down (not after, and
 		// not skipped just because nothing attaches a replacement here): once
@@ -327,6 +332,16 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 		yield* Ref.update(runtime.generation, (current) => current + 1)
 		const oldQuery = yield* Ref.get(runtime.queryRef)
 		yield* teardownQuery(oldQuery, cancelInterruptTimeout)
+		// The teardown window: the tool call was already running when the
+		// cancel arrived, so the SDK can still reach canUseTool while
+		// interrupt() is in flight. A permission raised there survives the
+		// drain above, and the old listener's own cleanup skips its drain
+		// because the generation bump already told it a newer generation
+		// owns the runtime — so nothing else would ever resolve it. Safe
+		// here, and only here, because cancelTurn deliberately attaches no
+		// replacement query: no NEW query's permission can exist yet, that
+		// is sendPrompt's lazy reattach.
+		yield* drainPendingPermissions(runtime)
 		yield* Ref.set(runtime.needsReattach, true)
 	})
 
@@ -347,11 +362,16 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 			(runtime) =>
 				// Drained first, for the same reason the query is torn down at
 				// all: an app quitting must not leave the SDK's canUseTool
-				// promise pending on a session that is going away. See
+				// promise pending on a session that is going away, and a
+				// pending one wedges teardownQuery's interrupt() until the
+				// timeout. Drained again afterwards for the teardown window —
+				// same reasoning as cancelTurn's, and safe for the same reason:
+				// shutdown attaches no replacement query. See
 				// drainPendingPermissions.
 				drainPendingPermissions(runtime).pipe(
 					Effect.andThen(Ref.get(runtime.queryRef)),
 					Effect.flatMap((queryHandle) => teardownQuery(queryHandle, cancelInterruptTimeout)),
+					Effect.andThen(drainPendingPermissions(runtime)),
 					Effect.andThen(Scope.close(runtime.sessionScope, Exit.void))
 				),
 			{ discard: true, concurrency: "unbounded" }

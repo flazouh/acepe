@@ -954,6 +954,70 @@ Vitest.describe("ClaudeAdapter", () => {
 		})
 	)
 
+	// The teardown window: the tool call was already running when the cancel
+	// arrived, so the SDK can still reach canUseTool while interrupt() is in
+	// flight. A drain that only runs BEFORE teardownQuery never sees that
+	// permission, and the listener's own cleanup skips its drain because
+	// cancelTurn already bumped the generation — so nothing resolves it and
+	// the SDK waits forever, the very hang the drain exists to prevent.
+	Vitest.it.live("denies a permission the SDK raises while the query is torn down", () =>
+		Effect.gen(function*() {
+			const inbound = yield* Queue.unbounded<Json, Done>()
+			let capturedCanUseTool: ClaudeCanUseTool | undefined
+			let raisedDuringTeardown: Promise<unknown> | undefined
+			const adapter = yield* makeClaudeAdapter({
+				presence: Effect.succeed(claudePresence(true, true)),
+				createQuery: (input) => {
+					capturedCanUseTool = input.canUseTool
+					return Effect.succeed({
+						messages: Stream.fromQueue(inbound),
+						interrupt: Effect.sync(() => {
+							raisedDuringTeardown = input.canUseTool(
+								"Edit",
+								{ file_path: "/tmp/acepe/late.txt" },
+								{ toolUseID: "toolu_during_teardown" }
+							)
+							// Long enough for the detached fiber behind that promise
+							// to register its deferred before teardown finishes.
+						}).pipe(Effect.andThen(Effect.sleep(Duration.millis(30)))),
+						close: Queue.end(inbound).pipe(Effect.asVoid)
+					} satisfies ClaudeQueryHandle)
+				},
+				cancelInterruptTimeout: Duration.millis(500)
+			})
+			const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
+			yield* adapter
+				.startSession({ sessionId, projectId, workspaceRoot: "/tmp/acepe" })
+				.pipe(
+					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
+					Effect.forkChild({ startImmediately: true })
+				)
+			yield* Queue.take(events) // deferred_open
+			yield* Stream.runCollect(
+				adapter.sendPrompt({ sessionId, messageId, text: "Edit a file for me" })
+			)
+			if (capturedCanUseTool === undefined) {
+				Vitest.assert.fail("expected createQuery to receive a canUseTool callback")
+				return
+			}
+			yield* adapter.cancelTurn({ sessionId })
+			const raised = raisedDuringTeardown
+			if (raised === undefined) {
+				Vitest.assert.fail("expected the teardown to raise a permission")
+				return
+			}
+			const decision = yield* Effect.promise(() => raised).pipe(
+				Effect.timeoutOption(ABANDONED_DECISION_TIMEOUT)
+			)
+			if (Option.isNone(decision)) {
+				Vitest.assert.fail(
+					"a permission raised during teardown was left pending forever"
+				)
+				return
+			}
+		})
+	)
+
 	Vitest.it.live("shutdown denies a permission the SDK is still blocked on", () =>
 		Effect.gen(function*() {
 			const inbound = yield* Queue.unbounded<Json, Done>()
