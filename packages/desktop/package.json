@@ -23,6 +23,8 @@
 		"test:vitest": "bun run check:diagnostic-import-boundary && bun run check:conversation-builder-import-boundary && bun run check:tauri-invokes && bun ../../scripts/forbid-structural-tests.ts src && vitest run",
 		"test:vitest:watch": "vitest",
 		"electrobun:build": "bash ../../scripts/build-electrobun.sh",
+		"app:dev": "bash ../../scripts/dev-app.sh",
+		"app:dev:stop": "bash ../../scripts/dev-app.sh stop",
 		"format": "biome format --write .",
 		"format:check": "biome check .",
 		"lint": "biome check . && bun run check:diagnostic-import-boundary",

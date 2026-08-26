@@ -157,9 +157,23 @@ For dev QA, inspect only one of these:
 2. the Electrobun app from this checkout, normally `packages/desktop/electrobun-build/stable-macos-arm64/Acepe.app`
 3. Computer Use attached to that Electrobun window, only after proving it is not `/Applications/Acepe.app`
 
-If the app is not running, build it from `packages/desktop` with `bun run electrobun:build`
-and open the resulting `Acepe.app`. Acepe has no Rust and no Tauri. Always
-note when you started or rebuilt it.
+If the app is not running, start the dev loop from `packages/desktop`:
+
+```bash
+bun run app:dev # dev server under launchd, app opened in the background
+bun run app:dev:stop # stops both
+```
+
+`app:dev` starts Vite on port 1420 through `launchctl`, exports
+`ACEPE_DEV_URL=http://localhost:1420`, and opens the app with `open -g`. The
+window then loads the dev server, so the app survives your shell commands and
+never steals focus. It builds the bundle once when it is missing.
+
+Never launch the app with `./launcher` inside a shell command and never use a
+plain `open`. A `launcher` child dies when the command ends, and plain `open`
+activates the window, which is what turns QA into a relaunch loop.
+
+Acepe has no Rust and no Tauri. Always note when you started or rebuilt it.
 
 ## Required Order
 
@@ -183,11 +197,13 @@ If only `/Applications/Acepe.app` is visible, stop and tell the user dev QA is b
 
 QA is only valid against a build that actually contains the code under test.
 
-- **Frontend (`.svelte` / `.ts` under `packages/desktop/src`)** can use the Vite
-  dev server when the Electrobun window loads `localhost:1420`. Wait for HMR,
-  then QA.
+- **Frontend (`.svelte` / `.ts` under `packages/desktop/src` and
+  `packages/ui/src`)** needs no rebuild under `bun run app:dev`. Save the file,
+  wait about 5 to 10 seconds for the HMR update, then QA. Confirm the window is
+  on the dev server first: `bun run qa doctor` prints
+  `url: http://localhost:1420`.
 - **Electrobun shell (`packages/desktop/src/bun` and `packages/electrobun-shell`)**
-  needs `bun run electrobun:build` and a new open of the app.
+  and the Bun services need `bun run electrobun:build` and a new open of the app.
 
 Acepe has no Rust binary. Do not look under `src-tauri`.
 

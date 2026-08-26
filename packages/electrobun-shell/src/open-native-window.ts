@@ -100,6 +100,9 @@ export type LaunchedElectrobunAcepe<Rpc> = LaunchedAcepeShell<Rpc> & {
 
 export type ElectrobunAcepeAppOptions = {
 	readonly preload: string | null
+	// Dev loop only: the Vite dev server origin, so HMR replaces rebuilds.
+	// Null keeps the copied svelte bundle.
+	readonly devUrl: string | null
 }
 
 export const startElectrobunAcepeApp = <Rpc>(
@@ -151,7 +154,7 @@ export const startElectrobunAcepeApp = <Rpc>(
 			openWindow: (input) => {
 				const opened = {
 					title: input.title,
-					url: input.url,
+					url: appOptions === undefined ? input.url : (appOptions.devUrl ?? input.url),
 					frame: input.frame,
 					titleBarStyle: input.titleBarStyle,
 					activate: input.activate,

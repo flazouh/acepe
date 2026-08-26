@@ -23,7 +23,14 @@ bun run check            # TypeScript check (run after every TS change)
 bun test                 # Tests
 bun run build            # Frontend build
 bun run electrobun:build # Desktop app (Electrobun, no Rust)
+bun run app:dev          # One long-lived dev app; UI changes arrive through HMR
+bun run app:dev:stop     # Stop the dev server and the app
 ```
+
+`app:dev` points the window at the Vite dev server on port 1420, so a change
+under `packages/desktop/src` or `packages/ui/src` updates the running app with no
+rebuild and no relaunch. Only Bun-side changes (`src/bun`,
+`@acepe/electrobun-shell`, `@acepe/server`) need `electrobun:build`.
 
 **Git hooks (Lefthook):** `bun install` runs `lefthook install`. Pre-commit = Biome on staged files + cheap forbids. Pre-push = path-aware CI mirror (`scripts/git-hooks/pre-push-affected.ts`). Override locally with `lefthook-local.yml` (gitignored).
 

@@ -7,6 +7,7 @@ import {
 	qaSurfaceEnabled,
 	RPC_ROUNDTRIP_MESSAGE,
 	RPC_ROUNDTRIP_PREFIX,
+	readDevWindowUrl,
 	resolveElectrobunConfig,
 	SHELL_PROOF_LOG_PATH,
 	SHELL_STARTUP_FAILED_PREFIX,
@@ -112,7 +113,10 @@ const launched = startElectrobunAcepeApp(
 		},
 		exit: (code) => process.exit(code),
 	},
-	{ preload: qaWindowPreload(qaEnabled, qaPreloadScript) }
+	{
+		preload: qaWindowPreload(qaEnabled, qaPreloadScript),
+		devUrl: readDevWindowUrl(process.env.ACEPE_DEV_URL),
+	}
 );
 
 launched.attach({

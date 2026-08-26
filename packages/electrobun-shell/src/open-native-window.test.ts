@@ -311,8 +311,65 @@ test("startElectrobunAcepeApp forwards a QA preload into the native window", () 
 				throw new ShellExitCalled({ code })
 			},
 		},
-		{ preload: "window.__electrobunQa = {};" },
+		{ preload: "window.__electrobunQa = {};", devUrl: null },
 	)
 	expect(created).toEqual(["window.__electrobunQa = {};"])
 	expect(launched.opened.preload).toBe("window.__electrobunQa = {};")
+})
+
+const urlRecordingBindings = (created: Array<string>) => ({
+	defineRPC: (input: { readonly handlers: { readonly requests: unknown } }) =>
+		input.handlers.requests,
+	BrowserWindow: class {
+		ptr = 1
+		id = 1
+		webview = {
+			rpc: {
+				send: {
+					events: () => undefined,
+				},
+			},
+			executeJavascript: () => undefined,
+		}
+		constructor(options: { readonly url: string }) {
+			created.push(options.url)
+		}
+		setPageZoom(): void {
+			return undefined
+		}
+		show(): void {
+			return undefined
+		}
+		activate(): void {
+			return undefined
+		}
+	},
+	setDockIconVisible: () => undefined,
+})
+
+const silentIo = {
+	writeError: () => undefined,
+	exit: (code: number) => {
+		throw new ShellExitCalled({ code })
+	},
+}
+
+test("startElectrobunAcepeApp loads a dev url instead of the copied bundle", () => {
+	const created: Array<string> = []
+	const launched = startElectrobunAcepeApp(urlRecordingBindings(created), silentIo, {
+		preload: null,
+		devUrl: "http://localhost:1420",
+	})
+	expect(created).toEqual(["http://localhost:1420"])
+	expect(launched.opened.url).toBe("http://localhost:1420")
+})
+
+test("startElectrobunAcepeApp keeps the copied bundle without a dev url", () => {
+	const created: Array<string> = []
+	const launched = startElectrobunAcepeApp(urlRecordingBindings(created), silentIo, {
+		preload: null,
+		devUrl: null,
+	})
+	expect(created).toEqual(["views://mainview/index.html"])
+	expect(launched.opened.url).toBe("views://mainview/index.html")
 })
