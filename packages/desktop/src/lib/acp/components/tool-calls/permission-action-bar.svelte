@@ -2,7 +2,7 @@
 import { FilePathBadge } from "@acepe/ui/file-path-badge";
 import { Button } from "@acepe/ui/button";
 import { HugeiconsIcon } from "@acepe/ui";
-import { getPermissionStore } from "../../store/permission-store.svelte.js";
+import { getPermissionStore, runPermissionReply } from "../../store/permission-store.svelte.js";
 import type { PermissionRequest } from "../../types/permission.js";
 import { COLOR_NAMES, Colors } from "@acepe/ui/colors";
 import { extractCompactPermissionDisplay } from "./permission-display.js";
@@ -30,15 +30,15 @@ const compactDisplay = $derived(extractCompactPermissionDisplay(permission, proj
 const selectedReply = $derived(permissionStore.getReplyInFlight(permission.id));
 
 function handleReject() {
-	permissionStore.reply(permission.id, "reject");
+	runPermissionReply(permissionStore, permission.id, "reject");
 }
 
 function handleAllowOnce() {
-	permissionStore.reply(permission.id, "once");
+	runPermissionReply(permissionStore, permission.id, "once");
 }
 
 function handleAlwaysAllow() {
-	permissionStore.reply(permission.id, "always");
+	runPermissionReply(permissionStore, permission.id, "always");
 }
 
 const greenColor = "var(--success)";

@@ -31,6 +31,7 @@ import {
 	createPanelStore,
 	createPermissionStore,
 	createPlanPreferenceStore,
+	runPermissionReply,
 	createPlanStore,
 	createQuestionStore,
 	createReviewPreferenceStore,
@@ -1146,11 +1147,11 @@ function showPermissionNotification(
 		(actionId) => {
 			if (!interactionStore.permissionsPending.has(permission.id)) return;
 			if (actionId === "allow") {
-				permissionStore.reply(permission.id, "once");
+				runPermissionReply(permissionStore, permission.id, "once");
 			} else if (actionId === "allow-always") {
-				permissionStore.reply(permission.id, "always");
+				runPermissionReply(permissionStore, permission.id, "always");
 			} else if (actionId === "deny") {
-				permissionStore.reply(permission.id, "reject");
+				runPermissionReply(permissionStore, permission.id, "reject");
 			} else if (actionId === "view") {
 				focusOrOpenSessionPanel(permission.sessionId);
 			}

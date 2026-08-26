@@ -14,6 +14,7 @@
 
 import * as Effect from "effect/Effect";
 import { getContext, setContext } from "svelte";
+import { toast } from "svelte-sonner";
 import { SvelteMap } from "svelte/reactivity";
 import type { AppError } from "../errors/app-error.js";
 import { AgentError } from "../errors/app-error.js";
@@ -542,4 +543,39 @@ export function createPermissionStore(interactions?: InteractionStore): Permissi
  */
 export function getPermissionStore(): PermissionStore {
 	return getContext<PermissionStore>(PERMISSION_STORE_KEY);
+}
+
+/**
+ * Fires a permission reply from a UI event handler.
+ *
+ * `PermissionStore.reply()` returns a lazy `Effect` -- it describes the
+ * reply, it does not send it. Every Allow/Always/Deny button used to call
+ * `permissionStore.reply(id, choice)` directly and discard the returned
+ * Effect, never running it. `reply()`'s own synchronous prelude (marking
+ * `repliesInFlight` before the `Effect.gen` it returns) was enough to hide
+ * the buttons -- `getReplyInFlight`/`selectedReply` go non-null the instant
+ * `reply()` is CALLED, not once the network round trip actually completes --
+ * so the click looked like it worked while the reply Effect, the one that
+ * calls `api.replyInteraction` and unblocks the agent's pending permission,
+ * never ran. The turn stayed blocked until an inactivity watchdog eventually
+ * killed it: verified live (AC-280) -- zero `InteractionReplied` events and
+ * zero `interaction.reply` command receipts ever reached the server, even
+ * though the buttons visibly disappeared right after the click. Every
+ * caller must route through this instead of calling `.reply()` bare.
+ */
+export function runPermissionReply(
+	store: PermissionStore,
+	permissionId: string,
+	reply: PermissionReplyChoice
+): void {
+	Effect.runFork(
+		store.reply(permissionId, reply).pipe(
+			Effect.match({
+				onSuccess: () => {},
+				onFailure: (error) => {
+					toast.error(`Failed to answer permission request: ${error.message}`);
+				},
+			})
+		)
+	);
 }

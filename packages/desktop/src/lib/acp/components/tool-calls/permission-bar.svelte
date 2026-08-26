@@ -5,7 +5,7 @@ import {
 	AgentPanelPermissionBarProgress,
 	AgentPanelPermissionBarActions,
 } from "@acepe/ui/agent-panel";
-import { getPermissionStore } from "../../store/permission-store.svelte.js";
+import { getPermissionStore, runPermissionReply } from "../../store/permission-store.svelte.js";
 import { getSessionStore } from "../../store/session-store.svelte.js";
 import type { PermissionRequest } from "../../types/permission.js";
 import type { ToolCall } from "../../types/tool-call.js";
@@ -164,13 +164,13 @@ const editTheme = $derived(themeState.effectiveTheme);
 				selectedReply={effectiveSelectedReply}
 				showAlwaysAllow={displayPermission.always !== undefined && displayPermission.always.length > 0}
 				onAllow={() => {
-					if (canReply) permissionStore.reply(displayPermission.id, "once");
+					if (canReply) runPermissionReply(permissionStore, displayPermission.id, "once");
 				}}
 				onAlwaysAllow={() => {
-					if (canReply) permissionStore.reply(displayPermission.id, "always");
+					if (canReply) runPermissionReply(permissionStore, displayPermission.id, "always");
 				}}
 				onDeny={() => {
-					if (canReply) permissionStore.reply(displayPermission.id, "reject");
+					if (canReply) runPermissionReply(permissionStore, displayPermission.id, "reject");
 				}}
 			/>
 		{/snippet}

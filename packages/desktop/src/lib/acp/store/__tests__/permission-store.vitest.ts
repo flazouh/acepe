@@ -7,7 +7,13 @@ import type { OperationSnapshot } from "../../../services/acp-types.js";
 import { AgentError, type AppError } from "../../errors/app-error.js";
 import { buildAcpPermissionId, type PermissionRequest } from "../../types/permission.js";
 import { OperationStore } from "../operation-store.svelte.js";
-import { PermissionStore } from "../permission-store.svelte.js";
+import { PermissionStore, runPermissionReply } from "../permission-store.svelte.js";
+
+const mockToastError = vi.hoisted(() => vi.fn());
+
+vi.mock("svelte-sonner", () => ({
+	toast: { error: mockToastError },
+}));
 
 function createAcpPermission(
 	sessionId: string,
@@ -592,6 +598,64 @@ describe("PermissionStore", () => {
 				secondPermission.id,
 			]);
 			expect(store.getSessionProgress("session-batch")).toEqual({ total: 2, completed: 1 });
+		});
+	});
+
+	describe("runPermissionReply", () => {
+		// AC-280: every Allow/Always/Deny button used to call
+		// `permissionStore.reply(id, choice)` and discard the returned Effect --
+		// the reply description was built but never run, so the actual
+		// `api.replyInteraction` dispatch (mockReplyInteraction here) never
+		// fired even though the button visibly went away. `runPermissionReply`
+		// is the fix: it must actually execute the Effect `reply()` returns.
+		it("actually dispatches the reply instead of only constructing the Effect", async () => {
+			const permission: PermissionRequest = {
+				id: "perm-run",
+				sessionId: "session-run",
+				permission: "ReadFile",
+				patterns: [],
+				metadata: {},
+				always: [],
+			};
+			store.add(permission);
+
+			runPermissionReply(store, "perm-run", "once");
+
+			// Effect.runFork starts the fiber synchronously up to its first
+			// suspension point, but the reply's own Effect.gen body still needs
+			// a microtask turn to run to completion -- flush the microtask queue
+			// once before asserting.
+			await Effect.runPromise(Effect.void);
+
+			expect(mockReplyInteraction).toHaveBeenCalledWith(
+				expect.objectContaining({ sessionId: "session-run", interactionId: "perm-run" })
+			);
+			expect(store.pending.has("perm-run")).toBe(false);
+		});
+
+		it("surfaces a failed reply as a toast instead of failing silently", async () => {
+			mockReplyInteraction.mockReturnValueOnce(
+				Effect.fail(new AgentError("replyPermission", new Error("network down")))
+			);
+			const permission: PermissionRequest = {
+				id: "perm-run-fail",
+				sessionId: "session-run-fail",
+				permission: "ReadFile",
+				patterns: [],
+				metadata: {},
+				always: [],
+			};
+			store.add(permission);
+
+			runPermissionReply(store, "perm-run-fail", "once");
+			await Effect.runPromise(Effect.void);
+
+			expect(mockToastError).toHaveBeenCalledWith(
+				expect.stringContaining("Failed to answer permission request")
+			);
+			// A failed reply is restored so the buttons come back, not left
+			// permanently "answered" with nothing sent.
+			expect(store.pending.has("perm-run-fail")).toBe(true);
 		});
 	});
 

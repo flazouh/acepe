@@ -61,6 +61,7 @@ export {
 	createPermissionStore,
 	getPermissionStore,
 	PermissionStore,
+	runPermissionReply,
 } from "./permission-store.svelte.js";
 export {
 	createPlanPreferenceStore,
