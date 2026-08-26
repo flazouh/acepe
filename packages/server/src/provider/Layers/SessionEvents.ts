@@ -54,9 +54,15 @@ export const toolCallActivityId = (toolCallId: string): ActivityId =>
 // A tool_call_update fact that arrives with no cached start info, e.g. the
 // start was missed across a resume boundary, or a tool-result part landed
 // with no preceding tool part. Falls back to a generic, still-nonempty title
-// rather than dropping the status transition on the floor; mergeActivityRow
-// on the projector side keeps this only until a better title arrives for the
-// same activityId.
+// rather than dropping the status transition on the floor.
+//
+// This title is permanent once it lands. The four copies this replaced all
+// claimed mergeActivityRow would swap in a better title later, but that
+// merge only replaces a title equal to STUB_ACTIVITY_TITLE ("activity") --
+// see ProjectionSessionActivities.ts's isStubTitle -- and "Tool" is not that
+// sentinel. So a row that starts on the fallback keeps it even when the real
+// title arrives afterwards. Left as found: the fix belongs in the projector's
+// stub vocabulary, not in a provider's fallback string.
 export const FALLBACK_TOOL_TITLE = "Tool"
 
 // completed and failed are the two ObservedToolStatus values no further
