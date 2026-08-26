@@ -1,5 +1,7 @@
 import * as Schema from "effect/Schema"
 
+// The ACP ToolKind enum in full, in its own order: Cursor sends this field
+// verbatim, so a literal missing here decodes to "other" and loses the kind.
 export const CURSOR_ACP_TOOL_KINDS = [
 	"read",
 	"edit",
@@ -9,6 +11,7 @@ export const CURSOR_ACP_TOOL_KINDS = [
 	"execute",
 	"think",
 	"fetch",
+	"switch_mode",
 	"other"
 ] as const
 export const CursorAcpToolKind = Schema.Literals(CURSOR_ACP_TOOL_KINDS)

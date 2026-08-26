@@ -8,11 +8,13 @@ Vitest.describe("detectCursorToolKind", () => {
 		Vitest.assert.strictEqual(detectCursorToolKind("write_file"), "edit")
 		Vitest.assert.strictEqual(detectCursorToolKind("apply-patch"), "edit")
 		Vitest.assert.strictEqual(detectCursorToolKind(" Terminal "), "execute")
+		Vitest.assert.strictEqual(detectCursorToolKind("Switch mode"), "switch_mode")
 	})
 
 	Vitest.it("accepts an ACP tool kind sent verbatim", () => {
 		Vitest.assert.strictEqual(detectCursorToolKind("search"), "search")
 		Vitest.assert.strictEqual(detectCursorToolKind("think"), "think")
+		Vitest.assert.strictEqual(detectCursorToolKind("switch_mode"), "switch_mode")
 		Vitest.assert.strictEqual(detectCursorToolKind("other"), "other")
 	})
 

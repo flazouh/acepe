@@ -50,6 +50,9 @@ export const detectCursorToolKind = (name: string): CursorAcpToolKind => {
 	if (folded === "fetch" || folded === "webfetch" || folded === "websearch") {
 		return "fetch"
 	}
+	if (folded === "switchmode") {
+		return "switch_mode"
+	}
 	const decoded = decodeToolKind(name)
 	if (Exit.isSuccess(decoded)) {
 		return decoded.value
