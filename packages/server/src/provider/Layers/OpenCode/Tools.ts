@@ -123,18 +123,10 @@ export const detectOpenCodeToolKind = (name: string): OpenCodeToolKind => {
 	if (nameIn(folded, ["exitplan", "exitplanmode", "exit_plan_mode", "execute_plan"])) {
 		return "exit_plan_mode"
 	}
-	if (
-		nameIn(folded, [
-			"think",
-			"reason",
-			"task",
-			"spawn",
-			"agent",
-			"subagent",
-			"delegate",
-			"spawntask"
-		])
-	) {
+	if (nameIn(folded, ["think", "reason"])) {
+		return "think"
+	}
+	if (nameIn(folded, ["task", "spawn", "agent", "subagent", "delegate", "spawntask"])) {
 		return "task"
 	}
 	return "other"
