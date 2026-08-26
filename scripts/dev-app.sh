@@ -25,10 +25,22 @@ serving() {
   curl -sf -o /dev/null --max-time 2 "$DEV_URL/" 2>/dev/null
 }
 
+# strictPort makes Vite exit when the port is still held by a dying server, and
+# launchd then restarts it into the same failure, so wait for the port to free.
+wait_for_free_port() {
+  for _ in $(seq 1 20); do
+    lsof -nP -iTCP:1420 -sTCP:LISTEN >/dev/null 2>&1 || return 0
+    sleep 1
+  done
+  echo "port 1420 is still in use" >&2
+  return 1
+}
+
 if [ "${1:-start}" = "stop" ]; then
   launchctl remove "$LABEL" 2>/dev/null || true
   launchctl unsetenv ACEPE_DEV_URL
   osascript -e 'tell application "Acepe" to quit' 2>/dev/null || true
+  wait_for_free_port || true
   echo "dev app stopped"
   exit 0
 fi
@@ -46,14 +58,20 @@ if serving; then
   echo "dev server already serving $DEV_URL"
 else
   launchctl remove "$LABEL" 2>/dev/null || true
+  wait_for_free_port
+  # ACEPE_ELECTROBUN_DEV makes the dev server reload the window on a code edit,
+  # because Svelte's in-place swap does not repaint this tree in the WebView.
   launchctl submit -l "$LABEL" -o "$LOG" -e "$LOG" -- \
-    /bin/sh -c "cd '$DESKTOP' && VITE_ENABLE_QA_HOOKS=1 exec $(command -v bun) run dev"
-  for _ in $(seq 1 40); do
+    /bin/sh -c "cd '$DESKTOP' && VITE_ENABLE_QA_HOOKS=1 ACEPE_ELECTROBUN_DEV=1 exec $(command -v bun) run dev"
+  # A first start, or any vite.config.js change, re-optimizes dependencies and
+  # can take over a minute before the server answers.
+  for _ in $(seq 1 150); do
     serving && break
     sleep 1
   done
   if ! serving; then
-    echo "dev server did not answer on $DEV_URL. See $LOG" >&2
+    echo "dev server did not answer on $DEV_URL:" >&2
+    tail -5 "$LOG" >&2
     exit 1
   fi
   echo "dev server serving $DEV_URL (launchd label $LABEL, log $LOG)"
@@ -63,6 +81,10 @@ if pgrep -f 'Acepe.app/Contents/MacOS' >/dev/null; then
   echo "app already running. Edit a component and the window updates in place."
   exit 0
 fi
+
+# A killed instance leaves its QA socket file behind, and the next instance then
+# fails to bind it, which reads as "no Electrobun app is listening".
+rm -f "/tmp/electrobun-qa/com.acepe.app.sock"
 
 open -g "$APP"
 echo "app started in the background from $APP"

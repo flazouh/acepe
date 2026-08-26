@@ -72,8 +72,65 @@ function acepeUiPackageDev() {
 	};
 }
 
+/**
+ * Reload the Electrobun window on a code edit instead of trusting in-place HMR.
+ *
+ * Measured in the real WebView (scripts/dev-app.sh loop): the HMR update reaches
+ * the page and an accept callback registered on the component path does fire, but
+ * Svelte's own swap leaves the rendered tree on the old version. A `label` change
+ * in top-bar.svelte never appeared, while `/src/app.css` hot-updated every time.
+ * A window that shows stale UI is worse than a reload, because QA then reads a DOM
+ * that does not match the code under test.
+ *
+ * So: CSS keeps native HMR, and any other edit reloads the document, which costs
+ * about 7 seconds and no rebuild. This is gated on the dev-app loop, so a browser
+ * client on port 1420 keeps the native HMR behaviour described above.
+ *
+ * @returns {import("vite").Plugin}
+ */
+function acepeElectrobunDevReload() {
+	const electrobunDevLoop = process.env.ACEPE_ELECTROBUN_DEV === "1";
+	const sourceRoots = [path.resolve(viteConfigDir, "src"), uiPackageSrc];
+	const reloadable = /\.(svelte|ts|js)$/;
+	let lastReloadAt = 0;
+
+	return {
+		name: "acepe-electrobun-dev-reload",
+		apply: "serve",
+		handleHotUpdate({ file, server }) {
+			if (electrobunDevLoop === false) {
+				return undefined;
+			}
+			const normalizedFile = path.normalize(file);
+			const isSource = sourceRoots.some((root) => normalizedFile.startsWith(root));
+			if (isSource === false || reloadable.test(normalizedFile) === false) {
+				return undefined;
+			}
+			// One save touches several modules, and every reload re-requests the
+			// whole dev module graph, so collapse a burst into a single reload.
+			// Back-to-back reloads also killed the WebView while a QA script was
+			// reading the DOM, so keep the window wide enough to cover a save burst.
+			const now = Date.now();
+			if (now - lastReloadAt < 1200) {
+				return [];
+			}
+			lastReloadAt = now;
+			// server.hot replaced server.ws in Vite 6; keep both so a version bump
+			// cannot silently turn this into a no-op.
+			const channel = server.hot ?? server.ws;
+			channel.send({ type: "full-reload" });
+			server.config.logger.info(`[acepe] full reload for ${normalizedFile}`);
+			return [];
+		},
+	};
+}
+
 const ignoredDevWatchPaths = [
 	"**/src-tauri/**",
+	// The built Electrobun app lives here. Watching it made every build artifact
+	// look like a source change.
+	"**/electrobun-build/**",
+	"**/electrobun-artifacts/**",
 	"**/__tests__/**",
 	"**/*.test.{js,ts}",
 	"**/*.spec.{js,ts}",
@@ -93,7 +150,7 @@ export default defineConfig({
 	worker: {
 		format: "es",
 	},
-	plugins: [acepeUiPackageDev(), sveltekit(), tailwindcss()],
+	plugins: [acepeUiPackageDev(), acepeElectrobunDevReload(), sveltekit(), tailwindcss()],
 
 	resolve: {
 		// Canonical @acepe/ui module identity for watcher + HMR alignment.

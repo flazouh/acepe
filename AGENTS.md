@@ -28,8 +28,10 @@ bun run app:dev:stop     # Stop the dev server and the app
 ```
 
 `app:dev` points the window at the Vite dev server on port 1420, so a change
-under `packages/desktop/src` or `packages/ui/src` updates the running app with no
-rebuild and no relaunch. Only Bun-side changes (`src/bun`,
+under `packages/desktop/src` or `packages/ui/src` reaches the running app in
+about 1.5 seconds with no rebuild and no relaunch. CSS hot-updates in place;
+other code edits reload the window, because Svelte's in-place swap leaves the
+WebView showing stale UI. Only Bun-side changes (`src/bun`,
 `@acepe/electrobun-shell`, `@acepe/server`) need `electrobun:build`.
 
 **Git hooks (Lefthook):** `bun install` runs `lefthook install`. Pre-commit = Biome on staged files + cheap forbids. Pre-push = path-aware CI mirror (`scripts/git-hooks/pre-push-affected.ts`). Override locally with `lefthook-local.yml` (gitignored).

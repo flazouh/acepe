@@ -199,9 +199,14 @@ QA is only valid against a build that actually contains the code under test.
 
 - **Frontend (`.svelte` / `.ts` under `packages/desktop/src` and
   `packages/ui/src`)** needs no rebuild under `bun run app:dev`. Save the file,
-  wait about 5 to 10 seconds for the HMR update, then QA. Confirm the window is
-  on the dev server first: `bun run qa doctor` prints
-  `url: http://localhost:1420`.
+  wait about 2 seconds, then QA. Confirm the window is on the dev server first:
+  `bun run qa doctor` prints `url: http://localhost:1420`.
+  A code edit reloads the window (measured 1.5 s), a `.css` edit hot-updates in
+  place. Svelte in-place HMR does not repaint this tree in the WebView, so the
+  dev server reloads instead of leaving a stale DOM.
+  Do not poll the DOM every few hundred milliseconds across that reload: a
+  reload during a `js()` burst killed the WebView. Read once after the wait. If
+  the app dies, `bun run app:dev` brings it back.
 - **Electrobun shell (`packages/desktop/src/bun` and `packages/electrobun-shell`)**
   and the Bun services need `bun run electrobun:build` and a new open of the app.
 
