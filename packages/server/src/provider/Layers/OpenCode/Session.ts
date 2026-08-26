@@ -236,8 +236,8 @@ const publishToolCallUpdated = Effect.fn("OpenCodeAdapter.publishToolCallUpdated
 	fact: Extract<OpenCodeContractFact, { readonly contractKind: "tool_call_update" }>
 ) {
 	if (fact.status === undefined) {
-		// A pure streaming-argument update (partialJson) — no status
-		// transition to project.
+		// An update with no status transition, so there is no new row state to
+		// project yet.
 		return
 	}
 	const info = yield* takeOpenToolCall(runtime.openToolCalls, fact.toolCallId, fact.status)

@@ -143,7 +143,37 @@ Vitest.describe("mapSseJson", () => {
 				contractKind: "tool_call_update",
 				toolCallId: "call_func_1",
 				status: "completed",
-				partialJson: "file1.txt file2.txt"
+				output: "file1.txt file2.txt"
+			}
+		])
+	})
+
+	// #273: state.error is the failed tool call's result, so it lands in the
+	// same field as state.output rather than in one of its own.
+	Vitest.it("maps a failed tool part's error as the tool call's output", () => {
+		const mapped = mapOnce({
+			type: "message.part.updated",
+			properties: {
+				part: {
+					id: "call_bash_1",
+					sessionID: "ses_abc",
+					messageID: "msg_456",
+					type: "tool",
+					callID: "call_bash_1",
+					tool: "bash",
+					state: {
+						status: "error",
+						error: "command not found: nope"
+					}
+				}
+			}
+		})
+		Vitest.assert.deepStrictEqual(mapped.facts, [
+			{
+				contractKind: "tool_call_update",
+				toolCallId: "call_bash_1",
+				status: "failed",
+				output: "command not found: nope"
 			}
 		])
 	})

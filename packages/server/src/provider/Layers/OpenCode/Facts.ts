@@ -51,11 +51,18 @@ export const ToolCallFact = Schema.Struct({
 })
 export type ToolCallFact = typeof ToolCallFact.Type
 
+// #273: this field was called partialJson, borrowed from the four sibling
+// providers where that name is right -- theirs carries a streaming
+// input_json_delta, the tool's arguments arriving in pieces (see
+// Claude/Map.ts's input_json_delta branch). OpenCode has no such stream. What
+// Map.ts puts here is state.output on a completed tool part and state.error on
+// a failed one, which is the tool's result. The wrong name is why Session.ts
+// read a finished tool result as "a streaming-argument update" and dropped it.
 export const ToolCallUpdateFact = Schema.Struct({
 	contractKind: Schema.Literal("tool_call_update"),
 	toolCallId: Schema.String.check(Schema.isNonEmpty()),
 	status: Schema.optionalKey(OpenCodeToolStatus),
-	partialJson: Schema.optionalKey(Schema.String)
+	output: Schema.optionalKey(Schema.String)
 })
 export type ToolCallUpdateFact = typeof ToolCallUpdateFact.Type
 
@@ -264,9 +271,9 @@ export const usageFact = (
 export const toolCallUpdateFact = (
 	toolCallId: string,
 	status: OpenCodeToolStatus,
-	partialJson: Option.Option<string>
+	output: Option.Option<string>
 ): ToolCallUpdateFact => {
-	if (Option.isNone(partialJson)) {
+	if (Option.isNone(output)) {
 		return {
 			contractKind: "tool_call_update",
 			toolCallId,
@@ -277,7 +284,7 @@ export const toolCallUpdateFact = (
 		contractKind: "tool_call_update",
 		toolCallId,
 		status,
-		partialJson: partialJson.value
+		output: output.value
 	}
 }
 
