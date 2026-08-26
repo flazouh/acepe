@@ -203,6 +203,57 @@ describe("graphFromReopenSnapshot", () => {
 		expect(operation?.locations).toEqual([{ path: "package.json" }]);
 	});
 
+	// #273, reopen half: a tool call's output now rides the snapshot activity
+	// row (RpcProjectedSessionActivity.output), so a reopened session must
+	// seed the same operation.result the live bridge sets -- AGENTS.md's rule
+	// that a historical session reconnects after snapshot hydration means both
+	// paths carry the same canonical facts, not one of them.
+	it("carries a historical activity's output onto the operation it seeds", () => {
+		const snapshot: RpcSessionSnapshot = {
+			...withMessages(2, []),
+			activities: [
+				{
+					activityId: ActivityId.make("activity-1"),
+					sessionId: SESSION_ID,
+					sequence: 1,
+					kind: "tool",
+					status: "completed",
+					title: "Read package.json",
+					path: "package.json",
+					toolCallId: ToolCallId.make("tool-1"),
+					output: '{ "name": "acepe" }',
+				},
+			],
+		};
+
+		const graph = graphFromReopenSnapshot(baseInput(snapshot));
+
+		expect(graph.operations).toHaveLength(1);
+		expect(graph.operations[0]?.result).toBe('{ "name": "acepe" }');
+	});
+
+	it("leaves the seeded operation result null when the activity carries no output", () => {
+		const snapshot: RpcSessionSnapshot = {
+			...withMessages(2, []),
+			activities: [
+				{
+					activityId: ActivityId.make("activity-1"),
+					sessionId: SESSION_ID,
+					sequence: 1,
+					kind: "tool",
+					status: "completed",
+					title: "Read package.json",
+					path: "package.json",
+					toolCallId: ToolCallId.make("tool-1"),
+				},
+			],
+		};
+
+		const graph = graphFromReopenSnapshot(baseInput(snapshot));
+
+		expect(graph.operations[0]?.result).toBeNull();
+	});
+
 	// AC-263 issue #263 defect 1: the server-side projection (sessionSnapshot.ts's
 	// upsertAssistant) merges every TokenAppended for one provider messageId
 	// into a SINGLE RpcAssistantProjectedMessage row -- text streamed before a

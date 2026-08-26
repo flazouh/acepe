@@ -402,6 +402,7 @@ export class OrchestrationCanonicalBridge {
 		readonly status: "pending" | "in_progress" | "completed" | "failed";
 		readonly title: string;
 		readonly path: string | null;
+		readonly output?: string | null;
 		readonly kind?: string | null;
 	}): AcpEventEnvelope[] {
 		const state = this.sessions.get(payload.sessionId);
@@ -466,7 +467,11 @@ export class OrchestrationCanonicalBridge {
 			title: payload.title,
 			arguments: noArguments,
 			progressive_arguments: null,
-			result: null,
+			// #273: the tool's own result, canonical on the observation itself.
+			// transcript-viewport-row-mapper.ts already renders it through
+			// jsonValueTextSummary(operation.result) as the row's stdout and
+			// resultSummary -- this bridge hardcoded null, so it never had one.
+			result: payload.output ?? null,
 			command: null,
 			normalized_todos: null,
 			parent_tool_call_id: null,

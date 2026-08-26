@@ -166,7 +166,12 @@ function operationFromActivity(activity: RpcProjectedSessionActivity): Operation
 		title,
 		arguments: noToolArguments,
 		progressive_arguments: null,
-		result: null,
+		// #273, reopen half: the tool's own result, carried per activity by the
+		// snapshot (output column). A reopened session must render the same
+		// result the live bridge renders -- both paths seed one OperationSnapshot
+		// per tool call, and transcript-viewport-row-mapper.ts reads
+		// operation.result for the row's stdout either way.
+		result: activity.output ?? null,
 		command: null,
 		normalized_todos: null,
 		parent_tool_call_id: null,

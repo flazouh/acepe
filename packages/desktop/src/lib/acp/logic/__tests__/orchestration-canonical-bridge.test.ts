@@ -352,6 +352,66 @@ describe("OrchestrationCanonicalBridge", () => {
 		expect(delta.changedFields).toContain("transcriptSnapshot");
 	});
 
+	// #273 client half: a tool call's output is canonical product truth that
+	// now rides the observation itself (ToolCallObservedPayload.output). This
+	// bridge used to hardcode `result: null`, so a completed tool call reached
+	// the transcript with nothing for transcript-viewport-row-mapper.ts's
+	// jsonValueTextSummary(operation.result) to render as stdout/resultSummary.
+	it("carries a tool call's output onto the operation it patches", () => {
+		const bridge = makeBridge();
+		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
+
+		const envelopes = runTranslate(
+			bridge,
+			makeEvent("ToolCallObserved", {
+				sessionId,
+				activityId: "activity-1",
+				toolCallId: "tool-1",
+				operationId: null,
+				status: "completed",
+				title: "Read package.json",
+				path: "package.json",
+				output: '{ "name": "acepe" }',
+			})
+		);
+
+		const payload = envelopes[0]?.payload as SessionStateEnvelope;
+		expect(payload.payload.kind).toBe("delta");
+		if (payload.payload.kind !== "delta") {
+			throw new Error("expected a delta envelope");
+		}
+		const [operation] = payload.payload.delta.operationPatches;
+		expect(operation?.result).toBe('{ "name": "acepe" }');
+	});
+
+	// An observation that carries no output at all -- every tool call's start
+	// event, and any event appended before the field existed -- must still
+	// leave the operation's result null rather than an empty string.
+	it("leaves the operation result null when the observation carries no output", () => {
+		const bridge = makeBridge();
+		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
+
+		const envelopes = runTranslate(
+			bridge,
+			makeEvent("ToolCallObserved", {
+				sessionId,
+				activityId: "activity-1",
+				toolCallId: "tool-1",
+				operationId: null,
+				status: "in_progress",
+				title: "Read package.json",
+				path: "package.json",
+			})
+		);
+
+		const payload = envelopes[0]?.payload as SessionStateEnvelope;
+		if (payload.payload.kind !== "delta") {
+			throw new Error("expected a delta envelope");
+		}
+		const [operation] = payload.payload.delta.operationPatches;
+		expect(operation?.result).toBeNull();
+	});
+
 	it("does not append a second tool transcript entry when the same tool call is observed again, and does not falsely claim transcriptRevision advanced", () => {
 		const bridge = makeBridge();
 		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
