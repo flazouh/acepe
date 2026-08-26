@@ -29,6 +29,7 @@ const session = (input: {
 	deletedAt: input.deletedAt,
 	prNumber: null,
 	prLinkMode: null,
+	providerSessionId: null,
 });
 
 describe("sessionLifecycle", () => {

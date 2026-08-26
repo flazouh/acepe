@@ -38,6 +38,7 @@ const snapshotWithUser: RpcSessionSnapshot = {
 		deletedAt: null,
 		prNumber: null,
 		prLinkMode: null,
+		providerSessionId: null,
 	},
 	messages: [
 		{
@@ -259,6 +260,7 @@ describe("composeSessionStore", () => {
 						deletedAt: null,
 						prNumber: null,
 						prLinkMode: null,
+						providerSessionId: null,
 					},
 					messages: snapshotWithUser.messages,
 					turns: snapshotWithUser.turns,
@@ -310,6 +312,7 @@ describe("composeSessionStore", () => {
 						deletedAt: null,
 						prNumber: 17,
 						prLinkMode: "manual",
+						providerSessionId: null,
 					},
 					messages: snapshotWithUser.messages,
 					turns: snapshotWithUser.turns,

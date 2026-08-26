@@ -23,6 +23,7 @@ describe("transcriptRowsFromSnapshot", () => {
 				deletedAt: null,
 				prNumber: null,
 				prLinkMode: null,
+				providerSessionId: null,
 			},
 			messages: [
 				{

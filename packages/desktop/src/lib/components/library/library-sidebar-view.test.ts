@@ -51,6 +51,7 @@ const snapshot: RpcSessionSnapshot = {
 			deletedAt: null,
 			prNumber: null,
 			prLinkMode: null,
+			providerSessionId: null,
 		},
 		{
 			sessionId: SessionId.make("library-session-archived"),
@@ -64,6 +65,7 @@ const snapshot: RpcSessionSnapshot = {
 			deletedAt: null,
 			prNumber: null,
 			prLinkMode: null,
+			providerSessionId: null,
 		},
 	],
 	settings: [],

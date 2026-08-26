@@ -54,6 +54,7 @@ const librarySnapshot: RpcSessionSnapshot = {
 			deletedAt: null,
 			prNumber: null,
 			prLinkMode: null,
+			providerSessionId: null,
 		},
 	],
 	settings: [],

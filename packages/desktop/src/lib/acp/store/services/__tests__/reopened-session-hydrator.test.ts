@@ -39,6 +39,7 @@ function withSession(snapshot: RpcSessionSnapshot, sessionId: SessionId): RpcSes
 			deletedAt: null,
 			prNumber: null,
 			prLinkMode: null,
+			providerSessionId: null,
 		},
 	};
 }

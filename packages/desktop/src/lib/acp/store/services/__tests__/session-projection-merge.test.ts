@@ -52,6 +52,7 @@ function projectedSession(overrides: Partial<RpcProjectedSession> = {}): RpcProj
 		deletedAt: null,
 		prNumber: null,
 		prLinkMode: null,
+		providerSessionId: null,
 		...overrides,
 	};
 }
@@ -224,5 +225,57 @@ describe("mergeProjectionSessions", () => {
 
 		expect(merged).toHaveLength(1);
 		expect(merged[0]?.title).toBe("Existing title");
+	});
+
+	it("merges a projection row into its disk-scanned row when providerSessionId matches, instead of duplicating it (#262)", () => {
+		const diskSession = cold({ id: "claude-uuid-42", title: "Existing on-disk title" });
+		const projected = projectedSession({
+			sessionId: SessionId.make("session-orchestration-1"),
+			providerSessionId: "claude-uuid-42",
+			title: "Renamed via orchestration",
+			updatedAt: "2026-08-20T14:00:00.000Z",
+		});
+
+		const merged = mergeProjectionSessions([diskSession], [projected], [fakeProject]);
+
+		expect(merged).toHaveLength(1);
+		expect(merged[0]?.id).toBe("claude-uuid-42");
+		expect(merged[0]?.title).toBe("Renamed via orchestration");
+	});
+
+	it("does not let a stale providerSessionId-aliased projection row overwrite a newer disk title", () => {
+		const diskSession = cold({
+			id: "claude-uuid-42",
+			title: "Newer on-disk title",
+			updatedAt: isoToDate("2026-08-20T15:00:00.000Z"),
+		});
+		const projected = projectedSession({
+			sessionId: SessionId.make("session-orchestration-1"),
+			providerSessionId: "claude-uuid-42",
+			title: "Stale orchestration title",
+			updatedAt: "2026-08-20T12:00:00.000Z",
+		});
+
+		const merged = mergeProjectionSessions([diskSession], [projected], [fakeProject]);
+
+		expect(merged).toHaveLength(1);
+		expect(merged[0]?.title).toBe("Newer on-disk title");
+	});
+
+	it("carries the PR link from a providerSessionId-aliased projection row onto the disk-scanned row", () => {
+		const diskSession = cold({ id: "claude-uuid-42" });
+		const projected = projectedSession({
+			sessionId: SessionId.make("session-orchestration-1"),
+			providerSessionId: "claude-uuid-42",
+			prNumber: 42,
+			prLinkMode: "manual",
+		});
+
+		const merged = mergeProjectionSessions([diskSession], [projected], [fakeProject]);
+
+		expect(merged).toHaveLength(1);
+		expect(merged[0]?.prNumber).toBe(42);
+		expect(merged[0]?.prLinkMode).toBe("manual");
+		expect(merged[0]?.linkedPr?.prNumber).toBe(42);
 	});
 });

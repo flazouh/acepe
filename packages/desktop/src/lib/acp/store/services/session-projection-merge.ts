@@ -104,6 +104,49 @@ export function mergeProjectionSessions(
 			continue;
 		}
 
+		// The orchestration session id (projected.sessionId) and the
+		// provider's own on-disk session id (projected.providerSessionId)
+		// are two permanent ids for the SAME session -- see
+		// RpcProjectedSession's providerSessionId doc. When a disk-scanned
+		// row already exists under the provider id, this projection row is
+		// not a second session: it is that same session's orchestration-side
+		// metadata (title, PR link) arriving late. Merge into the
+		// disk-scanned row (the openable identity that can actually render
+		// full history) instead of pushing a duplicate sidebar entry keyed
+		// by the orchestration id -- this is the fix for the duplicate
+		// sidebar row bug (#262).
+		const aliasedExisting =
+			projected.providerSessionId !== null
+				? existingSessionsMap.get(projected.providerSessionId)
+				: undefined;
+		if (aliasedExisting !== undefined) {
+			const index = merged.findIndex((session) => session.id === aliasedExisting.id);
+			if (index !== -1) {
+				const projectedUpdatedAt = tryIsoToDate(projected.updatedAt);
+				const titleWins =
+					projectedUpdatedAt !== null &&
+					projectedUpdatedAt.getTime() > aliasedExisting.updatedAt.getTime();
+				const mergedPrNumber = projected.prNumber ?? aliasedExisting.prNumber;
+				const mergedPrLinkMode =
+					normalizeProjectionPrLinkMode(projected.prNumber, projected.prLinkMode) ??
+					aliasedExisting.prLinkMode;
+				merged[index] = {
+					...aliasedExisting,
+					title: titleWins ? projected.title : aliasedExisting.title,
+					updatedAt: titleWins ? projectedUpdatedAt : aliasedExisting.updatedAt,
+					prNumber: mergedPrNumber,
+					prLinkMode: mergedPrLinkMode,
+					linkedPr:
+						projected.prNumber === null ||
+						projected.prNumber === undefined ||
+						aliasedExisting.linkedPr?.prNumber === projected.prNumber
+							? aliasedExisting.linkedPr
+							: buildPartialSessionLinkedPr(projected.prNumber, undefined),
+				};
+			}
+			continue;
+		}
+
 		const createdAt = tryIsoToDate(projected.createdAt);
 		const updatedAt = tryIsoToDate(projected.updatedAt);
 		if (createdAt === null || updatedAt === null) {

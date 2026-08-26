@@ -60,6 +60,7 @@ describe("tracer bullet controller mapping", () => {
 								deletedAt: null,
 								prNumber: null,
 								prLinkMode: null,
+								providerSessionId: null,
 							},
 							messages: [
 								{

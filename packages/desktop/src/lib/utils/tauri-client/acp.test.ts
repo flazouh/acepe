@@ -315,6 +315,7 @@ describe("acp tauri client", () => {
 									deletedAt: null,
 									prNumber: null,
 									prLinkMode: null,
+									providerSessionId: null,
 								})
 							),
 					})
@@ -343,6 +344,7 @@ describe("acp tauri client", () => {
 									deletedAt: null,
 									prNumber: null,
 									prLinkMode: null,
+									providerSessionId: null,
 								})
 							),
 					})

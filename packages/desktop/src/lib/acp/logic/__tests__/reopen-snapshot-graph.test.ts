@@ -40,6 +40,7 @@ function withMessages(
 			deletedAt: null,
 			prNumber: null,
 			prLinkMode: null,
+			providerSessionId: null,
 		},
 		messages,
 	};

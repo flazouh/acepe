@@ -30,6 +30,7 @@ const snapshotBase = {
 		deletedAt: null,
 		prNumber: null,
 		prLinkMode: null,
+		providerSessionId: null,
 	},
 	turns: [],
 	pendingApprovals: [],
