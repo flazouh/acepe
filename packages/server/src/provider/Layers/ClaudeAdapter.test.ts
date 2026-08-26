@@ -257,6 +257,126 @@ Vitest.describe("ClaudeAdapter", () => {
 		})
 	)
 
+	// Reproduces the live QA bug head-on: a real Claude tool call executes
+	// (the SDK emits a tool_use start, then the tool_result completing it) but
+	// ZERO ToolCall* events ever reached orchestration_events -- both facts
+	// were folded into a generic SessionMetaUpdated, which
+	// ProjectionSessionActivities.ts has no case for. ClaudeSdkMap.mapSdkMessage
+	// already turns the SDK's tool_use/tool_result into tool_call/tool_call_update
+	// facts; this pins down that ClaudeAdapter publishes them as
+	// ToolCallObserved contract events (same shape as the tracer's
+	// ToolCallObserveCommand decider produces), not SessionMetaUpdated.
+	Vitest.it.effect(
+		"emits ToolCallObserved (in_progress then completed) for a real tool call, not SessionMetaUpdated",
+		() =>
+			Effect.gen(function*() {
+				const inbound = yield* Queue.unbounded<Json, Done>()
+				const interrupts = yield* Ref.make(0)
+				const adapter = yield* makeClaudeAdapter({
+					presence: Effect.succeed(claudePresence(true, true)),
+					createQuery: () => Effect.succeed(fakeHandle(inbound, interrupts))
+				})
+				const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
+				yield* adapter
+					.startSession({
+						sessionId,
+						projectId,
+						workspaceRoot: "/tmp/acepe"
+					})
+					.pipe(
+						Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
+						Effect.forkChild({ startImmediately: true })
+					)
+				yield* Queue.take(events) // deferred_open
+				yield* Stream.runCollect(
+					adapter.sendPrompt({
+						sessionId,
+						messageId,
+						text: "Read package.json"
+					})
+				)
+				yield* Queue.offer(inbound, {
+					type: "stream_event",
+					session_id: "sdk-session-1",
+					event: {
+						type: "content_block_start",
+						index: 0,
+						content_block: {
+							type: "tool_use",
+							id: "toolu_01ReadPkg",
+							name: "Read",
+							input: { file_path: "/tmp/acepe/package.json" }
+						}
+					}
+				})
+				let started: OrchestrationEvent | undefined
+				for (let attempt = 0; attempt < 5 && started === undefined; attempt++) {
+					const next = yield* Queue.take(events)
+					// SessionMetaUpdated is still legitimate for OTHER facts (e.g. the
+					// provider_session promotion this same message also carries) --
+					// only a tool_call/tool_call_update fact must never land there.
+					if (next.type === "SessionMetaUpdated") {
+						const fact = decodeContractFact(next.metadata)
+						if (Option.isSome(fact)) {
+							Vitest.assert.notStrictEqual(fact.value.contractKind, "tool_call")
+							Vitest.assert.notStrictEqual(fact.value.contractKind, "tool_call_update")
+						}
+					}
+					if (next.type === "ToolCallObserved") {
+						started = next
+					}
+				}
+				if (started === undefined || started.type !== "ToolCallObserved") {
+					Vitest.assert.fail("expected a ToolCallObserved event for the tool_use start")
+					return
+				}
+				Vitest.assert.strictEqual(started.payload.status, "in_progress")
+				Vitest.assert.strictEqual(started.payload.title, "Read /tmp/acepe/package.json")
+				Vitest.assert.strictEqual(started.payload.toolCallId, "toolu_01ReadPkg")
+				Vitest.assert.strictEqual(started.payload.path, "/tmp/acepe/package.json")
+
+				yield* Queue.offer(inbound, {
+					type: "user",
+					session_id: "sdk-session-1",
+					message: {
+						role: "user",
+						content: [
+							{
+								type: "tool_result",
+								tool_use_id: "toolu_01ReadPkg",
+								content: "{\"name\":\"acepe\"}",
+								is_error: false
+							}
+						]
+					}
+				})
+				let completed: OrchestrationEvent | undefined
+				for (let attempt = 0; attempt < 5 && completed === undefined; attempt++) {
+					const next = yield* Queue.take(events)
+					if (next.type === "SessionMetaUpdated") {
+						const fact = decodeContractFact(next.metadata)
+						if (Option.isSome(fact)) {
+							Vitest.assert.notStrictEqual(fact.value.contractKind, "tool_call")
+							Vitest.assert.notStrictEqual(fact.value.contractKind, "tool_call_update")
+						}
+					}
+					if (next.type === "ToolCallObserved") {
+						completed = next
+					}
+				}
+				if (completed === undefined || completed.type !== "ToolCallObserved") {
+					Vitest.assert.fail("expected a ToolCallObserved event for the tool_result completion")
+					return
+				}
+				Vitest.assert.strictEqual(completed.payload.status, "completed")
+				// Same activityId across start -> completion, so the projector
+				// merges them into ONE row instead of two.
+				Vitest.assert.strictEqual(completed.payload.activityId, started.payload.activityId)
+				Vitest.assert.strictEqual(completed.payload.toolCallId, "toolu_01ReadPkg")
+				yield* adapter.cancelTurn({ sessionId })
+			})
+	)
+
 	Vitest.it.effect("cancelTurn interrupts the fake transport and emits TurnCancelled", () =>
 		Effect.gen(function*() {
 			const inbound = yield* Queue.unbounded<Json, Done>()

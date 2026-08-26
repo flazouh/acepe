@@ -147,7 +147,7 @@ Vitest.describe("mapSdkMessage", () => {
 			{
 				contractKind: "tool_call",
 				toolCallId: "toolu_01ReadTool",
-				title: "Read",
+				title: "Read /tmp/a.ts",
 				kind: "read",
 				status: "in_progress",
 				rawInput: jsonObject({ file_path: "/tmp/a.ts" })
@@ -171,6 +171,100 @@ Vitest.describe("mapSdkMessage", () => {
 				partialJson: "{\"file_path\""
 			}
 		])
+	})
+
+	Vitest.it("falls back to the bare tool name when no input hint is available", () => {
+		const started = mapSdkMessage(emptyClaudeStreamState, {
+			type: "stream_event",
+			event: {
+				type: "content_block_start",
+				index: 0,
+				content_block: {
+					type: "tool_use",
+					id: "toolu_01Todo",
+					name: "TodoWrite",
+					input: {}
+				}
+			}
+		})
+		Vitest.assert.strictEqual(started.facts[0]?.contractKind, "tool_call")
+		if (started.facts[0]?.contractKind === "tool_call") {
+			Vitest.assert.strictEqual(started.facts[0].title, "TodoWrite")
+		}
+	})
+
+	Vitest.it("titles an execute tool call with the bare command, no name prefix", () => {
+		const mapped = mapSdkMessage(emptyClaudeStreamState, {
+			type: "assistant",
+			message: {
+				content: [
+					{
+						type: "tool_use",
+						id: "toolu_01Bash",
+						name: "Bash",
+						input: { command: "git status" }
+					}
+				]
+			}
+		})
+		Vitest.assert.strictEqual(mapped.facts[0]?.contractKind, "tool_call")
+		if (mapped.facts[0]?.contractKind === "tool_call") {
+			Vitest.assert.strictEqual(mapped.facts[0].title, "git status")
+		}
+	})
+
+	// Reproduces the second half of the live QA bug: a real Claude tool call's
+	// RESULT arrives as a `user`-typed SDK message (Anthropic's own API shape
+	// feeds tool_result back as a user turn), which mapSdkMessage never
+	// parsed at all -- so the tool call's status never advanced past
+	// "in_progress" no matter how ClaudeAdapter.ts routed the fact.
+	Vitest.it("maps a user message's tool_result block to a completed tool_call_update", () => {
+		const mapped = mapSdkMessage(emptyClaudeStreamState, {
+			type: "user",
+			session_id: "sdk-session-1",
+			message: {
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "toolu_01ReadTool",
+						content: "file contents",
+						is_error: false
+					}
+				]
+			}
+		})
+		Vitest.assert.deepStrictEqual(mapped.facts, [
+			{
+				contractKind: "provider_session",
+				providerSessionId: "sdk-session-1"
+			},
+			{
+				contractKind: "tool_call_update",
+				toolCallId: "toolu_01ReadTool",
+				status: "completed"
+			}
+		])
+	})
+
+	Vitest.it("maps a user message's failing tool_result block to a failed tool_call_update", () => {
+		const mapped = mapSdkMessage(emptyClaudeStreamState, {
+			type: "user",
+			message: {
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "toolu_01BashTool",
+						content: "command not found",
+						is_error: true
+					}
+				]
+			}
+		})
+		Vitest.assert.strictEqual(mapped.facts[0]?.contractKind, "tool_call_update")
+		if (mapped.facts[0]?.contractKind === "tool_call_update") {
+			Vitest.assert.strictEqual(mapped.facts[0].status, "failed")
+		}
 	})
 
 	Vitest.it("maps compact_boundary to a completed compaction fact", () => {

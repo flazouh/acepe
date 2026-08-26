@@ -361,6 +361,68 @@ export const detectClaudeToolKind = (name: string): ClaudeAcpToolKind => {
 	return "other"
 }
 
+// Field names the various Claude tools use for their primary path-shaped
+// input, checked in order. Mirrors the "filePath"/"file_path" duality
+// CodexNativeMap.ts's extractToolFields already relies on for the same
+// read/edit kinds -- Claude's own tool schemas use snake_case exclusively,
+// but staying permissive costs nothing.
+const PATH_INPUT_KEYS = ["file_path", "path", "notebook_path"] as const
+
+// A short, tool-specific hint pulled from the tool's own input, used to turn
+// a bare tool name ("Read") into a title that actually says what happened
+// ("Read package.json") -- see toolCallTitle below. Deliberately narrow: only
+// the kinds where a single input field is obviously "the point" of the call
+// get a hint, everything else (todo, question, task, skill, ...) keeps its
+// bare name rather than guessing at a misleading one.
+const toolCallPrimaryInputHint = (
+	kind: ClaudeAcpToolKind,
+	rawInput: JsonObject
+): Option.Option<string> => {
+	if (kind === "read" || kind === "read_lints" || kind === "edit") {
+		return stringFieldAny(rawInput, PATH_INPUT_KEYS)
+	}
+	if (kind === "execute") {
+		return stringFieldAny(rawInput, ["command"])
+	}
+	if (kind === "search") {
+		return stringFieldAny(rawInput, ["pattern", "query"])
+	}
+	if (kind === "glob") {
+		return stringFieldAny(rawInput, ["pattern"])
+	}
+	if (kind === "fetch" || kind === "web_search") {
+		return stringFieldAny(rawInput, ["url", "query"])
+	}
+	return Option.none()
+}
+
+// Mirrors CodexNativeMap.ts's extractToolFields titling convention (e.g.
+// "Read /tmp/example.rs", or the bare command for execute with no tool-name
+// prefix) so the same session activity row reads consistently regardless of
+// which provider produced it. Falls back to the bare tool name when no hint
+// is available -- e.g. content_block_start firing before the real (still
+// streaming) input has arrived.
+const toolCallTitle = (name: string, kind: ClaudeAcpToolKind, rawInput: JsonObject): string => {
+	const hint = toolCallPrimaryInputHint(kind, rawInput)
+	if (Option.isNone(hint)) {
+		return name
+	}
+	if (kind === "execute") {
+		return hint.value
+	}
+	return `${name} ${hint.value}`
+}
+
+// The path column of projection_session_activities -- populated only for the
+// kinds that are unambiguously about a single file (read/edit), matching
+// FILE_OPERATION_KINDS' intent on the projector side.
+export const toolCallPathHint = (kind: ClaudeAcpToolKind, rawInput: JsonObject): Option.Option<string> => {
+	if (kind !== "read" && kind !== "edit") {
+		return Option.none()
+	}
+	return stringFieldAny(rawInput, PATH_INPUT_KEYS)
+}
+
 export const permissionIdForToolCall = (toolCallId: string): string => `perm-${toolCallId}`
 
 export const permissionNameForToolKind = (kind: ClaudeAcpToolKind): string => {
@@ -633,15 +695,17 @@ const mapStreamEvent = (state: ClaudeStreamState, event: JsonObject): ClaudeMapR
 			return { facts: Arr.empty(), state }
 		}
 		const index = Option.getOrElse(numberField(event, "index"), () => 0)
+		const rawInput = rawInputField(block, "input")
+		const kind = detectClaudeToolKind(name.value)
 		return {
 			facts: [
 				{
 					contractKind: "tool_call",
 					toolCallId: id.value,
-					title: name.value,
-					kind: detectClaudeToolKind(name.value),
+					title: toolCallTitle(name.value, kind, rawInput),
+					kind,
 					status: "in_progress",
-					rawInput: rawInputField(block, "input")
+					rawInput
 				}
 			],
 			state: upsertToolBlock(state, {
@@ -761,15 +825,17 @@ const mapAssistantContent = (state: ClaudeStreamState, content: Json): ClaudeMap
 				}
 			}
 		}
+		const rawInput = rawInputField(record.value, "input")
+		const kind = detectClaudeToolKind(name.value)
 		return {
 			facts: [
 				{
 					contractKind: "tool_call",
 					toolCallId: id.value,
-					title: name.value,
-					kind: detectClaudeToolKind(name.value),
+					title: toolCallTitle(name.value, kind, rawInput),
+					kind,
 					status: "in_progress",
-					rawInput: rawInputField(record.value, "input")
+					rawInput
 				}
 			],
 			state
@@ -826,6 +892,42 @@ const mapSystem = (state: ClaudeStreamState, record: JsonObject): ClaudeMapResul
 	return promoted
 }
 
+// The SDK's own type union (SDKMessage in @anthropic-ai/claude-agent-sdk)
+// carries tool_result content blocks in a `user`-typed message (echoing the
+// Anthropic Messages API's own shape: a tool's output is fed back to the
+// model as a user-role turn), never in an `assistant`-typed one -- so the
+// tool_result branch in mapAssistantContent above was DEAD for every real
+// Claude turn: a tool call's start (tool_use) always arrived, but nothing
+// ever closed it, exactly the second half of the live QA bug this fixes (the
+// first half was ClaudeAdapter.ts folding tool facts into SessionMetaUpdated
+// instead of ToolCallObserved). Deliberately narrow -- unlike
+// mapAssistantContent, this does NOT touch sawTextDelta/sawThinkingDelta:
+// a real tool_result user message never carries text/thinking blocks, and
+// running the shared block-mapper here would let a coincidental text block
+// wrongly suppress the NEXT real assistant text_delta.
+const mapUserToolResultBlock = (block: Json): ReadonlyArray<ClaudeContractFact> => {
+	const record = jsonObjectOf(block)
+	if (Option.isNone(record)) {
+		return Arr.empty()
+	}
+	const blockType = Option.getOrElse(stringField(record.value, "type"), () => "")
+	if (blockType !== "tool_result") {
+		return Arr.empty()
+	}
+	const toolCallId = stringFieldAny(record.value, ["tool_use_id", "toolUseId"])
+	if (Option.isNone(toolCallId)) {
+		return Arr.empty()
+	}
+	const isError = Option.getOrElse(booleanField(record.value, "is_error"), () => false)
+	return [
+		{
+			contractKind: "tool_call_update",
+			toolCallId: toolCallId.value,
+			status: isError ? "failed" : "completed"
+		}
+	]
+}
+
 export const mapSdkMessage = (state: ClaudeStreamState, raw: Json): ClaudeMapResult => {
 	const record = jsonObjectOf(raw)
 	if (Option.isNone(record)) {
@@ -840,6 +942,25 @@ export const mapSdkMessage = (state: ClaudeStreamState, raw: Json): ClaudeMapRes
 		return {
 			facts: appendFacts(promoted.facts, mapped.facts),
 			state: mapped.state
+		}
+	}
+	if (typeName === "user") {
+		const sessionId = sessionIdOf(record.value, state.providerSessionId)
+		const promoted = promotionFacts(state, sessionId, true)
+		const message = Option.getOrElse(objectField(record.value, "message"), () => record.value)
+		const content = field(message, "content")
+		const blocks = Option.match(content, {
+			onNone: () => Arr.empty<Json>(),
+			onSome: (value) => (isJsonArray(value) ? value : Arr.empty<Json>())
+		})
+		const reduced = Arr.reduce(
+			blocks,
+			promoted.facts,
+			(current, block) => appendFacts(current, mapUserToolResultBlock(block))
+		)
+		return {
+			facts: reduced,
+			state: promoted.state
 		}
 	}
 	if (typeName === "assistant") {

@@ -1,13 +1,17 @@
 import { query, type McpServerConfig, type Options as ClaudeSdkOptions } from "@anthropic-ai/claude-agent-sdk"
 import {
+	ActivityId,
 	CommandId,
 	EventId,
 	MessageId,
 	MessageSentEvent,
+	type ObservedToolStatus,
 	type OrchestrationEvent,
 	SessionId,
 	SessionMetaUpdatedEvent,
 	TokenAppendedEvent,
+	ToolCallId,
+	ToolCallObservedEvent,
 	TurnCancelledEvent,
 	TurnCompletedEvent,
 	TurnId,
@@ -53,7 +57,8 @@ import {
 	emptyClaudeStreamState,
 	encodeContractFact,
 	mapSdkMessage,
-	permissionRequestFact
+	permissionRequestFact,
+	toolCallPathHint
 } from "./ClaudeSdkMap.ts"
 
 type Json = typeof Schema.Json.Type
@@ -145,6 +150,26 @@ const DEFAULT_CANCEL_INTERRUPT_TIMEOUT = Duration.seconds(5)
 const DEFAULT_TURN_INACTIVITY_TIMEOUT = Duration.seconds(60)
 const DEFAULT_WATCHDOG_POLL_INTERVAL = Duration.seconds(5)
 
+// What a "tool_call" fact recorded about a tool call, kept around so the
+// LATER "tool_call_update" fact (which carries only toolCallId + a new
+// status -- see ToolCallUpdateFact in ClaudeSdkMap.ts) can still publish a
+// complete ToolCallObservedEvent: the projector's ToolCallObservedPayload
+// requires a title on every row, not just the first one -- see
+// ProjectionSessionActivities.ts's observedToolRow.
+type OpenToolCallInfo = {
+	readonly activityId: ActivityId
+	readonly title: string
+	readonly path: string | null
+}
+
+// One projection_session_activities row per Claude tool_use block, keyed the
+// same way across its whole lifecycle (start -> completed/failed) so the
+// projector's merge sees one growing row instead of two unrelated ones. The
+// SDK's own toolCallId is already unique per call, so deriving activityId
+// from it (rather than minting a fresh one) is enough -- no separate id
+// needs to round-trip through the SDK boundary.
+const toolCallActivityId = (toolCallId: string): ActivityId => ActivityId.make(`${toolCallId}:activity`)
+
 type SessionRuntime = {
 	readonly sessionId: SessionId
 	readonly workspaceRoot: string
@@ -161,6 +186,8 @@ type SessionRuntime = {
 	readonly pendingPermissions: Ref.Ref<
 		HashMap.HashMap<string, Deferred.Deferred<ClaudePermissionDecision>>
 	>
+	// Keyed by the SDK's own toolCallId. See OpenToolCallInfo's doc above.
+	readonly openToolCalls: Ref.Ref<HashMap.HashMap<string, OpenToolCallInfo>>
 	// The query a sendPrompt call feeds and a stream listener drains. Both are
 	// swapped together by attachQuery whenever a session recovers from a
 	// cancel or a watchdog-detected stall, so sendPrompt/cancelTurn always
@@ -405,6 +432,99 @@ const makeCompleted = Effect.fn("ClaudeAdapter.makeCompleted")(function*(runtime
 	})
 })
 
+// Builds the SAME contract event the tracer's ToolCallObserveCommand decider
+// produces (see decider.ts's "tool.call.observe" case) -- ProjectionSessionActivities.ts
+// only knows how to turn a ToolCallObserved event into a
+// projection_session_activities row; a real Claude tool call folded into a
+// generic SessionMetaUpdated (the bug this fixes) is invisible to that
+// projector no matter what its encoded metadata says.
+const makeToolCallObserved = Effect.fn("ClaudeAdapter.makeToolCallObserved")(function*(
+	runtime: SessionRuntime,
+	input: {
+		readonly activityId: ActivityId
+		readonly toolCallId: string
+		readonly status: ObservedToolStatus
+		readonly title: string
+		readonly path: string | null
+	}
+) {
+	const header = yield* stamp(runtime)
+	return ToolCallObservedEvent.make({
+		sequence: header.sequence,
+		eventId: header.eventId,
+		aggregateKind: "session",
+		aggregateId: runtime.sessionId,
+		occurredAt: header.occurredAt,
+		commandId: header.commandId,
+		causationEventId: null,
+		correlationId: header.commandId,
+		metadata: EMPTY_JSON_OBJECT,
+		type: "ToolCallObserved",
+		payload: {
+			sessionId: runtime.sessionId,
+			activityId: input.activityId,
+			toolCallId: ToolCallId.make(input.toolCallId),
+			operationId: null,
+			status: input.status,
+			title: input.title,
+			path: input.path
+		}
+	})
+})
+
+// A tool_call_update fact that arrives with no cached start info -- e.g. the
+// SDK's own tool_use start was missed across a watchdog/resume boundary.
+// Falls back to a generic, still-nonempty title rather than dropping the
+// status transition on the floor; mergeActivityRow on the projector side
+// will keep this only if no better title ever arrives for the same
+// activityId.
+const FALLBACK_TOOL_TITLE = "Tool"
+
+const publishToolCallStarted = Effect.fn("ClaudeAdapter.publishToolCallStarted")(function*(
+	runtime: SessionRuntime,
+	fact: Extract<ClaudeContractFact, { readonly contractKind: "tool_call" }>
+) {
+	const activityId = toolCallActivityId(fact.toolCallId)
+	const path = Option.getOrNull(toolCallPathHint(fact.kind, fact.rawInput))
+	yield* Ref.update(runtime.openToolCalls, (current) =>
+		HashMap.set(current, fact.toolCallId, { activityId, title: fact.title, path }))
+	const event = yield* makeToolCallObserved(runtime, {
+		activityId,
+		toolCallId: fact.toolCallId,
+		status: fact.status,
+		title: fact.title,
+		path
+	})
+	return yield* offerOutbound(runtime, event)
+})
+
+const publishToolCallUpdated = Effect.fn("ClaudeAdapter.publishToolCallUpdated")(function*(
+	runtime: SessionRuntime,
+	fact: Extract<ClaudeContractFact, { readonly contractKind: "tool_call_update" }>
+) {
+	if (fact.status === undefined) {
+		// A pure streaming-argument update (input_json_delta) -- no status
+		// transition to project, nothing worth a projection_session_activities
+		// row for yet.
+		return
+	}
+	const cache = yield* Ref.get(runtime.openToolCalls)
+	const cached = HashMap.get(cache, fact.toolCallId)
+	const info: OpenToolCallInfo = Option.getOrElse(cached, () => ({
+		activityId: toolCallActivityId(fact.toolCallId),
+		title: FALLBACK_TOOL_TITLE,
+		path: null
+	}))
+	const event = yield* makeToolCallObserved(runtime, {
+		activityId: info.activityId,
+		toolCallId: fact.toolCallId,
+		status: fact.status,
+		title: info.title,
+		path: info.path
+	})
+	return yield* offerOutbound(runtime, event)
+})
+
 const publishFact = Effect.fn("ClaudeAdapter.publishFact")(function*(
 	runtime: SessionRuntime,
 	fact: ClaudeContractFact
@@ -420,6 +540,16 @@ const publishFact = Effect.fn("ClaudeAdapter.publishFact")(function*(
 		yield* Ref.set(runtime.turnOpenedAtMs, Option.none())
 		const event = yield* makeCompleted(runtime)
 		return yield* offerOutbound(runtime, event)
+	}
+	// A real Claude tool call must reach ProjectionSessionActivities as a
+	// ToolCallObserved event, not fold into a generic SessionMetaUpdated one
+	// (see makeToolCallObserved's doc) -- that was the live QA bug: a tool
+	// call visibly executed but projection_session_activities stayed empty.
+	if (fact.contractKind === "tool_call") {
+		return yield* publishToolCallStarted(runtime, fact)
+	}
+	if (fact.contractKind === "tool_call_update") {
+		return yield* publishToolCallUpdated(runtime, fact)
 	}
 	const event = yield* makeMetaEvent(runtime, fact)
 	return yield* offerOutbound(runtime, event)
@@ -745,6 +875,7 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 		const pendingPermissions = yield* Ref.make(
 			HashMap.empty<string, Deferred.Deferred<ClaudePermissionDecision>>()
 		)
+		const openToolCalls = yield* Ref.make(HashMap.empty<string, OpenToolCallInfo>())
 		const sessionScope = yield* Scope.make()
 		const placeholderQueue = yield* Queue.unbounded<ClaudeUserPrompt, Done>()
 		const runtime: SessionRuntime = {
@@ -756,6 +887,7 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 			lastUserMessageId,
 			sequence,
 			pendingPermissions,
+			openToolCalls,
 			promptQueueRef: yield* Ref.make(placeholderQueue),
 			// Overwritten immediately by the attachQuery call below;
 			// requireSession never observes a session without a real query
