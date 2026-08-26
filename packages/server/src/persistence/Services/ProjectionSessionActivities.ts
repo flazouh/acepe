@@ -51,6 +51,11 @@ export const ProjectedSessionActivityRow = Schema.Struct({
 	sequence: Sequence,
 	statusSequence: Sequence,
 	kind: SessionActivityKind,
+	// The provider's tool classification ("edit", "execute", ...). Separate
+	// from `kind` above, which is the activity kind ("tool" | "file").
+	// Nullable: a file/status/link row carries none, and rows written before
+	// the tool_kind column existed read back as null.
+	toolKind: Schema.NullOr(TrimmedNonEmptyString),
 	toolCallId: Schema.NullOr(ToolCallId),
 	operationId: Schema.NullOr(OperationId),
 	status: SessionActivityStatus,
@@ -66,6 +71,7 @@ export const ProjectionSessionActivityStoredRow = Schema.Struct({
 	sequence: Sequence,
 	status_sequence: Sequence,
 	kind: SessionActivityKind,
+	tool_kind: Schema.NullOr(TrimmedNonEmptyString),
 	tool_call_id: Schema.NullOr(ToolCallId),
 	operation_id: Schema.NullOr(OperationId),
 	status: SessionActivityStatus,
@@ -90,7 +96,11 @@ export const ToolCallObservedPayload = Schema.Struct({
 	// Optional for the same reason as the contract's own
 	// ToolCallObservedPayload: this schema decodes every stored payload again
 	// on a rebuild, and the ones appended before #273 carry no output key.
-	output: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey)
+	output: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey),
+	// The provider's tool classification. Optional + nullable for the same
+	// replay reason: payloads appended before the field existed carry no
+	// kind key, so a rebuild must still decode them.
+	kind: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey)
 })
 export type ToolCallObservedPayload = typeof ToolCallObservedPayload.Type
 
@@ -201,6 +211,7 @@ export const projectedSessionActivityFromRow = (
 	sequence: row.sequence,
 	statusSequence: row.status_sequence,
 	kind: row.kind,
+	toolKind: row.tool_kind,
 	toolCallId: row.tool_call_id,
 	operationId: row.operation_id,
 	status: row.status,
@@ -279,6 +290,10 @@ export const mergeActivityRow = (
 		sequence: earlierSequence(row.sequence, incoming.sequence),
 		statusSequence: takeIncomingStatus ? incoming.statusSequence : row.statusSequence,
 		kind: fileKind ? "file" : row.kind,
+		// First non-null kind wins, the same way path and output do below: the
+		// start event classifies the call, and a later status-only update
+		// carries none and must not erase it.
+		toolKind: row.toolKind === null ? incoming.toolKind : row.toolKind,
 		toolCallId: row.toolCallId === null ? incoming.toolCallId : row.toolCallId,
 		operationId: row.operationId === null ? incoming.operationId : row.operationId,
 		status: takeIncomingStatus ? incoming.status : row.status,
@@ -304,6 +319,7 @@ const observedToolRow = (
 	sequence: event.sequence,
 	statusSequence: event.sequence,
 	kind: "tool",
+	toolKind: payload.kind ?? null,
 	toolCallId: payload.toolCallId,
 	operationId: payload.operationId,
 	status: payload.status,
@@ -321,6 +337,7 @@ const observedFileRow = (
 	sequence: event.sequence,
 	statusSequence: event.sequence,
 	kind: "file",
+	toolKind: null,
 	toolCallId: payload.toolCallId,
 	operationId: payload.operationId,
 	status: payload.status,
@@ -338,6 +355,7 @@ const statusRow = (
 	sequence: event.sequence,
 	statusSequence: event.sequence,
 	kind: "tool",
+	toolKind: null,
 	toolCallId: null,
 	operationId: null,
 	status: payload.status,
@@ -355,6 +373,7 @@ const linkedRow = (
 	sequence: event.sequence,
 	statusSequence: 0,
 	kind: "tool",
+	toolKind: null,
 	toolCallId: null,
 	operationId: payload.operationId,
 	status: "pending",

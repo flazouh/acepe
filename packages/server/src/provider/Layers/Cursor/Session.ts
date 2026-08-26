@@ -183,7 +183,8 @@ const publishToolCallStarted = Effect.fn("CursorAdapter.publishToolCallStarted")
 	yield* rememberOpenToolCall(runtime.openToolCalls, fact.toolCallId, fact.status, {
 		activityId,
 		title: fact.title,
-		path
+		path,
+		kind: fact.kind
 	})
 	const header = yield* stamp(runtime)
 	return yield* offerOutbound(
@@ -195,7 +196,8 @@ const publishToolCallStarted = Effect.fn("CursorAdapter.publishToolCallStarted")
 			title: fact.title,
 			path,
 			// An ACP tool_call that is only starting has produced no result.
-			output: null
+			output: null,
+			kind: fact.kind
 		})
 	)
 })
@@ -219,6 +221,7 @@ const publishToolCallUpdated = Effect.fn("CursorAdapter.publishToolCallUpdated")
 			status: fact.status,
 			title: info.title,
 			path: info.path,
+			kind: info.kind,
 			// #273: null, because Cursor's ToolCallUpdateFact holds a
 			// toolCallId and a status and nothing else -- Map.ts reads neither
 			// the ACP update's content nor its rawOutput. Widening that fact

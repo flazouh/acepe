@@ -38,7 +38,7 @@ import { encodeContractFact } from "./Codec.ts"
 import type { ClaudeContractFact, ClaudePermissionDecision } from "./Facts.ts"
 import { mapSdkMessage, type ClaudeStreamState } from "./Map.ts"
 import type { ClaudeQueryHandle } from "./Process.ts"
-import { adapterError } from "./Provider.ts"
+import { adapterError, type ClaudeMode } from "./Provider.ts"
 import { toolCallPathHint } from "./Tools.ts"
 import type { ClaudeUserPrompt } from "./Wire.ts"
 
@@ -66,6 +66,11 @@ export type SessionRuntime = {
 	// read the CURRENT one rather than a query that may already be dead.
 	readonly promptQueueRef: Ref.Ref<Queue.Queue<ClaudeUserPrompt, Done>>
 	readonly queryRef: Ref.Ref<ClaudeQueryHandle>
+	// The session's canonical mode, as the SDK's permission mode. Kept on the
+	// runtime because attachQuery has to carry it onto every REPLACEMENT
+	// query a cancel or a stall recovery builds -- the live control request
+	// alone would be lost with the query it was sent to.
+	readonly modeId: Ref.Ref<ClaudeMode>
 	// Bumped by every attachQuery call. A query-listener fiber compares its
 	// OWN captured generation against this at teardown time: a mismatch means
 	// a newer query has since been attached (a deliberate restart, not a real
@@ -280,7 +285,8 @@ const publishToolCallStarted = Effect.fn("ClaudeAdapter.publishToolCallStarted")
 	yield* rememberOpenToolCall(runtime.openToolCalls, fact.toolCallId, fact.status, {
 		activityId,
 		title: fact.title,
-		path
+		path,
+		kind: fact.kind
 	})
 	const header = yield* stamp(runtime)
 	return yield* offerOutbound(
@@ -292,7 +298,12 @@ const publishToolCallStarted = Effect.fn("ClaudeAdapter.publishToolCallStarted")
 			title: fact.title,
 			path,
 			// A tool_use block that is only starting has produced no result.
-			output: null
+			output: null,
+			// fact.kind is the classification detectClaudeToolKind derived
+			// from the bare provider tool name, before the title/path hint
+			// appended a path. Carrying it means the client never has to
+			// re-parse the path-bearing title to recover the kind.
+			kind: fact.kind
 		})
 	)
 })
@@ -414,6 +425,11 @@ const publishToolCallUpdated = Effect.fn("ClaudeAdapter.publishToolCallUpdated")
 			status: fact.status,
 			title: info.title,
 			path: info.path,
+			// The kind the start event already recorded, cached in
+			// OpenToolCallInfo. The projector keeps the first non-null kind,
+			// so this confirms rather than overwrites -- but passing it keeps
+			// the completion event self-describing.
+			kind: info.kind,
 			// #273: null, and deliberately not fact.partialJson. Claude's
 			// partialJson is the streaming INPUT arguments of an
 			// input_json_delta (see Map.ts's mapContentBlockDelta), so it is

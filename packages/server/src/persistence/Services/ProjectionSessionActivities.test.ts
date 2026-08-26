@@ -36,7 +36,8 @@ const toolObserved = (
 	sequence: number,
 	status: ProjectedSessionActivityRow["status"],
 	linked: typeof operationId | null = null,
-	output: string | null = null
+	output: string | null = null,
+	kind: string | null = "execute"
 ): SessionActivityEvent => ({
 	sequence,
 	eventId: EventId.make(`event-${sequence}`),
@@ -56,7 +57,8 @@ const toolObserved = (
 		status,
 		title: "Bash",
 		path: null,
-		output
+		output,
+		kind
 	}
 })
 
@@ -242,6 +244,7 @@ Vitest.describe("evolveSessionActivity", () => {
 				sequence: 3,
 				statusSequence: 3,
 				kind: "tool",
+				toolKind: "execute",
 				toolCallId,
 				operationId: null,
 				status: "pending",
@@ -441,6 +444,7 @@ Vitest.describe("mergeActivityRow", () => {
 			sequence: 6,
 			statusSequence: 0,
 			kind: "tool",
+			toolKind: null,
 			toolCallId: null,
 			operationId,
 			status: "pending",
@@ -454,6 +458,7 @@ Vitest.describe("mergeActivityRow", () => {
 			sequence: 4,
 			statusSequence: 4,
 			kind: "tool",
+			toolKind: "execute",
 			toolCallId,
 			operationId: null,
 			status: "pending",
@@ -466,6 +471,12 @@ Vitest.describe("mergeActivityRow", () => {
 		Vitest.assert.strictEqual(merged.title, "Bash")
 		Vitest.assert.strictEqual(merged.toolCallId, toolCallId)
 		Vitest.assert.strictEqual(merged.operationId, operationId)
+		// The stub carried no tool kind; the later observation supplies it.
+		Vitest.assert.strictEqual(merged.toolKind, "execute")
+		// First non-null kind wins: an existing kind survives a later row that
+		// carries none (e.g. a status-only update).
+		const kept = mergeActivityRow(Option.some(observed), stub)
+		Vitest.assert.strictEqual(kept.toolKind, "execute")
 	})
 
 	Vitest.it("takes an incoming output onto a row that has none", () => {
@@ -475,6 +486,7 @@ Vitest.describe("mergeActivityRow", () => {
 			sequence: 4,
 			statusSequence: 4,
 			kind: "tool",
+			toolKind: "execute",
 			toolCallId,
 			operationId: null,
 			status: "in_progress",
@@ -488,6 +500,7 @@ Vitest.describe("mergeActivityRow", () => {
 			sequence: 5,
 			statusSequence: 5,
 			kind: "tool",
+			toolKind: null,
 			toolCallId,
 			operationId: null,
 			status: "completed",

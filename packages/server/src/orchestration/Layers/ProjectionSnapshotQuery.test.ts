@@ -482,6 +482,7 @@ Vitest.layer(isolatedQuery())("one transaction snapshot", (it) => {
 					sessionId,
 					sequence: 4,
 					kind: "tool",
+					toolKind: null,
 					status: "pending",
 					title: "activity",
 					path: null,

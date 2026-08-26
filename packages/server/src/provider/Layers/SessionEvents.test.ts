@@ -27,7 +27,8 @@ const header: SessionEventHeader = {
 const startInfo: OpenToolCallInfo = {
 	activityId: toolCallActivityId("call_1"),
 	title: "Read file",
-	path: "/tmp/acepe/a.ts"
+	path: "/tmp/acepe/a.ts",
+	kind: "read"
 }
 
 const emptyOpenToolCalls: Effect.Effect<OpenToolCalls> = Ref.make(
@@ -57,7 +58,8 @@ Vitest.describe("SessionEvents tool call identity", () => {
 			Vitest.assert.deepStrictEqual(info, {
 				activityId: toolCallActivityId("call_9"),
 				title: FALLBACK_TOOL_TITLE,
-				path: null
+				path: null,
+				kind: null
 			})
 		})
 	)
@@ -100,7 +102,8 @@ Vitest.describe("SessionEvents builders", () => {
 			status: "completed",
 			title: startInfo.title,
 			path: startInfo.path,
-			output: "file1\nfile2"
+			output: "file1\nfile2",
+			kind: "read"
 		})
 		Vitest.assert.strictEqual(event.type, "ToolCallObserved")
 		Vitest.assert.strictEqual(event.aggregateKind, "session")
@@ -119,6 +122,7 @@ Vitest.describe("SessionEvents builders", () => {
 		Vitest.assert.strictEqual(event.payload.title, "Read file")
 		Vitest.assert.strictEqual(event.payload.path, "/tmp/acepe/a.ts")
 		Vitest.assert.strictEqual(event.payload.output, "file1\nfile2")
+		Vitest.assert.strictEqual(event.payload.kind, "read")
 	})
 
 	// #273: the payload's output is a TrimmedNonEmptyString, and

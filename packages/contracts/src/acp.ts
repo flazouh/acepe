@@ -462,6 +462,18 @@ export const observedToolOutput = (output: string | null): string | null => {
 	return trimmed.slice(0, TOOL_OUTPUT_CAP)
 }
 
+// The one place a provider's raw tool-kind string becomes the canonical
+// field: blank is absent (same rule as observedToolOutput), and the ends are
+// trimmed because TrimmedNonEmptyString rejects what trims to nothing, which
+// would make ToolCallObservedEvent.make throw and kill the adapter's fiber.
+export const observedToolKind = (kind: string | null): string | null => {
+	if (kind === null) {
+		return null
+	}
+	const trimmed = kind.trim()
+	return trimmed.length === 0 ? null : trimmed
+}
+
 export const ToolCallObservedPayload = Schema.Struct({
 	sessionId: SessionId,
 	activityId: ActivityId,
@@ -471,6 +483,16 @@ export const ToolCallObservedPayload = Schema.Struct({
 	title: TrimmedNonEmptyString,
 	path: Schema.NullOr(TrimmedNonEmptyString),
 	output: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey),
+	// The provider's own tool classification (e.g. "edit", "execute",
+	// "read"). It is canonical product truth the same way status and title
+	// are: every provider computes it to build the title/path hints, then
+	// used to drop it here, so the client had nothing to read and fell back
+	// to re-parsing the display title, which failed for path-bearing titles
+	// like "Write /abs/path" (AC-280). Optional and nullable for the same
+	// replay reason as `output`: events appended before this field existed
+	// carry no kind key, and the activities projector re-decodes every stored
+	// payload on a rebuild. Null when a provider has not classified the call.
+	kind: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey),
 })
 export type ToolCallObservedPayload = typeof ToolCallObservedPayload.Type
 

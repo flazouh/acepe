@@ -216,7 +216,8 @@ const publishToolCallStarted = Effect.fn("OpenCodeAdapter.publishToolCallStarted
 	yield* rememberOpenToolCall(runtime.openToolCalls, fact.toolCallId, fact.status, {
 		activityId,
 		title: fact.title,
-		path: OPENCODE_TOOL_PATH
+		path: OPENCODE_TOOL_PATH,
+		kind: fact.kind
 	})
 	const header = yield* stamp(runtime)
 	return yield* offerOutbound(
@@ -230,7 +231,8 @@ const publishToolCallStarted = Effect.fn("OpenCodeAdapter.publishToolCallStarted
 			// A tool part that is only starting has run nothing yet, so
 			// ToolCallUpdateFact is where the result arrives -- see
 			// publishToolCallUpdated below.
-			output: null
+			output: null,
+			kind: fact.kind
 		})
 	)
 })
@@ -254,6 +256,7 @@ const publishToolCallUpdated = Effect.fn("OpenCodeAdapter.publishToolCallUpdated
 			status: fact.status,
 			title: info.title,
 			path: OPENCODE_TOOL_PATH,
+			kind: info.kind,
 			// #273: Map.ts has read state.output (and state.error on a
 			// failure) into this fact all along; before this it stopped here,
 			// which is why no OpenCode tool row ever showed a result.

@@ -50,6 +50,7 @@ import {
 	observedStatusToOperationState,
 	observedStatusToToolCallStatus,
 } from "./observed-tool-call-status.js";
+import { asOperationToolKind } from "./observed-tool-kind.js";
 
 const idleActivity: SessionGraphActivity = {
 	kind: "idle",
@@ -155,7 +156,10 @@ function operationFromActivity(activity: RpcProjectedSessionActivity): Operation
 		session_id: activity.sessionId,
 		tool_call_id: toolCallId,
 		name: title,
-		kind: null,
+		// Canonical: the tool classification the snapshot now carries per
+		// activity (tool_kind column), so a reopened session renders the
+		// right card without re-parsing the display title.
+		kind: asOperationToolKind(activity.toolKind),
 		provider_status: observedStatusToToolCallStatus(
 			observedStatusFromActivityStatus(activity.status)
 		),
@@ -193,7 +197,9 @@ function approvalEntryId(approval: RpcProjectedPendingApproval): string {
 	return `entry-approval-${approval.approvalRequestId}`;
 }
 
-function transcriptEntryFromPendingApproval(approval: RpcProjectedPendingApproval): TranscriptEntry {
+function transcriptEntryFromPendingApproval(
+	approval: RpcProjectedPendingApproval
+): TranscriptEntry {
 	return {
 		entryId: approvalEntryId(approval),
 		role: "tool",
@@ -233,7 +239,9 @@ function operationFromPendingApproval(approval: RpcProjectedPendingApproval): Op
 	};
 }
 
-function interactionFromPendingApproval(approval: RpcProjectedPendingApproval): InteractionSnapshot {
+function interactionFromPendingApproval(
+	approval: RpcProjectedPendingApproval
+): InteractionSnapshot {
 	const title = approval.title ?? PENDING_APPROVAL_FALLBACK_TITLE;
 	return {
 		id: approval.approvalRequestId,

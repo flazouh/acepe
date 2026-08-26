@@ -10,6 +10,7 @@ import {
 	SessionMetaUpdatedEvent,
 	ToolCallId,
 	ToolCallObservedEvent,
+	observedToolKind,
 	observedToolOutput,
 	pendingApprovalMetadata
 } from "@acepe/contracts"
@@ -168,7 +169,11 @@ export const toolCallObservedEvent = (
 			// absent one and bounds an enormous one. ToolCallObservedEvent.make
 			// throws rather than failing on a value TrimmedNonEmptyString
 			// rejects, which would kill the calling adapter's fiber.
-			output: observedToolOutput(input.output)
+			output: observedToolOutput(input.output),
+			// observedToolKind applies the same blank -> null / trim guard to
+			// the provider's classification. Absent (undefined) collapses to
+			// null the same way a provider that never classified the call does.
+			kind: observedToolKind(input.kind ?? null)
 		}
 	})
 

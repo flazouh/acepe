@@ -264,7 +264,8 @@ const publishToolCallStarted = Effect.fn("CodexAdapter.publishToolCallStarted")(
 	yield* rememberOpenToolCall(runtime.openToolCalls, fact.toolCallId, fact.status, {
 		activityId,
 		title: fact.title,
-		path
+		path,
+		kind: fact.kind
 	})
 	const header = yield* stamp(runtime)
 	return yield* offerOutbound(
@@ -278,7 +279,8 @@ const publishToolCallStarted = Effect.fn("CodexAdapter.publishToolCallStarted")(
 			// An item that is only starting has produced no result yet: Map.ts
 			// reads one off item/completed only, into ToolCallUpdateFact's
 			// result — see publishToolCallUpdated below.
-			output: null
+			output: null,
+			kind: fact.kind
 		})
 	)
 })
@@ -299,6 +301,7 @@ const publishToolCallUpdated = Effect.fn("CodexAdapter.publishToolCallUpdated")(
 			status: fact.status,
 			title: fact.title ?? info.title,
 			path: info.path,
+			kind: info.kind,
 			// #273: Map.ts's toolResult has read aggregatedOutput (else
 			// exitCode) into this fact all along and it stopped here. Json,
 			// not string, because Codex reports both a command's text and an

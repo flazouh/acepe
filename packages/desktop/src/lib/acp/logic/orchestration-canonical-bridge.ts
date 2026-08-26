@@ -39,6 +39,7 @@ import {
 	observedStatusToOperationState,
 	observedStatusToToolCallStatus,
 } from "./observed-tool-call-status.js";
+import { asOperationToolKind } from "./observed-tool-kind.js";
 
 type SessionCanonicalState = {
 	revision: SessionGraphRevision;
@@ -384,6 +385,7 @@ export class OrchestrationCanonicalBridge {
 		readonly status: "pending" | "in_progress" | "completed" | "failed";
 		readonly title: string;
 		readonly path: string | null;
+		readonly kind?: string | null;
 	}): AcpEventEnvelope[] {
 		const state = this.sessions.get(payload.sessionId);
 		if (state === undefined) {
@@ -440,7 +442,9 @@ export class OrchestrationCanonicalBridge {
 			session_id: payload.sessionId,
 			tool_call_id: payload.toolCallId,
 			name: payload.title,
-			kind: null,
+			// Canonical: the provider's own classification the ToolCallObserved
+			// event now carries, not a kind re-parsed from the display title.
+			kind: asOperationToolKind(payload.kind),
 			provider_status: observedStatusToToolCallStatus(payload.status),
 			title: payload.title,
 			arguments: noArguments,
@@ -517,7 +521,11 @@ export class OrchestrationCanonicalBridge {
 	// already there, appending another would duplicate it.
 	private onApprovalRequestedForExistingRow(
 		state: SessionCanonicalState,
-		payload: { readonly sessionId: SessionId; readonly approvalRequestId: string; readonly title: string },
+		payload: {
+			readonly sessionId: SessionId;
+			readonly approvalRequestId: string;
+			readonly title: string;
+		},
 		toolCallId: string
 	): AcpEventEnvelope[] {
 		state.observedApprovalIds.add(payload.approvalRequestId);
