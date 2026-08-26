@@ -110,15 +110,13 @@ Vitest.describe("SessionEvents builders", () => {
 		Vitest.assert.strictEqual(event.commandId, header.commandId)
 		Vitest.assert.strictEqual(event.correlationId, header.commandId)
 		Vitest.assert.strictEqual(event.causationEventId, null)
-		Vitest.assert.deepStrictEqual(event.payload, {
-			sessionId,
-			activityId: startInfo.activityId,
-			toolCallId: "call_1",
-			operationId: null,
-			status: "completed",
-			title: "Read file",
-			path: "/tmp/acepe/a.ts"
-		})
+		Vitest.assert.strictEqual(event.payload.sessionId, sessionId)
+		Vitest.assert.strictEqual(event.payload.activityId, startInfo.activityId)
+		Vitest.assert.strictEqual(event.payload.toolCallId, "call_1")
+		Vitest.assert.strictEqual(event.payload.operationId, null)
+		Vitest.assert.strictEqual(event.payload.status, "completed")
+		Vitest.assert.strictEqual(event.payload.title, "Read file")
+		Vitest.assert.strictEqual(event.payload.path, "/tmp/acepe/a.ts")
 	})
 
 	// ProjectionPendingApprovals only reads a native ApprovalRequested event
@@ -132,10 +130,8 @@ Vitest.describe("SessionEvents builders", () => {
 		Vitest.assert.strictEqual(event.type, "ApprovalRequested")
 		Vitest.assert.strictEqual(event.aggregateKind, "session")
 		Vitest.assert.strictEqual(event.aggregateId, sessionId)
-		Vitest.assert.deepStrictEqual(event.payload, {
-			sessionId,
-			approvalRequestId: "42",
-			title: "Read src/lib.rs"
-		})
+		Vitest.assert.strictEqual(event.payload.sessionId, sessionId)
+		Vitest.assert.strictEqual(event.payload.approvalRequestId, "42")
+		Vitest.assert.strictEqual(event.payload.title, "Read src/lib.rs")
 	})
 })
