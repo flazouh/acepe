@@ -164,6 +164,8 @@ function hydrateProviderBackedSessionOnOpen(input: {
 			ensureProviderSessionImported: api.ensureProviderSessionImported,
 			applySessionStateEnvelope: (targetSessionId, envelope) =>
 				sessionStore.applySessionStateEnvelope(targetSessionId, envelope),
+			getCurrentGraphRevision: (targetSessionId) =>
+				sessionStore.read.getSessionGraphRevision(targetSessionId),
 		}
 	).pipe(
 		Effect.map((result) => {

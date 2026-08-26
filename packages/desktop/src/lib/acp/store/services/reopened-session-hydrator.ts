@@ -18,9 +18,12 @@
 import type { RpcSessionSnapshot } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 
-import type { SessionStateEnvelope } from "../../../services/acp-types.js";
+import type { SessionGraphRevision, SessionStateEnvelope } from "../../../services/acp-types.js";
 import type { AppError } from "../../errors/app-error.js";
-import { graphFromReopenSnapshot } from "../../logic/reopen-snapshot-graph.js";
+import {
+	graphFromReopenSnapshot,
+	reopenGraphRevisionForApply,
+} from "../../logic/reopen-snapshot-graph.js";
 import { createSnapshotEnvelope } from "../../session-state/session-state-protocol.js";
 import { createLogger } from "../../utils/logger.js";
 
@@ -46,6 +49,14 @@ export interface ReopenedSessionHydratorDeps {
 	readonly getSessionSnapshot: (sessionId: string) => Effect.Effect<RpcSessionSnapshot, AppError>;
 	readonly ensureProviderSessionImported: (sessionId: string) => Effect.Effect<void, AppError>;
 	readonly applySessionStateEnvelope: (sessionId: string, envelope: SessionStateEnvelope) => void;
+	/**
+	 * The local graph's current revision, if one already exists (e.g. from an
+	 * earlier reopen, or from live deltas), or `null` for a from-empty
+	 * hydration. Feeds `reopenGraphRevisionForApply` -- see that function's
+	 * doc comment (AC-263 issue #263 defect 2) for why this hydrator must
+	 * consult it instead of unconditionally applying every fetched snapshot.
+	 */
+	readonly getCurrentGraphRevision: (sessionId: string) => SessionGraphRevision | null;
 }
 
 function snapshotIsNotYetImported(snapshot: RpcSessionSnapshot): boolean {
@@ -97,7 +108,13 @@ export function hydrateReopenedSessionSnapshot(
 				sequenceId: input.sequenceId,
 				snapshot,
 			});
-			deps.applySessionStateEnvelope(input.sessionId, createSnapshotEnvelope(graph));
+			const currentRevision = deps.getCurrentGraphRevision(input.sessionId);
+			const revisionForApply = reopenGraphRevisionForApply(graph, currentRevision);
+			if (revisionForApply === null) {
+				return { applied: false };
+			}
+			const graphForApply = { ...graph, revision: revisionForApply };
+			deps.applySessionStateEnvelope(input.sessionId, createSnapshotEnvelope(graphForApply));
 			return { applied: true };
 		}),
 		Effect.catch((error) => {

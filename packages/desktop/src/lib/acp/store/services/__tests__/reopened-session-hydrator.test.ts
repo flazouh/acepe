@@ -71,6 +71,7 @@ describe("hydrateReopenedSessionSnapshot", () => {
 			applySessionStateEnvelope: (sessionId, envelope) => {
 				appliedEnvelopes.push({ sessionId, envelope });
 			},
+			getCurrentGraphRevision: () => null,
 		};
 
 		const result = await Effect.runPromise(hydrateReopenedSessionSnapshot(baseInput(), deps));
@@ -110,6 +111,7 @@ describe("hydrateReopenedSessionSnapshot", () => {
 				return Effect.void;
 			},
 			applySessionStateEnvelope: () => undefined,
+			getCurrentGraphRevision: () => null,
 		};
 
 		const result = await Effect.runPromise(
@@ -133,6 +135,7 @@ describe("hydrateReopenedSessionSnapshot", () => {
 				return Effect.void;
 			},
 			applySessionStateEnvelope: () => undefined,
+			getCurrentGraphRevision: () => null,
 		};
 
 		const result = await Effect.runPromise(hydrateReopenedSessionSnapshot(baseInput(), deps));
@@ -151,6 +154,7 @@ describe("hydrateReopenedSessionSnapshot", () => {
 			applySessionStateEnvelope: (_sessionId, envelope) => {
 				appliedEnvelopes.push(envelope);
 			},
+			getCurrentGraphRevision: () => null,
 		};
 
 		const result = await Effect.runPromise(
@@ -170,10 +174,75 @@ describe("hydrateReopenedSessionSnapshot", () => {
 				Effect.fail(new AgentError("acp.getSessionSnapshot", new Error("network down"))),
 			ensureProviderSessionImported: () => Effect.void,
 			applySessionStateEnvelope: () => undefined,
+			getCurrentGraphRevision: () => null,
 		};
 
 		const result = await Effect.runPromise(hydrateReopenedSessionSnapshot(baseInput(), deps));
 
 		expect(result).toEqual({ applied: false });
+	});
+
+	// AC-263 issue #263 defect 2: reopening a session whose local graph
+	// already has transcript entries (e.g. from an earlier reopen, or from
+	// live deltas) must still re-seed when the freshly-fetched snapshot is
+	// genuinely newer -- not only on the first, from-empty hydration. See
+	// reopen-snapshot-graph.ts's `reopenGraphRevisionForApply`, which this
+	// hydrator now consults via the new `getCurrentGraphRevision` dependency.
+	it("re-seeds when the local graph already has transcript entries but the snapshot is newer", async () => {
+		const snapshot = withSession(
+			{
+				...emptyRpcSessionSnapshot(20),
+				messages: [userMessage("msg-1", "hello", 1), userMessage("msg-2", "REHYDRATE_42", 18)],
+			},
+			SESSION_ID
+		);
+		const appliedEnvelopes: SessionStateEnvelope[] = [];
+		const deps: ReopenedSessionHydratorDeps = {
+			getSessionSnapshot: () => Effect.succeed(snapshot),
+			ensureProviderSessionImported: () => Effect.void,
+			applySessionStateEnvelope: (_sessionId, envelope) => {
+				appliedEnvelopes.push(envelope);
+			},
+			// A local graph already exists (this session was opened once
+			// before) with a strictly older transcript revision.
+			getCurrentGraphRevision: () => ({ graphRevision: 4, transcriptRevision: 3, lastEventSeq: 9 }),
+		};
+
+		const result = await Effect.runPromise(hydrateReopenedSessionSnapshot(baseInput(), deps));
+
+		expect(result).toEqual({ applied: true });
+		expect(appliedEnvelopes).toHaveLength(1);
+		const applied = appliedEnvelopes[0];
+		if (applied?.payload.kind !== "snapshot") {
+			throw new Error("expected a snapshot envelope");
+		}
+		expect(applied.payload.graph.transcriptSnapshot.entries.map((entry) => entry.entryId)).toEqual([
+			"msg-1",
+			"msg-2",
+		]);
+		// graphRevision must be strictly greater than the local graph's (4),
+		// or it would lose the downstream isNewerGraphRevision comparison.
+		expect(applied.graphRevision).toBeGreaterThan(4);
+	});
+
+	it("does not re-apply when the local graph's transcript is already at least as new", async () => {
+		const snapshot = withSession(
+			{ ...emptyRpcSessionSnapshot(3), messages: [userMessage("msg-1", "hello", 1)] },
+			SESSION_ID
+		);
+		const appliedEnvelopes: SessionStateEnvelope[] = [];
+		const deps: ReopenedSessionHydratorDeps = {
+			getSessionSnapshot: () => Effect.succeed(snapshot),
+			ensureProviderSessionImported: () => Effect.void,
+			applySessionStateEnvelope: (_sessionId, envelope) => {
+				appliedEnvelopes.push(envelope);
+			},
+			getCurrentGraphRevision: () => ({ graphRevision: 4, transcriptRevision: 9, lastEventSeq: 9 }),
+		};
+
+		const result = await Effect.runPromise(hydrateReopenedSessionSnapshot(baseInput(), deps));
+
+		expect(result).toEqual({ applied: false });
+		expect(appliedEnvelopes).toHaveLength(0);
 	});
 });

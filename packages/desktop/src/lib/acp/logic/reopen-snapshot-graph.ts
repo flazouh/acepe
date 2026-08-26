@@ -263,6 +263,46 @@ export interface ReopenSnapshotGraphInput {
  * exposes still-pending approvals (already handled below), not resolved
  * historical ones.
  */
+/**
+ * Decides whether a freshly-built reopen graph should actually be applied
+ * over whatever the local graph currently holds, and if so, computes a
+ * revision guaranteed to be recognized as newer by `isNewerGraphRevision`
+ * -- mirroring `session-open-snapshot-applier.svelte.ts`'s
+ * `shouldApplyCanonicalGraph` ("snapshot wins if strictly newer") instead of
+ * only applying when the local graph starts out empty (AC-263 issue #263
+ * defect 2).
+ *
+ * `graphFromReopenSnapshot` always stamps `graphRevision: 0`: unlike the
+ * Tauri-era `graphFromSessionOpenFound`, there is no Rust-owned graphRevision
+ * counter behind the Electrobun RPC snapshot to carry through. Compared via
+ * the plain `isNewerGraphRevision` (which orders on graphRevision first), a
+ * reopen can therefore never outrank a local graph that has already advanced
+ * past graphRevision 0 through live deltas -- even when the reopen's own
+ * `transcriptRevision` (the snapshot's real, monotonic server-side sequence)
+ * is genuinely newer. This widens the reopen's revision just enough to win
+ * in that case, by bumping graphRevision relative to whatever the local
+ * graph already carries, while still refusing to apply (returning `null`)
+ * whenever the local graph's transcript is already at least as new -- the
+ * same "never stomp a newer graph" protection `graphFromReopenSnapshot`'s
+ * own revision already gives it against a genuinely-live graph.
+ */
+export function reopenGraphRevisionForApply(
+	graph: SessionStateGraph,
+	currentRevision: SessionGraphRevision | null
+): SessionGraphRevision | null {
+	if (currentRevision === null) {
+		return graph.revision;
+	}
+	if (graph.transcriptSnapshot.revision <= currentRevision.transcriptRevision) {
+		return null;
+	}
+	return {
+		graphRevision: currentRevision.graphRevision + 1,
+		transcriptRevision: graph.transcriptSnapshot.revision,
+		lastEventSeq: currentRevision.lastEventSeq + 1,
+	};
+}
+
 export function graphFromReopenSnapshot(input: ReopenSnapshotGraphInput): SessionStateGraph {
 	const revision: SessionGraphRevision = {
 		graphRevision: 0,

@@ -11,7 +11,11 @@ import {
 } from "@acepe/contracts";
 
 import { isNewerGraphRevision } from "../../store/envelope-reducer/graph-revision-order.js";
-import { canonicalAgentIdFromString, graphFromReopenSnapshot } from "../reopen-snapshot-graph.js";
+import {
+	canonicalAgentIdFromString,
+	graphFromReopenSnapshot,
+	reopenGraphRevisionForApply,
+} from "../reopen-snapshot-graph.js";
 
 const SESSION_ID = SessionId.make("session-reopen-1");
 const PROJECT_ID = ProjectId.make("project-1");
@@ -195,6 +199,123 @@ describe("graphFromReopenSnapshot", () => {
 		expect(operation?.operation_state).toBe("completed");
 		expect(operation?.source_link).toEqual({ kind: "transcript_linked", entry_id: "activity-1" });
 		expect(operation?.locations).toEqual([{ path: "package.json" }]);
+	});
+
+	// AC-263 issue #263 defect 1: the server-side projection (sessionSnapshot.ts's
+	// upsertAssistant) merges every TokenAppended for one provider messageId
+	// into a SINGLE RpcAssistantProjectedMessage row -- text streamed before a
+	// mid-turn tool call and text streamed after it land in the same row,
+	// concatenated, with the row's `sequence` pinned to the FIRST token (so it
+	// sits before the tool activity's own, later sequence). The live path
+	// (orchestration-canonical-bridge.ts) instead splits into two transcript
+	// entries around the tool call; the reopen seed cannot recover that split
+	// (the character offset is lost once the server merges the row), so it
+	// must at least preserve the full merged text adjacent to the tool row --
+	// never truncate to a prefix.
+	it("keeps the full merged assistant text when a tool activity's sequence sits after the message row's", () => {
+		const snapshot: RpcSessionSnapshot = {
+			...withMessages(16, [
+				{
+					sessionId: SESSION_ID,
+					sequence: 10,
+					messageId: "msg-user-1",
+					turnId: null,
+					rowType: "user",
+					content: {
+						text: "Read the file package.json in this project and tell me its name field",
+					},
+				},
+				{
+					sessionId: SESSION_ID,
+					sequence: 12,
+					messageId: "msg-assistant-1",
+					turnId: TURN_ID,
+					rowType: "assistant",
+					content: {
+						text: "I'll read the package.json file.The `name` field is **`verify-fixture-project`**.",
+					},
+				},
+			]),
+			activities: [
+				{
+					activityId: ActivityId.make("activity-1"),
+					sessionId: SESSION_ID,
+					sequence: 15,
+					kind: "tool",
+					status: "completed",
+					title: "Read",
+					path: "package.json",
+					toolCallId: ToolCallId.make("tool-1"),
+				},
+			],
+		};
+
+		const graph = graphFromReopenSnapshot(baseInput(snapshot));
+
+		expect(graph.transcriptSnapshot.entries.map((entry) => entry.entryId)).toEqual([
+			"msg-user-1",
+			"msg-assistant-1",
+			"activity-1",
+		]);
+		const assistantEntry = graph.transcriptSnapshot.entries[1];
+		expect(assistantEntry?.segments).toEqual([
+			{
+				kind: "text",
+				segmentId: "msg-assistant-1-text",
+				text: "I'll read the package.json file.The `name` field is **`verify-fixture-project`**.",
+			},
+		]);
+		const toolEntry = graph.transcriptSnapshot.entries[2];
+		expect(toolEntry?.role).toBe("tool");
+	});
+
+	// AC-263 issue #263 defect 2: graphFromReopenSnapshot always stamps
+	// graphRevision: 0 (there is no Rust-owned graphRevision counter behind
+	// the Electrobun RPC snapshot -- unlike the Tauri-era SessionOpenFound
+	// path's graphFromSessionOpenFound, which carries a real one). Compared
+	// naively via isNewerGraphRevision, a reopen can therefore never outrank
+	// a local graph that has already advanced past graphRevision 0 (e.g. via
+	// live deltas), even when the reopen's own transcriptRevision is
+	// genuinely newer -- turns completed after the first hydration never
+	// reappear. reopenGraphRevisionForApply mirrors session-open-snapshot-
+	// applier's "snapshot wins if strictly newer" semantics instead of only
+	// applying when the local graph starts empty.
+	describe("reopenGraphRevisionForApply", () => {
+		it("applies the reopen graph as-is when there is no current graph yet", () => {
+			const snapshot = withMessages(6, []);
+			const graph = graphFromReopenSnapshot(baseInput(snapshot));
+
+			expect(reopenGraphRevisionForApply(graph, null)).toEqual(graph.revision);
+		});
+
+		it("computes a revision that wins over a current graph whose transcript is strictly older", () => {
+			const snapshot = withMessages(20, []);
+			const graph = graphFromReopenSnapshot(baseInput(snapshot));
+			const currentRevision = { graphRevision: 3, transcriptRevision: 5, lastEventSeq: 9 };
+
+			const nextRevision = reopenGraphRevisionForApply(graph, currentRevision);
+
+			expect(nextRevision).not.toBeNull();
+			expect(isNewerGraphRevision(currentRevision, nextRevision as typeof currentRevision)).toBe(
+				true
+			);
+		});
+
+		it("refuses to apply (returns null) when the current graph's transcript is already at least as new", () => {
+			const snapshot = withMessages(2, []);
+			const graph = graphFromReopenSnapshot(baseInput(snapshot));
+			const currentRevision = { graphRevision: 1, transcriptRevision: 5, lastEventSeq: 5 };
+
+			expect(reopenGraphRevisionForApply(graph, currentRevision)).toBeNull();
+		});
+
+		it("still never lets a stale reopen snapshot stomp a newer live graph (row-wipe protection)", () => {
+			const staleSnapshot = withMessages(2, []);
+			const staleGraph = graphFromReopenSnapshot(baseInput(staleSnapshot));
+			const liveGraphRevision = { graphRevision: 1, transcriptRevision: 5, lastEventSeq: 5 };
+
+			expect(reopenGraphRevisionForApply(staleGraph, liveGraphRevision)).toBeNull();
+		});
 	});
 
 	it("reports waiting_for_user activity when the snapshot carries a pending approval", () => {

@@ -47,7 +47,16 @@ import { resolve } from "node:path";
 // 6579 -> 6599: composite of the project-color/zoom/submit-intent feature
 // work landed without a ratchet run, plus the QA session-list write log and
 // startup-scan retry added while diagnosing the sidebar-blanking boot race.
-const BASELINE = 6599;
+// 6599 -> 6603: +2 unattributed, from a concurrent session's commits landed
+// on this branch while the AC-263 reopen/rehydrate defect fixes below were
+// in progress (not re-attributed to this batch -- see its own commit
+// message). +2 from this batch's own two new
+// `it("...", async () => {})` regression tests added to
+// reopened-session-hydrator.test.ts (AC-263 issue #263 defect 2: re-seed on
+// a genuinely newer reopen snapshot even when the local graph already has
+// entries), same effect(asyncFunction) pattern as every other test in that
+// file already trips.
+const BASELINE = 6603;
 const PACKAGE_ROOT = resolve(import.meta.dir, "..");
 
 // The pretty formatter (the default, and what lint:effect:report uses) always
