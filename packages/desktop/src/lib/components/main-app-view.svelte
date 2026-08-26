@@ -181,6 +181,20 @@ type MainAppQaWindow = Window & {
 	// ProviderBridge path end to end without a picker existing yet. Returns
 	// the new panel's id.
 	__acepeQaSpawnAgentPanel?: (projectPath: string, agentId: string) => string;
+	// QA-only: scanStartupSessionHistoryOnce (initialization-manager.ts) only
+	// unions the library/orchestration snapshot's projects+sessions into
+	// ProjectManager/sessionStore ONCE, at boot -- a session dispatched later
+	// in the same run (e.g. via __acepeQaDispatch) never becomes visible in
+	// the sidebar without a full app restart. This re-runs that same union on
+	// demand so a QA script can make a just-dispatched session appear without
+	// tearing down and relaunching the instance.
+	__acepeQaMergeLibraryProjections?: () => Promise<{ readonly projectCount: number }>;
+	// QA-only: the same open path a real sidebar/session-list row click
+	// performs (MainAppViewState.handleSelectSession -> SessionHandler.
+	// selectSession -> panelStore.openSession + openPersistedSession). No
+	// separate attach/open logic -- this is the real production entry point,
+	// just reachable without pixel-driving the sidebar UI.
+	__acepeQaOpenSession?: (sessionId: string) => Promise<{ readonly ok: boolean; readonly error: string | null }>;
 };
 
 type MainAppHappyPathNavigationTiming = {
@@ -952,6 +966,59 @@ function installQaScanProbeHook(): void {
 		qaScanProbe;
 }
 
+// QA-only: re-run the same library-projection union
+// scanStartupSessionHistoryOnce performs at boot (see
+// initialization-manager.ts), so a session/project dispatched after startup
+// becomes visible without restarting the instance.
+function qaMergeLibraryProjections(): Promise<{ readonly projectCount: number }> {
+	return Effect.runPromise(
+		sessionStore.loading.scanSessionProjections().pipe(
+			Effect.map((projects) => {
+				projectManager.mergeLibraryProjects(projects);
+				return { projectCount: projects.length };
+			}),
+			Effect.catchCause((cause) =>
+				Effect.fail(new Error(`scanSessionProjections failed: ${Cause.pretty(cause)}`))
+			)
+		)
+	);
+}
+
+function installQaMergeLibraryProjectionsHook(): void {
+	if (!QA_HOOKS_ENABLED) {
+		return;
+	}
+	(
+		window as MainAppQaWindow & {
+			__acepeQaMergeLibraryProjections?: typeof qaMergeLibraryProjections;
+		}
+	).__acepeQaMergeLibraryProjections = qaMergeLibraryProjections;
+}
+
+// QA-only: open a session by id through the real production path
+// (MainAppViewState.handleSelectSession), not a separate QA-only attach
+// routine -- reuses whatever a real sidebar row click does today.
+function qaOpenSession(
+	sessionId: string
+): Promise<{ readonly ok: boolean; readonly error: string | null }> {
+	return Effect.runPromise(
+		viewState.handleSelectSession(sessionId).pipe(
+			Effect.map(() => ({ ok: true, error: null })),
+			Effect.catch((error) =>
+				Effect.succeed({ ok: false, error: error instanceof Error ? error.message : String(error) })
+			)
+		)
+	);
+}
+
+function installQaOpenSessionHook(): void {
+	if (!QA_HOOKS_ENABLED) {
+		return;
+	}
+	(window as MainAppQaWindow & { __acepeQaOpenSession?: typeof qaOpenSession }).__acepeQaOpenSession =
+		qaOpenSession;
+}
+
 // QA-only: startup step outcomes. The failure path for background startup
 // steps logs to the webview console, which is invisible from outside the
 // app — the trace entries carry each step's status and error message.
@@ -1719,6 +1786,8 @@ onMount(async () => {
 	installQaSpawnAgentPanelHook();
 	installQaSessionListSnapshotHook();
 	installQaScanProbeHook();
+	installQaMergeLibraryProjectionsHook();
+	installQaOpenSessionHook();
 	installQaStartupTraceHook();
 	if (QA_HOOKS_ENABLED) {
 		installQaDispatchHook();

@@ -76,7 +76,15 @@ import { resolve } from "node:path";
 // `eventHandler.getSessionCanSend(sessionId)` after the envelope applies)
 // dropped more effect(strictBooleanExpressions)-style violations than the
 // batch's own new test file additions added back.
-const BASELINE = 6606;
+// 6606 -> 6608: AC #266 defect 3 follow-up (a dispatch-created session's
+// prior transcript now also hydrates on open, not just the attach itself).
+// open-persisted-session.test.ts's two new
+// `ensureProviderSessionImportedMock` fallback `Effect.succeed(undefined)`
+// declarations (module-level const + beforeEach reset) trip
+// effect(effectSucceedWithVoid) x2. Production code
+// (open-persisted-session.ts, main-app-view.svelte) has zero new
+// violations -- verified against this batch's actual diff.
+const BASELINE = 6608;
 const PACKAGE_ROOT = resolve(import.meta.dir, "..");
 
 // The pretty formatter (the default, and what lint:effect:report uses) always

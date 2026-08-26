@@ -71,6 +71,8 @@ interface OpenPersistedSessionOptions {
 	readonly sessionOpenHydrator: SessionOpenHydratorLike;
 	readonly getSessionOpenResult?: typeof api.getSessionOpenResult;
 	readonly awaitSessionOpenRepair?: typeof api.awaitSessionOpenRepair;
+	readonly getSessionSnapshot?: typeof api.getSessionSnapshot;
+	readonly ensureProviderSessionImported?: typeof api.ensureProviderSessionImported;
 	readonly preparedOpenResult?: SessionOpenResult;
 	readonly repairPriority?: "selected" | "visible";
 	readonly isPanelCurrent?: (panelId: string, sessionId: string) => boolean;
@@ -104,10 +106,24 @@ function reattachLocalCreatedSession(input: {
 	readonly sessionId: string;
 	readonly sessionStore: SessionOpenStore;
 	readonly agentId: string;
+	readonly sessionIdentity: SessionIdentity;
+	readonly sessionMetadata: SessionMetadata;
+	readonly getSessionSnapshot: typeof api.getSessionSnapshot;
+	readonly ensureProviderSessionImported: typeof api.ensureProviderSessionImported;
 }): Effect.Effect<void, AppError> {
-	const { source, panelId, sessionId, sessionStore, agentId } = input;
+	const {
+		source,
+		panelId,
+		sessionId,
+		sessionStore,
+		agentId,
+		sessionIdentity,
+		sessionMetadata,
+		getSessionSnapshot,
+		ensureProviderSessionImported,
+	} = input;
 	return sessionStore.connection.connectSession(sessionId).pipe(
-		Effect.map(() => {
+		Effect.flatMap(() => {
 			sessionStore.loading.setLocalCreatedSessionLoaded(sessionId);
 			logger.debug("Reattached local created session", {
 				source,
@@ -115,7 +131,30 @@ function reattachLocalCreatedSession(input: {
 				sessionId,
 				agentId,
 			});
-			return undefined;
+			// Attach alone (connectSession) only materializes lifecycle/
+			// connection state -- it does not backfill transcript content from
+			// before this client subscribed (AGENTS.md: "reconnect attaches
+			// live transport and may deliver only post-frontier events").
+			// A session that already has real provider history by the time
+			// it's (re)opened here -- e.g. one created via raw orchestration
+			// dispatch, whose local sessionMetadata.sessionLifecycleState was
+			// never flipped away from "created" because dispatch skips
+			// SessionConnectionManager.createSession's client bookkeeping --
+			// still needs that history hydrated the same way a normal
+			// provider-history-backed reopen gets it. Best-effort and
+			// idempotent: hydrateReopenedSessionSnapshot never stomps a newer
+			// live graph, and a session with genuinely no history just gets
+			// nothing applied.
+			return hydrateProviderBackedSessionOnOpen({
+				source,
+				panelId,
+				sessionId,
+				sessionStore,
+				sessionIdentity,
+				sessionMetadata,
+				getSessionSnapshot,
+				ensureProviderSessionImported,
+			});
 		}),
 		Effect.catch((error: AppError) => {
 			sessionStore.loading.setSessionLoaded(sessionId);
@@ -148,8 +187,19 @@ function hydrateProviderBackedSessionOnOpen(input: {
 	readonly sessionStore: SessionOpenStore;
 	readonly sessionIdentity: SessionIdentity;
 	readonly sessionMetadata: SessionMetadata;
+	readonly getSessionSnapshot: typeof api.getSessionSnapshot;
+	readonly ensureProviderSessionImported: typeof api.ensureProviderSessionImported;
 }): Effect.Effect<void, never> {
-	const { source, panelId, sessionId, sessionStore, sessionIdentity, sessionMetadata } = input;
+	const {
+		source,
+		panelId,
+		sessionId,
+		sessionStore,
+		sessionIdentity,
+		sessionMetadata,
+		getSessionSnapshot,
+		ensureProviderSessionImported,
+	} = input;
 	return hydrateReopenedSessionSnapshot(
 		{
 			sessionId,
@@ -160,8 +210,8 @@ function hydrateProviderBackedSessionOnOpen(input: {
 			sequenceId: sessionMetadata.sequenceId ?? null,
 		},
 		{
-			getSessionSnapshot: api.getSessionSnapshot,
-			ensureProviderSessionImported: api.ensureProviderSessionImported,
+			getSessionSnapshot,
+			ensureProviderSessionImported,
 			applySessionStateEnvelope: (targetSessionId, envelope) =>
 				sessionStore.applySessionStateEnvelope(targetSessionId, envelope),
 			getCurrentGraphRevision: (targetSessionId) =>
@@ -189,6 +239,8 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 		source,
 		getSessionOpenResult = api.getSessionOpenResult,
 		awaitSessionOpenRepair = api.awaitSessionOpenRepair,
+		getSessionSnapshot = api.getSessionSnapshot,
+		ensureProviderSessionImported = api.ensureProviderSessionImported,
 		preparedOpenResult,
 		repairPriority = "selected",
 		isPanelCurrent,
@@ -332,6 +384,10 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 					sessionId,
 					sessionStore,
 					agentId: sessionIdentity.agentId,
+					sessionIdentity,
+					sessionMetadata,
+					getSessionSnapshot,
+					ensureProviderSessionImported,
 				});
 			}
 			sessionStore.loading.setSessionLoaded(sessionId);
@@ -364,6 +420,10 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 					sessionId,
 					sessionStore,
 					agentId: sessionIdentity.agentId,
+					sessionIdentity,
+					sessionMetadata,
+					getSessionSnapshot,
+					ensureProviderSessionImported,
 				});
 			}
 			sessionStore.loading.setSessionLoaded(sessionId);
@@ -461,6 +521,10 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 					sessionId,
 					sessionStore,
 					agentId: sessionIdentity.agentId,
+					sessionIdentity,
+					sessionMetadata,
+					getSessionSnapshot,
+					ensureProviderSessionImported,
 				});
 			}
 			logger.warn("Session open request failed; hydrating from the contract snapshot instead", {
@@ -476,6 +540,8 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 				sessionStore,
 				sessionIdentity,
 				sessionMetadata,
+				getSessionSnapshot,
+				ensureProviderSessionImported,
 			});
 		})
 	);

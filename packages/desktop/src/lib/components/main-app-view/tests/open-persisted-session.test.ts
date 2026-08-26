@@ -13,6 +13,20 @@ const getSessionOpenResultMock = mock(
 		Effect.succeed(createFoundResult("session-1"))
 );
 
+// getSessionOpenResult is always unsupportedOnContract under Electrobun, so
+// reattachLocalCreatedSession's post-connect hydration attempt (AC #266
+// defect 3: a local-created session with real provider history by the time
+// it's reopened still needs that history hydrated) reaches these too. A
+// rejection here exercises hydrateReopenedSessionSnapshot's own graceful
+// catch (-> { applied: false }) without needing a full RpcSessionSnapshot
+// fixture.
+const getSessionSnapshotMock = mock((_sessionId: string): Effect.Effect<never, AppError> =>
+	Effect.fail(new ConnectionError("session-1", new Error("not stubbed for this test")))
+);
+const ensureProviderSessionImportedMock = mock(
+	(_sessionId: string): Effect.Effect<void, AppError> => Effect.succeed(undefined)
+);
+
 let openPersistedSession: typeof import("../logic/open-persisted-session.js").openPersistedSession;
 let resetOpenPersistedSessionForTests: typeof import("../logic/open-persisted-session.js").__resetOpenPersistedSessionForTests;
 let setOpenPersistedSessionDiagnosticRecorder: typeof import("../logic/open-persisted-session.js").setOpenPersistedSessionDiagnosticRecorder;
@@ -87,6 +101,12 @@ describe("openPersistedSession", () => {
 		resetOpenPersistedSessionForTests();
 		getSessionOpenResultMock.mockReset();
 		getSessionOpenResultMock.mockImplementation(() => Effect.succeed(createFoundResult("session-1")));
+		getSessionSnapshotMock.mockReset();
+		getSessionSnapshotMock.mockImplementation(() =>
+			Effect.fail(new ConnectionError("session-1", new Error("not stubbed for this test")))
+		);
+		ensureProviderSessionImportedMock.mockReset();
+		ensureProviderSessionImportedMock.mockImplementation(() => Effect.succeed(undefined));
 
 		sessionStore = {
 			read: {
@@ -95,6 +115,7 @@ describe("openPersistedSession", () => {
 				getSessionMetadata: mock(() => undefined),
 				getSessionLifecycleStatus: mock(() => "ready" as const),
 				getSessionCanSend: mock(() => true),
+				getSessionGraphRevision: mock(() => null),
 			},
 			loading: {
 				setSessionLoading: mock(() => {}),
@@ -822,6 +843,8 @@ describe("openPersistedSession", () => {
 			sessionStore,
 			sessionOpenHydrator,
 			getSessionOpenResult: getSessionOpenResultMock,
+			getSessionSnapshot: getSessionSnapshotMock,
+			ensureProviderSessionImported: ensureProviderSessionImportedMock,
 			timeoutMs: 10_000,
 			source: "initialization-manager",
 		});
@@ -831,8 +854,12 @@ describe("openPersistedSession", () => {
 		expect(sessionOpenHydrator.clearAttempt).toHaveBeenCalledWith("panel-1");
 		expect(sessionStore.loading.setSessionLoading).toHaveBeenCalledWith("session-1");
 		expect(sessionStore.loading.setLocalCreatedSessionLoaded).toHaveBeenCalledWith("session-1");
-		expect(sessionStore.loading.setSessionLoaded).not.toHaveBeenCalled();
 		expect(sessionStore.connection.connectSession).toHaveBeenCalledWith("session-1");
+		// AC #266 defect 3: attach alone doesn't backfill history -- a
+		// successful reattach also attempts snapshot hydration the same way a
+		// normal provider-history-backed reopen does.
+		expect(getSessionSnapshotMock).toHaveBeenCalledWith("session-1");
+		expect(sessionStore.loading.setSessionLoaded).toHaveBeenCalledWith("session-1");
 	});
 
 	it("falls back to local reattach when local-created snapshot open rejects", async () => {
@@ -859,6 +886,8 @@ describe("openPersistedSession", () => {
 			sessionStore,
 			sessionOpenHydrator,
 			getSessionOpenResult: getSessionOpenResultMock,
+			getSessionSnapshot: getSessionSnapshotMock,
+			ensureProviderSessionImported: ensureProviderSessionImportedMock,
 			timeoutMs: 10_000,
 			source: "session-handler",
 		});
@@ -867,8 +896,12 @@ describe("openPersistedSession", () => {
 		expect(getSessionOpenResultMock).toHaveBeenCalledTimes(1);
 		expect(sessionStore.loading.setSessionLoading).toHaveBeenCalledWith("session-1");
 		expect(sessionStore.loading.setLocalCreatedSessionLoaded).toHaveBeenCalledWith("session-1");
-		expect(sessionStore.loading.setSessionLoaded).not.toHaveBeenCalled();
 		expect(sessionStore.connection.connectSession).toHaveBeenCalledWith("session-1");
+		// AC #266 defect 3: attach alone doesn't backfill history -- a
+		// successful reattach also attempts snapshot hydration the same way a
+		// normal provider-history-backed reopen does.
+		expect(getSessionSnapshotMock).toHaveBeenCalledWith("session-1");
+		expect(sessionStore.loading.setSessionLoaded).toHaveBeenCalledWith("session-1");
 	});
 
 	it("hydrates local-created sessions when Rust can open a canonical snapshot", async () => {
