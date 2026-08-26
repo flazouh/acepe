@@ -225,6 +225,11 @@ export class AgentPanelSessionController {
 		const id = this.#deps.getSessionId();
 		const transcriptEntries =
 			id === null || id === undefined ? [] : this.canonicalTranscriptEntries;
+		const pendingEntry = pending?.optimisticEntry ?? null;
+		const pendingUserText =
+			pendingEntry !== null && pendingEntry.type === "user"
+				? contentBlocksToText(pendingEntry.message.chunks ?? [])
+				: null;
 		return deriveCanonicalUserEntryPresence({
 			transcriptEntries,
 			viewportRows:
@@ -232,6 +237,7 @@ export class AgentPanelSessionController {
 					? []
 					: (this.#deps.sessionStore.viewport.getRowsProjection(id)?.rows ?? []),
 			pendingAttemptId: pending?.attemptId ?? null,
+			pendingUserText,
 		});
 	});
 

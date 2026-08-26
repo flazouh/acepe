@@ -22,11 +22,15 @@ function transcriptEntry(input: {
 	readonly entryId: string;
 	readonly role: "user" | "assistant";
 	readonly attemptId: string | null;
+	readonly text?: string;
 }): TranscriptEntry {
 	return {
 		entryId: input.entryId,
 		role: input.role,
-		segments: [],
+		segments:
+			input.text === undefined
+				? []
+				: [{ kind: "text", segmentId: `${input.entryId}-text`, text: input.text }],
 		attemptId: input.attemptId,
 	};
 }
@@ -89,6 +93,54 @@ describe("deriveCanonicalUserEntryPresence", () => {
 		).toEqual({
 			hasCanonicalUserEntry: true,
 			hasCanonicalMatchingPendingUserEntry: true,
+		});
+	});
+
+	// AC-264: the live bridge (orchestration-canonical-bridge.ts) never stamps
+	// `attemptId` on the canonical entry it appends -- so for a live session,
+	// `pendingAttemptId` matching alone never succeeds and the optimistic row
+	// keeps coexisting with the canonical one until turn completion (3+
+	// seconds later). Text content is the fallback identity: the pending
+	// send-moment text and the canonical entry's real segment text.
+	it("matches a pending entry by text content when attemptId was never stamped (the live bridge case)", () => {
+		expect(
+			deriveCanonicalUserEntryPresence({
+				transcriptEntries: [
+					transcriptEntry({
+						entryId: "entry-msg-1",
+						role: "user",
+						attemptId: null,
+						text: "Read package.json and tell me its name field",
+					}),
+				],
+				viewportRows: [viewportUserRow("entry-msg-1")],
+				pendingAttemptId: null,
+				pendingUserText: "Read package.json and tell me its name field",
+			})
+		).toEqual({
+			hasCanonicalUserEntry: true,
+			hasCanonicalMatchingPendingUserEntry: true,
+		});
+	});
+
+	it("does not match a pending entry by text when the canonical text differs", () => {
+		expect(
+			deriveCanonicalUserEntryPresence({
+				transcriptEntries: [
+					transcriptEntry({
+						entryId: "entry-msg-1",
+						role: "user",
+						attemptId: null,
+						text: "a completely different message",
+					}),
+				],
+				viewportRows: [viewportUserRow("entry-msg-1")],
+				pendingAttemptId: null,
+				pendingUserText: "Read package.json and tell me its name field",
+			})
+		).toEqual({
+			hasCanonicalUserEntry: true,
+			hasCanonicalMatchingPendingUserEntry: false,
 		});
 	});
 

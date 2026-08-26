@@ -152,6 +152,7 @@ function renderTurn(input: {
 	sceneEntries: readonly AgentPanelSceneEntryModel[];
 	bufferRows: readonly TranscriptViewportRow[];
 	hasLocalPendingSendIntent?: boolean;
+	showWorkingSpark?: boolean;
 }) {
 	const source = {
 		kind: "canonical",
@@ -174,7 +175,7 @@ function renderTurn(input: {
 		planningPlaceholderPresentation: resolvePlanningPlaceholderPresentation({
 			agentName: "Codex Agent",
 			agentIconSrc: "data:image/svg+xml,hugeicons",
-			showWorkingSpark: false,
+			showWorkingSpark: input.showWorkingSpark ?? false,
 		}),
 	});
 
@@ -266,6 +267,29 @@ describe("agent-panel rendered-row pipeline — planning placeholder", () => {
 			return;
 		}
 		expect(planningEntry.label).toBeNull();
+	});
+
+	// AC-264: between send and the first token, the "awaiting:planning" row
+	// must carry the working-spark affordance (not render bare/empty) for a
+	// Claude session. Regression seam for the live QA bug -- a Claude session
+	// awaiting its first reply showed a silent, spark-less row.
+	it("carries showWorkingSpark through to the awaiting-planning entry for a Claude session", () => {
+		const result = renderTurn({
+			activityKind: "awaiting_model",
+			turnState: "Running",
+			sceneEntries: [userEntry("user-1", "reply with exactly PULSE")],
+			bufferRows: [userRow("user-1", "reply with exactly PULSE")],
+			hasLocalPendingSendIntent: true,
+			showWorkingSpark: true,
+		});
+
+		expect(result.planningRows).toHaveLength(1);
+		const planningEntry = result.planningRows[0]?.entry;
+		expect(planningEntry?.type).toBe("thinking");
+		if (planningEntry?.type !== "thinking") {
+			return;
+		}
+		expect(planningEntry.showWorkingSpark).toBe(true);
 	});
 
 	it("shows connecting feedback while a pending session is activating", () => {
