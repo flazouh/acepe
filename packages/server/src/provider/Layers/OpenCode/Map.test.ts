@@ -18,7 +18,7 @@ import {
 	resolveConfiguredModel,
 	resolveOpenCodeToolKind,
 	withCompactCommand
-} from "./OpenCodeMap.ts"
+} from "./Map.ts"
 
 type Json = typeof Schema.Json.Type
 
@@ -50,7 +50,7 @@ Vitest.describe("OpenCode native protocol helpers", () => {
 	Vitest.it("rejects unsafe permission request ids", () => {
 		Vitest.assert.strictEqual(isSafeRequestId("perm_req_abc123"), true)
 		Vitest.assert.strictEqual(isSafeRequestId(""), false)
-		Vitest.assert.strictEqual(isSafeRequestId("../etc/passwd"), false)
+		Vitest.assert.strictEqual(isSafeRequestId("../../etc/passwd"), false)
 	})
 
 	Vitest.it("parses provider/model ids", () => {

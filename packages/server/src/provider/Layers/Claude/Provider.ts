@@ -6,14 +6,14 @@ import * as FileSystem from "effect/FileSystem"
 import * as Option from "effect/Option"
 import * as Path from "effect/Path"
 import * as Str from "effect/String"
-import type { ConfigOptionData } from "../configOptions.ts"
+import type { ConfigOptionData } from "../../configOptions.ts"
 import {
 	isCapabilityEnabled,
 	ProviderCapabilities,
 	ProviderId,
 	PROVIDER_CAPABILITY_NAMES,
 	type ProviderPresence
-} from "../Services/ProviderAdapter.ts"
+} from "../../Services/ProviderAdapter.ts"
 
 export const CLAUDE_PROVIDER_ID: ProviderId = ProviderId.make("claude-code")
 

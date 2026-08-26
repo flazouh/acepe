@@ -59,7 +59,7 @@ import * as Stream from "effect/Stream"
 import * as Str from "effect/String"
 import * as ChildProcess from "effect/unstable/process/ChildProcess"
 import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner"
-import { AgentInstaller, type AgentInstallerShape } from "../Services/AgentInstaller.ts"
+import { AgentInstaller, type AgentInstallerShape } from "../../Services/AgentInstaller.ts"
 import {
 	ProviderAdapterError,
 	type ProviderAdapter,
@@ -67,7 +67,7 @@ import {
 	type CancelTurnRequest,
 	type SendPromptRequest,
 	type StartSessionRequest
-} from "../Services/ProviderAdapter.ts"
+} from "../../Services/ProviderAdapter.ts"
 import {
 	type CursorContractFact,
 	encodeContractFact,
@@ -76,13 +76,13 @@ import {
 	providerSessionFact,
 	selectPermissionOptionId,
 	turnCompleteFact
-} from "./CursorAcpMap.ts"
+} from "./Map.ts"
 import {
 	CURSOR_CAPABILITIES,
 	CURSOR_PROVIDER_ID,
 	probeCursorAuthenticated,
 	cursorPresence
-} from "./CursorProvider.ts"
+} from "./Provider.ts"
 
 type Json = typeof Schema.Json.Type
 type JsonObject = typeof Schema.JsonObject.Type

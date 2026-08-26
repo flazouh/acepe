@@ -27,9 +27,9 @@ import {
 	type CursorAcpHandle,
 	type CursorConnectInput,
 	type CursorLaunchConfig
-} from "./CursorAdapter.ts"
-import { cursorPresence } from "./CursorProvider.ts"
-import { decodeContractFact } from "./CursorAcpMap.ts"
+} from "./Adapter.ts"
+import { cursorPresence } from "./Provider.ts"
+import { decodeContractFact } from "./Map.ts"
 
 type Json = typeof Schema.Json.Type
 
@@ -209,7 +209,7 @@ Vitest.layer(Platform)("CursorAdapter source and fixtures", (it) => {
 			const path = yield* Path.Path
 			const fs = yield* FileSystem.FileSystem
 			const here = yield* path.fromFileUrl(new URL(import.meta.url))
-			const source = yield* fs.readFileString(path.join(path.dirname(here), "CursorAdapter.ts"))
+			const source = yield* fs.readFileString(path.join(path.dirname(here), "Adapter.ts"))
 			Vitest.assert.isTrue(Str.includes("@agentclientprotocol/sdk")(source))
 			Vitest.assert.isFalse(Str.includes("experimental/v2")(source))
 		})
@@ -219,16 +219,9 @@ Vitest.layer(Platform)("CursorAdapter source and fixtures", (it) => {
 		Effect.gen(function*() {
 			const path = yield* Path.Path
 			const fs = yield* FileSystem.FileSystem
-			const here = yield* path.fromFileUrl(new URL(import.meta.url))
-			const fixturesDir = path.join(
-				path.dirname(here),
-				"..",
-				"..",
-				"..",
-				"..",
-				"harness",
-				"fixtures"
-			)
+			// Resolved through the package, so moving this test between folders cannot break it.
+			const harnessEntry = yield* path.fromFileUrl(new URL(import.meta.resolve("@acepe/harness")))
+			const fixturesDir = path.join(path.dirname(path.dirname(harnessEntry)), "fixtures")
 			const names = yield* fs.readDirectory(fixturesDir)
 			const cursorNames = Arr.filter(names, (name) => Str.includes("cursor")(Str.toLowerCase(name)))
 			Vitest.assert.deepStrictEqual(cursorNames, [])

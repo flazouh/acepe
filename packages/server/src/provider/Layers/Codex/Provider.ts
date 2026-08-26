@@ -8,13 +8,13 @@ import * as Path from "effect/Path"
 import * as Predicate from "effect/Predicate"
 import * as Schema from "effect/Schema"
 import * as Str from "effect/String"
-import { relativeCmd } from "../agentJson.ts"
+import { relativeCmd } from "../../agentJson.ts"
 import {
 	isCapabilityEnabled,
 	ProviderCapabilities,
 	ProviderId,
 	type ProviderPresence
-} from "../Services/ProviderAdapter.ts"
+} from "../../Services/ProviderAdapter.ts"
 
 type Json = typeof Schema.Json.Type
 type JsonObject = typeof Schema.JsonObject.Type

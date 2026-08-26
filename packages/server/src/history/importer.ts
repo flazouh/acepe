@@ -29,9 +29,9 @@ import type { SqlError } from "effect/unstable/sql/SqlError"
 import { OrchestrationCommandInvariantError } from "../orchestration/Errors.ts"
 import type { OrchestrationDispatchError } from "../orchestration/Services/OrchestrationEngine.ts"
 import { OrchestrationEngine } from "../orchestration/Services/OrchestrationEngine.ts"
-import { CLAUDE_PROVIDER_ID } from "../provider/Layers/ClaudeProvider.ts"
-import { CURSOR_PROVIDER_ID } from "../provider/Layers/CursorProvider.ts"
-import { OPENCODE_PROVIDER_ID } from "../provider/Layers/OpenCodeProvider.ts"
+import { CLAUDE_PROVIDER_ID } from "../provider/Layers/Claude/Provider.ts"
+import { CURSOR_PROVIDER_ID } from "../provider/Layers/Cursor/Provider.ts"
+import { OPENCODE_PROVIDER_ID } from "../provider/Layers/OpenCode/Provider.ts"
 import {
 	ProjectionSnapshotQuery,
 	SessionProjectionSnapshot

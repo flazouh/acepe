@@ -41,7 +41,7 @@ import {
 	type CancelTurnRequest,
 	type SendPromptRequest,
 	type StartSessionRequest
-} from "../Services/ProviderAdapter.ts"
+} from "../../Services/ProviderAdapter.ts"
 import {
 	type CodexAcpToolKind,
 	type CodexContractFact,
@@ -50,7 +50,7 @@ import {
 	encodeContractFact,
 	mapCodexServerMessage,
 	providerSessionFact
-} from "./CodexNativeMap.ts"
+} from "./Map.ts"
 import {
 	buildCodexInitializeParams,
 	buildCodexTurnStartParams,
@@ -66,7 +66,7 @@ import {
 	parseTurnId,
 	probeCodexPresence,
 	resolveCodexSpawnConfig
-} from "./CodexProvider.ts"
+} from "./Provider.ts"
 
 type Json = typeof Schema.Json.Type
 type JsonObject = typeof Schema.JsonObject.Type

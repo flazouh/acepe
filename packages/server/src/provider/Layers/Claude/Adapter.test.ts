@@ -21,9 +21,9 @@ import {
 	type ClaudeCanUseTool,
 	type ClaudeQueryHandle,
 	type ClaudeQueryInput
-} from "./ClaudeAdapter.ts"
-import { claudePresence } from "./ClaudeProvider.ts"
-import { decodeContractFact } from "./ClaudeSdkMap.ts"
+} from "./Adapter.ts"
+import { claudePresence } from "./Provider.ts"
+import { decodeContractFact } from "./Map.ts"
 
 type Json = typeof Schema.Json.Type
 

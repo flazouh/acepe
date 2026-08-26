@@ -1,6 +1,6 @@
 import * as Vitest from "@effect/vitest"
 import * as Arr from "effect/Array"
-import { isCapabilityEnabled } from "../Services/ProviderAdapter.ts"
+import { isCapabilityEnabled } from "../../Services/ProviderAdapter.ts"
 import {
 	COPILOT_ACP_STDIO_ARGS,
 	COPILOT_CAPABILITIES,
@@ -15,7 +15,7 @@ import {
 	isCopilotPlanCapabilityEnabled,
 	mapOutboundCopilotModeId,
 	normalizeCopilotModeId
-} from "./CopilotProvider.ts"
+} from "./Provider.ts"
 
 Vitest.describe("CopilotProvider", () => {
 	Vitest.it("uses the copilot provider id and ACP stdio transport", () => {

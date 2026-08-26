@@ -41,8 +41,8 @@ import {
 	ProviderId,
 	ProviderAdapterError
 } from "../Services/ProviderAdapter.ts"
-import { makeClaudeAdapter, type ClaudeQueryHandle } from "./ClaudeAdapter.ts"
-import { claudePresence } from "./ClaudeProvider.ts"
+import { makeClaudeAdapter, type ClaudeQueryHandle } from "./Claude/Adapter.ts"
+import { claudePresence } from "./Claude/Provider.ts"
 import { ProviderAdapterRegistryLive } from "./ProviderAdapterRegistry.ts"
 import { ProviderBridgeLive } from "./ProviderBridge.ts"
 

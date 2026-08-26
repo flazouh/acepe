@@ -19,7 +19,7 @@ import {
 	encodeContractFact,
 	mapCodexServerMessage,
 	providerSessionFact
-} from "./CodexNativeMap.ts"
+} from "./Map.ts"
 
 type Json = typeof Schema.Json.Type
 type JsonObject = typeof Schema.JsonObject.Type

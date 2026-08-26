@@ -30,26 +30,26 @@ import {
 	type CancelTurnRequest,
 	type SendPromptRequest,
 	type StartSessionRequest
-} from "../Services/ProviderAdapter.ts"
+} from "../../Services/ProviderAdapter.ts"
 import {
 	type CopilotContractFact,
 	encodeContractFact,
 	mapAcpUpdate,
 	mapPromptResult,
 	providerSessionFact
-} from "./CopilotAcpMap.ts"
+} from "./Map.ts"
 import {
 	COPILOT_CAPABILITIES,
 	COPILOT_PROVIDER_ID,
 	copilotSessionNewParams
-} from "./CopilotProvider.ts"
+} from "./Provider.ts"
 import {
 	beginCopilotPrompt,
 	cancelCopilotTurn,
 	completeCopilotPrompt,
 	emptyCopilotTurnState,
 	type CopilotTurnState
-} from "./CopilotTurnTracking.ts"
+} from "./TurnTracking.ts"
 
 type Json = typeof Schema.Json.Type
 type JsonObject = typeof Schema.JsonObject.Type

@@ -3,7 +3,7 @@ import * as Arr from "effect/Array"
 import {
 	isCapabilityEnabled,
 	PROVIDER_CAPABILITY_NAMES
-} from "../Services/ProviderAdapter.ts"
+} from "../../Services/ProviderAdapter.ts"
 import {
 	CLAUDE_CAPABILITIES,
 	CLAUDE_DEFERRED_SESSION_CREATION,
@@ -14,7 +14,7 @@ import {
 	claudePresence,
 	isClaudePlanCapabilityEnabled,
 	resolveClaudeApiModelId
-} from "./ClaudeProvider.ts"
+} from "./Provider.ts"
 
 Vitest.describe("ClaudeProvider", () => {
 	Vitest.it("uses the claude-code provider id", () => {

@@ -2,8 +2,8 @@ import * as Vitest from "@effect/vitest"
 import * as Arr from "effect/Array"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
-import { decodeAgentJson } from "../agentJson.ts"
-import { isCapabilityEnabled, ProviderId } from "../Services/ProviderAdapter.ts"
+import { decodeAgentJson } from "../../agentJson.ts"
+import { isCapabilityEnabled, ProviderId } from "../../Services/ProviderAdapter.ts"
 import {
 	CURSOR_CAPABILITIES,
 	CURSOR_MODES,
@@ -12,7 +12,7 @@ import {
 	cursorLaunchFromAgents,
 	cursorPresence,
 	launchFromAgentJson
-} from "./CursorProvider.ts"
+} from "./Provider.ts"
 
 const cursorAgentJson = {
 	id: "cursor",

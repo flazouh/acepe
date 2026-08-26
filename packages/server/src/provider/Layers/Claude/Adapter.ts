@@ -42,7 +42,7 @@ import {
 	type CancelTurnRequest,
 	type SendPromptRequest,
 	type StartSessionRequest
-} from "../Services/ProviderAdapter.ts"
+} from "../../Services/ProviderAdapter.ts"
 import {
 	CLAUDE_CAPABILITIES,
 	CLAUDE_ISOLATED_SETTING_SOURCES,
@@ -51,7 +51,7 @@ import {
 	CLAUDE_STRICT_MCP_CONFIG,
 	probeClaudePresence,
 	resolveClaudeExecutablePath
-} from "./ClaudeProvider.ts"
+} from "./Provider.ts"
 import {
 	type ClaudeContractFact,
 	type ClaudeStreamState,
@@ -61,7 +61,7 @@ import {
 	mapSdkMessage,
 	permissionRequestFact,
 	toolCallPathHint
-} from "./ClaudeSdkMap.ts"
+} from "./Map.ts"
 
 type Json = typeof Schema.Json.Type
 type JsonObject = typeof Schema.JsonObject.Type

@@ -9,7 +9,7 @@ import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Path from "effect/Path"
 import * as Schema from "effect/Schema"
-import { isCapabilityEnabled } from "../Services/ProviderAdapter.ts"
+import { isCapabilityEnabled } from "../../Services/ProviderAdapter.ts"
 import {
 	buildCodexInitializeParams,
 	buildCodexTurnStartParams,
@@ -35,7 +35,7 @@ import {
 	probeCodexPresence,
 	resolveCodexModeId,
 	resolveCodexSpawnConfig
-} from "./CodexProvider.ts"
+} from "./Provider.ts"
 
 type Json = typeof Schema.Json.Type
 type JsonObject = typeof Schema.JsonObject.Type

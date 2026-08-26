@@ -47,7 +47,7 @@ import {
 	type CancelTurnRequest,
 	type SendPromptRequest,
 	type StartSessionRequest
-} from "../Services/ProviderAdapter.ts"
+} from "../../Services/ProviderAdapter.ts"
 import {
 	buildPromptBody,
 	consumeSseLine,
@@ -68,7 +68,7 @@ import {
 	resolveConfiguredModel,
 	sessionCatalogFact,
 	sseSessionId
-} from "./OpenCodeMap.ts"
+} from "./Map.ts"
 import {
 	OPENCODE_ALLOWED_ENV_KEYS,
 	OPENCODE_CAPABILITIES,
@@ -81,7 +81,7 @@ import {
 	probeOpenCodeBinary,
 	probeOpenCodePresence,
 	resolveOpenCodeIsolatedConfigDir
-} from "./OpenCodeProvider.ts"
+} from "./Provider.ts"
 
 type Json = typeof Schema.Json.Type
 type JsonObject = typeof Schema.JsonObject.Type

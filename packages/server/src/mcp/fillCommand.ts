@@ -5,7 +5,7 @@ import {
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import { OrchestrationCommandInvariantError } from "../orchestration/Errors.ts"
-import { claudePreconnectionConfigOptions } from "../provider/Layers/ClaudeProvider.ts"
+import { claudePreconnectionConfigOptions } from "../provider/Layers/Claude/Provider.ts"
 import { McpCatalog } from "./Services/McpCatalog.ts"
 
 const decodeCatalog = Schema.decodeUnknownEffect(ComposerMcpCatalog)

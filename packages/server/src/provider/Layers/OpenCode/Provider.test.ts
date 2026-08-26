@@ -4,7 +4,7 @@ import * as Arr from "effect/Array"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
 import * as Path from "effect/Path"
-import { isCapabilityEnabled } from "../Services/ProviderAdapter.ts"
+import { isCapabilityEnabled } from "../../Services/ProviderAdapter.ts"
 import {
 	isOpenCodePlanCapabilityEnabled,
 	normalizeOpenCodeServeArgs,
@@ -21,7 +21,7 @@ import {
 	openCodeServeArgs,
 	parseServeUrl,
 	resolveOpenCodeIsolatedConfigDir
-} from "./OpenCodeProvider.ts"
+} from "./Provider.ts"
 
 Vitest.describe("OpenCodeProvider", () => {
 	Vitest.it("uses the opencode provider id", () => {

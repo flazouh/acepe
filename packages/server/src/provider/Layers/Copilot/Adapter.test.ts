@@ -15,13 +15,13 @@ import * as Queue from "effect/Queue"
 import * as Ref from "effect/Ref"
 import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
-import { decodeContractFact } from "./CopilotAcpMap.ts"
+import { decodeContractFact } from "./Map.ts"
 import {
 	makeCopilotAdapter,
 	type CopilotAcpHandle,
 	type CopilotAcpRequest
-} from "./CopilotAdapter.ts"
-import { copilotPresence } from "./CopilotProvider.ts"
+} from "./Adapter.ts"
+import { copilotPresence } from "./Provider.ts"
 
 type Json = typeof Schema.Json.Type
 

@@ -6,7 +6,7 @@ import * as Option from "effect/Option"
 import * as Predicate from "effect/Predicate"
 import * as Schema from "effect/Schema"
 import * as Str from "effect/String"
-import { OPENCODE_DEFAULT_MODE } from "./OpenCodeProvider.ts"
+import { OPENCODE_DEFAULT_MODE } from "./Provider.ts"
 
 type Json = typeof Schema.Json.Type
 type JsonObject = typeof Schema.JsonObject.Type

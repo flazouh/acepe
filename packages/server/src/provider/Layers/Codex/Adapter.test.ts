@@ -19,15 +19,15 @@ import {
 	type CodexAdapter,
 	type CodexAppServerHandle,
 	type CodexJsonRpcRequest
-} from "./CodexAdapter.ts"
-import { decodeContractFact } from "./CodexNativeMap.ts"
+} from "./Adapter.ts"
+import { decodeContractFact } from "./Map.ts"
 import {
 	CODEX_APP_SERVER_ARGS,
 	CODEX_PLACEHOLDER_COMMAND,
 	CODEX_PROVIDER_ID,
 	codexPresence,
 	defaultCodexNativeConfigState
-} from "./CodexProvider.ts"
+} from "./Provider.ts"
 
 type Json = typeof Schema.Json.Type
 

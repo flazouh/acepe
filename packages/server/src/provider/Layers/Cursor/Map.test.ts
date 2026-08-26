@@ -7,7 +7,7 @@ import {
 	mapAcpSessionNotification,
 	mapCursorExtensionMethod,
 	selectPermissionOptionId
-} from "./CursorAcpMap.ts"
+} from "./Map.ts"
 
 Vitest.describe("mapAcpSessionNotification", () => {
 	Vitest.it("maps an agent_message_chunk text payload to a text_delta", () => {

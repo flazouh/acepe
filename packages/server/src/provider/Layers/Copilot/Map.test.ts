@@ -10,7 +10,7 @@ import {
 	mapPromptResult,
 	permissionIdForToolCall,
 	roundTripAcpSessionUpdate
-} from "./CopilotAcpMap.ts"
+} from "./Map.ts"
 
 type Json = typeof Schema.Json.Type
 type JsonObject = typeof Schema.JsonObject.Type

@@ -6,7 +6,7 @@ import {
 	cancelCopilotTurn,
 	completeCopilotPrompt,
 	emptyCopilotTurnState
-} from "./CopilotTurnTracking.ts"
+} from "./TurnTracking.ts"
 
 const firstTurn = TurnId.make("session-1:turn:1")
 const secondTurn = TurnId.make("session-1:turn:2")

@@ -19,14 +19,14 @@ import {
 	type OpenCodeCatalogCommand,
 	type OpenCodeModelCatalog,
 	type OpenCodeTransport
-} from "./OpenCodeAdapter.ts"
+} from "./Adapter.ts"
 import {
 	decodeContractFact,
 	type OpenCodePermissionReply,
 	type OpenCodePromptBody,
 	type OpenCodeSessionRecord
-} from "./OpenCodeMap.ts"
-import { OPENCODE_PROVIDER_ID, openCodePresence } from "./OpenCodeProvider.ts"
+} from "./Map.ts"
+import { OPENCODE_PROVIDER_ID, openCodePresence } from "./Provider.ts"
 
 type Json = typeof Schema.Json.Type
 
@@ -504,7 +504,7 @@ Vitest.describe("OpenCodeAdapter", () => {
 			const unsafe = yield* started.adapter
 				.respondToPermission({
 					sessionId,
-					permissionId: "../etc/passwd",
+					permissionId: "../../etc/passwd",
 					reply: "reject"
 				})
 				.pipe(Effect.flip)

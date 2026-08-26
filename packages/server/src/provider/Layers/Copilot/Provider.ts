@@ -10,7 +10,7 @@ import {
 	ProviderCapabilities,
 	ProviderId,
 	type ProviderPresence
-} from "../Services/ProviderAdapter.ts"
+} from "../../Services/ProviderAdapter.ts"
 
 export const COPILOT_PROVIDER_ID: ProviderId = ProviderId.make("copilot")
 

@@ -7,12 +7,12 @@ import {
 	binaryTargetForPlatform,
 	findAgentJson,
 	type PlatformKey
-} from "../agentJson.ts"
+} from "../../agentJson.ts"
 import {
 	ProviderCapabilities,
 	ProviderId,
 	type ProviderPresence
-} from "../Services/ProviderAdapter.ts"
+} from "../../Services/ProviderAdapter.ts"
 
 export const CURSOR_PROVIDER_ID: ProviderId = ProviderId.make("cursor")
 
