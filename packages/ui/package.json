@@ -228,6 +228,10 @@
     "./user-message-container": {
       "svelte": "./src/components/user-message-container/index.ts",
       "default": "./src/components/user-message-container/index.ts"
+    },
+    "./qa-overlay": {
+      "svelte": "./src/components/qa-overlay/index.ts",
+      "default": "./src/components/qa-overlay/index.ts"
     }
   },
   "scripts": {

@@ -13,7 +13,10 @@ import { installElectrobunWebviewRpc } from "$lib/rpc/electrobun-bridge.ts";
 import { desktopShellKind, type DesktopShellKind } from "$lib/rpc/electrobun-shell-window.ts";
 import { installQaCaptureHook } from "$lib/rpc/qa-capture-hook.ts";
 import { installQaDispatchHook } from "$lib/rpc/qa-dispatch-hook.ts";
+import type { QaScenario, ScenarioSession } from "@acepe/qa-scenario";
+import QaOverlayPanel from "$lib/qa/qa-overlay.svelte";
 import { startQaScenario } from "$lib/qa/qa-boot.ts";
+import { listScenarios } from "$lib/qa/scenario-library.ts";
 import { readQaMode } from "$lib/qa/qa-mode.ts";
 import { installQaScenarioHook } from "$lib/qa/qa-scenario-hook.ts";
 
@@ -33,6 +36,8 @@ let selectedSessionId = $state<SessionId | null>(null);
 // stays reachable behind ?scaffold=1 for QA that wants to exercise the
 // contract without the full app shell.
 let useScaffold = $state(false);
+let qaSession = $state<ScenarioSession | null>(null);
+let qaKnownScenarios = $state<readonly QaScenario[]>([]);
 
 onMount(() => {
 	useScaffold = new URLSearchParams(window.location.search).get("scaffold") === "1";
@@ -58,13 +63,17 @@ onMount(() => {
 							}, 0);
 						}),
 					onSuccess: (session) =>
-						Effect.sync(() => {
-							setTimeout(() => {
-								installQaScenarioHook(session);
-								installQaDispatchHook();
-								rpcClient = session.client;
-							}, 0);
-						}),
+						listScenarios().pipe(
+							Effect.map((known) => {
+								setTimeout(() => {
+									installQaScenarioHook(session);
+									installQaDispatchHook();
+									qaKnownScenarios = known;
+									qaSession = session;
+									rpcClient = session.client;
+								}, 0);
+							})
+						),
 				})
 			)
 		);
@@ -130,6 +139,9 @@ onMount(() => {
 	</div>
 {:else if (shell === "electrobun" && rpcClient !== null) || shell === "tauri"}
 	<MainAppView />
+	{#if qaSession !== null}
+		<QaOverlayPanel session={qaSession} known={qaKnownScenarios} />
+	{/if}
 {:else}
 	<div
 		data-testid="library-shell-pending"

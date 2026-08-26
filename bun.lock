@@ -73,6 +73,7 @@
         "yaml": "^2.8.2",
       },
       "devDependencies": {
+        "@acepe/harness": "workspace:*",
         "@biomejs/biome": "^2.4.7",
         "@effect/language-service": "catalog:",
         "@happy-dom/global-registrator": "^20.10.3",

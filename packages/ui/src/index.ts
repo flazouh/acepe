@@ -272,6 +272,8 @@ export {
 	Trigger as DialogTriggerRaw,
 } from "./components/dialog/index.js";
 export { DiffPill } from "./components/diff-pill/index.js";
+export { QaOverlay } from "./components/qa-overlay/index.js";
+export type { QaOverlayScenarioOption } from "./components/qa-overlay/types.js";
 export {
 	Close as DrawerCloseRaw,
 	Content as DrawerContentRaw,
