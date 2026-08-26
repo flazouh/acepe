@@ -23,6 +23,10 @@ import * as Queue from "effect/Queue"
 import * as Ref from "effect/Ref"
 import * as Stream from "effect/Stream"
 import * as Str from "effect/String"
+import {
+	evolveProjectedPendingApprovals,
+	type ProjectedPendingApproval
+} from "../../../persistence/Services/ProjectionPendingApprovals.ts"
 import type { Json } from "../Json.ts"
 import {
 	CURSOR_ACP_PROTOCOL_VERSION,
@@ -140,6 +144,28 @@ const nextToolCallObserved = Effect.fn("nextToolCallObserved")(function*(
 // resolved at all is resolved by the abandoning path itself, synchronously,
 // so anything past this is the forever-hang the tests below exist to catch.
 const ABANDONED_DECISION_TIMEOUT = Duration.seconds(2)
+
+// Folds what the adapter actually publishes through the REAL projector, so
+// the assertion is "projection_pending_approvals no longer holds the row",
+// not "the metadata looks about right". Stops early when the adapter's
+// stream ends with the row still there — the stale-approval bug itself.
+const projectUntilCleared = Effect.fn("projectUntilCleared")(function*(
+	events: Queue.Queue<OrchestrationEvent, Done>,
+	seed: ReadonlyArray<ProjectedPendingApproval>
+) {
+	let rows = seed
+	for (let attempt = 0; attempt < 8 && rows.length > 0; attempt++) {
+		const next = yield* Queue.take(events).pipe(
+			Effect.timeoutOption(Duration.millis(200)),
+			Effect.orElseSucceed(() => Option.none<OrchestrationEvent>())
+		)
+		if (Option.isNone(next)) {
+			return rows
+		}
+		rows = yield* evolveProjectedPendingApprovals(rows, next.value)
+	}
+	return rows
+})
 
 const fakeConnect = (
 	inbound: Queue.Queue<Json, Done>,
@@ -558,6 +584,59 @@ Vitest.describe("CursorAdapter", () => {
 				return
 			}
 			Vitest.assert.strictEqual(decision.value, "deny")
+		})
+	)
+
+	// Resolving the deferred is only half of abandoning a permission. The
+	// drain used to publish nothing, so projection_pending_approvals kept the
+	// row: after a normal cancel the operator still saw a clickable approval
+	// for a turn that was over, and clicking it appended a spurious
+	// ProviderSessionFailed because respondToPermission found the pending map
+	// empty. The drain now stamps the same ApprovalAnswered metadata an
+	// answered approval writes.
+	Vitest.it.live("cancelTurn clears the projected approval row it abandons", () =>
+		Effect.gen(function*() {
+			const inbound = yield* Queue.unbounded<Json, Done>()
+			const cancels = yield* Ref.make(0)
+			const cwds = yield* Ref.make<ReadonlyArray<string>>(Arr.empty())
+			const asked = yield* Ref.make(Option.none<CursorConnectInput["onPermissionRequest"]>())
+			const adapter = yield* makeCursorAdapter({
+				presence: Effect.succeed(cursorPresence(true, true)),
+				resolveLaunch: Effect.succeed(registryLaunch),
+				connect: (input: CursorConnectInput) =>
+					Ref.set(asked, Option.some(input.onPermissionRequest)).pipe(
+						Effect.as(fakeHandle(inbound, cancels, cwds))
+					)
+			})
+			const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
+			yield* adapter
+				.startSession({
+					sessionId,
+					projectId,
+					workspaceRoot: "/tmp/acepe"
+				})
+				.pipe(
+					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
+					Effect.forkChild({ startImmediately: true })
+				)
+			yield* Queue.take(events)
+			const handler = yield* Ref.get(asked)
+			if (Option.isNone(handler)) {
+				Vitest.assert.fail("expected connect to receive an onPermissionRequest handler")
+				return
+			}
+			yield* handler
+				.value(acpPermissionRequest("call_9"))
+				.pipe(Effect.forkChild({ startImmediately: true }))
+			const requested = yield* nextApprovalRequested(events)
+			if (requested === undefined) {
+				Vitest.assert.fail("expected an ApprovalRequested event for the ACP permission request")
+				return
+			}
+			const pending = yield* evolveProjectedPendingApprovals(Arr.empty(), requested)
+			Vitest.assert.strictEqual(pending.length, 1)
+			yield* adapter.cancelTurn({ sessionId })
+			Vitest.assert.deepStrictEqual(yield* projectUntilCleared(events, pending), [])
 		})
 	)
 

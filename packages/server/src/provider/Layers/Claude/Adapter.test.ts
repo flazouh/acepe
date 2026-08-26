@@ -15,6 +15,10 @@ import * as Option from "effect/Option"
 import * as Queue from "effect/Queue"
 import * as Ref from "effect/Ref"
 import * as Stream from "effect/Stream"
+import {
+	evolveProjectedPendingApprovals,
+	type ProjectedPendingApproval
+} from "../../../persistence/Services/ProjectionPendingApprovals.ts"
 import type { Json } from "../Json.ts"
 import { makeClaudeAdapter } from "./Adapter.ts"
 import { decodeContractFact } from "./Codec.ts"
@@ -114,6 +118,47 @@ const forkBlockedPermission = Effect.fn("forkBlockedPermission")(function*(
 // abandoning path itself, synchronously, so anything past this is the
 // forever-hang the tests below exist to catch.
 const ABANDONED_DECISION_TIMEOUT = Duration.seconds(2)
+
+// Folds what the adapter actually publishes through the REAL projector, so
+// the assertion is "projection_pending_approvals no longer holds the row",
+// not "the metadata looks about right". Gives up while the row is still
+// there once the adapter goes quiet — the stale-approval bug itself.
+const projectUntilCleared = Effect.fn("projectUntilCleared")(function*(
+	events: Queue.Queue<OrchestrationEvent, Done>,
+	seed: ReadonlyArray<ProjectedPendingApproval>
+) {
+	let rows = seed
+	for (let attempt = 0; attempt < 8 && rows.length > 0; attempt++) {
+		const next = yield* Queue.take(events).pipe(
+			Effect.timeoutOption(Duration.millis(200)),
+			Effect.orElseSucceed(() => Option.none<OrchestrationEvent>())
+		)
+		if (Option.isNone(next)) {
+			return rows
+		}
+		rows = yield* evolveProjectedPendingApprovals(rows, next.value)
+	}
+	return rows
+})
+
+// Same setup as forkBlockedPermission, but hands the ApprovalRequested event
+// back so a test can seed the real projector with the row the drain has to
+// clear.
+const forkProjectedPermission = Effect.fn("forkProjectedPermission")(function*(
+	canUseTool: ClaudeCanUseTool,
+	events: Queue.Queue<OrchestrationEvent, Done>
+) {
+	yield* Effect.promise(() =>
+		canUseTool("Edit", { file_path: "/tmp/acepe/a.txt" }, { toolUseID: "toolu_abandoned" })
+	).pipe(Effect.forkChild({ startImmediately: true }))
+	for (let attempt = 0; attempt < 5; attempt++) {
+		const next = yield* Queue.take(events)
+		if (next.type === "ApprovalRequested") {
+			return yield* evolveProjectedPendingApprovals([], next)
+		}
+	}
+	return Vitest.assert.fail("expected an ApprovalRequested event before abandoning it")
+})
 
 Vitest.describe("ClaudeAdapter", () => {
 	Vitest.it.effect("emits deferred_open before the SDK session id exists", () =>
@@ -864,6 +909,48 @@ Vitest.describe("ClaudeAdapter", () => {
 				return
 			}
 			Vitest.assert.strictEqual(decision.value.behavior, "deny")
+		})
+	)
+
+	// Resolving the deferred is only half of abandoning a permission. The
+	// drain used to publish nothing, so projection_pending_approvals kept the
+	// row: after a normal cancel the operator still saw a clickable approval
+	// for a turn that was over, and clicking it appended a spurious
+	// ProviderSessionFailed because respondToPermission found the pending map
+	// empty. The drain now stamps the same ApprovalAnswered metadata an
+	// answered approval writes.
+	Vitest.it.live("cancelTurn clears the projected approval row it abandons", () =>
+		Effect.gen(function*() {
+			const inbound = yield* Queue.unbounded<Json, Done>()
+			const interrupts = yield* Ref.make(0)
+			let capturedCanUseTool: ClaudeCanUseTool | undefined
+			const adapter = yield* makeClaudeAdapter({
+				presence: Effect.succeed(claudePresence(true, true)),
+				createQuery: (input) => {
+					capturedCanUseTool = input.canUseTool
+					return Effect.succeed(fakeHandle(inbound, interrupts))
+				},
+				cancelInterruptTimeout: Duration.millis(50)
+			})
+			const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
+			yield* adapter
+				.startSession({ sessionId, projectId, workspaceRoot: "/tmp/acepe" })
+				.pipe(
+					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
+					Effect.forkChild({ startImmediately: true })
+				)
+			yield* Queue.take(events) // deferred_open
+			yield* Stream.runCollect(
+				adapter.sendPrompt({ sessionId, messageId, text: "Edit a file for me" })
+			)
+			if (capturedCanUseTool === undefined) {
+				Vitest.assert.fail("expected createQuery to receive a canUseTool callback")
+				return
+			}
+			const pending = yield* forkProjectedPermission(capturedCanUseTool, events)
+			Vitest.assert.strictEqual(pending.length, 1)
+			yield* adapter.cancelTurn({ sessionId })
+			Vitest.assert.deepStrictEqual(yield* projectUntilCleared(events, pending), [])
 		})
 	)
 
