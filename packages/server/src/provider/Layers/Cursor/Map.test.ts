@@ -1,10 +1,6 @@
 import * as Vitest from "@effect/vitest"
 import * as Option from "effect/Option"
-import {
-	mapAcpPermissionRequest,
-	mapAcpSessionNotification,
-	mapCursorExtensionMethod
-} from "./Map.ts"
+import { mapAcpPermissionRequest, mapAcpSessionNotification } from "./Map.ts"
 
 Vitest.describe("mapAcpSessionNotification", () => {
 	Vitest.it("maps an agent_message_chunk text payload to a text_delta", () => {
@@ -143,15 +139,5 @@ Vitest.describe("mapAcpPermissionRequest", () => {
 				toolCallId: "call_9"
 			})
 		)
-	})
-})
-
-Vitest.describe("mapCursorExtensionMethod", () => {
-	Vitest.it("does not map Cursor-only ACP extension methods", () => {
-		Vitest.assert.deepStrictEqual(mapCursorExtensionMethod("cursor/ask_question"), Option.none())
-		Vitest.assert.deepStrictEqual(mapCursorExtensionMethod("cursor/create_plan"), Option.none())
-		Vitest.assert.deepStrictEqual(mapCursorExtensionMethod("cursor/update_todos"), Option.none())
-		Vitest.assert.deepStrictEqual(mapCursorExtensionMethod("cursor/task"), Option.none())
-		Vitest.assert.deepStrictEqual(mapCursorExtensionMethod("_cursor/generate_image"), Option.none())
 	})
 })

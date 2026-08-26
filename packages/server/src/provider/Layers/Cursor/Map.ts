@@ -1,7 +1,6 @@
 import * as Arr from "effect/Array"
 import * as Filter from "effect/Filter"
 import * as Option from "effect/Option"
-import * as Str from "effect/String"
 import {
 	arrayField,
 	EMPTY_JSON_OBJECT,
@@ -168,27 +167,4 @@ export const mapAcpPermissionRequest = (value: Json): Option.Option<PermissionRe
 		permission: detectCursorToolKind(kindName),
 		toolCallId: toolCallId.value
 	})
-}
-
-const CURSOR_EXTENSION_METHODS = [
-	"cursor/ask_question",
-	"cursor/create_plan",
-	"cursor/update_todos",
-	"cursor/task",
-	"cursor/generate_image"
-] as const
-
-const stripUnderscorePrefix = (method: string): string => {
-	if (Str.startsWith("_")(method)) {
-		return method.slice(1)
-	}
-	return method
-}
-
-export const mapCursorExtensionMethod = (method: string): Option.Option<CursorContractFact> => {
-	const normalized = stripUnderscorePrefix(method)
-	if (Arr.contains(CURSOR_EXTENSION_METHODS, normalized)) {
-		return Option.none()
-	}
-	return Option.none()
 }
