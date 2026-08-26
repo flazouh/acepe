@@ -70,12 +70,21 @@ function writeDisplayFacts(input: {
 	readonly path: string;
 	readonly name?: string;
 }): TranscriptViewportOperationDisplayFacts {
-	const name = input.name ?? "Write";
+	const verb = input.name ?? "Write";
+	// Both operation.name and operation.title are set to the SAME
+	// server-formatted string in the real bridge (onToolCallObserved sets
+	// `name: payload.title`) -- a fixture with a bare `name` ("Write") and
+	// a title-shaped `title` ("Write /path") would have hidden the exact
+	// bug this file exists to catch: mapViewportToolKind first shipped
+	// reading `name` with an exact-match classifier that only recognizes a
+	// bare tool name, silently falling back to "unclassified" on the real,
+	// title-shaped `name` every live row actually carries.
+	const title = `${verb} ${input.path}`;
 	return {
 		operationId: input.operationId,
 		toolCallId: input.toolCallId,
-		name,
-		title: `${name} ${input.path}`,
+		name: title,
+		title,
 		state: "running",
 		kind: null,
 		commandSummary: null,

@@ -17,7 +17,7 @@ import type {
 	TranscriptViewportRow,
 } from "../../../../services/acp-types.js";
 import { buildUserRowSceneModel } from "../../../logic/user-row-scene-model.js";
-import { toolKindFromProviderName } from "../../../utils/tool-kind-from-name.js";
+import { toolKindFromTitle } from "../../../utils/tool-kind-from-name.js";
 import { formatOtherToolName } from "../../../registry/index.js";
 import { transcriptSegmentPrimaryText } from "../../../session-state/transcript-text.js";
 import { calculateDiffStats, getFileName } from "../../../utils/file-utils.js";
@@ -454,15 +454,22 @@ function displayFactsFromEmbeddedOperation(
 // fell into "other"/"unclassified" and rendered the generic "?" icon
 // (tool-kind-icon-model.ts's unclassified -> "question") regardless of
 // whether it was a Write, Read, Bash, or Grep. Classify from the
-// operation's own provider tool name instead of accepting that fallback
-// blind -- see toolKindFromProviderName's own doc for why this lives
-// client-side rather than widening the contract event.
+// operation's own display name instead of accepting that fallback blind.
+//
+// That same bridge also sets operation.name to the server-FORMATTED title
+// ("Read AGENTS.md", "Write /tmp/a.txt" -- see toolCallTitle in the
+// server's Claude/Tools.ts), not the bare provider tool name ("Read"), so
+// this reads it with toolKindFromTitle (leading-verb extraction), not
+// toolKindFromProviderName (exact match) -- the exact-match form silently
+// fails closed to "unclassified" on a "Verb hint" string, which is exactly
+// how this fix first shipped broken: verified live (AC-280), a real
+// "Read README.md" row kept the "?" icon until this was caught.
 function mapViewportToolKind(
 	kind: TranscriptViewportOperationDisplayFacts["kind"],
 	name: string
 ): AgentToolKind {
 	if (kind === null) {
-		return toolKindFromProviderName(name);
+		return toolKindFromTitle(name);
 	}
 	if (kind === "shell_input") {
 		return "execute";
