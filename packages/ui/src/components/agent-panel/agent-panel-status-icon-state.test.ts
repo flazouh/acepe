@@ -9,7 +9,7 @@ describe("resolveAgentPanelStatusIconPresentation", () => {
 				status: "warming",
 				isConnecting: false,
 				isRetrying: false,
-			})
+			}),
 		).toBe("none");
 	});
 
@@ -19,7 +19,7 @@ describe("resolveAgentPanelStatusIconPresentation", () => {
 				status: "empty",
 				isConnecting: true,
 				isRetrying: false,
-			})
+			}),
 		).toBe("none");
 	});
 
@@ -29,7 +29,7 @@ describe("resolveAgentPanelStatusIconPresentation", () => {
 				status: "error",
 				isConnecting: false,
 				isRetrying: true,
-			})
+			}),
 		).toBe("loading");
 	});
 
@@ -39,34 +39,54 @@ describe("resolveAgentPanelStatusIconPresentation", () => {
 				status: "error",
 				isConnecting: false,
 				isRetrying: false,
-			})
+			}),
 		).toBe("error");
 	});
 
-	it("hides the connected affordance in the header", () => {
+	it("shows the connected affordance in the header", () => {
 		expect(
 			resolveAgentPanelStatusIconPresentation({
 				status: "connected",
 				isConnecting: false,
 				isRetrying: false,
-			})
-		).toBe("none");
+			}),
+		).toBe("connected");
 	});
 
-	it("hides idle and done affordances in the header", () => {
+	it("shows the connected affordance for idle and done", () => {
 		expect(
 			resolveAgentPanelStatusIconPresentation({
 				status: "idle",
 				isConnecting: false,
 				isRetrying: false,
-			})
-		).toBe("none");
+			}),
+		).toBe("connected");
 		expect(
 			resolveAgentPanelStatusIconPresentation({
 				status: "done",
 				isConnecting: false,
 				isRetrying: false,
-			})
-		).toBe("none");
+			}),
+		).toBe("connected");
+	});
+
+	it("shows a running affordance while the turn is active", () => {
+		expect(
+			resolveAgentPanelStatusIconPresentation({
+				status: "running",
+				isConnecting: false,
+				isRetrying: false,
+			}),
+		).toBe("running");
+	});
+
+	it("prefers the retry affordance over the running affordance", () => {
+		expect(
+			resolveAgentPanelStatusIconPresentation({
+				status: "running",
+				isConnecting: false,
+				isRetrying: true,
+			}),
+		).toBe("loading");
 	});
 });

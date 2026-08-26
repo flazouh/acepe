@@ -1,6 +1,11 @@
 import type { AgentSessionStatus } from "./types.js";
 
-export type AgentPanelStatusIconPresentation = "none" | "loading" | "error";
+export type AgentPanelStatusIconPresentation =
+	| "none"
+	| "loading"
+	| "connected"
+	| "running"
+	| "error";
 
 export function resolveAgentPanelStatusIconPresentation(input: {
 	status: AgentSessionStatus;
@@ -15,6 +20,18 @@ export function resolveAgentPanelStatusIconPresentation(input: {
 		return "error";
 	}
 
-	// Connected/idle/done/running intentionally show no header status icon.
+	if (input.status === "running") {
+		return "running";
+	}
+
+	if (
+		input.status === "connected" ||
+		input.status === "idle" ||
+		input.status === "done"
+	) {
+		return "connected";
+	}
+
+	// Warming/empty (not yet connected, not retrying) intentionally show no icon.
 	return "none";
 }

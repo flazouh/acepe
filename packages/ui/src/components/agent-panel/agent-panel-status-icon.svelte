@@ -1,53 +1,50 @@
 <script lang="ts">
-	import { Tooltip } from "bits-ui";
+import { Tooltip } from "bits-ui";
+import { Colors } from "../../lib/colors.js";
+import { HugeiconsIcon, LoadingIcon } from "../icons/index.js";
 
-	import { LoadingIcon, HugeiconsIcon } from "../icons/index.js";
-	import { Colors } from "../../lib/colors.js";
+import { resolveAgentPanelStatusIconPresentation } from "./agent-panel-status-icon-state.js";
+import type { AgentSessionStatus } from "./types.js";
 
-	import { resolveAgentPanelStatusIconPresentation } from "./agent-panel-status-icon-state.js";
-	import type { AgentSessionStatus } from "./types.js";
+interface Props {
+	/** Mapped session status for display */
+	status?: AgentSessionStatus;
+	/** Retained for API compatibility; connecting states show no loading affordance. */
+	isConnecting?: boolean;
+	/** When true, show immediate feedback after the user clicks retry */
+	isRetrying?: boolean;
+	/** Size of the indicator icon in pixels */
+	size?: number;
+	/** Tooltip text for warming/connecting/running state */
+	warmingLabel?: string;
+	/** Tooltip text for retrying state */
+	retryingLabel?: string;
+	/** Tooltip / accessible label for the connected, idle, and done states */
+	connectedLabel?: string;
+	/** Tooltip text for error state */
+	errorLabel?: string;
+	/** Agent ID retained for API compatibility; unused after connected icon removal. */
+	agentId?: string | null;
+	/** Callback when error icon is clicked (retry) */
+	onRetry?: () => void;
+}
 
-	interface Props {
-		/** Mapped session status for display */
-		status?: AgentSessionStatus;
-		/** Retained for API compatibility; connecting states show no loading affordance. */
-		isConnecting?: boolean;
-		/** When true, show immediate feedback after the user clicks retry */
-		isRetrying?: boolean;
-		/** Size of the indicator icon in pixels */
-		size?: number;
-		/** Tooltip text for warming/connecting state */
-		warmingLabel?: string;
-		/** Tooltip text for retrying state */
-		retryingLabel?: string;
-		/**
-		 * Retained for API compatibility. Connected states no longer render a header icon.
-		 */
-		connectedLabel?: string;
-		/** Tooltip text for error state */
-		errorLabel?: string;
-		/** Agent ID retained for API compatibility; unused after connected icon removal. */
-		agentId?: string | null;
-		/** Callback when error icon is clicked (retry) */
-		onRetry?: () => void;
-	}
+let {
+	status = "empty",
+	isConnecting = false,
+	isRetrying = false,
+	size = 14,
+	warmingLabel = "Preparing",
+	retryingLabel = "Retrying",
+	connectedLabel = "Connected",
+	errorLabel = "Error",
+	agentId: _agentId = null,
+	onRetry,
+}: Props = $props();
 
-	let {
-		status = "empty",
-		isConnecting = false,
-		isRetrying = false,
-		size = 14,
-		warmingLabel = "Preparing",
-		retryingLabel = "Retrying",
-		connectedLabel: _connectedLabel = "Connected",
-		errorLabel = "Error",
-		agentId: _agentId = null,
-		onRetry,
-	}: Props = $props();
-
-	const presentation = $derived(
-		resolveAgentPanelStatusIconPresentation({ status, isConnecting, isRetrying })
-	);
+const presentation = $derived(
+	resolveAgentPanelStatusIconPresentation({ status, isConnecting, isRetrying }),
+);
 </script>
 
 {#if presentation !== "none"}
@@ -69,6 +66,45 @@
 							sideOffset={4}
 						>
 							{isRetrying ? retryingLabel : warmingLabel}
+						</Tooltip.Content>
+					</Tooltip.Portal>
+				</Tooltip.Root>
+			{:else if presentation === "connected"}
+				<Tooltip.Root>
+					<Tooltip.Trigger>
+						<span
+							class="inline-flex size-2 rounded-full bg-success/60 animate-in fade-in duration-150"
+							aria-label={connectedLabel}
+						></span>
+					</Tooltip.Trigger>
+					<Tooltip.Portal>
+						<Tooltip.Content
+							class="z-[var(--overlay-z)] rounded-md bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md"
+							sideOffset={4}
+						>
+							{connectedLabel}
+						</Tooltip.Content>
+					</Tooltip.Portal>
+				</Tooltip.Root>
+			{:else if presentation === "running"}
+				<Tooltip.Root>
+					<Tooltip.Trigger>
+						<span
+							class="relative flex size-2 shrink-0 animate-in fade-in duration-150"
+							aria-label={warmingLabel}
+						>
+							<span
+								class="absolute inline-flex size-full animate-ping rounded-full bg-success/60 opacity-75"
+							></span>
+							<span class="relative inline-flex size-2 rounded-full bg-success/60"></span>
+						</span>
+					</Tooltip.Trigger>
+					<Tooltip.Portal>
+						<Tooltip.Content
+							class="z-[var(--overlay-z)] rounded-md bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md"
+							sideOffset={4}
+						>
+							{warmingLabel}
 						</Tooltip.Content>
 					</Tooltip.Portal>
 				</Tooltip.Root>
