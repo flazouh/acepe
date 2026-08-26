@@ -20,6 +20,7 @@ import projectionMcp from "./Migrations/0018_projection_mcp.ts"
 import projectionTerminal from "./Migrations/0019_projection_terminal.ts"
 import projectionSessionReviewState from "./Migrations/0020_projection_session_review_state.ts"
 import projectionProjectsColor from "./Migrations/0021_projection_projects_color.ts"
+import projectionSessionsProviderIdentity from "./Migrations/0022_projection_sessions_provider_identity.ts"
 
 const MIGRATIONS_TABLE = "_migrations"
 
@@ -44,7 +45,8 @@ const loader = SqliteMigrator.fromRecord({
 	"0018_projection_mcp": projectionMcp,
 	"0019_projection_terminal": projectionTerminal,
 	"0020_projection_session_review_state": projectionSessionReviewState,
-	"0021_projection_projects_color": projectionProjectsColor
+	"0021_projection_projects_color": projectionProjectsColor,
+	"0022_projection_sessions_provider_identity": projectionSessionsProviderIdentity
 })
 
 export const runMigrations = SqliteMigrator.run({

@@ -1,5 +1,6 @@
 import {
 	IsoDateTime,
+	type JsonObject,
 	MessageSentPayload,
 	type OrchestrationEvent,
 	ProjectId,
@@ -49,7 +50,17 @@ export const ProjectedSession = Schema.Struct({
 	archivedAt: Schema.NullOr(IsoDateTime),
 	deletedAt: Schema.NullOr(IsoDateTime),
 	prNumber: SessionPrNumber.pipe(Schema.NullOr),
-	prLinkMode: SessionPrLinkMode.pipe(Schema.NullOr)
+	prLinkMode: SessionPrLinkMode.pipe(Schema.NullOr),
+	// The provider's own session identity (e.g. a Claude Code JSONL uuid),
+	// learned from the provider_session contract fact a real-provider adapter
+	// encodes onto a generic SessionMetaUpdated event's metadata (see
+	// ClaudeSdkMap.ts's promotionFacts / encodeContractFact). Every
+	// real-provider session has TWO permanent ids: this one (keys the
+	// on-disk provider history) and sessionId above (keys every orchestration
+	// event/projection). Null until the provider's first durable message
+	// promotes its session id, and forever null for a session the tracer
+	// owns (no real provider attached).
+	providerSessionId: Schema.NullOr(TrimmedNonEmptyString)
 })
 export type ProjectedSession = typeof ProjectedSession.Type
 
@@ -64,7 +75,8 @@ const ProjectionSessionRow = Schema.Struct({
 	archived_at: Schema.NullOr(IsoDateTime),
 	deleted_at: Schema.NullOr(IsoDateTime),
 	pr_number: SessionPrNumber.pipe(Schema.NullOr),
-	pr_link_mode: SessionPrLinkMode.pipe(Schema.NullOr)
+	pr_link_mode: SessionPrLinkMode.pipe(Schema.NullOr),
+	provider_session_id: Schema.NullOr(TrimmedNonEmptyString)
 })
 
 export interface ProjectionSessionsShape {
@@ -106,7 +118,8 @@ const projectedSessionFromRow = (
 	archivedAt: row.archived_at,
 	deletedAt: row.deleted_at,
 	prNumber: row.pr_number,
-	prLinkMode: row.pr_link_mode
+	prLinkMode: row.pr_link_mode,
+	providerSessionId: row.provider_session_id
 })
 
 const decodeRow = Schema.decodeUnknownEffect(ProjectionSessionRow)
@@ -182,6 +195,28 @@ const resolveStoredTitle = (raw: TrimmedNonEmptyString): TrimmedNonEmptyString =
 const decodePayload = <S extends Schema.Top>(schema: S, value: unknown) =>
 	Schema.decodeUnknownEffect(schema)(value)
 
+// Every real-provider adapter (ClaudeSdkMap.ts, CodexNativeMap.ts,
+// CursorAcpMap.ts, CopilotAcpMap.ts, OpenCodeMap.ts) encodes an unhandled
+// provider_session contract fact the same way onto a generic
+// SessionMetaUpdated event's metadata: { type: "provider_session",
+// providerSessionId }. This decoder is intentionally provider-agnostic --
+// the projection layer must not know which real provider produced the fact,
+// only that the shape matches.
+const ProviderSessionFactMetadata = Schema.Struct({
+	type: Schema.Literal("provider_session"),
+	providerSessionId: TrimmedNonEmptyString
+})
+
+const providerSessionIdFromMetadata = (
+	metadata: JsonObject
+): (typeof TrimmedNonEmptyString.Type) | null => {
+	const decoded = Schema.decodeUnknownOption(ProviderSessionFactMetadata)(metadata)
+	return Option.match(decoded, {
+		onNone: () => null,
+		onSome: (fact) => fact.providerSessionId
+	})
+}
+
 const touch = (session: ProjectedSession, occurredAt: IsoDateTime): ProjectedSession => ({
 	sessionId: session.sessionId,
 	projectId: session.projectId,
@@ -193,7 +228,8 @@ const touch = (session: ProjectedSession, occurredAt: IsoDateTime): ProjectedSes
 	archivedAt: session.archivedAt,
 	deletedAt: session.deletedAt,
 	prNumber: session.prNumber,
-	prLinkMode: session.prLinkMode
+	prLinkMode: session.prLinkMode,
+	providerSessionId: session.providerSessionId
 })
 
 const projectSessionCreated = (
@@ -212,7 +248,8 @@ const projectSessionCreated = (
 				archivedAt: null,
 				deletedAt: null,
 				prNumber: null,
-				prLinkMode: null
+				prLinkMode: null,
+				providerSessionId: null
 			})
 		)
 	)
@@ -230,6 +267,7 @@ const projectSessionMetaUpdated = (
 		Effect.map((payload) =>
 			mapExisting(current, (session) => {
 				const stamped = touch(session, event.occurredAt)
+				const providerSessionId = providerSessionIdFromMetadata(event.metadata)
 				return {
 					sessionId: stamped.sessionId,
 					projectId: stamped.projectId,
@@ -244,7 +282,8 @@ const projectSessionMetaUpdated = (
 					prNumber:
 						payload.prNumber !== undefined ? payload.prNumber : stamped.prNumber,
 					prLinkMode:
-						payload.prLinkMode !== undefined ? payload.prLinkMode : stamped.prLinkMode
+						payload.prLinkMode !== undefined ? payload.prLinkMode : stamped.prLinkMode,
+					providerSessionId: providerSessionId !== null ? providerSessionId : stamped.providerSessionId
 				}
 			})
 		)

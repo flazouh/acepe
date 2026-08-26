@@ -215,7 +215,8 @@ Vitest.describe("evolveProjectedSession", () => {
 				archivedAt: null,
 				deletedAt: null,
 				prNumber: null,
-				prLinkMode: null
+				prLinkMode: null,
+				providerSessionId: null
 			})
 		})
 	)
@@ -399,6 +400,68 @@ Vitest.describe("evolveProjectedSession", () => {
 			Vitest.assert.strictEqual(row.prNumber, 42)
 			Vitest.assert.strictEqual(row.prLinkMode, "manual")
 			Vitest.assert.strictEqual(row.title, "First session")
+		})
+	)
+
+	Vitest.it.effect("captures providerSessionId from a provider_session SessionMetaUpdated fact", () =>
+		Effect.gen(function*() {
+			const row = requireSession(
+				yield* fold([
+					sessionEvent(1, "SessionCreated", NOW, {
+						sessionId,
+						projectId,
+						title: "First session"
+					}),
+					{
+						...sessionEvent(2, "SessionMetaUpdated", LATER, { sessionId }),
+						metadata: { type: "provider_session", providerSessionId: "claude-uuid-42" }
+					}
+				])
+			)
+			Vitest.assert.strictEqual(row.providerSessionId, "claude-uuid-42")
+		})
+	)
+
+	Vitest.it.effect("keeps the last known providerSessionId once learned", () =>
+		Effect.gen(function*() {
+			const row = requireSession(
+				yield* fold([
+					sessionEvent(1, "SessionCreated", NOW, {
+						sessionId,
+						projectId,
+						title: "First session"
+					}),
+					{
+						...sessionEvent(2, "SessionMetaUpdated", LATER, { sessionId }),
+						metadata: { type: "provider_session", providerSessionId: "claude-uuid-42" }
+					},
+					{
+						...sessionEvent(3, "SessionMetaUpdated", LATER, { sessionId, title: "Renamed" }),
+						metadata: {}
+					}
+				])
+			)
+			Vitest.assert.strictEqual(row.providerSessionId, "claude-uuid-42")
+			Vitest.assert.strictEqual(row.title, "Renamed")
+		})
+	)
+
+	Vitest.it.effect("ignores SessionMetaUpdated metadata for an unrelated contract fact", () =>
+		Effect.gen(function*() {
+			const row = requireSession(
+				yield* fold([
+					sessionEvent(1, "SessionCreated", NOW, {
+						sessionId,
+						projectId,
+						title: "First session"
+					}),
+					{
+						...sessionEvent(2, "SessionMetaUpdated", LATER, { sessionId }),
+						metadata: { type: "usage", inputTokens: 5 }
+					}
+				])
+			)
+			Vitest.assert.strictEqual(row.providerSessionId, null)
 		})
 	)
 
