@@ -26,20 +26,28 @@
 import type {
 	RpcCompactionProjectedMessage,
 	RpcProjectedMessage,
+	RpcProjectedSessionActivity,
 	RpcSessionSnapshot,
 } from "@acepe/contracts";
 
 import type {
 	CanonicalAgentId,
+	OperationSnapshot,
 	SessionCompactionEvent,
 	SessionGraphActivity,
 	SessionGraphLifecycle,
 	SessionGraphRevision,
 	SessionStateGraph,
+	ToolArguments,
 	TranscriptEntry,
 } from "../../services/acp-types.js";
 import { emptySessionGraphCapabilities } from "../store/envelope-reducer/empty-session-graph-capabilities.js";
 import { isBuiltInCanonicalAgentId } from "../types/agent-id.js";
+import type { ObservedToolCallStatus } from "./observed-tool-call-status.js";
+import {
+	observedStatusToOperationState,
+	observedStatusToToolCallStatus,
+} from "./observed-tool-call-status.js";
 
 const idleActivity: SessionGraphActivity = {
 	kind: "idle",
@@ -107,17 +115,96 @@ function transcriptEntryFromMessage(message: RpcProjectedMessage): TranscriptEnt
 	}
 }
 
+const noToolArguments: ToolArguments = { kind: "other", raw: null };
+
+// AC-263, reopen half: `RpcProjectedSessionActivity.status` is a free-form
+// server string (Schema.optionalKey(Schema.String)), not the same literal
+// union `observed-tool-call-status.ts` maps -- narrow the ones the server
+// actually emits and fall back to "completed" for anything else (undefined
+// included), since a reopened session's activities are historical: absent a
+// live in-flight signal, "this tool call already finished" is the correct
+// reading, not an invented "still running" state.
+function observedStatusFromActivityStatus(status: string | undefined): ObservedToolCallStatus {
+	if (status === "pending" || status === "in_progress" || status === "failed") {
+		return status;
+	}
+	return "completed";
+}
+
+function transcriptEntryFromActivity(activity: RpcProjectedSessionActivity): TranscriptEntry {
+	return {
+		entryId: activity.activityId,
+		role: "tool",
+		segments: [
+			{
+				kind: "text",
+				segmentId: `${activity.activityId}-text`,
+				text: activity.title ?? "Tool call",
+			},
+		],
+	};
+}
+
+function operationFromActivity(activity: RpcProjectedSessionActivity): OperationSnapshot {
+	const toolCallId = activity.toolCallId ?? activity.activityId;
+	const title = activity.title ?? "Tool call";
+	return {
+		id: activity.activityId,
+		session_id: activity.sessionId,
+		tool_call_id: toolCallId,
+		name: title,
+		kind: null,
+		provider_status: observedStatusToToolCallStatus(
+			observedStatusFromActivityStatus(activity.status)
+		),
+		title,
+		arguments: noToolArguments,
+		progressive_arguments: null,
+		result: null,
+		command: null,
+		normalized_todos: null,
+		parent_tool_call_id: null,
+		parent_operation_id: null,
+		child_tool_call_ids: [],
+		child_operation_ids: [],
+		operation_state: observedStatusToOperationState(
+			observedStatusFromActivityStatus(activity.status)
+		),
+		locations:
+			activity.path === null || activity.path === undefined ? null : [{ path: activity.path }],
+		awaiting_plan_approval: false,
+		source_link: { kind: "transcript_linked", entry_id: activity.activityId },
+	};
+}
+
+type SequencedEntry = { readonly sequence: number; readonly entry: TranscriptEntry };
+
 /**
- * `RpcSessionSnapshot.messages` is already in ascending-sequence (display)
- * order -- see `sessionSnapshot.ts`'s `applyEventToRpcSessionSnapshot`,
- * which only ever appends a new row or in-place-upserts the row a
- * `TokenAppended` event's first token already created, never reorders.
- * Nothing here re-sorts.
+ * Interleaves messages and activities into one sequence-ordered entries
+ * list -- the reopen counterpart to `agent-panel-conversation.ts`'s
+ * `conversationFromSnapshot`, which does the analogous sort-by-`sequence`
+ * merge for the scaffold's `AgentPanelConversationEntry` shape. The two
+ * cannot share a function body (different target types, same as the header
+ * comment above already notes for messages alone), but the ordering
+ * principle -- real server `sequence`, not a guessed position -- is the
+ * same one, applied here to the canonical `TranscriptEntry` shape instead.
  */
-export function transcriptEntriesFromSnapshotMessages(
-	messages: ReadonlyArray<RpcProjectedMessage>
-): TranscriptEntry[] {
-	return messages.map(transcriptEntryFromMessage);
+export function transcriptEntriesFromSnapshot(snapshot: RpcSessionSnapshot): TranscriptEntry[] {
+	const messageEntries: SequencedEntry[] = snapshot.messages.map((message) => ({
+		sequence: message.sequence,
+		entry: transcriptEntryFromMessage(message),
+	}));
+	const activityEntries: SequencedEntry[] = snapshot.activities.map((activity) => ({
+		sequence: activity.sequence,
+		entry: transcriptEntryFromActivity(activity),
+	}));
+	return [...messageEntries, ...activityEntries]
+		.sort((a, b) => a.sequence - b.sequence)
+		.map((sequenced) => sequenced.entry);
+}
+
+export function operationsFromSnapshot(snapshot: RpcSessionSnapshot): OperationSnapshot[] {
+	return snapshot.activities.map(operationFromActivity);
 }
 
 function lifecycleForStatus(status: SessionGraphLifecycle["status"]): SessionGraphLifecycle {
@@ -168,11 +255,13 @@ export interface ReopenSnapshotGraphInput {
 /**
  * Builds a full canonical graph for a reopened session from its contract
  * snapshot -- pure, so callers own the RPC fetch and the (idempotent)
- * import-not-yet-imported-session step around it. `operations`/
- * `interactions` stay empty: transcript-viewport-rows-from-entries.ts
- * already documents that tool-call rows are left out of the Electrobun
- * transcript view entirely (no shared ordering key), so seeding them here
- * would not change what renders -- only entries do.
+ * import-not-yet-imported-session step around it. `operations` is seeded
+ * from `snapshot.activities` (AC-263): each historical tool activity gets a
+ * `role: "tool"` transcript entry, interleaved by real sequence, plus its
+ * linked OperationSnapshot -- see `transcriptEntriesFromSnapshot`/
+ * `operationsFromSnapshot`. `interactions` stays empty: the snapshot only
+ * exposes still-pending approvals (already handled below), not resolved
+ * historical ones.
  */
 export function graphFromReopenSnapshot(input: ReopenSnapshotGraphInput): SessionStateGraph {
 	const revision: SessionGraphRevision = {
@@ -180,7 +269,8 @@ export function graphFromReopenSnapshot(input: ReopenSnapshotGraphInput): Sessio
 		transcriptRevision: input.snapshot.snapshotSequence,
 		lastEventSeq: input.snapshot.snapshotSequence,
 	};
-	const entries = transcriptEntriesFromSnapshotMessages(input.snapshot.messages);
+	const entries = transcriptEntriesFromSnapshot(input.snapshot);
+	const operations = operationsFromSnapshot(input.snapshot);
 	const hasPendingApproval = input.snapshot.pendingApprovals.length > 0;
 	return {
 		requestedSessionId: input.requestedSessionId,
@@ -193,7 +283,7 @@ export function graphFromReopenSnapshot(input: ReopenSnapshotGraphInput): Sessio
 		sequenceId: input.sequenceId,
 		revision,
 		transcriptSnapshot: { revision: input.snapshot.snapshotSequence, entries },
-		operations: [],
+		operations,
 		interactions: [],
 		turnState: "Idle",
 		messageCount: input.snapshot.messages.length,

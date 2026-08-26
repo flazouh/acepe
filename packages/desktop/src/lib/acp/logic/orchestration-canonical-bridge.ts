@@ -24,7 +24,6 @@ import type {
 	CanonicalAgentId,
 	InteractionSnapshot,
 	OperationSnapshot,
-	OperationState,
 	SessionGraphActivity,
 	SessionGraphRevision,
 	SessionStateDelta,
@@ -34,8 +33,11 @@ import type {
 	ToolArguments,
 	TranscriptDeltaOperation,
 } from "../../services/acp-types.js";
-import type { ToolCallStatus } from "../../services/converted-session-types.js";
 import type { AcpEventEnvelope } from "./acp-event-bridge.js";
+import {
+	observedStatusToOperationState,
+	observedStatusToToolCallStatus,
+} from "./observed-tool-call-status.js";
 
 type SessionCanonicalState = {
 	revision: SessionGraphRevision;
@@ -43,6 +45,15 @@ type SessionCanonicalState = {
 	activity: SessionGraphActivity;
 	assistantEntryId: string | null;
 	assistantSegmentSeq: number;
+	// AC-263: bumped each time a fresh assistant entry starts after a tool
+	// call reset assistantEntryId to null mid-turn, so a later run reusing the
+	// same provider messageId still gets a distinct, non-colliding entryId
+	// instead of silently re-merging into the pre-tool-call entry's id.
+	assistantEntryRunSeq: number;
+	// AC-263: toolCallIds that already have a "tool" transcript entry, so a
+	// status-only re-observation (pending -> in_progress -> completed) patches
+	// the existing operation instead of appending a duplicate row.
+	observedToolCallIds: Set<string>;
 };
 
 const KNOWN_AGENT_IDS: ReadonlySet<string> = new Set([
@@ -72,25 +83,6 @@ const awaitingModelActivity: SessionGraphActivity = {
 };
 
 const noArguments: ToolArguments = { kind: "other", raw: null };
-
-const observedStatusToOperationState = (
-	status: "pending" | "in_progress" | "completed" | "failed"
-): OperationState => {
-	switch (status) {
-		case "pending":
-			return "pending";
-		case "in_progress":
-			return "running";
-		case "completed":
-			return "completed";
-		case "failed":
-			return "failed";
-	}
-};
-
-const observedStatusToToolCallStatus = (
-	status: "pending" | "in_progress" | "completed" | "failed"
-): ToolCallStatus => status;
 
 function nextRevision(
 	current: SessionGraphRevision,
@@ -193,6 +185,8 @@ export class OrchestrationCanonicalBridge {
 					activity: idleActivity,
 					assistantEntryId: null,
 					assistantSegmentSeq: 0,
+					assistantEntryRunSeq: 0,
+					observedToolCallIds: new Set(),
 				});
 				const envelope: SessionStateEnvelope = {
 					sessionId,
@@ -268,6 +262,7 @@ export class OrchestrationCanonicalBridge {
 		state.turnState = "Running";
 		state.activity = awaitingModelActivity;
 		state.assistantEntryId = null;
+		state.assistantEntryRunSeq = 0;
 		state.assistantSegmentSeq = 0;
 		return [toSessionStateAcpEnvelope(envelopeForDelta(sessionId, toRevision, delta))];
 	}
@@ -278,13 +273,18 @@ export class OrchestrationCanonicalBridge {
 			return [];
 		}
 		const toRevision = nextRevision(state.revision, true);
+		const currentEntryId = state.assistantEntryId;
+		const newEntryId =
+			state.assistantEntryRunSeq === 0
+				? `entry-assistant-${messageId}`
+				: `entry-assistant-${messageId}-${String(state.assistantEntryRunSeq)}`;
 		const operations: TranscriptDeltaOperation[] =
-			state.assistantEntryId === null
+			currentEntryId === null
 				? [
 						{
 							kind: "appendEntry",
 							entry: {
-								entryId: `entry-assistant-${messageId}`,
+								entryId: newEntryId,
 								role: "assistant",
 								segments: [{ kind: "text", segmentId: `seg-${messageId}-0`, text: token }],
 							},
@@ -293,7 +293,7 @@ export class OrchestrationCanonicalBridge {
 				: [
 						{
 							kind: "appendSegment",
-							entryId: state.assistantEntryId,
+							entryId: currentEntryId,
 							role: "assistant",
 							segment: {
 								kind: "text",
@@ -314,7 +314,7 @@ export class OrchestrationCanonicalBridge {
 			changedFields: ["transcriptSnapshot"],
 		};
 		state.revision = toRevision;
-		state.assistantEntryId = `entry-assistant-${messageId}`;
+		state.assistantEntryId = currentEntryId ?? newEntryId;
 		state.assistantSegmentSeq += 1;
 		return [toSessionStateAcpEnvelope(envelopeForDelta(sessionId, toRevision, delta))];
 	}
@@ -330,7 +330,44 @@ export class OrchestrationCanonicalBridge {
 		if (state === undefined) {
 			return [];
 		}
-		const toRevision = nextRevision(state.revision, false);
+		// AC-263: a tool call is transcript-bearing -- it renders as a "tool"
+		// row inline with the rest of the transcript, so it advances
+		// transcriptRevision (true) both on first sighting (a row appears) and
+		// on every later status re-observation (the row's rendered status
+		// changes). The Electrobun rows-controller only re-derives rows when
+		// transcriptRevision itself changes (see scene-content-viewport.svelte's
+		// transcript-revision effect), so a status-only bump here is what makes
+		// pending -> in_progress -> completed actually re-render.
+		const toRevision = nextRevision(state.revision, true);
+		const isFirstSighting = !state.observedToolCallIds.has(payload.toolCallId);
+		const toolEntryId = `entry-tool-${payload.toolCallId}`;
+		const transcriptOperations: TranscriptDeltaOperation[] = isFirstSighting
+			? [
+					{
+						kind: "appendEntry",
+						entry: {
+							entryId: toolEntryId,
+							role: "tool",
+							segments: [
+								{ kind: "text", segmentId: `seg-tool-${payload.toolCallId}`, text: payload.title },
+							],
+						},
+					},
+				]
+			: [];
+		if (isFirstSighting) {
+			state.observedToolCallIds.add(payload.toolCallId);
+			// A tool row splits the assistant reply around it: any text that
+			// streamed before this tool call belongs to its own entry, and any
+			// text that streams after it must start a new entry positioned after
+			// the tool row in transcript order, not silently re-merge into the
+			// entry that came before the tool call.
+			if (state.assistantEntryId !== null) {
+				state.assistantEntryRunSeq += 1;
+			}
+			state.assistantEntryId = null;
+			state.assistantSegmentSeq = 0;
+		}
 		const operation: OperationSnapshot = {
 			id: payload.toolCallId,
 			session_id: payload.sessionId,
@@ -349,11 +386,9 @@ export class OrchestrationCanonicalBridge {
 			child_tool_call_ids: [],
 			child_operation_ids: [],
 			operation_state: observedStatusToOperationState(payload.status),
+			locations: payload.path === null ? null : [{ path: payload.path }],
 			awaiting_plan_approval: false,
-			source_link: {
-				kind: "synthetic",
-				reason: "orchestration-canonical-bridge:tool-call-observed",
-			},
+			source_link: { kind: "transcript_linked", entry_id: toolEntryId },
 		};
 		const activity: SessionGraphActivity =
 			payload.status === "completed" || payload.status === "failed"
@@ -370,10 +405,10 @@ export class OrchestrationCanonicalBridge {
 			activity,
 			turnState: state.turnState,
 			activeStreamingTail: null,
-			transcriptOperations: [],
+			transcriptOperations,
 			operationPatches: [operation],
 			interactionPatches: [],
-			changedFields: ["operations", "activity"],
+			changedFields: ["transcriptSnapshot", "operations", "activity"],
 		};
 		state.revision = toRevision;
 		state.activity = activity;
@@ -455,6 +490,7 @@ export class OrchestrationCanonicalBridge {
 		state.turnState = "Cancelled";
 		state.activity = idleActivity;
 		state.assistantEntryId = null;
+		state.assistantEntryRunSeq = 0;
 		return [toSessionStateAcpEnvelope(envelopeForDelta(sessionId, toRevision, delta))];
 	}
 
@@ -479,6 +515,7 @@ export class OrchestrationCanonicalBridge {
 		state.turnState = "Completed";
 		state.activity = idleActivity;
 		state.assistantEntryId = null;
+		state.assistantEntryRunSeq = 0;
 		return [toSessionStateAcpEnvelope(envelopeForDelta(sessionId, toRevision, delta))];
 	}
 }

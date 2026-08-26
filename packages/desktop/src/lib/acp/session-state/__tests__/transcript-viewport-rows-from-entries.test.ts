@@ -1,6 +1,32 @@
 import { describe, expect, it } from "bun:test";
-import type { SessionCompactionEvent, TranscriptEntry } from "../../../services/acp-types.js";
+import type {
+	OperationSnapshot,
+	SessionCompactionEvent,
+	TranscriptEntry,
+} from "../../../services/acp-types.js";
 import { transcriptViewportRowsFromEntries } from "../transcript-viewport-rows-from-entries.js";
+
+const baseOperation: OperationSnapshot = {
+	id: "op-1",
+	session_id: "session-1",
+	tool_call_id: "tool-1",
+	name: "Read package.json",
+	kind: null,
+	provider_status: "in_progress",
+	title: "Read package.json",
+	arguments: { kind: "other", raw: null },
+	progressive_arguments: null,
+	result: null,
+	command: null,
+	normalized_todos: null,
+	parent_tool_call_id: null,
+	parent_operation_id: null,
+	child_tool_call_ids: [],
+	child_operation_ids: [],
+	operation_state: "running",
+	awaiting_plan_approval: false,
+	source_link: { kind: "transcript_linked", entry_id: "entry-tool-1" },
+};
 
 describe("transcriptViewportRowsFromEntries", () => {
 	it("maps a user entry to a user row with real segment content", () => {
@@ -119,6 +145,69 @@ describe("transcriptViewportRowsFromEntries", () => {
 		const rows = transcriptViewportRowsFromEntries(entries);
 
 		expect(rows[0]?.content).toEqual({ kind: "compaction", event: compactionEvent });
+	});
+
+	it("maps a tool-role entry to a tool row, linked to its canonical operation", () => {
+		const entries: TranscriptEntry[] = [
+			{
+				entryId: "entry-tool-1",
+				role: "tool",
+				segments: [{ kind: "text", segmentId: "seg-tool-1", text: "Read package.json" }],
+			},
+		];
+
+		const rows = transcriptViewportRowsFromEntries(entries, [baseOperation]);
+
+		expect(rows[0]?.kind).toBe("tool");
+		expect(rows[0]?.operationLinks).toEqual([
+			{
+				operationId: "op-1",
+				toolCallId: "tool-1",
+				name: "Read package.json",
+				state: "running",
+				operation: baseOperation,
+			},
+		]);
+	});
+
+	it("leaves operationLinks empty for a tool entry with no matching canonical operation", () => {
+		const entries: TranscriptEntry[] = [
+			{
+				entryId: "entry-tool-2",
+				role: "tool",
+				segments: [{ kind: "text", segmentId: "seg-tool-2", text: "Read other.json" }],
+			},
+		];
+
+		const rows = transcriptViewportRowsFromEntries(entries, [baseOperation]);
+
+		expect(rows[0]?.kind).toBe("tool");
+		expect(rows[0]?.operationLinks).toEqual([]);
+	});
+
+	it("re-resolves operationLinks to the current operation state (status transitions render)", () => {
+		const entries: TranscriptEntry[] = [
+			{
+				entryId: "entry-tool-1",
+				role: "tool",
+				segments: [{ kind: "text", segmentId: "seg-tool-1", text: "Read package.json" }],
+			},
+		];
+		const completedOperation: OperationSnapshot = { ...baseOperation, operation_state: "completed" };
+
+		const rows = transcriptViewportRowsFromEntries(entries, [completedOperation]);
+
+		expect(rows[0]?.operationLinks[0]?.state).toBe("completed");
+	});
+
+	it("defaults operations to empty when omitted, so existing non-tool callers are unaffected", () => {
+		const entries: TranscriptEntry[] = [
+			{ entryId: "entry-1", role: "user", segments: [{ kind: "text", segmentId: "s", text: "hi" }] },
+		];
+
+		const rows = transcriptViewportRowsFromEntries(entries);
+
+		expect(rows[0]?.operationLinks).toEqual([]);
 	});
 
 	it("preserves real entry order (never re-sorts)", () => {

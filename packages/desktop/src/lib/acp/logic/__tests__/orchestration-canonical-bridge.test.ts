@@ -196,8 +196,9 @@ describe("OrchestrationCanonicalBridge", () => {
 
 		if (toolPayload.payload.kind === "delta") {
 			expect(toolPayload.payload.delta.operationPatches[0]?.tool_call_id).toBe("tool-1");
-			// Not transcript-bearing: transcriptRevision must not advance.
-			expect(toolPayload.payload.delta.toRevision.transcriptRevision).toBe(
+			// AC-263: a tool call renders as its own transcript row, so it is
+			// transcript-bearing -- transcriptRevision must advance.
+			expect(toolPayload.payload.delta.toRevision.transcriptRevision).toBeGreaterThan(
 				toolPayload.payload.delta.fromRevision.transcriptRevision
 			);
 		} else {
@@ -209,6 +210,149 @@ describe("OrchestrationCanonicalBridge", () => {
 			expect(approvalPayload.payload.delta.interactionPatches[0]?.kind).toBe("Permission");
 		} else {
 			throw new Error("expected a delta envelope");
+		}
+	});
+
+	// AC-263 client half: the server now emits real ToolCallObserved events,
+	// but the transcript never showed a row for them because this bridge only
+	// ever patched the operation (source_link: "synthetic") and never touched
+	// transcriptSnapshot.entries. Tool rows must appear inline, in real
+	// arrival order, both live and (via reopen-snapshot-graph.ts) on reopen.
+	it("appends a tool transcript entry on first ToolCallObserved, transcript-linked to the operation", () => {
+		const bridge = makeBridge();
+		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
+
+		const envelopes = runTranslate(
+			bridge,
+			makeEvent("ToolCallObserved", {
+				sessionId,
+				activityId: "activity-1",
+				toolCallId: "tool-1",
+				operationId: null,
+				status: "in_progress",
+				title: "Read package.json",
+				path: "package.json",
+			})
+		);
+
+		expect(envelopes).toHaveLength(1);
+		const payload = envelopes[0]?.payload as SessionStateEnvelope;
+		expect(payload.payload.kind).toBe("delta");
+		if (payload.payload.kind !== "delta") {
+			throw new Error("expected a delta envelope");
+		}
+		const delta = payload.payload.delta;
+
+		expect(delta.transcriptOperations).toHaveLength(1);
+		const [op] = delta.transcriptOperations;
+		expect(op?.kind).toBe("appendEntry");
+		if (op?.kind !== "appendEntry") {
+			throw new Error("expected an appendEntry transcript operation");
+		}
+		expect(op.entry.role).toBe("tool");
+		const toolEntryId = op.entry.entryId;
+
+		expect(delta.operationPatches).toHaveLength(1);
+		const [operation] = delta.operationPatches;
+		expect(operation?.tool_call_id).toBe("tool-1");
+		expect(operation?.source_link).toEqual({ kind: "transcript_linked", entry_id: toolEntryId });
+
+		// A tool row is transcript-bearing: transcriptRevision must advance so
+		// the Electrobun rows-controller (gated on transcript-revision alone)
+		// actually re-derives rows for it.
+		expect(delta.toRevision.transcriptRevision).toBeGreaterThan(delta.fromRevision.transcriptRevision);
+		expect(delta.changedFields).toContain("transcriptSnapshot");
+	});
+
+	it("does not append a second tool transcript entry when the same tool call is observed again, but still advances transcriptRevision so status updates re-render", () => {
+		const bridge = makeBridge();
+		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
+		const first = runTranslate(
+			bridge,
+			makeEvent("ToolCallObserved", {
+				sessionId,
+				activityId: "activity-1",
+				toolCallId: "tool-1",
+				operationId: null,
+				status: "in_progress",
+				title: "Read package.json",
+				path: "package.json",
+			})
+		);
+		const firstPayload = first[0]?.payload as SessionStateEnvelope;
+		const firstDelta =
+			firstPayload.payload.kind === "delta" ? firstPayload.payload.delta : null;
+		if (firstDelta === null) {
+			throw new Error("expected a delta envelope");
+		}
+		const [firstOp] = firstDelta.transcriptOperations;
+		const toolEntryId = firstOp?.kind === "appendEntry" ? firstOp.entry.entryId : null;
+		if (toolEntryId === null) {
+			throw new Error("expected the first ToolCallObserved to append a tool transcript entry");
+		}
+
+		const second = runTranslate(
+			bridge,
+			makeEvent("ToolCallObserved", {
+				sessionId,
+				activityId: "activity-1",
+				toolCallId: "tool-1",
+				operationId: null,
+				status: "completed",
+				title: "Read package.json",
+				path: "package.json",
+			})
+		);
+		const secondPayload = second[0]?.payload as SessionStateEnvelope;
+		if (secondPayload.payload.kind !== "delta") {
+			throw new Error("expected a delta envelope");
+		}
+		const secondDelta = secondPayload.payload.delta;
+
+		expect(secondDelta.transcriptOperations).toHaveLength(0);
+		expect(secondDelta.operationPatches[0]?.operation_state).toBe("completed");
+		expect(secondDelta.operationPatches[0]?.source_link).toEqual({
+			kind: "transcript_linked",
+			entry_id: toolEntryId,
+		});
+		expect(secondDelta.toRevision.transcriptRevision).toBeGreaterThan(
+			secondDelta.fromRevision.transcriptRevision
+		);
+	});
+
+	it("starts a fresh assistant entry for tokens that arrive after a tool call, so text keeps its real position relative to the tool row", () => {
+		const bridge = makeBridge();
+		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
+		runTranslate(
+			bridge,
+			makeEvent("TokenAppended", { sessionId, messageId: MessageId.make("a1"), token: "Checking" })
+		);
+		runTranslate(
+			bridge,
+			makeEvent("ToolCallObserved", {
+				sessionId,
+				activityId: "activity-1",
+				toolCallId: "tool-1",
+				operationId: null,
+				status: "completed",
+				title: "Read package.json",
+				path: "package.json",
+			})
+		);
+		const afterTool = runTranslate(
+			bridge,
+			makeEvent("TokenAppended", { sessionId, messageId: MessageId.make("a1"), token: "It's acepe" })
+		);
+
+		const payload = afterTool[0]?.payload as SessionStateEnvelope;
+		if (payload.payload.kind !== "delta") {
+			throw new Error("expected a delta envelope");
+		}
+		const [op] = payload.payload.delta.transcriptOperations;
+		expect(op?.kind).toBe("appendEntry");
+		if (op?.kind === "appendEntry") {
+			expect(op.entry.role).toBe("assistant");
+			expect(op.entry.entryId).not.toBe("entry-assistant-a1");
 		}
 	});
 

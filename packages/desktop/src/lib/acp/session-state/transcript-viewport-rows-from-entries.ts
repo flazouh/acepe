@@ -5,16 +5,30 @@
  * transcriptSnapshot` (see `session-projection-core.svelte.ts`'s
  * `getTranscriptEntries`).
  *
- * This is a real-data, entries-only mapper -- it does not interleave
- * `operations` (tool calls) into row order, because neither the live
- * orchestration events nor the entries they produce (see
- * `orchestration-canonical-bridge.ts`) carry a shared ordering key today.
- * Inventing an interleave order would be fabricated data, so tool-call rows
- * are left out of this mapper rather than guessed at. Text/thought
- * transcript content -- the bulk of what a session shows -- renders in its
- * real, already-correct append order.
+ * AC-263: tool calls now DO have a shared ordering key with the rest of the
+ * transcript -- `orchestration-canonical-bridge.ts` appends a `role: "tool"`
+ * TranscriptEntry (and `reopen-snapshot-graph.ts` seeds one per historical
+ * activity) at the same real arrival position other entries occupy, so a
+ * row's position in `entries` is already correct display order; nothing
+ * here re-sorts. What was still missing is the operation data a "tool" row
+ * needs to render (title/status/path): each `role: "tool"` entry is
+ * resolved against the canonical `operations` array via the same
+ * `source_link.kind === "transcript_linked"` index `operation-index.ts`
+ * already builds for the (currently unused-in-prod) graph materializer --
+ * reused here rather than re-implemented, so both call sites agree on what
+ * "linked" means.
  */
-import type { TranscriptEntry, TranscriptViewportRow } from "../../services/acp-types.js";
+import type {
+	OperationSnapshot,
+	TranscriptEntry,
+	TranscriptViewportOperationLink,
+	TranscriptViewportRow,
+} from "../../services/acp-types.js";
+import {
+	buildOperationIndex,
+	findOperationForTranscriptSourceEntry,
+	type OperationIndex,
+} from "./operation-index.js";
 
 function isAllThoughtSegments(entry: TranscriptEntry): boolean {
 	return entry.segments.length > 0 && entry.segments.every((segment) => segment.kind === "thought");
@@ -41,7 +55,29 @@ function contentFromEntry(entry: TranscriptEntry): TranscriptViewportRow["conten
 	return { kind: "transcript", role: entry.role, segments: entry.segments };
 }
 
-function rowFromEntry(entry: TranscriptEntry): TranscriptViewportRow {
+function operationLinkFor(
+	entry: TranscriptEntry,
+	index: OperationIndex | null
+): TranscriptViewportOperationLink[] {
+	if (entry.role !== "tool" || index === null) {
+		return [];
+	}
+	const operation = findOperationForTranscriptSourceEntry(entry.entryId, index);
+	if (operation === null) {
+		return [];
+	}
+	return [
+		{
+			operationId: operation.id,
+			toolCallId: operation.tool_call_id,
+			name: operation.name,
+			state: operation.operation_state,
+			operation,
+		},
+	];
+}
+
+function rowFromEntry(entry: TranscriptEntry, index: OperationIndex | null): TranscriptViewportRow {
 	return {
 		rowId: entry.entryId,
 		sourceEntryId: entry.entryId,
@@ -53,7 +89,7 @@ function rowFromEntry(entry: TranscriptEntry): TranscriptViewportRow {
 		version: String(entry.segments.length),
 		anchorEligible: entry.role === "user",
 		activeStreamingTail: null,
-		operationLinks: [],
+		operationLinks: operationLinkFor(entry, index),
 		interactionLinks: [],
 		content: contentFromEntry(entry),
 		timestampMs: entry.timestampMs ?? null,
@@ -62,10 +98,18 @@ function rowFromEntry(entry: TranscriptEntry): TranscriptViewportRow {
 
 /**
  * Project viewport rows from the canonical transcript entries. Input order
- * is display order -- this never re-sorts.
+ * is display order -- this never re-sorts. `operations` is the canonical
+ * operation graph (`SessionStateGraph.operations`); passing it lets `role:
+ * "tool"` entries resolve to a real `operationLinks` entry so the row
+ * renders title/status/path. Non-tool callers, and callers with no
+ * operations yet, may omit it.
  */
 export function transcriptViewportRowsFromEntries(
-	entries: ReadonlyArray<TranscriptEntry>
+	entries: ReadonlyArray<TranscriptEntry>,
+	operations: ReadonlyArray<OperationSnapshot> = []
 ): TranscriptViewportRow[] {
-	return entries.map(rowFromEntry);
+	// Building the index once per call, not per entry, keeps this
+	// O(entries + operations) instead of O(entries * operations).
+	const index = operations.length === 0 ? null : buildOperationIndex(operations);
+	return entries.map((entry) => rowFromEntry(entry, index));
 }

@@ -14,6 +14,7 @@
 import { SvelteMap } from "svelte/reactivity";
 import type {
 	FailureReason,
+	OperationSnapshot,
 	SessionGraphActivity,
 	SessionGraphLifecycle,
 	SessionGraphRevision,
@@ -92,6 +93,11 @@ export class SessionProjectionCore {
 	/** Canonical transcript entries; null means no canonical graph exists yet. */
 	getTranscriptEntries(sessionId: string): ReadonlyArray<TranscriptEntry> | null {
 		return this.sessionStateGraphs.get(sessionId)?.transcriptSnapshot.entries ?? null;
+	}
+
+	/** Canonical operation graph; null means no canonical graph exists yet. */
+	getOperations(sessionId: string): ReadonlyArray<OperationSnapshot> | null {
+		return this.sessionStateGraphs.get(sessionId)?.operations ?? null;
 	}
 
 	getLastTerminalTurnId(sessionId: string): string | null {

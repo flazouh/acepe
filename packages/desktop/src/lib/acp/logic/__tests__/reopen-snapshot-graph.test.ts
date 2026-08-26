@@ -1,10 +1,12 @@
 import { describe, expect, it } from "bun:test";
 import type { RpcProjectedMessage, RpcSessionSnapshot } from "@acepe/contracts";
 import {
+	ActivityId,
 	ApprovalRequestId,
 	emptyRpcSessionSnapshot,
 	ProjectId,
 	SessionId,
+	ToolCallId,
 	TurnId,
 } from "@acepe/contracts";
 
@@ -134,6 +136,65 @@ describe("graphFromReopenSnapshot", () => {
 		expect(graph.turnState).toBe("Idle");
 		expect(graph.operations).toEqual([]);
 		expect(graph.interactions).toEqual([]);
+	});
+
+	// AC-263, reopen half: a reopened session's `snapshot.activities` (server
+	// projection_session_activities, same shape agent-panel-conversation.ts's
+	// scaffold already interleaves by `sequence`) must seed a `role: "tool"`
+	// transcript entry plus its linked OperationSnapshot, positioned at its
+	// real sequence position among the user/assistant messages -- not left
+	// out, and not appended after everything else.
+	it("interleaves activities into transcript entries by sequence and seeds a linked operation for each", () => {
+		const snapshot: RpcSessionSnapshot = {
+			...withMessages(3, [
+				{
+					sessionId: SESSION_ID,
+					sequence: 1,
+					messageId: "msg-user-1",
+					turnId: null,
+					rowType: "user",
+					content: { text: "Read package.json and tell me its name" },
+				},
+				{
+					sessionId: SESSION_ID,
+					sequence: 3,
+					messageId: "msg-assistant-1",
+					turnId: TURN_ID,
+					rowType: "assistant",
+					content: { text: "The name is acepe" },
+				},
+			]),
+			activities: [
+				{
+					activityId: ActivityId.make("activity-1"),
+					sessionId: SESSION_ID,
+					sequence: 2,
+					kind: "tool",
+					status: "completed",
+					title: "Read package.json",
+					path: "package.json",
+					toolCallId: ToolCallId.make("tool-1"),
+				},
+			],
+		};
+
+		const graph = graphFromReopenSnapshot(baseInput(snapshot));
+
+		expect(graph.transcriptSnapshot.entries.map((entry) => entry.entryId)).toEqual([
+			"msg-user-1",
+			"activity-1",
+			"msg-assistant-1",
+		]);
+		const toolEntry = graph.transcriptSnapshot.entries[1];
+		expect(toolEntry?.role).toBe("tool");
+
+		expect(graph.operations).toHaveLength(1);
+		const [operation] = graph.operations;
+		expect(operation?.tool_call_id).toBe("tool-1");
+		expect(operation?.title).toBe("Read package.json");
+		expect(operation?.operation_state).toBe("completed");
+		expect(operation?.source_link).toEqual({ kind: "transcript_linked", entry_id: "activity-1" });
+		expect(operation?.locations).toEqual([{ path: "package.json" }]);
 	});
 
 	it("reports waiting_for_user activity when the snapshot carries a pending approval", () => {

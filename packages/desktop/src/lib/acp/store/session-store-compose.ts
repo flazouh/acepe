@@ -172,6 +172,7 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 		applySessionStateEnvelope: (sessionId, envelope) =>
 			input.applySessionStateEnvelope(sessionId, envelope),
 		getTranscriptEntries: (sessionId) => read.getSessionTranscriptEntries(sessionId),
+		getOperations: (sessionId) => read.getSessionOperations(sessionId),
 	});
 
 	const listWriter: ISessionStateWriter = {

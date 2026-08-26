@@ -7,6 +7,7 @@
 import * as Effect from "effect/Effect";
 import { SvelteMap } from "svelte/reactivity";
 import type {
+	OperationSnapshot,
 	SessionGraphRevision,
 	SessionOpenTranscriptRowPage,
 	SessionStateEnvelope,
@@ -42,6 +43,14 @@ export interface TranscriptRowsControllerDeps {
 	 * canonical graph exists yet for this session.
 	 */
 	readonly getTranscriptEntries: (sessionId: string) => ReadonlyArray<TranscriptEntry> | null;
+	/**
+	 * Canonical operation graph for a session (real data, same source as
+	 * `getTranscriptEntries` -- see `session-projection-core.svelte.ts`'s
+	 * `getOperations`). Lets `role: "tool"` entries resolve to a real
+	 * `operationLinks` entry (title/status/path) instead of an empty one --
+	 * see `transcript-viewport-rows-from-entries.ts`.
+	 */
+	readonly getOperations: (sessionId: string) => ReadonlyArray<OperationSnapshot> | null;
 }
 
 export type TranscriptRowsControllerDiagnostic = {
@@ -366,17 +375,17 @@ export class TranscriptRowsController {
 		// Electrobun has no `acp_request_transcript_viewport_buffer` backend
 		// (see session-state-viewport-command-service.ts). Root-scope rows are
 		// derivable locally, with real data, from the canonical transcript
-		// entries this session's graph already carries -- so build and apply
-		// them synchronously instead of round-tripping a Tauri-only command
-		// that would just report "unavailable". Tool-call rows are not
-		// included; see transcript-viewport-rows-from-entries.ts for why.
+		// entries and operations this session's graph already carries -- so
+		// build and apply them synchronously instead of round-tripping a
+		// Tauri-only command that would just report "unavailable".
 		if (runningUnderElectrobun()) {
 			const entries = this.deps.getTranscriptEntries(sessionId) ?? [];
+			const operations = this.deps.getOperations(sessionId) ?? [];
 			this.applyBufferPush({
 				sessionId,
 				graphRevision: revision,
 				emissionSeq: revision.lastEventSeq,
-				rows: transcriptViewportRowsFromEntries(entries),
+				rows: transcriptViewportRowsFromEntries(entries, operations),
 				requestGeneration,
 				diagnostics: [],
 			});

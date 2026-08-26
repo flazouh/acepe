@@ -10,6 +10,7 @@ import type {
 import type {
 	ConfigOptionData as CanonicalConfigOptionData,
 	FailureReason,
+	OperationSnapshot,
 	SessionGraphActivity,
 	SessionGraphLifecycle,
 	SessionGraphRevision,
@@ -130,6 +131,10 @@ export class SessionReadFacade implements ISessionStateReader {
 
 	getSessionTranscriptEntries(sessionId: string): ReadonlyArray<TranscriptEntry> | null {
 		return this.#deps.projectionCore.getTranscriptEntries(sessionId);
+	}
+
+	getSessionOperations(sessionId: string): ReadonlyArray<OperationSnapshot> | null {
+		return this.#deps.projectionCore.getOperations(sessionId);
 	}
 
 	getSessionCanSend(sessionId: string): boolean | null {

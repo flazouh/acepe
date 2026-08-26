@@ -108,6 +108,7 @@ describe("TranscriptRowsController older-row paging", () => {
 		const controller = new TranscriptRowsController({
 			getGraphRevision: () => liveGraphRevision,
 			getTranscriptEntries: () => null,
+			getOperations: () => null,
 			applySessionStateEnvelope: (_sessionId: string, _envelope: SessionStateEnvelope) => undefined,
 		});
 
@@ -138,6 +139,7 @@ describe("TranscriptRowsController older-row paging", () => {
 		const controller = new TranscriptRowsController({
 			getGraphRevision: () => liveGraphRevision,
 			getTranscriptEntries: () => null,
+			getOperations: () => null,
 			applySessionStateEnvelope: (_sessionId: string, envelope: SessionStateEnvelope) => {
 				appliedEnvelopes.push(envelope);
 			},
@@ -166,6 +168,7 @@ describe("TranscriptRowsController older-row paging", () => {
 		const controller = new TranscriptRowsController({
 			getGraphRevision: () => liveGraphRevision,
 			getTranscriptEntries: () => null,
+			getOperations: () => null,
 			applySessionStateEnvelope: (_sessionId: string, _envelope: SessionStateEnvelope) => undefined,
 		});
 		const emptyFreshPush: ViewportBufferPush = {
@@ -199,6 +202,7 @@ describe("TranscriptRowsController older-row paging", () => {
 		const controller = new TranscriptRowsController({
 			getGraphRevision: () => liveGraphRevision,
 			getTranscriptEntries: () => null,
+			getOperations: () => null,
 			applySessionStateEnvelope: (_sessionId: string, _envelope: SessionStateEnvelope) => undefined,
 		});
 		const emptyLivePush: ViewportBufferPush = {
@@ -247,6 +251,7 @@ describe("TranscriptRowsController under Electrobun (no viewport-buffer command 
 			getGraphRevision: () => liveGraphRevision,
 			applySessionStateEnvelope: () => undefined,
 			getTranscriptEntries: () => entries,
+			getOperations: () => null,
 		});
 
 		controller.ensureRowsBootstrap("session-1");
@@ -263,6 +268,7 @@ describe("TranscriptRowsController under Electrobun (no viewport-buffer command 
 			getGraphRevision: () => liveGraphRevision,
 			applySessionStateEnvelope: () => undefined,
 			getTranscriptEntries: () => null,
+			getOperations: () => null,
 		});
 
 		controller.ensureRowsBootstrap("session-1");
@@ -290,6 +296,7 @@ describe("TranscriptRowsController under Electrobun (no viewport-buffer command 
 			getGraphRevision: () => liveGraphRevision(),
 			applySessionStateEnvelope: () => undefined,
 			getTranscriptEntries: () => entries,
+			getOperations: () => null,
 		});
 
 		controller.ensureRowsBootstrap("session-1");
@@ -330,6 +337,7 @@ describe("TranscriptRowsController under Electrobun (no viewport-buffer command 
 			getGraphRevision: () => revisionValue,
 			applySessionStateEnvelope: () => undefined,
 			getTranscriptEntries: () => entries,
+			getOperations: () => null,
 		});
 
 		controller.ensureRowsBootstrap("session-1");
@@ -363,6 +371,7 @@ describe("TranscriptRowsController.resyncElectrobunTranscriptRows on Tauri", () 
 			getGraphRevision: () => liveGraphRevision,
 			applySessionStateEnvelope: () => undefined,
 			getTranscriptEntries,
+			getOperations: () => null,
 		});
 
 		controller.resyncElectrobunTranscriptRows("session-1", "transcript-revision:3");
