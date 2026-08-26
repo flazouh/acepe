@@ -8,6 +8,7 @@ import {
 	type JsonObject,
 	jsonObjectOf,
 	numberField,
+	numberFieldAny,
 	objectField,
 	stringField,
 	stringFieldAny
@@ -110,13 +111,8 @@ const usageCostUsd = (record: JsonObject): Option.Option<number> =>
 const usageFact = (record: JsonObject, sessionId: string): UsageFact => {
 	const inputTokens = numberField(record, "inputTokens")
 	const outputTokens = numberField(record, "outputTokens")
-	const totalTokens =
-		Option.isNone(inputTokens) && Option.isNone(outputTokens)
-			? numberField(record, "used")
-			: Option.none()
-	const contextWindowSize = Option.orElse(numberField(record, "contextWindowSize"), () =>
-		numberField(record, "size")
-	)
+	const totalTokens = numberFieldAny(record, ["totalTokens", "total_tokens", "used"])
+	const contextWindowSize = numberFieldAny(record, ["contextWindowSize", "size"])
 	const base: UsageFact = {
 		contractKind: "usage",
 		sessionId

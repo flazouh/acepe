@@ -91,6 +91,78 @@ Vitest.describe("mapAcpUpdate", () => {
 			}
 		])
 	})
+
+	Vitest.it("keeps a Copilot usage total that arrives beside the input and output breakdown", () => {
+		const camelCase = mapAcpUpdate({
+			type: "usage",
+			sessionId: "acp-1",
+			inputTokens: 12,
+			outputTokens: 4,
+			totalTokens: 16
+		})
+		Vitest.assert.deepStrictEqual(camelCase, [
+			{
+				contractKind: "usage",
+				sessionId: "acp-1",
+				inputTokens: 12,
+				outputTokens: 4,
+				totalTokens: 16
+			}
+		])
+		const snakeCase = mapAcpUpdate({
+			type: "usageTelemetryUpdate",
+			sessionId: "acp-1",
+			inputTokens: 12,
+			outputTokens: 4,
+			total_tokens: 16
+		})
+		Vitest.assert.deepStrictEqual(snakeCase, [
+			{
+				contractKind: "usage",
+				sessionId: "acp-1",
+				inputTokens: 12,
+				outputTokens: 4,
+				totalTokens: 16
+			}
+		])
+	})
+
+	Vitest.it("keeps the context occupancy total when the breakdown ships with it", () => {
+		const usage = mapAcpUpdate({
+			type: "usage",
+			sessionId: "acp-1",
+			inputTokens: 12,
+			outputTokens: 4,
+			used: 40,
+			size: 128000
+		})
+		Vitest.assert.deepStrictEqual(usage, [
+			{
+				contractKind: "usage",
+				sessionId: "acp-1",
+				inputTokens: 12,
+				outputTokens: 4,
+				totalTokens: 40,
+				contextWindowSize: 128000
+			}
+		])
+	})
+
+	Vitest.it("prefers an explicit total over the context occupancy figure", () => {
+		const usage = mapAcpUpdate({
+			type: "usage",
+			sessionId: "acp-1",
+			totalTokens: 16,
+			used: 40
+		})
+		Vitest.assert.deepStrictEqual(usage, [
+			{
+				contractKind: "usage",
+				sessionId: "acp-1",
+				totalTokens: 16
+			}
+		])
+	})
 })
 
 Vitest.describe("mapPromptResult", () => {

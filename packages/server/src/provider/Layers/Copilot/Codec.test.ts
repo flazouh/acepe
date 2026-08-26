@@ -2,6 +2,7 @@ import * as Vitest from "@effect/vitest"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import {
+	acpSessionUpdateToFact,
 	contractFactToAcpSessionUpdate,
 	decodeContractFact,
 	encodeContractFact,
@@ -30,5 +31,20 @@ Vitest.describe("contract fact round-trip", () => {
 			const remapped = roundTripAcpSessionUpdate(contractFactToAcpSessionUpdate(fact))
 			Vitest.assert.deepStrictEqual(remapped, Option.some(contractFactToAcpSessionUpdate(fact)))
 		}
+	})
+
+	Vitest.it("round-trips a usage fact that carries a total beside its breakdown", () => {
+		const fact = {
+			contractKind: "usage" as const,
+			sessionId: "acp-1",
+			inputTokens: 12,
+			outputTokens: 4,
+			totalTokens: 16,
+			costUsd: 0.02,
+			contextWindowSize: 128000
+		}
+		const update = contractFactToAcpSessionUpdate(fact)
+		Vitest.assert.deepStrictEqual(acpSessionUpdateToFact(update), Option.some(fact))
+		Vitest.assert.deepStrictEqual(roundTripAcpSessionUpdate(update), Option.some(update))
 	})
 })
