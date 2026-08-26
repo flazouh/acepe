@@ -114,7 +114,20 @@ import { resolve } from "node:path";
 // SHIFTED line number, because this batch's own new code was inserted
 // earlier in those same files. Zero genuinely new violations on this
 // batch's own added lines.
-const BASELINE = 6614;
+// 6614 -> 6617: AC-280 (permission approvals must always be actionable --
+// run the reply Effect instead of discarding it; stop duplicating a
+// permission's tool row and mangling its path). Three new `it("...", async
+// () => {})` test callbacks trip effect(asyncFunction), same category as
+// every prior bump in this file: two in permission-store.vitest.ts's new
+// "runPermissionReply" describe block (proving the reply Effect actually
+// runs, and that a failed reply surfaces a toast), one in
+// permission-action-bar.svelte.vitest.ts (proving a click actually executes
+// the Effect `reply()` returns, not just constructs it). This batch's own
+// production changes (permission-store.svelte.ts,
+// orchestration-canonical-bridge.ts, transcript-viewport-row-mapper.ts, and
+// their non-async call-site edits) add zero new violations on their own
+// changed lines.
+const BASELINE = 6617;
 const PACKAGE_ROOT = resolve(import.meta.dir, "..");
 
 // The pretty formatter (the default, and what lint:effect:report uses) always
