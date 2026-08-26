@@ -149,6 +149,19 @@ export class SessionRepository {
 		private readonly connectionManager: IConnectionManager
 	) {}
 
+	/**
+	 * providerSessionId -> orchestration sessionId, learned from the last
+	 * library-projection union (canonical provider_session fact). The disk
+	 * scan consults it so a scanned provider-id entry upgrades the
+	 * union-pushed orchestration-id row in place instead of listing the
+	 * same session twice (#262 duplicate sidebar row).
+	 */
+	private providerSessionAliases: ReadonlyMap<string, string> = new Map();
+
+	noteProviderSessionAliases(aliases: ReadonlyMap<string, string>): void {
+		this.providerSessionAliases = aliases;
+	}
+
 	private isSessionLoaded(sessionId: string): boolean {
 		return (
 			this.stateReader.hasSessionCanonicalProjection(sessionId) ||
@@ -334,6 +347,36 @@ export class SessionRepository {
 
 				existingSessionsMap.delete(scannedSession.id);
 			} else {
+				// If this scanned provider id aliases an orchestration-id row
+				// the projection union already pushed, upgrade that row to the
+				// scanned (openable) identity in place — same session, two
+				// permanent ids (#262 duplicate sidebar row).
+				const aliasedOrchestrationId = this.providerSessionAliases.get(scannedSession.id);
+				const aliasedExisting =
+					aliasedOrchestrationId !== undefined
+						? existingSessionsMap.get(aliasedOrchestrationId)
+						: undefined;
+				if (aliasedExisting !== undefined) {
+					const aliasedIndex = mergedSessions.findIndex(
+						(session) => session.id === aliasedExisting.id
+					);
+					const upgraded = {
+						...aliasedExisting,
+						id: scannedSession.id,
+						title: resolveSessionTitle(scannedSession.title, aliasedExisting.title),
+						updatedAt: scannedSession.updatedAt,
+						sourcePath: scannedSession.sourcePath ?? aliasedExisting.sourcePath,
+						sessionLifecycleState:
+							scannedSession.sessionLifecycleState ?? aliasedExisting.sessionLifecycleState,
+					};
+					if (aliasedIndex !== -1) {
+						mergedSessions[aliasedIndex] = upgraded;
+					} else {
+						mergedSessions.push(upgraded);
+					}
+					existingSessionsMap.delete(aliasedExisting.id);
+					continue;
+				}
 				// New session from scan
 				mergedSessions.push(scannedSession);
 			}
@@ -388,6 +431,13 @@ export class SessionRepository {
 				// above). The call-time parameter stays for signature
 				// compatibility but is deliberately unused.
 				const freshSessions = this.stateReader.getAllSessions();
+				const aliases = new Map<string, string>();
+				for (const projected of projectedSessions) {
+					if (projected.providerSessionId !== null) {
+						aliases.set(projected.providerSessionId, projected.sessionId);
+					}
+				}
+				this.noteProviderSessionAliases(aliases);
 				const merged = mergeProjectionSessions(freshSessions, projectedSessions, projects);
 				this.stateWriter.setSessions(merged, "scanSessionProjections");
 				logger.debug("Sessions merged from library projection", { count: merged.length });
