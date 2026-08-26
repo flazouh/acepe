@@ -265,7 +265,7 @@ Vitest.describe("ProviderBridge", () => {
 
 	// Locks in that ProviderBridge's MessageSent/TurnCancelled de-dup filter
 	// (forwardAdapterEvents in ProviderBridge.ts) does NOT also catch
-	// TurnCompleted — a real adapter's own turn-end signal (ClaudeAdapter.ts's
+	// TurnCompleted — a real adapter's own turn-end signal (Claude/Adapter.ts's
 	// makeCompleted, etc.) must reach the store, or projection_turns can never
 	// close a turn no matter what the adapter emits.
 	Vitest.it.live("forwards the adapter's own TurnCompleted into the store", () =>
@@ -495,7 +495,7 @@ Vitest.describe("ProviderBridge", () => {
 	// re-called adapter.startSession -- spawning a brand-new provider session
 	// and re-running the adapter's own event-id sequence from scratch. Since
 	// an adapter's own eventIds are a deterministic function of
-	// sessionId+sequence (see ClaudeAdapter.ts's `stamp`), replaying them
+	// sessionId+sequence (see Claude/Adapter.ts's `stamp`), replaying them
 	// collided with the SAME ids already committed in the prior run, and the
 	// store's UNIQUE(event_id) constraint rejected the append -- surfacing as
 	// ProviderSessionFailed and leaving the resumed session unusable. A
@@ -730,7 +730,7 @@ Vitest.describe("ProviderBridge", () => {
 	// (ea0ab5705) stops eager re-spawn on every historical SessionCreated, but
 	// a session's FIRST *lazy* reopen after a genuine app restart still built a
 	// brand new ClaudeAdapter SessionRuntime whose own `sequence` counter (see
-	// ClaudeAdapter.ts's stamp()) restarted at 0 -- re-deriving the SAME
+	// Claude/Adapter.ts's stamp()) restarted at 0 -- re-deriving the SAME
 	// eventIds (sessionId:1, sessionId:2, ...) the PRIOR process already
 	// committed for that session's real conversation. That still trips the
 	// store's UNIQUE(event_id) constraint on the very first post-restart

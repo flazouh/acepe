@@ -55,7 +55,7 @@ export const ProjectedSession = Schema.Struct({
 	// The provider's own session identity (e.g. a Claude Code JSONL uuid),
 	// learned from the provider_session contract fact a real-provider adapter
 	// encodes onto a generic SessionMetaUpdated event's metadata (see
-	// ClaudeSdkMap.ts's promotionFacts / encodeContractFact). Every
+	// Claude/Map.ts's promotionFacts / encodeContractFact). Every
 	// real-provider session has TWO permanent ids: this one (keys the
 	// on-disk provider history) and sessionId above (keys every orchestration
 	// event/projection). Null until the provider's first durable message
@@ -208,8 +208,8 @@ const resolveStoredTitle = (raw: TrimmedNonEmptyString): TrimmedNonEmptyString =
 const decodePayload = <S extends Schema.Top>(schema: S, value: unknown) =>
 	Schema.decodeUnknownEffect(schema)(value)
 
-// Every real-provider adapter (ClaudeSdkMap.ts, CodexNativeMap.ts,
-// CursorAcpMap.ts, CopilotAcpMap.ts, OpenCodeMap.ts) encodes an unhandled
+// Every real-provider adapter (Claude/Map.ts, Codex/Map.ts,
+// Cursor/Map.ts, Copilot/Map.ts, OpenCode/Map.ts) encodes an unhandled
 // provider_session contract fact the same way onto a generic
 // SessionMetaUpdated event's metadata: { type: "provider_session",
 // providerSessionId }. This decoder is intentionally provider-agnostic --

@@ -80,7 +80,7 @@ export const CLAUDE_CAPABILITIES: ProviderCapabilities = ProviderCapabilities.ma
 // seconds. Excluding the 'user' setting source (but keeping 'project' and
 // 'local') stops that inheritance while still loading the *target repo's*
 // own CLAUDE.md / .claude/settings.json — legitimate task context, not the
-// operator's personal automation. See ClaudeAdapter.ts's makeLiveCreateQuery.
+// operator's personal automation. See Adapter.ts's makeLiveCreateQuery.
 export const CLAUDE_ISOLATED_SETTING_SOURCES: ReadonlyArray<SettingSource> = ["project", "local"]
 
 // Belt-and-suspenders alongside CLAUDE_ISOLATED_SETTING_SOURCES: per the SDK
@@ -135,7 +135,7 @@ const pathEntries = (pathVar: string): ReadonlyArray<string> =>
 // packaged build (Electrobun's `bun build` step) drops it and query() fails
 // with "Native CLI binary ... not found". Resolving the system `claude` on
 // PATH and passing it as query()'s pathToClaudeCodeExecutable sidesteps that
-// bundled binary entirely; see makeLiveClaudeAdapter in ClaudeAdapter.ts.
+// bundled binary entirely; see makeLiveClaudeAdapter in Adapter.ts.
 export const resolveClaudeExecutablePath = Effect.fn("resolveClaudeExecutablePath")(function*() {
 	const fs = yield* FileSystem.FileSystem
 	const path = yield* Path.Path

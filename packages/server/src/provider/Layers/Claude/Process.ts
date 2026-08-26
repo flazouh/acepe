@@ -106,11 +106,11 @@ export type ClaudeQueryIsolation = {
 	// When given, points query() at a system claude binary instead of the
 	// SDK's own bundled native CLI (an optional platform dependency a
 	// bundler's static analysis can't see and drops) — see
-	// resolveClaudeExecutablePath in ClaudeProvider.ts for why this exists.
+	// resolveClaudeExecutablePath in Provider.ts for why this exists.
 	readonly pathToClaudeCodeExecutable: Option.Option<string>
 	// MCP servers Acepe itself wires in for this session, distinct from (and
 	// never merged with) the operator's personal ~/.claude.json servers —
-	// see CLAUDE_SESSION_MCP_SERVERS in ClaudeProvider.ts.
+	// see CLAUDE_SESSION_MCP_SERVERS in Provider.ts.
 	readonly mcpServers: Record<string, McpServerConfig>
 }
 
@@ -128,7 +128,7 @@ export type ClaudeQueryIsolation = {
 // spawn the operator's personal MCP server child processes on the first
 // turn; either setting alone, and the combination, block that spawn while
 // still returning a real reply. See CLAUDE_ISOLATED_SETTING_SOURCES and
-// CLAUDE_STRICT_MCP_CONFIG in ClaudeProvider.ts for the fuller rationale.
+// CLAUDE_STRICT_MCP_CONFIG in Provider.ts for the fuller rationale.
 export const buildClaudeQueryOptions = (
 	input: {
 		readonly cwd: string

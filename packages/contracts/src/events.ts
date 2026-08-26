@@ -209,8 +209,8 @@ export const TurnCancelledPayload = Schema.Struct({
 })
 export type TurnCancelledPayload = typeof TurnCancelledPayload.Type
 
-// Emitted by a provider adapter (ClaudeAdapter.ts, CodexAdapter.ts,
-// OpenCodeAdapter.ts) when the underlying SDK/CLI's own turn-end signal
+// Emitted by a provider adapter (Claude/Adapter.ts, Codex/Adapter.ts,
+// OpenCode/Adapter.ts) when the underlying SDK/CLI's own turn-end signal
 // arrives (Claude's `result` message, Codex's TaskComplete, OpenCode's
 // session-idle) — the only signal that closes an open projection_turns row
 // absent a follow-up TurnCancelled or the next MessageSent starting a new

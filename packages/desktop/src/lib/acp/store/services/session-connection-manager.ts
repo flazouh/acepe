@@ -452,21 +452,72 @@ export class SessionConnectionManager {
 					)
 				),
 				Effect.flatMap((result): Effect.Effect<CreatedSessionResult, AppError> => {
-				const sessionId = result.sessionId;
-				if (result.deferredCreation === true) {
+					const sessionId = result.sessionId;
+					if (result.deferredCreation === true) {
+						const modelState = getProviderAwareSessionModelState(result.models);
+						const rawModels = modelState.availableModels;
+						const rawProviderMetadata = modelState.providerMetadata;
+						const providerMetadata = rawProviderMetadata ?? undefined;
+						const availableModels: Model[] =
+							rawModels === undefined
+								? []
+								: rawModels.map((m) => ({
+										id: m.modelId,
+										provider: m.provider ?? undefined,
+										name: m.name,
+										description: m.description ?? undefined,
+									}));
+						const rawModes = result.modes?.availableModes;
+						const availableModes: Mode[] =
+							rawModes === undefined
+								? []
+								: rawModes.map((m) => ({
+										id: m.id,
+										name: m.name,
+										description: m.description ?? undefined,
+									}));
+						const modelsDisplay = modelState.modelsDisplay ?? undefined;
+
+						if (rawModels !== undefined) {
+							preferencesStore.updateModelsCache(options.agentId, availableModels);
+						}
+						preferencesStore.updateProviderMetadataCache(options.agentId, providerMetadata);
+						preferencesStore.updateModelsDisplayCache(options.agentId, modelsDisplay);
+						if (rawModes !== undefined) {
+							preferencesStore.updateModesCache(options.agentId, availableModes);
+						}
+						this.transientProjectionManager.initializeTransientProjection(sessionId);
+						logger.info("Deferred session creation is pending provider identity promotion", {
+							sessionId,
+							creationAttemptId: result.creationAttemptId ?? null,
+							sequenceId: result.sequenceId ?? null,
+							agentId: options.agentId,
+						});
+						return Effect.succeed({
+							kind: "pending" as const,
+							sessionId,
+							creationAttemptId: result.creationAttemptId ?? null,
+							projectPath: options.projectPath,
+							projectName: extractProjectName(options.projectPath),
+							projectColor: generateFallbackProjectColor(options.projectPath),
+							managed: true as const,
+							sequenceId: result.sequenceId ?? null,
+							agentId: options.agentId,
+							title: options.title ?? null,
+							worktreePath: options.worktreePath ?? null,
+						});
+					}
+					const now = new Date();
 					const modelState = getProviderAwareSessionModelState(result.models);
-					const rawModels = modelState.availableModels;
-					const rawProviderMetadata = modelState.providerMetadata;
+					const {
+						availableModels: rawModels,
+						currentModelId,
+						modelsDisplay: rawModelsDisplay,
+						providerMetadata: rawProviderMetadata,
+					} = modelState;
 					const providerMetadata = rawProviderMetadata ?? undefined;
-					const availableModels: Model[] =
-						rawModels === undefined
-							? []
-							: rawModels.map((m) => ({
-									id: m.modelId,
-									provider: m.provider ?? undefined,
-									name: m.name,
-									description: m.description ?? undefined,
-								}));
+					const modelsDisplay = rawModelsDisplay ?? undefined;
+
 					const rawModes = result.modes?.availableModes;
 					const availableModes: Mode[] =
 						rawModes === undefined
@@ -476,264 +527,218 @@ export class SessionConnectionManager {
 									name: m.name,
 									description: m.description ?? undefined,
 								}));
-					const modelsDisplay = modelState.modelsDisplay ?? undefined;
 
-					if (rawModels !== undefined) {
-						preferencesStore.updateModelsCache(options.agentId, availableModels);
-					}
-					preferencesStore.updateProviderMetadataCache(options.agentId, providerMetadata);
-					preferencesStore.updateModelsDisplayCache(options.agentId, modelsDisplay);
-					if (rawModes !== undefined) {
-						preferencesStore.updateModesCache(options.agentId, availableModes);
-					}
-					this.transientProjectionManager.initializeTransientProjection(sessionId);
-					logger.info("Deferred session creation is pending provider identity promotion", {
-						sessionId,
-						creationAttemptId: result.creationAttemptId ?? null,
-						sequenceId: result.sequenceId ?? null,
-						agentId: options.agentId,
-					});
-					return Effect.succeed({
-						kind: "pending" as const,
-						sessionId,
-						creationAttemptId: result.creationAttemptId ?? null,
-						projectPath: options.projectPath,
-						projectName: extractProjectName(options.projectPath),
-						projectColor: generateFallbackProjectColor(options.projectPath),
-						managed: true as const,
-						sequenceId: result.sequenceId ?? null,
-						agentId: options.agentId,
-						title: options.title ?? null,
-						worktreePath: options.worktreePath ?? null,
-					});
-				}
-				const now = new Date();
-				const modelState = getProviderAwareSessionModelState(result.models);
-				const {
-					availableModels: rawModels,
-					currentModelId,
-					modelsDisplay: rawModelsDisplay,
-					providerMetadata: rawProviderMetadata,
-				} = modelState;
-				const providerMetadata = rawProviderMetadata ?? undefined;
-				const modelsDisplay = rawModelsDisplay ?? undefined;
-
-				const rawModes = result.modes?.availableModes;
-				const availableModes: Mode[] =
-					rawModes === undefined
-						? []
-						: rawModes.map((m) => ({
-								id: m.id,
-								name: m.name,
-								description: m.description ?? undefined,
-							}));
-
-				const availableModels: Model[] =
-					rawModels === undefined
-						? []
-						: rawModels.map((m) => ({
-								id: m.modelId,
-								provider: m.provider ?? undefined,
-								name: m.name,
-								description: m.description ?? undefined,
-							}));
-				let currentMode = availableModes.find((m) => m.id === result.modes?.currentModeId) ?? null;
-				let currentModel = this.resolveCurrentModel(
-					availableModels,
-					currentModelId,
-					modelsDisplay,
-					providerMetadata?.allowsImplicitModelSelection ?? true
-				);
-				const explicitInitialMode = options.initialModeId
-					? (availableModes.find((mode) => mode.id === options.initialModeId) ?? null)
-					: null;
-				const explicitInitialModel = options.initialModelId
-					? (availableModels.find((model) => model.id === options.initialModelId) ?? null)
-					: null;
-				if (options.initialModeId && explicitInitialMode === null) {
-					// A requested mode id the live agent doesn't report is not a user
-					// mistake to fail loudly on: the desktop's canonical mode ids
-					// (CanonicalModeId.BUILD = "build") don't line up with this
-					// provider's raw mode ids (Claude Code reports "default", not
-					// "build" -- see ClaudeProvider.ts's CLAUDE_MODES). There is no
-					// server-side normalization between the two today (found live:
-					// every Claude Code session.create failed here, closing the
-					// just-created session). Until that normalization exists,
-					// degrade to the session's own live default mode instead of
-					// aborting session creation -- the live default is the
-					// provider's actual starting mode, which is what "build" means
-					// for a provider with no distinct build/plan mode split anyway.
-					logger.warn(
-						"Requested initial mode is not available for this agent; keeping the session's live default mode instead of failing session creation",
-						{
-							sessionId,
-							requestedModeId: options.initialModeId,
-							availableModeIds: availableModes.map((mode) => mode.id),
-						}
+					const availableModels: Model[] =
+						rawModels === undefined
+							? []
+							: rawModels.map((m) => ({
+									id: m.modelId,
+									provider: m.provider ?? undefined,
+									name: m.name,
+									description: m.description ?? undefined,
+								}));
+					let currentMode =
+						availableModes.find((m) => m.id === result.modes?.currentModeId) ?? null;
+					let currentModel = this.resolveCurrentModel(
+						availableModels,
+						currentModelId,
+						modelsDisplay,
+						providerMetadata?.allowsImplicitModelSelection ?? true
 					);
-				}
-				const explicitSelectionError =
-					options.initialModelId && explicitInitialModel === null
-						? new AgentError(
-								"setModel",
-								new Error(`Requested model '${options.initialModelId}' is not available`)
-							)
+					const explicitInitialMode = options.initialModeId
+						? (availableModes.find((mode) => mode.id === options.initialModeId) ?? null)
 						: null;
-				const hasExplicitInitialSelection =
-					explicitInitialMode !== null || explicitInitialModel !== null;
-				const targetMode = explicitInitialMode ? explicitInitialMode : currentMode;
-				const targetModeChanged =
-					explicitInitialMode !== null && explicitInitialMode.id !== currentMode?.id;
-				const targetModel = explicitInitialModel ?? currentModel;
-
-				const applyInitialSelection: Effect.Effect<
-					{ currentMode: Mode | null; currentModel: Model | null },
-					AppError
-				> = explicitSelectionError
-					? Effect.fail(explicitSelectionError)
-					: hasExplicitInitialSelection
-						? (targetModeChanged && targetMode
-								? api.setMode(sessionId, targetMode.id)
-								: Effect.succeed(undefined)
-							).pipe(
-								Effect.flatMap(() => {
-									const shouldApplyExplicitModel =
-										explicitInitialModel !== null &&
-										(targetModeChanged || explicitInitialModel.id !== currentModel?.id);
-
-									if (shouldApplyExplicitModel && targetModel) {
-										return api.setModel(sessionId, targetModel.id);
-									}
-
-									return Effect.succeed(undefined);
-								}),
-								Effect.map(() => ({
-									currentMode: targetMode,
-									currentModel: targetModel,
-								}))
-							)
-						: Effect.succeed({
-								currentMode,
-								currentModel,
-							});
-
-				return applyInitialSelection.pipe(
-					Effect.catch((error) =>
-						closeCreatedSessionAfterSelectionFailure<{
-							currentMode: Mode | null;
-							currentModel: Model | null;
-						}>(sessionId, error)
-					),
-					Effect.flatMap((selection) => {
-						currentMode = selection.currentMode;
-						currentModel = selection.currentModel;
-
-						const requestedAutonomous = options.initialAutonomousEnabled === true;
-						const canEnableAutonomous = this.supportsAutonomousMode(
-							currentMode ? currentMode.id : undefined
-						);
-						const applyInitialAutonomous =
-							requestedAutonomous && canEnableAutonomous
-								? this.setSessionAutonomous(sessionId, true).pipe(
-										Effect.map(() => true),
-										Effect.catch((error) => {
-											logger.warn(
-												"Failed to sync initial autonomous policy after session creation",
-												{
-													sessionId,
-													modeId: currentMode ? currentMode.id : null,
-													error,
-												}
-											);
-											return Effect.succeed(false);
-										})
-									)
-								: Effect.succeed(false);
-
-						return applyInitialAutonomous.pipe(
-							Effect.map(() => {
-							// Cache available models and modes for settings/optimistic display
-							if (rawModels !== undefined) {
-								preferencesStore.updateModelsCache(options.agentId, availableModels);
-							}
-							preferencesStore.updateProviderMetadataCache(options.agentId, providerMetadata);
-							preferencesStore.updateModelsDisplayCache(options.agentId, modelsDisplay);
-							if (rawModes !== undefined) {
-								preferencesStore.updateModesCache(options.agentId, availableModes);
-							}
-							logger.info("Provider model capabilities on session creation", {
+					const explicitInitialModel = options.initialModelId
+						? (availableModels.find((model) => model.id === options.initialModelId) ?? null)
+						: null;
+					if (options.initialModeId && explicitInitialMode === null) {
+						// A requested mode id the live agent doesn't report is not a user
+						// mistake to fail loudly on: the desktop's canonical mode ids
+						// (CanonicalModeId.BUILD = "build") don't line up with this
+						// provider's raw mode ids (Claude Code reports "default", not
+						// "build" -- see Claude/Provider.ts's CLAUDE_MODES). There is no
+						// server-side normalization between the two today (found live:
+						// every Claude Code session.create failed here, closing the
+						// just-created session). Until that normalization exists,
+						// degrade to the session's own live default mode instead of
+						// aborting session creation -- the live default is the
+						// provider's actual starting mode, which is what "build" means
+						// for a provider with no distinct build/plan mode split anyway.
+						logger.warn(
+							"Requested initial mode is not available for this agent; keeping the session's live default mode instead of failing session creation",
+							{
 								sessionId,
-								agentId: options.agentId,
-								responseCurrentModelId: currentModelId ? currentModelId : null,
-								availableModelIds: availableModels.map((model) => model.id),
-								cachedModelIds: preferencesStore
-									.getCachedModels(options.agentId)
-									.map((model) => model.id),
-							});
-
-							// Initialize per-mode model memory with current mode choice
-							if (currentMode && currentModel) {
-								preferencesStore.setSessionModelForMode(sessionId, currentMode.id, currentModel.id);
+								requestedModeId: options.initialModeId,
+								availableModeIds: availableModes.map((mode) => mode.id),
 							}
+						);
+					}
+					const explicitSelectionError =
+						options.initialModelId && explicitInitialModel === null
+							? new AgentError(
+									"setModel",
+									new Error(`Requested model '${options.initialModelId}' is not available`)
+								)
+							: null;
+					const hasExplicitInitialSelection =
+						explicitInitialMode !== null || explicitInitialModel !== null;
+					const targetMode = explicitInitialMode ? explicitInitialMode : currentMode;
+					const targetModeChanged =
+						explicitInitialMode !== null && explicitInitialMode.id !== currentMode?.id;
+					const targetModel = explicitInitialModel ?? currentModel;
 
-							// Store only cold data (identity + metadata) in the sessions array
-							const sessionCold: SessionCold = {
-								id: sessionId,
-								projectPath: options.projectPath,
-								agentId: options.agentId,
-								worktreePath: options.worktreePath,
-								title: options.title || "New Thread",
-								updatedAt: now,
-								createdAt: now,
-								sessionLifecycleState: "created",
-								parentId: null,
-								sequenceId: result.sequenceId === null ? undefined : result.sequenceId,
-							};
+					const applyInitialSelection: Effect.Effect<
+						{ currentMode: Mode | null; currentModel: Model | null },
+						AppError
+					> = explicitSelectionError
+						? Effect.fail(explicitSelectionError)
+						: hasExplicitInitialSelection
+							? (targetModeChanged && targetMode
+									? api.setMode(sessionId, targetMode.id)
+									: Effect.succeed(undefined)
+								).pipe(
+									Effect.flatMap(() => {
+										const shouldApplyExplicitModel =
+											explicitInitialModel !== null &&
+											(targetModeChanged || explicitInitialModel.id !== currentModel?.id);
 
-							this.transientProjectionManager.initializeTransientProjection(sessionId);
+										if (shouldApplyExplicitModel && targetModel) {
+											return api.setModel(sessionId, targetModel.id);
+										}
 
-							this.stateWriter.addSession(sessionCold);
+										return Effect.succeed(undefined);
+									}),
+									Effect.map(() => ({
+										currentMode: targetMode,
+										currentModel: targetModel,
+									}))
+								)
+							: Effect.succeed({
+									currentMode,
+									currentModel,
+								});
 
-							// Persist worktree path to DB for restore across app restarts
-							if (options.worktreePath) {
-								void Effect.runPromise(
-									tauriClient.history
-										.setSessionWorktreePath(
-											sessionId,
-											options.worktreePath,
-											options.projectPath,
-											options.agentId
-										)
-										.pipe(
+					return applyInitialSelection.pipe(
+						Effect.catch((error) =>
+							closeCreatedSessionAfterSelectionFailure<{
+								currentMode: Mode | null;
+								currentModel: Model | null;
+							}>(sessionId, error)
+						),
+						Effect.flatMap((selection) => {
+							currentMode = selection.currentMode;
+							currentModel = selection.currentModel;
+
+							const requestedAutonomous = options.initialAutonomousEnabled === true;
+							const canEnableAutonomous = this.supportsAutonomousMode(
+								currentMode ? currentMode.id : undefined
+							);
+							const applyInitialAutonomous =
+								requestedAutonomous && canEnableAutonomous
+									? this.setSessionAutonomous(sessionId, true).pipe(
+											Effect.map(() => true),
 											Effect.catch((error) => {
-												logger.error("Failed to persist worktree path to DB", {
-													sessionId,
-													worktreePath: options.worktreePath,
-													error,
-												});
-												return Effect.succeed(undefined);
+												logger.warn(
+													"Failed to sync initial autonomous policy after session creation",
+													{
+														sessionId,
+														modeId: currentMode ? currentMode.id : null,
+														error,
+													}
+												);
+												return Effect.succeed(false);
 											})
 										)
-								);
-							}
+									: Effect.succeed(false);
 
-							// New sessions have empty content immediately, but their transport
-							// remains disconnected until resume or first send activates them.
-							this.connectionManager.sendContentLoad(sessionId);
-							this.connectionManager.sendContentLoaded(sessionId);
+							return applyInitialAutonomous.pipe(
+								Effect.map(() => {
+									// Cache available models and modes for settings/optimistic display
+									if (rawModels !== undefined) {
+										preferencesStore.updateModelsCache(options.agentId, availableModels);
+									}
+									preferencesStore.updateProviderMetadataCache(options.agentId, providerMetadata);
+									preferencesStore.updateModelsDisplayCache(options.agentId, modelsDisplay);
+									if (rawModes !== undefined) {
+										preferencesStore.updateModesCache(options.agentId, availableModes);
+									}
+									logger.info("Provider model capabilities on session creation", {
+										sessionId,
+										agentId: options.agentId,
+										responseCurrentModelId: currentModelId ? currentModelId : null,
+										availableModelIds: availableModels.map((model) => model.id),
+										cachedModelIds: preferencesStore
+											.getCachedModels(options.agentId)
+											.map((model) => model.id),
+									});
 
-							// Flush any pending events that arrived before session was added
-							this.eventService.flushPendingEvents(sessionId, eventHandler);
+									// Initialize per-mode model memory with current mode choice
+									if (currentMode && currentModel) {
+										preferencesStore.setSessionModelForMode(
+											sessionId,
+											currentMode.id,
+											currentModel.id
+										);
+									}
 
-							logger.debug("Session created and left disconnected pending activation", {
-								sessionId,
-							});
+									// Store only cold data (identity + metadata) in the sessions array
+									const sessionCold: SessionCold = {
+										id: sessionId,
+										projectPath: options.projectPath,
+										agentId: options.agentId,
+										worktreePath: options.worktreePath,
+										title: options.title || "New Thread",
+										updatedAt: now,
+										createdAt: now,
+										sessionLifecycleState: "created",
+										parentId: null,
+										sequenceId: result.sequenceId === null ? undefined : result.sequenceId,
+									};
 
-							return {
-								kind: "ready" as const,
-								session: sessionCold,
-								sessionOpen: result.sessionOpen ?? null,
-							};
+									this.transientProjectionManager.initializeTransientProjection(sessionId);
+
+									this.stateWriter.addSession(sessionCold);
+
+									// Persist worktree path to DB for restore across app restarts
+									if (options.worktreePath) {
+										void Effect.runPromise(
+											tauriClient.history
+												.setSessionWorktreePath(
+													sessionId,
+													options.worktreePath,
+													options.projectPath,
+													options.agentId
+												)
+												.pipe(
+													Effect.catch((error) => {
+														logger.error("Failed to persist worktree path to DB", {
+															sessionId,
+															worktreePath: options.worktreePath,
+															error,
+														});
+														return Effect.succeed(undefined);
+													})
+												)
+										);
+									}
+
+									// New sessions have empty content immediately, but their transport
+									// remains disconnected until resume or first send activates them.
+									this.connectionManager.sendContentLoad(sessionId);
+									this.connectionManager.sendContentLoaded(sessionId);
+
+									// Flush any pending events that arrived before session was added
+									this.eventService.flushPendingEvents(sessionId, eventHandler);
+
+									logger.debug("Session created and left disconnected pending activation", {
+										sessionId,
+									});
+
+									return {
+										kind: "ready" as const,
+										session: sessionCold,
+										sessionOpen: result.sessionOpen ?? null,
+									};
 								})
 							);
 						})
@@ -810,7 +815,10 @@ export class SessionConnectionManager {
 		const pending = this.pendingConnections.get(sessionId);
 		if (pending) {
 			logger.debug("Connection already in flight, returning pending", { sessionId });
-			return fromPromise(() => pending, (error) => toPendingConnectionError(sessionId, error));
+			return fromPromise(
+				() => pending,
+				(error) => toPendingConnectionError(sessionId, error)
+			);
 		}
 
 		this.connectionManager.setConnecting(sessionId, true);
@@ -854,10 +862,7 @@ export class SessionConnectionManager {
 				(err) =>
 					err instanceof AppError
 						? err
-						: new AgentError(
-								"connectSession",
-								err instanceof Error ? err : new Error(String(err))
-							)
+						: new AgentError("connectSession", err instanceof Error ? err : new Error(String(err)))
 			);
 
 		// Fire-and-forget: send resume invoke, then wait for lifecycle event
@@ -919,7 +924,10 @@ export class SessionConnectionManager {
 			}
 		);
 		this.pendingConnections.set(sessionId, pendingPromise);
-		return fromPromise(() => pendingPromise, (error) => toPendingConnectionError(sessionId, error));
+		return fromPromise(
+			() => pendingPromise,
+			(error) => toPendingConnectionError(sessionId, error)
+		);
 	}
 
 	/**
@@ -1223,7 +1231,11 @@ export class SessionConnectionManager {
 	/**
 	 * Set a configuration option for a session.
 	 */
-	setConfigOption(sessionId: string, configId: string, value: string): Effect.Effect<void, AppError> {
+	setConfigOption(
+		sessionId: string,
+		configId: string,
+		value: string
+	): Effect.Effect<void, AppError> {
 		const sessionIdentity = this.stateReader.getSessionIdentity(sessionId);
 		if (!sessionIdentity) {
 			return Effect.fail(new SessionNotFoundError(sessionId));

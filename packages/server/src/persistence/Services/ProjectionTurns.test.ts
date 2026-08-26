@@ -234,7 +234,7 @@ Vitest.describe("evolveProjectedTurns", () => {
 	// but with no follow-up MessageSent and no cancellation, nothing ever
 	// closed projection_turns.status — it stayed "running" forever. The
 	// adapter's turn-end signal (Claude's `result` message, mapped to a
-	// TurnCompleteFact in ClaudeSdkMap.ts) must itself close the turn.
+	// TurnCompleteFact in Claude/Map.ts) must itself close the turn.
 	Vitest.it.effect("completes the open turn from TurnCompleted without a turn id", () =>
 		Effect.gen(function*() {
 			const turns = yield* fold([

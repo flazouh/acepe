@@ -166,7 +166,7 @@ Vitest.describe("mapSdkMessage", () => {
 	// RESULT arrives as a `user`-typed SDK message (Anthropic's own API shape
 	// feeds tool_result back as a user turn), which mapSdkMessage never
 	// parsed at all -- so the tool call's status never advanced past
-	// "in_progress" no matter how ClaudeAdapter.ts routed the fact.
+	// "in_progress" no matter how Adapter.ts routed the fact.
 	Vitest.it("maps a user message's tool_result block to a completed tool_call_update", () => {
 		const mapped = mapSdkMessage(emptyClaudeStreamState, {
 			type: "user",

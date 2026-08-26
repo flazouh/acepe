@@ -112,7 +112,7 @@ const shutdownAllAdapters = Effect.fn("ProviderBridge.shutdownAllAdapters")(func
 // cancelTurn are quick, synchronous reactions run inline in the main event
 // loop — their returned streams/effects resolve immediately (the actual
 // token/tool traffic already flows through the already-open startSession
-// stream); see ClaudeAdapter.ts and CursorAdapter.ts, where sendPrompt's
+// stream); see Claude/Adapter.ts and Cursor/Adapter.ts, where sendPrompt's
 // stream carries nothing but the (filtered) echo MessageSent, and
 // cancelTurn's own TurnCancelled duplicate is queued onto the SAME outbound
 // queue the startSession stream is already draining. If a session's stream
@@ -140,7 +140,7 @@ type BridgeState = {
 	readonly claimedReplies: Ref.Ref<HashSet.HashSet<string>>
 	// Monotonic counter for stamping the bridge's own ProviderSessionFailed
 	// events with a unique commandId/eventId — mirrors the per-runtime
-	// sequence counter ClaudeAdapter.ts/CursorAdapter.ts use for the same
+	// sequence counter Claude/Adapter.ts/Cursor/Adapter.ts use for the same
 	// purpose, rather than reaching for Date.now()/Math.random() (banned by
 	// the Effect lint ratchet) or a fresh Crypto call for a rare failure path.
 	readonly failureSeq: Ref.Ref<number>
@@ -315,7 +315,7 @@ const openSession = Effect.fn("ProviderBridge.openSession")(function*(
 // real provider session — a real `claude` subprocess, in ClaudeAdapter's case
 // — for sessions nobody is looking at, and (b) restart the adapter's own
 // per-runtime sequence counter from zero, re-deriving the SAME deterministic
-// eventIds (see ClaudeAdapter.ts's `stamp`) it already committed in a prior
+// eventIds (see Claude/Adapter.ts's `stamp`) it already committed in a prior
 // run, which the store's UNIQUE(event_id) constraint then rejects — the
 // resumed session comes back broken instead of merely idle. So a session
 // only gets ensureSessionOpen'd lazily, the next time it actually receives a
@@ -576,7 +576,7 @@ export const makeProviderBridge = Effect.fn("makeProviderBridge")(function*() {
 	}
 
 	// Runs on app quit / the bridge's own layer scope closing — see
-	// shutdownAllAdapters and ClaudeAdapter.ts's shutdown for why this is
+	// shutdownAllAdapters and Claude/Adapter.ts's shutdown for why this is
 	// what reaps a spawned `claude` subprocess instead of leaving it
 	// orphaned. Registered on layerScope specifically (not the ambient scope
 	// makeProviderBridge happens to run in) so it fires exactly once, when

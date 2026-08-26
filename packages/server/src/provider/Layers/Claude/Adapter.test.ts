@@ -569,7 +569,7 @@ Vitest.describe("ClaudeAdapter", () => {
 	// mid-turn, no error, no completion. A configurable turn-inactivity
 	// watchdog must notice (no stream item for N ms while a turn is open),
 	// surface a typed failure (turn_error, which ClaudeAdapter already folds
-	// into TurnCompleted -- see ClaudeSdkMap.ts's TurnErrorFact) so the stuck
+	// into TurnCompleted -- see Map.ts's TurnErrorFact) so the stuck
 	// turn closes in the projection, and recover the session so the NEXT
 	// prompt still works.
 	Vitest.it.live(

@@ -27,7 +27,7 @@ export const CODEX_PROVIDER_ID: ProviderId = ProviderId.make("codex")
 export const CODEX_DEFERRED_SESSION_CREATION = false
 
 // Isolation audit (companion to CLAUDE_ISOLATED_SETTING_SOURCES in
-// ClaudeProvider.ts): the codex CLI, like claude, silently loads the
+// Claude/Provider.ts): the codex CLI, like claude, silently loads the
 // operator's *user*-scoped ~/.codex config by default — ~/.codex/config.toml
 // (mcp_servers, model/sandbox prefs) and ~/.codex/hooks.json (personal
 // hooks), spawned as children of the app-server process. Verified
@@ -48,7 +48,7 @@ export const CODEX_DEFERRED_SESSION_CREATION = false
 //     waiting on stdin for an onboarding/login flow — worse than the
 //     original bug, and the "do not hack fake homes" guidance applies.
 // `-c mcp_servers={}` + `--disable hooks` is therefore the isolation
-// CodexAdapter.ts actually gets: it stops the MCP-server child-process
+// Adapter.ts actually gets: it stops the MCP-server child-process
 // inheritance (the reported bug's mechanism) and the hooks.json load, using
 // only officially documented app-server flags. Acepe's own config.toml
 // reads (resolveCodexNativeConfigState below) already extract model/

@@ -2,6 +2,7 @@ import * as Vitest from "@effect/vitest"
 import * as Arr from "effect/Array"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
+import { encodeContractFact } from "./Codec.ts"
 import {
 	buildPromptBody,
 	canonicalModelId,
@@ -9,15 +10,13 @@ import {
 	detectOpenCodeToolKind,
 	emptyOpenCodeStreamState,
 	emptySseLineFold,
-	encodeContractFact,
 	isSafeRequestId,
 	mapSseJson,
 	mapSseText,
 	openCodeUrls,
 	parseModelSelection,
 	resolveConfiguredModel,
-	resolveOpenCodeToolKind,
-	withCompactCommand
+	resolveOpenCodeToolKind
 } from "./Map.ts"
 
 type Json = typeof Schema.Json.Type
@@ -85,14 +84,6 @@ Vitest.describe("OpenCode native protocol helpers", () => {
 		Vitest.assert.strictEqual(body.model.modelID, "anthropic/claude-sonnet-4.6")
 		Vitest.assert.strictEqual(body.agent, "build")
 		Vitest.assert.strictEqual(body.parts[0]?.text, "Hello")
-	})
-
-	Vitest.it("adds compact when the command list omits it", () => {
-		const commands = withCompactCommand([{ name: "init", description: "init" }])
-		Vitest.assert.strictEqual(
-			Arr.some(commands, (command) => command.name === "compact"),
-			true
-		)
 	})
 
 	Vitest.it("resolves a unique leaf model id against connected providers", () => {

@@ -20,12 +20,9 @@ import {
 	type OpenCodeModelCatalog,
 	type OpenCodeTransport
 } from "./Adapter.ts"
-import {
-	decodeContractFact,
-	type OpenCodePermissionReply,
-	type OpenCodePromptBody,
-	type OpenCodeSessionRecord
-} from "./Map.ts"
+import { decodeContractFact } from "./Codec.ts"
+import { type OpenCodePermissionReply, type OpenCodeSessionRecord } from "./Facts.ts"
+import { type OpenCodePromptBody } from "./Map.ts"
 import { OPENCODE_PROVIDER_ID, openCodePresence } from "./Provider.ts"
 
 type Json = typeof Schema.Json.Type

@@ -170,7 +170,6 @@ function runToResult<A, E>(effect: Effect.Effect<A, E>) {
 	return Effect.runPromise(Effect.result(effect));
 }
 
-
 beforeAll(async () => {
 	const modulePath = "./session-connection-manager.js?session-connection-manager-test" as string;
 	const module = (await import(modulePath)) as typeof import("./session-connection-manager.js");
@@ -499,9 +498,11 @@ describe("SessionConnectionManager.connectSession", () => {
 			connectionManager,
 		});
 
-		const result = await runToResult(manager.connectSession(sessionId, createMockEventHandler(), {
-			openToken: "open-token-1",
-		}));
+		const result = await runToResult(
+			manager.connectSession(sessionId, createMockEventHandler(), {
+				openToken: "open-token-1",
+			})
+		);
 		Result.getOrThrow(result);
 
 		expect(resumeSession).toHaveBeenCalledWith(
@@ -795,9 +796,11 @@ describe("SessionConnectionManager.connectSession", () => {
 			connectionManager,
 		});
 
-		const result = await runToResult(manager.connectSession(sessionId, createMockEventHandler(), {
-			agentOverrideId: "claude-code",
-		}));
+		const result = await runToResult(
+			manager.connectSession(sessionId, createMockEventHandler(), {
+				agentOverrideId: "claude-code",
+			})
+		);
 		Result.getOrThrow(result);
 
 		expect(resumeSession).toHaveBeenCalledWith(
@@ -839,9 +842,11 @@ describe("SessionConnectionManager.connectSession", () => {
 			connectionManager,
 		});
 
-		const result = await runToResult(manager.connectSession(sessionId, createMockEventHandler(), {
-			agentOverrideId: "claude-code",
-		}));
+		const result = await runToResult(
+			manager.connectSession(sessionId, createMockEventHandler(), {
+				agentOverrideId: "claude-code",
+			})
+		);
 		Result.getOrThrow(result);
 
 		expect(updateModelsCache).toHaveBeenCalledWith("claude-code", [
@@ -881,9 +886,11 @@ describe("SessionConnectionManager.connectSession", () => {
 			connectionManager,
 		});
 
-		const result = await runToResult(manager.connectSession(sessionId, createMockEventHandler(), {
-			agentOverrideId: "claude-code",
-		}));
+		const result = await runToResult(
+			manager.connectSession(sessionId, createMockEventHandler(), {
+				agentOverrideId: "claude-code",
+			})
+		);
 		Result.getOrThrow(result);
 
 		expect(updateModelsCache).not.toHaveBeenCalled();
@@ -941,9 +948,11 @@ describe("SessionConnectionManager.connectSession", () => {
 			connectionManager,
 		});
 
-		const result = await runToResult(manager.connectSession(sessionId, createMockEventHandler(), {
-			forceReconnect: true,
-		}));
+		const result = await runToResult(
+			manager.connectSession(sessionId, createMockEventHandler(), {
+				forceReconnect: true,
+			})
+		);
 		Result.getOrThrow(result);
 
 		expect(resumeSession).toHaveBeenCalledWith(
@@ -1212,76 +1221,73 @@ describe("SessionConnectionManager.connectSession", () => {
 	// "reconciles from a ready canonical snapshot" test above only passes
 	// today because its mocks fabricate a rich "snapshot" envelope and real
 	// capabilities that this backend never actually returns via these calls.
-	it(
-		"reconciles once the applied lifecycle envelope reports canSend, even though readiness capabilities never populate",
-		async () => {
-			const manager = createManager({
-				stateReader,
-				stateWriter,
-				transientProjection,
-				capabilities,
-				entryManager,
-				connectionManager,
-			});
-			vi.spyOn(lastEventService, "waitForConnectionMaterialization").mockImplementationOnce(() => ({
-				promise: new Promise<ConnectionCompleteData>(() => {}),
-				cancel: vi.fn(),
-			}));
-			const lifecycleEnvelope: SessionStateEnvelope = {
-				sessionId,
-				graphRevision: 0,
-				lastEventSeq: 0,
-				payload: {
-					kind: "lifecycle",
-					lifecycle: {
-						status: "ready",
-						detachedReason: null,
-						failureReason: null,
-						errorMessage: null,
-						actionability: {
-							canSend: true,
-							canResume: false,
-							canRetry: false,
-							canArchive: true,
-							canConfigure: true,
-							recommendedAction: "send",
-							recoveryPhase: "none",
-							compactStatus: "ready",
-						},
+	it("reconciles once the applied lifecycle envelope reports canSend, even though readiness capabilities never populate", async () => {
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			transientProjection,
+			capabilities,
+			entryManager,
+			connectionManager,
+		});
+		vi.spyOn(lastEventService, "waitForConnectionMaterialization").mockImplementationOnce(() => ({
+			promise: new Promise<ConnectionCompleteData>(() => {}),
+			cancel: vi.fn(),
+		}));
+		const lifecycleEnvelope: SessionStateEnvelope = {
+			sessionId,
+			graphRevision: 0,
+			lastEventSeq: 0,
+			payload: {
+				kind: "lifecycle",
+				lifecycle: {
+					status: "ready",
+					detachedReason: null,
+					failureReason: null,
+					errorMessage: null,
+					actionability: {
+						canSend: true,
+						canResume: false,
+						canRetry: false,
+						canArchive: true,
+						canConfigure: true,
+						recommendedAction: "send",
+						recoveryPhase: "none",
+						compactStatus: "ready",
 					},
-					revision: { graphRevision: 0, transcriptRevision: 0, lastEventSeq: 0 },
 				},
-			};
-			fetchCanonicalSessionStateEnvelope.mockReturnValue(Effect.succeed(lifecycleEnvelope));
-			if (lifecycleEnvelope.payload.kind !== "lifecycle") {
-				throw new Error("expected lifecycle envelope");
-			}
-			// Real getSessionConnectionReadiness shape: lifecycle only, capabilities always empty.
-			fetchSessionConnectionReadiness.mockReturnValue(
-				Effect.succeed({
-					graphRevision: 0,
-					lifecycle: lifecycleEnvelope.payload.lifecycle,
-					capabilities: {},
-				})
-			);
-			const eventHandler = createMockEventHandler();
-			(eventHandler.getSessionCanSend as ReturnType<typeof vi.fn>).mockImplementation(() =>
+				revision: { graphRevision: 0, transcriptRevision: 0, lastEventSeq: 0 },
+			},
+		};
+		fetchCanonicalSessionStateEnvelope.mockReturnValue(Effect.succeed(lifecycleEnvelope));
+		if (lifecycleEnvelope.payload.kind !== "lifecycle") {
+			throw new Error("expected lifecycle envelope");
+		}
+		// Real getSessionConnectionReadiness shape: lifecycle only, capabilities always empty.
+		fetchSessionConnectionReadiness.mockReturnValue(
+			Effect.succeed({
+				graphRevision: 0,
+				lifecycle: lifecycleEnvelope.payload.lifecycle,
+				capabilities: {},
+			})
+		);
+		const eventHandler = createMockEventHandler();
+		(eventHandler.getSessionCanSend as ReturnType<typeof vi.fn>).mockImplementation(
+			() =>
 				(eventHandler.applySessionStateEnvelope as ReturnType<typeof vi.fn>).mock.calls.length > 0
-			);
+		);
 
-			// Real timers: the readiness-reconcile loop's interval (500ms) is
-			// short enough to wait out directly rather than fighting fake-timer
-			// interleaving with the loop's async delay/Effect.runPromise chain.
-			const result = await runToResult(manager.connectSession(sessionId, eventHandler));
+		// Real timers: the readiness-reconcile loop's interval (500ms) is
+		// short enough to wait out directly rather than fighting fake-timer
+		// interleaving with the loop's async delay/Effect.runPromise chain.
+		const result = await runToResult(manager.connectSession(sessionId, eventHandler));
 
-			Result.getOrThrow(result);
-			expect(eventHandler.applySessionStateEnvelope).toHaveBeenCalledWith(
-				sessionId,
-				lifecycleEnvelope
-			);
-		},
-		5_000
-	);
+		Result.getOrThrow(result);
+		expect(eventHandler.applySessionStateEnvelope).toHaveBeenCalledWith(
+			sessionId,
+			lifecycleEnvelope
+		);
+	}, 5_000);
 
 	it("keeps the readiness fallback deadline aligned with the connection watchdog", async () => {
 		const modulePath = "./session-connection-manager.js?timeout-invariant" as string;
@@ -1304,9 +1310,11 @@ describe("SessionConnectionManager.connectSession", () => {
 			connectionManager,
 		});
 
-		const result = await runToResult(manager.connectSession(sessionId, createMockEventHandler(), {
-			openToken: "open-token-123",
-		}));
+		const result = await runToResult(
+			manager.connectSession(sessionId, createMockEventHandler(), {
+				openToken: "open-token-123",
+			})
+		);
 		Result.getOrThrow(result);
 
 		expect(resumeSession).toHaveBeenCalledWith(
@@ -1345,9 +1353,11 @@ describe("SessionConnectionManager.connectSession", () => {
 			connectionManager,
 		});
 
-		const result = await runToResult(manager.connectSession(sessionId, createMockEventHandler(), {
-			openToken: "open-token-post-snapshot",
-		}));
+		const result = await runToResult(
+			manager.connectSession(sessionId, createMockEventHandler(), {
+				openToken: "open-token-post-snapshot",
+			})
+		);
 		Result.getOrThrow(result);
 
 		// resumeSession MUST be called — no guard should short-circuit it just because
@@ -1375,9 +1385,11 @@ describe("SessionConnectionManager.connectSession", () => {
 			connectionManager,
 		});
 
-		const result = await runToResult(manager.connectSession(sessionId, createMockEventHandler(), {
-			openToken: "open-token-suppress-replay",
-		}));
+		const result = await runToResult(
+			manager.connectSession(sessionId, createMockEventHandler(), {
+				openToken: "open-token-suppress-replay",
+			})
+		);
 		Result.getOrThrow(result);
 
 		expect(resumeSession).toHaveBeenCalledWith(
@@ -1663,7 +1675,9 @@ describe("SessionConnectionManager.createSession", () => {
 			connectionManager,
 		});
 
-		const result = await runToResult(manager.createSession({ projectPath, agentId }, createMockEventHandler()));
+		const result = await runToResult(
+			manager.createSession({ projectPath, agentId }, createMockEventHandler())
+		);
 		Result.getOrThrow(result);
 
 		const addedSession = (stateWriter.addSession as ReturnType<typeof vi.fn>).mock
@@ -1741,7 +1755,9 @@ describe("SessionConnectionManager.createSession", () => {
 			connectionManager,
 		});
 
-		const result = await runToResult(manager.createSession({ projectPath, agentId }, createMockEventHandler()));
+		const result = await runToResult(
+			manager.createSession({ projectPath, agentId }, createMockEventHandler())
+		);
 		Result.getOrThrow(result);
 
 		expect(setSessionModelForMode).toHaveBeenCalledWith(
@@ -1823,7 +1839,9 @@ describe("SessionConnectionManager.createSession", () => {
 			connectionManager,
 		});
 
-		const result = await runToResult(manager.createSession({ projectPath, agentId }, createMockEventHandler()));
+		const result = await runToResult(
+			manager.createSession({ projectPath, agentId }, createMockEventHandler())
+		);
 		Result.getOrThrow(result);
 
 		expect(setSessionModelForMode).toHaveBeenCalledWith(sessionId, "build", "safe-default");
@@ -1878,7 +1896,9 @@ describe("SessionConnectionManager.createSession", () => {
 			connectionManager,
 		});
 
-		const result = await runToResult(manager.createSession({ projectPath, agentId }, createMockEventHandler()));
+		const result = await runToResult(
+			manager.createSession({ projectPath, agentId }, createMockEventHandler())
+		);
 		Result.getOrThrow(result);
 
 		expect(setSessionModelForMode).not.toHaveBeenCalled();
@@ -1894,7 +1914,9 @@ describe("SessionConnectionManager.createSession", () => {
 			connectionManager,
 		});
 
-		const result = await runToResult(manager.createSession({ projectPath, agentId }, createMockEventHandler()));
+		const result = await runToResult(
+			manager.createSession({ projectPath, agentId }, createMockEventHandler())
+		);
 		Result.getOrThrow(result);
 
 		expect(capabilities.recordCapabilityUpdate).not.toHaveBeenCalled();
@@ -1910,7 +1932,9 @@ describe("SessionConnectionManager.createSession", () => {
 			connectionManager,
 		});
 
-		const result = await runToResult(manager.createSession({ projectPath, agentId }, createMockEventHandler()));
+		const result = await runToResult(
+			manager.createSession({ projectPath, agentId }, createMockEventHandler())
+		);
 		Result.getOrThrow(result);
 
 		const initUpdate =
@@ -1929,7 +1953,9 @@ describe("SessionConnectionManager.createSession", () => {
 			connectionManager,
 		});
 
-		const result = await runToResult(manager.createSession({ projectPath, agentId }, createMockEventHandler()));
+		const result = await runToResult(
+			manager.createSession({ projectPath, agentId }, createMockEventHandler())
+		);
 		Result.getOrThrow(result);
 
 		expect(setSessionModelForMode).toHaveBeenCalledWith(sessionId, "build", "gpt-5.2-codex/high");
@@ -1968,7 +1994,9 @@ describe("SessionConnectionManager.createSession", () => {
 			connectionManager,
 		});
 
-		const result = await runToResult(manager.createSession({ projectPath, agentId }, createMockEventHandler()));
+		const result = await runToResult(
+			manager.createSession({ projectPath, agentId }, createMockEventHandler())
+		);
 		const created = Result.getOrThrow(result);
 
 		expect(created).toEqual({
@@ -2023,7 +2051,9 @@ describe("SessionConnectionManager.createSession", () => {
 			connectionManager,
 		});
 
-		const result = await runToResult(manager.createSession({ projectPath, agentId }, createMockEventHandler()));
+		const result = await runToResult(
+			manager.createSession({ projectPath, agentId }, createMockEventHandler())
+		);
 		const created = Result.getOrThrow(result);
 
 		expect(created).toEqual({
@@ -2078,15 +2108,17 @@ describe("SessionConnectionManager.createSession", () => {
 			connectionManager,
 		});
 
-		const result = await runToResult(manager.createSession(
-			{
-				projectPath,
-				agentId,
-				initialModeId: "plan",
-				initialModelId: "claude-sonnet-4-6",
-			},
-			createMockEventHandler()
-		));
+		const result = await runToResult(
+			manager.createSession(
+				{
+					projectPath,
+					agentId,
+					initialModeId: "plan",
+					initialModelId: "claude-sonnet-4-6",
+				},
+				createMockEventHandler()
+			)
+		);
 		Result.getOrThrow(result);
 
 		expect(newSession).toHaveBeenCalledWith(
@@ -2133,7 +2165,9 @@ describe("SessionConnectionManager.createSession", () => {
 			connectionManager,
 		});
 
-		const result = await runToResult(manager.createSession({ projectPath, agentId }, createMockEventHandler()));
+		const result = await runToResult(
+			manager.createSession({ projectPath, agentId }, createMockEventHandler())
+		);
 
 		expect(Result.isFailure(result)).toBe(true);
 		if (!Result.isFailure(result)) {
@@ -2183,7 +2217,9 @@ describe("SessionConnectionManager.createSession", () => {
 			connectionManager,
 		});
 
-		const result = await runToResult(manager.createSession({ projectPath, agentId }, createMockEventHandler()));
+		const result = await runToResult(
+			manager.createSession({ projectPath, agentId }, createMockEventHandler())
+		);
 		Result.getOrThrow(result);
 
 		const addedSession = (stateWriter.addSession as ReturnType<typeof vi.fn>).mock
@@ -2230,15 +2266,17 @@ describe("SessionConnectionManager.createSession", () => {
 			connectionManager,
 		});
 
-		const result = await runToResult(manager.createSession(
-			{
-				projectPath,
-				agentId,
-				initialModeId: "plan",
-				initialModelId: "gpt-5.2-codex/medium",
-			},
-			createMockEventHandler()
-		));
+		const result = await runToResult(
+			manager.createSession(
+				{
+					projectPath,
+					agentId,
+					initialModeId: "plan",
+					initialModelId: "gpt-5.2-codex/medium",
+				},
+				createMockEventHandler()
+			)
+		);
 		Result.getOrThrow(result);
 
 		expect(setMode).toHaveBeenCalledWith(sessionId, "plan");
@@ -2281,14 +2319,16 @@ describe("SessionConnectionManager.createSession", () => {
 			connectionManager,
 		});
 
-		const result = await runToResult(manager.createSession(
-			{
-				projectPath,
-				agentId,
-				initialModeId: "plan",
-			},
-			createMockEventHandler()
-		));
+		const result = await runToResult(
+			manager.createSession(
+				{
+					projectPath,
+					agentId,
+					initialModeId: "plan",
+				},
+				createMockEventHandler()
+			)
+		);
 
 		expect(Result.isFailure(result)).toBe(true);
 		expect(setMode).toHaveBeenCalledWith(sessionId, "plan");
@@ -2307,14 +2347,16 @@ describe("SessionConnectionManager.createSession", () => {
 			connectionManager,
 		});
 
-		const result = await runToResult(manager.createSession(
-			{
-				projectPath,
-				agentId,
-				initialModelId: "openrouter/anthropic/claude-sonnet-4",
-			},
-			createMockEventHandler()
-		));
+		const result = await runToResult(
+			manager.createSession(
+				{
+					projectPath,
+					agentId,
+					initialModelId: "openrouter/anthropic/claude-sonnet-4",
+				},
+				createMockEventHandler()
+			)
+		);
 
 		expect(Result.isFailure(result)).toBe(true);
 		expect(setModel).not.toHaveBeenCalled();
@@ -2325,7 +2367,7 @@ describe("SessionConnectionManager.createSession", () => {
 	// Regression: caught live via electrobun-qa. new-chat-dialog.svelte
 	// defaults every new session's initialModeId to CanonicalModeId.BUILD
 	// ("build"), but Claude Code's real ACP modes are "default"/
-	// "acceptEdits"/"plan"/"bypassPermissions" (ClaudeProvider.ts's
+	// "acceptEdits"/"plan"/"bypassPermissions" (Claude/Provider.ts's
 	// CLAUDE_MODES) -- there is no "build" mode, and no server-side
 	// normalization maps one onto the other today. Every real Claude Code
 	// session.create used to fail here and close the session it had just
@@ -2358,14 +2400,16 @@ describe("SessionConnectionManager.createSession", () => {
 			connectionManager,
 		});
 
-		return runToResult(manager.createSession(
-			{
-				projectPath,
-				agentId,
-				initialModeId: "build",
-			},
-			createMockEventHandler()
-		)).then((result) => {
+		return runToResult(
+			manager.createSession(
+				{
+					projectPath,
+					agentId,
+					initialModeId: "build",
+				},
+				createMockEventHandler()
+			)
+		).then((result) => {
 			Result.getOrThrow(result);
 			expect(setMode).not.toHaveBeenCalled();
 			expect(closeSession).not.toHaveBeenCalled();
@@ -2403,10 +2447,12 @@ describe("SessionConnectionManager.createSession", () => {
 			connectionManager,
 		});
 
-		const result = await runToResult(manager.createSession(
-			{ projectPath, agentId, initialModeId: "plan" },
-			createMockEventHandler()
-		));
+		const result = await runToResult(
+			manager.createSession(
+				{ projectPath, agentId, initialModeId: "plan" },
+				createMockEventHandler()
+			)
+		);
 
 		expect(Result.isFailure(result)).toBe(true);
 		if (Result.isFailure(result)) {
@@ -2429,7 +2475,9 @@ describe("SessionConnectionManager.createSession", () => {
 			connectionManager,
 		});
 
-		const result = await runToResult(manager.createSession({ projectPath, agentId }, createMockEventHandler()));
+		const result = await runToResult(
+			manager.createSession({ projectPath, agentId }, createMockEventHandler())
+		);
 		const created = Result.getOrThrow(result);
 		expect(created.kind).toBe("ready");
 		if (created.kind !== "ready") {
@@ -2479,14 +2527,16 @@ describe("SessionConnectionManager.createSession", () => {
 			connectionManager,
 		});
 
-		const result = await runToResult(manager.createSession(
-			{
-				projectPath,
-				agentId,
-				initialAutonomousEnabled: true,
-			},
-			createMockEventHandler()
-		));
+		const result = await runToResult(
+			manager.createSession(
+				{
+					projectPath,
+					agentId,
+					initialAutonomousEnabled: true,
+				},
+				createMockEventHandler()
+			)
+		);
 		Result.getOrThrow(result);
 
 		expect(setSessionAutonomous).toHaveBeenCalledWith(sessionId, true);
@@ -2773,7 +2823,9 @@ describe("SessionConnectionManager autonomous policy", () => {
 			connectionManager,
 		});
 
-		const result = await runToResult(manager.setAutonomousEnabled(sessionId, true, createMockEventHandler()));
+		const result = await runToResult(
+			manager.setAutonomousEnabled(sessionId, true, createMockEventHandler())
+		);
 		expect(Result.isSuccess(result)).toBe(true);
 
 		expect(setSessionAutonomous).toHaveBeenCalledWith(sessionId, true);
@@ -2802,7 +2854,9 @@ describe("SessionConnectionManager autonomous policy", () => {
 			connectionManager,
 		});
 
-		const result = await runToResult(manager.setAutonomousEnabled(sessionId, true, createMockEventHandler()));
+		const result = await runToResult(
+			manager.setAutonomousEnabled(sessionId, true, createMockEventHandler())
+		);
 
 		expect(Result.isFailure(result)).toBe(true);
 		expect(setSessionAutonomous).not.toHaveBeenCalled();

@@ -17,26 +17,22 @@ import {
 	tracerAssistantMessageId
 } from "@acepe/contracts"
 import type { Done } from "effect/Cause"
-import * as Arr from "effect/Array"
 import * as DateTime from "effect/DateTime"
 import * as Effect from "effect/Effect"
 import * as HashMap from "effect/HashMap"
 import * as Option from "effect/Option"
-import * as Predicate from "effect/Predicate"
 import * as Queue from "effect/Queue"
 import * as Ref from "effect/Ref"
 import * as Schema from "effect/Schema"
-import * as Str from "effect/String"
 import type {
 	ProviderAdapterError,
 	SendPromptRequest
 } from "../../Services/ProviderAdapter.ts"
-import type { CodexAppServerHandle } from "./Adapter.ts"
+import type { OpenCodeTransport } from "./Adapter.ts"
 import { encodeContractFact } from "./Codec.ts"
-import type { CodexAcpToolKind, CodexContractFact } from "./Facts.ts"
-import { type CodexMapState, mapCodexServerMessage } from "./Map.ts"
-import { adapterError } from "./Process.ts"
-import type { CodexNativeConfigState } from "./Provider.ts"
+import type { OpenCodeContractFact } from "./Facts.ts"
+import { mapSseJson, type OpenCodeStreamState, sseSessionId } from "./Map.ts"
+import { adapterError } from "./Provider.ts"
 
 type Json = typeof Schema.Json.Type
 type JsonObject = typeof Schema.JsonObject.Type
@@ -44,7 +40,7 @@ type JsonObject = typeof Schema.JsonObject.Type
 const EMPTY_JSON_OBJECT: JsonObject = {}
 
 // What a "tool_call" fact recorded about a tool call, kept around so a LATER
-// "tool_call_update" fact (which may omit its own title — see
+// "tool_call_update" fact (toolCallId + a new status only — see
 // ToolCallUpdateFact in Map.ts) can still publish a complete
 // ToolCallObservedEvent: the projector's ToolCallObservedPayload requires a
 // title on every row, not just the first one — see
@@ -52,43 +48,24 @@ const EMPTY_JSON_OBJECT: JsonObject = {}
 export type OpenToolCallInfo = {
 	readonly activityId: ActivityId
 	readonly title: string
-	readonly path: string | null
 }
 
-// One projection_session_activities row per Codex tool item, keyed the same
-// way across its whole lifecycle (in_progress -> completed/failed) so the
-// projector's merge sees one growing row instead of two unrelated ones.
+// One projection_session_activities row per OpenCode tool part, keyed the
+// same way across its whole lifecycle (pending/in_progress -> completed/
+// failed) so the projector's merge sees one growing row instead of two
+// unrelated ones.
 const toolCallActivityId = (toolCallId: string): ActivityId => ActivityId.make(`${toolCallId}:activity`)
-
-// Map.ts's extractToolFields already puts the file path into
-// rawInput under "filePath" for read/edit items (see its fileRead/fileChange
-// branches) — reused here, not reimplemented, to derive the path column of
-// projection_session_activities.
-const codexToolPathHint = (kind: CodexAcpToolKind, rawInput: JsonObject): string | null => {
-	if (kind !== "read" && kind !== "edit") {
-		return null
-	}
-	const value = rawInput.filePath
-	if (Predicate.isString(value) && Str.isNonEmpty(Str.trim(value))) {
-		return value
-	}
-	return null
-}
 
 export type SessionRuntime = {
 	readonly sessionId: SessionId
+	readonly workspaceRoot: string
 	readonly outbound: Queue.Queue<OrchestrationEvent, Done>
-	readonly mapState: Ref.Ref<CodexMapState>
+	readonly streamState: Ref.Ref<OpenCodeStreamState>
 	readonly lastUserMessageId: Ref.Ref<Option.Option<MessageId>>
 	readonly sequence: Ref.Ref<number>
-	readonly providerThreadId: Ref.Ref<Option.Option<string>>
-	readonly currentTurnId: Ref.Ref<Option.Option<string>>
-	readonly questionIds: Ref.Ref<HashMap.HashMap<string, ReadonlyArray<string>>>
-	// Keyed by Codex's own toolCallId. See OpenToolCallInfo's doc above.
+	// Keyed by OpenCode's own toolCallId. See OpenToolCallInfo's doc above.
 	readonly openToolCalls: Ref.Ref<HashMap.HashMap<string, OpenToolCallInfo>>
-	readonly modeId: Ref.Ref<string>
-	readonly config: CodexNativeConfigState
-	readonly server: CodexAppServerHandle
+	readonly transport: OpenCodeTransport
 }
 
 const assistantMessageId = (
@@ -103,7 +80,7 @@ const assistantMessageId = (
 const nextSequence = (runtime: SessionRuntime) =>
 	Ref.updateAndGet(runtime.sequence, (current) => current + 1)
 
-const stamp = Effect.fn("CodexAdapter.stamp")(function*(runtime: SessionRuntime) {
+const stamp = Effect.fn("OpenCodeAdapter.stamp")(function*(runtime: SessionRuntime) {
 	const sequence = yield* nextSequence(runtime)
 	const occurredAt = yield* DateTime.now.pipe(Effect.map(DateTime.formatIso))
 	const commandId = CommandId.make(`${runtime.sessionId}:cmd:${sequence}`)
@@ -118,7 +95,7 @@ const stamp = Effect.fn("CodexAdapter.stamp")(function*(runtime: SessionRuntime)
 export const offerOutbound = (runtime: SessionRuntime, event: OrchestrationEvent) =>
 	Queue.offer(runtime.outbound, event).pipe(Effect.asVoid)
 
-const makeTokenEvent = Effect.fn("CodexAdapter.makeTokenEvent")(function*(
+const makeTokenEvent = Effect.fn("OpenCodeAdapter.makeTokenEvent")(function*(
 	runtime: SessionRuntime,
 	token: string
 ) {
@@ -143,9 +120,9 @@ const makeTokenEvent = Effect.fn("CodexAdapter.makeTokenEvent")(function*(
 	})
 })
 
-export const makeMetaEvent = Effect.fn("CodexAdapter.makeMetaEvent")(function*(
+export const makeMetaEvent = Effect.fn("OpenCodeAdapter.makeMetaEvent")(function*(
 	runtime: SessionRuntime,
-	fact: CodexContractFact
+	fact: OpenCodeContractFact
 ) {
 	const header = yield* stamp(runtime)
 	const metadata = Option.getOrElse(encodeContractFact(fact), () => EMPTY_JSON_OBJECT)
@@ -166,7 +143,7 @@ export const makeMetaEvent = Effect.fn("CodexAdapter.makeMetaEvent")(function*(
 	})
 })
 
-export const makeMessageSent = Effect.fn("CodexAdapter.makeMessageSent")(function*(
+export const makeMessageSent = Effect.fn("OpenCodeAdapter.makeMessageSent")(function*(
 	runtime: SessionRuntime,
 	request: SendPromptRequest
 ) {
@@ -190,20 +167,8 @@ export const makeMessageSent = Effect.fn("CodexAdapter.makeMessageSent")(functio
 	})
 })
 
-export const makeCancelled = Effect.fn("CodexAdapter.makeCancelled")(function*(
-	runtime: SessionRuntime,
-	turnId: Option.Option<string>
-) {
+export const makeCancelled = Effect.fn("OpenCodeAdapter.makeCancelled")(function*(runtime: SessionRuntime) {
 	const header = yield* stamp(runtime)
-	const payload =
-		Option.isNone(turnId)
-			? {
-					sessionId: runtime.sessionId
-				}
-			: {
-					sessionId: runtime.sessionId,
-					turnId: TurnId.make(turnId.value)
-				}
 	return TurnCancelledEvent.make({
 		sequence: header.sequence,
 		eventId: header.eventId,
@@ -215,32 +180,25 @@ export const makeCancelled = Effect.fn("CodexAdapter.makeCancelled")(function*(
 		correlationId: header.commandId,
 		metadata: EMPTY_JSON_OBJECT,
 		type: "TurnCancelled",
-		payload
+		payload: {
+			sessionId: runtime.sessionId
+		}
 	})
 })
 
-// Codex's own turn-end signal is the app-server's `turn/completed`
-// notification (mapCodexServerMessage in Map.ts already turns it
-// into a turn_complete or turn_error fact). That fact is the ONLY thing that
+// OpenCode's own turn-end signal is a session.idle (or idle-shaped
+// session.status) SSE event — mapSseJson in Map.ts already turns it
+// into a turn_complete or turn_error fact. That fact is the ONLY thing that
 // closes an open projection_turns row absent a follow-up TurnCancelled or the
 // next MessageSent starting a new turn — see ProjectionTurns.ts's
 // evolveProjectedTurns. turn_error still closes the turn (rather than
 // leaving it "running" forever): projection_turns has no separate "failed"
 // status yet, so an errored turn is recorded as completed.
-const makeCompleted = Effect.fn("CodexAdapter.makeCompleted")(function*(
-	runtime: SessionRuntime,
-	turnId: Option.Option<string>
+const makeCompleted = Effect.fn("OpenCodeAdapter.makeCompleted")(function*(
+	runtime: SessionRuntime
 ) {
 	const header = yield* stamp(runtime)
-	const payload =
-		Option.isNone(turnId)
-			? {
-					sessionId: runtime.sessionId
-				}
-			: {
-					sessionId: runtime.sessionId,
-					turnId: TurnId.make(turnId.value)
-				}
+	const lastUser = yield* Ref.get(runtime.lastUserMessageId)
 	return TurnCompletedEvent.make({
 		sequence: header.sequence,
 		eventId: header.eventId,
@@ -252,35 +210,29 @@ const makeCompleted = Effect.fn("CodexAdapter.makeCompleted")(function*(
 		correlationId: header.commandId,
 		metadata: EMPTY_JSON_OBJECT,
 		type: "TurnCompleted",
-		payload
+		payload: Option.match(lastUser, {
+			onNone: () => ({ sessionId: runtime.sessionId }),
+			onSome: (userMessageId) => ({
+				sessionId: runtime.sessionId,
+				turnId: TurnId.make(userMessageId)
+			})
+		})
 	})
-})
-
-const rememberQuestionIds = Effect.fn("CodexAdapter.rememberQuestionIds")(function*(
-	runtime: SessionRuntime,
-	fact: CodexContractFact
-) {
-	if (fact.contractKind !== "question_request") {
-		return
-	}
-	const ids = Arr.map(fact.questions, (question) => question.id)
-	yield* Ref.update(runtime.questionIds, (current) => HashMap.set(current, fact.id, ids))
 })
 
 // Builds the SAME contract event the tracer's ToolCallObserveCommand decider
 // produces (see decider.ts's "tool.call.observe" case) — ProjectionSessionActivities.ts
 // only knows how to turn a ToolCallObserved event into a
-// projection_session_activities row; a real Codex tool call folded into a
+// projection_session_activities row; a real OpenCode tool call folded into a
 // generic SessionMetaUpdated is invisible to that projector no matter what
 // its encoded metadata says (the same bug Claude/Adapter.ts had).
-const makeToolCallObserved = Effect.fn("CodexAdapter.makeToolCallObserved")(function*(
+const makeToolCallObserved = Effect.fn("OpenCodeAdapter.makeToolCallObserved")(function*(
 	runtime: SessionRuntime,
 	input: {
 		readonly activityId: ActivityId
 		readonly toolCallId: string
 		readonly status: ObservedToolStatus
 		readonly title: string
-		readonly path: string | null
 	}
 ) {
 	const header = yield* stamp(runtime)
@@ -302,73 +254,73 @@ const makeToolCallObserved = Effect.fn("CodexAdapter.makeToolCallObserved")(func
 			operationId: null,
 			status: input.status,
 			title: input.title,
-			path: input.path
+			// Map.ts's tool parts don't carry a dedicated path field the
+			// way Claude's read/edit rawInput does — left null rather than
+			// guessing at one of several possible input shapes.
+			path: null
 		}
 	})
 })
 
-// A tool_call_update fact that arrives with no cached start info. Falls back
+// A tool_call_update fact that arrives with no cached start info (e.g. a
+// tool-result part with no preceding tool part in this stream). Falls back
 // to a generic, still-nonempty title rather than dropping the status
 // transition on the floor.
 const FALLBACK_TOOL_TITLE = "Tool"
 
-const publishToolCallStarted = Effect.fn("CodexAdapter.publishToolCallStarted")(function*(
+const publishToolCallStarted = Effect.fn("OpenCodeAdapter.publishToolCallStarted")(function*(
 	runtime: SessionRuntime,
-	fact: Extract<CodexContractFact, { readonly contractKind: "tool_call" }>
+	fact: Extract<OpenCodeContractFact, { readonly contractKind: "tool_call" }>
 ) {
 	const activityId = toolCallActivityId(fact.toolCallId)
-	const path = codexToolPathHint(fact.kind, fact.rawInput)
 	yield* Ref.update(runtime.openToolCalls, (current) =>
-		HashMap.set(current, fact.toolCallId, { activityId, title: fact.title, path }))
+		HashMap.set(current, fact.toolCallId, { activityId, title: fact.title }))
 	const event = yield* makeToolCallObserved(runtime, {
 		activityId,
 		toolCallId: fact.toolCallId,
 		status: fact.status,
-		title: fact.title,
-		path
+		title: fact.title
 	})
 	return yield* offerOutbound(runtime, event)
 })
 
-const publishToolCallUpdated = Effect.fn("CodexAdapter.publishToolCallUpdated")(function*(
+const publishToolCallUpdated = Effect.fn("OpenCodeAdapter.publishToolCallUpdated")(function*(
 	runtime: SessionRuntime,
-	fact: Extract<CodexContractFact, { readonly contractKind: "tool_call_update" }>
+	fact: Extract<OpenCodeContractFact, { readonly contractKind: "tool_call_update" }>
 ) {
+	if (fact.status === undefined) {
+		// A pure streaming-argument update (partialJson) — no status
+		// transition to project.
+		return
+	}
 	const cache = yield* Ref.get(runtime.openToolCalls)
 	const cached = HashMap.get(cache, fact.toolCallId)
 	const info: OpenToolCallInfo = Option.getOrElse(cached, () => ({
 		activityId: toolCallActivityId(fact.toolCallId),
-		title: FALLBACK_TOOL_TITLE,
-		path: null
+		title: FALLBACK_TOOL_TITLE
 	}))
-	const title = fact.title ?? info.title
 	const event = yield* makeToolCallObserved(runtime, {
 		activityId: info.activityId,
 		toolCallId: fact.toolCallId,
 		status: fact.status,
-		title,
-		path: info.path
+		title: info.title
 	})
 	return yield* offerOutbound(runtime, event)
 })
 
-const publishFact = Effect.fn("CodexAdapter.publishFact")(function*(
+const publishFact = Effect.fn("OpenCodeAdapter.publishFact")(function*(
 	runtime: SessionRuntime,
-	fact: CodexContractFact
+	fact: OpenCodeContractFact
 ) {
-	yield* rememberQuestionIds(runtime, fact)
 	if (fact.contractKind === "text_delta") {
 		const event = yield* makeTokenEvent(runtime, fact.token)
 		return yield* offerOutbound(runtime, event)
 	}
 	if (fact.contractKind === "turn_complete" || fact.contractKind === "turn_error") {
-		const currentTurnId = yield* Ref.get(runtime.currentTurnId)
-		const turnId = fact.turnId !== undefined ? Option.some(fact.turnId) : currentTurnId
-		yield* Ref.set(runtime.currentTurnId, Option.none())
-		const event = yield* makeCompleted(runtime, turnId)
+		const event = yield* makeCompleted(runtime)
 		return yield* offerOutbound(runtime, event)
 	}
-	// A real Codex tool call must reach ProjectionSessionActivities as a
+	// A real OpenCode tool call must reach ProjectionSessionActivities as a
 	// ToolCallObserved event, not fold into a generic SessionMetaUpdated one.
 	if (fact.contractKind === "tool_call") {
 		return yield* publishToolCallStarted(runtime, fact)
@@ -380,17 +332,31 @@ const publishFact = Effect.fn("CodexAdapter.publishFact")(function*(
 	return yield* offerOutbound(runtime, event)
 })
 
-export const publishServerMessage = Effect.fn("CodexAdapter.publishServerMessage")(function*(
+const belongsToSession = (providerSessionId: Option.Option<string>, raw: Json): boolean => {
+	if (Option.isNone(providerSessionId)) {
+		return true
+	}
+	const eventSession = sseSessionId(raw)
+	if (Option.isNone(eventSession)) {
+		return true
+	}
+	return eventSession.value === providerSessionId.value
+}
+
+export const publishSse = Effect.fn("OpenCodeAdapter.publishSse")(function*(
 	runtime: SessionRuntime,
 	raw: Json
 ) {
-	const state = yield* Ref.get(runtime.mapState)
-	const mapped = mapCodexServerMessage(state, runtime.sessionId, raw)
-	yield* Ref.set(runtime.mapState, mapped.state)
+	const state = yield* Ref.get(runtime.streamState)
+	if (belongsToSession(state.providerSessionId, raw) === false) {
+		return
+	}
+	const mapped = mapSseJson(state, raw)
+	yield* Ref.set(runtime.streamState, mapped.state)
 	yield* Effect.forEach(mapped.facts, (fact) => publishFact(runtime, fact), { discard: true })
 })
 
-export const requireSession = Effect.fn("CodexAdapter.requireSession")(function*(
+export const requireSession = Effect.fn("OpenCodeAdapter.requireSession")(function*(
 	sessions: Ref.Ref<HashMap.HashMap<SessionId, SessionRuntime>>,
 	sessionId: SessionId,
 	operation: ProviderAdapterError["operation"]
@@ -398,7 +364,21 @@ export const requireSession = Effect.fn("CodexAdapter.requireSession")(function*
 	const map = yield* Ref.get(sessions)
 	const found = HashMap.get(map, sessionId)
 	if (Option.isNone(found)) {
-		return yield* adapterError(operation, `No Codex session '${sessionId}'.`)
+		return yield* adapterError(operation, `No OpenCode session '${sessionId}'.`)
 	}
 	return found.value
+})
+
+export const requireProviderSession = Effect.fn("OpenCodeAdapter.requireProviderSession")(function*(
+	runtime: SessionRuntime,
+	operation: ProviderAdapterError["operation"]
+) {
+	const state = yield* Ref.get(runtime.streamState)
+	if (Option.isNone(state.providerSessionId)) {
+		return yield* adapterError(
+			operation,
+			`OpenCode session '${runtime.sessionId}' has no provider session id.`
+		)
+	}
+	return state.providerSessionId.value
 })

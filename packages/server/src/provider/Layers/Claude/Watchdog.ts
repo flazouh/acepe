@@ -10,7 +10,7 @@ import { publishFact, type SessionRuntime } from "./Session.ts"
 // Recovers a session whose turn appears wedged: no provider stream
 // activity for turnInactivityTimeout while a turn is open. Synthesizes a
 // turn_error fact (the SAME contract shape a real SDK error already maps
-// to — see ClaudeSdkMap.ts's TurnErrorFact — so this needs no new event
+// to — see Map.ts's TurnErrorFact — so this needs no new event
 // type) to close the stuck turn in the projection, then tears down and
 // re-attaches the query so the NEXT sendPrompt works. Forked once per
 // session, for the session's whole lifetime, into sessionScope — so it is

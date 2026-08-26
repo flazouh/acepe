@@ -1,47 +1,19 @@
-import {
-	ActivityId,
-	CommandId,
-	EventId,
-	MessageId,
-	MessageSentEvent,
-	type ObservedToolStatus,
-	type OrchestrationEvent,
-	SessionId,
-	SessionMetaUpdatedEvent,
-	TokenAppendedEvent,
-	ToolCallId,
-	ToolCallObservedEvent,
-	TurnCancelledEvent,
-	TurnCompletedEvent,
-	TurnId,
-	tracerAssistantMessageId
-} from "@acepe/contracts"
+import { MessageId, type OrchestrationEvent, SessionId } from "@acepe/contracts"
 import type { Done } from "effect/Cause"
 import * as Arr from "effect/Array"
 import * as Config from "effect/Config"
-import * as DateTime from "effect/DateTime"
-import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
-import * as Exit from "effect/Exit"
-import * as Filter from "effect/Filter"
 import * as HashMap from "effect/HashMap"
 import * as Option from "effect/Option"
 import * as Path from "effect/Path"
 import * as Queue from "effect/Queue"
-import * as Rec from "effect/Record"
 import * as Ref from "effect/Ref"
-import * as Schedule from "effect/Schedule"
 import * as Schema from "effect/Schema"
-import * as Scope from "effect/Scope"
 import * as Stream from "effect/Stream"
-import * as Str from "effect/String"
-import * as HttpBody from "effect/unstable/http/HttpBody"
 import * as HttpClient from "effect/unstable/http/HttpClient"
-import * as HttpClientResponse from "effect/unstable/http/HttpClientResponse"
-import * as ChildProcess from "effect/unstable/process/ChildProcess"
 import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner"
 import {
-	ProviderAdapterError,
+	type ProviderAdapterError,
 	type ProviderAdapter,
 	type ProviderPresence,
 	type CancelTurnRequest,
@@ -49,27 +21,21 @@ import {
 	type StartSessionRequest
 } from "../../Services/ProviderAdapter.ts"
 import {
-	buildPromptBody,
-	consumeSseLine,
-	emptyOpenCodeStreamState,
-	emptySseLineFold,
-	encodeContractFact,
-	isSafeRequestId,
-	mapSseJson,
-	type OpenCodeContractFact,
 	type OpenCodePermissionReply,
-	type OpenCodePromptBody,
 	type OpenCodeSessionRecord,
-	OpenCodeSessionRecord as OpenCodeSessionRecordSchema,
-	type OpenCodeStreamState,
-	openCodeUrls,
-	parseModelSelection,
 	providerSessionFact,
-	resolveConfiguredModel,
-	sessionCatalogFact,
-	sseSessionId
-} from "./Map.ts"
+	sessionCatalogFact
+} from "./Facts.ts"
 import {
+	buildPromptBody,
+	emptyOpenCodeStreamState,
+	type OpenCodePromptBody,
+	parseModelSelection
+} from "./Map.ts"
+import { respondToPermission, respondToQuestion } from "./Permissions.ts"
+import { liveCreateTransport } from "./Process.ts"
+import {
+	adapterError,
 	OPENCODE_ALLOWED_ENV_KEYS,
 	OPENCODE_CAPABILITIES,
 	OPENCODE_DEFAULT_MODE,
@@ -77,55 +43,23 @@ import {
 	OPENCODE_PLACEHOLDER_BINARY,
 	OPENCODE_PROVIDER_ID,
 	openCodeServeArgs,
-	parseServeUrl,
 	probeOpenCodeBinary,
 	probeOpenCodePresence,
 	resolveOpenCodeIsolatedConfigDir
 } from "./Provider.ts"
+import {
+	makeCancelled,
+	makeMessageSent,
+	makeMetaEvent,
+	offerOutbound,
+	type OpenToolCallInfo,
+	publishSse,
+	requireProviderSession,
+	requireSession,
+	type SessionRuntime
+} from "./Session.ts"
 
 type Json = typeof Schema.Json.Type
-type JsonObject = typeof Schema.JsonObject.Type
-
-const EMPTY_JSON_OBJECT: JsonObject = {}
-const READY_TIMEOUT = Duration.millis(15_000)
-const READY_INTERVAL = Duration.millis(200)
-const decodeJson = Schema.decodeUnknownEffect(Schema.fromJsonString(Schema.Json))
-
-const OpenCodeProviderModel = Schema.Struct({
-	id: Schema.optionalKey(Schema.String),
-	name: Schema.String,
-	capabilities: Schema.optionalKey(
-		Schema.Struct({
-			toolcall: Schema.optionalKey(Schema.Boolean)
-		})
-	)
-})
-
-const OpenCodeProviderEntry = Schema.Struct({
-	id: Schema.String,
-	name: Schema.String,
-	models: Schema.Record(Schema.String, OpenCodeProviderModel)
-})
-
-const OpenCodeProviderResponse = Schema.Struct({
-	connected: Schema.Array(Schema.String),
-	all: Schema.Array(OpenCodeProviderEntry)
-})
-
-const OpenCodeConfigResponse = Schema.Struct({
-	model: Schema.optionalKey(Schema.String)
-})
-
-const OpenCodeCommandResponse = Schema.Array(
-	Schema.Struct({
-		name: Schema.String,
-		description: Schema.optionalKey(Schema.String)
-	})
-)
-
-const decodeProviderResponse = Schema.decodeUnknownEffect(OpenCodeProviderResponse)
-const decodeConfigResponse = Schema.decodeUnknownEffect(OpenCodeConfigResponse)
-const decodeCommandResponse = Schema.decodeUnknownEffect(OpenCodeCommandResponse)
 
 export type OpenCodeCatalogModel = {
 	readonly modelId: string
@@ -182,360 +116,6 @@ export type OpenCodeAdapterOptions = {
 	}) => Effect.Effect<OpenCodeTransport, ProviderAdapterError>
 	readonly presence: Effect.Effect<ProviderPresence>
 }
-
-// What a "tool_call" fact recorded about a tool call, kept around so a LATER
-// "tool_call_update" fact (toolCallId + a new status only — see
-// ToolCallUpdateFact in OpenCodeMap.ts) can still publish a complete
-// ToolCallObservedEvent: the projector's ToolCallObservedPayload requires a
-// title on every row, not just the first one — see
-// ProjectionSessionActivities.ts's observedToolRow.
-type OpenToolCallInfo = {
-	readonly activityId: ActivityId
-	readonly title: string
-}
-
-// One projection_session_activities row per OpenCode tool part, keyed the
-// same way across its whole lifecycle (pending/in_progress -> completed/
-// failed) so the projector's merge sees one growing row instead of two
-// unrelated ones.
-const toolCallActivityId = (toolCallId: string): ActivityId => ActivityId.make(`${toolCallId}:activity`)
-
-type SessionRuntime = {
-	readonly sessionId: SessionId
-	readonly workspaceRoot: string
-	readonly outbound: Queue.Queue<OrchestrationEvent, Done>
-	readonly streamState: Ref.Ref<OpenCodeStreamState>
-	readonly lastUserMessageId: Ref.Ref<Option.Option<MessageId>>
-	readonly sequence: Ref.Ref<number>
-	// Keyed by OpenCode's own toolCallId. See OpenToolCallInfo's doc above.
-	readonly openToolCalls: Ref.Ref<HashMap.HashMap<string, OpenToolCallInfo>>
-	readonly transport: OpenCodeTransport
-}
-
-const adapterError = (
-	operation: ProviderAdapterError["operation"],
-	detail: string
-): ProviderAdapterError =>
-	new ProviderAdapterError({
-		providerId: OPENCODE_PROVIDER_ID,
-		operation,
-		detail
-	})
-
-const assistantMessageId = (
-	sessionId: SessionId,
-	lastUser: Option.Option<MessageId>
-): MessageId =>
-	Option.match(lastUser, {
-		onNone: () => MessageId.make(`${sessionId}:assistant`),
-		onSome: tracerAssistantMessageId
-	})
-
-const nextSequence = (runtime: SessionRuntime) =>
-	Ref.updateAndGet(runtime.sequence, (current) => current + 1)
-
-const stamp = Effect.fn("OpenCodeAdapter.stamp")(function*(runtime: SessionRuntime) {
-	const sequence = yield* nextSequence(runtime)
-	const occurredAt = yield* DateTime.now.pipe(Effect.map(DateTime.formatIso))
-	const commandId = CommandId.make(`${runtime.sessionId}:cmd:${sequence}`)
-	return {
-		sequence,
-		eventId: EventId.make(`${runtime.sessionId}:${sequence}`),
-		occurredAt,
-		commandId
-	}
-})
-
-const offerOutbound = (runtime: SessionRuntime, event: OrchestrationEvent) =>
-	Queue.offer(runtime.outbound, event).pipe(Effect.asVoid)
-
-const makeTokenEvent = Effect.fn("OpenCodeAdapter.makeTokenEvent")(function*(
-	runtime: SessionRuntime,
-	token: string
-) {
-	const header = yield* stamp(runtime)
-	const lastUser = yield* Ref.get(runtime.lastUserMessageId)
-	return TokenAppendedEvent.make({
-		sequence: header.sequence,
-		eventId: header.eventId,
-		aggregateKind: "session",
-		aggregateId: runtime.sessionId,
-		occurredAt: header.occurredAt,
-		commandId: header.commandId,
-		causationEventId: null,
-		correlationId: header.commandId,
-		metadata: EMPTY_JSON_OBJECT,
-		type: "TokenAppended",
-		payload: {
-			sessionId: runtime.sessionId,
-			messageId: assistantMessageId(runtime.sessionId, lastUser),
-			token
-		}
-	})
-})
-
-const makeMetaEvent = Effect.fn("OpenCodeAdapter.makeMetaEvent")(function*(
-	runtime: SessionRuntime,
-	fact: OpenCodeContractFact
-) {
-	const header = yield* stamp(runtime)
-	const metadata = Option.getOrElse(encodeContractFact(fact), () => EMPTY_JSON_OBJECT)
-	return SessionMetaUpdatedEvent.make({
-		sequence: header.sequence,
-		eventId: header.eventId,
-		aggregateKind: "session",
-		aggregateId: runtime.sessionId,
-		occurredAt: header.occurredAt,
-		commandId: header.commandId,
-		causationEventId: null,
-		correlationId: header.commandId,
-		metadata,
-		type: "SessionMetaUpdated",
-		payload: {
-			sessionId: runtime.sessionId
-		}
-	})
-})
-
-const makeMessageSent = Effect.fn("OpenCodeAdapter.makeMessageSent")(function*(
-	runtime: SessionRuntime,
-	request: SendPromptRequest
-) {
-	const header = yield* stamp(runtime)
-	return MessageSentEvent.make({
-		sequence: header.sequence,
-		eventId: header.eventId,
-		aggregateKind: "session",
-		aggregateId: runtime.sessionId,
-		occurredAt: header.occurredAt,
-		commandId: header.commandId,
-		causationEventId: null,
-		correlationId: header.commandId,
-		metadata: EMPTY_JSON_OBJECT,
-		type: "MessageSent",
-		payload: {
-			sessionId: runtime.sessionId,
-			messageId: request.messageId,
-			text: request.text
-		}
-	})
-})
-
-const makeCancelled = Effect.fn("OpenCodeAdapter.makeCancelled")(function*(runtime: SessionRuntime) {
-	const header = yield* stamp(runtime)
-	return TurnCancelledEvent.make({
-		sequence: header.sequence,
-		eventId: header.eventId,
-		aggregateKind: "session",
-		aggregateId: runtime.sessionId,
-		occurredAt: header.occurredAt,
-		commandId: header.commandId,
-		causationEventId: null,
-		correlationId: header.commandId,
-		metadata: EMPTY_JSON_OBJECT,
-		type: "TurnCancelled",
-		payload: {
-			sessionId: runtime.sessionId
-		}
-	})
-})
-
-// OpenCode's own turn-end signal is a session.idle (or idle-shaped
-// session.status) SSE event — mapSseJson in OpenCodeMap.ts already turns it
-// into a turn_complete or turn_error fact. That fact is the ONLY thing that
-// closes an open projection_turns row absent a follow-up TurnCancelled or the
-// next MessageSent starting a new turn — see ProjectionTurns.ts's
-// evolveProjectedTurns. turn_error still closes the turn (rather than
-// leaving it "running" forever): projection_turns has no separate "failed"
-// status yet, so an errored turn is recorded as completed.
-const makeCompleted = Effect.fn("OpenCodeAdapter.makeCompleted")(function*(
-	runtime: SessionRuntime
-) {
-	const header = yield* stamp(runtime)
-	const lastUser = yield* Ref.get(runtime.lastUserMessageId)
-	return TurnCompletedEvent.make({
-		sequence: header.sequence,
-		eventId: header.eventId,
-		aggregateKind: "session",
-		aggregateId: runtime.sessionId,
-		occurredAt: header.occurredAt,
-		commandId: header.commandId,
-		causationEventId: null,
-		correlationId: header.commandId,
-		metadata: EMPTY_JSON_OBJECT,
-		type: "TurnCompleted",
-		payload: Option.match(lastUser, {
-			onNone: () => ({ sessionId: runtime.sessionId }),
-			onSome: (userMessageId) => ({
-				sessionId: runtime.sessionId,
-				turnId: TurnId.make(userMessageId)
-			})
-		})
-	})
-})
-
-// Builds the SAME contract event the tracer's ToolCallObserveCommand decider
-// produces (see decider.ts's "tool.call.observe" case) — ProjectionSessionActivities.ts
-// only knows how to turn a ToolCallObserved event into a
-// projection_session_activities row; a real OpenCode tool call folded into a
-// generic SessionMetaUpdated is invisible to that projector no matter what
-// its encoded metadata says (the same bug ClaudeAdapter.ts had).
-const makeToolCallObserved = Effect.fn("OpenCodeAdapter.makeToolCallObserved")(function*(
-	runtime: SessionRuntime,
-	input: {
-		readonly activityId: ActivityId
-		readonly toolCallId: string
-		readonly status: ObservedToolStatus
-		readonly title: string
-	}
-) {
-	const header = yield* stamp(runtime)
-	return ToolCallObservedEvent.make({
-		sequence: header.sequence,
-		eventId: header.eventId,
-		aggregateKind: "session",
-		aggregateId: runtime.sessionId,
-		occurredAt: header.occurredAt,
-		commandId: header.commandId,
-		causationEventId: null,
-		correlationId: header.commandId,
-		metadata: EMPTY_JSON_OBJECT,
-		type: "ToolCallObserved",
-		payload: {
-			sessionId: runtime.sessionId,
-			activityId: input.activityId,
-			toolCallId: ToolCallId.make(input.toolCallId),
-			operationId: null,
-			status: input.status,
-			title: input.title,
-			// OpenCodeMap.ts's tool parts don't carry a dedicated path field the
-			// way Claude's read/edit rawInput does — left null rather than
-			// guessing at one of several possible input shapes.
-			path: null
-		}
-	})
-})
-
-// A tool_call_update fact that arrives with no cached start info (e.g. a
-// tool-result part with no preceding tool part in this stream). Falls back
-// to a generic, still-nonempty title rather than dropping the status
-// transition on the floor.
-const FALLBACK_TOOL_TITLE = "Tool"
-
-const publishToolCallStarted = Effect.fn("OpenCodeAdapter.publishToolCallStarted")(function*(
-	runtime: SessionRuntime,
-	fact: Extract<OpenCodeContractFact, { readonly contractKind: "tool_call" }>
-) {
-	const activityId = toolCallActivityId(fact.toolCallId)
-	yield* Ref.update(runtime.openToolCalls, (current) =>
-		HashMap.set(current, fact.toolCallId, { activityId, title: fact.title }))
-	const event = yield* makeToolCallObserved(runtime, {
-		activityId,
-		toolCallId: fact.toolCallId,
-		status: fact.status,
-		title: fact.title
-	})
-	return yield* offerOutbound(runtime, event)
-})
-
-const publishToolCallUpdated = Effect.fn("OpenCodeAdapter.publishToolCallUpdated")(function*(
-	runtime: SessionRuntime,
-	fact: Extract<OpenCodeContractFact, { readonly contractKind: "tool_call_update" }>
-) {
-	if (fact.status === undefined) {
-		// A pure streaming-argument update (partialJson) — no status
-		// transition to project.
-		return
-	}
-	const cache = yield* Ref.get(runtime.openToolCalls)
-	const cached = HashMap.get(cache, fact.toolCallId)
-	const info: OpenToolCallInfo = Option.getOrElse(cached, () => ({
-		activityId: toolCallActivityId(fact.toolCallId),
-		title: FALLBACK_TOOL_TITLE
-	}))
-	const event = yield* makeToolCallObserved(runtime, {
-		activityId: info.activityId,
-		toolCallId: fact.toolCallId,
-		status: fact.status,
-		title: info.title
-	})
-	return yield* offerOutbound(runtime, event)
-})
-
-const publishFact = Effect.fn("OpenCodeAdapter.publishFact")(function*(
-	runtime: SessionRuntime,
-	fact: OpenCodeContractFact
-) {
-	if (fact.contractKind === "text_delta") {
-		const event = yield* makeTokenEvent(runtime, fact.token)
-		return yield* offerOutbound(runtime, event)
-	}
-	if (fact.contractKind === "turn_complete" || fact.contractKind === "turn_error") {
-		const event = yield* makeCompleted(runtime)
-		return yield* offerOutbound(runtime, event)
-	}
-	// A real OpenCode tool call must reach ProjectionSessionActivities as a
-	// ToolCallObserved event, not fold into a generic SessionMetaUpdated one.
-	if (fact.contractKind === "tool_call") {
-		return yield* publishToolCallStarted(runtime, fact)
-	}
-	if (fact.contractKind === "tool_call_update") {
-		return yield* publishToolCallUpdated(runtime, fact)
-	}
-	const event = yield* makeMetaEvent(runtime, fact)
-	return yield* offerOutbound(runtime, event)
-})
-
-const belongsToSession = (providerSessionId: Option.Option<string>, raw: Json): boolean => {
-	if (Option.isNone(providerSessionId)) {
-		return true
-	}
-	const eventSession = sseSessionId(raw)
-	if (Option.isNone(eventSession)) {
-		return true
-	}
-	return eventSession.value === providerSessionId.value
-}
-
-const publishSse = Effect.fn("OpenCodeAdapter.publishSse")(function*(
-	runtime: SessionRuntime,
-	raw: Json
-) {
-	const state = yield* Ref.get(runtime.streamState)
-	if (belongsToSession(state.providerSessionId, raw) === false) {
-		return
-	}
-	const mapped = mapSseJson(state, raw)
-	yield* Ref.set(runtime.streamState, mapped.state)
-	yield* Effect.forEach(mapped.facts, (fact) => publishFact(runtime, fact), { discard: true })
-})
-
-const requireSession = Effect.fn("OpenCodeAdapter.requireSession")(function*(
-	sessions: Ref.Ref<HashMap.HashMap<SessionId, SessionRuntime>>,
-	sessionId: SessionId,
-	operation: ProviderAdapterError["operation"]
-) {
-	const map = yield* Ref.get(sessions)
-	const found = HashMap.get(map, sessionId)
-	if (Option.isNone(found)) {
-		return yield* adapterError(operation, `No OpenCode session '${sessionId}'.`)
-	}
-	return found.value
-})
-
-const requireProviderSession = Effect.fn("OpenCodeAdapter.requireProviderSession")(function*(
-	runtime: SessionRuntime,
-	operation: ProviderAdapterError["operation"]
-) {
-	const state = yield* Ref.get(runtime.streamState)
-	if (Option.isNone(state.providerSessionId)) {
-		return yield* adapterError(
-			operation,
-			`OpenCode session '${runtime.sessionId}' has no provider session id.`
-		)
-	}
-	return state.providerSessionId.value
-})
 
 export const makeOpenCodeAdapter = Effect.fn("makeOpenCodeAdapter")(function*(
 	options: OpenCodeAdapterOptions
@@ -673,36 +253,6 @@ export const makeOpenCodeAdapter = Effect.fn("makeOpenCodeAdapter")(function*(
 		yield* Ref.update(sessions, (current) => HashMap.remove(current, request.sessionId))
 	})
 
-	const respondToPermission = Effect.fn("OpenCodeAdapter.respondToPermission")(function*(input: {
-		readonly sessionId: SessionId
-		readonly permissionId: string
-		readonly reply: OpenCodePermissionReply
-	}) {
-		if (isSafeRequestId(input.permissionId) === false) {
-			return yield* adapterError(
-				"sendPrompt",
-				`Request ID '${input.permissionId}' contains invalid characters (only alphanumeric, '-', '_' allowed)`
-			)
-		}
-		const runtime = yield* requireSession(sessions, input.sessionId, "sendPrompt")
-		yield* runtime.transport.replyPermission(input.permissionId, input.reply)
-	})
-
-	const respondToQuestion = Effect.fn("OpenCodeAdapter.respondToQuestion")(function*(input: {
-		readonly sessionId: SessionId
-		readonly questionId: string
-		readonly answers: ReadonlyArray<ReadonlyArray<string>>
-	}) {
-		if (isSafeRequestId(input.questionId) === false) {
-			return yield* adapterError(
-				"sendPrompt",
-				`Request ID '${input.questionId}' contains invalid characters (only alphanumeric, '-', '_' allowed)`
-			)
-		}
-		const runtime = yield* requireSession(sessions, input.sessionId, "sendPrompt")
-		yield* runtime.transport.replyQuestion(input.questionId, input.answers)
-	})
-
 	return {
 		providerId: OPENCODE_PROVIDER_ID,
 		capabilities: OPENCODE_CAPABILITIES,
@@ -710,264 +260,9 @@ export const makeOpenCodeAdapter = Effect.fn("makeOpenCodeAdapter")(function*(
 		startSession,
 		sendPrompt,
 		cancelTurn,
-		respondToPermission,
-		respondToQuestion
+		respondToPermission: (input) => respondToPermission(sessions, input),
+		respondToQuestion: (input) => respondToQuestion(sessions, input)
 	} satisfies OpenCodeAdapter
-})
-
-const COMPACT_COMMAND: OpenCodeCatalogCommand = {
-	name: "compact",
-	description: "compact the session"
-}
-
-const httpError = (
-	operation: ProviderAdapterError["operation"],
-	cause: { readonly message?: string },
-	fallback: string
-): ProviderAdapterError => {
-	if (cause.message !== undefined && Str.isNonEmpty(cause.message)) {
-		return adapterError(operation, cause.message)
-	}
-	return adapterError(operation, fallback)
-}
-
-const supportsToolCalls = (model: typeof OpenCodeProviderModel.Type): boolean => {
-	if (model.capabilities === undefined || model.capabilities.toolcall === undefined) {
-		return true
-	}
-	return model.capabilities.toolcall
-}
-
-const flattenProviderModels = (
-	response: typeof OpenCodeProviderResponse.Type
-): ReadonlyArray<OpenCodeCatalogModel> => {
-	const connected = HashMap.fromIterable(Arr.map(response.connected, (id) => [id, true] as const))
-	return Arr.flatMap(response.all, (provider) => {
-		if (HashMap.has(connected, provider.id) === false) {
-			return Arr.empty<OpenCodeCatalogModel>()
-		}
-		return Rec.reduce(
-			provider.models,
-			Arr.empty<OpenCodeCatalogModel>(),
-			(acc, model, modelKey) => {
-				if (supportsToolCalls(model) === false) {
-					return acc
-				}
-				return Arr.append(acc, {
-					modelId: `${provider.id}/${modelKey}`,
-					name: model.name
-				})
-			}
-		)
-	})
-}
-
-const promptJson = (body: OpenCodePromptBody): JsonObject => ({
-	directory: body.directory,
-	model: {
-		providerID: body.model.providerID,
-		modelID: body.model.modelID
-	},
-	agent: body.agent,
-	parts: Arr.map(body.parts, (part) => ({
-		type: part.type,
-		text: part.text
-	}))
-})
-
-export const liveCreateTransport = Effect.fn("liveCreateTransport")(function*(input: {
-	readonly workspaceRoot: string
-	readonly command: string
-	readonly args: ReadonlyArray<string>
-	readonly env: Readonly<Record<string, string>>
-	readonly http: HttpClient.HttpClient
-	readonly spawner: ChildProcessSpawner.ChildProcessSpawner["Service"]
-}) {
-	const scope = yield* Scope.make()
-	const child = yield* input.spawner
-		.spawn(
-			ChildProcess.make(input.command, input.args, {
-				cwd: input.workspaceRoot,
-				env: input.env,
-				extendEnv: false,
-				detached: false
-			})
-		)
-		.pipe(
-			Effect.provideService(Scope.Scope, scope),
-			Effect.mapError((cause) =>
-				httpError("startSession", cause, "Failed to start OpenCode")
-			)
-		)
-	const serveUrl = yield* child.stdout.pipe(
-		Stream.decodeText,
-		Stream.splitLines,
-		Stream.filterMap(Filter.fromPredicateOption(parseServeUrl)),
-		Stream.take(1),
-		Stream.runHead,
-		Effect.timeout(READY_TIMEOUT),
-		Effect.mapError((cause) =>
-			httpError("startSession", cause, "Failed to get port after starting")
-		)
-	)
-	if (Option.isNone(serveUrl)) {
-		yield* child.kill().pipe(Effect.ignore)
-		yield* Scope.close(scope, Exit.succeed(undefined)).pipe(Effect.ignore)
-		return yield* adapterError("startSession", "Failed to get port after starting")
-	}
-	const urls = openCodeUrls(
-		`http://127.0.0.1:${String(serveUrl.value.port)}${serveUrl.value.apiPrefix}`
-	)
-	const http = input.http.pipe(HttpClient.filterStatusOk)
-	yield* http.get(urls.config).pipe(
-		Effect.asVoid,
-		Effect.retry(Schedule.spaced(READY_INTERVAL)),
-		Effect.timeout(READY_TIMEOUT),
-		Effect.mapError((cause) =>
-			httpError(
-				"startSession",
-				cause,
-				`OpenCode not ready after ${String(Duration.toMillis(READY_TIMEOUT))}ms`
-			)
-		)
-	)
-	const postJson = Effect.fn("OpenCodeAdapter.postJson")(function*(
-		operation: ProviderAdapterError["operation"],
-		url: string,
-		body: Json
-	) {
-		const encoded = yield* HttpBody.json(body).pipe(
-			Effect.mapError((cause) =>
-				httpError(operation, cause, "OpenCode request body was not JSON")
-			)
-		)
-		return yield* http.post(url, { body: encoded }).pipe(
-			Effect.mapError((cause) => httpError(operation, cause, "OpenCode HTTP request failed"))
-		)
-	})
-	const events = HttpClientResponse.stream(
-		http.get(urls.globalEvent, {
-			accept: "text/event-stream",
-			headers: {
-				"accept-encoding": "identity"
-			}
-		})
-	).pipe(
-		Stream.decodeText,
-		Stream.splitLines,
-		Stream.mapAccum(() => emptySseLineFold, (fold, line) => {
-			const consumed = consumeSseLine(fold, line)
-			return [
-				consumed.fold,
-				Option.match(consumed.raw, {
-					onNone: () => Arr.empty<string>(),
-					onSome: (text) => Arr.of(text)
-				})
-			]
-		}),
-		Stream.mapError((cause) =>
-			httpError("startSession", cause, "OpenCode SSE stream failed")
-		),
-		Stream.mapEffect((text) =>
-			decodeJson(text).pipe(
-				Effect.mapError(() => adapterError("startSession", "OpenCode SSE event was not JSON"))
-			)
-		)
-	)
-	const createSession = Effect.gen(function*() {
-		const response = yield* postJson("startSession", urls.session, {
-			directory: input.workspaceRoot
-		})
-		return yield* HttpClientResponse.schemaBodyJson(OpenCodeSessionRecordSchema)(response).pipe(
-			Effect.mapError((cause) =>
-				httpError("startSession", cause, "OpenCode session response was invalid")
-			)
-		)
-	})
-	const listModels = Effect.gen(function*() {
-		const response = yield* http.get(urls.provider).pipe(
-			Effect.mapError((cause) =>
-				httpError("startSession", cause, "OpenCode provider catalog failed")
-			)
-		)
-		const jsonBody = yield* HttpClientResponse.schemaBodyJson(Schema.Json)(response).pipe(
-			Effect.mapError((cause) =>
-				httpError("startSession", cause, "OpenCode provider catalog was not JSON")
-			)
-		)
-		const decoded = yield* decodeProviderResponse(jsonBody).pipe(
-			Effect.mapError((cause) =>
-				httpError("startSession", cause, "OpenCode provider catalog was invalid")
-			)
-		)
-		const models = flattenProviderModels(decoded)
-		const configResponse = yield* http.get(urls.config).pipe(
-			Effect.flatMap((ok) => HttpClientResponse.schemaBodyJson(Schema.Json)(ok)),
-			Effect.flatMap(decodeConfigResponse),
-			Effect.option
-		)
-		const configured = Option.flatMap(configResponse, (config) =>
-			config.model === undefined || Str.isEmpty(Str.trim(config.model))
-				? Option.none<string>()
-				: Option.some(config.model)
-		)
-		const currentModelId = Option.flatMap(configured, (modelId) =>
-			resolveConfiguredModel(
-				modelId,
-				Arr.map(models, (model) => model.modelId)
-			)
-		)
-		return {
-			models,
-			currentModelId
-		}
-	})
-	const listCommands = Effect.gen(function*() {
-		const response = yield* http
-			.get(urls.command, {
-				urlParams: [["directory", input.workspaceRoot]]
-			})
-			.pipe(Effect.option)
-		if (Option.isNone(response)) {
-			return [COMPACT_COMMAND]
-		}
-		const jsonBody = yield* HttpClientResponse.schemaBodyJson(Schema.Json)(response.value).pipe(
-			Effect.option
-		)
-		if (Option.isNone(jsonBody)) {
-			return [COMPACT_COMMAND]
-		}
-		const decoded = yield* decodeCommandResponse(jsonBody.value).pipe(Effect.option)
-		if (Option.isNone(decoded)) {
-			return [COMPACT_COMMAND]
-		}
-		return Arr.map(decoded.value, (command) => ({
-			name: command.name,
-			description: command.description === undefined ? "" : command.description
-		}))
-	})
-	return {
-		events,
-		createSession,
-		listModels,
-		listCommands,
-		sendPrompt: (providerSessionId, body) =>
-			postJson("sendPrompt", urls.promptAsync(providerSessionId), promptJson(body)).pipe(
-				Effect.asVoid
-			),
-		abort: (providerSessionId) =>
-			postJson("cancelTurn", urls.abort(providerSessionId), {
-				directory: input.workspaceRoot
-			}).pipe(Effect.asVoid),
-		replyPermission: (requestId, reply) =>
-			postJson("sendPrompt", urls.permissionReply(requestId), { reply }).pipe(Effect.asVoid),
-		replyQuestion: (requestId, answers) =>
-			postJson("sendPrompt", urls.questionReply(requestId), { answers }).pipe(Effect.asVoid),
-		close: child.kill().pipe(
-			Effect.flatMap(() => Scope.close(scope, Exit.succeed(undefined))),
-			Effect.ignore
-		)
-	} satisfies OpenCodeTransport
 })
 
 export const makeLiveOpenCodeAdapter = Effect.fn("makeLiveOpenCodeAdapter")(function*() {
@@ -986,7 +281,7 @@ export const makeLiveOpenCodeAdapter = Effect.fn("makeLiveOpenCodeAdapter")(func
 	// resolves its global config to an app-owned, empty-by-default directory
 	// instead of the operator's ~/.config/opencode (which carries personal
 	// MCP servers, agents, and plugins) — see OPENCODE_ISOLATED_CONFIG_ENV_KEY
-	// in OpenCodeProvider.ts for the empirical evidence. TMPDIR falls back to
+	// in Provider.ts for the empirical evidence. TMPDIR falls back to
 	// "/tmp" when unset, matching the POSIX default.
 	const tmpDir = yield* Config.option(Config.string("TMPDIR")).pipe(
 		Effect.map((value) => Option.getOrElse(value, () => "/tmp"))

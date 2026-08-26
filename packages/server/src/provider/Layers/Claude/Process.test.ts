@@ -5,7 +5,7 @@ import { buildClaudeQueryOptions } from "./Process.ts"
 // These pin down the isolation fix's actual mechanism: the SDK's query()
 // options constructed for a live session must exclude the operator's
 // personal ~/.claude config while keeping the target repo's own project
-// settings — see buildClaudeQueryOptions' doc comment in ClaudeAdapter.ts
+// settings — see buildClaudeQueryOptions' doc comment in Adapter.ts
 // for the empirical evidence behind these exact values.
 Vitest.describe("buildClaudeQueryOptions", () => {
 	const fakeCanUseTool = (() =>

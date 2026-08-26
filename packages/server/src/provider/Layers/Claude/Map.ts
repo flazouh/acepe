@@ -222,7 +222,7 @@ export const detectClaudeToolKind = (name: string): ClaudeAcpToolKind => {
 
 // Field names the various Claude tools use for their primary path-shaped
 // input, checked in order. Mirrors the "filePath"/"file_path" duality
-// CodexNativeMap.ts's extractToolFields already relies on for the same
+// Codex/Map.ts's extractToolFields already relies on for the same
 // read/edit kinds -- Claude's own tool schemas use snake_case exclusively,
 // but staying permissive costs nothing.
 const PATH_INPUT_KEYS = ["file_path", "path", "notebook_path"] as const
@@ -255,7 +255,7 @@ const toolCallPrimaryInputHint = (
 	return Option.none()
 }
 
-// Mirrors CodexNativeMap.ts's extractToolFields titling convention (e.g.
+// Mirrors Codex/Map.ts's extractToolFields titling convention (e.g.
 // "Read /tmp/example.rs", or the bare command for execute with no tool-name
 // prefix) so the same session activity row reads consistently regardless of
 // which provider produced it. Falls back to the bare tool name when no hint
@@ -770,7 +770,7 @@ const mapSystem = (state: ClaudeStreamState, record: JsonObject): ClaudeMapResul
 // tool_result branch in mapAssistantContent above was DEAD for every real
 // Claude turn: a tool call's start (tool_use) always arrived, but nothing
 // ever closed it, exactly the second half of the live QA bug this fixes (the
-// first half was ClaudeAdapter.ts folding tool facts into SessionMetaUpdated
+// first half was Adapter.ts folding tool facts into SessionMetaUpdated
 // instead of ToolCallObserved). Deliberately narrow -- unlike
 // mapAssistantContent, this does NOT touch sawTextDelta/sawThinkingDelta:
 // a real tool_result user message never carries text/thinking blocks, and

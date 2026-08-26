@@ -17,7 +17,7 @@ import { probeClaudePresence } from "./Provider.ts"
 const PlatformLive = Layer.mergeAll(BunFileSystem.layer, BunPath.layer)
 
 // This is the ONE real-adapter integration test called for by the
-// real-provider-wiring lane: it drives ClaudeAdapter.ts's live constructor
+// real-provider-wiring lane: it drives Adapter.ts's live constructor
 // against the real @anthropic-ai/claude-agent-sdk `query()` (no fake
 // createQuery), exactly the seam ProviderBridge.ts uses in production. If
 // this machine has no Claude CLI/credentials, it skips cleanly — it must
@@ -50,7 +50,7 @@ Vitest.describe("ClaudeAdapter (live integration)", () => {
 
 				const collectedTokens: Array<string> = []
 				let turnDone = false
-				// ClaudeAdapter.ts only registers its internal session once its
+				// Adapter.ts only registers its internal session once its
 				// startSession stream actually starts running (inside
 				// Stream.unwrap), so sendPrompt below must wait for that — the
 				// same race ProviderBridge.ts's openSession guards against via

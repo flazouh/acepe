@@ -7,12 +7,23 @@ import * as Path from "effect/Path"
 import * as Str from "effect/String"
 import {
 	isCapabilityEnabled,
+	ProviderAdapterError,
 	ProviderCapabilities,
 	ProviderId,
 	type ProviderPresence
 } from "../../Services/ProviderAdapter.ts"
 
 export const OPENCODE_PROVIDER_ID: ProviderId = ProviderId.make("opencode")
+
+export const adapterError = (
+	operation: ProviderAdapterError["operation"],
+	detail: string
+): ProviderAdapterError =>
+	new ProviderAdapterError({
+		providerId: OPENCODE_PROVIDER_ID,
+		operation,
+		detail
+	})
 
 export const OPENCODE_DEFERRED_SESSION_CREATION = false
 
@@ -51,7 +62,7 @@ export const OPENCODE_ALLOWED_ENV_KEYS = [
 ] as const
 
 // Isolation audit (companion to CLAUDE_ISOLATED_SETTING_SOURCES in
-// ClaudeProvider.ts and CODEX_APP_SERVER_ARGS in CodexProvider.ts): the
+// Claude/Provider.ts and CODEX_APP_SERVER_ARGS in Codex/Provider.ts): the
 // opencode CLI resolves its global config at $XDG_CONFIG_HOME/opencode (XDG
 // default: $HOME/.config), and HOME is in OPENCODE_ALLOWED_ENV_KEYS above,
 // so the spawned `opencode serve` inherits the operator's
@@ -69,7 +80,7 @@ export const OPENCODE_ALLOWED_ENV_KEYS = [
 //     opencode keeps auth.json under $XDG_DATA_HOME (default
 //     $HOME/.local/share), a separate XDG variable this override doesn't
 //     touch — unlike Codex's CODEX_HOME, which conflates config and auth
-//     into one directory (see CodexProvider.ts's CODEX_APP_SERVER_ARGS doc
+//     into one directory (see Codex/Provider.ts's CODEX_APP_SERVER_ARGS doc
 //     comment for why a from-scratch CODEX_HOME was rejected).
 //   - project-level context still loads: a project-root opencode.json's
 //     agents/config show up in `/agent` / `/config` unaffected by the
@@ -83,7 +94,7 @@ export const OPENCODE_ISOLATED_CONFIG_DIRNAME = "acepe-opencode-isolated-config"
 // existing ~/.config-adjacent path: opencode auto-creates whatever it's
 // pointed at (verified above), and nothing seeds this directory today, so
 // there's no persistence requirement yet — see the "today likely empty"
-// mcpServers seam note on CLAUDE_SESSION_MCP_SERVERS in ClaudeProvider.ts
+// mcpServers seam note on CLAUDE_SESSION_MCP_SERVERS in Claude/Provider.ts
 // for the analogous pattern.
 export const resolveOpenCodeIsolatedConfigDir = (path: Path.Path, tmpDir: string): string =>
 	path.join(tmpDir, OPENCODE_ISOLATED_CONFIG_DIRNAME)

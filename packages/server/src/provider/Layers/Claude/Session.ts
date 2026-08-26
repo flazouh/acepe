@@ -42,7 +42,7 @@ const EMPTY_JSON_OBJECT: JsonObject = {}
 
 // What a "tool_call" fact recorded about a tool call, kept around so the
 // LATER "tool_call_update" fact (which carries only toolCallId + a new
-// status -- see ToolCallUpdateFact in ClaudeSdkMap.ts) can still publish a
+// status -- see ToolCallUpdateFact in Map.ts) can still publish a
 // complete ToolCallObservedEvent: the projector's ToolCallObservedPayload
 // requires a title on every row, not just the first one -- see
 // ProjectionSessionActivities.ts's observedToolRow.
