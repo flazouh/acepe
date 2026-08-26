@@ -416,7 +416,7 @@ Vitest.describe("evolveProjectedSession", () => {
 					}),
 					{
 						...sessionEvent(2, "SessionMetaUpdated", LATER, { sessionId }),
-						metadata: { type: "provider_session", providerSessionId: "claude-uuid-42" }
+						metadata: { contractKind: "provider_session", providerSessionId: "claude-uuid-42" }
 					}
 				])
 			)
@@ -435,7 +435,7 @@ Vitest.describe("evolveProjectedSession", () => {
 					}),
 					{
 						...sessionEvent(2, "SessionMetaUpdated", LATER, { sessionId }),
-						metadata: { type: "provider_session", providerSessionId: "claude-uuid-42" }
+						metadata: { contractKind: "provider_session", providerSessionId: "claude-uuid-42" }
 					},
 					{
 						...sessionEvent(3, "SessionMetaUpdated", LATER, { sessionId, title: "Renamed" }),
@@ -500,7 +500,7 @@ Vitest.describe("evolveProjectedSession", () => {
 					}),
 					{
 						...sessionEvent(2, "SessionMetaUpdated", LATER, { sessionId }),
-						metadata: { type: "provider_session", providerSessionId: "claude-uuid-42" }
+						metadata: { contractKind: "provider_session", providerSessionId: "claude-uuid-42" }
 					}
 				])
 			)

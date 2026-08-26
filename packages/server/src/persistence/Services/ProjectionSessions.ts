@@ -216,7 +216,10 @@ const decodePayload = <S extends Schema.Top>(schema: S, value: unknown) =>
 // the projection layer must not know which real provider produced the fact,
 // only that the shape matches.
 const ProviderSessionFactMetadata = Schema.Struct({
-	type: Schema.Literal("provider_session"),
+	// The adapters' encodeContractFact writes the discriminator as
+	// `contractKind` (live-verified event metadata:
+	// {"contractKind":"provider_session","providerSessionId":"<uuid>"}).
+	contractKind: Schema.Literal("provider_session"),
 	providerSessionId: TrimmedNonEmptyString
 })
 
