@@ -19,6 +19,7 @@ import {
 	type ProjectLoadPerformanceTrace,
 } from "$lib/acp/logic/project-manager.svelte.js";
 import { setSelectorRegistryContext } from "$lib/acp/logic/selector-registry.svelte.js";
+import { installQaCaptureHook } from "$lib/rpc/qa-capture-hook.ts";
 import { installQaDispatchHook } from "$lib/rpc/qa-dispatch-hook.ts";
 import {
 	agentModelPreferencesStore,
@@ -1792,6 +1793,7 @@ onMount(async () => {
 	installQaStartupTraceHook();
 	if (QA_HOOKS_ENABLED) {
 		installQaDispatchHook();
+		installQaCaptureHook();
 	}
 
 	// Initialize the app state (handles all initialization logic including background scan)

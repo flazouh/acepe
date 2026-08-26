@@ -100,6 +100,14 @@ export class QaScreenshotDisabled extends Schema.TaggedError<QaScreenshotDisable
 	}
 }
 
+export class QaCaptureFailed extends Schema.TaggedError<QaCaptureFailed>()("QaCaptureFailed", {
+	reason: Schema.String,
+}) {
+	override get message(): string {
+		return `QaCaptureFailed: ${this.reason}`
+	}
+}
+
 export type QaError =
 	| QaAppNotRunning
 	| QaResponseTimeout
@@ -112,3 +120,4 @@ export type QaError =
 	| QaSocketError
 	| QaEvalFailed
 	| QaScreenshotDisabled
+	| QaCaptureFailed

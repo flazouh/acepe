@@ -104,7 +104,7 @@ cliLog(await snapshotText())`,
 				stdin: Effect.succeed(""),
 			})
 			expect(result.code).toBe(0)
-			expect(result.lines[0]).toBe("electrobun-qa run | doctor | help")
+			expect(result.lines[0]).toBe("electrobun-qa run | doctor | capture | help")
 			expect(result.lines.some((line) => line.includes("snapshotText"))).toBe(true)
 			expect(result.lines.some((line) => line.includes("cliLog"))).toBe(true)
 		}),

@@ -20,6 +20,9 @@
 		"test": "bun --bun vitest run"
 	},
 	"dependencies": {
+		"@acepe/contracts": "workspace:*",
+		"@acepe/qa-scenario": "workspace:*",
+		"@effect/platform-bun": "catalog:",
 		"effect": "catalog:"
 	},
 	"devDependencies": {

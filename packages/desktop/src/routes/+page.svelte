@@ -11,6 +11,7 @@ import { makeElectrobunRpcTransport } from "$lib/rpc/client.ts";
 import { provideAppRpcClient } from "$lib/rpc/app-client.ts";
 import { installElectrobunWebviewRpc } from "$lib/rpc/electrobun-bridge.ts";
 import { desktopShellKind, type DesktopShellKind } from "$lib/rpc/electrobun-shell-window.ts";
+import { installQaCaptureHook } from "$lib/rpc/qa-capture-hook.ts";
 import { installQaDispatchHook } from "$lib/rpc/qa-dispatch-hook.ts";
 
 // Same QA-hooks gate as main-app-view.svelte's QA_HOOKS_ENABLED /
@@ -62,6 +63,7 @@ onMount(() => {
 							// installed here, before it renders.
 							if (useScaffold && QA_HOOKS_ENABLED) {
 								installQaDispatchHook();
+								installQaCaptureHook();
 							}
 						}, 0);
 					}),
