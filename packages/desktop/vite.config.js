@@ -72,6 +72,59 @@ function acepeUiPackageDev() {
 	};
 }
 
+const STYLESHEET_UPDATE_PATH = "/src/app.css";
+
+/**
+ * Take the Tailwind stylesheet off the HMR critical path.
+ *
+ * @tailwindcss/vite registers every file it scans as a watch dependency of
+ * src/app.css, so editing any component invalidates the stylesheet as well.
+ * Vite's client awaits every fetch of one update batch before it applies any of
+ * them (Promise.all in HMRClient.queueUpdate), and regenerating this stylesheet
+ * costs ~85ms while the component module itself is a ~13ms cache hit. Measured
+ * on a component edit: 179ms save-to-repaint with the stylesheet in the batch,
+ * 124ms without it, and the client-side share drops from ~110ms to ~25ms.
+ *
+ * So send the stylesheet as its own update on the next macrotask. Styles still
+ * arrive, they just land after the markup instead of gating it. Tailwind
+ * regenerates byte-identical CSS for every edit that adds no new utility class,
+ * which is most edits, and then nothing changes on screen at all.
+ *
+ * Editing app.css itself keeps the normal path.
+ *
+ * @returns {import("vite").Plugin}
+ */
+function acepeDeferStylesheetHmr() {
+	return {
+		name: "acepe-defer-stylesheet-hmr",
+		apply: "serve",
+		configureServer(server) {
+			const environment = server.environments.client;
+			const send = environment.hot.send.bind(environment.hot);
+
+			// The stylesheet is not one of the changed file's modules: Vite finds it
+			// while walking importers for accept boundaries, after the hotUpdate
+			// hooks run. The finished payload is the first place both appear
+			// together, so split it here.
+			environment.hot.send = (...args) => {
+				const payload = args.length === 1 ? args[0] : undefined;
+				if (payload?.type !== "update") {
+					return send(...args);
+				}
+				const stylesheet = payload.updates.filter(
+					(update) => update.path === STYLESHEET_UPDATE_PATH
+				);
+				const rest = payload.updates.filter((update) => update.path !== STYLESHEET_UPDATE_PATH);
+				if (stylesheet.length === 0 || rest.length === 0) {
+					return send(...args);
+				}
+				send({ type: "update", updates: rest });
+				setTimeout(() => send({ type: "update", updates: stylesheet }), 0);
+			};
+		},
+	};
+}
+
 const ignoredDevWatchPaths = [
 	"**/src-tauri/**",
 	// The built Electrobun app lives here. Watching it made every build artifact
@@ -97,7 +150,7 @@ export default defineConfig({
 	worker: {
 		format: "es",
 	},
-	plugins: [acepeUiPackageDev(), sveltekit(), tailwindcss()],
+	plugins: [acepeUiPackageDev(), sveltekit(), tailwindcss(), acepeDeferStylesheetHmr()],
 
 	resolve: {
 		// Canonical @acepe/ui module identity for watcher + HMR alignment.

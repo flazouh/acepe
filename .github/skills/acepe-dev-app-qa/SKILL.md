@@ -201,10 +201,12 @@ QA is only valid against a build that actually contains the code under test.
   `packages/ui/src`)** needs no rebuild under `bun run app:dev`. Save the file,
   wait about 1 second, then QA. Confirm the window is on the dev server first:
   `bun run qa doctor` prints `url: http://localhost:1420`.
-  HMR repaints the component in place, measured at 0.3 s, with no page reload,
-  so app state survives the edit. If an edit does not show up, check that
-  `resolve.dedupe` in `vite.config.js` still lists `svelte`: a second copy of the
-  Svelte runtime silently swallows every component update.
+  HMR repaints the component in place in 80-180 ms, with no page reload, so app
+  state survives the edit. A new Tailwind class lands within the same 250 ms,
+  through a separate update (see `acepeDeferStylesheetHmr()` in
+  `vite.config.js`). If an edit does not show up, check that `resolve.dedupe` in
+  `vite.config.js` still lists `svelte`: a second copy of the Svelte runtime
+  silently swallows every component update.
 - **Electrobun shell (`packages/desktop/src/bun` and `packages/electrobun-shell`)**
   and the Bun services need `bun run electrobun:build` and a new open of the app.
 

@@ -29,9 +29,17 @@ bun run app:dev:stop     # Stop the dev server and the app
 
 `app:dev` points the window at the Vite dev server on port 1420, so a change
 under `packages/desktop/src` or `packages/ui/src` repaints the running app in
-about 0.3 seconds through HMR, with no rebuild, no relaunch and no page reload.
-Only Bun-side changes (`src/bun`, `@acepe/electrobun-shell`, `@acepe/server`)
-need `electrobun:build`.
+80-180 ms through HMR, with no rebuild, no relaunch and no page reload. Only
+Bun-side changes (`src/bun`, `@acepe/electrobun-shell`, `@acepe/server`) need
+`electrobun:build`.
+
+Most of what is left is the Svelte compile, which `vite-plugin-svelte` runs
+before Vite may notify the page. Two things in `packages/desktop` keep the
+Tailwind stylesheet out of that budget, and both have the measurements in their
+comments: `acepeDeferStylesheetHmr()` in `vite.config.js` sends the stylesheet as
+its own HMR update, because Vite's client applies one update batch only after
+every fetch in it resolves and the stylesheet rebuild costs ~85 ms; the
+`@source not` lines in `src/app.css` keep 773 test files out of Tailwind's scan.
 
 **Git hooks (Lefthook):** `bun install` runs `lefthook install`. Pre-commit = Biome on staged files + cheap forbids. Pre-push = path-aware CI mirror (`scripts/git-hooks/pre-push-affected.ts`). Override locally with `lefthook-local.yml` (gitignored).
 
