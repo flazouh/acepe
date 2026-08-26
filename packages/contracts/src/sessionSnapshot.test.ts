@@ -146,6 +146,26 @@ describe("applyEventToRpcSessionSnapshot", () => {
 		expect(linked.session?.title).toBe("First session")
 	})
 
+	it("captures providerSessionId from a provider_session SessionMetaUpdated fact", () => {
+		const afterSession = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), sessionCreated)
+		const linked = applyEventToRpcSessionSnapshot(afterSession, {
+			sequence: 3,
+			eventId: EventId.make("event-3"),
+			aggregateKind: "session",
+			aggregateId: sessionId,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: { type: "provider_session", providerSessionId: "claude-uuid-42" },
+			type: "SessionMetaUpdated",
+			payload: {
+				sessionId,
+			},
+		})
+		expect(linked.session?.providerSessionId).toBe("claude-uuid-42")
+	})
+
 	it("discards a SessionMetaUpdated at or below snapshotSequence", () => {
 		const afterSession = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), sessionCreated)
 		const skipped = applyEventToRpcSessionSnapshot(afterSession, {

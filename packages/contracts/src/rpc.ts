@@ -291,6 +291,11 @@ export const RpcProjectedSession = Schema.Struct({
 	deletedAt: Schema.NullOr(IsoDateTime),
 	prNumber: SessionPrNumber.pipe(Schema.NullOr),
 	prLinkMode: SessionPrLinkMode.pipe(Schema.NullOr),
+	// The provider's own session identity (e.g. a Claude Code JSONL uuid).
+	// Null until the provider's first durable message promotes its session
+	// id, and forever null for a session the tracer owns. See
+	// packages/server/src/persistence/Services/ProjectionSessions.ts.
+	providerSessionId: Schema.NullOr(TrimmedNonEmptyString),
 })
 export type RpcProjectedSession = typeof RpcProjectedSession.Type
 

@@ -97,6 +97,7 @@ const touchSession = (
 		deletedAt: session.deletedAt,
 		prNumber: session.prNumber,
 		prLinkMode: session.prLinkMode,
+		providerSessionId: session.providerSessionId,
 	}
 }
 
@@ -183,8 +184,28 @@ const applySessionCreated = (
 		deletedAt: null,
 		prNumber: null,
 		prLinkMode: null,
+		providerSessionId: null,
 	}
 	return replaceMessages(snapshot, event.sequence, snapshot.messages, session)
+}
+
+// Same provider-agnostic decode as the server's projectSessionMetaUpdated
+// (packages/server/src/persistence/Services/ProjectionSessions.ts): every
+// real-provider adapter encodes an unhandled provider_session contract fact
+// onto a generic SessionMetaUpdated event's metadata the same way.
+const ProviderSessionFactMetadata = Schema.Struct({
+	type: Schema.Literal("provider_session"),
+	providerSessionId: TrimmedNonEmptyString,
+})
+
+const providerSessionIdFromMetadata = (
+	metadata: OrchestrationEvent["metadata"],
+): string | null => {
+	const decoded = Schema.decodeUnknownOption(ProviderSessionFactMetadata)(metadata)
+	return Option.match(decoded, {
+		onNone: () => null,
+		onSome: (fact) => fact.providerSessionId,
+	})
 }
 
 const applySessionMetaUpdated = (
@@ -198,6 +219,7 @@ const applySessionMetaUpdated = (
 		return withSequence(snapshot, event.sequence)
 	}
 	const current = snapshot.session
+	const providerSessionId = providerSessionIdFromMetadata(event.metadata)
 	const session: RpcProjectedSession = {
 		sessionId: current.sessionId,
 		projectId: current.projectId,
@@ -212,6 +234,7 @@ const applySessionMetaUpdated = (
 			event.payload.prNumber !== undefined ? event.payload.prNumber : current.prNumber,
 		prLinkMode:
 			event.payload.prLinkMode !== undefined ? event.payload.prLinkMode : current.prLinkMode,
+		providerSessionId: providerSessionId !== null ? providerSessionId : current.providerSessionId,
 	}
 	return replaceMessages(snapshot, event.sequence, snapshot.messages, session)
 }
