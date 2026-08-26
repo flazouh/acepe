@@ -22,6 +22,13 @@ type InflightSessionStateRefresh = Effect.Effect<void, AppError>;
 export interface AwaitingModelRefreshDeps {
 	refreshSessionStateSnapshot: (sessionId: string) => InflightSessionStateRefresh;
 	getCanonicalProjection: (sessionId: string) => CanonicalSessionProjection | null;
+	// SessionStateRefreshController.hasGivenUpOnSession -- once a session has
+	// failed to refresh repeatedly (a definitive failure, not a transient
+	// one), stop re-arming this timer for it. Without this check, every
+	// lifecycle envelope that still shows "awaiting_model"/"Running" re-arms
+	// a fresh 5s timer that fires straight back into a refresh doomed to
+	// fail the same way -- the 90+ second SESSION_NOT_FOUND loop in AC #266.
+	hasGivenUpOnSession: (sessionId: string) => boolean;
 }
 
 export class AwaitingModelRefreshStore {
@@ -40,6 +47,9 @@ export class AwaitingModelRefreshStore {
 	): void {
 		this.clearAwaitingModelRefreshTimer(sessionId);
 		if (activity.kind !== "awaiting_model" && turnState !== "Running") {
+			return;
+		}
+		if (this.#deps.hasGivenUpOnSession(sessionId)) {
 			return;
 		}
 

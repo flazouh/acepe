@@ -404,6 +404,7 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 		refreshSessionStateSnapshot: (sessionId) =>
 			stateRefreshController.refreshSessionStateSnapshot(sessionId),
 		getCanonicalProjection,
+		hasGivenUpOnSession: (sessionId) => stateRefreshController.hasGivenUpOnSession(sessionId),
 	});
 	awaitingModelRefreshRef.current = awaitingModelRefresh;
 
