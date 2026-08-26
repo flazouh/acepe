@@ -213,6 +213,10 @@ describe("OrchestrationCanonicalBridge", () => {
 		if (approvalPayload.payload.kind === "delta") {
 			expect(approvalPayload.payload.delta.interactionPatches[0]?.id).toBe("approval-1");
 			expect(approvalPayload.payload.delta.interactionPatches[0]?.kind).toBe("Permission");
+			// #268 defect 2: an approval renders as its own transcript row too.
+			expect(approvalPayload.payload.delta.toRevision.transcriptRevision).toBeGreaterThan(
+				approvalPayload.payload.delta.fromRevision.transcriptRevision
+			);
 		} else {
 			throw new Error("expected a delta envelope");
 		}
@@ -335,6 +339,69 @@ describe("OrchestrationCanonicalBridge", () => {
 		expect(secondDelta.changedFields).not.toContain("transcriptSnapshot");
 		expect(secondDelta.changedFields).toContain("operations");
 		expect(secondDelta.changedFields).toContain("activity");
+	});
+
+	// #268 defect 2: ApprovalRequested used to patch session.interactions ONLY
+	// -- zero transcriptOperations, so a pending approval never appeared in the
+	// transcript at all (the tool-row analog of the bug ToolCallObserved had
+	// before AC-263). A pending approval must now render as its own actionable
+	// row: an appended "tool"-role transcript entry, transcript-linked to a
+	// pending operation, with the interaction's Permission.tool.callId
+	// stamped to that same row id so the existing tool-call-attached
+	// PermissionBar (getForToolCall) picks it up and renders Allow/Deny.
+	it("appends a tool transcript entry on ApprovalRequested, with the interaction's tool reference stamped to that row", () => {
+		const bridge = makeBridge();
+		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
+
+		const envelopes = runTranslate(
+			bridge,
+			makeEvent("ApprovalRequested", {
+				sessionId,
+				approvalRequestId: "approval-1",
+				title: "Run rm -rf build/",
+			})
+		);
+
+		expect(envelopes).toHaveLength(1);
+		const payload = envelopes[0]?.payload as SessionStateEnvelope;
+		expect(payload.payload.kind).toBe("delta");
+		if (payload.payload.kind !== "delta") {
+			throw new Error("expected a delta envelope");
+		}
+		const delta = payload.payload.delta;
+
+		expect(delta.transcriptOperations).toHaveLength(1);
+		const [op] = delta.transcriptOperations;
+		expect(op?.kind).toBe("appendEntry");
+		if (op?.kind !== "appendEntry") {
+			throw new Error("expected an appendEntry transcript operation");
+		}
+		expect(op.entry.role).toBe("tool");
+		const approvalEntryId = op.entry.entryId;
+
+		expect(delta.operationPatches).toHaveLength(1);
+		const [operation] = delta.operationPatches;
+		expect(operation?.tool_call_id).toBe("approval-1");
+		expect(operation?.source_link).toEqual({ kind: "transcript_linked", entry_id: approvalEntryId });
+
+		expect(delta.interactionPatches).toHaveLength(1);
+		const [interaction] = delta.interactionPatches;
+		expect(interaction?.kind).toBe("Permission");
+		if (interaction === undefined || !("Permission" in interaction.payload)) {
+			throw new Error("expected a Permission interaction");
+		}
+		// The row-attachment lookup (permission-store.svelte.ts's getForToolCall)
+		// keys strictly on this field -- without it the row renders but the
+		// Allow/Deny bar never attaches, which is exactly as broken as no row
+		// at all.
+		expect(interaction.payload.Permission.tool?.callId).toBe("approval-1");
+
+		// A pending approval is transcript-bearing: transcriptRevision must
+		// advance so the Electrobun rows-controller re-derives rows for it.
+		expect(delta.toRevision.transcriptRevision).toBeGreaterThan(
+			delta.fromRevision.transcriptRevision
+		);
+		expect(delta.changedFields).toContain("transcriptSnapshot");
 	});
 
 	it("starts a fresh assistant entry for tokens that arrive after a tool call, so text keeps its real position relative to the tool row", () => {

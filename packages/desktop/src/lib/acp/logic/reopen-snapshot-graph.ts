@@ -26,12 +26,14 @@
 import type {
 	RpcCompactionProjectedMessage,
 	RpcProjectedMessage,
+	RpcProjectedPendingApproval,
 	RpcProjectedSessionActivity,
 	RpcSessionSnapshot,
 } from "@acepe/contracts";
 
 import type {
 	CanonicalAgentId,
+	InteractionSnapshot,
 	OperationSnapshot,
 	SessionCompactionEvent,
 	SessionGraphActivity,
@@ -177,6 +179,87 @@ function operationFromActivity(activity: RpcProjectedSessionActivity): Operation
 	};
 }
 
+// #268 defect 2, reopen half: a session reopened while an approval is still
+// pending used to seed activity: "waiting_for_user" (the composer correctly
+// went quiet) but nothing else -- interactions stayed permanently [], so
+// there was no row and no way to answer it. Reused the exact
+// approvalRequestId-as-toolCallId row shape orchestration-canonical-bridge
+// .ts's onApprovalRequested uses live, so a reopened session with a pending
+// approval renders and behaves identically to one that hit the approval
+// while already open.
+const PENDING_APPROVAL_FALLBACK_TITLE = "Permission required";
+
+function approvalEntryId(approval: RpcProjectedPendingApproval): string {
+	return `entry-approval-${approval.approvalRequestId}`;
+}
+
+function transcriptEntryFromPendingApproval(approval: RpcProjectedPendingApproval): TranscriptEntry {
+	return {
+		entryId: approvalEntryId(approval),
+		role: "tool",
+		segments: [
+			{
+				kind: "text",
+				segmentId: `${approvalEntryId(approval)}-text`,
+				text: approval.title ?? PENDING_APPROVAL_FALLBACK_TITLE,
+			},
+		],
+	};
+}
+
+function operationFromPendingApproval(approval: RpcProjectedPendingApproval): OperationSnapshot {
+	const title = approval.title ?? PENDING_APPROVAL_FALLBACK_TITLE;
+	return {
+		id: approval.approvalRequestId,
+		session_id: approval.sessionId,
+		tool_call_id: approval.approvalRequestId,
+		name: title,
+		kind: null,
+		provider_status: observedStatusToToolCallStatus("pending"),
+		title,
+		arguments: noToolArguments,
+		progressive_arguments: null,
+		result: null,
+		command: null,
+		normalized_todos: null,
+		parent_tool_call_id: null,
+		parent_operation_id: null,
+		child_tool_call_ids: [],
+		child_operation_ids: [],
+		operation_state: observedStatusToOperationState("pending"),
+		locations: null,
+		awaiting_plan_approval: false,
+		source_link: { kind: "transcript_linked", entry_id: approvalEntryId(approval) },
+	};
+}
+
+function interactionFromPendingApproval(approval: RpcProjectedPendingApproval): InteractionSnapshot {
+	const title = approval.title ?? PENDING_APPROVAL_FALLBACK_TITLE;
+	return {
+		id: approval.approvalRequestId,
+		session_id: approval.sessionId,
+		kind: "Permission",
+		state: "Pending",
+		json_rpc_request_id: null,
+		reply_handler: null,
+		tool_reference: { callId: approval.approvalRequestId },
+		responded_at_event_seq: null,
+		response: null,
+		payload: {
+			Permission: {
+				id: approval.approvalRequestId,
+				sessionId: approval.sessionId,
+				permission: title,
+				patterns: [],
+				metadata: null,
+				always: [],
+				autoAccepted: false,
+				tool: { callId: approval.approvalRequestId },
+			},
+		},
+	};
+}
+
 type SequencedEntry = { readonly sequence: number; readonly entry: TranscriptEntry };
 
 /**
@@ -198,13 +281,24 @@ export function transcriptEntriesFromSnapshot(snapshot: RpcSessionSnapshot): Tra
 		sequence: activity.sequence,
 		entry: transcriptEntryFromActivity(activity),
 	}));
-	return [...messageEntries, ...activityEntries]
+	const approvalEntries: SequencedEntry[] = snapshot.pendingApprovals.map((approval) => ({
+		sequence: approval.sequence,
+		entry: transcriptEntryFromPendingApproval(approval),
+	}));
+	return [...messageEntries, ...activityEntries, ...approvalEntries]
 		.sort((a, b) => a.sequence - b.sequence)
 		.map((sequenced) => sequenced.entry);
 }
 
 export function operationsFromSnapshot(snapshot: RpcSessionSnapshot): OperationSnapshot[] {
-	return snapshot.activities.map(operationFromActivity);
+	return [
+		...snapshot.activities.map(operationFromActivity),
+		...snapshot.pendingApprovals.map(operationFromPendingApproval),
+	];
+}
+
+export function interactionsFromSnapshot(snapshot: RpcSessionSnapshot): InteractionSnapshot[] {
+	return snapshot.pendingApprovals.map(interactionFromPendingApproval);
 }
 
 function lifecycleForStatus(status: SessionGraphLifecycle["status"]): SessionGraphLifecycle {
@@ -259,9 +353,11 @@ export interface ReopenSnapshotGraphInput {
  * from `snapshot.activities` (AC-263): each historical tool activity gets a
  * `role: "tool"` transcript entry, interleaved by real sequence, plus its
  * linked OperationSnapshot -- see `transcriptEntriesFromSnapshot`/
- * `operationsFromSnapshot`. `interactions` stays empty: the snapshot only
- * exposes still-pending approvals (already handled below), not resolved
- * historical ones.
+ * `operationsFromSnapshot`. `interactions` is seeded the same way from
+ * `snapshot.pendingApprovals` (#268 defect 2): the snapshot only exposes
+ * still-pending approvals, not resolved historical ones, but a still-pending
+ * one reopened with the session must render and stay answerable, not
+ * silently vanish -- see `interactionsFromSnapshot`.
  */
 /**
  * Decides whether a freshly-built reopen graph should actually be applied
@@ -311,6 +407,7 @@ export function graphFromReopenSnapshot(input: ReopenSnapshotGraphInput): Sessio
 	};
 	const entries = transcriptEntriesFromSnapshot(input.snapshot);
 	const operations = operationsFromSnapshot(input.snapshot);
+	const interactions = interactionsFromSnapshot(input.snapshot);
 	const hasPendingApproval = input.snapshot.pendingApprovals.length > 0;
 	return {
 		requestedSessionId: input.requestedSessionId,
@@ -324,7 +421,7 @@ export function graphFromReopenSnapshot(input: ReopenSnapshotGraphInput): Sessio
 		revision,
 		transcriptSnapshot: { revision: input.snapshot.snapshotSequence, entries },
 		operations,
-		interactions: [],
+		interactions,
 		turnState: "Idle",
 		messageCount: input.snapshot.messages.length,
 		activeStreamingTail: null,

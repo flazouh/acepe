@@ -338,6 +338,50 @@ describe("graphFromReopenSnapshot", () => {
 		expect(graph.activity.kind).toBe("waiting_for_user");
 	});
 
+	// #268 defect 2, reopen half: activity alone told the composer to go
+	// quiet, but there was nothing in the transcript to answer -- interactions
+	// stayed permanently []. A reopened session with a still-pending approval
+	// must render and stay answerable, exactly like one that hit the approval
+	// while already open (orchestration-canonical-bridge.ts's
+	// onApprovalRequested).
+	it("seeds a tool-shaped transcript row, a linked operation, and an answerable interaction for a pending approval", () => {
+		const snapshot: RpcSessionSnapshot = {
+			...withMessages(4, []),
+			pendingApprovals: [
+				{
+					approvalRequestId: APPROVAL_REQUEST_ID,
+					sessionId: SESSION_ID,
+					sequence: 4,
+					title: "Run rm -rf",
+				},
+			],
+		};
+
+		const graph = graphFromReopenSnapshot(baseInput(snapshot));
+
+		expect(graph.transcriptSnapshot.entries).toHaveLength(1);
+		const [entry] = graph.transcriptSnapshot.entries;
+		expect(entry?.role).toBe("tool");
+
+		expect(graph.operations).toHaveLength(1);
+		const [operation] = graph.operations;
+		expect(operation?.tool_call_id).toBe(APPROVAL_REQUEST_ID);
+		expect(operation?.source_link).toEqual({
+			kind: "transcript_linked",
+			entry_id: entry?.entryId,
+		});
+
+		expect(graph.interactions).toHaveLength(1);
+		const [interaction] = graph.interactions;
+		expect(interaction?.kind).toBe("Permission");
+		if (interaction === undefined || !("Permission" in interaction.payload)) {
+			throw new Error("expected a Permission interaction");
+		}
+		// permission-store.svelte.ts's getForToolCall keys strictly on this
+		// field -- without it the row renders but Allow/Deny never attaches.
+		expect(interaction.payload.Permission.tool?.callId).toBe(APPROVAL_REQUEST_ID);
+	});
+
 	it("marks an unknown/never-imported session as reserved (not ready)", () => {
 		const snapshot = emptyRpcSessionSnapshot(0);
 

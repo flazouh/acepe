@@ -54,6 +54,11 @@ type SessionCanonicalState = {
 	// status-only re-observation (pending -> in_progress -> completed) patches
 	// the existing operation instead of appending a duplicate row.
 	observedToolCallIds: Set<string>;
+	// #268 defect 2: approvalRequestIds that already have their own transcript
+	// entry, so a redelivered ApprovalRequested (replay racing live, the same
+	// dedup hazard tool calls have) patches the existing row instead of
+	// appending a duplicate.
+	observedApprovalIds: Set<string>;
 };
 
 const KNOWN_AGENT_IDS: ReadonlySet<string> = new Set([
@@ -187,6 +192,7 @@ export class OrchestrationCanonicalBridge {
 					assistantSegmentSeq: 0,
 					assistantEntryRunSeq: 0,
 					observedToolCallIds: new Set(),
+					observedApprovalIds: new Set(),
 				});
 				const envelope: SessionStateEnvelope = {
 					sessionId,
@@ -425,6 +431,18 @@ export class OrchestrationCanonicalBridge {
 		return [toSessionStateAcpEnvelope(envelopeForDelta(payload.sessionId, toRevision, delta))];
 	}
 
+	// #268 defect 2: ApprovalRequested used to patch session.interactions ONLY
+	// -- zero transcriptOperations, so nothing ever appeared in the transcript
+	// (the same "operation patched, no visible row" bug tool calls had before
+	// AC-263 -- see onToolCallObserved's doc). A pending approval is now
+	// transcript-bearing on first sighting: it appends its own "tool"-role row
+	// (there is no real tool call to attach to -- ApprovalRequestedPayload
+	// carries no toolCallId) and stamps that same row's id onto
+	// interaction.payload.Permission.tool.callId, so the existing
+	// tool-call-attached PermissionBar (getForToolCall in permission-store
+	// .svelte.ts, wired in transcript-viewport-row-renderer.svelte) renders
+	// Allow/Always/Deny directly under the row instead of the request going
+	// nowhere.
 	private onApprovalRequested(payload: {
 		readonly sessionId: SessionId;
 		readonly approvalRequestId: string;
@@ -434,7 +452,52 @@ export class OrchestrationCanonicalBridge {
 		if (state === undefined) {
 			return [];
 		}
-		const toRevision = nextRevision(state.revision, false);
+		const isFirstSighting = !state.observedApprovalIds.has(payload.approvalRequestId);
+		const toRevision = nextRevision(state.revision, isFirstSighting);
+		const approvalEntryId = `entry-approval-${payload.approvalRequestId}`;
+		const transcriptOperations: TranscriptDeltaOperation[] = isFirstSighting
+			? [
+					{
+						kind: "appendEntry",
+						entry: {
+							entryId: approvalEntryId,
+							role: "tool",
+							segments: [
+								{
+									kind: "text",
+									segmentId: `seg-approval-${payload.approvalRequestId}`,
+									text: payload.title,
+								},
+							],
+						},
+					},
+				]
+			: [];
+		if (isFirstSighting) {
+			state.observedApprovalIds.add(payload.approvalRequestId);
+		}
+		const operation: OperationSnapshot = {
+			id: payload.approvalRequestId,
+			session_id: payload.sessionId,
+			tool_call_id: payload.approvalRequestId,
+			name: payload.title,
+			kind: null,
+			provider_status: observedStatusToToolCallStatus("pending"),
+			title: payload.title,
+			arguments: noArguments,
+			progressive_arguments: null,
+			result: null,
+			command: null,
+			normalized_todos: null,
+			parent_tool_call_id: null,
+			parent_operation_id: null,
+			child_tool_call_ids: [],
+			child_operation_ids: [],
+			operation_state: observedStatusToOperationState("pending"),
+			locations: null,
+			awaiting_plan_approval: false,
+			source_link: { kind: "transcript_linked", entry_id: approvalEntryId },
+		};
 		const interaction: InteractionSnapshot = {
 			id: payload.approvalRequestId,
 			session_id: payload.sessionId,
@@ -442,7 +505,7 @@ export class OrchestrationCanonicalBridge {
 			state: "Pending",
 			json_rpc_request_id: null,
 			reply_handler: null,
-			tool_reference: null,
+			tool_reference: { callId: payload.approvalRequestId },
 			responded_at_event_seq: null,
 			response: null,
 			payload: {
@@ -454,6 +517,7 @@ export class OrchestrationCanonicalBridge {
 					metadata: null,
 					always: [],
 					autoAccepted: false,
+					tool: { callId: payload.approvalRequestId },
 				},
 			},
 		};
@@ -469,10 +533,12 @@ export class OrchestrationCanonicalBridge {
 			activity,
 			turnState: state.turnState,
 			activeStreamingTail: null,
-			transcriptOperations: [],
-			operationPatches: [],
+			transcriptOperations,
+			operationPatches: [operation],
 			interactionPatches: [interaction],
-			changedFields: ["interactions", "activity"],
+			changedFields: isFirstSighting
+				? ["transcriptSnapshot", "operations", "interactions", "activity"]
+				: ["operations", "interactions", "activity"],
 		};
 		state.revision = toRevision;
 		state.activity = activity;
