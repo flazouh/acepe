@@ -24,6 +24,7 @@ describe("transcriptRowsFromSnapshot", () => {
 				prNumber: null,
 				prLinkMode: null,
 				providerSessionId: null,
+				providerSessionFailed: false,
 			},
 			messages: [
 				{

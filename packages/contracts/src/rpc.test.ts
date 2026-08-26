@@ -125,6 +125,7 @@ const snapshot: RpcSessionSnapshot = {
 		prNumber: null,
 		prLinkMode: null,
 		providerSessionId: null,
+		providerSessionFailed: false,
 	},
 	messages: [
 		{
@@ -169,6 +170,7 @@ const snapshot: RpcSessionSnapshot = {
 			prNumber: null,
 			prLinkMode: null,
 			providerSessionId: null,
+			providerSessionFailed: false,
 		},
 	],
 	settings: [],

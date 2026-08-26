@@ -40,6 +40,7 @@ function withSession(snapshot: RpcSessionSnapshot, sessionId: SessionId): RpcSes
 			prNumber: null,
 			prLinkMode: null,
 			providerSessionId: null,
+			providerSessionFailed: false,
 		},
 	};
 }

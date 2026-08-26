@@ -147,6 +147,18 @@ export function mergeProjectionSessions(
 			continue;
 		}
 
+		// A session whose provider adapter died (ProviderSessionFailed) before
+		// it ever learned a providerSessionId has no on-disk history to fall
+		// back to -- there is no path that will ever make this row openable.
+		// Excluding it here (rather than pushing it) is the fix for the
+		// "ghost row" sitting in the sidebar forever, unopenable (#262). A
+		// session that failed AFTER learning its providerSessionId is not a
+		// ghost -- it would have matched the aliasedExisting/existing branches
+		// above and never reach here.
+		if (projected.providerSessionFailed) {
+			continue;
+		}
+
 		const createdAt = tryIsoToDate(projected.createdAt);
 		const updatedAt = tryIsoToDate(projected.updatedAt);
 		if (createdAt === null || updatedAt === null) {

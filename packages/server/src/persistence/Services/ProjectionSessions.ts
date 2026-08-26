@@ -4,6 +4,7 @@ import {
 	MessageSentPayload,
 	type OrchestrationEvent,
 	ProjectId,
+	ProviderSessionFailedPayload,
 	SessionArchivedPayload,
 	SessionCreatedPayload,
 	SessionDeletedPayload,
@@ -60,9 +61,19 @@ export const ProjectedSession = Schema.Struct({
 	// event/projection). Null until the provider's first durable message
 	// promotes its session id, and forever null for a session the tracer
 	// owns (no real provider attached).
-	providerSessionId: Schema.NullOr(TrimmedNonEmptyString)
+	providerSessionId: Schema.NullOr(TrimmedNonEmptyString),
+	// True once a ProviderSessionFailed event has fired for this session and
+	// it never got a providerSessionId (see providerSessionIdFromMetadata):
+	// the adapter died before the provider ever wrote anything to disk, so
+	// there is no on-disk history a "ghost row" could ever resolve to. A
+	// session that failed AFTER learning its providerSessionId is not a
+	// ghost -- its disk-scanned row is still real and openable, and this
+	// flag intentionally stays false for that case (see evolveProjectedSession).
+	providerSessionFailed: Schema.Boolean
 })
 export type ProjectedSession = typeof ProjectedSession.Type
+
+const SqliteFlag = Schema.Literals([0, 1])
 
 const ProjectionSessionRow = Schema.Struct({
 	session_id: SessionId,
@@ -76,7 +87,8 @@ const ProjectionSessionRow = Schema.Struct({
 	deleted_at: Schema.NullOr(IsoDateTime),
 	pr_number: SessionPrNumber.pipe(Schema.NullOr),
 	pr_link_mode: SessionPrLinkMode.pipe(Schema.NullOr),
-	provider_session_id: Schema.NullOr(TrimmedNonEmptyString)
+	provider_session_id: Schema.NullOr(TrimmedNonEmptyString),
+	provider_session_failed: SqliteFlag
 })
 
 export interface ProjectionSessionsShape {
@@ -119,7 +131,8 @@ const projectedSessionFromRow = (
 	deletedAt: row.deleted_at,
 	prNumber: row.pr_number,
 	prLinkMode: row.pr_link_mode,
-	providerSessionId: row.provider_session_id
+	providerSessionId: row.provider_session_id,
+	providerSessionFailed: row.provider_session_failed === 1
 })
 
 const decodeRow = Schema.decodeUnknownEffect(ProjectionSessionRow)
@@ -229,7 +242,8 @@ const touch = (session: ProjectedSession, occurredAt: IsoDateTime): ProjectedSes
 	deletedAt: session.deletedAt,
 	prNumber: session.prNumber,
 	prLinkMode: session.prLinkMode,
-	providerSessionId: session.providerSessionId
+	providerSessionId: session.providerSessionId,
+	providerSessionFailed: session.providerSessionFailed
 })
 
 const projectSessionCreated = (
@@ -249,7 +263,8 @@ const projectSessionCreated = (
 				deletedAt: null,
 				prNumber: null,
 				prLinkMode: null,
-				providerSessionId: null
+				providerSessionId: null,
+				providerSessionFailed: false
 			})
 		)
 	)
@@ -283,7 +298,8 @@ const projectSessionMetaUpdated = (
 						payload.prNumber !== undefined ? payload.prNumber : stamped.prNumber,
 					prLinkMode:
 						payload.prLinkMode !== undefined ? payload.prLinkMode : stamped.prLinkMode,
-					providerSessionId: providerSessionId !== null ? providerSessionId : stamped.providerSessionId
+					providerSessionId: providerSessionId !== null ? providerSessionId : stamped.providerSessionId,
+					providerSessionFailed: stamped.providerSessionFailed
 				}
 			})
 		)
@@ -368,6 +384,24 @@ const projectTurnCompleted = (
 		Effect.map(() => mapExisting(current, (session) => touch(session, event.occurredAt)))
 	)
 
+// A session that fails before ever learning its providerSessionId (no
+// on-disk history to fall back to) is a "ghost row": it sits in the
+// library listing forever, unopenable. Marking it here lets the desktop
+// merge (mergeProjectionSessions) exclude it instead of pushing a dead
+// row -- see providerSessionFailed's doc on ProjectedSession.
+const projectProviderSessionFailed = (
+	current: Option.Option<ProjectedSession>,
+	event: Extract<OrchestrationEvent, { readonly type: "ProviderSessionFailed" }>
+): Effect.Effect<Option.Option<ProjectedSession>, Schema.SchemaError> =>
+	decodePayload(ProviderSessionFailedPayload, event.payload).pipe(
+		Effect.map(() =>
+			mapExisting(current, (session) => ({
+				...touch(session, event.occurredAt),
+				providerSessionFailed: true
+			}))
+		)
+	)
+
 export const evolveProjectedSession = (
 	current: Option.Option<ProjectedSession>,
 	event: OrchestrationEvent
@@ -440,6 +474,6 @@ export const evolveProjectedSession = (
 			TerminalClosed: () => Effect.succeed(current),
 			SessionReviewFileMarked: () => Effect.succeed(current),
 			SessionReviewStateCleared: () => Effect.succeed(current),
-			ProviderSessionFailed: () => Effect.succeed(current)
+			ProviderSessionFailed: (failed) => projectProviderSessionFailed(current, failed)
 		})
 	)(event)

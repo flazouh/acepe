@@ -166,6 +166,29 @@ describe("applyEventToRpcSessionSnapshot", () => {
 		expect(linked.session?.providerSessionId).toBe("claude-uuid-42")
 	})
 
+	it("marks providerSessionFailed on the snapshot session when ProviderSessionFailed fires", () => {
+		const afterSession = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), sessionCreated)
+		const failed = applyEventToRpcSessionSnapshot(afterSession, {
+			sequence: 3,
+			eventId: EventId.make("event-3"),
+			aggregateKind: "session",
+			aggregateId: sessionId,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: {},
+			type: "ProviderSessionFailed",
+			payload: {
+				sessionId,
+				providerId: "claude",
+				operation: "startSession",
+				detail: "adapter died before session_id arrived",
+			},
+		})
+		expect(failed.session?.providerSessionFailed).toBe(true)
+	})
+
 	it("discards a SessionMetaUpdated at or below snapshotSequence", () => {
 		const afterSession = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), sessionCreated)
 		const skipped = applyEventToRpcSessionSnapshot(afterSession, {

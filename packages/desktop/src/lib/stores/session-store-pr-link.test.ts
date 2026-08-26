@@ -61,6 +61,7 @@ describe("shouldDispatchPrLinkToggle", () => {
 			prNumber: 17,
 			prLinkMode: "manual" as const,
 			providerSessionId: null,
+			providerSessionFailed: false,
 		},
 		messages: snapshot.messages,
 		turns: snapshot.turns,

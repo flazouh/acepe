@@ -98,6 +98,7 @@ const touchSession = (
 		prNumber: session.prNumber,
 		prLinkMode: session.prLinkMode,
 		providerSessionId: session.providerSessionId,
+		providerSessionFailed: session.providerSessionFailed,
 	}
 }
 
@@ -185,6 +186,7 @@ const applySessionCreated = (
 		prNumber: null,
 		prLinkMode: null,
 		providerSessionId: null,
+		providerSessionFailed: false,
 	}
 	return replaceMessages(snapshot, event.sequence, snapshot.messages, session)
 }
@@ -235,6 +237,24 @@ const applySessionMetaUpdated = (
 		prLinkMode:
 			event.payload.prLinkMode !== undefined ? event.payload.prLinkMode : current.prLinkMode,
 		providerSessionId: providerSessionId !== null ? providerSessionId : current.providerSessionId,
+		providerSessionFailed: current.providerSessionFailed,
+	}
+	return replaceMessages(snapshot, event.sequence, snapshot.messages, session)
+}
+
+const applyProviderSessionFailed = (
+	snapshot: RpcSessionSnapshot,
+	event: Extract<OrchestrationEvent, { readonly type: "ProviderSessionFailed" }>,
+): RpcSessionSnapshot => {
+	if (!isThisSession(snapshot, event.payload.sessionId) || snapshot.session === null) {
+		return withSequence(snapshot, event.sequence)
+	}
+	const current = snapshot.session
+	const session: RpcProjectedSession = {
+		...current,
+		updatedAt: event.occurredAt,
+		lastActivityAt: event.occurredAt,
+		providerSessionFailed: true,
 	}
 	return replaceMessages(snapshot, event.sequence, snapshot.messages, session)
 }
@@ -1120,6 +1140,8 @@ export const applyEventToRpcSessionSnapshot = (
 			return applySessionReviewFileMarked(snapshot, event)
 		case "SessionReviewStateCleared":
 			return applySessionReviewStateCleared(snapshot, event)
+		case "ProviderSessionFailed":
+			return applyProviderSessionFailed(snapshot, event)
 		default:
 			return withSequence(snapshot, event.sequence)
 	}

@@ -30,6 +30,7 @@ const session = (input: {
 	prNumber: null,
 	prLinkMode: null,
 	providerSessionId: null,
+	providerSessionFailed: false,
 });
 
 describe("sessionLifecycle", () => {

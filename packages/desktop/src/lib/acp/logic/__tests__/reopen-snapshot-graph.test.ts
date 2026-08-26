@@ -41,6 +41,7 @@ function withMessages(
 			prNumber: null,
 			prLinkMode: null,
 			providerSessionId: null,
+			providerSessionFailed: false,
 		},
 		messages,
 	};

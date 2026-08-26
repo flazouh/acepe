@@ -19,6 +19,8 @@ import {
 
 const decodeName = Schema.decodeUnknownEffect(TrimmedNonEmptyString)
 
+const sqliteFlag = (value: boolean): 0 | 1 => (value ? 1 : 0)
+
 const readById = Effect.fn("ProjectionSessions.readById")(function*(
 	tx: SqlClient.SqlClient,
 	sessionId: SessionId
@@ -36,7 +38,8 @@ const readById = Effect.fn("ProjectionSessions.readById")(function*(
 			deleted_at,
 			pr_number,
 			pr_link_mode,
-			provider_session_id
+			provider_session_id,
+			provider_session_failed
 		FROM projection_sessions
 		WHERE session_id = ${sessionId}
 	`.withoutTransform
@@ -73,7 +76,8 @@ const upsert = Effect.fn("ProjectionSessions.upsert")(function*(
 			deleted_at,
 			pr_number,
 			pr_link_mode,
-			provider_session_id
+			provider_session_id,
+			provider_session_failed
 		) VALUES (
 			${session.sessionId},
 			${session.projectId},
@@ -86,7 +90,8 @@ const upsert = Effect.fn("ProjectionSessions.upsert")(function*(
 			${session.deletedAt},
 			${session.prNumber},
 			${session.prLinkMode},
-			${session.providerSessionId}
+			${session.providerSessionId},
+			${sqliteFlag(session.providerSessionFailed)}
 		)
 		ON CONFLICT(session_id) DO UPDATE SET
 			project_id = excluded.project_id,
@@ -99,7 +104,8 @@ const upsert = Effect.fn("ProjectionSessions.upsert")(function*(
 			deleted_at = excluded.deleted_at,
 			pr_number = excluded.pr_number,
 			pr_link_mode = excluded.pr_link_mode,
-			provider_session_id = excluded.provider_session_id
+			provider_session_id = excluded.provider_session_id,
+			provider_session_failed = excluded.provider_session_failed
 	`.withoutTransform.pipe(Effect.asVoid)
 })
 
@@ -142,7 +148,8 @@ export const ProjectionSessionsLive = Layer.effect(ProjectionSessions)(
 							deleted_at,
 							pr_number,
 							pr_link_mode,
-							provider_session_id
+							provider_session_id,
+							provider_session_failed
 						FROM projection_sessions
 						ORDER BY last_activity_at DESC, session_id ASC
 					`.withoutTransform
@@ -159,7 +166,8 @@ export const ProjectionSessionsLive = Layer.effect(ProjectionSessions)(
 							deleted_at,
 							pr_number,
 							pr_link_mode,
-							provider_session_id
+							provider_session_id,
+							provider_session_failed
 						FROM projection_sessions
 						WHERE project_id = ${projectId}
 						ORDER BY last_activity_at DESC, session_id ASC

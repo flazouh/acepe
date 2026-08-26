@@ -25,6 +25,7 @@ describe("agent panel controller mapping", () => {
 					prNumber: null,
 					prLinkMode: null,
 					providerSessionId: null,
+					providerSessionFailed: false,
 				},
 				messages: [
 					{

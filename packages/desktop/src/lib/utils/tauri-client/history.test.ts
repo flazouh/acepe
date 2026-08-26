@@ -121,6 +121,7 @@ describe("history.getStartupSessions alias resolution", () => {
 								prNumber: null,
 								prLinkMode: null,
 								providerSessionId: "claude-uuid-42",
+								providerSessionFailed: false,
 							})
 						);
 					}
@@ -156,6 +157,7 @@ describe("history.getStartupSessions alias resolution", () => {
 							prNumber: null,
 							prLinkMode: null,
 							providerSessionId: null,
+							providerSessionFailed: false,
 						})
 					),
 			})

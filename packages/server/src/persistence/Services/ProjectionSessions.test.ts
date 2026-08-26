@@ -39,6 +39,7 @@ type SessionEventType = Extract<
 	| "MessageSent"
 	| "TurnCancelled"
 	| "CheckpointReverted"
+	| "ProviderSessionFailed"
 >
 
 const sessionEvent = <const Type extends SessionEventType, Payload>(
@@ -216,7 +217,8 @@ Vitest.describe("evolveProjectedSession", () => {
 				deletedAt: null,
 				prNumber: null,
 				prLinkMode: null,
-				providerSessionId: null
+				providerSessionId: null,
+				providerSessionFailed: false
 			})
 		})
 	)
@@ -462,6 +464,48 @@ Vitest.describe("evolveProjectedSession", () => {
 				])
 			)
 			Vitest.assert.strictEqual(row.providerSessionId, null)
+		})
+	)
+
+	Vitest.it.effect("marks providerSessionFailed on a ProviderSessionFailed event", () =>
+		Effect.gen(function*() {
+			const row = requireSession(
+				yield* fold([
+					sessionEvent(1, "SessionCreated", NOW, {
+						sessionId,
+						projectId,
+						title: "First session"
+					}),
+					sessionEvent(2, "ProviderSessionFailed", LATER, {
+						sessionId,
+						providerId: "claude",
+						operation: "startSession" as const,
+						detail: "adapter died before session_id arrived"
+					})
+				])
+			)
+			Vitest.assert.strictEqual(row.providerSessionFailed, true)
+			Vitest.assert.strictEqual(row.providerSessionId, null)
+		})
+	)
+
+	Vitest.it.effect("does not mark providerSessionFailed for a session that already resolved a disk identity", () =>
+		Effect.gen(function*() {
+			const row = requireSession(
+				yield* fold([
+					sessionEvent(1, "SessionCreated", NOW, {
+						sessionId,
+						projectId,
+						title: "First session"
+					}),
+					{
+						...sessionEvent(2, "SessionMetaUpdated", LATER, { sessionId }),
+						metadata: { type: "provider_session", providerSessionId: "claude-uuid-42" }
+					}
+				])
+			)
+			Vitest.assert.strictEqual(row.providerSessionFailed, false)
+			Vitest.assert.strictEqual(row.providerSessionId, "claude-uuid-42")
 		})
 	)
 

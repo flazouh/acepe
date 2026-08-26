@@ -47,7 +47,8 @@ const oracle = {
 		deletedAt: null,
 		prNumber: null,
 		prLinkMode: null,
-		providerSessionId: null
+		providerSessionId: null,
+		providerSessionFailed: false
 	},
 	messages: [
 		{

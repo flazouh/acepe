@@ -53,6 +53,7 @@ function projectedSession(overrides: Partial<RpcProjectedSession> = {}): RpcProj
 		prNumber: null,
 		prLinkMode: null,
 		providerSessionId: null,
+		providerSessionFailed: false,
 		...overrides,
 	};
 }
@@ -277,5 +278,29 @@ describe("mergeProjectionSessions", () => {
 		expect(merged[0]?.prNumber).toBe(42);
 		expect(merged[0]?.prLinkMode).toBe("manual");
 		expect(merged[0]?.linkedPr?.prNumber).toBe(42);
+	});
+
+	it("excludes a failed, diskless projection row instead of listing it as a ghost (#262)", () => {
+		const projected = projectedSession({
+			providerSessionFailed: true,
+		});
+
+		const merged = mergeProjectionSessions([], [projected], [fakeProject]);
+
+		expect(merged).toHaveLength(0);
+	});
+
+	it("still lists a failed projection row when it already has disk backing (not a ghost)", () => {
+		const diskSession = cold({ id: "claude-uuid-42" });
+		const projected = projectedSession({
+			sessionId: SessionId.make("session-orchestration-1"),
+			providerSessionId: "claude-uuid-42",
+			providerSessionFailed: true,
+		});
+
+		const merged = mergeProjectionSessions([diskSession], [projected], [fakeProject]);
+
+		expect(merged).toHaveLength(1);
+		expect(merged[0]?.id).toBe("claude-uuid-42");
 	});
 });

@@ -296,6 +296,11 @@ export const RpcProjectedSession = Schema.Struct({
 	// id, and forever null for a session the tracer owns. See
 	// packages/server/src/persistence/Services/ProjectionSessions.ts.
 	providerSessionId: Schema.NullOr(TrimmedNonEmptyString),
+	// True once a ProviderSessionFailed event fired for this session and it
+	// never learned a providerSessionId -- a "ghost row" with no on-disk
+	// history it could ever open. See providerSessionFailed's doc on the
+	// server's ProjectedSession.
+	providerSessionFailed: Schema.Boolean,
 })
 export type RpcProjectedSession = typeof RpcProjectedSession.Type
 

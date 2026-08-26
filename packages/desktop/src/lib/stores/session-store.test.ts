@@ -95,6 +95,7 @@ const snapshotWithUser: RpcSessionSnapshot = {
 		prNumber: null,
 		prLinkMode: null,
 		providerSessionId: null,
+		providerSessionFailed: false,
 	},
 	messages: [
 		{
