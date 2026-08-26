@@ -35,6 +35,8 @@ export type ClaudeCompactionStatus = typeof ClaudeCompactionStatus.Type
 export const ClaudeCompactionTrigger = Schema.Literals(["auto", "manual", "unknown"])
 export type ClaudeCompactionTrigger = typeof ClaudeCompactionTrigger.Type
 
+export type ClaudePermissionDecision = "allow" | "deny"
+
 export const TextDeltaFact = Schema.Struct({
 	contractKind: Schema.Literal("text_delta"),
 	token: Schema.String.check(Schema.isNonEmpty())

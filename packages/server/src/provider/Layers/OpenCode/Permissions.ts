@@ -3,9 +3,9 @@ import * as Effect from "effect/Effect"
 import * as HashMap from "effect/HashMap"
 import * as Ref from "effect/Ref"
 import type { OpenCodePermissionReply } from "./Facts.ts"
-import { isSafeRequestId } from "./Map.ts"
 import { adapterError } from "./Provider.ts"
 import { requireSession, type SessionRuntime } from "./Session.ts"
+import { isSafeRequestId } from "./Wire.ts"
 
 export const respondToPermission = Effect.fn("OpenCodeAdapter.respondToPermission")(function*(
 	sessions: Ref.Ref<HashMap.HashMap<SessionId, SessionRuntime>>,

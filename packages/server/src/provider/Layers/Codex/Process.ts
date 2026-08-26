@@ -7,15 +7,13 @@ import * as Predicate from "effect/Predicate"
 import * as Queue from "effect/Queue"
 import * as Ref from "effect/Ref"
 import * as Schema from "effect/Schema"
+import * as Stream from "effect/Stream"
 import * as Str from "effect/String"
 import { ProviderAdapterError } from "../../Services/ProviderAdapter.ts"
-import { CODEX_PROVIDER_ID } from "./Provider.ts"
-
-type Json = typeof Schema.Json.Type
-type JsonObject = typeof Schema.JsonObject.Type
+import { EMPTY_JSON_OBJECT, field, type Json } from "../Json.ts"
+import { adapterError } from "./Provider.ts"
 
 const encodeJsonLine = Schema.encodeUnknownEffect(Schema.fromJsonString(Schema.Json))
-const EMPTY_JSON_OBJECT: JsonObject = {}
 const isJsonObject = Schema.is(Schema.JsonObject)
 
 export type PendingRequest = {
@@ -23,29 +21,28 @@ export type PendingRequest = {
 	readonly deferred: Deferred.Deferred<Json, ProviderAdapterError>
 }
 
-export const adapterError = (
-	operation: ProviderAdapterError["operation"],
-	detail: string
-): ProviderAdapterError =>
-	new ProviderAdapterError({
-		providerId: CODEX_PROVIDER_ID,
-		operation,
-		detail
-	})
+export type CodexJsonRpcRequest = {
+	readonly operation: ProviderAdapterError["operation"]
+	readonly method: string
+	readonly params: Json
+}
+
+export type CodexAppServerHandle = {
+	readonly notifications: Stream.Stream<Json, ProviderAdapterError>
+	readonly request: (input: CodexJsonRpcRequest) => Effect.Effect<Json, ProviderAdapterError>
+	readonly notify: (
+		method: string,
+		params: Option.Option<Json>
+	) => Effect.Effect<void, ProviderAdapterError>
+	readonly reply: (id: Json, result: Json) => Effect.Effect<void, ProviderAdapterError>
+	readonly close: Effect.Effect<void>
+}
 
 export const errorDetail = <A>(cause: A, fallback: string): string => {
 	if (Predicate.isError(cause) && Str.isNonEmpty(cause.message)) {
 		return cause.message
 	}
 	return fallback
-}
-
-const jsonField = (record: JsonObject, key: string): Option.Option<Json> => {
-	const value = record[key]
-	if (value === undefined) {
-		return Option.none()
-	}
-	return Option.some(value)
 }
 
 const parseRequestId = (value: Json): Option.Option<string> => {
@@ -109,9 +106,9 @@ export const handleStdoutLine = Effect.fn("CodexAdapter.handleStdoutLine")(funct
 		yield* Queue.offer(notifications, message)
 		return
 	}
-	const id = Option.flatMap(jsonField(message, "id"), parseRequestId)
-	const hasResult = Option.isSome(jsonField(message, "result"))
-	const hasError = Option.isSome(jsonField(message, "error"))
+	const id = Option.flatMap(field(message, "id"), parseRequestId)
+	const hasResult = Option.isSome(field(message, "result"))
+	const hasError = Option.isSome(field(message, "error"))
 	if (Option.isSome(id) && (hasResult || hasError)) {
 		const current = yield* Ref.get(pending)
 		const entry = HashMap.get(current, id.value)
@@ -124,7 +121,7 @@ export const handleStdoutLine = Effect.fn("CodexAdapter.handleStdoutLine")(funct
 				)
 				return
 			}
-			const result = Option.getOrElse(jsonField(message, "result"), () => EMPTY_JSON_OBJECT)
+			const result = Option.getOrElse(field(message, "result"), () => EMPTY_JSON_OBJECT)
 			yield* Deferred.succeed(entry.value.deferred, result)
 			return
 		}

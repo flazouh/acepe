@@ -1,110 +1,25 @@
 import * as Arr from "effect/Array"
-import * as Exit from "effect/Exit"
 import * as Filter from "effect/Filter"
 import * as Option from "effect/Option"
-import * as Predicate from "effect/Predicate"
-import * as Schema from "effect/Schema"
 import * as Str from "effect/String"
 import {
-	CursorAcpToolKind,
-	type CursorContractFact,
-	type CursorToolStatus,
-	type PermissionRequestFact
-} from "./Facts.ts"
-
-type Json = typeof Schema.Json.Type
-type JsonObject = typeof Schema.JsonObject.Type
-
-const EMPTY_JSON_OBJECT: JsonObject = {}
-
-const decodeJsonObject = Schema.decodeUnknownExit(Schema.JsonObject)
-const decodeToolKind = Schema.decodeUnknownExit(CursorAcpToolKind)
-const isJsonArray = Schema.is(Schema.Array(Schema.Json))
-
-export const permissionIdForToolCall = (toolCallId: string): string => `perm-${toolCallId}`
-
-export const jsonObjectOf = (value: Json): Option.Option<JsonObject> => {
-	const exit = decodeJsonObject(value)
-	if (Exit.isSuccess(exit)) {
-		return Option.some(exit.value)
-	}
-	return Option.none()
-}
-
-const field = (record: JsonObject, key: string): Option.Option<Json> => {
-	const value = record[key]
-	if (value === undefined) {
-		return Option.none()
-	}
-	return Option.some(value)
-}
-
-const stringField = (record: JsonObject, key: string): Option.Option<string> =>
-	Option.flatMap(field(record, key), (value) =>
-		Predicate.isString(value) && Str.isNonEmpty(Str.trim(value))
-			? Option.some(value)
-			: Option.none()
-	)
-
-const objectField = (record: JsonObject, key: string): Option.Option<JsonObject> =>
-	Option.flatMap(field(record, key), jsonObjectOf)
-
-const arrayField = (record: JsonObject, key: string): Option.Option<ReadonlyArray<Json>> =>
-	Option.flatMap(field(record, key), (value) => (isJsonArray(value) ? Option.some(value) : Option.none()))
+	arrayField,
+	EMPTY_JSON_OBJECT,
+	field,
+	type Json,
+	type JsonObject,
+	jsonObjectOf,
+	objectField,
+	stringField
+} from "../Json.ts"
+import type { CursorContractFact, CursorToolStatus, PermissionRequestFact } from "./Facts.ts"
+import { detectCursorToolKind, permissionIdForToolCall } from "./Tools.ts"
 
 const asToolStatus = (value: string): Option.Option<CursorToolStatus> => {
 	if (value === "pending" || value === "in_progress" || value === "completed" || value === "failed") {
 		return Option.some(value)
 	}
 	return Option.none()
-}
-
-const foldedName = (name: string): string =>
-	Str.toLowerCase(Str.replaceAll(/[\s_-]/g, "")(Str.trim(name)))
-
-export const detectCursorToolKind = (name: string): CursorAcpToolKind => {
-	const folded = foldedName(name)
-	if (folded === "read" || folded === "readfile" || folded === "view") {
-		return "read"
-	}
-	if (
-		folded === "edit" ||
-		folded === "write" ||
-		folded === "writefile" ||
-		folded === "stredit" ||
-		folded === "applypatch"
-	) {
-		return "edit"
-	}
-	if (folded === "delete" || folded === "removefile") {
-		return "delete"
-	}
-	if (folded === "move" || folded === "rename") {
-		return "move"
-	}
-	if (folded === "search" || folded === "grep" || folded === "glob") {
-		return "search"
-	}
-	if (
-		folded === "execute" ||
-		folded === "bash" ||
-		folded === "shell" ||
-		folded === "run" ||
-		folded === "terminal"
-	) {
-		return "execute"
-	}
-	if (folded === "think") {
-		return "think"
-	}
-	if (folded === "fetch" || folded === "webfetch" || folded === "websearch") {
-		return "fetch"
-	}
-	const decoded = decodeToolKind(name)
-	if (Exit.isSuccess(decoded)) {
-		return decoded.value
-	}
-	return "other"
 }
 
 const textFromContent = (content: JsonObject): Option.Option<string> => {
@@ -253,52 +168,6 @@ export const mapAcpPermissionRequest = (value: Json): Option.Option<PermissionRe
 		permission: detectCursorToolKind(kindName),
 		toolCallId: toolCallId.value
 	})
-}
-
-const optionKindAllows = (kind: string, decision: "allow" | "deny"): boolean => {
-	if (decision === "allow") {
-		return kind === "allow_once" || kind === "allow_always"
-	}
-	return kind === "reject_once" || kind === "reject_always"
-}
-
-const optionIdIfKind = (
-	entry: Json,
-	decision: "allow" | "deny"
-): Option.Option<string> => {
-	const record = jsonObjectOf(entry)
-	if (Option.isNone(record)) {
-		return Option.none()
-	}
-	const kind = stringField(record.value, "kind")
-	const optionId = stringField(record.value, "optionId")
-	if (Option.isNone(kind) || Option.isNone(optionId)) {
-		return Option.none()
-	}
-	if (optionKindAllows(kind.value, decision) === false) {
-		return Option.none()
-	}
-	return Option.some(optionId.value)
-}
-
-export const selectPermissionOptionId = (
-	request: Json,
-	decision: "allow" | "deny"
-): Option.Option<string> => {
-	const record = jsonObjectOf(request)
-	if (Option.isNone(record)) {
-		return Option.none()
-	}
-	const options = arrayField(record.value, "options")
-	if (Option.isNone(options)) {
-		return Option.none()
-	}
-	return Arr.head(
-		Arr.filterMap(
-			options.value,
-			Filter.fromPredicateOption((entry) => optionIdIfKind(entry, decision))
-		)
-	)
 }
 
 const CURSOR_EXTENSION_METHODS = [

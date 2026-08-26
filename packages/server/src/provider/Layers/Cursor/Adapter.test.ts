@@ -17,21 +17,25 @@ import * as Option from "effect/Option"
 import * as Path from "effect/Path"
 import * as Queue from "effect/Queue"
 import * as Ref from "effect/Ref"
-import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
 import * as Str from "effect/String"
+import type { Json } from "../Json.ts"
 import {
 	CURSOR_ACP_PROTOCOL_VERSION,
 	CURSOR_ACP_SDK_MODULE,
-	makeCursorAdapter,
-	type CursorAcpHandle,
-	type CursorConnectInput,
-	type CursorLaunchConfig
+	makeCursorAdapter
 } from "./Adapter.ts"
 import { decodeContractFact } from "./Codec.ts"
+import type {
+	CursorAcpHandle,
+	CursorConnectInput,
+	CursorLaunchConfig
+} from "./Process.ts"
 import { cursorPresence } from "./Provider.ts"
 
-type Json = typeof Schema.Json.Type
+const FORBIDDEN_ACP_ENTRY = "experimental/v2"
+const STABLE_ACP_ENTRY = "@agentclientprotocol/sdk"
+const STABLE_ACP_TRANSPORT = "ndJsonStream"
 
 const sessionId = SessionId.make("session-1")
 const projectId = ProjectId.make("project-1")
@@ -42,6 +46,19 @@ const registryLaunch: CursorLaunchConfig = {
 }
 
 const Platform = Layer.mergeAll(BunFileSystem.layer, BunPath.layer)
+
+const folderSources = Effect.gen(function*() {
+	const path = yield* Path.Path
+	const fs = yield* FileSystem.FileSystem
+	const here = yield* path.fromFileUrl(new URL(import.meta.url))
+	const folder = path.dirname(here)
+	const guard = path.basename(here)
+	const names = yield* fs.readDirectory(folder)
+	const scanned = Arr.filter(names, (name) => Str.endsWith(".ts")(name) && name !== guard)
+	return yield* Effect.forEach(scanned, (name) =>
+		fs.readFileString(path.join(folder, name)).pipe(Effect.map((source) => ({ name, source })))
+	)
+})
 
 const fakeHandle = (
 	inbound: Queue.Queue<Json, Done>,
@@ -203,15 +220,32 @@ Vitest.describe("CursorAdapter", () => {
 	)
 })
 
-Vitest.layer(Platform)("CursorAdapter source and fixtures", (it) => {
-	it.effect("does not import experimental/v2", () =>
+Vitest.layer(Platform)("Cursor folder source and fixtures", (it) => {
+	it.effect("keeps every file in the folder off the experimental ACP entry", () =>
 		Effect.gen(function*() {
-			const path = yield* Path.Path
-			const fs = yield* FileSystem.FileSystem
-			const here = yield* path.fromFileUrl(new URL(import.meta.url))
-			const source = yield* fs.readFileString(path.join(path.dirname(here), "Adapter.ts"))
-			Vitest.assert.isTrue(Str.includes("@agentclientprotocol/sdk")(source))
-			Vitest.assert.isFalse(Str.includes("experimental/v2")(source))
+			const scanned = yield* folderSources
+			Vitest.assert.isTrue(Arr.isReadonlyArrayNonEmpty(scanned))
+			const offenders = Arr.map(
+				Arr.filter(scanned, (entry) => Str.includes(FORBIDDEN_ACP_ENTRY)(entry.source)),
+				(entry) => entry.name
+			)
+			Vitest.assert.deepStrictEqual(offenders, [])
+		})
+	)
+
+	it.effect("keeps one file in the folder on the stable ACP SDK transport", () =>
+		Effect.gen(function*() {
+			const scanned = yield* folderSources
+			const transports = Arr.map(
+				Arr.filter(
+					scanned,
+					(entry) =>
+						Str.includes(STABLE_ACP_ENTRY)(entry.source) &&
+						Str.includes(STABLE_ACP_TRANSPORT)(entry.source)
+				),
+				(entry) => entry.name
+			)
+			Vitest.assert.isTrue(Arr.isReadonlyArrayNonEmpty(transports))
 		})
 	)
 

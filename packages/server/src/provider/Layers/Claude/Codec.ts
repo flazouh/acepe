@@ -1,6 +1,17 @@
 import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
+import { makeFactCodec } from "../FactCodec.ts"
+import {
+	applyOptional,
+	booleanField,
+	EMPTY_JSON_OBJECT,
+	type Json,
+	type JsonObject,
+	jsonObjectOf,
+	objectField,
+	stringField
+} from "../Json.ts"
 import {
 	ClaudeAcpToolKind,
 	ClaudeContractFact,
@@ -8,40 +19,12 @@ import {
 	type ClaudeCompactionTrigger,
 	type ClaudeToolStatus
 } from "./Facts.ts"
-import {
-	booleanField,
-	compactionFromRecord,
-	detectClaudeToolKind,
-	jsonObjectOf,
-	objectField,
-	stringField,
-	usageFromRecord
-} from "./Map.ts"
+import { compactionFromRecord, usageFromRecord } from "./Map.ts"
+import { detectClaudeToolKind } from "./Tools.ts"
 
-type Json = typeof Schema.Json.Type
-type JsonObject = typeof Schema.JsonObject.Type
-
-const EMPTY_JSON_OBJECT: JsonObject = {}
-
-const decodeFact = Schema.decodeUnknownExit(ClaudeContractFact)
-const encodeFact = Schema.encodeUnknownExit(ClaudeContractFact)
 const decodeToolKind = Schema.decodeUnknownExit(ClaudeAcpToolKind)
 
-export const encodeContractFact = (fact: ClaudeContractFact): Option.Option<JsonObject> => {
-	const encoded = encodeFact(fact)
-	if (Exit.isFailure(encoded)) {
-		return Option.none()
-	}
-	return jsonObjectOf(encoded.value)
-}
-
-export const decodeContractFact = (value: Json): Option.Option<ClaudeContractFact> => {
-	const decoded = decodeFact(value)
-	if (Exit.isFailure(decoded)) {
-		return Option.none()
-	}
-	return Option.some(decoded.value)
-}
+export const { decodeContractFact, encodeContractFact } = makeFactCodec(ClaudeContractFact)
 
 const withAcpPre = (event: JsonObject, value: number): JsonObject => ({
 	...event,
@@ -78,17 +61,6 @@ const withAcpProviderMetadata = (event: JsonObject, value: JsonObject): JsonObje
 	providerMetadata: value
 })
 
-const applyAcpNumber = (
-	event: JsonObject,
-	value: number | undefined,
-	apply: (current: JsonObject, next: number) => JsonObject
-): JsonObject => {
-	if (value === undefined) {
-		return event
-	}
-	return apply(event, value)
-}
-
 export const contractFactToAcpSessionUpdate = (fact: ClaudeContractFact): JsonObject => {
 	if (fact.contractKind === "tool_call") {
 		return {
@@ -118,12 +90,12 @@ export const contractFactToAcpSessionUpdate = (fact: ClaudeContractFact): JsonOb
 			status: fact.status,
 			trigger: fact.trigger
 		}
-		const withNumbers = applyAcpNumber(
-			applyAcpNumber(
-				applyAcpNumber(
-					applyAcpNumber(
-						applyAcpNumber(
-							applyAcpNumber(base, fact.preCompactionTokens, withAcpPre),
+		const withNumbers = applyOptional(
+			applyOptional(
+				applyOptional(
+					applyOptional(
+						applyOptional(
+							applyOptional(base, fact.preCompactionTokens, withAcpPre),
 							fact.postCompactionTokens,
 							withAcpPost
 						),
@@ -200,11 +172,11 @@ export const contractFactToAcpSessionUpdate = (fact: ClaudeContractFact): JsonOb
 			type: "usage",
 			sessionId: fact.sessionId
 		}
-		return applyAcpNumber(
-			applyAcpNumber(
-				applyAcpNumber(
-					applyAcpNumber(
-						applyAcpNumber(base, fact.inputTokens, (current, value) => ({
+		return applyOptional(
+			applyOptional(
+				applyOptional(
+					applyOptional(
+						applyOptional(base, fact.inputTokens, (current, value) => ({
 							...current,
 							inputTokens: value
 						})),

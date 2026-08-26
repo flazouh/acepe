@@ -8,50 +8,28 @@ import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Path from "effect/Path"
-import * as Schema from "effect/Schema"
 import { isCapabilityEnabled } from "../../Services/ProviderAdapter.ts"
+import { loadCodexNativeConfigState } from "./Config.ts"
 import {
-	buildCodexInitializeParams,
-	buildCodexTurnStartParams,
-	buildThreadResumeParams,
-	buildThreadStartParams,
-	buildTurnInterruptParams,
 	CODEX_APP_SERVER_ARGS,
 	CODEX_CAPABILITIES,
 	CODEX_DEFERRED_SESSION_CREATION,
 	CODEX_PLACEHOLDER_COMMAND,
 	CODEX_PROVIDER_ID,
 	codexPresence,
-	defaultCodexNativeConfigState,
 	isCodexPlanCapabilityEnabled,
 	isRecoverableThreadResumeError,
-	loadCodexNativeConfigState,
-	mapCodexPermissionReply,
 	normalizeCodexModelId,
-	parseCodexToml,
-	parseThreadId,
-	parseTurnId,
 	placeholderCodexSpawnConfig,
 	probeCodexPresence,
 	resolveCodexModeId,
 	resolveCodexSpawnConfig
 } from "./Provider.ts"
 
-type Json = typeof Schema.Json.Type
-type JsonObject = typeof Schema.JsonObject.Type
-
 const Platform = Layer.mergeAll(BunFileSystem.layer, BunPath.layer)
-const isJsonObject = Schema.is(Schema.JsonObject)
 
 const homeLayer = (homeDir: string) =>
 	ConfigProvider.layer(ConfigProvider.fromEnv({ env: { HOME: homeDir } }))
-
-const asObject = (value: Json | undefined): Option.Option<JsonObject> => {
-	if (value === undefined || isJsonObject(value) === false) {
-		return Option.none()
-	}
-	return Option.some(value)
-}
 
 Vitest.describe("CodexProvider", () => {
 	Vitest.it("uses the codex provider id", () => {
@@ -112,60 +90,6 @@ Vitest.describe("CodexProvider", () => {
 		Vitest.assert.strictEqual(Option.isNone(resolveCodexModeId("ask")), true)
 	})
 
-	Vitest.it("parses only the Codex config.toml keys rust reads", () => {
-		const patch = parseCodexToml(
-			'model = "gpt-5.4"\nmodel_reasoning_effort = "medium"\nservice_tier = "fast"\n# comment\nignored = "nope"\n'
-		)
-		Vitest.assert.deepStrictEqual(patch.currentModelId, Option.some("gpt-5.4"))
-		Vitest.assert.deepStrictEqual(patch.reasoningEffort, Option.some("medium"))
-		Vitest.assert.deepStrictEqual(patch.fastMode, Option.some(true))
-	})
-
-	Vitest.it("builds native protocol payloads", () => {
-		Vitest.assert.deepStrictEqual(buildThreadStartParams("/tmp/project"), {
-			cwd: "/tmp/project",
-			experimentalRawEvents: false,
-			persistExtendedHistory: true
-		})
-		Vitest.assert.deepStrictEqual(buildThreadResumeParams("thread-1", "/tmp/project"), {
-			threadId: "thread-1",
-			cwd: "/tmp/project",
-			persistExtendedHistory: true
-		})
-		Vitest.assert.deepStrictEqual(buildTurnInterruptParams("thread-1", "turn-1"), {
-			threadId: "thread-1",
-			turnId: "turn-1"
-		})
-		const initialize = buildCodexInitializeParams()
-		const capabilities = asObject(initialize.capabilities)
-		Vitest.assert.isTrue(Option.isSome(capabilities))
-		if (Option.isSome(capabilities)) {
-			Vitest.assert.strictEqual(capabilities.value.experimentalApi, true)
-		}
-		const turn = buildCodexTurnStartParams({
-			threadId: "thread-1",
-			text: "Hello",
-			state: defaultCodexNativeConfigState(),
-			modeId: "plan"
-		})
-		Vitest.assert.strictEqual(turn.threadId, "thread-1")
-		Vitest.assert.strictEqual(turn.effort, "high")
-		const collaboration = asObject(turn.collaborationMode)
-		Vitest.assert.isTrue(Option.isSome(collaboration))
-		if (Option.isSome(collaboration)) {
-			Vitest.assert.strictEqual(collaboration.value.mode, "plan")
-		}
-	})
-
-	Vitest.it("parses thread and turn ids from app-server results", () => {
-		Vitest.assert.deepStrictEqual(
-			parseThreadId({ thread: { id: "thread-1" } }),
-			Option.some("thread-1")
-		)
-		Vitest.assert.deepStrictEqual(parseThreadId({ threadId: "thread-2" }), Option.some("thread-2"))
-		Vitest.assert.deepStrictEqual(parseTurnId({ turn: { id: "turn-1" } }), Option.some("turn-1"))
-	})
-
 	Vitest.it("classifies recoverable thread/resume errors", () => {
 		Vitest.assert.strictEqual(
 			isRecoverableThreadResumeError("thread/resume failed: thread not found"),
@@ -185,17 +109,6 @@ Vitest.describe("CodexProvider", () => {
 			isRecoverableThreadResumeError("thread/start failed: permission denied"),
 			false
 		)
-	})
-
-	Vitest.it("maps permission replies onto Codex decisions", () => {
-		Vitest.assert.deepStrictEqual(mapCodexPermissionReply("once"), Option.some("accept"))
-		Vitest.assert.deepStrictEqual(
-			mapCodexPermissionReply("always"),
-			Option.some("acceptForSession")
-		)
-		Vitest.assert.deepStrictEqual(mapCodexPermissionReply("reject"), Option.some("decline"))
-		Vitest.assert.deepStrictEqual(mapCodexPermissionReply("allow"), Option.some("accept"))
-		Vitest.assert.strictEqual(Option.isNone(mapCodexPermissionReply("maybe")), true)
 	})
 
 	Vitest.it("reports presence without reading process.env", () => {

@@ -17,23 +17,54 @@ import * as HttpClientResponse from "effect/unstable/http/HttpClientResponse"
 import * as ChildProcess from "effect/unstable/process/ChildProcess"
 import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner"
 import type { ProviderAdapterError } from "../../Services/ProviderAdapter.ts"
-import type {
-	OpenCodeCatalogCommand,
-	OpenCodeCatalogModel,
-	OpenCodeTransport
-} from "./Adapter.ts"
-import { OpenCodeSessionRecord as OpenCodeSessionRecordSchema } from "./Facts.ts"
+import type { Json, JsonObject } from "../Json.ts"
+import type { OpenCodePermissionReply } from "./Facts.ts"
+import { adapterError, parseServeUrl } from "./Provider.ts"
 import {
 	consumeSseLine,
 	emptySseLineFold,
 	type OpenCodePromptBody,
+	type OpenCodeSessionRecord,
+	OpenCodeSessionRecord as OpenCodeSessionRecordSchema,
 	openCodeUrls,
 	resolveConfiguredModel
-} from "./Map.ts"
-import { adapterError, parseServeUrl } from "./Provider.ts"
+} from "./Wire.ts"
 
-type Json = typeof Schema.Json.Type
-type JsonObject = typeof Schema.JsonObject.Type
+export type OpenCodeCatalogModel = {
+	readonly modelId: string
+	readonly name: string
+}
+
+export type OpenCodeCatalogCommand = {
+	readonly name: string
+	readonly description: string
+}
+
+export type OpenCodeModelCatalog = {
+	readonly models: ReadonlyArray<OpenCodeCatalogModel>
+	readonly currentModelId: Option.Option<string>
+}
+
+export type OpenCodeTransport = {
+	readonly events: Stream.Stream<Json, ProviderAdapterError>
+	readonly createSession: Effect.Effect<OpenCodeSessionRecord, ProviderAdapterError>
+	readonly listModels: Effect.Effect<OpenCodeModelCatalog, ProviderAdapterError>
+	readonly listCommands: Effect.Effect<ReadonlyArray<OpenCodeCatalogCommand>, ProviderAdapterError>
+	readonly sendPrompt: (
+		providerSessionId: string,
+		body: OpenCodePromptBody
+	) => Effect.Effect<void, ProviderAdapterError>
+	readonly abort: (providerSessionId: string) => Effect.Effect<void, ProviderAdapterError>
+	readonly replyPermission: (
+		requestId: string,
+		reply: OpenCodePermissionReply
+	) => Effect.Effect<void, ProviderAdapterError>
+	readonly replyQuestion: (
+		requestId: string,
+		answers: ReadonlyArray<ReadonlyArray<string>>
+	) => Effect.Effect<void, ProviderAdapterError>
+	readonly close: Effect.Effect<void>
+}
 
 const READY_TIMEOUT = Duration.millis(15_000)
 const READY_INTERVAL = Duration.millis(200)

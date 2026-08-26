@@ -27,17 +27,45 @@ import * as Str from "effect/String"
 import * as ChildProcess from "effect/unstable/process/ChildProcess"
 import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner"
 import type { AgentInstallerShape } from "../../Services/AgentInstaller.ts"
+import type { ProviderAdapterError } from "../../Services/ProviderAdapter.ts"
+import type { Json } from "../Json.ts"
 import { cancelledPermission, permissionResponse } from "./Permissions.ts"
-import { CURSOR_PROVIDER_ID } from "./Provider.ts"
 import {
 	adapterError,
-	type CursorAcpHandle,
-	type CursorConnectInput
-} from "./Session.ts"
-
-type Json = typeof Schema.Json.Type
+	CURSOR_PROVIDER_ID,
+	type CursorPermissionDecision
+} from "./Provider.ts"
 
 const decodeJson = Schema.decodeUnknownExit(Schema.Json)
+
+export type CursorStopReason =
+	| "end_turn"
+	| "max_tokens"
+	| "max_turn_requests"
+	| "refusal"
+	| "cancelled"
+
+export type CursorLaunchConfig = {
+	readonly command: string
+	readonly args: ReadonlyArray<string>
+}
+
+export type CursorConnectInput = {
+	readonly launch: CursorLaunchConfig
+	readonly onSessionUpdate: (notification: Json) => Effect.Effect<void>
+	readonly onPermissionRequest: (request: Json) => Effect.Effect<CursorPermissionDecision>
+}
+
+export type CursorAcpHandle = {
+	readonly initialize: Effect.Effect<void, ProviderAdapterError>
+	readonly newSession: (cwd: string) => Effect.Effect<string, ProviderAdapterError>
+	readonly prompt: (
+		providerSessionId: string,
+		text: string
+	) => Effect.Effect<Option.Option<CursorStopReason>, ProviderAdapterError>
+	readonly cancel: (providerSessionId: string) => Effect.Effect<void, ProviderAdapterError>
+	readonly close: Effect.Effect<void>
+}
 
 export type FileText = {
 	readonly readFileString: (path: string) => Effect.Effect<string, PlatformError>

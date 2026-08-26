@@ -8,7 +8,6 @@ import * as Option from "effect/Option"
 import * as Path from "effect/Path"
 import * as Queue from "effect/Queue"
 import * as Ref from "effect/Ref"
-import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
 import * as HttpClient from "effect/unstable/http/HttpClient"
 import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner"
@@ -22,18 +21,12 @@ import {
 } from "../../Services/ProviderAdapter.ts"
 import {
 	type OpenCodePermissionReply,
-	type OpenCodeSessionRecord,
 	providerSessionFact,
 	sessionCatalogFact
 } from "./Facts.ts"
-import {
-	buildPromptBody,
-	emptyOpenCodeStreamState,
-	type OpenCodePromptBody,
-	parseModelSelection
-} from "./Map.ts"
+import { emptyOpenCodeStreamState } from "./Map.ts"
 import { respondToPermission, respondToQuestion } from "./Permissions.ts"
-import { liveCreateTransport } from "./Process.ts"
+import { liveCreateTransport, type OpenCodeTransport } from "./Process.ts"
 import {
 	adapterError,
 	OPENCODE_ALLOWED_ENV_KEYS,
@@ -58,44 +51,7 @@ import {
 	requireSession,
 	type SessionRuntime
 } from "./Session.ts"
-
-type Json = typeof Schema.Json.Type
-
-export type OpenCodeCatalogModel = {
-	readonly modelId: string
-	readonly name: string
-}
-
-export type OpenCodeCatalogCommand = {
-	readonly name: string
-	readonly description: string
-}
-
-export type OpenCodeModelCatalog = {
-	readonly models: ReadonlyArray<OpenCodeCatalogModel>
-	readonly currentModelId: Option.Option<string>
-}
-
-export type OpenCodeTransport = {
-	readonly events: Stream.Stream<Json, ProviderAdapterError>
-	readonly createSession: Effect.Effect<OpenCodeSessionRecord, ProviderAdapterError>
-	readonly listModels: Effect.Effect<OpenCodeModelCatalog, ProviderAdapterError>
-	readonly listCommands: Effect.Effect<ReadonlyArray<OpenCodeCatalogCommand>, ProviderAdapterError>
-	readonly sendPrompt: (
-		providerSessionId: string,
-		body: OpenCodePromptBody
-	) => Effect.Effect<void, ProviderAdapterError>
-	readonly abort: (providerSessionId: string) => Effect.Effect<void, ProviderAdapterError>
-	readonly replyPermission: (
-		requestId: string,
-		reply: OpenCodePermissionReply
-	) => Effect.Effect<void, ProviderAdapterError>
-	readonly replyQuestion: (
-		requestId: string,
-		answers: ReadonlyArray<ReadonlyArray<string>>
-	) => Effect.Effect<void, ProviderAdapterError>
-	readonly close: Effect.Effect<void>
-}
+import { buildPromptBody, parseModelSelection } from "./Wire.ts"
 
 export type OpenCodeAdapter = ProviderAdapter & {
 	readonly respondToPermission: (input: {

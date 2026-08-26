@@ -19,24 +19,17 @@ import type {
 	SendPromptRequest,
 	StartSessionRequest
 } from "../../Services/ProviderAdapter.ts"
-import { deferredOpenFact } from "./Facts.ts"
+import { deferredOpenFact, type ClaudePermissionDecision } from "./Facts.ts"
 import { emptyClaudeStreamState } from "./Map.ts"
+import { bindCanUseTool, decidePermission, makeRespondToPermission } from "./Permissions.ts"
 import {
-	bindCanUseTool,
-	decidePermission,
-	makeRespondToPermission,
-	type ClaudePermissionDecision
-} from "./Permissions.ts"
-import {
-	adapterError,
 	makeLiveCreateQuery,
 	teardownQuery,
-	userPrompt,
 	type ClaudeQueryHandle,
-	type ClaudeQueryInput,
-	type ClaudeUserPrompt
+	type ClaudeQueryInput
 } from "./Process.ts"
 import {
+	adapterError,
 	CLAUDE_CAPABILITIES,
 	CLAUDE_PROVIDER_ID,
 	CLAUDE_SESSION_MCP_SERVERS,
@@ -54,17 +47,7 @@ import {
 	type SessionRuntime
 } from "./Session.ts"
 import { makeWatchdogLoop } from "./Watchdog.ts"
-
-export type {
-	ClaudeCanUseTool,
-	ClaudePermissionResult,
-	ClaudeQueryHandle,
-	ClaudeQueryInput,
-	ClaudeQueryIsolation,
-	ClaudeUserPrompt
-} from "./Process.ts"
-export type { ClaudePermissionDecision } from "./Permissions.ts"
-export { buildClaudeQueryOptions, makeLiveCreateQuery } from "./Process.ts"
+import { userPrompt, type ClaudeUserPrompt } from "./Wire.ts"
 
 export type ClaudeAdapter = ProviderAdapter & {
 	readonly respondToPermission: (input: {

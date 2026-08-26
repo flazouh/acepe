@@ -9,6 +9,7 @@ import * as Str from "effect/String"
 import type { ConfigOptionData } from "../../configOptions.ts"
 import {
 	isCapabilityEnabled,
+	ProviderAdapterError,
 	ProviderCapabilities,
 	ProviderId,
 	PROVIDER_CAPABILITY_NAMES,
@@ -16,6 +17,16 @@ import {
 } from "../../Services/ProviderAdapter.ts"
 
 export const CLAUDE_PROVIDER_ID: ProviderId = ProviderId.make("claude-code")
+
+export const adapterError = (
+	operation: ProviderAdapterError["operation"],
+	detail: string
+): ProviderAdapterError =>
+	new ProviderAdapterError({
+		providerId: CLAUDE_PROVIDER_ID,
+		operation,
+		detail
+	})
 
 export const CLAUDE_DEFERRED_SESSION_CREATION = true
 
@@ -80,7 +91,7 @@ export const CLAUDE_CAPABILITIES: ProviderCapabilities = ProviderCapabilities.ma
 // seconds. Excluding the 'user' setting source (but keeping 'project' and
 // 'local') stops that inheritance while still loading the *target repo's*
 // own CLAUDE.md / .claude/settings.json — legitimate task context, not the
-// operator's personal automation. See Adapter.ts's makeLiveCreateQuery.
+// operator's personal automation. See Process.ts's makeLiveCreateQuery.
 export const CLAUDE_ISOLATED_SETTING_SOURCES: ReadonlyArray<SettingSource> = ["project", "local"]
 
 // Belt-and-suspenders alongside CLAUDE_ISOLATED_SETTING_SOURCES: per the SDK

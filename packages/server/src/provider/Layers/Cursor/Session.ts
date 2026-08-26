@@ -18,51 +18,16 @@ import * as HashMap from "effect/HashMap"
 import * as Option from "effect/Option"
 import * as Queue from "effect/Queue"
 import * as Ref from "effect/Ref"
-import * as Schema from "effect/Schema"
-import {
+import type {
 	ProviderAdapterError,
-	type SendPromptRequest
+	SendPromptRequest
 } from "../../Services/ProviderAdapter.ts"
+import { EMPTY_JSON_OBJECT, type Json } from "../Json.ts"
 import { encodeContractFact } from "./Codec.ts"
 import { type CursorContractFact, turnCompleteFact } from "./Facts.ts"
 import { mapAcpSessionNotification } from "./Map.ts"
-import { CURSOR_PROVIDER_ID } from "./Provider.ts"
-
-type Json = typeof Schema.Json.Type
-type JsonObject = typeof Schema.JsonObject.Type
-
-const EMPTY_JSON_OBJECT: JsonObject = {}
-
-export type CursorPermissionDecision = "allow" | "deny"
-
-export type CursorStopReason =
-	| "end_turn"
-	| "max_tokens"
-	| "max_turn_requests"
-	| "refusal"
-	| "cancelled"
-
-export type CursorLaunchConfig = {
-	readonly command: string
-	readonly args: ReadonlyArray<string>
-}
-
-export type CursorConnectInput = {
-	readonly launch: CursorLaunchConfig
-	readonly onSessionUpdate: (notification: Json) => Effect.Effect<void>
-	readonly onPermissionRequest: (request: Json) => Effect.Effect<CursorPermissionDecision>
-}
-
-export type CursorAcpHandle = {
-	readonly initialize: Effect.Effect<void, ProviderAdapterError>
-	readonly newSession: (cwd: string) => Effect.Effect<string, ProviderAdapterError>
-	readonly prompt: (
-		providerSessionId: string,
-		text: string
-	) => Effect.Effect<Option.Option<CursorStopReason>, ProviderAdapterError>
-	readonly cancel: (providerSessionId: string) => Effect.Effect<void, ProviderAdapterError>
-	readonly close: Effect.Effect<void>
-}
+import type { CursorAcpHandle, CursorStopReason } from "./Process.ts"
+import { adapterError, type CursorPermissionDecision } from "./Provider.ts"
 
 export type SessionRuntime = {
 	readonly sessionId: SessionId
@@ -75,16 +40,6 @@ export type SessionRuntime = {
 	readonly providerSessionId: Ref.Ref<Option.Option<string>>
 	readonly handle: CursorAcpHandle
 }
-
-export const adapterError = (
-	operation: ProviderAdapterError["operation"],
-	detail: string
-): ProviderAdapterError =>
-	new ProviderAdapterError({
-		providerId: CURSOR_PROVIDER_ID,
-		operation,
-		detail
-	})
 
 const assistantMessageId = (
 	sessionId: SessionId,

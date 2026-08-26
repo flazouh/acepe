@@ -6,11 +6,25 @@ import * as HashMap from "effect/HashMap"
 import * as Option from "effect/Option"
 import * as Ref from "effect/Ref"
 import * as Schema from "effect/Schema"
-import { adapterError } from "./Process.ts"
-import { mapCodexPermissionReply } from "./Provider.ts"
+import { adapterError } from "./Provider.ts"
 import { requireSession, type SessionRuntime } from "./Session.ts"
 
 type CodexSessions = Ref.Ref<HashMap.HashMap<SessionId, SessionRuntime>>
+
+export type CodexPermissionDecision = "accept" | "acceptForSession" | "decline"
+
+export const mapCodexPermissionReply = (reply: string): Option.Option<CodexPermissionDecision> => {
+	if (reply === "once" || reply === "allow") {
+		return Option.some("accept")
+	}
+	if (reply === "always") {
+		return Option.some("acceptForSession")
+	}
+	if (reply === "reject" || reply === "deny") {
+		return Option.some("decline")
+	}
+	return Option.none()
+}
 
 export const respondToPermission = Effect.fn("CodexAdapter.respondToPermission")(function*(
 	sessions: CodexSessions,

@@ -1,29 +1,13 @@
 import * as Vitest from "@effect/vitest"
 import * as Arr from "effect/Array"
 import * as Option from "effect/Option"
-import * as Schema from "effect/Schema"
+import type { JsonObject } from "../Json.ts"
 import { decodeContractFact, encodeContractFact } from "./Codec.ts"
 import { planProposalFact } from "./Facts.ts"
-import {
-	detectClaudeToolKind,
-	emptyClaudeStreamState,
-	mapSdkMessage,
-	permissionIdForToolCall,
-	permissionRequestFact
-} from "./Map.ts"
-
-type JsonObject = typeof Schema.JsonObject.Type
+import { emptyClaudeStreamState, mapSdkMessage, permissionRequestFact } from "./Map.ts"
+import { permissionIdForToolCall } from "./Tools.ts"
 
 const jsonObject = (value: JsonObject): JsonObject => value
-
-Vitest.describe("detectClaudeToolKind", () => {
-	Vitest.it("maps Read and Bash to ACP kinds used by the reference fixture", () => {
-		Vitest.assert.strictEqual(detectClaudeToolKind("Read"), "read")
-		Vitest.assert.strictEqual(detectClaudeToolKind("Bash"), "execute")
-		Vitest.assert.strictEqual(detectClaudeToolKind("ExitPlanMode"), "exit_plan_mode")
-		Vitest.assert.strictEqual(detectClaudeToolKind("mcp__server__Read"), "read")
-	})
-})
 
 Vitest.describe("mapSdkMessage", () => {
 	Vitest.it("maps stream text deltas and promotes the first durable session id", () => {
@@ -166,7 +150,7 @@ Vitest.describe("mapSdkMessage", () => {
 	// RESULT arrives as a `user`-typed SDK message (Anthropic's own API shape
 	// feeds tool_result back as a user turn), which mapSdkMessage never
 	// parsed at all -- so the tool call's status never advanced past
-	// "in_progress" no matter how Adapter.ts routed the fact.
+	// "in_progress" no matter how Session.ts routed the fact.
 	Vitest.it("maps a user message's tool_result block to a completed tool_call_update", () => {
 		const mapped = mapSdkMessage(emptyClaudeStreamState, {
 			type: "user",

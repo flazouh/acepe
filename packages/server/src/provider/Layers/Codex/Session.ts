@@ -25,27 +25,21 @@ import * as Option from "effect/Option"
 import * as Predicate from "effect/Predicate"
 import * as Queue from "effect/Queue"
 import * as Ref from "effect/Ref"
-import * as Schema from "effect/Schema"
 import * as Str from "effect/String"
 import type {
 	ProviderAdapterError,
 	SendPromptRequest
 } from "../../Services/ProviderAdapter.ts"
-import type { CodexAppServerHandle } from "./Adapter.ts"
+import { EMPTY_JSON_OBJECT, type Json, type JsonObject } from "../Json.ts"
 import { encodeContractFact } from "./Codec.ts"
 import type { CodexAcpToolKind, CodexContractFact } from "./Facts.ts"
 import { type CodexMapState, mapCodexServerMessage } from "./Map.ts"
-import { adapterError } from "./Process.ts"
-import type { CodexNativeConfigState } from "./Provider.ts"
-
-type Json = typeof Schema.Json.Type
-type JsonObject = typeof Schema.JsonObject.Type
-
-const EMPTY_JSON_OBJECT: JsonObject = {}
+import type { CodexAppServerHandle } from "./Process.ts"
+import { adapterError, type CodexNativeConfigState } from "./Provider.ts"
 
 // What a "tool_call" fact recorded about a tool call, kept around so a LATER
 // "tool_call_update" fact (which may omit its own title — see
-// ToolCallUpdateFact in Map.ts) can still publish a complete
+// ToolCallUpdateFact in Facts.ts) can still publish a complete
 // ToolCallObservedEvent: the projector's ToolCallObservedPayload requires a
 // title on every row, not just the first one — see
 // ProjectionSessionActivities.ts's observedToolRow.
@@ -60,7 +54,7 @@ export type OpenToolCallInfo = {
 // projector's merge sees one growing row instead of two unrelated ones.
 const toolCallActivityId = (toolCallId: string): ActivityId => ActivityId.make(`${toolCallId}:activity`)
 
-// Map.ts's extractToolFields already puts the file path into
+// Tools.ts's extractToolFields already puts the file path into
 // rawInput under "filePath" for read/edit items (see its fileRead/fileChange
 // branches) — reused here, not reimplemented, to derive the path column of
 // projection_session_activities.

@@ -3,13 +3,25 @@ import * as Exit from "effect/Exit"
 import * as Filter from "effect/Filter"
 import * as HashMap from "effect/HashMap"
 import * as Option from "effect/Option"
-import * as Predicate from "effect/Predicate"
 import * as Schema from "effect/Schema"
 import * as Str from "effect/String"
 import {
+	arrayField,
+	booleanField,
+	EMPTY_JSON_OBJECT,
+	field,
+	type Json,
+	jsonObjectOf,
+	type JsonObject,
+	numberField,
+	numberFieldAny,
+	objectField,
+	stringArrayField,
+	stringField,
+	stringFieldAny
+} from "../Json.ts"
+import {
 	type OpenCodeContractFact,
-	type OpenCodeModel,
-	type OpenCodeToolKind,
 	type OpenCodeToolStatus,
 	type QuestionItem,
 	type QuestionOption,
@@ -17,14 +29,10 @@ import {
 	usageFact
 } from "./Facts.ts"
 import { OPENCODE_DEFAULT_MODE } from "./Provider.ts"
+import { permissionRawInput, resolveOpenCodeToolKind } from "./Tools.ts"
+import type { OpenCodeModel } from "./Wire.ts"
 
-type Json = typeof Schema.Json.Type
-type JsonObject = typeof Schema.JsonObject.Type
-
-const EMPTY_JSON_OBJECT: JsonObject = {}
 const MAX_CACHE_ENTRIES = 10_000
-const decodeJsonObject = Schema.decodeUnknownExit(Schema.JsonObject)
-const isJsonArray = Schema.is(Schema.Array(Schema.Json))
 
 export type OpenCodeStreamState = {
 	readonly providerSessionId: Option.Option<string>
@@ -48,105 +56,6 @@ export type OpenCodeMapResult = {
 	readonly facts: ReadonlyArray<OpenCodeContractFact>
 	readonly state: OpenCodeStreamState
 }
-
-export type SseLineFold = {
-	readonly pending: ReadonlyArray<string>
-}
-
-export const emptySseLineFold: SseLineFold = {
-	pending: Arr.empty()
-}
-
-export type OpenCodeUrls = {
-	readonly baseUrl: string
-	readonly session: string
-	readonly config: string
-	readonly provider: string
-	readonly command: string
-	readonly globalEvent: string
-	readonly promptAsync: (sessionId: string) => string
-	readonly abort: (sessionId: string) => string
-	readonly permissionReply: (requestId: string) => string
-	readonly questionReply: (requestId: string) => string
-}
-
-export type OpenCodePromptBody = {
-	readonly directory: string
-	readonly model: {
-		readonly providerID: string
-		readonly modelID: string
-	}
-	readonly agent: string
-	readonly parts: ReadonlyArray<{
-		readonly type: "text"
-		readonly text: string
-	}>
-}
-
-export const jsonObjectOf = (value: Json): Option.Option<JsonObject> => {
-	const exit = decodeJsonObject(value)
-	if (Exit.isSuccess(exit)) {
-		return Option.some(exit.value)
-	}
-	return Option.none()
-}
-
-const field = (record: JsonObject, key: string): Option.Option<Json> => {
-	const value = record[key]
-	if (value === undefined) {
-		return Option.none()
-	}
-	return Option.some(value)
-}
-
-const stringField = (record: JsonObject, key: string): Option.Option<string> =>
-	Option.flatMap(field(record, key), (value) =>
-		Predicate.isString(value) && Str.isNonEmpty(Str.trim(value))
-			? Option.some(value)
-			: Option.none()
-	)
-
-const stringFieldAny = (record: JsonObject, keys: ReadonlyArray<string>): Option.Option<string> =>
-	Arr.reduce(keys, Option.none<string>(), (found, key) =>
-		Option.isSome(found) ? found : stringField(record, key)
-	)
-
-const numberField = (record: JsonObject, key: string): Option.Option<number> =>
-	Option.flatMap(field(record, key), (value) =>
-		Predicate.isNumber(value) ? Option.some(value) : Option.none()
-	)
-
-const numberFieldAny = (record: JsonObject, keys: ReadonlyArray<string>): Option.Option<number> =>
-	Arr.reduce(keys, Option.none<number>(), (found, key) =>
-		Option.isSome(found) ? found : numberField(record, key)
-	)
-
-const booleanField = (record: JsonObject, key: string): Option.Option<boolean> =>
-	Option.flatMap(field(record, key), (value) =>
-		Predicate.isBoolean(value) ? Option.some(value) : Option.none()
-	)
-
-const objectField = (record: JsonObject, key: string): Option.Option<JsonObject> =>
-	Option.flatMap(field(record, key), jsonObjectOf)
-
-const arrayField = (record: JsonObject, key: string): Option.Option<ReadonlyArray<Json>> =>
-	Option.flatMap(field(record, key), (value) =>
-		isJsonArray(value) ? Option.some(value) : Option.none()
-	)
-
-const stringArrayField = (record: JsonObject, key: string): ReadonlyArray<string> =>
-	Option.match(arrayField(record, key), {
-		onNone: () => Arr.empty<string>(),
-		onSome: (items) =>
-			Arr.filterMap(
-				items,
-				Filter.fromPredicateOption((item) =>
-					Predicate.isString(item) && Str.isNonEmpty(Str.trim(item))
-						? Option.some(item)
-						: Option.none()
-				)
-			)
-	})
 
 const rawInputOf = (value: Json | undefined): JsonObject => {
 	if (value === undefined) {
@@ -181,276 +90,6 @@ const boundedMap = <K, V>(
 		return HashMap.set(map, key, value)
 	}
 	return HashMap.set(HashMap.empty<K, V>(), key, value)
-}
-
-const foldedName = (name: string): string =>
-	Str.toLowerCase(Str.replaceAll(/[\s_-]/g, "")(Str.trim(name)))
-
-const nameIn = (folded: string, candidates: ReadonlyArray<string>): boolean =>
-	Arr.some(candidates, (candidate) => folded === foldedName(candidate))
-
-export const detectOpenCodeToolKind = (name: string): OpenCodeToolKind => {
-	const folded = foldedName(name)
-	if (
-		nameIn(folded, [
-			"read",
-			"readfile",
-			"read_file",
-			"cat",
-			"view",
-			"viewfile",
-			"view_file",
-			"notebookread",
-			"notebook_read"
-		])
-	) {
-		return "read"
-	}
-	if (nameIn(folded, ["read_lints", "readlints", "read-lints", "read lints"])) {
-		return "read_lints"
-	}
-	if (
-		nameIn(folded, [
-			"edit",
-			"editfile",
-			"edit_file",
-			"modify",
-			"write",
-			"writefile",
-			"create",
-			"replace",
-			"str_replace",
-			"str_replace_editor",
-			"apply_patch",
-			"apply patch",
-			"patch",
-			"notebookedit",
-			"notebook_edit"
-		])
-	) {
-		return "edit"
-	}
-	if (
-		nameIn(folded, [
-			"bash",
-			"shell",
-			"exec",
-			"execute",
-			"run",
-			"command",
-			"kill",
-			"killshell",
-			"terminate"
-		])
-	) {
-		return "execute"
-	}
-	if (nameIn(folded, ["grep", "search", "searchfiles", "ripgrep", "rg"])) {
-		return "search"
-	}
-	if (
-		nameIn(folded, [
-			"glob",
-			"ls",
-			"list",
-			"listfiles",
-			"listdir",
-			"find",
-			"findfile",
-			"find_files",
-			"locate"
-		])
-	) {
-		return "glob"
-	}
-	if (
-		nameIn(folded, [
-			"fetch",
-			"http",
-			"curl",
-			"webfetch",
-			"web_fetch",
-			"http_fetch",
-			"httpget"
-		])
-	) {
-		return "fetch"
-	}
-	if (nameIn(folded, ["websearch", "web_search", "search_web", "googlesearch"])) {
-		return "web_search"
-	}
-	if (nameIn(folded, ["todo", "todowrite", "todo_write", "todos", "tasklist"])) {
-		return "todo"
-	}
-	if (
-		nameIn(folded, [
-			"ask",
-			"askuser",
-			"question",
-			"askuserquestion",
-			"ask_user_question"
-		])
-	) {
-		return "question"
-	}
-	if (nameIn(folded, ["skill", "useskill", "use_skill"])) {
-		return "skill"
-	}
-	if (nameIn(folded, ["planmode", "plan_mode", "enterplanmode", "enter_plan_mode"])) {
-		return "enter_plan_mode"
-	}
-	if (nameIn(folded, ["exitplan", "exitplanmode", "exit_plan_mode", "execute_plan"])) {
-		return "exit_plan_mode"
-	}
-	if (
-		nameIn(folded, [
-			"think",
-			"reason",
-			"task",
-			"spawn",
-			"agent",
-			"subagent",
-			"delegate",
-			"spawntask"
-		])
-	) {
-		return "task"
-	}
-	return "other"
-}
-
-const looksLikeSearchUrl = (url: string): boolean => Str.includes("/search?")(url)
-
-export const resolveOpenCodeToolKind = (name: string, rawInput: JsonObject): OpenCodeToolKind => {
-	const detected = detectOpenCodeToolKind(name)
-	if (detected !== "fetch") {
-		return detected
-	}
-	const url = stringField(rawInput, "url")
-	if (Option.isSome(url) && looksLikeSearchUrl(url.value)) {
-		return "web_search"
-	}
-	return detected
-}
-
-export const parseModelSelection = (modelId: string): Option.Option<OpenCodeModel> => {
-	const trimmed = Str.trim(modelId)
-	const slash = trimmed.indexOf("/")
-	if (slash <= 0 || slash === trimmed.length - 1) {
-		return Option.none()
-	}
-	const providerId = Str.trim(trimmed.slice(0, slash))
-	const id = Str.trim(trimmed.slice(slash + 1))
-	if (Str.isEmpty(providerId) || Str.isEmpty(id)) {
-		return Option.none()
-	}
-	return Option.some({
-		providerId,
-		modelId: id
-	})
-}
-
-export const canonicalModelId = (model: OpenCodeModel): string =>
-	`${model.providerId}/${model.modelId}`
-
-export const isSafeRequestId = (requestId: string): boolean => {
-	if (Str.isEmpty(requestId)) {
-		return false
-	}
-	return /^[A-Za-z0-9_-]+$/.test(requestId)
-}
-
-export const openCodeUrls = (baseUrl: string): OpenCodeUrls => {
-	const trimmed = Str.replace(/\/$/, "")(baseUrl)
-	return {
-		baseUrl: trimmed,
-		session: `${trimmed}/session`,
-		config: `${trimmed}/config`,
-		provider: `${trimmed}/provider`,
-		command: `${trimmed}/command`,
-		globalEvent: `${trimmed}/global/event`,
-		promptAsync: (sessionId) => `${trimmed}/session/${sessionId}/prompt_async`,
-		abort: (sessionId) => `${trimmed}/session/${sessionId}/abort`,
-		permissionReply: (requestId) => `${trimmed}/permission/${requestId}/reply`,
-		questionReply: (requestId) => `${trimmed}/question/${requestId}/reply`
-	}
-}
-
-export const buildPromptBody = (input: {
-	readonly directory: string
-	readonly model: OpenCodeModel
-	readonly agent: string
-	readonly text: string
-}): OpenCodePromptBody => ({
-	directory: input.directory,
-	model: {
-		providerID: input.model.providerId,
-		modelID: input.model.modelId
-	},
-	agent: input.agent,
-	parts: [
-		{
-			type: "text",
-			text: input.text
-		}
-	]
-})
-
-export const resolveConfiguredModel = (
-	configuredModelId: string,
-	availableModelIds: ReadonlyArray<string>
-): Option.Option<string> => {
-	if (Arr.contains(availableModelIds, configuredModelId)) {
-		return Option.some(configuredModelId)
-	}
-	if (Str.includes("/")(configuredModelId)) {
-		return Option.none()
-	}
-	const matches = Arr.filter(availableModelIds, (modelId) => {
-		const slash = modelId.lastIndexOf("/")
-		if (slash < 0) {
-			return false
-		}
-		return modelId.slice(slash + 1) === configuredModelId
-	})
-	if (matches.length === 1) {
-		return Arr.head(matches)
-	}
-	return Option.none()
-}
-
-export const consumeSseLine = (
-	fold: SseLineFold,
-	line: string
-): {
-	readonly fold: SseLineFold
-	readonly raw: Option.Option<string>
-} => {
-	const trimmed = Str.replace(/\r$/, "")(line)
-	if (Str.isEmpty(trimmed)) {
-		if (fold.pending.length === 0) {
-			return {
-				fold: emptySseLineFold,
-				raw: Option.none()
-			}
-		}
-		return {
-			fold: emptySseLineFold,
-			raw: Option.some(Arr.join(fold.pending, "\n"))
-		}
-	}
-	if (Str.startsWith("data:")(trimmed)) {
-		return {
-			fold: {
-				pending: Arr.append(fold.pending, Str.trimStart(trimmed.slice(5)))
-			},
-			raw: Option.none()
-		}
-	}
-	return {
-		fold,
-		raw: Option.none()
-	}
 }
 
 const parseJsonText = (text: string): Option.Option<Json> => {
@@ -588,45 +227,6 @@ const mapToolStatus = (status: string): OpenCodeToolStatus => {
 		return "in_progress"
 	}
 	return "pending"
-}
-
-const permissionRawInput = (permission: string, patterns: ReadonlyArray<string>): JsonObject => {
-	const words = Arr.filter(Str.split(Str.trim(permission), " "), (part) => Str.isNonEmpty(part))
-	const firstWord = Option.getOrElse(Arr.head(words), () => "")
-	const kind = detectOpenCodeToolKind(firstWord)
-	const tail =
-		words.length < 2 ? Option.none<string>() : Option.some(Arr.join(Arr.drop(words, 1), " "))
-	const firstPattern = Arr.head(patterns)
-	const source = Option.orElse(firstPattern, () => tail)
-	if (Option.isNone(source)) {
-		return EMPTY_JSON_OBJECT
-	}
-	if (kind === "read" || kind === "edit") {
-		return {
-			file_path: source.value
-		}
-	}
-	if (kind === "execute") {
-		return {
-			command: source.value
-		}
-	}
-	if (kind === "search") {
-		return {
-			query: source.value
-		}
-	}
-	if (kind === "glob") {
-		return {
-			pattern: source.value
-		}
-	}
-	if (kind === "fetch" || kind === "web_search") {
-		return {
-			url: source.value
-		}
-	}
-	return EMPTY_JSON_OBJECT
 }
 
 const cacheTokens = (

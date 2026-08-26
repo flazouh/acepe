@@ -1,11 +1,11 @@
 import * as Vitest from "@effect/vitest"
 import * as Option from "effect/Option"
-import { buildClaudeQueryOptions } from "./Process.ts"
+import { buildClaudeQueryOptions } from "./Wire.ts"
 
 // These pin down the isolation fix's actual mechanism: the SDK's query()
 // options constructed for a live session must exclude the operator's
 // personal ~/.claude config while keeping the target repo's own project
-// settings — see buildClaudeQueryOptions' doc comment in Adapter.ts
+// settings — see buildClaudeQueryOptions' doc comment in Wire.ts
 // for the empirical evidence behind these exact values.
 Vitest.describe("buildClaudeQueryOptions", () => {
 	const fakeCanUseTool = (() =>

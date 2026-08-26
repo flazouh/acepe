@@ -1,14 +1,24 @@
 import * as Arr from "effect/Array"
-import * as Exit from "effect/Exit"
 import * as Filter from "effect/Filter"
 import * as Option from "effect/Option"
 import * as Predicate from "effect/Predicate"
-import * as Schema from "effect/Schema"
 import * as Str from "effect/String"
+import {
+	applyOptional,
+	booleanField,
+	EMPTY_JSON_OBJECT,
+	field,
+	isJsonArray,
+	type Json,
+	type JsonObject,
+	jsonObjectOf,
+	numberFieldAny,
+	objectField,
+	stringField,
+	stringFieldAny
+} from "../Json.ts"
 import type {
-	CodexAcpToolKind,
 	CodexContractFact,
-	CodexToolStatus,
 	PermissionRequestFact,
 	PlanProposalFact,
 	QuestionItem,
@@ -18,26 +28,24 @@ import type {
 	TurnErrorFact,
 	UsageFact
 } from "./Facts.ts"
+import { extractToolFields, isToolItemType, permissionLabel, toolStatusFromItem } from "./Tools.ts"
+import {
+	ACCOUNT_RATE_LIMITS_UPDATED_METHOD,
+	AGENT_MESSAGE_DELTA_METHOD,
+	COMMAND_APPROVAL_METHOD,
+	ERROR_METHOD,
+	FILE_CHANGE_APPROVAL_METHOD,
+	FILE_READ_APPROVAL_METHOD,
+	ITEM_COMPLETED_METHOD,
+	ITEM_STARTED_METHOD,
+	REASONING_SUMMARY_DELTA_METHOD,
+	REASONING_TEXT_DELTA_METHOD,
+	stringifyJsonRpcId,
+	TOKEN_USAGE_UPDATED_METHOD,
+	TURN_COMPLETED_METHOD,
+	USER_INPUT_REQUEST_METHOD
+} from "./Wire.ts"
 
-type Json = typeof Schema.Json.Type
-type JsonObject = typeof Schema.JsonObject.Type
-
-const EMPTY_JSON_OBJECT: JsonObject = {}
-const decodeJsonObject = Schema.decodeUnknownExit(Schema.JsonObject)
-
-const COMMAND_APPROVAL_METHOD = "item/commandExecution/requestApproval"
-const FILE_READ_APPROVAL_METHOD = "item/fileRead/requestApproval"
-const FILE_CHANGE_APPROVAL_METHOD = "item/fileChange/requestApproval"
-const USER_INPUT_REQUEST_METHOD = "item/tool/requestUserInput"
-const AGENT_MESSAGE_DELTA_METHOD = "item/agentMessage/delta"
-const REASONING_TEXT_DELTA_METHOD = "item/reasoning/textDelta"
-const REASONING_SUMMARY_DELTA_METHOD = "item/reasoning/summaryTextDelta"
-const TURN_COMPLETED_METHOD = "turn/completed"
-const ERROR_METHOD = "error"
-const ITEM_STARTED_METHOD = "item/started"
-const ITEM_COMPLETED_METHOD = "item/completed"
-const TOKEN_USAGE_UPDATED_METHOD = "thread/tokenUsage/updated"
-const ACCOUNT_RATE_LIMITS_UPDATED_METHOD = "account/rateLimits/updated"
 const PLAN_OPEN_TAG = "<proposed_plan>"
 const PLAN_CLOSE_TAG = "</proposed_plan>"
 
@@ -66,74 +74,17 @@ export type CodexMapResult = {
 	readonly state: CodexMapState
 }
 
-const jsonObjectOf = (value: Json): Option.Option<JsonObject> => {
-	const exit = decodeJsonObject(value)
-	if (Exit.isSuccess(exit)) {
-		return Option.some(exit.value)
-	}
-	return Option.none()
-}
-
-const field = (record: JsonObject, key: string): Option.Option<Json> => {
-	const value = record[key]
-	if (value === undefined) {
-		return Option.none()
-	}
-	return Option.some(value)
-}
-
-const stringField = (record: JsonObject, key: string): Option.Option<string> =>
-	Option.flatMap(field(record, key), (value) =>
-		Predicate.isString(value) && Str.isNonEmpty(Str.trim(value))
-			? Option.some(value)
-			: Option.none()
-	)
-
-const stringFieldAny = (record: JsonObject, keys: ReadonlyArray<string>): Option.Option<string> =>
-	Arr.reduce(keys, Option.none<string>(), (found, key) =>
-		Option.isSome(found) ? found : stringField(record, key)
-	)
-
+// Unlike stringField, a delta token is present-and-meaningful even when it is
+// pure whitespace: dropping it would glue two words together.
 const rawStringField = (record: JsonObject, key: string): Option.Option<string> =>
 	Option.flatMap(field(record, key), (value) =>
 		Predicate.isString(value) && Str.isNonEmpty(value) ? Option.some(value) : Option.none()
 	)
 
-const numberField = (record: JsonObject, key: string): Option.Option<number> =>
-	Option.flatMap(field(record, key), (value) =>
-		Predicate.isNumber(value) ? Option.some(value) : Option.none()
-	)
-
-const numberFieldAny = (record: JsonObject, keys: ReadonlyArray<string>): Option.Option<number> =>
-	Arr.reduce(keys, Option.none<number>(), (found, key) =>
-		Option.isSome(found) ? found : numberField(record, key)
-	)
-
-const booleanField = (record: JsonObject, key: string): Option.Option<boolean> =>
-	Option.flatMap(field(record, key), (value) =>
-		Predicate.isBoolean(value) ? Option.some(value) : Option.none()
-	)
-
-const objectField = (record: JsonObject, key: string): Option.Option<JsonObject> =>
-	Option.flatMap(field(record, key), jsonObjectOf)
-
 const objectFieldAny = (record: JsonObject, keys: ReadonlyArray<string>): Option.Option<JsonObject> =>
 	Arr.reduce(keys, Option.none<JsonObject>(), (found, key) =>
 		Option.isSome(found) ? found : objectField(record, key)
 	)
-
-const isJsonArray = Schema.is(Schema.Array(Schema.Json))
-
-const stringifyJsonRpcId = (value: Option.Option<Json>): Option.Option<string> =>
-	Option.flatMap(value, (id) => {
-		if (Predicate.isString(id) && Str.isNonEmpty(Str.trim(id))) {
-			return Option.some(id)
-		}
-		if (Predicate.isNumber(id)) {
-			return Option.some(String(id))
-		}
-		return Option.none()
-	})
 
 const isBoundaryChar = (ch: string): boolean =>
 	ch === " " ||
@@ -167,80 +118,6 @@ export const classifyChunkAggregationHint = (
 	return Option.none()
 }
 
-const isToolItemType = (itemType: string): boolean =>
-	itemType === "commandExecution" ||
-	itemType === "fileRead" ||
-	itemType === "fileChange" ||
-	itemType === "fileSearch" ||
-	itemType === "codeEdit"
-
-const firstCommandAction = (item: JsonObject): Option.Option<string> => {
-	const actions = field(item, "commandActions")
-	if (Option.isNone(actions) || isJsonArray(actions.value) === false) {
-		return Option.none()
-	}
-	const first = Arr.head(actions.value)
-	return Option.flatMap(first, (entry) =>
-		Option.flatMap(jsonObjectOf(entry), (action) => stringField(action, "command"))
-	)
-}
-
-const extractToolFields = (
-	itemType: string,
-	item: JsonObject
-): { readonly name: string; readonly kind: CodexAcpToolKind; readonly title: string; readonly rawInput: JsonObject } => {
-	if (itemType === "commandExecution") {
-		const command = Option.getOrElse(firstCommandAction(item), () =>
-			Option.getOrElse(stringField(item, "command"), () => "")
-		)
-		return {
-			name: "Execute",
-			kind: "execute",
-			title: Str.isNonEmpty(command) ? command : "Execute",
-			rawInput: { command }
-		}
-	}
-	if (itemType === "fileRead") {
-		const filePath = Option.getOrElse(stringFieldAny(item, ["filePath", "path"]), () => "")
-		return {
-			name: "Read",
-			kind: "read",
-			title: Str.isNonEmpty(filePath) ? `Read ${filePath}` : "Read",
-			rawInput: { filePath }
-		}
-	}
-	if (itemType === "fileChange") {
-		const filePath = Option.getOrElse(stringFieldAny(item, ["filePath", "path"]), () => "")
-		return {
-			name: "Edit",
-			kind: "edit",
-			title: Str.isNonEmpty(filePath) ? `Edit ${filePath}` : "Edit",
-			rawInput: { filePath }
-		}
-	}
-	const label = Option.getOrElse(stringFieldAny(item, ["title", "name"]), () => itemType)
-	return {
-		name: itemType,
-		kind: "other",
-		title: label,
-		rawInput: item
-	}
-}
-
-const toolStatusFromItem = (item: JsonObject, completed: boolean): CodexToolStatus => {
-	const status = Option.getOrElse(stringField(item, "status"), () => "")
-	if (status === "failed") {
-		return "failed"
-	}
-	if (completed) {
-		return "completed"
-	}
-	if (status === "completed") {
-		return "completed"
-	}
-	return "in_progress"
-}
-
 const toolResult = (item: JsonObject): Option.Option<Json> => {
 	const aggregated = field(item, "aggregatedOutput")
 	if (Option.isSome(aggregated) && aggregated.value !== null) {
@@ -259,27 +136,6 @@ const extractTurnId = (params: JsonObject): Option.Option<string> => {
 		return direct
 	}
 	return Option.flatMap(objectField(params, "turn"), (turn) => stringField(turn, "id"))
-}
-
-const permissionLabel = (method: string, params: JsonObject): string => {
-	if (method === COMMAND_APPROVAL_METHOD) {
-		return Option.getOrElse(stringField(params, "command"), () => "CommandExecution")
-	}
-	if (method === FILE_READ_APPROVAL_METHOD) {
-		const path = stringFieldAny(params, ["filePath", "path"])
-		return Option.match(path, {
-			onNone: () => "Read",
-			onSome: (value) => `Read ${value}`
-		})
-	}
-	if (method === FILE_CHANGE_APPROVAL_METHOD) {
-		const path = stringFieldAny(params, ["filePath", "path"])
-		return Option.match(path, {
-			onNone: () => "Edit",
-			onSome: (value) => `Edit ${value}`
-		})
-	}
-	return "Permission"
 }
 
 const parseQuestionOptions = (question: JsonObject): ReadonlyArray<QuestionOption> => {
@@ -388,32 +244,8 @@ const formatOptionalNumber = (value: Option.Option<number>): string =>
 const withUsageNumber = (
 	fact: UsageFact,
 	value: Option.Option<number>,
-	key: "inputTokens" | "outputTokens" | "totalTokens" | "cacheReadTokens" | "cacheWriteTokens" | "reasoningTokens" | "contextWindowSize"
-): UsageFact =>
-	Option.match(value, {
-		onNone: () => fact,
-		onSome: (next) => {
-			if (key === "inputTokens") {
-				return { ...fact, inputTokens: next }
-			}
-			if (key === "outputTokens") {
-				return { ...fact, outputTokens: next }
-			}
-			if (key === "totalTokens") {
-				return { ...fact, totalTokens: next }
-			}
-			if (key === "cacheReadTokens") {
-				return { ...fact, cacheReadTokens: next }
-			}
-			if (key === "cacheWriteTokens") {
-				return { ...fact, cacheWriteTokens: next }
-			}
-			if (key === "reasoningTokens") {
-				return { ...fact, reasoningTokens: next }
-			}
-			return { ...fact, contextWindowSize: next }
-		}
-	})
+	apply: (next: UsageFact, present: number) => UsageFact
+): UsageFact => applyOptional(fact, Option.getOrUndefined(value), apply)
 
 const translateTokenUsage = (sessionId: string, params: JsonObject): Option.Option<UsageFact> => {
 	const tokenUsageOption = objectFieldAny(params, ["tokenUsage", "token_usage"])
@@ -511,24 +343,27 @@ const translateTokenUsage = (sessionId: string, params: JsonObject): Option.Opti
 					withUsageNumber(
 						withUsageNumber(
 							withUsageNumber(
-								withUsageNumber(base, inputTokens, "inputTokens"),
+								withUsageNumber(base, inputTokens, (fact, next) => ({
+									...fact,
+									inputTokens: next
+								})),
 								outputTokens,
-								"outputTokens"
+								(fact, next) => ({ ...fact, outputTokens: next })
 							),
 							totalTokens,
-							"totalTokens"
+							(fact, next) => ({ ...fact, totalTokens: next })
 						),
 						cacheReadTokens,
-						"cacheReadTokens"
+						(fact, next) => ({ ...fact, cacheReadTokens: next })
 					),
 					cacheWriteTokens,
-					"cacheWriteTokens"
+					(fact, next) => ({ ...fact, cacheWriteTokens: next })
 				),
 				reasoningTokens,
-				"reasoningTokens"
+				(fact, next) => ({ ...fact, reasoningTokens: next })
 			),
 			contextWindowSize,
-			"contextWindowSize"
+			(fact, next) => ({ ...fact, contextWindowSize: next })
 		)
 	)
 }

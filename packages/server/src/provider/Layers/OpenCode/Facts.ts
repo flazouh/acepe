@@ -29,20 +29,6 @@ export type OpenCodeToolStatus = typeof OpenCodeToolStatus.Type
 export const OpenCodePermissionReply = Schema.Literals(["once", "always", "reject"])
 export type OpenCodePermissionReply = typeof OpenCodePermissionReply.Type
 
-export const OpenCodeModel = Schema.Struct({
-	providerId: Schema.String.check(Schema.isNonEmpty()),
-	modelId: Schema.String.check(Schema.isNonEmpty())
-})
-export type OpenCodeModel = typeof OpenCodeModel.Type
-
-export const OpenCodeSessionRecord = Schema.Struct({
-	id: Schema.String.check(Schema.isNonEmpty()),
-	directory: Schema.String.check(Schema.isNonEmpty()),
-	projectID: Schema.String.check(Schema.isNonEmpty()),
-	title: Schema.optionalKey(Schema.String)
-})
-export type OpenCodeSessionRecord = typeof OpenCodeSessionRecord.Type
-
 export const TextDeltaFact = Schema.Struct({
 	contractKind: Schema.Literal("text_delta"),
 	token: Schema.String.check(Schema.isNonEmpty())

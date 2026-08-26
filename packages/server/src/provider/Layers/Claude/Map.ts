@@ -1,11 +1,21 @@
 import * as Arr from "effect/Array"
-import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"
-import * as Predicate from "effect/Predicate"
-import * as Schema from "effect/Schema"
-import * as Str from "effect/String"
 import {
-	type ClaudeAcpToolKind,
+	applyOptional,
+	booleanField,
+	EMPTY_JSON_OBJECT,
+	field,
+	isJsonArray,
+	type Json,
+	type JsonObject,
+	jsonObjectOf,
+	numberField,
+	numberFieldAny,
+	objectField,
+	stringField,
+	stringFieldAny
+} from "../Json.ts"
+import {
 	type ClaudeCompactionStatus,
 	type ClaudeCompactionTrigger,
 	type ClaudeContractFact,
@@ -13,14 +23,13 @@ import {
 	type PermissionRequestFact,
 	type UsageFact
 } from "./Facts.ts"
-
-type Json = typeof Schema.Json.Type
-type JsonObject = typeof Schema.JsonObject.Type
-
-const EMPTY_JSON_OBJECT: JsonObject = {}
-
-const decodeJsonObject = Schema.decodeUnknownExit(Schema.JsonObject)
-const isJsonArray = Schema.is(Schema.Array(Schema.Json))
+import {
+	detectClaudeToolKind,
+	foldedName,
+	permissionIdForToolCall,
+	permissionNameForToolKind,
+	toolCallTitle
+} from "./Tools.ts"
 
 export type StreamToolBlock = {
 	readonly index: number
@@ -46,52 +55,6 @@ export type ClaudeMapResult = {
 	readonly facts: ReadonlyArray<ClaudeContractFact>
 	readonly state: ClaudeStreamState
 }
-
-export const jsonObjectOf = (value: Json): Option.Option<JsonObject> => {
-	const exit = decodeJsonObject(value)
-	if (Exit.isSuccess(exit)) {
-		return Option.some(exit.value)
-	}
-	return Option.none()
-}
-
-const field = (record: JsonObject, key: string): Option.Option<Json> => {
-	const value = record[key]
-	if (value === undefined) {
-		return Option.none()
-	}
-	return Option.some(value)
-}
-
-export const stringField = (record: JsonObject, key: string): Option.Option<string> =>
-	Option.flatMap(field(record, key), (value) =>
-		Predicate.isString(value) && Str.isNonEmpty(Str.trim(value))
-			? Option.some(value)
-			: Option.none()
-	)
-
-const stringFieldAny = (record: JsonObject, keys: ReadonlyArray<string>): Option.Option<string> =>
-	Arr.reduce(keys, Option.none<string>(), (found, key) =>
-		Option.isSome(found) ? found : stringField(record, key)
-	)
-
-const numberField = (record: JsonObject, key: string): Option.Option<number> =>
-	Option.flatMap(field(record, key), (value) =>
-		Predicate.isNumber(value) ? Option.some(value) : Option.none()
-	)
-
-const numberFieldAny = (record: JsonObject, keys: ReadonlyArray<string>): Option.Option<number> =>
-	Arr.reduce(keys, Option.none<number>(), (found, key) =>
-		Option.isSome(found) ? found : numberField(record, key)
-	)
-
-export const booleanField = (record: JsonObject, key: string): Option.Option<boolean> =>
-	Option.flatMap(field(record, key), (value) =>
-		Predicate.isBoolean(value) ? Option.some(value) : Option.none()
-	)
-
-export const objectField = (record: JsonObject, key: string): Option.Option<JsonObject> =>
-	Option.flatMap(field(record, key), jsonObjectOf)
 
 const withProviderSession = (
 	state: ClaudeStreamState,
@@ -141,161 +104,6 @@ const removeToolBlock = (state: ClaudeStreamState, index: number): ClaudeStreamS
 
 const toolBlockAt = (state: ClaudeStreamState, index: number): Option.Option<StreamToolBlock> =>
 	Arr.findFirst(state.toolBlocks, (block) => block.index === index)
-
-const normalizeToolName = (name: string): string => {
-	const trimmed = Str.trim(name)
-	if (Str.startsWith("mcp__")(trimmed)) {
-		return Option.getOrElse(Arr.last(Str.split(trimmed, "__")), () => trimmed)
-	}
-	return trimmed
-}
-
-const foldedName = (name: string): string =>
-	Str.toLowerCase(Str.replaceAll(/[\s_-]/g, "")(normalizeToolName(name)))
-
-export const detectClaudeToolKind = (name: string): ClaudeAcpToolKind => {
-	const folded = foldedName(name)
-	if (folded === "read" || folded === "readfile" || folded === "view" || folded === "notebookread") {
-		return "read"
-	}
-	if (folded === "readlints") {
-		return "read_lints"
-	}
-	if (
-		folded === "bash" ||
-		folded === "execute" ||
-		folded === "shell" ||
-		folded === "run" ||
-		folded === "terminal" ||
-		folded === "killshell" ||
-		folded === "killbash"
-	) {
-		return "execute"
-	}
-	if (
-		folded === "edit" ||
-		folded === "editfile" ||
-		folded === "write" ||
-		folded === "writefile" ||
-		folded === "multiedit" ||
-		folded === "strreplace" ||
-		folded === "strreplaceeditor" ||
-		folded === "applypatch"
-	) {
-		return "edit"
-	}
-	if (folded === "glob" || folded === "ls") {
-		return "glob"
-	}
-	if (folded === "grep" || folded === "search") {
-		return "search"
-	}
-	if (folded === "webfetch" || folded === "fetch") {
-		return "fetch"
-	}
-	if (folded === "websearch") {
-		return "web_search"
-	}
-	if (folded === "think") {
-		return "think"
-	}
-	if (folded === "todowrite" || folded === "todoread" || folded === "todo") {
-		return "todo"
-	}
-	if (folded === "askuserquestion" || folded === "askuser" || folded === "question") {
-		return "question"
-	}
-	if (folded === "task" || folded === "taskcreate" || folded === "taskupdate") {
-		return "task"
-	}
-	if (folded === "skill") {
-		return "skill"
-	}
-	if (folded === "enterplanmode") {
-		return "enter_plan_mode"
-	}
-	if (folded === "exitplanmode") {
-		return "exit_plan_mode"
-	}
-	return "other"
-}
-
-// Field names the various Claude tools use for their primary path-shaped
-// input, checked in order. Mirrors the "filePath"/"file_path" duality
-// Codex/Map.ts's extractToolFields already relies on for the same
-// read/edit kinds -- Claude's own tool schemas use snake_case exclusively,
-// but staying permissive costs nothing.
-const PATH_INPUT_KEYS = ["file_path", "path", "notebook_path"] as const
-
-// A short, tool-specific hint pulled from the tool's own input, used to turn
-// a bare tool name ("Read") into a title that actually says what happened
-// ("Read package.json") -- see toolCallTitle below. Deliberately narrow: only
-// the kinds where a single input field is obviously "the point" of the call
-// get a hint, everything else (todo, question, task, skill, ...) keeps its
-// bare name rather than guessing at a misleading one.
-const toolCallPrimaryInputHint = (
-	kind: ClaudeAcpToolKind,
-	rawInput: JsonObject
-): Option.Option<string> => {
-	if (kind === "read" || kind === "read_lints" || kind === "edit") {
-		return stringFieldAny(rawInput, PATH_INPUT_KEYS)
-	}
-	if (kind === "execute") {
-		return stringFieldAny(rawInput, ["command"])
-	}
-	if (kind === "search") {
-		return stringFieldAny(rawInput, ["pattern", "query"])
-	}
-	if (kind === "glob") {
-		return stringFieldAny(rawInput, ["pattern"])
-	}
-	if (kind === "fetch" || kind === "web_search") {
-		return stringFieldAny(rawInput, ["url", "query"])
-	}
-	return Option.none()
-}
-
-// Mirrors Codex/Map.ts's extractToolFields titling convention (e.g.
-// "Read /tmp/example.rs", or the bare command for execute with no tool-name
-// prefix) so the same session activity row reads consistently regardless of
-// which provider produced it. Falls back to the bare tool name when no hint
-// is available -- e.g. content_block_start firing before the real (still
-// streaming) input has arrived.
-const toolCallTitle = (name: string, kind: ClaudeAcpToolKind, rawInput: JsonObject): string => {
-	const hint = toolCallPrimaryInputHint(kind, rawInput)
-	if (Option.isNone(hint)) {
-		return name
-	}
-	if (kind === "execute") {
-		return hint.value
-	}
-	return `${name} ${hint.value}`
-}
-
-// The path column of projection_session_activities -- populated only for the
-// kinds that are unambiguously about a single file (read/edit), matching
-// FILE_OPERATION_KINDS' intent on the projector side.
-export const toolCallPathHint = (kind: ClaudeAcpToolKind, rawInput: JsonObject): Option.Option<string> => {
-	if (kind !== "read" && kind !== "edit") {
-		return Option.none()
-	}
-	return stringFieldAny(rawInput, PATH_INPUT_KEYS)
-}
-
-export const permissionIdForToolCall = (toolCallId: string): string => `perm-${toolCallId}`
-
-export const permissionNameForToolKind = (kind: ClaudeAcpToolKind): string => {
-	if (kind === "execute") {
-		return "execute"
-	}
-	if (kind === "edit") {
-		return "edit"
-	}
-	if (kind === "read" || kind === "read_lints") {
-		return "read"
-	}
-	return kind
-}
 
 export const permissionRequestFact = (input: {
 	readonly sessionId: string
@@ -390,15 +198,11 @@ const withProviderMetadata = (fact: CompactionFact, value: JsonObject): Compacti
 	providerMetadata: value
 })
 
-const applyOptionalNumber = (
-	fact: CompactionFact,
+const applyOptionalNumber = <A>(
+	fact: A,
 	value: Option.Option<number>,
-	apply: (current: CompactionFact, next: number) => CompactionFact
-): CompactionFact =>
-	Option.match(value, {
-		onNone: () => fact,
-		onSome: (next) => apply(fact, next)
-	})
+	apply: (current: A, next: number) => A
+): A => applyOptional(fact, Option.getOrUndefined(value), apply)
 
 export const compactionFromRecord = (
 	record: JsonObject,
@@ -493,16 +297,6 @@ const withUsageWindow = (fact: UsageFact, value: number): UsageFact => ({
 	contextWindowSize: value
 })
 
-const applyUsageNumber = (
-	fact: UsageFact,
-	value: Option.Option<number>,
-	apply: (current: UsageFact, next: number) => UsageFact
-): UsageFact =>
-	Option.match(value, {
-		onNone: () => fact,
-		onSome: (next) => apply(fact, next)
-	})
-
 export const usageFromRecord = (record: JsonObject, sessionId: string): Option.Option<UsageFact> => {
 	const usageObject = Option.getOrElse(objectField(record, "usage"), () => record)
 	const inputTokens = numberFieldAny(usageObject, ["input_tokens", "inputTokens", "input"])
@@ -531,11 +325,11 @@ export const usageFromRecord = (record: JsonObject, sessionId: string): Option.O
 		sessionId
 	}
 	return Option.some(
-		applyUsageNumber(
-			applyUsageNumber(
-				applyUsageNumber(
-					applyUsageNumber(
-						applyUsageNumber(base, inputTokens, withUsageInput),
+		applyOptionalNumber(
+			applyOptionalNumber(
+				applyOptionalNumber(
+					applyOptionalNumber(
+						applyOptionalNumber(base, inputTokens, withUsageInput),
 						outputTokens,
 						withUsageOutput
 					),
@@ -770,7 +564,7 @@ const mapSystem = (state: ClaudeStreamState, record: JsonObject): ClaudeMapResul
 // tool_result branch in mapAssistantContent above was DEAD for every real
 // Claude turn: a tool call's start (tool_use) always arrived, but nothing
 // ever closed it, exactly the second half of the live QA bug this fixes (the
-// first half was Adapter.ts folding tool facts into SessionMetaUpdated
+// first half was Session.ts folding tool facts into SessionMetaUpdated
 // instead of ToolCallObserved). Deliberately narrow -- unlike
 // mapAssistantContent, this does NOT touch sawTextDelta/sawThinkingDelta:
 // a real tool_result user message never carries text/thinking blocks, and

@@ -23,25 +23,20 @@ import * as HashMap from "effect/HashMap"
 import * as Option from "effect/Option"
 import * as Queue from "effect/Queue"
 import * as Ref from "effect/Ref"
-import * as Schema from "effect/Schema"
 import type {
 	ProviderAdapterError,
 	SendPromptRequest
 } from "../../Services/ProviderAdapter.ts"
-import type { OpenCodeTransport } from "./Adapter.ts"
+import { EMPTY_JSON_OBJECT, type Json } from "../Json.ts"
 import { encodeContractFact } from "./Codec.ts"
 import type { OpenCodeContractFact } from "./Facts.ts"
 import { mapSseJson, type OpenCodeStreamState, sseSessionId } from "./Map.ts"
+import type { OpenCodeTransport } from "./Process.ts"
 import { adapterError } from "./Provider.ts"
-
-type Json = typeof Schema.Json.Type
-type JsonObject = typeof Schema.JsonObject.Type
-
-const EMPTY_JSON_OBJECT: JsonObject = {}
 
 // What a "tool_call" fact recorded about a tool call, kept around so a LATER
 // "tool_call_update" fact (toolCallId + a new status only — see
-// ToolCallUpdateFact in Map.ts) can still publish a complete
+// ToolCallUpdateFact in Facts.ts) can still publish a complete
 // ToolCallObservedEvent: the projector's ToolCallObservedPayload requires a
 // title on every row, not just the first one — see
 // ProjectionSessionActivities.ts's observedToolRow.

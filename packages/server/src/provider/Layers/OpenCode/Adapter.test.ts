@@ -14,16 +14,16 @@ import * as Queue from "effect/Queue"
 import * as Ref from "effect/Ref"
 import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
+import { makeOpenCodeAdapter } from "./Adapter.ts"
+import { decodeContractFact } from "./Codec.ts"
+import { type OpenCodePermissionReply } from "./Facts.ts"
 import {
-	makeOpenCodeAdapter,
 	type OpenCodeCatalogCommand,
 	type OpenCodeModelCatalog,
 	type OpenCodeTransport
-} from "./Adapter.ts"
-import { decodeContractFact } from "./Codec.ts"
-import { type OpenCodePermissionReply, type OpenCodeSessionRecord } from "./Facts.ts"
-import { type OpenCodePromptBody } from "./Map.ts"
+} from "./Process.ts"
 import { OPENCODE_PROVIDER_ID, openCodePresence } from "./Provider.ts"
+import { type OpenCodePromptBody, type OpenCodeSessionRecord } from "./Wire.ts"
 
 type Json = typeof Schema.Json.Type
 
@@ -303,7 +303,7 @@ Vitest.describe("OpenCodeAdapter", () => {
 
 	// Reproduces the same live QA bug as ClaudeAdapter.test.ts's ToolCallObserved
 	// test: a real OpenCode tool part (pending -> completed) executed, but
-	// OpenCodeMap's tool_call/tool_call_update facts folded into a generic
+	// Map.ts's tool_call/tool_call_update facts folded into a generic
 	// SessionMetaUpdated that ProjectionSessionActivities.ts has no case for.
 	Vitest.it.effect(
 		"emits ToolCallObserved (in_progress then completed) for a real OpenCode tool part",

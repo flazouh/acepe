@@ -14,11 +14,11 @@ import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
 import {
 	makeCodexAdapter,
-	type CodexAdapter,
-	type CodexAppServerHandle,
-	type CodexJsonRpcRequest
+	type CodexAdapter
 } from "./Adapter.ts"
 import { decodeContractFact } from "./Codec.ts"
+import { mapCodexPermissionReply } from "./Permissions.ts"
+import type { CodexAppServerHandle, CodexJsonRpcRequest } from "./Process.ts"
 import {
 	CODEX_APP_SERVER_ARGS,
 	CODEX_PLACEHOLDER_COMMAND,
@@ -100,6 +100,17 @@ const openSession = Effect.fn("openSession")(function*(adapter: CodexAdapter) {
 })
 
 Vitest.describe("CodexAdapter permissions", () => {
+	Vitest.it("maps permission replies onto Codex decisions", () => {
+		Vitest.assert.deepStrictEqual(mapCodexPermissionReply("once"), Option.some("accept"))
+		Vitest.assert.deepStrictEqual(
+			mapCodexPermissionReply("always"),
+			Option.some("acceptForSession")
+		)
+		Vitest.assert.deepStrictEqual(mapCodexPermissionReply("reject"), Option.some("decline"))
+		Vitest.assert.deepStrictEqual(mapCodexPermissionReply("allow"), Option.some("accept"))
+		Vitest.assert.strictEqual(Option.isNone(mapCodexPermissionReply("maybe")), true)
+	})
+
 	Vitest.it.effect("replies to native permission requests", () =>
 		Effect.gen(function*() {
 			const inbound = yield* Queue.unbounded<Json, Done>()

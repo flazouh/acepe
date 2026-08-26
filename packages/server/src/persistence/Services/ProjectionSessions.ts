@@ -208,8 +208,8 @@ const resolveStoredTitle = (raw: TrimmedNonEmptyString): TrimmedNonEmptyString =
 const decodePayload = <S extends Schema.Top>(schema: S, value: unknown) =>
 	Schema.decodeUnknownEffect(schema)(value)
 
-// Every real-provider adapter (Claude/Map.ts, Codex/Map.ts,
-// Cursor/Map.ts, Copilot/Map.ts, OpenCode/Map.ts) encodes an unhandled
+// Every real-provider adapter (Claude/Codec.ts, Codex/Codec.ts,
+// Cursor/Codec.ts, Copilot/Codec.ts, OpenCode/Codec.ts) encodes an unhandled
 // provider_session contract fact the same way onto a generic
 // SessionMetaUpdated event's metadata: { type: "provider_session",
 // providerSessionId }. This decoder is intentionally provider-agnostic --

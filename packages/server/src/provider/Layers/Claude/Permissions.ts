@@ -4,14 +4,12 @@ import * as Effect from "effect/Effect"
 import * as HashMap from "effect/HashMap"
 import * as Option from "effect/Option"
 import * as Ref from "effect/Ref"
-import type * as Schema from "effect/Schema"
+import type { JsonObject } from "../Json.ts"
+import type { ClaudePermissionDecision } from "./Facts.ts"
 import { permissionRequestFact } from "./Map.ts"
-import { adapterError, type ClaudeCanUseTool, type ClaudePermissionResult } from "./Process.ts"
+import { adapterError } from "./Provider.ts"
 import { publishFact, requireSession, type SessionRuntime } from "./Session.ts"
-
-type JsonObject = typeof Schema.JsonObject.Type
-
-export type ClaudePermissionDecision = "allow" | "deny"
+import type { ClaudeCanUseTool, ClaudePermissionResult } from "./Wire.ts"
 
 // Takes the runtime directly (not an indirection Ref) because by the time
 // attachQuery builds this closure the runtime object already exists —

@@ -37,20 +37,27 @@ import type {
 	StartSessionRequest
 } from "../../Services/ProviderAdapter.ts"
 import { providerSessionFact } from "./Facts.ts"
-import { decidePermission, respondToPermission } from "./Permissions.ts"
-import { liveConnect, resolveLaunchFromInstaller } from "./Process.ts"
 import {
-	CURSOR_CAPABILITIES,
-	CURSOR_PROVIDER_ID,
-	cursorPresence,
-	probeCursorAuthenticated
-} from "./Provider.ts"
+	type CursorRespondToPermissionInput,
+	decidePermission,
+	respondToPermission
+} from "./Permissions.ts"
 import {
-	adapterError,
 	type CursorAcpHandle,
 	type CursorConnectInput,
 	type CursorLaunchConfig,
+	liveConnect,
+	resolveLaunchFromInstaller
+} from "./Process.ts"
+import {
+	adapterError,
+	CURSOR_CAPABILITIES,
+	CURSOR_PROVIDER_ID,
+	cursorPresence,
 	type CursorPermissionDecision,
+	probeCursorAuthenticated
+} from "./Provider.ts"
+import {
 	makeCancelled,
 	makeMessageSent,
 	offerOutbound,
@@ -62,23 +69,13 @@ import {
 	type SessionRuntime
 } from "./Session.ts"
 
-export type {
-	CursorAcpHandle,
-	CursorConnectInput,
-	CursorLaunchConfig,
-	CursorPermissionDecision,
-	CursorStopReason
-} from "./Session.ts"
-
 export const CURSOR_ACP_SDK_MODULE = "@agentclientprotocol/sdk"
 export const CURSOR_ACP_PROTOCOL_VERSION = PROTOCOL_VERSION
 
 export type CursorAdapter = ProviderAdapter & {
-	readonly respondToPermission: (input: {
-		readonly sessionId: SessionId
-		readonly permissionId: string
-		readonly decision: CursorPermissionDecision
-	}) => Effect.Effect<void, ProviderAdapterError>
+	readonly respondToPermission: (
+		input: CursorRespondToPermissionInput
+	) => Effect.Effect<void, ProviderAdapterError>
 }
 
 export type CursorAdapterOptions = {
@@ -188,11 +185,8 @@ export const makeCursorAdapter = Effect.fn("makeCursorAdapter")(function*(
 		startSession,
 		sendPrompt,
 		cancelTurn,
-		respondToPermission: (input: {
-			readonly sessionId: SessionId
-			readonly permissionId: string
-			readonly decision: CursorPermissionDecision
-		}) => respondToPermission(sessions, input)
+		respondToPermission: (input: CursorRespondToPermissionInput) =>
+			respondToPermission(sessions, input)
 	} satisfies CursorAdapter
 })
 

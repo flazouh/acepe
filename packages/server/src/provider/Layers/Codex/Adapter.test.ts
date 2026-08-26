@@ -16,11 +16,10 @@ import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
 import {
 	makeCodexAdapter,
-	type CodexAdapter,
-	type CodexAppServerHandle,
-	type CodexJsonRpcRequest
+	type CodexAdapter
 } from "./Adapter.ts"
 import { decodeContractFact } from "./Codec.ts"
+import type { CodexAppServerHandle, CodexJsonRpcRequest } from "./Process.ts"
 import {
 	CODEX_APP_SERVER_ARGS,
 	CODEX_PLACEHOLDER_COMMAND,

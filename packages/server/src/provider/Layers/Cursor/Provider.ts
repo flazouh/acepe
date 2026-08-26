@@ -9,6 +9,7 @@ import {
 	type PlatformKey
 } from "../../agentJson.ts"
 import {
+	ProviderAdapterError,
 	ProviderCapabilities,
 	ProviderId,
 	type ProviderPresence
@@ -25,6 +26,8 @@ export const CURSOR_CAPABILITIES: ProviderCapabilities = ProviderCapabilities.ma
 export const CURSOR_MODES = ["agent", "ask"] as const
 export type CursorMode = (typeof CURSOR_MODES)[number]
 
+export type CursorPermissionDecision = "allow" | "deny"
+
 export type CursorLaunchPlan = {
 	readonly cmd: string
 	readonly args: ReadonlyArray<string>
@@ -35,6 +38,16 @@ export const cursorPresence = (installed: boolean, authenticated: boolean): Prov
 	installed,
 	authenticated
 })
+
+export const adapterError = (
+	operation: ProviderAdapterError["operation"],
+	detail: string
+): ProviderAdapterError =>
+	new ProviderAdapterError({
+		providerId: CURSOR_PROVIDER_ID,
+		operation,
+		detail
+	})
 
 export const launchFromAgentJson = (
 	agent: AgentJson,

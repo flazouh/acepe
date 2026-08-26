@@ -14,14 +14,12 @@ import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
+import type { Json, JsonObject } from "../Json.ts"
 import {
 	acpSessionUpdateToFact,
 	contractFactToAcpSessionUpdate,
 	roundTripAcpSessionUpdate
 } from "./Codec.ts"
-
-type Json = typeof Schema.Json.Type
-type JsonObject = typeof Schema.JsonObject.Type
 
 const Platform = Layer.mergeAll(BunFileSystem.layer, BunPath.layer)
 

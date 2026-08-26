@@ -26,23 +26,20 @@ import * as HashMap from "effect/HashMap"
 import * as Option from "effect/Option"
 import * as Queue from "effect/Queue"
 import * as Ref from "effect/Ref"
-import * as Schema from "effect/Schema"
 import * as Scope from "effect/Scope"
 import type { ProviderAdapterError, SendPromptRequest } from "../../Services/ProviderAdapter.ts"
+import { EMPTY_JSON_OBJECT, type Json } from "../Json.ts"
 import { encodeContractFact } from "./Codec.ts"
-import type { ClaudeContractFact } from "./Facts.ts"
-import { mapSdkMessage, toolCallPathHint, type ClaudeStreamState } from "./Map.ts"
-import type { ClaudePermissionDecision } from "./Permissions.ts"
-import { adapterError, type ClaudeQueryHandle, type ClaudeUserPrompt } from "./Process.ts"
-
-type Json = typeof Schema.Json.Type
-type JsonObject = typeof Schema.JsonObject.Type
-
-const EMPTY_JSON_OBJECT: JsonObject = {}
+import type { ClaudeContractFact, ClaudePermissionDecision } from "./Facts.ts"
+import { mapSdkMessage, type ClaudeStreamState } from "./Map.ts"
+import type { ClaudeQueryHandle } from "./Process.ts"
+import { adapterError } from "./Provider.ts"
+import { toolCallPathHint } from "./Tools.ts"
+import type { ClaudeUserPrompt } from "./Wire.ts"
 
 // What a "tool_call" fact recorded about a tool call, kept around so the
 // LATER "tool_call_update" fact (which carries only toolCallId + a new
-// status -- see ToolCallUpdateFact in Map.ts) can still publish a
+// status -- see ToolCallUpdateFact in Facts.ts) can still publish a
 // complete ToolCallObservedEvent: the projector's ToolCallObservedPayload
 // requires a title on every row, not just the first one -- see
 // ProjectionSessionActivities.ts's observedToolRow.
@@ -256,7 +253,7 @@ export const makeCancelled = Effect.fn("ClaudeAdapter.makeCancelled")(function*(
 })
 
 // The SDK's own turn-end signal is its `result` message, which
-// ClaudeSdkMap.mapSdkMessage already turns into a turn_complete (or
+// Map.ts's mapSdkMessage already turns into a turn_complete (or
 // turn_error) fact. That fact is the ONLY thing that closes an open
 // projection_turns row absent a follow-up TurnCancelled or the next
 // MessageSent starting a new turn — see ProjectionTurns.ts's

@@ -12,7 +12,6 @@ import * as HashMap from "effect/HashMap"
 import * as Option from "effect/Option"
 import * as Queue from "effect/Queue"
 import * as Ref from "effect/Ref"
-import * as Schema from "effect/Schema"
 import * as Scope from "effect/Scope"
 import * as Stream from "effect/Stream"
 import * as Str from "effect/String"
@@ -26,11 +25,13 @@ import {
 	type SendPromptRequest,
 	type StartSessionRequest
 } from "../../Services/ProviderAdapter.ts"
+import type { Json } from "../Json.ts"
 import { providerSessionFact } from "./Facts.ts"
 import { emptyCodexMapState } from "./Map.ts"
 import { respondToPermission, respondToQuestion } from "./Permissions.ts"
 import {
-	adapterError,
+	type CodexAppServerHandle,
+	type CodexJsonRpcRequest,
 	errorDetail,
 	failPending,
 	handleStdoutLine,
@@ -38,17 +39,12 @@ import {
 	writeJsonLine
 } from "./Process.ts"
 import {
-	buildCodexInitializeParams,
-	buildCodexTurnStartParams,
-	buildThreadStartParams,
-	buildTurnInterruptParams,
+	adapterError,
 	CODEX_CAPABILITIES,
 	CODEX_PROVIDER_ID,
 	CODEX_REQUEST_TIMEOUT_SECONDS,
 	type CodexNativeConfigState,
 	defaultCodexNativeConfigState,
-	parseThreadId,
-	parseTurnId,
 	probeCodexPresence,
 	resolveCodexSpawnConfig
 } from "./Provider.ts"
@@ -62,30 +58,19 @@ import {
 	requireSession,
 	type SessionRuntime
 } from "./Session.ts"
-
-type Json = typeof Schema.Json.Type
+import {
+	buildCodexInitializeParams,
+	buildCodexTurnStartParams,
+	buildThreadStartParams,
+	buildTurnInterruptParams,
+	parseThreadId,
+	parseTurnId
+} from "./Wire.ts"
 
 export type CodexAppServerInput = {
 	readonly cwd: string
 	readonly command: string
 	readonly args: ReadonlyArray<string>
-}
-
-export type CodexJsonRpcRequest = {
-	readonly operation: ProviderAdapterError["operation"]
-	readonly method: string
-	readonly params: Json
-}
-
-export type CodexAppServerHandle = {
-	readonly notifications: Stream.Stream<Json, ProviderAdapterError>
-	readonly request: (input: CodexJsonRpcRequest) => Effect.Effect<Json, ProviderAdapterError>
-	readonly notify: (
-		method: string,
-		params: Option.Option<Json>
-	) => Effect.Effect<void, ProviderAdapterError>
-	readonly reply: (id: Json, result: Json) => Effect.Effect<void, ProviderAdapterError>
-	readonly close: Effect.Effect<void>
 }
 
 export type CodexAdapter = ProviderAdapter & {

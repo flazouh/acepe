@@ -13,14 +13,13 @@ import * as Fiber from "effect/Fiber"
 import * as Option from "effect/Option"
 import * as Queue from "effect/Queue"
 import * as Ref from "effect/Ref"
-import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
+import type { Json } from "../Json.ts"
 import { makeClaudeAdapter } from "./Adapter.ts"
 import { decodeContractFact } from "./Codec.ts"
-import type { ClaudeCanUseTool, ClaudeQueryHandle, ClaudeQueryInput } from "./Process.ts"
+import type { ClaudeQueryHandle, ClaudeQueryInput } from "./Process.ts"
 import { claudePresence } from "./Provider.ts"
-
-type Json = typeof Schema.Json.Type
+import type { ClaudeCanUseTool } from "./Wire.ts"
 
 const sessionId = SessionId.make("session-1")
 const projectId = ProjectId.make("project-1")
@@ -185,7 +184,7 @@ Vitest.describe("ClaudeAdapter", () => {
 	// Reproduces the live bug: a real Claude turn's reply fully lands (the SDK
 	// stream delivers a `result` message once Claude finishes replying) but
 	// nothing closed projection_turns for it — no TurnCompleted event ever
-	// appended, so the turn stayed "running" forever. ClaudeSdkMap.mapSdkMessage
+	// appended, so the turn stayed "running" forever. Map.ts's mapSdkMessage
 	// already turns the SDK's `result` message into a `turn_complete` fact;
 	// this pins down that ClaudeAdapter publishes that fact as a TurnCompleted
 	// contract event instead of folding it into a generic SessionMetaUpdated.
@@ -258,7 +257,7 @@ Vitest.describe("ClaudeAdapter", () => {
 	// (the SDK emits a tool_use start, then the tool_result completing it) but
 	// ZERO ToolCall* events ever reached orchestration_events -- both facts
 	// were folded into a generic SessionMetaUpdated, which
-	// ProjectionSessionActivities.ts has no case for. ClaudeSdkMap.mapSdkMessage
+	// ProjectionSessionActivities.ts has no case for. Map.ts's mapSdkMessage
 	// already turns the SDK's tool_use/tool_result into tool_call/tool_call_update
 	// facts; this pins down that ClaudeAdapter publishes them as
 	// ToolCallObserved contract events (same shape as the tracer's
@@ -569,7 +568,7 @@ Vitest.describe("ClaudeAdapter", () => {
 	// mid-turn, no error, no completion. A configurable turn-inactivity
 	// watchdog must notice (no stream item for N ms while a turn is open),
 	// surface a typed failure (turn_error, which ClaudeAdapter already folds
-	// into TurnCompleted -- see Map.ts's TurnErrorFact) so the stuck
+	// into TurnCompleted -- see Facts.ts's TurnErrorFact) so the stuck
 	// turn closes in the projection, and recover the session so the NEXT
 	// prompt still works.
 	Vitest.it.live(
