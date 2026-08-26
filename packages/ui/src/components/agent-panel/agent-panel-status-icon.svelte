@@ -23,7 +23,7 @@ interface Props {
 	connectedLabel?: string;
 	/** Tooltip text for error state */
 	errorLabel?: string;
-	/** Agent ID retained for API compatibility; unused after connected icon removal. */
+	/** Agent ID shown in connected tooltip */
 	agentId?: string | null;
 	/** Callback when error icon is clicked (retry) */
 	onRetry?: () => void;
@@ -38,7 +38,7 @@ let {
 	retryingLabel = "Retrying",
 	connectedLabel = "Connected",
 	errorLabel = "Error",
-	agentId: _agentId = null,
+	agentId = null,
 	onRetry,
 }: Props = $props();
 
@@ -72,39 +72,35 @@ const presentation = $derived(
 			{:else if presentation === "connected"}
 				<Tooltip.Root>
 					<Tooltip.Trigger>
-						<span
-							class="inline-flex size-2 rounded-full bg-success/60 animate-in fade-in duration-150"
-							aria-label={connectedLabel}
-						></span>
+						<div
+							class="animate-in zoom-in-50 duration-300 {status === 'idle'
+								? 'text-muted-foreground'
+								: 'text-success'}"
+						>
+							<HugeiconsIcon
+								name="check-circle-filled"
+								style={`width: ${size}px; height: ${size}px;`}
+							/>
+						</div>
 					</Tooltip.Trigger>
 					<Tooltip.Portal>
 						<Tooltip.Content
 							class="z-[var(--overlay-z)] rounded-md bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md"
 							sideOffset={4}
 						>
-							{connectedLabel}
-						</Tooltip.Content>
-					</Tooltip.Portal>
-				</Tooltip.Root>
-			{:else if presentation === "running"}
-				<Tooltip.Root>
-					<Tooltip.Trigger>
-						<span
-							class="relative flex size-2 shrink-0 animate-in fade-in duration-150"
-							aria-label={warmingLabel}
-						>
-							<span
-								class="absolute inline-flex size-full animate-ping rounded-full bg-success/60 opacity-75"
-							></span>
-							<span class="relative inline-flex size-2 rounded-full bg-success/60"></span>
-						</span>
-					</Tooltip.Trigger>
-					<Tooltip.Portal>
-						<Tooltip.Content
-							class="z-[var(--overlay-z)] rounded-md bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md"
-							sideOffset={4}
-						>
-							{warmingLabel}
+							<div class="space-y-1.5">
+								<div class="font-medium">{connectedLabel}</div>
+								{#if agentId}
+									<table class="text-sm">
+										<tbody>
+											<tr>
+												<td class="pr-3 text-muted-foreground">Agent ID:</td>
+												<td class="font-mono">{agentId}</td>
+											</tr>
+										</tbody>
+									</table>
+								{/if}
+							</div>
 						</Tooltip.Content>
 					</Tooltip.Portal>
 				</Tooltip.Root>

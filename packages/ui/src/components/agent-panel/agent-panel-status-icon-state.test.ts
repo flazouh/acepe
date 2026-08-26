@@ -70,14 +70,14 @@ describe("resolveAgentPanelStatusIconPresentation", () => {
 		).toBe("connected");
 	});
 
-	it("shows a running affordance while the turn is active", () => {
+	it("keeps the connected check while the turn is active (pre-migration design)", () => {
 		expect(
 			resolveAgentPanelStatusIconPresentation({
 				status: "running",
 				isConnecting: false,
 				isRetrying: false,
 			}),
-		).toBe("running");
+		).toBe("connected");
 	});
 
 	it("prefers the retry affordance over the running affordance", () => {

@@ -1,11 +1,6 @@
 import type { AgentSessionStatus } from "./types.js";
 
-export type AgentPanelStatusIconPresentation =
-	| "none"
-	| "loading"
-	| "connected"
-	| "running"
-	| "error";
+export type AgentPanelStatusIconPresentation = "none" | "loading" | "connected" | "error";
 
 export function resolveAgentPanelStatusIconPresentation(input: {
 	status: AgentSessionStatus;
@@ -20,14 +15,14 @@ export function resolveAgentPanelStatusIconPresentation(input: {
 		return "error";
 	}
 
-	if (input.status === "running") {
-		return "running";
-	}
-
+	// The pre-migration design: one connected presentation (the filled
+	// check-circle) for every attached state; the component colors it by
+	// status (idle muted, otherwise success).
 	if (
 		input.status === "connected" ||
+		input.status === "done" ||
 		input.status === "idle" ||
-		input.status === "done"
+		input.status === "running"
 	) {
 		return "connected";
 	}
