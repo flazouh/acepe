@@ -427,14 +427,36 @@ const rememberReplyId = Effect.fn("CodexAdapter.rememberReplyId")(function*(
 	)
 })
 
+// Claims the raw JSON-RPC id of a request Codex is still waiting on, and
+// gives it up: the read and the removal are ONE Ref.modify step, so two
+// replies racing the same request cannot both come away with an id and
+// answer it twice.
+//
+// None means there is nothing left to answer: a second reply, a question
+// that arrived as a NOTIFICATION rather than a request (rememberReplyId
+// records nothing then, while rememberQuestionIds still does — see Map.ts's
+// fallback to the item id), or a retry after an earlier attempt already
+// claimed it. Every caller MUST fail on None. Falling back to the fact's
+// text id, as this used to, answers a numeric request with a string:
+// Codex requires the response id to repeat the request id in its original
+// JSON type, so that reply is dropped and the request hangs with no error
+// anywhere — quieter than the loud failure it replaced, and worse.
 export const takeReplyId = Effect.fn("CodexAdapter.takeReplyId")(function*(
 	runtime: SessionRuntime,
 	id: string
 ) {
-	const known = yield* Ref.get(runtime.replyIds)
-	yield* Ref.update(runtime.replyIds, (current) => HashMap.remove(current, id))
-	return Option.getOrElse(HashMap.get(known, id), (): Json => id)
+	return yield* Ref.modify(runtime.replyIds, (current) =>
+		[HashMap.get(current, id), HashMap.remove(current, id)] as const)
 })
+
+// Puts a claim back when the reply it was taken for never went out, so the
+// entry only really disappears once server.reply succeeded — the same
+// "remove after the reply lands" order respondToQuestion already keeps for
+// questionIds. ProviderBridge retries respondToPermission after a lazy
+// session open (see LAZY_OPEN_RETRY_SCHEDULE), and a claim burned by the
+// failed attempt would leave the retry with nothing to answer with.
+export const restoreReplyId = (runtime: SessionRuntime, id: string, replyId: Json) =>
+	Ref.update(runtime.replyIds, (current) => HashMap.set(current, id, replyId))
 
 export const publishServerMessage = Effect.fn("CodexAdapter.publishServerMessage")(function*(
 	runtime: SessionRuntime,

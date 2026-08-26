@@ -11,6 +11,7 @@ import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
 import * as Queue from "effect/Queue"
 import * as Ref from "effect/Ref"
+import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
 import {
@@ -205,6 +206,109 @@ Vitest.describe("CodexAdapter permissions", () => {
 	// JSON-RPC 2.0 allows a string id, and the reply has to carry back the same
 	// JSON value. PermissionRequestFact narrows the id to a string, so a number
 	// and a string both reach respondToPermission as text.
+	// Codex requires the response id to repeat the request id in its original
+	// JSON type. takeReplyId used to fall back to the fact's text id when the
+	// map held no entry, so a second reply answered a numeric request with a
+	// string — a protocol violation Codex cannot report, so the request just
+	// hangs. A loud typed error is the only honest answer.
+	Vitest.it.effect("refuses a second reply to a permission request it already answered", () =>
+		Effect.gen(function*() {
+			const inbound = yield* Queue.unbounded<Json, Done>()
+			const requests = yield* Ref.make<ReadonlyArray<RecordedRequest>>(Arr.empty())
+			const replies = yield* Ref.make<ReadonlyArray<Json>>(Arr.empty())
+			const adapter = yield* makeTestAdapter(inbound, requests, replies)
+			const { events } = yield* openSession(adapter)
+			yield* Queue.offer(inbound, {
+				jsonrpc: "2.0",
+				id: 42,
+				method: "item/fileRead/requestApproval",
+				params: {
+					itemId: "tool-1",
+					path: "src/lib.rs"
+				}
+			})
+			yield* nextApprovalRequested(events)
+			yield* adapter.respondToPermission({
+				sessionId,
+				permissionId: "42",
+				decision: "once"
+			})
+			const second = yield* Effect.result(
+				adapter.respondToPermission({
+					sessionId,
+					permissionId: "42",
+					decision: "once"
+				})
+			)
+			if (Result.isSuccess(second)) {
+				Vitest.assert.fail("a second reply to an answered permission must fail loudly")
+				return
+			}
+			Vitest.assert.strictEqual(second.failure._tag, "ProviderAdapterError")
+			Vitest.assert.strictEqual(second.failure.operation, "respondToPermission")
+			// One reply, carrying the number Codex asked with — never a
+			// second one carrying the string "42".
+			Vitest.assert.deepStrictEqual(yield* Ref.get(replies), [
+				{ id: 42, result: { decision: "accept" } }
+			])
+			yield* Queue.end(inbound)
+		})
+	)
+
+	// A question can arrive as a NOTIFICATION, with no JSON-RPC id at all:
+	// Map.ts falls the fact's id back to the item id, so questionIds learns
+	// about it while replyIds cannot. respondToQuestion used to sail past
+	// that and reply with the item id as the request id, answering a request
+	// that never existed.
+	Vitest.it.effect("refuses to answer a question that arrived with no request id", () =>
+		Effect.gen(function*() {
+			const inbound = yield* Queue.unbounded<Json, Done>()
+			const requests = yield* Ref.make<ReadonlyArray<RecordedRequest>>(Arr.empty())
+			const replies = yield* Ref.make<ReadonlyArray<Json>>(Arr.empty())
+			const adapter = yield* makeTestAdapter(inbound, requests, replies)
+			const { events } = yield* openSession(adapter)
+			yield* Queue.offer(inbound, {
+				jsonrpc: "2.0",
+				method: "item/tool/requestUserInput",
+				params: {
+					itemId: "tool-question-3",
+					questions: [
+						{
+							id: "scope",
+							header: "Scope",
+							question: "Apply to?",
+							multiSelect: false,
+							options: [
+								{ label: "File", description: "This file only" },
+								{ label: "Project", description: "Whole project" }
+							]
+						}
+					]
+				}
+			})
+			const questionEvent = yield* Queue.take(events)
+			const fact = decodeContractFact(questionEvent.metadata)
+			if (Option.isSome(fact) && fact.value.contractKind === "question_request") {
+				Vitest.assert.strictEqual(fact.value.id, "tool-question-3")
+			}
+			const answered = yield* Effect.result(
+				adapter.respondToQuestion({
+					sessionId,
+					requestId: "tool-question-3",
+					answers: [["File"]]
+				})
+			)
+			if (Result.isSuccess(answered)) {
+				Vitest.assert.fail("answering a question Codex never asked as a request must fail")
+				return
+			}
+			Vitest.assert.strictEqual(answered.failure._tag, "ProviderAdapterError")
+			Vitest.assert.strictEqual(answered.failure.operation, "respondToQuestion")
+			Vitest.assert.deepStrictEqual(yield* Ref.get(replies), [])
+			yield* Queue.end(inbound)
+		})
+	)
+
 	Vitest.it.effect("replies to a string-id permission request with that same string id", () =>
 		Effect.gen(function*() {
 			const inbound = yield* Queue.unbounded<Json, Done>()

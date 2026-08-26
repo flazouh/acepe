@@ -1,14 +1,36 @@
-import { SessionId } from "@acepe/contracts"
+import { type ProviderOperation, SessionId } from "@acepe/contracts"
 import * as Arr from "effect/Array"
 import * as Effect from "effect/Effect"
 import * as HashMap from "effect/HashMap"
 import * as Option from "effect/Option"
 import * as Ref from "effect/Ref"
 import * as Schema from "effect/Schema"
+import type { Json } from "../Json.ts"
 import { adapterError } from "./Provider.ts"
-import { requireSession, type SessionRuntime, takeReplyId } from "./Session.ts"
+import { requireSession, restoreReplyId, type SessionRuntime, takeReplyId } from "./Session.ts"
 
 type CodexSessions = Ref.Ref<HashMap.HashMap<SessionId, SessionRuntime>>
+
+// The one place a reply leaves this adapter, so the "claim the id, fail
+// loudly when there is none, give it back if the reply itself fails" rule
+// is written once for permissions and questions alike. See takeReplyId.
+const replyToRequest = Effect.fn("CodexAdapter.replyToRequest")(function*(
+	runtime: SessionRuntime,
+	operation: ProviderOperation,
+	requestId: string,
+	result: Json
+) {
+	const replyId = yield* takeReplyId(runtime, requestId)
+	if (Option.isNone(replyId)) {
+		return yield* adapterError(
+			operation,
+			`Codex has no open request '${requestId}' left to reply to.`
+		)
+	}
+	yield* runtime.server.reply(replyId.value, result).pipe(
+		Effect.tapError(() => restoreReplyId(runtime, requestId, replyId.value))
+	)
+})
 
 export type CodexPermissionDecision = "accept" | "acceptForSession" | "decline"
 
@@ -41,8 +63,9 @@ export const respondToPermission = Effect.fn("CodexAdapter.respondToPermission")
 			`Unsupported Codex permission reply: ${input.decision}`
 		)
 	}
-	const replyId = yield* takeReplyId(runtime, input.permissionId)
-	yield* runtime.server.reply(replyId, { decision: mapped.value })
+	yield* replyToRequest(runtime, "respondToPermission", input.permissionId, {
+		decision: mapped.value
+	})
 })
 
 export const respondToQuestion = Effect.fn("CodexAdapter.respondToQuestion")(function*(
@@ -78,7 +101,6 @@ export const respondToQuestion = Effect.fn("CodexAdapter.respondToQuestion")(fun
 			adapterError("respondToQuestion", "Codex question reply was not JSON")
 		)
 	)
-	const replyId = yield* takeReplyId(runtime, input.requestId)
-	yield* runtime.server.reply(replyId, { answers })
+	yield* replyToRequest(runtime, "respondToQuestion", input.requestId, { answers })
 	yield* Ref.update(runtime.questionIds, (current) => HashMap.remove(current, input.requestId))
 })
