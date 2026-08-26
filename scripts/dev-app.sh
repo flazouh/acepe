@@ -59,10 +59,8 @@ if serving; then
 else
   launchctl remove "$LABEL" 2>/dev/null || true
   wait_for_free_port
-  # ACEPE_ELECTROBUN_DEV makes the dev server reload the window on a code edit,
-  # because Svelte's in-place swap does not repaint this tree in the WebView.
   launchctl submit -l "$LABEL" -o "$LOG" -e "$LOG" -- \
-    /bin/sh -c "cd '$DESKTOP' && VITE_ENABLE_QA_HOOKS=1 ACEPE_ELECTROBUN_DEV=1 exec $(command -v bun) run dev"
+    /bin/sh -c "cd '$DESKTOP' && VITE_ENABLE_QA_HOOKS=1 exec $(command -v bun) run dev"
   # A first start, or any vite.config.js change, re-optimizes dependencies and
   # can take over a minute before the server answers.
   for _ in $(seq 1 150); do
