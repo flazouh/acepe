@@ -286,6 +286,76 @@ Vitest.describe("CursorAdapter", () => {
 		})
 	)
 
+	// ACP hands the client no id of its own for session/request_permission, so
+	// the approval id is derived from the tool call. A tool call that asks
+	// twice — a second permission scope, or a retry after a rejection — used
+	// to produce two approvals under one id: the second deferred evicted the
+	// first from pendingPermissions, the single answer released the second,
+	// and the first ACP request stayed pending for the rest of the turn.
+	Vitest.it.effect("answers both permission requests raised by one tool call", () =>
+		Effect.gen(function*() {
+			const inbound = yield* Queue.unbounded<Json, Done>()
+			const cancels = yield* Ref.make(0)
+			const cwds = yield* Ref.make<ReadonlyArray<string>>(Arr.empty())
+			const asked = yield* Ref.make(Option.none<CursorConnectInput["onPermissionRequest"]>())
+			const adapter = yield* makeCursorAdapter({
+				presence: Effect.succeed(cursorPresence(true, true)),
+				resolveLaunch: Effect.succeed(registryLaunch),
+				connect: (input: CursorConnectInput) =>
+					Ref.set(asked, Option.some(input.onPermissionRequest)).pipe(
+						Effect.as(fakeHandle(inbound, cancels, cwds))
+					)
+			})
+			const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
+			yield* adapter
+				.startSession({
+					sessionId,
+					projectId,
+					workspaceRoot: "/tmp/acepe"
+				})
+				.pipe(
+					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
+					Effect.forkChild({ startImmediately: true })
+				)
+			yield* Queue.take(events)
+			const handler = yield* Ref.get(asked)
+			if (Option.isNone(handler)) {
+				Vitest.assert.fail("expected connect to receive an onPermissionRequest handler")
+				return
+			}
+			const firstFiber = yield* handler
+				.value(acpPermissionRequest("call_9"))
+				.pipe(Effect.forkChild({ startImmediately: true }))
+			const first = yield* nextApprovalRequested(events)
+			const secondFiber = yield* handler
+				.value(acpPermissionRequest("call_9"))
+				.pipe(Effect.forkChild({ startImmediately: true }))
+			const second = yield* nextApprovalRequested(events)
+			if (first === undefined || second === undefined) {
+				Vitest.assert.fail("expected an ApprovalRequested event for each ACP permission request")
+				return
+			}
+			Vitest.assert.strictEqual(first.payload.approvalRequestId, "perm-call_9")
+			Vitest.assert.notStrictEqual(
+				second.payload.approvalRequestId,
+				first.payload.approvalRequestId
+			)
+			yield* adapter.respondToPermission({
+				sessionId,
+				permissionId: first.payload.approvalRequestId,
+				decision: "allow"
+			})
+			yield* adapter.respondToPermission({
+				sessionId,
+				permissionId: second.payload.approvalRequestId,
+				decision: "deny"
+			})
+			Vitest.assert.strictEqual(yield* Fiber.join(firstFiber), "allow")
+			Vitest.assert.strictEqual(yield* Fiber.join(secondFiber), "deny")
+			yield* adapter.cancelTurn({ sessionId })
+		})
+	)
+
 	Vitest.it.effect("cancelTurn notifies the ACP session and emits TurnCancelled", () =>
 		Effect.gen(function*() {
 			const inbound = yield* Queue.unbounded<Json, Done>()

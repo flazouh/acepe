@@ -8,6 +8,7 @@ import * as HashMap from "effect/HashMap"
 import * as Option from "effect/Option"
 import * as Ref from "effect/Ref"
 import { arrayField, type Json, jsonObjectOf, stringField } from "../Json.ts"
+import type { PermissionRequestFact } from "./Facts.ts"
 import { mapAcpPermissionRequest } from "./Map.ts"
 import { adapterError, type CursorPermissionDecision } from "./Provider.ts"
 import { publishFact, requireSession, type SessionRuntime } from "./Session.ts"
@@ -86,6 +87,33 @@ export const permissionResponse = (
 	}
 }
 
+// ACP gives the client no id of its own for session/request_permission: the
+// params carry the sessionId and the toolCall, and the JSON-RPC id stays
+// inside the SDK. So Acepe owns the approval id and derives it from the tool
+// call. One tool call may still ask twice — a second permission scope, or a
+// retry after a rejection — and a shared id would let the second deferred
+// evict the first from pendingPermissions, leaving the first ACP request with
+// nothing left to answer it.
+const freeApprovalId = (
+	pending: HashMap.HashMap<string, Deferred.Deferred<CursorPermissionDecision>>,
+	base: string,
+	attempt: number
+): string => {
+	const candidate = attempt === 1 ? base : `${base}#${attempt}`
+	if (HashMap.has(pending, candidate)) {
+		return freeApprovalId(pending, base, attempt + 1)
+	}
+	return candidate
+}
+
+const withApprovalId = (fact: PermissionRequestFact, id: string): PermissionRequestFact => ({
+	contractKind: "permission_request",
+	id,
+	sessionId: fact.sessionId,
+	permission: fact.permission,
+	toolCallId: fact.toolCallId
+})
+
 export const decidePermission = Effect.fn("CursorAdapter.decidePermission")(function*(
 	runtimeHolder: Ref.Ref<Option.Option<SessionRuntime>>,
 	request: Json
@@ -99,10 +127,13 @@ export const decidePermission = Effect.fn("CursorAdapter.decidePermission")(func
 		return "deny" as const
 	}
 	const deferred = yield* Deferred.make<CursorPermissionDecision>()
-	yield* Ref.update(held.value.pendingPermissions, (current) =>
-		HashMap.set(current, fact.value.id, deferred)
-	)
-	yield* publishFact(held.value, fact.value)
+	// One atomic claim, so two tool calls asking at once cannot pick the same
+	// free id off the same read.
+	const approvalId = yield* Ref.modify(held.value.pendingPermissions, (current) => {
+		const id = freeApprovalId(current, fact.value.id, 1)
+		return [id, HashMap.set(current, id, deferred)] as const
+	})
+	yield* publishFact(held.value, withApprovalId(fact.value, approvalId))
 	return yield* Deferred.await(deferred)
 })
 
