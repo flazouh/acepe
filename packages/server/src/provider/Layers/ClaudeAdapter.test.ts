@@ -9,6 +9,7 @@ import * as Vitest from "@effect/vitest"
 import type { Done } from "effect/Cause"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
+import * as Fiber from "effect/Fiber"
 import * as Option from "effect/Option"
 import * as Queue from "effect/Queue"
 import * as Ref from "effect/Ref"
@@ -17,6 +18,7 @@ import * as Stream from "effect/Stream"
 import {
 	buildClaudeQueryOptions,
 	makeClaudeAdapter,
+	type ClaudeCanUseTool,
 	type ClaudeQueryHandle,
 	type ClaudeQueryInput
 } from "./ClaudeAdapter.ts"
@@ -373,6 +375,87 @@ Vitest.describe("ClaudeAdapter", () => {
 				// merges them into ONE row instead of two.
 				Vitest.assert.strictEqual(completed.payload.activityId, started.payload.activityId)
 				Vitest.assert.strictEqual(completed.payload.toolCallId, "toolu_01ReadPkg")
+				yield* adapter.cancelTurn({ sessionId })
+			})
+	)
+
+	// #268 defect 2: a real Claude permission prompt (the SDK's own canUseTool
+	// callback, invoked mid-turn when a tool needs approval) used to fold into
+	// a generic SessionMetaUpdated event whose metadata nobody reads for
+	// approvals -- ProjectionPendingApprovals.apply only reacts to a native
+	// ApprovalRequested/InteractionReplied event, so projection_pending_approvals
+	// never learned about a real permission request and the desktop panel had
+	// nothing to render: the turn hung on an approval no one could see or
+	// answer. Pins down that ClaudeAdapter publishes a typed ApprovalRequested
+	// event (same shape the tracer's approval.request decider produces), and
+	// that respondToPermission resolves the SDK's own canUseTool promise.
+	Vitest.it.effect(
+		"emits ApprovalRequested for a real permission prompt and respondToPermission resolves it",
+		() =>
+			Effect.gen(function*() {
+				const inbound = yield* Queue.unbounded<Json, Done>()
+				const interrupts = yield* Ref.make(0)
+				let capturedCanUseTool: ClaudeCanUseTool | undefined
+				const adapter = yield* makeClaudeAdapter({
+					presence: Effect.succeed(claudePresence(true, true)),
+					createQuery: (input) => {
+						capturedCanUseTool = input.canUseTool
+						return Effect.succeed(fakeHandle(inbound, interrupts))
+					}
+				})
+				const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
+				yield* adapter
+					.startSession({
+						sessionId,
+						projectId,
+						workspaceRoot: "/tmp/acepe"
+					})
+					.pipe(
+						Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
+						Effect.forkChild({ startImmediately: true })
+					)
+				yield* Queue.take(events)
+				yield* Stream.runCollect(
+					adapter.sendPrompt({
+						sessionId,
+						messageId,
+						text: "Edit a file for me"
+					})
+				)
+				if (capturedCanUseTool === undefined) {
+					Vitest.assert.fail("expected createQuery to receive a canUseTool callback")
+					return
+				}
+				const canUseTool = capturedCanUseTool
+				const decisionFiber = yield* Effect.promise(() =>
+					canUseTool("Edit", { file_path: "/tmp/acepe/a.txt" }, { toolUseID: "toolu_edit_1" })
+				).pipe(Effect.forkChild({ startImmediately: true }))
+				let approvalRequested: OrchestrationEvent | undefined
+				for (let attempt = 0; attempt < 5 && approvalRequested === undefined; attempt++) {
+					const next = yield* Queue.take(events)
+					if (next.type === "SessionMetaUpdated") {
+						const fact = decodeContractFact(next.metadata)
+						if (Option.isSome(fact)) {
+							Vitest.assert.notStrictEqual(fact.value.contractKind, "permission_request")
+						}
+					}
+					if (next.type === "ApprovalRequested") {
+						approvalRequested = next
+					}
+				}
+				if (approvalRequested === undefined || approvalRequested.type !== "ApprovalRequested") {
+					Vitest.assert.fail("expected an ApprovalRequested event for the permission prompt")
+					return
+				}
+				Vitest.assert.strictEqual(approvalRequested.payload.sessionId, sessionId)
+				const approvalRequestId = approvalRequested.payload.approvalRequestId
+				yield* adapter.respondToPermission({
+					sessionId,
+					permissionId: approvalRequestId,
+					decision: "allow"
+				})
+				const result = yield* Fiber.join(decisionFiber)
+				Vitest.assert.strictEqual(result.behavior, "allow")
 				yield* adapter.cancelTurn({ sessionId })
 			})
 	)

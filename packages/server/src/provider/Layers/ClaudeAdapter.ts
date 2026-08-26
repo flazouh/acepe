@@ -1,6 +1,8 @@
 import { query, type McpServerConfig, type Options as ClaudeSdkOptions } from "@anthropic-ai/claude-agent-sdk"
 import {
 	ActivityId,
+	ApprovalRequestedEvent,
+	ApprovalRequestId,
 	CommandId,
 	EventId,
 	MessageId,
@@ -498,6 +500,41 @@ const publishToolCallStarted = Effect.fn("ClaudeAdapter.publishToolCallStarted")
 	return yield* offerOutbound(runtime, event)
 })
 
+// #268 defect 2: a real Claude permission prompt used to fold into the
+// generic makeMetaEvent/SessionMetaUpdated branch below, whose metadata
+// nobody reads for approvals (ProjectionPendingApprovals.apply only reacts
+// to a native ApprovalRequested/InteractionReplied event or an explicitly
+// stamped pendingApproval metadata key -- neither ever happened here), so
+// projection_pending_approvals never learned about it and the desktop panel
+// had nothing to render: the turn just hung on an approval no one could see
+// or answer. Mirrors publishToolCallStarted's own carve-out from the
+// generic branch -- a real, typed event instead of an opaque metadata blob.
+const publishApprovalRequested = Effect.fn("ClaudeAdapter.publishApprovalRequested")(function*(
+	runtime: SessionRuntime,
+	fact: Extract<ClaudeContractFact, { readonly contractKind: "permission_request" }>
+) {
+	const header = yield* stamp(runtime)
+	const approvalRequestId = ApprovalRequestId.make(fact.id)
+	const event = ApprovalRequestedEvent.make({
+		sequence: header.sequence,
+		eventId: header.eventId,
+		aggregateKind: "session",
+		aggregateId: runtime.sessionId,
+		occurredAt: header.occurredAt,
+		commandId: header.commandId,
+		causationEventId: null,
+		correlationId: header.commandId,
+		metadata: EMPTY_JSON_OBJECT,
+		type: "ApprovalRequested",
+		payload: {
+			sessionId: runtime.sessionId,
+			approvalRequestId,
+			title: fact.permission
+		}
+	})
+	return yield* offerOutbound(runtime, event)
+})
+
 const publishToolCallUpdated = Effect.fn("ClaudeAdapter.publishToolCallUpdated")(function*(
 	runtime: SessionRuntime,
 	fact: Extract<ClaudeContractFact, { readonly contractKind: "tool_call_update" }>
@@ -550,6 +587,12 @@ const publishFact = Effect.fn("ClaudeAdapter.publishFact")(function*(
 	}
 	if (fact.contractKind === "tool_call_update") {
 		return yield* publishToolCallUpdated(runtime, fact)
+	}
+	// #268 defect 2: same carve-out as tool_call/tool_call_update above -- see
+	// publishApprovalRequested's doc for why a permission request cannot stay
+	// folded into the generic makeMetaEvent branch.
+	if (fact.contractKind === "permission_request") {
+		return yield* publishApprovalRequested(runtime, fact)
 	}
 	const event = yield* makeMetaEvent(runtime, fact)
 	return yield* offerOutbound(runtime, event)
