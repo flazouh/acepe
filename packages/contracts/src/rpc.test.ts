@@ -8,7 +8,16 @@ import * as Stream from "effect/Stream"
 import * as FastCheck from "effect/testing/FastCheck"
 
 import { OrchestrationEvent } from "./events.ts"
-import { CheckpointId, CommandId, EventId, ProjectId, SessionId, TerminalId } from "./ids.ts"
+import {
+	ActivityId,
+	CheckpointId,
+	CommandId,
+	EventId,
+	ProjectId,
+	SessionId,
+	TerminalId,
+	ToolCallId,
+} from "./ids.ts"
 import { OrchestrationCommand, ProjectCreateCommand } from "./orchestration.ts"
 import {
 	AcepeRpc,
@@ -326,6 +335,47 @@ describe("Schema-encoded boundary", () => {
 		expect(decoded.sessions[0]?.title).toBe("Ship the slice")
 		expect(decoded.settings).toEqual([])
 		expect(decoded.checkpoints).toEqual([])
+	})
+
+	// #273: the whole point of the widening is that the tool result crosses
+	// the RPC boundary. Schema encoding drops a key the struct does not
+	// declare, so an activity row's output has to be declared here or the
+	// projection column is dead weight.
+	it("round-trips a tool activity's output on a session snapshot", () => {
+		const withOutput: RpcSessionSnapshot = {
+			snapshotSequence: 4,
+			session: null,
+			messages: [],
+			turns: [],
+			activities: [
+				{
+					activityId: ActivityId.make("activity-1"),
+					sessionId,
+					sequence: 3,
+					kind: "tool",
+					status: "completed",
+					title: "Read file",
+					path: "/tmp/acepe/a.ts",
+					toolCallId: ToolCallId.make("call_1"),
+					output: "file1\nfile2",
+				},
+			],
+			pendingApprovals: [],
+			checkpoints: [],
+			projects: [],
+			sessions: [],
+			settings: [],
+			skillsCatalog: null,
+			voice: null,
+			gitReview: null,
+			mcpCatalog: null,
+			preconnectionOptions: null,
+			terminal: null,
+			sessionReviewState: null,
+		}
+		const encoded = Effect.runSync(Schema.encodeUnknownEffect(RpcSessionSnapshot)(withOutput))
+		const decoded = Effect.runSync(Schema.decodeUnknownEffect(RpcSessionSnapshot)(encoded))
+		expect(decoded.activities[0]?.output).toBe("file1\nfile2")
 	})
 
 	it("round-trips git status on a projected project", () => {

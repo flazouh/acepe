@@ -372,11 +372,21 @@ export const RpcProjectedSessionActivity = Schema.Struct({
 	activityId: ActivityId,
 	sessionId: SessionId,
 	sequence: Sequence,
+	// `kind` is the ACTIVITY kind ("tool" | "file"). `toolKind` is the
+	// provider's tool classification ("edit", "execute", ...), so a reopened
+	// session renders the right tool card without re-parsing the display
+	// title. Optional + nullable: absent on rows written before the
+	// tool_kind column existed.
 	kind: Schema.optionalKey(Schema.String),
+	toolKind: Schema.String.pipe(Schema.NullOr, Schema.optionalKey),
 	status: Schema.optionalKey(Schema.String),
 	title: Schema.optionalKey(TrimmedNonEmptyString),
 	path: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey),
 	toolCallId: ToolCallId.pipe(Schema.NullOr, Schema.optionalKey),
+	// #273: the tool's own result. Optional like its siblings, because a
+	// non-tool activity row has no output at all, and because a snapshot
+	// serialised before this key existed still decodes.
+	output: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey),
 })
 export type RpcProjectedSessionActivity = typeof RpcProjectedSessionActivity.Type
 

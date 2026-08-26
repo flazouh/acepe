@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test"
 
 import {
+	ActivityId,
 	CheckpointId,
 	CommandId,
 	EventId,
@@ -8,6 +9,7 @@ import {
 	ProjectId,
 	SessionId,
 	TerminalId,
+	ToolCallId,
 	TurnId,
 } from "./ids.ts"
 import { APP_SETTINGS_ID } from "./settings.ts"
@@ -145,6 +147,33 @@ const turnUsageObserved = (
 		sessionId: forSessionId,
 		turnId: userTurnId,
 		...payload,
+	},
+})
+
+const toolCallObserved = (
+	sequence: number,
+	status: "in_progress" | "completed" | "failed",
+	output: string | null,
+) => ({
+	sequence,
+	eventId: EventId.make(`event-tool-${sequence}`),
+	aggregateKind: "session" as const,
+	aggregateId: sessionId,
+	occurredAt,
+	commandId,
+	causationEventId: null,
+	correlationId: commandId,
+	metadata: {},
+	type: "ToolCallObserved" as const,
+	payload: {
+		sessionId,
+		activityId: ActivityId.make("activity-tool-1"),
+		toolCallId: ToolCallId.make("call_1"),
+		operationId: null,
+		status,
+		title: "Read file",
+		path: "/tmp/acepe/a.ts",
+		output,
 	},
 })
 
@@ -808,6 +837,31 @@ describe("applyEventToRpcSessionSnapshot", () => {
 		expect(loaded.terminal?.output).toBe("K".repeat(TERMINAL_OUTPUT_CAP))
 		expect(loaded.terminal?.closed).toBe(false)
 		expect(loaded.terminal?.cwd).toBe("/tmp")
+	})
+
+	// #273: the live reducer replaces an activity row wholesale, so it has to
+	// carry the output forward the same way ProjectionSessionActivities'
+	// mergeActivityRow does: the completion event brings the result, and any
+	// event after it brings none.
+	it("keeps a tool call's output across the events that follow it", () => {
+		const afterSession = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), sessionCreated)
+		const started = applyEventToRpcSessionSnapshot(
+			afterSession,
+			toolCallObserved(3, "in_progress", null),
+		)
+		expect(started.activities[0]?.output).toBe(null)
+		const completed = applyEventToRpcSessionSnapshot(
+			started,
+			toolCallObserved(4, "completed", "file1\nfile2"),
+		)
+		expect(completed.activities.length).toBe(1)
+		expect(completed.activities[0]?.output).toBe("file1\nfile2")
+		const failedLater = applyEventToRpcSessionSnapshot(
+			completed,
+			toolCallObserved(5, "failed", null),
+		)
+		expect(failedLater.activities[0]?.status).toBe("failed")
+		expect(failedLater.activities[0]?.output).toBe("file1\nfile2")
 	})
 
 	it("upserts a file's reviewed state onto the snapshot", () => {

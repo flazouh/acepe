@@ -13,7 +13,7 @@ import {
 	type GitHunkDecision,
 	type ProjectedGitReview,
 } from "./git.ts"
-import { TurnId, type SessionId } from "./ids.ts"
+import { TurnId, type ActivityId, type SessionId } from "./ids.ts"
 import {
 	type RpcProjectedCheckpoint,
 	type RpcProjectedMessage,
@@ -101,6 +101,29 @@ const touchSession = (
 		providerSessionId: session.providerSessionId,
 		providerSessionFailed: session.providerSessionFailed,
 	}
+}
+
+// #273: the output a tool call has already reported, if the ToolCallObserved
+// branch below has recorded one. Only a settling update carries a result, and
+// the events around it carry none, so a row rebuilt from one of those has to
+// read the recorded output back rather than take the event's absent one.
+const recordedToolOutput = (
+	snapshot: RpcSessionSnapshot,
+	activityId: ActivityId,
+	incoming: string | null | undefined,
+): string | null => {
+	if (incoming !== null && incoming !== undefined) {
+		return incoming
+	}
+	const existing = Arr.findFirst(snapshot.activities, (row) => row.activityId === activityId)
+	if (Option.isNone(existing)) {
+		return null
+	}
+	const recorded = existing.value.output
+	if (recorded === null || recorded === undefined) {
+		return null
+	}
+	return recorded
 }
 
 const upsertAssistant = (
@@ -1216,6 +1239,12 @@ export const applyEventToRpcSessionSnapshot = (
 				title: event.payload.title,
 				path: event.payload.path,
 				toolCallId: event.payload.toolCallId,
+				// #273: first non-null output wins, exactly as
+				// ProjectionSessionActivities' mergeActivityRow decides it on
+				// the server. This branch replaces the whole row, so a later
+				// status-only event would otherwise erase the result the
+				// completion event brought.
+				output: recordedToolOutput(snapshot, event.payload.activityId, event.payload.output),
 			}
 			const without = Arr.filter(
 				snapshot.activities,
