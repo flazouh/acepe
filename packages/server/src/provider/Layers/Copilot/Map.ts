@@ -102,9 +102,13 @@ const applyUsageNumber = (
 		onSome: (next) => apply(fact, next)
 	})
 
+// The nested `cost.amount` wins because it is the most specific shape Copilot
+// sends. The flat spellings are the ones Claude accepts (Claude/Map.ts:308), and
+// reading a key that was ignored before can only recover a figure the provider
+// sent, never invent one.
 const usageCostUsd = (record: JsonObject): Option.Option<number> =>
 	Option.match(objectField(record, "cost"), {
-		onNone: () => numberField(record, "costUsd"),
+		onNone: () => numberFieldAny(record, ["costUsd", "cost_usd", "total_cost_usd"]),
 		onSome: (value) => numberField(value, "amount")
 	})
 
@@ -129,7 +133,11 @@ const usageFact = (record: JsonObject, sessionId: string): UsageFact => {
 			? numberField(record, "used")
 			: Option.none()
 	)
-	const contextWindowSize = numberFieldAny(record, ["contextWindowSize", "size"])
+	const contextWindowSize = numberFieldAny(record, [
+		"contextWindowSize",
+		"context_window_size",
+		"size"
+	])
 	const costUsd = usageCostUsd(record)
 	// The dedup key the desktop reads as lastTelemetryEventId, built the way
 	// Codex/Map.ts builds its own: a composite of the conversation id and every

@@ -223,6 +223,51 @@ Vitest.describe("mapAcpUpdate", () => {
 		])
 	})
 
+	// Claude accepts these spellings for the same two figures
+	// (Claude/Map.ts:308-313). Reading a key that was previously ignored can only
+	// recover a figure the provider sent, never invent one, so the aliases are safe
+	// without a recorded Copilot payload to pin the spelling.
+	Vitest.it("reads the snake_case cost and context-window keys its siblings accept", () => {
+		const usage = mapAcpUpdate({
+			type: "usage",
+			sessionId: "acp-1",
+			inputTokens: 12,
+			outputTokens: 4,
+			cost_usd: 0.02,
+			context_window_size: 128000
+		})
+		Vitest.assert.deepStrictEqual(usage, [
+			{
+				contractKind: "usage",
+				sessionId: "acp-1",
+				eventId:
+					"copilot-token-usage:acp-1:total=none:input=12:output=4:cost=0.02:context=128000",
+				inputTokens: 12,
+				outputTokens: 4,
+				costUsd: 0.02,
+				contextWindowSize: 128000
+			}
+		])
+	})
+
+	Vitest.it("prefers the nested cost amount over a flat cost key", () => {
+		const usage = mapAcpUpdate({
+			type: "usage",
+			sessionId: "acp-1",
+			cost: { amount: 0.02 },
+			total_cost_usd: 0.99
+		})
+		Vitest.assert.deepStrictEqual(usage, [
+			{
+				contractKind: "usage",
+				sessionId: "acp-1",
+				eventId:
+					"copilot-token-usage:acp-1:total=none:input=none:output=none:cost=0.02:context=none",
+				costUsd: 0.02
+			}
+		])
+	})
+
 	// #274: the desktop dedups usage telemetry on lastTelemetryEventId. Codex
 	// composes that key from its thread, its turn and every token figure (see
 	// Codex/Map.ts). Copilot carries no turn id here, so the composite is the
