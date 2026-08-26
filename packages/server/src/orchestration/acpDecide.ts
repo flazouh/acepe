@@ -361,7 +361,8 @@ export const decideAcp = Effect.fn("decideAcp")(function*(
 				operationId: command.operationId,
 				status: command.status,
 				title: command.title,
-				path: command.path
+				path: command.path,
+				output: command.output
 			})
 			return [event]
 		}

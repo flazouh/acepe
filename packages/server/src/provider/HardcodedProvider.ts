@@ -163,6 +163,9 @@ export const makeHardcodedProvider = Effect.fn("makeHardcodedProvider")(function
 						operationId: null,
 						status: "in_progress",
 						title: TRACER_TOOL_TITLE,
+						// The tracer's tool call never runs, so it never
+						// reports a result.
+						output: null,
 						path: null
 					})
 				)

@@ -235,6 +235,10 @@ export const ToolCallObserveCommand = Schema.Struct({
 	status: ObservedToolStatus,
 	title: TrimmedNonEmptyString,
 	path: Schema.NullOr(TrimmedNonEmptyString),
+	// Required and nullable, unlike the event payload's optional key: a
+	// command is dispatched, never replayed from storage, so there is no old
+	// shape to keep decoding. See ToolCallObservedPayload's output below.
+	output: Schema.NullOr(TrimmedNonEmptyString),
 })
 export type ToolCallObserveCommand = typeof ToolCallObserveCommand.Type
 
@@ -421,6 +425,43 @@ export const EventBridgeRefreshedPayload = Schema.Struct({
 })
 export type EventBridgeRefreshedPayload = typeof EventBridgeRefreshedPayload.Type
 
+// #273: a tool call's result is canonical product truth, the same way its
+// status and title are. Every provider that parses one used to drop it at the
+// publish boundary, so no projection and no client had anywhere to read a tool
+// result from. It travels on the observation itself.
+//
+// The key is optional for ONE reason: replay. Events appended before this
+// field existed carry no output key, and the activities projector re-decodes
+// every stored payload on a rebuild (see ProjectionSessionActivities.ts's
+// projectToolCallObserved), so a required key would fail an old event instead
+// of projecting it. Every event minted from here on carries the key -- null
+// when the provider has reported no output yet, which a tool call's start
+// event never does and its completion event does.
+//
+// TOOL_OUTPUT_CAP bounds the text the way TERMINAL_OUTPUT_CAP bounds a
+// terminal's (see terminal.ts). The event log is append-only, so one
+// unbounded file-read result would stay in it for the life of the database.
+// It keeps the head, not the tail: a result reads from its start.
+export const TOOL_OUTPUT_CAP = 64_000
+
+// The one place a provider's raw output string becomes the canonical field:
+// blank is absent (every provider sends "" for a field it has no value for --
+// same rule as Json.ts's stringField), and the ends are trimmed because
+// TrimmedNonEmptyString rejects what trims to nothing.
+export const observedToolOutput = (output: string | null): string | null => {
+	if (output === null) {
+		return null
+	}
+	const trimmed = output.trim()
+	if (trimmed.length === 0) {
+		return null
+	}
+	if (trimmed.length <= TOOL_OUTPUT_CAP) {
+		return trimmed
+	}
+	return trimmed.slice(0, TOOL_OUTPUT_CAP)
+}
+
 export const ToolCallObservedPayload = Schema.Struct({
 	sessionId: SessionId,
 	activityId: ActivityId,
@@ -429,6 +470,7 @@ export const ToolCallObservedPayload = Schema.Struct({
 	status: ObservedToolStatus,
 	title: TrimmedNonEmptyString,
 	path: Schema.NullOr(TrimmedNonEmptyString),
+	output: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey),
 })
 export type ToolCallObservedPayload = typeof ToolCallObservedPayload.Type
 

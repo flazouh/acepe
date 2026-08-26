@@ -949,6 +949,7 @@ const memberCases = [
 			status: "in_progress",
 			title: "Read",
 			path: null,
+			output: null,
 		}),
 	},
 	{
