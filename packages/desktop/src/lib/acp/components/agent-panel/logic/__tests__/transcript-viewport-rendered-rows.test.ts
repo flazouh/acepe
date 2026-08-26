@@ -330,6 +330,10 @@ describe("buildRenderedTranscriptViewportRows", () => {
 				label: "Planning",
 				agentIconSrc: "/icons/test.svg",
 				showWorkingSpark: true,
+				startedAtMs: null,
+				workingLineVerbs: null,
+				workingLineTokens: null,
+				workingLineInterruptHint: null,
 			},
 		});
 		const renderable = rows[0];
@@ -345,6 +349,86 @@ describe("buildRenderedTranscriptViewportRows", () => {
 			label: "Planning",
 			agentIconSrc: "/icons/test.svg",
 			showWorkingSpark: true,
+		});
+	});
+
+	// AC-269: the "planning" mode's local placeholder row is where the
+	// working line actually renders -- proves the whole presentation ->
+	// AgentThinkingEntry composition, not just the pure helpers underneath.
+	it("carries the working-line inputs onto the planning row's entry, seeded by the turn start", () => {
+		const rows = buildRenderableTranscriptViewportRows({
+			bufferRows: [],
+			bufferStartIndex: 0,
+			optimisticUserEntry: null,
+			localPlaceholderMode: "planning",
+		});
+		const resolver = createRenderedTranscriptViewportRowResolver({
+			optimisticUserEntry: null,
+			planningPlaceholderPresentation: {
+				label: "Connecting to Claude Code",
+				agentIconSrc: "/icons/claude.svg",
+				showWorkingSpark: true,
+				startedAtMs: 1_000,
+				workingLineVerbs: ["Puzzling", "Pondering"],
+				workingLineTokens: 48,
+				workingLineInterruptHint: "ctrl+c to interrupt",
+			},
+		});
+		const renderable = rows[0];
+		expect(renderable).toBeDefined();
+		if (renderable === undefined) {
+			return;
+		}
+		const rendered = resolver(renderable);
+
+		expect(rendered.entry).toMatchObject({
+			id: "awaiting:planning",
+			type: "thinking",
+			label: null,
+			startedAtMs: 1_000,
+			showWorkingSpark: true,
+			workingLineVerbs: ["Puzzling", "Pondering"],
+			workingLineSeed: 1_000,
+			workingLineTokens: 48,
+			workingLineInterruptHint: "ctrl+c to interrupt",
+		});
+	});
+
+	it("does not carry working-line inputs during the connection mode (no turn is running yet)", () => {
+		const rows = buildRenderableTranscriptViewportRows({
+			bufferRows: [],
+			bufferStartIndex: 0,
+			optimisticUserEntry: null,
+			localPlaceholderMode: "connection",
+		});
+		const resolver = createRenderedTranscriptViewportRowResolver({
+			optimisticUserEntry: null,
+			planningPlaceholderPresentation: {
+				label: "Connecting to Claude Code",
+				agentIconSrc: "/icons/claude.svg",
+				showWorkingSpark: true,
+				startedAtMs: 1_000,
+				workingLineVerbs: ["Puzzling", "Pondering"],
+				workingLineTokens: 48,
+				workingLineInterruptHint: "ctrl+c to interrupt",
+			},
+		});
+		const renderable = rows[0];
+		expect(renderable).toBeDefined();
+		if (renderable === undefined) {
+			return;
+		}
+		const rendered = resolver(renderable);
+
+		expect(rendered.entry).toMatchObject({
+			id: "awaiting:planning",
+			type: "thinking",
+			label: "Connecting to Claude Code",
+			startedAtMs: null,
+			workingLineVerbs: null,
+			workingLineSeed: null,
+			workingLineTokens: null,
+			workingLineInterruptHint: null,
 		});
 	});
 
@@ -366,6 +450,10 @@ describe("buildRenderedTranscriptViewportRows", () => {
 				label: "Planning",
 				agentIconSrc: "/icons/test.svg",
 				showWorkingSpark: true,
+				startedAtMs: null,
+				workingLineVerbs: null,
+				workingLineTokens: null,
+				workingLineInterruptHint: null,
 			},
 		});
 		const renderable = rows[0];
@@ -393,6 +481,10 @@ describe("buildRenderedTranscriptViewportRows", () => {
 			label: "Connecting to Codex Agent",
 			agentIconSrc: "/icons/codex.svg",
 			showWorkingSpark: false,
+			startedAtMs: null,
+			workingLineVerbs: null,
+			workingLineTokens: null,
+			workingLineInterruptHint: null,
 		};
 		const eagerRows = buildRenderedTranscriptViewportRows({
 			bufferRows,
@@ -476,6 +568,10 @@ describe("buildRenderedTranscriptViewportRows", () => {
 				label: "Connecting to Codex Agent",
 				agentIconSrc: "/icons/codex.svg",
 				showWorkingSpark: true,
+				startedAtMs: null,
+				workingLineVerbs: null,
+				workingLineTokens: null,
+				workingLineInterruptHint: null,
 			},
 		});
 

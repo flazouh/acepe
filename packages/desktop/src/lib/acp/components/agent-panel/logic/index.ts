@@ -17,7 +17,10 @@ export {
 	resolveVisibleEntryCount,
 } from "./optimistic-user-entry.js";
 export { loadSessionPlan } from "./plan-loader";
-export { resolvePlanningPlaceholderPresentation } from "./planning-placeholder-presentation.js";
+export {
+	resolvePlanningPlaceholderPresentation,
+	resolveRunningTurnOutputTokens,
+} from "./planning-placeholder-presentation.js";
 export {
 	resolveOptimisticHeaderTitle,
 	shouldShowClaudeWorkingSpark,

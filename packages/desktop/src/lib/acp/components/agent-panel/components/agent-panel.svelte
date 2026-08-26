@@ -67,10 +67,13 @@ import {
 	matchesWorktreeSetupContext,
 	resolveEffectiveProjectPath,
 	resolvePlanningPlaceholderPresentation,
+	resolveRunningTurnOutputTokens,
 	shouldShowInlinePanelError,
 	shouldShowNewThreadSetupContext,
 	shouldShowClaudeWorkingSpark,
 } from "../logic";
+import { selectWorkingLineVerbs } from "@acepe/ui/agent-panel";
+import { isMac } from "$lib/keybindings/index.js";
 import { DEFAULT_BROWSER_HOME_URL } from "../../../constants/browser-defaults.js";
 import { getProviderBrandIcon } from "../../../constants/thread-list-constants.js";
 import { createAgentPanelExportHandlers } from "../logic/agent-panel-export-handlers.js";
@@ -740,11 +743,29 @@ const effectivePanelProviderBrand = $derived.by(() => {
 	});
 });
 const agentIconSrc = $derived(getProviderBrandIcon(effectivePanelProviderBrand, effectiveTheme));
+// AC-269: the working line's verb list, running-turn token count, and
+// interrupt hint. showWorkingSpark already gates "Claude Code session" the
+// same way the working spark itself does; other providers get the neutral
+// verb list instead of no working line at all. The interrupt hint names the
+// real composer binding (interrupt-shortcut.ts's Ctrl+C, currently Mac-only)
+// rather than inventing one -- omitted entirely on other platforms.
+const workingLineVerbs = $derived(selectWorkingLineVerbs(showWorkingSpark));
+const workingLineTokens = $derived(
+	resolveRunningTurnOutputTokens({
+		usageTelemetry: sessionController.sessionUsageTelemetry,
+		turnStartedAtMs: sessionController.runningTurnStartedAtMs,
+	})
+);
+const workingLineInterruptHint = $derived(isMac() ? "ctrl+c to interrupt" : null);
 const planningPlaceholderPresentation = $derived(
 	resolvePlanningPlaceholderPresentation({
 		agentName,
 		agentIconSrc,
 		showWorkingSpark,
+		startedAtMs: sessionController.runningTurnStartedAtMs,
+		workingLineVerbs,
+		workingLineTokens,
+		workingLineInterruptHint,
 	})
 );
 const isConnecting = $derived(

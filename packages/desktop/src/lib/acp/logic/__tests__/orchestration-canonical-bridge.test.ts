@@ -122,6 +122,83 @@ describe("OrchestrationCanonicalBridge", () => {
 		}
 	});
 
+	// AC-269: the Claude Code working line's elapsed timer reads
+	// SessionGraphActivity.kindStartedAtMs -- MessageSent must stamp the
+	// awaiting_model activity with the turn's real start time (parsed from
+	// the event's own occurredAt, not client Date.now(), so a reopened panel
+	// mid-turn is not skewed by request latency).
+	it("stamps the awaiting_model activity with the turn's real start time on MessageSent", () => {
+		const bridge = makeBridge();
+		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
+		const envelopes = runTranslate(
+			bridge,
+			makeEvent("MessageSent", { sessionId, messageId: MessageId.make("user-1"), text: "hi there" })
+		);
+		const payload = envelopes[0]?.payload as SessionStateEnvelope;
+		if (payload.payload.kind === "delta") {
+			expect(payload.payload.delta.activity.kind).toBe("awaiting_model");
+			expect(payload.payload.delta.activity.kindStartedAtMs).toBe(Date.parse(occurredAt));
+		}
+	});
+
+	it("clears the turn start time once the turn ends", () => {
+		const bridge = makeBridge();
+		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
+		runTranslate(
+			bridge,
+			makeEvent("MessageSent", { sessionId, messageId: MessageId.make("user-1"), text: "hi there" })
+		);
+		const envelopes = runTranslate(
+			bridge,
+			makeEvent("TurnCompleted", { sessionId, turnId: "user-1" })
+		);
+		const payload = envelopes[0]?.payload as SessionStateEnvelope;
+		if (payload.payload.kind === "delta") {
+			expect(payload.payload.delta.activity.kindStartedAtMs ?? null).toBeNull();
+		}
+	});
+
+	// AC-269: a real usage reading must reach the SAME "telemetry" envelope /
+	// applyTelemetry command / setUsageTelemetry patch chain the model-selector
+	// metrics chip already reads from (session-envelope-applier.svelte.ts's
+	// updateUsageTelemetry), so the working line can show the running turn's
+	// tokens without a new plumbing path.
+	it("emits a telemetry envelope for TurnUsageObserved, deriving total from input+output", () => {
+		const bridge = makeBridge();
+		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
+		const envelopes = runTranslate(
+			bridge,
+			makeEvent("TurnUsageObserved", {
+				sessionId,
+				turnId: "user-1",
+				inputTokens: 120,
+				outputTokens: 48,
+				costUsd: 0.0123,
+				contextWindowSize: 200_000,
+			})
+		);
+		expect(envelopes).toHaveLength(1);
+		const payload = envelopes[0]?.payload as SessionStateEnvelope;
+		expect(payload.payload.kind).toBe("telemetry");
+		if (payload.payload.kind === "telemetry") {
+			expect(payload.payload.telemetry.sessionId).toBe(sessionId);
+			expect(payload.payload.telemetry.tokens?.input).toBe(120);
+			expect(payload.payload.telemetry.tokens?.output).toBe(48);
+			expect(payload.payload.telemetry.tokens?.total).toBe(168);
+			expect(payload.payload.telemetry.costUsd).toBe(0.0123);
+			expect(payload.payload.telemetry.contextWindowSize).toBe(200_000);
+		}
+	});
+
+	it("ignores TurnUsageObserved for a session it never saw created", () => {
+		const bridge = makeBridge();
+		const envelopes = runTranslate(
+			bridge,
+			makeEvent("TurnUsageObserved", { sessionId, outputTokens: 12 })
+		);
+		expect(envelopes).toHaveLength(0);
+	});
+
 	it("creates a new assistant entry on the first token, then appends segments contiguously", () => {
 		const bridge = makeBridge();
 		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));

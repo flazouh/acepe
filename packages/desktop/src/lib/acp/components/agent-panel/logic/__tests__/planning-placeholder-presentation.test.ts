@@ -1,6 +1,9 @@
 import { describe, expect, it } from "bun:test";
 
-import { resolvePlanningPlaceholderPresentation } from "../planning-placeholder-presentation.js";
+import {
+	resolvePlanningPlaceholderPresentation,
+	resolveRunningTurnOutputTokens,
+} from "../planning-placeholder-presentation.js";
 
 describe("resolvePlanningPlaceholderPresentation", () => {
 	it("uses the selected agent name and icon for the local connecting row", () => {
@@ -14,6 +17,10 @@ describe("resolvePlanningPlaceholderPresentation", () => {
 			label: "Connecting to Codex Agent",
 			agentIconSrc: "data:image/svg+xml,hugeicons",
 			showWorkingSpark: false,
+			startedAtMs: null,
+			workingLineVerbs: null,
+			workingLineTokens: null,
+			workingLineInterruptHint: null,
 		});
 	});
 
@@ -28,6 +35,10 @@ describe("resolvePlanningPlaceholderPresentation", () => {
 			label: "Connecting to Claude Code",
 			agentIconSrc: "data:image/svg+xml,hugeicons",
 			showWorkingSpark: true,
+			startedAtMs: null,
+			workingLineVerbs: null,
+			workingLineTokens: null,
+			workingLineInterruptHint: null,
 		});
 	});
 
@@ -42,6 +53,63 @@ describe("resolvePlanningPlaceholderPresentation", () => {
 			label: "Connecting to agent",
 			agentIconSrc: null,
 			showWorkingSpark: false,
+			startedAtMs: null,
+			workingLineVerbs: null,
+			workingLineTokens: null,
+			workingLineInterruptHint: null,
 		});
+	});
+
+	it("carries the working-line inputs through when a turn is running", () => {
+		const verbs = ["Puzzling", "Pondering"];
+		const result = resolvePlanningPlaceholderPresentation({
+			agentName: "Claude Code",
+			agentIconSrc: null,
+			showWorkingSpark: true,
+			startedAtMs: 1_000,
+			workingLineVerbs: verbs,
+			workingLineTokens: 48,
+			workingLineInterruptHint: "ctrl+c to interrupt",
+		});
+
+		expect(result.startedAtMs).toBe(1_000);
+		expect(result.workingLineVerbs).toBe(verbs);
+		expect(result.workingLineTokens).toBe(48);
+		expect(result.workingLineInterruptHint).toBe("ctrl+c to interrupt");
+	});
+});
+
+describe("resolveRunningTurnOutputTokens", () => {
+	it("returns null when there is no usage telemetry yet", () => {
+		expect(
+			resolveRunningTurnOutputTokens({ usageTelemetry: null, turnStartedAtMs: 1_000 })
+		).toBeNull();
+	});
+
+	it("returns null when no turn is running", () => {
+		expect(
+			resolveRunningTurnOutputTokens({
+				usageTelemetry: { latestTokensOutput: 48, updatedAt: 2_000 },
+				turnStartedAtMs: null,
+			})
+		).toBeNull();
+	});
+
+	it("returns the reading when it arrived after the turn started", () => {
+		expect(
+			resolveRunningTurnOutputTokens({
+				usageTelemetry: { latestTokensOutput: 48, updatedAt: 2_000 },
+				turnStartedAtMs: 1_000,
+			})
+		).toBe(48);
+	});
+
+	it("returns null for a stale reading from before the turn started (never shows a prior turn's count)", () => {
+		expect(
+			resolveRunningTurnOutputTokens({
+				usageTelemetry: { latestTokensOutput: 999, updatedAt: 500 },
+				turnStartedAtMs: 1_000,
+			})
+		).toBeNull();
 	});
 });

@@ -11,12 +11,15 @@ import type {
 	VisibleLocalPlaceholderMode,
 } from "./local-placeholder-mode.js";
 import type { LocalPlaceholderRow } from "./local-placeholder-row.js";
+import type { PlanningPlaceholderPresentation } from "./planning-placeholder-presentation.js";
 import type { RenderableTranscriptRow } from "./renderable-transcript-row.js";
 import { hasTrailingCompletedTool } from "./transcript-viewport-row-facts.js";
 import {
 	resolveTranscriptViewportSceneEntry,
 	resolveTranscriptViewportSceneEntryCandidate,
 } from "./transcript-viewport-row-mapper.js";
+
+export type { PlanningPlaceholderPresentation };
 
 export type RenderedTranscriptViewportRow = {
 	readonly row: RenderableTranscriptRow;
@@ -44,12 +47,6 @@ type RenderableTranscriptViewportRowMetadata = {
 	readonly anchorEligible: boolean;
 	readonly kind: RenderableTranscriptRow["kind"];
 };
-
-export interface PlanningPlaceholderPresentation {
-	readonly label: string;
-	readonly agentIconSrc: string | null;
-	readonly showWorkingSpark: boolean;
-}
 
 const LOCAL_OPTIMISTIC_ROW_PREFIX = "local:optimistic:";
 const PLANNING_ROW_ID = "awaiting:planning";
@@ -533,14 +530,22 @@ function createLocalPlanningEntry(
 			showWorkingSpark: false,
 		};
 	}
+	// AC-269: the working line only applies to the "planning" mode (a turn is
+	// actually running) -- "connection" has no running turn yet, so it keeps
+	// using the plain `label` and stays untouched by working-line fields.
+	const isPlanning = mode === "planning";
 	return {
 		id: PLANNING_ROW_ID,
 		type: "thinking",
 		durationMs: null,
-		startedAtMs: null,
+		startedAtMs: isPlanning ? (presentation?.startedAtMs ?? null) : null,
 		label: mode === "connection" ? (presentation?.label ?? null) : null,
 		agentIconSrc: presentation?.agentIconSrc ?? null,
 		showWorkingSpark: presentation?.showWorkingSpark ?? false,
+		workingLineVerbs: isPlanning ? (presentation?.workingLineVerbs ?? null) : null,
+		workingLineSeed: isPlanning ? (presentation?.startedAtMs ?? null) : null,
+		workingLineTokens: isPlanning ? (presentation?.workingLineTokens ?? null) : null,
+		workingLineInterruptHint: isPlanning ? (presentation?.workingLineInterruptHint ?? null) : null,
 	};
 }
 

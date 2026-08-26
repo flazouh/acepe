@@ -32,6 +32,7 @@ import type {
 	SessionTurnState,
 	ToolArguments,
 	TranscriptDeltaOperation,
+	UsageTelemetryData,
 } from "../../services/acp-types.js";
 import type { AcpEventEnvelope } from "./acp-event-bridge.js";
 import {
@@ -59,6 +60,13 @@ type SessionCanonicalState = {
 	// dedup hazard tool calls have) patches the existing row instead of
 	// appending a duplicate.
 	observedApprovalIds: Set<string>;
+	// AC-269: epoch-ms the CURRENTLY open turn started, or null when no turn
+	// is open -- the Claude Code working line's elapsed timer reads this via
+	// SessionGraphActivity.kindStartedAtMs (see awaitingModelActivityAt).
+	// Parsed from the MessageSent event's own occurredAt (server wall-clock),
+	// not client Date.now(), so the timer is not skewed by request latency.
+	// Cleared on TurnCancelled/TurnCompleted.
+	turnStartedAtMs: number | null;
 };
 
 const KNOWN_AGENT_IDS: ReadonlySet<string> = new Set([
@@ -86,6 +94,19 @@ const awaitingModelActivity: SessionGraphActivity = {
 	activeOperationCount: 0,
 	activeSubagentCount: 0,
 };
+
+// AC-269: same "awaiting_model" activity, stamped with the turn's real start
+// time so the working line's elapsed timer has something to read. A plain
+// object (not the module-level awaitingModelActivity constant above) since
+// this varies per session/turn.
+function awaitingModelActivityAt(turnStartedAtMs: number | null): SessionGraphActivity {
+	return {
+		kind: "awaiting_model",
+		activeOperationCount: 0,
+		activeSubagentCount: 0,
+		kindStartedAtMs: turnStartedAtMs,
+	};
+}
 
 const noArguments: ToolArguments = { kind: "other", raw: null };
 
@@ -142,7 +163,12 @@ export class OrchestrationCanonicalBridge {
 				);
 			case "MessageSent":
 				return Effect.succeed(
-					this.onMessageSent(event.payload.sessionId, event.payload.messageId, event.payload.text)
+					this.onMessageSent(
+						event.payload.sessionId,
+						event.payload.messageId,
+						event.payload.text,
+						event.occurredAt
+					)
 				);
 			case "TokenAppended":
 				return Effect.succeed(
@@ -164,6 +190,8 @@ export class OrchestrationCanonicalBridge {
 				return Effect.succeed(
 					this.onTurnCompleted(event.payload.sessionId, event.payload.turnId ?? null)
 				);
+			case "TurnUsageObserved":
+				return Effect.succeed(this.onTurnUsageObserved(event.payload));
 			default:
 				// Every other OrchestrationEventType (git/voice/checkpoint/settings/
 				// agent-management/...) is outside this bridge's scope -- log-and-
@@ -193,6 +221,7 @@ export class OrchestrationCanonicalBridge {
 					assistantEntryRunSeq: 0,
 					observedToolCallIds: new Set(),
 					observedApprovalIds: new Set(),
+					turnStartedAtMs: null,
 				});
 				const envelope: SessionStateEnvelope = {
 					sessionId,
@@ -236,7 +265,12 @@ export class OrchestrationCanonicalBridge {
 		);
 	}
 
-	private onMessageSent(sessionId: string, messageId: string, text: string): AcpEventEnvelope[] {
+	private onMessageSent(
+		sessionId: string,
+		messageId: string,
+		text: string,
+		occurredAt: string
+	): AcpEventEnvelope[] {
 		const state = this.sessions.get(sessionId);
 		if (state === undefined) {
 			return [];
@@ -253,10 +287,14 @@ export class OrchestrationCanonicalBridge {
 			},
 		];
 		const changedFields: SessionStateField[] = ["transcriptSnapshot", "turnState", "activity"];
+		// AC-269: real turn start, parsed from the server's own event
+		// timestamp -- see turnStartedAtMs's doc on SessionCanonicalState.
+		const turnStartedAtMs = Date.parse(occurredAt);
+		const activity = awaitingModelActivityAt(Number.isNaN(turnStartedAtMs) ? null : turnStartedAtMs);
 		const delta: SessionStateDelta = {
 			fromRevision: state.revision,
 			toRevision,
-			activity: awaitingModelActivity,
+			activity,
 			turnState: "Running",
 			activeStreamingTail: null,
 			transcriptOperations: operations,
@@ -266,7 +304,8 @@ export class OrchestrationCanonicalBridge {
 		};
 		state.revision = toRevision;
 		state.turnState = "Running";
-		state.activity = awaitingModelActivity;
+		state.activity = activity;
+		state.turnStartedAtMs = Number.isNaN(turnStartedAtMs) ? null : turnStartedAtMs;
 		state.assistantEntryId = null;
 		state.assistantEntryRunSeq = 0;
 		state.assistantSegmentSeq = 0;
@@ -311,7 +350,7 @@ export class OrchestrationCanonicalBridge {
 		const delta: SessionStateDelta = {
 			fromRevision: state.revision,
 			toRevision,
-			activity: awaitingModelActivity,
+			activity: awaitingModelActivityAt(state.turnStartedAtMs),
 			turnState: "Running",
 			activeStreamingTail: null,
 			transcriptOperations: operations,
@@ -406,7 +445,7 @@ export class OrchestrationCanonicalBridge {
 		};
 		const activity: SessionGraphActivity =
 			payload.status === "completed" || payload.status === "failed"
-				? awaitingModelActivity
+				? awaitingModelActivityAt(state.turnStartedAtMs)
 				: {
 						kind: "running_operation",
 						activeOperationCount: 1,
@@ -545,6 +584,79 @@ export class OrchestrationCanonicalBridge {
 		return [toSessionStateAcpEnvelope(envelopeForDelta(payload.sessionId, toRevision, delta))];
 	}
 
+	// AC-269: routes a real usage reading onto the EXISTING "telemetry"
+	// envelope kind / applyTelemetry command / setUsageTelemetry patch chain
+	// (reduce-command.ts's reduceApplyTelemetry -> canonical-usage-telemetry.ts's
+	// buildCanonicalUsageTelemetry -> SessionTransientProjection.usageTelemetry)
+	// rather than inventing a new one -- that pipeline already exists (built
+	// for the model-selector metrics chip) but nothing ever produced a live
+	// "telemetry" envelope for it until this fix, so usageTelemetry was
+	// permanently null/stale in the real app. totalTokens is derived from
+	// input+output when the fact did not carry one itself (never a fabricated
+	// guess -- only a real sum of two real readings): buildCanonicalUsageTelemetry
+	// only treats a reading as a fresh occupancy snapshot when tokens.total is
+	// present, so a cost-only or malformed reading correctly leaves the
+	// working line's token display untouched instead of overwriting it with
+	// nothing.
+	private onTurnUsageObserved(payload: {
+		readonly sessionId: SessionId;
+		readonly turnId?: string;
+		readonly inputTokens?: number;
+		readonly outputTokens?: number;
+		readonly totalTokens?: number;
+		readonly cacheReadTokens?: number;
+		readonly cacheWriteTokens?: number;
+		readonly costUsd?: number;
+		readonly contextWindowSize?: number;
+	}): AcpEventEnvelope[] {
+		const state = this.sessions.get(payload.sessionId);
+		if (state === undefined) {
+			return [];
+		}
+		const toRevision = nextRevision(state.revision, false);
+		const derivedTotal =
+			payload.totalTokens ??
+			(payload.inputTokens !== undefined && payload.outputTokens !== undefined
+				? payload.inputTokens + payload.outputTokens
+				: undefined);
+		const hasTokenReading =
+			payload.inputTokens !== undefined ||
+			payload.outputTokens !== undefined ||
+			derivedTotal !== undefined ||
+			payload.cacheReadTokens !== undefined ||
+			payload.cacheWriteTokens !== undefined;
+		const telemetry: UsageTelemetryData = {
+			sessionId: payload.sessionId,
+			...(hasTokenReading
+				? {
+						tokens: {
+							...(payload.inputTokens !== undefined ? { input: payload.inputTokens } : {}),
+							...(payload.outputTokens !== undefined ? { output: payload.outputTokens } : {}),
+							...(derivedTotal !== undefined ? { total: derivedTotal } : {}),
+							...(payload.cacheReadTokens !== undefined
+								? { cacheRead: payload.cacheReadTokens }
+								: {}),
+							...(payload.cacheWriteTokens !== undefined
+								? { cacheWrite: payload.cacheWriteTokens }
+								: {}),
+						},
+					}
+				: {}),
+			...(payload.costUsd !== undefined ? { costUsd: payload.costUsd } : {}),
+			...(payload.contextWindowSize !== undefined
+				? { contextWindowSize: payload.contextWindowSize, contextWindowSource: "provider-explicit" }
+				: {}),
+		};
+		const envelope: SessionStateEnvelope = {
+			sessionId: payload.sessionId,
+			graphRevision: toRevision.graphRevision,
+			lastEventSeq: toRevision.lastEventSeq,
+			payload: { kind: "telemetry", telemetry, revision: toRevision },
+		};
+		state.revision = toRevision;
+		return [toSessionStateAcpEnvelope(envelope)];
+	}
+
 	private onTurnCancelled(sessionId: string, _turnId: string | null): AcpEventEnvelope[] {
 		const state = this.sessions.get(sessionId);
 		if (state === undefined) {
@@ -565,6 +677,7 @@ export class OrchestrationCanonicalBridge {
 		state.revision = toRevision;
 		state.turnState = "Cancelled";
 		state.activity = idleActivity;
+		state.turnStartedAtMs = null;
 		state.assistantEntryId = null;
 		state.assistantEntryRunSeq = 0;
 		return [toSessionStateAcpEnvelope(envelopeForDelta(sessionId, toRevision, delta))];
@@ -590,6 +703,7 @@ export class OrchestrationCanonicalBridge {
 		state.revision = toRevision;
 		state.turnState = "Completed";
 		state.activity = idleActivity;
+		state.turnStartedAtMs = null;
 		state.assistantEntryId = null;
 		state.assistantEntryRunSeq = 0;
 		return [toSessionStateAcpEnvelope(envelopeForDelta(sessionId, toRevision, delta))];

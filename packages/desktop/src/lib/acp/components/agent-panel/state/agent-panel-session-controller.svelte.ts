@@ -316,6 +316,23 @@ export class AgentPanelSessionController {
 			: null
 	);
 
+	/**
+	 * AC-269: epoch-ms the currently running turn started, read off the
+	 * canonical activity's own kindStartedAtMs (stamped by
+	 * OrchestrationCanonicalBridge.onMessageSent from the server's real
+	 * MessageSent occurredAt). Feeds the Claude Code working line's elapsed
+	 * timer and verb-rotation seed.
+	 */
+	readonly runningTurnStartedAtMs = $derived.by(
+		() => this.canonicalSessionActivity?.kindStartedAtMs ?? null
+	);
+
+	/** AC-269: same usageTelemetry the model-selector metrics chip reads. */
+	readonly sessionUsageTelemetry = $derived.by(() => {
+		const id = this.#deps.getSessionId();
+		return id ? this.#deps.sessionStore.read.getSessionUsageTelemetry(id) : null;
+	});
+
 	readonly sessionTurnState = $derived.by(() =>
 		resolveCanonicalAgentPanelTurnState(this.canonicalPanelSessionSource)
 	);
