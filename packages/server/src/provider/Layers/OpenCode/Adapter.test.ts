@@ -506,6 +506,7 @@ Vitest.describe("OpenCodeAdapter", () => {
 				})
 				.pipe(Effect.flip)
 			Vitest.assert.strictEqual(unsafe._tag, "ProviderAdapterError")
+			Vitest.assert.strictEqual(unsafe.operation, "respondToPermission")
 			yield* started.adapter.cancelTurn({ sessionId })
 		})
 	)

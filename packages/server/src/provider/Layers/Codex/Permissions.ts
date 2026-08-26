@@ -33,11 +33,11 @@ export const respondToPermission = Effect.fn("CodexAdapter.respondToPermission")
 		readonly decision: string
 	}
 ) {
-	const runtime = yield* requireSession(sessions, input.sessionId, "sendPrompt")
+	const runtime = yield* requireSession(sessions, input.sessionId, "respondToPermission")
 	const mapped = mapCodexPermissionReply(input.decision)
 	if (Option.isNone(mapped)) {
 		return yield* adapterError(
-			"sendPrompt",
+			"respondToPermission",
 			`Unsupported Codex permission reply: ${input.decision}`
 		)
 	}
@@ -53,18 +53,18 @@ export const respondToQuestion = Effect.fn("CodexAdapter.respondToQuestion")(fun
 		readonly answers: ReadonlyArray<ReadonlyArray<string>>
 	}
 ) {
-	const runtime = yield* requireSession(sessions, input.sessionId, "sendPrompt")
+	const runtime = yield* requireSession(sessions, input.sessionId, "respondToQuestion")
 	const pending = yield* Ref.get(runtime.questionIds)
 	const questionIds = HashMap.get(pending, input.requestId)
 	if (Option.isNone(questionIds)) {
 		return yield* adapterError(
-			"sendPrompt",
+			"respondToQuestion",
 			"Codex question ids were not available for the reply"
 		)
 	}
 	if (questionIds.value.length < input.answers.length) {
 		return yield* adapterError(
-			"sendPrompt",
+			"respondToQuestion",
 			"Codex question reply included more answers than questions"
 		)
 	}
@@ -75,7 +75,7 @@ export const respondToQuestion = Effect.fn("CodexAdapter.respondToQuestion")(fun
 		)
 	).pipe(
 		Effect.mapError(() =>
-			adapterError("sendPrompt", "Codex question reply was not JSON")
+			adapterError("respondToQuestion", "Codex question reply was not JSON")
 		)
 	)
 	const replyId = yield* takeReplyId(runtime, input.requestId)

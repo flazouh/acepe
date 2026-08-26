@@ -95,12 +95,12 @@ export const makeRespondToPermission = (
 		readonly permissionId: string
 		readonly decision: ClaudePermissionDecision
 	}) {
-		const runtime = yield* requireSession(sessions, input.sessionId, "sendPrompt")
+		const runtime = yield* requireSession(sessions, input.sessionId, "respondToPermission")
 		const pending = yield* Ref.get(runtime.pendingPermissions)
 		const deferred = HashMap.get(pending, input.permissionId)
 		if (Option.isNone(deferred)) {
 			return yield* adapterError(
-				"sendPrompt",
+				"respondToPermission",
 				`No permission request '${input.permissionId}'.`
 			)
 		}

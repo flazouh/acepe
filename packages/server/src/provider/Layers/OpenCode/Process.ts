@@ -351,9 +351,13 @@ export const liveCreateTransport = Effect.fn("liveCreateTransport")(function*(in
 				directory: input.workspaceRoot
 			}).pipe(Effect.asVoid),
 		replyPermission: (requestId, reply) =>
-			postJson("sendPrompt", urls.permissionReply(requestId), { reply }).pipe(Effect.asVoid),
+			postJson("respondToPermission", urls.permissionReply(requestId), { reply }).pipe(
+				Effect.asVoid
+			),
 		replyQuestion: (requestId, answers) =>
-			postJson("sendPrompt", urls.questionReply(requestId), { answers }).pipe(Effect.asVoid),
+			postJson("respondToQuestion", urls.questionReply(requestId), { answers }).pipe(
+				Effect.asVoid
+			),
 		close: child.kill().pipe(
 			Effect.flatMap(() => Scope.close(scope, Exit.succeed(undefined))),
 			Effect.ignore

@@ -141,11 +141,14 @@ export const respondToPermission = Effect.fn("CursorAdapter.respondToPermission"
 	sessions: Ref.Ref<HashMap.HashMap<SessionId, SessionRuntime>>,
 	input: CursorRespondToPermissionInput
 ) {
-	const runtime = yield* requireSession(sessions, input.sessionId, "sendPrompt")
+	const runtime = yield* requireSession(sessions, input.sessionId, "respondToPermission")
 	const pending = yield* Ref.get(runtime.pendingPermissions)
 	const deferred = HashMap.get(pending, input.permissionId)
 	if (Option.isNone(deferred)) {
-		return yield* adapterError("sendPrompt", `No permission request '${input.permissionId}'.`)
+		return yield* adapterError(
+			"respondToPermission",
+			`No permission request '${input.permissionId}'.`
+		)
 	}
 	yield* Deferred.succeed(deferred.value, input.decision)
 	yield* Ref.update(runtime.pendingPermissions, (current) =>

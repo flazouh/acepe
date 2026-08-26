@@ -2,6 +2,7 @@ import {
 	type OrchestrationEvent,
 	MessageId,
 	ProjectId,
+	ProviderOperation,
 	SessionId,
 	TrimmedNonEmptyString,
 	TurnId
@@ -72,7 +73,7 @@ export class ProviderAdapterError extends Schema.TaggedError<ProviderAdapterErro
 	"ProviderAdapterError",
 	{
 		providerId: ProviderId,
-		operation: Schema.Literals(["startSession", "sendPrompt", "cancelTurn"]),
+		operation: ProviderOperation,
 		detail: Schema.String
 	}
 ) {

@@ -17,11 +17,11 @@ export const respondToPermission = Effect.fn("OpenCodeAdapter.respondToPermissio
 ) {
 	if (isSafeRequestId(input.permissionId) === false) {
 		return yield* adapterError(
-			"sendPrompt",
+			"respondToPermission",
 			`Request ID '${input.permissionId}' contains invalid characters (only alphanumeric, '-', '_' allowed)`
 		)
 	}
-	const runtime = yield* requireSession(sessions, input.sessionId, "sendPrompt")
+	const runtime = yield* requireSession(sessions, input.sessionId, "respondToPermission")
 	yield* runtime.transport.replyPermission(input.permissionId, input.reply)
 })
 
@@ -35,10 +35,10 @@ export const respondToQuestion = Effect.fn("OpenCodeAdapter.respondToQuestion")(
 ) {
 	if (isSafeRequestId(input.questionId) === false) {
 		return yield* adapterError(
-			"sendPrompt",
+			"respondToQuestion",
 			`Request ID '${input.questionId}' contains invalid characters (only alphanumeric, '-', '_' allowed)`
 		)
 	}
-	const runtime = yield* requireSession(sessions, input.sessionId, "sendPrompt")
+	const runtime = yield* requireSession(sessions, input.sessionId, "respondToQuestion")
 	yield* runtime.transport.replyQuestion(input.questionId, input.answers)
 })

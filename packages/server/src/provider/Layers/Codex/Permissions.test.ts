@@ -111,6 +111,38 @@ Vitest.describe("CodexAdapter permissions", () => {
 		Vitest.assert.strictEqual(Option.isNone(mapCodexPermissionReply("maybe")), true)
 	})
 
+	// A reply that fails is not a prompt that failed. Labelling both
+	// "sendPrompt" sent the operator hunting through the prompt path for a
+	// fault that lives in the permission/question reply path.
+	Vitest.it.effect("names the reply operation that actually failed", () =>
+		Effect.gen(function*() {
+			const inbound = yield* Queue.unbounded<Json, Done>()
+			const requests = yield* Ref.make<ReadonlyArray<RecordedRequest>>(Arr.empty())
+			const replies = yield* Ref.make<ReadonlyArray<Json>>(Arr.empty())
+			const adapter = yield* makeTestAdapter(inbound, requests, replies)
+			yield* openSession(adapter)
+			const permission = yield* adapter
+				.respondToPermission({
+					sessionId,
+					permissionId: "42",
+					decision: "maybe"
+				})
+				.pipe(Effect.flip)
+			Vitest.assert.strictEqual(permission._tag, "ProviderAdapterError")
+			Vitest.assert.strictEqual(permission.operation, "respondToPermission")
+			const question = yield* adapter
+				.respondToQuestion({
+					sessionId,
+					requestId: "unknown-question",
+					answers: [["File"]]
+				})
+				.pipe(Effect.flip)
+			Vitest.assert.strictEqual(question._tag, "ProviderAdapterError")
+			Vitest.assert.strictEqual(question.operation, "respondToQuestion")
+			yield* Queue.end(inbound)
+		})
+	)
+
 	Vitest.it.effect("replies to native permission requests", () =>
 		Effect.gen(function*() {
 			const inbound = yield* Queue.unbounded<Json, Done>()

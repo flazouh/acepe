@@ -525,7 +525,13 @@ const considerInteractionReplied = Effect.fn("ProviderBridge.considerInteraction
 	})
 	yield* (justOpened ? Effect.retry(dispatch, LAZY_OPEN_RETRY_SCHEDULE) : dispatch).pipe(
 		Effect.catchCause((cause) =>
-			appendFailure(state, event.payload.sessionId, adapter.value.providerId, "sendPrompt", Cause.pretty(cause))
+			appendFailure(
+				state,
+				event.payload.sessionId,
+				adapter.value.providerId,
+				"respondToPermission",
+				Cause.pretty(cause)
+			)
 		)
 	)
 })

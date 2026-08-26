@@ -395,13 +395,28 @@ export const SessionReviewStateClearedPayload = Schema.Struct({
 })
 export type SessionReviewStateClearedPayload = typeof SessionReviewStateClearedPayload.Type
 
+// The provider-adapter call an operator reads back in a failure message.
+// It lives here, not in @acepe/server, because both readers need the same
+// list: ProviderSessionFailedPayload below writes it into the durable event
+// log, and @acepe/server's ProviderAdapterError types every adapterError
+// call against it. A second copy would drift, and drift is how a permission
+// reply came to report itself as a failed sendPrompt.
+export const ProviderOperation = Schema.Literals([
+	"startSession",
+	"sendPrompt",
+	"cancelTurn",
+	"respondToPermission",
+	"respondToQuestion",
+])
+export type ProviderOperation = typeof ProviderOperation.Type
+
 // Emitted by ProviderBridge.ts when a real provider adapter's event stream
 // dies (the SDK/subprocess/ACP transport failed) instead of letting the
 // session stall silently with no further transcript activity.
 export const ProviderSessionFailedPayload = Schema.Struct({
 	sessionId: SessionId,
 	providerId: TrimmedNonEmptyString,
-	operation: Schema.Literals(["startSession", "sendPrompt", "cancelTurn"]),
+	operation: ProviderOperation,
 	detail: TrimmedNonEmptyString,
 })
 export type ProviderSessionFailedPayload = typeof ProviderSessionFailedPayload.Type
