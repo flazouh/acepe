@@ -459,7 +459,10 @@ describe("OrchestrationCanonicalBridge", () => {
 		expect(delta.operationPatches).toHaveLength(1);
 		const [operation] = delta.operationPatches;
 		expect(operation?.tool_call_id).toBe("approval-1");
-		expect(operation?.source_link).toEqual({ kind: "transcript_linked", entry_id: approvalEntryId });
+		expect(operation?.source_link).toEqual({
+			kind: "transcript_linked",
+			entry_id: approvalEntryId,
+		});
 
 		expect(delta.interactionPatches).toHaveLength(1);
 		const [interaction] = delta.interactionPatches;

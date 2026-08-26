@@ -89,16 +89,10 @@ const idleActivity: SessionGraphActivity = {
 	activeSubagentCount: 0,
 };
 
-const awaitingModelActivity: SessionGraphActivity = {
-	kind: "awaiting_model",
-	activeOperationCount: 0,
-	activeSubagentCount: 0,
-};
-
-// AC-269: same "awaiting_model" activity, stamped with the turn's real start
-// time so the working line's elapsed timer has something to read. A plain
-// object (not the module-level awaitingModelActivity constant above) since
-// this varies per session/turn.
+// AC-269: "awaiting_model" activity, stamped with the turn's real start time
+// so the working line's elapsed timer has something to read. Replaced the
+// prior module-level constant (every "awaiting_model" site now needs a
+// per-session/per-turn value here, not a shared one).
 function awaitingModelActivityAt(turnStartedAtMs: number | null): SessionGraphActivity {
 	return {
 		kind: "awaiting_model",
@@ -290,7 +284,9 @@ export class OrchestrationCanonicalBridge {
 		// AC-269: real turn start, parsed from the server's own event
 		// timestamp -- see turnStartedAtMs's doc on SessionCanonicalState.
 		const turnStartedAtMs = Date.parse(occurredAt);
-		const activity = awaitingModelActivityAt(Number.isNaN(turnStartedAtMs) ? null : turnStartedAtMs);
+		const activity = awaitingModelActivityAt(
+			Number.isNaN(turnStartedAtMs) ? null : turnStartedAtMs
+		);
 		const delta: SessionStateDelta = {
 			fromRevision: state.revision,
 			toRevision,

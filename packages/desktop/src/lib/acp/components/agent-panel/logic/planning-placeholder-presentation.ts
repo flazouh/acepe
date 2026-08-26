@@ -59,7 +59,10 @@ function normalizeAgentName(agentName: string | null | undefined): string {
  * running yet, or the telemetry predates the turn's own start.
  */
 export function resolveRunningTurnOutputTokens(input: {
-	readonly usageTelemetry: { readonly latestTokensOutput: number | null; readonly updatedAt: number } | null;
+	readonly usageTelemetry: {
+		readonly latestTokensOutput: number | null;
+		readonly updatedAt: number;
+	} | null;
 	readonly turnStartedAtMs: number | null;
 }): number | null {
 	if (input.usageTelemetry === null || input.turnStartedAtMs === null) {
