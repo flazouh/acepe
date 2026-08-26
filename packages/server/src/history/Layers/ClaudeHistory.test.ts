@@ -51,7 +51,10 @@ const oracle = {
 		prNumber: null,
 		prLinkMode: null,
 		providerSessionId: null,
-		providerSessionFailed: false
+		providerSessionFailed: false,
+		// An imported session never carries a SessionModeSet, so the canonical
+		// mode is absent and the provider's opening mode stands.
+		currentModeId: null
 	},
 	messages: [
 		{
