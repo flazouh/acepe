@@ -152,9 +152,11 @@ export class SessionRepository {
 	/**
 	 * providerSessionId -> orchestration sessionId, learned from the last
 	 * library-projection union (canonical provider_session fact). The disk
-	 * scan consults it so a scanned provider-id entry upgrades the
+	 * scan consults it so a scanned provider-id entry enriches the
 	 * union-pushed orchestration-id row in place instead of listing the
-	 * same session twice (#262 duplicate sidebar row).
+	 * same session twice (#262 duplicate sidebar row) -- the row keeps the
+	 * orchestration id (AC-047: that id, not the provider uuid, is what
+	 * every command dispatch and the reopen snapshot fetch must address).
 	 */
 	private providerSessionAliases: ReadonlyMap<string, string> = new Map();
 
@@ -348,9 +350,22 @@ export class SessionRepository {
 				existingSessionsMap.delete(scannedSession.id);
 			} else {
 				// If this scanned provider id aliases an orchestration-id row
-				// the projection union already pushed, upgrade that row to the
-				// scanned (openable) identity in place — same session, two
-				// permanent ids (#262 duplicate sidebar row).
+				// the projection union already pushed, enrich that row from the
+				// scanned metadata in place instead of adding a twin (#262
+				// duplicate sidebar row) -- but KEEP the row's id as the
+				// orchestration id (AC-047 regression, ex-commit ddd0b6f58:
+				// upgrading the row's id to the scanned provider uuid made every
+				// later dispatch -- message.send, cancel, the reopen snapshot
+				// fetch -- address a session id the orchestration read model has
+				// never heard of, since `provider_session_id` is metadata on the
+				// orchestration session row, never a second dispatchable session
+				// of its own; the server's `requireSession` invariant then
+				// rejects the id with "Session '<uuid>' does not exist" and the
+				// rejection is swallowed on the send path with no visible
+				// error). The orchestration id remains valid and dispatchable
+				// for the lifetime of the session, restart included -- only the
+				// metadata (title/sourcePath/lifecycle) needs to catch up from
+				// the disk scan.
 				const aliasedOrchestrationId = this.providerSessionAliases.get(scannedSession.id);
 				const aliasedExisting =
 					aliasedOrchestrationId !== undefined
@@ -362,7 +377,6 @@ export class SessionRepository {
 					);
 					const upgraded = {
 						...aliasedExisting,
-						id: scannedSession.id,
 						title: resolveSessionTitle(scannedSession.title, aliasedExisting.title),
 						updatedAt: scannedSession.updatedAt,
 						sourcePath: scannedSession.sourcePath ?? aliasedExisting.sourcePath,

@@ -143,7 +143,16 @@ const connectionManager: IConnectionManager = {
 };
 
 describe("SessionRepository alias dedupe on scan", () => {
-	it("upgrades the orchestration-id row to the scanned provider identity instead of adding a twin", () => {
+	it("enriches the orchestration-id row from the scanned provider entry instead of adding a twin, keeping the orchestration id", () => {
+		// AC-047 regression (was: "upgrades the orchestration-id row to the
+		// scanned provider identity"). Swapping the row's id to the scanned
+		// provider uuid was the bug: every later dispatch (message.send,
+		// turn.cancel, the reopen snapshot fetch) addresses whatever id the
+		// row carries, and the orchestration read model only ever knows the
+		// session under its orchestration id -- the provider uuid is metadata
+		// on that row (`provider_session_id`), never a second dispatchable
+		// session. A reopened session whose row got the uuid swap sent every
+		// follow-up straight into "Session '<uuid>' does not exist".
 		const state: SessionStoreState = {
 			sessions: [
 				createSession({
@@ -179,10 +188,51 @@ describe("SessionRepository alias dedupe on scan", () => {
 		);
 
 		const ids = state.sessions.map((session) => session.id);
-		expect(ids).toEqual(["provider-uuid-1"]);
+		expect(ids).toEqual(["session-orch-1"]);
 		expect(state.sessions[0]?.sourcePath).toBe(
 			"/home/user/.claude/projects/x/provider-uuid-1.jsonl"
 		);
 		expect(state.sessions[0]?.title).toBe("Reply with exactly: ALIAS_43");
+	});
+
+	it("does not duplicate the row across repeated scans while the alias keeps resolving", () => {
+		// A second scan pass (e.g. a periodic rescan) looks the scanned
+		// provider-uuid entry up in `existingSessionsMap` by its own id first,
+		// which never matches since the row still carries the orchestration
+		// id -- it must keep falling through to the alias branch and merging,
+		// not accumulate a second row each time.
+		const state: SessionStoreState = {
+			sessions: [
+				createSession({
+					id: "session-orch-1",
+					agentId: "claude-code",
+					title: "Reply with exactly: ALIAS_43",
+					sessionLifecycleState: "created",
+					sourcePath: undefined,
+				}),
+			],
+		};
+		const repository = new SessionRepository(
+			createStateReader(state),
+			createStateWriter(state),
+			entryManager,
+			connectionManager
+		);
+		repository.noteProviderSessionAliases(new Map([["provider-uuid-1", "session-orch-1"]]));
+
+		const scannedEntry = createHistoryEntry({
+			id: "provider-uuid-1",
+			sessionId: "provider-uuid-1",
+			display: "Reply with exactly: ALIAS_43",
+			project: "/projects/acepe",
+			agentId: "claude-code",
+			sourcePath: "/home/user/.claude/projects/x/provider-uuid-1.jsonl",
+		});
+
+		repository.refreshSessionsFromScan(state.sessions, [scannedEntry], ["/projects/acepe"]);
+		repository.noteProviderSessionAliases(new Map([["provider-uuid-1", "session-orch-1"]]));
+		repository.refreshSessionsFromScan(state.sessions, [scannedEntry], ["/projects/acepe"]);
+
+		expect(state.sessions.map((session) => session.id)).toEqual(["session-orch-1"]);
 	});
 });
