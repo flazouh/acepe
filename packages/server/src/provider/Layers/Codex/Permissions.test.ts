@@ -19,7 +19,7 @@ import {
 } from "./Adapter.ts"
 import { decodeContractFact } from "./Codec.ts"
 import { mapCodexPermissionReply } from "./Permissions.ts"
-import type { CodexAppServerHandle, CodexJsonRpcRequest } from "./Process.ts"
+import type { CodexAppServerHandle, CodexJsonRpcReply, CodexJsonRpcRequest } from "./Process.ts"
 import {
 	adapterError,
 	CODEX_APP_SERVER_ARGS,
@@ -47,6 +47,15 @@ const scriptedResult = (method: string): Json => {
 	return {}
 }
 
+// Every reply assertion below pins the operation as well as the body: the
+// reply path used to hand the transport the literal "sendPrompt" no matter
+// which answer the operator had given.
+const recordReply = (input: CodexJsonRpcReply): Json => ({
+	operation: input.operation,
+	id: input.id,
+	result: input.result
+})
+
 const fakeHandle = (
 	inbound: Queue.Queue<Json, Done>,
 	requests: Ref.Ref<ReadonlyArray<RecordedRequest>>,
@@ -64,8 +73,10 @@ const fakeHandle = (
 				params: Option.getOrElse(params, () => null)
 			})
 		).pipe(Effect.asVoid),
-	reply: (id, result) =>
-		Ref.update(replies, (current) => Arr.append(current, { id, result })).pipe(Effect.asVoid),
+	reply: (input) =>
+		Ref.update(replies, (current) => Arr.append(current, recordReply(input))).pipe(
+			Effect.asVoid
+		),
 	close: Queue.end(inbound).pipe(Effect.asVoid)
 })
 
@@ -89,16 +100,16 @@ const rejectingFirstReplyHandle = (
 				params: Option.getOrElse(params, () => null)
 			})
 		).pipe(Effect.asVoid),
-	reply: (id, result) =>
+	reply: (input) =>
 		Ref.modify(rejections, (remaining) =>
 			[remaining, remaining > 0 ? remaining - 1 : 0] as const
 		).pipe(
 			Effect.flatMap((remaining) =>
 				remaining > 0
 					? adapterError("respondToPermission", "Codex app-server write failed")
-					: Ref.update(replies, (current) => Arr.append(current, { id, result })).pipe(
-						Effect.asVoid
-					)
+					: Ref.update(replies, (current) =>
+						Arr.append(current, recordReply(input))
+					).pipe(Effect.asVoid)
 			)
 		),
 	close: Queue.end(inbound).pipe(Effect.asVoid)
@@ -250,6 +261,7 @@ Vitest.describe("CodexAdapter permissions", () => {
 			})
 			const recordedReplies = yield* Ref.get(replies)
 			Vitest.assert.deepStrictEqual(recordedReplies[0], {
+				operation: "respondToPermission",
 				id: 42,
 				result: { decision: "accept" }
 			})
@@ -303,7 +315,7 @@ Vitest.describe("CodexAdapter permissions", () => {
 			// One reply, carrying the number Codex asked with — never a
 			// second one carrying the string "42".
 			Vitest.assert.deepStrictEqual(yield* Ref.get(replies), [
-				{ id: 42, result: { decision: "accept" } }
+				{ operation: "respondToPermission", id: 42, result: { decision: "accept" } }
 			])
 			yield* Queue.end(inbound)
 		})
@@ -355,7 +367,7 @@ Vitest.describe("CodexAdapter permissions", () => {
 				decision: "once"
 			})
 			Vitest.assert.deepStrictEqual(yield* Ref.get(replies), [
-				{ id: 42, result: { decision: "accept" } }
+				{ operation: "respondToPermission", id: 42, result: { decision: "accept" } }
 			])
 			yield* Queue.end(inbound)
 		})
@@ -437,6 +449,7 @@ Vitest.describe("CodexAdapter permissions", () => {
 			})
 			const recordedReplies = yield* Ref.get(replies)
 			Vitest.assert.deepStrictEqual(recordedReplies[0], {
+				operation: "respondToPermission",
 				id: "req-42",
 				result: { decision: "acceptForSession" }
 			})
@@ -480,6 +493,7 @@ Vitest.describe("CodexAdapter permissions", () => {
 			})
 			const recordedReplies = yield* Ref.get(replies)
 			Vitest.assert.deepStrictEqual(recordedReplies[0], {
+				operation: "respondToQuestion",
 				id: "req-question-7",
 				result: {
 					answers: {
@@ -527,6 +541,7 @@ Vitest.describe("CodexAdapter permissions", () => {
 			})
 			const recordedReplies = yield* Ref.get(replies)
 			Vitest.assert.deepStrictEqual(recordedReplies[0], {
+				operation: "respondToQuestion",
 				id: 7,
 				result: {
 					answers: {

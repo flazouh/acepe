@@ -1,4 +1,4 @@
-import { type ProviderOperation, SessionId } from "@acepe/contracts"
+import { SessionId } from "@acepe/contracts"
 import * as Arr from "effect/Array"
 import * as Effect from "effect/Effect"
 import * as HashMap from "effect/HashMap"
@@ -6,6 +6,7 @@ import * as Option from "effect/Option"
 import * as Ref from "effect/Ref"
 import * as Schema from "effect/Schema"
 import type { Json } from "../Json.ts"
+import type { CodexReplyOperation } from "./Process.ts"
 import { adapterError } from "./Provider.ts"
 import { requireSession, restoreReplyId, type SessionRuntime, takeReplyId } from "./Session.ts"
 
@@ -14,9 +15,11 @@ type CodexSessions = Ref.Ref<HashMap.HashMap<SessionId, SessionRuntime>>
 // The one place a reply leaves this adapter, so the "claim the id, fail
 // loudly when there is none, give it back if the reply itself fails" rule
 // is written once for permissions and questions alike. See takeReplyId.
+// The operation travels all the way to the transport: a failure here belongs
+// to the answer the operator gave, never to a prompt.
 const replyToRequest = Effect.fn("CodexAdapter.replyToRequest")(function*(
 	runtime: SessionRuntime,
-	operation: ProviderOperation,
+	operation: CodexReplyOperation,
 	requestId: string,
 	result: Json
 ) {
@@ -27,7 +30,7 @@ const replyToRequest = Effect.fn("CodexAdapter.replyToRequest")(function*(
 			`Codex has no open request '${requestId}' left to reply to.`
 		)
 	}
-	yield* runtime.server.reply(replyId.value, result).pipe(
+	yield* runtime.server.reply({ operation, id: replyId.value, result }).pipe(
 		Effect.tapError(() => restoreReplyId(runtime, requestId, replyId.value))
 	)
 })

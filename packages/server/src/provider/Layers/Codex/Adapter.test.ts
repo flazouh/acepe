@@ -5,16 +5,22 @@ import {
 	SessionId,
 	tracerAssistantMessageId
 } from "@acepe/contracts"
+import * as BunChildProcessSpawner from "@effect/platform-bun/BunChildProcessSpawner"
+import * as BunFileSystem from "@effect/platform-bun/BunFileSystem"
+import * as BunPath from "@effect/platform-bun/BunPath"
 import * as Vitest from "@effect/vitest"
 import type { Done } from "effect/Cause"
 import * as Arr from "effect/Array"
 import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Queue from "effect/Queue"
 import * as Ref from "effect/Ref"
 import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
+import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner"
 import {
+	liveCreateAppServer,
 	makeCodexAdapter,
 	type CodexAdapter
 } from "./Adapter.ts"
@@ -76,8 +82,10 @@ const fakeHandle = (
 				params: Option.getOrElse(params, () => null)
 			})
 		).pipe(Effect.asVoid),
-	reply: (id, result) =>
-		Ref.update(replies, (current) => Arr.append(current, { id, result })).pipe(Effect.asVoid),
+	reply: (input) =>
+		Ref.update(replies, (current) =>
+			Arr.append(current, { operation: input.operation, id: input.id, result: input.result })
+		).pipe(Effect.asVoid),
 	close: Queue.end(inbound).pipe(Effect.asVoid)
 })
 
@@ -343,6 +351,13 @@ Vitest.describe("CodexAdapter", () => {
 				Vitest.assert.strictEqual(observed.payload.outputTokens, 48)
 				Vitest.assert.strictEqual(observed.payload.totalTokens, 168)
 				Vitest.assert.strictEqual(observed.payload.contextWindowSize, 200_000)
+				// #274: the fact's deterministic dedup key reaches the payload,
+				// so the desktop's lastTelemetryEventId check can drop a
+				// redelivered reading instead of counting its cost twice.
+				Vitest.assert.strictEqual(
+					observed.payload.eventId,
+					"codex-token-usage:thread-1:turn-1:total=168:input=120:output=48:cache-read=none:cache-write=none:reasoning=none:context=200000"
+				)
 				yield* Queue.end(inbound)
 			})
 	)
@@ -389,4 +404,52 @@ Vitest.describe("CodexAdapter", () => {
 	Vitest.it("exposes the Codex provider id", () => {
 		Vitest.assert.strictEqual(CODEX_PROVIDER_ID, "codex")
 	})
+})
+
+const PlatformLive = Layer.mergeAll(
+	BunFileSystem.layer,
+	BunPath.layer,
+	BunChildProcessSpawner.layer.pipe(
+		Layer.provideMerge(Layer.mergeAll(BunFileSystem.layer, BunPath.layer))
+	)
+)
+
+// A permission answer and a question answer are the only requests this handle
+// ever replies to, and it used to stamp every reply "sendPrompt": an operator
+// read a failed permission answer as a failed prompt and went looking in the
+// turn path for a fault that lives in the reply path. A non-finite number is
+// the only reachable encode failure here — it is a `Json` at the type level
+// and not JSON at all — because the real bodies, { decision } and { answers },
+// always encode.
+const unencodableReplyResult: Json = { decision: Number.NaN }
+
+Vitest.layer(PlatformLive)("liveCreateAppServer", (it) => {
+	it.effect("names the reply operation whose body failed to encode", () =>
+		Effect.gen(function*() {
+			const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+			const layerScope = yield* Effect.scope
+			const handle = yield* liveCreateAppServer(spawner, layerScope, {
+				cwd: "/tmp",
+				command: "cat",
+				args: Arr.empty()
+			})
+			const permission = yield* Effect.flip(
+				handle.reply({
+					operation: "respondToPermission",
+					id: 42,
+					result: unencodableReplyResult
+				})
+			)
+			Vitest.assert.strictEqual(permission.operation, "respondToPermission")
+			const question = yield* Effect.flip(
+				handle.reply({
+					operation: "respondToQuestion",
+					id: "req-7",
+					result: unencodableReplyResult
+				})
+			)
+			Vitest.assert.strictEqual(question.operation, "respondToQuestion")
+			yield* handle.close
+		}).pipe(Effect.scoped)
+	)
 })

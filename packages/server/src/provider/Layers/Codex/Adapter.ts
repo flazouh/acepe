@@ -33,6 +33,7 @@ import { emptyCodexMapState } from "./Map.ts"
 import { respondToPermission, respondToQuestion } from "./Permissions.ts"
 import {
 	type CodexAppServerHandle,
+	type CodexJsonRpcReply,
 	type CodexJsonRpcRequest,
 	errorDetail,
 	failPending,
@@ -375,8 +376,8 @@ export const liveCreateAppServer = (
 				onSome: (value) =>
 					writeJsonLine(outbound, { method, params: value }, "startSession")
 			})
-		const reply = (id: Json, result: Json) =>
-			writeJsonLine(outbound, { id, result }, "sendPrompt")
+		const reply = (rpc: CodexJsonRpcReply) =>
+			writeJsonLine(outbound, { id: rpc.id, result: rpc.result }, rpc.operation)
 		const close = Effect.gen(function*() {
 			yield* Queue.end(outbound).pipe(Effect.ignore)
 			yield* child.kill().pipe(Effect.ignore)

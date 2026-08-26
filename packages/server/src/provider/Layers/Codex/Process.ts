@@ -1,3 +1,4 @@
+import type { ProviderOperation } from "@acepe/contracts"
 import type { Done } from "effect/Cause"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
@@ -27,6 +28,22 @@ export type CodexJsonRpcRequest = {
 	readonly params: Json
 }
 
+// Acepe answers exactly two Codex-initiated requests: an approval and a
+// question. A reply carries its own operation for the same reason a request
+// does, taken from the canonical union so a renamed member breaks here rather
+// than drifting. Adapter.ts used to write the literal "sendPrompt" for every
+// reply, so an encode failure on a permission answer read as a failed prompt.
+export type CodexReplyOperation = Extract<
+	ProviderOperation,
+	"respondToPermission" | "respondToQuestion"
+>
+
+export type CodexJsonRpcReply = {
+	readonly operation: CodexReplyOperation
+	readonly id: Json
+	readonly result: Json
+}
+
 export type CodexAppServerHandle = {
 	readonly notifications: Stream.Stream<Json, ProviderAdapterError>
 	readonly request: (input: CodexJsonRpcRequest) => Effect.Effect<Json, ProviderAdapterError>
@@ -34,7 +51,7 @@ export type CodexAppServerHandle = {
 		method: string,
 		params: Option.Option<Json>
 	) => Effect.Effect<void, ProviderAdapterError>
-	readonly reply: (id: Json, result: Json) => Effect.Effect<void, ProviderAdapterError>
+	readonly reply: (input: CodexJsonRpcReply) => Effect.Effect<void, ProviderAdapterError>
 	readonly close: Effect.Effect<void>
 }
 
