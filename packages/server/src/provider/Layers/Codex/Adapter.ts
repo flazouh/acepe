@@ -147,6 +147,7 @@ export const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function*(
 			providerThreadId: yield* Ref.make(Option.some(threadId.value)),
 			currentTurnId: yield* Ref.make(Option.none<string>()),
 			questionIds: yield* Ref.make(HashMap.empty<string, ReadonlyArray<string>>()),
+			replyIds: yield* Ref.make(HashMap.empty<string, Json>()),
 			openToolCalls: yield* Ref.make(HashMap.empty<string, OpenToolCallInfo>()),
 			modeId: yield* Ref.make("agent"),
 			config: options.config,

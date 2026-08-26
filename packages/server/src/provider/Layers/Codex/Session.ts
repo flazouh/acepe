@@ -36,6 +36,7 @@ import type { CodexAcpToolKind, CodexContractFact } from "./Facts.ts"
 import { type CodexMapState, mapCodexServerMessage } from "./Map.ts"
 import type { CodexAppServerHandle } from "./Process.ts"
 import { adapterError, type CodexNativeConfigState } from "./Provider.ts"
+import { jsonRpcRequestId } from "./Wire.ts"
 
 // What a "tool_call" fact recorded about a tool call, kept around so a LATER
 // "tool_call_update" fact (which may omit its own title — see
@@ -78,6 +79,11 @@ export type SessionRuntime = {
 	readonly providerThreadId: Ref.Ref<Option.Option<string>>
 	readonly currentTurnId: Ref.Ref<Option.Option<string>>
 	readonly questionIds: Ref.Ref<HashMap.HashMap<string, ReadonlyArray<string>>>
+	// The raw JSON-RPC id of every request Codex is still waiting on a reply
+	// for, keyed by the stringified id the contract facts carry. See
+	// jsonRpcRequestId in Wire.ts: a reply has to repeat the id in its original
+	// JSON type, and the fact only keeps the text form.
+	readonly replyIds: Ref.Ref<HashMap.HashMap<string, Json>>
 	// Keyed by Codex's own toolCallId. See OpenToolCallInfo's doc above.
 	readonly openToolCalls: Ref.Ref<HashMap.HashMap<string, OpenToolCallInfo>>
 	readonly modeId: Ref.Ref<string>
@@ -374,6 +380,37 @@ const publishFact = Effect.fn("CodexAdapter.publishFact")(function*(
 	return yield* offerOutbound(runtime, event)
 })
 
+// Recorded before the fact reaches the outbound queue, so the reply id is
+// already known by the time the desktop answers the request it announces.
+const rememberReplyId = Effect.fn("CodexAdapter.rememberReplyId")(function*(
+	runtime: SessionRuntime,
+	raw: Json,
+	facts: ReadonlyArray<CodexContractFact>
+) {
+	const rawId = jsonRpcRequestId(raw)
+	if (Option.isNone(rawId)) {
+		return
+	}
+	yield* Effect.forEach(
+		facts,
+		(fact) =>
+			fact.contractKind === "permission_request" || fact.contractKind === "question_request"
+				? Ref.update(runtime.replyIds, (current) =>
+						HashMap.set(current, fact.id, rawId.value))
+				: Effect.void,
+		{ discard: true }
+	)
+})
+
+export const takeReplyId = Effect.fn("CodexAdapter.takeReplyId")(function*(
+	runtime: SessionRuntime,
+	id: string
+) {
+	const known = yield* Ref.get(runtime.replyIds)
+	yield* Ref.update(runtime.replyIds, (current) => HashMap.remove(current, id))
+	return Option.getOrElse(HashMap.get(known, id), (): Json => id)
+})
+
 export const publishServerMessage = Effect.fn("CodexAdapter.publishServerMessage")(function*(
 	runtime: SessionRuntime,
 	raw: Json
@@ -381,6 +418,7 @@ export const publishServerMessage = Effect.fn("CodexAdapter.publishServerMessage
 	const state = yield* Ref.get(runtime.mapState)
 	const mapped = mapCodexServerMessage(state, runtime.sessionId, raw)
 	yield* Ref.set(runtime.mapState, mapped.state)
+	yield* rememberReplyId(runtime, raw, mapped.facts)
 	yield* Effect.forEach(mapped.facts, (fact) => publishFact(runtime, fact), { discard: true })
 })
 

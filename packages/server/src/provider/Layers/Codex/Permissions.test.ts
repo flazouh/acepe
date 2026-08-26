@@ -148,6 +148,94 @@ Vitest.describe("CodexAdapter permissions", () => {
 		})
 	)
 
+	// JSON-RPC 2.0 allows a string id, and the reply has to carry back the same
+	// JSON value. PermissionRequestFact narrows the id to a string, so a number
+	// and a string both reach respondToPermission as text.
+	Vitest.it.effect("replies to a string-id permission request with that same string id", () =>
+		Effect.gen(function*() {
+			const inbound = yield* Queue.unbounded<Json, Done>()
+			const requests = yield* Ref.make<ReadonlyArray<RecordedRequest>>(Arr.empty())
+			const replies = yield* Ref.make<ReadonlyArray<Json>>(Arr.empty())
+			const adapter = yield* makeTestAdapter(inbound, requests, replies)
+			const { events } = yield* openSession(adapter)
+			yield* Queue.offer(inbound, {
+				jsonrpc: "2.0",
+				id: "req-42",
+				method: "item/commandExecution/requestApproval",
+				params: {
+					itemId: "tool-2",
+					command: "ls -la"
+				}
+			})
+			const permissionEvent = yield* Queue.take(events)
+			const fact = decodeContractFact(permissionEvent.metadata)
+			if (Option.isSome(fact) && fact.value.contractKind === "permission_request") {
+				Vitest.assert.strictEqual(fact.value.id, "req-42")
+			}
+			yield* adapter.respondToPermission({
+				sessionId,
+				permissionId: "req-42",
+				decision: "always"
+			})
+			const recordedReplies = yield* Ref.get(replies)
+			Vitest.assert.deepStrictEqual(recordedReplies[0], {
+				id: "req-42",
+				result: { decision: "acceptForSession" }
+			})
+			yield* Queue.end(inbound)
+		})
+	)
+
+	Vitest.it.effect("replies to a string-id question request with that same string id", () =>
+		Effect.gen(function*() {
+			const inbound = yield* Queue.unbounded<Json, Done>()
+			const requests = yield* Ref.make<ReadonlyArray<RecordedRequest>>(Arr.empty())
+			const replies = yield* Ref.make<ReadonlyArray<Json>>(Arr.empty())
+			const adapter = yield* makeTestAdapter(inbound, requests, replies)
+			const { events } = yield* openSession(adapter)
+			yield* Queue.offer(inbound, {
+				jsonrpc: "2.0",
+				id: "req-question-7",
+				method: "item/tool/requestUserInput",
+				params: {
+					itemId: "tool-question-2",
+					questions: [
+						{
+							id: "scope",
+							header: "Scope",
+							question: "Apply to?",
+							multiSelect: false,
+							options: [
+								{ label: "File", description: "This file only" },
+								{ label: "Project", description: "Whole project" }
+							]
+						}
+					]
+				}
+			})
+			const questionEvent = yield* Queue.take(events)
+			const fact = decodeContractFact(questionEvent.metadata)
+			if (Option.isSome(fact) && fact.value.contractKind === "question_request") {
+				Vitest.assert.strictEqual(fact.value.id, "req-question-7")
+			}
+			yield* adapter.respondToQuestion({
+				sessionId,
+				requestId: "req-question-7",
+				answers: [["File"]]
+			})
+			const recordedReplies = yield* Ref.get(replies)
+			Vitest.assert.deepStrictEqual(recordedReplies[0], {
+				id: "req-question-7",
+				result: {
+					answers: {
+						scope: { answers: ["File"] }
+					}
+				}
+			})
+			yield* Queue.end(inbound)
+		})
+	)
+
 	Vitest.it.effect("replies to native question requests with original question ids", () =>
 		Effect.gen(function*() {
 			const inbound = yield* Queue.unbounded<Json, Done>()

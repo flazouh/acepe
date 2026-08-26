@@ -1,13 +1,12 @@
 import { SessionId } from "@acepe/contracts"
 import * as Arr from "effect/Array"
 import * as Effect from "effect/Effect"
-import * as Exit from "effect/Exit"
 import * as HashMap from "effect/HashMap"
 import * as Option from "effect/Option"
 import * as Ref from "effect/Ref"
 import * as Schema from "effect/Schema"
 import { adapterError } from "./Provider.ts"
-import { requireSession, type SessionRuntime } from "./Session.ts"
+import { requireSession, type SessionRuntime, takeReplyId } from "./Session.ts"
 
 type CodexSessions = Ref.Ref<HashMap.HashMap<SessionId, SessionRuntime>>
 
@@ -42,14 +41,8 @@ export const respondToPermission = Effect.fn("CodexAdapter.respondToPermission")
 			`Unsupported Codex permission reply: ${input.decision}`
 		)
 	}
-	const decodedId = Schema.decodeUnknownExit(Schema.NumberFromString)(input.permissionId)
-	if (Exit.isFailure(decodedId)) {
-		return yield* adapterError(
-			"sendPrompt",
-			`Invalid Codex permission request id: ${input.permissionId}`
-		)
-	}
-	yield* runtime.server.reply(decodedId.value, { decision: mapped.value })
+	const replyId = yield* takeReplyId(runtime, input.permissionId)
+	yield* runtime.server.reply(replyId, { decision: mapped.value })
 })
 
 export const respondToQuestion = Effect.fn("CodexAdapter.respondToQuestion")(function*(
@@ -85,13 +78,7 @@ export const respondToQuestion = Effect.fn("CodexAdapter.respondToQuestion")(fun
 			adapterError("sendPrompt", "Codex question reply was not JSON")
 		)
 	)
-	const decodedId = Schema.decodeUnknownExit(Schema.NumberFromString)(input.requestId)
-	if (Exit.isFailure(decodedId)) {
-		return yield* adapterError(
-			"sendPrompt",
-			`Invalid Codex question request id: ${input.requestId}`
-		)
-	}
-	yield* runtime.server.reply(decodedId.value, { answers })
+	const replyId = yield* takeReplyId(runtime, input.requestId)
+	yield* runtime.server.reply(replyId, { answers })
 	yield* Ref.update(runtime.questionIds, (current) => HashMap.remove(current, input.requestId))
 })

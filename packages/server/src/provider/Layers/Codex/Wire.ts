@@ -1,7 +1,14 @@
 import * as Option from "effect/Option"
 import * as Predicate from "effect/Predicate"
 import * as Str from "effect/String"
-import { type Json, type JsonObject, jsonObjectOf, objectField, stringField } from "../Json.ts"
+import {
+	field,
+	type Json,
+	type JsonObject,
+	jsonObjectOf,
+	objectField,
+	stringField
+} from "../Json.ts"
 import {
 	CODEX_DEFAULT_MODE_DEVELOPER_INSTRUCTIONS,
 	CODEX_PLAN_MODE_DEVELOPER_INSTRUCTIONS,
@@ -23,6 +30,18 @@ export const ITEM_STARTED_METHOD = "item/started"
 export const ITEM_COMPLETED_METHOD = "item/completed"
 export const TOKEN_USAGE_UPDATED_METHOD = "thread/tokenUsage/updated"
 export const ACCOUNT_RATE_LIMITS_UPDATED_METHOD = "account/rateLimits/updated"
+
+// The id a reply must carry back, in the JSON type it arrived in: JSON-RPC 2.0
+// §4.1 allows a string or a number and requires the response id to equal the
+// request id. stringifyJsonRpcId below narrows the same id to text for the
+// contract facts, which is lossy, so Session.ts keeps this raw value for
+// Permissions.ts to reply with.
+export const jsonRpcRequestId = (raw: Json): Option.Option<Json> =>
+	Option.flatMap(jsonObjectOf(raw), (record) =>
+		Option.flatMap(field(record, "id"), (id) =>
+			Predicate.isString(id) || Predicate.isNumber(id) ? Option.some(id) : Option.none()
+		)
+	)
 
 export const stringifyJsonRpcId = (value: Option.Option<Json>): Option.Option<string> =>
 	Option.flatMap(value, (id) => {

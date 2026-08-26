@@ -8,6 +8,7 @@ import {
 	buildThreadResumeParams,
 	buildThreadStartParams,
 	buildTurnInterruptParams,
+	jsonRpcRequestId,
 	parseThreadId,
 	parseTurnId
 } from "./Wire.ts"
@@ -59,6 +60,19 @@ Vitest.describe("CodexWire", () => {
 		if (Option.isSome(collaboration)) {
 			Vitest.assert.strictEqual(collaboration.value.mode, "plan")
 		}
+	})
+
+	Vitest.it("keeps the JSON type of an inbound request id", () => {
+		Vitest.assert.deepStrictEqual(
+			jsonRpcRequestId({ id: 42, method: "item/fileRead/requestApproval" }),
+			Option.some(42)
+		)
+		Vitest.assert.deepStrictEqual(
+			jsonRpcRequestId({ id: "req-42", method: "item/fileRead/requestApproval" }),
+			Option.some("req-42")
+		)
+		Vitest.assert.isTrue(Option.isNone(jsonRpcRequestId({ method: "turn/completed" })))
+		Vitest.assert.isTrue(Option.isNone(jsonRpcRequestId({ id: null })))
 	})
 
 	Vitest.it("parses thread and turn ids from app-server results", () => {
