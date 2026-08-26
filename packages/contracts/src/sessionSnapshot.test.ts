@@ -371,6 +371,32 @@ describe("applyEventToRpcSessionSnapshot", () => {
 		expect(failed.session?.providerSessionFailed).toBe(true)
 	})
 
+	it("folds three SessionModeSet events onto the last mode", () => {
+		const created = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), sessionCreated)
+		expect(created.session?.currentModeId).toBe(null)
+		const modeSet = (snapshot: typeof created, sequence: number, modeId: string) =>
+			applyEventToRpcSessionSnapshot(snapshot, {
+				sequence,
+				eventId: EventId.make(`event-${sequence}`),
+				aggregateKind: "session",
+				aggregateId: sessionId,
+				occurredAt,
+				commandId,
+				causationEventId: null,
+				correlationId: commandId,
+				metadata: {},
+				type: "SessionModeSet",
+				payload: {
+					sessionId,
+					modeId,
+				},
+			})
+		const planned = modeSet(created, 3, "plan")
+		expect(planned.session?.currentModeId).toBe("plan")
+		const reviewed = modeSet(modeSet(planned, 4, "build"), 5, "review")
+		expect(reviewed.session?.currentModeId).toBe("review")
+	})
+
 	it("discards a SessionMetaUpdated at or below snapshotSequence", () => {
 		const afterSession = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), sessionCreated)
 		const skipped = applyEventToRpcSessionSnapshot(afterSession, {

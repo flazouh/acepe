@@ -10,6 +10,7 @@ import {
 	SessionDeletedPayload,
 	SessionId,
 	SessionMetaUpdatedPayload,
+	SessionModeSetPayload,
 	SessionPrLinkMode,
 	SessionPrNumber,
 	SessionUnarchivedPayload,
@@ -69,7 +70,24 @@ export const ProjectedSession = Schema.Struct({
 	// session that failed AFTER learning its providerSessionId is not a
 	// ghost -- its disk-scanned row is still real and openable, and this
 	// flag intentionally stays false for that case (see evolveProjectedSession).
-	providerSessionFailed: Schema.Boolean
+	providerSessionFailed: Schema.Boolean,
+	// The mode this session runs in, read off the canonical SessionModeSet
+	// event (issue #272). This is the ONLY source of truth for the current
+	// mode: a provider reports its own opening mode at every (re)open --
+	// OpenCode hardcodes OPENCODE_DEFAULT_MODE in Adapter.ts's startSession --
+	// so a session reopened with a recorded plan mode runs plan while the
+	// provider still reports build.
+	//
+	// Precedence, deliberate and permanent: a SessionModeSet always wins over
+	// the provider's opening value. Null means no SessionModeSet ever fired
+	// for this session, and only then does the provider's opening mode stand.
+	// availableModes stays provider-owned -- only the provider knows which
+	// modes exist -- so this pairs a canonical current mode with a provider
+	// catalog, never two answers to the same question.
+	//
+	// Optional like ProjectedSessionActivity.output: a row written before the
+	// current_mode_id column existed reads back with no value at all.
+	currentModeId: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey)
 })
 export type ProjectedSession = typeof ProjectedSession.Type
 
@@ -88,7 +106,8 @@ const ProjectionSessionRow = Schema.Struct({
 	pr_number: SessionPrNumber.pipe(Schema.NullOr),
 	pr_link_mode: SessionPrLinkMode.pipe(Schema.NullOr),
 	provider_session_id: Schema.NullOr(TrimmedNonEmptyString),
-	provider_session_failed: SqliteFlag
+	provider_session_failed: SqliteFlag,
+	current_mode_id: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey)
 })
 
 export interface ProjectionSessionsShape {
@@ -132,7 +151,8 @@ const projectedSessionFromRow = (
 	prNumber: row.pr_number,
 	prLinkMode: row.pr_link_mode,
 	providerSessionId: row.provider_session_id,
-	providerSessionFailed: row.provider_session_failed === 1
+	providerSessionFailed: row.provider_session_failed === 1,
+	currentModeId: row.current_mode_id ?? null
 })
 
 const decodeRow = Schema.decodeUnknownEffect(ProjectionSessionRow)
@@ -233,6 +253,13 @@ const providerSessionIdFromMetadata = (
 	})
 }
 
+// A row stored before the current_mode_id column existed decodes with the key
+// absent; every reader wants the same "no canonical mode yet" answer for that
+// and for an explicit null, so normalize once here.
+const currentModeIdOf = (
+	session: ProjectedSession
+): (typeof TrimmedNonEmptyString.Type) | null => session.currentModeId ?? null
+
 const touch = (session: ProjectedSession, occurredAt: IsoDateTime): ProjectedSession => ({
 	sessionId: session.sessionId,
 	projectId: session.projectId,
@@ -246,7 +273,8 @@ const touch = (session: ProjectedSession, occurredAt: IsoDateTime): ProjectedSes
 	prNumber: session.prNumber,
 	prLinkMode: session.prLinkMode,
 	providerSessionId: session.providerSessionId,
-	providerSessionFailed: session.providerSessionFailed
+	providerSessionFailed: session.providerSessionFailed,
+	currentModeId: currentModeIdOf(session)
 })
 
 const projectSessionCreated = (
@@ -267,7 +295,8 @@ const projectSessionCreated = (
 				prNumber: null,
 				prLinkMode: null,
 				providerSessionId: null,
-				providerSessionFailed: false
+				providerSessionFailed: false,
+				currentModeId: null
 			})
 		)
 	)
@@ -302,7 +331,8 @@ const projectSessionMetaUpdated = (
 					prLinkMode:
 						payload.prLinkMode !== undefined ? payload.prLinkMode : stamped.prLinkMode,
 					providerSessionId: providerSessionId !== null ? providerSessionId : stamped.providerSessionId,
-					providerSessionFailed: stamped.providerSessionFailed
+					providerSessionFailed: stamped.providerSessionFailed,
+					currentModeId: currentModeIdOf(stamped)
 				}
 			})
 		)
@@ -387,6 +417,23 @@ const projectTurnCompleted = (
 		Effect.map(() => mapExisting(current, (session) => touch(session, event.occurredAt)))
 	)
 
+// The canonical mode fact, folded so the LAST SessionModeSet wins: replaying
+// a session that changed mode three times lands on the third. Nothing else
+// writes currentModeId, so a provider's opening mode can never overwrite a
+// choice the user already made -- see currentModeId on ProjectedSession.
+const projectSessionModeSet = (
+	current: Option.Option<ProjectedSession>,
+	event: Extract<OrchestrationEvent, { readonly type: "SessionModeSet" }>
+): Effect.Effect<Option.Option<ProjectedSession>, Schema.SchemaError> =>
+	decodePayload(SessionModeSetPayload, event.payload).pipe(
+		Effect.map((payload) =>
+			mapExisting(current, (session) => ({
+				...touch(session, event.occurredAt),
+				currentModeId: payload.modeId
+			}))
+		)
+	)
+
 // A session that fails before ever learning its providerSessionId (no
 // on-disk history to fall back to) is a "ghost row": it sits in the
 // library listing forever, unopenable. Marking it here lets the desktop
@@ -447,7 +494,7 @@ export const evolveProjectedSession = (
 			SessionForked: () => Effect.succeed(current),
 			SessionClosed: () => Effect.succeed(current),
 			SessionModelSet: () => Effect.succeed(current),
-			SessionModeSet: () => Effect.succeed(current),
+			SessionModeSet: (modeSet) => projectSessionModeSet(current, modeSet),
 			SessionAutonomousSet: () => Effect.succeed(current),
 			SessionConfigOptionSet: () => Effect.succeed(current),
 			InteractionReplied: () => Effect.succeed(current),

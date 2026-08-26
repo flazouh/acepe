@@ -100,6 +100,7 @@ const touchSession = (
 		prLinkMode: session.prLinkMode,
 		providerSessionId: session.providerSessionId,
 		providerSessionFailed: session.providerSessionFailed,
+		currentModeId: session.currentModeId ?? null,
 	}
 }
 
@@ -211,6 +212,7 @@ const applySessionCreated = (
 		prLinkMode: null,
 		providerSessionId: null,
 		providerSessionFailed: false,
+		currentModeId: null,
 	}
 	return replaceMessages(snapshot, event.sequence, snapshot.messages, session)
 }
@@ -262,6 +264,28 @@ const applySessionMetaUpdated = (
 			event.payload.prLinkMode !== undefined ? event.payload.prLinkMode : current.prLinkMode,
 		providerSessionId: providerSessionId !== null ? providerSessionId : current.providerSessionId,
 		providerSessionFailed: current.providerSessionFailed,
+		currentModeId: current.currentModeId ?? null,
+	}
+	return replaceMessages(snapshot, event.sequence, snapshot.messages, session)
+}
+
+// Mirrors the server's projectSessionModeSet
+// (packages/server/src/persistence/Services/ProjectionSessions.ts): the last
+// SessionModeSet wins, and nothing else writes this field, so the mode a
+// provider reports when it reopens a session can never overwrite it.
+const applySessionModeSet = (
+	snapshot: RpcSessionSnapshot,
+	event: Extract<OrchestrationEvent, { readonly type: "SessionModeSet" }>,
+): RpcSessionSnapshot => {
+	if (!isThisSession(snapshot, event.payload.sessionId) || snapshot.session === null) {
+		return withSequence(snapshot, event.sequence)
+	}
+	const current = snapshot.session
+	const session: RpcProjectedSession = {
+		...current,
+		updatedAt: event.occurredAt,
+		lastActivityAt: event.occurredAt,
+		currentModeId: event.payload.modeId,
 	}
 	return replaceMessages(snapshot, event.sequence, snapshot.messages, session)
 }
@@ -1303,6 +1327,8 @@ export const applyEventToRpcSessionSnapshot = (
 			return applySessionReviewStateCleared(snapshot, event)
 		case "ProviderSessionFailed":
 			return applyProviderSessionFailed(snapshot, event)
+		case "SessionModeSet":
+			return applySessionModeSet(snapshot, event)
 		default:
 			return withSequence(snapshot, event.sequence)
 	}

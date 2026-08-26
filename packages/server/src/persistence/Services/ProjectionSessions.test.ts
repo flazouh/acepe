@@ -40,6 +40,7 @@ type SessionEventType = Extract<
 	| "TurnCancelled"
 	| "CheckpointReverted"
 	| "ProviderSessionFailed"
+	| "SessionModeSet"
 >
 
 const sessionEvent = <const Type extends SessionEventType, Payload>(
@@ -218,7 +219,8 @@ Vitest.describe("evolveProjectedSession", () => {
 				prNumber: null,
 				prLinkMode: null,
 				providerSessionId: null,
-				providerSessionFailed: false
+				providerSessionFailed: false,
+				currentModeId: null
 			})
 		})
 	)
@@ -558,6 +560,80 @@ Vitest.describe("evolveProjectedSession", () => {
 				})
 			])
 			Vitest.assert.deepStrictEqual(created, afterRevert)
+		})
+	)
+
+	// Issue #272 follow-up: the mode a session runs in was decided by a
+	// SessionModeSet event that no projection read, so the only mode anything
+	// could display was the provider's own opening value -- which OpenCode
+	// hardcodes to its default at every (re)open. A session reopened in plan
+	// mode ran plan and showed build. See currentModeId on ProjectedSession.
+	Vitest.it.effect("projects the mode a SessionModeSet chose", () =>
+		Effect.gen(function*() {
+			const row = requireSession(
+				yield* fold([
+					sessionEvent(1, "SessionCreated", NOW, {
+						sessionId,
+						projectId,
+						title: "First session"
+					}),
+					sessionEvent(2, "SessionModeSet", LATER, {
+						sessionId,
+						modeId: "plan"
+					})
+				])
+			)
+			Vitest.assert.strictEqual(row.currentModeId, "plan")
+		})
+	)
+
+	Vitest.it.effect("replays three mode changes onto the last one", () =>
+		Effect.gen(function*() {
+			const events: ReadonlyArray<OrchestrationEvent> = [
+				sessionEvent(1, "SessionCreated", NOW, {
+					sessionId,
+					projectId,
+					title: "First session"
+				}),
+				sessionEvent(2, "SessionModeSet", LATER, {
+					sessionId,
+					modeId: "plan"
+				}),
+				sessionEvent(3, "SessionModeSet", LATER, {
+					sessionId,
+					modeId: "build"
+				}),
+				sessionEvent(4, "SessionModeSet", LATER, {
+					sessionId,
+					modeId: "review"
+				})
+			]
+			const first = yield* fold(events)
+			const second = yield* fold(events)
+			Vitest.assert.deepStrictEqual(first, second)
+			Vitest.assert.strictEqual(requireSession(first).currentModeId, "review")
+		})
+	)
+
+	// Null is the documented "no canonical choice yet" reading: the provider's
+	// opening mode still stands for a session nobody ever set a mode on.
+	Vitest.it.effect("leaves the mode null when no SessionModeSet ever fired", () =>
+		Effect.gen(function*() {
+			const row = requireSession(
+				yield* fold([
+					sessionEvent(1, "SessionCreated", NOW, {
+						sessionId,
+						projectId,
+						title: "First session"
+					}),
+					sessionEvent(2, "MessageSent", LATER, {
+						sessionId,
+						messageId,
+						text: "Ship the lifecycle slice"
+					})
+				])
+			)
+			Vitest.assert.strictEqual(row.currentModeId, null)
 		})
 	)
 })

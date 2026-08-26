@@ -39,7 +39,8 @@ const readById = Effect.fn("ProjectionSessions.readById")(function*(
 			pr_number,
 			pr_link_mode,
 			provider_session_id,
-			provider_session_failed
+			provider_session_failed,
+			current_mode_id
 		FROM projection_sessions
 		WHERE session_id = ${sessionId}
 	`.withoutTransform
@@ -77,7 +78,8 @@ const upsert = Effect.fn("ProjectionSessions.upsert")(function*(
 			pr_number,
 			pr_link_mode,
 			provider_session_id,
-			provider_session_failed
+			provider_session_failed,
+			current_mode_id
 		) VALUES (
 			${session.sessionId},
 			${session.projectId},
@@ -91,7 +93,8 @@ const upsert = Effect.fn("ProjectionSessions.upsert")(function*(
 			${session.prNumber},
 			${session.prLinkMode},
 			${session.providerSessionId},
-			${sqliteFlag(session.providerSessionFailed)}
+			${sqliteFlag(session.providerSessionFailed)},
+			${session.currentModeId ?? null}
 		)
 		ON CONFLICT(session_id) DO UPDATE SET
 			project_id = excluded.project_id,
@@ -105,7 +108,8 @@ const upsert = Effect.fn("ProjectionSessions.upsert")(function*(
 			pr_number = excluded.pr_number,
 			pr_link_mode = excluded.pr_link_mode,
 			provider_session_id = excluded.provider_session_id,
-			provider_session_failed = excluded.provider_session_failed
+			provider_session_failed = excluded.provider_session_failed,
+			current_mode_id = excluded.current_mode_id
 	`.withoutTransform.pipe(Effect.asVoid)
 })
 
@@ -149,7 +153,8 @@ export const ProjectionSessionsLive = Layer.effect(ProjectionSessions)(
 							pr_number,
 							pr_link_mode,
 							provider_session_id,
-							provider_session_failed
+							provider_session_failed,
+							current_mode_id
 						FROM projection_sessions
 						ORDER BY last_activity_at DESC, session_id ASC
 					`.withoutTransform
@@ -167,7 +172,8 @@ export const ProjectionSessionsLive = Layer.effect(ProjectionSessions)(
 							pr_number,
 							pr_link_mode,
 							provider_session_id,
-							provider_session_failed
+							provider_session_failed,
+							current_mode_id
 						FROM projection_sessions
 						WHERE project_id = ${projectId}
 						ORDER BY last_activity_at DESC, session_id ASC

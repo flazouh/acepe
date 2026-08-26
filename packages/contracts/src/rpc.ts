@@ -301,6 +301,12 @@ export const RpcProjectedSession = Schema.Struct({
 	// history it could ever open. See providerSessionFailed's doc on the
 	// server's ProjectedSession.
 	providerSessionFailed: Schema.Boolean,
+	// The canonical current mode, folded from SessionModeSet events. A
+	// SessionModeSet always wins over the mode a provider reports when it
+	// opens the session; null means none ever fired, and only then does the
+	// provider's opening mode stand. availableModes stays provider-owned. See
+	// currentModeId on the server's ProjectedSession.
+	currentModeId: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey),
 })
 export type RpcProjectedSession = typeof RpcProjectedSession.Type
 

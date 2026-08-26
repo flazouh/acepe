@@ -24,6 +24,7 @@ import projectionSessionsProviderIdentity from "./Migrations/0022_projection_ses
 import projectionTurnsContextWindow from "./Migrations/0023_projection_turns_context_window.ts"
 import projectionSessionActivitiesOutput from "./Migrations/0024_projection_session_activities_output.ts"
 import projectionSessionActivitiesToolKind from "./Migrations/0025_projection_session_activities_tool_kind.ts"
+import projectionSessionsCurrentMode from "./Migrations/0026_projection_sessions_current_mode.ts"
 
 const MIGRATIONS_TABLE = "_migrations"
 
@@ -52,7 +53,8 @@ const loader = SqliteMigrator.fromRecord({
 	"0022_projection_sessions_provider_identity": projectionSessionsProviderIdentity,
 	"0023_projection_turns_context_window": projectionTurnsContextWindow,
 	"0024_projection_session_activities_output": projectionSessionActivitiesOutput,
-	"0025_projection_session_activities_tool_kind": projectionSessionActivitiesToolKind
+	"0025_projection_session_activities_tool_kind": projectionSessionActivitiesToolKind,
+	"0026_projection_sessions_current_mode": projectionSessionsCurrentMode
 })
 
 export const runMigrations = SqliteMigrator.run({
