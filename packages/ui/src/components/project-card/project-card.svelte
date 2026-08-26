@@ -34,6 +34,13 @@
 			path: string;
 			iconSrc?: string | null;
 			badgeLabel?: string | null;
+			/**
+			 * Stable project identity, when the caller has one. Two projects can
+			 * share `path` (workspace_root) while being distinct projects (AC
+			 * #266) -- key rendering by `id` when present so that stays safe
+			 * under Svelte's keyed {#each}.
+			 */
+			id?: string;
 		}>;
 		/** The active project path (determines which badge is full opacity) */
 		activeProjectPath?: string | null;
@@ -71,7 +78,7 @@
 		{#if isFocusedMode}
 			<!-- Focused mode: all project badges stacked vertically -->
 			<div class="shrink-0 flex flex-col gap-1.5 m-1">
-				{#each allProjects! as project (project.path)}
+				{#each allProjects! as project (project.id ?? project.path)}
 					{@const isActive = project.path === activeProjectPath}
 					<button
 						class="transition-opacity duration-150 rounded-sm {isActive ? 'opacity-100' : 'opacity-50 hover:opacity-100 cursor-pointer'}"

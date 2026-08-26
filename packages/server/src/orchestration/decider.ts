@@ -60,7 +60,8 @@ import {
 	requireSessionNotArchived,
 	requireCheckpoint,
 	requireCheckpointAbsent,
-	requireUniqueSkillIds
+	requireUniqueSkillIds,
+	requireWorkspaceRootAbsent
 } from "./commandInvariants.ts"
 import type { OrchestrationCommandInvariantError } from "./Errors.ts"
 import { decideAcp } from "./acpDecide.ts"
@@ -528,6 +529,11 @@ const decideProjectCreate = Effect.fn("decideProjectCreate")(function*(
 		readModel,
 		command,
 		projectId: command.projectId
+	})
+	yield* requireWorkspaceRootAbsent({
+		readModel,
+		command,
+		workspaceRoot: command.workspaceRoot
 	})
 	return [projectCreatedEvent(command, identity, nextSequence(readModel.snapshotSequence))]
 })

@@ -56,7 +56,20 @@ import { resolve } from "node:path";
 // a genuinely newer reopen snapshot even when the local graph already has
 // entries), same effect(asyncFunction) pattern as every other test in that
 // file already trips.
-const BASELINE = 6603;
+// 6603 -> 6610: AC issue #266 defect 1 (SESSION_NOT_FOUND refresh loop) --
+// the new colocated session-state-refresh-controller.vitest.ts has two
+// `it("...", async () => {})` tests (effect(asyncFunction) x2) plus three
+// `Effect.result(controller.refreshSessionStateSnapshot(...))` call sites
+// with a pipeable form (effect(missedPipeableOpportunity) x3); the new
+// awaiting-model-refresh-store.vitest.ts has two
+// `Effect.succeed(undefined)` test-double return values
+// (effect(effectSucceedWithVoid) x2). All seven are in brand-new test files
+// exercising the fix; verified none land in the production files this batch
+// touched (session-state-refresh-controller.svelte.ts,
+// awaiting-model-refresh-store.svelte.ts, session-store-compose.ts,
+// project-manager.svelte.ts) -- every violation in those files sits on
+// unchanged pre-existing lines that simply shifted down.
+const BASELINE = 6610;
 const PACKAGE_ROOT = resolve(import.meta.dir, "..");
 
 // The pretty formatter (the default, and what lint:effect:report uses) always

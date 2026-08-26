@@ -19,6 +19,11 @@ import { OrchestrationCommandInvariantError } from "./Errors.ts"
 
 export type OrchestrationProject = {
 	readonly id: ProjectId
+	// Optional here (rather than required, matching the richer runtime
+	// Schemas.ts OrchestrationProject) so existing fixtures across this
+	// module's tests -- built before workspace_root uniqueness mattered --
+	// keep compiling unchanged. Every real project row always carries one.
+	readonly workspaceRoot?: string
 }
 
 export type OrchestrationCheckpoint = {
@@ -88,6 +93,35 @@ export const requireProjectAbsent = Effect.fn("requireProjectAbsent")(function*(
 		return yield* new OrchestrationCommandInvariantError({
 			commandType: input.command.type,
 			detail: `Project '${input.projectId}' already exists and cannot be created twice.`
+		})
+	}
+})
+
+export type WorkspaceRootInvariantInput = {
+	readonly readModel: OrchestrationReadModel
+	readonly command: OrchestrationCommand
+	readonly workspaceRoot: string
+}
+
+const findProjectByWorkspaceRoot = (
+	readModel: OrchestrationReadModel,
+	workspaceRoot: string
+): Option.Option<OrchestrationProject> =>
+	Array.findFirst(readModel.projects, (project) => project.workspaceRoot === workspaceRoot)
+
+// AC #266: two projects dispatched for the same workspace_root crashed the
+// agent panel client-side (a Svelte each_key_duplicate downstream, in a list
+// keyed by workspace root). project.create must reject the duplicate at the
+// source instead of letting a second ProjectCreated event ever commit for a
+// root another project already claims.
+export const requireWorkspaceRootAbsent = Effect.fn("requireWorkspaceRootAbsent")(function*(
+	input: WorkspaceRootInvariantInput
+) {
+	const existing = findProjectByWorkspaceRoot(input.readModel, input.workspaceRoot)
+	if (Option.isSome(existing)) {
+		return yield* new OrchestrationCommandInvariantError({
+			commandType: input.command.type,
+			detail: `Workspace root '${input.workspaceRoot}' is already claimed by project '${existing.value.id}'.`
 		})
 	}
 })

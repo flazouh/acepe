@@ -63,13 +63,18 @@ const projectCreated = (eventId: string): NewOrchestrationEvent => ({
 	}
 })
 
+// workspaceRoot is derived from `id` (not a shared "/tmp/acepe" constant) so
+// that concurrent-dispatch fixtures creating many distinct projects don't
+// collide under the workspace_root uniqueness invariant (AC #266) -- callers
+// that intentionally reuse the same `id` across dispatches (testing "already
+// exists" rejection) still get the same, consistent root.
 const createProjectCommand = (commandId: string, id: string) =>
 	ProjectCreateCommand.make({
 		type: "project.create",
 		commandId: CommandId.make(commandId),
 		projectId: ProjectId.make(id),
 		title: "Acepe",
-		workspaceRoot: "/tmp/acepe"
+		workspaceRoot: `/tmp/${id}`
 	})
 
 const createSessionCommand = (commandId: string) =>

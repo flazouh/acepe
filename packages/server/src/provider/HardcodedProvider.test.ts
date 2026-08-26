@@ -131,8 +131,8 @@ Vitest.layer(isolated())("hard-coded provider", (it) => {
 					type: "project.create",
 					commandId: CommandId.make("cmd-project-2"),
 					projectId: secondProjectId,
-					title: "Acepe",
-					workspaceRoot: "/tmp/acepe"
+					title: "Acepe (real provider)",
+					workspaceRoot: "/tmp/acepe-real-provider"
 				})
 			)
 			yield* engine.dispatch(

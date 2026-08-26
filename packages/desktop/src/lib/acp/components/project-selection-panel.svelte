@@ -347,7 +347,7 @@ onDestroy(() => {
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="flex flex-col items-center justify-center h-full p-4 gap-4">
 	<div class="flex flex-col gap-1.5 w-full max-w-xs">
-		{#each cardDataList as data, index (data.project.path)}
+		{#each cardDataList as data, index (data.project.id ?? data.project.path)}
 			<ProjectCard
 				{data}
 				{index}

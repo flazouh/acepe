@@ -19,6 +19,18 @@ export interface Project {
 	sortOrder?: number;
 	iconPath?: string | null;
 	showExternalCliSessions?: boolean;
+	/**
+	 * The server-assigned orchestration projectId, when known. Only set for
+	 * projects sourced from the library/orchestration snapshot
+	 * (computeMissingLibraryProjects) -- legacy on-disk projects imported
+	 * through the folder-picker flow predate the orchestration engine and have
+	 * no id. Two projects can legitimately share `path` (workspace_root) while
+	 * having distinct `id`s (AC #266: a duplicate-workspace-root project
+	 * created before the server rejected that); UI lists must key by `id` when
+	 * present instead of `path` to stay safe under Svelte's {#each} keyed
+	 * blocks.
+	 */
+	id?: string;
 }
 
 export interface ProjectLoadPerformanceTrace {
@@ -80,7 +92,22 @@ export function computeMissingLibraryProjects(
 	existingProjects: readonly Project[],
 	libraryProjects: readonly RpcProjectedProject[]
 ): Project[] {
-	const knownPaths = new Set(existingProjects.map((project) => project.path));
+	// Identity has two tiers. A project we already know by its exact id is
+	// always the same project (never re-added). A path already claimed by a
+	// legacy, id-less local project (imported through the folder picker,
+	// predating the orchestration engine) is treated as the same project too
+	// -- that pairing is intentional, not a duplicate. A path shared between
+	// two projects that both carry distinct ids is NOT collapsed: that is the
+	// real duplicate-workspace-root case (AC #266), and hiding the second one
+	// by path alone silently lost a real project instead of representing it.
+	const knownIds = new Set(
+		existingProjects
+			.map((project) => project.id)
+			.filter((id): id is string => id !== undefined)
+	);
+	const knownLegacyPaths = new Set(
+		existingProjects.filter((project) => project.id === undefined).map((project) => project.path)
+	);
 	let nextSortOrder =
 		existingProjects.reduce(
 			(max, project) =>
@@ -93,7 +120,8 @@ export function computeMissingLibraryProjects(
 		if (libraryProject.deletedAt !== null) {
 			continue;
 		}
-		if (knownPaths.has(libraryProject.workspaceRoot)) {
+		const projectId = String(libraryProject.projectId);
+		if (knownIds.has(projectId) || knownLegacyPaths.has(libraryProject.workspaceRoot)) {
 			continue;
 		}
 		// A malformed row (a schema-boundary bug upstream, per tryIsoToDate's
@@ -104,8 +132,9 @@ export function computeMissingLibraryProjects(
 		if (createdAt === null) {
 			continue;
 		}
-		knownPaths.add(libraryProject.workspaceRoot);
+		knownIds.add(projectId);
 		additions.push({
+			id: projectId,
 			path: libraryProject.workspaceRoot,
 			name: libraryProject.title,
 			color: resolveProjectColor(libraryProject.color),

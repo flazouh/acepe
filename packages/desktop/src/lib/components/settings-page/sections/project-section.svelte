@@ -31,7 +31,7 @@ const activeProject = $derived(
 			class="flex w-[200px] shrink-0 flex-col gap-0.5 overflow-y-auto pr-2"
 			aria-label="Projects"
 		>
-			{#each projects as project (project.path)}
+			{#each projects as project (project.id ?? project.path)}
 				<button
 					type="button"
 					onclick={() => (selectedProjectPath = project.path)}

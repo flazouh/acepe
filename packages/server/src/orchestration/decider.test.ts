@@ -113,6 +113,22 @@ const createProjectCommand = ProjectCreateCommand.make({
 	workspaceRoot: "/tmp/acepe"
 })
 
+const secondProjectId = ProjectId.make("project-2")
+
+const workspaceRootReadModel: OrchestrationReadModel = {
+	snapshotSequence: 1,
+	projects: [{ id: projectId, workspaceRoot: "/tmp/acepe" }],
+	sessions: []
+}
+
+const createSecondProjectSameRootCommand = ProjectCreateCommand.make({
+	type: "project.create",
+	commandId,
+	projectId: secondProjectId,
+	title: "Acepe (second)",
+	workspaceRoot: "/tmp/acepe"
+})
+
 Vitest.describe("decide", () => {
 	Vitest.it.effect("emits identical events when run twice with the same inputs", () =>
 		Effect.gen(function*() {
@@ -163,6 +179,26 @@ Vitest.describe("decide", () => {
 			Vitest.assert.strictEqual(
 				error.detail,
 				"Project 'project-1' already exists and cannot be created twice."
+			)
+		})
+	)
+
+	// Regression (AC #266): two distinct projects dispatched for the same
+	// workspace_root crashed the agent panel client-side with a Svelte
+	// each_key_duplicate (a list keyed by workspace root). The decider must
+	// reject the second project.create instead of ever committing a second
+	// ProjectCreated event for a workspace_root another project already
+	// claims -- even though `projectId` itself is distinct and would
+	// otherwise pass requireProjectAbsent.
+	Vitest.it.effect("rejects project.create when another project already claims the workspace root", () =>
+		Effect.gen(function*() {
+			const error = yield* Effect.flip(
+				decide(workspaceRootReadModel, createSecondProjectSameRootCommand, identity)
+			)
+			Vitest.assert.strictEqual(error._tag, "OrchestrationCommandInvariantError")
+			Vitest.assert.strictEqual(
+				error.detail,
+				"Workspace root '/tmp/acepe' is already claimed by project 'project-1'."
 			)
 		})
 	)

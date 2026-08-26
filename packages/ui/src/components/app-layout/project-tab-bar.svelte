@@ -12,6 +12,14 @@
 		readonly iconSrc?: string | null;
 		readonly badgeLabel?: string | null;
 		readonly sessionCount?: number;
+		/**
+		 * Stable project identity, when the caller has one. Two projects can
+		 * share `path` (workspace_root) while being distinct projects (AC #266:
+		 * a duplicate-workspace-root project that predates the server rejecting
+		 * that) -- key rendering by `id` when present so that stays safe under
+		 * Svelte's keyed {#each}.
+		 */
+		readonly id?: string;
 	}
 
 	interface Props {
@@ -37,7 +45,7 @@
 		aria-label="Projects"
 	>
 		<div class="flex min-w-0 items-stretch gap-0.5 overflow-x-auto">
-			{#each projects as project (project.path)}
+			{#each projects as project (project.id ?? project.path)}
 				{@const isActive = project.path === activeProjectPath}
 				<div
 					class="group/project-tab relative flex min-w-0 items-stretch overflow-hidden rounded-lg border border-border/60 transition-all duration-150 {isActive

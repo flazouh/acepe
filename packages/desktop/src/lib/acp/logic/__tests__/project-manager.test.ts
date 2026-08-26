@@ -155,6 +155,7 @@ describe("computeMissingLibraryProjects", () => {
 
 		expect(additions).toEqual([
 			{
+				id: "project-1",
 				path: "/tmp/acepe",
 				name: "Acepe",
 				color: Colors.cyan,
@@ -211,6 +212,39 @@ describe("computeMissingLibraryProjects", () => {
 		);
 
 		expect(additions).toHaveLength(1);
+	});
+
+	// Regression (AC #266): two distinct projects (different projectId) that
+	// happen to share a workspace_root -- e.g. one created via raw
+	// orchestration dispatch after another already claimed the same folder --
+	// must both surface as real, separately-identified rows. Silently
+	// dropping the second (the old workspaceRoot-only dedup key) hid a real
+	// data-integrity problem from the user instead of representing it, and
+	// left every {#each project.path} key downstream provably unsafe to key
+	// by path once the server actually returns two such rows.
+	it("keeps both library projects when they share a workspace_root but have distinct project ids", () => {
+		const additions = computeMissingLibraryProjects(
+			[],
+			[
+				libraryProject({ projectId: ProjectId.make("project-1") }),
+				libraryProject({ projectId: ProjectId.make("project-2"), title: "Acepe (second)" }),
+			]
+		);
+
+		expect(additions).toHaveLength(2);
+		expect(additions.map((project) => project.id)).toEqual(["project-1", "project-2"]);
+		expect(additions.every((project) => project.path === "/tmp/acepe")).toBe(true);
+	});
+
+	it("still treats a library project as known when an existing local project already claims its path", () => {
+		const existing = createProject("/tmp/acepe", "Acepe (local)");
+
+		const additions = computeMissingLibraryProjects(
+			[existing],
+			[libraryProject({ projectId: ProjectId.make("project-1") })]
+		);
+
+		expect(additions).toEqual([]);
 	});
 });
 

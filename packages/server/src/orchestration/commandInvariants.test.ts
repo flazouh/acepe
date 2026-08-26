@@ -8,6 +8,7 @@ import {
 	emptyVoiceLanguages,
 	emptyVoiceModels,
 	placeholderVoiceModel,
+	ProjectCreateCommand,
 	ProjectId,
 	ProjectMetaUpdateCommand,
 	SessionArchiveCommand,
@@ -31,7 +32,8 @@ import {
 	requireUniqueVoiceLanguageCodes,
 	requireUniqueVoiceModelIds,
 	requireCheckpoint,
-	requireCheckpointAbsent
+	requireCheckpointAbsent,
+	requireWorkspaceRootAbsent
 } from "./commandInvariants.ts"
 
 const occurredAt = "2026-08-20T12:00:00.000Z"
@@ -96,6 +98,22 @@ const checkpointRevertCommand = CheckpointRevertCommand.make({
 	checkpointId,
 	projectPath: null,
 	worktreePath: null
+})
+
+const secondProjectId = ProjectId.make("project-2")
+
+const workspaceRootReadModel: OrchestrationReadModel = {
+	snapshotSequence: 1,
+	projects: [{ id: projectId, workspaceRoot: "/tmp/acepe" }],
+	sessions: []
+}
+
+const projectCreateCommand = ProjectCreateCommand.make({
+	type: "project.create",
+	commandId,
+	projectId: secondProjectId,
+	title: "Acepe (second)",
+	workspaceRoot: "/tmp/acepe"
 })
 
 const checkpointCreateCommand = CheckpointCreateCommand.make({
@@ -167,6 +185,46 @@ Vitest.describe("requireProjectAbsent", () => {
 				error.detail,
 				"Project 'project-1' already exists and cannot be created twice."
 			)
+		})
+	)
+})
+
+Vitest.describe("requireWorkspaceRootAbsent", () => {
+	Vitest.it.effect("succeeds when no project claims the workspace root", () =>
+		requireWorkspaceRootAbsent({
+			readModel: emptyReadModel,
+			command: projectCreateCommand,
+			workspaceRoot: "/tmp/acepe"
+		})
+	)
+
+	// Regression (AC #266): two distinct projectIds dispatched for the same
+	// workspace_root crashed the agent panel with a Svelte each_key_duplicate
+	// downstream (a list keyed by workspace root). The invariant must reject
+	// the second project.create outright rather than let the duplicate ever
+	// become a committed ProjectCreated event.
+	Vitest.it.effect("fails when a project already claims the workspace root", () =>
+		Effect.gen(function*() {
+			const error = yield* Effect.flip(
+				requireWorkspaceRootAbsent({
+					readModel: workspaceRootReadModel,
+					command: projectCreateCommand,
+					workspaceRoot: "/tmp/acepe"
+				})
+			)
+			Vitest.assert.strictEqual(error._tag, "OrchestrationCommandInvariantError")
+			Vitest.assert.strictEqual(
+				error.detail,
+				"Workspace root '/tmp/acepe' is already claimed by project 'project-1'."
+			)
+		})
+	)
+
+	Vitest.it.effect("succeeds when a project exists for a different workspace root", () =>
+		requireWorkspaceRootAbsent({
+			readModel: workspaceRootReadModel,
+			command: projectCreateCommand,
+			workspaceRoot: "/tmp/other"
 		})
 	)
 })

@@ -71,13 +71,16 @@ const projectCreated = (index: number): NewOrchestrationEvent => ({
 const seedEvents = (count: number) =>
 	Arr.map(Arr.range(1, count), (index) => projectCreated(index))
 
+// workspaceRoot is derived from `projectId` (not a shared "/tmp/acepe"
+// constant) so fixtures creating many distinct projects don't collide under
+// the workspace_root uniqueness invariant (AC #266).
 const createProjectCommand = (commandId: string, projectId: string) =>
 	ProjectCreateCommand.make({
 		type: "project.create",
 		commandId: CommandId.make(commandId),
 		projectId: ProjectId.make(projectId),
 		title: "Acepe",
-		workspaceRoot: "/tmp/acepe"
+		workspaceRoot: `/tmp/${projectId}`
 	})
 
 const createTestTable = Effect.gen(function*() {
