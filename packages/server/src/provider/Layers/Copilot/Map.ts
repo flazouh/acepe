@@ -1,63 +1,25 @@
 import * as Arr from "effect/Array"
-import * as Exit from "effect/Exit"
-import * as HashMap from "effect/HashMap"
 import * as Option from "effect/Option"
-import * as Predicate from "effect/Predicate"
-import * as Schema from "effect/Schema"
-import * as Str from "effect/String"
 import {
-	CopilotAcpToolKind,
+	applyOptional,
+	EMPTY_JSON_OBJECT,
+	field,
+	type Json,
+	type JsonObject,
+	jsonObjectOf,
+	numberField,
+	objectField,
+	stringField,
+	stringFieldAny
+} from "../Json.ts"
+import {
 	type CopilotContractFact,
 	type CopilotToolStatus,
-	type PermissionRequestFact,
 	type PlanProposalFact,
 	type ToolCallUpdateFact,
 	type UsageFact
 } from "./Facts.ts"
-
-type Json = typeof Schema.Json.Type
-type JsonObject = typeof Schema.JsonObject.Type
-
-const EMPTY_JSON_OBJECT: JsonObject = {}
-
-const decodeJsonObject = Schema.decodeUnknownExit(Schema.JsonObject)
-const decodeToolKind = Schema.decodeUnknownExit(CopilotAcpToolKind)
-
-export const jsonObjectOf = (value: Json): Option.Option<JsonObject> => {
-	const exit = decodeJsonObject(value)
-	if (Exit.isSuccess(exit)) {
-		return Option.some(exit.value)
-	}
-	return Option.none()
-}
-
-const field = (record: JsonObject, key: string): Option.Option<Json> => {
-	const value = record[key]
-	if (value === undefined) {
-		return Option.none()
-	}
-	return Option.some(value)
-}
-
-const stringField = (record: JsonObject, key: string): Option.Option<string> =>
-	Option.flatMap(field(record, key), (value) =>
-		Predicate.isString(value) && Str.isNonEmpty(Str.trim(value))
-			? Option.some(value)
-			: Option.none()
-	)
-
-const stringFieldAny = (record: JsonObject, keys: ReadonlyArray<string>): Option.Option<string> =>
-	Arr.reduce(keys, Option.none<string>(), (found, key) =>
-		Option.isSome(found) ? found : stringField(record, key)
-	)
-
-const numberField = (record: JsonObject, key: string): Option.Option<number> =>
-	Option.flatMap(field(record, key), (value) =>
-		Predicate.isNumber(value) ? Option.some(value) : Option.none()
-	)
-
-const objectField = (record: JsonObject, key: string): Option.Option<JsonObject> =>
-	Option.flatMap(field(record, key), jsonObjectOf)
+import { asToolKind } from "./Tools.ts"
 
 const rawInputOf = (value: Json | undefined): JsonObject => {
 	if (value === undefined) {
@@ -66,103 +28,11 @@ const rawInputOf = (value: Json | undefined): JsonObject => {
 	return Option.getOrElse(jsonObjectOf(value), () => EMPTY_JSON_OBJECT)
 }
 
-const normalizeToolName = (name: string): string => {
-	const trimmed = Str.trim(name)
-	if (Str.startsWith("mcp__")(trimmed)) {
-		return Option.getOrElse(Arr.last(Str.split(trimmed, "__")), () => trimmed)
-	}
-	return trimmed
-}
-
-const foldedName = (name: string): string =>
-	Str.toLowerCase(Str.replaceAll(/[\s_-]/g, "")(normalizeToolName(name)))
-
-const COPILOT_TOOL_KIND_BY_FOLDED = HashMap.fromIterable([
-	["read", "read"],
-	["readfile", "read"],
-	["view", "read"],
-	["notebookread", "read"],
-	["readlints", "read_lints"],
-	["edit", "edit"],
-	["editfile", "edit"],
-	["write", "edit"],
-	["writefile", "edit"],
-	["strreplace", "edit"],
-	["strreplaceeditor", "edit"],
-	["applypatch", "edit"],
-	["bash", "execute"],
-	["execute", "execute"],
-	["shell", "execute"],
-	["run", "execute"],
-	["terminal", "execute"],
-	["killshell", "execute"],
-	["killbash", "execute"],
-	["glob", "glob"],
-	["ls", "glob"],
-	["find", "glob"],
-	["grep", "search"],
-	["rg", "search"],
-	["ripgrep", "search"],
-	["search", "search"],
-	["webfetch", "fetch"],
-	["fetch", "fetch"],
-	["http", "fetch"],
-	["websearch", "web_search"],
-	["web", "web_search"],
-	["think", "think"],
-	["todowrite", "todo"],
-	["todoread", "todo"],
-	["todo", "todo"],
-	["updatetodos", "todo"],
-	["marktodo", "todo"],
-	["tasklist", "todo"],
-	["todos", "todo"],
-	["askuserquestion", "question"],
-	["askuser", "question"],
-	["question", "question"],
-	["task", "task"],
-	["spawn", "task"],
-	["agent", "task"],
-	["subagent", "task"],
-	["taskcreate", "task"],
-	["taskupdate", "task"],
-	["skill", "skill"],
-	["enterplanmode", "enter_plan_mode"],
-	["exitplanmode", "exit_plan_mode"],
-	["createplan", "exit_plan_mode"]
-] satisfies ReadonlyArray<readonly [string, CopilotAcpToolKind]>)
-
-export const detectCopilotToolKind = (name: string): CopilotAcpToolKind =>
-	Option.getOrElse(HashMap.get(COPILOT_TOOL_KIND_BY_FOLDED, foldedName(name)), () => "other")
-
-export const permissionIdForToolCall = (toolCallId: string): string => `perm-${toolCallId}`
-
-export const permissionNameForToolKind = (kind: CopilotAcpToolKind): string => {
-	if (kind === "execute") {
-		return "execute"
-	}
-	if (kind === "edit") {
-		return "edit"
-	}
-	if (kind === "read" || kind === "read_lints") {
-		return "read"
-	}
-	return kind
-}
-
 const asToolStatus = (value: string): Option.Option<CopilotToolStatus> => {
 	if (value === "pending" || value === "in_progress" || value === "completed" || value === "failed") {
 		return Option.some(value)
 	}
 	return Option.none()
-}
-
-const asToolKind = (value: string): CopilotAcpToolKind => {
-	const decoded = decodeToolKind(value)
-	if (Exit.isSuccess(decoded)) {
-		return decoded.value
-	}
-	return detectCopilotToolKind(value)
 }
 
 const tokenFromContent = (record: JsonObject): Option.Option<string> => {
@@ -285,17 +155,6 @@ const withToolCallUpdatePartial = (
 	...fact,
 	partialJson
 })
-
-export const applyOptional = <A, T>(
-	current: A,
-	value: T | undefined,
-	apply: (next: A, present: T) => A
-): A => {
-	if (value === undefined) {
-		return current
-	}
-	return apply(current, value)
-}
 
 const toolCallUpdateFact = (
 	toolCallId: string,
@@ -461,15 +320,3 @@ export const mapPromptResult = (raw: Json): CopilotContractFact => {
 	}
 	return { contractKind: "turn_complete" }
 }
-
-export const permissionRequestFact = (input: {
-	readonly sessionId: string
-	readonly toolCallId: string
-	readonly toolName: string
-}): PermissionRequestFact => ({
-	contractKind: "permission_request",
-	id: permissionIdForToolCall(input.toolCallId),
-	sessionId: input.sessionId,
-	permission: permissionNameForToolKind(detectCopilotToolKind(input.toolName)),
-	toolCallId: input.toolCallId
-})

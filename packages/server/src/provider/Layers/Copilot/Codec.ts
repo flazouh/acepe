@@ -1,53 +1,22 @@
 import * as Arr from "effect/Array"
-import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"
-import * as Schema from "effect/Schema"
+import { makeFactCodec } from "../FactCodec.ts"
+import { applyOptional, type Json, type JsonObject } from "../Json.ts"
 import { CopilotContractFact, type UsageFact } from "./Facts.ts"
-import { applyOptional, jsonObjectOf, mapAcpUpdate } from "./Map.ts"
+import { mapAcpUpdate } from "./Map.ts"
 
-type Json = typeof Schema.Json.Type
-type JsonObject = typeof Schema.JsonObject.Type
-
-const decodeFact = Schema.decodeUnknownExit(CopilotContractFact)
-const encodeFact = Schema.encodeUnknownExit(CopilotContractFact)
-
-export const encodeContractFact = (fact: CopilotContractFact): Option.Option<JsonObject> => {
-	const encoded = encodeFact(fact)
-	if (Exit.isFailure(encoded)) {
-		return Option.none()
-	}
-	return jsonObjectOf(encoded.value)
-}
-
-export const decodeContractFact = (value: Json): Option.Option<CopilotContractFact> => {
-	const decoded = decodeFact(value)
-	if (Exit.isFailure(decoded)) {
-		return Option.none()
-	}
-	return Option.some(decoded.value)
-}
-
-const applyAcpNumber = (
-	event: JsonObject,
-	value: number | undefined,
-	apply: (current: JsonObject, next: number) => JsonObject
-): JsonObject => {
-	if (value === undefined) {
-		return event
-	}
-	return apply(event, value)
-}
+export const { decodeContractFact, encodeContractFact } = makeFactCodec(CopilotContractFact)
 
 const usageToAcp = (fact: UsageFact): JsonObject => {
 	const base: JsonObject = {
 		type: "usage",
 		sessionId: fact.sessionId
 	}
-	return applyAcpNumber(
-		applyAcpNumber(
-			applyAcpNumber(
-				applyAcpNumber(
-					applyAcpNumber(base, fact.inputTokens, (current, value) => ({
+	return applyOptional(
+		applyOptional(
+			applyOptional(
+				applyOptional(
+					applyOptional(base, fact.inputTokens, (current, value) => ({
 						...current,
 						inputTokens: value
 					})),

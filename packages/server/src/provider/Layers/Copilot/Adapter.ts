@@ -17,24 +17,29 @@ import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as HashMap from "effect/HashMap"
 import * as Option from "effect/Option"
-import * as Predicate from "effect/Predicate"
 import * as Queue from "effect/Queue"
 import * as Ref from "effect/Ref"
-import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
-import * as Str from "effect/String"
 import {
-	ProviderAdapterError,
+	type ProviderAdapterError,
 	type ProviderAdapter,
 	type ProviderPresence,
 	type CancelTurnRequest,
 	type SendPromptRequest,
 	type StartSessionRequest
 } from "../../Services/ProviderAdapter.ts"
+import {
+	decodeJsonObject,
+	EMPTY_JSON_OBJECT,
+	type Json,
+	type JsonObject,
+	stringField
+} from "../Json.ts"
 import { encodeContractFact } from "./Codec.ts"
 import { type CopilotContractFact, providerSessionFact } from "./Facts.ts"
 import { mapAcpUpdate, mapPromptResult } from "./Map.ts"
 import {
+	adapterError,
 	COPILOT_CAPABILITIES,
 	COPILOT_PROVIDER_ID,
 	copilotSessionNewParams
@@ -46,12 +51,6 @@ import {
 	emptyCopilotTurnState,
 	type CopilotTurnState
 } from "./TurnTracking.ts"
-
-type Json = typeof Schema.Json.Type
-type JsonObject = typeof Schema.JsonObject.Type
-
-const decodeJsonObject = Schema.decodeUnknownExit(Schema.JsonObject)
-const EMPTY_JSON_OBJECT: JsonObject = {}
 
 export type CopilotAcpRequest = {
 	readonly method: string
@@ -85,30 +84,12 @@ type SessionRuntime = {
 	readonly transport: CopilotAcpHandle
 }
 
-const adapterError = (
-	operation: ProviderAdapterError["operation"],
-	detail: string
-): ProviderAdapterError =>
-	new ProviderAdapterError({
-		providerId: COPILOT_PROVIDER_ID,
-		operation,
-		detail
-	})
-
 const jsonObjectFromValue = <A>(value: A): JsonObject => {
 	const exit = decodeJsonObject(value)
 	if (Exit.isSuccess(exit)) {
 		return exit.value
 	}
 	return EMPTY_JSON_OBJECT
-}
-
-const stringField = (record: JsonObject, key: string): Option.Option<string> => {
-	const value = record[key]
-	if (Predicate.isString(value) && Str.isNonEmpty(Str.trim(value))) {
-		return Option.some(value)
-	}
-	return Option.none()
 }
 
 const assistantMessageId = (

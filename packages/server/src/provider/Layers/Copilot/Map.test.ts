@@ -1,27 +1,11 @@
 import * as Vitest from "@effect/vitest"
 import * as Schema from "effect/Schema"
-import {
-	detectCopilotToolKind,
-	mapAcpUpdate,
-	mapPromptResult,
-	permissionIdForToolCall
-} from "./Map.ts"
+import { mapAcpUpdate, mapPromptResult } from "./Map.ts"
+import { permissionIdForToolCall } from "./Tools.ts"
 
 type JsonObject = typeof Schema.JsonObject.Type
 
 const jsonObject = (value: JsonObject): JsonObject => value
-
-Vitest.describe("detectCopilotToolKind", () => {
-	Vitest.it("maps Copilot tool names the same way today's parser does", () => {
-		Vitest.assert.strictEqual(detectCopilotToolKind("apply_patch"), "edit")
-		Vitest.assert.strictEqual(detectCopilotToolKind("rg"), "search")
-		Vitest.assert.strictEqual(detectCopilotToolKind("view"), "read")
-		Vitest.assert.strictEqual(detectCopilotToolKind("bash"), "execute")
-		Vitest.assert.strictEqual(detectCopilotToolKind("update_todos"), "todo")
-		Vitest.assert.strictEqual(detectCopilotToolKind("subagent"), "task")
-		Vitest.assert.strictEqual(detectCopilotToolKind("mcp__github__search"), "search")
-	})
-})
 
 Vitest.describe("mapAcpUpdate", () => {
 	Vitest.it("maps ACP agent_message_chunk wire and normalized shapes to text_delta", () => {

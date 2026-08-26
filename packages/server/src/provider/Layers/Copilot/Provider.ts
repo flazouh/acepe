@@ -7,12 +7,23 @@ import * as Path from "effect/Path"
 import * as Str from "effect/String"
 import {
 	isCapabilityEnabled,
+	ProviderAdapterError,
 	ProviderCapabilities,
 	ProviderId,
 	type ProviderPresence
 } from "../../Services/ProviderAdapter.ts"
 
 export const COPILOT_PROVIDER_ID: ProviderId = ProviderId.make("copilot")
+
+export const adapterError = (
+	operation: ProviderAdapterError["operation"],
+	detail: string
+): ProviderAdapterError =>
+	new ProviderAdapterError({
+		providerId: COPILOT_PROVIDER_ID,
+		operation,
+		detail
+	})
 
 export const COPILOT_TRANSPORT = "acp" as const
 
