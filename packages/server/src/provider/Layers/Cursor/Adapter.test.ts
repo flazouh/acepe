@@ -1,4 +1,5 @@
 import {
+	type ApprovalRequestedEvent,
 	type OrchestrationEvent,
 	MessageId,
 	ProjectId,
@@ -11,6 +12,7 @@ import * as Vitest from "@effect/vitest"
 import * as Arr from "effect/Array"
 import type { Done } from "effect/Cause"
 import * as Effect from "effect/Effect"
+import * as Fiber from "effect/Fiber"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
@@ -73,6 +75,41 @@ const fakeHandle = (
 	prompt: () => Effect.succeed(Option.none()),
 	cancel: () => Ref.update(cancels, (count) => count + 1).pipe(Effect.asVoid),
 	close: Queue.end(inbound).pipe(Effect.asVoid)
+})
+
+const acpPermissionRequest = (toolCallId: string): Json => ({
+	sessionId: "acp-session-1",
+	toolCall: {
+		toolCallId,
+		title: "Run tests",
+		kind: "execute",
+		status: "pending"
+	},
+	options: [
+		{ optionId: "allow-once", name: "Allow once", kind: "allow_once" },
+		{ optionId: "reject", name: "Reject", kind: "reject_once" }
+	]
+})
+
+// Fails loudly if a permission request folds into the generic
+// SessionMetaUpdated branch instead of the typed approval event.
+const nextApprovalRequested = Effect.fn("nextApprovalRequested")(function*(
+	events: Queue.Queue<OrchestrationEvent, Done>
+) {
+	let found: ApprovalRequestedEvent | undefined
+	for (let attempt = 0; attempt < 5 && found === undefined; attempt++) {
+		const next = yield* Queue.take(events)
+		if (next.type === "SessionMetaUpdated") {
+			const fact = decodeContractFact(next.metadata)
+			if (Option.isSome(fact)) {
+				Vitest.assert.notStrictEqual(fact.value.contractKind, "permission_request")
+			}
+		}
+		if (next.type === "ApprovalRequested") {
+			found = next
+		}
+	}
+	return found
 })
 
 const fakeConnect = (
@@ -185,6 +222,66 @@ Vitest.describe("CursorAdapter", () => {
 					tracerAssistantMessageId(messageId)
 				)
 			}
+			yield* adapter.cancelTurn({ sessionId })
+		})
+	)
+
+	// An ACP session/request_permission used to fold into the generic
+	// makeMetaEvent/SessionMetaUpdated branch, whose metadata nobody reads for
+	// approvals: ProjectionPendingApprovals.apply only reacts to a native
+	// ApprovalRequested/InteractionReplied event or an explicitly stamped
+	// pendingApproval metadata key. The desktop therefore had no approval row
+	// to render, no InteractionReplied ever came back, and the ACP request the
+	// agent was blocked on stayed pending for the rest of the turn. Same
+	// carve-out ClaudeAdapter took for #268 defect 2.
+	Vitest.it.effect("emits one answerable ApprovalRequested per ACP permission request", () =>
+		Effect.gen(function*() {
+			const inbound = yield* Queue.unbounded<Json, Done>()
+			const cancels = yield* Ref.make(0)
+			const cwds = yield* Ref.make<ReadonlyArray<string>>(Arr.empty())
+			const asked = yield* Ref.make(Option.none<CursorConnectInput["onPermissionRequest"]>())
+			const adapter = yield* makeCursorAdapter({
+				presence: Effect.succeed(cursorPresence(true, true)),
+				resolveLaunch: Effect.succeed(registryLaunch),
+				connect: (input: CursorConnectInput) =>
+					Ref.set(asked, Option.some(input.onPermissionRequest)).pipe(
+						Effect.as(fakeHandle(inbound, cancels, cwds))
+					)
+			})
+			const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
+			yield* adapter
+				.startSession({
+					sessionId,
+					projectId,
+					workspaceRoot: "/tmp/acepe"
+				})
+				.pipe(
+					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
+					Effect.forkChild({ startImmediately: true })
+				)
+			yield* Queue.take(events)
+			const handler = yield* Ref.get(asked)
+			if (Option.isNone(handler)) {
+				Vitest.assert.fail("expected connect to receive an onPermissionRequest handler")
+				return
+			}
+			const decisionFiber = yield* handler
+				.value(acpPermissionRequest("call_9"))
+				.pipe(Effect.forkChild({ startImmediately: true }))
+			const requested = yield* nextApprovalRequested(events)
+			if (requested === undefined) {
+				Vitest.assert.fail("expected an ApprovalRequested event for the ACP permission request")
+				return
+			}
+			Vitest.assert.strictEqual(requested.payload.sessionId, sessionId)
+			Vitest.assert.strictEqual(requested.payload.approvalRequestId, "perm-call_9")
+			Vitest.assert.strictEqual(requested.payload.title, "execute")
+			yield* adapter.respondToPermission({
+				sessionId,
+				permissionId: requested.payload.approvalRequestId,
+				decision: "allow"
+			})
+			Vitest.assert.strictEqual(yield* Fiber.join(decisionFiber), "allow")
 			yield* adapter.cancelTurn({ sessionId })
 		})
 	)

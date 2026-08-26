@@ -1,4 +1,6 @@
 import {
+	ApprovalRequestedEvent,
+	ApprovalRequestId,
 	CommandId,
 	EventId,
 	MessageId,
@@ -161,6 +163,38 @@ export const makeCancelled = Effect.fn("CursorAdapter.makeCancelled")(function*(
 	})
 })
 
+// An ACP permission request cannot ride the generic SessionMetaUpdated
+// branch below: ProjectionPendingApprovals.apply only reacts to a native
+// ApprovalRequested/InteractionReplied event or an explicitly stamped
+// pendingApproval metadata key, so an encoded fact left the desktop with no
+// approval row to render and no way to send the InteractionReplied that
+// unblocks decidePermission's deferred. The turn then hung on an approval
+// nobody could see. Same carve-out ClaudeAdapter took for #268 defect 2.
+const publishApprovalRequested = Effect.fn("CursorAdapter.publishApprovalRequested")(function*(
+	runtime: SessionRuntime,
+	fact: Extract<CursorContractFact, { readonly contractKind: "permission_request" }>
+) {
+	const header = yield* stamp(runtime)
+	const event = ApprovalRequestedEvent.make({
+		sequence: header.sequence,
+		eventId: header.eventId,
+		aggregateKind: "session",
+		aggregateId: runtime.sessionId,
+		occurredAt: header.occurredAt,
+		commandId: header.commandId,
+		causationEventId: null,
+		correlationId: header.commandId,
+		metadata: EMPTY_JSON_OBJECT,
+		type: "ApprovalRequested",
+		payload: {
+			sessionId: runtime.sessionId,
+			approvalRequestId: ApprovalRequestId.make(fact.id),
+			title: fact.permission
+		}
+	})
+	return yield* offerOutbound(runtime, event)
+})
+
 export const publishFact = Effect.fn("CursorAdapter.publishFact")(function*(
 	runtime: SessionRuntime,
 	fact: CursorContractFact
@@ -168,6 +202,9 @@ export const publishFact = Effect.fn("CursorAdapter.publishFact")(function*(
 	if (fact.contractKind === "text_delta") {
 		const event = yield* makeTokenEvent(runtime, fact.token)
 		return yield* offerOutbound(runtime, event)
+	}
+	if (fact.contractKind === "permission_request") {
+		return yield* publishApprovalRequested(runtime, fact)
 	}
 	const event = yield* makeMetaEvent(runtime, fact)
 	return yield* offerOutbound(runtime, event)
