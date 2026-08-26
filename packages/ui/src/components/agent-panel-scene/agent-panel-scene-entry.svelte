@@ -78,6 +78,10 @@
 		label={entry.label}
 		agentIconSrc={entry.agentIconSrc}
 		showWorkingSpark={entry.showWorkingSpark ?? false}
+		workingLineVerbs={entry.workingLineVerbs}
+		workingLineSeed={entry.workingLineSeed}
+		workingLineTokens={entry.workingLineTokens}
+		workingLineInterruptHint={entry.workingLineInterruptHint}
 	/>
 {:else if entry.type === "missing"}
 	<AgentMissingSceneEntry

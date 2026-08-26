@@ -12,6 +12,14 @@
 		size?: "xs" | "sm";
 		/** When true, the Claude working spark replaces the planning label (the timer stays). */
 		showWorkingSpark?: boolean;
+		/**
+		 * AC-269: when true, `label` renders as visible shimmer text next to
+		 * the spark (the Claude Code working line) instead of staying
+		 * aria-label-only. Defaults false so existing spark-only callers (e.g.
+		 * a sub-agent task's inline placeholder) keep their current
+		 * icon-only look.
+		 */
+		showWorkingLineLabel?: boolean;
 		class?: string;
 	}
 
@@ -21,6 +29,7 @@
 		agentIconSrc = null,
 		size = "sm",
 		showWorkingSpark = false,
+		showWorkingLineLabel = false,
 		class: className = "",
 	}: Props = $props();
 
@@ -38,6 +47,11 @@
 	{#if showWorkingSpark}
 		<span class="inline-flex min-w-0 items-center gap-1.5 {sizeClass}">
 			<ClaudeWorkingSpark size={sparkSize} label={displayLabel} />
+			{#if showWorkingLineLabel}
+				<TextShimmer class="shrink-0 {sizeClass}">
+					{displayLabel}
+				</TextShimmer>
+			{/if}
 			{#if showDuration}
 				<AgentToolDurationLabel
 					{timing}

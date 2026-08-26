@@ -264,6 +264,23 @@ export interface AgentThinkingEntry {
 	label?: string | null;
 	agentIconSrc?: string | null;
 	showWorkingSpark?: boolean;
+	/**
+	 * AC-269: the Claude Code working line -- a rotating gerund verb, live
+	 * elapsed timer, and (once real data exists) the running turn's token
+	 * count, e.g. "Puzzling… (12s · ↑ 1.4k tokens · ctrl+c to interrupt)".
+	 * `workingLineVerbs` being non-null/non-empty is what turns the working
+	 * line on; when null or empty the row falls back to `label`/the spark's
+	 * plain static behavior. `workingLineSeed` should be a value stable for
+	 * the whole turn (its id, or its start timestamp) so the verb rotation
+	 * does not reshuffle on re-render. `workingLineTokens` must stay null
+	 * until a real usage reading has arrived -- never a fabricated 0.
+	 * `workingLineInterruptHint` is the host app's real interrupt affordance
+	 * text (e.g. "ctrl+c to interrupt"); null omits that segment.
+	 */
+	workingLineVerbs?: readonly string[] | null;
+	workingLineSeed?: string | number | null;
+	workingLineTokens?: number | null;
+	workingLineInterruptHint?: string | null;
 }
 
 export interface AgentSessionActivityMetadataItem {

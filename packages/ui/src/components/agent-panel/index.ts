@@ -170,6 +170,18 @@ export { default as AgentToolWebSearch } from "./agent-tool-web-search.svelte";
 export { default as ToolKindIcon } from "./tool-kind-icon.svelte";
 export { default as ToolHeaderLeading } from "./tool-header-leading.svelte";
 export { resolveThinkingDurationMs, shouldRunThinkingTimer } from "./thinking-duration.js";
+export {
+	composeWorkingLineDetails,
+	composeWorkingLineText,
+	formatWorkingLineElapsed,
+	formatWorkingLineTokenCount,
+	formatWorkingLineTokens,
+	selectWorkingLineVerb,
+	selectWorkingLineVerbs,
+	WORKING_LINE_VERB_ROTATE_MS,
+	WORKING_LINE_VERBS_CLAUDE,
+	WORKING_LINE_VERBS_NEUTRAL,
+} from "./working-line.js";
 export { default as AgentUserMessage } from "./agent-user-message.svelte";
 export { CommandChip } from "../command-chip/index.js";
 export type { CommandChipModel } from "../command-chip/index.js";
