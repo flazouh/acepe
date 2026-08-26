@@ -371,6 +371,38 @@ describe("deriveCanonicalAgentPanelSessionState", () => {
 		expect(state.canSubmit).toBe(true);
 		expect(state.isStreaming).toBe(false);
 		expect(state.showStop).toBe(false);
+		// #268 defect 3: a turn blocked on an unanswered approval used to fall
+		// through to "none"/"planning" here -- an endless spark with nothing
+		// telling the user the turn was actually stuck, not merely thinking.
+		expect(state.localPlaceholderMode).toBe("waiting_for_approval");
+	});
+
+	// #268 defect 3: reproduces the owner's filmed bug head-on -- a real send
+	// (hasLocalPendingSendIntent) that lands on an approval before any token
+	// or tool call streams back used to keep showing the generic "planning"
+	// spark (shouldShowPlanningPlaceholder's own hasLocalPendingSendIntent
+	// branch), which looks identical to an ordinary in-flight model call.
+	// waiting_for_approval must win.
+	it("shows the waiting-for-approval placeholder instead of the planning spark when an approval blocks a just-sent turn", () => {
+		const state = deriveCanonicalAgentPanelSessionState({
+			source: {
+				kind: "canonical",
+				lifecycle: lifecycle("ready", false, false, true),
+				activity: {
+					kind: "waiting_for_user",
+					activeOperationCount: 0,
+					activeSubagentCount: 0,
+					dominantOperationId: null,
+					blockingInteractionId: "approval-1",
+				},
+				turnState: "Running",
+			},
+			hasEntries: true,
+			hasTrailingCompletedTool: false,
+			hasLocalPendingSendIntent: true,
+		});
+
+		expect(state.localPlaceholderMode).toBe("waiting_for_approval");
 	});
 
 	it("shows connecting feedback while a pending session is activating", () => {

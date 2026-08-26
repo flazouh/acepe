@@ -348,6 +348,42 @@ describe("buildRenderedTranscriptViewportRows", () => {
 		});
 	});
 
+	// #268 defect 3: a turn blocked on an unanswered approval used to render
+	// this same "thinking" row with no label and a spinning spark, identical
+	// to an ordinary in-flight model call. It must now show a static label and
+	// stop spinning, even when the connection presentation would otherwise
+	// turn the spark on.
+	it("shows a static waiting-for-approval label instead of the working spark, regardless of connection presentation", () => {
+		const rows = buildRenderableTranscriptViewportRows({
+			bufferRows: [],
+			bufferStartIndex: 0,
+			optimisticUserEntry: null,
+			localPlaceholderMode: "waiting_for_approval",
+		});
+		const resolver = createRenderedTranscriptViewportRowResolver({
+			optimisticUserEntry: null,
+			planningPlaceholderPresentation: {
+				label: "Planning",
+				agentIconSrc: "/icons/test.svg",
+				showWorkingSpark: true,
+			},
+		});
+		const renderable = rows[0];
+		expect(renderable).toBeDefined();
+		if (renderable === undefined) {
+			return;
+		}
+		const rendered = resolver(renderable);
+
+		expect(rendered.entry).toMatchObject({
+			id: "awaiting:planning",
+			type: "thinking",
+			label: "Waiting for your approval",
+			agentIconSrc: "/icons/test.svg",
+			showWorkingSpark: false,
+		});
+	});
+
 	it("keeps connection feedback after historical completed reasoning in eager and lazy rows", () => {
 		const bufferRows = [
 			createHistoricalAssistantThoughtRow("assistant-thought-1"),

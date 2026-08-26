@@ -250,7 +250,15 @@ export function deriveCanonicalAgentPanelSessionState(
 				effectiveTurnState === "Running" &&
 				input.hasTrailingCompletedTool));
 	let localPlaceholderMode: LocalPlaceholderMode = "none";
-	if (
+	// #268 defect 3: a turn blocked on an unanswered approval (activity.kind
+	// === "waiting_for_user") used to fall through to the same endless
+	// "planning" spark as an in-flight model call, with nothing telling the
+	// user WHY it stalled -- the exact hang the owner filmed. Checked first so
+	// it wins over "planning"/"connection" whenever the canonical activity
+	// says the turn is actually blocked, not merely mid-flight.
+	if (!hasCanonicalError && effectiveActivity?.kind === "waiting_for_user") {
+		localPlaceholderMode = "waiting_for_approval";
+	} else if (
 		!hasCanonicalError &&
 		isConnecting &&
 		(input.hasOptimisticPendingEntry === true || input.hasLocalPendingSendIntent === true)

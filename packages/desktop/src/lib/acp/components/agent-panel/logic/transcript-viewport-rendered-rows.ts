@@ -510,10 +510,29 @@ function appendLocalOptimisticRow(input: {
 	input.representedSceneEntryIds.add(input.entry.id);
 }
 
+// #268 defect 3: a turn blocked on an unanswered approval used to render
+// this same "thinking" placeholder with no label and a spinning spark --
+// indistinguishable from an ordinary in-flight model call, so the owner saw
+// an endless spinner with no way to tell it was actually stuck. A static
+// label replaces the spark for this one mode instead of an animated,
+// content-free row.
+const WAITING_FOR_APPROVAL_LABEL = "Waiting for your approval";
+
 function createLocalPlanningEntry(
 	mode: VisibleLocalPlaceholderMode,
 	presentation: PlanningPlaceholderPresentation | null
 ): AgentPanelSceneEntryModel {
+	if (mode === "waiting_for_approval") {
+		return {
+			id: PLANNING_ROW_ID,
+			type: "thinking",
+			durationMs: null,
+			startedAtMs: null,
+			label: WAITING_FOR_APPROVAL_LABEL,
+			agentIconSrc: presentation?.agentIconSrc ?? null,
+			showWorkingSpark: false,
+		};
+	}
 	return {
 		id: PLANNING_ROW_ID,
 		type: "thinking",
