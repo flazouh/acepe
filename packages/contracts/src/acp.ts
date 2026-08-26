@@ -438,10 +438,11 @@ export type EventBridgeRefreshedPayload = typeof EventBridgeRefreshedPayload.Typ
 // when the provider has reported no output yet, which a tool call's start
 // event never does and its completion event does.
 //
-// TOOL_OUTPUT_CAP bounds the text the way TERMINAL_OUTPUT_CAP bounds a
-// terminal's (see terminal.ts). The event log is append-only, so one
+// TOOL_OUTPUT_CAP bounds the text, because the event log is append-only: one
 // unbounded file-read result would stay in it for the life of the database.
-// It keeps the head, not the tail: a result reads from its start.
+// It keeps the head, where capTerminalOutput (terminal.ts) keeps the tail. The
+// two differ on purpose: a terminal is read for what it did last, a tool result
+// is read from its start.
 export const TOOL_OUTPUT_CAP = 64_000
 
 // The one place a provider's raw output string becomes the canonical field:
@@ -459,7 +460,13 @@ export const observedToolOutput = (output: string | null): string | null => {
 	if (trimmed.length <= TOOL_OUTPUT_CAP) {
 		return trimmed
 	}
-	return trimmed.slice(0, TOOL_OUTPUT_CAP)
+	// The cut is trimmed again, and this is the load-bearing part: tool output is
+	// line-oriented, so the cap often lands on a newline, and a value with
+	// trailing whitespace fails TrimmedNonEmptyString. ToolCallObservedEvent.make
+	// throws on a rejected value rather than failing, which would kill the
+	// adapter's publish fiber. trimEnd cannot empty the result, because trimmed
+	// already starts with a non-whitespace character.
+	return trimmed.slice(0, TOOL_OUTPUT_CAP).trimEnd()
 }
 
 // The one place a provider's raw tool-kind string becomes the canonical

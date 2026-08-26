@@ -7,6 +7,7 @@ import {
 	TOOL_OUTPUT_CAP,
 	ToolCallObservedPayload,
 } from "./acp.ts"
+import { TrimmedNonEmptyString } from "./baseSchemas.ts"
 
 describe("ACP session command domain", () => {
 	it("has 33 session and agent commands", () => {
@@ -66,5 +67,18 @@ describe("observedToolOutput", () => {
 	it("caps an output the append-only event log would otherwise keep for good", () => {
 		const capped = observedToolOutput("x".repeat(TOOL_OUTPUT_CAP + 6_000))
 		expect(capped?.length).toBe(TOOL_OUTPUT_CAP)
+	})
+
+	// Tool output is line-oriented, so the cap lands on a newline often. A capped
+	// value that keeps its trailing newline fails TrimmedNonEmptyString, and
+	// ToolCallObservedEvent.make throws on that rather than failing, which kills
+	// the adapter's publish fiber. The cap test above cannot catch it: "x" repeated
+	// has no whitespace anywhere, so its cut point is never whitespace.
+	it("leaves no trailing whitespace when the cap lands on a newline", () => {
+		const capped = observedToolOutput(
+			`${"a".repeat(TOOL_OUTPUT_CAP - 1)}\n${"b".repeat(100)}`
+		)
+		expect(capped).toBe("a".repeat(TOOL_OUTPUT_CAP - 1))
+		expect(Schema.is(TrimmedNonEmptyString)(capped)).toBe(true)
 	})
 })
