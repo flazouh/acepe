@@ -39,6 +39,7 @@
         "@acepe/effect-result": "workspace:*",
         "@acepe/effect-svelte": "workspace:*",
         "@acepe/electrobun-shell": "workspace:*",
+        "@acepe/qa-scenario": "workspace:*",
         "@acepe/server": "workspace:*",
         "@acepe/transcript-viewport": "workspace:*",
         "@acepe/ui": "workspace:*",

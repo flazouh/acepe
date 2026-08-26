@@ -13,6 +13,9 @@ import { installElectrobunWebviewRpc } from "$lib/rpc/electrobun-bridge.ts";
 import { desktopShellKind, type DesktopShellKind } from "$lib/rpc/electrobun-shell-window.ts";
 import { installQaCaptureHook } from "$lib/rpc/qa-capture-hook.ts";
 import { installQaDispatchHook } from "$lib/rpc/qa-dispatch-hook.ts";
+import { startQaScenario } from "$lib/qa/qa-boot.ts";
+import { readQaMode } from "$lib/qa/qa-mode.ts";
+import { installQaScenarioHook } from "$lib/qa/qa-scenario-hook.ts";
 
 // Same QA-hooks gate as main-app-view.svelte's QA_HOOKS_ENABLED /
 // panel-open-performance-mark.ts: import.meta.env.DEV is false in the
@@ -39,6 +42,35 @@ onMount(() => {
 		hasElectrobunGlobal: "__electrobun" in window,
 	});
 	shell = next;
+
+	// ?qa=<scenario> boots the same shell against a replayed recording instead
+	// of the live server. It works under Electrobun and in a plain browser,
+	// because a scenario needs no bridge and no agent.
+	const qaMode = readQaMode(window.location.search);
+	if (qaMode !== null) {
+		Effect.runFork(
+			startQaScenario(qaMode).pipe(
+				Effect.matchEffect({
+					onFailure: (error) =>
+						Effect.sync(() => {
+							setTimeout(() => {
+								bootError = error.message;
+							}, 0);
+						}),
+					onSuccess: (session) =>
+						Effect.sync(() => {
+							setTimeout(() => {
+								installQaScenarioHook(session);
+								installQaDispatchHook();
+								rpcClient = session.client;
+							}, 0);
+						}),
+				})
+			)
+		);
+		return;
+	}
+
 	if (next !== "electrobun") {
 		return;
 	}
