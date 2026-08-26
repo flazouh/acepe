@@ -200,6 +200,7 @@ export const evolveProjectedSkillsCatalog = (
 			TerminalClosed: () => ignoreEvent(current),
 			SessionReviewFileMarked: () => ignoreEvent(current),
 			SessionReviewStateCleared: () => ignoreEvent(current),
-			ProviderSessionFailed: () => ignoreEvent(current)
+			ProviderSessionFailed: () => ignoreEvent(current),
+			TurnUsageObserved: () => ignoreEvent(current)
 		})
 	)(event)

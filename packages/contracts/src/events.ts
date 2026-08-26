@@ -48,6 +48,7 @@ import {
 	ToolCallObservedPayload,
 	TranscriptPageReadPayload,
 	TranscriptViewportRequestedPayload,
+	TurnUsageObservedPayload,
 } from "./acp.ts"
 import { SettingsValue, UserSettingKey } from "./settings.ts"
 import { ComposerMcpCatalog } from "./mcp.ts"
@@ -135,6 +136,7 @@ export const OrchestrationEventType = Schema.Literals([
 	"SessionReviewFileMarked",
 	"SessionReviewStateCleared",
 	"ProviderSessionFailed",
+	"TurnUsageObserved",
 ])
 export type OrchestrationEventType = typeof OrchestrationEventType.Type
 
@@ -981,6 +983,18 @@ export const ProviderSessionFailedEvent = defineOrchestrationEvent({
 })
 export type ProviderSessionFailedEvent = typeof ProviderSessionFailedEvent.Type
 
+// AC-269: typed carve-out for a provider's usage reading -- see
+// TurnUsageObservedPayload's doc in acp.ts for the swallow pattern this
+// replaces. Projected onto the running turn (ProjectionTurns.ts) instead of
+// folded into opaque SessionMetaUpdated metadata.
+export const TurnUsageObservedEvent = defineOrchestrationEvent({
+	type: "TurnUsageObserved",
+	payload: TurnUsageObservedPayload,
+	aggregateKind: "session",
+	aggregateId: SessionId,
+})
+export type TurnUsageObservedEvent = typeof TurnUsageObservedEvent.Type
+
 export const OrchestrationEvent = Schema.Union([
 	ProjectCreatedEvent,
 	ProjectMetaUpdatedEvent,
@@ -1049,5 +1063,6 @@ export const OrchestrationEvent = Schema.Union([
 	SessionReviewFileMarkedEvent,
 	SessionReviewStateClearedEvent,
 	ProviderSessionFailedEvent,
+	TurnUsageObservedEvent,
 ])
 export type OrchestrationEvent = typeof OrchestrationEvent.Type

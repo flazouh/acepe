@@ -34,7 +34,12 @@ const secondTurnId = TurnId.make("message-2")
 
 type SessionEventType = Extract<
 	OrchestrationEvent["type"],
-	"MessageSent" | "TokenAppended" | "TurnCancelled" | "TurnCompleted" | "ProviderSessionFailed"
+	| "MessageSent"
+	| "TokenAppended"
+	| "TurnCancelled"
+	| "TurnCompleted"
+	| "ProviderSessionFailed"
+	| "TurnUsageObserved"
 >
 
 const sessionEvent = <const Type extends SessionEventType, Payload>(
@@ -129,7 +134,8 @@ Vitest.describe("evolveProjectedTurns", () => {
 					outputTokens: 0,
 					cacheReadTokens: 0,
 					cacheWriteTokens: 0,
-					costUsd: 0
+					costUsd: 0,
+					contextWindowSize: null
 				}
 			])
 			Vitest.assert.isTrue(isOpenTurn(requireTurn(turns, turnId)))
@@ -166,6 +172,114 @@ Vitest.describe("evolveProjectedTurns", () => {
 			Vitest.assert.strictEqual(turn.outputTokens, 3)
 			Vitest.assert.strictEqual(turn.costUsd, 0)
 			Vitest.assert.strictEqual(turn.sequence, 2)
+		})
+	)
+
+	Vitest.it.effect("overwrites the open turn's tokens/cost/context window from TurnUsageObserved", () =>
+		Effect.gen(function*() {
+			const turns = yield* fold([
+				sessionEvent(2, "MessageSent", NOW, {
+					sessionId,
+					messageId,
+					text: "Ship the slice"
+				}),
+				sessionEvent(3, "TokenAppended", LATER, {
+					sessionId,
+					messageId: assistantMessageId,
+					token: "Hello"
+				}),
+				sessionEvent(4, "TurnUsageObserved", LATER, {
+					sessionId,
+					turnId,
+					inputTokens: 120,
+					outputTokens: 48,
+					totalTokens: 168,
+					costUsd: 0.0123,
+					contextWindowSize: 200_000
+				})
+			])
+			const turn = requireTurn(turns, turnId)
+			Vitest.assert.strictEqual(turn.status, "running")
+			// The real provider-reported reading wins over TokenAppended's
+			// streaming-event-count proxy (AC-269) -- see UsageFact's doc.
+			Vitest.assert.strictEqual(turn.inputTokens, 120)
+			Vitest.assert.strictEqual(turn.outputTokens, 48)
+			Vitest.assert.strictEqual(turn.costUsd, 0.0123)
+			Vitest.assert.strictEqual(turn.contextWindowSize, 200_000)
+		})
+	)
+
+	Vitest.it.effect("targets the open turn by session when TurnUsageObserved carries no turn id", () =>
+		Effect.gen(function*() {
+			const turns = yield* fold([
+				sessionEvent(2, "MessageSent", NOW, {
+					sessionId,
+					messageId,
+					text: "Ship the slice"
+				}),
+				sessionEvent(3, "TurnUsageObserved", LATER, {
+					sessionId,
+					outputTokens: 12
+				})
+			])
+			const turn = requireTurn(turns, turnId)
+			Vitest.assert.strictEqual(turn.outputTokens, 12)
+		})
+	)
+
+	Vitest.it.effect("keeps a turn's prior reading when TurnUsageObserved omits a field", () =>
+		Effect.gen(function*() {
+			const turns = yield* fold([
+				sessionEvent(2, "MessageSent", NOW, {
+					sessionId,
+					messageId,
+					text: "Ship the slice"
+				}),
+				sessionEvent(3, "TurnUsageObserved", LATER, {
+					sessionId,
+					turnId,
+					inputTokens: 10,
+					outputTokens: 5
+				}),
+				sessionEvent(4, "TurnUsageObserved", END, {
+					sessionId,
+					turnId,
+					outputTokens: 9
+				})
+			])
+			const turn = requireTurn(turns, turnId)
+			Vitest.assert.strictEqual(turn.inputTokens, 10)
+			Vitest.assert.strictEqual(turn.outputTokens, 9)
+		})
+	)
+
+	Vitest.it.effect("ignores TurnUsageObserved when there is no open turn", () =>
+		Effect.gen(function*() {
+			const turns = yield* fold([
+				sessionEvent(2, "TurnUsageObserved", NOW, {
+					sessionId,
+					outputTokens: 12
+				})
+			])
+			Vitest.assert.deepStrictEqual(turns, [])
+		})
+	)
+
+	Vitest.it.effect("ignores a TurnUsageObserved for another session", () =>
+		Effect.gen(function*() {
+			const turns = yield* fold([
+				sessionEvent(2, "MessageSent", NOW, {
+					sessionId,
+					messageId,
+					text: "Ship the slice"
+				}),
+				sessionEvent(3, "TurnUsageObserved", LATER, {
+					sessionId: otherSessionId,
+					outputTokens: 999
+				})
+			])
+			const turn = requireTurn(turns, turnId)
+			Vitest.assert.strictEqual(turn.outputTokens, 0)
 		})
 	)
 

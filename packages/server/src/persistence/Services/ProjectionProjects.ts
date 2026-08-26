@@ -390,6 +390,7 @@ export const evolveProjectedProjects = (
 			TerminalClosed: () => Effect.succeed(current),
 			SessionReviewFileMarked: () => Effect.succeed(current),
 			SessionReviewStateCleared: () => Effect.succeed(current),
-			ProviderSessionFailed: () => Effect.succeed(current)
+			ProviderSessionFailed: () => Effect.succeed(current),
+			TurnUsageObserved: () => Effect.succeed(current)
 		})
 	)(event)

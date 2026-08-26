@@ -228,7 +228,8 @@ const loadSlice = Effect.fn("ProjectionProjects.loadSlice")(function*(
 			TerminalClosed: ignoreEvent,
 			SessionReviewFileMarked: ignoreEvent,
 			SessionReviewStateCleared: ignoreEvent,
-			ProviderSessionFailed: ignoreEvent
+			ProviderSessionFailed: ignoreEvent,
+			TurnUsageObserved: ignoreEvent
 		})
 	)(event)
 })

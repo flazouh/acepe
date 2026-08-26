@@ -256,7 +256,8 @@ export const evolveProjectedCheckpoint = (
 			TerminalClosed: () => ignoreEvent(current),
 			SessionReviewFileMarked: () => ignoreEvent(current),
 			SessionReviewStateCleared: () => ignoreEvent(current),
-			ProviderSessionFailed: () => ignoreEvent(current)
+			ProviderSessionFailed: () => ignoreEvent(current),
+			TurnUsageObserved: () => ignoreEvent(current)
 		})
 	)(event)
 
@@ -329,6 +330,7 @@ export const checkpointIdFromEvent = (event: OrchestrationEvent): Option.Option<
 			TerminalClosed: () => Option.none(),
 			SessionReviewFileMarked: () => Option.none(),
 			SessionReviewStateCleared: () => Option.none(),
-			ProviderSessionFailed: () => Option.none()
+			ProviderSessionFailed: () => Option.none(),
+			TurnUsageObserved: () => Option.none()
 		})
 	)(event)

@@ -244,7 +244,8 @@ export const rowFromEvent = (
 			TerminalClosed: ignoreEvent,
 			SessionReviewFileMarked: ignoreEvent,
 			SessionReviewStateCleared: ignoreEvent,
-			ProviderSessionFailed: ignoreEvent
+			ProviderSessionFailed: ignoreEvent,
+			TurnUsageObserved: ignoreEvent
 		})
 	)(event)
 

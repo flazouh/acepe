@@ -168,6 +168,7 @@ export const evolveProjectedTerminal = (
 			TerminalClosed: (closed) => fromSnapshotPayload(closed),
 			SessionReviewFileMarked: () => ignoreEvent(current),
 			SessionReviewStateCleared: () => ignoreEvent(current),
-			ProviderSessionFailed: () => ignoreEvent(current)
+			ProviderSessionFailed: () => ignoreEvent(current),
+			TurnUsageObserved: () => ignoreEvent(current)
 		})
 	)(event)

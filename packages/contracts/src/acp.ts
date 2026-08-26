@@ -8,6 +8,7 @@ import {
 	CommandId,
 	SessionId,
 	ToolCallId,
+	TurnId,
 } from "./ids.ts"
 
 export const APP_AGENTS_ID: AgentsId = AgentsId.make("app")
@@ -436,6 +437,26 @@ export const ApprovalRequestedPayload = Schema.Struct({
 	title: TrimmedNonEmptyString,
 })
 export type ApprovalRequestedPayload = typeof ApprovalRequestedPayload.Type
+
+// AC-269: a provider's usage_update/usage-bearing message used to fall into
+// the generic SessionMetaUpdated metadata branch (same swallow pattern
+// #262/#263 already fixed for provider_session/tool calls) -- no projector
+// reads SessionMetaUpdated's metadata for usage, so nothing downstream could
+// show the Claude Code working line's live token count. turnId is optional
+// because an adapter may not always be able to resolve which turn a usage
+// reading belongs to (mirrors TurnCompletedPayload/TurnCancelledPayload).
+export const TurnUsageObservedPayload = Schema.Struct({
+	sessionId: SessionId,
+	turnId: Schema.optionalKey(TurnId),
+	inputTokens: Schema.optionalKey(Schema.Number),
+	outputTokens: Schema.optionalKey(Schema.Number),
+	totalTokens: Schema.optionalKey(Schema.Number),
+	cacheReadTokens: Schema.optionalKey(Schema.Number),
+	cacheWriteTokens: Schema.optionalKey(Schema.Number),
+	costUsd: Schema.optionalKey(Schema.Number),
+	contextWindowSize: Schema.optionalKey(Schema.Number),
+})
+export type TurnUsageObservedPayload = typeof TurnUsageObservedPayload.Type
 
 export const ACP_SESSION_COMMAND_TYPES = [
 	"session.create",

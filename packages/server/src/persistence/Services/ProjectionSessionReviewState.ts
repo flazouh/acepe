@@ -174,6 +174,7 @@ export const reviewProjectionActionForEvent = (
 				kind: "clearSession" as const,
 				sessionId: cleared.payload.sessionId
 			}),
-			ProviderSessionFailed: () => noop
+			ProviderSessionFailed: () => noop,
+			TurnUsageObserved: () => noop
 		})
 	)(event)

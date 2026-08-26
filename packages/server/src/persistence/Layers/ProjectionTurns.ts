@@ -38,7 +38,8 @@ const readByTurnId = Effect.fn("ProjectionTurns.readByTurnId")(function*(
 			output_tokens,
 			cache_read_tokens,
 			cache_write_tokens,
-			cost_usd
+			cost_usd,
+			context_window_size
 		FROM projection_turns
 		WHERE turn_id = ${turnId}
 	`.withoutTransform
@@ -65,7 +66,8 @@ const readBySession = Effect.fn("ProjectionTurns.readBySession")(function*(
 			output_tokens,
 			cache_read_tokens,
 			cache_write_tokens,
-			cost_usd
+			cost_usd,
+			context_window_size
 		FROM projection_turns
 		WHERE session_id = ${sessionId}
 		ORDER BY sequence ASC, turn_id ASC
@@ -90,7 +92,8 @@ const upsert = Effect.fn("ProjectionTurns.upsert")(function*(
 			output_tokens,
 			cache_read_tokens,
 			cache_write_tokens,
-			cost_usd
+			cost_usd,
+			context_window_size
 		) VALUES (
 			${turn.turnId},
 			${turn.sessionId},
@@ -103,7 +106,8 @@ const upsert = Effect.fn("ProjectionTurns.upsert")(function*(
 			${turn.outputTokens},
 			${turn.cacheReadTokens},
 			${turn.cacheWriteTokens},
-			${turn.costUsd}
+			${turn.costUsd},
+			${turn.contextWindowSize}
 		)
 		ON CONFLICT(turn_id) DO UPDATE SET
 			session_id = excluded.session_id,
@@ -116,7 +120,8 @@ const upsert = Effect.fn("ProjectionTurns.upsert")(function*(
 			output_tokens = excluded.output_tokens,
 			cache_read_tokens = excluded.cache_read_tokens,
 			cache_write_tokens = excluded.cache_write_tokens,
-			cost_usd = excluded.cost_usd
+			cost_usd = excluded.cost_usd,
+			context_window_size = excluded.context_window_size
 	`.withoutTransform.pipe(Effect.asVoid)
 })
 

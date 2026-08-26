@@ -10,7 +10,8 @@ import {
 	TrimmedNonEmptyString,
 	TurnCancelledPayload,
 	TurnCompletedPayload,
-	TurnId
+	TurnId,
+	TurnUsageObservedPayload
 } from "@acepe/contracts"
 import * as Arr from "effect/Array"
 import * as Context from "effect/Context"
@@ -41,7 +42,11 @@ export const ProjectedTurn = Schema.Struct({
 	outputTokens: NonNegativeInt,
 	cacheReadTokens: NonNegativeInt,
 	cacheWriteTokens: NonNegativeInt,
-	costUsd: NonNegativeNumber
+	costUsd: NonNegativeNumber,
+	// AC-269: a point-in-time snapshot (the provider's own reported context
+	// window occupancy), not additive across turns -- unlike the token/cost
+	// columns above, deliberately left out of ProjectedSessionUsage's SUM.
+	contextWindowSize: Schema.NullOr(NonNegativeInt)
 })
 export type ProjectedTurn = typeof ProjectedTurn.Type
 
@@ -67,7 +72,8 @@ const ProjectionTurnRow = Schema.Struct({
 	output_tokens: NonNegativeInt,
 	cache_read_tokens: NonNegativeInt,
 	cache_write_tokens: NonNegativeInt,
-	cost_usd: NonNegativeNumber
+	cost_usd: NonNegativeNumber,
+	context_window_size: Schema.NullOr(NonNegativeInt)
 })
 
 const SessionUsageRow = Schema.Struct({
@@ -115,7 +121,8 @@ const projectedTurnFromRow = (row: typeof ProjectionTurnRow.Type): ProjectedTurn
 	outputTokens: row.output_tokens,
 	cacheReadTokens: row.cache_read_tokens,
 	cacheWriteTokens: row.cache_write_tokens,
-	costUsd: row.cost_usd
+	costUsd: row.cost_usd,
+	contextWindowSize: row.context_window_size
 })
 
 const decodeRow = Schema.decodeUnknownEffect(ProjectionTurnRow)
@@ -193,7 +200,8 @@ const startTurn = (input: {
 	outputTokens: input.outputTokens,
 	cacheReadTokens: 0,
 	cacheWriteTokens: 0,
-	costUsd: 0
+	costUsd: 0,
+	contextWindowSize: null
 })
 
 const completeTurn = (turn: ProjectedTurn, endedAt: IsoDateTime): ProjectedTurn => ({
@@ -359,6 +367,54 @@ const projectProviderSessionFailed = (
 		})
 	)
 
+// AC-269: a real provider usage reading always overwrites the field(s) it
+// carries -- unlike TokenAppended's addOutputToken, which only ever counts
+// streaming events as a rough proxy, this is the provider's own authoritative
+// number. A field the payload omits (Schema.optionalKey) keeps the turn's
+// prior reading rather than resetting it, so a later usage event that only
+// reports e.g. outputTokens does not blank out a previously-seen cost.
+const applyUsageToTurn = (
+	turn: ProjectedTurn,
+	payload: typeof TurnUsageObservedPayload.Type
+): ProjectedTurn => ({
+	...turn,
+	inputTokens: payload.inputTokens ?? turn.inputTokens,
+	outputTokens: payload.outputTokens ?? turn.outputTokens,
+	cacheReadTokens: payload.cacheReadTokens ?? turn.cacheReadTokens,
+	cacheWriteTokens: payload.cacheWriteTokens ?? turn.cacheWriteTokens,
+	costUsd: payload.costUsd ?? turn.costUsd,
+	contextWindowSize: payload.contextWindowSize ?? turn.contextWindowSize
+})
+
+// Mirrors projectTurnCompleted/projectTurnCancelled's own targeting: prefer
+// the named turn (if the adapter could resolve one and it's still open),
+// otherwise fall back to whichever turn is currently open for the session. A
+// reading that names no open turn (already completed, or no turn at all) is
+// dropped rather than silently starting/reopening one -- usage never mints a
+// turn on its own, exactly like TurnCancelled/TurnCompleted.
+const projectTurnUsageObserved = (
+	current: ReadonlyArray<ProjectedTurn>,
+	event: Extract<OrchestrationEvent, { readonly type: "TurnUsageObserved" }>
+): Effect.Effect<ReadonlyArray<ProjectedTurn>, Schema.SchemaError> =>
+	decodePayload(TurnUsageObservedPayload, event.payload).pipe(
+		Effect.map((payload) => {
+			if (!forThisSession(current, payload.sessionId)) {
+				return current
+			}
+			const target =
+				payload.turnId !== undefined
+					? Arr.findFirst(
+							current,
+							(turn) => turn.turnId === payload.turnId && isOpenTurn(turn)
+						)
+					: findOpenTurn(current)
+			return Option.match(target, {
+				onNone: () => current,
+				onSome: (turn) => replaceTurn(current, applyUsageToTurn(turn, payload))
+			})
+		})
+	)
+
 export const evolveProjectedTurns = (
 	current: ReadonlyArray<ProjectedTurn>,
 	event: OrchestrationEvent
@@ -432,6 +488,7 @@ export const evolveProjectedTurns = (
 			TerminalClosed: () => Effect.succeed(current),
 			SessionReviewFileMarked: () => Effect.succeed(current),
 			SessionReviewStateCleared: () => Effect.succeed(current),
-			ProviderSessionFailed: (failed) => projectProviderSessionFailed(current, failed)
+			ProviderSessionFailed: (failed) => projectProviderSessionFailed(current, failed),
+			TurnUsageObserved: (observed) => projectTurnUsageObserved(current, observed)
 		})
 	)(event)

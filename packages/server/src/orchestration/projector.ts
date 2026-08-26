@@ -416,7 +416,8 @@ export const projectEvent = (
 			TerminalClosed: () => Effect.succeed(model),
 			SessionReviewFileMarked: () => Effect.succeed(model),
 			SessionReviewStateCleared: () => Effect.succeed(model),
-			ProviderSessionFailed: () => Effect.succeed(model)
+			ProviderSessionFailed: () => Effect.succeed(model),
+			TurnUsageObserved: () => Effect.succeed(model)
 		})
 	)(event)
 }
