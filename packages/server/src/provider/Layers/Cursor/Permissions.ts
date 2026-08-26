@@ -137,6 +137,38 @@ export const decidePermission = Effect.fn("CursorAdapter.decidePermission")(func
 	return yield* Deferred.await(deferred)
 })
 
+// The decision an ABANDONED permission gets. Deny, never allow: the tool
+// call that asked for it is gone (its ACP connection is about to close), so
+// allowing it would run a tool nobody is watching for, on an input nobody
+// re-confirmed.
+const ABANDONED_DECISION: CursorPermissionDecision = "deny"
+
+// Resolves every permission this session still has in flight, and empties
+// the map. Every path that abandons the tool call behind a pending
+// permission MUST call this: decidePermission blocks on a Deferred, and the
+// ACP SDK's own session/request_permission handler is blocked on THAT (see
+// Process.ts's liveConnect), running inside the SDK's own promise chain —
+// so no scope closing, no fiber interruption and no handle teardown can
+// ever unblock it on their own. Left unresolved, the agent waits forever:
+// the turn never ends, the spawned `cursor-agent` subprocess stays alive,
+// and cancelTurn has already dropped the session from `sessions`, so
+// respondToPermission can no longer reach the deferred either. Mirrors
+// Claude/Permissions.ts's drain of the same name. Callers: cancelTurn and
+// shutdown (both in Adapter.ts).
+export const drainPendingPermissions = Effect.fn("CursorAdapter.drainPendingPermissions")(
+	function*(runtime: SessionRuntime) {
+		const abandoned = yield* Ref.getAndSet(
+			runtime.pendingPermissions,
+			HashMap.empty<string, Deferred.Deferred<CursorPermissionDecision>>()
+		)
+		yield* Effect.forEach(
+			HashMap.values(abandoned),
+			(deferred) => Deferred.succeed(deferred, ABANDONED_DECISION),
+			{ discard: true }
+		)
+	}
+)
+
 export const respondToPermission = Effect.fn("CursorAdapter.respondToPermission")(function*(
 	sessions: Ref.Ref<HashMap.HashMap<SessionId, SessionRuntime>>,
 	input: CursorRespondToPermissionInput

@@ -41,6 +41,7 @@ import { providerSessionFact } from "./Facts.ts"
 import {
 	type CursorRespondToPermissionInput,
 	decidePermission,
+	drainPendingPermissions,
 	respondToPermission
 } from "./Permissions.ts"
 import {
@@ -77,6 +78,11 @@ export type CursorAdapter = ProviderAdapter & {
 	readonly respondToPermission: (
 		input: CursorRespondToPermissionInput
 	) => Effect.Effect<void, ProviderAdapterError>
+	// Closes every live session's ACP connection and reaps its spawned
+	// `cursor-agent` subprocess. ProviderBridge calls this structurally, the
+	// same way it calls respondToPermission, on every registered adapter
+	// that exposes it when the bridge's own scope closes.
+	readonly shutdown: Effect.Effect<void>
 }
 
 export type CursorAdapterOptions = {
@@ -176,10 +182,41 @@ export const makeCursorAdapter = Effect.fn("makeCursorAdapter")(function*(
 		const cancelled = yield* makeCancelled(runtime)
 		yield* offerOutbound(runtime, cancelled).pipe(Effect.ignore)
 		yield* runtime.handle.cancel(acpSessionId).pipe(Effect.ignore)
-		yield* Queue.end(runtime.outbound).pipe(Effect.asVoid)
 		yield* runtime.handle.close
+		// Drained AFTER the handle is closed, not before it: the agent can
+		// still raise a session/request_permission while session/cancel is
+		// in flight, and a permission asked inside that window would survive
+		// an earlier drain with nobody left to answer it — this session is
+		// about to leave `sessions` entirely, so respondToPermission could
+		// not reach it either. Closing the handle first is what makes this
+		// the last possible moment a new one can arrive. Still ahead of
+		// Queue.end below, because the drain publishes onto outbound. See
+		// drainPendingPermissions.
+		yield* drainPendingPermissions(runtime)
+		yield* Queue.end(runtime.outbound).pipe(Effect.asVoid)
 		yield* Ref.update(sessions, (current) => HashMap.remove(current, request.sessionId))
 	})
+
+	// Tears down every live session's ACP connection and spawned
+	// `cursor-agent` subprocess on app/layer shutdown, not just on an
+	// explicit cancel — ProviderBridge.ts calls this structurally on every
+	// registered adapter that exposes it (see supportsShutdown there).
+	// Without it, quitting the app left both the subprocess and every
+	// pending ACP permission behind.
+	const shutdown = Effect.gen(function*() {
+		const current = yield* Ref.getAndSet(sessions, HashMap.empty<SessionId, SessionRuntime>())
+		yield* Effect.forEach(
+			HashMap.values(current),
+			(runtime) =>
+				runtime.handle.close.pipe(
+					// Same order as cancelTurn's, for the same reason.
+					Effect.andThen(drainPendingPermissions(runtime)),
+					Effect.andThen(Queue.end(runtime.outbound)),
+					Effect.asVoid
+				),
+			{ discard: true, concurrency: "unbounded" }
+		)
+	}).pipe(Effect.withSpan("CursorAdapter.shutdown"))
 
 	return {
 		providerId: CURSOR_PROVIDER_ID,
@@ -189,7 +226,8 @@ export const makeCursorAdapter = Effect.fn("makeCursorAdapter")(function*(
 		sendPrompt,
 		cancelTurn,
 		respondToPermission: (input: CursorRespondToPermissionInput) =>
-			respondToPermission(sessions, input)
+			respondToPermission(sessions, input),
+		shutdown
 	} satisfies CursorAdapter
 })
 

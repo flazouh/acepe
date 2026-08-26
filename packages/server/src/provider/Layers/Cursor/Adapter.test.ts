@@ -12,6 +12,7 @@ import * as BunPath from "@effect/platform-bun/BunPath"
 import * as Vitest from "@effect/vitest"
 import * as Arr from "effect/Array"
 import type { Done } from "effect/Cause"
+import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Fiber from "effect/Fiber"
 import * as FileSystem from "effect/FileSystem"
@@ -134,6 +135,11 @@ const nextToolCallObserved = Effect.fn("nextToolCallObserved")(function*(
 	}
 	return found
 })
+
+// Generous next to the rest of this file: a pending permission that is
+// resolved at all is resolved by the abandoning path itself, synchronously,
+// so anything past this is the forever-hang the tests below exist to catch.
+const ABANDONED_DECISION_TIMEOUT = Duration.seconds(2)
 
 const fakeConnect = (
 	inbound: Queue.Queue<Json, Done>,
@@ -450,6 +456,108 @@ Vitest.describe("CursorAdapter", () => {
 			Vitest.assert.strictEqual(yield* Fiber.join(firstFiber), "allow")
 			Vitest.assert.strictEqual(yield* Fiber.join(secondFiber), "deny")
 			yield* adapter.cancelTurn({ sessionId })
+		})
+	)
+
+	// A pending ACP permission blocks the agent's own
+	// session/request_permission call on decidePermission's Deferred (see
+	// Permissions.ts), and the ACP SDK awaits that promise on a handler the
+	// adapter cannot interrupt. cancelTurn ended outbound, closed the handle
+	// and dropped the session from `sessions` without ever resolving it, so
+	// the handler waited forever AND respondToPermission could no longer
+	// reach the session that owned the deferred. Same abandoning paths
+	// ClaudeAdapter already covers with drainPendingPermissions.
+	Vitest.it.live("cancelTurn denies a permission the ACP client is still blocked on", () =>
+		Effect.gen(function*() {
+			const inbound = yield* Queue.unbounded<Json, Done>()
+			const cancels = yield* Ref.make(0)
+			const cwds = yield* Ref.make<ReadonlyArray<string>>(Arr.empty())
+			const asked = yield* Ref.make(Option.none<CursorConnectInput["onPermissionRequest"]>())
+			const adapter = yield* makeCursorAdapter({
+				presence: Effect.succeed(cursorPresence(true, true)),
+				resolveLaunch: Effect.succeed(registryLaunch),
+				connect: (input: CursorConnectInput) =>
+					Ref.set(asked, Option.some(input.onPermissionRequest)).pipe(
+						Effect.as(fakeHandle(inbound, cancels, cwds))
+					)
+			})
+			const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
+			yield* adapter
+				.startSession({
+					sessionId,
+					projectId,
+					workspaceRoot: "/tmp/acepe"
+				})
+				.pipe(
+					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
+					Effect.forkChild({ startImmediately: true })
+				)
+			yield* Queue.take(events)
+			const handler = yield* Ref.get(asked)
+			if (Option.isNone(handler)) {
+				Vitest.assert.fail("expected connect to receive an onPermissionRequest handler")
+				return
+			}
+			const decisionFiber = yield* handler
+				.value(acpPermissionRequest("call_9"))
+				.pipe(Effect.forkChild({ startImmediately: true }))
+			yield* nextApprovalRequested(events)
+			yield* adapter.cancelTurn({ sessionId })
+			const decision = yield* Fiber.join(decisionFiber).pipe(
+				Effect.timeoutOption(ABANDONED_DECISION_TIMEOUT)
+			)
+			if (Option.isNone(decision)) {
+				Vitest.assert.fail("cancelTurn left the ACP permission request pending forever")
+				return
+			}
+			Vitest.assert.strictEqual(decision.value, "deny")
+		})
+	)
+
+	Vitest.it.live("shutdown denies a permission the ACP client is still blocked on", () =>
+		Effect.gen(function*() {
+			const inbound = yield* Queue.unbounded<Json, Done>()
+			const cancels = yield* Ref.make(0)
+			const cwds = yield* Ref.make<ReadonlyArray<string>>(Arr.empty())
+			const asked = yield* Ref.make(Option.none<CursorConnectInput["onPermissionRequest"]>())
+			const adapter = yield* makeCursorAdapter({
+				presence: Effect.succeed(cursorPresence(true, true)),
+				resolveLaunch: Effect.succeed(registryLaunch),
+				connect: (input: CursorConnectInput) =>
+					Ref.set(asked, Option.some(input.onPermissionRequest)).pipe(
+						Effect.as(fakeHandle(inbound, cancels, cwds))
+					)
+			})
+			const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
+			yield* adapter
+				.startSession({
+					sessionId,
+					projectId,
+					workspaceRoot: "/tmp/acepe"
+				})
+				.pipe(
+					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
+					Effect.forkChild({ startImmediately: true })
+				)
+			yield* Queue.take(events)
+			const handler = yield* Ref.get(asked)
+			if (Option.isNone(handler)) {
+				Vitest.assert.fail("expected connect to receive an onPermissionRequest handler")
+				return
+			}
+			const decisionFiber = yield* handler
+				.value(acpPermissionRequest("call_9"))
+				.pipe(Effect.forkChild({ startImmediately: true }))
+			yield* nextApprovalRequested(events)
+			yield* adapter.shutdown
+			const decision = yield* Fiber.join(decisionFiber).pipe(
+				Effect.timeoutOption(ABANDONED_DECISION_TIMEOUT)
+			)
+			if (Option.isNone(decision)) {
+				Vitest.assert.fail("shutdown left the ACP permission request pending forever")
+				return
+			}
+			Vitest.assert.strictEqual(decision.value, "deny")
 		})
 	)
 
