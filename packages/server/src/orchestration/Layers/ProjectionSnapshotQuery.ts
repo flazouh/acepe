@@ -180,7 +180,19 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 				return Arr.empty<ProjectedTurn>()
 			}
 			const rows = yield* sql`
-				SELECT turn_id, session_id, sequence
+				SELECT
+					turn_id,
+					session_id,
+					sequence,
+					status,
+					started_at,
+					ended_at,
+					input_tokens,
+					output_tokens,
+					cache_read_tokens,
+					cache_write_tokens,
+					cost_usd,
+					context_window_size
 				FROM projection_turns
 				WHERE session_id = ${sessionId}
 					AND sequence <= ${snapshotSequence}

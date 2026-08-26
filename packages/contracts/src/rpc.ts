@@ -341,10 +341,30 @@ export const RpcProjectedMessage = Schema.Union([
 ])
 export type RpcProjectedMessage = typeof RpcProjectedMessage.Type
 
+// AC-269: widened so the client can find the running turn and read its live
+// token usage for the Claude Code working line -- mirrors
+// packages/server/src/persistence/Services/ProjectionTurns.ts's
+// ProjectedTurn (the SQL-authoritative shape), same field set and column
+// semantics, projected here onto the RPC snapshot.
+export const RpcTurnStatus = Schema.Literals(["running", "completed", "cancelled"])
+export type RpcTurnStatus = typeof RpcTurnStatus.Type
+
+const RpcNonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
+const RpcNonNegativeNumber = Schema.Number.check(Schema.isGreaterThanOrEqualTo(0))
+
 export const RpcProjectedTurn = Schema.Struct({
 	turnId: TurnId,
 	sessionId: SessionId,
 	sequence: Sequence,
+	status: RpcTurnStatus,
+	startedAt: Schema.NullOr(Schema.String),
+	endedAt: Schema.NullOr(Schema.String),
+	inputTokens: RpcNonNegativeInt,
+	outputTokens: RpcNonNegativeInt,
+	cacheReadTokens: RpcNonNegativeInt,
+	cacheWriteTokens: RpcNonNegativeInt,
+	costUsd: RpcNonNegativeNumber,
+	contextWindowSize: Schema.NullOr(RpcNonNegativeInt),
 })
 export type RpcProjectedTurn = typeof RpcProjectedTurn.Type
 

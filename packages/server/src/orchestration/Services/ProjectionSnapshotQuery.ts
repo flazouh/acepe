@@ -74,10 +74,30 @@ export const SNAPSHOT_OPTIONAL_TABLES = [
 	PROJECTION_SESSION_REVIEW_STATE_TABLE
 ] as const
 
+// AC-269: widened so the client's session snapshot (RpcSessionSnapshot.turns
+// via toRpcSnapshot) can find the running turn and read its live token usage
+// for the Claude Code working line -- see TurnStatus/ProjectedTurn in
+// ../../persistence/Services/ProjectionTurns.ts, the SQL-authoritative
+// version this mirrors (same field set, same column names).
+const TurnStatus = Schema.Literals(["running", "completed", "cancelled"])
+export type TurnStatus = typeof TurnStatus.Type
+
+const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
+const NonNegativeNumber = Schema.Number.check(Schema.isGreaterThanOrEqualTo(0))
+
 export const ProjectedTurn = Schema.Struct({
 	turnId: TurnId,
 	sessionId: SessionId,
-	sequence: Sequence
+	sequence: Sequence,
+	status: TurnStatus,
+	startedAt: Schema.NullOr(Schema.String),
+	endedAt: Schema.NullOr(Schema.String),
+	inputTokens: NonNegativeInt,
+	outputTokens: NonNegativeInt,
+	cacheReadTokens: NonNegativeInt,
+	cacheWriteTokens: NonNegativeInt,
+	costUsd: NonNegativeNumber,
+	contextWindowSize: Schema.NullOr(NonNegativeInt)
 })
 export type ProjectedTurn = typeof ProjectedTurn.Type
 
@@ -125,7 +145,16 @@ export type SessionProjectionSnapshot = typeof SessionProjectionSnapshot.Type
 export const ProjectedTurnStoredRow = Schema.Struct({
 	turn_id: TurnId,
 	session_id: SessionId,
-	sequence: Sequence
+	sequence: Sequence,
+	status: TurnStatus,
+	started_at: Schema.NullOr(Schema.String),
+	ended_at: Schema.NullOr(Schema.String),
+	input_tokens: NonNegativeInt,
+	output_tokens: NonNegativeInt,
+	cache_read_tokens: NonNegativeInt,
+	cache_write_tokens: NonNegativeInt,
+	cost_usd: NonNegativeNumber,
+	context_window_size: Schema.NullOr(NonNegativeInt)
 })
 export type ProjectedTurnStoredRow = typeof ProjectedTurnStoredRow.Type
 
@@ -162,7 +191,16 @@ export const decodeSessionProjectionSnapshot = Schema.decodeUnknownEffect(Sessio
 const projectedTurnFromRow = (row: ProjectedTurnStoredRow): ProjectedTurn => ({
 	turnId: row.turn_id,
 	sessionId: row.session_id,
-	sequence: row.sequence
+	sequence: row.sequence,
+	status: row.status,
+	startedAt: row.started_at,
+	endedAt: row.ended_at,
+	inputTokens: row.input_tokens,
+	outputTokens: row.output_tokens,
+	cacheReadTokens: row.cache_read_tokens,
+	cacheWriteTokens: row.cache_write_tokens,
+	costUsd: row.cost_usd,
+	contextWindowSize: row.context_window_size
 })
 
 const projectedSessionActivityFromRow = (

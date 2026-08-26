@@ -188,7 +188,16 @@ const createOptionalTables = Effect.gen(function*() {
 		CREATE TABLE IF NOT EXISTS projection_turns (
 			turn_id TEXT PRIMARY KEY NOT NULL,
 			session_id TEXT NOT NULL,
-			sequence INTEGER NOT NULL
+			sequence INTEGER NOT NULL,
+			status TEXT NOT NULL DEFAULT 'running',
+			started_at TEXT,
+			ended_at TEXT,
+			input_tokens INTEGER NOT NULL DEFAULT 0,
+			output_tokens INTEGER NOT NULL DEFAULT 0,
+			cache_read_tokens INTEGER NOT NULL DEFAULT 0,
+			cache_write_tokens INTEGER NOT NULL DEFAULT 0,
+			cost_usd REAL NOT NULL DEFAULT 0,
+			context_window_size INTEGER
 		)
 	`.withoutTransform
 	yield* sql`
@@ -455,7 +464,16 @@ Vitest.layer(isolatedQuery())("one transaction snapshot", (it) => {
 				{
 					turnId: TurnId.make("turn-1"),
 					sessionId,
-					sequence: 3
+					sequence: 3,
+					status: "running",
+					startedAt: null,
+					endedAt: null,
+					inputTokens: 0,
+					outputTokens: 0,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+					costUsd: 0,
+					contextWindowSize: null
 				}
 			])
 			Vitest.assert.deepStrictEqual(snapshot.activities, [

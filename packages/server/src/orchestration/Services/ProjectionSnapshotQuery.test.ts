@@ -77,7 +77,16 @@ Vitest.describe("SessionProjectionSnapshot", () => {
 					{
 						turnId: TurnId.make("turn-1"),
 						sessionId,
-						sequence: 3
+						sequence: 3,
+						status: "running",
+						startedAt: now,
+						endedAt: null,
+						inputTokens: 0,
+						outputTokens: 0,
+						cacheReadTokens: 0,
+						cacheWriteTokens: 0,
+						costUsd: 0,
+						contextWindowSize: null
 					}
 				],
 				activities: [
@@ -126,7 +135,16 @@ Vitest.describe("optional projection row mappers", () => {
 				{
 					turn_id: "turn-1",
 					session_id: sessionId,
-					sequence: 3
+					sequence: 3,
+					status: "running",
+					started_at: now,
+					ended_at: null,
+					input_tokens: 0,
+					output_tokens: 0,
+					cache_read_tokens: 0,
+					cache_write_tokens: 0,
+					cost_usd: 0,
+					context_window_size: null
 				}
 			])
 			const activities = yield* decodeProjectedSessionActivities([
@@ -147,7 +165,16 @@ Vitest.describe("optional projection row mappers", () => {
 				{
 					turnId: TurnId.make("turn-1"),
 					sessionId,
-					sequence: 3
+					sequence: 3,
+					status: "running",
+					startedAt: now,
+					endedAt: null,
+					inputTokens: 0,
+					outputTokens: 0,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+					costUsd: 0,
+					contextWindowSize: null
 				}
 			])
 			Vitest.assert.deepStrictEqual(activities, [

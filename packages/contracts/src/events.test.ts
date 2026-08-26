@@ -75,6 +75,7 @@ import {
 	ToolCallObservedPayload,
 	TranscriptPageReadPayload,
 	TranscriptViewportRequestedPayload,
+	TurnUsageObservedPayload,
 	APP_AGENTS_ID,
 } from "./acp.ts"
 import { ActivityId, ApprovalRequestId, CheckpointId, CommandId, EventId, MessageId, ProjectId, SessionId, TerminalId, ToolCallId, TurnId } from "./ids.ts"
@@ -157,6 +158,7 @@ const v1EventTypes = [
 	"SessionReviewFileMarked",
 	"SessionReviewStateCleared",
 	"ProviderSessionFailed",
+	"TurnUsageObserved",
 ] as const
 
 type V1EventType = (typeof v1EventTypes)[number]
@@ -861,6 +863,18 @@ const memberCases = [
 			providerId: "claude-code",
 			operation: "startSession",
 			detail: "Claude query stream failed",
+		}),
+	},
+	{
+		payloadSchema: TurnUsageObservedPayload,
+		event: sessionEvent("TurnUsageObserved", {
+			sessionId,
+			turnId,
+			inputTokens: 120,
+			outputTokens: 48,
+			totalTokens: 168,
+			costUsd: 0.0123,
+			contextWindowSize: 200_000,
 		}),
 	},
 ] as const

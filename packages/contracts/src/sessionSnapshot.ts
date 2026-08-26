@@ -13,12 +13,13 @@ import {
 	type GitHunkDecision,
 	type ProjectedGitReview,
 } from "./git.ts"
-import type { SessionId } from "./ids.ts"
+import { TurnId, type SessionId } from "./ids.ts"
 import {
 	type RpcProjectedCheckpoint,
 	type RpcProjectedMessage,
 	type RpcProjectedSession,
 	type RpcProjectedSetting,
+	type RpcProjectedTurn,
 	type RpcSessionSnapshot,
 } from "./rpc.ts"
 import { emptyProjectedVoice, type ProjectedVoice, type VoiceModelInfo } from "./voice.ts"
@@ -996,6 +997,116 @@ const applySessionReviewStateCleared = (
 	)
 }
 
+// AC-269: the live-folding counterpart to
+// ../server/persistence/Services/ProjectionTurns.ts's evolveProjectedTurns --
+// same turn lifecycle (MessageSent opens one, TurnCompleted/TurnCancelled
+// close it, TurnUsageObserved overwrites the field(s) it carries), applied
+// here to RpcSessionSnapshot.turns instead of the SQL projection, so a
+// session's live event stream keeps the snapshot's running turn (and its
+// token usage) up to date without a round trip through the server.
+const isOpenRpcTurn = (turn: RpcProjectedTurn): boolean =>
+	turn.status === "running" && turn.endedAt === null
+
+const findOpenRpcTurn = (turns: ReadonlyArray<RpcProjectedTurn>): Option.Option<RpcProjectedTurn> =>
+	Arr.findLast(turns, isOpenRpcTurn)
+
+const hasRpcTurnId = (
+	turns: ReadonlyArray<RpcProjectedTurn>,
+	turnId: RpcProjectedTurn["turnId"],
+): boolean => Arr.some(turns, (turn) => turn.turnId === turnId)
+
+const replaceRpcTurn = (
+	turns: ReadonlyArray<RpcProjectedTurn>,
+	next: RpcProjectedTurn,
+): ReadonlyArray<RpcProjectedTurn> =>
+	hasRpcTurnId(turns, next.turnId)
+		? Arr.map(turns, (turn) => (turn.turnId === next.turnId ? next : turn))
+		: Arr.append(turns, next)
+
+const closeOpenRpcTurns = (
+	turns: ReadonlyArray<RpcProjectedTurn>,
+	endedAt: string,
+	status: "completed" | "cancelled",
+): ReadonlyArray<RpcProjectedTurn> =>
+	Arr.map(turns, (turn) => (isOpenRpcTurn(turn) ? { ...turn, status, endedAt } : turn))
+
+const startRpcTurn = (input: {
+	readonly turnId: RpcProjectedTurn["turnId"]
+	readonly sessionId: SessionId
+	readonly sequence: Sequence
+	readonly startedAt: string
+}): RpcProjectedTurn => ({
+	turnId: input.turnId,
+	sessionId: input.sessionId,
+	sequence: input.sequence,
+	status: "running",
+	startedAt: input.startedAt,
+	endedAt: null,
+	inputTokens: 0,
+	outputTokens: 0,
+	cacheReadTokens: 0,
+	cacheWriteTokens: 0,
+	costUsd: 0,
+	contextWindowSize: null,
+})
+
+const findTargetRpcTurn = (
+	turns: ReadonlyArray<RpcProjectedTurn>,
+	turnId: RpcProjectedTurn["turnId"] | undefined,
+): Option.Option<RpcProjectedTurn> =>
+	turnId !== undefined
+		? Arr.findFirst(turns, (turn) => turn.turnId === turnId && isOpenRpcTurn(turn))
+		: findOpenRpcTurn(turns)
+
+const closeRpcTurnFromEvent = (
+	snapshot: RpcSessionSnapshot,
+	event: Extract<OrchestrationEvent, { readonly type: "TurnCompleted" | "TurnCancelled" }>,
+	status: "completed" | "cancelled",
+): RpcSessionSnapshot => {
+	if (!isThisSession(snapshot, event.payload.sessionId)) {
+		return withSequence(snapshot, event.sequence)
+	}
+	const target = findTargetRpcTurn(snapshot.turns, event.payload.turnId)
+	const turns = Option.match(target, {
+		onNone: () => snapshot.turns,
+		onSome: (turn) =>
+			replaceRpcTurn(snapshot.turns, { ...turn, status, endedAt: event.occurredAt }),
+	})
+	return {
+		...withSequence(snapshot, event.sequence),
+		session: touchSession(snapshot.session, event.occurredAt),
+		turns,
+	}
+}
+
+const applyTurnUsageObserved = (
+	snapshot: RpcSessionSnapshot,
+	event: Extract<OrchestrationEvent, { readonly type: "TurnUsageObserved" }>,
+): RpcSessionSnapshot => {
+	if (!isThisSession(snapshot, event.payload.sessionId)) {
+		return withSequence(snapshot, event.sequence)
+	}
+	const target = findTargetRpcTurn(snapshot.turns, event.payload.turnId)
+	const turns = Option.match(target, {
+		onNone: () => snapshot.turns,
+		onSome: (turn) =>
+			replaceRpcTurn(snapshot.turns, {
+				...turn,
+				inputTokens: event.payload.inputTokens ?? turn.inputTokens,
+				outputTokens: event.payload.outputTokens ?? turn.outputTokens,
+				cacheReadTokens: event.payload.cacheReadTokens ?? turn.cacheReadTokens,
+				cacheWriteTokens: event.payload.cacheWriteTokens ?? turn.cacheWriteTokens,
+				costUsd: event.payload.costUsd ?? turn.costUsd,
+				contextWindowSize: event.payload.contextWindowSize ?? turn.contextWindowSize,
+			}),
+	})
+	return {
+		...withSequence(snapshot, event.sequence),
+		session: touchSession(snapshot.session, event.occurredAt),
+		turns,
+	}
+}
+
 export const applyEventToRpcSessionSnapshot = (
 	snapshot: RpcSessionSnapshot,
 	event: OrchestrationEvent,
@@ -1012,12 +1123,27 @@ export const applyEventToRpcSessionSnapshot = (
 			if (!isThisSession(snapshot, event.payload.sessionId)) {
 				return withSequence(snapshot, event.sequence)
 			}
-			return replaceMessages(
-				snapshot,
-				event.sequence,
-				appendUser(snapshot.messages, event),
-				touchSession(snapshot.session, event.occurredAt),
-			)
+			const turnId = TurnId.make(event.payload.messageId)
+			const turns = hasRpcTurnId(snapshot.turns, turnId)
+				? snapshot.turns
+				: Arr.append(
+						closeOpenRpcTurns(snapshot.turns, event.occurredAt, "completed"),
+						startRpcTurn({
+							turnId,
+							sessionId: event.payload.sessionId,
+							sequence: event.sequence,
+							startedAt: event.occurredAt,
+						}),
+					)
+			return {
+				...replaceMessages(
+					snapshot,
+					event.sequence,
+					appendUser(snapshot.messages, event),
+					touchSession(snapshot.session, event.occurredAt),
+				),
+				turns,
+			}
 		}
 		case "TokenAppended": {
 			if (!isThisSession(snapshot, event.payload.sessionId)) {
@@ -1030,6 +1156,12 @@ export const applyEventToRpcSessionSnapshot = (
 				touchSession(snapshot.session, event.occurredAt),
 			)
 		}
+		case "TurnCompleted":
+			return closeRpcTurnFromEvent(snapshot, event, "completed")
+		case "TurnCancelled":
+			return closeRpcTurnFromEvent(snapshot, event, "cancelled")
+		case "TurnUsageObserved":
+			return applyTurnUsageObserved(snapshot, event)
 		case "SettingsUpdated":
 			return applySettingsUpdated(snapshot, event)
 		case "CheckpointCreated":

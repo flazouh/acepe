@@ -1,6 +1,15 @@
 import { describe, expect, it } from "bun:test"
 
-import { CheckpointId, CommandId, EventId, MessageId, ProjectId, SessionId, TerminalId } from "./ids.ts"
+import {
+	CheckpointId,
+	CommandId,
+	EventId,
+	MessageId,
+	ProjectId,
+	SessionId,
+	TerminalId,
+	TurnId,
+} from "./ids.ts"
 import { APP_SETTINGS_ID } from "./settings.ts"
 import {
 	applyEventToRpcSessionSnapshot,
@@ -75,7 +84,151 @@ const tokenAt = (sequence: number, token: string) => ({
 	},
 })
 
+const userTurnId = TurnId.make(userMessageId)
+
+const turnCompleted = (sequence: number, occurredAtOverride = occurredAt) => ({
+	sequence,
+	eventId: EventId.make(`event-${sequence}`),
+	aggregateKind: "session" as const,
+	aggregateId: sessionId,
+	occurredAt: occurredAtOverride,
+	commandId,
+	causationEventId: null,
+	correlationId: commandId,
+	metadata: {},
+	type: "TurnCompleted" as const,
+	payload: {
+		sessionId,
+		turnId: userTurnId,
+	},
+})
+
+const turnCancelled = (sequence: number) => ({
+	sequence,
+	eventId: EventId.make(`event-${sequence}`),
+	aggregateKind: "session" as const,
+	aggregateId: sessionId,
+	occurredAt,
+	commandId,
+	causationEventId: null,
+	correlationId: commandId,
+	metadata: {},
+	type: "TurnCancelled" as const,
+	payload: {
+		sessionId,
+		turnId: userTurnId,
+	},
+})
+
+const turnUsageObserved = (
+	sequence: number,
+	payload: Partial<{
+		readonly inputTokens: number
+		readonly outputTokens: number
+		readonly totalTokens: number
+		readonly costUsd: number
+		readonly contextWindowSize: number
+	}> = {},
+	forSessionId = sessionId,
+) => ({
+	sequence,
+	eventId: EventId.make(`event-${sequence}`),
+	aggregateKind: "session" as const,
+	aggregateId: sessionId,
+	occurredAt,
+	commandId,
+	causationEventId: null,
+	correlationId: commandId,
+	metadata: {},
+	type: "TurnUsageObserved" as const,
+	payload: {
+		sessionId: forSessionId,
+		turnId: userTurnId,
+		...payload,
+	},
+})
+
 describe("applyEventToRpcSessionSnapshot", () => {
+	it("opens a running turn on MessageSent", () => {
+		const afterSession = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), sessionCreated)
+		const afterUser = applyEventToRpcSessionSnapshot(afterSession, messageSent)
+		expect(afterUser.turns).toEqual([
+			{
+				turnId: userTurnId,
+				sessionId,
+				sequence: 3,
+				status: "running",
+				startedAt: occurredAt,
+				endedAt: null,
+				inputTokens: 0,
+				outputTokens: 0,
+				cacheReadTokens: 0,
+				cacheWriteTokens: 0,
+				costUsd: 0,
+				contextWindowSize: null,
+			},
+		])
+	})
+
+	it("closes the running turn as completed on TurnCompleted", () => {
+		const afterSession = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), sessionCreated)
+		const afterUser = applyEventToRpcSessionSnapshot(afterSession, messageSent)
+		const afterCompleted = applyEventToRpcSessionSnapshot(afterUser, turnCompleted(4))
+		expect(afterCompleted.turns[0]?.status).toBe("completed")
+		expect(afterCompleted.turns[0]?.endedAt).toBe(occurredAt)
+	})
+
+	it("closes the running turn as cancelled on TurnCancelled", () => {
+		const afterSession = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), sessionCreated)
+		const afterUser = applyEventToRpcSessionSnapshot(afterSession, messageSent)
+		const afterCancelled = applyEventToRpcSessionSnapshot(afterUser, turnCancelled(4))
+		expect(afterCancelled.turns[0]?.status).toBe("cancelled")
+	})
+
+	it("overwrites the running turn's usage fields from TurnUsageObserved", () => {
+		const afterSession = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), sessionCreated)
+		const afterUser = applyEventToRpcSessionSnapshot(afterSession, messageSent)
+		const afterUsage = applyEventToRpcSessionSnapshot(
+			afterUser,
+			turnUsageObserved(4, {
+				inputTokens: 120,
+				outputTokens: 48,
+				costUsd: 0.0123,
+				contextWindowSize: 200_000,
+			}),
+		)
+		expect(afterUsage.turns[0]?.inputTokens).toBe(120)
+		expect(afterUsage.turns[0]?.outputTokens).toBe(48)
+		expect(afterUsage.turns[0]?.costUsd).toBe(0.0123)
+		expect(afterUsage.turns[0]?.contextWindowSize).toBe(200_000)
+		expect(afterUsage.turns[0]?.status).toBe("running")
+	})
+
+	it("keeps a prior usage reading when a later TurnUsageObserved omits a field", () => {
+		const afterSession = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), sessionCreated)
+		const afterUser = applyEventToRpcSessionSnapshot(afterSession, messageSent)
+		const afterFirstUsage = applyEventToRpcSessionSnapshot(
+			afterUser,
+			turnUsageObserved(4, { inputTokens: 10, outputTokens: 5 }),
+		)
+		const afterSecondUsage = applyEventToRpcSessionSnapshot(
+			afterFirstUsage,
+			turnUsageObserved(5, { outputTokens: 9 }),
+		)
+		expect(afterSecondUsage.turns[0]?.inputTokens).toBe(10)
+		expect(afterSecondUsage.turns[0]?.outputTokens).toBe(9)
+	})
+
+	it("ignores TurnUsageObserved for another session", () => {
+		const afterSession = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), sessionCreated)
+		const afterUser = applyEventToRpcSessionSnapshot(afterSession, messageSent)
+		const afterUsage = applyEventToRpcSessionSnapshot(
+			afterUser,
+			turnUsageObserved(4, { outputTokens: 999 }, otherSessionId),
+		)
+		expect(afterUsage.turns[0]?.outputTokens).toBe(0)
+	})
+
 	it("discards events at or below snapshotSequence", () => {
 		const loaded = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), sessionCreated)
 		const again = applyEventToRpcSessionSnapshot(loaded, sessionCreated)
