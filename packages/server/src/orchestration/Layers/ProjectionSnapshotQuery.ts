@@ -219,7 +219,8 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 					status,
 					title,
 					path,
-					tool_call_id
+					tool_call_id,
+					output
 				FROM projection_session_activities
 				WHERE session_id = ${sessionId}
 					AND sequence <= ${snapshotSequence}

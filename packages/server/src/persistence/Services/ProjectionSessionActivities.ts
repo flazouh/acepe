@@ -8,6 +8,7 @@ import {
 	Sequence,
 	SessionId,
 	ToolCallId,
+	ToolCallObservedPayload as ContractToolCallObservedPayload,
 	TrimmedNonEmptyString
 } from "@acepe/contracts"
 import * as Context from "effect/Context"
@@ -16,6 +17,7 @@ import * as HashSet from "effect/HashSet"
 import * as Match from "effect/Match"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
+import * as Struct from "effect/Struct"
 import type * as SqlClient from "effect/unstable/sql/SqlClient"
 import type { SqlError } from "effect/unstable/sql/SqlError"
 
@@ -85,23 +87,12 @@ export const decodeProjectionSessionActivityStoredRows = Schema.decodeUnknownEff
 	Schema.Array(ProjectionSessionActivityStoredRow)
 )
 
-export const ToolCallObservedPayload = Schema.Struct({
-	sessionId: SessionId,
-	activityId: ActivityId,
-	toolCallId: ToolCallId,
-	operationId: Schema.NullOr(OperationId),
-	status: SessionActivityStatus,
-	title: TrimmedNonEmptyString,
-	path: Schema.NullOr(TrimmedNonEmptyString),
-	// Optional for the same reason as the contract's own
-	// ToolCallObservedPayload: this schema decodes every stored payload again
-	// on a rebuild, and the ones appended before #273 carry no output key.
-	output: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey),
-	// The provider's tool classification. Optional + nullable for the same
-	// replay reason: payloads appended before the field existed carry no
-	// kind key, so a rebuild must still decode them.
-	kind: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey)
-})
+// The contract owns this payload's shape, including why output and kind are
+// optional. The projector only needs operationId branded, so it overrides that
+// one field instead of restating the struct and letting the copy drift.
+export const ToolCallObservedPayload = ContractToolCallObservedPayload.mapFields(
+	Struct.assign({ operationId: Schema.NullOr(OperationId) })
+)
 export type ToolCallObservedPayload = typeof ToolCallObservedPayload.Type
 
 export const FileOperationObservedPayload = Schema.Struct({

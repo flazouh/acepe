@@ -7,6 +7,7 @@ import {
 	SessionId,
 	settingsSnapshotRequest,
 	skillsSnapshotRequest,
+	ToolCallId,
 	voiceSnapshotRequest,
 	TurnId
 } from "@acepe/contracts"
@@ -168,6 +169,77 @@ const insertMessage = Effect.fn("insertMessage")(function*(
 			${row.turnId},
 			${row.rowType},
 			${content}
+		)
+	`.withoutTransform.pipe(Effect.asVoid)
+})
+
+const insertActivity = Effect.fn("insertActivity")(function*(
+	activityId: string,
+	sequence: number,
+	output: string
+) {
+	const sql = yield* SqlClient.SqlClient
+	yield* sql`
+		INSERT INTO projection_session_activities (
+			activity_id,
+			session_id,
+			sequence,
+			status_sequence,
+			kind,
+			tool_kind,
+			tool_call_id,
+			operation_id,
+			status,
+			title,
+			path,
+			output
+		) VALUES (
+			${activityId},
+			${sessionId},
+			${sequence},
+			${sequence},
+			${"tool"},
+			${"execute"},
+			${"call-1"},
+			NULL,
+			${"completed"},
+			${"Bash"},
+			NULL,
+			${output}
+		)
+	`.withoutTransform.pipe(Effect.asVoid)
+})
+
+// Writes the exact column list 0008 shipped, so the row reads back the way a
+// row appended before 0024 added the output column does.
+const insertPreOutputActivity = Effect.fn("insertPreOutputActivity")(function*(
+	activityId: string,
+	sequence: number
+) {
+	const sql = yield* SqlClient.SqlClient
+	yield* sql`
+		INSERT INTO projection_session_activities (
+			activity_id,
+			session_id,
+			sequence,
+			status_sequence,
+			kind,
+			tool_call_id,
+			operation_id,
+			status,
+			title,
+			path
+		) VALUES (
+			${activityId},
+			${sessionId},
+			${sequence},
+			${sequence},
+			${"tool"},
+			${"call-1"},
+			NULL,
+			${"completed"},
+			${"Bash"},
+			NULL
 		)
 	`.withoutTransform.pipe(Effect.asVoid)
 })
@@ -486,7 +558,8 @@ Vitest.layer(isolatedQuery())("one transaction snapshot", (it) => {
 					status: "pending",
 					title: "activity",
 					path: null,
-					toolCallId: null
+					toolCallId: null,
+					output: null
 				}
 			])
 			Vitest.assert.deepStrictEqual(snapshot.pendingApprovals, [
@@ -494,6 +567,60 @@ Vitest.layer(isolatedQuery())("one transaction snapshot", (it) => {
 					approvalRequestId: ApprovalRequestId.make("approval-1"),
 					sessionId,
 					sequence: 5
+				}
+			])
+		})
+	)
+})
+
+Vitest.layer(isolatedQuery())("activity output", (it) => {
+	it.effect("reads a completed tool call's output back through the session snapshot", () =>
+		Effect.gen(function*() {
+			const query = yield* ProjectionSnapshotQuery
+			yield* insertSession(sessionId, "Ship the slice")
+			yield* insertActivity("activity-1", 4, "total 12\ndrwxr-xr-x  4 alex  staff")
+			yield* checkpoint("projection.sessions", 5)
+			yield* checkpoint("projection.session-activities", 5)
+			const snapshot = yield* query.snapshot(sessionId)
+			Vitest.assert.deepStrictEqual(snapshot.activities, [
+				{
+					activityId: ActivityId.make("activity-1"),
+					sessionId,
+					sequence: 4,
+					kind: "tool",
+					toolKind: "execute",
+					status: "completed",
+					title: "Bash",
+					path: null,
+					toolCallId: ToolCallId.make("call-1"),
+					output: "total 12\ndrwxr-xr-x  4 alex  staff"
+				}
+			])
+		})
+	)
+})
+
+Vitest.layer(isolatedQuery())("activity output on a pre-0024 row", (it) => {
+	it.effect("reads a row written before the output column existed back as null", () =>
+		Effect.gen(function*() {
+			const query = yield* ProjectionSnapshotQuery
+			yield* insertSession(sessionId, "Ship the slice")
+			yield* insertPreOutputActivity("activity-1", 4)
+			yield* checkpoint("projection.sessions", 5)
+			yield* checkpoint("projection.session-activities", 5)
+			const snapshot = yield* query.snapshot(sessionId)
+			Vitest.assert.deepStrictEqual(snapshot.activities, [
+				{
+					activityId: ActivityId.make("activity-1"),
+					sessionId,
+					sequence: 4,
+					kind: "tool",
+					toolKind: null,
+					status: "completed",
+					title: "Bash",
+					path: null,
+					toolCallId: ToolCallId.make("call-1"),
+					output: null
 				}
 			])
 		})

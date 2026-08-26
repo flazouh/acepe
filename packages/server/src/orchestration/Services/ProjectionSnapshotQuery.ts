@@ -110,7 +110,12 @@ export const ProjectedSessionActivity = Schema.Struct({
 	status: Schema.optionalKey(Schema.String),
 	title: Schema.optionalKey(TrimmedNonEmptyString),
 	path: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey),
-	toolCallId: ToolCallId.pipe(Schema.NullOr, Schema.optionalKey)
+	toolCallId: ToolCallId.pipe(Schema.NullOr, Schema.optionalKey),
+	// #273: the tool's own result, mirroring RpcProjectedSessionActivity.output
+	// in @acepe/contracts. Optional + nullable like its siblings: a non-tool
+	// row carries none, and a row written before the output column existed
+	// reads back as null.
+	output: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey)
 })
 export type ProjectedSessionActivity = typeof ProjectedSessionActivity.Type
 
@@ -168,7 +173,8 @@ export const ProjectedSessionActivityStoredRow = Schema.Struct({
 	status: Schema.optionalKey(Schema.String),
 	title: Schema.optionalKey(TrimmedNonEmptyString),
 	path: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey),
-	tool_call_id: ToolCallId.pipe(Schema.NullOr, Schema.optionalKey)
+	tool_call_id: ToolCallId.pipe(Schema.NullOr, Schema.optionalKey),
+	output: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey)
 })
 export type ProjectedSessionActivityStoredRow = typeof ProjectedSessionActivityStoredRow.Type
 
@@ -224,7 +230,8 @@ const projectedSessionActivityFromRow = (
 			status: row.status,
 			title: row.title,
 			path: row.path,
-			toolCallId: row.tool_call_id
+			toolCallId: row.tool_call_id,
+			output: row.output ?? null
 		}
 	}
 	return {
