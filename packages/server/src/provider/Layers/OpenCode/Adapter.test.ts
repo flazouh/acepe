@@ -1,5 +1,7 @@
 import {
+	type ApprovalRequestedEvent,
 	type OrchestrationEvent,
+	TurnId,
 	MessageId,
 	ProjectId,
 	SessionId,
@@ -161,6 +163,27 @@ const startAdapter = Effect.fn("OpenCodeAdapter.test.startAdapter")(function*(
 	}
 })
 
+// Fails loudly if a permission request folds into the generic
+// SessionMetaUpdated branch instead of the typed approval event.
+const nextApprovalRequested = Effect.fn("nextApprovalRequested")(function*(
+	events: Queue.Queue<OrchestrationEvent, Done>
+) {
+	let found: ApprovalRequestedEvent | undefined
+	for (let attempt = 0; attempt < 5 && found === undefined; attempt++) {
+		const next = yield* Queue.take(events)
+		if (next.type === "SessionMetaUpdated") {
+			const fact = decodeContractFact(next.metadata)
+			if (Option.isSome(fact)) {
+				Vitest.assert.notStrictEqual(fact.value.contractKind, "permission_request")
+			}
+		}
+		if (next.type === "ApprovalRequested") {
+			found = next
+		}
+	}
+	return found
+})
+
 Vitest.describe("OpenCodeAdapter", () => {
 	Vitest.it.effect("emits provider_session over native HTTP, not ACP initialize", () =>
 		Effect.gen(function*() {
@@ -254,6 +277,70 @@ Vitest.describe("OpenCodeAdapter", () => {
 			}
 			yield* started.adapter.cancelTurn({ sessionId })
 		})
+	)
+
+	// AC-269: same swallow pattern the ToolCallObserved test below already
+	// fixes for tool calls -- a real "step-finish" part (OpenCode's own usage
+	// reading for a completed step) used to fold into a generic
+	// SessionMetaUpdated event nothing downstream reads for usage. Pins down
+	// that OpenCodeAdapter now publishes a typed TurnUsageObserved event,
+	// carrying the current turn's id, instead.
+	Vitest.it.effect(
+		"emits TurnUsageObserved for a real step-finish part, not SessionMetaUpdated",
+		() =>
+			Effect.gen(function*() {
+				const started = yield* startAdapter(matchingSession, selectedCatalog)
+				yield* Queue.take(started.events)
+				yield* Queue.take(started.events)
+				yield* Stream.runCollect(
+					started.adapter.sendPrompt({
+						sessionId,
+						messageId,
+						text: "Hi"
+					})
+				)
+				yield* Queue.offer(started.inbound, {
+					type: "message.part.updated",
+					properties: {
+						part: {
+							id: "prt_usage",
+							sessionID: providerSessionId,
+							messageID: "msg_456",
+							type: "step-finish",
+							tokens: {
+								input: 120,
+								output: 48,
+								total: 168
+							},
+							cost: 0.0123
+						}
+					}
+				})
+				let observed: OrchestrationEvent | undefined
+				for (let attempt = 0; attempt < 5 && observed === undefined; attempt++) {
+					const next = yield* Queue.take(started.events)
+					if (next.type === "SessionMetaUpdated") {
+						const fact = decodeContractFact(next.metadata)
+						if (Option.isSome(fact)) {
+							Vitest.assert.notStrictEqual(fact.value.contractKind, "usage")
+						}
+					}
+					if (next.type === "TurnUsageObserved") {
+						observed = next
+					}
+				}
+				if (observed === undefined || observed.type !== "TurnUsageObserved") {
+					Vitest.assert.fail("expected a TurnUsageObserved event for the step-finish part")
+					return
+				}
+				Vitest.assert.strictEqual(observed.payload.sessionId, sessionId)
+				Vitest.assert.strictEqual(observed.payload.turnId, TurnId.make(messageId))
+				Vitest.assert.strictEqual(observed.payload.inputTokens, 120)
+				Vitest.assert.strictEqual(observed.payload.outputTokens, 48)
+				Vitest.assert.strictEqual(observed.payload.totalTokens, 168)
+				Vitest.assert.strictEqual(observed.payload.costUsd, 0.0123)
+				yield* started.adapter.cancelTurn({ sessionId })
+			})
 	)
 
 	// Reproduces the live bug: OpenCode's session.idle event used to fold into
@@ -479,13 +566,12 @@ Vitest.describe("OpenCodeAdapter", () => {
 					always: []
 				}
 			})
-			const permissionEvent = yield* Queue.take(started.events)
-			Vitest.assert.strictEqual(permissionEvent.type, "SessionMetaUpdated")
-			const fact = decodeContractFact(permissionEvent.metadata)
-			Vitest.assert.isTrue(Option.isSome(fact))
-			if (Option.isSome(fact) && fact.value.contractKind === "permission_request") {
-				Vitest.assert.strictEqual(fact.value.id, "perm_req_abc123")
+			const requested = yield* nextApprovalRequested(started.events)
+			if (requested === undefined) {
+				Vitest.assert.fail("expected an ApprovalRequested event for permission.asked")
+				return
 			}
+			Vitest.assert.strictEqual(requested.payload.approvalRequestId, "perm_req_abc123")
 			yield* started.adapter.respondToPermission({
 				sessionId,
 				permissionId: "perm_req_abc123",
@@ -507,6 +593,42 @@ Vitest.describe("OpenCodeAdapter", () => {
 				.pipe(Effect.flip)
 			Vitest.assert.strictEqual(unsafe._tag, "ProviderAdapterError")
 			Vitest.assert.strictEqual(unsafe.operation, "respondToPermission")
+			yield* started.adapter.cancelTurn({ sessionId })
+		})
+	)
+
+	// A permission.asked used to fold into the generic makeMetaEvent /
+	// SessionMetaUpdated branch, whose metadata nobody reads for approvals:
+	// ProjectionPendingApprovals.apply only reacts to a native
+	// ApprovalRequested/InteractionReplied event or an explicitly stamped
+	// pendingApproval metadata key. respondToPermission already worked, so
+	// OpenCode could answer a permission the desktop had no way to learn
+	// about: projection_pending_approvals stayed empty and the turn hung on
+	// an approval nobody could see. Same carve-out Claude and Cursor took.
+	Vitest.it.effect("emits a typed ApprovalRequested carrying the permission title", () =>
+		Effect.gen(function*() {
+			const started = yield* startAdapter(matchingSession, selectedCatalog)
+			yield* Queue.take(started.events)
+			yield* Queue.take(started.events)
+			yield* Queue.offer(started.inbound, {
+				type: "permission.asked",
+				properties: {
+					id: "perm_req_xyz789",
+					sessionID: providerSessionId,
+					permission: "Bash",
+					patterns: ["rm *"],
+					metadata: {},
+					always: []
+				}
+			})
+			const requested = yield* nextApprovalRequested(started.events)
+			if (requested === undefined) {
+				Vitest.assert.fail("expected an ApprovalRequested event for permission.asked")
+				return
+			}
+			Vitest.assert.strictEqual(requested.payload.sessionId, sessionId)
+			Vitest.assert.strictEqual(requested.payload.approvalRequestId, "perm_req_xyz789")
+			Vitest.assert.strictEqual(requested.payload.title, "Bash")
 			yield* started.adapter.cancelTurn({ sessionId })
 		})
 	)

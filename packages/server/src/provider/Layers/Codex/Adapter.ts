@@ -26,6 +26,7 @@ import {
 	type StartSessionRequest
 } from "../../Services/ProviderAdapter.ts"
 import type { Json } from "../Json.ts"
+import type { OpenToolCallInfo } from "../SessionEvents.ts"
 import { providerSessionFact } from "./Facts.ts"
 import { emptyCodexMapState } from "./Map.ts"
 import { respondToPermission, respondToQuestion } from "./Permissions.ts"
@@ -53,7 +54,6 @@ import {
 	makeMessageSent,
 	makeMetaEvent,
 	offerOutbound,
-	type OpenToolCallInfo,
 	publishServerMessage,
 	requireSession,
 	type SessionRuntime

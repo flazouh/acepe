@@ -19,6 +19,7 @@ import type {
 	SendPromptRequest,
 	StartSessionRequest
 } from "../../Services/ProviderAdapter.ts"
+import type { OpenToolCallInfo } from "../SessionEvents.ts"
 import { deferredOpenFact, type ClaudePermissionDecision } from "./Facts.ts"
 import { emptyClaudeStreamState } from "./Map.ts"
 import {
@@ -48,7 +49,6 @@ import {
 	offerOutbound,
 	publishSdkMessage,
 	requireSession,
-	type OpenToolCallInfo,
 	type SessionRuntime
 } from "./Session.ts"
 import { makeWatchdogLoop } from "./Watchdog.ts"

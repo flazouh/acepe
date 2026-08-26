@@ -3,7 +3,8 @@ import {
 	MessageId,
 	ProjectId,
 	SessionId,
-	tracerAssistantMessageId
+	tracerAssistantMessageId,
+	TurnId
 } from "@acepe/contracts"
 import * as Vitest from "@effect/vitest"
 import type { Done } from "effect/Cause"
@@ -467,7 +468,7 @@ Vitest.describe("ClaudeAdapter", () => {
 					return
 				}
 				Vitest.assert.strictEqual(observed.payload.sessionId, sessionId)
-				Vitest.assert.strictEqual(observed.payload.turnId, messageId)
+				Vitest.assert.strictEqual(observed.payload.turnId, TurnId.make(messageId))
 				Vitest.assert.strictEqual(observed.payload.inputTokens, 120)
 				Vitest.assert.strictEqual(observed.payload.outputTokens, 48)
 				Vitest.assert.strictEqual(observed.payload.totalTokens, 168)

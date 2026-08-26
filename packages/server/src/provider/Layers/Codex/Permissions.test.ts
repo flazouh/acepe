@@ -1,4 +1,5 @@
 import {
+	type ApprovalRequestedEvent,
 	type OrchestrationEvent,
 	ProjectId,
 	SessionId
@@ -99,6 +100,27 @@ const openSession = Effect.fn("openSession")(function*(adapter: CodexAdapter) {
 	return { events, opened }
 })
 
+// Fails loudly if a permission request folds into the generic
+// SessionMetaUpdated branch instead of the typed approval event.
+const nextApprovalRequested = Effect.fn("nextApprovalRequested")(function*(
+	events: Queue.Queue<OrchestrationEvent, Done>
+) {
+	let found: ApprovalRequestedEvent | undefined
+	for (let attempt = 0; attempt < 5 && found === undefined; attempt++) {
+		const next = yield* Queue.take(events)
+		if (next.type === "SessionMetaUpdated") {
+			const fact = decodeContractFact(next.metadata)
+			if (Option.isSome(fact)) {
+				Vitest.assert.notStrictEqual(fact.value.contractKind, "permission_request")
+			}
+		}
+		if (next.type === "ApprovalRequested") {
+			found = next
+		}
+	}
+	return found
+})
+
 Vitest.describe("CodexAdapter permissions", () => {
 	Vitest.it("maps permission replies onto Codex decisions", () => {
 		Vitest.assert.deepStrictEqual(mapCodexPermissionReply("once"), Option.some("accept"))
@@ -159,13 +181,13 @@ Vitest.describe("CodexAdapter permissions", () => {
 					path: "src/lib.rs"
 				}
 			})
-			const permissionEvent = yield* Queue.take(events)
-			Vitest.assert.strictEqual(permissionEvent.type, "SessionMetaUpdated")
-			const fact = decodeContractFact(permissionEvent.metadata)
-			if (Option.isSome(fact) && fact.value.contractKind === "permission_request") {
-				Vitest.assert.strictEqual(fact.value.id, "42")
-				Vitest.assert.strictEqual(fact.value.permission, "Read src/lib.rs")
+			const requested = yield* nextApprovalRequested(events)
+			if (requested === undefined) {
+				Vitest.assert.fail("expected an ApprovalRequested event for the approval request")
+				return
 			}
+			Vitest.assert.strictEqual(requested.payload.approvalRequestId, "42")
+			Vitest.assert.strictEqual(requested.payload.title, "Read src/lib.rs")
 			yield* adapter.respondToPermission({
 				sessionId,
 				permissionId: "42",
@@ -199,11 +221,12 @@ Vitest.describe("CodexAdapter permissions", () => {
 					command: "ls -la"
 				}
 			})
-			const permissionEvent = yield* Queue.take(events)
-			const fact = decodeContractFact(permissionEvent.metadata)
-			if (Option.isSome(fact) && fact.value.contractKind === "permission_request") {
-				Vitest.assert.strictEqual(fact.value.id, "req-42")
+			const requested = yield* nextApprovalRequested(events)
+			if (requested === undefined) {
+				Vitest.assert.fail("expected an ApprovalRequested event for the approval request")
+				return
 			}
+			Vitest.assert.strictEqual(requested.payload.approvalRequestId, "req-42")
 			yield* adapter.respondToPermission({
 				sessionId,
 				permissionId: "req-42",
@@ -314,6 +337,42 @@ Vitest.describe("CodexAdapter permissions", () => {
 					}
 				}
 			})
+			yield* Queue.end(inbound)
+		})
+	)
+
+	// A native requestApproval used to fold into the generic makeMetaEvent /
+	// SessionMetaUpdated branch, whose metadata nobody reads for approvals:
+	// ProjectionPendingApprovals.apply only reacts to a native
+	// ApprovalRequested/InteractionReplied event or an explicitly stamped
+	// pendingApproval metadata key. respondToPermission already worked, so
+	// Codex could answer a permission the desktop had no way to learn about:
+	// projection_pending_approvals stayed empty and the turn hung on an
+	// approval nobody could see. Same carve-out Claude and Cursor took.
+	Vitest.it.effect("emits a typed ApprovalRequested carrying the permission title", () =>
+		Effect.gen(function*() {
+			const inbound = yield* Queue.unbounded<Json, Done>()
+			const requests = yield* Ref.make<ReadonlyArray<RecordedRequest>>(Arr.empty())
+			const replies = yield* Ref.make<ReadonlyArray<Json>>(Arr.empty())
+			const adapter = yield* makeTestAdapter(inbound, requests, replies)
+			const { events } = yield* openSession(adapter)
+			yield* Queue.offer(inbound, {
+				jsonrpc: "2.0",
+				id: 99,
+				method: "item/commandExecution/requestApproval",
+				params: {
+					itemId: "tool-99",
+					command: "rm -rf build"
+				}
+			})
+			const requested = yield* nextApprovalRequested(events)
+			if (requested === undefined) {
+				Vitest.assert.fail("expected an ApprovalRequested event for the approval request")
+				return
+			}
+			Vitest.assert.strictEqual(requested.payload.sessionId, sessionId)
+			Vitest.assert.strictEqual(requested.payload.approvalRequestId, "99")
+			Vitest.assert.strictEqual(requested.payload.title, "rm -rf build")
 			yield* Queue.end(inbound)
 		})
 	)

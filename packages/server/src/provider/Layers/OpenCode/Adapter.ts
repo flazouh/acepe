@@ -19,6 +19,7 @@ import {
 	type SendPromptRequest,
 	type StartSessionRequest
 } from "../../Services/ProviderAdapter.ts"
+import type { OpenToolCallInfo } from "../SessionEvents.ts"
 import {
 	type OpenCodePermissionReply,
 	providerSessionFact,
@@ -45,7 +46,6 @@ import {
 	makeMessageSent,
 	makeMetaEvent,
 	offerOutbound,
-	type OpenToolCallInfo,
 	publishSse,
 	requireProviderSession,
 	requireSession,

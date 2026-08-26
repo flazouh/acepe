@@ -111,12 +111,18 @@ const usageCostUsd = (record: JsonObject): Option.Option<number> =>
 const usageFact = (record: JsonObject, sessionId: string): UsageFact => {
 	const inputTokens = numberField(record, "inputTokens")
 	const outputTokens = numberField(record, "outputTokens")
-	// `used` is the context-window occupancy that ships beside `size`, not the sum
-	// of the breakdown, so a payload can report `used: 41000` for a 16-token turn.
-	// It lands in the total slot because `UsageFact` has no occupancy field yet and
-	// the occupancy meter reads `totalTokens`; an explicit provider total still wins
-	// because `numberFieldAny` takes the first key present. Issue #279 splits them.
-	const totalTokens = numberFieldAny(record, ["totalTokens", "total_tokens", "used"])
+	// An explicit provider total is read unconditionally. `used` is not one: it is
+	// context-window occupancy against the `size` read two lines down, so a payload
+	// can report `used: 41000` for a 16-token turn. No recorded Copilot payload
+	// proves either reading, so `used` only stands in for a total when no breakdown
+	// ships, which is the reading that cannot put an occupancy figure in the total
+	// slot of a fact that already carries 12 in and 4 out. Giving occupancy its own
+	// `UsageFact` field is a contract change, tracked in #279.
+	const totalTokens = Option.orElse(numberFieldAny(record, ["totalTokens", "total_tokens"]), () =>
+		Option.isNone(inputTokens) && Option.isNone(outputTokens)
+			? numberField(record, "used")
+			: Option.none()
+	)
 	const contextWindowSize = numberFieldAny(record, ["contextWindowSize", "size"])
 	const base: UsageFact = {
 		contractKind: "usage",

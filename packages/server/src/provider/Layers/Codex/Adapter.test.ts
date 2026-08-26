@@ -279,6 +279,67 @@ Vitest.describe("CodexAdapter", () => {
 			})
 	)
 
+	// AC-269: same swallow pattern the ToolCallObserved test above already
+	// fixed for tool calls -- a real thread/tokenUsage/updated notification
+	// used to fold into a generic SessionMetaUpdated event nothing downstream
+	// reads for usage. Pins down that CodexAdapter now publishes a typed
+	// TurnUsageObserved event carrying the open turn's id instead.
+	Vitest.it.effect(
+		"emits TurnUsageObserved for a real thread/tokenUsage/updated notification, not SessionMetaUpdated",
+		() =>
+			Effect.gen(function*() {
+				const inbound = yield* Queue.unbounded<Json, Done>()
+				const requests = yield* Ref.make<ReadonlyArray<RecordedRequest>>(Arr.empty())
+				const replies = yield* Ref.make<ReadonlyArray<Json>>(Arr.empty())
+				const adapter = yield* makeTestAdapter(inbound, requests, replies)
+				const { events } = yield* openSession(adapter)
+				yield* Stream.runCollect(
+					adapter.sendPrompt({
+						sessionId,
+						messageId,
+						text: "Hi"
+					})
+				)
+				yield* Queue.offer(inbound, {
+					method: "thread/tokenUsage/updated",
+					params: {
+						threadId: "thread-1",
+						turnId: "turn-1",
+						tokenUsage: {
+							input_tokens: 120,
+							output_tokens: 48,
+							total_tokens: 168,
+							model_context_window: 200_000
+						}
+					}
+				})
+				let observed: OrchestrationEvent | undefined
+				for (let attempt = 0; attempt < 5 && observed === undefined; attempt++) {
+					const next = yield* Queue.take(events)
+					if (next.type === "SessionMetaUpdated") {
+						const fact = decodeContractFact(next.metadata)
+						if (Option.isSome(fact)) {
+							Vitest.assert.notStrictEqual(fact.value.contractKind, "usage")
+						}
+					}
+					if (next.type === "TurnUsageObserved") {
+						observed = next
+					}
+				}
+				if (observed === undefined || observed.type !== "TurnUsageObserved") {
+					Vitest.assert.fail("expected a TurnUsageObserved event for the token usage notification")
+					return
+				}
+				Vitest.assert.strictEqual(observed.payload.sessionId, sessionId)
+				Vitest.assert.strictEqual(observed.payload.turnId, "turn-1")
+				Vitest.assert.strictEqual(observed.payload.inputTokens, 120)
+				Vitest.assert.strictEqual(observed.payload.outputTokens, 48)
+				Vitest.assert.strictEqual(observed.payload.totalTokens, 168)
+				Vitest.assert.strictEqual(observed.payload.contextWindowSize, 200_000)
+				yield* Queue.end(inbound)
+			})
+	)
+
 	Vitest.it.effect("cancelTurn sends turn/interrupt and keeps the app-server open", () =>
 		Effect.gen(function*() {
 			const inbound = yield* Queue.unbounded<Json, Done>()

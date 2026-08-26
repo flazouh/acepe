@@ -1,18 +1,12 @@
 import {
-	ActivityId,
-	ApprovalRequestedEvent,
-	ApprovalRequestId,
 	CommandId,
 	EventId,
 	MessageId,
 	MessageSentEvent,
-	type ObservedToolStatus,
 	type OrchestrationEvent,
 	SessionId,
 	SessionMetaUpdatedEvent,
 	TokenAppendedEvent,
-	ToolCallId,
-	ToolCallObservedEvent,
 	TurnCancelledEvent,
 	tracerAssistantMessageId
 } from "@acepe/contracts"
@@ -29,30 +23,20 @@ import type {
 	SendPromptRequest
 } from "../../Services/ProviderAdapter.ts"
 import { EMPTY_JSON_OBJECT, type Json } from "../Json.ts"
+import {
+	approvalRequestedEvent,
+	type OpenToolCalls,
+	rememberOpenToolCall,
+	takeOpenToolCall,
+	toolCallActivityId,
+	toolCallObservedEvent
+} from "../SessionEvents.ts"
 import { encodeContractFact } from "./Codec.ts"
 import { type CursorContractFact, turnCompleteFact } from "./Facts.ts"
 import { mapAcpSessionNotification } from "./Map.ts"
 import type { CursorAcpHandle, CursorStopReason } from "./Process.ts"
 import { adapterError, type CursorPermissionDecision } from "./Provider.ts"
 import { toolCallPathHint } from "./Tools.ts"
-
-// What the "tool_call" fact recorded, kept so the LATER "tool_call_update"
-// fact (which carries only a toolCallId and a status -- see ToolCallUpdateFact
-// in Facts.ts) can still publish a complete ToolCallObservedEvent: the
-// projector's ToolCallObservedPayload requires a title on every row, not just
-// the first one.
-export type OpenToolCallInfo = {
-	readonly activityId: ActivityId
-	readonly title: string
-	readonly path: string | null
-}
-
-// One projection_session_activities row per ACP tool call, keyed the same way
-// across its whole lifecycle (start -> completed/failed) so the projector's
-// merge sees one growing row instead of two unrelated ones. The ACP toolCallId
-// is already unique per call, so deriving the activityId from it is enough.
-const toolCallActivityId = (toolCallId: string): ActivityId =>
-	ActivityId.make(`${toolCallId}:activity`)
 
 export type SessionRuntime = {
 	readonly sessionId: SessionId
@@ -62,8 +46,8 @@ export type SessionRuntime = {
 	readonly pendingPermissions: Ref.Ref<
 		HashMap.HashMap<string, Deferred.Deferred<CursorPermissionDecision>>
 	>
-	// Keyed by the ACP toolCallId. See OpenToolCallInfo's doc above.
-	readonly openToolCalls: Ref.Ref<HashMap.HashMap<string, OpenToolCallInfo>>
+	// Keyed by the ACP toolCallId. See OpenToolCallInfo in SessionEvents.ts.
+	readonly openToolCalls: OpenToolCalls
 	readonly providerSessionId: Ref.Ref<Option.Option<string>>
 	readonly handle: CursorAcpHandle
 }
@@ -188,70 +172,28 @@ export const makeCancelled = Effect.fn("CursorAdapter.makeCancelled")(function*(
 	})
 })
 
-// Builds the SAME contract event the tracer's ToolCallObserveCommand decider
-// produces (see decider.ts's "tool.call.observe" case): ProjectionSessionActivities
-// only knows how to turn a ToolCallObserved event into a
-// projection_session_activities row, so a real Cursor tool call folded into a
-// generic SessionMetaUpdated is invisible to that projector no matter what
-// its encoded metadata says.
-const makeToolCallObserved = Effect.fn("CursorAdapter.makeToolCallObserved")(function*(
-	runtime: SessionRuntime,
-	input: {
-		readonly activityId: ActivityId
-		readonly toolCallId: string
-		readonly status: ObservedToolStatus
-		readonly title: string
-		readonly path: string | null
-	}
-) {
-	const header = yield* stamp(runtime)
-	return ToolCallObservedEvent.make({
-		sequence: header.sequence,
-		eventId: header.eventId,
-		aggregateKind: "session",
-		aggregateId: runtime.sessionId,
-		occurredAt: header.occurredAt,
-		commandId: header.commandId,
-		causationEventId: null,
-		correlationId: header.commandId,
-		metadata: EMPTY_JSON_OBJECT,
-		type: "ToolCallObserved",
-		payload: {
-			sessionId: runtime.sessionId,
-			activityId: input.activityId,
-			toolCallId: ToolCallId.make(input.toolCallId),
-			operationId: null,
-			status: input.status,
-			title: input.title,
-			path: input.path
-		}
-	})
-})
-
-// A tool_call_update fact that arrives with no cached start info, e.g. the
-// tool_call notification landed before this session's runtime was held.
-// Falls back to a generic, still-nonempty title rather than dropping the
-// status transition on the floor; mergeActivityRow keeps this only until a
-// better title arrives for the same activityId.
-const FALLBACK_TOOL_TITLE = "Tool"
-
 const publishToolCallStarted = Effect.fn("CursorAdapter.publishToolCallStarted")(function*(
 	runtime: SessionRuntime,
 	fact: Extract<CursorContractFact, { readonly contractKind: "tool_call" }>
 ) {
 	const activityId = toolCallActivityId(fact.toolCallId)
 	const path = Option.getOrNull(toolCallPathHint(fact.kind, fact.rawInput))
-	yield* Ref.update(runtime.openToolCalls, (current) =>
-		HashMap.set(current, fact.toolCallId, { activityId, title: fact.title, path })
-	)
-	const event = yield* makeToolCallObserved(runtime, {
+	yield* rememberOpenToolCall(runtime.openToolCalls, fact.toolCallId, fact.status, {
 		activityId,
-		toolCallId: fact.toolCallId,
-		status: fact.status,
 		title: fact.title,
 		path
 	})
-	return yield* offerOutbound(runtime, event)
+	const header = yield* stamp(runtime)
+	return yield* offerOutbound(
+		runtime,
+		toolCallObservedEvent(header, runtime.sessionId, {
+			activityId,
+			toolCallId: fact.toolCallId,
+			status: fact.status,
+			title: fact.title,
+			path
+		})
+	)
 })
 
 const publishToolCallUpdated = Effect.fn("CursorAdapter.publishToolCallUpdated")(function*(
@@ -263,53 +205,32 @@ const publishToolCallUpdated = Effect.fn("CursorAdapter.publishToolCallUpdated")
 		// project yet.
 		return
 	}
-	const cache = yield* Ref.get(runtime.openToolCalls)
-	const cached = HashMap.get(cache, fact.toolCallId)
-	const info: OpenToolCallInfo = Option.getOrElse(cached, () => ({
-		activityId: toolCallActivityId(fact.toolCallId),
-		title: FALLBACK_TOOL_TITLE,
-		path: null
-	}))
-	const event = yield* makeToolCallObserved(runtime, {
-		activityId: info.activityId,
-		toolCallId: fact.toolCallId,
-		status: fact.status,
-		title: info.title,
-		path: info.path
-	})
-	return yield* offerOutbound(runtime, event)
+	const info = yield* takeOpenToolCall(runtime.openToolCalls, fact.toolCallId, fact.status)
+	const header = yield* stamp(runtime)
+	return yield* offerOutbound(
+		runtime,
+		toolCallObservedEvent(header, runtime.sessionId, {
+			activityId: info.activityId,
+			toolCallId: fact.toolCallId,
+			status: fact.status,
+			title: info.title,
+			path: info.path
+		})
+	)
 })
 
-// An ACP permission request cannot ride the generic SessionMetaUpdated
-// branch below: ProjectionPendingApprovals.apply only reacts to a native
-// ApprovalRequested/InteractionReplied event or an explicitly stamped
-// pendingApproval metadata key, so an encoded fact left the desktop with no
-// approval row to render and no way to send the InteractionReplied that
-// unblocks decidePermission's deferred. The turn then hung on an approval
-// nobody could see. Same carve-out ClaudeAdapter took for #268 defect 2.
 const publishApprovalRequested = Effect.fn("CursorAdapter.publishApprovalRequested")(function*(
 	runtime: SessionRuntime,
 	fact: Extract<CursorContractFact, { readonly contractKind: "permission_request" }>
 ) {
 	const header = yield* stamp(runtime)
-	const event = ApprovalRequestedEvent.make({
-		sequence: header.sequence,
-		eventId: header.eventId,
-		aggregateKind: "session",
-		aggregateId: runtime.sessionId,
-		occurredAt: header.occurredAt,
-		commandId: header.commandId,
-		causationEventId: null,
-		correlationId: header.commandId,
-		metadata: EMPTY_JSON_OBJECT,
-		type: "ApprovalRequested",
-		payload: {
-			sessionId: runtime.sessionId,
-			approvalRequestId: ApprovalRequestId.make(fact.id),
+	return yield* offerOutbound(
+		runtime,
+		approvalRequestedEvent(header, runtime.sessionId, {
+			approvalRequestId: fact.id,
 			title: fact.permission
-		}
-	})
-	return yield* offerOutbound(runtime, event)
+		})
+	)
 })
 
 export const publishFact = Effect.fn("CursorAdapter.publishFact")(function*(
@@ -322,7 +243,9 @@ export const publishFact = Effect.fn("CursorAdapter.publishFact")(function*(
 	}
 	// A real Cursor tool call must reach ProjectionSessionActivities as a
 	// ToolCallObserved event, not fold into a generic SessionMetaUpdated one:
-	// see makeToolCallObserved's doc.
+	// see toolCallObservedEvent's doc in SessionEvents.ts. An ACP permission
+	// request needs the same carve-out for ProjectionPendingApprovals: see
+	// approvalRequestedEvent's doc there.
 	if (fact.contractKind === "tool_call") {
 		return yield* publishToolCallStarted(runtime, fact)
 	}

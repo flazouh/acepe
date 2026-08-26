@@ -1,18 +1,12 @@
 import {
-	ActivityId,
-	ApprovalRequestedEvent,
-	ApprovalRequestId,
 	CommandId,
 	EventId,
 	MessageId,
 	MessageSentEvent,
-	type ObservedToolStatus,
 	type OrchestrationEvent,
 	SessionId,
 	SessionMetaUpdatedEvent,
 	TokenAppendedEvent,
-	ToolCallId,
-	ToolCallObservedEvent,
 	TurnCancelledEvent,
 	TurnCompletedEvent,
 	TurnId,
@@ -30,6 +24,14 @@ import * as Ref from "effect/Ref"
 import * as Scope from "effect/Scope"
 import type { ProviderAdapterError, SendPromptRequest } from "../../Services/ProviderAdapter.ts"
 import { EMPTY_JSON_OBJECT, type Json } from "../Json.ts"
+import {
+	approvalRequestedEvent,
+	type OpenToolCalls,
+	rememberOpenToolCall,
+	takeOpenToolCall,
+	toolCallActivityId,
+	toolCallObservedEvent
+} from "../SessionEvents.ts"
 import { encodeContractFact } from "./Codec.ts"
 import type { ClaudeContractFact, ClaudePermissionDecision } from "./Facts.ts"
 import { mapSdkMessage, type ClaudeStreamState } from "./Map.ts"
@@ -37,26 +39,6 @@ import type { ClaudeQueryHandle } from "./Process.ts"
 import { adapterError } from "./Provider.ts"
 import { toolCallPathHint } from "./Tools.ts"
 import type { ClaudeUserPrompt } from "./Wire.ts"
-
-// What a "tool_call" fact recorded about a tool call, kept around so the
-// LATER "tool_call_update" fact (which carries only toolCallId + a new
-// status -- see ToolCallUpdateFact in Facts.ts) can still publish a
-// complete ToolCallObservedEvent: the projector's ToolCallObservedPayload
-// requires a title on every row, not just the first one -- see
-// ProjectionSessionActivities.ts's observedToolRow.
-export type OpenToolCallInfo = {
-	readonly activityId: ActivityId
-	readonly title: string
-	readonly path: string | null
-}
-
-// One projection_session_activities row per Claude tool_use block, keyed the
-// same way across its whole lifecycle (start -> completed/failed) so the
-// projector's merge sees one growing row instead of two unrelated ones. The
-// SDK's own toolCallId is already unique per call, so deriving activityId
-// from it (rather than minting a fresh one) is enough -- no separate id
-// needs to round-trip through the SDK boundary.
-const toolCallActivityId = (toolCallId: string): ActivityId => ActivityId.make(`${toolCallId}:activity`)
 
 export type SessionRuntime = {
 	readonly sessionId: SessionId
@@ -74,8 +56,8 @@ export type SessionRuntime = {
 	readonly pendingPermissions: Ref.Ref<
 		HashMap.HashMap<string, Deferred.Deferred<ClaudePermissionDecision>>
 	>
-	// Keyed by the SDK's own toolCallId. See OpenToolCallInfo's doc above.
-	readonly openToolCalls: Ref.Ref<HashMap.HashMap<string, OpenToolCallInfo>>
+	// Keyed by the SDK's own toolCallId. See OpenToolCallInfo in SessionEvents.ts.
+	readonly openToolCalls: OpenToolCalls
 	// The query a sendPrompt call feeds and a stream listener drains. Both are
 	// swapped together by attachQuery whenever a session recovers from a
 	// cancel or a watchdog-detected stall, so sendPrompt/cancelTurn always
@@ -287,108 +269,45 @@ const makeCompleted = Effect.fn("ClaudeAdapter.makeCompleted")(function*(runtime
 	})
 })
 
-// Builds the SAME contract event the tracer's ToolCallObserveCommand decider
-// produces (see decider.ts's "tool.call.observe" case) -- ProjectionSessionActivities.ts
-// only knows how to turn a ToolCallObserved event into a
-// projection_session_activities row; a real Claude tool call folded into a
-// generic SessionMetaUpdated (the bug this fixes) is invisible to that
-// projector no matter what its encoded metadata says.
-const makeToolCallObserved = Effect.fn("ClaudeAdapter.makeToolCallObserved")(function*(
-	runtime: SessionRuntime,
-	input: {
-		readonly activityId: ActivityId
-		readonly toolCallId: string
-		readonly status: ObservedToolStatus
-		readonly title: string
-		readonly path: string | null
-	}
-) {
-	const header = yield* stamp(runtime)
-	return ToolCallObservedEvent.make({
-		sequence: header.sequence,
-		eventId: header.eventId,
-		aggregateKind: "session",
-		aggregateId: runtime.sessionId,
-		occurredAt: header.occurredAt,
-		commandId: header.commandId,
-		causationEventId: null,
-		correlationId: header.commandId,
-		metadata: EMPTY_JSON_OBJECT,
-		type: "ToolCallObserved",
-		payload: {
-			sessionId: runtime.sessionId,
-			activityId: input.activityId,
-			toolCallId: ToolCallId.make(input.toolCallId),
-			operationId: null,
-			status: input.status,
-			title: input.title,
-			path: input.path
-		}
-	})
-})
-
-// A tool_call_update fact that arrives with no cached start info -- e.g. the
-// SDK's own tool_use start was missed across a watchdog/resume boundary.
-// Falls back to a generic, still-nonempty title rather than dropping the
-// status transition on the floor; mergeActivityRow on the projector side
-// will keep this only if no better title ever arrives for the same
-// activityId.
-const FALLBACK_TOOL_TITLE = "Tool"
-
 const publishToolCallStarted = Effect.fn("ClaudeAdapter.publishToolCallStarted")(function*(
 	runtime: SessionRuntime,
 	fact: Extract<ClaudeContractFact, { readonly contractKind: "tool_call" }>
 ) {
 	const activityId = toolCallActivityId(fact.toolCallId)
 	const path = Option.getOrNull(toolCallPathHint(fact.kind, fact.rawInput))
-	yield* Ref.update(runtime.openToolCalls, (current) =>
-		HashMap.set(current, fact.toolCallId, { activityId, title: fact.title, path }))
-	const event = yield* makeToolCallObserved(runtime, {
+	yield* rememberOpenToolCall(runtime.openToolCalls, fact.toolCallId, fact.status, {
 		activityId,
-		toolCallId: fact.toolCallId,
-		status: fact.status,
 		title: fact.title,
 		path
 	})
-	return yield* offerOutbound(runtime, event)
+	const header = yield* stamp(runtime)
+	return yield* offerOutbound(
+		runtime,
+		toolCallObservedEvent(header, runtime.sessionId, {
+			activityId,
+			toolCallId: fact.toolCallId,
+			status: fact.status,
+			title: fact.title,
+			path
+		})
+	)
 })
 
-// #268 defect 2: a real Claude permission prompt used to fold into the
-// generic makeMetaEvent/SessionMetaUpdated branch below, whose metadata
-// nobody reads for approvals (ProjectionPendingApprovals.apply only reacts
-// to a native ApprovalRequested/InteractionReplied event or an explicitly
-// stamped pendingApproval metadata key -- neither ever happened here), so
-// projection_pending_approvals never learned about it and the desktop panel
-// had nothing to render: the turn just hung on an approval no one could see
-// or answer. Mirrors publishToolCallStarted's own carve-out from the
-// generic branch -- a real, typed event instead of an opaque metadata blob.
 const publishApprovalRequested = Effect.fn("ClaudeAdapter.publishApprovalRequested")(function*(
 	runtime: SessionRuntime,
 	fact: Extract<ClaudeContractFact, { readonly contractKind: "permission_request" }>
 ) {
 	const header = yield* stamp(runtime)
-	const approvalRequestId = ApprovalRequestId.make(fact.id)
-	const event = ApprovalRequestedEvent.make({
-		sequence: header.sequence,
-		eventId: header.eventId,
-		aggregateKind: "session",
-		aggregateId: runtime.sessionId,
-		occurredAt: header.occurredAt,
-		commandId: header.commandId,
-		causationEventId: null,
-		correlationId: header.commandId,
-		metadata: EMPTY_JSON_OBJECT,
-		type: "ApprovalRequested",
-		payload: {
-			sessionId: runtime.sessionId,
-			approvalRequestId,
+	return yield* offerOutbound(
+		runtime,
+		approvalRequestedEvent(header, runtime.sessionId, {
+			approvalRequestId: fact.id,
 			title: fact.permission
-		}
-	})
-	return yield* offerOutbound(runtime, event)
+		})
+	)
 })
 
-// AC-269: same carve-out as makeToolCallObserved/publishApprovalRequested --
+// AC-269: same carve-out as toolCallObservedEvent/approvalRequestedEvent --
 // a real Claude usage_update message must reach ProjectionTurns as a typed
 // TurnUsageObserved event, not fold into a generic SessionMetaUpdated one
 // (see TurnUsageObservedPayload's doc in acp.ts). turnId is derived the same
@@ -460,21 +379,18 @@ const publishToolCallUpdated = Effect.fn("ClaudeAdapter.publishToolCallUpdated")
 		// row for yet.
 		return
 	}
-	const cache = yield* Ref.get(runtime.openToolCalls)
-	const cached = HashMap.get(cache, fact.toolCallId)
-	const info: OpenToolCallInfo = Option.getOrElse(cached, () => ({
-		activityId: toolCallActivityId(fact.toolCallId),
-		title: FALLBACK_TOOL_TITLE,
-		path: null
-	}))
-	const event = yield* makeToolCallObserved(runtime, {
-		activityId: info.activityId,
-		toolCallId: fact.toolCallId,
-		status: fact.status,
-		title: info.title,
-		path: info.path
-	})
-	return yield* offerOutbound(runtime, event)
+	const info = yield* takeOpenToolCall(runtime.openToolCalls, fact.toolCallId, fact.status)
+	const header = yield* stamp(runtime)
+	return yield* offerOutbound(
+		runtime,
+		toolCallObservedEvent(header, runtime.sessionId, {
+			activityId: info.activityId,
+			toolCallId: fact.toolCallId,
+			status: fact.status,
+			title: info.title,
+			path: info.path
+		})
+	)
 })
 
 export const publishFact = Effect.fn("ClaudeAdapter.publishFact")(function*(
@@ -495,8 +411,9 @@ export const publishFact = Effect.fn("ClaudeAdapter.publishFact")(function*(
 	}
 	// A real Claude tool call must reach ProjectionSessionActivities as a
 	// ToolCallObserved event, not fold into a generic SessionMetaUpdated one
-	// (see makeToolCallObserved's doc) -- that was the live QA bug: a tool
-	// call visibly executed but projection_session_activities stayed empty.
+	// (see toolCallObservedEvent's doc in SessionEvents.ts) -- that was the
+	// live QA bug: a tool call visibly executed but
+	// projection_session_activities stayed empty.
 	if (fact.contractKind === "tool_call") {
 		return yield* publishToolCallStarted(runtime, fact)
 	}
@@ -504,8 +421,8 @@ export const publishFact = Effect.fn("ClaudeAdapter.publishFact")(function*(
 		return yield* publishToolCallUpdated(runtime, fact)
 	}
 	// #268 defect 2: same carve-out as tool_call/tool_call_update above -- see
-	// publishApprovalRequested's doc for why a permission request cannot stay
-	// folded into the generic makeMetaEvent branch.
+	// approvalRequestedEvent's doc in SessionEvents.ts for why a permission
+	// request cannot stay folded into the generic makeMetaEvent branch.
 	if (fact.contractKind === "permission_request") {
 		return yield* publishApprovalRequested(runtime, fact)
 	}

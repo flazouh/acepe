@@ -37,7 +37,7 @@ The rest of `packages/server` already follows a `Services/` and `Layers/` split 
 - Use `Config.ts` when a provider reads its own on-disk configuration and the parser is large enough to crowd out the descriptor. Only Codex needs it today, for a TOML reader.
 - Put the live transport handle type in `Process.ts`, never in `Adapter.ts`. A spine that its own limbs import from is not a spine, and `Session.ts` needs that type.
 - Never re-export a moved symbol from `Adapter.ts` to preserve an import path. Point the importer at the file that holds the code. A re-export block is the barrel this ADR forbids, spelled differently.
-- Keep the shared kernel flat in `Layers/`: `ProviderRegistry.ts`, `ProviderAdapterRegistry.ts`, `ProviderBridge.ts`, `AgentInstaller.ts`, `Json.ts`, `FactCodec.ts`. These know every provider and no provider's details.
+- Keep the shared kernel flat in `Layers/`: `ProviderRegistry.ts`, `ProviderAdapterRegistry.ts`, `ProviderBridge.ts`, `AgentInstaller.ts`, `Json.ts`, `FactCodec.ts`, `SessionEvents.ts`. These know every provider and no provider's details.
 - Read raw provider JSON only through `Json.ts`. Five hand-copied accessor kits were the same 230 lines five times.
 - Keep the ports in `provider/Services/`. A provider folder implements a port; it never declares one.
 - Keep each `*.test.ts` beside the file it tests.

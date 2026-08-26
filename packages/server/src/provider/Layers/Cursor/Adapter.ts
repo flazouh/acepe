@@ -36,6 +36,7 @@ import type {
 	SendPromptRequest,
 	StartSessionRequest
 } from "../../Services/ProviderAdapter.ts"
+import type { OpenToolCallInfo } from "../SessionEvents.ts"
 import { providerSessionFact } from "./Facts.ts"
 import {
 	type CursorRespondToPermissionInput,
@@ -61,7 +62,6 @@ import {
 	makeCancelled,
 	makeMessageSent,
 	offerOutbound,
-	type OpenToolCallInfo,
 	publishFact,
 	publishSessionUpdate,
 	publishStopReason,

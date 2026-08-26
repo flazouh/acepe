@@ -1,19 +1,16 @@
 import {
-	ActivityId,
 	CommandId,
 	EventId,
 	MessageId,
 	MessageSentEvent,
-	type ObservedToolStatus,
 	type OrchestrationEvent,
 	SessionId,
 	SessionMetaUpdatedEvent,
 	TokenAppendedEvent,
-	ToolCallId,
-	ToolCallObservedEvent,
 	TurnCancelledEvent,
 	TurnCompletedEvent,
 	TurnId,
+	TurnUsageObservedEvent,
 	tracerAssistantMessageId
 } from "@acepe/contracts"
 import type { Done } from "effect/Cause"
@@ -28,28 +25,19 @@ import type {
 	SendPromptRequest
 } from "../../Services/ProviderAdapter.ts"
 import { EMPTY_JSON_OBJECT, type Json } from "../Json.ts"
+import {
+	approvalRequestedEvent,
+	type OpenToolCalls,
+	rememberOpenToolCall,
+	takeOpenToolCall,
+	toolCallActivityId,
+	toolCallObservedEvent
+} from "../SessionEvents.ts"
 import { encodeContractFact } from "./Codec.ts"
 import type { OpenCodeContractFact } from "./Facts.ts"
 import { mapSseJson, type OpenCodeStreamState, sseSessionId } from "./Map.ts"
 import type { OpenCodeTransport } from "./Process.ts"
 import { adapterError } from "./Provider.ts"
-
-// What a "tool_call" fact recorded about a tool call, kept around so a LATER
-// "tool_call_update" fact (toolCallId + a new status only — see
-// ToolCallUpdateFact in Facts.ts) can still publish a complete
-// ToolCallObservedEvent: the projector's ToolCallObservedPayload requires a
-// title on every row, not just the first one — see
-// ProjectionSessionActivities.ts's observedToolRow.
-export type OpenToolCallInfo = {
-	readonly activityId: ActivityId
-	readonly title: string
-}
-
-// One projection_session_activities row per OpenCode tool part, keyed the
-// same way across its whole lifecycle (pending/in_progress -> completed/
-// failed) so the projector's merge sees one growing row instead of two
-// unrelated ones.
-const toolCallActivityId = (toolCallId: string): ActivityId => ActivityId.make(`${toolCallId}:activity`)
 
 export type SessionRuntime = {
 	readonly sessionId: SessionId
@@ -58,8 +46,8 @@ export type SessionRuntime = {
 	readonly streamState: Ref.Ref<OpenCodeStreamState>
 	readonly lastUserMessageId: Ref.Ref<Option.Option<MessageId>>
 	readonly sequence: Ref.Ref<number>
-	// Keyed by OpenCode's own toolCallId. See OpenToolCallInfo's doc above.
-	readonly openToolCalls: Ref.Ref<HashMap.HashMap<string, OpenToolCallInfo>>
+	// Keyed by OpenCode's own toolCallId. See OpenToolCallInfo in SessionEvents.ts.
+	readonly openToolCalls: OpenToolCalls
 	readonly transport: OpenCodeTransport
 }
 
@@ -215,68 +203,32 @@ const makeCompleted = Effect.fn("OpenCodeAdapter.makeCompleted")(function*(
 	})
 })
 
-// Builds the SAME contract event the tracer's ToolCallObserveCommand decider
-// produces (see decider.ts's "tool.call.observe" case) — ProjectionSessionActivities.ts
-// only knows how to turn a ToolCallObserved event into a
-// projection_session_activities row; a real OpenCode tool call folded into a
-// generic SessionMetaUpdated is invisible to that projector no matter what
-// its encoded metadata says (the same bug Claude/Adapter.ts had).
-const makeToolCallObserved = Effect.fn("OpenCodeAdapter.makeToolCallObserved")(function*(
-	runtime: SessionRuntime,
-	input: {
-		readonly activityId: ActivityId
-		readonly toolCallId: string
-		readonly status: ObservedToolStatus
-		readonly title: string
-	}
-) {
-	const header = yield* stamp(runtime)
-	return ToolCallObservedEvent.make({
-		sequence: header.sequence,
-		eventId: header.eventId,
-		aggregateKind: "session",
-		aggregateId: runtime.sessionId,
-		occurredAt: header.occurredAt,
-		commandId: header.commandId,
-		causationEventId: null,
-		correlationId: header.commandId,
-		metadata: EMPTY_JSON_OBJECT,
-		type: "ToolCallObserved",
-		payload: {
-			sessionId: runtime.sessionId,
-			activityId: input.activityId,
-			toolCallId: ToolCallId.make(input.toolCallId),
-			operationId: null,
-			status: input.status,
-			title: input.title,
-			// Map.ts's tool parts don't carry a dedicated path field the
-			// way Claude's read/edit rawInput does — left null rather than
-			// guessing at one of several possible input shapes.
-			path: null
-		}
-	})
-})
-
-// A tool_call_update fact that arrives with no cached start info (e.g. a
-// tool-result part with no preceding tool part in this stream). Falls back
-// to a generic, still-nonempty title rather than dropping the status
-// transition on the floor.
-const FALLBACK_TOOL_TITLE = "Tool"
+// Map.ts's tool parts don't carry a dedicated path field the way Claude's
+// read/edit rawInput does, so every OpenCode activity row leaves the path
+// column null rather than guessing at one of several possible input shapes.
+const OPENCODE_TOOL_PATH = null
 
 const publishToolCallStarted = Effect.fn("OpenCodeAdapter.publishToolCallStarted")(function*(
 	runtime: SessionRuntime,
 	fact: Extract<OpenCodeContractFact, { readonly contractKind: "tool_call" }>
 ) {
 	const activityId = toolCallActivityId(fact.toolCallId)
-	yield* Ref.update(runtime.openToolCalls, (current) =>
-		HashMap.set(current, fact.toolCallId, { activityId, title: fact.title }))
-	const event = yield* makeToolCallObserved(runtime, {
+	yield* rememberOpenToolCall(runtime.openToolCalls, fact.toolCallId, fact.status, {
 		activityId,
-		toolCallId: fact.toolCallId,
-		status: fact.status,
-		title: fact.title
+		title: fact.title,
+		path: OPENCODE_TOOL_PATH
 	})
-	return yield* offerOutbound(runtime, event)
+	const header = yield* stamp(runtime)
+	return yield* offerOutbound(
+		runtime,
+		toolCallObservedEvent(header, runtime.sessionId, {
+			activityId,
+			toolCallId: fact.toolCallId,
+			status: fact.status,
+			title: fact.title,
+			path: OPENCODE_TOOL_PATH
+		})
+	)
 })
 
 const publishToolCallUpdated = Effect.fn("OpenCodeAdapter.publishToolCallUpdated")(function*(
@@ -288,18 +240,82 @@ const publishToolCallUpdated = Effect.fn("OpenCodeAdapter.publishToolCallUpdated
 		// transition to project.
 		return
 	}
-	const cache = yield* Ref.get(runtime.openToolCalls)
-	const cached = HashMap.get(cache, fact.toolCallId)
-	const info: OpenToolCallInfo = Option.getOrElse(cached, () => ({
-		activityId: toolCallActivityId(fact.toolCallId),
-		title: FALLBACK_TOOL_TITLE
-	}))
-	const event = yield* makeToolCallObserved(runtime, {
-		activityId: info.activityId,
-		toolCallId: fact.toolCallId,
-		status: fact.status,
-		title: info.title
+	const info = yield* takeOpenToolCall(runtime.openToolCalls, fact.toolCallId, fact.status)
+	const header = yield* stamp(runtime)
+	return yield* offerOutbound(
+		runtime,
+		toolCallObservedEvent(header, runtime.sessionId, {
+			activityId: info.activityId,
+			toolCallId: fact.toolCallId,
+			status: fact.status,
+			title: info.title,
+			path: OPENCODE_TOOL_PATH
+		})
+	)
+})
+
+const publishApprovalRequested = Effect.fn("OpenCodeAdapter.publishApprovalRequested")(function*(
+	runtime: SessionRuntime,
+	fact: Extract<OpenCodeContractFact, { readonly contractKind: "permission_request" }>
+) {
+	const header = yield* stamp(runtime)
+	return yield* offerOutbound(
+		runtime,
+		approvalRequestedEvent(header, runtime.sessionId, {
+			approvalRequestId: fact.id,
+			title: fact.permission
+		})
+	)
+})
+
+// AC-269: mirrors Claude/Session.ts's publishTurnUsageObserved -- a real
+// OpenCode usage reading must reach ProjectionTurns as a typed
+// TurnUsageObserved event, not fold into a generic SessionMetaUpdated one
+// (see TurnUsageObservedPayload's doc in acp.ts). turnId is derived the same
+// way makeCompleted derives one here: the last user message this runtime has
+// seen IS the current turn's id. Conditional spreads (not
+// `field: fact.field`) keep an absent UsageFact field genuinely absent
+// instead of present-with-undefined -- TurnUsageObservedEvent.make throws on
+// the latter for a Schema.optionalKey field, which killed the Claude
+// adapter's query-listener fiber mid Effect.forEach until that fix landed
+// (see Claude/Session.ts's makeTurnUsageObserved doc). OpenCode's UsageFact
+// carries no context-window reading, so that field is never set here.
+const makeTurnUsageObserved = Effect.fn("OpenCodeAdapter.makeTurnUsageObserved")(function*(
+	runtime: SessionRuntime,
+	fact: Extract<OpenCodeContractFact, { readonly contractKind: "usage" }>
+) {
+	const header = yield* stamp(runtime)
+	const lastUser = yield* Ref.get(runtime.lastUserMessageId)
+	const payload = {
+		sessionId: runtime.sessionId,
+		...(Option.isSome(lastUser) ? { turnId: TurnId.make(lastUser.value) } : {}),
+		...(fact.inputTokens !== undefined ? { inputTokens: fact.inputTokens } : {}),
+		...(fact.outputTokens !== undefined ? { outputTokens: fact.outputTokens } : {}),
+		...(fact.totalTokens !== undefined ? { totalTokens: fact.totalTokens } : {}),
+		...(fact.cacheReadTokens !== undefined ? { cacheReadTokens: fact.cacheReadTokens } : {}),
+		...(fact.cacheWriteTokens !== undefined ? { cacheWriteTokens: fact.cacheWriteTokens } : {}),
+		...(fact.costUsd !== undefined ? { costUsd: fact.costUsd } : {})
+	}
+	return TurnUsageObservedEvent.make({
+		sequence: header.sequence,
+		eventId: header.eventId,
+		aggregateKind: "session",
+		aggregateId: runtime.sessionId,
+		occurredAt: header.occurredAt,
+		commandId: header.commandId,
+		causationEventId: null,
+		correlationId: header.commandId,
+		metadata: EMPTY_JSON_OBJECT,
+		type: "TurnUsageObserved",
+		payload
 	})
+})
+
+const publishTurnUsageObserved = Effect.fn("OpenCodeAdapter.publishTurnUsageObserved")(function*(
+	runtime: SessionRuntime,
+	fact: Extract<OpenCodeContractFact, { readonly contractKind: "usage" }>
+) {
+	const event = yield* makeTurnUsageObserved(runtime, fact)
 	return yield* offerOutbound(runtime, event)
 })
 
@@ -316,12 +332,23 @@ const publishFact = Effect.fn("OpenCodeAdapter.publishFact")(function*(
 		return yield* offerOutbound(runtime, event)
 	}
 	// A real OpenCode tool call must reach ProjectionSessionActivities as a
-	// ToolCallObserved event, not fold into a generic SessionMetaUpdated one.
+	// ToolCallObserved event, not fold into a generic SessionMetaUpdated one —
+	// see toolCallObservedEvent's doc in SessionEvents.ts.
 	if (fact.contractKind === "tool_call") {
 		return yield* publishToolCallStarted(runtime, fact)
 	}
 	if (fact.contractKind === "tool_call_update") {
 		return yield* publishToolCallUpdated(runtime, fact)
+	}
+	// Same carve-out as tool_call above: an OpenCode permission.asked has to
+	// reach ProjectionPendingApprovals as a typed ApprovalRequested event, or
+	// the desktop never learns there is an approval to answer — see
+	// approvalRequestedEvent's doc in SessionEvents.ts.
+	if (fact.contractKind === "permission_request") {
+		return yield* publishApprovalRequested(runtime, fact)
+	}
+	if (fact.contractKind === "usage") {
+		return yield* publishTurnUsageObserved(runtime, fact)
 	}
 	const event = yield* makeMetaEvent(runtime, fact)
 	return yield* offerOutbound(runtime, event)
