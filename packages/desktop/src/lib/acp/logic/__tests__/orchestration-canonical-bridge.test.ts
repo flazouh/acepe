@@ -522,7 +522,11 @@ describe("OrchestrationCanonicalBridge", () => {
 
 		const approval = runTranslate(
 			bridge,
-			makeEvent("ApprovalRequested", { sessionId, approvalRequestId: "perm-toolu_1", title: "Write" })
+			makeEvent("ApprovalRequested", {
+				sessionId,
+				approvalRequestId: "perm-toolu_1",
+				title: "Write",
+			})
 		);
 		const approvalPayload = approval[0]?.payload as SessionStateEnvelope;
 		if (approvalPayload.payload.kind !== "delta") {
@@ -548,13 +552,130 @@ describe("OrchestrationCanonicalBridge", () => {
 		expect(interaction.tool_reference).toEqual({ callId: "toolu_1" });
 	});
 
+	// The answer to an approval is canonical: the server removes the row on
+	// InteractionReplied (ProjectionPendingApprovals) and the snapshot fold
+	// drops it from pendingApprovals (packages/contracts/src/sessionSnapshot
+	// .ts). The bridge used to have no case for the event at all, so the
+	// client's interaction graph kept the permission Pending forever. A live
+	// QA run showed the backend at pendingApprovals=[], the edit activity
+	// completed and the file written on disk, while the transcript still
+	// rendered "Permission Required" and "Waiting for your approval". The
+	// client must resolve the interaction from the canonical answer instead of
+	// depending on permission-store's optimistic local delete, which only
+	// fires in the tab that happened to click the button.
+	it("resolves the pending permission and releases the blocked activity on InteractionReplied", () => {
+		const bridge = makeBridge();
+		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
+		runTranslate(
+			bridge,
+			makeEvent("MessageSent", { sessionId, messageId: MessageId.make("u1"), text: "go" })
+		);
+		runTranslate(
+			bridge,
+			makeEvent("ToolCallObserved", {
+				sessionId,
+				activityId: "activity-1",
+				toolCallId: "toolu_1",
+				operationId: null,
+				status: "pending",
+				title: "Write",
+				path: "/tmp/qa.txt",
+			})
+		);
+		const requested = runTranslate(
+			bridge,
+			makeEvent("ApprovalRequested", {
+				sessionId,
+				approvalRequestId: "perm-toolu_1",
+				title: "Write",
+			})
+		);
+		const requestedPayload = requested[0]?.payload as SessionStateEnvelope;
+		if (requestedPayload.payload.kind !== "delta") {
+			throw new Error("expected a delta envelope");
+		}
+		expect(requestedPayload.payload.delta.activity.kind).toBe("waiting_for_user");
+
+		const replied = runTranslate(
+			bridge,
+			makeEvent("InteractionReplied", {
+				sessionId,
+				approvalRequestId: "perm-toolu_1",
+				decision: "allow",
+			})
+		);
+
+		expect(replied).toHaveLength(1);
+		const payload = replied[0]?.payload as SessionStateEnvelope;
+		if (payload.payload.kind !== "delta") {
+			throw new Error("expected a delta envelope");
+		}
+		const delta = payload.payload.delta;
+
+		expect(delta.interactionPatches).toHaveLength(1);
+		const [interaction] = delta.interactionPatches;
+		expect(interaction?.id).toBe("perm-toolu_1");
+		// interaction-store.svelte.ts's applyPermissionInteraction deletes the
+		// pending permission for any state that is not "Pending". That is the
+		// seam that finally takes the PermissionBar off the row.
+		expect(interaction?.state).toBe("Approved");
+		expect(interaction?.tool_reference).toEqual({ callId: "toolu_1" });
+		expect(interaction?.response).toEqual({ kind: "permission", accepted: true });
+
+		// "Waiting for your approval" is rendered from activity.kind
+		// "waiting_for_user" (session-status-mapper.ts), so the answer has to
+		// release the activity too, or the placeholder outlives its own
+		// permission.
+		expect(delta.activity.kind).not.toBe("waiting_for_user");
+		expect(delta.changedFields).toContain("interactions");
+		expect(delta.changedFields).toContain("activity");
+		// Answering an approval appends no transcript row: the row it belongs
+		// to is already on screen.
+		expect(delta.transcriptOperations).toHaveLength(0);
+		expect(delta.toRevision.transcriptRevision).toBe(delta.fromRevision.transcriptRevision);
+	});
+
+	it("marks a denied permission Rejected", () => {
+		const bridge = makeBridge();
+		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
+		runTranslate(
+			bridge,
+			makeEvent("ApprovalRequested", {
+				sessionId,
+				approvalRequestId: "perm-toolu_9",
+				title: "Write",
+			})
+		);
+
+		const replied = runTranslate(
+			bridge,
+			makeEvent("InteractionReplied", {
+				sessionId,
+				approvalRequestId: "perm-toolu_9",
+				decision: "deny",
+			})
+		);
+
+		const payload = replied[0]?.payload as SessionStateEnvelope;
+		if (payload.payload.kind !== "delta") {
+			throw new Error("expected a delta envelope");
+		}
+		const [interaction] = payload.payload.delta.interactionPatches;
+		expect(interaction?.state).toBe("Rejected");
+		expect(interaction?.response).toEqual({ kind: "permission", accepted: false });
+	});
+
 	it("still renders its own standalone row when no tool-call row exists yet, even for a perm-<toolCallId> id", () => {
 		const bridge = makeBridge();
 		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
 
 		const approval = runTranslate(
 			bridge,
-			makeEvent("ApprovalRequested", { sessionId, approvalRequestId: "perm-toolu_2", title: "Write" })
+			makeEvent("ApprovalRequested", {
+				sessionId,
+				approvalRequestId: "perm-toolu_2",
+				title: "Write",
+			})
 		);
 		const payload = approval[0]?.payload as SessionStateEnvelope;
 		if (payload.payload.kind !== "delta") {

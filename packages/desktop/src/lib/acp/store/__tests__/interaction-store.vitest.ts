@@ -150,6 +150,27 @@ describe("InteractionStore", () => {
 		expect(store.getPendingPermissionsForSession("session-1")).toBe(firstSessionPermissions);
 	});
 
+	// The store side of the canonical approval answer: this is the exact patch
+	// shape OrchestrationCanonicalBridge emits for an InteractionReplied event
+	// (same id, state no longer "Pending"), and dropping the permission here is
+	// what takes the PermissionBar off the tool row.
+	it("removes a resolved permission from the pending index", () => {
+		const store = new InteractionStore();
+
+		store.applySessionInteractionPatches([createPendingPermissionInteraction()]);
+		expect(store.permissionsPending.size).toBe(1);
+
+		store.applySessionInteractionPatches([
+			createPendingPermissionInteraction({
+				state: "Approved",
+				response: { kind: "permission", accepted: true },
+			}),
+		]);
+
+		expect(store.permissionsPending.size).toBe(0);
+		expect(store.getPendingPermissionsForSession("session-1")).toHaveLength(0);
+	});
+
 	it("preserves pending question identity for duplicate patches", () => {
 		const store = new InteractionStore();
 		store.applySessionInteractionPatches([createPendingQuestionInteraction()]);

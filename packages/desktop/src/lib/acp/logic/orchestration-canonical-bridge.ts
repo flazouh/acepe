@@ -16,7 +16,7 @@
 // itself unsupportedOnContract for the same reason) -- but turn completion
 // (TurnCompleted, alongside TurnCancelled) IS a real terminal signal on the
 // contract, handled below.
-import type { OrchestrationEvent, SessionId } from "@acepe/contracts";
+import type { ApprovalDecision, OrchestrationEvent, SessionId } from "@acepe/contracts";
 import { librarySnapshotRequest, type RpcClient } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 
@@ -41,6 +41,11 @@ import {
 } from "./observed-tool-call-status.js";
 import { asOperationToolKind } from "./observed-tool-kind.js";
 
+type PendingApprovalRecord = {
+	readonly toolCallId: string;
+	readonly title: string;
+};
+
 type SessionCanonicalState = {
 	revision: SessionGraphRevision;
 	turnState: SessionTurnState;
@@ -61,6 +66,11 @@ type SessionCanonicalState = {
 	// dedup hazard tool calls have) patches the existing row instead of
 	// appending a duplicate.
 	observedApprovalIds: Set<string>;
+	// What each still-unanswered approval is attached to, so the canonical
+	// answer (InteractionReplied, which carries only the approval id and the
+	// decision) can be patched back onto the same interaction with the same
+	// tool reference and title rather than inventing them.
+	pendingApprovals: Map<string, PendingApprovalRecord>;
 	// AC-269: epoch-ms the CURRENTLY open turn started, or null when no turn
 	// is open -- the Claude Code working line's elapsed timer reads this via
 	// SessionGraphActivity.kindStartedAtMs (see awaitingModelActivityAt).
@@ -83,6 +93,10 @@ const toCanonicalAgentId = (providerId: string | undefined): CanonicalAgentId =>
 	providerId !== undefined && KNOWN_AGENT_IDS.has(providerId)
 		? (providerId as CanonicalAgentId)
 		: "claude-code";
+
+// Only reachable when the answer arrives for an approval this bridge never
+// saw requested, which is the reopened-session case below.
+const RESOLVED_APPROVAL_FALLBACK_TITLE = "Permission request";
 
 const idleActivity: SessionGraphActivity = {
 	kind: "idle",
@@ -195,6 +209,8 @@ export class OrchestrationCanonicalBridge {
 				return Effect.succeed(this.onToolCallObserved(event.payload));
 			case "ApprovalRequested":
 				return Effect.succeed(this.onApprovalRequested(event.payload));
+			case "InteractionReplied":
+				return Effect.succeed(this.onInteractionReplied(event.payload, event.sequence));
 			case "TurnCancelled":
 				return Effect.succeed(
 					this.onTurnCancelled(event.payload.sessionId, event.payload.turnId ?? null)
@@ -234,6 +250,7 @@ export class OrchestrationCanonicalBridge {
 					assistantEntryRunSeq: 0,
 					observedToolCallIds: new Set(),
 					observedApprovalIds: new Set(),
+					pendingApprovals: new Map(),
 					turnStartedAtMs: null,
 				});
 				const envelope: SessionStateEnvelope = {
@@ -529,6 +546,10 @@ export class OrchestrationCanonicalBridge {
 		toolCallId: string
 	): AcpEventEnvelope[] {
 		state.observedApprovalIds.add(payload.approvalRequestId);
+		state.pendingApprovals.set(payload.approvalRequestId, {
+			toolCallId,
+			title: payload.title,
+		});
 		const toRevision = nextRevision(state.revision, false);
 		const interaction: InteractionSnapshot = {
 			id: payload.approvalRequestId,
@@ -618,6 +639,10 @@ export class OrchestrationCanonicalBridge {
 		if (isFirstSighting) {
 			state.observedApprovalIds.add(payload.approvalRequestId);
 		}
+		state.pendingApprovals.set(payload.approvalRequestId, {
+			toolCallId: payload.approvalRequestId,
+			title: payload.title,
+		});
 		const operation: OperationSnapshot = {
 			id: payload.approvalRequestId,
 			session_id: payload.sessionId,
@@ -681,6 +706,88 @@ export class OrchestrationCanonicalBridge {
 			changedFields: isFirstSighting
 				? ["transcriptSnapshot", "operations", "interactions", "activity"]
 				: ["operations", "interactions", "activity"],
+		};
+		state.revision = toRevision;
+		state.activity = activity;
+		return [toSessionStateAcpEnvelope(envelopeForDelta(payload.sessionId, toRevision, delta))];
+	}
+
+	// The canonical answer to an approval. By the time this arrives the server
+	// has already dropped the pending row (ProjectionPendingApprovals, and the
+	// snapshot fold in packages/contracts/src/sessionSnapshot.ts), so the
+	// client's own interaction graph has to resolve it from the same event:
+	// interaction-store.svelte.ts's applyPermissionInteraction deletes any
+	// permission whose state is not "Pending", and that is what takes the
+	// PermissionBar off the row. Without this case the bridge dropped the event
+	// and the only thing that ever cleared a permission was permission-store's
+	// optimistic local delete, which fires only for the click that made it --
+	// so an approval answered anywhere else, or a delivery the click path
+	// missed, left "Permission Required" and "Waiting for your approval" on a
+	// tool call the provider had already finished.
+	private onInteractionReplied(
+		payload: {
+			readonly sessionId: SessionId;
+			readonly approvalRequestId: string;
+			readonly decision: ApprovalDecision;
+		},
+		eventSeq: number
+	): AcpEventEnvelope[] {
+		const state = this.sessions.get(payload.sessionId);
+		if (state === undefined) {
+			return [];
+		}
+		const record = state.pendingApprovals.get(payload.approvalRequestId);
+		state.pendingApprovals.delete(payload.approvalRequestId);
+		// A session reopened while an approval was still open seeds that
+		// permission from the snapshot, which keys the tool reference on the
+		// approval id itself (interactionFromPendingApproval in
+		// reopen-snapshot-graph.ts). Resolve with the same shape when this
+		// bridge never saw the request, so a reopened session clears too.
+		const toolCallId = record === undefined ? payload.approvalRequestId : record.toolCallId;
+		const title = record === undefined ? RESOLVED_APPROVAL_FALLBACK_TITLE : record.title;
+		const accepted = payload.decision === "allow";
+		const toRevision = nextRevision(state.revision, false);
+		const interaction: InteractionSnapshot = {
+			id: payload.approvalRequestId,
+			session_id: payload.sessionId,
+			kind: "Permission",
+			state: accepted ? "Approved" : "Rejected",
+			json_rpc_request_id: null,
+			reply_handler: null,
+			tool_reference: { callId: toolCallId },
+			responded_at_event_seq: eventSeq,
+			response: { kind: "permission", accepted },
+			payload: {
+				Permission: {
+					id: payload.approvalRequestId,
+					sessionId: payload.sessionId,
+					permission: title,
+					patterns: [],
+					metadata: null,
+					always: [],
+					autoAccepted: false,
+					tool: { callId: toolCallId },
+				},
+			},
+		};
+		// Only this approval's own block is released. A session waiting on a
+		// different interaction stays waiting on it.
+		const releasesActivity =
+			state.activity.kind === "waiting_for_user" &&
+			state.activity.blockingInteractionId === payload.approvalRequestId;
+		const activity = releasesActivity
+			? awaitingModelActivityAt(state.turnStartedAtMs)
+			: state.activity;
+		const delta: SessionStateDelta = {
+			fromRevision: state.revision,
+			toRevision,
+			activity,
+			turnState: state.turnState,
+			activeStreamingTail: null,
+			transcriptOperations: [],
+			operationPatches: [],
+			interactionPatches: [interaction],
+			changedFields: releasesActivity ? ["interactions", "activity"] : ["interactions"],
 		};
 		state.revision = toRevision;
 		state.activity = activity;
