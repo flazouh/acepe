@@ -1180,6 +1180,11 @@ describe("SessionConnectionManager.connectSession", () => {
 			})
 		);
 		const eventHandler = createMockEventHandler();
+		// Mirrors what the real store does once applySessionStateEnvelope
+		// lands a "ready" lifecycle: getSessionCanSend flips true. The mock
+		// event handler has no real store behind it, so this has to be wired
+		// explicitly.
+		(eventHandler.getSessionCanSend as ReturnType<typeof vi.fn>).mockReturnValue(true);
 
 		const result = await runToResult(manager.connectSession(sessionId, eventHandler));
 		Result.getOrThrow(result);
@@ -1190,6 +1195,93 @@ describe("SessionConnectionManager.connectSession", () => {
 		expect(eventHandler.applySessionStateEnvelope).toHaveBeenCalledWith(sessionId, envelope);
 		expect(connectionManager.setConnecting).toHaveBeenLastCalledWith(sessionId, false);
 	});
+
+	// Regression (AC #266 defect 3): opening a dispatch-created session showed
+	// "Thread error - click to retry". Root cause is real backend behavior,
+	// not a mock artifact -- getSessionConnectionReadiness (the only
+	// implementation behind fetchSessionConnectionReadiness under the
+	// Bun/Electrobun backend, see tauri-client/acp.ts) always answers with
+	// `capabilities: {}` (no models/modes -- never populated by this
+	// endpoint), and getSessionState (fetchCanonicalSessionStateEnvelope)
+	// always answers with a "lifecycle" payload, never "snapshot". The
+	// pre-fix readiness-reconcile loop required BOTH populated capabilities
+	// AND a successfully-applied envelope before considering the connection
+	// materialized, so it could never succeed for any session that reaches
+	// this fallback (any session whose lifecycle event was missed) -- it
+	// just spun until the watchdog fired. The unrealistic
+	// "reconciles from a ready canonical snapshot" test above only passes
+	// today because its mocks fabricate a rich "snapshot" envelope and real
+	// capabilities that this backend never actually returns via these calls.
+	it(
+		"reconciles once the applied lifecycle envelope reports canSend, even though readiness capabilities never populate",
+		async () => {
+			const manager = createManager({
+				stateReader,
+				stateWriter,
+				transientProjection,
+				capabilities,
+				entryManager,
+				connectionManager,
+			});
+			vi.spyOn(lastEventService, "waitForConnectionMaterialization").mockImplementationOnce(() => ({
+				promise: new Promise<ConnectionCompleteData>(() => {}),
+				cancel: vi.fn(),
+			}));
+			const lifecycleEnvelope: SessionStateEnvelope = {
+				sessionId,
+				graphRevision: 0,
+				lastEventSeq: 0,
+				payload: {
+					kind: "lifecycle",
+					lifecycle: {
+						status: "ready",
+						detachedReason: null,
+						failureReason: null,
+						errorMessage: null,
+						actionability: {
+							canSend: true,
+							canResume: false,
+							canRetry: false,
+							canArchive: true,
+							canConfigure: true,
+							recommendedAction: "send",
+							recoveryPhase: "none",
+							compactStatus: "ready",
+						},
+					},
+					revision: { graphRevision: 0, transcriptRevision: 0, lastEventSeq: 0 },
+				},
+			};
+			fetchCanonicalSessionStateEnvelope.mockReturnValue(Effect.succeed(lifecycleEnvelope));
+			if (lifecycleEnvelope.payload.kind !== "lifecycle") {
+				throw new Error("expected lifecycle envelope");
+			}
+			// Real getSessionConnectionReadiness shape: lifecycle only, capabilities always empty.
+			fetchSessionConnectionReadiness.mockReturnValue(
+				Effect.succeed({
+					graphRevision: 0,
+					lifecycle: lifecycleEnvelope.payload.lifecycle,
+					capabilities: {},
+				})
+			);
+			const eventHandler = createMockEventHandler();
+			(eventHandler.getSessionCanSend as ReturnType<typeof vi.fn>).mockImplementation(() =>
+				(eventHandler.applySessionStateEnvelope as ReturnType<typeof vi.fn>).mock.calls.length > 0
+			);
+
+			// Real timers: the readiness-reconcile loop's interval (500ms) is
+			// short enough to wait out directly rather than fighting fake-timer
+			// interleaving with the loop's async delay/Effect.runPromise chain.
+			const result = await runToResult(manager.connectSession(sessionId, eventHandler));
+
+			Result.getOrThrow(result);
+			expect(eventHandler.applySessionStateEnvelope).toHaveBeenCalledWith(
+				sessionId,
+				lifecycleEnvelope
+			);
+		},
+		5_000
+	);
 
 	it("keeps the readiness fallback deadline aligned with the connection watchdog", async () => {
 		const modulePath = "./session-connection-manager.js?timeout-invariant" as string;

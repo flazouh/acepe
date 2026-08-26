@@ -69,7 +69,14 @@ import { resolve } from "node:path";
 // awaiting-model-refresh-store.svelte.ts, session-store-compose.ts,
 // project-manager.svelte.ts) -- every violation in those files sits on
 // unchanged pre-existing lines that simply shifted down.
-const BASELINE = 6610;
+// 6610 -> 6606: AC issue #266 defect 3 (dispatch-created sessions
+// unopenable). Removing the broken `!capabilities.models ||
+// !capabilities.modes` optional-property boolean check in
+// session-connection-manager.ts's readiness gate (replaced by reading
+// `eventHandler.getSessionCanSend(sessionId)` after the envelope applies)
+// dropped more effect(strictBooleanExpressions)-style violations than the
+// batch's own new test file additions added back.
+const BASELINE = 6606;
 const PACKAGE_ROOT = resolve(import.meta.dir, "..");
 
 // The pretty formatter (the default, and what lint:effect:report uses) always

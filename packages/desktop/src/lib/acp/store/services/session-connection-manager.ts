@@ -157,7 +157,20 @@ function closeCreatedSessionAfterSelectionFailure<T>(
 	);
 }
 
-function readyConnectionDataFromReadiness(
+// SessionConnectionReadiness.capabilities is never populated by
+// getSessionConnectionReadiness under the Bun/Electrobun backend (see
+// tauri-client/acp.ts's header comment) -- it always answers `capabilities:
+// {}`, no models, no modes. Real capabilities only ever arrive through a
+// live capabilities envelope push. Gating "is this connection materialized"
+// on capabilities being present here meant this fallback could never
+// succeed for ANY session that reached it, including a dispatch-created
+// session opened cold from the sidebar with no pending send intent (AC #266
+// defect 3, "Thread error - click to retry") -- it just spun until the
+// watchdog fired. Readiness now means: the lifecycle itself reports "ready".
+// Capabilities are filled in from whatever the readiness call happened to
+// carry (empty today, real once that endpoint is widened) rather than
+// gating on them.
+function connectionCompleteDataFromReadiness(
 	readiness: SessionConnectionReadiness
 ): ConnectionCompleteData | null {
 	if (readiness.lifecycle.status !== "ready") {
@@ -165,13 +178,9 @@ function readyConnectionDataFromReadiness(
 	}
 
 	const capabilities = readiness.capabilities;
-	if (!capabilities.models || !capabilities.modes) {
-		return null;
-	}
-
 	return {
-		models: capabilities.models,
-		modes: capabilities.modes,
+		models: capabilities.models ?? {},
+		modes: capabilities.modes ?? {},
 		availableCommands: capabilities.availableCommands ?? null,
 		configOptions: capabilities.configOptions ?? null,
 		autonomousEnabled: capabilities.autonomousEnabled ?? null,
@@ -187,14 +196,14 @@ async function reconcileReadyConnection(
 	await delay(READINESS_RECONCILE_INTERVAL_MS);
 
 	while (Date.now() <= deadlineMs && !isCancelled()) {
-		const materialized = await Effect.runPromise(
+		const readinessData = await Effect.runPromise(
 			api.fetchSessionConnectionReadiness(sessionId).pipe(
-				Effect.map((readiness) => readyConnectionDataFromReadiness(readiness)),
+				Effect.map((readiness) => connectionCompleteDataFromReadiness(readiness)),
 				Effect.catch(() => Effect.succeed(null))
 			)
 		);
 
-		if (materialized !== null) {
+		if (readinessData !== null) {
 			const applied = await Effect.runPromise(
 				api.fetchCanonicalSessionStateEnvelope(sessionId).pipe(
 					Effect.map((envelope) => {
@@ -205,8 +214,12 @@ async function reconcileReadyConnection(
 				)
 			);
 
-			if (applied) {
-				return materialized;
+			// The applied envelope's canonical projection, not the (structurally
+			// empty) readiness capabilities, is the real signal that this
+			// session can now be used -- same canSendFromCanonical fact
+			// connectSession's own short-circuit already trusts.
+			if (applied && eventHandler.getSessionCanSend(sessionId) === true) {
+				return readinessData;
 			}
 		}
 
