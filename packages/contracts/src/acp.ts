@@ -498,14 +498,13 @@ export const ACP_SESSION_COMMAND_TYPES = [
 export type AcpSessionCommandType = (typeof ACP_SESSION_COMMAND_TYPES)[number]
 
 // The approval lifecycle also travels out of band, as one reserved key on an
-// event's metadata, for the two moments a native ApprovalRequested or
+// event's metadata, for the moment a native ApprovalRequested or
 // InteractionReplied event cannot carry: a provider adapter answering an
-// approval nobody asked it to answer (a drained, abandoned permission — see
-// each provider's Permissions.ts), and a history parser restoring an approval
-// from a provider's own transcript. Both the producer and the consumer
-// (ProjectionPendingApprovals in packages/server) read this one definition,
-// so the key and the payload shape can never drift apart across the layer
-// boundary.
+// approval nobody asked it to answer, which is a drained, abandoned
+// permission — see each provider's Permissions.ts. Both the producer (the
+// provider layer) and the consumer (ProjectionPendingApprovals in
+// packages/server) read this one definition, so the key and the payload shape
+// can never drift apart across the layer boundary.
 export const ApprovalRequestedFact = Schema.Struct({
 	type: Schema.Literal("ApprovalRequested"),
 	approvalRequestId: ApprovalRequestId,
