@@ -330,16 +330,24 @@ export class OrchestrationCanonicalBridge {
 		if (state === undefined) {
 			return [];
 		}
-		// AC-263: a tool call is transcript-bearing -- it renders as a "tool"
-		// row inline with the rest of the transcript, so it advances
-		// transcriptRevision (true) both on first sighting (a row appears) and
-		// on every later status re-observation (the row's rendered status
-		// changes). The Electrobun rows-controller only re-derives rows when
-		// transcriptRevision itself changes (see scene-content-viewport.svelte's
-		// transcript-revision effect), so a status-only bump here is what makes
-		// pending -> in_progress -> completed actually re-render.
-		const toRevision = nextRevision(state.revision, true);
+		// A tool call is transcript-bearing only on first sighting -- that is
+		// the one observation that actually appends a "tool" row
+		// (transcriptOperations below). A later status-only re-observation
+		// (pending -> in_progress -> completed) patches the existing operation
+		// and carries zero transcriptOperations, so it must NOT claim
+		// transcriptRevision advanced or list "transcriptSnapshot" in
+		// changedFields: session-state-query-service.ts's resolveSessionStateDelta
+		// treats "transcriptSnapshot changed with zero operations" as a stale/
+		// desynced delta and forces a refreshSnapshot, which drops this same
+		// delta's operationPatches/activity (routeSessionStateEnvelope only
+		// emits applyGraphPatches on the non-refreshSnapshot path) and, because
+		// this bridge's live transcript exists only client-side, permanently
+		// desyncs every later envelope for the session -- the live transcript
+		// stalls right after the first tool call and never renders the rest of
+		// the turn. See orchestration-canonical-bridge.test.ts's
+		// "keeps rendering after a tool call re-observes status" case.
 		const isFirstSighting = !state.observedToolCallIds.has(payload.toolCallId);
+		const toRevision = nextRevision(state.revision, isFirstSighting);
 		const toolEntryId = `entry-tool-${payload.toolCallId}`;
 		const transcriptOperations: TranscriptDeltaOperation[] = isFirstSighting
 			? [
@@ -408,7 +416,9 @@ export class OrchestrationCanonicalBridge {
 			transcriptOperations,
 			operationPatches: [operation],
 			interactionPatches: [],
-			changedFields: ["transcriptSnapshot", "operations", "activity"],
+			changedFields: isFirstSighting
+				? ["transcriptSnapshot", "operations", "activity"]
+				: ["operations", "activity"],
 		};
 		state.revision = toRevision;
 		state.activity = activity;

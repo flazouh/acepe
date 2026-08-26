@@ -9,7 +9,12 @@ import {
 } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 
-import type { SessionStateDelta, SessionStateEnvelope } from "../../../services/acp-types.js";
+import type {
+	SessionGraphRevision,
+	SessionStateDelta,
+	SessionStateEnvelope,
+} from "../../../services/acp-types.js";
+import { routeSessionStateEnvelope } from "../../session-state/session-state-command-router.js";
 import type { AcpEventEnvelope } from "../acp-event-bridge.js";
 import { OrchestrationCanonicalBridge } from "../orchestration-canonical-bridge.js";
 
@@ -260,11 +265,13 @@ describe("OrchestrationCanonicalBridge", () => {
 		// A tool row is transcript-bearing: transcriptRevision must advance so
 		// the Electrobun rows-controller (gated on transcript-revision alone)
 		// actually re-derives rows for it.
-		expect(delta.toRevision.transcriptRevision).toBeGreaterThan(delta.fromRevision.transcriptRevision);
+		expect(delta.toRevision.transcriptRevision).toBeGreaterThan(
+			delta.fromRevision.transcriptRevision
+		);
 		expect(delta.changedFields).toContain("transcriptSnapshot");
 	});
 
-	it("does not append a second tool transcript entry when the same tool call is observed again, but still advances transcriptRevision so status updates re-render", () => {
+	it("does not append a second tool transcript entry when the same tool call is observed again, and does not falsely claim transcriptRevision advanced", () => {
 		const bridge = makeBridge();
 		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
 		const first = runTranslate(
@@ -280,8 +287,7 @@ describe("OrchestrationCanonicalBridge", () => {
 			})
 		);
 		const firstPayload = first[0]?.payload as SessionStateEnvelope;
-		const firstDelta =
-			firstPayload.payload.kind === "delta" ? firstPayload.payload.delta : null;
+		const firstDelta = firstPayload.payload.kind === "delta" ? firstPayload.payload.delta : null;
 		if (firstDelta === null) {
 			throw new Error("expected a delta envelope");
 		}
@@ -315,9 +321,20 @@ describe("OrchestrationCanonicalBridge", () => {
 			kind: "transcript_linked",
 			entry_id: toolEntryId,
 		});
-		expect(secondDelta.toRevision.transcriptRevision).toBeGreaterThan(
+		// A status-only re-observation carries zero transcriptOperations, so it
+		// must not claim transcriptRevision advanced or list "transcriptSnapshot"
+		// in changedFields -- session-state-query-service.ts's
+		// resolveSessionStateDelta treats that combination (transcriptSnapshot
+		// changed, zero operations) as a stale/desynced delta and forces a
+		// refreshSnapshot, silently dropping this delta's operationPatches and
+		// activity instead of applying them. See the full-pipeline regression
+		// test below.
+		expect(secondDelta.toRevision.transcriptRevision).toBe(
 			secondDelta.fromRevision.transcriptRevision
 		);
+		expect(secondDelta.changedFields).not.toContain("transcriptSnapshot");
+		expect(secondDelta.changedFields).toContain("operations");
+		expect(secondDelta.changedFields).toContain("activity");
 	});
 
 	it("starts a fresh assistant entry for tokens that arrive after a tool call, so text keeps its real position relative to the tool row", () => {
@@ -341,7 +358,11 @@ describe("OrchestrationCanonicalBridge", () => {
 		);
 		const afterTool = runTranslate(
 			bridge,
-			makeEvent("TokenAppended", { sessionId, messageId: MessageId.make("a1"), token: "It's acepe" })
+			makeEvent("TokenAppended", {
+				sessionId,
+				messageId: MessageId.make("a1"),
+				token: "It's acepe",
+			})
 		);
 
 		const payload = afterTool[0]?.payload as SessionStateEnvelope;
@@ -406,5 +427,202 @@ describe("OrchestrationCanonicalBridge", () => {
 			makeEvent("SettingsUpdated", { key: "theme", value: "dark" })
 		);
 		expect(envelopes).toHaveLength(0);
+	});
+});
+
+// Reproduces a live defect: during a real Claude turn with a tool call, the
+// transcript stalls right after the tool call -- pre-tool text and the
+// pending tool row render, but post-tool tokens, tool completion, and turn
+// completion never do, even though the server appends the full
+// ToolCallObserved in_progress -> in_progress(titled) -> completed sequence
+// plus the TokenAppended/TurnCompleted that follow. Root cause:
+// onToolCallObserved used to claim "transcriptSnapshot changed" (and bump
+// transcriptRevision) on EVERY re-observation of the same tool call, not
+// just its first appendEntry sighting. session-state-query-service.ts's
+// resolveSessionStateDelta treats "transcriptSnapshot changed, zero
+// transcriptOperations" as a stale delta and forces a refreshSnapshot, which
+// (a) drops that delta's operationPatches/activity entirely --
+// routeSessionStateEnvelope only emits applyGraphPatches on the
+// non-refreshSnapshot path -- and (b) since this bridge's live transcript
+// exists only client-side (Electrobun has no real backend snapshot to
+// refresh a live-created session from), the desync never resolves: every
+// later envelope for the session is treated as stale too, and the
+// transcript never advances past that point. This test drives the bridge's
+// output through the real session-state-command-router, the actual next
+// consumer, instead of asserting on the bridge's delta shape alone.
+describe("OrchestrationCanonicalBridge -> session-state-command-router (full live-turn pipeline)", () => {
+	it("keeps applying transcript/graph patches across pre-tool text -> tool call -> post-tool text -> TurnCompleted, without ever falling back to refreshSnapshot", () => {
+		const bridge = makeBridge();
+		const appliedText: string[] = [];
+		const observedToolStates: string[] = [];
+		const state: {
+			currentRevision: SessionGraphRevision | null;
+			turnState: string | null;
+			sawRefreshSnapshot: boolean;
+		} = {
+			currentRevision: null,
+			turnState: null,
+			sawRefreshSnapshot: false,
+		};
+
+		function apply(envelope: SessionStateEnvelope): void {
+			const commands = routeSessionStateEnvelope(sessionId, state.currentRevision, envelope);
+			for (const command of commands) {
+				switch (command.kind) {
+					case "replaceGraph":
+						state.currentRevision = command.graph.revision;
+						state.turnState = command.graph.turnState;
+						break;
+					case "applyTranscriptDelta":
+						// Mirrors reduce-command.ts's reduceTranscriptDelta ->
+						// graphWithTranscriptSnapshot: a transcript-only patch still
+						// advances the graph's overall revision, even with no
+						// operationPatches/activity/turnState change alongside it.
+						state.currentRevision = command.revision;
+						for (const op of command.delta.operations) {
+							if (op.kind === "appendEntry") {
+								const segment = op.entry.segments[0];
+								if (segment?.kind === "text") {
+									appliedText.push(segment.text);
+								}
+							}
+							if (op.kind === "appendSegment" && op.segment.kind === "text") {
+								appliedText.push(op.segment.text);
+							}
+						}
+						break;
+					case "applyGraphPatches":
+						state.currentRevision = command.revision;
+						if (command.turnState !== undefined) {
+							state.turnState = command.turnState;
+						}
+						for (const op of command.operationPatches) {
+							observedToolStates.push(op.operation_state ?? "unknown");
+						}
+						break;
+					case "refreshSnapshot":
+						state.sawRefreshSnapshot = true;
+						break;
+					default:
+						break;
+				}
+			}
+		}
+
+		const created = runTranslate(
+			bridge,
+			makeEvent("SessionCreated", { sessionId, projectId, title: "s", providerId: "claude-code" })
+		);
+		apply(created[0]?.payload as SessionStateEnvelope);
+
+		apply(
+			runTranslate(
+				bridge,
+				makeEvent("MessageSent", {
+					sessionId,
+					messageId: MessageId.make("u1"),
+					text: "Read the file package.json in this project and tell me its name field",
+				})
+			)[0]?.payload as SessionStateEnvelope
+		);
+
+		const preToolMessageId = MessageId.make("a1");
+		apply(
+			runTranslate(
+				bridge,
+				makeEvent("TokenAppended", { sessionId, messageId: preToolMessageId, token: "I'll" })
+			)[0]?.payload as SessionStateEnvelope
+		);
+		apply(
+			runTranslate(
+				bridge,
+				makeEvent("TokenAppended", {
+					sessionId,
+					messageId: preToolMessageId,
+					token: " check that file.",
+				})
+			)[0]?.payload as SessionStateEnvelope
+		);
+
+		apply(
+			runTranslate(
+				bridge,
+				makeEvent("ToolCallObserved", {
+					sessionId,
+					activityId: "activity-1",
+					toolCallId: "tool-1",
+					operationId: null,
+					status: "in_progress",
+					title: "Read",
+					path: "package.json",
+				})
+			)[0]?.payload as SessionStateEnvelope
+		);
+		// A second observation of the SAME tool call, now carrying its resolved
+		// title -- exactly what the real server sends once it fills in the
+		// tool's display name after the first (bare) sighting.
+		apply(
+			runTranslate(
+				bridge,
+				makeEvent("ToolCallObserved", {
+					sessionId,
+					activityId: "activity-1",
+					toolCallId: "tool-1",
+					operationId: null,
+					status: "in_progress",
+					title: "Read package.json",
+					path: "package.json",
+				})
+			)[0]?.payload as SessionStateEnvelope
+		);
+		apply(
+			runTranslate(
+				bridge,
+				makeEvent("ToolCallObserved", {
+					sessionId,
+					activityId: "activity-1",
+					toolCallId: "tool-1",
+					operationId: null,
+					status: "completed",
+					title: "Read package.json",
+					path: "package.json",
+				})
+			)[0]?.payload as SessionStateEnvelope
+		);
+
+		const postToolMessageId = MessageId.make("a1-post");
+		apply(
+			runTranslate(
+				bridge,
+				makeEvent("TokenAppended", { sessionId, messageId: postToolMessageId, token: "The" })
+			)[0]?.payload as SessionStateEnvelope
+		);
+		apply(
+			runTranslate(
+				bridge,
+				makeEvent("TokenAppended", {
+					sessionId,
+					messageId: postToolMessageId,
+					token: " name field is acepe.",
+				})
+			)[0]?.payload as SessionStateEnvelope
+		);
+
+		apply(
+			runTranslate(bridge, makeEvent("TurnCompleted", { sessionId }))[0]
+				?.payload as SessionStateEnvelope
+		);
+
+		expect(state.sawRefreshSnapshot).toBe(false);
+		expect(appliedText).toEqual([
+			"Read the file package.json in this project and tell me its name field",
+			"I'll",
+			" check that file.",
+			"Read",
+			"The",
+			" name field is acepe.",
+		]);
+		expect(observedToolStates).toEqual(["running", "running", "completed"]);
+		expect(state.turnState).toBe("Completed");
 	});
 });
