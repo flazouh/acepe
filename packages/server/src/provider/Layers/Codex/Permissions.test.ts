@@ -1,5 +1,4 @@
 import {
-	type ApprovalRequestedEvent,
 	type OrchestrationEvent,
 	ProjectId,
 	SessionId
@@ -138,12 +137,13 @@ const openSession = Effect.fn("openSession")(function*(adapter: CodexAdapter) {
 })
 
 // Fails loudly if a permission request folds into the generic
-// SessionMetaUpdated branch instead of the typed approval event.
+// SessionMetaUpdated branch instead of the typed approval event, and fails
+// loudly here — rather than handing back nothing for every call site to
+// re-check — when no approval event arrives at all.
 const nextApprovalRequested = Effect.fn("nextApprovalRequested")(function*(
 	events: Queue.Queue<OrchestrationEvent, Done>
 ) {
-	let found: ApprovalRequestedEvent | undefined
-	for (let attempt = 0; attempt < 5 && found === undefined; attempt++) {
+	for (let attempt = 0; attempt < 5; attempt++) {
 		const next = yield* Queue.take(events)
 		if (next.type === "SessionMetaUpdated") {
 			const fact = decodeContractFact(next.metadata)
@@ -152,11 +152,33 @@ const nextApprovalRequested = Effect.fn("nextApprovalRequested")(function*(
 			}
 		}
 		if (next.type === "ApprovalRequested") {
-			found = next
+			return next
 		}
 	}
-	return found
+	return Vitest.assert.fail(
+		"expected an ApprovalRequested event within the first 5 events of the approval request"
+	)
 })
+
+// Asserts the event's metadata decodes to a question_request fact and hands
+// the narrowed fact back. The tests below used to wrap their id assertion in
+// `if (Option.isSome(fact) && fact.value.contractKind === "question_request")`,
+// which reports green when the decode fails or the kind changes — the two
+// regressions that id assertion exists to catch.
+const questionRequestFact = (event: OrchestrationEvent) => {
+	const fact = decodeContractFact(event.metadata)
+	Vitest.assert.isTrue(
+		Option.isSome(fact),
+		"the question event's metadata must decode to a contract fact"
+	)
+	const value = Option.getOrElse(fact, () =>
+		Vitest.assert.fail("the question event's metadata must decode to a contract fact")
+	)
+	Vitest.assert.strictEqual(value.contractKind, "question_request")
+	return value.contractKind === "question_request"
+		? value
+		: Vitest.assert.fail("the question event must carry a question_request fact")
+}
 
 Vitest.describe("CodexAdapter permissions", () => {
 	Vitest.it("maps permission replies onto Codex decisions", () => {
@@ -219,10 +241,6 @@ Vitest.describe("CodexAdapter permissions", () => {
 				}
 			})
 			const requested = yield* nextApprovalRequested(events)
-			if (requested === undefined) {
-				Vitest.assert.fail("expected an ApprovalRequested event for the approval request")
-				return
-			}
 			Vitest.assert.strictEqual(requested.payload.approvalRequestId, "42")
 			Vitest.assert.strictEqual(requested.payload.title, "Read src/lib.rs")
 			yield* adapter.respondToPermission({
@@ -375,10 +393,7 @@ Vitest.describe("CodexAdapter permissions", () => {
 				}
 			})
 			const questionEvent = yield* Queue.take(events)
-			const fact = decodeContractFact(questionEvent.metadata)
-			if (Option.isSome(fact) && fact.value.contractKind === "question_request") {
-				Vitest.assert.strictEqual(fact.value.id, "tool-question-3")
-			}
+			Vitest.assert.strictEqual(questionRequestFact(questionEvent).id, "tool-question-3")
 			const answered = yield* Effect.result(
 				adapter.respondToQuestion({
 					sessionId,
@@ -414,10 +429,6 @@ Vitest.describe("CodexAdapter permissions", () => {
 				}
 			})
 			const requested = yield* nextApprovalRequested(events)
-			if (requested === undefined) {
-				Vitest.assert.fail("expected an ApprovalRequested event for the approval request")
-				return
-			}
 			Vitest.assert.strictEqual(requested.payload.approvalRequestId, "req-42")
 			yield* adapter.respondToPermission({
 				sessionId,
@@ -461,10 +472,7 @@ Vitest.describe("CodexAdapter permissions", () => {
 				}
 			})
 			const questionEvent = yield* Queue.take(events)
-			const fact = decodeContractFact(questionEvent.metadata)
-			if (Option.isSome(fact) && fact.value.contractKind === "question_request") {
-				Vitest.assert.strictEqual(fact.value.id, "req-question-7")
-			}
+			Vitest.assert.strictEqual(questionRequestFact(questionEvent).id, "req-question-7")
 			yield* adapter.respondToQuestion({
 				sessionId,
 				requestId: "req-question-7",
@@ -511,10 +519,7 @@ Vitest.describe("CodexAdapter permissions", () => {
 				}
 			})
 			const questionEvent = yield* Queue.take(events)
-			const fact = decodeContractFact(questionEvent.metadata)
-			if (Option.isSome(fact) && fact.value.contractKind === "question_request") {
-				Vitest.assert.strictEqual(fact.value.id, "7")
-			}
+			Vitest.assert.strictEqual(questionRequestFact(questionEvent).id, "7")
 			yield* adapter.respondToQuestion({
 				sessionId,
 				requestId: "7",
@@ -558,10 +563,6 @@ Vitest.describe("CodexAdapter permissions", () => {
 				}
 			})
 			const requested = yield* nextApprovalRequested(events)
-			if (requested === undefined) {
-				Vitest.assert.fail("expected an ApprovalRequested event for the approval request")
-				return
-			}
 			Vitest.assert.strictEqual(requested.payload.sessionId, sessionId)
 			Vitest.assert.strictEqual(requested.payload.approvalRequestId, "99")
 			Vitest.assert.strictEqual(requested.payload.title, "rm -rf build")
