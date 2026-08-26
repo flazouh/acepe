@@ -28,22 +28,59 @@ export function resolveModelSelectorAgentId(input: {
 	return input.capabilitiesAgentId ?? input.sessionAgentId ?? input.panelAgentId;
 }
 
-export function getModelSelectorDisplayName(input: {
-	currentModelId: ModelId | null;
-	modelsDisplay?: ModelsForDisplay | null;
-	selectedModel: Model | null;
-	agentId: string | null;
-}): string {
-	if (!input.currentModelId) return "Model";
+interface ModelSelectorDisplayNameInput {
+	readonly currentModelId: ModelId | null;
+	readonly modelsDisplay?: ModelsForDisplay | null;
+	readonly selectedModel: Model | null;
+	readonly agentId: string | null;
+}
+
+/**
+ * Resolves the trigger's display name, distinguishing a genuinely known model
+ * name from a fallback. `knownName` is only set when we actually know which
+ * model is selected (from display groups or the live model catalog) -- never
+ * a guess.
+ */
+function resolveModelSelectorDisplayName(
+	input: ModelSelectorDisplayNameInput
+): { readonly knownName: string } | { readonly knownName: null } {
+	if (!input.currentModelId) return { knownName: null };
 
 	for (const group of input.modelsDisplay?.groups ?? []) {
 		const match = group.models.find((model) => model.modelId === input.currentModelId);
-		if (match) return match.displayName;
+		if (match) return { knownName: match.displayName };
 	}
 
-	if (!input.selectedModel) return "Model";
+	if (!input.selectedModel) return { knownName: null };
 
-	return getModelDisplayName(input.selectedModel, input.agentId, input.modelsDisplay);
+	return {
+		knownName: getModelDisplayName(input.selectedModel, input.agentId, input.modelsDisplay),
+	};
+}
+
+export function getModelSelectorDisplayName(
+	input: ModelSelectorDisplayNameInput & {
+		/**
+		 * Honest last resort when no current model id is known at all (e.g.
+		 * session capabilities haven't arrived yet). Must be real, already-known
+		 * data (the agent's own display name) -- never a guessed or fabricated
+		 * model name.
+		 */
+		fallbackDisplayName?: string | null;
+	}
+): string {
+	const resolved = resolveModelSelectorDisplayName(input);
+	return resolved.knownName ?? input.fallbackDisplayName ?? "Model";
+}
+
+/**
+ * True when the trigger label could not be resolved to a genuinely known
+ * model name and is showing a fallback (agent name or the bare "Model")
+ * instead. Callers use this to surface an honest tooltip rather than let the
+ * fallback silently read as if it were the real selected model.
+ */
+export function isModelSelectorDisplayNameFallback(input: ModelSelectorDisplayNameInput): boolean {
+	return resolveModelSelectorDisplayName(input).knownName === null;
 }
 
 export function getSelectedReasoningBaseGroup(input: {

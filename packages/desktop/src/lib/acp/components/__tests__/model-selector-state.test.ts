@@ -79,6 +79,36 @@ describe("model selector state", () => {
 		).toBe("Model");
 	});
 
+	it("falls back to the provider's own display name instead of the bare word 'Model' when no current model id is known (issue #267)", () => {
+		// Under Electrobun, session capabilities (including currentModelId) can
+		// arrive only via live push and may never populate for a session -- see
+		// the #266 report. Rather than show the literal, contextless "Model",
+		// the trigger should say something honest: the agent we know we're
+		// talking to. It must never invent a specific model name it doesn't
+		// actually know.
+		expect(
+			getModelSelectorDisplayName({
+				currentModelId: null,
+				modelsDisplay: null,
+				selectedModel: null,
+				agentId: "claude-code",
+				fallbackDisplayName: "Claude Code",
+			})
+		).toBe("Claude Code");
+
+		// No fallback name available either (agent unknown) -- still honest,
+		// bare "Model" is the correct last resort, not a fabricated guess.
+		expect(
+			getModelSelectorDisplayName({
+				currentModelId: null,
+				modelsDisplay: null,
+				selectedModel: null,
+				agentId: null,
+				fallbackDisplayName: null,
+			})
+		).toBe("Model");
+	});
+
 	it("selects the reasoning base group from current variant or fallback", () => {
 		expect(
 			getSelectedReasoningBaseGroup({

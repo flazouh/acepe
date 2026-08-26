@@ -16,6 +16,8 @@
 	interface Props {
 		open?: boolean;
 		triggerLabel: string;
+		/** Native tooltip on the trigger; used to explain a fallback label honestly. */
+		triggerTitle?: string;
 		triggerProviderBrand?: ProviderBrand | null;
 		triggerProviderLabel?: string;
 		triggerUpstreamProviderBrand?: import("../../lib/upstream-provider-brand.js").UpstreamProviderBrand | null;
@@ -47,6 +49,7 @@
 	let {
 		open = false,
 		triggerLabel,
+		triggerTitle = undefined,
 		triggerProviderBrand = null,
 		triggerProviderLabel,
 		triggerUpstreamProviderBrand = null,
@@ -111,20 +114,22 @@
 			{#if isLoading}
 				<LoadingIcon class="text-muted-foreground" size={14} aria-label={loadingLabel} />
 			{:else}
-				{#if !hideTriggerProviderMark && triggerUpstreamProviderBrand}
-					<UpstreamProviderMark
-						brand={triggerUpstreamProviderBrand}
-						label={triggerProviderLabel ?? triggerLabel}
-						class="size-3.5"
-					/>
-				{:else if !hideTriggerProviderMark && triggerProviderBrand}
-					<ProviderMark
-						brand={triggerProviderBrand}
-						label={triggerProviderLabel ?? triggerLabel}
-						class="size-3.5"
-					/>
-				{/if}
-				<span class="truncate">{triggerLabel}</span>
+				<span class="contents" title={triggerTitle}>
+					{#if !hideTriggerProviderMark && triggerUpstreamProviderBrand}
+						<UpstreamProviderMark
+							brand={triggerUpstreamProviderBrand}
+							label={triggerProviderLabel ?? triggerLabel}
+							class="size-3.5"
+						/>
+					{:else if !hideTriggerProviderMark && triggerProviderBrand}
+						<ProviderMark
+							brand={triggerProviderBrand}
+							label={triggerProviderLabel ?? triggerLabel}
+							class="size-3.5"
+						/>
+					{/if}
+					<span class="truncate">{triggerLabel}</span>
+				</span>
 			{/if}
 		{/snippet}
 

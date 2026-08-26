@@ -16,6 +16,7 @@ import type { Model } from "../application/dto/model.js";
 import { LOGGER_IDS } from "../constants/logger-ids.js";
 import { getSelectorRegistry } from "../logic/selector-registry.svelte.js";
 import * as preferencesStore from "../store/agent-model-preferences-store.svelte.js";
+import { getAgentStore } from "../store/agent-store.svelte.js";
 import { getPanelStore, getSessionStore } from "../store/index.js";
 import type { ModelId } from "../types/model-id.js";
 import { createLogger } from "../utils/logger.js";
@@ -34,6 +35,7 @@ import {
 	getModelSelectorProviderBrand,
 	getModelSelectorSearchText,
 	getPreferredReasoningVariantId,
+	isModelSelectorDisplayNameFallback,
 	resolveModelSelectorAgentId,
 	getSelectedModel,
 	getSelectedReasoningBaseGroup,
@@ -73,6 +75,7 @@ let {
 
 const panelStore = getPanelStore();
 const sessionStore = getSessionStore();
+const agentStore = getAgentStore();
 const registry = getSelectorRegistry();
 const logger = createLogger({
 	id: LOGGER_IDS.MODEL_SELECTOR,
@@ -110,13 +113,37 @@ const agentId = $derived.by(() => {
 });
 
 const selectedModel = $derived(getSelectedModel({ currentModelId, availableModels }));
+// Honest last resort: the agent's own static display name (loaded once via
+// listAgents(), independent of session capabilities) -- not a guessed model.
+const agentDisplayName = $derived.by(() => {
+	if (!agentId) return null;
+	return agentStore.agents.find((candidate) => candidate.id === agentId)?.name ?? agentId;
+});
 const displayName = $derived(
 	getModelSelectorDisplayName({
 		currentModelId,
 		modelsDisplay,
 		selectedModel,
 		agentId: agentId ?? null,
+		fallbackDisplayName: agentDisplayName,
 	})
+);
+// The trigger fell back to the agent's own name (rather than a concrete model
+// name) because we don't yet know the actual selected model client-side —
+// see issue #267 / #266. Surface that honestly via a tooltip instead of
+// silently pretending the agent name IS the model.
+const showsFallbackTriggerLabel = $derived(
+	isModelSelectorDisplayNameFallback({
+		currentModelId,
+		modelsDisplay,
+		selectedModel,
+		agentId: agentId ?? null,
+	})
+);
+const triggerTitle = $derived(
+	showsFallbackTriggerLabel && agentDisplayName
+		? `Model selection loads once ${agentDisplayName} connects`
+		: undefined
 );
 
 const modelProviderBrand = $derived<ProviderBrand | null>(
@@ -315,6 +342,7 @@ function handleDefaultModelToggle(modelId: string): void {
 <SharedAgentInputModelSelector
 	bind:this={sharedSelectorRef}
 	triggerLabel={displayName}
+	{triggerTitle}
 	triggerProviderBrand={modelProviderBrand}
 	triggerProviderLabel={providerLabel}
 	triggerUpstreamProviderBrand={selectedDisplayGroup?.providerBrand ?? null}
