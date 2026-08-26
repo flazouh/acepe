@@ -304,6 +304,97 @@ Vitest.describe("OpenCodeAdapter", () => {
 		})
 	)
 
+	// Reproduces the same live QA bug as ClaudeAdapter.test.ts's ToolCallObserved
+	// test: a real OpenCode tool part (pending -> completed) executed, but
+	// OpenCodeMap's tool_call/tool_call_update facts folded into a generic
+	// SessionMetaUpdated that ProjectionSessionActivities.ts has no case for.
+	Vitest.it.effect(
+		"emits ToolCallObserved (in_progress then completed) for a real OpenCode tool part",
+		() =>
+			Effect.gen(function*() {
+				const started = yield* startAdapter(matchingSession, selectedCatalog)
+				yield* Queue.take(started.events)
+				yield* Queue.take(started.events)
+				yield* Stream.runCollect(
+					started.adapter.sendPrompt({
+						sessionId,
+						messageId,
+						text: "run ls -la"
+					})
+				)
+				yield* Queue.offer(started.inbound, {
+					type: "message.part.updated",
+					properties: {
+						part: {
+							id: "call_bash_1",
+							sessionID: providerSessionId,
+							messageID: "msg_456",
+							type: "tool",
+							callID: "call_bash_1",
+							tool: "bash",
+							state: {
+								status: "running",
+								input: { command: "ls -la" }
+							}
+						}
+					}
+				})
+				let toolStarted: OrchestrationEvent | undefined
+				for (let attempt = 0; attempt < 5 && toolStarted === undefined; attempt++) {
+					const next = yield* Queue.take(started.events)
+					if (next.type === "SessionMetaUpdated") {
+						const fact = decodeContractFact(next.metadata)
+						if (Option.isSome(fact)) {
+							Vitest.assert.notStrictEqual(fact.value.contractKind, "tool_call")
+							Vitest.assert.notStrictEqual(fact.value.contractKind, "tool_call_update")
+						}
+					}
+					if (next.type === "ToolCallObserved") {
+						toolStarted = next
+					}
+				}
+				if (toolStarted === undefined || toolStarted.type !== "ToolCallObserved") {
+					Vitest.assert.fail("expected a ToolCallObserved event for the tool part")
+					return
+				}
+				Vitest.assert.strictEqual(toolStarted.payload.status, "in_progress")
+				Vitest.assert.strictEqual(toolStarted.payload.toolCallId, "call_bash_1")
+
+				yield* Queue.offer(started.inbound, {
+					type: "message.part.updated",
+					properties: {
+						part: {
+							id: "call_bash_1",
+							sessionID: providerSessionId,
+							messageID: "msg_456",
+							type: "tool",
+							callID: "call_bash_1",
+							tool: "bash",
+							state: {
+								status: "completed",
+								input: { command: "ls -la" },
+								output: "file1\nfile2"
+							}
+						}
+					}
+				})
+				let toolCompleted: OrchestrationEvent | undefined
+				for (let attempt = 0; attempt < 5 && toolCompleted === undefined; attempt++) {
+					const next = yield* Queue.take(started.events)
+					if (next.type === "ToolCallObserved") {
+						toolCompleted = next
+					}
+				}
+				if (toolCompleted === undefined || toolCompleted.type !== "ToolCallObserved") {
+					Vitest.assert.fail("expected a ToolCallObserved event for the tool part completion")
+					return
+				}
+				Vitest.assert.strictEqual(toolCompleted.payload.status, "completed")
+				Vitest.assert.strictEqual(toolCompleted.payload.activityId, toolStarted.payload.activityId)
+				yield* started.adapter.cancelTurn({ sessionId })
+			})
+	)
+
 	Vitest.it.effect("cancelTurn aborts the OpenCode session and emits TurnCancelled", () =>
 		Effect.gen(function*() {
 			const started = yield* startAdapter(matchingSession, selectedCatalog)

@@ -202,6 +202,84 @@ Vitest.describe("CodexAdapter", () => {
 		})
 	)
 
+	// Reproduces the same live QA bug as ClaudeAdapter.test.ts's ToolCallObserved
+	// test: a real Codex tool item (item/started then item/completed) executed,
+	// but CodexNativeMap's tool_call/tool_call_update facts folded into a
+	// generic SessionMetaUpdated that ProjectionSessionActivities.ts has no
+	// case for.
+	Vitest.it.effect(
+		"emits ToolCallObserved (in_progress then completed) for a real Codex tool item",
+		() =>
+			Effect.gen(function*() {
+				const inbound = yield* Queue.unbounded<Json, Done>()
+				const requests = yield* Ref.make<ReadonlyArray<RecordedRequest>>(Arr.empty())
+				const replies = yield* Ref.make<ReadonlyArray<Json>>(Arr.empty())
+				const adapter = yield* makeTestAdapter(inbound, requests, replies)
+				const { events } = yield* openSession(adapter)
+				yield* Stream.runCollect(
+					adapter.sendPrompt({ sessionId, messageId, text: "Read package.json" })
+				)
+				yield* Queue.offer(inbound, {
+					method: "item/started",
+					params: {
+						item: {
+							id: "item-read-1",
+							type: "fileRead",
+							filePath: "/tmp/acepe/package.json"
+						}
+					}
+				})
+				let started: OrchestrationEvent | undefined
+				for (let attempt = 0; attempt < 5 && started === undefined; attempt++) {
+					const next = yield* Queue.take(events)
+					if (next.type === "SessionMetaUpdated") {
+						const fact = decodeContractFact(next.metadata)
+						if (Option.isSome(fact)) {
+							Vitest.assert.notStrictEqual(fact.value.contractKind, "tool_call")
+							Vitest.assert.notStrictEqual(fact.value.contractKind, "tool_call_update")
+						}
+					}
+					if (next.type === "ToolCallObserved") {
+						started = next
+					}
+				}
+				if (started === undefined || started.type !== "ToolCallObserved") {
+					Vitest.assert.fail("expected a ToolCallObserved event for item/started")
+					return
+				}
+				Vitest.assert.strictEqual(started.payload.status, "in_progress")
+				Vitest.assert.strictEqual(started.payload.title, "Read /tmp/acepe/package.json")
+				Vitest.assert.strictEqual(started.payload.toolCallId, "item-read-1")
+				Vitest.assert.strictEqual(started.payload.path, "/tmp/acepe/package.json")
+
+				yield* Queue.offer(inbound, {
+					method: "item/completed",
+					params: {
+						item: {
+							id: "item-read-1",
+							type: "fileRead",
+							filePath: "/tmp/acepe/package.json",
+							status: "completed"
+						}
+					}
+				})
+				let completed: OrchestrationEvent | undefined
+				for (let attempt = 0; attempt < 5 && completed === undefined; attempt++) {
+					const next = yield* Queue.take(events)
+					if (next.type === "ToolCallObserved") {
+						completed = next
+					}
+				}
+				if (completed === undefined || completed.type !== "ToolCallObserved") {
+					Vitest.assert.fail("expected a ToolCallObserved event for item/completed")
+					return
+				}
+				Vitest.assert.strictEqual(completed.payload.status, "completed")
+				Vitest.assert.strictEqual(completed.payload.activityId, started.payload.activityId)
+				yield* Queue.end(inbound)
+			})
+	)
+
 	Vitest.it.effect("cancelTurn sends turn/interrupt and keeps the app-server open", () =>
 		Effect.gen(function*() {
 			const inbound = yield* Queue.unbounded<Json, Done>()

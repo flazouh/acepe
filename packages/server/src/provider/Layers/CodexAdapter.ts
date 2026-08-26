@@ -1,12 +1,16 @@
 import {
+	ActivityId,
 	CommandId,
 	EventId,
 	MessageId,
 	MessageSentEvent,
+	type ObservedToolStatus,
 	type OrchestrationEvent,
 	SessionId,
 	SessionMetaUpdatedEvent,
 	TokenAppendedEvent,
+	ToolCallId,
+	ToolCallObservedEvent,
 	TurnCancelledEvent,
 	TurnCompletedEvent,
 	TurnId,
@@ -39,6 +43,7 @@ import {
 	type StartSessionRequest
 } from "../Services/ProviderAdapter.ts"
 import {
+	type CodexAcpToolKind,
 	type CodexContractFact,
 	type CodexMapState,
 	emptyCodexMapState,
@@ -123,6 +128,38 @@ type PendingRequest = {
 	readonly deferred: Deferred.Deferred<Json, ProviderAdapterError>
 }
 
+// What a "tool_call" fact recorded about a tool call, kept around so a LATER
+// "tool_call_update" fact (which may omit its own title — see
+// ToolCallUpdateFact in CodexNativeMap.ts) can still publish a complete
+// ToolCallObservedEvent: the projector's ToolCallObservedPayload requires a
+// title on every row, not just the first one — see
+// ProjectionSessionActivities.ts's observedToolRow.
+type OpenToolCallInfo = {
+	readonly activityId: ActivityId
+	readonly title: string
+	readonly path: string | null
+}
+
+// One projection_session_activities row per Codex tool item, keyed the same
+// way across its whole lifecycle (in_progress -> completed/failed) so the
+// projector's merge sees one growing row instead of two unrelated ones.
+const toolCallActivityId = (toolCallId: string): ActivityId => ActivityId.make(`${toolCallId}:activity`)
+
+// CodexNativeMap.ts's extractToolFields already puts the file path into
+// rawInput under "filePath" for read/edit items (see its fileRead/fileChange
+// branches) — reused here, not reimplemented, to derive the path column of
+// projection_session_activities.
+const codexToolPathHint = (kind: CodexAcpToolKind, rawInput: JsonObject): string | null => {
+	if (kind !== "read" && kind !== "edit") {
+		return null
+	}
+	const value = rawInput.filePath
+	if (Predicate.isString(value) && Str.isNonEmpty(Str.trim(value))) {
+		return value
+	}
+	return null
+}
+
 type SessionRuntime = {
 	readonly sessionId: SessionId
 	readonly outbound: Queue.Queue<OrchestrationEvent, Done>
@@ -132,6 +169,8 @@ type SessionRuntime = {
 	readonly providerThreadId: Ref.Ref<Option.Option<string>>
 	readonly currentTurnId: Ref.Ref<Option.Option<string>>
 	readonly questionIds: Ref.Ref<HashMap.HashMap<string, ReadonlyArray<string>>>
+	// Keyed by Codex's own toolCallId. See OpenToolCallInfo's doc above.
+	readonly openToolCalls: Ref.Ref<HashMap.HashMap<string, OpenToolCallInfo>>
 	readonly modeId: Ref.Ref<string>
 	readonly config: CodexNativeConfigState
 	readonly server: CodexAppServerHandle
@@ -348,6 +387,91 @@ const rememberQuestionIds = Effect.fn("CodexAdapter.rememberQuestionIds")(functi
 	yield* Ref.update(runtime.questionIds, (current) => HashMap.set(current, fact.id, ids))
 })
 
+// Builds the SAME contract event the tracer's ToolCallObserveCommand decider
+// produces (see decider.ts's "tool.call.observe" case) — ProjectionSessionActivities.ts
+// only knows how to turn a ToolCallObserved event into a
+// projection_session_activities row; a real Codex tool call folded into a
+// generic SessionMetaUpdated is invisible to that projector no matter what
+// its encoded metadata says (the same bug ClaudeAdapter.ts had).
+const makeToolCallObserved = Effect.fn("CodexAdapter.makeToolCallObserved")(function*(
+	runtime: SessionRuntime,
+	input: {
+		readonly activityId: ActivityId
+		readonly toolCallId: string
+		readonly status: ObservedToolStatus
+		readonly title: string
+		readonly path: string | null
+	}
+) {
+	const header = yield* stamp(runtime)
+	return ToolCallObservedEvent.make({
+		sequence: header.sequence,
+		eventId: header.eventId,
+		aggregateKind: "session",
+		aggregateId: runtime.sessionId,
+		occurredAt: header.occurredAt,
+		commandId: header.commandId,
+		causationEventId: null,
+		correlationId: header.commandId,
+		metadata: EMPTY_JSON_OBJECT,
+		type: "ToolCallObserved",
+		payload: {
+			sessionId: runtime.sessionId,
+			activityId: input.activityId,
+			toolCallId: ToolCallId.make(input.toolCallId),
+			operationId: null,
+			status: input.status,
+			title: input.title,
+			path: input.path
+		}
+	})
+})
+
+// A tool_call_update fact that arrives with no cached start info. Falls back
+// to a generic, still-nonempty title rather than dropping the status
+// transition on the floor.
+const FALLBACK_TOOL_TITLE = "Tool"
+
+const publishToolCallStarted = Effect.fn("CodexAdapter.publishToolCallStarted")(function*(
+	runtime: SessionRuntime,
+	fact: Extract<CodexContractFact, { readonly contractKind: "tool_call" }>
+) {
+	const activityId = toolCallActivityId(fact.toolCallId)
+	const path = codexToolPathHint(fact.kind, fact.rawInput)
+	yield* Ref.update(runtime.openToolCalls, (current) =>
+		HashMap.set(current, fact.toolCallId, { activityId, title: fact.title, path }))
+	const event = yield* makeToolCallObserved(runtime, {
+		activityId,
+		toolCallId: fact.toolCallId,
+		status: fact.status,
+		title: fact.title,
+		path
+	})
+	return yield* offerOutbound(runtime, event)
+})
+
+const publishToolCallUpdated = Effect.fn("CodexAdapter.publishToolCallUpdated")(function*(
+	runtime: SessionRuntime,
+	fact: Extract<CodexContractFact, { readonly contractKind: "tool_call_update" }>
+) {
+	const cache = yield* Ref.get(runtime.openToolCalls)
+	const cached = HashMap.get(cache, fact.toolCallId)
+	const info: OpenToolCallInfo = Option.getOrElse(cached, () => ({
+		activityId: toolCallActivityId(fact.toolCallId),
+		title: FALLBACK_TOOL_TITLE,
+		path: null
+	}))
+	const title = fact.title ?? info.title
+	const event = yield* makeToolCallObserved(runtime, {
+		activityId: info.activityId,
+		toolCallId: fact.toolCallId,
+		status: fact.status,
+		title,
+		path: info.path
+	})
+	return yield* offerOutbound(runtime, event)
+})
+
 const publishFact = Effect.fn("CodexAdapter.publishFact")(function*(
 	runtime: SessionRuntime,
 	fact: CodexContractFact
@@ -363,6 +487,14 @@ const publishFact = Effect.fn("CodexAdapter.publishFact")(function*(
 		yield* Ref.set(runtime.currentTurnId, Option.none())
 		const event = yield* makeCompleted(runtime, turnId)
 		return yield* offerOutbound(runtime, event)
+	}
+	// A real Codex tool call must reach ProjectionSessionActivities as a
+	// ToolCallObserved event, not fold into a generic SessionMetaUpdated one.
+	if (fact.contractKind === "tool_call") {
+		return yield* publishToolCallStarted(runtime, fact)
+	}
+	if (fact.contractKind === "tool_call_update") {
+		return yield* publishToolCallUpdated(runtime, fact)
 	}
 	const event = yield* makeMetaEvent(runtime, fact)
 	return yield* offerOutbound(runtime, event)
@@ -451,6 +583,7 @@ export const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function*(
 			providerThreadId: yield* Ref.make(Option.some(threadId.value)),
 			currentTurnId: yield* Ref.make(Option.none<string>()),
 			questionIds: yield* Ref.make(HashMap.empty<string, ReadonlyArray<string>>()),
+			openToolCalls: yield* Ref.make(HashMap.empty<string, OpenToolCallInfo>()),
 			modeId: yield* Ref.make("agent"),
 			config: options.config,
 			server
