@@ -1,6 +1,8 @@
 import * as Exit from "effect/Exit"
+import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import * as Str from "effect/String"
+import { type JsonObject, stringFieldAny } from "../Json.ts"
 import { CursorAcpToolKind } from "./Facts.ts"
 
 const decodeToolKind = Schema.decodeUnknownExit(CursorAcpToolKind)
@@ -53,4 +55,23 @@ export const detectCursorToolKind = (name: string): CursorAcpToolKind => {
 		return decoded.value
 	}
 	return "other"
+}
+
+// Field names an ACP tool call uses for its primary path-shaped input,
+// checked in order. Cursor sends "path"; the other two cost nothing and match
+// what the sibling adapters already accept for the same kinds.
+const PATH_INPUT_KEYS = ["path", "file_path", "filePath"] as const
+
+// The path column of projection_session_activities, filled only for the kinds
+// that are unambiguously about one file. Mirrors FILE_OPERATION_KINDS on the
+// projector side, minus the kinds ACP never sends -- everything else keeps a
+// null path and stays a plain tool row.
+export const toolCallPathHint = (
+	kind: CursorAcpToolKind,
+	rawInput: JsonObject
+): Option.Option<string> => {
+	if (kind !== "read" && kind !== "edit" && kind !== "delete" && kind !== "move") {
+		return Option.none()
+	}
+	return stringFieldAny(rawInput, PATH_INPUT_KEYS)
 }

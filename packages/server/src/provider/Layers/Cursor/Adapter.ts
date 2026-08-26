@@ -61,6 +61,7 @@ import {
 	makeCancelled,
 	makeMessageSent,
 	offerOutbound,
+	type OpenToolCallInfo,
 	publishFact,
 	publishSessionUpdate,
 	publishStopReason,
@@ -108,6 +109,7 @@ export const makeCursorAdapter = Effect.fn("makeCursorAdapter")(function*(
 		const pendingPermissions = yield* Ref.make(
 			HashMap.empty<string, Deferred.Deferred<CursorPermissionDecision>>()
 		)
+		const openToolCalls = yield* Ref.make(HashMap.empty<string, OpenToolCallInfo>())
 		const providerSessionId = yield* Ref.make(Option.none<string>())
 		const runtimeHolder = yield* Ref.make(Option.none<SessionRuntime>())
 		const handle = yield* options.connect({
@@ -121,6 +123,7 @@ export const makeCursorAdapter = Effect.fn("makeCursorAdapter")(function*(
 			lastUserMessageId,
 			sequence,
 			pendingPermissions,
+			openToolCalls,
 			providerSessionId,
 			handle
 		}

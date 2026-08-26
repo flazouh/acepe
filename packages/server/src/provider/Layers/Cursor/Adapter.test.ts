@@ -1,6 +1,7 @@
 import {
 	type ApprovalRequestedEvent,
 	type OrchestrationEvent,
+	type ToolCallObservedEvent,
 	MessageId,
 	ProjectId,
 	SessionId,
@@ -106,6 +107,28 @@ const nextApprovalRequested = Effect.fn("nextApprovalRequested")(function*(
 			}
 		}
 		if (next.type === "ApprovalRequested") {
+			found = next
+		}
+	}
+	return found
+})
+
+// Same guard for the tool-call path: ProjectionSessionActivities only knows
+// how to read a ToolCallObserved event.
+const nextToolCallObserved = Effect.fn("nextToolCallObserved")(function*(
+	events: Queue.Queue<OrchestrationEvent, Done>
+) {
+	let found: ToolCallObservedEvent | undefined
+	for (let attempt = 0; attempt < 5 && found === undefined; attempt++) {
+		const next = yield* Queue.take(events)
+		if (next.type === "SessionMetaUpdated") {
+			const fact = decodeContractFact(next.metadata)
+			if (Option.isSome(fact)) {
+				Vitest.assert.notStrictEqual(fact.value.contractKind, "tool_call")
+				Vitest.assert.notStrictEqual(fact.value.contractKind, "tool_call_update")
+			}
+		}
+		if (next.type === "ToolCallObserved") {
 			found = next
 		}
 	}
@@ -222,6 +245,80 @@ Vitest.describe("CursorAdapter", () => {
 					tracerAssistantMessageId(messageId)
 				)
 			}
+			yield* adapter.cancelTurn({ sessionId })
+		})
+	)
+
+	// An ACP tool_call update used to fold into the generic SessionMetaUpdated
+	// branch, which ProjectionSessionActivities never reads: a Cursor tool call
+	// visibly ran while projection_session_activities stayed empty, so the
+	// desktop showed no activity row for it. The later tool_call_update carries
+	// only a toolCallId and a status, so the start info has to be cached to
+	// keep one row growing across the whole lifecycle instead of two.
+	Vitest.it.effect("emits ToolCallObserved for an ACP tool call and its status update", () =>
+		Effect.gen(function*() {
+			const inbound = yield* Queue.unbounded<Json, Done>()
+			const launches = yield* Ref.make(Option.none<CursorLaunchConfig>())
+			const cancels = yield* Ref.make(0)
+			const cwds = yield* Ref.make<ReadonlyArray<string>>(Arr.empty())
+			const adapter = yield* makeCursorAdapter({
+				presence: Effect.succeed(cursorPresence(true, true)),
+				resolveLaunch: Effect.succeed(registryLaunch),
+				connect: fakeConnect(inbound, launches, cancels, cwds)
+			})
+			const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
+			yield* adapter
+				.startSession({
+					sessionId,
+					projectId,
+					workspaceRoot: "/tmp/acepe"
+				})
+				.pipe(
+					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
+					Effect.forkChild({ startImmediately: true })
+				)
+			yield* Queue.take(events)
+			yield* Queue.offer(inbound, {
+				sessionId: "acp-session-1",
+				update: {
+					sessionUpdate: "tool_call",
+					toolCallId: "call_1",
+					title: "Read file",
+					kind: "read",
+					status: "pending",
+					rawInput: {
+						path: "/tmp/acepe/a.ts"
+					}
+				}
+			})
+			const started = yield* nextToolCallObserved(events)
+			if (started === undefined) {
+				Vitest.assert.fail("expected a ToolCallObserved event for the ACP tool call")
+				return
+			}
+			Vitest.assert.strictEqual(started.payload.sessionId, sessionId)
+			Vitest.assert.strictEqual(started.payload.toolCallId, "call_1")
+			Vitest.assert.strictEqual(started.payload.status, "pending")
+			Vitest.assert.strictEqual(started.payload.title, "Read file")
+			Vitest.assert.strictEqual(started.payload.path, "/tmp/acepe/a.ts")
+			yield* Queue.offer(inbound, {
+				sessionId: "acp-session-1",
+				update: {
+					sessionUpdate: "tool_call_update",
+					toolCallId: "call_1",
+					status: "completed"
+				}
+			})
+			const completed = yield* nextToolCallObserved(events)
+			if (completed === undefined) {
+				Vitest.assert.fail("expected a ToolCallObserved event for the ACP tool_call_update")
+				return
+			}
+			Vitest.assert.strictEqual(completed.payload.status, "completed")
+			// One row across start -> completion, so the projector merges them.
+			Vitest.assert.strictEqual(completed.payload.activityId, started.payload.activityId)
+			Vitest.assert.strictEqual(completed.payload.title, "Read file")
+			Vitest.assert.strictEqual(completed.payload.path, "/tmp/acepe/a.ts")
 			yield* adapter.cancelTurn({ sessionId })
 		})
 	)
