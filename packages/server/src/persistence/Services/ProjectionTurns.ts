@@ -3,6 +3,7 @@ import {
 	IsoDateTime,
 	MessageSentPayload,
 	type OrchestrationEvent,
+	ProviderSessionFailedPayload,
 	Sequence,
 	SessionId,
 	TokenAppendedPayload,
@@ -329,6 +330,35 @@ const projectTurnCompleted = (
 		})
 	)
 
+// AC-270: a provider adapter's stream can die BEFORE the SDK ever produces
+// its own turn-end signal — a spawn failure, a decode failure, a transport
+// death (see Claude/Adapter.ts's attachQuery, whose listener fiber can fail
+// the whole Stream.runForEach on exactly this). ProviderBridge already turns
+// that into a typed ProviderSessionFailed event instead of leaving the
+// session silently stalled (see its own payload doc), but until this fix
+// nothing here ever consumed it: projection_turns.status stayed "running"
+// forever, so the composer stayed on "Interrupt" and the transcript stayed on
+// a working placeholder with no way out — the exact "I sent a message and
+// nothing happens" symptom. Closes the open turn the same way TurnCompleted
+// does (as "completed" — projection_turns has no separate "failed" status
+// yet, matching the same call Session.ts's turn_error handling already made).
+const projectProviderSessionFailed = (
+	current: ReadonlyArray<ProjectedTurn>,
+	event: Extract<OrchestrationEvent, { readonly type: "ProviderSessionFailed" }>
+): Effect.Effect<ReadonlyArray<ProjectedTurn>, Schema.SchemaError> =>
+	decodePayload(ProviderSessionFailedPayload, event.payload).pipe(
+		Effect.map((payload) => {
+			if (!forThisSession(current, payload.sessionId)) {
+				return current
+			}
+			const open = findOpenTurn(current)
+			return Option.match(open, {
+				onNone: () => current,
+				onSome: (turn) => replaceTurn(current, completeTurn(turn, event.occurredAt))
+			})
+		})
+	)
+
 export const evolveProjectedTurns = (
 	current: ReadonlyArray<ProjectedTurn>,
 	event: OrchestrationEvent
@@ -402,6 +432,6 @@ export const evolveProjectedTurns = (
 			TerminalClosed: () => Effect.succeed(current),
 			SessionReviewFileMarked: () => Effect.succeed(current),
 			SessionReviewStateCleared: () => Effect.succeed(current),
-			ProviderSessionFailed: () => Effect.succeed(current)
+			ProviderSessionFailed: (failed) => projectProviderSessionFailed(current, failed)
 		})
 	)(event)

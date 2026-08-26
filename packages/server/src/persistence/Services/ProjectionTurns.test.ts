@@ -34,7 +34,7 @@ const secondTurnId = TurnId.make("message-2")
 
 type SessionEventType = Extract<
 	OrchestrationEvent["type"],
-	"MessageSent" | "TokenAppended" | "TurnCancelled" | "TurnCompleted"
+	"MessageSent" | "TokenAppended" | "TurnCancelled" | "TurnCompleted" | "ProviderSessionFailed"
 >
 
 const sessionEvent = <const Type extends SessionEventType, Payload>(
@@ -286,6 +286,57 @@ Vitest.describe("evolveProjectedTurns", () => {
 				sessionEvent(2, "TurnCompleted", NOW, {
 					sessionId
 				})
+			])
+			Vitest.assert.deepStrictEqual(turns, [])
+		})
+	)
+
+	// AC-270: reproduces the live bug. A real Claude turn whose adapter
+	// stream fails BEFORE the SDK ever produces its own turn-end signal (spawn
+	// failure, decode failure, transport death — see Claude/Adapter.ts's
+	// attachQuery) never gets a TurnCompleted/TurnCancelled event; the only
+	// signal is ProviderBridge's own ProviderSessionFailed. Before this fix,
+	// ProviderSessionFailed was a no-op here, so the turn stayed "running"
+	// forever — the composer stuck on "Interrupt" and the transcript stuck on
+	// a working placeholder with no way out, exactly the "I sent a message
+	// and nothing happens" symptom, reproduced live via an invalid session
+	// cwd (see Claude/Adapter.test.ts's matching adapter-level case).
+	Vitest.it.effect("closes the open turn from ProviderSessionFailed", () =>
+		Effect.gen(function*() {
+			const turns = yield* fold([
+				sessionEvent(2, "MessageSent", NOW, {
+					sessionId,
+					messageId,
+					text: "Ship the slice"
+				}),
+				sessionEvent(
+					3,
+					"ProviderSessionFailed",
+					LATER,
+					{
+						sessionId,
+						providerId: "claude-code",
+						operation: "startSession",
+						detail: "Claude Code native binary exists but failed to launch."
+					} as const
+				)
+			])
+			const turn = requireTurn(turns, turnId)
+			Vitest.assert.strictEqual(turn.status, "completed")
+			Vitest.assert.strictEqual(turn.endedAt, LATER)
+			Vitest.assert.isFalse(isOpenTurn(turn))
+		})
+	)
+
+	Vitest.it.effect("ignores ProviderSessionFailed when there is no open turn", () =>
+		Effect.gen(function*() {
+			const turns = yield* fold([
+				sessionEvent(2, "ProviderSessionFailed", NOW, {
+					sessionId,
+					providerId: "claude-code",
+					operation: "startSession",
+					detail: "Claude Code native binary exists but failed to launch."
+				} as const)
 			])
 			Vitest.assert.deepStrictEqual(turns, [])
 		})
