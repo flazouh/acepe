@@ -8,6 +8,7 @@ import {
 } from "@acepe/contracts"
 import * as Vitest from "@effect/vitest"
 import type { Done } from "effect/Cause"
+import * as Deferred from "effect/Deferred"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Fiber from "effect/Fiber"
@@ -20,11 +21,11 @@ import {
 	type ProjectedPendingApproval
 } from "../../../persistence/Services/ProjectionPendingApprovals.ts"
 import type { Json } from "../Json.ts"
-import { makeClaudeAdapter } from "./Adapter.ts"
+import { makeClaudeAdapter, type ClaudeAdapterOptions } from "./Adapter.ts"
 import { decodeContractFact } from "./Codec.ts"
 import type { ClaudeQueryHandle, ClaudeQueryInput } from "./Process.ts"
 import { claudePresence } from "./Provider.ts"
-import type { ClaudeCanUseTool } from "./Wire.ts"
+import type { ClaudeCanUseTool, ClaudePermissionResult } from "./Wire.ts"
 
 const sessionId = SessionId.make("session-1")
 const projectId = ProjectId.make("project-1")
@@ -90,6 +91,23 @@ const waitUntil = <A, E, R>(
 		return last
 	})
 
+// A bounded take, so a regression that publishes FEWER events than a helper
+// scans for fails right here with the reason, instead of blocking on
+// Queue.take until vitest's own timeout kills the file with no clue which
+// wait died. Only sound in the it.live tests below — under it.effect's
+// TestClock this timeout would never fire.
+const EVENT_TIMEOUT = Duration.millis(500)
+
+const nextEvent = Effect.fn("nextEvent")(function*(
+	events: Queue.Queue<OrchestrationEvent, Done>
+) {
+	const next = yield* Queue.take(events).pipe(Effect.timeoutOption(EVENT_TIMEOUT))
+	if (Option.isNone(next)) {
+		return Vitest.assert.fail("the adapter published no further event within 500ms")
+	}
+	return next.value
+})
+
 // Drives a session into the exact state the abandoned-permission tests
 // need: the SDK's own canUseTool callback is blocked on decidePermission's
 // Deferred (see Permissions.ts) and the matching ApprovalRequested event
@@ -104,7 +122,7 @@ const forkBlockedPermission = Effect.fn("forkBlockedPermission")(function*(
 	).pipe(Effect.forkChild({ startImmediately: true }))
 	let requested = false
 	for (let attempt = 0; attempt < 5 && !requested; attempt++) {
-		const next = yield* Queue.take(events)
+		const next = yield* nextEvent(events)
 		if (next.type === "ApprovalRequested") {
 			requested = true
 		}
@@ -152,7 +170,7 @@ const forkProjectedPermission = Effect.fn("forkProjectedPermission")(function*(
 		canUseTool("Edit", { file_path: "/tmp/acepe/a.txt" }, { toolUseID: "toolu_abandoned" })
 	).pipe(Effect.forkChild({ startImmediately: true }))
 	for (let attempt = 0; attempt < 5; attempt++) {
-		const next = yield* Queue.take(events)
+		const next = yield* nextEvent(events)
 		if (next.type === "ApprovalRequested") {
 			return yield* evolveProjectedPendingApprovals([], next)
 		}
@@ -160,26 +178,105 @@ const forkProjectedPermission = Effect.fn("forkProjectedPermission")(function*(
 	return Vitest.assert.fail("expected an ApprovalRequested event before abandoning it")
 })
 
+// The arrange block nearly every test below needs, in one place: an adapter
+// over `createQuery`, a started session feeding an event queue, and the
+// SDK's own canUseTool callback captured from the query the adapter
+// attached. The timeout defaults are the production ones for the watchdog
+// (so it never fires inside a test) and the short cancel bound the
+// cancel/shutdown tests use.
+type TestSessionOptions = {
+	readonly createQuery: ClaudeAdapterOptions["createQuery"]
+	readonly prompt?: string
+	readonly cancelInterruptTimeout?: Duration.Input
+	readonly turnInactivityTimeout?: Duration.Input
+	readonly watchdogPollInterval?: Duration.Input
+}
+
+const startTestSession = Effect.fn("startTestSession")(function*(
+	options: TestSessionOptions
+) {
+	let capturedCanUseTool: ClaudeCanUseTool | undefined
+	const adapter = yield* makeClaudeAdapter({
+		presence: Effect.succeed(claudePresence(true, true)),
+		createQuery: (input) => {
+			capturedCanUseTool = input.canUseTool
+			return options.createQuery(input)
+		},
+		cancelInterruptTimeout: options.cancelInterruptTimeout ?? Duration.millis(50),
+		turnInactivityTimeout: options.turnInactivityTimeout ?? Duration.seconds(60),
+		watchdogPollInterval: options.watchdogPollInterval ?? Duration.seconds(5)
+	})
+	const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
+	yield* adapter
+		.startSession({ sessionId, projectId, workspaceRoot: "/tmp/acepe" })
+		.pipe(
+			Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
+			Effect.forkChild({ startImmediately: true })
+		)
+	// Readable only AFTER the deferred_open event proves openSession ran: the
+	// session stream is unwrapped lazily, so createQuery has not necessarily
+	// been called by the time this returns.
+	const canUseTool = () =>
+		capturedCanUseTool ??
+			Vitest.assert.fail("expected createQuery to receive a canUseTool callback")
+	return { adapter, events, canUseTool }
+})
+
+// startTestSession, plus the deferred_open event taken and a first prompt
+// sent — where every test that needs a turn already open begins.
+const openPromptedSession = Effect.fn("openPromptedSession")(function*(
+	options: TestSessionOptions
+) {
+	const session = yield* startTestSession(options)
+	yield* Queue.take(session.events) // deferred_open
+	yield* Stream.runCollect(
+		session.adapter.sendPrompt({
+			sessionId,
+			messageId,
+			text: options.prompt ?? "Edit a file for me"
+		})
+	)
+	return {
+		adapter: session.adapter,
+		events: session.events,
+		canUseTool: session.canUseTool()
+	}
+})
+
+// openPromptedSession plus the permission the SDK is already blocked on:
+// the exact state the four abandoned-permission tests share.
+const withBlockedPermission = Effect.fn("withBlockedPermission")(function*(
+	options: TestSessionOptions
+) {
+	const session = yield* openPromptedSession(options)
+	const decisionFiber = yield* forkBlockedPermission(session.canUseTool, session.events)
+	return { adapter: session.adapter, events: session.events, decisionFiber }
+})
+
+// Joins the fiber the SDK's canUseTool promise runs on and asserts the
+// abandoning path denied it. An unbounded join IS the forever-hang these
+// tests exist to catch, hence the timeout rather than a plain join.
+const assertAbandonedDenial = Effect.fn("assertAbandonedDenial")(function*(
+	decisionFiber: Fiber.Fiber<ClaudePermissionResult>,
+	message: string
+) {
+	const decision = yield* Fiber.join(decisionFiber).pipe(
+		Effect.timeoutOption(ABANDONED_DECISION_TIMEOUT)
+	)
+	if (Option.isNone(decision)) {
+		return Vitest.assert.fail(message)
+	}
+	Vitest.assert.strictEqual(decision.value.behavior, "deny")
+})
+
 Vitest.describe("ClaudeAdapter", () => {
 	Vitest.it.effect("emits deferred_open before the SDK session id exists", () =>
 		Effect.gen(function*() {
 			const inbound = yield* Queue.unbounded<Json, Done>()
 			const interrupts = yield* Ref.make(0)
-			const adapter = yield* makeClaudeAdapter({
-				presence: Effect.succeed(claudePresence(true, true)),
+			const { adapter, events } = yield* startTestSession({
 				createQuery: () => Effect.succeed(fakeHandle(inbound, interrupts))
 			})
-			const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
-			yield* adapter
-				.startSession({
-					sessionId,
-					projectId,
-					workspaceRoot: "/tmp/acepe"
-				})
-				.pipe(
-					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
-					Effect.forkChild({ startImmediately: true })
-				)
 			const opened = yield* Queue.take(events)
 			Vitest.assert.strictEqual(opened.type, "SessionMetaUpdated")
 			const fact = decodeContractFact(opened.metadata)
@@ -207,29 +304,10 @@ Vitest.describe("ClaudeAdapter", () => {
 		Effect.gen(function*() {
 			const inbound = yield* Queue.unbounded<Json, Done>()
 			const interrupts = yield* Ref.make(0)
-			const adapter = yield* makeClaudeAdapter({
-				presence: Effect.succeed(claudePresence(true, true)),
-				createQuery: () => Effect.succeed(fakeHandle(inbound, interrupts))
+			const { adapter, events } = yield* openPromptedSession({
+				createQuery: () => Effect.succeed(fakeHandle(inbound, interrupts)),
+				prompt: "Hi"
 			})
-			const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
-			yield* adapter
-				.startSession({
-					sessionId,
-					projectId,
-					workspaceRoot: "/tmp/acepe"
-				})
-				.pipe(
-					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
-					Effect.forkChild({ startImmediately: true })
-				)
-			yield* Queue.take(events)
-			yield* Stream.runCollect(
-				adapter.sendPrompt({
-					sessionId,
-					messageId,
-					text: "Hi"
-				})
-			)
 			yield* Queue.offer(inbound, {
 				type: "stream_event",
 				session_id: "sdk-session-1",
@@ -267,29 +345,10 @@ Vitest.describe("ClaudeAdapter", () => {
 		Effect.gen(function*() {
 			const inbound = yield* Queue.unbounded<Json, Done>()
 			const interrupts = yield* Ref.make(0)
-			const adapter = yield* makeClaudeAdapter({
-				presence: Effect.succeed(claudePresence(true, true)),
-				createQuery: () => Effect.succeed(fakeHandle(inbound, interrupts))
+			const { adapter, events } = yield* openPromptedSession({
+				createQuery: () => Effect.succeed(fakeHandle(inbound, interrupts)),
+				prompt: "Reply with exactly: TURN_42"
 			})
-			const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
-			yield* adapter
-				.startSession({
-					sessionId,
-					projectId,
-					workspaceRoot: "/tmp/acepe"
-				})
-				.pipe(
-					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
-					Effect.forkChild({ startImmediately: true })
-				)
-			yield* Queue.take(events)
-			yield* Stream.runCollect(
-				adapter.sendPrompt({
-					sessionId,
-					messageId,
-					text: "Reply with exactly: TURN_42"
-				})
-			)
 			yield* Queue.offer(inbound, {
 				type: "stream_event",
 				session_id: "sdk-session-1",
@@ -343,29 +402,10 @@ Vitest.describe("ClaudeAdapter", () => {
 			Effect.gen(function*() {
 				const inbound = yield* Queue.unbounded<Json, Done>()
 				const interrupts = yield* Ref.make(0)
-				const adapter = yield* makeClaudeAdapter({
-					presence: Effect.succeed(claudePresence(true, true)),
-					createQuery: () => Effect.succeed(fakeHandle(inbound, interrupts))
+				const { adapter, events } = yield* openPromptedSession({
+					createQuery: () => Effect.succeed(fakeHandle(inbound, interrupts)),
+					prompt: "Read package.json"
 				})
-				const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
-				yield* adapter
-					.startSession({
-						sessionId,
-						projectId,
-						workspaceRoot: "/tmp/acepe"
-					})
-					.pipe(
-						Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
-						Effect.forkChild({ startImmediately: true })
-					)
-				yield* Queue.take(events) // deferred_open
-				yield* Stream.runCollect(
-					adapter.sendPrompt({
-						sessionId,
-						messageId,
-						text: "Read package.json"
-					})
-				)
 				yield* Queue.offer(inbound, {
 					type: "stream_event",
 					session_id: "sdk-session-1",
@@ -460,29 +500,10 @@ Vitest.describe("ClaudeAdapter", () => {
 			Effect.gen(function*() {
 				const inbound = yield* Queue.unbounded<Json, Done>()
 				const interrupts = yield* Ref.make(0)
-				const adapter = yield* makeClaudeAdapter({
-					presence: Effect.succeed(claudePresence(true, true)),
-					createQuery: () => Effect.succeed(fakeHandle(inbound, interrupts))
+				const { adapter, events } = yield* openPromptedSession({
+					createQuery: () => Effect.succeed(fakeHandle(inbound, interrupts)),
+					prompt: "Read package.json"
 				})
-				const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
-				yield* adapter
-					.startSession({
-						sessionId,
-						projectId,
-						workspaceRoot: "/tmp/acepe"
-					})
-					.pipe(
-						Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
-						Effect.forkChild({ startImmediately: true })
-					)
-				yield* Queue.take(events) // deferred_open
-				yield* Stream.runCollect(
-					adapter.sendPrompt({
-						sessionId,
-						messageId,
-						text: "Read package.json"
-					})
-				)
 				yield* Queue.offer(inbound, {
 					type: "system",
 					subtype: "usage_update",
@@ -539,38 +560,9 @@ Vitest.describe("ClaudeAdapter", () => {
 			Effect.gen(function*() {
 				const inbound = yield* Queue.unbounded<Json, Done>()
 				const interrupts = yield* Ref.make(0)
-				let capturedCanUseTool: ClaudeCanUseTool | undefined
-				const adapter = yield* makeClaudeAdapter({
-					presence: Effect.succeed(claudePresence(true, true)),
-					createQuery: (input) => {
-						capturedCanUseTool = input.canUseTool
-						return Effect.succeed(fakeHandle(inbound, interrupts))
-					}
+				const { adapter, events, canUseTool } = yield* openPromptedSession({
+					createQuery: () => Effect.succeed(fakeHandle(inbound, interrupts))
 				})
-				const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
-				yield* adapter
-					.startSession({
-						sessionId,
-						projectId,
-						workspaceRoot: "/tmp/acepe"
-					})
-					.pipe(
-						Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
-						Effect.forkChild({ startImmediately: true })
-					)
-				yield* Queue.take(events)
-				yield* Stream.runCollect(
-					adapter.sendPrompt({
-						sessionId,
-						messageId,
-						text: "Edit a file for me"
-					})
-				)
-				if (capturedCanUseTool === undefined) {
-					Vitest.assert.fail("expected createQuery to receive a canUseTool callback")
-					return
-				}
-				const canUseTool = capturedCanUseTool
 				const decisionFiber = yield* Effect.promise(() =>
 					canUseTool("Edit", { file_path: "/tmp/acepe/a.txt" }, { toolUseID: "toolu_edit_1" })
 				).pipe(Effect.forkChild({ startImmediately: true }))
@@ -608,21 +600,9 @@ Vitest.describe("ClaudeAdapter", () => {
 		Effect.gen(function*() {
 			const inbound = yield* Queue.unbounded<Json, Done>()
 			const interrupts = yield* Ref.make(0)
-			const adapter = yield* makeClaudeAdapter({
-				presence: Effect.succeed(claudePresence(true, true)),
+			const { adapter, events } = yield* startTestSession({
 				createQuery: () => Effect.succeed(fakeHandle(inbound, interrupts))
 			})
-			const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
-			yield* adapter
-				.startSession({
-					sessionId,
-					projectId,
-					workspaceRoot: "/tmp/acepe"
-				})
-				.pipe(
-					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
-					Effect.forkChild({ startImmediately: true })
-				)
 			yield* Queue.take(events)
 			yield* adapter.cancelTurn({ sessionId })
 			const cancelled = yield* Queue.take(events)
@@ -646,18 +626,9 @@ Vitest.describe("ClaudeAdapter", () => {
 	Vitest.it.live("prompt -> cancel -> next prompt streams and completes on a fresh query", () =>
 		Effect.gen(function*() {
 			const sdk = yield* makeScriptedClaudeSdk()
-			const adapter = yield* makeClaudeAdapter({
-				presence: Effect.succeed(claudePresence(true, true)),
-				createQuery: sdk.createQuery,
-				cancelInterruptTimeout: Duration.millis(50)
+			const { adapter, events } = yield* startTestSession({
+				createQuery: sdk.createQuery
 			})
-			const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
-			yield* adapter
-				.startSession({ sessionId, projectId, workspaceRoot: "/tmp/acepe" })
-				.pipe(
-					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
-					Effect.forkChild({ startImmediately: true })
-				)
 			yield* Queue.take(events) // deferred_open
 
 			yield* Stream.runCollect(
@@ -726,19 +697,11 @@ Vitest.describe("ClaudeAdapter", () => {
 		() =>
 			Effect.gen(function*() {
 				const sdk = yield* makeScriptedClaudeSdk()
-				const adapter = yield* makeClaudeAdapter({
-					presence: Effect.succeed(claudePresence(true, true)),
+				const { adapter, events } = yield* startTestSession({
 					createQuery: sdk.createQuery,
 					turnInactivityTimeout: Duration.millis(30),
 					watchdogPollInterval: Duration.millis(10)
 				})
-				const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
-				yield* adapter
-					.startSession({ sessionId, projectId, workspaceRoot: "/tmp/acepe" })
-					.pipe(
-						Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
-						Effect.forkChild({ startImmediately: true })
-					)
 				yield* Queue.take(events) // deferred_open
 
 				yield* Stream.runCollect(
@@ -875,40 +838,14 @@ Vitest.describe("ClaudeAdapter", () => {
 		Effect.gen(function*() {
 			const inbound = yield* Queue.unbounded<Json, Done>()
 			const interrupts = yield* Ref.make(0)
-			let capturedCanUseTool: ClaudeCanUseTool | undefined
-			const adapter = yield* makeClaudeAdapter({
-				presence: Effect.succeed(claudePresence(true, true)),
-				createQuery: (input) => {
-					capturedCanUseTool = input.canUseTool
-					return Effect.succeed(fakeHandle(inbound, interrupts))
-				},
-				cancelInterruptTimeout: Duration.millis(50)
+			const session = yield* withBlockedPermission({
+				createQuery: () => Effect.succeed(fakeHandle(inbound, interrupts))
 			})
-			const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
-			yield* adapter
-				.startSession({ sessionId, projectId, workspaceRoot: "/tmp/acepe" })
-				.pipe(
-					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
-					Effect.forkChild({ startImmediately: true })
-				)
-			yield* Queue.take(events) // deferred_open
-			yield* Stream.runCollect(
-				adapter.sendPrompt({ sessionId, messageId, text: "Edit a file for me" })
+			yield* session.adapter.cancelTurn({ sessionId })
+			yield* assertAbandonedDenial(
+				session.decisionFiber,
+				"cancelTurn left the SDK's canUseTool promise pending forever"
 			)
-			if (capturedCanUseTool === undefined) {
-				Vitest.assert.fail("expected createQuery to receive a canUseTool callback")
-				return
-			}
-			const decisionFiber = yield* forkBlockedPermission(capturedCanUseTool, events)
-			yield* adapter.cancelTurn({ sessionId })
-			const decision = yield* Fiber.join(decisionFiber).pipe(
-				Effect.timeoutOption(ABANDONED_DECISION_TIMEOUT)
-			)
-			if (Option.isNone(decision)) {
-				Vitest.assert.fail("cancelTurn left the SDK's canUseTool promise pending forever")
-				return
-			}
-			Vitest.assert.strictEqual(decision.value.behavior, "deny")
 		})
 	)
 
@@ -923,31 +860,10 @@ Vitest.describe("ClaudeAdapter", () => {
 		Effect.gen(function*() {
 			const inbound = yield* Queue.unbounded<Json, Done>()
 			const interrupts = yield* Ref.make(0)
-			let capturedCanUseTool: ClaudeCanUseTool | undefined
-			const adapter = yield* makeClaudeAdapter({
-				presence: Effect.succeed(claudePresence(true, true)),
-				createQuery: (input) => {
-					capturedCanUseTool = input.canUseTool
-					return Effect.succeed(fakeHandle(inbound, interrupts))
-				},
-				cancelInterruptTimeout: Duration.millis(50)
+			const { adapter, events, canUseTool } = yield* openPromptedSession({
+				createQuery: () => Effect.succeed(fakeHandle(inbound, interrupts))
 			})
-			const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
-			yield* adapter
-				.startSession({ sessionId, projectId, workspaceRoot: "/tmp/acepe" })
-				.pipe(
-					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
-					Effect.forkChild({ startImmediately: true })
-				)
-			yield* Queue.take(events) // deferred_open
-			yield* Stream.runCollect(
-				adapter.sendPrompt({ sessionId, messageId, text: "Edit a file for me" })
-			)
-			if (capturedCanUseTool === undefined) {
-				Vitest.assert.fail("expected createQuery to receive a canUseTool callback")
-				return
-			}
-			const pending = yield* forkProjectedPermission(capturedCanUseTool, events)
+			const pending = yield* forkProjectedPermission(canUseTool, events)
 			Vitest.assert.strictEqual(pending.length, 1)
 			yield* adapter.cancelTurn({ sessionId })
 			Vitest.assert.deepStrictEqual(yield* projectUntilCleared(events, pending), [])
@@ -963,13 +879,10 @@ Vitest.describe("ClaudeAdapter", () => {
 	Vitest.it.live("denies a permission the SDK raises while the query is torn down", () =>
 		Effect.gen(function*() {
 			const inbound = yield* Queue.unbounded<Json, Done>()
-			let capturedCanUseTool: ClaudeCanUseTool | undefined
 			let raisedDuringTeardown: Promise<unknown> | undefined
-			const adapter = yield* makeClaudeAdapter({
-				presence: Effect.succeed(claudePresence(true, true)),
-				createQuery: (input) => {
-					capturedCanUseTool = input.canUseTool
-					return Effect.succeed({
+			const { adapter } = yield* openPromptedSession({
+				createQuery: (input) =>
+					Effect.succeed({
 						messages: Stream.fromQueue(inbound),
 						interrupt: Effect.sync(() => {
 							raisedDuringTeardown = input.canUseTool(
@@ -981,25 +894,9 @@ Vitest.describe("ClaudeAdapter", () => {
 							// to register its deferred before teardown finishes.
 						}).pipe(Effect.andThen(Effect.sleep(Duration.millis(30)))),
 						close: Queue.end(inbound).pipe(Effect.asVoid)
-					} satisfies ClaudeQueryHandle)
-				},
+					} satisfies ClaudeQueryHandle),
 				cancelInterruptTimeout: Duration.millis(500)
 			})
-			const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
-			yield* adapter
-				.startSession({ sessionId, projectId, workspaceRoot: "/tmp/acepe" })
-				.pipe(
-					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
-					Effect.forkChild({ startImmediately: true })
-				)
-			yield* Queue.take(events) // deferred_open
-			yield* Stream.runCollect(
-				adapter.sendPrompt({ sessionId, messageId, text: "Edit a file for me" })
-			)
-			if (capturedCanUseTool === undefined) {
-				Vitest.assert.fail("expected createQuery to receive a canUseTool callback")
-				return
-			}
 			yield* adapter.cancelTurn({ sessionId })
 			const raised = raisedDuringTeardown
 			if (raised === undefined) {
@@ -1018,90 +915,56 @@ Vitest.describe("ClaudeAdapter", () => {
 		})
 	)
 
-	Vitest.it.live("shutdown denies a permission the SDK is still blocked on", () =>
+	// shutdown's OWN drain has to be what resolves this one, so the query
+	// handle here closes every other route to the deferred: `close` leaves
+	// the message stream open, so the listener fiber never ends and its own
+	// cleanup drain never runs; `interrupt` blocks until this test releases
+	// it, so both the drain AFTER the teardown and sessionScope's closing
+	// are still in the future while the assertion runs. What is left is the
+	// drain shutdown runs BEFORE tearing the query down — which is also the
+	// ordering that matters in production, since a pending canUseTool is
+	// exactly what wedges the SDK's own interrupt().
+	Vitest.it.live("shutdown denies a permission before it tears the query down", () =>
 		Effect.gen(function*() {
 			const inbound = yield* Queue.unbounded<Json, Done>()
-			const interrupts = yield* Ref.make(0)
-			let capturedCanUseTool: ClaudeCanUseTool | undefined
-			const adapter = yield* makeClaudeAdapter({
-				presence: Effect.succeed(claudePresence(true, true)),
-				createQuery: (input) => {
-					capturedCanUseTool = input.canUseTool
-					return Effect.succeed(fakeHandle(inbound, interrupts))
-				},
-				cancelInterruptTimeout: Duration.millis(50)
+			const releaseInterrupt = yield* Deferred.make<void>()
+			const session = yield* withBlockedPermission({
+				createQuery: () =>
+					Effect.succeed({
+						messages: Stream.fromQueue(inbound),
+						interrupt: Deferred.await(releaseInterrupt),
+						close: Effect.void
+					} satisfies ClaudeQueryHandle),
+				cancelInterruptTimeout: Duration.seconds(10)
 			})
-			const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
-			yield* adapter
-				.startSession({ sessionId, projectId, workspaceRoot: "/tmp/acepe" })
-				.pipe(
-					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
-					Effect.forkChild({ startImmediately: true })
-				)
-			yield* Queue.take(events) // deferred_open
-			yield* Stream.runCollect(
-				adapter.sendPrompt({ sessionId, messageId, text: "Edit a file for me" })
+			const shutdownFiber = yield* session.adapter.shutdown.pipe(
+				Effect.forkChild({ startImmediately: true })
 			)
-			if (capturedCanUseTool === undefined) {
-				Vitest.assert.fail("expected createQuery to receive a canUseTool callback")
-				return
-			}
-			const decisionFiber = yield* forkBlockedPermission(capturedCanUseTool, events)
-			yield* adapter.shutdown
-			const decision = yield* Fiber.join(decisionFiber).pipe(
-				Effect.timeoutOption(ABANDONED_DECISION_TIMEOUT)
+			yield* assertAbandonedDenial(
+				session.decisionFiber,
+				"shutdown left the SDK's canUseTool promise pending until it tore the query down"
 			)
-			if (Option.isNone(decision)) {
-				Vitest.assert.fail("shutdown left the SDK's canUseTool promise pending forever")
-				return
-			}
-			Vitest.assert.strictEqual(decision.value.behavior, "deny")
+			yield* Deferred.succeed(releaseInterrupt, undefined)
+			yield* Fiber.join(shutdownFiber)
 		})
 	)
 
 	Vitest.it.live("the inactivity watchdog denies a permission the stalled turn was blocked on", () =>
 		Effect.gen(function*() {
 			const sdk = yield* makeScriptedClaudeSdk()
-			let capturedCanUseTool: ClaudeCanUseTool | undefined
-			const adapter = yield* makeClaudeAdapter({
-				presence: Effect.succeed(claudePresence(true, true)),
-				createQuery: (input) => {
-					capturedCanUseTool = input.canUseTool
-					return sdk.createQuery(input)
-				},
-				turnInactivityTimeout: Duration.millis(30),
-				watchdogPollInterval: Duration.millis(10)
-			})
-			const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
-			yield* adapter
-				.startSession({ sessionId, projectId, workspaceRoot: "/tmp/acepe" })
-				.pipe(
-					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
-					Effect.forkChild({ startImmediately: true })
-				)
-			yield* Queue.take(events) // deferred_open
-			yield* Stream.runCollect(
-				adapter.sendPrompt({ sessionId, messageId, text: "Edit a file for me" })
-			)
-			if (capturedCanUseTool === undefined) {
-				Vitest.assert.fail("expected createQuery to receive a canUseTool callback")
-				return
-			}
 			// The scripted SDK never offers anything into the attempt's inbound
 			// queue, so the turn stalls exactly as DEFECT B's test describes —
 			// except this time a permission is in flight when the watchdog
 			// tears the query down.
-			const decisionFiber = yield* forkBlockedPermission(capturedCanUseTool, events)
-			const decision = yield* Fiber.join(decisionFiber).pipe(
-				Effect.timeoutOption(ABANDONED_DECISION_TIMEOUT)
+			const session = yield* withBlockedPermission({
+				createQuery: sdk.createQuery,
+				turnInactivityTimeout: Duration.millis(30),
+				watchdogPollInterval: Duration.millis(10)
+			})
+			yield* assertAbandonedDenial(
+				session.decisionFiber,
+				"the watchdog left the SDK's canUseTool promise pending forever"
 			)
-			if (Option.isNone(decision)) {
-				Vitest.assert.fail(
-					"the watchdog left the SDK's canUseTool promise pending forever"
-				)
-				return
-			}
-			Vitest.assert.strictEqual(decision.value.behavior, "deny")
 			const afterWatchdog = yield* waitUntil(Ref.get(sdk.attemptsRef), (a) => a.length >= 2)
 			Vitest.assert.strictEqual(afterWatchdog.length, 2)
 		})
@@ -1111,44 +974,17 @@ Vitest.describe("ClaudeAdapter", () => {
 		Effect.gen(function*() {
 			const inbound = yield* Queue.unbounded<Json, Done>()
 			const interrupts = yield* Ref.make(0)
-			let capturedCanUseTool: ClaudeCanUseTool | undefined
-			const adapter = yield* makeClaudeAdapter({
-				presence: Effect.succeed(claudePresence(true, true)),
-				createQuery: (input) => {
-					capturedCanUseTool = input.canUseTool
-					return Effect.succeed(fakeHandle(inbound, interrupts))
-				}
+			const session = yield* withBlockedPermission({
+				createQuery: () => Effect.succeed(fakeHandle(inbound, interrupts))
 			})
-			const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
-			yield* adapter
-				.startSession({ sessionId, projectId, workspaceRoot: "/tmp/acepe" })
-				.pipe(
-					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
-					Effect.forkChild({ startImmediately: true })
-				)
-			yield* Queue.take(events) // deferred_open
-			yield* Stream.runCollect(
-				adapter.sendPrompt({ sessionId, messageId, text: "Edit a file for me" })
-			)
-			if (capturedCanUseTool === undefined) {
-				Vitest.assert.fail("expected createQuery to receive a canUseTool callback")
-				return
-			}
-			const decisionFiber = yield* forkBlockedPermission(capturedCanUseTool, events)
 			// The query stream simply ends — the shape ProviderBridge turns
 			// into ProviderSessionFailed, and the one path that drops the
 			// session runtime for good (see attachQuery's own cleanup).
 			yield* Queue.end(inbound)
-			const decision = yield* Fiber.join(decisionFiber).pipe(
-				Effect.timeoutOption(ABANDONED_DECISION_TIMEOUT)
+			yield* assertAbandonedDenial(
+				session.decisionFiber,
+				"a dead query stream left the SDK's canUseTool promise pending forever"
 			)
-			if (Option.isNone(decision)) {
-				Vitest.assert.fail(
-					"a dead query stream left the SDK's canUseTool promise pending forever"
-				)
-				return
-			}
-			Vitest.assert.strictEqual(decision.value.behavior, "deny")
 		})
 	)
 
