@@ -103,6 +103,10 @@ function handleUserTokenClick(
 		label={entry.label}
 		agentIconSrc={entry.agentIconSrc}
 		showWorkingSpark={entry.showWorkingSpark ?? showWorkingSpark}
+		workingLineVerbs={entry.workingLineVerbs}
+		workingLineSeed={entry.workingLineSeed}
+		workingLineTokens={entry.workingLineTokens}
+		workingLineInterruptHint={entry.workingLineInterruptHint}
 	/>
 {:else if entry.type === "session_activity"}
 	<AgentSessionActivityEntry
