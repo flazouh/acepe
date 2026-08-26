@@ -22,6 +22,7 @@ import { decodeContractFact } from "./Codec.ts"
 import { mapCodexPermissionReply } from "./Permissions.ts"
 import type { CodexAppServerHandle, CodexJsonRpcRequest } from "./Process.ts"
 import {
+	adapterError,
 	CODEX_APP_SERVER_ARGS,
 	CODEX_PLACEHOLDER_COMMAND,
 	codexPresence,
@@ -66,6 +67,41 @@ const fakeHandle = (
 		).pipe(Effect.asVoid),
 	reply: (id, result) =>
 		Ref.update(replies, (current) => Arr.append(current, { id, result })).pipe(Effect.asVoid),
+	close: Queue.end(inbound).pipe(Effect.asVoid)
+})
+
+// Same handle, except the first `reply` attempt is rejected by the
+// transport — what a retry after a lazy session open runs into.
+const rejectingFirstReplyHandle = (
+	inbound: Queue.Queue<Json, Done>,
+	requests: Ref.Ref<ReadonlyArray<RecordedRequest>>,
+	replies: Ref.Ref<ReadonlyArray<Json>>,
+	rejections: Ref.Ref<number>
+): CodexAppServerHandle => ({
+	notifications: Stream.fromQueue(inbound),
+	request: (input: CodexJsonRpcRequest) =>
+		Ref.update(requests, (current) =>
+			Arr.append(current, { method: input.method, params: input.params })
+		).pipe(Effect.as(scriptedResult(input.method))),
+	notify: (method, params) =>
+		Ref.update(requests, (current) =>
+			Arr.append(current, {
+				method,
+				params: Option.getOrElse(params, () => null)
+			})
+		).pipe(Effect.asVoid),
+	reply: (id, result) =>
+		Ref.modify(rejections, (remaining) =>
+			[remaining, remaining > 0 ? remaining - 1 : 0] as const
+		).pipe(
+			Effect.flatMap((remaining) =>
+				remaining > 0
+					? adapterError("respondToPermission", "Codex app-server write failed")
+					: Ref.update(replies, (current) => Arr.append(current, { id, result })).pipe(
+						Effect.asVoid
+					)
+			)
+		),
 	close: Queue.end(inbound).pipe(Effect.asVoid)
 })
 
@@ -248,6 +284,58 @@ Vitest.describe("CodexAdapter permissions", () => {
 			Vitest.assert.strictEqual(second.failure.operation, "respondToPermission")
 			// One reply, carrying the number Codex asked with — never a
 			// second one carrying the string "42".
+			Vitest.assert.deepStrictEqual(yield* Ref.get(replies), [
+				{ id: 42, result: { decision: "accept" } }
+			])
+			yield* Queue.end(inbound)
+		})
+	)
+
+	// The claim only really disappears once the reply lands. ProviderBridge
+	// retries respondToPermission after a lazy session open (see
+	// LAZY_OPEN_RETRY_SCHEDULE), and a claim burned by the failed attempt
+	// would leave the retry with nothing to answer with — the same silent
+	// hang, reached from the other side.
+	Vitest.it.effect("keeps the reply id when the transport rejects the first attempt", () =>
+		Effect.gen(function*() {
+			const inbound = yield* Queue.unbounded<Json, Done>()
+			const requests = yield* Ref.make<ReadonlyArray<RecordedRequest>>(Arr.empty())
+			const replies = yield* Ref.make<ReadonlyArray<Json>>(Arr.empty())
+			const rejections = yield* Ref.make(1)
+			const adapter = yield* makeCodexAdapter({
+				presence: Effect.succeed(codexPresence(true, true)),
+				spawn: {
+					command: CODEX_PLACEHOLDER_COMMAND,
+					args: Arr.fromIterable(CODEX_APP_SERVER_ARGS)
+				},
+				config: defaultCodexNativeConfigState(),
+				createAppServer: () =>
+					Effect.succeed(rejectingFirstReplyHandle(inbound, requests, replies, rejections))
+			})
+			const { events } = yield* openSession(adapter)
+			yield* Queue.offer(inbound, {
+				jsonrpc: "2.0",
+				id: 42,
+				method: "item/fileRead/requestApproval",
+				params: {
+					itemId: "tool-1",
+					path: "src/lib.rs"
+				}
+			})
+			yield* nextApprovalRequested(events)
+			const rejected = yield* Effect.result(
+				adapter.respondToPermission({
+					sessionId,
+					permissionId: "42",
+					decision: "once"
+				})
+			)
+			Vitest.assert.isTrue(Result.isFailure(rejected))
+			yield* adapter.respondToPermission({
+				sessionId,
+				permissionId: "42",
+				decision: "once"
+			})
 			Vitest.assert.deepStrictEqual(yield* Ref.get(replies), [
 				{ id: 42, result: { decision: "accept" } }
 			])
