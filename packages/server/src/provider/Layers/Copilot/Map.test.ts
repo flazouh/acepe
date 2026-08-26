@@ -127,13 +127,15 @@ Vitest.describe("mapAcpUpdate", () => {
 		])
 	})
 
-	Vitest.it("keeps the context occupancy total when the breakdown ships with it", () => {
+	// `used` reports how full the context window is, so it is deliberately larger
+	// than the tokens this turn spent. The breakdown beside it must not suppress it.
+	Vitest.it("keeps the context occupancy figure, which is not the sum of the breakdown", () => {
 		const usage = mapAcpUpdate({
 			type: "usage",
 			sessionId: "acp-1",
 			inputTokens: 12,
 			outputTokens: 4,
-			used: 40,
+			used: 41000,
 			size: 128000
 		})
 		Vitest.assert.deepStrictEqual(usage, [
@@ -142,7 +144,24 @@ Vitest.describe("mapAcpUpdate", () => {
 				sessionId: "acp-1",
 				inputTokens: 12,
 				outputTokens: 4,
-				totalTokens: 40,
+				totalTokens: 41000,
+				contextWindowSize: 128000
+			}
+		])
+	})
+
+	Vitest.it("still reads the context occupancy figure when no breakdown ships with it", () => {
+		const usage = mapAcpUpdate({
+			type: "usage",
+			sessionId: "acp-1",
+			used: 41000,
+			size: 128000
+		})
+		Vitest.assert.deepStrictEqual(usage, [
+			{
+				contractKind: "usage",
+				sessionId: "acp-1",
+				totalTokens: 41000,
 				contextWindowSize: 128000
 			}
 		])
@@ -153,7 +172,7 @@ Vitest.describe("mapAcpUpdate", () => {
 			type: "usage",
 			sessionId: "acp-1",
 			totalTokens: 16,
-			used: 40
+			used: 41000
 		})
 		Vitest.assert.deepStrictEqual(usage, [
 			{

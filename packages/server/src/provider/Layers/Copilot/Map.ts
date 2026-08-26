@@ -111,6 +111,11 @@ const usageCostUsd = (record: JsonObject): Option.Option<number> =>
 const usageFact = (record: JsonObject, sessionId: string): UsageFact => {
 	const inputTokens = numberField(record, "inputTokens")
 	const outputTokens = numberField(record, "outputTokens")
+	// `used` is the context-window occupancy that ships beside `size`, not the sum
+	// of the breakdown, so a payload can report `used: 41000` for a 16-token turn.
+	// It lands in the total slot because `UsageFact` has no occupancy field yet and
+	// the occupancy meter reads `totalTokens`; an explicit provider total still wins
+	// because `numberFieldAny` takes the first key present. Issue #279 splits them.
 	const totalTokens = numberFieldAny(record, ["totalTokens", "total_tokens", "used"])
 	const contextWindowSize = numberFieldAny(record, ["contextWindowSize", "size"])
 	const base: UsageFact = {
