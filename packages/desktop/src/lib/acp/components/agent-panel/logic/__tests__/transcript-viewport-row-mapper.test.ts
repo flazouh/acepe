@@ -56,6 +56,37 @@ function executeDisplayFacts(input: {
 	};
 }
 
+// AC-280: a real Claude "Write" tool call is classified server-side as
+// kind "edit" (detectClaudeToolKind folds "write" into "edit" -- Claude/
+// Tools.ts), and toolCallTitle embeds the target path verbatim in the
+// title: "Write /Users/alex/Documents/acepe/qa-gate-final.txt". The
+// client-side bridge that owns this operation never sets operation.kind
+// (orchestration-canonical-bridge.ts always leaves it null for a live tool
+// call), so the mapper falls through to the "other"/"unclassified" title
+// path -- exactly the fixture this helper builds.
+function writeDisplayFacts(input: {
+	readonly operationId: string;
+	readonly toolCallId: string;
+	readonly path: string;
+}): TranscriptViewportOperationDisplayFacts {
+	return {
+		operationId: input.operationId,
+		toolCallId: input.toolCallId,
+		name: "Write",
+		title: `Write ${input.path}`,
+		state: "running",
+		kind: null,
+		commandSummary: null,
+		targetPathSummary: input.path,
+		resultSummary: null,
+		errorSummary: null,
+		editDiffs: [],
+		interactionIds: [],
+		parentToolCallId: null,
+		childToolCallIds: [],
+	};
+}
+
 function embeddedExecuteOperation(input: {
 	readonly entryId: string;
 	readonly operationId: string;
@@ -509,6 +540,44 @@ describe("transcript-viewport-row-mapper", () => {
 		});
 		expect(entry.title).not.toBe("Tool");
 		expect(entry.command).not.toBe("exec_command");
+	});
+
+	// AC-280: formatOtherToolName exists to turn a raw tool NAME
+	// ("mcp__server__DoThing") into a readable title -- it is not safe to
+	// run over a title that already embeds a literal file path, because
+	// hyphen-splitting a kebab-case filename mangles it
+	// ("qa-gate-final.txt" -> "Qa Gate Final.txt") and the same path then
+	// repeats a second time, correctly, via filePath below.
+	it("does not mangle a file path embedded in an unclassified tool title", () => {
+		const path = "/Users/alex/Documents/acepe/qa-gate-final.txt";
+		const row = toolRowWithText({
+			text: "Write",
+			operationLinks: [
+				{
+					operationId: "operation-write-1",
+					toolCallId: "perm-toolu_1",
+					name: "Write",
+					state: "running",
+					displayFacts: writeDisplayFacts({
+						operationId: "operation-write-1",
+						toolCallId: "perm-toolu_1",
+						path,
+					}),
+				},
+			],
+		});
+
+		const entry = resolveTranscriptViewportSceneEntry(row);
+
+		if (entry.type !== "tool_call") {
+			throw new Error("expected a tool call entry");
+		}
+		expect(entry.title).toBe("Write qa-gate-final.txt");
+		expect(entry.title).not.toContain("Qa Gate Final");
+		// The full path still surfaces once, verbatim, as the row's own
+		// filePath field (rendered as the secondary/tooltip path) -- not a
+		// second time inside the title.
+		expect(entry.filePath).toBe(path);
 	});
 
 	it("uses canonical viewport Read facts when a stale same-id scene entry has no file path", () => {

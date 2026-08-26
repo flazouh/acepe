@@ -505,6 +505,11 @@ function defaultViewportToolTitle(kind: AgentToolKind): string {
 	return "Tool";
 }
 
+function fileNameFromPath(path: string): string {
+	const segments = path.split("/").filter((segment) => segment.length > 0);
+	return segments.length > 0 ? segments[segments.length - 1] : path;
+}
+
 function titleFromDisplayFacts(
 	facts: TranscriptViewportOperationDisplayFacts,
 	kind: AgentToolKind
@@ -513,7 +518,32 @@ function titleFromDisplayFacts(
 		return defaultViewportToolTitle(kind);
 	}
 	const rawTitle = cleanDisplayText(facts.title) ?? cleanDisplayText(facts.name);
-	return rawTitle === null ? defaultViewportToolTitle(kind) : formatOtherToolName(rawTitle);
+	if (rawTitle === null) {
+		return defaultViewportToolTitle(kind);
+	}
+
+	// AC-280: a title like "Write /Users/.../qa-gate-final.txt" embeds the
+	// operation's own target path verbatim (see toolCallTitle in the
+	// server's Claude/Tools.ts -- a real "Write" call is classified kind
+	// "edit" there, which does get a path hint, but this operation's own
+	// `kind` is null client-side, so it lands here as "other" instead of
+	// getting the clean "Write" title a properly-classified edit/write row
+	// gets). formatOtherToolName exists to turn a raw tool NAME
+	// ("mcp__server__DoThing") into a readable title -- running a literal
+	// file path through its hyphen-splitting title-cases the filename
+	// ("qa-gate-final.txt" -> "Qa Gate Final.txt"), and the untouched path
+	// then repeats a second time, correctly, as this same row's filePath
+	// field. Paths are literal: strip the embedded path (it already
+	// surfaces verbatim via filePath/tooltip below), format only the verb
+	// that precedes it, and show the bare filename in its place.
+	const embeddedPath = cleanDisplayText(facts.targetPathSummary);
+	if (embeddedPath !== null && rawTitle.endsWith(embeddedPath)) {
+		const verb = rawTitle.slice(0, rawTitle.length - embeddedPath.length).trim();
+		const fileName = fileNameFromPath(embeddedPath);
+		return verb.length === 0 ? fileName : `${formatOtherToolName(verb)} ${fileName}`;
+	}
+
+	return formatOtherToolName(rawTitle);
 }
 
 function subtitleFromDisplayFacts(

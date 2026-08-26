@@ -104,6 +104,24 @@ function awaitingModelActivityAt(turnStartedAtMs: number | null): SessionGraphAc
 
 const noArguments: ToolArguments = { kind: "other", raw: null };
 
+const PERMISSION_ID_PREFIX = "perm-";
+
+// AC-280: a real permission id is always perm-<toolCallId> -- see
+// permissionIdForToolCall in the server's Claude/Cursor/Copilot Tools.ts.
+// Returns the tool-call row already tracked for that underlying toolCallId,
+// or null when there is none (either the id isn't perm-prefixed, or no
+// ToolCallObserved for it has arrived yet).
+function existingRowToolCallIdForApproval(
+	state: SessionCanonicalState,
+	approvalRequestId: string
+): string | null {
+	if (!approvalRequestId.startsWith(PERMISSION_ID_PREFIX)) {
+		return null;
+	}
+	const toolCallId = approvalRequestId.slice(PERMISSION_ID_PREFIX.length);
+	return state.observedToolCallIds.has(toolCallId) ? toolCallId : null;
+}
+
 function nextRevision(
 	current: SessionGraphRevision,
 	transcriptAdvanced: boolean
@@ -466,18 +484,15 @@ export class OrchestrationCanonicalBridge {
 		return [toSessionStateAcpEnvelope(envelopeForDelta(payload.sessionId, toRevision, delta))];
 	}
 
-	// #268 defect 2: ApprovalRequested used to patch session.interactions ONLY
-	// -- zero transcriptOperations, so nothing ever appeared in the transcript
-	// (the same "operation patched, no visible row" bug tool calls had before
-	// AC-263 -- see onToolCallObserved's doc). A pending approval is now
-	// transcript-bearing on first sighting: it appends its own "tool"-role row
-	// (there is no real tool call to attach to -- ApprovalRequestedPayload
-	// carries no toolCallId) and stamps that same row's id onto
-	// interaction.payload.Permission.tool.callId, so the existing
-	// tool-call-attached PermissionBar (getForToolCall in permission-store
-	// .svelte.ts, wired in transcript-viewport-row-renderer.svelte) renders
-	// Allow/Always/Deny directly under the row instead of the request going
-	// nowhere.
+	// AC-280: a real permission id is always perm-<toolCallId> (see
+	// permissionIdForToolCall in the server's Claude/Cursor/Copilot Tools.ts).
+	// Claude reports the tool call itself (ToolCallObserved) before it blocks
+	// on permission for it -- the normal live order, confirmed against a real
+	// session's own DB (one projection_session_activities row, one
+	// perm-<sameToolCallId> pending approval) -- so by the time
+	// ApprovalRequested arrives, a transcript row for that exact tool call
+	// usually already exists. Attach to it instead of minting a second,
+	// duplicate row: one tool call must render as one row, not two.
 	private onApprovalRequested(payload: {
 		readonly sessionId: SessionId;
 		readonly approvalRequestId: string;
@@ -487,6 +502,90 @@ export class OrchestrationCanonicalBridge {
 		if (state === undefined) {
 			return [];
 		}
+		const existingToolCallId = existingRowToolCallIdForApproval(state, payload.approvalRequestId);
+		if (existingToolCallId !== null) {
+			return this.onApprovalRequestedForExistingRow(state, payload, existingToolCallId);
+		}
+		return this.onApprovalRequestedAsStandaloneRow(state, payload);
+	}
+
+	// The approval's own row already exists as a tool-call row -- patch the
+	// interaction's tool reference onto that row's real toolCallId so
+	// getForToolCall (permission-store.svelte.ts, wired in
+	// transcript-viewport-row-renderer.svelte) attaches Allow/Always/Deny to
+	// it directly. No transcriptOperations, no operationPatches: the row is
+	// already there, appending another would duplicate it.
+	private onApprovalRequestedForExistingRow(
+		state: SessionCanonicalState,
+		payload: { readonly sessionId: SessionId; readonly approvalRequestId: string; readonly title: string },
+		toolCallId: string
+	): AcpEventEnvelope[] {
+		state.observedApprovalIds.add(payload.approvalRequestId);
+		const toRevision = nextRevision(state.revision, false);
+		const interaction: InteractionSnapshot = {
+			id: payload.approvalRequestId,
+			session_id: payload.sessionId,
+			kind: "Permission",
+			state: "Pending",
+			json_rpc_request_id: null,
+			reply_handler: null,
+			tool_reference: { callId: toolCallId },
+			responded_at_event_seq: null,
+			response: null,
+			payload: {
+				Permission: {
+					id: payload.approvalRequestId,
+					sessionId: payload.sessionId,
+					permission: payload.title,
+					patterns: [],
+					metadata: null,
+					always: [],
+					autoAccepted: false,
+					tool: { callId: toolCallId },
+				},
+			},
+		};
+		const activity: SessionGraphActivity = {
+			kind: "waiting_for_user",
+			activeOperationCount: 0,
+			activeSubagentCount: 0,
+			blockingInteractionId: payload.approvalRequestId,
+		};
+		const delta: SessionStateDelta = {
+			fromRevision: state.revision,
+			toRevision,
+			activity,
+			turnState: state.turnState,
+			activeStreamingTail: null,
+			transcriptOperations: [],
+			operationPatches: [],
+			interactionPatches: [interaction],
+			changedFields: ["interactions", "activity"],
+		};
+		state.revision = toRevision;
+		state.activity = activity;
+		return [toSessionStateAcpEnvelope(envelopeForDelta(payload.sessionId, toRevision, delta))];
+	}
+
+	// #268 defect 2: ApprovalRequested used to patch session.interactions ONLY
+	// -- zero transcriptOperations, so nothing ever appeared in the transcript
+	// (the same "operation patched, no visible row" bug tool calls had before
+	// AC-263 -- see onToolCallObserved's doc). A pending approval with no
+	// existing tool-call row to attach to is transcript-bearing on first
+	// sighting: it appends its own "tool"-role row and stamps that same row's
+	// id onto interaction.payload.Permission.tool.callId, so the existing
+	// tool-call-attached PermissionBar (getForToolCall in permission-store
+	// .svelte.ts, wired in transcript-viewport-row-renderer.svelte) renders
+	// Allow/Always/Deny directly under the row instead of the request going
+	// nowhere.
+	private onApprovalRequestedAsStandaloneRow(
+		state: SessionCanonicalState,
+		payload: {
+			readonly sessionId: SessionId;
+			readonly approvalRequestId: string;
+			readonly title: string;
+		}
+	): AcpEventEnvelope[] {
 		const isFirstSighting = !state.observedApprovalIds.has(payload.approvalRequestId);
 		const toRevision = nextRevision(state.revision, isFirstSighting);
 		const approvalEntryId = `entry-approval-${payload.approvalRequestId}`;

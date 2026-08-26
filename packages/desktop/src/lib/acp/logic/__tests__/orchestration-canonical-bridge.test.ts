@@ -484,6 +484,92 @@ describe("OrchestrationCanonicalBridge", () => {
 		expect(delta.changedFields).toContain("transcriptSnapshot");
 	});
 
+	// AC-280: a real Claude permission id is always perm-<toolCallId> --
+	// see permissionIdForToolCall in the server's Claude/Cursor/Copilot Tools.ts.
+	// When Claude reports the tool call (ToolCallObserved) before it blocks on
+	// permission (the normal live order: the owner's own DB evidence showed
+	// ONE projection_session_activities row and a perm-<sameToolCallId>
+	// pending approval for it), onApprovalRequested used to append a SECOND,
+	// duplicate transcript row/operation for the exact same tool call instead
+	// of recognizing the row already exists -- one operation rendered twice,
+	// with the real row's PermissionBar never attaching (its toolCallId,
+	// "toolu_1", never matched the permission's own id, "perm-toolu_1").
+	it("attaches a permission whose id is perm-<toolCallId> to the existing tool-call row instead of duplicating it", () => {
+		const bridge = makeBridge();
+		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
+
+		const toolCall = runTranslate(
+			bridge,
+			makeEvent("ToolCallObserved", {
+				sessionId,
+				activityId: "activity-1",
+				toolCallId: "toolu_1",
+				operationId: null,
+				status: "pending",
+				title: "Write",
+				path: "/tmp/qa.txt",
+			})
+		);
+		const toolPayload = toolCall[0]?.payload as SessionStateEnvelope;
+		const toolDelta = toolPayload.payload.kind === "delta" ? toolPayload.payload.delta : null;
+		if (toolDelta === null) {
+			throw new Error("expected a delta envelope");
+		}
+		const [toolOp] = toolDelta.transcriptOperations;
+		if (toolOp?.kind !== "appendEntry") {
+			throw new Error("expected the ToolCallObserved to append a tool row");
+		}
+
+		const approval = runTranslate(
+			bridge,
+			makeEvent("ApprovalRequested", { sessionId, approvalRequestId: "perm-toolu_1", title: "Write" })
+		);
+		const approvalPayload = approval[0]?.payload as SessionStateEnvelope;
+		if (approvalPayload.payload.kind !== "delta") {
+			throw new Error("expected a delta envelope");
+		}
+		const delta = approvalPayload.payload.delta;
+
+		// One tool call, one row: no second transcript entry and no second
+		// operation for the same underlying toolu_1.
+		expect(delta.transcriptOperations).toHaveLength(0);
+		expect(delta.operationPatches).toHaveLength(0);
+
+		expect(delta.interactionPatches).toHaveLength(1);
+		const [interaction] = delta.interactionPatches;
+		if (interaction === undefined || !("Permission" in interaction.payload)) {
+			throw new Error("expected a Permission interaction");
+		}
+		// getForToolCall matches on this field against the REAL row's
+		// toolCallId ("toolu_1"), not the permission's own id
+		// ("perm-toolu_1") -- otherwise the existing tool row's PermissionBar
+		// never attaches, even though a row for it is already on screen.
+		expect(interaction.payload.Permission.tool?.callId).toBe("toolu_1");
+		expect(interaction.tool_reference).toEqual({ callId: "toolu_1" });
+	});
+
+	it("still renders its own standalone row when no tool-call row exists yet, even for a perm-<toolCallId> id", () => {
+		const bridge = makeBridge();
+		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
+
+		const approval = runTranslate(
+			bridge,
+			makeEvent("ApprovalRequested", { sessionId, approvalRequestId: "perm-toolu_2", title: "Write" })
+		);
+		const payload = approval[0]?.payload as SessionStateEnvelope;
+		if (payload.payload.kind !== "delta") {
+			throw new Error("expected a delta envelope");
+		}
+		const delta = payload.payload.delta;
+
+		expect(delta.transcriptOperations).toHaveLength(1);
+		expect(delta.operationPatches).toHaveLength(1);
+		expect(delta.operationPatches[0]?.tool_call_id).toBe("perm-toolu_2");
+		expect(delta.interactionPatches[0]?.payload).toMatchObject({
+			Permission: { tool: { callId: "perm-toolu_2" } },
+		});
+	});
+
 	it("starts a fresh assistant entry for tokens that arrive after a tool call, so text keeps its real position relative to the tool row", () => {
 		const bridge = makeBridge();
 		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
