@@ -275,7 +275,7 @@ describe("conversationFromSnapshot", () => {
 		expect(conversation.rows[1]?.entry).toEqual({
 			id: "event-approval-1",
 			type: "tool_call",
-			kind: "unclassified",
+			kind: "edit",
 			title: "Edit src/app.ts",
 			status: "blocked",
 			presentationState: "pending_operation",

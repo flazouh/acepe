@@ -68,12 +68,14 @@ function writeDisplayFacts(input: {
 	readonly operationId: string;
 	readonly toolCallId: string;
 	readonly path: string;
+	readonly name?: string;
 }): TranscriptViewportOperationDisplayFacts {
+	const name = input.name ?? "Write";
 	return {
 		operationId: input.operationId,
 		toolCallId: input.toolCallId,
-		name: "Write",
-		title: `Write ${input.path}`,
+		name,
+		title: `${name} ${input.path}`,
 		state: "running",
 		kind: null,
 		commandSummary: null,
@@ -542,13 +544,14 @@ describe("transcript-viewport-row-mapper", () => {
 		expect(entry.command).not.toBe("exec_command");
 	});
 
-	// AC-280: formatOtherToolName exists to turn a raw tool NAME
-	// ("mcp__server__DoThing") into a readable title -- it is not safe to
-	// run over a title that already embeds a literal file path, because
-	// hyphen-splitting a kebab-case filename mangles it
-	// ("qa-gate-final.txt" -> "Qa Gate Final.txt") and the same path then
-	// repeats a second time, correctly, via filePath below.
-	it("does not mangle a file path embedded in an unclassified tool title", () => {
+	// AC-280: a Write tool call now classifies as kind "write" (see
+	// toolKindFromProviderName), so it gets the correct "tool-edit" icon
+	// instead of the generic "?" (tool-kind-icon-model.ts's unclassified ->
+	// "question"), and its title is the clean, bare verb the same way every
+	// other classified kind's title already is -- no embedded path to
+	// mangle in the first place. The full path still surfaces once,
+	// verbatim, as the row's own filePath field.
+	it("classifies a Write operation as the write icon kind with a clean bare title", () => {
 		const path = "/Users/alex/Documents/acepe/qa-gate-final.txt";
 		const row = toolRowWithText({
 			text: "Write",
@@ -572,7 +575,47 @@ describe("transcript-viewport-row-mapper", () => {
 		if (entry.type !== "tool_call") {
 			throw new Error("expected a tool call entry");
 		}
-		expect(entry.title).toBe("Write qa-gate-final.txt");
+		expect(entry.kind).toBe("write");
+		expect(entry.title).toBe("Write");
+		expect(entry.filePath).toBe(path);
+	});
+
+	// AC-280: formatOtherToolName exists to turn a raw tool NAME
+	// ("mcp__server__DoThing") into a readable title -- it is not safe to
+	// run over a title that already embeds a literal file path, because
+	// hyphen-splitting a kebab-case filename mangles it
+	// ("qa-gate-final.txt" -> "Qa Gate Final.txt") and the same path then
+	// repeats a second time, correctly, via filePath below. Covers a
+	// genuinely unrecognized tool name (toolKindFromProviderName's honest
+	// "unclassified" fallback), the one case that still reaches this
+	// title-building branch after Write/Read/Bash/... got their own kinds.
+	it("does not mangle a file path embedded in an unclassified tool title", () => {
+		const path = "/Users/alex/Documents/acepe/qa-gate-final.txt";
+		const row = toolRowWithText({
+			text: "mcp__acme__WriteBlob",
+			operationLinks: [
+				{
+					operationId: "operation-write-1",
+					toolCallId: "perm-toolu_1",
+					name: "mcp__acme__WriteBlob",
+					state: "running",
+					displayFacts: writeDisplayFacts({
+						operationId: "operation-write-1",
+						toolCallId: "perm-toolu_1",
+						path,
+						name: "mcp__acme__WriteBlob",
+					}),
+				},
+			],
+		});
+
+		const entry = resolveTranscriptViewportSceneEntry(row);
+
+		if (entry.type !== "tool_call") {
+			throw new Error("expected a tool call entry");
+		}
+		expect(entry.kind).toBe("unclassified");
+		expect(entry.title).toBe("Write Blob qa-gate-final.txt");
 		expect(entry.title).not.toContain("Qa Gate Final");
 		// The full path still surfaces once, verbatim, as the row's own
 		// filePath field (rendered as the secondary/tooltip path) -- not a

@@ -17,6 +17,7 @@ import type {
 	TranscriptViewportRow,
 } from "../../../../services/acp-types.js";
 import { buildUserRowSceneModel } from "../../../logic/user-row-scene-model.js";
+import { toolKindFromProviderName } from "../../../utils/tool-kind-from-name.js";
 import { formatOtherToolName } from "../../../registry/index.js";
 import { transcriptSegmentPrimaryText } from "../../../session-state/transcript-text.js";
 import { calculateDiffStats, getFileName } from "../../../utils/file-utils.js";
@@ -446,9 +447,22 @@ function displayFactsFromEmbeddedOperation(
 	};
 }
 
-function mapViewportToolKind(kind: TranscriptViewportOperationDisplayFacts["kind"]): AgentToolKind {
+// AC-280: operation.kind is null for every tool call this live viewport
+// renders (orchestration-canonical-bridge.ts and reopen-snapshot-graph.ts
+// never set it -- the canonical ToolCallObserved contract event carries no
+// kind field at all, only {toolCallId, status, title, path}), so every row
+// fell into "other"/"unclassified" and rendered the generic "?" icon
+// (tool-kind-icon-model.ts's unclassified -> "question") regardless of
+// whether it was a Write, Read, Bash, or Grep. Classify from the
+// operation's own provider tool name instead of accepting that fallback
+// blind -- see toolKindFromProviderName's own doc for why this lives
+// client-side rather than widening the contract event.
+function mapViewportToolKind(
+	kind: TranscriptViewportOperationDisplayFacts["kind"],
+	name: string
+): AgentToolKind {
 	if (kind === null) {
-		return "other";
+		return toolKindFromProviderName(name);
 	}
 	if (kind === "shell_input") {
 		return "execute";
@@ -567,7 +581,7 @@ function taskLatestActionFromDisplayFacts(
 ): AgentTaskLatestAction {
 	return {
 		id: action.operationId,
-		kind: mapViewportToolKind(action.kind),
+		kind: mapViewportToolKind(action.kind, action.title),
 		title: action.title,
 		subtitle: action.subtitle ?? undefined,
 		filePath: action.targetPathSummary ?? undefined,
@@ -590,7 +604,7 @@ function resolveViewportOperationDisplayFactsEntry(
 		return null;
 	}
 
-	const kind = mapViewportToolKind(facts.kind);
+	const kind = mapViewportToolKind(facts.kind, facts.name);
 	const status = toolStatusFromOperationState(facts.state);
 	const command = kind === "execute" ? cleanDisplayText(facts.commandSummary) : null;
 	const resultSummary = cleanDisplayText(facts.resultSummary);

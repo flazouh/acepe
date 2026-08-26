@@ -24,7 +24,7 @@ describe("toolRowFromActivityProjection", () => {
 			id: "event-tool-1",
 			type: "tool_call",
 			toolCallId: "call-1",
-			kind: "unclassified",
+			kind: "read",
 			title: "Read AGENTS.md",
 			status: "running",
 			presentationState: "pending_operation",
@@ -50,7 +50,7 @@ describe("toolRowFromActivityProjection", () => {
 			type: "tool_call",
 			toolCallId: "call-2",
 			operationId: "operation-2",
-			kind: "unclassified",
+			kind: "edit",
 			title: "Edit",
 			filePath: "src/lib/panel.ts",
 			status: "done",
@@ -68,7 +68,7 @@ describe("toolRowFromActivityProjection", () => {
 		expect(entry).toEqual({
 			id: "event-approval-1",
 			type: "tool_call",
-			kind: "unclassified",
+			kind: "edit",
 			title: "Edit src/app.ts",
 			status: "blocked",
 			presentationState: "pending_operation",
@@ -103,5 +103,39 @@ describe("toolRowFromActivityProjection", () => {
 
 		expect(failed.status).toBe("error");
 		expect(pending.status).toBe("pending");
+	});
+
+	// AC-280: every row used to hardcode kind "unclassified", so
+	// tool-kind-icon-model.ts's unclassified -> "question" fired for every
+	// tool call -- Write, Read, Bash, Grep all showed the generic "?" icon.
+	// Classify from the activity's own display title instead.
+	it("classifies distinct tool kinds from their titles instead of hardcoding unclassified", () => {
+		const write = toolRowFromActivityProjection({
+			activityId: ActivityId.make("event-write-1"),
+			sessionId,
+			sequence: 12,
+			statusSequence: 12,
+			kind: "file",
+			toolCallId: ToolCallId.make("call-write-1"),
+			operationId: "operation-write-1",
+			status: "completed",
+			title: "Write /tmp/qa.txt",
+			path: "/tmp/qa.txt",
+		});
+		const bash = toolRowFromActivityProjection({
+			activityId: ActivityId.make("event-bash-1"),
+			sessionId,
+			sequence: 13,
+			statusSequence: 13,
+			kind: "tool",
+			toolCallId: ToolCallId.make("call-bash-1"),
+			operationId: "operation-bash-1",
+			status: "completed",
+			title: "Bash",
+			path: null,
+		});
+
+		expect(write.kind).toBe("write");
+		expect(bash.kind).toBe("execute");
 	});
 });

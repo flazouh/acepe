@@ -6,6 +6,7 @@ import type {
 	ToolCallId,
 } from "@acepe/contracts";
 import type { AgentToolEntry, AgentToolStatus } from "@acepe/ui/agent-panel/types";
+import { toolKindFromTitle } from "../../acp/utils/tool-kind-from-name.js";
 
 export type AgentPanelActivityKind = "tool" | "file";
 
@@ -43,7 +44,7 @@ export const toolRowFromActivityProjection = (
 	const entry: AgentToolEntry = {
 		id: activity.activityId,
 		type: "tool_call",
-		kind: "unclassified",
+		kind: toolKindFromTitle(activity.title),
 		title: activity.title,
 		status: toolStatusFromActivity(activity.status),
 		presentationState: activity.operationId === null ? "pending_operation" : "resolved",
@@ -69,7 +70,7 @@ export const toolRowFromPendingApproval = (
 	return {
 		id: approval.approvalRequestId,
 		type: "tool_call",
-		kind: "unclassified",
+		kind: toolKindFromTitle(title),
 		title,
 		status: "blocked",
 		presentationState: "pending_operation",
