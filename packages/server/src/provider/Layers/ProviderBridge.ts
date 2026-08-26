@@ -425,6 +425,22 @@ const LAZY_OPEN_RETRY_SCHEDULE = Schedule.spaced(Duration.millis(20)).pipe(
 	Schedule.upTo({ times: 25 })
 )
 
+// The ONE failure LAZY_OPEN_RETRY_SCHEDULE exists to absorb. Every adapter's
+// requireSession (Claude/Codex/Cursor/OpenCode Session.ts) renders a session
+// it has not registered yet as `No <Provider> session '<sessionId>'.`, and
+// that stops the moment the just-forked forwarding fiber's startSession
+// registers it. Every other setMode failure is permanent: a mode the provider
+// has no equivalent for (resolveClaudeModeId, resolveCodexModeId and their
+// siblings returning none) fails identically on the first attempt and on all
+// 25 retries, so retrying it burns ~500 ms of the bridge's single
+// event-consuming fiber -- delaying every other session's events -- before
+// appending exactly the ProviderSessionFailed the first attempt already
+// earned. The rendered detail is the narrowest discriminant this file has:
+// ProviderAdapterError carries no transient/permanent field, and promoting
+// one belongs in Services/ProviderAdapter.ts with every adapter, not here.
+const isSessionNotRegisteredYet = (sessionId: SessionId) => (error: ProviderAdapterError) =>
+	error.detail.startsWith("No ") && error.detail.endsWith(`session '${sessionId}'.`)
+
 const applySetMode = (
 	state: BridgeState,
 	adapter: ModeSettableAdapter,
@@ -433,7 +449,13 @@ const applySetMode = (
 	justOpened: boolean
 ) => {
 	const dispatch = adapter.setMode({ sessionId, modeId })
-	return (justOpened ? Effect.retry(dispatch, LAZY_OPEN_RETRY_SCHEDULE) : dispatch).pipe(
+	const attempt = justOpened
+		? Effect.retry(dispatch, {
+			schedule: LAZY_OPEN_RETRY_SCHEDULE,
+			while: isSessionNotRegisteredYet(sessionId)
+		})
+		: dispatch
+	return attempt.pipe(
 		Effect.catchCause((cause) =>
 			appendFailure(state, sessionId, adapter.providerId, "setMode", Cause.pretty(cause))
 		)

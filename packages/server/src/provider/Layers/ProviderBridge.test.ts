@@ -42,7 +42,8 @@ import {
 	type ProviderAdapter,
 	ProviderCapabilities,
 	ProviderId,
-	ProviderAdapterError
+	ProviderAdapterError,
+	type SetModeRequest
 } from "../Services/ProviderAdapter.ts"
 import { makeClaudeAdapter } from "./Claude/Adapter.ts"
 import type { ClaudeQueryHandle } from "./Claude/Process.ts"
@@ -243,6 +244,97 @@ const fakeCodexAppServer = (
 		).pipe(Effect.asVoid),
 	reply: () => Effect.void,
 	close: Queue.end(inbound).pipe(Effect.asVoid)
+})
+
+// A scripted adapter that exposes setMode -- so ProviderBridge's structural
+// supportsSetMode picks it up -- and answers from a script keyed on the
+// attempt number. That is what lets a test choose exactly which failure
+// shape the bridge sees, and count how many attempts the bridge made. Its
+// startSession stream is queue-backed and never fed, so the session stays
+// open for the whole test instead of the forwarding fiber ending at once.
+const makeModeScriptedAdapter = Effect.fn("makeModeScriptedAdapter")(function*(
+	providerId: ProviderId,
+	answer: (attempt: number) => Effect.Effect<void, ProviderAdapterError>
+) {
+	const startEvents = yield* Queue.unbounded<
+		import("@acepe/contracts").OrchestrationEvent,
+		Done
+	>()
+	const setModeAttempts = yield* Ref.make(0)
+
+	const adapter: ProviderAdapter & {
+		readonly setMode: (request: SetModeRequest) => Effect.Effect<void, ProviderAdapterError>
+	} = {
+		providerId,
+		capabilities: ProviderCapabilities.make({ enabled: [] }),
+		presence: Effect.succeed({ providerId, installed: true, authenticated: true }),
+		startSession: () => Stream.fromQueue(startEvents),
+		sendPrompt: () => Stream.empty,
+		cancelTurn: () => Effect.void,
+		setMode: () =>
+			Ref.updateAndGet(setModeAttempts, (count) => count + 1).pipe(Effect.flatMap(answer))
+	}
+
+	return { adapter, setModeAttempts }
+})
+
+// The engine stack every restart test below builds twice: a restart only
+// proves anything if a SECOND bridge reads the FIRST one's committed events,
+// so each of those tests needs two independent layer stacks over one
+// database file on disk (TempSqlite above is per-layer-build, so it cannot
+// be shared across the two).
+const restartableEngine = (dbFile: string) => {
+	const SqliteAt = makeSqliteLayer({ filename: dbFile, readonly: false })
+	const MigratedAt = Layer.effectDiscard(runMigrations).pipe(Layer.provideMerge(SqliteAt))
+	const PersistenceAt = Layer.mergeAll(
+		OrchestrationEventStoreLive,
+		OrchestrationCommandReceiptsLive
+	).pipe(Layer.provideMerge(MigratedAt))
+	return OrchestrationEngineLive.pipe(
+		Layer.provideMerge(PersistenceAt),
+		Layer.provide(BunCrypto.layer)
+	)
+}
+
+// The durable history a PRIOR RUN leaves behind for the mode-reopen tests
+// below: a project, a real-provider session, and the canonical mode that
+// session last chose. Dispatched through the engine alone, with no
+// ProviderBridge and so no adapter at all -- the claim under test is what
+// the NEXT boot's replay and lazy reopen do with these three events, and an
+// adapter here would only contribute eventIds of its own for phase 2's
+// fresh runtime to collide with (see the ClaudeAdapter restart test above).
+const dispatchPriorRunWithMode = Effect.fn("dispatchPriorRunWithMode")(function*(
+	providerId: ProviderId,
+	modeId: string
+) {
+	const engine = yield* OrchestrationEngine
+	yield* engine.dispatch(
+		ProjectCreateCommand.make({
+			type: "project.create",
+			commandId: CommandId.make("cmd-project-prior-run"),
+			projectId,
+			title: "Acepe",
+			workspaceRoot: "/tmp"
+		})
+	)
+	yield* engine.dispatch(
+		SessionCreateCommand.make({
+			type: "session.create",
+			commandId: CommandId.make("cmd-session-prior-run"),
+			sessionId,
+			projectId,
+			title: "Real provider session",
+			providerId
+		})
+	)
+	yield* engine.dispatch(
+		SessionSetModeCommand.make({
+			type: "session.set-mode",
+			commandId: CommandId.make("cmd-set-mode-prior-run"),
+			sessionId,
+			modeId
+		})
+	)
 })
 
 const collaborationModeOf = (params: Json): Option.Option<string> => {
@@ -648,18 +740,7 @@ Vitest.describe("ProviderBridge", () => {
 				const fs = yield* FileSystem.FileSystem
 				const path = yield* Path.Path
 				const dir = yield* fs.makeTempDirectoryScoped()
-				const dbFile = path.join(dir, "acepe-reboot-test.db")
-
-				const SqliteAt = makeSqliteLayer({ filename: dbFile, readonly: false })
-				const MigratedAt = Layer.effectDiscard(runMigrations).pipe(Layer.provideMerge(SqliteAt))
-				const PersistenceAt = Layer.mergeAll(
-					OrchestrationEventStoreLive,
-					OrchestrationCommandReceiptsLive
-				).pipe(Layer.provideMerge(MigratedAt))
-				const EngineAt = OrchestrationEngineLive.pipe(
-					Layer.provideMerge(PersistenceAt),
-					Layer.provide(BunCrypto.layer)
-				)
+				const EngineAt = restartableEngine(path.join(dir, "acepe-reboot-test.db"))
 
 				// PHASE 1 ("first boot"): create the project/session, send a
 				// message, and let the adapter complete the turn -- exactly a
@@ -889,20 +970,9 @@ Vitest.describe("ProviderBridge", () => {
 				const fs = yield* FileSystem.FileSystem
 				const path = yield* Path.Path
 				const dir = yield* fs.makeTempDirectoryScoped()
-				const dbFile = path.join(dir, "acepe-claude-reboot-test.db")
 				const claudeSessionId = SessionId.make("session-claude-reboot")
 				const claudeProviderId = ProviderId.make("claude-code")
-
-				const SqliteAt = makeSqliteLayer({ filename: dbFile, readonly: false })
-				const MigratedAt = Layer.effectDiscard(runMigrations).pipe(Layer.provideMerge(SqliteAt))
-				const PersistenceAt = Layer.mergeAll(
-					OrchestrationEventStoreLive,
-					OrchestrationCommandReceiptsLive
-				).pipe(Layer.provideMerge(MigratedAt))
-				const EngineAt = OrchestrationEngineLive.pipe(
-					Layer.provideMerge(PersistenceAt),
-					Layer.provide(BunCrypto.layer)
-				)
+				const EngineAt = restartableEngine(path.join(dir, "acepe-claude-reboot-test.db"))
 
 				// A minimal scripted createQuery: fresh inbound queue per call (like
 				// the real SDK's query()), immediately streams one token then a
@@ -1153,5 +1223,236 @@ Vitest.describe("ProviderBridge", () => {
 				Effect.scoped
 			)
 		})
+	)
+
+	// The half of issue #272's fix that the live test above cannot see: a mode
+	// chosen in a PRIOR run only survives because boot replay RECORDS it
+	// (considerSessionModeSet records on both phases) and openSession
+	// re-applies it when the session lazily (re)opens. Nothing else can apply
+	// it -- replay must never open a session, and the SessionModeSet event is
+	// long committed by the time the reopen happens, so it never arrives live
+	// again. Phase 2 drives a real CodexAdapter, exactly like the live test
+	// above, and reads the same turn/start params.
+	Vitest.it.live(
+		"re-applies a replayed mode when a session lazily reopens after a restart",
+		() =>
+			Effect.gen(function*() {
+				const fs = yield* FileSystem.FileSystem
+				const path = yield* Path.Path
+				const dir = yield* fs.makeTempDirectoryScoped()
+				const EngineAt = restartableEngine(path.join(dir, "acepe-mode-reopen-test.db"))
+
+				// PHASE 1 ("prior run"): the mode set is committed and then the
+				// process ends, with no adapter ever hearing about it.
+				yield* dispatchPriorRunWithMode(CODEX_PROVIDER_ID, "plan").pipe(
+					// @effect-diagnostics-next-line strictEffectProvide:off
+					Effect.provide(EngineAt),
+					Effect.scoped
+				)
+
+				// PHASE 2 ("restart"): a brand-new bridge and a brand-new
+				// CodexAdapter (fresh sessions map, modeId back at its own
+				// DEFAULT_CODEX_MODE) over the SAME on-disk store.
+				const inbound = yield* Queue.unbounded<Json, Done>()
+				const requests = yield* Ref.make<ReadonlyArray<CodexRequest>>(Arr.empty())
+				const adapter = yield* makeCodexAdapter({
+					presence: Effect.succeed(codexPresence(true, true)),
+					spawn: {
+						command: CODEX_PLACEHOLDER_COMMAND,
+						args: Arr.fromIterable(CODEX_APP_SERVER_ARGS)
+					},
+					config: defaultCodexNativeConfigState(),
+					createAppServer: () => Effect.succeed(fakeCodexAppServer(inbound, requests))
+				})
+				const Phase2Live = ProviderBridgeLive.pipe(
+					Layer.provideMerge(ProviderAdapterRegistryLive([adapter])),
+					Layer.provideMerge(EngineAt)
+				)
+				yield* Effect.gen(function*() {
+					const engine = yield* OrchestrationEngine
+
+					// Replay itself must have opened nothing -- so the mode on the
+					// turn/start below can only have come from the lazy reopen.
+					yield* Effect.sleep(Duration.millis(100))
+					Vitest.assert.strictEqual((yield* Ref.get(requests)).length, 0)
+
+					yield* engine.dispatch(
+						MessageSendCommand.make({
+							type: "message.send",
+							commandId: CommandId.make("cmd-message-mode-reopen"),
+							sessionId,
+							messageId: MessageId.make("message-mode-reopen"),
+							text: "Plan the work after the restart"
+						})
+					)
+					const recorded = yield* waitUntil(Ref.get(requests), (entries) =>
+						entries.some((entry) => entry.method === "turn/start"))
+					const turnStart = Arr.findFirst(recorded, (entry) => entry.method === "turn/start")
+					Vitest.assert.isTrue(Option.isSome(turnStart))
+					if (Option.isSome(turnStart)) {
+						Vitest.assert.deepStrictEqual(
+							collaborationModeOf(turnStart.value.params),
+							Option.some("plan")
+						)
+					}
+					yield* Queue.end(inbound)
+				}).pipe(
+					// @effect-diagnostics-next-line strictEffectProvide:off
+					Effect.provide(Phase2Live),
+					Effect.scoped
+				)
+			}).pipe(
+				// @effect-diagnostics-next-line strictEffectProvide:off
+				Effect.provide(Layer.mergeAll(BunFileSystem.layer, BunPath.layer))
+			),
+		{ timeout: 20_000 }
+	)
+
+	// The reopen re-apply runs INLINE on the bridge's single event-consuming
+	// fiber -- it has to, since the very command that triggered the lazy open
+	// (the message.send below) dispatches sendPrompt right after it, and a
+	// forked re-apply would race the turn it must affect. So whatever that
+	// re-apply waits for, every other session's events wait for too: a mode
+	// the provider permanently rejects must fail on its FIRST attempt instead
+	// of re-asking 25 more times for the same answer. See
+	// isSessionNotRegisteredYet in ProviderBridge.ts.
+	Vitest.it.live(
+		"fails a permanently rejected mode on the reopen without burning the lazy-open retries",
+		() =>
+			Effect.gen(function*() {
+				const fs = yield* FileSystem.FileSystem
+				const path = yield* Path.Path
+				const dir = yield* fs.makeTempDirectoryScoped()
+				const EngineAt = restartableEngine(path.join(dir, "acepe-mode-rejected-test.db"))
+				const rejectingProviderId = ProviderId.make("fake-provider-rejects-mode")
+
+				yield* dispatchPriorRunWithMode(rejectingProviderId, "plan").pipe(
+					// @effect-diagnostics-next-line strictEffectProvide:off
+					Effect.provide(EngineAt),
+					Effect.scoped
+				)
+
+				const rejecting = yield* makeModeScriptedAdapter(rejectingProviderId, () =>
+					Effect.fail(
+						new ProviderAdapterError({
+							providerId: rejectingProviderId,
+							operation: "setMode",
+							detail: "Fake provider has no mode 'plan'."
+						})
+					))
+				const Phase2Live = ProviderBridgeLive.pipe(
+					Layer.provideMerge(ProviderAdapterRegistryLive([rejecting.adapter])),
+					Layer.provideMerge(EngineAt)
+				)
+				yield* Effect.gen(function*() {
+					const engine = yield* OrchestrationEngine
+					const store = yield* OrchestrationEventStore
+					yield* engine.dispatch(
+						MessageSendCommand.make({
+							type: "message.send",
+							commandId: CommandId.make("cmd-message-mode-rejected"),
+							sessionId,
+							messageId: MessageId.make("message-mode-rejected"),
+							text: "Plan the work after the restart"
+						})
+					)
+					// The rejection must still surface exactly as it does today.
+					const events = yield* waitUntil(
+						Stream.runCollect(store.readFrom(0, 200)),
+						(collected) => collected.some((event) => event.type === "ProviderSessionFailed")
+					)
+					const failed = events.filter((event) => event.type === "ProviderSessionFailed")
+					Vitest.assert.strictEqual(failed.length, 1)
+					if (failed[0]?.type === "ProviderSessionFailed") {
+						Vitest.assert.strictEqual(failed[0].payload.sessionId, sessionId)
+						Vitest.assert.strictEqual(failed[0].payload.operation, "setMode")
+					}
+					// Counting attempts, not milliseconds: the retry schedule is 25
+					// further attempts, so a burned schedule reads 26 here.
+					Vitest.assert.strictEqual(
+						yield* Ref.get(rejecting.setModeAttempts),
+						1,
+						"a mode the provider rejects fails the same way every time, so the bridge must ask once"
+					)
+				}).pipe(
+					// @effect-diagnostics-next-line strictEffectProvide:off
+					Effect.provide(Phase2Live),
+					Effect.scoped
+				)
+			}).pipe(
+				// @effect-diagnostics-next-line strictEffectProvide:off
+				Effect.provide(Layer.mergeAll(BunFileSystem.layer, BunPath.layer))
+			),
+		{ timeout: 20_000 }
+	)
+
+	// The other side of the narrowing above: the failure the schedule actually
+	// exists for must still be retried. openSession forks the forwarding fiber
+	// and re-applies the mode immediately, so the adapter can legitimately not
+	// know the session yet -- every adapter's requireSession renders that as
+	// `No <Provider> session '<sessionId>'.`, which is the detail scripted
+	// below.
+	Vitest.it.live(
+		"keeps retrying the reopen re-apply while the adapter has not registered the session yet",
+		() =>
+			Effect.gen(function*() {
+				const fs = yield* FileSystem.FileSystem
+				const path = yield* Path.Path
+				const dir = yield* fs.makeTempDirectoryScoped()
+				const EngineAt = restartableEngine(path.join(dir, "acepe-mode-race-test.db"))
+				const racingProviderId = ProviderId.make("fake-provider-races-open")
+
+				yield* dispatchPriorRunWithMode(racingProviderId, "plan").pipe(
+					// @effect-diagnostics-next-line strictEffectProvide:off
+					Effect.provide(EngineAt),
+					Effect.scoped
+				)
+
+				const racing = yield* makeModeScriptedAdapter(racingProviderId, (attempt) =>
+					attempt >= 3
+						? Effect.void
+						: Effect.fail(
+							new ProviderAdapterError({
+								providerId: racingProviderId,
+								operation: "setMode",
+								detail: `No Fake session '${sessionId}'.`
+							})
+						))
+				const Phase2Live = ProviderBridgeLive.pipe(
+					Layer.provideMerge(ProviderAdapterRegistryLive([racing.adapter])),
+					Layer.provideMerge(EngineAt)
+				)
+				yield* Effect.gen(function*() {
+					const engine = yield* OrchestrationEngine
+					const store = yield* OrchestrationEventStore
+					yield* engine.dispatch(
+						MessageSendCommand.make({
+							type: "message.send",
+							commandId: CommandId.make("cmd-message-mode-race"),
+							sessionId,
+							messageId: MessageId.make("message-mode-race"),
+							text: "Plan the work after the restart"
+						})
+					)
+					const attempts = yield* waitUntil(
+						Ref.get(racing.setModeAttempts),
+						(value) => value >= 3
+					)
+					Vitest.assert.strictEqual(attempts, 3)
+					const events = yield* Stream.runCollect(store.readFrom(0, 200))
+					Vitest.assert.isFalse(
+						events.some((event) => event.type === "ProviderSessionFailed"),
+						"a mode that lands on a later attempt must not surface as a failure"
+					)
+				}).pipe(
+					// @effect-diagnostics-next-line strictEffectProvide:off
+					Effect.provide(Phase2Live),
+					Effect.scoped
+				)
+			}).pipe(
+				// @effect-diagnostics-next-line strictEffectProvide:off
+				Effect.provide(Layer.mergeAll(BunFileSystem.layer, BunPath.layer))
+			),
+		{ timeout: 20_000 }
 	)
 })
