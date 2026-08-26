@@ -57,6 +57,59 @@ purpose: DOM facts are the evidence, and a picture cannot tell you whether a
 If a helper is missing, add it to `packages/electrobun-qa`. Repeated ad hoc
 snippets around the CLI are a workflow bug.
 
+## Replaying A Scenario Instead Of Driving A Real Agent
+
+`?qa=<scenario>` boots the same app shell against a recorded scenario. The
+stores, the reducer, the components and the streaming cadence are the real
+ones; only the server and the agent are absent. No tokens are spent and nothing
+lands in the sidebar, so a scenario is the right target for any QA that does
+not need a live provider.
+
+```bash
+cd packages/desktop
+bun run qa run <<'EOF'
+await js("(() => { window.location.href = window.location.origin + '/?qa=streaming-reply&autoplay=0&rate=0'; return 'go' })()")
+EOF
+
+bun run qa run <<'EOF'
+await waitForSelector('[data-testid="qa-overlay"]')
+await click({ selector: '[data-testid="qa-overlay-step"]' })
+cliLog(await js("document.querySelector('[data-testid=\"qa-overlay\"]').getAttribute('data-qa-cursor')"))
+EOF
+```
+
+`rate=1` is capture speed, `rate=0` removes every delay, `autoplay=0` parks the
+scenario at step 0 so a script can walk it one event at a time. Navigating back
+to `/` restores the app; leave it there when the pass is done.
+
+The overlay publishes `data-qa-scenario`, `data-qa-playback`, `data-qa-cursor`
+and `data-qa-total` on `[data-testid="qa-overlay"]`, which is the read a QA
+script should assert on. `window.__acepeQaScenario` exposes the same controls
+(`state()`, `play()`, `pause()`, `step()`, `seek(i)`, `rate(r)`), all answering
+synchronously because `qa:eval` refuses promises.
+
+If the overlay lists calls under "not in this recording", the scenario has no
+answer for something the app asked for. Record them with the builder's
+`respond`/`shellBoot` in `packages/qa-scenario`, or re-capture.
+
+Scenarios live in `packages/qa-scenario`: authored ones in TypeScript under
+`src/scenarios`, captured ones as ndjson under `scenarios/`.
+
+## Capturing A Live Session As A Scenario
+
+Hit a bug against a real agent, then keep it:
+
+```bash
+cd packages/desktop
+bun run qa capture --session <canonical session id> --name <scenario name>
+```
+
+The collection runs inside the app through its own RpcClient, so the file holds
+what the server actually answered. It writes
+`packages/qa-scenario/scenarios/<name>.ndjson`, which `?qa=<name>` replays and
+which CI can grade. `--out`, `--description` and `--quiet-ms` are available;
+the quiet window is how the capture decides the historical replay has ended.
+
 In a multi-panel workspace, generic `send` and `watch` calls are insufficient
 unless their selectors are scoped beneath a previously proven panel root.
 Numeric selector indexes are diagnostic helpers only; they are not stable
@@ -223,6 +276,10 @@ Minimum useful QA pass (required after UI-affecting changes):
 1. `bun run qa doctor` to prove the app answers on its QA socket.
 2. `bun run qa run` with a script that reaches the affected screen and reads the
    element proving the change. Include the returned facts in your report.
+
+For a change that needs a session in a particular state, prefer `?qa=<scenario>`
+over driving a real agent: it is deterministic, costs nothing, and can be parked
+mid-stream or mid-permission.
 
 Evidence must match the bug. For interaction-driven bugs, drive the interaction
 inside the script and report which user action ran and what changed in the DOM.
