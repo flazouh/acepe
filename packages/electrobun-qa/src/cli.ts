@@ -121,35 +121,35 @@ export const executeCli = Effect.fn("executeCli")(function* (input: CliInput) {
 		return ok(logs.success);
 	}
 	if (command === "capture") {
-		const args = yield* Effect.result(parseCaptureArgs(input.argv));
-		if (Result.isFailure(args) === true) {
-			return fail(args.failure);
-		}
 		const session =
 			input.session !== undefined
 				? input.session
 				: makeRemoteSession(yield* loadQaSocketPath());
-		const captured = yield* Effect.result(captureScenario(session, args.success));
-		if (Result.isFailure(captured) === true) {
-			return fail(captured.failure);
-		}
-		const encoded = yield* Effect.result(
-			encodeCapturedScenario(args.success, captured.success),
-		);
-		if (Result.isFailure(encoded) === true) {
-			return fail(encoded.failure);
-		}
 		const writeFile =
 			input.writeFile !== undefined ? input.writeFile : bunFileWriter;
-		const written = yield* Effect.result(
-			writeFile(args.success.out, encoded.success.text),
+		// One pipeline rather than a failure check after each step: capture is
+		// four operations that all fail the same way, and four identical
+		// ladders hide the one thing worth reading here, the order of the work.
+		const outcome = yield* Effect.result(
+			parseCaptureArgs(input.argv).pipe(
+				Effect.flatMap((args) =>
+					captureScenario(session, args).pipe(
+						Effect.flatMap((state) => encodeCapturedScenario(args, state)),
+						Effect.flatMap((encoded) =>
+							writeFile(args.out, encoded.text).pipe(
+								Effect.as({ args, stepCount: encoded.stepCount }),
+							),
+						),
+					),
+				),
+			),
 		);
-		if (Result.isFailure(written) === true) {
-			return fail(written.failure);
+		if (Result.isFailure(outcome) === true) {
+			return fail(outcome.failure);
 		}
 		return ok([
-			`captured ${String(encoded.success.stepCount)} events from ${args.success.sessionId}`,
-			`wrote ${args.success.out}`,
+			`captured ${String(outcome.success.stepCount)} events from ${outcome.success.args.sessionId}`,
+			`wrote ${outcome.success.args.out}`,
 		]);
 	}
 	return fail(new QaUnknownCommand({ command }));

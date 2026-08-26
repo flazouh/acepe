@@ -14,6 +14,7 @@ import {
 	type SnapshotRequest,
 	OrchestrationEvent,
 	RpcSessionSnapshot,
+	SessionId,
 	snapshotScope,
 } from "@acepe/contracts"
 import * as Effect from "effect/Effect"
@@ -28,8 +29,12 @@ export const QaScenarioMetaLine = Schema.Struct({
 	description: Schema.String,
 	/** ISO instant the capture ran, or null for a hand-authored scenario. */
 	capturedAt: Schema.NullOr(Schema.String),
-	/** Canonical session the capture came from, or null when hand-authored. */
-	capturedFromSessionId: Schema.NullOr(Schema.String),
+	/**
+	 * The canonical session this scenario is about. Branded rather than a bare
+	 * string so a reader of the file is a session id everywhere it is used, and
+	 * a recording that names something else fails to decode.
+	 */
+	capturedFromSessionId: Schema.NullOr(SessionId),
 })
 export type QaScenarioMetaLine = typeof QaScenarioMetaLine.Type
 
@@ -117,19 +122,6 @@ export const snapshotRequestKey = (request: SnapshotRequest): string => {
  * enough because every request in the contract is a plain data struct.
  */
 export const callKey = <A>(request: A): string => JSON.stringify(request)
-
-export const emptyScenario = (name: string, description: string): QaScenario => ({
-	meta: {
-		line: "meta",
-		name,
-		description,
-		capturedAt: null,
-		capturedFromSessionId: null,
-	},
-	snapshots: [],
-	steps: [],
-	calls: [],
-})
 
 const scenarioLines = (scenario: QaScenario): ReadonlyArray<QaScenarioLine> => [
 	scenario.meta,

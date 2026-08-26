@@ -6,7 +6,7 @@
  * from event to row. A change in either end shows up here.
  */
 
-import { sessionSnapshotRequest, type SessionId } from "@acepe/contracts";
+import { sessionSnapshotRequest } from "@acepe/contracts";
 import type { QaScenario } from "@acepe/qa-scenario";
 import { makeScenarioSession } from "@acepe/qa-scenario";
 import * as Effect from "effect/Effect";
@@ -37,9 +37,7 @@ export const transcriptFromScenario = Effect.fn("transcriptFromScenario")(functi
 	}
 	const session = yield* makeScenarioSession(scenario, { autoPlay: true, rate: 0 });
 	yield* session.controls.awaitDrained;
-	const snapshot = yield* session.client.snapshot(
-		sessionSnapshotRequest(sessionId as SessionId),
-	);
+	const snapshot = yield* session.client.snapshot(sessionSnapshotRequest(sessionId));
 	yield* session.shutdown;
 	return transcriptRowsFromSessionSnapshot(snapshot);
 });

@@ -9,11 +9,8 @@ export {
 	streamingReply,
 	toolAndApproval,
 } from "./scenarios/index.ts"
-export {
-	ScenarioBuilder,
-	foldSessionSnapshot,
-	scenarioBuilder,
-} from "./builder.ts"
+export { ScenarioBuilder, scenarioBuilder } from "./builder.ts"
+export { foldSessionSnapshot, librarySnapshot } from "./snapshot.ts"
 export type { ScenarioAuthorOptions } from "./builder.ts"
 export {
 	defaultPlayerOptions,
@@ -35,7 +32,6 @@ export {
 	QaScenarioStepLine,
 	callKey,
 	decodeScenario,
-	emptyScenario,
 	encodeScenario,
 	snapshotRequestKey,
 } from "./scenario.ts"

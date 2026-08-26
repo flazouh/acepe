@@ -7,7 +7,7 @@
  * refuses promises and cannot await an in-app subscription.
  */
 
-import { OrchestrationEvent, RpcSessionSnapshot } from "@acepe/contracts"
+import { OrchestrationEvent, RpcSessionSnapshot, SessionId } from "@acepe/contracts"
 import type { QaScenario, QaScenarioSnapshotLine, QaScenarioStepLine } from "@acepe/qa-scenario"
 import { encodeScenario } from "@acepe/qa-scenario"
 import * as Arr from "effect/Array"
@@ -27,7 +27,7 @@ const DEFAULT_POLL_MS = 200
 const MAX_POLLS = 100
 
 export type CaptureArgs = {
-	readonly sessionId: string
+	readonly sessionId: SessionId
 	readonly out: string
 	readonly name: string
 	readonly description: string
@@ -43,35 +43,43 @@ const flagValue = (argv: ReadonlyArray<string>, flag: string): Option.Option<str
 	return value === undefined || value.startsWith("--") ? Option.none() : Option.some(value)
 }
 
-export const parseCaptureArgs = (
+/**
+ * argv is text; a session id is a branded value. Decoding here is the boundary,
+ * so nothing downstream has to assume a bare string is a canonical id.
+ */
+export const parseCaptureArgs = Effect.fn("parseCaptureArgs")(function* (
 	argv: ReadonlyArray<string>,
-): Effect.Effect<CaptureArgs, QaCaptureFailed> => {
-	const sessionId = flagValue(argv, "--session")
-	if (Option.isNone(sessionId)) {
-		return Effect.fail(
-			new QaCaptureFailed({ reason: "capture needs --session <canonical session id>" }),
-		)
+) {
+	const raw = flagValue(argv, "--session")
+	if (Option.isNone(raw)) {
+		return yield* new QaCaptureFailed({
+			reason: "capture needs --session <canonical session id>",
+		})
 	}
-	const name = Option.getOrElse(flagValue(argv, "--name"), () => sessionId.value)
-	const out = Option.getOrElse(
-		flagValue(argv, "--out"),
-		() => `packages/qa-scenario/scenarios/${name}.ndjson`,
+	const sessionId = yield* Schema.decodeUnknownEffect(SessionId)(raw.value).pipe(
+		Effect.mapError(
+			(error) => new QaCaptureFailed({ reason: `--session is not a session id: ${error.message}` }),
+		),
 	)
-	const quiet = Option.map(flagValue(argv, "--quiet-ms"), (raw) => Number.parseInt(raw, 10))
-	return Effect.succeed({
-		sessionId: sessionId.value,
-		out,
+	const name = Option.getOrElse(flagValue(argv, "--name"), () => raw.value)
+	const quiet = Option.map(flagValue(argv, "--quiet-ms"), (value) => Number.parseInt(value, 10))
+	return {
+		sessionId,
+		out: Option.getOrElse(
+			flagValue(argv, "--out"),
+			() => `packages/qa-scenario/scenarios/${name}.ndjson`,
+		),
 		name,
 		description: Option.getOrElse(
 			flagValue(argv, "--description"),
-			() => `captured from session ${sessionId.value}`,
+			() => `captured from session ${raw.value}`,
 		),
 		quietMs: Option.match(quiet, {
 			onNone: () => DEFAULT_QUIET_MS,
 			onSome: (value) => (Number.isFinite(value) && value > 0 ? value : DEFAULT_QUIET_MS),
 		}),
-	})
-}
+	} satisfies CaptureArgs
+})
 
 const CaptureProgress = Schema.Struct({
 	done: Schema.Boolean,

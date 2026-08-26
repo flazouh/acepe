@@ -18,12 +18,9 @@ import {
 	type ProjectId,
 	type RpcProjectedProject,
 	type RpcProjectedSession,
-	type RpcSessionSnapshot,
 	type SessionId,
 	type ToolCallId,
-	applyEventToRpcSessionSnapshot,
 	CommandId,
-	emptyRpcSessionSnapshot,
 	EventId,
 	OrchestrationEvent as OrchestrationEventSchema,
 } from "@acepe/contracts"
@@ -33,6 +30,7 @@ import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import type { QaScenario, QaScenarioCallLine, QaScenarioStepLine } from "./scenario.ts"
 import { callKey } from "./scenario.ts"
+import { foldSessionSnapshot, librarySnapshot } from "./snapshot.ts"
 
 export type ScenarioAuthorOptions = {
 	readonly sessionId: SessionId
@@ -273,46 +271,6 @@ export class ScenarioBuilder {
 			steps,
 			calls: this.calls,
 		}
-	}
-}
-
-/** The canonical fold, run over a scenario's steps. */
-export const foldSessionSnapshot = (
-	steps: ReadonlyArray<QaScenarioStepLine>,
-): RpcSessionSnapshot => {
-	let snapshot = emptyRpcSessionSnapshot(0)
-	for (const step of steps) {
-		snapshot = applyEventToRpcSessionSnapshot(snapshot, step.event)
-	}
-	return snapshot
-}
-
-const librarySnapshot = (
-	steps: ReadonlyArray<QaScenarioStepLine>,
-	projects: ReadonlyArray<RpcProjectedProject>,
-	sessions: ReadonlyArray<RpcProjectedSession>,
-): RpcSessionSnapshot => {
-	const folded = foldSessionSnapshot(steps)
-	const knownSessions: ReadonlyArray<RpcProjectedSession> =
-		sessions.length > 0 || folded.session === null ? sessions : [folded.session]
-	return {
-		snapshotSequence: folded.snapshotSequence,
-		session: null,
-		messages: [],
-		turns: [],
-		activities: [],
-		pendingApprovals: [],
-		checkpoints: [],
-		projects,
-		sessions: knownSessions,
-		settings: [],
-		skillsCatalog: null,
-		voice: null,
-		gitReview: null,
-		mcpCatalog: null,
-		preconnectionOptions: null,
-		terminal: null,
-		sessionReviewState: null,
 	}
 }
 

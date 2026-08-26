@@ -7,7 +7,8 @@ import {
 	ToolCallId,
 } from "@acepe/contracts"
 import * as Vitest from "@effect/vitest"
-import { foldSessionSnapshot, scenarioBuilder } from "./builder.ts"
+import { scenarioBuilder } from "./builder.ts"
+import { foldSessionSnapshot } from "./snapshot.ts"
 import { isMonotonic } from "./timeline.ts"
 
 const sessionId = SessionId.make("session-1")

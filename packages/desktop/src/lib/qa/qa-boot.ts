@@ -7,7 +7,6 @@
  * the agent are absent.
  */
 
-import type { ScenarioSession } from "@acepe/qa-scenario";
 import { makeScenarioSession } from "@acepe/qa-scenario";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
@@ -27,11 +26,6 @@ export class QaScenarioNotFound extends Schema.TaggedError<QaScenarioNotFound>()
 	}
 }
 
-let current: ScenarioSession | null = null;
-
-/** The running scenario, for the overlay and for QA scripts. Null outside QA mode. */
-export const currentQaSession = (): ScenarioSession | null => current;
-
 export const startQaScenario = Effect.fn("startQaScenario")(function* (mode: QaMode) {
 	const scenario = yield* findScenario(mode.scenario);
 	if (scenario === null) {
@@ -46,6 +40,5 @@ export const startQaScenario = Effect.fn("startQaScenario")(function* (mode: QaM
 		rate: mode.rate,
 	});
 	provideAppRpcClient(session.client);
-	current = session;
 	return session;
 });
