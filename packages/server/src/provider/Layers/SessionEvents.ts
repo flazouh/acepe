@@ -1,13 +1,16 @@
 import {
 	ActivityId,
+	type ApprovalDecision,
 	ApprovalRequestedEvent,
 	ApprovalRequestId,
 	type CommandId,
 	type EventId,
 	type ObservedToolStatus,
 	type SessionId,
+	SessionMetaUpdatedEvent,
 	ToolCallId,
-	ToolCallObservedEvent
+	ToolCallObservedEvent,
+	pendingApprovalMetadata
 } from "@acepe/contracts"
 import * as Effect from "effect/Effect"
 import * as HashMap from "effect/HashMap"
@@ -181,5 +184,55 @@ export const approvalRequestedEvent = (
 			sessionId,
 			approvalRequestId: ApprovalRequestId.make(input.approvalRequestId),
 			title: input.title
+		}
+	})
+
+export type ApprovalAnsweredInput = {
+	readonly approvalRequestId: string
+	readonly decision: ApprovalDecision
+}
+
+// Clears an approval's row in projection_pending_approvals, with the same
+// metadata key an answered approval writes — see pendingApprovalMetadata in
+// @acepe/contracts and pendingApprovalFactFromEvent in
+// ProjectionPendingApprovals.ts. Resolving a drained permission's deferred
+// alone left that row behind: the operator kept seeing a clickable approval
+// for a turn that was over, and clicking it appended a spurious
+// ProviderSessionFailed, because respondToPermission finds the pending map
+// already empty.
+//
+// It has to be a SessionMetaUpdated, never an InteractionReplied. Both clear
+// the row, but ProviderBridge.considerInteractionReplied reacts to the second
+// by calling respondToPermission straight back into that same empty map — the
+// exact failure this is meant to remove. SessionMetaUpdated falls through the
+// bridge's own switch untouched and still reaches the projector.
+//
+// This is the one exception to the carve-out approvalRequestedEvent above
+// documents: an ANSWER has no typed event a provider adapter may mint of its
+// own, precisely because the typed one (InteractionReplied) is a command the
+// bridge answers back on.
+export const approvalAnsweredEvent = (
+	header: SessionEventHeader,
+	sessionId: SessionId,
+	input: ApprovalAnsweredInput
+): SessionMetaUpdatedEvent =>
+	SessionMetaUpdatedEvent.make({
+		sequence: header.sequence,
+		eventId: header.eventId,
+		aggregateKind: "session",
+		aggregateId: sessionId,
+		occurredAt: header.occurredAt,
+		commandId: header.commandId,
+		causationEventId: null,
+		correlationId: header.commandId,
+		metadata: pendingApprovalMetadata({
+			type: "ApprovalAnswered",
+			approvalRequestId: ApprovalRequestId.make(input.approvalRequestId),
+			sessionId,
+			decision: input.decision
+		}),
+		type: "SessionMetaUpdated",
+		payload: {
+			sessionId
 		}
 	})

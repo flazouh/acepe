@@ -1,9 +1,12 @@
 import {
+	type ApprovalAnsweredFact,
+	type ApprovalRequestedFact,
 	ApprovalRequestId,
 	CommandId,
 	EventId,
 	type JsonObject,
 	type OrchestrationEvent,
+	pendingApprovalMetadata,
 	ProjectId,
 	SessionId
 } from "@acepe/contracts"
@@ -12,10 +15,7 @@ import * as Arr from "effect/Array"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
 import {
-	type ApprovalAnsweredFact,
-	type ApprovalRequestedFact,
 	evolveProjectedPendingApprovals,
-	pendingApprovalMetadata,
 	PROJECTION_PENDING_APPROVALS_NAME,
 	type ProjectedPendingApproval,
 	ProjectionPendingApprovals

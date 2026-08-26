@@ -1,7 +1,10 @@
 import {
+	type ApprovalAnsweredFact,
+	type ApprovalRequestedFact,
 	ApprovalRequestId,
-	type JsonObject,
 	type OrchestrationEvent,
+	PENDING_APPROVAL_METADATA_KEY,
+	PendingApprovalFact,
 	Sequence,
 	SessionId,
 	TrimmedNonEmptyString
@@ -16,50 +19,6 @@ import type * as SqlClient from "effect/unstable/sql/SqlClient"
 import type { SqlError } from "effect/unstable/sql/SqlError"
 
 export const PROJECTION_PENDING_APPROVALS_NAME = "projection.pending-approvals"
-
-export const ApprovalDecision = Schema.Literals(["allow", "deny"])
-export type ApprovalDecision = typeof ApprovalDecision.Type
-
-export const ApprovalRequestedFact = Schema.Struct({
-	type: Schema.Literal("ApprovalRequested"),
-	approvalRequestId: ApprovalRequestId,
-	sessionId: SessionId
-})
-export type ApprovalRequestedFact = typeof ApprovalRequestedFact.Type
-
-export const ApprovalAnsweredFact = Schema.Struct({
-	type: Schema.Literal("ApprovalAnswered"),
-	approvalRequestId: ApprovalRequestId,
-	sessionId: SessionId,
-	decision: ApprovalDecision
-})
-export type ApprovalAnsweredFact = typeof ApprovalAnsweredFact.Type
-
-export const PendingApprovalFact = Schema.Union([ApprovalRequestedFact, ApprovalAnsweredFact])
-export type PendingApprovalFact = typeof PendingApprovalFact.Type
-
-export const PENDING_APPROVAL_METADATA_KEY = "pendingApproval"
-
-export const pendingApprovalMetadata = (fact: PendingApprovalFact): JsonObject =>
-	Match.value(fact).pipe(
-		Match.discriminatorsExhaustive("type")({
-			ApprovalRequested: (requested) => ({
-				[PENDING_APPROVAL_METADATA_KEY]: {
-					type: requested.type,
-					approvalRequestId: requested.approvalRequestId,
-					sessionId: requested.sessionId
-				}
-			}),
-			ApprovalAnswered: (answered) => ({
-				[PENDING_APPROVAL_METADATA_KEY]: {
-					type: answered.type,
-					approvalRequestId: answered.approvalRequestId,
-					sessionId: answered.sessionId,
-					decision: answered.decision
-				}
-			})
-		})
-	)
 
 export const ProjectedPendingApproval = Schema.Struct({
 	approvalRequestId: ApprovalRequestId,

@@ -1,6 +1,7 @@
+import * as Match from "effect/Match"
 import * as Schema from "effect/Schema"
 
-import { TrimmedNonEmptyString } from "./baseSchemas.ts"
+import { type JsonObject, TrimmedNonEmptyString } from "./baseSchemas.ts"
 import {
 	ActivityId,
 	AgentsId,
@@ -495,3 +496,53 @@ export const ACP_SESSION_COMMAND_TYPES = [
 ] as const
 
 export type AcpSessionCommandType = (typeof ACP_SESSION_COMMAND_TYPES)[number]
+
+// The approval lifecycle also travels out of band, as one reserved key on an
+// event's metadata, for the two moments a native ApprovalRequested or
+// InteractionReplied event cannot carry: a provider adapter answering an
+// approval nobody asked it to answer (a drained, abandoned permission — see
+// each provider's Permissions.ts), and a history parser restoring an approval
+// from a provider's own transcript. Both the producer and the consumer
+// (ProjectionPendingApprovals in packages/server) read this one definition,
+// so the key and the payload shape can never drift apart across the layer
+// boundary.
+export const ApprovalRequestedFact = Schema.Struct({
+	type: Schema.Literal("ApprovalRequested"),
+	approvalRequestId: ApprovalRequestId,
+	sessionId: SessionId,
+})
+export type ApprovalRequestedFact = typeof ApprovalRequestedFact.Type
+
+export const ApprovalAnsweredFact = Schema.Struct({
+	type: Schema.Literal("ApprovalAnswered"),
+	approvalRequestId: ApprovalRequestId,
+	sessionId: SessionId,
+	decision: ApprovalDecision,
+})
+export type ApprovalAnsweredFact = typeof ApprovalAnsweredFact.Type
+
+export const PendingApprovalFact = Schema.Union([ApprovalRequestedFact, ApprovalAnsweredFact])
+export type PendingApprovalFact = typeof PendingApprovalFact.Type
+
+export const PENDING_APPROVAL_METADATA_KEY = "pendingApproval"
+
+export const pendingApprovalMetadata = (fact: PendingApprovalFact): JsonObject =>
+	Match.value(fact).pipe(
+		Match.discriminatorsExhaustive("type")({
+			ApprovalRequested: (requested) => ({
+				[PENDING_APPROVAL_METADATA_KEY]: {
+					type: requested.type,
+					approvalRequestId: requested.approvalRequestId,
+					sessionId: requested.sessionId,
+				},
+			}),
+			ApprovalAnswered: (answered) => ({
+				[PENDING_APPROVAL_METADATA_KEY]: {
+					type: answered.type,
+					approvalRequestId: answered.approvalRequestId,
+					sessionId: answered.sessionId,
+					decision: answered.decision,
+				},
+			}),
+		}),
+	)

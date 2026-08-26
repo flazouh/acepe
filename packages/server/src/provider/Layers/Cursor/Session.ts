@@ -1,4 +1,5 @@
 import {
+	type ApprovalDecision,
 	CommandId,
 	EventId,
 	MessageId,
@@ -24,6 +25,7 @@ import type {
 } from "../../Services/ProviderAdapter.ts"
 import { EMPTY_JSON_OBJECT, type Json } from "../Json.ts"
 import {
+	approvalAnsweredEvent,
 	approvalRequestedEvent,
 	type OpenToolCalls,
 	rememberOpenToolCall,
@@ -232,6 +234,26 @@ const publishApprovalRequested = Effect.fn("CursorAdapter.publishApprovalRequest
 		})
 	)
 })
+
+// The other half of publishApprovalRequested, used by Permissions.ts's drain
+// of abandoned permissions — see approvalAnsweredEvent's doc in
+// SessionEvents.ts for why an answer a provider mints on its own is a
+// SessionMetaUpdated and not an InteractionReplied. It goes through `stamp`
+// like every other publisher here, so a drained approval's event carries the
+// same per-session sequence and the same id scheme as a stamped one and can
+// never collide with it.
+export const publishApprovalAnswered = Effect.fn("CursorAdapter.publishApprovalAnswered")(
+	function*(runtime: SessionRuntime, approvalRequestId: string, decision: ApprovalDecision) {
+		const header = yield* stamp(runtime)
+		return yield* offerOutbound(
+			runtime,
+			approvalAnsweredEvent(header, runtime.sessionId, {
+				approvalRequestId,
+				decision
+			})
+		)
+	}
+)
 
 export const publishFact = Effect.fn("CursorAdapter.publishFact")(function*(
 	runtime: SessionRuntime,

@@ -1,28 +1,22 @@
 import type { RequestPermissionResponse } from "@agentclientprotocol/sdk"
-import {
-	ApprovalRequestId,
-	CommandId,
-	EventId,
-	type SessionId,
-	SessionMetaUpdatedEvent
-} from "@acepe/contracts"
+import type { SessionId } from "@acepe/contracts"
 import * as Arr from "effect/Array"
-import * as DateTime from "effect/DateTime"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
 import * as Filter from "effect/Filter"
 import * as HashMap from "effect/HashMap"
 import * as Option from "effect/Option"
 import * as Ref from "effect/Ref"
-import {
-	type ApprovalDecision,
-	pendingApprovalMetadata
-} from "../../../persistence/Services/ProjectionPendingApprovals.ts"
 import { arrayField, type Json, jsonObjectOf, stringField } from "../Json.ts"
 import type { PermissionRequestFact } from "./Facts.ts"
 import { mapAcpPermissionRequest } from "./Map.ts"
 import { adapterError, type CursorPermissionDecision } from "./Provider.ts"
-import { offerOutbound, publishFact, requireSession, type SessionRuntime } from "./Session.ts"
+import {
+	publishApprovalAnswered,
+	publishFact,
+	requireSession,
+	type SessionRuntime
+} from "./Session.ts"
 
 export type CursorRespondToPermissionInput = {
 	readonly sessionId: SessionId
@@ -154,57 +148,6 @@ export const decidePermission = Effect.fn("CursorAdapter.decidePermission")(func
 // re-confirmed.
 const ABANDONED_DECISION: CursorPermissionDecision = "deny"
 
-// Clears the abandoned approval's row in projection_pending_approvals, with
-// the SAME metadata key an answered approval writes — see
-// pendingApprovalFactFromEvent in ProjectionPendingApprovals.ts. Resolving
-// the deferred alone left that row behind: the operator kept seeing a
-// clickable approval for a turn that was over, and clicking it appended a
-// spurious ProviderSessionFailed, because respondToPermission finds the
-// pending map already empty.
-//
-// It has to be a SessionMetaUpdated, never an InteractionReplied. Both clear
-// the row, but ProviderBridge.considerInteractionReplied reacts to the
-// second by calling respondToPermission straight back into that same empty
-// map — the exact failure this is meant to remove. SessionMetaUpdated falls
-// through the bridge's own switch untouched and still reaches the projector.
-//
-// The header is minted here rather than through Session.ts's `stamp`, which
-// is private to that module: same per-session sequence counter and the same
-// id scheme, so a drained approval's event can never collide with a stamped
-// one.
-const publishApprovalAnswered = Effect.fn("CursorAdapter.publishApprovalAnswered")(function*(
-	runtime: SessionRuntime,
-	approvalRequestId: string,
-	decision: ApprovalDecision
-) {
-	const sequence = yield* Ref.updateAndGet(runtime.sequence, (current) => current + 1)
-	const occurredAt = yield* DateTime.now.pipe(Effect.map(DateTime.formatIso))
-	const commandId = CommandId.make(`${runtime.sessionId}:cmd:${sequence}`)
-	yield* offerOutbound(
-		runtime,
-		SessionMetaUpdatedEvent.make({
-			sequence,
-			eventId: EventId.make(`${runtime.sessionId}:${sequence}`),
-			aggregateKind: "session",
-			aggregateId: runtime.sessionId,
-			occurredAt,
-			commandId,
-			causationEventId: null,
-			correlationId: commandId,
-			metadata: pendingApprovalMetadata({
-				type: "ApprovalAnswered",
-				approvalRequestId: ApprovalRequestId.make(approvalRequestId),
-				sessionId: runtime.sessionId,
-				decision
-			}),
-			type: "SessionMetaUpdated",
-			payload: {
-				sessionId: runtime.sessionId
-			}
-		})
-	)
-})
-
 // Resolves every permission this session still has in flight, and empties
 // the map. Every path that abandons the tool call behind a pending
 // permission MUST call this: decidePermission blocks on a Deferred, and the
@@ -217,6 +160,11 @@ const publishApprovalAnswered = Effect.fn("CursorAdapter.publishApprovalAnswered
 // respondToPermission can no longer reach the deferred either. Mirrors
 // Claude/Permissions.ts's drain of the same name. Callers: cancelTurn and
 // shutdown (both in Adapter.ts).
+//
+// Resolving the deferred is only half of it. Each abandoned approval also
+// publishes its own answer, or its row in projection_pending_approvals
+// outlives the turn and the operator keeps seeing a clickable approval
+// nothing can answer — see publishApprovalAnswered in Session.ts.
 export const drainPendingPermissions = Effect.fn("CursorAdapter.drainPendingPermissions")(
 	function*(runtime: SessionRuntime) {
 		const abandoned = yield* Ref.getAndSet(

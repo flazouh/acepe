@@ -1,9 +1,12 @@
 import {
+	type ApprovalAnsweredFact,
+	type ApprovalRequestedFact,
 	ApprovalRequestId,
 	CommandId,
 	EventId,
 	type JsonObject,
 	type OrchestrationEvent,
+	pendingApprovalMetadata,
 	ProjectId,
 	SessionId
 } from "@acepe/contracts"
@@ -37,12 +40,7 @@ import {
 	type NewOrchestrationEvent,
 	OrchestrationEventStore
 } from "../Services/OrchestrationEventStore.ts"
-import {
-	type ApprovalAnsweredFact,
-	type ApprovalRequestedFact,
-	pendingApprovalMetadata,
-	ProjectionPendingApprovals
-} from "../Services/ProjectionPendingApprovals.ts"
+import { ProjectionPendingApprovals } from "../Services/ProjectionPendingApprovals.ts"
 import { ProjectionState } from "../Services/ProjectionState.ts"
 import { OrchestrationCommandReceiptsLive } from "./OrchestrationCommandReceipts.ts"
 import { OrchestrationEventStoreLive } from "./OrchestrationEventStore.ts"
