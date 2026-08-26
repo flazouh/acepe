@@ -235,11 +235,20 @@ export function deriveCanonicalAgentPanelSessionState(
 		input.source.lifecycle.status === "reserved" ||
 		input.source.lifecycle.status === "activating" ||
 		input.source.lifecycle.status === "reconnecting";
+	// A local send intent is set synchronously on the client the instant the
+	// user hits send (see SessionMessagingService.setPendingSendIntent). The
+	// canonical `awaiting_model`/`Running` envelope only arrives after a round
+	// trip to Rust, so gating the placeholder on that envelope alone leaves a
+	// blank panel between send and first token on an already-`ready` session
+	// (e.g. a reopened panel sending a follow-up). Trust the local send intent
+	// immediately; fall back to the canonical awaiting-model signal for the
+	// no-local-intent case (the agent auto-continuing after a completed tool).
 	const shouldShowPlanningPlaceholder =
 		input.source.lifecycle.status === "ready" &&
-		effectiveActivity?.kind === "awaiting_model" &&
-		effectiveTurnState === "Running" &&
-		(input.hasLocalPendingSendIntent === true || input.hasTrailingCompletedTool);
+		(input.hasLocalPendingSendIntent === true ||
+			(effectiveActivity?.kind === "awaiting_model" &&
+				effectiveTurnState === "Running" &&
+				input.hasTrailingCompletedTool));
 	let localPlaceholderMode: LocalPlaceholderMode = "none";
 	if (
 		!hasCanonicalError &&

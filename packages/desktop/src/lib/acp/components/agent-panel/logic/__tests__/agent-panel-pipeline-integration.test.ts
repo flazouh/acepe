@@ -233,9 +233,14 @@ describe("agent-panel rendered-row pipeline — planning placeholder", () => {
 		expect(result.planningRows).toHaveLength(0);
 	});
 
-	it("does not inject a waiting row for a local send intent on an already-ready session", () => {
-		// Before canonical turn activity arrives, the sent user row is enough feedback.
-		// A ready lifecycle must not look like connection or planning work.
+	it("shows the planning placeholder for a local send intent on an already-ready session, before canonical turn activity arrives (issue #267)", () => {
+		// Regression for the dogfooding report: a reopened panel is already
+		// `ready` and still carries the *previous* turn's terminal state
+		// (`Completed`/`idle`) when the user sends a follow-up. The canonical
+		// `awaiting_model`/`Running` envelope for the new turn only lands after a
+		// round trip, so the placeholder must key off the local send intent we
+		// already have synchronously -- not wait for that envelope -- or the
+		// panel goes blank between send and first token.
 		const result = renderTurn({
 			activityKind: "idle",
 			turnState: "Completed",
@@ -244,8 +249,10 @@ describe("agent-panel rendered-row pipeline — planning placeholder", () => {
 			hasLocalPendingSendIntent: true,
 		});
 
-		expect(result.localPlaceholderMode).toBe("none");
-		expect(result.planningRows).toHaveLength(0);
+		expect(result.localPlaceholderMode).toBe("planning");
+		expect(result.planningRows).toHaveLength(1);
+		expect(result.planningRows[0]?.localOnly).toBe(true);
+		expect(result.planningRows[0]?.row.kind).toBe("localPlaceholder");
 	});
 
 	it("shows planning after send once the ready session is awaiting the model", () => {

@@ -298,7 +298,14 @@ describe("deriveCanonicalAgentPanelSessionState", () => {
 		});
 	});
 
-	it("does not add synthetic feedback for a local send intent on a ready session", () => {
+	it("shows the planning placeholder the instant a follow-up send fires, before the canonical turn catches up (issue #267)", () => {
+		// Regression for the dogfooding report: on a reopened panel the session is
+		// already `ready` and the *previous* turn's terminal state (`Completed`)
+		// is still the last canonical turnState we know about when the click
+		// handler fires. The canonical `awaiting_model`/`Running` envelope for the
+		// *new* turn only arrives after a round trip to Rust. Gating the
+		// placeholder on that envelope (instead of on the local send intent we
+		// already have synchronously) left the panel blank in that window.
 		const state = deriveCanonicalAgentPanelSessionState({
 			source: {
 				kind: "canonical",
@@ -311,14 +318,7 @@ describe("deriveCanonicalAgentPanelSessionState", () => {
 			hasTrailingCompletedTool: false,
 		});
 
-		expect(state).toEqual({
-			sessionStatus: "connected",
-			isConnected: true,
-			isStreaming: false,
-			localPlaceholderMode: "none",
-			canSubmit: false,
-			showStop: false,
-		});
+		expect(state.localPlaceholderMode).toBe("planning");
 	});
 
 	it("shows planning feedback for a ready session after send while the model has not answered yet", () => {
