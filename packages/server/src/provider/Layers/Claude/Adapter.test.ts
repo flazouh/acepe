@@ -484,6 +484,12 @@ Vitest.describe("ClaudeAdapter", () => {
 				// merges them into ONE row instead of two.
 				Vitest.assert.strictEqual(completed.payload.activityId, started.payload.activityId)
 				Vitest.assert.strictEqual(completed.payload.toolCallId, "toolu_01ReadPkg")
+				// #273: Claude's tool_result block carries content, but
+				// Map.ts's mapUserToolResultBlock reads only tool_use_id and
+				// is_error out of it, so no ClaudeContractFact holds a tool
+				// result yet and the canonical output stays null. Widening
+				// Claude's own fact is the next step, not a repair here.
+				Vitest.assert.strictEqual(completed.payload.output, null)
 				yield* adapter.cancelTurn({ sessionId })
 			})
 	)

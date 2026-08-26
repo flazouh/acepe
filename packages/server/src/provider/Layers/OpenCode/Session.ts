@@ -226,7 +226,11 @@ const publishToolCallStarted = Effect.fn("OpenCodeAdapter.publishToolCallStarted
 			toolCallId: fact.toolCallId,
 			status: fact.status,
 			title: fact.title,
-			path: OPENCODE_TOOL_PATH
+			path: OPENCODE_TOOL_PATH,
+			// A tool part that is only starting has run nothing yet, so
+			// ToolCallUpdateFact is where the result arrives -- see
+			// publishToolCallUpdated below.
+			output: null
 		})
 	)
 })
@@ -249,7 +253,11 @@ const publishToolCallUpdated = Effect.fn("OpenCodeAdapter.publishToolCallUpdated
 			toolCallId: fact.toolCallId,
 			status: fact.status,
 			title: info.title,
-			path: OPENCODE_TOOL_PATH
+			path: OPENCODE_TOOL_PATH,
+			// #273: Map.ts has read state.output (and state.error on a
+			// failure) into this fact all along; before this it stopped here,
+			// which is why no OpenCode tool row ever showed a result.
+			output: fact.output ?? null
 		})
 	)
 })

@@ -90,6 +90,22 @@ export const stringArrayField = (record: JsonObject, key: string): ReadonlyArray
 			)
 	})
 
+// A provider result that a reader will see has to be text, and only some
+// providers report one as a string: Codex's is Json (an aggregated command
+// output, else an { exitCode } object). A Json string renders as itself
+// rather than as a quoted literal; a null renders as no text at all, which is
+// what an absent output is. Safe against JSON.stringify's throw, because a
+// Json value decoded by Schema.Json holds no cycle and no BigInt.
+export const jsonText = (value: Json): string | null => {
+	if (value === null) {
+		return null
+	}
+	if (Predicate.isString(value)) {
+		return value
+	}
+	return JSON.stringify(value)
+}
+
 export const applyOptional = <A, T>(
 	current: A,
 	value: T | undefined,

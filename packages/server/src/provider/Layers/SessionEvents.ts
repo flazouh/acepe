@@ -10,6 +10,7 @@ import {
 	SessionMetaUpdatedEvent,
 	ToolCallId,
 	ToolCallObservedEvent,
+	observedToolOutput,
 	pendingApprovalMetadata
 } from "@acepe/contracts"
 import * as Effect from "effect/Effect"
@@ -40,6 +41,12 @@ export type OpenToolCallInfo = {
 	readonly activityId: ActivityId
 	readonly title: string
 	readonly path: string | null
+	// The provider's tool classification, cached so a later tool_call_update
+	// (which may carry only a toolCallId and a status) still publishes a
+	// ToolCallObserved event that names the kind. The start event always
+	// classifies the call; the projector keeps the first non-null kind, so
+	// this only ever confirms what the start already recorded.
+	readonly kind: string | null
 }
 
 // Keyed by the provider's own tool call id.
@@ -103,17 +110,28 @@ export const takeOpenToolCall = Effect.fn("SessionEvents.takeOpenToolCall")(func
 		(): OpenToolCallInfo => ({
 			activityId: toolCallActivityId(toolCallId),
 			title: FALLBACK_TOOL_TITLE,
-			path: null
+			path: null,
+			kind: null
 		})
 	)
 })
 
+// output is the tool's result, and only a settling update carries one: a
+// start event passes null, and so does a provider whose own facts do not
+// carry a result yet (Claude and Cursor today -- see their
+// publishToolCallUpdated). It stays out of OpenToolCallInfo above on
+// purpose: nothing arrives before the output that would need it cached.
 export type ToolCallObservedInput = {
 	readonly activityId: ActivityId
 	readonly toolCallId: string
 	readonly status: ObservedToolStatus
 	readonly title: string
 	readonly path: string | null
+	readonly output: string | null
+	// The provider's tool classification. Optional so a provider that has
+	// not been widened to pass one still compiles; it then travels as null,
+	// exactly like a call the provider genuinely could not classify.
+	readonly kind?: string | null
 }
 
 // Builds the SAME contract event the tracer's ToolCallObserveCommand decider
@@ -145,7 +163,12 @@ export const toolCallObservedEvent = (
 			operationId: null,
 			status: input.status,
 			title: input.title,
-			path: input.path
+			path: input.path,
+			// observedToolOutput is what makes a blank provider output an
+			// absent one and bounds an enormous one. ToolCallObservedEvent.make
+			// throws rather than failing on a value TrimmedNonEmptyString
+			// rejects, which would kill the calling adapter's fiber.
+			output: observedToolOutput(input.output)
 		}
 	})
 

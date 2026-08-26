@@ -5,6 +5,7 @@ import {
 	arrayField,
 	booleanField,
 	jsonObjectOf,
+	jsonText,
 	numberField,
 	numberFieldAny,
 	objectField,
@@ -60,6 +61,17 @@ Vitest.describe("Json accessors", () => {
 		Vitest.assert.deepStrictEqual(jsonObjectOf("a"), Option.none())
 		Vitest.assert.deepStrictEqual(jsonObjectOf(null), Option.none())
 		Vitest.assert.deepStrictEqual(jsonObjectOf(["a"]), Option.none())
+	})
+
+	// #273: a provider result that reaches the canonical tool output has to be
+	// text. Codex's is Json — an aggregated string for a command, an
+	// { exitCode } object when there was no aggregated output.
+	Vitest.it("renders a Json result as the text a reader sees", () => {
+		Vitest.assert.strictEqual(jsonText("file1\nfile2"), "file1\nfile2")
+		Vitest.assert.strictEqual(jsonText({ exitCode: 0 }), "{\"exitCode\":0}")
+		Vitest.assert.strictEqual(jsonText(["a", "b"]), "[\"a\",\"b\"]")
+		Vitest.assert.strictEqual(jsonText(7), "7")
+		Vitest.assert.strictEqual(jsonText(null), null)
 	})
 
 	Vitest.it("applies an override only when the value is present", () => {

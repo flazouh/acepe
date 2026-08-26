@@ -443,6 +443,8 @@ Vitest.describe("OpenCodeAdapter", () => {
 				}
 				Vitest.assert.strictEqual(toolStarted.payload.status, "in_progress")
 				Vitest.assert.strictEqual(toolStarted.payload.toolCallId, "call_bash_1")
+				// #273: a running tool part has reported no result yet.
+				Vitest.assert.strictEqual(toolStarted.payload.output, null)
 
 				yield* Queue.offer(started.inbound, {
 					type: "message.part.updated",
@@ -475,6 +477,10 @@ Vitest.describe("OpenCodeAdapter", () => {
 				}
 				Vitest.assert.strictEqual(toolCompleted.payload.status, "completed")
 				Vitest.assert.strictEqual(toolCompleted.payload.activityId, toolStarted.payload.activityId)
+				// #273: the part's state.output is the tool's result, and it
+				// used to stop at the fact -- Session.ts published a status and
+				// a title only.
+				Vitest.assert.strictEqual(toolCompleted.payload.output, "file1\nfile2")
 				yield* started.adapter.cancelTurn({ sessionId })
 			})
 	)

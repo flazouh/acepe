@@ -351,6 +351,11 @@ Vitest.describe("CursorAdapter", () => {
 			Vitest.assert.strictEqual(completed.payload.activityId, started.payload.activityId)
 			Vitest.assert.strictEqual(completed.payload.title, "Read file")
 			Vitest.assert.strictEqual(completed.payload.path, "/tmp/acepe/a.ts")
+			// #273: Cursor's ToolCallUpdateFact carries a status and nothing
+			// else -- Map.ts reads no content or rawOutput off the ACP update
+			// -- so the canonical output stays null until that fact is
+			// widened.
+			Vitest.assert.strictEqual(completed.payload.output, null)
 			yield* adapter.cancelTurn({ sessionId })
 		})
 	)

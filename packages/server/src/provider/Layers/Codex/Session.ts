@@ -27,7 +27,7 @@ import type {
 	ProviderAdapterError,
 	SendPromptRequest
 } from "../../Services/ProviderAdapter.ts"
-import { EMPTY_JSON_OBJECT, type Json, type JsonObject } from "../Json.ts"
+import { EMPTY_JSON_OBJECT, type Json, type JsonObject, jsonText } from "../Json.ts"
 import {
 	approvalRequestedEvent,
 	type OpenToolCalls,
@@ -274,7 +274,11 @@ const publishToolCallStarted = Effect.fn("CodexAdapter.publishToolCallStarted")(
 			toolCallId: fact.toolCallId,
 			status: fact.status,
 			title: fact.title,
-			path
+			path,
+			// An item that is only starting has produced no result yet: Map.ts
+			// reads one off item/completed only, into ToolCallUpdateFact's
+			// result — see publishToolCallUpdated below.
+			output: null
 		})
 	)
 })
@@ -294,7 +298,12 @@ const publishToolCallUpdated = Effect.fn("CodexAdapter.publishToolCallUpdated")(
 			toolCallId: fact.toolCallId,
 			status: fact.status,
 			title: fact.title ?? info.title,
-			path: info.path
+			path: info.path,
+			// #273: Map.ts's toolResult has read aggregatedOutput (else
+			// exitCode) into this fact all along and it stopped here. Json,
+			// not string, because Codex reports both a command's text and an
+			// { exitCode } object through the same field.
+			output: fact.result === undefined ? null : jsonText(fact.result)
 		})
 	)
 })

@@ -250,6 +250,8 @@ Vitest.describe("CodexAdapter", () => {
 				Vitest.assert.strictEqual(started.payload.title, "Read /tmp/acepe/package.json")
 				Vitest.assert.strictEqual(started.payload.toolCallId, "item-read-1")
 				Vitest.assert.strictEqual(started.payload.path, "/tmp/acepe/package.json")
+				// #273: a started item has reported no result yet.
+				Vitest.assert.strictEqual(started.payload.output, null)
 
 				yield* Queue.offer(inbound, {
 					method: "item/completed",
@@ -258,7 +260,8 @@ Vitest.describe("CodexAdapter", () => {
 							id: "item-read-1",
 							type: "fileRead",
 							filePath: "/tmp/acepe/package.json",
-							status: "completed"
+							status: "completed",
+							aggregatedOutput: "{ \"name\": \"acepe\" }"
 						}
 					}
 				})
@@ -275,6 +278,10 @@ Vitest.describe("CodexAdapter", () => {
 				}
 				Vitest.assert.strictEqual(completed.payload.status, "completed")
 				Vitest.assert.strictEqual(completed.payload.activityId, started.payload.activityId)
+				// #273: Codex's own tool result (Map.ts's toolResult reads
+				// aggregatedOutput, else exitCode) reaches the canonical
+				// payload instead of stopping at the fact.
+				Vitest.assert.strictEqual(completed.payload.output, "{ \"name\": \"acepe\" }")
 				yield* Queue.end(inbound)
 			})
 	)

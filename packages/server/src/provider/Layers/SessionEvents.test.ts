@@ -1,4 +1,4 @@
-import { ActivityId, CommandId, EventId, SessionId } from "@acepe/contracts"
+import { ActivityId, CommandId, EventId, SessionId, TOOL_OUTPUT_CAP } from "@acepe/contracts"
 import * as Vitest from "@effect/vitest"
 import * as Effect from "effect/Effect"
 import * as HashMap from "effect/HashMap"
@@ -99,7 +99,8 @@ Vitest.describe("SessionEvents builders", () => {
 			toolCallId: "call_1",
 			status: "completed",
 			title: startInfo.title,
-			path: startInfo.path
+			path: startInfo.path,
+			output: "file1\nfile2"
 		})
 		Vitest.assert.strictEqual(event.type, "ToolCallObserved")
 		Vitest.assert.strictEqual(event.aggregateKind, "session")
@@ -117,6 +118,33 @@ Vitest.describe("SessionEvents builders", () => {
 		Vitest.assert.strictEqual(event.payload.status, "completed")
 		Vitest.assert.strictEqual(event.payload.title, "Read file")
 		Vitest.assert.strictEqual(event.payload.path, "/tmp/acepe/a.ts")
+		Vitest.assert.strictEqual(event.payload.output, "file1\nfile2")
+	})
+
+	// #273: the payload's output is a TrimmedNonEmptyString, and
+	// ToolCallObservedEvent.make THROWS on a value it rejects rather than
+	// failing, which would kill the calling adapter's fiber. So every
+	// provider's raw result goes through observedToolOutput here rather than
+	// in each Session.ts.
+	Vitest.it("normalises a provider's raw output instead of throwing on it", () => {
+		const blank = toolCallObservedEvent(header, sessionId, {
+			activityId: startInfo.activityId,
+			toolCallId: "call_1",
+			status: "completed",
+			title: startInfo.title,
+			path: startInfo.path,
+			output: "   \n  "
+		})
+		Vitest.assert.strictEqual(blank.payload.output, null)
+		const huge = toolCallObservedEvent(header, sessionId, {
+			activityId: startInfo.activityId,
+			toolCallId: "call_1",
+			status: "completed",
+			title: startInfo.title,
+			path: startInfo.path,
+			output: "x".repeat(TOOL_OUTPUT_CAP + 500)
+		})
+		Vitest.assert.strictEqual(huge.payload.output?.length, TOOL_OUTPUT_CAP)
 	})
 
 	// ProjectionPendingApprovals only reads a native ApprovalRequested event

@@ -193,7 +193,9 @@ const publishToolCallStarted = Effect.fn("CursorAdapter.publishToolCallStarted")
 			toolCallId: fact.toolCallId,
 			status: fact.status,
 			title: fact.title,
-			path
+			path,
+			// An ACP tool_call that is only starting has produced no result.
+			output: null
 		})
 	)
 })
@@ -216,7 +218,12 @@ const publishToolCallUpdated = Effect.fn("CursorAdapter.publishToolCallUpdated")
 			toolCallId: fact.toolCallId,
 			status: fact.status,
 			title: info.title,
-			path: info.path
+			path: info.path,
+			// #273: null, because Cursor's ToolCallUpdateFact holds a
+			// toolCallId and a status and nothing else -- Map.ts reads neither
+			// the ACP update's content nor its rawOutput. Widening that fact
+			// is the follow-up.
+			output: null
 		})
 	)
 })

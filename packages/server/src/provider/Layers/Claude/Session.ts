@@ -290,7 +290,9 @@ const publishToolCallStarted = Effect.fn("ClaudeAdapter.publishToolCallStarted")
 			toolCallId: fact.toolCallId,
 			status: fact.status,
 			title: fact.title,
-			path
+			path,
+			// A tool_use block that is only starting has produced no result.
+			output: null
 		})
 	)
 })
@@ -411,7 +413,16 @@ const publishToolCallUpdated = Effect.fn("ClaudeAdapter.publishToolCallUpdated")
 			toolCallId: fact.toolCallId,
 			status: fact.status,
 			title: info.title,
-			path: info.path
+			path: info.path,
+			// #273: null, and deliberately not fact.partialJson. Claude's
+			// partialJson is the streaming INPUT arguments of an
+			// input_json_delta (see Map.ts's mapContentBlockDelta), so it is
+			// not a result. The result lives in the tool_result block's
+			// content, which Map.ts's mapUserToolResultBlock does not read
+			// yet, so ToolCallUpdateFact carries no output to pass on.
+			// Widening that fact is the follow-up, and it belongs in Claude's
+			// own map, not here.
+			output: null
 		})
 	)
 })
