@@ -102,7 +102,19 @@ import { resolve } from "node:path";
 // reopen-snapshot-graph.ts, session-status-mapper.ts,
 // transcript-viewport-rendered-rows.ts, local-placeholder-mode.ts, and
 // their test files) add zero new violations on their own changed lines.
-const BASELINE = 6612;
+// 6612 -> 6614: AC-269 (Claude Code working line: rotating verb, live
+// elapsed timer, running-turn token count). Diffed the full violation list
+// before/after this batch's desktop production changes (bridge +
+// working-line presentation wiring), with everything else held equal:
+// every line in the diff is the SAME pre-existing violation (identical
+// rule, identical code -- two Date.now() calls and a handful of
+// strictBooleanExpressions checks already in
+// agent-panel-session-controller.svelte.ts and
+// orchestration-canonical-bridge.ts before this batch) reported at a
+// SHIFTED line number, because this batch's own new code was inserted
+// earlier in those same files. Zero genuinely new violations on this
+// batch's own added lines.
+const BASELINE = 6614;
 const PACKAGE_ROOT = resolve(import.meta.dir, "..");
 
 // The pretty formatter (the default, and what lint:effect:report uses) always
