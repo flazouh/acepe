@@ -7,6 +7,9 @@ import { mapAcpUpdate } from "./Map.ts"
 
 export const { decodeContractFact, encodeContractFact } = makeFactCodec(CopilotContractFact)
 
+// The eventId rides the projection so a reader of the session update sees the
+// dedup key instead of re-deriving it. Map.ts derives it back from the same
+// figures, which is what keeps the round-trip stable.
 const usageToAcp = (fact: UsageFact): JsonObject => {
 	const base: JsonObject = {
 		type: "usage",
@@ -16,10 +19,17 @@ const usageToAcp = (fact: UsageFact): JsonObject => {
 		applyOptional(
 			applyOptional(
 				applyOptional(
-					applyOptional(base, fact.inputTokens, (current, value) => ({
-						...current,
-						inputTokens: value
-					})),
+					applyOptional(
+						applyOptional(base, fact.eventId, (current, value) => ({
+							...current,
+							eventId: value
+						})),
+						fact.inputTokens,
+						(current, value) => ({
+							...current,
+							inputTokens: value
+						})
+					),
 					fact.outputTokens,
 					(current, value) => ({
 						...current,

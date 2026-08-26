@@ -1,11 +1,23 @@
 import * as Vitest from "@effect/vitest"
 import * as Schema from "effect/Schema"
+import type { CopilotContractFact } from "./Facts.ts"
 import { mapAcpUpdate, mapPromptResult } from "./Map.ts"
 import { permissionIdForToolCall } from "./Tools.ts"
 
 type JsonObject = typeof Schema.JsonObject.Type
 
 const jsonObject = (value: JsonObject): JsonObject => value
+
+// Returns a sentinel rather than skipping the assertion when the mapping
+// produced something other than a usage fact, so the caller's assertion still
+// runs and still fails on a wrong shape.
+const usageEventId = (facts: ReadonlyArray<CopilotContractFact>): string => {
+	const fact = facts[0]
+	if (fact === undefined || fact.contractKind !== "usage") {
+		return "no-usage-fact"
+	}
+	return fact.eventId ?? "no-event-id"
+}
 
 Vitest.describe("mapAcpUpdate", () => {
 	Vitest.it("maps ACP agent_message_chunk wire and normalized shapes to text_delta", () => {
@@ -85,6 +97,7 @@ Vitest.describe("mapAcpUpdate", () => {
 			{
 				contractKind: "usage",
 				sessionId: "acp-1",
+				eventId: "copilot-token-usage:acp-1:total=none:input=12:output=4:cost=0.02:context=none",
 				inputTokens: 12,
 				outputTokens: 4,
 				costUsd: 0.02
@@ -104,6 +117,7 @@ Vitest.describe("mapAcpUpdate", () => {
 			{
 				contractKind: "usage",
 				sessionId: "acp-1",
+				eventId: "copilot-token-usage:acp-1:total=16:input=12:output=4:cost=none:context=none",
 				inputTokens: 12,
 				outputTokens: 4,
 				totalTokens: 16
@@ -120,6 +134,7 @@ Vitest.describe("mapAcpUpdate", () => {
 			{
 				contractKind: "usage",
 				sessionId: "acp-1",
+				eventId: "copilot-token-usage:acp-1:total=16:input=12:output=4:cost=none:context=none",
 				inputTokens: 12,
 				outputTokens: 4,
 				totalTokens: 16
@@ -144,6 +159,8 @@ Vitest.describe("mapAcpUpdate", () => {
 			{
 				contractKind: "usage",
 				sessionId: "acp-1",
+				eventId:
+					"copilot-token-usage:acp-1:total=none:input=12:output=4:cost=none:context=128000",
 				inputTokens: 12,
 				outputTokens: 4,
 				contextWindowSize: 128000
@@ -162,6 +179,8 @@ Vitest.describe("mapAcpUpdate", () => {
 			{
 				contractKind: "usage",
 				sessionId: "acp-1",
+				eventId:
+					"copilot-token-usage:acp-1:total=41000:input=none:output=none:cost=none:context=128000",
 				totalTokens: 41000,
 				contextWindowSize: 128000
 			}
@@ -179,6 +198,8 @@ Vitest.describe("mapAcpUpdate", () => {
 			{
 				contractKind: "usage",
 				sessionId: "acp-1",
+				eventId:
+					"copilot-token-usage:acp-1:total=16:input=none:output=none:cost=none:context=none",
 				totalTokens: 16
 			}
 		])
@@ -194,11 +215,102 @@ Vitest.describe("mapAcpUpdate", () => {
 			{
 				contractKind: "usage",
 				sessionId: "acp-1",
+				eventId: "copilot-token-usage:acp-1:total=16:input=12:output=4:cost=none:context=none",
 				inputTokens: 12,
 				outputTokens: 4,
 				totalTokens: 16
 			}
 		])
+	})
+
+	// #274: the desktop dedups usage telemetry on lastTelemetryEventId. Codex
+	// composes that key from its thread, its turn and every token figure (see
+	// Codex/Map.ts). Copilot carries no turn id here, so the composite is the
+	// session id plus every figure the fact carries. The literal is pinned
+	// because a per-emission id — a uuid, a clock reading — reads as an eventId
+	// while deduplicating nothing.
+	Vitest.it("builds the usage eventId from the session and every figure", () => {
+		const reading = jsonObject({
+			type: "usage",
+			sessionId: "acp-1",
+			inputTokens: 12,
+			outputTokens: 4,
+			totalTokens: 16,
+			cost: { amount: 0.02 },
+			size: 128000
+		})
+		Vitest.assert.strictEqual(
+			usageEventId(mapAcpUpdate(reading)),
+			"copilot-token-usage:acp-1:total=16:input=12:output=4:cost=0.02:context=128000"
+		)
+		Vitest.assert.strictEqual(
+			usageEventId(mapAcpUpdate(reading)),
+			usageEventId(mapAcpUpdate(reading))
+		)
+	})
+
+	Vitest.it("names an absent usage figure rather than dropping it from the eventId", () => {
+		Vitest.assert.strictEqual(
+			usageEventId(
+				mapAcpUpdate({
+					type: "usage",
+					sessionId: "acp-1",
+					used: 41000,
+					size: 128000
+				})
+			),
+			"copilot-token-usage:acp-1:total=41000:input=none:output=none:cost=none:context=128000"
+		)
+	})
+
+	Vitest.it("gives two readings that differ by one figure two eventIds", () => {
+		const base = usageEventId(
+			mapAcpUpdate({
+				type: "usage",
+				sessionId: "acp-1",
+				inputTokens: 12,
+				outputTokens: 4,
+				totalTokens: 16,
+				cost: { amount: 0.02 },
+				size: 128000
+			})
+		)
+		const oneTokenMore = usageEventId(
+			mapAcpUpdate({
+				type: "usage",
+				sessionId: "acp-1",
+				inputTokens: 12,
+				outputTokens: 5,
+				totalTokens: 17,
+				cost: { amount: 0.02 },
+				size: 128000
+			})
+		)
+		const oneCentMore = usageEventId(
+			mapAcpUpdate({
+				type: "usage",
+				sessionId: "acp-1",
+				inputTokens: 12,
+				outputTokens: 4,
+				totalTokens: 16,
+				cost: { amount: 0.03 },
+				size: 128000
+			})
+		)
+		const otherSession = usageEventId(
+			mapAcpUpdate({
+				type: "usage",
+				sessionId: "acp-2",
+				inputTokens: 12,
+				outputTokens: 4,
+				totalTokens: 16,
+				cost: { amount: 0.02 },
+				size: 128000
+			})
+		)
+		Vitest.assert.notStrictEqual(base, oneTokenMore)
+		Vitest.assert.notStrictEqual(base, oneCentMore)
+		Vitest.assert.notStrictEqual(base, otherSession)
 	})
 })
 

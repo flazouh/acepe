@@ -73,6 +73,10 @@ export type PlanProposalFact = typeof PlanProposalFact.Type
 export const UsageFact = Schema.Struct({
 	contractKind: Schema.Literal("usage"),
 	sessionId: Schema.String.check(Schema.isNonEmpty()),
+	// The dedup key the desktop reads as lastTelemetryEventId. Optional only so
+	// that a usage fact persisted before #274 still decodes; Map.ts always
+	// derives one.
+	eventId: Schema.optionalKey(Schema.String.check(Schema.isNonEmpty())),
 	inputTokens: Schema.optionalKey(Schema.Number),
 	outputTokens: Schema.optionalKey(Schema.Number),
 	totalTokens: Schema.optionalKey(Schema.Number),

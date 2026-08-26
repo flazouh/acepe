@@ -108,6 +108,12 @@ const usageCostUsd = (record: JsonObject): Option.Option<number> =>
 		onSome: (value) => numberField(value, "amount")
 	})
 
+const formatOptionalNumber = (value: Option.Option<number>): string =>
+	Option.match(value, {
+		onNone: () => "none",
+		onSome: (number) => String(number)
+	})
+
 const usageFact = (record: JsonObject, sessionId: string): UsageFact => {
 	const inputTokens = numberField(record, "inputTokens")
 	const outputTokens = numberField(record, "outputTokens")
@@ -124,9 +130,21 @@ const usageFact = (record: JsonObject, sessionId: string): UsageFact => {
 			: Option.none()
 	)
 	const contextWindowSize = numberFieldAny(record, ["contextWindowSize", "size"])
+	const costUsd = usageCostUsd(record)
+	// The dedup key the desktop reads as lastTelemetryEventId, built the way
+	// Codex/Map.ts builds its own: a composite of the conversation id and every
+	// figure the reading carries, so a replayed identical reading collapses onto
+	// one id and a reading that differs by a single token gets its own. Copilot's
+	// usage update carries no turn id, so the session id is the only conversation
+	// id available. An absent figure is named "none" rather than dropped, or a
+	// reading of 4 output tokens and no cost would share an id with a reading of
+	// no output tokens and a cost of 4.
+	const eventId =
+		`copilot-token-usage:${sessionId}:total=${formatOptionalNumber(totalTokens)}:input=${formatOptionalNumber(inputTokens)}:output=${formatOptionalNumber(outputTokens)}:cost=${formatOptionalNumber(costUsd)}:context=${formatOptionalNumber(contextWindowSize)}`
 	const base: UsageFact = {
 		contractKind: "usage",
-		sessionId
+		sessionId,
+		eventId
 	}
 	return applyUsageNumber(
 		applyUsageNumber(
@@ -139,7 +157,7 @@ const usageFact = (record: JsonObject, sessionId: string): UsageFact => {
 				totalTokens,
 				withUsageTotal
 			),
-			usageCostUsd(record),
+			costUsd,
 			withUsageCost
 		),
 		contextWindowSize,
