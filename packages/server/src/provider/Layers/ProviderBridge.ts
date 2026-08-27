@@ -8,6 +8,7 @@ import {
 	ProviderSessionFailedEvent,
 	type SessionCreatedEvent,
 	type SessionId,
+	type SessionModelSetEvent,
 	type SessionModeSetEvent,
 	type Sequence,
 	TrimmedNonEmptyString,
@@ -36,6 +37,7 @@ import {
 	type ProviderAdapter,
 	type ProviderAdapterError,
 	type ProviderId,
+	type SetModelRequest,
 	type SetModeRequest
 } from "../Services/ProviderAdapter.ts"
 import { ProviderAdapterRegistry } from "../Services/ProviderAdapterRegistry.ts"
@@ -63,6 +65,18 @@ type ModeSettableAdapter = ProviderAdapter & {
 
 const supportsSetMode = (adapter: ProviderAdapter): adapter is ModeSettableAdapter =>
 	"setMode" in adapter
+
+// Structural, same as setMode above. Until this existed the bridge had no
+// method for a model at all, so session.set-model committed its event and
+// stopped there: the composer showed the new model and the agent went on
+// running the old one. A provider whose transport cannot switch model exposes
+// no setModel; the model stays durably recorded either way.
+type ModelSettableAdapter = ProviderAdapter & {
+	readonly setModel: (request: SetModelRequest) => Effect.Effect<void, ProviderAdapterError>
+}
+
+const supportsSetModel = (adapter: ProviderAdapter): adapter is ModelSettableAdapter =>
+	"setModel" in adapter
 
 // Structural, not nominal, same as respondToPermission above: any adapter can
 // opt into a forceful teardown of every live session's spawned subprocess by
@@ -156,12 +170,18 @@ type BridgeState = {
 	// makes a replayed mode survive a restart without replay itself ever
 	// opening a session. See considerSessionModeSet.
 	readonly sessionModes: Ref.Ref<HashMap.HashMap<SessionId, SetModeRequest["modeId"]>>
+	// The model every known session last had set, recorded from the canonical
+	// SessionModelSet events for exactly the reason sessionModes above is: the
+	// session opens lazily, long after the event that chose the model was
+	// committed, so openSession applies whatever is recorded here.
+	readonly sessionModels: Ref.Ref<HashMap.HashMap<SessionId, SetModelRequest["modelId"]>>
 	readonly projectRoots: Ref.Ref<HashMap.HashMap<ProjectId, WorkspaceRoot>>
 	readonly claimedSessions: Ref.Ref<HashSet.HashSet<string>>
 	readonly claimedMessages: Ref.Ref<HashSet.HashSet<string>>
 	readonly claimedCancellations: Ref.Ref<HashSet.HashSet<string>>
 	readonly claimedReplies: Ref.Ref<HashSet.HashSet<string>>
 	readonly claimedModeSets: Ref.Ref<HashSet.HashSet<string>>
+	readonly claimedModelSets: Ref.Ref<HashSet.HashSet<string>>
 	// Monotonic counter for stamping the bridge's own ProviderSessionFailed
 	// events with a unique commandId/eventId — mirrors the per-runtime
 	// sequence counter Claude/Adapter.ts/Cursor/Adapter.ts use for the same
@@ -364,6 +384,15 @@ const openSession = Effect.fn("ProviderBridge.openSession")(function*(
 	if (Option.isSome(modeId) && supportsSetMode(adapter)) {
 		yield* applySetMode(state, adapter, sessionId, modeId.value, true)
 	}
+	// The same re-apply for the model, and for the same reason: a fresh
+	// adapter session starts on whatever the provider's own configuration
+	// selects, so a model chosen before a restart or before this session's
+	// lazy (re)open would silently revert on the next turn.
+	const models = yield* Ref.get(state.sessionModels)
+	const modelId = HashMap.get(models, sessionId)
+	if (Option.isSome(modelId) && supportsSetModel(adapter)) {
+		yield* applySetModel(state, adapter, sessionId, modelId.value, true)
+	}
 })
 
 // Boot replay walks EVERY historical SessionCreated event, including ones for
@@ -458,6 +487,32 @@ const applySetMode = (
 	return attempt.pipe(
 		Effect.catchCause((cause) =>
 			appendFailure(state, sessionId, adapter.providerId, "setMode", Cause.pretty(cause))
+		)
+	)
+}
+
+// applySetMode's counterpart, sharing its retry reasoning exactly:
+// isSessionNotRegisteredYet is the one failure a just-forked forwarding fiber
+// can produce, and every other failure (an id the provider does not know) is
+// permanent and must not burn 25 retries on the bridge's single
+// event-consuming fiber.
+const applySetModel = (
+	state: BridgeState,
+	adapter: ModelSettableAdapter,
+	sessionId: SessionId,
+	modelId: SetModelRequest["modelId"],
+	justOpened: boolean
+) => {
+	const dispatch = adapter.setModel({ sessionId, modelId })
+	const attempt = justOpened
+		? Effect.retry(dispatch, {
+			schedule: LAZY_OPEN_RETRY_SCHEDULE,
+			while: isSessionNotRegisteredYet(sessionId)
+		})
+		: dispatch
+	return attempt.pipe(
+		Effect.catchCause((cause) =>
+			appendFailure(state, sessionId, adapter.providerId, "setModel", Cause.pretty(cause))
 		)
 	)
 }
@@ -652,6 +707,44 @@ const considerSessionModeSet = Effect.fn("ProviderBridge.considerSessionModeSet"
 	)
 })
 
+// The model's counterpart of considerSessionModeSet above, and the reaction
+// that makes picking a model mean anything: session.set-model used to commit a
+// SessionModelSet event that no projection and no adapter read.
+const considerSessionModelSet = Effect.fn("ProviderBridge.considerSessionModelSet")(function*(
+	state: BridgeState,
+	event: SessionModelSetEvent,
+	phase: "live" | "replay"
+) {
+	// Recorded on BOTH phases -- replay's job for a model is to leave the last
+	// one behind for openSession to apply later. See considerSessionModeSet.
+	yield* Ref.update(state.sessionModels, (current) =>
+		HashMap.set(current, event.payload.sessionId, event.payload.modelId))
+	const claimed = yield* claim(state.claimedModelSets, event.eventId)
+	if (!claimed || phase === "replay") {
+		return
+	}
+	const justOpened = yield* ensureSessionOpen(state, event.payload.sessionId)
+	if (justOpened) {
+		// openSession applied the model recorded above already.
+		return
+	}
+	const adapters = yield* Ref.get(state.sessionAdapters)
+	const adapter = HashMap.get(adapters, event.payload.sessionId)
+	if (Option.isNone(adapter)) {
+		return
+	}
+	if (!supportsSetModel(adapter.value)) {
+		return
+	}
+	yield* applySetModel(
+		state,
+		adapter.value,
+		event.payload.sessionId,
+		event.payload.modelId,
+		false
+	)
+})
+
 const considerSessionRemoved = Effect.fn("ProviderBridge.considerSessionRemoved")(function*(
 	state: BridgeState,
 	sessionId: SessionId
@@ -662,6 +755,7 @@ const considerSessionRemoved = Effect.fn("ProviderBridge.considerSessionRemoved"
 	yield* Ref.update(state.sessionAdapters, (current) => HashMap.remove(current, sessionId))
 	yield* Ref.update(state.sessionProjects, (current) => HashMap.remove(current, sessionId))
 	yield* Ref.update(state.sessionModes, (current) => HashMap.remove(current, sessionId))
+	yield* Ref.update(state.sessionModels, (current) => HashMap.remove(current, sessionId))
 	if (Option.isSome(fiber)) {
 		yield* Fiber.interrupt(fiber.value)
 	}
@@ -683,6 +777,8 @@ const consider = Effect.fn("ProviderBridge.consider")(function*(
 			return yield* considerInteractionReplied(state, event, phase)
 		case "SessionModeSet":
 			return yield* considerSessionModeSet(state, event, phase)
+		case "SessionModelSet":
+			return yield* considerSessionModelSet(state, event, phase)
 		case "ProjectCreated":
 			return yield* Ref.update(state.projectRoots, (current) =>
 				HashMap.set(current, event.payload.projectId, event.payload.workspaceRoot))
@@ -715,12 +811,14 @@ export const makeProviderBridge = Effect.fn("makeProviderBridge")(function*() {
 		sessionFibers: yield* Ref.make(HashMap.empty<SessionId, Fiber.Fiber<void>>()),
 		sessionProjects: yield* Ref.make(HashMap.empty<SessionId, ProjectId>()),
 		sessionModes: yield* Ref.make(HashMap.empty<SessionId, SetModeRequest["modeId"]>()),
+		sessionModels: yield* Ref.make(HashMap.empty<SessionId, SetModelRequest["modelId"]>()),
 		projectRoots: yield* Ref.make(HashMap.empty<ProjectId, WorkspaceRoot>()),
 		claimedSessions: yield* Ref.make(HashSet.empty<string>()),
 		claimedMessages: yield* Ref.make(HashSet.empty<string>()),
 		claimedCancellations: yield* Ref.make(HashSet.empty<string>()),
 		claimedReplies: yield* Ref.make(HashSet.empty<string>()),
 		claimedModeSets: yield* Ref.make(HashSet.empty<string>()),
+		claimedModelSets: yield* Ref.make(HashSet.empty<string>()),
 		failureSeq: yield* Ref.make(0),
 		layerScope
 	}
