@@ -50,7 +50,11 @@ export const ToolCallUpdateFact = Schema.Struct({
 	contractKind: Schema.Literal("tool_call_update"),
 	toolCallId: Schema.String.check(Schema.isNonEmpty()),
 	status: Schema.optionalKey(CopilotToolStatus),
-	partialJson: Schema.optionalKey(Schema.String)
+	partialJson: Schema.optionalKey(Schema.String),
+	// #273: the tool's own result, read off the ACP update's content blocks
+	// (else its rawOutput). Without it a settled tool call reaches
+	// projection_session_activities with a status and no result to show.
+	output: Schema.optionalKey(Schema.String.check(Schema.isNonEmpty()))
 })
 export type ToolCallUpdateFact = typeof ToolCallUpdateFact.Type
 

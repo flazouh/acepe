@@ -90,14 +90,23 @@ export const contractFactToAcpSessionUpdate = (fact: CopilotContractFact): JsonO
 			toolCallId: fact.toolCallId
 		}
 		return applyOptional(
-			applyOptional(base, fact.status, (current, status) => ({
+			applyOptional(
+				applyOptional(base, fact.status, (current, status) => ({
+					...current,
+					status
+				})),
+				fact.partialJson,
+				(current, partialJson) => ({
+					...current,
+					partialJson
+				})
+			),
+			fact.output,
+			// Re-emitted as a single text content block, the shape Map.ts
+			// reads back, so the round trip stays stable.
+			(current, output) => ({
 				...current,
-				status
-			})),
-			fact.partialJson,
-			(current, partialJson) => ({
-				...current,
-				partialJson
+				content: [{ type: "content", content: { type: "text", text: output } }]
 			})
 		)
 	}

@@ -1,12 +1,16 @@
 import * as Arr from "effect/Array"
+import * as Filter from "effect/Filter"
 import * as Option from "effect/Option"
+import * as Str from "effect/String"
 import {
 	applyOptional,
+	arrayField,
 	EMPTY_JSON_OBJECT,
 	field,
 	type Json,
 	type JsonObject,
 	jsonObjectOf,
+	jsonText,
 	numberField,
 	numberFieldAny,
 	objectField,
@@ -20,7 +24,8 @@ import {
 	type ToolCallUpdateFact,
 	type UsageFact
 } from "./Facts.ts"
-import { asToolKind } from "./Tools.ts"
+import { asToolKind, permissionRequestFact } from "./Tools.ts"
+import { SESSION_REQUEST_PERMISSION_METHOD, SESSION_UPDATE_METHOD } from "./Wire.ts"
 
 const rawInputOf = (value: Json | undefined): JsonObject => {
 	if (value === undefined) {
@@ -57,7 +62,7 @@ const unwrapUpdate = (raw: Json): JsonObject => {
 		return EMPTY_JSON_OBJECT
 	}
 	const method = Option.getOrElse(stringField(record.value, "method"), () => "")
-	if (method === "session/update") {
+	if (method === SESSION_UPDATE_METHOD) {
 		const params = objectField(record.value, "params")
 		if (Option.isNone(params)) {
 			return record.value
@@ -189,22 +194,70 @@ const withToolCallUpdatePartial = (
 	partialJson
 })
 
+const withToolCallUpdateOutput = (
+	fact: ToolCallUpdateFact,
+	output: string
+): ToolCallUpdateFact => ({
+	...fact,
+	output
+})
+
+// One ACP tool content block. The result text sits one level down under
+// `content` for a `{ type: "content" }` block, and directly on the block for
+// the flatter form Copilot sends for a plain tool_result.
+const contentBlockText = (entry: Json): Option.Option<string> => {
+	const record = jsonObjectOf(entry)
+	if (Option.isNone(record)) {
+		return Option.none()
+	}
+	const nested = objectField(record.value, "content")
+	if (Option.isSome(nested)) {
+		return stringField(nested.value, "text")
+	}
+	return stringField(record.value, "text")
+}
+
+// #273: an ACP tool_call_update reports the tool's result as content blocks
+// and falls back to a free-form rawOutput. Both are read, because a settled
+// call with no output reaches the activity row as a status and nothing else.
+const toolOutput = (record: JsonObject): Option.Option<string> => {
+	const blocks = arrayField(record, "content")
+	if (Option.isSome(blocks)) {
+		const texts = Arr.filterMap(blocks.value, Filter.fromPredicateOption(contentBlockText))
+		if (Arr.isReadonlyArrayNonEmpty(texts)) {
+			return Option.some(Arr.join(texts, "\n"))
+		}
+	}
+	return Option.flatMap(field(record, "rawOutput"), (value) => {
+		const text = jsonText(value)
+		if (text === null || Str.isNonEmpty(Str.trim(text)) === false) {
+			return Option.none()
+		}
+		return Option.some(text)
+	})
+}
+
 const toolCallUpdateFact = (
 	toolCallId: string,
 	status: Option.Option<CopilotToolStatus>,
-	partialJson: string | undefined
+	partialJson: string | undefined,
+	output: string | undefined
 ): ToolCallUpdateFact => {
 	const base: ToolCallUpdateFact = {
 		contractKind: "tool_call_update",
 		toolCallId
 	}
 	return applyOptional(
-		Option.match(status, {
-			onNone: () => base,
-			onSome: (value) => withToolCallUpdateStatus(base, value)
-		}),
-		partialJson,
-		withToolCallUpdatePartial
+		applyOptional(
+			Option.match(status, {
+				onNone: () => base,
+				onSome: (value) => withToolCallUpdateStatus(base, value)
+			}),
+			partialJson,
+			withToolCallUpdatePartial
+		),
+		output,
+		withToolCallUpdateOutput
 	)
 }
 
@@ -257,7 +310,8 @@ const mapNamedUpdate = (record: JsonObject, typeName: string): ReadonlyArray<Cop
 		}
 		const status = Option.flatMap(stringField(record, "status"), asToolStatus)
 		const partialJson = Option.getOrUndefined(stringField(record, "partialJson"))
-		return [toolCallUpdateFact(toolCallId.value, status, partialJson)]
+		const output = Option.getOrUndefined(toolOutput(record))
+		return [toolCallUpdateFact(toolCallId.value, status, partialJson, output)]
 	}
 	if (typeName === "permissionRequest" || typeName === "permission_request") {
 		const nested = Option.getOrElse(objectField(record, "permissionRequest"), () => record)
@@ -337,7 +391,45 @@ const mapNamedUpdate = (record: JsonObject, typeName: string): ReadonlyArray<Cop
 	return Arr.empty()
 }
 
+// ACP asks for a permission with a JSON-RPC REQUEST, not a session/update
+// notification: the params carry the sessionId, the toolCall and the options
+// an answer picks from. Acepe owns the approval id and derives it from the
+// tool call, because ACP gives the client none of its own — see
+// permissionRequestFact in Tools.ts.
+const mapAcpPermissionRequest = (params: JsonObject): ReadonlyArray<CopilotContractFact> => {
+	const sessionId = stringFieldAny(params, ["sessionId", "session_id"])
+	const toolCall = objectField(params, "toolCall")
+	if (Option.isNone(sessionId) || Option.isNone(toolCall)) {
+		return Arr.empty()
+	}
+	const toolCallId = stringFieldAny(toolCall.value, ["toolCallId", "tool_call_id"])
+	if (Option.isNone(toolCallId)) {
+		return Arr.empty()
+	}
+	const toolName = Option.getOrElse(
+		stringFieldAny(toolCall.value, ["kind", "title"]),
+		() => "other"
+	)
+	return [
+		permissionRequestFact({
+			sessionId: sessionId.value,
+			toolCallId: toolCallId.value,
+			toolName
+		})
+	]
+}
+
 export const mapAcpUpdate = (raw: Json): ReadonlyArray<CopilotContractFact> => {
+	const envelope = jsonObjectOf(raw)
+	if (Option.isSome(envelope)) {
+		const method = Option.getOrElse(stringField(envelope.value, "method"), () => "")
+		if (method === SESSION_REQUEST_PERMISSION_METHOD) {
+			return Option.match(objectField(envelope.value, "params"), {
+				onNone: () => Arr.empty<CopilotContractFact>(),
+				onSome: mapAcpPermissionRequest
+			})
+		}
+	}
 	const record = unwrapUpdate(raw)
 	return mapNamedUpdate(record, updateName(record))
 }

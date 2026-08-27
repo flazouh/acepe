@@ -29,7 +29,11 @@ export const COPILOT_TRANSPORT = "acp" as const
 
 export const COPILOT_ACP_STDIO_ARGS = ["--acp", "--stdio"] as const
 
-export const COPILOT_LOGIN_METHOD_ID = "copilot-login"
+// The name the GitHub Copilot CLI installs on PATH, and the environment
+// variable that overrides it with an absolute path. Same pair OpenCode and
+// Codex resolve their own binary through.
+export const COPILOT_BINARY_NAME = "copilot"
+export const COPILOT_BINARY_ENV_KEY = "ACEPE_COPILOT_BIN"
 
 export const COPILOT_CAPABILITIES: ProviderCapabilities = ProviderCapabilities.make({
 	enabled: [
@@ -48,25 +52,19 @@ export const COPILOT_CAPABILITIES: ProviderCapabilities = ProviderCapabilities.m
 export const COPILOT_MODES = ["agent", "autopilot", "plan"] as const
 export type CopilotMode = (typeof COPILOT_MODES)[number]
 
+export type CopilotPermissionDecision = "allow" | "deny"
+
+export type CopilotLaunchConfig = {
+	readonly command: string
+	readonly args: ReadonlyArray<string>
+}
+
 const COPILOT_MODE_AGENT_URI = "https://agentclientprotocol.com/protocol/session-modes#agent"
 const COPILOT_MODE_PLAN_URI = "https://agentclientprotocol.com/protocol/session-modes#plan"
 const COPILOT_MODE_AUTOPILOT_URI = "https://agentclientprotocol.com/protocol/session-modes#autopilot"
 const LEGACY_COPILOT_MODE_AGENT_URI = "https://github.com/github/copilot-cli/mode#agent"
 const LEGACY_COPILOT_MODE_PLAN_URI = "https://github.com/github/copilot-cli/mode#plan"
 const LEGACY_COPILOT_MODE_AUTOPILOT_URI = "https://github.com/github/copilot-cli/mode#autopilot"
-
-export const COPILOT_SESSION_MCP_SERVERS: ReadonlyArray<never> = Arr.empty()
-
-export const copilotSessionNewParams = (
-	cwd: string
-): { readonly cwd: string; readonly mcpServers: ReadonlyArray<never> } => ({
-	cwd,
-	mcpServers: COPILOT_SESSION_MCP_SERVERS
-})
-
-export const copilotAuthenticateParams = {
-	methodId: COPILOT_LOGIN_METHOD_ID
-} as const
 
 export const normalizeCopilotModeId = (id: string): string => {
 	if (id === COPILOT_MODE_AGENT_URI || id === LEGACY_COPILOT_MODE_AGENT_URI || id === "build") {
@@ -94,17 +92,6 @@ export const mapOutboundCopilotModeId = (id: string): string => {
 	return id
 }
 
-// ACP session/set_mode params. Copilot speaks the mode-URI form of a mode id,
-// which mapOutboundCopilotModeId already knew how to produce -- nothing
-// called it until issue #272 gave the mode a route to the adapter.
-export const copilotSetModeParams = (
-	providerSessionId: string,
-	modeId: string
-): { readonly sessionId: string; readonly modeId: string } => ({
-	sessionId: providerSessionId,
-	modeId: mapOutboundCopilotModeId(normalizeCopilotModeId(modeId))
-})
-
 export const copilotPresence = (
 	installed: boolean,
 	authenticated: boolean
@@ -117,26 +104,42 @@ export const copilotPresence = (
 const pathEntries = (pathVar: string): ReadonlyArray<string> =>
 	Arr.filter(Str.split(pathVar, ":"), (part) => Str.isNonEmpty(part))
 
-export const probeCopilotPresence = Effect.fn("probeCopilotPresence")(function*() {
+// The absolute path of the `copilot` executable, from the env override first
+// and then the first PATH entry that holds one. None means the CLI is not
+// installed, which is also what probeCopilotPresence reports as installed:
+// false — the two read the same thing, so presence never claims a binary
+// resolveCopilotLaunch cannot find.
+export const probeCopilotBinary = Effect.fn("probeCopilotBinary")(function*() {
 	const fs = yield* FileSystem.FileSystem
 	const path = yield* Path.Path
+	const override = yield* Config.option(Config.nonEmptyString(COPILOT_BINARY_ENV_KEY))
+	if (Option.isSome(override)) {
+		const exists = yield* fs.exists(override.value)
+		if (exists) {
+			return Option.some(override.value)
+		}
+	}
 	const pathVar = yield* Config.option(Config.string("PATH"))
-	const home = yield* Config.option(Config.string("HOME"))
-	const binaryOverride = yield* Config.option(Config.string("ACEPE_COPILOT_BIN"))
-	const overrideInstalled = yield* Option.match(binaryOverride, {
-		onNone: () => Effect.succeed(false),
-		onSome: (filePath) => fs.exists(filePath)
-	})
 	const directories = Option.match(pathVar, {
 		onNone: () => Arr.empty<string>(),
 		onSome: pathEntries
 	})
-	const pathInstalled = yield* Effect.reduce(directories, () => false, (found, directory) => {
-		if (found) {
-			return Effect.succeed(true)
+	return yield* Effect.reduce(directories, () => Option.none<string>(), (found, directory) => {
+		if (Option.isSome(found)) {
+			return Effect.succeed(found)
 		}
-		return fs.exists(path.join(directory, "copilot"))
+		const candidate = path.join(directory, COPILOT_BINARY_NAME)
+		return fs
+			.exists(candidate)
+			.pipe(Effect.map((exists) => (exists ? Option.some(candidate) : Option.none<string>())))
 	})
+})
+
+export const probeCopilotPresence = Effect.fn("probeCopilotPresence")(function*() {
+	const fs = yield* FileSystem.FileSystem
+	const path = yield* Path.Path
+	const home = yield* Config.option(Config.string("HOME"))
+	const binary = yield* probeCopilotBinary()
 	const credentialsPath = Option.match(home, {
 		onNone: () => Option.none<string>(),
 		onSome: (homeDir) => Option.some(path.join(homeDir, ".copilot", "config.json"))
@@ -145,8 +148,23 @@ export const probeCopilotPresence = Effect.fn("probeCopilotPresence")(function*(
 		onNone: () => Effect.succeed(false),
 		onSome: (filePath) => fs.exists(filePath)
 	})
-	return copilotPresence(overrideInstalled || pathInstalled, authenticated)
+	return copilotPresence(Option.isSome(binary), authenticated)
 })
+
+export const copilotLaunchConfig = (command: string): CopilotLaunchConfig => ({
+	command,
+	args: Arr.fromIterable(COPILOT_ACP_STDIO_ARGS)
+})
+
+// Named rather than falling back to a bare "copilot" spawn: a spawn of a
+// command that is not there reports an opaque ENOENT from inside the
+// transport, and the operator reads a transport fault where the real answer
+// is that the CLI is not installed.
+export const missingCopilotBinaryError = (): ProviderAdapterError =>
+	adapterError(
+		"startSession",
+		`GitHub Copilot CLI is not installed. Put '${COPILOT_BINARY_NAME}' on PATH or set ${COPILOT_BINARY_ENV_KEY}.`
+	)
 
 export const isCopilotPlanCapabilityEnabled = (): boolean =>
 	isCapabilityEnabled(COPILOT_CAPABILITIES, "plan")
