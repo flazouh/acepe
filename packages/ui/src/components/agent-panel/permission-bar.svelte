@@ -44,10 +44,10 @@
 	const isAttachedToToolCall = $derived(attachment === "tool-call");
 	const cardClass = $derived.by(() => {
 		if (isAttachedToToolCall) {
-			return "permission-attached-card inline-flex flex-col bg-input/30 permission-card-enter rounded-b-sm rounded-t-none px-1 py-1";
+			return "permission-attached-card inline-flex flex-col bg-input/50 permission-card-enter overflow-hidden rounded-b-lg rounded-t-none px-2 py-1";
 		}
 
-		return `w-full flex flex-col gap-1.5 border border-border bg-input/30 permission-card-enter px-3 py-1 rounded-lg ${command ? "rounded-b-none border-b-0" : ""}`;
+		return `w-full flex flex-col gap-1.5 bg-input/50 permission-card-enter overflow-hidden px-3 py-1.5 rounded-lg ${command ? "rounded-b-none" : ""}`;
 	});
 </script>
 
@@ -92,6 +92,13 @@
 				: "flex w-full items-center justify-between gap-2"}
 		>
 			{#if !isAttachedToToolCall && !showSummary}
+				<!--
+					Icon only. This branch runs when the tool call above already
+					names the file or command, and the working row below already
+					says "Waiting for your approval" -- spelling out "Permission
+					required" between them is the same sentence a third time. The
+					label stays as the icon's accessible name.
+				-->
 				<div class="flex min-w-0 shrink-0 items-center gap-1.5 text-sm">
 					<span
 						class="inline-flex shrink-0 items-center justify-center"
@@ -99,9 +106,6 @@
 						title={compactSummaryLabel}
 					>
 						{@render leading()}
-					</span>
-					<span class="shrink-0 text-sm font-medium text-muted-foreground">
-						{compactSummaryLabel}
 					</span>
 				</div>
 			{/if}
@@ -116,7 +120,7 @@
 	</div>
 
 	{#if command}
-		<div class="max-h-[72px] overflow-y-auto rounded-b-lg border border-border border-t-0 bg-input/30 px-2 py-0.5">
+		<div class="permission-command-block max-h-[72px] overflow-y-auto rounded-b-lg bg-input/50 px-2 py-0.5">
 			<code class="block min-w-0 whitespace-pre-wrap break-words font-mono text-sm text-foreground/70">
 				$ {command}
 			</code>
@@ -130,13 +134,12 @@
 	}
 
 	.permission-attached-card {
-		--permission-attached-bg: color-mix(in oklab, var(--input) 30%, transparent);
-
 		position: relative;
-		background-color: var(--permission-attached-bg);
-		border-color: var(--border);
-		border-style: solid;
-		border-width: 1px;
+		border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+	}
+
+	.permission-command-block {
+		border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
 	}
 
 	.permission-tally-bar {

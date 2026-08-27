@@ -363,8 +363,16 @@ export const qaPreloadScript = `(function(){
     for (var i = 0; i < depth; i++) indent += "  ";
     var text = visibleText(el);
     if (text.length > 0) lines.push(indent + text);
-    var kids = el.children || [];
     var next = text.length > 0 ? depth + 1 : depth;
+    // A shadow root's content is on screen and is not among an element's
+    // children. Skipping it made this read report an empty tool card for a
+    // rendered diff, which is worse than no answer: it is a confident wrong
+    // one. Diffs, and anything else rendered into a shadow root, are read here.
+    if (el.shadowRoot && el.shadowRoot.children) {
+      var shadowKids = el.shadowRoot.children;
+      for (var s = 0; s < shadowKids.length; s++) walkText(shadowKids[s], next, lines);
+    }
+    var kids = el.children || [];
     for (var j = 0; j < kids.length; j++) walkText(kids[j], next, lines);
   }
   function scopedRoot(params) {
