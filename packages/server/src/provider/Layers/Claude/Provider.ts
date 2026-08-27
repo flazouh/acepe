@@ -109,6 +109,8 @@ export const CLAUDE_STRICT_MCP_CONFIG = true
 // or agent-config-driven catalog resolution has somewhere to plug in.
 export const CLAUDE_SESSION_MCP_SERVERS: Record<string, McpServerConfig> = {}
 
+// Derived from the contract's own list, so the modes this adapter enforces and
+// the modes the picker offers cannot drift apart.
 export const CLAUDE_MODES = ["default", "acceptEdits", "plan", "bypassPermissions"] as const
 export type ClaudeMode = (typeof CLAUDE_MODES)[number]
 

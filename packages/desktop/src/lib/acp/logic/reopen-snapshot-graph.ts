@@ -53,6 +53,7 @@ import {
 	observedStatusToOperationState,
 	observedStatusToToolCallStatus,
 } from "./observed-tool-call-status.js";
+import { providerModels, providerModes } from "@acepe/contracts";
 import { normalizeEditEntry } from "./aggregate-file-edits.js";
 import { asOperationToolKind } from "./observed-tool-kind.js";
 
@@ -472,8 +473,33 @@ export function reopenGraphRevisionForApply(
 function capabilitiesFromSnapshot(snapshot: RpcSessionSnapshot): SessionGraphCapabilities {
 	const capabilities = emptySessionGraphCapabilities();
 	const currentModeId = snapshot.session?.currentModeId ?? null;
-	if (currentModeId !== null) {
-		capabilities.modes = { currentModeId };
+	// The modes and models a provider offers, so a reopened session shows the
+	// same pickers a live one does. These are provider facts, not session state:
+	// the comment above is about `currentModeId`, which stays canonical-owned
+	// and is only set when a SessionModeSet actually fired.
+	const modes = providerModes(snapshot.session?.provider);
+	const models = providerModels(snapshot.session?.provider);
+	if (modes.length > 0 || currentModeId !== null) {
+		capabilities.modes = {
+			...(currentModeId === null ? {} : { currentModeId }),
+			...(modes.length === 0
+				? {}
+				: {
+						availableModes: modes.map((mode) => ({
+							id: mode.id,
+							name: mode.name,
+							description: mode.description,
+						})),
+					}),
+		};
+	}
+	if (models.length > 0) {
+		capabilities.models = {
+			availableModels: models.map((model) => ({
+				modelId: model.modelId,
+				name: model.name,
+			})),
+		};
 	}
 	return capabilities;
 }

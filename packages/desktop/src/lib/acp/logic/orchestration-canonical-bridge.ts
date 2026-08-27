@@ -16,6 +16,9 @@
 // itself unsupportedOnContract for the same reason) -- but turn completion
 // (TurnCompleted, alongside TurnCancelled) IS a real terminal signal on the
 // contract, handled below.
+import { providerModels, providerModes } from "@acepe/contracts";
+import type { SessionGraphCapabilities } from "../../services/acp-types.js";
+import { emptySessionGraphCapabilities } from "../store/envelope-reducer/empty-session-graph-capabilities.js";
 import type { EditEntry } from "../../services/converted-session-types.js";
 import { normalizeEditEntry } from "./aggregate-file-edits.js";
 import type { ApprovalDecision, OrchestrationEvent, SessionId } from "@acepe/contracts";
@@ -119,6 +122,38 @@ function freshSessionState(): SessionCanonicalState {
 		pendingApprovals: new Map(),
 		turnStartedAtMs: null,
 	};
+}
+
+/**
+ * The capabilities a provider brings to every session it opens.
+ *
+ * Read from the contract rather than assembled here: the adapter that enforces
+ * a mode and the picker that offers it must be reading one list.
+ */
+function providerSessionCapabilities(
+	providerId: string | null | undefined
+): SessionGraphCapabilities {
+	const modes = providerModes(providerId);
+	const models = providerModels(providerId);
+	const capabilities = emptySessionGraphCapabilities();
+	if (modes.length > 0) {
+		capabilities.modes = {
+			availableModes: modes.map((mode) => ({
+				id: mode.id,
+				name: mode.name,
+				description: mode.description,
+			})),
+		};
+	}
+	if (models.length > 0) {
+		capabilities.models = {
+			availableModels: models.map((model) => ({
+				modelId: model.modelId,
+				name: model.name,
+			})),
+		};
+	}
+	return capabilities;
 }
 
 const idleActivity: SessionGraphActivity = {
@@ -393,7 +428,12 @@ export class OrchestrationCanonicalBridge {
 								},
 							},
 							activity: idleActivity,
-							capabilities: {},
+							// A session's modes and models come from its provider, and
+							// no event carries them. Seeding them here is what makes the
+							// mode selector render at all (the toolbar hides it unless a
+							// session reports modes) and what turns the model slot from a
+							// static agent label into a picker.
+							capabilities: providerSessionCapabilities(providerId),
 						},
 					},
 				};

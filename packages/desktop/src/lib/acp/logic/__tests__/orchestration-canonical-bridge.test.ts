@@ -1022,6 +1022,43 @@ describe("OrchestrationCanonicalBridge", () => {
 // transcript never advances past that point. This test drives the bridge's
 // output through the real session-state-command-router, the actual next
 // consumer, instead of asserting on the bridge's delta shape alone.
+describe("OrchestrationCanonicalBridge provider capabilities", () => {
+	/**
+	 * The toolbar renders the mode selector only when a session reports modes,
+	 * and the model slot degrades to a static agent label without models. Both
+	 * lists lived as constants inside the server where the client could never
+	 * see them, so neither picker ever appeared for a Claude session.
+	 */
+	it("gives a Claude session the modes and models its provider offers", () => {
+		const bridge = makeBridge();
+		const envelopes = runTranslate(
+			bridge,
+			makeEvent("SessionCreated", { sessionId, projectId, title: "s", providerId: "claude-code" })
+		);
+		const payload = envelopes[0]?.payload as SessionStateEnvelope | undefined;
+		const graph = payload?.payload.kind === "snapshot" ? payload.payload.graph : null;
+		expect(graph?.capabilities.modes?.availableModes?.map((mode) => mode.id)).toEqual([
+			"default",
+			"plan",
+			"acceptEdits",
+			"bypassPermissions",
+		]);
+		expect((graph?.capabilities.models?.availableModels?.length ?? 0) > 0).toBe(true);
+	});
+
+	it("a provider with no modes reports none rather than an empty picker", () => {
+		const bridge = makeBridge();
+		const envelopes = runTranslate(
+			bridge,
+			makeEvent("SessionCreated", { sessionId, projectId, title: "s", providerId: "unknown" })
+		);
+		const payload = envelopes[0]?.payload as SessionStateEnvelope | undefined;
+		const graph = payload?.payload.kind === "snapshot" ? payload.payload.graph : null;
+		expect(graph?.capabilities.modes).toBeNull();
+		expect(graph?.capabilities.models).toBeNull();
+	});
+});
+
 describe("OrchestrationCanonicalBridge tool arguments", () => {
 	/**
 	 * A permission asks a person to approve a change. Until the observation
