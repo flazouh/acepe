@@ -58,6 +58,8 @@ import { ProjectionSessionReviewState } from "./persistence/Services/ProjectionS
 import { HardcodedProviderLive } from "./provider/HardcodedProvider.ts"
 import { makeLiveClaudeAdapter } from "./provider/Layers/Claude/Adapter.ts"
 import { makeLiveCodexAdapter } from "./provider/Layers/Codex/Adapter.ts"
+import { makeLiveCopilotAdapter } from "./provider/Layers/Copilot/Adapter.ts"
+import { makeLiveCursorAdapter } from "./provider/Layers/Cursor/Adapter.ts"
 import { makeLiveOpenCodeAdapter } from "./provider/Layers/OpenCode/Adapter.ts"
 import { ProviderAdapterRegistryLive } from "./provider/Layers/ProviderAdapterRegistry.ts"
 import { ProviderBridgeLive } from "./provider/Layers/ProviderBridge.ts"
@@ -215,6 +217,43 @@ const pipelineLayer = Layer.unwrap(
 	})
 )
 
+// Every live provider adapter the product ships, alongside the tracer
+// HardcodedProviderLive. Sessions pick one or the other by whether
+// session.create carried a providerId (see ProviderBridge.ts / decider.ts's
+// session.create case) — HardcodedProvider keeps driving every session it
+// always has.
+//
+// Each makeLive*Adapter() only probes presence and resolves spawn config at
+// construction (fs.exists-style checks); none of them spawns a subprocess or
+// calls out to a provider SDK until a session actually uses that provider
+// (openSession/sendPrompt on the adapter), so building this registry eagerly
+// at bootstrap stays lazy in the sense that matters. A provider whose CLI is
+// absent registers all the same and reports installed: false.
+//
+// Cursor and Copilot were both missing here until #282. Cursor's only launch
+// path read AgentInstaller, a service needing a PlatformKey nothing detects
+// and a layer nothing builds; Copilot had no makeLive* at all. Both now
+// resolve their own CLI off PATH, the same probe the other three use.
+//
+// Lifted out of makeAcepeLive so the registered set is one named thing a test
+// can build and read (see bootstrap.test.ts), instead of a list buried in a
+// closure that only a running app could prove.
+export const LiveProviderAdaptersLive = Layer.unwrap(
+	Effect.gen(function*() {
+		const claude = yield* makeLiveClaudeAdapter()
+		const codex = yield* makeLiveCodexAdapter({
+			cacheDir: Option.none(),
+			command: Option.none(),
+			args: Option.none(),
+			config: Option.none()
+		})
+		const opencode = yield* makeLiveOpenCodeAdapter()
+		const cursor = yield* makeLiveCursorAdapter()
+		const copilot = yield* makeLiveCopilotAdapter()
+		return ProviderAdapterRegistryLive([claude, codex, opencode, cursor, copilot])
+	})
+)
+
 export const makeAcepeLive = (input: AcepeLiveInput) => {
 	const engine = engineAt(input.filename)
 	const snapshots = ProjectionSnapshotQueryLive
@@ -296,42 +335,15 @@ export const makeAcepeLive = (input: AcepeLiveInput) => {
 		Layer.provide(appDataDir),
 		Layer.provide(bunPlatform)
 	)
-	// Real provider adapters, alongside the tracer HardcodedProviderLive.
-	// Sessions pick one or the other by whether session.create carried a
-	// providerId (see ProviderBridge.ts / decider.ts's session.create case) —
-	// HardcodedProvider keeps driving every session it always has.
-	//
-	// makeLive*Adapter() below only ever probes presence / resolves spawn
-	// config at construction (fs.exists-style checks); none of them spawn a
-	// subprocess or call out to a provider SDK until a session actually uses
-	// that provider (openSession/sendPrompt on the adapter), so building this
-	// registry eagerly at bootstrap stays lazy in the sense that matters.
-	//
-	// CursorAdapter and CopilotAdapter are NOT wired here: Cursor needs
-	// AgentInstaller (itself needing a PlatformKey the codebase has no
-	// current Effect-native detection for), and Copilot has no makeLive*
-	// constructor built yet (unlike the other four, its live ACP-over-stdio
-	// transport was never written) — both are follow-up work for another
-	// lane, not gaps in this wiring.
-	//
 	// Defined before `rpc` (moved up from its original position after `rpc`)
 	// so the agentCall utility RPC's routeAgentCall (rpc/handlers.ts's
 	// agentCall field) can read live adapter presence off the same
 	// ProviderRegistry instance ProviderBridge resolves adapters from --
 	// one registry, two consumers, not two independently-probed registries.
-	const providerAdapters = Layer.unwrap(
-		Effect.gen(function*() {
-			const claude = yield* makeLiveClaudeAdapter()
-			const codex = yield* makeLiveCodexAdapter({
-				cacheDir: Option.none(),
-				command: Option.none(),
-				args: Option.none(),
-				config: Option.none()
-			})
-			const opencode = yield* makeLiveOpenCodeAdapter()
-			return ProviderAdapterRegistryLive([claude, codex, opencode])
-		})
-	).pipe(Layer.provide(BunHttpClient.layer), Layer.provide(bunPlatform))
+	const providerAdapters = LiveProviderAdaptersLive.pipe(
+		Layer.provide(BunHttpClient.layer),
+		Layer.provide(bunPlatform)
+	)
 	const providerRegistry = ProviderRegistryLive.pipe(Layer.provide(providerAdapters))
 	const rpc = RpcHandlersLive.pipe(
 		Layer.provideMerge(snapshots),
