@@ -9,12 +9,9 @@ import { getVoiceSettingsStore } from "$lib/stores/voice-settings-store.svelte.j
 import type {
 	AgentInputSlashCommand,
 	AgentInputSlashCommandWorkspaceMarkdownResult,
-	AttachMenuCommandItem,
 	SlashPaletteItem,
 } from "@acepe/ui/agent-panel";
 import {
-	AgentInputActiveModeChip,
-	AgentInputAttachMenu,
 	AgentInputComposerTrailingControls,
 	AgentInputModeSelector,
 	AgentInputNewThreadOptions,
@@ -59,10 +56,8 @@ import {
 	PreconnectionCapabilitiesState,
 	PreconnectionRemoteCommandsState,
 	renderInlineComposerMessage,
-	resolveAttachMenuItemInsertText,
 	resolveSlashPaletteItemInsertText,
 	resolveComposerEnterKeyIntent,
-	resolveDefaultModeId,
 	resolveInitialModelIdForNewSession,
 	resolveModeMenuAction,
 	resolveVoiceMicShortcut,
@@ -341,7 +336,6 @@ let draftDebounceTimer: ReturnType<typeof setTimeout> | null = null;
  */
 let editorJustSynced = false;
 let editorRef: HTMLDivElement | null = $state(null);
-let imageAttachInputRef: HTMLInputElement | null = $state(null);
 let overlayMode: "preview" | "edit" | null = $state(null);
 let overlayRefId: string | null = $state(null);
 let overlayAnchorRect: DOMRect | null = $state(null);
@@ -1363,23 +1357,6 @@ function handleFileSelect(file: { path: string }): void {
 	handleEditorInput();
 }
 
-function handleAddFileContextFromAttachMenu(): void {
-	if (!editorRef) {
-		return;
-	}
-	editorRef.focus();
-	const cursorPos = getSerializedCursorOffset(editorRef);
-	const before = inputState.message.substring(0, cursorPos);
-	const after = inputState.message.substring(cursorPos);
-	inputState.message = `${before}@${after}`;
-	syncEditorFromMessage(cursorPos + 1);
-	handleEditorInput();
-}
-
-function handleAttachImageFromMenu(): void {
-	imageAttachInputRef?.click();
-}
-
 async function insertInlineImageFromFile(file: File, mimeType: string): Promise<boolean> {
 	const result = await Effect.runPromise(Effect.result(createImageAttachment(file, mimeType)));
 	if (Result.isFailure(result)) {
@@ -1399,54 +1376,6 @@ async function insertInlineImageFromFile(file: File, mimeType: string): Promise<
 	const nextCursor = inputState.insertInlineTokenAtOffsets(token, cursorPos, cursorPos);
 	syncEditorFromMessage(nextCursor);
 	return true;
-}
-
-async function handleImageAttachInputChange(event: Event): Promise<void> {
-	const target = event.currentTarget;
-	if (!(target instanceof HTMLInputElement) || !target.files) {
-		return;
-	}
-	const files = Array.from(target.files);
-	for (const file of files) {
-		if (!isImageMimeType(file.type)) {
-			continue;
-		}
-		await insertInlineImageFromFile(file, file.type);
-	}
-	target.value = "";
-	handleEditorInput({ suppressAutocomplete: true });
-}
-
-function insertAttachMenuTokenAtCursor(insertText: string): void {
-	if (!editorRef) {
-		return;
-	}
-	const cursorPos = getSerializedCursorOffset(editorRef);
-	const before = inputState.message.substring(0, cursorPos);
-	const after = inputState.message.substring(cursorPos);
-	inputState.message = `${before}${insertText} ${after}`;
-	inputState.showSlashDropdown = false;
-	inputState.slashQuery = "";
-	syncEditorFromMessage(before.length + insertText.length + 1);
-	handleEditorInput({ suppressAutocomplete: true });
-}
-
-function handleAttachMenuOpenChange(open: boolean): void {
-	if (!open) {
-		return;
-	}
-	composerView.refreshAttachMenuMcpCatalog(true);
-}
-
-function handleAttachMenuItemSelect(item: AttachMenuCommandItem): void {
-	insertAttachMenuTokenAtCursor(resolveAttachMenuItemInsertText(item));
-}
-
-function handleActiveModeDismiss(): void {
-	const defaultModeId = resolveDefaultModeId(composerView.visibleModes);
-	if (defaultModeId && defaultModeId !== composerView.effectiveCurrentModeId) {
-		void handleModeMenuChange(defaultModeId);
-	}
 }
 
 function reportComposerRowWidth(): void {
@@ -1748,15 +1677,6 @@ $effect(() => {
 			contentClass={voiceOverlayActive ? "relative p-1" : "p-1"}
 		>
 			{#snippet content()}
-				<input
-					bind:this={imageAttachInputRef}
-					type="file"
-					accept="image/*"
-					class="hidden"
-					aria-hidden="true"
-					tabindex={-1}
-					onchange={(event) => { void handleImageAttachInputChange(event); }}
-				/>
 				<AgentInputComposerBody
 					bind:editorRef
 					{voiceState}
