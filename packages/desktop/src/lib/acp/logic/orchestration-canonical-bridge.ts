@@ -844,7 +844,15 @@ export class OrchestrationCanonicalBridge {
 		readonly contextWindowSize?: number;
 	}): AcpEventEnvelope[] {
 		const state = this.stateFor(payload.sessionId);
-		const toRevision = nextRevision(state.revision, false);
+		// A usage reading rides the session's current revision rather than
+		// spending one. Nothing downstream adopts a telemetry envelope's
+		// revision -- it carries no graph state to apply -- so advancing here
+		// left the client one behind for the rest of the session: every later
+		// delta started at a revision the client had never reached, the router
+		// read that as a frontier mismatch, and the transcript stopped applying
+		// anything. A revision is spent only when something the client can
+		// adopt changes.
+		const toRevision = state.revision;
 		const derivedTotal =
 			payload.totalTokens ??
 			(payload.inputTokens !== undefined && payload.outputTokens !== undefined
@@ -890,7 +898,6 @@ export class OrchestrationCanonicalBridge {
 			lastEventSeq: toRevision.lastEventSeq,
 			payload: { kind: "telemetry", telemetry, revision: toRevision },
 		};
-		state.revision = toRevision;
 		return [toSessionStateAcpEnvelope(envelope)];
 	}
 

@@ -1023,6 +1023,73 @@ describe("OrchestrationCanonicalBridge", () => {
 // output through the real session-state-command-router, the actual next
 // consumer, instead of asserting on the bridge's delta shape alone.
 describe("OrchestrationCanonicalBridge -> session-state-command-router (full live-turn pipeline)", () => {
+	/**
+	 * A usage reading arriving mid-turn used to spend a graph revision. Nothing
+	 * downstream can adopt it: a telemetry envelope carries no state the client
+	 * applies, so the client stays where it was while the bridge moves on. Every
+	 * delta after it then starts one revision ahead of the client, the router
+	 * reads that as a frontier mismatch, and the session refreshes forever.
+	 *
+	 * Measured on a real Claude Code turn: the refreshes began at the usage
+	 * reading between two tool observations, and the second tool call and the
+	 * permission request that followed were never applied. The panel showed one
+	 * tool row stuck at "Executing..." while the server had both tools and a
+	 * pending approval.
+	 */
+	it("keeps applying after a usage reading arrives between tool observations", () => {
+		const bridge = makeBridge();
+		let currentRevision: SessionGraphRevision | null = null;
+		let refreshes = 0;
+		let appended = 0;
+
+		function apply(envelope: SessionStateEnvelope): void {
+			for (const command of routeSessionStateEnvelope(sessionId, currentRevision, envelope)) {
+				if (command.kind === "replaceGraph") {
+					currentRevision = command.graph.revision;
+				} else if (command.kind === "applyTranscriptDelta") {
+					currentRevision = command.revision;
+					appended += command.delta.operations.filter((op) => op.kind === "appendEntry").length;
+				} else if (command.kind === "applyGraphPatches") {
+					currentRevision = command.revision;
+				} else if (command.kind === "refreshSnapshot") {
+					refreshes += 1;
+				}
+			}
+		}
+
+		const observe = (toolCallId: string, status: "in_progress" | "completed") =>
+			makeEvent("ToolCallObserved", {
+				sessionId,
+				activityId: `${toolCallId}:activity`,
+				toolCallId,
+				operationId: null,
+				status,
+				title: "Bash",
+				path: null,
+				kind: "execute",
+			});
+
+		for (const event of [
+			makeEvent("SessionCreated", { sessionId, projectId, title: "s", providerId: "claude-code" }),
+			makeEvent("MessageSent", {
+				sessionId,
+				messageId: MessageId.make("m-usage"),
+				text: "run it",
+			}),
+			observe("tool-a", "in_progress"),
+			makeEvent("TurnUsageObserved", { sessionId, inputTokens: 2, outputTokens: 17 }),
+			observe("tool-a", "completed"),
+			observe("tool-b", "in_progress"),
+		]) {
+			for (const produced of runTranslate(bridge, event)) {
+				apply(produced.payload as SessionStateEnvelope);
+			}
+		}
+
+		expect(refreshes).toBe(0);
+		expect(appended).toBe(3);
+	});
+
 	it("keeps applying transcript/graph patches across pre-tool text -> tool call -> post-tool text -> TurnCompleted, without ever falling back to refreshSnapshot", () => {
 		const bridge = makeBridge();
 		const appliedText: string[] = [];
