@@ -64,6 +64,57 @@ function telemetryFrom(envelopes: ReadonlyArray<AcpEventEnvelope>): UsageTelemet
 }
 
 describe("OrchestrationCanonicalBridge", () => {
+	/**
+	 * A subscription that starts mid-stream never sees the session's
+	 * `SessionCreated`. Measured against a real Claude Code session: the server
+	 * emitted five ToolCallObserved and one ApprovalRequested, its snapshot
+	 * carried both activities and the pending approval, and the panel showed
+	 * two rows. Every canonical event for the session was discarded here,
+	 * silently, because the session was not in the map -- and the reopen
+	 * hydration could not repair it, because the local transcript revision was
+	 * no older than the snapshot's.
+	 *
+	 * Canonical truth may not be dropped for want of an earlier event. Every
+	 * payload names its session, which is all this bridge needs.
+	 */
+	it("renders a tool call for a session whose SessionCreated it never saw", () => {
+		const bridge = makeBridge();
+		const messageId = MessageId.make("message-mid-stream");
+
+		runTranslate(bridge, makeEvent("MessageSent", { sessionId, messageId, text: "ship it" }));
+		const envelopes = runTranslate(
+			bridge,
+			makeEvent("ToolCallObserved", {
+				sessionId,
+				activityId: "tool-1:activity",
+				toolCallId: "tool-1",
+				operationId: null,
+				status: "in_progress",
+				title: "Bash",
+				path: null,
+				kind: "execute",
+			})
+		);
+
+		expect(envelopes.length).toBeGreaterThan(0);
+		expect(JSON.stringify(envelopes)).toContain('"role":"tool"');
+	});
+
+	it("keeps a permission answerable for a session whose SessionCreated it never saw", () => {
+		const bridge = makeBridge();
+
+		const envelopes = runTranslate(
+			bridge,
+			makeEvent("ApprovalRequested", {
+				sessionId,
+				approvalRequestId: "perm-tool-1",
+				title: "execute",
+			})
+		);
+
+		expect(envelopes.length).toBeGreaterThan(0);
+	});
+
 	it("emits an initial snapshot on SessionCreated, seeded at revision 0", () => {
 		const bridge = makeBridge("/tmp/my-project");
 		const envelopes = runTranslate(
@@ -115,13 +166,21 @@ describe("OrchestrationCanonicalBridge", () => {
 		expect(payload.payload.graph.capabilities.modes ?? null).toBe(null);
 	});
 
-	it("ignores events for a session it never saw created", () => {
+	/**
+	 * These three cases used to assert the opposite: that an event for an
+	 * unknown session produced nothing. A real Claude Code session showed what
+	 * that costs. A subscription starting mid-stream misses `SessionCreated`,
+	 * and from then on every token, tool call and approval for a live turn was
+	 * discarded here while the server had already committed all of them.
+	 * "Nothing happened" is not a truthful answer to canonical truth.
+	 */
+	it("renders a token for a session it never saw created", () => {
 		const bridge = makeBridge();
 		const envelopes = runTranslate(
 			bridge,
 			makeEvent("TokenAppended", { sessionId, messageId: MessageId.make("m1"), token: "hello" })
 		);
-		expect(envelopes).toHaveLength(0);
+		expect(envelopes.length).toBeGreaterThan(0);
 	});
 
 	it("appends a user transcript entry and advances revision on MessageSent", () => {
@@ -289,13 +348,13 @@ describe("OrchestrationCanonicalBridge", () => {
 		expect(buildCanonicalUsageTelemetry(second, applied ?? undefined, null, 2000)).not.toBeNull();
 	});
 
-	it("ignores TurnUsageObserved for a session it never saw created", () => {
+	it("reports usage for a session it never saw created", () => {
 		const bridge = makeBridge();
 		const envelopes = runTranslate(
 			bridge,
 			makeEvent("TurnUsageObserved", { sessionId, outputTokens: 12 })
 		);
-		expect(envelopes).toHaveLength(0);
+		expect(envelopes.length).toBeGreaterThan(0);
 	});
 
 	it("creates a new assistant entry on the first token, then appends segments contiguously", () => {
@@ -926,10 +985,10 @@ describe("OrchestrationCanonicalBridge", () => {
 		}
 	});
 
-	it("ignores TurnCompleted for a session it never saw created", () => {
+	it("closes the turn for a session it never saw created", () => {
 		const bridge = makeBridge();
 		const envelopes = runTranslate(bridge, makeEvent("TurnCompleted", { sessionId }));
-		expect(envelopes).toHaveLength(0);
+		expect(envelopes.length).toBeGreaterThan(0);
 	});
 
 	it("skips event types outside its scope without throwing", () => {

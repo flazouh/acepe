@@ -98,6 +98,25 @@ const toCanonicalAgentId = (providerId: string | undefined): CanonicalAgentId =>
 // saw requested, which is the reopened-session case below.
 const RESOLVED_APPROVAL_FALLBACK_TITLE = "Permission request";
 
+/**
+ * One definition of a session's starting state, shared by `SessionCreated` and
+ * by a first sighting mid-stream, so the two cannot drift apart.
+ */
+function freshSessionState(): SessionCanonicalState {
+	return {
+		revision: { graphRevision: 0, transcriptRevision: 0, lastEventSeq: 0 },
+		turnState: "Idle",
+		activity: idleActivity,
+		assistantEntryId: null,
+		assistantSegmentSeq: 0,
+		assistantEntryRunSeq: 0,
+		observedToolCallIds: new Set(),
+		observedApprovalIds: new Set(),
+		pendingApprovals: new Map(),
+		turnStartedAtMs: null,
+	};
+}
+
 const idleActivity: SessionGraphActivity = {
 	kind: "idle",
 	activeOperationCount: 0,
@@ -180,6 +199,34 @@ export class OrchestrationCanonicalBridge {
 		private readonly resolveProjectPath: (projectId: string) => Effect.Effect<string, never>
 	) {}
 
+	/**
+	 * The state for a session, created on first sight if this bridge has not
+	 * seen the session before.
+	 *
+	 * Every handler used to answer an unknown session with `[]`, which reads as
+	 * "nothing happened" and is a lie: the event carries canonical truth the
+	 * server has already committed. A subscription that starts mid-stream never
+	 * sees `SessionCreated`, and against a real Claude Code session that meant
+	 * five tool calls and a pending permission were dropped one by one while
+	 * the panel showed two rows and the agent sat blocked on an approval nobody
+	 * was shown. The reopen hydration could not repair it either, because by
+	 * then the local transcript revision was no older than the snapshot's.
+	 *
+	 * `SessionCreated` stays the authoritative registration: it is the only
+	 * event carrying the project and provider, so it still emits the seeding
+	 * snapshot envelope and overwrites whatever a mid-stream sighting started.
+	 * What it no longer does is decide whether later truth is allowed through.
+	 */
+	private stateFor(sessionId: string): SessionCanonicalState {
+		const existing = this.sessions.get(sessionId);
+		if (existing !== undefined) {
+			return existing;
+		}
+		const created = freshSessionState();
+		this.sessions.set(sessionId, created);
+		return created;
+	}
+
 	translate(event: OrchestrationEvent): Effect.Effect<AcpEventEnvelope[], never> {
 		switch (event.type) {
 			case "SessionCreated":
@@ -236,23 +283,9 @@ export class OrchestrationCanonicalBridge {
 	): Effect.Effect<AcpEventEnvelope[], never> {
 		return this.resolveProjectPath(projectId).pipe(
 			Effect.map((projectPath) => {
-				const revision: SessionGraphRevision = {
-					graphRevision: 0,
-					transcriptRevision: 0,
-					lastEventSeq: 0,
-				};
-				this.sessions.set(sessionId, {
-					revision,
-					turnState: "Idle",
-					activity: idleActivity,
-					assistantEntryId: null,
-					assistantSegmentSeq: 0,
-					assistantEntryRunSeq: 0,
-					observedToolCallIds: new Set(),
-					observedApprovalIds: new Set(),
-					pendingApprovals: new Map(),
-					turnStartedAtMs: null,
-				});
+				const state = freshSessionState();
+				const revision = state.revision;
+				this.sessions.set(sessionId, state);
 				const envelope: SessionStateEnvelope = {
 					sessionId,
 					graphRevision: 0,
@@ -301,10 +334,7 @@ export class OrchestrationCanonicalBridge {
 		text: string,
 		occurredAt: string
 	): AcpEventEnvelope[] {
-		const state = this.sessions.get(sessionId);
-		if (state === undefined) {
-			return [];
-		}
+		const state = this.stateFor(sessionId);
 		const toRevision = nextRevision(state.revision, true);
 		const operations: TranscriptDeltaOperation[] = [
 			{
@@ -345,10 +375,7 @@ export class OrchestrationCanonicalBridge {
 	}
 
 	private onTokenAppended(sessionId: string, messageId: string, token: string): AcpEventEnvelope[] {
-		const state = this.sessions.get(sessionId);
-		if (state === undefined) {
-			return [];
-		}
+		const state = this.stateFor(sessionId);
 		const toRevision = nextRevision(state.revision, true);
 		const currentEntryId = state.assistantEntryId;
 		const newEntryId =
@@ -405,10 +432,7 @@ export class OrchestrationCanonicalBridge {
 		readonly output?: string | null;
 		readonly kind?: string | null;
 	}): AcpEventEnvelope[] {
-		const state = this.sessions.get(payload.sessionId);
-		if (state === undefined) {
-			return [];
-		}
+		const state = this.stateFor(payload.sessionId);
 		// A tool call is transcript-bearing only on first sighting -- that is
 		// the one observation that actually appends a "tool" row
 		// (transcriptOperations below). A later status-only re-observation
@@ -524,10 +548,7 @@ export class OrchestrationCanonicalBridge {
 		readonly approvalRequestId: string;
 		readonly title: string;
 	}): AcpEventEnvelope[] {
-		const state = this.sessions.get(payload.sessionId);
-		if (state === undefined) {
-			return [];
-		}
+		const state = this.stateFor(payload.sessionId);
 		const existingToolCallId = existingRowToolCallIdForApproval(state, payload.approvalRequestId);
 		if (existingToolCallId !== null) {
 			return this.onApprovalRequestedForExistingRow(state, payload, existingToolCallId);
@@ -737,10 +758,7 @@ export class OrchestrationCanonicalBridge {
 		},
 		eventSeq: number
 	): AcpEventEnvelope[] {
-		const state = this.sessions.get(payload.sessionId);
-		if (state === undefined) {
-			return [];
-		}
+		const state = this.stateFor(payload.sessionId);
 		const record = state.pendingApprovals.get(payload.approvalRequestId);
 		state.pendingApprovals.delete(payload.approvalRequestId);
 		// A session reopened while an approval was still open seeds that
@@ -825,10 +843,7 @@ export class OrchestrationCanonicalBridge {
 		readonly costUsd?: number;
 		readonly contextWindowSize?: number;
 	}): AcpEventEnvelope[] {
-		const state = this.sessions.get(payload.sessionId);
-		if (state === undefined) {
-			return [];
-		}
+		const state = this.stateFor(payload.sessionId);
 		const toRevision = nextRevision(state.revision, false);
 		const derivedTotal =
 			payload.totalTokens ??
@@ -880,10 +895,7 @@ export class OrchestrationCanonicalBridge {
 	}
 
 	private onTurnCancelled(sessionId: string, _turnId: string | null): AcpEventEnvelope[] {
-		const state = this.sessions.get(sessionId);
-		if (state === undefined) {
-			return [];
-		}
+		const state = this.stateFor(sessionId);
 		const toRevision = nextRevision(state.revision, false);
 		const delta: SessionStateDelta = {
 			fromRevision: state.revision,
@@ -906,10 +918,7 @@ export class OrchestrationCanonicalBridge {
 	}
 
 	private onTurnCompleted(sessionId: string, _turnId: string | null): AcpEventEnvelope[] {
-		const state = this.sessions.get(sessionId);
-		if (state === undefined) {
-			return [];
-		}
+		const state = this.stateFor(sessionId);
 		const toRevision = nextRevision(state.revision, false);
 		const delta: SessionStateDelta = {
 			fromRevision: state.revision,

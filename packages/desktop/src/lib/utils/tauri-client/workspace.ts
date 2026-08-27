@@ -4,6 +4,7 @@ import * as Result from "effect/Result";
 
 import type { AppError } from "../../acp/errors/app-error.js";
 import type { PersistedWorkspaceState } from "../../acp/store/types.js";
+import { isQaSandboxed } from "../../qa/qa-sandbox.ts";
 import type { UserSettingKey } from "../../services/user-settings-types.js";
 import { settings } from "./settings.ts";
 
@@ -42,6 +43,9 @@ const writeWorkspaceHotCacheItem = fromThrowable(
 );
 
 function readWorkspaceHotCache(): PersistedWorkspaceState | null {
+	if (isQaSandboxed() === true) {
+		return null;
+	}
 	const cachedItemResult = Effect.runSync(Effect.result(readWorkspaceHotCacheItem()));
 	const cachedItem = Result.isSuccess(cachedItemResult) ? cachedItemResult.success : null;
 	if (cachedItem === null) {
@@ -59,7 +63,16 @@ function readWorkspaceHotCache(): PersistedWorkspaceState | null {
 	return null;
 }
 
+/**
+ * The hot cache is the one part of workspace state that outlives a QA replay:
+ * the settings write goes through the scenario's fake client and lands nowhere,
+ * but `localStorage` is the real app's. A replay that cached its panel layout
+ * here handed the user someone else's workspace on the next launch.
+ */
 function writeWorkspaceHotCache(state: PersistedWorkspaceState): void {
+	if (isQaSandboxed() === true) {
+		return;
+	}
 	void Effect.runSync(Effect.result(writeWorkspaceHotCacheItem(state)));
 }
 
