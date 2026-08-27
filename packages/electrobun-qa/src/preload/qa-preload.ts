@@ -60,6 +60,13 @@ const collectVisible = (node: MemoryNode, acc: Array<MemoryNode>): void => {
 export type QaQuery = {
 	readonly selector?: string;
 	readonly text?: string;
+	/**
+	 * Send a real press -- pointerdown, pointerup, then click -- for a control
+	 * that listens on pointerdown alone, the voice mic among them. Opt-in: a
+	 * menu trigger that opens on pointerdown is closed again by the click that
+	 * follows it.
+	 */
+	readonly press?: boolean;
 };
 
 const findNode = (page: MemoryPage, target: QaQuery): MemoryNode | null => {
@@ -363,8 +370,19 @@ export const qaPreloadScript = `(function(){
     for (var i = 0; i < depth; i++) indent += "  ";
     var text = visibleText(el);
     if (text.length > 0) lines.push(indent + text);
-    var kids = el.children || [];
     var next = text.length > 0 ? depth + 1 : depth;
+    // A shadow root's content is on screen and is not among an element's
+    // children. Skipping it made this read report an empty tool card for a
+    // rendered diff, which is worse than no answer: it is a confident wrong
+    // one. Diffs, and anything else rendered into a shadow root, are read here.
+    // Walk the shadow content even when the host itself renders no text of its
+    // own: the host is usually an empty wrapper and everything on screen lives
+    // inside. Reading only hosts that already had text found nothing.
+    if (el.shadowRoot && el.shadowRoot.children) {
+      var shadowKids = el.shadowRoot.children;
+      for (var s = 0; s < shadowKids.length; s++) walkText(shadowKids[s], next, lines);
+    }
+    var kids = el.children || [];
     for (var j = 0; j < kids.length; j++) walkText(kids[j], next, lines);
   }
   function scopedRoot(params) {
@@ -415,9 +433,44 @@ export const qaPreloadScript = `(function(){
     if (params.text) return findByText(params.text);
     return null;
   }
+  // A real press is pointerdown, pointerup, then click. Dispatching only the
+  // click meant every press-and-hold control -- the voice mic is one, it listens
+  // on pointerdown alone -- silently did nothing, and QA read that as a feature
+  // being broken rather than a press never happening.
+  function firePointer(el, type) {
+    if (typeof el.dispatchEvent !== "function") return;
+    var rect = typeof el.getBoundingClientRect === "function"
+      ? el.getBoundingClientRect()
+      : { left: 0, top: 0, width: 0, height: 0 };
+    var init = {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      clientX: rect.left + rect.width / 2,
+      clientY: rect.top + rect.height / 2,
+      button: 0,
+      buttons: type === "pointerdown" ? 1 : 0,
+      pointerId: 1,
+      pointerType: "mouse",
+      isPrimary: true
+    };
+    var event = typeof PointerEvent === "function"
+      ? new PointerEvent(type, init)
+      : new MouseEvent(type === "pointerdown" ? "mousedown" : "mouseup", init);
+    el.dispatchEvent(event);
+  }
+  // press: true sends a real press -- pointerdown, pointerup, then click --
+  // for controls that listen on pointerdown alone, the voice mic among them.
+  // It is opt-in because a menu trigger that opens on pointerdown is closed
+  // again by the click that follows, so sending both to everything would break
+  // every dropdown in the app.
   function click(params) {
     var el = findTarget(params);
     if (!el) return false;
+    if (params && params.press === true) {
+      firePointer(el, "pointerdown");
+      firePointer(el, "pointerup");
+    }
     if (typeof el.click === "function") el.click();
     return true;
   }

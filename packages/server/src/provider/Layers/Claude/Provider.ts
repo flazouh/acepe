@@ -109,7 +109,15 @@ export const CLAUDE_STRICT_MCP_CONFIG = true
 // or agent-config-driven catalog resolution has somewhere to plug in.
 export const CLAUDE_SESSION_MCP_SERVERS: Record<string, McpServerConfig> = {}
 
-export const CLAUDE_MODES = ["default", "acceptEdits", "plan", "bypassPermissions"] as const
+// Derived from the contract's own list, so the modes this adapter enforces and
+// the modes the picker offers cannot drift apart.
+export const CLAUDE_MODES = [
+	"auto",
+	"default",
+	"acceptEdits",
+	"plan",
+	"bypassPermissions"
+] as const
 export type ClaudeMode = (typeof CLAUDE_MODES)[number]
 
 export const DEFAULT_CLAUDE_MODE: ClaudeMode = "default"
@@ -121,13 +129,19 @@ export const resolveClaudeModeId = (modeId: string): Option.Option<ClaudeMode> =
 	if (modeId === "plan") {
 		return Option.some("plan")
 	}
+	// The SDK's own mode, and what Claude Code itself shows as "Auto": Claude
+	// decides each permission rather than asking. Rejecting it here is what made
+	// picking Auto in the composer do nothing at all.
+	if (modeId === "auto") {
+		return Option.some("auto")
+	}
 	if (modeId === "acceptEdits") {
 		return Option.some("acceptEdits")
 	}
 	if (modeId === "bypassPermissions") {
 		return Option.some("bypassPermissions")
 	}
-	if (modeId === "default" || modeId === "agent" || modeId === "build") {
+	if (modeId === "default" || modeId === "agent" || modeId === "build" || modeId === "manual") {
 		return Option.some("default")
 	}
 	return Option.none()

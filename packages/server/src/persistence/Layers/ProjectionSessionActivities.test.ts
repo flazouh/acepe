@@ -707,7 +707,8 @@ Vitest.layer(isolatedGrade())("reference fixture through ProjectionSnapshotQuery
 					title: first.payload.title,
 					path: first.payload.path,
 					toolCallId: first.payload.toolCallId,
-					output: null
+					output: null,
+					input: null
 				},
 				{
 					activityId: second.payload.activityId,
@@ -719,7 +720,8 @@ Vitest.layer(isolatedGrade())("reference fixture through ProjectionSnapshotQuery
 					title: second.payload.title,
 					path: second.payload.path,
 					toolCallId: second.payload.toolCallId,
-					output: second.payload.output ?? null
+					output: second.payload.output ?? null,
+					input: second.payload.input ?? null
 				}
 			])
 		})

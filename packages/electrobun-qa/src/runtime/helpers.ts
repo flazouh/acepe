@@ -44,7 +44,7 @@ export const helperHelp = (name: HelperName): string => {
 		return "snapshotDom({ selector }?): serialized HTML of the window or a subtree"
 	}
 	if (name === "click") {
-		return "click({ text } | { selector }): click an element by visible text or CSS selector"
+		return "click({ text } | { selector }, press?): click by visible text or CSS selector; pass press: true for a control that listens on pointerdown (the voice mic)"
 	}
 	if (name === "pasteText") {
 		return "pasteText(text, { selector }?): dispatch a clipboard paste, for widgets (e.g. terminal emulators) that don't fully process synthetic per-key events"

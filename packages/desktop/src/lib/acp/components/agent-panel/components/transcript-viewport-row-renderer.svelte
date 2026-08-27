@@ -104,6 +104,9 @@ const taskDetailControllerBinding = $derived(taskDetailBindingFor(rowId, entry))
 	data-tool-status={entry.type === "tool_call" ? entry.status : undefined}
 	data-tool-title={entry.type === "tool_call" ? entry.title : undefined}
 	data-tool-presentation-state={entry.type === "tool_call" ? entry.presentationState : undefined}
+	data-tool-edit-diffs={entry.type === "tool_call"
+		? String(entry.editDiffs?.length ?? 0)
+		: undefined}
 	data-missing-entry={entry.type === "missing" ? "" : undefined}
 >
 	<MessageWrapper

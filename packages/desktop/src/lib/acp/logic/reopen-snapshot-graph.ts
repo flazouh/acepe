@@ -23,6 +23,7 @@
  * on the same three `rowType`s. Keep them in sync by hand if a fourth row
  * type is ever added.
  */
+import type { EditEntry } from "../../services/converted-session-types.js";
 import type {
 	RpcCompactionProjectedMessage,
 	RpcProjectedMessage,
@@ -31,6 +32,7 @@ import type {
 	RpcSessionSnapshot,
 } from "@acepe/contracts";
 
+import type { JsonValue } from "../../services/converted-session-types.js";
 import type {
 	CanonicalAgentId,
 	InteractionSnapshot,
@@ -51,6 +53,8 @@ import {
 	observedStatusToOperationState,
 	observedStatusToToolCallStatus,
 } from "./observed-tool-call-status.js";
+import { providerModels, providerModes } from "@acepe/contracts";
+import { normalizeEditEntry } from "./aggregate-file-edits.js";
 import { asOperationToolKind } from "./observed-tool-kind.js";
 
 const idleActivity: SessionGraphActivity = {
@@ -121,6 +125,34 @@ function transcriptEntryFromMessage(message: RpcProjectedMessage): TranscriptEnt
 
 const noToolArguments: ToolArguments = { kind: "other", raw: null };
 
+/** The reopen half of the bridge's `toolArgumentsFrom`: same rule, same reason. */
+const toolArgumentsFromActivity = (activity: RpcProjectedSessionActivity): ToolArguments => {
+	const input = activity.input;
+	if (input === null || input === undefined) {
+		return noToolArguments;
+	}
+	const raw = input as unknown as JsonValue;
+	if (activity.toolKind !== "edit") {
+		return { kind: "other", raw };
+	}
+	const entry = normalizeEditEntry(input);
+	return entry === null
+		? { kind: "other", raw }
+		: { kind: "edit", edits: [asDiffableEdit(entry)] };
+};
+
+/** The reopen half of the bridge's `asDiffableEdit`. */
+function asDiffableEdit(entry: EditEntry): EditEntry {
+	return entry.newString !== null && entry.newString !== undefined
+		? entry
+		: {
+				filePath: entry.filePath,
+				oldString: entry.oldString,
+				newString: entry.content ?? null,
+				content: entry.content,
+			};
+}
+
 // AC-263, reopen half: `RpcProjectedSessionActivity.status` is a free-form
 // server string (Schema.optionalKey(Schema.String)), not the same literal
 // union `observed-tool-call-status.ts` maps -- narrow the ones the server
@@ -165,7 +197,11 @@ function operationFromActivity(activity: RpcProjectedSessionActivity): Operation
 			observedStatusFromActivityStatus(activity.status)
 		),
 		title,
-		arguments: noToolArguments,
+		// The tool's own arguments, carried per activity by the snapshot (input
+		// column). A reopened session must show the same proposed change the
+		// live bridge shows, or a permission that survives a reopen becomes
+		// unreviewable.
+		arguments: toolArgumentsFromActivity(activity),
 		progressive_arguments: null,
 		// #273, reopen half: the tool's own result, carried per activity by the
 		// snapshot (output column). A reopened session must render the same
@@ -209,16 +245,22 @@ function transcriptEntryFromPendingApproval(
 	return {
 		entryId: approvalEntryId(approval),
 		role: "tool",
-		segments: [
-			{
-				kind: "text",
-				segmentId: `${approvalEntryId(approval)}-text`,
-				text: approval.title ?? PENDING_APPROVAL_FALLBACK_TITLE,
-			},
-		],
+		// No text of its own: the tool call above names the change and the
+		// working row below says the turn is waiting. The row exists to host
+		// the permission bar.
+		segments: [],
 	};
 }
 
+/**
+ * The row that hosts a pending permission carries no title of its own.
+ *
+ * It sits directly under the tool call it belongs to, which already names the
+ * file or the command, and directly above the working row, which already says
+ * "Waiting for your approval". A third line reading "Permission required" was
+ * the same sentence again. The title stays on the interaction, where the bar
+ * and assistive technology still read it.
+ */
 function operationFromPendingApproval(approval: RpcProjectedPendingApproval): OperationSnapshot {
 	const title = approval.title ?? PENDING_APPROVAL_FALLBACK_TITLE;
 	return {
@@ -431,8 +473,34 @@ export function reopenGraphRevisionForApply(
 function capabilitiesFromSnapshot(snapshot: RpcSessionSnapshot): SessionGraphCapabilities {
 	const capabilities = emptySessionGraphCapabilities();
 	const currentModeId = snapshot.session?.currentModeId ?? null;
-	if (currentModeId !== null) {
-		capabilities.modes = { currentModeId };
+	// The modes and models a provider offers, so a reopened session shows the
+	// same pickers a live one does. These are provider facts, not session state:
+	// the comment above is about `currentModeId`, which stays canonical-owned
+	// and is only set when a SessionModeSet actually fired.
+	const modes = providerModes(snapshot.session?.provider);
+	const models = providerModels(snapshot.session?.provider);
+	if (modes.length > 0 || currentModeId !== null) {
+		capabilities.modes = {
+			...(currentModeId === null ? {} : { currentModeId }),
+			...(modes.length === 0
+				? {}
+				: {
+						availableModes: modes.map((mode) => ({
+							id: mode.id,
+							name: mode.name,
+							description: mode.description,
+							iconKind: mode.iconKind,
+						})),
+					}),
+		};
+	}
+	if (models.length > 0) {
+		capabilities.models = {
+			availableModels: models.map((model) => ({
+				modelId: model.modelId,
+				name: model.name,
+			})),
+		};
 	}
 	return capabilities;
 }

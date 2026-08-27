@@ -63,7 +63,12 @@ export const ProjectedSessionActivityRow = Schema.Struct({
 	status: SessionActivityStatus,
 	title: TrimmedNonEmptyString,
 	path: Schema.NullOr(TrimmedNonEmptyString),
-	output: Schema.NullOr(TrimmedNonEmptyString)
+	output: Schema.NullOr(TrimmedNonEmptyString),
+	// The tool's own arguments, as the observation carried them. For an edit or
+	// a write these are the change itself, which is what a person needs to see
+	// before approving it. Nullable for the same reason toolKind is: rows
+	// written before the column existed read back as null.
+	input: Schema.NullOr(Schema.JsonObject)
 })
 export type ProjectedSessionActivityRow = typeof ProjectedSessionActivityRow.Type
 
@@ -79,7 +84,11 @@ export const ProjectionSessionActivityStoredRow = Schema.Struct({
 	status: SessionActivityStatus,
 	title: TrimmedNonEmptyString,
 	path: Schema.NullOr(TrimmedNonEmptyString),
-	output: Schema.NullOr(TrimmedNonEmptyString)
+	output: Schema.NullOr(TrimmedNonEmptyString),
+	// Stored as the payload's JSON text, decoded back into the object the
+	// contract carries. Null for a row whose provider sent no arguments, and
+	// for every row written before this column existed.
+	input: Schema.NullOr(Schema.fromJsonString(Schema.JsonObject))
 })
 export type ProjectionSessionActivityStoredRow = typeof ProjectionSessionActivityStoredRow.Type
 
@@ -208,7 +217,8 @@ export const projectedSessionActivityFromRow = (
 	status: row.status,
 	title: row.title,
 	path: row.path,
-	output: row.output
+	output: row.output,
+	input: row.input
 })
 
 export const statusRank = (status: SessionActivityStatus): number =>
@@ -294,9 +304,23 @@ export const mergeActivityRow = (
 		// before or after the start event this row already holds, so first one
 		// wins the same way path does. A later status-only event carries none
 		// and must not erase it.
-		output: row.output === null ? incoming.output : row.output
+		output: row.output === null ? incoming.output : row.output,
+		// The arguments arrive once the tool's input has streamed, which may be
+		// the second observation rather than the first. First one that actually
+		// has arguments wins; a later status-only update carries none and must
+		// not erase them.
+		input: presentInput(row.input) === null ? incoming.input : row.input
 	}
 }
+
+/**
+ * A tool_use block starts before its arguments have streamed, so the first
+ * observation carries `{}`. That is "no arguments yet", not "no arguments" --
+ * treating it as a value let the empty start win the first-non-null merge and
+ * the real content, which arrives on the very next observation, was dropped.
+ */
+const presentInput = (input: Schema.JsonObject | null): Schema.JsonObject | null =>
+	input === null || Object.keys(input).length === 0 ? null : input
 
 const decodePayload = <S extends Schema.Top>(schema: S, value: unknown) =>
 	Schema.decodeUnknownEffect(schema)(value)
@@ -316,7 +340,8 @@ const observedToolRow = (
 	status: payload.status,
 	title: payload.title,
 	path: payload.path,
-	output: payload.output ?? null
+	output: payload.output ?? null,
+	input: presentInput(payload.input ?? null)
 })
 
 const observedFileRow = (
@@ -334,7 +359,8 @@ const observedFileRow = (
 	status: payload.status,
 	title: payload.title,
 	path: payload.path,
-	output: null
+	output: null,
+	input: null
 })
 
 const statusRow = (
@@ -352,7 +378,8 @@ const statusRow = (
 	status: payload.status,
 	title: STUB_ACTIVITY_TITLE,
 	path: null,
-	output: null
+	output: null,
+	input: null
 })
 
 const linkedRow = (
@@ -370,7 +397,8 @@ const linkedRow = (
 	status: "pending",
 	title: STUB_ACTIVITY_TITLE,
 	path: null,
-	output: null
+	output: null,
+	input: null
 })
 
 const projectToolCallObserved = (

@@ -36,8 +36,11 @@ export const makePromiseHelpers = (session: QaSession, logs: Array<string>) => {
 		snapshotDom: (target?: QaQueryLike) => runHelper(helpers.snapshotDom(normalizeQaQuery(target))),
 		pageInfo: () => runHelper(helpers.pageInfo()),
 		captureScreenshot: () => runHelper(helpers.captureScreenshot()),
-		click: (target: { readonly selector?: string; readonly text?: string }) =>
-			runHelper(helpers.click(target)),
+		click: (target: {
+			readonly selector?: string;
+			readonly text?: string;
+			readonly press?: boolean;
+		}) => runHelper(helpers.click(target)),
 		doubleClick: (target: { readonly selector?: string; readonly text?: string }) =>
 			runHelper(helpers.doubleClick(target)),
 		hover: (target: { readonly selector?: string; readonly text?: string }) =>

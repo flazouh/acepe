@@ -559,7 +559,8 @@ Vitest.layer(isolatedQuery())("one transaction snapshot", (it) => {
 					title: "activity",
 					path: null,
 					toolCallId: null,
-					output: null
+					output: null,
+					input: null
 				}
 			])
 			Vitest.assert.deepStrictEqual(snapshot.pendingApprovals, [
@@ -593,7 +594,8 @@ Vitest.layer(isolatedQuery())("activity output", (it) => {
 					title: "Bash",
 					path: null,
 					toolCallId: ToolCallId.make("call-1"),
-					output: "total 12\ndrwxr-xr-x  4 alex  staff"
+					output: "total 12\ndrwxr-xr-x  4 alex  staff",
+					input: null
 				}
 			])
 		})
@@ -620,7 +622,8 @@ Vitest.layer(isolatedQuery())("activity output on a pre-0024 row", (it) => {
 					title: "Bash",
 					path: null,
 					toolCallId: ToolCallId.make("call-1"),
-					output: null
+					output: null,
+					input: null
 				}
 			])
 		})

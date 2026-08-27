@@ -303,7 +303,12 @@ const publishToolCallStarted = Effect.fn("ClaudeAdapter.publishToolCallStarted")
 			// from the bare provider tool name, before the title/path hint
 			// appended a path. Carrying it means the client never has to
 			// re-parse the path-bearing title to recover the kind.
-			kind: fact.kind
+			kind: fact.kind,
+			// The tool's own arguments. The adapter already had these and used
+			// them only to derive a path hint; for a write or an edit they are
+			// the content the agent proposes, and without them a person is asked
+			// to approve a change nobody can see.
+			toolInput: fact.rawInput
 		})
 	)
 })

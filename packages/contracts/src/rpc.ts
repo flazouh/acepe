@@ -393,6 +393,11 @@ export const RpcProjectedSessionActivity = Schema.Struct({
 	// non-tool activity row has no output at all, and because a snapshot
 	// serialised before this key existed still decodes.
 	output: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey),
+	// The tool's own arguments, as the observation carried them. For an edit or
+	// a write these are the change itself, which is what a reviewer needs
+	// before approving it -- title and path name the file, never what would
+	// happen to it. Optional and nullable like its siblings.
+	input: Schema.JsonObject.pipe(Schema.NullOr, Schema.optionalKey),
 })
 export type RpcProjectedSessionActivity = typeof RpcProjectedSessionActivity.Type
 

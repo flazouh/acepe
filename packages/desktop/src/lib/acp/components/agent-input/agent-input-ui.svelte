@@ -16,6 +16,7 @@ import {
 	AgentInputActiveModeChip,
 	AgentInputAttachMenu,
 	AgentInputComposerTrailingControls,
+	AgentInputModeSelector,
 	AgentInputNewThreadOptions,
 	AgentPanelComposer as SharedAgentPanelComposer,
 } from "@acepe/ui/agent-panel";
@@ -1805,37 +1806,20 @@ $effect(() => {
 					enterSteerShortcut={enterSteerShortcut}
 				>
 						{#snippet leadingControls()}
-							{#if secondaryComposerChromeReady}
-								<AgentInputAttachMenu
+							{#if secondaryComposerChromeReady && composerView.visibleModes.length > 0}
+								<!--
+									The mode is what a person changes mid-task, so it holds the
+									leading slot the attach menu used to. Context and commands
+									stay reachable from the composer itself: "@" for files,
+									"/" for commands.
+								-->
+								<AgentInputModeSelector
+									availableModes={composerView.visibleModes}
+									currentModeId={composerView.effectiveCurrentModeId}
+									autonomousActive={composerView.autonomousToggleActive}
 									disabled={composerView.selectorsDisabledByComposer}
-									modes={composerView.attachMenuModes}
-									commandSections={composerView.attachMenuCommandSections}
-									mcpServerGroups={composerView.attachMenuMcpServerGroups}
-									mcpLoading={composerView.attachMenuMcpCatalogLoading}
-									showMcpSection={composerView.attachMenuShowMcpSection}
-									mcpCatalogLoaded={composerView.attachMenuMcpCatalogLoaded}
-									showModes={composerView.visibleModes.length > 0}
-									autonomousToggleActive={composerView.autonomousToggleActive}
-									autonomousDisabled={composerView.autonomousDisabled}
-									autonomousBusy={composerView.autonomousToggleBusy}
-									onAutonomousToggle={() => { void handleAutonomousToggle(); }}
 									onModeChange={(modeId) => { void handleModeMenuChange(modeId); }}
-									onAddFileContext={handleAddFileContextFromAttachMenu}
-									onAttachImage={handleAttachImageFromMenu}
-									onCommandItemSelect={handleAttachMenuItemSelect}
-									onOpenChange={handleAttachMenuOpenChange}
-									checkpointOverflow={
-										props.showCheckpointInAttachMenu ? props.checkpointButton : undefined
-									}
 								/>
-								{#if composerView.showActiveModeChip}
-									<AgentInputActiveModeChip
-										label={composerView.selectedModeOption.label}
-										iconKind={composerView.selectedModeOption.iconKind}
-										disabled={composerView.selectorsDisabledByComposer}
-										onDismiss={handleActiveModeDismiss}
-									/>
-								{/if}
 							{/if}
 						{/snippet}
 						{#snippet trailingControls()}

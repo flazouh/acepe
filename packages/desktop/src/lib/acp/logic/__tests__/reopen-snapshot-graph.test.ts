@@ -508,21 +508,21 @@ describe("graphFromReopenSnapshot", () => {
 		expect(projectGraphCapabilities(graph.capabilities).currentModeId).toBe("plan");
 	});
 
-	// The null case IS the precedence rule: null means no SessionModeSet ever
-	// fired, and only then does the provider's opening mode stand. An
-	// unconditional seed breaks that twice -- it invents a `modes` object, which
-	// flips the provider-owned `availableModes` from null ("not known yet") to an
-	// empty list, and composer-input's resolveToolbarModeId then has no visible
-	// mode left to fall back to.
-	it("leaves modes untouched when the reopened session carries no canonical mode", () => {
+	// The precedence rule is unchanged: currentModeId stays null when no
+	// SessionModeSet ever fired, so the provider's opening mode still stands.
+	// What changed is that the modes a provider offers are now known facts
+	// rather than "not known yet", so the picker can render them and
+	// resolveToolbarModeId falls back to the first -- the provider's default.
+	// The old warning here was about inventing an EMPTY list, which would leave
+	// that fallback with nothing to choose.
+	it("offers the provider's modes while leaving the canonical mode unset", () => {
 		const snapshot = withCurrentMode(4, null);
 
 		const graph = graphFromReopenSnapshot(baseInput(snapshot));
 
-		expect(graph.capabilities.modes).toBe(null);
 		const projected = projectGraphCapabilities(graph.capabilities);
 		expect(projected.currentModeId).toBe(null);
-		expect(projected.availableModes).toBe(null);
+		expect((projected.availableModes ?? []).length).toBeGreaterThan(0);
 	});
 
 	it("leaves modes untouched for a session the snapshot never imported", () => {

@@ -1,3 +1,4 @@
+import { providerModels, providerModes } from "@acepe/contracts";
 import type { Mode } from "$lib/acp/application/dto/mode.js";
 import type { Model } from "$lib/acp/application/dto/model.js";
 import type {
@@ -48,6 +49,8 @@ export type SessionCapabilitySource =
 	  };
 
 interface ResolveCapabilitySourceInput {
+	/** The agent whose provider offers the modes and models, when nothing else does. */
+	readonly agentId?: string | null;
 	readonly sessionSource: SessionCapabilitySource;
 	readonly preconnectionCapabilities: ResolvedCapabilities | null;
 	readonly cachedModes: readonly Mode[];
@@ -170,6 +173,29 @@ function resolveFallbackCapabilitySource(
 			toModels(input.preconnectionCapabilities),
 			input.preconnectionCapabilities.modelsDisplay,
 			input.preconnectionCapabilities.providerMetadata
+		);
+	}
+
+	// Nothing had anything to say, so fall back to what the provider offers.
+	// These are contract-level facts -- a provider's modes and models do not
+	// change as a turn runs, and no event carries them -- and without this a
+	// composer with no session and no cache renders no mode selector at all and
+	// degrades its model slot to a static agent label.
+	const modes = providerModes(input.agentId);
+	const models = providerModels(input.agentId);
+	if (modes.length > 0 || models.length > 0) {
+		return buildResolution(
+			"persistedCache",
+			"persistedCache",
+			modes.map((mode) => ({
+				id: mode.id,
+				name: mode.name,
+				description: mode.description,
+				iconKind: mode.iconKind,
+			})),
+			models.map((model) => ({ id: model.modelId, name: model.name })),
+			null,
+			input.providerMetadata
 		);
 	}
 

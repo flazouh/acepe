@@ -500,6 +500,14 @@ export const ToolCallObservedPayload = Schema.Struct({
 	// carry no kind key, and the activities projector re-decodes every stored
 	// payload on a rebuild. Null when a provider has not classified the call.
 	kind: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey),
+	// The tool's own arguments, canonical on the observation itself. For an edit
+	// or a write this is the content the agent proposes, which is the only way a
+	// person can review a change before approving it -- the title and path say
+	// which file, never what would happen to it. Optional and nullable for the
+	// same replay reason as `output` and `kind`: observations appended before
+	// this field existed carry no input key, and the activities projector
+	// re-decodes every stored payload on a rebuild.
+	input: Schema.JsonObject.pipe(Schema.NullOr, Schema.optionalKey),
 })
 export type ToolCallObservedPayload = typeof ToolCallObservedPayload.Type
 

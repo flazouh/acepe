@@ -115,7 +115,11 @@ export const ProjectedSessionActivity = Schema.Struct({
 	// in @acepe/contracts. Optional + nullable like its siblings: a non-tool
 	// row carries none, and a row written before the output column existed
 	// reads back as null.
-	output: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey)
+	output: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey),
+	// The tool's own arguments, mirroring RpcProjectedSessionActivity.input in
+	// @acepe/contracts: for an edit or a write, the change a reviewer has to see
+	// before approving it.
+	input: Schema.JsonObject.pipe(Schema.NullOr, Schema.optionalKey)
 })
 export type ProjectedSessionActivity = typeof ProjectedSessionActivity.Type
 
@@ -170,6 +174,9 @@ export const ProjectedSessionActivityStoredRow = Schema.Struct({
 	sequence: Sequence,
 	kind: Schema.optionalKey(Schema.String),
 	tool_kind: Schema.String.pipe(Schema.NullOr, Schema.optionalKey),
+	// Stored as the payload's JSON text; decoded back into the object the
+	// contract carries so a reviewer can see an edit before approving it.
+	input: Schema.fromJsonString(Schema.JsonObject).pipe(Schema.NullOr, Schema.optionalKey),
 	status: Schema.optionalKey(Schema.String),
 	title: Schema.optionalKey(TrimmedNonEmptyString),
 	path: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey),
@@ -231,7 +238,8 @@ const projectedSessionActivityFromRow = (
 			title: row.title,
 			path: row.path,
 			toolCallId: row.tool_call_id,
-			output: row.output ?? null
+			output: row.output ?? null,
+			input: row.input ?? null
 		}
 	}
 	return {

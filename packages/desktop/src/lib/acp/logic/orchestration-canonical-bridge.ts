@@ -16,10 +16,17 @@
 // itself unsupportedOnContract for the same reason) -- but turn completion
 // (TurnCompleted, alongside TurnCancelled) IS a real terminal signal on the
 // contract, handled below.
+import { providerModels, providerModes } from "@acepe/contracts";
+import type { SessionGraphCapabilities } from "../../services/acp-types.js";
+import { emptySessionGraphCapabilities } from "../store/envelope-reducer/empty-session-graph-capabilities.js";
+import type { EditEntry } from "../../services/converted-session-types.js";
+import { normalizeEditEntry } from "./aggregate-file-edits.js";
 import type { ApprovalDecision, OrchestrationEvent, SessionId } from "@acepe/contracts";
 import { librarySnapshotRequest, type RpcClient } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
 
+import type { JsonValue } from "../../services/converted-session-types.js";
 import type {
 	CanonicalAgentId,
 	InteractionSnapshot,
@@ -117,6 +124,39 @@ function freshSessionState(): SessionCanonicalState {
 	};
 }
 
+/**
+ * The capabilities a provider brings to every session it opens.
+ *
+ * Read from the contract rather than assembled here: the adapter that enforces
+ * a mode and the picker that offers it must be reading one list.
+ */
+function providerSessionCapabilities(
+	providerId: string | null | undefined
+): SessionGraphCapabilities {
+	const modes = providerModes(providerId);
+	const models = providerModels(providerId);
+	const capabilities = emptySessionGraphCapabilities();
+	if (modes.length > 0) {
+		capabilities.modes = {
+			availableModes: modes.map((mode) => ({
+				id: mode.id,
+				name: mode.name,
+				description: mode.description,
+				iconKind: mode.iconKind,
+			})),
+		};
+	}
+	if (models.length > 0) {
+		capabilities.models = {
+			availableModels: models.map((model) => ({
+				modelId: model.modelId,
+				name: model.name,
+			})),
+		};
+	}
+	return capabilities;
+}
+
 const idleActivity: SessionGraphActivity = {
 	kind: "idle",
 	activeOperationCount: 0,
@@ -137,6 +177,57 @@ function awaitingModelActivityAt(turnStartedAtMs: number | null): SessionGraphAc
 }
 
 const noArguments: ToolArguments = { kind: "other", raw: null };
+
+/**
+ * The tool's own arguments, as the observation carried them.
+ *
+ * Handed through as `raw` rather than classified here: the display pipeline
+ * already knows how to read an edit out of them (aggregate-file-edits.ts reads
+ * file_path/old_string/new_string/content), and re-deriving a shape in the
+ * bridge would be a second place to get it wrong. Absent arguments stay the
+ * shared empty value, so nothing downstream has to special-case them.
+ */
+/**
+ * The tool's own arguments, shaped for the transcript.
+ *
+ * An edit becomes `{kind: "edit", edits}` because that is what the row mapper
+ * reads to render a diff (transcript-viewport-row-mapper.ts's `editDiffs`);
+ * anything else travels raw, since only the tool that produced it knows what
+ * its arguments mean. `normalizeEditEntry` is shared with aggregate-file-edits
+ * so the key names a provider might use live in exactly one place.
+ */
+/**
+ * A created file is an edit whose new content is its content.
+ *
+ * A Write carries `content` and no `new_string`, and every renderer of a diff
+ * keys on `newString` -- `resolveEditDiffs` drops any entry without one. Left
+ * as it arrives, the proposed content of a new file is data the transcript
+ * holds and can never show.
+ */
+const asDiffableEdit = (entry: EditEntry): EditEntry =>
+	entry.newString !== null && entry.newString !== undefined
+		? entry
+		: {
+				filePath: entry.filePath,
+				oldString: entry.oldString,
+				newString: entry.content ?? null,
+				content: entry.content,
+			};
+
+const toolArgumentsFrom = (
+	input: Schema.JsonObject | null | undefined,
+	kind: string | null | undefined
+): ToolArguments => {
+	if (input === null || input === undefined) {
+		return noArguments;
+	}
+	const raw = input as unknown as JsonValue;
+	if (kind !== "edit") {
+		return { kind: "other", raw };
+	}
+	const entry = normalizeEditEntry(input);
+	return entry === null ? { kind: "other", raw } : { kind: "edit", edits: [asDiffableEdit(entry)] };
+};
 
 const PERMISSION_ID_PREFIX = "perm-";
 
@@ -340,7 +431,12 @@ export class OrchestrationCanonicalBridge {
 								},
 							},
 							activity: idleActivity,
-							capabilities: {},
+							// A session's modes and models come from its provider, and
+							// no event carries them. Seeding them here is what makes the
+							// mode selector render at all (the toolbar hides it unless a
+							// session reports modes) and what turns the model slot from a
+							// static agent label into a picker.
+							capabilities: providerSessionCapabilities(providerId),
 						},
 					},
 				};
@@ -452,6 +548,7 @@ export class OrchestrationCanonicalBridge {
 		readonly path: string | null;
 		readonly output?: string | null;
 		readonly kind?: string | null;
+		readonly input?: Schema.JsonObject | null;
 	}): AcpEventEnvelope[] {
 		const state = this.stateFor(payload.sessionId);
 		// A tool call is transcript-bearing only on first sighting -- that is
@@ -510,7 +607,7 @@ export class OrchestrationCanonicalBridge {
 			kind: asOperationToolKind(payload.kind),
 			provider_status: observedStatusToToolCallStatus(payload.status),
 			title: payload.title,
-			arguments: noArguments,
+			arguments: toolArgumentsFrom(payload.input, payload.kind),
 			progressive_arguments: null,
 			// #273: the tool's own result, canonical on the observation itself.
 			// transcript-viewport-row-mapper.ts already renders it through

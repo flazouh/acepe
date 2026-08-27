@@ -1082,6 +1082,107 @@ describe("OrchestrationCanonicalBridge", () => {
 // transcript never advances past that point. This test drives the bridge's
 // output through the real session-state-command-router, the actual next
 // consumer, instead of asserting on the bridge's delta shape alone.
+describe("OrchestrationCanonicalBridge provider capabilities", () => {
+	/**
+	 * The toolbar renders the mode selector only when a session reports modes,
+	 * and the model slot degrades to a static agent label without models. Both
+	 * lists lived as constants inside the server where the client could never
+	 * see them, so neither picker ever appeared for a Claude session.
+	 */
+	it("gives a Claude session the modes and models its provider offers", () => {
+		const bridge = makeBridge();
+		const envelopes = runTranslate(
+			bridge,
+			makeEvent("SessionCreated", { sessionId, projectId, title: "s", providerId: "claude-code" })
+		);
+		const payload = envelopes[0]?.payload as SessionStateEnvelope | undefined;
+		const graph = payload?.payload.kind === "snapshot" ? payload.payload.graph : null;
+		// Claude Code's own five, in the order and under the names its own mode
+		// menu uses: Auto is the SDK's `auto`, Manual is its `default`.
+		expect(graph?.capabilities.modes?.availableModes?.map((mode) => mode.id)).toEqual([
+			"auto",
+			"default",
+			"acceptEdits",
+			"plan",
+			"bypassPermissions",
+		]);
+		expect((graph?.capabilities.models?.availableModels?.length ?? 0) > 0).toBe(true);
+	});
+
+	it("a provider with no modes reports none rather than an empty picker", () => {
+		const bridge = makeBridge();
+		const envelopes = runTranslate(
+			bridge,
+			makeEvent("SessionCreated", { sessionId, projectId, title: "s", providerId: "unknown" })
+		);
+		const payload = envelopes[0]?.payload as SessionStateEnvelope | undefined;
+		const graph = payload?.payload.kind === "snapshot" ? payload.payload.graph : null;
+		expect(graph?.capabilities.modes).toBeNull();
+		expect(graph?.capabilities.models).toBeNull();
+	});
+});
+
+describe("OrchestrationCanonicalBridge tool arguments", () => {
+	/**
+	 * A permission asks a person to approve a change. Until the observation
+	 * carried the tool's own arguments, the transcript could name the file and
+	 * nothing else, so approving a write meant approving content nobody could
+	 * see. The adapter always had these arguments and used them only to derive a
+	 * path hint.
+	 *
+	 * Handed through as `raw`: aggregate-file-edits.ts already reads
+	 * file_path/old_string/new_string/content out of them, and classifying here
+	 * would be a second place to get it wrong.
+	 */
+	it("carries a write's proposed content onto the operation", () => {
+		const bridge = makeBridge();
+		const envelopes = runTranslate(
+			bridge,
+			makeEvent("ToolCallObserved", {
+				sessionId,
+				activityId: "tool-write:activity",
+				toolCallId: "tool-write",
+				operationId: null,
+				status: "in_progress",
+				title: "Write",
+				path: "/tmp/acepe-qa.txt",
+				kind: "edit",
+				input: { file_path: "/tmp/acepe-qa.txt", content: "160" },
+			})
+		);
+
+		const serialised = JSON.stringify(envelopes);
+		expect(serialised).toContain("/tmp/acepe-qa.txt");
+		expect(serialised).toContain("160");
+		// Shaped as an edit, which is what transcript-viewport-row-mapper reads
+		// to render a diff. Raw arguments alone leave the row showing a filename.
+		expect(serialised).toContain('"kind":"edit"');
+		// A Write carries `content` and no `new_string`, and every diff renderer
+		// keys on newString -- resolveEditDiffs drops an entry without one. The
+		// proposed content of a new file has to arrive as the new content, or it
+		// is data the transcript holds and can never show.
+		expect(serialised).toContain('"newString":"160"');
+	});
+
+	it("a tool that sent no arguments still produces an operation", () => {
+		const bridge = makeBridge();
+		const envelopes = runTranslate(
+			bridge,
+			makeEvent("ToolCallObserved", {
+				sessionId,
+				activityId: "tool-bare:activity",
+				toolCallId: "tool-bare",
+				operationId: null,
+				status: "in_progress",
+				title: "Bash",
+				path: null,
+				kind: "execute",
+			})
+		);
+		expect(envelopes.length).toBeGreaterThan(0);
+	});
+});
+
 describe("OrchestrationCanonicalBridge -> session-state-command-router (reopened session)", () => {
 	/**
 	 * A reopen hydrates the client graph from the contract snapshot, whose

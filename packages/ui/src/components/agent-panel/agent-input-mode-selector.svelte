@@ -7,8 +7,12 @@
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import { HugeiconsIcon } from "../icons/index.js";
 	import { Selector } from "../selector/index.js";
+	import type { SelectorTriggerSize } from "../selector/selector-trigger-classes.js";
+	import { getSelectorTriggerButtonVariant } from "../selector/selector-trigger-classes.js";
 	import {
 		getModeDropdownOptions,
+		getModeIconColor,
+		getModeIconName,
 		getSelectedModeOption,
 		shouldEmitModeChange,
 		type AgentInputMode,
@@ -21,6 +25,8 @@
 		currentModeId: string | null;
 		disabled?: boolean;
 		autonomousActive?: boolean;
+		/** Same default as the model selector, so the two triggers match. */
+		triggerSize?: SelectorTriggerSize;
 		onModeChange: (modeId: string) => void;
 	}
 
@@ -29,8 +35,11 @@
 		currentModeId,
 		disabled = false,
 		autonomousActive = false,
+		triggerSize = "pill",
 		onModeChange,
 	}: Props = $props();
+
+	const selectorVariant = $derived(getSelectorTriggerButtonVariant(triggerSize));
 
 	let menuOpen = $state(false);
 
@@ -53,11 +62,17 @@
 	align="start"
 	side="top"
 	sideOffset={8}
-	variant="outline"
+	variant={selectorVariant}
+	{triggerSize}
 	showChevron={false}
 	triggerAriaLabel={selectedOption.label}
 >
 	{#snippet renderButton()}
+		<HugeiconsIcon
+			name={getModeIconName(selectedOption.iconKind)}
+			class="size-3.5 shrink-0"
+			style={`color: ${getModeIconColor(selectedOption.iconKind)}`}
+		/>
 		<span class="min-w-0 truncate text-xs">{selectedOption.label}</span>
 	{/snippet}
 
@@ -69,6 +84,11 @@
 			class="cursor-pointer rounded-md border-b-0 px-1.5 py-1.5 text-[0.75rem]"
 		>
 			<div class="flex w-full items-start gap-1.5">
+				<HugeiconsIcon
+					name={getModeIconName(option.iconKind)}
+					class="mt-0.5 size-3.5 shrink-0 self-start"
+					style={`color: ${getModeIconColor(option.iconKind)}`}
+				/>
 				<div class="flex min-w-0 flex-1 flex-col">
 					<span class="text-xs font-medium">{option.label}</span>
 					{#if option.description}

@@ -127,7 +127,8 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 					pr_number,
 					pr_link_mode,
 					provider_session_id,
-					provider_session_failed
+					provider_session_failed,
+					current_mode_id
 				FROM projection_sessions
 				WHERE session_id = ${sessionId}
 			`.withoutTransform
@@ -216,6 +217,7 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 					sequence,
 					kind,
 					tool_kind,
+					input,
 					status,
 					title,
 					path,
