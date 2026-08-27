@@ -55,6 +55,15 @@ export type SessionStateCommand =
 			previewState: CapabilityPreviewState;
 	  }
 	| {
+			// #283: the mode a session runs in, on its own. `applyCapabilities`
+			// carries a whole capabilities projection and replaces it wholesale,
+			// so reusing it for a mode change would drop the models, the
+			// commands and the config options that projection also holds.
+			kind: "applySessionMode";
+			currentModeId: string;
+			revision: SessionGraphRevision;
+	  }
+	| {
 			kind: "applyTelemetry";
 			telemetry: UsageTelemetryData;
 			revision: SessionGraphRevision;
@@ -299,6 +308,23 @@ export function routeSessionStateEnvelope(
 					revision: envelope.payload.revision,
 					pendingMutationId: envelope.payload.pending_mutation_id ?? null,
 					previewState: envelope.payload.preview_state,
+				},
+			];
+		case "sessionMode":
+			if (!envelopeFrontierMatchesRevision(envelope, envelope.payload.revision)) {
+				return [
+					{
+						kind: "refreshSnapshot",
+						fromRevision: envelope.payload.revision.graphRevision,
+						toRevision: envelope.graphRevision,
+					},
+				];
+			}
+			return [
+				{
+					kind: "applySessionMode",
+					currentModeId: envelope.payload.currentModeId,
+					revision: envelope.payload.revision,
 				},
 			];
 		case "telemetry":

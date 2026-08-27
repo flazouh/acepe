@@ -10,8 +10,10 @@ import type {
 	ViewportBufferDelta,
 	ViewportBufferPush,
 } from "../../../../services/acp-types.js";
+import { resolveToolbarModeId } from "../../../components/agent-input/logic/toolbar-state.js";
 import type { SessionStateCommand } from "../../../session-state/session-state-command-router.js";
 import type { CanonicalSessionProjection } from "../../canonical-session-projection.js";
+import { projectGraphCapabilities } from "../../capability-projection.js";
 import type { SessionTransientProjection } from "../../types.js";
 import { DEFAULT_TRANSIENT_PROJECTION } from "../../types.js";
 import { buildCanonicalUsageTelemetry } from "../canonical-usage-telemetry.js";
@@ -258,6 +260,147 @@ describe("reduceCommand", () => {
 				},
 			},
 		]);
+	});
+
+	// #283: a live SessionModeSet is one narrow canonical fact. Routing it
+	// through applyCapabilities would have replaced the whole capabilities
+	// projection, so every mode change would wipe the models, the commands and
+	// the config options the same projection carries. This command patches the
+	// mode and nothing else.
+	it("patches the current mode without touching the other capability fields", () => {
+		const capabilities: SessionGraphCapabilities = {
+			models: {
+				availableModels: [{ modelId: "gpt-5", name: "GPT-5" }],
+				currentModelId: "gpt-5",
+				modelsDisplay: { groups: [], presentation: undefined },
+			},
+			modes: {
+				currentModeId: "build",
+				availableModes: [
+					{ id: "build", name: "Build" },
+					{ id: "plan", name: "Plan" },
+				],
+			},
+			availableCommands: [{ name: "compact", description: "Compact session" }],
+			configOptions: [],
+			autonomousEnabled: true,
+		};
+		const previousProjection = createProjection({ capabilities });
+		const previousGraph = createGraph({ capabilities });
+
+		const patches = reduceCommand(
+			createSnapshot({ previousProjection, previousGraph }),
+			{ kind: "applySessionMode", currentModeId: "plan", revision: newerRevision },
+			1_700_000_000_000
+		);
+
+		const projectionPatch = patches.find((patch) => patch.kind === "setCanonicalProjection");
+		const graphPatch = patches.find((patch) => patch.kind === "setSessionStateGraph");
+		if (projectionPatch?.kind !== "setCanonicalProjection") {
+			throw new Error("expected a canonical projection patch");
+		}
+		if (graphPatch?.kind !== "setSessionStateGraph") {
+			throw new Error("expected a session state graph patch");
+		}
+		expect(projectionPatch.projection.capabilities).toEqual({
+			models: capabilities.models,
+			modes: {
+				currentModeId: "plan",
+				availableModes: capabilities.modes?.availableModes,
+			},
+			availableCommands: capabilities.availableCommands,
+			configOptions: capabilities.configOptions,
+			autonomousEnabled: true,
+		});
+		expect(projectionPatch.projection.revision).toEqual(newerRevision);
+		expect(graphPatch.graph.capabilities).toEqual(projectionPatch.projection.capabilities);
+		expect(graphPatch.graph.revision).toEqual(newerRevision);
+	});
+
+	// The whole point of the fix: the mode a session was set to mid-run must
+	// reach the toolbar without a reopen. This walks the same projection the
+	// composer reads (capability-projection.ts -> toolbar-state.ts) rather
+	// than asserting the patch shape twice.
+	it("reports the newly set mode as the displayed mode, with no reopen", () => {
+		const capabilities: SessionGraphCapabilities = {
+			models: null,
+			modes: {
+				currentModeId: "build",
+				availableModes: [
+					{ id: "build", name: "Build" },
+					{ id: "plan", name: "Plan" },
+				],
+			},
+			availableCommands: [],
+			configOptions: [],
+			autonomousEnabled: null,
+		};
+
+		const patches = reduceCommand(
+			createSnapshot({
+				previousProjection: createProjection({ capabilities }),
+				previousGraph: createGraph({ capabilities }),
+			}),
+			{ kind: "applySessionMode", currentModeId: "plan", revision: newerRevision },
+			1_700_000_000_000
+		);
+
+		const projectionPatch = patches.find((patch) => patch.kind === "setCanonicalProjection");
+		if (projectionPatch?.kind !== "setCanonicalProjection") {
+			throw new Error("expected a canonical projection patch");
+		}
+		const projected = projectGraphCapabilities(projectionPatch.projection.capabilities);
+		expect(projected.currentModeId).toBe("plan");
+		expect(projected.currentMode?.name).toBe("Plan");
+		expect(
+			resolveToolbarModeId({
+				liveCurrentModeId: projected.currentModeId,
+				provisionalModeId: null,
+				visibleModes: projected.availableModes ?? [],
+			})
+		).toBe("plan");
+	});
+
+	it("returns no session-mode patches for a stale revision", () => {
+		const patches = reduceCommand(
+			createSnapshot({
+				previousProjection: createProjection({
+					revision: newerRevision,
+					capabilities: {
+						models: null,
+						modes: { currentModeId: "plan" },
+						availableCommands: [],
+						configOptions: [],
+						autonomousEnabled: null,
+					},
+				}),
+			}),
+			{ kind: "applySessionMode", currentModeId: "build", revision },
+			1_700_000_000_000
+		);
+
+		expect(patches).toEqual([]);
+	});
+
+	it("returns no session-mode patches when the mode is already the current one", () => {
+		const capabilities: SessionGraphCapabilities = {
+			models: null,
+			modes: { currentModeId: "plan", availableModes: [{ id: "plan", name: "Plan" }] },
+			availableCommands: [],
+			configOptions: [],
+			autonomousEnabled: null,
+		};
+
+		const patches = reduceCommand(
+			createSnapshot({
+				previousProjection: createProjection({ capabilities }),
+				previousGraph: createGraph({ capabilities }),
+			}),
+			{ kind: "applySessionMode", currentModeId: "plan", revision },
+			1_700_000_000_000
+		);
+
+		expect(patches).toEqual([]);
 	});
 
 	it("returns no telemetry patches for stale revisions", () => {

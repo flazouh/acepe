@@ -192,6 +192,7 @@ describe("session-state envelope byte budgets", () => {
 			"delta",
 			"lifecycle",
 			"plan",
+			"sessionMode",
 			"snapshot",
 			"telemetry",
 			"viewportBufferDelta",

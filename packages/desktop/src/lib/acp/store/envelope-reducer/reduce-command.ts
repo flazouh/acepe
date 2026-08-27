@@ -19,6 +19,7 @@ import {
 import { applyTranscriptDeltaToSnapshot } from "../transcript-delta.js";
 import type { SessionTransientProjection } from "../types.js";
 import { buildCanonicalUsageTelemetry } from "./canonical-usage-telemetry.js";
+import { capabilitiesWithSessionMode } from "./capabilities-with-session-mode.js";
 import { emptySessionGraphCapabilities } from "./empty-session-graph-capabilities.js";
 import type { EnvelopePatch } from "./envelope-patch.js";
 import type { EnvelopeReducerSnapshot } from "./envelope-snapshot.js";
@@ -71,6 +72,8 @@ export function reduceCommand(
 	switch (command.kind) {
 		case "applyCapabilities":
 			return reduceApplyCapabilities(snapshot, command);
+		case "applySessionMode":
+			return reduceApplySessionMode(snapshot, command);
 		case "applyTelemetry":
 			return reduceApplyTelemetry(snapshot, command, nowMs);
 		case "applyPlan":
@@ -165,6 +168,81 @@ function reduceApplyCapabilities(
 		sessionId: snapshot.sessionId,
 		updates: transientUpdates,
 	});
+
+	return patches;
+}
+
+/**
+ * #283: the live path for the canonical current mode.
+ *
+ * `applyCapabilities` keeps its wholesale-replace semantics, because a
+ * capabilities envelope really does carry a whole projection. A mode change
+ * carries one field, so it patches: everything else on the capabilities stays
+ * as it was (see `capabilitiesWithSessionMode`). Revision discipline is
+ * `reduceApplyCapabilities`'s -- an older revision cannot overwrite a newer
+ * mode, and an equal revision applies only when the mode actually differs.
+ *
+ * `capabilitiesMaterialized` is deliberately untouched. A mode alone does not
+ * materialize a session's capability set, and claiming it did would make the
+ * composer read canonical models and commands that no producer has filled in
+ * yet.
+ */
+function reduceApplySessionMode(
+	snapshot: EnvelopeReducerSnapshot,
+	command: Extract<SessionStateCommand, { kind: "applySessionMode" }>
+): readonly EnvelopePatch[] {
+	if (!snapshot.hasSessionIdentity) {
+		return [];
+	}
+
+	const previousProjection = snapshot.previousProjection;
+	const previousGraph = snapshot.previousGraph;
+	if (previousProjection === null && previousGraph === null) {
+		return [];
+	}
+
+	if (isOlderGraphRevision(previousProjection?.revision ?? null, command.revision)) {
+		return [];
+	}
+
+	const previousCapabilities =
+		previousProjection?.capabilities ??
+		previousGraph?.capabilities ??
+		emptySessionGraphCapabilities();
+	if (
+		!isNewerGraphRevision(previousProjection?.revision ?? null, command.revision) &&
+		previousCapabilities.modes?.currentModeId === command.currentModeId
+	) {
+		return [];
+	}
+
+	const nextCapabilities = capabilitiesWithSessionMode(previousCapabilities, command.currentModeId);
+	const patches: EnvelopePatch[] = [];
+
+	if (previousProjection !== null) {
+		patches.push({
+			kind: "setCanonicalProjection",
+			sessionId: snapshot.sessionId,
+			projection: {
+				lifecycle: previousProjection.lifecycle,
+				activity: previousProjection.activity,
+				turnState: previousProjection.turnState,
+				activeTurnFailure: previousProjection.activeTurnFailure,
+				lastTerminalTurnId: previousProjection.lastTerminalTurnId,
+				activeStreamingTail: previousProjection.activeStreamingTail,
+				capabilities: nextCapabilities,
+				revision: command.revision,
+			},
+		});
+	}
+
+	if (previousGraph !== null) {
+		patches.push({
+			kind: "setSessionStateGraph",
+			sessionId: snapshot.sessionId,
+			graph: graphWithCapabilities(previousGraph, nextCapabilities, command.revision),
+		});
+	}
 
 	return patches;
 }

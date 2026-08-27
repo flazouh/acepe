@@ -285,6 +285,8 @@ export class OrchestrationCanonicalBridge {
 				return Effect.succeed(
 					this.onTurnCompleted(event.payload.sessionId, event.payload.turnId ?? null)
 				);
+			case "SessionModeSet":
+				return Effect.succeed(this.onSessionModeSet(event.payload.sessionId, event.payload.modeId));
 			case "TurnUsageObserved":
 				return Effect.succeed(this.onTurnUsageObserved(event.payload));
 			default:
@@ -834,6 +836,38 @@ export class OrchestrationCanonicalBridge {
 		state.revision = toRevision;
 		state.activity = activity;
 		return [toSessionStateAcpEnvelope(envelopeForDelta(payload.sessionId, toRevision, delta))];
+	}
+
+	// #283: the canonical current mode, live. The server already folds every
+	// SessionModeSet into ProjectionSessions.current_mode_id and hands it over
+	// on reopen (RpcProjectedSession.currentModeId -> reopen-snapshot-graph
+	// .ts's capabilitiesFromSnapshot), so a reopened session reported the right
+	// mode while a running one did not: this event fell into translate's
+	// default branch and nothing ever reached capabilities.modes.currentModeId
+	// mid-run.
+	//
+	// It rides its own narrow "sessionMode" envelope kind rather than the
+	// "capabilities" one, because reduceApplyCapabilities replaces the whole
+	// capabilities projection -- a mode change would have wiped the models,
+	// the commands and the config options that projection also carries. The
+	// mode does spend a graph revision, unlike a usage reading: the client
+	// adopts it onto both the canonical projection and the graph, so its
+	// frontier has to move with the server's.
+	//
+	// The transcript revision stays put. A mode change appends no row, and
+	// session-state-query-service.ts reads a transcript revision that advanced
+	// with nothing to apply as a desync.
+	private onSessionModeSet(sessionId: string, modeId: string): AcpEventEnvelope[] {
+		const state = this.stateFor(sessionId);
+		const toRevision = nextRevision(state.revision, false);
+		const envelope: SessionStateEnvelope = {
+			sessionId,
+			graphRevision: toRevision.graphRevision,
+			lastEventSeq: toRevision.lastEventSeq,
+			payload: { kind: "sessionMode", currentModeId: modeId, revision: toRevision },
+		};
+		state.revision = toRevision;
+		return [toSessionStateAcpEnvelope(envelope)];
 	}
 
 	// AC-269: routes a real usage reading onto the EXISTING "telemetry"
