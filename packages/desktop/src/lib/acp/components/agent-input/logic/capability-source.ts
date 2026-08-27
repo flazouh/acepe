@@ -187,7 +187,12 @@ function resolveFallbackCapabilitySource(
 		return buildResolution(
 			"persistedCache",
 			"persistedCache",
-			modes.map((mode) => ({ id: mode.id, name: mode.name, description: mode.description })),
+			modes.map((mode) => ({
+				id: mode.id,
+				name: mode.name,
+				description: mode.description,
+				iconKind: mode.iconKind,
+			})),
 			models.map((model) => ({ id: model.modelId, name: model.name })),
 			null,
 			input.providerMetadata

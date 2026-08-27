@@ -13,10 +13,25 @@
  * cannot drift.
  */
 
+/**
+ * How a mode is drawn. Matches the client's ModeIconKind, which already carries
+ * a colour per kind -- naming the kind here is what finally lights it up.
+ */
+export type ProviderModeIconKind =
+	| "agent"
+	| "plan"
+	| "autonomous"
+	| "bypass"
+	| "ask"
+	| "edit"
+	| "review"
+	| "unknown"
+
 export type ProviderModeDescriptor = {
 	readonly id: string
 	readonly name: string
 	readonly description: string
+	readonly iconKind: ProviderModeIconKind
 }
 
 export type ProviderModelDescriptor = {
@@ -29,17 +44,29 @@ export type ProviderModelDescriptor = {
  * The ids are the SDK's own, so an adapter can pass one straight through.
  */
 export const CLAUDE_PROVIDER_MODES: ReadonlyArray<ProviderModeDescriptor> = [
-	{ id: "default", name: "Build", description: "Asks before it edits files or runs commands" },
-	{ id: "plan", name: "Plan", description: "Researches and proposes a plan without changing anything" },
+	{
+		id: "default",
+		name: "Build",
+		description: "Asks before it edits files or runs commands",
+		iconKind: "agent"
+	},
+	{
+		id: "plan",
+		name: "Plan",
+		description: "Researches and proposes a plan without changing anything",
+		iconKind: "plan"
+	},
 	{
 		id: "acceptEdits",
 		name: "Accept edits",
-		description: "Applies file edits without asking, still asks before running commands"
+		description: "Applies file edits without asking, still asks before running commands",
+		iconKind: "edit"
 	},
 	{
 		id: "bypassPermissions",
 		name: "Bypass permissions",
-		description: "Never asks. Every edit and command runs on its own"
+		description: "Never asks. Every edit and command runs on its own",
+		iconKind: "bypass"
 	}
 ]
 
@@ -95,24 +122,49 @@ export const CLAUDE_PROVIDER_CONFIG_OPTIONS: ReadonlyArray<ProviderConfigOptionD
 ]
 
 export const CODEX_PROVIDER_MODES: ReadonlyArray<ProviderModeDescriptor> = [
-	{ id: "agent", name: "Agent", description: "Edits and runs commands, asking when it needs to" },
-	{ id: "plan", name: "Plan", description: "Researches and proposes a plan without changing anything" }
+	{
+		id: "agent",
+		name: "Agent",
+		description: "Edits and runs commands, asking when it needs to",
+		iconKind: "agent"
+	},
+	{
+		id: "plan",
+		name: "Plan",
+		description: "Researches and proposes a plan without changing anything",
+		iconKind: "plan"
+	}
 ]
 
 export const OPENCODE_PROVIDER_MODES: ReadonlyArray<ProviderModeDescriptor> = [
-	{ id: "build", name: "Build", description: "Makes the change" },
-	{ id: "plan", name: "Plan", description: "Proposes a plan without changing anything" }
+	{ id: "build", name: "Build", description: "Makes the change", iconKind: "agent" },
+	{
+		id: "plan",
+		name: "Plan",
+		description: "Proposes a plan without changing anything",
+		iconKind: "plan"
+	}
 ]
 
 export const COPILOT_PROVIDER_MODES: ReadonlyArray<ProviderModeDescriptor> = [
-	{ id: "agent", name: "Agent", description: "Edits and runs commands, asking when it needs to" },
-	{ id: "autopilot", name: "Autopilot", description: "Keeps going without asking" },
-	{ id: "plan", name: "Plan", description: "Proposes a plan without changing anything" }
+	{
+		id: "agent",
+		name: "Agent",
+		description: "Edits and runs commands, asking when it needs to",
+		iconKind: "agent"
+	},
+	{ id: "autopilot", name: "Autopilot", description: "Keeps going without asking", iconKind: "autonomous" },
+	{
+		id: "plan",
+		name: "Plan",
+		description: "Proposes a plan without changing anything",
+		iconKind: "plan"
+	}
 ]
 
 export const CURSOR_PROVIDER_MODES: ReadonlyArray<ProviderModeDescriptor> = [
-	{ id: "agent", name: "Agent", description: "Edits and runs commands" },
-	{ id: "ask", name: "Ask", description: "Answers without changing anything" }
+	{ id: "agent", name: "Agent", description: "Edits and runs commands", iconKind: "agent" },
+	{ id: "ask", name: "Ask", description: "Answers without changing anything", iconKind: "ask" }
 ]
 
 const CLAUDE_PROVIDER_IDS: ReadonlySet<string> = new Set(["claude", "claude-code", "claude_code"])

@@ -142,6 +142,7 @@ function providerSessionCapabilities(
 				id: mode.id,
 				name: mode.name,
 				description: mode.description,
+				iconKind: mode.iconKind,
 			})),
 		};
 	}

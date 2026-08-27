@@ -9,6 +9,8 @@
 	import { Selector } from "../selector/index.js";
 	import {
 		getModeDropdownOptions,
+		getModeIconColor,
+		getModeIconName,
 		getSelectedModeOption,
 		shouldEmitModeChange,
 		type AgentInputMode,
@@ -58,6 +60,11 @@
 	triggerAriaLabel={selectedOption.label}
 >
 	{#snippet renderButton()}
+		<HugeiconsIcon
+			name={getModeIconName(selectedOption.iconKind)}
+			class="size-3.5 shrink-0"
+			style={`color: ${getModeIconColor(selectedOption.iconKind)}`}
+		/>
 		<span class="min-w-0 truncate text-xs">{selectedOption.label}</span>
 	{/snippet}
 
@@ -69,6 +76,11 @@
 			class="cursor-pointer rounded-md border-b-0 px-1.5 py-1.5 text-[0.75rem]"
 		>
 			<div class="flex w-full items-start gap-1.5">
+				<HugeiconsIcon
+					name={getModeIconName(option.iconKind)}
+					class="mt-0.5 size-3.5 shrink-0 self-start"
+					style={`color: ${getModeIconColor(option.iconKind)}`}
+				/>
 				<div class="flex min-w-0 flex-1 flex-col">
 					<span class="text-xs font-medium">{option.label}</span>
 					{#if option.description}

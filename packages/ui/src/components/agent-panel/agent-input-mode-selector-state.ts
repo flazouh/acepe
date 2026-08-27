@@ -52,6 +52,32 @@ export function getSelectedModeOption(input: {
 	);
 }
 
+/**
+ * One glyph per mode, so the control reads at a glance rather than by its label.
+ * Paired with getModeIconColor below: the icon says what the mode does, the
+ * colour says how much it will do without asking.
+ */
+export function getModeIconName(iconKind: ModeIconKind): string {
+	switch (iconKind) {
+		case "agent":
+			return "tool-task";
+		case "plan":
+			return "tool-plan";
+		case "autonomous":
+			return "shield-check";
+		case "bypass":
+			return "shield-warning";
+		case "ask":
+			return "question-circle";
+		case "edit":
+			return "tool-edit";
+		case "review":
+			return "security-check";
+		case "unknown":
+			return "circle-dashed";
+	}
+}
+
 export function getModeIconColor(iconKind: ModeIconKind): string {
 	switch (iconKind) {
 		case "agent":

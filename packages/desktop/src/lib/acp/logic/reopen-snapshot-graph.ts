@@ -489,6 +489,7 @@ function capabilitiesFromSnapshot(snapshot: RpcSessionSnapshot): SessionGraphCap
 							id: mode.id,
 							name: mode.name,
 							description: mode.description,
+							iconKind: mode.iconKind,
 						})),
 					}),
 		};
