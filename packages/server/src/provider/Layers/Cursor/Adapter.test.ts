@@ -37,7 +37,8 @@ import { decodeContractFact } from "./Codec.ts"
 import type {
 	CursorAcpHandle,
 	CursorConnectInput,
-	CursorLaunchConfig
+	CursorLaunchConfig,
+	CursorStopReason
 } from "./Process.ts"
 import { cursorPresence } from "./Provider.ts"
 
@@ -79,6 +80,25 @@ const fakeHandle = (
 			Effect.as("acp-session-1")
 		),
 	prompt: () => Effect.succeed(Option.none()),
+	cancel: () => Ref.update(cancels, (count) => count + 1).pipe(Effect.asVoid),
+	setMode: () => Effect.void,
+	close: Queue.end(inbound).pipe(Effect.asVoid)
+})
+
+// fakeHandle whose prompt settles with a stop reason, the way a real
+// cursor-agent answers session/prompt once the turn is over.
+const stoppingHandle = (
+	inbound: Queue.Queue<Json, Done>,
+	cancels: Ref.Ref<number>,
+	cwds: Ref.Ref<ReadonlyArray<string>>,
+	stopReason: CursorStopReason
+): CursorAcpHandle => ({
+	initialize: Effect.void,
+	newSession: (cwd: string) =>
+		Ref.update(cwds, (current) => Arr.append(current, cwd)).pipe(
+			Effect.as("acp-session-1")
+		),
+	prompt: () => Effect.succeed(Option.some(stopReason)),
 	cancel: () => Ref.update(cancels, (count) => count + 1).pipe(Effect.asVoid),
 	setMode: () => Effect.void,
 	close: Queue.end(inbound).pipe(Effect.asVoid)
@@ -162,6 +182,27 @@ const nextToolCallObserved = Effect.fn("nextToolCallObserved")(function*(
 		}
 	}
 	return found
+})
+
+// Same guard for the turn-end path: ProjectionTurns only closes a row on a
+// TurnCompleted event.
+const nextTurnCompleted = Effect.fn("nextTurnCompleted")(function*(
+	events: Queue.Queue<OrchestrationEvent, Done>
+) {
+	for (let attempt = 0; attempt < 5; attempt++) {
+		const next = yield* Queue.take(events)
+		if (next.type === "SessionMetaUpdated") {
+			const fact = decodeContractFact(next.metadata)
+			if (Option.isSome(fact)) {
+				Vitest.assert.notStrictEqual(fact.value.contractKind, "turn_complete")
+				Vitest.assert.notStrictEqual(fact.value.contractKind, "turn_error")
+			}
+		}
+		if (next.type === "TurnCompleted") {
+			return next
+		}
+	}
+	return Vitest.assert.fail("no TurnCompleted event arrived")
 })
 
 // Generous next to the rest of this file: a pending permission that is
@@ -731,6 +772,70 @@ Vitest.describe("CursorAdapter", () => {
 			const cancelled = yield* Queue.take(events)
 			Vitest.assert.strictEqual(cancelled.type, "TurnCancelled")
 			Vitest.assert.strictEqual(yield* Ref.get(cancels), 1)
+		})
+	)
+
+	// cursor-agent's own end_turn is the only thing that closes an open
+	// projection_turns row absent a cancellation or a second prompt (see
+	// projectTurnCompleted in ProjectionTurns.ts, whose SessionMetaUpdated
+	// branch is a no-op). Without the typed event the composer keeps showing
+	// "Interrupt" for a turn the agent already finished.
+	Vitest.it.effect("closes a finished turn with a TurnCompleted event", () =>
+		Effect.gen(function*() {
+			const inbound = yield* Queue.unbounded<Json, Done>()
+			const cancels = yield* Ref.make(0)
+			const cwds = yield* Ref.make<ReadonlyArray<string>>(Arr.empty())
+			const adapter = yield* makeCursorAdapter({
+				presence: Effect.succeed(cursorPresence(true, true)),
+				resolveLaunch: Effect.succeed(registryLaunch),
+				connect: () => Effect.succeed(stoppingHandle(inbound, cancels, cwds, "end_turn"))
+			})
+			const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
+			yield* adapter
+				.startSession({
+					sessionId,
+					projectId,
+					workspaceRoot: "/tmp/acepe"
+				})
+				.pipe(
+					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
+					Effect.forkChild({ startImmediately: true })
+				)
+			yield* Queue.take(events)
+			yield* Stream.runCollect(adapter.sendPrompt({ sessionId, messageId, text: "Hi" }))
+			const completed = yield* nextTurnCompleted(events)
+			Vitest.assert.strictEqual(completed.payload.sessionId, sessionId)
+		})
+	)
+
+	// projection_turns has no "failed" status, so an errored turn closes as
+	// completed instead of staying open — the same call Codex and OpenCode
+	// already make for their own turn_error.
+	Vitest.it.effect("closes an errored turn with TurnCompleted too", () =>
+		Effect.gen(function*() {
+			const inbound = yield* Queue.unbounded<Json, Done>()
+			const cancels = yield* Ref.make(0)
+			const cwds = yield* Ref.make<ReadonlyArray<string>>(Arr.empty())
+			const adapter = yield* makeCursorAdapter({
+				presence: Effect.succeed(cursorPresence(true, true)),
+				resolveLaunch: Effect.succeed(registryLaunch),
+				connect: () => Effect.succeed(stoppingHandle(inbound, cancels, cwds, "refusal"))
+			})
+			const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
+			yield* adapter
+				.startSession({
+					sessionId,
+					projectId,
+					workspaceRoot: "/tmp/acepe"
+				})
+				.pipe(
+					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
+					Effect.forkChild({ startImmediately: true })
+				)
+			yield* Queue.take(events)
+			yield* Stream.runCollect(adapter.sendPrompt({ sessionId, messageId, text: "Hi" }))
+			const completed = yield* nextTurnCompleted(events)
+			Vitest.assert.strictEqual(completed.payload.sessionId, sessionId)
 		})
 	)
 })

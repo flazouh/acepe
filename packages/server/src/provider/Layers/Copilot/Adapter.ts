@@ -53,7 +53,7 @@ import {
 	offerOutbound,
 	type PendingPermission,
 	publishAcpMessage,
-	publishFact,
+	publishTurnCompleted,
 	requireProviderSessionId,
 	requireSession,
 	type SessionRuntime
@@ -111,12 +111,14 @@ export const makeCopilotAdapter = Effect.fn("makeCopilotAdapter")(function*(
 	) {
 		const terminal = mapPromptResult(result)
 		const stopReason = terminal.contractKind === "turn_error" ? terminal.detail : "end_turn"
+		// Completing the prompt clears activeTurnId, so the id the closing
+		// event names is read in the same atomic step that clears it.
 		const settled = yield* Ref.modify(runtime.turnState, (state) => {
 			const next = completeCopilotPrompt(state, seq, stopReason)
-			return [next, next.state] as const
+			return [{ emitComplete: next.emitComplete, turnId: state.activeTurnId }, next.state] as const
 		})
 		if (settled.emitComplete) {
-			yield* publishFact(runtime, terminal)
+			yield* publishTurnCompleted(runtime, settled.turnId)
 		}
 	})
 

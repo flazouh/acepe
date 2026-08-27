@@ -9,6 +9,7 @@ import {
 	SessionMetaUpdatedEvent,
 	TokenAppendedEvent,
 	TurnCancelledEvent,
+	TurnCompletedEvent,
 	tracerAssistantMessageId
 } from "@acepe/contracts"
 import type { Done } from "effect/Cause"
@@ -174,6 +175,40 @@ export const makeCancelled = Effect.fn("CursorAdapter.makeCancelled")(function*(
 	})
 })
 
+// cursor-agent's own turn-end signal is the stop reason session/prompt
+// answers with (publishStopReason below turns it into a turn_complete or a
+// turn_error fact). That fact is the ONLY thing that closes an open
+// projection_turns row absent a follow-up TurnCancelled or the next
+// MessageSent starting a new turn — see ProjectionTurns.ts's
+// evolveProjectedTurns, whose SessionMetaUpdated branch is a no-op. A
+// turn_error still closes the turn rather than leaving it "running" forever:
+// projection_turns has no separate "failed" status yet, so an errored turn is
+// recorded as completed, the same call Codex and OpenCode already make.
+//
+// The payload names no turn: a Cursor session runs one turn at a time and
+// the adapter tracks no turn id of its own, so projectTurnCompleted's
+// fallback closes whichever turn is open.
+const makeCompleted = Effect.fn("CursorAdapter.makeCompleted")(function*(
+	runtime: SessionRuntime
+) {
+	const header = yield* stamp(runtime)
+	return TurnCompletedEvent.make({
+		sequence: header.sequence,
+		eventId: header.eventId,
+		aggregateKind: "session",
+		aggregateId: runtime.sessionId,
+		occurredAt: header.occurredAt,
+		commandId: header.commandId,
+		causationEventId: null,
+		correlationId: header.commandId,
+		metadata: EMPTY_JSON_OBJECT,
+		type: "TurnCompleted",
+		payload: {
+			sessionId: runtime.sessionId
+		}
+	})
+})
+
 const publishToolCallStarted = Effect.fn("CursorAdapter.publishToolCallStarted")(function*(
 	runtime: SessionRuntime,
 	fact: Extract<CursorContractFact, { readonly contractKind: "tool_call" }>
@@ -282,6 +317,10 @@ export const publishFact = Effect.fn("CursorAdapter.publishFact")(function*(
 	}
 	if (fact.contractKind === "permission_request") {
 		return yield* publishApprovalRequested(runtime, fact)
+	}
+	if (fact.contractKind === "turn_complete" || fact.contractKind === "turn_error") {
+		const event = yield* makeCompleted(runtime)
+		return yield* offerOutbound(runtime, event)
 	}
 	const event = yield* makeMetaEvent(runtime, fact)
 	return yield* offerOutbound(runtime, event)

@@ -2,6 +2,7 @@ import {
 	type ApprovalRequestedEvent,
 	type OrchestrationEvent,
 	type ToolCallObservedEvent,
+	type TurnCompletedEvent,
 	type TurnUsageObservedEvent,
 	MessageId,
 	PENDING_APPROVAL_METADATA_KEY,
@@ -150,6 +151,10 @@ const nextApprovalRequested = nextTypedEvent<ApprovalRequestedEvent>("ApprovalRe
 ])
 const nextTurnUsageObserved = nextTypedEvent<TurnUsageObservedEvent>("TurnUsageObserved", [
 	"usage"
+])
+const nextTurnCompleted = nextTypedEvent<TurnCompletedEvent>("TurnCompleted", [
+	"turn_complete",
+	"turn_error"
 ])
 
 // The real shape: a JSON-RPC request the agent blocks on, whose params name
@@ -444,15 +449,44 @@ Vitest.describe("CopilotAdapter", () => {
 			)
 			Vitest.assert.strictEqual(prompts.length, 2)
 			yield* Deferred.succeed(session.promptDone, { stopReason: "end_turn" })
-			const completed = yield* takeUntil(session.events, (event) => {
-				if (event.type !== "SessionMetaUpdated") {
-					return false
-				}
-				const fact = decodeContractFact(event.metadata)
-				return Option.isSome(fact) && fact.value.contractKind === "turn_complete"
-			})
-			Vitest.assert.strictEqual(completed.type, "SessionMetaUpdated")
+			const completed = yield* nextTurnCompleted(session.events)
+			Vitest.assert.strictEqual(completed.payload.turnId, "session-1:turn:1")
 			yield* session.adapter.cancelTurn({ sessionId })
+			yield* Queue.end(session.inbound)
+		})
+	)
+
+	// A settled prompt is the only thing that closes an open projection_turns
+	// row for Copilot: the row stays "running" forever otherwise, which the
+	// composer shows as a turn stuck on "Interrupt" (see projectTurnCompleted
+	// in ProjectionTurns.ts). Folded into SessionMetaUpdated the fact reaches
+	// evolveProjectedTurns' no-op branch.
+	Vitest.it.effect("closes a settled turn with a TurnCompleted event naming the turn", () =>
+		Effect.gen(function*() {
+			const session = yield* startTestSession()
+			yield* Stream.runCollect(
+				session.adapter.sendPrompt({ sessionId, messageId, text: "Hi" })
+			)
+			yield* Deferred.succeed(session.promptDone, { stopReason: "end_turn" })
+			const completed = yield* nextTurnCompleted(session.events)
+			Vitest.assert.strictEqual(completed.payload.sessionId, sessionId)
+			Vitest.assert.strictEqual(completed.payload.turnId, "session-1:turn:1")
+			yield* Queue.end(session.inbound)
+		})
+	)
+
+	// projection_turns has no "failed" status, so a refused turn closes as
+	// completed rather than staying open — the same call Codex and OpenCode
+	// already make for their own turn_error.
+	Vitest.it.effect("closes a refused turn with TurnCompleted too", () =>
+		Effect.gen(function*() {
+			const session = yield* startTestSession()
+			yield* Stream.runCollect(
+				session.adapter.sendPrompt({ sessionId, messageId, text: "Hi" })
+			)
+			yield* Deferred.succeed(session.promptDone, { stopReason: "refusal" })
+			const completed = yield* nextTurnCompleted(session.events)
+			Vitest.assert.strictEqual(completed.payload.turnId, "session-1:turn:1")
 			yield* Queue.end(session.inbound)
 		})
 	)

@@ -7,8 +7,10 @@ import {
 	type OrchestrationEvent,
 	SessionId,
 	SessionMetaUpdatedEvent,
+	type TurnId,
 	TokenAppendedEvent,
 	TurnCancelledEvent,
+	TurnCompletedEvent,
 	TurnUsageObservedEvent,
 	tracerAssistantMessageId
 } from "@acepe/contracts"
@@ -189,6 +191,59 @@ export const makeCancelled = Effect.fn("CopilotAdapter.makeCancelled")(function*
 	})
 })
 
+// Copilot's own turn-end signal is the stop reason session/prompt answers
+// with, which Adapter.ts's settlePrompt folds through the turn state machine
+// into one turn_complete or turn_error fact per turn (a steer settles the
+// prompt without ending the turn). That fact is the ONLY thing that closes an
+// open projection_turns row absent a follow-up TurnCancelled or the next
+// MessageSent starting a new turn — see ProjectionTurns.ts's
+// evolveProjectedTurns, whose SessionMetaUpdated branch is a no-op. A
+// turn_error still closes the turn rather than leaving it "running" forever:
+// projection_turns has no separate "failed" status yet, so an errored turn is
+// recorded as completed, the same call Codex and OpenCode already make.
+//
+// turnId comes from the turn state machine, whose reset settlePrompt applies
+// only after this event is published, so a settled turn names itself instead
+// of relying on projectTurnCompleted's open-turn fallback.
+const makeCompleted = Effect.fn("CopilotAdapter.makeCompleted")(function*(
+	runtime: SessionRuntime,
+	turnId: Option.Option<TurnId>
+) {
+	const header = yield* stamp(runtime)
+	const payload = Option.isNone(turnId)
+		? {
+				sessionId: runtime.sessionId
+			}
+		: {
+				sessionId: runtime.sessionId,
+				turnId: turnId.value
+			}
+	return TurnCompletedEvent.make({
+		sequence: header.sequence,
+		eventId: header.eventId,
+		aggregateKind: "session",
+		aggregateId: runtime.sessionId,
+		occurredAt: header.occurredAt,
+		commandId: header.commandId,
+		causationEventId: null,
+		correlationId: header.commandId,
+		metadata: EMPTY_JSON_OBJECT,
+		type: "TurnCompleted",
+		payload
+	})
+})
+
+// Publishes the turn end for a turn whose id the caller already claimed,
+// because completing the prompt clears it from the turn state — see
+// settlePrompt in Adapter.ts.
+export const publishTurnCompleted = Effect.fn("CopilotAdapter.publishTurnCompleted")(function*(
+	runtime: SessionRuntime,
+	turnId: Option.Option<TurnId>
+) {
+	const event = yield* makeCompleted(runtime, turnId)
+	return yield* offerOutbound(runtime, event)
+})
+
 const publishToolCallStarted = Effect.fn("CopilotAdapter.publishToolCallStarted")(function*(
 	runtime: SessionRuntime,
 	fact: Extract<CopilotContractFact, { readonly contractKind: "tool_call" }>
@@ -356,6 +411,13 @@ export const publishFact = Effect.fn("CopilotAdapter.publishFact")(function*(
 	}
 	if (fact.contractKind === "usage") {
 		return yield* publishTurnUsageObserved(runtime, fact)
+	}
+	// A turn end Copilot announces as a session/update notification rather
+	// than as the prompt's own answer: the turn is still active here, so its
+	// id is still on the state machine.
+	if (fact.contractKind === "turn_complete" || fact.contractKind === "turn_error") {
+		const turnState = yield* Ref.get(runtime.turnState)
+		return yield* publishTurnCompleted(runtime, turnState.activeTurnId)
 	}
 	const event = yield* makeMetaEvent(runtime, fact)
 	return yield* offerOutbound(runtime, event)
