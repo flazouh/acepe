@@ -368,6 +368,9 @@ export const qaPreloadScript = `(function(){
     // children. Skipping it made this read report an empty tool card for a
     // rendered diff, which is worse than no answer: it is a confident wrong
     // one. Diffs, and anything else rendered into a shadow root, are read here.
+    // Walk the shadow content even when the host itself renders no text of its
+    // own: the host is usually an empty wrapper and everything on screen lives
+    // inside. Reading only hosts that already had text found nothing.
     if (el.shadowRoot && el.shadowRoot.children) {
       var shadowKids = el.shadowRoot.children;
       for (var s = 0; s < shadowKids.length; s++) walkText(shadowKids[s], next, lines);
