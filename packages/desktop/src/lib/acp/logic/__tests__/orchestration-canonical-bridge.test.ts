@@ -1022,6 +1022,85 @@ describe("OrchestrationCanonicalBridge", () => {
 // transcript never advances past that point. This test drives the bridge's
 // output through the real session-state-command-router, the actual next
 // consumer, instead of asserting on the bridge's delta shape alone.
+describe("OrchestrationCanonicalBridge -> session-state-command-router (reopened session)", () => {
+	/**
+	 * A reopen hydrates the client graph from the contract snapshot, whose
+	 * revision is the server's own sequence. The live bridge counts a session's
+	 * revisions from zero. Nothing reconciled the two, so after any reopen every
+	 * delta the bridge produced started at a revision the client had left far
+	 * behind, the router read it as a frontier mismatch, and the session never
+	 * applied another event.
+	 *
+	 * Measured live: the server had the new message, its tool call and an
+	 * ApprovalRequested; the reopened panel showed none of them.
+	 *
+	 * The reopen now tells the bridge where it put the session.
+	 */
+	it("keeps applying after a reopen moved the session's revision", () => {
+		const bridge = makeBridge();
+		let currentRevision: SessionGraphRevision | null = null;
+		let refreshes = 0;
+		let appended = 0;
+
+		function apply(envelope: SessionStateEnvelope): void {
+			for (const command of routeSessionStateEnvelope(sessionId, currentRevision, envelope)) {
+				if (command.kind === "replaceGraph") {
+					currentRevision = command.graph.revision;
+				} else if (command.kind === "applyTranscriptDelta") {
+					currentRevision = command.revision;
+					appended += command.delta.operations.filter((op) => op.kind === "appendEntry").length;
+				} else if (command.kind === "applyGraphPatches") {
+					currentRevision = command.revision;
+				} else if (command.kind === "refreshSnapshot") {
+					refreshes += 1;
+				}
+			}
+		}
+
+		// The session exists and the bridge has been following it.
+		for (const produced of runTranslate(
+			bridge,
+			makeEvent("SessionCreated", { sessionId, projectId, title: "s", providerId: "claude-code" })
+		)) {
+			apply(produced.payload as SessionStateEnvelope);
+		}
+
+		// A reopen replaces the graph at the snapshot's server-sequence revision.
+		const reopened: SessionGraphRevision = {
+			graphRevision: 1773,
+			transcriptRevision: 1773,
+			lastEventSeq: 1773,
+		};
+		currentRevision = reopened;
+		bridge.realignSession(sessionId, reopened);
+
+		for (const event of [
+			makeEvent("MessageSent", {
+				sessionId,
+				messageId: MessageId.make("m-after-reopen"),
+				text: "create the file",
+			}),
+			makeEvent("ToolCallObserved", {
+				sessionId,
+				activityId: "tool-r:activity",
+				toolCallId: "tool-r",
+				operationId: null,
+				status: "in_progress",
+				title: "Write",
+				path: "/tmp/x.txt",
+				kind: "edit",
+			}),
+		]) {
+			for (const produced of runTranslate(bridge, event)) {
+				apply(produced.payload as SessionStateEnvelope);
+			}
+		}
+
+		expect(refreshes).toBe(0);
+		expect(appended).toBe(2);
+	});
+});
+
 describe("OrchestrationCanonicalBridge -> session-state-command-router (full live-turn pipeline)", () => {
 	/**
 	 * A usage reading arriving mid-turn used to spend a graph revision. Nothing

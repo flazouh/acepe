@@ -217,6 +217,25 @@ export class OrchestrationCanonicalBridge {
 	 * snapshot envelope and overwrites whatever a mid-stream sighting started.
 	 * What it no longer does is decide whether later truth is allowed through.
 	 */
+	/**
+	 * Moves a session to where something else has just put it.
+	 *
+	 * A reopen hydrates the client graph from the contract snapshot, whose
+	 * revision is the server's own sequence, while this bridge counts a
+	 * session's revisions from zero. Two number spaces that never met: after any
+	 * reopen every delta produced here started at a revision the client had long
+	 * passed, the router read that as a frontier mismatch, and the session
+	 * stopped applying events entirely while the server kept committing them.
+	 *
+	 * The bridge cannot know where a reopen landed, so the reopen tells it. The
+	 * rest of the session's state is deliberately untouched: which tool calls
+	 * have been seen and which approvals are open are still true, and only the
+	 * revision moved.
+	 */
+	realignSession(sessionId: string, revision: SessionGraphRevision): void {
+		this.stateFor(sessionId).revision = revision;
+	}
+
 	private stateFor(sessionId: string): SessionCanonicalState {
 		const existing = this.sessions.get(sessionId);
 		if (existing !== undefined) {

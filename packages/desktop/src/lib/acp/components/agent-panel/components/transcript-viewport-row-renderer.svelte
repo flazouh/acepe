@@ -178,4 +178,11 @@ const taskDetailControllerBinding = $derived(taskDetailBindingFor(rowId, entry))
 		width: 100%;
 		max-width: 100%;
 	}
+
+	/* When a permission bar is glued under a tool card, square the card's
+	   bottom corners so the card + Deny/Allow footer read as one surface. */
+	.transcript-viewport-row:has(.tool-call-permission-row) :global(.agent-tool-card) {
+		border-bottom-left-radius: 0;
+		border-bottom-right-radius: 0;
+	}
 </style>

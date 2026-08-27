@@ -2,6 +2,7 @@ import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Stream from "effect/Stream";
+import type { SessionGraphRevision } from "../../services/acp-types.js";
 import { appRpcClient } from "$lib/rpc/app-client.js";
 import type { JsonValue } from "$lib/services/converted-session-types.js";
 import { LOGGER_IDS } from "../constants/logger-ids.js";
@@ -98,12 +99,35 @@ export function createAcpEventDrain(
 // consumes; this function's job is just standing the stream up and handing
 // translated envelopes to the same onEnvelope callback the (now retired)
 // SSE path used, so EventSubscriber.ts needs no changes at all.
+/**
+ * The bridge behind the page's one event stream.
+ *
+ * Held here because a reopen has to be able to tell it where it moved a
+ * session, and there is exactly one event source per page. Null until the
+ * stream is standing, and a realign for a session the bridge is not following
+ * is a no-op rather than an error.
+ */
+let liveBridge: OrchestrationCanonicalBridge | null = null;
+
+/**
+ * Tells the live bridge that a session's graph now sits at `revision`.
+ *
+ * The reopen hydration installs a graph whose revision comes from the contract
+ * snapshot -- the server's own sequence -- while the bridge counts a session's
+ * revisions from zero. Without this the two never met, and every event after a
+ * reopen was refused as stale.
+ */
+export function realignCanonicalSession(sessionId: string, revision: SessionGraphRevision): void {
+	liveBridge?.realignSession(sessionId, revision);
+}
+
 export function openAcpEventSource(
 	onEnvelope: (envelope: AcpEventEnvelope) => void
 ): Effect.Effect<() => void, AcpError> {
 	return appRpcClient().pipe(
 		Effect.flatMap((client) => {
 			const bridge = new OrchestrationCanonicalBridge(makeProjectPathResolver(client));
+			liveBridge = bridge;
 			const enqueueEnvelope = createAcpEventDrain(onEnvelope);
 			const consume = client.events(0).pipe(
 				Stream.runForEach((event) =>
@@ -124,6 +148,7 @@ export function openAcpEventSource(
 			return consume.pipe(
 				Effect.forkDetach,
 				Effect.map((fiber) => () => {
+					liveBridge = null;
 					Effect.runFork(Fiber.interrupt(fiber));
 				})
 			);

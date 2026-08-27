@@ -20,6 +20,7 @@ import * as Effect from "effect/Effect";
 
 import type { SessionGraphRevision, SessionStateEnvelope } from "../../../services/acp-types.js";
 import type { AppError } from "../../errors/app-error.js";
+import { realignCanonicalSession } from "../../logic/acp-event-bridge.js";
 import {
 	graphFromReopenSnapshot,
 	reopenGraphRevisionForApply,
@@ -115,6 +116,13 @@ export function hydrateReopenedSessionSnapshot(
 			}
 			const graphForApply = { ...graph, revision: revisionForApply };
 			deps.applySessionStateEnvelope(input.sessionId, createSnapshotEnvelope(graphForApply));
+			// The live bridge counts this session's revisions from zero and has no
+			// way to learn that a reopen just moved it to the snapshot's
+			// server-sequence revision. Without this every event after a reopen
+			// arrives at a revision the client has already passed, the router
+			// reads a frontier mismatch, and the session stops applying anything
+			// while the server keeps committing tool calls and approvals.
+			realignCanonicalSession(input.sessionId, revisionForApply);
 			return { applied: true };
 		}),
 		Effect.catch((error) => {
