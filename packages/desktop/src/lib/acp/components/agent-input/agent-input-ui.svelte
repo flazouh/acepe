@@ -12,6 +12,7 @@ import type {
 	SlashPaletteItem,
 } from "@acepe/ui/agent-panel";
 import {
+	AgentInputComposerLeadingControls,
 	AgentInputComposerTrailingControls,
 	AgentInputModeSelector,
 	AgentInputNewThreadOptions,
@@ -1726,20 +1727,38 @@ $effect(() => {
 					enterSteerShortcut={enterSteerShortcut}
 				>
 						{#snippet leadingControls()}
-							{#if secondaryComposerChromeReady && composerView.visibleModes.length > 0}
+							{#if secondaryComposerChromeReady}
 								<!--
-									The mode is what a person changes mid-task, so it holds the
-									leading slot the attach menu used to. Context and commands
-									stay reachable from the composer itself: "@" for files,
-									"/" for commands.
+									The mode, the model and its reasoning effort are what a person
+									changes mid-task, so they hold the leading slot the attach menu
+									used to. Context and commands stay reachable from the composer
+									itself: "@" for files, "/" for commands.
 								-->
-								<AgentInputModeSelector
-									availableModes={composerView.visibleModes}
-									currentModeId={composerView.effectiveCurrentModeId}
-									autonomousActive={composerView.autonomousToggleActive}
-									disabled={composerView.selectorsDisabledByComposer}
-									onModeChange={(modeId) => { void handleModeMenuChange(modeId); }}
-								/>
+								<AgentInputComposerLeadingControls
+									toolbarConfigOptions={composerView.toolbarConfigOptions}
+									onConfigOptionChange={(configId, value) => {
+										void handleConfigOptionChange(configId, value);
+									}}
+									selectorsLoading={composerView.selectorsLoading}
+									selectorsDisabledByComposer={composerView.selectorsDisabledByComposer}
+								>
+									{#snippet modeSelector()}
+										{#if composerView.visibleModes.length > 0}
+											<AgentInputModeSelector
+												availableModes={composerView.visibleModes}
+												currentModeId={composerView.effectiveCurrentModeId}
+												autonomousActive={composerView.autonomousToggleActive}
+												disabled={composerView.selectorsDisabledByComposer}
+												triggerSize="composerChipIcon"
+												showLabel={false}
+												onModeChange={(modeId) => { void handleModeMenuChange(modeId); }}
+											/>
+										{/if}
+									{/snippet}
+									{#snippet modelSelector()}
+										{@render newThreadModelControl()}
+									{/snippet}
+								</AgentInputComposerLeadingControls>
 							{/if}
 						{/snippet}
 						{#snippet trailingControls()}
@@ -1773,9 +1792,6 @@ $effect(() => {
 									}}
 									voiceCloseLabel={"Close"}
 								>
-									{#snippet modelSelector()}
-										{@render newThreadModelControl()}
-									{/snippet}
 									{#snippet metricsChip()}
 										<ModelSelectorMetricsChip
 											sessionId={props.sessionId ?? null}

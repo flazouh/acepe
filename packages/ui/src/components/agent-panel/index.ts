@@ -51,6 +51,7 @@ export type {
 export { default as AgentInputComposerRow } from "./agent-input-composer-row.svelte";
 export { default as AgentInputComposerToolbar } from "./agent-input-composer-toolbar.svelte";
 export { default as AgentInputModelReasoningFusedControls } from "./agent-input-model-reasoning-fused-controls.svelte";
+export { default as AgentInputComposerLeadingControls } from "./agent-input-composer-leading-controls.svelte";
 export { default as AgentInputComposerTrailingControls } from "./agent-input-composer-trailing-controls.svelte";
 export { default as AgentInputConfigOptionSelector } from "./agent-input-config-option-selector.svelte";
 export type { AgentInputConfigOption } from "./agent-input-config-option-types.js";

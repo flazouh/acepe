@@ -173,6 +173,24 @@ export function isFastConfigOption(opt: AgentInputConfigOption): boolean {
 	return opt.presentation === "compactSpeed";
 }
 
+/**
+ * Split the toolbar's config options into the one fused onto the model and the
+ * rest. The composer renders the two halves in different clusters, so the rule
+ * that separates them is defined once here instead of as two filters that have
+ * to stay each other's opposite.
+ */
+export function partitionToolbarConfigOptions(
+	options: readonly AgentInputConfigOption[]
+): {
+	readonly reasoning: AgentInputConfigOption | null;
+	readonly others: readonly AgentInputConfigOption[];
+} {
+	return {
+		reasoning: options.find((option) => isReasoningConfigOption(option)) ?? null,
+		others: options.filter((option) => !isReasoningConfigOption(option)),
+	};
+}
+
 export function getConfigOptionResolvedTriggerSize(
 	configOption: AgentInputConfigOption,
 	defaultTriggerSize: SelectorTriggerSize = "composerChipLabel"

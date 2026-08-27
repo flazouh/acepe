@@ -4,6 +4,7 @@ import {
 	AgentInputActiveModeChip,
 	AgentInputConfigOptionSelector,
 	AgentInputComposerRow,
+	AgentInputComposerLeadingControls,
 	AgentInputComposerTrailingControls,
 	AgentInputModelSelector,
 	AgentPanelDeck,
@@ -827,6 +828,22 @@ let { bare = false }: Props = $props();
 										autonomousToggleActive={panel.autonomousActive}
 										onAutonomousToggle={() => handleAutonomousToggle(panel.id)}
 									/>
+									<AgentInputComposerLeadingControls>
+										{#snippet modelSelector()}
+											<AgentInputModelSelector
+												triggerLabel={currentModel?.name ?? "Select model"}
+												triggerProviderBrand={currentModel?.providerBrand ?? null}
+												triggerProviderLabel={currentModel?.providerLabel}
+												currentModelId={panel.currentModelId}
+												modelGroups={panel.modelGroups}
+												favoriteModels={getFavoriteModels(panel)}
+												onModelChange={(modelId) => handleModelChange(panel.id, modelId)}
+												onDefaultModelToggle={(modelId) =>
+													handleSetModeDefault(panel.id, modelId, panel.currentModeId)}
+												onToggleFavorite={(modelId) => handleToggleFavorite(panel.id, modelId)}
+											/>
+										{/snippet}
+									</AgentInputComposerLeadingControls>
 									<AgentInputConfigOptionSelector
 										configOption={panel.configOption}
 										onValueChange={(configId, value) =>
@@ -851,22 +868,7 @@ let { bare = false }: Props = $props();
 										getMicButtonTitle={() => panel.micTitle}
 										onVoiceMicKeyDown={() => undefined}
 										voiceCloseLabel="Close"
-									>
-										{#snippet modelSelector()}
-											<AgentInputModelSelector
-												triggerLabel={currentModel?.name ?? "Select model"}
-												triggerProviderBrand={currentModel?.providerBrand ?? null}
-												triggerProviderLabel={currentModel?.providerLabel}
-												currentModelId={panel.currentModelId}
-												modelGroups={panel.modelGroups}
-												favoriteModels={getFavoriteModels(panel)}
-												onModelChange={(modelId) => handleModelChange(panel.id, modelId)}
-												onDefaultModelToggle={(modelId) =>
-													handleSetModeDefault(panel.id, modelId, panel.currentModeId)}
-												onToggleFavorite={(modelId) => handleToggleFavorite(panel.id, modelId)}
-											/>
-										{/snippet}
-									</AgentInputComposerTrailingControls>
+									/>
 								{/snippet}
 							</AgentInputComposerRow>
 						{/snippet}

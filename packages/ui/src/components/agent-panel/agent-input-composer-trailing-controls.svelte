@@ -1,23 +1,22 @@
 <!--
-  AgentInputComposerTrailingControls - Model slot, metrics, checkpoint, voice controls.
-  Extracted from the former composer footer right cluster.
+  AgentInputComposerTrailingControls - Project picker, remaining config options,
+  voice and metrics at the composer's trailing edge.
+
+  Mode, model and reasoning live in AgentInputComposerLeadingControls.
 -->
 <script lang="ts">
 	import type { Snippet } from "svelte";
 
 	import AgentInputConfigOptionSelector from "./agent-input-config-option-selector.svelte";
 	import { AGENT_INPUT_CONTROL_GAP_CLASS } from "./agent-input-composer-spacing.js";
-	import AgentInputModelReasoningFusedControls from "./agent-input-model-reasoning-fused-controls.svelte";
 	import AgentInputVoiceFusedControls from "./agent-input-voice-fused-controls.svelte";
-	import { isReasoningConfigOption } from "./agent-input-config-option-selector-state.js";
+	import { partitionToolbarConfigOptions } from "./agent-input-config-option-selector-state.js";
 	import { isVoiceActive } from "./agent-input-composer-toolbar-state.js";
 	import type { AgentInputConfigOption } from "./agent-input-config-option-types.js";
 	import type { AgentComposerToolbarVoiceBinding } from "./agent-input-toolbar-voice.js";
 
 	let {
 		inputReady,
-		modeSelector,
-		modelSelector,
 		metricsChip,
 		agentProjectPicker,
 		voiceState,
@@ -33,13 +32,6 @@
 		selectorsDisabledByComposer = false,
 	}: {
 		inputReady: boolean;
-		/**
-		 * The session's mode, as its own control rather than an item buried in
-		 * the attach menu. A provider's modes are the thing a person switches
-		 * between mid-task, so they belong on the toolbar next to the model.
-		 */
-		modeSelector?: Snippet;
-		modelSelector: Snippet;
 		metricsChip?: Snippet;
 		agentProjectPicker?: Snippet;
 		voiceState: AgentComposerToolbarVoiceBinding | null;
@@ -59,15 +51,10 @@
 		isVoiceActive(voiceState) ? "pointer-events-none opacity-0" : "opacity-100"
 	);
 
-	const reasoningToolbarOption = $derived(
-		toolbarConfigOptions.find((configOption) => isReasoningConfigOption(configOption)) ?? null
-	);
-
+	/** Reasoning is fused to the model in the leading cluster, so it is not repeated here. */
 	const otherToolbarConfigOptions = $derived(
-		toolbarConfigOptions.filter((configOption) => !isReasoningConfigOption(configOption))
+		partitionToolbarConfigOptions(toolbarConfigOptions).others
 	);
-
-	const fuseModelWithReasoning = $derived(reasoningToolbarOption !== null && onConfigOptionChange !== undefined);
 </script>
 
 {#if inputReady}
@@ -82,33 +69,6 @@
 				{@render agentProjectPicker()}
 			</div>
 		{/if}
-		{#if modeSelector}
-			<div
-				class="shrink-0 transition-opacity duration-200 ease-out {fadeWhenVoiceActiveClass}"
-				data-qa="agent-input-mode-control"
-			>
-				{@render modeSelector()}
-			</div>
-		{/if}
-		<div
-			class="w-fit min-w-0 max-w-[min(18rem,100%)] shrink overflow-hidden
-				[&_[role=group]]:!min-w-0 [&_[role=group]]:!max-w-full
-				[&_[data-slot=button]]:!min-w-0 [&_[data-slot=button]]:!max-w-full"
-			data-qa="agent-input-model-control"
-		>
-			{#if fuseModelWithReasoning && reasoningToolbarOption && onConfigOptionChange}
-				<AgentInputModelReasoningFusedControls
-					{modelSelector}
-					reasoningConfigOption={reasoningToolbarOption}
-					disabled={selectorsLoading || selectorsDisabledByComposer}
-					onConfigOptionChange={(configId, value) => {
-						void onConfigOptionChange(configId, value);
-					}}
-				/>
-			{:else}
-				{@render modelSelector()}
-			{/if}
-		</div>
 		{#if otherToolbarConfigOptions.length > 0 && onConfigOptionChange}
 			{#each otherToolbarConfigOptions as configOption (configOption.id)}
 				<div

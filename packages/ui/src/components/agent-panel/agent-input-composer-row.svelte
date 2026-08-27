@@ -107,7 +107,8 @@ let {
 		{/if}
 	</div>
 	<div class="flex items-end justify-between gap-1 min-w-0" data-qa="agent-input-toolbar-row">
-		<div class="flex items-end gap-0.5 shrink-0">
+		<!-- min-w-0 because the leading cluster now carries the model label, which is long. -->
+		<div class="flex min-w-0 shrink items-end gap-0.5">
 			{#if leading}
 				{@render leading()}
 			{/if}

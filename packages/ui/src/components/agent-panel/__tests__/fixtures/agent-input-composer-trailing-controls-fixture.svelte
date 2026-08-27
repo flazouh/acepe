@@ -27,10 +27,6 @@
 	});
 </script>
 
-{#snippet modelSelector()}
-	<button type="button">Sonnet · github-copilot-claude-sonnet-4-6</button>
-{/snippet}
-
 {#snippet metricsChip()}
 	{#if showMetrics}
 		<span>42%</span>
@@ -39,7 +35,6 @@
 
 <AgentInputComposerTrailingControls
 	inputReady={true}
-	{modelSelector}
 	{metricsChip}
 	{voiceState}
 	voiceEnabled={true}

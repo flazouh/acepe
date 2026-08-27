@@ -27,6 +27,12 @@
 		autonomousActive?: boolean;
 		/** Same default as the model selector, so the two triggers match. */
 		triggerSize?: SelectorTriggerSize;
+		/**
+		 * Drop the mode name and keep the icon. The icon already carries the mode
+		 * and its colour, so a composer that shows the model name next to it does
+		 * not need the word twice.
+		 */
+		showLabel?: boolean;
 		onModeChange: (modeId: string) => void;
 	}
 
@@ -36,6 +42,7 @@
 		disabled = false,
 		autonomousActive = false,
 		triggerSize = "pill",
+		showLabel = true,
 		onModeChange,
 	}: Props = $props();
 
@@ -73,7 +80,9 @@
 			class="size-3.5 shrink-0"
 			style={`color: ${getModeIconColor(selectedOption.iconKind)}`}
 		/>
-		<span class="min-w-0 truncate text-xs">{selectedOption.label}</span>
+		{#if showLabel}
+			<span class="min-w-0 truncate text-xs">{selectedOption.label}</span>
+		{/if}
 	{/snippet}
 
 	{#each modeOptions as option (option.id)}

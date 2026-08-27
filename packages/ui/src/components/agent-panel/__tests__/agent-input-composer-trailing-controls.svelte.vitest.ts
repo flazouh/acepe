@@ -26,12 +26,10 @@ afterEach(() => {
 });
 
 describe("AgentInputComposerTrailingControls", () => {
-	it("keeps a long model label content-sized instead of filling a wide composer", () => {
+	it("leaves the model to the leading cluster", () => {
 		const view = render(AgentInputComposerTrailingControlsFixture);
-		const modelControl = view.container.querySelector('[data-qa="agent-input-model-control"]');
 
-		expect(modelControl?.classList.contains("w-fit")).toBe(true);
-		expect(modelControl?.classList.contains("max-w-[min(18rem,100%)]")).toBe(true);
+		expect(view.container.querySelector('[data-qa="agent-input-model-control"]')).toBeNull();
 	});
 
 	it("spaces its controls with the shared composer control gap", () => {
@@ -41,16 +39,14 @@ describe("AgentInputComposerTrailingControls", () => {
 		expect(row?.classList.contains(AGENT_INPUT_CONTROL_GAP_CLASS)).toBe(true);
 	});
 
-	it("keeps model and context visible while voice is active", () => {
+	it("keeps context visible while voice is active", () => {
 		const view = render(AgentInputComposerTrailingControlsFixture, {
 			props: {
 				voiceActive: true,
 			},
 		});
-		const modelControl = view.container.querySelector('[data-qa="agent-input-model-control"]');
 		const metricsChip = view.container.querySelector('[data-qa="agent-input-metrics-chip"]');
 
-		expect(modelControl?.classList.contains("opacity-0")).toBe(false);
 		expect(metricsChip?.classList.contains("opacity-0")).toBe(false);
 	});
 

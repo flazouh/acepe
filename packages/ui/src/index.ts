@@ -79,6 +79,7 @@ export {
 	AgentInputAttachMenu,
 	AgentInputAutonomousToggle,
 	AgentInputBranchSelector,
+	AgentInputComposerLeadingControls,
 	AgentInputComposerRow,
 	AgentInputComposerTrailingControls,
 	AgentInputConfigOptionSelector,
