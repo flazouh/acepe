@@ -241,6 +241,7 @@ export class ComposerViewController {
 
 	readonly capabilitySource = $derived.by(() =>
 		resolveCapabilitySource({
+			agentId: this.capabilitiesAgentId,
 			sessionSource: this.sessionCapabilitySource,
 			preconnectionCapabilities: this.preconnectionCapabilities,
 			cachedModes: this.cachedModes,

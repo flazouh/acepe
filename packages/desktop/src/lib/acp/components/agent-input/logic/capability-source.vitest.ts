@@ -49,6 +49,47 @@ function modelIds(models: readonly { id: string }[] | null): string[] | null {
 }
 
 describe("resolveCapabilitySource", () => {
+	/**
+	 * A composer with no session, no preconnection answer and no cache used to
+	 * resolve to nothing, and the toolbar renders its mode selector only when
+	 * modes exist. So a brand new Claude thread offered no modes at all and its
+	 * model slot stayed a static agent label. A provider's modes and models are
+	 * contract facts, so they are the honest last resort.
+	 */
+	it("falls back to what the provider offers when nothing else answered", () => {
+		const resolution = resolveCapabilitySource({
+			agentId: "claude-code",
+			sessionSource: { kind: "no_session" },
+			preconnectionCapabilities: null,
+			cachedModes: [],
+			cachedModels: [],
+			cachedModelsDisplay: null,
+			providerMetadata: CLAUDE_CODE_PROVIDER_METADATA,
+		});
+
+		expect(modeIds(resolution.availableModes)).toEqual([
+			"default",
+			"plan",
+			"acceptEdits",
+			"bypassPermissions",
+		]);
+		expect((resolution.availableModels ?? []).length).toBeGreaterThan(0);
+	});
+
+	it("offers nothing for an agent whose provider publishes no modes", () => {
+		const resolution = resolveCapabilitySource({
+			agentId: "some-unknown-agent",
+			sessionSource: { kind: "no_session" },
+			preconnectionCapabilities: null,
+			cachedModes: [],
+			cachedModels: [],
+			cachedModelsDisplay: null,
+			providerMetadata: CLAUDE_CODE_PROVIDER_METADATA,
+		});
+
+		expect(modeIds(resolution.availableModes)).toEqual([]);
+	});
+
 	it("uses resolved preconnection capabilities before persisted caches for never-connected built-in agents", () => {
 		const resolution = resolveCapabilitySource({
 			sessionSource: { kind: "no_session" },
