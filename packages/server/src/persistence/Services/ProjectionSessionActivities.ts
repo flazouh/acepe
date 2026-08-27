@@ -72,6 +72,14 @@ export const ProjectedSessionActivityRow = Schema.Struct({
 })
 export type ProjectedSessionActivityRow = typeof ProjectedSessionActivityRow.Type
 
+// Stored as the payload's JSON text, decoded back into the object the contract
+// carries. Null for a row whose provider sent no arguments, and for every row
+// written before this column existed. The writer encodes through the same
+// schema, so the column has one definition of its own text.
+const StoredActivityInput = Schema.JsonObject.pipe(Schema.fromJsonString, Schema.NullOr)
+
+export const encodeProjectionSessionActivityInput = Schema.encodeEffect(StoredActivityInput)
+
 export const ProjectionSessionActivityStoredRow = Schema.Struct({
 	activity_id: ActivityId,
 	session_id: SessionId,
@@ -85,10 +93,7 @@ export const ProjectionSessionActivityStoredRow = Schema.Struct({
 	title: TrimmedNonEmptyString,
 	path: Schema.NullOr(TrimmedNonEmptyString),
 	output: Schema.NullOr(TrimmedNonEmptyString),
-	// Stored as the payload's JSON text, decoded back into the object the
-	// contract carries. Null for a row whose provider sent no arguments, and
-	// for every row written before this column existed.
-	input: Schema.NullOr(Schema.fromJsonString(Schema.JsonObject))
+	input: StoredActivityInput
 })
 export type ProjectionSessionActivityStoredRow = typeof ProjectionSessionActivityStoredRow.Type
 

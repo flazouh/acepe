@@ -1,3 +1,5 @@
+import type { HugeiconsIconName } from "../icons/hugeicons-icon-registry.ts";
+
 export type ModeIconKind =
 	| "agent"
 	| "plan"
@@ -57,7 +59,7 @@ export function getSelectedModeOption(input: {
  * Paired with getModeIconColor below: the icon says what the mode does, the
  * colour says how much it will do without asking.
  */
-export function getModeIconName(iconKind: ModeIconKind): string {
+export function getModeIconName(iconKind: ModeIconKind): HugeiconsIconName {
 	switch (iconKind) {
 		case "agent":
 			return "tool-task";

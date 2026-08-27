@@ -9,6 +9,7 @@ import {
 	type ActivityProjectionEvent,
 	activityIdFromEvent,
 	decodeProjectionSessionActivityStoredRows,
+	encodeProjectionSessionActivityInput,
 	evolveSessionActivity,
 	type ProjectedSessionActivityRow,
 	projectedSessionActivityFromRow,
@@ -49,6 +50,7 @@ const upsert = Effect.fn("ProjectionSessionActivities.upsert")(function*(
 	tx: SqlClient.SqlClient,
 	row: ProjectedSessionActivityRow
 ) {
+	const input = yield* encodeProjectionSessionActivityInput(row.input)
 	yield* tx`
 		INSERT INTO projection_session_activities (
 			activity_id,
@@ -77,7 +79,7 @@ const upsert = Effect.fn("ProjectionSessionActivities.upsert")(function*(
 			${row.title},
 			${row.path},
 			${row.output},
-			${row.input === null ? null : JSON.stringify(row.input)}
+			${input}
 		)
 		ON CONFLICT(activity_id) DO UPDATE SET
 			session_id = excluded.session_id,
