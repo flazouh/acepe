@@ -1,7 +1,6 @@
 import type {
 	ActiveStreamingTail,
 	SessionGraphActivity,
-	SessionGraphCapabilities,
 	SessionGraphRevision,
 	SessionStateGraph,
 	SessionTurnState,
@@ -9,7 +8,7 @@ import type {
 	TranscriptSnapshot,
 } from "../../../services/acp-types.js";
 import type { SessionStateCommand } from "../../session-state/session-state-command-router.js";
-import { sanitizeCanonicalCapabilities } from "../canonical-config-sanitize.js";
+import { projectionWithCapabilities } from "../canonical-session-projection.js";
 import {
 	graphWithCapabilities,
 	graphWithLifecycle,
@@ -19,6 +18,7 @@ import {
 import { applyTranscriptDeltaToSnapshot } from "../transcript-delta.js";
 import type { SessionTransientProjection } from "../types.js";
 import { buildCanonicalUsageTelemetry } from "./canonical-usage-telemetry.js";
+import { capabilitiesWithSessionMode } from "./capabilities-with-session-mode.js";
 import { emptySessionGraphCapabilities } from "./empty-session-graph-capabilities.js";
 import type { EnvelopePatch } from "./envelope-patch.js";
 import type { EnvelopeReducerSnapshot } from "./envelope-snapshot.js";
@@ -69,8 +69,8 @@ export function reduceCommand(
 	nowMs: number
 ): readonly EnvelopePatch[] {
 	switch (command.kind) {
-		case "applyCapabilities":
-			return reduceApplyCapabilities(snapshot, command);
+		case "applySessionMode":
+			return reduceApplySessionMode(snapshot, command);
 		case "applyTelemetry":
 			return reduceApplyTelemetry(snapshot, command, nowMs);
 		case "applyPlan":
@@ -94,77 +94,70 @@ export function reduceCommand(
 	}
 }
 
-function reduceApplyCapabilities(
+/**
+ * #283: the live path for the canonical current mode.
+ *
+ * Every other capability reaches the store as a whole projection, on the graph
+ * a snapshot envelope carries, which SessionEnvelopeApplier sanitizes and
+ * writes in one go. A mode change is one field, so it patches: everything else
+ * on the capabilities stays as it was (see `capabilitiesWithSessionMode`). An
+ * older revision cannot overwrite a newer mode, and an equal revision applies
+ * only when the mode actually differs.
+ *
+ * `capabilitiesMaterialized` is deliberately untouched. A mode alone does not
+ * materialize a session's capability set, and claiming it did would make the
+ * composer read canonical models and commands that no producer has filled in
+ * yet.
+ */
+function reduceApplySessionMode(
 	snapshot: EnvelopeReducerSnapshot,
-	command: Extract<SessionStateCommand, { kind: "applyCapabilities" }>
+	command: Extract<SessionStateCommand, { kind: "applySessionMode" }>
 ): readonly EnvelopePatch[] {
 	if (!snapshot.hasSessionIdentity) {
 		return [];
 	}
 
-	if (isOlderGraphRevision(snapshot.previousProjection?.revision ?? null, command.revision)) {
+	const previousProjection = snapshot.previousProjection;
+	const previousGraph = snapshot.previousGraph;
+	const previousCapabilities =
+		previousProjection?.capabilities ?? previousGraph?.capabilities ?? null;
+	if (previousCapabilities === null) {
 		return [];
 	}
 
-	const canonicalCapabilities = sanitizeCanonicalCapabilities(command.capabilities);
+	if (isOlderGraphRevision(previousProjection?.revision ?? null, command.revision)) {
+		return [];
+	}
+
 	if (
-		!isNewerGraphRevision(snapshot.previousProjection?.revision ?? null, command.revision) &&
-		(snapshot.previousProjection === null ||
-			capabilitiesEqual(snapshot.previousProjection.capabilities, canonicalCapabilities))
+		!isNewerGraphRevision(previousProjection?.revision ?? null, command.revision) &&
+		previousCapabilities.modes?.currentModeId === command.currentModeId
 	) {
 		return [];
 	}
 
-	const patches: EnvelopePatch[] = [
-		{
-			kind: "setCapabilitiesMaterialized",
-			sessionId: snapshot.sessionId,
-			materialized: true,
-		},
-	];
+	const nextCapabilities = capabilitiesWithSessionMode(previousCapabilities, command.currentModeId);
+	const patches: EnvelopePatch[] = [];
 
-	if (snapshot.previousProjection !== null) {
+	if (previousProjection !== null) {
 		patches.push({
 			kind: "setCanonicalProjection",
 			sessionId: snapshot.sessionId,
-			projection: {
-				lifecycle: snapshot.previousProjection.lifecycle,
-				activity: snapshot.previousProjection.activity,
-				turnState: snapshot.previousProjection.turnState,
-				activeTurnFailure: snapshot.previousProjection.activeTurnFailure,
-				lastTerminalTurnId: snapshot.previousProjection.lastTerminalTurnId,
-				activeStreamingTail: snapshot.previousProjection.activeStreamingTail,
-				capabilities: canonicalCapabilities,
-				revision: command.revision,
-			},
+			projection: projectionWithCapabilities(
+				previousProjection,
+				nextCapabilities,
+				command.revision
+			),
 		});
 	}
 
-	if (snapshot.previousGraph !== null) {
+	if (previousGraph !== null) {
 		patches.push({
 			kind: "setSessionStateGraph",
 			sessionId: snapshot.sessionId,
-			graph: graphWithCapabilities(snapshot.previousGraph, canonicalCapabilities, command.revision),
+			graph: graphWithCapabilities(previousGraph, nextCapabilities, command.revision),
 		});
 	}
-
-	const transientUpdates: {
-		capabilityMutationState?: SessionTransientProjection["capabilityMutationState"];
-		autonomousTransition?: SessionTransientProjection["autonomousTransition"];
-	} = {
-		capabilityMutationState: {
-			pendingMutationId: command.pendingMutationId,
-			previewState: command.previewState,
-		},
-	};
-	if (snapshot.transientProjection.autonomousTransition !== "idle") {
-		transientUpdates.autonomousTransition = "idle";
-	}
-	patches.push({
-		kind: "updateTransientProjection",
-		sessionId: snapshot.sessionId,
-		updates: transientUpdates,
-	});
 
 	return patches;
 }
@@ -649,13 +642,4 @@ function reduceRefreshSnapshot(
 			},
 		},
 	];
-}
-
-function capabilitiesEqual(
-	left: SessionGraphCapabilities,
-	right: SessionGraphCapabilities
-): boolean {
-	const sanitizedLeft = sanitizeCanonicalCapabilities(left);
-	const sanitizedRight = sanitizeCanonicalCapabilities(right);
-	return JSON.stringify(sanitizedLeft) === JSON.stringify(sanitizedRight);
 }

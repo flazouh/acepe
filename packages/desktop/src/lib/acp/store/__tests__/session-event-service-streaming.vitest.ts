@@ -20,8 +20,10 @@ vi.mock("../utils/logger.js", () => ({
 
 import type {
 	SessionGraphActivity,
+	SessionGraphCapabilities,
 	SessionGraphLifecycle,
 	SessionStateEnvelope,
+	SessionStateGraph,
 	TranscriptDelta,
 } from "../../../services/acp-types.js";
 import type { SessionUpdate } from "../../../services/converted-session-types.js";
@@ -95,6 +97,55 @@ function createIdleActivity(): SessionGraphActivity {
 		activeSubagentCount: 0,
 		dominantOperationId: null,
 		blockingInteractionId: null,
+	};
+}
+
+/**
+ * A snapshot envelope, the one envelope kind that carries capabilities to the
+ * store. Connection materialization reads them off the graph it holds.
+ */
+function createSnapshotEnvelope(input: {
+	readonly sessionId: string;
+	readonly graphRevision: number;
+	readonly capabilities: SessionGraphCapabilities;
+	readonly lifecycle?: SessionGraphLifecycle;
+}): SessionStateEnvelope {
+	const graph: SessionStateGraph = {
+		requestedSessionId: input.sessionId,
+		canonicalSessionId: input.sessionId,
+		isAlias: false,
+		agentId: "claude-code" as SessionStateGraph["agentId"],
+		projectPath: "/tmp/project",
+		worktreePath: null,
+		sourcePath: null,
+		revision: {
+			graphRevision: input.graphRevision,
+			transcriptRevision: 3,
+			lastEventSeq: input.graphRevision,
+		},
+		transcriptSnapshot: {
+			revision: 3,
+			entries: [],
+		},
+		operations: [],
+		interactions: [],
+		turnState: "Idle",
+		messageCount: 0,
+		activeStreamingTail: null,
+		activeTurnFailure: null,
+		lastTerminalTurnId: null,
+		lifecycle: input.lifecycle ?? createGraphLifecycle("activating"),
+		activity: createIdleActivity(),
+		capabilities: input.capabilities,
+	};
+	return {
+		sessionId: input.sessionId,
+		graphRevision: input.graphRevision,
+		lastEventSeq: input.graphRevision,
+		payload: {
+			kind: "snapshot",
+			graph,
+		},
 	};
 }
 
@@ -1549,34 +1600,23 @@ describe("SessionEventService streaming delta handling", () => {
 		const { promise } = service.waitForConnectionMaterialization("session-ready-1", 5000);
 
 		service.handleSessionStateEnvelope(
-			{
+			createSnapshotEnvelope({
 				sessionId: "session-ready-1",
 				graphRevision: 8,
-				lastEventSeq: 8,
-				payload: {
-					kind: "capabilities",
-					capabilities: {
-						models: {
-							availableModels: [{ modelId: "claude-sonnet-4.6", name: "Claude Sonnet 4.6" }],
-							currentModelId: "claude-sonnet-4.6",
-						},
-						modes: {
-							currentModeId: "build",
-							availableModes: [{ id: "build", name: "Build", description: null }],
-						},
-						availableCommands: [{ name: "compact", description: "Compact", input: null }],
-						configOptions: [],
-						autonomousEnabled: true,
+				capabilities: {
+					models: {
+						availableModels: [{ modelId: "claude-sonnet-4.6", name: "Claude Sonnet 4.6" }],
+						currentModelId: "claude-sonnet-4.6",
 					},
-					revision: {
-						graphRevision: 8,
-						transcriptRevision: 3,
-						lastEventSeq: 8,
+					modes: {
+						currentModeId: "build",
+						availableModes: [{ id: "build", name: "Build", description: null }],
 					},
-					pending_mutation_id: null,
-					preview_state: "canonical",
+					availableCommands: [{ name: "compact", description: "Compact", input: null }],
+					configOptions: [],
+					autonomousEnabled: true,
 				},
-			},
+			}),
 			connectedHandler
 		);
 		service.handleSessionStateEnvelope(
@@ -1631,34 +1671,23 @@ describe("SessionEventService streaming delta handling", () => {
 		const { promise } = service.waitForConnectionMaterialization("session-ready-budget-1", 5000);
 
 		service.handleSessionStateEnvelope(
-			{
+			createSnapshotEnvelope({
 				sessionId: "session-ready-budget-1",
 				graphRevision: 1,
-				lastEventSeq: 1,
-				payload: {
-					kind: "capabilities",
-					capabilities: {
-						models: {
-							availableModels: [{ modelId: "claude-sonnet-4.6", name: "Claude Sonnet 4.6" }],
-							currentModelId: "claude-sonnet-4.6",
-						},
-						modes: {
-							currentModeId: "build",
-							availableModes: [{ id: "build", name: "Build", description: null }],
-						},
-						availableCommands: [],
-						configOptions: [],
-						autonomousEnabled: true,
+				capabilities: {
+					models: {
+						availableModels: [{ modelId: "claude-sonnet-4.6", name: "Claude Sonnet 4.6" }],
+						currentModelId: "claude-sonnet-4.6",
 					},
-					revision: {
-						graphRevision: 1,
-						transcriptRevision: 1,
-						lastEventSeq: 1,
+					modes: {
+						currentModeId: "build",
+						availableModes: [{ id: "build", name: "Build", description: null }],
 					},
-					pending_mutation_id: null,
-					preview_state: "canonical",
+					availableCommands: [],
+					configOptions: [],
+					autonomousEnabled: true,
 				},
-			},
+			}),
 			connectedHandler
 		);
 		service.handleSessionStateEnvelope(
@@ -1740,21 +1769,13 @@ describe("SessionEventService streaming delta handling", () => {
 				graphRevision: 8,
 				lastEventSeq: 8,
 				payload: {
-					kind: "capabilities",
-					capabilities: {
-						models: null,
-						modes: null,
-						availableCommands: [],
-						configOptions: [],
-						autonomousEnabled: true,
-					},
+					kind: "sessionMode",
+					currentModeId: "plan",
 					revision: {
 						graphRevision: 8,
 						transcriptRevision: 3,
 						lastEventSeq: 8,
 					},
-					pending_mutation_id: null,
-					preview_state: "canonical",
 				},
 			},
 			handler
@@ -1788,33 +1809,22 @@ describe("SessionEventService streaming delta handling", () => {
 		);
 
 		service.handleSessionStateEnvelope(
-			{
+			createSnapshotEnvelope({
 				sessionId: "session-ready-unknown-autonomous",
 				graphRevision: 8,
-				lastEventSeq: 8,
-				payload: {
-					kind: "capabilities",
-					capabilities: {
-						models: {
-							availableModels: [{ modelId: "claude-sonnet-4.6", name: "Claude Sonnet 4.6" }],
-							currentModelId: "claude-sonnet-4.6",
-						},
-						modes: {
-							currentModeId: "build",
-							availableModes: [{ id: "build", name: "Build", description: null }],
-						},
-						availableCommands: [],
-						configOptions: [],
+				capabilities: {
+					models: {
+						availableModels: [{ modelId: "claude-sonnet-4.6", name: "Claude Sonnet 4.6" }],
+						currentModelId: "claude-sonnet-4.6",
 					},
-					revision: {
-						graphRevision: 8,
-						transcriptRevision: 3,
-						lastEventSeq: 8,
+					modes: {
+						currentModeId: "build",
+						availableModes: [{ id: "build", name: "Build", description: null }],
 					},
-					pending_mutation_id: null,
-					preview_state: "canonical",
+					availableCommands: [],
+					configOptions: [],
 				},
-			},
+			}),
 			connectedHandler
 		);
 		service.handleSessionStateEnvelope(
@@ -1848,32 +1858,21 @@ describe("SessionEventService streaming delta handling", () => {
 		);
 
 		service.handleSessionStateEnvelope(
-			{
+			createSnapshotEnvelope({
 				sessionId: "session-ready-unknown-lists",
 				graphRevision: 8,
-				lastEventSeq: 8,
-				payload: {
-					kind: "capabilities",
-					capabilities: {
-						models: {
-							availableModels: [{ modelId: "claude-sonnet-4.6", name: "Claude Sonnet 4.6" }],
-							currentModelId: "claude-sonnet-4.6",
-						},
-						modes: {
-							currentModeId: "build",
-							availableModes: [{ id: "build", name: "Build", description: null }],
-						},
-						autonomousEnabled: true,
+				capabilities: {
+					models: {
+						availableModels: [{ modelId: "claude-sonnet-4.6", name: "Claude Sonnet 4.6" }],
+						currentModelId: "claude-sonnet-4.6",
 					},
-					revision: {
-						graphRevision: 8,
-						transcriptRevision: 3,
-						lastEventSeq: 8,
+					modes: {
+						currentModeId: "build",
+						availableModes: [{ id: "build", name: "Build", description: null }],
 					},
-					pending_mutation_id: null,
-					preview_state: "canonical",
+					autonomousEnabled: true,
 				},
-			},
+			}),
 			connectedHandler
 		);
 		service.handleSessionStateEnvelope(

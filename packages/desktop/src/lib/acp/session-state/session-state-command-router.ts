@@ -1,6 +1,5 @@
 import type {
 	ActiveStreamingTail,
-	CapabilityPreviewState,
 	InteractionSnapshot,
 	OperationSnapshot,
 	PlanData,
@@ -48,11 +47,14 @@ export type SessionStateCommand =
 			revision: SessionGraphRevision;
 	  }
 	| {
-			kind: "applyCapabilities";
-			capabilities: SessionGraphCapabilities;
+			// #283: the mode a session runs in, on its own. Capabilities
+			// otherwise reach the store as a whole projection, on the graph a
+			// snapshot envelope carries, so a mode arriving mid-run needs a
+			// command that changes the mode and leaves the models, the commands
+			// and the config options in that projection alone.
+			kind: "applySessionMode";
+			currentModeId: string;
 			revision: SessionGraphRevision;
-			pendingMutationId: string | null;
-			previewState: CapabilityPreviewState;
 	  }
 	| {
 			kind: "applyTelemetry";
@@ -282,7 +284,7 @@ export function routeSessionStateEnvelope(
 					revision: envelope.payload.revision,
 				},
 			];
-		case "capabilities":
+		case "sessionMode":
 			if (!envelopeFrontierMatchesRevision(envelope, envelope.payload.revision)) {
 				return [
 					{
@@ -294,11 +296,9 @@ export function routeSessionStateEnvelope(
 			}
 			return [
 				{
-					kind: "applyCapabilities",
-					capabilities: envelope.payload.capabilities,
+					kind: "applySessionMode",
+					currentModeId: envelope.payload.currentModeId,
 					revision: envelope.payload.revision,
-					pendingMutationId: envelope.payload.pending_mutation_id ?? null,
-					previewState: envelope.payload.preview_state,
 				},
 			];
 		case "telemetry":

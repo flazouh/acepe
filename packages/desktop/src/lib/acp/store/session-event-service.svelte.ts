@@ -804,8 +804,6 @@ export class SessionEventService {
 			waiter.capabilities = envelope.payload.graph.capabilities;
 		} else if (envelope.payload.kind === "lifecycle") {
 			waiter.lifecycle = envelope.payload.lifecycle;
-		} else if (envelope.payload.kind === "capabilities") {
-			waiter.capabilities = envelope.payload.capabilities;
 		}
 
 		if (waiter.lifecycle?.status === "failed") {

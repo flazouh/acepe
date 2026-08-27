@@ -61,17 +61,6 @@ function createCapabilities(description = "Describe the command") {
 	};
 }
 
-function createLargeCommandCatalog() {
-	return {
-		availableCommands: Array.from({ length: 118 }, (_, index) => ({
-			name: `command-${index}`,
-			description:
-				"Provider command description with enough text to match a real Claude Code catalog entry.",
-		})),
-		autonomousEnabled: true,
-	};
-}
-
 function createTelemetry(sourceModelId = "claude-sonnet") {
 	return {
 		sessionId: "session-1",
@@ -188,10 +177,10 @@ describe("session-state envelope byte budgets", () => {
 
 	it("defines a byte budget for every session-state payload kind", () => {
 		expect(SESSION_STATE_ENVELOPE_BYTE_BUDGETS.map((budget) => budget.kind).sort()).toEqual([
-			"capabilities",
 			"delta",
 			"lifecycle",
 			"plan",
+			"sessionMode",
 			"snapshot",
 			"telemetry",
 			"viewportBufferDelta",
@@ -379,57 +368,6 @@ describe("session-state envelope byte budgets", () => {
 			ok: false,
 			kind: "lifecycle",
 			maxBytes: getSessionStateEnvelopeByteBudget("lifecycle"),
-		});
-	});
-
-	it("accepts normal small capabilities envelopes", () => {
-		const result = checkSessionStateEnvelopeByteBudget(
-			createEnvelope({
-				kind: "capabilities",
-				capabilities: createCapabilities(),
-				revision,
-				preview_state: "canonical",
-			})
-		);
-
-		expect(result).toMatchObject({
-			ok: true,
-			kind: "capabilities",
-		});
-	});
-
-	it("accepts large provider command catalogs in capabilities envelopes", () => {
-		const result = checkSessionStateEnvelopeByteBudget(
-			createEnvelope({
-				kind: "capabilities",
-				capabilities: createLargeCommandCatalog(),
-				revision,
-				preview_state: "canonical",
-			})
-		);
-
-		expect(result).toMatchObject({
-			ok: true,
-			kind: "capabilities",
-		});
-	});
-
-	it("rejects oversized capabilities envelopes", () => {
-		const result = checkSessionStateEnvelopeByteBudget(
-			createEnvelope({
-				kind: "capabilities",
-				capabilities: createCapabilities(
-					"x".repeat(getSessionStateEnvelopeByteBudget("capabilities"))
-				),
-				revision,
-				preview_state: "canonical",
-			})
-		);
-
-		expect(result).toMatchObject({
-			ok: false,
-			kind: "capabilities",
-			maxBytes: getSessionStateEnvelopeByteBudget("capabilities"),
 		});
 	});
 

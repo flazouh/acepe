@@ -1641,86 +1641,6 @@ describe("SessionStore.applySessionStateGraph", () => {
 		]);
 	});
 
-	it("replaces canonical capabilities while carrying lifecycle fields forward", () => {
-		const store = new SessionStore();
-		addColdSession(store);
-		store.applySessionStateEnvelope(
-			"session-1",
-			createSnapshotEnvelope(
-				createSessionStateGraph({
-					activeTurnFailure: null,
-					turnState: "Running",
-					lifecycle: createGraphLifecycle("ready"),
-					capabilities: {
-						models: {
-							currentModelId: "gpt-4.1",
-							availableModels: [
-								{
-									modelId: "gpt-4.1",
-									name: "GPT-4.1",
-								},
-							],
-						},
-						modes: null,
-						availableCommands: [],
-						configOptions: [],
-						autonomousEnabled: false,
-					},
-				})
-			)
-		);
-
-		store.applySessionStateEnvelope("session-1", {
-			sessionId: "session-1",
-			graphRevision: 8,
-			lastEventSeq: 8,
-			payload: {
-				kind: "capabilities",
-				capabilities: {
-					models: {
-						currentModelId: "gpt-5",
-						availableModels: [
-							{
-								modelId: "gpt-5",
-								name: "GPT-5",
-							},
-						],
-					},
-					modes: null,
-					availableCommands: [],
-					configOptions: [],
-					autonomousEnabled: true,
-				},
-				revision: {
-					graphRevision: 8,
-					transcriptRevision: 7,
-					lastEventSeq: 8,
-				},
-				pending_mutation_id: "mutation-1",
-				preview_state: "pending",
-			},
-		});
-
-		expect(store.read.getSessionLifecycleStatus("session-1")).toBe("ready");
-		expect(store.read.getSessionTurnState("session-1")).toBe("Running");
-		expect(store.read.getSessionCurrentModelId("session-1")).toBe("gpt-5");
-		expect(store.read.getSessionAutonomousEnabled("session-1")).toBe(true);
-		expect(store.read.getSessionGraphRevision("session-1")).toEqual({
-			graphRevision: 8,
-			transcriptRevision: 7,
-			lastEventSeq: 8,
-		});
-		expect(store.read.getSessionAvailableModels("session-1")).toEqual([
-			{
-				id: "gpt-5",
-				name: "GPT-5",
-				description: undefined,
-			},
-		]);
-		expect(store.read.getSessionCapabilityPendingMutationId("session-1")).toBe("mutation-1");
-		expect(store.read.getSessionCapabilityPreviewState("session-1")).toBe("pending");
-	});
-
 	it("redacts unsafe config option values before writing canonical capabilities", () => {
 		const store = new SessionStore();
 		addColdSession(store);
@@ -1775,7 +1695,7 @@ describe("SessionStore.applySessionStateGraph", () => {
 		});
 	});
 
-	it("preserves omitted models and modes in a capability envelope as unknown state", () => {
+	it("preserves omitted models and modes in a later graph as unknown state", () => {
 		const store = new SessionStore();
 		addColdSession(store, "session-1", "cursor");
 
@@ -1809,30 +1729,29 @@ describe("SessionStore.applySessionStateGraph", () => {
 			})
 		);
 
-		store.applySessionStateEnvelope("session-1", {
-			sessionId: "session-1",
-			graphRevision: 8,
-			lastEventSeq: 8,
-			payload: {
-				kind: "capabilities",
-				capabilities: {
-					models: null,
-					modes: null,
-					availableCommands: [],
-					configOptions: [],
-					autonomousEnabled: false,
-				},
-				revision: {
-					graphRevision: 8,
-					transcriptRevision: 8,
-					lastEventSeq: 8,
-				},
-				pending_mutation_id: null,
-				preview_state: "partial",
-			},
-		});
+		store.applySessionStateEnvelope(
+			"session-1",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					activeTurnFailure: null,
+					turnState: "Running",
+					lifecycle: createGraphLifecycle("ready"),
+					revision: {
+						graphRevision: 8,
+						transcriptRevision: 8,
+						lastEventSeq: 8,
+					},
+					capabilities: {
+						models: null,
+						modes: null,
+						availableCommands: [],
+						configOptions: [],
+						autonomousEnabled: false,
+					},
+				})
+			)
+		);
 
-		expect(store.read.getSessionAvailableModels("session-1")).toBeNull();
 		expect(store.read.getSessionAvailableModels("session-1")).toBeNull();
 		expect(store.read.getSessionAvailableModes("session-1")).toBeNull();
 		expect(store.read.getSessionCurrentModelId("session-1")).toBeNull();
@@ -3298,7 +3217,7 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		});
 	});
 
-	it("hydrates capabilities envelopes into canonical capability selectors", () => {
+	it("hydrates snapshot envelope capabilities into canonical capability selectors", () => {
 		const store = new SessionStore();
 		addColdSession(store);
 		store.applySessionStateGraph(
@@ -3309,57 +3228,57 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			})
 		);
 
-		store.applySessionStateEnvelope("session-1", {
-			sessionId: "session-1",
-			graphRevision: 9,
-			lastEventSeq: 9,
-			payload: {
-				kind: "capabilities",
-				capabilities: {
-					models: {
-						availableModels: [
+		store.applySessionStateEnvelope(
+			"session-1",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					activeTurnFailure: null,
+					turnState: "Idle",
+					lifecycle: createGraphLifecycle("ready"),
+					revision: {
+						graphRevision: 9,
+						transcriptRevision: 7,
+						lastEventSeq: 9,
+					},
+					capabilities: {
+						models: {
+							availableModels: [
+								{
+									modelId: "claude-sonnet-4.6",
+									name: "Claude Sonnet 4.6",
+								},
+							],
+							currentModelId: "claude-sonnet-4.6",
+						},
+						modes: {
+							currentModeId: "build",
+							availableModes: [
+								{
+									id: "build",
+									name: "Build",
+								},
+							],
+						},
+						availableCommands: [
 							{
-								modelId: "claude-sonnet-4.6",
-								name: "Claude Sonnet 4.6",
+								name: "edit",
+								description: "Edit files",
 							},
 						],
-						currentModelId: "claude-sonnet-4.6",
-					},
-					modes: {
-						currentModeId: "build",
-						availableModes: [
+						configOptions: [
 							{
-								id: "build",
-								name: "Build",
+								id: "sandbox",
+								name: "sandbox",
+								category: "runtime",
+								type: "string",
+								currentValue: "workspace-write",
 							},
 						],
+						autonomousEnabled: true,
 					},
-					availableCommands: [
-						{
-							name: "edit",
-							description: "Edit files",
-						},
-					],
-					configOptions: [
-						{
-							id: "sandbox",
-							name: "sandbox",
-							category: "runtime",
-							type: "string",
-							currentValue: "workspace-write",
-						},
-					],
-					autonomousEnabled: true,
-				},
-				pending_mutation_id: null,
-				preview_state: "canonical",
-				revision: {
-					graphRevision: 9,
-					transcriptRevision: 7,
-					lastEventSeq: 9,
-				},
-			},
-		});
+				})
+			)
+		);
 
 		expect(store.read.getSessionAvailableModels("session-1")).toEqual([
 			{
@@ -3373,12 +3292,6 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 				id: "build",
 				name: "Build",
 				description: undefined,
-			},
-		]);
-		expect(store.read.getSessionAvailableCommands("session-1")).toEqual([
-			{
-				name: "edit",
-				description: "Edit files",
 			},
 		]);
 		expect(store.read.getSessionCurrentModeId("session-1")).toBe("build");

@@ -166,6 +166,66 @@ describe("OrchestrationCanonicalBridge", () => {
 		expect(payload.payload.graph.capabilities.modes ?? null).toBe(null);
 	});
 
+	// #283: the canonical SessionModeSet is the only truth for the mode a
+	// session runs in. It used to fall into translate's default branch, so a
+	// mode set mid-run reached nothing at all and the panel kept reporting the
+	// previous mode until the session was reopened -- only the reopen path
+	// (reopen-snapshot-graph.ts's capabilitiesFromSnapshot) read the server's
+	// folded mode. The envelope is its own narrow kind: it carries the one
+	// canonical fact that changed, so applying it cannot wipe the rest of the
+	// session's capabilities the way a whole-capabilities replace would.
+	it("emits a session-mode envelope for a live SessionModeSet", () => {
+		const bridge = makeBridge();
+		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
+
+		const envelopes = runTranslate(
+			bridge,
+			makeEvent("SessionModeSet", { sessionId, modeId: "plan" })
+		);
+
+		expect(envelopes).toHaveLength(1);
+		const payload = envelopes[0]?.payload as SessionStateEnvelope;
+		expect(payload.graphRevision).toBe(1);
+		expect(payload.lastEventSeq).toBe(1);
+		expect(payload.payload.kind).toBe("sessionMode");
+		if (payload.payload.kind === "sessionMode") {
+			expect(payload.payload.currentModeId).toBe("plan");
+			expect(payload.payload.revision).toEqual({
+				graphRevision: 1,
+				transcriptRevision: 0,
+				lastEventSeq: 1,
+			});
+		}
+	});
+
+	// A mode change adds no transcript row, so it must not claim the
+	// transcript advanced: session-state-query-service.ts reads a transcript
+	// revision that moved with nothing to apply as a desync and forces a
+	// refreshSnapshot, which this app has no producer for on a live session.
+	it("routes a live SessionModeSet into an applySessionMode command", () => {
+		const bridge = makeBridge();
+		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
+		const envelopes = runTranslate(
+			bridge,
+			makeEvent("SessionModeSet", { sessionId, modeId: "plan" })
+		);
+		const payload = envelopes[0]?.payload as SessionStateEnvelope;
+
+		const commands = routeSessionStateEnvelope(
+			sessionId,
+			{ graphRevision: 0, transcriptRevision: 0, lastEventSeq: 0 },
+			payload
+		);
+
+		expect(commands).toEqual([
+			{
+				kind: "applySessionMode",
+				currentModeId: "plan",
+				revision: { graphRevision: 1, transcriptRevision: 0, lastEventSeq: 1 },
+			},
+		]);
+	});
+
 	/**
 	 * These three cases used to assert the opposite: that an event for an
 	 * unknown session produced nothing. A real Claude Code session showed what

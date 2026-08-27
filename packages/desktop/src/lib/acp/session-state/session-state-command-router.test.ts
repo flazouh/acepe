@@ -352,26 +352,19 @@ describe("routeSessionStateEnvelope", () => {
 		]);
 	});
 
-	it("refreshes when a capabilities envelope header disagrees with payload revision", () => {
+	it("refreshes when a session-mode envelope header disagrees with payload revision", () => {
 		const envelope: SessionStateEnvelope = {
 			sessionId: "session-1",
 			graphRevision: 9,
 			lastEventSeq: 11,
 			payload: {
-				kind: "capabilities",
-				capabilities: {
-					modes: null,
-					models: null,
-					configOptions: [],
-					autonomousEnabled: false,
-				},
+				kind: "sessionMode",
+				currentModeId: "plan",
 				revision: {
 					graphRevision: 8,
 					transcriptRevision: 8,
 					lastEventSeq: 10,
 				},
-				pending_mutation_id: null,
-				preview_state: "canonical",
 			},
 		};
 
