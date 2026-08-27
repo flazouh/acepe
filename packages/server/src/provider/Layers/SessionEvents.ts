@@ -18,6 +18,7 @@ import * as Effect from "effect/Effect"
 import * as HashMap from "effect/HashMap"
 import * as Option from "effect/Option"
 import * as Ref from "effect/Ref"
+import * as Schema from "effect/Schema"
 import { EMPTY_JSON_OBJECT } from "./Json.ts"
 
 // The per-event identity a provider's own `stamp` mints, and the only part of
@@ -133,6 +134,10 @@ export type ToolCallObservedInput = {
 	// not been widened to pass one still compiles; it then travels as null,
 	// exactly like a call the provider genuinely could not classify.
 	readonly kind?: string | null
+	// The tool's own arguments. Optional for the same reason as kind: a
+	// provider that has not been widened travels as null, exactly like a call
+	// whose provider sent none.
+	readonly toolInput?: Schema.JsonObject | null
 }
 
 // Builds the SAME contract event the tracer's ToolCallObserveCommand decider
@@ -173,7 +178,11 @@ export const toolCallObservedEvent = (
 			// observedToolKind applies the same blank -> null / trim guard to
 			// the provider's classification. Absent (undefined) collapses to
 			// null the same way a provider that never classified the call does.
-			kind: observedToolKind(input.kind ?? null)
+			kind: observedToolKind(input.kind ?? null),
+			// The arguments travel as-is: they are provider-shaped JSON, and
+			// the only consumer that can read them is the one that knows the
+			// tool. Absent collapses to null, like kind.
+			input: input.toolInput ?? null
 		}
 	})
 

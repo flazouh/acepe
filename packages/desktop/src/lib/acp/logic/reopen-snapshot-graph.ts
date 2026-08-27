@@ -31,6 +31,7 @@ import type {
 	RpcSessionSnapshot,
 } from "@acepe/contracts";
 
+import type { JsonValue } from "../../services/converted-session-types.js";
 import type {
 	CanonicalAgentId,
 	InteractionSnapshot,
@@ -121,6 +122,12 @@ function transcriptEntryFromMessage(message: RpcProjectedMessage): TranscriptEnt
 
 const noToolArguments: ToolArguments = { kind: "other", raw: null };
 
+/** The reopen half of the bridge's `toolArgumentsFrom`: same rule, same reason. */
+const toolArgumentsFromActivity = (activity: RpcProjectedSessionActivity): ToolArguments =>
+	activity.input === null || activity.input === undefined
+		? noToolArguments
+		: { kind: "other", raw: activity.input as unknown as JsonValue };
+
 // AC-263, reopen half: `RpcProjectedSessionActivity.status` is a free-form
 // server string (Schema.optionalKey(Schema.String)), not the same literal
 // union `observed-tool-call-status.ts` maps -- narrow the ones the server
@@ -165,7 +172,11 @@ function operationFromActivity(activity: RpcProjectedSessionActivity): Operation
 			observedStatusFromActivityStatus(activity.status)
 		),
 		title,
-		arguments: noToolArguments,
+		// The tool's own arguments, carried per activity by the snapshot (input
+		// column). A reopened session must show the same proposed change the
+		// live bridge shows, or a permission that survives a reopen becomes
+		// unreviewable.
+		arguments: toolArgumentsFromActivity(activity),
 		progressive_arguments: null,
 		// #273, reopen half: the tool's own result, carried per activity by the
 		// snapshot (output column). A reopened session must render the same

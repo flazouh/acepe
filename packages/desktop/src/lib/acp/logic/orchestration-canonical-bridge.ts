@@ -19,7 +19,9 @@
 import type { ApprovalDecision, OrchestrationEvent, SessionId } from "@acepe/contracts";
 import { librarySnapshotRequest, type RpcClient } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
 
+import type { JsonValue } from "../../services/converted-session-types.js";
 import type {
 	CanonicalAgentId,
 	InteractionSnapshot,
@@ -137,6 +139,20 @@ function awaitingModelActivityAt(turnStartedAtMs: number | null): SessionGraphAc
 }
 
 const noArguments: ToolArguments = { kind: "other", raw: null };
+
+/**
+ * The tool's own arguments, as the observation carried them.
+ *
+ * Handed through as `raw` rather than classified here: the display pipeline
+ * already knows how to read an edit out of them (aggregate-file-edits.ts reads
+ * file_path/old_string/new_string/content), and re-deriving a shape in the
+ * bridge would be a second place to get it wrong. Absent arguments stay the
+ * shared empty value, so nothing downstream has to special-case them.
+ */
+const toolArgumentsFrom = (input: Schema.JsonObject | null | undefined): ToolArguments =>
+	input === null || input === undefined
+		? noArguments
+		: { kind: "other", raw: input as unknown as JsonValue };
 
 const PERMISSION_ID_PREFIX = "perm-";
 
@@ -450,6 +466,7 @@ export class OrchestrationCanonicalBridge {
 		readonly path: string | null;
 		readonly output?: string | null;
 		readonly kind?: string | null;
+		readonly input?: Schema.JsonObject | null;
 	}): AcpEventEnvelope[] {
 		const state = this.stateFor(payload.sessionId);
 		// A tool call is transcript-bearing only on first sighting -- that is
@@ -508,7 +525,7 @@ export class OrchestrationCanonicalBridge {
 			kind: asOperationToolKind(payload.kind),
 			provider_status: observedStatusToToolCallStatus(payload.status),
 			title: payload.title,
-			arguments: noArguments,
+			arguments: toolArgumentsFrom(payload.input),
 			progressive_arguments: null,
 			// #273: the tool's own result, canonical on the observation itself.
 			// transcript-viewport-row-mapper.ts already renders it through

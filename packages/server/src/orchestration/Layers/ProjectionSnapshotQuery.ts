@@ -216,6 +216,7 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 					sequence,
 					kind,
 					tool_kind,
+					input,
 					status,
 					title,
 					path,

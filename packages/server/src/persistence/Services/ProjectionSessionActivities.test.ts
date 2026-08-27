@@ -250,7 +250,8 @@ Vitest.describe("evolveSessionActivity", () => {
 				status: "pending",
 				title: "Bash",
 				path: null,
-				output: null
+				output: null,
+				input: null
 			})
 		})
 	)
@@ -450,7 +451,8 @@ Vitest.describe("mergeActivityRow", () => {
 			status: "pending",
 			title: STUB_ACTIVITY_TITLE,
 			path: null,
-			output: null
+			output: null,
+			input: null
 		}
 		const observed: ProjectedSessionActivityRow = {
 			activityId,
@@ -464,7 +466,8 @@ Vitest.describe("mergeActivityRow", () => {
 			status: "pending",
 			title: "Bash",
 			path: null,
-			output: null
+			output: null,
+			input: null
 		}
 		const merged = mergeActivityRow(Option.some(stub), observed)
 		Vitest.assert.strictEqual(merged.sequence, 4)
@@ -492,7 +495,8 @@ Vitest.describe("mergeActivityRow", () => {
 			status: "in_progress",
 			title: "Bash",
 			path: null,
-			output: null
+			output: null,
+			input: null
 		}
 		const completed: ProjectedSessionActivityRow = {
 			activityId,
@@ -506,7 +510,8 @@ Vitest.describe("mergeActivityRow", () => {
 			status: "completed",
 			title: "Bash",
 			path: null,
-			output: toolOutput
+			output: toolOutput,
+			input: null
 		}
 		Vitest.assert.strictEqual(
 			mergeActivityRow(Option.some(started), completed).output,

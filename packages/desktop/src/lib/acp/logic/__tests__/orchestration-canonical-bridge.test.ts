@@ -1022,6 +1022,59 @@ describe("OrchestrationCanonicalBridge", () => {
 // transcript never advances past that point. This test drives the bridge's
 // output through the real session-state-command-router, the actual next
 // consumer, instead of asserting on the bridge's delta shape alone.
+describe("OrchestrationCanonicalBridge tool arguments", () => {
+	/**
+	 * A permission asks a person to approve a change. Until the observation
+	 * carried the tool's own arguments, the transcript could name the file and
+	 * nothing else, so approving a write meant approving content nobody could
+	 * see. The adapter always had these arguments and used them only to derive a
+	 * path hint.
+	 *
+	 * Handed through as `raw`: aggregate-file-edits.ts already reads
+	 * file_path/old_string/new_string/content out of them, and classifying here
+	 * would be a second place to get it wrong.
+	 */
+	it("carries a write's proposed content onto the operation", () => {
+		const bridge = makeBridge();
+		const envelopes = runTranslate(
+			bridge,
+			makeEvent("ToolCallObserved", {
+				sessionId,
+				activityId: "tool-write:activity",
+				toolCallId: "tool-write",
+				operationId: null,
+				status: "in_progress",
+				title: "Write",
+				path: "/tmp/acepe-qa.txt",
+				kind: "edit",
+				input: { file_path: "/tmp/acepe-qa.txt", content: "160" },
+			})
+		);
+
+		const serialised = JSON.stringify(envelopes);
+		expect(serialised).toContain("/tmp/acepe-qa.txt");
+		expect(serialised).toContain("160");
+	});
+
+	it("a tool that sent no arguments still produces an operation", () => {
+		const bridge = makeBridge();
+		const envelopes = runTranslate(
+			bridge,
+			makeEvent("ToolCallObserved", {
+				sessionId,
+				activityId: "tool-bare:activity",
+				toolCallId: "tool-bare",
+				operationId: null,
+				status: "in_progress",
+				title: "Bash",
+				path: null,
+				kind: "execute",
+			})
+		);
+		expect(envelopes.length).toBeGreaterThan(0);
+	});
+});
+
 describe("OrchestrationCanonicalBridge -> session-state-command-router (reopened session)", () => {
 	/**
 	 * A reopen hydrates the client graph from the contract snapshot, whose
