@@ -47,8 +47,7 @@ const logger = createLogger({ id: "session-list-state", name: "SessionListState"
 // scan's result, which is invisible from the DOM (both states just render).
 // Gated at read time by the hook consumer; recording is a bounded ring.
 const QA_WRITE_LOG_LIMIT = 60;
-const QA_WRITE_LOG_ENABLED =
-	import.meta.env.DEV || import.meta.env.VITE_ENABLE_QA_HOOKS === "1";
+const QA_WRITE_LOG_ENABLED = import.meta.env.DEV || import.meta.env.VITE_ENABLE_QA_HOOKS === "1";
 function recordSessionListWriteForQa(count: number, tag: string): void {
 	if (!QA_WRITE_LOG_ENABLED || typeof window === "undefined") {
 		return;

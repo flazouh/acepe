@@ -8,7 +8,7 @@ test("isElectrobunShellWindow is true for the views scheme", () => {
 			protocol: "views:",
 			search: "",
 			hasElectrobunGlobal: false,
-		}),
+		})
 	).toBe(true);
 });
 
@@ -18,7 +18,7 @@ test("isElectrobunShellWindow is true when the preload global exists on file url
 			protocol: "file:",
 			search: "",
 			hasElectrobunGlobal: true,
-		}),
+		})
 	).toBe(true);
 });
 
@@ -28,7 +28,7 @@ test("isElectrobunShellWindow is true for the tracer query on a web origin", () 
 			protocol: "https:",
 			search: "?slice=tracer",
 			hasElectrobunGlobal: false,
-		}),
+		})
 	).toBe(true);
 });
 
@@ -38,7 +38,7 @@ test("isElectrobunShellWindow is false for the Tauri desktop page", () => {
 			protocol: "https:",
 			search: "",
 			hasElectrobunGlobal: false,
-		}),
+		})
 	).toBe(false);
 });
 
@@ -52,7 +52,7 @@ test("desktopShellKind is electrobun for the views scheme", () => {
 			protocol: "views:",
 			search: "",
 			hasElectrobunGlobal: false,
-		}),
+		})
 	).toBe("electrobun");
 });
 
@@ -62,6 +62,6 @@ test("desktopShellKind is tauri for the shipping desktop page", () => {
 			protocol: "https:",
 			search: "",
 			hasElectrobunGlobal: false,
-		}),
+		})
 	).toBe("tauri");
 });

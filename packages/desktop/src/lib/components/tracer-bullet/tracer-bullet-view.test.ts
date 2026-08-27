@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import {
 	CommandId,
-	emptyRpcSessionSnapshot,
 	EventId,
+	emptyRpcSessionSnapshot,
 	MessageId,
 	type OrchestrationEvent,
 	ProjectId,
@@ -83,10 +83,10 @@ describe("tracer bullet controller mapping", () => {
 							skillsCatalog: null,
 							voice: null,
 							gitReview: null,
-			mcpCatalog: null,
-			preconnectionOptions: null,
-			terminal: null,
-			sessionReviewState: null,
+							mcpCatalog: null,
+							preconnectionOptions: null,
+							terminal: null,
+							sessionReviewState: null,
 						}),
 					getProjectIndex: () =>
 						Effect.succeed({
@@ -105,7 +105,8 @@ describe("tracer bullet controller mapping", () => {
 					getProviderAccountUsage: () => Effect.succeed([]),
 					listProviderSessions: () => Effect.succeed([]),
 					listProviderProjects: () => Effect.succeed([]),
-					importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
+					importProviderSession: () =>
+						Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 					events: () => Stream.make(token),
 				};
 				const registry = AtomRegistry.make();
@@ -114,6 +115,6 @@ describe("tracer bullet controller mapping", () => {
 				const rows = transcriptRowsFromSnapshot(store.snapshot.current);
 				expect(rows.map((row) => row.text)).toEqual(["Ping", TRACER_REPLY_TEXT]);
 				expect(emptyRpcSessionSnapshot(0).messages).toEqual([]);
-			}),
+			})
 		));
 });

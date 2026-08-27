@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import * as Result from "effect/Result";
+import { describe, expect, it } from "vitest";
 
 import { createKeybindingsService } from "../service.svelte.js";
 import { createContextManager } from "./manager.svelte.js";

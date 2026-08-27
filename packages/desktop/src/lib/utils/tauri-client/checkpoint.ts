@@ -24,10 +24,7 @@ import {
 	withRpcClient,
 } from "./rpc-bridge.ts";
 
-const epochMillisFromIso = (
-	operation: string,
-	iso: string
-): Effect.Effect<number, AgentError> => {
+const epochMillisFromIso = (operation: string, iso: string): Effect.Effect<number, AgentError> => {
 	const made = DateTime.make(iso);
 	if (Option.isNone(made)) {
 		return Effect.fail(new AgentError(operation, new Error("invalid createdAt")));
@@ -35,9 +32,7 @@ const epochMillisFromIso = (
 	return Effect.succeed(DateTime.toEpochMillis(made.value));
 };
 
-const mapCheckpoint = (
-	row: RpcProjectedCheckpoint
-): Effect.Effect<Checkpoint, AgentError> =>
+const mapCheckpoint = (row: RpcProjectedCheckpoint): Effect.Effect<Checkpoint, AgentError> =>
 	epochMillisFromIso("checkpoint.map", row.createdAt).pipe(
 		Effect.map((createdAt) => ({
 			id: row.checkpointId,
@@ -63,12 +58,8 @@ const nextCheckpointNumber = (rows: readonly RpcProjectedCheckpoint[]): number =
 	return maxNumber + 1;
 };
 
-const loadSessionCheckpoints = Effect.fn("loadSessionCheckpoints")(function* (
-	sessionId: string
-) {
-	const decodedSessionId = yield* decodeEffect("checkpoint.snapshot", decodeSessionId)(
-		sessionId
-	);
+const loadSessionCheckpoints = Effect.fn("loadSessionCheckpoints")(function* (sessionId: string) {
+	const decodedSessionId = yield* decodeEffect("checkpoint.snapshot", decodeSessionId)(sessionId);
 	const snapshot = yield* withRpcClient("checkpoint.snapshot", (client) =>
 		client.snapshot(sessionSnapshotRequest(decodedSessionId))
 	);
@@ -104,9 +95,10 @@ export const checkpoint = {
 	) {
 		const loaded = yield* loadSessionCheckpoints(sessionId);
 		const createCommandId = yield* nextCommandId("checkpoint-create");
-		const checkpointId = yield* decodeEffect("checkpoint.create", decodeCheckpointId)(
-			`checkpoint-${String(createCommandId)}`
-		);
+		const checkpointId = yield* decodeEffect(
+			"checkpoint.create",
+			decodeCheckpointId
+		)(`checkpoint-${String(createCommandId)}`);
 		const checkpointNumber = yield* decodeEffect(
 			"checkpoint.create",
 			Schema.decodeUnknownEffect(CheckpointNumber)
@@ -116,9 +108,7 @@ export const checkpoint = {
 			Schema.decodeUnknownEffect(CheckpointFileCount)
 		)(modifiedFiles.length);
 		const name =
-			options?.name === undefined
-				? null
-				: yield* decodeTrimmed("checkpoint.create", options.name);
+			options?.name === undefined ? null : yield* decodeTrimmed("checkpoint.create", options.name);
 		const toolCallId =
 			options?.toolCallId === undefined
 				? null
@@ -183,12 +173,11 @@ export const checkpoint = {
 		projectPath: string,
 		worktreePath?: string
 	) {
-		const decodedSessionId = yield* decodeEffect("checkpoint.revert", decodeSessionId)(
-			sessionId
-		);
-		const decodedCheckpointId = yield* decodeEffect("checkpoint.revert", decodeCheckpointId)(
-			checkpointId
-		);
+		const decodedSessionId = yield* decodeEffect("checkpoint.revert", decodeSessionId)(sessionId);
+		const decodedCheckpointId = yield* decodeEffect(
+			"checkpoint.revert",
+			decodeCheckpointId
+		)(checkpointId);
 		const commandId = yield* nextCommandId("checkpoint-revert");
 		yield* withRpcClient("checkpoint.revert", (client) =>
 			client.dispatch({

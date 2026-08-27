@@ -1,5 +1,5 @@
-import * as Effect from "effect/Effect";
 import { beforeEach, describe, expect, it, mock } from "bun:test";
+import * as Effect from "effect/Effect";
 
 // Mock svelte context functions (no-op outside component lifecycle)
 mock.module("svelte", () => ({

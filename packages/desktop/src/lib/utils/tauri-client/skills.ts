@@ -1,11 +1,11 @@
 import {
-	emptySkillsCatalog,
 	type PluginInfo as ContractPluginInfo,
 	type PluginSkill as ContractPluginSkill,
 	type Skill as ContractSkill,
 	type SkillTreeNode as ContractSkillTreeNode,
-	skillsSnapshotRequest,
+	emptySkillsCatalog,
 	type SkillsCatalog,
+	skillsSnapshotRequest,
 } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 
@@ -22,19 +22,9 @@ import type {
 	SyncResult,
 	SyncTarget,
 } from "../../skills/types/index.js";
-import {
-	nextCommandId,
-	unsupportedOnContract,
-	withRpcClient,
-} from "./rpc-bridge.ts";
+import { nextCommandId, unsupportedOnContract, withRpcClient } from "./rpc-bridge.ts";
 
-const TREE_NODE_TYPES = [
-	"agent",
-	"skill",
-	"plugins-section",
-	"plugin",
-	"plugin-skill",
-] as const;
+const TREE_NODE_TYPES = ["agent", "skill", "plugins-section", "plugin", "plugin-skill"] as const;
 
 type TreeNodeType = (typeof TREE_NODE_TYPES)[number];
 
@@ -227,10 +217,7 @@ export const skills = {
 				const found = findPluginSkill(catalog, skillId);
 				if (found === null) {
 					return Effect.fail(
-						new AgentError(
-							"skills.getPluginSkill",
-							new Error(`plugin skill not found: ${skillId}`)
-						)
+						new AgentError("skills.getPluginSkill", new Error(`plugin skill not found: ${skillId}`))
 					);
 				}
 				return Effect.succeed(found);
@@ -240,8 +227,7 @@ export const skills = {
 	copyPluginSkillToAgent: (
 		_skillId: string,
 		_targetAgentId: string
-	): Effect.Effect<Skill, AppError> =>
-		unsupportedOnContract("skills.copyPluginSkillToAgent"),
+	): Effect.Effect<Skill, AppError> => unsupportedOnContract("skills.copyPluginSkillToAgent"),
 
 	libraryListSkills: (): Effect.Effect<LibrarySkill[], AppError> => Effect.succeed([]),
 
@@ -256,8 +242,7 @@ export const skills = {
 		_description: string | null,
 		_content: string,
 		_category: string | null
-	): Effect.Effect<LibrarySkill, AppError> =>
-		unsupportedOnContract("skills.libraryCreateSkill"),
+	): Effect.Effect<LibrarySkill, AppError> => unsupportedOnContract("skills.libraryCreateSkill"),
 
 	libraryUpdateSkill: (
 		_skillId: string,
@@ -265,8 +250,7 @@ export const skills = {
 		_description?: string | null,
 		_content?: string,
 		_category?: string | null
-	): Effect.Effect<LibrarySkill, AppError> =>
-		unsupportedOnContract("skills.libraryUpdateSkill"),
+	): Effect.Effect<LibrarySkill, AppError> => unsupportedOnContract("skills.libraryUpdateSkill"),
 
 	libraryDeleteSkill: (_skillId: string): Effect.Effect<void, AppError> =>
 		unsupportedOnContract("skills.libraryDeleteSkill"),
@@ -278,8 +262,7 @@ export const skills = {
 		_skillId: string,
 		_agentId: string,
 		_enabled: boolean
-	): Effect.Effect<void, AppError> =>
-		unsupportedOnContract("skills.librarySetSyncTarget"),
+	): Effect.Effect<void, AppError> => unsupportedOnContract("skills.librarySetSyncTarget"),
 
 	librarySyncSkill: (_skillId: string): Effect.Effect<SkillSyncResult[], AppError> =>
 		unsupportedOnContract("skills.librarySyncSkill"),

@@ -1,6 +1,6 @@
+import { decodeSessionId, sessionSnapshotRequest } from "@acepe/contracts";
 import { decodeUnknown } from "@acepe/effect-result/decodeUnknown";
 import { fromThrowable } from "@acepe/effect-result/fromThrowable";
-import { decodeSessionId, sessionSnapshotRequest } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
@@ -82,10 +82,7 @@ export const sessionReviewState = {
 
 		for (const [revisionKey, progress] of Object.entries(state.filesByRevisionKey)) {
 			const decodedRevisionKey = yield* decodeTrimmed("sessionReviewState.save", revisionKey);
-			const decodedFilePath = yield* decodeTrimmed(
-				"sessionReviewState.save",
-				progress.filePath
-			);
+			const decodedFilePath = yield* decodeTrimmed("sessionReviewState.save", progress.filePath);
 			const markCommandId = yield* nextCommandId("review-mark");
 			yield* withRpcClient("sessionReviewState.save", (client) =>
 				client.dispatch({

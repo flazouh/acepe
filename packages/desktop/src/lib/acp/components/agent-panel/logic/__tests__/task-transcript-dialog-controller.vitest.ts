@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
 import * as Effect from "effect/Effect";
+import { describe, expect, it, vi } from "vitest";
 import type {
 	SessionGraphRevision,
 	TranscriptRowPageResult,
@@ -169,7 +169,9 @@ describe("TaskTranscriptDialogController", () => {
 			.fn()
 			.mockReturnValueOnce(Effect.succeed(currentPage(0, 1, [row("thought")])))
 			.mockReturnValueOnce(
-				Effect.succeed(currentPageForRevision(0, 2, [row("thought"), row("live-tool")], refreshedRevision))
+				Effect.succeed(
+					currentPageForRevision(0, 2, [row("thought"), row("live-tool")], refreshedRevision)
+				)
 			);
 		const controller = new TaskTranscriptDialogController({ readPage });
 		const identity = taskTranscriptDialogIdentity({

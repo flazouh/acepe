@@ -49,9 +49,7 @@ function getOrCreateFlag(name: FeatureFlagName): Effect.Effect<boolean, Error> {
 			.onConflictDoNothing();
 
 		return defaultValue;
-	}).pipe(
-		Effect.mapError((error) => new Error(`Failed to get feature flag ${name}: ${error}`))
-	);
+	}).pipe(Effect.mapError((error) => new Error(`Failed to get feature flag ${name}: ${error}`)));
 }
 
 export function getFeatureFlags(): Effect.Effect<FeatureFlags, Error> {
@@ -71,7 +69,10 @@ export function getFeatureFlags(): Effect.Effect<FeatureFlags, Error> {
 	);
 }
 
-export function setFeatureFlag(name: FeatureFlagName, enabled: boolean): Effect.Effect<void, Error> {
+export function setFeatureFlag(
+	name: FeatureFlagName,
+	enabled: boolean
+): Effect.Effect<void, Error> {
 	return withFeatureFlagDb((db) =>
 		db
 			.insert(featureFlags)

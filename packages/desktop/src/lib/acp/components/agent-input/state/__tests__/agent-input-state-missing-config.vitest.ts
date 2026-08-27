@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
+import { describe, expect, it, vi } from "vitest";
 
 import { AgentError } from "../../../../errors/app-error.js";
 import type { PanelStore } from "../../../../store/panel-store.svelte.js";
@@ -19,7 +19,6 @@ vi.mock("@tauri-apps/api/core", () => ({
 vi.mock("@tauri-apps/api/event", () => ({
 	listen: vi.fn(async () => () => {}),
 }));
-
 
 async function runToResult<A, E>(effect: Effect.Effect<A, E>): Promise<Result.Result<A, E>> {
 	return Effect.runPromise(Effect.result(effect));
@@ -83,13 +82,15 @@ describe("AgentInputState - sendPreparedMessage input guards", () => {
 			() => "/tmp/project"
 		);
 
-		const result = await runToResult(state.sendPreparedMessage({
-			content: "hello",
-			panelId: "panel-1",
-			selectedAgentId: null,
-			projectPath: "/tmp/project",
-			projectName: "Acepe",
-		}));
+		const result = await runToResult(
+			state.sendPreparedMessage({
+				content: "hello",
+				panelId: "panel-1",
+				selectedAgentId: null,
+				projectPath: "/tmp/project",
+				projectName: "Acepe",
+			})
+		);
 
 		expect(Result.isFailure(result)).toBe(true);
 		expect(mockPanelStore.clearPendingUserEntry).toHaveBeenCalledWith("panel-1");
@@ -135,13 +136,15 @@ describe("AgentInputState - sendPreparedMessage input guards", () => {
 			() => "/tmp/project"
 		);
 
-		const result = await runToResult(state.sendPreparedMessage({
-			content: "hello",
-			panelId: "panel-1",
-			selectedAgentId: "claude-code",
-			projectPath: "/tmp/project",
-			projectName: "Acepe",
-		}));
+		const result = await runToResult(
+			state.sendPreparedMessage({
+				content: "hello",
+				panelId: "panel-1",
+				selectedAgentId: "claude-code",
+				projectPath: "/tmp/project",
+				projectName: "Acepe",
+			})
+		);
 
 		expect(Result.isFailure(result)).toBe(true);
 		if (Result.isFailure(result)) {

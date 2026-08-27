@@ -11,42 +11,42 @@ import type * as Schema from "effect/Schema";
 export const EXPECTED_SCENARIO_TRANSCRIPTS: Readonly<Record<string, Schema.Json>> = {
 	"streaming-reply": [
 		{
-			"rowId": "qa-streaming-reply:user-1",
-			"sequence": 2,
-			"rowType": "user",
-			"text": "Why does the panel scroll away when I send?",
-			"estimatePx": 80,
-			"isActiveTail": false,
-			"anchorEligible": true
+			rowId: "qa-streaming-reply:user-1",
+			sequence: 2,
+			rowType: "user",
+			text: "Why does the panel scroll away when I send?",
+			estimatePx: 80,
+			isActiveTail: false,
+			anchorEligible: true,
 		},
 		{
-			"rowId": "qa-streaming-reply:user-1:assistant",
-			"sequence": 3,
-			"rowType": "assistant",
-			"text": "I looked at the viewport code. The follow release is gated on a generic scroll event, which the content-visibility re-measure fires on its own. That is why the panel strands above the edge.",
-			"estimatePx": 150,
-			"isActiveTail": true,
-			"anchorEligible": false
-		}
+			rowId: "qa-streaming-reply:user-1:assistant",
+			sequence: 3,
+			rowType: "assistant",
+			text: "I looked at the viewport code. The follow release is gated on a generic scroll event, which the content-visibility re-measure fires on its own. That is why the panel strands above the edge.",
+			estimatePx: 150,
+			isActiveTail: true,
+			anchorEligible: false,
+		},
 	],
 	"tool-and-approval": [
 		{
-			"rowId": "qa-tool-and-approval:user-1",
-			"sequence": 2,
-			"rowType": "user",
-			"text": "Rename the follow-mode flag everywhere",
-			"estimatePx": 80,
-			"isActiveTail": false,
-			"anchorEligible": true
+			rowId: "qa-tool-and-approval:user-1",
+			sequence: 2,
+			rowType: "user",
+			text: "Rename the follow-mode flag everywhere",
+			estimatePx: 80,
+			isActiveTail: false,
+			anchorEligible: true,
 		},
 		{
-			"rowId": "qa-tool-and-approval:user-1:assistant",
-			"sequence": 3,
-			"rowType": "assistant",
-			"text": "Reading the viewport module first.",
-			"estimatePx": 150,
-			"isActiveTail": true,
-			"anchorEligible": false
-		}
-	]
+			rowId: "qa-tool-and-approval:user-1:assistant",
+			sequence: 3,
+			rowType: "assistant",
+			text: "Reading the viewport module first.",
+			estimatePx: 150,
+			isActiveTail: true,
+			anchorEligible: false,
+		},
+	],
 };

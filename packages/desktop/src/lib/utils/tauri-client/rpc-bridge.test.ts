@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import {
-	SessionId,
 	emptyRpcSessionSnapshot,
 	type RpcClient,
 	RpcTransportError,
+	SessionId,
 	settingsSnapshotRequest,
 } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
@@ -40,7 +40,8 @@ const makeClient = (overrides: Partial<RpcClient>): RpcClient => ({
 	getProviderAccountUsage: () => Effect.succeed([]),
 	listProviderSessions: () => Effect.succeed([]),
 	listProviderProjects: () => Effect.succeed([]),
-	importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
+	importProviderSession: () =>
+		Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 	events: () => Stream.empty,
 	...overrides,
 });
@@ -64,14 +65,11 @@ describe("rpc-bridge", () => {
 			Effect.gen(function* () {
 				setAppRpcClientForTest(
 					makeClient({
-						snapshot: () =>
-							Effect.fail(new RpcTransportError({ reason: "bridge down" })),
+						snapshot: () => Effect.fail(new RpcTransportError({ reason: "bridge down" })),
 					})
 				);
 				const result = yield* Effect.result(
-					withRpcClient("settings.snapshot", (client) =>
-						client.snapshot(settingsSnapshotRequest())
-					)
+					withRpcClient("settings.snapshot", (client) => client.snapshot(settingsSnapshotRequest()))
 				);
 				expect(Result.isFailure(result)).toBe(true);
 				if (Result.isFailure(result)) {

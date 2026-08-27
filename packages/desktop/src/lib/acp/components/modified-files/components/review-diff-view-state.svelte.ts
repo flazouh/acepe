@@ -1,3 +1,4 @@
+import { fromPromise } from "@acepe/effect-result/fromPromise";
 import {
 	type FileContents,
 	FileDiff,
@@ -6,7 +7,6 @@ import {
 	type LineDiffTypes,
 	parseDiffFromFile,
 } from "@pierre/diffs";
-import { fromPromise } from "@acepe/effect-result/fromPromise";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 
@@ -277,7 +277,10 @@ export class ReviewDiffViewState {
 		// Ensure theme is registered and AWAIT completion before rendering
 		const themeResult = await Effect.runPromise(
 			Effect.result(
-				fromPromise(() => ensurePierreThemeRegistered(), (e) => e as Error)
+				fromPromise(
+					() => ensurePierreThemeRegistered(),
+					(e) => e as Error
+				)
 			)
 		);
 

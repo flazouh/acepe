@@ -1,6 +1,6 @@
 import { fromThrowable } from "@acepe/effect-result/fromThrowable";
 import * as Effect from "effect/Effect";
-import * as Result from "effect/Result";
+import type * as Result from "effect/Result";
 
 import { ProtocolError } from "../errors/protocol-error.js";
 

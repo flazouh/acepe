@@ -1,5 +1,5 @@
-import { fromPromise } from "@acepe/effect-result/fromPromise";
 import { describe, expect, it } from "bun:test";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
 
 import {
 	createEmptyStateBranchMetadataLoader,
@@ -16,7 +16,10 @@ function createDeferredEffect<T>() {
 		reject = nextReject;
 	});
 	return {
-		effect: fromPromise(() => promise, (error) => error),
+		effect: fromPromise(
+			() => promise,
+			(error) => error
+		),
 		resolve,
 		reject,
 	};

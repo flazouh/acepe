@@ -6,7 +6,7 @@
  * viewport) delegate to composed sub-stores (see docs/adr/0002).
  */
 
-import * as Effect from "effect/Effect";
+import type * as Effect from "effect/Effect";
 import { getContext, setContext } from "svelte";
 import type { SvelteSet } from "svelte/reactivity";
 import type {

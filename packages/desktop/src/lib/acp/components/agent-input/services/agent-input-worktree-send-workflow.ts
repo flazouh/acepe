@@ -2,9 +2,9 @@
  * First-send worktree path preparation: Tauri prepare + background setup orchestration.
  */
 
-import { toast } from "svelte-sonner";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
+import { toast } from "svelte-sonner";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import type { PreparedWorktreeLaunch } from "../../../types/worktree-info.js";
 import { createLogger } from "../../../utils/logger.js";

@@ -81,26 +81,28 @@ export function createSession(
 	store: SessionStore,
 	options: CreateSessionOptions
 ): Effect.Effect<CreatedSessionHandle, SessionCreationError> {
-	return store.connection.createSession({
-		agentId: options.agentId,
-		initialAutonomousEnabled: options.initialAutonomousEnabled === true,
-		initialModeId: options.initialModeId ?? undefined,
-		initialModelId: options.initialModelId ?? undefined,
-		projectPath: options.projectPath,
-		title: options.title ?? undefined,
-		worktreePath: options.worktreePath,
-		launchToken: options.launchToken,
-	}).pipe(
-		Effect.map(sessionCreationHandle),
-		Effect.mapError(
-			(error) =>
-				new SessionCreationError(
-					options.agentId,
-					options.projectPath,
-					error instanceof Error ? error : new Error(String(error))
-				)
-		)
-	);
+	return store.connection
+		.createSession({
+			agentId: options.agentId,
+			initialAutonomousEnabled: options.initialAutonomousEnabled === true,
+			initialModeId: options.initialModeId ?? undefined,
+			initialModelId: options.initialModelId ?? undefined,
+			projectPath: options.projectPath,
+			title: options.title ?? undefined,
+			worktreePath: options.worktreePath,
+			launchToken: options.launchToken,
+		})
+		.pipe(
+			Effect.map(sessionCreationHandle),
+			Effect.mapError(
+				(error) =>
+					new SessionCreationError(
+						options.agentId,
+						options.projectPath,
+						error instanceof Error ? error : new Error(String(error))
+					)
+			)
+		);
 }
 
 /**
@@ -117,14 +119,16 @@ export function sendMessage(
 	message: string,
 	attachments: readonly Attachment[] = []
 ): Effect.Effect<void, MessageSendError> {
-	return store.connection.sendMessage(sessionId, message, attachments).pipe(
-		Effect.mapError(
-			(error) =>
-				new MessageSendError(
-					sessionId,
-					message,
-					error instanceof Error ? error : new Error(String(error))
-				)
-		)
-	);
+	return store.connection
+		.sendMessage(sessionId, message, attachments)
+		.pipe(
+			Effect.mapError(
+				(error) =>
+					new MessageSendError(
+						sessionId,
+						message,
+						error instanceof Error ? error : new Error(String(error))
+					)
+			)
+		);
 }

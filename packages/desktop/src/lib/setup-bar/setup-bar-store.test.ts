@@ -1,6 +1,5 @@
-import {
-	SessionId, CommandId, EventId, ProjectId } from "@acepe/contracts";
 import { describe, expect, it } from "bun:test";
+import { CommandId, EventId, ProjectId, SessionId } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
@@ -28,7 +27,7 @@ describe("isSetupBarEvent", () => {
 						servers: [],
 					},
 				},
-			}),
+			})
 		).toBe(true);
 		expect(
 			isSetupBarEvent({
@@ -47,7 +46,7 @@ describe("isSetupBarEvent", () => {
 					title: "Acepe",
 					workspaceRoot: "/tmp/acepe",
 				},
-			}),
+			})
 		).toBe(false);
 	});
 });
@@ -130,7 +129,8 @@ describe("composeSetupBarStore", () => {
 				getProviderAccountUsage: () => Effect.succeed([]),
 				listProviderSessions: () => Effect.succeed([]),
 				listProviderProjects: () => Effect.succeed([]),
-				importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
+				importProviderSession: () =>
+					Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 			},
 			registry,
 		});

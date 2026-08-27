@@ -1,5 +1,5 @@
-import * as Effect from "effect/Effect";
 import { beforeEach, describe, expect, it, mock } from "bun:test";
+import * as Effect from "effect/Effect";
 import { SvelteMap } from "svelte/reactivity";
 
 import type { Panel, WorkspacePanel } from "../types.js";

@@ -117,10 +117,10 @@ const snapshotWithUser: RpcSessionSnapshot = {
 	skillsCatalog: null,
 	voice: null,
 	gitReview: null,
-			mcpCatalog: null,
-			preconnectionOptions: null,
-			terminal: null,
-			sessionReviewState: null,
+	mcpCatalog: null,
+	preconnectionOptions: null,
+	terminal: null,
+	sessionReviewState: null,
 };
 
 const unusedProjectIndex = {
@@ -144,7 +144,8 @@ const fakeClient = (events: ReadonlyArray<OrchestrationEvent>): RpcClient => ({
 	getProviderAccountUsage: () => Effect.succeed([]),
 	listProviderSessions: () => Effect.succeed([]),
 	listProviderProjects: () => Effect.succeed([]),
-	importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
+	importProviderSession: () =>
+		Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 	events: (fromSequence) =>
 		Stream.fromArray(events.filter((event) => event.sequence > fromSequence)),
 });
@@ -204,7 +205,8 @@ describe("createSessionStore", () => {
 						getProviderAccountUsage: () => Effect.succeed([]),
 						listProviderSessions: () => Effect.succeed([]),
 						listProviderProjects: () => Effect.succeed([]),
-						importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
+						importProviderSession: () =>
+							Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 						events: () =>
 							Stream.fromArray([
 								sessionCreated,
@@ -264,7 +266,8 @@ describe("createSessionStore", () => {
 						getProviderAccountUsage: () => Effect.succeed([]),
 						listProviderSessions: () => Effect.succeed([]),
 						listProviderProjects: () => Effect.succeed([]),
-						importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
+						importProviderSession: () =>
+							Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 						events: () => Stream.fromArray([]),
 					},
 					registry,

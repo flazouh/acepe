@@ -165,8 +165,7 @@ export function fetchCommitDiff(
 	}
 
 	return fromPromise(
-		() =>
-			invoke<CommitDiff>(Commands.github.fetch_commit_diff, { sha, projectPath, repoContext }),
+		() => invoke<CommitDiff>(Commands.github.fetch_commit_diff, { sha, projectPath, repoContext }),
 		tauriErrorToGitHubError
 	).pipe(
 		Effect.map((diff) => {

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { fromPromise } from "@acepe/effect-result/fromPromise";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
-import { ConnectionError, type AppError } from "$lib/acp/errors/app-error.js";
+import { type AppError, ConnectionError } from "$lib/acp/errors/app-error.js";
 import type { SessionOpenHydrator } from "$lib/acp/store/services/session-open-hydrator.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import type { SessionOpenResult } from "$lib/services/acp-types.js";
@@ -20,8 +20,9 @@ const getSessionOpenResultMock = mock(
 // rejection here exercises hydrateReopenedSessionSnapshot's own graceful
 // catch (-> { applied: false }) without needing a full RpcSessionSnapshot
 // fixture.
-const getSessionSnapshotMock = mock((_sessionId: string): Effect.Effect<never, AppError> =>
-	Effect.fail(new ConnectionError("session-1", new Error("not stubbed for this test")))
+const getSessionSnapshotMock = mock(
+	(_sessionId: string): Effect.Effect<never, AppError> =>
+		Effect.fail(new ConnectionError("session-1", new Error("not stubbed for this test")))
 );
 const ensureProviderSessionImportedMock = mock(
 	(_sessionId: string): Effect.Effect<void, AppError> => Effect.succeed(undefined)
@@ -100,7 +101,9 @@ describe("openPersistedSession", () => {
 		} = await import(`../logic/open-persisted-session.js?test=${Date.now()}`));
 		resetOpenPersistedSessionForTests();
 		getSessionOpenResultMock.mockReset();
-		getSessionOpenResultMock.mockImplementation(() => Effect.succeed(createFoundResult("session-1")));
+		getSessionOpenResultMock.mockImplementation(() =>
+			Effect.succeed(createFoundResult("session-1"))
+		);
 		getSessionSnapshotMock.mockReset();
 		getSessionSnapshotMock.mockImplementation(() =>
 			Effect.fail(new ConnectionError("session-1", new Error("not stubbed for this test")))
@@ -418,10 +421,7 @@ describe("openPersistedSession", () => {
 			resolveOpenResult = resolve;
 		});
 		getSessionOpenResultMock.mockImplementation(() =>
-			fromPromise(
-				() => pendingOpenResult,
-				toOpenResultError
-			)
+			fromPromise(() => pendingOpenResult, toOpenResultError)
 		);
 
 		openPersistedSession({
@@ -961,7 +961,9 @@ describe("openPersistedSession", () => {
 			parentId: null,
 		});
 		sessionStore.connection.connectSession = mock(() =>
-			Effect.fail(new ConnectionError("session-1", new Error("Resource not found: Session session-1")))
+			Effect.fail(
+				new ConnectionError("session-1", new Error("Resource not found: Session session-1"))
+			)
 		);
 
 		openPersistedSession({

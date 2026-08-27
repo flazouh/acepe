@@ -184,7 +184,9 @@ describe("SessionOpenHydrator", () => {
 	it("hydrates a found snapshot into the session, panel, and projection stores", async () => {
 		const requestToken = hydrator.beginAttempt("panel-1");
 
-		const result = await Effect.runPromise(Effect.result(hydrator.hydrateFound("panel-1", requestToken, createFoundResult())));
+		const result = await Effect.runPromise(
+			Effect.result(hydrator.hydrateFound("panel-1", requestToken, createFoundResult()))
+		);
 
 		expect(Result.isSuccess(result)).toBe(true);
 		expect(Result.getOrThrow(result)).toEqual({
@@ -215,11 +217,11 @@ describe("SessionOpenHydrator", () => {
 	it("starts viewport row bootstrap for applied found snapshots", async () => {
 		const requestToken = hydrator.beginAttempt("panel-1");
 
-		const result = await Effect.runPromise(Effect.result(hydrator.hydrateFound(
-			"panel-1",
-			requestToken,
-			createFoundResult({ messageCount: 5349 })
-		)));
+		const result = await Effect.runPromise(
+			Effect.result(
+				hydrator.hydrateFound("panel-1", requestToken, createFoundResult({ messageCount: 5349 }))
+			)
+		);
 
 		expect(Result.isSuccess(result)).toBe(true);
 		expect(ensureRowsBootstrap).toHaveBeenCalledWith("canonical-session");
@@ -230,11 +232,15 @@ describe("SessionOpenHydrator", () => {
 		const requestToken = hydrator.beginAttempt("panel-1");
 		const initialViewportEnvelope = createViewportEnvelope();
 
-		const result = await Effect.runPromise(Effect.result(hydrator.hydrateFound(
-			"panel-1",
-			requestToken,
-			createFoundResult({ messageCount: 5349, initialViewportEnvelope })
-		)));
+		const result = await Effect.runPromise(
+			Effect.result(
+				hydrator.hydrateFound(
+					"panel-1",
+					requestToken,
+					createFoundResult({ messageCount: 5349, initialViewportEnvelope })
+				)
+			)
+		);
 
 		expect(Result.isSuccess(result)).toBe(true);
 		expect(applySessionStateEnvelope).toHaveBeenCalledWith(
@@ -250,15 +256,19 @@ describe("SessionOpenHydrator", () => {
 		const initialViewportEnvelope = createViewportEnvelope();
 		const initialTranscriptRowPage = createInitialRowPage();
 
-		const result = await Effect.runPromise(Effect.result(hydrator.hydrateFound(
-			"panel-1",
-			requestToken,
-			createFoundResult({
-				messageCount: 5349,
-				initialViewportEnvelope,
-				initialTranscriptRowPage,
-			})
-		)));
+		const result = await Effect.runPromise(
+			Effect.result(
+				hydrator.hydrateFound(
+					"panel-1",
+					requestToken,
+					createFoundResult({
+						messageCount: 5349,
+						initialViewportEnvelope,
+						initialTranscriptRowPage,
+					})
+				)
+			)
+		);
 
 		expect(Result.isSuccess(result)).toBe(true);
 		expect(applySessionStateEnvelope).not.toHaveBeenCalled();
@@ -270,7 +280,9 @@ describe("SessionOpenHydrator", () => {
 		hydrator.beginAttempt("panel-1");
 		const activeToken = hydrator.beginAttempt("panel-1");
 
-		const result = await Effect.runPromise(Effect.result(hydrator.hydrateFound("panel-1", "session-open-1", createFoundResult())));
+		const result = await Effect.runPromise(
+			Effect.result(hydrator.hydrateFound("panel-1", "session-open-1", createFoundResult()))
+		);
 
 		expect(Result.isSuccess(result)).toBe(true);
 		expect(Result.getOrThrow(result)).toEqual({
@@ -287,9 +299,13 @@ describe("SessionOpenHydrator", () => {
 
 	it("applies equal revisions for the same canonical session", async () => {
 		const requestToken = hydrator.beginAttempt("panel-1");
-		await Effect.runPromise(Effect.result(hydrator.hydrateFound("panel-1", requestToken, createFoundResult())));
+		await Effect.runPromise(
+			Effect.result(hydrator.hydrateFound("panel-1", requestToken, createFoundResult()))
+		);
 
-		const second = await Effect.runPromise(Effect.result(hydrator.hydrateFound("panel-1", requestToken, createFoundResult())));
+		const second = await Effect.runPromise(
+			Effect.result(hydrator.hydrateFound("panel-1", requestToken, createFoundResult()))
+		);
 
 		expect(Result.isSuccess(second)).toBe(true);
 		expect(Result.getOrThrow(second)).toEqual({
@@ -302,13 +318,21 @@ describe("SessionOpenHydrator", () => {
 
 	it("ignores older revisions after a newer snapshot was applied", async () => {
 		const requestToken = hydrator.beginAttempt("panel-1");
-		await Effect.runPromise(Effect.result(hydrator.hydrateFound("panel-1", requestToken, createFoundResult({ lastEventSeq: 5 }))));
+		await Effect.runPromise(
+			Effect.result(
+				hydrator.hydrateFound("panel-1", requestToken, createFoundResult({ lastEventSeq: 5 }))
+			)
+		);
 
-		const older = await Effect.runPromise(Effect.result(hydrator.hydrateFound(
-			"panel-1",
-			requestToken,
-			createFoundResult({ lastEventSeq: 4, graphRevision: 4 })
-		)));
+		const older = await Effect.runPromise(
+			Effect.result(
+				hydrator.hydrateFound(
+					"panel-1",
+					requestToken,
+					createFoundResult({ lastEventSeq: 4, graphRevision: 4 })
+				)
+			)
+		);
 
 		expect(Result.isSuccess(older)).toBe(true);
 		expect(Result.getOrThrow(older)).toEqual({
@@ -321,17 +345,25 @@ describe("SessionOpenHydrator", () => {
 
 	it("applies a newer graph revision even when the delivery watermark matches", async () => {
 		const requestToken = hydrator.beginAttempt("panel-1");
-		await Effect.runPromise(Effect.result(hydrator.hydrateFound(
-			"panel-1",
-			requestToken,
-			createFoundResult({ lastEventSeq: 5, graphRevision: 5 })
-		)));
+		await Effect.runPromise(
+			Effect.result(
+				hydrator.hydrateFound(
+					"panel-1",
+					requestToken,
+					createFoundResult({ lastEventSeq: 5, graphRevision: 5 })
+				)
+			)
+		);
 
-		const newerGraph = await Effect.runPromise(Effect.result(hydrator.hydrateFound(
-			"panel-1",
-			requestToken,
-			createFoundResult({ lastEventSeq: 5, graphRevision: 6 })
-		)));
+		const newerGraph = await Effect.runPromise(
+			Effect.result(
+				hydrator.hydrateFound(
+					"panel-1",
+					requestToken,
+					createFoundResult({ lastEventSeq: 5, graphRevision: 6 })
+				)
+			)
+		);
 
 		expect(Result.isSuccess(newerGraph)).toBe(true);
 		expect(Result.getOrThrow(newerGraph)).toEqual({
@@ -343,7 +375,9 @@ describe("SessionOpenHydrator", () => {
 	});
 
 	it("hydrates created sessions without rebinding a panel", async () => {
-		const result = await Effect.runPromise(Effect.result(hydrator.hydrateCreated(createFoundResult())));
+		const result = await Effect.runPromise(
+			Effect.result(hydrator.hydrateCreated(createFoundResult()))
+		);
 
 		expect(Result.isSuccess(result)).toBe(true);
 		expect(replaceSessionOpenSnapshot).toHaveBeenCalledTimes(1);
@@ -355,12 +389,16 @@ describe("SessionOpenHydrator", () => {
 		const requestToken = hydrator.beginAttempt("panel-1");
 		const found = createFoundResultWithoutLifecycle();
 
-		const result = await Effect.runPromise(Effect.result(hydrator.hydrateFound(
-			"panel-1",
-			requestToken,
-			// @ts-expect-error Intentionally simulates a stale IPC payload.
-			found
-		)));
+		const result = await Effect.runPromise(
+			Effect.result(
+				hydrator.hydrateFound(
+					"panel-1",
+					requestToken,
+					// @ts-expect-error Intentionally simulates a stale IPC payload.
+					found
+				)
+			)
+		);
 
 		expect(Result.isFailure(result)).toBe(true);
 		expect(replaceSessionOpenSnapshot).not.toHaveBeenCalled();
@@ -370,10 +408,14 @@ describe("SessionOpenHydrator", () => {
 	it("fails closed when a created snapshot lacks backend lifecycle authority", async () => {
 		const found = createFoundResultWithoutLifecycle();
 
-		const result = await Effect.runPromise(Effect.result(hydrator.hydrateCreated(
-			// @ts-expect-error Intentionally simulates a stale IPC payload.
-			found
-		)));
+		const result = await Effect.runPromise(
+			Effect.result(
+				hydrator.hydrateCreated(
+					// @ts-expect-error Intentionally simulates a stale IPC payload.
+					found
+				)
+			)
+		);
 
 		expect(Result.isFailure(result)).toBe(true);
 		expect(replaceSessionOpenSnapshot).not.toHaveBeenCalled();
@@ -390,17 +432,21 @@ describe("SessionOpenHydrator", () => {
 		// through the current open path without error.
 		const requestToken = hydrator.beginAttempt("panel-pre-cutover");
 
-		const result = await Effect.runPromise(Effect.result(hydrator.hydrateFound(
-			"panel-pre-cutover",
-			requestToken,
-			createFoundResult({
-				sourcePath: null,
-				lastEventSeq: 0,
-				transcriptSnapshot: { revision: 0, entries: [] },
-				operations: [],
-				interactions: [],
-			})
-		)));
+		const result = await Effect.runPromise(
+			Effect.result(
+				hydrator.hydrateFound(
+					"panel-pre-cutover",
+					requestToken,
+					createFoundResult({
+						sourcePath: null,
+						lastEventSeq: 0,
+						transcriptSnapshot: { revision: 0, entries: [] },
+						operations: [],
+						interactions: [],
+					})
+				)
+			)
+		);
 
 		expect(Result.isSuccess(result)).toBe(true);
 		const applied = Result.getOrThrow(result);
@@ -419,11 +465,15 @@ describe("SessionOpenHydrator", () => {
 		const requestToken = hydrator.beginAttempt("panel-e2e");
 		const specificToken = "backend-issued-token-deadbeef";
 
-		const result = await Effect.runPromise(Effect.result(hydrator.hydrateFound(
-			"panel-e2e",
-			requestToken,
-			createFoundResult({ openToken: specificToken })
-		)));
+		const result = await Effect.runPromise(
+			Effect.result(
+				hydrator.hydrateFound(
+					"panel-e2e",
+					requestToken,
+					createFoundResult({ openToken: specificToken })
+				)
+			)
+		);
 
 		expect(Result.isSuccess(result)).toBe(true);
 		expect(Result.getOrThrow(result).openToken).toBe(specificToken);
@@ -434,15 +484,19 @@ describe("SessionOpenHydrator", () => {
 		// canonical id so downstream delta events keyed by canonical id merge correctly.
 		const requestToken = hydrator.beginAttempt("panel-e2e-alias");
 
-		const result = await Effect.runPromise(Effect.result(hydrator.hydrateFound(
-			"panel-e2e-alias",
-			requestToken,
-			createFoundResult({
-				requestedSessionId: "alias-id",
-				canonicalSessionId: "canonical-id",
-				isAlias: true,
-			})
-		)));
+		const result = await Effect.runPromise(
+			Effect.result(
+				hydrator.hydrateFound(
+					"panel-e2e-alias",
+					requestToken,
+					createFoundResult({
+						requestedSessionId: "alias-id",
+						canonicalSessionId: "canonical-id",
+						isAlias: true,
+					})
+				)
+			)
+		);
 
 		expect(Result.isSuccess(result)).toBe(true);
 		const applied = Result.getOrThrow(result);
@@ -459,7 +513,9 @@ describe("SessionOpenHydrator", () => {
 		// A double-hydrate would leave the UI in a partially-reset state.
 		const requestToken = hydrator.beginAttempt("panel-e2e-single");
 
-		await Effect.runPromise(Effect.result(hydrator.hydrateFound("panel-e2e-single", requestToken, createFoundResult())));
+		await Effect.runPromise(
+			Effect.result(hydrator.hydrateFound("panel-e2e-single", requestToken, createFoundResult()))
+		);
 
 		expect(replaceSessionStateGraph).toHaveBeenCalledTimes(1);
 		expect(replaceSessionOpenSnapshot).toHaveBeenCalledTimes(1);
@@ -492,10 +548,14 @@ describe("SessionOpenHydrator", () => {
 			child_operation_ids: [],
 		};
 
-		const result = await Effect.runPromise(Effect.result(hydrator.hydrateFound("panel-with-ops", requestToken, {
-			...createFoundResult({ lastEventSeq: 5 }),
-			operations: [inProgressOperation],
-		})));
+		const result = await Effect.runPromise(
+			Effect.result(
+				hydrator.hydrateFound("panel-with-ops", requestToken, {
+					...createFoundResult({ lastEventSeq: 5 }),
+					operations: [inProgressOperation],
+				})
+			)
+		);
 
 		expect(Result.isSuccess(result)).toBe(true);
 		expect(replaceSessionOpenSnapshot).toHaveBeenCalledTimes(1);

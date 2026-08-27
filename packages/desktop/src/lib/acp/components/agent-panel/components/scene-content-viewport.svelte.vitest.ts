@@ -94,11 +94,11 @@ vi.mock("./transcript-viewport-row-renderer.svelte", async () => ({
 	default: (await import("./__tests__/fixtures/user-message-stub.svelte")).default,
 }));
 
-import SceneContentViewport from "./scene-content-viewport.svelte";
 import {
 	resetGraphRevisionFixture,
 	setGraphRevisionFixture,
 } from "./__tests__/fixtures/graph-revision-store.svelte.js";
+import SceneContentViewport from "./scene-content-viewport.svelte";
 
 function createRowsProjection(
 	sessionId: string,

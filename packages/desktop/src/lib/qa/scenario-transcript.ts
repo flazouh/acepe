@@ -17,7 +17,7 @@ export class ScenarioHasNoSession extends Schema.TaggedError<ScenarioHasNoSessio
 	"ScenarioHasNoSession",
 	{
 		scenario: Schema.String,
-	},
+	}
 ) {
 	override get message(): string {
 		return `Scenario '${this.scenario}' names no session, so it has no transcript to grade`;
@@ -29,7 +29,7 @@ export class ScenarioHasNoSession extends Schema.TaggedError<ScenarioHasNoSessio
  * would show. Rate 0 keeps this cheap enough to run on every CI push.
  */
 export const transcriptFromScenario = Effect.fn("transcriptFromScenario")(function* (
-	scenario: QaScenario,
+	scenario: QaScenario
 ) {
 	const sessionId = scenario.meta.capturedFromSessionId;
 	if (sessionId === null) {

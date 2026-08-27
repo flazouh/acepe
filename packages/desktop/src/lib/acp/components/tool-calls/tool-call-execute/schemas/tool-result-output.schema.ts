@@ -57,13 +57,13 @@ function extractObjectOutput(obj: typeof ObjectResultSchema.Type): string | null
 	return obj.output ?? obj.stdout ?? obj.detailedContent ?? obj.content ?? obj.stderr ?? null;
 }
 
-function isMcpContentBlocks(
-	value: ToolResultOutput
-): value is typeof McpContentBlockSchema.Type {
+function isMcpContentBlocks(value: ToolResultOutput): value is typeof McpContentBlockSchema.Type {
 	return Array.isArray(value);
 }
 
-export function parseToolResultOutputValue(value: unknown): Result.Result<string | null, Schema.SchemaError> {
+export function parseToolResultOutputValue(
+	value: unknown
+): Result.Result<string | null, Schema.SchemaError> {
 	const decoded = decodeToolResultOutput(value);
 	if (Result.isFailure(decoded)) {
 		return Result.fail(decoded.failure);

@@ -2,10 +2,7 @@ import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import { getContext, setContext } from "svelte";
 import { toast } from "svelte-sonner";
-import type {
-	VoiceLanguageOption,
-	VoiceModelInfo,
-} from "$lib/acp/types/voice-input.js";
+import type { VoiceLanguageOption, VoiceModelInfo } from "$lib/acp/types/voice-input.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 
@@ -123,9 +120,7 @@ export class VoiceSettingsStore {
 			return;
 		}
 
-		const loadResult = await Effect.runPromise(
-			Effect.result(tauriClient.voice.loadModel(modelId))
-		);
+		const loadResult = await Effect.runPromise(Effect.result(tauriClient.voice.loadModel(modelId)));
 		if (Result.isFailure(loadResult)) {
 			logger.error("Failed to load selected voice model", {
 				error: loadResult.failure,
@@ -180,9 +175,7 @@ export class VoiceSettingsStore {
 		this.downloadProgressModelId = modelId;
 		this.downloadPercent = 0;
 
-		const result = await Effect.runPromise(
-			Effect.result(tauriClient.voice.downloadModel(modelId))
-		);
+		const result = await Effect.runPromise(Effect.result(tauriClient.voice.downloadModel(modelId)));
 		if (Result.isFailure(result)) {
 			logger.error("Failed to download voice model", {
 				error: result.failure,
@@ -202,9 +195,7 @@ export class VoiceSettingsStore {
 	}
 
 	async deleteModel(modelId: string): Promise<void> {
-		const result = await Effect.runPromise(
-			Effect.result(tauriClient.voice.deleteModel(modelId))
-		);
+		const result = await Effect.runPromise(Effect.result(tauriClient.voice.deleteModel(modelId)));
 		if (Result.isFailure(result)) {
 			logger.error("Failed to delete voice model", {
 				error: result.failure,

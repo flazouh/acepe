@@ -163,7 +163,9 @@ export class SessionHandler {
 			.pipe(
 				Effect.map((createdSession) => {
 					const sessionId =
-						createdSession.kind === "pending" ? createdSession.sessionId : createdSession.session.id;
+						createdSession.kind === "pending"
+							? createdSession.sessionId
+							: createdSession.session.id;
 					this.panelStore.openSession(sessionId, DEFAULT_PANEL_WIDTH);
 					return sessionId;
 				}),

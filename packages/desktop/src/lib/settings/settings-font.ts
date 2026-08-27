@@ -55,7 +55,7 @@ export const parseSettingPx = (value: string | undefined, bounds: FontSizeBounds
 
 const valueForKey = (
 	rows: ReadonlyArray<RpcProjectedSetting>,
-	key: UserSettingKey,
+	key: UserSettingKey
 ): string | undefined => {
 	const found = Arr.findFirst(rows, (row) => row.key === key);
 	if (Option.isNone(found)) {

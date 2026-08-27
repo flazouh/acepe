@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as Effect from "effect/Effect";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PlanData, SessionPlanResponse } from "../../../services/converted-session-types.js";
 

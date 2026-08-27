@@ -282,10 +282,14 @@ describe("SessionStore.createSession", () => {
 			),
 		};
 
-		const result = await Effect.runPromise(Effect.result(store.connection.createSession({
-			projectPath: "/repo",
-			agentId: "copilot",
-		})));
+		const result = await Effect.runPromise(
+			Effect.result(
+				store.connection.createSession({
+					projectPath: "/repo",
+					agentId: "copilot",
+				})
+			)
+		);
 
 		expect(Result.isSuccess(result)).toBe(true);
 		expect(Result.getOrThrow(result)).toEqual({ kind: "ready", session });
@@ -312,13 +316,19 @@ describe("SessionStore.createSession", () => {
 
 		store.connection.setSessionOpenHydrator({ hydrateCreated });
 		storeWithInternals.connectionMgr = {
-			createSession: vi.fn(() => Effect.fail(new Error("Provider crashed during session creation"))),
+			createSession: vi.fn(() =>
+				Effect.fail(new Error("Provider crashed during session creation"))
+			),
 		};
 
-		const result = await Effect.runPromise(Effect.result(store.connection.createSession({
-			projectPath: "/repo",
-			agentId: "copilot",
-		})));
+		const result = await Effect.runPromise(
+			Effect.result(
+				store.connection.createSession({
+					projectPath: "/repo",
+					agentId: "copilot",
+				})
+			)
+		);
 
 		// Must propagate as Err — no silent divergence
 		expect(Result.isFailure(result)).toBe(true);
@@ -377,7 +387,9 @@ describe("SessionStore.createSession", () => {
 			),
 		};
 
-		await Effect.runPromise(store.connection.createSession({ projectPath: "/repo", agentId: "copilot" }));
+		await Effect.runPromise(
+			store.connection.createSession({ projectPath: "/repo", agentId: "copilot" })
+		);
 
 		// The hydrator must receive the full snapshot including operations
 		expect(hydrateCreated).toHaveBeenCalledWith(
@@ -413,10 +425,14 @@ describe("SessionStore.createSession", () => {
 				),
 			};
 
-			const result = await Effect.runPromise(Effect.result(storeForProvider.connection.createSession({
-				projectPath: "/repo",
-				agentId,
-			})));
+			const result = await Effect.runPromise(
+				Effect.result(
+					storeForProvider.connection.createSession({
+						projectPath: "/repo",
+						agentId,
+					})
+				)
+			);
 			expect(Result.isSuccess(result), `createSession failed for agentId=${agentId}`).toBe(true);
 			expect(
 				hydrateCreated,
@@ -436,10 +452,14 @@ describe("SessionStore.createSession", () => {
 			createSession: vi.fn(() => Effect.succeed(createPendingSessionResult())),
 		};
 
-		const result = await Effect.runPromise(Effect.result(store.connection.createSession({
-			projectPath: "/repo",
-			agentId: "claude-code",
-		})));
+		const result = await Effect.runPromise(
+			Effect.result(
+				store.connection.createSession({
+					projectPath: "/repo",
+					agentId: "claude-code",
+				})
+			)
+		);
 
 		expect(Result.isSuccess(result)).toBe(true);
 		expect(Result.getOrThrow(result)).toEqual(createPendingSessionResult());
@@ -491,10 +511,12 @@ describe("SessionStore.createSession", () => {
 			),
 		};
 
-		await Effect.runPromise(store.connection.createSession({
-			projectPath: "/repo",
-			agentId: "claude-code",
-		}));
+		await Effect.runPromise(
+			store.connection.createSession({
+				projectPath: "/repo",
+				agentId: "claude-code",
+			})
+		);
 
 		// Identity + title must be resolvable from the cold registry BEFORE the
 		// canonical graph materializes, so the agent panel shows the agent icon,
@@ -534,10 +556,12 @@ describe("SessionStore.createSession", () => {
 			),
 		};
 
-		await Effect.runPromise(store.connection.createSession({
-			projectPath: "/repo",
-			agentId: "claude-code",
-		}));
+		await Effect.runPromise(
+			store.connection.createSession({
+				projectPath: "/repo",
+				agentId: "claude-code",
+			})
+		);
 
 		// Optimistic session is present after creation...
 		expect(store.read.getSessionIdentity("pending-session")).toBeDefined();
@@ -569,10 +593,12 @@ describe("SessionStore.createSession", () => {
 			createSession: vi.fn(() => Effect.succeed(createPendingSessionResult({ sequenceId: 12 }))),
 		};
 
-		await Effect.runPromise(store.connection.createSession({
-			projectPath: "/repo",
-			agentId: "claude-code",
-		}));
+		await Effect.runPromise(
+			store.connection.createSession({
+				projectPath: "/repo",
+				agentId: "claude-code",
+			})
+		);
 
 		expect(store.connection.materializePendingCreationSession("provider-requested-id")).toBe(true);
 		expect(store.read.getSessionMetadata("provider-requested-id")?.sequenceId).toBe(12);
@@ -589,10 +615,12 @@ describe("SessionStore.createSession", () => {
 			createSession: vi.fn(() => Effect.succeed(createPendingSessionResult({ sequenceId: 12 }))),
 		};
 
-		await Effect.runPromise(store.connection.createSession({
-			projectPath: "/repo",
-			agentId: "claude-code",
-		}));
+		await Effect.runPromise(
+			store.connection.createSession({
+				projectPath: "/repo",
+				agentId: "claude-code",
+			})
+		);
 
 		store.write.addSession(
 			createSession({
@@ -627,10 +655,12 @@ describe("SessionStore.createSession", () => {
 			createSession: vi.fn(() => Effect.succeed(createPendingSessionResult())),
 		};
 
-		await Effect.runPromise(store.connection.createSession({
-			projectPath: "/repo",
-			agentId: "claude-code",
-		}));
+		await Effect.runPromise(
+			store.connection.createSession({
+				projectPath: "/repo",
+				agentId: "claude-code",
+			})
+		);
 
 		expect(store.connection.materializePendingCreationSession("provider-requested-id")).toBe(true);
 		expect(store.read.getSessionMetadata("provider-requested-id")?.sequenceId).toBeUndefined();
@@ -735,10 +765,12 @@ describe("SessionStore.createSession", () => {
 			createSession: vi.fn(() => Effect.succeed(createPendingSessionResult())),
 		};
 
-		await Effect.runPromise(store.connection.createSession({
-			projectPath: "/repo",
-			agentId: "claude-code",
-		}));
+		await Effect.runPromise(
+			store.connection.createSession({
+				projectPath: "/repo",
+				agentId: "claude-code",
+			})
+		);
 
 		store.ensureSessionFromStateGraph(
 			createSessionStateGraph({
@@ -777,10 +809,12 @@ describe("SessionStore.createSession", () => {
 			),
 		};
 
-		await Effect.runPromise(store.connection.createSession({
-			projectPath: "/repo",
-			agentId: "claude-code",
-		}));
+		await Effect.runPromise(
+			store.connection.createSession({
+				projectPath: "/repo",
+				agentId: "claude-code",
+			})
+		);
 
 		const materialized = store.ensureSessionFromStateGraph(
 			createSessionStateGraph({
@@ -815,15 +849,18 @@ describe("SessionStore.createSession", () => {
 			)
 		);
 
-		await Effect.runPromise(store.connection.createSession({
-			projectPath: "/repo",
-			agentId: "claude-code",
-		}));
+		await Effect.runPromise(
+			store.connection.createSession({
+				projectPath: "/repo",
+				agentId: "claude-code",
+			})
+		);
 
-		const sendResult = await Effect.runPromise(Effect.result(store.connection.sendMessage(
-			"requested-local-id",
-			"first prompt survives promotion"
-		)));
+		const sendResult = await Effect.runPromise(
+			Effect.result(
+				store.connection.sendMessage("requested-local-id", "first prompt survives promotion")
+			)
+		);
 		expect(Result.isSuccess(sendResult)).toBe(true);
 		const requestedPending = store.read.getSessionPendingSendIntent("requested-local-id");
 		expect(requestedPending).toMatchObject({
@@ -872,10 +909,12 @@ describe("SessionStore.createSession", () => {
 			),
 		};
 
-		await Effect.runPromise(store.connection.createSession({
-			projectPath: "/repo",
-			agentId: "claude-code",
-		}));
+		await Effect.runPromise(
+			store.connection.createSession({
+				projectPath: "/repo",
+				agentId: "claude-code",
+			})
+		);
 
 		store.connection.failPendingCreationSession("pending-session", {
 			type: "turnError",

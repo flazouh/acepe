@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import {
-	SessionId, emptyRpcSessionSnapshot, type RpcClient } from "@acepe/contracts";
+import { emptyRpcSessionSnapshot, type RpcClient, SessionId } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import * as Stream from "effect/Stream";
@@ -29,7 +28,8 @@ const makeClient = (overrides: Partial<RpcClient>): RpcClient => ({
 	getProviderAccountUsage: () => Effect.succeed([]),
 	listProviderSessions: () => Effect.succeed([]),
 	listProviderProjects: () => Effect.succeed([]),
-	importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
+	importProviderSession: () =>
+		Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 	events: () => Stream.empty,
 	...overrides,
 });

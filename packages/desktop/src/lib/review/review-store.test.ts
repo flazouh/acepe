@@ -1,6 +1,11 @@
-import {
-	SessionId, CommandId, emptyRpcSessionSnapshot, EventId, ProjectId } from "@acepe/contracts";
 import { describe, expect, it } from "bun:test";
+import {
+	CommandId,
+	EventId,
+	emptyRpcSessionSnapshot,
+	ProjectId,
+	SessionId,
+} from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
@@ -25,7 +30,7 @@ describe("isGitReviewEvent", () => {
 					projectId: ProjectId.make("project-1"),
 					status: null,
 				},
-			}),
+			})
 		).toBe(true);
 		expect(
 			isGitReviewEvent({
@@ -44,7 +49,7 @@ describe("isGitReviewEvent", () => {
 					title: "Acepe",
 					workspaceRoot: "/tmp/acepe",
 				},
-			}),
+			})
 		).toBe(false);
 	});
 });
@@ -103,7 +108,8 @@ describe("composeReviewStore", () => {
 				getProviderAccountUsage: () => Effect.succeed([]),
 				listProviderSessions: () => Effect.succeed([]),
 				listProviderProjects: () => Effect.succeed([]),
-				importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
+				importProviderSession: () =>
+					Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 			},
 			registry,
 			onSnapshot: (snapshot) => {
@@ -179,7 +185,8 @@ describe("composeReviewStore", () => {
 				getProviderAccountUsage: () => Effect.succeed([]),
 				listProviderSessions: () => Effect.succeed([]),
 				listProviderProjects: () => Effect.succeed([]),
-				importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
+				importProviderSession: () =>
+					Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 			},
 			registry,
 		});
@@ -187,13 +194,9 @@ describe("composeReviewStore", () => {
 			store.openReview({
 				projectId: ProjectId.make("project-1"),
 				workspaceRoot: "/tmp/acepe",
-			}),
+			})
 		);
-		expect(dispatched).toEqual([
-			"git.status.refresh",
-			"git.diff.load",
-			"git.blame.load",
-		]);
+		expect(dispatched).toEqual(["git.status.refresh", "git.diff.load", "git.blame.load"]);
 		expect(store.readSelectedPath()).toBe("notes.md");
 	});
 
@@ -268,7 +271,8 @@ describe("composeReviewStore", () => {
 				getProviderAccountUsage: () => Effect.succeed([]),
 				listProviderSessions: () => Effect.succeed([]),
 				listProviderProjects: () => Effect.succeed([]),
-				importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
+				importProviderSession: () =>
+					Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 			},
 			registry,
 		});
@@ -276,7 +280,7 @@ describe("composeReviewStore", () => {
 			store.openReview({
 				projectId: ProjectId.make("project-1"),
 				workspaceRoot: "/tmp/acepe",
-			}),
+			})
 		);
 		expect(dispatched).toEqual(["git.status.refresh"]);
 		expect(store.readSelectedPath()).toBe("notes.md");

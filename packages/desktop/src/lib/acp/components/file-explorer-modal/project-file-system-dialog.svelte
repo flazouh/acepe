@@ -97,9 +97,9 @@ function loadProjectFiles(refresh: boolean): void {
 	loading = true;
 	error = null;
 	const load = refresh
-		? tauriClient.fileIndex.invalidateProjectFiles(projectPath).pipe(
-				Effect.flatMap(() => tauriClient.fileIndex.getProjectFiles(projectPath))
-			)
+		? tauriClient.fileIndex
+				.invalidateProjectFiles(projectPath)
+				.pipe(Effect.flatMap(() => tauriClient.fileIndex.getProjectFiles(projectPath)))
 		: tauriClient.fileIndex.getProjectFiles(projectPath);
 
 	void Effect.runPromise(

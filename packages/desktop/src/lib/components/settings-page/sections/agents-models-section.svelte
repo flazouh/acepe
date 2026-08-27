@@ -80,7 +80,8 @@ $effect(() => {
 					agentId: agent.id,
 					hasConnectedSession: false,
 					projectPath: null,
-					preconnectionCapabilityMode: providerMetadata?.preconnectionCapabilityMode ?? "unsupported",
+					preconnectionCapabilityMode:
+						providerMetadata?.preconnectionCapabilityMode ?? "unsupported",
 				})
 				.pipe(
 					Effect.catch((error) => {

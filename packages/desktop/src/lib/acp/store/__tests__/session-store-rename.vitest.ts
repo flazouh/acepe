@@ -46,7 +46,9 @@ describe("SessionStore renameSession", () => {
 
 		(api.setSessionTitle as unknown as MockReturnValue).mockReturnValue(Effect.succeed(undefined));
 
-		const result = await Effect.runPromise(Effect.result(store.write.renameSession("session-rename-1", "  Renamed title  ")));
+		const result = await Effect.runPromise(
+			Effect.result(store.write.renameSession("session-rename-1", "  Renamed title  "))
+		);
 
 		expect(Result.isSuccess(result)).toBe(true);
 		expect(api.setSessionTitle).toHaveBeenCalledWith("session-rename-1", "Renamed title");

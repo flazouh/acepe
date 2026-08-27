@@ -198,7 +198,9 @@ describe("SessionHandler", () => {
 				parentId: null,
 			};
 
-			const result = await Effect.runPromise(Effect.result(handler.selectSession("session-1", sessionInfo)));
+			const result = await Effect.runPromise(
+				Effect.result(handler.selectSession("session-1", sessionInfo))
+			);
 
 			expect(Result.isSuccess(result)).toBe(true);
 			expect(mockSessionStore.loading.loadHistoricalSession).toHaveBeenCalledWith(
@@ -275,7 +277,9 @@ describe("SessionHandler", () => {
 				sourcePath: "/tmp/session-1.store.db",
 			} as any);
 
-			const result = await Effect.runPromise(Effect.result(delayedHandler.selectSession("session-1")));
+			const result = await Effect.runPromise(
+				Effect.result(delayedHandler.selectSession("session-1"))
+			);
 
 			expect(Result.isSuccess(result)).toBe(true);
 			expect(mockPanelStore.openSession).toHaveBeenCalledWith("session-1", DEFAULT_PANEL_WIDTH);
@@ -461,7 +465,9 @@ describe("SessionHandler", () => {
 		});
 
 		it("should return error if session not found and no sessionInfo", async () => {
-			const result = await Effect.runPromise(Effect.result(handler.selectSession("unknown-session")));
+			const result = await Effect.runPromise(
+				Effect.result(handler.selectSession("unknown-session"))
+			);
 
 			expect(Result.isFailure(result)).toBe(true);
 			if (Result.isFailure(result)) {
@@ -513,7 +519,9 @@ describe("SessionHandler", () => {
 				Effect.fail(new SessionNotFoundError("session-1"))
 			);
 
-			const result = await Effect.runPromise(Effect.result(handler.selectSession("session-1", sessionInfo)));
+			const result = await Effect.runPromise(
+				Effect.result(handler.selectSession("session-1", sessionInfo))
+			);
 
 			expect(Result.isFailure(result)).toBe(true);
 		});
@@ -545,10 +553,14 @@ describe("SessionHandler", () => {
 				Effect.fail(new ConnectionError("new-session", new Error("Create failed")))
 			);
 
-			const result = await Effect.runPromise(Effect.result(handler.createSession({
-				agentId: "agent-1",
-				projectPath: "/test",
-			})));
+			const result = await Effect.runPromise(
+				Effect.result(
+					handler.createSession({
+						agentId: "agent-1",
+						projectPath: "/test",
+					})
+				)
+			);
 
 			expect(Result.isFailure(result)).toBe(true);
 		});
@@ -558,7 +570,9 @@ describe("SessionHandler", () => {
 		it("should defer session creation until first message and only update panel project", async () => {
 			const project = { path: "/test", name: "Test Project" };
 
-			const result = await Effect.runPromise(Effect.result(handler.createSessionForProject("panel-1", project)));
+			const result = await Effect.runPromise(
+				Effect.result(handler.createSessionForProject("panel-1", project))
+			);
 
 			expect(Result.isSuccess(result)).toBe(true);
 			expect(mockPanelStore.setPanelProjectPath).toHaveBeenCalledWith("panel-1", "/test");
@@ -583,10 +597,14 @@ describe("SessionHandler", () => {
 				},
 			];
 
-			const result = await Effect.runPromise(Effect.result(handler.createSessionForProject("panel-1", {
-				path: "/test",
-				name: "Test",
-			})));
+			const result = await Effect.runPromise(
+				Effect.result(
+					handler.createSessionForProject("panel-1", {
+						path: "/test",
+						name: "Test",
+					})
+				)
+			);
 
 			expect(Result.isFailure(result)).toBe(true);
 		});
@@ -594,10 +612,14 @@ describe("SessionHandler", () => {
 		it("should return error if the panel does not exist", async () => {
 			mockPanelStore.panels = [];
 
-			const result = await Effect.runPromise(Effect.result(handler.createSessionForProject("missing-panel", {
-				path: "/test",
-				name: "Test",
-			})));
+			const result = await Effect.runPromise(
+				Effect.result(
+					handler.createSessionForProject("missing-panel", {
+						path: "/test",
+						name: "Test",
+					})
+				)
+			);
 
 			expect(Result.isFailure(result)).toBe(true);
 		});

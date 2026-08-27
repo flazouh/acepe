@@ -19,7 +19,7 @@ export class QaScenarioNotFound extends Schema.TaggedError<QaScenarioNotFound>()
 	{
 		name: Schema.String,
 		known: Schema.Array(Schema.String),
-	},
+	}
 ) {
 	override get message(): string {
 		return `No QA scenario named '${this.name}'. This build knows: ${this.known.join(", ")}`;

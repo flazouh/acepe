@@ -7,7 +7,9 @@ import type { QuestionRequest } from "../../types/question.js";
 import { OperationStore } from "../operation-store.svelte.js";
 import { QuestionStore } from "../question-store.svelte.js";
 
-const mockReplyInteraction = vi.fn((_request: Record<string, unknown>) => Effect.succeed(undefined));
+const mockReplyInteraction = vi.fn((_request: Record<string, unknown>) =>
+	Effect.succeed(undefined)
+);
 
 vi.mock("../api.js", () => ({
 	api: {
@@ -260,11 +262,13 @@ describe("QuestionStore", () => {
 			store.add(initialQuestion);
 			store.add(refreshedQuestion);
 
-			await Effect.runPromise(store.reply(
-				"q-duplicate-routing",
-				[{ questionIndex: 0, answers: ["Streaming"] }],
-				initialQuestion.questions
-			));
+			await Effect.runPromise(
+				store.reply(
+					"q-duplicate-routing",
+					[{ questionIndex: 0, answers: ["Streaming"] }],
+					initialQuestion.questions
+				)
+			);
 
 			expect(mockReplyInteraction).toHaveBeenCalledWith({
 				sessionId: "session-duplicate-routing",

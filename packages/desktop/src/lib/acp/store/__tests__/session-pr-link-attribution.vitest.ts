@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { getRepoContextMock } = vi.hoisted(() => ({
 	getRepoContextMock: vi.fn(),
@@ -30,11 +30,15 @@ describe("session PR link attribution", () => {
 			})
 		);
 
-		const result = await Effect.runPromise(Effect.result(resolveAutomaticSessionPrNumberFromShipWorkflow("/repo", {
-			status: "created",
-			number: 178,
-			url: "https://github.com/flazouh/acepe/pull/178",
-		})));
+		const result = await Effect.runPromise(
+			Effect.result(
+				resolveAutomaticSessionPrNumberFromShipWorkflow("/repo", {
+					status: "created",
+					number: 178,
+					url: "https://github.com/flazouh/acepe/pull/178",
+				})
+			)
+		);
 
 		expect(Result.getOrThrow(result)).toBe(178);
 	});
@@ -48,11 +52,15 @@ describe("session PR link attribution", () => {
 			})
 		);
 
-		const result = await Effect.runPromise(Effect.result(resolveAutomaticSessionPrNumberFromShipWorkflow("/repo", {
-			status: "opened_existing",
-			number: 42,
-			url: "https://github.com/other/repo/pull/42",
-		})));
+		const result = await Effect.runPromise(
+			Effect.result(
+				resolveAutomaticSessionPrNumberFromShipWorkflow("/repo", {
+					status: "opened_existing",
+					number: 42,
+					url: "https://github.com/other/repo/pull/42",
+				})
+			)
+		);
 
 		expect(Result.getOrThrow(result)).toBeNull();
 	});
@@ -60,11 +68,15 @@ describe("session PR link attribution", () => {
 	it("fails closed when repo lookup fails", async () => {
 		getRepoContextMock.mockReturnValue(Effect.fail(new Error("lookup failed")));
 
-		const result = await Effect.runPromise(Effect.result(resolveAutomaticSessionPrNumberFromShipWorkflow("/repo", {
-			status: "created",
-			number: 91,
-			url: "https://github.com/flazouh/acepe/pull/91",
-		})));
+		const result = await Effect.runPromise(
+			Effect.result(
+				resolveAutomaticSessionPrNumberFromShipWorkflow("/repo", {
+					status: "created",
+					number: 91,
+					url: "https://github.com/flazouh/acepe/pull/91",
+				})
+			)
+		);
 
 		expect(Result.getOrThrow(result)).toBeNull();
 	});
@@ -123,28 +135,44 @@ describe("gh pr create tool-call attribution", () => {
 
 	it("accepts a current-repo PR created via gh pr create", async () => {
 		getRepoContextMock.mockReturnValue(
-			Effect.succeed({ owner: "flazouh", repo: "acepe", remoteUrl: "https://github.com/flazouh/acepe" })
+			Effect.succeed({
+				owner: "flazouh",
+				repo: "acepe",
+				remoteUrl: "https://github.com/flazouh/acepe",
+			})
 		);
 
-		const result = await Effect.runPromise(Effect.result(resolveAutomaticSessionPrNumberFromToolCall(
-			"/repo",
-			"gh pr create --fill",
-			"https://github.com/flazouh/acepe/pull/1756"
-		)));
+		const result = await Effect.runPromise(
+			Effect.result(
+				resolveAutomaticSessionPrNumberFromToolCall(
+					"/repo",
+					"gh pr create --fill",
+					"https://github.com/flazouh/acepe/pull/1756"
+				)
+			)
+		);
 
 		expect(Result.getOrThrow(result)).toBe(1756);
 	});
 
 	it("rejects a PR created for a different repository", async () => {
 		getRepoContextMock.mockReturnValue(
-			Effect.succeed({ owner: "flazouh", repo: "acepe", remoteUrl: "https://github.com/flazouh/acepe" })
+			Effect.succeed({
+				owner: "flazouh",
+				repo: "acepe",
+				remoteUrl: "https://github.com/flazouh/acepe",
+			})
 		);
 
-		const result = await Effect.runPromise(Effect.result(resolveAutomaticSessionPrNumberFromToolCall(
-			"/repo",
-			"gh pr create --fill",
-			"https://github.com/other/repo/pull/1756"
-		)));
+		const result = await Effect.runPromise(
+			Effect.result(
+				resolveAutomaticSessionPrNumberFromToolCall(
+					"/repo",
+					"gh pr create --fill",
+					"https://github.com/other/repo/pull/1756"
+				)
+			)
+		);
 
 		expect(Result.getOrThrow(result)).toBeNull();
 	});
@@ -152,11 +180,15 @@ describe("gh pr create tool-call attribution", () => {
 	it("fails closed when repo lookup fails", async () => {
 		getRepoContextMock.mockReturnValue(Effect.fail(new Error("lookup failed")));
 
-		const result = await Effect.runPromise(Effect.result(resolveAutomaticSessionPrNumberFromToolCall(
-			"/repo",
-			"gh pr create --fill",
-			"https://github.com/flazouh/acepe/pull/1756"
-		)));
+		const result = await Effect.runPromise(
+			Effect.result(
+				resolveAutomaticSessionPrNumberFromToolCall(
+					"/repo",
+					"gh pr create --fill",
+					"https://github.com/flazouh/acepe/pull/1756"
+				)
+			)
+		);
 
 		expect(Result.getOrThrow(result)).toBeNull();
 	});

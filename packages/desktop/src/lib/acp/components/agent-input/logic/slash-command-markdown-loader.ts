@@ -1,5 +1,5 @@
-import * as Effect from "effect/Effect";
 import type { AgentInputSlashCommandWorkspaceMarkdownResult } from "@acepe/ui/agent-panel";
+import * as Effect from "effect/Effect";
 import { skillsApi } from "$lib/skills/api/skills-api.js";
 import type { AgentSkills } from "$lib/skills/types/index.js";
 import type { AvailableCommand } from "../../../types/available-command.js";

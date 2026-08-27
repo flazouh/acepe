@@ -28,11 +28,7 @@ vi.mock("../../store/permission-store.svelte.js", () => ({
 	// Effect `mockPermissionStore.reply()` returns, the way the production
 	// helper does, or the test can't tell "called and discarded" apart from
 	// "called and executed".
-	runPermissionReply: (
-		store: typeof mockPermissionStore,
-		permissionId: string,
-		reply: string
-	) => {
+	runPermissionReply: (store: typeof mockPermissionStore, permissionId: string, reply: string) => {
 		Effect.runFork(store.reply(permissionId, reply));
 	},
 }));

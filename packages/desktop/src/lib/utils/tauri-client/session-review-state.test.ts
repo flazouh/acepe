@@ -42,7 +42,8 @@ const makeClient = (overrides: Partial<RpcClient>): RpcClient => ({
 	getProviderAccountUsage: () => Effect.succeed([]),
 	listProviderSessions: () => Effect.succeed([]),
 	listProviderProjects: () => Effect.succeed([]),
-	importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
+	importProviderSession: () =>
+		Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 	events: () => Stream.empty,
 	...overrides,
 });

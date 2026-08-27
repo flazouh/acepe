@@ -305,7 +305,11 @@ $effect(() => {
 				fileContentCache.getFileDiff(currentFilePath, currentProjectPath).pipe(
 					Effect.match({
 						onSuccess: (diff) => {
-							if (!cancelled && filePath === currentFilePath && projectPath === currentProjectPath) {
+							if (
+								!cancelled &&
+								filePath === currentFilePath &&
+								projectPath === currentProjectPath
+							) {
 								logger.info("File diff loaded for gutter", {
 									currentFilePath,
 									currentProjectPath,
@@ -317,7 +321,11 @@ $effect(() => {
 							}
 						},
 						onFailure: (error) => {
-							if (!cancelled && filePath === currentFilePath && projectPath === currentProjectPath) {
+							if (
+								!cancelled &&
+								filePath === currentFilePath &&
+								projectPath === currentProjectPath
+							) {
 								logger.info("File diff fetch failed for gutter", {
 									currentFilePath,
 									currentProjectPath,

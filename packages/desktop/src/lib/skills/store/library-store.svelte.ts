@@ -141,9 +141,7 @@ export class LibraryStore {
 			Effect.flatMap((isEmpty) => {
 				if (isEmpty) {
 					logger.debug("First run detected - auto-importing skills from agent directories");
-					return this.autoImportExistingOnFirstRun().pipe(
-						Effect.flatMap(() => this.loadSkills())
-					);
+					return this.autoImportExistingOnFirstRun().pipe(Effect.flatMap(() => this.loadSkills()));
 				}
 
 				this.isFirstRun = false;

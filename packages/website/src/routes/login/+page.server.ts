@@ -1,7 +1,7 @@
 import { redirect } from "@sveltejs/kit";
-import { getFeatureFlags } from "$lib/server/feature-flags";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
+import { getFeatureFlags } from "$lib/server/feature-flags";
 import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async () => {

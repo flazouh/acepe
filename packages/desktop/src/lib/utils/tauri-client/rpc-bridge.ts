@@ -55,18 +55,15 @@ export const decodeTrimmed = (
 	value: string
 ): Effect.Effect<typeof TrimmedNonEmptyString.Type, AgentError> =>
 	Schema.decodeUnknownEffect(TrimmedNonEmptyString)(value).pipe(
-		Effect.mapError(
-			(error) => new AgentError(operation, new Error(error.message))
-		)
+		Effect.mapError((error) => new AgentError(operation, new Error(error.message)))
 	);
 
-export const decodeEffect = <A>(
-	operation: string,
-	decode: (value: unknown) => Effect.Effect<A, { readonly message: string }>
-): ((value: unknown) => Effect.Effect<A, AgentError>) =>
+export const decodeEffect =
+	<A>(
+		operation: string,
+		decode: (value: unknown) => Effect.Effect<A, { readonly message: string }>
+	): ((value: unknown) => Effect.Effect<A, AgentError>) =>
 	(value) =>
 		decode(value).pipe(
-			Effect.mapError(
-				(error) => new AgentError(operation, new Error(error.message))
-			)
+			Effect.mapError((error) => new AgentError(operation, new Error(error.message)))
 		);

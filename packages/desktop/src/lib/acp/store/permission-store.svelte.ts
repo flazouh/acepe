@@ -14,8 +14,8 @@
 
 import * as Effect from "effect/Effect";
 import { getContext, setContext } from "svelte";
-import { toast } from "svelte-sonner";
 import { SvelteMap } from "svelte/reactivity";
+import { toast } from "svelte-sonner";
 import type { AppError } from "../errors/app-error.js";
 import { AgentError } from "../errors/app-error.js";
 

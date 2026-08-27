@@ -196,7 +196,9 @@ type MainAppQaWindow = Window & {
 	// selectSession -> panelStore.openSession + openPersistedSession). No
 	// separate attach/open logic -- this is the real production entry point,
 	// just reachable without pixel-driving the sidebar UI.
-	__acepeQaOpenSession?: (sessionId: string) => Promise<{ readonly ok: boolean; readonly error: string | null }>;
+	__acepeQaOpenSession?: (
+		sessionId: string
+	) => Promise<{ readonly ok: boolean; readonly error: string | null }>;
 };
 
 type MainAppHappyPathNavigationTiming = {
@@ -1017,8 +1019,9 @@ function installQaOpenSessionHook(): void {
 	if (!QA_HOOKS_ENABLED) {
 		return;
 	}
-	(window as MainAppQaWindow & { __acepeQaOpenSession?: typeof qaOpenSession }).__acepeQaOpenSession =
-		qaOpenSession;
+	(
+		window as MainAppQaWindow & { __acepeQaOpenSession?: typeof qaOpenSession }
+	).__acepeQaOpenSession = qaOpenSession;
 }
 
 // QA-only: startup step outcomes. The failure path for background startup

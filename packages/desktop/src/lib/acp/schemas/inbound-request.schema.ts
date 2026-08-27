@@ -13,7 +13,10 @@ import type { JsonValue, ToolArguments } from "../../services/converted-session-
 import type { AcpError } from "../errors/index.js";
 import { ProtocolError } from "../errors/index.js";
 
-function schemaErrorToProtocolError(error: { readonly message: string }, context?: string): ProtocolError {
+function schemaErrorToProtocolError(
+	error: { readonly message: string },
+	context?: string
+): ProtocolError {
 	const message = context ? `${context}: ${error.message}` : error.message;
 	return new ProtocolError(message, error);
 }
@@ -92,7 +95,9 @@ const decodeErrorResponseParams = decodeUnknown(ErrorResponseParamsSchema, (erro
 	schemaErrorToProtocolError(error)
 );
 
-function normalizeToolCall(toolCall: SparseToolCall | undefined): RequestPermissionParams["toolCall"] {
+function normalizeToolCall(
+	toolCall: SparseToolCall | undefined
+): RequestPermissionParams["toolCall"] {
 	return {
 		toolCallId: toolCall?.toolCallId,
 		rawInput: (toolCall?.rawInput ?? {}) as JsonValue,

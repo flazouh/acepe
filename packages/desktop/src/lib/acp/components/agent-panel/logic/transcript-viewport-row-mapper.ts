@@ -17,10 +17,10 @@ import type {
 	TranscriptViewportRow,
 } from "../../../../services/acp-types.js";
 import { buildUserRowSceneModel } from "../../../logic/user-row-scene-model.js";
-import { toolKindFromTitle } from "../../../utils/tool-kind-from-name.js";
 import { formatOtherToolName } from "../../../registry/index.js";
 import { transcriptSegmentPrimaryText } from "../../../session-state/transcript-text.js";
 import { calculateDiffStats, getFileName } from "../../../utils/file-utils.js";
+import { toolKindFromTitle } from "../../../utils/tool-kind-from-name.js";
 import {
 	getExecuteCommandHighlighter,
 	getExecuteOutputHighlighter,

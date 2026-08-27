@@ -1,10 +1,10 @@
 import { describe, expect, it } from "bun:test";
 import {
-	SessionId,
 	emptyRpcSessionSnapshot,
-	settingsSnapshotRequest,
 	type RpcClient,
 	type RpcSessionSnapshot,
+	SessionId,
+	settingsSnapshotRequest,
 } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
@@ -29,10 +29,10 @@ const snapshot: RpcSessionSnapshot = {
 	skillsCatalog: null,
 	voice: null,
 	gitReview: null,
-			mcpCatalog: null,
-			preconnectionOptions: null,
-			terminal: null,
-			sessionReviewState: null,
+	mcpCatalog: null,
+	preconnectionOptions: null,
+	terminal: null,
+	sessionReviewState: null,
 };
 
 describe("settings view controller mapping", () => {
@@ -63,7 +63,8 @@ describe("settings view controller mapping", () => {
 					getProviderAccountUsage: () => Effect.succeed([]),
 					listProviderSessions: () => Effect.succeed([]),
 					listProviderProjects: () => Effect.succeed([]),
-					importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
+					importProviderSession: () =>
+						Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 					events: () => Stream.empty,
 				};
 				const store = composeSettingsStore({ client });
@@ -77,6 +78,6 @@ describe("settings view controller mapping", () => {
 				expect(model.codeFontSize).toBe(15);
 				expect(model.open).toBe(true);
 				expect(emptyRpcSessionSnapshot(0).settings).toEqual([]);
-			}),
+			})
 		));
 });

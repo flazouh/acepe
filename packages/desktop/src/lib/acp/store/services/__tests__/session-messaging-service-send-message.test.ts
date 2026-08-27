@@ -141,10 +141,11 @@ describe("SessionMessagingService.sendMessage", () => {
 			deps.connectionManager
 		);
 
-		const result = await Effect.runPromise(Effect.result(service.sendMessage(
-			"session-1",
-			"@[text:aGVsbG8gd29ybGQ=]\nPlease summarize this"
-		)));
+		const result = await Effect.runPromise(
+			Effect.result(
+				service.sendMessage("session-1", "@[text:aGVsbG8gd29ybGQ=]\nPlease summarize this")
+			)
+		);
 
 		expect(Result.isSuccess(result)).toBe(true);
 		// Tokens pass through unchanged — ACP provider handles decoding
@@ -178,7 +179,9 @@ describe("SessionMessagingService.sendMessage", () => {
 			deps.connectionManager
 		);
 
-		const result = await Effect.runPromise(Effect.result(service.sendMessage("session-1", "diagnostic ping - reply ok")));
+		const result = await Effect.runPromise(
+			Effect.result(service.sendMessage("session-1", "diagnostic ping - reply ok"))
+		);
 
 		expect(Result.isSuccess(result)).toBe(true);
 		expect(sendPrompt).toHaveBeenCalledWith(
@@ -197,7 +200,9 @@ describe("SessionMessagingService.sendMessage", () => {
 			deps.connectionManager
 		);
 
-		const result = await Effect.runPromise(Effect.result(service.sendMessage("session-1", "hello")));
+		const result = await Effect.runPromise(
+			Effect.result(service.sendMessage("session-1", "hello"))
+		);
 
 		expect(Result.isSuccess(result)).toBe(true);
 		expect(deps.transientProjectionManager.updateTransientProjection).toHaveBeenCalledWith(
@@ -235,7 +240,9 @@ describe("SessionMessagingService.sendMessage", () => {
 			deps.connectionManager
 		);
 
-		const result = await Effect.runPromise(Effect.result(service.sendMessage("session-1", "hello")));
+		const result = await Effect.runPromise(
+			Effect.result(service.sendMessage("session-1", "hello"))
+		);
 
 		expect(Result.isSuccess(result)).toBe(true);
 	});
@@ -274,7 +281,9 @@ describe("SessionMessagingService.sendMessage", () => {
 			deps.connectionManager
 		);
 
-		const result = await Effect.runPromise(Effect.result(service.sendMessage("session-1", "diagnostic follow-up - reply ok")));
+		const result = await Effect.runPromise(
+			Effect.result(service.sendMessage("session-1", "diagnostic follow-up - reply ok"))
+		);
 
 		expect(Result.isFailure(result)).toBe(true);
 		expect(sendPrompt).not.toHaveBeenCalled();
@@ -304,7 +313,9 @@ describe("SessionMessagingService.sendMessage", () => {
 			deps.connectionManager
 		);
 
-		const result = await Effect.runPromise(Effect.result(service.sendMessage("session-1", "diagnostic follow-up - reply ok")));
+		const result = await Effect.runPromise(
+			Effect.result(service.sendMessage("session-1", "diagnostic follow-up - reply ok"))
+		);
 
 		expect(Result.isFailure(result)).toBe(true);
 		expect(sendPrompt).not.toHaveBeenCalled();
@@ -321,7 +332,9 @@ describe("SessionMessagingService.sendMessage", () => {
 			deps.connectionManager
 		);
 
-		const result = await Effect.runPromise(Effect.result(service.sendPendingCreationMessage("pending-session", "hello")));
+		const result = await Effect.runPromise(
+			Effect.result(service.sendPendingCreationMessage("pending-session", "hello"))
+		);
 
 		expect(Result.isFailure(result)).toBe(true);
 		expect(deps.connectionManager.sendTurnFailed).not.toHaveBeenCalled();

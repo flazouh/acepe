@@ -135,8 +135,7 @@ function runGeneration(
 							Effect.flatMap(() =>
 								fromPromise(
 									() => streamPromise,
-									(e) =>
-										new AgentError("stream", e instanceof Error ? e : new Error(String(e)))
+									(e) => new AgentError("stream", e instanceof Error ? e : new Error(String(e)))
 								)
 							),
 							Effect.map((result) => {

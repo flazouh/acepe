@@ -1,5 +1,5 @@
-import { fromPromise } from "@acepe/effect-result/fromPromise";
 import { describe, expect, it } from "bun:test";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import type { FileGitStatus } from "$lib/services/converted-session-types.js";
@@ -158,11 +158,15 @@ describe("git status cache", () => {
 			},
 			fetchFileGitStatusSummary: (_projectPath, filePath) => {
 				fileSummaryFetchCount += 1;
-				return Effect.succeed(filePath.endsWith("two.ts") ? createStatus("src/two.ts", 4, 2) : null);
+				return Effect.succeed(
+					filePath.endsWith("two.ts") ? createStatus("src/two.ts", 4, 2) : null
+				);
 			},
 		});
 
-		const first = await runResult(cache.getProjectFileGitStatusSummary("/repo", "/repo/src/two.ts"));
+		const first = await runResult(
+			cache.getProjectFileGitStatusSummary("/repo", "/repo/src/two.ts")
+		);
 		const second = await runResult(
 			cache.getProjectFileGitStatusSummary("/repo", "/repo/src/two.ts")
 		);

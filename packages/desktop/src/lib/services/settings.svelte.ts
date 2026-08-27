@@ -19,9 +19,11 @@ export type CustomKeybindings = Record<string, string>;
  * Returns a map of command -> key.
  */
 export function getCustomKeybindings(): Effect.Effect<CustomKeybindings, Error> {
-	return tauriSettings.getCustomKeybindings().pipe(
-		Effect.mapError((error) => new Error(`Failed to get custom keybindings: ${String(error)}`))
-	);
+	return tauriSettings
+		.getCustomKeybindings()
+		.pipe(
+			Effect.mapError((error) => new Error(`Failed to get custom keybindings: ${String(error)}`))
+		);
 }
 
 /**
@@ -29,7 +31,9 @@ export function getCustomKeybindings(): Effect.Effect<CustomKeybindings, Error> 
  * Takes a map of command -> key.
  */
 export function saveCustomKeybindings(keybindings: CustomKeybindings): Effect.Effect<void, Error> {
-	return tauriSettings.saveCustomKeybindings(keybindings).pipe(
-		Effect.mapError((error) => new Error(`Failed to save custom keybindings: ${String(error)}`))
-	);
+	return tauriSettings
+		.saveCustomKeybindings(keybindings)
+		.pipe(
+			Effect.mapError((error) => new Error(`Failed to save custom keybindings: ${String(error)}`))
+		);
 }

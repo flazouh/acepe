@@ -300,7 +300,10 @@ async function handleSharedModelChange(modelId: string): Promise<void> {
 
 		const result = await Effect.runPromise(
 			Effect.result(
-				fromPromise(() => onModelChange(modelId), (error) => error as Error).pipe(
+				fromPromise(
+					() => onModelChange(modelId),
+					(error) => error as Error
+				).pipe(
 					Effect.map(() => {
 						logger.info("Model change completed", { modelId });
 						return undefined;

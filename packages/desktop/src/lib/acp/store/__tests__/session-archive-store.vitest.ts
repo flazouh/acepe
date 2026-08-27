@@ -120,11 +120,13 @@ describe("SessionArchiveStore", () => {
 		const store = new SessionArchiveStore(client);
 		await Effect.runPromise(store.load());
 
-		await Effect.runPromise(store.unarchive({
-			sessionId: "same",
-			projectPath: "/repo-a",
-			agentId: "claude-code",
-		}));
+		await Effect.runPromise(
+			store.unarchive({
+				sessionId: "same",
+				projectPath: "/repo-a",
+				agentId: "claude-code",
+			})
+		);
 
 		expect(
 			store.isArchived({

@@ -71,10 +71,10 @@ describe("agent panel controller mapping", () => {
 				skillsCatalog: null,
 				voice: null,
 				gitReview: null,
-			mcpCatalog: null,
-			preconnectionOptions: null,
-			terminal: null,
-			sessionReviewState: null,
+				mcpCatalog: null,
+				preconnectionOptions: null,
+				terminal: null,
+				sessionReviewState: null,
 			},
 			activities: [
 				{

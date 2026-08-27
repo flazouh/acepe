@@ -1,5 +1,5 @@
 import { expect, it } from "bun:test";
-import { SessionId, type RpcClient } from "@acepe/contracts";
+import { type RpcClient, SessionId } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 
@@ -18,7 +18,8 @@ const fake: RpcClient = {
 	getProviderAccountUsage: () => Effect.succeed([]),
 	listProviderSessions: () => Effect.succeed([]),
 	listProviderProjects: () => Effect.succeed([]),
-	importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
+	importProviderSession: () =>
+		Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 	events: () => Stream.empty,
 };
 
@@ -31,5 +32,5 @@ it("returns the injected client and memoises it", () =>
 			expect(first).toBe(fake);
 			expect(second).toBe(first);
 			setAppRpcClientForTest(null);
-		}),
+		})
 	));

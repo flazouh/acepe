@@ -1,4 +1,4 @@
-import * as Effect from "effect/Effect";
+import type * as Effect from "effect/Effect";
 
 import type { AppError } from "../../acp/errors/app-error.js";
 

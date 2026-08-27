@@ -1,5 +1,5 @@
-import { emptyRpcSessionSnapshot, emptySkillsCatalog, ProjectId } from "@acepe/contracts";
 import { describe, expect, it } from "bun:test";
+import { emptyRpcSessionSnapshot, emptySkillsCatalog, ProjectId } from "@acepe/contracts";
 
 import {
 	mapConfigOptionToAgentInput,

@@ -669,7 +669,9 @@ describe("PermissionStore", () => {
 			store.add(secondPermission);
 			store.add(otherSessionPermission);
 
-			const result = await Effect.runPromise(Effect.result(store.drainPendingForSession("session-1")));
+			const result = await Effect.runPromise(
+				Effect.result(store.drainPendingForSession("session-1"))
+			);
 			Result.getOrThrow(result);
 
 			expect(store.pending.has(otherSessionPermission.id)).toBe(true);
@@ -683,7 +685,9 @@ describe("PermissionStore", () => {
 			store.add(permission);
 			store.remove(permission.id);
 
-			const result = await Effect.runPromise(Effect.result(store.drainPendingForSession("session-1")));
+			const result = await Effect.runPromise(
+				Effect.result(store.drainPendingForSession("session-1"))
+			);
 			Result.getOrThrow(result);
 
 			expect(mockReplyInteraction).not.toHaveBeenCalledWith(

@@ -1,7 +1,6 @@
-import type { RpcProjectedMessage, RpcSessionSnapshot } from "@acepe/contracts";
-import { MessageId, SessionId } from "@acepe/contracts";
-import { emptyRpcSessionSnapshot } from "@acepe/contracts";
 import { describe, expect, it } from "bun:test";
+import type { RpcProjectedMessage, RpcSessionSnapshot } from "@acepe/contracts";
+import { emptyRpcSessionSnapshot, MessageId, SessionId } from "@acepe/contracts";
 
 import {
 	messagesFromSessionSnapshot,

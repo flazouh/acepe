@@ -1,16 +1,16 @@
 import {
-	expandStableMacAppIfNeeded,
-	findZstFile,
-	findZigZstdPath,
-	distDirNames,
-	NATIVE_WRAPPER_FILENAMES,
-	makeLauncherWorkerLoud,
-	needsGuiProcessRename,
-	bunLauncherWrapperScript,
-	GUI_PROCESS_FILENAME,
 	BUN_RUNTIME_FILENAME,
-	rewriteSvelteKitRootAbsolutePaths,
+	bunLauncherWrapperScript,
+	distDirNames,
+	expandStableMacAppIfNeeded,
+	findZigZstdPath,
+	findZstFile,
+	GUI_PROCESS_FILENAME,
 	injectAcepeShellPingScript,
+	makeLauncherWorkerLoud,
+	NATIVE_WRAPPER_FILENAMES,
+	needsGuiProcessRename,
+	rewriteSvelteKitRootAbsolutePaths,
 } from "@acepe/electrobun-shell";
 
 export type ExpandStableAppFs = {
@@ -24,7 +24,7 @@ export type ExpandStableAppFs = {
 
 export const macosDirHasNativeWrapper = (
 	macosDir: string,
-	exists: (path: string) => boolean,
+	exists: (path: string) => boolean
 ): boolean => {
 	for (const name of NATIVE_WRAPPER_FILENAMES) {
 		if (exists(`${macosDir}/${name}`) === true) {
@@ -59,7 +59,7 @@ export const runExpandStableApp = (input: {
 
 export const resolveZigZstd = (
 	electrobunDir: string,
-	fs: Pick<ExpandStableAppFs, "list" | "exists">,
+	fs: Pick<ExpandStableAppFs, "list" | "exists">
 ): string | null => {
 	if (fs.exists(electrobunDir) === false) {
 		return null;
@@ -184,7 +184,7 @@ if (import.meta.main) {
 	if (prepared.indexHtml !== null) {
 		writeFileSync(
 			`${appPath}/Contents/Resources/app/views/mainview/index.html`,
-			prepared.indexHtml,
+			prepared.indexHtml
 		);
 	}
 }

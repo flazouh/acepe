@@ -31,7 +31,6 @@ import { canonicalAgentIdToString } from "../../types/agent-id.js";
 import { createLogger } from "../../utils/logger.js";
 import { api } from "../api.js";
 import { isFallbackSessionTitle, stripArtifactsFromTitle } from "../session-title-policy.js";
-import { mergeProjectionSessions } from "./session-projection-merge.js";
 import type { SessionCold, SessionMutableColdUpdates } from "../types.js";
 import type {
 	IConnectionManager,
@@ -39,6 +38,7 @@ import type {
 	ISessionStateReader,
 	ISessionStateWriter,
 } from "./interfaces/index.js";
+import { mergeProjectionSessions } from "./session-projection-merge.js";
 
 const logger = createLogger({ id: "session-repository", name: "SessionRepository" });
 const STARTUP_SESSION_METADATA_CHUNK_SIZE = 32;

@@ -95,7 +95,9 @@ describe("SessionStore PR linking", () => {
 			parentId: null,
 		});
 
-		await Effect.runPromise(store.connection.updateSessionPrLink("session-1", "/repo", 42, "manual"));
+		await Effect.runPromise(
+			store.connection.updateSessionPrLink("session-1", "/repo", 42, "manual")
+		);
 
 		const session = store.read.getSessionCold("session-1");
 		expect(session?.prNumber).toBe(42);
@@ -133,15 +135,15 @@ describe("SessionStore PR linking", () => {
 		});
 		resolveAutomaticSessionPrNumberFromShipWorkflowMock.mockReturnValue(Effect.succeed(99));
 
-		const applied = await Effect.runPromise(Effect.result(store.connection.applyAutomaticPrLinkFromShipWorkflow(
-			"session-1",
-			"/repo",
-			{
-				status: "created",
-				number: 99,
-				url: "https://github.com/flazouh/acepe/pull/99",
-			}
-		)));
+		const applied = await Effect.runPromise(
+			Effect.result(
+				store.connection.applyAutomaticPrLinkFromShipWorkflow("session-1", "/repo", {
+					status: "created",
+					number: 99,
+					url: "https://github.com/flazouh/acepe/pull/99",
+				})
+			)
+		);
 
 		expect(Result.getOrThrow(applied)).toBeNull();
 		expect(store.read.getSessionCold("session-1")?.prNumber).toBe(17);

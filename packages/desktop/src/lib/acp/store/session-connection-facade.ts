@@ -113,37 +113,39 @@ export class SessionConnectionFacade {
 		initialModelId?: string;
 		worktreePath?: string;
 		launchToken?: string;
-	}	): Effect.Effect<SessionCreationResult, AppError> {
-		return this.#deps.connectionMgrRef.current
-			.createSession(options, this.#deps.eventHandler)
-			.pipe(
-				Effect.flatMap((createdSession): Effect.Effect<SessionCreationResult, AppError> => {
-					if (createdSession.kind === "pending") {
-						this.#deps.creationCoordinator.beginPendingCreation(
-							createdSession.sessionId,
-							createdSession
-						);
-						return Effect.succeed(createdSession);
-					}
+	}): Effect.Effect<SessionCreationResult, AppError> {
+		return this.#deps.connectionMgrRef.current.createSession(options, this.#deps.eventHandler).pipe(
+			Effect.flatMap((createdSession): Effect.Effect<SessionCreationResult, AppError> => {
+				if (createdSession.kind === "pending") {
+					this.#deps.creationCoordinator.beginPendingCreation(
+						createdSession.sessionId,
+						createdSession
+					);
+					return Effect.succeed(createdSession);
+				}
 
-					if (
-						this.#deps.creationCoordinator.hasSessionOpenHydrator() &&
-						createdSession.sessionOpen?.outcome === "found"
-					) {
-						return this.#deps.creationCoordinator.hydrateCreatedSession(createdSession.sessionOpen).pipe(
-							Effect.map((): SessionCreationResult => ({
-								kind: "ready",
-								session: createdSession.session,
-							}))
+				if (
+					this.#deps.creationCoordinator.hasSessionOpenHydrator() &&
+					createdSession.sessionOpen?.outcome === "found"
+				) {
+					return this.#deps.creationCoordinator
+						.hydrateCreatedSession(createdSession.sessionOpen)
+						.pipe(
+							Effect.map(
+								(): SessionCreationResult => ({
+									kind: "ready",
+									session: createdSession.session,
+								})
+							)
 						);
-					}
+				}
 
-					return Effect.succeed({
-						kind: "ready",
-						session: createdSession.session,
-					});
-				})
-			);
+				return Effect.succeed({
+					kind: "ready",
+					session: createdSession.session,
+				});
+			})
+		);
 	}
 
 	setSessionOpenHydrator(hydrator: CreatedSessionHydrator): void {
@@ -199,7 +201,11 @@ export class SessionConnectionFacade {
 		);
 	}
 
-	setConfigOption(sessionId: string, configId: string, value: string): Effect.Effect<void, AppError> {
+	setConfigOption(
+		sessionId: string,
+		configId: string,
+		value: string
+	): Effect.Effect<void, AppError> {
 		return this.#deps.connectionMgrRef.current.setConfigOption(sessionId, configId, value);
 	}
 

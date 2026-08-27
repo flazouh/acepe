@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
+import { describe, expect, it, vi } from "vitest";
 
 import type { SessionCold } from "../../../../application/dto/session-cold.js";
 import type { PanelStore } from "../../../../store/panel-store.svelte.js";
@@ -15,7 +15,6 @@ vi.mock("@tauri-apps/api/core", () => ({
 vi.mock("@tauri-apps/api/event", () => ({
 	listen: vi.fn(async () => () => {}),
 }));
-
 
 async function runToResult<A, E>(effect: Effect.Effect<A, E>): Promise<Result.Result<A, E>> {
 	return Effect.runPromise(Effect.result(effect));
@@ -33,7 +32,9 @@ describe("AgentInputState - initial session title", () => {
 			sessionLifecycleState: "created",
 			parentId: null,
 		};
-		const createSession = vi.fn(() => Effect.succeed({ kind: "ready" as const, session: createdSession }));
+		const createSession = vi.fn(() =>
+			Effect.succeed({ kind: "ready" as const, session: createdSession })
+		);
 		const sendMessage = vi.fn(() => Effect.succeed(undefined));
 		const getSessionCold = vi.fn(() => createdSession);
 		const mockStore = {
@@ -56,12 +57,14 @@ describe("AgentInputState - initial session title", () => {
 			() => "/tmp/project"
 		);
 
-		const result = await runToResult(state.sendPreparedMessage({
-			content: "Build kanban parity\n\nShow the title immediately.",
-			projectPath: "/tmp/project",
-			projectName: "Acepe",
-			selectedAgentId: "claude-code",
-		}));
+		const result = await runToResult(
+			state.sendPreparedMessage({
+				content: "Build kanban parity\n\nShow the title immediately.",
+				projectPath: "/tmp/project",
+				projectName: "Acepe",
+				selectedAgentId: "claude-code",
+			})
+		);
 
 		expect(Result.isSuccess(result)).toBe(true);
 		expect(createSession).toHaveBeenCalledWith(
@@ -90,7 +93,9 @@ describe("AgentInputState - initial session title", () => {
 			sessionLifecycleState: "created",
 			parentId: null,
 		};
-		const createSession = vi.fn(() => Effect.succeed({ kind: "ready" as const, session: createdSession }));
+		const createSession = vi.fn(() =>
+			Effect.succeed({ kind: "ready" as const, session: createdSession })
+		);
 		const sendMessage = vi.fn(() => {
 			events.push("send-message");
 			return Effect.succeed(undefined);
@@ -128,16 +133,18 @@ describe("AgentInputState - initial session title", () => {
 			() => "/tmp/project"
 		);
 
-		const result = await runToResult(state.sendPreparedMessage({
-			content: "Build kanban parity",
-			panelId: "panel-1",
-			projectPath: "/tmp/project",
-			projectName: "Acepe",
-			selectedAgentId: "claude-code",
-			onSessionCreated: () => {
-				events.push("session-created");
-			},
-		}));
+		const result = await runToResult(
+			state.sendPreparedMessage({
+				content: "Build kanban parity",
+				panelId: "panel-1",
+				projectPath: "/tmp/project",
+				projectName: "Acepe",
+				selectedAgentId: "claude-code",
+				onSessionCreated: () => {
+					events.push("session-created");
+				},
+			})
+		);
 
 		expect(Result.isSuccess(result)).toBe(true);
 		expect(events).toEqual(["set-pending", "send-message", "session-created", "clear-pending"]);
@@ -189,14 +196,16 @@ describe("AgentInputState - initial session title", () => {
 			() => "/tmp/project"
 		);
 
-		const result = await runToResult(state.sendPreparedMessage({
-			content: "Build stable panels",
-			panelId: "panel-1",
-			projectPath: "/tmp/project",
-			projectName: "Acepe",
-			selectedAgentId: "claude-code",
-			onSessionCreated,
-		}));
+		const result = await runToResult(
+			state.sendPreparedMessage({
+				content: "Build stable panels",
+				panelId: "panel-1",
+				projectPath: "/tmp/project",
+				projectName: "Acepe",
+				selectedAgentId: "claude-code",
+				onSessionCreated,
+			})
+		);
 
 		expect(Result.isSuccess(result)).toBe(true);
 		expect(onSessionCreated).toHaveBeenCalledWith("provider-requested-id", "panel-1");

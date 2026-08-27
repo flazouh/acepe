@@ -1,12 +1,12 @@
 import {
+	type VoiceLanguageOption as ContractVoiceLanguageOption,
+	type VoiceModelInfo as ContractVoiceModelInfo,
 	decodeSessionId,
 	emptyVoiceLanguages,
 	emptyVoiceModels,
 	emptyVoiceTranscriptionResult,
-	placeholderVoiceModel,
 	type ProjectedVoice,
-	type VoiceLanguageOption as ContractVoiceLanguageOption,
-	type VoiceModelInfo as ContractVoiceModelInfo,
+	placeholderVoiceModel,
 	voiceSnapshotRequest,
 } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
@@ -45,9 +45,7 @@ const readVoice = Effect.fn("readVoice")(function* () {
 const requireVoice = Effect.fn("requireVoice")(function* (operation: string) {
 	const voiceState = yield* readVoice();
 	if (voiceState === null) {
-		return yield* Effect.fail(
-			new AgentError(operation, new Error("voice projection is missing"))
-		);
+		return yield* Effect.fail(new AgentError(operation, new Error("voice projection is missing")));
 	}
 	return voiceState;
 });

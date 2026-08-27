@@ -10,11 +10,7 @@ import type {
 	FileGitStatus,
 	ProjectIndex,
 } from "../../services/converted-session-types.js";
-import {
-	decodeTrimmed,
-	unsupportedOnContract,
-	withRpcClient,
-} from "./rpc-bridge.ts";
+import { decodeTrimmed, unsupportedOnContract, withRpcClient } from "./rpc-bridge.ts";
 
 const mapGitStatus = (row: ContractFileGitStatus): FileGitStatus => ({
 	path: row.path,
@@ -58,9 +54,7 @@ export const fileIndex = {
 	getProjectGitStatus: (projectPath: string): Effect.Effect<FileGitStatus[], AppError> =>
 		loadProjectIndex(projectPath).pipe(Effect.map((index) => index.gitStatus)),
 
-	getProjectGitStatusSummary: (
-		projectPath: string
-	): Effect.Effect<FileGitStatus[], AppError> =>
+	getProjectGitStatusSummary: (projectPath: string): Effect.Effect<FileGitStatus[], AppError> =>
 		loadProjectIndex(projectPath).pipe(Effect.map((index) => index.gitStatus)),
 
 	getFileGitStatusSummary: (
@@ -100,23 +94,17 @@ export const fileIndex = {
 			)
 		),
 
-	readFileContent: (
-		_filePath: string,
-		_projectPath: string
-	): Effect.Effect<string, AppError> => unsupportedOnContract("fileIndex.readFileContent"),
+	readFileContent: (_filePath: string, _projectPath: string): Effect.Effect<string, AppError> =>
+		unsupportedOnContract("fileIndex.readFileContent"),
 
-	resolveFilePath: (
-		_filePath: string,
-		_projectPath: string
-	): Effect.Effect<string, AppError> => unsupportedOnContract("fileIndex.resolveFilePath"),
+	resolveFilePath: (_filePath: string, _projectPath: string): Effect.Effect<string, AppError> =>
+		unsupportedOnContract("fileIndex.resolveFilePath"),
 
 	getFileDiff: (
 		_filePath: string,
 		_projectPath: string
-	): Effect.Effect<
-		{ oldContent: string | null; newContent: string; fileName: string },
-		AppError
-	> => unsupportedOnContract("fileIndex.getFileDiff"),
+	): Effect.Effect<{ oldContent: string | null; newContent: string; fileName: string }, AppError> =>
+		unsupportedOnContract("fileIndex.getFileDiff"),
 
 	revertFileContent: (
 		_filePath: string,
@@ -127,10 +115,8 @@ export const fileIndex = {
 	readImageAsBase64: (_filePath: string): Effect.Effect<string, AppError> =>
 		unsupportedOnContract("fileIndex.readImageAsBase64"),
 
-	deletePath: (
-		_projectPath: string,
-		_relativePath: string
-	): Effect.Effect<void, AppError> => unsupportedOnContract("fileIndex.deletePath"),
+	deletePath: (_projectPath: string, _relativePath: string): Effect.Effect<void, AppError> =>
+		unsupportedOnContract("fileIndex.deletePath"),
 
 	renamePath: (
 		_projectPath: string,
@@ -138,20 +124,14 @@ export const fileIndex = {
 		_toRelative: string
 	): Effect.Effect<void, AppError> => unsupportedOnContract("fileIndex.renamePath"),
 
-	copyFile: (
-		_projectPath: string,
-		_relativePath: string
-	): Effect.Effect<string, AppError> => unsupportedOnContract("fileIndex.copyFile"),
+	copyFile: (_projectPath: string, _relativePath: string): Effect.Effect<string, AppError> =>
+		unsupportedOnContract("fileIndex.copyFile"),
 
-	createFile: (
-		_projectPath: string,
-		_relativePath: string
-	): Effect.Effect<void, AppError> => unsupportedOnContract("fileIndex.createFile"),
+	createFile: (_projectPath: string, _relativePath: string): Effect.Effect<void, AppError> =>
+		unsupportedOnContract("fileIndex.createFile"),
 
-	createDirectory: (
-		_projectPath: string,
-		_relativePath: string
-	): Effect.Effect<void, AppError> => unsupportedOnContract("fileIndex.createDirectory"),
+	createDirectory: (_projectPath: string, _relativePath: string): Effect.Effect<void, AppError> =>
+		unsupportedOnContract("fileIndex.createDirectory"),
 
 	getFileExplorerPreview: (
 		_projectPath: string,

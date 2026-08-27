@@ -1,5 +1,5 @@
-import { makeScenarioSession, streamingReply } from "@acepe/qa-scenario";
 import { describe, expect, it } from "bun:test";
+import { makeScenarioSession, streamingReply } from "@acepe/qa-scenario";
 import * as Effect from "effect/Effect";
 import { makeQaScenarioHandle } from "../qa-scenario-hook.ts";
 
@@ -32,7 +32,13 @@ describe("the QA scenario window handle", () => {
 	it("controls answer with a plain string, never a promise", async () => {
 		const session = await parkedSession();
 		const handle = makeQaScenarioHandle(session);
-		for (const answer of [handle.play(), handle.pause(), handle.step(), handle.seek(1), handle.rate(2)]) {
+		for (const answer of [
+			handle.play(),
+			handle.pause(),
+			handle.step(),
+			handle.seek(1),
+			handle.rate(2),
+		]) {
 			expect(typeof answer).toBe("string");
 		}
 		await Effect.runPromise(session.shutdown);

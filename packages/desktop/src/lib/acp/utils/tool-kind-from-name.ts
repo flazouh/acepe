@@ -39,7 +39,12 @@ const foldToolName = (name: string): string =>
 export function toolKindFromProviderName(name: string): AgentToolKind {
 	const folded = foldToolName(name);
 
-	if (folded === "read" || folded === "readfile" || folded === "view" || folded === "notebookread") {
+	if (
+		folded === "read" ||
+		folded === "readfile" ||
+		folded === "view" ||
+		folded === "notebookread"
+	) {
 		return "read";
 	}
 	if (folded === "readlints") {

@@ -1,6 +1,6 @@
-import { afterEach, describe, expect, it } from "vitest";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { getFeatureFlags } from "./feature-flags";
 

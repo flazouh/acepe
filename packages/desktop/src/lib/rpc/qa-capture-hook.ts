@@ -51,7 +51,7 @@ declare global {
 		__acepeQaCaptureProgress?: () => QaCaptureProgress;
 		__acepeQaCaptureReadEvents?: (
 			offset: number,
-			limit: number,
+			limit: number
 		) => ReadonlyArray<OrchestrationEvent>;
 		__acepeQaCaptureReadSnapshots?: () => ReadonlyArray<QaCaptureSnapshot>;
 	}
@@ -63,10 +63,8 @@ declare global {
  * but another session's turns belong in another scenario -- and a whole
  * library's history is both wrong here and too big to move.
  */
-export const belongsToCapture = (
-	event: OrchestrationEvent,
-	sessionId: SessionId,
-): boolean => event.aggregateKind !== "session" || event.aggregateId === sessionId;
+export const belongsToCapture = (event: OrchestrationEvent, sessionId: SessionId): boolean =>
+	event.aggregateKind !== "session" || event.aggregateId === sessionId;
 
 const idle: QaCaptureState = {
 	done: false,
@@ -116,10 +114,10 @@ const collect = (sessionId: SessionId, quietMs: number) =>
 							if (belongsToCapture(event, sessionId) === true) {
 								collected.push(event);
 							}
-						}),
-					),
-				),
-			),
+						})
+					)
+				)
+			)
 		);
 
 		let quiet = false;
@@ -156,8 +154,8 @@ export const installQaCaptureHook = (): void => {
 		setTimeout(() => {
 			void Effect.runPromise(
 				collect(sessionId as SessionId, quietMs > 0 ? quietMs : 400).pipe(
-					Effect.catchCause((cause) => Effect.sync(() => withError(String(cause)))),
-				),
+					Effect.catchCause((cause) => Effect.sync(() => withError(String(cause))))
+				)
 			);
 		}, 0);
 		return sessionId;
@@ -168,7 +166,6 @@ export const installQaCaptureHook = (): void => {
 		sessionId: state.sessionId,
 		eventCount: state.events.length,
 	});
-	window.__acepeQaCaptureReadEvents = (offset, limit) =>
-		state.events.slice(offset, offset + limit);
+	window.__acepeQaCaptureReadEvents = (offset, limit) => state.events.slice(offset, offset + limit);
 	window.__acepeQaCaptureReadSnapshots = () => state.snapshots;
 };

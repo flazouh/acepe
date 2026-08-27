@@ -1,7 +1,7 @@
 import { redirect } from "@sveltejs/kit";
-import { validateSession } from "$lib/server/auth/admin";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
+import { validateSession } from "$lib/server/auth/admin";
 import type { LayoutServerLoad } from "./$types";
 
 export const load: LayoutServerLoad = async ({ cookies }) => {

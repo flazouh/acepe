@@ -3,7 +3,7 @@
  */
 
 import * as Effect from "effect/Effect";
-import * as Result from "effect/Result";
+import type * as Result from "effect/Result";
 import { toast } from "svelte-sonner";
 import { openFileInEditor } from "$lib/utils/tauri-client/opener.js";
 import { revealInFinder, tauriClient } from "$lib/utils/tauri-client.js";
@@ -16,9 +16,7 @@ type Logger = ReturnType<typeof createLogger>;
 
 export async function copyThreadContentToClipboard(args: {
 	sessionId: string;
-	getSessionJsonExportContent: (
-		id: string
-	) => Result.Result<string, SessionExportContentError>;
+	getSessionJsonExportContent: (id: string) => Result.Result<string, SessionExportContentError>;
 }): Promise<void> {
 	const { sessionId, getSessionJsonExportContent } = args;
 	await Effect.runPromise(
@@ -173,9 +171,7 @@ export async function exportSessionMarkdownToClipboard(markdown: string): Promis
 
 export async function exportSessionJsonToClipboard(args: {
 	sessionId: string;
-	getSessionJsonExportContent: (
-		id: string
-	) => Result.Result<string, SessionExportContentError>;
+	getSessionJsonExportContent: (id: string) => Result.Result<string, SessionExportContentError>;
 }): Promise<void> {
 	const { sessionId, getSessionJsonExportContent } = args;
 	await Effect.runPromise(

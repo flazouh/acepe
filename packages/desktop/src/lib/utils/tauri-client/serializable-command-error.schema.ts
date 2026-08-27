@@ -27,10 +27,7 @@ export const SerializableCommandErrorSchema = Schema.Struct({
 export type CommandErrorClassification = typeof CommandErrorClassificationSchema.Type;
 export type SerializableCommandError = typeof SerializableCommandErrorSchema.Type;
 
-const decodeSerializableCommandError = decodeUnknown(
-	SerializableCommandErrorSchema,
-	() => null
-);
+const decodeSerializableCommandError = decodeUnknown(SerializableCommandErrorSchema, () => null);
 
 export function parseSerializableCommandError(value: unknown): SerializableCommandError | null {
 	const decoded = decodeSerializableCommandError(value);

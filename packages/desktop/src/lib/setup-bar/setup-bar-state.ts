@@ -3,8 +3,8 @@ import type {
 	ProjectedSkillsCatalog,
 	RpcSessionSnapshot,
 } from "@acepe/contracts";
-import type { AgentInputConfigOption } from "@acepe/ui/agent-panel";
 import type {
+	AgentInputConfigOption,
 	ComposerSetupBarServer,
 	ComposerSetupBarSkill,
 } from "@acepe/ui/agent-panel";
@@ -20,7 +20,7 @@ export const LIBRARY_SETUP_PROJECT_ROOT = "/tmp/acepe";
 export const LIBRARY_SETUP_PROVIDER_ID = "claude-code";
 
 const toCurrentValue = (
-	value: ConfigOptionData["currentValue"],
+	value: ConfigOptionData["currentValue"]
 ): string | number | boolean | null => {
 	if (value === undefined || value === null) {
 		return null;
@@ -32,7 +32,7 @@ const toCurrentValue = (
 };
 
 const toOptionChoices = (
-	options: ConfigOptionData["options"],
+	options: ConfigOptionData["options"]
 ): AgentInputConfigOption["options"] => {
 	if (options === undefined) {
 		return undefined;
@@ -54,7 +54,7 @@ const toOptionChoices = (
 };
 
 export const mapConfigOptionToAgentInput = (
-	option: ConfigOptionData,
+	option: ConfigOptionData
 ): AgentInputConfigOption | null => {
 	const presentation = option.presentation ?? "advanced";
 	if (presentation === "hidden") {
@@ -73,7 +73,7 @@ export const mapConfigOptionToAgentInput = (
 };
 
 export const mapSkillsToSetupBarRows = (
-	catalog: ProjectedSkillsCatalog | null,
+	catalog: ProjectedSkillsCatalog | null
 ): ReadonlyArray<ComposerSetupBarSkill> => {
 	if (catalog === null) {
 		return [];
@@ -91,7 +91,7 @@ export const mapSkillsToSetupBarRows = (
 };
 
 export const mapMcpServersToSetupBarRows = (
-	snapshot: RpcSessionSnapshot,
+	snapshot: RpcSessionSnapshot
 ): ReadonlyArray<ComposerSetupBarServer> => {
 	const catalog = snapshot.mcpCatalog?.catalog;
 	if (catalog === undefined) {
@@ -105,7 +105,7 @@ export const mapMcpServersToSetupBarRows = (
 };
 
 export const mapPreconnectionOptionsToAgentInput = (
-	snapshot: RpcSessionSnapshot,
+	snapshot: RpcSessionSnapshot
 ): ReadonlyArray<AgentInputConfigOption> => {
 	const options = snapshot.preconnectionOptions?.options;
 	if (options === undefined) {
@@ -123,7 +123,7 @@ export const mapPreconnectionOptionsToAgentInput = (
 
 export const mergeSetupBarSnapshots = (
 	skillsSnap: RpcSessionSnapshot,
-	mcpSnap: RpcSessionSnapshot,
+	mcpSnap: RpcSessionSnapshot
 ): RpcSessionSnapshot => {
 	const snapshotSequence =
 		skillsSnap.snapshotSequence > mcpSnap.snapshotSequence

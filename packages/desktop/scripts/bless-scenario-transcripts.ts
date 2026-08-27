@@ -8,9 +8,9 @@
  * against a file nobody meant to change.
  */
 
+import { join } from "node:path";
 import { authoredScenarios } from "@acepe/qa-scenario";
 import * as Effect from "effect/Effect";
-import { join } from "node:path";
 import { transcriptJson } from "../src/lib/qa/scenario-transcript.ts";
 
 const TARGET = join(
@@ -20,7 +20,7 @@ const TARGET = join(
 	"lib",
 	"qa",
 	"__tests__",
-	"expected-scenario-transcripts.ts",
+	"expected-scenario-transcripts.ts"
 );
 
 const HEADER = `/**

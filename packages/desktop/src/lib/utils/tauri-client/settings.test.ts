@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import {
-	SessionId,
 	emptyRpcSessionSnapshot,
 	type RpcClient,
 	type RpcSessionSnapshot,
+	SessionId,
 } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
@@ -34,7 +34,8 @@ const makeClient = (overrides: Partial<RpcClient>): RpcClient => ({
 	getProviderAccountUsage: () => Effect.succeed([]),
 	listProviderSessions: () => Effect.succeed([]),
 	listProviderProjects: () => Effect.succeed([]),
-	importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
+	importProviderSession: () =>
+		Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 	events: () => Stream.empty,
 	...overrides,
 });
@@ -47,10 +48,7 @@ const withSettings = (
 	settings: settingsRows,
 });
 
-const originalLocalStorageDescriptor = Object.getOwnPropertyDescriptor(
-	globalThis,
-	"localStorage"
-);
+const originalLocalStorageDescriptor = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
 let localStorageValues: Map<string, string>;
 
 afterEach(() => {
@@ -100,10 +98,7 @@ describe("settings rpc facade", () => {
 					})
 				);
 				const [splash, defaultAgent] = yield* Effect.all(
-					[
-						settings.getRaw("has_seen_splash"),
-						settings.getRaw("default_agent_id"),
-					],
+					[settings.getRaw("has_seen_splash"), settings.getRaw("default_agent_id")],
 					{ concurrency: "unbounded" }
 				);
 				expect(splash).toBe("true");
@@ -254,9 +249,7 @@ describe("settings rpc facade", () => {
 					hiddenProjects: ["/repo/new-hidden"],
 					archivedSessions: [],
 				};
-				const result = yield* Effect.result(
-					settings.saveThreadListSettings(threadListSettings)
-				);
+				const result = yield* Effect.result(settings.saveThreadListSettings(threadListSettings));
 				expect(Result.isSuccess(result)).toBe(true);
 				expect(localStorageValues.get("acepe.thread_list_settings.hot_cache")).toBe(
 					JSON.stringify({

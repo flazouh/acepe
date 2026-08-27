@@ -1,6 +1,6 @@
+import { describe, expect, it } from "bun:test";
 import type { RpcProjectedMessage } from "@acepe/contracts";
 import { MessageId, SessionId } from "@acepe/contracts";
-import { describe, expect, it } from "bun:test";
 
 import { transcriptViewFromMessages } from "./transcript-view.ts";
 

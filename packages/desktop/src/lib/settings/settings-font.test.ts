@@ -3,8 +3,8 @@ import { describe, expect, it } from "bun:test";
 import {
 	applyFontSizeToRoot,
 	CODE_FONT_SIZE,
-	codeFontSizeFromSettings,
 	CODE_FONT_SIZE_VAR,
+	codeFontSizeFromSettings,
 	nextFontSize,
 	parseSettingPx,
 	UI_FONT_SIZE,
@@ -31,13 +31,13 @@ describe("font size from projected settings", () => {
 			uiFontSizeFromSettings([
 				{ key: "ui_font_size", value: "18", sequence: 2 },
 				{ key: "code_font_size", value: "15", sequence: 3 },
-			]),
+			])
 		).toBe(18);
 		expect(
 			codeFontSizeFromSettings([
 				{ key: "ui_font_size", value: "18", sequence: 2 },
 				{ key: "code_font_size", value: "15", sequence: 3 },
-			]),
+			])
 		).toBe(15);
 	});
 });

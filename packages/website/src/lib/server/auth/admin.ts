@@ -1,6 +1,6 @@
 import { fromPromise } from "@acepe/effect-result/fromPromise";
 import { eq } from "drizzle-orm";
-import * as Effect from "effect/Effect";
+import type * as Effect from "effect/Effect";
 import { nanoid } from "nanoid";
 import { db } from "../db/client";
 import { sessions, users } from "../db/schema";

@@ -1,23 +1,20 @@
 import { describe, expect, it } from "bun:test";
 import {
-	SessionId,
 	APP_SETTINGS_ID,
 	CommandId,
-	emptyRpcSessionSnapshot,
 	EventId,
+	emptyRpcSessionSnapshot,
 	ProjectId,
 	type RpcClient,
 	type RpcSessionSnapshot,
+	SessionId,
 	settingsSnapshotRequest,
 } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 
 import { uiFontSizeFromSettings } from "./settings-font.ts";
-import {
-	composeSettingsStore,
-	isSettingsProjectionEvent,
-} from "./settings-store.ts";
+import { composeSettingsStore, isSettingsProjectionEvent } from "./settings-store.ts";
 
 const occurredAt = "2026-08-20T12:00:00.000Z";
 const commandId = CommandId.make("cmd-1");
@@ -39,10 +36,10 @@ const settingsSnapshot: RpcSessionSnapshot = {
 	skillsCatalog: null,
 	voice: null,
 	gitReview: null,
-			mcpCatalog: null,
-			preconnectionOptions: null,
-			terminal: null,
-			sessionReviewState: null,
+	mcpCatalog: null,
+	preconnectionOptions: null,
+	terminal: null,
+	sessionReviewState: null,
 };
 
 describe("isSettingsProjectionEvent", () => {
@@ -63,7 +60,7 @@ describe("isSettingsProjectionEvent", () => {
 					key: "ui_font_size",
 					value: "18",
 				},
-			}),
+			})
 		).toBe(true);
 		expect(
 			isSettingsProjectionEvent({
@@ -82,7 +79,7 @@ describe("isSettingsProjectionEvent", () => {
 					title: "Acepe",
 					workspaceRoot: "/tmp/acepe",
 				},
-			}),
+			})
 		).toBe(false);
 	});
 });
@@ -119,7 +116,8 @@ describe("composeSettingsStore", () => {
 					getProviderAccountUsage: () => Effect.succeed([]),
 					listProviderSessions: () => Effect.succeed([]),
 					listProviderProjects: () => Effect.succeed([]),
-					importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
+					importProviderSession: () =>
+						Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 					events: () => Stream.empty,
 				};
 				const seen: Array<number> = [];
@@ -145,7 +143,7 @@ describe("composeSettingsStore", () => {
 						value: "19",
 					},
 				]);
-			}),
+			})
 		));
 
 	it("applies SettingsUpdated from the events primitive", () =>
@@ -171,7 +169,8 @@ describe("composeSettingsStore", () => {
 					getProviderAccountUsage: () => Effect.succeed([]),
 					listProviderSessions: () => Effect.succeed([]),
 					listProviderProjects: () => Effect.succeed([]),
-					importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
+					importProviderSession: () =>
+						Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 					events: () =>
 						Stream.make({
 							sequence: 5,
@@ -197,7 +196,7 @@ describe("composeSettingsStore", () => {
 					{ key: "code_font_size", value: "15", sequence: 4 },
 					{ key: "ui_font_size", value: "19", sequence: 5 },
 				]);
-			}),
+			})
 		));
 
 	it("bumps interface font size through settings.set", () =>
@@ -227,7 +226,8 @@ describe("composeSettingsStore", () => {
 					getProviderAccountUsage: () => Effect.succeed([]),
 					listProviderSessions: () => Effect.succeed([]),
 					listProviderProjects: () => Effect.succeed([]),
-					importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
+					importProviderSession: () =>
+						Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 					events: () => Stream.empty,
 				};
 				const store = composeSettingsStore({
@@ -251,7 +251,7 @@ describe("composeSettingsStore", () => {
 						value: "14",
 					},
 				]);
-			}),
+			})
 		));
 
 	it("steps interface font twice when the snapshot read still returns the old size", () =>
@@ -283,7 +283,8 @@ describe("composeSettingsStore", () => {
 					getProviderAccountUsage: () => Effect.succeed([]),
 					listProviderSessions: () => Effect.succeed([]),
 					listProviderProjects: () => Effect.succeed([]),
-					importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
+					importProviderSession: () =>
+						Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 					events: () => Stream.empty,
 				};
 				const store = composeSettingsStore({
@@ -294,7 +295,7 @@ describe("composeSettingsStore", () => {
 				yield* store.bumpUiFontSize(1);
 				yield* store.bumpUiFontSize(1);
 				expect(dispatched).toEqual(["17", "18"]);
-			}),
+			})
 		));
 
 	it("does not let an older snapshot read replace a newer projected setting", () =>
@@ -322,10 +323,10 @@ describe("composeSettingsStore", () => {
 							skillsCatalog: null,
 							voice: null,
 							gitReview: null,
-			mcpCatalog: null,
-			preconnectionOptions: null,
-			terminal: null,
-			sessionReviewState: null,
+							mcpCatalog: null,
+							preconnectionOptions: null,
+							terminal: null,
+							sessionReviewState: null,
 						});
 					},
 					getProjectIndex: () =>
@@ -345,7 +346,8 @@ describe("composeSettingsStore", () => {
 					getProviderAccountUsage: () => Effect.succeed([]),
 					listProviderSessions: () => Effect.succeed([]),
 					listProviderProjects: () => Effect.succeed([]),
-					importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
+					importProviderSession: () =>
+						Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 					events: () =>
 						Stream.make({
 							sequence: 5,
@@ -372,7 +374,7 @@ describe("composeSettingsStore", () => {
 				expect(uiFontSizeFromSettings(store.readSnapshot().settings)).toBe(19);
 				yield* store.setUiFontSize(20);
 				expect(uiFontSizeFromSettings(store.readSnapshot().settings)).toBe(19);
-			}),
+			})
 		));
 
 	it("allocates a command id that cannot replay a previous process settings-set-1 receipt", () =>
@@ -404,7 +406,8 @@ describe("composeSettingsStore", () => {
 					getProviderAccountUsage: () => Effect.succeed([]),
 					listProviderSessions: () => Effect.succeed([]),
 					listProviderProjects: () => Effect.succeed([]),
-					importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
+					importProviderSession: () =>
+						Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 					events: () => Stream.empty,
 				};
 				const store = composeSettingsStore({ client });
@@ -414,6 +417,6 @@ describe("composeSettingsStore", () => {
 				expect(dispatched[0]).not.toBe(CommandId.make("settings-set-1"));
 				expect(dispatched[1]).not.toBe(dispatched[0]);
 				expect(String(dispatched[0])).toMatch(/^settings-set-\d+-\d+$/);
-			}),
+			})
 		));
 });

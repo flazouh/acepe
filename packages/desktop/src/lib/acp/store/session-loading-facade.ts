@@ -49,14 +49,12 @@ export class SessionLoadingFacade {
 	}
 
 	loadSessions(projectPaths?: string[]): Effect.Effect<SessionCold[], AppError> {
-		return this.#deps.repository
-			.loadSessions(this.#deps.listState.sessions, projectPaths)
-			.pipe(
-				Effect.map((sessions) => {
-					this.#deps.prLinkState.refreshAllPrStates();
-					return sessions;
-				})
-			);
+		return this.#deps.repository.loadSessions(this.#deps.listState.sessions, projectPaths).pipe(
+			Effect.map((sessions) => {
+				this.#deps.prLinkState.refreshAllPrStates();
+				return sessions;
+			})
+		);
 	}
 
 	scanSessions(projectPaths: string[]): Effect.Effect<void, AppError> {

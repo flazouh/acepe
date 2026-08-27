@@ -94,9 +94,7 @@ async function handleResetAllToDefaults() {
 			})
 		)
 	);
-	await Effect.runPromise(
-		kb.loadUserKeybindings().pipe(Effect.catch(() => Effect.void))
-	);
+	await Effect.runPromise(kb.loadUserKeybindings().pipe(Effect.catch(() => Effect.void)));
 	if (kb.isInstalled() && typeof window !== "undefined") kb.reinstall();
 	isLoading = false;
 }

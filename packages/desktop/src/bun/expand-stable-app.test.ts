@@ -1,11 +1,18 @@
 import { expect, test } from "bun:test";
-import { macosDirHasNativeWrapper, resolveZigZstd, runExpandStableApp, defaultStableAppPath, spawnFailureReason, prepareBuiltMacApp } from "./expand-stable-app.ts";
+import {
+	defaultStableAppPath,
+	macosDirHasNativeWrapper,
+	prepareBuiltMacApp,
+	resolveZigZstd,
+	runExpandStableApp,
+	spawnFailureReason,
+} from "./expand-stable-app.ts";
 
 test("macosDirHasNativeWrapper is true when the dylib sits next to launcher", () => {
 	expect(
 		macosDirHasNativeWrapper("/tmp/Acepe.app/Contents/MacOS", (path) =>
-			path.endsWith("libNativeWrapper.dylib"),
-		),
+			path.endsWith("libNativeWrapper.dylib")
+		)
 	).toBe(true);
 	expect(macosDirHasNativeWrapper("/tmp/Acepe.app/Contents/MacOS", () => false)).toBe(false);
 });
@@ -49,19 +56,19 @@ test("resolveZigZstd finds the platform binary under electrobun", () => {
 			exists: (path) =>
 				path === "/node_modules/electrobun" ||
 				path === "/node_modules/electrobun/dist-macos-arm64/zig-zstd",
-		}),
+		})
 	).toBe("/node_modules/electrobun/dist-macos-arm64/zig-zstd");
 });
 
 test("defaultStableAppPath points at the stable macos arm64 bundle", () => {
 	expect(defaultStableAppPath("/repo/packages/desktop")).toBe(
-		"/repo/packages/desktop/electrobun-build/stable-macos-arm64/Acepe.app",
+		"/repo/packages/desktop/electrobun-build/stable-macos-arm64/Acepe.app"
 	);
 });
 
 test("spawnFailureReason names the failed action", () => {
 	expect(spawnFailureReason("zstd decompress", "no such file")).toBe(
-		"zstd decompress failed: no such file",
+		"zstd decompress failed: no such file"
 	);
 });
 
@@ -75,7 +82,7 @@ test("prepareBuiltMacApp makes the worker loud, names the GUI Acepe, and rewrite
 	expect(prepared.renameGuiProcess).toBe(true);
 	expect(prepared.bunWrapper).toContain("Acepe");
 	expect(prepared.indexHtml !== null && prepared.indexHtml.includes("desktop round trip")).toBe(
-		true,
+		true
 	);
 	expect(prepared.indexHtml).toContain('href="./_app/immutable/entry/start.js"');
 });

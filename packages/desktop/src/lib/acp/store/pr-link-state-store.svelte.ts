@@ -359,9 +359,10 @@ export class PrLinkStateStore {
 
 		const inflightRequest = this.prChecksInflight.get(cacheKey);
 		if (inflightRequest) {
-			return fromPromise(() => inflightRequest, (error) => toPrLinkError("prChecks", error)).pipe(
-				Effect.catch(() => Effect.succeed<PrChecks | null>(null))
-			);
+			return fromPromise(
+				() => inflightRequest,
+				(error) => toPrLinkError("prChecks", error)
+			).pipe(Effect.catch(() => Effect.succeed<PrChecks | null>(null)));
 		}
 
 		const request = tauriClient.git.prChecks(projectPath, prNumber).pipe(
@@ -392,9 +393,10 @@ export class PrLinkStateStore {
 			this.prChecksInflight.delete(cacheKey);
 		});
 		this.prChecksInflight.set(cacheKey, pending);
-		return fromPromise(() => pending, (error) => toPrLinkError("prChecks", error)).pipe(
-			Effect.catch(() => Effect.succeed<PrChecks | null>(null))
-		);
+		return fromPromise(
+			() => pending,
+			(error) => toPrLinkError("prChecks", error)
+		).pipe(Effect.catch(() => Effect.succeed<PrChecks | null>(null)));
 	}
 
 	refreshSessionPrState(
@@ -417,9 +419,10 @@ export class PrLinkStateStore {
 
 		const inflightRequest = this.prDetailsInflight.get(cacheKey);
 		if (inflightRequest) {
-			return fromPromise(() => inflightRequest, (error) => toPrLinkError("prDetails", error)).pipe(
-				Effect.catch(() => Effect.succeed<PrDetails | null>(null))
-			);
+			return fromPromise(
+				() => inflightRequest,
+				(error) => toPrLinkError("prDetails", error)
+			).pipe(Effect.catch(() => Effect.succeed<PrDetails | null>(null)));
 		}
 
 		logger.debug("refreshSessionPrState: calling prDetails", { sessionId, projectPath, prNumber });
@@ -453,9 +456,10 @@ export class PrLinkStateStore {
 			this.prDetailsInflight.delete(cacheKey);
 		});
 		this.prDetailsInflight.set(cacheKey, pending);
-		return fromPromise(() => pending, (error) => toPrLinkError("prDetails", error)).pipe(
-			Effect.catch(() => Effect.succeed<PrDetails | null>(null))
-		);
+		return fromPromise(
+			() => pending,
+			(error) => toPrLinkError("prDetails", error)
+		).pipe(Effect.catch(() => Effect.succeed<PrDetails | null>(null)));
 	}
 
 	refreshAllPrStates(): void {
@@ -484,7 +488,9 @@ export class PrLinkStateStore {
 		if (this.prChecksPollTimers.has(cacheKey)) {
 			return;
 		}
-		void Effect.runPromise(this.refreshSessionPrChecks(cacheKey, projectPath, prNumber, { force: true }));
+		void Effect.runPromise(
+			this.refreshSessionPrChecks(cacheKey, projectPath, prNumber, { force: true })
+		);
 	}
 
 	private schedulePrChecksPoll(projectPath: string, prNumber: number): void {

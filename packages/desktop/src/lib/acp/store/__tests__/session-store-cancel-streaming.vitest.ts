@@ -25,7 +25,9 @@ describe("SessionStore cancelStreaming", () => {
 			Effect.succeed(undefined)
 		);
 
-		const result = await Effect.runPromise(Effect.result(store.connection.cancelStreaming("session-123")));
+		const result = await Effect.runPromise(
+			Effect.result(store.connection.cancelStreaming("session-123"))
+		);
 
 		expect(Result.isSuccess(result)).toBe(true);
 		expect(onTurnInterrupted).toHaveBeenCalledWith("session-123");
@@ -39,7 +41,9 @@ describe("SessionStore cancelStreaming", () => {
 			Effect.fail(new AgentError("cancelStreaming", new Error("network error")))
 		);
 
-		const result = await Effect.runPromise(Effect.result(store.connection.cancelStreaming("session-123")));
+		const result = await Effect.runPromise(
+			Effect.result(store.connection.cancelStreaming("session-123"))
+		);
 
 		expect(Result.isFailure(result)).toBe(true);
 		expect(onTurnInterrupted).not.toHaveBeenCalled();

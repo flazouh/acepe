@@ -60,7 +60,9 @@ function handlePluginSkillSelect(skillId: string) {
 
 function handleCopyToLibrary() {
 	if (!store.selectedPluginSkill) return;
-	void Effect.runPromise(Effect.result(store.copyPluginSkillToLibrary(store.selectedPluginSkill.id)));
+	void Effect.runPromise(
+		Effect.result(store.copyPluginSkillToLibrary(store.selectedPluginSkill.id))
+	);
 }
 
 // Whether we're viewing a plugin skill (read-only)

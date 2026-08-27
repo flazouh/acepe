@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@tauri-apps/api/core", () => ({
 	invoke: vi.fn(async () => undefined),
@@ -101,7 +101,6 @@ function makeSessionStore(input?: {
 	} as unknown as SessionStore;
 }
 
-
 async function runToResult<A, E>(effect: Effect.Effect<A, E>): Promise<Result.Result<A, E>> {
 	return Effect.runPromise(Effect.result(effect));
 }
@@ -120,13 +119,15 @@ describe("AgentInputState optimistic pending entry rollback", () => {
 			() => "/repo"
 		);
 
-		const result = await runToResult(state.sendPreparedMessage({
-			content: "Hello agent",
-			panelId: "panel-1",
-			projectPath: "/repo",
-			projectName: "Acepe",
-			selectedAgentId: "claude-code",
-		}));
+		const result = await runToResult(
+			state.sendPreparedMessage({
+				content: "Hello agent",
+				panelId: "panel-1",
+				projectPath: "/repo",
+				projectName: "Acepe",
+				selectedAgentId: "claude-code",
+			})
+		);
 
 		expect(Result.isSuccess(result)).toBe(true);
 		expect(panel.setPendingUserEntry).toHaveBeenCalledTimes(1);
@@ -143,13 +144,15 @@ describe("AgentInputState optimistic pending entry rollback", () => {
 			() => "/repo"
 		);
 
-		const result = await runToResult(state.sendPreparedMessage({
-			content: "Hello agent",
-			panelId: "panel-1",
-			projectPath: "/repo",
-			projectName: "Acepe",
-			selectedAgentId: "claude-code",
-		}));
+		const result = await runToResult(
+			state.sendPreparedMessage({
+				content: "Hello agent",
+				panelId: "panel-1",
+				projectPath: "/repo",
+				projectName: "Acepe",
+				selectedAgentId: "claude-code",
+			})
+		);
 
 		expect(Result.isFailure(result)).toBe(true);
 		expect(panel.setPendingUserEntry).toHaveBeenCalledTimes(1);
@@ -166,13 +169,15 @@ describe("AgentInputState optimistic pending entry rollback", () => {
 			() => "/repo"
 		);
 
-		const result = await runToResult(state.sendPreparedMessage({
-			content: "Hello agent",
-			panelId: "panel-1",
-			projectPath: "/repo",
-			projectName: "Acepe",
-			selectedAgentId: "claude-code",
-		}));
+		const result = await runToResult(
+			state.sendPreparedMessage({
+				content: "Hello agent",
+				panelId: "panel-1",
+				projectPath: "/repo",
+				projectName: "Acepe",
+				selectedAgentId: "claude-code",
+			})
+		);
 
 		expect(Result.isFailure(result)).toBe(true);
 		expect(panel.setPendingUserEntry).toHaveBeenCalledTimes(1);
@@ -199,12 +204,14 @@ describe("AgentInputState optimistic pending entry rollback", () => {
 			() => "/repo"
 		);
 
-		const result = await runToResult(state.sendPreparedMessage({
-			content: "Hello agent",
-			panelId: "panel-1",
-			projectPath: "",
-			selectedAgentId: "claude-code",
-		}));
+		const result = await runToResult(
+			state.sendPreparedMessage({
+				content: "Hello agent",
+				panelId: "panel-1",
+				projectPath: "",
+				selectedAgentId: "claude-code",
+			})
+		);
 
 		expect(Result.isFailure(result)).toBe(true);
 		if (Result.isFailure(result)) {
@@ -234,12 +241,14 @@ describe("AgentInputState optimistic pending entry rollback", () => {
 			() => "/repo"
 		);
 
-		const result = await runToResult(state.sendPreparedMessage({
-			content: "Hello agent",
-			panelId: "panel-1",
-			projectPath: "/repo",
-			selectedAgentId: null,
-		}));
+		const result = await runToResult(
+			state.sendPreparedMessage({
+				content: "Hello agent",
+				panelId: "panel-1",
+				projectPath: "/repo",
+				selectedAgentId: null,
+			})
+		);
 
 		expect(Result.isFailure(result)).toBe(true);
 		expect(panel.setPendingUserEntry).not.toHaveBeenCalled();
@@ -266,12 +275,14 @@ describe("AgentInputState optimistic pending entry rollback", () => {
 			() => "/repo"
 		);
 
-		const result = await runToResult(state.sendPreparedMessage({
-			content: "Hello agent",
-			panelId: "panel-1",
-			projectPath: "/repo",
-			selectedAgentId: "claude-code",
-		}));
+		const result = await runToResult(
+			state.sendPreparedMessage({
+				content: "Hello agent",
+				panelId: "panel-1",
+				projectPath: "/repo",
+				selectedAgentId: "claude-code",
+			})
+		);
 
 		expect(Result.isSuccess(result)).toBe(true);
 		expect(panel.setPendingUserEntry).not.toHaveBeenCalled();

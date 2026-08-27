@@ -1,7 +1,10 @@
 import { describe, expect, it } from "bun:test";
 import { ActivityId, ApprovalRequestId, SessionId, ToolCallId } from "@acepe/contracts";
 
-import { toolRowFromActivityProjection, toolRowFromPendingApproval } from "./agent-panel-tool-row.ts";
+import {
+	toolRowFromActivityProjection,
+	toolRowFromPendingApproval,
+} from "./agent-panel-tool-row.ts";
 
 const sessionId = SessionId.make("session-1");
 

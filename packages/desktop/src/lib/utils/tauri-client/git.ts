@@ -327,7 +327,7 @@ export const git = {
 				ahead: result.ahead,
 				behind: result.behind,
 				remote: result.remote,
-				trackingBranch: result.trackingBranch
+				trackingBranch: result.trackingBranch,
 			}))
 		);
 	},
@@ -473,7 +473,10 @@ export const git = {
 		return unsupportedOnContract("git.getOpenPrForBranch");
 	},
 
-	ciJobDetails: (projectPath: string, detailsUrl: string): Effect.Effect<CiJobDetails, AppError> => {
+	ciJobDetails: (
+		projectPath: string,
+		detailsUrl: string
+	): Effect.Effect<CiJobDetails, AppError> => {
 		return withRpcClient("git.ciJobDetails", (client) =>
 			client.gitCall({ op: "git.ciJobDetails", projectPath, detailsUrl })
 		).pipe(

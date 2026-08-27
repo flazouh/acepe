@@ -182,7 +182,11 @@ function ensureProjectInfoLoaded(project: Project): void {
 											markProjectSelectionMetadataFieldLoadFinished(projectPath, "branch", false);
 										}
 										if (shouldLoadGitStatus) {
-											markProjectSelectionMetadataFieldLoadFinished(projectPath, "gitStatus", false);
+											markProjectSelectionMetadataFieldLoadFinished(
+												projectPath,
+												"gitStatus",
+												false
+											);
 										}
 									},
 								})

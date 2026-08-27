@@ -1,5 +1,5 @@
-import { fromPromise } from "@acepe/effect-result/fromPromise";
 import { describe, expect, it } from "bun:test";
+import { fromPromise } from "@acepe/effect-result/fromPromise";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 

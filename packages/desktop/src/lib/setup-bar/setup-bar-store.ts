@@ -4,10 +4,10 @@ import {
 	emptyRpcSessionSnapshot,
 	emptySkillsCatalog,
 	McpCatalogResolveCommand,
-	PreconnectionOptionsLoadCommand,
-	ProjectId,
 	mcpSnapshotRequest,
 	type OrchestrationEvent,
+	PreconnectionOptionsLoadCommand,
+	ProjectId,
 	type RpcClient,
 	type RpcSessionSnapshot,
 	SkillsDiscoverCommand,
@@ -71,7 +71,7 @@ export const composeSetupBarStore = (input: {
 				type: "skills.discover",
 				commandId: nextCommandId(),
 				catalog: emptySkillsCatalog,
-			}),
+			})
 		);
 		yield* input.client.dispatch(
 			McpCatalogResolveCommand.make({
@@ -80,7 +80,7 @@ export const composeSetupBarStore = (input: {
 				projectId,
 				projectRoot: LIBRARY_SETUP_PROJECT_ROOT,
 				catalog: emptyComposerMcpCatalog,
-			}),
+			})
 		);
 		yield* input.client.dispatch(
 			PreconnectionOptionsLoadCommand.make({
@@ -89,7 +89,7 @@ export const composeSetupBarStore = (input: {
 				projectId,
 				providerId: LIBRARY_SETUP_PROVIDER_ID,
 				options: [],
-			}),
+			})
 		);
 		return yield* refresh();
 	});
@@ -102,7 +102,7 @@ export const composeSetupBarStore = (input: {
 					return Effect.void;
 				}
 				return refresh().pipe(Effect.asVoid);
-			}),
+			})
 		);
 	});
 

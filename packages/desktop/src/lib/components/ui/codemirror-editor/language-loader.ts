@@ -3,10 +3,10 @@
  * Uses Effect for type-safe error handling.
  */
 
+import { fromPromise } from "@acepe/effect-result/fromPromise";
 import type { LanguageDescription, LanguageSupport } from "@codemirror/language";
 import { languages } from "@codemirror/language-data";
 import { svelte as svelteLanguageSupport } from "@replit/codemirror-lang-svelte";
-import { fromPromise } from "@acepe/effect-result/fromPromise";
 import * as Effect from "effect/Effect";
 
 /**

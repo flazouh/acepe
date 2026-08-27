@@ -1,6 +1,6 @@
+import { describe, expect, it } from "bun:test";
 import { firstDivergence } from "@acepe/harness";
 import { authoredScenarios } from "@acepe/qa-scenario";
-import { describe, expect, it } from "bun:test";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import { transcriptJson } from "../scenario-transcript.ts";
@@ -35,9 +35,12 @@ describe("scenario transcripts", () => {
 		const wrong = EXPECTED_SCENARIO_TRANSCRIPTS[second.meta.name] ?? null;
 		const divergence = firstDivergence(wrong, actual, first.meta.name);
 		expect(Option.isSome(divergence)).toBe(true);
-		expect(Option.getOrElse(Option.map(divergence, (found) => found.path), () => "")).toContain(
-			first.meta.name,
-		);
+		expect(
+			Option.getOrElse(
+				Option.map(divergence, (found) => found.path),
+				() => ""
+			)
+		).toContain(first.meta.name);
 	});
 
 	for (const scenario of authoredScenarios) {
@@ -48,8 +51,9 @@ describe("scenario transcripts", () => {
 			expect(
 				Option.match(divergence, {
 					onNone: () => "no divergence",
-					onSome: (found) => `${found.path}: expected ${JSON.stringify(found.expected)}, got ${JSON.stringify(found.actual)}`,
-				}),
+					onSome: (found) =>
+						`${found.path}: expected ${JSON.stringify(found.expected)}, got ${JSON.stringify(found.actual)}`,
+				})
 			).toBe("no divergence");
 		});
 

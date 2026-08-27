@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import {
-	SessionId,
 	emptyRpcSessionSnapshot,
 	type GitCallRequest,
 	type GitCallResult,
 	type RpcClient,
 	type RpcClientError,
 	RpcGitCallError,
+	SessionId,
 } from "@acepe/contracts";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
@@ -40,7 +40,8 @@ const makeClient = (
 	getProviderAccountUsage: () => Effect.succeed([]),
 	listProviderSessions: () => Effect.succeed([]),
 	listProviderProjects: () => Effect.succeed([]),
-	importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
+	importProviderSession: () =>
+		Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 	events: () => Stream.empty,
 });
 

@@ -1,6 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import {
-	SessionId, emptyRpcSessionSnapshot, ProjectId } from "@acepe/contracts";
+import { emptyRpcSessionSnapshot, ProjectId, SessionId } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import * as AtomRegistry from "effect/unstable/reactivity/AtomRegistry";
@@ -85,7 +84,8 @@ describe("review modal controller mapping", () => {
 				getProviderAccountUsage: () => Effect.succeed([]),
 				listProviderSessions: () => Effect.succeed([]),
 				listProviderProjects: () => Effect.succeed([]),
-				importProviderSession: () => Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
+				importProviderSession: () =>
+					Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
 			},
 			registry,
 		});
@@ -93,7 +93,7 @@ describe("review modal controller mapping", () => {
 			store.openReview({
 				projectId,
 				workspaceRoot: "/tmp/acepe-git-review-242",
-			}),
+			})
 		);
 		const model = reviewModalViewModel({
 			gitReview: snap.gitReview,

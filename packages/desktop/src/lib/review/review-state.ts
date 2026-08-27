@@ -1,6 +1,6 @@
 import {
-	parseUnifiedHunks,
 	type ProjectedGitReview,
+	parseUnifiedHunks,
 	type RpcSessionSnapshot,
 } from "@acepe/contracts";
 import type { ReviewModalViewModel } from "@acepe/ui/review-modal";
@@ -22,67 +22,65 @@ export const REVIEW_MODAL_COPY = {
 
 export const selectedProjectWorkspaceRoot = (
 	snapshot: RpcSessionSnapshot,
-	projectId: string | null,
+	projectId: string | null
 ): string | null => {
 	if (projectId === null) {
-		return null
+		return null;
 	}
 	return Option.match(
 		Arr.findFirst(snapshot.projects, (project) => project.projectId === projectId),
 		{
 			onNone: () => null,
 			onSome: (project) => project.workspaceRoot,
-		},
-	)
-}
+		}
+	);
+};
 
-export const gitReviewSnapshotIsNewer = (
-	appliedSequence: number,
-	nextSequence: number,
-): boolean => nextSequence >= appliedSequence
+export const gitReviewSnapshotIsNewer = (appliedSequence: number, nextSequence: number): boolean =>
+	nextSequence >= appliedSequence;
 
 export const gitReviewFileIsReady = (
 	review: ProjectedGitReview | null,
-	filePath: string,
+	filePath: string
 ): boolean => {
 	if (review === null) {
-		return false
+		return false;
 	}
 	return Option.match(
 		Arr.findFirst(review.files, (file) => file.path === filePath),
 		{
 			onNone: () => false,
 			onSome: (file) => file.diff !== null && file.patch !== "",
-		},
-	)
-}
+		}
+	);
+};
 
 export const resolvedReviewPath = (input: {
-	readonly gitReview: ProjectedGitReview | null
-	readonly selectedPath: string | null
+	readonly gitReview: ProjectedGitReview | null;
+	readonly selectedPath: string | null;
 }): string | null => {
 	if (input.selectedPath !== null) {
-		return input.selectedPath
+		return input.selectedPath;
 	}
 	if (input.gitReview === null) {
-		return null
+		return null;
 	}
-	const fromStatus = input.gitReview.status?.[0]?.path
+	const fromStatus = input.gitReview.status?.[0]?.path;
 	if (fromStatus !== undefined) {
-		return fromStatus
+		return fromStatus;
 	}
-	return input.gitReview.files[0]?.path ?? null
-}
+	return input.gitReview.files[0]?.path ?? null;
+};
 
 export const reviewModalViewModel = (input: {
-	readonly gitReview: ProjectedGitReview | null
-	readonly selectedPath: string | null
+	readonly gitReview: ProjectedGitReview | null;
+	readonly selectedPath: string | null;
 }): ReviewModalViewModel => {
 	const files =
 		input.gitReview === null
 			? []
 			: Arr.map(input.gitReview.files, (file) => {
-					const hunks = parseUnifiedHunks(file.patch)
+					const hunks = parseUnifiedHunks(file.patch);
 					return {
 						path: file.path,
 						fileName: file.diff?.fileName ?? file.path,
@@ -90,17 +88,13 @@ export const reviewModalViewModel = (input: {
 						newContent: file.diff?.newContent ?? "",
 						hunks: Arr.map(hunks, (hunk) => ({
 							index: hunk.index,
-							action:
-								Option.match(
-									Arr.findFirst(
-										file.hunkDecisions,
-										(decision) => decision.hunkIndex === hunk.index,
-									),
-									{
-										onNone: () => null,
-										onSome: (decision) => decision.action,
-									},
-								),
+							action: Option.match(
+								Arr.findFirst(file.hunkDecisions, (decision) => decision.hunkIndex === hunk.index),
+								{
+									onNone: () => null,
+									onSome: (decision) => decision.action,
+								}
+							),
 						})),
 						blame: Arr.map(file.blame, (row) => ({
 							line: row.line,
@@ -108,8 +102,8 @@ export const reviewModalViewModel = (input: {
 							author: row.author,
 							summary: row.summary,
 						})),
-					}
-				})
+					};
+				});
 	return {
 		title: REVIEW_MODAL_COPY.title,
 		closeLabel: REVIEW_MODAL_COPY.closeLabel,
@@ -123,5 +117,5 @@ export const reviewModalViewModel = (input: {
 		status: input.gitReview === null ? null : input.gitReview.status,
 		files,
 		selectedPath: resolvedReviewPath(input),
-	}
-}
+	};
+};

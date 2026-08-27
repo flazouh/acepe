@@ -4,182 +4,207 @@
  * Information about a single indexed file.
  */
 export type IndexedFile = {
-/**
- * Relative path from project root.
- */
-path: string;
-/**
- * File extension without dot, empty for no extension.
- */
-extension: string;
-/**
- * Number of lines in the file.
- */
-lineCount: number;
-/**
- * Git status info if file is modified/added/deleted, or None.
- */
-gitStatus: FileGitStatus | null }
+	/**
+	 * Relative path from project root.
+	 */
+	path: string;
+	/**
+	 * File extension without dot, empty for no extension.
+	 */
+	extension: string;
+	/**
+	 * Number of lines in the file.
+	 */
+	lineCount: number;
+	/**
+	 * Git status info if file is modified/added/deleted, or None.
+	 */
+	gitStatus: FileGitStatus | null;
+};
 
 /**
  * Git status for a single file.
  */
 export type FileGitStatus = {
-/**
- * Relative path from project root.
- */
-path: string;
-/**
- * Status code: M=Modified, A=Added, D=Deleted, ?=Untracked, R=Renamed.
- */
-status: string;
-/**
- * Lines added (for modified/added files).
- */
-insertions: number;
-/**
- * Lines deleted (for modified/deleted files).
- */
-deletions: number }
+	/**
+	 * Relative path from project root.
+	 */
+	path: string;
+	/**
+	 * Status code: M=Modified, A=Added, D=Deleted, ?=Untracked, R=Renamed.
+	 */
+	status: string;
+	/**
+	 * Lines added (for modified/added files).
+	 */
+	insertions: number;
+	/**
+	 * Lines deleted (for modified/deleted files).
+	 */
+	deletions: number;
+};
 
 /**
  * Complete project index result.
  */
 export type ProjectIndex = {
-/**
- * Project root path.
- */
-projectPath: string;
-/**
- * All indexed files.
- */
-files: IndexedFile[];
-/**
- * Git-tracked modified files with status.
- */
-gitStatus: FileGitStatus[];
-/**
- * Total file count.
- */
-totalFiles: number;
-/**
- * Total line count across all files.
- */
-totalLines: number }
+	/**
+	 * Project root path.
+	 */
+	projectPath: string;
+	/**
+	 * All indexed files.
+	 */
+	files: IndexedFile[];
+	/**
+	 * Git-tracked modified files with status.
+	 */
+	gitStatus: FileGitStatus[];
+	/**
+	 * Total file count.
+	 */
+	totalFiles: number;
+	/**
+	 * Total line count across all files.
+	 */
+	totalLines: number;
+};
 
 /**
  * What kind of preview the frontend should render for a result row.
  */
 export type PreviewKind =
-/**
- * Changed text file — Pierre diff is safe to render.
- */
-"diff" |
-/**
- * Unchanged text file — Pierre read-view is safe to render.
- */
-"text" |
-/**
- * Detected as binary content.
- */
-"binary" |
-/**
- * File exceeds safe preview size.
- */
-"large" |
-/**
- * File has been deleted from the working tree.
- */
-"deleted" |
-/**
- * Unsupported content type for preview.
- */
-"unsupported"
+	/**
+	 * Changed text file — Pierre diff is safe to render.
+	 */
+	| "diff"
+	/**
+	 * Unchanged text file — Pierre read-view is safe to render.
+	 */
+	| "text"
+	/**
+	 * Detected as binary content.
+	 */
+	| "binary"
+	/**
+	 * File exceeds safe preview size.
+	 */
+	| "large"
+	/**
+	 * File has been deleted from the working tree.
+	 */
+	| "deleted"
+	/**
+	 * Unsupported content type for preview.
+	 */
+	| "unsupported";
 
 /**
  * A single row in the file explorer results list.
  */
 export type FileExplorerRow = {
-/**
- * Absolute path to the owning project root.
- */
-projectPath: string;
-/**
- * Relative path from project root.
- */
-path: string;
-/**
- * Basename of the file.
- */
-fileName: string;
-/**
- * File extension without dot, empty for no extension.
- */
-extension: string;
-/**
- * Path split into segments for breadcrumb display.
- */
-pathSegments: string[];
-/**
- * Git status if the file has been modified/added/deleted/etc.
- */
-gitStatus: FileGitStatus | null;
-/**
- * Whether the file is tracked by git.
- */
-isTracked: boolean;
-/**
- * Whether the file appears to be binary content.
- */
-isBinary: boolean;
-/**
- * File last-modified time in milliseconds since Unix epoch, if available.
- */
-lastModifiedMs: number | null;
-/**
- * File size in bytes, if available.
- */
-sizeBytes: number | null;
-/**
- * Classification hint for the preview pane.
- */
-previewKind: PreviewKind }
+	/**
+	 * Absolute path to the owning project root.
+	 */
+	projectPath: string;
+	/**
+	 * Relative path from project root.
+	 */
+	path: string;
+	/**
+	 * Basename of the file.
+	 */
+	fileName: string;
+	/**
+	 * File extension without dot, empty for no extension.
+	 */
+	extension: string;
+	/**
+	 * Path split into segments for breadcrumb display.
+	 */
+	pathSegments: string[];
+	/**
+	 * Git status if the file has been modified/added/deleted/etc.
+	 */
+	gitStatus: FileGitStatus | null;
+	/**
+	 * Whether the file is tracked by git.
+	 */
+	isTracked: boolean;
+	/**
+	 * Whether the file appears to be binary content.
+	 */
+	isBinary: boolean;
+	/**
+	 * File last-modified time in milliseconds since Unix epoch, if available.
+	 */
+	lastModifiedMs: number | null;
+	/**
+	 * File size in bytes, if available.
+	 */
+	sizeBytes: number | null;
+	/**
+	 * Classification hint for the preview pane.
+	 */
+	previewKind: PreviewKind;
+};
 
 /**
  * Response from the explorer search command.
  */
 export type FileExplorerSearchResponse = {
-/**
- * Project path echoed back.
- */
-projectPath: string;
-/**
- * Query echoed back.
- */
-query: string;
-/**
- * Total number of matching rows before limiting/offsetting.
- */
-total: number;
-/**
- * Ranked result rows for this page.
- */
-rows: FileExplorerRow[] }
+	/**
+	 * Project path echoed back.
+	 */
+	projectPath: string;
+	/**
+	 * Query echoed back.
+	 */
+	query: string;
+	/**
+	 * Total number of matching rows before limiting/offsetting.
+	 */
+	total: number;
+	/**
+	 * Ranked result rows for this page.
+	 */
+	rows: FileExplorerRow[];
+};
 
 /**
  * Preview payload returned for a selected explorer row.
  */
 export type FileExplorerPreviewResponse =
-/**
- * Changed text file with diff content.
- */
-{ kind: "diff"; file_path: string; file_name: string; old_content: string | null; new_content: string; git_status: FileGitStatus } |
-/**
- * Unchanged text file with full content.
- */
-{ kind: "text"; file_path: string; file_name: string; content: string; language_hint: string | null } |
-/**
- * Fallback for binary, too-large, deleted, or unsupported files.
- */
-{ kind: "fallback"; file_path: string; file_name: string; reason: string; size_bytes: number | null; git_status: FileGitStatus | null; preview_kind: PreviewKind }
-
+	/**
+	 * Changed text file with diff content.
+	 */
+	| {
+			kind: "diff";
+			file_path: string;
+			file_name: string;
+			old_content: string | null;
+			new_content: string;
+			git_status: FileGitStatus;
+	  }
+	/**
+	 * Unchanged text file with full content.
+	 */
+	| {
+			kind: "text";
+			file_path: string;
+			file_name: string;
+			content: string;
+			language_hint: string | null;
+	  }
+	/**
+	 * Fallback for binary, too-large, deleted, or unsupported files.
+	 */
+	| {
+			kind: "fallback";
+			file_path: string;
+			file_name: string;
+			reason: string;
+			size_bytes: number | null;
+			git_status: FileGitStatus | null;
+			preview_kind: PreviewKind;
+	  };

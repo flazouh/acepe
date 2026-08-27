@@ -177,10 +177,11 @@ describe("SessionRepository.loadStartupSessions", () => {
 			Effect.succeed({ entries: [createHistoryEntry()], aliasRemaps: {} })
 		);
 
-		const result = await Effect.runPromise(Effect.result(repository.loadStartupSessions(state.sessions, [
-			"session-123",
-			"missing-session",
-		])));
+		const result = await Effect.runPromise(
+			Effect.result(
+				repository.loadStartupSessions(state.sessions, ["session-123", "missing-session"])
+			)
+		);
 
 		expect(getStartupSessionsMock).toHaveBeenCalledWith(["session-123", "missing-session"]);
 		expect(Result.isSuccess(result)).toBe(true);
@@ -213,7 +214,9 @@ describe("SessionRepository.loadStartupSessions", () => {
 			})
 		);
 
-		const result = await Effect.runPromise(Effect.result(repository.loadStartupSessions(state.sessions, sessionIds)));
+		const result = await Effect.runPromise(
+			Effect.result(repository.loadStartupSessions(state.sessions, sessionIds))
+		);
 
 		expect(Result.isSuccess(result)).toBe(true);
 		expect(getStartupSessionsMock).toHaveBeenCalledTimes(3);
@@ -233,7 +236,9 @@ describe("SessionRepository.loadStartupSessions", () => {
 			connectionManager
 		);
 
-		const result = await Effect.runPromise(Effect.result(repository.loadStartupSessions(state.sessions, ["session-123"])));
+		const result = await Effect.runPromise(
+			Effect.result(repository.loadStartupSessions(state.sessions, ["session-123"]))
+		);
 
 		expect(getStartupSessionsMock).not.toHaveBeenCalled();
 		expect(Result.isSuccess(result)).toBe(true);
@@ -265,7 +270,9 @@ describe("SessionRepository.loadStartupSessions", () => {
 			})
 		);
 
-		const result = await Effect.runPromise(Effect.result(repository.loadStartupSessions(state.sessions, ["claude-session"])));
+		const result = await Effect.runPromise(
+			Effect.result(repository.loadStartupSessions(state.sessions, ["claude-session"]))
+		);
 
 		expect(Result.isSuccess(result)).toBe(true);
 		if (Result.isSuccess(result)) {
@@ -369,7 +376,9 @@ describe("SessionRepository.loadStartupSessions", () => {
 			})
 		);
 
-		const result = await Effect.runPromise(Effect.result(repository.loadStartupSessions(state.sessions, ["new-session"])));
+		const result = await Effect.runPromise(
+			Effect.result(repository.loadStartupSessions(state.sessions, ["new-session"]))
+		);
 
 		expect(Result.isSuccess(result)).toBe(true);
 		expect(state.sessions.find((session) => session.id === "session-123")?.usageStats).toEqual({
@@ -397,7 +406,9 @@ describe("SessionRepository.loadStartupSessions", () => {
 			})
 		);
 
-		const result = await Effect.runPromise(Effect.result(repository.loadStartupSessions(state.sessions, ["session-123"])));
+		const result = await Effect.runPromise(
+			Effect.result(repository.loadStartupSessions(state.sessions, ["session-123"]))
+		);
 
 		expect(Result.isSuccess(result)).toBe(true);
 		if (Result.isSuccess(result)) {

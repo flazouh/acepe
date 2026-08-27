@@ -11,10 +11,11 @@ import type { QaScenario } from "@acepe/qa-scenario";
 import { authoredScenarios, decodeScenario } from "@acepe/qa-scenario";
 import * as Effect from "effect/Effect";
 
-const capturedFiles = import.meta.glob<string>(
-	"../../../../qa-scenario/scenarios/*.ndjson",
-	{ query: "?raw", import: "default", eager: true },
-);
+const capturedFiles = import.meta.glob<string>("../../../../qa-scenario/scenarios/*.ndjson", {
+	query: "?raw",
+	import: "default",
+	eager: true,
+});
 
 const capturedScenarios = Effect.fn("capturedScenarios")(function* () {
 	const scenarios: Array<QaScenario> = [];

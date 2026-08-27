@@ -5,7 +5,9 @@ import { getRelativeFilePath } from "$lib/acp/utils/file-utils.js";
 import type { FileGitStatus } from "$lib/services/converted-session-types.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 
-type FetchGitStatus = (projectPath: string) => Effect.Effect<ReadonlyArray<FileGitStatus>, AppError>;
+type FetchGitStatus = (
+	projectPath: string
+) => Effect.Effect<ReadonlyArray<FileGitStatus>, AppError>;
 type FetchFileGitStatus = (
 	projectPath: string,
 	filePath: string

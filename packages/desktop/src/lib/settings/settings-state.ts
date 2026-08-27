@@ -1,7 +1,12 @@
 import type { RpcSessionSnapshot } from "@acepe/contracts";
 import type { SettingsModalViewModel } from "@acepe/ui/settings-modal";
 
-import { CODE_FONT_SIZE, codeFontSizeFromSettings, UI_FONT_SIZE, uiFontSizeFromSettings } from "./settings-font.ts";
+import {
+	CODE_FONT_SIZE,
+	codeFontSizeFromSettings,
+	UI_FONT_SIZE,
+	uiFontSizeFromSettings,
+} from "./settings-font.ts";
 
 export const SETTINGS_MODAL_COPY = {
 	openLabel: "Settings",

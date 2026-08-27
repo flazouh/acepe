@@ -32,7 +32,7 @@ export type { SessionSendMoment };
 const mergeRowsById = <Row, Key>(
 	previousRows: ReadonlyArray<Row>,
 	incomingRows: ReadonlyArray<Row>,
-	keyOf: (row: Row) => Key,
+	keyOf: (row: Row) => Key
 ): ReadonlyArray<Row> => {
 	if (incomingRows.length === 0) {
 		return previousRows;
@@ -46,7 +46,7 @@ const mergeRowsById = <Row, Key>(
 
 const mergeLibraryLists = (
 	previous: RpcSessionSnapshot,
-	incoming: RpcSessionSnapshot,
+	incoming: RpcSessionSnapshot
 ): RpcSessionSnapshot => {
 	// Live-event folding (applyEventToRpcSessionSnapshot) always carries
 	// `projects`/`sessions` forward by reference — no event mutates them. That
@@ -60,12 +60,12 @@ const mergeLibraryLists = (
 		projects: mergeRowsById(
 			previous.projects,
 			incoming.projects,
-			(project: RpcProjectedProject) => project.projectId,
+			(project: RpcProjectedProject) => project.projectId
 		),
 		sessions: mergeRowsById(
 			previous.sessions,
 			incoming.sessions,
-			(session: RpcProjectedSession) => session.sessionId,
+			(session: RpcProjectedSession) => session.sessionId
 		),
 	};
 };

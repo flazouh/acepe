@@ -83,7 +83,9 @@ function makeOrderedSessionStore(
 			}),
 			sendMessage: mock(() => {
 				events.push("send-message");
-				return opts.sendFails ? Effect.fail(new Error("network error") as never) : Effect.succeed(undefined);
+				return opts.sendFails
+					? Effect.fail(new Error("network error") as never)
+					: Effect.succeed(undefined);
 			}),
 		},
 		read: {
@@ -100,7 +102,6 @@ function makeOrderedSessionStore(
 // Normal send path (pre-session — no sessionId)
 // ---------------------------------------------------------------------------
 
-
 async function runToResult<A, E>(effect: Effect.Effect<A, E>): Promise<Result.Result<A, E>> {
 	return Effect.runPromise(Effect.result(effect));
 }
@@ -116,13 +117,15 @@ describe("clearPendingUserEntry ordering invariant — normal send (pre-session)
 			() => "/repo"
 		);
 
-		const result = await runToResult(state.sendPreparedMessage({
-			content: "Hello agent",
-			panelId: "panel-1",
-			projectPath: "/repo",
-			projectName: "Acepe",
-			selectedAgentId: "claude-code",
-		}));
+		const result = await runToResult(
+			state.sendPreparedMessage({
+				content: "Hello agent",
+				panelId: "panel-1",
+				projectPath: "/repo",
+				projectName: "Acepe",
+				selectedAgentId: "claude-code",
+			})
+		);
 
 		expect(Result.isSuccess(result)).toBe(true);
 		// Critical ordering: set → create → send → clear.
@@ -141,13 +144,15 @@ describe("clearPendingUserEntry ordering invariant — normal send (pre-session)
 			() => "/repo"
 		);
 
-		const result = await runToResult(state.sendPreparedMessage({
-			content: "Hello agent",
-			panelId: "panel-1",
-			projectPath: "/repo",
-			projectName: "Acepe",
-			selectedAgentId: "claude-code",
-		}));
+		const result = await runToResult(
+			state.sendPreparedMessage({
+				content: "Hello agent",
+				panelId: "panel-1",
+				projectPath: "/repo",
+				projectName: "Acepe",
+				selectedAgentId: "claude-code",
+			})
+		);
 
 		expect(Result.isFailure(result)).toBe(true);
 		// Even on failure, clear is always called — pending entry cannot get stuck.
@@ -168,16 +173,18 @@ describe("clearPendingUserEntry ordering invariant — normal send (pre-session)
 			() => "/repo"
 		);
 
-		const result = await runToResult(state.sendPreparedMessage({
-			content: "Hello agent",
-			panelId: "panel-1",
-			projectPath: "/repo",
-			projectName: "Acepe",
-			selectedAgentId: "claude-code",
-			onSessionCreated: (sessionId) => {
-				createdSessions.push(sessionId);
-			},
-		}));
+		const result = await runToResult(
+			state.sendPreparedMessage({
+				content: "Hello agent",
+				panelId: "panel-1",
+				projectPath: "/repo",
+				projectName: "Acepe",
+				selectedAgentId: "claude-code",
+				onSessionCreated: (sessionId) => {
+					createdSessions.push(sessionId);
+				},
+			})
+		);
 
 		expect(Result.isFailure(result)).toBe(true);
 		if (Result.isFailure(result)) {
@@ -213,11 +220,13 @@ describe("clearPendingUserEntry ordering invariant — retry / in-session send",
 
 		// Fast path: sessionId is present → goes directly to sendMessage, no pending entry needed.
 		// This covers retry when the session already exists (the common retry case).
-		const result = await runToResult(state.sendPreparedMessage({
-			content: "Retry message",
-			panelId: "panel-1",
-			sessionId: "existing-session",
-		}));
+		const result = await runToResult(
+			state.sendPreparedMessage({
+				content: "Retry message",
+				panelId: "panel-1",
+				sessionId: "existing-session",
+			})
+		);
 
 		expect(Result.isSuccess(result)).toBe(true);
 		expect(panelStore.setPendingUserEntry).not.toHaveBeenCalled();
@@ -245,13 +254,15 @@ describe("clearPendingUserEntry ordering invariant — slash-command (pre-sessio
 		);
 
 		// Slash-command token format injected by handleCommandSelect before the user presses send.
-		const result = await runToResult(state.sendPreparedMessage({
-			content: "@[command:/gsd-plan] Build a login page",
-			panelId: "panel-1",
-			projectPath: "/repo",
-			projectName: "Acepe",
-			selectedAgentId: "claude-code",
-		}));
+		const result = await runToResult(
+			state.sendPreparedMessage({
+				content: "@[command:/gsd-plan] Build a login page",
+				panelId: "panel-1",
+				projectPath: "/repo",
+				projectName: "Acepe",
+				selectedAgentId: "claude-code",
+			})
+		);
 
 		expect(Result.isSuccess(result)).toBe(true);
 		// Ordering invariant holds regardless of content format.
@@ -279,13 +290,15 @@ describe("clearPendingUserEntry ordering invariant — voice (pre-session)", () 
 		);
 
 		// normalizeVoiceInputText output: trimmed, normalised transcribed text.
-		const result = await runToResult(state.sendPreparedMessage({
-			content: "Build a login page with OAuth support",
-			panelId: "panel-1",
-			projectPath: "/repo",
-			projectName: "Acepe",
-			selectedAgentId: "claude-code",
-		}));
+		const result = await runToResult(
+			state.sendPreparedMessage({
+				content: "Build a login page with OAuth support",
+				panelId: "panel-1",
+				projectPath: "/repo",
+				projectName: "Acepe",
+				selectedAgentId: "claude-code",
+			})
+		);
 
 		expect(Result.isSuccess(result)).toBe(true);
 		// Ordering invariant holds regardless of how the content was produced.

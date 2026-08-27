@@ -133,7 +133,10 @@ describe("TranscriptRowsController older-row paging", () => {
 			resolveFreshEnvelope = resolve;
 		});
 		mocks.requestTranscriptViewportBuffer.mockReturnValue(
-			fromPromise(() => freshEnvelopePromise, (error) => (error instanceof Error ? error : new Error(String(error))))
+			fromPromise(
+				() => freshEnvelopePromise,
+				(error) => (error instanceof Error ? error : new Error(String(error)))
+			)
 		);
 		const appliedEnvelopes: SessionStateEnvelope[] = [];
 		const controller = new TranscriptRowsController({

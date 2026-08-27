@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import * as Result from "effect/Result";
+import { describe, expect, it } from "vitest";
 
 import { ACP_INBOUND_METHODS } from "../../constants/acp-methods.js";
 import {

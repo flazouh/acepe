@@ -193,7 +193,10 @@ describe("transcriptViewportRowsFromEntries", () => {
 				segments: [{ kind: "text", segmentId: "seg-tool-1", text: "Read package.json" }],
 			},
 		];
-		const completedOperation: OperationSnapshot = { ...baseOperation, operation_state: "completed" };
+		const completedOperation: OperationSnapshot = {
+			...baseOperation,
+			operation_state: "completed",
+		};
 
 		const rows = transcriptViewportRowsFromEntries(entries, [completedOperation]);
 
@@ -202,7 +205,11 @@ describe("transcriptViewportRowsFromEntries", () => {
 
 	it("defaults operations to empty when omitted, so existing non-tool callers are unaffected", () => {
 		const entries: TranscriptEntry[] = [
-			{ entryId: "entry-1", role: "user", segments: [{ kind: "text", segmentId: "s", text: "hi" }] },
+			{
+				entryId: "entry-1",
+				role: "user",
+				segments: [{ kind: "text", segmentId: "s", text: "hi" }],
+			},
 		];
 
 		const rows = transcriptViewportRowsFromEntries(entries);

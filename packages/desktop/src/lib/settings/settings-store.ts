@@ -12,7 +12,14 @@ import * as Effect from "effect/Effect";
 import * as HashSet from "effect/HashSet";
 import * as Stream from "effect/Stream";
 
-import { CODE_FONT_SIZE, codeFontSizeFromSettings, nextFontSize, parseSettingPx, UI_FONT_SIZE, uiFontSizeFromSettings } from "./settings-font.ts";
+import {
+	CODE_FONT_SIZE,
+	codeFontSizeFromSettings,
+	nextFontSize,
+	parseSettingPx,
+	UI_FONT_SIZE,
+	uiFontSizeFromSettings,
+} from "./settings-font.ts";
 
 const SETTINGS_EVENT_TYPES = HashSet.fromIterable(["SettingsUpdated"]);
 
@@ -41,7 +48,10 @@ export const composeSettingsStore = (input: {
 	const readSnapshot = () => current;
 
 	const clearReachedPending = (snapshot: RpcSessionSnapshot) => {
-		if (pendingUiFontSize !== null && uiFontSizeFromSettings(snapshot.settings) === pendingUiFontSize) {
+		if (
+			pendingUiFontSize !== null &&
+			uiFontSizeFromSettings(snapshot.settings) === pendingUiFontSize
+		) {
 			pendingUiFontSize = null;
 		}
 		if (
@@ -78,7 +88,7 @@ export const composeSettingsStore = (input: {
 				}
 				replaceSnapshot(applyEventToRpcSessionSnapshot(readSnapshot(), event));
 				return Effect.void;
-			}),
+			})
 		);
 	});
 

@@ -6,8 +6,8 @@ import {
 	GitDiffLoadCommand,
 	GitHunkAcceptCommand,
 	GitHunkRejectCommand,
-	gitSnapshotRequest,
 	GitStatusRefreshCommand,
+	gitSnapshotRequest,
 	type OrchestrationEvent,
 	type ProjectId,
 	type RpcClient,
@@ -70,7 +70,7 @@ export const composeReviewStore = (input: {
 				projectId: inputArgs.projectId,
 				workspaceRoot: inputArgs.workspaceRoot,
 				status: null,
-			}),
+			})
 		);
 	});
 
@@ -88,7 +88,7 @@ export const composeReviewStore = (input: {
 				filePath: inputArgs.filePath,
 				diff: emptyGitFileDiff,
 				patch: "",
-			}),
+			})
 		);
 	});
 
@@ -105,7 +105,7 @@ export const composeReviewStore = (input: {
 				workspaceRoot: inputArgs.workspaceRoot,
 				filePath: inputArgs.filePath,
 				blame: [],
-			}),
+			})
 		);
 	});
 
@@ -162,7 +162,7 @@ export const composeReviewStore = (input: {
 					return Effect.void;
 				}
 				return refresh(projectId).pipe(Effect.asVoid);
-			}),
+			})
 		);
 	});
 
@@ -186,7 +186,7 @@ export const composeReviewStore = (input: {
 					workspaceRoot: inputArgs.workspaceRoot,
 					filePath: inputArgs.filePath,
 					hunkIndex: inputArgs.hunkIndex,
-				}),
+				})
 			);
 			return yield* refresh(inputArgs.projectId);
 		}),
@@ -205,7 +205,7 @@ export const composeReviewStore = (input: {
 					filePath: inputArgs.filePath,
 					hunkIndex: inputArgs.hunkIndex,
 					newContent: "",
-				}),
+				})
 			);
 			return yield* refresh(inputArgs.projectId);
 		}),

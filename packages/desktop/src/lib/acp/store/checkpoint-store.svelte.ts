@@ -12,17 +12,17 @@ import {
 	CheckpointRevertCommand,
 	CheckpointRevertFileCommand,
 	CommandId,
-	ToolCallId,
 	type RpcCheckpointFile,
 	type RpcProjectedCheckpoint,
 	type RpcSessionSnapshot,
 	SessionId,
-	sessionSnapshotRequest
+	sessionSnapshotRequest,
+	ToolCallId,
 } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 import { SvelteMap } from "svelte/reactivity";
-import type { FileDiffContent } from "../../services/checkpoint-types.js";
 import { appRpcClient } from "../../rpc/app-client.js";
+import type { FileDiffContent } from "../../services/checkpoint-types.js";
 import { CheckpointError, type CheckpointErrorCode } from "../errors/checkpoint-error.js";
 import { formatErrorWithCauses } from "../errors/error-cause-details.js";
 import type { Checkpoint, FileSnapshot, RevertResult } from "../types/checkpoint.js";
@@ -38,7 +38,7 @@ const toFileSnapshot = (checkpointId: string, file: RpcCheckpointFile): FileSnap
 	fileSize: file.fileSize,
 	linesAdded: file.linesAdded,
 	linesRemoved: file.linesRemoved,
-	content: file.content
+	content: file.content,
 });
 
 const sumLines = (files: ReadonlyArray<RpcCheckpointFile>, key: "linesAdded" | "linesRemoved") => {
@@ -64,7 +64,7 @@ const toCheckpoint = (row: RpcProjectedCheckpoint): Checkpoint => ({
 	fileCount: row.fileCount,
 	totalLinesAdded: sumLines(row.files, "linesAdded"),
 	totalLinesRemoved: sumLines(row.files, "linesRemoved"),
-	files: row.files.map((file) => toFileSnapshot(row.checkpointId, file))
+	files: row.files.map((file) => toFileSnapshot(row.checkpointId, file)),
 });
 
 const sortNewestFirst = (rows: ReadonlyArray<Checkpoint>): Checkpoint[] =>
@@ -72,9 +72,7 @@ const sortNewestFirst = (rows: ReadonlyArray<Checkpoint>): Checkpoint[] =>
 
 const snapshotCheckpoints = (snapshot: RpcSessionSnapshot, sessionId: string): Checkpoint[] =>
 	sortNewestFirst(
-		snapshot.checkpoints
-			.filter((row) => row.sessionId === sessionId)
-			.map(toCheckpoint)
+		snapshot.checkpoints.filter((row) => row.sessionId === sessionId).map(toCheckpoint)
 	);
 
 const findCheckpoint = (
@@ -125,7 +123,11 @@ export class CheckpointStore {
 			return checkpoints;
 		}).pipe(
 			Effect.mapError((error) =>
-				asCheckpointError(`Failed to load checkpoints: ${formatErrorWithCauses(error instanceof Error ? error : new Error(String(error)))}`, "STORAGE_ERROR", error)
+				asCheckpointError(
+					`Failed to load checkpoints: ${formatErrorWithCauses(error instanceof Error ? error : new Error(String(error)))}`,
+					"STORAGE_ERROR",
+					error
+				)
 			),
 			Effect.catch((error) => {
 				this.isLoading = false;
@@ -165,7 +167,7 @@ export class CheckpointStore {
 					fileCount: modifiedFiles.length,
 					projectPath,
 					worktreePath: options?.worktreePath ?? null,
-					modifiedFiles
+					modifiedFiles,
 				})
 			);
 			yield* client.dispatch(
@@ -174,7 +176,7 @@ export class CheckpointStore {
 					commandId: CommandId.make(crypto.randomUUID()),
 					sessionId: brandedSession,
 					checkpointId,
-					status: "ready"
+					status: "ready",
 				})
 			);
 			const checkpoints = yield* store.loadCheckpoints(sessionId);
@@ -218,7 +220,7 @@ export class CheckpointStore {
 					sessionId: SessionId.make(sessionId),
 					checkpointId: CheckpointId.make(checkpointId),
 					projectPath,
-					worktreePath: null
+					worktreePath: null,
 				})
 			);
 			yield* store.loadCheckpoints(sessionId);
@@ -226,7 +228,7 @@ export class CheckpointStore {
 			return {
 				success: true,
 				revertedFiles,
-				failedFiles: []
+				failedFiles: [],
 			};
 		}).pipe(
 			Effect.mapError((error) =>
@@ -255,7 +257,7 @@ export class CheckpointStore {
 					checkpointId: CheckpointId.make(checkpointId),
 					filePath,
 					projectPath,
-					worktreePath: null
+					worktreePath: null,
 				})
 			);
 		}).pipe(
@@ -311,7 +313,7 @@ export class CheckpointStore {
 			}
 			return {
 				oldContent: previousFileContent(rows, checkpoint, filePath),
-				newContent: file.content
+				newContent: file.content,
 			};
 		});
 	}

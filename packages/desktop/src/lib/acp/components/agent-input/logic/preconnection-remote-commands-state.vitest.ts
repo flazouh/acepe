@@ -28,9 +28,7 @@ describe("PreconnectionRemoteCommandsState", () => {
 	});
 
 	it("loads project-scoped commands before a session exists", async () => {
-		fetchFn.mockReturnValueOnce(
-			Effect.succeed([makeCommand("compact", "compact the session")])
-		);
+		fetchFn.mockReturnValueOnce(Effect.succeed([makeCommand("compact", "compact the session")]));
 
 		const state = new PreconnectionRemoteCommandsState(fetchFn);
 		const result = await runToResult(

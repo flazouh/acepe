@@ -195,9 +195,7 @@ function handleNewSessionProjectChange(project: Project): void {
 }
 
 function handleBrowseProject(): void {
-	void Effect.runPromise(
-		projectManager.importProject().pipe(Effect.catch(() => Effect.void))
-	);
+	void Effect.runPromise(projectManager.importProject().pipe(Effect.catch(() => Effect.void)));
 }
 
 function persistSelectedAgent(agentId: string): void {
@@ -211,9 +209,9 @@ function persistSelectedAgent(agentId: string): void {
 	);
 
 	void Effect.runPromise(
-		agentPreferencesStore.setSelectedAgentIds(nextSelectedAgentIds).pipe(
-			Effect.catch(() => Effect.void)
-		)
+		agentPreferencesStore
+			.setSelectedAgentIds(nextSelectedAgentIds)
+			.pipe(Effect.catch(() => Effect.void))
 	);
 }
 

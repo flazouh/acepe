@@ -1,8 +1,8 @@
 import { error, redirect } from "@sveltejs/kit";
-import { env } from "$env/dynamic/private";
-import { createSession, findOrCreateUserByGoogle } from "$lib/server/auth/admin";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
+import { env } from "$env/dynamic/private";
+import { createSession, findOrCreateUserByGoogle } from "$lib/server/auth/admin";
 import type { RequestHandler } from "./$types";
 
 interface GoogleTokenResponse {
@@ -87,8 +87,8 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 				email: userInfo.email,
 				name: userInfo.name,
 				picture: userInfo.picture,
-			}),
-		),
+			})
+		)
 	);
 
 	if (Result.isFailure(userResult)) {

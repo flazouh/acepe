@@ -1,9 +1,9 @@
-import { fromThrowable } from "@acepe/effect-result/fromThrowable";
 import {
+	UserSettingKey as ContractUserSettingKey,
 	type RpcSessionSnapshot,
 	settingsSnapshotRequest,
-	UserSettingKey as ContractUserSettingKey,
 } from "@acepe/contracts";
+import { fromThrowable } from "@acepe/effect-result/fromThrowable";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Ref from "effect/Ref";
@@ -12,12 +12,7 @@ import * as Schema from "effect/Schema";
 
 import { AgentError, type AppError } from "../../acp/errors/app-error.js";
 import type { UserSettingKey } from "../../services/user-settings-types.js";
-import {
-	decodeEffect,
-	nextCommandId,
-	unsupportedOnContract,
-	withRpcClient,
-} from "./rpc-bridge.ts";
+import { decodeEffect, nextCommandId, unsupportedOnContract, withRpcClient } from "./rpc-bridge.ts";
 import type { ArchivedSessionRef, ThreadListSettings } from "./types.js";
 
 const CUSTOM_KEYBINDINGS_HOT_CACHE_KEY = "acepe.custom_keybindings.hot_cache";
@@ -277,10 +272,7 @@ const parseJsonValue = <T>(stored: string): Effect.Effect<T, AppError> =>
 	Effect.try({
 		try: () => JSON.parse(stored) as T,
 		catch: (cause) =>
-			new AgentError(
-				"settings.get",
-				cause instanceof Error ? cause : new Error("settings.get")
-			),
+			new AgentError("settings.get", cause instanceof Error ? cause : new Error("settings.get")),
 	});
 
 const dispatchSettingsSet = Effect.fn("dispatchSettingsSet")(function* (
@@ -350,9 +342,7 @@ export const settings = {
 		);
 	},
 
-	saveCustomKeybindings: (
-		keybindings: Record<string, string>
-	): Effect.Effect<void, AppError> =>
+	saveCustomKeybindings: (keybindings: Record<string, string>): Effect.Effect<void, AppError> =>
 		dispatchSettingsSet("custom_keybindings", JSON.stringify(keybindings)).pipe(
 			Effect.map(() => {
 				writeCustomKeybindingsHotCache(keybindings);

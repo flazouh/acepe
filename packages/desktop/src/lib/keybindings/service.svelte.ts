@@ -111,11 +111,14 @@ export class KeybindingsService {
 		}
 
 		// Save all user keybindings to database
-		return settingsService.saveCustomKeybindings(this.userKeybindings).pipe(
-			Effect.mapError(
-				(e) => new KeybindingError("INSTALL_FAILED", `Failed to save user keybinding: ${e.message}`)
-			)
-		);
+		return settingsService
+			.saveCustomKeybindings(this.userKeybindings)
+			.pipe(
+				Effect.mapError(
+					(e) =>
+						new KeybindingError("INSTALL_FAILED", `Failed to save user keybinding: ${e.message}`)
+				)
+			);
 	}
 
 	/**
@@ -142,12 +145,14 @@ export class KeybindingsService {
 		}
 
 		// Save updated user keybindings to database
-		return settingsService.saveCustomKeybindings(this.userKeybindings).pipe(
-			Effect.mapError(
-				(e) =>
-					new KeybindingError("INSTALL_FAILED", `Failed to delete user keybinding: ${e.message}`)
-			)
-		);
+		return settingsService
+			.saveCustomKeybindings(this.userKeybindings)
+			.pipe(
+				Effect.mapError(
+					(e) =>
+						new KeybindingError("INSTALL_FAILED", `Failed to delete user keybinding: ${e.message}`)
+				)
+			);
 	}
 
 	/**

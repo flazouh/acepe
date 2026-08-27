@@ -315,9 +315,7 @@ export class SessionReadFacade implements ISessionStateReader {
 		return this.#deps.exportService.getMarkdownExportContent(sessionId);
 	}
 
-	getSessionJsonExportContent(
-		sessionId: string
-	): Result.Result<string, SessionExportContentError> {
+	getSessionJsonExportContent(sessionId: string): Result.Result<string, SessionExportContentError> {
 		return this.#deps.exportService.getJsonExportContent(sessionId);
 	}
 

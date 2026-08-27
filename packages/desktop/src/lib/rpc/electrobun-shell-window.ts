@@ -19,7 +19,7 @@ export const desktopShellKind = (
 		readonly protocol: string;
 		readonly search: string;
 		readonly hasElectrobunGlobal: boolean;
-	} | null,
+	} | null
 ): DesktopShellKind => {
 	if (windowFacts === null) {
 		return "pending";
@@ -29,4 +29,3 @@ export const desktopShellKind = (
 	}
 	return "tauri";
 };
-

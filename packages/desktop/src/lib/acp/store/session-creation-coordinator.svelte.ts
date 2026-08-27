@@ -7,7 +7,7 @@
  * creation-lifecycle slice; the parent delegates through verb methods.
  */
 
-import * as Effect from "effect/Effect";
+import type * as Effect from "effect/Effect";
 import { SvelteMap } from "svelte/reactivity";
 import type {
 	InteractionSnapshot,

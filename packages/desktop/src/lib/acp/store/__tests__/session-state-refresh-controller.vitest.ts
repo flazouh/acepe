@@ -9,8 +9,8 @@ vi.mock("../api.js", () => ({
 	},
 }));
 
-import { api } from "../api.js";
 import { SessionNotFoundError } from "../../errors/app-error.js";
+import { api } from "../api.js";
 import { SessionStateRefreshController } from "../session-state-refresh-controller.svelte.js";
 
 type MockReturnValue = {
@@ -57,9 +57,9 @@ describe("SessionStateRefreshController", () => {
 
 	it("applies a real lifecycle-only envelope instead of reporting SESSION_NOT_FOUND", async () => {
 		const envelope = lifecycleEnvelope("session-1");
-		(
-			api.fetchCanonicalSessionStateEnvelope as unknown as MockReturnValue
-		).mockReturnValue(Effect.succeed(envelope));
+		(api.fetchCanonicalSessionStateEnvelope as unknown as MockReturnValue).mockReturnValue(
+			Effect.succeed(envelope)
+		);
 
 		const applySessionStateEnvelope = vi.fn();
 		const controller = new SessionStateRefreshController({ applySessionStateEnvelope });

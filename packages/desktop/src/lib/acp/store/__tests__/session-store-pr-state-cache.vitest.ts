@@ -103,8 +103,12 @@ describe("SessionStore PR state refresh caching", () => {
 		addSessionWithPr(store, "session-pr-1", 83);
 		prDetailsMock.mockReturnValue(Effect.succeed(createPrDetails()));
 
-		await Effect.runPromise(store.connection.refreshSessionPrState("session-pr-1", "/test/path", 83));
-		await Effect.runPromise(store.connection.refreshSessionPrState("session-pr-1", "/test/path", 83));
+		await Effect.runPromise(
+			store.connection.refreshSessionPrState("session-pr-1", "/test/path", 83)
+		);
+		await Effect.runPromise(
+			store.connection.refreshSessionPrState("session-pr-1", "/test/path", 83)
+		);
 
 		expect(prDetailsMock).toHaveBeenCalledTimes(1);
 		expect(store.read.getSessionCold("session-pr-1")?.prState).toBe("OPEN");
@@ -129,7 +133,9 @@ describe("SessionStore PR state refresh caching", () => {
 		});
 		prDetailsMock.mockReturnValue(Effect.succeed(createPrDetails({ state: "MERGED" })));
 
-		await Effect.runPromise(store.connection.refreshSessionPrState("session-pr-1", "/test/path", 83));
+		await Effect.runPromise(
+			store.connection.refreshSessionPrState("session-pr-1", "/test/path", 83)
+		);
 
 		expect(store.read.getSessionCold("session-pr-1")?.prState).toBe("MERGED");
 		expect(store.read.getSessionCold("session-pr-1")?.updatedAt.toISOString()).toBe(
@@ -147,7 +153,10 @@ describe("SessionStore PR state refresh caching", () => {
 		});
 
 		prDetailsMock.mockReturnValue(
-			fromPromise(() => detailsPromise, () => new AgentError("prDetails"))
+			fromPromise(
+				() => detailsPromise,
+				() => new AgentError("prDetails")
+			)
 		);
 
 		const firstRequest = store.connection.refreshSessionPrState("session-pr-1", "/test/path", 83);
@@ -197,7 +206,10 @@ describe("SessionStore PR state refresh caching", () => {
 		});
 
 		prChecksMock.mockReturnValue(
-			fromPromise(() => checksPromise, () => new AgentError("prChecks"))
+			fromPromise(
+				() => checksPromise,
+				() => new AgentError("prChecks")
+			)
 		);
 
 		const firstRequest = store.connection.refreshSessionPrChecks("session-pr-1", "/test/path", 83);

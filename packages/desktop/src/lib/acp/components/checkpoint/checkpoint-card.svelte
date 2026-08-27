@@ -86,14 +86,12 @@ async function handleRevertFile(fileId: string, filePath: string) {
 	fileStates.set(fileId, buildCheckpointFileRevertState(currentState, true));
 
 	await Effect.runPromise(
-		checkpointStore
-			.revertFile(checkpoint.sessionId, checkpoint.id, filePath, projectPath)
-			.pipe(
-				Effect.match({
-					onSuccess: () => undefined,
-					onFailure: () => undefined,
-				})
-			)
+		checkpointStore.revertFile(checkpoint.sessionId, checkpoint.id, filePath, projectPath).pipe(
+			Effect.match({
+				onSuccess: () => undefined,
+				onFailure: () => undefined,
+			})
+		)
 	);
 
 	fileStates.set(fileId, buildCheckpointFileRevertState(currentState, false));
