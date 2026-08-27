@@ -122,6 +122,34 @@ function reduceApplySessionMode(
 	snapshot: EnvelopeReducerSnapshot,
 	command: Extract<SessionStateCommand, { kind: "applySessionMode" }>
 ): readonly EnvelopePatch[] {
+	return patchCapabilities({
+		snapshot,
+		revision: command.revision,
+		alreadyApplied: (previous) => previous.modes?.currentModeId === command.currentModeId,
+		fold: (previous) => capabilitiesWithSessionMode(previous, command.currentModeId),
+	});
+}
+
+/**
+ * The capabilities patches every single-fact writer above and below produces.
+ * They differ only in how they fold the new fact into the previous
+ * capabilities, so the guards -- a session identity, a capabilities projection
+ * to patch, a revision that is not older than the one already applied, and a
+ * fact the projection already carries at this revision -- live here once.
+ */
+function patchCapabilities(input: {
+	readonly snapshot: EnvelopeReducerSnapshot;
+	readonly revision: SessionGraphRevision;
+	readonly fold: (previous: SessionGraphCapabilities) => SessionGraphCapabilities;
+	/**
+	 * True when the previous capabilities already carry this exact fact. It
+	 * skips the write only for a revision that is not newer, so a re-delivered
+	 * envelope costs nothing while a genuine revision bump still advances the
+	 * projection.
+	 */
+	readonly alreadyApplied?: (previous: SessionGraphCapabilities) => boolean;
+}): readonly EnvelopePatch[] {
+	const snapshot = input.snapshot;
 	if (!snapshot.hasSessionIdentity) {
 		return [];
 	}
@@ -134,29 +162,26 @@ function reduceApplySessionMode(
 		return [];
 	}
 
-	if (isOlderGraphRevision(previousProjection?.revision ?? null, command.revision)) {
+	const previousRevision = previousProjection?.revision ?? null;
+	if (isOlderGraphRevision(previousRevision, input.revision)) {
 		return [];
 	}
 
 	if (
-		!isNewerGraphRevision(previousProjection?.revision ?? null, command.revision) &&
-		previousCapabilities.modes?.currentModeId === command.currentModeId
+		input.alreadyApplied?.(previousCapabilities) === true &&
+		!isNewerGraphRevision(previousRevision, input.revision)
 	) {
 		return [];
 	}
 
-	const nextCapabilities = capabilitiesWithSessionMode(previousCapabilities, command.currentModeId);
+	const nextCapabilities = input.fold(previousCapabilities);
 	const patches: EnvelopePatch[] = [];
 
 	if (previousProjection !== null) {
 		patches.push({
 			kind: "setCanonicalProjection",
 			sessionId: snapshot.sessionId,
-			projection: projectionWithCapabilities(
-				previousProjection,
-				nextCapabilities,
-				command.revision
-			),
+			projection: projectionWithCapabilities(previousProjection, nextCapabilities, input.revision),
 		});
 	}
 
@@ -164,56 +189,7 @@ function reduceApplySessionMode(
 		patches.push({
 			kind: "setSessionStateGraph",
 			sessionId: snapshot.sessionId,
-			graph: graphWithCapabilities(previousGraph, nextCapabilities, command.revision),
-		});
-	}
-
-	return patches;
-}
-
-/**
- * The capabilities patches both model writers below produce. They differ only
- * in how they fold the new fact into the previous capabilities, so the guards
- * (a session identity, a capabilities projection to patch, and a revision that
- * is not older than the one already applied) live here once.
- */
-function patchCapabilities(
-	snapshot: EnvelopeReducerSnapshot,
-	revision: SessionGraphRevision,
-	fold: (previous: SessionGraphCapabilities) => SessionGraphCapabilities
-): readonly EnvelopePatch[] {
-	if (!snapshot.hasSessionIdentity) {
-		return [];
-	}
-
-	const previousProjection = snapshot.previousProjection;
-	const previousGraph = snapshot.previousGraph;
-	const previousCapabilities =
-		previousProjection?.capabilities ?? previousGraph?.capabilities ?? null;
-	if (previousCapabilities === null) {
-		return [];
-	}
-
-	if (isOlderGraphRevision(previousProjection?.revision ?? null, revision)) {
-		return [];
-	}
-
-	const nextCapabilities = fold(previousCapabilities);
-	const patches: EnvelopePatch[] = [];
-
-	if (previousProjection !== null) {
-		patches.push({
-			kind: "setCanonicalProjection",
-			sessionId: snapshot.sessionId,
-			projection: projectionWithCapabilities(previousProjection, nextCapabilities, revision),
-		});
-	}
-
-	if (previousGraph !== null) {
-		patches.push({
-			kind: "setSessionStateGraph",
-			sessionId: snapshot.sessionId,
-			graph: graphWithCapabilities(previousGraph, nextCapabilities, revision),
+			graph: graphWithCapabilities(previousGraph, nextCapabilities, input.revision),
 		});
 	}
 
@@ -233,23 +209,31 @@ function reduceApplySessionModel(
 	snapshot: EnvelopeReducerSnapshot,
 	command: Extract<SessionStateCommand, { kind: "applySessionModel" }>
 ): readonly EnvelopePatch[] {
-	return patchCapabilities(snapshot, command.revision, (previous) =>
-		capabilitiesWithSessionModel(previous, command.currentModelId)
-	);
+	return patchCapabilities({
+		snapshot,
+		revision: command.revision,
+		alreadyApplied: (previous) => previous.models?.currentModelId === command.currentModelId,
+		fold: (previous) => capabilitiesWithSessionModel(previous, command.currentModelId),
+	});
 }
 
 /**
  * The live path for a provider's own model catalog. The picker used to read a
  * hand-written list of five models seeded at session open, so a model the
  * provider shipped later did not exist to the app at all.
+ *
+ * No `alreadyApplied` here: a provider answers once per session, so comparing
+ * two catalogs element by element would buy nothing.
  */
 function reduceApplySessionModels(
 	snapshot: EnvelopeReducerSnapshot,
 	command: Extract<SessionStateCommand, { kind: "applySessionModels" }>
 ): readonly EnvelopePatch[] {
-	return patchCapabilities(snapshot, command.revision, (previous) =>
-		capabilitiesWithSessionModels(previous, command.availableModels)
-	);
+	return patchCapabilities({
+		snapshot,
+		revision: command.revision,
+		fold: (previous) => capabilitiesWithSessionModels(previous, command.availableModels),
+	});
 }
 
 function reduceApplyTelemetry(

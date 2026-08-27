@@ -26,7 +26,7 @@ import * as Queue from "effect/Queue"
 import * as Ref from "effect/Ref"
 import * as Scope from "effect/Scope"
 import type { ProviderAdapterError, SendPromptRequest } from "../../Services/ProviderAdapter.ts"
-import { EMPTY_JSON_OBJECT, type Json } from "../Json.ts"
+import { EMPTY_JSON_OBJECT, type Json, type JsonObject } from "../Json.ts"
 import { encodeSessionModelsFact } from "../SessionModelsFact.ts"
 import {
 	approvalAnsweredEvent,
@@ -181,12 +181,15 @@ const makeTokenEvent = Effect.fn("ClaudeAdapter.makeTokenEvent")(function*(
 	})
 })
 
-export const makeMetaEvent = Effect.fn("ClaudeAdapter.makeMetaEvent")(function*(
+// The one SessionMetaUpdated envelope this adapter stamps. A fact that fails
+// to encode still ships the event with an empty metadata bag, because the
+// readers treat a silent bag as "this event said nothing about my fact" and
+// dropping the event outright would lose the sequence with it.
+const makeMetaEventWithMetadata = Effect.fn("ClaudeAdapter.makeMetaEventWithMetadata")(function*(
 	runtime: SessionRuntime,
-	fact: ClaudeContractFact
+	encoded: Option.Option<JsonObject>
 ) {
 	const header = yield* stamp(runtime)
-	const metadata = Option.getOrElse(encodeContractFact(fact), () => EMPTY_JSON_OBJECT)
 	return SessionMetaUpdatedEvent.make({
 		sequence: header.sequence,
 		eventId: header.eventId,
@@ -196,13 +199,16 @@ export const makeMetaEvent = Effect.fn("ClaudeAdapter.makeMetaEvent")(function*(
 		commandId: header.commandId,
 		causationEventId: null,
 		correlationId: header.commandId,
-		metadata,
+		metadata: Option.getOrElse(encoded, () => EMPTY_JSON_OBJECT),
 		type: "SessionMetaUpdated",
 		payload: {
 			sessionId: runtime.sessionId
 		}
 	})
 })
+
+export const makeMetaEvent = (runtime: SessionRuntime, fact: ClaudeContractFact) =>
+	makeMetaEventWithMetadata(runtime, encodeContractFact(fact))
 
 /**
  * The catalog the provider itself reported, as a canonical session fact.
@@ -212,31 +218,8 @@ export const makeMetaEvent = Effect.fn("ClaudeAdapter.makeMetaEvent")(function*(
  * projection that folds it must not have to know which provider answered. See
  * Layers/SessionModelsFact.ts.
  */
-export const makeSessionModelsEvent = Effect.fn("ClaudeAdapter.makeSessionModelsEvent")(function*(
-	runtime: SessionRuntime,
-	models: SessionModelCatalog
-) {
-	const header = yield* stamp(runtime)
-	const metadata = Option.getOrElse(
-		encodeSessionModelsFact(sessionModelsListedFact(models)),
-		() => EMPTY_JSON_OBJECT
-	)
-	return SessionMetaUpdatedEvent.make({
-		sequence: header.sequence,
-		eventId: header.eventId,
-		aggregateKind: "session",
-		aggregateId: runtime.sessionId,
-		occurredAt: header.occurredAt,
-		commandId: header.commandId,
-		causationEventId: null,
-		correlationId: header.commandId,
-		metadata,
-		type: "SessionMetaUpdated",
-		payload: {
-			sessionId: runtime.sessionId
-		}
-	})
-})
+export const makeSessionModelsEvent = (runtime: SessionRuntime, models: SessionModelCatalog) =>
+	makeMetaEventWithMetadata(runtime, encodeSessionModelsFact(sessionModelsListedFact(models)))
 
 export const makeMessageSent = Effect.fn("ClaudeAdapter.makeMessageSent")(function*(
 	runtime: SessionRuntime,

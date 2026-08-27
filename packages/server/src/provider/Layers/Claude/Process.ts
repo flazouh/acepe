@@ -71,7 +71,7 @@ const sessionModelFromInfo = (info: ModelInfo): SessionModelDescriptor => ({
 })
 
 const isUsableModel = (model: SessionModelDescriptor): boolean =>
-	Str.isNonEmpty(model.modelId.trim()) && Str.isNonEmpty(model.name.trim())
+	Str.isNonEmpty(Str.trim(model.modelId)) && Str.isNonEmpty(Str.trim(model.name))
 
 const errorDetail = <A>(cause: A, fallback: string): string => {
 	if (Predicate.isError(cause) && Str.isNonEmpty(cause.message)) {

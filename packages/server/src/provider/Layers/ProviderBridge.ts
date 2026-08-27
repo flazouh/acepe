@@ -458,9 +458,10 @@ const LAZY_OPEN_RETRY_SCHEDULE = Schedule.spaced(Duration.millis(20)).pipe(
 // requireSession (Claude/Codex/Cursor/OpenCode Session.ts) renders a session
 // it has not registered yet as `No <Provider> session '<sessionId>'.`, and
 // that stops the moment the just-forked forwarding fiber's startSession
-// registers it. Every other setMode failure is permanent: a mode the provider
+// registers it. Every other setting failure is permanent: a mode the provider
 // has no equivalent for (resolveClaudeModeId, resolveCodexModeId and their
-// siblings returning none) fails identically on the first attempt and on all
+// siblings returning none), or a model id it does not know, fails identically
+// on the first attempt and on all
 // 25 retries, so retrying it burns ~500 ms of the bridge's single
 // event-consuming fiber -- delaying every other session's events -- before
 // appending exactly the ProviderSessionFailed the first attempt already
@@ -470,52 +471,62 @@ const LAZY_OPEN_RETRY_SCHEDULE = Schedule.spaced(Duration.millis(20)).pipe(
 const isSessionNotRegisteredYet = (sessionId: SessionId) => (error: ProviderAdapterError) =>
 	error.detail.startsWith("No ") && error.detail.endsWith(`session '${sessionId}'.`)
 
+// One dispatch path for every per-session setting an adapter can be asked to
+// change. A mode and a model differ only in which adapter method carries the
+// value, and the retry rule above is subtle enough that a second copy of it
+// would be a second place to get it wrong.
+const applySessionSetting = (
+	state: BridgeState,
+	sessionId: SessionId,
+	providerId: ProviderId,
+	operation: ProviderAdapterError["operation"],
+	dispatch: Effect.Effect<void, ProviderAdapterError>,
+	justOpened: boolean
+) => {
+	const attempt = justOpened
+		? Effect.retry(dispatch, {
+			schedule: LAZY_OPEN_RETRY_SCHEDULE,
+			while: isSessionNotRegisteredYet(sessionId)
+		})
+		: dispatch
+	return attempt.pipe(
+		Effect.catchCause((cause) =>
+			appendFailure(state, sessionId, providerId, operation, Cause.pretty(cause))
+		)
+	)
+}
+
 const applySetMode = (
 	state: BridgeState,
 	adapter: ModeSettableAdapter,
 	sessionId: SessionId,
 	modeId: SetModeRequest["modeId"],
 	justOpened: boolean
-) => {
-	const dispatch = adapter.setMode({ sessionId, modeId })
-	const attempt = justOpened
-		? Effect.retry(dispatch, {
-			schedule: LAZY_OPEN_RETRY_SCHEDULE,
-			while: isSessionNotRegisteredYet(sessionId)
-		})
-		: dispatch
-	return attempt.pipe(
-		Effect.catchCause((cause) =>
-			appendFailure(state, sessionId, adapter.providerId, "setMode", Cause.pretty(cause))
-		)
+) =>
+	applySessionSetting(
+		state,
+		sessionId,
+		adapter.providerId,
+		"setMode",
+		adapter.setMode({ sessionId, modeId }),
+		justOpened
 	)
-}
 
-// applySetMode's counterpart, sharing its retry reasoning exactly:
-// isSessionNotRegisteredYet is the one failure a just-forked forwarding fiber
-// can produce, and every other failure (an id the provider does not know) is
-// permanent and must not burn 25 retries on the bridge's single
-// event-consuming fiber.
 const applySetModel = (
 	state: BridgeState,
 	adapter: ModelSettableAdapter,
 	sessionId: SessionId,
 	modelId: SetModelRequest["modelId"],
 	justOpened: boolean
-) => {
-	const dispatch = adapter.setModel({ sessionId, modelId })
-	const attempt = justOpened
-		? Effect.retry(dispatch, {
-			schedule: LAZY_OPEN_RETRY_SCHEDULE,
-			while: isSessionNotRegisteredYet(sessionId)
-		})
-		: dispatch
-	return attempt.pipe(
-		Effect.catchCause((cause) =>
-			appendFailure(state, sessionId, adapter.providerId, "setModel", Cause.pretty(cause))
-		)
+) =>
+	applySessionSetting(
+		state,
+		sessionId,
+		adapter.providerId,
+		"setModel",
+		adapter.setModel({ sessionId, modelId }),
+		justOpened
 	)
-}
 
 const considerSessionCreated = Effect.fn("ProviderBridge.considerSessionCreated")(function*(
 	state: BridgeState,
