@@ -1,7 +1,8 @@
 import { describe, expect, it } from "@effect/vitest"
 import * as ConfigProvider from "effect/ConfigProvider"
+import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
-import { DEFAULT_APP_ID, loadQaSocketPath, qaSocketPath } from "./socket-path.ts"
+import { DEFAULT_APP_ID, loadQaDeadline, loadQaSocketPath, qaSocketPath } from "./socket-path.ts"
 
 describe("socket-path", () => {
 	it.effect("places the unix socket in the runtime dir", () =>
@@ -27,6 +28,28 @@ describe("socket-path", () => {
 				Effect.provideService(ConfigProvider.ConfigProvider, provider),
 			)
 			expect(path).toBe("/var/run/electrobun-qa/com.example.app.sock")
+		}),
+	)
+
+	it.effect("defaults the call deadline to five seconds", () =>
+		Effect.gen(function* () {
+			const provider = ConfigProvider.fromEnv({ env: {} })
+			const deadline = yield* loadQaDeadline().pipe(
+				Effect.provideService(ConfigProvider.ConfigProvider, provider),
+			)
+			expect(Duration.toMillis(deadline)).toBe(5_000)
+		}),
+	)
+
+	it.effect("reads ELECTROBUN_QA_DEADLINE_MS from config", () =>
+		Effect.gen(function* () {
+			const provider = ConfigProvider.fromEnv({
+				env: { ELECTROBUN_QA_DEADLINE_MS: "30000" },
+			})
+			const deadline = yield* loadQaDeadline().pipe(
+				Effect.provideService(ConfigProvider.ConfigProvider, provider),
+			)
+			expect(Duration.toMillis(deadline)).toBe(30_000)
 		}),
 	)
 })

@@ -362,7 +362,10 @@ const writeAndReadUnix = (
 		}),
 	)
 
-export const makeRemoteSession = (path: string): QaSession => {
+export const makeRemoteSession = (
+	path: string,
+	sessionDeadline?: Duration.Duration,
+): QaSession => {
 	let token = 0
 	const nextId = (): string => {
 		token += 1
@@ -381,10 +384,11 @@ export const makeRemoteSession = (path: string): QaSession => {
 			params === undefined
 				? QaSocketRequest.make({ id: nextId(), method })
 				: QaSocketRequest.make({ id: nextId(), method, params })
+		const fallback = sessionDeadline === undefined ? DEFAULT_HELPER_DEADLINE : sessionDeadline
 		const response = yield* sendSocketRequest(
 			path,
 			request,
-			deadline === undefined ? DEFAULT_HELPER_DEADLINE : deadline,
+			deadline === undefined ? fallback : deadline,
 		)
 		if (response.ok === true) {
 			return response.value

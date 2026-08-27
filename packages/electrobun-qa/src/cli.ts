@@ -15,7 +15,7 @@ import { QaUnknownCommand } from "./errors.ts";
 import { DEFAULT_HELPER_DEADLINE } from "./host/bridge-client.ts";
 import { QaSocketRequest } from "./host/protocol.ts";
 import type { QaSession } from "./host/session.ts";
-import { loadQaSocketPath } from "./host/socket-path.ts";
+import { loadQaDeadline, loadQaSocketPath } from "./host/socket-path.ts";
 import { makeRemoteSession, sendSocketRequest } from "./host/socket-server.ts";
 import { HELPER_NAMES, helperHelp } from "./runtime/helpers.ts";
 import { runUserScript } from "./runtime/script-runner.ts";
@@ -113,7 +113,7 @@ export const executeCli = Effect.fn("executeCli")(function* (input: CliInput) {
 		const session =
 			input.session !== undefined
 				? input.session
-				: makeRemoteSession(yield* loadQaSocketPath());
+				: makeRemoteSession(yield* loadQaSocketPath(), yield* loadQaDeadline());
 		const logs = yield* Effect.result(runUserScript(source.success, session));
 		if (Result.isFailure(logs) === true) {
 			return fail(logs.failure);
@@ -124,7 +124,7 @@ export const executeCli = Effect.fn("executeCli")(function* (input: CliInput) {
 		const session =
 			input.session !== undefined
 				? input.session
-				: makeRemoteSession(yield* loadQaSocketPath());
+				: makeRemoteSession(yield* loadQaSocketPath(), yield* loadQaDeadline());
 		const writeFile =
 			input.writeFile !== undefined ? input.writeFile : bunFileWriter;
 		// One pipeline rather than a failure check after each step: capture is

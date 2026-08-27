@@ -459,17 +459,52 @@ export const qaPreloadScript = `(function(){
       : new MouseEvent(type === "pointerdown" ? "mousedown" : "mouseup", init);
     el.dispatchEvent(event);
   }
+  // A control that owns a popup -- a dropdown trigger, a select, a combobox --
+  // says so through aria-haspopup or aria-expanded.
+  function isPopupTrigger(el) {
+    if (!el || typeof el.getAttribute !== "function") return false;
+    return el.getAttribute("aria-haspopup") !== null ||
+      el.getAttribute("aria-expanded") !== null;
+  }
   // press: true sends a real press -- pointerdown, pointerup, then click --
   // for controls that listen on pointerdown alone, the voice mic among them.
-  // It is opt-in because a menu trigger that opens on pointerdown is closed
-  // again by the click that follows, so sending both to everything would break
-  // every dropdown in the app.
+  //
+  // A popup trigger gets the press too, but not the click: it opens on
+  // pointerdown, and the click that used to follow closed it again, so QA read
+  // an open menu as a dead button. When the press leaves aria-expanded
+  // untouched the trigger wants a click after all, and it gets one.
+  function fireKey(el, type) {
+    if (typeof el.dispatchEvent !== "function") return;
+    el.dispatchEvent(new KeyboardEvent(type, {
+      key: "Enter",
+      code: "Enter",
+      keyCode: 13,
+      which: 13,
+      bubbles: true,
+      cancelable: true,
+      composed: true
+    }));
+  }
   function click(params) {
     var el = findTarget(params);
     if (!el) return false;
-    if (params && params.press === true) {
+    var popup = isPopupTrigger(el);
+    if ((params && params.press === true) || popup) {
+      var before = popup ? el.getAttribute("aria-expanded") : null;
       firePointer(el, "pointerdown");
       firePointer(el, "pointerup");
+      if (popup && el.getAttribute("aria-expanded") !== before) return true;
+      if (typeof el.click === "function") el.click();
+      if (popup === false) return true;
+      if (el.getAttribute("aria-expanded") !== before) return true;
+      // Some menu triggers answer the keyboard and ignore a synthesised press
+      // and click, both of which reach them undefaulted. Enter is a real path
+      // a person can take to the same menu, so QA takes it rather than
+      // reporting a live control as a dead one.
+      if (typeof el.focus === "function") el.focus();
+      fireKey(el, "keydown");
+      fireKey(el, "keyup");
+      return true;
     }
     if (typeof el.click === "function") el.click();
     return true;
