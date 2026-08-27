@@ -16,6 +16,7 @@
 // itself unsupportedOnContract for the same reason) -- but turn completion
 // (TurnCompleted, alongside TurnCancelled) IS a real terminal signal on the
 // contract, handled below.
+import { normalizeEditEntry } from "./aggregate-file-edits.js";
 import type { ApprovalDecision, OrchestrationEvent, SessionId } from "@acepe/contracts";
 import { librarySnapshotRequest, type RpcClient } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
@@ -149,10 +150,29 @@ const noArguments: ToolArguments = { kind: "other", raw: null };
  * bridge would be a second place to get it wrong. Absent arguments stay the
  * shared empty value, so nothing downstream has to special-case them.
  */
-const toolArgumentsFrom = (input: Schema.JsonObject | null | undefined): ToolArguments =>
-	input === null || input === undefined
-		? noArguments
-		: { kind: "other", raw: input as unknown as JsonValue };
+/**
+ * The tool's own arguments, shaped for the transcript.
+ *
+ * An edit becomes `{kind: "edit", edits}` because that is what the row mapper
+ * reads to render a diff (transcript-viewport-row-mapper.ts's `editDiffs`);
+ * anything else travels raw, since only the tool that produced it knows what
+ * its arguments mean. `normalizeEditEntry` is shared with aggregate-file-edits
+ * so the key names a provider might use live in exactly one place.
+ */
+const toolArgumentsFrom = (
+	input: Schema.JsonObject | null | undefined,
+	kind: string | null | undefined
+): ToolArguments => {
+	if (input === null || input === undefined) {
+		return noArguments;
+	}
+	const raw = input as unknown as JsonValue;
+	if (kind !== "edit") {
+		return { kind: "other", raw };
+	}
+	const entry = normalizeEditEntry(input);
+	return entry === null ? { kind: "other", raw } : { kind: "edit", edits: [entry] };
+};
 
 const PERMISSION_ID_PREFIX = "perm-";
 
@@ -525,7 +545,7 @@ export class OrchestrationCanonicalBridge {
 			kind: asOperationToolKind(payload.kind),
 			provider_status: observedStatusToToolCallStatus(payload.status),
 			title: payload.title,
-			arguments: toolArgumentsFrom(payload.input),
+			arguments: toolArgumentsFrom(payload.input, payload.kind),
 			progressive_arguments: null,
 			// #273: the tool's own result, canonical on the observation itself.
 			// transcript-viewport-row-mapper.ts already renders it through

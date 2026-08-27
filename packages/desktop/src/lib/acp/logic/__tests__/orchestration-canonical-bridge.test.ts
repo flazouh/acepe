@@ -1054,6 +1054,9 @@ describe("OrchestrationCanonicalBridge tool arguments", () => {
 		const serialised = JSON.stringify(envelopes);
 		expect(serialised).toContain("/tmp/acepe-qa.txt");
 		expect(serialised).toContain("160");
+		// Shaped as an edit, which is what transcript-viewport-row-mapper reads
+		// to render a diff. Raw arguments alone leave the row showing a filename.
+		expect(serialised).toContain('"kind":"edit"');
 	});
 
 	it("a tool that sent no arguments still produces an operation", () => {

@@ -52,6 +52,7 @@ import {
 	observedStatusToOperationState,
 	observedStatusToToolCallStatus,
 } from "./observed-tool-call-status.js";
+import { normalizeEditEntry } from "./aggregate-file-edits.js";
 import { asOperationToolKind } from "./observed-tool-kind.js";
 
 const idleActivity: SessionGraphActivity = {
@@ -123,10 +124,18 @@ function transcriptEntryFromMessage(message: RpcProjectedMessage): TranscriptEnt
 const noToolArguments: ToolArguments = { kind: "other", raw: null };
 
 /** The reopen half of the bridge's `toolArgumentsFrom`: same rule, same reason. */
-const toolArgumentsFromActivity = (activity: RpcProjectedSessionActivity): ToolArguments =>
-	activity.input === null || activity.input === undefined
-		? noToolArguments
-		: { kind: "other", raw: activity.input as unknown as JsonValue };
+const toolArgumentsFromActivity = (activity: RpcProjectedSessionActivity): ToolArguments => {
+	const input = activity.input;
+	if (input === null || input === undefined) {
+		return noToolArguments;
+	}
+	const raw = input as unknown as JsonValue;
+	if (activity.toolKind !== "edit") {
+		return { kind: "other", raw };
+	}
+	const entry = normalizeEditEntry(input);
+	return entry === null ? { kind: "other", raw } : { kind: "edit", edits: [entry] };
+};
 
 // AC-263, reopen half: `RpcProjectedSessionActivity.status` is a free-form
 // server string (Schema.optionalKey(Schema.String)), not the same literal

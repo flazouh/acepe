@@ -29,7 +29,14 @@ function readStringProperty(
 	return null;
 }
 
-function normalizeEditEntry(value: unknown): EditEntry | null {
+/**
+ * One edit, read out of whatever shape a provider used.
+ *
+ * Exported because the canonical bridge and the reopen both have to build the
+ * same `{kind: "edit"}` arguments the transcript renders from, and a second
+ * copy of these key names is a second place for them to drift.
+ */
+export function normalizeEditEntry(value: unknown): EditEntry | null {
 	if (!isRecord(value)) {
 		return null;
 	}
