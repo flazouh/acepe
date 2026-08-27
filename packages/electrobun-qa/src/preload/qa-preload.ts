@@ -466,13 +466,6 @@ export const qaPreloadScript = `(function(){
     return el.getAttribute("aria-haspopup") !== null ||
       el.getAttribute("aria-expanded") !== null;
   }
-  // press: true sends a real press -- pointerdown, pointerup, then click --
-  // for controls that listen on pointerdown alone, the voice mic among them.
-  //
-  // A popup trigger gets the press too, but not the click: it opens on
-  // pointerdown, and the click that used to follow closed it again, so QA read
-  // an open menu as a dead button. When the press leaves aria-expanded
-  // untouched the trigger wants a click after all, and it gets one.
   function fireKey(el, type) {
     if (typeof el.dispatchEvent !== "function") return;
     el.dispatchEvent(new KeyboardEvent(type, {
@@ -485,6 +478,13 @@ export const qaPreloadScript = `(function(){
       composed: true
     }));
   }
+  // press: true sends a real press -- pointerdown, pointerup, then click --
+  // for controls that listen on pointerdown alone, the voice mic among them.
+  //
+  // A popup trigger gets the press too, but not the click: it opens on
+  // pointerdown, and the click that used to follow closed it again, so QA read
+  // an open menu as a dead button. When the press leaves aria-expanded
+  // untouched the trigger wants a click after all, and it gets one.
   function click(params) {
     var el = findTarget(params);
     if (!el) return false;
