@@ -10,6 +10,7 @@ import type {
 } from "../../../services/acp-types.js";
 import type { SessionStateCommand } from "../../session-state/session-state-command-router.js";
 import { sanitizeCanonicalCapabilities } from "../canonical-config-sanitize.js";
+import { projectionWithCapabilities } from "../canonical-session-projection.js";
 import {
 	graphWithCapabilities,
 	graphWithLifecycle,
@@ -145,16 +146,11 @@ function reduceApplyCapabilities(
 		patches.push({
 			kind: "setCanonicalProjection",
 			sessionId: snapshot.sessionId,
-			projection: {
-				lifecycle: snapshot.previousProjection.lifecycle,
-				activity: snapshot.previousProjection.activity,
-				turnState: snapshot.previousProjection.turnState,
-				activeTurnFailure: snapshot.previousProjection.activeTurnFailure,
-				lastTerminalTurnId: snapshot.previousProjection.lastTerminalTurnId,
-				activeStreamingTail: snapshot.previousProjection.activeStreamingTail,
-				capabilities: canonicalCapabilities,
-				revision: command.revision,
-			},
+			projection: projectionWithCapabilities(
+				snapshot.previousProjection,
+				canonicalCapabilities,
+				command.revision
+			),
 		});
 	}
 
@@ -212,7 +208,9 @@ function reduceApplySessionMode(
 
 	const previousProjection = snapshot.previousProjection;
 	const previousGraph = snapshot.previousGraph;
-	if (previousProjection === null && previousGraph === null) {
+	const previousCapabilities =
+		previousProjection?.capabilities ?? previousGraph?.capabilities ?? null;
+	if (previousCapabilities === null) {
 		return [];
 	}
 
@@ -220,10 +218,6 @@ function reduceApplySessionMode(
 		return [];
 	}
 
-	const previousCapabilities =
-		previousProjection?.capabilities ??
-		previousGraph?.capabilities ??
-		emptySessionGraphCapabilities();
 	if (
 		!isNewerGraphRevision(previousProjection?.revision ?? null, command.revision) &&
 		previousCapabilities.modes?.currentModeId === command.currentModeId
@@ -238,16 +232,11 @@ function reduceApplySessionMode(
 		patches.push({
 			kind: "setCanonicalProjection",
 			sessionId: snapshot.sessionId,
-			projection: {
-				lifecycle: previousProjection.lifecycle,
-				activity: previousProjection.activity,
-				turnState: previousProjection.turnState,
-				activeTurnFailure: previousProjection.activeTurnFailure,
-				lastTerminalTurnId: previousProjection.lastTerminalTurnId,
-				activeStreamingTail: previousProjection.activeStreamingTail,
-				capabilities: nextCapabilities,
-				revision: command.revision,
-			},
+			projection: projectionWithCapabilities(
+				previousProjection,
+				nextCapabilities,
+				command.revision
+			),
 		});
 	}
 

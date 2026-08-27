@@ -18,3 +18,26 @@ export type CanonicalSessionProjection = {
 	readonly capabilities: SessionGraphCapabilities;
 	readonly revision: SessionGraphRevision;
 };
+
+/**
+ * The same projection at a new revision, carrying different capabilities. The
+ * projection counterpart of `graphWithCapabilities` in session-graph-builders
+ * .ts, so a reducer that changes capabilities says which fields it changes
+ * instead of restating every field it does not.
+ */
+export function projectionWithCapabilities(
+	projection: CanonicalSessionProjection,
+	capabilities: SessionGraphCapabilities,
+	revision: SessionGraphRevision
+): CanonicalSessionProjection {
+	return {
+		lifecycle: projection.lifecycle,
+		activity: projection.activity,
+		turnState: projection.turnState,
+		activeTurnFailure: projection.activeTurnFailure,
+		lastTerminalTurnId: projection.lastTerminalTurnId,
+		activeStreamingTail: projection.activeStreamingTail,
+		capabilities,
+		revision,
+	};
+}
