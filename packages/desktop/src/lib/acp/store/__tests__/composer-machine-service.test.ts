@@ -1,4 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+const mockToastError = vi.fn();
+
+vi.mock("svelte-sonner", () => ({
+	toast: { error: mockToastError },
+}));
 import type { LiveSessionLifecyclePresentation } from "$lib/acp/store/live-session-work.js";
 import {
 	ComposerMachineService,
@@ -137,6 +143,23 @@ describe("ComposerMachineService", () => {
 		);
 		expect(ok).toBe(false);
 		expect(service.getState("s1")?.value).toBe("dispatching");
+	});
+
+	it("tells the operator when a config change is refused", async () => {
+		mockToastError.mockClear();
+		const service = makeService(() => makeCommitState("build", "m1", false));
+		service.createOrGetActor("s1");
+		service.beginDispatch("s1");
+		await service.runConfigOperation(
+			"s1",
+			{
+				provisionalModeId: "plan",
+				provisionalModelId: "m1",
+				provisionalAutonomousEnabled: false,
+			},
+			async () => true
+		);
+		expect(mockToastError).toHaveBeenCalledTimes(1);
 	});
 
 	it("invalidates async config completion after bind bumps generation", async () => {

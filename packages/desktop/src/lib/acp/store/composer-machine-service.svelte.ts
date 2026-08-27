@@ -3,6 +3,7 @@
  * Mirrors SessionConnectionService patterns.
  */
 
+import { toast } from "svelte-sonner";
 import { SvelteMap } from "svelte/reactivity";
 import { createActor } from "xstate";
 
@@ -166,10 +167,16 @@ export class ComposerMachineService {
 		this.send(sessionId, { type: "CONFIG_BLOCK_BEGIN", ...beginPayload });
 		const afterBegin = actor.getSnapshot();
 		if (afterBegin.value !== "configBlocking") {
+			// The machine takes CONFIG_BLOCK_BEGIN from "interactive" alone, so a
+			// pick made while a send is dispatching or an earlier change is still
+			// applying is dropped here. Every caller ignored the false this
+			// returns, which is what turned a refused click into a control that
+			// looked dead. Say it once, at the refusal, and all of them are covered.
 			logger.warn("CONFIG_BLOCK_BEGIN did not enter configBlocking", {
 				sessionId,
 				value: afterBegin.value,
 			});
+			toast.error("The composer is busy. Try that again in a moment.");
 			return false;
 		}
 		try {
