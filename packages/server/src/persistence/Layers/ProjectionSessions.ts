@@ -1,4 +1,5 @@
 import {
+	encodeStoredSessionModelCatalog,
 	type OrchestrationEvent,
 	ProjectId,
 	SessionId,
@@ -40,7 +41,9 @@ const readById = Effect.fn("ProjectionSessions.readById")(function*(
 			pr_link_mode,
 			provider_session_id,
 			provider_session_failed,
-			current_mode_id
+			current_mode_id,
+			current_model_id,
+			available_models
 		FROM projection_sessions
 		WHERE session_id = ${sessionId}
 	`.withoutTransform
@@ -64,6 +67,9 @@ const upsert = Effect.fn("ProjectionSessions.upsert")(function*(
 	tx: SqlClient.SqlClient,
 	session: ProjectedSession
 ) {
+	// JSON text through the schema that reads it back, not JSON.stringify --
+	// the same encoder ProjectionSessionActivities uses for its payloads.
+	const storedModels = yield* encodeStoredSessionModelCatalog(session.availableModels ?? null)
 	yield* tx`
 		INSERT INTO projection_sessions (
 			session_id,
@@ -79,7 +85,9 @@ const upsert = Effect.fn("ProjectionSessions.upsert")(function*(
 			pr_link_mode,
 			provider_session_id,
 			provider_session_failed,
-			current_mode_id
+			current_mode_id,
+			current_model_id,
+			available_models
 		) VALUES (
 			${session.sessionId},
 			${session.projectId},
@@ -94,7 +102,9 @@ const upsert = Effect.fn("ProjectionSessions.upsert")(function*(
 			${session.prLinkMode},
 			${session.providerSessionId},
 			${sqliteFlag(session.providerSessionFailed)},
-			${session.currentModeId ?? null}
+			${session.currentModeId ?? null},
+			${session.currentModelId ?? null},
+			${storedModels}
 		)
 		ON CONFLICT(session_id) DO UPDATE SET
 			project_id = excluded.project_id,
@@ -109,7 +119,9 @@ const upsert = Effect.fn("ProjectionSessions.upsert")(function*(
 			pr_link_mode = excluded.pr_link_mode,
 			provider_session_id = excluded.provider_session_id,
 			provider_session_failed = excluded.provider_session_failed,
-			current_mode_id = excluded.current_mode_id
+			current_mode_id = excluded.current_mode_id,
+			current_model_id = excluded.current_model_id,
+			available_models = excluded.available_models
 	`.withoutTransform.pipe(Effect.asVoid)
 })
 
@@ -154,7 +166,9 @@ export const ProjectionSessionsLive = Layer.effect(ProjectionSessions)(
 							pr_link_mode,
 							provider_session_id,
 							provider_session_failed,
-							current_mode_id
+							current_mode_id,
+							current_model_id,
+							available_models
 						FROM projection_sessions
 						ORDER BY last_activity_at DESC, session_id ASC
 					`.withoutTransform
@@ -173,7 +187,9 @@ export const ProjectionSessionsLive = Layer.effect(ProjectionSessions)(
 							pr_link_mode,
 							provider_session_id,
 							provider_session_failed,
-							current_mode_id
+							current_mode_id,
+							current_model_id,
+							available_models
 						FROM projection_sessions
 						WHERE project_id = ${projectId}
 						ORDER BY last_activity_at DESC, session_id ASC

@@ -41,6 +41,7 @@ type SessionEventType = Extract<
 	| "CheckpointReverted"
 	| "ProviderSessionFailed"
 	| "SessionModeSet"
+	| "SessionModelSet"
 >
 
 const sessionEvent = <const Type extends SessionEventType, Payload>(
@@ -220,7 +221,9 @@ Vitest.describe("evolveProjectedSession", () => {
 				prLinkMode: null,
 				providerSessionId: null,
 				providerSessionFailed: false,
-				currentModeId: null
+				currentModeId: null,
+				currentModelId: null,
+				availableModels: null
 			})
 		})
 	)
@@ -634,6 +637,149 @@ Vitest.describe("evolveProjectedSession", () => {
 				])
 			)
 			Vitest.assert.strictEqual(row.currentModeId, null)
+		})
+	)
+
+	// The model half of the same bug, one layer worse: SessionModelSet reached
+	// projector.ts as `() => Effect.succeed(model)` and this projection
+	// ignored it, so a chosen model died in the event log. See currentModelId
+	// on ProjectedSession.
+	Vitest.it.effect("projects the model a SessionModelSet chose", () =>
+		Effect.gen(function*() {
+			const row = requireSession(
+				yield* fold([
+					sessionEvent(1, "SessionCreated", NOW, {
+						sessionId,
+						projectId,
+						title: "First session"
+					}),
+					sessionEvent(2, "SessionModelSet", LATER, {
+						sessionId,
+						modelId: "claude-opus-5"
+					})
+				])
+			)
+			Vitest.assert.strictEqual(row.currentModelId, "claude-opus-5")
+		})
+	)
+
+	Vitest.it.effect("replays three model changes onto the last one", () =>
+		Effect.gen(function*() {
+			const events: ReadonlyArray<OrchestrationEvent> = [
+				sessionEvent(1, "SessionCreated", NOW, {
+					sessionId,
+					projectId,
+					title: "First session"
+				}),
+				sessionEvent(2, "SessionModelSet", LATER, {
+					sessionId,
+					modelId: "claude-opus-5"
+				}),
+				sessionEvent(3, "SessionModelSet", LATER, {
+					sessionId,
+					modelId: "claude-sonnet-5"
+				}),
+				sessionEvent(4, "SessionModelSet", LATER, {
+					sessionId,
+					modelId: "claude-haiku-4-5"
+				})
+			]
+			const first = yield* fold(events)
+			const second = yield* fold(events)
+			Vitest.assert.deepStrictEqual(first, second)
+			Vitest.assert.strictEqual(requireSession(first).currentModelId, "claude-haiku-4-5")
+		})
+	)
+
+	Vitest.it.effect("leaves the model null when no SessionModelSet ever fired", () =>
+		Effect.gen(function*() {
+			const row = requireSession(
+				yield* fold([
+					sessionEvent(1, "SessionCreated", NOW, {
+						sessionId,
+						projectId,
+						title: "First session"
+					}),
+					sessionEvent(2, "MessageSent", LATER, {
+						sessionId,
+						messageId,
+						text: "Ship the lifecycle slice"
+					})
+				])
+			)
+			Vitest.assert.strictEqual(row.currentModelId, null)
+		})
+	)
+
+	// The catalog a provider reports for itself, carried on the same
+	// SessionMetaUpdated metadata channel every other provider fact uses. The
+	// picker used to offer a constant five models written by hand, so an agent
+	// that shipped Opus 5 could not be asked for it.
+	Vitest.it.effect("projects the model catalog its provider published", () =>
+		Effect.gen(function*() {
+			const row = requireSession(
+				yield* fold([
+					sessionEvent(1, "SessionCreated", NOW, {
+						sessionId,
+						projectId,
+						title: "First session"
+					}),
+					{
+						...sessionEvent(2, "SessionMetaUpdated", LATER, { sessionId }),
+						metadata: {
+							contractKind: "session_models",
+							models: [
+								{ modelId: "claude-opus-5", name: "Opus 5", description: null },
+								{
+									modelId: "claude-sonnet-5",
+									name: "Sonnet 5",
+									description: "Balanced"
+								}
+							]
+						}
+					}
+				])
+			)
+			Vitest.assert.deepStrictEqual(row.availableModels, [
+				{ modelId: "claude-opus-5", name: "Opus 5", description: null },
+				{
+					modelId: "claude-sonnet-5",
+					name: "Sonnet 5",
+					description: "Balanced"
+				}
+			])
+		})
+	)
+
+	// A meta update that carries no catalog must not erase the one already
+	// projected: SessionMetaUpdated is the busiest event on a session, and
+	// every title change would otherwise empty the picker.
+	Vitest.it.effect("keeps a projected catalog through a later meta update", () =>
+		Effect.gen(function*() {
+			const row = requireSession(
+				yield* fold([
+					sessionEvent(1, "SessionCreated", NOW, {
+						sessionId,
+						projectId,
+						title: "First session"
+					}),
+					{
+						...sessionEvent(2, "SessionMetaUpdated", LATER, { sessionId }),
+						metadata: {
+							contractKind: "session_models",
+							models: [{ modelId: "claude-opus-5", name: "Opus 5", description: null }]
+						}
+					},
+					sessionEvent(3, "SessionMetaUpdated", LATER, {
+						sessionId,
+						title: "Renamed session"
+					})
+				])
+			)
+			Vitest.assert.strictEqual(row.title, "Renamed session")
+			Vitest.assert.deepStrictEqual(row.availableModels, [
+				{ modelId: "claude-opus-5", name: "Opus 5", description: null }
+			])
 		})
 	)
 })

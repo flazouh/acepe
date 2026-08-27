@@ -630,6 +630,79 @@ Vitest.layer(isolatedQuery())("activity output on a pre-0024 row", (it) => {
 	)
 })
 
+// The hop the mode bug died in: SessionModeSet was recorded and the column was
+// written, but this query never selected it, so the value sat in the database
+// where no reopened session could see it. Both model columns get the same
+// proof, because a reopen is the ONLY thing that reads them.
+const insertSessionWithModels = Effect.fn("insertSessionWithModels")(function*(
+	id: SessionId,
+	currentModelId: string | null,
+	availableModels: string | null
+) {
+	const sql = yield* SqlClient.SqlClient
+	yield* sql`
+		INSERT INTO projection_sessions (
+			session_id,
+			project_id,
+			title,
+			provider,
+			created_at,
+			updated_at,
+			last_activity_at,
+			archived_at,
+			deleted_at,
+			current_model_id,
+			available_models
+		) VALUES (
+			${id},
+			${projectId},
+			"Ship the slice",
+			NULL,
+			${NOW},
+			${NOW},
+			${NOW},
+			NULL,
+			NULL,
+			${currentModelId},
+			${availableModels}
+		)
+	`.withoutTransform.pipe(Effect.asVoid)
+})
+
+Vitest.layer(isolatedQuery())("session model on reopen", (it) => {
+	it.effect("reads a chosen model and its catalog back through the session snapshot", () =>
+		Effect.gen(function*() {
+			const query = yield* ProjectionSnapshotQuery
+			yield* insertSessionWithModels(
+				sessionId,
+				"claude-opus-5",
+				'[{"modelId":"claude-opus-5","name":"Opus 5","description":null}]'
+			)
+			yield* checkpoint("projection.sessions", 5)
+			const snapshot = yield* query.snapshot(sessionId)
+			Vitest.assert.isNotNull(snapshot.session)
+			Vitest.assert.strictEqual(snapshot.session.currentModelId, "claude-opus-5")
+			Vitest.assert.deepStrictEqual(snapshot.session.availableModels, [
+				{ modelId: "claude-opus-5", name: "Opus 5", description: null }
+			])
+		})
+	)
+})
+
+Vitest.layer(isolatedQuery())("session model absent on reopen", (it) => {
+	it.effect("reads a session nobody set a model on back as null, not as a guess", () =>
+		Effect.gen(function*() {
+			const query = yield* ProjectionSnapshotQuery
+			yield* insertSessionWithModels(sessionId, null, null)
+			yield* checkpoint("projection.sessions", 5)
+			const snapshot = yield* query.snapshot(sessionId)
+			Vitest.assert.isNotNull(snapshot.session)
+			Vitest.assert.strictEqual(snapshot.session.currentModelId, null)
+			Vitest.assert.strictEqual(snapshot.session.availableModels, null)
+		})
+	)
+})
+
 Vitest.layer(isolatedQuery())("snapshotSequence", (it) => {
 	it.effect("is the minimum last-applied sequence across snapshot projectors", () =>
 		Effect.gen(function*() {

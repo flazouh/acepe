@@ -10,10 +10,14 @@ import {
 	SessionDeletedPayload,
 	SessionId,
 	SessionMetaUpdatedPayload,
+	SessionModelCatalog,
+	SessionModelSetPayload,
+	SessionModelsListedFact,
 	SessionModeSetPayload,
 	SessionPrLinkMode,
 	SessionPrNumber,
 	SessionUnarchivedPayload,
+	StoredSessionModelCatalog,
 	TokenAppendedPayload,
 	TrimmedNonEmptyString,
 	TurnCancelledPayload,
@@ -87,7 +91,24 @@ export const ProjectedSession = Schema.Struct({
 	//
 	// Optional like ProjectedSessionActivity.output: a row written before the
 	// current_mode_id column existed reads back with no value at all.
-	currentModeId: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey)
+	currentModeId: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey),
+	// The model this session runs, read off the canonical SessionModelSet
+	// event. Same precedence rule as currentModeId above and the same reason
+	// for it: a provider starts a fresh adapter session on whatever its own
+	// configuration selects, so a model chosen before a reopen would revert.
+	//
+	// Null means no SessionModelSet ever fired, and the provider's own default
+	// stands. Optional for a row written before the column existed.
+	currentModelId: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey),
+	// The models this session's provider reports it can run, published by the
+	// adapter as a session_models fact (see SessionModelsListedFact). This is
+	// the ONLY source of models for the picker: the hand-written constant it
+	// used to read could not know about a model the provider shipped later.
+	//
+	// Null, not an empty list, for a session whose provider was never asked or
+	// could not answer. A provider with no catalog publishes none and the
+	// picker honestly offers nothing -- there is no constant to fall back to.
+	availableModels: SessionModelCatalog.pipe(Schema.NullOr, Schema.optionalKey)
 })
 export type ProjectedSession = typeof ProjectedSession.Type
 
@@ -107,7 +128,11 @@ const ProjectionSessionRow = Schema.Struct({
 	pr_link_mode: SessionPrLinkMode.pipe(Schema.NullOr),
 	provider_session_id: Schema.NullOr(TrimmedNonEmptyString),
 	provider_session_failed: SqliteFlag,
-	current_mode_id: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey)
+	current_mode_id: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey),
+	current_model_id: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey),
+	// JSON text through the same schema that wrote it, the way
+	// ProjectedSessionActivity stores its input and output payloads.
+	available_models: StoredSessionModelCatalog.pipe(Schema.optionalKey)
 })
 
 export interface ProjectionSessionsShape {
@@ -152,7 +177,9 @@ const projectedSessionFromRow = (
 	prLinkMode: row.pr_link_mode,
 	providerSessionId: row.provider_session_id,
 	providerSessionFailed: row.provider_session_failed === 1,
-	currentModeId: row.current_mode_id ?? null
+	currentModeId: row.current_mode_id ?? null,
+	currentModelId: row.current_model_id ?? null,
+	availableModels: row.available_models ?? null
 })
 
 const decodeRow = Schema.decodeUnknownEffect(ProjectionSessionRow)
@@ -253,12 +280,33 @@ const providerSessionIdFromMetadata = (
 	})
 }
 
+// The catalog rides the same SessionMetaUpdated metadata channel as
+// provider_session above, so most meta updates carry none: a null answer here
+// means "this event said nothing about models", never "this session has no
+// models". Erasing a projected catalog on every title change would empty the
+// picker mid-session.
+const sessionModelsFromMetadata = (metadata: JsonObject): SessionModelCatalog | null => {
+	const decoded = Schema.decodeUnknownOption(SessionModelsListedFact)(metadata)
+	return Option.match(decoded, {
+		onNone: () => null,
+		onSome: (fact) => fact.models
+	})
+}
+
 // A row stored before the current_mode_id column existed decodes with the key
 // absent; every reader wants the same "no canonical mode yet" answer for that
 // and for an explicit null, so normalize once here.
 const currentModeIdOf = (
 	session: ProjectedSession
 ): (typeof TrimmedNonEmptyString.Type) | null => session.currentModeId ?? null
+
+const currentModelIdOf = (
+	session: ProjectedSession
+): (typeof TrimmedNonEmptyString.Type) | null => session.currentModelId ?? null
+
+const availableModelsOf = (
+	session: ProjectedSession
+): SessionModelCatalog | null => session.availableModels ?? null
 
 const touch = (session: ProjectedSession, occurredAt: IsoDateTime): ProjectedSession => ({
 	sessionId: session.sessionId,
@@ -274,7 +322,9 @@ const touch = (session: ProjectedSession, occurredAt: IsoDateTime): ProjectedSes
 	prLinkMode: session.prLinkMode,
 	providerSessionId: session.providerSessionId,
 	providerSessionFailed: session.providerSessionFailed,
-	currentModeId: currentModeIdOf(session)
+	currentModeId: currentModeIdOf(session),
+	currentModelId: currentModelIdOf(session),
+	availableModels: availableModelsOf(session)
 })
 
 const projectSessionCreated = (
@@ -296,7 +346,9 @@ const projectSessionCreated = (
 				prLinkMode: null,
 				providerSessionId: null,
 				providerSessionFailed: false,
-				currentModeId: null
+				currentModeId: null,
+				currentModelId: null,
+				availableModels: null
 			})
 		)
 	)
@@ -315,6 +367,7 @@ const projectSessionMetaUpdated = (
 			mapExisting(current, (session) => {
 				const stamped = touch(session, event.occurredAt)
 				const providerSessionId = providerSessionIdFromMetadata(event.metadata)
+				const publishedModels = sessionModelsFromMetadata(event.metadata)
 				return {
 					sessionId: stamped.sessionId,
 					projectId: stamped.projectId,
@@ -332,7 +385,11 @@ const projectSessionMetaUpdated = (
 						payload.prLinkMode !== undefined ? payload.prLinkMode : stamped.prLinkMode,
 					providerSessionId: providerSessionId !== null ? providerSessionId : stamped.providerSessionId,
 					providerSessionFailed: stamped.providerSessionFailed,
-					currentModeId: currentModeIdOf(stamped)
+					currentModeId: currentModeIdOf(stamped),
+					currentModelId: currentModelIdOf(stamped),
+					availableModels: publishedModels !== null
+						? publishedModels
+						: availableModelsOf(stamped)
 				}
 			})
 		)
@@ -434,6 +491,22 @@ const projectSessionModeSet = (
 		)
 	)
 
+// The canonical model fact, folded exactly like projectSessionModeSet above so
+// the LAST SessionModelSet wins. Until this existed the event was committed and
+// read by nothing, so a chosen model survived neither a reopen nor a restart.
+const projectSessionModelSet = (
+	current: Option.Option<ProjectedSession>,
+	event: Extract<OrchestrationEvent, { readonly type: "SessionModelSet" }>
+): Effect.Effect<Option.Option<ProjectedSession>, Schema.SchemaError> =>
+	decodePayload(SessionModelSetPayload, event.payload).pipe(
+		Effect.map((payload) =>
+			mapExisting(current, (session) => ({
+				...touch(session, event.occurredAt),
+				currentModelId: payload.modelId
+			}))
+		)
+	)
+
 // A session that fails before ever learning its providerSessionId (no
 // on-disk history to fall back to) is a "ghost row": it sits in the
 // library listing forever, unopenable. Marking it here lets the desktop
@@ -493,7 +566,7 @@ export const evolveProjectedSession = (
 			SessionResumed: () => Effect.succeed(current),
 			SessionForked: () => Effect.succeed(current),
 			SessionClosed: () => Effect.succeed(current),
-			SessionModelSet: () => Effect.succeed(current),
+			SessionModelSet: (modelSet) => projectSessionModelSet(current, modelSet),
 			SessionModeSet: (modeSet) => projectSessionModeSet(current, modeSet),
 			SessionAutonomousSet: () => Effect.succeed(current),
 			SessionConfigOptionSet: () => Effect.succeed(current),
