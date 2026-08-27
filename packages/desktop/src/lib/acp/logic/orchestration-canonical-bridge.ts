@@ -846,13 +846,14 @@ export class OrchestrationCanonicalBridge {
 	// default branch and nothing ever reached capabilities.modes.currentModeId
 	// mid-run.
 	//
-	// It rides its own narrow "sessionMode" envelope kind rather than the
-	// "capabilities" one, because reduceApplyCapabilities replaces the whole
-	// capabilities projection -- a mode change would have wiped the models,
-	// the commands and the config options that projection also carries. The
-	// mode does spend a graph revision, unlike a usage reading: the client
-	// adopts it onto both the canonical projection and the graph, so its
-	// frontier has to move with the server's.
+	// It rides its own narrow "sessionMode" envelope kind because the only
+	// other way capabilities reach the store is whole: a graph on a "snapshot"
+	// envelope, which SessionEnvelopeApplier sanitizes and writes in one go.
+	// Sending a mode that way would have restated the models, the commands and
+	// the config options this bridge does not know mid-run. The mode does spend
+	// a graph revision, unlike a usage reading: the client adopts it onto both
+	// the canonical projection and the graph, so its frontier has to move with
+	// the server's.
 	//
 	// The transcript revision stays put. A mode change appends no row, and
 	// session-state-query-service.ts reads a transcript revision that advanced

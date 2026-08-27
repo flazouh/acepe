@@ -1,6 +1,5 @@
 import type {
 	ActiveStreamingTail,
-	CapabilityPreviewState,
 	InteractionSnapshot,
 	OperationSnapshot,
 	PlanData,
@@ -48,17 +47,11 @@ export type SessionStateCommand =
 			revision: SessionGraphRevision;
 	  }
 	| {
-			kind: "applyCapabilities";
-			capabilities: SessionGraphCapabilities;
-			revision: SessionGraphRevision;
-			pendingMutationId: string | null;
-			previewState: CapabilityPreviewState;
-	  }
-	| {
-			// #283: the mode a session runs in, on its own. `applyCapabilities`
-			// carries a whole capabilities projection and replaces it wholesale,
-			// so reusing it for a mode change would drop the models, the
-			// commands and the config options that projection also holds.
+			// #283: the mode a session runs in, on its own. Capabilities
+			// otherwise reach the store as a whole projection, on the graph a
+			// snapshot envelope carries, so a mode arriving mid-run needs a
+			// command that changes the mode and leaves the models, the commands
+			// and the config options in that projection alone.
 			kind: "applySessionMode";
 			currentModeId: string;
 			revision: SessionGraphRevision;
@@ -289,25 +282,6 @@ export function routeSessionStateEnvelope(
 					kind: "applyLifecycle",
 					lifecycle: envelope.payload.lifecycle,
 					revision: envelope.payload.revision,
-				},
-			];
-		case "capabilities":
-			if (!envelopeFrontierMatchesRevision(envelope, envelope.payload.revision)) {
-				return [
-					{
-						kind: "refreshSnapshot",
-						fromRevision: envelope.payload.revision.graphRevision,
-						toRevision: envelope.graphRevision,
-					},
-				];
-			}
-			return [
-				{
-					kind: "applyCapabilities",
-					capabilities: envelope.payload.capabilities,
-					revision: envelope.payload.revision,
-					pendingMutationId: envelope.payload.pending_mutation_id ?? null,
-					previewState: envelope.payload.preview_state,
 				},
 			];
 		case "sessionMode":

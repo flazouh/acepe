@@ -1,7 +1,6 @@
 import type {
 	ActiveStreamingTail,
 	SessionGraphActivity,
-	SessionGraphCapabilities,
 	SessionGraphRevision,
 	SessionStateGraph,
 	SessionTurnState,
@@ -9,7 +8,6 @@ import type {
 	TranscriptSnapshot,
 } from "../../../services/acp-types.js";
 import type { SessionStateCommand } from "../../session-state/session-state-command-router.js";
-import { sanitizeCanonicalCapabilities } from "../canonical-config-sanitize.js";
 import { projectionWithCapabilities } from "../canonical-session-projection.js";
 import {
 	graphWithCapabilities,
@@ -71,8 +69,6 @@ export function reduceCommand(
 	nowMs: number
 ): readonly EnvelopePatch[] {
 	switch (command.kind) {
-		case "applyCapabilities":
-			return reduceApplyCapabilities(snapshot, command);
 		case "applySessionMode":
 			return reduceApplySessionMode(snapshot, command);
 		case "applyTelemetry":
@@ -99,99 +95,14 @@ export function reduceCommand(
 }
 
 /**
- * Replaces the whole capabilities projection, and is the only writer of the
- * capability mutation state the composer's pending/preview reads consume.
- *
- * Nothing produces a "capabilities" envelope in this app yet. The one runtime
- * producer of session-state envelopes is OrchestrationCanonicalBridge, which
- * emits snapshot/delta/telemetry/sessionMode, and the other way an envelope
- * could arrive -- SessionOpenResult.initialViewportEnvelope -- comes from
- * history.getSessionOpenResult, which is unsupportedOnContract. The seam is
- * kept because live capability updates (a model list, commands, config
- * options, the autonomous flag) still need it once the server projector
- * carries capabilities, exactly as the "telemetry" envelope waited for its
- * own producer. Do not borrow it for one narrow fact: see
- * reduceApplySessionMode.
- */
-function reduceApplyCapabilities(
-	snapshot: EnvelopeReducerSnapshot,
-	command: Extract<SessionStateCommand, { kind: "applyCapabilities" }>
-): readonly EnvelopePatch[] {
-	if (!snapshot.hasSessionIdentity) {
-		return [];
-	}
-
-	if (isOlderGraphRevision(snapshot.previousProjection?.revision ?? null, command.revision)) {
-		return [];
-	}
-
-	const canonicalCapabilities = sanitizeCanonicalCapabilities(command.capabilities);
-	if (
-		!isNewerGraphRevision(snapshot.previousProjection?.revision ?? null, command.revision) &&
-		(snapshot.previousProjection === null ||
-			capabilitiesEqual(snapshot.previousProjection.capabilities, canonicalCapabilities))
-	) {
-		return [];
-	}
-
-	const patches: EnvelopePatch[] = [
-		{
-			kind: "setCapabilitiesMaterialized",
-			sessionId: snapshot.sessionId,
-			materialized: true,
-		},
-	];
-
-	if (snapshot.previousProjection !== null) {
-		patches.push({
-			kind: "setCanonicalProjection",
-			sessionId: snapshot.sessionId,
-			projection: projectionWithCapabilities(
-				snapshot.previousProjection,
-				canonicalCapabilities,
-				command.revision
-			),
-		});
-	}
-
-	if (snapshot.previousGraph !== null) {
-		patches.push({
-			kind: "setSessionStateGraph",
-			sessionId: snapshot.sessionId,
-			graph: graphWithCapabilities(snapshot.previousGraph, canonicalCapabilities, command.revision),
-		});
-	}
-
-	const transientUpdates: {
-		capabilityMutationState?: SessionTransientProjection["capabilityMutationState"];
-		autonomousTransition?: SessionTransientProjection["autonomousTransition"];
-	} = {
-		capabilityMutationState: {
-			pendingMutationId: command.pendingMutationId,
-			previewState: command.previewState,
-		},
-	};
-	if (snapshot.transientProjection.autonomousTransition !== "idle") {
-		transientUpdates.autonomousTransition = "idle";
-	}
-	patches.push({
-		kind: "updateTransientProjection",
-		sessionId: snapshot.sessionId,
-		updates: transientUpdates,
-	});
-
-	return patches;
-}
-
-/**
  * #283: the live path for the canonical current mode.
  *
- * `applyCapabilities` keeps its wholesale-replace semantics, because a
- * capabilities envelope really does carry a whole projection. A mode change
- * carries one field, so it patches: everything else on the capabilities stays
- * as it was (see `capabilitiesWithSessionMode`). Revision discipline is
- * `reduceApplyCapabilities`'s -- an older revision cannot overwrite a newer
- * mode, and an equal revision applies only when the mode actually differs.
+ * Every other capability reaches the store as a whole projection, on the graph
+ * a snapshot envelope carries, which SessionEnvelopeApplier sanitizes and
+ * writes in one go. A mode change is one field, so it patches: everything else
+ * on the capabilities stays as it was (see `capabilitiesWithSessionMode`). An
+ * older revision cannot overwrite a newer mode, and an equal revision applies
+ * only when the mode actually differs.
  *
  * `capabilitiesMaterialized` is deliberately untouched. A mode alone does not
  * materialize a session's capability set, and claiming it did would make the
@@ -731,13 +642,4 @@ function reduceRefreshSnapshot(
 			},
 		},
 	];
-}
-
-function capabilitiesEqual(
-	left: SessionGraphCapabilities,
-	right: SessionGraphCapabilities
-): boolean {
-	const sanitizedLeft = sanitizeCanonicalCapabilities(left);
-	const sanitizedRight = sanitizeCanonicalCapabilities(right);
-	return JSON.stringify(sanitizedLeft) === JSON.stringify(sanitizedRight);
 }

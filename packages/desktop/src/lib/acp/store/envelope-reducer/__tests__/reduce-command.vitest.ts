@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import type {
-	CapabilityPreviewState,
 	PlanData,
 	SessionGraphCapabilities,
 	SessionGraphRevision,
@@ -11,10 +10,8 @@ import type {
 	ViewportBufferPush,
 } from "../../../../services/acp-types.js";
 import { resolveToolbarModeId } from "../../../components/agent-input/logic/toolbar-state.js";
-import type { SessionStateCommand } from "../../../session-state/session-state-command-router.js";
 import type { CanonicalSessionProjection } from "../../canonical-session-projection.js";
 import { projectGraphCapabilities } from "../../capability-projection.js";
-import type { SessionTransientProjection } from "../../types.js";
 import { DEFAULT_TRANSIENT_PROJECTION } from "../../types.js";
 import { buildCanonicalUsageTelemetry } from "../canonical-usage-telemetry.js";
 import type { EnvelopeReducerSnapshot } from "../envelope-snapshot.js";
@@ -117,156 +114,22 @@ function createSnapshot(overrides: Partial<EnvelopeReducerSnapshot> = {}): Envel
 	};
 }
 
-function createCapabilitiesCommand(
-	capabilities: SessionGraphCapabilities,
-	commandRevision: SessionGraphRevision = revision,
-	pendingMutationId: string | null = "mutation-1",
-	previewState: CapabilityPreviewState = "canonical"
-): Extract<SessionStateCommand, { kind: "applyCapabilities" }> {
-	return {
-		kind: "applyCapabilities",
-		capabilities,
-		revision: commandRevision,
-		pendingMutationId,
-		previewState,
-	};
-}
-
 describe("reduceCommand", () => {
-	it("returns no patches when capabilities arrive without session identity", () => {
+	it("returns no session-mode patches without session identity", () => {
 		const patches = reduceCommand(
 			createSnapshot({ hasSessionIdentity: false }),
-			createCapabilitiesCommand({
-				models: null,
-				modes: null,
-				availableCommands: [],
-				configOptions: [],
-				autonomousEnabled: true,
-			}),
+			{ kind: "applySessionMode", currentModeId: "plan", revision: newerRevision },
 			1_700_000_000_000
 		);
 
 		expect(patches).toEqual([]);
 	});
 
-	it("returns no patches for stale capabilities revisions", () => {
-		const patches = reduceCommand(
-			createSnapshot({
-				previousProjection: createProjection({
-					revision: {
-						graphRevision: 11,
-						transcriptRevision: 7,
-						lastEventSeq: 11,
-					},
-				}),
-			}),
-			createCapabilitiesCommand(
-				{
-					models: null,
-					modes: null,
-					availableCommands: [],
-					configOptions: [],
-					autonomousEnabled: true,
-				},
-				revision
-			),
-			1_700_000_000_000
-		);
-
-		expect(patches).toEqual([]);
-	});
-
-	it("emits canonical, graph, and transient patches for newer capabilities", () => {
-		const previousProjection = createProjection();
-		const previousGraph = createGraph();
-		const capabilities: SessionGraphCapabilities = {
-			models: { availableModels: [{ modelId: "gpt-5", name: "GPT-5" }] },
-			modes: null,
-			availableCommands: [],
-			configOptions: [],
-			autonomousEnabled: true,
-		};
-
-		const patches = reduceCommand(
-			createSnapshot({
-				previousProjection,
-				previousGraph,
-				transientProjection: {
-					acpSessionId: "session-1",
-					pendingSendIntent: null,
-					autonomousTransition: "enabling",
-					statusChangedAt: 1,
-				},
-			}),
-			createCapabilitiesCommand(capabilities, newerRevision),
-			1_700_000_000_000
-		);
-
-		expect(patches).toEqual([
-			{
-				kind: "setCapabilitiesMaterialized",
-				sessionId: "session-1",
-				materialized: true,
-			},
-			{
-				kind: "setCanonicalProjection",
-				sessionId: "session-1",
-				projection: {
-					lifecycle: previousProjection.lifecycle,
-					activity: previousProjection.activity,
-					turnState: previousProjection.turnState,
-					activeTurnFailure: previousProjection.activeTurnFailure,
-					lastTerminalTurnId: previousProjection.lastTerminalTurnId,
-					activeStreamingTail: previousProjection.activeStreamingTail,
-					capabilities,
-					revision: newerRevision,
-				},
-			},
-			{
-				kind: "setSessionStateGraph",
-				sessionId: "session-1",
-				graph: {
-					requestedSessionId: previousGraph.requestedSessionId,
-					canonicalSessionId: previousGraph.canonicalSessionId,
-					isAlias: previousGraph.isAlias,
-					agentId: previousGraph.agentId,
-					projectPath: previousGraph.projectPath,
-					worktreePath: previousGraph.worktreePath,
-					sourcePath: previousGraph.sourcePath,
-					sequenceId: previousGraph.sequenceId,
-					revision: newerRevision,
-					transcriptSnapshot: previousGraph.transcriptSnapshot,
-					operations: previousGraph.operations,
-					interactions: previousGraph.interactions,
-					turnState: previousGraph.turnState,
-					messageCount: previousGraph.messageCount,
-					activeStreamingTail: previousGraph.activeStreamingTail,
-					activeTurnFailure: previousGraph.activeTurnFailure,
-					lastTerminalTurnId: previousGraph.lastTerminalTurnId,
-					lifecycle: previousGraph.lifecycle,
-					activity: previousGraph.activity,
-					capabilities,
-				},
-			},
-			{
-				kind: "updateTransientProjection",
-				sessionId: "session-1",
-				updates: {
-					capabilityMutationState: {
-						pendingMutationId: "mutation-1",
-						previewState: "canonical",
-					},
-					autonomousTransition: "idle",
-				},
-			},
-		]);
-	});
-
-	// #283: a live SessionModeSet is one narrow canonical fact. Routing it
-	// through applyCapabilities would have replaced the whole capabilities
-	// projection, so every mode change would wipe the models, the commands and
-	// the config options the same projection carries. This command patches the
-	// mode and nothing else.
+	// #283: a live SessionModeSet is one narrow canonical fact. The other way
+	// capabilities reach the store is whole, as the graph on a snapshot
+	// envelope, so a mode arriving that way would restate the models, the
+	// commands and the config options the same projection carries. This command
+	// patches the mode and nothing else.
 	it("patches the current mode without touching the other capability fields", () => {
 		const capabilities: SessionGraphCapabilities = {
 			models: {
@@ -1079,27 +942,6 @@ describe("reduceCommand", () => {
 					patch.kind === "updateTransientProjection" && patch.updates.pendingSendIntent === null
 			)
 		).toBe(false);
-	});
-
-	it("rejects equal capabilities revisions", () => {
-		const patches = reduceCommand(
-			createSnapshot({
-				previousProjection: createProjection({ revision }),
-			}),
-			createCapabilitiesCommand(
-				{
-					models: null,
-					modes: null,
-					availableCommands: [],
-					configOptions: [],
-					autonomousEnabled: null,
-				},
-				revision
-			),
-			1_700_000_000_000
-		);
-
-		expect(patches).toEqual([]);
 	});
 
 	it("refreshes snapshot when graph patches arrive without canonical graph", () => {
