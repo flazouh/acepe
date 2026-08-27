@@ -1,63 +1,65 @@
 <script lang="ts">
-	import type { RpcProjectedMessage } from "@acepe/contracts";
-	import {
-		createTranscriptViewportController,
-		hostFromElement,
-		type TranscriptViewportController,
-	} from "@acepe/transcript-viewport";
+import type { RpcProjectedMessage } from "@acepe/contracts";
+import {
+	createTranscriptViewportController,
+	hostFromElement,
+	type TranscriptViewportController,
+} from "@acepe/transcript-viewport";
 
-	import { createDomViewportScheduler } from "../../viewport/dom-scheduler.ts";
-	import { transcriptViewFromMessages } from "./transcript-view.ts";
+import { createDomViewportScheduler } from "../../viewport/dom-scheduler.ts";
+import { transcriptViewFromMessages } from "./transcript-view.ts";
 
-	let {
-		messages,
-		ariaLabel,
-		nowMs = () => performance.now(),
-		requestFrame = (run: () => void) => requestAnimationFrame(run),
-		cancelFrame = (id: number) => cancelAnimationFrame(id),
-		requestTimeout = (run: () => void, delayMs: number) => setTimeout(run, delayMs),
-		cancelTimeout = (id: number) => clearTimeout(id),
-		onReady,
-	}: {
-		messages: ReadonlyArray<RpcProjectedMessage>;
-		ariaLabel: string;
-		nowMs?: () => number;
-		requestFrame?: (run: () => void) => number;
-		cancelFrame?: (id: number) => void;
-		requestTimeout?: (run: () => void, delayMs: number) => number;
-		cancelTimeout?: (id: number) => void;
-		onReady?: (controller: TranscriptViewportController) => void;
-	} = $props();
+let {
+	messages,
+	ariaLabel,
+	nowMs = () => performance.now(),
+	requestFrame = (run: () => void) => requestAnimationFrame(run),
+	cancelFrame = (id: number) => cancelAnimationFrame(id),
+	// window.setTimeout, not the bare global: bun-types is in scope here and
+	// its Node overload returns a Timeout object where the prop wants a number.
+	requestTimeout = (run: () => void, delayMs: number) => window.setTimeout(run, delayMs),
+	cancelTimeout = (id: number) => window.clearTimeout(id),
+	onReady,
+}: {
+	messages: ReadonlyArray<RpcProjectedMessage>;
+	ariaLabel: string;
+	nowMs?: () => number;
+	requestFrame?: (run: () => void) => number;
+	cancelFrame?: (id: number) => void;
+	requestTimeout?: (run: () => void, delayMs: number) => number;
+	cancelTimeout?: (id: number) => void;
+	onReady?: (controller: TranscriptViewportController) => void;
+} = $props();
 
-	const view = $derived(transcriptViewFromMessages({ messages, ariaLabel }));
+const view = $derived(transcriptViewFromMessages({ messages, ariaLabel }));
 
-	const attachViewport = (node: HTMLElement) => {
-		const firstChild = node.firstElementChild;
-		const contentElement = firstChild instanceof HTMLElement ? firstChild : undefined;
-		const params: {
-			nowMs: () => number;
-			scheduler: ReturnType<typeof createDomViewportScheduler>;
-			contentElement?: HTMLElement;
-		} = {
-			nowMs,
-			scheduler: createDomViewportScheduler({
-				requestFrame,
-				cancelFrame,
-				requestTimeout,
-				cancelTimeout,
-			}),
-		};
-		if (contentElement !== undefined) {
-			params.contentElement = contentElement;
-		}
-		const controller = createTranscriptViewportController(hostFromElement(node), params);
-		if (onReady !== undefined) {
-			onReady(controller);
-		}
-		return () => {
-			controller.destroy();
-		};
+const attachViewport = (node: HTMLElement) => {
+	const firstChild = node.firstElementChild;
+	const contentElement = firstChild instanceof HTMLElement ? firstChild : undefined;
+	const params: {
+		nowMs: () => number;
+		scheduler: ReturnType<typeof createDomViewportScheduler>;
+		contentElement?: HTMLElement;
+	} = {
+		nowMs,
+		scheduler: createDomViewportScheduler({
+			requestFrame,
+			cancelFrame,
+			requestTimeout,
+			cancelTimeout,
+		}),
 	};
+	if (contentElement !== undefined) {
+		params.contentElement = contentElement;
+	}
+	const controller = createTranscriptViewportController(hostFromElement(node), params);
+	if (onReady !== undefined) {
+		onReady(controller);
+	}
+	return () => {
+		controller.destroy();
+	};
+};
 </script>
 
 <div class="transcript">

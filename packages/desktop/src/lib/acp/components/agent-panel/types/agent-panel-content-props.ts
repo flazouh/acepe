@@ -13,6 +13,7 @@ import type { Project } from "../../../logic/project-manager.svelte";
 import type { TranscriptRowsState } from "../../../store/transcript-rows-store.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import type { LocalPlaceholderMode } from "../logic/local-placeholder-mode.js";
+import type { PlanningPlaceholderPresentation } from "../logic/planning-placeholder-presentation.js";
 
 /**
  * Props for the AgentPanelContent component.
@@ -42,11 +43,7 @@ export interface AgentPanelContentProps {
 	readonly agentIconSrc?: string;
 	/** When true, the transcript's planning placeholder shows the Claude working spark. */
 	readonly showWorkingSpark?: boolean;
-	readonly planningPlaceholderPresentation?: {
-		readonly label: string;
-		readonly agentIconSrc: string | null;
-		readonly showWorkingSpark: boolean;
-	} | null;
+	readonly planningPlaceholderPresentation?: PlanningPlaceholderPresentation | null;
 	readonly isFullscreen?: boolean;
 	readonly availableAgents?: AgentInfo[];
 	readonly effectiveTheme?: "light" | "dark";

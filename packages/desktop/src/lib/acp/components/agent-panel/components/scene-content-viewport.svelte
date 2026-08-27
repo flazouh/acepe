@@ -24,6 +24,7 @@ import type { TranscriptRowsState } from "../../../store/transcript-rows-store.j
 import type { TurnState } from "../../../store/types.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import type { LocalPlaceholderMode } from "../logic/local-placeholder-mode.js";
+import type { PlanningPlaceholderPresentation } from "../logic/planning-placeholder-presentation.js";
 import {
 	getPermissionStore,
 	type PermissionStore,
@@ -69,11 +70,7 @@ type SceneContentViewportProps = {
 	skipRowsBootstrap?: boolean;
 	pendingUserRevealRequestKey?: string | null;
 	localPlaceholderMode?: LocalPlaceholderMode;
-	planningPlaceholderPresentation?: {
-		readonly label: string;
-		readonly agentIconSrc: string | null;
-		readonly showWorkingSpark: boolean;
-	} | null;
+	planningPlaceholderPresentation?: PlanningPlaceholderPresentation | null;
 	showWorkingSpark?: boolean;
 	isFullscreen?: boolean;
 	modifiedFilesState?: ModifiedFilesState | null;

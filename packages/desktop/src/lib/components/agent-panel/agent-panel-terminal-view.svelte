@@ -139,7 +139,10 @@ onMount(() => {
 					onSnapshot: renderSnapshot,
 				})
 			),
-			Effect.tapCause((cause) => Effect.sync(() => controller.reportError(cause)))
+			// catchCause, not tapCause: reporting to the controller is the whole
+			// handling, so the fiber must not stay failed. pollFiber is declared
+			// Fiber<void, never> and nothing ever reads its exit.
+			Effect.catchCause((cause) => Effect.sync(() => controller.reportError(cause)))
 		)
 	);
 

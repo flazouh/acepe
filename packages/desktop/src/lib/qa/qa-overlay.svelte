@@ -38,7 +38,7 @@ onDestroy(() => {
 	}
 });
 
-const props = $derived(
+const overlay = $derived(
 	qaOverlayProps({
 		scenario: session.scenario,
 		playback,
@@ -53,16 +53,16 @@ const run = (program: Effect.Effect<void>): void => {
 </script>
 
 <QaOverlay
-	scenarioName={props.scenarioName}
-	scenarioDescription={props.scenarioDescription}
-	playback={props.playback}
-	cursor={props.cursor}
-	total={props.total}
-	lastEventType={props.lastEventType}
-	rate={props.rate}
-	rateOptions={props.rateOptions}
-	scenarios={props.scenarios}
-	missingCalls={props.missingCalls}
+	scenarioName={overlay.scenarioName}
+	scenarioDescription={overlay.scenarioDescription}
+	playback={overlay.playback}
+	cursor={overlay.cursor}
+	total={overlay.total}
+	lastEventType={overlay.lastEventType}
+	rate={overlay.rate}
+	rateOptions={overlay.rateOptions}
+	scenarios={overlay.scenarios}
+	missingCalls={overlay.missingCalls}
 	{collapsed}
 	onToggleCollapsed={() => {
 		collapsed = !collapsed;
