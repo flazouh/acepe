@@ -222,11 +222,7 @@ const publishToolCallUpdated = Effect.fn("CursorAdapter.publishToolCallUpdated")
 			title: info.title,
 			path: info.path,
 			kind: info.kind,
-			// #273: null, because Cursor's ToolCallUpdateFact holds a
-			// toolCallId and a status and nothing else -- Map.ts reads neither
-			// the ACP update's content nor its rawOutput. Widening that fact
-			// is the follow-up.
-			output: null
+			output: fact.output ?? null
 		})
 	)
 })

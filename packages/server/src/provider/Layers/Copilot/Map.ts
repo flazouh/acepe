@@ -1,16 +1,13 @@
 import * as Arr from "effect/Array"
-import * as Filter from "effect/Filter"
 import * as Option from "effect/Option"
-import * as Str from "effect/String"
+import { acpToolOutput } from "../AcpContent.ts"
 import {
 	applyOptional,
-	arrayField,
 	EMPTY_JSON_OBJECT,
 	field,
 	type Json,
 	type JsonObject,
 	jsonObjectOf,
-	jsonText,
 	numberField,
 	numberFieldAny,
 	objectField,
@@ -202,41 +199,6 @@ const withToolCallUpdateOutput = (
 	output
 })
 
-// One ACP tool content block. The result text sits one level down under
-// `content` for a `{ type: "content" }` block, and directly on the block for
-// the flatter form Copilot sends for a plain tool_result.
-const contentBlockText = (entry: Json): Option.Option<string> => {
-	const record = jsonObjectOf(entry)
-	if (Option.isNone(record)) {
-		return Option.none()
-	}
-	const nested = objectField(record.value, "content")
-	if (Option.isSome(nested)) {
-		return stringField(nested.value, "text")
-	}
-	return stringField(record.value, "text")
-}
-
-// #273: an ACP tool_call_update reports the tool's result as content blocks
-// and falls back to a free-form rawOutput. Both are read, because a settled
-// call with no output reaches the activity row as a status and nothing else.
-const toolOutput = (record: JsonObject): Option.Option<string> => {
-	const blocks = arrayField(record, "content")
-	if (Option.isSome(blocks)) {
-		const texts = Arr.filterMap(blocks.value, Filter.fromPredicateOption(contentBlockText))
-		if (Arr.isReadonlyArrayNonEmpty(texts)) {
-			return Option.some(Arr.join(texts, "\n"))
-		}
-	}
-	return Option.flatMap(field(record, "rawOutput"), (value) => {
-		const text = jsonText(value)
-		if (text === null || Str.isNonEmpty(Str.trim(text)) === false) {
-			return Option.none()
-		}
-		return Option.some(text)
-	})
-}
-
 const toolCallUpdateFact = (
 	toolCallId: string,
 	status: Option.Option<CopilotToolStatus>,
@@ -310,7 +272,7 @@ const mapNamedUpdate = (record: JsonObject, typeName: string): ReadonlyArray<Cop
 		}
 		const status = Option.flatMap(stringField(record, "status"), asToolStatus)
 		const partialJson = Option.getOrUndefined(stringField(record, "partialJson"))
-		const output = Option.getOrUndefined(toolOutput(record))
+		const output = Option.getOrUndefined(acpToolOutput(record))
 		return [toolCallUpdateFact(toolCallId.value, status, partialJson, output)]
 	}
 	if (typeName === "permissionRequest" || typeName === "permission_request") {

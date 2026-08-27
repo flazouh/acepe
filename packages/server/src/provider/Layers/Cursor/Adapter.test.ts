@@ -397,7 +397,8 @@ Vitest.describe("CursorAdapter", () => {
 				update: {
 					sessionUpdate: "tool_call_update",
 					toolCallId: "call_1",
-					status: "completed"
+					status: "completed",
+					content: [{ type: "content", content: { type: "text", text: "export const a = 1" } }]
 				}
 			})
 			const completed = yield* nextToolCallObserved(events)
@@ -410,11 +411,10 @@ Vitest.describe("CursorAdapter", () => {
 			Vitest.assert.strictEqual(completed.payload.activityId, started.payload.activityId)
 			Vitest.assert.strictEqual(completed.payload.title, "Read file")
 			Vitest.assert.strictEqual(completed.payload.path, "/tmp/acepe/a.ts")
-			// #273: Cursor's ToolCallUpdateFact carries a status and nothing
-			// else -- Map.ts reads no content or rawOutput off the ACP update
-			// -- so the canonical output stays null until that fact is
-			// widened.
-			Vitest.assert.strictEqual(completed.payload.output, null)
+			// #273: the settling update is the only message that carries the
+			// tool's result, so a row that drops it shows the operator a
+			// completed read with nothing read.
+			Vitest.assert.strictEqual(completed.payload.output, "export const a = 1")
 			yield* adapter.cancelTurn({ sessionId })
 		})
 	)
