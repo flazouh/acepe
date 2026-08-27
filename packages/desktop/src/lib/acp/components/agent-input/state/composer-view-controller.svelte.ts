@@ -1,3 +1,4 @@
+import { providerConfigOptions } from "@acepe/contracts";
 import {
 	type AgentInputConfigOption,
 	getModeDropdownOptions,
@@ -215,7 +216,30 @@ export class ComposerViewController {
 		const baseOptions = sessionId
 			? (this.#deps.sessionStore.read.getSessionConfigOptions(sessionId) ?? [])
 			: (this.preconnectionCapabilities?.configOptions ?? []);
-		return applyProvisionalConfigOptionOverrides(baseOptions, this.provisionalConfigOptions);
+		// The server builds Claude's reasoning option, but it only ever reached
+		// the client through listPreconnectionCapabilities, which answers
+		// unsupportedOnContract -- so the composer had no reasoning control to
+		// put beside the model picker. Fall back to what the provider exposes.
+		const options =
+			baseOptions.length > 0
+				? baseOptions
+				: providerConfigOptions(this.capabilitiesAgentId).map(
+						(option): ConfigOptionData => ({
+							id: option.id,
+							name: option.name,
+							category: option.category,
+							type: option.type,
+							description: option.description,
+							currentValue: option.currentValue,
+							options: option.options.map((value) => ({
+								name: value.name,
+								value: value.value,
+							})),
+							presentation:
+								option.presentation as ConfigOptionData["presentation"],
+						})
+					);
+		return applyProvisionalConfigOptionOverrides(options, this.provisionalConfigOptions);
 	});
 
 	readonly sessionAvailableCommands = $derived.by(() => {

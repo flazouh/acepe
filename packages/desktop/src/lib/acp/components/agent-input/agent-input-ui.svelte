@@ -16,6 +16,7 @@ import {
 	AgentInputActiveModeChip,
 	AgentInputAttachMenu,
 	AgentInputComposerTrailingControls,
+	AgentInputModeSelector,
 	AgentInputNewThreadOptions,
 	AgentPanelComposer as SharedAgentPanelComposer,
 } from "@acepe/ui/agent-panel";
@@ -1869,6 +1870,17 @@ $effect(() => {
 									}}
 									voiceCloseLabel={"Close"}
 								>
+									{#snippet modeSelector()}
+										{#if composerView.visibleModes.length > 0}
+											<AgentInputModeSelector
+												availableModes={composerView.visibleModes}
+												currentModeId={composerView.effectiveCurrentModeId}
+												autonomousActive={composerView.autonomousToggleActive}
+												disabled={composerView.selectorsDisabledByComposer}
+												onModeChange={(modeId) => { void handleModeMenuChange(modeId); }}
+											/>
+										{/if}
+									{/snippet}
 									{#snippet modelSelector()}
 										{@render newThreadModelControl()}
 									{/snippet}

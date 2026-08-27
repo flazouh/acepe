@@ -16,6 +16,7 @@
 
 	let {
 		inputReady,
+		modeSelector,
 		modelSelector,
 		metricsChip,
 		agentProjectPicker,
@@ -32,6 +33,12 @@
 		selectorsDisabledByComposer = false,
 	}: {
 		inputReady: boolean;
+		/**
+		 * The session's mode, as its own control rather than an item buried in
+		 * the attach menu. A provider's modes are the thing a person switches
+		 * between mid-task, so they belong on the toolbar next to the model.
+		 */
+		modeSelector?: Snippet;
 		modelSelector: Snippet;
 		metricsChip?: Snippet;
 		agentProjectPicker?: Snippet;
@@ -73,6 +80,14 @@
 				class="shrink-0 transition-opacity duration-200 ease-out {fadeWhenVoiceActiveClass}"
 			>
 				{@render agentProjectPicker()}
+			</div>
+		{/if}
+		{#if modeSelector}
+			<div
+				class="shrink-0 transition-opacity duration-200 ease-out {fadeWhenVoiceActiveClass}"
+				data-qa="agent-input-mode-control"
+			>
+				{@render modeSelector()}
 			</div>
 		{/if}
 		<div

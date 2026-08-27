@@ -76,6 +76,30 @@ describe("resolveCapabilitySource", () => {
 		expect((resolution.availableModels ?? []).length).toBeGreaterThan(0);
 	});
 
+	it("offers each provider its own native modes", () => {
+		const codex = resolveCapabilitySource({
+			agentId: "codex",
+			sessionSource: { kind: "no_session" },
+			preconnectionCapabilities: null,
+			cachedModes: [],
+			cachedModels: [],
+			cachedModelsDisplay: null,
+			providerMetadata: CLAUDE_CODE_PROVIDER_METADATA,
+		});
+		expect(modeIds(codex.availableModes)).toEqual(["agent", "plan"]);
+
+		const copilot = resolveCapabilitySource({
+			agentId: "copilot",
+			sessionSource: { kind: "no_session" },
+			preconnectionCapabilities: null,
+			cachedModes: [],
+			cachedModels: [],
+			cachedModelsDisplay: null,
+			providerMetadata: CLAUDE_CODE_PROVIDER_METADATA,
+		});
+		expect(modeIds(copilot.availableModes)).toEqual(["agent", "autopilot", "plan"]);
+	});
+
 	it("offers nothing for an agent whose provider publishes no modes", () => {
 		const resolution = resolveCapabilitySource({
 			agentId: "some-unknown-agent",
