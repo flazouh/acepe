@@ -244,16 +244,22 @@ function transcriptEntryFromPendingApproval(
 	return {
 		entryId: approvalEntryId(approval),
 		role: "tool",
-		segments: [
-			{
-				kind: "text",
-				segmentId: `${approvalEntryId(approval)}-text`,
-				text: approval.title ?? PENDING_APPROVAL_FALLBACK_TITLE,
-			},
-		],
+		// No text of its own: the tool call above names the change and the
+		// working row below says the turn is waiting. The row exists to host
+		// the permission bar.
+		segments: [],
 	};
 }
 
+/**
+ * The row that hosts a pending permission carries no title of its own.
+ *
+ * It sits directly under the tool call it belongs to, which already names the
+ * file or the command, and directly above the working row, which already says
+ * "Waiting for your approval". A third line reading "Permission required" was
+ * the same sentence again. The title stays on the interaction, where the bar
+ * and assistive technology still read it.
+ */
 function operationFromPendingApproval(approval: RpcProjectedPendingApproval): OperationSnapshot {
 	const title = approval.title ?? PENDING_APPROVAL_FALLBACK_TITLE;
 	return {

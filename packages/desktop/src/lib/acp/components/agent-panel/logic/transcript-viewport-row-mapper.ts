@@ -531,10 +531,35 @@ function fileNameFromPath(path: string): string {
 	return segments.length > 0 ? segments[segments.length - 1] : path;
 }
 
+const PENDING_PERMISSION_TITLE = "permission required";
+
+/**
+ * True for the generic title a permission-hosting row carries.
+ *
+ * That row sits under the tool call it belongs to, which already names the
+ * change, and above the working row, which already says the turn is waiting for
+ * an answer. Printing "Permission Required" between them was the same sentence
+ * a third time; the bar's icon keeps the words as its accessible name.
+ */
+function isPendingPermissionTitle(value: string | null | undefined): boolean {
+	return (value ?? "").trim().toLowerCase() === PENDING_PERMISSION_TITLE;
+}
+
 function titleFromDisplayFacts(
 	facts: TranscriptViewportOperationDisplayFacts,
 	kind: AgentToolKind
 ): string {
+	// A row that exists only to host a pending permission says nothing of its
+	// own. It sits under the tool call it belongs to, which already names the
+	// change, and above the working row, which already says the turn is waiting
+	// for an answer -- "Permission Required" between them was the same sentence
+	// a third time. The permission bar and its icon still carry the words.
+	// The row that hosts a pending permission carries the generic fallback
+	// title, and it is the only row that does. Its permission bar attaches
+	// separately, so there is no interaction on the operation to key on.
+	if (kind === "unclassified" && isPendingPermissionTitle(facts.title ?? facts.name)) {
+		return "";
+	}
 	if (kind !== "other" && kind !== "unclassified") {
 		return defaultViewportToolTitle(kind);
 	}
