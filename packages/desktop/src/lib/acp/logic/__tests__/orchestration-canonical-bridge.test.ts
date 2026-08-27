@@ -1057,6 +1057,11 @@ describe("OrchestrationCanonicalBridge tool arguments", () => {
 		// Shaped as an edit, which is what transcript-viewport-row-mapper reads
 		// to render a diff. Raw arguments alone leave the row showing a filename.
 		expect(serialised).toContain('"kind":"edit"');
+		// A Write carries `content` and no `new_string`, and every diff renderer
+		// keys on newString -- resolveEditDiffs drops an entry without one. The
+		// proposed content of a new file has to arrive as the new content, or it
+		// is data the transcript holds and can never show.
+		expect(serialised).toContain('"newString":"160"');
 	});
 
 	it("a tool that sent no arguments still produces an operation", () => {

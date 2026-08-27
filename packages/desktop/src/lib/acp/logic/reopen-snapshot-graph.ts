@@ -23,6 +23,7 @@
  * on the same three `rowType`s. Keep them in sync by hand if a fourth row
  * type is ever added.
  */
+import type { EditEntry } from "../../services/converted-session-types.js";
 import type {
 	RpcCompactionProjectedMessage,
 	RpcProjectedMessage,
@@ -134,8 +135,22 @@ const toolArgumentsFromActivity = (activity: RpcProjectedSessionActivity): ToolA
 		return { kind: "other", raw };
 	}
 	const entry = normalizeEditEntry(input);
-	return entry === null ? { kind: "other", raw } : { kind: "edit", edits: [entry] };
+	return entry === null
+		? { kind: "other", raw }
+		: { kind: "edit", edits: [asDiffableEdit(entry)] };
 };
+
+/** The reopen half of the bridge's `asDiffableEdit`. */
+function asDiffableEdit(entry: EditEntry): EditEntry {
+	return entry.newString !== null && entry.newString !== undefined
+		? entry
+		: {
+				filePath: entry.filePath,
+				oldString: entry.oldString,
+				newString: entry.content ?? null,
+				content: entry.content,
+			};
+}
 
 // AC-263, reopen half: `RpcProjectedSessionActivity.status` is a free-form
 // server string (Schema.optionalKey(Schema.String)), not the same literal

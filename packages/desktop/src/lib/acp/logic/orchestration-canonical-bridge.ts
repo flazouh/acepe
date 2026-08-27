@@ -16,6 +16,7 @@
 // itself unsupportedOnContract for the same reason) -- but turn completion
 // (TurnCompleted, alongside TurnCancelled) IS a real terminal signal on the
 // contract, handled below.
+import type { EditEntry } from "../../services/converted-session-types.js";
 import { normalizeEditEntry } from "./aggregate-file-edits.js";
 import type { ApprovalDecision, OrchestrationEvent, SessionId } from "@acepe/contracts";
 import { librarySnapshotRequest, type RpcClient } from "@acepe/contracts";
@@ -159,6 +160,24 @@ const noArguments: ToolArguments = { kind: "other", raw: null };
  * its arguments mean. `normalizeEditEntry` is shared with aggregate-file-edits
  * so the key names a provider might use live in exactly one place.
  */
+/**
+ * A created file is an edit whose new content is its content.
+ *
+ * A Write carries `content` and no `new_string`, and every renderer of a diff
+ * keys on `newString` -- `resolveEditDiffs` drops any entry without one. Left
+ * as it arrives, the proposed content of a new file is data the transcript
+ * holds and can never show.
+ */
+const asDiffableEdit = (entry: EditEntry): EditEntry =>
+	entry.newString !== null && entry.newString !== undefined
+		? entry
+		: {
+				filePath: entry.filePath,
+				oldString: entry.oldString,
+				newString: entry.content ?? null,
+				content: entry.content,
+			};
+
 const toolArgumentsFrom = (
 	input: Schema.JsonObject | null | undefined,
 	kind: string | null | undefined
@@ -171,7 +190,7 @@ const toolArgumentsFrom = (
 		return { kind: "other", raw };
 	}
 	const entry = normalizeEditEntry(input);
-	return entry === null ? { kind: "other", raw } : { kind: "edit", edits: [entry] };
+	return entry === null ? { kind: "other", raw } : { kind: "edit", edits: [asDiffableEdit(entry)] };
 };
 
 const PERMISSION_ID_PREFIX = "perm-";
