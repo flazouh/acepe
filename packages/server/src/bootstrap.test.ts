@@ -15,6 +15,7 @@ import {
 } from "@acepe/contracts"
 import * as BunChildProcessSpawner from "@effect/platform-bun/BunChildProcessSpawner"
 import * as BunFileSystem from "@effect/platform-bun/BunFileSystem"
+import * as BunHttpClient from "@effect/platform-bun/BunHttpClient"
 import * as BunPath from "@effect/platform-bun/BunPath"
 import * as Vitest from "@effect/vitest"
 import * as Arr from "effect/Array"
@@ -31,7 +32,8 @@ import * as RpcTest from "effect/unstable/rpc/RpcTest"
 import { ProjectionSnapshotQuery } from "./orchestration/Services/ProjectionSnapshotQuery.ts"
 import { OrchestrationEngine } from "./orchestration/Services/OrchestrationEngine.ts"
 import { HardcodedProvider } from "./provider/HardcodedProvider.ts"
-import { acepeTestLive, acepeEngineLive, makeAcepeLive } from "./bootstrap.ts"
+import { ProviderAdapterRegistry } from "./provider/Services/ProviderAdapterRegistry.ts"
+import { acepeTestLive, acepeEngineLive, LiveProviderAdaptersLive, makeAcepeLive } from "./bootstrap.ts"
 
 const projectId = ProjectId.make("project-1")
 const sessionId = SessionId.make("session-1")
@@ -218,3 +220,33 @@ Vitest.it.live("recovers one assistant message after a mid-stream restart", () =
 	),
 	20_000
 )
+
+// #282: Cursor and Copilot each had a working adapter that nothing
+// registered, so neither was reachable in the product at all. The registered
+// set is the thing that decides which providers exist, so it gets a test of
+// its own rather than only the compile-time proof that the constructors
+// typecheck.
+Vitest.describe("live provider adapters", () => {
+	Vitest.it.effect(
+		"registers every live provider adapter",
+		() =>
+			Effect.gen(function*() {
+				const registry = yield* ProviderAdapterRegistry
+				const adapters = yield* registry.adapters
+				Vitest.assert.deepStrictEqual(
+					Arr.map(adapters, (adapter) => adapter.providerId),
+					["claude-code", "codex", "opencode", "cursor", "copilot"]
+				)
+			}).pipe(
+				// @effect-diagnostics-next-line strictEffectProvide:off
+				Effect.provide(
+					LiveProviderAdaptersLive.pipe(
+						Layer.provide(BunHttpClient.layer),
+						Layer.provide(Platform),
+						Layer.fresh
+					)
+				)
+			),
+		20_000
+	)
+})

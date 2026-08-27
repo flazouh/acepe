@@ -1,7 +1,9 @@
 import * as Arr from "effect/Array"
 import * as Filter from "effect/Filter"
 import * as Option from "effect/Option"
+import { acpToolOutput } from "../AcpContent.ts"
 import {
+	applyOptional,
 	arrayField,
 	EMPTY_JSON_OBJECT,
 	field,
@@ -11,8 +13,21 @@ import {
 	objectField,
 	stringField
 } from "../Json.ts"
-import type { CursorContractFact, CursorToolStatus, PermissionRequestFact } from "./Facts.ts"
+import type {
+	CursorContractFact,
+	CursorToolStatus,
+	PermissionRequestFact,
+	ToolCallUpdateFact
+} from "./Facts.ts"
 import { detectCursorToolKind, permissionIdForToolCall } from "./Tools.ts"
+
+const withToolCallUpdateOutput = (
+	fact: ToolCallUpdateFact,
+	output: string
+): ToolCallUpdateFact => ({
+	...fact,
+	output
+})
 
 const asToolStatus = (value: string): Option.Option<CursorToolStatus> => {
 	if (value === "pending" || value === "in_progress" || value === "completed" || value === "failed") {
@@ -85,11 +100,14 @@ const mapToolCallUpdate = (update: JsonObject): Option.Option<CursorContractFact
 			toolCallId: toolCallId.value
 		})
 	}
-	return Option.some({
+	const base: ToolCallUpdateFact = {
 		contractKind: "tool_call_update",
 		toolCallId: toolCallId.value,
 		status: status.value
-	})
+	}
+	return Option.some(
+		applyOptional(base, Option.getOrUndefined(acpToolOutput(update)), withToolCallUpdateOutput)
+	)
 }
 
 const planLine = (entry: Json): Option.Option<string> => {

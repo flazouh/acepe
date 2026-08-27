@@ -1,5 +1,6 @@
 import * as Arr from "effect/Array"
 import * as Option from "effect/Option"
+import { acpToolOutput } from "../AcpContent.ts"
 import {
 	applyOptional,
 	EMPTY_JSON_OBJECT,
@@ -20,7 +21,8 @@ import {
 	type ToolCallUpdateFact,
 	type UsageFact
 } from "./Facts.ts"
-import { asToolKind } from "./Tools.ts"
+import { asToolKind, permissionRequestFact } from "./Tools.ts"
+import { SESSION_REQUEST_PERMISSION_METHOD, SESSION_UPDATE_METHOD } from "./Wire.ts"
 
 const rawInputOf = (value: Json | undefined): JsonObject => {
 	if (value === undefined) {
@@ -57,7 +59,7 @@ const unwrapUpdate = (raw: Json): JsonObject => {
 		return EMPTY_JSON_OBJECT
 	}
 	const method = Option.getOrElse(stringField(record.value, "method"), () => "")
-	if (method === "session/update") {
+	if (method === SESSION_UPDATE_METHOD) {
 		const params = objectField(record.value, "params")
 		if (Option.isNone(params)) {
 			return record.value
@@ -189,22 +191,35 @@ const withToolCallUpdatePartial = (
 	partialJson
 })
 
+const withToolCallUpdateOutput = (
+	fact: ToolCallUpdateFact,
+	output: string
+): ToolCallUpdateFact => ({
+	...fact,
+	output
+})
+
 const toolCallUpdateFact = (
 	toolCallId: string,
 	status: Option.Option<CopilotToolStatus>,
-	partialJson: string | undefined
+	partialJson: string | undefined,
+	output: string | undefined
 ): ToolCallUpdateFact => {
 	const base: ToolCallUpdateFact = {
 		contractKind: "tool_call_update",
 		toolCallId
 	}
 	return applyOptional(
-		Option.match(status, {
-			onNone: () => base,
-			onSome: (value) => withToolCallUpdateStatus(base, value)
-		}),
-		partialJson,
-		withToolCallUpdatePartial
+		applyOptional(
+			Option.match(status, {
+				onNone: () => base,
+				onSome: (value) => withToolCallUpdateStatus(base, value)
+			}),
+			partialJson,
+			withToolCallUpdatePartial
+		),
+		output,
+		withToolCallUpdateOutput
 	)
 }
 
@@ -257,7 +272,8 @@ const mapNamedUpdate = (record: JsonObject, typeName: string): ReadonlyArray<Cop
 		}
 		const status = Option.flatMap(stringField(record, "status"), asToolStatus)
 		const partialJson = Option.getOrUndefined(stringField(record, "partialJson"))
-		return [toolCallUpdateFact(toolCallId.value, status, partialJson)]
+		const output = Option.getOrUndefined(acpToolOutput(record))
+		return [toolCallUpdateFact(toolCallId.value, status, partialJson, output)]
 	}
 	if (typeName === "permissionRequest" || typeName === "permission_request") {
 		const nested = Option.getOrElse(objectField(record, "permissionRequest"), () => record)
@@ -337,7 +353,45 @@ const mapNamedUpdate = (record: JsonObject, typeName: string): ReadonlyArray<Cop
 	return Arr.empty()
 }
 
+// ACP asks for a permission with a JSON-RPC REQUEST, not a session/update
+// notification: the params carry the sessionId, the toolCall and the options
+// an answer picks from. Acepe owns the approval id and derives it from the
+// tool call, because ACP gives the client none of its own — see
+// permissionRequestFact in Tools.ts.
+const mapAcpPermissionRequest = (params: JsonObject): ReadonlyArray<CopilotContractFact> => {
+	const sessionId = stringFieldAny(params, ["sessionId", "session_id"])
+	const toolCall = objectField(params, "toolCall")
+	if (Option.isNone(sessionId) || Option.isNone(toolCall)) {
+		return Arr.empty()
+	}
+	const toolCallId = stringFieldAny(toolCall.value, ["toolCallId", "tool_call_id"])
+	if (Option.isNone(toolCallId)) {
+		return Arr.empty()
+	}
+	const toolName = Option.getOrElse(
+		stringFieldAny(toolCall.value, ["kind", "title"]),
+		() => "other"
+	)
+	return [
+		permissionRequestFact({
+			sessionId: sessionId.value,
+			toolCallId: toolCallId.value,
+			toolName
+		})
+	]
+}
+
 export const mapAcpUpdate = (raw: Json): ReadonlyArray<CopilotContractFact> => {
+	const envelope = jsonObjectOf(raw)
+	if (Option.isSome(envelope)) {
+		const method = Option.getOrElse(stringField(envelope.value, "method"), () => "")
+		if (method === SESSION_REQUEST_PERMISSION_METHOD) {
+			return Option.match(objectField(envelope.value, "params"), {
+				onNone: () => Arr.empty<CopilotContractFact>(),
+				onSome: mapAcpPermissionRequest
+			})
+		}
+	}
 	const record = unwrapUpdate(raw)
 	return mapNamedUpdate(record, updateName(record))
 }

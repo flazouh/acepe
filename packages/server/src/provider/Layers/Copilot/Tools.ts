@@ -4,6 +4,7 @@ import * as HashMap from "effect/HashMap"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import * as Str from "effect/String"
+import { type JsonObject, stringFieldAny } from "../Json.ts"
 import { CopilotAcpToolKind, type PermissionRequestFact } from "./Facts.ts"
 
 const decodeToolKind = Schema.decodeUnknownExit(CopilotAcpToolKind)
@@ -83,6 +84,24 @@ export const asToolKind = (value: string): CopilotAcpToolKind => {
 		return decoded.value
 	}
 	return detectCopilotToolKind(value)
+}
+
+// Field names an ACP tool call uses for its primary path-shaped input,
+// checked in order. Same list Cursor's toolCallPathHint accepts, because both
+// providers speak ACP and both send a tool call's file under one of these.
+const PATH_INPUT_KEYS = ["path", "file_path", "filePath"] as const
+
+// The path column of projection_session_activities, filled only for the kinds
+// that are unambiguously about one file. Every other kind keeps a null path
+// and stays a plain tool row.
+export const toolCallPathHint = (
+	kind: CopilotAcpToolKind,
+	rawInput: JsonObject
+): Option.Option<string> => {
+	if (kind !== "read" && kind !== "read_lints" && kind !== "edit") {
+		return Option.none()
+	}
+	return stringFieldAny(rawInput, PATH_INPUT_KEYS)
 }
 
 export const permissionIdForToolCall = (toolCallId: string): string => `perm-${toolCallId}`

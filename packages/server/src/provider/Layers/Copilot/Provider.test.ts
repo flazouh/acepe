@@ -4,18 +4,20 @@ import { isCapabilityEnabled } from "../../Services/ProviderAdapter.ts"
 import {
 	COPILOT_ACP_STDIO_ARGS,
 	COPILOT_CAPABILITIES,
-	COPILOT_LOGIN_METHOD_ID,
 	COPILOT_MODES,
 	COPILOT_PROVIDER_ID,
-	COPILOT_SESSION_MCP_SERVERS,
 	COPILOT_TRANSPORT,
-	copilotAuthenticateParams,
 	copilotPresence,
-	copilotSessionNewParams,
 	isCopilotPlanCapabilityEnabled,
 	mapOutboundCopilotModeId,
 	normalizeCopilotModeId
 } from "./Provider.ts"
+import {
+	COPILOT_LOGIN_METHOD_ID,
+	COPILOT_SESSION_MCP_SERVERS,
+	copilotAuthenticateParams,
+	copilotSessionNewParams
+} from "./Wire.ts"
 
 Vitest.describe("CopilotProvider", () => {
 	Vitest.it("uses the copilot provider id and ACP stdio transport", () => {

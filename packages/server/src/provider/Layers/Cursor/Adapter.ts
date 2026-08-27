@@ -27,7 +27,6 @@ import * as Ref from "effect/Ref"
 import * as Stream from "effect/Stream"
 import * as Str from "effect/String"
 import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner"
-import { AgentInstaller } from "../../Services/AgentInstaller.ts"
 import type {
 	CancelTurnRequest,
 	ProviderAdapter,
@@ -49,16 +48,18 @@ import {
 	type CursorAcpHandle,
 	type CursorConnectInput,
 	type CursorLaunchConfig,
-	liveConnect,
-	resolveLaunchFromInstaller
+	liveConnect
 } from "./Process.ts"
 import {
 	adapterError,
 	CURSOR_CAPABILITIES,
 	CURSOR_PROVIDER_ID,
+	cursorLaunchConfig,
 	cursorPresence,
 	type CursorPermissionDecision,
-	probeCursorAuthenticated
+	missingCursorBinaryError,
+	probeCursorAuthenticated,
+	probeCursorBinary
 } from "./Provider.ts"
 import {
 	makeCancelled,
@@ -242,15 +243,24 @@ export const makeCursorAdapter = Effect.fn("makeCursorAdapter")(function*(
 	} satisfies CursorAdapter
 })
 
+// Cursor's only launch path used to read AgentInstaller, a service nothing
+// builds — it needs a PlatformKey the codebase does not detect — so the
+// adapter could not be registered and Cursor was unreachable even for an
+// operator who had the CLI installed. It now resolves `cursor-agent` off
+// PATH, the same detection every other live adapter uses, which is what lets
+// bootstrap.ts register it.
 export const makeLiveCursorAdapter = Effect.fn("makeLiveCursorAdapter")(function*() {
-	const installer = yield* AgentInstaller
 	const fs = yield* FileSystem.FileSystem
 	const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
-	const cached = yield* installer.getCached(CURSOR_PROVIDER_ID)
+	const binary = yield* probeCursorBinary()
 	const authenticated = yield* probeCursorAuthenticated()
 	return yield* makeCursorAdapter({
-		presence: Effect.succeed(cursorPresence(Option.isSome(cached), authenticated)),
-		resolveLaunch: resolveLaunchFromInstaller(installer),
+		presence: Effect.succeed(cursorPresence(Option.isSome(binary), authenticated)),
+		resolveLaunch: Option.match(binary, {
+			onNone: (): Effect.Effect<CursorLaunchConfig, ProviderAdapterError> =>
+				Effect.fail(missingCursorBinaryError()),
+			onSome: (command) => Effect.succeed(cursorLaunchConfig(command))
+		}),
 		connect: (input) =>
 			liveConnect({
 				session: input,

@@ -1,25 +1,23 @@
-import {
-	CommandId,
-	EventId,
-	MessageId,
-	MessageSentEvent,
-	type OrchestrationEvent,
-	SessionId,
-	SessionMetaUpdatedEvent,
-	TokenAppendedEvent,
-	TurnCancelledEvent,
-	TurnId,
-	tracerAssistantMessageId
-} from "@acepe/contracts"
+/**
+ * GitHub Copilot ACP adapter. The CLI's `copilot --acp --stdio` JSON-RPC
+ * stream becomes CONTRACT events.
+ *
+ * Known gaps, each one a documented absence rather than a silent one:
+ * - no ACP fs/read_text_file or fs/write_text_file handler, so
+ *   copilotInitializeParams advertises both capabilities as off
+ * - no history reconnect / provider-owned session snapshot
+ * - no model discovery: COPILOT_CAPABILITIES claims "models" but nothing
+ *   lists them yet
+ */
+import { type MessageId, type OrchestrationEvent, SessionId, TurnId } from "@acepe/contracts"
 import type { Done } from "effect/Cause"
-import * as DateTime from "effect/DateTime"
 import * as Effect from "effect/Effect"
-import * as Exit from "effect/Exit"
 import * as HashMap from "effect/HashMap"
 import * as Option from "effect/Option"
 import * as Queue from "effect/Queue"
 import * as Ref from "effect/Ref"
 import * as Stream from "effect/Stream"
+import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner"
 import {
 	type ProviderAdapterError,
 	type ProviderAdapter,
@@ -29,51 +27,69 @@ import {
 	type SetModeRequest,
 	type StartSessionRequest
 } from "../../Services/ProviderAdapter.ts"
+import type { Json } from "../Json.ts"
+import type { OpenToolCallInfo } from "../SessionEvents.ts"
+import { providerSessionFact } from "./Facts.ts"
+import { mapPromptResult } from "./Map.ts"
 import {
-	decodeJsonObject,
-	EMPTY_JSON_OBJECT,
-	type Json,
-	type JsonObject,
-	stringField
-} from "../Json.ts"
-import { encodeContractFact } from "./Codec.ts"
-import { type CopilotContractFact, providerSessionFact } from "./Facts.ts"
-import { mapAcpUpdate, mapPromptResult } from "./Map.ts"
+	type CopilotRespondToPermissionInput,
+	drainPendingPermissions,
+	respondToPermission
+} from "./Permissions.ts"
+import { type CopilotAcpHandle, liveCreateTransport } from "./Process.ts"
 import {
 	adapterError,
 	COPILOT_CAPABILITIES,
 	COPILOT_PROVIDER_ID,
-	copilotSessionNewParams,
-	copilotSetModeParams
+	copilotLaunchConfig,
+	missingCopilotBinaryError,
+	probeCopilotBinary,
+	probeCopilotPresence
 } from "./Provider.ts"
+import {
+	makeCancelled,
+	makeMessageSent,
+	makeMetaEvent,
+	offerOutbound,
+	type PendingPermission,
+	publishAcpMessage,
+	publishTurnCompleted,
+	requireProviderSessionId,
+	requireSession,
+	type SessionRuntime
+} from "./Session.ts"
 import {
 	beginCopilotPrompt,
 	cancelCopilotTurn,
 	completeCopilotPrompt,
-	emptyCopilotTurnState,
-	type CopilotTurnState
+	emptyCopilotTurnState
 } from "./TurnTracking.ts"
-
-export type CopilotAcpRequest = {
-	readonly method: string
-	readonly params: Json
-}
-
-export type CopilotAcpHandle = {
-	readonly notifications: Stream.Stream<Json, ProviderAdapterError>
-	readonly request: (
-		method: string,
-		params: Json
-	) => Effect.Effect<Json, ProviderAdapterError>
-	readonly notify: (method: string, params: Json) => Effect.Effect<void, ProviderAdapterError>
-	readonly close: Effect.Effect<void>
-}
+import {
+	copilotCancelParams,
+	copilotInitializeParams,
+	copilotPromptParams,
+	copilotSessionNewParams,
+	copilotSessionNewResultId,
+	copilotSetModeParams,
+	INITIALIZE_METHOD,
+	SESSION_CANCEL_METHOD,
+	SESSION_NEW_METHOD,
+	SESSION_PROMPT_METHOD,
+	SESSION_SET_MODE_METHOD
+} from "./Wire.ts"
 
 export type CopilotAdapter = ProviderAdapter & {
 	// ACP's session/set_mode over the same JSON-RPC transport session/prompt
-	// uses — see copilotSetModeParams in Provider.ts for the mode-URI form
+	// uses — see copilotSetModeParams in Wire.ts for the mode-URI form
 	// Copilot expects.
 	readonly setMode: (request: SetModeRequest) => Effect.Effect<void, ProviderAdapterError>
+	readonly respondToPermission: (
+		input: CopilotRespondToPermissionInput
+	) => Effect.Effect<void, ProviderAdapterError>
+	// Closes every live session's transport and reaps its spawned `copilot`
+	// subprocess. ProviderBridge calls this structurally on every registered
+	// adapter that exposes it when the bridge's own scope closes.
+	readonly shutdown: Effect.Effect<void>
 }
 
 export type CopilotAdapterOptions = {
@@ -82,192 +98,6 @@ export type CopilotAdapterOptions = {
 	) => Effect.Effect<CopilotAcpHandle, ProviderAdapterError>
 	readonly presence: Effect.Effect<ProviderPresence>
 }
-
-type SessionRuntime = {
-	readonly sessionId: SessionId
-	readonly providerSessionId: Ref.Ref<Option.Option<string>>
-	readonly outbound: Queue.Queue<OrchestrationEvent, Done>
-	readonly lastUserMessageId: Ref.Ref<Option.Option<MessageId>>
-	readonly sequence: Ref.Ref<number>
-	readonly turnState: Ref.Ref<CopilotTurnState>
-	readonly transport: CopilotAcpHandle
-}
-
-const jsonObjectFromValue = <A>(value: A): JsonObject => {
-	const exit = decodeJsonObject(value)
-	if (Exit.isSuccess(exit)) {
-		return exit.value
-	}
-	return EMPTY_JSON_OBJECT
-}
-
-const assistantMessageId = (
-	sessionId: SessionId,
-	lastUser: Option.Option<MessageId>
-): MessageId =>
-	Option.match(lastUser, {
-		onNone: () => MessageId.make(`${sessionId}:assistant`),
-		onSome: tracerAssistantMessageId
-	})
-
-const nextSequence = (runtime: SessionRuntime) =>
-	Ref.updateAndGet(runtime.sequence, (current) => current + 1)
-
-const stamp = Effect.fn("CopilotAdapter.stamp")(function*(runtime: SessionRuntime) {
-	const sequence = yield* nextSequence(runtime)
-	const occurredAt = yield* DateTime.now.pipe(Effect.map(DateTime.formatIso))
-	const commandId = CommandId.make(`${runtime.sessionId}:cmd:${sequence}`)
-	return {
-		sequence,
-		eventId: EventId.make(`${runtime.sessionId}:${sequence}`),
-		occurredAt,
-		commandId
-	}
-})
-
-const offerOutbound = (runtime: SessionRuntime, event: OrchestrationEvent) =>
-	Queue.offer(runtime.outbound, event).pipe(Effect.asVoid)
-
-const makeTokenEvent = Effect.fn("CopilotAdapter.makeTokenEvent")(function*(
-	runtime: SessionRuntime,
-	token: string
-) {
-	const header = yield* stamp(runtime)
-	const lastUser = yield* Ref.get(runtime.lastUserMessageId)
-	return TokenAppendedEvent.make({
-		sequence: header.sequence,
-		eventId: header.eventId,
-		aggregateKind: "session",
-		aggregateId: runtime.sessionId,
-		occurredAt: header.occurredAt,
-		commandId: header.commandId,
-		causationEventId: null,
-		correlationId: header.commandId,
-		metadata: EMPTY_JSON_OBJECT,
-		type: "TokenAppended",
-		payload: {
-			sessionId: runtime.sessionId,
-			messageId: assistantMessageId(runtime.sessionId, lastUser),
-			token
-		}
-	})
-})
-
-const makeMetaEvent = Effect.fn("CopilotAdapter.makeMetaEvent")(function*(
-	runtime: SessionRuntime,
-	fact: CopilotContractFact
-) {
-	const header = yield* stamp(runtime)
-	const metadata = Option.getOrElse(encodeContractFact(fact), () => EMPTY_JSON_OBJECT)
-	return SessionMetaUpdatedEvent.make({
-		sequence: header.sequence,
-		eventId: header.eventId,
-		aggregateKind: "session",
-		aggregateId: runtime.sessionId,
-		occurredAt: header.occurredAt,
-		commandId: header.commandId,
-		causationEventId: null,
-		correlationId: header.commandId,
-		metadata,
-		type: "SessionMetaUpdated",
-		payload: {
-			sessionId: runtime.sessionId
-		}
-	})
-})
-
-const makeMessageSent = Effect.fn("CopilotAdapter.makeMessageSent")(function*(
-	runtime: SessionRuntime,
-	request: SendPromptRequest
-) {
-	const header = yield* stamp(runtime)
-	return MessageSentEvent.make({
-		sequence: header.sequence,
-		eventId: header.eventId,
-		aggregateKind: "session",
-		aggregateId: runtime.sessionId,
-		occurredAt: header.occurredAt,
-		commandId: header.commandId,
-		causationEventId: null,
-		correlationId: header.commandId,
-		metadata: EMPTY_JSON_OBJECT,
-		type: "MessageSent",
-		payload: {
-			sessionId: runtime.sessionId,
-			messageId: request.messageId,
-			text: request.text
-		}
-	})
-})
-
-const makeCancelled = Effect.fn("CopilotAdapter.makeCancelled")(function*(runtime: SessionRuntime) {
-	const header = yield* stamp(runtime)
-	return TurnCancelledEvent.make({
-		sequence: header.sequence,
-		eventId: header.eventId,
-		aggregateKind: "session",
-		aggregateId: runtime.sessionId,
-		occurredAt: header.occurredAt,
-		commandId: header.commandId,
-		causationEventId: null,
-		correlationId: header.commandId,
-		metadata: EMPTY_JSON_OBJECT,
-		type: "TurnCancelled",
-		payload: {
-			sessionId: runtime.sessionId
-		}
-	})
-})
-
-const publishFact = Effect.fn("CopilotAdapter.publishFact")(function*(
-	runtime: SessionRuntime,
-	fact: CopilotContractFact
-) {
-	if (fact.contractKind === "text_delta") {
-		const event = yield* makeTokenEvent(runtime, fact.token)
-		return yield* offerOutbound(runtime, event)
-	}
-	const event = yield* makeMetaEvent(runtime, fact)
-	return yield* offerOutbound(runtime, event)
-})
-
-const publishAcpMessage = Effect.fn("CopilotAdapter.publishAcpMessage")(function*(
-	runtime: SessionRuntime,
-	raw: Json
-) {
-	const facts = mapAcpUpdate(raw)
-	yield* Effect.forEach(facts, (fact) => publishFact(runtime, fact), { discard: true })
-})
-
-const requireSession = Effect.fn("CopilotAdapter.requireSession")(function*(
-	sessions: Ref.Ref<HashMap.HashMap<SessionId, SessionRuntime>>,
-	sessionId: SessionId,
-	operation: ProviderAdapterError["operation"]
-) {
-	const map = yield* Ref.get(sessions)
-	const found = HashMap.get(map, sessionId)
-	if (Option.isNone(found)) {
-		return yield* adapterError(operation, `No Copilot session '${sessionId}'.`)
-	}
-	return found.value
-})
-
-const promptParams = (providerSessionId: string, text: string): JsonObject => ({
-	sessionId: providerSessionId,
-	prompt: [
-		{
-			type: "text",
-			text
-		}
-	]
-})
-
-const cancelParams = (providerSessionId: string): JsonObject => ({
-	sessionId: providerSessionId
-})
-
-const sessionNewResultId = (result: Json): Option.Option<string> =>
-	stringField(jsonObjectFromValue(result), "sessionId")
 
 export const makeCopilotAdapter = Effect.fn("makeCopilotAdapter")(function*(
 	options: CopilotAdapterOptions
@@ -280,14 +110,15 @@ export const makeCopilotAdapter = Effect.fn("makeCopilotAdapter")(function*(
 		result: Json
 	) {
 		const terminal = mapPromptResult(result)
-		const stopReason =
-			terminal.contractKind === "turn_error" ? terminal.detail : "end_turn"
+		const stopReason = terminal.contractKind === "turn_error" ? terminal.detail : "end_turn"
+		// Completing the prompt clears activeTurnId, so the id the closing
+		// event names is read in the same atomic step that clears it.
 		const settled = yield* Ref.modify(runtime.turnState, (state) => {
 			const next = completeCopilotPrompt(state, seq, stopReason)
-			return [next, next.state] as const
+			return [{ emitComplete: next.emitComplete, turnId: state.activeTurnId }, next.state] as const
 		})
 		if (settled.emitComplete) {
-			yield* publishFact(runtime, terminal)
+			yield* publishTurnCompleted(runtime, settled.turnId)
 		}
 	})
 
@@ -305,13 +136,20 @@ export const makeCopilotAdapter = Effect.fn("makeCopilotAdapter")(function*(
 		const lastUserMessageId = yield* Ref.make(Option.none<MessageId>())
 		const sequence = yield* Ref.make(0)
 		const turnState = yield* Ref.make(emptyCopilotTurnState)
+		const openToolCalls = yield* Ref.make(HashMap.empty<string, OpenToolCallInfo>())
+		const pendingPermissions = yield* Ref.make(HashMap.empty<string, PendingPermission>())
 		const providerSessionId = yield* Ref.make(Option.none<string>())
 		const transport = yield* options.createTransport({ cwd: request.workspaceRoot })
+		// ACP's opening handshake, before anything else: Copilot answers a
+		// session/new that arrives first with a protocol error, and the
+		// session then looks like a transport fault rather than a missing
+		// handshake.
+		yield* transport.request(INITIALIZE_METHOD, copilotInitializeParams())
 		const created = yield* transport.request(
-			"session/new",
+			SESSION_NEW_METHOD,
 			copilotSessionNewParams(request.workspaceRoot)
 		)
-		const acpSessionId = sessionNewResultId(created)
+		const acpSessionId = copilotSessionNewResultId(created)
 		if (Option.isNone(acpSessionId)) {
 			return yield* adapterError("startSession", "Copilot session/new did not return a session id.")
 		}
@@ -323,6 +161,8 @@ export const makeCopilotAdapter = Effect.fn("makeCopilotAdapter")(function*(
 			lastUserMessageId,
 			sequence,
 			turnState,
+			openToolCalls,
+			pendingPermissions,
 			transport
 		}
 		yield* Ref.update(sessions, (current) => HashMap.set(current, request.sessionId, runtime))
@@ -332,8 +172,12 @@ export const makeCopilotAdapter = Effect.fn("makeCopilotAdapter")(function*(
 		yield* transport.notifications.pipe(
 			Stream.runForEach((raw) => publishAcpMessage(runtime, raw)),
 			Effect.ensuring(
-				Queue.end(runtime.outbound).pipe(
-					Effect.flatMap(() => dropSession),
+				// Drained before the queue ends, because the drain publishes an
+				// answer onto outbound for every approval the closing
+				// connection abandons — see drainPendingPermissions.
+				drainPendingPermissions(runtime).pipe(
+					Effect.andThen(Queue.end(runtime.outbound)),
+					Effect.andThen(dropSession),
 					Effect.asVoid
 				)
 			),
@@ -362,7 +206,7 @@ export const makeCopilotAdapter = Effect.fn("makeCopilotAdapter")(function*(
 		seq: number
 	) =>
 		runtime.transport
-			.request("session/prompt", promptParams(providerSessionId, text))
+			.request(SESSION_PROMPT_METHOD, copilotPromptParams(providerSessionId, text))
 			.pipe(
 				Effect.flatMap((result) => settlePrompt(runtime, seq, result)),
 				Effect.ignore,
@@ -374,10 +218,7 @@ export const makeCopilotAdapter = Effect.fn("makeCopilotAdapter")(function*(
 			Effect.gen(function*() {
 				const runtime = yield* requireSession(sessions, request.sessionId, "sendPrompt")
 				yield* Ref.set(runtime.lastUserMessageId, Option.some(request.messageId))
-				const acpSessionId = yield* Ref.get(runtime.providerSessionId)
-				if (Option.isNone(acpSessionId)) {
-					return yield* adapterError("sendPrompt", "Copilot ACP session id is missing.")
-				}
+				const acpSessionId = yield* requireProviderSessionId(runtime, "sendPrompt")
 				const begun = yield* Ref.modify(runtime.turnState, (state) => {
 					const next = beginCopilotPrompt(
 						state,
@@ -385,20 +226,17 @@ export const makeCopilotAdapter = Effect.fn("makeCopilotAdapter")(function*(
 					)
 					return [next, next.state] as const
 				})
-				yield* transportPrompt(runtime, acpSessionId.value, request.text, begun.seq)
+				yield* transportPrompt(runtime, acpSessionId, request.text, begun.seq)
 				return yield* makeMessageSent(runtime, request)
 			})
 		)
 
 	const setMode = Effect.fn("CopilotAdapter.setMode")(function*(request: SetModeRequest) {
 		const runtime = yield* requireSession(sessions, request.sessionId, "setMode")
-		const acpSessionId = yield* Ref.get(runtime.providerSessionId)
-		if (Option.isNone(acpSessionId)) {
-			return yield* adapterError("setMode", "Copilot ACP session id is missing.")
-		}
+		const acpSessionId = yield* requireProviderSessionId(runtime, "setMode")
 		yield* runtime.transport.request(
-			"session/set_mode",
-			copilotSetModeParams(acpSessionId.value, request.modeId)
+			SESSION_SET_MODE_METHOD,
+			copilotSetModeParams(acpSessionId, request.modeId)
 		)
 	})
 
@@ -406,14 +244,37 @@ export const makeCopilotAdapter = Effect.fn("makeCopilotAdapter")(function*(
 		const runtime = yield* requireSession(sessions, request.sessionId, "cancelTurn")
 		const acpSessionId = yield* Ref.get(runtime.providerSessionId)
 		if (Option.isSome(acpSessionId)) {
-			yield* runtime.transport.notify("session/cancel", cancelParams(acpSessionId.value)).pipe(
-				Effect.ignore
-			)
+			yield* runtime.transport
+				.notify(SESSION_CANCEL_METHOD, copilotCancelParams(acpSessionId.value))
+				.pipe(Effect.ignore)
 		}
 		yield* Ref.set(runtime.turnState, cancelCopilotTurn(yield* Ref.get(runtime.turnState)))
+		// Answered here rather than only when the notification stream ends: the
+		// agent blocks on the reply, so a cancelled turn that leaves a
+		// permission unanswered keeps the CLI waiting for an answer that is
+		// never coming.
+		yield* drainPendingPermissions(runtime)
 		const cancelled = yield* makeCancelled(runtime)
 		yield* offerOutbound(runtime, cancelled).pipe(Effect.ignore)
 	})
+
+	// Tears down every live session's transport and spawned `copilot`
+	// subprocess on app/layer shutdown, not just on an explicit cancel —
+	// ProviderBridge.ts calls this structurally on every registered adapter
+	// that exposes it (see supportsShutdown there).
+	const shutdown = Effect.gen(function*() {
+		const current = yield* Ref.getAndSet(sessions, HashMap.empty<SessionId, SessionRuntime>())
+		yield* Effect.forEach(
+			HashMap.values(current),
+			(runtime) =>
+				drainPendingPermissions(runtime).pipe(
+					Effect.andThen(runtime.transport.close),
+					Effect.andThen(Queue.end(runtime.outbound)),
+					Effect.asVoid
+				),
+			{ discard: true, concurrency: "unbounded" }
+		)
+	}).pipe(Effect.withSpan("CopilotAdapter.shutdown"))
 
 	return {
 		providerId: COPILOT_PROVIDER_ID,
@@ -422,6 +283,40 @@ export const makeCopilotAdapter = Effect.fn("makeCopilotAdapter")(function*(
 		startSession,
 		sendPrompt,
 		cancelTurn,
-		setMode
+		setMode,
+		respondToPermission: (input: CopilotRespondToPermissionInput) =>
+			respondToPermission(sessions, input),
+		shutdown
 	} satisfies CopilotAdapter
 })
+
+// Same shape as makeLiveOpenCodeAdapter: probe the binary once here, and let
+// every session share the resolved path. An absent CLI is not a construction
+// error — presence reports installed: false, the provider stays visible as
+// not installed, and only an attempt to open a session fails, with a message
+// that names the missing binary.
+export const makeLiveCopilotAdapter = Effect.fn("makeLiveCopilotAdapter")(function*() {
+	const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+	// The adapter outlives any one session, so the spawned CLI belongs to the
+	// layer's scope, not to the scope of the session that first started it.
+	const layerScope = yield* Effect.scope
+	const presenceValue = yield* probeCopilotPresence()
+	const binary = yield* probeCopilotBinary()
+	return yield* makeCopilotAdapter({
+		presence: Effect.succeed(presenceValue),
+		createTransport: (input) =>
+			Option.match(binary, {
+				onNone: (): Effect.Effect<CopilotAcpHandle, ProviderAdapterError> =>
+					Effect.fail(missingCopilotBinaryError()),
+				onSome: (command) =>
+					liveCreateTransport({
+						cwd: input.cwd,
+						launch: copilotLaunchConfig(command),
+						spawner,
+						scope: layerScope
+					})
+			})
+	})
+})
+
+export type { CopilotAcpHandle, CopilotAcpRequest } from "./Process.ts"
