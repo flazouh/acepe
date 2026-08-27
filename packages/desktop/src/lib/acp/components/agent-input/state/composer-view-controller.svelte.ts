@@ -235,8 +235,7 @@ export class ComposerViewController {
 								name: value.name,
 								value: value.value,
 							})),
-							presentation:
-								option.presentation as ConfigOptionData["presentation"],
+							presentation: option.presentation as ConfigOptionData["presentation"],
 						})
 					);
 		return applyProvisionalConfigOptionOverrides(options, this.provisionalConfigOptions);

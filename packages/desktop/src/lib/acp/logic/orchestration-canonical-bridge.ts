@@ -16,22 +16,22 @@
 // itself unsupportedOnContract for the same reason) -- but turn completion
 // (TurnCompleted, alongside TurnCancelled) IS a real terminal signal on the
 // contract, handled below.
-import { providerModels, providerModes } from "@acepe/contracts";
-import type { SessionGraphCapabilities } from "../../services/acp-types.js";
-import { emptySessionGraphCapabilities } from "../store/envelope-reducer/empty-session-graph-capabilities.js";
-import type { EditEntry } from "../../services/converted-session-types.js";
-import { normalizeEditEntry } from "./aggregate-file-edits.js";
-import type { ApprovalDecision, OrchestrationEvent, SessionId } from "@acepe/contracts";
-import { librarySnapshotRequest, type RpcClient } from "@acepe/contracts";
-import * as Effect from "effect/Effect";
-import * as Schema from "effect/Schema";
 
-import type { JsonValue } from "../../services/converted-session-types.js";
+import type { ApprovalDecision, OrchestrationEvent, SessionId } from "@acepe/contracts";
+import {
+	librarySnapshotRequest,
+	providerModels,
+	providerModes,
+	type RpcClient,
+} from "@acepe/contracts";
+import * as Effect from "effect/Effect";
+import type * as Schema from "effect/Schema";
 import type {
 	CanonicalAgentId,
 	InteractionSnapshot,
 	OperationSnapshot,
 	SessionGraphActivity,
+	SessionGraphCapabilities,
 	SessionGraphRevision,
 	SessionStateDelta,
 	SessionStateEnvelope,
@@ -41,7 +41,10 @@ import type {
 	TranscriptDeltaOperation,
 	UsageTelemetryData,
 } from "../../services/acp-types.js";
+import type { EditEntry, JsonValue } from "../../services/converted-session-types.js";
+import { emptySessionGraphCapabilities } from "../store/envelope-reducer/empty-session-graph-capabilities.js";
 import type { AcpEventEnvelope } from "./acp-event-bridge.js";
+import { normalizeEditEntry } from "./aggregate-file-edits.js";
 import {
 	observedStatusToOperationState,
 	observedStatusToToolCallStatus,

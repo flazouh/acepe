@@ -23,7 +23,7 @@
  * on the same three `rowType`s. Keep them in sync by hand if a fourth row
  * type is ever added.
  */
-import type { EditEntry } from "../../services/converted-session-types.js";
+
 import type {
 	RpcCompactionProjectedMessage,
 	RpcProjectedMessage,
@@ -31,8 +31,7 @@ import type {
 	RpcProjectedSessionActivity,
 	RpcSessionSnapshot,
 } from "@acepe/contracts";
-
-import type { JsonValue } from "../../services/converted-session-types.js";
+import { providerModels, providerModes } from "@acepe/contracts";
 import type {
 	CanonicalAgentId,
 	InteractionSnapshot,
@@ -46,15 +45,15 @@ import type {
 	ToolArguments,
 	TranscriptEntry,
 } from "../../services/acp-types.js";
+import type { EditEntry, JsonValue } from "../../services/converted-session-types.js";
 import { emptySessionGraphCapabilities } from "../store/envelope-reducer/empty-session-graph-capabilities.js";
 import { isBuiltInCanonicalAgentId } from "../types/agent-id.js";
+import { normalizeEditEntry } from "./aggregate-file-edits.js";
 import type { ObservedToolCallStatus } from "./observed-tool-call-status.js";
 import {
 	observedStatusToOperationState,
 	observedStatusToToolCallStatus,
 } from "./observed-tool-call-status.js";
-import { providerModels, providerModes } from "@acepe/contracts";
-import { normalizeEditEntry } from "./aggregate-file-edits.js";
 import { asOperationToolKind } from "./observed-tool-kind.js";
 
 const idleActivity: SessionGraphActivity = {
@@ -136,9 +135,7 @@ const toolArgumentsFromActivity = (activity: RpcProjectedSessionActivity): ToolA
 		return { kind: "other", raw };
 	}
 	const entry = normalizeEditEntry(input);
-	return entry === null
-		? { kind: "other", raw }
-		: { kind: "edit", edits: [asDiffableEdit(entry)] };
+	return entry === null ? { kind: "other", raw } : { kind: "edit", edits: [asDiffableEdit(entry)] };
 };
 
 /** The reopen half of the bridge's `asDiffableEdit`. */

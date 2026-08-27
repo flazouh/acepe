@@ -201,15 +201,10 @@ export const voice = {
 			// text runs through an external command, and when none is
 			// configured there is no backend that could have heard anything --
 			// say that instead.
-			const backendReady = voiceState.models.some(
-				(model) => model.isLoaded || model.isDownloaded
-			);
+			const backendReady = voiceState.models.some((model) => model.isLoaded || model.isDownloaded);
 			if (!backendReady) {
 				return yield* Effect.fail(
-					new AgentError(
-						"voice.recording.stop",
-						new Error(VOICE_BACKEND_NOT_CONFIGURED_MESSAGE)
-					)
+					new AgentError("voice.recording.stop", new Error(VOICE_BACKEND_NOT_CONFIGURED_MESSAGE))
 				);
 			}
 			return {

@@ -212,8 +212,7 @@ describe("voice rpc facade", () => {
 				setAppRpcClientForTest(
 					makeClient({
 						dispatch: () => Effect.succeed({ sequence: 1 }),
-						snapshot: () =>
-							Effect.succeed(voiceSnapshotWith({ lastTranscription: null })),
+						snapshot: () => Effect.succeed(voiceSnapshotWith({ lastTranscription: null })),
 					})
 				);
 				const result = yield* voice.stopRecording("session-1", "en");
