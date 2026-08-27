@@ -37,6 +37,7 @@ import type {
 	OperationSnapshot,
 	SessionCompactionEvent,
 	SessionGraphActivity,
+	SessionGraphCapabilities,
 	SessionGraphLifecycle,
 	SessionGraphRevision,
 	SessionStateGraph,
@@ -412,6 +413,30 @@ export function reopenGraphRevisionForApply(
 	};
 }
 
+/**
+ * #272: `currentModeId` is canonical-owned -- the server folds every
+ * `SessionModeSet` into it (ProjectionSessions) and hands it over as
+ * `RpcProjectedSession.currentModeId`. A reopen that drops it leaves the mode
+ * the agent runs disagreeing with the mode the UI shows, which is exactly the
+ * lazy-reopen desync the server-side fix targets.
+ *
+ * The empty capabilities stay the default on purpose. `null` means no
+ * `SessionModeSet` ever fired, and only then does the provider's opening mode
+ * stand -- so only a real canonical mode may add a `modes` object here.
+ * Seeding one unconditionally would also flip the provider-owned
+ * `availableModes` from `null` ("not known yet") to an empty list, because
+ * capability-projection.ts's `mapGraphAvailableModes` keys on `modes` being
+ * present at all.
+ */
+function capabilitiesFromSnapshot(snapshot: RpcSessionSnapshot): SessionGraphCapabilities {
+	const capabilities = emptySessionGraphCapabilities();
+	const currentModeId = snapshot.session?.currentModeId ?? null;
+	if (currentModeId !== null) {
+		capabilities.modes = { currentModeId };
+	}
+	return capabilities;
+}
+
 export function graphFromReopenSnapshot(input: ReopenSnapshotGraphInput): SessionStateGraph {
 	const revision: SessionGraphRevision = {
 		graphRevision: 0,
@@ -442,6 +467,6 @@ export function graphFromReopenSnapshot(input: ReopenSnapshotGraphInput): Sessio
 		lastTerminalTurnId: null,
 		lifecycle: lifecycleFromSnapshot(input.snapshot),
 		activity: hasPendingApproval ? waitingForUserActivity : idleActivity,
-		capabilities: emptySessionGraphCapabilities(),
+		capabilities: capabilitiesFromSnapshot(input.snapshot),
 	};
 }

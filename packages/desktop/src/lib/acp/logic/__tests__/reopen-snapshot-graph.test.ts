@@ -10,6 +10,7 @@ import {
 	TurnId,
 } from "@acepe/contracts";
 
+import { projectGraphCapabilities } from "../../store/capability-projection.js";
 import { isNewerGraphRevision } from "../../store/envelope-reducer/graph-revision-order.js";
 import {
 	canonicalAgentIdFromString,
@@ -44,6 +45,20 @@ function withMessages(
 			providerSessionFailed: false,
 		},
 		messages,
+	};
+}
+
+function withCurrentMode(
+	snapshotSequence: number,
+	currentModeId: string | null
+): RpcSessionSnapshot {
+	const snapshot = withMessages(snapshotSequence, []);
+	if (snapshot.session === null) {
+		throw new Error("expected a projected session");
+	}
+	return {
+		...snapshot,
+		session: { ...snapshot.session, currentModeId },
 	};
 }
 
@@ -478,5 +493,44 @@ describe("graphFromReopenSnapshot", () => {
 		const graph = graphFromReopenSnapshot(baseInput(snapshot));
 
 		expect(isNewerGraphRevision(null, graph.revision)).toBe(true);
+	});
+
+	// #272: `currentModeId` is canonical-owned -- the server folds SessionModeSet
+	// into it (ProjectionSessions) and hands it over as
+	// RpcProjectedSession.currentModeId. A lazy reopen that drops it leaves the
+	// mode the agent runs disagreeing with the mode the UI shows, which is the
+	// exact desync the server fix targets.
+	it("seeds the canonical current mode a reopened session already carries", () => {
+		const snapshot = withCurrentMode(4, "plan");
+
+		const graph = graphFromReopenSnapshot(baseInput(snapshot));
+
+		expect(projectGraphCapabilities(graph.capabilities).currentModeId).toBe("plan");
+	});
+
+	// The null case IS the precedence rule: null means no SessionModeSet ever
+	// fired, and only then does the provider's opening mode stand. An
+	// unconditional seed breaks that twice -- it invents a `modes` object, which
+	// flips the provider-owned `availableModes` from null ("not known yet") to an
+	// empty list, and composer-input's resolveToolbarModeId then has no visible
+	// mode left to fall back to.
+	it("leaves modes untouched when the reopened session carries no canonical mode", () => {
+		const snapshot = withCurrentMode(4, null);
+
+		const graph = graphFromReopenSnapshot(baseInput(snapshot));
+
+		expect(graph.capabilities.modes).toBe(null);
+		const projected = projectGraphCapabilities(graph.capabilities);
+		expect(projected.currentModeId).toBe(null);
+		expect(projected.availableModes).toBe(null);
+	});
+
+	it("leaves modes untouched for a session the snapshot never imported", () => {
+		const snapshot = emptyRpcSessionSnapshot(0);
+
+		const graph = graphFromReopenSnapshot(baseInput(snapshot));
+
+		expect(graph.capabilities.modes).toBe(null);
+		expect(projectGraphCapabilities(graph.capabilities).availableModes).toBe(null);
 	});
 });

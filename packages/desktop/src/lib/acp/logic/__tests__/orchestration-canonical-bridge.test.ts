@@ -92,6 +92,29 @@ describe("OrchestrationCanonicalBridge", () => {
 		}
 	});
 
+	// #272: `currentModeId` is canonical-owned and folded from SessionModeSet,
+	// which can only ever come AFTER the SessionCreated that opens the session --
+	// so a live-created session has no canonical mode yet, and SessionCreatedPayload
+	// (sessionId/projectId/title/providerId) carries none to seed one from. The
+	// empty capabilities are the correct answer, not a gap: `modes` staying absent
+	// is what lets the provider's opening mode stand, because
+	// capability-projection.ts's `mapGraphAvailableModes` reports the
+	// provider-owned `availableModes` as null ("not known yet") only while `modes`
+	// itself is absent.
+	it("opens a live-created session with no canonical mode, so the provider's opening mode stands", () => {
+		const bridge = makeBridge();
+		const envelopes = runTranslate(
+			bridge,
+			makeEvent("SessionCreated", { sessionId, projectId, title: "First session" })
+		);
+
+		const payload = envelopes[0]?.payload as SessionStateEnvelope;
+		if (payload.payload.kind !== "snapshot") {
+			throw new Error("expected a snapshot envelope");
+		}
+		expect(payload.payload.graph.capabilities.modes ?? null).toBe(null);
+	});
+
 	it("ignores events for a session it never saw created", () => {
 		const bridge = makeBridge();
 		const envelopes = runTranslate(
