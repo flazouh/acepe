@@ -1,7 +1,10 @@
 import * as Arr from "effect/Array"
 import * as Config from "effect/Config"
 import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
 import * as Option from "effect/Option"
+import * as Path from "effect/Path"
+import * as Str from "effect/String"
 import {
 	type AgentJson,
 	binaryTargetForPlatform,
@@ -14,6 +17,7 @@ import {
 	ProviderId,
 	type ProviderPresence
 } from "../../Services/ProviderAdapter.ts"
+import type { CursorLaunchConfig } from "./Process.ts"
 
 export const CURSOR_PROVIDER_ID: ProviderId = ProviderId.make("cursor")
 
@@ -80,3 +84,64 @@ export const probeCursorAuthenticated = Effect.fn("probeCursorAuthenticated")(fu
 	const authToken = yield* Config.option(Config.nonEmptyString("CURSOR_AUTH_TOKEN"))
 	return Option.isSome(apiKey) || Option.isSome(authToken)
 })
+
+// The name the Cursor CLI installer puts on PATH, and the environment
+// variable that overrides it with an absolute path.
+export const CURSOR_BINARY_NAME = "cursor-agent"
+export const CURSOR_BINARY_ENV_KEY = "ACEPE_CURSOR_BIN"
+
+// `acp` is a subcommand, not a flag. The ACP registry entry for Cursor runs
+// the same one (see Provider.test.ts's agent.json fixture), so an
+// Acepe-installed binary and an operator-installed one are launched
+// identically.
+export const CURSOR_ACP_ARGS = ["acp"] as const
+
+export const cursorLaunchConfig = (command: string): CursorLaunchConfig => ({
+	command,
+	args: Arr.fromIterable(CURSOR_ACP_ARGS)
+})
+
+const pathEntries = (pathVar: string): ReadonlyArray<string> =>
+	Arr.filter(Str.split(pathVar, ":"), (part) => Str.isNonEmpty(part))
+
+// The absolute path of the `cursor-agent` executable, from the env override
+// first and then the first PATH entry that holds one. This is the detection
+// path Cursor was missing: its only launch resolver read AgentInstaller,
+// which needs a PlatformKey nothing detects and a layer bootstrap never
+// builds, so a Cursor the operator had installed was unreachable anyway.
+// Same probe Claude, Codex, OpenCode and Copilot each use for their own CLI.
+export const probeCursorBinary = Effect.fn("probeCursorBinary")(function*() {
+	const fs = yield* FileSystem.FileSystem
+	const path = yield* Path.Path
+	const override = yield* Config.option(Config.nonEmptyString(CURSOR_BINARY_ENV_KEY))
+	if (Option.isSome(override)) {
+		const exists = yield* fs.exists(override.value)
+		if (exists) {
+			return Option.some(override.value)
+		}
+	}
+	const pathVar = yield* Config.option(Config.string("PATH"))
+	const directories = Option.match(pathVar, {
+		onNone: () => Arr.empty<string>(),
+		onSome: pathEntries
+	})
+	return yield* Effect.reduce(directories, () => Option.none<string>(), (found, directory) => {
+		if (Option.isSome(found)) {
+			return Effect.succeed(found)
+		}
+		const candidate = path.join(directory, CURSOR_BINARY_NAME)
+		return fs
+			.exists(candidate)
+			.pipe(Effect.map((exists) => (exists ? Option.some(candidate) : Option.none<string>())))
+	})
+})
+
+// Named rather than falling back to a bare "cursor-agent" spawn: a spawn of
+// a command that is not there reports an opaque ENOENT from inside the
+// transport, and the operator reads a transport fault where the real answer
+// is that the CLI is not installed.
+export const missingCursorBinaryError = (): ProviderAdapterError =>
+	adapterError(
+		"startSession",
+		`Cursor CLI is not installed. Put '${CURSOR_BINARY_NAME}' on PATH or set ${CURSOR_BINARY_ENV_KEY}.`
+	)

@@ -26,15 +26,10 @@ import * as Stream from "effect/Stream"
 import * as Str from "effect/String"
 import * as ChildProcess from "effect/unstable/process/ChildProcess"
 import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner"
-import type { AgentInstallerShape } from "../../Services/AgentInstaller.ts"
 import type { ProviderAdapterError } from "../../Services/ProviderAdapter.ts"
 import type { Json } from "../Json.ts"
 import { cancelledPermission, permissionResponse } from "./Permissions.ts"
-import {
-	adapterError,
-	CURSOR_PROVIDER_ID,
-	type CursorPermissionDecision
-} from "./Provider.ts"
+import { adapterError, type CursorPermissionDecision } from "./Provider.ts"
 
 const decodeJson = Schema.decodeUnknownExit(Schema.Json)
 
@@ -270,19 +265,3 @@ export const liveConnect = Effect.fn("CursorAdapter.liveConnect")(function*(inpu
 	return acpHandleFromConnection(connection, closeResources)
 })
 
-export const resolveLaunchFromInstaller = (installer: AgentInstallerShape) =>
-	Effect.gen(function*() {
-		const cached = yield* installer.getCached(CURSOR_PROVIDER_ID).pipe(
-			Effect.mapError((error) => adapterError("startSession", error.message))
-		)
-		if (Option.isNone(cached)) {
-			return yield* adapterError(
-				"startSession",
-				"Cursor agent is not installed from the ACP registry."
-			)
-		}
-		return {
-			command: cached.value.binaryPath,
-			args: cached.value.args
-		}
-	})
