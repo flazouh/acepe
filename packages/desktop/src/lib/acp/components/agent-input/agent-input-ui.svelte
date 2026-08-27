@@ -1749,7 +1749,7 @@ $effect(() => {
 												currentModeId={composerView.effectiveCurrentModeId}
 												autonomousActive={composerView.autonomousToggleActive}
 												disabled={composerView.selectorsDisabledByComposer}
-												triggerSize="composerChipIcon"
+												triggerSize="composerChipLabel"
 												showLabel={false}
 												onModeChange={(modeId) => { void handleModeMenuChange(modeId); }}
 											/>
