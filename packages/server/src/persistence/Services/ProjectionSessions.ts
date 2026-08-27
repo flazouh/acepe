@@ -11,8 +11,8 @@ import {
 	SessionId,
 	SessionMetaUpdatedPayload,
 	SessionModelCatalog,
+	sessionModelsFromMetadata,
 	SessionModelSetPayload,
-	SessionModelsListedFact,
 	SessionModeSetPayload,
 	SessionPrLinkMode,
 	SessionPrNumber,
@@ -280,18 +280,6 @@ const providerSessionIdFromMetadata = (
 	})
 }
 
-// The catalog rides the same SessionMetaUpdated metadata channel as
-// provider_session above, so most meta updates carry none: a null answer here
-// means "this event said nothing about models", never "this session has no
-// models". Erasing a projected catalog on every title change would empty the
-// picker mid-session.
-const sessionModelsFromMetadata = (metadata: JsonObject): SessionModelCatalog | null => {
-	const decoded = Schema.decodeUnknownOption(SessionModelsListedFact)(metadata)
-	return Option.match(decoded, {
-		onNone: () => null,
-		onSome: (fact) => fact.models
-	})
-}
 
 // A row stored before the current_mode_id column existed decodes with the key
 // absent; every reader wants the same "no canonical mode yet" answer for that

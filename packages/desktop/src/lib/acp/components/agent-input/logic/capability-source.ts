@@ -1,4 +1,4 @@
-import { providerModels, providerModes } from "@acepe/contracts";
+import { providerModes } from "@acepe/contracts";
 import type { Mode } from "$lib/acp/application/dto/mode.js";
 import type { Model } from "$lib/acp/application/dto/model.js";
 import type {
@@ -176,14 +176,18 @@ function resolveFallbackCapabilitySource(
 		);
 	}
 
-	// Nothing had anything to say, so fall back to what the provider offers.
-	// These are contract-level facts -- a provider's modes and models do not
-	// change as a turn runs, and no event carries them -- and without this a
-	// composer with no session and no cache renders no mode selector at all and
-	// degrades its model slot to a static agent label.
+	// Nothing had anything to say, so fall back to the modes the provider
+	// offers. Those are contract-level facts -- a provider's modes do not change
+	// as a turn runs, and no event carries them -- and without this a composer
+	// with no session and no cache renders no mode selector at all.
+	//
+	// The models are NOT here. A provider ships new models between Acepe
+	// releases, so a constant was always the wrong answer: the composer offered
+	// five models the agent had outgrown. A provider is asked for its own
+	// catalog and publishes it as a canonical session fact, which means a
+	// composer with no session yet has no catalog to show, and shows none.
 	const modes = providerModes(input.agentId);
-	const models = providerModels(input.agentId);
-	if (modes.length > 0 || models.length > 0) {
+	if (modes.length > 0) {
 		return buildResolution(
 			"persistedCache",
 			"persistedCache",
@@ -193,7 +197,7 @@ function resolveFallbackCapabilitySource(
 				description: mode.description,
 				iconKind: mode.iconKind,
 			})),
-			models.map((model) => ({ id: model.modelId, name: model.name })),
+			null,
 			null,
 			input.providerMetadata
 		);

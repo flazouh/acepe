@@ -22,7 +22,7 @@ import {
 	type RpcProjectedTurn,
 	type RpcSessionSnapshot,
 } from "./rpc.ts"
-import { type SessionModelCatalog, SessionModelsListedFact } from "./sessionModels.ts"
+import { sessionModelsFromMetadata } from "./sessionModels.ts"
 import { emptyProjectedVoice, type ProjectedVoice, type VoiceModelInfo } from "./voice.ts"
 import { capTerminalOutput, type ProjectedTerminal } from "./terminal.ts"
 import {
@@ -238,19 +238,6 @@ const providerSessionIdFromMetadata = (
 	return Option.match(decoded, {
 		onNone: () => null,
 		onSome: (fact) => fact.providerSessionId,
-	})
-}
-
-// The catalog arrives on the same metadata channel as provider_session above,
-// so a null answer means "this event carried no catalog", never "this session
-// has no models". Same decision the server's sessionModelsFromMetadata makes.
-const sessionModelsFromMetadata = (
-	metadata: OrchestrationEvent["metadata"],
-): SessionModelCatalog | null => {
-	const decoded = Schema.decodeUnknownOption(SessionModelsListedFact)(metadata)
-	return Option.match(decoded, {
-		onNone: () => null,
-		onSome: (fact) => fact.models,
 	})
 }
 

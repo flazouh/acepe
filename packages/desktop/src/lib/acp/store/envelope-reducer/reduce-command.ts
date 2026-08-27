@@ -1,6 +1,7 @@
 import type {
 	ActiveStreamingTail,
 	SessionGraphActivity,
+	SessionGraphCapabilities,
 	SessionGraphRevision,
 	SessionStateGraph,
 	SessionTurnState,
@@ -19,6 +20,10 @@ import { applyTranscriptDeltaToSnapshot } from "../transcript-delta.js";
 import type { SessionTransientProjection } from "../types.js";
 import { buildCanonicalUsageTelemetry } from "./canonical-usage-telemetry.js";
 import { capabilitiesWithSessionMode } from "./capabilities-with-session-mode.js";
+import {
+	capabilitiesWithSessionModel,
+	capabilitiesWithSessionModels,
+} from "./capabilities-with-session-models.js";
 import { emptySessionGraphCapabilities } from "./empty-session-graph-capabilities.js";
 import type { EnvelopePatch } from "./envelope-patch.js";
 import type { EnvelopeReducerSnapshot } from "./envelope-snapshot.js";
@@ -71,6 +76,10 @@ export function reduceCommand(
 	switch (command.kind) {
 		case "applySessionMode":
 			return reduceApplySessionMode(snapshot, command);
+		case "applySessionModel":
+			return reduceApplySessionModel(snapshot, command);
+		case "applySessionModels":
+			return reduceApplySessionModels(snapshot, command);
 		case "applyTelemetry":
 			return reduceApplyTelemetry(snapshot, command, nowMs);
 		case "applyPlan":
@@ -160,6 +169,87 @@ function reduceApplySessionMode(
 	}
 
 	return patches;
+}
+
+/**
+ * The capabilities patches both model writers below produce. They differ only
+ * in how they fold the new fact into the previous capabilities, so the guards
+ * (a session identity, a capabilities projection to patch, and a revision that
+ * is not older than the one already applied) live here once.
+ */
+function patchCapabilities(
+	snapshot: EnvelopeReducerSnapshot,
+	revision: SessionGraphRevision,
+	fold: (previous: SessionGraphCapabilities) => SessionGraphCapabilities
+): readonly EnvelopePatch[] {
+	if (!snapshot.hasSessionIdentity) {
+		return [];
+	}
+
+	const previousProjection = snapshot.previousProjection;
+	const previousGraph = snapshot.previousGraph;
+	const previousCapabilities =
+		previousProjection?.capabilities ?? previousGraph?.capabilities ?? null;
+	if (previousCapabilities === null) {
+		return [];
+	}
+
+	if (isOlderGraphRevision(previousProjection?.revision ?? null, revision)) {
+		return [];
+	}
+
+	const nextCapabilities = fold(previousCapabilities);
+	const patches: EnvelopePatch[] = [];
+
+	if (previousProjection !== null) {
+		patches.push({
+			kind: "setCanonicalProjection",
+			sessionId: snapshot.sessionId,
+			projection: projectionWithCapabilities(previousProjection, nextCapabilities, revision),
+		});
+	}
+
+	if (previousGraph !== null) {
+		patches.push({
+			kind: "setSessionStateGraph",
+			sessionId: snapshot.sessionId,
+			graph: graphWithCapabilities(previousGraph, nextCapabilities, revision),
+		});
+	}
+
+	return patches;
+}
+
+/**
+ * The live path for the canonical chosen model, the model counterpart of
+ * reduceApplySessionMode above. Until this existed, a chosen model reached
+ * nothing: the composer showed it from its own optimistic state while the
+ * canonical projection kept the previous one.
+ *
+ * `capabilitiesMaterialized` stays untouched for the same reason it does for a
+ * mode: one field is not a materialized capability set.
+ */
+function reduceApplySessionModel(
+	snapshot: EnvelopeReducerSnapshot,
+	command: Extract<SessionStateCommand, { kind: "applySessionModel" }>
+): readonly EnvelopePatch[] {
+	return patchCapabilities(snapshot, command.revision, (previous) =>
+		capabilitiesWithSessionModel(previous, command.currentModelId)
+	);
+}
+
+/**
+ * The live path for a provider's own model catalog. The picker used to read a
+ * hand-written list of five models seeded at session open, so a model the
+ * provider shipped later did not exist to the app at all.
+ */
+function reduceApplySessionModels(
+	snapshot: EnvelopeReducerSnapshot,
+	command: Extract<SessionStateCommand, { kind: "applySessionModels" }>
+): readonly EnvelopePatch[] {
+	return patchCapabilities(snapshot, command.revision, (previous) =>
+		capabilitiesWithSessionModels(previous, command.availableModels)
+	);
 }
 
 function reduceApplyTelemetry(

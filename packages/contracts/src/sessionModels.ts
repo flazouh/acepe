@@ -16,8 +16,9 @@
  * an adapter change and nothing else.
  */
 
-import { TrimmedNonEmptyString } from "./baseSchemas.ts"
+import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
+import { TrimmedNonEmptyString } from "./baseSchemas.ts"
 
 export const SessionModelDescriptor = Schema.Struct({
 	// The id the provider itself wants back when a model is selected.
@@ -50,6 +51,26 @@ export const sessionModelsListedFact = (
 	contractKind: "session_models",
 	models,
 })
+
+/**
+ * The catalog an event's metadata carries, or null when it carries none.
+ *
+ * Null means "this event said nothing about models", never "this session has no
+ * models": the fact rides the busiest event on a session, so a reader that
+ * treated a silent metadata bag as an empty catalog would empty the picker on
+ * every title change. Every reader -- the SQL projection, the live snapshot
+ * fold, the desktop bridge -- decodes through this one function so the three
+ * cannot disagree about what a session_models fact is.
+ */
+export const sessionModelsFromMetadata = (
+	metadata: unknown,
+): SessionModelCatalog | null => {
+	const decoded = Schema.decodeUnknownOption(SessionModelsListedFact)(metadata)
+	return Option.match(decoded, {
+		onNone: () => null,
+		onSome: (fact) => fact.models,
+	})
+}
 
 /**
  * The catalog as a projection column holds it: JSON text, decoded back through
