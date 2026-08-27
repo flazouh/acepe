@@ -5,7 +5,6 @@ import type {
 	OperationSnapshot,
 	PlanData,
 	SessionGraphActivity,
-	SessionGraphCapabilities,
 	SessionGraphLifecycle,
 	SessionGraphRevision,
 	SessionStateDelta,
