@@ -150,6 +150,9 @@ export const executeCli = Effect.fn("executeCli")(function* (input: CliInput) {
 		return ok([
 			`captured ${String(outcome.success.stepCount)} events from ${outcome.success.args.sessionId}`,
 			`wrote ${outcome.success.args.out}`,
+			"note: a capture records events and snapshots, not the git/agent/index calls",
+			"the app makes while opening a session. Replay it and the QA overlay lists",
+			"what is missing; answer those with the builder's respond/shellBoot.",
 		]);
 	}
 	return fail(new QaUnknownCommand({ command }));

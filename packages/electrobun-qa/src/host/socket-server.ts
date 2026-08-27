@@ -43,11 +43,17 @@ const parentDir = (path: string): string => {
 	return path.slice(0, index)
 }
 
-const decodeChunk = (data: string | Uint8Array): string => {
-	if (typeof data === "string") {
-		return data
-	}
-	return new TextDecoder().decode(data)
+/**
+ * One decoder per connection, decoding in streaming mode.
+ *
+ * A fresh `TextDecoder` per chunk destroys any character whose bytes land on a
+ * chunk boundary, which a transcript full of accented text and emoji hits as
+ * soon as a payload is large enough to arrive in pieces. Streaming mode holds
+ * the partial character until its remaining bytes arrive.
+ */
+const makeChunkDecoder = (): ((data: string | Uint8Array) => string) => {
+	const decoder = new TextDecoder("utf-8")
+	return (data) => (typeof data === "string" ? data : decoder.decode(data, { stream: true }))
 }
 
 const ensureSocketDir = (path: string): void => {
@@ -118,42 +124,66 @@ export const handleSocketLine = Effect.fn("handleSocketLine")(function* (
  * comfortably over the line, so the remainder is held and flushed on `drain`.
  */
 type WritableSocket = {
-	readonly write: (data: string) => number
+	readonly write: (data: Uint8Array) => number
 }
 
+const encoder = new TextEncoder()
+
+const concatBytes = (left: Uint8Array, right: Uint8Array): Uint8Array => {
+	const joined = new Uint8Array(left.length + right.length)
+	joined.set(left, 0)
+	joined.set(right, left.length)
+	return joined
+}
+
+/**
+ * The remainder is tracked in bytes, not characters. `write` reports bytes
+ * taken, and one character of the transcript content a capture carries can be
+ * several of them, so slicing a string by that count corrupts the stream into
+ * something that is no longer JSON.
+ */
 const flushPending = (
 	socket: WritableSocket,
-	pending: WeakMap<WritableSocket, string>,
+	pending: WeakMap<WritableSocket, Uint8Array>,
 ): void => {
 	const outstanding = pending.get(socket)
 	if (outstanding === undefined || outstanding.length === 0) {
 		return
 	}
 	const written = socket.write(outstanding)
-	pending.set(socket, written >= outstanding.length ? "" : outstanding.slice(written))
+	pending.set(
+		socket,
+		written >= outstanding.length ? new Uint8Array(0) : outstanding.slice(written),
+	)
 }
 
 const writeLine = (
 	socket: WritableSocket,
-	pending: WeakMap<WritableSocket, string>,
+	pending: WeakMap<WritableSocket, Uint8Array>,
 	line: string,
 ): void => {
-	const queued = pending.get(socket) ?? ""
-	pending.set(socket, `${queued}${line}`)
+	const queued = pending.get(socket) ?? new Uint8Array(0)
+	pending.set(socket, concatBytes(queued, encoder.encode(line)))
 	flushPending(socket, pending)
 }
 
 export const startQaHostUnsafe = (input: StartQaHostInput): StartedQaHost => {
 	ensureSocketDir(input.path)
 	removeStaleSocket(input.path)
-	const buffers = new WeakMap<{ write: (data: string) => void }, string>()
-	const pendingWrites = new WeakMap<WritableSocket, string>()
+	const buffers = new WeakMap<WritableSocket, string>()
+	const decoders = new WeakMap<WritableSocket, (data: string | Uint8Array) => string>()
+	const pendingWrites = new WeakMap<WritableSocket, Uint8Array>()
 	const server = Bun.listen({
 		unix: input.path,
 		socket: {
 			data: (socket, data) => {
+				let decode = decoders.get(socket)
+				if (decode === undefined) {
+					decode = makeChunkDecoder()
+					decoders.set(socket, decode)
+				}
 				const previous = buffers.get(socket) ?? ""
-				const next = `${previous}${decodeChunk(data)}`
+				const next = `${previous}${decode(data)}`
 				const parts = next.split("\n")
 				const rest = parts.pop() ?? ""
 				buffers.set(socket, rest)
@@ -180,10 +210,12 @@ export const startQaHostUnsafe = (input: StartQaHostInput): StartedQaHost => {
 			// the socket answering doctor but refusing run.
 			error: (socket) => {
 				buffers.delete(socket)
+				decoders.delete(socket)
 				pendingWrites.delete(socket)
 			},
 			close: (socket) => {
 				buffers.delete(socket)
+				decoders.delete(socket)
 				pendingWrites.delete(socket)
 			},
 		},
@@ -266,6 +298,7 @@ const writeAndReadUnixOnce = (
 	Effect.callback<string, QaAppNotRunning>((resume) => {
 		let settled = false
 		let buffer = ""
+		const decode = makeChunkDecoder()
 		state.opened = false
 		const finish = (effect: Effect.Effect<string, QaAppNotRunning>): void => {
 			if (settled === true) {
@@ -282,7 +315,7 @@ const writeAndReadUnixOnce = (
 					socket.write(`${line}\n`)
 				},
 				data: (socket, data) => {
-					buffer = `${buffer}${decodeChunk(data)}`
+					buffer = `${buffer}${decode(data)}`
 					if (buffer.includes("\n") === true) {
 						const response = buffer.split("\n")[0] ?? ""
 						socket.end()

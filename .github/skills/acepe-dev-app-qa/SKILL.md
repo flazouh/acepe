@@ -110,6 +110,18 @@ what the server actually answered. It writes
 which CI can grade. `--out`, `--description` and `--quiet-ms` are available;
 the quiet window is how the capture decides the historical replay has ended.
 
+Two things to know before relying on a capture.
+
+A capture records events and snapshots. It does not record the git, agent or
+file-index calls the app makes while opening a session, so replaying one gets
+the transcript but the session panel opens empty. The overlay lists exactly
+which calls are missing; answer them with the builder's `respond`/`shellBoot`
+in `packages/qa-scenario` to make the capture openable.
+
+Vite reads the ndjson files through an eager glob, so a newly captured file is
+not visible until the module is re-evaluated. Touch
+`packages/desktop/src/lib/qa/scenario-library.ts` and reload the window.
+
 In a multi-panel workspace, generic `send` and `watch` calls are insufficient
 unless their selectors are scoped beneath a previously proven panel root.
 Numeric selector indexes are diagnostic helpers only; they are not stable

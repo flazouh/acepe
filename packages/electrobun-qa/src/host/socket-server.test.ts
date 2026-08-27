@@ -61,7 +61,7 @@ const memorySession = () =>
  * client never saw the terminating newline and waited out its whole deadline
  * for a reply that had already been half sent.
  */
-const bigPayloadSession = (size: number) => {
+const bigPayloadSession = (payload: string) => {
 	const session = memorySession()
 	return {
 		doctor: session.doctor,
@@ -69,20 +69,23 @@ const bigPayloadSession = (size: number) => {
 		firstWindow: session.firstWindow,
 		useWindow: session.useWindow,
 		windowInfo: session.windowInfo,
-		call: () => Effect.succeed("x".repeat(size)),
-		handleSocketRequest: () => Effect.succeed("x".repeat(size)),
+		call: () => Effect.succeed(payload),
+		handleSocketRequest: () => Effect.succeed(payload),
 	}
 }
 
 describe("socket-server", () => {
 	it.live("answers a payload larger than the socket send buffer", () =>
 		Effect.gen(function* () {
-			const size = 200_000
+			// Multi-byte characters on purpose: `write` reports bytes taken, so a
+			// remainder tracked in characters slices mid-character and the client
+			// receives something that is no longer JSON.
+			const payload = "héllo wörld ✅ 🚀 ".repeat(12_000)
 			const path = "/tmp/electrobun-qa/big-payload.sock"
 			const host = yield* startQaHost({
 				signed: false,
 				path,
-				session: bigPayloadSession(size),
+				session: bigPayloadSession(payload),
 			})
 			const response = yield* sendSocketRequest(
 				path,
@@ -90,7 +93,7 @@ describe("socket-server", () => {
 				Duration.seconds(10),
 			).pipe(Effect.ensuring(Effect.sync(() => host.stop())))
 			expect(response.ok).toBe(true)
-			expect(response.ok === true ? String(response.value).length : 0).toBe(size)
+			expect(response.ok === true ? response.value : null).toBe(payload)
 		}),
 	)
 
