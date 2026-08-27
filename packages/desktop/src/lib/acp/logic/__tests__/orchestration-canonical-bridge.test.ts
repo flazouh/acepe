@@ -1037,10 +1037,13 @@ describe("OrchestrationCanonicalBridge provider capabilities", () => {
 		);
 		const payload = envelopes[0]?.payload as SessionStateEnvelope | undefined;
 		const graph = payload?.payload.kind === "snapshot" ? payload.payload.graph : null;
+		// Claude Code's own five, in the order and under the names its own mode
+		// menu uses: Auto is the SDK's `auto`, Manual is its `default`.
 		expect(graph?.capabilities.modes?.availableModes?.map((mode) => mode.id)).toEqual([
+			"auto",
 			"default",
-			"plan",
 			"acceptEdits",
+			"plan",
 			"bypassPermissions",
 		]);
 		expect((graph?.capabilities.models?.availableModels?.length ?? 0) > 0).toBe(true);

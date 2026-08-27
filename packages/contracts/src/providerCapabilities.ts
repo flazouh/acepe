@@ -45,27 +45,33 @@ export type ProviderModelDescriptor = {
  */
 export const CLAUDE_PROVIDER_MODES: ReadonlyArray<ProviderModeDescriptor> = [
 	{
-		id: "default",
-		name: "Build",
-		description: "Asks before it edits files or runs commands",
-		iconKind: "agent"
+		id: "auto",
+		name: "Auto",
+		description: "Claude handles permission decisions",
+		iconKind: "autonomous"
 	},
 	{
-		id: "plan",
-		name: "Plan",
-		description: "Researches and proposes a plan without changing anything",
-		iconKind: "plan"
+		id: "default",
+		name: "Manual",
+		description: "Always ask before making changes",
+		iconKind: "agent"
 	},
 	{
 		id: "acceptEdits",
 		name: "Accept edits",
-		description: "Applies file edits without asking, still asks before running commands",
+		description: "Automatically accept all file edits",
 		iconKind: "edit"
+	},
+	{
+		id: "plan",
+		name: "Plan",
+		description: "Create a plan before making changes",
+		iconKind: "plan"
 	},
 	{
 		id: "bypassPermissions",
 		name: "Bypass permissions",
-		description: "Never asks. Every edit and command runs on its own",
+		description: "Accepts all permissions",
 		iconKind: "bypass"
 	}
 ]

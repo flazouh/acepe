@@ -68,9 +68,10 @@ describe("resolveCapabilitySource", () => {
 		});
 
 		expect(modeIds(resolution.availableModes)).toEqual([
+			"auto",
 			"default",
-			"plan",
 			"acceptEdits",
+			"plan",
 			"bypassPermissions",
 		]);
 		expect((resolution.availableModels ?? []).length).toBeGreaterThan(0);

@@ -7,6 +7,8 @@
 	import * as DropdownMenu from "../dropdown-menu/index.js";
 	import { HugeiconsIcon } from "../icons/index.js";
 	import { Selector } from "../selector/index.js";
+	import type { SelectorTriggerSize } from "../selector/selector-trigger-classes.js";
+	import { getSelectorTriggerButtonVariant } from "../selector/selector-trigger-classes.js";
 	import {
 		getModeDropdownOptions,
 		getModeIconColor,
@@ -23,6 +25,8 @@
 		currentModeId: string | null;
 		disabled?: boolean;
 		autonomousActive?: boolean;
+		/** Same default as the model selector, so the two triggers match. */
+		triggerSize?: SelectorTriggerSize;
 		onModeChange: (modeId: string) => void;
 	}
 
@@ -31,8 +35,11 @@
 		currentModeId,
 		disabled = false,
 		autonomousActive = false,
+		triggerSize = "pill",
 		onModeChange,
 	}: Props = $props();
+
+	const selectorVariant = $derived(getSelectorTriggerButtonVariant(triggerSize));
 
 	let menuOpen = $state(false);
 
@@ -55,7 +62,8 @@
 	align="start"
 	side="top"
 	sideOffset={8}
-	variant="outline"
+	variant={selectorVariant}
+	{triggerSize}
 	showChevron={false}
 	triggerAriaLabel={selectedOption.label}
 >
