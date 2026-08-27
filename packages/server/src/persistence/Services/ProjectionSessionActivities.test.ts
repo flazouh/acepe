@@ -180,6 +180,56 @@ const fold = (events: ReadonlyArray<SessionActivityEvent | OrchestrationEvent>) 
 		evolveSessionActivity
 	)
 
+
+Vitest.describe("tool arguments across observations", () => {
+	const toolRow = (
+		sequence: number,
+		input: Record<string, string> | null
+	): ProjectedSessionActivityRow => ({
+		activityId: ActivityId.make("activity-args"),
+		sessionId: SessionId.make("session-args"),
+		sequence,
+		statusSequence: sequence,
+		kind: "tool",
+		toolKind: "edit",
+		toolCallId: ToolCallId.make("tool-args"),
+		operationId: null,
+		status: "in_progress",
+		title: "Write",
+		path: "/tmp/a.txt",
+		output: null,
+		input
+	})
+
+	/**
+	 * A tool_use block starts before its arguments have streamed, so Claude's
+	 * first observation carries `{}` and the second carries the real input.
+	 * Treating the empty start as a value let it win the merge, and the content
+	 * a person needs in order to review an edit never reached the snapshot.
+	 */
+	Vitest.it("keeps the arguments that arrive after an empty start", () => {
+		const merged = mergeActivityRow(
+			Option.some(toolRow(1, {})),
+			toolRow(2, { file_path: "/tmp/a.txt", content: "reviewable" })
+		)
+		Vitest.assert.deepStrictEqual(merged.input, {
+			file_path: "/tmp/a.txt",
+			content: "reviewable"
+		})
+	})
+
+	Vitest.it("a later status-only observation does not erase them", () => {
+		const merged = mergeActivityRow(
+			Option.some(toolRow(1, { file_path: "/tmp/a.txt", content: "reviewable" })),
+			toolRow(2, {})
+		)
+		Vitest.assert.deepStrictEqual(merged.input, {
+			file_path: "/tmp/a.txt",
+			content: "reviewable"
+		})
+	})
+})
+
 Vitest.describe("ProjectionSessionActivities", () => {
 	Vitest.it("is a service class named projection.session-activities", () => {
 		Vitest.assert.strictEqual(

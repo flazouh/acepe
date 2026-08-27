@@ -305,11 +305,22 @@ export const mergeActivityRow = (
 		// wins the same way path does. A later status-only event carries none
 		// and must not erase it.
 		output: row.output === null ? incoming.output : row.output,
-		// Only the start event carries the arguments; a later status update
-		// carries none and must not erase them. First non-null wins, like path.
-		input: row.input === null ? incoming.input : row.input
+		// The arguments arrive once the tool's input has streamed, which may be
+		// the second observation rather than the first. First one that actually
+		// has arguments wins; a later status-only update carries none and must
+		// not erase them.
+		input: presentInput(row.input) === null ? incoming.input : row.input
 	}
 }
+
+/**
+ * A tool_use block starts before its arguments have streamed, so the first
+ * observation carries `{}`. That is "no arguments yet", not "no arguments" --
+ * treating it as a value let the empty start win the first-non-null merge and
+ * the real content, which arrives on the very next observation, was dropped.
+ */
+const presentInput = (input: Schema.JsonObject | null): Schema.JsonObject | null =>
+	input === null || Object.keys(input).length === 0 ? null : input
 
 const decodePayload = <S extends Schema.Top>(schema: S, value: unknown) =>
 	Schema.decodeUnknownEffect(schema)(value)
@@ -330,7 +341,7 @@ const observedToolRow = (
 	title: payload.title,
 	path: payload.path,
 	output: payload.output ?? null,
-	input: payload.input ?? null
+	input: presentInput(payload.input ?? null)
 })
 
 const observedFileRow = (
