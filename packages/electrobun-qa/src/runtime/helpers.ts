@@ -162,30 +162,34 @@ export const makeRuntimeHelpers = (session: QaSession, logs: Array<string>) => {
 			timeoutMs === undefined ? DEFAULT_HELPER_DEADLINE : Duration.millis(timeoutMs),
 		)
 	})
-	const waitForSelector = Effect.fn("waitForSelector")(function* (selector: string) {
+	// Every wait takes its own budget. The 5s default is sized for a DOM read,
+	// and an agent turn is not: a QA script that has to outlast a real provider
+	// answering must be able to say so, rather than being failed by a deadline
+	// that has nothing to do with what it is waiting for.
+	const waitForSelector = Effect.fn("waitForSelector")(function* (
+		selector: string,
+		timeoutMs?: number,
+	) {
 		return yield* pollUntil(
 			"waitForSelector",
 			session.call("qa:waitFor", { selector }).pipe(
 				Effect.map((found) => found === true),
 				Effect.orElseSucceed(() => false),
 			),
-			DEFAULT_HELPER_DEADLINE,
+			timeoutMs === undefined ? DEFAULT_HELPER_DEADLINE : Duration.millis(timeoutMs),
 		)
 	})
-	const waitForIdle = Effect.fn("waitForIdle")(function* () {
+	const waitForIdle = Effect.fn("waitForIdle")(function* (timeoutMs?: number) {
 		return yield* pollUntil(
 			"waitForIdle",
 			Effect.succeed(true),
-			DEFAULT_HELPER_DEADLINE,
+			timeoutMs === undefined ? DEFAULT_HELPER_DEADLINE : Duration.millis(timeoutMs),
 		)
 	})
+	// A local sleep, with nothing to time out. Capping it at the helper deadline
+	// only meant that asking to wait longer than 5s failed instead of waiting.
 	const wait = Effect.fn("wait")(function* (ms: number) {
-		yield* Effect.sleep(Duration.millis(ms)).pipe(
-			Effect.timeoutOrElse({
-				duration: DEFAULT_HELPER_DEADLINE,
-				orElse: () => Effect.fail(new QaHelperTimeout({ helper: "wait" })),
-			}),
-		)
+		yield* Effect.sleep(Duration.millis(ms))
 	})
 	const js = Effect.fn("js")(function* (source: string) {
 		return yield* session.call("qa:eval", { source })

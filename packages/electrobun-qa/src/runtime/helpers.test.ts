@@ -74,18 +74,30 @@ describe("helpers", () => {
 		}),
 	)
 
-	it.effect("wait fails with QaHelperTimeout when the deadline passes", () =>
+	/**
+	 * `wait` used to cap itself at the 5s helper deadline and fail past it, so
+	 * asking to wait longer than 5s never waited -- it errored. A QA script that
+	 * has to outlast a real agent turn needs the sleep it asked for.
+	 */
+	it.effect("wait sleeps for as long as it was asked to", () =>
 		Effect.gen(function* () {
 			const helpers = makeRuntimeHelpers(sessionWithPage(), [])
-			const fiber = yield* Effect.forkChild(helpers.wait(60_000))
-			yield* TestClock.adjust(Duration.millis(5_000))
+			let finished = false
+			const fiber = yield* Effect.forkChild(
+				helpers.wait(60_000).pipe(
+					Effect.tap(() =>
+						Effect.sync(() => {
+							finished = true
+						}),
+					),
+				),
+			)
+			yield* TestClock.adjust(Duration.millis(59_000))
+			expect(finished).toBe(false)
+			yield* TestClock.adjust(Duration.millis(1_000))
 			const exit = yield* Fiber.await(fiber)
-			expect(Exit.isFailure(exit)).toBe(true)
-			if (Exit.isSuccess(exit) === true) {
-				return
-			}
-			const error = Cause.squash(exit.cause)
-			expect(Schema.is(QaHelperTimeout)(error)).toBe(true)
+			expect(Exit.isSuccess(exit)).toBe(true)
+			expect(finished).toBe(true)
 		}),
 	)
 

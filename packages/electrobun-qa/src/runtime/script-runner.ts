@@ -75,8 +75,18 @@ export const makePromiseHelpers = (session: QaSession, logs: Array<string>) => {
 			}
 			return runHelper(helpers.waitForText(text, options.timeoutMs))
 		},
-		waitForSelector: (selector: string) => runHelper(helpers.waitForSelector(selector)),
-		waitForIdle: () => runHelper(helpers.waitForIdle()),
+		waitForSelector: (selector: string, options?: { readonly timeoutMs?: number }) => {
+			if (options === undefined || options.timeoutMs === undefined) {
+				return runHelper(helpers.waitForSelector(selector))
+			}
+			return runHelper(helpers.waitForSelector(selector, options.timeoutMs))
+		},
+		waitForIdle: (options?: { readonly timeoutMs?: number }) => {
+			if (options === undefined || options.timeoutMs === undefined) {
+				return runHelper(helpers.waitForIdle())
+			}
+			return runHelper(helpers.waitForIdle(options.timeoutMs))
+		},
 		wait: (ms: number) => runHelper(helpers.wait(ms)),
 		js: (source: string) => runHelper(helpers.js(source)),
 		queryAll: (selector: string) => runHelper(helpers.queryAll(selector)),
