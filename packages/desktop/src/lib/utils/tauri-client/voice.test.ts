@@ -33,6 +33,36 @@ const externalModel: VoiceModelInfo = {
 	downloadUrl: "",
 };
 
+type VoiceSnapshotOverrides = {
+	readonly models?: readonly VoiceModelInfo[];
+	readonly lastTranscription?: RpcSessionSnapshot["voice"] extends infer V
+		? V extends { lastTranscription: infer T }
+			? T
+			: never
+		: never;
+};
+
+const voiceSnapshotWith = (overrides: VoiceSnapshotOverrides): RpcSessionSnapshot => {
+	const base = voiceSnapshot();
+	const voiceProjection = base.voice;
+	if (voiceProjection === null) {
+		return base;
+	}
+	return {
+		...base,
+		voice: {
+			sequence: voiceProjection.sequence,
+			models: overrides.models ?? voiceProjection.models,
+			languages: voiceProjection.languages,
+			recording: voiceProjection.recording,
+			lastTranscription:
+				overrides.lastTranscription === undefined
+					? voiceProjection.lastTranscription
+					: overrides.lastTranscription,
+		},
+	};
+};
+
 const voiceSnapshot = (): RpcSessionSnapshot => {
 	const empty = emptyRpcSessionSnapshot(0);
 	const projected = emptyProjectedVoice(1);
@@ -145,6 +175,48 @@ describe("voice rpc facade", () => {
 				expect(result.text).toBe("ship the slice");
 				expect(result.language).toBe("en");
 				expect(result.duration_ms).toBe(1500);
+			})
+		));
+
+	/**
+	 * No transcription used to come back as an empty success, so the caller
+	 * told someone who had just spoken "No speech detected". Speech to text
+	 * runs through an external command; with none configured there is no
+	 * backend that could have heard anything, and saying so is the only answer
+	 * a person can act on.
+	 */
+	it("fails with the setup message when no speech backend is configured", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				setAppRpcClientForTest(
+					makeClient({
+						dispatch: () => Effect.succeed({ sequence: 1 }),
+						snapshot: () =>
+							Effect.succeed(
+								voiceSnapshotWith({
+									models: [{ ...externalModel, isDownloaded: false, isLoaded: false }],
+									lastTranscription: null,
+								})
+							),
+					})
+				);
+				const outcome = yield* Effect.result(voice.stopRecording("session-1", "en"));
+				expect(outcome._tag).toBe("Failure");
+			})
+		));
+
+	it("reports an empty transcription when a backend was there and heard nothing", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				setAppRpcClientForTest(
+					makeClient({
+						dispatch: () => Effect.succeed({ sequence: 1 }),
+						snapshot: () =>
+							Effect.succeed(voiceSnapshotWith({ lastTranscription: null })),
+					})
+				);
+				const result = yield* voice.stopRecording("session-1", "en");
+				expect(result.text).toBe("");
 			})
 		));
 

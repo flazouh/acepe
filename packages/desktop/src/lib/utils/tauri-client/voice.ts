@@ -7,6 +7,7 @@ import {
 	type ProjectedVoice,
 	type VoiceLanguageOption as ContractVoiceLanguageOption,
 	type VoiceModelInfo as ContractVoiceModelInfo,
+	VOICE_BACKEND_NOT_CONFIGURED_MESSAGE,
 	voiceSnapshotRequest,
 } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
@@ -196,6 +197,23 @@ export const voice = {
 		);
 		const voiceState = yield* requireVoice("voice.recording.stop");
 		if (voiceState.lastTranscription === null) {
+			// No transcription can mean two very different things, and this used
+			// to flatten them into one empty success: the caller then reported
+			// "No speech detected" to someone who had just spoken. Speech to
+			// text runs through an external command, and when none is
+			// configured there is no backend that could have heard anything --
+			// say that instead.
+			const backendReady = voiceState.models.some(
+				(model) => model.isLoaded || model.isDownloaded
+			);
+			if (!backendReady) {
+				return yield* Effect.fail(
+					new AgentError(
+						"voice.recording.stop",
+						new Error(VOICE_BACKEND_NOT_CONFIGURED_MESSAGE)
+					)
+				);
+			}
 			return {
 				text: "",
 				language: null,

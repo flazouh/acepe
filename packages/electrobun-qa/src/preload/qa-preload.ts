@@ -426,9 +426,37 @@ export const qaPreloadScript = `(function(){
     if (params.text) return findByText(params.text);
     return null;
   }
+  // A real press is pointerdown, pointerup, then click. Dispatching only the
+  // click meant every press-and-hold control -- the voice mic is one, it listens
+  // on pointerdown alone -- silently did nothing, and QA read that as a feature
+  // being broken rather than a press never happening.
+  function firePointer(el, type) {
+    if (typeof el.dispatchEvent !== "function") return;
+    var rect = typeof el.getBoundingClientRect === "function"
+      ? el.getBoundingClientRect()
+      : { left: 0, top: 0, width: 0, height: 0 };
+    var init = {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      clientX: rect.left + rect.width / 2,
+      clientY: rect.top + rect.height / 2,
+      button: 0,
+      buttons: type === "pointerdown" ? 1 : 0,
+      pointerId: 1,
+      pointerType: "mouse",
+      isPrimary: true
+    };
+    var event = typeof PointerEvent === "function"
+      ? new PointerEvent(type, init)
+      : new MouseEvent(type === "pointerdown" ? "mousedown" : "mouseup", init);
+    el.dispatchEvent(event);
+  }
   function click(params) {
     var el = findTarget(params);
     if (!el) return false;
+    firePointer(el, "pointerdown");
+    firePointer(el, "pointerup");
     if (typeof el.click === "function") el.click();
     return true;
   }

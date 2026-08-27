@@ -61,6 +61,24 @@ export const ProjectedVoice = Schema.Struct({
 })
 export type ProjectedVoice = typeof ProjectedVoice.Type
 
+/**
+ * Speech to text runs outside Acepe, through a command the operator points at.
+ *
+ * The names live here because both sides need them: the server reads them to
+ * find the backend, and the client names them when telling a person why
+ * dictation produced nothing.
+ */
+export const EXTERNAL_STT_COMMAND_ENV_NAME = "ACEPE_VOICE_STT_COMMAND"
+export const EXTERNAL_STT_MODEL_PATH_ENV_NAME = "ACEPE_VOICE_STT_MODEL_PATH"
+
+/**
+ * What to tell someone whose dictation produced nothing because no speech to
+ * text backend is configured. Distinct from "no speech detected", which is what
+ * the app used to say in this case and is simply untrue.
+ */
+export const VOICE_BACKEND_NOT_CONFIGURED_MESSAGE =
+	`Speech to text is not set up. Point ${EXTERNAL_STT_COMMAND_ENV_NAME} at a transcription command (and optionally ${EXTERNAL_STT_MODEL_PATH_ENV_NAME} at its model) and restart Acepe.`
+
 export const APP_VOICE_ID: VoiceId = VoiceId.make("app")
 
 export const emptyVoiceModels: ReadonlyArray<VoiceModelInfo> = []
