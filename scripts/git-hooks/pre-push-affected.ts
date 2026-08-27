@@ -12,7 +12,6 @@ import { spawnSync } from "node:child_process";
 
 import {
 	classifyPushFiles,
-	shouldRunAgentPanelContract,
 	shouldRunDesktop,
 	shouldRunElectrobunShell,
 	shouldRunUi,
@@ -82,7 +81,6 @@ const affected = classifyPushFiles(files);
 const runDesktop = shouldRunDesktop(affected);
 const runWebsite = shouldRunWebsite(affected);
 const runUi = shouldRunUi(affected);
-const runAgentPanelContract = shouldRunAgentPanelContract(affected);
 const runElectrobunShell = shouldRunElectrobunShell(affected);
 
 console.log("Pre-push affected sets:");
@@ -93,7 +91,6 @@ console.log(
 			runDesktop,
 			runWebsite,
 			runUi,
-			runAgentPanelContract,
 			runElectrobunShell,
 		},
 		null,
@@ -133,10 +130,6 @@ if (runUi) {
 	runShell("ui test", "bun test", "packages/ui");
 }
 
-if (runAgentPanelContract) {
-	runShell("agent-panel-contract test", "bun test", "packages/agent-panel-contract");
-}
-
 if (runElectrobunShell) {
 	runShell("electrobun-shell typecheck", "bun run typecheck", "packages/electrobun-shell");
 	runShell("electrobun-shell lint:effect", "bun run lint:effect", "packages/electrobun-shell");
@@ -151,7 +144,6 @@ if (
 	!runDesktop &&
 	!runWebsite &&
 	!runUi &&
-	!runAgentPanelContract &&
 	!runElectrobunShell &&
 	files.length > 0
 ) {

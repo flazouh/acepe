@@ -2,7 +2,6 @@ export type Affected = {
 	desktopFrontend: boolean;
 	website: boolean;
 	ui: boolean;
-	agentPanelContract: boolean;
 	rootScripts: boolean;
 	shared: boolean;
 	electrobunShell: boolean;
@@ -21,7 +20,6 @@ export function classifyPushFiles(files: readonly string[]): Affected {
 		desktopFrontend: files.some(isDesktopFrontend),
 		website: matchesAny(files, ["packages/website/"]),
 		ui: matchesAny(files, ["packages/ui/"]),
-		agentPanelContract: matchesAny(files, ["packages/agent-panel-contract/"]),
 		rootScripts: matchesAny(files, ["scripts/"]),
 		shared: matchesAny(files, [
 			"bun.lock",
@@ -45,24 +43,16 @@ export function classifyPushFiles(files: readonly string[]): Affected {
 
 export function shouldRunDesktop(affected: Affected): boolean {
 	return (
-		affected.desktopFrontend ||
-		affected.ui ||
-		affected.agentPanelContract ||
-		affected.rootScripts ||
-		affected.shared
+		affected.desktopFrontend || affected.ui || affected.rootScripts || affected.shared
 	);
 }
 
 export function shouldRunWebsite(affected: Affected): boolean {
-	return affected.website || affected.ui || affected.agentPanelContract || affected.shared;
+	return affected.website || affected.ui || affected.shared;
 }
 
 export function shouldRunUi(affected: Affected): boolean {
 	return affected.ui || affected.rootScripts || affected.shared;
-}
-
-export function shouldRunAgentPanelContract(affected: Affected): boolean {
-	return affected.agentPanelContract || affected.shared;
 }
 
 export function shouldRunElectrobunShell(affected: Affected): boolean {
