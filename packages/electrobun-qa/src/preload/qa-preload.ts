@@ -490,12 +490,16 @@ export const qaPreloadScript = `(function(){
     if (!el) return false;
     var popup = isPopupTrigger(el);
     if ((params && params.press === true) || popup) {
-      var before = popup ? el.getAttribute("aria-expanded") : null;
+      // aria-expanded is the only honest read on whether a press landed, so a
+      // trigger without one gets the press and the click and nothing more:
+      // guessing again could toggle a menu that the click already opened.
+      var observable = el.getAttribute("aria-expanded") !== null;
+      var before = el.getAttribute("aria-expanded");
       firePointer(el, "pointerdown");
       firePointer(el, "pointerup");
-      if (popup && el.getAttribute("aria-expanded") !== before) return true;
+      if (observable && el.getAttribute("aria-expanded") !== before) return true;
       if (typeof el.click === "function") el.click();
-      if (popup === false) return true;
+      if (popup === false || observable === false) return true;
       if (el.getAttribute("aria-expanded") !== before) return true;
       // Some menu triggers answer the keyboard and ignore a synthesised press
       // and click, both of which reach them undefaulted. Enter is a real path
