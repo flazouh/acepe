@@ -1,4 +1,6 @@
-import { query } from "@anthropic-ai/claude-agent-sdk"
+import { query, type ModelInfo } from "@anthropic-ai/claude-agent-sdk"
+import type { SessionModelCatalog, SessionModelDescriptor } from "@acepe/contracts"
+import * as Arr from "effect/Array"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
@@ -30,6 +32,11 @@ export type ClaudeQueryInput = {
 	// buildClaudeQueryOptions' own doc for why the launch options carry it
 	// alongside the live setPermissionMode control request below.
 	readonly permissionMode: ClaudeMode
+	// The session's canonical model, for the same reason the mode is here:
+	// setModel only reaches a LIVE query, and a cancel or a stall recovery
+	// builds a new one. None means the session never chose a model, and then
+	// the SDK runs whatever the operator's own Claude config selects.
+	readonly model: Option.Option<string>
 }
 
 export type ClaudeQueryHandle = {
@@ -40,8 +47,31 @@ export type ClaudeQueryHandle = {
 	// query() (an AsyncIterable prompt), so this is a real transport call and
 	// not a stub.
 	readonly setPermissionMode: (mode: ClaudeMode) => Effect.Effect<void, ProviderAdapterError>
+	// The SDK's own mid-session model control request, streaming-input-only in
+	// exactly the same way setPermissionMode is.
+	readonly setModel: (model: string) => Effect.Effect<void, ProviderAdapterError>
+	// What this session can actually run, asked of the SDK rather than
+	// hardcoded beside the picker. Mapped to the contract's own descriptor
+	// HERE, at the transport edge, so ModelInfo's field names
+	// (value/displayName) stay inside this file.
+	readonly supportedModels: Effect.Effect<SessionModelCatalog, ProviderAdapterError>
 	readonly close: Effect.Effect<void>
 }
+
+// ModelInfo's own field names, translated once. The contract calls them
+// modelId/name/description; the SDK calls them value/displayName/description.
+// A model whose id or display name is blank cannot satisfy the contract's
+// TrimmedNonEmptyString, so it is dropped rather than allowed to fail the
+// whole catalog's encode -- one unusable entry must not cost the picker every
+// other model.
+const sessionModelFromInfo = (info: ModelInfo): SessionModelDescriptor => ({
+	modelId: info.value,
+	name: info.displayName,
+	description: info.description
+})
+
+const isUsableModel = (model: SessionModelDescriptor): boolean =>
+	Str.isNonEmpty(model.modelId.trim()) && Str.isNonEmpty(model.name.trim())
 
 const errorDetail = <A>(cause: A, fallback: string): string => {
 	if (Predicate.isError(cause) && Str.isNonEmpty(cause.message)) {
@@ -88,6 +118,21 @@ export const makeLiveCreateQuery = (
 								errorDetail(cause, "Claude setPermissionMode failed")
 							)
 					}),
+				setModel: (model: string) =>
+					Effect.tryPromise({
+						try: () => runtime.setModel(model),
+						catch: (cause) =>
+							adapterError("setModel", errorDetail(cause, "Claude setModel failed"))
+					}),
+				supportedModels: Effect.tryPromise({
+					try: () => runtime.supportedModels(),
+					catch: (cause) =>
+						adapterError("startSession", errorDetail(cause, "Claude supportedModels failed"))
+				}).pipe(
+					Effect.map((infos) =>
+						Arr.filter(Arr.map(infos, sessionModelFromInfo), isUsableModel)
+					)
+				),
 				close: Effect.sync(() => {
 					runtime.close()
 				})

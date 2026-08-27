@@ -1000,6 +1000,8 @@ Vitest.describe("ProviderBridge", () => {
 								messages: Stream.fromQueue(inbound),
 								interrupt: Effect.void,
 								setPermissionMode: () => Effect.void,
+								setModel: () => Effect.void,
+								supportedModels: Effect.succeed([]),
 								close: Queue.end(inbound).pipe(Effect.asVoid)
 							} satisfies ClaudeQueryHandle
 						})

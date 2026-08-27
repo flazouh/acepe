@@ -12,8 +12,7 @@ import {
 	CLAUDE_REASONING_PRESENTATION,
 	claudePreconnectionConfigOptions,
 	claudePresence,
-	isClaudePlanCapabilityEnabled,
-	resolveClaudeApiModelId
+	isClaudePlanCapabilityEnabled
 } from "./Provider.ts"
 
 Vitest.describe("ClaudeProvider", () => {
@@ -53,21 +52,6 @@ Vitest.describe("ClaudeProvider", () => {
 			true
 		)
 		Vitest.assert.strictEqual(isClaudePlanCapabilityEnabled(), true)
-	})
-
-	Vitest.it("appends the 1m suffix only when the model id has no bracket", () => {
-		Vitest.assert.strictEqual(
-			resolveClaudeApiModelId("claude-opus-4-6", "1m"),
-			"claude-opus-4-6[1m]"
-		)
-		Vitest.assert.strictEqual(
-			resolveClaudeApiModelId("claude-opus-4-6[1m]", "1m"),
-			"claude-opus-4-6[1m]"
-		)
-		Vitest.assert.strictEqual(
-			resolveClaudeApiModelId("claude-sonnet-4-6", "200k"),
-			"claude-sonnet-4-6"
-		)
 	})
 
 	Vitest.it("reports presence without reading process.env", () => {

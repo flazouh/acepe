@@ -82,6 +82,18 @@ export const SetModeRequest = Schema.Struct({
 })
 export type SetModeRequest = typeof SetModeRequest.Type
 
+// Carries a canonical SessionModelSet through to an adapter, and NOT a member
+// of ProviderAdapter for exactly the reason SetModeRequest is not: a provider
+// whose transport cannot switch model declares that by exposing no setModel.
+// Until this existed the bridge had no way to reach a provider with a chosen
+// model at all, so picking one in the composer changed nothing about the turn
+// that followed. See supportsSetModel in Layers/ProviderBridge.ts.
+export const SetModelRequest = Schema.Struct({
+	sessionId: SessionId,
+	modelId: TrimmedNonEmptyString
+})
+export type SetModelRequest = typeof SetModelRequest.Type
+
 export class ProviderAdapterError extends Schema.TaggedError<ProviderAdapterError>()(
 	"ProviderAdapterError",
 	{
