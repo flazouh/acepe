@@ -77,8 +77,11 @@ const sourceOf = (params: unknown): string => {
 	return typeof source === "string" ? source : ""
 }
 
-/** Answers the start/read pair the same way the in-app hook does. */
-const captureSession = (): QaSession => {
+/** Answers the start/progress/page protocol the same way the in-app hook does. */
+const captureSession = (
+	pageRequests: Array<{ offset: number; limit: number }>,
+	events: ReadonlyArray<ReturnType<typeof event>> = capturedEvents,
+): QaSession => {
 	let started = false
 	const call: QaSession["call"] = (method, params) => {
 		const source = sourceOf(params)
@@ -93,19 +96,24 @@ const captureSession = (): QaSession => {
 			return Effect.succeed({
 				done: started,
 				error: null,
-				eventCount: capturedEvents.length,
+				sessionId,
+				eventCount: events.length,
 			})
 		}
-		return Effect.succeed({
-			done: true,
-			error: null,
-			sessionId,
-			events: capturedEvents,
-			snapshots: [
+		if (source.includes("__acepeQaCaptureReadSnapshots")) {
+			return Effect.succeed([
 				{ scopeKey: `session:${sessionId}`, snapshot: emptySnapshot },
 				{ scopeKey: "library", snapshot: emptySnapshot },
-			],
-		})
+			])
+		}
+		const page = /ReadEvents\((\d+), (\d+)\)/.exec(source)
+		if (page === null) {
+			return Effect.succeed(null)
+		}
+		const offset = Number(page[1])
+		const limit = Number(page[2])
+		pageRequests.push({ offset, limit })
+		return Effect.succeed(events.slice(offset, offset + limit))
 	}
 	return {
 		doctor: () => Effect.succeed("doctor: ok"),
@@ -173,13 +181,52 @@ describe("stepsFromEvents", () => {
 })
 
 describe("capture through the CLI", () => {
+	/**
+	 * A library's history runs to thousands of events. One call carrying all of
+	 * them past the preload's 5s eval deadline fails the capture at the last
+	 * step, after the collection already succeeded. This is that regression:
+	 * 600 events must arrive as pages, none dropped and none repeated.
+	 */
+	it.live("pages a capture too large for one eval", () =>
+		Effect.gen(function* () {
+			const many = Array.from({ length: 600 }, (_ignored, index) =>
+				event(index + 1, `2026-08-27T10:00:0${String(index % 10)}.000Z`, "TokenAppended", {
+					sessionId,
+					messageId: "message-1:assistant",
+					token: `t${String(index)}`,
+				}),
+			)
+			const pageRequests: Array<{ offset: number; limit: number }> = []
+			const written: Array<{ readonly path: string; readonly text: string }> = []
+			const result = yield* executeCli({
+				argv: ["capture", "--session", sessionId, "--out", "/tmp/acepe/big.ndjson"],
+				stdin: Effect.succeed(""),
+				session: captureSession(pageRequests, many),
+				writeFile: (path, text) =>
+					Effect.sync(() => {
+						written.push({ path, text })
+					}),
+			}).pipe(Effect.timeout(Duration.seconds(20)))
+
+			expect(result.code).toBe(0)
+			expect(pageRequests.length).toBeGreaterThan(1)
+			expect(pageRequests.every((request) => request.limit <= 250)).toBe(true)
+
+			const scenario = yield* decodeScenario(written[0]?.text ?? "")
+			expect(scenario.steps.length).toBe(600)
+			const tokens = scenario.steps.map((step, index) => step.event.sequence === index + 1)
+			expect(tokens.every((inOrder) => inOrder)).toBe(true)
+		}),
+	)
+
 	it.live("writes a scenario the replay package can decode", () =>
 		Effect.gen(function* () {
+			const pageRequests: Array<{ offset: number; limit: number }> = []
 			const written: Array<{ readonly path: string; readonly text: string }> = []
 			const result = yield* executeCli({
 				argv: ["capture", "--session", sessionId, "--out", "/tmp/acepe/qa-capture.ndjson"],
 				stdin: Effect.succeed(""),
-				session: captureSession(),
+				session: captureSession(pageRequests),
 				writeFile: (path, text) =>
 					Effect.sync(() => {
 						written.push({ path, text })

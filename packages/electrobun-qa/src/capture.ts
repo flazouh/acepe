@@ -25,6 +25,21 @@ import type { QaSession } from "./host/session.ts"
 const DEFAULT_QUIET_MS = 400
 const DEFAULT_POLL_MS = 200
 const MAX_POLLS = 100
+/**
+ * Events per read. The preload gives an eval 5s, and a page has to cross the
+ * socket inside that, so this is sized for a comfortable margin rather than
+ * for the fewest round trips.
+ */
+const EVENT_PAGE_SIZE = 100
+const MAX_EVENT_PAGES = 500
+
+/**
+ * A capture shares the Electrobun bridge with the event replay it just asked
+ * for, so its own eval answers queue behind that burst. The default 5s helper
+ * deadline is sized for a DOM read on an idle app and fails every capture on a
+ * library with real history. This is sized for the burst instead.
+ */
+const CAPTURE_DEADLINE = Duration.seconds(60)
 
 export type CaptureArgs = {
 	readonly sessionId: SessionId
@@ -84,6 +99,7 @@ export const parseCaptureArgs = Effect.fn("parseCaptureArgs")(function* (
 const CaptureProgress = Schema.Struct({
 	done: Schema.Boolean,
 	error: Schema.NullOr(Schema.String),
+	sessionId: Schema.NullOr(Schema.String),
 	eventCount: Schema.Number,
 })
 
@@ -92,22 +108,23 @@ const CaptureProgress = Schema.Struct({
  * that does not match the orchestration contract is not a scenario, and it
  * should fail here rather than at replay time in someone else's test.
  */
-const CapturedState = Schema.Struct({
-	done: Schema.Boolean,
-	error: Schema.NullOr(Schema.String),
-	sessionId: Schema.NullOr(Schema.String),
-	events: Schema.Array(OrchestrationEvent),
-	snapshots: Schema.Array(
-		Schema.Struct({
-			scopeKey: Schema.String,
-			snapshot: RpcSessionSnapshot,
-		}),
-	),
-})
-type CapturedState = typeof CapturedState.Type
+const CapturedEvents = Schema.Array(OrchestrationEvent)
+
+const CapturedSnapshots = Schema.Array(
+	Schema.Struct({
+		scopeKey: Schema.String,
+		snapshot: RpcSessionSnapshot,
+	}),
+)
+
+export type CapturedState = {
+	readonly events: ReadonlyArray<typeof OrchestrationEvent.Type>
+	readonly snapshots: ReadonlyArray<typeof CapturedSnapshots.Type[number]>
+}
 
 const decodeProgress = Schema.decodeUnknownEffect(CaptureProgress)
-const decodeState = Schema.decodeUnknownEffect(CapturedState)
+const decodeEvents = Schema.decodeUnknownEffect(CapturedEvents)
+const decodeSnapshots = Schema.decodeUnknownEffect(CapturedSnapshots)
 
 /**
  * Offsets come from the events' own `occurredAt`, so a replay reproduces the
@@ -167,14 +184,73 @@ const startCapture = (args: CaptureArgs) =>
 	`window.__acepeQaCaptureStart(${JSON.stringify(args.sessionId)}, ${String(args.quietMs)})`
 
 const READ_PROGRESS = "window.__acepeQaCaptureProgress()"
-const READ_CAPTURE = "window.__acepeQaCaptureRead()"
+
+const readEventsSource = (offset: number, limit: number): string =>
+	`window.__acepeQaCaptureReadEvents(${String(offset)}, ${String(limit)})`
+
+const READ_SNAPSHOTS = "window.__acepeQaCaptureReadSnapshots()"
+
+/**
+ * Pulls the finished capture across one page at a time. The event count from
+ * progress is the contract: reading exactly that many events means a short page
+ * is a real end, not a silently truncated capture.
+ */
+const drainCapture = Effect.fn("drainCapture")(function* (
+	session: QaSession,
+	eventCount: number,
+) {
+	const events: Array<typeof OrchestrationEvent.Type> = []
+	let page = 0
+	while (events.length < eventCount) {
+		if (page >= MAX_EVENT_PAGES) {
+			return yield* new QaCaptureFailed({
+				reason: `capture of ${String(eventCount)} events did not finish in ${String(MAX_EVENT_PAGES)} pages`,
+			})
+		}
+		const raw = yield* session
+			.call(
+				"qa:eval",
+				{ source: readEventsSource(events.length, EVENT_PAGE_SIZE) },
+				CAPTURE_DEADLINE,
+			)
+			.pipe(Effect.mapError((error) => new QaCaptureFailed({ reason: error.message })))
+		const decoded = yield* decodeEvents(raw).pipe(
+			Effect.mapError(
+				(error) =>
+					new QaCaptureFailed({
+						reason: `the capture does not match the orchestration contract: ${error.message}`,
+					}),
+			),
+		)
+		if (decoded.length === 0) {
+			return yield* new QaCaptureFailed({
+				reason: `the app stopped answering after ${String(events.length)} of ${String(eventCount)} events`,
+			})
+		}
+		for (const event of decoded) {
+			events.push(event)
+		}
+		page = page + 1
+	}
+
+	const rawSnapshots = yield* session
+		.call("qa:eval", { source: READ_SNAPSHOTS }, CAPTURE_DEADLINE)
+		.pipe(Effect.mapError((error) => new QaCaptureFailed({ reason: error.message })))
+	const snapshots = yield* decodeSnapshots(rawSnapshots).pipe(
+		Effect.mapError(
+			(error) =>
+				new QaCaptureFailed({ reason: `the captured snapshots are unreadable: ${error.message}` }),
+		),
+	)
+	return { events, snapshots } satisfies CapturedState
+})
 
 export const captureScenario = Effect.fn("captureScenario")(function* (
 	session: QaSession,
 	args: CaptureArgs,
 ) {
 	yield* session
-		.call("qa:eval", { source: startCapture(args) })
+		.call("qa:eval", { source: startCapture(args) }, CAPTURE_DEADLINE)
 		.pipe(
 			Effect.mapError(
 				(error) =>
@@ -189,7 +265,7 @@ export const captureScenario = Effect.fn("captureScenario")(function* (
 		yield* Effect.sleep(Duration.millis(DEFAULT_POLL_MS))
 		polls = polls + 1
 		const raw = yield* session
-			.call("qa:eval", { source: READ_PROGRESS })
+			.call("qa:eval", { source: READ_PROGRESS }, CAPTURE_DEADLINE)
 			.pipe(Effect.mapError((error) => new QaCaptureFailed({ reason: error.message })))
 		const progress = yield* decodeProgress(raw).pipe(
 			Effect.mapError(
@@ -201,17 +277,7 @@ export const captureScenario = Effect.fn("captureScenario")(function* (
 			return yield* new QaCaptureFailed({ reason: progress.error })
 		}
 		if (progress.done === true) {
-			const full = yield* session
-				.call("qa:eval", { source: READ_CAPTURE })
-				.pipe(Effect.mapError((error) => new QaCaptureFailed({ reason: error.message })))
-			return yield* decodeState(full).pipe(
-				Effect.mapError(
-					(error) =>
-						new QaCaptureFailed({
-							reason: `the capture does not match the orchestration contract: ${error.message}`,
-						}),
-				),
-			)
+			return yield* drainCapture(session, progress.eventCount)
 		}
 	}
 	return yield* new QaCaptureFailed({

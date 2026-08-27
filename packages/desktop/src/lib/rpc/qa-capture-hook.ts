@@ -7,7 +7,11 @@
  *
  * `qa:eval` in the QA preload refuses promises, so this is a start/read pair
  * instead of one async call: `start` kicks off the collection and returns, and
- * the CLI polls `read` until it reports done.
+ * the CLI polls progress until it reports done.
+ *
+ * The reads are paged. A library's history runs to thousands of events, and one
+ * call carrying all of them past the preload's 5s eval deadline fails the whole
+ * capture at the last step, after the collection already succeeded.
  */
 
 import type { OrchestrationEvent, RpcSessionSnapshot, SessionId } from "@acepe/contracts";
@@ -33,10 +37,11 @@ export type QaCaptureState = {
 	readonly snapshots: ReadonlyArray<QaCaptureSnapshot>;
 };
 
-/** The cheap half of the pair: polled every few hundred ms, so it stays small. */
+/** Small enough to poll every few hundred ms while the collection runs. */
 export type QaCaptureProgress = {
 	readonly done: boolean;
 	readonly error: string | null;
+	readonly sessionId: string | null;
 	readonly eventCount: number;
 };
 
@@ -44,9 +49,24 @@ declare global {
 	interface Window {
 		__acepeQaCaptureStart?: (sessionId: string, quietMs: number) => string;
 		__acepeQaCaptureProgress?: () => QaCaptureProgress;
-		__acepeQaCaptureRead?: () => QaCaptureState;
+		__acepeQaCaptureReadEvents?: (
+			offset: number,
+			limit: number,
+		) => ReadonlyArray<OrchestrationEvent>;
+		__acepeQaCaptureReadSnapshots?: () => ReadonlyArray<QaCaptureSnapshot>;
 	}
 }
+
+/**
+ * A scenario named for one session carries that session's events. Everything
+ * that is not session-scoped is kept because the shell reads it while booting,
+ * but another session's turns belong in another scenario -- and a whole
+ * library's history is both wrong here and too big to move.
+ */
+export const belongsToCapture = (
+	event: OrchestrationEvent,
+	sessionId: SessionId,
+): boolean => event.aggregateKind !== "session" || event.aggregateId === sessionId;
 
 const idle: QaCaptureState = {
 	done: false,
@@ -89,8 +109,13 @@ const collect = (sessionId: SessionId, quietMs: number) =>
 				Stream.runForEach((event) =>
 					Clock.currentTimeMillis.pipe(
 						Effect.map((at) => {
-							collected.push(event);
+							// The quiet window tracks every event, not just the kept
+							// ones: the burst is over when the server stops sending,
+							// which has nothing to do with which session they are for.
 							lastAt = at;
+							if (belongsToCapture(event, sessionId) === true) {
+								collected.push(event);
+							}
 						}),
 					),
 				),
@@ -123,17 +148,27 @@ const collect = (sessionId: SessionId, quietMs: number) =>
 export const installQaCaptureHook = (): void => {
 	window.__acepeQaCaptureStart = (sessionId, quietMs) => {
 		replace({ done: false, error: null, sessionId, events: [], snapshots: [] });
-		void Effect.runPromise(
-			collect(sessionId as SessionId, quietMs > 0 ? quietMs : 400).pipe(
-				Effect.catchCause((cause) => Effect.sync(() => withError(String(cause)))),
-			),
-		);
+		// The collection and the QA socket share one Electrobun bridge, and
+		// `events(0)` replays the whole history through it. Starting that inside
+		// the eval's own turn queues this call's answer behind the replay, so the
+		// caller waits out its deadline for a string that was ready immediately.
+		// A macrotask lets the answer go first.
+		setTimeout(() => {
+			void Effect.runPromise(
+				collect(sessionId as SessionId, quietMs > 0 ? quietMs : 400).pipe(
+					Effect.catchCause((cause) => Effect.sync(() => withError(String(cause)))),
+				),
+			);
+		}, 0);
 		return sessionId;
 	};
 	window.__acepeQaCaptureProgress = () => ({
 		done: state.done,
 		error: state.error,
+		sessionId: state.sessionId,
 		eventCount: state.events.length,
 	});
-	window.__acepeQaCaptureRead = () => state;
+	window.__acepeQaCaptureReadEvents = (offset, limit) =>
+		state.events.slice(offset, offset + limit);
+	window.__acepeQaCaptureReadSnapshots = () => state.snapshots;
 };

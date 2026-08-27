@@ -55,7 +55,45 @@ const memorySession = () =>
 		memoryPage: createTogglePage(),
 	})
 
+/**
+ * A session whose eval answers with a payload far past the socket's send
+ * buffer. The host used to drop whatever `socket.write` did not take, so the
+ * client never saw the terminating newline and waited out its whole deadline
+ * for a reply that had already been half sent.
+ */
+const bigPayloadSession = (size: number) => {
+	const session = memorySession()
+	return {
+		doctor: session.doctor,
+		listWindows: session.listWindows,
+		firstWindow: session.firstWindow,
+		useWindow: session.useWindow,
+		windowInfo: session.windowInfo,
+		call: () => Effect.succeed("x".repeat(size)),
+		handleSocketRequest: () => Effect.succeed("x".repeat(size)),
+	}
+}
+
 describe("socket-server", () => {
+	it.live("answers a payload larger than the socket send buffer", () =>
+		Effect.gen(function* () {
+			const size = 200_000
+			const path = "/tmp/electrobun-qa/big-payload.sock"
+			const host = yield* startQaHost({
+				signed: false,
+				path,
+				session: bigPayloadSession(size),
+			})
+			const response = yield* sendSocketRequest(
+				path,
+				QaSocketRequest.make({ id: "1", method: "qa:eval", params: { source: "big" } }),
+				Duration.seconds(10),
+			).pipe(Effect.ensuring(Effect.sync(() => host.stop())))
+			expect(response.ok).toBe(true)
+			expect(response.ok === true ? String(response.value).length : 0).toBe(size)
+		}),
+	)
+
 	it.effect("refuses to start the host on a signed build", () =>
 		Effect.gen(function* () {
 			const error = yield* Effect.flip(

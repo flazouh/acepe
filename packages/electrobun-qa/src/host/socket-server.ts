@@ -109,10 +109,45 @@ export const handleSocketLine = Effect.fn("handleSocketLine")(function* (
 	return yield* encodeOkLine(request.id, handled.success)
 })
 
+/**
+ * Bun's `socket.write` returns how many bytes it took, and it takes fewer than
+ * asked whenever the send buffer is full. Ignoring that number truncates every
+ * response larger than the buffer: the client never sees the terminating
+ * newline and waits out its whole deadline for a reply that was already sent in
+ * part. A `snapshotDom` of a busy page and a capture of a real session are both
+ * comfortably over the line, so the remainder is held and flushed on `drain`.
+ */
+type WritableSocket = {
+	readonly write: (data: string) => number
+}
+
+const flushPending = (
+	socket: WritableSocket,
+	pending: WeakMap<WritableSocket, string>,
+): void => {
+	const outstanding = pending.get(socket)
+	if (outstanding === undefined || outstanding.length === 0) {
+		return
+	}
+	const written = socket.write(outstanding)
+	pending.set(socket, written >= outstanding.length ? "" : outstanding.slice(written))
+}
+
+const writeLine = (
+	socket: WritableSocket,
+	pending: WeakMap<WritableSocket, string>,
+	line: string,
+): void => {
+	const queued = pending.get(socket) ?? ""
+	pending.set(socket, `${queued}${line}`)
+	flushPending(socket, pending)
+}
+
 export const startQaHostUnsafe = (input: StartQaHostInput): StartedQaHost => {
 	ensureSocketDir(input.path)
 	removeStaleSocket(input.path)
 	const buffers = new WeakMap<{ write: (data: string) => void }, string>()
+	const pendingWrites = new WeakMap<WritableSocket, string>()
 	const server = Bun.listen({
 		unix: input.path,
 		socket: {
@@ -130,21 +165,26 @@ export const startQaHostUnsafe = (input: StartQaHostInput): StartedQaHost => {
 						handleSocketLine(input.session, part).pipe(
 							Effect.tap((response) =>
 								Effect.sync(() => {
-									socket.write(`${response}\n`)
+									writeLine(socket, pendingWrites, `${response}\n`)
 								}),
 							),
 						),
 					)
 				}
 			},
+			drain: (socket) => {
+				flushPending(socket, pendingWrites)
+			},
 			// A client that dies mid-script must not wedge the listener: drop
 			// its buffer and keep accepting. Without these, one dead client left
 			// the socket answering doctor but refusing run.
 			error: (socket) => {
 				buffers.delete(socket)
+				pendingWrites.delete(socket)
 			},
 			close: (socket) => {
 				buffers.delete(socket)
+				pendingWrites.delete(socket)
 			},
 		},
 	})
@@ -295,12 +335,24 @@ export const makeRemoteSession = (path: string): QaSession => {
 		token += 1
 		return String(token)
 	}
-	const rpc = Effect.fn("remoteRpc")(function* (method: string, params?: unknown) {
+	// The deadline is per call, not per session: a DOM read on an idle app and a
+	// capture that shares the bridge with an event replay burst do not belong on
+	// the same clock. Callers that pass one get it; everyone else gets the
+	// default.
+	const rpc = Effect.fn("remoteRpc")(function* (
+		method: string,
+		params?: unknown,
+		deadline?: Duration.Duration,
+	) {
 		const request =
 			params === undefined
 				? QaSocketRequest.make({ id: nextId(), method })
 				: QaSocketRequest.make({ id: nextId(), method, params })
-		const response = yield* sendSocketRequest(path, request, DEFAULT_HELPER_DEADLINE)
+		const response = yield* sendSocketRequest(
+			path,
+			request,
+			deadline === undefined ? DEFAULT_HELPER_DEADLINE : deadline,
+		)
 		if (response.ok === true) {
 			return response.value
 		}
@@ -330,8 +382,12 @@ export const makeRemoteSession = (path: string): QaSession => {
 			const value = yield* rpc("windowInfo")
 			return yield* decodeWindow(value)
 		}),
-		call: Effect.fn("remoteCall")(function* (method: string, params: unknown) {
-			return yield* rpc(method, params)
+		call: Effect.fn("remoteCall")(function* (
+			method: string,
+			params: unknown,
+			deadline?: Duration.Duration,
+		) {
+			return yield* rpc(method, params, deadline)
 		}),
 		handleSocketRequest: Effect.fn("remoteHandleSocketRequest")(function* (
 			request: QaSocketRequest,
