@@ -21,7 +21,10 @@ export type PageZoomResponse = {
  * throwing, because an RPC handler that throws takes the bun process with it.
  */
 export const resolvePageZoomLevel = (params: unknown): number | null => {
-	const decoded = Effect.runSync(Effect.result(Schema.decodeUnknownEffect(PageZoomRequest)(params)))
+	const decoded = Schema.decodeUnknownEffect(PageZoomRequest)(params).pipe(
+		Effect.result,
+		Effect.runSync
+	)
 	if (Result.isFailure(decoded)) {
 		return null
 	}
