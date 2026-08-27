@@ -97,6 +97,21 @@ export function reduceCommand(
 	}
 }
 
+/**
+ * Replaces the whole capabilities projection, and is the only writer of the
+ * capability mutation state the composer's pending/preview reads consume.
+ *
+ * Nothing produces a "capabilities" envelope in this app yet. The one runtime
+ * producer of session-state envelopes is OrchestrationCanonicalBridge, which
+ * emits snapshot/delta/telemetry/sessionMode, and the other way an envelope
+ * could arrive -- SessionOpenResult.initialViewportEnvelope -- comes from
+ * history.getSessionOpenResult, which is unsupportedOnContract. The seam is
+ * kept because live capability updates (a model list, commands, config
+ * options, the autonomous flag) still need it once the server projector
+ * carries capabilities, exactly as the "telemetry" envelope waited for its
+ * own producer. Do not borrow it for one narrow fact: see
+ * reduceApplySessionMode.
+ */
 function reduceApplyCapabilities(
 	snapshot: EnvelopeReducerSnapshot,
 	command: Extract<SessionStateCommand, { kind: "applyCapabilities" }>
