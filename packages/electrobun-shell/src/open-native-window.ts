@@ -117,7 +117,14 @@ export const startElectrobunAcepeApp = <Rpc>(
 		{
 			defineRpc: (handlers) =>
 				bindings.defineRPC({
-					maxRequestTime: 5000,
+					// One number covers every request, so it has to fit the slowest
+					// honest one. Dictation is that request: the stop command holds
+					// the RPC while a local speech model transcribes, seconds when the
+					// model is warm and about a minute the first time it is pulled
+					// from disk. At 5s the transport gave up on a transcription that
+					// was on its way, and the composer stayed empty with "RPC request
+					// timed out" as the only clue.
+					maxRequestTime: 120_000,
 					handlers: {
 						requests: {
 							ping: (input) => {

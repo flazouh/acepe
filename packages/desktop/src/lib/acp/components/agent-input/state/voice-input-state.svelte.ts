@@ -582,6 +582,10 @@ export class VoiceInputState {
 
 	private setError(message: string): void {
 		log("setError()", { message, phase: this.phase });
+		// The error phase resets itself after a few seconds, so a failure that
+		// nobody was watching for left no trace at all: dictation just did
+		// nothing and said nothing about why. The toast outlives the phase.
+		toast.error(message);
 		this.errorMessage = message;
 		this.transitionTo("error");
 		if (this.errorResetTimer !== null) clearTimeout(this.errorResetTimer);

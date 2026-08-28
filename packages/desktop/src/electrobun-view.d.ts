@@ -1,6 +1,8 @@
 declare module "electrobun/view" {
 	export class Electroview {
 		static defineRPC(input: {
+			/** Milliseconds before a request rejects. Electrobun defaults it to 1000. */
+			readonly maxRequestTime?: number;
 			readonly handlers: {
 				readonly requests: Record<string, never>;
 				readonly messages: Record<string, never>;

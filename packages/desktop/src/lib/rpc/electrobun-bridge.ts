@@ -104,6 +104,14 @@ export const installElectrobunWebviewRpc = (): Effect.Effect<
 				return import("electrobun/view").then((mod) => {
 					markBoot("imported");
 					const rpc = mod.Electroview.defineRPC({
+						// Electrobun defaults this to one second, which is shorter than
+						// several honest requests the app makes: dictation holds the
+						// stop command while a local speech model transcribes, seconds
+						// warm and about a minute the first time the model is read from
+						// disk. The transcription arrived and the transport had already
+						// given up on it, leaving "RPC request timed out" as the only
+						// account of a mic that seemed to do nothing.
+						maxRequestTime: 120_000,
 						handlers: {
 							requests: {},
 							messages: {},
