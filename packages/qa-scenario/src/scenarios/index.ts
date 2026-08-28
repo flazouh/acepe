@@ -7,13 +7,18 @@
  */
 
 import type { QaScenario } from "../scenario.ts"
+import { providerModels } from "./provider-models.ts"
 import { streamingReply } from "./streaming-reply.ts"
 import { toolAndApproval } from "./tool-and-approval.ts"
 
-export const authoredScenarios: ReadonlyArray<QaScenario> = [streamingReply, toolAndApproval]
+export const authoredScenarios: ReadonlyArray<QaScenario> = [
+	streamingReply,
+	toolAndApproval,
+	providerModels,
+]
 
 export const authoredScenarioByName = (name: string): QaScenario | null =>
 	authoredScenarios.find((scenario) => scenario.meta.name === name) ?? null
 
-export { streamingReply, toolAndApproval }
+export { providerModels, streamingReply, toolAndApproval }
 export { QA_PROJECT_ID, QA_STARTED_AT, QA_WORKSPACE_ROOT, qaProject, qaSessionRow } from "./fixtures.ts"

@@ -20,9 +20,12 @@ import {
 	type RpcProjectedSession,
 	type SessionId,
 	type ToolCallId,
+	type SessionModelCatalog,
 	CommandId,
 	EventId,
 	OrchestrationEvent as OrchestrationEventSchema,
+	SessionModelsListedFact,
+	sessionModelsListedFact,
 } from "@acepe/contracts"
 import * as DateTime from "effect/DateTime"
 import * as Duration from "effect/Duration"
@@ -46,6 +49,7 @@ type EnvelopeInput = {
 }
 
 const decodeOrchestrationEvent = Schema.decodeUnknownSync(OrchestrationEventSchema)
+const encodeSessionModelsListedFact = Schema.encodeSync(SessionModelsListedFact)
 
 /**
  * A scenario's clock is data, not the machine's clock: `startedAt` plus the
@@ -148,7 +152,11 @@ export class ScenarioBuilder {
 			)
 	}
 
-	private push(envelope: EnvelopeInput, payload: OrchestrationEvent["payload"]): this {
+	private push(
+		envelope: EnvelopeInput,
+		payload: OrchestrationEvent["payload"],
+		metadata: Schema.Json = {},
+	): this {
 		this.sequence = this.sequence + 1
 		const candidate = {
 			sequence: this.sequence,
@@ -159,7 +167,7 @@ export class ScenarioBuilder {
 			commandId: CommandId.make(`command-${String(this.sequence)}`),
 			causationEventId: null,
 			correlationId: CommandId.make(`correlation-${this.options.sessionId}`),
-			metadata: {},
+			metadata,
 			type: envelope.type,
 			payload,
 		}
@@ -236,6 +244,32 @@ export class ScenarioBuilder {
 				aggregateId: this.options.sessionId,
 			},
 			{ sessionId: this.options.sessionId, approvalRequestId, title },
+		)
+	}
+
+	/**
+	 * The catalog a session's provider reported, as the real adapters publish
+	 * it: a `session_models` fact riding a `SessionMetaUpdated` event. This is
+	 * the only way a replayed session can have models at all, because the list
+	 * is no longer a constant the app carries.
+	 */
+	sessionModels(models: SessionModelCatalog): this {
+		return this.push(
+			{
+				type: "SessionMetaUpdated",
+				aggregateKind: "session",
+				aggregateId: this.options.sessionId,
+			},
+			{ sessionId: this.options.sessionId },
+			encodeSessionModelsListedFact(sessionModelsListedFact(models)),
+		)
+	}
+
+	/** The model the user picked, as `session.set-model` commits it. */
+	sessionModelSet(modelId: string): this {
+		return this.push(
+			{ type: "SessionModelSet", aggregateKind: "session", aggregateId: this.options.sessionId },
+			{ sessionId: this.options.sessionId, modelId },
 		)
 	}
 
