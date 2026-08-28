@@ -49,4 +49,5 @@ export const EXPECTED_SCENARIO_TRANSCRIPTS: Readonly<Record<string, Schema.Json>
 			anchorEligible: false,
 		},
 	],
+	"provider-models": [],
 };
