@@ -466,6 +466,15 @@ export const qaPreloadScript = `(function(){
     return el.getAttribute("aria-haspopup") !== null ||
       el.getAttribute("aria-expanded") !== null;
   }
+  // A press landed when the control is no longer the control that was pressed:
+  // gone from the document, renamed, or reporting a menu it was not reporting
+  // before.
+  function pressLanded(el, expandedBefore, labelBefore) {
+    if (el.isConnected === false) return true;
+    if (el.getAttribute("aria-expanded") !== expandedBefore) return true;
+    if (el.getAttribute("aria-label") !== labelBefore) return true;
+    return false;
+  }
   function fireKey(el, type) {
     if (typeof el.dispatchEvent !== "function") return;
     el.dispatchEvent(new KeyboardEvent(type, {
@@ -490,17 +499,21 @@ export const qaPreloadScript = `(function(){
     if (!el) return false;
     var popup = isPopupTrigger(el);
     if ((params && params.press === true) || popup) {
-      // aria-expanded is the only honest read on whether a press landed, so a
-      // trigger without one gets the press and the click and nothing more:
-      // guessing again could toggle a menu that the click already opened.
-      var observable = el.getAttribute("aria-expanded") !== null;
-      var before = el.getAttribute("aria-expanded");
+      // Whether the press landed is read off the control itself: a menu trigger
+      // flips aria-expanded, and a control that swaps identity -- the voice mic
+      // becoming a stop button -- leaves the document or changes its label. Any
+      // of those means the press WAS the interaction, and the click that used
+      // to follow it landed on whatever took its place. That is how stopping a
+      // recording turned into cancelling one.
+      var expandedBefore = el.getAttribute("aria-expanded");
+      var labelBefore = el.getAttribute("aria-label");
+      var observable = expandedBefore !== null;
       firePointer(el, "pointerdown");
       firePointer(el, "pointerup");
-      if (observable && el.getAttribute("aria-expanded") !== before) return true;
+      if (pressLanded(el, expandedBefore, labelBefore)) return true;
       if (typeof el.click === "function") el.click();
       if (popup === false || observable === false) return true;
-      if (el.getAttribute("aria-expanded") !== before) return true;
+      if (el.getAttribute("aria-expanded") !== expandedBefore) return true;
       // Some menu triggers answer the keyboard and ignore a synthesised press
       // and click, both of which reach them undefaulted. Enter is a real path
       // a person can take to the same menu, so QA takes it rather than
