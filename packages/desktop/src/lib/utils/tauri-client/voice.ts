@@ -10,6 +10,7 @@ import {
 	VOICE_BACKEND_NOT_CONFIGURED_MESSAGE,
 	voiceSnapshotRequest,
 } from "@acepe/contracts";
+import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 
 import type { AppError } from "../../acp/errors/app-error.js";
@@ -47,6 +48,36 @@ const requireVoice = Effect.fn("requireVoice")(function* (operation: string) {
 	const voiceState = yield* readVoice();
 	if (voiceState === null) {
 		return yield* Effect.fail(new AgentError(operation, new Error("voice projection is missing")));
+	}
+	return voiceState;
+});
+
+/**
+ * The transcript reaches the client through the voice projection, and the
+ * projection catches up with the stop command a moment after it is applied: a
+ * local speech to text model takes seconds to answer. Reading the snapshot the
+ * instant the command was dispatched read the state from before the engine had
+ * spoken, threw a perfectly good transcription away, and left the composer
+ * empty with nothing to show for it.
+ *
+ * Dispatch answers with the sequence its command reached, so the wait is exact
+ * rather than a guess about how long a model takes.
+ */
+const TRANSCRIPTION_POLL_MS = 120;
+const TRANSCRIPTION_WAIT_MS = 90_000;
+
+const awaitProjectionSequence = Effect.fn("voice.awaitProjectionSequence")(function* (
+	operation: string,
+	sequence: number
+) {
+	const startedAt = performance.now();
+	let voiceState = yield* requireVoice(operation);
+	while (voiceState.sequence < sequence) {
+		if (performance.now() - startedAt > TRANSCRIPTION_WAIT_MS) {
+			return voiceState;
+		}
+		yield* Effect.sleep(Duration.millis(TRANSCRIPTION_POLL_MS));
+		voiceState = yield* requireVoice(operation);
 	}
 	return voiceState;
 });
@@ -184,7 +215,7 @@ export const voice = {
 	) {
 		const commandId = yield* nextCommandId("voice-recording-stop");
 		const decodedSessionId = yield* decodeSession("voice.recording.stop", sessionId);
-		yield* withRpcClient("voice.recording.stop", (client) =>
+		const dispatched = yield* withRpcClient("voice.recording.stop", (client) =>
 			client.dispatch({
 				type: "voice.recording.stop",
 				commandId,
@@ -193,7 +224,10 @@ export const voice = {
 				result: emptyVoiceTranscriptionResult,
 			})
 		);
-		const voiceState = yield* requireVoice("voice.recording.stop");
+		const voiceState = yield* awaitProjectionSequence(
+			"voice.recording.stop",
+			dispatched.sequence
+		);
 		if (voiceState.lastTranscription === null) {
 			// No transcription can mean two very different things, and this used
 			// to flatten them into one empty success: the caller then reported

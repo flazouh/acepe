@@ -10,6 +10,7 @@ export function toVoiceToolbarBinding(
 	}
 	return {
 		phase: voice.phase,
+		errorMessage: voice.errorMessage,
 		recordingElapsedTenths: voice.recordingElapsedTenthsDisplay,
 		downloadPercent: voice.downloadPercent,
 		meterLevels: voice.waveform.meterLevels,

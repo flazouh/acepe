@@ -747,13 +747,49 @@ describe("VoiceInputState", () => {
 		await flushAsync();
 	});
 
-	it("uses live speech recognition instead of the model RPC path", async () => {
+	it("asks the configured backend before live speech recognition", async () => {
 		const onTranscriptionReady = vi.fn();
 		const session = {
 			start: vi.fn(() => "started" as const),
 			stop: vi.fn(async () => "hello from mic"),
 			abort: vi.fn(),
 		};
+		getModelStatusMock.mockReturnValue(Effect.succeed({ is_downloaded: true, is_loaded: true }));
+		stopRecordingMock.mockReturnValue(
+			Effect.succeed({ text: "hello from the backend", language: null, duration_ms: 1000 })
+		);
+
+		const state = new VoiceInputState({
+			sessionId: "session-backend-first",
+			onTranscriptionReady,
+			createLiveSpeechSession: () => session,
+		});
+		state.onMicPointerDown(createPointerEvent());
+		state.onMicPointerUp();
+		await flushAsync();
+
+		expect(getModelStatusMock).toHaveBeenCalled();
+		expect(session.start).not.toHaveBeenCalled();
+		expect(state.phase).toBe("recording");
+
+		state.stopRecording();
+		await flushAsync();
+
+		expect(stopRecordingMock).toHaveBeenCalled();
+		expect(onTranscriptionReady).toHaveBeenCalledWith("hello from the backend");
+	});
+
+	it("falls back to live speech recognition when the backend refuses", async () => {
+		const onTranscriptionReady = vi.fn();
+		const session = {
+			start: vi.fn(() => "started" as const),
+			stop: vi.fn(async () => "hello from mic"),
+			abort: vi.fn(),
+		};
+		loadModelMock.mockReturnValue(
+			toAgentResult("voice.model.load", Effect.fail(new Error("no command configured")))
+		);
+		getModelStatusMock.mockReturnValue(Effect.succeed({ is_downloaded: true, is_loaded: false }));
 
 		const state = new VoiceInputState({
 			sessionId: "session-live-speech",
@@ -764,9 +800,8 @@ describe("VoiceInputState", () => {
 		state.onMicPointerUp();
 		await flushAsync();
 
-		expect(getModelStatusMock).not.toHaveBeenCalled();
-		expect(state.phase).toBe("recording");
 		expect(session.start).toHaveBeenCalled();
+		expect(state.phase).toBe("recording");
 
 		state.stopRecording();
 		await flushAsync();

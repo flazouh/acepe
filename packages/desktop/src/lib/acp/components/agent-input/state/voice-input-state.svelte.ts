@@ -352,6 +352,19 @@ export class VoiceInputState {
 		return selectedLanguage;
 	}
 
+	/**
+	 * Called when the configured backend cannot take the recording. Live speech
+	 * recognition answers if the webview has it; otherwise the operator hears why
+	 * the backend refused, which is the more useful of the two messages.
+	 */
+	private fallBackToLiveSpeech(error: AppError, fallbackMessage: string): void {
+		log("falling back to live speech", { reason: error.message });
+		if (this.beginLiveSpeechRecording()) {
+			return;
+		}
+		this.setError(resolveVoiceFailureMessage(error, fallbackMessage));
+	}
+
 	private beginLiveSpeechRecording(): boolean {
 		const session = this.createLiveSpeechSession();
 		if (session === null) {
@@ -420,10 +433,11 @@ export class VoiceInputState {
 		this.transitionTo("checking_permission");
 		this.waveform.primeStartup();
 
-		if (this.beginLiveSpeechRecording()) {
-			return;
-		}
-
+		// The configured backend goes first. Live speech recognition used to win
+		// unconditionally whenever the webview offered it, which meant the
+		// operator's own speech to text command was never asked and never even
+		// recorded: the two paths are exclusive, and this one returned early.
+		// Live speech is now what answers when there is no backend to ask.
 		log("calling tauriClient.voice.getModelStatus", { modelId: selectedModelId });
 		void Effect.runPromise(
 			tauriClient.voice.getModelStatus(selectedModelId).pipe(
@@ -475,7 +489,7 @@ export class VoiceInputState {
 					},
 					onFailure: (err: AppError) => {
 						log("getModelStatus: FAILED", { error: err.message });
-						this.setError(resolveVoiceFailureMessage(err, "Failed to check model status"));
+						this.fallBackToLiveSpeech(err, "Failed to check model status");
 					},
 				})
 			)
@@ -510,7 +524,7 @@ export class VoiceInputState {
 					onFailure: (err: AppError) => {
 						log("loadModel: FAILED", { error: err.message });
 						this.isLoadingModel = false;
-						this.setError(resolveVoiceFailureMessage(err, "Failed to load model"));
+						this.fallBackToLiveSpeech(err, "Failed to load model");
 					},
 				})
 			)

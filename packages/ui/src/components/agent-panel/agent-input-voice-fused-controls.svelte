@@ -51,7 +51,17 @@
 			{voiceCloseLabel}
 		</button>
 	{/if}
-	<div class="voice-controls flex shrink-0 items-end">
+	<!--
+		The mic button is swapped for the recording group and back, so its node is
+		not something a test can hold on to. The phase lives on this wrapper, which
+		stays put, and QA reads the state machine instead of guessing at it from a
+		label that may already have been replaced.
+	-->
+	<div
+		class="voice-controls flex shrink-0 items-end"
+		data-voice-phase={currentVoiceState.phase}
+		data-voice-error={currentVoiceState.errorMessage}
+	>
 		{#snippet recordingLeading()}
 			<AgentInputVoiceRecordingLeading
 				meterLevels={currentVoiceState.meterLevels}

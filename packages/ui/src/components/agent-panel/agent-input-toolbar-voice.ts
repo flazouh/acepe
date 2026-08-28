@@ -13,6 +13,8 @@ export type AgentInputToolbarVoicePhase =
 /** Minimal voice surface for toolbar mic controls (host maps VoiceInputState → this). */
 export interface AgentComposerToolbarVoiceBinding {
 	phase: AgentInputToolbarVoicePhase;
+	/** Why the phase is "error", for the operator and for QA. Null otherwise. */
+	errorMessage: string | null;
 	recordingElapsedTenths: number | null;
 	downloadPercent: number;
 	meterLevels: readonly number[];
