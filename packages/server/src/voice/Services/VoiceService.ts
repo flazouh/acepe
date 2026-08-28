@@ -8,6 +8,7 @@ import type {
 	VoiceAlreadyRecordingError,
 	VoiceBackendAlreadyConfiguringError,
 	VoiceModelsExternalError,
+	VoiceNotRecordingError,
 	VoiceServiceStoppedError,
 	VoiceUnknownBackendError,
 	VoiceUnknownModelError
@@ -26,6 +27,7 @@ export type VoiceServiceError =
 	| VoiceAlreadyRecordingError
 	| VoiceBackendAlreadyConfiguringError
 	| VoiceModelsExternalError
+	| VoiceNotRecordingError
 	| VoiceServiceStoppedError
 	| VoiceUnknownBackendError
 	| VoiceUnknownModelError

@@ -160,6 +160,14 @@ const writeAscii = (view: DataView, offset: number, text: string): void => {
 	}
 }
 
+const readAscii = (view: DataView, offset: number, length: number): string => {
+	let text = ""
+	for (let index = 0; index < length; index = index + 1) {
+		text = text + String.fromCharCode(view.getUint8(offset + index))
+	}
+	return text
+}
+
 export const encodeWavI16Mono = (audio: ReadonlyArray<number>, sampleRate: number): Uint8Array => {
 	const dataLen = audio.length * 2
 	const bytes = new Uint8Array(44 + dataLen)
@@ -184,6 +192,54 @@ export const encodeWavI16Mono = (audio: ReadonlyArray<number>, sampleRate: numbe
 		offset = offset + 2
 	}
 	return bytes
+}
+
+/**
+ * Reads a 16-bit PCM mono wav back into the sample shape the capture pipeline
+ * carries. The counterpart to encodeWavI16Mono, and the reason the QA
+ * microphone can play a real recording instead of a tone: a tone proves the
+ * dictation pipeline ran, and only speech proves it transcribed.
+ *
+ * Returns none for anything that is not a RIFF/WAVE file, or that is not the
+ * one format this reads.
+ */
+export const decodeWavI16Mono = (
+	bytes: Uint8Array
+): Option.Option<{ readonly samples: Array<number>; readonly sampleRate: number }> => {
+	if (bytes.length < 44) {
+		return Option.none()
+	}
+	const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+	if (readAscii(view, 0, 4) !== "RIFF" || readAscii(view, 8, 4) !== "WAVE") {
+		return Option.none()
+	}
+	let cursor = 12
+	let sampleRate = 0
+	let channels = 0
+	let bitsPerSample = 0
+	while (cursor + 8 <= bytes.length) {
+		const chunkId = readAscii(view, cursor, 4)
+		const chunkSize = view.getUint32(cursor + 4, true)
+		const body = cursor + 8
+		if (chunkId === "fmt ") {
+			channels = view.getUint16(body + 2, true)
+			sampleRate = view.getUint32(body + 4, true)
+			bitsPerSample = view.getUint16(body + 14, true)
+		}
+		if (chunkId === "data") {
+			if (channels !== 1 || bitsPerSample !== 16 || sampleRate === 0) {
+				return Option.none()
+			}
+			const count = Math.min(chunkSize, bytes.length - body) / 2
+			const samples = Arr.empty<number>()
+			for (let index = 0; index < count; index = index + 1) {
+				samples.push(view.getInt16(body + index * 2, true) / 32_768)
+			}
+			return Option.some({ samples, sampleRate })
+		}
+		cursor = body + chunkSize + (chunkSize % 2)
+	}
+	return Option.none()
 }
 
 export const parseExternalCommandStdout = (stdout: string): TranscriptionResult => {

@@ -14,6 +14,7 @@ import * as Stream from "effect/Stream"
 import * as SynchronizedRef from "effect/SynchronizedRef"
 import {
 	VoiceAlreadyRecordingError,
+	VoiceNotRecordingError,
 	VoiceBackendAlreadyConfiguringError,
 	VoiceModelsExternalError,
 	VoiceUnknownModelError
@@ -260,15 +261,20 @@ export const makeVoiceService = Effect.fn("VoiceService.make")(function*() {
 			takeMatchingSession(current, sessionId)
 		)
 		if (Option.isNone(taken)) {
+			// This used to answer with an empty success, which the composer
+			// showed as "No speech detected" -- the one thing that certainly did
+			// not happen, since nothing was recording to hear anything. A stop
+			// with no recording behind it is a defect worth naming: the worker
+			// dropped the session on a device error, a cancel got there first,
+			// or the id does not match the one that started.
+			const error = new VoiceNotRecordingError({ sessionId })
 			yield* publish(
-				new VoiceTranscriptionCompleteEvent({
+				new VoiceTranscriptionErrorEvent({
 					sessionId,
-					text: "",
-					language: null,
-					durationMs: 0
+					message: error.message
 				})
 			)
-			return emptyTranscriptionResult
+			return yield* error
 		}
 		return yield* finishRecording(taken.value, language)
 	})

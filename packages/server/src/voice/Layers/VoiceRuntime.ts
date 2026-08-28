@@ -1,9 +1,12 @@
 import * as Config from "effect/Config"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
-import { makeFakeAudioMicrophoneCapture } from "./FakeAudioMicrophoneCapture.ts"
+import * as Option from "effect/Option"
+import { ExternalCommandEngineLive } from "./ExternalCommandEngine.ts"
+import { loadFakeAudioSamples, makeFakeAudioMicrophoneCapture } from "./FakeAudioMicrophoneCapture.ts"
 import { makeQueueMicrophoneCapture } from "./MicrophoneCapture.ts"
 import { StubEngineLive } from "./StubEngine.ts"
+import { EXTERNAL_STT_COMMAND_ENV } from "../Schemas.ts"
 import { VoiceServiceLive } from "./VoiceService.ts"
 import { MicrophoneCapture, type MicrophoneCaptureShape } from "../Services/MicrophoneCapture.ts"
 
@@ -55,20 +58,40 @@ export const resolveMicrophoneCapture = Effect.fn("resolveMicrophoneCapture")(fu
 		fakeAudioRequested
 	})
 	if (useFakeAudio === true) {
-		const mic = yield* makeFakeAudioMicrophoneCapture()
+		const recorded = yield* loadFakeAudioSamples()
+		const mic = yield* makeFakeAudioMicrophoneCapture(recorded)
 		return { kind: "fake", capture: mic.capture } satisfies ResolvedMicrophoneCapture
 	}
 	const mic = yield* makeQueueMicrophoneCapture()
 	return { kind: "queue", capture: mic.capture } satisfies ResolvedMicrophoneCapture
 })
 
+const sttCommandConfig = Config.option(Config.string(EXTERNAL_STT_COMMAND_ENV)).pipe(
+	Effect.orElseSucceed(() => Option.none<string>())
+)
+
+/**
+ * The stub engine transcribes every recording to an empty string, so wiring it
+ * unconditionally is what made dictation answer "no speech detected" no matter
+ * what was said. The external command engine is the only one that transcribes
+ * anything, and it needs a command to run, so the command is what picks it.
+ */
+export const resolveTranscriptionEngine = Effect.fn("resolveTranscriptionEngine")(function*() {
+	const command = yield* sttCommandConfig
+	if (Option.isNone(command)) {
+		return { kind: "stub", layer: StubEngineLive } as const
+	}
+	return { kind: "external", layer: ExternalCommandEngineLive } as const
+})
+
 export const makeVoiceRuntimeLive = (options: VoiceRuntimeOptions) =>
 	Layer.unwrap(
 		Effect.gen(function*() {
 			const resolved = yield* resolveMicrophoneCapture(options)
+			const engine = yield* resolveTranscriptionEngine()
 			return VoiceServiceLive.pipe(
 				Layer.provide(Layer.succeed(MicrophoneCapture, resolved.capture)),
-				Layer.provide(StubEngineLive)
+				Layer.provide(engine.layer)
 			)
 		})
 	)

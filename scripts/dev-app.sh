@@ -39,6 +39,7 @@ wait_for_free_port() {
 if [ "${1:-start}" = "stop" ]; then
   launchctl remove "$LABEL" 2>/dev/null || true
   launchctl unsetenv ACEPE_DEV_URL
+  launchctl unsetenv ACEPE_VOICE_STT_COMMAND
   osascript -e 'tell application "Acepe" to quit' 2>/dev/null || true
   wait_for_free_port || true
   echo "dev app stopped"
@@ -53,6 +54,14 @@ fi
 # The Bun process reads ACEPE_DEV_URL. `open` inherits the launchd session
 # environment, which is the only channel that survives LaunchServices.
 launchctl setenv ACEPE_DEV_URL "$DEV_URL"
+
+# Dictation runs outside the app, through the command this points at. Without
+# it the voice service falls back to a stub that transcribes everything to an
+# empty string, which the app used to report as "no speech detected".
+# ACEPE_VOICE_STT_COMMAND set in the calling shell wins, so a different backend
+# needs no edit here.
+launchctl setenv ACEPE_VOICE_STT_COMMAND \
+  "${ACEPE_VOICE_STT_COMMAND:-$ROOT/scripts/voice-stt-parakeet.sh}"
 
 if serving; then
   echo "dev server already serving $DEV_URL"

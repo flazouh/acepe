@@ -7,7 +7,12 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import { EXTERNAL_BACKEND_ID } from "../Schemas.ts"
 import { VoiceService } from "../Services/VoiceService.ts"
-import { resolveMicrophoneCapture, shouldUseFakeAudioCapture, VoiceRuntimeLive } from "./VoiceRuntime.ts"
+import {
+	resolveMicrophoneCapture,
+	resolveTranscriptionEngine,
+	shouldUseFakeAudioCapture,
+	VoiceRuntimeLive
+} from "./VoiceRuntime.ts"
 
 const PlatformLive = Layer.mergeAll(
 	BunFileSystem.layer,
@@ -62,7 +67,11 @@ Vitest.describe("shouldUseFakeAudioCapture", () => {
 	})
 })
 
-Vitest.layer(ConfigProvider.layer(ConfigProvider.fromEnv({ env: { ELECTROBUN_QA_FAKE_AUDIO: "1" } })))(
+Vitest.layer(
+	ConfigProvider.layer(ConfigProvider.fromEnv({ env: { ELECTROBUN_QA_FAKE_AUDIO: "1" } })).pipe(
+		Layer.provideMerge(BunFileSystem.layer)
+	)
+)(
 	"resolveMicrophoneCapture, QA surface disabled, flag set",
 	(it) => {
 		it.effect("never selects the fake source when the QA surface is disabled", () =>
@@ -74,7 +83,11 @@ Vitest.layer(ConfigProvider.layer(ConfigProvider.fromEnv({ env: { ELECTROBUN_QA_
 	}
 )
 
-Vitest.layer(ConfigProvider.layer(ConfigProvider.fromEnv({ env: {} })))(
+Vitest.layer(
+	ConfigProvider.layer(ConfigProvider.fromEnv({ env: {} })).pipe(
+		Layer.provideMerge(BunFileSystem.layer)
+	)
+)(
 	"resolveMicrophoneCapture, QA surface enabled, flag unset",
 	(it) => {
 		it.effect("stays on the queue capture", () =>
@@ -96,7 +109,11 @@ Vitest.layer(ConfigProvider.layer(ConfigProvider.fromEnv({ env: {} })))(
 	}
 )
 
-Vitest.layer(ConfigProvider.layer(ConfigProvider.fromEnv({ env: { ELECTROBUN_QA_FAKE_AUDIO: "1" } })))(
+Vitest.layer(
+	ConfigProvider.layer(ConfigProvider.fromEnv({ env: { ELECTROBUN_QA_FAKE_AUDIO: "1" } })).pipe(
+		Layer.provideMerge(BunFileSystem.layer)
+	)
+)(
 	"resolveMicrophoneCapture, QA surface enabled, flag set",
 	(it) => {
 		it.effect("selects the fake source, which yields real generated samples", () =>
@@ -114,3 +131,29 @@ Vitest.layer(ConfigProvider.layer(ConfigProvider.fromEnv({ env: { ELECTROBUN_QA_
 		)
 	}
 )
+
+Vitest.describe("resolveTranscriptionEngine", () => {
+	Vitest.it.effect("stays on the stub when no command is configured", () =>
+		resolveTranscriptionEngine().pipe(
+			Effect.map((engine) => {
+				Vitest.assert.strictEqual(engine.kind, "stub")
+			}),
+			Effect.provideService(
+				ConfigProvider.ConfigProvider,
+				ConfigProvider.fromEnv({ env: {} })
+			)
+		)
+	)
+
+	Vitest.it.effect("picks the external command engine once a command is configured", () =>
+		resolveTranscriptionEngine().pipe(
+			Effect.map((engine) => {
+				Vitest.assert.strictEqual(engine.kind, "external")
+			}),
+			Effect.provideService(
+				ConfigProvider.ConfigProvider,
+				ConfigProvider.fromEnv({ env: { ACEPE_VOICE_STT_COMMAND: "/usr/bin/true" } })
+			)
+		)
+	)
+})

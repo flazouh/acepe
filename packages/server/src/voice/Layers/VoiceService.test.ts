@@ -11,6 +11,7 @@ import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as Path from "effect/Path"
 import * as Ref from "effect/Ref"
+import * as Result from "effect/Result"
 import * as Stream from "effect/Stream"
 import * as TestClock from "effect/testing/TestClock"
 import {
@@ -242,7 +243,7 @@ Vitest.layer(PlatformLive)("VoiceServiceLive", (it) => {
 		})
 	)
 
-	it.effect("stop when idle returns an empty transcription", () =>
+	it.effect("stop when idle fails rather than answering with an empty transcription", () =>
 		Effect.gen(function*() {
 			const mic = yield* makeQueueMicrophoneCapture()
 			yield* withStubVoice(
@@ -250,10 +251,11 @@ Vitest.layer(PlatformLive)("VoiceServiceLive", (it) => {
 				{},
 				Effect.gen(function*() {
 					const voice = yield* VoiceService
-					const result = yield* voice.stopRecording("session-99", null)
-					Vitest.assert.strictEqual(result.text, "")
-					Vitest.assert.strictEqual(result.language, null)
-					Vitest.assert.strictEqual(result.durationMs, 0)
+					const outcome = yield* Effect.result(voice.stopRecording("session-99", null))
+					Vitest.assert.strictEqual(Result.isFailure(outcome), true)
+					if (Result.isFailure(outcome)) {
+						Vitest.assert.strictEqual(outcome.failure._tag, "VoiceNotRecordingError")
+					}
 				})
 			)
 		})

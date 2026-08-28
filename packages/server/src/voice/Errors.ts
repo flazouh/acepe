@@ -52,6 +52,17 @@ export class VoiceAlreadyRecordingError extends Schema.TaggedError<VoiceAlreadyR
 	}
 }
 
+export class VoiceNotRecordingError extends Schema.TaggedError<VoiceNotRecordingError>()(
+	"VoiceNotRecordingError",
+	{
+		sessionId: Schema.String
+	}
+) {
+	override get message(): string {
+		return `Nothing was recording for session ${this.sessionId}. The recording had already stopped, been cancelled, or belonged to another session.`
+	}
+}
+
 export class MicrophoneUnavailableError extends Schema.TaggedError<MicrophoneUnavailableError>()(
 	"MicrophoneUnavailableError",
 	{
