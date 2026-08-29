@@ -15,10 +15,10 @@ const { getUnifiedPlanMock } = vi.hoisted(() => ({
 	getUnifiedPlanMock: vi.fn<GetUnifiedPlan>(),
 }));
 
-vi.mock("../../../utils/tauri-client.js", () => ({
+vi.mock("../../../utils/backend-client.js", () => ({
 	openFileInEditor: vi.fn(),
 	revealInFinder: vi.fn(),
-	tauriClient: {
+	backendClient: {
 		history: {
 			getUnifiedPlan: getUnifiedPlanMock,
 		},

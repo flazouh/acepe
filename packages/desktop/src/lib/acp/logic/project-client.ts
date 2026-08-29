@@ -3,8 +3,8 @@ import { resolveProjectColor } from "@acepe/ui/colors";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import { convertFileSrc } from "../../utils/file-src.js";
-import type { ProjectAcepeConfig, ProjectData } from "../../utils/tauri-client/types.js";
-import { tauriClient } from "../../utils/tauri-client.js";
+import type { ProjectAcepeConfig, ProjectData } from "../../utils/backend-client/types.js";
+import { backendClient } from "../../utils/backend-client.js";
 import type { Project } from "./project-manager.svelte.js";
 import { ProjectError } from "./project-manager.svelte.js";
 
@@ -208,7 +208,7 @@ export class ProjectClient {
 	 * @returns Effect containing array of projects
 	 */
 	getProjects(): Effect.Effect<Project[], ProjectError> {
-		return tauriClient.projects.getProjects().pipe(
+		return backendClient.projects.getProjects().pipe(
 			Effect.mapError(
 				(error) =>
 					new ProjectError(
@@ -248,7 +248,7 @@ export class ProjectClient {
 		preferredPaths: string[] = [],
 		offset = 0
 	): Effect.Effect<Project[], ProjectError> {
-		return tauriClient.projects.getRecentProjects(limit, preferredPaths, offset).pipe(
+		return backendClient.projects.getRecentProjects(limit, preferredPaths, offset).pipe(
 			Effect.mapError(
 				(error) =>
 					new ProjectError(
@@ -267,7 +267,7 @@ export class ProjectClient {
 	 * @returns Effect containing the project count
 	 */
 	getProjectCount(): Effect.Effect<number, ProjectError> {
-		return tauriClient.projects
+		return backendClient.projects
 			.getProjectCount()
 			.pipe(
 				Effect.mapError(
@@ -288,7 +288,7 @@ export class ProjectClient {
 	 * @returns Effect containing the imported project on success
 	 */
 	importProject(project: Project): Effect.Effect<Project, ProjectError> {
-		return tauriClient.projects.importProject(project.path, project.name).pipe(
+		return backendClient.projects.importProject(project.path, project.name).pipe(
 			Effect.mapError(
 				(error) =>
 					new ProjectError(
@@ -309,7 +309,7 @@ export class ProjectClient {
 	 * @returns Effect containing the updated project
 	 */
 	updateProjectColor(path: string, color: string): Effect.Effect<Project, ProjectError> {
-		return tauriClient.projects.updateProjectColor(path, color).pipe(
+		return backendClient.projects.updateProjectColor(path, color).pipe(
 			Effect.mapError(
 				(error) =>
 					new ProjectError(
@@ -324,7 +324,7 @@ export class ProjectClient {
 
 	updateProjectIcon(path: string, iconPath: string | null): Effect.Effect<Project, ProjectError> {
 		const normalizedIconPath = normalizeProjectIconUpdatePath(iconPath);
-		return tauriClient.projects.updateProjectIcon(path, normalizedIconPath).pipe(
+		return backendClient.projects.updateProjectIcon(path, normalizedIconPath).pipe(
 			Effect.mapError(
 				(error) =>
 					new ProjectError(
@@ -338,7 +338,7 @@ export class ProjectClient {
 	}
 
 	getProjectAcepeConfig(path: string): Effect.Effect<ProjectAcepeConfig, ProjectError> {
-		return tauriClient.projects
+		return backendClient.projects
 			.getProjectAcepeConfig(path)
 			.pipe(
 				Effect.mapError(
@@ -356,7 +356,7 @@ export class ProjectClient {
 		path: string,
 		config: ProjectAcepeConfig
 	): Effect.Effect<ProjectAcepeConfig, ProjectError> {
-		return tauriClient.projects
+		return backendClient.projects
 			.saveProjectAcepeConfig(path, config)
 			.pipe(
 				Effect.mapError(
@@ -386,7 +386,7 @@ export class ProjectClient {
 	}
 
 	listProjectImages(projectPath: string): Effect.Effect<string[], ProjectError> {
-		return tauriClient.projects
+		return backendClient.projects
 			.listProjectImages(projectPath)
 			.pipe(
 				Effect.mapError(
@@ -401,7 +401,7 @@ export class ProjectClient {
 	}
 
 	updateProjectOrder(orderedPaths: string[]): Effect.Effect<Project[], ProjectError> {
-		return tauriClient.projects.updateProjectOrder(orderedPaths).pipe(
+		return backendClient.projects.updateProjectOrder(orderedPaths).pipe(
 			Effect.mapError(
 				(error) =>
 					new ProjectError(
@@ -421,7 +421,7 @@ export class ProjectClient {
 	 * @returns Effect containing void on success
 	 */
 	addProject(project: Project): Effect.Effect<void, ProjectError> {
-		return tauriClient.projects
+		return backendClient.projects
 			.addProject(project.path, project.name)
 			.pipe(
 				Effect.mapError(
@@ -436,7 +436,7 @@ export class ProjectClient {
 	}
 
 	backfillProjectIcons(): Effect.Effect<number, ProjectError> {
-		return tauriClient.projects
+		return backendClient.projects
 			.backfillProjectIcons()
 			.pipe(
 				Effect.mapError(
@@ -457,7 +457,7 @@ export class ProjectClient {
 	 * @returns Effect containing void on success
 	 */
 	removeProject(path: string): Effect.Effect<void, ProjectError> {
-		return tauriClient.projects
+		return backendClient.projects
 			.removeProject(path)
 			.pipe(
 				Effect.mapError(
@@ -477,7 +477,7 @@ export class ProjectClient {
 	 * @returns Effect containing the selected file path or null if cancelled
 	 */
 	browseProjectIcon(): Effect.Effect<string | null, ProjectError> {
-		return tauriClient.projects
+		return backendClient.projects
 			.browseProjectIcon()
 			.pipe(
 				Effect.mapError(
@@ -497,7 +497,7 @@ export class ProjectClient {
 	 * @returns Effect containing the selected project or null
 	 */
 	browseProject(): Effect.Effect<Project | null, ProjectError> {
-		return tauriClient.projects.browseProject().pipe(
+		return backendClient.projects.browseProject().pipe(
 			Effect.mapError(
 				(error) =>
 					new ProjectError(

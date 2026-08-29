@@ -5,14 +5,14 @@
 import type * as Effect from "effect/Effect";
 import type { SessionPrLinkMode } from "$lib/acp/application/dto/session-linked-pr.js";
 import type { AppError } from "$lib/acp/errors/app-error.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+import { backendClient } from "$lib/utils/backend-client.js";
 
 export function persistSessionPrNumber(
 	sessionId: string,
 	prNumber: number | null,
 	prLinkMode?: SessionPrLinkMode | null
 ): Effect.Effect<void, AppError> {
-	return tauriClient.history.setSessionPrNumber(sessionId, prNumber, prLinkMode);
+	return backendClient.history.setSessionPrNumber(sessionId, prNumber, prLinkMode);
 }
 
 export function persistSessionWorktreePathAfterRename(
@@ -21,5 +21,5 @@ export function persistSessionWorktreePathAfterRename(
 	projectPath: string | undefined,
 	agentId: string | undefined
 ): Effect.Effect<void, AppError> {
-	return tauriClient.history.setSessionWorktreePath(sessionId, worktreePath, projectPath, agentId);
+	return backendClient.history.setSessionWorktreePath(sessionId, worktreePath, projectPath, agentId);
 }

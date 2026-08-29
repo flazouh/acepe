@@ -4,11 +4,11 @@
 
 import * as Effect from "effect/Effect";
 import type { AppError } from "$lib/acp/errors/app-error.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+import { backendClient } from "$lib/utils/backend-client.js";
 
 /** Resolves the current branch name for display (errors surface as empty branch in the panel lookup). */
 export function fetchPanelGitBranch(path: string): Effect.Effect<string, AppError> {
-	return tauriClient.git.currentBranch(path);
+	return backendClient.git.currentBranch(path);
 }
 
 /** Whether `worktreePath` is still listed under the project (git worktree list). */
@@ -16,7 +16,7 @@ export function fetchWorktreePathListedForProject(
 	projectPath: string,
 	worktreePath: string
 ): Effect.Effect<boolean, AppError> {
-	return tauriClient.git
+	return backendClient.git
 		.worktreeList(projectPath)
 		.pipe(Effect.map((list) => list.some((wt) => wt.directory === worktreePath)));
 }
@@ -25,12 +25,12 @@ export function fetchWorktreePathListedForProject(
 export function fetchWorktreeHasUncommittedChanges(
 	worktreePath: string
 ): Effect.Effect<boolean, AppError> {
-	return tauriClient.git.hasUncommittedChanges(worktreePath);
+	return backendClient.git.hasUncommittedChanges(worktreePath);
 }
 
 export function removeWorktreeFromDisk(
 	worktreePath: string,
 	force: boolean
 ): Effect.Effect<void, AppError> {
-	return tauriClient.git.worktreeRemove(worktreePath, force);
+	return backendClient.git.worktreeRemove(worktreePath, force);
 }

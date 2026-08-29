@@ -1,7 +1,7 @@
 import { fromPromise } from "@acepe/effect-result/fromPromise";
 import * as Effect from "effect/Effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { PrChecks, PrDetails } from "../../../utils/tauri-client/git.js";
+import type { PrChecks, PrDetails } from "../../../utils/backend-client/git.js";
 import type { AppError } from "../../errors/app-error.js";
 import { AgentError } from "../../errors/app-error.js";
 
@@ -21,10 +21,10 @@ vi.mock("../api.js", () => ({
 	},
 }));
 
-vi.mock("../../../utils/tauri-client.js", () => ({
+vi.mock("../../../utils/backend-client.js", () => ({
 	openFileInEditor: vi.fn(),
 	revealInFinder: vi.fn(),
-	tauriClient: {
+	backendClient: {
 		git: {
 			prDetails: prDetailsMock,
 			prChecks: prChecksMock,

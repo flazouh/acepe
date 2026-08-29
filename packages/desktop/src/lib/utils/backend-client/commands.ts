@@ -1,6 +1,6 @@
 /**
  * Compatibility layer for the few remaining dynamic or legacy command callsites.
- * Registry-backed wrappers should prefer `TAURI_COMMAND_CLIENT`.
+ * Registry-backed wrappers should prefer the typed backend client.
  */
 import { COMMANDS } from "$lib/services/command-names.js";
 import { NON_REGISTRY_COMMANDS } from "./non-registry-command-allowlist.js";

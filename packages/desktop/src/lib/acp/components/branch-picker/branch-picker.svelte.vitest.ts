@@ -25,8 +25,8 @@ vi.mock("svelte-sonner", () => ({
 	},
 }));
 
-vi.mock("$lib/utils/tauri-client.js", () => ({
-	tauriClient: {
+vi.mock("$lib/utils/backend-client.js", () => ({
+	backendClient: {
 		git: {
 			checkoutBranch: mocks.checkoutBranch,
 			listBranches: mocks.listBranches,

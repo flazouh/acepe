@@ -51,7 +51,7 @@ export interface TranscriptRowLedgerBackfillResult {
 // getSessionOpenResult/awaitSessionOpenRepair/getUnifiedPlan/
 // warmRecentTranscriptRowLedgers/invalidateHistoryCache/
 // setSessionWorktreePath are now honestly unsupportedOnContract rather than
-// routed through TAURI_COMMAND_CLIENT. This is not a behaviour regression:
+// routed through the generated command client. This is not a behaviour regression:
 // verified there is no get_session_open_result/await_session_open_repair/
 // get_unified_plan/warm_recent_transcript_row_ledgers/
 // invalidate_history_cache/set_session_worktree_path handler anywhere in

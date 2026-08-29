@@ -7,7 +7,7 @@ import { BUTTON_CHIP_ICON_SIZE_PX } from "@acepe/ui/button";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+import { backendClient } from "$lib/utils/backend-client.js";
 import { LOGGER_IDS } from "../constants/logger-ids.js";
 
 import { getProviderBrandIcon } from "../constants/thread-list-constants.js";
@@ -78,7 +78,7 @@ onMount(() => {
 	const paths = recentProjects.map((p) => p.path);
 	if (paths.length === 0) return;
 	void Effect.runPromise(
-		tauriClient.projects.getMissingProjectPaths(paths).pipe(
+		backendClient.projects.getMissingProjectPaths(paths).pipe(
 			Effect.match({
 				onSuccess: (missing) => {
 					for (const p of missing) localMissingPaths.add(p);

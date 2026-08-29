@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import { LOGGER_IDS } from "../acp/constants/logger-ids.js";
 import { createLogger } from "../acp/utils/logger.js";
-import { tauriClient } from "../utils/tauri-client.js";
+import { backendClient } from "../utils/backend-client.js";
 import type { SessionPlanResponse } from "./converted-session-types.js";
 
 export class SessionHistoryService {
@@ -19,7 +19,7 @@ export class SessionHistoryService {
 		agentId: string
 	): Effect.Effect<SessionPlanResponse | null, Error> {
 		this.logger.debug("Getting unified session plan:", sessionId, agentId);
-		return tauriClient.history.getUnifiedPlan(sessionId, projectPath, agentId).pipe(
+		return backendClient.history.getUnifiedPlan(sessionId, projectPath, agentId).pipe(
 			Effect.mapError((e) => new Error(`Failed to get unified plan: ${e}`)),
 			Effect.map((plan) => {
 				if (plan) {

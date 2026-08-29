@@ -9,7 +9,7 @@ import * as Effect from "effect/Effect";
 import { toast } from "svelte-sonner";
 import { setShellPageZoom } from "$lib/rpc/shell-page-zoom.js";
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
-import { settings } from "$lib/utils/tauri-client/settings.js";
+import { settings } from "$lib/utils/backend-client/settings.js";
 
 /** Zoom configuration constants */
 const ZOOM_CONFIG = {

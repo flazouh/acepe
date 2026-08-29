@@ -5,7 +5,7 @@ import { CloseAction } from "@acepe/ui/panel-header";
 import { toast } from "svelte-sonner";
 import * as Effect from "effect/Effect";
 import { FileIcon } from "$lib/components/ui/file-icon/index.js";
-import { revealInFinder, tauriClient } from "$lib/utils/tauri-client.js";
+import { revealInFinder, backendClient } from "$lib/utils/backend-client.js";
 import CopyButton from "../messages/copy-button.svelte";
 import type { FilePanelDisplayMode } from "./format/types.js";
 import {
@@ -61,7 +61,7 @@ const effectiveColor = $derived(getFilePanelEffectiveProjectColor(projectColor))
 
 function handleOpenInFinder() {
 	void Effect.runPromise(
-		tauriClient.fileIndex.resolveFilePath(filePath, projectPath).pipe(
+		backendClient.fileIndex.resolveFilePath(filePath, projectPath).pipe(
 			Effect.flatMap(revealInFinder),
 			Effect.catch(() => {
 				toast.error("Failed to open in Finder");

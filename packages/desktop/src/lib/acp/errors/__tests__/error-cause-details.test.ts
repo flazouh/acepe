@@ -5,10 +5,10 @@ import { formatErrorWithCauses, getErrorCauseDetails } from "../error-cause-deta
 describe("error-cause-details", () => {
 	it("formats nested error causes in order", () => {
 		const dbError = new Error("FOREIGN KEY constraint failed");
-		const tauriError = new Error("Failed to create checkpoint");
-		(tauriError as Error & { cause?: Error }).cause = dbError;
+		const rpcError = new Error("Failed to create checkpoint");
+		(rpcError as Error & { cause?: Error }).cause = dbError;
 		const appError = new Error("Agent operation failed: checkpoint_create");
-		(appError as Error & { cause?: Error }).cause = tauriError;
+		(appError as Error & { cause?: Error }).cause = rpcError;
 
 		const details = getErrorCauseDetails(appError);
 

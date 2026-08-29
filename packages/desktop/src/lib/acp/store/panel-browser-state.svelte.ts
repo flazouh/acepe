@@ -7,7 +7,7 @@
  */
 import * as Effect from "effect/Effect";
 import { SvelteMap } from "svelte/reactivity";
-import { browserWebview } from "../../utils/tauri-client/browser-webview.js";
+import { browserWebview } from "../../utils/backend-client/browser-webview.js";
 import { createLogger } from "../utils/logger.js";
 import type { BrowserPanel } from "./browser-panel-type.js";
 import { DEFAULT_BROWSER_PANEL_WIDTH, MIN_BROWSER_PANEL_WIDTH } from "./browser-panel-type.js";

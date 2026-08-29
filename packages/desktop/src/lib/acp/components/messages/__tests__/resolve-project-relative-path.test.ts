@@ -144,13 +144,13 @@ describe("normalizeToProjectRelativePath", () => {
 		it("should handle AI model output paths", () => {
 			// AI models often output paths from the root of the repo
 			const paths = [
-				"/packages/desktop/src/lib/utils/tauri-client.ts",
+				"/packages/desktop/src/lib/utils/backend-client.ts",
 				"/packages/desktop/src/routes/+page.svelte",
 				"/packages/desktop/vite.config.ts",
 			];
 
 			expect(normalizeToProjectRelativePath(paths[0], projectPath)).toBe(
-				"src/lib/utils/tauri-client.ts"
+				"src/lib/utils/backend-client.ts"
 			);
 			expect(normalizeToProjectRelativePath(paths[1], projectPath)).toBe("src/routes/+page.svelte");
 			expect(normalizeToProjectRelativePath(paths[2], projectPath)).toBe("vite.config.ts");

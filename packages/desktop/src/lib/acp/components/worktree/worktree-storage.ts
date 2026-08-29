@@ -1,14 +1,14 @@
 /**
  * Worktree toggle persistence.
  *
- * Per-project defaults use SQLite via tauriClient.settings (persistent user preference).
+ * Per-project defaults use SQLite via backendClient.settings (persistent user preference).
  * Legacy global default is read once for migration only.
  */
 
 import * as Effect from "effect/Effect";
 
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+import { backendClient } from "$lib/utils/backend-client.js";
 import type { AppError } from "../../errors/app-error.js";
 
 export type WorktreeProjectDefaultsMap = Record<string, boolean>;
@@ -66,7 +66,7 @@ export function migrateWorktreeProjectDefaultsFromGlobal(
 }
 
 export function loadWorktreeProjectDefaults(): Effect.Effect<WorktreeProjectDefaultsMap, AppError> {
-	return tauriClient.settings
+	return backendClient.settings
 		.get<WorktreeProjectDefaultsMap>(PROJECT_DEFAULTS_KEY)
 		.pipe(Effect.map((value) => value ?? {}));
 }
@@ -74,12 +74,12 @@ export function loadWorktreeProjectDefaults(): Effect.Effect<WorktreeProjectDefa
 export function saveWorktreeProjectDefaults(
 	map: WorktreeProjectDefaultsMap
 ): Effect.Effect<void, AppError> {
-	return tauriClient.settings.set(PROJECT_DEFAULTS_KEY, map);
+	return backendClient.settings.set(PROJECT_DEFAULTS_KEY, map);
 }
 
 /** Legacy global default — read-only for one-time migration. */
 export function loadWorktreeDefault(): Effect.Effect<boolean, AppError> {
-	return tauriClient.settings
+	return backendClient.settings
 		.get<boolean>(LEGACY_GLOBAL_DEFAULT_KEY)
 		.pipe(Effect.map((value) => value ?? false));
 }

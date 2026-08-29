@@ -6,7 +6,7 @@
  */
 
 import * as Effect from "effect/Effect";
-import { settings as tauriSettings } from "$lib/utils/tauri-client/settings.js";
+import { settings as backendSettings } from "$lib/utils/backend-client/settings.js";
 
 /**
  * Custom keybindings stored as a map of command -> key.
@@ -19,7 +19,7 @@ export type CustomKeybindings = Record<string, string>;
  * Returns a map of command -> key.
  */
 export function getCustomKeybindings(): Effect.Effect<CustomKeybindings, Error> {
-	return tauriSettings
+	return backendSettings
 		.getCustomKeybindings()
 		.pipe(
 			Effect.mapError((error) => new Error(`Failed to get custom keybindings: ${String(error)}`))
@@ -31,7 +31,7 @@ export function getCustomKeybindings(): Effect.Effect<CustomKeybindings, Error> 
  * Takes a map of command -> key.
  */
 export function saveCustomKeybindings(keybindings: CustomKeybindings): Effect.Effect<void, Error> {
-	return tauriSettings
+	return backendSettings
 		.saveCustomKeybindings(keybindings)
 		.pipe(
 			Effect.mapError((error) => new Error(`Failed to save custom keybindings: ${String(error)}`))

@@ -5,7 +5,7 @@ import type {
 	GitRemoteStatus,
 	GitStackedPrStep,
 	GitStashEntry,
-} from "$lib/utils/tauri-client/git.js";
+} from "$lib/utils/backend-client/git.js";
 import {
 	buildCommitPushPrSuccessMessage,
 	buildNavigableChangesFiles,

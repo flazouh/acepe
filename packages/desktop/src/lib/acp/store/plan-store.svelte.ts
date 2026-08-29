@@ -13,7 +13,7 @@ import { SvelteMap, SvelteSet } from "svelte/reactivity";
 
 import type { PlanData, SessionPlanResponse } from "../../services/converted-session-types.js";
 
-import { tauriClient } from "../../utils/tauri-client.js";
+import { backendClient } from "../../utils/backend-client.js";
 import { createLogger } from "../utils/logger.js";
 
 const PLAN_STORE_KEY = Symbol("plan-store");
@@ -150,7 +150,7 @@ export class PlanStore {
 
 		// Single attempt to load from disk (no retry - streaming is the primary path)
 		void Effect.runPromise(
-			tauriClient.history.getUnifiedPlan(sessionId, projectPath, agentId).pipe(
+			backendClient.history.getUnifiedPlan(sessionId, projectPath, agentId).pipe(
 				Effect.match({
 					onSuccess: (plan) => {
 						this.plans.set(sessionId, plan);

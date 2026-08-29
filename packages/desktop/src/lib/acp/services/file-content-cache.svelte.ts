@@ -13,7 +13,7 @@
 
 import { fromPromise } from "@acepe/effect-result/fromPromise";
 import * as Effect from "effect/Effect";
-import { fileIndex } from "$lib/utils/tauri-client/file-index.js";
+import { fileIndex } from "$lib/utils/backend-client/file-index.js";
 
 import { FileContentCacheError } from "../errors/file-content-cache-error.js";
 import { createLogger } from "../utils/logger.js";

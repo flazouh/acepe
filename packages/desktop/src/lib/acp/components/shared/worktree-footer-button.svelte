@@ -2,7 +2,7 @@
 import { Tooltip } from "bits-ui";
 import { HugeiconsIcon } from "@acepe/ui";
 import * as Effect from "effect/Effect";
-import { revealInFinder } from "$lib/utils/tauri-client/opener.js";
+import { revealInFinder } from "$lib/utils/backend-client/opener.js";
 import { toast } from "svelte-sonner";
 
 interface Props {

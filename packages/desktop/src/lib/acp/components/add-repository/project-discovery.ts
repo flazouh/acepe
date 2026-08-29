@@ -1,4 +1,4 @@
-import type { ProjectInfo } from "$lib/utils/tauri-client/types.js";
+import type { ProjectInfo } from "$lib/utils/backend-client/types.js";
 
 /**
  * Represents a project with session counts per agent.

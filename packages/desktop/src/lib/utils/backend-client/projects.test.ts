@@ -19,6 +19,7 @@ import { projects } from "./projects.ts";
 const unusedIndex = {
 	projectPath: "/tmp/p",
 	files: [],
+	showExternalCliSessions: false,
 	gitStatus: [],
 	totalFiles: 0,
 	totalLines: 0,
@@ -35,6 +36,7 @@ const projectedWithColor = (color: ProjectColor): RpcProjectedProject => ({
 	deletedAt: null,
 	sessionCount: 2,
 	color,
+	showExternalCliSessions: false,
 	gitStatus: [],
 });
 

@@ -18,7 +18,7 @@ import * as Result from "effect/Result";
 import { toast } from "svelte-sonner";
 import type { TurnState } from "../../../store/types.js";
 import type { QuestionRequest } from "../../../types/question.js";
-import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
+import type { MergeStrategy } from "$lib/utils/backend-client/git.js";
 import AgentAttachedFilePane from "../../../../components/main-app-view/components/content/agent-attached-file-pane.svelte";
 import type { Project } from "../../../logic/project-manager.svelte";
 import { checkpointStore } from "../../../store/checkpoint-store.svelte.js";
@@ -47,7 +47,7 @@ import {
 	createEmptyStateBranchMetadataLoader,
 	type EmptyStateBranchMetadataRefreshOptions,
 } from "../../../../components/main-app-view/components/content/logic/empty-state-branch-metadata-loader.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+import { backendClient } from "$lib/utils/backend-client.js";
 import type { Attachment } from "../../agent-input/types/attachment.js";
 import { CheckpointTimeline } from "../../checkpoint/index.js";
 import type { PrGenerationConfig } from "../../modified-files/types/pr-generation-config.js";
@@ -93,7 +93,7 @@ import { derivePendingUserRevealRequestKey } from "../logic/pending-user-reveal-
 import { resolveWorktreeToggleProjectPath } from "../logic/worktree-toggle-project-path.js";
 import { getWorktreeProjectDefaultStore } from "$lib/acp/components/worktree/worktree-project-default-store.svelte.js";
 import type { AgentPanelProps } from "../types";
-import { revealInFinder } from "$lib/utils/tauri-client/opener.js";
+import { revealInFinder } from "$lib/utils/backend-client/opener.js";
 import type { OpenProjectFileSystemDialogOptions } from "../../../store/project-file-system-dialog-state.js";
 import { resolveProjectFileReference } from "../../messages/logic/file-chip-diff-enhancer.js";
 import AgentPanelContent from "./agent-panel-content.svelte";
@@ -319,7 +319,7 @@ let preSessionCurrentBranch = $state<string | null>(null);
 let preSessionDiffStats = $state<{ insertions: number; deletions: number } | null>(null);
 let preSessionIsGitRepo = $state<boolean | null>(null);
 const preSessionBranchMetadataLoader = createEmptyStateBranchMetadataLoader({
-	gitClient: tauriClient.git,
+	gitClient: backendClient.git,
 	scheduler: createDelayedBranchMetadataScheduler(),
 	writer: {
 		reset() {
@@ -1277,7 +1277,7 @@ function handleUnarchiveSession() {
 
 	isUnarchivingSession = true;
 	void Effect.runPromise(
-		tauriClient.acp.unarchiveSession(sessionId).pipe(
+		backendClient.acp.unarchiveSession(sessionId).pipe(
 			Effect.match({
 				onSuccess: () => {
 					isUnarchivingSession = false;
@@ -1327,7 +1327,7 @@ function handleSignIn() {
 	signInError = null;
 
 	void Effect.runPromise(
-		tauriClient.acp.authenticateAgent(agentId).pipe(
+		backendClient.acp.authenticateAgent(agentId).pipe(
 			Effect.match({
 				onSuccess: () => {
 					if (
@@ -1381,7 +1381,7 @@ function handleCancelSignIn() {
 		return;
 	}
 	void Effect.runPromise(
-		tauriClient.acp.cancelAgentAuthentication(agentId).pipe(
+		backendClient.acp.cancelAgentAuthentication(agentId).pipe(
 			Effect.match({
 				onSuccess: () => undefined,
 				onFailure: (error) => {
@@ -1925,7 +1925,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 												return;
 											}
 											void Effect.runPromise(
-												tauriClient.git.init(worktreeToggleProjectPath).pipe(
+												backendClient.git.init(worktreeToggleProjectPath).pipe(
 													Effect.match({
 														onSuccess: () => {
 															refreshPreSessionBranchMetadata(worktreeToggleProjectPath, {

@@ -91,7 +91,7 @@ export function createAcpEventDrain(
 }
 
 // Electrobun has no eventsUrl to hand out (acp.getEventBridgeInfo is
-// honestly unsupportedOnContract -- see tauri-client/acp.ts's header
+// honestly unsupportedOnContract -- see backend-client/acp.ts's header
 // comment): there is no Rust-side SSE bridge any more. Session updates ride
 // the contract's own `events` RPC stream instead. OrchestrationCanonicalBridge
 // (orchestration-canonical-bridge.ts) does the actual translation from

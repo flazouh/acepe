@@ -3,7 +3,7 @@
 // materialized entirely by the Rust ACP service and pushed over an
 // eventsUrl SSE stream (acp.getEventBridgeInfo). Electrobun has no such
 // producer -- packages/server's projector does not carry transcript/
-// operations/interactions/turnState yet (see tauri-client/history.ts's
+// operations/interactions/turnState yet (see backend-client/history.ts's
 // getSessionOpenResult header comment for the same acknowledged gap).
 //
 // This module is the smallest HONEST stand-in: a pure, per-session state

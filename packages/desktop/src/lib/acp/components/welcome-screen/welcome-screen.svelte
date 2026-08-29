@@ -18,7 +18,7 @@ import {
 	openIssueReportDraft,
 	resolveIssueActionLabel,
 } from "$lib/errors/issue-report.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+import { backendClient } from "$lib/utils/backend-client.js";
 
 import {
 	type ProjectWithSessions,
@@ -193,7 +193,7 @@ function toggleOnboardingAgent(agentId: string): void {
 
 async function loadExistingProjects() {
 	await Effect.runPromise(
-		tauriClient.projects.getProjects().pipe(
+		backendClient.projects.getProjects().pipe(
 			Effect.match({
 				onSuccess: (existingProjects) => {
 					onboardingAddedPaths = new Set(existingProjects.map((p) => p.path));
@@ -212,7 +212,7 @@ async function handleOnboardingImport(path: string, name: string) {
 	}
 
 	const result = await Effect.runPromise(
-		Effect.result(tauriClient.projects.importProject(path, name))
+		Effect.result(backendClient.projects.importProject(path, name))
 	);
 
 	Result.match(result, {
@@ -256,7 +256,7 @@ async function handleOnboardingUndoImport(path: string, name: string) {
 		return;
 	}
 
-	const result = await tauriClient.projects.removeProject(path);
+	const result = await backendClient.projects.removeProject(path);
 	await Effect.runPromise(
 		result.pipe(
 			Effect.match({
@@ -339,7 +339,7 @@ async function loadOnboardingProjects(): Promise<void> {
 	onboardingProjects = [];
 
 	const pathsResult = await Effect.runPromise(
-		Effect.result(tauriClient.history.listAllProjectPaths())
+		Effect.result(backendClient.history.listAllProjectPaths())
 	);
 
 	Result.match(pathsResult, {
@@ -361,7 +361,7 @@ async function loadOnboardingProjects(): Promise<void> {
 
 			for (const path of deduped.keys()) {
 				void Effect.runPromise(
-					tauriClient.history.countSessionsForProject(path).pipe(
+					backendClient.history.countSessionsForProject(path).pipe(
 						Effect.match({
 							onSuccess: (counts) => {
 								const total = Object.values(counts.counts).reduce((sum, count) => sum + count, 0);

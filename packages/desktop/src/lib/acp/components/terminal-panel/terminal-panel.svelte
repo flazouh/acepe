@@ -2,7 +2,7 @@
 import { TerminalPanelLayout } from "@acepe/ui/terminal-panel";
 import * as Effect from "effect/Effect";
 import type { TerminalTab } from "$lib/acp/store/types.js";
-import { shell as shellClient } from "$lib/utils/tauri-client/shell.js";
+import { shell as shellClient } from "$lib/utils/backend-client/shell.js";
 
 import TerminalPanelHeader from "./terminal-panel-header.svelte";
 import TerminalRenderer from "./terminal-renderer.svelte";

@@ -3,7 +3,7 @@ import { HugeiconsIcon, LoadingIcon } from "@acepe/ui";
 import type { PrChecksItem } from "@acepe/ui";
 import { openUrl } from "$lib/utils/open-url.js";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
-import type { CiJobDetails, CiJobStep } from "$lib/utils/tauri-client/git.js";
+import type { CiJobDetails, CiJobStep } from "$lib/utils/backend-client/git.js";
 import { Button } from "@acepe/ui/button";
 
 interface Props {

@@ -4,7 +4,7 @@ import { SvelteMap } from "svelte/reactivity";
 import { AgentError, AppError } from "$lib/acp/errors/app-error.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import type { ProviderMetadataProjection, ResolvedCapabilities } from "$lib/services/acp-types.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+import { backendClient } from "$lib/utils/backend-client.js";
 
 interface EnsureLoadedInput {
 	agentId: string | null;
@@ -119,7 +119,7 @@ export class PreconnectionCapabilitiesState {
 	constructor(fetchCapabilities?: FetchCapabilities) {
 		this.fetchCapabilities = fetchCapabilities
 			? fetchCapabilities
-			: tauriClient.acp.listPreconnectionCapabilities;
+			: backendClient.acp.listPreconnectionCapabilities;
 	}
 
 	ensureLoaded(

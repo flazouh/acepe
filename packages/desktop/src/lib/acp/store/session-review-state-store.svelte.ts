@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
-import { tauriClient } from "../../utils/tauri-client.js";
+import { backendClient } from "../../utils/backend-client.js";
 import { createLogger } from "../utils/logger.js";
 
 const logger = createLogger({
@@ -94,7 +94,7 @@ export class SessionReviewStateStore {
 
 		this.loadingSessionIds.add(sessionId);
 		const loadPromise = Effect.runPromise(
-			tauriClient.sessionReviewState.get(sessionId).pipe(
+			backendClient.sessionReviewState.get(sessionId).pipe(
 				Effect.flatMap((raw) => decodeState(raw)),
 				Effect.match({
 					onSuccess: (state) => {
@@ -173,7 +173,7 @@ export class SessionReviewStateStore {
 		}
 
 		void Effect.runPromise(
-			tauriClient.sessionReviewState.delete(sessionId).pipe(
+			backendClient.sessionReviewState.delete(sessionId).pipe(
 				Effect.match({
 					onSuccess: () => undefined,
 					onFailure: (error) => {
@@ -192,7 +192,7 @@ export class SessionReviewStateStore {
 			this.saveTimers.delete(sessionId);
 			const state = this.getState(sessionId) ?? createEmptyReviewState();
 			void Effect.runPromise(
-				tauriClient.sessionReviewState.save(sessionId, JSON.stringify(state)).pipe(
+				backendClient.sessionReviewState.save(sessionId, JSON.stringify(state)).pipe(
 					Effect.match({
 						onSuccess: () => undefined,
 						onFailure: (error) => {

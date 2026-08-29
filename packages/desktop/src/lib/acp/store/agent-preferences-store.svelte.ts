@@ -5,7 +5,7 @@ import type { AppError } from "$lib/acp/errors/app-error.js";
 import type { CustomAgentConfig } from "$lib/acp/logic/agent-manager.js";
 import type { Agent } from "$lib/acp/store/types.js";
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+import { backendClient } from "$lib/utils/backend-client.js";
 
 const AGENT_PREFERENCES_STORE_KEY = Symbol("agent-preferences-store");
 
@@ -248,11 +248,11 @@ export class AgentPreferencesStore {
 		const initializationMutationRevision = this.localMutationRevision;
 
 		return Effect.all([
-			tauriClient.settings.get<boolean>(HAS_COMPLETED_ONBOARDING_KEY),
-			tauriClient.settings.get<string[]>(SELECTED_AGENT_IDS_KEY),
-			tauriClient.settings.get<CustomAgentConfig[]>(CUSTOM_AGENT_CONFIGS_KEY),
-			tauriClient.settings.get<AgentEnvOverrides>(AGENT_ENV_OVERRIDES_KEY),
-			tauriClient.settings.get<string>(DEFAULT_AGENT_ID_KEY),
+			backendClient.settings.get<boolean>(HAS_COMPLETED_ONBOARDING_KEY),
+			backendClient.settings.get<string[]>(SELECTED_AGENT_IDS_KEY),
+			backendClient.settings.get<CustomAgentConfig[]>(CUSTOM_AGENT_CONFIGS_KEY),
+			backendClient.settings.get<AgentEnvOverrides>(AGENT_ENV_OVERRIDES_KEY),
+			backendClient.settings.get<string>(DEFAULT_AGENT_ID_KEY),
 		]).pipe(
 			Effect.flatMap(
 				([
@@ -286,12 +286,12 @@ export class AgentPreferencesStore {
 					const persistOperations: Effect.Effect<void, AppError>[] = [];
 					if (initState.shouldPersistOnboardingCompleted) {
 						persistOperations.push(
-							tauriClient.settings.set(HAS_COMPLETED_ONBOARDING_KEY, initState.onboardingCompleted)
+							backendClient.settings.set(HAS_COMPLETED_ONBOARDING_KEY, initState.onboardingCompleted)
 						);
 					}
 					if (initState.shouldPersistSelectedAgentIds) {
 						persistOperations.push(
-							tauriClient.settings.set(SELECTED_AGENT_IDS_KEY, initState.selectedAgentIds)
+							backendClient.settings.set(SELECTED_AGENT_IDS_KEY, initState.selectedAgentIds)
 						);
 					}
 
@@ -322,13 +322,13 @@ export class AgentPreferencesStore {
 		// Clear default agent if it was removed from the selected list
 		if (this.defaultAgentId && !normalized.includes(this.defaultAgentId)) {
 			this.defaultAgentId = null;
-			return tauriClient.settings.set(SELECTED_AGENT_IDS_KEY, normalized).pipe(
-				Effect.flatMap(() => tauriClient.settings.set(DEFAULT_AGENT_ID_KEY, null)),
+			return backendClient.settings.set(SELECTED_AGENT_IDS_KEY, normalized).pipe(
+				Effect.flatMap(() => backendClient.settings.set(DEFAULT_AGENT_ID_KEY, null)),
 				Effect.mapError((error) => new Error(`Failed to persist selected agents: ${error.message}`))
 			);
 		}
 
-		return tauriClient.settings
+		return backendClient.settings
 			.set(SELECTED_AGENT_IDS_KEY, normalized)
 			.pipe(
 				Effect.mapError((error) => new Error(`Failed to persist selected agents: ${error.message}`))
@@ -343,7 +343,7 @@ export class AgentPreferencesStore {
 
 		this.markLocalMutation();
 		this.defaultAgentId = agentId;
-		return tauriClient.settings
+		return backendClient.settings
 			.set(DEFAULT_AGENT_ID_KEY, agentId)
 			.pipe(
 				Effect.mapError((error) => new Error(`Failed to persist default agent: ${error.message}`))
@@ -355,7 +355,7 @@ export class AgentPreferencesStore {
 			Effect.flatMap(() => {
 				this.markLocalMutation();
 				this.onboardingCompleted = true;
-				return tauriClient.settings
+				return backendClient.settings
 					.set(HAS_COMPLETED_ONBOARDING_KEY, true)
 					.pipe(
 						Effect.mapError(
@@ -369,7 +369,7 @@ export class AgentPreferencesStore {
 	resetOnboardingForDev(): Effect.Effect<void, Error> {
 		this.markLocalMutation();
 		this.onboardingCompleted = false;
-		return tauriClient.settings
+		return backendClient.settings
 			.set(HAS_COMPLETED_ONBOARDING_KEY, false)
 			.pipe(
 				Effect.mapError(
@@ -383,7 +383,7 @@ export class AgentPreferencesStore {
 
 		this.markLocalMutation();
 		this.customAgentConfigs = updatedConfigs;
-		return tauriClient.settings
+		return backendClient.settings
 			.set(CUSTOM_AGENT_CONFIGS_KEY, updatedConfigs)
 			.pipe(
 				Effect.mapError(
@@ -404,7 +404,7 @@ export class AgentPreferencesStore {
 
 		this.markLocalMutation();
 		this.agentEnvOverrides = updatedOverrides;
-		return tauriClient.settings
+		return backendClient.settings
 			.set(AGENT_ENV_OVERRIDES_KEY, updatedOverrides)
 			.pipe(
 				Effect.mapError(

@@ -1,5 +1,5 @@
 <script lang="ts">
-import type { PrDetails } from "$lib/utils/tauri-client/git.js";
+import type { PrDetails } from "$lib/utils/backend-client/git.js";
 import { HugeiconsIcon, type PrChecksItem } from "@acepe/ui";
 import type { IssueReportDraft } from "$lib/errors/issue-report.js";
 import { resolveIssueActionLabel } from "$lib/errors/issue-report.js";

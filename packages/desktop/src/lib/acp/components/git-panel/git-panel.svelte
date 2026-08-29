@@ -49,9 +49,9 @@ import type {
 	GitStackedAction,
 	GitStackedActionResult,
 	GitStashEntry,
-} from "$lib/utils/tauri-client/git.js";
+} from "$lib/utils/backend-client/git.js";
 
-import { revealInFinder, tauriClient } from "$lib/utils/tauri-client.js";
+import { revealInFinder, backendClient } from "$lib/utils/backend-client.js";
 import { getErrorCauseDetails } from "../../errors/error-cause-details.js";
 import {
 	fetchCommitDiff,
@@ -324,10 +324,10 @@ onMount(() => {
 async function refresh() {
 	_loading = true;
 	const [statusResult, branchResult, remoteResult, worktreeResult] = await Promise.all([
-		Effect.runPromise(Effect.result(tauriClient.git.panelStatus(projectPath))),
-		Effect.runPromise(Effect.result(tauriClient.git.currentBranch(projectPath))),
-		Effect.runPromise(Effect.result(tauriClient.git.remoteStatus(projectPath))),
-		Effect.runPromise(Effect.result(tauriClient.git.worktreeList(projectPath))),
+		Effect.runPromise(Effect.result(backendClient.git.panelStatus(projectPath))),
+		Effect.runPromise(Effect.result(backendClient.git.currentBranch(projectPath))),
+		Effect.runPromise(Effect.result(backendClient.git.remoteStatus(projectPath))),
+		Effect.runPromise(Effect.result(backendClient.git.worktreeList(projectPath))),
 	]);
 
 	if (Result.isSuccess(statusResult)) {
@@ -371,14 +371,14 @@ $effect(() => {
 });
 
 async function loadStash() {
-	const result = await Effect.runPromise(Effect.result(tauriClient.git.stashList(projectPath)));
+	const result = await Effect.runPromise(Effect.result(backendClient.git.stashList(projectPath)));
 	if (Result.isSuccess(result)) {
 		stashEntries = result.success;
 	}
 }
 
 async function loadLog() {
-	const result = await Effect.runPromise(Effect.result(tauriClient.git.log(projectPath, 50)));
+	const result = await Effect.runPromise(Effect.result(backendClient.git.log(projectPath, 50)));
 	if (Result.isSuccess(result)) {
 		logEntries = result.success;
 	}
@@ -390,7 +390,7 @@ if (!initialTargetSnapshot?.prNumber) {
 }
 
 // Watch for external branch changes (e.g. a terminal `git checkout`) via
-// tauriClient.git.watchHead's poll -- a Stream, so it's run as a fiber and
+// backendClient.git.watchHead's poll -- a Stream, so it's run as a fiber and
 // interrupted on unmount rather than fired-and-forgotten.
 // Deferred when opening a specific PR to avoid competing for the thread pool.
 let watchHeadInitialized = false;
@@ -399,7 +399,7 @@ function initWatchHead() {
 	if (watchHeadInitialized) return;
 	watchHeadInitialized = true;
 	watchHeadFiber = Effect.runFork(
-		tauriClient.git.watchHead(projectPath).pipe(
+		backendClient.git.watchHead(projectPath).pipe(
 			Stream.runForEach(() => Effect.sync(() => refresh())),
 			Effect.orDie
 		)
@@ -418,28 +418,28 @@ onDestroy(() => {
 // ─── Mutation Callbacks ──────────────────────────────────────────────
 
 async function handleStage(path: string) {
-	await Effect.runPromise(Effect.result(tauriClient.git.stageFiles(projectPath, [path])));
+	await Effect.runPromise(Effect.result(backendClient.git.stageFiles(projectPath, [path])));
 	await refresh();
 }
 
 async function handleUnstage(path: string) {
-	await Effect.runPromise(Effect.result(tauriClient.git.unstageFiles(projectPath, [path])));
+	await Effect.runPromise(Effect.result(backendClient.git.unstageFiles(projectPath, [path])));
 	await refresh();
 }
 
 async function handleStageAll() {
-	await Effect.runPromise(Effect.result(tauriClient.git.stageAll(projectPath)));
+	await Effect.runPromise(Effect.result(backendClient.git.stageAll(projectPath)));
 	await refresh();
 }
 
 async function handleDiscard(path: string) {
-	await Effect.runPromise(Effect.result(tauriClient.git.discardChanges(projectPath, [path])));
+	await Effect.runPromise(Effect.result(backendClient.git.discardChanges(projectPath, [path])));
 	await refresh();
 }
 
 async function handleCommit(message: string) {
 	const result = await Effect.runPromise(
-		Effect.result(tauriClient.git.commit(projectPath, message))
+		Effect.result(backendClient.git.commit(projectPath, message))
 	);
 	if (Result.isSuccess(result)) {
 		commitMessage = "";
@@ -450,8 +450,8 @@ async function handleCommit(message: string) {
 }
 
 async function handlePush() {
-	await Effect.runPromise(Effect.result(tauriClient.git.push(projectPath)));
-	const result = await Effect.runPromise(Effect.result(tauriClient.git.remoteStatus(projectPath)));
+	await Effect.runPromise(Effect.result(backendClient.git.push(projectPath)));
+	const result = await Effect.runPromise(Effect.result(backendClient.git.remoteStatus(projectPath)));
 	if (Result.isSuccess(result)) {
 		remoteStatus = result.success;
 	}
@@ -465,7 +465,7 @@ async function runStackedActionAndNotify(
 	stackedActionRunning = true;
 	console.info("[git-panel] runStackedAction", { projectPath, action, commitMessage });
 	const result = await Effect.runPromise(
-		Effect.result(tauriClient.git.runStackedAction(projectPath, action, commitMessage))
+		Effect.result(backendClient.git.runStackedAction(projectPath, action, commitMessage))
 	);
 	if (Result.isFailure(result)) {
 		stackedActionRunning = false;
@@ -517,7 +517,7 @@ async function handleGenerate() {
 	if (!onRequestGeneration || generating) return;
 	generating = true;
 	await Effect.runPromise(
-		tauriClient.git.collectShipContext(projectPath).pipe(
+		backendClient.git.collectShipContext(projectPath).pipe(
 			Effect.match({
 				onSuccess: (ctx) => {
 					if (!ctx) {
@@ -538,13 +538,13 @@ async function handleGenerate() {
 }
 
 async function handlePull() {
-	await Effect.runPromise(Effect.result(tauriClient.git.pull(projectPath)));
+	await Effect.runPromise(Effect.result(backendClient.git.pull(projectPath)));
 	await refresh();
 }
 
 async function handleFetch() {
-	await Effect.runPromise(Effect.result(tauriClient.git.fetch(projectPath)));
-	const result = await Effect.runPromise(Effect.result(tauriClient.git.remoteStatus(projectPath)));
+	await Effect.runPromise(Effect.result(backendClient.git.fetch(projectPath)));
+	const result = await Effect.runPromise(Effect.result(backendClient.git.remoteStatus(projectPath)));
 	if (Result.isSuccess(result)) {
 		remoteStatus = result.success;
 	}
@@ -557,13 +557,13 @@ function handleViewChange(view: "status" | "history" | "stash") {
 }
 
 async function handleStashPop(index: number) {
-	await Effect.runPromise(Effect.result(tauriClient.git.stashPop(projectPath, index)));
+	await Effect.runPromise(Effect.result(backendClient.git.stashPop(projectPath, index)));
 	await refresh();
 	await loadStash();
 }
 
 async function handleStashDrop(index: number) {
-	await Effect.runPromise(Effect.result(tauriClient.git.stashDrop(projectPath, index)));
+	await Effect.runPromise(Effect.result(backendClient.git.stashDrop(projectPath, index)));
 	await loadStash();
 }
 
@@ -616,7 +616,7 @@ function handleRevealPath(path: string) {
 }
 
 async function handleDeleteWorktree(directory: string) {
-	await Effect.runPromise(Effect.result(tauriClient.git.worktreeRemove(directory, false)));
+	await Effect.runPromise(Effect.result(backendClient.git.worktreeRemove(directory, false)));
 	worktreeDeleteConfirm = null;
 	await refresh();
 }
@@ -624,7 +624,7 @@ async function handleDeleteWorktree(directory: string) {
 async function handleDeleteAllWorktrees() {
 	for (const item of worktreeItems) {
 		await Effect.runPromise(
-			Effect.result(tauriClient.git.worktreeRemove(item.worktree.directory, false))
+			Effect.result(backendClient.git.worktreeRemove(item.worktree.directory, false))
 		);
 	}
 	worktreeDeleteConfirm = null;

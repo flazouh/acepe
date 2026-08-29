@@ -5,7 +5,7 @@
 
 import { fromPromise } from "@acepe/effect-result/fromPromise";
 import * as Effect from "effect/Effect";
-import { git } from "../../utils/tauri-client/git.ts";
+import { git } from "../../utils/backend-client/git.ts";
 import type {
 	CommitDiff,
 	Diff,

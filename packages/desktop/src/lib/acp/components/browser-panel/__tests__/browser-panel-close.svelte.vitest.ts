@@ -29,7 +29,7 @@ vi.mock(
 		import("../../../../../../node_modules/svelte/src/index-client.js")
 );
 
-vi.mock("$lib/utils/tauri-client/browser-webview.js", () => ({
+vi.mock("$lib/utils/backend-client/browser-webview.js", () => ({
 	browserWebview: browserWebviewMock,
 }));
 

@@ -7,8 +7,8 @@ import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
 import { scheduleDeferredIdleWork } from "$lib/utils/deferred-work.js";
-import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+import type { MergeStrategy } from "$lib/utils/backend-client/git.js";
+import { backendClient } from "$lib/utils/backend-client.js";
 
 const SETTING_KEY: UserSettingKey = "git_merge_strategy_preference";
 const DEFAULT: MergeStrategy = "squash";
@@ -25,7 +25,7 @@ class MergeStrategyStore {
 		this.initializeScheduled = false;
 
 		const result = await Effect.runPromise(
-			Effect.result(tauriClient.settings.get<MergeStrategy>(SETTING_KEY))
+			Effect.result(backendClient.settings.get<MergeStrategy>(SETTING_KEY))
 		);
 		if (Result.isSuccess(result) && result.success) {
 			this.strategy = result.success;
@@ -45,7 +45,7 @@ class MergeStrategyStore {
 	async set(value: MergeStrategy): Promise<void> {
 		this.strategy = value;
 		void Effect.runPromise(
-			tauriClient.settings.set(SETTING_KEY, value).pipe(
+			backendClient.settings.set(SETTING_KEY, value).pipe(
 				Effect.match({
 					onSuccess: () => undefined,
 					onFailure: () => undefined,

@@ -12,8 +12,8 @@
  */
 import { fromPromise } from "@acepe/effect-result/fromPromise";
 import * as Effect from "effect/Effect";
-import type { GitStackedPrStep, PrChecks, PrDetails } from "../../utils/tauri-client/git.js";
-import { tauriClient } from "../../utils/tauri-client.js";
+import type { GitStackedPrStep, PrChecks, PrDetails } from "../../utils/backend-client/git.js";
+import { backendClient } from "../../utils/backend-client.js";
 import { buildPartialSessionLinkedPr } from "../application/dto/session-linked-pr.js";
 import { AgentError, AppError, SessionNotFoundError } from "../errors/app-error.js";
 import type { Operation } from "../types/operation.js";
@@ -189,7 +189,7 @@ export class PrLinkStateStore {
 			void Effect.runPromise(this.refreshSessionPrState(sessionId, projectPath, prNumber));
 		}
 
-		return tauriClient.history.setSessionPrNumber(sessionId, prNumber, prLinkMode);
+		return backendClient.history.setSessionPrNumber(sessionId, prNumber, prLinkMode);
 	}
 
 	restoreAutomaticSessionPrLink(
@@ -365,7 +365,7 @@ export class PrLinkStateStore {
 			).pipe(Effect.catch(() => Effect.succeed<PrChecks | null>(null)));
 		}
 
-		const request = tauriClient.git.prChecks(projectPath, prNumber).pipe(
+		const request = backendClient.git.prChecks(projectPath, prNumber).pipe(
 			Effect.map((checks): PrChecks | null => {
 				this.prChecksCache.set(cacheKey, {
 					checks,
@@ -426,7 +426,7 @@ export class PrLinkStateStore {
 		}
 
 		logger.debug("refreshSessionPrState: calling prDetails", { sessionId, projectPath, prNumber });
-		const request = tauriClient.git.prDetails(projectPath, prNumber).pipe(
+		const request = backendClient.git.prDetails(projectPath, prNumber).pipe(
 			Effect.map((details): PrDetails | null => {
 				this.prDetailsCache.set(cacheKey, {
 					details,

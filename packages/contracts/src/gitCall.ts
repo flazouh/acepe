@@ -8,11 +8,11 @@ import * as Schema from "effect/Schema"
 // comment) adds zero new RPC primitives after this one -- only new members
 // of these two unions plus a routing branch on the server.
 //
-// This slice carries every live-caller sub-domain of tauri-client/git.ts's
+// This slice carries every live-caller sub-domain of backend-client/git.ts's
 // 33 methods: branch/checkout, stage/commit, push/pull/remote-status,
 // stash, worktree lifecycle/config, and ship/PR/CI. The handful of methods
-// with no live caller today stay on TAURI_COMMAND_CLIENT -- see
-// tauri-client/git.ts's header comment.
+// with no live caller today have no route yet -- see
+// backend-client/git.ts's header comment.
 //
 // git.headSha is the one exception to "every op has a live TS caller
 // directly": it exists so the facade's watchHead can poll (issue #261 --

@@ -12,8 +12,8 @@ describe("ChatPreferencesStore", () => {
 		setSettingMock.mockReset();
 
 		vi.resetModules();
-		vi.doMock("$lib/utils/tauri-client.js", () => ({
-			tauriClient: {
+		vi.doMock("$lib/utils/backend-client.js", () => ({
+			backendClient: {
 				settings: {
 					get: getSettingMock,
 					set: setSettingMock,

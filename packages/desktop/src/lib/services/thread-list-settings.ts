@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import { settings } from "$lib/utils/tauri-client/settings.js";
+import { settings } from "$lib/utils/backend-client/settings.js";
 
 export interface ArchivedSessionRef {
 	sessionId: string;

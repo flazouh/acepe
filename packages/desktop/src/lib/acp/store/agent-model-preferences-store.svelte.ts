@@ -8,12 +8,12 @@
  * - Cached available modes per agent (for optimistic display)
  * - Per-session model memory (which model was used per mode in each session)
  *
- * All data is persisted to SQLite via tauriClient.settings
+ * All data is persisted to SQLite via backendClient.settings
  */
 
 import { fromPromise } from "@acepe/effect-result/fromPromise";
 import * as Effect from "effect/Effect";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+import { backendClient } from "$lib/utils/backend-client.js";
 import type {
 	ModelsForDisplay,
 	ProviderMetadataProjection,
@@ -335,7 +335,7 @@ export function loadPersistedState(): Effect.Effect<void, AppError> {
 		return Effect.succeed(undefined);
 	};
 
-	const favoritesLoad = tauriClient.settings
+	const favoritesLoad = backendClient.settings
 		.get<Record<string, string[]>>(AGENT_FAVORITE_MODELS_KEY)
 		.pipe(
 			Effect.map((persisted) => {
@@ -350,7 +350,7 @@ export function loadPersistedState(): Effect.Effect<void, AppError> {
 			Effect.catch(recover("No persisted favorite models found (expected on first run)"))
 		);
 
-	const defaultModelsLoad = tauriClient.settings
+	const defaultModelsLoad = backendClient.settings
 		.get<AgentDefaultModels>(AGENT_DEFAULT_MODELS_KEY)
 		.pipe(
 			Effect.map((persisted) => {
@@ -365,7 +365,7 @@ export function loadPersistedState(): Effect.Effect<void, AppError> {
 			Effect.catch(recover("No persisted default models found (expected on first run)"))
 		);
 
-	const modelsCacheLoad = tauriClient.settings
+	const modelsCacheLoad = backendClient.settings
 		.get<Record<string, Model[]>>(AGENT_AVAILABLE_MODELS_CACHE_KEY)
 		.pipe(
 			Effect.map((persisted) => {
@@ -380,7 +380,7 @@ export function loadPersistedState(): Effect.Effect<void, AppError> {
 			Effect.catch(recover("No cached models found (expected on first run)"))
 		);
 
-	const modelProvidersLoad = tauriClient.settings
+	const modelProvidersLoad = backendClient.settings
 		.get<Record<string, string>>(AGENT_MODEL_PROVIDER_KEY)
 		.pipe(
 			Effect.map((persisted) => {
@@ -390,7 +390,7 @@ export function loadPersistedState(): Effect.Effect<void, AppError> {
 			Effect.catch(() => Effect.succeed(undefined))
 		);
 
-	const modesCacheLoad = tauriClient.settings
+	const modesCacheLoad = backendClient.settings
 		.get<Record<string, Mode[]>>(AGENT_AVAILABLE_MODES_CACHE_KEY)
 		.pipe(
 			Effect.map((persisted) => {
@@ -405,7 +405,7 @@ export function loadPersistedState(): Effect.Effect<void, AppError> {
 			Effect.catch(recover("No cached modes found (expected on first run)"))
 		);
 
-	const providerMetadataCacheLoad = tauriClient.settings
+	const providerMetadataCacheLoad = backendClient.settings
 		.get<Record<string, ProviderMetadataProjection>>(AGENT_PROVIDER_METADATA_CACHE_KEY)
 		.pipe(
 			Effect.map((persisted) => {
@@ -420,7 +420,7 @@ export function loadPersistedState(): Effect.Effect<void, AppError> {
 			Effect.catch(recover("No cached provider metadata found (expected on first run)"))
 		);
 
-	const modelsDisplayCacheLoad = tauriClient.settings
+	const modelsDisplayCacheLoad = backendClient.settings
 		.get<Record<string, ModelsForDisplay>>(AGENT_AVAILABLE_MODELS_DISPLAY_CACHE_KEY)
 		.pipe(
 			Effect.map((persisted) => {
@@ -435,7 +435,7 @@ export function loadPersistedState(): Effect.Effect<void, AppError> {
 			Effect.catch(recover("No cached models display found (expected on first run)"))
 		);
 
-	const prGenerationPrefsLoad = tauriClient.settings
+	const prGenerationPrefsLoad = backendClient.settings
 		.get<PrGenerationPreferences>(PR_GENERATION_PREFS_KEY)
 		.pipe(
 			Effect.map((persisted) => {
@@ -448,7 +448,7 @@ export function loadPersistedState(): Effect.Effect<void, AppError> {
 			Effect.catch(recover("No PR generation preferences found (expected on first run)"))
 		);
 
-	const sessionModelsLoad = tauriClient.settings
+	const sessionModelsLoad = backendClient.settings
 		.get<SessionModelPerMode>(SESSION_MODEL_PER_MODE_KEY)
 		.pipe(
 			Effect.map((persisted) => {
@@ -501,7 +501,7 @@ export function ensureLoaded(): Effect.Effect<void, AppError> {
 
 function persistProviderMetadataCache(): void {
 	persistOrLog(
-		tauriClient.settings.set<Record<string, ProviderMetadataProjection>>(
+		backendClient.settings.set<Record<string, ProviderMetadataProjection>>(
 			AGENT_PROVIDER_METADATA_CACHE_KEY,
 			availableProviderMetadataCache
 		),
@@ -511,21 +511,21 @@ function persistProviderMetadataCache(): void {
 
 function persistFavorites(): void {
 	persistOrLog(
-		tauriClient.settings.set<Record<string, string[]>>(AGENT_FAVORITE_MODELS_KEY, favorites),
+		backendClient.settings.set<Record<string, string[]>>(AGENT_FAVORITE_MODELS_KEY, favorites),
 		"Failed to persist favorite models"
 	);
 }
 
 function persistDefaultModels(): void {
 	persistOrLog(
-		tauriClient.settings.set<AgentDefaultModels>(AGENT_DEFAULT_MODELS_KEY, defaultModels),
+		backendClient.settings.set<AgentDefaultModels>(AGENT_DEFAULT_MODELS_KEY, defaultModels),
 		"Failed to persist default models"
 	);
 }
 
 function persistModelProviders(): void {
 	persistOrLog(
-		tauriClient.settings.set<Record<string, string>>(
+		backendClient.settings.set<Record<string, string>>(
 			AGENT_MODEL_PROVIDER_KEY,
 			modelProviderByAgent
 		),
@@ -535,7 +535,7 @@ function persistModelProviders(): void {
 
 function persistModelsCache(): void {
 	persistOrLog(
-		tauriClient.settings.set<Record<string, Model[]>>(
+		backendClient.settings.set<Record<string, Model[]>>(
 			AGENT_AVAILABLE_MODELS_CACHE_KEY,
 			availableModelsCache
 		),
@@ -545,7 +545,7 @@ function persistModelsCache(): void {
 
 function persistModelsDisplayCache(): void {
 	persistOrLog(
-		tauriClient.settings.set<Record<string, ModelsForDisplay>>(
+		backendClient.settings.set<Record<string, ModelsForDisplay>>(
 			AGENT_AVAILABLE_MODELS_DISPLAY_CACHE_KEY,
 			availableModelsDisplayCache
 		),
@@ -555,7 +555,7 @@ function persistModelsDisplayCache(): void {
 
 function persistModesCache(): void {
 	persistOrLog(
-		tauriClient.settings.set<Record<string, Mode[]>>(
+		backendClient.settings.set<Record<string, Mode[]>>(
 			AGENT_AVAILABLE_MODES_CACHE_KEY,
 			availableModesCache
 		),
@@ -565,14 +565,14 @@ function persistModesCache(): void {
 
 function persistSessionModelPerMode(): void {
 	persistOrLog(
-		tauriClient.settings.set<SessionModelPerMode>(SESSION_MODEL_PER_MODE_KEY, sessionModelPerMode),
+		backendClient.settings.set<SessionModelPerMode>(SESSION_MODEL_PER_MODE_KEY, sessionModelPerMode),
 		"Failed to persist session model per mode"
 	);
 }
 
 function persistPrGenerationPrefs(): void {
 	persistOrLog(
-		tauriClient.settings.set<PrGenerationPreferences>(PR_GENERATION_PREFS_KEY, prGenerationPrefs),
+		backendClient.settings.set<PrGenerationPreferences>(PR_GENERATION_PREFS_KEY, prGenerationPrefs),
 		"Failed to persist PR generation preferences"
 	);
 }

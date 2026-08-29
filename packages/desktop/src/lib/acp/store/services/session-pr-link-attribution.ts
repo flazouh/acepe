@@ -1,7 +1,7 @@
 import { fromThrowable } from "@acepe/effect-result/fromThrowable";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
-import type { GitStackedPrStep } from "../../../utils/tauri-client/git.js";
+import type { GitStackedPrStep } from "../../../utils/backend-client/git.js";
 import { getRepoContext } from "../../services/github-service.js";
 
 type SessionPrLinkCandidate = {

@@ -21,8 +21,8 @@ import type {
 	SessionModelState as AcpSessionModelState,
 	SessionOpenResult,
 } from "../../../services/acp-types.js";
-import { RpcCommandError } from "../../../utils/tauri-client/invoke.js";
-import { tauriClient } from "../../../utils/tauri-client.js";
+import { RpcCommandError } from "../../../utils/backend-client/invoke.js";
+import { backendClient } from "../../../utils/backend-client.js";
 import { sessionColdFromSlices } from "../../application/dto/session-cold.js";
 import {
 	AgentError,
@@ -159,7 +159,7 @@ function closeCreatedSessionAfterSelectionFailure<T>(
 
 // SessionConnectionReadiness.capabilities is never populated by
 // getSessionConnectionReadiness under the Bun/Electrobun backend (see
-// tauri-client/acp.ts's header comment) -- it always answers `capabilities:
+// backend-client/acp.ts's header comment) -- it always answers `capabilities:
 // {}`, no models, no modes. Real capabilities only ever arrive through a
 // live capabilities envelope push. Gating "is this connection materialized"
 // on capabilities being present here meant this fallback could never
@@ -702,7 +702,7 @@ export class SessionConnectionManager {
 									// Persist worktree path to DB for restore across app restarts
 									if (options.worktreePath) {
 										void Effect.runPromise(
-											tauriClient.history
+											backendClient.history
 												.setSessionWorktreePath(
 													sessionId,
 													options.worktreePath,

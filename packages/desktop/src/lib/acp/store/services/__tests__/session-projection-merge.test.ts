@@ -20,6 +20,7 @@ const fakeProject: RpcProjectedProject = {
 	deletedAt: null,
 	sessionCount: 1,
 	color: "cyan",
+	showExternalCliSessions: false,
 	gitStatus: [],
 };
 
@@ -36,6 +37,7 @@ const diskFreeProject: RpcProjectedProject = {
 	deletedAt: null,
 	sessionCount: 1,
 	color: "cyan",
+	showExternalCliSessions: false,
 	gitStatus: [],
 };
 

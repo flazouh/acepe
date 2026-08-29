@@ -12,7 +12,7 @@ import { SvelteSet } from "svelte/reactivity";
 import { toast } from "svelte-sonner";
 import * as Effect from "effect/Effect";
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+import { backendClient } from "$lib/utils/backend-client.js";
 import { createReviewFileRevisionKey } from "../../review/review-file-revision.js";
 import type { ModifiedFilesState } from "../../types/modified-files-state.js";
 import ReviewBottomWidget from "./review-bottom-widget.svelte";
@@ -186,7 +186,7 @@ function handlePointerUp() {
 					const file = files[index];
 					if (!file) return;
 					void Effect.runPromise(
-						tauriClient.git.discardChanges(projectPath, [file.filePath]).pipe(
+						backendClient.git.discardChanges(projectPath, [file.filePath]).pipe(
 							Effect.match({
 								onSuccess: () =>
 									toast.success(

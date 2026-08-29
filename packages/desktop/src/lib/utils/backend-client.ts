@@ -1,7 +1,7 @@
 /**
  * Type-safe Tauri command client.
  *
- * Re-exports from the modular tauri-client/ package. All logic lives in
+ * Re-exports from the modular backend-client/ package. All logic lives in
  * domain-specific sub-clients (acp, history, projects, etc.).
  */
 
@@ -12,6 +12,6 @@ export type {
 	ProjectInfo,
 	ProjectSessionCounts,
 	ThreadListSettings,
-} from "./tauri-client/index.js";
+} from "./backend-client/index.js";
 
-export { openFileInEditor, revealInFinder, tauriClient } from "./tauri-client/index.js";
+export { openFileInEditor, revealInFinder, backendClient } from "./backend-client/index.js";

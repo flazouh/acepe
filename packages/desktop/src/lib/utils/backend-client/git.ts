@@ -59,8 +59,8 @@ const unwrapGitCallResult = <Tag extends GitCallResult["op"]>(
 // Instead this file builds the Stream itself: poll git.currentBranch and
 // git.headSha (both one-shot gitCall ops) on an interval and turn the
 // samples into a Stream below -- see watchHead's own comment. That's the
-// last thing this file needed TAURI_COMMAND_CLIENT for; it's off the
-// barrel now (see check-tauri-client-importers.ts).
+// last thing this file needed the generated command client for; it's off the
+// barrel now (see check-backend-client-importers.ts).
 
 /** Mirrors GitService's GitHeadChangedPayload (packages/server/src/git/Schemas.ts). */
 export interface GitHeadChangedPayload {

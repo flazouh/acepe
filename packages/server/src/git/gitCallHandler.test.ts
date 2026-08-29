@@ -480,7 +480,7 @@ Vitest.layer(Layer.mergeAll(TestLive, PlatformLive))("gitCallHandler", (it) => {
 			yield* fs.writeFileString(path.join(dir, "readme.txt"), "hello\nstashed\n")
 
 			// GitService has no stashSave gitCall op (stashSave has no live caller
-			// per tauri-client/git.ts's header comment) -- stash it directly
+			// per backend-client/git.ts's header comment) -- stash it directly
 			// through GitService so the test can drive git.stashList/Pop/Drop.
 			yield* git.stashSave({ projectPath: dir, message: "wip" })
 

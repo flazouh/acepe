@@ -91,10 +91,10 @@ vi.mock("../../../services/git-status-cache.svelte.js", () => ({
 	},
 }));
 
-vi.mock("$lib/utils/tauri-client.js", () => ({
+vi.mock("$lib/utils/backend-client.js", () => ({
 	openFileInEditor: vi.fn(),
 	revealInFinder: vi.fn(),
-	tauriClient: {
+	backendClient: {
 		fileIndex: {
 			getProjectGitStatus: (projectPath: string) => getProjectGitStatusMock(projectPath),
 		},

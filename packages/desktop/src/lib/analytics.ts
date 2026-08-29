@@ -5,7 +5,7 @@ import posthog from "posthog-js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
 import { getAppVersion } from "$lib/utils/electrobun-window-shims.js";
-import { settings } from "$lib/utils/tauri-client/settings.js";
+import { settings } from "$lib/utils/backend-client/settings.js";
 
 const ANALYTICS_OPT_OUT_KEY: UserSettingKey = "analytics_opt_out";
 const DEVICE_ID_STORAGE_KEY = "analytics_device_id";
@@ -331,7 +331,7 @@ export function captureCommandFailure(error: Error, context: CommandFailureTelem
 	}
 
 	const fingerprint = [
-		"tauri-invoke",
+		"rpc-invoke",
 		context.commandName,
 		context.classification ?? "unexpected",
 		error.name,
@@ -343,7 +343,7 @@ export function captureCommandFailure(error: Error, context: CommandFailureTelem
 	}
 
 	const telemetryContext: TelemetryContext = {
-		source: "tauri-invoke",
+		source: "rpc-invoke",
 		commandName: context.commandName,
 		invokeId: context.invokeId,
 		elapsedMs: context.elapsedMs,

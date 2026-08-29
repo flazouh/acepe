@@ -9,7 +9,7 @@ import type { SessionStore } from "../../../../store/session-store.svelte.js";
 const getProjectFiles = vi.fn();
 const invalidateProjectFiles = vi.fn();
 
-vi.mock("$lib/utils/tauri-client/file-index.js", () => ({
+vi.mock("$lib/utils/backend-client/file-index.js", () => ({
 	fileIndex: {
 		getProjectFiles,
 		invalidateProjectFiles,

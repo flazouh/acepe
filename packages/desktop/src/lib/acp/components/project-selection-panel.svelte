@@ -4,7 +4,7 @@ import { onDestroy, onMount } from "svelte";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import { computeProjectBadgeLabels } from "@acepe/ui";
 import type { FileGitStatus } from "$lib/services/converted-session-types.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+import { backendClient } from "$lib/utils/backend-client.js";
 import type { Project } from "../logic/project-manager.svelte.js";
 import ProjectCard from "./project-card.svelte";
 import type { ProjectCardData } from "./project-card-data.js";
@@ -120,7 +120,7 @@ function ensureProjectInfoLoaded(project: Project): void {
 		}
 
 		void Effect.runPromise(
-			tauriClient.git.isRepo(projectPath).pipe(
+			backendClient.git.isRepo(projectPath).pipe(
 				Effect.match({
 					onSuccess: (isRepo) => {
 						if (!isRepo) {
@@ -139,7 +139,7 @@ function ensureProjectInfoLoaded(project: Project): void {
 						}
 
 						void Effect.runPromise(
-							tauriClient.fileIndex.getProjectGitOverviewSummary(projectPath).pipe(
+							backendClient.fileIndex.getProjectGitOverviewSummary(projectPath).pipe(
 								Effect.match({
 									onSuccess: (overview) => {
 										updateProjectCardData(projectPath, {
@@ -154,7 +154,7 @@ function ensureProjectInfoLoaded(project: Project): void {
 										}
 										// Fetch remote status (ahead/behind) in background
 										void Effect.runPromise(
-											tauriClient.git.remoteStatus(projectPath).pipe(
+											backendClient.git.remoteStatus(projectPath).pipe(
 												Effect.match({
 													onSuccess: (remote) => {
 														remoteStatusMap.set(projectPath, {
@@ -250,7 +250,7 @@ function refreshMissingProjectPaths(): void {
 	}
 
 	void Effect.runPromise(
-		tauriClient.projects.getMissingProjectPaths(projectPaths).pipe(
+		backendClient.projects.getMissingProjectPaths(projectPaths).pipe(
 			Effect.match({
 				onSuccess: (paths) => {
 					updateMissingProjectPaths(paths);

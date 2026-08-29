@@ -18,7 +18,7 @@ vi.mock("svelte-sonner", () => ({
 	},
 }));
 
-vi.mock("$lib/utils/tauri-client/settings.js", () => ({
+vi.mock("$lib/utils/backend-client/settings.js", () => ({
 	settings: {
 		getRaw: mocks.getRaw,
 		setRaw: mocks.setRaw,

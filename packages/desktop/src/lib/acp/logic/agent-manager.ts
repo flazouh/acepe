@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import type { ProviderMetadataProjection } from "../../services/acp-types.js";
-import { tauriClient } from "../../utils/tauri-client.js";
+import { backendClient } from "../../utils/backend-client.js";
 import { LOGGER_IDS } from "../constants/logger-ids.js";
 import type { AcpError } from "../errors/index.js";
 import { ConnectionError } from "../errors/index.js";
@@ -74,7 +74,7 @@ export class AgentManager {
 	 */
 	listAgents(): Effect.Effect<AgentInfo[], AcpError> {
 		this.logger.debug("listAgents() called");
-		return tauriClient.acp.listAgents().pipe(
+		return backendClient.acp.listAgents().pipe(
 			Effect.map((agents) =>
 				agents.map((a) => ({
 					id: a.id,
@@ -104,7 +104,7 @@ export class AgentManager {
 	 */
 	registerCustomAgent(config: CustomAgentConfig): Effect.Effect<void, AcpError> {
 		this.logger.debug("registerCustomAgent() called with agentId:", config.id);
-		return tauriClient.acp.registerCustomAgent(config).pipe(
+		return backendClient.acp.registerCustomAgent(config).pipe(
 			Effect.mapError((error) => {
 				this.logger.error("Failed to register custom agent:", error);
 				return new ConnectionError(`Failed to register custom agent: ${config.id}`, error as Error);

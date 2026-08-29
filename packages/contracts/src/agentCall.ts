@@ -7,7 +7,7 @@ import * as Schema from "effect/Schema"
 // comment and the #249 issue thread's DESIGN DECISION for why a utility
 // RPC beats adding a new top-level RPC primitive per operation.
 //
-// This slice carries agentCall's one live caller: tauri-client/acp.ts's
+// This slice carries agentCall's one live caller: backend-client/acp.ts's
 // listAgents, which the New-chat agent picker (agent-manager.ts,
 // acp/store/api.ts) needs populated to offer any agent at all. install/
 // uninstall/registerCustomAgent/authenticate* stay unsupportedOnContract in

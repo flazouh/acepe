@@ -16,7 +16,7 @@ import { AgentError } from "$lib/acp/errors/app-error.js";
 import { EventSubscriber } from "$lib/acp/logic/event-subscriber.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import type { SessionUpdate, TurnErrorData } from "$lib/services/converted-session-types.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+import { backendClient } from "$lib/utils/backend-client.js";
 import { parseShipXml, type ShipCardData } from "./ship-card-parser.js";
 
 const GENERATION_TIMEOUT_MS = 60_000;
@@ -34,7 +34,7 @@ function runGeneration(
 	agentId: string | undefined,
 	modelId: string | undefined
 ): Effect.Effect<ShipCardData, AgentError> {
-	return tauriClient.acp.newSession(cwd, agentId).pipe(
+	return backendClient.acp.newSession(cwd, agentId).pipe(
 		Effect.mapError((e) => new AgentError("newSession", e)),
 		Effect.flatMap((sessionResult) => {
 			const ephemeralSessionId = sessionResult.sessionId;
@@ -44,7 +44,7 @@ function runGeneration(
 			});
 
 			const modelSetup = modelId
-				? tauriClient.acp
+				? backendClient.acp
 						.setModel(ephemeralSessionId, modelId)
 						.pipe(Effect.mapError((e) => new AgentError("setModel", e)))
 				: Effect.succeed<void>(undefined);
@@ -52,7 +52,7 @@ function runGeneration(
 			return modelSetup.pipe(
 				Effect.map(() => ephemeralSessionId),
 				Effect.catch((error) =>
-					tauriClient.acp.closeSession(ephemeralSessionId).pipe(
+					backendClient.acp.closeSession(ephemeralSessionId).pipe(
 						Effect.catch(() => Effect.succeed(undefined)),
 						Effect.flatMap(() => Effect.fail(error))
 					)
@@ -65,7 +65,7 @@ function runGeneration(
 			});
 
 			const closeEphemeral = (): void => {
-				void Effect.runPromise(tauriClient.acp.closeSession(ephemeralSessionId));
+				void Effect.runPromise(backendClient.acp.closeSession(ephemeralSessionId));
 			};
 
 			let accumulated = "";
@@ -128,7 +128,7 @@ function runGeneration(
 						closeEphemeral();
 					};
 
-					return tauriClient.acp
+					return backendClient.acp
 						.sendPrompt(ephemeralSessionId, [{ type: "text", text: prompt }])
 						.pipe(
 							Effect.mapError((e) => new AgentError("sendPrompt", e)),

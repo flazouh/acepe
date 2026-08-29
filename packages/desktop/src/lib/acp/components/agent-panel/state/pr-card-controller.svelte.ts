@@ -10,7 +10,7 @@
  * already expect. The PR-fetch $effect calls syncFetchTarget so the dedupe +
  * reset logic is testable in isolation. (Continues plan 2026-05-29-002.)
  */
-import type { PrDetails } from "$lib/utils/tauri-client/git.js";
+import type { PrDetails } from "$lib/utils/backend-client/git.js";
 import type { ShipCardData } from "../../ship-card/ship-card-parser.js";
 import { hasStreamingPreviewContent } from "../components/agent-panel-pure-helpers.js";
 

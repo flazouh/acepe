@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { PrDetails } from "$lib/utils/tauri-client/git.js";
+import type { PrDetails } from "$lib/utils/backend-client/git.js";
 
 import PrStatusCard from "./pr-status-card.svelte";
 

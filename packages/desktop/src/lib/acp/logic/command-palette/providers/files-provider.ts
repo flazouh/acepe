@@ -4,7 +4,7 @@
  */
 
 import * as Effect from "effect/Effect";
-import { fileIndex } from "$lib/utils/tauri-client/file-index.js";
+import { fileIndex } from "$lib/utils/backend-client/file-index.js";
 
 import type { IndexedFile } from "../../../../services/converted-session-types.js";
 import type { PaletteItem, PaletteItemMetadata } from "../../../types/palette-item.js";

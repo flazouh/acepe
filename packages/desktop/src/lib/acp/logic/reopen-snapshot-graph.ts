@@ -371,7 +371,7 @@ function lifecycleForStatus(status: SessionGraphLifecycle["status"]): SessionGra
 }
 
 /**
- * Mirrors `tauri-client/acp.ts`'s private `lifecycleForSession` (same
+ * Mirrors `backend-client/acp.ts`'s private `lifecycleForSession` (same
  * decision, same fields) over a snapshot the caller already fetched, rather
  * than importing across that module boundary for one status derivation.
  */

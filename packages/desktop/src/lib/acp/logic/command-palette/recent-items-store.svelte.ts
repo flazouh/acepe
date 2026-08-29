@@ -5,7 +5,7 @@
 
 import * as Effect from "effect/Effect";
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
-import { settings } from "$lib/utils/tauri-client/settings.js";
+import { settings } from "$lib/utils/backend-client/settings.js";
 
 import type { PaletteMode } from "../../types/palette-mode.js";
 

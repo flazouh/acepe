@@ -20,8 +20,8 @@ import type {
 } from "../../services/acp-types.js";
 import type { HistoryEntry, StartupSessionsResponse } from "../../services/claude-history-types";
 import type { ConfigOptionData } from "../../services/converted-session-types.js";
-import { tauriClient } from "../../utils/tauri-client";
-import { ensureProviderSessionImported as tauriClientEnsureProviderSessionImported } from "../../utils/tauri-client/history.js";
+import { backendClient } from "../../utils/backend-client";
+import { ensureProviderSessionImported as backendClientEnsureProviderSessionImported } from "../../utils/backend-client/history.js";
 import type { AppError } from "../errors/app-error";
 import type { InteractionReplyRequest } from "../types/interaction-reply-request.js";
 import type {
@@ -39,7 +39,7 @@ import type {
  * Initialize the ACP agent service.
  */
 export function initialize(): Effect.Effect<void, AppError> {
-	return tauriClient.acp.initialize().pipe(Effect.map(() => undefined));
+	return backendClient.acp.initialize().pipe(Effect.map(() => undefined));
 }
 
 /**
@@ -55,7 +55,7 @@ export function resumeSession(
 	launchModeId?: string,
 	openToken?: string
 ): Effect.Effect<void, AppError> {
-	return tauriClient.acp.resumeSession(sessionId, cwd, attemptId, agentId, launchModeId, openToken);
+	return backendClient.acp.resumeSession(sessionId, cwd, attemptId, agentId, launchModeId, openToken);
 }
 
 /**
@@ -68,7 +68,7 @@ export function newSession(
 	initialModelId?: string,
 	initialModeId?: string
 ): Effect.Effect<ResumeSessionResult, AppError> {
-	return tauriClient.acp.newSession(cwd, agentId, launchToken, initialModelId, initialModeId);
+	return backendClient.acp.newSession(cwd, agentId, launchToken, initialModelId, initialModeId);
 }
 
 /**
@@ -82,21 +82,21 @@ export function sendPrompt(
 	content: ReadonlyArray<Record<string, unknown> & { type: string }>,
 	attemptId?: string
 ): Effect.Effect<void, AppError> {
-	return tauriClient.acp.sendPrompt(sessionId, content, attemptId);
+	return backendClient.acp.sendPrompt(sessionId, content, attemptId);
 }
 
 /**
  * Set the model for a session.
  */
 export function setModel(sessionId: string, modelId: string): Effect.Effect<void, AppError> {
-	return tauriClient.acp.setModel(sessionId, modelId);
+	return backendClient.acp.setModel(sessionId, modelId);
 }
 
 /**
  * Set the mode for a session.
  */
 export function setMode(sessionId: string, modeId: string): Effect.Effect<void, AppError> {
-	return tauriClient.acp.setMode(sessionId, modeId);
+	return backendClient.acp.setMode(sessionId, modeId);
 }
 
 /**
@@ -106,7 +106,7 @@ export function setSessionAutonomous(
 	sessionId: string,
 	enabled: boolean
 ): Effect.Effect<void, AppError> {
-	return tauriClient.acp.setSessionAutonomous(sessionId, enabled);
+	return backendClient.acp.setSessionAutonomous(sessionId, enabled);
 }
 
 /** Response shape from session/set_config_option — returns full updated config state. */
@@ -123,7 +123,7 @@ export function setConfigOption(
 	configId: string,
 	value: string
 ): Effect.Effect<SetConfigOptionResponse, AppError> {
-	return tauriClient.acp.setConfigOption(sessionId, configId, value) as Effect.Effect<
+	return backendClient.acp.setConfigOption(sessionId, configId, value) as Effect.Effect<
 		SetConfigOptionResponse,
 		AppError
 	>;
@@ -133,14 +133,14 @@ export function setConfigOption(
  * Cancel/stop streaming for a session.
  */
 export function stopStreaming(sessionId: string): Effect.Effect<void, AppError> {
-	return tauriClient.acp.cancel(sessionId);
+	return backendClient.acp.cancel(sessionId);
 }
 
 /**
  * Reply to a canonical interaction through one backend-owned command path.
  */
 export function replyInteraction(request: InteractionReplyRequest): Effect.Effect<void, AppError> {
-	return tauriClient.acp.replyInteraction(request);
+	return backendClient.acp.replyInteraction(request);
 }
 
 /**
@@ -152,7 +152,7 @@ export function respondInboundRequest(
 	requestId: number,
 	result: unknown
 ): Effect.Effect<void, AppError> {
-	return tauriClient.acp.respondInboundRequest(sessionId, requestId, result);
+	return backendClient.acp.respondInboundRequest(sessionId, requestId, result);
 }
 
 /**
@@ -160,13 +160,13 @@ export function respondInboundRequest(
  * This kills the ACP subprocess associated with the session.
  */
 export function closeSession(sessionId: string): Effect.Effect<void, AppError> {
-	return tauriClient.acp.closeSession(sessionId);
+	return backendClient.acp.closeSession(sessionId);
 }
 
 export function fetchCanonicalSessionStateEnvelope(
 	sessionId: string
 ): Effect.Effect<SessionStateEnvelope, AppError> {
-	return tauriClient.acp.getSessionState(sessionId);
+	return backendClient.acp.getSessionState(sessionId);
 }
 
 export interface SessionConnectionReadiness {
@@ -178,7 +178,7 @@ export interface SessionConnectionReadiness {
 export function fetchSessionConnectionReadiness(
 	sessionId: string
 ): Effect.Effect<SessionConnectionReadiness, AppError> {
-	return tauriClient.acp.getSessionConnectionReadiness(sessionId);
+	return backendClient.acp.getSessionConnectionReadiness(sessionId);
 }
 
 // ============================================
@@ -191,7 +191,7 @@ export function fetchSessionConnectionReadiness(
  * @param projectPaths - Array of project paths to scan for sessions.
  */
 export function scanSessions(projectPaths: string[]): Effect.Effect<HistoryEntry[], AppError> {
-	return tauriClient.history.scanProjectSessions(projectPaths);
+	return backendClient.history.scanProjectSessions(projectPaths);
 }
 
 /**
@@ -205,7 +205,7 @@ export function getLibrarySessionsSnapshot(): Effect.Effect<
 	{ sessions: readonly RpcProjectedSession[]; projects: readonly RpcProjectedProject[] },
 	AppError
 > {
-	return tauriClient.acp.getLibrarySessionsSnapshot();
+	return backendClient.acp.getLibrarySessionsSnapshot();
 }
 
 /**
@@ -218,7 +218,7 @@ export function getLibrarySessionsSnapshot(): Effect.Effect<
 export function getStartupSessions(
 	sessionIds: string[]
 ): Effect.Effect<StartupSessionsResponse, AppError> {
-	return tauriClient.history.getStartupSessions(sessionIds);
+	return backendClient.history.getStartupSessions(sessionIds);
 }
 
 export function getSessionOpenResult(
@@ -228,7 +228,7 @@ export function getSessionOpenResult(
 	sourcePath?: string,
 	repairPriority: "selected" | "visible" | "backfill" = "selected"
 ): Effect.Effect<SessionOpenResult, AppError> {
-	return tauriClient.history.getSessionOpenResult(
+	return backendClient.history.getSessionOpenResult(
 		sessionId,
 		projectPath,
 		agentId,
@@ -240,11 +240,11 @@ export function getSessionOpenResult(
 export function awaitSessionOpenRepair(
 	repairTicket: string
 ): Effect.Effect<SessionOpenResult, AppError> {
-	return tauriClient.history.awaitSessionOpenRepair(repairTicket);
+	return backendClient.history.awaitSessionOpenRepair(repairTicket);
 }
 
 export function setSessionTitle(sessionId: string, title: string): Effect.Effect<void, AppError> {
-	return tauriClient.history.setSessionTitle(sessionId, title);
+	return backendClient.history.setSessionTitle(sessionId, title);
 }
 
 /**
@@ -257,7 +257,7 @@ export function setSessionTitle(sessionId: string, title: string): Effect.Effect
  * create.
  */
 export function getSessionSnapshot(sessionId: string): Effect.Effect<RpcSessionSnapshot, AppError> {
-	return tauriClient.acp.getSessionSnapshot(sessionId);
+	return backendClient.acp.getSessionSnapshot(sessionId);
 }
 
 /**
@@ -268,7 +268,7 @@ export function getSessionSnapshot(sessionId: string): Effect.Effect<RpcSessionS
  * A no-op when the session is already imported.
  */
 export function ensureProviderSessionImported(sessionId: string): Effect.Effect<void, AppError> {
-	return tauriClientEnsureProviderSessionImported(sessionId);
+	return backendClientEnsureProviderSessionImported(sessionId);
 }
 
 // ============================================
@@ -280,7 +280,7 @@ export function ensureProviderSessionImported(sessionId: string): Effect.Effect<
  * Returns Effect.Effect for proper error handling.
  */
 export function saveWorkspaceState(state: PersistedWorkspaceState): Effect.Effect<void, AppError> {
-	return tauriClient.workspace.saveWorkspaceState(state);
+	return backendClient.workspace.saveWorkspaceState(state);
 }
 
 /**
@@ -290,7 +290,7 @@ export function loadWorkspaceState(): Effect.Effect<
 	PersistedWorkspaceRestoreState | null,
 	AppError
 > {
-	return tauriClient.workspace.loadWorkspaceState();
+	return backendClient.workspace.loadWorkspaceState();
 }
 
 // ============================================
@@ -312,28 +312,28 @@ export interface AgentInfo {
  * List available agents.
  */
 export function listAgents(): Effect.Effect<AgentInfo[], AppError> {
-	return tauriClient.acp.listAgents();
+	return backendClient.acp.listAgents();
 }
 
 /**
  * Install an automatically provisioned agent.
  */
 export function installAgent(agentId: string): Effect.Effect<void, AppError> {
-	return tauriClient.acp.installAgent(agentId);
+	return backendClient.acp.installAgent(agentId);
 }
 
 /**
  * Uninstall a previously downloaded agent.
  */
 export function uninstallAgent(agentId: string): Effect.Effect<void, AppError> {
-	return tauriClient.acp.uninstallAgent(agentId);
+	return backendClient.acp.uninstallAgent(agentId);
 }
 
 /**
  * Initialize ACP service.
  */
 export function initializeAcp(): Effect.Effect<void, AppError> {
-	return tauriClient.acp.initialize().pipe(Effect.map(() => undefined));
+	return backendClient.acp.initialize().pipe(Effect.map(() => undefined));
 }
 
 // ============================================

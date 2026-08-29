@@ -21,6 +21,7 @@ const fakeProject = (workspaceRoot: string): ProjectedProject => ({
 	deletedAt: null,
 	sessionCount: 0,
 	color: defaultProjectColor(workspaceRoot),
+	showExternalCliSessions: false,
 	scanWarmedAt: NOW
 })
 

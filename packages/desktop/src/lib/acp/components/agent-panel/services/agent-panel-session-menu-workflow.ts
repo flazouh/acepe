@@ -5,8 +5,8 @@
 import * as Effect from "effect/Effect";
 import type * as Result from "effect/Result";
 import { toast } from "svelte-sonner";
-import { openFileInEditor } from "$lib/utils/tauri-client/opener.js";
-import { revealInFinder, tauriClient } from "$lib/utils/tauri-client.js";
+import { openFileInEditor } from "$lib/utils/backend-client/opener.js";
+import { revealInFinder, backendClient } from "$lib/utils/backend-client.js";
 import type { SessionExportContentError } from "../../../store/session-graph-builders.js";
 import type { createLogger } from "../../../utils/logger.js";
 import { copyTextToClipboard } from "../logic/clipboard-manager.js";
@@ -65,7 +65,7 @@ export async function openStreamingLog(sessionId: string | null): Promise<void> 
 	}
 
 	await Effect.runPromise(
-		tauriClient.shell.openStreamingLog(sessionId).pipe(
+		backendClient.shell.openStreamingLog(sessionId).pipe(
 			Effect.match({
 				onSuccess: () => undefined,
 				onFailure: (error) => toast.error(`Failed to open streaming log: ${error.message}`),
@@ -88,7 +88,7 @@ export async function copyStreamingLogPathToClipboard(args: {
 	logger.info("copyStreamingLogPathToClipboard: requesting streaming log path", { sessionId });
 
 	await Effect.runPromise(
-		tauriClient.shell.getStreamingLogPath(sessionId).pipe(
+		backendClient.shell.getStreamingLogPath(sessionId).pipe(
 			Effect.flatMap((path) => {
 				logger.info("copyStreamingLogPathToClipboard: received streaming log path", {
 					sessionId,
@@ -121,7 +121,7 @@ export async function openSessionRawFileInEditor(args: {
 	const { sessionId, sessionProjectPath } = args;
 	if (!sessionId || !sessionProjectPath) return;
 	await Effect.runPromise(
-		tauriClient.shell.getSessionFilePath(sessionId, sessionProjectPath).pipe(
+		backendClient.shell.getSessionFilePath(sessionId, sessionProjectPath).pipe(
 			Effect.flatMap((path) => openFileInEditor(path)),
 			Effect.match({
 				onSuccess: () => toast.success("Opened streaming log in file manager"),
@@ -144,7 +144,7 @@ export async function openSessionFileInAcepePanel(args: {
 	const { sessionId, sessionProjectPath, effectivePanelId, openFilePanel } = args;
 	if (!sessionId || !sessionProjectPath) return;
 	await Effect.runPromise(
-		tauriClient.shell.getSessionFilePath(sessionId, sessionProjectPath).pipe(
+		backendClient.shell.getSessionFilePath(sessionId, sessionProjectPath).pipe(
 			Effect.match({
 				onSuccess: (fullPath) => {
 					const parts = fullPath.split(/[/\\]/);

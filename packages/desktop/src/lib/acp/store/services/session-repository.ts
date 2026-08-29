@@ -18,7 +18,7 @@ import type {
 	HistoryEntry,
 	StartupSessionsResponse,
 } from "../../../services/claude-history-types.js";
-import { tauriClient } from "../../../utils/tauri-client.js";
+import { backendClient } from "../../../utils/backend-client.js";
 import { sessionColdFromSlices } from "../../application/dto/session-cold.js";
 import type { SessionIdentity } from "../../application/dto/session-identity.js";
 import {
@@ -273,7 +273,7 @@ export class SessionRepository {
 		logger.debug("Scanning project sessions", { projectPaths });
 		this.stateWriter.addScanningProjects(projectPaths);
 
-		return tauriClient.history.scanProjectSessions(projectPaths).pipe(
+		return backendClient.history.scanProjectSessions(projectPaths).pipe(
 			Effect.map((entries) => {
 				// Read fresh sessions to avoid stale snapshot overwrites from concurrent scans
 				const freshSessions = this.stateReader.getAllSessions();

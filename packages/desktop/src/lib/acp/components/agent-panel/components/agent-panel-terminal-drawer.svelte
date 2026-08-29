@@ -12,7 +12,7 @@ import { HugeiconsIcon } from "@acepe/ui";
 import { onMount } from "svelte";
 import type { EmbeddedTerminalTab } from "$lib/acp/store/embedded-terminal-store.svelte.js";
 import { EmbeddedTerminalStore } from "$lib/acp/store/embedded-terminal-store.svelte.js";
-import { shell } from "$lib/utils/tauri-client/shell.js";
+import { shell } from "$lib/utils/backend-client/shell.js";
 
 import { TerminalRenderer } from "../../terminal-panel/index.js";
 

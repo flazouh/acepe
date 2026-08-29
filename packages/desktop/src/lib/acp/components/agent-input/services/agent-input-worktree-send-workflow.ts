@@ -5,7 +5,7 @@
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import { toast } from "svelte-sonner";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+import { backendClient } from "$lib/utils/backend-client.js";
 import type { PreparedWorktreeLaunch } from "../../../types/worktree-info.js";
 import { createLogger } from "../../../utils/logger.js";
 import { runWorktreeSetup } from "../../worktree/worktree-setup-orchestrator.js";
@@ -46,7 +46,7 @@ export async function prepareWorktreePathForPendingSend(args: {
 
 	notifyCreating();
 	const createResult = await Effect.runPromise(
-		Effect.result(tauriClient.git.prepareWorktreeSessionLaunch(projectPath, selectedAgentId))
+		Effect.result(backendClient.git.prepareWorktreeSessionLaunch(projectPath, selectedAgentId))
 	);
 
 	if (Result.isSuccess(createResult)) {

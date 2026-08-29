@@ -7,7 +7,7 @@ import { fromPromise } from "@acepe/effect-result/fromPromise";
 import * as Effect from "effect/Effect";
 import { onDestroy, onMount } from "svelte";
 import { openUrl } from "$lib/utils/open-url.js";
-import { browserWebview } from "$lib/utils/tauri-client/browser-webview.js";
+import { browserWebview } from "$lib/utils/backend-client/browser-webview.js";
 import { getZoomService } from "$lib/services/zoom.svelte.js";
 import { resolveBrowserPanelBounds } from "./logic/browser-panel-bounds.js";
 import {

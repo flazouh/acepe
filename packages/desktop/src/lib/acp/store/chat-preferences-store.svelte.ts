@@ -2,7 +2,7 @@
  * Chat Preferences Store - Persisted preferences for chat/conversation UI.
  *
  * - Thinking block: whether to show the thinking block collapsed by default.
- * Persisted via tauriClient.settings.
+ * Persisted via backendClient.settings.
  */
 
 import type { RevealMode } from "@acepe/ui/streaming-reveal";
@@ -10,7 +10,7 @@ import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import { getContext, setContext } from "svelte";
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+import { backendClient } from "$lib/utils/backend-client.js";
 import { createLogger } from "../utils/logger.js";
 
 const logger = createLogger({ id: "chat-preferences", name: "ChatPreferencesStore" });
@@ -20,13 +20,16 @@ const STREAMING_REVEAL_MODE_KEY: UserSettingKey = "chat_streaming_reveal_mode";
 
 const VALID_REVEAL_MODES: RevealMode[] = ["instant", "buffer", "buffer-fade", "block-fade"];
 
+/** Shipped default. Anything showing the current mode must read this, not a literal. */
+export const DEFAULT_STREAMING_REVEAL_MODE: RevealMode = "buffer-fade";
+
 const STORE_KEY = Symbol("chat-preferences-store");
 
 export class ChatPreferencesStore {
 	/** When true, thinking blocks in assistant messages start collapsed. */
 	thinkingBlockCollapsedByDefault = $state(false);
 	/** How assistant replies animate as they stream in. */
-	streamingRevealMode = $state<RevealMode>("buffer");
+	streamingRevealMode = $state<RevealMode>(DEFAULT_STREAMING_REVEAL_MODE);
 	isReady = $state(false);
 
 	private initialized = false;
@@ -36,14 +39,14 @@ export class ChatPreferencesStore {
 		this.initialized = true;
 
 		const thinkingResult = await Effect.runPromise(
-			Effect.result(tauriClient.settings.get<boolean>(THINKING_BLOCK_COLLAPSED_KEY))
+			Effect.result(backendClient.settings.get<boolean>(THINKING_BLOCK_COLLAPSED_KEY))
 		);
 		if (Result.isSuccess(thinkingResult) && thinkingResult.success === true) {
 			this.thinkingBlockCollapsedByDefault = true;
 		}
 
 		const revealModeResult = await Effect.runPromise(
-			Effect.result(tauriClient.settings.get<string>(STREAMING_REVEAL_MODE_KEY))
+			Effect.result(backendClient.settings.get<string>(STREAMING_REVEAL_MODE_KEY))
 		);
 		if (Result.isSuccess(revealModeResult) && revealModeResult.success !== null) {
 			const loadedMode = revealModeResult.success;
@@ -58,7 +61,7 @@ export class ChatPreferencesStore {
 	async setThinkingBlockCollapsedByDefault(value: boolean): Promise<void> {
 		this.thinkingBlockCollapsedByDefault = value;
 		void Effect.runPromise(
-			tauriClient.settings.set(THINKING_BLOCK_COLLAPSED_KEY, value).pipe(
+			backendClient.settings.set(THINKING_BLOCK_COLLAPSED_KEY, value).pipe(
 				Effect.match({
 					onSuccess: () => undefined,
 					onFailure: (err) => {
@@ -72,7 +75,7 @@ export class ChatPreferencesStore {
 	setStreamingRevealMode(mode: RevealMode): void {
 		this.streamingRevealMode = mode;
 		void Effect.runPromise(
-			tauriClient.settings.set(STREAMING_REVEAL_MODE_KEY, mode).pipe(
+			backendClient.settings.set(STREAMING_REVEAL_MODE_KEY, mode).pipe(
 				Effect.match({
 					onSuccess: () => undefined,
 					onFailure: (err) => {

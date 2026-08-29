@@ -6,7 +6,7 @@
  */
 
 import * as Effect from "effect/Effect";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+import { backendClient } from "$lib/utils/backend-client.js";
 
 import type { AppError } from "../../errors/app-error.js";
 
@@ -36,7 +36,7 @@ export function runWorktreeSetup(
 
 	console.info(TAG, "starting", { projectPath, worktreeCwd });
 
-	return tauriClient.git.loadWorktreeConfig(projectPath).pipe(
+	return backendClient.git.loadWorktreeConfig(projectPath).pipe(
 		Effect.mapError((error) => {
 			console.error(TAG, "load-config failed", { projectPath, worktreeCwd, error });
 			return error;
@@ -59,7 +59,7 @@ function executeSetup(
 	projectPath: string
 ): Effect.Effect<WorktreeSetupResult, AppError> {
 	console.info(TAG, "executing setup commands", { worktreeCwd, projectPath });
-	return tauriClient.git.runWorktreeSetup(worktreeCwd, projectPath).pipe(
+	return backendClient.git.runWorktreeSetup(worktreeCwd, projectPath).pipe(
 		Effect.map((result) => {
 			if (!result.success) {
 				console.error(TAG, "setup commands failed", {

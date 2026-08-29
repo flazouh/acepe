@@ -5,7 +5,7 @@ import * as Effect from "effect/Effect";
 import { toast } from "svelte-sonner";
 import { Button } from "$lib/components/ui/button/index.js";
 import { cn } from "$lib/utils.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+import { backendClient } from "$lib/utils/backend-client.js";
 import {
 	getBranchListDisplayState,
 	getWorktreeBranches,
@@ -91,7 +91,7 @@ $effect(() => {
 	branchLoadFailed = false;
 	let cancelled = false;
 	void Effect.runPromise(
-		tauriClient.git.listBranches(projectPath).pipe(
+		backendClient.git.listBranches(projectPath).pipe(
 			Effect.match({
 				onSuccess: (availableBranches) => {
 					if (cancelled) return;
@@ -121,7 +121,7 @@ function handleSwitchBranch(branch: string, create: boolean): void {
 
 	switchingBranch = true;
 	void Effect.runPromise(
-		tauriClient.git.checkoutBranch(projectPath, branch, create).pipe(
+		backendClient.git.checkoutBranch(projectPath, branch, create).pipe(
 			Effect.match({
 				onSuccess: (selectedBranch) => {
 					switchingBranch = false;

@@ -12,7 +12,7 @@ import type {
 	AvailableCommand,
 	ConfigOptionData,
 } from "../../../services/converted-session-types.js";
-import { RpcCommandError } from "../../../utils/tauri-client/invoke.js";
+import { RpcCommandError } from "../../../utils/backend-client/invoke.js";
 import { AgentError, CreationFailureError } from "../../errors/app-error.js";
 import { extractProjectName } from "../../utils/path-utils.js";
 import { generateFallbackProjectColor } from "../../utils/project-utils.js";
@@ -1209,7 +1209,7 @@ describe("SessionConnectionManager.connectSession", () => {
 	// "Thread error - click to retry". Root cause is real backend behavior,
 	// not a mock artifact -- getSessionConnectionReadiness (the only
 	// implementation behind fetchSessionConnectionReadiness under the
-	// Bun/Electrobun backend, see tauri-client/acp.ts) always answers with
+	// Bun/Electrobun backend, see backend-client/acp.ts) always answers with
 	// `capabilities: {}` (no models/modes -- never populated by this
 	// endpoint), and getSessionState (fetchCanonicalSessionStateEnvelope)
 	// always answers with a "lifecycle" payload, never "snapshot". The

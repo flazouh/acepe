@@ -37,6 +37,7 @@ describe("history.getStartupSessions alias resolution", () => {
 		createdAtMs: 1_000,
 		updatedAtMs: 2_000,
 		sourcePath: "/tmp/acepe/.claude/claude-uuid-42.jsonl",
+		origin: "acepe" as const,
 	};
 
 	const withSession = (

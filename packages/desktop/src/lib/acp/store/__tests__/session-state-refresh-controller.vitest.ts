@@ -18,7 +18,7 @@ type MockReturnValue = {
 };
 
 // getSessionState (the only implementation behind fetchCanonicalSessionStateEnvelope
-// under the Bun/Electrobun backend, see tauri-client/acp.ts's getSessionState) always
+// under the Bun/Electrobun backend, see backend-client/acp.ts's getSessionState) always
 // answers with a "lifecycle" payload -- a narrower, intentional projection, not an
 // error. It never returns "snapshot". A real session-not-found signal does not exist
 // as a distinct payload kind on this endpoint today.

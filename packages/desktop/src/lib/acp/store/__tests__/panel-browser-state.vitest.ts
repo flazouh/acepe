@@ -4,7 +4,7 @@ import { PanelBrowserState, type PanelBrowserStateDeps } from "../panel-browser-
 import type { TopLevelPanelCloseState } from "../panel-terminal-state.svelte.js";
 import type { WorkspacePanel } from "../types.js";
 
-vi.mock("../../../utils/tauri-client/browser-webview.js", () => ({
+vi.mock("../../../utils/backend-client/browser-webview.js", () => ({
 	browserWebview: {
 		close: vi.fn(),
 	},

@@ -2,7 +2,7 @@ import * as Effect from "effect/Effect";
 import { toast } from "svelte-sonner";
 import { SoundEffect } from "$lib/acp/types/sounds.js";
 import { playSound } from "$lib/acp/utils/sound.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+import { backendClient } from "$lib/utils/backend-client.js";
 import type { AppError } from "../../../errors/app-error.js";
 import type { VoiceInputPhase } from "../../../types/voice-input.js";
 import {
@@ -132,7 +132,7 @@ export class VoiceInputState {
 		if (canCancelVoiceInteraction(this.phase)) {
 			log("dispose: cancelling in-flight recording");
 			void Effect.runPromise(
-				tauriClient.voice
+				backendClient.voice
 					.cancelRecording(this.sessionId)
 					.pipe(Effect.catch(() => Effect.succeed(undefined)))
 			);
@@ -277,9 +277,9 @@ export class VoiceInputState {
 		}
 		const selectedLanguage = this.getSelectedLanguage();
 		const language = selectedLanguage === "auto" ? null : selectedLanguage;
-		log("calling tauriClient.voice.stopRecording", { sessionId: this.sessionId, language });
+		log("calling backendClient.voice.stopRecording", { sessionId: this.sessionId, language });
 		void Effect.runPromise(
-			tauriClient.voice.stopRecording(this.sessionId, language).pipe(
+			backendClient.voice.stopRecording(this.sessionId, language).pipe(
 				Effect.match({
 					onSuccess: (result) => {
 						log("stopRecording: success", {
@@ -317,9 +317,9 @@ export class VoiceInputState {
 		}
 		this.clearWatchdog();
 		this.abortLiveSpeech();
-		log("calling tauriClient.voice.cancelRecording", { sessionId: this.sessionId });
+		log("calling backendClient.voice.cancelRecording", { sessionId: this.sessionId });
 		void Effect.runPromise(
-			tauriClient.voice
+			backendClient.voice
 				.cancelRecording(this.sessionId)
 				.pipe(Effect.catch(() => Effect.succeed(undefined)))
 		);
@@ -438,9 +438,9 @@ export class VoiceInputState {
 		// operator's own speech to text command was never asked and never even
 		// recorded: the two paths are exclusive, and this one returned early.
 		// Live speech is now what answers when there is no backend to ask.
-		log("calling tauriClient.voice.getModelStatus", { modelId: selectedModelId });
+		log("calling backendClient.voice.getModelStatus", { modelId: selectedModelId });
 		void Effect.runPromise(
-			tauriClient.voice.getModelStatus(selectedModelId).pipe(
+			backendClient.voice.getModelStatus(selectedModelId).pipe(
 				Effect.match({
 					onSuccess: (modelInfo) => {
 						log("getModelStatus: result", {
@@ -454,9 +454,9 @@ export class VoiceInputState {
 							this.transitionTo("downloading_model");
 							this.activeDownloadModelId = selectedModelId;
 							this.downloadPercent = 0;
-							log("calling tauriClient.voice.downloadModel", { modelId: selectedModelId });
+							log("calling backendClient.voice.downloadModel", { modelId: selectedModelId });
 							void Effect.runPromise(
-								tauriClient.voice.downloadModel(selectedModelId).pipe(
+								backendClient.voice.downloadModel(selectedModelId).pipe(
 									Effect.match({
 										onSuccess: () => {
 											log("downloadModel: success");
@@ -502,10 +502,10 @@ export class VoiceInputState {
 		this.transitionTo("loading_model");
 		this.isLoadingModel = true;
 
-		log("calling tauriClient.voice.loadModel", { modelId });
+		log("calling backendClient.voice.loadModel", { modelId });
 		const t0 = performance.now();
 		void Effect.runPromise(
-			tauriClient.voice.loadModel(modelId).pipe(
+			backendClient.voice.loadModel(modelId).pipe(
 				Effect.match({
 					onSuccess: () => {
 						const elapsed = Math.round(performance.now() - t0);
@@ -532,9 +532,9 @@ export class VoiceInputState {
 	}
 
 	private beginRecording(): void {
-		log("calling tauriClient.voice.startRecording", { sessionId: this.sessionId });
+		log("calling backendClient.voice.startRecording", { sessionId: this.sessionId });
 		void Effect.runPromise(
-			tauriClient.voice.startRecording(this.sessionId).pipe(
+			backendClient.voice.startRecording(this.sessionId).pipe(
 				Effect.match({
 					onSuccess: () => {
 						log("startRecording: success");

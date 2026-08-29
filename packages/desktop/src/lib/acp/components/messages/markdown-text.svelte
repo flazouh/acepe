@@ -40,7 +40,7 @@ const nativeMarkdownMode = $derived(isStreaming ? "streaming" : "static");
 // The chosen mode drives a presentation buffer that smooths bursty model
 // output into a steady drip. This is DISPLAY-ONLY: the controller mirrors the
 // canonical `text` via setTarget and its visibleText never flows back upward.
-const revealMode = $derived(chatPrefs?.streamingRevealMode ?? "buffer");
+const revealMode = $derived(chatPrefs?.streamingRevealMode ?? DEFAULT_STREAMING_REVEAL_MODE);
 
 // Only text that actually streams live in this session animates. A completed
 // or replayed message mounts with isStreaming already false, so it renders raw

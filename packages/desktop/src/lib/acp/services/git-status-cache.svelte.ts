@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import { AgentError, AppError } from "$lib/acp/errors/app-error.js";
 import { getRelativeFilePath } from "$lib/acp/utils/file-utils.js";
 import type { FileGitStatus } from "$lib/services/converted-session-types.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+import { backendClient } from "$lib/utils/backend-client.js";
 
 type FetchGitStatus = (
 	projectPath: string
@@ -123,15 +123,15 @@ export function createGitStatusCache(options?: CreateGitStatusCacheOptions): Git
 	const fetchGitStatus =
 		options?.fetchGitStatus ??
 		((projectPath: string): Effect.Effect<ReadonlyArray<FileGitStatus>, AppError> =>
-			tauriClient.fileIndex.getProjectGitStatus(projectPath));
+			backendClient.fileIndex.getProjectGitStatus(projectPath));
 	const fetchGitStatusSummary =
 		options?.fetchGitStatusSummary ??
 		((projectPath: string): Effect.Effect<ReadonlyArray<FileGitStatus>, AppError> =>
-			tauriClient.fileIndex.getProjectGitStatusSummary(projectPath));
+			backendClient.fileIndex.getProjectGitStatusSummary(projectPath));
 	const fetchFileGitStatusSummary =
 		options?.fetchFileGitStatusSummary ??
 		((projectPath: string, filePath: string): Effect.Effect<FileGitStatus | null, AppError> =>
-			tauriClient.fileIndex.getFileGitStatusSummary(projectPath, filePath));
+			backendClient.fileIndex.getFileGitStatusSummary(projectPath, filePath));
 
 	const cacheByProject = new Map<string, GitStatusCacheEntry>();
 	const summaryCacheByProject = new Map<string, GitStatusCacheEntry>();

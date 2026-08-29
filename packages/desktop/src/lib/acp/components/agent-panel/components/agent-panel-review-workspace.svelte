@@ -8,7 +8,7 @@ import {
 import * as Effect from "effect/Effect";
 import { SvelteMap } from "svelte/reactivity";
 import { toast } from "svelte-sonner";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+import { backendClient } from "$lib/utils/backend-client.js";
 
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import type {
@@ -114,7 +114,7 @@ function handleFileRevert(displayIndex: number): void {
 	const capturedFile: ReviewWorkspaceFileItem = file;
 	setFileResetState(capturedFile.filePath, "resetting", "Resetting");
 	void Effect.runPromise(
-		tauriClient.git.discardChanges(projectPath, [capturedFile.filePath]).pipe(
+		backendClient.git.discardChanges(projectPath, [capturedFile.filePath]).pipe(
 			Effect.match({
 				onSuccess: () => {
 					setFileResetState(capturedFile.filePath, "reset", "Reset");

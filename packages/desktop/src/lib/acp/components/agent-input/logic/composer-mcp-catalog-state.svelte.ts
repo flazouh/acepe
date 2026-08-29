@@ -3,7 +3,7 @@ import { SvelteMap } from "svelte/reactivity";
 import type { AppError } from "$lib/acp/errors/app-error.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import type { ComposerMcpCatalog } from "$lib/services/acp-types.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+import { backendClient } from "$lib/utils/backend-client.js";
 
 interface EnsureLoadedInput {
 	readonly agentId: string | null;
@@ -42,7 +42,7 @@ export class ComposerMcpCatalogState {
 	constructor(fetchCatalog?: FetchComposerMcpCatalog) {
 		this.fetchCatalog = fetchCatalog
 			? fetchCatalog
-			: (cwd, agentId, sessionId) => tauriClient.acp.getComposerMcpCatalog(cwd, agentId, sessionId);
+			: (cwd, agentId, sessionId) => backendClient.acp.getComposerMcpCatalog(cwd, agentId, sessionId);
 	}
 
 	invalidate(input: EnsureLoadedInput): void {

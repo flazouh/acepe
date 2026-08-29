@@ -6,9 +6,9 @@ import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import { toast } from "svelte-sonner";
 import { openUrl } from "$lib/utils/open-url.js";
-import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
-import type { GitStackedPrStep } from "../../../../utils/tauri-client/git.js";
+import type { MergeStrategy } from "$lib/utils/backend-client/git.js";
+import { backendClient } from "$lib/utils/backend-client.js";
+import type { GitStackedPrStep } from "../../../../utils/backend-client/git.js";
 import { getErrorCauseDetails } from "../../../errors/error-cause-details.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";
 import { createLogger } from "../../../utils/logger.js";
@@ -73,7 +73,7 @@ export async function runCreatePrWorkflow(args: {
 			filePaths,
 		});
 		const stageResult = await Effect.runPromise(
-			Effect.result(tauriClient.git.stageFiles(path, filePaths))
+			Effect.result(backendClient.git.stageFiles(path, filePaths))
 		);
 		if (Result.isFailure(stageResult)) {
 			setCreatePrRunning(false);
@@ -96,7 +96,7 @@ export async function runCreatePrWorkflow(args: {
 
 	const shipCtxResult = await Effect.runPromise(
 		Effect.result(
-			tauriClient.git.collectShipContext(
+			backendClient.git.collectShipContext(
 				path,
 				config?.customPrompt ? config.customPrompt : undefined
 			)
@@ -147,7 +147,7 @@ export async function runCreatePrWorkflow(args: {
 		prTitle,
 	});
 	await Effect.runPromise(
-		tauriClient.git.runStackedAction(path, "commit_push_pr", commitMsg, prTitle, prBody).pipe(
+		backendClient.git.runStackedAction(path, "commit_push_pr", commitMsg, prTitle, prBody).pipe(
 			Effect.match({
 				onSuccess: (ok) => {
 					setCreatePrRunning(false);
@@ -211,7 +211,7 @@ export async function runMergePrWorkflow(args: {
 	setMergePrRunning(true);
 	try {
 		await Effect.runPromise(
-			tauriClient.git.mergePr(path, prNum, strategy).pipe(
+			backendClient.git.mergePr(path, prNum, strategy).pipe(
 				Effect.match({
 					onSuccess: () => {
 						toast.success("PR merged!");

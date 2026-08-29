@@ -21,7 +21,7 @@ import { terminal } from "./terminal.js";
 import { voice } from "./voice.js";
 import { workspace } from "./workspace.js";
 
-export const tauriClient = {
+export const backendClient = {
 	acp,
 	checkpoint,
 	fileIndex,

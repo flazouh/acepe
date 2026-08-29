@@ -2,7 +2,7 @@ import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { PrChecks, PrDetails } from "../../../utils/tauri-client/git.js";
+import type { PrChecks, PrDetails } from "../../../utils/backend-client/git.js";
 
 const mocks = vi.hoisted(() => ({
 	setSessionPrNumberMock: vi.fn(),
@@ -25,8 +25,8 @@ vi.mock("../api.js", () => ({
 	},
 }));
 
-vi.mock("../../../utils/tauri-client.js", () => ({
-	tauriClient: {
+vi.mock("../../../utils/backend-client.js", () => ({
+	backendClient: {
 		git: {
 			prDetails: mocks.prDetailsMock,
 			prChecks: mocks.prChecksMock,

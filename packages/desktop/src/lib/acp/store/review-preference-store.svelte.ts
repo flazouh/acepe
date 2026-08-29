@@ -9,7 +9,7 @@ import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import { getContext, setContext } from "svelte";
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+import { backendClient } from "$lib/utils/backend-client.js";
 
 const REVIEW_PREFER_FULLSCREEN_KEY: UserSettingKey = "review_prefer_fullscreen";
 
@@ -25,7 +25,7 @@ export class ReviewPreferenceStore {
 		this.initialized = true;
 
 		const result = await Effect.runPromise(
-			Effect.result(tauriClient.settings.get<boolean>(REVIEW_PREFER_FULLSCREEN_KEY))
+			Effect.result(backendClient.settings.get<boolean>(REVIEW_PREFER_FULLSCREEN_KEY))
 		);
 		if (Result.isSuccess(result) && result.success === true) {
 			this.preferFullscreen = true;
@@ -35,7 +35,7 @@ export class ReviewPreferenceStore {
 	async setPreferFullscreen(value: boolean): Promise<void> {
 		this.preferFullscreen = value;
 		void Effect.runPromise(
-			tauriClient.settings.set(REVIEW_PREFER_FULLSCREEN_KEY, value).pipe(
+			backendClient.settings.set(REVIEW_PREFER_FULLSCREEN_KEY, value).pipe(
 				Effect.match({
 					onSuccess: () => undefined,
 					onFailure: () => undefined,

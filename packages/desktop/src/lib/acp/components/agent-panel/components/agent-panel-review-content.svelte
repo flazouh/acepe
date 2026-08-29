@@ -2,7 +2,7 @@
 import * as Effect from "effect/Effect";
 import { SvelteSet } from "svelte/reactivity";
 import { toast } from "svelte-sonner";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+import { backendClient } from "$lib/utils/backend-client.js";
 import { createReviewFileRevisionKey } from "../../../review/review-file-revision.js";
 import {
 	sessionReviewStateStore,
@@ -137,7 +137,7 @@ function handleRevertFile(): void {
 
 	const capturedFile = selectedFile;
 	void Effect.runPromise(
-		tauriClient.git.discardChanges(projectPath, [capturedFile.filePath]).pipe(
+		backendClient.git.discardChanges(projectPath, [capturedFile.filePath]).pipe(
 			Effect.match({
 				onSuccess: () => {
 					toast.success(`Reverted changes in ${capturedFile.fileName}`);

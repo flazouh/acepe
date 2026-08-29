@@ -9,7 +9,7 @@ import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import { getContext, setContext } from "svelte";
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+import { backendClient } from "$lib/utils/backend-client.js";
 import { createLogger } from "../utils/logger.js";
 
 const logger = createLogger({ id: "plan-preference-store", name: "PlanPreferenceStore" });
@@ -29,7 +29,7 @@ export class PlanPreferenceStore {
 		this.initialized = true;
 
 		const result = await Effect.runPromise(
-			Effect.result(tauriClient.settings.get<boolean>(PLAN_INLINE_MODE_KEY))
+			Effect.result(backendClient.settings.get<boolean>(PLAN_INLINE_MODE_KEY))
 		);
 		if (Result.isSuccess(result) && result.success === false) {
 			this.preferInline = false;
@@ -40,7 +40,7 @@ export class PlanPreferenceStore {
 	async setPreferInline(value: boolean): Promise<void> {
 		this.preferInline = value;
 		void Effect.runPromise(
-			tauriClient.settings.set(PLAN_INLINE_MODE_KEY, value).pipe(
+			backendClient.settings.set(PLAN_INLINE_MODE_KEY, value).pipe(
 				Effect.match({
 					onSuccess: () => undefined,
 					onFailure: (err) => {

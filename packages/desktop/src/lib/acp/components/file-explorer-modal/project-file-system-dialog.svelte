@@ -7,7 +7,7 @@ import type {
 	FileExplorerPreviewResponse,
 	PreviewKind,
 } from "$lib/services/converted-session-types.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+import { backendClient } from "$lib/utils/backend-client.js";
 import { PierreFileTree } from "@acepe/ui";
 import { Colors } from "@acepe/ui/colors";
 import * as Effect from "effect/Effect";
@@ -97,10 +97,10 @@ function loadProjectFiles(refresh: boolean): void {
 	loading = true;
 	error = null;
 	const load = refresh
-		? tauriClient.fileIndex
+		? backendClient.fileIndex
 				.invalidateProjectFiles(projectPath)
-				.pipe(Effect.flatMap(() => tauriClient.fileIndex.getProjectFiles(projectPath)))
-		: tauriClient.fileIndex.getProjectFiles(projectPath);
+				.pipe(Effect.flatMap(() => backendClient.fileIndex.getProjectFiles(projectPath)))
+		: backendClient.fileIndex.getProjectFiles(projectPath);
 
 	void Effect.runPromise(
 		load.pipe(
@@ -140,7 +140,7 @@ function selectFile(filePath: string): void {
 	const seq = previewRequestSeq + 1;
 	previewRequestSeq = seq;
 	void Effect.runPromise(
-		tauriClient.fileIndex.getFileExplorerPreview(projectPath, filePath).pipe(
+		backendClient.fileIndex.getFileExplorerPreview(projectPath, filePath).pipe(
 			Effect.match({
 				onSuccess: (result) => {
 					if (seq !== previewRequestSeq) return;

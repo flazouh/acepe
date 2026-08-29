@@ -2,7 +2,7 @@ import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import { SvelteMap } from "svelte/reactivity";
 
-import { fileIndex } from "$lib/utils/tauri-client/file-index.js";
+import { fileIndex } from "$lib/utils/backend-client/file-index.js";
 import { LOGGER_IDS } from "../../../constants/logger-ids.js";
 import type { PanelStore } from "../../../store/panel-store.svelte.js";
 import type { SessionStore } from "../../../store/session-store.svelte.js";

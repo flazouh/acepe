@@ -16,7 +16,7 @@ import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import { Textarea } from "$lib/components/ui/textarea/index.js";
 import { toast } from "svelte-sonner";
 import * as Effect from "effect/Effect";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+import { backendClient } from "$lib/utils/backend-client.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import type {
 	SessionLinkedPr,
@@ -24,7 +24,7 @@ import type {
 	SessionPrLinkReference,
 } from "$lib/acp/application/dto/session-linked-pr.js";
 import type { Project } from "$lib/acp/logic/project-manager.svelte.js";
-import type { MergeStrategy } from "$lib/utils/tauri-client/git.js";
+import type { MergeStrategy } from "$lib/utils/backend-client/git.js";
 import { mergeStrategyStore } from "../../store/merge-strategy-store.svelte.js";
 import PrStateIcon from "../pr-state-icon.svelte";
 import type { Model } from "../../application/dto/model.js";
@@ -247,7 +247,7 @@ function handleRevertFile(filePath: string): void {
 		return;
 	}
 	void Effect.runPromise(
-		tauriClient.git.discardChanges(projectPath, [filePath]).pipe(
+		backendClient.git.discardChanges(projectPath, [filePath]).pipe(
 			Effect.match({
 				onSuccess: () => toast.success(`Discarded changes in ${filePath.split("/").pop()}`),
 				onFailure: (err) => toast.error(`Failed to discard: ${err.message}`),

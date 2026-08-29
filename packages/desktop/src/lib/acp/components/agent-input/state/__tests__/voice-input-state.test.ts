@@ -52,7 +52,7 @@ function toAgentResult<T>(
 ): Effect.Effect<T, Error> {
 	// Mirrors AgentError: wraps the real failure in a generic "Agent operation
 	// failed: <op>" message but keeps the original error reachable via
-	// `.cause`, exactly like the production tauri-client boundary does.
+	// `.cause`, exactly like the production backend-client boundary does.
 	return result.pipe(
 		Effect.mapError((cause) => {
 			const wrapped = new Error(`Agent operation failed: ${operation}`);
@@ -222,10 +222,10 @@ describe("VoiceInputState", () => {
 		mock.module("$lib/acp/utils/sound.js", () => ({
 			playSound: playSoundMock,
 		}));
-		const tauriClientVoiceMock = {
+		const backendClientVoiceMock = {
 			openFileInEditor: mock(() => undefined),
 			revealInFinder: mock(() => undefined),
-			tauriClient: {
+			backendClient: {
 				voice: {
 					cancelRecording: (sessionId: string) =>
 						toAgentResult("voice_cancel_recording", cancelRecordingMock(sessionId)),
@@ -241,16 +241,16 @@ describe("VoiceInputState", () => {
 				},
 			},
 		};
-		const tauriClientSpecifiers = [
-			"$lib/utils/tauri-client.js",
-			"../../../../utils/tauri-client.js",
-			`${import.meta.dir}/../../../../../utils/tauri-client.ts`,
-			`${import.meta.dir}/../../../../../utils/tauri-client.js`,
-			`${import.meta.dir}/../../../../../utils/tauri-client/index.ts`,
-			`${import.meta.dir}/../../../../../utils/tauri-client/index.js`,
+		const backendClientSpecifiers = [
+			"$lib/utils/backend-client.js",
+			"../../../../utils/backend-client.js",
+			`${import.meta.dir}/../../../../../utils/backend-client.ts`,
+			`${import.meta.dir}/../../../../../utils/backend-client.js`,
+			`${import.meta.dir}/../../../../../utils/backend-client/index.ts`,
+			`${import.meta.dir}/../../../../../utils/backend-client/index.js`,
 		];
-		for (const specifier of tauriClientSpecifiers) {
-			mock.module(specifier, () => tauriClientVoiceMock);
+		for (const specifier of backendClientSpecifiers) {
+			mock.module(specifier, () => backendClientVoiceMock);
 		}
 		mock.module("$lib/services/command-names.js", () => ({
 			COMMANDS: {},

@@ -14,7 +14,7 @@ vi.mock("@acepe/ui/agent-panel", async () => ({
 	AgentPanelTerminalDrawer: (await import("./fixtures/shared-terminal-drawer-stub.svelte")).default,
 }));
 
-vi.mock("$lib/utils/tauri-client/shell.js", () => ({
+vi.mock("$lib/utils/backend-client/shell.js", () => ({
 	shell: {
 		getDefaultShell: () => ({
 			mapErr: () => ({

@@ -2,7 +2,7 @@
  * SessionConnectionFacade — connect/disconnect/messaging/PR surface (ADR-0002).
  */
 import * as Effect from "effect/Effect";
-import type { GitStackedPrStep, PrChecks, PrDetails } from "../../utils/tauri-client/git.js";
+import type { GitStackedPrStep, PrChecks, PrDetails } from "../../utils/backend-client/git.js";
 import type { Attachment } from "../components/agent-input/types/attachment.js";
 import type { AppError } from "../errors/app-error.js";
 import type { AwaitingModelRefreshStore } from "./awaiting-model-refresh-store.svelte.js";

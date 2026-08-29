@@ -11,7 +11,7 @@
  *
  * Called from open-persisted-session.ts's `getSessionOpenResult` failure
  * path: that RPC is unsupportedOnContract under Electrobun today (see
- * tauri-client/history.ts's header comment), so nothing else seeds
+ * backend-client/history.ts's header comment), so nothing else seeds
  * transcriptSnapshot.entries for a session this app run did not itself
  * create.
  */
