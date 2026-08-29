@@ -64,14 +64,44 @@ export type ClaudeQueryHandle = {
 // TrimmedNonEmptyString, so it is dropped rather than allowed to fail the
 // whole catalog's encode -- one unusable entry must not cost the picker every
 // other model.
-const sessionModelFromInfo = (info: ModelInfo): SessionModelDescriptor => ({
-	modelId: info.value,
-	name: info.displayName,
-	description: info.description
-})
+//
+// The CLI names each alias with a bare family word ("Fable", "Sonnet") and
+// keeps its versioned registry name -- what its own picker renders -- in the
+// description's first " · " segment ("Fable 5 · Most capable ..."). That
+// segment is promoted to the published name when it extends the alias's
+// family word, and the blurb after the separator becomes the description.
+// "Default (recommended)" never matches (its segment names Opus, not
+// Default), so it keeps the full description saying what it resolves to.
+const DESCRIPTION_SEPARATOR = " · "
+
+const sessionModelFromInfo = (info: ModelInfo): SessionModelDescriptor => {
+	const separatorAt = info.description.indexOf(DESCRIPTION_SEPARATOR)
+	const versionedName = Str.trim(
+		separatorAt === -1 ? info.description : info.description.slice(0, separatorAt)
+	)
+	const familyWord = info.displayName.split(/[\s(]/, 1)[0] ?? info.displayName
+	const extendsFamily =
+		Str.isNonEmpty(familyWord) &&
+		versionedName.toLowerCase().startsWith(`${familyWord.toLowerCase()} `)
+	if (!extendsFamily) {
+		return { modelId: info.value, name: info.displayName, description: info.description }
+	}
+	const blurb =
+		separatorAt === -1
+			? null
+			: Str.trim(info.description.slice(separatorAt + DESCRIPTION_SEPARATOR.length))
+	return {
+		modelId: info.value,
+		name: versionedName,
+		description: blurb === null || Str.isEmpty(blurb) ? null : blurb
+	}
+}
 
 const isUsableModel = (model: SessionModelDescriptor): boolean =>
 	Str.isNonEmpty(Str.trim(model.modelId)) && Str.isNonEmpty(Str.trim(model.name))
+
+export const catalogFromModelInfos = (infos: ReadonlyArray<ModelInfo>): SessionModelCatalog =>
+	Arr.filter(Arr.map(infos, sessionModelFromInfo), isUsableModel)
 
 const errorDetail = <A>(cause: A, fallback: string): string => {
 	if (Predicate.isError(cause) && Str.isNonEmpty(cause.message)) {
@@ -128,11 +158,7 @@ export const makeLiveCreateQuery = (
 					try: () => runtime.supportedModels(),
 					catch: (cause) =>
 						adapterError("startSession", errorDetail(cause, "Claude supportedModels failed"))
-				}).pipe(
-					Effect.map((infos) =>
-						Arr.filter(Arr.map(infos, sessionModelFromInfo), isUsableModel)
-					)
-				),
+				}).pipe(Effect.map(catalogFromModelInfos)),
 				close: Effect.sync(() => {
 					runtime.close()
 				})
