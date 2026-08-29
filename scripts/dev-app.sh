@@ -140,8 +140,12 @@ mkdir -p /tmp/electrobun-qa
 # `acepe-instance=` is an inert marker argument the stop and status paths match
 # on, so one checkout never signals another checkout's app.
 launchctl remove "$APP_LABEL" 2>/dev/null || true
+# launchd strips PATH to /usr/bin:/bin:/usr/sbin:/sbin, and the Claude
+# adapter resolves the `claude` CLI from the app's PATH (the packaged SDK
+# carries no native binary -- see resolveClaudeExecutablePath). Pass the
+# caller's PATH through or every real Claude session fails at startSession.
 launchctl submit -l "$APP_LABEL" -o "$APP_LOG" -e "$APP_LOG" -- \
-  /bin/sh -c "ACEPE_DEV_URL='$DEV_URL' ELECTROBUN_QA_APP_ID='$APP_ID' ACEPE_VOICE_STT_COMMAND='$VOICE_CMD' exec '$APP_BIN' acepe-instance=$APP_ID"
+  /bin/sh -c "PATH='$PATH' ACEPE_DEV_URL='$DEV_URL' ELECTROBUN_QA_APP_ID='$APP_ID' ACEPE_VOICE_STT_COMMAND='$VOICE_CMD' exec '$APP_BIN' acepe-instance=$APP_ID"
 
 for _ in $(seq 1 30); do
   [ -S "$SOCKET" ] && break
