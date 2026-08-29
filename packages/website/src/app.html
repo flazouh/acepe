@@ -47,6 +47,8 @@
 				var effective =
 					preference === 'system' ? (prefersDark ? 'dark' : 'light') : preference;
 				document.documentElement.dataset.theme = effective;
+				document.documentElement.classList.toggle('dark', effective === 'dark');
+				document.documentElement.classList.toggle('light', effective === 'light');
 				document.documentElement.dataset.themePreference = preference;
 				document.documentElement.style.colorScheme = effective;
 			})();

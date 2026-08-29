@@ -58,6 +58,10 @@ export function getToggledTheme(currentTheme: WebsiteTheme): WebsiteTheme {
 
 export function applyThemeToDocument(theme: WebsiteTheme, rootElement: HTMLElement): void {
 	rootElement.dataset.theme = theme;
+	// The shared @acepe/ui theme.css keys dark off the class, the same way the
+	// desktop app does. The attribute stays for page-level styling that reads it.
+	rootElement.classList.toggle("dark", theme === "dark");
+	rootElement.classList.toggle("light", theme === "light");
 	rootElement.style.colorScheme = theme;
 }
 

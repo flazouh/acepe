@@ -1,0 +1,408 @@
+/**
+ * The one theme file. Every colour both apps render comes from here.
+ *
+ * Two independent axes:
+ *   family      data-ui-theme="acepe | cursor | one | anthropic"   (which palette)
+ *   appearance  .dark on the root element                          (light or dark)
+ *
+ * A theme block only sets colour. Shape and elevation are shared below, motion
+ * and the brand constants stay in design-tokens.css, and the Tailwind @theme
+ * mapping stays in each app. Adding a family means adding one pair of blocks
+ * here and one entry in themes.ts; the drift test fails if the two disagree.
+ *
+ * Do not write a raw hex in a component. Reference the token.
+ */
+
+@import "./design-tokens.css";
+
+/* Shape and elevation. Shared by every theme and both apps: a card is the same
+ * card everywhere. Type families stay per-app, because the marketing site has a
+ * display face the desktop app has no use for. */
+:root {
+	--radius: 8px;
+
+	--shadow-color: hsl(0 0% 5%);
+	--shadow-opacity: 0.18;
+	--shadow-2xs: 0px 2px 3px 0px hsl(0 0% 5% / 0.05);
+	--shadow-xs: 0px 2px 3px 0px hsl(0 0% 5% / 0.05);
+	--shadow-sm: 0px 2px 3px 0px hsl(0 0% 5% / 0.08), 0px 1px 2px -1px hsl(0 0% 5% / 0.08);
+	--shadow: 0px 2px 3px 0px hsl(0 0% 5% / 0.08), 0px 1px 2px -1px hsl(0 0% 5% / 0.08);
+	--shadow-md: 0px 2px 3px 0px hsl(0 0% 5% / 0.08), 0px 2px 4px -1px hsl(0 0% 5% / 0.08);
+	--shadow-lg: 0px 2px 3px 0px hsl(0 0% 5% / 0.08), 0px 4px 6px -1px hsl(0 0% 5% / 0.08);
+	--shadow-xl: 0px 2px 3px 0px hsl(0 0% 5% / 0.08), 0px 8px 10px -1px hsl(0 0% 5% / 0.08);
+	--shadow-2xl: 0px 2px 3px 0px hsl(0 0% 5% / 0.2);
+
+	--tracking-normal: 0em;
+	--spacing: 0.25rem;
+}
+
+
+/* ---- Acepe ----
+ * Acepe's own palette. Light from Codex.app codex-light; dark is the warm set the app has shipped.
+ */
+
+:root,
+:root[data-ui-theme="acepe"] {
+	--background: #f7f7f7;
+	--foreground: #0d0d0d;
+	--card: #ffffff;
+	--card-foreground: #0d0d0d;
+	--popover: #ffffff;
+	--popover-foreground: #0d0d0d;
+	--primary: #0d0d0d;
+	--primary-foreground: #ffffff;
+	--secondary: #e8e8e8;
+	--secondary-foreground: #0d0d0d;
+	--muted: #f3f3f3;
+	--muted-foreground: #666666;
+	--accent: #e8e8e8;
+	--accent-foreground: #0d0d0d;
+	--destructive: #e02e2a;
+	--destructive-foreground: #ffffff;
+	--success: var(--token-success-light);
+	--success-reference: var(--token-success-light);
+	--success-foreground: #ffffff;
+	--border: rgba(13, 13, 13, 0.078);
+	--input: rgba(13, 13, 13, 0.078);
+	--ring: #0169cc;
+	--chart-1: #0169cc;
+	--chart-2: #00a240;
+	--chart-3: #751ed9;
+	--chart-4: #bd5800;
+	--chart-5: #666666;
+	--sidebar: #fcfcfc;
+	--sidebar-foreground: #212121;
+	--sidebar-primary: #0169cc;
+	--sidebar-primary-foreground: #ffffff;
+	--sidebar-accent: #e8e8e8;
+	--sidebar-accent-foreground: #0d0d0d;
+	--sidebar-border: rgba(13, 13, 13, 0.078);
+	--sidebar-ring: #0169cc;
+	--build-icon: var(--success);
+	--plan-icon: var(--token-plan-icon-light);
+	--cursor-status-error: var(--token-cursor-status-error-light);
+	--cursor-status-warning: var(--token-cursor-status-warning-light);
+	--cursor-status-success: var(--token-cursor-status-success-light);
+	color-scheme: light;
+}
+
+:root.dark,
+:root[data-ui-theme="acepe"].dark {
+	--background: #121212;
+	--foreground: #f8f5ee;
+	--card: #1b1a19;
+	--card-foreground: #f8f5ee;
+	--popover: #1c1c1b;
+	--popover-foreground: #f8f5ee;
+	--primary: #f8f5ee;
+	--primary-foreground: #121212;
+	--secondary: #292928;
+	--secondary-foreground: #f8f5ee;
+	--muted: #1c1a18;
+	--muted-foreground: #a5a39d;
+	--accent: #292928;
+	--accent-foreground: #f8f5ee;
+	--destructive: #f97066;
+	--destructive-foreground: #121212;
+	--success: var(--token-success-dark);
+	--success-reference: var(--token-success-dark);
+	--success-foreground: #121212;
+	--border: #292928;
+	--input: #292928;
+	--ring: #a5a39d;
+	--chart-1: #88c0d0;
+	--chart-2: #a3be8c;
+	--chart-3: #ebcb8b;
+	--chart-4: #bf616a;
+	--chart-5: #b48ead;
+	--sidebar: #121212;
+	--sidebar-foreground: #f8f5ee;
+	--sidebar-primary: #f8f5ee;
+	--sidebar-primary-foreground: #121212;
+	--sidebar-accent: #292928;
+	--sidebar-accent-foreground: #f8f5ee;
+	--sidebar-border: #292928;
+	--sidebar-ring: #a5a39d;
+	--build-icon: var(--token-build-icon-dark);
+	--plan-icon: var(--token-plan-icon-dark);
+	--cursor-status-error: var(--token-cursor-status-error-dark);
+	--cursor-status-warning: var(--token-cursor-status-warning-dark);
+	--cursor-status-success: var(--token-cursor-status-success-dark);
+	color-scheme: dark;
+}
+
+/* ---- Cursor ----
+ * packages/desktop/static/themes/cursor.theme.json and cursor-light.theme.json (vendored).
+ */
+
+:root[data-ui-theme="cursor"] {
+	--background: #ffffff;
+	--foreground: #1a1a1a;
+	--card: #f5f5f5;
+	--card-foreground: #1a1a1a;
+	--popover: #f5f5f5;
+	--popover-foreground: #1a1a1a;
+	--primary: #2563eb;
+	--primary-foreground: #ffffff;
+	--secondary: #e5e5e5;
+	--secondary-foreground: #1a1a1a;
+	--muted: #f5f5f5;
+	--muted-foreground: #666666;
+	--accent: #e5e5e5;
+	--accent-foreground: #1a1a1a;
+	--destructive: #dc2626;
+	--destructive-foreground: #ffffff;
+	--success: #22c55e;
+	--success-reference: #22c55e;
+	--success-foreground: #ffffff;
+	--border: #e5e5e5;
+	--input: #e5e5e5;
+	--ring: #2563eb;
+	--chart-1: #5e81ac;
+	--chart-2: #22c55e;
+	--chart-3: #eab308;
+	--chart-4: #dc2626;
+	--chart-5: #9333ea;
+	--sidebar: #f5f5f5;
+	--sidebar-foreground: #666666;
+	--sidebar-primary: #2563eb;
+	--sidebar-primary-foreground: #ffffff;
+	--sidebar-accent: #e5e5e5;
+	--sidebar-accent-foreground: #1a1a1a;
+	--sidebar-border: rgba(0, 0, 0, 0.051);
+	--sidebar-ring: #2563eb;
+	--build-icon: #22c55e;
+	--plan-icon: var(--token-plan-icon-light);
+	--cursor-status-error: #dc2626;
+	--cursor-status-warning: #eab308;
+	--cursor-status-success: #22c55e;
+	color-scheme: light;
+}
+
+:root[data-ui-theme="cursor"].dark {
+	--background: #1a1a1a;
+	--foreground: #d8dee9;
+	--card: #141414;
+	--card-foreground: #ffffff;
+	--popover: #141414;
+	--popover-foreground: #ffffff;
+	--primary: #4c9df3;
+	--primary-foreground: #191c22;
+	--secondary: #565656;
+	--secondary-foreground: #ececec;
+	--muted: #2a2a2a;
+	--muted-foreground: #cccccc;
+	--accent: #2a2a2a;
+	--accent-foreground: #ffffff;
+	--destructive: #bf616a;
+	--destructive-foreground: #ffffff;
+	--success: #a3be8c;
+	--success-reference: #a3be8c;
+	--success-foreground: #191c22;
+	--border: #2a2a2a;
+	--input: #2a2a2a;
+	--ring: #4c9df3;
+	--chart-1: #88c0d0;
+	--chart-2: #a3be8c;
+	--chart-3: #ebcb8b;
+	--chart-4: #bf616a;
+	--chart-5: #b48ead;
+	--sidebar: #141414;
+	--sidebar-foreground: #cccccc;
+	--sidebar-primary: #4c9df3;
+	--sidebar-primary-foreground: #191c22;
+	--sidebar-accent: #2a2a2a;
+	--sidebar-accent-foreground: #ffffff;
+	--sidebar-border: rgba(255, 255, 255, 0.051);
+	--sidebar-ring: #4c9df3;
+	--build-icon: var(--token-build-icon-dark);
+	--plan-icon: var(--token-plan-icon-dark);
+	--cursor-status-error: #bf616a;
+	--cursor-status-warning: #ebcb8b;
+	--cursor-status-success: #a3be8c;
+	color-scheme: dark;
+}
+
+/* ---- One ----
+ * github.com/akamud/vscode-theme-onedark and vscode-theme-onelight, plus their tokenColors.
+ */
+
+:root[data-ui-theme="one"] {
+	--background: #fafafa;
+	--foreground: #383a42;
+	--card: #ffffff;
+	--card-foreground: #383a42;
+	--popover: #eaeaeb;
+	--popover-foreground: #383a42;
+	--primary: #5871ef;
+	--primary-foreground: #ffffff;
+	--secondary: #dbdbdc;
+	--secondary-foreground: #383a42;
+	--muted: #eaeaeb;
+	--muted-foreground: #a0a1a7;
+	--accent: #dbdbdc;
+	--accent-foreground: #383a42;
+	--destructive: #e45649;
+	--destructive-foreground: #ffffff;
+	--success: #50a14f;
+	--success-reference: #50a14f;
+	--success-foreground: #ffffff;
+	--border: #dbdbdc;
+	--input: #dbdbdc;
+	--ring: #526fff;
+	--chart-1: #4078f2;
+	--chart-2: #50a14f;
+	--chart-3: #c18401;
+	--chart-4: #e45649;
+	--chart-5: #a626a4;
+	--sidebar: #eaeaeb;
+	--sidebar-foreground: #383a42;
+	--sidebar-primary: #526fff;
+	--sidebar-primary-foreground: #ffffff;
+	--sidebar-accent: #dbdbdc;
+	--sidebar-accent-foreground: #383a42;
+	--sidebar-border: #dbdbdc;
+	--sidebar-ring: #526fff;
+	--build-icon: #50a14f;
+	--plan-icon: #986801;
+	--cursor-status-error: #e45649;
+	--cursor-status-warning: #c18401;
+	--cursor-status-success: #50a14f;
+	color-scheme: light;
+}
+
+:root[data-ui-theme="one"].dark {
+	--background: #282c34;
+	--foreground: #abb2bf;
+	--card: #21252b;
+	--card-foreground: #abb2bf;
+	--popover: #21252b;
+	--popover-foreground: #abb2bf;
+	--primary: #4d78cc;
+	--primary-foreground: #ffffff;
+	--secondary: #3a3f4b;
+	--secondary-foreground: #abb2bf;
+	--muted: #2c313a;
+	--muted-foreground: #5c6370;
+	--accent: #2c313a;
+	--accent-foreground: #abb2bf;
+	--destructive: #e06c75;
+	--destructive-foreground: #282c34;
+	--success: #98c379;
+	--success-reference: #98c379;
+	--success-foreground: #282c34;
+	--border: #181a1f;
+	--input: #181a1f;
+	--ring: #528bff;
+	--chart-1: #61afef;
+	--chart-2: #98c379;
+	--chart-3: #e5c07b;
+	--chart-4: #e06c75;
+	--chart-5: #c678dd;
+	--sidebar: #21252b;
+	--sidebar-foreground: #abb2bf;
+	--sidebar-primary: #528bff;
+	--sidebar-primary-foreground: #ffffff;
+	--sidebar-accent: #2c313a;
+	--sidebar-accent-foreground: #abb2bf;
+	--sidebar-border: #181a1f;
+	--sidebar-ring: #528bff;
+	--build-icon: #56b6c2;
+	--plan-icon: #d19a66;
+	--cursor-status-error: #e06c75;
+	--cursor-status-warning: #e5c07b;
+	--cursor-status-success: #98c379;
+	color-scheme: dark;
+}
+
+/* ---- Anthropic ----
+ * Acepe's warm surfaces with --token-brand-primary as the accent. Derived here, not scraped.
+ */
+
+:root[data-ui-theme="anthropic"] {
+	--background: #f7f7f7;
+	--foreground: #0d0d0d;
+	--card: #ffffff;
+	--card-foreground: #0d0d0d;
+	--popover: #ffffff;
+	--popover-foreground: #0d0d0d;
+	--primary: var(--token-brand-primary);
+	--primary-foreground: #ffffff;
+	--secondary: #e8e8e8;
+	--secondary-foreground: #0d0d0d;
+	--muted: #f3f3f3;
+	--muted-foreground: #666666;
+	--accent: #e8e8e8;
+	--accent-foreground: #0d0d0d;
+	--destructive: #e02e2a;
+	--destructive-foreground: #ffffff;
+	--success: var(--token-success-light);
+	--success-reference: var(--token-success-light);
+	--success-foreground: #ffffff;
+	--border: rgba(13, 13, 13, 0.078);
+	--input: rgba(13, 13, 13, 0.078);
+	--ring: var(--token-brand-primary);
+	--chart-1: var(--token-brand-primary);
+	--chart-2: #00a240;
+	--chart-3: #751ed9;
+	--chart-4: #bd5800;
+	--chart-5: #666666;
+	--sidebar: #fcfcfc;
+	--sidebar-foreground: #212121;
+	--sidebar-primary: var(--token-brand-primary);
+	--sidebar-primary-foreground: #ffffff;
+	--sidebar-accent: #e8e8e8;
+	--sidebar-accent-foreground: #0d0d0d;
+	--sidebar-border: rgba(13, 13, 13, 0.078);
+	--sidebar-ring: var(--token-brand-primary);
+	--build-icon: var(--success);
+	--plan-icon: var(--token-plan-icon-light);
+	--cursor-status-error: var(--token-cursor-status-error-light);
+	--cursor-status-warning: var(--token-cursor-status-warning-light);
+	--cursor-status-success: var(--token-cursor-status-success-light);
+	color-scheme: light;
+}
+
+:root[data-ui-theme="anthropic"].dark {
+	--background: #121212;
+	--foreground: #f8f5ee;
+	--card: #1b1a19;
+	--card-foreground: #f8f5ee;
+	--popover: #1c1c1b;
+	--popover-foreground: #f8f5ee;
+	--primary: var(--token-brand-primary);
+	--primary-foreground: var(--token-brand-primary-foreground);
+	--secondary: #292928;
+	--secondary-foreground: #f8f5ee;
+	--muted: #1c1a18;
+	--muted-foreground: #a5a39d;
+	--accent: #292928;
+	--accent-foreground: #f8f5ee;
+	--destructive: #f97066;
+	--destructive-foreground: #121212;
+	--success: var(--token-success-dark);
+	--success-reference: var(--token-success-dark);
+	--success-foreground: #121212;
+	--border: #292928;
+	--input: #292928;
+	--ring: var(--token-brand-primary);
+	--chart-1: var(--token-brand-primary);
+	--chart-2: #a3be8c;
+	--chart-3: #ebcb8b;
+	--chart-4: #bf616a;
+	--chart-5: #b48ead;
+	--sidebar: #121212;
+	--sidebar-foreground: #f8f5ee;
+	--sidebar-primary: var(--token-brand-primary);
+	--sidebar-primary-foreground: var(--token-brand-primary-foreground);
+	--sidebar-accent: #292928;
+	--sidebar-accent-foreground: #f8f5ee;
+	--sidebar-border: #292928;
+	--sidebar-ring: var(--token-brand-primary);
+	--build-icon: var(--token-build-icon-dark);
+	--plan-icon: var(--token-plan-icon-dark);
+	--cursor-status-error: var(--token-cursor-status-error-dark);
+	--cursor-status-warning: var(--token-cursor-status-warning-dark);
+	--cursor-status-success: var(--token-cursor-status-success-dark);
+	color-scheme: dark;
+}

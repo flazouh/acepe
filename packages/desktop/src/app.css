@@ -1,4 +1,4 @@
-@import "@acepe/ui/design-tokens.css";
+@import "@acepe/ui/theme.css";
 @import "tailwindcss";
 @import "@fontsource/jetbrains-mono/400.css";
 @import "@fontsource/jetbrains-mono/400-italic.css";
@@ -20,49 +20,6 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-	--radius: 8px;
-	/* Light mode colors from Codex.app codex-light theme (app.asar). */
-	--background: #f7f7f7;
-	--foreground: #0d0d0d;
-	--card: #ffffff;
-	--card-foreground: #0d0d0d;
-	--popover: #ffffff;
-	--popover-foreground: #0d0d0d;
-	--primary: #0d0d0d;
-	--primary-foreground: #ffffff;
-	--secondary: #e8e8e8;
-	--secondary-foreground: #0d0d0d;
-	--muted: #f3f3f3;
-	--muted-foreground: #666666;
-	--accent: #e8e8e8;
-	--accent-foreground: #0d0d0d;
-	--destructive: #e02e2a;
-	--destructive-foreground: #ffffff;
-	--success: #00a240;
-	--success-reference: #00a240;
-	--success-foreground: #ffffff;
-	--build-icon: var(--success);
-	--plan-icon: var(--token-plan-icon-light);
-	/* Cursor status icons — from static/themes/cursor-light.theme.json */
-	--cursor-status-error: var(--token-cursor-status-error-light);
-	--cursor-status-warning: var(--token-cursor-status-warning-light);
-	--cursor-status-success: var(--token-cursor-status-success-light);
-	--border: rgba(13, 13, 13, 0.078);
-	--input: rgba(13, 13, 13, 0.078);
-	--ring: #0169cc;
-	--chart-1: #0169cc;
-	--chart-2: #00a240;
-	--chart-3: #751ed9;
-	--chart-4: #bd5800;
-	--chart-5: #666666;
-	--sidebar: #fcfcfc;
-	--sidebar-foreground: #212121;
-	--sidebar-primary: #0169cc;
-	--sidebar-primary-foreground: #ffffff;
-	--sidebar-accent: #e8e8e8;
-	--sidebar-accent-foreground: #0d0d0d;
-	--sidebar-border: rgba(13, 13, 13, 0.078);
-	--sidebar-ring: #0169cc;
 
 	/* Font families */
 	--font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -73,22 +30,6 @@
 	   stays independent of the interface scale, which drives the root font-size). */
 	--code-font-size: 13px;
 
-	/* Shadows */
-	--shadow-x: 0px;
-	--shadow-y: 2px;
-	--shadow-blur: 3px;
-	--shadow-spread: 0px;
-	--shadow-opacity: 0.18;
-	--shadow-color: hsl(0 0% 5%);
-	--shadow-2xs: 0px 2px 3px 0px hsl(0 0% 5% / 0.05);
-	--shadow-xs: 0px 2px 3px 0px hsl(0 0% 5% / 0.05);
-	--shadow-sm: 0px 2px 3px 0px hsl(0 0% 5% / 0.08), 0px 1px 2px -1px hsl(0 0% 5% / 0.08);
-	--shadow: 0px 2px 3px 0px hsl(0 0% 5% / 0.08), 0px 1px 2px -1px hsl(0 0% 5% / 0.08);
-	--shadow-md: 0px 2px 3px 0px hsl(0 0% 5% / 0.08), 0px 2px 4px -1px hsl(0 0% 5% / 0.08);
-	--shadow-lg: 0px 2px 3px 0px hsl(0 0% 5% / 0.08), 0px 4px 6px -1px hsl(0 0% 5% / 0.08);
-	--shadow-xl: 0px 2px 3px 0px hsl(0 0% 5% / 0.08), 0px 8px 10px -1px hsl(0 0% 5% / 0.08);
-	--shadow-2xl: 0px 2px 3px 0px hsl(0 0% 5% / 0.2);
-
 	/* Z-index: desktop app-shell layers */
 	--app-spotlight-z: 9995;
 	--app-modal-z: 9997;
@@ -96,55 +37,6 @@
 	--overlay-z: var(--app-elevated-z);
 	--app-blocking-z: 9999;
 
-	/* Other properties */
-	--tracking-normal: 0em;
-	--spacing: 0.25rem;
-}
-
-.dark {
-	/* Luminar dark token set. */
-	--background: #121212;
-	--foreground: #f8f5ee;
-	--card: #1B1A19;
-	--card-foreground: #f8f5ee;
-	--popover: #1c1c1b;
-	--popover-foreground: #f8f5ee;
-	--primary: #f8f5ee;
-	--primary-foreground: #121212;
-	--secondary: #292928;
-	--secondary-foreground: #f8f5ee;
-	--muted: #1c1a18;
-	--muted-foreground: #a5a39d;
-	--accent: #292928;
-	--accent-foreground: #f8f5ee;
-	--destructive: #f97066;
-	--destructive-foreground: #121212;
-	/* Dark: success is the reference green; build icon keeps its own mint accent. */
-	--success: var(--token-success-dark);
-	--success-reference: var(--token-success-dark);
-	--success-foreground: #121212;
-	--build-icon: var(--token-build-icon-dark);
-	--plan-icon: var(--token-plan-icon-dark);
-	/* Cursor status icons — from static/themes/cursor.theme.json */
-	--cursor-status-error: var(--token-cursor-status-error-dark);
-	--cursor-status-warning: var(--token-cursor-status-warning-dark);
-	--cursor-status-success: var(--token-cursor-status-success-dark);
-	--border: #292928;
-	--input: #292928;
-	--ring: #a5a39d;
-	--chart-1: #88c0d0; /* badge.background */
-	--chart-2: #a3be8c; /* gitDecoration.addedResourceForeground */
-	--chart-3: #ebcb8b; /* editorWarning.foreground */
-	--chart-4: #bf616a; /* editorError.foreground */
-	--chart-5: #b48ead; /* terminal.ansiMagenta */
-	--sidebar: #121212;
-	--sidebar-foreground: #f8f5ee;
-	--sidebar-primary: #f8f5ee;
-	--sidebar-primary-foreground: #121212;
-	--sidebar-accent: #292928;
-	--sidebar-accent-foreground: #f8f5ee;
-	--sidebar-border: #292928;
-	--sidebar-ring: #a5a39d;
 }
 
 @theme inline {
