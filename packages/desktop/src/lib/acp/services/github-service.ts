@@ -5,7 +5,7 @@
 
 import { fromPromise } from "@acepe/effect-result/fromPromise";
 import * as Effect from "effect/Effect";
-import { Commands, invoke } from "../../utils/tauri-commands.js";
+import { git } from "../../utils/tauri-client/git.ts";
 import type {
 	CommitDiff,
 	Diff,
@@ -57,7 +57,10 @@ function rpcErrorToGitHubError(error: unknown): GitHubError {
 		return error;
 	}
 
-	const msg = error instanceof Error ? error.message : String(error);
+	// AgentError's own message is the generic "Agent operation failed: <op>";
+	// the RpcGitCallError it wraps carries the git/gh stderr this classifier
+	// keys off, so read the cause when there is one.
+	const msg = errorMessage(error);
 
 	if (msg.includes("git: not found") || msg.includes("git not found")) {
 		return { type: "git_not_found", message: msg };
@@ -88,6 +91,17 @@ function rpcErrorToGitHubError(error: unknown): GitHubError {
 	}
 
 	return { type: "unknown_error", message: msg };
+}
+
+function errorMessage(error: unknown): string {
+	if (error instanceof Error) {
+		const cause = (error as { cause?: unknown }).cause;
+		if (cause instanceof Error) {
+			return `${error.message}: ${cause.message}`;
+		}
+		return error.message;
+	}
+	return String(error);
 }
 
 function isGitHubError(error: unknown): error is GitHubError {
@@ -127,10 +141,7 @@ export function getRepoContext(projectPath: string): Effect.Effect<RepoContext, 
 	}
 
 	const pending = Effect.runPromise(
-		fromPromise(
-			() => invoke<RepoContext>(Commands.github.get_github_repo_context, { projectPath }),
-			rpcErrorToGitHubError
-		)
+		git.repoContext(projectPath).pipe(Effect.mapError(rpcErrorToGitHubError))
 	).then(
 		(ctx) => {
 			repoContextCache.set(projectPath, ctx);
@@ -164,11 +175,21 @@ export function fetchCommitDiff(
 		return Effect.succeed(cached.diff as CommitDiff);
 	}
 
-	return fromPromise(
-		() => invoke<CommitDiff>(Commands.github.fetch_commit_diff, { sha, projectPath, repoContext }),
-		rpcErrorToGitHubError
-	).pipe(
-		Effect.map((diff) => {
+	return git.commitDiff(projectPath, sha).pipe(
+		Effect.mapError(rpcErrorToGitHubError),
+		Effect.map((result): CommitDiff => {
+			const resolvedContext = repoContext ?? result.repoContext ?? undefined;
+			const diff: CommitDiff = {
+				sha: result.sha,
+				shortSha: result.shortSha,
+				message: result.message,
+				messageBody: result.messageBody,
+				author: result.author,
+				authorEmail: result.authorEmail,
+				date: result.date,
+				files: [...result.files],
+				...(resolvedContext === undefined ? {} : { repoContext: resolvedContext }),
+			};
 			// Cache the result
 			diffCache.set(cacheKey, { diff, timestamp: Date.now(), type: "commit" });
 			return diff;
@@ -181,6 +202,7 @@ export function fetchCommitDiff(
  * Results are cached for 5 minutes.
  */
 export function fetchPrDiff(
+	projectPath: string,
 	owner: string,
 	repo: string,
 	prNumber: number
@@ -193,11 +215,14 @@ export function fetchPrDiff(
 		return Effect.succeed(cached.diff as PrDiff);
 	}
 
-	return fromPromise(
-		() => invoke<PrDiff>(Commands.github.fetch_pr_diff, { owner, repo, prNumber }),
-		rpcErrorToGitHubError
-	).pipe(
-		Effect.map((diff) => {
+	return git.prDiff(projectPath, owner, repo, prNumber).pipe(
+		Effect.mapError(rpcErrorToGitHubError),
+		Effect.map((result): PrDiff => {
+			const diff: PrDiff = {
+				pr: { ...result.pr },
+				files: [...result.files],
+				repoContext: result.repoContext,
+			};
 			// Cache the result
 			diffCache.set(cacheKey, { diff, timestamp: Date.now(), type: "pr" });
 			return diff;
@@ -210,20 +235,15 @@ export function fetchPrDiff(
  * Not cached — always fetches fresh data.
  */
 export function listPullRequests(
+	projectPath: string,
 	owner: string,
 	repo: string,
 	state?: "open" | "closed" | "all",
 	limit?: number
 ): Effect.Effect<PrListItem[], GitHubError> {
-	return fromPromise(
-		() =>
-			invoke<PrListItem[]>(Commands.github.list_pull_requests, {
-				owner,
-				repo,
-				state: state ?? "open",
-				limit: limit ?? 30,
-			}),
-		rpcErrorToGitHubError
+	return git.listPullRequests(projectPath, owner, repo, state ?? "open", limit ?? 30).pipe(
+		Effect.mapError(rpcErrorToGitHubError),
+		Effect.map((items) => items.map((item) => ({ ...item })))
 	);
 }
 
@@ -251,7 +271,7 @@ export function fetchDiff(
 	}
 
 	const [, owner, repo, prNumber] = match;
-	return fetchPrDiff(owner, repo, parseInt(prNumber, 10));
+	return fetchPrDiff(projectPath, owner, repo, parseInt(prNumber, 10));
 }
 
 /**
@@ -296,16 +316,10 @@ export function fetchWorkingFileDiff(
 	additions: number,
 	deletions: number
 ): Effect.Effect<FileDiff, GitHubError> {
-	return fromPromise(
-		() =>
-			invoke<FileDiff>(Commands.github.git_working_file_diff, {
-				projectPath,
-				filePath,
-				staged,
-				status,
-				additions,
-				deletions,
-			}),
-		rpcErrorToGitHubError
-	);
+	return git
+		.workingFileDiff(projectPath, filePath, staged, status, additions, deletions)
+		.pipe(
+			Effect.mapError(rpcErrorToGitHubError),
+			Effect.map((diff): FileDiff => ({ ...diff }))
+		);
 }

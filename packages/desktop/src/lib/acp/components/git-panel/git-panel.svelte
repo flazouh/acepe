@@ -779,7 +779,7 @@ async function loadPrList() {
 		getRepoContext(projectPath).pipe(
 			Effect.flatMap((ctx) => {
 				cachedRepoContext = ctx;
-				return listPullRequests(ctx.owner, ctx.repo, prStateFilter);
+				return listPullRequests(projectPath, ctx.owner, ctx.repo, prStateFilter);
 			}),
 			Effect.match({
 				onSuccess: (items) => {
@@ -839,7 +839,7 @@ async function handleOpenPr(prNumber: number) {
 		getRepoContext(projectPath).pipe(
 			Effect.flatMap((ctx) => {
 				cachedRepoContext = ctx;
-				return fetchPrDiff(ctx.owner, ctx.repo, prNumber);
+				return fetchPrDiff(projectPath, ctx.owner, ctx.repo, prNumber);
 			}),
 			Effect.match({
 				onSuccess: (diff) => {

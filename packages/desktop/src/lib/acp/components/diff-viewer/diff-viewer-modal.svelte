@@ -1,6 +1,7 @@
 <script lang="ts">
 import { GitViewer, LoadingIcon, HugeiconsIcon } from "@acepe/ui";
 import * as Effect from "effect/Effect";
+import { untrack } from "svelte";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import { fetchCommitDiff, fetchPrDiff } from "../../services/github-service.js";
 import type { CommitDiff, GitHubError, PrDiff } from "../../types/github-integration.js";
@@ -56,7 +57,7 @@ async function loadDiff() {
 		);
 	} else if (reference.type === "pr" && reference.owner && reference.repo && reference.number) {
 		await Effect.runPromise(
-			fetchPrDiff(reference.owner, reference.repo, reference.number).pipe(
+			fetchPrDiff(projectPath, reference.owner, reference.repo, reference.number).pipe(
 				Effect.match({
 					onSuccess: (prDiff) => {
 						diff = prDiff;
@@ -77,9 +78,16 @@ async function loadDiff() {
 	loading = false;
 }
 
+// loadDiff writes loading/error/diff/selectedFile synchronously before it
+// awaits. Calling it tracked would make this effect depend on the state it
+// just wrote and re-run forever, so only `open`/`reference` are tracked and
+// the call itself is untracked.
 $effect(() => {
-	if (open && reference) {
-		loadDiff();
+	const shouldLoad = open && reference !== undefined;
+	if (shouldLoad) {
+		untrack(() => {
+			void loadDiff();
+		});
 	}
 });
 

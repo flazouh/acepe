@@ -1,49 +1,13 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import {
-	emptyRpcSessionSnapshot,
-	type GitCallRequest,
-	type GitCallResult,
-	type RpcClient,
-	type RpcClientError,
-	RpcGitCallError,
-	SessionId,
-} from "@acepe/contracts";
+import { RpcGitCallError } from "@acepe/contracts";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Result from "effect/Result";
 import * as Stream from "effect/Stream";
-
 import { setAppRpcClientForTest } from "../../rpc/app-client.ts";
+import { makeGitCallRpcClient } from "../../rpc/fake-rpc-client.ts";
 import { git } from "./git.ts";
-
-const unusedIndex = {
-	projectPath: "/tmp/p",
-	files: [],
-	gitStatus: [],
-	totalFiles: 0,
-	totalLines: 0,
-};
-
-const makeClient = (
-	gitCallImpl: (request: GitCallRequest) => Effect.Effect<GitCallResult, RpcClientError>
-): RpcClient => ({
-	dispatch: () => Effect.succeed({ sequence: 1 }),
-	snapshot: () => Effect.succeed(emptyRpcSessionSnapshot(0)),
-	getProjectIndex: () => Effect.succeed(unusedIndex),
-	invalidateProjectIndex: () => Effect.void,
-	readTextFile: () => Effect.succeed(""),
-	writeTextFile: () => Effect.void,
-	getDefaultShell: () => Effect.succeed("/bin/zsh"),
-	gitCall: gitCallImpl,
-	agentCall: () => Effect.succeed({ op: "agent.list", agents: [] }),
-	getProviderAccountUsage: () => Effect.succeed([]),
-	listProviderSessions: () => Effect.succeed([]),
-	listProviderProjects: () => Effect.succeed([]),
-	importProviderSession: () =>
-		Effect.succeed({ sessionId: SessionId.make("session-1"), imported: false }),
-	events: () => Stream.empty,
-});
 
 afterEach(() => {
 	setAppRpcClientForTest(null);
@@ -55,7 +19,7 @@ describe("git tauri client", () => {
 			Effect.gen(function* () {
 				let requested: unknown = null;
 				setAppRpcClientForTest(
-					makeClient((request) => {
+					makeGitCallRpcClient((request) => {
 						requested = request;
 						return Effect.succeed({ op: "git.init" });
 					})
@@ -72,7 +36,7 @@ describe("git tauri client", () => {
 		Effect.runPromise(
 			Effect.gen(function* () {
 				setAppRpcClientForTest(
-					makeClient(() => Effect.succeed({ op: "git.isRepo", isRepo: true }))
+					makeGitCallRpcClient(() => Effect.succeed({ op: "git.isRepo", isRepo: true }))
 				);
 
 				const result = yield* Effect.result(git.isRepo("/tmp/acepe"));
@@ -86,7 +50,7 @@ describe("git tauri client", () => {
 		Effect.runPromise(
 			Effect.gen(function* () {
 				setAppRpcClientForTest(
-					makeClient(() => Effect.succeed({ op: "git.currentBranch", branch: "main" }))
+					makeGitCallRpcClient(() => Effect.succeed({ op: "git.currentBranch", branch: "main" }))
 				);
 
 				const result = yield* Effect.result(git.currentBranch("/tmp/acepe"));
@@ -99,7 +63,7 @@ describe("git tauri client", () => {
 		Effect.runPromise(
 			Effect.gen(function* () {
 				setAppRpcClientForTest(
-					makeClient(() =>
+					makeGitCallRpcClient(() =>
 						Effect.succeed({ op: "git.listBranches", branches: ["main", "feature/x"] })
 					)
 				);
@@ -115,7 +79,7 @@ describe("git tauri client", () => {
 			Effect.gen(function* () {
 				let requested: unknown = null;
 				setAppRpcClientForTest(
-					makeClient((request) => {
+					makeGitCallRpcClient((request) => {
 						requested = request;
 						return Effect.succeed({ op: "git.checkoutBranch", branch: "feature/x" });
 					})
@@ -137,7 +101,7 @@ describe("git tauri client", () => {
 		Effect.runPromise(
 			Effect.gen(function* () {
 				setAppRpcClientForTest(
-					makeClient(() =>
+					makeGitCallRpcClient(() =>
 						Effect.succeed({ op: "git.hasUncommittedChanges", hasUncommittedChanges: true })
 					)
 				);
@@ -162,7 +126,9 @@ describe("git tauri client", () => {
 						worktreeDeletions: 0,
 					},
 				];
-				setAppRpcClientForTest(makeClient(() => Effect.succeed({ op: "git.panelStatus", files })));
+				setAppRpcClientForTest(
+					makeGitCallRpcClient(() => Effect.succeed({ op: "git.panelStatus", files }))
+				);
 
 				const result = yield* Effect.result(git.panelStatus("/tmp/acepe"));
 
@@ -175,7 +141,7 @@ describe("git tauri client", () => {
 			Effect.gen(function* () {
 				let requested: unknown = null;
 				setAppRpcClientForTest(
-					makeClient((request) => {
+					makeGitCallRpcClient((request) => {
 						requested = request;
 						return Effect.succeed({ op: "git.stageFiles" });
 					})
@@ -197,7 +163,7 @@ describe("git tauri client", () => {
 			Effect.gen(function* () {
 				let requested: unknown = null;
 				setAppRpcClientForTest(
-					makeClient((request) => {
+					makeGitCallRpcClient((request) => {
 						requested = request;
 						return Effect.succeed({ op: "git.unstageFiles" });
 					})
@@ -219,7 +185,7 @@ describe("git tauri client", () => {
 			Effect.gen(function* () {
 				let requested: unknown = null;
 				setAppRpcClientForTest(
-					makeClient((request) => {
+					makeGitCallRpcClient((request) => {
 						requested = request;
 						return Effect.succeed({ op: "git.stageAll" });
 					})
@@ -237,7 +203,7 @@ describe("git tauri client", () => {
 			Effect.gen(function* () {
 				let requested: unknown = null;
 				setAppRpcClientForTest(
-					makeClient((request) => {
+					makeGitCallRpcClient((request) => {
 						requested = request;
 						return Effect.succeed({ op: "git.discardChanges" });
 					})
@@ -259,7 +225,7 @@ describe("git tauri client", () => {
 			Effect.gen(function* () {
 				let requested: unknown = null;
 				setAppRpcClientForTest(
-					makeClient((request) => {
+					makeGitCallRpcClient((request) => {
 						requested = request;
 						return Effect.succeed({
 							op: "git.commit",
@@ -288,7 +254,7 @@ describe("git tauri client", () => {
 				];
 				let requested: unknown = null;
 				setAppRpcClientForTest(
-					makeClient((request) => {
+					makeGitCallRpcClient((request) => {
 						requested = request;
 						return Effect.succeed({ op: "git.log", entries });
 					})
@@ -306,7 +272,7 @@ describe("git tauri client", () => {
 			Effect.gen(function* () {
 				let requested: unknown = null;
 				setAppRpcClientForTest(
-					makeClient((request) => {
+					makeGitCallRpcClient((request) => {
 						requested = request;
 						return Effect.succeed({ op: "git.push" });
 					})
@@ -324,7 +290,7 @@ describe("git tauri client", () => {
 			Effect.gen(function* () {
 				let requested: unknown = null;
 				setAppRpcClientForTest(
-					makeClient((request) => {
+					makeGitCallRpcClient((request) => {
 						requested = request;
 						return Effect.succeed({ op: "git.pull" });
 					})
@@ -342,7 +308,7 @@ describe("git tauri client", () => {
 			Effect.gen(function* () {
 				let requested: unknown = null;
 				setAppRpcClientForTest(
-					makeClient((request) => {
+					makeGitCallRpcClient((request) => {
 						requested = request;
 						return Effect.succeed({ op: "git.fetch" });
 					})
@@ -359,7 +325,7 @@ describe("git tauri client", () => {
 		Effect.runPromise(
 			Effect.gen(function* () {
 				setAppRpcClientForTest(
-					makeClient(() =>
+					makeGitCallRpcClient(() =>
 						Effect.succeed({
 							op: "git.remoteStatus",
 							ahead: 2,
@@ -385,7 +351,9 @@ describe("git tauri client", () => {
 		Effect.runPromise(
 			Effect.gen(function* () {
 				const entries = [{ index: 0, message: "WIP on main", date: "2 hours ago" }];
-				setAppRpcClientForTest(makeClient(() => Effect.succeed({ op: "git.stashList", entries })));
+				setAppRpcClientForTest(
+					makeGitCallRpcClient(() => Effect.succeed({ op: "git.stashList", entries }))
+				);
 
 				const result = yield* Effect.result(git.stashList("/tmp/acepe"));
 
@@ -398,7 +366,7 @@ describe("git tauri client", () => {
 			Effect.gen(function* () {
 				let requested: unknown = null;
 				setAppRpcClientForTest(
-					makeClient((request) => {
+					makeGitCallRpcClient((request) => {
 						requested = request;
 						return Effect.succeed({ op: "git.stashPop" });
 					})
@@ -416,7 +384,7 @@ describe("git tauri client", () => {
 			Effect.gen(function* () {
 				let requested: unknown = null;
 				setAppRpcClientForTest(
-					makeClient((request) => {
+					makeGitCallRpcClient((request) => {
 						requested = request;
 						return Effect.succeed({ op: "git.stashDrop" });
 					})
@@ -444,7 +412,7 @@ describe("git tauri client", () => {
 					},
 				};
 				setAppRpcClientForTest(
-					makeClient((request) => {
+					makeGitCallRpcClient((request) => {
 						requested = request;
 						return Effect.succeed({ op: "git.prepareWorktreeSessionLaunch", launch });
 					})
@@ -468,7 +436,7 @@ describe("git tauri client", () => {
 			Effect.gen(function* () {
 				let requested: unknown = null;
 				setAppRpcClientForTest(
-					makeClient((request) => {
+					makeGitCallRpcClient((request) => {
 						requested = request;
 						return Effect.succeed({ op: "git.discardPreparedWorktreeSessionLaunch" });
 					})
@@ -492,7 +460,7 @@ describe("git tauri client", () => {
 			Effect.gen(function* () {
 				let requested: unknown = null;
 				setAppRpcClientForTest(
-					makeClient((request) => {
+					makeGitCallRpcClient((request) => {
 						requested = request;
 						return Effect.succeed({ op: "git.worktreeRemove" });
 					})
@@ -523,7 +491,7 @@ describe("git tauri client", () => {
 					},
 				];
 				setAppRpcClientForTest(
-					makeClient(() => Effect.succeed({ op: "git.worktreeList", worktrees }))
+					makeGitCallRpcClient(() => Effect.succeed({ op: "git.worktreeList", worktrees }))
 				);
 
 				const result = yield* Effect.result(git.worktreeList("/tmp/acepe"));
@@ -536,7 +504,7 @@ describe("git tauri client", () => {
 		Effect.runPromise(
 			Effect.gen(function* () {
 				setAppRpcClientForTest(
-					makeClient(() => Effect.succeed({ op: "git.loadWorktreeConfig", config: null }))
+					makeGitCallRpcClient(() => Effect.succeed({ op: "git.loadWorktreeConfig", config: null }))
 				);
 
 				const result = yield* Effect.result(git.loadWorktreeConfig("/tmp/acepe"));
@@ -549,7 +517,7 @@ describe("git tauri client", () => {
 		Effect.runPromise(
 			Effect.gen(function* () {
 				setAppRpcClientForTest(
-					makeClient(() =>
+					makeGitCallRpcClient(() =>
 						Effect.succeed({
 							op: "git.loadWorktreeConfig",
 							config: { setupCommands: ["bun install"] },
@@ -568,7 +536,7 @@ describe("git tauri client", () => {
 			Effect.gen(function* () {
 				let requested: unknown = null;
 				setAppRpcClientForTest(
-					makeClient((request) => {
+					makeGitCallRpcClient((request) => {
 						requested = request;
 						return Effect.succeed({ op: "git.saveWorktreeConfig" });
 					})
@@ -590,7 +558,7 @@ describe("git tauri client", () => {
 			Effect.gen(function* () {
 				let requested: unknown = null;
 				setAppRpcClientForTest(
-					makeClient((request) => {
+					makeGitCallRpcClient((request) => {
 						requested = request;
 						return Effect.succeed({
 							op: "git.runWorktreeSetup",
@@ -651,7 +619,7 @@ describe("git tauri client", () => {
 					},
 				};
 				setAppRpcClientForTest(
-					makeClient((request) => {
+					makeGitCallRpcClient((request) => {
 						requested = request;
 						return Effect.succeed({ op: "git.runStackedAction", result: stackedResult });
 					})
@@ -676,7 +644,9 @@ describe("git tauri client", () => {
 		Effect.runPromise(
 			Effect.gen(function* () {
 				setAppRpcClientForTest(
-					makeClient(() => Effect.succeed({ op: "git.collectShipContext", context: null }))
+					makeGitCallRpcClient(() =>
+						Effect.succeed({ op: "git.collectShipContext", context: null })
+					)
 				);
 
 				const result = yield* Effect.result(git.collectShipContext("/tmp/acepe"));
@@ -699,7 +669,9 @@ describe("git tauri client", () => {
 					deletions: 1,
 					commits: [{ oid: "abc", messageHeadline: "fix it", additions: 1, deletions: 1 }],
 				};
-				setAppRpcClientForTest(makeClient(() => Effect.succeed({ op: "git.prDetails", details })));
+				setAppRpcClientForTest(
+					makeGitCallRpcClient(() => Effect.succeed({ op: "git.prDetails", details }))
+				);
 
 				const result = yield* Effect.result(git.prDetails("/tmp/acepe", 235));
 
@@ -725,7 +697,9 @@ describe("git tauri client", () => {
 						},
 					],
 				};
-				setAppRpcClientForTest(makeClient(() => Effect.succeed({ op: "git.prChecks", checks })));
+				setAppRpcClientForTest(
+					makeGitCallRpcClient(() => Effect.succeed({ op: "git.prChecks", checks }))
+				);
 
 				const result = yield* Effect.result(git.prChecks("/tmp/acepe", 235));
 
@@ -738,7 +712,7 @@ describe("git tauri client", () => {
 			Effect.gen(function* () {
 				let requested: unknown = null;
 				setAppRpcClientForTest(
-					makeClient((request) => {
+					makeGitCallRpcClient((request) => {
 						requested = request;
 						return Effect.succeed({ op: "git.mergePr" });
 					})
@@ -769,7 +743,7 @@ describe("git tauri client", () => {
 					],
 				};
 				setAppRpcClientForTest(
-					makeClient(() => Effect.succeed({ op: "git.ciJobDetails", details }))
+					makeGitCallRpcClient(() => Effect.succeed({ op: "git.ciJobDetails", details }))
 				);
 
 				const result = yield* Effect.result(
@@ -789,7 +763,7 @@ describe("git tauri client", () => {
 					// as a defect (Effect.die), a wiring bug rather than a typed AppError
 					// the caller could recover from. Effect.exit (not Effect.result, which
 					// only captures typed failures) is what surfaces a defect in a test.
-					makeClient(() => Effect.succeed({ op: "git.currentBranch", branch: "main" }))
+					makeGitCallRpcClient(() => Effect.succeed({ op: "git.currentBranch", branch: "main" }))
 				);
 
 				const exit = yield* Effect.exit(git.isRepo("/tmp/acepe"));
@@ -813,7 +787,7 @@ describe("git tauri client", () => {
 				Effect.gen(function* () {
 					let branchCalls = 0;
 					setAppRpcClientForTest(
-						makeClient((request) => {
+						makeGitCallRpcClient((request) => {
 							if (request.op === "git.currentBranch") {
 								branchCalls += 1;
 								return Effect.succeed({
@@ -841,7 +815,7 @@ describe("git tauri client", () => {
 				Effect.gen(function* () {
 					let shaCalls = 0;
 					setAppRpcClientForTest(
-						makeClient((request) => {
+						makeGitCallRpcClient((request) => {
 							if (request.op === "git.currentBranch") {
 								return Effect.succeed({ op: "git.currentBranch", branch: "main" });
 							}
@@ -865,7 +839,7 @@ describe("git tauri client", () => {
 			Effect.runPromise(
 				Effect.gen(function* () {
 					setAppRpcClientForTest(
-						makeClient((request) => {
+						makeGitCallRpcClient((request) => {
 							if (request.op === "git.currentBranch") {
 								return Effect.succeed({ op: "git.currentBranch", branch: "main" });
 							}
@@ -891,7 +865,7 @@ describe("git tauri client", () => {
 				Effect.gen(function* () {
 					let branchCalls = 0;
 					setAppRpcClientForTest(
-						makeClient((request) => {
+						makeGitCallRpcClient((request) => {
 							if (request.op === "git.currentBranch") {
 								branchCalls += 1;
 								// Call 1: the initial sample (dropped). Call 2: the second

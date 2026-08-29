@@ -135,7 +135,7 @@ function ensureOpenPullRequestsLoaded(): void {
 	void Effect.runPromise(
 		getRepoContext(requestedProjectPath).pipe(
 			Effect.flatMap((repoContext) =>
-				listPullRequests(repoContext.owner, repoContext.repo, "open").pipe(
+				listPullRequests(requestedProjectPath, repoContext.owner, repoContext.repo, "open").pipe(
 					Effect.map((pullRequests) => ({
 						pullRequests,
 						repoContext,

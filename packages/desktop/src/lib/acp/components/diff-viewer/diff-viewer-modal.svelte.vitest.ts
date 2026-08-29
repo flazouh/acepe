@@ -1,4 +1,5 @@
 import { cleanup, render, waitFor } from "@testing-library/svelte";
+import * as Effect from "effect/Effect";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import DiffViewerModal from "./diff-viewer-modal.svelte";
@@ -28,41 +29,36 @@ vi.mock("@acepe/ui", async () => {
 	};
 });
 
+// github-service returns Effects, so the modal pipes the return value
+// straight into Effect.match -- a resolved Promise here would blow up on
+// `.pipe` before the modal ever renders.
 vi.mock("../../services/github-service.js", () => ({
 	fetchCommitDiff: vi.fn(() =>
-		Promise.resolve({
-			match(onOk: (value: unknown) => void) {
-				onOk({
-					sha: "abc1234",
-					shortSha: "abc1234",
-					message: "Test commit",
-					messageBody: "",
-					author: "Acepe",
-					authorEmail: "acepe@example.com",
-					date: "2026-03-12T00:00:00Z",
-					files: [],
-					repoContext: null,
-				});
-			},
+		Effect.succeed({
+			sha: "abc1234",
+			shortSha: "abc1234",
+			message: "Test commit",
+			messageBody: "",
+			author: "Acepe",
+			authorEmail: "acepe@example.com",
+			date: "2026-03-12T00:00:00Z",
+			files: [],
+			repoContext: null,
 		})
 	),
 	fetchPrDiff: vi.fn(() =>
-		Promise.resolve({
-			match(onOk: (value: unknown) => void) {
-				onOk({
-					pr: {
-						number: 42,
-						title: "Test PR",
-						author: "Acepe",
-						state: "open",
-						description: "",
-					},
-					files: [],
-					repoContext: {
-						owner: "acepe",
-						repo: "desktop",
-					},
-				});
+		Effect.succeed({
+			pr: {
+				number: 42,
+				title: "Test PR",
+				author: "Acepe",
+				state: "open",
+				description: "",
+			},
+			files: [],
+			repoContext: {
+				owner: "acepe",
+				repo: "desktop",
 			},
 		})
 	),

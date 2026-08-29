@@ -105,7 +105,7 @@ function ensureStatsLoaded() {
 
 	if (enhancedRef.type === "pr" && enhancedRef.owner && enhancedRef.repo) {
 		void Effect.runPromise(
-			fetchPrDiff(enhancedRef.owner, enhancedRef.repo, enhancedRef.number).pipe(
+			fetchPrDiff(currentProjectPath, enhancedRef.owner, enhancedRef.repo, enhancedRef.number).pipe(
 				Effect.match({
 					onSuccess: (diff) => {
 						prState = diff.pr.state;

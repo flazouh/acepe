@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/svelte";
+import * as Effect from "effect/Effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("svelte", async () => {
@@ -42,30 +43,22 @@ const { default: GitHubBadgeComponent } = await import("./github-badge.svelte");
 
 describe("GitHubBadge", () => {
 	beforeEach(() => {
+		// github-service returns Effects, so the badge pipes the return
+		// value straight into Effect.match -- a resolved Promise here would
+		// blow up on `.pipe` before the assertion ever runs.
 		fetchCommitDiffMock.mockReset();
-		fetchCommitDiffMock.mockResolvedValue({
-			match: (
-				onOk: (diff: { files: Array<{ additions?: number; deletions?: number }> }) => void
-			) => {
-				onOk({
-					files: [{ additions: 7, deletions: 2 }],
-				});
-			},
-		});
+		fetchCommitDiffMock.mockReturnValue(
+			Effect.succeed({
+				files: [{ additions: 7, deletions: 2 }],
+			})
+		);
 		fetchPrDiffMock.mockReset();
-		fetchPrDiffMock.mockResolvedValue({
-			match: (
-				onOk: (diff: {
-					pr: { state: "open" };
-					files: Array<{ additions?: number; deletions?: number }>;
-				}) => void
-			) => {
-				onOk({
-					pr: { state: "open" },
-					files: [{ additions: 3, deletions: 1 }],
-				});
-			},
-		});
+		fetchPrDiffMock.mockReturnValue(
+			Effect.succeed({
+				pr: { state: "open" },
+				files: [{ additions: 3, deletions: 1 }],
+			})
+		);
 	});
 
 	afterEach(() => {
@@ -104,7 +97,7 @@ describe("GitHubBadge", () => {
 		});
 
 		await waitFor(() => {
-			expect(fetchPrDiffMock).toHaveBeenCalledWith("flazouh", "acepe", 42);
+			expect(fetchPrDiffMock).toHaveBeenCalledWith("/repo", "flazouh", "acepe", 42);
 		});
 	});
 

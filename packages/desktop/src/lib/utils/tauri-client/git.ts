@@ -1,4 +1,13 @@
-import type { GitCallResult } from "@acepe/contracts";
+import type {
+	GitCallCommitDiff,
+	GitCallDiffFile,
+	GitCallDiffFileStatus,
+	GitCallPrDiff,
+	GitCallPrListFilter,
+	GitCallPrListItem,
+	GitCallRepoContext,
+	GitCallResult,
+} from "@acepe/contracts";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
@@ -553,6 +562,82 @@ export const git = {
 		return withRpcClient("git.saveWorktreeConfig", (client) =>
 			client.gitCall({ op: "git.saveWorktreeConfig", projectPath, setupCommands })
 		).pipe(Effect.asVoid);
+	},
+
+	// ─── GitHub reads ───────────────────────────────────────────────────
+	//
+	// github-service.ts layers caching and its own GitHubError vocabulary
+	// on top of these five; nothing else calls them directly.
+
+	repoContext: (projectPath: string): Effect.Effect<GitCallRepoContext, AppError> => {
+		return withRpcClient("git.repoContext", (client) =>
+			client.gitCall({ op: "git.repoContext", projectPath })
+		).pipe(
+			Effect.flatMap((result) => unwrapGitCallResult("git.repoContext", result)),
+			Effect.map((result) => result.context)
+		);
+	},
+
+	commitDiff: (projectPath: string, sha: string): Effect.Effect<GitCallCommitDiff, AppError> => {
+		return withRpcClient("git.commitDiff", (client) =>
+			client.gitCall({ op: "git.commitDiff", projectPath, sha })
+		).pipe(
+			Effect.flatMap((result) => unwrapGitCallResult("git.commitDiff", result)),
+			Effect.map((result) => result.diff)
+		);
+	},
+
+	prDiff: (
+		projectPath: string,
+		owner: string,
+		repo: string,
+		prNumber: number
+	): Effect.Effect<GitCallPrDiff, AppError> => {
+		return withRpcClient("git.prDiff", (client) =>
+			client.gitCall({ op: "git.prDiff", projectPath, owner, repo, prNumber })
+		).pipe(
+			Effect.flatMap((result) => unwrapGitCallResult("git.prDiff", result)),
+			Effect.map((result) => result.diff)
+		);
+	},
+
+	listPullRequests: (
+		projectPath: string,
+		owner: string,
+		repo: string,
+		state: GitCallPrListFilter,
+		limit: number
+	): Effect.Effect<readonly GitCallPrListItem[], AppError> => {
+		return withRpcClient("git.listPullRequests", (client) =>
+			client.gitCall({ op: "git.listPullRequests", projectPath, owner, repo, state, limit })
+		).pipe(
+			Effect.flatMap((result) => unwrapGitCallResult("git.listPullRequests", result)),
+			Effect.map((result) => result.pullRequests)
+		);
+	},
+
+	workingFileDiff: (
+		projectPath: string,
+		filePath: string,
+		staged: boolean,
+		status: GitCallDiffFileStatus,
+		additions: number,
+		deletions: number
+	): Effect.Effect<GitCallDiffFile, AppError> => {
+		return withRpcClient("git.workingFileDiff", (client) =>
+			client.gitCall({
+				op: "git.workingFileDiff",
+				projectPath,
+				filePath,
+				staged,
+				status,
+				additions,
+				deletions,
+			})
+		).pipe(
+			Effect.flatMap((result) => unwrapGitCallResult("git.workingFileDiff", result)),
+			Effect.map((result) => result.diff)
+		);
 	},
 };
 
