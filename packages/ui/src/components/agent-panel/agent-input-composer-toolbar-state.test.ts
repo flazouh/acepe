@@ -18,6 +18,7 @@ function makeVoiceState(
 ): AgentComposerToolbarVoiceBinding {
 	return {
 		phase,
+		errorMessage: null,
 		recordingElapsedTenths: null,
 		downloadPercent: 0,
 		meterLevels: [],

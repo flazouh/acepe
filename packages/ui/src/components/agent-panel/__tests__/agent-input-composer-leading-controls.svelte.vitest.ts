@@ -30,7 +30,7 @@ describe("AgentInputComposerLeadingControls", () => {
 		expect(modeControl).not.toBeNull();
 		expect(modelControl).not.toBeNull();
 		expect(
-			modeControl?.compareDocumentPosition(modelControl as Node) &
+			(modeControl as Node).compareDocumentPosition(modelControl as Node) &
 				Node.DOCUMENT_POSITION_FOLLOWING
 		).toBeTruthy();
 	});
