@@ -6,6 +6,8 @@ import {
 	parseOpenPrList,
 	parsePrChecks,
 	parsePrDetails,
+	parsePrList,
+	parsePrMetadata,
 	parseStepLogs
 } from "./ghParse.ts"
 
@@ -110,5 +112,75 @@ Vitest.describe("parseStepLogs and parseCiJob", () => {
 		Vitest.assert.strictEqual(job.id, 77)
 		Vitest.assert.strictEqual(job.steps[0]?.log, "bun install")
 		Vitest.assert.strictEqual(job.steps[1]?.log, "bun test")
+	})
+})
+
+const PR_LIST_FIXTURE = `[
+  {
+    "number": 42,
+    "title": "Wire GitHub through RPC",
+    "author": { "login": "flazouh" },
+    "state": "OPEN",
+    "headRefName": "feat/rpc",
+    "baseRefName": "main",
+    "updatedAt": "2026-08-29T10:00:00Z",
+    "additions": 120,
+    "deletions": 30,
+    "changedFiles": 7
+  },
+  {
+    "number": 41,
+    "state": "MERGED"
+  }
+]`
+
+Vitest.describe("parsePrList", () => {
+	Vitest.it("lowercases the state, flattens the author, and fills missing fields", () => {
+		const entries = parsePrList(PR_LIST_FIXTURE)
+		Vitest.assert.strictEqual(entries.length, 2)
+		Vitest.assert.deepStrictEqual(entries[0], {
+			number: 42,
+			title: "Wire GitHub through RPC",
+			author: "flazouh",
+			state: "open",
+			headRef: "feat/rpc",
+			baseRef: "main",
+			updatedAt: "2026-08-29T10:00:00Z",
+			additions: 120,
+			deletions: 30,
+			changedFiles: 7
+		})
+		Vitest.assert.strictEqual(entries[1]?.state, "merged")
+		Vitest.assert.strictEqual(entries[1]?.author, "")
+		Vitest.assert.strictEqual(entries[1]?.changedFiles, 0)
+	})
+
+	Vitest.it("parses an empty listing", () => {
+		Vitest.assert.strictEqual(parsePrList("[]").length, 0)
+	})
+})
+
+Vitest.describe("parsePrMetadata", () => {
+	Vitest.it("maps gh pr view onto the diff viewer's PR metadata", () => {
+		const metadata = parsePrMetadata(
+			`{"number":7,"title":"Some PR","author":{"login":"flazouh"},"state":"CLOSED","body":"why"}`
+		)
+		Vitest.assert.deepStrictEqual(metadata, {
+			number: 7,
+			title: "Some PR",
+			author: "flazouh",
+			state: "closed",
+			description: "why"
+		})
+	})
+
+	Vitest.it("degrades to defaults when gh omits keys", () => {
+		Vitest.assert.deepStrictEqual(parsePrMetadata("{}"), {
+			number: 0,
+			title: "",
+			author: "",
+			state: "open",
+			description: ""
+		})
 	})
 })

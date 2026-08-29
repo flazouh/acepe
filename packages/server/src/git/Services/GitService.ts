@@ -6,6 +6,7 @@ import type { GitServiceError } from "../Errors.ts"
 import type {
 	CiJobDetails,
 	CloneResult,
+	CommitDiff,
 	CommitResult,
 	FileDiffInput,
 	FileDiffResult,
@@ -15,6 +16,7 @@ import type {
 	GitCheckoutInput,
 	GitCiJobInput,
 	GitCloneInput,
+	GitCommitDiffInput,
 	GitCommitInput,
 	GitCreateBranchInput,
 	GitDeleteBranchInput,
@@ -22,10 +24,12 @@ import type {
 	GitDiscardWorktreeLaunchInput,
 	GitFilesInput,
 	GitHeadChangedPayload,
+	GitListPullRequestsInput,
 	GitLogEntry,
 	GitLogInput,
 	GitMergePrInput,
 	GitPanelFileStatus,
+	GitPrDiffInput,
 	GitPrepareWorktreeInput,
 	GitPrNumberInput,
 	GitRemoteStatus,
@@ -42,8 +46,11 @@ import type {
 	OpenPrInfo,
 	PrChecks,
 	PrDetails,
+	PrDiff,
 	PreparedWorktreeLaunch,
+	PrListItem,
 	ProjectGitOverview,
+	RepoContext,
 	SetupResult,
 	ShipContext,
 	WorkingFileDiff,
@@ -145,6 +152,14 @@ export interface GitServiceShape {
 		projectPath: string
 	) => Effect.Effect<Option.Option<OpenPrInfo>, GitServiceError>
 	readonly ciJobDetails: (input: GitCiJobInput) => Effect.Effect<CiJobDetails, GitServiceError>
+	// GitHub reads behind the in-chat badge, the diff-viewer modal, the
+	// PR-link footer button and the git panel's PR tab.
+	readonly repoContext: (projectPath: string) => Effect.Effect<RepoContext, GitServiceError>
+	readonly commitDiff: (input: GitCommitDiffInput) => Effect.Effect<CommitDiff, GitServiceError>
+	readonly prDiff: (input: GitPrDiffInput) => Effect.Effect<PrDiff, GitServiceError>
+	readonly listPullRequests: (
+		input: GitListPullRequestsInput
+	) => Effect.Effect<ReadonlyArray<PrListItem>, GitServiceError>
 	readonly watchHead: (
 		projectPath: string
 	) => Stream.Stream<GitHeadChangedPayload, GitServiceError>

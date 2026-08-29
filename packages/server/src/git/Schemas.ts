@@ -427,3 +427,101 @@ export const AcepeConfigFile = Schema.Struct({
 	)
 })
 export type AcepeConfigFile = typeof AcepeConfigFile.Type
+
+// ─── github: repo context, commit/PR diffs, PR list ───────────────────────
+//
+// Reads that back the in-chat GitHub badge, the diff-viewer modal, the
+// PR-link footer button and the git panel's PR tab. `repoContext` comes
+// from the origin remote; the diffs come from local git for commits and
+// from `gh` for pull requests.
+
+export const RepoContext = Schema.Struct({
+	owner: Schema.String,
+	repo: Schema.String,
+	remoteUrl: Schema.String
+})
+export type RepoContext = typeof RepoContext.Type
+
+export const DiffFileStatus = Schema.Literals(["added", "modified", "deleted", "renamed"])
+export type DiffFileStatus = typeof DiffFileStatus.Type
+
+export const DiffFile = Schema.Struct({
+	path: Schema.String,
+	status: DiffFileStatus,
+	additions: NonNegativeInt,
+	deletions: NonNegativeInt,
+	patch: Schema.String
+})
+export type DiffFile = typeof DiffFile.Type
+
+export const CommitDiff = Schema.Struct({
+	sha: Schema.String,
+	shortSha: Schema.String,
+	message: Schema.String,
+	messageBody: Schema.String,
+	author: Schema.String,
+	authorEmail: Schema.String,
+	date: Schema.String,
+	files: Schema.Array(DiffFile),
+	repoContext: Schema.NullOr(RepoContext)
+})
+export type CommitDiff = typeof CommitDiff.Type
+
+export const PrListState = Schema.Literals(["open", "closed", "merged"])
+export type PrListState = typeof PrListState.Type
+
+export const PrMetadata = Schema.Struct({
+	number: Schema.Int,
+	title: Schema.String,
+	author: Schema.String,
+	state: PrListState,
+	description: Schema.String
+})
+export type PrMetadata = typeof PrMetadata.Type
+
+export const PrDiff = Schema.Struct({
+	pr: PrMetadata,
+	files: Schema.Array(DiffFile),
+	repoContext: RepoContext
+})
+export type PrDiff = typeof PrDiff.Type
+
+export const PrListItem = Schema.Struct({
+	number: Schema.Int,
+	title: Schema.String,
+	author: Schema.String,
+	state: PrListState,
+	headRef: Schema.String,
+	baseRef: Schema.String,
+	updatedAt: Schema.String,
+	additions: NonNegativeInt,
+	deletions: NonNegativeInt,
+	changedFiles: NonNegativeInt
+})
+export type PrListItem = typeof PrListItem.Type
+
+export const GitCommitDiffInput = Schema.Struct({
+	projectPath: TrimmedNonEmptyString,
+	sha: TrimmedNonEmptyString
+})
+export type GitCommitDiffInput = typeof GitCommitDiffInput.Type
+
+export const GitPrDiffInput = Schema.Struct({
+	projectPath: TrimmedNonEmptyString,
+	owner: TrimmedNonEmptyString,
+	repo: TrimmedNonEmptyString,
+	prNumber: Schema.Int
+})
+export type GitPrDiffInput = typeof GitPrDiffInput.Type
+
+export const PrListFilter = Schema.Literals(["open", "closed", "all"])
+export type PrListFilter = typeof PrListFilter.Type
+
+export const GitListPullRequestsInput = Schema.Struct({
+	projectPath: TrimmedNonEmptyString,
+	owner: TrimmedNonEmptyString,
+	repo: TrimmedNonEmptyString,
+	state: PrListFilter,
+	limit: Schema.Int.check(Schema.isGreaterThanOrEqualTo(1))
+})
+export type GitListPullRequestsInput = typeof GitListPullRequestsInput.Type

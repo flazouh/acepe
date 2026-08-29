@@ -32,7 +32,9 @@ import {
 import {
 	parseAheadBehind,
 	parseBlame,
+	parseCommitMeta,
 	parseGitDiffFiles,
+	parseGithubRemote,
 	parseLog,
 	parseNumstat,
 	parsePorcelain,
@@ -42,8 +44,10 @@ import {
 	toFileGitStatus,
 	toPanelStatus,
 	capitalizeName,
+	countPatchChanges,
 	isCloneUrl,
 	lookupNumstat,
+	toDiffFileStatus,
 	truncateContext,
 	type Numstat
 } from "./parse.ts"
@@ -54,9 +58,16 @@ import {
 	parseOpenPrList,
 	parsePrChecks,
 	parsePrDetails,
+	parsePrList,
+	parsePrMetadata,
 	parseStepLogs
 } from "./ghParse.ts"
-import { AcepeConfigFile, type CommandOutput, type WorktreeInfo } from "./Schemas.ts"
+import {
+	AcepeConfigFile,
+	type CommandOutput,
+	type DiffFile,
+	type WorktreeInfo
+} from "./Schemas.ts"
 import { buildShipPrompt, prBodyWithAcepeFooter } from "./shipPrompt.ts"
 import { GitService, type GitServiceShape } from "./Services/GitService.ts"
 import { WORKTREE_ADJECTIVES, WORKTREE_NOUNS } from "./worktreeNames.ts"
@@ -75,6 +86,21 @@ const decodeAcepeConfig = Schema.decodeUnknownEffect(Schema.fromJsonString(Acepe
 const encodeAcepeConfig = Schema.encodeUnknownEffect(Schema.fromJsonString(AcepeConfigFile))
 const MAX_SUMMARY_BYTES = 8_000
 const MAX_PATCH_BYTES = 50_000
+
+// One unified diff -> the per-file shape the diff viewer renders. Neither
+// `git show --patch` nor `gh pr diff` carries numstat, so the per-file
+// counts come from the patch body itself.
+const toDiffFiles = (patch: string): ReadonlyArray<DiffFile> =>
+	Arr.map(parseGitDiffFiles(patch), (file) => {
+		const counts = countPatchChanges(file.patch)
+		return {
+			path: file.path,
+			status: toDiffFileStatus(file.status),
+			additions: counts.additions,
+			deletions: counts.deletions,
+			patch: file.patch
+		}
+	})
 
 const pad2 = (n: number): string => (n < 10 ? `0${String(n)}` : String(n))
 
@@ -1159,6 +1185,140 @@ export const makeGitService = Effect.fn("GitService.make")(function*(
 		return parseCiJob(job.stdout, parseStepLogs(logs.stdout, names))
 	})
 
+	const repoContext = Effect.fn("GitService.repoContext")(function*(projectPath: string) {
+		yield* ensureRepo(projectPath)
+		const args = Arr.fromIterable(["remote", "get-url", "origin"])
+		const remote = yield* gitCmd(projectPath, args, missingAllow)
+		const remoteUrl = remote.stdout.trim()
+		if (remote.exitCode !== 0 || remoteUrl === "") {
+			return yield* new GitCommandError({
+				bin: options.gitBin,
+				args,
+				cwd: projectPath,
+				exitCode: remote.exitCode,
+				stderr: "no origin remote"
+			})
+		}
+		const parsed = parseGithubRemote(remoteUrl)
+		if (Option.isNone(parsed)) {
+			return yield* new GitCommandError({
+				bin: options.gitBin,
+				args,
+				cwd: projectPath,
+				exitCode: 1,
+				stderr: `not a GitHub remote: ${remoteUrl}`
+			})
+		}
+		return {
+			owner: parsed.value.owner,
+			repo: parsed.value.repo,
+			remoteUrl
+		}
+	})
+
+	const commitDiff = Effect.fn("GitService.commitDiff")(function*(
+		projectPath: string,
+		sha: string
+	) {
+		yield* ensureRepo(projectPath)
+		// Three independent subprocesses: commit metadata, the patch, and
+		// the link context. Running them together keeps opening a diff at
+		// the cost of the slowest one rather than the sum.
+		//
+		// The commit itself reads fine without a GitHub remote; the context
+		// only decides whether the viewer can link out, so a repo with no
+		// origin (or a non-GitHub one) degrades to null instead of failing.
+		const [metaOutput, patch, context] = yield* Effect.all(
+			[
+				git(
+					projectPath,
+					Arr.fromIterable(["show", "-s", "--format=%H%n%h%n%an%n%ae%n%aI%n%s%n%b", sha]),
+					noAllow
+				),
+				git(projectPath, Arr.fromIterable(["show", "--format=", "--patch", sha]), noAllow),
+				Effect.result(repoContext(projectPath))
+			],
+			{ concurrency: "unbounded" }
+		)
+		const meta = parseCommitMeta(metaOutput)
+		return {
+			sha: meta.sha,
+			shortSha: meta.shortSha,
+			message: meta.message,
+			messageBody: meta.messageBody,
+			author: meta.author,
+			authorEmail: meta.authorEmail,
+			date: meta.date,
+			files: toDiffFiles(patch),
+			repoContext: Result.isSuccess(context) ? context.success : null
+		}
+	})
+
+	const prDiff = Effect.fn("GitService.prDiff")(function*(
+		projectPath: string,
+		owner: string,
+		repo: string,
+		prNumber: number
+	) {
+		yield* ensureRepo(projectPath)
+		const target = `${owner}/${repo}`
+		// Two independent GitHub round-trips; sequential they would double
+		// the wait before the diff viewer can paint.
+		const [view, patch] = yield* Effect.all(
+			[
+				ghCmd(
+					projectPath,
+					Arr.fromIterable([
+						"pr",
+						"view",
+						String(prNumber),
+						"--repo",
+						target,
+						"--json",
+						"number,title,author,state,body"
+					])
+				),
+				ghCmd(projectPath, Arr.fromIterable(["pr", "diff", String(prNumber), "--repo", target]))
+			],
+			{ concurrency: "unbounded" }
+		)
+		return {
+			pr: parsePrMetadata(view.stdout),
+			files: toDiffFiles(patch.stdout),
+			repoContext: {
+				owner,
+				repo,
+				remoteUrl: `https://github.com/${target}`
+			}
+		}
+	})
+
+	const listPullRequests = Effect.fn("GitService.listPullRequests")(function*(
+		projectPath: string,
+		owner: string,
+		repo: string,
+		state: "open" | "closed" | "all",
+		limit: number
+	) {
+		yield* ensureRepo(projectPath)
+		const result = yield* ghCmd(
+			projectPath,
+			Arr.fromIterable([
+				"pr",
+				"list",
+				"--repo",
+				`${owner}/${repo}`,
+				"--state",
+				state,
+				"--limit",
+				String(limit),
+				"--json",
+				"number,title,author,state,headRefName,baseRefName,updatedAt,additions,deletions,changedFiles"
+			])
+		)
+		return parsePrList(result.stdout)
+	})
+
 	const watchHead = (projectPath: string) =>
 		Stream.tick(Duration.millis(300)).pipe(
 			Stream.mapEffect(() =>
@@ -1271,6 +1431,11 @@ export const makeGitService = Effect.fn("GitService.make")(function*(
 		mergePr: (input) => mergePr(input.projectPath, input.prNumber, input.strategy),
 		getOpenPrForBranch,
 		ciJobDetails: (input) => ciJobDetails(input.projectPath, input.detailsUrl),
+		repoContext,
+		commitDiff: (input) => commitDiff(input.projectPath, input.sha),
+		prDiff: (input) => prDiff(input.projectPath, input.owner, input.repo, input.prNumber),
+		listPullRequests: (input) =>
+			listPullRequests(input.projectPath, input.owner, input.repo, input.state, input.limit),
 		watchHead
 	} satisfies GitServiceShape)
 })

@@ -3,19 +3,23 @@ import * as HashMap from "effect/HashMap"
 import * as Option from "effect/Option"
 import {
 	capitalizeName,
+	countPatchChanges,
 	fileStatusChar,
 	formatRelativeTime,
 	isCloneUrl,
 	lookupNumstat,
 	parseAheadBehind,
 	parseBlame,
+	parseCommitMeta,
 	parseGitDiffFiles,
+	parseGithubRemote,
 	parseLog,
 	parseNumstat,
 	parsePorcelain,
 	parseShortstat,
 	parseStashList,
 	parseWorktreePorcelain,
+	toDiffFileStatus,
 	toFileGitStatus,
 	toPanelStatus,
 	truncateContext
@@ -287,5 +291,90 @@ Vitest.describe("isCloneUrl", () => {
 		Vitest.assert.strictEqual(isCloneUrl("http://example.com/r.git"), true)
 		Vitest.assert.strictEqual(isCloneUrl("git@github.com:a/b.git"), true)
 		Vitest.assert.strictEqual(isCloneUrl("ftp://x"), false)
+	})
+})
+
+Vitest.describe("parseGithubRemote", () => {
+	Vitest.it("reads owner and repo from every spelling git remote returns", () => {
+		const cases = [
+			"git@github.com:flazouh/acepe.git",
+			"ssh://git@github.com/flazouh/acepe.git",
+			"https://github.com/flazouh/acepe.git",
+			"https://github.com/flazouh/acepe",
+			"github.com/flazouh/acepe\n"
+		]
+		for (const remote of cases) {
+			Vitest.assert.deepStrictEqual(Option.getOrUndefined(parseGithubRemote(remote)), {
+				owner: "flazouh",
+				repo: "acepe"
+			})
+		}
+	})
+
+	Vitest.it("returns None for a non-GitHub or incomplete remote", () => {
+		Vitest.assert.strictEqual(Option.isNone(parseGithubRemote("git@gitlab.com:a/b.git")), true)
+		Vitest.assert.strictEqual(Option.isNone(parseGithubRemote("https://github.com/flazouh")), true)
+		Vitest.assert.strictEqual(Option.isNone(parseGithubRemote("")), true)
+	})
+})
+
+Vitest.describe("countPatchChanges", () => {
+	Vitest.it("counts content lines and skips the +++/--- file headers", () => {
+		const patch = [
+			"--- a/src/a.ts",
+			"+++ b/src/a.ts",
+			"@@ -1,2 +1,3 @@",
+			" keep",
+			"-gone",
+			"+added",
+			"+also added"
+		].join("\n")
+		Vitest.assert.deepStrictEqual(countPatchChanges(patch), { additions: 2, deletions: 1 })
+	})
+
+	Vitest.it("counts nothing in an empty patch", () => {
+		Vitest.assert.deepStrictEqual(countPatchChanges(""), { additions: 0, deletions: 0 })
+	})
+})
+
+Vitest.describe("toDiffFileStatus", () => {
+	Vitest.it("passes through the three non-default statuses and defaults the rest", () => {
+		Vitest.assert.strictEqual(toDiffFileStatus("added"), "added")
+		Vitest.assert.strictEqual(toDiffFileStatus("deleted"), "deleted")
+		Vitest.assert.strictEqual(toDiffFileStatus("renamed"), "renamed")
+		Vitest.assert.strictEqual(toDiffFileStatus("modified"), "modified")
+		Vitest.assert.strictEqual(toDiffFileStatus("whatever"), "modified")
+	})
+})
+
+Vitest.describe("parseCommitMeta", () => {
+	Vitest.it("reads the fixed field order and keeps a multi-line body", () => {
+		const meta = parseCommitMeta(
+			[
+				"abcdef1234567890abcdef1234567890abcdef12",
+				"abcdef1",
+				"Alex",
+				"alex@example.com",
+				"2026-08-29T12:00:00+02:00",
+				"fix: the thing",
+				"why it broke",
+				"",
+				"and how"
+			].join("\n")
+		)
+		Vitest.assert.strictEqual(meta.sha, "abcdef1234567890abcdef1234567890abcdef12")
+		Vitest.assert.strictEqual(meta.shortSha, "abcdef1")
+		Vitest.assert.strictEqual(meta.author, "Alex")
+		Vitest.assert.strictEqual(meta.authorEmail, "alex@example.com")
+		Vitest.assert.strictEqual(meta.date, "2026-08-29T12:00:00+02:00")
+		Vitest.assert.strictEqual(meta.message, "fix: the thing")
+		Vitest.assert.strictEqual(meta.messageBody, "why it broke\n\nand how")
+	})
+
+	Vitest.it("degrades to empty fields on truncated output", () => {
+		const meta = parseCommitMeta("abcdef1")
+		Vitest.assert.strictEqual(meta.sha, "abcdef1")
+		Vitest.assert.strictEqual(meta.message, "")
+		Vitest.assert.strictEqual(meta.messageBody, "")
 	})
 })

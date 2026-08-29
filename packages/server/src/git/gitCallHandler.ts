@@ -308,5 +308,68 @@ export const routeGitCall = Effect.fn("routeGitCall")(function*(request: GitCall
 			}).pipe(Effect.mapError(toRpcGitCallError(request.op)))
 			return { op: "git.ciJobDetails", details } as const satisfies GitCallResult
 		}
+		case "git.repoContext": {
+			yield* guard(request.projectPath)
+			const context = yield* git.repoContext(request.projectPath).pipe(
+				Effect.mapError(toRpcGitCallError(request.op))
+			)
+			return { op: "git.repoContext", context } as const satisfies GitCallResult
+		}
+		case "git.commitDiff": {
+			yield* guard(request.projectPath)
+			const diff = yield* git.commitDiff({
+				projectPath: request.projectPath,
+				sha: request.sha
+			}).pipe(Effect.mapError(toRpcGitCallError(request.op)))
+			return {
+				op: "git.commitDiff",
+				diff: { ...diff, files: Array.from(diff.files) }
+			} as const satisfies GitCallResult
+		}
+		case "git.prDiff": {
+			yield* guard(request.projectPath)
+			const diff = yield* git.prDiff({
+				projectPath: request.projectPath,
+				owner: request.owner,
+				repo: request.repo,
+				prNumber: request.prNumber
+			}).pipe(Effect.mapError(toRpcGitCallError(request.op)))
+			return {
+				op: "git.prDiff",
+				diff: { ...diff, files: Array.from(diff.files) }
+			} as const satisfies GitCallResult
+		}
+		case "git.listPullRequests": {
+			yield* guard(request.projectPath)
+			const pullRequests = yield* git.listPullRequests({
+				projectPath: request.projectPath,
+				owner: request.owner,
+				repo: request.repo,
+				state: request.state,
+				limit: request.limit
+			}).pipe(Effect.mapError(toRpcGitCallError(request.op)))
+			return {
+				op: "git.listPullRequests",
+				pullRequests: Array.from(pullRequests)
+			} as const satisfies GitCallResult
+		}
+		case "git.workingFileDiff": {
+			yield* guard(request.projectPath)
+			const diff = yield* git.workingFileDiff({
+				projectPath: request.projectPath,
+				filePath: request.filePath,
+				staged: request.staged,
+				status: request.status,
+				additions: request.additions,
+				deletions: request.deletions
+			}).pipe(Effect.mapError(toRpcGitCallError(request.op)))
+			// GitService echoes the caller's status back as a plain string;
+			// the result union wants the four-way literal, and the request
+			// already carries it narrowed.
+			return {
+				op: "git.workingFileDiff",
+				diff: { ...diff, status: request.status }
+			} as const satisfies GitCallResult
+		}
 	}
 })

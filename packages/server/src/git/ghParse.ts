@@ -9,6 +9,9 @@ import {
 	PrChecks,
 	PrCheckStatus,
 	PrDetails,
+	PrListItem,
+	PrListState,
+	PrMetadata,
 	PrState
 } from "./Schemas.ts"
 
@@ -274,4 +277,84 @@ export const parseStepLogs = (
 	}
 	flush()
 	return result
+}
+
+// ─── pull request listings and diff metadata ──────────────────────────────
+//
+// `gh pr list`/`gh pr view` spell the state in upper case and nest the
+// author under `.login`; the diff viewer's PrListItem/PrMetadata use the
+// lower-case spelling and a flat author name, so these two parsers do that
+// translation. Every field is optional in the raw shape: gh omits keys for
+// fields it could not resolve rather than sending nulls.
+
+const RawPrAuthor = Schema.Struct({
+	login: Schema.optionalKey(Schema.String)
+})
+
+const RawPrListEntry = Schema.Struct({
+	number: Schema.optionalKey(Schema.Int),
+	title: Schema.optionalKey(Schema.String),
+	author: RawPrAuthor.pipe(Schema.NullOr, Schema.optionalKey),
+	state: Schema.optionalKey(Schema.String),
+	headRefName: Schema.optionalKey(Schema.String),
+	baseRefName: Schema.optionalKey(Schema.String),
+	updatedAt: Schema.optionalKey(Schema.String),
+	additions: Schema.optionalKey(Schema.Int),
+	deletions: Schema.optionalKey(Schema.Int),
+	changedFiles: Schema.optionalKey(Schema.Int)
+})
+
+const RawPrMetadata = Schema.Struct({
+	number: Schema.optionalKey(Schema.Int),
+	title: Schema.optionalKey(Schema.String),
+	author: RawPrAuthor.pipe(Schema.NullOr, Schema.optionalKey),
+	state: Schema.optionalKey(Schema.String),
+	body: Schema.optionalKey(Schema.String)
+})
+
+const decodeRawPrList = Schema.decodeUnknownSync(
+	Schema.fromJsonString(Schema.Array(RawPrListEntry))
+)
+const decodeRawPrMetadata = Schema.decodeUnknownSync(Schema.fromJsonString(RawPrMetadata))
+
+const toPrListState = (raw: string | undefined): PrListState => {
+	if (raw === "MERGED" || raw === "merged") {
+		return "merged"
+	}
+	if (raw === "CLOSED" || raw === "closed") {
+		return "closed"
+	}
+	return "open"
+}
+
+const authorLogin = (author: { readonly login?: string } | null | undefined): string => {
+	if (author === undefined || author === null) {
+		return ""
+	}
+	return author.login ?? ""
+}
+
+export const parsePrList = (output: string): ReadonlyArray<PrListItem> =>
+	Arr.map(decodeRawPrList(output), (entry) => ({
+		number: entry.number ?? 0,
+		title: entry.title ?? "",
+		author: authorLogin(entry.author),
+		state: toPrListState(entry.state),
+		headRef: entry.headRefName ?? "",
+		baseRef: entry.baseRefName ?? "",
+		updatedAt: entry.updatedAt ?? "",
+		additions: entry.additions ?? 0,
+		deletions: entry.deletions ?? 0,
+		changedFiles: entry.changedFiles ?? 0
+	}))
+
+export const parsePrMetadata = (output: string): PrMetadata => {
+	const raw = decodeRawPrMetadata(output)
+	return {
+		number: raw.number ?? 0,
+		title: raw.title ?? "",
+		author: authorLogin(raw.author),
+		state: toPrListState(raw.state),
+		description: raw.body ?? ""
+	}
 }

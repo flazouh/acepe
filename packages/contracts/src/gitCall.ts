@@ -651,6 +651,163 @@ export const GitCallCiJobDetailsResult = Schema.Struct({
 })
 export type GitCallCiJobDetailsResult = typeof GitCallCiJobDetailsResult.Type
 
+// ─── github: repo context, commit/PR diffs, PR list, working-file diff ────
+//
+// The in-chat GitHub badge, the diff-viewer modal, the PR-link footer
+// button and the git panel all read diffs and PR listings. They used to
+// call five Tauri commands (get_github_repo_context, fetch_commit_diff,
+// fetch_pr_diff, list_pull_requests, git_working_file_diff); those ride
+// gitCall now, like every other git sub-domain.
+//
+// Every op carries a projectPath: the server confines it with the same
+// guardFsPath the other ops use, and `gh` needs a repo directory to run in
+// even when the request also names owner/repo explicitly.
+
+export const GitCallRepoContext = Schema.Struct({
+	owner: Schema.String,
+	repo: Schema.String,
+	remoteUrl: Schema.String,
+})
+export type GitCallRepoContext = typeof GitCallRepoContext.Type
+
+export const GitCallDiffFileStatus = Schema.Literals(["added", "modified", "deleted", "renamed"])
+export type GitCallDiffFileStatus = typeof GitCallDiffFileStatus.Type
+
+export const GitCallDiffFile = Schema.Struct({
+	path: Schema.String,
+	status: GitCallDiffFileStatus,
+	additions: NonNegativeInt,
+	deletions: NonNegativeInt,
+	patch: Schema.String,
+})
+export type GitCallDiffFile = typeof GitCallDiffFile.Type
+
+export const GitCallCommitDiff = Schema.Struct({
+	sha: Schema.String,
+	shortSha: Schema.String,
+	message: Schema.String,
+	messageBody: Schema.String,
+	author: Schema.String,
+	authorEmail: Schema.String,
+	date: Schema.String,
+	files: Schema.Array(GitCallDiffFile),
+	// Null when the repo has no GitHub remote: the commit still reads fine
+	// from local git, there is just no owner/repo to link it to.
+	repoContext: Schema.NullOr(GitCallRepoContext),
+})
+export type GitCallCommitDiff = typeof GitCallCommitDiff.Type
+
+// Lowercase, unlike GitCallPrState's uppercase gh-native spelling: this is
+// what the diff viewer's PrMetadata/PrListItem types already use.
+export const GitCallPrListState = Schema.Literals(["open", "closed", "merged"])
+export type GitCallPrListState = typeof GitCallPrListState.Type
+
+export const GitCallPrMetadata = Schema.Struct({
+	number: Schema.Int,
+	title: Schema.String,
+	author: Schema.String,
+	state: GitCallPrListState,
+	description: Schema.String,
+})
+export type GitCallPrMetadata = typeof GitCallPrMetadata.Type
+
+export const GitCallPrDiff = Schema.Struct({
+	pr: GitCallPrMetadata,
+	files: Schema.Array(GitCallDiffFile),
+	repoContext: GitCallRepoContext,
+})
+export type GitCallPrDiff = typeof GitCallPrDiff.Type
+
+export const GitCallPrListItem = Schema.Struct({
+	number: Schema.Int,
+	title: Schema.String,
+	author: Schema.String,
+	state: GitCallPrListState,
+	headRef: Schema.String,
+	baseRef: Schema.String,
+	updatedAt: Schema.String,
+	additions: NonNegativeInt,
+	deletions: NonNegativeInt,
+	changedFiles: NonNegativeInt,
+})
+export type GitCallPrListItem = typeof GitCallPrListItem.Type
+
+export const GitCallRepoContextRequest = Schema.Struct({
+	op: Schema.Literal("git.repoContext"),
+	projectPath: TrimmedNonEmptyString,
+})
+export type GitCallRepoContextRequest = typeof GitCallRepoContextRequest.Type
+
+export const GitCallRepoContextResult = Schema.Struct({
+	op: Schema.Literal("git.repoContext"),
+	context: GitCallRepoContext,
+})
+export type GitCallRepoContextResult = typeof GitCallRepoContextResult.Type
+
+export const GitCallCommitDiffRequest = Schema.Struct({
+	op: Schema.Literal("git.commitDiff"),
+	projectPath: TrimmedNonEmptyString,
+	sha: TrimmedNonEmptyString,
+})
+export type GitCallCommitDiffRequest = typeof GitCallCommitDiffRequest.Type
+
+export const GitCallCommitDiffResult = Schema.Struct({
+	op: Schema.Literal("git.commitDiff"),
+	diff: GitCallCommitDiff,
+})
+export type GitCallCommitDiffResult = typeof GitCallCommitDiffResult.Type
+
+export const GitCallPrDiffRequest = Schema.Struct({
+	op: Schema.Literal("git.prDiff"),
+	projectPath: TrimmedNonEmptyString,
+	owner: TrimmedNonEmptyString,
+	repo: TrimmedNonEmptyString,
+	prNumber: Schema.Int,
+})
+export type GitCallPrDiffRequest = typeof GitCallPrDiffRequest.Type
+
+export const GitCallPrDiffResult = Schema.Struct({
+	op: Schema.Literal("git.prDiff"),
+	diff: GitCallPrDiff,
+})
+export type GitCallPrDiffResult = typeof GitCallPrDiffResult.Type
+
+export const GitCallPrListFilter = Schema.Literals(["open", "closed", "all"])
+export type GitCallPrListFilter = typeof GitCallPrListFilter.Type
+
+export const GitCallListPullRequestsRequest = Schema.Struct({
+	op: Schema.Literal("git.listPullRequests"),
+	projectPath: TrimmedNonEmptyString,
+	owner: TrimmedNonEmptyString,
+	repo: TrimmedNonEmptyString,
+	state: GitCallPrListFilter,
+	limit: Schema.Int.check(Schema.isGreaterThanOrEqualTo(1)),
+})
+export type GitCallListPullRequestsRequest = typeof GitCallListPullRequestsRequest.Type
+
+export const GitCallListPullRequestsResult = Schema.Struct({
+	op: Schema.Literal("git.listPullRequests"),
+	pullRequests: Schema.Array(GitCallPrListItem),
+})
+export type GitCallListPullRequestsResult = typeof GitCallListPullRequestsResult.Type
+
+export const GitCallWorkingFileDiffRequest = Schema.Struct({
+	op: Schema.Literal("git.workingFileDiff"),
+	projectPath: TrimmedNonEmptyString,
+	filePath: TrimmedNonEmptyString,
+	staged: Schema.Boolean,
+	status: GitCallDiffFileStatus,
+	additions: NonNegativeInt,
+	deletions: NonNegativeInt,
+})
+export type GitCallWorkingFileDiffRequest = typeof GitCallWorkingFileDiffRequest.Type
+
+export const GitCallWorkingFileDiffResult = Schema.Struct({
+	op: Schema.Literal("git.workingFileDiff"),
+	diff: GitCallDiffFile,
+})
+export type GitCallWorkingFileDiffResult = typeof GitCallWorkingFileDiffResult.Type
+
 // ─── unions ───────────────────────────────────────────────────────────────
 
 export const GitCallRequest = Schema.Union([
@@ -688,6 +845,11 @@ export const GitCallRequest = Schema.Union([
 	GitCallPrChecksRequest,
 	GitCallMergePrRequest,
 	GitCallCiJobDetailsRequest,
+	GitCallRepoContextRequest,
+	GitCallCommitDiffRequest,
+	GitCallPrDiffRequest,
+	GitCallListPullRequestsRequest,
+	GitCallWorkingFileDiffRequest,
 ])
 export type GitCallRequest = typeof GitCallRequest.Type
 
@@ -726,5 +888,10 @@ export const GitCallResult = Schema.Union([
 	GitCallPrChecksResult,
 	GitCallMergePrResult,
 	GitCallCiJobDetailsResult,
+	GitCallRepoContextResult,
+	GitCallCommitDiffResult,
+	GitCallPrDiffResult,
+	GitCallListPullRequestsResult,
+	GitCallWorkingFileDiffResult,
 ])
 export type GitCallResult = typeof GitCallResult.Type

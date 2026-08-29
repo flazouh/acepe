@@ -7,8 +7,11 @@ import {
 	GitCallCommitResult,
 	GitCallLogRequest,
 	GitCallPanelStatusResult,
+	GitCallListPullRequestsRequest,
+	GitCallRepoContextResult,
 	GitCallRequest,
 	GitCallResult,
+	GitCallWorkingFileDiffRequest,
 } from "./gitCall.ts"
 
 describe("GitCallRequest", () => {
@@ -362,5 +365,91 @@ describe("GitCallResult", () => {
 		if (decoded.op === "git.ciJobDetails") {
 			expect(decoded.details.steps).toHaveLength(1)
 		}
+	})
+})
+
+describe("GitCall github ops", () => {
+	it("decodes git.repoContext's result", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(GitCallRepoContextResult)({
+				op: "git.repoContext",
+				context: {
+					owner: "flazouh",
+					repo: "acepe",
+					remoteUrl: "https://github.com/flazouh/acepe.git",
+				},
+			}),
+		)
+		expect(decoded.context.owner).toBe("flazouh")
+	})
+
+	it("decodes git.commitDiff's result with a null repo context", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(GitCallResult)({
+				op: "git.commitDiff",
+				diff: {
+					sha: "abcdef1234567890abcdef1234567890abcdef12",
+					shortSha: "abcdef1",
+					message: "fix: things",
+					messageBody: "",
+					author: "Alex",
+					authorEmail: "alex@example.com",
+					date: "2026-08-29T00:00:00Z",
+					files: [
+						{
+							path: "src/a.ts",
+							status: "modified",
+							additions: 1,
+							deletions: 0,
+							patch: "@@\n+a\n",
+						},
+					],
+					repoContext: null,
+				},
+			}),
+		)
+		expect(decoded.op).toBe("git.commitDiff")
+	})
+
+	it("decodes git.listPullRequests with its state filter and limit", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(GitCallListPullRequestsRequest)({
+				op: "git.listPullRequests",
+				projectPath: "/tmp/acepe",
+				owner: "flazouh",
+				repo: "acepe",
+				state: "all",
+				limit: 30,
+			}),
+		)
+		expect(decoded.state).toBe("all")
+	})
+
+	it("rejects a git.workingFileDiff status outside the four-way literal", () => {
+		const decoded = Effect.runSyncExit(
+			Schema.decodeUnknownEffect(GitCallWorkingFileDiffRequest)({
+				op: "git.workingFileDiff",
+				projectPath: "/tmp/acepe",
+				filePath: "src/a.ts",
+				staged: false,
+				status: "conflicted",
+				additions: 0,
+				deletions: 0,
+			}),
+		)
+		expect(decoded._tag).toBe("Failure")
+	})
+
+	it("routes the new ops through the request union's op discriminant", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(GitCallRequest)({
+				op: "git.prDiff",
+				projectPath: "/tmp/acepe",
+				owner: "flazouh",
+				repo: "acepe",
+				prNumber: 42,
+			}),
+		)
+		expect(decoded.op).toBe("git.prDiff")
 	})
 })

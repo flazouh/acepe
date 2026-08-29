@@ -41,6 +41,7 @@ const fakeProject = (workspaceRoot: string): ProjectedProject => ({
 	deletedAt: null,
 	sessionCount: 0,
 	color: defaultProjectColor(workspaceRoot),
+	showExternalCliSessions: false,
 	scanWarmedAt: NOW
 })
 
@@ -733,6 +734,153 @@ Vitest.layer(Layer.mergeAll(TestLive, PlatformLive))("gitCallHandler", (it) => {
 				Vitest.assert.strictEqual(error._tag, "RpcGitCallError")
 				if (error._tag === "RpcGitCallError") {
 					Vitest.assert.strictEqual(error.op, "git.mergePr")
+				}
+			})
+	)
+
+	it.effect("git.repoContext reads owner/repo off the origin remote", () =>
+		Effect.gen(function*() {
+			const dir = yield* freshRepoDir("repo-context")
+			yield* addAcepeRemote(dir)
+			const result = yield* routeGitCall({ op: "git.repoContext", projectPath: dir })
+			Vitest.assert.deepStrictEqual(result, {
+				op: "git.repoContext",
+				context: {
+					owner: "flazouh",
+					repo: "acepe",
+					remoteUrl: "https://github.com/flazouh/acepe.git"
+				}
+			})
+		})
+	)
+
+	it.effect("git.repoContext fails typed when the repo has no origin remote", () =>
+		Effect.gen(function*() {
+			const dir = yield* freshRepoDir("repo-context-no-remote")
+			yield* initRepoWithCommit(dir)
+			const error = yield* Effect.flip(routeGitCall({ op: "git.repoContext", projectPath: dir }))
+			Vitest.assert.strictEqual(error._tag, "RpcGitCallError")
+			if (error._tag === "RpcGitCallError") {
+				Vitest.assert.strictEqual(error.op, "git.repoContext")
+			}
+		})
+	)
+
+	it.effect("git.commitDiff returns commit metadata and per-file patches", () =>
+		Effect.gen(function*() {
+			const fs = yield* FileSystem.FileSystem
+			const path = yield* Path.Path
+			const dir = yield* freshRepoDir("commit-diff")
+			yield* initRepoWithCommit(dir)
+			yield* fs.writeFileString(path.join(dir, "readme.txt"), "hello\nworld\n")
+			yield* routeGitCall({ op: "git.stageAll", projectPath: dir })
+			yield* routeGitCall({ op: "git.commit", projectPath: dir, message: "Add a line" })
+			const head = yield* routeGitCall({ op: "git.headSha", projectPath: dir })
+			if (head.op !== "git.headSha" || head.sha === null) {
+				return yield* Effect.die("expected a HEAD sha")
+			}
+
+			const result = yield* routeGitCall({
+				op: "git.commitDiff",
+				projectPath: dir,
+				sha: head.sha
+			})
+			if (result.op !== "git.commitDiff") {
+				return yield* Effect.die("expected git.commitDiff result")
+			}
+			Vitest.assert.strictEqual(result.diff.sha, head.sha)
+			Vitest.assert.strictEqual(result.diff.message, "Add a line")
+			Vitest.assert.strictEqual(result.diff.author, "Test User")
+			Vitest.assert.strictEqual(result.diff.authorEmail, "test@example.com")
+			// No origin remote in this repo: the commit still reads, the link
+			// context degrades to null.
+			Vitest.assert.strictEqual(result.diff.repoContext, null)
+			Vitest.assert.strictEqual(result.diff.files.length, 1)
+			const file = result.diff.files[0]
+			if (file === undefined) {
+				return yield* Effect.die("expected one changed file")
+			}
+			Vitest.assert.strictEqual(file.path, "readme.txt")
+			Vitest.assert.strictEqual(file.status, "modified")
+			Vitest.assert.strictEqual(file.additions, 1)
+			Vitest.assert.strictEqual(file.deletions, 0)
+			Vitest.assert.strictEqual(file.patch.includes("+world"), true)
+		})
+	)
+
+	it.effect("git.workingFileDiff patches an unstaged edit and echoes the caller's status", () =>
+		Effect.gen(function*() {
+			const fs = yield* FileSystem.FileSystem
+			const path = yield* Path.Path
+			const dir = yield* freshRepoDir("working-file-diff")
+			yield* initRepoWithCommit(dir)
+			yield* fs.writeFileString(path.join(dir, "readme.txt"), "hello\nagain\n")
+
+			const result = yield* routeGitCall({
+				op: "git.workingFileDiff",
+				projectPath: dir,
+				filePath: "readme.txt",
+				staged: false,
+				status: "modified",
+				additions: 1,
+				deletions: 0
+			})
+			if (result.op !== "git.workingFileDiff") {
+				return yield* Effect.die("expected git.workingFileDiff result")
+			}
+			Vitest.assert.strictEqual(result.diff.path, "readme.txt")
+			Vitest.assert.strictEqual(result.diff.status, "modified")
+			Vitest.assert.strictEqual(result.diff.patch.includes("+again"), true)
+		})
+	)
+
+	it.effect("git.listPullRequests lists real open PRs (skips without gh)", () =>
+		Effect.gen(function*() {
+			if ((yield* ghAvailable()) === false) {
+				return
+			}
+			const dir = yield* freshRepoDir("list-pull-requests")
+			yield* addAcepeRemote(dir)
+			const result = yield* routeGitCall({
+				op: "git.listPullRequests",
+				projectPath: dir,
+				owner: "flazouh",
+				repo: "acepe",
+				state: "all",
+				limit: 1
+			})
+			if (result.op !== "git.listPullRequests") {
+				return yield* Effect.die("expected git.listPullRequests result")
+			}
+			Vitest.assert.strictEqual(result.pullRequests.length <= 1, true)
+			for (const pr of result.pullRequests) {
+				Vitest.assert.strictEqual(pr.number > 0, true)
+				Vitest.assert.strictEqual(["open", "closed", "merged"].includes(pr.state), true)
+			}
+		})
+	)
+
+	it.effect(
+		"git.prDiff routes a real gh failure into a typed RpcGitCallError (skips without gh)",
+		() =>
+			Effect.gen(function*() {
+				if ((yield* ghAvailable()) === false) {
+					return
+				}
+				const dir = yield* freshRepoDir("pr-diff-not-found")
+				yield* addAcepeRemote(dir)
+				const error = yield* Effect.flip(
+					routeGitCall({
+						op: "git.prDiff",
+						projectPath: dir,
+						owner: "flazouh",
+						repo: "acepe",
+						prNumber: 999_999
+					})
+				)
+				Vitest.assert.strictEqual(error._tag, "RpcGitCallError")
+				if (error._tag === "RpcGitCallError") {
+					Vitest.assert.strictEqual(error.op, "git.prDiff")
 				}
 			})
 	)

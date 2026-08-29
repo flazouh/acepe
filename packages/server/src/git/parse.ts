@@ -2,7 +2,7 @@ import * as Arr from "effect/Array"
 import * as Filter from "effect/Filter"
 import * as HashMap from "effect/HashMap"
 import * as Option from "effect/Option"
-import type { FileGitStatus, GitBlameLine, GitLogEntry, GitPanelFileStatus, GitStashEntry } from "./Schemas.ts"
+import type { DiffFileStatus, FileGitStatus, GitBlameLine, GitLogEntry, GitPanelFileStatus, GitStashEntry } from "./Schemas.ts"
 
 export type Numstat = {
 	readonly insertions: number
@@ -504,3 +504,108 @@ export const truncateContext = (value: string, maxBytes: number): string => {
 
 export const isCloneUrl = (url: string): boolean =>
 	url.startsWith("https://") === true || url.startsWith("http://") === true || url.startsWith("git@") === true
+
+// ─── github diffs ─────────────────────────────────────────────────────────
+
+const GITHUB_HOST = "github.com"
+
+const stripGitSuffix = (value: string): string =>
+	value.endsWith(".git") === true ? value.slice(0, value.length - 4) : value
+
+const stripLeadingSeparators = (value: string): string => {
+	let rest = value
+	while (rest.startsWith(":") === true || rest.startsWith("/") === true) {
+		rest = rest.slice(1)
+	}
+	return rest
+}
+
+/**
+ * Pulls owner/repo out of a git remote URL.
+ *
+ * Handles the four spellings `git remote get-url` can return for GitHub:
+ * `git@github.com:owner/repo.git`, `ssh://git@github.com/owner/repo.git`,
+ * `https://github.com/owner/repo.git` and the bare `github.com/owner/repo`.
+ * None for anything that is not a GitHub remote -- a GitLab or self-hosted
+ * remote is a working repo, it just has no owner/repo to link commits to.
+ */
+export const parseGithubRemote = (
+	remoteUrl: string
+): Option.Option<{ readonly owner: string; readonly repo: string }> => {
+	const trimmed = remoteUrl.trim()
+	const hostIndex = trimmed.indexOf(GITHUB_HOST)
+	if (hostIndex === -1) {
+		return Option.none()
+	}
+	const rest = stripLeadingSeparators(trimmed.slice(hostIndex + GITHUB_HOST.length))
+	const parts = Arr.filter(rest.split("/"), (part) => part !== "")
+	const owner = parts[0]
+	const repoRaw = parts[1]
+	if (owner === undefined || repoRaw === undefined) {
+		return Option.none()
+	}
+	const repo = stripGitSuffix(repoRaw)
+	if (repo === "") {
+		return Option.none()
+	}
+	return Option.some({ owner, repo })
+}
+
+/**
+ * Counts added and removed lines in a unified diff hunk body.
+ *
+ * `gh pr diff` emits no numstat, so per-file counts come from the patch
+ * itself. The `+++`/`---` file headers start with the same characters as
+ * content lines, so they are skipped first.
+ */
+export const countPatchChanges = (
+	patch: string
+): { readonly additions: number; readonly deletions: number } =>
+	Arr.reduce(patch.split("\n"), { additions: 0, deletions: 0 }, (acc, line) => {
+		if (line.startsWith("+++") === true || line.startsWith("---") === true) {
+			return acc
+		}
+		if (line.startsWith("+") === true) {
+			return { additions: acc.additions + 1, deletions: acc.deletions }
+		}
+		if (line.startsWith("-") === true) {
+			return { additions: acc.additions, deletions: acc.deletions + 1 }
+		}
+		return acc
+	})
+
+export const toDiffFileStatus = (raw: string): DiffFileStatus => {
+	if (raw === "added" || raw === "deleted" || raw === "renamed") {
+		return raw
+	}
+	return "modified"
+}
+
+export type CommitMeta = {
+	readonly sha: string
+	readonly shortSha: string
+	readonly author: string
+	readonly authorEmail: string
+	readonly date: string
+	readonly message: string
+	readonly messageBody: string
+}
+
+/**
+ * Parses `git show -s --format=%H%n%h%n%an%n%ae%n%aI%n%s%n%b`.
+ *
+ * One field per line in that fixed order; the body is whatever follows the
+ * subject line, so it keeps its own newlines.
+ */
+export const parseCommitMeta = (output: string): CommitMeta => {
+	const lines = output.split("\n")
+	return {
+		sha: (lines[0] ?? "").trim(),
+		shortSha: (lines[1] ?? "").trim(),
+		author: (lines[2] ?? "").trim(),
+		authorEmail: (lines[3] ?? "").trim(),
+		date: (lines[4] ?? "").trim(),
+		message: lines[5] ?? "",
+		messageBody: Arr.drop(lines, 6).join("\n").trim()
+	}
+}
