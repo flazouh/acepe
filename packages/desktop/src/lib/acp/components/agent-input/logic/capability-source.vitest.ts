@@ -77,6 +77,111 @@ describe("resolveCapabilitySource", () => {
 		expect((resolution.availableModels ?? []).length).toBeGreaterThan(0);
 	});
 
+	/**
+	 * The cache was written before Claude reported its modes, so it holds models
+	 * and no modes. Read whole, it answered for both axes, and the toolbar draws
+	 * the mode selector only when modes exist -- so a brand new thread showed a
+	 * model and no mode picker at all.
+	 */
+	it("still offers the provider's modes when the cache holds models only", () => {
+		const resolution = resolveCapabilitySource({
+			agentId: "claude-code",
+			sessionSource: { kind: "no_session" },
+			preconnectionCapabilities: null,
+			cachedModes: [],
+			cachedModels: [{ id: "claude-sonnet-4-6", name: "Sonnet 4.6" }],
+			cachedModelsDisplay: {
+				groups: [
+					{ label: "", models: [{ modelId: "claude-sonnet-4-6", displayName: "Sonnet 4.6" }] },
+				],
+				presentation: undefined,
+			},
+			providerMetadata: CLAUDE_CODE_PROVIDER_METADATA,
+		});
+
+		expect(modeIds(resolution.availableModes)).toEqual([
+			"auto",
+			"default",
+			"acceptEdits",
+			"plan",
+			"bypassPermissions",
+		]);
+		expect(modelIds(resolution.availableModels)).toEqual(["claude-sonnet-4-6"]);
+		expect(resolution.modelsDisplay?.groups[0]?.models[0]?.modelId).toBe("claude-sonnet-4-6");
+	});
+
+	it("still offers the provider's models when the cache holds modes only", () => {
+		const resolution = resolveCapabilitySource({
+			agentId: "claude-code",
+			sessionSource: { kind: "no_session" },
+			preconnectionCapabilities: null,
+			cachedModes: [{ id: "plan", name: "Plan" }],
+			cachedModels: [],
+			cachedModelsDisplay: null,
+			providerMetadata: CLAUDE_CODE_PROVIDER_METADATA,
+		});
+
+		expect(modeIds(resolution.availableModes)).toEqual(["plan"]);
+		expect((resolution.availableModels ?? []).length).toBeGreaterThan(0);
+	});
+
+	/**
+	 * Claude's preconnection call answers unsupportedOnContract. A terminal
+	 * answer says the call cannot be made, not that the provider has no modes.
+	 */
+	it("still offers the provider's modes when the preconnection call ends unsupported", () => {
+		const resolution = resolveCapabilitySource({
+			agentId: "claude-code",
+			sessionSource: { kind: "no_session" },
+			preconnectionCapabilities: {
+				status: "unsupported",
+				availableModels: [],
+				currentModelId: null,
+				modelsDisplay: { groups: [], presentation: undefined },
+				providerMetadata: CLAUDE_CODE_PROVIDER_METADATA,
+				availableModes: [],
+				currentModeId: null,
+				configOptions: [],
+			},
+			cachedModes: [],
+			cachedModels: [],
+			cachedModelsDisplay: null,
+			providerMetadata: CLAUDE_CODE_PROVIDER_METADATA,
+		});
+
+		expect(resolution.source).toBe("preconnectionTerminal");
+		expect(modeIds(resolution.availableModes)).toEqual([
+			"auto",
+			"default",
+			"acceptEdits",
+			"plan",
+			"bypassPermissions",
+		]);
+		expect((resolution.availableModels ?? []).length).toBeGreaterThan(0);
+		expect(resolution.modelsDisplay).toBeNull();
+	});
+
+	it("leaves a live session's canonical answer alone", () => {
+		const resolution = resolveCapabilitySource({
+			agentId: "claude-code",
+			sessionSource: liveSession({
+				availableModels: [],
+				availableModes: [],
+				modelsDisplay: null,
+				providerMetadata: CLAUDE_CODE_PROVIDER_METADATA,
+			}),
+			preconnectionCapabilities: null,
+			cachedModes: [],
+			cachedModels: [],
+			cachedModelsDisplay: null,
+			providerMetadata: CLAUDE_CODE_PROVIDER_METADATA,
+		});
+
+		expect(resolution.source).toBe("liveSession");
+		expect(resolution.availableModes).toEqual([]);
+		expect(resolution.availableModels).toEqual([]);
+	});
+
 	it("offers each provider its own native modes", () => {
 		const codex = resolveCapabilitySource({
 			agentId: "codex",

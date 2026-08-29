@@ -176,30 +176,58 @@ function resolveFallbackCapabilitySource(
 		);
 	}
 
-	// Nothing had anything to say, so fall back to what the provider offers.
-	// These are contract-level facts -- a provider's modes and models do not
-	// change as a turn runs, and no event carries them -- and without this a
-	// composer with no session and no cache renders no mode selector at all and
-	// degrades its model slot to a static agent label.
-	const modes = providerModes(input.agentId);
-	const models = providerModels(input.agentId);
-	if (modes.length > 0 || models.length > 0) {
-		return buildResolution(
-			"persistedCache",
-			"persistedCache",
-			modes.map((mode) => ({
-				id: mode.id,
-				name: mode.name,
-				description: mode.description,
-				iconKind: mode.iconKind,
-			})),
-			models.map((model) => ({ id: model.modelId, name: model.name })),
-			null,
-			input.providerMetadata
-		);
+	return buildResolution("persistedCache", "persistedCache", [], [], null, input.providerMetadata);
+}
+
+/** The provider's own modes, in the shape the toolbar reads. */
+function providerFallbackModes(agentId: string | null | undefined): Mode[] {
+	return providerModes(agentId).map((mode) => ({
+		id: mode.id,
+		name: mode.name,
+		description: mode.description,
+		iconKind: mode.iconKind,
+	}));
+}
+
+/** The provider's own models, in the shape the toolbar reads. */
+function providerFallbackModels(agentId: string | null | undefined): Model[] {
+	return providerModels(agentId).map((model) => ({ id: model.modelId, name: model.name }));
+}
+
+/**
+ * Fill an axis nobody answered from what the provider publishes.
+ *
+ * A provider's modes and models are contract facts: they do not change as a
+ * turn runs, and no event carries them. So they are the honest filler when the
+ * answer in hand is empty, and they must fill each axis on its own.
+ *
+ * Filling both axes together is what the composer used to do, and it hid the
+ * mode selector. A cache written before Claude reported its modes holds models
+ * and no modes; taken whole, that cache counted as an answer for both axes, and
+ * the toolbar draws the mode selector only when modes exist. A preconnection
+ * call that ends failed or unsupported did the same. Neither can hide the other
+ * half now.
+ */
+function backfillFromProvider(
+	resolution: CapabilitySourceResolution,
+	agentId: string | null | undefined
+): CapabilitySourceResolution {
+	const modesAnswered = (resolution.availableModes?.length ?? 0) > 0;
+	const modelsAnswered = (resolution.availableModels?.length ?? 0) > 0;
+	if (modesAnswered && modelsAnswered) {
+		return resolution;
 	}
 
-	return buildResolution("persistedCache", "persistedCache", [], [], null, input.providerMetadata);
+	return {
+		...resolution,
+		availableModes: modesAnswered ? resolution.availableModes : providerFallbackModes(agentId),
+		availableModels: modelsAnswered ? resolution.availableModels : providerFallbackModels(agentId),
+		// Provider models carry no display grouping, and an empty grouping
+		// placeholder would hide them.
+		modelsDisplay: hasUsableModelsDisplay(resolution.modelsDisplay)
+			? resolution.modelsDisplay
+			: null,
+	};
 }
 
 function buildResolution(
@@ -246,5 +274,5 @@ export function resolveCapabilitySource(
 		);
 	}
 
-	return resolveFallbackCapabilitySource(input);
+	return backfillFromProvider(resolveFallbackCapabilitySource(input), input.agentId);
 }
