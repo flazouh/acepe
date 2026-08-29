@@ -107,6 +107,13 @@ export function getModelDisplayName(
 		return displayModel.displayName;
 	}
 
+	// A name the provider published is canonical; only a name that is really
+	// the raw model id (adapters with no display name publish the id as both)
+	// gets prettified.
+	if (model.name && model.name !== model.id) {
+		return model.name;
+	}
+
 	return formatFallbackModelName(model.name);
 }
 

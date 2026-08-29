@@ -109,7 +109,7 @@ describe("model-selector-logic", () => {
 
 				const result = getModelDisplayName(model, agentId);
 
-				expect(result).toBe("Use The Default Model (currently Sonnet 4.5)");
+				expect(result).toBe("Use the default model (currently Sonnet 4.5)");
 			});
 
 			it("does not parse provider-specific description prefixes", () => {
@@ -164,18 +164,6 @@ describe("model-selector-logic", () => {
 				expect(result).toBe("GPT-4");
 			});
 
-			it("capitalizes model name properly", () => {
-				const model: Model = {
-					id: "anthropic/claude-3",
-					name: "claude 3.5 sonnet",
-					description: undefined,
-				};
-
-				const result = getModelDisplayName(model, agentId);
-
-				expect(result).toBe("Claude 3.5 Sonnet");
-			});
-
 			it("formats raw GPT model tokens with readable suffixes", () => {
 				const model: Model = {
 					id: "gpt-5.6-sol",
@@ -212,6 +200,31 @@ describe("model-selector-logic", () => {
 				const result = getModelDisplayName(model, null);
 
 				expect(result).toBe("Opus");
+			});
+		});
+
+		describe("when the provider published its own catalog names", () => {
+			// The provider-models QA scenario: a session_models fact carries names
+			// like "QA Sonnet 9" and no modelsDisplay entry exists for them, so the
+			// picker used to title-case them into "Qa Sonnet 9".
+			it("renders a provider-published name verbatim", () => {
+				const model: Model = {
+					id: "qa-sonnet-9",
+					name: "QA Sonnet 9",
+					description: "Faster, still capable",
+				};
+
+				expect(getModelDisplayName(model, AGENT_IDS.CLAUDE_CODE, null)).toBe("QA Sonnet 9");
+			});
+
+			it("keeps a published lowercase name verbatim too", () => {
+				const model: Model = {
+					id: "anthropic/claude-3",
+					name: "claude 3.5 sonnet",
+					description: undefined,
+				};
+
+				expect(getModelDisplayName(model, "cursor")).toBe("claude 3.5 sonnet");
 			});
 		});
 

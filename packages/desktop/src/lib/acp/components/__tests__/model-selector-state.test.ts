@@ -68,7 +68,7 @@ describe("model selector state", () => {
 				selectedModel: models[1]!,
 				agentId: "codex",
 			})
-		).toBe("GPT Five");
+		).toBe("gpt five");
 		expect(
 			getModelSelectorDisplayName({
 				currentModelId: "missing",
@@ -171,7 +171,7 @@ describe("model selector state", () => {
 				agentId: "codex",
 				modelsDisplay: null,
 			})
-		).toBe("GPT Five");
+		).toBe("gpt five");
 		expect(
 			getModelSelectorItemLabel({
 				model: { modelId: "display-id", displayName: "Display" },
