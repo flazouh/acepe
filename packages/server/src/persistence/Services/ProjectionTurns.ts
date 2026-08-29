@@ -228,6 +228,31 @@ const closeOpenTurns = (
 ): ReadonlyArray<ProjectedTurn> =>
 	Arr.map(turns, (turn) => (isOpenTurn(turn) ? completeTurn(turn, endedAt) : turn))
 
+// A turn is "running" while a provider is working on it. An imported turn
+// never is: the history importer replays a transcript the provider finished
+// before Acepe read the file, and nothing will ever close it from outside --
+// ProviderBridge deliberately does not answer an imported prompt. So an
+// imported message opens and ends its turn in one step, and the imported
+// assistant text that follows counts against that turn rather than opening
+// one of its own.
+const importedTurn = (input: {
+	readonly turnId: TurnId
+	readonly sessionId: SessionId
+	readonly sequence: Sequence
+	readonly at: IsoDateTime
+	readonly outputTokens: number
+}): ProjectedTurn =>
+	completeTurn(
+		startTurn({
+			turnId: input.turnId,
+			sessionId: input.sessionId,
+			sequence: input.sequence,
+			startedAt: input.at,
+			outputTokens: input.outputTokens
+		}),
+		input.at
+	)
+
 const projectMessageSent = (
 	current: ReadonlyArray<ProjectedTurn>,
 	event: Extract<OrchestrationEvent, { readonly type: "MessageSent" }>
@@ -242,8 +267,21 @@ const projectMessageSent = (
 					if (hasTurnId(current, turnId)) {
 						return current
 					}
+					const closed = closeOpenTurns(current, event.occurredAt)
+					if (payload.origin === "imported") {
+						return Arr.append(
+							closed,
+							importedTurn({
+								turnId,
+								sessionId: payload.sessionId,
+								sequence: event.sequence,
+								at: event.occurredAt,
+								outputTokens: 0
+							})
+						)
+					}
 					return Arr.append(
-						closeOpenTurns(current, event.occurredAt),
+						closed,
 						startTurn({
 							turnId,
 							sessionId: payload.sessionId,
@@ -270,18 +308,40 @@ const projectTokenAppended = (
 			if (Option.isSome(open)) {
 				return Effect.succeed(replaceTurn(current, addOutputToken(open.value)))
 			}
+			// Imported assistant text belongs to the imported turn just
+			// above it, which is already finished (see importedTurn). Its
+			// own message id is the provider's assistant id, not a turn id
+			// anything else refers to, so starting a turn from it would
+			// double every imported turn and leave the new one running.
+			if (payload.origin === "imported") {
+				const last = Arr.last(current)
+				if (Option.isSome(last)) {
+					return Effect.succeed(replaceTurn(current, addOutputToken(last.value)))
+				}
+			}
 			return decodeTurnId(payload.messageId).pipe(
 				Effect.map((turnId) =>
-					Arr.append(
-						current,
-						startTurn({
-							turnId,
-							sessionId: payload.sessionId,
-							sequence: event.sequence,
-							startedAt: event.occurredAt,
-							outputTokens: 1
-						})
-					)
+					payload.origin === "imported"
+						? Arr.append(
+							current,
+							importedTurn({
+								turnId,
+								sessionId: payload.sessionId,
+								sequence: event.sequence,
+								at: event.occurredAt,
+								outputTokens: 1
+							})
+						)
+						: Arr.append(
+							current,
+							startTurn({
+								turnId,
+								sessionId: payload.sessionId,
+								sequence: event.sequence,
+								startedAt: event.occurredAt,
+								outputTokens: 1
+							})
+						)
 				)
 			)
 		})

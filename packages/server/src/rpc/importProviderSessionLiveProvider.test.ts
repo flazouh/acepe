@@ -12,9 +12,7 @@
 // desktop calls (importProviderSessionHandler) with a live ProviderBridge
 // behind it and a scripted adapter registered under the real Claude provider
 // id, and asserts the import never reaches the adapter.
-import {
-	SessionId
-} from "@acepe/contracts"
+import { CommandId, MessageId, MessageSendCommand, SessionId } from "@acepe/contracts"
 import * as BunCrypto from "@effect/platform-bun/BunCrypto"
 import * as BunFileSystem from "@effect/platform-bun/BunFileSystem"
 import * as BunPath from "@effect/platform-bun/BunPath"
@@ -37,6 +35,7 @@ import {
 } from "../history/discovery/ProviderSessionDiscovery.ts"
 import { pathToSlug } from "../history/discovery/Roots.ts"
 import { OrchestrationEngineLive } from "../orchestration/Layers/OrchestrationEngine.ts"
+import { OrchestrationEngine } from "../orchestration/Services/OrchestrationEngine.ts"
 import { ProjectionSnapshotQueryLive } from "../orchestration/Layers/ProjectionSnapshotQuery.ts"
 import { OrchestrationCommandReceiptsLive } from "../persistence/Layers/OrchestrationCommandReceipts.ts"
 import { OrchestrationEventStoreLive } from "../persistence/Layers/OrchestrationEventStore.ts"
@@ -73,6 +72,25 @@ const TempSqlite = Layer.unwrap(
 ).pipe(Layer.provide(Platform))
 
 const claudeProviderId = ProviderId.make(CLAUDE_PROVIDER_ID)
+
+// ProviderBridge has no public waitFor hook (see ProviderBridge.test.ts's
+// identical helper), so a test polls for the shape it expects instead of
+// sleeping a fixed time.
+const waitUntil = <A, E, R>(
+	effect: Effect.Effect<A, E, R>,
+	predicate: (value: A) => boolean,
+	attempts = 200
+): Effect.Effect<A, E, R> =>
+	Effect.gen(function*() {
+		let last = yield* effect
+		let remaining = attempts
+		while (predicate(last) === false && remaining > 0) {
+			yield* Effect.sleep(Duration.millis(10))
+			last = yield* effect
+			remaining -= 1
+		}
+		return last
+	})
 
 // Counts the two calls that prove the bridge treated an imported history
 // fact as a live intent: startSession (spawns the provider) and sendPrompt
@@ -145,105 +163,137 @@ const writeFixtureSession = Effect.fn("writeFixtureSession")(function*(
 	)
 })
 
-Vitest.describe("history import vs the live provider (transcript duplication, defect 2)", () => {
-	Vitest.it.live(
-		"never opens a provider session or re-sends a historical prompt",
-		() =>
-			makeCountingAdapter().pipe(
-				Effect.flatMap(({ adapter, startSessionCount, sendPromptCount }) => {
-					const MigratedSqlite = Layer.effectDiscard(runMigrations).pipe(
-						Layer.provideMerge(TempSqlite)
-					)
-					const Projections = Layer.mergeAll(
-						ProjectionSessionsLive,
-						ProjectionSessionMessagesLive,
-						ProjectionStateLive,
-						ProjectionProjectsLive
-					).pipe(Layer.provideMerge(MigratedSqlite))
-					const PersistenceLive = Layer.mergeAll(
-						OrchestrationEventStoreLive,
-						OrchestrationCommandReceiptsLive
-					).pipe(Layer.provideMerge(MigratedSqlite))
-					const EngineLive = OrchestrationEngineLive.pipe(
-						Layer.provideMerge(PersistenceLive),
-						Layer.provide(BunCrypto.layer)
-					)
-					const ClaudeHistoryTestLive = ClaudeHistoryLive.pipe(
-						Layer.provide(Platform),
-						Layer.provide(ProjectionSnapshotQueryLive),
-						Layer.provide(EngineLive),
-						Layer.provide(Projections)
-					)
-					const TestLive = Layer.mergeAll(
-						ProviderBridgeLive.pipe(
-							Layer.provideMerge(ProviderAdapterRegistryLive([adapter])),
-							Layer.provideMerge(EngineLive)
-						),
-						ClaudeHistoryTestLive,
-						Projections,
-						EngineLive,
-						Platform
-					)
-					return Effect.gen(function*() {
-						const fs = yield* FileSystem.FileSystem
-						const path = yield* Path.Path
-						const homeDir = yield* fs.makeTempDirectoryScoped()
-						// A REAL directory: openSession refuses to touch an
-						// adapter when the project's workspaceRoot is missing
-						// from disk, which would hide the defect behind a
-						// check that has nothing to do with it.
-						// realPath, not the raw temp path: discovery slugs the
-						// realpath (macOS /var -> /private/var), so a fixture
-						// written under the raw spelling is never found.
-						const projectPath = yield* fs.realPath(
-							yield* fs.makeTempDirectoryScoped()
-						)
-						const fixtureSessionId = "286997f1-fixture-session"
-						yield* writeFixtureSession(fs, path, homeDir, projectPath, fixtureSessionId)
-
-						const discovery = yield* ProviderSessionDiscovery.pipe(
-							// @effect-diagnostics-next-line strictEffectProvide:off
-							Effect.provide(discoveryLayerFor(homeDir))
-						)
-						const claudeHistory = yield* ClaudeHistory
-						const projects = yield* ProjectionProjects
-						const store = yield* OrchestrationEventStore
-
-						const result = yield* importProviderSessionHandler(
-							discovery,
-							claudeHistory,
-							projects,
-							{
-								provider: "claude",
-								projectPath,
-								sessionId: fixtureSessionId
-							}
-						)
-						Vitest.assert.strictEqual(result.imported, true)
-						const importedSessionId = SessionId.make(result.sessionId)
-
-						// The bridge reacts on its own fiber; give it real time
-						// to do the wrong thing before claiming it did not.
-						yield* Effect.sleep(Duration.millis(300))
-
-						const opened = yield* Ref.get(startSessionCount)
-						const prompted = yield* Ref.get(sendPromptCount)
-						Vitest.assert.deepStrictEqual(
-							{ opened, prompted },
-							{ opened: 0, prompted: 0 }
-						)
-
-						// And the import itself must still have landed, so the
-						// two counts above cannot pass by importing nothing.
-						const events = yield* Stream.runCollect(store.readFrom(0, 100))
-						const assistantRows = events.filter(
-							(event) =>
-								event.type === "TokenAppended" &&
-								event.payload.sessionId === importedSessionId
-						)
-						Vitest.assert.strictEqual(assistantRows.length, 1)
-					}).pipe(Effect.provide(TestLive))
-				})
-			)
+// One stack over one temp database: the real engine, the real Claude history
+// importer, and a live ProviderBridge whose only registered adapter is the
+// counting one above.
+const testLayerFor = (adapter: ProviderAdapter) => {
+	const MigratedSqlite = Layer.effectDiscard(runMigrations).pipe(Layer.provideMerge(TempSqlite))
+	const Projections = Layer.mergeAll(
+		ProjectionSessionsLive,
+		ProjectionSessionMessagesLive,
+		ProjectionStateLive,
+		ProjectionProjectsLive
+	).pipe(Layer.provideMerge(MigratedSqlite))
+	const PersistenceLive = Layer.mergeAll(
+		OrchestrationEventStoreLive,
+		OrchestrationCommandReceiptsLive
+	).pipe(Layer.provideMerge(MigratedSqlite))
+	const EngineLive = OrchestrationEngineLive.pipe(
+		Layer.provideMerge(PersistenceLive),
+		Layer.provide(BunCrypto.layer)
 	)
+	const ClaudeHistoryTestLive = ClaudeHistoryLive.pipe(
+		Layer.provide(Platform),
+		Layer.provide(ProjectionSnapshotQueryLive),
+		Layer.provide(EngineLive),
+		Layer.provide(Projections)
+	)
+	return Layer.mergeAll(
+		ProviderBridgeLive.pipe(
+			Layer.provideMerge(ProviderAdapterRegistryLive([adapter])),
+			Layer.provideMerge(EngineLive)
+		),
+		ClaudeHistoryTestLive,
+		Projections,
+		EngineLive,
+		Platform
+	)
+}
+
+// Writes the fixture, imports it through the same handler desktop calls, and
+// hands the test the imported session id.
+const importFixtureSession = Effect.fn("importFixtureSession")(function*() {
+	const fs = yield* FileSystem.FileSystem
+	const path = yield* Path.Path
+	const homeDir = yield* fs.makeTempDirectoryScoped()
+	// realPath, not the raw temp path: discovery slugs the realpath (macOS
+	// /var -> /private/var), so a fixture written under the raw spelling is
+	// never found. A REAL directory besides: openSession refuses to touch an
+	// adapter when the project's workspaceRoot is missing from disk, which
+	// would hide the defect behind a check that has nothing to do with it.
+	const projectPath = yield* fs.realPath(yield* fs.makeTempDirectoryScoped())
+	const fixtureSessionId = "286997f1-fixture-session"
+	yield* writeFixtureSession(fs, path, homeDir, projectPath, fixtureSessionId)
+
+	const discovery = yield* ProviderSessionDiscovery.pipe(
+		// @effect-diagnostics-next-line strictEffectProvide:off
+		Effect.provide(discoveryLayerFor(homeDir))
+	)
+	const claudeHistory = yield* ClaudeHistory
+	const projects = yield* ProjectionProjects
+	const result = yield* importProviderSessionHandler(discovery, claudeHistory, projects, {
+		provider: "claude",
+		projectPath,
+		sessionId: fixtureSessionId
+	})
+	Vitest.assert.strictEqual(result.imported, true)
+	return SessionId.make(result.sessionId)
+})
+
+Vitest.describe("history import vs the live provider (transcript duplication, defect 2)", () => {
+	Vitest.it.live("never opens a provider session or re-sends a historical prompt", () =>
+		makeCountingAdapter().pipe(
+			Effect.flatMap(({ adapter, startSessionCount, sendPromptCount }) =>
+				Effect.gen(function*() {
+					const store = yield* OrchestrationEventStore
+					const importedSessionId = yield* importFixtureSession()
+
+					// The bridge reacts on its own fiber; give it real time to
+					// do the wrong thing before claiming it did not.
+					yield* Effect.sleep(Duration.millis(300))
+
+					const opened = yield* Ref.get(startSessionCount)
+					const prompted = yield* Ref.get(sendPromptCount)
+					Vitest.assert.deepStrictEqual({ opened, prompted }, { opened: 0, prompted: 0 })
+
+					// And the import itself must still have landed, so the two
+					// counts above cannot pass by importing nothing.
+					const events = yield* Stream.runCollect(store.readFrom(0, 100))
+					const assistantRows = events.filter(
+						(event) =>
+							event.type === "TokenAppended" &&
+							event.payload.sessionId === importedSessionId
+					)
+					Vitest.assert.strictEqual(assistantRows.length, 1)
+				}).pipe(
+					// @effect-diagnostics-next-line strictEffectProvide:off
+					Effect.provide(testLayerFor(adapter))
+				)
+			)
+		))
+
+	// The other half of the claim: skipping the import must not strand the
+	// session. The moment the owner actually types into it, the bridge opens
+	// the provider lazily and sends that one prompt -- and only that one.
+	Vitest.it.live("still opens the session lazily when a live message arrives", () =>
+		makeCountingAdapter().pipe(
+			Effect.flatMap(({ adapter, startSessionCount, sendPromptCount }) =>
+				Effect.gen(function*() {
+					const engine = yield* OrchestrationEngine
+					const importedSessionId = yield* importFixtureSession()
+					yield* Effect.sleep(Duration.millis(100))
+					Vitest.assert.strictEqual(yield* Ref.get(startSessionCount), 0)
+
+					const liveMessageId = MessageId.make(`${importedSessionId}:live-turn`)
+					yield* engine.dispatch(
+						MessageSendCommand.make({
+							type: "message.send",
+							commandId: CommandId.make("cmd-live-turn"),
+							sessionId: importedSessionId,
+							messageId: liveMessageId,
+							text: "Now do the fourth step."
+						})
+					)
+					const prompted = yield* waitUntil(
+						Ref.get(sendPromptCount),
+						(count) => count >= 1
+					)
+					Vitest.assert.strictEqual(prompted, 1)
+					Vitest.assert.strictEqual(yield* Ref.get(startSessionCount), 1)
+				}).pipe(
+					// @effect-diagnostics-next-line strictEffectProvide:off
+					Effect.provide(testLayerFor(adapter))
+				)
+			)
+		))
 })

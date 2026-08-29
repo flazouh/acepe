@@ -112,6 +112,39 @@ Vitest.describe("evolveProjectedTurns", () => {
 		})
 	)
 
+	// A replayed provider transcript is a finished conversation: every turn
+	// in it ended before Acepe ever read the file. Nothing closes them from
+	// outside -- ProviderBridge deliberately never answers an imported
+	// prompt (see ProviderBridge.considerMessageSent) -- so an imported turn
+	// that starts "running" stays running forever and the session reads as
+	// working the moment it is opened.
+	Vitest.it.effect("records an imported turn as already finished", () =>
+		Effect.gen(function*() {
+			const turns = yield* fold([
+				sessionEvent(2, "MessageSent", NOW, {
+					sessionId,
+					messageId,
+					text: "Run all three steps.",
+					origin: "imported" as const
+				}),
+				sessionEvent(3, "TokenAppended", LATER, {
+					sessionId,
+					messageId: assistantMessageId,
+					token: "I'll run all three steps.",
+					origin: "imported" as const
+				})
+			])
+			Vitest.assert.strictEqual(Arr.length(turns), 1)
+			const turn = requireTurn(turns, turnId)
+			Vitest.assert.strictEqual(turn.status, "completed")
+			Vitest.assert.strictEqual(turn.endedAt, NOW)
+			// The imported assistant text still counts against the turn it
+			// answered, rather than opening a turn of its own.
+			Vitest.assert.strictEqual(turn.outputTokens, 1)
+			Vitest.assert.strictEqual(Arr.length(Arr.filter(turns, isOpenTurn)), 0)
+		})
+	)
+
 	Vitest.it.effect("starts a running turn from MessageSent", () =>
 		Effect.gen(function*() {
 			const turns = yield* fold([

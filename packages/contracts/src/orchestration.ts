@@ -135,11 +135,29 @@ export const ProjectDeleteCommand = Schema.Struct({
 })
 export type ProjectDeleteCommand = typeof ProjectDeleteCommand.Type
 
+// Who produced a transcript fact: the app acting now, or the history
+// importer replaying a provider's own JSONL into the event store.
+//
+// The two are the same shape and mean opposite things. A "live" session.create
+// is a session to start and a "live" message.send is a prompt to answer, so
+// ProviderBridge reacts to both. An "imported" one is a fact that already
+// happened -- the model answered that prompt before Acepe ever saw the file --
+// so reacting to it starts a provider session nobody asked for and asks the
+// model to redo a finished turn, whose answer then lands next to the imported
+// row as a second assistant message.
+//
+// Absent means the event was written before this field existed. Every producer
+// that existed then was live, apart from the importer, whose events only ever
+// reach a reader through boot replay, which reacts to nothing.
+export const TranscriptFactOrigin = Schema.Literals(["live", "imported"])
+export type TranscriptFactOrigin = typeof TranscriptFactOrigin.Type
+
 // providerId picks which provider adapter drives this session (e.g.
 // "claude-code", "codex"). Optional and omitted by every pre-existing
 // caller/fixture, which keeps the tracer HardcodedProvider driving the
 // session exactly as before — see ProviderBridge.ts, which only claims
 // sessions carrying a providerId it can resolve in the adapter registry.
+
 export const SessionCreateCommand = Schema.Struct({
 	type: Schema.Literal("session.create"),
 	commandId: CommandId,
@@ -147,6 +165,7 @@ export const SessionCreateCommand = Schema.Struct({
 	projectId: ProjectId,
 	title: TrimmedNonEmptyString,
 	providerId: Schema.optionalKey(TrimmedNonEmptyString),
+	origin: Schema.optionalKey(TranscriptFactOrigin),
 })
 export type SessionCreateCommand = typeof SessionCreateCommand.Type
 
@@ -193,6 +212,7 @@ export const MessageSendCommand = Schema.Struct({
 	sessionId: SessionId,
 	messageId: MessageId,
 	text: TrimmedNonEmptyString,
+	origin: Schema.optionalKey(TranscriptFactOrigin),
 })
 export type MessageSendCommand = typeof MessageSendCommand.Type
 
@@ -202,6 +222,7 @@ export const TokenAppendCommand = Schema.Struct({
 	sessionId: SessionId,
 	messageId: MessageId,
 	token: StreamToken,
+	origin: Schema.optionalKey(TranscriptFactOrigin),
 })
 export type TokenAppendCommand = typeof TokenAppendCommand.Type
 

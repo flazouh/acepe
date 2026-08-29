@@ -221,7 +221,8 @@ const sessionCreatedEvent = (
 		sessionId: command.sessionId,
 		projectId: command.projectId,
 		title: command.title,
-		...(command.providerId === undefined ? {} : { providerId: command.providerId })
+		...(command.providerId === undefined ? {} : { providerId: command.providerId }),
+		...(command.origin === undefined ? {} : { origin: command.origin })
 	}
 })
 
@@ -316,7 +317,8 @@ const messageSentEvent = (
 	payload: {
 		sessionId: command.sessionId,
 		messageId: command.messageId,
-		text: command.text
+		text: command.text,
+		...(command.origin === undefined ? {} : { origin: command.origin })
 	}
 })
 
@@ -337,7 +339,8 @@ const tokenAppendedEvent = (
 	payload: {
 		sessionId: command.sessionId,
 		messageId: command.messageId,
-		token: command.token
+		token: command.token,
+		...(command.origin === undefined ? {} : { origin: command.origin })
 	}
 })
 

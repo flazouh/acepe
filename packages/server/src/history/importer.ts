@@ -174,6 +174,14 @@ const importCommandId = Effect.fn("HistoryImporter.commandId")(function*(
 	return yield* decodeCommandId(parts.join(":"))
 })
 
+// Every command this importer dispatches carries origin "imported". The
+// session and the messages are real canonical facts and belong in the event
+// store, but they already happened: the provider answered these prompts
+// before Acepe read the file. ProviderBridge reads live session.create and
+// message.send as intents -- start this session, answer this prompt -- so
+// without the marker an import spawns a provider session and re-sends every
+// historical prompt to the model, and the model's fresh answer lands in the
+// transcript beside the imported one (issue: one turn rendered twice).
 export const makeHistoryImporter = <A>(config: HistoryLineDecoder<A>) =>
 	Effect.gen(function*() {
 		const fs = yield* FileSystem.FileSystem
@@ -272,7 +280,8 @@ export const makeHistoryImporter = <A>(config: HistoryLineDecoder<A>) =>
 					sessionId,
 					projectId: input.projectId,
 					title,
-					providerId: HISTORY_PROVIDER_ADAPTER_ID[config.provider]
+					providerId: HISTORY_PROVIDER_ADAPTER_ID[config.provider],
+					origin: "imported"
 				})
 			)
 			let userIndex = 0
@@ -295,7 +304,8 @@ export const makeHistoryImporter = <A>(config: HistoryLineDecoder<A>) =>
 							commandId,
 							sessionId,
 							messageId,
-							text: fact.text
+							text: fact.text,
+							origin: "imported"
 						})
 					)
 					continue
@@ -316,7 +326,8 @@ export const makeHistoryImporter = <A>(config: HistoryLineDecoder<A>) =>
 						commandId,
 						sessionId,
 						messageId,
-						token: fact.text
+						token: fact.text,
+						origin: "imported"
 					})
 				)
 			}

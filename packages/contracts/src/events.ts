@@ -63,6 +63,7 @@ import {
 	type OrchestrationAggregateKind,
 	SessionPrLinkMode,
 	SessionPrNumber,
+	TranscriptFactOrigin,
 } from "./orchestration.ts"
 
 export const CorrelationId = CommandId
@@ -166,6 +167,7 @@ export const SessionCreatedPayload = Schema.Struct({
 	projectId: ProjectId,
 	title: TrimmedNonEmptyString,
 	providerId: Schema.optionalKey(TrimmedNonEmptyString),
+	origin: Schema.optionalKey(TranscriptFactOrigin),
 })
 export type SessionCreatedPayload = typeof SessionCreatedPayload.Type
 
@@ -196,6 +198,7 @@ export const MessageSentPayload = Schema.Struct({
 	sessionId: SessionId,
 	messageId: MessageId,
 	text: TrimmedNonEmptyString,
+	origin: Schema.optionalKey(TranscriptFactOrigin),
 })
 export type MessageSentPayload = typeof MessageSentPayload.Type
 
@@ -203,6 +206,7 @@ export const TokenAppendedPayload = Schema.Struct({
 	sessionId: SessionId,
 	messageId: MessageId,
 	token: StreamToken,
+	origin: Schema.optionalKey(TranscriptFactOrigin),
 })
 export type TokenAppendedPayload = typeof TokenAppendedPayload.Type
 
