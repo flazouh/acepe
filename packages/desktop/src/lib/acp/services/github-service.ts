@@ -1,6 +1,6 @@
 /**
  * Frontend service for GitHub integration.
- * Wraps Tauri commands with Effect error handling and caching.
+ * Wraps RPC commands with Effect error handling and caching.
  */
 
 import { fromPromise } from "@acepe/effect-result/fromPromise";
@@ -50,9 +50,9 @@ function isCacheValid(entry: { diff: unknown; timestamp: number; type: "commit" 
 }
 
 /**
- * Converts Tauri errors to GitHubError type.
+ * Converts RPC command errors to GitHubError type.
  */
-function tauriErrorToGitHubError(error: unknown): GitHubError {
+function rpcErrorToGitHubError(error: unknown): GitHubError {
 	if (isGitHubError(error)) {
 		return error;
 	}
@@ -123,13 +123,13 @@ export function getRepoContext(projectPath: string): Effect.Effect<RepoContext, 
 	// Deduplicate in-flight requests
 	const inflight = repoContextInflight.get(projectPath);
 	if (inflight) {
-		return fromPromise(() => inflight, tauriErrorToGitHubError);
+		return fromPromise(() => inflight, rpcErrorToGitHubError);
 	}
 
 	const pending = Effect.runPromise(
 		fromPromise(
 			() => invoke<RepoContext>(Commands.github.get_github_repo_context, { projectPath }),
-			tauriErrorToGitHubError
+			rpcErrorToGitHubError
 		)
 	).then(
 		(ctx) => {
@@ -144,7 +144,7 @@ export function getRepoContext(projectPath: string): Effect.Effect<RepoContext, 
 	);
 
 	repoContextInflight.set(projectPath, pending);
-	return fromPromise(() => pending, tauriErrorToGitHubError);
+	return fromPromise(() => pending, rpcErrorToGitHubError);
 }
 
 /**
@@ -166,7 +166,7 @@ export function fetchCommitDiff(
 
 	return fromPromise(
 		() => invoke<CommitDiff>(Commands.github.fetch_commit_diff, { sha, projectPath, repoContext }),
-		tauriErrorToGitHubError
+		rpcErrorToGitHubError
 	).pipe(
 		Effect.map((diff) => {
 			// Cache the result
@@ -195,7 +195,7 @@ export function fetchPrDiff(
 
 	return fromPromise(
 		() => invoke<PrDiff>(Commands.github.fetch_pr_diff, { owner, repo, prNumber }),
-		tauriErrorToGitHubError
+		rpcErrorToGitHubError
 	).pipe(
 		Effect.map((diff) => {
 			// Cache the result
@@ -223,7 +223,7 @@ export function listPullRequests(
 				state: state ?? "open",
 				limit: limit ?? 30,
 			}),
-		tauriErrorToGitHubError
+		rpcErrorToGitHubError
 	);
 }
 
@@ -306,6 +306,6 @@ export function fetchWorkingFileDiff(
 				additions,
 				deletions,
 			}),
-		tauriErrorToGitHubError
+		rpcErrorToGitHubError
 	);
 }

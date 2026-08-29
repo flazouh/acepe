@@ -21,7 +21,7 @@ import type {
 	SessionModelState as AcpSessionModelState,
 	SessionOpenResult,
 } from "../../../services/acp-types.js";
-import { TauriCommandError } from "../../../utils/tauri-client/invoke.js";
+import { RpcCommandError } from "../../../utils/tauri-client/invoke.js";
 import { tauriClient } from "../../../utils/tauri-client.js";
 import { sessionColdFromSlices } from "../../application/dto/session-cold.js";
 import {
@@ -747,7 +747,7 @@ export class SessionConnectionManager {
 				Effect.mapError((error) => {
 					logger.error("Failed to create session", { error });
 					if (
-						error instanceof TauriCommandError &&
+						error instanceof RpcCommandError &&
 						error.domain?.type === "acp" &&
 						error.domain.data.type === "authentication_required"
 					) {
@@ -757,7 +757,7 @@ export class SessionConnectionManager {
 						return new AuthenticationRequiredError(auth.agent, auth.instructions, error);
 					}
 					if (
-						error instanceof TauriCommandError &&
+						error instanceof RpcCommandError &&
 						error.domain?.type === "acp" &&
 						error.domain.data.type === "creation_failed"
 					) {

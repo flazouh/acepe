@@ -12,10 +12,10 @@ mock.module("../../analytics.js", () => ({
 
 import { CMD } from "./commands.js";
 import {
-	getTauriInvokeTimings,
+	getInvokeTimings,
 	invokeAsyncWithRuntimeForTesting,
-	resetTauriInvokeTimingsForTesting,
-	TauriCommandError,
+	RpcCommandError,
+	resetInvokeTimingsForTesting,
 } from "./invoke.js";
 
 const invokeMock = mock(async (_cmd: string, _args?: InvokeArgs) => undefined);
@@ -30,7 +30,7 @@ describe("invokeAsync", () => {
 		invokeMock.mockReset();
 		invokeMock.mockImplementation(async () => undefined);
 		captureCommandFailureMock.mockReset();
-		resetTauriInvokeTimingsForTesting();
+		resetInvokeTimingsForTesting();
 	});
 
 	it("preserves structured ACP errors instead of stringifying them to [object Object]", async () => {
@@ -89,10 +89,10 @@ describe("invokeAsync", () => {
 			throw new Error("expected invoke to fail");
 		}
 		const error = result.failure;
-		expect(error).toBeInstanceOf(TauriCommandError);
+		expect(error).toBeInstanceOf(RpcCommandError);
 		expect(error.message).toBe("Failed to save user setting");
-		expect((error as TauriCommandError).backendCorrelationId).toBe("corr-123");
-		expect((error as TauriCommandError).backendEventId).toBe("event-456");
+		expect((error as RpcCommandError).backendCorrelationId).toBe("corr-123");
+		expect((error as RpcCommandError).backendEventId).toBe("event-456");
 		await flushDynamicImports();
 		expect(captureCommandFailureMock).toHaveBeenCalledWith(
 			error,
@@ -156,7 +156,7 @@ describe("invokeAsync", () => {
 
 		expect(Result.isSuccess(successResult)).toBe(true);
 		expect(Result.isFailure(failureResult)).toBe(true);
-		expect(getTauriInvokeTimings()).toEqual([
+		expect(getInvokeTimings()).toEqual([
 			expect.objectContaining({
 				command: "fast_command",
 				status: "ok",
@@ -182,7 +182,7 @@ describe("invokeAsync", () => {
 		);
 
 		expect(Result.isSuccess(result)).toBe(true);
-		expect(getTauriInvokeTimings()).toEqual([
+		expect(getInvokeTimings()).toEqual([
 			expect.objectContaining({
 				command: "get_user_settings",
 				argsSummary: "user_theme,zoom_level",

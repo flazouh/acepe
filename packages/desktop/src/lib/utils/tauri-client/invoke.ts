@@ -15,7 +15,7 @@ import {
 	type SerializableCommandError,
 } from "./serializable-command-error.schema.js";
 
-// DEBUG: Track all in-flight Tauri IPC calls
+// DEBUG: Track all in-flight RPC calls
 type PendingInvokeInfo = {
 	readonly cmd: string;
 	readonly start: number;
@@ -37,19 +37,19 @@ const debugInvoke =
 const MAX_COMPLETED_INVOKE_TIMINGS = 300;
 
 type InvokeErrorValue = Error | string | number | boolean | object | null | undefined;
-export type TauriInvokeTimingStatus = "ok" | "error";
+export type InvokeTimingStatus = "ok" | "error";
 
-export interface TauriInvokeTimingRecord {
+export interface InvokeTimingRecord {
 	readonly id: string;
 	readonly command: string;
 	readonly argsSummary: string | null;
 	readonly startedAtMs: number;
 	readonly completedAtMs: number;
 	readonly durationMs: number;
-	readonly status: TauriInvokeTimingStatus;
+	readonly status: InvokeTimingStatus;
 }
 
-export interface TauriPendingInvokeRecord {
+export interface PendingInvokeRecord {
 	readonly id: string;
 	readonly command: string;
 	readonly argsSummary: string | null;
@@ -59,13 +59,13 @@ export interface TauriPendingInvokeRecord {
 
 declare global {
 	interface Window {
-		__ACEPE_GET_INVOKE_TIMINGS__?: () => TauriInvokeTimingRecord[];
+		__ACEPE_GET_INVOKE_TIMINGS__?: () => InvokeTimingRecord[];
 		__PENDING_INVOKES?: typeof pendingInvokes;
 		__DUMP_INVOKES?: () => void;
 	}
 }
 
-const completedInvokeTimings: TauriInvokeTimingRecord[] = [];
+const completedInvokeTimings: InvokeTimingRecord[] = [];
 
 export interface GeneratedCommand<TName extends string> {
 	readonly name: TName;
@@ -88,7 +88,7 @@ function roundMs(value: number): number {
 	return Math.round(value * 100) / 100;
 }
 
-function copyInvokeTimingRecord(record: TauriInvokeTimingRecord): TauriInvokeTimingRecord {
+function copyInvokeTimingRecord(record: InvokeTimingRecord): InvokeTimingRecord {
 	return {
 		id: record.id,
 		command: record.command,
@@ -130,10 +130,10 @@ function recordCompletedInvokeTiming(
 	command: string,
 	argsSummary: string | null,
 	startedAtMs: number,
-	status: TauriInvokeTimingStatus
-): TauriInvokeTimingRecord {
+	status: InvokeTimingStatus
+): InvokeTimingRecord {
 	const completedAtMs = nowMs();
-	const record: TauriInvokeTimingRecord = {
+	const record: InvokeTimingRecord = {
 		id,
 		command,
 		argsSummary,
@@ -149,13 +149,13 @@ function recordCompletedInvokeTiming(
 	return record;
 }
 
-export function getTauriInvokeTimings(): TauriInvokeTimingRecord[] {
+export function getInvokeTimings(): InvokeTimingRecord[] {
 	return completedInvokeTimings.map(copyInvokeTimingRecord);
 }
 
-export function getPendingTauriInvokes(): TauriPendingInvokeRecord[] {
+export function getPendingInvokes(): PendingInvokeRecord[] {
 	const now = nowMs();
-	const records: TauriPendingInvokeRecord[] = [];
+	const records: PendingInvokeRecord[] = [];
 	for (const [id, info] of pendingInvokes) {
 		records.push({
 			id,
@@ -168,11 +168,11 @@ export function getPendingTauriInvokes(): TauriPendingInvokeRecord[] {
 	return records;
 }
 
-export function resetTauriInvokeTimingsForTesting(): void {
+export function resetInvokeTimingsForTesting(): void {
 	completedInvokeTimings.length = 0;
 }
 
-export class TauriCommandError extends AgentError {
+export class RpcCommandError extends AgentError {
 	readonly classification: CommandErrorClassification;
 	readonly backendCorrelationId: string;
 	readonly backendEventId: string | undefined;
@@ -183,7 +183,7 @@ export class TauriCommandError extends AgentError {
 
 	constructor(commandError: SerializableCommandError) {
 		super(commandError.commandName, resolveCommandErrorCause(commandError));
-		this.name = "TauriCommandError";
+		this.name = "RpcCommandError";
 		this.message = commandError.message;
 		this.classification = commandError.classification;
 		this.backendCorrelationId = commandError.backendCorrelationId;
@@ -229,7 +229,7 @@ function resolveCommandErrorCause(commandError: SerializableCommandError): Error
 function createInvokeError(cmd: string, error: InvokeErrorValue): AgentError {
 	const commandError = parseSerializableCommandError(error);
 	if (commandError !== null) {
-		return new TauriCommandError(commandError);
+		return new RpcCommandError(commandError);
 	}
 
 	return attachErrorReference(
@@ -276,7 +276,7 @@ if (
 	typeof import.meta.env !== "undefined" &&
 	import.meta.env.DEV
 ) {
-	window.__ACEPE_GET_INVOKE_TIMINGS__ = getTauriInvokeTimings;
+	window.__ACEPE_GET_INVOKE_TIMINGS__ = getInvokeTimings;
 }
 
 function invokeAsyncWithRuntime<T>(
@@ -330,21 +330,21 @@ function invokeAsyncWithRuntime<T>(
 					invokeId,
 					elapsedMs: elapsed,
 					referenceId:
-						invokeError instanceof TauriCommandError
+						invokeError instanceof RpcCommandError
 							? invokeError.referenceId
 							: (findErrorReference(invokeError)?.referenceId ?? invokeId),
 					referenceSearchable:
-						invokeError instanceof TauriCommandError
+						invokeError instanceof RpcCommandError
 							? invokeError.referenceSearchable
 							: (findErrorReference(invokeError)?.searchable ?? false),
 					classification:
-						invokeError instanceof TauriCommandError ? invokeError.classification : "unexpected",
+						invokeError instanceof RpcCommandError ? invokeError.classification : "unexpected",
 					backendCorrelationId:
-						invokeError instanceof TauriCommandError ? invokeError.backendCorrelationId : undefined,
+						invokeError instanceof RpcCommandError ? invokeError.backendCorrelationId : undefined,
 					backendEventId:
-						invokeError instanceof TauriCommandError ? invokeError.backendEventId : undefined,
+						invokeError instanceof RpcCommandError ? invokeError.backendEventId : undefined,
 					diagnosticsSummary:
-						invokeError instanceof TauriCommandError ? invokeError.diagnosticsSummary : undefined,
+						invokeError instanceof RpcCommandError ? invokeError.diagnosticsSummary : undefined,
 				});
 			}
 
@@ -354,7 +354,7 @@ function invokeAsyncWithRuntime<T>(
 }
 
 /**
- * Wrap Tauri invoke with Effect for consistent error handling.
+ * Wrap an RPC command invoke with Effect for consistent error handling.
  */
 export function invokeAsync<T>(cmd: string, args?: InvokeArgs): Effect.Effect<T, AppError> {
 	return invokeAsyncWithRuntime(invoke, cmd, args);

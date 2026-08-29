@@ -12,7 +12,7 @@ import type {
 	AvailableCommand,
 	ConfigOptionData,
 } from "../../../services/converted-session-types.js";
-import { TauriCommandError } from "../../../utils/tauri-client/invoke.js";
+import { RpcCommandError } from "../../../utils/tauri-client/invoke.js";
 import { AgentError, CreationFailureError } from "../../errors/app-error.js";
 import { extractProjectName } from "../../utils/path-utils.js";
 import { generateFallbackProjectColor } from "../../utils/project-utils.js";
@@ -1430,7 +1430,7 @@ describe("SessionConnectionManager.connectSession", () => {
 
 	it("does not leak an unhandled rejection when lifecycle failure arrives while resumeSession is in-flight", async () => {
 		// Simulates: Rust emits a failed lifecycle event (e.g. Claude CLI install fails)
-		// BEFORE the api.resumeSession() Tauri invoke resolves back to TypeScript.
+		// BEFORE the api.resumeSession() RPC invoke resolves back to TypeScript.
 		// Without the fix, lifecycleWaiter.promise has no rejection handler during that window,
 		// causing an unhandledrejection event that reaches the global error boundary.
 		const unhandledErrors: Error[] = [];
@@ -1480,7 +1480,7 @@ describe("SessionConnectionManager.connectSession", () => {
 		// if the promise was rejected without a handler at the time of rejection
 		await new Promise<void>((resolve) => setTimeout(resolve, 0));
 
-		// Now let resumeSession resolve (simulating the Tauri invoke eventually returning)
+		// Now let resumeSession resolve (simulating the RPC invoke eventually returning)
 		resolveResume();
 
 		const result = await runToResult(connectionEffect);
@@ -2135,7 +2135,7 @@ describe("SessionConnectionManager.createSession", () => {
 	it("surfaces typed backend creation failures without adding a local session", async () => {
 		newSession.mockReturnValue(
 			Effect.fail(
-				new TauriCommandError({
+				new RpcCommandError({
 					commandName: "acp_new_session",
 					classification: "expected",
 					backendCorrelationId: "correlation-1",

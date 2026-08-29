@@ -7,10 +7,7 @@ import {
 	setSessionOpenHydratorTimingRecorder,
 } from "$lib/acp/store/services/session-open-hydrator.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
-import type {
-	TauriInvokeTimingRecord,
-	TauriPendingInvokeRecord,
-} from "$lib/utils/tauri-client/invoke.js";
+import type { InvokeTimingRecord, PendingInvokeRecord } from "$lib/utils/tauri-client/invoke.js";
 import type { MainAppViewError } from "../errors/main-app-view-error.js";
 import type { MainAppViewState } from "./main-app-view-state.svelte.js";
 import {
@@ -60,8 +57,8 @@ export type SessionOpenContentProbeResult = {
 	readonly timedOut: boolean;
 	readonly errorMessage: string | null;
 	readonly runtimeErrors: readonly string[];
-	readonly tauriInvokeTimings: readonly TauriInvokeTimingRecord[];
-	readonly pendingTauriInvokes: readonly TauriPendingInvokeRecord[];
+	readonly invokeTimings: readonly InvokeTimingRecord[];
+	readonly pendingInvokes: readonly PendingInvokeRecord[];
 	readonly openEvents: readonly OpenPersistedSessionDiagnosticEvent[];
 	readonly hydrationTimings: readonly SessionOpenHydrationTimingRecord[];
 	readonly panelOpenMarks: Readonly<Record<string, number>>;
@@ -76,8 +73,8 @@ export type SessionOpenContentProbeDeps = {
 	readonly panelStore: Pick<PanelStore, "getPanelBySessionId">;
 	readonly sessionStore: Pick<SessionStore, "read" | "loading">;
 	readonly readRuntimeErrors: () => readonly string[];
-	readonly readTauriInvokeTimings: () => readonly TauriInvokeTimingRecord[];
-	readonly readPendingTauriInvokes: () => readonly TauriPendingInvokeRecord[];
+	readonly readInvokeTimings: () => readonly InvokeTimingRecord[];
+	readonly readPendingInvokes: () => readonly PendingInvokeRecord[];
 };
 
 type SelectSessionOutcome =
@@ -285,8 +282,8 @@ async function closeExistingPanelIfNeeded(
 function invokeTimingsSince(
 	deps: SessionOpenContentProbeDeps,
 	baselineIndex: number
-): readonly TauriInvokeTimingRecord[] {
-	return deps.readTauriInvokeTimings().slice(baselineIndex);
+): readonly InvokeTimingRecord[] {
+	return deps.readInvokeTimings().slice(baselineIndex);
 }
 
 type PanelOpenMarkRecorder = (
@@ -436,8 +433,8 @@ function buildResult(input: {
 		timedOut: input.timedOut,
 		errorMessage: input.errorMessage,
 		runtimeErrors: input.deps.readRuntimeErrors(),
-		tauriInvokeTimings: invokeTimingsSince(input.deps, input.baselineIndex),
-		pendingTauriInvokes: input.deps.readPendingTauriInvokes(),
+		invokeTimings: invokeTimingsSince(input.deps, input.baselineIndex),
+		pendingInvokes: input.deps.readPendingInvokes(),
 		openEvents: input.openEvents,
 		hydrationTimings: input.hydrationTimings,
 		panelOpenMarks: input.panelOpenMarks,
@@ -460,7 +457,7 @@ export async function runSessionOpenContentProbe(
 		options.closeExisting === true,
 		1_000
 	);
-	const baselineIndex = deps.readTauriInvokeTimings().length;
+	const baselineIndex = deps.readInvokeTimings().length;
 	const startedAtMs = deps.performance.now();
 	const deadlineMs = startedAtMs + timeoutMs;
 	const openEvents: OpenPersistedSessionDiagnosticEvent[] = [];

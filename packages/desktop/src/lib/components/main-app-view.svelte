@@ -72,9 +72,9 @@ import { createVoiceSettingsStore } from "$lib/stores/voice-settings-store.svelt
 import { createWindowFocusStore } from "$lib/stores/window-focus-store.svelte.js";
 import { tauriClient } from "$lib/utils/tauri-client.js";
 import {
-	getPendingTauriInvokes,
-	getTauriInvokeTimings,
-	type TauriInvokeTimingRecord,
+	getPendingInvokes,
+	getInvokeTimings,
+	type InvokeTimingRecord,
 } from "$lib/utils/tauri-client/invoke.js";
 import {
 	checkForUpdate,
@@ -225,7 +225,7 @@ type MainAppHappyPathAppTiming = {
 	readonly projectCountAtPanelCreate: number;
 	readonly startupTrace: readonly StartupPerformanceTraceEntry[];
 	readonly projectLoadTrace: ProjectLoadPerformanceTrace | null;
-	readonly tauriInvokeTimings: readonly TauriInvokeTimingRecord[];
+	readonly invokeTimings: readonly InvokeTimingRecord[];
 	readonly panelCountBefore: number;
 	readonly panelCountAfter: number;
 	readonly domPanelCountBefore: number;
@@ -387,8 +387,8 @@ function readRuntimeErrorMessages(): readonly string[] {
 		.slice(-10);
 }
 
-function readCurrentMountTauriInvokeTimings(): readonly TauriInvokeTimingRecord[] {
-	return getTauriInvokeTimings().slice(mainAppInvokeTimingBaselineIndex);
+function readCurrentMountInvokeTimings(): readonly InvokeTimingRecord[] {
+	return getInvokeTimings().slice(mainAppInvokeTimingBaselineIndex);
 }
 
 function waitForProbeFrame(frameStats?: MainAppHappyPathProbeFrameStats): Promise<void> {
@@ -819,7 +819,7 @@ async function runHappyPathProbe(
 			projectCountAtPanelCreate,
 			startupTrace,
 			projectLoadTrace: projectManager.getLastLoadPerformanceTrace(),
-			tauriInvokeTimings: readCurrentMountTauriInvokeTimings(),
+			invokeTimings: readCurrentMountInvokeTimings(),
 			panelCountBefore,
 			panelCountAfter: panelStore.panels.length,
 			domPanelCountBefore,
@@ -874,8 +874,8 @@ function runSessionOpenContentProbeForQa(
 			panelStore,
 			sessionStore,
 			readRuntimeErrors: readRuntimeErrorMessages,
-			readTauriInvokeTimings: getTauriInvokeTimings,
-			readPendingTauriInvokes: getPendingTauriInvokes,
+			readInvokeTimings: getInvokeTimings,
+			readPendingInvokes: getPendingInvokes,
 		},
 		options
 	);
@@ -1786,7 +1786,7 @@ async function installAvailableUpdate(): Promise<void> {
 // Initialize on mount
 onMount(async () => {
 	mainAppMountStartedAtMs = performance.now();
-	mainAppInvokeTimingBaselineIndex = getTauriInvokeTimings().length;
+	mainAppInvokeTimingBaselineIndex = getInvokeTimings().length;
 	installHappyPathProbeQaHook();
 	installQaSpawnAgentPanelHook();
 	installQaSessionListSnapshotHook();
@@ -1991,13 +1991,13 @@ onDestroy(() => {
 	viewState.cleanup();
 	// Cleanup inbound request handler
 	inboundRequestHandler.stop();
-	// Cleanup session update subscription (removes Tauri event listener)
+	// Cleanup session update subscription (removes the event listener)
 	sessionStore.cleanupSessionUpdates();
 	// Unregister global keyboard handler
 	window.removeEventListener("keydown", handleGlobalKeydown);
 	// Cleanup notification system
 	windowFocusStore.cleanup();
-	// Cleanup voice settings (removes Tauri event listener for download progress)
+	// Cleanup voice settings (removes the download-progress event listener)
 	voiceSettingsStore.dispose();
 	uninstallStreamingReproQaHook();
 	if (updatePollTimer) {
