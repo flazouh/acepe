@@ -719,7 +719,6 @@ const workingLineTokens = $derived(
 		turnStartedAtMs: sessionController.runningTurnStartedAtMs,
 	})
 );
-const workingLineInterruptHint = $derived(isMac() ? "ctrl+c to interrupt" : null);
 const planningPlaceholderPresentation = $derived(
 	resolvePlanningPlaceholderPresentation({
 		agentName,
@@ -728,7 +727,6 @@ const planningPlaceholderPresentation = $derived(
 		startedAtMs: sessionController.runningTurnStartedAtMs,
 		workingLineVerbs,
 		workingLineTokens,
-		workingLineInterruptHint,
 	})
 );
 const isConnecting = $derived(

@@ -81,7 +81,6 @@
 		workingLineVerbs={entry.workingLineVerbs}
 		workingLineSeed={entry.workingLineSeed}
 		workingLineTokens={entry.workingLineTokens}
-		workingLineInterruptHint={entry.workingLineInterruptHint}
 	/>
 {:else if entry.type === "missing"}
 	<AgentMissingSceneEntry

@@ -11,7 +11,11 @@ interface Props {
 	label?: string;
 }
 
-let { class: className = "", size = 12, label = "Claude is working" }: Props = $props();
+let {
+	class: className = "",
+	size = 12,
+	label = "Claude is working",
+}: Props = $props();
 </script>
 
 <!--
@@ -43,8 +47,10 @@ let { class: className = "", size = 12, label = "Claude is working" }: Props = $
 		overflow: hidden;
 		vertical-align: middle;
 		flex-shrink: 0;
-		/* Claude brand color; override `color` on the host to re-tint. */
-		color: #d97757;
+		/* The shared brand accent, so the working line beside this spark can
+		   ask for the same token instead of repeating the hex. Override
+		   `color` on the host to re-tint. */
+		color: var(--token-brand-primary, #d97757);
 	}
 
 	.claude-working-spark__sprite {

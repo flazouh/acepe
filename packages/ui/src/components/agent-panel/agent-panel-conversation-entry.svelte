@@ -1,26 +1,26 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
+import type { InlineArtefactTokenType } from "../../lib/inline-artefact/index.js";
+import AgentAssistantMessage from "./agent-assistant-message.svelte";
+import AgentMissingSceneEntry from "./agent-missing-scene-entry.svelte";
+import { isToolCallEntry } from "./agent-panel-conversation-entry-model.js";
+import AgentPanelToolEntry from "./agent-panel-tool-entry.svelte";
+import AgentSessionActivityEntry from "./agent-session-activity-entry.svelte";
+import AgentThinkingSceneEntry from "./agent-thinking-scene-entry.svelte";
+import type { EditToolTheme } from "./agent-tool-edit-theme.js";
+import AgentUserMessage from "./agent-user-message.svelte";
 import type {
 	AgentPanelConversationEntry,
-	AgentTaskDetailBinding,
 	AgentPanelPlanActionEvent,
 	AgentPanelPlanViewEvent,
 	AgentPanelQuestionSelectEvent,
 	AgentPanelReviewActionEvent,
-	AgentUserFileSelectEvent,
+	AgentTaskDetailBinding,
 	AgentToolFileSelectEvent,
+	AgentUserFileSelectEvent,
 	AssistantRenderBlockContext,
 } from "./types.js";
-import type { InlineArtefactTokenType } from "../../lib/inline-artefact/index.js";
-import { isToolCallEntry } from "./agent-panel-conversation-entry-model.js";
 
-import AgentAssistantMessage from "./agent-assistant-message.svelte";
-import AgentPanelToolEntry from "./agent-panel-tool-entry.svelte";
-import AgentThinkingSceneEntry from "./agent-thinking-scene-entry.svelte";
-import AgentUserMessage from "./agent-user-message.svelte";
-import AgentMissingSceneEntry from "./agent-missing-scene-entry.svelte";
-import AgentSessionActivityEntry from "./agent-session-activity-entry.svelte";
-import type { EditToolTheme } from "./agent-tool-edit-theme.js";
 export type { EditToolTheme } from "./agent-tool-edit-theme.js";
 
 interface Props {
@@ -106,7 +106,6 @@ function handleUserTokenClick(
 		workingLineVerbs={entry.workingLineVerbs}
 		workingLineSeed={entry.workingLineSeed}
 		workingLineTokens={entry.workingLineTokens}
-		workingLineInterruptHint={entry.workingLineInterruptHint}
 	/>
 {:else if entry.type === "session_activity"}
 	<AgentSessionActivityEntry

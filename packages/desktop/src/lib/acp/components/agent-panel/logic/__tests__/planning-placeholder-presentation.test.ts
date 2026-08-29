@@ -20,7 +20,6 @@ describe("resolvePlanningPlaceholderPresentation", () => {
 			startedAtMs: null,
 			workingLineVerbs: null,
 			workingLineTokens: null,
-			workingLineInterruptHint: null,
 		});
 	});
 
@@ -38,7 +37,6 @@ describe("resolvePlanningPlaceholderPresentation", () => {
 			startedAtMs: null,
 			workingLineVerbs: null,
 			workingLineTokens: null,
-			workingLineInterruptHint: null,
 		});
 	});
 
@@ -56,7 +54,6 @@ describe("resolvePlanningPlaceholderPresentation", () => {
 			startedAtMs: null,
 			workingLineVerbs: null,
 			workingLineTokens: null,
-			workingLineInterruptHint: null,
 		});
 	});
 
@@ -69,13 +66,11 @@ describe("resolvePlanningPlaceholderPresentation", () => {
 			startedAtMs: 1_000,
 			workingLineVerbs: verbs,
 			workingLineTokens: 48,
-			workingLineInterruptHint: "ctrl+c to interrupt",
 		});
 
 		expect(result.startedAtMs).toBe(1_000);
 		expect(result.workingLineVerbs).toBe(verbs);
 		expect(result.workingLineTokens).toBe(48);
-		expect(result.workingLineInterruptHint).toBe("ctrl+c to interrupt");
 	});
 });
 

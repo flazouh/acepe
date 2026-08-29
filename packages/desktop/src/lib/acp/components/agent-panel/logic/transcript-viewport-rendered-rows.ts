@@ -545,7 +545,6 @@ function createLocalPlanningEntry(
 		workingLineVerbs: isPlanning ? (presentation?.workingLineVerbs ?? null) : null,
 		workingLineSeed: isPlanning ? (presentation?.startedAtMs ?? null) : null,
 		workingLineTokens: isPlanning ? (presentation?.workingLineTokens ?? null) : null,
-		workingLineInterruptHint: isPlanning ? (presentation?.workingLineInterruptHint ?? null) : null,
 	};
 }
 

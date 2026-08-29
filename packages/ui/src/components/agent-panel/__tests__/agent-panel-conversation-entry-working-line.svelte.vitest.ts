@@ -9,7 +9,7 @@ vi.mock("svelte", async () => {
 	const require = createRequire(import.meta.url);
 	const svelteClientPath = join(
 		dirname(require.resolve("svelte/package.json")),
-		"src/index-client.js"
+		"src/index-client.js",
 	);
 
 	return import(/* @vite-ignore */ svelteClientPath);
@@ -43,7 +43,6 @@ describe("AgentPanelConversationEntry working line", () => {
 					workingLineVerbs: ["Puzzling", "Pondering"],
 					workingLineSeed: 1_000,
 					workingLineTokens: 48,
-					workingLineInterruptHint: "ctrl+c to interrupt",
 				},
 			},
 		});
@@ -56,6 +55,5 @@ describe("AgentPanelConversationEntry working line", () => {
 		// working line would silently fall back to this exact string).
 		expect(view.container.textContent).not.toContain("Planning next moves");
 		expect(view.container.textContent).toContain("↑ 48 tokens");
-		expect(view.container.textContent).toContain("ctrl+c to interrupt");
 	});
 });

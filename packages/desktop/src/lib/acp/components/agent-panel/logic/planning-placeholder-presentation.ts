@@ -13,7 +13,6 @@ export interface PlanningPlaceholderPresentation {
 	readonly startedAtMs: number | null;
 	readonly workingLineVerbs: readonly string[] | null;
 	readonly workingLineTokens: number | null;
-	readonly workingLineInterruptHint: string | null;
 }
 
 export function resolvePlanningPlaceholderPresentation(input: {
@@ -23,7 +22,6 @@ export function resolvePlanningPlaceholderPresentation(input: {
 	readonly startedAtMs?: number | null;
 	readonly workingLineVerbs?: readonly string[] | null;
 	readonly workingLineTokens?: number | null;
-	readonly workingLineInterruptHint?: string | null;
 }): PlanningPlaceholderPresentation {
 	const agentName = normalizeAgentName(input.agentName);
 
@@ -34,7 +32,6 @@ export function resolvePlanningPlaceholderPresentation(input: {
 		startedAtMs: input.startedAtMs ?? null,
 		workingLineVerbs: input.workingLineVerbs ?? null,
 		workingLineTokens: input.workingLineTokens ?? null,
-		workingLineInterruptHint: input.workingLineInterruptHint ?? null,
 	};
 }
 

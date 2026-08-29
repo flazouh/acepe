@@ -333,7 +333,6 @@ describe("buildRenderedTranscriptViewportRows", () => {
 				startedAtMs: null,
 				workingLineVerbs: null,
 				workingLineTokens: null,
-				workingLineInterruptHint: null,
 			},
 		});
 		const renderable = rows[0];
@@ -371,7 +370,6 @@ describe("buildRenderedTranscriptViewportRows", () => {
 				startedAtMs: 1_000,
 				workingLineVerbs: ["Puzzling", "Pondering"],
 				workingLineTokens: 48,
-				workingLineInterruptHint: "ctrl+c to interrupt",
 			},
 		});
 		const renderable = rows[0];
@@ -390,7 +388,6 @@ describe("buildRenderedTranscriptViewportRows", () => {
 			workingLineVerbs: ["Puzzling", "Pondering"],
 			workingLineSeed: 1_000,
 			workingLineTokens: 48,
-			workingLineInterruptHint: "ctrl+c to interrupt",
 		});
 	});
 
@@ -410,7 +407,6 @@ describe("buildRenderedTranscriptViewportRows", () => {
 				startedAtMs: 1_000,
 				workingLineVerbs: ["Puzzling", "Pondering"],
 				workingLineTokens: 48,
-				workingLineInterruptHint: "ctrl+c to interrupt",
 			},
 		});
 		const renderable = rows[0];
@@ -428,7 +424,6 @@ describe("buildRenderedTranscriptViewportRows", () => {
 			workingLineVerbs: null,
 			workingLineSeed: null,
 			workingLineTokens: null,
-			workingLineInterruptHint: null,
 		});
 	});
 
@@ -453,7 +448,6 @@ describe("buildRenderedTranscriptViewportRows", () => {
 				startedAtMs: null,
 				workingLineVerbs: null,
 				workingLineTokens: null,
-				workingLineInterruptHint: null,
 			},
 		});
 		const renderable = rows[0];
@@ -484,7 +478,6 @@ describe("buildRenderedTranscriptViewportRows", () => {
 			startedAtMs: null,
 			workingLineVerbs: null,
 			workingLineTokens: null,
-			workingLineInterruptHint: null,
 		};
 		const eagerRows = buildRenderedTranscriptViewportRows({
 			bufferRows,
@@ -571,7 +564,6 @@ describe("buildRenderedTranscriptViewportRows", () => {
 				startedAtMs: null,
 				workingLineVerbs: null,
 				workingLineTokens: null,
-				workingLineInterruptHint: null,
 			},
 		});
 

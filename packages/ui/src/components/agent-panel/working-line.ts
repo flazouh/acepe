@@ -1,8 +1,9 @@
 /**
  * AC-269: pure presentation helpers for the Claude Code working line -- the
  * rotating-verb + elapsed-timer + token-count row that renders beside the
- * spark while a turn runs, e.g. "Puzzling... (12s * up 1.4k tokens * ctrl+c
- * to interrupt)".
+ * spark while a turn runs, e.g. "Puzzling... (up 1.4k tokens)". The elapsed
+ * time is not part of this text: it renders as its own animated counter
+ * beside the line.
  *
  * Deliberately a curated, Acepe-flavored verb list rather than a copy of
  * Claude Code's own rotation -- same playful register, different words.
@@ -84,7 +85,9 @@ export function selectWorkingLineVerb(input: {
 }
 
 /** Selects the verb list a provider's working line should rotate through. */
-export function selectWorkingLineVerbs(isClaudeCode: boolean): readonly string[] {
+export function selectWorkingLineVerbs(
+	isClaudeCode: boolean,
+): readonly string[] {
 	return isClaudeCode ? WORKING_LINE_VERBS_CLAUDE : WORKING_LINE_VERBS_NEUTRAL;
 }
 
@@ -102,7 +105,10 @@ export function formatWorkingLineTokenCount(tokens: number): string {
 	if (clamped < 1000) {
 		return `${clamped}`;
 	}
-	const units: ReadonlyArray<{ readonly value: number; readonly suffix: string }> = [
+	const units: ReadonlyArray<{
+		readonly value: number;
+		readonly suffix: string;
+	}> = [
 		{ value: 1_000_000_000, suffix: "b" },
 		{ value: 1_000_000, suffix: "m" },
 		{ value: 1_000, suffix: "k" },
@@ -115,22 +121,6 @@ export function formatWorkingLineTokenCount(tokens: number): string {
 		}
 	}
 	return `${clamped}`;
-}
-
-/**
- * Elapsed-time formatting for the working line: "3s" under a minute,
- * "1m 12s" at or beyond it. Distinct from tool-duration.ts's
- * formatToolDurationLabel (seconds-only, tool calls are typically short) --
- * a turn can run for several minutes, and the working line needs to say so.
- */
-export function formatWorkingLineElapsed(elapsedMs: number): string {
-	const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
-	if (totalSeconds < 60) {
-		return `${totalSeconds}s`;
-	}
-	const minutes = Math.floor(totalSeconds / 60);
-	const seconds = totalSeconds % 60;
-	return `${minutes}m ${seconds}s`;
 }
 
 /**
@@ -148,39 +138,30 @@ export function formatWorkingLineTokens(tokens: number | null): string | null {
 }
 
 /**
- * Joins the elapsed/tokens/interrupt-hint pieces into the parenthetical, e.g.
- * "(12s * up 1.4k tokens * ctrl+c to interrupt)". Any piece the caller omits
- * (null) is left out entirely rather than shown empty -- in particular the
- * tokens piece must be null (not "0 tokens") until real usage data exists,
- * which formatWorkingLineTokens already guarantees. Returns null (no
- * parenthetical at all) when every piece is null.
+ * Joins the parenthetical pieces, e.g. "(↑ 1.4k tokens)". A piece the caller
+ * omits (null) is left out rather than shown empty -- in particular the tokens
+ * piece must be null (not "0 tokens") until real usage data exists, which
+ * formatWorkingLineTokens already guarantees. Returns null (no parenthetical
+ * at all) when every piece is null.
+ *
+ * Elapsed time is deliberately not a piece here. It renders as its own
+ * animated counter beside the line, so baking it into this string would show
+ * the timer twice.
  */
 export function composeWorkingLineDetails(input: {
-	readonly elapsed: string | null;
 	readonly tokens: string | null;
-	readonly interruptHint: string | null;
 }): string | null {
-	const pieces: string[] = [];
-	if (input.elapsed !== null) {
-		pieces.push(input.elapsed);
-	}
-	if (input.tokens !== null) {
-		pieces.push(`↑ ${input.tokens}`);
-	}
-	if (input.interruptHint !== null) {
-		pieces.push(input.interruptHint);
-	}
-	if (pieces.length === 0) {
+	if (input.tokens === null) {
 		return null;
 	}
-	return `(${pieces.join(" · ")})`;
+	return `(↑ ${input.tokens})`;
 }
 
 /**
- * Composes the full working-line text, e.g. "Puzzling... (12s * up 1.4k
- * tokens * ctrl+c to interrupt)". Returns null when there is no verb to
- * show (e.g. an empty verb list), so callers can fall back to their
- * existing static label instead of rendering nothing.
+ * Composes the full working-line text, e.g. "Puzzling... (up 1.4k tokens)".
+ * Returns null when there is no verb to show (e.g. an empty verb list), so
+ * callers can fall back to their existing static label instead of rendering
+ * nothing.
  */
 export function composeWorkingLineText(input: {
 	readonly verb: string | null;
@@ -189,5 +170,7 @@ export function composeWorkingLineText(input: {
 	if (input.verb === null) {
 		return null;
 	}
-	return input.details === null ? `${input.verb}…` : `${input.verb}… ${input.details}`;
+	return input.details === null
+		? `${input.verb}…`
+		: `${input.verb}… ${input.details}`;
 }

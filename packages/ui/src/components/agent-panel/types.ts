@@ -2,10 +2,11 @@
  * Presentational types for the shared AgentPanel components.
  * No backend, store, or desktop dependencies.
  */
-import type { AssistantMessage } from "../../lib/assistant-message/types.js";
-import type { ChunkGroup } from "../../lib/assistant-message/assistant-chunk-grouper.js";
-import type { CommandChipModel } from "../command-chip/command-chip.types.js";
+
 import type { Snippet } from "svelte";
+import type { ChunkGroup } from "../../lib/assistant-message/assistant-chunk-grouper.js";
+import type { AssistantMessage } from "../../lib/assistant-message/types.js";
+import type { CommandChipModel } from "../command-chip/command-chip.types.js";
 
 export type AgentSessionStatus =
 	| "empty"
@@ -138,7 +139,7 @@ export interface AgentPanelReviewActionEvent {
 
 export type AgentSourceHighlighter = (
 	code: string,
-	filePath: string | null | undefined
+	filePath: string | null | undefined,
 ) => string | null;
 
 /** Highlights a single code string (command segment, output stream, or script body). */
@@ -248,7 +249,12 @@ export interface AgentToolEntry {
 	// Plan-specific
 	planTitle?: string | null;
 	planContent?: string | null;
-	planStatus?: "streaming" | "interactive" | "approved" | "rejected" | "building";
+	planStatus?:
+		| "streaming"
+		| "interactive"
+		| "approved"
+		| "rejected"
+		| "building";
 	presentationState?: AgentToolPresentationState;
 	degradedReason?: string | null;
 	todos?: AgentTodoItem[];
@@ -267,20 +273,18 @@ export interface AgentThinkingEntry {
 	/**
 	 * AC-269: the Claude Code working line -- a rotating gerund verb, live
 	 * elapsed timer, and (once real data exists) the running turn's token
-	 * count, e.g. "Puzzling… (12s · ↑ 1.4k tokens · ctrl+c to interrupt)".
+	 * count, e.g. "Puzzling… (↑ 1.4k tokens)". The elapsed time is not part
+	 * of this text: it renders as its own animated counter beside the line.
 	 * `workingLineVerbs` being non-null/non-empty is what turns the working
 	 * line on; when null or empty the row falls back to `label`/the spark's
 	 * plain static behavior. `workingLineSeed` should be a value stable for
 	 * the whole turn (its id, or its start timestamp) so the verb rotation
 	 * does not reshuffle on re-render. `workingLineTokens` must stay null
 	 * until a real usage reading has arrived -- never a fabricated 0.
-	 * `workingLineInterruptHint` is the host app's real interrupt affordance
-	 * text (e.g. "ctrl+c to interrupt"); null omits that segment.
 	 */
 	workingLineVerbs?: readonly string[] | null;
 	workingLineSeed?: string | number | null;
 	workingLineTokens?: number | null;
-	workingLineInterruptHint?: string | null;
 }
 
 export interface AgentSessionActivityMetadataItem {
