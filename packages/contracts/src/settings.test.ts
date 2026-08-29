@@ -10,7 +10,7 @@ const decodeKey = Schema.decodeUnknownEffect(UserSettingKey)
 
 describe("UserSettingKey", () => {
 	it("decodes every shipping app_settings key", () => {
-		expect(USER_SETTING_KEYS).toHaveLength(40)
+		expect(USER_SETTING_KEYS).toHaveLength(41)
 		for (const key of USER_SETTING_KEYS) {
 			expect(Effect.runSync(decodeKey(key))).toBe(key)
 		}
