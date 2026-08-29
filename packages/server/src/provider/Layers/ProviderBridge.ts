@@ -11,7 +11,6 @@ import {
 	type SessionModelSetEvent,
 	type SessionModeSetEvent,
 	type Sequence,
-	type TranscriptFactOrigin,
 	TrimmedNonEmptyString,
 	type TurnCancelledEvent
 } from "@acepe/contracts"
@@ -531,12 +530,10 @@ const applySetModel = (
 
 // An imported session is history, not an intent: the history importer wrote
 // it from a provider's own JSONL, so opening a provider session for it would
-// spawn a `claude` subprocess for a conversation that already ended. Treat it
-// exactly as boot replay treats a session from a previous run -- record the
-// mapping and open nothing -- so the session is still lazily openable the
-// moment a real live command arrives for it (see ensureSessionOpen).
-const isImported = (origin: TranscriptFactOrigin | undefined): boolean => origin === "imported"
-
+// spawn a `claude` subprocess for a conversation that already ended. It is
+// treated exactly as boot replay treats a session from a previous run --
+// record the mapping, open nothing -- so the session is still lazily openable
+// the moment a real live command arrives for it (see ensureSessionOpen).
 const considerSessionCreated = Effect.fn("ProviderBridge.considerSessionCreated")(function*(
 	state: BridgeState,
 	event: SessionCreatedEvent,
@@ -564,11 +561,11 @@ const considerSessionCreated = Effect.fn("ProviderBridge.considerSessionCreated"
 		)
 		return
 	}
-	if (phase === "replay" || isImported(event.payload.origin)) {
+	if (phase === "replay" || event.payload.origin === "imported") {
 		// Record the mapping so ensureSessionOpen can lazily open this
 		// session later, without spawning anything now — see the doc above
-		// ensureSessionOpen for why replay must never eagerly open, and
-		// isImported for why an import is the same case.
+		// ensureSessionOpen for why replay must never eagerly open, and the
+		// doc above this function for why an import is the same case.
 		yield* Ref.update(state.sessionAdapters, (current) =>
 			HashMap.set(current, event.payload.sessionId, found.value))
 		yield* Ref.update(state.sessionProjects, (current) =>
@@ -599,7 +596,7 @@ const considerMessageSent = Effect.fn("ProviderBridge.considerMessageSent")(func
 	phase: "live" | "replay"
 ) {
 	const claimed = yield* claim(state.claimedMessages, event.payload.messageId)
-	if (!claimed || phase === "replay" || isImported(event.payload.origin)) {
+	if (!claimed || phase === "replay" || event.payload.origin === "imported") {
 		return
 	}
 	const justOpened = yield* ensureSessionOpen(state, event.payload.sessionId)
