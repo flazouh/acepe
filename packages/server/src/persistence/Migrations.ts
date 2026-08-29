@@ -26,8 +26,8 @@ import projectionSessionActivitiesOutput from "./Migrations/0024_projection_sess
 import projectionSessionActivitiesToolKind from "./Migrations/0025_projection_session_activities_tool_kind.ts"
 import projectionSessionsCurrentMode from "./Migrations/0026_projection_sessions_current_mode.ts"
 import projectionSessionActivitiesInput from "./Migrations/0027_projection_session_activities_input.ts"
-import projectionSessionMessagesLastSequence from "./Migrations/0028_projection_session_messages_last_sequence.ts"
-import projectionSessionsModels from "./Migrations/0029_projection_sessions_models.ts"
+import projectionSessionMessagesLastSequence from "./Migrations/0029_projection_session_messages_last_sequence.ts"
+import projectionSessionsModels from "./Migrations/0028_projection_sessions_models.ts"
 import projectionProjectsShowExternalCliSessions from "./Migrations/0030_projection_projects_show_external_cli_sessions.ts"
 
 const MIGRATIONS_TABLE = "_migrations"
@@ -60,8 +60,8 @@ const loader = SqliteMigrator.fromRecord({
 	"0025_projection_session_activities_tool_kind": projectionSessionActivitiesToolKind,
 	"0026_projection_sessions_current_mode": projectionSessionsCurrentMode,
 	"0027_projection_session_activities_input": projectionSessionActivitiesInput,
-	"0028_projection_session_messages_last_sequence": projectionSessionMessagesLastSequence,
-	"0029_projection_sessions_models": projectionSessionsModels,
+	"0028_projection_sessions_models": projectionSessionsModels,
+	"0029_projection_session_messages_last_sequence": projectionSessionMessagesLastSequence,
 	"0030_projection_projects_show_external_cli_sessions": projectionProjectsShowExternalCliSessions
 })
 

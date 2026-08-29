@@ -8,7 +8,7 @@ import * as Path from "effect/Path"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { makeSqliteLayer } from "../Layers/Sqlite.ts"
 import projectionSessions from "./0006_projection_sessions.ts"
-import projectionSessionsModels from "./0029_projection_sessions_models.ts"
+import projectionSessionsModels from "./0028_projection_sessions_models.ts"
 
 const TempSqlite = Layer.unwrap(
 	Effect.gen(function*() {
@@ -24,7 +24,7 @@ const TempSqlite = Layer.unwrap(
 
 const isolatedSqlite = () => Layer.fresh(TempSqlite)
 
-Vitest.layer(isolatedSqlite())("0029_projection_sessions_models columns", (it) => {
+Vitest.layer(isolatedSqlite())("0028_projection_sessions_models columns", (it) => {
 	it.effect("adds nullable current_model_id and available_models columns", () =>
 		Effect.gen(function*() {
 			const sql = yield* SqlClient.SqlClient
