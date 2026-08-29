@@ -3,6 +3,7 @@ import { Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import type { RevealMode } from "@acepe/ui/streaming-reveal";
 import { getChatPreferencesStore } from "$lib/acp/store/chat-preferences-store.svelte.js";
+import { DEFAULT_STREAMING_REVEAL_MODE } from "$lib/acp/store/chat-preferences-store.svelte.js";
 import { getPlanPreferenceStore } from "$lib/acp/store/plan-preference-store.svelte.js";
 import { Switch } from "$lib/components/ui/switch/index.js";
 import SettingRow from "../setting-row.svelte";
@@ -19,8 +20,9 @@ const REVEAL_OPTIONS: { value: RevealMode; label: string }[] = [
 ];
 
 const selectedRevealLabel = $derived(
-	REVEAL_OPTIONS.find((option) => option.value === (chatPrefs?.streamingRevealMode ?? "buffer"))
-		?.label ?? "Buffer"
+	REVEAL_OPTIONS.find(
+		(option) => option.value === (chatPrefs?.streamingRevealMode ?? DEFAULT_STREAMING_REVEAL_MODE)
+	)?.label ?? REVEAL_OPTIONS[0].label
 );
 
 function handleRevealChange(value: string): void {

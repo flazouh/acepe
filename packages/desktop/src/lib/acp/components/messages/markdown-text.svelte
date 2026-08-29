@@ -12,7 +12,10 @@ import {
 } from "@acepe/ui/streaming-reveal";
 
 import { useSessionContext } from "../../hooks/use-session-context.js";
-import { getChatPreferencesStore } from "../../store/chat-preferences-store.svelte.js";
+import {
+	DEFAULT_STREAMING_REVEAL_MODE,
+	getChatPreferencesStore,
+} from "../../store/chat-preferences-store.svelte.js";
 import { getPanelStore, type OpenProjectFileSystemDialogOptions } from "../../store/index.js";
 import { getSessionStore } from "../../store/session-store.svelte.js";
 import { createLogger } from "../../utils/logger.js";
