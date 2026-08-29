@@ -29,6 +29,7 @@ import projectionSessionActivitiesInput from "./Migrations/0027_projection_sessi
 import projectionSessionMessagesLastSequence from "./Migrations/0029_projection_session_messages_last_sequence.ts"
 import projectionSessionsModels from "./Migrations/0028_projection_sessions_models.ts"
 import projectionProjectsShowExternalCliSessions from "./Migrations/0030_projection_projects_show_external_cli_sessions.ts"
+import repairTranscriptWhitespace from "./Migrations/0031_repair_transcript_whitespace.ts"
 
 const MIGRATIONS_TABLE = "_migrations"
 
@@ -62,7 +63,8 @@ const loader = SqliteMigrator.fromRecord({
 	"0027_projection_session_activities_input": projectionSessionActivitiesInput,
 	"0028_projection_sessions_models": projectionSessionsModels,
 	"0029_projection_session_messages_last_sequence": projectionSessionMessagesLastSequence,
-	"0030_projection_projects_show_external_cli_sessions": projectionProjectsShowExternalCliSessions
+	"0030_projection_projects_show_external_cli_sessions": projectionProjectsShowExternalCliSessions,
+	"0031_repair_transcript_whitespace": repairTranscriptWhitespace
 })
 
 export const runMigrations = SqliteMigrator.run({

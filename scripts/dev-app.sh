@@ -71,12 +71,12 @@ wait_for_free_port() {
 }
 
 if [ "${1:-start}" = "status" ]; then
-  echo "instance     socket                                        app"
+  printf '%-34s %-52s %s\n' "instance" "socket" "app"
   for sock in /tmp/electrobun-qa/*.sock; do
     [ -e "$sock" ] || continue
     id="$(basename "$sock" .sock)"
     if pgrep -f "acepe-instance=$id" >/dev/null 2>&1; then state="running"; else state="stale socket"; fi
-    printf '%-12s %-45s %s\n' "$id" "$sock" "$state"
+    printf '%-34s %-52s %s\n' "$id" "$sock" "$state"
   done
   exit 0
 fi

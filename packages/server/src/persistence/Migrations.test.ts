@@ -61,7 +61,8 @@ Vitest.layer(TempSqlite)("runMigrations", (it) => {
 				[27, "projection_session_activities_input"],
 				[28, "projection_sessions_models"],
 				[29, "projection_session_messages_last_sequence"],
-				[30, "projection_projects_show_external_cli_sessions"]
+				[30, "projection_projects_show_external_cli_sessions"],
+				[31, "repair_transcript_whitespace"]
 			])
 			Vitest.assert.deepStrictEqual(second, [])
 			Vitest.assert.deepStrictEqual(rows, [
@@ -94,7 +95,8 @@ Vitest.layer(TempSqlite)("runMigrations", (it) => {
 				{ migration_id: 27, name: "projection_session_activities_input" },
 				{ migration_id: 28, name: "projection_sessions_models" },
 				{ migration_id: 29, name: "projection_session_messages_last_sequence" },
-				{ migration_id: 30, name: "projection_projects_show_external_cli_sessions" }
+				{ migration_id: 30, name: "projection_projects_show_external_cli_sessions" },
+				{ migration_id: 31, name: "repair_transcript_whitespace" }
 			])
 		})
 	)

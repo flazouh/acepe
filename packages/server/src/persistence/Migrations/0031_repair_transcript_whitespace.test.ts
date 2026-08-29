@@ -27,6 +27,8 @@ import {
 	OrchestrationEventStore
 } from "../Services/OrchestrationEventStore.ts"
 import {
+	assistantMessageRow,
+	encodeContentJson,
 	PROJECTION_SESSION_MESSAGES_NAME,
 	ProjectionSessionMessages
 } from "../Services/ProjectionSessionMessages.ts"
@@ -104,6 +106,17 @@ const seedCorruptedInstall = Effect.fn("seedCorruptedInstall")(function*() {
 	const lastSequence = yield* store.append(
 		TOKENS.map((token, index) => tokenAppended(index + 1, token))
 	)
+	// Encoded exactly as the projector writes content, so the seeded row is
+	// the row a pre-fix install actually holds.
+	const content = yield* encodeContentJson(
+		assistantMessageRow({
+			sessionId,
+			sequence: 1,
+			messageId: assistantMessageId,
+			turnId: null,
+			text: CORRUPTED_TEXT
+		})
+	)
 	yield* sql`
 		INSERT INTO projection_session_messages (
 			session_id,
@@ -119,7 +132,7 @@ const seedCorruptedInstall = Effect.fn("seedCorruptedInstall")(function*() {
 			${assistantMessageId},
 			${null},
 			'assistant',
-			${JSON.stringify({ text: CORRUPTED_TEXT })},
+			${content},
 			${lastSequence}
 		)
 	`.withoutTransform
@@ -199,14 +212,17 @@ Vitest.layer(isolatedEngine())("0031 then replay repairs the text", (it) => {
 					yield* waitForSequence(name, lastSequence)
 					Vitest.assert.strictEqual(yield* readAssistantText(), REPAIRED_TEXT)
 				}).pipe(
+					// @effect-diagnostics-next-line strictEffectProvide:off
 					Effect.provide(
-						ProjectionPipelineLive([
-							{
-								name,
-								apply: messages.apply,
-								truncate: messages.truncate
-							}
-						])
+						Layer.fresh(
+							ProjectionPipelineLive([
+								{
+									name,
+									apply: messages.apply,
+									truncate: messages.truncate
+								}
+							])
+						)
 					)
 				)
 			)

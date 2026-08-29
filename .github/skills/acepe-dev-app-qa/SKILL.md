@@ -58,6 +58,36 @@ separate step: see "Show Alex A Screenshot" below.
 If a helper is missing, add it to `packages/electrobun-qa`. Repeated ad hoc
 snippets around the CLI are a workflow bug.
 
+## Running Two Apps At Once
+
+Each checkout runs its own dev app, so two agents can QA in parallel without
+driving each other's transcript. Ports, launchd labels and QA sockets all
+derive from the checkout path, so nothing is assigned by hand.
+
+```bash
+# in the worktree
+bun install            # ~10s; the app bundle is borrowed from the primary
+scripts/dev-app.sh     # prints this checkout's port, app id and QA command
+
+# QA that instance, from anywhere
+ELECTROBUN_QA_APP_ID=com.acepe.app.<name> bun run qa doctor
+
+scripts/dev-app.sh status   # every running instance, and sockets left behind
+scripts/dev-app.sh stop     # stops only this checkout's server and app
+```
+
+The primary checkout keeps port 1420 and the bare `com.acepe.app` socket, so
+`bun run qa` with no environment still means the primary.
+
+A worktree does not need `electrobun:build`. The bundle is only a shell -- the
+window loads the dev url, so the UI under test comes from that checkout's Vite
+server. Build in the worktree only when the Bun side changed (`src/bun`,
+`@acepe/electrobun-shell`, `@acepe/server`).
+
+Before trusting any transcript read, confirm which instance you are on.
+`doctor` prints the url, and a port that is not yours means you are reading
+another checkout's app.
+
 ## Replaying A Scenario Instead Of Driving A Real Agent
 
 `?qa=<scenario>` boots the same app shell against a recorded scenario. The

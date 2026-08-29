@@ -28,10 +28,10 @@ import * as SqlClient from "effect/unstable/sql/SqlClient"
 const repairTranscriptWhitespace = Effect.gen(function*() {
 	const sql = yield* SqlClient.SqlClient
 	yield* sql`
-		SELECT 1 FROM projection_session_messages
+		DELETE FROM projection_session_messages
 	`.withoutTransform
 	yield* sql`
-		SELECT 1 FROM projection_state
+		DELETE FROM projection_state
 		WHERE name = 'projection.session-messages'
 	`.withoutTransform
 })
