@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect";
 import { onMount } from "svelte";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import { bashHighlighter } from "$lib/acp/utils/bash-highlighter.svelte.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+import { backendClient } from "$lib/utils/backend-client.js";
 
 interface Props {
 	projectPath: string;
@@ -34,7 +34,7 @@ function scriptToCommands(value: string): string[] {
 async function load() {
 	status = "loading";
 	await Effect.runPromise(
-		tauriClient.git.loadWorktreeConfig(projectPath).pipe(
+		backendClient.git.loadWorktreeConfig(projectPath).pipe(
 			Effect.match({
 				onSuccess: (config) => {
 					const next = commandsToScript(config?.setupCommands ?? []);
@@ -62,7 +62,7 @@ async function persist(nextScript: string) {
 	isSaving = true;
 	const nextCommands = scriptToCommands(nextScript);
 	await Effect.runPromise(
-		tauriClient.git.saveWorktreeConfig(projectPath, nextCommands).pipe(
+		backendClient.git.saveWorktreeConfig(projectPath, nextCommands).pipe(
 			Effect.match({
 				onSuccess: () => {
 					remoteScript = commandsToScript(nextCommands);

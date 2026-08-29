@@ -13,7 +13,7 @@ import { copyTextToClipboard } from "$lib/acp/components/agent-panel/logic/clipb
 import type { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import type { ThreadBoardItem } from "$lib/acp/store/thread-board/thread-board-item.js";
-import { openFileInEditor, tauriClient } from "$lib/utils/tauri-client.js";
+import { openFileInEditor, backendClient } from "$lib/utils/backend-client.js";
 
 export interface KanbanExportHandlerDeps {
 	sessionStore: SessionStore;
@@ -23,7 +23,7 @@ export interface KanbanExportHandlerDeps {
 export function createKanbanExportHandlers(deps: KanbanExportHandlerDeps) {
 	async function handleOpenRawFile(item: ThreadBoardItem): Promise<void> {
 		await Effect.runPromise(
-			tauriClient.shell.getSessionFilePath(item.sessionId, item.projectPath).pipe(
+			backendClient.shell.getSessionFilePath(item.sessionId, item.projectPath).pipe(
 				Effect.flatMap((path) => openFileInEditor(path)),
 				Effect.match({
 					onSuccess: () => toast.success("Opened streaming log in file manager"),
@@ -35,7 +35,7 @@ export function createKanbanExportHandlers(deps: KanbanExportHandlerDeps) {
 
 	async function handleOpenInAcepe(item: ThreadBoardItem): Promise<void> {
 		await Effect.runPromise(
-			tauriClient.shell.getSessionFilePath(item.sessionId, item.projectPath).pipe(
+			backendClient.shell.getSessionFilePath(item.sessionId, item.projectPath).pipe(
 				Effect.match({
 					onSuccess: (fullPath) => {
 						const parts = fullPath.split(/[/\\]/);
@@ -83,7 +83,7 @@ export function createKanbanExportHandlers(deps: KanbanExportHandlerDeps) {
 
 	async function handleCopyStreamingLogPath(item: ThreadBoardItem): Promise<void> {
 		await Effect.runPromise(
-			tauriClient.shell.getStreamingLogPath(item.sessionId).pipe(
+			backendClient.shell.getStreamingLogPath(item.sessionId).pipe(
 				Effect.flatMap((path) => copyTextToClipboard(path)),
 				Effect.match({
 					onSuccess: () => toast.success("Path copied to clipboard"),
@@ -95,7 +95,7 @@ export function createKanbanExportHandlers(deps: KanbanExportHandlerDeps) {
 
 	async function handleExportRawStreaming(item: ThreadBoardItem): Promise<void> {
 		await Effect.runPromise(
-			tauriClient.shell.openStreamingLog(item.sessionId).pipe(
+			backendClient.shell.openStreamingLog(item.sessionId).pipe(
 				Effect.match({
 					onSuccess: () => undefined,
 					onFailure: (err) => toast.error(`Failed to open streaming log: ${err.message}`),

@@ -52,7 +52,7 @@ import {
 } from "$lib/acp/components/activity-entry/activity-entry-projection.js";
 import { Input } from "$lib/components/ui/input/index.js";
 import { makeWorkspaceRelative } from "$lib/acp/utils/path-utils.js";
-import { revealInFinder, tauriClient } from "$lib/utils/tauri-client/index.js";
+import { revealInFinder, backendClient } from "$lib/utils/backend-client/index.js";
 import type { SessionDisplayItem as BaseSessionDisplayItem } from "$lib/acp/types/thread-display-item.js";
 import PrChecksSurface from "$lib/acp/components/shared/pr-checks-surface.svelte";
 
@@ -213,7 +213,7 @@ async function handleRevealRawTranscriptFile() {
 	}
 
 	await Effect.runPromise(
-		tauriClient.shell.getSessionFilePath(session.id, session.projectPath).pipe(
+		backendClient.shell.getSessionFilePath(session.id, session.projectPath).pipe(
 			Effect.flatMap((path) => revealInFinder(path)),
 			Effect.match({
 				onSuccess: () => undefined,
@@ -241,7 +241,7 @@ async function handleRevealWorktreeFolder() {
 
 async function handleOpenStreamingLog() {
 	await Effect.runPromise(
-		tauriClient.shell.openStreamingLog(session.id).pipe(
+		backendClient.shell.openStreamingLog(session.id).pipe(
 			Effect.match({
 				onSuccess: () => undefined,
 				onFailure: (err) => toast.error(`Failed to open streaming log: ${err.message}`),

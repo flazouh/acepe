@@ -6,7 +6,7 @@ import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import { Switch } from "$lib/components/ui/switch/index.js";
 import { getAnalyticsPreferencesStore } from "$lib/stores/analytics-preferences-store.svelte.js";
 import { getNotificationPreferencesStore } from "$lib/stores/notification-preferences-store.svelte.js";
-import { settings } from "$lib/utils/tauri-client/settings.js";
+import { settings } from "$lib/utils/backend-client/settings.js";
 import SettingRow from "../setting-row.svelte";
 import SettingsSection from "../settings-section.svelte";
 import SettingsSectionHeader from "../settings-section-header.svelte";

@@ -38,6 +38,7 @@ const librarySnapshot: RpcSessionSnapshot = {
 			deletedAt: null,
 			sessionCount: 1,
 			color: "cyan",
+			showExternalCliSessions: false,
 			gitStatus: [],
 		},
 	],
@@ -124,6 +125,7 @@ describe("composeLibraryStore", () => {
 						Effect.succeed({
 							projectPath: "/tmp/acepe",
 							files: [],
+							showExternalCliSessions: false,
 							gitStatus: [],
 							totalFiles: 0,
 							totalLines: 0,
@@ -182,6 +184,7 @@ describe("openProject", () => {
 						Effect.succeed({
 							projectPath: "/tmp/acepe",
 							files: [],
+							showExternalCliSessions: false,
 							gitStatus: [],
 							totalFiles: 0,
 							totalLines: 0,

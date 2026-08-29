@@ -4,7 +4,7 @@ import { getContext, setContext } from "svelte";
 import { toast } from "svelte-sonner";
 import type { VoiceLanguageOption, VoiceModelInfo } from "$lib/acp/types/voice-input.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+import { backendClient } from "$lib/utils/backend-client.js";
 
 const STORE_KEY = Symbol.for("acepe.voice-settings");
 const DEFAULT_MODEL_ID = "small.en";
@@ -74,7 +74,7 @@ export class VoiceSettingsStore {
 
 	async setEnabled(value: boolean): Promise<void> {
 		const result = await Effect.runPromise(
-			Effect.result(tauriClient.settings.set(VOICE_ENABLED_KEY, value))
+			Effect.result(backendClient.settings.set(VOICE_ENABLED_KEY, value))
 		);
 		if (Result.isFailure(result)) {
 			logger.error("Failed to persist voice enabled preference", { error: result.failure });
@@ -91,7 +91,7 @@ export class VoiceSettingsStore {
 	async setLanguage(value: string): Promise<void> {
 		const nextLanguage = normalizeLanguageForModel(this.selectedModel, value);
 		const result = await Effect.runPromise(
-			Effect.result(tauriClient.settings.set(VOICE_LANGUAGE_KEY, nextLanguage))
+			Effect.result(backendClient.settings.set(VOICE_LANGUAGE_KEY, nextLanguage))
 		);
 		if (Result.isFailure(result)) {
 			logger.error("Failed to persist voice language preference", { error: result.failure });
@@ -105,7 +105,7 @@ export class VoiceSettingsStore {
 	async setSelectedModelId(modelId: string): Promise<void> {
 		const previousModelId = this.selectedModelId;
 		const saveResult = await Effect.runPromise(
-			Effect.result(tauriClient.settings.set(VOICE_MODEL_KEY, modelId))
+			Effect.result(backendClient.settings.set(VOICE_MODEL_KEY, modelId))
 		);
 		if (Result.isFailure(saveResult)) {
 			logger.error("Failed to persist voice model preference", { error: saveResult.failure });
@@ -120,7 +120,7 @@ export class VoiceSettingsStore {
 			return;
 		}
 
-		const loadResult = await Effect.runPromise(Effect.result(tauriClient.voice.loadModel(modelId)));
+		const loadResult = await Effect.runPromise(Effect.result(backendClient.voice.loadModel(modelId)));
 		if (Result.isFailure(loadResult)) {
 			logger.error("Failed to load selected voice model", {
 				error: loadResult.failure,
@@ -128,7 +128,7 @@ export class VoiceSettingsStore {
 			});
 			toast.error(loadResult.failure.message);
 			const rollbackResult = await Effect.runPromise(
-				Effect.result(tauriClient.settings.set(VOICE_MODEL_KEY, previousModelId))
+				Effect.result(backendClient.settings.set(VOICE_MODEL_KEY, previousModelId))
 			);
 			if (Result.isFailure(rollbackResult)) {
 				logger.error("Failed to roll back voice model preference", {
@@ -175,7 +175,7 @@ export class VoiceSettingsStore {
 		this.downloadProgressModelId = modelId;
 		this.downloadPercent = 0;
 
-		const result = await Effect.runPromise(Effect.result(tauriClient.voice.downloadModel(modelId)));
+		const result = await Effect.runPromise(Effect.result(backendClient.voice.downloadModel(modelId)));
 		if (Result.isFailure(result)) {
 			logger.error("Failed to download voice model", {
 				error: result.failure,
@@ -195,7 +195,7 @@ export class VoiceSettingsStore {
 	}
 
 	async deleteModel(modelId: string): Promise<void> {
-		const result = await Effect.runPromise(Effect.result(tauriClient.voice.deleteModel(modelId)));
+		const result = await Effect.runPromise(Effect.result(backendClient.voice.deleteModel(modelId)));
 		if (Result.isFailure(result)) {
 			logger.error("Failed to delete voice model", {
 				error: result.failure,
@@ -209,9 +209,9 @@ export class VoiceSettingsStore {
 
 	private async loadPersistedSettings(): Promise<void> {
 		const [enabledResult, modelResult, languageResult] = await Promise.all([
-			Effect.runPromise(Effect.result(tauriClient.settings.get<boolean>(VOICE_ENABLED_KEY))),
-			Effect.runPromise(Effect.result(tauriClient.settings.get<string>(VOICE_MODEL_KEY))),
-			Effect.runPromise(Effect.result(tauriClient.settings.get<string>(VOICE_LANGUAGE_KEY))),
+			Effect.runPromise(Effect.result(backendClient.settings.get<boolean>(VOICE_ENABLED_KEY))),
+			Effect.runPromise(Effect.result(backendClient.settings.get<string>(VOICE_MODEL_KEY))),
+			Effect.runPromise(Effect.result(backendClient.settings.get<string>(VOICE_LANGUAGE_KEY))),
 		]);
 
 		if (Result.isSuccess(enabledResult) && enabledResult.success !== null) {
@@ -227,7 +227,7 @@ export class VoiceSettingsStore {
 
 	private async refreshModels(): Promise<void> {
 		this.modelsLoading = true;
-		const result = await Effect.runPromise(Effect.result(tauriClient.voice.listModels()));
+		const result = await Effect.runPromise(Effect.result(backendClient.voice.listModels()));
 		if (Result.isSuccess(result)) {
 			this.models = result.success;
 		} else {
@@ -237,7 +237,7 @@ export class VoiceSettingsStore {
 	}
 
 	private async refreshLanguages(): Promise<void> {
-		const result = await Effect.runPromise(Effect.result(tauriClient.voice.listLanguages()));
+		const result = await Effect.runPromise(Effect.result(backendClient.voice.listLanguages()));
 		if (Result.isSuccess(result)) {
 			this.languages = result.success;
 		} else {
@@ -261,7 +261,7 @@ export class VoiceSettingsStore {
 		}
 
 		const result = await Effect.runPromise(
-			Effect.result(tauriClient.settings.set(VOICE_MODEL_KEY, nextModel.id))
+			Effect.result(backendClient.settings.set(VOICE_MODEL_KEY, nextModel.id))
 		);
 		if (Result.isFailure(result)) {
 			logger.warn("Failed to normalize persisted voice model preference", {
@@ -282,7 +282,7 @@ export class VoiceSettingsStore {
 		}
 
 		const result = await Effect.runPromise(
-			Effect.result(tauriClient.voice.loadModel(selectedModel.id))
+			Effect.result(backendClient.voice.loadModel(selectedModel.id))
 		);
 		if (Result.isFailure(result)) {
 			logger.warn("Failed to preload selected voice model", {
@@ -315,7 +315,7 @@ export class VoiceSettingsStore {
 		}
 
 		const result = await Effect.runPromise(
-			Effect.result(tauriClient.settings.set(VOICE_LANGUAGE_KEY, nextLanguage))
+			Effect.result(backendClient.settings.set(VOICE_LANGUAGE_KEY, nextLanguage))
 		);
 		if (Result.isFailure(result)) {
 			logger.warn("Failed to normalize persisted voice language preference", {
@@ -339,7 +339,7 @@ export class VoiceSettingsStore {
 		}
 
 		const result = await Effect.runPromise(
-			Effect.result(tauriClient.settings.set(VOICE_LANGUAGE_KEY, nextLanguage))
+			Effect.result(backendClient.settings.set(VOICE_LANGUAGE_KEY, nextLanguage))
 		);
 		if (Result.isFailure(result)) {
 			logger.error("Failed to persist normalized voice language preference", {

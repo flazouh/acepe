@@ -5,7 +5,7 @@
  * - Questions & permissions (agent needs input)
  * - Task completions (agent finished work)
  *
- * Follows the ReviewPreferenceStore pattern: persisted via tauriClient.settings.
+ * Follows the ReviewPreferenceStore pattern: persisted via backendClient.settings.
  */
 
 import * as Effect from "effect/Effect";
@@ -13,7 +13,7 @@ import * as Result from "effect/Result";
 import { getContext, setContext } from "svelte";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+import { backendClient } from "$lib/utils/backend-client.js";
 
 const SETTINGS_KEY: UserSettingKey = "notification-preferences";
 const STORE_KEY = Symbol("notification-preferences");
@@ -43,7 +43,7 @@ export class NotificationPreferencesStore {
 		this.initialized = true;
 
 		const result = await Effect.runPromise(
-			Effect.result(tauriClient.settings.get<PersistedPreferences>(SETTINGS_KEY))
+			Effect.result(backendClient.settings.get<PersistedPreferences>(SETTINGS_KEY))
 		);
 		if (Result.isSuccess(result) && result.success) {
 			this.questionsEnabled =
@@ -73,7 +73,7 @@ export class NotificationPreferencesStore {
 			completionsEnabled: this.completionsEnabled,
 		};
 		void Effect.runPromise(
-			tauriClient.settings.set(SETTINGS_KEY, prefs).pipe(
+			backendClient.settings.set(SETTINGS_KEY, prefs).pipe(
 				Effect.match({
 					onSuccess: () => undefined,
 					onFailure: (err) => {

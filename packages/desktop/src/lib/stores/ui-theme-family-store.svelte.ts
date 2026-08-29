@@ -2,7 +2,7 @@ import * as Effect from "effect/Effect";
 import { applyUiThemeToDocument, DEFAULT_UI_THEME, resolveUiThemeId } from "@acepe/ui/themes";
 
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
-import { settings } from "$lib/utils/tauri-client/settings.js";
+import { settings } from "$lib/utils/backend-client/settings.js";
 
 const UI_THEME_FAMILY_KEY: UserSettingKey = "ui_theme_family";
 

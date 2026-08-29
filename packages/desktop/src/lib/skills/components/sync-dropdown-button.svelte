@@ -5,7 +5,7 @@ import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import AgentIcon from "$lib/acp/components/agent-icon.svelte";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import { Switch } from "$lib/components/ui/switch/index.js";
-import { revealInFinder } from "$lib/utils/tauri-client/index.js";
+import { revealInFinder } from "$lib/utils/backend-client/index.js";
 import { libraryApi } from "../api/skills-api.js";
 import { getLibraryStore } from "../store/library-store.svelte.js";
 

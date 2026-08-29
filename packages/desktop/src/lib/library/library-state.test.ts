@@ -84,6 +84,7 @@ describe("librarySidebarViewModel", () => {
 						deletedAt: null,
 						sessionCount: 3,
 						color: "cyan",
+						showExternalCliSessions: false,
 						gitStatus: [],
 					},
 				],

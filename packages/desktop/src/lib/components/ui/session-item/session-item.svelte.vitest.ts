@@ -100,9 +100,9 @@ vi.mock("$lib/acp/components/agent-panel/logic/clipboard-manager.js", () => ({
 	copyTextToClipboard: vi.fn(),
 }));
 
-vi.mock("$lib/utils/tauri-client/index.js", () => ({
+vi.mock("$lib/utils/backend-client/index.js", () => ({
 	revealInFinder: vi.fn(),
-	tauriClient: {
+	backendClient: {
 		shell: {
 			getSessionFilePath: vi.fn(),
 		},

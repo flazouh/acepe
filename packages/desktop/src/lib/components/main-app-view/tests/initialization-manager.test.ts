@@ -71,16 +71,16 @@ mock.module("$lib/services/zoom.svelte.js", () => ({
 	resetZoomService: () => {},
 }));
 
-mock.module("$lib/utils/tauri-client/history.js", () => ({
+mock.module("$lib/utils/backend-client/history.js", () => ({
 	history: {
 		warmRecentTranscriptRowLedgers: warmRecentTranscriptRowLedgersMock,
 	},
 }));
 
-mock.module("$lib/utils/tauri-client.js", () => ({
+mock.module("$lib/utils/backend-client.js", () => ({
 	openFileInEditor: mock(() => undefined),
 	revealInFinder: mock(() => undefined),
-	tauriClient: {
+	backendClient: {
 		acp: {
 			listPreconnectionCapabilities: listPreconnectionCapabilitiesMock,
 		},

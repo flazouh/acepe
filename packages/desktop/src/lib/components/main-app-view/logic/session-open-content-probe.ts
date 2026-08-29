@@ -7,7 +7,7 @@ import {
 	setSessionOpenHydratorTimingRecorder,
 } from "$lib/acp/store/services/session-open-hydrator.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
-import type { InvokeTimingRecord, PendingInvokeRecord } from "$lib/utils/tauri-client/invoke.js";
+import type { InvokeTimingRecord, PendingInvokeRecord } from "$lib/utils/backend-client/invoke.js";
 import type { MainAppViewError } from "../errors/main-app-view-error.js";
 import type { MainAppViewState } from "./main-app-view-state.svelte.js";
 import {

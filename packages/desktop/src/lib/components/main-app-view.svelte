@@ -70,12 +70,12 @@ import { createDismissedTipsStore } from "$lib/stores/dismissed-tips-store.svelt
 import { createNotificationPreferencesStore } from "$lib/stores/notification-preferences-store.svelte.js";
 import { createVoiceSettingsStore } from "$lib/stores/voice-settings-store.svelte.js";
 import { createWindowFocusStore } from "$lib/stores/window-focus-store.svelte.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+import { backendClient } from "$lib/utils/backend-client.js";
 import {
 	getPendingInvokes,
 	getInvokeTimings,
 	type InvokeTimingRecord,
-} from "$lib/utils/tauri-client/invoke.js";
+} from "$lib/utils/backend-client/invoke.js";
 import {
 	checkForUpdate,
 	getAppVersion,
@@ -175,7 +175,7 @@ type MainAppQaWindow = Window & {
 	) => MainAppHappyPathProbeCleanupResult;
 	__acepeRuntimeErrors?: AcepeRuntimeErrorRecord[];
 	// #249 QA-only: there is no agent picker in the composer yet (see
-	// tauri-client/acp.ts's header comment -- listAgents etc. are honestly
+	// backend-client/acp.ts's header comment -- listAgents etc. are honestly
 	// unsupportedOnContract), so a freshly spawned panel has no
 	// selectedAgentId and the real send flow refuses with "No agent selected
 	// for this panel". This hook spawns a panel with selectedAgentId already
@@ -1905,7 +1905,7 @@ function handleSessionCreated(sessionId: string) {
 function handleOnboardingDismiss() {
 	writeSplashSeenHotCache(true);
 	void Effect.runPromise(
-		tauriClient.settings.setRaw("has_seen_splash", "true").pipe(
+		backendClient.settings.setRaw("has_seen_splash", "true").pipe(
 			Effect.catch((error) => {
 				logger.error("Failed to save onboarding completion", { error });
 				return Effect.void;

@@ -104,10 +104,10 @@ describe("VoiceSettingsStore", () => {
 				error: () => {},
 			}),
 		}));
-		mock.module("$lib/utils/tauri-client.js", () => ({
+		mock.module("$lib/utils/backend-client.js", () => ({
 			openFileInEditor: mock(() => undefined),
 			revealInFinder: mock(() => undefined),
-			tauriClient: {
+			backendClient: {
 				settings: {
 					get: getSettingMock,
 					set: setSettingMock,

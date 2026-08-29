@@ -6,7 +6,7 @@ import type { UserSettingKey } from "$lib/services/user-settings-types.js";
 import { fontSizeSettingsStore } from "$lib/stores/font-size-settings-store.svelte.js";
 import { loadingIndicatorSettingsStore } from "$lib/stores/loading-indicator-settings-store.svelte.js";
 import { scheduleDeferredIdleWork } from "$lib/utils/deferred-work.js";
-import { settings } from "$lib/utils/tauri-client/settings.js";
+import { settings } from "$lib/utils/backend-client/settings.js";
 import { uiThemeFamilyStore } from "$lib/stores/ui-theme-family-store.svelte.js";
 import { applyUiThemeToDocument, resolveUiThemeId } from "@acepe/ui/themes";
 

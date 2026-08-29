@@ -13,7 +13,7 @@ import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import { toast } from "svelte-sonner";
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
-import { settings } from "$lib/utils/tauri-client/settings.js";
+import { settings } from "$lib/utils/backend-client/settings.js";
 
 const UI_FONT_SIZE_KEY: UserSettingKey = "ui_font_size";
 const CODE_FONT_SIZE_KEY: UserSettingKey = "code_font_size";

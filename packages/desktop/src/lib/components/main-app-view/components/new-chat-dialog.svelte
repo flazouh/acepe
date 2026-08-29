@@ -21,7 +21,7 @@ import type { PreparedWorktreeLaunch } from "$lib/acp/types/worktree-info.js";
 import { CanonicalModeId } from "$lib/acp/types/canonical-mode-id.js";
 import { getAgentPreferencesStore, getAgentStore, getPanelStore } from "$lib/acp/store/index.js";
 import { getWorktreeProjectDefaultStore } from "$lib/acp/components/worktree/worktree-project-default-store.svelte.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+import { backendClient } from "$lib/utils/backend-client.js";
 import * as Effect from "effect/Effect";
 import { toast } from "svelte-sonner";
 import {
@@ -106,7 +106,7 @@ function loadBranchForProject(projectPath: string | null): void {
 		return;
 	}
 	void Effect.runPromise(
-		tauriClient.git.isRepo(projectPath).pipe(
+		backendClient.git.isRepo(projectPath).pipe(
 			Effect.match({
 				onSuccess: (isRepo) => {
 					preSessionIsGitRepo = isRepo;
@@ -118,7 +118,7 @@ function loadBranchForProject(projectPath: string | null): void {
 		)
 	);
 	void Effect.runPromise(
-		tauriClient.git.currentBranch(projectPath).pipe(
+		backendClient.git.currentBranch(projectPath).pipe(
 			Effect.match({
 				onSuccess: (branch) => {
 					preSessionCurrentBranch = branch ?? null;
@@ -295,7 +295,7 @@ function handleNewSessionSendError(panelId: string | null): void {
 					return;
 				}
 				void Effect.runPromise(
-					tauriClient.git.init(projectPath).pipe(
+					backendClient.git.init(projectPath).pipe(
 						Effect.match({
 							onSuccess: () => loadBranchForProject(projectPath),
 							onFailure: (error) => {

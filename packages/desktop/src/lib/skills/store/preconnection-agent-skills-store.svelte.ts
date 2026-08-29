@@ -5,7 +5,7 @@ import type { AppError } from "$lib/acp/errors/app-error.js";
 import type { AvailableCommand } from "$lib/acp/types/available-command.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import type { ProviderMetadataProjection } from "$lib/services/acp-types.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+import { backendClient } from "$lib/utils/backend-client.js";
 
 const PRECONNECTION_AGENT_SKILLS_STORE_KEY = Symbol("preconnection-agent-skills-store");
 const logger = createLogger({
@@ -64,7 +64,7 @@ export class PreconnectionAgentSkillsStore {
 	constructor(fetchPreconnectionCommands?: FetchPreconnectionCommands) {
 		this.fetchPreconnectionCommands = fetchPreconnectionCommands
 			? fetchPreconnectionCommands
-			: tauriClient.acp.listPreconnectionCommands;
+			: backendClient.acp.listPreconnectionCommands;
 	}
 
 	initialize(agents: ReadonlyArray<WarmablePreconnectionAgent>): Effect.Effect<void, AppError> {

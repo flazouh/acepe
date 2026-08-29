@@ -25,7 +25,7 @@ import type { PreparedWorktreeLaunch } from "$lib/acp/types/worktree-info.js";
 import { getPanelStore } from "$lib/acp/store/panel-store.svelte.js";
 import { getAgentPreferencesStore, getAgentStore } from "$lib/acp/store/index.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+import { backendClient } from "$lib/utils/backend-client.js";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import { ensureErrorReference } from "$lib/errors/error-reference.js";
@@ -98,7 +98,7 @@ let discoveredProjectsLoaded = $state(false);
 let discoveredProjects = $state<ProjectWithSessions[]>([]);
 let pendingProjectImports = $state<ProjectWithSessions[]>([]);
 const branchMetadataLoader = createEmptyStateBranchMetadataLoader({
-	gitClient: tauriClient.git,
+	gitClient: backendClient.git,
 	scheduler: createDelayedBranchMetadataScheduler(),
 	writer: {
 		reset() {
@@ -334,7 +334,7 @@ function stageProjectImport(project: ProjectWithSessions): void {
 	}
 
 	void Effect.runPromise(
-		tauriClient.history.countSessionsForProject(project.path).pipe(Effect.catch(() => Effect.void))
+		backendClient.history.countSessionsForProject(project.path).pipe(Effect.catch(() => Effect.void))
 	);
 }
 
@@ -351,7 +351,7 @@ async function loadDiscoveredProjectsForEmptyState(): Promise<void> {
 	discoveredProjects = [];
 
 	const pathsResult = await Effect.runPromise(
-		Effect.result(tauriClient.history.listAllProjectPaths())
+		Effect.result(backendClient.history.listAllProjectPaths())
 	);
 	Result.match(pathsResult, {
 		onSuccess: (projectInfos) => {
@@ -374,7 +374,7 @@ async function loadDiscoveredProjectsForEmptyState(): Promise<void> {
 
 			for (const path of deduped.keys()) {
 				void Effect.runPromise(
-					tauriClient.history.countSessionsForProject(path).pipe(
+					backendClient.history.countSessionsForProject(path).pipe(
 						Effect.match({
 							onSuccess: (counts) => {
 								const total = Object.values(counts.counts).reduce((sum, count) => sum + count, 0);
@@ -454,7 +454,7 @@ async function continueWithPendingProjectImports(): Promise<void> {
 
 	for (const project of pendingProjectImports) {
 		const result = await Effect.runPromise(
-			Effect.result(tauriClient.projects.importProject(project.path, project.name))
+			Effect.result(backendClient.projects.importProject(project.path, project.name))
 		);
 		if (Result.isFailure(result)) {
 			toast.error(result.failure.message);
@@ -520,7 +520,7 @@ function handleInitGitRepo() {
 	}
 
 	void Effect.runPromise(
-		tauriClient.git.init(projectPath).pipe(
+		backendClient.git.init(projectPath).pipe(
 			Effect.match({
 				onSuccess: () => {
 					refreshBranchPickerMetadata(projectPath, { loadDetails: true });

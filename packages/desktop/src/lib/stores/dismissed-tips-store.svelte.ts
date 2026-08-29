@@ -3,7 +3,7 @@ import * as Result from "effect/Result";
 import { getContext, setContext } from "svelte";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+import { backendClient } from "$lib/utils/backend-client.js";
 
 const SETTINGS_KEY: UserSettingKey = "dismissed_tooltips";
 const STORE_KEY = Symbol("dismissed-tips");
@@ -25,7 +25,7 @@ export class DismissedTipsStore {
 		this.initialized = true;
 
 		const result = await Effect.runPromise(
-			Effect.result(tauriClient.settings.get<string[]>(SETTINGS_KEY))
+			Effect.result(backendClient.settings.get<string[]>(SETTINGS_KEY))
 		);
 		if (Result.isSuccess(result)) {
 			const keys = result.success ?? [];
@@ -54,7 +54,7 @@ export class DismissedTipsStore {
 	private persist(): void {
 		const nextKeys = Array.from(this.dismissedKeys);
 		void Effect.runPromise(
-			tauriClient.settings.set(SETTINGS_KEY, nextKeys).pipe(
+			backendClient.settings.set(SETTINGS_KEY, nextKeys).pipe(
 				Effect.match({
 					onSuccess: () => undefined,
 					onFailure: (err) => {

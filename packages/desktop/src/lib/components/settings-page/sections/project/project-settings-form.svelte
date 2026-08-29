@@ -5,12 +5,12 @@ import { onMount } from "svelte";
 import { toast } from "svelte-sonner";
 import { ScriptEditor } from "@acepe/ui/script-editor";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
-import type { ProjectAcepeConfig } from "$lib/utils/tauri-client/types.js";
+import type { ProjectAcepeConfig } from "$lib/utils/backend-client/types.js";
 import { bashHighlighter } from "$lib/acp/utils/bash-highlighter.svelte.js";
 import { Button } from "$lib/components/ui/button/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import { Switch } from "$lib/components/ui/switch/index.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+import { backendClient } from "$lib/utils/backend-client.js";
 import SettingRow from "../../setting-row.svelte";
 import SettingsSectionHeader from "../../settings-section-header.svelte";
 
@@ -49,7 +49,7 @@ function applyLoadedSettings(settings: ProjectAcepeConfig) {
 async function loadSettings() {
 	status = "loading";
 	await Effect.runPromise(
-		tauriClient.projects.getProjectAcepeConfig(projectPath).pipe(
+		backendClient.projects.getProjectAcepeConfig(projectPath).pipe(
 			Effect.match({
 				onSuccess: (settings) => {
 					applyLoadedSettings(settings);
@@ -70,7 +70,7 @@ onMount(() => {
 
 async function reloadVisibilityOrFallback(previousValue: boolean) {
 	await Effect.runPromise(
-		tauriClient.projects.getProjectAcepeConfig(projectPath).pipe(
+		backendClient.projects.getProjectAcepeConfig(projectPath).pipe(
 			Effect.match({
 				onSuccess: (settings) => {
 					applyLoadedSettings(settings);
@@ -109,7 +109,7 @@ async function saveScript(kind: "setup_script" | "run_script") {
 
 	const nextConfig = currentConfig(!hideExternalCliSessions);
 	await Effect.runPromise(
-		tauriClient.projects.saveProjectAcepeConfig(projectPath, nextConfig).pipe(
+		backendClient.projects.saveProjectAcepeConfig(projectPath, nextConfig).pipe(
 			Effect.match({
 				onSuccess: (saved) => {
 					applyLoadedSettings(saved);

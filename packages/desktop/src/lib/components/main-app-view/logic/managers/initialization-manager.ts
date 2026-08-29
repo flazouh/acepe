@@ -61,7 +61,7 @@ import type { WorkspaceStore } from "$lib/acp/store/workspace-store.svelte.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import type { KeybindingsService } from "$lib/keybindings/service.svelte.js";
 import { getZoomService } from "$lib/services/zoom.svelte.js";
-import { history } from "$lib/utils/tauri-client/history.js";
+import { history } from "$lib/utils/backend-client/history.js";
 import type { MainAppViewState } from "../main-app-view-state.svelte.js";
 import { openPersistedSession } from "../open-persisted-session.js";
 

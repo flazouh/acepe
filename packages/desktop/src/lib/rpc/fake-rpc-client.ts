@@ -12,7 +12,7 @@ import * as Stream from "effect/Stream";
 /**
  * A whole RpcClient whose only live method is `gitCall`.
  *
- * Tests that drive a gitCall-backed facade (tauri-client/git.ts, and the
+ * Tests that drive a gitCall-backed facade (backend-client/git.ts, and the
  * github-service that sits on top of it) need a complete RpcClient to hand
  * to setAppRpcClientForTest, but care about exactly one method. Everything
  * else answers with an inert value so a stray call fails an assertion

@@ -4,7 +4,7 @@ import { getContext, setContext } from "svelte";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { setAnalyticsEnabled } from "$lib/analytics.js";
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
-import { tauriClient } from "$lib/utils/tauri-client.js";
+import { backendClient } from "$lib/utils/backend-client.js";
 
 const SETTINGS_KEY: UserSettingKey = "analytics_opt_out";
 const STORE_KEY = Symbol("analytics-preferences-store");
@@ -23,7 +23,7 @@ export class AnalyticsPreferencesStore {
 		this.initialized = true;
 
 		const result = await Effect.runPromise(
-			Effect.result(tauriClient.settings.get<boolean>(SETTINGS_KEY))
+			Effect.result(backendClient.settings.get<boolean>(SETTINGS_KEY))
 		);
 		if (Result.isSuccess(result) && result.success !== null) {
 			this.enabled = !result.success;
@@ -35,7 +35,7 @@ export class AnalyticsPreferencesStore {
 		this.enabled = value;
 
 		const persistResult = await Effect.runPromise(
-			Effect.result(tauriClient.settings.set(SETTINGS_KEY, !value))
+			Effect.result(backendClient.settings.set(SETTINGS_KEY, !value))
 		);
 		if (Result.isFailure(persistResult)) {
 			this.enabled = previous;

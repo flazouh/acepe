@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import type { AppError } from "$lib/acp/errors/app-error.js";
-import { notifications } from "$lib/utils/tauri-client/notifications.js";
+import { notifications } from "$lib/utils/backend-client/notifications.js";
 
 export interface NativeNotificationPayload {
 	readonly title: string;

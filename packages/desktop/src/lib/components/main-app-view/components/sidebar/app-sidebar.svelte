@@ -27,7 +27,7 @@ import {
 import { getSessionArchiveStore } from "$lib/acp/store/session-archive-store.svelte.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { useTheme } from "$lib/components/theme/index.js";
-import { tauriClient } from "$lib/utils/tauri-client/index.js";
+import { backendClient } from "$lib/utils/backend-client/index.js";
 
 import type { MainAppViewState } from "../../logic/main-app-view-state.svelte.js";
 import { applyCompletionAttentionAction } from "../../logic/completion-acknowledgement.js";
@@ -270,7 +270,7 @@ async function handleOpenTranscriptInAcepe(session: SessionDisplayItem) {
 	}
 
 	await Effect.runPromise(
-		tauriClient.shell.getSessionFilePath(session.id, session.projectPath).pipe(
+		backendClient.shell.getSessionFilePath(session.id, session.projectPath).pipe(
 			Effect.match({
 				onSuccess: (path) => openTranscriptFileDialog(path),
 				onFailure: (error) => toast.error(`Failed to open transcript in Acepe: ${error.message}`),

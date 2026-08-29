@@ -17,7 +17,7 @@ import type { AppError } from "../../acp/errors/app-error.js";
 import { AgentError } from "../../acp/errors/app-error.js";
 import { formatTimeAgo } from "../../acp/logic/thread-list-date-utils.js";
 import { createLogger } from "../../acp/utils/logger.js";
-import { isUnsupportedOnContract } from "../../utils/tauri-client/rpc-bridge.js";
+import { isUnsupportedOnContract } from "../../utils/backend-client/rpc-bridge.js";
 import { libraryApi, pluginSkillsApi } from "../api/skills-api.js";
 import type {
 	LibrarySkill,
