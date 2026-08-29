@@ -7,10 +7,13 @@ import { fontSizeSettingsStore } from "$lib/stores/font-size-settings-store.svel
 import { loadingIndicatorSettingsStore } from "$lib/stores/loading-indicator-settings-store.svelte.js";
 import { scheduleDeferredIdleWork } from "$lib/utils/deferred-work.js";
 import { settings } from "$lib/utils/tauri-client/settings.js";
+import { uiThemeFamilyStore } from "$lib/stores/ui-theme-family-store.svelte.js";
+import { applyUiThemeToDocument, resolveUiThemeId } from "@acepe/ui/themes";
 
 import { setTheme, type Theme } from "./context.svelte.js";
 
 const USER_THEME_KEY: UserSettingKey = "user_theme";
+const UI_THEME_FAMILY_KEY: UserSettingKey = "ui_theme_family";
 
 let {
 	defaultTheme: defaultThemeProp = "system",
@@ -22,6 +25,12 @@ let {
 
 function isValidTheme(value: unknown): value is Theme {
 	return value === "light" || value === "dark" || value === "system";
+}
+
+async function loadStoredThemeFamily(): Promise<string | null> {
+	return Effect.runPromise(
+		settings.getRaw(UI_THEME_FAMILY_KEY).pipe(Effect.catch(() => Effect.succeed(null)))
+	);
 }
 
 async function loadStoredTheme(): Promise<Theme | null> {
@@ -58,6 +67,11 @@ function applyTheme(themeValue: Theme) {
 	root.classList.add(effectiveTheme);
 }
 
+/** The palette family is independent of light/dark, so it applies on its own. */
+function applyThemeFamily(id: string | null) {
+	applyUiThemeToDocument(resolveUiThemeId(id), document.documentElement);
+}
+
 function setThemeValue(value: Theme) {
 	theme = value;
 	saveStoredTheme(value);
@@ -71,6 +85,7 @@ let theme = $state<Theme>(defaultThemeProp);
 onMount(() => {
 	// Apply default theme immediately (will be overridden if DB has different value)
 	applyTheme(theme);
+	applyThemeFamily(uiThemeFamilyStore.familyId);
 
 	scheduleDeferredIdleWork(() => {
 		void loadingIndicatorSettingsStore.initialize();
@@ -82,6 +97,10 @@ onMount(() => {
 				theme = storedTheme;
 			}
 			applyTheme(theme);
+		});
+
+		loadStoredThemeFamily().then((storedFamily) => {
+			uiThemeFamilyStore.setFamily(resolveUiThemeId(storedFamily), { persist: false });
 		});
 	});
 

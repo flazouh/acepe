@@ -3,12 +3,16 @@
  *
  * Two independent axes:
  *   family      data-ui-theme="acepe | cursor | one | anthropic"   (which palette)
- *   appearance  .dark on the root element                          (light or dark)
+ *   appearance  the dark class                                     (light or dark)
  *
- * A theme block only sets colour. Shape and elevation are shared below, motion
- * and the brand constants stay in design-tokens.css, and the Tailwind @theme
- * mapping stays in each app. Adding a family means adding one pair of blocks
- * here and one entry in themes.ts; the drift test fails if the two disagree.
+ * Both selectors match any element, not just the root, so a preview card can
+ * carry its own theme by setting the attribute and the class on itself.
+ *
+ * A theme block only sets the tokens below. Structure lives elsewhere: motion,
+ * spacing, radius and the brand constants stay in design-tokens.css, and the
+ * Tailwind @theme mapping stays in each app. Adding a family means adding one
+ * pair of blocks here and one entry in themes.ts; the drift test fails if the
+ * two disagree.
  *
  * Do not write a raw hex in a component. Reference the token.
  */
@@ -42,7 +46,7 @@
  */
 
 :root,
-:root[data-ui-theme="acepe"] {
+[data-ui-theme="acepe"] {
 	--background: #f7f7f7;
 	--foreground: #0d0d0d;
 	--card: #ffffff;
@@ -87,7 +91,7 @@
 }
 
 :root.dark,
-:root[data-ui-theme="acepe"].dark {
+[data-ui-theme="acepe"].dark {
 	--background: #121212;
 	--foreground: #f8f5ee;
 	--card: #1b1a19;
@@ -135,7 +139,7 @@
  * packages/desktop/static/themes/cursor.theme.json and cursor-light.theme.json (vendored).
  */
 
-:root[data-ui-theme="cursor"] {
+[data-ui-theme="cursor"] {
 	--background: #ffffff;
 	--foreground: #1a1a1a;
 	--card: #f5f5f5;
@@ -179,7 +183,7 @@
 	color-scheme: light;
 }
 
-:root[data-ui-theme="cursor"].dark {
+[data-ui-theme="cursor"].dark {
 	--background: #1a1a1a;
 	--foreground: #d8dee9;
 	--card: #141414;
@@ -227,7 +231,7 @@
  * github.com/akamud/vscode-theme-onedark and vscode-theme-onelight, plus their tokenColors.
  */
 
-:root[data-ui-theme="one"] {
+[data-ui-theme="one"] {
 	--background: #fafafa;
 	--foreground: #383a42;
 	--card: #ffffff;
@@ -271,7 +275,7 @@
 	color-scheme: light;
 }
 
-:root[data-ui-theme="one"].dark {
+[data-ui-theme="one"].dark {
 	--background: #282c34;
 	--foreground: #abb2bf;
 	--card: #21252b;
@@ -319,7 +323,7 @@
  * Acepe's warm surfaces with --token-brand-primary as the accent. Derived here, not scraped.
  */
 
-:root[data-ui-theme="anthropic"] {
+[data-ui-theme="anthropic"] {
 	--background: #f7f7f7;
 	--foreground: #0d0d0d;
 	--card: #ffffff;
@@ -363,7 +367,7 @@
 	color-scheme: light;
 }
 
-:root[data-ui-theme="anthropic"].dark {
+[data-ui-theme="anthropic"].dark {
 	--background: #121212;
 	--foreground: #f8f5ee;
 	--card: #1b1a19;

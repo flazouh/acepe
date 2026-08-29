@@ -3,6 +3,8 @@ import { HugeiconsIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { LoadingIcon } from "@acepe/ui";
 import { ThemeToggle } from "$lib/components/theme/index.js";
+import { uiThemeFamilies } from "@acepe/ui/themes";
+import { uiThemeFamilyStore } from "$lib/stores/ui-theme-family-store.svelte.js";
 import { fontSizeSettingsStore } from "$lib/stores/font-size-settings-store.svelte.js";
 import { loadingIndicatorSettingsStore } from "$lib/stores/loading-indicator-settings-store.svelte.js";
 import SettingRow from "../setting-row.svelte";
@@ -60,6 +62,35 @@ const codeBounds = fontSizeSettingsStore.codeBounds;
 			description="Use light, dark, or match your system."
 		>
 			<ThemeToggle />
+		</SettingRow>
+		<SettingRow
+			label={"Palette"}
+			description="Which colour set the app paints. Light and dark come with each one."
+		>
+			<div class="flex items-center gap-1" role="group" aria-label="Palette">
+				{#each uiThemeFamilies as family (family.id)}
+					{@const active = uiThemeFamilyStore.familyId === family.id}
+					<button
+						type="button"
+						title={family.origin}
+						aria-pressed={active}
+						onclick={() => uiThemeFamilyStore.setFamily(family.id)}
+						class="flex items-center gap-1.5 rounded-md border px-2 py-1 text-[13px] transition-colors {active
+							? 'border-ring bg-accent text-foreground'
+							: 'border-border/60 text-muted-foreground hover:bg-accent/50 hover:text-foreground'}"
+					>
+						<span
+							data-ui-theme={family.id}
+							class="inline-flex size-3.5 overflow-hidden rounded-full border border-border/60"
+							aria-hidden="true"
+						>
+							<span class="w-1/2 bg-background"></span>
+							<span class="dark w-1/2 bg-background"></span>
+						</span>
+						{family.label}
+					</button>
+				{/each}
+			</div>
 		</SettingRow>
 		<SettingRow
 			label={"Loading indicator"}

@@ -10,6 +10,10 @@ export type UserSettingKey =
 	 */
 	| "user_theme"
 	/**
+	 * Which palette family theme.css should paint (acepe, anthropic, cursor, one)
+	 */
+	| "ui_theme_family"
+	/**
 	 * Color id (Tailwind palette) for the loading indicator
 	 */
 	| "loading_indicator_color"

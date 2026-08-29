@@ -43,7 +43,9 @@ export const DEFAULT_UI_THEME = "acepe";
 
 export type UiThemeId = (typeof uiThemeFamilies)[number]["id"];
 
-export function isUiThemeId(value: string | null | undefined): value is UiThemeId {
+export function isUiThemeId(
+	value: string | null | undefined,
+): value is UiThemeId {
 	return uiThemeFamilies.some((family) => family.id === value);
 }
 
@@ -53,7 +55,10 @@ export function resolveUiThemeId(value: string | null | undefined): UiThemeId {
 }
 
 /** Write the family onto the document. Appearance stays on the `dark` class. */
-export function applyUiThemeToDocument(id: string, root: HTMLElement): UiThemeId {
+export function applyUiThemeToDocument(
+	id: string,
+	root: HTMLElement,
+): UiThemeId {
 	const resolved = resolveUiThemeId(id);
 	root.setAttribute(UI_THEME_ATTRIBUTE, resolved);
 	return resolved;

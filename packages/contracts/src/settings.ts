@@ -4,6 +4,7 @@ import { SettingsId } from "./ids.ts"
 
 export const USER_SETTING_KEYS = [
 	"user_theme",
+	"ui_theme_family",
 	"loading_indicator_color",
 	"workspace_state",
 	"custom_keybindings",

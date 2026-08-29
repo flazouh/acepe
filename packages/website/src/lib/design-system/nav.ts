@@ -27,6 +27,16 @@ export const designSystemNav: readonly NavSection[] = [
 				],
 			},
 			{
+				href: "/design-system/themes",
+				label: "Themes",
+				anchors: [
+					{ id: "acepe", label: "Acepe" },
+					{ id: "anthropic", label: "Anthropic" },
+					{ id: "cursor", label: "Cursor" },
+					{ id: "one", label: "One" },
+				],
+			},
+			{
 				href: "/design-system/foundations",
 				label: "Type, shape, motion",
 				anchors: [
