@@ -278,6 +278,21 @@ describe("applyEventToRpcSessionSnapshot", () => {
 		expect(afterTokens.messages[1]?.content).toEqual({ text: TRACER_REPLY_TEXT })
 	})
 
+	// Real provider deltas often end in a space. The client-side fold used to
+	// re-decode the running text through a trimming schema, so the space died
+	// and the next token joined the previous word ("I'll runall three steps.").
+	it("keeps the whitespace a token carries when it joins the running text", () => {
+		const afterSession = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), sessionCreated)
+		const afterUser = applyEventToRpcSessionSnapshot(afterSession, messageSent)
+		const afterTokens = ["I'll run ", "all three", "\n\n", "steps."].reduce(
+			(snapshot, token, index) => applyEventToRpcSessionSnapshot(snapshot, tokenAt(4 + index, token)),
+			afterUser,
+		)
+		expect(afterTokens.messages[1]?.content).toEqual({
+			text: "I'll run all three\n\nsteps.",
+		})
+	})
+
 	it("does not duplicate a user message already in the snapshot", () => {
 		const afterUser = applyEventToRpcSessionSnapshot(
 			applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), sessionCreated),

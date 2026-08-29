@@ -2,6 +2,7 @@ import {
 	type OrchestrationEvent,
 	Sequence,
 	SessionId,
+	TranscriptText,
 	TrimmedNonEmptyString,
 	TurnId
 } from "@acepe/contracts"
@@ -32,7 +33,7 @@ export type CompactionSeamTrigger = typeof CompactionSeamTrigger.Type
 const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
 
 export const TextContent = Schema.Struct({
-	text: TrimmedNonEmptyString
+	text: TranscriptText
 })
 export type TextContent = typeof TextContent.Type
 
@@ -116,7 +117,7 @@ export const userMessageRow = (input: {
 	readonly sequence: Sequence
 	readonly messageId: TrimmedNonEmptyString
 	readonly turnId: TurnId | null
-	readonly text: TrimmedNonEmptyString
+	readonly text: TranscriptText
 }): UserProjectedMessage => ({
 	sessionId: input.sessionId,
 	sequence: input.sequence,
@@ -133,7 +134,7 @@ export const assistantMessageRow = (input: {
 	readonly sequence: Sequence
 	readonly messageId: TrimmedNonEmptyString
 	readonly turnId: TurnId | null
-	readonly text: TrimmedNonEmptyString
+	readonly text: TranscriptText
 }): AssistantProjectedMessage => ({
 	sessionId: input.sessionId,
 	sequence: input.sequence,
@@ -259,25 +260,27 @@ export const nextAssistantFromToken = Effect.fn("nextAssistantFromToken")(functi
 	event: Extract<OrchestrationEvent, { readonly type: "TokenAppended" }>,
 	current: Option.Option<ProjectionSessionMessage>
 ) {
+	// TranscriptText, not TrimmedNonEmptyString: the row grows one token at a
+	// time, so a trimming schema here ate the trailing space of the token
+	// before it and glued the next one on ("I'll runall three steps.").
+	// Decoded once, at the only seam where a token enters: text that already
+	// holds a non-empty token stays non-empty however much is appended to it.
+	const token = yield* Schema.decodeUnknownEffect(TranscriptText)(event.payload.token)
 	if (Option.isSome(current) && current.value.rowType === "assistant") {
-		const text = yield* Schema.decodeUnknownEffect(TrimmedNonEmptyString)(
-			`${current.value.content.text}${event.payload.token}`
-		)
 		return assistantMessageRow({
 			sessionId: current.value.sessionId,
 			sequence: current.value.sequence,
 			messageId: current.value.messageId,
 			turnId: current.value.turnId,
-			text
+			text: `${current.value.content.text}${token}`
 		})
 	}
-	const text = yield* Schema.decodeUnknownEffect(TrimmedNonEmptyString)(event.payload.token)
 	return assistantMessageRow({
 		sessionId: event.payload.sessionId,
 		sequence: event.sequence,
 		messageId: event.payload.messageId,
 		turnId: null,
-		text
+		text: token
 	})
 })
 

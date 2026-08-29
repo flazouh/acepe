@@ -4,7 +4,7 @@ import * as Order from "effect/Order"
 import * as Schema from "effect/Schema"
 import * as Str from "effect/String"
 
-import { type Sequence, TrimmedNonEmptyString } from "./baseSchemas.ts"
+import { type Sequence, TranscriptText, TrimmedNonEmptyString } from "./baseSchemas.ts"
 import type { OrchestrationEvent } from "./events.ts"
 import {
 	emptyGitFileReview,
@@ -31,8 +31,10 @@ import {
 	type SessionReviewFile,
 } from "./sessionReview.ts"
 
-const asTranscriptText = (value: string): typeof TrimmedNonEmptyString.Type =>
-	Schema.decodeUnknownSync(TrimmedNonEmptyString)(value)
+// Keeps the provider's own whitespace: a token that ends in a space must
+// still end in one after it joins the running text. See TranscriptText.
+const asTranscriptText = (value: string): typeof TranscriptText.Type =>
+	Schema.decodeUnknownSync(TranscriptText)(value)
 
 export const emptyRpcSessionSnapshot = (snapshotSequence: Sequence): RpcSessionSnapshot => ({
 	snapshotSequence,
@@ -138,6 +140,9 @@ const upsertAssistant = (
 		messages,
 		(row) => row.rowType === "assistant" && row.messageId === event.payload.messageId,
 	)
+	// Decoded once, at the only seam where a token enters this fold: text that
+	// already holds a non-empty token stays non-empty however much is appended.
+	const token = asTranscriptText(event.payload.token)
 	if (Option.isNone(existing)) {
 		const created: RpcProjectedMessage = {
 			sessionId: event.payload.sessionId,
@@ -146,7 +151,7 @@ const upsertAssistant = (
 			turnId: null,
 			rowType: "assistant",
 			content: {
-				text: asTranscriptText(event.payload.token),
+				text: token,
 			},
 		}
 		return Arr.append(messages, created)
@@ -162,7 +167,7 @@ const upsertAssistant = (
 		turnId: current.turnId,
 		rowType: "assistant",
 		content: {
-			text: asTranscriptText(`${current.content.text}${event.payload.token}`),
+			text: `${current.content.text}${token}`,
 		},
 	}
 	return Arr.map(messages, (row) =>

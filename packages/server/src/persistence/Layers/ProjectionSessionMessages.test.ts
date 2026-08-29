@@ -385,3 +385,37 @@ Vitest.layer(isolatedMessages())("truncate", (it) => {
 		})
 	)
 })
+
+// The live defect this covers: real provider deltas often end in a space, and
+// the running assistant text used to be re-decoded through
+// TrimmedNonEmptyString on every fold. That trimmed the trailing space off the
+// text already stored, so the next token was glued to the previous word
+// ("I'll runall three steps."). The canonical row must keep the whitespace the
+// provider streamed; trimming for display belongs to the reader.
+Vitest.layer(isolatedMessages())("TokenAppended whitespace", (it) => {
+	it.effect("keeps a trailing space between two tokens", () =>
+		Effect.gen(function*() {
+			const sql = yield* SqlClient.SqlClient
+			const messages = yield* ProjectionSessionMessages
+			yield* messages.apply(tokenAppended(4, "I'll run "), sql)
+			yield* messages.apply(tokenAppended(5, "all three steps."), sql)
+			const listed = yield* messages.listBySession(sessionId)
+			Vitest.assert.deepStrictEqual(listed[0]?.content, { text: "I'll run all three steps." })
+		})
+	)
+
+})
+
+Vitest.layer(isolatedMessages())("TokenAppended whitespace-only token", (it) => {
+	it.effect("keeps interior newlines and a whitespace-only token", () =>
+		Effect.gen(function*() {
+			const sql = yield* SqlClient.SqlClient
+			const messages = yield* ProjectionSessionMessages
+			yield* messages.apply(tokenAppended(4, "Line one"), sql)
+			yield* messages.apply(tokenAppended(5, "\n\n"), sql)
+			yield* messages.apply(tokenAppended(6, "Line two"), sql)
+			const listed = yield* messages.listBySession(sessionId)
+			Vitest.assert.deepStrictEqual(listed[0]?.content, { text: "Line one\n\nLine two" })
+		})
+	)
+})

@@ -5,6 +5,7 @@ import {
 	CheckpointStatus,
 	IsoDateTime,
 	Sequence,
+	TranscriptText,
 	TrimmedNonEmptyString,
 } from "./baseSchemas.ts"
 import { OrchestrationEvent } from "./events.ts"
@@ -247,7 +248,7 @@ export type RpcClientError = typeof RpcClientError.Type
 const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
 
 export const RpcTextContent = Schema.Struct({
-	text: TrimmedNonEmptyString,
+	text: TranscriptText,
 })
 export type RpcTextContent = typeof RpcTextContent.Type
 
