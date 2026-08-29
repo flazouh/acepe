@@ -222,7 +222,8 @@ Vitest.describe("decodeProjectedMessage", () => {
 				message_id: "seam-1",
 				turn_id: null,
 				row_type: "compaction",
-				content
+				content,
+				last_sequence: 4
 			})
 			Vitest.assert.deepStrictEqual(decoded, message)
 		})

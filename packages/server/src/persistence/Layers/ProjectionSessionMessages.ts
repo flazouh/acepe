@@ -66,7 +66,7 @@ export const ProjectionSessionMessagesLive = Layer.effect(ProjectionSessionMessa
 				upsertAt(row, row.sequence, tx)
 		)
 
-		const findAssistant = Effect.fn("ProjectionSessionMessages.findAssistant")(function*(
+		const findAssistantFold = Effect.fn("ProjectionSessionMessages.findAssistantFold")(function*(
 			sessionId: SessionId,
 			messageId: string,
 			tx: SqlClient.SqlClient
@@ -106,7 +106,7 @@ export const ProjectionSessionMessagesLive = Layer.effect(ProjectionSessionMessa
 			event: Extract<OrchestrationEvent, { readonly type: "TokenAppended" }>,
 			tx: SqlClient.SqlClient
 		) {
-			const current = yield* findAssistant(event.payload.sessionId, event.payload.messageId, tx)
+			const current = yield* findAssistantFold(event.payload.sessionId, event.payload.messageId, tx)
 			// Folding, unlike upserting, is not idempotent on its own: append
 			// the same token twice and the row keeps both copies. The history
 			// importer applies its own freshly dispatched events to this
