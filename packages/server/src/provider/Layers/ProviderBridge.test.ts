@@ -8,6 +8,7 @@ import {
 	ProjectId,
 	SessionCreateCommand,
 	SessionId,
+	SessionSetModelCommand,
 	SessionSetModeCommand,
 	TokenAppendedEvent,
 	TRACER_REPLY_TEXT,
@@ -43,6 +44,7 @@ import {
 	ProviderCapabilities,
 	ProviderId,
 	ProviderAdapterError,
+	type SetModelRequest,
 	type SetModeRequest
 } from "../Services/ProviderAdapter.ts"
 import { makeClaudeAdapter } from "./Claude/Adapter.ts"
@@ -276,6 +278,83 @@ const makeModeScriptedAdapter = Effect.fn("makeModeScriptedAdapter")(function*(
 	}
 
 	return { adapter, setModeAttempts }
+})
+
+// The model counterpart of makeModeScriptedAdapter above, minus the attempt
+// script: these tests are about whether the bridge reaches the adapter at all,
+// which it never did -- ProviderBridge had no setModel, so a chosen model
+// stopped at the event log. `withSetModel: false` builds the same adapter
+// WITHOUT the method, which is how a provider whose transport cannot switch
+// model declares that.
+const makeModelScriptedAdapter = Effect.fn("makeModelScriptedAdapter")(function*(
+	providerId: ProviderId,
+	withSetModel: boolean
+) {
+	const startEvents = yield* Queue.unbounded<
+		import("@acepe/contracts").OrchestrationEvent,
+		Done
+	>()
+	const setModelRequests = yield* Ref.make<ReadonlyArray<string>>(Arr.empty())
+	const base: ProviderAdapter = {
+		providerId,
+		capabilities: ProviderCapabilities.make({ enabled: [] }),
+		presence: Effect.succeed({ providerId, installed: true, authenticated: true }),
+		startSession: () => Stream.fromQueue(startEvents),
+		sendPrompt: () => Stream.empty,
+		cancelTurn: () => Effect.void
+	}
+	const modelSettable: ProviderAdapter & {
+		readonly setModel: (request: SetModelRequest) => Effect.Effect<void, ProviderAdapterError>
+	} = {
+		providerId: base.providerId,
+		capabilities: base.capabilities,
+		presence: base.presence,
+		startSession: base.startSession,
+		sendPrompt: base.sendPrompt,
+		cancelTurn: base.cancelTurn,
+		setModel: (request: SetModelRequest) =>
+			Ref.update(setModelRequests, (current) =>
+				Arr.append(current, request.modelId)).pipe(Effect.asVoid)
+	}
+	const adapter: ProviderAdapter = withSetModel ? modelSettable : base
+
+	return { adapter, setModelRequests }
+})
+
+// A prior run's durable history for the model-reopen test, mirroring
+// dispatchPriorRunWithMode above.
+const dispatchPriorRunWithModel = Effect.fn("dispatchPriorRunWithModel")(function*(
+	providerId: ProviderId,
+	modelId: string
+) {
+	const engine = yield* OrchestrationEngine
+	yield* engine.dispatch(
+		ProjectCreateCommand.make({
+			type: "project.create",
+			commandId: CommandId.make("cmd-project-prior-run"),
+			projectId,
+			title: "Acepe",
+			workspaceRoot: "/tmp"
+		})
+	)
+	yield* engine.dispatch(
+		SessionCreateCommand.make({
+			type: "session.create",
+			commandId: CommandId.make("cmd-session-prior-run"),
+			sessionId,
+			projectId,
+			title: "Real provider session",
+			providerId
+		})
+	)
+	yield* engine.dispatch(
+		SessionSetModelCommand.make({
+			type: "session.set-model",
+			commandId: CommandId.make("cmd-set-model-prior-run"),
+			sessionId,
+			modelId
+		})
+	)
 })
 
 // The engine stack every restart test below builds twice: a restart only
@@ -1000,6 +1079,8 @@ Vitest.describe("ProviderBridge", () => {
 								messages: Stream.fromQueue(inbound),
 								interrupt: Effect.void,
 								setPermissionMode: () => Effect.void,
+								setModel: () => Effect.void,
+								supportedModels: Effect.succeed([]),
 								close: Queue.end(inbound).pipe(Effect.asVoid)
 							} satisfies ClaudeQueryHandle
 						})
@@ -1444,6 +1525,171 @@ Vitest.describe("ProviderBridge", () => {
 						events.some((event) => event.type === "ProviderSessionFailed"),
 						"a mode that lands on a later attempt must not surface as a failure"
 					)
+				}).pipe(
+					// @effect-diagnostics-next-line strictEffectProvide:off
+					Effect.provide(Phase2Live),
+					Effect.scoped
+				)
+			}).pipe(
+				// @effect-diagnostics-next-line strictEffectProvide:off
+				Effect.provide(Layer.mergeAll(BunFileSystem.layer, BunPath.layer))
+			),
+		{ timeout: 20_000 }
+	)
+
+	// The bug this closes: session.set-model committed a SessionModelSet event
+	// that the bridge had no method to act on at all, so a person picked a
+	// model, the composer showed it, and the agent kept running the one it
+	// started with. Same shape as the set-mode routing test above.
+	Vitest.it.live("routes session.set-model to an adapter that can switch model", () =>
+		Effect.gen(function*() {
+			const modelProviderId = ProviderId.make("fake-provider-sets-model")
+			const scripted = yield* makeModelScriptedAdapter(modelProviderId, true)
+			const TestLive = ProviderBridgeLive.pipe(
+				Layer.provideMerge(ProviderAdapterRegistryLive([scripted.adapter])),
+				Layer.provideMerge(EngineLive)
+			)
+			yield* Effect.gen(function*() {
+				const engine = yield* OrchestrationEngine
+				yield* engine.dispatch(
+					ProjectCreateCommand.make({
+						type: "project.create",
+						commandId: CommandId.make("cmd-project-model"),
+						projectId,
+						title: "Acepe",
+						workspaceRoot: "/tmp"
+					})
+				)
+				yield* engine.dispatch(
+					SessionCreateCommand.make({
+						type: "session.create",
+						commandId: CommandId.make("cmd-session-model"),
+						sessionId,
+						projectId,
+						title: "Model session",
+						providerId: modelProviderId
+					})
+				)
+				yield* engine.dispatch(
+					SessionSetModelCommand.make({
+						type: "session.set-model",
+						commandId: CommandId.make("cmd-set-model"),
+						sessionId,
+						modelId: "claude-opus-5"
+					})
+				)
+				const requests = yield* waitUntil(
+					Ref.get(scripted.setModelRequests),
+					(recorded) => recorded.length >= 1
+				)
+				Vitest.assert.deepStrictEqual(requests, ["claude-opus-5"])
+			}).pipe(
+				// @effect-diagnostics-next-line strictEffectProvide:off
+				Effect.provide(TestLive),
+				Effect.scoped
+			)
+		})
+	)
+
+	// A provider whose transport cannot switch model exposes no setModel, and
+	// that must be silence rather than a failure -- the model is durably
+	// recorded as a SessionModelSet event either way. Same contract the bridge
+	// already gives setMode and respondToPermission.
+	Vitest.it.live("leaves a provider that cannot switch model alone, without failing it", () =>
+		Effect.gen(function*() {
+			const plainProviderId = ProviderId.make("fake-provider-no-set-model")
+			const scripted = yield* makeModelScriptedAdapter(plainProviderId, false)
+			const TestLive = ProviderBridgeLive.pipe(
+				Layer.provideMerge(ProviderAdapterRegistryLive([scripted.adapter])),
+				Layer.provideMerge(EngineLive)
+			)
+			yield* Effect.gen(function*() {
+				const engine = yield* OrchestrationEngine
+				const store = yield* OrchestrationEventStore
+				yield* engine.dispatch(
+					ProjectCreateCommand.make({
+						type: "project.create",
+						commandId: CommandId.make("cmd-project-no-model"),
+						projectId,
+						title: "Acepe",
+						workspaceRoot: "/tmp"
+					})
+				)
+				yield* engine.dispatch(
+					SessionCreateCommand.make({
+						type: "session.create",
+						commandId: CommandId.make("cmd-session-no-model"),
+						sessionId,
+						projectId,
+						title: "Plain session",
+						providerId: plainProviderId
+					})
+				)
+				yield* engine.dispatch(
+					SessionSetModelCommand.make({
+						type: "session.set-model",
+						commandId: CommandId.make("cmd-set-model-unsupported"),
+						sessionId,
+						modelId: "claude-opus-5"
+					})
+				)
+				const events = yield* waitUntil(
+					Stream.runCollect(store.readFrom(0, 200)),
+					(collected) => collected.some((event) => event.type === "SessionModelSet")
+				)
+				Vitest.assert.isFalse(
+					events.some((event) => event.type === "ProviderSessionFailed"),
+					"a provider with no setModel must not be reported as having failed one"
+				)
+				Vitest.assert.deepStrictEqual(yield* Ref.get(scripted.setModelRequests), [])
+			}).pipe(
+				// @effect-diagnostics-next-line strictEffectProvide:off
+				Effect.provide(TestLive),
+				Effect.scoped
+			)
+		})
+	)
+
+	// The half the live test cannot see, exactly as for the mode: a model
+	// chosen in a PRIOR run survives only because replay RECORDS it and
+	// openSession re-applies it when the session lazily reopens.
+	Vitest.it.live(
+		"re-applies a replayed model when a session lazily reopens after a restart",
+		() =>
+			Effect.gen(function*() {
+				const fs = yield* FileSystem.FileSystem
+				const path = yield* Path.Path
+				const dir = yield* fs.makeTempDirectoryScoped()
+				const EngineAt = restartableEngine(path.join(dir, "acepe-model-reopen-test.db"))
+				const reopenProviderId = ProviderId.make("fake-provider-model-reopen")
+
+				yield* dispatchPriorRunWithModel(reopenProviderId, "claude-opus-5").pipe(
+					// @effect-diagnostics-next-line strictEffectProvide:off
+					Effect.provide(EngineAt),
+					Effect.scoped
+				)
+
+				const scripted = yield* makeModelScriptedAdapter(reopenProviderId, true)
+				const Phase2Live = ProviderBridgeLive.pipe(
+					Layer.provideMerge(ProviderAdapterRegistryLive([scripted.adapter])),
+					Layer.provideMerge(EngineAt)
+				)
+				yield* Effect.gen(function*() {
+					const engine = yield* OrchestrationEngine
+					yield* engine.dispatch(
+						MessageSendCommand.make({
+							type: "message.send",
+							commandId: CommandId.make("cmd-message-model-reopen"),
+							sessionId,
+							messageId: MessageId.make("message-model-reopen"),
+							text: "Carry on after the restart"
+						})
+					)
+					const requests = yield* waitUntil(
+						Ref.get(scripted.setModelRequests),
+						(recorded) => recorded.length >= 1
+					)
+					Vitest.assert.deepStrictEqual(requests, ["claude-opus-5"])
 				}).pipe(
 					// @effect-diagnostics-next-line strictEffectProvide:off
 					Effect.provide(Phase2Live),

@@ -1,5 +1,6 @@
 import {
 	type OrchestrationEvent,
+	type SessionModelCatalog,
 	MessageId,
 	ProjectId,
 	SessionId,
@@ -21,6 +22,7 @@ import {
 	type ProjectedPendingApproval
 } from "../../../persistence/Services/ProjectionPendingApprovals.ts"
 import type { Json } from "../Json.ts"
+import { decodeSessionModelsFact } from "../SessionModelsFact.ts"
 import { makeClaudeAdapter, type ClaudeAdapterOptions } from "./Adapter.ts"
 import { decodeContractFact } from "./Codec.ts"
 import type { ClaudeQueryHandle, ClaudeQueryInput } from "./Process.ts"
@@ -32,6 +34,14 @@ const projectId = ProjectId.make("project-1")
 const messageId = MessageId.make("message-user")
 const messageId2 = MessageId.make("message-user-2")
 
+// What the scripted SDK answers when the adapter asks what it can run --
+// deliberately NOT the five ids the deleted CLAUDE_PROVIDER_MODELS constant
+// held, so a test can only pass by reading the provider's own answer.
+const SCRIPTED_MODELS: SessionModelCatalog = [
+	{ modelId: "claude-opus-5", name: "Opus 5", description: "Most capable model" },
+	{ modelId: "claude-sonnet-5", name: "Sonnet 5", description: null }
+]
+
 const fakeHandle = (
 	inbound: Queue.Queue<Json, Done>,
 	interrupts: Ref.Ref<number>
@@ -39,6 +49,8 @@ const fakeHandle = (
 	messages: Stream.fromQueue(inbound),
 	interrupt: Ref.update(interrupts, (count) => count + 1).pipe(Effect.asVoid),
 	setPermissionMode: () => Effect.void,
+	setModel: () => Effect.void,
+	supportedModels: Effect.succeed(SCRIPTED_MODELS),
 	close: Queue.end(inbound).pipe(Effect.asVoid)
 })
 
@@ -58,6 +70,10 @@ type ScriptedAttempt = {
 	// mode mechanism, both observable per attempt.
 	readonly permissionMode: ClaudeMode
 	readonly modeRequests: Ref.Ref<ReadonlyArray<ClaudeMode>>
+	// The same two halves for the model: the id this attempt was LAUNCHED
+	// with, and the live setModel control requests it received afterwards.
+	readonly model: Option.Option<string>
+	readonly modelRequests: Ref.Ref<ReadonlyArray<string>>
 }
 
 const makeScriptedClaudeSdk = Effect.fn("makeScriptedClaudeSdk")(function*() {
@@ -68,13 +84,16 @@ const makeScriptedClaudeSdk = Effect.fn("makeScriptedClaudeSdk")(function*() {
 			const interrupted = yield* Ref.make(false)
 			const closed = yield* Ref.make(false)
 			const modeRequests = yield* Ref.make<ReadonlyArray<ClaudeMode>>([])
+			const modelRequests = yield* Ref.make<ReadonlyArray<string>>([])
 			const attempt: ScriptedAttempt = {
 				inbound,
 				interrupted,
 				closed,
 				resume: input.resume,
 				permissionMode: input.permissionMode,
-				modeRequests
+				modeRequests,
+				model: input.model,
+				modelRequests
 			}
 			yield* Ref.update(attemptsRef, (current) => [...current, attempt])
 			return {
@@ -82,6 +101,9 @@ const makeScriptedClaudeSdk = Effect.fn("makeScriptedClaudeSdk")(function*() {
 				interrupt: Ref.set(interrupted, true).pipe(Effect.asVoid),
 				setPermissionMode: (mode: ClaudeMode) =>
 					Ref.update(modeRequests, (current) => [...current, mode]).pipe(Effect.asVoid),
+				setModel: (model: string) =>
+					Ref.update(modelRequests, (current) => [...current, model]).pipe(Effect.asVoid),
+				supportedModels: Effect.succeed(SCRIPTED_MODELS),
 				close: Ref.set(closed, true).pipe(
 					Effect.andThen(Queue.end(inbound)),
 					Effect.asVoid
@@ -122,6 +144,44 @@ const nextEvent = Effect.fn("nextEvent")(function*(
 		return Vitest.assert.fail("the adapter published no further event within 500ms")
 	}
 	return next.value
+})
+
+// The catalog the adapter published, read off whichever SessionMetaUpdated
+// event carries the session_models fact. Scanned rather than positional: the
+// list arrives from its own fiber (the provider is asked over the transport,
+// which takes as long as it takes), so its position among the session's first
+// events is not something a test may pin down.
+const takeSessionModels = Effect.fn("takeSessionModels")(function*(
+	events: Queue.Queue<OrchestrationEvent, Done>
+) {
+	for (let attempt = 0; attempt < 8; attempt++) {
+		const next = yield* nextEvent(events)
+		if (next.type !== "SessionMetaUpdated") {
+			continue
+		}
+		const fact = decodeSessionModelsFact(next.metadata)
+		if (Option.isSome(fact)) {
+			return fact.value.models
+		}
+	}
+	return Vitest.assert.fail("the adapter never published the models its provider reported")
+})
+
+// The catalog event lands among a session's first events, from its own fiber
+// (see publishSupportedModels), so a test that wants one specific event may no
+// longer count positions after deferred_open. Only deferred_open itself is
+// positional, because startSession concatenates it ahead of the outbound queue.
+const takeEventOfType = Effect.fn("takeEventOfType")(function*(
+	events: Queue.Queue<OrchestrationEvent, Done>,
+	type: OrchestrationEvent["type"]
+) {
+	for (let attempt = 0; attempt < 8; attempt++) {
+		const next = yield* Queue.take(events)
+		if (next.type === type) {
+			return next
+		}
+	}
+	return Vitest.assert.fail(`the adapter published no ${type} event`)
 })
 
 // Drives a session into the exact state the abandoned-permission tests
@@ -337,9 +397,7 @@ Vitest.describe("ClaudeAdapter", () => {
 					}
 				}
 			})
-			const first = yield* Queue.take(events)
-			const tokenEvent =
-				first.type === "TokenAppended" ? first : yield* Queue.take(events)
+			const tokenEvent = yield* takeEventOfType(events, "TokenAppended")
 			Vitest.assert.strictEqual(tokenEvent.type, "TokenAppended")
 			if (tokenEvent.type === "TokenAppended") {
 				Vitest.assert.strictEqual(tokenEvent.payload.token, "Hello")
@@ -627,9 +685,9 @@ Vitest.describe("ClaudeAdapter", () => {
 			const { adapter, events } = yield* startTestSession({
 				createQuery: () => Effect.succeed(fakeHandle(inbound, interrupts))
 			})
-			yield* Queue.take(events)
+			yield* Queue.take(events) // deferred_open
 			yield* adapter.cancelTurn({ sessionId })
-			const cancelled = yield* Queue.take(events)
+			const cancelled = yield* takeEventOfType(events, "TurnCancelled")
 			Vitest.assert.strictEqual(cancelled.type, "TurnCancelled")
 			Vitest.assert.strictEqual(yield* Ref.get(interrupts), 1)
 		})
@@ -918,6 +976,8 @@ Vitest.describe("ClaudeAdapter", () => {
 							// to register its deferred before teardown finishes.
 						}).pipe(Effect.andThen(Effect.sleep(Duration.millis(30)))),
 						setPermissionMode: () => Effect.void,
+						setModel: () => Effect.void,
+						supportedModels: Effect.succeed(SCRIPTED_MODELS),
 						close: Queue.end(inbound).pipe(Effect.asVoid)
 					} satisfies ClaudeQueryHandle),
 				cancelInterruptTimeout: Duration.millis(500)
@@ -959,6 +1019,8 @@ Vitest.describe("ClaudeAdapter", () => {
 						messages: Stream.fromQueue(inbound),
 						interrupt: Deferred.await(releaseInterrupt),
 						setPermissionMode: () => Effect.void,
+						setModel: () => Effect.void,
+						supportedModels: Effect.succeed(SCRIPTED_MODELS),
 						close: Effect.void
 					} satisfies ClaudeQueryHandle),
 				cancelInterruptTimeout: Duration.seconds(10)
@@ -1087,6 +1149,43 @@ Vitest.describe("ClaudeAdapter", () => {
 			const { adapter } = yield* openPromptedSession({ createQuery: sdk.createQuery })
 			const error = yield* adapter.setMode({ sessionId, modeId: "read-only" }).pipe(Effect.flip)
 			Vitest.assert.strictEqual(error.operation, "setMode")
+		})
+	)
+
+	// The picker used to offer a constant. This is the fact that replaces it:
+	// the adapter asks the provider what it can run, and publishes the
+	// answer on the session's own event stream.
+	Vitest.it.live("publishes the models its provider reports when a session opens", () =>
+		Effect.gen(function*() {
+			const sdk = yield* makeScriptedClaudeSdk()
+			const { events } = yield* startTestSession({ createQuery: sdk.createQuery })
+			const models = yield* takeSessionModels(events)
+			Vitest.assert.deepStrictEqual(models, SCRIPTED_MODELS)
+		})
+	)
+
+	// Same two halves the mode has, and for the same reason: a model that
+	// only ever reached the live query would silently revert on the next
+	// turn, because a cancel or a stall recovery builds a fresh query.
+	Vitest.it.live("carries a set model onto the live query and onto its replacement", () =>
+		Effect.gen(function*() {
+			const sdk = yield* makeScriptedClaudeSdk()
+			const { adapter } = yield* openPromptedSession({ createQuery: sdk.createQuery })
+			yield* adapter.setModel({ sessionId, modelId: "claude-opus-5" })
+			const opened = yield* waitUntil(Ref.get(sdk.attemptsRef), (a) => a.length >= 1)
+			const firstAttempt = opened[0]
+			if (firstAttempt === undefined) {
+				return Vitest.assert.fail("expected a first query attempt")
+			}
+			Vitest.assert.isTrue(Option.isNone(firstAttempt.model))
+			const liveRequests = yield* Ref.get(firstAttempt.modelRequests)
+			Vitest.assert.deepStrictEqual(liveRequests, ["claude-opus-5"])
+			yield* adapter.cancelTurn({ sessionId })
+			yield* Stream.runCollect(
+				adapter.sendPrompt({ sessionId, messageId: messageId2, text: "and now?" })
+			)
+			const attempts = yield* waitUntil(Ref.get(sdk.attemptsRef), (a) => a.length >= 2)
+			Vitest.assert.deepStrictEqual(attempts[1]?.model, Option.some("claude-opus-5"))
 		})
 	)
 

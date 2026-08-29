@@ -20,9 +20,9 @@
 import type { ApprovalDecision, OrchestrationEvent, SessionId } from "@acepe/contracts";
 import {
 	librarySnapshotRequest,
-	providerModels,
 	providerModes,
 	type RpcClient,
+	sessionModelsFromMetadata,
 } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 import type * as Schema from "effect/Schema";
@@ -130,14 +130,19 @@ function freshSessionState(): SessionCanonicalState {
 /**
  * The capabilities a provider brings to every session it opens.
  *
- * Read from the contract rather than assembled here: the adapter that enforces
- * a mode and the picker that offers it must be reading one list.
+ * The modes are read from the contract rather than assembled here: the adapter
+ * that enforces a mode and the picker that offers it must be reading one list.
+ *
+ * The models are absent on purpose. They used to be a constant of five read
+ * from the same contract, so an agent that shipped a newer model could not be
+ * asked for it. A provider is now asked for its own catalog and publishes it as
+ * a session_models fact, which arrives after this event -- see
+ * onSessionModelsListed.
  */
 function providerSessionCapabilities(
 	providerId: string | null | undefined
 ): SessionGraphCapabilities {
 	const modes = providerModes(providerId);
-	const models = providerModels(providerId);
 	const capabilities = emptySessionGraphCapabilities();
 	if (modes.length > 0) {
 		capabilities.modes = {
@@ -146,14 +151,6 @@ function providerSessionCapabilities(
 				name: mode.name,
 				description: mode.description,
 				iconKind: mode.iconKind,
-			})),
-		};
-	}
-	if (models.length > 0) {
-		capabilities.models = {
-			availableModels: models.map((model) => ({
-				modelId: model.modelId,
-				name: model.name,
 			})),
 		};
 	}
@@ -381,6 +378,12 @@ export class OrchestrationCanonicalBridge {
 				);
 			case "SessionModeSet":
 				return Effect.succeed(this.onSessionModeSet(event.payload.sessionId, event.payload.modeId));
+			case "SessionModelSet":
+				return Effect.succeed(
+					this.onSessionModelSet(event.payload.sessionId, event.payload.modelId)
+				);
+			case "SessionMetaUpdated":
+				return Effect.succeed(this.onSessionMetaUpdated(event.payload.sessionId, event.metadata));
 			case "TurnUsageObserved":
 				return Effect.succeed(this.onTurnUsageObserved(event.payload));
 			default:
@@ -966,6 +969,57 @@ export class OrchestrationCanonicalBridge {
 			graphRevision: toRevision.graphRevision,
 			lastEventSeq: toRevision.lastEventSeq,
 			payload: { kind: "sessionMode", currentModeId: modeId, revision: toRevision },
+		};
+		state.revision = toRevision;
+		return [toSessionStateAcpEnvelope(envelope)];
+	}
+
+	// The model half of onSessionModeSet above, and the reason picking a model
+	// now means something live: SessionModelSet used to fall into translate's
+	// default branch, so the composer's own optimistic label was the only place
+	// a chosen model existed.
+	private onSessionModelSet(sessionId: string, modelId: string): AcpEventEnvelope[] {
+		const state = this.stateFor(sessionId);
+		const toRevision = nextRevision(state.revision, false);
+		const envelope: SessionStateEnvelope = {
+			sessionId,
+			graphRevision: toRevision.graphRevision,
+			lastEventSeq: toRevision.lastEventSeq,
+			payload: { kind: "sessionModel", currentModelId: modelId, revision: toRevision },
+		};
+		state.revision = toRevision;
+		return [toSessionStateAcpEnvelope(envelope)];
+	}
+
+	// The provider's own model catalog, published as a session_models fact on a
+	// SessionMetaUpdated event's metadata -- the same channel every adapter
+	// already uses for the provider_session fact. Most meta updates carry no
+	// catalog, and those produce nothing: emitting an empty one would spend a
+	// graph revision to say nothing, and would empty the picker on every title
+	// change.
+	private onSessionMetaUpdated(
+		sessionId: string,
+		metadata: OrchestrationEvent["metadata"]
+	): AcpEventEnvelope[] {
+		const models = sessionModelsFromMetadata(metadata);
+		if (models === null) {
+			return [];
+		}
+		const state = this.stateFor(sessionId);
+		const toRevision = nextRevision(state.revision, false);
+		const envelope: SessionStateEnvelope = {
+			sessionId,
+			graphRevision: toRevision.graphRevision,
+			lastEventSeq: toRevision.lastEventSeq,
+			payload: {
+				kind: "sessionModels",
+				availableModels: models.map((model) => ({
+					modelId: model.modelId,
+					name: model.name,
+					description: model.description,
+				})),
+				revision: toRevision,
+			},
 		};
 		state.revision = toRevision;
 		return [toSessionStateAcpEnvelope(envelope)];

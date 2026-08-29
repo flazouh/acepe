@@ -94,6 +94,12 @@ export const buildClaudeQueryOptions = (
 		// so the mode has to be part of the launch options too or it silently
 		// reverts to the SDK's default on the next turn.
 		readonly permissionMode?: ClaudeMode
+		// The session's canonical model, carried onto a query the moment it
+		// is created, for exactly the reason permissionMode above is: setModel
+		// (see Process.ts) only reaches a LIVE query, so a cancel or a
+		// watchdog stall recovery would otherwise revert the model to whatever
+		// the operator's own Claude config selects.
+		readonly model?: Option.Option<string>
 	},
 	isolation: ClaudeQueryIsolation
 ): ClaudeSdkOptions => ({
@@ -108,6 +114,9 @@ export const buildClaudeQueryOptions = (
 		: {}),
 	...(input.resume !== undefined && Option.isSome(input.resume)
 		? { resume: input.resume.value }
+		: {}),
+	...(input.model !== undefined && Option.isSome(input.model)
+		? { model: input.model.value }
 		: {}),
 	canUseTool: (toolName, toolInput, options) =>
 		input.canUseTool(toolName, jsonObjectFromValue(toolInput), {

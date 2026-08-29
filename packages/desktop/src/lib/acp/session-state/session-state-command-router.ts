@@ -1,10 +1,10 @@
 import type {
 	ActiveStreamingTail,
+	AvailableModel,
 	InteractionSnapshot,
 	OperationSnapshot,
 	PlanData,
 	SessionGraphActivity,
-	SessionGraphCapabilities,
 	SessionGraphLifecycle,
 	SessionGraphRevision,
 	SessionStateDelta,
@@ -54,6 +54,22 @@ export type SessionStateCommand =
 			// and the config options in that projection alone.
 			kind: "applySessionMode";
 			currentModeId: string;
+			revision: SessionGraphRevision;
+	  }
+	| {
+			// The model a session runs, on its own, for the same reason as the
+			// mode above. Before this existed, session.set-model changed the
+			// composer's label and nothing else.
+			kind: "applySessionModel";
+			currentModelId: string;
+			revision: SessionGraphRevision;
+	  }
+	| {
+			// The models a session's provider reports it can run. A provider
+			// answers once per session, after the snapshot that opened it, so
+			// this replaces the catalog and leaves the chosen model alone.
+			kind: "applySessionModels";
+			availableModels: ReadonlyArray<AvailableModel>;
 			revision: SessionGraphRevision;
 	  }
 	| {
@@ -298,6 +314,40 @@ export function routeSessionStateEnvelope(
 				{
 					kind: "applySessionMode",
 					currentModeId: envelope.payload.currentModeId,
+					revision: envelope.payload.revision,
+				},
+			];
+		case "sessionModel":
+			if (!envelopeFrontierMatchesRevision(envelope, envelope.payload.revision)) {
+				return [
+					{
+						kind: "refreshSnapshot",
+						fromRevision: envelope.payload.revision.graphRevision,
+						toRevision: envelope.graphRevision,
+					},
+				];
+			}
+			return [
+				{
+					kind: "applySessionModel",
+					currentModelId: envelope.payload.currentModelId,
+					revision: envelope.payload.revision,
+				},
+			];
+		case "sessionModels":
+			if (!envelopeFrontierMatchesRevision(envelope, envelope.payload.revision)) {
+				return [
+					{
+						kind: "refreshSnapshot",
+						fromRevision: envelope.payload.revision.graphRevision,
+						toRevision: envelope.graphRevision,
+					},
+				];
+			}
+			return [
+				{
+					kind: "applySessionModels",
+					availableModels: envelope.payload.availableModels,
 					revision: envelope.payload.revision,
 				},
 			];

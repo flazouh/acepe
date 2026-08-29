@@ -147,22 +147,6 @@ export const resolveClaudeModeId = (modeId: string): Option.Option<ClaudeMode> =
 	return Option.none()
 }
 
-export const CLAUDE_MODELS = [
-	"claude-opus-4-6",
-	"claude-sonnet-4-6",
-	"claude-haiku-4-5",
-	"claude-opus-4-5",
-	"claude-sonnet-4-5"
-] as const
-export type ClaudeModel = (typeof CLAUDE_MODELS)[number]
-
-export const resolveClaudeApiModelId = (model: string, contextWindow: "200k" | "1m"): string => {
-	if (contextWindow === "1m" && Str.includes("[")(model) === false) {
-		return `${model}[1m]`
-	}
-	return model
-}
-
 export const claudePresence = (
 	installed: boolean,
 	authenticated: boolean

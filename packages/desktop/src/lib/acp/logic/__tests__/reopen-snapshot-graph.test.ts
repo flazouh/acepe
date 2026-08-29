@@ -1,5 +1,9 @@
 import { describe, expect, it } from "bun:test";
-import type { RpcProjectedMessage, RpcSessionSnapshot } from "@acepe/contracts";
+import type {
+	RpcProjectedMessage,
+	RpcSessionSnapshot,
+	SessionModelCatalog,
+} from "@acepe/contracts";
 import {
 	ActivityId,
 	ApprovalRequestId,
@@ -59,6 +63,21 @@ function withCurrentMode(
 	return {
 		...snapshot,
 		session: { ...snapshot.session, currentModeId },
+	};
+}
+
+function withModels(
+	snapshotSequence: number,
+	currentModelId: string | null,
+	availableModels: SessionModelCatalog | null
+): RpcSessionSnapshot {
+	const snapshot = withMessages(snapshotSequence, []);
+	if (snapshot.session === null) {
+		throw new Error("expected a projected session");
+	}
+	return {
+		...snapshot,
+		session: { ...snapshot.session, currentModelId, availableModels },
 	};
 }
 
@@ -532,5 +551,42 @@ describe("graphFromReopenSnapshot", () => {
 
 		expect(graph.capabilities.modes).toBe(null);
 		expect(projectGraphCapabilities(graph.capabilities).availableModes).toBe(null);
+	});
+
+	// The models are the provider's own answer now, carried on the snapshot as
+	// availableModels. The picker used to read a hand-written list of five, so a
+	// reopened session offered models the agent had outgrown and could not offer
+	// the ones it had gained.
+	it("offers the models the snapshot's provider published, and the chosen one", () => {
+		const snapshot = withModels(4, "claude-opus-5", [
+			{ modelId: "claude-opus-5", name: "Opus 5", description: null },
+			{ modelId: "claude-sonnet-5", name: "Sonnet 5", description: "Balanced" },
+		]);
+
+		const graph = graphFromReopenSnapshot(baseInput(snapshot));
+
+		const projected = projectGraphCapabilities(graph.capabilities);
+		expect(projected.currentModelId).toBe("claude-opus-5");
+		expect(projected.availableModels).toEqual([
+			{ id: "claude-opus-5", provider: undefined, name: "Opus 5", description: undefined },
+			{
+				id: "claude-sonnet-5",
+				provider: undefined,
+				name: "Sonnet 5",
+				description: "Balanced",
+			},
+		]);
+		expect(projected.currentModel?.name).toBe("Opus 5");
+	});
+
+	// The GOD gate's answer to a missing canonical fact: offer nothing, and fix
+	// the producer. There is no constant left to fall back to.
+	it("offers no models when the provider published no catalog", () => {
+		const snapshot = withModels(4, null, null);
+
+		const graph = graphFromReopenSnapshot(baseInput(snapshot));
+
+		expect(graph.capabilities.models).toBe(null);
+		expect(projectGraphCapabilities(graph.capabilities).availableModels).toBe(null);
 	});
 });

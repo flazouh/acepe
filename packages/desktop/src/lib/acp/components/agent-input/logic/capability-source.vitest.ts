@@ -52,11 +52,15 @@ describe("resolveCapabilitySource", () => {
 	/**
 	 * A composer with no session, no preconnection answer and no cache used to
 	 * resolve to nothing, and the toolbar renders its mode selector only when
-	 * modes exist. So a brand new Claude thread offered no modes at all and its
-	 * model slot stayed a static agent label. A provider's modes and models are
-	 * contract facts, so they are the honest last resort.
+	 * modes exist. So a brand new Claude thread offered no modes at all. A
+	 * provider's modes are contract facts, so they are the honest last resort.
+	 *
+	 * The models are not, and no longer resolve here. They were a constant of
+	 * five, and an agent that shipped a newer model could not be asked for it. A
+	 * provider is asked for its own catalog and publishes it as a canonical
+	 * session fact, so a composer with no session yet has no catalog to show.
 	 */
-	it("falls back to what the provider offers when nothing else answered", () => {
+	it("falls back to the provider's modes when nothing else answered, and offers no models", () => {
 		const resolution = resolveCapabilitySource({
 			agentId: "claude-code",
 			sessionSource: { kind: "no_session" },
@@ -74,7 +78,7 @@ describe("resolveCapabilitySource", () => {
 			"plan",
 			"bypassPermissions",
 		]);
-		expect((resolution.availableModels ?? []).length).toBeGreaterThan(0);
+		expect(resolution.availableModels).toBeNull();
 	});
 
 	/**
@@ -110,7 +114,7 @@ describe("resolveCapabilitySource", () => {
 		expect(resolution.modelsDisplay?.groups[0]?.models[0]?.modelId).toBe("claude-sonnet-4-6");
 	});
 
-	it("still offers the provider's models when the cache holds modes only", () => {
+	it("offers no models when the cache holds modes only", () => {
 		const resolution = resolveCapabilitySource({
 			agentId: "claude-code",
 			sessionSource: { kind: "no_session" },
@@ -122,7 +126,7 @@ describe("resolveCapabilitySource", () => {
 		});
 
 		expect(modeIds(resolution.availableModes)).toEqual(["plan"]);
-		expect((resolution.availableModels ?? []).length).toBeGreaterThan(0);
+		expect(modelIds(resolution.availableModels)).toEqual([]);
 	});
 
 	/**
@@ -157,7 +161,7 @@ describe("resolveCapabilitySource", () => {
 			"plan",
 			"bypassPermissions",
 		]);
-		expect((resolution.availableModels ?? []).length).toBeGreaterThan(0);
+		expect(modelIds(resolution.availableModels)).toEqual([]);
 		expect(resolution.modelsDisplay).toBeNull();
 	});
 

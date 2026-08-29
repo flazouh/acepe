@@ -397,6 +397,78 @@ describe("applyEventToRpcSessionSnapshot", () => {
 		expect(reviewed.session?.currentModeId).toBe("review")
 	})
 
+	it("folds three SessionModelSet events onto the last model", () => {
+		const created = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), sessionCreated)
+		expect(created.session?.currentModelId).toBe(null)
+		const modelSet = (snapshot: typeof created, sequence: number, modelId: string) =>
+			applyEventToRpcSessionSnapshot(snapshot, {
+				sequence,
+				eventId: EventId.make(`event-${sequence}`),
+				aggregateKind: "session",
+				aggregateId: sessionId,
+				occurredAt,
+				commandId,
+				causationEventId: null,
+				correlationId: commandId,
+				metadata: {},
+				type: "SessionModelSet",
+				payload: {
+					sessionId,
+					modelId,
+				},
+			})
+		const opus = modelSet(created, 3, "claude-opus-5")
+		expect(opus.session?.currentModelId).toBe("claude-opus-5")
+		const haiku = modelSet(modelSet(opus, 4, "claude-sonnet-5"), 5, "claude-haiku-4-5")
+		expect(haiku.session?.currentModelId).toBe("claude-haiku-4-5")
+	})
+
+	it("captures a provider's model catalog from a session_models SessionMetaUpdated fact", () => {
+		const created = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), sessionCreated)
+		expect(created.session?.availableModels).toBe(null)
+		const listed = applyEventToRpcSessionSnapshot(created, {
+			sequence: 3,
+			eventId: EventId.make("event-3"),
+			aggregateKind: "session",
+			aggregateId: sessionId,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: {
+				contractKind: "session_models",
+				models: [{ modelId: "claude-opus-5", name: "Opus 5", description: null }],
+			},
+			type: "SessionMetaUpdated",
+			payload: {
+				sessionId,
+			},
+		})
+		expect(listed.session?.availableModels).toEqual([
+			{ modelId: "claude-opus-5", name: "Opus 5", description: null },
+		])
+		// A later meta update carries no catalog, and must not empty the picker.
+		const renamed = applyEventToRpcSessionSnapshot(listed, {
+			sequence: 4,
+			eventId: EventId.make("event-4"),
+			aggregateKind: "session",
+			aggregateId: sessionId,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: {},
+			type: "SessionMetaUpdated",
+			payload: {
+				sessionId,
+				title: "Renamed session",
+			},
+		})
+		expect(renamed.session?.availableModels).toEqual([
+			{ modelId: "claude-opus-5", name: "Opus 5", description: null },
+		])
+	})
+
 	it("discards a SessionMetaUpdated at or below snapshotSequence", () => {
 		const afterSession = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), sessionCreated)
 		const skipped = applyEventToRpcSessionSnapshot(afterSession, {

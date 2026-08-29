@@ -22,6 +22,7 @@ import {
 	type RpcProjectedTurn,
 	type RpcSessionSnapshot,
 } from "./rpc.ts"
+import { sessionModelsFromMetadata } from "./sessionModels.ts"
 import { emptyProjectedVoice, type ProjectedVoice, type VoiceModelInfo } from "./voice.ts"
 import { capTerminalOutput, type ProjectedTerminal } from "./terminal.ts"
 import {
@@ -101,6 +102,8 @@ const touchSession = (
 		providerSessionId: session.providerSessionId,
 		providerSessionFailed: session.providerSessionFailed,
 		currentModeId: session.currentModeId ?? null,
+		currentModelId: session.currentModelId ?? null,
+		availableModels: session.availableModels ?? null,
 	}
 }
 
@@ -213,6 +216,8 @@ const applySessionCreated = (
 		providerSessionId: null,
 		providerSessionFailed: false,
 		currentModeId: null,
+		currentModelId: null,
+		availableModels: null,
 	}
 	return replaceMessages(snapshot, event.sequence, snapshot.messages, session)
 }
@@ -248,6 +253,7 @@ const applySessionMetaUpdated = (
 	}
 	const current = snapshot.session
 	const providerSessionId = providerSessionIdFromMetadata(event.metadata)
+	const publishedModels = sessionModelsFromMetadata(event.metadata)
 	const session: RpcProjectedSession = {
 		sessionId: current.sessionId,
 		projectId: current.projectId,
@@ -265,6 +271,9 @@ const applySessionMetaUpdated = (
 		providerSessionId: providerSessionId !== null ? providerSessionId : current.providerSessionId,
 		providerSessionFailed: current.providerSessionFailed,
 		currentModeId: current.currentModeId ?? null,
+		currentModelId: current.currentModelId ?? null,
+		availableModels:
+			publishedModels !== null ? publishedModels : (current.availableModels ?? null),
 	}
 	return replaceMessages(snapshot, event.sequence, snapshot.messages, session)
 }
@@ -286,6 +295,25 @@ const applySessionModeSet = (
 		updatedAt: event.occurredAt,
 		lastActivityAt: event.occurredAt,
 		currentModeId: event.payload.modeId,
+	}
+	return replaceMessages(snapshot, event.sequence, snapshot.messages, session)
+}
+
+// Mirrors the server's projectSessionModelSet: the last SessionModelSet wins,
+// and the provider's own default model can never overwrite it.
+const applySessionModelSet = (
+	snapshot: RpcSessionSnapshot,
+	event: Extract<OrchestrationEvent, { readonly type: "SessionModelSet" }>,
+): RpcSessionSnapshot => {
+	if (!isThisSession(snapshot, event.payload.sessionId) || snapshot.session === null) {
+		return withSequence(snapshot, event.sequence)
+	}
+	const current = snapshot.session
+	const session: RpcProjectedSession = {
+		...current,
+		updatedAt: event.occurredAt,
+		lastActivityAt: event.occurredAt,
+		currentModelId: event.payload.modelId,
 	}
 	return replaceMessages(snapshot, event.sequence, snapshot.messages, session)
 }
@@ -1329,6 +1357,8 @@ export const applyEventToRpcSessionSnapshot = (
 			return applyProviderSessionFailed(snapshot, event)
 		case "SessionModeSet":
 			return applySessionModeSet(snapshot, event)
+		case "SessionModelSet":
+			return applySessionModelSet(snapshot, event)
 		default:
 			return withSequence(snapshot, event.sequence)
 	}

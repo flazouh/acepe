@@ -1,4 +1,4 @@
-import { providerModels, providerModes } from "@acepe/contracts";
+import { providerModes } from "@acepe/contracts";
 import type { Mode } from "$lib/acp/application/dto/mode.js";
 import type { Model } from "$lib/acp/application/dto/model.js";
 import type {
@@ -176,7 +176,7 @@ function resolveFallbackCapabilitySource(
 		);
 	}
 
-	return buildResolution("persistedCache", "persistedCache", [], [], null, input.providerMetadata);
+	return buildResolution("persistedCache", "persistedCache", [], null, null, input.providerMetadata);
 }
 
 /** The provider's own modes, in the shape the toolbar reads. */
@@ -189,41 +189,36 @@ function providerFallbackModes(agentId: string | null | undefined): Mode[] {
 	}));
 }
 
-/** The provider's own models, in the shape the toolbar reads. */
-function providerFallbackModels(agentId: string | null | undefined): Model[] {
-	return providerModels(agentId).map((model) => ({ id: model.modelId, name: model.name }));
-}
-
 /**
- * Fill an axis nobody answered from what the provider publishes.
+ * Fill the mode axis from what the provider publishes when nobody answered it.
  *
- * A provider's modes and models are contract facts: they do not change as a
- * turn runs, and no event carries them. So they are the honest filler when the
- * answer in hand is empty, and they must fill each axis on its own.
+ * A provider's modes are contract facts: they do not change as a turn runs,
+ * and no event carries them. So they are the honest filler when the answer in
+ * hand is empty, and they fill their axis on its own. A cache written before
+ * Claude reported its modes holds models and no modes; taken whole, that cache
+ * counted as an answer for both axes, and the toolbar draws the mode selector
+ * only when modes exist.
  *
- * Filling both axes together is what the composer used to do, and it hid the
- * mode selector. A cache written before Claude reported its modes holds models
- * and no modes; taken whole, that cache counted as an answer for both axes, and
- * the toolbar draws the mode selector only when modes exist. A preconnection
- * call that ends failed or unsupported did the same. Neither can hide the other
- * half now.
+ * The models are NOT backfilled. A provider ships new models between Acepe
+ * releases, so a constant was always the wrong answer: the composer offered
+ * five models the agent had outgrown. A provider is asked for its own catalog
+ * and publishes it as a canonical session fact, which means a composer with no
+ * session yet has no catalog to show, and shows none.
  */
 function backfillFromProvider(
 	resolution: CapabilitySourceResolution,
 	agentId: string | null | undefined
 ): CapabilitySourceResolution {
 	const modesAnswered = (resolution.availableModes?.length ?? 0) > 0;
-	const modelsAnswered = (resolution.availableModels?.length ?? 0) > 0;
-	if (modesAnswered && modelsAnswered) {
+	if (modesAnswered) {
 		return resolution;
 	}
 
 	return {
 		...resolution,
-		availableModes: modesAnswered ? resolution.availableModes : providerFallbackModes(agentId),
-		availableModels: modelsAnswered ? resolution.availableModels : providerFallbackModels(agentId),
-		// Provider models carry no display grouping, and an empty grouping
-		// placeholder would hide them.
+		availableModes: providerFallbackModes(agentId),
+		// An empty grouping placeholder is not an answer, and would hide the
+		// models a later source supplies.
 		modelsDisplay: hasUsableModelsDisplay(resolution.modelsDisplay)
 			? resolution.modelsDisplay
 			: null,

@@ -1,4 +1,6 @@
 import { MessageId, SessionId, type OrchestrationEvent } from "@acepe/contracts"
+import * as Arr from "effect/Array"
+import * as Cause from "effect/Cause"
 import type { Done } from "effect/Cause"
 import * as Clock from "effect/Clock"
 import * as Deferred from "effect/Deferred"
@@ -18,6 +20,7 @@ import type {
 	ProviderPresence,
 	SendPromptRequest,
 	SetModeRequest,
+	SetModelRequest,
 	StartSessionRequest
 } from "../../Services/ProviderAdapter.ts"
 import type { OpenToolCallInfo } from "../SessionEvents.ts"
@@ -50,6 +53,7 @@ import {
 	makeCancelled,
 	makeMessageSent,
 	makeMetaEvent,
+	makeSessionModelsEvent,
 	offerOutbound,
 	publishSdkMessage,
 	requireSession,
@@ -63,6 +67,10 @@ export type ClaudeAdapter = ProviderAdapter & {
 	// setPermissionMode control request AND records the mode so every
 	// replacement query a cancel or a stall recovery builds launches in it.
 	readonly setMode: (request: SetModeRequest) => Effect.Effect<void, ProviderAdapterError>
+	// Claude's model is the SDK's own setModel control request, and the same
+	// two halves apply: the live query moves now, and the recorded id makes
+	// every replacement query launch on it.
+	readonly setModel: (request: SetModelRequest) => Effect.Effect<void, ProviderAdapterError>
 	readonly respondToPermission: (input: {
 		readonly sessionId: SessionId
 		readonly permissionId: string
@@ -106,6 +114,12 @@ const DEFAULT_TURN_INACTIVITY_TIMEOUT = Duration.seconds(60)
 const DEFAULT_WATCHDOG_POLL_INTERVAL = Duration.seconds(5)
 const DEFAULT_PERMISSION_WAIT_TIMEOUT = Duration.minutes(30)
 
+// Bounds the one control request that runs OUTSIDE a turn. Generous, because
+// it waits on the `claude` subprocess's own startup, and unattended, because
+// nothing is blocked on it: past this the session simply has no published
+// catalog. Not an option on the adapter -- no caller has a reason to tune it.
+const MODEL_DISCOVERY_TIMEOUT = Duration.seconds(30)
+
 export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 	options: ClaudeAdapterOptions
 ) {
@@ -148,12 +162,14 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 	) {
 		const promptQueue = yield* Queue.unbounded<ClaudeUserPrompt, Done>()
 		const permissionMode = yield* Ref.get(runtime.modeId)
+		const model = yield* Ref.get(runtime.modelId)
 		const queryHandle = yield* options.createQuery({
 			prompt: Stream.toAsyncIterable(Stream.fromQueue(promptQueue)),
 			cwd: runtime.workspaceRoot,
 			canUseTool: bindCanUseTool(runtime, decidePermission),
 			resume,
-			permissionMode
+			permissionMode,
+			model
 		})
 		yield* Ref.set(runtime.promptQueueRef, promptQueue)
 		yield* Ref.set(runtime.queryRef, queryHandle)
@@ -196,6 +212,28 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 			),
 			Effect.forkIn(runtime.sessionScope, { startImmediately: true })
 		)
+	})
+
+	// Asks the SDK what this session can run, and publishes the answer as a
+	// canonical fact. Runs on its own fiber, once per session, because the
+	// question is a control request over the query's own transport: it takes
+	// as long as the `claude` subprocess takes to answer its initialize
+	// handshake, and no part of opening a session may wait on that. A
+	// provider that cannot answer publishes nothing -- the picker then offers
+	// no models, which is the honest reading of "the provider never told us",
+	// and is why there is no constant to fall back to any more.
+	const publishSupportedModels = Effect.fn("ClaudeAdapter.publishSupportedModels")(function*(
+		runtime: SessionRuntime
+	) {
+		const queryHandle = yield* Ref.get(runtime.queryRef)
+		const models = yield* queryHandle.supportedModels.pipe(
+			Effect.timeout(MODEL_DISCOVERY_TIMEOUT)
+		)
+		if (models.length === 0) {
+			return
+		}
+		const event = yield* makeSessionModelsEvent(runtime, models)
+		yield* offerOutbound(runtime, event)
 	})
 
 	const watchdogLoop = makeWatchdogLoop(
@@ -249,9 +287,12 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 				messages: Stream.empty,
 				interrupt: Effect.void,
 				setPermissionMode: () => Effect.void,
+				setModel: () => Effect.void,
+				supportedModels: Effect.succeed(Arr.empty()),
 				close: Effect.void
 			}),
 			modeId: yield* Ref.make<ClaudeMode>(DEFAULT_CLAUDE_MODE),
+			modelId: yield* Ref.make(Option.none<string>()),
 			generation: yield* Ref.make(-1),
 			turnOpenedAtMs: yield* Ref.make(Option.none<number>()),
 			lastActivityAtMs: yield* Ref.make(0),
@@ -262,6 +303,14 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 		yield* attachQuery(runtime, Option.none(), firstGeneration)
 		yield* Ref.update(sessions, (current) => HashMap.set(current, request.sessionId, runtime))
 		yield* watchdogLoop(runtime).pipe(Effect.forkIn(sessionScope, { startImmediately: true }))
+		yield* publishSupportedModels(runtime).pipe(
+			Effect.catchCause((cause) =>
+				Effect.logWarning(`Claude reported no models: ${Cause.pretty(cause)}`).pipe(
+					Effect.annotateLogs({ sessionId: request.sessionId, stage: "supportedModels" })
+				)
+			),
+			Effect.forkIn(sessionScope, { startImmediately: true })
+		)
 		return runtime
 	})
 
@@ -384,6 +433,24 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 		yield* queryHandle.setPermissionMode(resolved.value)
 	})
 
+	// Both halves again, for the same reason setMode needs both: the control
+	// request moves the LIVE query, and the ref makes every replacement query
+	// attachQuery builds later launch on the same model instead of silently
+	// reverting to whatever the operator's own Claude config selects.
+	//
+	// No id validation here on purpose. The ids are the provider's own, read
+	// back off the catalog IT published (see publishSupportedModels), so this
+	// adapter has no better list to check them against -- and the deleted
+	// constant that used to look like one was five releases out of date. An
+	// id the SDK does not recognise fails at the SDK, and that failure is what
+	// ProviderBridge turns into a ProviderSessionFailed event.
+	const setModel = Effect.fn("ClaudeAdapter.setModel")(function*(request: SetModelRequest) {
+		const runtime = yield* requireSession(sessions, request.sessionId, "setModel")
+		yield* Ref.set(runtime.modelId, Option.some(request.modelId))
+		const queryHandle = yield* Ref.get(runtime.queryRef)
+		yield* queryHandle.setModel(request.modelId)
+	})
+
 	const respondToPermission = makeRespondToPermission(sessions)
 
 	// Forcefully tears down every live session's query — SIGTERM-then-
@@ -425,6 +492,7 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 		sendPrompt,
 		cancelTurn,
 		setMode,
+		setModel,
 		respondToPermission,
 		shutdown
 	} satisfies ClaudeAdapter

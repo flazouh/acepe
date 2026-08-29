@@ -31,7 +31,7 @@ import type {
 	RpcProjectedSessionActivity,
 	RpcSessionSnapshot,
 } from "@acepe/contracts";
-import { providerModels, providerModes } from "@acepe/contracts";
+import { providerModes } from "@acepe/contracts";
 import type {
 	CanonicalAgentId,
 	InteractionSnapshot,
@@ -470,12 +470,17 @@ export function reopenGraphRevisionForApply(
 function capabilitiesFromSnapshot(snapshot: RpcSessionSnapshot): SessionGraphCapabilities {
 	const capabilities = emptySessionGraphCapabilities();
 	const currentModeId = snapshot.session?.currentModeId ?? null;
-	// The modes and models a provider offers, so a reopened session shows the
-	// same pickers a live one does. These are provider facts, not session state:
-	// the comment above is about `currentModeId`, which stays canonical-owned
-	// and is only set when a SessionModeSet actually fired.
+	// The modes a provider offers, so a reopened session shows the same picker a
+	// live one does. Modes are a provider fact, not session state: the comment
+	// above is about `currentModeId`, which stays canonical-owned and is only
+	// set when a SessionModeSet actually fired.
 	const modes = providerModes(snapshot.session?.provider);
-	const models = providerModels(snapshot.session?.provider);
+	// Models are neither: the provider is asked for its own catalog and the
+	// answer is projected, so a reopen reads the same canonical facts the live
+	// session did. There is no constant to fall back to -- a session whose
+	// provider published nothing offers nothing, which is the honest answer.
+	const currentModelId = snapshot.session?.currentModelId ?? null;
+	const models = snapshot.session?.availableModels ?? null;
 	if (modes.length > 0 || currentModeId !== null) {
 		capabilities.modes = {
 			...(currentModeId === null ? {} : { currentModeId }),
@@ -491,12 +496,18 @@ function capabilitiesFromSnapshot(snapshot: RpcSessionSnapshot): SessionGraphCap
 					}),
 		};
 	}
-	if (models.length > 0) {
+	if (models !== null || currentModelId !== null) {
 		capabilities.models = {
-			availableModels: models.map((model) => ({
-				modelId: model.modelId,
-				name: model.name,
-			})),
+			...(currentModelId === null ? {} : { currentModelId }),
+			...(models === null
+				? {}
+				: {
+						availableModels: models.map((model) => ({
+							modelId: model.modelId,
+							name: model.name,
+							description: model.description,
+						})),
+					}),
 		};
 	}
 	return capabilities;

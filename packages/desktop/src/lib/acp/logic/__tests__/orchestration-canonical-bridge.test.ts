@@ -226,6 +226,114 @@ describe("OrchestrationCanonicalBridge", () => {
 		]);
 	});
 
+	// The models a session can run are the provider's own answer, published as
+	// a session_models fact on SessionMetaUpdated. They used to be a constant of
+	// five, seeded here at SessionCreated, so an agent that shipped Opus 5 could
+	// not be asked for it and a model it had dropped was still offered. Like the
+	// mode above, the catalog rides its own narrow envelope: a whole-capabilities
+	// replace would restate the commands and config options this bridge does not
+	// know mid-run.
+	it("opens a live-created session with no models, because no provider answered yet", () => {
+		const bridge = makeBridge();
+		const envelopes = runTranslate(
+			bridge,
+			makeEvent("SessionCreated", {
+				sessionId,
+				projectId,
+				title: "First session",
+				providerId: "claude-code",
+			})
+		);
+
+		const payload = envelopes[0]?.payload as SessionStateEnvelope;
+		if (payload.payload.kind !== "snapshot") {
+			throw new Error("expected a snapshot envelope");
+		}
+		expect(payload.payload.graph.capabilities.models ?? null).toBe(null);
+	});
+
+	it("emits a session-models envelope for a published provider catalog", () => {
+		const bridge = makeBridge();
+		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
+
+		const envelopes = runTranslate(bridge, {
+			...makeEvent("SessionMetaUpdated", { sessionId }),
+			metadata: {
+				contractKind: "session_models",
+				models: [
+					{ modelId: "claude-opus-5", name: "Opus 5", description: null },
+					{ modelId: "claude-sonnet-5", name: "Sonnet 5", description: "Balanced" },
+				],
+			},
+		} as unknown as OrchestrationEvent);
+
+		expect(envelopes).toHaveLength(1);
+		const payload = envelopes[0]?.payload as SessionStateEnvelope;
+		expect(payload.payload.kind).toBe("sessionModels");
+		if (payload.payload.kind === "sessionModels") {
+			expect(payload.payload.availableModels).toEqual([
+				{ modelId: "claude-opus-5", name: "Opus 5", description: null },
+				{ modelId: "claude-sonnet-5", name: "Sonnet 5", description: "Balanced" },
+			]);
+			// A catalog appends no transcript row, exactly like a mode change.
+			expect(payload.payload.revision.transcriptRevision).toBe(0);
+		}
+	});
+
+	it("stays silent for a SessionMetaUpdated that carries no catalog", () => {
+		const bridge = makeBridge();
+		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
+
+		const envelopes = runTranslate(
+			bridge,
+			makeEvent("SessionMetaUpdated", { sessionId, title: "Renamed" })
+		);
+
+		expect(envelopes).toEqual([]);
+	});
+
+	it("emits a session-model envelope for a live SessionModelSet", () => {
+		const bridge = makeBridge();
+		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
+
+		const envelopes = runTranslate(
+			bridge,
+			makeEvent("SessionModelSet", { sessionId, modelId: "claude-opus-5" })
+		);
+
+		expect(envelopes).toHaveLength(1);
+		const payload = envelopes[0]?.payload as SessionStateEnvelope;
+		expect(payload.payload.kind).toBe("sessionModel");
+		if (payload.payload.kind === "sessionModel") {
+			expect(payload.payload.currentModelId).toBe("claude-opus-5");
+			expect(payload.payload.revision.transcriptRevision).toBe(0);
+		}
+	});
+
+	it("routes a live SessionModelSet into an applySessionModel command", () => {
+		const bridge = makeBridge();
+		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
+		const envelopes = runTranslate(
+			bridge,
+			makeEvent("SessionModelSet", { sessionId, modelId: "claude-opus-5" })
+		);
+		const payload = envelopes[0]?.payload as SessionStateEnvelope;
+
+		const commands = routeSessionStateEnvelope(
+			sessionId,
+			{ graphRevision: 0, transcriptRevision: 0, lastEventSeq: 0 },
+			payload
+		);
+
+		expect(commands).toEqual([
+			{
+				kind: "applySessionModel",
+				currentModelId: "claude-opus-5",
+				revision: { graphRevision: 1, transcriptRevision: 0, lastEventSeq: 1 },
+			},
+		]);
+	});
+
 	/**
 	 * These three cases used to assert the opposite: that an event for an
 	 * unknown session produced nothing. A real Claude Code session showed what
@@ -1085,11 +1193,15 @@ describe("OrchestrationCanonicalBridge", () => {
 describe("OrchestrationCanonicalBridge provider capabilities", () => {
 	/**
 	 * The toolbar renders the mode selector only when a session reports modes,
-	 * and the model slot degrades to a static agent label without models. Both
-	 * lists lived as constants inside the server where the client could never
-	 * see them, so neither picker ever appeared for a Claude session.
+	 * and that list lived as a constant inside the server where the client could
+	 * never see it, so the selector never appeared for a Claude session.
+	 *
+	 * The models are absent here on purpose, and used to be a constant of five
+	 * seeded at this event. A provider is asked for its own catalog now, and its
+	 * answer arrives as a session_models fact after the session opens -- see
+	 * "emits a session-models envelope for a published provider catalog" above.
 	 */
-	it("gives a Claude session the modes and models its provider offers", () => {
+	it("gives a Claude session the modes its provider offers, and no models yet", () => {
 		const bridge = makeBridge();
 		const envelopes = runTranslate(
 			bridge,
@@ -1106,7 +1218,7 @@ describe("OrchestrationCanonicalBridge provider capabilities", () => {
 			"plan",
 			"bypassPermissions",
 		]);
-		expect((graph?.capabilities.models?.availableModels?.length ?? 0) > 0).toBe(true);
+		expect(graph?.capabilities.models ?? null).toBeNull();
 	});
 
 	it("a provider with no modes reports none rather than an empty picker", () => {

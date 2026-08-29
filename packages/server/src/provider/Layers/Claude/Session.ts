@@ -7,6 +7,8 @@ import {
 	type OrchestrationEvent,
 	SessionId,
 	SessionMetaUpdatedEvent,
+	type SessionModelCatalog,
+	sessionModelsListedFact,
 	TokenAppendedEvent,
 	TurnCancelledEvent,
 	TurnCompletedEvent,
@@ -24,7 +26,8 @@ import * as Queue from "effect/Queue"
 import * as Ref from "effect/Ref"
 import * as Scope from "effect/Scope"
 import type { ProviderAdapterError, SendPromptRequest } from "../../Services/ProviderAdapter.ts"
-import { EMPTY_JSON_OBJECT, type Json } from "../Json.ts"
+import { EMPTY_JSON_OBJECT, type Json, type JsonObject } from "../Json.ts"
+import { encodeSessionModelsFact } from "../SessionModelsFact.ts"
 import {
 	approvalAnsweredEvent,
 	approvalRequestedEvent,
@@ -71,6 +74,10 @@ export type SessionRuntime = {
 	// query a cancel or a stall recovery builds -- the live control request
 	// alone would be lost with the query it was sent to.
 	readonly modeId: Ref.Ref<ClaudeMode>
+	// The session's canonical model, kept here for the same reason modeId is:
+	// attachQuery has to carry it onto every REPLACEMENT query a cancel or a
+	// stall recovery builds. None until a SessionModelSet reaches setModel.
+	readonly modelId: Ref.Ref<Option.Option<string>>
 	// Bumped by every attachQuery call. A query-listener fiber compares its
 	// OWN captured generation against this at teardown time: a mismatch means
 	// a newer query has since been attached (a deliberate restart, not a real
@@ -174,12 +181,15 @@ const makeTokenEvent = Effect.fn("ClaudeAdapter.makeTokenEvent")(function*(
 	})
 })
 
-export const makeMetaEvent = Effect.fn("ClaudeAdapter.makeMetaEvent")(function*(
+// The one SessionMetaUpdated envelope this adapter stamps. A fact that fails
+// to encode still ships the event with an empty metadata bag, because the
+// readers treat a silent bag as "this event said nothing about my fact" and
+// dropping the event outright would lose the sequence with it.
+const makeMetaEventWithMetadata = Effect.fn("ClaudeAdapter.makeMetaEventWithMetadata")(function*(
 	runtime: SessionRuntime,
-	fact: ClaudeContractFact
+	encoded: Option.Option<JsonObject>
 ) {
 	const header = yield* stamp(runtime)
-	const metadata = Option.getOrElse(encodeContractFact(fact), () => EMPTY_JSON_OBJECT)
 	return SessionMetaUpdatedEvent.make({
 		sequence: header.sequence,
 		eventId: header.eventId,
@@ -189,13 +199,27 @@ export const makeMetaEvent = Effect.fn("ClaudeAdapter.makeMetaEvent")(function*(
 		commandId: header.commandId,
 		causationEventId: null,
 		correlationId: header.commandId,
-		metadata,
+		metadata: Option.getOrElse(encoded, () => EMPTY_JSON_OBJECT),
 		type: "SessionMetaUpdated",
 		payload: {
 			sessionId: runtime.sessionId
 		}
 	})
 })
+
+export const makeMetaEvent = (runtime: SessionRuntime, fact: ClaudeContractFact) =>
+	makeMetaEventWithMetadata(runtime, encodeContractFact(fact))
+
+/**
+ * The catalog the provider itself reported, as a canonical session fact.
+ *
+ * Rides the same SessionMetaUpdated envelope every other provider fact does,
+ * but through the SHARED codec rather than Claude's own fact union -- the
+ * projection that folds it must not have to know which provider answered. See
+ * Layers/SessionModelsFact.ts.
+ */
+export const makeSessionModelsEvent = (runtime: SessionRuntime, models: SessionModelCatalog) =>
+	makeMetaEventWithMetadata(runtime, encodeSessionModelsFact(sessionModelsListedFact(models)))
 
 export const makeMessageSent = Effect.fn("ClaudeAdapter.makeMessageSent")(function*(
 	runtime: SessionRuntime,

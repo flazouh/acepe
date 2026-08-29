@@ -411,6 +411,7 @@ export const ProviderOperation = Schema.Literals([
 	"respondToPermission",
 	"respondToQuestion",
 	"setMode",
+	"setModel",
 ])
 export type ProviderOperation = typeof ProviderOperation.Type
 

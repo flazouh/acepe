@@ -1,6 +1,7 @@
 import type {
 	ActiveStreamingTail,
 	SessionGraphActivity,
+	SessionGraphCapabilities,
 	SessionGraphRevision,
 	SessionStateGraph,
 	SessionTurnState,
@@ -19,6 +20,10 @@ import { applyTranscriptDeltaToSnapshot } from "../transcript-delta.js";
 import type { SessionTransientProjection } from "../types.js";
 import { buildCanonicalUsageTelemetry } from "./canonical-usage-telemetry.js";
 import { capabilitiesWithSessionMode } from "./capabilities-with-session-mode.js";
+import {
+	capabilitiesWithSessionModel,
+	capabilitiesWithSessionModels,
+} from "./capabilities-with-session-models.js";
 import { emptySessionGraphCapabilities } from "./empty-session-graph-capabilities.js";
 import type { EnvelopePatch } from "./envelope-patch.js";
 import type { EnvelopeReducerSnapshot } from "./envelope-snapshot.js";
@@ -71,6 +76,10 @@ export function reduceCommand(
 	switch (command.kind) {
 		case "applySessionMode":
 			return reduceApplySessionMode(snapshot, command);
+		case "applySessionModel":
+			return reduceApplySessionModel(snapshot, command);
+		case "applySessionModels":
+			return reduceApplySessionModels(snapshot, command);
 		case "applyTelemetry":
 			return reduceApplyTelemetry(snapshot, command, nowMs);
 		case "applyPlan":
@@ -113,6 +122,34 @@ function reduceApplySessionMode(
 	snapshot: EnvelopeReducerSnapshot,
 	command: Extract<SessionStateCommand, { kind: "applySessionMode" }>
 ): readonly EnvelopePatch[] {
+	return patchCapabilities({
+		snapshot,
+		revision: command.revision,
+		alreadyApplied: (previous) => previous.modes?.currentModeId === command.currentModeId,
+		fold: (previous) => capabilitiesWithSessionMode(previous, command.currentModeId),
+	});
+}
+
+/**
+ * The capabilities patches every single-fact writer above and below produces.
+ * They differ only in how they fold the new fact into the previous
+ * capabilities, so the guards -- a session identity, a capabilities projection
+ * to patch, a revision that is not older than the one already applied, and a
+ * fact the projection already carries at this revision -- live here once.
+ */
+function patchCapabilities(input: {
+	readonly snapshot: EnvelopeReducerSnapshot;
+	readonly revision: SessionGraphRevision;
+	readonly fold: (previous: SessionGraphCapabilities) => SessionGraphCapabilities;
+	/**
+	 * True when the previous capabilities already carry this exact fact. It
+	 * skips the write only for a revision that is not newer, so a re-delivered
+	 * envelope costs nothing while a genuine revision bump still advances the
+	 * projection.
+	 */
+	readonly alreadyApplied?: (previous: SessionGraphCapabilities) => boolean;
+}): readonly EnvelopePatch[] {
+	const snapshot = input.snapshot;
 	if (!snapshot.hasSessionIdentity) {
 		return [];
 	}
@@ -125,29 +162,26 @@ function reduceApplySessionMode(
 		return [];
 	}
 
-	if (isOlderGraphRevision(previousProjection?.revision ?? null, command.revision)) {
+	const previousRevision = previousProjection?.revision ?? null;
+	if (isOlderGraphRevision(previousRevision, input.revision)) {
 		return [];
 	}
 
 	if (
-		!isNewerGraphRevision(previousProjection?.revision ?? null, command.revision) &&
-		previousCapabilities.modes?.currentModeId === command.currentModeId
+		input.alreadyApplied?.(previousCapabilities) === true &&
+		!isNewerGraphRevision(previousRevision, input.revision)
 	) {
 		return [];
 	}
 
-	const nextCapabilities = capabilitiesWithSessionMode(previousCapabilities, command.currentModeId);
+	const nextCapabilities = input.fold(previousCapabilities);
 	const patches: EnvelopePatch[] = [];
 
 	if (previousProjection !== null) {
 		patches.push({
 			kind: "setCanonicalProjection",
 			sessionId: snapshot.sessionId,
-			projection: projectionWithCapabilities(
-				previousProjection,
-				nextCapabilities,
-				command.revision
-			),
+			projection: projectionWithCapabilities(previousProjection, nextCapabilities, input.revision),
 		});
 	}
 
@@ -155,11 +189,51 @@ function reduceApplySessionMode(
 		patches.push({
 			kind: "setSessionStateGraph",
 			sessionId: snapshot.sessionId,
-			graph: graphWithCapabilities(previousGraph, nextCapabilities, command.revision),
+			graph: graphWithCapabilities(previousGraph, nextCapabilities, input.revision),
 		});
 	}
 
 	return patches;
+}
+
+/**
+ * The live path for the canonical chosen model, the model counterpart of
+ * reduceApplySessionMode above. Until this existed, a chosen model reached
+ * nothing: the composer showed it from its own optimistic state while the
+ * canonical projection kept the previous one.
+ *
+ * `capabilitiesMaterialized` stays untouched for the same reason it does for a
+ * mode: one field is not a materialized capability set.
+ */
+function reduceApplySessionModel(
+	snapshot: EnvelopeReducerSnapshot,
+	command: Extract<SessionStateCommand, { kind: "applySessionModel" }>
+): readonly EnvelopePatch[] {
+	return patchCapabilities({
+		snapshot,
+		revision: command.revision,
+		alreadyApplied: (previous) => previous.models?.currentModelId === command.currentModelId,
+		fold: (previous) => capabilitiesWithSessionModel(previous, command.currentModelId),
+	});
+}
+
+/**
+ * The live path for a provider's own model catalog. The picker used to read a
+ * hand-written list of five models seeded at session open, so a model the
+ * provider shipped later did not exist to the app at all.
+ *
+ * No `alreadyApplied` here: a provider answers once per session, so comparing
+ * two catalogs element by element would buy nothing.
+ */
+function reduceApplySessionModels(
+	snapshot: EnvelopeReducerSnapshot,
+	command: Extract<SessionStateCommand, { kind: "applySessionModels" }>
+): readonly EnvelopePatch[] {
+	return patchCapabilities({
+		snapshot,
+		revision: command.revision,
+		fold: (previous) => capabilitiesWithSessionModels(previous, command.availableModels),
+	});
 }
 
 function reduceApplyTelemetry(

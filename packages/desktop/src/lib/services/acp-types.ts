@@ -645,7 +645,7 @@ export type ViewportBufferDelta = { sessionId: string; graphRevision: SessionGra
 
 export type TranscriptViewportCommandRevision = { graphRevision: number; transcriptRevision: number; lastEventSeq: number }
 
-export type SessionStatePayload = { kind: "snapshot"; graph: SessionStateGraph } | { kind: "delta"; delta: SessionStateDelta } | { kind: "lifecycle"; lifecycle: SessionGraphLifecycle; revision: SessionGraphRevision } | { kind: "sessionMode"; currentModeId: string; revision: SessionGraphRevision } | { kind: "telemetry"; telemetry: UsageTelemetryData; revision: SessionGraphRevision } | { kind: "plan"; plan: PlanData; revision: SessionGraphRevision } | { kind: "viewportBufferPush"; push: ViewportBufferPush } | { kind: "viewportBufferDelta"; delta: ViewportBufferDelta }
+export type SessionStatePayload = { kind: "snapshot"; graph: SessionStateGraph } | { kind: "delta"; delta: SessionStateDelta } | { kind: "lifecycle"; lifecycle: SessionGraphLifecycle; revision: SessionGraphRevision } | { kind: "sessionMode"; currentModeId: string; revision: SessionGraphRevision } | { kind: "sessionModel"; currentModelId: string; revision: SessionGraphRevision } | { kind: "sessionModels"; availableModels: AvailableModel[]; revision: SessionGraphRevision } | { kind: "telemetry"; telemetry: UsageTelemetryData; revision: SessionGraphRevision } | { kind: "plan"; plan: PlanData; revision: SessionGraphRevision } | { kind: "viewportBufferPush"; push: ViewportBufferPush } | { kind: "viewportBufferDelta"; delta: ViewportBufferDelta }
 
 export type SessionStateEnvelope = { sessionId: string; graphRevision: number; lastEventSeq: number; payload: SessionStatePayload }
 

@@ -54,7 +54,11 @@ const oracle = {
 		providerSessionFailed: false,
 		// An imported session never carries a SessionModeSet, so the canonical
 		// mode is absent and the provider's opening mode stands.
-		currentModeId: null
+		currentModeId: null,
+		// Nor a session_models fact: history parsing restores transcript
+		// content, and only a live provider can be asked for its catalog.
+		currentModelId: null,
+		availableModels: null
 	},
 	messages: [
 		{

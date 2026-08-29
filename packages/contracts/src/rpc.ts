@@ -29,6 +29,7 @@ import {
 	ListProviderProjectsRequest,
 	ListProviderSessionsRequest,
 } from "./providerDiscovery.ts"
+import { SessionModelCatalog } from "./sessionModels.ts"
 import { ProjectedSessionReviewState } from "./sessionReview.ts"
 import { ProjectedTerminal } from "./terminal.ts"
 import {
@@ -311,6 +312,15 @@ export const RpcProjectedSession = Schema.Struct({
 	// provider's opening mode stand. availableModes stays provider-owned. See
 	// currentModeId on the server's ProjectedSession.
 	currentModeId: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey),
+	// The canonical current model, folded from SessionModelSet events. Null
+	// means none ever fired, and only then does the provider's own opening
+	// model stand. See currentModelId on the server's ProjectedSession.
+	currentModelId: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey),
+	// The models the provider itself reported for this session, folded from
+	// the session_models fact its adapter publishes. Null means the provider
+	// was never asked or never answered, and then the session offers no
+	// models -- never a hardcoded list standing in for the provider's answer.
+	availableModels: SessionModelCatalog.pipe(Schema.NullOr, Schema.optionalKey),
 })
 export type RpcProjectedSession = typeof RpcProjectedSession.Type
 
