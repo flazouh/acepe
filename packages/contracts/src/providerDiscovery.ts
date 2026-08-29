@@ -12,6 +12,20 @@ const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
 export const ProviderKind = Schema.Literal("claude")
 export type ProviderKind = typeof ProviderKind.Type
 
+/**
+ * Who wrote the session file. `acepe` means Acepe's own event store knows
+ * this session (its `session_id` or its `provider_session_id` matches);
+ * `external` means the provider CLI wrote it outside Acepe -- another
+ * terminal, another editor, or an automation run.
+ *
+ * The join against the projection is the only trustworthy answer. The JSONL
+ * carries no reliable marker of its own: `entrypoint` is inherited through
+ * `CLAUDE_CODE_ENTRYPOINT`, so a session Acepe never started can still claim
+ * Acepe's entrypoint value.
+ */
+export const ProviderSessionOrigin = Schema.Literals(["acepe", "external"])
+export type ProviderSessionOrigin = typeof ProviderSessionOrigin.Type
+
 export const DiscoveredProviderSession = Schema.Struct({
 	id: TrimmedNonEmptyString,
 	title: TrimmedNonEmptyString,
@@ -20,6 +34,7 @@ export const DiscoveredProviderSession = Schema.Struct({
 	createdAtMs: NonNegativeInt,
 	updatedAtMs: NonNegativeInt,
 	sourcePath: TrimmedNonEmptyString,
+	origin: ProviderSessionOrigin,
 })
 export type DiscoveredProviderSession = typeof DiscoveredProviderSession.Type
 

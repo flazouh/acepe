@@ -88,6 +88,7 @@ export const toRpcProject = (project: SessionProjectionSnapshot["projects"][numb
 	deletedAt: project.deletedAt,
 	sessionCount: project.sessionCount,
 	color: project.color,
+	showExternalCliSessions: project.showExternalCliSessions,
 	gitStatus: null
 })
 
@@ -156,6 +157,7 @@ const fillRpcProjectGitStatus = Effect.fn("fillRpcProjectGitStatus")(function*(
 		deletedAt: project.deletedAt,
 		sessionCount: project.sessionCount,
 		color: project.color,
+		showExternalCliSessions: project.showExternalCliSessions,
 		gitStatus
 	} satisfies RpcProjectedProject
 })
@@ -447,6 +449,38 @@ export const dispatchOrchestrationCommand = Effect.fn("dispatchOrchestrationComm
 	return yield* engine.dispatch(filled)
 })
 
+/**
+ * Applies the project's own `showExternalCliSessions` preference before the
+ * webview ever sees the list. The sidebar renders what discovery returns, so
+ * a session Acepe never started must be gone by the time it leaves the
+ * server -- filtering it in a Svelte component would leave the client's
+ * model disagreeing with the server's.
+ *
+ * A project the scan finds but the projection does not know (discovery works
+ * on any path on disk, registered or not) falls back to the same default the
+ * projection stores for an untouched project: external sessions stay hidden.
+ */
+const listProviderSessionsHandler = Effect.fn("listProviderSessionsHandler")(function*(
+	providerDiscovery: ProviderSessionDiscoveryShape,
+	projects: ProjectionProjectsShape,
+	request: ListProviderSessionsRequest
+) {
+	const discovered = yield* providerDiscovery.listSessionsForProject(request.projectPath)
+	const projected = yield* projects.list()
+	const match = Arr.findFirst(
+		projected,
+		(project) => project.deletedAt === null && project.workspaceRoot === request.projectPath
+	)
+	const showExternal = Option.match(match, {
+		onNone: () => DEFAULT_SHOW_EXTERNAL_CLI_SESSIONS,
+		onSome: (project) => project.showExternalCliSessions
+	})
+	if (showExternal) {
+		return discovered
+	}
+	return Arr.filter(discovered, (session) => session.origin === "acepe")
+})
+
 export const RpcHandlersLive = AcepeRpc.toLayer(
 	Effect.gen(function*() {
 		const engine = yield* OrchestrationEngine
@@ -477,9 +511,9 @@ export const RpcHandlersLive = AcepeRpc.toLayer(
 			agentCall: (request) => routeAgentCall(request),
 			getProviderAccountUsage: (request) => providerUsage.getUsage(request),
 			listProviderSessions: (request) =>
-				providerDiscovery
-					.listSessionsForProject(request.projectPath)
-					.pipe(Effect.mapError(toProviderDiscoveryRpcError)),
+				listProviderSessionsHandler(providerDiscovery, projects, request).pipe(
+					Effect.mapError(toProviderDiscoveryRpcError)
+				),
 			listProviderProjects: () =>
 				providerDiscovery.listProjects().pipe(Effect.mapError(toProviderDiscoveryRpcError)),
 			importProviderSession: (request) =>

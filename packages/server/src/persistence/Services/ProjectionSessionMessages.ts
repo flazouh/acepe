@@ -90,7 +90,13 @@ export const ProjectionSessionMessageStoredRow = Schema.Struct({
 	message_id: TrimmedNonEmptyString,
 	turn_id: Schema.NullOr(TurnId),
 	row_type: ProjectionSessionMessageRowType,
-	content: Schema.String
+	content: Schema.String,
+	// The highest event sequence folded into this row (migration 0028). An
+	// assistant row grows by appending TokenAppended tokens, so `sequence`
+	// only names the first of them and cannot say whether a given event is
+	// already in the text. NULL on every row written before the column
+	// existed.
+	last_sequence: Schema.NullOr(Sequence)
 })
 export type ProjectionSessionMessageStoredRow = typeof ProjectionSessionMessageStoredRow.Type
 

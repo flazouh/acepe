@@ -69,6 +69,7 @@ const readProjectById = Effect.fn("ProjectionProjects.readProjectById")(function
 			deleted_at,
 			session_count,
 			color,
+			show_external_cli_sessions,
 			scan_warmed_at
 		FROM projection_projects
 		WHERE project_id = ${projectId}
@@ -248,6 +249,7 @@ const upsertProject = Effect.fn("ProjectionProjects.upsertProject")(function*(
 			deleted_at,
 			session_count,
 			color,
+			show_external_cli_sessions,
 			scan_warmed_at
 		) VALUES (
 			${project.projectId},
@@ -258,6 +260,7 @@ const upsertProject = Effect.fn("ProjectionProjects.upsertProject")(function*(
 			${project.deletedAt},
 			${project.sessionCount},
 			${project.color},
+			${project.showExternalCliSessions ? 1 : 0},
 			${project.scanWarmedAt}
 		)
 		ON CONFLICT(project_id) DO UPDATE SET
@@ -268,6 +271,7 @@ const upsertProject = Effect.fn("ProjectionProjects.upsertProject")(function*(
 			deleted_at = excluded.deleted_at,
 			session_count = excluded.session_count,
 			color = excluded.color,
+			show_external_cli_sessions = excluded.show_external_cli_sessions,
 			scan_warmed_at = excluded.scan_warmed_at
 	`.withoutTransform.pipe(Effect.asVoid)
 })
@@ -334,6 +338,7 @@ export const ProjectionProjectsLive = Layer.effect(ProjectionProjects)(
 					deleted_at,
 					session_count,
 					color,
+					show_external_cli_sessions,
 					scan_warmed_at
 				FROM projection_projects
 				ORDER BY updated_at DESC, project_id ASC

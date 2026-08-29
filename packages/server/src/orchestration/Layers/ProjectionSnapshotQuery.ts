@@ -149,7 +149,8 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 					message_id,
 					turn_id,
 					row_type,
-					content
+					content,
+					last_sequence
 				FROM projection_session_messages
 				WHERE session_id = ${sessionId}
 					AND sequence <= ${snapshotSequence}
@@ -522,6 +523,7 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 					deleted_at,
 					session_count,
 					color,
+					show_external_cli_sessions,
 					scan_warmed_at
 				FROM projection_projects
 				ORDER BY updated_at DESC, project_id ASC

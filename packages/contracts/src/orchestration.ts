@@ -122,6 +122,9 @@ export const ProjectMetaUpdateCommand = Schema.Struct({
 	title: Schema.optionalKey(TrimmedNonEmptyString),
 	workspaceRoot: Schema.optionalKey(TrimmedNonEmptyString),
 	color: Schema.optionalKey(ProjectColor),
+	// Per-project sidebar visibility for provider sessions Acepe never
+	// started. Omitted means "leave the stored preference alone".
+	showExternalCliSessions: Schema.optionalKey(Schema.Boolean),
 })
 export type ProjectMetaUpdateCommand = typeof ProjectMetaUpdateCommand.Type
 

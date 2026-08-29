@@ -1,4 +1,4 @@
-import type { OrchestrationEvent, SessionId } from "@acepe/contracts"
+import { type OrchestrationEvent, type Sequence, type SessionId } from "@acepe/contracts"
 import * as Arr from "effect/Array"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -14,12 +14,20 @@ import {
 	rowFromEvent
 } from "../Services/ProjectionSessionMessages.ts"
 
+// The stored assistant row plus how far its fold has got: `lastSequence` is
+// the highest TokenAppended sequence already appended to `message`.
+type AssistantFold = {
+	readonly message: ProjectionSessionMessage
+	readonly lastSequence: Sequence
+}
+
 export const ProjectionSessionMessagesLive = Layer.effect(ProjectionSessionMessages)(
 	Effect.gen(function*() {
 		const sql = yield* SqlClient.SqlClient
 
-		const upsert = Effect.fn("ProjectionSessionMessages.upsert")(function*(
+		const upsertAt = Effect.fn("ProjectionSessionMessages.upsertAt")(function*(
 			row: ProjectionSessionMessage,
+			lastSequence: Sequence,
 			tx: SqlClient.SqlClient
 		) {
 			const content = yield* encodeContentJson(row)
@@ -30,22 +38,33 @@ export const ProjectionSessionMessagesLive = Layer.effect(ProjectionSessionMessa
 					message_id,
 					turn_id,
 					row_type,
-					content
+					content,
+					last_sequence
 				) VALUES (
 					${row.sessionId},
 					${row.sequence},
 					${row.messageId},
 					${row.turnId},
 					${row.rowType},
-					${content}
+					${content},
+					${lastSequence}
 				)
 				ON CONFLICT(session_id, sequence) DO UPDATE SET
 					message_id = excluded.message_id,
 					turn_id = excluded.turn_id,
 					row_type = excluded.row_type,
-					content = excluded.content
+					content = excluded.content,
+					last_sequence = excluded.last_sequence
 			`.withoutTransform.pipe(Effect.asVoid)
 		})
+
+		// A row that replaces (every row type except an assistant fold) is
+		// complete at its own sequence, so that is also the last event folded
+		// into it.
+		const upsert = Effect.fn("ProjectionSessionMessages.upsert")(
+			(row: ProjectionSessionMessage, tx: SqlClient.SqlClient) =>
+				upsertAt(row, row.sequence, tx)
+		)
 
 		const findAssistant = Effect.fn("ProjectionSessionMessages.findAssistant")(function*(
 			sessionId: SessionId,
@@ -59,7 +78,8 @@ export const ProjectionSessionMessagesLive = Layer.effect(ProjectionSessionMessa
 					message_id,
 					turn_id,
 					row_type,
-					content
+					content,
+					last_sequence
 				FROM projection_session_messages
 				WHERE session_id = ${sessionId}
 					AND message_id = ${messageId}
@@ -67,9 +87,18 @@ export const ProjectionSessionMessagesLive = Layer.effect(ProjectionSessionMessa
 				LIMIT 1
 			`.withoutTransform
 			const stored = yield* decodeProjectionSessionMessageStoredRows(rows)
-			return yield* Option.match(Arr.head(stored), {
-				onNone: () => Effect.succeed(Option.none()),
-				onSome: (row) => decodeProjectedMessage(row).pipe(Effect.map(Option.some))
+			const head = Arr.head(stored)
+			if (Option.isNone(head)) {
+				return Option.none<AssistantFold>()
+			}
+			const message = yield* decodeProjectedMessage(head.value)
+			// A row written before migration 0028 reads back NULL. All that is
+			// known about it is the sequence of the token that created it,
+			// which is the safest reading: it never claims to have folded an
+			// event it may not have.
+			return Option.some<AssistantFold>({
+				message,
+				lastSequence: head.value.last_sequence ?? head.value.sequence
 			})
 		})
 
@@ -78,8 +107,21 @@ export const ProjectionSessionMessagesLive = Layer.effect(ProjectionSessionMessa
 			tx: SqlClient.SqlClient
 		) {
 			const current = yield* findAssistant(event.payload.sessionId, event.payload.messageId, tx)
-			const row = yield* nextAssistantFromToken(event, current)
-			yield* upsert(row, tx)
+			// Folding, unlike upserting, is not idempotent on its own: append
+			// the same token twice and the row keeps both copies. The history
+			// importer applies its own freshly dispatched events to this
+			// projector and checkpoints them, while ProjectionPipeline applies
+			// the very same events off its live queue, so one TokenAppended
+			// event reaches this fold twice and the transcript showed the
+			// assistant reply doubled, concatenated with no separation.
+			if (Option.isSome(current) && event.sequence <= current.value.lastSequence) {
+				return
+			}
+			const row = yield* nextAssistantFromToken(
+				event,
+				Option.map(current, (fold) => fold.message)
+			)
+			yield* upsertAt(row, event.sequence, tx)
 		})
 
 		const apply = Effect.fn("ProjectionSessionMessages.apply")(
@@ -109,7 +151,8 @@ export const ProjectionSessionMessagesLive = Layer.effect(ProjectionSessionMessa
 					message_id,
 					turn_id,
 					row_type,
-					content
+					content,
+					last_sequence
 				FROM projection_session_messages
 				WHERE session_id = ${sessionId}
 				ORDER BY sequence ASC

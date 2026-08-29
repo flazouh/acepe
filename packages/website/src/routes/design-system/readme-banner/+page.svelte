@@ -1,5 +1,4 @@
 <script lang="ts">
-import DesignSystemHeader from "$lib/design-system/design-system-header.svelte";
 import { BrandGradientBackground, BrandLockup } from "@acepe/ui";
 </script>
 
@@ -12,7 +11,6 @@ import { BrandGradientBackground, BrandLockup } from "@acepe/ui";
 </svelte:head>
 
 <div class="min-h-screen bg-background text-foreground" data-testid="design-system-readme-banner-page">
-	<DesignSystemHeader active="readme-banner" />
 
 	<main class="mx-auto max-w-[92rem] px-6 py-10 sm:px-8 sm:py-14">
 		<section class="mb-10 max-w-3xl">

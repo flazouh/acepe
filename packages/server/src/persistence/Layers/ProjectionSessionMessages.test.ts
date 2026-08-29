@@ -54,6 +54,24 @@ const messageSent = (
 	}
 })
 
+const tokenAppended = (sequence: number, token: string): OrchestrationEvent => ({
+	sequence,
+	eventId: EventId.make(`event-${sequence}`),
+	aggregateKind: "session",
+	aggregateId: sessionId,
+	occurredAt: "2026-08-20T12:00:00.000Z",
+	commandId,
+	causationEventId: null,
+	correlationId: commandId,
+	metadata: {},
+	type: "TokenAppended",
+	payload: {
+		sessionId,
+		messageId: MessageId.make("message-assistant"),
+		token
+	}
+})
+
 const projectCreated = (sequence: number): OrchestrationEvent => ({
 	sequence,
 	eventId: EventId.make(`event-${sequence}`),
@@ -323,6 +341,34 @@ Vitest.layer(isolatedMessages())("apply is idempotent", (it) => {
 			yield* messages.apply(messageSent(1, "first", "2026-08-20T12:00:00.000Z"), sql)
 			const listed = yield* messages.listBySession(sessionId)
 			Vitest.assert.strictEqual(listed.length, 1)
+		})
+	)
+})
+
+// The live defect this covers: the history importer applies its own freshly
+// dispatched events to this projector and then writes the projector's
+// checkpoint, while ProjectionPipeline applies the very same events off its
+// live queue. Every other projector survives that because its apply is an
+// upsert keyed by (session_id, sequence). This one folds a TokenAppended
+// token onto the text it already holds, so a second delivery of one event
+// appended the whole message a second time and the transcript showed the
+// assistant reply twice, concatenated with no separation ("I'll run all
+// three steps.I'll run all three steps."). 757 of 757 imported assistant
+// rows in the QA database were corrupted this way.
+Vitest.layer(isolatedMessages())("re-applied TokenAppended", (it) => {
+	it.effect("keeps assistant text once when the same token events arrive twice", () =>
+		Effect.gen(function*() {
+			const sql = yield* SqlClient.SqlClient
+			const messages = yield* ProjectionSessionMessages
+			const events = Arr.make(
+				tokenAppended(4, "I'll run"),
+				tokenAppended(5, " all three steps.")
+			)
+			yield* Effect.forEach(events, (event) => messages.apply(event, sql), { discard: true })
+			yield* Effect.forEach(events, (event) => messages.apply(event, sql), { discard: true })
+			const listed = yield* messages.listBySession(sessionId)
+			Vitest.assert.strictEqual(listed.length, 1)
+			Vitest.assert.deepStrictEqual(listed[0]?.content, { text: "I'll run all three steps." })
 		})
 	)
 })

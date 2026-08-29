@@ -1,5 +1,4 @@
 <script lang="ts">
-import DesignSystemHeader from "$lib/design-system/design-system-header.svelte";
 import { BRAND_GRADIENT_IRIS_HORIZON } from "@acepe/ui";
 
 type GradientVariant = {
@@ -70,7 +69,6 @@ const selected = $derived(variants.find((variant) => variant.id === selectedId) 
 </svelte:head>
 
 <div class="min-h-screen bg-background text-foreground" data-testid="design-system-gradients-page">
-	<DesignSystemHeader active="gradients" />
 
 	<main class="mx-auto max-w-[92rem] px-6 py-10 sm:px-8 sm:py-14">
 		<section class="grid gap-8 border-b border-border/60 pb-10 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.7fr)] lg:items-end">

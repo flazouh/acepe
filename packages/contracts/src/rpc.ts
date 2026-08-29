@@ -272,6 +272,10 @@ export const RpcProjectedProject = Schema.Struct({
 	// Always set: the projection assigns a deterministic color when nobody has
 	// picked one, so no reader has to invent a color of its own.
 	color: ProjectColor,
+	// Whether the sidebar lists provider sessions Acepe never started for
+	// this project. Always set: the projection stores false for a project
+	// that has never been toggled, so no reader has to invent a default.
+	showExternalCliSessions: Schema.Boolean,
 	// null means git could not be read at all: no binary, no permission, or a
 	// schema mismatch. An empty array means git ran and the tree is clean. A
 	// review panel must not show "no changes" when git actually failed.

@@ -26,6 +26,15 @@ export const PROJECTION_PROJECTS_TABLE = "projection_projects"
 
 const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
 
+const SqliteFlag = Schema.Literals([0, 1])
+
+/**
+ * Hiding provider sessions Acepe never started is what makes the sidebar
+ * useful, so an untouched project starts hidden. The toggle stays
+ * per-project and reversible.
+ */
+export const DEFAULT_SHOW_EXTERNAL_CLI_SESSIONS = false
+
 export const ProjectedProject = Schema.Struct({
 	projectId: ProjectId,
 	title: TrimmedNonEmptyString,
@@ -37,6 +46,10 @@ export const ProjectedProject = Schema.Struct({
 	// Never null downstream: a project that predates the color column, or that
 	// nobody has recolored, still projects the deterministic default.
 	color: ProjectColor,
+	// Never null downstream: a project that predates the column, or that
+	// nobody has toggled, projects the useful default -- external provider
+	// sessions stay hidden.
+	showExternalCliSessions: Schema.Boolean,
 	scanWarmedAt: IsoDateTime
 })
 export type ProjectedProject = typeof ProjectedProject.Type
@@ -62,6 +75,7 @@ const ProjectionProjectRow = Schema.Struct({
 	deleted_at: Schema.NullOr(IsoDateTime),
 	session_count: NonNegativeInt,
 	color: Schema.NullOr(ProjectColor),
+	show_external_cli_sessions: Schema.NullOr(SqliteFlag),
 	scan_warmed_at: IsoDateTime
 })
 
@@ -103,6 +117,9 @@ const projectedProjectFromRow = (row: typeof ProjectionProjectRow.Type): Project
 	deletedAt: row.deleted_at,
 	sessionCount: row.session_count,
 	color: row.color ?? defaultProjectColor(row.workspace_root),
+	showExternalCliSessions: row.show_external_cli_sessions === null
+		? DEFAULT_SHOW_EXTERNAL_CLI_SESSIONS
+		: row.show_external_cli_sessions === 1,
 	scanWarmedAt: row.scan_warmed_at
 })
 
@@ -186,6 +203,10 @@ const projectProjectCreated = (
 				onNone: () => defaultProjectColor(payload.workspaceRoot),
 				onSome: (project) => project.color
 			})
+			const showExternalCliSessions = Option.match(current, {
+				onNone: () => DEFAULT_SHOW_EXTERNAL_CLI_SESSIONS,
+				onSome: (project) => project.showExternalCliSessions
+			})
 			return putProject(state, {
 				projectId: payload.projectId,
 				title: payload.title,
@@ -195,6 +216,7 @@ const projectProjectCreated = (
 				deletedAt: null,
 				sessionCount,
 				color,
+				showExternalCliSessions,
 				scanWarmedAt: event.occurredAt
 			})
 		})
@@ -221,6 +243,9 @@ const projectProjectMetaUpdated = (
 						deletedAt: project.deletedAt,
 						sessionCount: project.sessionCount,
 						color: payload.color === undefined ? project.color : payload.color,
+						showExternalCliSessions: payload.showExternalCliSessions === undefined
+							? project.showExternalCliSessions
+							: payload.showExternalCliSessions,
 						scanWarmedAt: project.scanWarmedAt
 					})
 			})
@@ -245,6 +270,7 @@ const projectProjectDeleted = (
 						deletedAt: event.occurredAt,
 						sessionCount: project.sessionCount,
 						color: project.color,
+						showExternalCliSessions: project.showExternalCliSessions,
 						scanWarmedAt: project.scanWarmedAt
 					})
 			})
@@ -278,6 +304,7 @@ const projectSessionCreated = (
 						deletedAt: project.deletedAt,
 						sessionCount: project.sessionCount + 1,
 						color: project.color,
+						showExternalCliSessions: project.showExternalCliSessions,
 						scanWarmedAt: project.scanWarmedAt
 					})
 			})
@@ -311,6 +338,7 @@ const projectSessionDeleted = (
 						deletedAt: project.deletedAt,
 						sessionCount: project.sessionCount === 0 ? 0 : project.sessionCount - 1,
 						color: project.color,
+						showExternalCliSessions: project.showExternalCliSessions,
 						scanWarmedAt: project.scanWarmedAt
 					})
 			})

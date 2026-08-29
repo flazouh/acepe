@@ -1,6 +1,5 @@
 <script lang="ts">
 import { formatHugeiconsIconName, HugeiconsIcon, hugeiconsIconLibrary } from "@acepe/ui/icons";
-import DesignSystemHeader from "$lib/design-system/design-system-header.svelte";
 
 let searchQuery = $state("");
 
@@ -25,7 +24,6 @@ const filteredIcons = $derived.by(() => {
 </svelte:head>
 
 <div class="min-h-screen bg-background text-foreground">
-	<DesignSystemHeader active="icons" />
 	<main class="px-6 py-10 sm:px-8" data-testid="design-system-icons-page">
 		<div class="mx-auto mb-6 max-w-[92rem] space-y-4">
 			<div class="space-y-1">

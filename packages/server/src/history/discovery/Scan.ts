@@ -15,7 +15,7 @@ import { ClaudeJsonlLine, claudeFactFromLine, claudeSessionIdFromLine } from "..
 import { decodeJsonl } from "../jsonl.ts"
 import { sessionTitleFromUserText } from "../text.ts"
 import { claudeProjectSlug, slugToPath } from "./Roots.ts"
-import { DiscoveredProject, DiscoveredSession } from "./Types.ts"
+import { DiscoveredProject, ScannedSession } from "./Types.ts"
 
 /**
  * Read-time metadata scan (#249 batch 3) -- deliberately lighter than
@@ -34,7 +34,7 @@ const mtimeDescending = Order.flip(
 	Order.mapInput(Order.Number, (entry: { mtimeMs: number }) => entry.mtimeMs)
 )
 
-const decodeSession = Schema.decodeUnknownEffect(DiscoveredSession)
+const decodeSession = Schema.decodeUnknownEffect(ScannedSession)
 const decodeProject = Schema.decodeUnknownEffect(DiscoveredProject)
 const decodeProjectPath = Schema.decodeUnknownEffect(TrimmedNonEmptyString)
 
@@ -71,7 +71,7 @@ export const scanClaudeSessionContent = Effect.fn("scanClaudeSessionContent")(fu
 })
 
 /**
- * Scans one Claude session JSONL file into a `DiscoveredSession`, tolerant
+ * Scans one Claude session JSONL file into a `ScannedSession`, tolerant
  * of malformed or unreadable content: any decode failure yields `None`
  * rather than failing the whole project scan, and the caller logs it.
  */
@@ -103,7 +103,7 @@ export const scanClaudeSessionFile = Effect.fn("scanClaudeSessionFile")(function
 		yield* Effect.logWarning("Skipped unscannable Claude session file").pipe(
 			Effect.annotateLogs({ filePath, reason: candidate.failure.message })
 		)
-		return Option.none<DiscoveredSession>()
+		return Option.none<ScannedSession>()
 	}
 	return Option.some(candidate.success)
 })
@@ -128,7 +128,7 @@ export const jsonlNamesIn = Effect.fn("jsonlNamesIn")(function*(
  * Cheap cache-invalidation signature for one project's Claude session
  * directory: the sorted `name:mtimeMs` pairs of its `.jsonl` files. Two
  * scans with the same signature are guaranteed to produce the same
- * `DiscoveredSession` list, so callers can skip the real scan when it is
+ * `ScannedSession` list, so callers can skip the real scan when it is
  * unchanged.
  */
 export const projectDirectorySignature = Effect.fn("projectDirectorySignature")(function*(
@@ -197,7 +197,7 @@ export const listClaudeSessionsForProject = Effect.fn("listClaudeSessionsForProj
 		Effect.result(scanClaudeSessionFile(fs, path, projectPath, entry.absolute)))
 	const sessions = Arr.filterMap(
 		scanned,
-		Filter.fromPredicateOption((outcome: Result.Result<Option.Option<DiscoveredSession>, unknown>) => {
+		Filter.fromPredicateOption((outcome: Result.Result<Option.Option<ScannedSession>, unknown>) => {
 			if (Result.isFailure(outcome)) {
 				return Option.none()
 			}

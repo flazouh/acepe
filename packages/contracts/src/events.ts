@@ -152,6 +152,7 @@ export const ProjectMetaUpdatedPayload = Schema.Struct({
 	title: Schema.optionalKey(TrimmedNonEmptyString),
 	workspaceRoot: Schema.optionalKey(TrimmedNonEmptyString),
 	color: Schema.optionalKey(ProjectColor),
+	showExternalCliSessions: Schema.optionalKey(Schema.Boolean),
 })
 export type ProjectMetaUpdatedPayload = typeof ProjectMetaUpdatedPayload.Type
 

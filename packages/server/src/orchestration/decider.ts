@@ -96,6 +96,9 @@ const projectMetaUpdatedPayload = (command: ProjectMetaUpdateCommand): ProjectMe
 	if (command.color !== undefined) {
 		draft.color = command.color
 	}
+	if (command.showExternalCliSessions !== undefined) {
+		draft.showExternalCliSessions = command.showExternalCliSessions
+	}
 	return draft
 }
 
