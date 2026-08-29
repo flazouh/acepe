@@ -30,7 +30,9 @@ const missing = allDeclaredTokenNames().filter(
 );
 
 if (missing.length > 0) {
-	console.error(`check-design-tokens: ${String(missing.length)} advertised token(s) never declared:`);
+	console.error(
+		`check-design-tokens: ${String(missing.length)} advertised token(s) never declared:`
+	);
 	for (const name of missing) {
 		console.error(`  --${name}`);
 	}
