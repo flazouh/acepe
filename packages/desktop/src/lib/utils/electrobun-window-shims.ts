@@ -1,5 +1,5 @@
 // Window chrome, relaunch, and auto-update have no Electrobun backend yet.
-// These wrappers no-op instead of calling a removed Tauri plugin.
+// These wrappers no-op instead of calling a backend command that is gone.
 import { LOGGER_IDS } from "../acp/constants/logger-ids.js";
 import { createLogger } from "../acp/utils/logger.js";
 import { isElectrobunShellWindow } from "../rpc/electrobun-shell-window.js";

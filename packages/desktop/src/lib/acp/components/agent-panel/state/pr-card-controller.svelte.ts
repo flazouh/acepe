@@ -5,7 +5,7 @@
  * god controller so it is independently unit-testable.
  *
  * The async workflows (runCreatePrWorkflow/runMergePrWorkflow) and the PR-detail
- * fetch stay in the component (they depend on stores + Tauri); they drive this
+ * fetch stay in the component (they depend on stores + the backend); they drive this
  * controller through its mutator methods — the same callback shape the workflows
  * already expect. The PR-fetch $effect calls syncFetchTarget so the dedupe +
  * reset logic is testable in isolation. (Continues plan 2026-05-29-002.)

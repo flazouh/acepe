@@ -1,5 +1,5 @@
 /**
- * Type-safe Tauri command client.
+ * Type-safe backend command client.
  *
  * Re-exports from the modular backend-client/ package. All logic lives in
  * domain-specific sub-clients (acp, history, projects, etc.).

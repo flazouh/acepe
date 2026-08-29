@@ -2,7 +2,7 @@
 	/**
 	 * GitPanelLayout — Composed layout for the git panel.
 	 * Header (branch + remote actions) → view tabs → content area → commit box.
-	 * All data-driven via props, no Tauri coupling.
+	 * All data-driven via props, no backend coupling.
 	 */
 	import type { Snippet } from "svelte";
 

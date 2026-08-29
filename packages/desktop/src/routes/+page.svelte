@@ -88,7 +88,7 @@ onMount(() => {
 });
 </script>
 
-{#if (shell === "electrobun" && rpcClient !== null) || shell === "tauri"}
+{#if (shell === "electrobun" && rpcClient !== null) || shell === "web"}
 	<MainAppView />
 	{#if qaSession !== null}
 		<QaOverlayPanel session={qaSession} known={qaKnownScenarios} />

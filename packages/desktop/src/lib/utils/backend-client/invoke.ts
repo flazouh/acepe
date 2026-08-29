@@ -27,7 +27,7 @@ const pendingInvokes = new Map<string, PendingInvokeInfo>();
 export type InvokeArgs = Record<string, unknown> | undefined;
 
 async function invoke<T>(cmd: string, _args?: InvokeArgs): Promise<T> {
-	throw new Error(`Tauri invoke is removed: ${cmd}. Use the Electrobun RPC client.`);
+	throw new Error(`Legacy command invoke is removed: ${cmd}. Use the Electrobun RPC client.`);
 }
 
 type InvokeRuntime = <T>(cmd: string, args?: InvokeArgs) => Promise<T>;

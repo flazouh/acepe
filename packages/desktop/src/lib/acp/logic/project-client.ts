@@ -17,7 +17,7 @@ interface ProjectsHotCachePayload {
 }
 
 /**
- * Converts a filesystem icon path to a Tauri asset:// URL.
+ * Converts a filesystem icon path to a URL the webview can load.
  * Returns the value unchanged if it's falsy, or already a web/data/asset URL.
  */
 export function convertIconPath(iconPath: string | null | undefined): string | null {
@@ -184,7 +184,7 @@ const buildProjectsHotCacheData = fromThrowable(
 );
 
 /**
- * Client for communicating with Tauri backend for project operations.
+ * Client for communicating with the backend for project operations.
  *
  * All methods use Effect for type-safe error handling.
  */

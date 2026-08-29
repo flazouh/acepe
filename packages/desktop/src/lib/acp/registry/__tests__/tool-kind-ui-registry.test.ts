@@ -145,7 +145,7 @@ describe("getToolKindSubtitle", () => {
 	it("does not use execute-js scripts as the browser subtitle", () => {
 		const toolCall: ToolCallData = {
 			id: "test-browser-1",
-			name: "mcp__tauri__webview_execute_js",
+			name: "mcp__browser__webview_execute_js",
 			arguments: {
 				kind: "browser",
 				raw: {
@@ -166,7 +166,7 @@ describe("getToolKindSubtitle", () => {
 	it("does not derive browser subtitles from raw arguments", () => {
 		const toolCall: ToolCallData = {
 			id: "test-browser-raw-only",
-			name: "mcp__tauri__webview_execute_js",
+			name: "mcp__browser__webview_execute_js",
 			arguments: {
 				kind: "browser",
 				raw: {

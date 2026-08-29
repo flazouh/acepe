@@ -360,14 +360,14 @@ describe("TranscriptRowsController under Electrobun (no viewport-buffer command 
 	});
 });
 
-describe("TranscriptRowsController.resyncElectrobunTranscriptRows on Tauri", () => {
+describe("TranscriptRowsController.resyncElectrobunTranscriptRows outside Electrobun", () => {
 	beforeEach(() => {
 		mocks.readTranscriptRowPage.mockReset();
 		mocks.requestTranscriptViewportBuffer.mockReset();
 		mocks.runningUnderElectrobun.mockReturnValue(false);
 	});
 
-	it("is a no-op on Tauri, where real envelopes keep rows current", () => {
+	it("is a no-op outside Electrobun, where real envelopes keep rows current", () => {
 		const liveGraphRevision = revision(1, 1, 3);
 		const getTranscriptEntries = vi.fn(() => []);
 		const controller = new TranscriptRowsController({

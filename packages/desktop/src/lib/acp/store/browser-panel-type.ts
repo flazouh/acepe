@@ -1,5 +1,5 @@
 /**
- * Browser panel for displaying web content via native Tauri webview.
+ * Browser panel for displaying web content in a native child webview.
  * Scoped to a project so it appears in that project's card.
  */
 export interface BrowserPanel {

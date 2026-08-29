@@ -21,7 +21,7 @@ export interface BrowserPanelNativeBounds {
 
 /**
  * Converts a CSS-pixel viewport rect into native logical-pixel bounds
- * for a Tauri child webview.
+ * for a native child webview.
  *
  * When the main webview has a zoom level applied (via `webview.setZoom()`),
  * `getBoundingClientRect()` returns CSS pixels which are smaller than the

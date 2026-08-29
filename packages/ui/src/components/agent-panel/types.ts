@@ -1,6 +1,6 @@
 /**
  * Presentational types for the shared AgentPanel components.
- * No Tauri, store, or desktop dependencies.
+ * No backend, store, or desktop dependencies.
  */
 import type { AssistantMessage } from "../../lib/assistant-message/types.js";
 import type { ChunkGroup } from "../../lib/assistant-message/assistant-chunk-grouper.js";

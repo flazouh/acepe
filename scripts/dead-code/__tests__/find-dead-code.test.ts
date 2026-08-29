@@ -69,13 +69,13 @@ describe("find-dead-code", () => {
 		const root = createFixture();
 		writeFixtureFile(
 			root,
-			"packages/desktop/src-tauri/Cargo.toml",
+			"packages/native-tool/Cargo.toml",
 			'[[bin]]\nname = "tool"\npath = "src/bin/tool.rs"\n'
 		);
-		writeFixtureFile(root, "packages/desktop/src-tauri/src/lib.rs", "mod live;\n");
-		writeFixtureFile(root, "packages/desktop/src-tauri/src/live.rs", "pub fn live() {}\n");
-		writeFixtureFile(root, "packages/desktop/src-tauri/src/bin/tool.rs", "fn main() {}\n");
-		writeFixtureFile(root, "packages/desktop/src-tauri/src/orphan.rs", "pub fn orphan() {}\n");
+		writeFixtureFile(root, "packages/native-tool/src/lib.rs", "mod live;\n");
+		writeFixtureFile(root, "packages/native-tool/src/live.rs", "pub fn live() {}\n");
+		writeFixtureFile(root, "packages/native-tool/src/bin/tool.rs", "fn main() {}\n");
+		writeFixtureFile(root, "packages/native-tool/src/orphan.rs", "pub fn orphan() {}\n");
 
 		const analysis = analyzeFixture(root);
 		const strongDead = analysis.candidates
@@ -85,10 +85,10 @@ describe("find-dead-code", () => {
 			.filter((candidate) => candidate.classification === "production-reachable")
 			.map((candidate) => candidate.path);
 
-		expect(reachable).toContain("packages/desktop/src-tauri/src/lib.rs");
-		expect(reachable).toContain("packages/desktop/src-tauri/src/live.rs");
-		expect(reachable).toContain("packages/desktop/src-tauri/src/bin/tool.rs");
-		expect(strongDead).toContain("packages/desktop/src-tauri/src/orphan.rs");
+		expect(reachable).toContain("packages/native-tool/src/lib.rs");
+		expect(reachable).toContain("packages/native-tool/src/live.rs");
+		expect(reachable).toContain("packages/native-tool/src/bin/tool.rs");
+		expect(strongDead).toContain("packages/native-tool/src/orphan.rs");
 
 		rmSync(root, { recursive: true, force: true });
 	});

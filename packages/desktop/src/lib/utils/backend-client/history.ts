@@ -57,8 +57,8 @@ export interface TranscriptRowLedgerBackfillResult {
 // invalidate_history_cache/set_session_worktree_path handler anywhere in
 // packages/electrobun-shell or packages/server, so every one of these calls
 // already failed on every invocation under the current Electrobun app --
-// this makes that failure typed and explicit instead of an unresolved Tauri
-// invoke with no receiver.
+// this makes that failure typed and explicit instead of an unresolved
+// command invoke with no receiver.
 //
 // Real follow-up work, out of scope for this slice (each is its own sized
 // piece): getSessionOpenResult/awaitSessionOpenRepair need the full

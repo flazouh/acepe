@@ -27,8 +27,9 @@ export const RUST_FILE_SNAPSHOT_COLUMNS = [
 ] as const
 
 /**
- * Live Tauri schema, including the session_metadata foreign key.
- * Tests use this to prove the reader accepts a Rust-created database.
+ * The live on-disk schema, including the session_metadata foreign key.
+ * Tests use this to prove the reader accepts a database created by the
+ * previous desktop backend.
  */
 export const applyLiveRustCheckpointSchema = Effect.fn("applyLiveRustCheckpointSchema")(
 	function*() {

@@ -1,7 +1,7 @@
 /**
  * Settings Service - Frontend service for managing application settings.
  *
- * Provides type-safe access to settings stored in the database via Tauri commands.
+ * Provides type-safe access to settings stored in the database via backend commands.
  * Uses Effect for error handling.
  */
 

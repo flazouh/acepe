@@ -38,7 +38,7 @@ const mockCheckpoint: CheckpointData = {
 };
 
 describe("ui package boundary render smoke", () => {
-	it("renders CheckpointCard from props without store or Tauri", () => {
+	it("renders CheckpointCard from props without store or backend", () => {
 		const view = render(CheckpointCard, {
 			props: {
 				checkpoint: mockCheckpoint,
@@ -57,7 +57,7 @@ describe("ui package boundary render smoke", () => {
 		expect(view.getByTestId("boundary-session-list")).toBeTruthy();
 	});
 
-	it("renders TracerTranscript from row props without store or Tauri", () => {
+	it("renders TracerTranscript from row props without store or backend", () => {
 		const view = render(TracerTranscript, {
 			props: {
 				rows: [{ key: "user", role: "user", text: "Ping" }],
@@ -69,7 +69,7 @@ describe("ui package boundary render smoke", () => {
 		expect(view.getByText("Ping")).toBeTruthy();
 	});
 
-	it("renders LibrarySidebar from projection props without store or Tauri", () => {
+	it("renders LibrarySidebar from projection props without store or backend", () => {
 		const model: LibrarySidebarViewModel = {
 			projectsHeading: "Projects",
 			sessionsHeading: "Sessions",
@@ -106,7 +106,7 @@ describe("ui package boundary render smoke", () => {
 		expect(view.getByText("Fix the auth bug")).toBeTruthy();
 	});
 
-	it("renders SettingsModal from projection props without store or Tauri", () => {
+	it("renders SettingsModal from projection props without store or backend", () => {
 		const model: SettingsModalViewModel = {
 			openLabel: "Settings",
 			closeLabel: "Close",

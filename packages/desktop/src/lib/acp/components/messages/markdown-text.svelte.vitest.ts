@@ -102,7 +102,7 @@ describe("MarkdownText", () => {
 		expect(view.container.textContent).not.toBe("Hello");
 	});
 
-	it("opens external markdown links through the Tauri opener", async () => {
+	it("opens external markdown links through the external-URL opener", async () => {
 		const { container } = render(MarkdownText, {
 			text: "[Acepe](https://acepe.dev)",
 			isStreaming: false,
@@ -195,7 +195,7 @@ describe("MarkdownText", () => {
 		expect(openFilePanelMock).not.toHaveBeenCalled();
 	});
 
-	it("opens GitHub shorthand chips through the Tauri opener", async () => {
+	it("opens GitHub shorthand chips through the external-URL opener", async () => {
 		const { container } = render(MarkdownText, {
 			text: "Review flazouh/acepe#184",
 			isStreaming: false,

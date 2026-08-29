@@ -1,7 +1,8 @@
 /**
  * Checkpoint types for file versioning and revert functionality.
  *
- * These types mirror the Rust types in src-tauri/src/checkpoint/types.rs.
+ * These types mirror the checkpoint records the backend persists
+ * (packages/server/src/checkpoint).
  */
 
 /**

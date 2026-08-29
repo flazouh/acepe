@@ -1,7 +1,7 @@
 /**
  * API boundary layer for the unified store.
  *
- * This module uses the type-safe Tauri command client for all store operations.
+ * This module uses the type-safe backend command client for all store operations.
  * All commands are type-checked at compile time.
  */
 
@@ -75,7 +75,7 @@ export function newSession(
  * Send a prompt to the ACP agent (fire-and-forget).
  *
  * Returns immediately after sending the prompt. The response will arrive
- * via session/update notifications emitted as Tauri events.
+ * via session/update notifications emitted on the backend event stream.
  */
 export function sendPrompt(
 	sessionId: string,

@@ -13,7 +13,7 @@ afterEach(() => {
 	setAppRpcClientForTest(null);
 });
 
-describe("git tauri client", () => {
+describe("git backend client", () => {
 	it("init sends the projectPath and resolves to void", () =>
 		Effect.runPromise(
 			Effect.gen(function* () {

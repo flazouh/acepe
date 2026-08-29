@@ -19,7 +19,7 @@ import type { FileDiff } from "../../types/github-integration.js";
  * Pure logic functions for the git panel controller.
  *
  * All functions are pure - no side effects, no runes, no DOM. They map the
- * Tauri-backed git domain types into the shared `@acepe/ui` git-panel view
+ * backend git domain types into the shared `@acepe/ui` git-panel view
  * types and compute the controller's derived flags. Keeping them here lets the
  * `git-panel.svelte` controller stay thin and lets this logic be unit-tested
  * directly.
@@ -36,7 +36,7 @@ export interface NavigableChangesFile {
 	readonly staged: boolean;
 }
 
-/** Map Tauri file status → shared UI staged `GitStatusFile` list. */
+/** Map backend file status → shared UI staged `GitStatusFile` list. */
 export function mapStagedFiles(files: readonly GitPanelFileStatus[]): GitStatusFile[] {
 	return files
 		.filter((f) => f.indexStatus !== null)
@@ -49,7 +49,7 @@ export function mapStagedFiles(files: readonly GitPanelFileStatus[]): GitStatusF
 		}));
 }
 
-/** Map Tauri file status → shared UI unstaged `GitStatusFile` list. */
+/** Map backend file status → shared UI unstaged `GitStatusFile` list. */
 export function mapUnstagedFiles(files: readonly GitPanelFileStatus[]): GitStatusFile[] {
 	return files
 		.filter((f) => f.worktreeStatus !== null && f.indexStatus === null)
@@ -94,7 +94,7 @@ export function buildNavigableChangesFiles(
 	];
 }
 
-/** Map Tauri remote status → shared UI remote status. */
+/** Map backend remote status → shared UI remote status. */
 export function mapUiRemoteStatus(remoteStatus: GitRemoteStatus | null): UIRemoteStatus | null {
 	if (remoteStatus === null) {
 		return null;
@@ -107,12 +107,12 @@ export function mapUiRemoteStatus(remoteStatus: GitRemoteStatus | null): UIRemot
 	};
 }
 
-/** Map Tauri stash entries → shared UI stash entries. */
+/** Map backend stash entries → shared UI stash entries. */
 export function mapUiStashEntries(stashEntries: readonly GitStashEntry[]): UIStashEntry[] {
 	return stashEntries.map((s) => ({ index: s.index, message: s.message, date: s.date }));
 }
 
-/** Map Tauri log entries → shared UI log entries. */
+/** Map backend log entries → shared UI log entries. */
 export function mapUiLogEntries(logEntries: readonly GitLogEntry[]): UILogEntry[] {
 	return logEntries.map((l) => ({
 		sha: l.sha,

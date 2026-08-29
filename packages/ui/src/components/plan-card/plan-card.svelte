@@ -2,7 +2,7 @@
   /**
    * PlanCard — Inline plan preview for tool call cards.
    *
-   * Purely presentational: no Tauri coupling. All behavior via callback props.
+   * Purely presentational: no backend coupling. All behavior via callback props.
    * Used by both create_plan and exit_plan_mode tool call components.
   */
   import type { Snippet } from "svelte";

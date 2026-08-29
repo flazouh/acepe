@@ -1,7 +1,7 @@
 <script lang="ts">
 	/**
 	 * GitHubBadge — Presentational GitHub reference badge.
-	 * No Tauri coupling, no diff fetching — props in, callbacks out.
+	 * No backend coupling, no diff fetching — props in, callbacks out.
 	 *
 	 * Renders as:
 	 * - <a>      when href is provided (website / non-interactive link)

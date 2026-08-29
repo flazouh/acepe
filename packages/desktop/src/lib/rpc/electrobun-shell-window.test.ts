@@ -32,7 +32,7 @@ test("isElectrobunShellWindow is true for the tracer query on a web origin", () 
 	).toBe(true);
 });
 
-test("isElectrobunShellWindow is false for the Tauri desktop page", () => {
+test("isElectrobunShellWindow is false for a plain web page", () => {
 	expect(
 		isElectrobunShellWindow({
 			protocol: "https:",
@@ -56,12 +56,12 @@ test("desktopShellKind is electrobun for the views scheme", () => {
 	).toBe("electrobun");
 });
 
-test("desktopShellKind is tauri for the shipping desktop page", () => {
+test("desktopShellKind is web for a plain web page", () => {
 	expect(
 		desktopShellKind({
 			protocol: "https:",
 			search: "",
 			hasElectrobunGlobal: false,
 		})
-	).toBe("tauri");
+	).toBe("web");
 });

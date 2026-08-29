@@ -422,8 +422,8 @@ export interface ReopenSnapshotGraphInput {
  * defect 2).
  *
  * `graphFromReopenSnapshot` always stamps `graphRevision: 0`: unlike the
- * Tauri-era `graphFromSessionOpenFound`, there is no Rust-owned graphRevision
- * counter behind the Electrobun RPC snapshot to carry through. Compared via
+ * older `graphFromSessionOpenFound` path, there is no backend-owned
+ * graphRevision counter behind the Electrobun RPC snapshot to carry through. Compared via
  * the plain `isNewerGraphRevision` (which orders on graphRevision first), a
  * reopen can therefore never outrank a local graph that has already advanced
  * past graphRevision 0 through live deltas -- even when the reopen's own

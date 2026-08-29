@@ -446,7 +446,7 @@ export interface Agent {
 // ============================================
 
 /**
- * History entry from Tauri backend.
+ * History entry from the backend.
  * Represents a session from any agent (Claude Code, Cursor, etc.).
  */
 export interface HistoryEntry {

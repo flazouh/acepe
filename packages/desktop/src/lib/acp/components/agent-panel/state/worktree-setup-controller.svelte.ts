@@ -1,6 +1,6 @@
 /**
  * WorktreeSetupController — owns the agent panel's worktree-setup card state
- * (the WorktreeSetupState driven by the git-worktree-setup Tauri channel),
+ * (the WorktreeSetupState driven by the git-worktree-setup event channel),
  * hoisted out of the `agent-panel.svelte` god controller so the create/reduce/
  * clear transitions are unit-testable. The reactive $effects that subscribe to
  * the channel + prune orphaned state stay in the component and drive this via

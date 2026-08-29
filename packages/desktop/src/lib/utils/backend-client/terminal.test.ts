@@ -9,9 +9,9 @@ import { terminal } from "./terminal.ts";
 // a run-and-capture concept the contract does not carry yet, and every
 // method has zero live callers today (see the comment on ./terminal.ts).
 // These tests only pin the "unsupported on the contract" behavior so the
-// facade fails loudly instead of silently reaching for a removed Tauri
-// client if a caller ever shows up.
-describe("terminal tauri client", () => {
+// facade fails loudly instead of silently reaching for a backend command
+// that does not exist if a caller ever shows up.
+describe("terminal backend client", () => {
 	it("fails create as unsupported on the contract", async () => {
 		const result = await Effect.runPromise(
 			Effect.result(terminal.create({ sessionId: "session-1", command: "echo hi" }))

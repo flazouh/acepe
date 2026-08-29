@@ -2,7 +2,7 @@ import * as HashSet from "effect/HashSet"
 
 /**
  * Split text the way Rust `str::lines` does, so checkpoint diffs match
- * checkpoints written by the Tauri service.
+ * checkpoints written by the previous desktop service.
  */
 export const rustLines = (text: string): ReadonlyArray<string> => {
 	if (text === "") {

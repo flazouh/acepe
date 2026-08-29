@@ -61,7 +61,7 @@ describe("desktop agent panel scene adapter — characterization gaps", () => {
 				type: "tool_call",
 				message: {
 					id: "browser-script-1",
-					name: "mcp__tauri__webview_execute_js",
+					name: "mcp__browser__webview_execute_js",
 					arguments: {
 						kind: "browser",
 						raw: { script },

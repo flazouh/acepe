@@ -86,8 +86,8 @@ export function formatOtherToolName(name: string): string {
 
 /**
  * Extract the function segment from an MCP-style browser tool name.
- * "mcp__tauri__webview_screenshot" → "webview_screenshot"
- * "tauri-webview_screenshot" → "webview_screenshot"
+ * "mcp__browser__webview_screenshot" → "webview_screenshot"
+ * "browser-webview_screenshot" → "webview_screenshot"
  */
 function extractBrowserFuncName(name: string): string {
 	const segments = name.split("__").filter((s) => s.length > 0);

@@ -655,7 +655,7 @@ export type GitCallCiJobDetailsResult = typeof GitCallCiJobDetailsResult.Type
 //
 // The in-chat GitHub badge, the diff-viewer modal, the PR-link footer
 // button and the git panel all read diffs and PR listings. They used to
-// call five Tauri commands (get_github_repo_context, fetch_commit_diff,
+// call five separate backend commands (get_github_repo_context, fetch_commit_diff,
 // fetch_pr_diff, list_pull_requests, git_working_file_diff); those ride
 // gitCall now, like every other git sub-domain.
 //

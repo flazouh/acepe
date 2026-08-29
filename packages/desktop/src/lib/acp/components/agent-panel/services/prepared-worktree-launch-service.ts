@@ -1,5 +1,5 @@
 /**
- * Product intent: discard a prepared worktree session launch (Tauri git).
+ * Product intent: discard a prepared worktree session launch (backend git).
  * Centralizes direct `backendClient.git` calls so panel UI stays thin.
  */
 

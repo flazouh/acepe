@@ -52,7 +52,7 @@ afterEach(() => {
 	setAppRpcClientForTest(null);
 });
 
-describe("acp tauri client", () => {
+describe("acp backend client", () => {
 	it("sendPrompt joins text blocks and dispatches message.send", () =>
 		Effect.runPromise(
 			Effect.gen(function* () {

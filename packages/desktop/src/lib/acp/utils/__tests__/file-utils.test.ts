@@ -166,11 +166,10 @@ describe("getRelativeFilePath", () => {
 		});
 
 		it("should handle nested paths correctly", () => {
-			const filePath =
-				"/Users/example/Documents/acepe/packages/desktop/src-tauri/src/acp/provider.rs";
+			const filePath = "/Users/example/Documents/acepe/packages/desktop/src/lib/acp/provider.ts";
 			const projectPath = "/Users/example/Documents/acepe";
 			expect(getRelativeFilePath(filePath, projectPath)).toBe(
-				"packages/desktop/src-tauri/src/acp/provider.rs"
+				"packages/desktop/src/lib/acp/provider.ts"
 			);
 		});
 	});

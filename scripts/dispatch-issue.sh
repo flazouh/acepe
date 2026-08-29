@@ -55,7 +55,7 @@ Hard rules:
 4b. If you add a SQL migration, its number is ASSIGNED to you: ${ASSIGNED_MIGRATION:-none assigned, use the next free number}. Use exactly that number; other lanes hold the numbers around it.
 4c. If a criterion mentions grading against recorded traffic, use packages/harness against packages/harness/fixtures. Never write your own substitute fixture. If no recorded fixture exists, say the criterion is blocked.
 4d. NO FOURTH RPC PRIMITIVE. Everything goes through dispatch, snapshot and events. If your domain seems to need another, the domain is modelled wrong.
-5. Do not stage or commit. Do not touch these six files under packages/desktop/src/lib/services: converted-session-types.ts, file-index-types.ts, session-jsonl-types.ts, session-update-types.ts, tauri-command-client.ts, user-settings-types.ts.
+5. Do not stage or commit. Do not touch these five files under packages/desktop/src/lib/services: converted-session-types.ts, file-index-types.ts, session-jsonl-types.ts, session-update-types.ts, user-settings-types.ts.
 6. If a criterion says 'verified through electrobun-qa, DOM-checked', build the app, launch it, run the heredoc, and PASTE THE ACTUAL OUTPUT in your report. Do not claim it passes without pasting what you saw.
 
 When done, run your package typecheck, lint:effect and test, and report pass or fail for each." 2>&1 | tee "/tmp/lane-issue-${ISSUE}.log"

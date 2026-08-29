@@ -1,5 +1,5 @@
 /**
- * Shared types for Tauri command client.
+ * Shared types for the backend command client.
  */
 
 /**

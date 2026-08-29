@@ -42,7 +42,7 @@ registerToastBridge({
 </Sonner>
 
 <style>
-	/* Tauri top-center: cancel Sonner's translateX(-50%) so toasts stay centered in the window. */
+	/* Top-center toasts: cancel Sonner's translateX(-50%) so toasts stay centered in the window. */
 	:global([data-sonner-toaster].acepe-toaster) {
 		left: 0 !important;
 		right: 0 !important;

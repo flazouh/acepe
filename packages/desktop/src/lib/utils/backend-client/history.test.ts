@@ -12,7 +12,7 @@ import * as Stream from "effect/Stream";
 import { setAppRpcClientForTest } from "../../rpc/app-client.ts";
 import { history } from "./history.ts";
 
-describe("history tauri client", () => {
+describe("history backend client", () => {
 	it("fails auditSessionLoadTiming as unsupported on the contract", async () => {
 		const result = await Effect.runPromise(
 			Effect.result(history.auditSessionLoadTiming("session-1", "/tmp/acepe", "claude-code"))

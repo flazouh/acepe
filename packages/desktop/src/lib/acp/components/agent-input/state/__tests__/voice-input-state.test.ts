@@ -352,7 +352,7 @@ describe("VoiceInputState", () => {
 		expect(state.phase).toBe("idle");
 	});
 
-	it("does not throw when dispose runs with no Tauri listeners", async () => {
+	it("does not throw when dispose runs with no registered listeners", async () => {
 		const state = new VoiceInputState({ sessionId: "session-stale-listener" });
 		await state.registerListeners();
 

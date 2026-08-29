@@ -126,7 +126,7 @@ describe("normalizeProjectIconUpdatePath", () => {
 });
 
 describe("ProjectClient hot cache", () => {
-	it("round-trips cached projects without invoking Tauri", () => {
+	it("round-trips cached projects without calling the backend", () => {
 		const client = new ProjectClient();
 		client.writeCachedProjects([createProject("/repo/acepe", "Acepe")]);
 

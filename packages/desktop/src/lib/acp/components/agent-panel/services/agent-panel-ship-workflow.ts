@@ -26,7 +26,7 @@ export interface CreatePrWorkflowDeps {
 }
 
 /**
- * Stages modified files, optionally generates commit/PR copy, then commit+push+PR via Tauri.
+ * Stages modified files, optionally generates commit/PR copy, then commit+push+PR via the backend.
  * Streaming UI updates are driven via `onStreamUpdate` / `onStreamReset` so the controller owns render keys.
  */
 export async function runCreatePrWorkflow(args: {

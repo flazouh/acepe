@@ -10,9 +10,9 @@ export const shell = {
 	openInFinder: (_sessionId: string, _projectPath: string): Effect.Effect<void, AppError> =>
 		unsupportedOnContract("shell.openInFinder"),
 
-	// Dev-only streaming log inspection tooling from the Tauri build; the
-	// Electrobun/Effect server has no equivalent concept yet and this has no
-	// live caller today.
+	// Dev-only streaming log inspection tooling from the previous desktop
+	// backend; the Electrobun/Effect server has no equivalent concept yet and
+	// this has no live caller today.
 	openStreamingLog: (_sessionId: string): Effect.Effect<void, AppError> =>
 		unsupportedOnContract("shell.openStreamingLog"),
 

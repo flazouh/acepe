@@ -1,6 +1,6 @@
 /**
  * Store for persisting recent items in the command palette.
- * Uses Tauri's user settings for persistence.
+ * Uses the backend user settings for persistence.
  */
 
 import * as Effect from "effect/Effect";

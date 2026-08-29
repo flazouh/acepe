@@ -231,7 +231,7 @@ interface ProjectStorageLoadOptions {
  * Manages project state and storage.
  *
  * Uses Svelte 5 runes for reactive state management.
- * All data is persisted in SQLite database via Tauri backend.
+ * All data is persisted in the SQLite database behind the backend server.
  *
  * Projects represent folders in the workspace. When a project is imported,
  * session scanning is triggered to discover sessions from all supported

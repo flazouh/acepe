@@ -1,4 +1,4 @@
-export type DesktopShellKind = "pending" | "electrobun" | "tauri";
+export type DesktopShellKind = "pending" | "electrobun" | "web";
 
 export const isElectrobunShellWindow = (input: {
 	readonly protocol: string;
@@ -27,5 +27,5 @@ export const desktopShellKind = (
 	if (isElectrobunShellWindow(windowFacts) === true) {
 		return "electrobun";
 	}
-	return "tauri";
+	return "web";
 };

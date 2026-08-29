@@ -4,7 +4,7 @@ import * as Result from "effect/Result";
 
 const sendMock = mock(() => Effect.succeed(undefined));
 
-mock.module("$lib/utils/tauri-client/notifications.js", () => ({
+mock.module("$lib/utils/backend-client/notifications.js", () => ({
 	notifications: {
 		send: sendMock,
 		getPermission: mock(),
@@ -15,7 +15,7 @@ mock.module("$lib/utils/tauri-client/notifications.js", () => ({
 import { sendNativeNotification } from "./native-notification.js";
 
 describe("native-notification", () => {
-	it("routes notification delivery through the Tauri plugin invoke command", async () => {
+	it("routes notification delivery through the backend notifications client", async () => {
 		const result = await Effect.runPromise(
 			Effect.result(
 				sendNativeNotification({

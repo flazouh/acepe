@@ -206,10 +206,10 @@ export class SessionEventService {
 	 * Returns a promise that resolves on canonical ready state, rejects on
 	 * canonical error state or timeout. Subscription is automatically cleaned
 	 * up on resolution — call `cancel()` to clean up early (e.g. if the
-	 * invoke itself fails before Rust can emit an event).
+	 * invoke itself fails before the backend can emit an event).
 	 *
-	 * MUST be called BEFORE firing the Tauri invoke so the listener is
-	 * in place before the SSE event can possibly arrive.
+	 * MUST be called BEFORE firing the backend invoke so the listener is
+	 * in place before the event can possibly arrive.
 	 */
 	waitForConnectionMaterialization(
 		sessionId: string,

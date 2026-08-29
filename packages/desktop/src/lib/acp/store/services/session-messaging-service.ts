@@ -306,7 +306,7 @@ export class SessionMessagingService {
 
 		return api.sendPrompt(sessionId, promptContent.contentBlocks, sendAttemptId).pipe(
 			Effect.map(() => {
-				// Prompt sent successfully - response will arrive via Tauri events
+				// Prompt sent successfully - response will arrive via backend events
 				// DO NOT call stream complete here - sendPrompt is fire-and-forget
 				logger.debug("Message sent successfully", { sessionId });
 			}),

@@ -358,7 +358,7 @@ describe("graphFromReopenSnapshot", () => {
 
 	// AC-263 issue #263 defect 2: graphFromReopenSnapshot always stamps
 	// graphRevision: 0 (there is no Rust-owned graphRevision counter behind
-	// the Electrobun RPC snapshot -- unlike the Tauri-era SessionOpenFound
+	// the Electrobun RPC snapshot -- unlike the older SessionOpenFound
 	// path's graphFromSessionOpenFound, which carries a real one). Compared
 	// naively via isNewerGraphRevision, a reopen can therefore never outrank
 	// a local graph that has already advanced past graphRevision 0 (e.g. via
@@ -489,7 +489,7 @@ describe("graphFromReopenSnapshot", () => {
 	});
 
 	// GOD: this is the invariant session-open-snapshot-applier.svelte.ts already
-	// documents for the Tauri-era SessionOpenFound path ("rows apply, then get
+	// documents for the older SessionOpenFound path ("rows apply, then get
 	// wiped seconds later" bug) -- a hydration built from a snapshot fetched
 	// *before* live deltas landed must never look newer, once compared through
 	// the exact `isNewerGraphRevision` guard reduce-command.ts's `replaceGraph`

@@ -6,10 +6,11 @@ import * as Option from "effect/Option"
 import * as Order from "effect/Order"
 import type * as Path from "effect/Path"
 
-// Ported from packages/desktop/src-tauri/src/provider_account_usage/mod.rs's
-// Codex half: walk ~/.codex/sessions for rollout-*.jsonl files (Codex's own
-// session log format, not Acepe's), pick the most recently modified one, and
-// read its last "token_count" event_msg for the current rate-limit windows.
+// Ported from the Codex half of the previous desktop backend's
+// provider-account-usage module: walk ~/.codex/sessions for rollout-*.jsonl
+// files (Codex's own session log format, not Acepe's), pick the most recently
+// modified one, and read its last "token_count" event_msg for the current
+// rate-limit windows.
 // Malformed lines and unrelated event types are skipped, not fatal --
 // tolerant parsing matches the Rust side's `let Ok(...) else { continue }`
 // chains.

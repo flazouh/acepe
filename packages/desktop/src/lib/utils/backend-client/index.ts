@@ -1,5 +1,5 @@
 /**
- * Type-safe Tauri command client.
+ * Type-safe backend command client.
  *
  * Assembled from domain-specific sub-clients. Each sub-client handles its own
  * commands and types.

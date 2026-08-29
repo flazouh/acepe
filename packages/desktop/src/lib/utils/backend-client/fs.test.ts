@@ -38,7 +38,7 @@ afterEach(() => {
 	setAppRpcClientForTest(null);
 });
 
-describe("fs tauri client", () => {
+describe("fs backend client", () => {
 	it("reads a text file with no pagination", async () => {
 		let requested: unknown = null;
 		setAppRpcClientForTest(

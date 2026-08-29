@@ -11,13 +11,14 @@ import { createLogger } from "../utils/logger.js";
 import { openAcpEventSource } from "./acp-event-bridge.js";
 
 /**
- * Subscribes to Tauri events for session updates.
+ * Subscribes to backend events for session updates.
  *
- * This subscriber listens for `acp-session-update` events from the Tauri backend.
- * Session updates are already parsed and typed by the Rust backend.
+ * This subscriber reads `acp-session-update` and `acp-session-state` envelopes
+ * off the ACP event bridge stream (see `openAcpEventSource`) and parses each
+ * payload before handing it on.
  *
- * Supports multiple listeners via a single Tauri event listener (fan-out pattern).
- * This prevents memory leaks from creating multiple Tauri listeners.
+ * Supports multiple listeners over a single event-source subscription (fan-out
+ * pattern). This prevents memory leaks from opening one stream per listener.
  */
 export class EventSubscriber {
 	private unlistenFn: (() => void) | null = null;
@@ -33,7 +34,7 @@ export class EventSubscriber {
 
 	/**
 	 * Subscribe to session update events.
-	 * Multiple listeners are supported - they all receive updates from a single Tauri listener.
+	 * Multiple listeners are supported - they all receive updates from a single event-source subscription.
 	 *
 	 * @param listener - Callback function to receive session updates
 	 * @returns Effect containing a unique listener ID that can be used to unsubscribe
@@ -70,7 +71,7 @@ export class EventSubscriber {
 
 	/**
 	 * Unsubscribe a specific listener by ID.
-	 * The Tauri listener is only removed when all listeners are unsubscribed.
+	 * The event-source subscription is only closed when all listeners are unsubscribed.
 	 *
 	 * @param listenerId - The ID returned from subscribe()
 	 */
@@ -78,7 +79,7 @@ export class EventSubscriber {
 		this.listeners.delete(listenerId);
 		this.sessionStateListeners.delete(listenerId);
 
-		// If no more listeners, clean up the Tauri listener
+		// If no more listeners, close the event-source subscription
 		if (this.listeners.size === 0 && this.sessionStateListeners.size === 0 && this.unlistenFn) {
 			this.unlistenFn();
 			this.unlistenFn = null;

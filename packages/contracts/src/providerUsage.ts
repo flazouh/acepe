@@ -2,13 +2,12 @@ import { TrimmedNonEmptyString } from "./baseSchemas.ts"
 import * as Schema from "effect/Schema"
 
 // The getProviderAccountUsage utility RPC (see rpc.ts). Ported from the
-// desktop app's former src-tauri/src/provider_account_usage/mod.rs: the
-// top-bar usage widget's per-provider quota windows (Codex's on-disk rollout
-// files, Claude's OAuth/cookie-backed usage API, Cursor always unavailable
-// pending an account API). Response shape is byte-for-byte the same fields
-// the Rust command returned (camelCase already matched serde's
-// rename_all = "camelCase"), so the desktop consumer's mapping logic did not
-// need to change -- only its transport.
+// desktop app's former native provider-account-usage module: the top-bar
+// usage widget's per-provider quota windows (Codex's on-disk rollout files,
+// Claude's OAuth/cookie-backed usage API, Cursor always unavailable pending
+// an account API). Response shape is byte-for-byte the same camelCase fields
+// the old backend command returned, so the desktop consumer's mapping logic
+// did not need to change -- only its transport.
 //
 // A provider whose data cannot be read reports connection: "unavailable"
 // with a human-readable `message` instead of omitting itself or fabricating

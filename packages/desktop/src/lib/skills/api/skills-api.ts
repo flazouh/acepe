@@ -1,13 +1,13 @@
 /**
  * API layer for Skills Manager.
  *
- * Provides type-safe wrappers around Tauri commands for skills operations.
+ * Provides type-safe wrappers around backend commands for skills operations.
  * All functions return Effect for consistent error handling.
  */
 
 import type * as Effect from "effect/Effect";
 import type { AppError } from "../../acp/errors/app-error.js";
-import { tauriClient } from "../../utils/tauri-client.js";
+import { backendClient } from "../../utils/backend-client.js";
 import type {
 	AgentSkills,
 	LibrarySkill,
@@ -24,21 +24,21 @@ import type {
  * List all agents and their skills as a tree structure.
  */
 export function listTree(): Effect.Effect<SkillTreeNode[], AppError> {
-	return tauriClient.skills.listTree();
+	return backendClient.skills.listTree();
 }
 
 /**
  * List parsed on-disk skills grouped by agent.
  */
 export function listAgentSkills(): Effect.Effect<AgentSkills[], AppError> {
-	return tauriClient.skills.listAgentSkills();
+	return backendClient.skills.listAgentSkills();
 }
 
 /**
  * Get a specific skill by ID.
  */
 export function getSkill(skillId: string): Effect.Effect<Skill, AppError> {
-	return tauriClient.skills.get(skillId);
+	return backendClient.skills.get(skillId);
 }
 
 /**
@@ -50,21 +50,21 @@ export function createSkill(
 	name: string,
 	description: string
 ): Effect.Effect<Skill, AppError> {
-	return tauriClient.skills.create(agentId, folderName, name, description);
+	return backendClient.skills.create(agentId, folderName, name, description);
 }
 
 /**
  * Update an existing skill's content.
  */
 export function updateSkill(skillId: string, content: string): Effect.Effect<Skill, AppError> {
-	return tauriClient.skills.update(skillId, content);
+	return backendClient.skills.update(skillId, content);
 }
 
 /**
  * Delete a skill.
  */
 export function deleteSkill(skillId: string): Effect.Effect<void, AppError> {
-	return tauriClient.skills.delete(skillId);
+	return backendClient.skills.delete(skillId);
 }
 
 /**
@@ -75,21 +75,21 @@ export function copySkillTo(
 	targetAgentId: string,
 	newFolderName?: string
 ): Effect.Effect<Skill, AppError> {
-	return tauriClient.skills.copyTo(skillId, targetAgentId, newFolderName);
+	return backendClient.skills.copyTo(skillId, targetAgentId, newFolderName);
 }
 
 /**
  * Start watching for skill file changes.
  */
 export function startWatching(): Effect.Effect<void, AppError> {
-	return tauriClient.skills.startWatching();
+	return backendClient.skills.startWatching();
 }
 
 /**
  * Stop watching for skill file changes.
  */
 export function stopWatching(): Effect.Effect<void, AppError> {
-	return tauriClient.skills.stopWatching();
+	return backendClient.skills.stopWatching();
 }
 
 /**
@@ -115,21 +115,21 @@ export const skillsApi = {
  * List all discovered plugins with skills.
  */
 export function listPlugins(): Effect.Effect<PluginInfo[], AppError> {
-	return tauriClient.skills.listPlugins();
+	return backendClient.skills.listPlugins();
 }
 
 /**
  * List all skills for a specific plugin.
  */
 export function listPluginSkills(pluginId: string): Effect.Effect<PluginSkill[], AppError> {
-	return tauriClient.skills.listPluginSkills(pluginId);
+	return backendClient.skills.listPluginSkills(pluginId);
 }
 
 /**
  * Get a specific plugin skill by ID.
  */
 export function getPluginSkill(skillId: string): Effect.Effect<PluginSkill, AppError> {
-	return tauriClient.skills.getPluginSkill(skillId);
+	return backendClient.skills.getPluginSkill(skillId);
 }
 
 /**
@@ -139,7 +139,7 @@ export function copyPluginSkillToAgent(
 	skillId: string,
 	targetAgentId: string
 ): Effect.Effect<Skill, AppError> {
-	return tauriClient.skills.copyPluginSkillToAgent(skillId, targetAgentId);
+	return backendClient.skills.copyPluginSkillToAgent(skillId, targetAgentId);
 }
 
 /**
@@ -160,21 +160,21 @@ export const pluginSkillsApi = {
  * List all skills from the library.
  */
 export function libraryListSkills(): Effect.Effect<LibrarySkill[], AppError> {
-	return tauriClient.skills.libraryListSkills();
+	return backendClient.skills.libraryListSkills();
 }
 
 /**
  * List all skills with their sync status.
  */
 export function libraryListSkillsWithSync(): Effect.Effect<LibrarySkillWithSync[], AppError> {
-	return tauriClient.skills.libraryListSkillsWithSync();
+	return backendClient.skills.libraryListSkillsWithSync();
 }
 
 /**
  * Get a single skill with its sync status.
  */
 export function libraryGetSkill(skillId: string): Effect.Effect<LibrarySkillWithSync, AppError> {
-	return tauriClient.skills.libraryGetSkill(skillId);
+	return backendClient.skills.libraryGetSkill(skillId);
 }
 
 /**
@@ -186,7 +186,7 @@ export function libraryCreateSkill(
 	content: string,
 	category: string | null
 ): Effect.Effect<LibrarySkill, AppError> {
-	return tauriClient.skills.libraryCreateSkill(name, description, content, category);
+	return backendClient.skills.libraryCreateSkill(name, description, content, category);
 }
 
 /**
@@ -199,21 +199,21 @@ export function libraryUpdateSkill(
 	content?: string,
 	category?: string | null
 ): Effect.Effect<LibrarySkill, AppError> {
-	return tauriClient.skills.libraryUpdateSkill(skillId, name, description, content, category);
+	return backendClient.skills.libraryUpdateSkill(skillId, name, description, content, category);
 }
 
 /**
  * Delete a skill from the library.
  */
 export function libraryDeleteSkill(skillId: string): Effect.Effect<void, AppError> {
-	return tauriClient.skills.libraryDeleteSkill(skillId);
+	return backendClient.skills.libraryDeleteSkill(skillId);
 }
 
 /**
  * Get sync targets for a skill.
  */
 export function libraryGetSyncTargets(skillId: string): Effect.Effect<SyncTarget[], AppError> {
-	return tauriClient.skills.libraryGetSyncTargets(skillId);
+	return backendClient.skills.libraryGetSyncTargets(skillId);
 }
 
 /**
@@ -224,7 +224,7 @@ export function librarySetSyncTarget(
 	agentId: string,
 	enabled: boolean
 ): Effect.Effect<void, AppError> {
-	return tauriClient.skills.librarySetSyncTarget(skillId, agentId, enabled);
+	return backendClient.skills.librarySetSyncTarget(skillId, agentId, enabled);
 }
 
 /**
@@ -233,28 +233,28 @@ export function librarySetSyncTarget(
 export function librarySyncSkill(
 	skillId: string
 ): Effect.Effect<import("../types/sync-result.js").SkillSyncResult[], AppError> {
-	return tauriClient.skills.librarySyncSkill(skillId);
+	return backendClient.skills.librarySyncSkill(skillId);
 }
 
 /**
  * Sync all skills to all enabled agents.
  */
 export function librarySyncAll(): Effect.Effect<SyncResult, AppError> {
-	return tauriClient.skills.librarySyncAll();
+	return backendClient.skills.librarySyncAll();
 }
 
 /**
  * Check if the library is empty (first run detection).
  */
 export function libraryIsEmpty(): Effect.Effect<boolean, AppError> {
-	return tauriClient.skills.libraryIsEmpty();
+	return backendClient.skills.libraryIsEmpty();
 }
 
 /**
  * Import existing skills from agent directories into the library.
  */
 export function libraryImportExisting(): Effect.Effect<LibrarySkill[], AppError> {
-	return tauriClient.skills.libraryImportExisting();
+	return backendClient.skills.libraryImportExisting();
 }
 
 /**
@@ -264,7 +264,7 @@ export function libraryGetSkillFolderPath(
 	agentId: string,
 	skillName: string
 ): Effect.Effect<string | null, AppError> {
-	return tauriClient.skills.libraryGetSkillFolderPath(agentId, skillName);
+	return backendClient.skills.libraryGetSkillFolderPath(agentId, skillName);
 }
 
 /**
@@ -274,7 +274,7 @@ export function libraryDeleteSkillFromAgents(
 	skillName: string,
 	agentIds: string[]
 ): Effect.Effect<import("../types/sync-result.js").SkillSyncResult[], AppError> {
-	return tauriClient.skills.libraryDeleteSkillFromAgents(skillName, agentIds);
+	return backendClient.skills.libraryDeleteSkillFromAgents(skillName, agentIds);
 }
 
 /**

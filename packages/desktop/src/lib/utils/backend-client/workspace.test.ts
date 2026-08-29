@@ -63,7 +63,7 @@ function buildWorkspaceState(version: number): PersistedWorkspaceState {
 	};
 }
 
-describe("workspace tauri client", () => {
+describe("workspace backend client", () => {
 	beforeEach(() => {
 		localStorageValues = new Map<string, string>();
 		Object.defineProperty(globalThis, "localStorage", {

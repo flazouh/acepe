@@ -4,7 +4,7 @@
 	One changed file: status glyph (tone-coded), path (basename emphasized, dir muted +
 	truncated), inline +adds −dels, and hover-revealed primary/discard actions.
 
-	Purely presentational: props + callbacks only. No stores, Tauri, or app policy.
+	Purely presentational: props + callbacks only. No stores, backend calls, or app policy.
 -->
 <script lang="ts">
 	import { HugeiconsIcon } from "../icons/index.js";

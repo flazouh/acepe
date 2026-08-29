@@ -39,8 +39,8 @@ export interface TranscriptRowsControllerDeps {
 	 * Canonical transcript entries for a session (real data, already correct
 	 * under Electrobun for a live-created session -- see
 	 * orchestration-canonical-bridge.ts). Used to derive rows locally instead
-	 * of calling the Tauri-only viewport-buffer command; `null` means no
-	 * canonical graph exists yet for this session.
+	 * of calling a viewport-buffer command no backend implements; `null` means
+	 * no canonical graph exists yet for this session.
 	 */
 	readonly getTranscriptEntries: (sessionId: string) => ReadonlyArray<TranscriptEntry> | null;
 	/**
@@ -108,11 +108,11 @@ export class TranscriptRowsController {
 	 * Re-derive and apply this session's rows from its current canonical
 	 * transcript entries, under Electrobun only (a no-op elsewhere).
 	 *
-	 * `ensureRowsBootstrap` is deliberately one-shot per session: on Tauri,
+	 * `ensureRowsBootstrap` is deliberately one-shot per session: it assumes
 	 * real `viewportBufferPush`/`viewportBufferDelta` envelopes (see
 	 * `applyBufferPush`/`applyBufferDelta` above) keep rows in sync after that
 	 * first bootstrap, so re-running the bootstrap request would be redundant.
-	 * Electrobun has no such envelope producer (see this class's own
+	 * Nothing produces those envelopes under Electrobun (see this class's own
 	 * `requestFreshRows` comment and orchestration-canonical-bridge.ts) --
 	 * `getTranscriptEntries` is the only signal that new rows exist, and it
 	 * only ever gets *read*, never pushed. Without a caller invoking this
@@ -377,7 +377,7 @@ export class TranscriptRowsController {
 		// derivable locally, with real data, from the canonical transcript
 		// entries and operations this session's graph already carries -- so
 		// build and apply them synchronously instead of round-tripping a
-		// Tauri-only command that would just report "unavailable".
+		// command that would just report "unavailable".
 		if (runningUnderElectrobun()) {
 			const entries = this.deps.getTranscriptEntries(sessionId) ?? [];
 			const operations = this.deps.getOperations(sessionId) ?? [];

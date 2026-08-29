@@ -46,7 +46,7 @@ import type { CustomAgentConfig } from "./types.js";
 // list_preconnection_commands/list_preconnection_capabilities/
 // get_composer_mcp_catalog/get_event_bridge_info handler anywhere in
 // packages/electrobun-shell or packages/server -- every one of these calls
-// already fails today (an unresolved Tauri invoke with no receiver). Marking
+// already fails today (an unresolved command invoke with no receiver). Marking
 // them unsupportedOnContract turns that into a typed, honest failure instead
 // of a silent hang, with zero change in what the app can actually do.
 //
@@ -116,8 +116,8 @@ const lastPathSegment = (path: string): string => {
 };
 
 // newSession's callers never had a project-creation step of their own on the
-// Tauri side (the Rust backend resolved/created the project implicitly from
-// the cwd). Mirror that here: reuse an existing project at this workspace
+// previous desktop backend, which resolved/created the project implicitly
+// from the cwd. Mirror that here: reuse an existing project at this workspace
 // root, or create one on the fly so session.create always has a valid
 // projectId.
 const resolveOrCreateProject = Effect.fn("acp.resolveOrCreateProject")(function* (
@@ -159,11 +159,11 @@ const extractPromptText = (
 		.join("\n");
 
 export const acp = {
-	// The Rust-side ACP service needed an explicit bootstrap call before its
-	// first use. The Effect server has no equivalent per-call setup step (the
-	// engine and ProviderBridge are always-on Layers started at server boot),
-	// so this is now a genuine no-op rather than a Tauri invoke into a command
-	// that no longer exists.
+	// The previous desktop backend's ACP service needed an explicit bootstrap
+	// call before its first use. The Effect server has no equivalent per-call
+	// setup step (the engine and ProviderBridge are always-on Layers started at
+	// server boot), so this is now a genuine no-op rather than an invoke into a
+	// command that no longer exists.
 	initialize: (): Effect.Effect<unknown, AppError> => Effect.succeed(undefined),
 
 	// Sidebar visibility fix: sessions that exist only in the orchestration
@@ -519,7 +519,7 @@ export const acp = {
 	registerCustomAgent: (_config: CustomAgentConfig): Effect.Effect<void, AppError> =>
 		unsupportedOnContract("acp.registerCustomAgent"),
 
-	// SSE-over-HTTP bridge from the Tauri build. Under Electrobun, session
+	// SSE-over-HTTP bridge from the old backend. Under Electrobun, session
 	// updates ride the `events` RPC stream (client.events(fromSequence), see
 	// rpc.ts) instead -- there is no eventsUrl to hand out any more. See this
 	// file's header comment: get_event_bridge_info has no Electrobun handler

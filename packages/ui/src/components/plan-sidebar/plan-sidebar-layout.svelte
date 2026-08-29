@@ -2,7 +2,7 @@
 	/**
 	 * PlanSidebarLayout — Presentational plan panel.
 	 * Shows plan title, markdown content, and an optional Build button in the header.
-	 * No Tauri coupling, no store access — props in, callbacks out.
+	 * No backend coupling, no store access — props in, callbacks out.
 	 *
 	 * Extension points via optional snippets:
 	 * - headerActions: extra buttons in the header row (after title)

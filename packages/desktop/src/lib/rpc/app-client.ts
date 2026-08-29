@@ -8,8 +8,7 @@ import { installElectrobunWebviewRpc } from "./electrobun-bridge.ts";
 /**
  * The one app-level RpcClient.
  *
- * Every facade now reaches the contract through this accessor; the legacy
- * generated Tauri client has no importers left and awaits deletion (#250).
+ * Every facade reaches the contract through this accessor.
  *
  * Memoised because the webview bridge must only be installed once; a second
  * Electroview would register a second RPC schema against the same window.

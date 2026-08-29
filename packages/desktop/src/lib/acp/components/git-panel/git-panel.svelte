@@ -1,7 +1,7 @@
 <script lang="ts">
 /**
  * Git Panel — Smart wrapper that connects @acepe/ui GitPanelLayout
- * to Tauri backend git commands. Manages all reactive state, data fetching,
+ * to the backend git commands. Manages all reactive state, data fetching,
  * and mutation callbacks.
  */
 
@@ -189,14 +189,14 @@ const surfaceClass = $derived(
 const currentWorktree = $derived(resolveCurrentWorktree(projectPath, worktrees));
 const worktreeItems = $derived(buildWorktreeListItems(projectPath, worktrees));
 
-/** Map Tauri file status → shared UI GitStatusFile */
+/** Map backend file status → shared UI GitStatusFile */
 const stagedFiles = $derived(mapStagedFiles(files));
 
 const unstagedFiles = $derived(mapUnstagedFiles(files));
 
 const navigableChangesFiles = $derived(buildNavigableChangesFiles(stagedFiles, unstagedFiles));
 
-/** Map Tauri types → shared UI types */
+/** Map backend types → shared UI types */
 const uiRemoteStatus = $derived(mapUiRemoteStatus(remoteStatus));
 
 const uiStashEntries = $derived(mapUiStashEntries(stashEntries));

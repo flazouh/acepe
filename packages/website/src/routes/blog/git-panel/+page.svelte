@@ -250,7 +250,7 @@ View stashed changes with pop and drop actions on hover.
 		content={`
 ## How It Works
 
-The panel opens from the sidebar for any project. Every component is presentational — props in, callbacks out. The desktop app wires them to Tauri commands that run real git operations in Rust. This blog page uses the same components with mock data.
+The panel opens from the sidebar for any project. Every component is presentational — props in, callbacks out. The desktop app wires them to backend commands that run real git operations. This blog page uses the same components with mock data.
 
 - **Stage / Unstage** — click the \`+\` or \`−\` icon on any file
 - **Commit** — write a message and press Commit or \`Cmd+Enter\`

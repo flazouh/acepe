@@ -9,7 +9,7 @@
  * 1. Listens to `acp-inbound-request` events from the ACP event bridge stream
  * 2. Parses the JSON-RPC request
  * 3. Dispatches to the appropriate handler (e.g., permission store)
- * 4. Sends the JSON-RPC response back via the Tauri command
+ * 4. Sends the JSON-RPC response back via `api.respondInboundRequest`
  */
 
 import * as Effect from "effect/Effect";

@@ -1,7 +1,7 @@
 <script lang="ts">
 /**
  * Desktop wrapper for CheckpointCard.
- * Handles store integration and Tauri commands, delegates rendering to @acepe/ui.
+ * Handles store integration and backend commands, delegates rendering to @acepe/ui.
  */
 import { CheckpointCard as BaseCheckpointCard, FilePathBadge, type FileRowState } from "@acepe/ui";
 import * as Effect from "effect/Effect";

@@ -2,7 +2,7 @@
  * Window Focus Store - Tracks OS-level window focus state.
  *
  * Used to gate popup notifications: only show when the main window is unfocused.
- * Event-driven via Tauri's `onFocusChanged` — no polling.
+ * Event-driven via the window's own `focus`/`blur` events — no polling.
  */
 
 import { getContext, setContext } from "svelte";

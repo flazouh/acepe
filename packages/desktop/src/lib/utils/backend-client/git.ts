@@ -398,7 +398,7 @@ export const git = {
 	},
 
 	/**
-	 * Runs commit, then optionally push and create/open PR in one Tauri call.
+	 * Runs commit, then optionally push and create/open PR in one backend call.
 	 * Use "commit" for local-only; "commit_push" to also push; "commit_push_pr" to push and create or open a PR.
 	 *
 	 * @param projectPath - Path to the git project root.

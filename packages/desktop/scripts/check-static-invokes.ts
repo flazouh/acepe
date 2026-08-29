@@ -3,13 +3,13 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { extname, join, relative } from "node:path";
 
-import { ALLOWED_STATIC_TAURI_INVOKES } from "../src/lib/utils/tauri-client/non-registry-command-allowlist.js";
+import { ALLOWED_STATIC_INVOKES } from "../src/lib/utils/backend-client/non-registry-command-allowlist.js";
 
 const DESKTOP_ROOT = join(import.meta.dir, "..");
 const SOURCE_ROOT = join(DESKTOP_ROOT, "src", "lib");
 const SOURCE_EXTENSIONS = new Set([".ts", ".svelte"]);
 const STATIC_INVOKE_PATTERN = /\binvoke(?:<[^>]+>)?\(\s*["']([^"']+)["']/g;
-const SKIPPED_FILES = new Set(["src/lib/utils/tauri-client/non-registry-command-allowlist.ts"]);
+const SKIPPED_FILES = new Set(["src/lib/utils/backend-client/non-registry-command-allowlist.ts"]);
 
 type Violation = {
 	filePath: string;
@@ -37,7 +37,7 @@ function walkFiles(root: string): string[] {
 }
 
 function isAllowed(filePath: string, command: string): boolean {
-	return ALLOWED_STATIC_TAURI_INVOKES.some((entry) => {
+	return ALLOWED_STATIC_INVOKES.some((entry) => {
 		return entry.filePath === filePath && entry.command === command;
 	});
 }
@@ -64,16 +64,16 @@ function main(): void {
 	}
 
 	if (violations.length === 0) {
-		console.log("No unallowlisted static Tauri invokes found.");
+		console.log("No unallowlisted static command invokes found.");
 		return;
 	}
 
-	console.error("Found static Tauri invokes outside the allowlist:");
+	console.error("Found static command invokes outside the allowlist:");
 	for (const violation of violations) {
 		console.error(`- ${violation.filePath}: ${violation.command}`);
 	}
 	console.error(
-		"\nMove these callsites to TAURI_COMMAND_CLIENT/typed wrappers or add a documented allowlist entry."
+		"\nMove these callsites to the typed backend client or add a documented allowlist entry."
 	);
 	process.exit(1);
 }

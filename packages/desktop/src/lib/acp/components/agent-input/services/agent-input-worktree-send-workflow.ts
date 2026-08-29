@@ -1,5 +1,5 @@
 /**
- * First-send worktree path preparation: Tauri prepare + background setup orchestration.
+ * First-send worktree path preparation: backend prepare + background setup orchestration.
  */
 
 import * as Effect from "effect/Effect";
@@ -25,13 +25,13 @@ export type WorktreePrepForSendResult =
 
 /**
  * Ensures a worktree directory exists when the user enabled the worktree toggle before first send.
- * Reuses an existing prepared launch when present; otherwise calls Tauri and runs setup in the background.
+ * Reuses an existing prepared launch when present; otherwise calls the backend and runs setup in the background.
  */
 export async function prepareWorktreePathForPendingSend(args: {
 	projectPath: string;
 	selectedAgentId: string;
 	existingPrepared: PreparedWorktreeLaunch | null;
-	/** Invoked immediately before the Tauri prepare call (panel pending UX + product hooks). */
+	/** Invoked immediately before the backend prepare call (panel pending UX + product hooks). */
 	notifyCreating: () => void;
 }): Promise<WorktreePrepForSendResult> {
 	const { projectPath, selectedAgentId, existingPrepared, notifyCreating } = args;

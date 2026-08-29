@@ -1,5 +1,5 @@
 /**
- * Agent panel workflow services — async orchestration and Tauri boundaries for the thin panel shell.
+ * Agent panel workflow services — async orchestration and backend boundaries for the thin panel shell.
  */
 
 export {

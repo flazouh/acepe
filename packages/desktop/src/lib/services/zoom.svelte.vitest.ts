@@ -168,8 +168,8 @@ describe("ZoomService", () => {
 	// reconcilePersistedZoomInBackground on a 2s idle timer), so it fires
 	// well after startup and crashed the app into a global error boundary
 	// mid-session -- "Failed to apply zoom: TypeError: undefined is not an
-	// object (evaluating 'window.__TAURI_INTERNALS__.metadata')". A shell
-	// that cannot zoom must leave the effect successful, not throw.
+	// object", thrown while reading a zoom API the shell never provided. A
+	// shell that cannot zoom must leave the effect successful, not throw.
 	it("keeps setZoom successful when the shell cannot zoom", () => {
 		mocks.setShellPageZoom.mockReturnValue(Effect.void);
 		const service = new ZoomService();

@@ -38,7 +38,7 @@ afterEach(() => {
 	setAppRpcClientForTest(null);
 });
 
-describe("shell tauri client", () => {
+describe("shell backend client", () => {
 	it("reads the default shell through the contract", async () => {
 		setAppRpcClientForTest(makeClient({ getDefaultShell: () => Effect.succeed("/bin/fish") }));
 
