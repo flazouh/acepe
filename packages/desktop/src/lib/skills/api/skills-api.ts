@@ -6,7 +6,6 @@
  */
 
 import type * as Effect from "effect/Effect";
-import { listenIfTauri } from "$lib/utils/electrobun-window-shims.js";
 import type { AppError } from "../../acp/errors/app-error.js";
 import { tauriClient } from "../../utils/tauri-client.js";
 import type {
@@ -16,7 +15,6 @@ import type {
 	PluginInfo,
 	PluginSkill,
 	Skill,
-	SkillsChangedEvent,
 	SkillTreeNode,
 	SyncResult,
 	SyncTarget,
@@ -95,18 +93,6 @@ export function stopWatching(): Effect.Effect<void, AppError> {
 }
 
 /**
- * Subscribe to skills changed events.
- * Returns an unsubscribe function.
- */
-export function onSkillsChanged(
-	callback: (event: SkillsChangedEvent) => void
-): Promise<() => void> {
-	return listenIfTauri<SkillsChangedEvent>("skills:changed", (event) => {
-		callback(event.payload);
-	});
-}
-
-/**
  * Skills API object for convenient access.
  */
 export const skillsApi = {
@@ -119,7 +105,6 @@ export const skillsApi = {
 	copySkillTo,
 	startWatching,
 	stopWatching,
-	onSkillsChanged,
 };
 
 // ============================================================================

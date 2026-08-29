@@ -5,16 +5,14 @@
  * for error handling.
  */
 
-import { fromPromise } from "@acepe/effect-result/fromPromise";
 import * as Effect from "effect/Effect";
 import { getContext, setContext } from "svelte";
 import { SvelteSet } from "svelte/reactivity";
 import type { AppError } from "../../acp/errors/app-error.js";
-import { AgentError } from "../../acp/errors/app-error.js";
 import { createLogger } from "../../acp/utils/logger.js";
 
 import { copyPluginSkillToAgent, getPluginSkill, skillsApi } from "../api/skills-api.js";
-import type { PluginSkill, Skill, SkillsChangedEvent, SkillTreeNode } from "../types/index.js";
+import type { PluginSkill, Skill, SkillTreeNode } from "../types/index.js";
 
 const logger = createLogger({ id: "skills-store", name: "SkillsStore" });
 
@@ -50,9 +48,6 @@ export class SkillsStore {
 	// === UI STATE ===
 	/** Set of expanded node IDs */
 	expandedNodes = $state(new SvelteSet<string>());
-
-	// === FILE WATCHER ===
-	private watcherCleanup: (() => void) | null = null;
 
 	// === DERIVED STATE ===
 	/** Selected skill ID for easy access (either regular or plugin skill) */
@@ -356,24 +351,14 @@ export class SkillsStore {
 
 	/**
 	 * Initialize file watching for skill changes.
+	 *
+	 * The backend watcher runs, but no change events reach the client: there is
+	 * no "skills:changed" channel on the RPC seam. Add one there before wiring a
+	 * handler back up here.
 	 */
 	initializeWatcher(): Effect.Effect<void, AppError> {
 		return skillsApi.startWatching().pipe(
-			Effect.flatMap(() =>
-				fromPromise(
-					() =>
-						skillsApi.onSkillsChanged((event) => {
-							this.handleSkillsChanged(event);
-						}),
-					(error) =>
-						new AgentError(
-							"on_skills_changed",
-							error instanceof Error ? error : new Error(String(error))
-						)
-				)
-			),
-			Effect.map((cleanup) => {
-				this.watcherCleanup = cleanup;
+			Effect.map(() => {
 				logger.debug("File watcher initialized");
 			}),
 			Effect.mapError((err) => {
@@ -384,36 +369,9 @@ export class SkillsStore {
 	}
 
 	/**
-	 * Handle file change events from the watcher.
-	 */
-	private handleSkillsChanged(event: SkillsChangedEvent): void {
-		logger.debug("Skills changed", event);
-
-		// Refresh tree on any change
-		void Effect.runPromise(Effect.result(this.loadTree()));
-
-		// If currently selected skill was modified externally, reload it
-		if (this.selectedSkill) {
-			if (event.path.includes(this.selectedSkill.folderName)) {
-				if (event.changeType === "deleted") {
-					logger.debug("Selected skill was deleted, clearing selection");
-					this.clearSelection();
-				} else if (event.changeType === "modified" && !this.isDirty) {
-					logger.debug("Selected skill was modified externally, reloading");
-					void Effect.runPromise(Effect.result(this.selectSkill(this.selectedSkill.id)));
-				}
-			}
-		}
-	}
-
-	/**
 	 * Cleanup resources.
 	 */
 	cleanup(): void {
-		if (this.watcherCleanup) {
-			this.watcherCleanup();
-			this.watcherCleanup = null;
-		}
 		void Effect.runPromise(Effect.result(skillsApi.stopWatching()));
 		logger.debug("Skills store cleaned up");
 	}

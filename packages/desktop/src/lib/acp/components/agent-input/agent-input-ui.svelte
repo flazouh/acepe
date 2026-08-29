@@ -793,7 +793,6 @@ onDestroy(() => {
 	} else if (draftDebounceTimer) {
 		clearTimeout(draftDebounceTimer);
 	}
-	inputState.destroy();
 });
 
 // Handle mode change

@@ -1,7 +1,6 @@
 import * as Effect from "effect/Effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const listenMock = vi.fn();
 const getSettingMock = vi.fn();
 const setSettingMock = vi.fn();
 const listModelsMock = vi.fn();
@@ -17,11 +16,7 @@ describe("VoiceSettingsStore", () => {
 		listModelsMock.mockReset();
 		listLanguagesMock.mockReset();
 		loadModelMock.mockReset();
-		listenMock.mockReset();
 
-		vi.mock("@tauri-apps/api/event", () => ({
-			listen: listenMock,
-		}));
 		vi.mock("svelte-sonner", () => ({
 			toast: {
 				error: vi.fn(),
@@ -120,7 +115,6 @@ describe("VoiceSettingsStore", () => {
 
 		setSettingMock.mockReturnValue(Effect.succeed(undefined));
 		loadModelMock.mockReturnValue(Effect.succeed(undefined));
-		listenMock.mockResolvedValue(() => undefined);
 		listModelsMock.mockReturnValue(
 			Effect.succeed([
 				{
@@ -234,16 +228,15 @@ describe("VoiceSettingsStore", () => {
 		expect(loadModelMock).toHaveBeenCalledWith("small.en");
 	});
 
-	it("initialize succeeds without Tauri event listeners", async () => {
+	it("initialize succeeds and exposes the model catalog", async () => {
 		getSettingMock.mockReturnValue(Effect.succeed(null));
 
 		const store = new VoiceSettingsStore();
 		await expect(store.initialize()).resolves.toBeUndefined();
 		expect(store.models.length).toBeGreaterThan(0);
-		expect(listenMock).not.toHaveBeenCalled();
 	});
 
-	it("dispose does not throw when no Tauri listeners were registered", async () => {
+	it("dispose does not throw after initialize", async () => {
 		getSettingMock.mockReturnValue(Effect.succeed(null));
 
 		const store = new VoiceSettingsStore();

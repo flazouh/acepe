@@ -36,5 +36,4 @@ export {
 } from "./agent-panel-session-menu-workflow.js";
 export type { CreatePrWorkflowDeps } from "./agent-panel-ship-workflow.js";
 export { runCreatePrWorkflow, runMergePrWorkflow } from "./agent-panel-ship-workflow.js";
-export { subscribeGitWorktreeSetupChannel } from "./agent-panel-worktree-setup-channel.js";
 export { discardPreparedWorktreeSessionLaunch } from "./prepared-worktree-launch-service.js";

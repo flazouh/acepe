@@ -64,7 +64,6 @@ import { usePlanLoader } from "../hooks";
 import {
 	createWorktreeSetupMatchContext,
 	copyTextToClipboard,
-	matchesWorktreeSetupContext,
 	resolveEffectiveProjectPath,
 	resolvePlanningPlaceholderPresentation,
 	resolveRunningTurnOutputTokens,
@@ -124,7 +123,6 @@ import {
 	runMergePrWorkflow,
 	runPanelConnectionRetry,
 	scheduleCheckpointReloadAfterRevert,
-	subscribeGitWorktreeSetupChannel,
 } from "../services/index.js";
 import { recordPanelOpenPerformanceMark } from "../logic/panel-open-performance-mark.js";
 import {
@@ -613,43 +611,8 @@ $effect(() => {
 			worktreePath: pendingSetup.worktreePath,
 		});
 	}
-	// "running" phase: don't pre-show the card — let the Tauri "started" event drive visibility.
-	// If there are no setup commands, no event fires and the card correctly stays hidden.
-});
-
-$effect(() => {
-	const projectPaths = worktreeSetupMatchContext.projectPaths;
-	const worktreePaths = worktreeSetupMatchContext.worktreePaths;
-	if (projectPaths.length === 0 && worktreePaths.length === 0) {
-		return;
-	}
-
-	let unlisten: (() => void) | null = null;
-	void subscribeGitWorktreeSetupChannel((payload) => {
-		if (
-			!matchesWorktreeSetupContext(payload, {
-				projectPaths,
-				worktreePaths,
-			})
-		) {
-			return;
-		}
-
-		if (panelId) {
-			panelStore.clearPendingWorktreeSetup(panelId);
-		}
-		worktreeSetup.applyEvent(payload);
-	})
-		.then((callback) => {
-			unlisten = callback;
-		})
-		.catch((error) => {
-			logger.warn("Failed to subscribe to worktree setup events", { error });
-		});
-
-	return () => {
-		unlisten?.();
-	};
+	// "running" phase: there is no setup-progress channel, so the card stays on
+	// the creation state until the worktree finishes being created.
 });
 
 $effect(() => {

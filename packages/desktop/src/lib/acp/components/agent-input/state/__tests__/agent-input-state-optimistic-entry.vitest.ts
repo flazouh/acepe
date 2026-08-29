@@ -2,13 +2,6 @@ import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@tauri-apps/api/core", () => ({
-	invoke: vi.fn(async () => undefined),
-}));
-vi.mock("@tauri-apps/api/event", () => ({
-	listen: vi.fn(async () => () => {}),
-}));
-
 import type { SessionEntry } from "../../../../application/dto/session-entry.js";
 import type { PanelStore } from "../../../../store/panel-store.svelte.js";
 import type { SessionStore } from "../../../../store/session-store.svelte.js";

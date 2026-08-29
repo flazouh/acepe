@@ -8,14 +8,6 @@ import type { SessionStore } from "../../../../store/session-store.svelte.js";
 import { DEFAULT_PANEL_HOT_STATE } from "../../../../store/types.js";
 import { AgentInputState } from "../agent-input-state.svelte.js";
 
-vi.mock("@tauri-apps/api/core", () => ({
-	invoke: vi.fn(),
-}));
-
-vi.mock("@tauri-apps/api/event", () => ({
-	listen: vi.fn(async () => () => {}),
-}));
-
 async function runToResult<A, E>(effect: Effect.Effect<A, E>): Promise<Result.Result<A, E>> {
 	return Effect.runPromise(Effect.result(effect));
 }

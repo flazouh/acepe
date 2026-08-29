@@ -3,7 +3,6 @@ import { fromPromise } from "@acepe/effect-result/fromPromise";
 import * as Effect from "effect/Effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const listenMock = vi.fn();
 const cancelRecordingMock = vi.fn();
 const getModelStatusMock = vi.fn();
 const startRecordingMock = vi.fn();
@@ -12,14 +11,6 @@ const downloadModelMock = vi.fn();
 const stopRecordingMock = vi.fn();
 const toastInfoMock = vi.fn();
 const playSoundMock = vi.fn();
-
-type TauriWindow = typeof globalThis & {
-	window: Window & {
-		__TAURI_INTERNALS__: {
-			invoke: (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
-		};
-	};
-};
 
 let VoiceInputState: typeof import("../voice-input-state.svelte.js").VoiceInputState;
 
@@ -53,10 +44,6 @@ function createPointerEvent(): PointerEvent {
 			setPointerCapture() {},
 		},
 	} as unknown as PointerEvent;
-}
-
-function unwrapEffect<T>(effect: Effect.Effect<T, Error>): Promise<T> {
-	return Effect.runPromise(effect);
 }
 
 function toAgentResult<T>(
@@ -139,7 +126,6 @@ function installTimerHarness() {
 
 describe("VoiceInputState", () => {
 	beforeEach(async () => {
-		listenMock.mockReset();
 		cancelRecordingMock.mockReset();
 		getModelStatusMock.mockReset();
 		startRecordingMock.mockReset();
@@ -149,13 +135,6 @@ describe("VoiceInputState", () => {
 		toastInfoMock.mockReset();
 		playSoundMock.mockReset();
 
-		mock.module("@tauri-apps/api/event", () => ({
-			listen: listenMock,
-			once: listenMock,
-			emit: vi.fn(),
-			emitTo: vi.fn(),
-			TauriEvent: {},
-		}));
 		mock.module("svelte-sonner", () => ({
 			toast: {
 				error: vi.fn(),
@@ -277,34 +256,10 @@ describe("VoiceInputState", () => {
 			COMMANDS: {},
 		}));
 
-		const invokeMock = vi.fn((cmd: string, args?: Record<string, unknown>) => {
-			switch (cmd) {
-				case "voice_cancel_recording":
-					return unwrapEffect(cancelRecordingMock(args?.sessionId));
-				case "voice_get_model_status":
-					return unwrapEffect(getModelStatusMock(args?.modelId));
-				case "voice_start_recording":
-					return unwrapEffect(startRecordingMock(args?.sessionId));
-				case "voice_load_model":
-					return unwrapEffect(loadModelMock(args?.modelId));
-				case "voice_download_model":
-					return unwrapEffect(downloadModelMock(args?.modelId));
-				case "voice_stop_recording":
-					return unwrapEffect(stopRecordingMock(args?.sessionId, args?.language ?? null));
-				default:
-					throw new Error(`Unexpected Tauri command: ${cmd}`);
-			}
-		});
-
-		(globalThis as TauriWindow).window = {
-			__TAURI_INTERNALS__: {
-				invoke: invokeMock,
-			},
-		} as unknown as TauriWindow["window"];
+		(globalThis as { window?: unknown }).window = {};
 
 		({ VoiceInputState } = await import("../voice-input-state.svelte.js"));
 
-		listenMock.mockResolvedValue(() => undefined);
 		cancelRecordingMock.mockReturnValue(Effect.succeed(undefined));
 		startRecordingMock.mockReturnValue(Effect.succeed(undefined));
 		loadModelMock.mockReturnValue(Effect.succeed(undefined));

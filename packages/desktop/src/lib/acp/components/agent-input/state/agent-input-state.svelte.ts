@@ -2,8 +2,6 @@ import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import { SvelteMap } from "svelte/reactivity";
 
-import { getZoomService } from "$lib/services/zoom.svelte.js";
-import { listenIfTauri } from "$lib/utils/electrobun-window-shims.js";
 import { fileIndex } from "$lib/utils/tauri-client/file-index.js";
 import { LOGGER_IDS } from "../../../constants/logger-ids.js";
 import type { PanelStore } from "../../../store/panel-store.svelte.js";
@@ -34,9 +32,6 @@ import {
 import type { Attachment } from "../types/attachment.js";
 import type { DropdownPosition } from "../types/dropdown-position.js";
 import type { InlineImageReference } from "../types/inline-image-reference.js";
-import { TauriDragDropController } from "./tauri-drag-drop-controller.svelte.js";
-
-const DRAG_DROP_LISTENER_START_DELAY_MS = 100;
 
 /**
  * Type for slash command dropdown component instance.
@@ -214,9 +209,6 @@ export class AgentInputState {
 	private readonly inlineTextById = new SvelteMap<string, string>();
 	private readonly inlineImageById = new SvelteMap<string, InlineImageReference>();
 
-	private readonly dragDropController: TauriDragDropController;
-	private dragDropStartTimer: ReturnType<typeof setTimeout> | null = null;
-
 	/**
 	 * Creates a new AgentInputState instance.
 	 *
@@ -233,46 +225,6 @@ export class AgentInputState {
 		this.store = store;
 		this.panelStore = panelStore;
 		this.projectPathGetter = projectPathGetter;
-		this.dragDropController = new TauriDragDropController({
-			// No Electrobun-side drag-drop event bridge exists yet -- listenIfTauri
-			// degrades to "never fires" there instead of throwing on
-			// window.__TAURI_INTERNALS__.transformCallback (see
-			// electrobun-window-shims.ts).
-			listen: listenIfTauri,
-			callbacks: {
-				onDragOver: (position) => {
-					this.isDragActive = true;
-					this.isDragHovering = this.isPositionInBounds(position);
-				},
-				onDrop: async (paths) => {
-					const wasHovering = this.isDragHovering;
-					this.isDragActive = false;
-					this.isDragHovering = false;
-
-					if (!wasHovering) {
-						return;
-					}
-
-					for (const filePath of paths) {
-						const fileName = filePath.split("/").pop() ?? filePath;
-						const extension = fileName.split(".").pop()?.toLowerCase() ?? "";
-
-						const imageExtensions = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "ico"];
-						if (imageExtensions.includes(extension)) {
-							const token = toInlineTokenText("image", filePath);
-							this.insertInlineTokenAtEditor(token);
-						}
-					}
-
-					this.editorRef?.focus();
-					this.textareaRef?.focus();
-				},
-				onDragLeave: () => {
-					this.isDragActive = false;
-					this.isDragHovering = false;
-				},
-			},
-		});
 	}
 
 	/**
@@ -289,54 +241,13 @@ export class AgentInputState {
 
 	/**
 	 * Initializes the state manager.
-	 * Focuses the textarea on mount and sets up Tauri drag-drop listeners.
+	 * Focuses the textarea on mount.
 	 */
 	initialize(): void {
 		// Focus textarea on mount
 		setTimeout(() => {
 			this.focusInput();
 		}, 0);
-
-		this.scheduleDragDropListenerStart();
-	}
-
-	private scheduleDragDropListenerStart(): void {
-		if (this.dragDropStartTimer !== null) {
-			return;
-		}
-		this.dragDropStartTimer = setTimeout(() => {
-			this.dragDropStartTimer = null;
-			this.dragDropController.start();
-		}, DRAG_DROP_LISTENER_START_DELAY_MS);
-	}
-
-	/**
-	 * Checks if a position is within the container element's bounds.
-	 * Native Tauri drag coordinates are reported in logical window pixels, so
-	 * the DOM rect must be scaled out of CSS pixels before hit-testing.
-	 */
-	private isPositionInBounds(position: { x: number; y: number }): boolean {
-		if (!this.containerRef) return false;
-		const rect = this.containerRef.getBoundingClientRect();
-		const zoomLevel = getZoomService().zoomLevel;
-		const normalizedZoomLevel = Number.isFinite(zoomLevel) && zoomLevel > 0 ? zoomLevel : 1;
-		const left = rect.left * normalizedZoomLevel;
-		const right = rect.right * normalizedZoomLevel;
-		const top = rect.top * normalizedZoomLevel;
-		const bottom = rect.bottom * normalizedZoomLevel;
-
-		return position.x >= left && position.x <= right && position.y >= top && position.y <= bottom;
-	}
-
-	/**
-	 * Cleans up resources including Tauri event listeners.
-	 */
-	destroy(): void {
-		if (this.dragDropStartTimer !== null) {
-			clearTimeout(this.dragDropStartTimer);
-			this.dragDropStartTimer = null;
-		}
-		this.dragDropController.destroy();
 	}
 
 	// ============================================
@@ -1065,7 +976,6 @@ export class AgentInputState {
 	/**
 	 * Handles drop events for images.
 	 * Inserts inline image tokens into the composer editor.
-	 * Note: File drops from Finder are handled by Tauri events, not DOM events.
 	 *
 	 * @param event - The drop event
 	 */

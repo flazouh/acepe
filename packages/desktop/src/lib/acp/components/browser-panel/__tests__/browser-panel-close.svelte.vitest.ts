@@ -33,19 +33,6 @@ vi.mock("$lib/utils/tauri-client/browser-webview.js", () => ({
 	browserWebview: browserWebviewMock,
 }));
 
-vi.mock("@tauri-apps/api/window", () => ({
-	getCurrentWindow: () => ({
-		innerPosition: async () => ({ x: 0, y: 0 }),
-		scaleFactor: async () => 1,
-	}),
-}));
-
-vi.mock("@tauri-apps/api/webview", () => ({
-	getCurrentWebview: () => ({
-		position: async () => ({ x: 0, y: 0 }),
-	}),
-}));
-
 vi.mock("$lib/services/zoom.svelte.js", () => ({
 	getZoomService: () => ({
 		zoomLevel: 1,

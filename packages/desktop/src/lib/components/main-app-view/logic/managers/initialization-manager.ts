@@ -60,11 +60,8 @@ import type { Agent } from "$lib/acp/store/types.js";
 import type { WorkspaceStore } from "$lib/acp/store/workspace-store.svelte.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import type { KeybindingsService } from "$lib/keybindings/service.svelte.js";
-import type { UserSettingKey } from "$lib/services/user-settings-types.js";
 import { getZoomService } from "$lib/services/zoom.svelte.js";
-import { listenIfTauri, type UnlistenFn } from "$lib/utils/electrobun-window-shims.js";
 import { history } from "$lib/utils/tauri-client/history.js";
-import { settings } from "$lib/utils/tauri-client/settings.js";
 import type { MainAppViewState } from "../main-app-view-state.svelte.js";
 import { openPersistedSession } from "../open-persisted-session.js";
 
@@ -72,7 +69,6 @@ const logger = createLogger({
 	id: "initialization-manager",
 	name: "InitializationManager",
 });
-const HAS_SEEN_SPLASH_KEY: UserSettingKey = "has_seen_splash";
 const HAS_SEEN_SPLASH_HOT_CACHE_KEY = "acepe.has_seen_splash.hot_cache";
 const SESSION_OPEN_TIMEOUT_MS = 30_000;
 const POST_STARTUP_IDLE_WORK_DELAY_MS = 5_000;
@@ -176,32 +172,12 @@ function scheduleImmediatePostStartupWork(callback: () => void): void {
 	setTimeout(callback, 0);
 }
 
-type TauriWindow = Window & {
-	__TAURI_INTERNALS__?: {
-		invoke?: (...args: never[]) => Promise<never>;
-	};
-};
-
 type ProjectManagerLike = Pick<
 	ProjectManager,
 	"loadProjects" | "projectCount" | "projects" | "projectStorageFresh" | "mergeLibraryProjects"
 > & {
 	triggerProjectIconBackfill?: () => void;
 };
-
-function readSplashSeenHotCache(): boolean | null {
-	if (typeof localStorage === "undefined") {
-		return null;
-	}
-	const cached = localStorage.getItem(HAS_SEEN_SPLASH_HOT_CACHE_KEY);
-	if (cached === "true") {
-		return true;
-	}
-	if (cached === "false") {
-		return false;
-	}
-	return null;
-}
 
 export function writeSplashSeenHotCache(seen: boolean): void {
 	if (typeof localStorage === "undefined") {
@@ -215,9 +191,6 @@ export function writeSplashSeenHotCache(seen: boolean): void {
  */
 export class InitializationManager {
 	private splashResolutionPromise: Promise<void> | null = null;
-	private historyIndexUnlisten: UnlistenFn | null = null;
-	private historyIndexListenerGeneration = 0;
-	private historyIndexListenerPending = false;
 	private readonly startupTraceEntries: MutableStartupPerformanceTraceEntry[] = [];
 
 	/**
@@ -429,57 +402,12 @@ export class InitializationManager {
 
 		const traceIndex = this.beginStartupTrace("resolveSplashScreen");
 
-		if (!this.hasTauriInvoke()) {
-			this.state.showSplash = false;
-			this.finishStartupTrace(traceIndex, "ok", null);
-			this.splashResolutionPromise = Promise.resolve();
-			return this.splashResolutionPromise;
-		}
-
-		const cachedSeen = readSplashSeenHotCache();
-		if (cachedSeen !== null) {
-			this.state.showSplash = !cachedSeen;
-			this.finishStartupTrace(traceIndex, "ok", null);
-			this.splashResolutionPromise = Promise.resolve();
-			this.schedulePostStartupWork(() => {
-				void Effect.runPromise(
-					this.traceStartupResult(
-						"background:reconcileSplashSeenHotCache",
-						settings.getRaw(HAS_SEEN_SPLASH_KEY).pipe(
-							Effect.map((value) => {
-								const persistedSeen = value === "true";
-								writeSplashSeenHotCache(persistedSeen);
-								if (this.state.showSplash !== !persistedSeen) {
-									this.state.showSplash = !persistedSeen;
-								}
-								return undefined;
-							}),
-							Effect.catch((error) => {
-								logger.warn("Failed to reconcile splash screen hot cache", { error });
-								return Effect.succeed(undefined);
-							})
-						)
-					)
-				);
-			});
-			return this.splashResolutionPromise;
-		}
-
-		this.splashResolutionPromise = Effect.runPromise(settings.getRaw(HAS_SEEN_SPLASH_KEY))
-			.then((value) => {
-				// Show splash if value is not "true"
-				const seen = value === "true";
-				this.state.showSplash = !seen;
-				writeSplashSeenHotCache(seen);
-				this.finishStartupTrace(traceIndex, "ok", null);
-			})
-			.catch((error: Error) => {
-				logger.warn("Failed to check splash screen setting", { error });
-				// On error, show splash to be safe
-				this.state.showSplash = true;
-				this.finishStartupTrace(traceIndex, "error", this.describeStartupTraceError(error));
-			});
-
+		// Startup never opens the splash screen. The welcome flow in
+		// main-app-view.svelte is the only thing that sets showSplash to true,
+		// and it writes the seen-splash hot cache itself when it closes.
+		this.state.showSplash = false;
+		this.finishStartupTrace(traceIndex, "ok", null);
+		this.splashResolutionPromise = Promise.resolve();
 		return this.splashResolutionPromise;
 	}
 
@@ -541,7 +469,6 @@ export class InitializationManager {
 	}
 
 	private loadBasicMetadataAfterStartup(restoredSessionIds: string[]): void {
-		this.installHistoryIndexListener();
 		const restoredProjectPaths = Array.from(
 			new Set(
 				this.panelStore.panels
@@ -580,56 +507,6 @@ export class InitializationManager {
 				)
 			)
 		);
-	}
-
-	private installHistoryIndexListener(): void {
-		if (
-			!this.hasTauriInvoke() ||
-			this.historyIndexUnlisten !== null ||
-			this.historyIndexListenerPending
-		)
-			return;
-		this.historyIndexListenerPending = true;
-		const generation = ++this.historyIndexListenerGeneration;
-		void listenIfTauri<{ projectPaths: string[]; revision: number }>(
-			"history-index-changed",
-			() => {
-				void Effect.runPromise(
-					history.invalidateHistoryCache().pipe(
-						Effect.flatMap(() => this.scanStartupSessionHistory()),
-						Effect.match({
-							onSuccess: () => undefined,
-							onFailure: (error) =>
-								logger.warn("Failed to refresh canonical session summaries", { error }),
-						})
-					)
-				);
-			}
-		)
-			.then((unlisten) => {
-				this.historyIndexListenerPending = false;
-				if (generation !== this.historyIndexListenerGeneration) {
-					unlisten();
-					return;
-				}
-				this.historyIndexUnlisten = unlisten;
-				void Effect.runPromise(
-					history.invalidateHistoryCache().pipe(
-						Effect.flatMap(() => this.scanStartupSessionHistory()),
-						Effect.match({
-							onSuccess: () => undefined,
-							onFailure: (error) =>
-								logger.warn("Failed to reconcile history after listener install", { error }),
-						})
-					)
-				);
-			})
-			.catch((error: Error) => {
-				if (generation === this.historyIndexListenerGeneration) {
-					this.historyIndexListenerPending = false;
-				}
-				logger.warn("Failed to install history index listener", { error });
-			});
 	}
 
 	private scheduleStartupSessionHistoryScan(): void {
@@ -686,8 +563,7 @@ export class InitializationManager {
 	// present in the sidebar from the first paint, and survives the disk
 	// scan's per-project pruning (it's seeded with sessionLifecycleState
 	// "created", which refreshSessionsFromScan always preserves). Runs on
-	// every call site of scanStartupSessionHistory, including the
-	// history-index-changed reconciliation, not just first boot.
+	// every call site of scanStartupSessionHistory.
 	//
 	// Uses catchCause (not catch): a plain `catch` only recovers the typed
 	// error channel, so an unexpected defect thrown out of the projection
@@ -1271,19 +1147,10 @@ export class InitializationManager {
 	 * Cleans up initialization resources.
 	 */
 	cleanup(): void {
-		this.historyIndexListenerGeneration += 1;
-		this.historyIndexListenerPending = false;
-		this.historyIndexUnlisten?.();
-		this.historyIndexUnlisten = null;
 		this.keybindingsService.uninstall();
 		this.state.initializationInProgress = false;
 		this.state.initializationComplete = false;
 		this.state.shellReady = false;
 		this.splashResolutionPromise = null;
-	}
-
-	private hasTauriInvoke(): boolean {
-		const tauriWindow = window as TauriWindow;
-		return typeof tauriWindow.__TAURI_INTERNALS__?.invoke === "function";
 	}
 }

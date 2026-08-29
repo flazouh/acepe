@@ -515,7 +515,7 @@ describe("InitializationManager", () => {
 	});
 
 	describe("resolveSplashScreen", () => {
-		it("treats non-tauri environments as splash already resolved", async () => {
+		it("resolves startup with the splash screen closed", async () => {
 			await manager.resolveSplashScreen();
 
 			expect(mockState.showSplash).toBe(false);
@@ -943,6 +943,7 @@ describe("InitializationManager", () => {
 					deletedAt: null,
 					sessionCount: 1,
 					color: "cyan" as const,
+					showExternalCliSessions: false,
 					gitStatus: [],
 				},
 			];
@@ -980,6 +981,7 @@ describe("InitializationManager", () => {
 					deletedAt: null,
 					sessionCount: 2,
 					color: "cyan" as const,
+					showExternalCliSessions: false,
 					gitStatus: [],
 				},
 			];
@@ -1020,6 +1022,7 @@ describe("InitializationManager", () => {
 					deletedAt: null,
 					sessionCount: 1,
 					color: "cyan" as const,
+					showExternalCliSessions: false,
 					gitStatus: [],
 				},
 			];

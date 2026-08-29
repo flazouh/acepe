@@ -5,13 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
 	installAgent: vi.fn(),
 	listAgents: vi.fn(),
-	listen: vi.fn(),
 	toastError: vi.fn(),
 	uninstallAgent: vi.fn(),
-}));
-
-vi.mock("@tauri-apps/api/event", () => ({
-	listen: mocks.listen,
 }));
 
 vi.mock("svelte-sonner", () => ({
@@ -34,7 +29,6 @@ import { AgentStore } from "../agent-store.svelte.js";
 describe("AgentStore installAgent", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		mocks.listen.mockResolvedValue(vi.fn());
 	});
 
 	it("returns success only after the installed availability has refreshed", async () => {

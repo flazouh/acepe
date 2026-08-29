@@ -10,8 +10,6 @@ const logger = createLogger({
 	name: "Electrobun Window Shims",
 });
 
-export type UnlistenFn = () => void;
-
 export function runningUnderElectrobun(): boolean {
 	if (typeof window === "undefined") {
 		return true;
@@ -41,14 +39,6 @@ export function checkForUpdate(): Promise<Update | null> {
 export function getAppVersion(): Promise<string | null> {
 	logger.info("getAppVersion has no Electrobun source yet");
 	return Promise.resolve(null);
-}
-
-export function listenIfTauri<T>(
-	event: string,
-	_handler: (event: { payload: T }) => void
-): Promise<UnlistenFn> {
-	logger.info("listenIfTauri is a no-op (no Tauri event bridge)", { event });
-	return Promise.resolve(() => undefined);
 }
 
 export type { DownloadEvent };

@@ -5,31 +5,18 @@
  * (Claude Code, Cursor, OpenCode, etc.) that can be used in the application.
  */
 
-import { fromPromise } from "@acepe/effect-result/fromPromise";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import { getContext, setContext } from "svelte";
 import { toast } from "svelte-sonner";
 
-import { listenIfTauri } from "$lib/utils/electrobun-window-shims.js";
-import { AgentError, type AppError } from "../errors/app-error.js";
+import type { AppError } from "../errors/app-error.js";
 import { createLogger } from "../utils/logger.js";
 import { api } from "./api.js";
 import type { Agent } from "./types.js";
 
 const AGENT_STORE_KEY = Symbol("agent-store");
 const logger = createLogger({ id: "agent-store", name: "AgentStore" });
-
-/** Event name for install progress (must match Rust INSTALL_PROGRESS_EVENT). */
-const INSTALL_PROGRESS_EVENT = "agent-install:progress";
-
-/** Progress event payload from Rust agent_installer */
-interface AgentInstallProgress {
-	agent_id: string;
-	stage: string;
-	progress: number | null;
-	message: string;
-}
 
 export type AgentInstallationReadiness =
 	| { readonly status: "pending" }
@@ -43,38 +30,6 @@ export class AgentStore {
 	installing = $state<Record<string, { stage: string; progress: number }>>({});
 	/** Keeps every picker behind the post-install capability-catalog barrier. */
 	installationReadiness = $state<Record<string, AgentInstallationReadiness>>({});
-
-	private unlistenProgress: (() => void) | null = null;
-	/** Resolves when the progress event listener is registered. */
-	private listenerReady: Promise<void>;
-
-	constructor() {
-		this.listenerReady = this.listenToProgressEvents();
-	}
-
-	private async listenToProgressEvents(): Promise<void> {
-		// No Electrobun-side agent-install progress channel exists yet
-		// (listenIfTauri degrades to "never fires" there instead of throwing on
-		// window.__TAURI_INTERNALS__.transformCallback -- see
-		// electrobun-window-shims.ts). installing/installationReadiness simply
-		// never update under Electrobun today.
-		const unlisten = await listenIfTauri<AgentInstallProgress>(INSTALL_PROGRESS_EVENT, (event) => {
-			const { agent_id, stage, progress, message } = event.payload;
-			logger.debug("Install progress", { agent_id, stage, progress, message });
-
-			if (stage === "complete") {
-				// Remove from installing state
-				const { [agent_id]: _, ...rest } = this.installing;
-				this.installing = rest;
-			} else {
-				this.installing = {
-					...this.installing,
-					[agent_id]: { stage, progress: progress ?? 0 },
-				};
-			}
-		});
-		this.unlistenProgress = unlisten;
-	}
 
 	/**
 	 * Load available agents from the backend.
@@ -114,18 +69,17 @@ export class AgentStore {
 	 * Install an automatically provisioned agent.
 	 */
 	installAgent(agentId: string): Effect.Effect<void, AppError> {
-		return fromPromise(
-			() => this.listenerReady,
-			() => new AgentError("register install progress listener")
-		).pipe(
-			Effect.flatMap(() => {
-				logger.info("Installing agent", { agentId });
-				this.installing[agentId] = { stage: "starting", progress: 0 };
-				return api.installAgent(agentId);
-			}),
+		return Effect.suspend(() => {
+			logger.info("Installing agent", { agentId });
+			this.installing[agentId] = { stage: "starting", progress: 0 };
+			return api.installAgent(agentId);
+		}).pipe(
 			Effect.flatMap(() =>
 				this.loadAvailableAgents().pipe(
 					Effect.map(() => {
+						// Nothing else clears this: the "complete" progress event
+						// that used to do it had no channel to arrive on.
+						delete this.installing[agentId];
 						logger.info("Agent installed successfully", { agentId });
 					})
 				)
@@ -196,10 +150,6 @@ export class AgentStore {
 
 	getProviderMetadata(agentId: string | null | undefined): Agent["providerMetadata"] | null {
 		return this.getAgent(agentId)?.providerMetadata ?? null;
-	}
-
-	destroy() {
-		this.unlistenProgress?.();
 	}
 }
 

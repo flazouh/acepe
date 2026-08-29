@@ -20,14 +20,6 @@ import { describe, expect, it, mock } from "bun:test";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 
-// Must appear before any import that transitively loads @tauri-apps/api modules.
-mock.module("@tauri-apps/api/core", () => ({
-	invoke: mock(() => Promise.resolve(undefined)),
-}));
-mock.module("@tauri-apps/api/event", () => ({
-	listen: mock(async () => () => {}),
-}));
-
 import type { SessionEntry } from "../../../../application/dto/session-entry.js";
 import { materializeAgentPanelSceneFromGraph } from "../../../../session-state/agent-panel-graph-materializer.js";
 import type { PanelStore } from "../../../../store/panel-store.svelte.js";
