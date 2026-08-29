@@ -36,7 +36,7 @@ this.acp.setModel(...).mapErr(...);
 
 // From i18n/store.svelte.ts:59
 // Persist to database (fire-and-forget)
-tauriClient.settings.setAppSettings(...);
+backendClient.settings.setAppSettings(...);
 ```
 
 ## Proposed Solutions

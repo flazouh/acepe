@@ -31,7 +31,6 @@
 		"lint": "biome check . && bun run check:diagnostic-import-boundary",
 		"lint:effect": "echo 'desktop Effect lint is report-only until AC-051; run lint:effect:report to see it'",
 		"lint:fix": "biome check --fix . && bun run check:diagnostic-import-boundary",
-		"storage:prune": "bash scripts/prune-storage.sh",
 		"lint:effect:report": "effect-language-service diagnostics --project tsconfig.json --strict --format pretty",
 		"lint:effect:ratchet": "bun run scripts/check-effect-lint-ratchet.ts",
 		"qa:bless": "bun run scripts/bless-scenario-transcripts.ts"

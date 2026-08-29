@@ -84,7 +84,7 @@ _To be filled during triage_
 **Affected Files:**
 
 - `packages/desktop/src-tauri/src/checkpoint/commands.rs`
-- `packages/desktop/src/lib/utils/tauri-client.ts`
+- `packages/desktop/src/lib/utils/backend-client.ts`
 
 **Database Changes:** None
 

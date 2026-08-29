@@ -6,7 +6,7 @@
  * `lint:effect` stays report-only for now. This ratchet freezes today's
  * count as a ceiling: a batch that adds violations fails the check, and a
  * batch that fixes violations must lower BASELINE to match — same as
- * check-tauri-client-importers.ts, except this ratchet is also honest in
+ * the deleted importer ratchet, except this one is also honest in
  * the other direction: it fails when the count drops below BASELINE too, so
  * a fix can't silently coast on a stale ceiling.
  */
@@ -41,7 +41,7 @@ import { resolve } from "node:path";
 // effect(globalDate) (same pattern as the 6584 -> 6586 bump above); one new
 // `new Date(iso)` expectation fixture in project-manager.test.ts trips
 // effect(globalDate) too. All three are test-file style, not production code.
-// 6600 -> 6579: the Tauri/Rust removal (3ba1a1639..986b03cd4) deleted
+// 6600 -> 6579: the native-runtime removal (3ba1a1639..986b03cd4) deleted
 // desktop files that carried violations. NOTE: the count includes svelte-kit
 // generated files, so run after `svelte-kit sync`/a build for a stable read.
 // 6579 -> 6599: composite of the project-color/zoom/submit-intent feature
