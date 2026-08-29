@@ -55,7 +55,13 @@ async function loadDiff() {
 				})
 			)
 		);
-	} else if (reference.type === "pr" && reference.owner && reference.repo && reference.number) {
+	} else if (
+		reference.type === "pr" &&
+		projectPath &&
+		reference.owner &&
+		reference.repo &&
+		reference.number
+	) {
 		await Effect.runPromise(
 			fetchPrDiff(projectPath, reference.owner, reference.repo, reference.number).pipe(
 				Effect.match({

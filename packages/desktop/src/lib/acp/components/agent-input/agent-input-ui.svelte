@@ -264,6 +264,7 @@ const voiceToolbarBinding = $derived.by(() => {
 	if (!base) return null;
 	return {
 		phase: base.phase,
+		errorMessage: base.errorMessage,
 		recordingElapsedTenths: base.recordingElapsedTenths,
 		downloadPercent: base.downloadPercent,
 		meterLevels: base.meterLevels,
