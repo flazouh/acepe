@@ -138,6 +138,7 @@ Shared UI follows a View–Model–Controller split across packages. **Invoke `e
 
 - NEVER run `git stash` without explicit user consent.
 - NEVER set `core.bare=true` in this repository's root `.git/config` or otherwise convert this checkout into a bare repository. If bare-style workflows are needed, use a separate bare mirror or linked worktree instead of changing the active checkout.
+- **Commit with an explicit pathspec: `git commit -- <paths>`.** Several agents write to this checkout at once and they share one index, so `git add` does not reserve anything: `git commit` takes whatever is staged, including work another session staged seconds earlier. Three sessions swept each other's changes into unrelated commits in one evening this way. Reading `git diff --cached --name-status` immediately before committing catches the same thing. When it happens anyway, tell the owning session rather than rewriting a commit already on `main` under people who are still working.
 
 ## Detailed Guides
 
