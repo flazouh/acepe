@@ -38,6 +38,7 @@ import {
 	dismissNotification,
 	dismissWhere,
 	getActiveCount,
+	getNotifications,
 	handleNotificationAction,
 	PERMISSION_ACTIONS,
 	QUESTION_ACTIONS,
@@ -191,7 +192,7 @@ describe("notification-service", () => {
 		expect(getActiveCount()).toBe(1);
 	});
 
-	it("plays the achievement sound when a notification is shown", () => {
+	it("shows a notification without playing a sound", () => {
 		const payload: NotificationPayload = {
 			id: "perm-sound-1",
 			type: "permission",
@@ -205,8 +206,10 @@ describe("notification-service", () => {
 			categoryEnabled: true,
 		});
 
-		expect(playSoundMock).toHaveBeenCalledTimes(1);
-		expect(playSoundMock).toHaveBeenCalledWith("achievement.wav");
+		expect(getNotifications().some((notification) => notification.id === "perm-sound-1")).toBe(
+			true
+		);
+		expect(playSoundMock).not.toHaveBeenCalled();
 	});
 
 	it("skips notification when window is focused", () => {

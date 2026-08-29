@@ -9,9 +9,7 @@ import { fromPromise } from "@acepe/effect-result/fromPromise";
 import { fromThrowable } from "@acepe/effect-result/fromThrowable";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
-import { SoundEffect } from "$lib/acp/types/sounds.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
-import { playSound } from "$lib/acp/utils/sound.js";
 import {
 	getNotificationPermission,
 	requestNotificationPermission,
@@ -74,7 +72,6 @@ type NativeNotificationPermission = "unknown" | "granted" | "denied";
 type NativeNotificationPermissionState = "default" | "denied" | "granted";
 
 let notifications: ActiveNotification[] = [];
-let lastSoundTime = 0;
 let nativeNotificationPermission: NativeNotificationPermission = "unknown";
 
 const defaultNotificationRuntime: NotificationRuntime = {
@@ -89,7 +86,6 @@ const defaultNotificationRuntime: NotificationRuntime = {
 
 let notificationRuntime: NotificationRuntime = defaultNotificationRuntime;
 
-const SOUND_DEBOUNCE_MS = 2000;
 const MAX_NOTIFICATIONS = 6;
 
 // ── Public API ─────────────────────────────────────────────────────────
@@ -114,12 +110,10 @@ export function showNotification(
 
 	if (useNativeNotification) {
 		maybeSendNativeNotification(payload, onAction);
-		maybePlaySound();
 		return;
 	}
 
 	addInAppNotification(payload, onAction);
-	maybePlaySound();
 }
 
 /**
@@ -181,13 +175,11 @@ export function getActiveCount(): number {
 export function setNotificationRuntimeForTesting(runtime: NotificationRuntime): void {
 	notificationRuntime = runtime;
 	nativeNotificationPermission = "unknown";
-	lastSoundTime = 0;
 }
 
 export function resetNotificationRuntimeForTesting(): void {
 	notificationRuntime = defaultNotificationRuntime;
 	nativeNotificationPermission = "unknown";
-	lastSoundTime = 0;
 }
 
 // ── Internal ───────────────────────────────────────────────────────────
@@ -268,10 +260,3 @@ function ensureNativeNotificationPermission(): Effect.Effect<boolean, Error> {
 	);
 }
 
-function maybePlaySound(): void {
-	const now = Date.now();
-	if (now - lastSoundTime > SOUND_DEBOUNCE_MS) {
-		playSound(SoundEffect.Achievement);
-		lastSoundTime = now;
-	}
-}
