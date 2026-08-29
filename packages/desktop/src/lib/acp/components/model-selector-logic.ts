@@ -128,6 +128,7 @@ export interface ModelGroup {
 /**
  * Fallback grouping when backend display groups are unavailable.
  * Keeps the UI usable without inferring provider/product meaning from raw IDs.
+ * The catalog order is the provider's own ranking, so it is preserved as-is.
  */
 export function groupModelsForFallback(models: readonly Model[]): ModelGroup[] {
 	const validModels = models.filter((m) => m.id);
@@ -138,9 +139,7 @@ export function groupModelsForFallback(models: readonly Model[]): ModelGroup[] {
 	return [
 		{
 			label: "",
-			models: Array.from(validModels).sort((a, b) =>
-				(a.name ?? a.id).localeCompare(b.name ?? b.id, undefined, { sensitivity: "base" })
-			),
+			models: validModels,
 		},
 	];
 }

@@ -271,25 +271,31 @@ describe("model-selector-logic", () => {
 				{
 					label: "",
 					models: [
+						{ id: "openai/gpt-4", name: "GPT-4", description: undefined },
 						{ id: "anthropic/claude", name: "Claude", description: undefined },
 						{ id: "google/gemini", name: "Gemini", description: undefined },
-						{ id: "openai/gpt-4", name: "GPT-4", description: undefined },
 					],
 				},
 			]);
 		});
 
-		it("sorts fallback models alphabetically by name", () => {
+		it("preserves the provider's published catalog order instead of sorting alphabetically", () => {
+			// The provider ranks its catalog on purpose (best model first).
+			// Alphabetical order would render Haiku, Opus, Sonnet.
 			const models: Model[] = [
-				{ id: "anthropic/claude-4", name: "Claude 4", description: undefined },
-				{ id: "anthropic/claude-2", name: "Claude 2", description: undefined },
-				{ id: "anthropic/claude-3", name: "Claude 3", description: undefined },
+				{ id: "qa-opus-9", name: "QA Opus 9", description: undefined },
+				{ id: "qa-sonnet-9", name: "QA Sonnet 9", description: undefined },
+				{ id: "qa-haiku-9", name: "QA Haiku 9", description: undefined },
 			];
 
 			const result = groupModelsForFallback(models);
 
 			expect(result).toHaveLength(1);
-			expect(result[0].models.map((m) => m.name)).toEqual(["Claude 2", "Claude 3", "Claude 4"]);
+			expect(result[0].models.map((m) => m.name)).toEqual([
+				"QA Opus 9",
+				"QA Sonnet 9",
+				"QA Haiku 9",
+			]);
 		});
 
 		it("filters out models with undefined modelId", () => {

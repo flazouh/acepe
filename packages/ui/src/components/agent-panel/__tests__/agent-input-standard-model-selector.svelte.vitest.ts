@@ -75,6 +75,62 @@ describe("AgentInputStandardModelSelector", () => {
 		expect(onSelect).toHaveBeenCalledWith("gpt-5");
 	});
 
+	it("marks the current model as checked so the open menu shows the selection", () => {
+		const view = render(AgentInputStandardModelSelector, {
+			open: true,
+			triggerLabel: "QA Sonnet 9",
+			currentModelId: "qa-sonnet-9",
+			totalModelCount: 3,
+			filteredGroups: [
+				{
+					label: "",
+					items: [
+						{ id: "qa-opus-9", name: "QA Opus 9" },
+						{ id: "qa-sonnet-9", name: "QA Sonnet 9" },
+						{ id: "qa-haiku-9", name: "QA Haiku 9" },
+					],
+				},
+			],
+			onSelect: vi.fn(),
+		});
+
+		const rows = view.getAllByRole("menuitemradio");
+		expect(rows).toHaveLength(3);
+		const checkedStates = rows.map((row) => [
+			(row.textContent ?? "").trim(),
+			row.getAttribute("aria-checked"),
+		]);
+		expect(checkedStates).toEqual([
+			["QA Opus 9", "false"],
+			["QA Sonnet 9", "true"],
+			["QA Haiku 9", "false"],
+		]);
+	});
+
+	it("still selects a model from a checked radio row", async () => {
+		const onSelect = vi.fn();
+		const view = render(AgentInputStandardModelSelector, {
+			open: true,
+			triggerLabel: "QA Sonnet 9",
+			currentModelId: "qa-sonnet-9",
+			totalModelCount: 2,
+			filteredGroups: [
+				{
+					label: "",
+					items: [
+						{ id: "qa-opus-9", name: "QA Opus 9" },
+						{ id: "qa-sonnet-9", name: "QA Sonnet 9" },
+					],
+				},
+			],
+			onSelect,
+		});
+
+		await fireEvent.click(view.getByText("QA Opus 9"));
+
+		expect(onSelect).toHaveBeenCalledWith("qa-opus-9");
+	});
+
 	it("shows provider tabs and only the active provider models", async () => {
 		const onProviderChange = vi.fn();
 		const view = render(AgentInputStandardModelSelector, {
@@ -158,7 +214,7 @@ describe("AgentInputStandardModelSelector", () => {
 			onDefaultModelToggle: vi.fn(),
 		});
 
-		const rows = view.getAllByRole("menuitem").map((row) => (row.textContent ?? "").trim());
+		const rows = view.getAllByRole("menuitemradio").map((row) => (row.textContent ?? "").trim());
 		expect(rows).toEqual(["Fable 5", "Opus 4.8", "Opus[1m]"]);
 		expect(view.getAllByText("Opus 4.8")).toHaveLength(1);
 		expect(view.getByRole("button", { name: "Clear Opus 4.8 as default model" })).toBeTruthy();

@@ -181,12 +181,13 @@
 					{/each}
 				</div>
 			{/if}
+			<DropdownMenu.RadioGroup value={currentModelId ?? ""} class="contents">
 			{#if showFavoriteActions && favoriteModels.length > 0 && !searchQuery}
 				<div class="flex flex-col gap-0.5 bg-popover px-0 pb-0.5">
 					{#each favoriteModels as item (item.id)}
 						<SelectorItem
 							label={item.name}
-							selected={item.id === currentModelId}
+							radioValue={item.id}
 							onSelect={() => onSelect(item.id)}
 						>
 							{#snippet leading()}
@@ -244,7 +245,7 @@
 					{#each group.items as item (item.id)}
 						<SelectorItem
 							label={item.name}
-							selected={item.id === currentModelId}
+							radioValue={item.id}
 							onSelect={() => onSelect(item.id)}
 						>
 							{#snippet leading()}
@@ -281,6 +282,7 @@
 					{/if}
 				{/each}
 			</div>
+			</DropdownMenu.RadioGroup>
 			</SelectorPanel>
 		{/if}
 	</Selector>
