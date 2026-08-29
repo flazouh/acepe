@@ -6,6 +6,10 @@ import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as Path from "effect/Path"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
+import { ProjectionSessionsLive } from "../../persistence/Layers/ProjectionSessions.ts"
+import { makeSqliteLayer } from "../../persistence/Layers/Sqlite.ts"
+import { runMigrations } from "../../persistence/Migrations.ts"
 import { pathToSlug } from "./Roots.ts"
 import { ProviderSessionDiscovery, ProviderSessionDiscoveryLive } from "./ProviderSessionDiscovery.ts"
 
@@ -28,13 +32,75 @@ const writeSession = Effect.fn("writeSession")(function*(
 	)
 })
 
+const NOW = "2026-08-29T10:00:00.000Z"
+
+// Discovery answers "did Acepe start this?" by joining the scan against
+// projection_sessions, so these tests need a real store rather than a stub:
+// the join is the behaviour under test.
+const TempSqlite = Layer.unwrap(
+	Effect.gen(function*() {
+		const fs = yield* FileSystem.FileSystem
+		const path = yield* Path.Path
+		const dir = yield* fs.makeTempDirectoryScoped()
+		return makeSqliteLayer({ filename: path.join(dir, "discovery.db"), readonly: false })
+	})
+).pipe(Layer.provide(Platform))
+
+const MigratedSqlite = Layer.effectDiscard(runMigrations).pipe(Layer.provideMerge(TempSqlite))
+
+const StoreLive = ProjectionSessionsLive.pipe(Layer.provideMerge(MigratedSqlite))
+
+// The store lives at the suite level so its database outlives each test's
+// own scope; only the discovery service itself is rebuilt per test, which is
+// what the cache assertions below need.
+const SuiteLive = Layer.mergeAll(Platform, StoreLive)
+
 const discoveryLayerFor = (homeDir: string) =>
 	ProviderSessionDiscoveryLive.pipe(
 		Layer.provide(Platform),
 		Layer.provide(ConfigProvider.layer(ConfigProvider.fromEnv({ env: { HOME: homeDir } })))
 	)
 
-Vitest.layer(Platform)("ProviderSessionDiscovery", (it) => {
+/**
+ * Writes the projection row Acepe would hold for a session it started.
+ * `providerSessionId` is the identity the on-disk JSONL carries; a row whose
+ * own `session_id` is the provider id covers the imported-session case.
+ */
+const insertAcepeSession = Effect.fn("insertAcepeSession")(function*(
+	sessionId: string,
+	providerSessionId: string | null
+) {
+	const sql = yield* SqlClient.SqlClient
+	yield* sql`
+		INSERT INTO projection_sessions (
+			session_id,
+			project_id,
+			title,
+			provider,
+			created_at,
+			updated_at,
+			last_activity_at,
+			archived_at,
+			deleted_at,
+			provider_session_id,
+			provider_session_failed
+		) VALUES (
+			${sessionId},
+			${"project-acme"},
+			${"Acepe started this"},
+			${"claude"},
+			${NOW},
+			${NOW},
+			${NOW},
+			NULL,
+			NULL,
+			${providerSessionId},
+			0
+		)
+	`.withoutTransform.pipe(Effect.asVoid)
+})
+
+Vitest.layer(SuiteLive)("ProviderSessionDiscovery", (it) => {
 	it.effect("lists sessions for a project and caches until the directory changes", () =>
 		Effect.gen(function*() {
 			const fs = yield* FileSystem.FileSystem
@@ -107,5 +173,31 @@ Vitest.layer(Platform)("ProviderSessionDiscovery", (it) => {
 			Vitest.assert.deepStrictEqual(projects, [])
 			const sessions = yield* discovery.listSessionsForProject("/Users/example/never-seen")
 			Vitest.assert.deepStrictEqual(sessions, [])
+		}))
+
+	it.effect("marks a session Acepe started as acepe and every other file as external", () =>
+		Effect.gen(function*() {
+			const fs = yield* FileSystem.FileSystem
+			const path = yield* Path.Path
+			const homeDir = yield* fs.makeTempDirectoryScoped()
+			const projectPath = "/Users/example/acme"
+			const projectDir = path.join(homeDir, ".claude", "projects", pathToSlug(projectPath))
+			yield* writeSession(fs, path, projectDir, "own.jsonl", "Acepe started this", "own")
+			yield* writeSession(fs, path, projectDir, "adopted.jsonl", "Acepe adopted this", "adopted")
+			yield* writeSession(fs, path, projectDir, "other.jsonl", "Another terminal wrote this", "other")
+
+			yield* insertAcepeSession("acepe-own", "own")
+			// An imported session carries the provider id as its own id.
+			yield* insertAcepeSession("adopted", null)
+
+			const discovery = yield* ProviderSessionDiscovery.pipe(
+				// @effect-diagnostics-next-line strictEffectProvide:off
+				Effect.provide(discoveryLayerFor(homeDir))
+			)
+			const sessions = yield* discovery.listSessionsForProject(projectPath)
+			const byId = new Map(sessions.map((session) => [session.id, session.origin]))
+			Vitest.assert.strictEqual(byId.get("own"), "acepe")
+			Vitest.assert.strictEqual(byId.get("adopted"), "acepe")
+			Vitest.assert.strictEqual(byId.get("other"), "external")
 		}))
 })

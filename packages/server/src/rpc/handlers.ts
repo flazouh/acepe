@@ -5,6 +5,7 @@ import {
 	decodeSessionId,
 	FileGitStatus,
 	type ImportProviderSessionRequest,
+	type ListProviderSessionsRequest,
 	type OrchestrationCommand,
 	type OrchestrationEvent,
 	type RpcProjectedProject,
@@ -61,6 +62,7 @@ import {
 	ProjectionSnapshotQuery
 } from "../orchestration/Services/ProjectionSnapshotQuery.ts"
 import {
+	DEFAULT_SHOW_EXTERNAL_CLI_SESSIONS,
 	ProjectionProjects,
 	type ProjectionProjectsShape
 } from "../persistence/Services/ProjectionProjects.ts"
@@ -321,8 +323,19 @@ export const toFileIndexRpcError = (error: FileIndexError): RpcServerError => {
 // path that turned out not to be a directory mid-scan); there is no
 // invariant to report separately, so this folds straight into the generic
 // schema-error shape RpcServerError already has for "something unexpected".
-export const toProviderDiscoveryRpcError = (error: PlatformError): RpcServerError =>
-	new RpcSchemaError({ issue: error.message })
+export type ProviderDiscoveryRpcErrorInput = PlatformError | SqlError | Schema.SchemaError
+
+export const toProviderDiscoveryRpcError = (
+	error: ProviderDiscoveryRpcErrorInput
+): RpcServerError => {
+	if (error._tag === "PlatformError") {
+		return new RpcSchemaError({ issue: error.message })
+	}
+	// Reading the projection to tell an Acepe session from an external one
+	// puts the store's own failures on this path too; they map the same way
+	// every other projection read does.
+	return toRpcError(error)
+}
 
 // importProviderSession's error channel is HistoryImportError, a superset of
 // what toRpcError already handles (OrchestrationDispatchError |
@@ -460,7 +473,7 @@ export const dispatchOrchestrationCommand = Effect.fn("dispatchOrchestrationComm
  * on any path on disk, registered or not) falls back to the same default the
  * projection stores for an untouched project: external sessions stay hidden.
  */
-const listProviderSessionsHandler = Effect.fn("listProviderSessionsHandler")(function*(
+export const listProviderSessionsHandler = Effect.fn("listProviderSessionsHandler")(function*(
 	providerDiscovery: ProviderSessionDiscoveryShape,
 	projects: ProjectionProjectsShape,
 	request: ListProviderSessionsRequest

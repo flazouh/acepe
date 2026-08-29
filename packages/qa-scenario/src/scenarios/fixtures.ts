@@ -20,6 +20,7 @@ export const qaProject: RpcProjectedProject = {
 	deletedAt: null,
 	sessionCount: 1,
 	color: "cyan",
+	showExternalCliSessions: false,
 	gitStatus: [],
 }
 

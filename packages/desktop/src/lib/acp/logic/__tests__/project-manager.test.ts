@@ -21,6 +21,7 @@ function libraryProject(overrides: Partial<RpcProjectedProject> = {}): RpcProjec
 		deletedAt: null,
 		sessionCount: 1,
 		color: "cyan",
+		showExternalCliSessions: false,
 		gitStatus: [],
 		...overrides,
 	};

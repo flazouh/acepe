@@ -75,7 +75,10 @@ const ProjectionProjectRow = Schema.Struct({
 	deleted_at: Schema.NullOr(IsoDateTime),
 	session_count: NonNegativeInt,
 	color: Schema.NullOr(ProjectColor),
-	show_external_cli_sessions: Schema.NullOr(SqliteFlag),
+	// A row written before migration 0030 has no such column at all, and the
+	// 0021 colour migration test reads exactly that shape. Absent and null both
+	// mean the project never chose, which is the same as hiding.
+	show_external_cli_sessions: Schema.optionalKey(Schema.NullOr(SqliteFlag)),
 	scan_warmed_at: IsoDateTime
 })
 
@@ -117,7 +120,8 @@ const projectedProjectFromRow = (row: typeof ProjectionProjectRow.Type): Project
 	deletedAt: row.deleted_at,
 	sessionCount: row.session_count,
 	color: row.color ?? defaultProjectColor(row.workspace_root),
-	showExternalCliSessions: row.show_external_cli_sessions === null
+	showExternalCliSessions: row.show_external_cli_sessions === null ||
+			row.show_external_cli_sessions === undefined
 		? DEFAULT_SHOW_EXTERNAL_CLI_SESSIONS
 		: row.show_external_cli_sessions === 1,
 	scanWarmedAt: row.scan_warmed_at

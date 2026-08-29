@@ -217,7 +217,15 @@ const TestLive = RpcHandlersLive.pipe(
 	Layer.provideMerge(ProjectionSnapshotQueryLive),
 	Layer.provideMerge(EngineAndStore),
 	Layer.provideMerge(FileIndexServiceLive),
-	Layer.provideMerge(ProviderSessionDiscoveryLive.pipe(Layer.provide(FileIndexPlatform))),
+	// Discovery now reads projection_sessions to tell an Acepe session from
+	// an external one, so it needs the store provided to it directly -- the
+	// EngineAndStore above it in this pipe does not feed a later entry.
+	Layer.provideMerge(
+		ProviderSessionDiscoveryLive.pipe(
+			Layer.provide(FileIndexPlatform),
+			Layer.provide(ClaudeHistoryProjectionsLive)
+		)
+	),
 	Layer.provideMerge(
 		ClaudeHistoryLive.pipe(
 			Layer.provide(FileIndexPlatform),

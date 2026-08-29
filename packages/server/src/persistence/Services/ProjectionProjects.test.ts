@@ -131,6 +131,7 @@ Vitest.describe("evolveProjectedProjects", () => {
 				deletedAt: null,
 				sessionCount: 0,
 				color: defaultProjectColor("/tmp/acepe"),
+				showExternalCliSessions: false,
 				scanWarmedAt: NOW
 			})
 			Vitest.assert.isTrue(isScanWarmed(project))
