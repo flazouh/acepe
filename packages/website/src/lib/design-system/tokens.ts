@@ -14,6 +14,12 @@ export interface TokenEntry {
 	readonly usage: string;
 	/** Paired foreground token, when the swatch should preview text on it. */
 	readonly on?: string;
+	/**
+	 * Tailwind utility that applies the token. Radius steps live in `@theme
+	 * inline`, which inlines them into utilities instead of emitting runtime
+	 * custom properties, so the preview must use the class and measure back.
+	 */
+	readonly utility?: string;
 }
 
 export interface TokenGroup {
@@ -30,9 +36,17 @@ export const surfaceTokens: TokenGroup = {
 	tokens: [
 		{ name: "background", usage: "App canvas behind everything.", on: "foreground" },
 		{ name: "card", usage: "Raised block: panels, list rows, cards.", on: "card-foreground" },
-		{ name: "popover", usage: "Floating layer: menus, popovers, tooltips.", on: "popover-foreground" },
+		{
+			name: "popover",
+			usage: "Floating layer: menus, popovers, tooltips.",
+			on: "popover-foreground",
+		},
 		{ name: "sidebar", usage: "Navigation rail and session list.", on: "sidebar-foreground" },
-		{ name: "muted", usage: "Recessed fill for inert or secondary blocks.", on: "muted-foreground" },
+		{
+			name: "muted",
+			usage: "Recessed fill for inert or secondary blocks.",
+			on: "muted-foreground",
+		},
 	],
 };
 
@@ -42,7 +56,11 @@ export const actionTokens: TokenGroup = {
 	description: "Interactive fills. Primary carries the brand; the rest step down in weight.",
 	tokens: [
 		{ name: "primary", usage: "Highest-intent action, one per view.", on: "primary-foreground" },
-		{ name: "secondary", usage: "Supporting action next to a primary.", on: "secondary-foreground" },
+		{
+			name: "secondary",
+			usage: "Supporting action next to a primary.",
+			on: "secondary-foreground",
+		},
 		{ name: "accent", usage: "Hover and active fill for ghost controls.", on: "accent-foreground" },
 	],
 };
@@ -52,7 +70,11 @@ export const statusTokens: TokenGroup = {
 	title: "Status",
 	description: "Outcome colours. Never decorative — each one asserts a state.",
 	tokens: [
-		{ name: "destructive", usage: "Errors and irreversible actions.", on: "destructive-foreground" },
+		{
+			name: "destructive",
+			usage: "Errors and irreversible actions.",
+			on: "destructive-foreground",
+		},
 		{ name: "success", usage: "Completed work, passing checks.", on: "success-foreground" },
 		{ name: "build-icon", usage: "Build and tool-run accent." },
 		{ name: "plan-icon", usage: "Plan mode accent." },
@@ -110,10 +132,10 @@ export const colorGroups: readonly TokenGroup[] = [
 ];
 
 export const radiusTokens: readonly TokenEntry[] = [
-	{ name: "radius-sm", usage: "Kbd, tags, dense chips." },
-	{ name: "radius-md", usage: "Buttons, inputs, menu items." },
-	{ name: "radius-lg", usage: "Cards and panels. The base --radius." },
-	{ name: "radius-xl", usage: "Dialogs and large surfaces." },
+	{ name: "radius-sm", usage: "Kbd, tags, dense chips.", utility: "rounded-sm" },
+	{ name: "radius-md", usage: "Buttons, inputs, menu items.", utility: "rounded-md" },
+	{ name: "radius-lg", usage: "Cards and panels. The base --radius.", utility: "rounded-lg" },
+	{ name: "radius-xl", usage: "Dialogs and large surfaces.", utility: "rounded-xl" },
 ];
 
 export const shadowTokens: readonly TokenEntry[] = [

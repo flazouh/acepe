@@ -1,5 +1,6 @@
 <script lang="ts">
 import DsSection from "$lib/design-system/ds-section.svelte";
+import RadiusSample from "$lib/design-system/radius-sample.svelte";
 import { liveToken } from "$lib/design-system/live-token.svelte.js";
 import {
 	durationTokens,
@@ -55,19 +56,11 @@ let replay = $state(0);
 	<DsSection
 		id="radius"
 		title="Radius"
-		description="One base radius drives four steps. Dense controls get less, big surfaces get more."
+		description="One base radius drives four steps. These live in @theme inline, so the value shown is measured off the rendered box, not read from :root."
 	>
 		<div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
 			{#each radiusTokens as token (token.name)}
-				<div class="rounded-lg border border-border/60 bg-card p-3">
-					<div
-						class="h-16 border border-border bg-accent"
-						style:border-radius="var(--{token.name})"
-					></div>
-					<p class="mt-2.5 font-mono text-[11px] font-medium">--{token.name}</p>
-					<p class="font-mono text-[10px] text-muted-foreground">{liveToken(token.name) || "—"}</p>
-					<p class="mt-1 text-[11px] leading-snug text-muted-foreground">{token.usage}</p>
-				</div>
+				<RadiusSample {token} />
 			{/each}
 		</div>
 	</DsSection>

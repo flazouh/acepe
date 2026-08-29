@@ -526,6 +526,8 @@ export {
 } from "./components/session-pr-link/index.js";
 export { TextShimmer } from "./components/text-shimmer/index.js";
 export { Kbd, KbdGroup } from "./components/kbd/index.js";
+export { Separator, Root as SeparatorRoot } from "./components/separator/index.js";
+export { Switch, Root as SwitchRoot } from "./components/switch/index.js";
 export {
 	Tooltip,
 	TooltipContent,

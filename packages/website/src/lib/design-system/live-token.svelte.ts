@@ -1,7 +1,6 @@
 import { browser } from "$app/environment";
-
-import { resolveToken } from "./tokens.js";
 import { themeVersion } from "./theme-version.svelte.js";
+import { resolveToken } from "./tokens.js";
 
 /**
  * Computed value of `--{name}` on the document root, kept current across theme

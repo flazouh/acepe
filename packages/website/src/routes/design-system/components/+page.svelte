@@ -90,7 +90,8 @@ const pillSizes = ["xs", "sm", "md", "default"] as const;
 					<ChipShell interactive selected as="button">
 						{#snippet children()}Selected{/snippet}
 					</ChipShell>
-					<ChipShell density="control">{#snippet children()}Control density{/snippet}</ChipShell>
+					<ChipShell density="inline">{#snippet children()}Inline density{/snippet}</ChipShell>
+					<ChipShell density="plain">{#snippet children()}Plain density{/snippet}</ChipShell>
 				</div>
 			</div>
 

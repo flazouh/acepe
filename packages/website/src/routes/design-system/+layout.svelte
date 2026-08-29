@@ -20,8 +20,14 @@ function setTheme(theme: WebsiteTheme) {
 	setWebsiteThemePreference(theme);
 }
 
+/**
+ * The active chip is chosen in CSS from the `data-theme` attribute that the
+ * blocking script in app.html writes before first paint. Driving it from the
+ * store instead would highlight the wrong chip until hydration, because the
+ * store SSRs as "dark" whatever the visitor stored.
+ */
 const toggleClass =
-	"rounded px-2 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+	"rounded px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 </script>
 
 <svelte:head>
@@ -46,15 +52,14 @@ const toggleClass =
 			</a>
 
 			<div
-				class="flex items-center gap-0.5 rounded-md border border-border/60 bg-card/50 p-0.5"
+				class="ds-theme-toggle flex items-center gap-0.5 rounded-md border border-border/60 bg-card/50 p-0.5"
 				role="group"
 				aria-label="Theme"
 			>
 				<button
 					type="button"
-					class="{toggleClass} {$websiteThemeStore === 'light'
-						? 'bg-foreground text-background'
-						: 'text-muted-foreground hover:text-foreground'}"
+					data-theme-option="light"
+					class={toggleClass}
 					aria-pressed={$websiteThemeStore === "light"}
 					onclick={() => setTheme("light")}
 				>
@@ -62,9 +67,8 @@ const toggleClass =
 				</button>
 				<button
 					type="button"
-					class="{toggleClass} {$websiteThemeStore === 'dark'
-						? 'bg-foreground text-background'
-						: 'text-muted-foreground hover:text-foreground'}"
+					data-theme-option="dark"
+					class={toggleClass}
 					aria-pressed={$websiteThemeStore === "dark"}
 					onclick={() => setTheme("dark")}
 				>
@@ -117,3 +121,11 @@ const toggleClass =
 		</main>
 	</div>
 </div>
+
+<style>
+:global(:root[data-theme="light"]) .ds-theme-toggle [data-theme-option="light"],
+:global(:root[data-theme="dark"]) .ds-theme-toggle [data-theme-option="dark"] {
+	background-color: var(--foreground);
+	color: var(--background);
+}
+</style>
