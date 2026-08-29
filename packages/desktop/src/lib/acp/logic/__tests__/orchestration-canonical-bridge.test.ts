@@ -65,6 +65,57 @@ function telemetryFrom(envelopes: ReadonlyArray<AcpEventEnvelope>): UsageTelemet
 
 describe("OrchestrationCanonicalBridge", () => {
 	/**
+	 * The streaming reveal (Buffer + fade) only animates the entry the graph
+	 * names as the live tail: conversation-rebuild marks an entry streaming
+	 * when `entry.entryId === graph.activeStreamingTail?.rowId`.
+	 *
+	 * Measured against a real Claude reply: the composer showed "Threading",
+	 * so the turn was Running, yet the rendered markdown stayed
+	 * `data-native-markdown-mode="static"` and never carried `data-reveal`,
+	 * for the whole reply. TokenAppended emitted `activeStreamingTail: null`
+	 * and left the field out of `changedFields`, so nothing was ever the tail
+	 * and every reveal mode was inert -- only "instant" behaviour ever showed.
+	 */
+	it("names the growing assistant entry as the live streaming tail", () => {
+		const bridge = makeBridge();
+		const messageId = MessageId.make("message-streaming-tail");
+
+		runTranslate(bridge, makeEvent("MessageSent", { sessionId, messageId, text: "why?" }));
+		const envelopes = runTranslate(
+			bridge,
+			makeEvent("TokenAppended", { sessionId, messageId, token: "Because " })
+		);
+
+		const payload = envelopes[0]?.payload as SessionStateEnvelope | undefined;
+		if (payload === undefined || payload.payload.kind !== "delta") {
+			throw new Error("expected a delta envelope");
+		}
+		const delta = payload.payload.delta;
+
+		expect(delta.activeStreamingTail).not.toBeNull();
+		expect(delta.activeStreamingTail?.contentKind).toBe("message");
+		expect(delta.changedFields).toContain("activeStreamingTail");
+	});
+
+	it("stops naming a live tail once the turn completes", () => {
+		const bridge = makeBridge();
+		const messageId = MessageId.make("message-streaming-tail-done");
+
+		runTranslate(bridge, makeEvent("MessageSent", { sessionId, messageId, text: "why?" }));
+		runTranslate(bridge, makeEvent("TokenAppended", { sessionId, messageId, token: "Because " }));
+		const envelopes = runTranslate(bridge, makeEvent("TurnCompleted", { sessionId }));
+
+		const payload = envelopes[0]?.payload as SessionStateEnvelope | undefined;
+		if (payload === undefined || payload.payload.kind !== "delta") {
+			throw new Error("expected a delta envelope");
+		}
+		const delta = payload.payload.delta;
+
+		expect(delta.activeStreamingTail).toBeNull();
+		expect(delta.changedFields).toContain("activeStreamingTail");
+	});
+
+	/**
 	 * A subscription that starts mid-stream never sees the session's
 	 * `SessionCreated`. Measured against a real Claude Code session: the server
 	 * emitted five ToolCallObserved and one ApprovalRequested, its snapshot

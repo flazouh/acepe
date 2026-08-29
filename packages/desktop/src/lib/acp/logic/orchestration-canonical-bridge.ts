@@ -529,16 +529,21 @@ export class OrchestrationCanonicalBridge {
 							},
 						},
 					];
+		// The entry this token lands in is the live tail. conversation-rebuild
+		// marks an entry streaming by matching it against this rowId, and the
+		// streaming reveal only animates that entry, so leaving it null makes
+		// every reveal mode inert while the reply is still arriving.
+		const liveTailEntryId = currentEntryId ?? newEntryId;
 		const delta: SessionStateDelta = {
 			fromRevision: state.revision,
 			toRevision,
 			activity: awaitingModelActivityAt(state.turnStartedAtMs),
 			turnState: "Running",
-			activeStreamingTail: null,
+			activeStreamingTail: { rowId: liveTailEntryId, contentKind: "message" },
 			transcriptOperations: operations,
 			operationPatches: [],
 			interactionPatches: [],
-			changedFields: ["transcriptSnapshot"],
+			changedFields: ["transcriptSnapshot", "activeStreamingTail"],
 		};
 		state.revision = toRevision;
 		state.assistantEntryId = currentEntryId ?? newEntryId;
@@ -1121,7 +1126,7 @@ export class OrchestrationCanonicalBridge {
 			transcriptOperations: [],
 			operationPatches: [],
 			interactionPatches: [],
-			changedFields: ["turnState", "activity"],
+			changedFields: ["turnState", "activity", "activeStreamingTail"],
 		};
 		state.revision = toRevision;
 		state.turnState = "Cancelled";
@@ -1144,7 +1149,7 @@ export class OrchestrationCanonicalBridge {
 			transcriptOperations: [],
 			operationPatches: [],
 			interactionPatches: [],
-			changedFields: ["turnState", "activity"],
+			changedFields: ["turnState", "activity", "activeStreamingTail"],
 		};
 		state.revision = toRevision;
 		state.turnState = "Completed";
