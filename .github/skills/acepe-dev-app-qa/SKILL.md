@@ -52,7 +52,8 @@ Two things worth knowing before you write a script. `pressKey` dispatches
 synthetic key events that terminal emulators drop, so use `pasteText` for
 xterm.js and other rich text surfaces. `captureScreenshot` is disabled on
 purpose: DOM facts are the evidence, and a picture cannot tell you whether a
-404 came from the framework or the router.
+404 came from the framework or the router. The user-facing picture is a
+separate step: see "Show Alex A Screenshot" below.
 
 If a helper is missing, add it to `packages/electrobun-qa`. Repeated ad hoc
 snippets around the CLI are a workflow bug.
@@ -160,6 +161,21 @@ The QA action must prove the behavior that changed:
 
 A successful `bun run qa run` records the evidence stamp
 (`.codex/state/ui-qa-evidence.json`).
+
+## Show Alex A Screenshot
+
+**Every QA pass ends with a screenshot shown to Alex.** DOM facts remain the
+only admissible evidence; the screenshot is how Alex sees what you verified.
+
+```bash
+cd packages/desktop
+bun run qa:shot [out.png]   # captures the dev Acepe window, prints the path
+```
+
+Take it while the app still shows the verified state, before restoring the
+window or navigating away. Then attach the PNG to the reply (SendUserFile or
+the harness equivalent). If the capture fails (no window, no screen-recording
+permission), say so in the report; do not silently skip it.
 
 ## Evidence Integrity: Prove The Exact Target
 
@@ -358,6 +374,7 @@ Use this shape in the final answer:
 ```text
 Dev app target: <path or QA socket>
 QA CLI: <used / unavailable, with reason>
+Screenshot: <attached / failed, with reason>
 Visual QA: <what was seen>
 Target proof: <session id + provider id + stable panel selector/header>
 Scoped evidence: <action and assertion inside that target>
