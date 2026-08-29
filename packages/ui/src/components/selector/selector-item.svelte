@@ -57,7 +57,7 @@
 		{/if}
 		{#if trailing}{@render trailing()}{/if}
 		{#if isSelected}
-			<HugeiconsIcon name="check" class="size-3.5 shrink-0 text-current" aria-hidden="true" />
+			<HugeiconsIcon name="check" class="size-3.5 shrink-0 text-current" />
 		{/if}
 	</div>
 {/snippet}
