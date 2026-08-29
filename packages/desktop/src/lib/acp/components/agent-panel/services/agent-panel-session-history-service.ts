@@ -21,5 +21,10 @@ export function persistSessionWorktreePathAfterRename(
 	projectPath: string | undefined,
 	agentId: string | undefined
 ): Effect.Effect<void, AppError> {
-	return backendClient.history.setSessionWorktreePath(sessionId, worktreePath, projectPath, agentId);
+	return backendClient.history.setSessionWorktreePath(
+		sessionId,
+		worktreePath,
+		projectPath,
+		agentId
+	);
 }

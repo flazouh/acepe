@@ -5,6 +5,7 @@ const mockToastError = vi.fn();
 vi.mock("svelte-sonner", () => ({
 	toast: { error: mockToastError },
 }));
+
 import type { LiveSessionLifecyclePresentation } from "$lib/acp/store/live-session-work.js";
 import {
 	ComposerMachineService,

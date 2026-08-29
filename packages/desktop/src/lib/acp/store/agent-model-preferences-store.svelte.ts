@@ -565,7 +565,10 @@ function persistModesCache(): void {
 
 function persistSessionModelPerMode(): void {
 	persistOrLog(
-		backendClient.settings.set<SessionModelPerMode>(SESSION_MODEL_PER_MODE_KEY, sessionModelPerMode),
+		backendClient.settings.set<SessionModelPerMode>(
+			SESSION_MODEL_PER_MODE_KEY,
+			sessionModelPerMode
+		),
 		"Failed to persist session model per mode"
 	);
 }

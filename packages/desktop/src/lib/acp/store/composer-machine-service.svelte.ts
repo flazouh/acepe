@@ -3,8 +3,8 @@
  * Mirrors SessionConnectionService patterns.
  */
 
-import { toast } from "svelte-sonner";
 import { SvelteMap } from "svelte/reactivity";
+import { toast } from "svelte-sonner";
 import { createActor } from "xstate";
 
 import { type ComposerMachineEvent, composerMachine } from "../logic/composer-machine.js";

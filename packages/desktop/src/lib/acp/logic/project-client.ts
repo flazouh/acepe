@@ -2,9 +2,9 @@ import { fromThrowable } from "@acepe/effect-result/fromThrowable";
 import { resolveProjectColor } from "@acepe/ui/colors";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
-import { convertFileSrc } from "../../utils/file-src.js";
 import type { ProjectAcepeConfig, ProjectData } from "../../utils/backend-client/types.js";
 import { backendClient } from "../../utils/backend-client.js";
+import { convertFileSrc } from "../../utils/file-src.js";
 import type { Project } from "./project-manager.svelte.js";
 import { ProjectError } from "./project-manager.svelte.js";
 

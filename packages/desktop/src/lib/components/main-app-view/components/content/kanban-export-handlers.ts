@@ -13,7 +13,7 @@ import { copyTextToClipboard } from "$lib/acp/components/agent-panel/logic/clipb
 import type { PanelStore } from "$lib/acp/store/panel-store.svelte.js";
 import type { SessionStore } from "$lib/acp/store/session-store.svelte.js";
 import type { ThreadBoardItem } from "$lib/acp/store/thread-board/thread-board-item.js";
-import { openFileInEditor, backendClient } from "$lib/utils/backend-client.js";
+import { backendClient, openFileInEditor } from "$lib/utils/backend-client.js";
 
 export interface KanbanExportHandlerDeps {
 	sessionStore: SessionStore;

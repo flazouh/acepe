@@ -176,7 +176,14 @@ function resolveFallbackCapabilitySource(
 		);
 	}
 
-	return buildResolution("persistedCache", "persistedCache", [], null, null, input.providerMetadata);
+	return buildResolution(
+		"persistedCache",
+		"persistedCache",
+		[],
+		null,
+		null,
+		input.providerMetadata
+	);
 }
 
 /** The provider's own modes, in the shape the toolbar reads. */

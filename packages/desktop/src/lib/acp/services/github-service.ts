@@ -316,10 +316,8 @@ export function fetchWorkingFileDiff(
 	additions: number,
 	deletions: number
 ): Effect.Effect<FileDiff, GitHubError> {
-	return git
-		.workingFileDiff(projectPath, filePath, staged, status, additions, deletions)
-		.pipe(
-			Effect.mapError(rpcErrorToGitHubError),
-			Effect.map((diff): FileDiff => ({ ...diff }))
-		);
+	return git.workingFileDiff(projectPath, filePath, staged, status, additions, deletions).pipe(
+		Effect.mapError(rpcErrorToGitHubError),
+		Effect.map((diff): FileDiff => ({ ...diff }))
+	);
 }

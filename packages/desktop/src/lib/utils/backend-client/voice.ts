@@ -224,10 +224,7 @@ export const voice = {
 				result: emptyVoiceTranscriptionResult,
 			})
 		);
-		const voiceState = yield* awaitProjectionSequence(
-			"voice.recording.stop",
-			dispatched.sequence
-		);
+		const voiceState = yield* awaitProjectionSequence("voice.recording.stop", dispatched.sequence);
 		if (voiceState.lastTranscription === null) {
 			// No transcription can mean two very different things, and this used
 			// to flatten them into one empty success: the caller then reported

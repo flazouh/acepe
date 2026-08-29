@@ -259,4 +259,3 @@ function ensureNativeNotificationPermission(): Effect.Effect<boolean, Error> {
 		})
 	);
 }
-

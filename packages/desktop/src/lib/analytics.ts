@@ -4,8 +4,8 @@ import * as Effect from "effect/Effect";
 import posthog from "posthog-js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
-import { getAppVersion } from "$lib/utils/electrobun-window-shims.js";
 import { settings } from "$lib/utils/backend-client/settings.js";
+import { getAppVersion } from "$lib/utils/electrobun-window-shims.js";
 
 const ANALYTICS_OPT_OUT_KEY: UserSettingKey = "analytics_opt_out";
 const DEVICE_ID_STORAGE_KEY = "analytics_device_id";

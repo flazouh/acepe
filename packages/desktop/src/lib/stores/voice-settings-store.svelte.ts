@@ -120,7 +120,9 @@ export class VoiceSettingsStore {
 			return;
 		}
 
-		const loadResult = await Effect.runPromise(Effect.result(backendClient.voice.loadModel(modelId)));
+		const loadResult = await Effect.runPromise(
+			Effect.result(backendClient.voice.loadModel(modelId))
+		);
 		if (Result.isFailure(loadResult)) {
 			logger.error("Failed to load selected voice model", {
 				error: loadResult.failure,
@@ -175,7 +177,9 @@ export class VoiceSettingsStore {
 		this.downloadProgressModelId = modelId;
 		this.downloadPercent = 0;
 
-		const result = await Effect.runPromise(Effect.result(backendClient.voice.downloadModel(modelId)));
+		const result = await Effect.runPromise(
+			Effect.result(backendClient.voice.downloadModel(modelId))
+		);
 		if (Result.isFailure(result)) {
 			logger.error("Failed to download voice model", {
 				error: result.failure,

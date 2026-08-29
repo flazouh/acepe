@@ -451,7 +451,9 @@ async function handleCommit(message: string) {
 
 async function handlePush() {
 	await Effect.runPromise(Effect.result(backendClient.git.push(projectPath)));
-	const result = await Effect.runPromise(Effect.result(backendClient.git.remoteStatus(projectPath)));
+	const result = await Effect.runPromise(
+		Effect.result(backendClient.git.remoteStatus(projectPath))
+	);
 	if (Result.isSuccess(result)) {
 		remoteStatus = result.success;
 	}
@@ -544,7 +546,9 @@ async function handlePull() {
 
 async function handleFetch() {
 	await Effect.runPromise(Effect.result(backendClient.git.fetch(projectPath)));
-	const result = await Effect.runPromise(Effect.result(backendClient.git.remoteStatus(projectPath)));
+	const result = await Effect.runPromise(
+		Effect.result(backendClient.git.remoteStatus(projectPath))
+	);
 	if (Result.isSuccess(result)) {
 		remoteStatus = result.success;
 	}

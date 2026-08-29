@@ -55,7 +55,14 @@ export function resumeSession(
 	launchModeId?: string,
 	openToken?: string
 ): Effect.Effect<void, AppError> {
-	return backendClient.acp.resumeSession(sessionId, cwd, attemptId, agentId, launchModeId, openToken);
+	return backendClient.acp.resumeSession(
+		sessionId,
+		cwd,
+		attemptId,
+		agentId,
+		launchModeId,
+		openToken
+	);
 }
 
 /**

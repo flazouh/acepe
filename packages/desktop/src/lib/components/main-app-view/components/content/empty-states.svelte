@@ -334,7 +334,9 @@ function stageProjectImport(project: ProjectWithSessions): void {
 	}
 
 	void Effect.runPromise(
-		backendClient.history.countSessionsForProject(project.path).pipe(Effect.catch(() => Effect.void))
+		backendClient.history
+			.countSessionsForProject(project.path)
+			.pipe(Effect.catch(() => Effect.void))
 	);
 }
 

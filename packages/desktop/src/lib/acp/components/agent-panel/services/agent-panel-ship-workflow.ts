@@ -5,9 +5,9 @@
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import { toast } from "svelte-sonner";
-import { openUrl } from "$lib/utils/open-url.js";
 import type { MergeStrategy } from "$lib/utils/backend-client/git.js";
 import { backendClient } from "$lib/utils/backend-client.js";
+import { openUrl } from "$lib/utils/open-url.js";
 import type { GitStackedPrStep } from "../../../../utils/backend-client/git.js";
 import { getErrorCauseDetails } from "../../../errors/error-cause-details.js";
 import type { ModifiedFilesState } from "../../../types/modified-files-state.js";

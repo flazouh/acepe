@@ -6,7 +6,7 @@ import * as Effect from "effect/Effect";
 import type * as Result from "effect/Result";
 import { toast } from "svelte-sonner";
 import { openFileInEditor } from "$lib/utils/backend-client/opener.js";
-import { revealInFinder, backendClient } from "$lib/utils/backend-client.js";
+import { backendClient, revealInFinder } from "$lib/utils/backend-client.js";
 import type { SessionExportContentError } from "../../../store/session-graph-builders.js";
 import type { createLogger } from "../../../utils/logger.js";
 import { copyTextToClipboard } from "../logic/clipboard-manager.js";

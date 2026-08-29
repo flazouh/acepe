@@ -6,9 +6,9 @@
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import type { UserSettingKey } from "$lib/services/user-settings-types.js";
-import { scheduleDeferredIdleWork } from "$lib/utils/deferred-work.js";
 import type { MergeStrategy } from "$lib/utils/backend-client/git.js";
 import { backendClient } from "$lib/utils/backend-client.js";
+import { scheduleDeferredIdleWork } from "$lib/utils/deferred-work.js";
 
 const SETTING_KEY: UserSettingKey = "git_merge_strategy_preference";
 const DEFAULT: MergeStrategy = "squash";

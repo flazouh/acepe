@@ -14,4 +14,4 @@ export type {
 	ThreadListSettings,
 } from "./backend-client/index.js";
 
-export { openFileInEditor, revealInFinder, backendClient } from "./backend-client/index.js";
+export { backendClient, openFileInEditor, revealInFinder } from "./backend-client/index.js";

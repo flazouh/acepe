@@ -42,7 +42,8 @@ export class ComposerMcpCatalogState {
 	constructor(fetchCatalog?: FetchComposerMcpCatalog) {
 		this.fetchCatalog = fetchCatalog
 			? fetchCatalog
-			: (cwd, agentId, sessionId) => backendClient.acp.getComposerMcpCatalog(cwd, agentId, sessionId);
+			: (cwd, agentId, sessionId) =>
+					backendClient.acp.getComposerMcpCatalog(cwd, agentId, sessionId);
 	}
 
 	invalidate(input: EnsureLoadedInput): void {

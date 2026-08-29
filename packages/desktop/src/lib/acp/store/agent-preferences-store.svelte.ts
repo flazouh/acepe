@@ -286,7 +286,10 @@ export class AgentPreferencesStore {
 					const persistOperations: Effect.Effect<void, AppError>[] = [];
 					if (initState.shouldPersistOnboardingCompleted) {
 						persistOperations.push(
-							backendClient.settings.set(HAS_COMPLETED_ONBOARDING_KEY, initState.onboardingCompleted)
+							backendClient.settings.set(
+								HAS_COMPLETED_ONBOARDING_KEY,
+								initState.onboardingCompleted
+							)
 						);
 					}
 					if (initState.shouldPersistSelectedAgentIds) {
