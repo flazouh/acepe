@@ -187,6 +187,7 @@
 					{#each favoriteModels as item (item.id)}
 						<SelectorItem
 							label={item.name}
+							description={item.description}
 							radioValue={item.id}
 							onSelect={() => onSelect(item.id)}
 						>
@@ -245,6 +246,7 @@
 					{#each group.items as item (item.id)}
 						<SelectorItem
 							label={item.name}
+							description={item.description}
 							radioValue={item.id}
 							onSelect={() => onSelect(item.id)}
 						>
