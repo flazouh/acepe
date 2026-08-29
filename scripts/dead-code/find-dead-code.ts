@@ -26,8 +26,6 @@ type RootKind =
 	| "package-script"
 	| "sveltekit-route"
 	| "config"
-	| "tauri-config"
-	| "tauri-capability"
 	| "rust-root"
 	| "test"
 	| "type-declaration"
@@ -307,10 +305,7 @@ function isManualScript(path: string): boolean {
 }
 
 function isGeneratedOrVendor(path: string): boolean {
-	return path.includes("/src-tauri/gen/") ||
-		path.includes("/src-tauri/vendor/") ||
-		path.includes("/node_modules/") ||
-		path.includes("/target/");
+	return path.includes("/node_modules/") || path.includes("/target/");
 }
 
 function readAllowlist(repoRoot: string, allowlistPath: string | undefined): Result<LoadedAllowlist, string> {
@@ -516,14 +511,6 @@ function collectConventionRoots(files: readonly string[], roots: RootReason[]): 
 		}
 		if (CONFIG_BASENAMES.has(name)) {
 			addRoot(roots, file, "config", "workspace config");
-			continue;
-		}
-		if (file.endsWith("src-tauri/tauri.conf.json") || file.endsWith("src-tauri/tauri.staging.conf.json")) {
-			addRoot(roots, file, "tauri-config", "Tauri config");
-			continue;
-		}
-		if (file.includes("src-tauri/capabilities/") && file.endsWith(".json")) {
-			addRoot(roots, file, "tauri-capability", "Tauri capability config");
 			continue;
 		}
 		if (isTestPath(file)) {
@@ -1278,8 +1265,6 @@ export function analyzeDeadCode(options: AnalysisOptions): Result<DeadCodeAnalys
 		"package-export",
 		"sveltekit-route",
 		"config",
-		"tauri-config",
-		"tauri-capability",
 		"rust-root",
 		"type-declaration",
 		"allowlist",

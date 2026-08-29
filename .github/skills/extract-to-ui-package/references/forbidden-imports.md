@@ -6,7 +6,6 @@ Single source of truth for the UI package boundary. The import guard script read
 
 | Rule ID | Pattern | Why |
 |---------|---------|-----|
-| `tauri-apps` | `@tauri-apps/*` | Tauri runtime belongs in desktop Controller |
 | `desktop-lib-store` | `$lib/store`, `$lib/store/*` | Desktop store alias |
 | `desktop-lib-services` | `$lib/services`, `$lib/services/*` | Desktop services alias |
 | `desktop-lib-paraglide` | `$lib/paraglide`, `$lib/paraglide/*` | Desktop i18n alias |

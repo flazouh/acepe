@@ -31,7 +31,6 @@
 		"lint:effect": "echo 'desktop Effect lint is report-only until AC-051; run lint:effect:report to see it'",
 		"lint:fix": "biome check --fix . && bun run check:diagnostic-import-boundary",
 		"storage:prune": "bash scripts/prune-storage.sh",
-		"audit:session-timing": "bun run scripts/audit-session-timing.ts",
 		"lint:effect:report": "effect-language-service diagnostics --project tsconfig.json --strict --format pretty",
 		"lint:effect:ratchet": "bun run scripts/check-effect-lint-ratchet.ts",
 		"check:tauri-importers": "bun run scripts/check-tauri-client-importers.ts",

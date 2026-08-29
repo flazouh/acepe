@@ -11,11 +11,6 @@ export interface ForbiddenImportRule {
 
 export const UI_PACKAGE_FORBIDDEN_IMPORT_RULES: readonly ForbiddenImportRule[] = [
 	{
-		id: "tauri-apps",
-		description: "Tauri runtime APIs",
-		matches: (specifier) => specifier.startsWith("@tauri-apps/"),
-	},
-	{
 		id: "desktop-lib-store",
 		description: "Desktop store alias",
 		matches: (specifier) =>
