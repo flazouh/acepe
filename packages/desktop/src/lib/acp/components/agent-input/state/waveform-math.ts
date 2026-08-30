@@ -10,6 +10,13 @@
  * - Organic, alive-feeling waveform like macOS Voice Memos
  */
 
+/**
+ * One microphone reading: three successive amplitudes. Readonly because it
+ * comes off the canonical voice projection, which the meter reads and never
+ * writes.
+ */
+export type AmplitudeBatch = readonly [number, number, number];
+
 export const DEFAULT_METER_BAR_COUNT = 13;
 export const MIN_LEVEL = 0;
 export const MAX_LEVEL = 1;
@@ -39,7 +46,7 @@ export function clampLevel(level: number): number {
 	return level;
 }
 
-export function batchPeak(values: [number, number, number]): number {
+export function batchPeak(values: AmplitudeBatch): number {
 	return Math.max(values[0], values[1], values[2]);
 }
 
@@ -49,7 +56,7 @@ export function batchPeak(values: [number, number, number]): number {
  * then gate the mic floor so silence stays near the baseline while sustained
  * speech still reaches the larger bar heights.
  */
-export function toMeterLevel(values: [number, number, number]): number {
+export function toMeterLevel(values: AmplitudeBatch): number {
 	const average = (values[0] + values[1] + values[2]) / 3;
 	const signal = average * 0.7 + batchPeak(values) * 0.3;
 	if (signal <= SILENCE_GATE) {

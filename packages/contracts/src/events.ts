@@ -55,6 +55,8 @@ import { ComposerMcpCatalog } from "./mcp.ts"
 import { ConfigOptionData } from "./preconnection.ts"
 import { SkillsCatalog } from "./skills.ts"
 import {
+	VoiceAmplitudeValues,
+	VoiceByteCount,
 	VoiceLanguageOption,
 	VoiceModelInfo,
 	VoiceTranscriptionResult,
@@ -97,6 +99,8 @@ export const OrchestrationEventType = Schema.Literals([
 	"VoiceRecordingStarted",
 	"VoiceRecordingStopped",
 	"VoiceRecordingCancelled",
+	"VoiceAmplitudeObserved",
+	"VoiceModelDownloadProgressed",
 	"GitStatusRefreshed",
 	"GitDiffLoaded",
 	"GitBlameLoaded",
@@ -319,6 +323,20 @@ export const VoiceRecordingCancelledPayload = Schema.Struct({
 	sessionId: SessionId,
 })
 export type VoiceRecordingCancelledPayload = typeof VoiceRecordingCancelledPayload.Type
+
+export const VoiceAmplitudeObservedPayload = Schema.Struct({
+	sessionId: SessionId,
+	values: VoiceAmplitudeValues,
+})
+export type VoiceAmplitudeObservedPayload = typeof VoiceAmplitudeObservedPayload.Type
+
+export const VoiceModelDownloadProgressedPayload = Schema.Struct({
+	modelId: TrimmedNonEmptyString,
+	downloadedBytes: VoiceByteCount,
+	totalBytes: VoiceByteCount,
+	percent: Schema.Number,
+})
+export type VoiceModelDownloadProgressedPayload = typeof VoiceModelDownloadProgressedPayload.Type
 
 export const GitStatusRefreshedPayload = Schema.Struct({
 	projectId: ProjectId,
@@ -670,6 +688,22 @@ export const VoiceRecordingCancelledEvent = defineOrchestrationEvent({
 	aggregateId: VoiceId,
 })
 export type VoiceRecordingCancelledEvent = typeof VoiceRecordingCancelledEvent.Type
+
+export const VoiceAmplitudeObservedEvent = defineOrchestrationEvent({
+	type: "VoiceAmplitudeObserved",
+	payload: VoiceAmplitudeObservedPayload,
+	aggregateKind: "voice",
+	aggregateId: VoiceId,
+})
+export type VoiceAmplitudeObservedEvent = typeof VoiceAmplitudeObservedEvent.Type
+
+export const VoiceModelDownloadProgressedEvent = defineOrchestrationEvent({
+	type: "VoiceModelDownloadProgressed",
+	payload: VoiceModelDownloadProgressedPayload,
+	aggregateKind: "voice",
+	aggregateId: VoiceId,
+})
+export type VoiceModelDownloadProgressedEvent = typeof VoiceModelDownloadProgressedEvent.Type
 
 export const GitStatusRefreshedEvent = defineOrchestrationEvent({
 	type: "GitStatusRefreshed",
@@ -1030,6 +1064,8 @@ export const OrchestrationEvent = Schema.Union([
 	VoiceRecordingStartedEvent,
 	VoiceRecordingStoppedEvent,
 	VoiceRecordingCancelledEvent,
+	VoiceAmplitudeObservedEvent,
+	VoiceModelDownloadProgressedEvent,
 	GitStatusRefreshedEvent,
 	GitDiffLoadedEvent,
 	GitBlameLoadedEvent,

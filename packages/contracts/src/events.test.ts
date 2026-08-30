@@ -24,9 +24,11 @@ import {
 	SkillsDiscoveredPayload,
 	TurnCancelledPayload,
 	TurnCompletedPayload,
+	VoiceAmplitudeObservedPayload,
 	VoiceLanguagesListedPayload,
 	VoiceModelDeletedPayload,
 	VoiceModelDownloadedPayload,
+	VoiceModelDownloadProgressedPayload,
 	VoiceModelLoadedPayload,
 	VoiceModelStatusReportedPayload,
 	VoiceModelsListedPayload,
@@ -118,6 +120,8 @@ const v1EventTypes = [
 	"VoiceRecordingStarted",
 	"VoiceRecordingStopped",
 	"VoiceRecordingCancelled",
+	"VoiceAmplitudeObserved",
+	"VoiceModelDownloadProgressed",
 	"GitStatusRefreshed",
 	"GitDiffLoaded",
 	"GitBlameLoaded",
@@ -177,6 +181,8 @@ type VoiceEventType = Extract<
 	| "VoiceRecordingStarted"
 	| "VoiceRecordingStopped"
 	| "VoiceRecordingCancelled"
+	| "VoiceAmplitudeObserved"
+	| "VoiceModelDownloadProgressed"
 >
 type GitEventType = Extract<
 	EventType,
@@ -596,6 +602,22 @@ const memberCases = [
 		payloadSchema: VoiceRecordingCancelledPayload,
 		event: voiceEvent("VoiceRecordingCancelled", {
 			sessionId,
+		}),
+	},
+	{
+		payloadSchema: VoiceAmplitudeObservedPayload,
+		event: voiceEvent("VoiceAmplitudeObserved", {
+			sessionId,
+			values: [0.1, 0.2, 0.3],
+		}),
+	},
+	{
+		payloadSchema: VoiceModelDownloadProgressedPayload,
+		event: voiceEvent("VoiceModelDownloadProgressed", {
+			modelId: "external",
+			downloadedBytes: 512,
+			totalBytes: 1024,
+			percent: 50,
 		}),
 	},
 	{

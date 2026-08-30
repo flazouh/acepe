@@ -4,7 +4,8 @@ import {
 	EventId,
 	type OrchestrationEvent,
 	placeholderVoiceModel,
-	ProjectId
+	ProjectId,
+	SessionId
 } from "@acepe/contracts"
 import * as BunCrypto from "@effect/platform-bun/BunCrypto"
 import * as BunFileSystem from "@effect/platform-bun/BunFileSystem"
@@ -39,6 +40,7 @@ import { makeSqliteLayer } from "./Sqlite.ts"
 const NOW = "2026-08-20T12:00:00.000Z"
 const commandId = CommandId.make("cmd-1")
 const projectId = ProjectId.make("project-1")
+const sessionId = SessionId.make("session-1")
 
 const voiceEvent = (sequence: number): OrchestrationEvent => ({
 	sequence,
@@ -53,6 +55,23 @@ const voiceEvent = (sequence: number): OrchestrationEvent => ({
 	type: "VoiceModelsListed",
 	payload: {
 		models: [placeholderVoiceModel("external")]
+	}
+})
+
+const amplitudeObserved = (sequence: number): OrchestrationEvent => ({
+	sequence,
+	eventId: EventId.make(`event-${sequence}`),
+	aggregateKind: "voice",
+	aggregateId: APP_VOICE_ID,
+	occurredAt: NOW,
+	commandId,
+	causationEventId: null,
+	correlationId: commandId,
+	metadata: {},
+	type: "VoiceAmplitudeObserved",
+	payload: {
+		sessionId,
+		values: [0.1, 0.2, 0.3]
 	}
 })
 
@@ -199,6 +218,31 @@ Vitest.layer(isolatedVoice())("one voice row", (it) => {
 					models: [placeholderVoiceModel("external")],
 					languages: [],
 					recording: null,
+					amplitude: null,
+					download: null,
+					lastTranscription: null
+				})
+			)
+		})
+	)
+})
+
+Vitest.layer(isolatedVoice())("amplitude round-trip", (it) => {
+	it.effect("survives row encode/decode through get()", () =>
+		Effect.gen(function*() {
+			const sql = yield* SqlClient.SqlClient
+			const voice = yield* ProjectionVoice
+			yield* voice.apply(amplitudeObserved(1), sql)
+			const projected = yield* voice.get()
+			Vitest.assert.deepStrictEqual(
+				projected,
+				Option.some({
+					sequence: 1,
+					models: [],
+					languages: [],
+					recording: null,
+					amplitude: { sessionId, values: [0.1, 0.2, 0.3] },
+					download: null,
 					lastTranscription: null
 				})
 			)
@@ -234,6 +278,8 @@ Vitest.layer(isolatedEngine())("rebuild projection.voice", (it) => {
 					models: [placeholderVoiceModel("external")],
 					languages: [],
 					recording: null,
+					amplitude: null,
+					download: null,
 					lastTranscription: null
 				})
 			)

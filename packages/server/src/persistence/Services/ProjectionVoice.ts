@@ -13,6 +13,10 @@ import {
 	VoiceModelLoadedPayload,
 	VoiceModelsListedPayload,
 	VoiceLanguagesListedPayload,
+	VoiceAmplitude,
+	VoiceAmplitudeObservedPayload,
+	VoiceModelDownload,
+	VoiceModelDownloadProgressedPayload,
 	VoiceModelStatusReportedPayload,
 	VoiceRecordingCancelledPayload,
 	VoiceRecordingStartedPayload,
@@ -38,6 +42,8 @@ export const ProjectionVoiceRow = Schema.Struct({
 	models_json: Schema.String,
 	languages_json: Schema.String,
 	recording_json: Schema.String,
+	amplitude_json: Schema.String,
+	download_json: Schema.String,
 	last_transcription_json: Schema.String,
 	sequence: Sequence
 })
@@ -67,6 +73,12 @@ const decodeLanguages = Schema.decodeUnknownEffect(
 const decodeRecording = Schema.decodeUnknownEffect(
 	Schema.fromJsonString(Schema.NullOr(VoiceRecordingState))
 )
+const decodeAmplitude = Schema.decodeUnknownEffect(
+	Schema.fromJsonString(Schema.NullOr(VoiceAmplitude))
+)
+const decodeDownload = Schema.decodeUnknownEffect(
+	Schema.fromJsonString(Schema.NullOr(VoiceModelDownload))
+)
 const decodeLastTranscription = Schema.decodeUnknownEffect(
 	Schema.fromJsonString(Schema.NullOr(VoiceLastTranscription))
 )
@@ -75,6 +87,10 @@ const encodeLanguages = Schema.encodeEffect(
 	Schema.fromJsonString(Schema.Array(VoiceLanguageOption))
 )
 const encodeRecording = Schema.encodeEffect(Schema.fromJsonString(Schema.NullOr(VoiceRecordingState)))
+const encodeAmplitude = Schema.encodeEffect(Schema.fromJsonString(Schema.NullOr(VoiceAmplitude)))
+const encodeDownload = Schema.encodeEffect(
+	Schema.fromJsonString(Schema.NullOr(VoiceModelDownload))
+)
 const encodeLastTranscription = Schema.encodeEffect(
 	Schema.fromJsonString(Schema.NullOr(VoiceLastTranscription))
 )
@@ -85,12 +101,16 @@ export const encodeProjectedVoice = Effect.fn("encodeProjectedVoice")(function*(
 	const modelsJson = yield* encodeModels(voice.models)
 	const languagesJson = yield* encodeLanguages(voice.languages)
 	const recordingJson = yield* encodeRecording(voice.recording)
+	const amplitudeJson = yield* encodeAmplitude(voice.amplitude)
+	const downloadJson = yield* encodeDownload(voice.download)
 	const lastTranscriptionJson = yield* encodeLastTranscription(voice.lastTranscription)
 	return {
 		voiceId: APP_VOICE_ID,
 		modelsJson,
 		languagesJson,
 		recordingJson,
+		amplitudeJson,
+		downloadJson,
 		lastTranscriptionJson,
 		sequence: voice.sequence
 	}
@@ -103,12 +123,16 @@ export const decodeStoredProjectedVoice = Effect.fn("decodeStoredProjectedVoice"
 	const models = yield* decodeModels(row.models_json)
 	const languages = yield* decodeLanguages(row.languages_json)
 	const recording = yield* decodeRecording(row.recording_json)
+	const amplitude = yield* decodeAmplitude(row.amplitude_json)
+	const download = yield* decodeDownload(row.download_json)
 	const lastTranscription = yield* decodeLastTranscription(row.last_transcription_json)
 	return {
 		sequence: row.sequence,
 		models,
 		languages,
 		recording,
+		amplitude,
+		download,
 		lastTranscription
 	} satisfies ProjectedVoice
 })
@@ -174,6 +198,8 @@ const withSequence = (voice: ProjectedVoice, sequence: Sequence): ProjectedVoice
 	models: voice.models,
 	languages: voice.languages,
 	recording: voice.recording,
+	amplitude: voice.amplitude,
+	download: voice.download,
 	lastTranscription: voice.lastTranscription
 })
 
@@ -191,6 +217,8 @@ const projectModelsListed = (
 						models: payload.models,
 						languages: voice.languages,
 						recording: voice.recording,
+						amplitude: voice.amplitude,
+						download: voice.download,
 						lastTranscription: voice.lastTranscription
 					},
 					event.sequence
@@ -211,6 +239,8 @@ const projectLanguagesListed = (
 				models: voice.models,
 				languages: payload.languages,
 				recording: voice.recording,
+				amplitude: voice.amplitude,
+				download: voice.download,
 				lastTranscription: voice.lastTranscription
 			})
 		})
@@ -228,6 +258,8 @@ const projectModelStatusReported = (
 				models: upsertModel(voice.models, payload.model),
 				languages: voice.languages,
 				recording: voice.recording,
+				amplitude: voice.amplitude,
+				download: voice.download,
 				lastTranscription: voice.lastTranscription
 			})
 		})
@@ -245,6 +277,8 @@ const projectModelDownloaded = (
 				models: markDownloaded(voice.models, payload.modelId),
 				languages: voice.languages,
 				recording: voice.recording,
+				amplitude: voice.amplitude,
+				download: null,
 				lastTranscription: voice.lastTranscription
 			})
 		})
@@ -262,6 +296,8 @@ const projectModelDeleted = (
 				models: markDeleted(voice.models, payload.modelId),
 				languages: voice.languages,
 				recording: voice.recording,
+				amplitude: voice.amplitude,
+				download: voice.download,
 				lastTranscription: voice.lastTranscription
 			})
 		})
@@ -279,6 +315,8 @@ const projectModelLoaded = (
 				models: upsertModel(voice.models, payload.model),
 				languages: voice.languages,
 				recording: voice.recording,
+				amplitude: voice.amplitude,
+				download: voice.download,
 				lastTranscription: voice.lastTranscription
 			})
 		})
@@ -299,6 +337,8 @@ const projectRecordingStarted = (
 					sessionId: payload.sessionId,
 					phase: "recording" as const
 				},
+				amplitude: null,
+				download: voice.download,
 				lastTranscription: voice.lastTranscription
 			})
 		})
@@ -316,6 +356,8 @@ const projectRecordingStopped = (
 				models: voice.models,
 				languages: voice.languages,
 				recording: null,
+				amplitude: null,
+				download: voice.download,
 				lastTranscription: {
 					sessionId: payload.sessionId,
 					text: payload.result.text,
@@ -338,6 +380,54 @@ const projectRecordingCancelled = (
 				models: voice.models,
 				languages: voice.languages,
 				recording: null,
+				amplitude: null,
+				download: voice.download,
+				lastTranscription: voice.lastTranscription
+			})
+		})
+	)
+
+const projectAmplitudeObserved = (
+	current: Option.Option<ProjectedVoice>,
+	event: Extract<OrchestrationEvent, { readonly type: "VoiceAmplitudeObserved" }>
+): Effect.Effect<Option.Option<ProjectedVoice>, Schema.SchemaError> =>
+	Schema.decodeUnknownEffect(VoiceAmplitudeObservedPayload)(event.payload).pipe(
+		Effect.map((payload) => {
+			const voice = currentOrEmpty(current, event.sequence)
+			return Option.some({
+				sequence: event.sequence,
+				models: voice.models,
+				languages: voice.languages,
+				recording: voice.recording,
+				amplitude: {
+					sessionId: payload.sessionId,
+					values: payload.values
+				},
+				download: voice.download,
+				lastTranscription: voice.lastTranscription
+			})
+		})
+	)
+
+const projectModelDownloadProgressed = (
+	current: Option.Option<ProjectedVoice>,
+	event: Extract<OrchestrationEvent, { readonly type: "VoiceModelDownloadProgressed" }>
+): Effect.Effect<Option.Option<ProjectedVoice>, Schema.SchemaError> =>
+	Schema.decodeUnknownEffect(VoiceModelDownloadProgressedPayload)(event.payload).pipe(
+		Effect.map((payload) => {
+			const voice = currentOrEmpty(current, event.sequence)
+			return Option.some({
+				sequence: event.sequence,
+				models: voice.models,
+				languages: voice.languages,
+				recording: voice.recording,
+				amplitude: voice.amplitude,
+				download: {
+					modelId: payload.modelId,
+					downloadedBytes: payload.downloadedBytes,
+					totalBytes: payload.totalBytes,
+					percent: payload.percent
+				},
 				lastTranscription: voice.lastTranscription
 			})
 		})
@@ -376,6 +466,9 @@ export const evolveProjectedVoice = (
 			VoiceRecordingStarted: (started) => projectRecordingStarted(current, started),
 			VoiceRecordingStopped: (stopped) => projectRecordingStopped(current, stopped),
 			VoiceRecordingCancelled: (cancelled) => projectRecordingCancelled(current, cancelled),
+			VoiceAmplitudeObserved: (observed) => projectAmplitudeObserved(current, observed),
+			VoiceModelDownloadProgressed: (progressed) =>
+				projectModelDownloadProgressed(current, progressed),
 			GitStatusRefreshed: () => ignoreEvent(current),
 			GitDiffLoaded: () => ignoreEvent(current),
 			GitBlameLoaded: () => ignoreEvent(current),

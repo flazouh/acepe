@@ -5,6 +5,10 @@ import { SessionId, VoiceId } from "./ids.ts"
 
 const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
 
+/** A byte count in a voice model download. Never negative. */
+export const VoiceByteCount = NonNegativeInt
+export type VoiceByteCount = typeof VoiceByteCount.Type
+
 export const VoiceModelInfo = Schema.Struct({
 	id: TrimmedNonEmptyString,
 	name: TrimmedNonEmptyString,
@@ -38,6 +42,29 @@ export const VoiceRecordingState = Schema.Struct({
 })
 export type VoiceRecordingState = typeof VoiceRecordingState.Type
 
+/**
+ * One reading of the live microphone level, as three successive amplitudes.
+ * The meter blends the average and the peak of the three, so a single spike
+ * cannot drive the bars on its own.
+ */
+export const VoiceAmplitudeValues = Schema.Tuple([Schema.Number, Schema.Number, Schema.Number])
+export type VoiceAmplitudeValues = typeof VoiceAmplitudeValues.Type
+
+export const VoiceAmplitude = Schema.Struct({
+	sessionId: SessionId,
+	values: VoiceAmplitudeValues,
+})
+export type VoiceAmplitude = typeof VoiceAmplitude.Type
+
+/** How far a model download has come. Null once the download ends, either way. */
+export const VoiceModelDownload = Schema.Struct({
+	modelId: TrimmedNonEmptyString,
+	downloadedBytes: NonNegativeInt,
+	totalBytes: NonNegativeInt,
+	percent: Schema.Number,
+})
+export type VoiceModelDownload = typeof VoiceModelDownload.Type
+
 export const VoiceLastTranscription = Schema.Struct({
 	sessionId: SessionId,
 	text: Schema.String,
@@ -57,6 +84,8 @@ export const ProjectedVoice = Schema.Struct({
 	models: Schema.Array(VoiceModelInfo),
 	languages: Schema.Array(VoiceLanguageOption),
 	recording: Schema.NullOr(VoiceRecordingState),
+	amplitude: Schema.NullOr(VoiceAmplitude),
+	download: Schema.NullOr(VoiceModelDownload),
 	lastTranscription: Schema.NullOr(VoiceLastTranscription),
 })
 export type ProjectedVoice = typeof ProjectedVoice.Type
@@ -101,6 +130,8 @@ export const emptyProjectedVoice = (sequence: Sequence): ProjectedVoice => ({
 	models: emptyVoiceModels,
 	languages: emptyVoiceLanguages,
 	recording: null,
+	amplitude: null,
+	download: null,
 	lastTranscription: null,
 })
 

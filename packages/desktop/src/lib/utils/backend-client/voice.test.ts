@@ -55,6 +55,8 @@ const voiceSnapshotWith = (overrides: VoiceSnapshotOverrides): RpcSessionSnapsho
 			models: overrides.models ?? voiceProjection.models,
 			languages: voiceProjection.languages,
 			recording: voiceProjection.recording,
+			amplitude: voiceProjection.amplitude,
+			download: voiceProjection.download,
 			lastTranscription:
 				overrides.lastTranscription === undefined
 					? voiceProjection.lastTranscription
@@ -91,6 +93,8 @@ const voiceSnapshot = (): RpcSessionSnapshot => {
 				sessionId: SessionId.make("session-1"),
 				phase: "recording",
 			},
+			amplitude: null,
+			download: null,
 			lastTranscription: {
 				sessionId: SessionId.make("session-1"),
 				text: "ship the slice",

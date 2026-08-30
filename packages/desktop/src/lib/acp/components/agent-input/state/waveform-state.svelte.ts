@@ -1,4 +1,5 @@
 import {
+	type AmplitudeBatch,
 	buildMeterLevels,
 	DEFAULT_METER_BAR_COUNT,
 	MAX_LEVEL,
@@ -39,7 +40,7 @@ export class WaveformState {
 	/**
 	 * Push a batch of 3 amplitude values and derive a single current level meter.
 	 */
-	pushBatch(values: [number, number, number]): void {
+	pushBatch(values: AmplitudeBatch): void {
 		this.smoothedLevel = smooth(this.smoothedLevel, toMeterLevel(values));
 		this.currentLevel = this.smoothedLevel;
 		this.meterLevels = buildMeterLevels(this.smoothedLevel, this.barCount);

@@ -741,9 +741,95 @@ describe("applyEventToRpcSessionSnapshot", () => {
 			models: [placeholderVoiceModel("external")],
 			languages: [],
 			recording: null,
+			amplitude: null,
+			download: null,
 			lastTranscription: null,
 		})
 		expect(first.snapshotSequence).toBe(1)
+	})
+
+	it("projects VoiceAmplitudeObserved onto the snapshot then clears it on VoiceRecordingStopped", () => {
+		const afterAmplitude = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), {
+			sequence: 1,
+			eventId: EventId.make("event-voice-1"),
+			aggregateKind: "voice",
+			aggregateId: APP_VOICE_ID,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: {},
+			type: "VoiceAmplitudeObserved",
+			payload: {
+				sessionId,
+				values: [0.1, 0.2, 0.3],
+			},
+		})
+		expect(afterAmplitude.voice?.amplitude).toEqual({
+			sessionId,
+			values: [0.1, 0.2, 0.3],
+		})
+		const afterStopped = applyEventToRpcSessionSnapshot(afterAmplitude, {
+			sequence: 2,
+			eventId: EventId.make("event-voice-2"),
+			aggregateKind: "voice",
+			aggregateId: APP_VOICE_ID,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: {},
+			type: "VoiceRecordingStopped",
+			payload: {
+				sessionId,
+				language: null,
+				result: { text: "", language: null, durationMs: 0 },
+			},
+		})
+		expect(afterStopped.voice?.amplitude).toBeNull()
+	})
+
+	it("projects VoiceModelDownloadProgressed onto the snapshot then clears it on VoiceModelDownloaded", () => {
+		const afterProgress = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), {
+			sequence: 1,
+			eventId: EventId.make("event-voice-1"),
+			aggregateKind: "voice",
+			aggregateId: APP_VOICE_ID,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: {},
+			type: "VoiceModelDownloadProgressed",
+			payload: {
+				modelId: "external",
+				downloadedBytes: 512,
+				totalBytes: 1024,
+				percent: 50,
+			},
+		})
+		expect(afterProgress.voice?.download).toEqual({
+			modelId: "external",
+			downloadedBytes: 512,
+			totalBytes: 1024,
+			percent: 50,
+		})
+		const afterDownloaded = applyEventToRpcSessionSnapshot(afterProgress, {
+			sequence: 2,
+			eventId: EventId.make("event-voice-2"),
+			aggregateKind: "voice",
+			aggregateId: APP_VOICE_ID,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: {},
+			type: "VoiceModelDownloaded",
+			payload: {
+				modelId: "external",
+			},
+		})
+		expect(afterDownloaded.voice?.download).toBeNull()
 	})
 
 	it("projects git status, diff, blame, accept, and reject onto gitReview", () => {

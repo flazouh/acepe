@@ -462,12 +462,16 @@ const insertVoice = Effect.fn("insertVoice")(function*(sequence: number) {
 			models_json,
 			languages_json,
 			recording_json,
+			amplitude_json,
+			download_json,
 			last_transcription_json,
 			sequence
 		) VALUES (
 			${"app"},
 			${"[]"},
 			${"[]"},
+			${"null"},
+			${"null"},
 			${"null"},
 			${"null"},
 			${sequence}

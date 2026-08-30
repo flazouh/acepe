@@ -27,6 +27,8 @@ const readCurrent = Effect.fn("ProjectionVoice.readCurrent")(function*(tx: SqlCl
 			models_json,
 			languages_json,
 			recording_json,
+			amplitude_json,
+			download_json,
 			last_transcription_json,
 			sequence
 		FROM projection_voice
@@ -49,6 +51,8 @@ const upsert = Effect.fn("ProjectionVoice.upsert")(function*(
 			models_json,
 			languages_json,
 			recording_json,
+			amplitude_json,
+			download_json,
 			last_transcription_json,
 			sequence
 		) VALUES (
@@ -56,6 +60,8 @@ const upsert = Effect.fn("ProjectionVoice.upsert")(function*(
 			${encoded.modelsJson},
 			${encoded.languagesJson},
 			${encoded.recordingJson},
+			${encoded.amplitudeJson},
+			${encoded.downloadJson},
 			${encoded.lastTranscriptionJson},
 			${encoded.sequence}
 		)
@@ -63,6 +69,8 @@ const upsert = Effect.fn("ProjectionVoice.upsert")(function*(
 			models_json = excluded.models_json,
 			languages_json = excluded.languages_json,
 			recording_json = excluded.recording_json,
+			amplitude_json = excluded.amplitude_json,
+			download_json = excluded.download_json,
 			last_transcription_json = excluded.last_transcription_json,
 			sequence = excluded.sequence
 	`.withoutTransform.pipe(Effect.asVoid)

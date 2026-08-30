@@ -591,6 +591,8 @@ const replaceVoice = (
 		models: voice.models,
 		languages: voice.languages,
 		recording: voice.recording,
+		amplitude: voice.amplitude,
+		download: voice.download,
 		lastTranscription: voice.lastTranscription,
 	},
 	gitReview: snapshot.gitReview,
@@ -610,6 +612,8 @@ const applyVoiceModelsListed = (
 		models: event.payload.models,
 		languages: voice.languages,
 		recording: voice.recording,
+		amplitude: voice.amplitude,
+		download: voice.download,
 		lastTranscription: voice.lastTranscription,
 	})
 }
@@ -624,6 +628,8 @@ const applyVoiceLanguagesListed = (
 		models: voice.models,
 		languages: event.payload.languages,
 		recording: voice.recording,
+		amplitude: voice.amplitude,
+		download: voice.download,
 		lastTranscription: voice.lastTranscription,
 	})
 }
@@ -638,6 +644,8 @@ const applyVoiceModelStatusReported = (
 		models: upsertVoiceModel(voice.models, event.payload.model),
 		languages: voice.languages,
 		recording: voice.recording,
+		amplitude: voice.amplitude,
+		download: voice.download,
 		lastTranscription: voice.lastTranscription,
 	})
 }
@@ -652,6 +660,8 @@ const applyVoiceModelDownloaded = (
 		models: markModelDownloaded(voice.models, event.payload.modelId),
 		languages: voice.languages,
 		recording: voice.recording,
+		amplitude: voice.amplitude,
+		download: null,
 		lastTranscription: voice.lastTranscription,
 	})
 }
@@ -666,6 +676,8 @@ const applyVoiceModelDeleted = (
 		models: markModelDeleted(voice.models, event.payload.modelId),
 		languages: voice.languages,
 		recording: voice.recording,
+		amplitude: voice.amplitude,
+		download: voice.download,
 		lastTranscription: voice.lastTranscription,
 	})
 }
@@ -680,6 +692,8 @@ const applyVoiceModelLoaded = (
 		models: upsertVoiceModel(voice.models, event.payload.model),
 		languages: voice.languages,
 		recording: voice.recording,
+		amplitude: voice.amplitude,
+		download: voice.download,
 		lastTranscription: voice.lastTranscription,
 	})
 }
@@ -697,6 +711,8 @@ const applyVoiceRecordingStarted = (
 			sessionId: event.payload.sessionId,
 			phase: "recording",
 		},
+		amplitude: null,
+		download: voice.download,
 		lastTranscription: voice.lastTranscription,
 	})
 }
@@ -711,6 +727,8 @@ const applyVoiceRecordingStopped = (
 		models: voice.models,
 		languages: voice.languages,
 		recording: null,
+		amplitude: null,
+		download: voice.download,
 		lastTranscription: {
 			sessionId: event.payload.sessionId,
 			text: event.payload.result.text,
@@ -730,6 +748,48 @@ const applyVoiceRecordingCancelled = (
 		models: voice.models,
 		languages: voice.languages,
 		recording: null,
+		amplitude: null,
+		download: voice.download,
+		lastTranscription: voice.lastTranscription,
+	})
+}
+
+const applyVoiceAmplitudeObserved = (
+	snapshot: RpcSessionSnapshot,
+	event: Extract<OrchestrationEvent, { readonly type: "VoiceAmplitudeObserved" }>,
+): RpcSessionSnapshot => {
+	const voice = currentVoice(snapshot, event.sequence)
+	return replaceVoice(snapshot, event.sequence, {
+		sequence: event.sequence,
+		models: voice.models,
+		languages: voice.languages,
+		recording: voice.recording,
+		amplitude: {
+			sessionId: event.payload.sessionId,
+			values: event.payload.values,
+		},
+		download: voice.download,
+		lastTranscription: voice.lastTranscription,
+	})
+}
+
+const applyVoiceModelDownloadProgressed = (
+	snapshot: RpcSessionSnapshot,
+	event: Extract<OrchestrationEvent, { readonly type: "VoiceModelDownloadProgressed" }>,
+): RpcSessionSnapshot => {
+	const voice = currentVoice(snapshot, event.sequence)
+	return replaceVoice(snapshot, event.sequence, {
+		sequence: event.sequence,
+		models: voice.models,
+		languages: voice.languages,
+		recording: voice.recording,
+		amplitude: voice.amplitude,
+		download: {
+			modelId: event.payload.modelId,
+			downloadedBytes: event.payload.downloadedBytes,
+			totalBytes: event.payload.totalBytes,
+			percent: event.payload.percent,
+		},
 		lastTranscription: voice.lastTranscription,
 	})
 }
@@ -1273,6 +1333,10 @@ export const applyEventToRpcSessionSnapshot = (
 			return applyVoiceRecordingStopped(snapshot, event)
 		case "VoiceRecordingCancelled":
 			return applyVoiceRecordingCancelled(snapshot, event)
+		case "VoiceAmplitudeObserved":
+			return applyVoiceAmplitudeObserved(snapshot, event)
+		case "VoiceModelDownloadProgressed":
+			return applyVoiceModelDownloadProgressed(snapshot, event)
 		case "GitStatusRefreshed":
 			return applyGitStatusRefreshed(snapshot, event)
 		case "GitDiffLoaded":

@@ -212,6 +212,8 @@ export const rowFromEvent = (
 			VoiceRecordingStarted: ignoreEvent,
 			VoiceRecordingStopped: ignoreEvent,
 			VoiceRecordingCancelled: ignoreEvent,
+			VoiceAmplitudeObserved: ignoreEvent,
+			VoiceModelDownloadProgressed: ignoreEvent,
 			GitStatusRefreshed: ignoreEvent,
 			GitDiffLoaded: ignoreEvent,
 			GitBlameLoaded: ignoreEvent,

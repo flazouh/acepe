@@ -5,6 +5,7 @@ import { toast } from "svelte-sonner";
 import type { VoiceLanguageOption, VoiceModelInfo } from "$lib/acp/types/voice-input.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { backendClient } from "$lib/utils/backend-client.js";
+import { subscribeVoiceProgress } from "./voice-progress.ts";
 
 const STORE_KEY = Symbol.for("acepe.voice-settings");
 const DEFAULT_MODEL_ID = "small.en";
@@ -50,6 +51,7 @@ export class VoiceSettingsStore {
 
 	private initialized = false;
 	private listenersRegistered = false;
+	private unsubscribeProgress: (() => void) | null = null;
 
 	async initialize(): Promise<void> {
 		if (this.initialized) {
@@ -70,6 +72,8 @@ export class VoiceSettingsStore {
 	dispose(): void {
 		this.initialized = false;
 		this.listenersRegistered = false;
+		this.unsubscribeProgress?.();
+		this.unsubscribeProgress = null;
 	}
 
 	async setEnabled(value: boolean): Promise<void> {
@@ -359,11 +363,26 @@ export class VoiceSettingsStore {
 		return true;
 	}
 
+	/**
+	 * Download progress arrives on the voice projection, which the events RPC
+	 * keeps current. Before this the ring only ever knew 0 and 100, because
+	 * nothing read the lane the server publishes progress on.
+	 */
 	private async registerListeners(): Promise<void> {
 		if (this.listenersRegistered) {
 			return;
 		}
 		this.listenersRegistered = true;
+		this.unsubscribeProgress = subscribeVoiceProgress({
+			onDownload: (download) => {
+				if (download === null) {
+					this.downloadPercent = 0;
+					return;
+				}
+				this.downloadProgressModelId = download.modelId;
+				this.downloadPercent = download.percent;
+			},
+		});
 	}
 }
 

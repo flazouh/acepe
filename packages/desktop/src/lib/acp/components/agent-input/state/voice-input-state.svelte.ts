@@ -2,6 +2,7 @@ import * as Effect from "effect/Effect";
 import { toast } from "svelte-sonner";
 import { SoundEffect } from "$lib/acp/types/sounds.js";
 import { playSound } from "$lib/acp/utils/sound.js";
+import { subscribeVoiceProgress } from "$lib/stores/voice-progress.ts";
 import { backendClient } from "$lib/utils/backend-client.js";
 import type { AppError } from "../../../errors/app-error.js";
 import type { VoiceInputPhase } from "../../../types/voice-input.js";
@@ -76,6 +77,7 @@ export class VoiceInputState {
 	private recordingElapsedTimer: ReturnType<typeof setInterval> | null = null;
 	private transcribingWatchdogTimer: ReturnType<typeof setTimeout> | null = null;
 	private activeDownloadModelId: string | null = null;
+	private unsubscribeProgress: (() => void) | null = null;
 
 	private readonly sessionId: string;
 	private readonly onTranscriptionReady: ((text: string) => void) | null;
@@ -110,15 +112,50 @@ export class VoiceInputState {
 		log("VoiceInputState created", { sessionId: this.sessionId });
 	}
 
-	/** Voice amplitude and transcription now arrive through dispatch/snapshot. */
+	/**
+	 * The live microphone level and model download progress arrive on the voice
+	 * projection, which the events RPC keeps current. Nothing read that lane
+	 * before, so the meter sat at its resting fill for a whole recording and the
+	 * download ring only ever knew 0 and 100.
+	 *
+	 * Transcription still completes on stopRecording.
+	 */
 	async registerListeners(): Promise<void> {
-		log("Voice listeners skipped; transcription completes on stopRecording");
+		if (this.unsubscribeProgress !== null) {
+			return;
+		}
+		this.unsubscribeProgress = subscribeVoiceProgress({
+			onAmplitude: (amplitude) => {
+				if (this.isDisposed) {
+					return;
+				}
+				if (amplitude === null) {
+					this.waveform.reset();
+					return;
+				}
+				if (amplitude.sessionId !== this.sessionId) {
+					return;
+				}
+				this.waveform.pushBatch(amplitude.values);
+			},
+			onDownload: (download) => {
+				if (this.isDisposed || download === null) {
+					return;
+				}
+				if (this.activeDownloadModelId !== download.modelId) {
+					return;
+				}
+				this.downloadPercent = download.percent;
+			},
+		});
 	}
 
 	/** Unregister listeners and cancel any timers. Call from onDestroy. */
 	dispose(): void {
 		log("dispose()", { phase: this.phase, isDisposed: this.isDisposed });
 		this.isDisposed = true;
+		this.unsubscribeProgress?.();
+		this.unsubscribeProgress = null;
 		this.abortLiveSpeech();
 		this.clearPressTimer();
 		this.clearWatchdog();

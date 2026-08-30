@@ -338,6 +338,8 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 					models_json,
 					languages_json,
 					recording_json,
+					amplitude_json,
+					download_json,
 					last_transcription_json,
 					sequence
 				FROM projection_voice

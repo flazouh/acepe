@@ -110,6 +110,8 @@ describe("ProjectedVoice", () => {
 					sessionId,
 					phase: "recording",
 				},
+				amplitude: null,
+				download: null,
 				lastTranscription: {
 					sessionId,
 					text: "hello",

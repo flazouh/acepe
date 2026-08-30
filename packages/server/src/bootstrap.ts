@@ -56,6 +56,12 @@ import { ProjectionMcp } from "./persistence/Services/ProjectionMcp.ts"
 import { ProjectionTerminal } from "./persistence/Services/ProjectionTerminal.ts"
 import { ProjectionSessionReviewState } from "./persistence/Services/ProjectionSessionReviewState.ts"
 import { HardcodedProviderLive } from "./provider/HardcodedProvider.ts"
+import { platformKeyFromHost } from "./provider/agentJson.ts"
+import {
+	AgentInstallerLive,
+	AgentInstallerUnsupportedPlatformLive,
+	defaultAgentInstallerOptions
+} from "./provider/Layers/AgentInstaller.ts"
 import { makeLiveClaudeAdapter } from "./provider/Layers/Claude/Adapter.ts"
 import { makeLiveCodexAdapter } from "./provider/Layers/Codex/Adapter.ts"
 import { makeLiveCopilotAdapter } from "./provider/Layers/Copilot/Adapter.ts"
@@ -80,6 +86,7 @@ import { SkillsServiceLive } from "./skills/Layers/SkillsService.ts"
 import { BunPtyAdapterLive } from "./terminal/Layers/BunPtyAdapter.ts"
 import { defaultTerminalServiceOptions, TerminalServiceLive } from "./terminal/Layers/TerminalService.ts"
 import { TerminalRegistryLive } from "./terminal/Layers/TerminalRegistry.ts"
+import { VoiceProgressBridgeLive } from "./voice/Layers/VoiceProgressBridge.ts"
 import { makeVoiceRuntimeLive } from "./voice/Layers/VoiceRuntime.ts"
 
 const decodeProjectorName = Schema.decodeUnknownEffect(TrimmedNonEmptyString)
@@ -345,6 +352,28 @@ export const makeAcepeLive = (input: AcepeLiveInput) => {
 		Layer.provide(bunPlatform)
 	)
 	const providerRegistry = ProviderRegistryLive.pipe(Layer.provide(providerAdapters))
+	// The agent installer the agentCall RPC's agent.install/agent.uninstall
+	// ops run. Its managed directory sits beside this instance's sqlite file,
+	// under the same root the fs-path guard treats as the app data dir. Host
+	// os/arch are read straight off the runtime here because bootstrap is
+	// where every other host-shaped choice already happens (the Bun platform
+	// layers above); a host outside PLATFORM_KEYS gets an installer that says
+	// so per call rather than taking the whole app down.
+	const agentInstaller = Layer.unwrap(
+		Effect.gen(function*() {
+			const path = yield* Path.Path
+			const detected = platformKeyFromHost(process.platform, process.arch)
+			if (Option.isNone(detected)) {
+				return AgentInstallerUnsupportedPlatformLive(`${process.platform}-${process.arch}`)
+			}
+			const cacheDir = path.join(path.dirname(path.resolve(input.filename)), "agents")
+			return AgentInstallerLive(defaultAgentInstallerOptions(cacheDir, detected.value))
+		})
+	).pipe(
+		Layer.provide(BunHttpClient.layer),
+		Layer.provide(BunCrypto.layer),
+		Layer.provide(bunPlatform)
+	)
 	const rpc = RpcHandlersLive.pipe(
 		Layer.provideMerge(snapshots),
 		Layer.provideMerge(fileIndex),
@@ -360,13 +389,19 @@ export const makeAcepeLive = (input: AcepeLiveInput) => {
 		Layer.provideMerge(TerminalRegistryLive),
 		Layer.provideMerge(providerUsage),
 		Layer.provideMerge(providerRegistry),
+		Layer.provideMerge(agentInstaller),
 		Layer.provideMerge(bunPlatform)
 	)
 	const providerBridge = ProviderBridgeLive.pipe(Layer.provideMerge(providerAdapters))
+	// Carries the live microphone level and model download progress from
+	// VoiceService's PubSub into the orchestration event lane -- see
+	// voice/Layers/VoiceProgressBridge.ts.
+	const voiceProgressBridge = VoiceProgressBridgeLive.pipe(Layer.provide(voice))
 	return Layer.mergeAll(
 		rpc,
 		HardcodedProviderLive(input.tokenDelay),
 		providerBridge,
+		voiceProgressBridge,
 		pipelineLayer,
 		snapshots
 	).pipe(Layer.provideMerge(engine))
