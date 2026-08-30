@@ -266,10 +266,9 @@ const publishToolCallStarted = Effect.fn("CodexAdapter.publishToolCallStarted")(
 		title: fact.title,
 		path,
 		kind: fact.kind,
-		// Claude is the only provider widened to carry a tool call's
-		// arguments so far (see its publishToolCallStarted); this one does not
-		// read them off its own fact yet, so nothing is cached to repeat on
-		// the settling event.
+		// This provider does not read a tool call's arguments off its own fact
+		// yet (Claude is the only one widened so far), so there is nothing to
+		// cache here and nothing to repeat on the settling event.
 		toolInput: null
 	})
 	const header = yield* stamp(runtime)
