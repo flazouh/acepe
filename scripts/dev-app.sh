@@ -144,8 +144,20 @@ launchctl remove "$APP_LABEL" 2>/dev/null || true
 # adapter resolves the `claude` CLI from the app's PATH (the packaged SDK
 # carries no native binary -- see resolveClaudeExecutablePath). Pass the
 # caller's PATH through or every real Claude session fails at startSession.
+# The fake microphone is opt-in and only reachable in an unsigned build (see
+# VoiceRuntime.ts). launchd strips the environment, so the two variables that
+# turn it on have to be forwarded here or a QA run gets the real hardware and
+# its permission prompt. Empty when the caller did not ask for it.
+FAKE_AUDIO_ENV=""
+if [ -n "${ELECTROBUN_QA_FAKE_AUDIO:-}" ]; then
+  FAKE_AUDIO_ENV="ELECTROBUN_QA_FAKE_AUDIO='$ELECTROBUN_QA_FAKE_AUDIO' "
+fi
+if [ -n "${ELECTROBUN_QA_FAKE_AUDIO_PATH:-}" ]; then
+  FAKE_AUDIO_ENV="${FAKE_AUDIO_ENV}ELECTROBUN_QA_FAKE_AUDIO_PATH='$ELECTROBUN_QA_FAKE_AUDIO_PATH' "
+fi
+
 launchctl submit -l "$APP_LABEL" -o "$APP_LOG" -e "$APP_LOG" -- \
-  /bin/sh -c "PATH='$PATH' ACEPE_DEV_URL='$DEV_URL' ELECTROBUN_QA_APP_ID='$APP_ID' ACEPE_VOICE_STT_COMMAND='$VOICE_CMD' exec '$APP_BIN' acepe-instance=$APP_ID"
+  /bin/sh -c "PATH='$PATH' ACEPE_DEV_URL='$DEV_URL' ELECTROBUN_QA_APP_ID='$APP_ID' ACEPE_VOICE_STT_COMMAND='$VOICE_CMD' ${FAKE_AUDIO_ENV}exec '$APP_BIN' acepe-instance=$APP_ID"
 
 for _ in $(seq 1 30); do
   [ -S "$SOCKET" ] && break
