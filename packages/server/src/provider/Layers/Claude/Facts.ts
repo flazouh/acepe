@@ -1,4 +1,5 @@
 import * as Schema from "effect/Schema"
+import { SessionAuthRequiredFact } from "@acepe/contracts"
 
 export const CLAUDE_ACP_TOOL_KINDS = [
 	"read",
@@ -142,6 +143,12 @@ export const TurnErrorFact = Schema.Struct({
 })
 export type TurnErrorFact = typeof TurnErrorFact.Type
 
+// The contract's own auth-required shape (see @acepe/contracts sessionAuth.ts):
+// the adapter is the one place allowed to know the CLI's rendering of a
+// signed-out account, and it promotes that rendering to this typed fact.
+export const AuthRequiredFact = SessionAuthRequiredFact
+export type AuthRequiredFact = SessionAuthRequiredFact
+
 export const ClaudeContractFact = Schema.Union([
 	TextDeltaFact,
 	ThoughtDeltaFact,
@@ -154,7 +161,8 @@ export const ClaudeContractFact = Schema.Union([
 	DeferredOpenFact,
 	ProviderSessionFact,
 	TurnCompleteFact,
-	TurnErrorFact
+	TurnErrorFact,
+	AuthRequiredFact
 ])
 export type ClaudeContractFact = typeof ClaudeContractFact.Type
 

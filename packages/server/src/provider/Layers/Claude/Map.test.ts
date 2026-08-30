@@ -440,6 +440,50 @@ Vitest.describe("mapSdkMessage", () => {
 		Vitest.assert.strictEqual(Option.isNone(mapped.state.providerSessionId), true)
 	})
 
+	// The CLI reports a signed-out account as an ordinary reply on a turn
+	// that then completes, so the auth state must be promoted to a typed
+	// fact HERE, at the transport edge -- nothing downstream matches UI
+	// strings. Found live: the whole turn was "Not logged in · Please run
+	// /login" and the app rendered it as a normal answer.
+	Vitest.it("promotes a not-logged-in result to an auth_required fact", () => {
+		const mapped = mapSdkMessage(emptyClaudeStreamState, {
+			type: "result",
+			session_id: "sdk-session-1",
+			is_error: false,
+			result: "Not logged in · Please run /login"
+		})
+		Vitest.assert.deepStrictEqual(
+			mapped.facts.map((fact) => fact.contractKind),
+			["provider_session", "auth_required", "turn_complete"]
+		)
+	})
+
+	Vitest.it("promotes a not-logged-in error result to auth_required before the turn_error", () => {
+		const mapped = mapSdkMessage(emptyClaudeStreamState, {
+			type: "result",
+			session_id: "sdk-session-1",
+			is_error: true,
+			result: "Not logged in · Please run /login"
+		})
+		Vitest.assert.deepStrictEqual(
+			mapped.facts.map((fact) => fact.contractKind),
+			["provider_session", "auth_required", "turn_error"]
+		)
+	})
+
+	Vitest.it("does not read an ordinary reply mentioning login as signed-out", () => {
+		const mapped = mapSdkMessage(emptyClaudeStreamState, {
+			type: "result",
+			session_id: "sdk-session-1",
+			is_error: false,
+			result: "You can log in to the dashboard with your SSO account."
+		})
+		Vitest.assert.deepStrictEqual(
+			mapped.facts.map((fact) => fact.contractKind),
+			["provider_session", "turn_complete"]
+		)
+	})
+
 	Vitest.it("maps a successful result to usage and turn_complete", () => {
 		const mapped = mapSdkMessage(emptyClaudeStreamState, {
 			type: "result",

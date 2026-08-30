@@ -27,6 +27,7 @@ import {
 	librarySnapshotRequest,
 	providerModes,
 	type RpcClient,
+	sessionAuthRequiredFromMetadata,
 	sessionModelsFromMetadata,
 } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
@@ -87,6 +88,12 @@ type SessionCanonicalState = {
 	// decision) can be patched back onto the same interaction with the same
 	// tool reference and title rather than inventing them.
 	pendingApprovals: Map<string, PendingApprovalRecord>;
+	// Whether the provider answered a turn with its signed-out rendering
+	// (canonical auth_required fact -- see @acepe/contracts sessionAuth.ts).
+	// While set, the lifecycle carries detachedReason "awaitingAuthentication"
+	// so the pre-composer sign-in card shows; the next prompt attempt clears
+	// it (a still-signed-out account simply re-raises the fact).
+	authRequired: boolean;
 	// AC-269: epoch-ms the CURRENTLY open turn started, or null when no turn
 	// is open -- the Claude Code working line's elapsed timer reads this via
 	// SessionGraphActivity.kindStartedAtMs (see awaitingModelActivityAt).
@@ -129,6 +136,7 @@ function freshSessionState(): SessionCanonicalState {
 		observedToolCallIds: new Set(),
 		observedApprovalIds: new Set(),
 		pendingApprovals: new Map(),
+		authRequired: false,
 		turnStartedAtMs: null,
 	};
 }
@@ -461,7 +469,14 @@ export class OrchestrationCanonicalBridge {
 		state.assistantEntryId = null;
 		state.assistantEntryRunSeq = 0;
 		state.assistantSegmentSeq = 0;
-		return [toSessionStateAcpEnvelope(envelopeForDelta(sessionId, toRevision, delta))];
+		const envelopes = [toSessionStateAcpEnvelope(envelopeForDelta(sessionId, toRevision, delta))];
+		// A new prompt attempt clears the auth park: if the account is still
+		// signed out, the adapter raises the fact again on this very turn.
+		if (state.authRequired) {
+			state.authRequired = false;
+			envelopes.push(this.lifecycleEnvelope(sessionId, state, false));
+		}
+		return envelopes;
 	}
 
 	private onTokenAppended(sessionId: string, messageId: string, token: string): AcpEventEnvelope[] {
@@ -963,6 +978,48 @@ export class OrchestrationCanonicalBridge {
 		return [toSessionStateAcpEnvelope(envelope)];
 	}
 
+
+	// The session's lifecycle, spent one revision at a time. The bridge only
+	// ever reports "ready": the auth park rides the detachedReason field the
+	// pre-composer sign-in card already reads (see
+	// agent-panel-session-controller's signInRequirement), while the composer
+	// stays usable -- retrying IS the recovery path once the sign-in
+	// completed.
+	private lifecycleEnvelope(
+		sessionId: string,
+		state: SessionCanonicalState,
+		awaitingAuthentication: boolean
+	): AcpEventEnvelope {
+		const toRevision = nextRevision(state.revision, false);
+		const envelope: SessionStateEnvelope = {
+			sessionId,
+			graphRevision: toRevision.graphRevision,
+			lastEventSeq: toRevision.lastEventSeq,
+			payload: {
+				kind: "lifecycle",
+				lifecycle: {
+					status: "ready",
+					...(awaitingAuthentication
+						? { detachedReason: "awaitingAuthentication" as const }
+						: {}),
+					actionability: {
+						canSend: true,
+						canResume: false,
+						canRetry: false,
+						canArchive: true,
+						canConfigure: true,
+						recommendedAction: "none",
+						recoveryPhase: "none",
+						compactStatus: "ready",
+					},
+				},
+				revision: toRevision,
+			},
+		};
+		state.revision = toRevision;
+		return toSessionStateAcpEnvelope(envelope);
+	}
+
 	// The provider's own model catalog, published as a session_models fact on a
 	// SessionMetaUpdated event's metadata -- the same channel every adapter
 	// already uses for the provider_session fact. Most meta updates carry no
@@ -973,6 +1030,11 @@ export class OrchestrationCanonicalBridge {
 		sessionId: string,
 		metadata: OrchestrationEvent["metadata"]
 	): AcpEventEnvelope[] {
+		if (sessionAuthRequiredFromMetadata(metadata)) {
+			const state = this.stateFor(sessionId);
+			state.authRequired = true;
+			return [this.lifecycleEnvelope(sessionId, state, true)];
+		}
 		const models = sessionModelsFromMetadata(metadata);
 		if (models === null) {
 			return [];

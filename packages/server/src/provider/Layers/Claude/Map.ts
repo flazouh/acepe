@@ -1,4 +1,5 @@
 import * as Arr from "effect/Array"
+import { sessionAuthRequiredFact } from "@acepe/contracts"
 import * as Filter from "effect/Filter"
 import * as Option from "effect/Option"
 import * as Str from "effect/String"
@@ -632,6 +633,12 @@ const mapUserToolResultBlock = (block: Json): ReadonlyArray<ClaudeContractFact> 
 	})
 }
 
+// Both halves required: "not logged in" names the state and "/login" names
+// the CLI's own remedy. Requiring the pair keeps a real answer that happens
+// to discuss logging in from being read as a signed-out account.
+const isClaudeNotLoggedInResult = (resultText: string): boolean =>
+	/not logged in/i.test(resultText) && /\/login/.test(resultText)
+
 export const mapSdkMessage = (state: ClaudeStreamState, raw: Json): ClaudeMapResult => {
 	const record = jsonObjectOf(raw)
 	if (Option.isNone(record)) {
@@ -707,6 +714,16 @@ export const mapSdkMessage = (state: ClaudeStreamState, raw: Json): ClaudeMapRes
 			onNone: () => Arr.empty<ClaudeContractFact>(),
 			onSome: (fact) => Arr.of(fact)
 		})
+		const resultText = Option.getOrElse(stringField(record.value, "result"), () => "")
+		// The CLI reports a signed-out account as the turn's whole result text
+		// ("Not logged in · Please run /login"), on a turn it may still mark
+		// successful. Promoted to a typed fact here because this is the one
+		// place allowed to know that rendering -- see @acepe/contracts
+		// sessionAuth.ts. The match requires both halves so an ordinary
+		// answer that merely mentions logging in never trips it.
+		const authFacts = isClaudeNotLoggedInResult(resultText)
+			? Arr.of<ClaudeContractFact>(sessionAuthRequiredFact)
+			: Arr.empty<ClaudeContractFact>()
 		const terminal: ClaudeContractFact = isError
 			? {
 					contractKind: "turn_error",
@@ -714,7 +731,10 @@ export const mapSdkMessage = (state: ClaudeStreamState, raw: Json): ClaudeMapRes
 				}
 			: { contractKind: "turn_complete" }
 		return {
-			facts: appendFacts(promoted.facts, appendFacts(usageFacts, Arr.of(terminal))),
+			facts: appendFacts(
+				promoted.facts,
+				appendFacts(usageFacts, appendFacts(authFacts, Arr.of(terminal)))
+			),
 			state: promoted.state
 		}
 	}

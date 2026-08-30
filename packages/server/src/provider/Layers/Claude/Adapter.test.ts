@@ -1209,6 +1209,54 @@ Vitest.describe("ClaudeAdapter", () => {
 	)
 
 
+	// A signed-out CLI answers the turn with its login notice and the query
+	// stays unauthenticated until it is rebuilt: the fact must reach the
+	// store as a canonical auth_required meta event, and the NEXT prompt
+	// must attach a fresh query so a login completed in between actually
+	// takes effect.
+	Vitest.it.effect("publishes auth_required and reattaches the next prompt after a signed-out turn", () =>
+		Effect.gen(function*() {
+			const sdk = yield* makeScriptedClaudeSdk()
+			const { adapter, events } = yield* startTestSession({ createQuery: sdk.createQuery })
+			yield* Stream.runCollect(
+				adapter.sendPrompt({ sessionId, messageId, text: "hello" })
+			)
+			const attemptsBefore = yield* waitUntil(Ref.get(sdk.attemptsRef), (a) => a.length >= 1)
+			const first = attemptsBefore[0]
+			if (first === undefined) {
+				return Vitest.assert.fail("expected a first query attempt")
+			}
+			yield* Queue.offer(first.inbound, {
+				type: "result",
+				session_id: "sdk-session-auth",
+				is_error: false,
+				result: "Not logged in · Please run /login"
+			})
+			const seen: Array<string> = []
+			let sawAuthRequired = false
+			while (!sawAuthRequired) {
+				const event = yield* Queue.take(events)
+				seen.push(event.type)
+				if (event.type === "SessionMetaUpdated") {
+					const fact = decodeContractFact(event.metadata)
+					if (Option.isSome(fact) && fact.value.contractKind === "auth_required") {
+						sawAuthRequired = true
+					}
+				}
+				if (seen.length > 20) {
+					return Vitest.assert.fail(
+						`expected an auth_required meta event, saw: ${seen.join(", ")}`
+					)
+				}
+			}
+			yield* Stream.runCollect(
+				adapter.sendPrompt({ sessionId, messageId: messageId2, text: "after login" })
+			)
+			const attempts = yield* waitUntil(Ref.get(sdk.attemptsRef), (a) => a.length >= 2)
+			Vitest.assert.strictEqual(attempts.length, 2)
+		})
+	)
+
 	// ─── preconnection model catalog ──────────────────────────────────────
 
 	// The probe must answer WITHOUT any session existing: it builds its own

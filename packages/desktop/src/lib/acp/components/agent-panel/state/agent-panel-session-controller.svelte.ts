@@ -207,9 +207,13 @@ export class AgentPanelSessionController {
 			return null;
 		}
 		const agentName = this.#deps.getAgentName() ?? "the agent";
+		// Rendered by deriveSignInCard: with a browser sign-in method this
+		// message sits beside a working Sign in button, and without one the
+		// method's own instructions replace it -- so the copy names the state,
+		// not a terminal command.
 		return {
 			agent: agentName,
-			instructions: `Complete the ${agentName} sign-in in your terminal, then retry.`,
+			instructions: `${agentName} is signed out. Sign in to continue this conversation.`,
 		};
 	});
 

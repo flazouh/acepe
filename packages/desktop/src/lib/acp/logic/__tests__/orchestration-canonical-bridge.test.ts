@@ -331,6 +331,68 @@ describe("OrchestrationCanonicalBridge", () => {
 		}
 	});
 
+	// The adapter promotes a signed-out CLI reply to an auth_required fact
+	// (see @acepe/contracts sessionAuth.ts). The bridge parks the session's
+	// lifecycle as awaiting authentication -- the field the pre-composer
+	// sign-in card already reads -- while keeping the composer usable, and a
+	// new prompt attempt clears it (if the account is still signed out the
+	// fact simply arrives again).
+	it("parks the lifecycle awaiting authentication on an auth_required fact", () => {
+		const bridge = makeBridge();
+		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
+
+		const envelopes = runTranslate(bridge, {
+			...makeEvent("SessionMetaUpdated", { sessionId }),
+			metadata: { contractKind: "auth_required" },
+		} as unknown as OrchestrationEvent);
+
+		expect(envelopes).toHaveLength(1);
+		const payload = envelopes[0]?.payload as SessionStateEnvelope;
+		expect(payload.payload.kind).toBe("lifecycle");
+		if (payload.payload.kind === "lifecycle") {
+			expect(payload.payload.lifecycle.detachedReason).toBe("awaitingAuthentication");
+			expect(payload.payload.lifecycle.status).toBe("ready");
+			expect(payload.payload.lifecycle.actionability.canSend).toBe(true);
+		}
+	});
+
+	it("clears the awaiting-authentication park on the next prompt attempt", () => {
+		const bridge = makeBridge();
+		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
+		runTranslate(bridge, {
+			...makeEvent("SessionMetaUpdated", { sessionId }),
+			metadata: { contractKind: "auth_required" },
+		} as unknown as OrchestrationEvent);
+
+		const envelopes = runTranslate(
+			bridge,
+			makeEvent("MessageSent", { sessionId, messageId: "message-retry", text: "again" })
+		);
+
+		const lifecycleEnvelopes = envelopes
+			.map((envelope) => envelope.payload as SessionStateEnvelope)
+			.filter((payload) => payload.payload.kind === "lifecycle");
+		expect(lifecycleEnvelopes).toHaveLength(1);
+		const lifecycle = lifecycleEnvelopes[0];
+		if (lifecycle !== undefined && lifecycle.payload.kind === "lifecycle") {
+			expect(lifecycle.payload.lifecycle.detachedReason ?? null).toBe(null);
+			expect(lifecycle.payload.lifecycle.status).toBe("ready");
+		}
+	});
+
+	it("does not spend a lifecycle envelope on a prompt with nothing to clear", () => {
+		const bridge = makeBridge();
+		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
+		const envelopes = runTranslate(
+			bridge,
+			makeEvent("MessageSent", { sessionId, messageId: "message-plain", text: "hi" })
+		);
+		const lifecycleEnvelopes = envelopes
+			.map((envelope) => envelope.payload as SessionStateEnvelope)
+			.filter((payload) => payload.payload.kind === "lifecycle");
+		expect(lifecycleEnvelopes).toHaveLength(0);
+	});
+
 	it("stays silent for a SessionMetaUpdated that carries no catalog", () => {
 		const bridge = makeBridge();
 		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));

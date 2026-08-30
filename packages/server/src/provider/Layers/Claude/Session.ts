@@ -498,6 +498,16 @@ export const publishFact = Effect.fn("ClaudeAdapter.publishFact")(function*(
 		const event = yield* makeCompleted(runtime)
 		return yield* offerOutbound(runtime, event)
 	}
+	if (fact.contractKind === "auth_required") {
+		// The query that answered signed-out stays signed-out: the CLI reads
+		// its credentials at spawn. Marking reattach makes the NEXT prompt
+		// build a fresh query, so a login completed in between takes effect
+		// without the operator having to reconnect anything. The fact itself
+		// rides the generic meta channel below, like session_models does.
+		yield* Ref.set(runtime.needsReattach, true)
+		const event = yield* makeMetaEvent(runtime, fact)
+		return yield* offerOutbound(runtime, event)
+	}
 	// A real Claude tool call must reach ProjectionSessionActivities as a
 	// ToolCallObserved event, not fold into a generic SessionMetaUpdated one
 	// (see toolCallObservedEvent's doc in SessionEvents.ts) -- that was the
