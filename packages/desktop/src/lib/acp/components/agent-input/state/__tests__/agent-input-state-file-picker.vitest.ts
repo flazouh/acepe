@@ -6,8 +6,10 @@ import type { ProjectIndex } from "../../../../../services/converted-session-typ
 import type { PanelStore } from "../../../../store/panel-store.svelte.js";
 import type { SessionStore } from "../../../../store/session-store.svelte.js";
 
-const getProjectFiles = vi.fn();
-const invalidateProjectFiles = vi.fn();
+const { getProjectFiles, invalidateProjectFiles } = vi.hoisted(() => ({
+	getProjectFiles: vi.fn(),
+	invalidateProjectFiles: vi.fn(),
+}));
 
 vi.mock("$lib/utils/backend-client/file-index.js", () => ({
 	fileIndex: {

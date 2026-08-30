@@ -23,42 +23,55 @@ interface SessionStub {
 }
 
 function createStore(sessionStubs: readonly SessionStub[] = []): PanelStore {
+	const getSessionCold = vi.fn((sessionId: string) => {
+		for (const session of sessionStubs) {
+			if (session.id === sessionId) {
+				return session;
+			}
+		}
+		return null;
+	});
+	const getSessionIdentity = vi.fn((sessionId: string) => {
+		for (const session of sessionStubs) {
+			if (session.id === sessionId) {
+				return {
+					id: session.id,
+					projectPath: session.projectPath,
+					agentId: session.agentId,
+					worktreePath: session.worktreePath ?? undefined,
+				};
+			}
+		}
+		return undefined;
+	});
+	const getSessionMetadata = vi.fn((sessionId: string) => {
+		for (const session of sessionStubs) {
+			if (session.id === sessionId) {
+				return {
+					title: session.title,
+					createdAt: new Date("2026-01-01T00:00:00.000Z"),
+					updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+					sourcePath: session.sourcePath ?? undefined,
+					parentId: null,
+				};
+			}
+		}
+		return undefined;
+	});
 	const sessionStore = {
-		getSessionCold: vi.fn((sessionId: string) => {
-			for (const session of sessionStubs) {
-				if (session.id === sessionId) {
-					return session;
-				}
-			}
-			return null;
-		}),
-		getSessionIdentity: vi.fn((sessionId: string) => {
-			for (const session of sessionStubs) {
-				if (session.id === sessionId) {
-					return {
-						id: session.id,
-						projectPath: session.projectPath,
-						agentId: session.agentId,
-						worktreePath: session.worktreePath ?? undefined,
-					};
-				}
-			}
-			return undefined;
-		}),
-		getSessionMetadata: vi.fn((sessionId: string) => {
-			for (const session of sessionStubs) {
-				if (session.id === sessionId) {
-					return {
-						title: session.title,
-						createdAt: new Date("2026-01-01T00:00:00.000Z"),
-						updatedAt: new Date("2026-01-01T00:00:00.000Z"),
-						sourcePath: session.sourcePath ?? undefined,
-						parentId: null,
-					};
-				}
-			}
-			return undefined;
-		}),
+		getSessionCold,
+		getSessionIdentity,
+		getSessionMetadata,
+		read: {
+			getSessionCold,
+			getSessionIdentity,
+			getSessionMetadata,
+			resolveCanonicalSessionId: vi.fn((sessionId: string) => sessionId),
+		},
+		connection: {
+			hasPendingCreationSession: vi.fn(() => false),
+		},
+		getPendingCreationSession: vi.fn(() => null),
 	} as unknown as SessionStore;
 	const agentStore = {
 		getDefaultAgentId: vi.fn(() => "claude-code"),
@@ -94,6 +107,16 @@ describe("PanelStore materializeSessionPanel", () => {
 			getSessionCold: vi.fn(() => null),
 			getSessionIdentity: vi.fn(() => undefined),
 			getSessionMetadata: vi.fn(() => undefined),
+			read: {
+				getSessionCold: vi.fn(() => null),
+				getSessionIdentity: vi.fn(() => undefined),
+				getSessionMetadata: vi.fn(() => undefined),
+				resolveCanonicalSessionId: vi.fn((sessionId: string) => sessionId),
+			},
+			connection: {
+				hasPendingCreationSession: vi.fn(() => false),
+			},
+			getPendingCreationSession: vi.fn(() => null),
 		} as unknown as SessionStore;
 		const agentStore = {
 			getDefaultAgentId: vi.fn(() => "claude-code"),

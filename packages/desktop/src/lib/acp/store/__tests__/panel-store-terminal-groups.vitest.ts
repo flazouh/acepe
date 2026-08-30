@@ -19,7 +19,22 @@ function createStore(): PanelStoreInstance {
 	const sessionStore = Object.create(SessionStore.prototype) as SessionStore;
 	const agentStore = Object.create(AgentStore.prototype) as AgentStore;
 
-	sessionStore.read.getSessionCold = vi.fn(() => undefined);
+	Object.defineProperty(sessionStore, "read", {
+		value: {
+			getSessionCold: vi.fn(() => undefined),
+			getSessionIdentity: vi.fn(() => undefined),
+			getSessionMetadata: vi.fn(() => undefined),
+			resolveCanonicalSessionId: vi.fn((sessionId: string) => sessionId),
+		},
+		configurable: true,
+	});
+	Object.defineProperty(sessionStore, "connection", {
+		value: {
+			hasPendingCreationSession: vi.fn(() => false),
+		},
+		configurable: true,
+	});
+	sessionStore.getPendingCreationSession = vi.fn(() => null);
 	agentStore.getDefaultAgentId = vi.fn(() => "claude-code");
 
 	const terminalStore = new PanelStore(sessionStore, agentStore, vi.fn());

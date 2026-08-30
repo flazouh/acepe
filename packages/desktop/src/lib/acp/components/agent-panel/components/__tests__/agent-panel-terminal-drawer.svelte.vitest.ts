@@ -1,14 +1,20 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/svelte";
+import * as Effect from "effect/Effect";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { EmbeddedTerminalStore } from "../../../../store/embedded-terminal-store.svelte.js";
 
-vi.mock(
-	"svelte",
-	async () =>
-		// @ts-expect-error client runtime import for test
-		import("../../../../../../../../../node_modules/svelte/src/index-client.js")
-);
+vi.mock("svelte", async () => {
+	const { createRequire } = await import("node:module");
+	const { dirname, join } = await import("node:path");
+	const require = createRequire(import.meta.url);
+	const svelteClientPath = join(
+		dirname(require.resolve("svelte/package.json")),
+		"src/index-client.js"
+	);
+
+	return import(/* @vite-ignore */ svelteClientPath);
+});
 
 vi.mock("@acepe/ui/agent-panel", async () => ({
 	AgentPanelTerminalDrawer: (await import("./fixtures/shared-terminal-drawer-stub.svelte")).default,
@@ -16,11 +22,7 @@ vi.mock("@acepe/ui/agent-panel", async () => ({
 
 vi.mock("$lib/utils/backend-client/shell.js", () => ({
 	shell: {
-		getDefaultShell: () => ({
-			mapErr: () => ({
-				match: (onOk: (shell: string) => void) => onOk("/bin/zsh"),
-			}),
-		}),
+		getDefaultShell: () => Effect.succeed("/bin/zsh"),
 	},
 }));
 

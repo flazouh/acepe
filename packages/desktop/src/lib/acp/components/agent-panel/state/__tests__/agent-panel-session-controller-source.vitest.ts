@@ -47,6 +47,12 @@ describe("AgentPanelSessionController canonical source binding", () => {
 				getSessionIdentity: () => null,
 				getSessionMetadata: () => null,
 				getSessionCurrentModelId: () => null,
+				getSessionLifecycleDetachedReason: () => null,
+				getSessionMessageCount: () => null,
+				getSessionUsageTelemetry: () => null,
+			},
+			viewport: {
+				getRowsProjection: () => null,
 			},
 		} as unknown as SessionStore;
 

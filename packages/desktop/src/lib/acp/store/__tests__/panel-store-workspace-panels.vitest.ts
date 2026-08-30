@@ -1112,7 +1112,7 @@ describe("PanelStore workspacePanels", () => {
 			{
 				id: panel.id,
 				sessionProjectPath: "/tmp/project",
-				sessionSequenceId: null,
+				sessionSequenceId: 9,
 			},
 		]);
 	});

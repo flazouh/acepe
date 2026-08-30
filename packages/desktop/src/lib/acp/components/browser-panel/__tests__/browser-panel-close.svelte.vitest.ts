@@ -1,26 +1,20 @@
 import { cleanup, fireEvent, render } from "@testing-library/svelte";
+import * as Effect from "effect/Effect";
 import { tick } from "svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-function browserWebviewResult() {
-	return {
-		match: (onOk: () => void) => {
-			onOk();
-			return undefined;
-		},
-	};
-}
-
-const browserWebviewMock = {
-	open: vi.fn(() => browserWebviewResult()),
-	close: vi.fn(() => browserWebviewResult()),
-	resize: vi.fn(() => browserWebviewResult()),
-	setZoom: vi.fn(() => browserWebviewResult()),
-	navigate: vi.fn(() => browserWebviewResult()),
-	back: vi.fn(() => browserWebviewResult()),
-	forward: vi.fn(() => browserWebviewResult()),
-	reload: vi.fn(() => browserWebviewResult()),
-};
+const { browserWebviewMock } = vi.hoisted(() => ({
+	browserWebviewMock: {
+		open: vi.fn(() => Effect.succeed(undefined)),
+		close: vi.fn(() => Effect.succeed(undefined)),
+		resize: vi.fn(() => Effect.succeed(undefined)),
+		setZoom: vi.fn(() => Effect.succeed(undefined)),
+		navigate: vi.fn(() => Effect.succeed(undefined)),
+		back: vi.fn(() => Effect.succeed(undefined)),
+		forward: vi.fn(() => Effect.succeed(undefined)),
+		reload: vi.fn(() => Effect.succeed(undefined)),
+	},
+}));
 
 vi.mock(
 	"svelte",
@@ -37,10 +31,6 @@ vi.mock("$lib/services/zoom.svelte.js", () => ({
 	getZoomService: () => ({
 		zoomLevel: 1,
 	}),
-}));
-
-vi.mock("../browser-panel-header.svelte", async () => ({
-	default: (await import("./fixtures/browser-panel-header-close-stub.svelte")).default,
 }));
 
 import BrowserPanel from "../browser-panel.svelte";
@@ -109,7 +99,7 @@ describe("BrowserPanel close behavior", () => {
 		await flushAnimationFrames();
 		await flushAnimationFrames();
 
-		const closeButton = view.container.querySelector("button[title='Close browser panel']");
+		const closeButton = view.container.querySelector("button[title='Close']");
 		expect(closeButton).not.toBeNull();
 
 		if (!closeButton) {

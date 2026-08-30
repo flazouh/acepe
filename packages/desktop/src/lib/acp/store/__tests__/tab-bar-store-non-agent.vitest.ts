@@ -14,22 +14,26 @@ function createStore(
 	} as never;
 
 	const sessionStore = {
-		getSessionIdentity: vi.fn(() => null),
-		getSessionMetadata: vi.fn(() => null),
-		getSessionTranscriptEntries: vi.fn(() => null),
-		getSessionCurrentModeId: vi.fn(() => null),
-		getSessionCurrentToolKind: vi.fn(() => null),
-		getSessionLiveWorkSource: vi.fn((sessionId: string | null) =>
-			sessionId === null ? { kind: "no_session" } : { kind: "missing_canonical", sessionId }
-		),
-		getSessionOperationInteractionSnapshot: vi.fn(() => ({
-			pendingQuestion: null,
-			pendingQuestionOperation: null,
-			pendingPermission: null,
-			pendingPermissionOperation: null,
-			pendingPlanApproval: null,
-			pendingPlanApprovalOperation: null,
-		})),
+		read: {
+			getSessionIdentity: vi.fn(() => null),
+			getSessionMetadata: vi.fn(() => null),
+			getSessionTranscriptEntries: vi.fn(() => null),
+			getSessionCurrentModeId: vi.fn(() => null),
+			getSessionCurrentToolKind: vi.fn(() => null),
+		},
+		presentation: {
+			getSessionLiveWorkSource: vi.fn((sessionId: string | null) =>
+				sessionId === null ? { kind: "no_session" } : { kind: "missing_canonical", sessionId }
+			),
+			getSessionOperationInteractionSnapshot: vi.fn(() => ({
+				pendingQuestion: null,
+				pendingQuestionOperation: null,
+				pendingPermission: null,
+				pendingPermissionOperation: null,
+				pendingPlanApproval: null,
+				pendingPlanApprovalOperation: null,
+			})),
+		},
 	} as never;
 
 	const interactions = new InteractionStore();
