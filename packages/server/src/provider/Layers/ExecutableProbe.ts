@@ -4,6 +4,7 @@ import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Option from "effect/Option"
 import * as Path from "effect/Path"
+import * as Schema from "effect/Schema"
 import * as Str from "effect/String"
 import type { ProviderPresence } from "../Services/ProviderAdapter.ts"
 
@@ -111,6 +112,40 @@ export const homeRelativeFileExists = Effect.fn("homeRelativeFileExists")(functi
 		return false
 	}
 	return yield* existsOrFalse(fs, path.join(home.value, relativePath))
+})
+
+/**
+ * Whether a JSON file under the operator's home holds a non-null top-level
+ * key. This is how a CLI whose credentials live in the system keychain still
+ * leaves a filesystem-readable signed-in marker: its state file records the
+ * account, whatever store holds the secret (Claude's ~/.claude.json
+ * `oauthAccount` is the motivating case -- a keychain login writes no
+ * credential file at all). Unreadable, malformed, or markerless state
+ * degrades to false, the same "cannot read is not there" rule every probe
+ * here follows.
+ */
+export const homeRelativeJsonKeyPresent = Effect.fn("homeRelativeJsonKeyPresent")(function*(
+	relativePath: string,
+	key: string
+) {
+	const fs = yield* FileSystem.FileSystem
+	const path = yield* Path.Path
+	const home = yield* optionalEnvValue("HOME")
+	if (Option.isNone(home)) {
+		return false
+	}
+	const raw = yield* fs
+		.readFileString(path.join(home.value, relativePath))
+		.pipe(Effect.orElseSucceed(() => ""))
+	if (Str.isEmpty(Str.trim(raw))) {
+		return false
+	}
+	const parsed = Schema.decodeUnknownOption(Schema.fromJsonString(Schema.Unknown))(raw)
+	if (Option.isNone(parsed) || typeof parsed.value !== "object" || parsed.value === null) {
+		return false
+	}
+	const value = (parsed.value as Record<string, unknown>)[key]
+	return value !== undefined && value !== null
 })
 
 /**

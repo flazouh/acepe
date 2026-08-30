@@ -444,6 +444,8 @@ export interface Agent {
 	readonly icon: string;
 	/** Current setup state for this agent (set by store when loading from API) */
 	readonly availability_kind?: AgentAvailabilityKind;
+	/** The backend probe's live signed-in reading; see AgentInfo.authenticated. */
+	readonly authenticated?: boolean;
 	/** Registry-owned precedence for default selection. */
 	readonly default_selection_rank?: number;
 	/** Canonical provider metadata projection for shared frontend surfaces. */

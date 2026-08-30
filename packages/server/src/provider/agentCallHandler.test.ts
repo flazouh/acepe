@@ -102,18 +102,21 @@ Vitest.layer(TestLive)("routeAgentCall", (it) => {
 						id: "claude-code",
 						name: "Claude Code",
 						availabilityKind: { kind: "installable", installed: true },
+						authenticated: true,
 						signIn: { kind: "browser" }
 					},
 					{
 						id: "codex",
 						name: "Codex",
 						availabilityKind: { kind: "installable", installed: false },
+						authenticated: false,
 						signIn: { kind: "browser" }
 					},
 					{
 						id: "something-new",
 						name: "something-new",
 						availabilityKind: { kind: "installable", installed: true },
+						authenticated: false,
 						// An agent the sign-in table does not know reports manual
 						// with the copy the server owns, never a browser method
 						// nothing can run.
@@ -366,6 +369,7 @@ Vitest.describe("routeAgentCall agent.install", () => {
 						id: "codex",
 						name: "Codex",
 						availabilityKind: { kind: "installable", installed: false },
+						authenticated: false,
 						signIn: { kind: "browser" }
 					}
 				]
@@ -383,6 +387,7 @@ Vitest.describe("routeAgentCall agent.install", () => {
 						id: "codex",
 						name: "Codex",
 						availabilityKind: { kind: "installable", installed: true },
+						authenticated: false,
 						signIn: { kind: "browser" }
 					}
 				]
@@ -438,6 +443,7 @@ Vitest.describe("routeAgentCall agent.install", () => {
 						id: "codex",
 						name: "Codex",
 						availabilityKind: { kind: "installable", installed: false },
+						authenticated: false,
 						signIn: { kind: "browser" }
 					}
 				]

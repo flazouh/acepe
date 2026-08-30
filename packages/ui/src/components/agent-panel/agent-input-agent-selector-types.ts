@@ -20,6 +20,12 @@ export interface AgentInputAgentSelectorItem {
 	readonly installing?: boolean;
 	/** Persistent setup failure copy. The row remains installable so selecting it retries. */
 	readonly installError?: string | null;
+	/**
+	 * The backend probe read this agent's account as signed out. A muted hint
+	 * on the row, never a gate: the row stays selectable, and selecting it is
+	 * what lets the pre-composer sign-in card offer the login.
+	 */
+	readonly signedOut?: boolean;
 }
 
 export interface AgentInputAgentSelectorIconParams {

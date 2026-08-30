@@ -31,6 +31,7 @@ const toAgent = (info: AgentInfo): Agent => ({
 		kind: "installable" as const,
 		installed: true,
 	},
+	authenticated: info.authenticated,
 	default_selection_rank: info.default_selection_rank,
 	providerMetadata: info.provider_metadata,
 	supportsProjectDiscovery: info.supports_project_discovery ?? false,

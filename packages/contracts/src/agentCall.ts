@@ -85,6 +85,12 @@ export const AgentCallAgentInfo = Schema.Struct({
 	id: Schema.String,
 	name: Schema.String,
 	availabilityKind: AgentCallAvailabilityKind,
+	// The registry's live signed-in reading (ProviderPresence.authenticated,
+	// re-probed on every list). A hint, not a guarantee: a store the probe can
+	// see may still be unreadable to a spawned session, and the runtime
+	// auth_required fact (sessionAuth.ts) remains the authoritative failure
+	// signal. False is what a sign-in affordance keys off.
+	authenticated: Schema.Boolean,
 	signIn: AgentCallSignInMethod
 })
 export type AgentCallAgentInfo = typeof AgentCallAgentInfo.Type

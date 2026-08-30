@@ -311,6 +311,12 @@ export interface AgentInfo {
 	description?: string;
 	icon?: string;
 	availability_kind?: AgentAvailabilityKind;
+	/**
+	 * The backend probe's live signed-in reading. A hint, not a session
+	 * guarantee -- the runtime auth_required fact stays the authoritative
+	 * failure signal. Optional because custom-agent rows predate it.
+	 */
+	authenticated?: boolean;
 	default_selection_rank?: number;
 	provider_metadata?: ProviderMetadataProjection;
 	supports_project_discovery?: boolean;

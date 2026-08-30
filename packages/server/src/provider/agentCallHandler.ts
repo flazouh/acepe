@@ -86,6 +86,9 @@ const listAgents = Effect.fn("agentCall.listAgents")(function*() {
 			kind: "installable" as const,
 			installed: presence.installed
 		},
+		// Straight off the registry's live probe -- see the contract field's
+		// doc for why this is a hint, not a session guarantee.
+		authenticated: presence.authenticated,
 		// Server-decided, from what the agent's own CLI offers -- see
 		// provider/signIn.ts. A caller renders a sign-in control from this
 		// rather than deciding for itself which agents have one.

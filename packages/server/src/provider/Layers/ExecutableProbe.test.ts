@@ -9,10 +9,12 @@ import * as Option from "effect/Option"
 import * as Path from "effect/Path"
 import {
 	homeRelativeFileExists,
+	homeRelativeJsonKeyPresent,
 	pathDirectories,
 	resolveExecutableOnPath,
 	resolveOverridableExecutable
 } from "./ExecutableProbe.ts"
+import { probeClaudePresence } from "./Claude/Provider.ts"
 
 const Platform = Layer.mergeAll(BunFileSystem.layer, BunPath.layer)
 
@@ -124,6 +126,84 @@ Vitest.layer(Platform)("ExecutableProbe", (it) => {
 			yield* fs.makeDirectory(path.join(home, ".widget"), { recursive: true })
 			yield* fs.writeFileString(path.join(home, ".widget", "auth.json"), "{}")
 			Vitest.assert.strictEqual(yield* probe, true)
+		})
+	)
+
+	// A keychain-based login writes no credential file at all; the CLI's own
+	// state file is the store-agnostic marker. Malformed or markerless state
+	// degrades to false, same as every other unreadable probe target.
+	// The real assembly: Claude's presence must call a keychain-based macOS
+	// login authenticated, where ~/.claude/.credentials.json never exists and
+	// only ~/.claude.json's oauthAccount marker says an account is signed in.
+	it.effect("calls a keychain-style Claude login authenticated via the state-file marker", () =>
+		Effect.gen(function*() {
+			const fs = yield* FileSystem.FileSystem
+			const path = yield* Path.Path
+			const home = yield* fs.makeTempDirectoryScoped()
+			const bin = path.join(home, "bin")
+			yield* fs.makeDirectory(bin, { recursive: true })
+			yield* fs.writeFileString(path.join(bin, "claude"), "stub")
+			const probe = probeClaudePresence().pipe(
+				// @effect-diagnostics-next-line strictEffectProvide:off
+				Effect.provide(envLayer({ HOME: home, PATH: bin }))
+			)
+			const before = yield* probe
+			Vitest.assert.strictEqual(before.authenticated, false)
+			yield* fs.writeFileString(
+				path.join(home, ".claude.json"),
+				'{"oauthAccount":{"emailAddress":"a@b.c"}}'
+			)
+			const after = yield* probe
+			Vitest.assert.strictEqual(after.installed, true)
+			Vitest.assert.strictEqual(after.authenticated, true)
+		})
+	)
+
+	it.effect("reads a signed-in marker out of a home-relative state file", () =>
+		Effect.gen(function*() {
+			const fs = yield* FileSystem.FileSystem
+			const path = yield* Path.Path
+			const home = yield* fs.makeTempDirectoryScoped()
+			const probe = homeRelativeJsonKeyPresent(".widget.json", "oauthAccount").pipe(
+				// @effect-diagnostics-next-line strictEffectProvide:off
+				Effect.provide(envLayer({ HOME: home }))
+			)
+			Vitest.assert.strictEqual(yield* probe, false)
+			yield* fs.writeFileString(path.join(home, ".widget.json"), '{"theme":"dark"}')
+			Vitest.assert.strictEqual(yield* probe, false)
+			yield* fs.writeFileString(
+				path.join(home, ".widget.json"),
+				'{"oauthAccount":{"emailAddress":"a@b.c"}}'
+			)
+			Vitest.assert.strictEqual(yield* probe, true)
+		})
+	)
+
+	it.effect("treats a malformed state file as not signed in", () =>
+		Effect.gen(function*() {
+			const fs = yield* FileSystem.FileSystem
+			const path = yield* Path.Path
+			const home = yield* fs.makeTempDirectoryScoped()
+			yield* fs.writeFileString(path.join(home, ".widget.json"), "not json{")
+			const answer = yield* homeRelativeJsonKeyPresent(".widget.json", "oauthAccount").pipe(
+				// @effect-diagnostics-next-line strictEffectProvide:off
+				Effect.provide(envLayer({ HOME: home }))
+			)
+			Vitest.assert.strictEqual(answer, false)
+		})
+	)
+
+	it.effect("treats a null marker as signed out", () =>
+		Effect.gen(function*() {
+			const fs = yield* FileSystem.FileSystem
+			const path = yield* Path.Path
+			const home = yield* fs.makeTempDirectoryScoped()
+			yield* fs.writeFileString(path.join(home, ".widget.json"), '{"oauthAccount":null}')
+			const answer = yield* homeRelativeJsonKeyPresent(".widget.json", "oauthAccount").pipe(
+				// @effect-diagnostics-next-line strictEffectProvide:off
+				Effect.provide(envLayer({ HOME: home }))
+			)
+			Vitest.assert.strictEqual(answer, false)
 		})
 	)
 

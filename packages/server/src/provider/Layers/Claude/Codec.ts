@@ -214,6 +214,9 @@ export const contractFactToAcpSessionUpdate = (fact: ClaudeContractFact): JsonOb
 	if (fact.contractKind === "turn_complete") {
 		return { type: "turn_complete" }
 	}
+	if (fact.contractKind === "auth_required") {
+		return { type: "auth_required" }
+	}
 	return { type: "turn_error", detail: fact.detail }
 }
 

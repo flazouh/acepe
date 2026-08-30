@@ -32,6 +32,7 @@
 		onAgentInstall?: (agentId: string) => void;
 		onDefaultAgentToggle?: (agentId: string | null) => void;
 		notInstalledLabel?: string;
+		signedOutLabel?: string;
 		installingLabel?: string;
 		isLoading?: boolean;
 		onOpenChange?: (open: boolean) => void;
@@ -54,6 +55,7 @@
 		onAgentInstall,
 		onDefaultAgentToggle,
 		notInstalledLabel = "Not installed",
+		signedOutLabel = "Signed out",
 		installingLabel = "Installing…",
 		isLoading = false,
 		onOpenChange,
@@ -219,6 +221,11 @@
 					})}
 				{/snippet}
 				{#snippet trailing()}
+					{#if agent.signedOut === true}
+						<span class="{dropdownMenuSectionTypographyClass} shrink-0 text-muted-foreground">
+							{signedOutLabel}
+						</span>
+					{/if}
 					{#if onDefaultAgentToggle}
 						{@const isDefault = agent.id === defaultAgentId}
 						<button

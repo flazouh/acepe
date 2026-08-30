@@ -11,7 +11,11 @@ import {
 	PROVIDER_CAPABILITY_NAMES,
 	type ProviderPresence
 } from "../../Services/ProviderAdapter.ts"
-import { homeRelativeFileExists, resolveExecutableOnPath } from "../ExecutableProbe.ts"
+import {
+	homeRelativeFileExists,
+	homeRelativeJsonKeyPresent,
+	resolveExecutableOnPath
+} from "../ExecutableProbe.ts"
 
 export const CLAUDE_PROVIDER_ID: ProviderId = ProviderId.make("claude-code")
 
@@ -158,6 +162,13 @@ export const claudePresence = (
 export const CLAUDE_BINARY_NAME = "claude"
 export const CLAUDE_CREDENTIALS_RELATIVE_PATH = ".claude/.credentials.json"
 
+// The CLI's own state file, and the key `claude auth login` fills in it
+// whatever store holds the secret. On macOS the secret usually lives in the
+// system keychain and the credentials FILE never exists, so this marker is
+// what keeps a keychain login from reading as signed out.
+export const CLAUDE_STATE_RELATIVE_PATH = ".claude.json"
+export const CLAUDE_STATE_ACCOUNT_KEY = "oauthAccount"
+
 // The claude-agent-sdk ships its own native CLI binary as an optional
 // platform dependency (@anthropic-ai/claude-agent-sdk-<platform>), resolved
 // dynamically at runtime — invisible to a bundler's static analysis, so a
@@ -171,8 +182,15 @@ export const resolveClaudeExecutablePath = Effect.fn("resolveClaudeExecutablePat
 
 export const probeClaudePresence = Effect.fn("probeClaudePresence")(function*() {
 	const binary = yield* resolveExecutableOnPath(CLAUDE_BINARY_NAME)
-	const authenticated = yield* homeRelativeFileExists(CLAUDE_CREDENTIALS_RELATIVE_PATH)
-	return claudePresence(Option.isSome(binary), authenticated)
+	// Either signal answers "signed in": the credential FILE (Linux, and
+	// macOS setups that opted out of the keychain) or the state file's
+	// account marker (keychain logins write no credential file at all).
+	const credentialsFile = yield* homeRelativeFileExists(CLAUDE_CREDENTIALS_RELATIVE_PATH)
+	const stateAccount = yield* homeRelativeJsonKeyPresent(
+		CLAUDE_STATE_RELATIVE_PATH,
+		CLAUDE_STATE_ACCOUNT_KEY
+	)
+	return claudePresence(Option.isSome(binary), credentialsFile || stateAccount)
 })
 
 export const isClaudePlanCapabilityEnabled = (): boolean =>

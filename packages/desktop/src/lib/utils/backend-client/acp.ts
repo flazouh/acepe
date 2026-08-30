@@ -69,6 +69,7 @@ const toAgentInfo = (agent: AgentCallAgentInfo): AgentInfo => ({
 	id: agent.id,
 	name: agent.name,
 	availability_kind: agent.availabilityKind,
+	authenticated: agent.authenticated,
 	sign_in: agent.signIn,
 });
 

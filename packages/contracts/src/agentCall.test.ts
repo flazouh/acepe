@@ -73,6 +73,7 @@ describe("AgentCallResult", () => {
 						id: "claude-code",
 						name: "Claude Code",
 						availabilityKind: { kind: "installable", installed: true },
+						authenticated: false,
 						signIn: { kind: "browser" as const }
 					}
 				]
@@ -85,6 +86,7 @@ describe("AgentCallResult", () => {
 					id: "claude-code",
 					name: "Claude Code",
 					availabilityKind: { kind: "installable", installed: true },
+					authenticated: false,
 					signIn: { kind: "browser" as const }
 				}
 			]
@@ -102,6 +104,7 @@ describe("AgentCallResult", () => {
 						id: "opencode",
 						name: "OpenCode",
 						availabilityKind: { kind: "installable", installed: true },
+						authenticated: false,
 						signIn: { kind: "browser" as const }
 					}
 				]
@@ -116,6 +119,7 @@ describe("AgentCallResult", () => {
 					id: "opencode",
 					name: "OpenCode",
 					availabilityKind: { kind: "installable", installed: true },
+					authenticated: false,
 					signIn: { kind: "browser" as const }
 				}
 			]
@@ -170,11 +174,39 @@ describe("AgentCallResult", () => {
 })
 
 describe("AgentCallAgentInfo", () => {
+	// The registry has always known authenticatedness (ProviderPresence), but
+	// the wire dropped it, so no client surface could render signed-in state.
+	it("carries the authenticated flag", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(AgentCallAgentInfo)({
+				id: "claude-code",
+				name: "Claude Code",
+				availabilityKind: { kind: "installable", installed: true },
+				authenticated: false,
+				signIn: { kind: "browser" }
+			})
+		)
+		expect(decoded.authenticated).toBe(false)
+	})
+
+	it("rejects an agent row without the authenticated flag", () => {
+		const outcome = Effect.runSyncExit(
+			Schema.decodeUnknownEffect(AgentCallAgentInfo)({
+				id: "claude-code",
+				name: "Claude Code",
+				availabilityKind: { kind: "installable", installed: true },
+				signIn: { kind: "browser" }
+			})
+		)
+		expect(outcome._tag).toBe("Failure")
+	})
+
 	it("rejects a missing name", () => {
 		const outcome = Effect.runSyncExit(
 			Schema.decodeUnknownEffect(AgentCallAgentInfo)({
 				id: "claude-code",
 				availabilityKind: { kind: "installable", installed: true },
+				authenticated: false,
 				signIn: { kind: "browser" }
 			})
 		)
@@ -189,6 +221,7 @@ describe("AgentCallAgentInfo", () => {
 				id: "opencode",
 				name: "OpenCode",
 				availabilityKind: { kind: "installable", installed: true },
+				authenticated: false,
 				signIn: { kind: "manual" }
 			})
 		)

@@ -78,6 +78,9 @@ const agentItems = $derived(
 				phase.status === "failed"
 					? `Agent setup failed: ${withoutTrailingPeriod(phase.message)}. Click to retry.`
 					: null,
+			// Only a known-false answer marks the row; absent means the probe
+			// never answered (custom agents), and silence is not signed-out.
+			signedOut: agent.authenticated === false,
 		};
 	})
 );

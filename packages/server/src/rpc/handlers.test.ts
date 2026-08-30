@@ -454,6 +454,7 @@ Vitest.layer(isolatedRpc())("agentCall agent.list", (it) => {
 						id: "claude-code",
 						name: "Claude Code",
 						availabilityKind: { kind: "installable", installed: true },
+						authenticated: true,
 						signIn: { kind: "browser" }
 					}
 				]
@@ -493,6 +494,7 @@ Vitest.layer(isolatedRpc())("agentCall agent.install", (it) => {
 						id: "claude-code",
 						name: "Claude Code",
 						availabilityKind: { kind: "installable", installed: true },
+						authenticated: true,
 						signIn: { kind: "browser" }
 					}
 				]

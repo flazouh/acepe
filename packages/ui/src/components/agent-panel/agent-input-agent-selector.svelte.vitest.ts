@@ -189,6 +189,54 @@ describe("AgentInputAgentSelector not-installed row", () => {
 	});
 });
 
+describe("AgentInputAgentSelector signed-out row", () => {
+	// The backend's live probe finally reaches the picker: an installed agent
+	// whose account is signed out says so on its row, muted like the
+	// not-installed hint, and stays selectable -- selecting it is how the
+	// pre-composer sign-in card gets a chance to offer the login.
+	it("shows a muted signed-out hint on an installed, signed-out agent", async () => {
+		render(AgentInputAgentSelector, {
+			props: {
+				availableAgents: [
+					installedAgent,
+					{ id: "codex", name: "Codex", installed: true, signedOut: true },
+				],
+				currentAgentId: "claude",
+				onAgentChange: vi.fn(),
+				showLabel: true,
+				renderAgentIcon,
+			},
+		});
+
+		await openMenu();
+
+		const row = await screen.findByRole("menuitem", { name: /Codex/ });
+		expect(row.textContent).toContain("Signed out");
+		const claudeRow = screen.getByRole("menuitem", { name: /Claude Code/ });
+		expect(claudeRow.textContent).not.toContain("Signed out");
+	});
+
+	it("still selects a signed-out agent on click", async () => {
+		const onAgentChange = vi.fn();
+		render(AgentInputAgentSelector, {
+			props: {
+				availableAgents: [
+					installedAgent,
+					{ id: "codex", name: "Codex", installed: true, signedOut: true },
+				],
+				currentAgentId: "claude",
+				onAgentChange,
+				showLabel: true,
+				renderAgentIcon,
+			},
+		});
+
+		await openMenu();
+		await fireEvent.click(await screen.findByRole("menuitem", { name: /Codex/ }));
+		expect(onAgentChange).toHaveBeenCalledWith("codex");
+	});
+});
+
 describe("AgentInputAgentSelector default-agent toggle icon", () => {
 	const codexAgent: AgentInputAgentSelectorItem = {
 		id: "codex",
