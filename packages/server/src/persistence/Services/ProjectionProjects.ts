@@ -78,7 +78,7 @@ const ProjectionProjectRow = Schema.Struct({
 	// A row written before migration 0030 has no such column at all, and the
 	// 0021 colour migration test reads exactly that shape. Absent and null both
 	// mean the project never chose, which is the same as hiding.
-	show_external_cli_sessions: Schema.optionalKey(Schema.NullOr(SqliteFlag)),
+	show_external_cli_sessions: SqliteFlag.pipe(Schema.NullOr, Schema.optionalKey),
 	scan_warmed_at: IsoDateTime
 })
 
@@ -383,6 +383,8 @@ export const evolveProjectedProjects = (
 			VoiceRecordingStarted: () => Effect.succeed(current),
 			VoiceRecordingStopped: () => Effect.succeed(current),
 			VoiceRecordingCancelled: () => Effect.succeed(current),
+			VoiceAmplitudeObserved: () => Effect.succeed(current),
+			VoiceModelDownloadProgressed: () => Effect.succeed(current),
 			GitStatusRefreshed: () => Effect.succeed(current),
 			GitDiffLoaded: () => Effect.succeed(current),
 			GitBlameLoaded: () => Effect.succeed(current),

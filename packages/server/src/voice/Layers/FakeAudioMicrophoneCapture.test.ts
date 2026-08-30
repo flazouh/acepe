@@ -49,8 +49,8 @@ Vitest.describe("FakeAudioMicrophoneCapture", () => {
 	)
 })
 
-Vitest.describe("FakeAudioMicrophoneCapture with a recording", () => {
-	Vitest.it.effect("plays the wav the operator pointed it at", () =>
+Vitest.layer(BunFileSystem.layer)("FakeAudioMicrophoneCapture with a recording", (it) => {
+	it.effect("plays the wav the operator pointed it at", () =>
 		Effect.gen(function*() {
 			const fs = yield* FileSystem.FileSystem
 			const path = yield* fs.makeTempFile({ prefix: "fake-audio-", suffix: ".wav" })
@@ -77,6 +77,6 @@ Vitest.describe("FakeAudioMicrophoneCapture with a recording", () => {
 			const second = yield* session.pull()
 			Vitest.assert.strictEqual(second.length, 0)
 			yield* fs.remove(path, { force: true })
-		}).pipe(Effect.provide(BunFileSystem.layer))
+		})
 	)
 })

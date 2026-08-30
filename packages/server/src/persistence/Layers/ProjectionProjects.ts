@@ -155,7 +155,12 @@ const sliceFromSessionDeleted = Effect.fn("ProjectionProjects.sliceFromSessionDe
 	}
 )
 
-const ignoreEvent = () => Effect.succeed(emptyProjectedProjectsState())
+// Typed as the row readers are so the exhaustive match below stays one effect
+// type. Left bare, the ignore branches widened the match's error and
+// requirements channels to unknown, which effect-lint rejects and which hides
+// what apply can actually fail with.
+const ignoreEvent = (): ReturnType<typeof sliceFromProjectRow> =>
+	Effect.succeed(emptyProjectedProjectsState())
 
 const loadSlice = Effect.fn("ProjectionProjects.loadSlice")(function*(
 	tx: SqlClient.SqlClient,
@@ -190,6 +195,8 @@ const loadSlice = Effect.fn("ProjectionProjects.loadSlice")(function*(
 			VoiceRecordingStarted: ignoreEvent,
 			VoiceRecordingStopped: ignoreEvent,
 			VoiceRecordingCancelled: ignoreEvent,
+			VoiceAmplitudeObserved: ignoreEvent,
+			VoiceModelDownloadProgressed: ignoreEvent,
 			GitStatusRefreshed: ignoreEvent,
 			GitDiffLoaded: ignoreEvent,
 			GitBlameLoaded: ignoreEvent,
