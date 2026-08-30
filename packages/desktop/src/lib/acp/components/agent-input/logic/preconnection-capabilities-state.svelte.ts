@@ -19,10 +19,7 @@ import { backendClient } from "$lib/utils/backend-client.js";
  */
 export function effectivePreconnectionCapabilityMode(
 	agentId: string | null | undefined,
-	metadata:
-		| Pick<ProviderMetadataProjection, "preconnectionCapabilityMode">
-		| null
-		| undefined
+	metadata: Pick<ProviderMetadataProjection, "preconnectionCapabilityMode"> | null | undefined
 ): ProviderMetadataProjection["preconnectionCapabilityMode"] {
 	return metadata?.preconnectionCapabilityMode ?? providerPreconnectionCapabilityMode(agentId);
 }
