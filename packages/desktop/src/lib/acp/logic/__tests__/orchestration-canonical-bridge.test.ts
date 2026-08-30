@@ -351,7 +351,7 @@ describe("OrchestrationCanonicalBridge", () => {
 		expect(payload.payload.kind).toBe("lifecycle");
 		if (payload.payload.kind === "lifecycle") {
 			expect(payload.payload.lifecycle.detachedReason).toBe("awaitingAuthentication");
-			expect(payload.payload.lifecycle.status).toBe("ready");
+			expect(payload.payload.lifecycle.status).toBe("detached");
 			expect(payload.payload.lifecycle.actionability.canSend).toBe(true);
 		}
 	});

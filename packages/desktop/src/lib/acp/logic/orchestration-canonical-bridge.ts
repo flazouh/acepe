@@ -979,12 +979,14 @@ export class OrchestrationCanonicalBridge {
 	}
 
 
-	// The session's lifecycle, spent one revision at a time. The bridge only
-	// ever reports "ready": the auth park rides the detachedReason field the
-	// pre-composer sign-in card already reads (see
-	// agent-panel-session-controller's signInRequirement), while the composer
-	// stays usable -- retrying IS the recovery path once the sign-in
-	// completed.
+	// The session's lifecycle, spent one revision at a time. The auth park is
+	// the "detached awaiting authentication" state the lifecycle contract
+	// already documents ("parked awaiting user action ... rendered as a
+	// neutral sign-in card"), and the accessor the sign-in card reads
+	// (getSessionLifecycleDetachedReason) only answers for that status. The
+	// composer stays usable on purpose -- canSend stays true, because a new
+	// prompt attempt IS the recovery path once the sign-in completed, and a
+	// still-signed-out account simply re-raises the fact.
 	private lifecycleEnvelope(
 		sessionId: string,
 		state: SessionCanonicalState,
@@ -997,22 +999,34 @@ export class OrchestrationCanonicalBridge {
 			lastEventSeq: toRevision.lastEventSeq,
 			payload: {
 				kind: "lifecycle",
-				lifecycle: {
-					status: "ready",
-					...(awaitingAuthentication
-						? { detachedReason: "awaitingAuthentication" as const }
-						: {}),
-					actionability: {
-						canSend: true,
-						canResume: false,
-						canRetry: false,
-						canArchive: true,
-						canConfigure: true,
-						recommendedAction: "none",
-						recoveryPhase: "none",
-						compactStatus: "ready",
-					},
-				},
+				lifecycle: awaitingAuthentication
+					? {
+							status: "detached",
+							detachedReason: "awaitingAuthentication",
+							actionability: {
+								canSend: true,
+								canResume: true,
+								canRetry: false,
+								canArchive: true,
+								canConfigure: true,
+								recommendedAction: "none",
+								recoveryPhase: "none",
+								compactStatus: "detached",
+							},
+						}
+					: {
+							status: "ready",
+							actionability: {
+								canSend: true,
+								canResume: false,
+								canRetry: false,
+								canArchive: true,
+								canConfigure: true,
+								recommendedAction: "none",
+								recoveryPhase: "none",
+								compactStatus: "ready",
+							},
+						},
 				revision: toRevision,
 			},
 		};
