@@ -65,7 +65,8 @@ Vitest.layer(TempSqlite)("runMigrations", (it) => {
 				[31, "repair_transcript_whitespace"],
 				[32, "projection_voice_progress"],
 				[33, "projection_projects_sort_order"],
-				[34, "projection_sessions_ephemeral"]
+				[34, "projection_sessions_ephemeral"],
+				[35, "projection_projects_icon"]
 			])
 			Vitest.assert.deepStrictEqual(second, [])
 			Vitest.assert.deepStrictEqual(rows, [
@@ -102,7 +103,8 @@ Vitest.layer(TempSqlite)("runMigrations", (it) => {
 				{ migration_id: 31, name: "repair_transcript_whitespace" },
 				{ migration_id: 32, name: "projection_voice_progress" },
 				{ migration_id: 33, name: "projection_projects_sort_order" },
-				{ migration_id: 34, name: "projection_sessions_ephemeral" }
+				{ migration_id: 34, name: "projection_sessions_ephemeral" },
+				{ migration_id: 35, name: "projection_projects_icon" }
 			])
 		})
 	)

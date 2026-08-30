@@ -77,6 +77,7 @@ import { CheckpointNotFoundError, CheckpointService } from "../checkpoint/Servic
 import { routeGitCall } from "../git/gitCallHandler.ts"
 import { routeAgentCall } from "../provider/agentCallHandler.ts"
 import { ProviderUsageService } from "../providerUsage/Services/ProviderUsageService.ts"
+import { resolveProjectIcon } from "../projects/projectIconResolver.ts"
 import { guardedReadTextFile, guardedWriteTextFile } from "./fsPathGuard.ts"
 
 const EVENT_PAGE_SIZE = 1_000
@@ -92,6 +93,10 @@ export const toRpcProject = (project: SessionProjectionSnapshot["projects"][numb
 	color: project.color,
 	showExternalCliSessions: project.showExternalCliSessions,
 	sortOrder: project.sortOrder,
+	icon: project.icon,
+	// Resolved here rather than in the client, so the choice and the detected
+	// file are paired in one place instead of at every badge.
+	iconPath: resolveProjectIcon(project.workspaceRoot, project.icon),
 	gitStatus: null
 })
 
@@ -151,19 +156,9 @@ const fillRpcProjectGitStatus = Effect.fn("fillRpcProjectGitStatus")(function*(
 	project: RpcProjectedProject
 ) {
 	const gitStatus = yield* liveProjectGitStatus(git, project.workspaceRoot)
-	return {
-		projectId: project.projectId,
-		title: project.title,
-		workspaceRoot: project.workspaceRoot,
-		createdAt: project.createdAt,
-		updatedAt: project.updatedAt,
-		deletedAt: project.deletedAt,
-		sessionCount: project.sessionCount,
-		color: project.color,
-		showExternalCliSessions: project.showExternalCliSessions,
-		sortOrder: project.sortOrder,
-		gitStatus
-	} satisfies RpcProjectedProject
+	// Spread rather than relist: this function changes one field, and the
+	// copy of every other one is what broke when the project grew an icon.
+	return { ...project, gitStatus } satisfies RpcProjectedProject
 })
 
 const withProjectGitStatus = Effect.fn("withProjectGitStatus")(function*(

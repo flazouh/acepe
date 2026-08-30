@@ -21,6 +21,7 @@ import { GitCallRequest, GitCallResult } from "./gitCall.ts"
 import { ProjectedMcpCatalog } from "./mcp.ts"
 import { ProjectedPreconnectionOptions } from "./preconnection.ts"
 import { ProjectColor } from "./projectColor.ts"
+import { ProjectIcon } from "./projectIcon.ts"
 import { ProjectSortOrder } from "./projectSortOrder.ts"
 import { GetProviderAccountUsageRequest, GetProviderAccountUsageResponse } from "./providerUsage.ts"
 import {
@@ -302,6 +303,13 @@ export const RpcProjectedProject = Schema.Struct({
 	// ordered this project, so it sorts after every ranked one. Readers render
 	// this rank; they never invent one of their own.
 	sortOrder: Schema.NullOr(ProjectSortOrder),
+	// The icon choice the user made, which is the canonical half.
+	icon: ProjectIcon,
+	// The picture that choice resolves to right now, as an absolute path, or
+	// null for the letter badge. Derived from the choice plus what is on disk,
+	// and resolved on the server so no reader has to pair a custom pick with a
+	// detected one itself.
+	iconPath: Schema.NullOr(TrimmedNonEmptyString),
 	// null means git could not be read at all: no binary, no permission, or a
 	// schema mismatch. An empty array means git ran and the tree is clean. A
 	// review panel must not show "no changes" when git actually failed.

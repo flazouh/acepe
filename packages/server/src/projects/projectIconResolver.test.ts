@@ -1,0 +1,130 @@
+import * as NodeFs from "node:fs";
+import * as NodeOs from "node:os";
+import * as NodePath from "node:path";
+import { PROJECT_ICON_AUTO, PROJECT_ICON_NONE } from "@acepe/contracts";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
+import {
+	forgetAllResolvedProjectIcons,
+	listProjectIconCandidates,
+	resolveProjectIcon,
+} from "./projectIconResolver.ts";
+
+let root = "";
+
+const write = (relativePath: string, contents = "x"): string => {
+	const absolute = NodePath.join(root, relativePath);
+	NodeFs.mkdirSync(NodePath.dirname(absolute), { recursive: true });
+	NodeFs.writeFileSync(absolute, contents);
+	return absolute;
+};
+
+beforeEach(() => {
+	root = NodeFs.mkdtempSync(NodePath.join(NodeOs.tmpdir(), "acepe-icon-"));
+	forgetAllResolvedProjectIcons();
+});
+
+afterEach(() => {
+	NodeFs.rmSync(root, { recursive: true, force: true });
+	forgetAllResolvedProjectIcons();
+});
+
+describe("resolveProjectIcon", () => {
+	it("detects a project's own logo under auto", () => {
+		const absolute = write("logo.svg");
+		expect(resolveProjectIcon(root, PROJECT_ICON_AUTO)).toBe(absolute);
+	});
+
+	it("answers null under auto when the project has no image", () => {
+		write("README.md");
+		expect(resolveProjectIcon(root, PROJECT_ICON_AUTO)).toBeNull();
+	});
+
+	it("answers null under none, even when an image is sitting there", () => {
+		write("logo.svg");
+		expect(resolveProjectIcon(root, PROJECT_ICON_NONE)).toBeNull();
+	});
+
+	it("returns the chosen file under custom", () => {
+		const absolute = write("docs/brand/mark.png");
+		expect(
+			resolveProjectIcon(root, { kind: "custom", path: "docs/brand/mark.png" }),
+		).toBe(absolute);
+	});
+
+	it("lets a custom pick beat a file detection would have found", () => {
+		write("logo.svg");
+		const chosen = write("assets/other.png");
+		expect(
+			resolveProjectIcon(root, { kind: "custom", path: "assets/other.png" }),
+		).toBe(chosen);
+	});
+
+	it("falls back to the letter badge when a custom pick no longer exists", () => {
+		// Deliberately does NOT re-detect: silently swapping in a different
+		// picture would replace a choice the user made with one they did not.
+		write("logo.svg");
+		expect(
+			resolveProjectIcon(root, { kind: "custom", path: "gone.png" }),
+		).toBeNull();
+	});
+
+	it("answers null for a workspace root that is not there", () => {
+		expect(
+			resolveProjectIcon(NodePath.join(root, "missing"), PROJECT_ICON_AUTO),
+		).toBeNull();
+	});
+
+	it("returns an absolute path", () => {
+		write("logo.png");
+		expect(resolveProjectIcon(root, PROJECT_ICON_AUTO)?.startsWith("/")).toBe(
+			true,
+		);
+	});
+});
+
+describe("listProjectIconCandidates", () => {
+	it("finds images anywhere in the project", () => {
+		write("logo.svg");
+		write("docs/diagram.png");
+		write("packages/ui/assets/mark.webp");
+		expect([...listProjectIconCandidates(root)]).toEqual([
+			"docs/diagram.png",
+			"logo.svg",
+			"packages/ui/assets/mark.webp",
+		]);
+	});
+
+	it("ignores files that are not images", () => {
+		write("README.md");
+		write("src/index.ts");
+		expect(listProjectIconCandidates(root)).toHaveLength(0);
+	});
+
+	it("skips directories nobody picks an icon from", () => {
+		write("node_modules/pkg/logo.svg");
+		write(".git/logo.svg");
+		write("dist/logo.svg");
+		write("keep.svg");
+		expect([...listProjectIconCandidates(root)]).toEqual(["keep.svg"]);
+	});
+
+	it("stops descending past a bounded depth", () => {
+		write("a/b/c/d/e/f/deep.png");
+		write("shallow.png");
+		expect([...listProjectIconCandidates(root)]).toEqual(["shallow.png"]);
+	});
+
+	it("answers empty for a workspace root that is not there", () => {
+		expect(
+			listProjectIconCandidates(NodePath.join(root, "missing")),
+		).toHaveLength(0);
+	});
+
+	it("returns workspace-relative paths", () => {
+		write("assets/logo.png");
+		expect(
+			listProjectIconCandidates(root).every((path) => !path.startsWith("/")),
+		).toBe(true);
+	});
+});

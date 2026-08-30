@@ -1,4 +1,7 @@
-import { ProjectId } from "@acepe/contracts"
+import {
+	PROJECT_ICON_AUTO,
+	ProjectId
+} from "@acepe/contracts"
 import * as Vitest from "@effect/vitest"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
@@ -45,6 +48,7 @@ const project = (showExternalCliSessions: boolean): ProjectedProject => ({
 	color: "cyan",
 	showExternalCliSessions,
 	sortOrder: null,
+	icon: PROJECT_ICON_AUTO,
 	scanWarmedAt: NOW
 })
 
