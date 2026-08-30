@@ -78,7 +78,7 @@ function activeStreamingTailForGraphPatch(input: {
 function pendingSendAcknowledgementPatches(input: {
 	readonly snapshot: EnvelopeReducerSnapshot;
 	readonly entries: readonly TranscriptEntry[];
-	readonly previousEntries: readonly TranscriptEntry[] | undefined;
+	readonly previousEntries: readonly TranscriptEntry[];
 	readonly transcriptRevision: number;
 }): readonly EnvelopePatch[] {
 	const attemptId = acknowledgedPendingSendAttemptId({
@@ -379,7 +379,7 @@ function reduceReplaceGraph(
 		...pendingSendAcknowledgementPatches({
 			snapshot,
 			entries: projectionGraph.transcriptSnapshot.entries,
-			previousEntries: previousGraph?.transcriptSnapshot.entries,
+			previousEntries: previousGraph?.transcriptSnapshot.entries ?? [],
 			transcriptRevision: projectionGraph.transcriptSnapshot.revision,
 		})
 	);
@@ -737,11 +737,14 @@ export function reduceTranscriptDelta(
 		}
 	}
 
+	// A delta can only acknowledge what it carries. An acknowledgement already
+	// in the previous snapshot was applied when that snapshot arrived, so
+	// re-reading the folded snapshot here would buy nothing.
 	patches.push(
 		...pendingSendAcknowledgementPatches({
 			snapshot,
-			entries: nextSnapshot?.entries ?? transcriptDeltaEntries(delta),
-			previousEntries: snapshot.previousGraph?.transcriptSnapshot.entries,
+			entries: transcriptDeltaEntries(delta),
+			previousEntries: snapshot.previousGraph?.transcriptSnapshot.entries ?? [],
 			transcriptRevision: delta.snapshotRevision,
 		})
 	);
@@ -750,9 +753,9 @@ export function reduceTranscriptDelta(
 }
 
 /**
- * The entries a delta carries on its own, for the case where no graph exists
- * yet to fold it into. Only appended entries and whole-snapshot replacements
- * name an entry; a segment append extends an entry that already exists.
+ * The entries a delta carries. Only appended entries and whole-snapshot
+ * replacements name an entry; a segment append extends an entry that already
+ * exists.
  */
 function transcriptDeltaEntries(delta: TranscriptDelta): readonly TranscriptEntry[] {
 	const entries: TranscriptEntry[] = [];

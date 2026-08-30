@@ -87,7 +87,7 @@ function acknowledgesByText(input: {
 export function acknowledgedPendingSendAttemptId(input: {
 	readonly pendingSendIntent: SessionPendingSendIntent | null | undefined;
 	readonly entries: readonly TranscriptEntry[];
-	readonly previousEntries: readonly TranscriptEntry[] | undefined;
+	readonly previousEntries: readonly TranscriptEntry[];
 	readonly transcriptRevision: number;
 }): string | null {
 	const pendingSendIntent = input.pendingSendIntent;
@@ -109,7 +109,7 @@ export function acknowledgedPendingSendAttemptId(input: {
 		return null;
 	}
 
-	const previousEntryIds = new Set((input.previousEntries ?? []).map((entry) => entry.entryId));
+	const previousEntryIds = new Set(input.previousEntries.map((entry) => entry.entryId));
 	const promptText = pendingSendIntentText(pendingSendIntent);
 	for (const entry of input.entries) {
 		if (acknowledgesByText({ entry, previousEntryIds, promptText })) {

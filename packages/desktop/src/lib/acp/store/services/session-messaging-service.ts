@@ -187,18 +187,16 @@ export class SessionMessagingService {
 	}
 
 	/**
-	 * Retire the optimistic send the canonical transcript just acknowledged.
+	 * Retire one send attempt: its intent, its attempt id and its backstop
+	 * timeout. The attempt id is the guard, so a late clear -- the timeout of a
+	 * send that was already acknowledged, or an acknowledgement that arrives
+	 * after the next send -- cannot retire a newer send.
 	 *
-	 * The reducer decides that a canonical user entry belongs to this attempt
-	 * (see envelope-reducer/pending-send-acknowledgement.ts); this only clears
-	 * the intent, its attempt id and its backstop timeout. The attempt id keeps
-	 * a late acknowledgement from retiring a newer send.
+	 * The canonical caller is the envelope applier, on the reducer's
+	 * clearAcknowledgedPendingSendIntent patch (see
+	 * envelope-reducer/pending-send-acknowledgement.ts).
 	 */
-	clearAcknowledgedPendingSendIntent(sessionId: string, attemptId: string): void {
-		this.clearPendingSendIntent(sessionId, attemptId);
-	}
-
-	private clearPendingSendIntent(sessionId: string, attemptId: string): void {
+	clearPendingSendIntent(sessionId: string, attemptId: string): void {
 		if (this.pendingSendAttemptIds.get(sessionId) !== attemptId) {
 			return;
 		}
