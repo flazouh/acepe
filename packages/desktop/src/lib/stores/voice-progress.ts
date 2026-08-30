@@ -1,6 +1,7 @@
 import type { VoiceAmplitude, VoiceModelDownload } from "@acepe/contracts";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
 
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { appRpcClient } from "../rpc/app-client.ts";
@@ -18,6 +19,7 @@ const logger = createLogger({ id: "voice-progress", name: "VoiceProgress" });
  */
 const listeners = new Set<VoiceProgressListener>();
 let started = false;
+let subscription: Fiber.Fiber<void, never> | null = null;
 
 const fanOut: VoiceProgressListener = {
 	onAmplitude: (amplitude: VoiceAmplitude | null) => {
@@ -37,7 +39,7 @@ const start = (): void => {
 		return;
 	}
 	started = true;
-	Effect.runFork(
+	subscription = Effect.runFork(
 		appRpcClient().pipe(
 			Effect.flatMap((client) => {
 				const composed = composeVoiceProgressStore({ client });
@@ -47,6 +49,7 @@ const start = (): void => {
 			Effect.catchCause((cause) =>
 				Effect.sync(() => {
 					started = false;
+					subscription = null;
 					logger.warn("Voice progress stream ended", { error: Cause.pretty(cause) });
 				})
 			)
@@ -62,8 +65,16 @@ export const subscribeVoiceProgress = (listener: VoiceProgressListener): (() => 
 	};
 };
 
-/** Test seam: forget the page-wide subscription. */
+/**
+ * Test seam: close the page-wide subscription and forget its listeners. The
+ * fiber is interrupted rather than dropped, so a suite that subscribes and
+ * resets in a loop does not leave one live RPC stream behind per cycle.
+ */
 export const resetVoiceProgressForTests = (): void => {
 	listeners.clear();
 	started = false;
+	if (subscription !== null) {
+		Effect.runFork(Fiber.interrupt(subscription));
+		subscription = null;
+	}
 };

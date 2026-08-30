@@ -9,6 +9,13 @@ const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
 export const VoiceByteCount = NonNegativeInt
 export type VoiceByteCount = typeof VoiceByteCount.Type
 
+/** How far a download has come, as a percentage. Bounded so a bad producer
+ * cannot drive the ring past full or below empty. */
+export const VoiceDownloadPercent = Schema.Number.check(
+	Schema.isBetween({ minimum: 0, maximum: 100 }),
+)
+export type VoiceDownloadPercent = typeof VoiceDownloadPercent.Type
+
 export const VoiceModelInfo = Schema.Struct({
 	id: TrimmedNonEmptyString,
 	name: TrimmedNonEmptyString,
@@ -61,7 +68,7 @@ export const VoiceModelDownload = Schema.Struct({
 	modelId: TrimmedNonEmptyString,
 	downloadedBytes: NonNegativeInt,
 	totalBytes: NonNegativeInt,
-	percent: Schema.Number,
+	percent: VoiceDownloadPercent,
 })
 export type VoiceModelDownload = typeof VoiceModelDownload.Type
 

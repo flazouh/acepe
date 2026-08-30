@@ -57,6 +57,7 @@ import { SkillsCatalog } from "./skills.ts"
 import {
 	VoiceAmplitudeValues,
 	VoiceByteCount,
+	VoiceDownloadPercent,
 	VoiceLanguageOption,
 	VoiceModelInfo,
 	VoiceTranscriptionResult,
@@ -334,7 +335,7 @@ export const VoiceModelDownloadProgressedPayload = Schema.Struct({
 	modelId: TrimmedNonEmptyString,
 	downloadedBytes: VoiceByteCount,
 	totalBytes: VoiceByteCount,
-	percent: Schema.Number,
+	percent: VoiceDownloadPercent,
 })
 export type VoiceModelDownloadProgressedPayload = typeof VoiceModelDownloadProgressedPayload.Type
 
