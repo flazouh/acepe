@@ -20,9 +20,45 @@ function handleColorChange(value: string): void {
 	void loadingIndicatorSettingsStore.setColor(value);
 }
 
+const selectedFamily = $derived(
+	uiThemeFamilies.find((family) => family.id === uiThemeFamilyStore.familyId)
+);
+
+function handleFamilyChange(value: string): void {
+	uiThemeFamilyStore.setFamily(value as (typeof uiThemeFamilies)[number]["id"]);
+}
+
 const uiBounds = fontSizeSettingsStore.uiBounds;
 const codeBounds = fontSizeSettingsStore.codeBounds;
 </script>
+
+<!--
+	The palette's own background in light and dark, split down the middle. A
+	single colour cannot preview a palette that ships both, and this is the one
+	swatch that reads correctly whichever theme the app is currently in.
+-->
+{#snippet paletteSwatch(familyId: string, size: number)}
+	<span
+		class="inline-flex shrink-0 overflow-hidden rounded-full border border-border/60"
+		style={`width:${size}px;height:${size}px`}
+		aria-hidden="true"
+	>
+		<!--
+			Every band carries data-ui-theme itself. theme.css scopes the dark
+			values to `[data-ui-theme="x"].dark`, so the attribute and the class
+			have to sit on the SAME element; the previous markup put the attribute
+			on the wrapper and `.dark` on the child, and the dark half quietly
+			rendered the light background instead.
+
+			Three bands, not two: Acepe and Anthropic ship identical backgrounds
+			(#f7f7f7 / #121212) and differ in their primary, so a background-only
+			swatch showed those two palettes as the same picture.
+		-->
+		<span data-ui-theme={familyId} class="w-1/3 bg-background"></span>
+		<span data-ui-theme={familyId} class="w-1/3 bg-primary"></span>
+		<span data-ui-theme={familyId} class="dark w-1/3 bg-background"></span>
+	</span>
+{/snippet}
 
 {#snippet fontStepper(
 	value: number,
@@ -67,30 +103,28 @@ const codeBounds = fontSizeSettingsStore.codeBounds;
 			label={"Palette"}
 			description="Which colour set the app paints. Light and dark come with each one."
 		>
-			<div class="flex items-center gap-1" role="group" aria-label="Palette">
-				{#each uiThemeFamilies as family (family.id)}
-					{@const active = uiThemeFamilyStore.familyId === family.id}
-					<button
-						type="button"
-						title={family.origin}
-						aria-pressed={active}
-						onclick={() => uiThemeFamilyStore.setFamily(family.id)}
-						class="flex items-center gap-1.5 rounded-md border px-2 py-1 text-[13px] transition-colors {active
-							? 'border-ring bg-accent text-foreground'
-							: 'border-border/60 text-muted-foreground hover:bg-accent/50 hover:text-foreground'}"
-					>
-						<span
-							data-ui-theme={family.id}
-							class="inline-flex size-3.5 overflow-hidden rounded-full border border-border/60"
-							aria-hidden="true"
-						>
-							<span class="w-1/2 bg-background"></span>
-							<span class="dark w-1/2 bg-background"></span>
-						</span>
-						{family.label}
-					</button>
-				{/each}
-			</div>
+			<Selector align="start" variant="outline" triggerSize="pill" class="w-[220px]">
+				{#snippet renderButton()}
+					<span class="flex min-w-0 flex-1 items-center gap-1.5">
+						{@render paletteSwatch(uiThemeFamilyStore.familyId, 14)}
+						<span class="truncate">{selectedFamily?.label ?? ""}</span>
+					</span>
+				{/snippet}
+
+				<DropdownMenu.RadioGroup
+					value={uiThemeFamilyStore.familyId}
+					onValueChange={handleFamilyChange}
+				>
+					{#each uiThemeFamilies as family (family.id)}
+						<DropdownMenu.RadioItem value={family.id}>
+							<span class="flex items-center gap-2">
+								{@render paletteSwatch(family.id, 16)}
+								<span>{family.label}</span>
+							</span>
+						</DropdownMenu.RadioItem>
+					{/each}
+				</DropdownMenu.RadioGroup>
+			</Selector>
 		</SettingRow>
 		<SettingRow
 			label={"Loading indicator"}
