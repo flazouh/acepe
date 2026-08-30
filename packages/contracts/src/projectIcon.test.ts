@@ -44,9 +44,18 @@ describe("ProjectIconRelativePath", () => {
 			"../outside/logo.png",
 			"assets/../../logo.png",
 			"..//logo.png",
+			"./logo.png",
 		]) {
 			expect(pathAccepts(path)).toBe(false);
 		}
+	});
+
+	it("accepts dots that are not a `..` segment", () => {
+		// The first attempt banned the two characters anywhere, which rejected
+		// honest filenames. Only a `..` segment escapes the root.
+		expect(pathAccepts("assets/v1..2.png")).toBe(true);
+		expect(pathAccepts(".github/logo.png")).toBe(true);
+		expect(pathAccepts("assets/..rc.png")).toBe(true);
 	});
 
 	it("rejects a backslash separator", () => {

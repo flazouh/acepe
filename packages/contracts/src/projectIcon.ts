@@ -27,6 +27,23 @@ const EXTENSION_PATTERN = new RegExp(
 );
 
 /**
+ * One path segment: anything but a separator, and never "." or "..".
+ *
+ * Written positively rather than as a negative lookahead. Effect derives
+ * fast-check arbitraries from these patterns, and a lookahead makes that
+ * derivation fail outright ("Assertions of kind Lookahead not implemented
+ * yet"), which takes down every property test that generates a project.
+ *
+ * The three alternatives are: a segment starting with an ordinary character,
+ * one starting with a dot followed by an ordinary character (".github"), and
+ * one starting with two dots followed by more (a file honestly named
+ * "..rc.png"). Bare "." and bare ".." match none of them.
+ */
+const SEGMENT = "([^/\\\\.][^/\\\\]*|\\.[^/\\\\.][^/\\\\]*|\\.\\.[^/\\\\]+)";
+
+const RELATIVE_PATH_PATTERN = new RegExp(`^${SEGMENT}(/${SEGMENT})*$`);
+
+/**
  * Where an icon lives, written relative to the project's workspace root.
  *
  * Relative on purpose. The Tauri-era column stored an absolute path, which tied
@@ -34,18 +51,17 @@ const EXTENSION_PATTERN = new RegExp(
  * checkout moved. A relative path means the same repository cloned twice, or
  * opened on a second machine, still finds its own icon.
  *
- * The checks below keep a stored choice inside the project. `..` and an
- * absolute path both escape the workspace root, and a backslash is a separator
- * on the platform this never ran on, so all three are rejected here rather than
- * guarded again at every read.
+ * The structure check keeps a stored choice inside the project: a leading "/"
+ * fails the first segment, a ".." segment matches nothing, and a backslash is
+ * not a separator on the only platform this runs on. Note that it rejects a
+ * ".." *segment*, not the two characters anywhere, so a file called
+ * "v1..2.png" is still choosable.
  */
 export const ProjectIconRelativePath = TrimmedNonEmptyString.pipe(
 	Schema.check(
-		Schema.isPattern(/^[^/]/, {
-			title: "relative to the workspace root, not absolute",
+		Schema.isPattern(RELATIVE_PATH_PATTERN, {
+			title: "a path inside the project, with no `..` segment",
 		}),
-		Schema.isPattern(/^(?!.*\.\.)/, { title: "free of `..` segments" }),
-		Schema.isPattern(/^[^\\]*$/, { title: "separated by `/`, not `\\`" }),
 		Schema.isPattern(EXTENSION_PATTERN, {
 			title: `an image the webview can render (${PROJECT_ICON_EXTENSIONS.join(", ")})`,
 		}),

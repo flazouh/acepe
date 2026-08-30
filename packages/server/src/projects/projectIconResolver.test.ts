@@ -4,10 +4,7 @@ import * as NodePath from "node:path";
 import { PROJECT_ICON_AUTO, PROJECT_ICON_NONE } from "@acepe/contracts";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import {
-	forgetAllResolvedProjectIcons,
-	resolveProjectIcon,
-} from "./projectIconResolver.ts";
+import { resolveProjectIcon } from "./projectIconResolver.ts";
 
 let root = "";
 
@@ -18,14 +15,14 @@ const write = (relativePath: string, contents = "x"): string => {
 	return absolute;
 };
 
+// Each case gets its own temp root, so the resolver's per-project cache
+// cannot leak an answer from one case into the next.
 beforeEach(() => {
 	root = NodeFs.mkdtempSync(NodePath.join(NodeOs.tmpdir(), "acepe-icon-"));
-	forgetAllResolvedProjectIcons();
 });
 
 afterEach(() => {
 	NodeFs.rmSync(root, { recursive: true, force: true });
-	forgetAllResolvedProjectIcons();
 });
 
 describe("resolveProjectIcon", () => {

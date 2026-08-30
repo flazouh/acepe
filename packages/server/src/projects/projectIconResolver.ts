@@ -60,11 +60,6 @@ export const forgetResolvedProjectIcon = (workspaceRoot: string): void => {
 	resolvedIcons.delete(workspaceRoot);
 };
 
-/** Forget every project. Used when the projection is rebuilt from scratch. */
-export const forgetAllResolvedProjectIcons = (): void => {
-	resolvedIcons.clear();
-};
-
 const resolveUncached = (
 	workspaceRoot: string,
 	icon: ProjectIcon,
