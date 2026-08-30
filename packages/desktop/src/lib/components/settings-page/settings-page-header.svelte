@@ -9,9 +9,9 @@ interface Props {
 let { title, description, centered = false }: Props = $props();
 </script>
 
-<header class="shrink-0 px-6 pb-5 pt-3">
+<header class="shrink-0 px-5 pb-3 pt-3">
 	<div class={centered ? "mx-auto max-w-3xl" : ""}>
-		<h2 class="text-[22px] font-semibold leading-tight tracking-tight text-foreground">{title}</h2>
-		<p class="mt-1.5 max-w-2xl text-[13px] leading-snug text-muted-foreground">{description}</p>
+		<h2 class="text-[15px] font-semibold leading-tight tracking-tight text-foreground">{title}</h2>
+		<p class="mt-0.5 max-w-2xl text-[12px] leading-snug text-muted-foreground">{description}</p>
 	</div>
 </header>

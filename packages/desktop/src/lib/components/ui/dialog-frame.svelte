@@ -23,10 +23,11 @@ interface Props {
 	closeLabel?: string;
 	headerIconSize?: HeaderIconCloseSize;
 	showTitle?: boolean;
-	/** default = large panel; compact = settings; fullscreen = edge-to-edge window; form/medium/wide = sized forms; panel/debug = tool surfaces; palette* = command palettes; bare = chromeless overlay. */
+	/** default = large panel; settings = Notion-style settings modal; compact = small dialog; fullscreen = edge-to-edge window; form/medium/wide = sized forms; panel/debug = tool surfaces; palette* = command palettes; bare = chromeless overlay. */
 	size?:
 		| "default"
 		| "compact"
+		| "settings"
 		| "fullscreen"
 		| "form"
 		| "medium"
@@ -84,9 +85,11 @@ const dialogSizeClass = $derived(
 									? "h-auto w-full max-w-lg"
 									: size === "bare"
 										? "h-[90vh] w-fit max-w-[96vw]"
-										: size === "compact"
-											? "h-[min(78vh,680px)] w-[min(92vw,920px)]"
-											: "h-[min(86vh,860px)] w-[min(94vw,1180px)]"
+										: size === "settings"
+											? "h-[min(84vh,720px)] w-[min(92vw,1100px)]"
+											: size === "compact"
+												? "h-[min(78vh,680px)] w-[min(92vw,920px)]"
+												: "h-[min(86vh,860px)] w-[min(94vw,1180px)]"
 );
 
 const isAutoHeight = $derived(

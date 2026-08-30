@@ -21,19 +21,16 @@ function sectionsForGroup(groupId: SettingsNavGroupId) {
 }
 </script>
 
-<nav
-	class="flex w-full flex-col px-1 py-1"
-	aria-label="Settings sections"
->
+<nav class="flex w-full flex-col px-2 py-1" aria-label="Settings sections">
 	{#each SETTINGS_NAV_GROUPS as group (group.id)}
 		{@const groupSections = sectionsForGroup(group.id)}
 		{#if groupSections.length > 0}
-			<div class="px-1.5 pb-0.5 pt-1.5 first:pt-0.5">
+			<div class="px-1.5 pb-0.5 pt-2.5 first:pt-1">
 				<p class="text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground/55">
 					{group.label}
 				</p>
 			</div>
-			<div class="flex flex-col gap-px pb-1">
+			<div class="flex flex-col gap-px">
 				{#each groupSections as section (section.id)}
 					{@const isActive = activeSection === section.id}
 					<button
@@ -41,7 +38,7 @@ function sectionsForGroup(groupId: SettingsNavGroupId) {
 						onclick={() => onSectionChange(section.id)}
 						aria-current={isActive ? "page" : undefined}
 						class={cn(
-							"flex items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-[13px] font-medium transition-colors duration-150",
+							"flex items-center gap-2 rounded px-1.5 py-[3px] text-left text-[12.5px] font-medium transition-colors duration-150",
 							isActive
 								? "bg-accent text-foreground"
 								: "text-muted-foreground hover:bg-accent/50 hover:text-foreground"

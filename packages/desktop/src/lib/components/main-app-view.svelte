@@ -131,6 +131,7 @@ import {
 } from "./main-app-view/logic/updater-workflow.js";
 import { ReviewFullscreenPage } from "./review-fullscreen/index.js";
 import { SettingsPage } from "./settings-page/index.js";
+import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 import { TopBar } from "./top-bar/index.js";
 import {
 	createLiveInteractionGraphConsumer,
@@ -2009,21 +2010,7 @@ onDestroy(() => {
 				onDevResetOnboarding={handleDevResetOnboarding}
 			></TopBar>
 		</div>
-		{#if viewState.settingsModalOpen}
-			<div class={resolveWorkspaceFrameClass()}>
-				<svelte:boundary onerror={(e) => console.error('[boundary:settings]', e)}>
-					<SettingsPage {projectManager} onBack={() => viewState.closeSettings()} />
-					{#snippet failed(error, reset)}
-						<div class="flex flex-1 items-center justify-center p-4">
-							<div class="flex flex-col items-center gap-2 text-muted-foreground text-xs">
-								<span>{"Settings encountered an error."}</span>
-								<button class="underline hover:text-foreground" onclick={reset}>{"Retry"}</button>
-							</div>
-						</div>
-					{/snippet}
-				</svelte:boundary>
-			</div>
-		{:else if !viewState.reviewFullscreenOpen}
+		{#if !viewState.reviewFullscreenOpen}
 			<div class={resolveWorkspaceFrameClass()}>
 				<LiveSessionPanelSyncHost state={viewState} />
 				{#if showSidebar}
@@ -2164,6 +2151,37 @@ onDestroy(() => {
 				onOpenFile={handleProjectFileSystemDialogOpenFile}
 			/>
 		{/key}
+	{/if}
+
+	<!--
+		Settings modal. Notion puts settings in a centered dialog rather than a
+		page: the workspace stays visible behind it, so the thing being
+		configured never leaves the screen.
+	-->
+	{#if viewState.settingsModalOpen}
+		<DialogFrame
+			open={true}
+			title="Settings"
+			size="settings"
+			hideHeader
+			onOpenChange={(open) => {
+				if (open === false) {
+					viewState.closeSettings();
+				}
+			}}
+		>
+			<svelte:boundary onerror={(e) => console.error('[boundary:settings]', e)}>
+				<SettingsPage {projectManager} onBack={() => viewState.closeSettings()} />
+				{#snippet failed(error, reset)}
+					<div class="flex flex-1 items-center justify-center p-4">
+						<div class="flex flex-col items-center gap-2 text-muted-foreground text-xs">
+							<span>{"Settings encountered an error."}</span>
+							<button class="underline hover:text-foreground" onclick={reset}>{"Retry"}</button>
+						</div>
+					</div>
+				{/snippet}
+			</svelte:boundary>
+		</DialogFrame>
 	{/if}
 
 	<!-- Onboarding Overlay (shows on first launch: splash → agents → projects → done) -->

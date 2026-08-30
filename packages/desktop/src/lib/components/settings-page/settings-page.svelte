@@ -42,103 +42,89 @@ function handleSectionChange(section: SettingsSectionId) {
 }
 </script>
 
-<!-- Left nav panel: borderless Notion-like shell, elevation carries the separation. -->
-<aside
-	class="settings-panel-shell flex h-full w-[240px] shrink-0 flex-col overflow-hidden rounded-lg bg-card/75"
->
-	<!-- Header band: same height/padding/border as the app sidebar header -->
-	<div class="flex h-7 shrink-0 items-center gap-0.5 border-b border-border/50 px-1">
+<!--
+	One frame, split by a hairline: Notion's settings modal is a single surface
+	with the nav inset on the left, not two floating cards. The dialog already
+	supplies the border, radius and elevation, so nothing here draws its own.
+
+	The nav sits on --background rather than --muted. In the dark theme muted
+	(#1c1a18) is the same value as the dialog surface, so a muted nav reads as
+	no panel at all; background (#121212) is the one token that actually steps
+	down from it.
+-->
+<div class="flex h-full min-h-0 w-full">
+	<aside
+		class="flex h-full w-[212px] shrink-0 flex-col border-r border-border/60 bg-background"
+	>
 		{#if onBack}
-			<button
-				type="button"
-				onclick={onBack}
-				aria-label="Back"
-				class="inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-			>
-				<HugeiconsIcon name="chevron-left" class="size-3.5" />
-				<span>Back</span>
-			</button>
+			<div class="flex h-8 shrink-0 items-center px-1.5">
+				<button
+					type="button"
+					onclick={onBack}
+					aria-label="Back"
+					class="inline-flex h-6 items-center gap-1 rounded px-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+				>
+					<HugeiconsIcon name="chevron-left" class="size-3.5" />
+					<span>Back</span>
+				</button>
+			</div>
 		{/if}
-	</div>
-	<div class="min-h-0 flex-1 overflow-y-auto">
-		<SettingsSidebar {activeSection} onSectionChange={handleSectionChange} />
-	</div>
-</aside>
-
-<!-- Content panel: borderless Notion-like shell, elevation carries the separation. -->
-<main
-	class="settings-panel-shell flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg bg-card/75"
->
-	<SettingsPageHeader
-		title={activeSectionDefinition.label}
-		description={activeSectionDefinition.description}
-		centered={activeSectionDefinition.fullWidth !== true}
-	/>
-
-	<div class="min-h-0 flex-1 overflow-auto px-6 py-5">
-		<div
-			class={activeSectionDefinition.fullWidth === true
-				? "flex h-full min-h-0 w-full flex-col"
-				: "mx-auto w-full max-w-3xl"}
-		>
-			{#if activeSection === "general"}
-				<GeneralSection />
-			{:else if activeSection === "appearance"}
-				<AppearanceSection />
-			{:else if activeSection === "agents"}
-				<AgentsModelsSection />
-			{:else if activeSection === "chat"}
-				<ChatSection />
-			{:else if activeSection === "skills"}
-				<SkillsSection />
-			{:else if activeSection === "keybindings"}
-				<KeybindingsSection />
-			{:else if activeSection === "mcp"}
-				<McpSection />
-			{:else if activeSection === "git"}
-				<GitSection />
-			{:else if activeSection === "project"}
-				{#if projectManager}
-					<ProjectSection {projectManager} />
-				{:else}
-					<p class="text-[12px] text-muted-foreground/70">
-						Project settings are only available from the main app view.
-					</p>
-				{/if}
-			{:else if activeSection === "environments"}
-				<EnvironmentsSection />
-			{:else if activeSection === "archived"}
-				{#if projectManager}
-					<ArchivedSessionsSection {projectManager} />
-				{:else}
-					<p class="text-[12px] text-muted-foreground/70">
-						Archived sessions are only available from the main app view.
-					</p>
-				{/if}
-			{:else if activeSection === "usage"}
-				<UsageSection />
-			{/if}
+		<div class="min-h-0 flex-1 overflow-y-auto pb-2">
+			<SettingsSidebar {activeSection} onSectionChange={handleSectionChange} />
 		</div>
-	</div>
-</main>
+	</aside>
 
-<style>
-	/*
-	 * Borderless Notion-like shell: elevation (shadow), not a border, separates
-	 * the settings panels from the app background behind them. The default
-	 * app-wide shadow tokens (--shadow-lg etc, app.css) are tuned for light
-	 * surfaces and stay too faint to read against the dark background, so this
-	 * is scoped to the settings shell rather than bumped globally.
-	 */
-	.settings-panel-shell {
-		box-shadow:
-			0px 8px 24px -4px hsl(0 0% 5% / 0.12),
-			0px 2px 8px -2px hsl(0 0% 5% / 0.1);
-	}
+	<main class="flex h-full min-h-0 min-w-0 flex-1 flex-col">
+		<SettingsPageHeader
+			title={activeSectionDefinition.label}
+			description={activeSectionDefinition.description}
+			centered={activeSectionDefinition.fullWidth !== true}
+		/>
 
-	:global(.dark) .settings-panel-shell {
-		box-shadow:
-			0px 8px 24px -4px hsl(0 0% 0% / 0.45),
-			0px 2px 8px -2px hsl(0 0% 0% / 0.35);
-	}
-</style>
+		<div class="min-h-0 flex-1 overflow-auto px-5 pb-5">
+			<div
+				class={activeSectionDefinition.fullWidth === true
+					? "flex h-full min-h-0 w-full flex-col"
+					: "mx-auto w-full max-w-3xl"}
+			>
+				{#if activeSection === "general"}
+					<GeneralSection />
+				{:else if activeSection === "appearance"}
+					<AppearanceSection />
+				{:else if activeSection === "agents"}
+					<AgentsModelsSection />
+				{:else if activeSection === "chat"}
+					<ChatSection />
+				{:else if activeSection === "skills"}
+					<SkillsSection />
+				{:else if activeSection === "keybindings"}
+					<KeybindingsSection />
+				{:else if activeSection === "mcp"}
+					<McpSection />
+				{:else if activeSection === "git"}
+					<GitSection />
+				{:else if activeSection === "project"}
+					{#if projectManager}
+						<ProjectSection {projectManager} />
+					{:else}
+						<p class="text-[12px] text-muted-foreground/70">
+							Project settings are only available from the main app view.
+						</p>
+					{/if}
+				{:else if activeSection === "environments"}
+					<EnvironmentsSection />
+				{:else if activeSection === "archived"}
+					{#if projectManager}
+						<ArchivedSessionsSection {projectManager} />
+					{:else}
+						<p class="text-[12px] text-muted-foreground/70">
+							Archived sessions are only available from the main app view.
+						</p>
+					{/if}
+				{:else if activeSection === "usage"}
+					<UsageSection />
+				{/if}
+			</div>
+		</div>
+	</main>
+</div>

@@ -27,7 +27,7 @@ let {
 }: Props = $props();
 </script>
 
-<section class={cn("mb-6 last:mb-0", className)}>
+<section class={cn("mb-4 last:mb-0", className)}>
 	{#if title}
 		<SettingsSectionHeader
 			variant="subsection"
@@ -37,7 +37,7 @@ let {
 		/>
 	{/if}
 	{#if card}
-		<div class="overflow-hidden rounded-xl border border-border/60 bg-card">
+		<div class="overflow-hidden rounded-lg border border-border/60 bg-card">
 			{@render children()}
 		</div>
 	{:else}
