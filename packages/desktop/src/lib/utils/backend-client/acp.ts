@@ -39,13 +39,13 @@ import type { CustomAgentConfig } from "./types.js";
 // snapshot (real, verified end to end for the prompt-core path -- see
 // ProviderBridge.ts, which forwards message.send/turn.cancel/
 // interaction.reply to the real provider adapter), rides the agentCall
-// utility RPC (listAgents), or is honestly unsupportedOnContract.
+// utility RPC (agent listing, install and sign-in), or is honestly
+// unsupportedOnContract.
 //
-// The unsupportedOnContract methods below (custom agent registration, agent
-// authentication, preconnection discovery, the event bridge) are not
-// behaviour regressions: none of them has ever had a working Electrobun
-// backend. There is no register_custom_agent/authenticate_agent/
-// cancel_agent_authentication/list_preconnection_commands/
+// The unsupportedOnContract methods below (custom agent registration,
+// preconnection discovery, the event bridge) are not behaviour regressions:
+// none of them has ever had a working Electrobun backend. There is no
+// register_custom_agent/list_preconnection_commands/
 // list_preconnection_capabilities/get_composer_mcp_catalog/
 // get_event_bridge_info handler anywhere in packages/electrobun-shell or
 // packages/server -- every one of these calls already fails today (an
@@ -53,8 +53,9 @@ import type { CustomAgentConfig } from "./types.js";
 // unsupportedOnContract turns that into a typed, honest failure instead of a
 // silent hang, with zero change in what the app can actually do.
 //
-// listAgents, installAgent and uninstallAgent are the exceptions: all three
-// ride the agentCall utility RPC (packages/contracts/src/agentCall.ts), a
+// listAgents, installAgent, uninstallAgent, authenticateAgent and
+// cancelAgentAuthentication are the exceptions: all of them ride the
+// agentCall utility RPC (packages/contracts/src/agentCall.ts), a
 // gitCall-style tagged-union request routed server-side onto
 // ProviderRegistry.list and AgentInstaller (packages/server/src/provider/
 // agentCallHandler.ts). The agent.* orchestration commands in
@@ -68,6 +69,7 @@ const toAgentInfo = (agent: AgentCallAgentInfo): AgentInfo => ({
 	id: agent.id,
 	name: agent.name,
 	availability_kind: agent.availabilityKind,
+	sign_in: agent.signIn,
 });
 
 // The agentCall result union echoes the request's `op` discriminant (see
@@ -207,12 +209,6 @@ export const acp = {
 			projects: readonly RpcProjectedProject[];
 		};
 	}),
-
-	authenticateAgent: (_agentId: string): Effect.Effect<void, AppError> =>
-		unsupportedOnContract("acp.authenticateAgent"),
-
-	cancelAgentAuthentication: (_agentId: string): Effect.Effect<void, AppError> =>
-		unsupportedOnContract("acp.cancelAgentAuthentication"),
 
 	newSession: Effect.fn("acp.newSession")(function* (
 		cwd: string,
@@ -558,6 +554,40 @@ export const acp = {
 		);
 		const result = yield* unwrapAgentCallResult("agent.uninstall", response);
 		return result.agents.map(toAgentInfo);
+	}),
+
+	// agent.authenticate runs the agent's own login command on the server and
+	// waits for it. The call is long-running by nature: it is waiting on the
+	// person finishing the login in their browser. It answers with whether
+	// the backend now considers the agent authenticated, re-read from
+	// ProviderRegistry rather than assumed from the login exiting cleanly, so
+	// no caller keeps an idea of its own about who is signed in.
+	//
+	// An agent whose login the server cannot drive fails here with the
+	// command to run instead. Read that from listAgents' `sign_in` before
+	// offering a control rather than calling this to find out.
+	authenticateAgent: Effect.fn("acp.authenticateAgent")(function* (agentId: string) {
+		const response = yield* withRpcClient("acp.authenticateAgent", (client) =>
+			client.agentCall({ op: "agent.authenticate", agentId })
+		);
+		const result = yield* unwrapAgentCallResult("agent.authenticate", response);
+		return {
+			authenticated: result.authenticated,
+			agents: result.agents.map(toAgentInfo),
+		};
+	}),
+
+	// Stops the login command agent.authenticate is waiting on, which makes
+	// that call fail with a cancelled message. `false` means there was no
+	// sign-in running to stop.
+	cancelAgentAuthentication: Effect.fn("acp.cancelAgentAuthentication")(function* (
+		agentId: string
+	) {
+		const response = yield* withRpcClient("acp.cancelAgentAuthentication", (client) =>
+			client.agentCall({ op: "agent.cancel-authentication", agentId })
+		);
+		const result = yield* unwrapAgentCallResult("agent.cancel-authentication", response);
+		return result.cancelled;
 	}),
 
 	closeSession: Effect.fn("acp.closeSession")(function* (sessionId: string) {

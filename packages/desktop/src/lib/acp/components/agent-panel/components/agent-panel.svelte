@@ -91,6 +91,8 @@ import { deriveAgentPanelHeaderDisplayTitle } from "../logic/agent-panel-header-
 import { resolveAgentPanelHeaderSequenceId } from "../logic/agent-panel-header-sequence-id.js";
 import { resolveAgentPanelProviderBrand } from "../logic/agent-panel-provider-brand.js";
 import { derivePendingUserRevealRequestKey } from "../logic/pending-user-reveal-request-key.js";
+import { deriveSignInCard } from "../logic/sign-in-card.js";
+import { rootCauseMessage } from "../../../errors/error-cause-details.js";
 import { resolveWorktreeToggleProjectPath } from "../logic/worktree-toggle-project-path.js";
 import { getWorktreeProjectDefaultStore } from "$lib/acp/components/worktree/worktree-project-default-store.svelte.js";
 import type { AgentPanelProps } from "../types";
@@ -510,6 +512,16 @@ const agentName: string | null = $derived.by((): string | null => {
 	const agent = availableAgents.find((candidate) => candidate.id === effectivePanelAgentId);
 	return agent?.name ?? effectivePanelAgentId;
 });
+// The pre-composer sign-in card, and whether it gets a control. The backend
+// decides that from what the agent's own CLI offers (agentStore's sign-in
+// method, read off the agent list); the panel never guesses, because a
+// button for an agent the backend cannot sign in can only fail.
+const signInCard = $derived(
+	deriveSignInCard({
+		requirement: sessionController.signInRequirement,
+		signInMethod: agentStore.getAgentSignInMethod(effectivePanelAgentId),
+	})
+);
 // Error/connection derivations now live on the session controller (single
 // source + unit-tested); the connection $state + retry/cancel/dismiss handlers
 // stay here (tangled with agentInputRef). Thin reactive aliases; ref-inline U5.
@@ -1307,10 +1319,15 @@ function handleSignIn() {
 	isSigningIn = true;
 	signInError = null;
 
+	// Runs the agent's own login command on the backend and waits for the
+	// person to finish it in their browser, so this call is long-lived by
+	// design. `authenticated` is the backend's re-read fact -- a login that
+	// exits cleanly without signing anybody in answers false, and saying so
+	// beats reconnecting into the same auth failure.
 	void Effect.runPromise(
-		backendClient.acp.authenticateAgent(agentId).pipe(
+		agentStore.authenticateAgent(agentId).pipe(
 			Effect.match({
-				onSuccess: () => {
+				onSuccess: (authenticated) => {
 					if (
 						signInAttempt !== attempt ||
 						effectivePanelAgentId !== agentId ||
@@ -1323,6 +1340,10 @@ function handleSignIn() {
 						return;
 					}
 					isSigningIn = false;
+					if (!authenticated) {
+						signInError = "The sign-in finished without signing you in. Try again.";
+						return;
+					}
 					signInError = null;
 					if (sessionIdAtStart !== null) {
 						void Effect.runPromise(
@@ -1349,7 +1370,13 @@ function handleSignIn() {
 						return;
 					}
 					isSigningIn = false;
-					signInError = error.message;
+					// rootCauseMessage, not error.message: the RPC facade wraps
+					// every failure in "Agent operation failed: acp.
+					// authenticateAgent", which names the call rather than what
+					// went wrong. The backend's own reason -- the CLI is not
+					// installed, the sign-in was cancelled, the login exited
+					// without signing anybody in -- is the cause underneath.
+					signInError = rootCauseMessage(error);
 				},
 			})
 		)
@@ -1361,12 +1388,15 @@ function handleCancelSignIn() {
 	if (agentId === null || agentId === undefined || !isSigningIn) {
 		return;
 	}
+	// Kills the login command the sign-in call is waiting on. That call then
+	// fails on its own with the cancelled message, which is what clears the
+	// busy state -- nothing is assumed here about what the cancel did.
 	void Effect.runPromise(
-		backendClient.acp.cancelAgentAuthentication(agentId).pipe(
+		agentStore.cancelAgentAuthentication(agentId).pipe(
 			Effect.match({
 				onSuccess: () => undefined,
 				onFailure: (error) => {
-					signInError = error.message;
+					signInError = rootCauseMessage(error);
 				},
 			})
 		)
@@ -1496,7 +1526,7 @@ const hasPreComposerStackContent = $derived(
 			(createdPr !== null || prCard.createRunning || prCard.streamingShipData !== null)) ||
 		(showTodoHeader && todoState !== null) ||
 		queueStripDisplayMessages.length > 0 ||
-		sessionController.signInRequirement !== null
+		signInCard !== null
 );
 
 const handlePreSessionWorktreeYes = () => worktreeController.handlePreSessionWorktreeYes();
@@ -1854,10 +1884,10 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 					onQueueClear={handleQueueStripClear}
 					onQueueResume={queueIsPaused && sessionId ? () => messageQueueStore.resume(sessionId) : undefined}
 					onQueueSendNow={handleQueueStripSendNow}
-					signInRequirement={sessionController.signInRequirement}
+					{signInCard}
 					{isSigningIn}
 					{signInError}
-					onSignIn={handleSignIn}
+					onSignIn={signInCard?.canSignIn === true ? handleSignIn : undefined}
 					onCancelSignIn={handleCancelSignIn}
 					onDismissSignIn={handleDismissSignIn}
 				/>

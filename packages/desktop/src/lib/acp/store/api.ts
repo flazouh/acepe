@@ -26,6 +26,7 @@ import type { AppError } from "../errors/app-error";
 import type { InteractionReplyRequest } from "../types/interaction-reply-request.js";
 import type {
 	AgentAvailabilityKind,
+	AgentSignInMethod,
 	PersistedWorkspaceRestoreState,
 	PersistedWorkspaceState,
 	ResumeSessionResult,
@@ -313,6 +314,7 @@ export interface AgentInfo {
 	default_selection_rank?: number;
 	provider_metadata?: ProviderMetadataProjection;
 	supports_project_discovery?: boolean;
+	sign_in?: AgentSignInMethod;
 }
 
 /**
@@ -339,6 +341,22 @@ export function installAgent(
  */
 export function uninstallAgent(agentId: string): Effect.Effect<AgentInfo[], AppError> {
 	return backendClient.acp.uninstallAgent(agentId);
+}
+
+/**
+ * Run the agent's own sign-in on the backend and wait for it. Answers with
+ * whether the backend now considers the agent authenticated, plus the agent
+ * list re-read afterwards. Long-running: it is waiting on a browser step.
+ */
+export function authenticateAgent(
+	agentId: string
+): Effect.Effect<{ authenticated: boolean; agents: AgentInfo[] }, AppError> {
+	return backendClient.acp.authenticateAgent(agentId);
+}
+
+/** Stop a sign-in that is running. `false` means there was none. */
+export function cancelAgentAuthentication(agentId: string): Effect.Effect<boolean, AppError> {
+	return backendClient.acp.cancelAgentAuthentication(agentId);
 }
 
 /**
@@ -388,4 +406,6 @@ export const api = {
 	listAgents,
 	installAgent,
 	uninstallAgent,
+	authenticateAgent,
+	cancelAgentAuthentication,
 };

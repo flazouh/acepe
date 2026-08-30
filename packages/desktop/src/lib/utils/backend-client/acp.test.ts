@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import {
 	emptyRpcSessionSnapshot,
+	RpcAgentCallError,
 	type RpcClient,
 	type RpcSessionSnapshot,
 	SessionId,
@@ -9,6 +10,7 @@ import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import * as Stream from "effect/Stream";
 
+import { rootCauseMessage } from "../../acp/errors/error-cause-details.js";
 import { setAppRpcClientForTest } from "../../rpc/app-client.ts";
 import { acp } from "./acp.ts";
 
@@ -404,6 +406,7 @@ describe("acp backend client", () => {
 										id: "opencode",
 										name: "OpenCode",
 										availabilityKind: { kind: "installable", installed: true },
+										signIn: { kind: "browser" },
 									},
 								],
 							});
@@ -419,6 +422,7 @@ describe("acp backend client", () => {
 							id: "opencode",
 							name: "OpenCode",
 							availability_kind: { kind: "installable", installed: true },
+							sign_in: { kind: "browser" },
 						},
 					],
 				});
@@ -441,6 +445,7 @@ describe("acp backend client", () => {
 										id: "opencode",
 										name: "OpenCode",
 										availabilityKind: { kind: "installable", installed: false },
+										signIn: { kind: "browser" },
 									},
 								],
 							});
@@ -454,8 +459,101 @@ describe("acp backend client", () => {
 						id: "opencode",
 						name: "OpenCode",
 						availability_kind: { kind: "installable", installed: false },
+						sign_in: { kind: "browser" },
 					},
 				]);
+			})
+		));
+
+	// The bug this replaces: authenticateAgent answered unsupportedOnContract,
+	// so the panel's sign-in button could only ever fail. It has to reach the
+	// backend's sign-in op instead.
+	it("authenticateAgent sends agentCall's agent.authenticate op and returns the backend's answer", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				const requests: Array<Record<string, unknown>> = [];
+				setAppRpcClientForTest(
+					makeClient({
+						agentCall: (request) => {
+							requests.push(request as unknown as Record<string, unknown>);
+							return Effect.succeed({
+								op: "agent.authenticate",
+								agentId: "codex",
+								authenticated: true,
+								agents: [
+									{
+										id: "codex",
+										name: "Codex",
+										availabilityKind: { kind: "installable", installed: true },
+										signIn: { kind: "browser" },
+									},
+								],
+							});
+						},
+					})
+				);
+				const result = yield* acp.authenticateAgent("codex");
+				expect(requests).toEqual([{ op: "agent.authenticate", agentId: "codex" }]);
+				expect(result).toEqual({
+					authenticated: true,
+					agents: [
+						{
+							id: "codex",
+							name: "Codex",
+							availability_kind: { kind: "installable", installed: true },
+							sign_in: { kind: "browser" },
+						},
+					],
+				});
+			})
+		));
+
+	it("authenticateAgent carries the backend's own reason for a failed sign-in", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				setAppRpcClientForTest(
+					makeClient({
+						agentCall: () =>
+							Effect.fail(
+								new RpcAgentCallError({
+									op: "agent.authenticate",
+									detail: "The codex sign-in ended without signing you in.",
+								})
+							),
+					})
+				);
+				const outcome = yield* Effect.result(acp.authenticateAgent("codex"));
+				expect(Result.isFailure(outcome)).toBe(true);
+				if (Result.isFailure(outcome)) {
+					// The facade wraps every failure in a generic "Agent
+					// operation failed" line, so the backend's own reason lives
+					// in the cause chain. The panel reads it with
+					// rootCauseMessage; this asserts it survives the trip.
+					expect(rootCauseMessage(outcome.failure)).toContain("without signing you in");
+					expect(rootCauseMessage(outcome.failure)).not.toContain("unsupported");
+				}
+			})
+		));
+
+	it("cancelAgentAuthentication sends agentCall's cancel op and reports whether it stopped one", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				const requests: Array<Record<string, unknown>> = [];
+				setAppRpcClientForTest(
+					makeClient({
+						agentCall: (request) => {
+							requests.push(request as unknown as Record<string, unknown>);
+							return Effect.succeed({
+								op: "agent.cancel-authentication",
+								agentId: "codex",
+								cancelled: true,
+							});
+						},
+					})
+				);
+				const cancelled = yield* acp.cancelAgentAuthentication("codex");
+				expect(requests).toEqual([{ op: "agent.cancel-authentication", agentId: "codex" }]);
+				expect(cancelled).toBe(true);
 			})
 		));
 
@@ -490,6 +588,7 @@ describe("acp backend client", () => {
 										id: "claude-code",
 										name: "Claude Code",
 										availabilityKind: { kind: "installable", installed: true },
+										signIn: { kind: "browser" },
 									},
 								],
 							}),
@@ -501,6 +600,7 @@ describe("acp backend client", () => {
 						id: "claude-code",
 						name: "Claude Code",
 						availability_kind: { kind: "installable", installed: true },
+						sign_in: { kind: "browser" },
 					},
 				]);
 			})

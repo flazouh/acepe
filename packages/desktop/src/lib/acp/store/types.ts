@@ -422,6 +422,17 @@ export interface PanelLayout {
 export type AgentAvailabilityKind = { kind: "installable"; installed: boolean };
 
 /**
+ * How an agent can be signed in, decided by the backend from what that
+ * agent's own CLI offers (packages/server/src/provider/signIn.ts).
+ * `browser` means acp.authenticateAgent runs a real login command for it;
+ * `manual` means it has none the backend can drive, and `instructions` says
+ * what to run instead. Never inferred here -- this is a backend fact.
+ */
+export type AgentSignInMethod =
+	| { readonly kind: "browser" }
+	| { readonly kind: "manual"; readonly instructions: string };
+
+/**
  * Agent - represents an AI agent provider.
  * Compatible with AgentInfo from agent-manager for UI components.
  */
@@ -439,6 +450,8 @@ export interface Agent {
 	readonly providerMetadata?: ProviderMetadataProjection;
 	/** Whether the agent can discover persisted projects from existing session history. */
 	readonly supportsProjectDiscovery?: boolean;
+	/** Backend-owned: how this agent can be signed in, if at all. */
+	readonly signIn?: AgentSignInMethod;
 }
 
 // ============================================

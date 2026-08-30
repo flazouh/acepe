@@ -14,7 +14,7 @@ import type { AppError } from "../errors/app-error.js";
 import { rootCauseMessage } from "../errors/error-cause-details.js";
 import { createLogger } from "../utils/logger.js";
 import { type AgentInfo, api } from "./api.js";
-import type { Agent } from "./types.js";
+import type { Agent, AgentSignInMethod } from "./types.js";
 
 const AGENT_STORE_KEY = Symbol("agent-store");
 const logger = createLogger({ id: "agent-store", name: "AgentStore" });
@@ -34,6 +34,7 @@ const toAgent = (info: AgentInfo): Agent => ({
 	default_selection_rank: info.default_selection_rank,
 	providerMetadata: info.provider_metadata,
 	supportsProjectDiscovery: info.supports_project_discovery ?? false,
+	signIn: info.sign_in,
 });
 
 export type AgentInstallationReadiness =
@@ -137,6 +138,39 @@ export class AgentStore {
 	}
 
 	/**
+	 * Run the agent's own sign-in on the backend and wait for it.
+	 *
+	 * Answers with the backend's re-read authenticated fact, not with "the
+	 * call succeeded": a login command can exit cleanly having written
+	 * nothing the adapter finds. The agent list comes back from the same
+	 * call, so this never makes a second list request that could disagree.
+	 */
+	authenticateAgent(agentId: string): Effect.Effect<boolean, AppError> {
+		return Effect.suspend(() => {
+			logger.info("Signing agent in", { agentId });
+			return api.authenticateAgent(agentId);
+		}).pipe(
+			Effect.map((result) => {
+				this.agents = result.agents.map(toAgent);
+				logger.info("Agent sign-in finished", {
+					agentId,
+					authenticated: result.authenticated,
+				});
+				return result.authenticated;
+			}),
+			Effect.mapError((error) => {
+				logger.error("Agent sign-in failed", error);
+				return error;
+			})
+		);
+	}
+
+	/** Stop a sign-in that is running. `false` means there was none. */
+	cancelAgentAuthentication(agentId: string): Effect.Effect<boolean, AppError> {
+		return api.cancelAgentAuthentication(agentId);
+	}
+
+	/**
 	 * Check if an agent is currently being installed.
 	 */
 	isInstalling(agentId: string): boolean {
@@ -190,6 +224,15 @@ export class AgentStore {
 
 	getProviderMetadata(agentId: string | null | undefined): Agent["providerMetadata"] | null {
 		return this.getAgent(agentId)?.providerMetadata ?? null;
+	}
+
+	/**
+	 * How the backend can sign this agent in, or `null` when the agent list
+	 * has not answered yet. Never derived here: the backend decides it from
+	 * what the agent's own CLI offers.
+	 */
+	getAgentSignInMethod(agentId: string | null | undefined): AgentSignInMethod | null {
+		return this.getAgent(agentId)?.signIn ?? null;
 	}
 }
 

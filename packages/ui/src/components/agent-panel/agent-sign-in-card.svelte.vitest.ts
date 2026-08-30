@@ -32,6 +32,22 @@ describe("AgentSignInCard", () => {
 		expect(onSignIn).toHaveBeenCalledTimes(1);
 	});
 
+	// An agent the backend cannot sign in from here gets no onSignIn, and
+	// therefore no button. A control whose only outcome is a failure is the
+	// bug this guards.
+	it("shows the message and no sign-in button when no sign-in action is given", () => {
+		const view = render(AgentSignInCard, {
+			props: {
+				title: "Sign in to continue",
+				message: "Run `opencode auth login` in a terminal.",
+				onDismiss: vi.fn(),
+			},
+		});
+
+		expect(view.queryByRole("button", { name: "Sign in" })).toBe(null);
+		expect(view.getByText("Run `opencode auth login` in a terminal.")).toBeTruthy();
+	});
+
 	it("shows cancellable busy state without allowing another sign-in", async () => {
 		const onSignIn = vi.fn();
 		const onCancelSignIn = vi.fn();

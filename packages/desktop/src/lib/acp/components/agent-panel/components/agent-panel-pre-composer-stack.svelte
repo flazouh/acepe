@@ -17,6 +17,7 @@ import PreSessionWorktreeCard from "./pre-session-worktree-card.svelte";
 import WorktreeSetupCard from "./worktree-setup-card.svelte";
 import AgentInstallCard from "./agent-install-card.svelte";
 import AgentErrorCard from "./agent-error-card.svelte";
+import type { SignInCardInfo } from "../logic/sign-in-card.js";
 import type { WorktreeSetupState } from "../logic/worktree-setup-events.js";
 import type { ShipCardData } from "../../ship-card/ship-card-parser.js";
 
@@ -87,7 +88,7 @@ let {
 	onQueueClear,
 	onQueueResume,
 	onQueueSendNow,
-	signInRequirement,
+	signInCard,
 	isSigningIn,
 	signInError,
 	onSignIn,
@@ -143,10 +144,21 @@ let {
 	onQueueClear: () => void;
 	onQueueResume: (() => void) | undefined;
 	onQueueSendNow: (messageId: string) => void;
-	signInRequirement: { agent: string; instructions: string } | null;
+	/**
+	 * What the sign-in card should say, or `null` when none is showing.
+	 * `canSignIn` is the backend's answer to whether this agent has a login
+	 * the app can run -- see logic/sign-in-card.ts. The card offers a control
+	 * only when `onSignIn` is passed, which the panel gates on that.
+	 */
+	signInCard: SignInCardInfo | null;
 	isSigningIn: boolean;
 	signInError: string | null;
-	onSignIn: () => void;
+	/**
+	 * Left undefined for an agent the backend cannot sign in from here. The
+	 * card then shows what to run instead and no control, rather than a
+	 * button whose only outcome is a failure.
+	 */
+	onSignIn: (() => void) | undefined;
 	onCancelSignIn: () => void;
 	onDismissSignIn: () => void;
 } = $props();
@@ -172,10 +184,10 @@ let {
 					data-pre-composer-stack
 				>
 					<div class="pointer-events-none flex flex-col gap-0.5 px-5 [&>*]:pointer-events-auto">
-						{#if signInRequirement}
+						{#if signInCard}
 							<SharedSignInCard
 								title="Sign in to continue"
-								message={signInRequirement.instructions}
+								message={signInCard.message}
 								{isSigningIn}
 								{signInError}
 								onSignIn={onSignIn}

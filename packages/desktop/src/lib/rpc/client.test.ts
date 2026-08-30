@@ -304,6 +304,7 @@ describe("makeElectrobunRpcTransport", () => {
 								id: "claude-code",
 								name: "Claude Code",
 								availabilityKind: { kind: "installable", installed: true },
+								signIn: { kind: "browser" },
 							},
 						],
 					})
@@ -320,6 +321,7 @@ describe("makeElectrobunRpcTransport", () => {
 							id: "claude-code",
 							name: "Claude Code",
 							availabilityKind: { kind: "installable", installed: true },
+							signIn: { kind: "browser" },
 						},
 					],
 				});

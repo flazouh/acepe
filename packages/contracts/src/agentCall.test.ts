@@ -31,6 +31,30 @@ describe("AgentCallRequest", () => {
 		expect(outcome._tag).toBe("Failure")
 	})
 
+	it("decodes agent.authenticate with the agent it names", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(AgentCallRequest)({ op: "agent.authenticate", agentId: "codex" })
+		)
+		expect(decoded).toEqual({ op: "agent.authenticate", agentId: "codex" })
+	})
+
+	it("decodes agent.cancel-authentication with the agent it names", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(AgentCallRequest)({
+				op: "agent.cancel-authentication",
+				agentId: "codex"
+			})
+		)
+		expect(decoded).toEqual({ op: "agent.cancel-authentication", agentId: "codex" })
+	})
+
+	it("rejects an agent.authenticate without an agentId", () => {
+		const outcome = Effect.runSyncExit(
+			Schema.decodeUnknownEffect(AgentCallRequest)({ op: "agent.authenticate" })
+		)
+		expect(outcome._tag).toBe("Failure")
+	})
+
 	it("rejects an unknown op", () => {
 		const outcome = Effect.runSyncExit(
 			Schema.decodeUnknownEffect(AgentCallRequest)({ op: "agent.teleport" })
@@ -48,7 +72,8 @@ describe("AgentCallResult", () => {
 					{
 						id: "claude-code",
 						name: "Claude Code",
-						availabilityKind: { kind: "installable", installed: true }
+						availabilityKind: { kind: "installable", installed: true },
+						signIn: { kind: "browser" as const }
 					}
 				]
 			})
@@ -59,7 +84,8 @@ describe("AgentCallResult", () => {
 				{
 					id: "claude-code",
 					name: "Claude Code",
-					availabilityKind: { kind: "installable", installed: true }
+					availabilityKind: { kind: "installable", installed: true },
+					signIn: { kind: "browser" as const }
 				}
 			]
 		})
@@ -75,7 +101,8 @@ describe("AgentCallResult", () => {
 					{
 						id: "opencode",
 						name: "OpenCode",
-						availabilityKind: { kind: "installable", installed: true }
+						availabilityKind: { kind: "installable", installed: true },
+						signIn: { kind: "browser" as const }
 					}
 				]
 			})
@@ -88,7 +115,8 @@ describe("AgentCallResult", () => {
 				{
 					id: "opencode",
 					name: "OpenCode",
-					availabilityKind: { kind: "installable", installed: true }
+					availabilityKind: { kind: "installable", installed: true },
+					signIn: { kind: "browser" as const }
 				}
 			]
 		})
@@ -109,7 +137,39 @@ describe("AgentCallResult", () => {
 		const decoded = Effect.runSync(
 			Schema.decodeUnknownEffect(AgentCallResult)({ op: "agent.list", agents: [] })
 		)
-		expect(decoded.agents).toEqual([])
+		expect(decoded).toEqual({ op: "agent.list", agents: [] })
+	})
+
+	it("decodes an agent.authenticate result carrying the re-read authenticated fact", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(AgentCallResult)({
+				op: "agent.authenticate",
+				agentId: "codex",
+				authenticated: true,
+				agents: []
+			})
+		)
+		expect(decoded).toEqual({
+			op: "agent.authenticate",
+			agentId: "codex",
+			authenticated: true,
+			agents: []
+		})
+	})
+
+	it("decodes an agent.cancel-authentication result carrying whether it stopped one", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(AgentCallResult)({
+				op: "agent.cancel-authentication",
+				agentId: "codex",
+				cancelled: false
+			})
+		)
+		expect(decoded).toEqual({
+			op: "agent.cancel-authentication",
+			agentId: "codex",
+			cancelled: false
+		})
 	})
 })
 
@@ -118,7 +178,22 @@ describe("AgentCallAgentInfo", () => {
 		const outcome = Effect.runSyncExit(
 			Schema.decodeUnknownEffect(AgentCallAgentInfo)({
 				id: "claude-code",
-				availabilityKind: { kind: "installable", installed: true }
+				availabilityKind: { kind: "installable", installed: true },
+				signIn: { kind: "browser" }
+			})
+		)
+		expect(outcome._tag).toBe("Failure")
+	})
+
+	// A caller decides whether to render a sign-in control from this, so a
+	// manual method has to carry the copy that replaces the control.
+	it("rejects a manual sign-in method with no instructions", () => {
+		const outcome = Effect.runSyncExit(
+			Schema.decodeUnknownEffect(AgentCallAgentInfo)({
+				id: "opencode",
+				name: "OpenCode",
+				availabilityKind: { kind: "installable", installed: true },
+				signIn: { kind: "manual" }
 			})
 		)
 		expect(outcome._tag).toBe("Failure")
