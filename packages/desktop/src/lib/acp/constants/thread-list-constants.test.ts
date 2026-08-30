@@ -35,4 +35,17 @@ describe("thread-list-constants", () => {
 			})
 		).toBe("copilot");
 	});
+
+	it("uses the grok-build brand instead of custom", () => {
+		const providerBrand = resolveAgentIconProviderBrand({
+			agentId: "grok-build",
+			explicitProviderBrand: null,
+			storeProviderBrand: null,
+		});
+
+		expect(providerBrand).toBe("grok-build");
+		expect(getProviderBrandIcon(providerBrand, "dark")).toBe(
+			"/svgs/agents/grok/grok-icon-dark.svg"
+		);
+	});
 });

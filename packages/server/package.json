@@ -59,6 +59,8 @@
 		"./provider/Layers/Copilot/Provider": "./src/provider/Layers/Copilot/Provider.ts",
 		"./provider/Layers/Cursor/Adapter": "./src/provider/Layers/Cursor/Adapter.ts",
 		"./provider/Layers/Cursor/Provider": "./src/provider/Layers/Cursor/Provider.ts",
+		"./provider/Layers/Grok/Adapter": "./src/provider/Layers/Grok/Adapter.ts",
+		"./provider/Layers/Grok/Provider": "./src/provider/Layers/Grok/Provider.ts",
 		"./provider/Layers/Codex/Adapter": "./src/provider/Layers/Codex/Adapter.ts",
 		"./provider/Layers/Codex/Provider": "./src/provider/Layers/Codex/Provider.ts",
 		"./provider/Layers/OpenCode/Adapter": "./src/provider/Layers/OpenCode/Adapter.ts",

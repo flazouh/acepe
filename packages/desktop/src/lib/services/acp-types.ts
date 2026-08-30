@@ -649,7 +649,7 @@ export type SessionStatePayload = { kind: "snapshot"; graph: SessionStateGraph }
 
 export type SessionStateEnvelope = { sessionId: string; graphRevision: number; lastEventSeq: number; payload: SessionStatePayload }
 
-export type ProviderBrand = "claude-code" | "copilot" | "cursor" | "opencode" | "codex" | "custom";
+export type ProviderBrand = "claude-code" | "copilot" | "cursor" | "opencode" | "codex" | "grok-build" | "custom";
 
 export type ProviderVariantGroup = "plain" | "reasoningEffort";
 

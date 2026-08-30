@@ -37,6 +37,10 @@ const PROVIDER_BRAND_ICON_PATHS: Record<ProviderBrand, ProviderBrandIconPaths> =
 		light: "/svgs/agents/opencode/opencode-logo-light.svg",
 		dark: "/svgs/agents/opencode/opencode-logo-dark.svg",
 	},
+	"grok-build": {
+		light: "/svgs/agents/grok/grok-icon-light.svg",
+		dark: "/svgs/agents/grok/grok-icon-dark.svg",
+	},
 	custom: {
 		light: "/svgs/agents/custom/custom-icon.svg",
 		dark: "/svgs/agents/custom/custom-icon.svg",

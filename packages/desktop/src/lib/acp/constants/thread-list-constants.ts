@@ -17,6 +17,7 @@ const BUILT_IN_PROVIDER_BRANDS = [
 	"cursor",
 	"opencode",
 	"codex",
+	"grok-build",
 ] as const satisfies readonly ProviderBrand[];
 
 const ANTHROPIC_ICON_LIGHT_SRC =
@@ -48,6 +49,10 @@ const PROVIDER_BRAND_ICONS: Record<IconProviderBrand, ThemeIconPair> = {
 	codex: {
 		light: "/svgs/agents/codex/codex-icon-light.svg",
 		dark: "/svgs/agents/codex/codex-icon-dark.svg",
+	},
+	"grok-build": {
+		light: "/svgs/agents/grok/grok-icon-light.svg",
+		dark: "/svgs/agents/grok/grok-icon-dark.svg",
 	},
 } as const;
 

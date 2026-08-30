@@ -38,6 +38,10 @@ const PROVIDER_BRAND_ICONS: Record<IconProviderBrand, ThemeIconPair> = {
 		light: "/svgs/agents/codex/codex-icon-light.svg",
 		dark: "/svgs/agents/codex/codex-icon-dark.svg",
 	},
+	"grok-build": {
+		light: "/svgs/agents/grok/grok-icon-light.svg",
+		dark: "/svgs/agents/grok/grok-icon-dark.svg",
+	},
 };
 
 const UPSTREAM_PROVIDER_ICONS: Partial<Record<Exclude<UpstreamProviderBrand, "custom">, ThemeIconPair>> = {

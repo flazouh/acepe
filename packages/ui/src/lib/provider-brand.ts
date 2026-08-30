@@ -5,6 +5,7 @@ export const PROVIDER_BRANDS = [
 	"cursor",
 	"opencode",
 	"codex",
+	"grok-build",
 	"custom",
 ] as const;
 
@@ -17,6 +18,7 @@ const PROVIDER_DISPLAY_NAMES: Record<ProviderBrand, string> = {
 	cursor: "Cursor",
 	opencode: "OpenCode",
 	codex: "Codex",
+	"grok-build": "Grok Build",
 	custom: "Custom",
 };
 

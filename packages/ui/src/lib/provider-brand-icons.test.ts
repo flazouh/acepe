@@ -16,4 +16,13 @@ describe("provider brand icons", () => {
 		expect(openAiUpstreamIcon).toBe("/svgs/agents/codex/openai-icon.svg");
 		expect(codexAgentDarkIcon).not.toBe(openAiUpstreamIcon);
 	});
+
+	it("gives grok-build its own mark instead of custom", () => {
+		expect(getProviderBrandIconSrc("grok-build", "light")).toBe(
+			"/svgs/agents/grok/grok-icon-light.svg",
+		);
+		expect(getProviderBrandIconSrc("grok-build", "dark")).toBe(
+			"/svgs/agents/grok/grok-icon-dark.svg",
+		);
+	});
 });

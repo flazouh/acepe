@@ -82,7 +82,7 @@ export const isBlockedAgentEnvName = (name: string): boolean =>
 
 // One agent's overrides, and then the whole map keyed by agent id. The agent
 // id here is the same string the provider adapters call a ProviderId
-// ("claude-code", "codex", "cursor", "copilot", "opencode"), which is what
+// ("claude-code", "codex", "cursor", "copilot", "opencode", "grok-build"), which is what
 // the settings dialog writes.
 export const AgentEnvOverrides = Schema.Record(Schema.String, Schema.String)
 export type AgentEnvOverrides = typeof AgentEnvOverrides.Type

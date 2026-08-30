@@ -67,6 +67,7 @@ import { makeLiveClaudeAdapter } from "./provider/Layers/Claude/Adapter.ts"
 import { makeLiveCodexAdapter } from "./provider/Layers/Codex/Adapter.ts"
 import { makeLiveCopilotAdapter } from "./provider/Layers/Copilot/Adapter.ts"
 import { makeLiveCursorAdapter } from "./provider/Layers/Cursor/Adapter.ts"
+import { makeLiveGrokAdapter } from "./provider/Layers/Grok/Adapter.ts"
 import { makeLiveOpenCodeAdapter } from "./provider/Layers/OpenCode/Adapter.ts"
 import { ProviderAdapterRegistryLive } from "./provider/Layers/ProviderAdapterRegistry.ts"
 import { ProviderBridgeLive } from "./provider/Layers/ProviderBridge.ts"
@@ -259,7 +260,8 @@ export const LiveProviderAdaptersLive = (managedAgentsDir: Option.Option<string>
 		const opencode = yield* makeLiveOpenCodeAdapter()
 		const cursor = yield* makeLiveCursorAdapter()
 		const copilot = yield* makeLiveCopilotAdapter()
-		return ProviderAdapterRegistryLive([claude, codex, opencode, cursor, copilot])
+		const grok = yield* makeLiveGrokAdapter()
+		return ProviderAdapterRegistryLive([claude, codex, opencode, cursor, copilot, grok])
 	})
 	)
 

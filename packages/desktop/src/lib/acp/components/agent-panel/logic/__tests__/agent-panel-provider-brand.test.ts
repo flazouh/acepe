@@ -43,4 +43,15 @@ describe("resolveAgentPanelProviderBrand", () => {
 			})
 		).toBe(null);
 	});
+
+	it("uses grok-build as a built-in brand rather than custom", () => {
+		expect(
+			resolveAgentPanelProviderBrand({
+				agentId: "grok-build",
+				sessionProviderBrand: null,
+				storeProviderBrand: "custom",
+				listedProviderBrand: "custom",
+			})
+		).toBe("grok-build");
+	});
 });

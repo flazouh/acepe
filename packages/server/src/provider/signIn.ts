@@ -1,6 +1,7 @@
 import type { AgentCallSignInMethod } from "@acepe/contracts"
 import { COPILOT_BINARY_ENV_KEY, COPILOT_BINARY_NAME } from "./Layers/Copilot/Provider.ts"
 import { CURSOR_BINARY_ENV_KEY, CURSOR_BINARY_NAME } from "./Layers/Cursor/Provider.ts"
+import { GROK_BINARY_ENV_KEY, GROK_BINARY_NAME } from "./Layers/Grok/Provider.ts"
 
 // What actually signs each agent in, and which of those Acepe can run.
 //
@@ -82,6 +83,15 @@ const CURSOR_PLAN: AgentSignInPlan = {
 	binaryEnvKey: CURSOR_BINARY_ENV_KEY
 }
 
+const GROK_PLAN: AgentSignInPlan = {
+	kind: "browser",
+	binaryName: GROK_BINARY_NAME,
+	// Plain `grok login`, never `--device-auth` / `--device-code`: the
+	// device flow prints a one-time code Acepe would then have to relay.
+	args: ["login"],
+	binaryEnvKey: GROK_BINARY_ENV_KEY
+}
+
 const OPENCODE_PLAN: AgentSignInPlan = {
 	kind: "manual",
 	instructions:
@@ -93,6 +103,7 @@ const PLANS: Record<string, AgentSignInPlan> = {
 	"codex": CODEX_PLAN,
 	"copilot": COPILOT_PLAN,
 	"cursor": CURSOR_PLAN,
+	"grok-build": GROK_PLAN,
 	"opencode": OPENCODE_PLAN
 }
 

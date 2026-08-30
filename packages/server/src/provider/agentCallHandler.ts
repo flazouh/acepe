@@ -47,7 +47,8 @@ const AGENT_DISPLAY_NAMES: Record<string, string> = {
 	"codex": "Codex",
 	"opencode": "OpenCode",
 	"cursor": "Cursor",
-	"copilot": "Copilot"
+	"copilot": "Copilot",
+	"grok-build": "Grok Build"
 }
 
 const displayNameForAgent = (providerId: string): string =>

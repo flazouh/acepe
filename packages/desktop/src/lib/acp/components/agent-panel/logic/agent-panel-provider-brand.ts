@@ -13,6 +13,7 @@ const BUILT_IN_PROVIDER_BRANDS = [
 	"cursor",
 	"opencode",
 	"codex",
+	"grok-build",
 ] as const satisfies readonly ProviderBrand[];
 
 function providerBrandFromAgentId(agentId: string | null | undefined): ProviderBrand | null {
