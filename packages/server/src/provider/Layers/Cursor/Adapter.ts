@@ -36,6 +36,7 @@ import type {
 	SetModeRequest,
 	StartSessionRequest
 } from "../../Services/ProviderAdapter.ts"
+import { bindPresence } from "../ExecutableProbe.ts"
 import type { OpenToolCallInfo } from "../SessionEvents.ts"
 import { providerSessionFact } from "./Facts.ts"
 import {
@@ -55,11 +56,10 @@ import {
 	CURSOR_CAPABILITIES,
 	CURSOR_PROVIDER_ID,
 	cursorLaunchConfig,
-	cursorPresence,
 	type CursorPermissionDecision,
 	missingCursorBinaryError,
-	probeCursorAuthenticated,
-	probeCursorBinary
+	probeCursorBinary,
+	probeCursorPresence
 } from "./Provider.ts"
 import {
 	makeCancelled,
@@ -254,9 +254,9 @@ export const makeLiveCursorAdapter = Effect.fn("makeLiveCursorAdapter")(function
 	const fs = yield* FileSystem.FileSystem
 	const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
 	const binary = yield* probeCursorBinary()
-	const authenticated = yield* probeCursorAuthenticated()
 	return yield* makeCursorAdapter({
-		presence: Effect.succeed(cursorPresence(Option.isSome(binary), authenticated)),
+		// The probe, not its answer -- see ExecutableProbe.ts's bindPresence.
+		presence: yield* bindPresence(probeCursorPresence()),
 		resolveLaunch: Option.match(binary, {
 			onNone: (): Effect.Effect<CursorLaunchConfig, ProviderAdapterError> =>
 				Effect.fail(missingCursorBinaryError()),

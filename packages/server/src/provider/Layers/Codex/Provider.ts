@@ -14,6 +14,7 @@ import {
 	ProviderId,
 	type ProviderPresence
 } from "../../Services/ProviderAdapter.ts"
+import { homeRelativeFileExists } from "../ExecutableProbe.ts"
 
 export const CODEX_PROVIDER_ID: ProviderId = ProviderId.make("codex")
 
@@ -255,16 +256,14 @@ export const resolveCodexSpawnConfig = Effect.fn("resolveCodexSpawnConfig")(func
 export const probeCodexPresence = Effect.fn("probeCodexPresence")(function*(
 	cacheDir: Option.Option<string>
 ) {
-	const fs = yield* FileSystem.FileSystem
-	const path = yield* Path.Path
-	const home = yield* Config.option(Config.string("HOME"))
-	const spawn = yield* resolveCodexSpawnConfig(cacheDir)
+	// A cache directory this process cannot read cannot prove an install, so
+	// it falls back to the placeholder and presence reports installed: false
+	// -- the same rule ExecutableProbe.ts applies to an unreadable PATH entry.
+	const spawn = yield* resolveCodexSpawnConfig(cacheDir).pipe(
+		Effect.orElseSucceed(placeholderCodexSpawnConfig)
+	)
 	const installed = spawn.command !== CODEX_PLACEHOLDER_COMMAND
-	const authPath = Option.map(home, (homeDir) => path.join(homeDir, CODEX_AUTH_RELATIVE_PATH))
-	const authenticated = yield* Option.match(authPath, {
-		onNone: () => Effect.succeed(false),
-		onSome: (filePath) => fs.exists(filePath)
-	})
+	const authenticated = yield* homeRelativeFileExists(CODEX_AUTH_RELATIVE_PATH)
 	return codexPresence(installed, authenticated)
 })
 

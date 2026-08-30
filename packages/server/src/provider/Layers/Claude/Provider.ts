@@ -1,11 +1,7 @@
 import type { McpServerConfig, SettingSource } from "@anthropic-ai/claude-agent-sdk"
 import * as Arr from "effect/Array"
-import * as Config from "effect/Config"
 import * as Effect from "effect/Effect"
-import * as FileSystem from "effect/FileSystem"
 import * as Option from "effect/Option"
-import * as Path from "effect/Path"
-import * as Str from "effect/String"
 import type { ConfigOptionData } from "../../configOptions.ts"
 import {
 	isCapabilityEnabled,
@@ -15,6 +11,7 @@ import {
 	PROVIDER_CAPABILITY_NAMES,
 	type ProviderPresence
 } from "../../Services/ProviderAdapter.ts"
+import { homeRelativeFileExists, resolveExecutableOnPath } from "../ExecutableProbe.ts"
 
 export const CLAUDE_PROVIDER_ID: ProviderId = ProviderId.make("claude-code")
 
@@ -156,8 +153,10 @@ export const claudePresence = (
 	authenticated
 })
 
-const pathEntries = (pathVar: string): ReadonlyArray<string> =>
-	Arr.filter(Str.split(pathVar, ":"), (part) => Str.isNonEmpty(part))
+// The file name the Claude CLI installer puts on PATH, and the credential
+// store `claude auth login` writes, relative to the operator's home.
+export const CLAUDE_BINARY_NAME = "claude"
+export const CLAUDE_CREDENTIALS_RELATIVE_PATH = ".claude/.credentials.json"
 
 // The claude-agent-sdk ships its own native CLI binary as an optional
 // platform dependency (@anthropic-ai/claude-agent-sdk-<platform>), resolved
@@ -167,48 +166,13 @@ const pathEntries = (pathVar: string): ReadonlyArray<string> =>
 // PATH and passing it as query()'s pathToClaudeCodeExecutable sidesteps that
 // bundled binary entirely; see makeLiveClaudeAdapter in Adapter.ts.
 export const resolveClaudeExecutablePath = Effect.fn("resolveClaudeExecutablePath")(function*() {
-	const fs = yield* FileSystem.FileSystem
-	const path = yield* Path.Path
-	const pathVar = yield* Config.option(Config.string("PATH"))
-	const directories = Option.match(pathVar, {
-		onNone: () => Arr.empty<string>(),
-		onSome: pathEntries
-	})
-	return yield* Effect.reduce(directories, () => Option.none<string>(), (found, directory) => {
-		if (Option.isSome(found)) {
-			return Effect.succeed(found)
-		}
-		const candidate = path.join(directory, "claude")
-		return fs.exists(candidate).pipe(
-			Effect.map((exists) => (exists ? Option.some(candidate) : Option.none<string>()))
-		)
-	})
+	return yield* resolveExecutableOnPath(CLAUDE_BINARY_NAME)
 })
 
 export const probeClaudePresence = Effect.fn("probeClaudePresence")(function*() {
-	const fs = yield* FileSystem.FileSystem
-	const path = yield* Path.Path
-	const pathVar = yield* Config.option(Config.string("PATH"))
-	const home = yield* Config.option(Config.string("HOME"))
-	const directories = Option.match(pathVar, {
-		onNone: () => Arr.empty<string>(),
-		onSome: pathEntries
-	})
-	const installed = yield* Effect.reduce(directories, () => false, (found, directory) => {
-		if (found) {
-			return Effect.succeed(true)
-		}
-		return fs.exists(path.join(directory, "claude"))
-	})
-	const credentialsPath = Option.match(home, {
-		onNone: () => Option.none<string>(),
-		onSome: (homeDir) => Option.some(path.join(homeDir, ".claude", ".credentials.json"))
-	})
-	const authenticated = yield* Option.match(credentialsPath, {
-		onNone: () => Effect.succeed(false),
-		onSome: (filePath) => fs.exists(filePath)
-	})
-	return claudePresence(installed, authenticated)
+	const binary = yield* resolveExecutableOnPath(CLAUDE_BINARY_NAME)
+	const authenticated = yield* homeRelativeFileExists(CLAUDE_CREDENTIALS_RELATIVE_PATH)
+	return claudePresence(Option.isSome(binary), authenticated)
 })
 
 export const isClaudePlanCapabilityEnabled = (): boolean =>

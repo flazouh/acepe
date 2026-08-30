@@ -17,6 +17,7 @@ import {
 	ProviderId,
 	type ProviderPresence
 } from "../../Services/ProviderAdapter.ts"
+import { nonEmptyEnvValue, resolveOverridableExecutable } from "../ExecutableProbe.ts"
 import type { CursorLaunchConfig } from "./Process.ts"
 
 export const CURSOR_PROVIDER_ID: ProviderId = ProviderId.make("cursor")
@@ -80,8 +81,8 @@ export const cursorLaunchFromAgents = (
 }
 
 export const probeCursorAuthenticated = Effect.fn("probeCursorAuthenticated")(function*() {
-	const apiKey = yield* Config.option(Config.nonEmptyString("CURSOR_API_KEY"))
-	const authToken = yield* Config.option(Config.nonEmptyString("CURSOR_AUTH_TOKEN"))
+	const apiKey = yield* nonEmptyEnvValue("CURSOR_API_KEY")
+	const authToken = yield* nonEmptyEnvValue("CURSOR_AUTH_TOKEN")
 	return Option.isSome(apiKey) || Option.isSome(authToken)
 })
 
@@ -101,9 +102,6 @@ export const cursorLaunchConfig = (command: string): CursorLaunchConfig => ({
 	args: Arr.fromIterable(CURSOR_ACP_ARGS)
 })
 
-const pathEntries = (pathVar: string): ReadonlyArray<string> =>
-	Arr.filter(Str.split(pathVar, ":"), (part) => Str.isNonEmpty(part))
-
 // The absolute path of the `cursor-agent` executable, from the env override
 // first and then the first PATH entry that holds one. This is the detection
 // path Cursor was missing: its only launch resolver read AgentInstaller,
@@ -111,29 +109,13 @@ const pathEntries = (pathVar: string): ReadonlyArray<string> =>
 // builds, so a Cursor the operator had installed was unreachable anyway.
 // Same probe Claude, Codex, OpenCode and Copilot each use for their own CLI.
 export const probeCursorBinary = Effect.fn("probeCursorBinary")(function*() {
-	const fs = yield* FileSystem.FileSystem
-	const path = yield* Path.Path
-	const override = yield* Config.option(Config.nonEmptyString(CURSOR_BINARY_ENV_KEY))
-	if (Option.isSome(override)) {
-		const exists = yield* fs.exists(override.value)
-		if (exists) {
-			return Option.some(override.value)
-		}
-	}
-	const pathVar = yield* Config.option(Config.string("PATH"))
-	const directories = Option.match(pathVar, {
-		onNone: () => Arr.empty<string>(),
-		onSome: pathEntries
-	})
-	return yield* Effect.reduce(directories, () => Option.none<string>(), (found, directory) => {
-		if (Option.isSome(found)) {
-			return Effect.succeed(found)
-		}
-		const candidate = path.join(directory, CURSOR_BINARY_NAME)
-		return fs
-			.exists(candidate)
-			.pipe(Effect.map((exists) => (exists ? Option.some(candidate) : Option.none<string>())))
-	})
+	return yield* resolveOverridableExecutable(CURSOR_BINARY_NAME, CURSOR_BINARY_ENV_KEY)
+})
+
+export const probeCursorPresence = Effect.fn("probeCursorPresence")(function*() {
+	const binary = yield* probeCursorBinary()
+	const authenticated = yield* probeCursorAuthenticated()
+	return cursorPresence(Option.isSome(binary), authenticated)
 })
 
 // Named rather than falling back to a bare "cursor-agent" spawn: a spawn of

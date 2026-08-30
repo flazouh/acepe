@@ -20,6 +20,7 @@ import {
 	type SetModeRequest,
 	type StartSessionRequest
 } from "../../Services/ProviderAdapter.ts"
+import { bindPresence } from "../ExecutableProbe.ts"
 import type { OpenToolCallInfo } from "../SessionEvents.ts"
 import {
 	type OpenCodePermissionReply,
@@ -241,7 +242,7 @@ export const makeOpenCodeAdapter = Effect.fn("makeOpenCodeAdapter")(function*(
 })
 
 export const makeLiveOpenCodeAdapter = Effect.fn("makeLiveOpenCodeAdapter")(function*() {
-	const presenceValue = yield* probeOpenCodePresence()
+	const presence = yield* bindPresence(probeOpenCodePresence())
 	const binary = yield* probeOpenCodeBinary()
 	const command = Option.getOrElse(binary, () => OPENCODE_PLACEHOLDER_BINARY)
 	const http = yield* HttpClient.HttpClient
@@ -266,7 +267,8 @@ export const makeLiveOpenCodeAdapter = Effect.fn("makeLiveOpenCodeAdapter")(func
 		[OPENCODE_ISOLATED_CONFIG_ENV_KEY]: resolveOpenCodeIsolatedConfigDir(path, tmpDir)
 	}
 	return yield* makeOpenCodeAdapter({
-		presence: Effect.succeed(presenceValue),
+		// The probe, not its answer -- see ExecutableProbe.ts's bindPresence.
+		presence,
 		createTransport: (input) =>
 			liveCreateTransport({
 				workspaceRoot: input.workspaceRoot,

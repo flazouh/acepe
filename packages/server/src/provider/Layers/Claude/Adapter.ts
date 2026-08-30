@@ -23,6 +23,7 @@ import type {
 	SetModelRequest,
 	StartSessionRequest
 } from "../../Services/ProviderAdapter.ts"
+import { bindPresence } from "../ExecutableProbe.ts"
 import type { OpenToolCallInfo } from "../SessionEvents.ts"
 import { deferredOpenFact, type ClaudePermissionDecision } from "./Facts.ts"
 import { emptyClaudeStreamState } from "./Map.ts"
@@ -501,13 +502,15 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 })
 
 export const makeLiveClaudeAdapter = Effect.fn("makeLiveClaudeAdapter")(function*() {
-	const presenceValue = yield* probeClaudePresence()
 	const executablePath = yield* resolveClaudeExecutablePath()
 	return yield* makeClaudeAdapter({
 		createQuery: makeLiveCreateQuery({
 			pathToClaudeCodeExecutable: executablePath,
 			mcpServers: CLAUDE_SESSION_MCP_SERVERS
 		}),
-		presence: Effect.succeed(presenceValue)
+		// The probe, not its answer: a `claude` that appears on PATH after
+		// this layer was built has to change what the agent list says without
+		// the app restarting. See ExecutableProbe.ts's bindPresence.
+		presence: yield* bindPresence(probeClaudePresence())
 	})
 })

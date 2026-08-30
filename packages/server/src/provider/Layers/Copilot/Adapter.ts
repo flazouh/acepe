@@ -27,6 +27,7 @@ import {
 	type SetModeRequest,
 	type StartSessionRequest
 } from "../../Services/ProviderAdapter.ts"
+import { bindPresence } from "../ExecutableProbe.ts"
 import type { Json } from "../Json.ts"
 import type { OpenToolCallInfo } from "../SessionEvents.ts"
 import { providerSessionFact } from "./Facts.ts"
@@ -304,10 +305,10 @@ export const makeLiveCopilotAdapter = Effect.fn("makeLiveCopilotAdapter")(functi
 	// The adapter outlives any one session, so the spawned CLI belongs to the
 	// layer's scope, not to the scope of the session that first started it.
 	const layerScope = yield* Effect.scope
-	const presenceValue = yield* probeCopilotPresence()
 	const binary = yield* probeCopilotBinary()
 	return yield* makeCopilotAdapter({
-		presence: Effect.succeed(presenceValue),
+		// The probe, not its answer -- see ExecutableProbe.ts's bindPresence.
+		presence: yield* bindPresence(probeCopilotPresence()),
 		createTransport: (input) =>
 			Option.match(binary, {
 				onNone: (): Effect.Effect<CopilotAcpHandle, ProviderAdapterError> =>

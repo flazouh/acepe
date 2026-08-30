@@ -26,6 +26,7 @@ import {
 	type SetModeRequest,
 	type StartSessionRequest
 } from "../../Services/ProviderAdapter.ts"
+import { bindPresence } from "../ExecutableProbe.ts"
 import type { Json } from "../Json.ts"
 import type { OpenToolCallInfo } from "../SessionEvents.ts"
 import { providerSessionFact } from "./Facts.ts"
@@ -410,7 +411,7 @@ export const makeLiveCodexAdapter = Effect.fn("makeLiveCodexAdapter")(function*(
 ) {
 	const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
 	const layerScope = yield* Effect.scope
-	const presenceValue = yield* probeCodexPresence(options.cacheDir)
+	const presence = yield* probeCodexPresence(options.cacheDir).pipe(bindPresence)
 	const resolved = yield* resolveCodexSpawnConfig(options.cacheDir)
 	const command = Option.getOrElse(options.command, () => resolved.command)
 	const args = Option.getOrElse(options.args, () => resolved.args)
@@ -423,7 +424,10 @@ export const makeLiveCodexAdapter = Effect.fn("makeLiveCodexAdapter")(function*(
 				args,
 				envOverrides: input.envOverrides
 			}),
-		presence: Effect.succeed(presenceValue),
+		// The probe, not its answer: a managed install that lands in the cache
+		// directory after this layer was built has to change what the agent
+		// list says without the app restarting.
+		presence,
 		spawn: {
 			command,
 			args

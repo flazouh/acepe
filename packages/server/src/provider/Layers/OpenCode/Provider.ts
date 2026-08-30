@@ -12,6 +12,11 @@ import {
 	ProviderId,
 	type ProviderPresence
 } from "../../Services/ProviderAdapter.ts"
+import {
+	homeRelativeFileExists,
+	nonEmptyEnvValue,
+	resolveExecutableOnPath
+} from "../ExecutableProbe.ts"
 
 export const OPENCODE_PROVIDER_ID: ProviderId = ProviderId.make("opencode")
 
@@ -131,8 +136,10 @@ export const openCodePresence = (
 	authenticated
 })
 
-const pathEntries = (pathVar: string): ReadonlyArray<string> =>
-	Arr.filter(Str.split(pathVar, ":"), (part) => Str.isNonEmpty(part))
+// The file name the OpenCode installer puts on PATH, and the credential
+// store `opencode auth login` writes, relative to the operator's home.
+export const OPENCODE_BINARY_NAME = "opencode"
+export const OPENCODE_CREDENTIALS_RELATIVE_PATH = ".local/share/opencode/auth.json"
 
 export const normalizeOpenCodeServeArgs = (
 	cachedArgs: ReadonlyArray<string>
@@ -178,43 +185,17 @@ export const openCodeBaseUrl = (url: OpenCodeServeUrl): string =>
 	`http://127.0.0.1:${String(url.port)}${url.apiPrefix}`
 
 export const probeOpenCodeBinary = Effect.fn("probeOpenCodeBinary")(function*() {
-	const fs = yield* FileSystem.FileSystem
-	const path = yield* Path.Path
-	const pathVar = yield* Config.option(Config.string("PATH"))
-	const directories = Option.match(pathVar, {
-		onNone: () => Arr.empty<string>(),
-		onSome: pathEntries
-	})
-	return yield* Effect.reduce(directories, () => Option.none<string>(), (found, directory) => {
-		if (Option.isSome(found)) {
-			return Effect.succeed(found)
-		}
-		const candidate = path.join(directory, "opencode")
-		return fs.exists(candidate).pipe(
-			Effect.map((exists) => (exists ? Option.some(candidate) : Option.none()))
-		)
-	})
+	return yield* resolveExecutableOnPath(OPENCODE_BINARY_NAME)
 })
 
 export const probeOpenCodePresence = Effect.fn("probeOpenCodePresence")(function*() {
-	const fs = yield* FileSystem.FileSystem
-	const path = yield* Path.Path
 	const binary = yield* probeOpenCodeBinary()
 	const installed = Option.isSome(binary)
-	const apiKey = yield* Config.option(Config.string("OPENCODE_API_KEY"))
-	if (Option.isSome(apiKey) && Str.isNonEmpty(Str.trim(apiKey.value))) {
+	const apiKey = yield* nonEmptyEnvValue("OPENCODE_API_KEY")
+	if (Option.isSome(apiKey)) {
 		return openCodePresence(installed, true)
 	}
-	const home = yield* Config.option(Config.string("HOME"))
-	const authPath = Option.match(home, {
-		onNone: () => Option.none<string>(),
-		onSome: (homeDir) =>
-			Option.some(path.join(homeDir, ".local", "share", "opencode", "auth.json"))
-	})
-	const authenticated = yield* Option.match(authPath, {
-		onNone: () => Effect.succeed(false),
-		onSome: (filePath) => fs.exists(filePath)
-	})
+	const authenticated = yield* homeRelativeFileExists(OPENCODE_CREDENTIALS_RELATIVE_PATH)
 	return openCodePresence(installed, authenticated)
 })
 

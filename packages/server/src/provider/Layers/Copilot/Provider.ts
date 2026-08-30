@@ -12,6 +12,7 @@ import {
 	ProviderId,
 	type ProviderPresence
 } from "../../Services/ProviderAdapter.ts"
+import { homeRelativeFileExists, resolveOverridableExecutable } from "../ExecutableProbe.ts"
 
 export const COPILOT_PROVIDER_ID: ProviderId = ProviderId.make("copilot")
 
@@ -101,53 +102,22 @@ export const copilotPresence = (
 	authenticated
 })
 
-const pathEntries = (pathVar: string): ReadonlyArray<string> =>
-	Arr.filter(Str.split(pathVar, ":"), (part) => Str.isNonEmpty(part))
+// The credential store `copilot login` writes, relative to the operator's
+// home. probeCopilotPresence reads exactly this, and nothing caches it.
+export const COPILOT_CREDENTIALS_RELATIVE_PATH = ".copilot/config.json"
 
 // The absolute path of the `copilot` executable, from the env override first
 // and then the first PATH entry that holds one. None means the CLI is not
 // installed, which is also what probeCopilotPresence reports as installed:
-// false — the two read the same thing, so presence never claims a binary
+// false -- the two read the same thing, so presence never claims a binary
 // resolveCopilotLaunch cannot find.
 export const probeCopilotBinary = Effect.fn("probeCopilotBinary")(function*() {
-	const fs = yield* FileSystem.FileSystem
-	const path = yield* Path.Path
-	const override = yield* Config.option(Config.nonEmptyString(COPILOT_BINARY_ENV_KEY))
-	if (Option.isSome(override)) {
-		const exists = yield* fs.exists(override.value)
-		if (exists) {
-			return Option.some(override.value)
-		}
-	}
-	const pathVar = yield* Config.option(Config.string("PATH"))
-	const directories = Option.match(pathVar, {
-		onNone: () => Arr.empty<string>(),
-		onSome: pathEntries
-	})
-	return yield* Effect.reduce(directories, () => Option.none<string>(), (found, directory) => {
-		if (Option.isSome(found)) {
-			return Effect.succeed(found)
-		}
-		const candidate = path.join(directory, COPILOT_BINARY_NAME)
-		return fs
-			.exists(candidate)
-			.pipe(Effect.map((exists) => (exists ? Option.some(candidate) : Option.none<string>())))
-	})
+	return yield* resolveOverridableExecutable(COPILOT_BINARY_NAME, COPILOT_BINARY_ENV_KEY)
 })
 
 export const probeCopilotPresence = Effect.fn("probeCopilotPresence")(function*() {
-	const fs = yield* FileSystem.FileSystem
-	const path = yield* Path.Path
-	const home = yield* Config.option(Config.string("HOME"))
 	const binary = yield* probeCopilotBinary()
-	const credentialsPath = Option.match(home, {
-		onNone: () => Option.none<string>(),
-		onSome: (homeDir) => Option.some(path.join(homeDir, ".copilot", "config.json"))
-	})
-	const authenticated = yield* Option.match(credentialsPath, {
-		onNone: () => Effect.succeed(false),
-		onSome: (filePath) => fs.exists(filePath)
-	})
+	const authenticated = yield* homeRelativeFileExists(COPILOT_CREDENTIALS_RELATIVE_PATH)
 	return copilotPresence(Option.isSome(binary), authenticated)
 })
 
