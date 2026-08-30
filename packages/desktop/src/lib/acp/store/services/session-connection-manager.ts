@@ -536,14 +536,11 @@ export class SessionConnectionManager {
 								? Effect.succeed(undefined)
 								: apply.pipe(
 										Effect.catch((error) => {
-											logger.warn(
-												`Failed to record the initial ${label} for a deferred session`,
-												{
-													sessionId,
-													agentId: options.agentId,
-													error: error.message,
-												}
-											);
+											logger.warn(`Failed to record the initial ${label} for a deferred session`, {
+												sessionId,
+												agentId: options.agentId,
+												error: error.message,
+											});
 											return Effect.succeed(undefined);
 										})
 									);
