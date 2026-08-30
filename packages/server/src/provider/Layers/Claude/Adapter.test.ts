@@ -521,6 +521,12 @@ Vitest.describe("ClaudeAdapter", () => {
 				Vitest.assert.strictEqual(started.payload.title, "Read /tmp/acepe/package.json")
 				Vitest.assert.strictEqual(started.payload.toolCallId, "toolu_01ReadPkg")
 				Vitest.assert.strictEqual(started.payload.path, "/tmp/acepe/package.json")
+				// The tool's own arguments ride on the start event: the panel
+				// shows a Bash command, or an Edit's proposed content, from
+				// these and nothing else.
+				Vitest.assert.deepStrictEqual(started.payload.input, {
+					file_path: "/tmp/acepe/package.json"
+				})
 
 				yield* Queue.offer(inbound, {
 					type: "user",
@@ -560,12 +566,11 @@ Vitest.describe("ClaudeAdapter", () => {
 				// merges them into ONE row instead of two.
 				Vitest.assert.strictEqual(completed.payload.activityId, started.payload.activityId)
 				Vitest.assert.strictEqual(completed.payload.toolCallId, "toolu_01ReadPkg")
-				// #273: Claude's tool_result block carries content, but
-				// Map.ts's mapUserToolResultBlock reads only tool_use_id and
-				// is_error out of it, so no ClaudeContractFact holds a tool
-				// result yet and the canonical output stays null. Widening
-				// Claude's own fact is the next step, not a repair here.
-				Vitest.assert.strictEqual(completed.payload.output, null)
+				// #273: Claude's tool_result block carries the content the tool
+				// produced, and it now travels to the observation the panel
+				// reads -- a Bash row used to render as a bare title with no
+				// command and no output under it.
+				Vitest.assert.strictEqual(completed.payload.output, "{\"name\":\"acepe\"}")
 				yield* adapter.cancelTurn({ sessionId })
 			})
 	)

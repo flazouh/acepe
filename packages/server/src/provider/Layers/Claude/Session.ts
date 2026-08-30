@@ -459,15 +459,13 @@ const publishToolCallUpdated = Effect.fn("ClaudeAdapter.publishToolCallUpdated")
 			// so this confirms rather than overwrites -- but passing it keeps
 			// the completion event self-describing.
 			kind: info.kind,
-			// #273: null, and deliberately not fact.partialJson. Claude's
-			// partialJson is the streaming INPUT arguments of an
-			// input_json_delta (see Map.ts's mapContentBlockDelta), so it is
-			// not a result. The result lives in the tool_result block's
-			// content, which Map.ts's mapUserToolResultBlock does not read
-			// yet, so ToolCallUpdateFact carries no output to pass on.
-			// Widening that fact is the follow-up, and it belongs in Claude's
-			// own map, not here.
-			output: null
+			// #273: the tool's result, read out of the tool_result block's
+			// content by Map.ts's toolResultUpdateFact. Deliberately not
+			// fact.partialJson: that one is the streaming INPUT arguments of
+			// an input_json_delta, which is what the tool was asked to do and
+			// never what it answered. Absent when the block carried no
+			// content, which travels as null, exactly like a start event.
+			output: fact.output ?? null
 		})
 	)
 })

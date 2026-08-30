@@ -1,5 +1,7 @@
 import * as Arr from "effect/Array"
+import * as Filter from "effect/Filter"
 import * as Option from "effect/Option"
+import * as Str from "effect/String"
 import {
 	applyOptional,
 	booleanField,
@@ -21,6 +23,7 @@ import {
 	type ClaudeContractFact,
 	type CompactionFact,
 	type PermissionRequestFact,
+	type ToolCallUpdateFact,
 	type UsageFact
 } from "./Facts.ts"
 import {
@@ -129,6 +132,58 @@ const rawInputField = (record: JsonObject, key: string): JsonObject =>
 		onNone: () => EMPTY_JSON_OBJECT,
 		onSome: (value) => rawInputOf(value)
 	})
+
+// One text block of a tool_result's content array. A tool can also answer
+// with an image block, which a transcript row has no text to show for.
+const toolResultBlockText = (entry: Json): Option.Option<string> =>
+	Option.flatMap(jsonObjectOf(entry), (record) => stringField(record, "text"))
+
+// A tool_result block's content is the result the tool produced. The SDK
+// sends it either as a bare string or as the Messages API's own block array
+// (text blocks, sometimes an image block a transcript row cannot show), so
+// both shapes collapse to the same text here. Blank is absent, like every
+// other field this map reads.
+const toolResultText = (record: JsonObject): Option.Option<string> => {
+	const content = field(record, "content")
+	if (Option.isNone(content)) {
+		return Option.none()
+	}
+	if (typeof content.value === "string") {
+		const trimmed = Str.trim(content.value)
+		return Str.isNonEmpty(trimmed) ? Option.some(trimmed) : Option.none()
+	}
+	if (isJsonArray(content.value) === false) {
+		return Option.none()
+	}
+	const texts = Arr.filterMap(content.value, Filter.fromPredicateOption(toolResultBlockText))
+	if (Arr.isReadonlyArrayNonEmpty(texts) === false) {
+		return Option.none()
+	}
+	const joined = Str.trim(Arr.join(texts, "\n"))
+	return Str.isNonEmpty(joined) ? Option.some(joined) : Option.none()
+}
+
+// The one place a tool_result block becomes a fact, shared by the assistant
+// and the user block mappers below so a result cannot be read on one path and
+// dropped on the other.
+const toolResultUpdateFact = (record: JsonObject): Option.Option<ToolCallUpdateFact> => {
+	const toolCallId = stringFieldAny(record, ["tool_use_id", "toolUseId"])
+	if (Option.isNone(toolCallId)) {
+		return Option.none()
+	}
+	const isError = Option.getOrElse(booleanField(record, "is_error"), () => false)
+	const base: ToolCallUpdateFact = {
+		contractKind: "tool_call_update",
+		toolCallId: toolCallId.value,
+		status: isError ? "failed" : "completed"
+	}
+	return Option.some(
+		Option.match(toolResultText(record), {
+			onNone: () => base,
+			onSome: (output) => ({ ...base, output })
+		})
+	)
+}
 
 const sessionIdOf = (record: JsonObject, fallback: Option.Option<string>): Option.Option<string> =>
 	Option.orElse(stringFieldAny(record, ["session_id", "sessionId"]), () => fallback)
@@ -507,19 +562,11 @@ const mapAssistantContent = (state: ClaudeStreamState, content: Json): ClaudeMap
 		}
 	}
 	if (blockType === "tool_result") {
-		const toolCallId = stringFieldAny(record.value, ["tool_use_id", "toolUseId"])
-		if (Option.isNone(toolCallId)) {
-			return { facts: Arr.empty(), state }
-		}
-		const isError = Option.getOrElse(booleanField(record.value, "is_error"), () => false)
 		return {
-			facts: [
-				{
-					contractKind: "tool_call_update",
-					toolCallId: toolCallId.value,
-					status: isError ? "failed" : "completed"
-				}
-			],
+			facts: Option.match(toolResultUpdateFact(record.value), {
+				onNone: () => Arr.empty<ClaudeContractFact>(),
+				onSome: (fact) => Arr.of<ClaudeContractFact>(fact)
+			}),
 			state
 		}
 	}
@@ -579,18 +626,10 @@ const mapUserToolResultBlock = (block: Json): ReadonlyArray<ClaudeContractFact> 
 	if (blockType !== "tool_result") {
 		return Arr.empty()
 	}
-	const toolCallId = stringFieldAny(record.value, ["tool_use_id", "toolUseId"])
-	if (Option.isNone(toolCallId)) {
-		return Arr.empty()
-	}
-	const isError = Option.getOrElse(booleanField(record.value, "is_error"), () => false)
-	return [
-		{
-			contractKind: "tool_call_update",
-			toolCallId: toolCallId.value,
-			status: isError ? "failed" : "completed"
-		}
-	]
+	return Option.match(toolResultUpdateFact(record.value), {
+		onNone: () => Arr.empty<ClaudeContractFact>(),
+		onSome: (fact) => Arr.of<ClaudeContractFact>(fact)
+	})
 }
 
 export const mapSdkMessage = (state: ClaudeStreamState, raw: Json): ClaudeMapResult => {

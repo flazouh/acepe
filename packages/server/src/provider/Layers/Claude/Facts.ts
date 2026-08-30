@@ -63,7 +63,16 @@ export const ToolCallUpdateFact = Schema.Struct({
 	contractKind: Schema.Literal("tool_call_update"),
 	toolCallId: Schema.String.check(Schema.isNonEmpty()),
 	status: Schema.optionalKey(ClaudeToolStatus),
-	partialJson: Schema.optionalKey(Schema.String)
+	partialJson: Schema.optionalKey(Schema.String),
+	// The text the tool produced, read out of the tool_result block's own
+	// content. It is NOT partialJson above: that one is the streaming INPUT
+	// arguments of an input_json_delta, which say what the tool was asked to
+	// do and never what it answered. The key is absent when the block carried
+	// no content, so an empty result stays an absent one all the way to the
+	// observation. The length bound is applied once downstream, by
+	// observedToolOutput/TOOL_OUTPUT_CAP in @acepe/contracts' acp.ts, which is
+	// the single place a provider's raw output becomes the canonical field.
+	output: Schema.optionalKey(Schema.String.check(Schema.isNonEmpty()))
 })
 export type ToolCallUpdateFact = typeof ToolCallUpdateFact.Type
 

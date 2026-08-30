@@ -175,9 +175,156 @@ Vitest.describe("mapSdkMessage", () => {
 			{
 				contractKind: "tool_call_update",
 				toolCallId: "toolu_01ReadTool",
+				status: "completed",
+				output: "file contents"
+			}
+		])
+	})
+
+	// #273: the result a tool produced lives in the tool_result block's own
+	// content, and the map used to read only tool_use_id and is_error out of
+	// that block -- so a Bash row in the panel showed a title and nothing the
+	// command actually printed.
+	Vitest.it("carries a string tool_result content onto the update fact as output", () => {
+		const mapped = mapSdkMessage(emptyClaudeStreamState, {
+			type: "user",
+			message: {
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "toolu_01BashTool",
+						content: "acepe-map-probe\n",
+						is_error: false
+					}
+				]
+			}
+		})
+		Vitest.assert.deepStrictEqual(mapped.facts, [
+			{
+				contractKind: "tool_call_update",
+				toolCallId: "toolu_01BashTool",
+				status: "completed",
+				output: "acepe-map-probe"
+			}
+		])
+	})
+
+	// The SDK sends a tool result either as a bare string or as the Messages
+	// API's own block array. Both are the same result.
+	Vitest.it("joins the text blocks of an array tool_result content", () => {
+		const mapped = mapSdkMessage(emptyClaudeStreamState, {
+			type: "user",
+			message: {
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "toolu_01BashTool",
+						content: [
+							{ type: "text", text: "first line" },
+							{ type: "image", source: { type: "base64", data: "ignored" } },
+							{ type: "text", text: "second line" }
+						],
+						is_error: false
+					}
+				]
+			}
+		})
+		Vitest.assert.deepStrictEqual(mapped.facts, [
+			{
+				contractKind: "tool_call_update",
+				toolCallId: "toolu_01BashTool",
+				status: "completed",
+				output: "first line\nsecond line"
+			}
+		])
+	})
+
+	// A failure's text IS the result: "Command failed" with nothing under it
+	// was the exact bug report.
+	Vitest.it("carries a failing tool_result's content as the update fact's output", () => {
+		const mapped = mapSdkMessage(emptyClaudeStreamState, {
+			type: "user",
+			message: {
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "toolu_01BashTool",
+						content: "zsh: command not found: nope",
+						is_error: true
+					}
+				]
+			}
+		})
+		Vitest.assert.deepStrictEqual(mapped.facts, [
+			{
+				contractKind: "tool_call_update",
+				toolCallId: "toolu_01BashTool",
+				status: "failed",
+				output: "zsh: command not found: nope"
+			}
+		])
+	})
+
+	// An empty result is an absent one, not an empty string: the fact key
+	// stays off so the observation travels output: null.
+	Vitest.it("omits output when a tool_result carries no content", () => {
+		const mapped = mapSdkMessage(emptyClaudeStreamState, {
+			type: "user",
+			message: {
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "toolu_01BashTool",
+						is_error: false
+					}
+				]
+			}
+		})
+		Vitest.assert.deepStrictEqual(mapped.facts, [
+			{
+				contractKind: "tool_call_update",
+				toolCallId: "toolu_01BashTool",
 				status: "completed"
 			}
 		])
+	})
+
+	// Half one of the same bug: the arguments the panel needs to show a Bash
+	// command, or the content a Write proposes, ride on the tool_call fact.
+	Vitest.it("carries a Bash tool call's command and a Write's content as rawInput", () => {
+		const mapped = mapSdkMessage(emptyClaudeStreamState, {
+			type: "assistant",
+			message: {
+				content: [
+					{
+						type: "tool_use",
+						id: "toolu_01BashTool",
+						name: "Bash",
+						input: { command: "echo acepe-map-probe", description: "probe" }
+					},
+					{
+						type: "tool_use",
+						id: "toolu_01WriteTool",
+						name: "Write",
+						input: { file_path: "/tmp/acepe/probe.txt", content: "proposed body" }
+					}
+				]
+			}
+		})
+		Vitest.assert.strictEqual(mapped.facts[0]?.contractKind, "tool_call")
+		if (mapped.facts[0]?.contractKind === "tool_call") {
+			Vitest.assert.deepStrictEqual(mapped.facts[0].rawInput, {
+				command: "echo acepe-map-probe",
+				description: "probe"
+			})
+		}
+		Vitest.assert.strictEqual(mapped.facts[1]?.contractKind, "tool_call")
+		if (mapped.facts[1]?.contractKind === "tool_call") {
+			Vitest.assert.deepStrictEqual(mapped.facts[1].rawInput, {
+				file_path: "/tmp/acepe/probe.txt",
+				content: "proposed body"
+			})
+		}
 	})
 
 	Vitest.it("maps a user message's failing tool_result block to a failed tool_call_update", () => {
