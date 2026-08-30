@@ -29,6 +29,8 @@ vi.mock("svelte", async () => {
 
 vi.mock("$lib/acp/store/chat-preferences-store.svelte.js", () => ({
 	getChatPreferencesStore: () => chatPrefs,
+	// Shipped default reveal mode; kept in sync with the real store's constant.
+	DEFAULT_STREAMING_REVEAL_MODE: "buffer-fade",
 }));
 
 vi.mock("$lib/acp/store/plan-preference-store.svelte.js", () => ({

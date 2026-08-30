@@ -36,4 +36,14 @@ let {
 			<div data-testid="virtualized-entry-list-stub-assistant">{entry.markdown}</div>
 		{/if}
 	{/each}
+	{#each rowsProjection?.rows ?? [] as row (row.rowId)}
+		{#if row.kind === "assistantText" && row.content.kind === "transcript"}
+			<div data-testid="virtualized-entry-list-stub-assistant">
+				{row.content.segments
+					.filter((segment) => segment.kind === "text")
+					.map((segment) => segment.text)
+					.join("")}
+			</div>
+		{/if}
+	{/each}
 </div>

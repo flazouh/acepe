@@ -8,9 +8,14 @@ vi.mock(
 		import("../../../../../../../node_modules/svelte/src/index-client.js")
 );
 
-vi.mock("@acepe/ui", async () => ({
-	LoadingIcon: (await import("./fixtures/user-message-stub.svelte")).default,
-}));
+vi.mock("@acepe/ui", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@acepe/ui")>();
+
+	return {
+		...actual,
+		LoadingIcon: (await import("./fixtures/user-message-stub.svelte")).default,
+	};
+});
 
 vi.mock("$lib/components/theme/context.svelte.js", () => ({
 	useTheme: () => ({ effectiveTheme: "dark" }),
@@ -43,9 +48,20 @@ describe("AgentInstallCard", () => {
 			progress: 0.5,
 		});
 
-		expect(container.querySelector(".voice-download-segments")).toBeTruthy();
-		expect(container.querySelectorAll(".voice-download-segment")).toHaveLength(20);
-		expect(container.querySelectorAll(".voice-download-segment.filled")).toHaveLength(10);
+		// SegmentedProgressBar (variant "downloadCompact") renders the segments;
+		// it replaced the old VoiceDownloadProgress component's dedicated
+		// .voice-download-segment class names with tailwind-variants classes.
+		const bar = container.querySelector('[data-variant="downloadCompact"]');
+		const segments = container.querySelectorAll(
+			'[data-variant="downloadCompact"] > div:nth-child(1) > div'
+		);
+		const filledSegments = Array.from(segments).filter((segment) =>
+			segment.className.includes("segment-fill")
+		);
+
+		expect(bar).toBeTruthy();
+		expect(segments).toHaveLength(20);
+		expect(filledSegments).toHaveLength(10);
 		expect(container.querySelector(".circular-progress")).toBeNull();
 	});
 });

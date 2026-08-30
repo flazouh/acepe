@@ -1,4 +1,5 @@
 import { cleanup, render, waitFor } from "@testing-library/svelte";
+import * as Effect from "effect/Effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { FilePanel as FilePanelType } from "$lib/acp/store/file-panel-type.js";
@@ -17,6 +18,7 @@ vi.mock("svelte", async () => {
 
 vi.mock("@acepe/ui", async () => ({
 	FilePathBadge: (await import("./fixtures/file-path-badge-stub.svelte")).default,
+	HugeiconsIcon: (await import("./fixtures/hugeicons-icon-stub.svelte")).default,
 }));
 
 vi.mock("$lib/acp/components/file-panel/index.js", async () => ({
@@ -126,18 +128,15 @@ describe("AgentAttachedFilePane", () => {
 			throw new Error("must not load full project git status for attached file tabs");
 		});
 		getProjectFileGitStatusSummaryMock.mockImplementation(
-			(_projectPath: string, filePath: string) => ({
-				match: (
-					onOk: (
-						result: { path: string; status: string; insertions: number; deletions: number } | null
-					) => void
-				) => {
-					queueMicrotask(() => {
-						onOk(statusByFilePath.get(filePath) ?? null);
-					});
-					return Promise.resolve();
-				},
-			})
+			(_projectPath: string, filePath: string) =>
+				Effect.promise(
+					() =>
+						new Promise((resolve) => {
+							queueMicrotask(() => {
+								resolve(statusByFilePath.get(filePath) ?? null);
+							});
+						})
+				)
 		);
 
 		const initialFilePanels = [
@@ -209,9 +208,7 @@ describe("AgentAttachedFilePane", () => {
 	});
 
 	it("uses the active file project metadata from the project lookup", () => {
-		getProjectFileGitStatusSummaryMock.mockReturnValue({
-			match: () => Promise.resolve(),
-		});
+		getProjectFileGitStatusSummaryMock.mockReturnValue(Effect.succeed(null));
 
 		const filePanels = [
 			createFilePanel("file-a", "src/a.ts", "/repo-a"),

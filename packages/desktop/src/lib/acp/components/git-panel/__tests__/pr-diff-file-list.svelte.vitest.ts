@@ -12,11 +12,13 @@ vi.mock(
 		import("../../../../../../node_modules/svelte/src/index-client.js")
 );
 
-vi.mock("@acepe/ui", async () => {
-	const FilePathBadge = (await import("./test-file-path-badge.svelte")).default;
+vi.mock("@acepe/ui", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@acepe/ui")>();
+	const HugeiconsIcon = (await import("./test-hugeicons-icon-stub.svelte")).default;
 
 	return {
-		FilePathBadge,
+		...actual,
+		HugeiconsIcon,
 	};
 });
 
@@ -53,8 +55,9 @@ describe("PrDiffFileList", () => {
 	it("renders only file headers until a file is clicked", async () => {
 		const view = render(PrDiffFileList, { files });
 
-		expect(view.getByText("src/routes/+page.svelte")).not.toBeNull();
-		expect(view.getByText("src/lib/utils.ts")).not.toBeNull();
+		// The row shows only the basename (aria-label carries the full path).
+		expect(view.getByText("+page.svelte")).not.toBeNull();
+		expect(view.getByText("utils.ts")).not.toBeNull();
 		expect(view.queryAllByTestId("pierre-diff-stub")).toHaveLength(0);
 
 		await fireEvent.click(view.getByRole("button", { name: "src/routes/+page.svelte" }));

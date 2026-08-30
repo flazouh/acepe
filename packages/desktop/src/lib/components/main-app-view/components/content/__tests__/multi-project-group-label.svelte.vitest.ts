@@ -22,7 +22,7 @@ afterEach(() => {
 describe("MultiProjectGroupLabel", () => {
 	it("renders a lightweight project identity row for non-agent groups", () => {
 		const view = render(MultiProjectGroupLabel, {
-			projectName: "alpha",
+			projectName: "Alpha",
 			projectColor: "#FF5D5A",
 		});
 

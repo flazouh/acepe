@@ -1,6 +1,18 @@
 import { AgentPanelConversationEntry, AgentPanelLayout, AgentPanelSceneEntry } from "@acepe/ui";
-import { cleanup, render } from "@testing-library/svelte";
+import { cleanup, render, waitFor } from "@testing-library/svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+/**
+ * Native markdown renders each word as its own `data-markdown-token-word`
+ * span (see @acepe/ui native-markdown-inline.svelte), so the rendered text
+ * is split across multiple elements and plain `findByText` can't match it.
+ * Assert on the container's full text content instead.
+ */
+async function waitForRenderedText(container: HTMLElement, text: string): Promise<void> {
+	await waitFor(() => {
+		expect(container.textContent).toContain(text);
+	});
+}
 
 vi.mock("svelte", async () => {
 	const { createRequire } = await import("node:module");
@@ -88,7 +100,7 @@ describe("shared conversation row coverage", () => {
 			},
 		});
 
-		expect(await view.findByText("Done with the review.")).toBeTruthy();
+		await waitForRenderedText(view.container, "Done with the review.");
 	});
 
 	it("accepts a streaming assistant entry in the shared conversation dispatcher", async () => {
@@ -101,7 +113,7 @@ describe("shared conversation row coverage", () => {
 			},
 		});
 
-		expect(await view.findByText("Streaming response")).toBeTruthy();
+		await waitForRenderedText(view.container, "Streaming response");
 	});
 
 	it("renders a degraded missing row through the shared conversation dispatcher", () => {

@@ -1,4 +1,5 @@
 import { cleanup, render } from "@testing-library/svelte";
+import * as Result from "effect/Result";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { TodoState } from "$lib/acp/types/todo.js";
@@ -55,11 +56,7 @@ describe("TodoHeader", () => {
 			lastUpdatedAt: new Date("2026-03-25T00:00:00Z"),
 		};
 
-		mockGetTodoStateFromToolCalls.mockReturnValue({
-			isOk: () => true,
-			isErr: () => false,
-			value: todoState,
-		});
+		mockGetTodoStateFromToolCalls.mockReturnValue(Result.succeed(todoState));
 
 		const view = render(TodoHeader, {
 			sessionId: "session-1",
@@ -94,11 +91,7 @@ describe("TodoHeader", () => {
 			lastUpdatedAt: new Date("2026-03-25T00:00:00Z"),
 		};
 
-		mockGetTodoStateFromToolCalls.mockReturnValue({
-			isOk: () => true,
-			isErr: () => false,
-			value: todoState,
-		});
+		mockGetTodoStateFromToolCalls.mockReturnValue(Result.succeed(todoState));
 
 		const { container } = render(TodoHeader, {
 			sessionId: "session-1",
