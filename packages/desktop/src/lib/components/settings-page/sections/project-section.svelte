@@ -3,6 +3,7 @@ import { ProjectLetterBadge } from "@acepe/ui";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import { convertFileSrc } from "$lib/utils/file-src.js";
 import { cn } from "$lib/utils.js";
+import ProjectIconPicker from "./project/project-icon-picker.svelte";
 import ProjectSettingsForm from "./project/project-settings-form.svelte";
 
 interface Props {
@@ -62,6 +63,29 @@ const activeProject = $derived(
 		<div class="min-h-0 min-w-0 flex-1 overflow-auto">
 			{#if activeProjectPath && activeProject}
 				{#key activeProjectPath}
+					<!--
+						The icon sits outside ProjectSettingsForm on purpose. That form
+						is gated on getProjectAcepeConfig, which is not on the contract
+						yet and always fails, so anything inside it renders as an error
+						instead of a control.
+					-->
+					<section class="mb-6 flex flex-col gap-2" data-testid="project-icon-section">
+						<div>
+							<h3 class="text-[13px] font-medium text-foreground">Icon</h3>
+							<p class="text-[11px] text-muted-foreground/70">
+								Shown on this project's badge. Pick one of the project's own
+								images, or let Acepe find one.
+							</p>
+						</div>
+						<ProjectIconPicker
+							{projectManager}
+							projectPath={activeProjectPath}
+							projectName={activeProject.name}
+							projectColor={activeProject.color}
+							iconPath={activeProject.iconPath ?? null}
+							icon={activeProject.icon ?? { kind: "auto" }}
+						/>
+					</section>
 					<ProjectSettingsForm
 						{projectManager}
 						projectPath={activeProjectPath}

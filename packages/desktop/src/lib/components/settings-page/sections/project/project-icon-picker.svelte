@@ -1,5 +1,5 @@
 <script lang="ts">
-import { hasProjectIconExtension, type ProjectIcon } from "@acepe/contracts";
+import type { ProjectIcon } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import { onMount } from "svelte";
@@ -10,6 +10,10 @@ import { Spinner } from "$lib/components/ui/spinner/index.js";
 import { backendClient } from "$lib/utils/backend-client.js";
 import { convertFileSrc } from "$lib/utils/file-src.js";
 import { cn } from "$lib/utils.js";
+import {
+	filterProjectIconCandidates,
+	rankProjectIconCandidates,
+} from "./project-icon-candidates.js";
 
 interface Props {
 	projectManager: ProjectManager;
@@ -29,6 +33,10 @@ type Status = "loading" | "ready" | "error";
 let status = $state<Status>("loading");
 let candidates = $state<readonly string[]>([]);
 let isSaving = $state(false);
+let query = $state("");
+
+/** A monorepo can offer thousands of images, so the grid is capped and filtered. */
+const MAX_SHOWN = 60;
 
 /**
  * The images this project holds, from the file index.
@@ -46,10 +54,7 @@ async function loadCandidates() {
 		status = "error";
 		return;
 	}
-	candidates = result.success.files
-		.map((file) => file.path)
-		.filter((path) => hasProjectIconExtension(path))
-		.sort((left, right) => left.localeCompare(right));
+	candidates = rankProjectIconCandidates(result.success.files.map((file) => file.path));
 	status = "ready";
 }
 
@@ -69,6 +74,8 @@ async function choose(next: ProjectIcon) {
 }
 
 const selectedPath = $derived(icon.kind === "custom" ? icon.path : null);
+const matching = $derived(filterProjectIconCandidates(candidates, query));
+const shown = $derived(matching.slice(0, MAX_SHOWN));
 
 /**
  * Where a candidate lives on disk.
@@ -148,8 +155,24 @@ function previewSrc(relativePath: string): string {
 			This project has no images to choose from.
 		</div>
 	{:else}
+		<input
+			type="search"
+			bind:value={query}
+			placeholder="Filter images"
+			aria-label="Filter project images"
+			data-testid="project-icon-filter"
+			class="w-full rounded-md border border-border/60 bg-transparent px-2 py-1 text-[11px] outline-none focus:border-primary/60"
+		/>
+		<div class="text-[10px] text-muted-foreground/60" data-testid="project-icon-count">
+			{#if matching.length > shown.length}
+				Showing {shown.length} of {matching.length} images. Filter to narrow.
+			{:else}
+				{matching.length}
+				{matching.length === 1 ? "image" : "images"}
+			{/if}
+		</div>
 		<div class="grid max-h-56 grid-cols-[repeat(auto-fill,minmax(76px,1fr))] gap-2 overflow-auto">
-			{#each candidates as candidate (candidate)}
+			{#each shown as candidate (candidate)}
 				<button
 					type="button"
 					disabled={isSaving}

@@ -271,8 +271,9 @@ export const projects = {
 			sort_order: existing.sortOrder,
 			show_external_cli_sessions: existing.showExternalCliSessions,
 			icon,
-			// Deliberately absent rather than guessed: only the server knows
-			// whether this choice resolves to a file that is actually there.
+			// Absent rather than guessed: only the server knows whether this
+			// choice resolves to a file that is actually there. Callers must
+			// keep the iconPath they already had until the refresh lands.
 			icon_path: undefined,
 		};
 	}),

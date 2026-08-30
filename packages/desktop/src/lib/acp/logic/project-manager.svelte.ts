@@ -636,18 +636,20 @@ export class ProjectManager {
 	/**
 	 * Set which icon a project shows.
 	 *
-	 * The local row keeps the resolved path the client already had until the
-	 * next snapshot arrives. Guessing one here from the choice would be a
-	 * second author for a value the server owns, and it would be wrong for a
-	 * pick whose file is missing.
+	 * Applies the choice locally so the picker marks it at once, and leaves
+	 * iconPath exactly as it was. The server owns that value, and the row a
+	 * dispatch answers with cannot carry it: the projection catches up on its
+	 * own fiber, so the resolved path arrives with the ProjectMetaUpdated
+	 * refresh. Writing the dispatch reply's empty iconPath here made the icon
+	 * vanish from the badge the moment you picked one.
 	 */
 	updateProjectIcon(path: string, icon: ProjectIcon): Effect.Effect<void, ProjectError> {
 		return this.client.updateProjectIcon(path, icon).pipe(
-			Effect.map((updated) => {
+			Effect.map(() => {
 				const existingIndex = this.projects.findIndex((project) => project.path === path);
 				if (existingIndex >= 0) {
 					this.projects = this.projects.map((project, index) =>
-						index === existingIndex ? { ...project, icon, iconPath: updated.iconPath } : project
+						index === existingIndex ? { ...project, icon } : project
 					);
 					this.projectStorageFresh = true;
 					this.writeCurrentProjectsToCache();
