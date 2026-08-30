@@ -907,7 +907,11 @@ export const makeGitService = Effect.fn("GitService.make")(function*(
 				bin: "sh",
 				args: Arr.fromIterable(["-c", command]),
 				cwd: worktreePath,
-				allowExitCodes: Arr.fromIterable([0, 1]),
+				// Setup commands are the user's own shell. Any exit code is a
+				// result to report, not a reason to throw away what the command
+				// printed -- the setup card shows that output.
+				allowExitCodes: Arr.empty<number>(),
+				allowAnyExitCode: true,
 				env: noneEnv
 			}).pipe(
 				Effect.timeout(Duration.seconds(300)),

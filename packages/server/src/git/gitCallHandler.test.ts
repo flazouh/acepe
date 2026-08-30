@@ -620,6 +620,34 @@ Vitest.layer(Layer.mergeAll(TestLive, PlatformLive))("gitCallHandler", (it) => {
 			})
 	)
 
+	it.effect("git.runWorktreeSetup reports a failing command's output whatever its exit code", () =>
+		Effect.gen(function*() {
+			const dir = yield* freshRepoDir("worktree-setup-exit-code")
+			yield* initRepoWithCommit(dir)
+
+			yield* routeGitCall({
+				op: "git.saveWorktreeConfig",
+				projectPath: dir,
+				setupCommands: ["echo before-the-failure", "echo boom >&2; exit 3"]
+			})
+
+			const setup = yield* routeGitCall({
+				op: "git.runWorktreeSetup",
+				worktreePath: dir,
+				projectPath: dir
+			})
+			if (setup.op !== "git.runWorktreeSetup") {
+				return yield* Effect.die("expected git.runWorktreeSetup result")
+			}
+
+			Vitest.assert.strictEqual(setup.result.success, false)
+			Vitest.assert.strictEqual(setup.result.outputs.length, 2)
+			Vitest.assert.strictEqual(setup.result.outputs[0]?.stdout.trim(), "before-the-failure")
+			Vitest.assert.strictEqual(setup.result.outputs[1]?.exitCode, 3)
+			Vitest.assert.strictEqual(setup.result.outputs[1]?.stderr.trim(), "boom")
+			Vitest.assert.strictEqual(setup.result.error, "boom")
+		}))
+
 	it.effect("git.runStackedAction commits without pushing when action is 'commit'", () =>
 		Effect.gen(function*() {
 			const fs = yield* FileSystem.FileSystem

@@ -12,6 +12,12 @@ export type RunCommandInput = {
 	readonly cwd: string
 	readonly allowExitCodes: ReadonlyArray<number>
 	readonly env: Option.Option<Readonly<Record<string, string>>>
+	/**
+	 * Treat every exit code as a result rather than an error. Use it for a
+	 * command the user wrote, where the exit code is what the caller reports
+	 * rather than a reason to lose the output.
+	 */
+	readonly allowAnyExitCode?: boolean
 }
 
 export type RunCommandResult = {
@@ -48,8 +54,9 @@ export const runCommandUsing = Effect.fn("runCommandUsing")(function*(
 		onSome: (env) => ChildProcess.setEnv(base, env)
 	})
 	const result = yield* Effect.scoped(spawner.spawn(command).pipe(Effect.flatMap(collectOutput)))
-	const allowed =
-		result.exitCode === 0 || Arr.contains(input.allowExitCodes, result.exitCode) === true
+	const allowed = input.allowAnyExitCode === true ||
+		result.exitCode === 0 ||
+		Arr.contains(input.allowExitCodes, result.exitCode) === true
 	if (allowed === false) {
 		return yield* new GitCommandError({
 			bin: input.bin,
