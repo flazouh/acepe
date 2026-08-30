@@ -11,6 +11,7 @@ import {
 	decodeListProviderProjectsExit,
 	decodeListProviderSessionsExit,
 	decodeOrchestrationEvent,
+	decodeReadImageDataUrlExit,
 	decodeReadTextFileExit,
 	decodeSnapshotExit,
 	decodeWriteTextFileExit,
@@ -22,6 +23,7 @@ import {
 	type ImportProviderSessionRequest,
 	type OrchestrationCommand,
 	type OrchestrationEvent,
+	type ReadImageDataUrlRequest,
 	type ReadTextFileRequest,
 	type RpcClientError,
 	RpcSchemaError,
@@ -56,6 +58,7 @@ export type ElectrobunRpcBridge = {
 		readonly getProjectIndex: ElectrobunRpcRequest;
 		readonly invalidateProjectIndex: ElectrobunRpcRequest;
 		readonly readTextFile: ElectrobunRpcRequest;
+		readonly readImageDataUrl: ElectrobunRpcRequest;
 		readonly writeTextFile: ElectrobunRpcRequest;
 		readonly getDefaultShell: ElectrobunRpcRequest;
 		readonly gitCall: ElectrobunRpcRequest;
@@ -151,6 +154,18 @@ const requestReadTextFile = Effect.fn("requestReadTextFile")(function* (
 		catch: transportErrorFrom,
 	});
 	const exit = yield* decodeReadTextFileExit(encoded);
+	return yield* exitToEffect(exit);
+});
+
+const requestReadImageDataUrl = Effect.fn("requestReadImageDataUrl")(function* (
+	bridge: ElectrobunRpcBridge,
+	request: ReadImageDataUrlRequest
+) {
+	const encoded = yield* Effect.tryPromise({
+		try: () => bridge.request.readImageDataUrl(request),
+		catch: transportErrorFrom,
+	});
+	const exit = yield* decodeReadImageDataUrlExit(encoded);
 	return yield* exitToEffect(exit);
 });
 
@@ -298,6 +313,8 @@ export const makeElectrobunRpcTransport = (bridge: ElectrobunRpcBridge): RpcTran
 		requestInvalidateProjectIndex(bridge, projectPath).pipe(Effect.mapError(toRpcClientError)),
 	readTextFile: (request) =>
 		requestReadTextFile(bridge, request).pipe(Effect.mapError(toRpcClientError)),
+	readImageDataUrl: (request) =>
+		requestReadImageDataUrl(bridge, request).pipe(Effect.mapError(toRpcClientError)),
 	writeTextFile: (request) =>
 		requestWriteTextFile(bridge, request).pipe(Effect.mapError(toRpcClientError)),
 	getDefaultShell: () => requestGetDefaultShell(bridge, {}).pipe(Effect.mapError(toRpcClientError)),

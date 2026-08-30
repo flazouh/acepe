@@ -11,6 +11,19 @@ export const ReadTextFileRequest = Schema.Struct({
 })
 export type ReadTextFileRequest = typeof ReadTextFileRequest.Type
 
+/**
+ * Ask for an image as a `data:` URI rather than a path.
+ *
+ * The webview refuses `file://` URLs, so a local image cannot be shown by
+ * pointing an `<img>` at it: the request is dropped and the element reports
+ * `naturalWidth === 0` without an error. Sending the bytes back inline is what
+ * makes a project's own logo renderable at all.
+ */
+export const ReadImageDataUrlRequest = Schema.Struct({
+	path: TrimmedNonEmptyString,
+})
+export type ReadImageDataUrlRequest = typeof ReadImageDataUrlRequest.Type
+
 export const WriteTextFileRequest = Schema.Struct({
 	path: TrimmedNonEmptyString,
 	content: Schema.String,

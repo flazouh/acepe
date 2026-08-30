@@ -1,4 +1,5 @@
 import {
+	type ReadImageDataUrlRequest,
 	type ReadTextFileRequest,
 	RpcFsPathDeniedError,
 	RpcSchemaError,
@@ -14,6 +15,7 @@ import * as Option from "effect/Option"
 import type * as Path from "effect/Path"
 import * as Schema from "effect/Schema"
 import { SqlError } from "effect/unstable/sql/SqlError"
+import { readImageDataUrl } from "../fsUtil/readImageDataUrl.ts"
 import { readTextFile, writeTextFile } from "../fsUtil/readWriteText.ts"
 import { ProjectionProjects } from "../persistence/Services/ProjectionProjects.ts"
 
@@ -118,6 +120,15 @@ export const guardedReadTextFile = Effect.fn("fsPathGuard.guardedReadTextFile")(
 ) {
 	yield* guardFsPath(fs, path, request.path)
 	return yield* readTextFile(fs, path, request)
+})
+
+export const guardedReadImageDataUrl = Effect.fn("fsPathGuard.guardedReadImageDataUrl")(function*(
+	fs: FileSystem.FileSystem,
+	path: Path.Path,
+	request: ReadImageDataUrlRequest
+) {
+	yield* guardFsPath(fs, path, request.path)
+	return yield* readImageDataUrl(fs, path, request)
 })
 
 export const guardedWriteTextFile = Effect.fn("fsPathGuard.guardedWriteTextFile")(function*(

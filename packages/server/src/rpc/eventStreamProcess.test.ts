@@ -70,6 +70,8 @@ Vitest.it.live(
 				Effect.fail(new RpcTransportError({ reason: "unused invalidateProjectIndex" }))
 			const unusedReadTextFile: RpcTransport["readTextFile"] = () =>
 				Effect.fail(new RpcTransportError({ reason: "unused readTextFile" }))
+			const unusedReadImageDataUrl: RpcTransport["readImageDataUrl"] = () =>
+				Effect.fail(new RpcTransportError({ reason: "unused readImageDataUrl" }))
 			const unusedWriteTextFile: RpcTransport["writeTextFile"] = () =>
 				Effect.fail(new RpcTransportError({ reason: "unused writeTextFile" }))
 			const unusedGetDefaultShell: RpcTransport["getDefaultShell"] = () =>
@@ -92,6 +94,7 @@ Vitest.it.live(
 				getProjectIndex: unusedGetProjectIndex,
 				invalidateProjectIndex: unusedInvalidateProjectIndex,
 				readTextFile: unusedReadTextFile,
+				readImageDataUrl: unusedReadImageDataUrl,
 				writeTextFile: unusedWriteTextFile,
 				getDefaultShell: unusedGetDefaultShell,
 				gitCall: unusedGitCall,

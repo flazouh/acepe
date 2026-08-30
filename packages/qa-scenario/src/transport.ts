@@ -146,6 +146,7 @@ export const makeScenarioTransport = Effect.fn("makeScenarioTransport")(function
 			Effect.sync(() => {
 				note("invalidateProjectIndex", callKey(projectPath))
 			}),
+		readImageDataUrl: () => Effect.succeed("data:image/png;base64,"),
 		readTextFile: (request: ReadTextFileRequest) =>
 			recorded("readTextFile", callKey(request), decodeText),
 		writeTextFile: (request: WriteTextFileRequest) =>

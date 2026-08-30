@@ -248,6 +248,7 @@ describe("AcepeRpc primitives", () => {
 			"invalidateProjectIndex",
 			"listProviderProjects",
 			"listProviderSessions",
+			"readImageDataUrl",
 			"readTextFile",
 			"snapshot",
 			"writeTextFile",

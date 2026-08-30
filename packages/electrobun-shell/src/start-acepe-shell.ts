@@ -10,6 +10,7 @@ export type AcepeShellRpcHandlers = {
 	readonly getProjectIndex: (params: unknown) => unknown
 	readonly invalidateProjectIndex: (params: unknown) => unknown
 	readonly readTextFile: (params: unknown) => unknown
+	readonly readImageDataUrl: (params: unknown) => unknown
 	readonly writeTextFile: (params: unknown) => unknown
 	readonly getDefaultShell: (params: unknown) => unknown
 	readonly gitCall: (params: unknown) => unknown
@@ -27,6 +28,7 @@ export type AcepeRpcWork = {
 	readonly getProjectIndex: (params: unknown) => unknown
 	readonly invalidateProjectIndex: (params: unknown) => unknown
 	readonly readTextFile: (params: unknown) => unknown
+	readonly readImageDataUrl: (params: unknown) => unknown
 	readonly writeTextFile: (params: unknown) => unknown
 	readonly getDefaultShell: (params: unknown) => unknown
 	readonly gitCall: (params: unknown) => unknown
@@ -54,6 +56,7 @@ export const startAcepeShell = <Rpc>(
 		getProjectIndex: work.getProjectIndex,
 		invalidateProjectIndex: work.invalidateProjectIndex,
 		readTextFile: work.readTextFile,
+		readImageDataUrl: work.readImageDataUrl,
 		writeTextFile: work.writeTextFile,
 		getDefaultShell: work.getDefaultShell,
 		gitCall: work.gitCall,

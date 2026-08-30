@@ -18,6 +18,7 @@ declare module "electrobun/view" {
 				readonly getProjectIndex: (params: unknown) => Promise<unknown>;
 				readonly invalidateProjectIndex: (params: unknown) => Promise<unknown>;
 				readonly readTextFile: (params: unknown) => Promise<unknown>;
+				readonly readImageDataUrl: (params: unknown) => Promise<unknown>;
 				readonly writeTextFile: (params: unknown) => Promise<unknown>;
 				readonly getDefaultShell: (params: unknown) => Promise<unknown>;
 				readonly gitCall: (params: unknown) => Promise<unknown>;

@@ -10,6 +10,7 @@ import {
 	decodeListProviderProjectsRequest,
 	decodeListProviderSessionsRequest,
 	decodeOrchestrationCommand,
+	decodeReadImageDataUrlRequest,
 	decodeReadTextFileRequest,
 	decodeSnapshotRequest,
 	decodeWriteTextFileRequest,
@@ -24,6 +25,7 @@ import {
 	encodeListProviderProjectsExit,
 	encodeListProviderSessionsExit,
 	encodeOrchestrationEvent,
+	encodeReadImageDataUrlExit,
 	encodeReadTextFileExit,
 	encodeSnapshotExit,
 	encodeWriteTextFileExit,
@@ -59,7 +61,7 @@ import {
 	toHistoryImportRpcError,
 	toRpcError
 } from "./handlers.ts"
-import { guardedReadTextFile, guardedWriteTextFile } from "./fsPathGuard.ts"
+import { guardedReadImageDataUrl, guardedReadTextFile, guardedWriteTextFile } from "./fsPathGuard.ts"
 
 const toEncodedFsUtilError = (error: RpcServerError | Schema.SchemaError): RpcServerError => {
 	if (Schema.is(RpcServerError)(error)) {
@@ -150,6 +152,23 @@ export const encodedReadTextFile = Effect.fn("encodedReadTextFile")(function*(pa
 		return yield* rpcError.pipe(Exit.fail, encodeReadTextFileExit)
 	}
 	return yield* encodeReadTextFileExit(Exit.succeed(outcome.success))
+})
+
+export const encodedReadImageDataUrl = Effect.fn("encodedReadImageDataUrl")(function*(
+	params: unknown
+) {
+	const fs = yield* FileSystem.FileSystem
+	const path = yield* Path.Path
+	const outcome = yield* Effect.result(
+		decodeReadImageDataUrlRequest(params).pipe(
+			Effect.flatMap((request) => guardedReadImageDataUrl(fs, path, request))
+		)
+	)
+	if (Result.isFailure(outcome)) {
+		const rpcError = toEncodedFsUtilError(outcome.failure)
+		return yield* rpcError.pipe(Exit.fail, encodeReadImageDataUrlExit)
+	}
+	return yield* encodeReadImageDataUrlExit(Exit.succeed(outcome.success))
 })
 
 export const encodedWriteTextFile = Effect.fn("encodedWriteTextFile")(function*(params: unknown) {

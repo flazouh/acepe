@@ -21,6 +21,16 @@ export const fs = {
 			client.readTextFile(readTextFilePayload(path, line, limit))
 		),
 
+	/**
+	 * An image as a `data:` URI, ready to put straight in an `<img src>`.
+	 *
+	 * The webview will not load `file://` URLs from the app page, so a path is
+	 * not enough to show a picture that lives on disk. The server reads the
+	 * bytes and hands them back inline.
+	 */
+	readImageDataUrl: (path: string): Effect.Effect<string, AppError> =>
+		withRpcClient("fs.readImageDataUrl", (client) => client.readImageDataUrl({ path })),
+
 	writeTextFile: (
 		path: string,
 		content: string,

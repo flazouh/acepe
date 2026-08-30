@@ -15,7 +15,12 @@ import {
 	InvalidateProjectIndexRequest,
 	ProjectIndex,
 } from "./fileIndex.ts"
-import { GetDefaultShellRequest, ReadTextFileRequest, WriteTextFileRequest } from "./fsUtil.ts"
+import {
+	GetDefaultShellRequest,
+	ReadImageDataUrlRequest,
+	ReadTextFileRequest,
+	WriteTextFileRequest,
+} from "./fsUtil.ts"
 import { ProjectedGitReview } from "./git.ts"
 import { GitCallRequest, GitCallResult } from "./gitCall.ts"
 import { ProjectedMcpCatalog } from "./mcp.ts"
@@ -72,6 +77,7 @@ export const RPC_PRIMITIVE_TAGS = [
 	"getProjectIndex",
 	"invalidateProjectIndex",
 	"readTextFile",
+	"readImageDataUrl",
 	"writeTextFile",
 	"getDefaultShell",
 	"gitCall",
@@ -753,6 +759,12 @@ export class ReadTextFile extends Rpc.make("readTextFile", {
 	error: RpcServerError,
 }) {}
 
+export class ReadImageDataUrl extends Rpc.make("readImageDataUrl", {
+	payload: ReadImageDataUrlRequest,
+	success: Schema.String,
+	error: RpcServerError,
+}) {}
+
 export class WriteTextFile extends Rpc.make("writeTextFile", {
 	payload: WriteTextFileRequest,
 	success: Schema.Void,
@@ -815,6 +827,7 @@ export const AcepeRpc = RpcGroup.make(
 	GetProjectIndex,
 	InvalidateProjectIndex,
 	ReadTextFile,
+	ReadImageDataUrl,
 	WriteTextFile,
 	GetDefaultShell,
 	GitCall,
@@ -838,6 +851,7 @@ export const SnapshotExit = Rpc.exitSchema(Snapshot)
 export const GetProjectIndexExit = Rpc.exitSchema(GetProjectIndex)
 export const InvalidateProjectIndexExit = Rpc.exitSchema(InvalidateProjectIndex)
 export const ReadTextFileExit = Rpc.exitSchema(ReadTextFile)
+export const ReadImageDataUrlExit = Rpc.exitSchema(ReadImageDataUrl)
 export const WriteTextFileExit = Rpc.exitSchema(WriteTextFile)
 export const GetDefaultShellExit = Rpc.exitSchema(GetDefaultShell)
 export const GitCallExit = Rpc.exitSchema(GitCall)
@@ -936,6 +950,10 @@ export type AcepeElectrobunRpcSchema = {
 				readonly params: typeof ReadTextFileRequest.Encoded
 				readonly response: typeof ReadTextFileExit.Encoded
 			}
+			readonly readImageDataUrl: {
+				readonly params: typeof ReadImageDataUrlRequest.Encoded
+				readonly response: typeof ReadImageDataUrlExit.Encoded
+			}
 			readonly writeTextFile: {
 				readonly params: typeof WriteTextFileRequest.Encoded
 				readonly response: typeof WriteTextFileExit.Encoded
@@ -984,6 +1002,7 @@ const snapshotExitJson = Schema.toCodecJson(SnapshotExit)
 const getProjectIndexExitJson = Schema.toCodecJson(GetProjectIndexExit)
 const invalidateProjectIndexExitJson = Schema.toCodecJson(InvalidateProjectIndexExit)
 const readTextFileExitJson = Schema.toCodecJson(ReadTextFileExit)
+const readImageDataUrlExitJson = Schema.toCodecJson(ReadImageDataUrlExit)
 const writeTextFileExitJson = Schema.toCodecJson(WriteTextFileExit)
 const getDefaultShellExitJson = Schema.toCodecJson(GetDefaultShellExit)
 const gitCallExitJson = Schema.toCodecJson(GitCallExit)
@@ -1000,6 +1019,7 @@ export const decodeInvalidateProjectIndexExit = Schema.decodeUnknownEffect(
 	invalidateProjectIndexExitJson,
 )
 export const decodeReadTextFileExit = Schema.decodeUnknownEffect(readTextFileExitJson)
+export const decodeReadImageDataUrlExit = Schema.decodeUnknownEffect(readImageDataUrlExitJson)
 export const decodeWriteTextFileExit = Schema.decodeUnknownEffect(writeTextFileExitJson)
 export const decodeGetDefaultShellExit = Schema.decodeUnknownEffect(getDefaultShellExitJson)
 export const decodeGitCallExit = Schema.decodeUnknownEffect(gitCallExitJson)
@@ -1017,6 +1037,7 @@ export const encodeInvalidateProjectIndexExit = Schema.encodeUnknownEffect(
 	invalidateProjectIndexExitJson,
 )
 export const encodeReadTextFileExit = Schema.encodeUnknownEffect(readTextFileExitJson)
+export const encodeReadImageDataUrlExit = Schema.encodeUnknownEffect(readImageDataUrlExitJson)
 export const encodeWriteTextFileExit = Schema.encodeUnknownEffect(writeTextFileExitJson)
 export const encodeGetDefaultShellExit = Schema.encodeUnknownEffect(getDefaultShellExitJson)
 export const encodeGitCallExit = Schema.encodeUnknownEffect(gitCallExitJson)
@@ -1034,6 +1055,7 @@ export const decodeInvalidateProjectIndexRequest = Schema.decodeUnknownEffect(
 	InvalidateProjectIndexRequest,
 )
 export const decodeReadTextFileRequest = Schema.decodeUnknownEffect(ReadTextFileRequest)
+export const decodeReadImageDataUrlRequest = Schema.decodeUnknownEffect(ReadImageDataUrlRequest)
 export const decodeWriteTextFileRequest = Schema.decodeUnknownEffect(WriteTextFileRequest)
 export const decodeGetDefaultShellRequest = Schema.decodeUnknownEffect(GetDefaultShellRequest)
 export const decodeGitCallRequest = Schema.decodeUnknownEffect(GitCallRequest)
@@ -1077,6 +1099,9 @@ export type RpcTransport<R = never> = {
 	) => Effect.Effect<void, RpcClientError, R>
 	readonly readTextFile: (
 		request: ReadTextFileRequest,
+	) => Effect.Effect<string, RpcClientError, R>
+	readonly readImageDataUrl: (
+		request: ReadImageDataUrlRequest,
 	) => Effect.Effect<string, RpcClientError, R>
 	readonly writeTextFile: (
 		request: WriteTextFileRequest,
@@ -1168,6 +1193,7 @@ export const makeResumingRpcClient = <R>(transport: RpcTransport<R>): RpcClient<
 	getProjectIndex: transport.getProjectIndex,
 	invalidateProjectIndex: transport.invalidateProjectIndex,
 	readTextFile: transport.readTextFile,
+	readImageDataUrl: transport.readImageDataUrl,
 	writeTextFile: transport.writeTextFile,
 	getDefaultShell: transport.getDefaultShell,
 	gitCall: transport.gitCall,

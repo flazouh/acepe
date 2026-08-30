@@ -82,6 +82,7 @@ const makeBridge = (input: {
 	readonly events?: (params: unknown) => Promise<unknown>;
 	readonly getProjectIndex?: (params: unknown) => Promise<unknown>;
 	readonly invalidateProjectIndex?: (params: unknown) => Promise<unknown>;
+	readonly readImageDataUrl?: (params: unknown) => Promise<unknown>;
 	readonly readTextFile?: (params: unknown) => Promise<unknown>;
 	readonly writeTextFile?: (params: unknown) => Promise<unknown>;
 	readonly getDefaultShell?: (params: unknown) => Promise<unknown>;
@@ -114,6 +115,10 @@ const makeBridge = (input: {
 				input.invalidateProjectIndex === undefined
 					? Promise.reject(new Error("unused invalidateProjectIndex"))
 					: input.invalidateProjectIndex(params),
+			readImageDataUrl: (params) =>
+				input.readImageDataUrl === undefined
+					? Promise.reject(new Error("unused readImageDataUrl"))
+					: input.readImageDataUrl(params),
 			readTextFile: (params) =>
 				input.readTextFile === undefined
 					? Promise.reject(new Error("unused readTextFile"))

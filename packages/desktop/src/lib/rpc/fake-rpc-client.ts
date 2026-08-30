@@ -33,6 +33,7 @@ export const makeGitCallRpcClient = (
 		}),
 	invalidateProjectIndex: () => Effect.void,
 	readTextFile: () => Effect.succeed(""),
+	readImageDataUrl: () => Effect.succeed("data:image/png;base64,"),
 	writeTextFile: () => Effect.void,
 	getDefaultShell: () => Effect.succeed("/bin/zsh"),
 	gitCall,

@@ -147,6 +147,7 @@ export const startElectrobunAcepeApp = <Rpc>(
 							getProjectIndex: handlers.getProjectIndex,
 							invalidateProjectIndex: handlers.invalidateProjectIndex,
 							readTextFile: handlers.readTextFile,
+							readImageDataUrl: handlers.readImageDataUrl,
 							writeTextFile: handlers.writeTextFile,
 							getDefaultShell: handlers.getDefaultShell,
 							gitCall: handlers.gitCall,

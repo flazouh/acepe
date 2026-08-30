@@ -16,6 +16,7 @@ test("startAcepeShell opens the svelte bundle and exposes dispatch snapshot even
 			events: (params) => ({ streamed: params }),
 			getProjectIndex: (params) => ({ indexed: params }),
 			invalidateProjectIndex: (params) => ({ invalidated: params }),
+			readImageDataUrl: () => undefined,
 			readTextFile: (params) => ({ read: params }),
 			writeTextFile: (params) => ({ written: params }),
 			getDefaultShell: (params) => ({ shell: params }),

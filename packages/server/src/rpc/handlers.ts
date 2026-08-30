@@ -96,7 +96,11 @@ import { ProviderUsageService } from "../providerUsage/Services/ProviderUsageSer
 import { fillSkillsDiscoverCommand } from "../skills/discoverCatalog.ts";
 import { fillTerminalCommand } from "../terminal/fillCommand.ts";
 import { fillVoiceCommand } from "../voice/fillCommand.ts";
-import { guardedReadTextFile, guardedWriteTextFile } from "./fsPathGuard.ts";
+import {
+	guardedReadImageDataUrl,
+	guardedReadTextFile,
+	guardedWriteTextFile
+} from "./fsPathGuard.ts";
 
 const EVENT_PAGE_SIZE = 1_000;
 
@@ -597,6 +601,7 @@ export const RpcHandlersLive = AcepeRpc.toLayer(
 					Effect.andThen(fileIndex.invalidate(request.projectPath)),
 				),
 			readTextFile: (request) => guardedReadTextFile(fs, path, request),
+			readImageDataUrl: (request) => guardedReadImageDataUrl(fs, path, request),
 			writeTextFile: (request) => guardedWriteTextFile(fs, path, request),
 			getDefaultShell: () => getDefaultShellUtil(),
 			gitCall: (request) => routeGitCall(request),
