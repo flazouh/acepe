@@ -51,17 +51,26 @@ import type { CustomAgentConfig } from "./types.js";
 // them unsupportedOnContract turns that into a typed, honest failure instead
 // of a silent hang, with zero change in what the app can actually do.
 //
-// listAgents is the exception: it rides the agentCall utility RPC (packages/
-// contracts/src/agentCall.ts), a gitCall-style tagged-union request routed
-// server-side onto ProviderRegistry.list (packages/server/src/provider/
-// agentCallHandler.ts). install/uninstall stay unsupportedOnContract until
-// agentCall grows an AgentInstaller-backed op -- real follow-up work, not
-// done here. The agent.* orchestration commands in orchestration.ts
-// (agent.install, agent.list, ...) are NOT a substitute for that follow-up:
-// they are echo commands whose payload is precomputed by the caller (e.g.
-// AgentListCommand takes `agents: AgentListing[]` as input), so dispatching
-// them would record a false "installed"/"listed" fact without any adapter
-// actually doing the work.
+// listAgents, installAgent and uninstallAgent are the exceptions: all three
+// ride the agentCall utility RPC (packages/contracts/src/agentCall.ts), a
+// gitCall-style tagged-union request routed server-side onto
+// ProviderRegistry.list and AgentInstaller (packages/server/src/provider/
+// agentCallHandler.ts). The agent.* orchestration commands in
+// orchestration.ts (agent.install, agent.list, ...) are NOT the lane for
+// this: they are echo commands whose payload is precomputed by the caller
+// (e.g. AgentListCommand takes `agents: AgentListing[]` as input), so
+// dispatching them records an "installed" fact without any adapter having
+// done the work.
+
+const toAgentInfo = (agent: {
+	readonly id: string;
+	readonly name: string;
+	readonly availabilityKind: { readonly kind: "installable"; readonly installed: boolean };
+}): AgentInfo => ({
+	id: agent.id,
+	name: agent.name,
+	availability_kind: agent.availabilityKind,
+});
 
 const emptySessionLifecycle = (status: SessionGraphLifecycle["status"]): SessionGraphLifecycle => ({
 	status,
@@ -502,26 +511,35 @@ export const acp = {
 	// server/src/provider/agentCallHandler.ts) -- the same registry
 	// ProviderBridge resolves real adapters from for session.create, so this
 	// only ever offers an agent Acepe can actually start a session with.
-	// install/uninstall stay unsupportedOnContract below: there is no
-	// AgentInstaller wiring on the agentCall contract yet.
 	listAgents: Effect.fn("acp.listAgents")(function* () {
 		const result = yield* withRpcClient("acp.listAgents", (client) =>
 			client.agentCall({ op: "agent.list" })
 		);
-		return result.agents.map(
-			(agent): AgentInfo => ({
-				id: agent.id,
-				name: agent.name,
-				availability_kind: agent.availabilityKind,
-			})
-		);
+		return result.agents.map(toAgentInfo);
 	}),
 
-	installAgent: (_agentId: string): Effect.Effect<void, AppError> =>
-		unsupportedOnContract("acp.installAgent"),
+	// agent.install runs the server's AgentInstaller: registry fetch,
+	// download, checksum verify, extract, write binary. It answers with the
+	// agent list re-read from ProviderRegistry afterwards, so the caller
+	// takes installedness from the backend that just changed it instead of
+	// making a second list call that could disagree.
+	//
+	// This lane is request/response and the installer reports no progress,
+	// so there is no percentage to hand a caller. The picker shows an
+	// indeterminate installing state -- see agent-store.svelte.ts.
+	installAgent: Effect.fn("acp.installAgent")(function* (agentId: string) {
+		const result = yield* withRpcClient("acp.installAgent", (client) =>
+			client.agentCall({ op: "agent.install", agentId })
+		);
+		return result.agents.map(toAgentInfo);
+	}),
 
-	uninstallAgent: (_agentId: string): Effect.Effect<void, AppError> =>
-		unsupportedOnContract("acp.uninstallAgent"),
+	uninstallAgent: Effect.fn("acp.uninstallAgent")(function* (agentId: string) {
+		const result = yield* withRpcClient("acp.uninstallAgent", (client) =>
+			client.agentCall({ op: "agent.uninstall", agentId })
+		);
+		return result.agents.map(toAgentInfo);
+	}),
 
 	closeSession: Effect.fn("acp.closeSession")(function* (sessionId: string) {
 		const decodedSessionId = yield* decodeEffect("acp.closeSession", decodeSessionId)(sessionId);

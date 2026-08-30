@@ -31,9 +31,11 @@ describe("AgentStore installAgent", () => {
 		vi.clearAllMocks();
 	});
 
-	it("returns success only after the installed availability has refreshed", async () => {
-		mocks.installAgent.mockReturnValue(Effect.succeed(undefined));
-		mocks.listAgents.mockReturnValue(
+	it("takes the installed availability from the install call's own answer", async () => {
+		// The backend re-reads its provider registry after installing and
+		// returns that list, so the store must not make a second list call
+		// which could answer differently.
+		mocks.installAgent.mockReturnValue(
 			Effect.succeed([
 				{
 					id: "claude-code",
@@ -48,10 +50,33 @@ describe("AgentStore installAgent", () => {
 
 		expect(Result.isSuccess(result)).toBe(true);
 		expect(mocks.installAgent).toHaveBeenCalledWith("claude-code");
-		expect(mocks.listAgents).toHaveBeenCalledOnce();
+		expect(mocks.listAgents).not.toHaveBeenCalled();
 		expect(store.agents[0]?.availability_kind).toEqual({
 			kind: "installable",
 			installed: true,
+		});
+		expect(store.isInstalling("claude-code")).toBe(false);
+	});
+
+	it("takes the uninstalled availability from the uninstall call's own answer", async () => {
+		mocks.uninstallAgent.mockReturnValue(
+			Effect.succeed([
+				{
+					id: "claude-code",
+					name: "Claude Code",
+					availability_kind: { kind: "installable" as const, installed: false },
+				},
+			])
+		);
+
+		const store = new AgentStore();
+		await store.uninstallAgent("claude-code");
+
+		expect(mocks.uninstallAgent).toHaveBeenCalledWith("claude-code");
+		expect(mocks.listAgents).not.toHaveBeenCalled();
+		expect(store.agents[0]?.availability_kind).toEqual({
+			kind: "installable",
+			installed: false,
 		});
 	});
 

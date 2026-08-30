@@ -366,6 +366,25 @@ export const makeAgentInstaller = Effect.fn("AgentInstaller.make")(function*(
 export const AgentInstallerLive = (options: AgentInstallerLiveOptions) =>
 	Layer.effect(AgentInstaller, makeAgentInstaller(options))
 
+// The installer for a host whose os/arch pair is not one of the six
+// PLATFORM_KEYS (see agentJson.ts's platformKeyFromHost). There is no
+// per-platform archive to resolve on such a host, so every op that would
+// download says exactly that, and the two ops that only read or clear the
+// managed directory keep working. This exists so bootstrap always builds an
+// AgentInstaller: an odd host loses agent installs, not the whole app.
+export const AgentInstallerUnsupportedPlatformLive = (platform: string) =>
+	Layer.succeed(
+		AgentInstaller,
+		AgentInstaller.of({
+			resolveDistribution: (agentId) =>
+				Effect.fail(new NoBinaryDistributionError({ agentId, platform })),
+			install: (agentId) => Effect.fail(new NoBinaryDistributionError({ agentId, platform })),
+			ensureLatest: (agentId) => Effect.fail(new NoBinaryDistributionError({ agentId, platform })),
+			getCached: () => Effect.succeed(Option.none()),
+			uninstall: () => Effect.void
+		})
+	)
+
 export const defaultAgentInstallerOptions = (
 	cacheDir: string,
 	platform: PlatformKey

@@ -204,6 +204,24 @@ export class RpcGitCallError extends Schema.TaggedError<RpcGitCallError>()(
 	}
 }
 
+// The agentCall equivalent of RpcGitCallError: an agent-management op that
+// failed, and why. agent.install carries every AgentInstaller failure the
+// operator needs to read -- a registry entry with no binary for this
+// platform, a missing or mismatched checksum, a download that is not on the
+// allowlist -- so the picker can say what actually went wrong instead of
+// "install failed".
+export class RpcAgentCallError extends Schema.TaggedError<RpcAgentCallError>()(
+	"RpcAgentCallError",
+	{
+		op: Schema.String,
+		detail: Schema.String,
+	},
+) {
+	override get message(): string {
+		return `${this.op} failed: ${this.detail}`
+	}
+}
+
 // Carries which provider's usage fetch failed and why. In practice
 // getProviderAccountUsage's handler catches this per-provider (see
 // packages/server/src/providerUsage) and folds it into that provider's
@@ -234,6 +252,7 @@ export const RpcServerError = Schema.Union([
 	RpcFileIndexNotADirectoryError,
 	RpcFsPathDeniedError,
 	RpcGitCallError,
+	RpcAgentCallError,
 	RpcProviderUsageError,
 ])
 export type RpcServerError = typeof RpcServerError.Type

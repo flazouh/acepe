@@ -10,9 +10,30 @@ describe("AgentCallRequest", () => {
 		expect(decoded).toEqual({ op: "agent.list" })
 	})
 
-	it("rejects an unknown op", () => {
+	it("decodes agent.install with the agent it names", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(AgentCallRequest)({ op: "agent.install", agentId: "opencode" })
+		)
+		expect(decoded).toEqual({ op: "agent.install", agentId: "opencode" })
+	})
+
+	it("decodes agent.uninstall with the agent it names", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(AgentCallRequest)({ op: "agent.uninstall", agentId: "opencode" })
+		)
+		expect(decoded).toEqual({ op: "agent.uninstall", agentId: "opencode" })
+	})
+
+	it("rejects agent.install without an agentId", () => {
 		const outcome = Effect.runSyncExit(
 			Schema.decodeUnknownEffect(AgentCallRequest)({ op: "agent.install" })
+		)
+		expect(outcome._tag).toBe("Failure")
+	})
+
+	it("rejects an unknown op", () => {
+		const outcome = Effect.runSyncExit(
+			Schema.decodeUnknownEffect(AgentCallRequest)({ op: "agent.teleport" })
 		)
 		expect(outcome._tag).toBe("Failure")
 	})
@@ -42,6 +63,46 @@ describe("AgentCallResult", () => {
 				}
 			]
 		})
+	})
+
+	it("decodes an agent.install result carrying the installed version and the refreshed list", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(AgentCallResult)({
+				op: "agent.install",
+				agentId: "opencode",
+				version: "1.18.25",
+				agents: [
+					{
+						id: "opencode",
+						name: "OpenCode",
+						availabilityKind: { kind: "installable", installed: true }
+					}
+				]
+			})
+		)
+		expect(decoded).toEqual({
+			op: "agent.install",
+			agentId: "opencode",
+			version: "1.18.25",
+			agents: [
+				{
+					id: "opencode",
+					name: "OpenCode",
+					availabilityKind: { kind: "installable", installed: true }
+				}
+			]
+		})
+	})
+
+	it("decodes an agent.uninstall result carrying the refreshed list", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(AgentCallResult)({
+				op: "agent.uninstall",
+				agentId: "opencode",
+				agents: []
+			})
+		)
+		expect(decoded).toEqual({ op: "agent.uninstall", agentId: "opencode", agents: [] })
 	})
 
 	it("decodes an empty agent list", () => {

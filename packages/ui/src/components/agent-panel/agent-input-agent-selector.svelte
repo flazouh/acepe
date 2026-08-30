@@ -12,7 +12,7 @@
 		dropdownMenuItemTypographyClass,
 		dropdownMenuSectionTypographyClass,
 	} from "../dropdown-menu/dropdown-menu-typography.js";
-	import { SegmentedProgressBar } from "../segmented-progress-bar/index.js";
+	import { TextShimmer } from "../text-shimmer/index.js";
 	import { HugeiconsIcon } from "../icons/index.js";
 	import { BUTTON_CHIP_ICON_SIZE_PX } from "../button/variants.js";
 	import type { ButtonVariant } from "../button/index.js";
@@ -157,7 +157,7 @@
 					class="group/item transition-colors py-1"
 				>
 					{#if agent.installing}
-						<div class="flex w-full min-w-0 flex-col gap-1.5">
+						<div class="flex w-full min-w-0 flex-col">
 							<div class="flex min-w-0 items-center gap-2">
 								{@render renderAgentIcon({
 									agentId: agent.id,
@@ -170,19 +170,15 @@
 									<span class="truncate {dropdownMenuItemTypographyClass} text-muted-foreground">
 										{capitalizeName(agent.name)}
 									</span>
-									<span class="{dropdownMenuSectionTypographyClass} text-muted-foreground">
-										{installingLabel}
+									<span
+										class="{dropdownMenuSectionTypographyClass} text-muted-foreground"
+										role="status"
+										data-install-state="indeterminate"
+									>
+										<TextShimmer>{installingLabel}</TextShimmer>
 									</span>
 								</div>
 							</div>
-							<SegmentedProgressBar
-								ariaLabel={`Installing ${capitalizeName(agent.name)}`}
-								label=""
-								percent={agent.installProgress ?? 0}
-								segmentCount={12}
-								showPercent={true}
-								variant="downloadFillWidth"
-							/>
 						</div>
 					{:else}
 						<div class="flex w-full min-w-0 items-center gap-2">

@@ -40,28 +40,20 @@ describe("AgentInstallCard", () => {
 		cleanup();
 	});
 
-	it("renders the voice-style segmented download progress while installing", () => {
+	it("reports an indeterminate install with no percentage anywhere", () => {
 		const { container } = render(AgentInstallCard, {
 			agentId: "copilot",
 			agentName: "GitHub Copilot",
-			stage: "Downloading runtime",
-			progress: 0.5,
 		});
 
-		// SegmentedProgressBar (variant "downloadCompact") renders the segments;
-		// it replaced the old VoiceDownloadProgress component's dedicated
-		// .voice-download-segment class names with tailwind-variants classes.
-		const bar = container.querySelector('[data-variant="downloadCompact"]');
-		const segments = container.querySelectorAll(
-			'[data-variant="downloadCompact"] > div:nth-child(1) > div'
-		);
-		const filledSegments = Array.from(segments).filter((segment) =>
-			segment.className.includes("segment-fill")
-		);
-
-		expect(bar).toBeTruthy();
-		expect(segments).toHaveLength(20);
-		expect(filledSegments).toHaveLength(10);
-		expect(container.querySelector(".circular-progress")).toBeNull();
+		// The install call is request/response and reports nothing between
+		// start and finish, so the card must not draw a bar or a number. It
+		// used to draw a 20-segment bar fed by a progress prop that only ever
+		// held 0.
+		expect(container.textContent).toContain("Setting up GitHub Copilot...");
+		expect(container.querySelector('[data-install-state="indeterminate"]')).toBeTruthy();
+		expect(container.querySelector('[role="progressbar"]')).toBeNull();
+		expect(container.querySelector('[data-variant="downloadCompact"]')).toBeNull();
+		expect(container.textContent).not.toMatch(/\d+\s*%/);
 	});
 });

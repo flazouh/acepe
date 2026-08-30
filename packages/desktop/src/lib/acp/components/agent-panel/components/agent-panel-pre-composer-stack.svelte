@@ -119,8 +119,6 @@ let {
 	agentInstallState: {
 		agentId: string;
 		agentName: string;
-		stage: string;
-		progress: number;
 	} | null;
 	sessionId: string | null;
 	effectiveProjectPath: string | null;
@@ -228,8 +226,6 @@ let {
 							<AgentInstallCard
 								agentId={agentInstallState.agentId}
 								agentName={agentInstallState.agentName}
-								stage={agentInstallState.stage}
-								progress={agentInstallState.progress}
 							/>
 						{/if}
 						{#if sessionId}

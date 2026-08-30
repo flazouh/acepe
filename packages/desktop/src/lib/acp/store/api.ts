@@ -323,16 +323,19 @@ export function listAgents(): Effect.Effect<AgentInfo[], AppError> {
 }
 
 /**
- * Install an automatically provisioned agent.
+ * Install an automatically provisioned agent. Answers with the agent list
+ * the backend read back after installing, so no caller has to keep its own
+ * idea of which agents are installed.
  */
-export function installAgent(agentId: string): Effect.Effect<void, AppError> {
+export function installAgent(agentId: string): Effect.Effect<AgentInfo[], AppError> {
 	return backendClient.acp.installAgent(agentId);
 }
 
 /**
- * Uninstall a previously downloaded agent.
+ * Uninstall a previously downloaded agent. Answers with the same re-read
+ * agent list installAgent does.
  */
-export function uninstallAgent(agentId: string): Effect.Effect<void, AppError> {
+export function uninstallAgent(agentId: string): Effect.Effect<AgentInfo[], AppError> {
 	return backendClient.acp.uninstallAgent(agentId);
 }
 

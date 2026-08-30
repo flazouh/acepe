@@ -387,14 +387,72 @@ describe("acp backend client", () => {
 			})
 		));
 
-	it("installAgent and uninstallAgent are honestly unsupported", () =>
+	it("installAgent sends agentCall's agent.install op and returns the re-read agent list", () =>
 		Effect.runPromise(
 			Effect.gen(function* () {
-				setAppRpcClientForTest(makeClient({}));
-				const installResult = yield* Effect.result(acp.installAgent("claude-code"));
-				const uninstallResult = yield* Effect.result(acp.uninstallAgent("claude-code"));
-				expect(Result.isFailure(installResult)).toBe(true);
-				expect(Result.isFailure(uninstallResult)).toBe(true);
+				const requests: Array<Record<string, unknown>> = [];
+				setAppRpcClientForTest(
+					makeClient({
+						agentCall: (request) => {
+							requests.push(request as unknown as Record<string, unknown>);
+							return Effect.succeed({
+								op: "agent.install",
+								agentId: "opencode",
+								version: "1.18.25",
+								agents: [
+									{
+										id: "opencode",
+										name: "OpenCode",
+										availabilityKind: { kind: "installable", installed: true },
+									},
+								],
+							});
+						},
+					})
+				);
+				const agents = yield* acp.installAgent("opencode");
+				expect(requests).toEqual([{ op: "agent.install", agentId: "opencode" }]);
+				expect(agents).toEqual([
+					{
+						id: "opencode",
+						name: "OpenCode",
+						availability_kind: { kind: "installable", installed: true },
+					},
+				]);
+			})
+		));
+
+	it("uninstallAgent sends agentCall's agent.uninstall op and returns the re-read agent list", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				const requests: Array<Record<string, unknown>> = [];
+				setAppRpcClientForTest(
+					makeClient({
+						agentCall: (request) => {
+							requests.push(request as unknown as Record<string, unknown>);
+							return Effect.succeed({
+								op: "agent.uninstall",
+								agentId: "opencode",
+								agents: [
+									{
+										id: "opencode",
+										name: "OpenCode",
+										availabilityKind: { kind: "installable", installed: false },
+									},
+								],
+							});
+						},
+					})
+				);
+				const agents = yield* acp.uninstallAgent("opencode");
+				expect(requests).toEqual([{ op: "agent.uninstall", agentId: "opencode" }]);
+				expect(agents).toEqual([
+					{
+						id: "opencode",
+						name: "OpenCode",
+						availability_kind: { kind: "installable", installed: false },
+					},
+				]);
 			})
 		));
 

@@ -55,6 +55,7 @@ import { ProjectionStateLive } from "../persistence/Layers/ProjectionState.ts"
 import { McpCatalogLive } from "../mcp/Layers/McpCatalog.ts"
 import { ProviderAdapterRegistryLive } from "../provider/Layers/ProviderAdapterRegistry.ts"
 import { ProviderRegistryLive } from "../provider/Layers/ProviderRegistry.ts"
+import { AgentInstallerUnsupportedPlatformLive } from "../provider/Layers/AgentInstaller.ts"
 import { makeFakeProviderAdapter } from "../provider/Services/FakeProviderAdapter.ts"
 import { ProviderCapabilities, ProviderId } from "../provider/Services/ProviderAdapter.ts"
 import { ProviderUsageServiceLive } from "../providerUsage/Layers/ProviderUsageService.ts"
@@ -212,8 +213,14 @@ const ProviderRegistryTestLive = ProviderRegistryLive.pipe(
 	Layer.provide(ProviderAdapterRegistryLive([fakeClaudeAgent]))
 )
 
+// The unsupported-platform installer, not the live one: these tests must
+// never reach the network or write a managed install directory. It still
+// exercises the real agentCall route and the real RpcAgentCallError shape.
+const AgentInstallerTestLive = AgentInstallerUnsupportedPlatformLive("test-host")
+
 const TestLive = RpcHandlersLive.pipe(
 	Layer.provideMerge(ProviderRegistryTestLive),
+	Layer.provideMerge(AgentInstallerTestLive),
 	Layer.provideMerge(ProjectionSnapshotQueryLive),
 	Layer.provideMerge(EngineAndStore),
 	Layer.provideMerge(FileIndexServiceLive),
@@ -432,6 +439,44 @@ Vitest.layer(isolatedRpc())("agentCall agent.list", (it) => {
 			const result = yield* client.agentCall({ op: "agent.list" })
 			Vitest.assert.deepStrictEqual(result, {
 				op: "agent.list",
+				agents: [
+					{
+						id: "claude-code",
+						name: "Claude Code",
+						availabilityKind: { kind: "installable", installed: true }
+					}
+				]
+			})
+		})
+	)
+})
+
+// The agentCall install op over the real RPC boundary: the request decodes,
+// routes onto AgentInstaller, and the installer's own refusal comes back as
+// a typed RpcAgentCallError -- not as "unsupported on the contract", which
+// is what every install call answered before this op existed.
+Vitest.layer(isolatedRpc())("agentCall agent.install", (it) => {
+	it.effect("carries the installer's refusal back as a typed RpcAgentCallError", () =>
+		Effect.gen(function*() {
+			const client = yield* RpcTest.makeClient(AcepeRpc)
+			const error = yield* Effect.flip(
+				client.agentCall({ op: "agent.install", agentId: "claude-code" })
+			)
+			Vitest.assert.strictEqual(error._tag, "RpcAgentCallError")
+			Vitest.assert.strictEqual(
+				error.message,
+				"agent.install failed: Agent 'claude-code' has no binary distribution for platform 'test-host'."
+			)
+		})
+	)
+
+	it.effect("removes a managed install and answers with the list read back afterwards", () =>
+		Effect.gen(function*() {
+			const client = yield* RpcTest.makeClient(AcepeRpc)
+			const result = yield* client.agentCall({ op: "agent.uninstall", agentId: "claude-code" })
+			Vitest.assert.deepStrictEqual(result, {
+				op: "agent.uninstall",
+				agentId: "claude-code",
 				agents: [
 					{
 						id: "claude-code",

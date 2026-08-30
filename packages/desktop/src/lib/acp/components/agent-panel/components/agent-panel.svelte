@@ -798,14 +798,11 @@ const worktreeSetupMatchContext = $derived.by(() => {
 /** Derived: is the selected agent currently being installed? */
 const agentInstallState = $derived.by(() => {
 	if (!effectivePanelAgentId) return null;
-	const progress = agentStore.installing[effectivePanelAgentId];
-	if (!progress) return null;
+	if (!agentStore.isInstalling(effectivePanelAgentId)) return null;
 	const agent = availableAgents.find((a) => a.id === effectivePanelAgentId);
 	return {
 		agentId: effectivePanelAgentId,
 		agentName: agent?.name ?? effectivePanelAgentId,
-		stage: progress.stage,
-		progress: progress.progress,
 	};
 });
 

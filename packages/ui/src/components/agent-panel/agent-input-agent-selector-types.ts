@@ -10,10 +10,14 @@ export interface AgentInputAgentSelectorItem {
 	 * whose runtime is not installed yet; undefined is treated as installed.
 	 */
 	readonly installed?: boolean;
-	/** True while an install is in flight for this agent (drives the inline progress state). */
+	/**
+	 * True while an install is in flight for this agent. The row shows an
+	 * indeterminate state, not a percentage: the backend install call is
+	 * request/response and reports nothing between start and finish, so there
+	 * is no progress to render. A `installProgress` prop used to sit here and
+	 * fed a bar that stayed at 0% for the whole download.
+	 */
 	readonly installing?: boolean;
-	/** Install progress on a 0–100 scale while `installing` is true. */
-	readonly installProgress?: number | null;
 	/** Persistent setup failure copy. The row remains installable so selecting it retries. */
 	readonly installError?: string | null;
 }

@@ -10,7 +10,12 @@
 		title: string;
 		summary: string;
 		details?: string | null;
-		progressPercent: number;
+		/**
+		 * Percentage of a determinate install. Leave it out when the caller
+		 * has no progress to report: the card then renders no progress bar
+		 * at all rather than a bar parked at 0%.
+		 */
+		progressPercent?: number | null;
 		ariaLabel?: string;
 		leading?: Snippet;
 		progressIndicator?: Snippet;
@@ -20,7 +25,7 @@
 		title,
 		summary,
 		details = null,
-		progressPercent,
+		progressPercent = null,
 		ariaLabel,
 		leading,
 		progressIndicator,
@@ -29,7 +34,7 @@
 	let isExpanded = $state(false);
 
 	const clampedProgress = $derived(
-		progressPercent < 0 ? 0 : progressPercent > 100 ? 100 : progressPercent
+		progressPercent === null ? 0 : progressPercent < 0 ? 0 : progressPercent > 100 ? 100 : progressPercent
 	);
 	const filledSegmentCount = $derived(Math.round((clampedProgress / 100) * SEGMENT_COUNT));
 	const detailsText = $derived(details && details.length > 0 ? details : summary);
@@ -71,7 +76,7 @@
 		<div class="flex items-center gap-2 shrink-0">
 			{#if progressIndicator}
 				{@render progressIndicator()}
-			{:else}
+			{:else if progressPercent !== null}
 				<div
 					class="voice-download-segments"
 					role="progressbar"

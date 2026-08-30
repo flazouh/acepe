@@ -114,7 +114,7 @@ describe("AgentInputAgentSelector not-installed row", () => {
 		});
 	});
 
-	it("shows inline progress and ignores repeat clicks while an agent is installing", async () => {
+	it("shows an indeterminate installing state and ignores repeat clicks while an agent is installing", async () => {
 		const onAgentChange = vi.fn();
 		const onAgentInstall = vi.fn();
 
@@ -127,7 +127,6 @@ describe("AgentInputAgentSelector not-installed row", () => {
 						name: "Codex",
 						installed: false,
 						installing: true,
-						installProgress: 55,
 					},
 				],
 				currentAgentId: "claude",
@@ -142,6 +141,11 @@ describe("AgentInputAgentSelector not-installed row", () => {
 
 		const row = await screen.findByRole("menuitem", { name: /Codex/ });
 		expect(row.textContent).toContain("Installing");
+		// No percentage: the install call reports nothing between start and
+		// finish, so the row must not claim a number it does not have.
+		expect(row.textContent).not.toMatch(/\d+\s*%/);
+		expect(row.querySelector('[data-install-state="indeterminate"]')).toBeTruthy();
+		expect(row.querySelector('[role="progressbar"]')).toBeNull();
 
 		await fireEvent.click(row);
 

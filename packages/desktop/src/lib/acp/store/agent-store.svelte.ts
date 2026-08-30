@@ -12,11 +12,28 @@ import { toast } from "svelte-sonner";
 
 import type { AppError } from "../errors/app-error.js";
 import { createLogger } from "../utils/logger.js";
-import { api } from "./api.js";
+import { type AgentInfo, api } from "./api.js";
 import type { Agent } from "./types.js";
 
 const AGENT_STORE_KEY = Symbol("agent-store");
 const logger = createLogger({ id: "agent-store", name: "AgentStore" });
+
+// The one place an AgentInfo from the backend becomes a store Agent. Both
+// the list read and the install/uninstall answer go through it, so the two
+// paths cannot drift.
+const toAgent = (info: AgentInfo): Agent => ({
+	id: info.id,
+	name: info.name,
+	description: info.description,
+	icon: info.icon ?? info.id,
+	availability_kind: info.availability_kind ?? {
+		kind: "installable" as const,
+		installed: true,
+	},
+	default_selection_rank: info.default_selection_rank,
+	providerMetadata: info.provider_metadata,
+	supportsProjectDiscovery: info.supports_project_discovery ?? false,
+});
 
 export type AgentInstallationReadiness =
 	| { readonly status: "pending" }
@@ -26,8 +43,14 @@ export class AgentStore {
 	agents = $state<Agent[]>([]);
 	agentsLoading = $state(false);
 
-	/** Tracks install progress per agent ID */
-	installing = $state<Record<string, { stage: string; progress: number }>>({});
+	/**
+	 * The agents whose install is in flight. A set of ids, not a progress
+	 * record: agent.install rides the agentCall utility RPC, which is
+	 * request/response, and the installer reports nothing between "started"
+	 * and "finished". A progress number here would be invented -- the old
+	 * record fed a bar that sat at 0% for the whole download.
+	 */
+	installing = $state<Record<string, true>>({});
 	/** Keeps every picker behind the post-install capability-catalog barrier. */
 	installationReadiness = $state<Record<string, AgentInstallationReadiness>>({});
 
@@ -40,19 +63,7 @@ export class AgentStore {
 
 		return api.listAgents().pipe(
 			Effect.map((agents) => {
-				this.agents = agents.map((a) => ({
-					id: a.id,
-					name: a.name,
-					description: a.description,
-					icon: a.icon ?? a.id,
-					availability_kind: a.availability_kind ?? {
-						kind: "installable" as const,
-						installed: true,
-					},
-					default_selection_rank: a.default_selection_rank,
-					providerMetadata: a.provider_metadata,
-					supportsProjectDiscovery: a.supports_project_discovery ?? false,
-				}));
+				this.agents = agents.map(toAgent);
 				this.agentsLoading = false;
 				logger.debug("Loaded agents", { count: this.agents.length });
 				return this.agents;
@@ -67,23 +78,22 @@ export class AgentStore {
 
 	/**
 	 * Install an automatically provisioned agent.
+	 *
+	 * The agent list comes back from the same call that did the installing,
+	 * re-read backend-side from ProviderRegistry, so this never makes a
+	 * second list request that could answer differently.
 	 */
 	installAgent(agentId: string): Effect.Effect<void, AppError> {
 		return Effect.suspend(() => {
 			logger.info("Installing agent", { agentId });
-			this.installing[agentId] = { stage: "starting", progress: 0 };
+			this.installing[agentId] = true;
 			return api.installAgent(agentId);
 		}).pipe(
-			Effect.flatMap(() =>
-				this.loadAvailableAgents().pipe(
-					Effect.map(() => {
-						// Nothing else clears this: the "complete" progress event
-						// that used to do it had no channel to arrive on.
-						delete this.installing[agentId];
-						logger.info("Agent installed successfully", { agentId });
-					})
-				)
-			),
+			Effect.map((agents) => {
+				this.agents = agents.map(toAgent);
+				delete this.installing[agentId];
+				logger.info("Agent installed successfully", { agentId });
+			}),
 			Effect.mapError((error) => {
 				logger.error("Failed to install agent", error);
 				toast.error(`Failed to install agent: ${error.message}`);
@@ -103,7 +113,7 @@ export class AgentStore {
 
 		if (Result.isSuccess(result)) {
 			logger.info("Agent uninstalled", { agentId });
-			await Effect.runPromise(this.loadAvailableAgents());
+			this.agents = result.success.map(toAgent);
 		} else {
 			logger.error("Failed to uninstall agent", result.failure);
 			toast.error(`Failed to uninstall agent: ${result.failure.message}`);
