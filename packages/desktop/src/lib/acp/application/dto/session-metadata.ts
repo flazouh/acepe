@@ -36,6 +36,16 @@ export interface SessionMetadata {
 	 */
 	readonly parentId: string | null;
 	/**
+	 * When the backend archived this session, projected from the canonical
+	 * session row's `archived_at` (see mergeProjectionSessions). Null when the
+	 * session is active. Undefined only until the first library projection
+	 * merge has run over a disk-scanned row.
+	 *
+	 * This is the single authority for archived-ness. The sidebar filters on
+	 * it (selectActiveSessions) instead of keeping a client-side hide list.
+	 */
+	readonly archivedAt?: Date | null;
+	/**
 	 * Associated pull request number when session references a PR.
 	 * Used for sidebar PR badge and opening Git panel to PR view.
 	 */

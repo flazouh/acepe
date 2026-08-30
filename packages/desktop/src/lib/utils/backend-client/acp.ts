@@ -22,6 +22,7 @@ import type {
 	SessionGraphLifecycle,
 	SessionStateEnvelope,
 } from "../../services/acp-types.js";
+import { ensureProviderSessionImported } from "./history.ts";
 import {
 	decodeEffect,
 	decodeTrimmed,
@@ -274,6 +275,24 @@ export const acp = {
 		yield* withRpcClient("acp.resumeSession", (client) =>
 			client.dispatch({
 				type: "session.resume",
+				commandId,
+				sessionId: decodedSessionId,
+			})
+		);
+	}),
+
+	// Archiving is canonical: the command writes `archived_at` on the session
+	// row and ProviderBridge answers SessionArchived by interrupting the
+	// session fiber and dropping its adapter (considerSessionRemoved). A
+	// session only ever scanned from disk has no orchestration row yet, so it
+	// is imported first -- the same idempotent step the rename path uses.
+	archiveSession: Effect.fn("acp.archiveSession")(function* (sessionId: string) {
+		yield* ensureProviderSessionImported(sessionId);
+		const decodedSessionId = yield* decodeEffect("acp.archiveSession", decodeSessionId)(sessionId);
+		const commandId = yield* nextCommandId("session-archive");
+		yield* withRpcClient("acp.archiveSession", (client) =>
+			client.dispatch({
+				type: "session.archive",
 				commandId,
 				sessionId: decodedSessionId,
 			})

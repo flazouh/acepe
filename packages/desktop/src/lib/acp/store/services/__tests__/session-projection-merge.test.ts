@@ -126,13 +126,54 @@ describe("mergeProjectionSessions", () => {
 		expect(merged[0]?.title).toBe("Renamed by another client");
 	});
 
-	it("skips archived projection rows", () => {
+	// Archived rows must stay in the union carrying the canonical fact: the
+	// disk scan that runs right after would otherwise re-add the same session
+	// with no archivedAt, and the sidebar would show it again on every
+	// restart. The sidebar filters on archivedAt instead (selectActiveSessions).
+	it("keeps an archived projection row and carries its archivedAt", () => {
 		const merged = mergeProjectionSessions(
 			[],
 			[projectedSession({ archivedAt: "2026-08-20T12:00:00.000Z" })],
 			[fakeProject]
 		);
-		expect(merged).toHaveLength(0);
+		expect(merged).toHaveLength(1);
+		expect(merged[0]?.archivedAt).toEqual(isoToDate("2026-08-20T12:00:00.000Z"));
+	});
+
+	it("stamps archivedAt onto an existing disk-scanned session", () => {
+		const merged = mergeProjectionSessions(
+			[cold()],
+			[projectedSession({ archivedAt: "2026-08-20T12:00:00.000Z" })],
+			[fakeProject]
+		);
+		expect(merged).toHaveLength(1);
+		expect(merged[0]?.archivedAt).toEqual(isoToDate("2026-08-20T12:00:00.000Z"));
+	});
+
+	it("clears archivedAt on an existing session the backend unarchived", () => {
+		const merged = mergeProjectionSessions(
+			[cold({ archivedAt: isoToDate("2026-08-20T12:00:00.000Z") })],
+			[projectedSession()],
+			[fakeProject]
+		);
+		expect(merged).toHaveLength(1);
+		expect(merged[0]?.archivedAt).toBeNull();
+	});
+
+	it("stamps archivedAt onto a session matched by its provider session id", () => {
+		const merged = mergeProjectionSessions(
+			[cold({ id: "provider-uuid" })],
+			[
+				projectedSession({
+					sessionId: SessionId.make("orchestration-id"),
+					providerSessionId: "provider-uuid",
+					archivedAt: "2026-08-20T12:00:00.000Z",
+				}),
+			],
+			[fakeProject]
+		);
+		expect(merged).toHaveLength(1);
+		expect(merged[0]?.archivedAt).toEqual(isoToDate("2026-08-20T12:00:00.000Z"));
 	});
 
 	it("skips deleted projection rows", () => {

@@ -1,15 +1,8 @@
 import * as Effect from "effect/Effect";
 import { settings } from "$lib/utils/backend-client/settings.js";
 
-export interface ArchivedSessionRef {
-	sessionId: string;
-	projectPath: string;
-	agentId: string;
-}
-
 export interface ThreadListSettings {
 	hiddenProjects: string[];
-	archivedSessions?: ArchivedSessionRef[];
 }
 
 /**
@@ -39,7 +32,6 @@ export class ThreadListSettingsService {
 			}),
 			Effect.map((loaded) => ({
 				hiddenProjects: loaded.hiddenProjects,
-				archivedSessions: loaded.archivedSessions ?? [],
 			}))
 		);
 	}
@@ -62,7 +54,6 @@ export class ThreadListSettingsService {
 
 		const newSettings: ThreadListSettings = {
 			hiddenProjects: [...hiddenSet],
-			archivedSessions: currentSettings.archivedSessions ?? [],
 		};
 
 		return this.saveSettings(newSettings).pipe(Effect.map(() => newSettings));
@@ -86,7 +77,6 @@ export class ThreadListSettingsService {
 
 		const newSettings: ThreadListSettings = {
 			hiddenProjects: [...hiddenSet],
-			archivedSessions: currentSettings.archivedSessions ?? [],
 		};
 
 		return this.saveSettings(newSettings).pipe(Effect.map(() => newSettings));

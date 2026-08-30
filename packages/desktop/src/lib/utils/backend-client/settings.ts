@@ -13,7 +13,7 @@ import * as Schema from "effect/Schema";
 import { AgentError, type AppError } from "../../acp/errors/app-error.js";
 import type { UserSettingKey } from "../../services/user-settings-types.js";
 import { decodeEffect, nextCommandId, unsupportedOnContract, withRpcClient } from "./rpc-bridge.ts";
-import type { ArchivedSessionRef, ThreadListSettings } from "./types.js";
+import type { ThreadListSettings } from "./types.js";
 
 const CUSTOM_KEYBINDINGS_HOT_CACHE_KEY = "acepe.custom_keybindings.hot_cache";
 const CUSTOM_KEYBINDINGS_HOT_CACHE_VERSION = 1;
@@ -152,34 +152,6 @@ const removeThreadListSettingsHotCacheItem = fromThrowable(
 	() => undefined
 );
 
-const normalizeArchivedSessionRefs = (
-	refs: readonly ArchivedSessionRef[] | undefined
-): ArchivedSessionRef[] | undefined => {
-	if (refs === undefined) {
-		return undefined;
-	}
-	if (!Array.isArray(refs)) {
-		return undefined;
-	}
-
-	const normalized: ArchivedSessionRef[] = [];
-	for (const ref of refs) {
-		if (
-			typeof ref.sessionId !== "string" ||
-			typeof ref.projectPath !== "string" ||
-			typeof ref.agentId !== "string"
-		) {
-			return undefined;
-		}
-		normalized.push({
-			sessionId: ref.sessionId,
-			projectPath: ref.projectPath,
-			agentId: ref.agentId,
-		});
-	}
-	return normalized;
-};
-
 const normalizeThreadListSettings = (settings: ThreadListSettings): ThreadListSettings | null => {
 	if (!Array.isArray(settings.hiddenProjects)) {
 		return null;
@@ -193,14 +165,8 @@ const normalizeThreadListSettings = (settings: ThreadListSettings): ThreadListSe
 		hiddenProjects.push(projectPath);
 	}
 
-	const archivedSessions = normalizeArchivedSessionRefs(settings.archivedSessions);
-	if (settings.archivedSessions !== undefined && archivedSessions === undefined) {
-		return null;
-	}
-
 	return {
 		hiddenProjects,
-		archivedSessions,
 	};
 };
 
@@ -357,7 +323,6 @@ export const settings = {
 		}
 		return Effect.succeed({
 			hiddenProjects: [],
-			archivedSessions: [],
 		});
 	},
 

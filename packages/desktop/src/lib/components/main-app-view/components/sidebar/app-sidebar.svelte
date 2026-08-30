@@ -24,7 +24,7 @@ import {
 	selectAttentionKind,
 	type SessionAttentionEntry,
 } from "$lib/acp/store/session-attention/index.js";
-import { getSessionArchiveStore } from "$lib/acp/store/session-archive-store.svelte.js";
+import { selectActiveSessions } from "$lib/acp/application/dto/session-archive.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import { useTheme } from "$lib/components/theme/index.js";
 import { backendClient } from "$lib/utils/backend-client/index.js";
@@ -64,7 +64,6 @@ const interactionStore = getInteractionStore();
 const unseenStore = getUnseenStore();
 const agentPreferencesStore = getAgentPreferencesStore();
 const agentStore = getAgentStore();
-const archiveStore = getSessionArchiveStore();
 const themeState = useTheme();
 
 const attentionBySessionId = $derived.by(() => {
@@ -336,24 +335,24 @@ function handleCopyTranscriptJson(sessionId: string) {
 	});
 }
 
+// Archiving dispatches the canonical command and then re-reads the library
+// projection, so the row leaves the list because `archivedAt` is set on the
+// backend -- not because the client hid it. The same read is what makes the
+// session stay gone after a restart.
 async function handleArchiveSession(session: SessionDisplayItem) {
 	await Effect.runPromise(
-		archiveStore
-			.archive({
-				sessionId: session.id,
-				projectPath: session.projectPath,
-				agentId: session.agentId,
+		backendClient.acp.archiveSession(session.id).pipe(
+			Effect.flatMap(() => sessionStore.loading.scanSessionProjections()),
+			Effect.match({
+				onSuccess: () => {
+					toast.success("Session archived");
+				},
+				onFailure: (error) => {
+					toast.error(`Failed to archive session: ${error.message}`);
+					logger.error("[ArchiveSession] Failed", { sessionId: session.id, error });
+				},
 			})
-			.pipe(
-				Effect.match({
-					onSuccess: () => {
-						toast.success("Session archived");
-					},
-					onFailure: (error) => {
-						toast.error(`Failed to archive session: ${error.message}`);
-					},
-				})
-			)
+		)
 	);
 }
 
@@ -561,16 +560,14 @@ const visibleSessions = $derived.by(() => {
 	const coldSessions = agentPreferencesStore.filterItemsBySelectedAgents(
 		sessionStore.read.getAllSessions()
 	);
-	return coldSessions
-		.filter((cold) => !archiveStore.isArchived(cold))
-		.map((cold) => {
-			const listState = sessionStore.read.getSessionListState(cold.id);
-			return buildSessionSummaryFromCold({
-				cold,
-				listState,
-				entryCount: 0,
-			});
+	return selectActiveSessions(coldSessions).map((cold) => {
+		const listState = sessionStore.read.getSessionListState(cold.id);
+		return buildSessionSummaryFromCold({
+			cold,
+			listState,
+			entryCount: 0,
 		});
+	});
 });
 </script>
 

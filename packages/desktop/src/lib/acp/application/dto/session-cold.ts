@@ -25,6 +25,7 @@ export function sessionColdFromSlices(
 		sourcePath: sessionMetadata.sourcePath,
 		sessionLifecycleState: sessionMetadata.sessionLifecycleState,
 		parentId: sessionMetadata.parentId,
+		archivedAt: sessionMetadata.archivedAt,
 		prNumber: sessionMetadata.prNumber,
 		prState: sessionMetadata.prState,
 		prLinkMode: sessionMetadata.prLinkMode,

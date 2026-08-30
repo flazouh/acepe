@@ -6,6 +6,7 @@ import {
 	MessageSentEvent,
 	ProjectCreateCommand,
 	ProjectId,
+	SessionArchiveCommand,
 	SessionCreateCommand,
 	SessionId,
 	SessionSetModelCommand,
@@ -494,6 +495,81 @@ Vitest.describe("ProviderBridge", () => {
 					// be filtered — only the command-derived MessageSent exists.
 					const messageSent = events.filter((event) => event.type === "MessageSent")
 					Vitest.assert.strictEqual(messageSent.length, 1)
+				}).pipe(
+					// @effect-diagnostics-next-line strictEffectProvide:off
+					Effect.provide(TestLive)
+				)
+			})
+		)
+	)
+
+	// Archiving is not a UI-only hide: SessionArchived must reach
+	// considerSessionRemoved, which interrupts the session fiber and drops the
+	// adapter. Proven end to end by the adapter's own stream going dead --
+	// a token offered before the archive lands in the store, a token offered
+	// after it never does, because nothing is consuming the adapter any more.
+	Vitest.it.live("releases the provider adapter when the session is archived", () =>
+		makeScriptedAdapter(fakeProviderId).pipe(
+			Effect.flatMap(({ adapter, startEvents, startSessionCount }) => {
+				const TestLive = ProviderBridgeLive.pipe(
+					Layer.provideMerge(ProviderAdapterRegistryLive([adapter])),
+					Layer.provideMerge(EngineLive)
+				)
+				return Effect.gen(function*() {
+					const engine = yield* OrchestrationEngine
+					const store = yield* OrchestrationEventStore
+					yield* engine.dispatch(
+						ProjectCreateCommand.make({
+							type: "project.create",
+							commandId: CommandId.make("cmd-project"),
+							projectId,
+							title: "Acepe",
+							workspaceRoot: "/tmp"
+						})
+					)
+					yield* engine.dispatch(
+						SessionCreateCommand.make({
+							type: "session.create",
+							commandId: CommandId.make("cmd-session"),
+							sessionId,
+							projectId,
+							title: "Archived provider session",
+							providerId: fakeProviderId
+						})
+					)
+					yield* waitUntil(Ref.get(startSessionCount), (value) => value >= 1)
+
+					// The adapter stream is live before the archive.
+					yield* Queue.offer(startEvents, scriptedToken(0, "before archive"))
+					yield* waitUntil(
+						Stream.runCollect(store.readFrom(0, 100)),
+						(collected) => collected.some((event) => event.type === "TokenAppended")
+					)
+
+					yield* engine.dispatch(
+						SessionArchiveCommand.make({
+							type: "session.archive",
+							commandId: CommandId.make("cmd-archive"),
+							sessionId
+						})
+					)
+					yield* waitUntil(
+						Stream.runCollect(store.readFrom(0, 100)),
+						(collected) => collected.some((event) => event.type === "SessionArchived")
+					)
+					// Give the bridge's own consumer fiber time to react to the
+					// event the store already holds.
+					yield* Effect.sleep(Duration.millis(500))
+
+					yield* Queue.offer(startEvents, scriptedToken(1, "after archive"))
+					yield* Effect.sleep(Duration.millis(500))
+
+					const events = yield* Stream.runCollect(store.readFrom(0, 100))
+					const tokens = events.filter((event) => event.type === "TokenAppended")
+					Vitest.assert.deepStrictEqual(
+						tokens.map((event) => (event.type === "TokenAppended" ? event.payload.token : "")),
+						["before archive"]
+					)
 				}).pipe(
 					// @effect-diagnostics-next-line strictEffectProvide:off
 					Effect.provide(TestLive)

@@ -4,8 +4,11 @@ import { buildSessionSummaryFromCold } from "$lib/acp/application/dto/session-su
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 
 import { getAgentPreferencesStore, getPanelStore, getSessionStore } from "$lib/acp/store/index.js";
-import { getSessionArchiveStore } from "$lib/acp/store/session-archive-store.svelte.js";
+import { selectArchivedSessions } from "$lib/acp/application/dto/session-archive.js";
 import { DEFAULT_PANEL_WIDTH } from "$lib/acp/store/types.js";
+import { backendClient } from "$lib/utils/backend-client/index.js";
+import * as Effect from "effect/Effect";
+import { toast } from "svelte-sonner";
 import SessionTable from "$lib/components/settings/project-tab/session-table.svelte";
 
 interface Props {
@@ -17,11 +20,12 @@ let { projectManager }: Props = $props();
 const sessionStore = getSessionStore();
 const panelStore = getPanelStore();
 const agentPreferencesStore = getAgentPreferencesStore();
-const archiveStore = getSessionArchiveStore();
 
-const allSessions = $derived.by((): SessionSummary[] => {
-	const coldSessions = agentPreferencesStore.filterItemsBySelectedAgents(
-		sessionStore.read.getAllSessions()
+// Archived-ness is read from the canonical `archivedAt` the library
+// projection carries, the same field the sidebar filters on.
+const archivedSessions = $derived.by((): SessionSummary[] => {
+	const coldSessions = selectArchivedSessions(
+		agentPreferencesStore.filterItemsBySelectedAgents(sessionStore.read.getAllSessions())
 	);
 	return coldSessions.map((cold) => {
 		const listState = sessionStore.read.getSessionListState(cold.id);
@@ -34,9 +38,6 @@ const allSessions = $derived.by((): SessionSummary[] => {
 	});
 });
 
-const archivedSessions = $derived(
-	allSessions.filter((session) => archiveStore.isArchived(session))
-);
 const projects = $derived(projectManager.projects);
 const loading = $derived(sessionStore.sessionsLoading);
 
@@ -44,12 +45,22 @@ function handleView(sessionId: string) {
 	panelStore.openSession(sessionId, DEFAULT_PANEL_WIDTH);
 }
 
+// Unarchive dispatches the canonical command, then re-reads the projection so
+// the row comes back with archivedAt cleared.
 function handleUnarchive(session: { id: string; projectPath: string; agentId: string }) {
-	archiveStore.unarchive({
-		sessionId: session.id,
-		projectPath: session.projectPath,
-		agentId: session.agentId,
-	});
+	void Effect.runPromise(
+		backendClient.acp.unarchiveSession(session.id).pipe(
+			Effect.flatMap(() => sessionStore.loading.scanSessionProjections()),
+			Effect.match({
+				onSuccess: () => {
+					toast.success("Session unarchived");
+				},
+				onFailure: (error) => {
+					toast.error(`Failed to unarchive session: ${error.message}`);
+				},
+			})
+		)
+	);
 }
 </script>
 

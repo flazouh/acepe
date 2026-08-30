@@ -262,6 +262,24 @@ describe("acp backend client", () => {
 			})
 		));
 
+	it("archiveSession dispatches session.archive", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				const dispatched: Array<Record<string, unknown>> = [];
+				setAppRpcClientForTest(
+					makeClient({
+						dispatch: (command) => {
+							dispatched.push(command as unknown as Record<string, unknown>);
+							return Effect.succeed({ sequence: 1 });
+						},
+					})
+				);
+				yield* acp.archiveSession("session-1");
+				expect(dispatched.map((command) => command.type)).toEqual(["session.archive"]);
+				expect(dispatched[0]).toMatchObject({ sessionId: "session-1" });
+			})
+		));
+
 	it("unarchiveSession dispatches session.unarchive", () =>
 		Effect.runPromise(
 			Effect.gen(function* () {

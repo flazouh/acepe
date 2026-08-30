@@ -204,13 +204,6 @@ describe("settings rpc facade", () => {
 						version: 1,
 						settings: {
 							hiddenProjects: ["/repo/cached"],
-							archivedSessions: [
-								{
-									sessionId: "session-1",
-									projectPath: "/repo/cached",
-									agentId: "claude-code",
-								},
-							],
 						},
 					})
 				);
@@ -218,13 +211,6 @@ describe("settings rpc facade", () => {
 				const loaded = yield* settings.getThreadListSettings();
 				expect(loaded).toEqual({
 					hiddenProjects: ["/repo/cached"],
-					archivedSessions: [
-						{
-							sessionId: "session-1",
-							projectPath: "/repo/cached",
-							agentId: "claude-code",
-						},
-					],
 				});
 			})
 		));
@@ -236,7 +222,6 @@ describe("settings rpc facade", () => {
 				const loaded = yield* settings.getThreadListSettings();
 				expect(loaded).toEqual({
 					hiddenProjects: [],
-					archivedSessions: [],
 				});
 			})
 		));
@@ -247,7 +232,6 @@ describe("settings rpc facade", () => {
 				setAppRpcClientForTest(makeClient({}));
 				const threadListSettings = {
 					hiddenProjects: ["/repo/new-hidden"],
-					archivedSessions: [],
 				};
 				const result = yield* Effect.result(settings.saveThreadListSettings(threadListSettings));
 				expect(Result.isSuccess(result)).toBe(true);

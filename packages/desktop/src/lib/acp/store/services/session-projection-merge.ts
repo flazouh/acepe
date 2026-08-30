@@ -55,8 +55,10 @@ function normalizeProjectionPrLinkMode(
  * new projection-only session is added with sessionLifecycleState
  * "created" (the same transient marker registerSessionPlaceholder uses),
  * so a later scanSessions rescan of its project never prunes it away --
- * see refreshSessionsFromScan's preserveTransientSession check. Skips
- * archived/deleted projection rows and rows with no resolvable provider or
+ * see refreshSessionsFromScan's preserveTransientSession check. Every row
+ * carries the canonical `archivedAt` onto the merged session, including onto
+ * a session the disk scan already found; the sidebar filters on that field.
+ * Skips deleted projection rows and rows with no resolvable provider or
  * project path -- there is no canonical fact to display. Also skips a row
  * with an unparseable timestamp (see tryIsoToDate) rather than throwing --
  * one malformed session must not blank every project's projection-only
@@ -74,12 +76,19 @@ export function mergeProjectionSessions(
 	const merged = [...existingSessions];
 
 	for (const projected of projectedSessions) {
-		if (projected.deletedAt !== null || projected.archivedAt !== null) {
+		if (projected.deletedAt !== null) {
 			continue;
 		}
 		if (projected.provider === null) {
 			continue;
 		}
+		// Archived is a canonical fact carried on the row, never a reason to
+		// drop it here: the disk scan runs right after this union and would
+		// re-add the same session with no archivedAt, so an archived session
+		// would come back on every restart. The sidebar filters on archivedAt
+		// (selectActiveSessions) and the settings archive list reads the same
+		// field, so both surfaces agree with the backend.
+		const archivedAt = projected.archivedAt === null ? null : tryIsoToDate(projected.archivedAt);
 		const projectPath = workspaceRootByProjectId.get(projected.projectId);
 		if (projectPath === undefined) {
 			continue;
@@ -87,20 +96,21 @@ export function mergeProjectionSessions(
 
 		const existing = existingSessionsMap.get(projected.sessionId);
 		if (existing !== undefined) {
-			const projectedUpdatedAt = tryIsoToDate(projected.updatedAt);
-			if (projectedUpdatedAt === null) {
+			const index = merged.findIndex((session) => session.id === existing.id);
+			if (index === -1) {
 				continue;
 			}
-			if (projectedUpdatedAt.getTime() > existing.updatedAt.getTime()) {
-				const index = merged.findIndex((session) => session.id === existing.id);
-				if (index !== -1) {
-					merged[index] = {
-						...existing,
-						title: projected.title,
-						updatedAt: projectedUpdatedAt,
-					};
-				}
-			}
+			const projectedUpdatedAt = tryIsoToDate(projected.updatedAt);
+			// Title only wins when the projection row is strictly newer;
+			// archivedAt always wins, because the row is its only source.
+			const titleWins =
+				projectedUpdatedAt !== null && projectedUpdatedAt.getTime() > existing.updatedAt.getTime();
+			merged[index] = {
+				...existing,
+				title: titleWins ? projected.title : existing.title,
+				updatedAt: titleWins ? projectedUpdatedAt : existing.updatedAt,
+				archivedAt,
+			};
 			continue;
 		}
 
@@ -134,6 +144,7 @@ export function mergeProjectionSessions(
 					...aliasedExisting,
 					title: titleWins ? projected.title : aliasedExisting.title,
 					updatedAt: titleWins ? projectedUpdatedAt : aliasedExisting.updatedAt,
+					archivedAt,
 					prNumber: mergedPrNumber,
 					prLinkMode: mergedPrLinkMode,
 					linkedPr:
@@ -174,6 +185,7 @@ export function mergeProjectionSessions(
 			updatedAt,
 			sessionLifecycleState: "created",
 			parentId: null,
+			archivedAt,
 			prNumber: projected.prNumber ?? undefined,
 			prLinkMode: normalizeProjectionPrLinkMode(projected.prNumber, projected.prLinkMode),
 			linkedPr:
