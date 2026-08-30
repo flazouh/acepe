@@ -129,14 +129,10 @@ export class SessionEventService {
 	private telemetryIntervalId: ReturnType<typeof setInterval> | null = null;
 	private telemetryWindowStartMs = Date.now();
 	private telemetryEventCount = 0;
-	private telemetryDisconnectedDrops = 0;
 	private telemetryMaxPendingBacklog = 0;
 	private telemetryMaxReplayChunkDurationMs = 0;
 	private telemetryMaxReplayChunkSize = 0;
-	private telemetryLastWarnAt = new SvelteMap<
-		"events" | "chunk" | "backlog" | "disconnected",
-		number
-	>();
+	private telemetryLastWarnAt = new SvelteMap<"events" | "chunk" | "backlog", number>();
 
 	// Callbacks for permission/question handling
 	private callbacks: SessionEventServiceCallbacks = {};
@@ -446,16 +442,6 @@ export class SessionEventService {
 		return handler.getSessionIdentity(sessionId) !== undefined;
 	}
 
-	private ensureKnownOrPendingCreationSession(
-		handler: SessionEventHandler,
-		sessionId: string
-	): boolean {
-		if (this.hasKnownSession(handler, sessionId)) {
-			return true;
-		}
-		return handler.materializePendingCreationSession?.(sessionId) === true;
-	}
-
 	private advanceConnectionMaterializationWaiter(envelope: SessionStateEnvelope): void {
 		const waiter = this.connectionMaterializationWaiters.get(envelope.sessionId);
 		if (!waiter || envelope.graphRevision <= waiter.minGraphRevision) {
@@ -565,7 +551,6 @@ export class SessionEventService {
 		}
 		this.telemetryWindowStartMs = Date.now();
 		this.telemetryEventCount = 0;
-		this.telemetryDisconnectedDrops = 0;
 		this.telemetryMaxPendingBacklog = 0;
 		this.telemetryMaxReplayChunkDurationMs = 0;
 		this.telemetryMaxReplayChunkSize = 0;
@@ -580,7 +565,6 @@ export class SessionEventService {
 					intervalMs: elapsedMs,
 					eventsPerSecond: Number(eventsPerSecond.toFixed(2)),
 					events: this.telemetryEventCount,
-					disconnectedDrops: this.telemetryDisconnectedDrops,
 					maxPendingBacklog: this.telemetryMaxPendingBacklog,
 					maxReplayChunkDurationMs: Number(this.telemetryMaxReplayChunkDurationMs.toFixed(2)),
 					maxReplayChunkSize: this.telemetryMaxReplayChunkSize,
@@ -597,7 +581,6 @@ export class SessionEventService {
 
 			this.telemetryWindowStartMs = now;
 			this.telemetryEventCount = 0;
-			this.telemetryDisconnectedDrops = 0;
 			this.telemetryMaxPendingBacklog = 0;
 			this.telemetryMaxReplayChunkDurationMs = 0;
 			this.telemetryMaxReplayChunkSize = 0;
@@ -616,7 +599,7 @@ export class SessionEventService {
 	}
 
 	private warnWithCooldown(
-		key: "events" | "chunk" | "backlog" | "disconnected",
+		key: "events" | "chunk" | "backlog",
 		message: string,
 		data: Record<string, unknown>
 	): void {
