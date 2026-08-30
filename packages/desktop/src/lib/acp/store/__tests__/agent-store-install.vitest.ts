@@ -80,7 +80,7 @@ describe("AgentStore installAgent", () => {
 		});
 	});
 
-	it("returns failure without refreshing availability and clears install progress", async () => {
+	it("returns failure without refreshing availability and clears the in-flight mark", async () => {
 		const installError = new AgentError("install claude-code");
 		mocks.installAgent.mockReturnValue(Effect.fail(installError));
 
@@ -95,6 +95,26 @@ describe("AgentStore installAgent", () => {
 		expect(store.isInstalling("claude-code")).toBe(false);
 		expect(mocks.toastError).toHaveBeenCalledWith(
 			"Failed to install agent: Agent operation failed: install claude-code"
+		);
+	});
+
+	it("puts the backend's own reason in the toast, not the operation wrapper", async () => {
+		// AgentError's message only names the operation. The reason the
+		// install failed rides in its cause, and that is what the operator
+		// has to read to know what to do about it.
+		const installError = new AgentError(
+			"acp.installAgent",
+			new Error(
+				"agent.install failed: Agent 'claude-code' has no binary distribution for platform 'darwin-aarch64'."
+			)
+		);
+		mocks.installAgent.mockReturnValue(Effect.fail(installError));
+
+		const store = new AgentStore();
+		await Effect.runPromise(Effect.result(store.installAgent("claude-code")));
+
+		expect(mocks.toastError).toHaveBeenCalledWith(
+			"Failed to install agent: agent.install failed: Agent 'claude-code' has no binary distribution for platform 'darwin-aarch64'."
 		);
 	});
 

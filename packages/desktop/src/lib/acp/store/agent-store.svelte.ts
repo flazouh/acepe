@@ -11,6 +11,7 @@ import { getContext, setContext } from "svelte";
 import { toast } from "svelte-sonner";
 
 import type { AppError } from "../errors/app-error.js";
+import { rootCauseMessage } from "../errors/error-cause-details.js";
 import { createLogger } from "../utils/logger.js";
 import { type AgentInfo, api } from "./api.js";
 import type { Agent } from "./types.js";
@@ -96,7 +97,7 @@ export class AgentStore {
 			}),
 			Effect.mapError((error) => {
 				logger.error("Failed to install agent", error);
-				toast.error(`Failed to install agent: ${error.message}`);
+				toast.error(`Failed to install agent: ${rootCauseMessage(error)}`);
 				delete this.installing[agentId];
 				return error;
 			})
@@ -116,7 +117,7 @@ export class AgentStore {
 			this.agents = result.success.map(toAgent);
 		} else {
 			logger.error("Failed to uninstall agent", result.failure);
-			toast.error(`Failed to uninstall agent: ${result.failure.message}`);
+			toast.error(`Failed to uninstall agent: ${rootCauseMessage(result.failure)}`);
 		}
 	}
 

@@ -2,6 +2,7 @@
 import { AgentInputAgentSelector } from "@acepe/ui";
 import * as Effect from "effect/Effect";
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
+import { rootCauseMessage } from "../errors/error-cause-details.js";
 import { getAgentPreferencesStore, getAgentStore } from "../store/index.js";
 import type { AgentAvailabilityKind } from "../store/types.js";
 import { capitalizeName } from "../utils/index.js";
@@ -53,6 +54,13 @@ const agentStore = getAgentStore();
 const preconnectionCapabilitiesState = new PreconnectionCapabilitiesState();
 const defaultAgentId = $derived(agentPreferencesStore.defaultAgentId);
 
+// The backend's failure messages end in a period of their own, and the
+// retry sentence adds one, so the row read "...refusing to download.. Click
+// to retry.".
+function withoutTrailingPeriod(message: string): string {
+	return message.endsWith(".") ? message.slice(0, -1) : message;
+}
+
 const agentItems = $derived(
 	availableAgents.map((agent) => {
 		const installInFlight = agentStore.isInstalling(agent.id);
@@ -72,7 +80,7 @@ const agentItems = $derived(
 			installing: setupPending || (readiness === null && installInFlight),
 			installError:
 				readiness?.status === "failed"
-					? `Agent setup failed: ${readiness.message}. Click to retry.`
+					? `Agent setup failed: ${withoutTrailingPeriod(readiness.message)}. Click to retry.`
 					: null,
 		};
 	})
@@ -113,7 +121,7 @@ function handleAgentInstall(agentId: string): void {
 					agentStore.completeAgentInstallationReadiness(agentId);
 				},
 				onFailure: (error) => {
-					agentStore.failAgentInstallationReadiness(agentId, error.message);
+					agentStore.failAgentInstallationReadiness(agentId, rootCauseMessage(error));
 				},
 			})
 		)

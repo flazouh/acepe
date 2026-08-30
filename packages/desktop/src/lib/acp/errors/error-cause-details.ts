@@ -81,3 +81,15 @@ export function getErrorCauseDetails(error: Error): ErrorCauseDetails {
 export function formatErrorWithCauses(error: Error): string {
 	return getErrorCauseDetails(error).formatted;
 }
+
+/**
+ * The deepest message in the cause chain, or the error's own when it has no
+ * cause. Use it where the operator needs the reason and not the wrapper: an
+ * AgentError's own message only names the operation it was doing
+ * ("Agent operation failed: acp.installAgent"), while the reason the backend
+ * gave -- no binary for this platform, a checksum that does not match --
+ * sits underneath it.
+ */
+export function rootCauseMessage(error: Error): string {
+	return getErrorCauseDetails(error).rootCause ?? error.message;
+}
