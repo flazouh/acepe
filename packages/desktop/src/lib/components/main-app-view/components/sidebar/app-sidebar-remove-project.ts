@@ -26,17 +26,22 @@ export interface RemoveProjectPanels {
 	removeWorkspacePanelsForProject(projectPath: string): void;
 }
 
+/**
+ * The two producers of this failure disagree on the concrete class
+ * (`ProjectError` through the project manager, `AppError` through the rpc
+ * facade), and this action only ever reports the message.
+ */
 export interface RemoveProjectFailure {
 	readonly message: string;
 }
 
-export interface RemoveProjectInput<E extends RemoveProjectFailure> {
+export interface RemoveProjectInput {
 	readonly projectPath: string;
 	/** Canonical session ids the projection currently lists for this project. */
 	readonly openSessionIds: readonly string[];
 	readonly panels: RemoveProjectPanels;
-	readonly removeProject: (projectPath: string) => Effect.Effect<void, E>;
-	readonly onFailure: (error: E) => void;
+	readonly removeProject: (projectPath: string) => Effect.Effect<void, RemoveProjectFailure>;
+	readonly onFailure: (error: RemoveProjectFailure) => void;
 }
 
 const closeProjectPanels = (
@@ -59,9 +64,7 @@ const closeProjectPanels = (
 	panels.removeWorkspacePanelsForProject(projectPath);
 };
 
-export const removeProjectFromSidebar = <E extends RemoveProjectFailure>(
-	input: RemoveProjectInput<E>
-): Effect.Effect<void> => {
+export const removeProjectFromSidebar = (input: RemoveProjectInput): Effect.Effect<void> => {
 	closeProjectPanels(input.panels, input.projectPath, input.openSessionIds);
 
 	return input.removeProject(input.projectPath).pipe(

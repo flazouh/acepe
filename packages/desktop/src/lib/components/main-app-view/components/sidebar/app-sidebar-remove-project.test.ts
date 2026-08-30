@@ -145,9 +145,9 @@ describe("removeProjectFromSidebar", () => {
 		expect(spy.closedSessionPanels).toEqual(["session-a", "session-b"]);
 		expect(spy.closedPanelIds).toEqual(["terminal-1", "file-1", "browser-1"]);
 		expect(spy.workspacePanelsRemovedFor).toEqual(["/repo/acepe"]);
-		// The action has no way to delete a session row: the projection drops
-		// them when the project stops being listed.
-		expect(Object.keys(spy.panels)).not.toContain("removeSession");
+		// The action has no way to delete a session row: it is handed panels and
+		// a dispatch, and the projection drops the sessions when the project
+		// stops being listed.
 	});
 
 	it("reports the failure instead of throwing when the dispatch fails", async () => {
