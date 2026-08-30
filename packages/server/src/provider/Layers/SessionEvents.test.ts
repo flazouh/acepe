@@ -28,7 +28,8 @@ const startInfo: OpenToolCallInfo = {
 	activityId: toolCallActivityId("call_1"),
 	title: "Read file",
 	path: "/tmp/acepe/a.ts",
-	kind: "read"
+	kind: "read",
+	toolInput: { file_path: "/tmp/acepe/a.ts" }
 }
 
 const emptyOpenToolCalls: Effect.Effect<OpenToolCalls> = Ref.make(
@@ -59,7 +60,8 @@ Vitest.describe("SessionEvents tool call identity", () => {
 				activityId: toolCallActivityId("call_9"),
 				title: FALLBACK_TOOL_TITLE,
 				path: null,
-				kind: null
+				kind: null,
+				toolInput: null
 			})
 		})
 	)

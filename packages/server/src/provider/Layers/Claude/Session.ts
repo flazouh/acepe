@@ -310,7 +310,8 @@ const publishToolCallStarted = Effect.fn("ClaudeAdapter.publishToolCallStarted")
 		activityId,
 		title: fact.title,
 		path,
-		kind: fact.kind
+		kind: fact.kind,
+		toolInput: fact.rawInput
 	})
 	const header = yield* stamp(runtime)
 	return yield* offerOutbound(
@@ -459,6 +460,10 @@ const publishToolCallUpdated = Effect.fn("ClaudeAdapter.publishToolCallUpdated")
 			// so this confirms rather than overwrites -- but passing it keeps
 			// the completion event self-describing.
 			kind: info.kind,
+			// The arguments, from the same cache and for the same reason. A
+			// client that rebuilds the row from the latest observation showed
+			// a Bash row with no command as soon as the call settled.
+			toolInput: info.toolInput,
 			// #273: the tool's result, read out of the tool_result block's
 			// content by Map.ts's toolResultUpdateFact. Deliberately not
 			// fact.partialJson: that one is the streaming INPUT arguments of

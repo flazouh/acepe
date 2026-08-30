@@ -571,6 +571,14 @@ Vitest.describe("ClaudeAdapter", () => {
 				// reads -- a Bash row used to render as a bare title with no
 				// command and no output under it.
 				Vitest.assert.strictEqual(completed.payload.output, "{\"name\":\"acepe\"}")
+				// The settling event repeats the arguments the start recorded,
+				// for the same reason it repeats title, path and kind: a client
+				// that rebuilds the tool row from the latest observation would
+				// otherwise lose the command or the proposed content the moment
+				// the call completes.
+				Vitest.assert.deepStrictEqual(completed.payload.input, {
+					file_path: "/tmp/acepe/package.json"
+				})
 				yield* adapter.cancelTurn({ sessionId })
 			})
 	)

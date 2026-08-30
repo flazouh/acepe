@@ -49,6 +49,12 @@ export type OpenToolCallInfo = {
 	// classifies the call; the projector keeps the first non-null kind, so
 	// this only ever confirms what the start already recorded.
 	readonly kind: string | null
+	// The tool's own arguments, cached for the same reason as kind and proved
+	// necessary live: a client that rebuilds a tool row from the LATEST
+	// observation (the desktop bridge does) dropped the Bash command and the
+	// Edit's proposed content the moment the call settled, because only the
+	// start event carried them. A settling event now repeats them.
+	readonly toolInput: Schema.JsonObject | null
 }
 
 // Keyed by the provider's own tool call id.
@@ -113,7 +119,8 @@ export const takeOpenToolCall = Effect.fn("SessionEvents.takeOpenToolCall")(func
 			activityId: toolCallActivityId(toolCallId),
 			title: FALLBACK_TOOL_TITLE,
 			path: null,
-			kind: null
+			kind: null,
+			toolInput: null
 		})
 	)
 })

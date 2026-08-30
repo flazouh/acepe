@@ -265,7 +265,12 @@ const publishToolCallStarted = Effect.fn("CodexAdapter.publishToolCallStarted")(
 		activityId,
 		title: fact.title,
 		path,
-		kind: fact.kind
+		kind: fact.kind,
+		// Claude is the only provider widened to carry a tool call's
+		// arguments so far (see its publishToolCallStarted); this one does not
+		// read them off its own fact yet, so nothing is cached to repeat on
+		// the settling event.
+		toolInput: null
 	})
 	const header = yield* stamp(runtime)
 	return yield* offerOutbound(
