@@ -127,9 +127,10 @@ export class SessionListState {
 			sourcePath: session.sourcePath,
 			sessionLifecycleState: session.sessionLifecycleState,
 			parentId: session.parentId,
-			// Carried, not dropped: getSessionCold rebuilds a row out of this
-			// slice, so leaving archivedAt out reported every archived session
-			// as active to every reader that goes through it.
+			// Every field of the slice, deliberately: getSessionCold rebuilds a
+			// whole row out of this copy, so a field left out here is reported
+			// as absent by a method whose type promises it. archivedAt was
+			// missing, and every archived session read back as active.
 			archivedAt: session.archivedAt,
 			prNumber: session.prNumber,
 			prState: session.prState,
@@ -137,6 +138,7 @@ export class SessionListState {
 			linkedPr: session.linkedPr,
 			worktreeDeleted: session.worktreeDeleted,
 			sequenceId: session.sequenceId,
+			usageStats: session.usageStats,
 		};
 	}
 
